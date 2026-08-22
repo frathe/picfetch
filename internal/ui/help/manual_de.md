@@ -596,9 +596,13 @@ benötigen in beiden Fällen nichts Zusätzliches.
   `R`/`Shift+R` vorgenommene Drehung in die Ursprungsdatei zurück, in deren
   eigenem Format. Ausgegraut, solange es keine Drehung zu speichern gibt;
   nicht verfügbar für Animationen und für Formate, die PicFetch lesen,
-  aber nicht schreiben kann (WebP, HEIC, ICO, XPM, SVG). Die Originaldatei wird
-  dabei ersetzt und neu kodiert statt bearbeitet, EXIF-Metadaten bleiben
-  also nicht erhalten
+  aber nicht schreiben kann (WebP, HEIC, ICO, XPM, SVG). Dabei wird die
+  Originaldatei ersetzt und neu kodiert. Bei JPEG kopiert PicFetch die
+  Metadaten der Originaldatei (EXIF, einschließlich Kamera/Datum/GPS, sowie
+  XMP, ICC und IPTC, falls vorhanden) in die neue Datei und setzt das
+  Orientierungs-Tag auf 1, weil die Pixel bereits sowohl die Kameraorientierung
+  als auch die soeben gespeicherte Drehung enthalten. Ein in EXIF gespeichertes
+  JPEG-Vorschaubild wird entfernt, damit es nicht das ungedrehte Foto zeigt
 - **Datei -> Bild exportieren** (`Cmd/Strg+E`) — fragt über eine
   tastaturbedienbare Abfrage nach dem gewünschten Format, in
   derselben Form wie die Lösch-Bestätigung: **`←`**/**`→`** wählt zwischen
@@ -610,7 +614,9 @@ benötigen in beiden Fällen nichts Zusätzliches.
   HEIC-Dateien und für ein einzelnes Bild eines animierten GIFs, und die
   Originaldatei bleibt unangetastet. Endet der von Ihnen eingegebene Name
   bereits auf ein Format, das PicFetch schreiben kann, hat dieses Vorrang
-  vor dem in der Abfrage gewählten Format
+  vor dem in der Abfrage gewählten Format. Ein als JPEG exportiertes JPEG
+  behält dieselben Metadaten wie „Änderungen speichern“; ein aus einem
+  anderen Format exportiertes JPEG oder jeder PNG-Export enthält keine Metadaten
 - **Datei -> Als Hintergrundbild festlegen** (`Cmd/Strg+Shift+E`) — macht
   das angezeigte Bild zum Hintergrundbild des Schreibtischs, genau so, wie
   es gerade aussieht. PicFetch legt dafür eine eigene Kopie im

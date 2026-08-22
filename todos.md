@@ -73,15 +73,20 @@ pending", which a Signal (monotonic, never un-begins) can't express.
 N-goroutine `sync.WaitGroup` waits — `Signal` is a one-shot, not a shape that
 generalizes to "wait out however many goroutines happen to be in flight".
 
+### 6. Preserve JPEG metadata on Save Changes and JPEG export
+
+Rotated JPEG saves and JPEG exports from a JPEG source no longer drop EXIF
+and other APP-segment metadata. `internal/imaging/jpegexif.go` re-reads the
+source file, splices COM/APPn segments after SOI (skipping JFIF APP0 and MPF
+APP2), sets Exif Orientation to 1, and unlinks IFD1 so a stale thumbnail
+cannot show the unrotated photo. `SaveRotated` uses this on JPEG save;
+`Export` uses it when both source and destination are JPEG (`internal/ui/export.go`
+passes the source URI; wallpaper passes nil). Other formats and PNG exports
+remain a plain re-encode with no metadata carry-over.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Bug: When saving a rotated image the EXIF data is not being preserved
-
-When saving a rotated image, the EXIF data is not being preserved. This is
-because the `image/jpeg` package does not preserve EXIF data when decoding and
-encoding.
 
 ### Feature: Button in the exit window: Remove Metadata from file
 This would remove the EXIF data from the file. A confirmation dialog would be

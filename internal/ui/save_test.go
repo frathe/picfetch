@@ -158,6 +158,41 @@ func TestSaveRotation_WritesRotatedPixelsAndResetsState(t *testing.T) {
 	settleToast(t, v) // saveRotation shows a "Saved" toast
 }
 
+// TestSaveRotation_PreservesJPEGExif is the viewer-path twin of imaging's
+// SaveRotated GPS-keep test: Save Changes re-encodes the rotated pixels
+// (8x4 → 4x8) without dropping the source JPEG's GPS Exif.
+func TestSaveRotation_PreservesJPEGExif(t *testing.T) {
+	v := newTestViewer(t)
+	data := uitest.GPSJPEG(t, 8, 4, 48.858, 2.294)
+	path := uitest.WriteTempFile(t, "geo.jpg", data)
+	u := storage.NewFileURI(path)
+	dropAndWait(t, v, u)
+
+	if !v.currentHasEXIF {
+		t.Fatal("setup: GPSJPEG should set currentHasEXIF")
+	}
+
+	v.rotateBy(1) // 8x4 → 4x8
+	v.saveRotation()
+	settleToast(t, v)
+
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !imaging.ReadMetadata(saved).HasGPS {
+		t.Fatal("Save Changes dropped GPS Exif")
+	}
+
+	loaded, err := imaging.LoadImage(u, imaging.DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := loaded.Frames[0].Bounds(); b.Dx() != 4 || b.Dy() != 8 {
+		t.Errorf("saved bounds = %v, want 4x8", b)
+	}
+}
+
 func TestSaveRotation_NoOpWhenNothingToSave(t *testing.T) {
 	v := newTestViewer(t)
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)

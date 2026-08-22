@@ -5,9 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 func TestCanEncode(t *testing.T) {
@@ -93,6 +96,46 @@ func TestSaveRotated(t *testing.T) {
 					t.Errorf("(%d,%d) = (%d,%d), want (%d,%d)", x, y, c.R, c.G, x, y)
 				}
 			}
+		}
+	})
+
+	t.Run("JPEG keeps Exif and does not double-apply orientation on reload", func(t *testing.T) {
+		orig := halfRedHalfBlueJPEG(t, 20, 10, 6)
+		path := writeTempFile(t, "rotated.jpg", orig)
+		u := storage.NewFileURI(path)
+
+		loaded, err := LoadImage(u, DefaultImgCacheBytes)
+		if err != nil {
+			t.Fatalf("load original: %v", err)
+		}
+		oriented := loaded.Frames[0]
+		if b := oriented.Bounds(); b.Dx() != 10 || b.Dy() != 20 {
+			t.Fatalf("oriented bounds = %v, want 10x20", b)
+		}
+
+		if err := SaveRotated(u, oriented); err != nil {
+			t.Fatalf("SaveRotated: %v", err)
+		}
+
+		saved, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if jpegEXIFOrientation(saved) != 1 {
+			t.Errorf("saved orientation tag = %d, want 1", jpegEXIFOrientation(saved))
+		}
+		hasExif := slices.ContainsFunc(jpegMetadataSegments(saved), isExifAPP1)
+		if !hasExif {
+			t.Fatal("saved JPEG lost Exif APP1")
+		}
+
+		reloaded, err := LoadImage(u, DefaultImgCacheBytes)
+		if err != nil {
+			t.Fatalf("reload: %v", err)
+		}
+		b := reloaded.Frames[0].Bounds()
+		if b.Dx() != 10 || b.Dy() != 20 {
+			t.Errorf("reloaded bounds = %v, want 10x20 (must not apply orientation 6 again)", b)
 		}
 	})
 
@@ -203,7 +246,7 @@ func TestExport(t *testing.T) {
 				dest := filepath.Join(t.TempDir(), "copy"+ext)
 
 				const w, h = 4, 3
-				if err := Export(storage.NewFileURI(dest), markedImage(w, h)); err != nil {
+				if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil); err != nil {
 					t.Fatalf("Export: %v", err)
 				}
 
@@ -226,7 +269,7 @@ func TestExport(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "from-a-webp.png")
 
 		const w, h = 3, 2
-		if err := Export(storage.NewFileURI(dest), markedImage(w, h)); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil); err != nil {
 			t.Fatalf("Export: %v", err)
 		}
 
@@ -248,7 +291,7 @@ func TestExport(t *testing.T) {
 		dest := writeTempFile(t, "existing.png", []byte("placeholder, never read back"))
 
 		const w, h = 5, 2
-		if err := Export(storage.NewFileURI(dest), markedImage(w, h)); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil); err != nil {
 			t.Fatalf("Export: %v", err)
 		}
 
@@ -267,7 +310,7 @@ func TestExport(t *testing.T) {
 	t.Run("unsupported destination format writes nothing at all", func(t *testing.T) {
 		dir := t.TempDir()
 
-		if err := Export(storage.NewFileURI(filepath.Join(dir, "copy.webp")), markedImage(2, 2)); err == nil {
+		if err := Export(storage.NewFileURI(filepath.Join(dir, "copy.webp")), markedImage(2, 2), nil); err == nil {
 			t.Fatal("Export: want error for a format with no encoder, got nil")
 		}
 
@@ -284,7 +327,7 @@ func TestExport(t *testing.T) {
 		original := []byte("the previous copy, which a failed export must not damage")
 		dest := writeTempFile(t, "copy.webp", original)
 
-		if err := Export(storage.NewFileURI(dest), markedImage(2, 2)); err == nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), nil); err == nil {
 			t.Fatal("Export: want error for a format with no encoder, got nil")
 		}
 
@@ -294,6 +337,149 @@ func TestExport(t *testing.T) {
 		}
 		if string(got) != string(original) {
 			t.Error("Export modified the destination despite returning an error")
+		}
+	})
+}
+
+func TestExport_JPEGSourceKeepsMetadataOnJPEGDest(t *testing.T) {
+	srcPath := writeTempFile(t, "geo.jpg", uitest.GPSJPEG(t, 8, 4, 48.858, 2.294))
+	src := storage.NewFileURI(srcPath)
+
+	t.Run("jpeg dest", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "copy.jpg")
+		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), src); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ReadMetadata(got).HasGPS {
+			t.Fatal("JPEG→JPEG export dropped GPS")
+		}
+	})
+
+	t.Run("png dest stays a PNG without JPEG APPn", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "copy.png")
+		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), src); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) < 4 || string(got[:4]) != "\x89PNG" {
+			t.Fatal("PNG export must still be a PNG")
+		}
+		if jpegMetadataSegments(got) != nil {
+			t.Fatal("PNG export must not carry JPEG segments")
+		}
+	})
+
+	t.Run("nil src still encodes", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "bare.jpg")
+		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), nil); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if segs := jpegMetadataSegments(got); len(segs) != 0 {
+			t.Errorf("nil src invented %d metadata segments", len(segs))
+		}
+	})
+
+	t.Run("non-JPEG src to JPEG dest still encodes without splicing", func(t *testing.T) {
+		pngSrc := storage.NewFileURI(writeTempFile(t, "source.png", uitest.EncodePNG(t, 4, 3, color.White)))
+		dest := filepath.Join(t.TempDir(), "copy.jpg")
+		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), pngSrc); err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) < 2 || got[0] != 0xFF || got[1] != 0xD8 {
+			t.Fatal("JPEG dest must still start with SOI")
+		}
+		if segs := jpegMetadataSegments(got); len(segs) != 0 {
+			t.Errorf("non-JPEG src spliced %d segments into JPEG dest", len(segs))
+		}
+	})
+
+	t.Run("unreadable src still encodes", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "copy.jpg")
+		missing := storage.NewFileURI(filepath.Join(t.TempDir(), "gone.jpg"))
+		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), missing); err != nil {
+			t.Fatalf("unreadable src must not fail export: %v", err)
+		}
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if segs := jpegMetadataSegments(got); len(segs) != 0 {
+			t.Errorf("unreadable src invented %d metadata segments", len(segs))
+		}
+	})
+}
+
+// TestJpegFileBytes covers jpegFileBytes on its own: the magic-byte peek
+// Export relies on to decide whether a source is worth reading in full,
+// independent of the source's file extension.
+func TestJpegFileBytes(t *testing.T) {
+	t.Run("JPEG magic returns the full contents", func(t *testing.T) {
+		data := uitest.EncodeJPEG(t, 4, 3, color.White)
+		path := writeTempFile(t, "photo.jpg", data)
+
+		got, err := jpegFileBytes(path)
+		if err != nil {
+			t.Fatalf("jpegFileBytes: %v", err)
+		}
+		if string(got) != string(data) {
+			t.Error("jpegFileBytes did not return the full file contents")
+		}
+	})
+
+	t.Run("non-JPEG magic returns nil, nil without an error", func(t *testing.T) {
+		path := writeTempFile(t, "photo.png", uitest.EncodePNG(t, 4, 3, color.White))
+
+		got, err := jpegFileBytes(path)
+		if err != nil {
+			t.Fatalf("jpegFileBytes: %v", err)
+		}
+		if got != nil {
+			t.Errorf("jpegFileBytes(png) = %d bytes, want nil", len(got))
+		}
+	})
+
+	t.Run("JPEG content wins over a non-JPEG extension", func(t *testing.T) {
+		path := writeTempFile(t, "mislabeled.png", uitest.EncodeJPEG(t, 4, 3, color.White))
+
+		got, err := jpegFileBytes(path)
+		if err != nil {
+			t.Fatalf("jpegFileBytes: %v", err)
+		}
+		if got == nil {
+			t.Error("jpegFileBytes(mislabeled JPEG) = nil, want contents")
+		}
+	})
+
+	t.Run("too short to hold a magic number", func(t *testing.T) {
+		path := writeTempFile(t, "truncated.jpg", []byte{0xFF})
+
+		got, err := jpegFileBytes(path)
+		if err != nil {
+			t.Fatalf("jpegFileBytes: %v", err)
+		}
+		if got != nil {
+			t.Errorf("jpegFileBytes(1 byte) = %d bytes, want nil", len(got))
+		}
+	})
+
+	t.Run("missing file returns an error", func(t *testing.T) {
+		if _, err := jpegFileBytes(filepath.Join(t.TempDir(), "gone.jpg")); err == nil {
+			t.Fatal("jpegFileBytes: want error for a missing file, got nil")
 		}
 	})
 }

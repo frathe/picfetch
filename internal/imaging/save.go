@@ -49,6 +49,15 @@ func encodeJPEGForSave(w io.Writer, img image.Image) error {
 	return jpeg.Encode(w, img, &jpeg.Options{Quality: jpegSaveQuality})
 }
 
+func isJPEGExt(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".jpg", ".jpeg", ".jpe", ".jfif":
+		return true
+	default:
+		return false
+	}
+}
+
 // CanEncode reports whether SaveRotated has an encoder for u's format, so a
 // caller (internal/ui's canSaveRotation) can decide whether to offer saving
 // at all instead of finding out only after attempting it. It resolves a
@@ -75,9 +84,9 @@ func CanEncodeExt(ext string) bool {
 // SaveRotated writes img - a caller's already-rotated, already-oriented
 // frame, typically internal/ui's v.img.Image - back to u, re-encoded in the
 // target file's format, replacing the file's previous contents.
-// Encoding a fresh raster this way (rather than patching the original
-// bytes) does not preserve any Exif metadata the original file carried -
-// SaveRotated is a plain pixel round-trip, not a metadata-preserving edit.
+// For JPEG, SaveRotated copies the original metadata segments onto the
+// re-encoded file with Exif Orientation reset to 1. Other formats still
+// do not carry metadata.
 //
 // It resolves a symlink before writing, so saving an image opened through a
 // link updates the target instead of replacing the link itself, and the
@@ -95,6 +104,16 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 		return &UnsupportedSaveFormatError{ext: ext}
 	}
 
+	if isJPEGExt(ext) {
+		orig, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		encode = func(w io.Writer, img image.Image) error {
+			return encodeJPEGPreservingMetadata(w, img, orig)
+		}
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -108,32 +127,71 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 // opens at 0600, so writeEncoded has to be told the mode either way.
 const defaultExportPerm = 0o644
 
-// Export writes img to u as a new file, encoded in *u's* format rather than
-// the source image's - the File > "Export as…" actions, and the one way to
-// get pixels out of a file this module can decode but not encode (WebP,
-// HEIC) or out of a single frame of an animation. Like SaveRotated it is a
-// plain pixel round-trip that carries no Exif metadata across.
+// Export writes img to dest, encoded in dest's format. src is the file
+// the pixels came from and may be nil. When dest is JPEG and src is a
+// readable JPEG, dest receives a normalized copy of src's metadata
+// segments (same rules as SaveRotated). A read failure on src does not
+// fail the export: pixels are written without metadata.
 //
 // The destination's extension alone picks the encoder: unlike SaveRotated,
-// no symlink is resolved first, since u is a destination the user just
+// no symlink is resolved first, since dest is a destination the user just
 // named rather than a file already open in the viewer, and the format they
 // typed is the format they asked for. An existing destination is replaced
 // (keeping its own permission bits), atomically, by the same
 // temp-file-then-rename writeEncoded gives SaveRotated - so an export over
 // a previous copy cannot damage it if the encode fails partway.
-func Export(u fyne.URI, img image.Image) error {
-	ext := u.Extension()
+func Export(dest fyne.URI, img image.Image, src fyne.URI) error {
+	ext := dest.Extension()
 	encode, ok := encoders[strings.ToLower(ext)]
 	if !ok {
 		return &UnsupportedSaveFormatError{ext: ext}
 	}
-	path := u.Path()
+	path := dest.Path()
 	perm := os.FileMode(defaultExportPerm)
 	if info, err := os.Stat(path); err == nil {
 		perm = info.Mode().Perm()
 	}
 
+	if isJPEGExt(ext) && src != nil && src.Path() != "" {
+		if orig, err := jpegFileBytes(src.Path()); err == nil && orig != nil {
+			encode = func(w io.Writer, img image.Image) error {
+				return encodeJPEGPreservingMetadata(w, img, orig)
+			}
+		}
+	}
+
 	return writeEncoded(path, perm, encode, img)
+}
+
+// jpegFileBytes returns path's full contents if it starts with the JPEG SOI
+// marker (FF D8), or (nil, nil) if it doesn't - so Export can decide whether
+// a source is worth reading for metadata without an extension check (a
+// JPEG with a wrong or missing extension must still work) and without
+// reading the rest of a large non-JPEG source it has no use for. A file
+// that can't be opened or read returns the error; Export treats that the
+// same as (nil, nil), since an unreadable source must not fail the export.
+func jpegFileBytes(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	magic := make([]byte, 2)
+	if _, err := io.ReadFull(f, magic); err != nil {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if magic[0] != 0xFF || magic[1] != 0xD8 {
+		return nil, nil
+	}
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	return io.ReadAll(f)
 }
 
 // writeEncoded encodes img into a temp file in path's own directory and

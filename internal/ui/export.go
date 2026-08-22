@@ -151,7 +151,7 @@ func (v *viewer) runExport(src fyne.URI, img image.Image, ext string) {
 	}
 	dest := exportDestination(picked[0], ext)
 
-	if err := imaging.Export(dest, img); err != nil {
+	if err := imaging.Export(dest, img, src); err != nil {
 		fyne.LogError("failed to export image", err)
 		fyne.Do(func() {
 			v.ShowToast(fmt.Sprintf(lang.L("could not export %q: %v"), dest.Name(), err))

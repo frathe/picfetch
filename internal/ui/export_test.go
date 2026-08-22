@@ -169,6 +169,54 @@ func TestExportAs_ExportsAFormatThatHasNoEncoderOfItsOwn(t *testing.T) {
 	settleToast(t, v)
 }
 
+// TestExportAs_JPEGSourceKeepsGPSExif is the viewer-path twin of imaging's
+// TestExport_JPEGSourceKeepsMetadataOnJPEGDest: JPEG→JPEG export copies the
+// source's Exif (GPS stays), while JPEG→PNG stays a PNG with no GPS.
+func TestExportAs_JPEGSourceKeepsGPSExif(t *testing.T) {
+	v := newTestViewer(t)
+	path := uitest.WriteTempFile(t, "geo.jpg", uitest.GPSJPEG(t, 8, 4, 48.858, 2.294))
+	dropAndWait(t, v, storage.NewFileURI(path))
+
+	t.Run("jpeg dest", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "copy.jpg")
+		uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+
+		v.exportAs(".jpg")
+		settleChooser(t, v)
+
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !imaging.ReadMetadata(got).HasGPS {
+			t.Fatal("JPEG→JPEG export dropped GPS")
+		}
+
+		settleToast(t, v)
+	})
+
+	t.Run("png dest", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "copy.png")
+		uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+
+		v.exportAs(".png")
+		settleChooser(t, v)
+
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.HasPrefix(got, []byte("\x89PNG")) {
+			t.Fatal("PNG export must still be a PNG")
+		}
+		if imaging.ReadMetadata(got).HasGPS {
+			t.Fatal("PNG export must not carry GPS")
+		}
+
+		settleToast(t, v)
+	})
+}
+
 func TestExportAs_SuggestsTheSourceNameWithTheNewExtensionInItsOwnFolder(t *testing.T) {
 	v := newTestViewer(t)
 	path := uitest.WriteTempFile(t, "holiday.webp", uitest.EncodeJPEG(t, 4, 4, color.White))

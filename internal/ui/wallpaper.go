@@ -110,7 +110,7 @@ func (v *viewer) writeWallpaperFile(img image.Image) (string, error) {
 
 	name := fmt.Sprintf("%s%d.png", wallpaperPrefix, time.Now().UnixNano())
 	dest := filepath.Join(v.wallpaperDir, name)
-	if err := imaging.Export(storage.NewFileURI(dest), img); err != nil {
+	if err := imaging.Export(storage.NewFileURI(dest), img, nil); err != nil {
 		return "", err
 	}
 

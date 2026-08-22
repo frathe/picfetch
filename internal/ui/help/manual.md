@@ -532,8 +532,12 @@ needed. macOS and Windows need nothing extra either way.
   `R`/`Shift+R` back into the file it came from, in that file's own format.
   Greyed out unless there is a rotation to save; unavailable for animations
   and for formats PicFetch can read but not write (WebP, HEIC, ICO, XPM, SVG).
-  This replaces the original file, and re-encodes rather than patching it,
-  so EXIF metadata is not carried over
+  This replaces the original file and re-encodes it. For JPEG, PicFetch
+  copies the original metadata (EXIF, including camera/date/GPS, plus
+  XMP, ICC, and IPTC if present) into the new file and sets the
+  orientation tag to 1, because the pixels already include both the
+  camera's orientation and the rotation you just saved. A JPEG thumbnail
+  stored in EXIF is dropped so it cannot show the unrotated photo
 - **File -> Export image** (`Cmd/Ctrl+E`) — asks which format to export to
   with a keyboard-enabled prompt, the same shape as the delete confirmation
   card: **`←`**/**`→`** to choose between **PNG** (selected by default) and
@@ -543,7 +547,9 @@ needed. macOS and Windows need nothing extra either way.
   works for every image the app can display, including WebP and HEIC files
   and a single frame of an animated GIF, and it never touches the original.
   If the name you type already ends in a format PicFetch can write, that
-  format wins over the one you chose in the prompt
+  format wins over the one you chose in the prompt. A JPEG exported from
+  a JPEG keeps the same metadata as Save Changes; a JPEG exported from
+  another format, or any PNG export, has none
 - **File -> Set as Wallpaper** (`Cmd/Ctrl+Shift+E`) — makes the image on
   screen your desktop wallpaper, exactly as it currently appears. PicFetch
   writes its own copy into its cache folder and points the desktop at that,
