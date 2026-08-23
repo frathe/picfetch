@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -64,6 +65,14 @@ func TestSVGReRendersAtHigherDensityOnZoom(t *testing.T) {
 	if b := v.img.Image.Bounds(); b.Dx() != v.vector.raster.X {
 		t.Fatalf("displayed image is %dx%d, out of step with vector.raster %v", b.Dx(), b.Dy(), v.vector.raster)
 	}
+
+	// Production also ForceRepaints here (rasterizeVector) when
+	// debounce > 0: after syncWindowToZoom the canvas.Image size already
+	// matches the zoomed window, so Resize is a no-op and cannot rebuild
+	// the GL texture. Tests zero debounce, so that refresh is skipped —
+	// under the test driver it would layout the tree concurrently with
+	// this zoom loop. The test driver has no GPU cache; this comment is
+	// the lock.
 
 	// The logical size must not move - it is what the window, the title and
 	// the info overlay are all built on.
@@ -178,6 +187,47 @@ func TestRasterizeVectorCoalescesABurst(t *testing.T) {
 	}
 	if b := v.img.Image.Bounds(); b.Dx() != v.vector.raster.X {
 		t.Fatalf("frame %dx%d out of step with vector.raster %v", b.Dx(), b.Dy(), v.vector.raster)
+	}
+}
+
+// TestVectorRasterLandsWhenUIHopIsAsync is the production fyne.Do contract:
+// DoFromGoroutine(wait=false) queues the callback and returns, unlike the
+// test driver which runs it inline. Cancelling the token when the raster
+// goroutine returns therefore makes token.current() false before the frame
+// can land, and zoom looks like it never redrew.
+func TestVectorRasterLandsWhenUIHopIsAsync(t *testing.T) {
+	v, _, _ := newTestUI(t)
+
+	var mu sync.Mutex
+	var queued []func()
+	v.vector.do = func(f func()) {
+		mu.Lock()
+		queued = append(queued, f)
+		mu.Unlock()
+	}
+
+	dropAndWait(t, v, uitest.TempSVGURI(t, "icon.svg", 24, 24))
+
+	before := v.vector.raster
+	v.zoom.In()
+	v.vector.pending.Wait()
+
+	if v.vector.raster != before {
+		t.Fatal("the raster must not land until the UI hop runs; production fyne.Do is async")
+	}
+
+	mu.Lock()
+	fns := append([]func(){}, queued...)
+	mu.Unlock()
+	if len(fns) == 0 {
+		t.Fatal("rasterizeVector queued no UI hop")
+	}
+	for _, f := range fns {
+		f()
+	}
+
+	if v.vector.raster.X <= before.X {
+		t.Fatalf("raster stayed at %v after the async UI hop; cancelling the token before the callback runs discards the frame", v.vector.raster)
 	}
 }
 
@@ -417,6 +467,36 @@ func TestVectorNeedsRender(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := vectorNeedsRender(tc.have, tc.want); got != tc.expect {
 				t.Fatalf("vectorNeedsRender(%v, %v) = %v, want %v", tc.have, tc.want, got, tc.expect)
+			}
+		})
+	}
+}
+
+func TestVectorRasterTarget(t *testing.T) {
+	times2 := func(p fyne.Position) (int, int) {
+		return int(p.X*2 + 0.5), int(p.Y*2 + 0.5)
+	}
+
+	for _, tc := range []struct {
+		name     string
+		logical  fyne.Size
+		scale    float32
+		toPixels func(fyne.Position) (int, int)
+		wantW    int
+		wantH    int
+	}{
+		{"1x fit", fyne.NewSize(340, 340), 1, nil, 340, 340},
+		{"1x one zoom step", fyne.NewSize(340, 340), 1.25, nil, 425, 425},
+		{"2x fit (Retina)", fyne.NewSize(340, 340), 1, times2, 680, 680},
+		{"2x one zoom step", fyne.NewSize(340, 340), 1.25, times2, 850, 850},
+		{"wide 2x", fyne.NewSize(520, 260), 1, times2, 1040, 520},
+		{"non-positive scale is zero", fyne.NewSize(340, 340), 0, times2, 0, 0},
+		{"empty logical is zero", fyne.Size{}, 1.25, times2, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, h := vectorRasterTarget(tc.logical, tc.scale, tc.toPixels)
+			if w != tc.wantW || h != tc.wantH {
+				t.Fatalf("vectorRasterTarget = %dx%d, want %dx%d", w, h, tc.wantW, tc.wantH)
 			}
 		})
 	}

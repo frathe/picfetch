@@ -117,11 +117,17 @@ control (`container.NewCenter`), and documents that an empty camera-tag
 list is not the same as nothing to strip (XMP/COM/trailers still show
 the button).
 
+### SVG zoom re-render at device pixel density
+
+Zoomed SVGs rasterize at `PixelCoordinateForPosition` density. The land
+path cancels its request token *inside* the `fyne.Do` callback (production
+`fyne.Do` is async; cancelling when the goroutine returned discarded every
+frame). ForceRepaint still runs after the frame lands so a Retina window
+that grew with zoom is not left on a stretched 1× texture.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-## Bug: when zooming in on a SVG file the image does not get wedrawn
 
 ### Migrate `internal/ui/exifwin`'s `warmDone` onto `internal/completion.Signal`
 

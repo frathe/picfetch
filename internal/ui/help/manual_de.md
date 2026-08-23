@@ -78,7 +78,9 @@ bereits geöffnete Handbuchfenster nach vorne, statt eine zweite Kopie zu
 - **AVIF** — `.avif` (eingebaute Rotation/Spiegelung wird angewendet)
 - **SVG** — `.svg` (Vektorgrafik; kleine Symbole werden groß genug geöffnet,
   um das Fenster zu füllen, und das Bild wird bei jeder Zoomstufe scharf neu
-  gerendert, statt hochskaliert zu werden)
+  gerendert, statt hochskaliert zu werden). Das Neu-Rendern nutzt die Pixel
+  des Bildschirms (einschließlich Retina), nicht nur die Fenstergröße in
+  Punkten.
 - **RAW** — `.cr2`, `.cr3`, `.nef`, `.nrw`, `.arw`, `.dng`, `.orf`, `.rw2`,
   `.raf`, `.pef`, `.srw`, `.raw` (es wird die vom Fotoapparat eingebettete
   JPEG-Vorschau gezeigt, in Titelzeile und Infokarte als `(Vorschau)`

@@ -86,6 +86,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	view.vector.debounce = defaultVectorDebounce
 	view.vector.rasterize = func(vec *imaging.Vector, w, h int) (image.Image, error) { return vec.RasterAt(w, h) }
 	view.vector.after = time.After
+	view.vector.do = fyne.Do
 	view.frameAfter = time.After
 
 	view.scanOp.art = scan.art

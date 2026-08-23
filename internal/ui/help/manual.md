@@ -67,7 +67,9 @@ the front instead of opening a second copy.
 - **HEIC/HEIF** — `.heic`, `.heif` (iPhone photos; EXIF rotation applied)
 - **AVIF** — `.avif` (built-in rotation/mirroring applied)
 - **SVG** — `.svg` (vector; small icons open large enough to fill the window,
-  and the image re-renders sharp at every zoom level rather than scaling up)
+  and the image re-renders sharp at every zoom level rather than scaling up).
+  Re-rendering uses the screen's pixels (including Retina), not just the window
+  size in points.
 - **RAW** — `.cr2`, `.cr3`, `.nef`, `.nrw`, `.arw`, `.dng`, `.orf`, `.rw2`,
   `.raf`, `.pef`, `.srw`, `.raw` (the camera's embedded JPEG preview is shown,
   marked `(preview)` in the title and info overlay; there is no demosaic, and

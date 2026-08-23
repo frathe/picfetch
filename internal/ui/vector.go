@@ -36,7 +36,7 @@ const (
 
 // vectorView is the whole state of the SVG re-render: the parsed document,
 // the two sizes the policy compares, the lifecycle its rasterization runs
-// under, and the three write-once seams tests replace. A value field on
+// under, and the four write-once seams tests replace. A value field on
 // viewer, never copied - it holds a WaitGroup and a lifecycle mutex.
 type vectorView struct {
 	// svg is the parsed SVG behind the image on screen, nil for every
@@ -67,14 +67,42 @@ type vectorView struct {
 	// which is also the seam that lets tests set it to zero.
 	debounce time.Duration
 
-	// rasterize and after are RasterAt and time.After behind
-	// per-viewer seams (the concurrency invariant forbids mutable package
-	// state), so the coalescing test can count rasterizations and release
-	// a parked burst deterministically. Production never overrides them.
-	// Like debounce, they are write-once: set at construction, and
-	// by a test only before its first drop.
+	// rasterize, after, and do are RasterAt, time.After, and fyne.Do
+	// behind per-viewer seams (the concurrency invariant forbids mutable
+	// package state). The coalescing test counts rasterizations and
+	// releases a parked burst through the first two; the async-hop test
+	// queues the UI callback through do, matching production fyne.Do
+	// (async) rather than the test driver (inline). Production never
+	// overrides them. Write-once: set at construction, and by a test only
+	// before its first drop.
 	rasterize func(vec *imaging.Vector, w, h int) (image.Image, error)
 	after     func(time.Duration) <-chan time.Time
+	do        func(func())
+}
+
+// vectorRasterTarget is the pixel size requestVectorRender asks RasterAt
+// for: logical size × zoom scale, converted from canvas points to device
+// pixels. On macOS fyne.Canvas.Scale() is always 1 and Retina lives in a
+// private texScale; PixelCoordinateForPosition is the conversion
+// Fyne's own SVG rasterizer and internal/ui/spiral already use. A nil
+// toPixels (no canvas yet) rounds the point size, matching the old
+// logical*scale arithmetic.
+func vectorRasterTarget(logical fyne.Size, scale float32, toPixels func(fyne.Position) (int, int)) (w, h int) {
+	if scale <= 0 || logical.Width <= 0 || logical.Height <= 0 {
+		return 0, 0
+	}
+
+	pos := fyne.NewPos(logical.Width*scale, logical.Height*scale)
+	if toPixels == nil {
+		w, h = int(pos.X+0.5), int(pos.Y+0.5)
+	} else {
+		w, h = toPixels(pos)
+	}
+	if w <= 0 || h <= 0 {
+		return 0, 0
+	}
+
+	return imaging.ClampVectorRaster(w, h)
 }
 
 // requestVectorRender is zoom's onScaleChanged handler: the effective
@@ -89,8 +117,16 @@ func (v *viewer) requestVectorRender(scale float32) {
 		return
 	}
 
-	w := int(float64(v.vector.logical.Width)*float64(scale) + 0.5)
-	h := int(float64(v.vector.logical.Height)*float64(scale) + 0.5)
+	var toPixels func(fyne.Position) (int, int)
+	if v.win != nil {
+		if c := v.win.Canvas(); c != nil {
+			toPixels = c.PixelCoordinateForPosition
+		}
+	}
+	w, h := vectorRasterTarget(v.vector.logical, scale, toPixels)
+	if w <= 0 || h <= 0 {
+		return
+	}
 
 	// No rotation adjustment here on purpose. The raster is produced in
 	// unrotated space and redrawRotatedFrame turns it afterwards, and a
@@ -98,11 +134,6 @@ func (v *viewer) requestVectorRender(scale float32) {
 	// logical size times the scale rotates to exactly the size zoom lays
 	// out. Swapping the axes would instead stretch the drawing, since
 	// oksvg's SetTarget scales each axis independently.
-
-	// Clamp before comparing, not after: an unclamped target the ceiling
-	// would shrink anyway would look like a permanently unmet demand for a
-	// sharper image and re-render forever.
-	w, h = imaging.ClampVectorRaster(w, h)
 
 	if !vectorNeedsRender(v.vector.raster, image.Pt(w, h)) {
 		return
@@ -141,7 +172,21 @@ func vectorNeedsRender(have, want image.Point) bool {
 // generation moved on before allocating anything.
 func (v *viewer) rasterizeVector(vec *imaging.Vector, w, h int, token requestToken) {
 	defer v.vector.pending.Done()
-	defer token.cancelContext()
+
+	// Production fyne.Do queues this callback and returns; the test driver
+	// runs it inline. Cancelling here on the way out (the pattern that
+	// works for finishSort/applyScanResult, which cancel *inside* their
+	// fyne.Do) makes token.current() false before the real driver ever
+	// applies the frame - zoom grows the window and the Go image is
+	// replaced in tests, but the screen never updates. Early returns
+	// still release the context; the hop takes that over once queued.
+	// TestVectorRasterLandsWhenUIHopIsAsync is the lock.
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			token.cancelContext()
+		}
+	}()
 
 	if v.vector.debounce > 0 {
 		select {
@@ -164,7 +209,13 @@ func (v *viewer) rasterizeVector(vec *imaging.Vector, w, h int, token requestTok
 		return
 	}
 
-	fyne.Do(func() {
+	do := v.vector.do
+	if do == nil {
+		do = fyne.Do
+	}
+	do(func() {
+		defer token.cancelContext()
+
 		// Re-checked on this side too: the generation can move between the
 		// check above and this callback running.
 		if !token.current() || v.vector.svg != vec || len(v.displayFrames) == 0 {
@@ -182,7 +233,25 @@ func (v *viewer) rasterizeVector(vec *imaging.Vector, w, h int, token requestTok
 		// The one place that writes v.img.Image, which is what makes the
 		// re-render compose with a pending rotation for free.
 		v.redrawRotatedFrame()
+
+		// finishLoad ForceRepaints after putting pixels on screen for the
+		// same reason: Refresh on a nested canvas.Image can miss the
+		// registered content tree. Zoom already sized the image; once
+		// syncWindowToZoom grows the window to match, Resize is a no-op
+		// and will not rebuild the GL texture for the denser raster.
+		//
+		// Skipped when debounce is zero: that is the test harness
+		// (newTestUI), and under the test driver fyne.Do runs this
+		// callback on the raster goroutine. Layouting the content tree
+		// here would race the test's own zoom.In → syncWindowToZoom
+		// Resize. Production debounce is 90ms and fyne.Do is serialized
+		// onto the UI goroutine, so the refresh cannot overlap a key
+		// handler. img.Refresh inside redrawRotatedFrame still runs.
+		if v.vector.debounce > 0 {
+			v.ForceRepaint()
+		}
 	})
+	handedOff = true
 }
 
 // clear drops the vector state and abandons any re-render in flight, so a
