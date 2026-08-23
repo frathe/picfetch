@@ -254,7 +254,11 @@ nach (**Abbrechen** vorausgewählt; **`←`**/**`→`** und **`Return`** /
 **`Esc`**, dieselben Tastatur-Regeln wie bei anderen PicFetch-Bestätigungen).
 Sie schreibt die **ursprüngliche JPEG-Datei** direkt um. Die Schaltfläche
 fehlt, sobald nichts mehr zu entfernen ist — auch nach einem erfolgreichen
-Strip.
+Strip. Die Tag-Liste zeigt nur Kamera/Objektiv/Belichtung/GPS-Felder, daher
+kann ein JPEG, das noch Kommentare, XMP, IPTC oder Bytes nach dem Bild (ein
+zweites Bild oder ein Motion-Photo-Video) enthält, „keine Metadaten gefunden“
+anzeigen und trotzdem **Metadaten entfernen** anbieten. Die Schaltfläche selbst
+ist eine kompakte Steuerung, keine durchgehende Leiste.
 
 - Nur JPEG. Bei HEIC, RAW, PNG und WebP fehlt die Schaltfläche.
 - Entfernt Kamera, Datum, GPS, XMP, IPTC und Kommentare. Farbprofil (ICC)

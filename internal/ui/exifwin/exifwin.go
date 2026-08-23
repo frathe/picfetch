@@ -68,8 +68,8 @@ type Window struct {
 	text *widget.Label
 
 	// strip is the Remove Metadata button, live only while the window is
-	// open. stripBar is the padded wrapper around it in the north stack,
-	// hidden as a unit so a hidden button does not leave its padding.
+	// open. stripBar is the centered wrapper around it in the north stack,
+	// hidden as a unit so a hidden button does not leave its row.
 	// canStrip is whether the current file has anything for it to
 	// remove (Task 2's imaging.CanStripJPEGMetadata) - the button is
 	// hidden rather than disabled while it's false, per Florian: no
@@ -84,6 +84,13 @@ type Window struct {
 	// guard).
 	pending fyne.URI
 	confirm dialog.Dialog
+
+	// north is the VBox holding the tag list and stripBar, live only while
+	// the window is open. syncStripVisible Refreshes it after Show/Hide:
+	// Fyne does not re-run a parent's layout when a child is hidden, so
+	// without this a hidden stripBar keeps the height of the last layout
+	// (the same trap toggleLocation documents for the map body).
+	north *fyne.Container
 
 	// locationMap and location are the OpenStreetMap view and the
 	// collapsible section holding it, both live only while the window is
@@ -152,7 +159,12 @@ func (w *Window) Show() {
 
 		w.strip = widget.NewButton(lang.L("Remove Metadata"), w.requestStrip)
 		w.strip.Importance = widget.DangerImportance
-		w.stripBar = container.NewPadded(w.strip)
+		w.stripBar = container.NewCenter(w.strip)
+
+		w.north = container.NewVBox(
+			container.NewPadded(w.text),
+			w.stripBar,
+		)
 		w.syncStripVisible()
 
 		// Border, not a scrolled box: the metadata and the strip button
@@ -164,10 +176,7 @@ func (w *Window) Show() {
 		// needs to scroll - the panel's minimum size already covers the
 		// longest the metadata gets.
 		return container.NewBorder(
-			container.NewVBox(
-				container.NewPadded(w.text),
-				w.stripBar,
-			),
+			w.north,
 			nil, nil, nil,
 			w.location,
 		)
@@ -184,6 +193,7 @@ func (w *Window) Show() {
 		w.text = nil
 		w.strip = nil
 		w.stripBar = nil
+		w.north = nil
 		w.canStrip = false
 		w.locationMap = nil
 		w.location = nil
@@ -265,12 +275,29 @@ func (w *Window) syncStripVisible() {
 		if w.stripBar != nil {
 			w.stripBar.Show()
 		}
-		return
+	} else {
+		w.strip.Hide()
+		if w.stripBar != nil {
+			w.stripBar.Hide()
+			// layout.vBoxLayout skips an invisible child entirely - it
+			// never calls Resize on one - so a hidden stripBar otherwise
+			// keeps reporting whatever height it last had while visible,
+			// even after north/content below are told to Refresh.
+			w.stripBar.Resize(fyne.NewSize(0, 0))
+		}
 	}
 
-	w.strip.Hide()
-	if w.stripBar != nil {
-		w.stripBar.Hide()
+	// Showing/hiding a child does not re-run its parent's layout, and a
+	// hidden child is given no space only on the next layout - without
+	// this a hidden stripBar keeps a full-width hole above the map (the
+	// same trap toggleLocation documents for the map body).
+	if w.north != nil {
+		w.north.Refresh()
+	}
+	if win := w.Window(); win != nil {
+		if c := win.Content(); c != nil {
+			c.Refresh()
+		}
 	}
 }
 

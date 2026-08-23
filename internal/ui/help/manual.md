@@ -227,7 +227,11 @@ when there is one). It asks for confirmation (**Cancel** selected by
 default; **`←`**/**`→`** and **`Return`** / **`Esc`**, same keyboard rules as
 other PicFetch confirmations). It rewrites the **original JPEG** in place.
 The button is hidden for a JPEG with nothing left to remove, including after
-a successful strip.
+a successful strip. The tag list only shows camera/lens/exposure/GPS fields, so
+a JPEG that still has comments, XMP, IPTC, or bytes after the image (a second
+picture or a motion-photo video) can show "no metadata found" and still offer
+**Remove Metadata**. The button itself is a compact control, not a full-width
+bar.
 
 - JPEG only. HEIC, RAW, PNG, WebP: the button is hidden.
 - Removes camera, date, GPS, XMP, IPTC, and comments. Color profile (ICC) and

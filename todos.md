@@ -109,9 +109,19 @@ Exif/GPS) no longer survives a privacy strip. Bytes after EOI count as
 removable; trailer-only files rewrite. No MPF IFD parsing: every trailer
 is dropped.
 
+### Hide Remove Metadata when nothing to strip; compact button
+
+Visibility was already gated on `CanStripJPEGMetadata`; this change
+collapses the leftover layout hole when navigating, shrink-wraps the
+control (`container.NewCenter`), and documents that an empty camera-tag
+list is not the same as nothing to strip (XMP/COM/trailers still show
+the button).
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
+
+## Bug: when zooming in on a SVG file the image does not get wedrawn
 
 ### Migrate `internal/ui/exifwin`'s `warmDone` onto `internal/completion.Signal`
 

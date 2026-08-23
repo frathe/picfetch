@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -584,6 +585,113 @@ func TestStripButton_ShownForAGPSJPEG(t *testing.T) {
 	}
 }
 
+func TestStripButton_DoesNotSpanTheWindow(t *testing.T) {
+	app, host := gpsApp(t)
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	w.Window().Resize(fyne.NewSize(exifW, exifH))
+
+	btn := w.StripButton()
+	if btn == nil || !btn.Visible() {
+		t.Fatal("setup: GPS JPEG should show the button")
+	}
+	if btn.Importance != widget.DangerImportance {
+		t.Errorf("Importance = %v, want widget.DangerImportance", btn.Importance)
+	}
+	if btn.Size().Width >= exifW*0.8 {
+		t.Fatalf("button width %v fills the %v-wide panel; want shrink-wrapped to the label", btn.Size().Width, exifW)
+	}
+}
+
+func TestStripButton_HiddenForAPNG(t *testing.T) {
+	app := test.NewApp()
+	u := storage.NewFileURI(uitest.WriteTempFile(t, "plain.png", uitest.EncodePNG(t, 8, 8, color.White)))
+	host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	if w.StripButton() == nil || w.StripButton().Visible() {
+		t.Fatal("want the button hidden for PNG")
+	}
+}
+
+func TestStripButton_ShownForATrailerOnlyJPEG(t *testing.T) {
+	app := test.NewApp()
+	data := append(uitest.EncodeJPEG(t, 8, 8, color.White), []byte("ftypmp42fake-video")...)
+	u := storage.NewFileURI(uitest.WriteTempFile(t, "trailer.jpg", data))
+	host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	if w.StripButton() == nil || !w.StripButton().Visible() {
+		t.Fatal("want the button shown: bytes after EOI are removable even when the tag list is empty")
+	}
+	if got := w.Text().Text; got != lang.L("No EXIF metadata found in this file.") && got != "No EXIF metadata found in this file." {
+		t.Fatalf("text = %q, want the empty-panel message (ReadMetadata sees no camera tags)", got)
+	}
+}
+
+func TestStripButton_HiddenBarTakesNoHeightAfterNavigate(t *testing.T) {
+	app := test.NewApp()
+	gps := uitest.TempGPSJPEGURI(t, "gps.jpg", 8, 8, 48.858222, 2.2945)
+	plain := uitest.TempJPEGURI(t, "plain.jpg", 8, 8, color.White)
+	shown := gps
+	host := &stubHost{current: func() (fyne.URI, bool) { return shown, true }}
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	w.Window().Resize(fyne.NewSize(exifW, exifH))
+
+	if w.StripButton() == nil || !w.StripButton().Visible() {
+		t.Fatal("setup: GPS JPEG should show the button")
+	}
+	if w.stripBar == nil || w.stripBar.Size().Height <= 0 {
+		t.Fatal("setup: visible stripBar should have height")
+	}
+
+	shown = plain
+	w.Refresh()
+
+	if w.StripButton().Visible() {
+		t.Fatal("want the button hidden after navigating to a JPEG with nothing removable")
+	}
+	if got := w.stripBar.Size().Height; got != 0 {
+		t.Fatalf("hidden stripBar height = %v, want 0 (parent layout must run after Hide)", got)
+	}
+}
+
+func TestStripButton_GainsHeightAfterNavigateToGPS(t *testing.T) {
+	app := test.NewApp()
+	gps := uitest.TempGPSJPEGURI(t, "gps.jpg", 8, 8, 48.858222, 2.2945)
+	plain := uitest.TempJPEGURI(t, "plain.jpg", 8, 8, color.White)
+	shown := plain
+	host := &stubHost{current: func() (fyne.URI, bool) { return shown, true }}
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	w.Window().Resize(fyne.NewSize(exifW, exifH))
+
+	if w.StripButton() == nil || w.StripButton().Visible() {
+		t.Fatal("setup: plain JPEG should hide the button")
+	}
+
+	shown = gps
+	w.Refresh()
+
+	if !w.StripButton().Visible() {
+		t.Fatal("want the button shown after navigating to a GPS JPEG")
+	}
+	if got := w.stripBar.Size().Height; got <= 0 {
+		t.Fatalf("shown stripBar height = %v, want > 0 (parent layout must run after Show)", got)
+	}
+}
+
 func TestStripButton_SitsAboveTheMap(t *testing.T) {
 	app, host := gpsApp(t)
 	w := New(app, host)
@@ -708,6 +816,9 @@ func TestRequestStrip_ConfirmRemovesGPSAndCallsHost(t *testing.T) {
 	}
 	if w.StripButton().Visible() {
 		t.Fatal("button should hide after a successful strip")
+	}
+	if w.stripBar != nil && w.stripBar.Size().Height != 0 {
+		t.Fatalf("stripBar height after strip = %v, want 0", w.stripBar.Size().Height)
 	}
 }
 
