@@ -101,17 +101,17 @@ View-only `R` rotation is ignored — Save Changes first. `Host` supplies
 `DisplayedFile`, `AfterMetadataRemoved(u)`, and `ShowToast`; cache and info
 overlay refresh through the host callback.
 
+### Truncate MPF / motion-photo trailers when stripping JPEG metadata
+
+`StripJPEGMetadata` now cuts the scan at the primary EOI (`jpegLength`),
+so a concatenated second JPEG or motion-photo video (and that copy's
+Exif/GPS) no longer survives a privacy strip. Bytes after EOI count as
+removable; trailer-only files rewrite. No MPF IFD parsing: every trailer
+is dropped.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Truncate MPF / motion-photo trailers when stripping JPEG metadata
-
-`StripJPEGMetadata` drops the MPF APP2 index in the JPEG header but copies
-the scan through EOF, so a second image concatenated after the primary EOI
-(and that copy's own Exif/GPS) can survive a privacy strip. Truncating at
-the primary EOI is a separate change: it needs fixtures and a careful look
-at which trailers are safe to drop.
 
 ### Migrate `internal/ui/exifwin`'s `warmDone` onto `internal/completion.Signal`
 

@@ -268,9 +268,9 @@ Strip.
 - Nur-Ansicht-Drehung (`R`) wird nicht mitgeschrieben; nutzen Sie zuerst
   **Datei -> Änderungen speichern**, wenn diese Drehung auf die Platte
   soll.
-- Manche Kamera- und Handydateien hängen ein zweites JPEG hinter das
-  Hauptbild (Multi-Picture / Motion Photos); diese Kopie und ihre Tags
-  können erhalten bleiben.
+- Ein zweites JPEG oder Motion-Photo-Video hinter dem Hauptbild wird
+  verworfen, damit auch Tags in dieser Kopie verschwinden. Das Standbild
+  bleibt; das Extra-Bild oder Video nicht.
 - Nicht rückgängig zu machen außer über Backups / Papierkorb — kein
   Verschieben in den Papierkorb.
 

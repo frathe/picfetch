@@ -701,6 +701,75 @@ func TestStripJPEGMetadata_UpdatesSymlinkTargetWithoutReplacingTheLink(t *testin
 	}
 }
 
+func TestStripJPEGMetadata_DropsGPSTrailerAfterPrimaryEOI(t *testing.T) {
+	exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, gpsFields{
+		latRef: "N", lat: [3][2]uint32{{48, 1}, {51, 1}, {2960, 100}},
+		lonRef: "E", lon: [3][2]uint32{{2, 1}, {17, 1}, {4020, 100}},
+	})...))
+	primary := spliceMetadataIntoJPEG(t, markedImage(8, 8), [][]byte{exif})
+	data := appendAfterEOI(t, primary, gpsTrailerJPEG(t))
+	path := writeTempFile(t, "mpf-trailer.jpg", data)
+	u := storage.NewFileURI(path)
+
+	if err := StripJPEGMetadata(u); err != nil {
+		t.Fatalf("StripJPEGMetadata: %v", err)
+	}
+
+	got := mustRead(t, path)
+	if !ReadMetadata(got).Empty() {
+		t.Fatalf("metadata left: %+v", ReadMetadata(got))
+	}
+	if bytes.Contains(got, []byte("Exif\x00\x00")) {
+		t.Fatal("trailer Exif survived the file rewrite")
+	}
+	if n := jpegLength(got); n != len(got) {
+		t.Fatalf("file still has a trailer: jpegLength=%d len=%d", n, len(got))
+	}
+}
+
+func TestStripJPEGMetadata_TrailerOnlyRewritesTheFile(t *testing.T) {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatal(err)
+	}
+	plain := buf.Bytes()
+	before := appendAfterEOI(t, plain, gpsTrailerJPEG(t))
+	path := writeTempFile(t, "trailer-only.jpg", before)
+
+	if err := StripJPEGMetadata(storage.NewFileURI(path)); err != nil {
+		t.Fatal(err)
+	}
+
+	got := mustRead(t, path)
+	if bytes.Equal(got, before) {
+		t.Fatal("trailer-only strip must rewrite the file")
+	}
+	if bytes.Contains(got, []byte("Exif\x00\x00")) {
+		t.Fatal("trailer Exif survived")
+	}
+	if !bytes.Equal(got, plain) {
+		t.Fatal("header-clean primary must be unchanged aside from dropping the trailer")
+	}
+}
+
+func TestStripJPEGMetadata_Orientation6DropsTrailer(t *testing.T) {
+	primary := halfRedHalfBlueJPEG(t, 20, 10, 6)
+	path := writeTempFile(t, "rotated-trailer.jpg", appendAfterEOI(t, primary, gpsTrailerJPEG(t)))
+	u := storage.NewFileURI(path)
+
+	if err := StripJPEGMetadata(u); err != nil {
+		t.Fatalf("StripJPEGMetadata: %v", err)
+	}
+
+	got := mustRead(t, path)
+	if bytes.Contains(got, []byte("Exif\x00\x00")) {
+		t.Fatal("re-encode path left trailer Exif")
+	}
+	if n := jpegLength(got); n != len(got) {
+		t.Fatalf("re-encode path left a trailer: jpegLength=%d len=%d", n, len(got))
+	}
+}
+
 func TestCanStripJPEGMetadata(t *testing.T) {
 	var plainBuf bytes.Buffer
 	if err := jpeg.Encode(&plainBuf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
@@ -720,6 +789,7 @@ func TestCanStripJPEGMetadata(t *testing.T) {
 	}{
 		{"stdlib JPEG has nothing removable", plainBuf.Bytes(), false},
 		{"GPS splice is removable", gpsJPEG, true},
+		{"GPS JPEG after EOI is removable", appendAfterEOI(t, plainBuf.Bytes(), gpsTrailerJPEG(t)), true},
 		{"orientation 6 must re-encode", halfRedHalfBlueJPEG(t, 4, 4, 6), true},
 		{"PNG magic is not a JPEG", []byte("\x89PNG\r\n"), false},
 	}

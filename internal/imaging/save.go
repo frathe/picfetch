@@ -246,7 +246,10 @@ func writeFile(path string, perm os.FileMode, write func(io.Writer) error) error
 
 // StripJPEGMetadata removes identifying metadata from the JPEG at u
 // (Exif, XMP, IPTC, COM, MPF) in place, keeping JFIF APP0, Adobe APP14,
-// and ICC. When the file's Exif Orientation is 2–8, the pixels are
+// and ICC. Bytes after the primary EOI (a concatenated second JPEG,
+// motion-photo video) are discarded. CanStripJPEGMetadata is true when
+// those bytes are the only thing left to remove. When the file's Exif
+// Orientation is 2–8, the pixels are
 // decoded with that orientation applied and re-encoded at jpegSaveQuality
 // so the photo does not appear sideways after the tag is gone; ICC APP2
 // from the original is spliced back (Adobe APP14 is not: it would
@@ -304,8 +307,9 @@ func StripJPEGMetadata(u fyne.URI) error {
 
 // CanStripJPEGMetadata reports whether StripJPEGMetadata would rewrite
 // data. False for non-JPEG. True when there is a removable COM/APPn
-// segment or when Exif Orientation is 2–8 (those files must be re-encoded
-// so they stay upright).
+// segment, bytes after the primary EOI (a concatenated second JPEG or
+// motion-photo video), or when Exif Orientation is 2–8 (those files must
+// be re-encoded so they stay upright).
 func CanStripJPEGMetadata(data []byte) bool {
 	if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
 		return false

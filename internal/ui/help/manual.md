@@ -239,8 +239,9 @@ a successful strip.
 - A photo already upright is stripped without re-encoding the pixels.
 - View-only rotation (`R`) is not written; use **File -> Save Changes** first
   if that rotation should land on disk.
-- Some camera and phone files that append a second JPEG after the primary
-  image (multi-picture / motion photos) may keep that copy and its tags.
+- A second JPEG or motion-photo video appended after the main image is
+  discarded, so tags hidden in that extra copy are removed too. The still
+  stays; the extra frame or video does not.
 - Cannot be undone except from backups / Trash — this is not a Trash move.
 
 Below the tag list, a photo that carries GPS coordinates gets a collapsible

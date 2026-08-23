@@ -103,10 +103,14 @@ func keepOnStrip(marker byte, payload []byte) bool {
 }
 
 // jpegHasRemovableMetadata reports whether stripJPEGSegments would drop
-// at least one COM/APPn segment. Non-JPEG data is false.
+// at least one COM/APPn segment or bytes after the primary EOI.
+// Non-JPEG data is false.
 func jpegHasRemovableMetadata(data []byte) bool {
 	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
 		return false
+	}
+	if n := jpegLength(data); n > 0 && n < len(data) {
+		return true
 	}
 	pos := 2
 	for pos+4 <= len(data) {
@@ -138,8 +142,10 @@ func jpegHasRemovableMetadata(data []byte) bool {
 
 // stripJPEGSegments returns a copy of a JPEG with removable metadata
 // segments (see keepOnStrip) omitted. DQT/DHT/SOF/DRI and the entropy-
-// coded scan are copied verbatim. data that is not a JPEG yields
-// errNotJPEG. A JPEG with nothing removable returns a copy of data.
+// coded scan through the primary EOI are copied verbatim; bytes after
+// that EOI (MPF extra pictures, motion-photo video) are dropped. data
+// that is not a JPEG yields errNotJPEG. A JPEG with nothing removable
+// returns a copy of data.
 func stripJPEGSegments(data []byte) ([]byte, error) {
 	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
 		return nil, errNotJPEG
@@ -160,7 +166,12 @@ func stripJPEGSegments(data []byte) ([]byte, error) {
 			continue
 		}
 		if marker == 0xDA {
-			out = append(out, data[pos:]...)
+			end := jpegLength(data)
+			if end > pos && end <= len(data) {
+				out = append(out, data[pos:end]...)
+			} else {
+				out = append(out, data[pos:]...)
+			}
 			return out, nil
 		}
 		segLen := int(data[pos+2])<<8 | int(data[pos+3])

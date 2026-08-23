@@ -164,6 +164,13 @@ func TestJPEGHasRemovableMetadata(t *testing.T) {
 	if jpegHasRemovableMetadata([]byte("\x89PNG")) {
 		t.Fatal("non-JPEG is not removable metadata")
 	}
+
+	if jpegHasRemovableMetadata(appendAfterEOI(t, plain, gpsTrailerJPEG(t))) != true {
+		t.Fatal("GPS JPEG after primary EOI is removable")
+	}
+	if jpegHasRemovableMetadata(appendAfterEOI(t, plain, []byte("ftypmp42fake-video"))) != true {
+		t.Fatal("motion-photo bytes after primary EOI are removable")
+	}
 }
 
 func eiffelGPS() gpsFields {
@@ -238,6 +245,86 @@ func TestStripJPEGSegments(t *testing.T) {
 		_, err := stripJPEGSegments([]byte("\x89PNG"))
 		if !errors.Is(err, errNotJPEG) {
 			t.Fatalf("err = %v, want errNotJPEG", err)
+		}
+	})
+
+	t.Run("drops a GPS JPEG concatenated after the primary EOI", func(t *testing.T) {
+		exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, eiffelGPS())...))
+		mpf := wrapAPP2([]byte("MPF\x00not-a-real-mpf"))
+		primary := spliceMetadataIntoJPEG(t, markedImage(8, 8), [][]byte{exif, mpf})
+		data := appendAfterEOI(t, primary, gpsTrailerJPEG(t))
+		if !bytes.Contains(data, []byte("Exif\x00\x00")) {
+			t.Fatal("setup: want Exif in the trailer file")
+		}
+
+		got, err := stripJPEGSegments(data)
+		if err != nil {
+			t.Fatalf("stripJPEGSegments: %v", err)
+		}
+		if jpegHasRemovableMetadata(got) {
+			t.Fatal("still has removable metadata or a trailer")
+		}
+		if n := jpegLength(got); n != len(got) {
+			t.Fatalf("stripped length %d, jpegLength %d (trailer left)", len(got), n)
+		}
+		if bytes.Contains(got, []byte("Exif\x00\x00")) || bytes.Contains(got, []byte("MPF\x00")) {
+			t.Fatal("left identifying tags or MPF")
+		}
+		if _, err := jpeg.Decode(bytes.NewReader(got)); err != nil {
+			t.Fatalf("stripped file must still decode: %v", err)
+		}
+		sos := bytes.Index(primary, []byte{0xFF, 0xDA})
+		gotSOS := bytes.Index(got, []byte{0xFF, 0xDA})
+		if sos < 0 || gotSOS < 0 {
+			t.Fatal("missing SOS")
+		}
+		if !bytes.Equal(primary[sos:], got[gotSOS:]) {
+			t.Fatal("lossless strip must copy the primary scan through EOI, not the trailer")
+		}
+	})
+
+	t.Run("drops a trailer when the primary header has nothing removable", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
+			t.Fatal(err)
+		}
+		plain := buf.Bytes()
+		data := appendAfterEOI(t, plain, gpsTrailerJPEG(t))
+
+		got, err := stripJPEGSegments(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if jpegHasRemovableMetadata(got) {
+			t.Fatal("plain primary plus dropped trailer must not look removable")
+		}
+		if bytes.Contains(got, []byte("Exif\x00\x00")) {
+			t.Fatal("left trailer Exif")
+		}
+		if !bytes.Equal(got, plain) {
+			t.Fatal("header-clean primary must be unchanged aside from dropping the trailer")
+		}
+	})
+
+	t.Run("copy through EOF when the JPEG has no EOI", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
+			t.Fatal(err)
+		}
+		truncated := buf.Bytes()
+		if n := jpegLength(truncated); n != len(truncated) {
+			t.Fatalf("setup: stdlib JPEG should close, jpegLength=%d len=%d", n, len(truncated))
+		}
+		truncated = truncated[:len(truncated)-2] // drop EOI
+		if jpegLength(truncated) != 0 {
+			t.Fatal("setup: want jpegLength 0 after chopping EOI")
+		}
+		got, err := stripJPEGSegments(truncated)
+		if err != nil {
+			t.Fatalf("stripJPEGSegments: %v", err)
+		}
+		if !bytes.Equal(got, truncated) {
+			t.Fatal("no-EOI JPEG must still copy through EOF")
 		}
 	})
 }
@@ -512,4 +599,26 @@ func spliceMetadataIntoJPEG(t *testing.T, img image.Image, segs [][]byte) []byte
 		t.Fatal(err)
 	}
 	return out
+}
+
+// appendAfterEOI returns jpeg with trailer appended after its primary EOI.
+// jpeg must be a closed JPEG (jpegLength(jpeg) == len(jpeg)) with no
+// trailer of its own already.
+func appendAfterEOI(t *testing.T, jpeg, trailer []byte) []byte {
+	t.Helper()
+	n := jpegLength(jpeg)
+	if n == 0 || n != len(jpeg) {
+		t.Fatalf("setup: primary must be a closed JPEG with no trailer, jpegLength=%d len=%d", n, len(jpeg))
+	}
+	out := make([]byte, 0, len(jpeg)+len(trailer))
+	return append(append(out, jpeg...), trailer...)
+}
+
+// gpsTrailerJPEG builds a small closed JPEG carrying GPS Exif, suitable as
+// the kind of concatenated "second JPEG" a trailer strip test appends
+// after a primary image's EOI.
+func gpsTrailerJPEG(t *testing.T) []byte {
+	t.Helper()
+	exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, eiffelGPS())...))
+	return spliceMetadataIntoJPEG(t, markedImage(4, 4), [][]byte{exif})
 }
