@@ -268,9 +268,11 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 
 	switch ev.Name {
 	case fyne.KeyRight, fyne.KeyDown:
-		v.ShowImage(v.state.index + 1)
+		v.StepImage(1)
+		return
 	case fyne.KeyLeft, fyne.KeyUp:
-		v.ShowImage(v.state.index - 1)
+		v.StepImage(-1)
+		return
 	case fyne.KeyHome:
 		v.ShowImage(0)
 	case fyne.KeyEnd:

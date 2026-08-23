@@ -817,3 +817,26 @@ func (v *viewer) Advance() {
 	}
 	v.ShowImage(v.state.index + 1)
 }
+
+// StepImage moves by delta files (typically +1 or -1), wrapping through
+// ShowImage. No-op with fewer than two files, while a load is in flight,
+// while a Fyne dialog overlay is up on the main window (same reason as
+// handleKeyEvent: the dialog owns the keyboard, and StepImage is callable
+// from the always-on-top EXIF window), or while the delete / export-format
+// prompt owns the main window.
+// Picture-frame shuffle does not apply: this is what the arrow keys do.
+func (v *viewer) StepImage(delta int) {
+	if v.win.Canvas().Overlays().Top() != nil {
+		return
+	}
+	if v.deletion.Visible() || v.exportPrompt.Visible() {
+		return
+	}
+	if len(v.state.files) < 2 || v.loading.Load() {
+		return
+	}
+	v.ShowImage(v.state.index + delta)
+	if v.slides.Active() {
+		v.slides.Kick()
+	}
+}

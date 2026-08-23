@@ -53,6 +53,7 @@ type Host interface {
 	DisplayedFile() (fyne.URI, bool)
 	AfterMetadataRemoved(u fyne.URI)
 	ShowToast(msg string)
+	StepImage(delta int)
 }
 
 // Window is the EXIF panel. At most one is open at a time (widgets.
@@ -134,8 +135,44 @@ func New(application fyne.App, host Host) *Window {
 	// the image window instead of disappearing behind it the moment the
 	// user clicks back to navigate.
 	w.win.KeepOnTop()
+	w.win.SetExtraKeys(w.handleKey)
 
 	return w
+}
+
+// handleKey is Left/Right on the EXIF window itself: it steps the displayed
+// image the same way the main window's arrows do. A no-op while the Remove
+// Metadata confirmation is up - see releaseKeyboard for why the panel stays
+// focused then, and stepping the image out from under an open prompt would
+// be confusing regardless. This package claims only Left/Right;
+// Up/Down/Home/End stay with the main window, where Up/Down also tune the
+// slideshow interval.
+func (w *Window) handleKey(ev *fyne.KeyEvent) {
+	if w.confirm != nil {
+		return
+	}
+	switch ev.Name {
+	case fyne.KeyRight:
+		w.host.StepImage(1)
+	case fyne.KeyLeft:
+		w.host.StepImage(-1)
+	}
+}
+
+// releaseKeyboard returns Left/Right to Singleton's unfocused OnTypedKey
+// handler (handleKey above). Fyne delivers TypedKey only to
+// Canvas.Focused() when it is non-nil, and a Button click would otherwise
+// swallow arrows by keeping itself focused. The Remove Metadata
+// confirmation is the exception: its ChoicePanel must stay focused so
+// Left/Right move its selection ring rather than reaching the unfocused
+// handler and calling StepImage instead.
+func (w *Window) releaseKeyboard() {
+	if w.confirm != nil {
+		return
+	}
+	if win := w.win.Window(); win != nil {
+		win.Canvas().Unfocus()
+	}
 }
 
 // Show opens the panel, or raises it and syncs it to the current image if
@@ -204,6 +241,8 @@ func (w *Window) Show() {
 		w.expanded = false
 		w.warming = false
 	})
+
+	w.releaseKeyboard()
 }
 
 // Refresh re-reads the current file's raw bytes and updates the panel from
@@ -429,6 +468,7 @@ func (w *Window) toggleLocation() {
 		// revealed at zero height, and so never drawn.
 		w.location.Refresh()
 		w.startWarm()
+		w.releaseKeyboard()
 
 		return
 	}
@@ -436,6 +476,7 @@ func (w *Window) toggleLocation() {
 	w.toggle.SetIcon(theme.MenuExpandIcon())
 	w.body.Hide()
 	w.location.Refresh()
+	w.releaseKeyboard()
 }
 
 // startWarm downloads the block of tiles around the current position in

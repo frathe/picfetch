@@ -243,7 +243,8 @@ Brennweite und Aufnahmedatum sowie — bei einem Foto mit GPS-Tags —
 tatsächlich in der
 Datei vorhanden ist. `E` öffnet dasselbe Fenster direkt, ohne dass das
 Info-Overlay vorher geöffnet sein muss. Das Fenster aktualisiert sich, wenn Sie bei
-geöffnetem Fenster zu einem anderen Bild wechseln, und — wie beim Handbuch-
+geöffnetem Fenster zu einem anderen Bild wechseln (aus dem Bildfenster, oder mit
+`←`/`→`, solange das EXIF-Fenster selbst den Fokus hat), und — wie beim Handbuch-
 und Info-Fenster — schließt `Esc` nur dieses Fenster, und ein erneuter Druck
 auf `E`, während es bereits offen ist, holt es nach vorne, statt eine zweite
 Kopie zu öffnen. Dateien ohne Exif-Daten (die meisten PNGs, GIFs und WebPs
@@ -312,6 +313,11 @@ durch:
 
 Die Navigation **läuft im Kreis**: `→` beim letzten Bild springt zurück zum
 ersten, `←` beim ersten Bild zum letzten.
+
+Solange das **EXIF-Datenfenster** den Fokus hat, blättern `←` und `→` genau
+so weiter (einschließlich im Kreis). `Esc` schließt weiterhin nur dieses
+Fenster. Während **Metadaten entfernen** nachfragt, bewegen `←`/`→` die
+Bestätigungswahl, nicht das Bild.
 
 Hinweise:
 
@@ -575,7 +581,8 @@ tatsächlich verschoben wurden.
 - **`E`** — das EXIF-Datenfenster für das aktuelle Bild öffnen
   (Kamerahersteller/-modell, Objektiv, Belichtung, Blende, ISO, Brennweite,
   Aufnahmedatum, Koordinaten); auch über den Link **„EXIF-Daten anzeigen“** im
-  Info-Overlay erreichbar
+  Info-Overlay erreichbar. Solange dieses Fenster den Fokus hat, wechseln
+  Links/Rechts das Bild.
 - **`Cmd`/`Strg+E`** — das aktuelle Bild in eine neue Datei exportieren: eine
   Abfrage fragt nach dem Format (**`←`**/**`→`** wählt zwischen PNG und JPEG,
   **`Return`** exportiert, **`Esc`** bricht ab), danach benennen Sie die Datei
@@ -886,7 +893,7 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   GPS-Tags trägt; bei JPEGs steht unter den Tags (oberhalb der Karte)
   **Metadaten entfernen**, das nach Bestätigung identifizierende Tags direkt
   aus der Datei entfernt und verschwindet, sobald nichts mehr zu entfernen
-  ist
+  ist; solange das Fenster den Fokus hat, wechseln `←`/`→` das Bild
 - **Diaschau-Modus** — `P` schaltet eine Vollbild-Diaschau mit Überblendung
   zwischen den Bildern ein/aus; `↑`/`↓` stellen das (standardmäßig 10 s)
   Auto-Weiterschalt-Intervall ein, solange sie aktiv ist; `Shift+P` schaltet

@@ -138,3 +138,74 @@ func TestSingleton_StopTrackingIsSafeWhenNothingIsTracking(t *testing.T) {
 	s.StopTracking()
 	s.StopTracking()
 }
+
+func TestSingleton_ExtraKeysReceiveNonEscape(t *testing.T) {
+	app := test.NewApp()
+	var s Singleton
+	var got []fyne.KeyName
+	s.SetExtraKeys(func(ev *fyne.KeyEvent) {
+		got = append(got, ev.Name)
+	})
+	s.Show(app, "extra", fyne.NewSize(300, 200), newSingletonContent, nil)
+	defer s.Window().Close()
+
+	handler := s.Window().Canvas().OnTypedKey()
+	if handler == nil {
+		t.Fatal("canvas has no OnTypedKey handler")
+	}
+	handler(&fyne.KeyEvent{Name: fyne.KeyRight})
+	handler(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	if len(got) != 2 || got[0] != fyne.KeyRight || got[1] != fyne.KeyLeft {
+		t.Errorf("extra keys = %v, want [Right Left]", got)
+	}
+	if !s.Open() {
+		t.Error("Left/Right must not close the window")
+	}
+}
+
+func TestSingleton_EscapeStillClosesWhenExtraKeysSet(t *testing.T) {
+	app := test.NewApp()
+	var s Singleton
+	var extra int
+	s.SetExtraKeys(func(*fyne.KeyEvent) { extra++ })
+	s.Show(app, "esc", fyne.NewSize(300, 200), newSingletonContent, nil)
+
+	handler := s.Window().Canvas().OnTypedKey()
+	handler(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if s.Open() {
+		t.Error("Escape should still close the window")
+	}
+	if extra != 0 {
+		t.Errorf("extraKeys calls = %d, want 0 (Escape must not be forwarded)", extra)
+	}
+}
+
+func TestSingleton_NilExtraKeysKeepsEscapeOnly(t *testing.T) {
+	app := test.NewApp()
+	var s Singleton
+	s.Show(app, "plain", fyne.NewSize(300, 200), newSingletonContent, nil)
+
+	handler := s.Window().Canvas().OnTypedKey()
+	handler(&fyne.KeyEvent{Name: fyne.KeyRight}) // must not panic
+	if !s.Open() {
+		t.Error("Right with no extraKeys must leave the window open")
+	}
+	handler(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if s.Open() {
+		t.Error("Escape should still close")
+	}
+}
+
+func TestSingleton_ExtraKeysReadAtEventTime(t *testing.T) {
+	app := test.NewApp()
+	var s Singleton
+	s.Show(app, "late", fyne.NewSize(300, 200), newSingletonContent, nil)
+	defer s.Window().Close()
+
+	var got fyne.KeyName
+	s.SetExtraKeys(func(ev *fyne.KeyEvent) { got = ev.Name })
+	s.Window().Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyRight})
+	if got != fyne.KeyRight {
+		t.Errorf("got %v, want Right — extraKeys must be read inside the handler, not copied at Show", got)
+	}
+}

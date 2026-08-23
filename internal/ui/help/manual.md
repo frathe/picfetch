@@ -217,7 +217,8 @@ geotagged — its **latitude** and **longitude** in decimal degrees, one line
 per tag that's actually present in the file. `E` opens the same window
 directly, without
 needing the info overlay open first. The window updates if you navigate to a
-different image while it's still open, and — like the manual and About
+different image while it's still open (from the image window, or with `←`/`→`
+while the EXIF window itself is focused), and — like the manual and About
 windows — `Esc` closes just that window, and pressing `E` again while it's
 already open brings it back to the front instead of opening a second copy.
 Files with no Exif data (most PNGs, GIFs, and WebPs, and any JPEG without a
@@ -280,6 +281,11 @@ Drop several files at once and step through them with the keyboard:
 
 Navigation **wraps around**: pressing `→` on the last image returns to the
 first, and `←` on the first goes to the last.
+
+While the **EXIF data window** is focused, `←` and `→` do the same next/previous
+step (including wrap-around). `Esc` still closes only that window. While
+**Remove Metadata** is asking for confirmation, `←`/`→` move the confirmation
+choice, not the image.
 
 Notes:
 
@@ -511,7 +517,8 @@ many of them actually went.
 - **`E`** — open the EXIF data window for the current image (camera
   make/model, lens, exposure, aperture, ISO, focal length, capture date,
   coordinates);
-  also reachable via the **"Show EXIF data"** link in the info overlay
+  also reachable via the **"Show EXIF data"** link in the info overlay.
+  While that window is focused, Left/Right change image.
 - **`Cmd`/`Ctrl+E`** — export the current image to a new file: a prompt asks
   which format (**`←`**/**`→`** to choose between PNG and JPEG, **`Return`**
   to export, **`Esc`** to cancel), then you name the file in the system save
@@ -783,7 +790,7 @@ Things PicFetch deliberately does not do (yet):
   of where it was taken when the photo carries GPS tags; JPEGs also get a
   **Remove Metadata** button below the tags (above the map) that strips
   identifying tags from the file in place after confirmation, hidden once
-  nothing is left to remove
+  nothing is left to remove; while that window is focused, `←`/`→` change image
 - **Picture-frame mode** — `P` toggles a full-screen slideshow with a
   crossfade between images; `↑`/`↓` tune the (default 10s) auto-advance
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in

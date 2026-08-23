@@ -36,17 +36,6 @@ to 100% on the eyes, arrow through the set. Implementation is small:
 skips that (and the window auto-resize) and re-applies the stored
 zoom/offset via the existing `internal/ui/zoom` API.
 
-## 4. RAW support via embedded preview extraction — L
-
-Camera RAW files (CR2/CR3, NEF, ARW, DNG…) all embed full-size JPEG
-previews. Extracting those is pure-Go-feasible (TIFF/IFD walking —
-`internal/imaging/exif.go` already has the walker) and turns "drop the
-memory card folder" into a supported workflow without shipping a demosaic
-engine. Scope guard: viewer-only — no RAW decode, no editing; the info
-overlay/title marks it as "(preview)". Extends `imaging.IsSupportedImage`
-and the loader; EXIF window works as-is since the metadata lives in the
-same IFDs.
-
 ## 5. Transparency checkerboard + viewer background choice — S
 
 PNG/SVG/WebP with alpha currently composite over the theme background,
@@ -95,17 +84,6 @@ setters that the settings window already drives, so `main.go`'s
 options struct. Makes PicFetch usable as a photo-frame appliance
 (autostart on a Pi) and in shell workflows — cheap surface area for a
 whole new deployment story.
-
-## 10. Duplicate finder (perceptual hash) in the grid — L
-
-A grid mode that computes a perceptual hash (dHash/aHash — ~30 lines of
-pure Go over the already-decoded thumbnails) per file in the background
-via the existing bounded thumbnail worker pool, then groups visually
-identical shots and badges duplicates. Combined with #1/#2, this answers
-"which of these 400 photos are the same shot twice?" — a job no quick
-viewer does well today. Hash work rides the thumbnail pipeline's
-claim/semaphore machinery, so it inherits cancellation and memory bounds
-for free.
 
 ## Honorable mentions (not in the 10)
 

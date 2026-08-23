@@ -107,6 +107,7 @@ type stubHost struct {
 	toasts  []string
 	after   int
 	afterU  fyne.URI
+	steps   []int
 }
 
 func (s *stubHost) DisplayedFile() (fyne.URI, bool) {
@@ -122,6 +123,7 @@ func (s *stubHost) AfterMetadataRemoved(u fyne.URI) {
 func (s *stubHost) ShowToast(msg string) {
 	s.toasts = append(s.toasts, msg)
 }
+func (s *stubHost) StepImage(delta int) { s.steps = append(s.steps, delta) }
 
 // The panel needs a file to read before it will open at all (Show is a
 // no-op with nothing displayed), so every geometry test below hands it one.
@@ -131,6 +133,73 @@ func testApp(t *testing.T) (fyne.App, *stubHost) {
 	u := uitest.TempJPEGURI(t, "exif.jpg", 8, 8, color.White)
 
 	return app, &stubHost{current: func() (fyne.URI, bool) { return u, true }}
+}
+
+func TestWindow_ArrowKeysStepImage(t *testing.T) {
+	app, host := testApp(t)
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	handler := w.Window().Canvas().OnTypedKey()
+	if handler == nil {
+		t.Fatal("EXIF canvas has no OnTypedKey handler")
+	}
+	handler(&fyne.KeyEvent{Name: fyne.KeyRight})
+	handler(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	if len(host.steps) != 2 || host.steps[0] != 1 || host.steps[1] != -1 {
+		t.Errorf("StepImage deltas = %v, want [1, -1]", host.steps)
+	}
+}
+
+func TestWindow_UpDownHomeEndDoNotStepImage(t *testing.T) {
+	app, host := testApp(t)
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	handler := w.Window().Canvas().OnTypedKey()
+	for _, name := range []fyne.KeyName{fyne.KeyUp, fyne.KeyDown, fyne.KeyHome, fyne.KeyEnd} {
+		handler(&fyne.KeyEvent{Name: name})
+	}
+	if len(host.steps) != 0 {
+		t.Errorf("StepImage deltas = %v, want none for Up/Down/Home/End", host.steps)
+	}
+}
+
+func TestWindow_ShowLeavesCanvasUnfocused(t *testing.T) {
+	app, host := testApp(t)
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	if got := w.Window().Canvas().Focused(); got != nil {
+		t.Errorf("Focused() = %T, want nil so Left/Right reach OnTypedKey", got)
+	}
+}
+
+func TestWindow_ArrowKeysIgnoredWhileConfirming(t *testing.T) {
+	app, host := testApp(t)
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	w.showConfirm(confirmation{title: "Title", message: "Message", action: "Confirm"})
+	if _, ok := w.Window().Canvas().Focused().(*widgets.ChoicePanel); !ok {
+		t.Fatalf("focused = %v, want ChoicePanel", w.Window().Canvas().Focused())
+	}
+
+	host.steps = nil
+	if h := w.Window().Canvas().OnTypedKey(); h != nil {
+		h(&fyne.KeyEvent{Name: fyne.KeyRight})
+		h(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	}
+	if len(host.steps) != 0 {
+		t.Errorf("StepImage during confirm = %v, want none", host.steps)
+	}
+	if _, ok := w.Window().Canvas().Focused().(*widgets.ChoicePanel); !ok {
+		t.Fatalf("focused after canvas Right = %v, want ChoicePanel still focused", w.Window().Canvas().Focused())
+	}
 }
 
 func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
@@ -333,6 +402,41 @@ func TestToggleLocation_ShowsAndHidesTheMap(t *testing.T) {
 
 	if w.LocationExpanded() || w.body.Visible() {
 		t.Error("map is still shown after collapsing the section, want hidden")
+	}
+}
+
+func TestToggleLocation_ReleasesKeyboard(t *testing.T) {
+	app, host := gpsApp(t)
+	server := newTileServer(t)
+	release := server.hold()
+	t.Cleanup(release)
+	w := New(app, host)
+	w.tiles = fetcherFor(server)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	if w.toggle == nil {
+		t.Fatal("setup: want a Location button")
+	}
+	w.Window().Canvas().Focus(w.toggle)
+	if w.Window().Canvas().Focused() != w.toggle {
+		t.Fatal("setup: Focus(toggle) did not take")
+	}
+	w.ToggleLocation()
+	if got := w.Window().Canvas().Focused(); got != nil {
+		t.Errorf("Focused after expand = %T, want nil", got)
+	}
+
+	// Warm's fyne.Do lands on a background goroutine under the test
+	// driver; hold the tiles until after Unfocus so that callback cannot
+	// Refresh widgets while this goroutine is still asserting.
+	release()
+	waitForWarm(t, w)
+
+	w.Window().Canvas().Focus(w.toggle)
+	w.ToggleLocation()
+	if got := w.Window().Canvas().Focused(); got != nil {
+		t.Errorf("Focused after collapse = %T, want nil", got)
 	}
 }
 

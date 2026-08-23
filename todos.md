@@ -141,6 +141,19 @@ because that plan named only the nine viewer fields; it is still not in
 
 ## TODO
 
+- When the exif window gets openend and has focus, it should be possible to change the image with left an right keys
+
+## Duplicate finder (perceptual hash) in the grid — L
+
+A grid mode that computes a perceptual hash (dHash/aHash — ~30 lines of
+pure Go over the already-decoded thumbnails) per file in the background
+via the existing bounded thumbnail worker pool, then groups visually
+identical shots and badges duplicates. Combined with #1/#2, this answers
+"which of these 400 photos are the same shot twice?" — a job no quick
+viewer does well today. Hash work rides the thumbnail pipeline's
+claim/semaphore machinery, so it inherits cancellation and memory bounds
+for free.
+
 ## not deemed worth implementing (edge cases)
 
 - There is a bug in the Windows Version: WHen in Gridview, multiselect via

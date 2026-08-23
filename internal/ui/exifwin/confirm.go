@@ -73,6 +73,7 @@ func (w *Window) showConfirm(c confirmation) dialog.Dialog {
 	confirm = dialog.NewCustomWithoutButtons(c.title, container.NewVBox(message, panel), win)
 	confirm.SetOnClosed(func() {
 		w.confirm = nil
+		w.releaseKeyboard()
 		if c.onClosed != nil {
 			c.onClosed()
 		}
@@ -80,11 +81,16 @@ func (w *Window) showConfirm(c confirmation) dialog.Dialog {
 	w.confirm = confirm
 	confirm.Show()
 	// After Show: Fyne can only focus an object that is already part of an
-	// overlay it can walk to. Load-bearing beyond that - widgets.Singleton
-	// registers Canvas().SetOnTypedKey Escape -> win.Close(); with Focused()
-	// left nil, Escape would close the EXIF window behind this prompt
-	// instead of cancelling it. A focused ChoicePanel swallows Escape
-	// itself (see ChoicePanel.TypedKey), so the window never sees it.
+	// overlay it can walk to. Load-bearing beyond that in two ways -
+	// widgets.Singleton registers Canvas().SetOnTypedKey Escape ->
+	// win.Close(); with Focused() left nil, Escape would close the EXIF
+	// window behind this prompt instead of cancelling it. And with the
+	// canvas unfocused, Left/Right would reach handleKey's own unfocused
+	// handler and call StepImage instead of moving the panel's selection -
+	// which is also why handleKey itself bails out while w.confirm != nil,
+	// in case anything ever calls it with the panel not actually focused.
+	// A focused ChoicePanel swallows both keys itself (see
+	// ChoicePanel.TypedKey), so the window never sees either.
 	win.Canvas().Focus(panel)
 
 	return confirm

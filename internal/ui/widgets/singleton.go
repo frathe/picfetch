@@ -35,6 +35,11 @@ type Singleton struct {
 	// asks to float above the rest of the app.
 	onTop bool
 
+	// extraKeys, if set, receives unfocused keys other than Escape.
+	// Escape still closes this window (manual, About, Settings, EXIF).
+	// The EXIF panel is the only caller today (Left/Right change image).
+	extraKeys func(*fyne.KeyEvent)
+
 	// stopPoll stops the position poller behind the open window, and is nil
 	// whenever none is running. Called on close, and by StopTracking at
 	// shutdown for a window still open then.
@@ -93,6 +98,13 @@ func (s *Singleton) KeepOnTop() {
 	s.onTop = true
 }
 
+// SetExtraKeys registers a callback for unfocused keys other than Escape.
+// Call before Show, or any time: the handler reads the field on each event.
+// Nil means Escape-only, which is the default.
+func (s *Singleton) SetExtraKeys(f func(*fyne.KeyEvent)) {
+	s.extraKeys = f
+}
+
 // StopTracking stops the position poller without closing the window, for
 // the one case closing doesn't cover: the app shutting down while the
 // window is still open, where the poller must stop before the event loop
@@ -146,6 +158,10 @@ func (s *Singleton) Show(app fyne.App, title string, size fyne.Size, build func(
 	win.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
 		if ev.Name == fyne.KeyEscape {
 			win.Close()
+			return
+		}
+		if s.extraKeys != nil {
+			s.extraKeys(ev)
 		}
 	})
 

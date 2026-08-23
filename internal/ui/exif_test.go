@@ -94,6 +94,34 @@ func TestShowExifWindow_ContentAndRefreshOnNavigation(t *testing.T) {
 	}
 }
 
+func TestExifWindow_LeftRightChangeImage(t *testing.T) {
+	v, _, _ := newTestUI(t)
+	a := uitest.TempJPEGURI(t, "a.jpg", 40, 20, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 40, 20, color.White)
+	dropAndWait(t, v, a, b)
+
+	v.exif.Show()
+	start := v.state.index
+	canvas := v.exif.Window().Canvas()
+	if got := canvas.Focused(); got != nil {
+		t.Fatalf("EXIF canvas focused %T after Show, want nil", got)
+	}
+	handler := canvas.OnTypedKey()
+	if handler == nil {
+		t.Fatal("EXIF window has no OnTypedKey handler")
+	}
+	handler(&fyne.KeyEvent{Name: fyne.KeyRight})
+	waitUntilLoaded(t, v)
+	if v.state.index != (start+1)%2 {
+		t.Fatalf("index = %d, want next file", v.state.index)
+	}
+	handler(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	waitUntilLoaded(t, v)
+	if v.state.index != start {
+		t.Fatalf("index = %d, want start %d", v.state.index, start)
+	}
+}
+
 // TestHandleKeyEvent_EOpensExifWindow checks the E keybinding reaches
 // v.exif.Show, mirroring how the I/M/P keys are each tested against
 // their own handler.

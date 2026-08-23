@@ -40,6 +40,9 @@ func TestShowConfirmGivesTheKeyboardToItsPanelStartingOnCancel(t *testing.T) {
 	if got := panel.Selected(); got != cancelChoice {
 		t.Errorf("selected = %d, want Cancel (%d): a prompt never opens with the action already under Return", got, cancelChoice)
 	}
+	if !panel.Ring(cancelChoice).Visible() || panel.Ring(confirmChoice).Visible() {
+		t.Error("the ring is not drawn on Cancel")
+	}
 }
 
 // TestShowConfirmEscapeRunsOnCancelAfterTheDialogCloses is the other way to
@@ -89,5 +92,19 @@ func TestShowConfirmEscapeDoesNotCloseTheEXIFWindow(t *testing.T) {
 	}
 	if n := len(w.Window().Canvas().Overlays().List()); n != 0 {
 		t.Errorf("overlay count = %d after Escape, want the confirmation gone and nothing else up", n)
+	}
+}
+
+func TestShowConfirmEscapeLeavesCanvasUnfocused(t *testing.T) {
+	app, host := testApp(t)
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	w.showConfirm(confirmation{title: "Title", message: "Message", action: "Confirm"})
+	typeKey(t, w.Window(), fyne.KeyEscape)
+
+	if got := w.Window().Canvas().Focused(); got != nil {
+		t.Errorf("Focused() after cancelling confirm = %T, want nil so Left/Right reach OnTypedKey", got)
 	}
 }
