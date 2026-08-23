@@ -125,22 +125,21 @@ path cancels its request token *inside* the `fyne.Do` callback (production
 frame). ForceRepaint still runs after the frame lands so a Retina window
 that grew with zoom is not left on a stretched 1× texture.
 
+### Migrate `internal/ui/exifwin`'s `warmDone` onto `internal/completion.Signal`
+
+The EXIF panel's Location-section prefetch was the tenth hand-rolled copy of
+the replace-on-start / close-on-finish / wait-in-test channel item 5
+collapsed on `viewer`. `Window.warm` is now a `completion.Signal`; `startWarm`
+`Begin`s it and the `fyne.Do` callback still finishes that generation after
+writing widgets (including when `warmGen` or a closed window has made the
+prefetch stale). `waitForWarm` keeps a `Begun()` canary and `Wait`s with a
+timeout, the same shape `settleChooser` already uses. It stayed out of item 5
+because that plan named only the nine viewer fields; it is still not in
+`drain`, because it is not a viewer-owned signal.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Migrate `internal/ui/exifwin`'s `warmDone` onto `internal/completion.Signal`
-
-`internal/ui/exifwin/exifwin.go`'s `warmDone chan struct{}` (field at
-`exifwin.go:108`, set in `startWarm` at `exifwin.go:400`) is a tenth
-hand-rolled copy of the same replace-on-start / close-on-finish / wait-in-test
-contract that item 5's nine fields on `viewer` collapsed into
-`internal/completion.Signal` — `exifwin_test.go:290`'s `waitForWarm` still
-hand-rolls the nil-guard-plus-`select` that `waitFor` replaced everywhere
-else. `internal/completion` is viewer-independent (no Fyne types, no
-`fyne.Do`), so `exifwin` could import it with no cycle. It stayed out of item
-5's scope because that plan named only the nine fields on `viewer`. Not
-migrated here — a separate change.
 
 ## not deemed worth implementing (edge cases)
 

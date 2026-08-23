@@ -22,6 +22,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	xwidget "fyne.io/x/fyne/widget"
 
+	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -113,11 +114,11 @@ type Window struct {
 	// tiles downloads and caches the map's tiles off the UI goroutine -
 	// see tiles.go for why the widget's own fetching can't be left to it.
 	// warming and warmGen track the prefetch that fills the first view,
-	// warmDone lets tests wait for it.
-	tiles    *tileFetcher
-	warming  bool
-	warmGen  int
-	warmDone chan struct{}
+	// warm is the completion.Signal tests wait on - see internal/completion.
+	tiles   *tileFetcher
+	warming bool
+	warmGen int
+	warm    completion.Signal
 }
 
 // New returns the EXIF window for application. host.DisplayedFile is called
@@ -451,8 +452,7 @@ func (w *Window) startWarm() {
 	gen := w.warmGen
 	lat, lon := w.lat, w.lon
 
-	done := make(chan struct{})
-	w.warmDone = done
+	done := w.warm.Begin()
 
 	w.warming = true
 
@@ -469,7 +469,7 @@ func (w *Window) startWarm() {
 		tiles.Warm(lat, lon, mapZoom)
 
 		fyne.Do(func() {
-			defer close(done)
+			defer done()
 
 			if gen != w.warmGen || w.locationMap == nil {
 				return

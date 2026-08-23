@@ -2,6 +2,7 @@ package exifwin
 
 import (
 	"bytes"
+	"context"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -285,19 +286,20 @@ func TestRefresh_LocationSectionIsHiddenForAnUnreadableFile(t *testing.T) {
 
 // waitForWarm blocks until the prefetch the last expand started has
 // finished, so a test can assert on the loading indicator without racing
-// it. Deliberately a channel wait rather than polling widget state: the
-// Fyne test driver runs fyne.Do inline, so widget state is written from the
-// fetching goroutine.
+// it. Deliberately a completion wait rather than polling widget state:
+// the Fyne test driver runs fyne.Do inline, so widget state is written
+// from the fetching goroutine before that generation's closer runs.
 func waitForWarm(t *testing.T, w *Window) {
 	t.Helper()
 
-	if w.warmDone == nil {
+	if !w.warm.Begun() {
 		t.Fatal("no prefetch has been started")
 	}
 
-	select {
-	case <-w.warmDone:
-	case <-time.After(5 * time.Second):
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := w.warm.Wait(ctx); err != nil {
 		t.Fatal("timed out waiting for the map prefetch")
 	}
 }

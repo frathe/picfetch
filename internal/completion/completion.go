@@ -1,8 +1,9 @@
 // Package completion is the one-shot "this background operation has
-// finished" signal that the viewer grew nine hand-rolled copies of: a
-// channel replaced at the start of each request and closed when that
-// request finishes, which the test suite waits on instead of polling
-// widget state a producer goroutine may still be writing.
+// finished" signal that the viewer grew nine hand-rolled copies of, and
+// that internal/ui/exifwin grew a tenth for the Location-section map
+// prefetch: a channel replaced at the start of each request and closed
+// when that request finishes, which the test suite waits on instead of
+// polling widget state a producer goroutine may still be writing.
 //
 // The rule it makes unbreakable is the one those nine copies could only
 // state in prose: a request that has been superseded must still close its
