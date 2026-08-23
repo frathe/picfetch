@@ -2,10 +2,13 @@ package help
 
 import (
 	_ "embed"
+	"path"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
+
+	_ "golang.org/x/image/webp"
 )
 
 // mascotArtSize is the square box each Trane picture occupies in the
@@ -23,6 +26,7 @@ var mascotDiggingWebP []byte
 var mascotWagsWebP []byte
 
 func mascotResource(name string) (fyne.Resource, bool) {
+	name = path.Base(name)
 	var data []byte
 	switch name {
 	case "TaneWithFrame.webp":
@@ -52,6 +56,16 @@ func bindManualImages(rt *widget.RichText) {
 	}
 
 	rt.Segments = replaceManualImages(rt.Segments)
+}
+
+// loadManualMarkdown parses source and rewrites mascot images onto rt.
+// RichText.ParseMarkdown is not used: it Refresh()es file-URI ImageSegments
+// before bind can replace them, so Fyne logs "Failed to load image" against
+// the process working directory (repo root when running from source).
+func loadManualMarkdown(rt *widget.RichText, source string) {
+	parsed := widget.NewRichTextFromMarkdown(source)
+	bindManualImages(parsed)
+	rt.Segments = parsed.Segments
 }
 
 func replaceManualImages(segs []widget.RichTextSegment) []widget.RichTextSegment {

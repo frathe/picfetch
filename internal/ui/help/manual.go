@@ -78,8 +78,8 @@ type manualView struct {
 }
 
 func newManualView(source string, onSecret func()) *manualView {
-	text := widget.NewRichTextFromMarkdown(source)
-	bindManualImages(text)
+	text := widget.NewRichText()
+	loadManualMarkdown(text, source)
 	text.Wrapping = fyne.TextWrapWord
 	scroll := container.NewScroll(text)
 	entry := widget.NewEntry()
@@ -109,8 +109,7 @@ func (v *manualView) submit(q string) {
 		return
 	}
 
-	v.text.ParseMarkdown(v.source)
-	bindManualImages(v.text)
+	loadManualMarkdown(v.text, v.source)
 
 	if q == "" {
 		v.state = searchState{}
