@@ -29,9 +29,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// owns the manual's secret-phrase door, so both raise one window.
 	view.spiralDrag = wingesture.New(wingesture.Config{})
 	view.spiralGesture = view.help.OpenSpiral
-	view.exif = exifwin.New(application, func() (fyne.URI, bool) {
-		return view.displayedFile()
-	})
+	view.exif = exifwin.New(application, view)
 
 	// Resolve these callbacks against the viewer at call time so tests can
 	// replace keyModifiers after construction.

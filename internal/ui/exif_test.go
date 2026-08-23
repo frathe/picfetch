@@ -2,11 +2,14 @@ package ui
 
 import (
 	"image/color"
+	"os"
 	"testing"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -184,5 +187,77 @@ func TestExifLink_VisibilityFollowsNavigation(t *testing.T) {
 
 	if !v.exifLink.Visible() {
 		t.Error("the EXIF link should come back when navigating to the file that does have EXIF metadata")
+	}
+}
+
+// --- Remove Metadata ---------------------------------------------------
+//
+// The button itself lives in exifwin (exifwin_test.go, confirm_test.go);
+// these cover the viewer's side of a successful strip - AfterMetadataRemoved
+// hiding the EXIF link, refreshing currentFileSize/currentHasEXIF, and
+// evicting the decode cache so a later visit can't revive stale state.
+
+// TestStripMetadata_HidesExifLinkAndShrinksReportedSize drives a strip
+// end-to-end through the same keyboard path a user would: open the panel,
+// tap Remove Metadata, then answer the "Remove Metadata?" confirmation with
+// Right+Return (the confirming choice, per exifwin's cancelChoice/
+// confirmChoice - see confirm.go), exactly as
+// TestShowConfirmGivesTheKeyboardToItsPanelStartingOnCancel expects the
+// panel to start on Cancel.
+func TestStripMetadata_HidesExifLinkAndShrinksReportedSize(t *testing.T) {
+	v, _, _ := newTestUI(t)
+
+	u := uitest.TempGPSJPEGURI(t, "gps.jpg", 40, 20, 48.858222, 2.2945)
+	dropAndWait(t, v, u)
+
+	beforeSize := v.currentFileSize
+	v.toggleInfoOverlay()
+	if !v.exifLink.Visible() {
+		t.Fatal("setup: the EXIF link should be shown")
+	}
+
+	v.exif.Show()
+	v.exif.StripButton().OnTapped()
+	panel, ok := v.exif.Window().Canvas().Focused().(*widgets.ChoicePanel)
+	if !ok {
+		t.Fatalf("focused = %v, want the confirmation's choice panel", v.exif.Window().Canvas().Focused())
+	}
+	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+
+	settleToast(t, v)
+
+	if v.currentHasEXIF {
+		t.Fatal("currentHasEXIF still true")
+	}
+	if v.exifLink.Visible() {
+		t.Fatal("EXIF link should hide")
+	}
+
+	// GPS APP1 is only a few hundred bytes, so the stripped file should
+	// come back strictly smaller; if some platform's re-encode ever
+	// leaves currentFileSize unchanged, ReadMetadata coming back empty
+	// still proves the strip did its job - see the brief's own note on
+	// this being the fallback assertion.
+	if v.currentFileSize <= 0 || v.currentFileSize >= beforeSize {
+		data, err := os.ReadFile(u.Path())
+		if err != nil {
+			t.Fatalf("file size %d, want smaller than %d; also failed to re-read file: %v", v.currentFileSize, beforeSize, err)
+		}
+		m := imaging.ReadMetadata(data)
+		if !m.Empty() {
+			t.Fatalf("file size %d, want smaller than %d, and metadata is still present: %+v", v.currentFileSize, beforeSize, m)
+		}
+		info, err := os.Stat(u.Path())
+		if err != nil {
+			t.Fatalf("could not Stat the stripped file: %v", err)
+		}
+		if v.currentFileSize != info.Size() {
+			t.Errorf("currentFileSize = %d, want it to match the file's actual size %d after the strip", v.currentFileSize, info.Size())
+		}
+	}
+
+	if v.imgCache.Contains(u.String()) {
+		t.Fatal("imgCache should have been evicted")
 	}
 }

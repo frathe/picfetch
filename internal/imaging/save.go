@@ -1,6 +1,7 @@
 package imaging
 
 import (
+	"context"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -203,6 +204,17 @@ func jpegFileBytes(path string) ([]byte, error) {
 // copy elsewhere), which differ only in how they arrive at path, perm, and
 // encode.
 func writeEncoded(path string, perm os.FileMode, encode func(io.Writer, image.Image) error, img image.Image) error {
+	return writeFile(path, perm, func(w io.Writer) error { return encode(w, img) })
+}
+
+// writeFile is writeEncoded's underlying atomic write, generalized to any
+// write func rather than an (encode, img) pair: temp file in path's own
+// directory, Chmod(perm), write, Sync, Close, Rename - so a failed or
+// interrupted write can never leave the destination truncated or
+// corrupted, and never leaves a half-written file behind either, since the
+// rename stays within one directory. StripJPEGMetadata uses this directly
+// (writing already-encoded bytes rather than encoding an image.Image).
+func writeFile(path string, perm os.FileMode, write func(io.Writer) error) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".picfetch-save-*"+filepath.Ext(path))
 	if err != nil {
 		return err
@@ -217,7 +229,7 @@ func writeEncoded(path string, perm os.FileMode, encode func(io.Writer, image.Im
 		_ = tmp.Close()
 		return err
 	}
-	if err := encode(tmp, img); err != nil {
+	if err := write(tmp); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -230,6 +242,75 @@ func writeEncoded(path string, perm os.FileMode, encode func(io.Writer, image.Im
 	}
 
 	return os.Rename(tmpPath, path)
+}
+
+// StripJPEGMetadata removes identifying metadata from the JPEG at u
+// (Exif, XMP, IPTC, COM, MPF) in place, keeping JFIF APP0, Adobe APP14,
+// and ICC. When the file's Exif Orientation is 2–8, the pixels are
+// decoded with that orientation applied and re-encoded at jpegSaveQuality
+// so the photo does not appear sideways after the tag is gone; ICC APP2
+// from the original is spliced back (Adobe APP14 is not: it would
+// misdeclare image/jpeg.Encode's color transform). On orientation 1 the
+// lossless header walk keeps APP14 as well.
+//
+// A non-JPEG returns errNotJPEG and does not write. A JPEG with nothing
+// removable returns nil without rewriting the file. The write is the
+// same temp-file-then-rename as SaveRotated, through a symlink to the
+// target, preserving permission bits.
+func StripJPEGMetadata(u fyne.URI) error {
+	path, err := filepath.EvalSymlinks(u.Path())
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
+		return errNotJPEG
+	}
+	orient := jpegEXIFOrientation(data)
+	if !jpegHasRemovableMetadata(data) && orient == 1 {
+		return nil
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if orient == 1 {
+		stripped, err := stripJPEGSegments(data)
+		if err != nil {
+			return err
+		}
+		return writeFile(path, info.Mode().Perm(), func(w io.Writer) error {
+			_, err := w.Write(stripped)
+			return err
+		})
+	}
+
+	loaded, err := DecodeLoaded(context.Background(), data, 0)
+	if err != nil {
+		return err
+	}
+	if len(loaded.Frames) == 0 {
+		return errNotJPEG
+	}
+	return writeFile(path, info.Mode().Perm(), func(w io.Writer) error {
+		return encodeJPEGKeepingICC(w, loaded.Frames[0], data)
+	})
+}
+
+// CanStripJPEGMetadata reports whether StripJPEGMetadata would rewrite
+// data. False for non-JPEG. True when there is a removable COM/APPn
+// segment or when Exif Orientation is 2–8 (those files must be re-encoded
+// so they stay upright).
+func CanStripJPEGMetadata(data []byte) bool {
+	if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
+		return false
+	}
+	return jpegHasRemovableMetadata(data) || jpegEXIFOrientation(data) != 1
 }
 
 // UnsupportedSaveFormatError reports that SaveRotated has no encoder for a

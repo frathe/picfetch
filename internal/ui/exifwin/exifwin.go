@@ -4,10 +4,6 @@
 // OpenStreetMap view, shown only for a photo that carries GPS tags and
 // collapsed until the user expands it - which is also what keeps the widget
 // from fetching any map tiles unasked.
-//
-// It takes no host interface, only a `current` func: everything it needs
-// from the app is "which file is on screen, if any", and one accessor is a
-// smaller, more honest dependency than an interface with a single method.
 package exifwin
 
 import (
@@ -19,6 +15,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -30,7 +27,11 @@ import (
 
 const (
 	exifW = 420.0
-	exifH = 360.0
+	// exifH leaves room below mapH for the Remove Metadata button that
+	// now sits in the panel's south, on top of the text and toggle above
+	// the map - without the extra height the map itself would open
+	// shorter than mapH.
+	exifH = 420.0
 
 	// mapH is the least the map opens at, and mapZoom how far in it
 	// starts: close enough to read the streets around the pin, far enough
@@ -39,22 +40,45 @@ const (
 	mapZoom = 15
 )
 
+// Host is what the EXIF window needs from the app once it can mutate the
+// file on disk. DisplayedFile is the file actually on screen (not merely
+// selected during a failed load) — the same fact New used to take as a
+// func. It is not named CurrentFile: viewer.CurrentFile already returns
+// an index for deletion.Host. AfterMetadataRemoved is given the URI that
+// was just rewritten, not whatever is on screen now.
+type Host interface {
+	DisplayedFile() (fyne.URI, bool)
+	AfterMetadataRemoved(u fyne.URI)
+	ShowToast(msg string)
+}
+
 // Window is the EXIF panel. At most one is open at a time (widgets.
 // Singleton): a second request raises the existing window rather than
 // stacking up duplicates.
 type Window struct {
-	app fyne.App
-
-	// current reports the file whose metadata should be shown, and whether
-	// there is one at all - the app's "currently displayed image", which
-	// changes under this window as the user navigates.
-	current func() (fyne.URI, bool)
+	app  fyne.App
+	host Host
 
 	win widgets.Singleton
 
 	// text is the panel's content label, live only while the window is
 	// open (nil otherwise, which is what makes Refresh a no-op then).
 	text *widget.Label
+
+	// strip is the Remove Metadata button, live only while the window is
+	// open. canStrip is whether the current file has anything for it to
+	// remove (Task 2's imaging.CanStripJPEGMetadata) - the button is
+	// hidden rather than disabled while it's false, per Florian: no
+	// greyed-out button sitting there for a file with nothing to strip.
+	strip    *widget.Button
+	canStrip bool
+
+	// pending is the file the open confirmation is about, nil when none
+	// is showing. confirm is that dialog itself, so a second request can
+	// hide the previous one first (showConfirm's own superseded-dialog
+	// guard).
+	pending fyne.URI
+	confirm dialog.Dialog
 
 	// locationMap and location are the OpenStreetMap view and the
 	// collapsible section holding it, both live only while the window is
@@ -84,13 +108,13 @@ type Window struct {
 	warmDone chan struct{}
 }
 
-// New returns the EXIF window for application. current is called on every
-// open and refresh to find the file to read.
-func New(application fyne.App, current func() (fyne.URI, bool)) *Window {
+// New returns the EXIF window for application. host.DisplayedFile is called
+// on every open and refresh to find the file to read.
+func New(application fyne.App, host Host) *Window {
 	w := &Window{
-		app:     application,
-		current: current,
-		tiles:   newTileFetcher(osmTiles, nil),
+		app:   application,
+		host:  host,
+		tiles: newTileFetcher(osmTiles, nil),
 	}
 
 	// The panel is read against the photo it describes, so it floats above
@@ -105,7 +129,7 @@ func New(application fyne.App, current func() (fyne.URI, bool)) *Window {
 // it's already open. A no-op when nothing is displayed, since there's no
 // file to read metadata from.
 func (w *Window) Show() {
-	if _, ok := w.current(); !ok {
+	if _, ok := w.host.DisplayedFile(); !ok {
 		return
 	}
 
@@ -121,12 +145,21 @@ func (w *Window) Show() {
 		w.buildLocation()
 		w.Refresh()
 
+		w.strip = widget.NewButton(lang.L("Remove Metadata"), w.requestStrip)
+		w.strip.Importance = widget.DangerImportance
+		w.syncStripVisible()
+
 		// Border, not a scrolled box: the metadata takes the height it
 		// needs at the top and the map section gets everything below it,
 		// so dragging the window taller makes the map taller with it.
 		// Nothing here needs to scroll - the panel's minimum size already
 		// covers the longest the metadata gets.
-		return container.NewBorder(container.NewPadded(w.text), nil, nil, nil, w.location)
+		return container.NewBorder(
+			container.NewPadded(w.text),
+			container.NewPadded(w.strip),
+			nil, nil,
+			w.location,
+		)
 	}, func() {
 		w.tiles.SetOnChange(nil)
 
@@ -134,7 +167,12 @@ func (w *Window) Show() {
 		// no longer exists.
 		w.warmGen++
 
+		w.hideConfirm()
+		w.pending = nil
+
 		w.text = nil
+		w.strip = nil
+		w.canStrip = false
 		w.locationMap = nil
 		w.location = nil
 		w.toggle = nil
@@ -157,7 +195,7 @@ func (w *Window) Show() {
 // on-demand, comparatively rare action - not worth doubling every cached
 // entry's memory with raw file bytes it usually never needs.
 func (w *Window) Refresh() {
-	u, ok := w.current()
+	u, ok := w.host.DisplayedFile()
 	if w.text == nil || !ok {
 		return
 	}
@@ -170,6 +208,9 @@ func (w *Window) Refresh() {
 	if err != nil {
 		w.text.SetText(lang.L("Could not read this file's metadata."))
 		w.showLocation(imaging.Metadata{})
+		w.canStrip = false
+		w.syncStripVisible()
+		w.dismissStalePending()
 		return
 	}
 
@@ -177,6 +218,97 @@ func (w *Window) Refresh() {
 
 	w.text.SetText(formatExifMetadata(m))
 	w.showLocation(m)
+
+	w.canStrip = imaging.CanStripJPEGMetadata(data)
+	w.syncStripVisible()
+	w.dismissStalePending()
+}
+
+// dismissStalePending hides the open confirmation if it no longer matches
+// the file now displayed - navigating away from the photo a "Remove
+// Metadata?" prompt was about must not leave that prompt answering for
+// whatever is on screen now.
+func (w *Window) dismissStalePending() {
+	if w.pending == nil {
+		return
+	}
+
+	u, ok := w.host.DisplayedFile()
+	if !ok || u == nil || u.String() != w.pending.String() {
+		w.hideConfirm()
+	}
+}
+
+// syncStripVisible shows the Remove Metadata button when the current file
+// has anything removable and hides it otherwise. Hidden, not disabled: per
+// Florian, no greyed-out button sitting there for a file with nothing to
+// strip.
+func (w *Window) syncStripVisible() {
+	if w.strip == nil {
+		return
+	}
+
+	if w.canStrip {
+		w.strip.Show()
+		return
+	}
+
+	w.strip.Hide()
+}
+
+// requestStrip opens the "Remove Metadata?" confirmation for the currently
+// displayed file. A no-op with nothing removable or nothing displayed - the
+// button is hidden in the first case, but this guards the same ground for
+// any other caller (a future menu item or shortcut).
+func (w *Window) requestStrip() {
+	if !w.canStrip {
+		return
+	}
+
+	u, ok := w.host.DisplayedFile()
+	if !ok {
+		return
+	}
+
+	if w.showConfirm(confirmation{
+		title:      lang.L("Remove Metadata?"),
+		message:    fmt.Sprintf(lang.L("Remove camera, date, GPS, and other tags from %q? This cannot be undone."), u.Name()),
+		action:     lang.L("Remove Metadata"),
+		importance: widget.DangerImportance,
+		onConfirm:  func() { w.performStrip(u) },
+		onCancel:   func() { w.pending = nil },
+		onClosed:   func() { w.pending = nil },
+	}) == nil {
+		return
+	}
+	// After showConfirm: it hides any previous prompt first, and that Hide
+	// fires the old onClosed which nils pending. Assign the new URI last.
+	w.pending = u
+}
+
+// performStrip rewrites u in place with imaging.StripJPEGMetadata and
+// reports the outcome by toast - the only place in this package that
+// toasts, so a successful strip never shows twice (once here, once from
+// Host.AfterMetadataRemoved, which only re-reads the panel and does not
+// toast on its own).
+//
+// The Refresh here duplicates what the production Host.AfterMetadataRemoved
+// (viewer.AfterMetadataRemoved) already does through its own call to
+// exif.Refresh() - harmless since Refresh just re-reads the file, and it is
+// what keeps this window in sync for any Host whose AfterMetadataRemoved
+// does not refresh it itself.
+func (w *Window) performStrip(u fyne.URI) {
+	w.pending = nil
+
+	if err := imaging.StripJPEGMetadata(u); err != nil {
+		fyne.LogError("failed to remove metadata", err)
+		w.host.ShowToast(fmt.Sprintf(lang.L("could not remove metadata from %q: %v"), u.Name(), err))
+		return
+	}
+
+	w.host.AfterMetadataRemoved(u)
+	w.Refresh()
+	w.host.ShowToast(lang.L("Metadata removed"))
 }
 
 // buildLocation assembles the collapsible location section: a disclosure
@@ -401,6 +533,12 @@ func (w *Window) Text() *widget.Label {
 // position to show at all.
 func (w *Window) Location() *fyne.Container {
 	return w.location
+}
+
+// StripButton returns the Remove Metadata button while the panel is open,
+// or nil - for tests that need to check whether it is shown and to drive it.
+func (w *Window) StripButton() *widget.Button {
+	return w.strip
 }
 
 // LocationExpanded reports whether the map section is open. False for a

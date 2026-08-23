@@ -248,6 +248,31 @@ Kopie zu öffnen. Dateien ohne Exif-Daten (die meisten PNGs, GIFs und WebPs
 sowie jedes JPEG ohne von einer Kamera geschriebenes Exif-Segment) zeigen
 stattdessen die Meldung „keine Metadaten gefunden“.
 
+Am unteren Fensterrand erscheint bei JPEGs die Schaltfläche
+**Metadaten entfernen**. Sie fragt nach (**Abbrechen** vorausgewählt;
+**`←`**/**`→`** und **`Return`** / **`Esc`**, dieselben Tastatur-Regeln wie
+bei anderen PicFetch-Bestätigungen). Sie schreibt die **ursprüngliche
+JPEG-Datei** direkt um. Die Schaltfläche fehlt, sobald nichts mehr zu
+entfernen ist — auch nach einem erfolgreichen Strip.
+
+- Nur JPEG. Bei HEIC, RAW, PNG und WebP fehlt die Schaltfläche.
+- Entfernt Kamera, Datum, GPS, XMP, IPTC und Kommentare. Farbprofil (ICC)
+  und die eigene Farbtransformation des JPEG bleiben, das Bild sollte also
+  gleich aussehen.
+- Ein seitlich aufgenommenes Foto (Exif-Orientierung 2–8) wird einmal neu
+  gespeichert, damit es ohne Orientierungs-Tag aufrecht bleibt; das ist eine
+  normale JPEG-Neukodierung (Qualität 95), kein verlustfreier Kopiervorgang.
+  Das ursprüngliche ICC-Profil wird auf diese Neukodierung übernommen.
+- Ein bereits aufrechtes Foto wird ohne Neukodierung der Pixel bereinigt.
+- Nur-Ansicht-Drehung (`R`) wird nicht mitgeschrieben; nutzen Sie zuerst
+  **Datei -> Änderungen speichern**, wenn diese Drehung auf die Platte
+  soll.
+- Manche Kamera- und Handydateien hängen ein zweites JPEG hinter das
+  Hauptbild (Multi-Picture / Motion Photos); diese Kopie und ihre Tags
+  können erhalten bleiben.
+- Nicht rückgängig zu machen außer über Backups / Papierkorb — kein
+  Verschieben in den Papierkorb.
+
 Unterhalb der Tag-Liste erhält ein Foto mit GPS-Koordinaten einen
 ausklappbaren Bereich **„Ort“**: aufgeklappt zeigt er eine Karte, die auf
 die Aufnahmestelle zentriert ist und sie mit einer Nadel markiert. Er ist
@@ -851,7 +876,9 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Info-Overlay, öffnet Kamerahersteller/-modell, Objektiv, Belichtung,
   Blende, ISO, Brennweite, Aufnahmedatum und Koordinaten für das aktuelle
   Bild sowie eine ausklappbare Karte des Aufnahmeorts, wenn das Foto
-  GPS-Tags trägt
+  GPS-Tags trägt; bei JPEGs steht unten **Metadaten entfernen**, das nach
+  Bestätigung identifizierende Tags direkt aus der Datei entfernt und
+  verschwindet, sobald nichts mehr zu entfernen ist
 - **Diaschau-Modus** — `P` schaltet eine Vollbild-Diaschau mit Überblendung
   zwischen den Bildern ein/aus; `↑`/`↓` stellen das (standardmäßig 10 s)
   Auto-Weiterschalt-Intervall ein, solange sie aktiv ist; `Shift+P` schaltet

@@ -3,6 +3,7 @@ package imaging
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"image"
 	"image/jpeg"
 	"testing"
@@ -28,6 +29,20 @@ func TestIsExifAPP1(t *testing.T) {
 	}
 	if isExifAPP1([]byte{0xFF, 0xE1, 0, 0, 0, 0, 0, 0, 0}) {
 		t.Fatal("isExifAPP1: want false for a 9-byte APP1 prefix")
+	}
+}
+
+func TestIsICCAPP2(t *testing.T) {
+	icc := wrapAPP2([]byte("ICC_PROFILE\x00\x01\x01dummy-icc"))
+	if !isICCAPP2(icc) {
+		t.Fatal("isICCAPP2: want true for an ICC APP2")
+	}
+	mpf := wrapAPP2([]byte("MPF\x00x"))
+	if isICCAPP2(mpf) {
+		t.Fatal("isICCAPP2: want false for MPF")
+	}
+	if isICCAPP2(nil) || isICCAPP2([]byte{0xFF, 0xE2}) {
+		t.Fatal("isICCAPP2: want false for truncated input")
 	}
 }
 
@@ -99,6 +114,132 @@ func TestJPEGMetadataSegments(t *testing.T) {
 func wrapAPP2(payload []byte) []byte {
 	length := len(payload) + 2
 	return append([]byte{0xFF, 0xE2, byte(length >> 8), byte(length)}, payload...)
+}
+
+func wrapAPP14() []byte {
+	return []byte{0xFF, 0xEE, 0x00, 0x0E, 'A', 'd', 'o', 'b', 'e', 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00}
+}
+
+func TestKeepOnStrip(t *testing.T) {
+	if !keepOnStrip(0xE0, []byte("JFIF")) {
+		t.Fatal("keep APP0")
+	}
+	if !keepOnStrip(0xEE, []byte("Adobe")) {
+		t.Fatal("keep APP14")
+	}
+	if keepOnStrip(0xFE, []byte("hi")) {
+		t.Fatal("drop COM")
+	}
+	if keepOnStrip(0xE1, []byte("Exif\x00\x00")) {
+		t.Fatal("drop Exif APP1")
+	}
+	icc := []byte("ICC_PROFILE\x00\x01\x01x")
+	if !keepOnStrip(0xE2, icc) {
+		t.Fatal("keep ICC APP2")
+	}
+	if keepOnStrip(0xE2, []byte("MPF\x00x")) {
+		t.Fatal("drop MPF APP2")
+	}
+	if keepOnStrip(0xED, []byte("Photoshop")) {
+		t.Fatal("drop IPTC/APP13")
+	}
+}
+
+func TestJPEGHasRemovableMetadata(t *testing.T) {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatal(err)
+	}
+	plain := buf.Bytes()
+	if jpegHasRemovableMetadata(plain) {
+		t.Fatal("stdlib JPEG is only JFIF APP0; nothing removable")
+	}
+	exif := wrapAsAPP1(buildExifSegment(t, 1, false))
+	withExif := append([]byte{}, plain[:2]...)
+	withExif = append(withExif, exif...)
+	withExif = append(withExif, plain[2:]...)
+	if !jpegHasRemovableMetadata(withExif) {
+		t.Fatal("Exif APP1 is removable")
+	}
+	if jpegHasRemovableMetadata([]byte("\x89PNG")) {
+		t.Fatal("non-JPEG is not removable metadata")
+	}
+}
+
+func eiffelGPS() gpsFields {
+	return gpsFields{
+		latRef: "N", lat: [3][2]uint32{{48, 1}, {51, 1}, {2960, 100}},
+		lonRef: "E", lon: [3][2]uint32{{2, 1}, {17, 1}, {4020, 100}},
+	}
+}
+
+func TestStripJPEGSegments(t *testing.T) {
+	t.Run("drops Exif XMP COM MPF IPTC; keeps APP0 APP14 ICC and the scan", func(t *testing.T) {
+		com := []byte{0xFF, 0xFE, 0x00, 0x05, 'h', 'i', 0x00}
+		xmp := wrapAsAPP1([]byte("http://ns.adobe.com/xap/1.0/\x00<x/>"))
+		exif := wrapAsAPP1(buildExifSegment(t, 1, false))
+		icc := wrapAPP2([]byte("ICC_PROFILE\x00\x01\x01dummy-icc"))
+		mpf := wrapAPP2([]byte("MPF\x00not-a-real-mpf"))
+		iptc := []byte{0xFF, 0xED, 0x00, 0x0C, 'P', 'h', 'o', 't', 'o', 's', 'h', 'o', 'p', 0x00}
+		adobe := wrapAPP14()
+
+		data := spliceMetadataIntoJPEG(t, markedImage(4, 4), [][]byte{
+			com, xmp, exif, icc, mpf, iptc, adobe,
+		})
+
+		got, err := stripJPEGSegments(data)
+		if err != nil {
+			t.Fatalf("stripJPEGSegments: %v", err)
+		}
+		if jpegHasRemovableMetadata(got) {
+			t.Fatal("still has removable segments")
+		}
+		if !bytes.Contains(got, []byte("ICC_PROFILE")) {
+			t.Fatal("lost ICC")
+		}
+		if !bytes.Contains(got, []byte("Adobe")) {
+			t.Fatal("lost APP14")
+		}
+		if bytes.Contains(got, []byte("Exif\x00\x00")) || bytes.Contains(got, []byte("xap/1.0")) || bytes.Contains(got, []byte("MPF\x00")) {
+			t.Fatal("left identifying or MPF segments")
+		}
+		if _, err := jpeg.Decode(bytes.NewReader(got)); err != nil {
+			t.Fatalf("stripped file must still decode: %v", err)
+		}
+	})
+
+	t.Run("orientation-1 GPS JPEG is bit-identical in the scan after strip", func(t *testing.T) {
+		exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, eiffelGPS())...))
+		data := spliceMetadataIntoJPEG(t, markedImage(8, 8), [][]byte{exif})
+		if !ReadMetadata(data).HasGPS {
+			t.Fatal("setup: want GPS")
+		}
+		got, err := stripJPEGSegments(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ReadMetadata(got).Empty() {
+			t.Fatalf("ReadMetadata after strip = %+v, want empty", ReadMetadata(got))
+		}
+		sos := bytes.Index(data, []byte{0xFF, 0xDA})
+		if sos < 0 {
+			t.Fatal("setup: no SOS")
+		}
+		gotSOS := bytes.Index(got, []byte{0xFF, 0xDA})
+		if gotSOS < 0 {
+			t.Fatal("stripped file lost SOS")
+		}
+		if !bytes.Equal(data[sos:], got[gotSOS:]) {
+			t.Fatal("lossless strip must copy the entropy-coded scan verbatim")
+		}
+	})
+
+	t.Run("non-JPEG is errNotJPEG", func(t *testing.T) {
+		_, err := stripJPEGSegments([]byte("\x89PNG"))
+		if !errors.Is(err, errNotJPEG) {
+			t.Fatalf("err = %v, want errNotJPEG", err)
+		}
+	})
 }
 
 func TestInjectJPEGMetadata(t *testing.T) {
@@ -315,6 +456,47 @@ func TestEncodeJPEGPreservingMetadata(t *testing.T) {
 		}
 		if segs := jpegMetadataSegments(out.Bytes()); len(segs) != 0 {
 			t.Errorf("invented %d metadata segments", len(segs))
+		}
+	})
+}
+
+func TestEncodeJPEGKeepingICC(t *testing.T) {
+	t.Run("keeps ICC and drops Exif", func(t *testing.T) {
+		orig := halfRedHalfBlueJPEG(t, 8, 8, 6)
+		icc := wrapAPP2([]byte("ICC_PROFILE\x00\x01\x01dummy-icc"))
+		adobe := wrapAPP14()
+		withICC, err := injectJPEGMetadata(orig, [][]byte{icc, adobe})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var out bytes.Buffer
+		if err := encodeJPEGKeepingICC(&out, markedImage(3, 2), withICC); err != nil {
+			t.Fatal(err)
+		}
+		got := out.Bytes()
+		if !bytes.Contains(got, []byte("ICC_PROFILE")) {
+			t.Fatal("want ICC APP2 on the re-encode")
+		}
+		if bytes.Contains(got, []byte("Exif")) {
+			t.Fatal("must not copy Exif onto the strip re-encode")
+		}
+		if bytes.Contains(got, []byte("Adobe")) {
+			t.Fatal("must not copy APP14 onto the strip re-encode")
+		}
+	})
+
+	t.Run("no ICC encodes like encodeJPEGForSave", func(t *testing.T) {
+		var origBuf bytes.Buffer
+		if err := jpeg.Encode(&origBuf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
+			t.Fatal(err)
+		}
+		var out bytes.Buffer
+		if err := encodeJPEGKeepingICC(&out, markedImage(2, 2), origBuf.Bytes()); err != nil {
+			t.Fatal(err)
+		}
+		if segs := jpegICCSegments(out.Bytes()); len(segs) != 0 {
+			t.Errorf("invented %d ICC segments", len(segs))
 		}
 	})
 }

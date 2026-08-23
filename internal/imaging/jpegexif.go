@@ -85,6 +85,101 @@ func skipSegment(marker byte, payload []byte) bool {
 	return false
 }
 
+// keepOnStrip reports whether a COM/APPn segment should survive
+// stripJPEGSegments. APP0 (JFIF/JFXX) and APP14 (Adobe color transform)
+// stay; ICC APP2 stays (appearance). Everything else removable — Exif,
+// XMP, IPTC, COM, MPF — is dropped.
+func keepOnStrip(marker byte, payload []byte) bool {
+	if marker == 0xE0 { // APP0
+		return true
+	}
+	if marker == 0xEE { // APP14 Adobe
+		return true
+	}
+	if marker == 0xE2 && len(payload) >= 12 && string(payload[:12]) == "ICC_PROFILE\x00" {
+		return true
+	}
+	return false
+}
+
+// jpegHasRemovableMetadata reports whether stripJPEGSegments would drop
+// at least one COM/APPn segment. Non-JPEG data is false.
+func jpegHasRemovableMetadata(data []byte) bool {
+	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
+		return false
+	}
+	pos := 2
+	for pos+4 <= len(data) {
+		if data[pos] != 0xFF {
+			break
+		}
+		marker := data[pos+1]
+		if marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9) {
+			pos += 2
+			continue
+		}
+		if marker == 0xDA {
+			break
+		}
+		segLen := int(data[pos+2])<<8 | int(data[pos+3])
+		if segLen < 2 || pos+2+segLen > len(data) {
+			break
+		}
+		segEnd := pos + 2 + segLen
+		if marker == 0xFE || (marker >= 0xE0 && marker <= 0xEF) {
+			if !keepOnStrip(marker, data[pos+4:segEnd]) {
+				return true
+			}
+		}
+		pos = segEnd
+	}
+	return false
+}
+
+// stripJPEGSegments returns a copy of a JPEG with removable metadata
+// segments (see keepOnStrip) omitted. DQT/DHT/SOF/DRI and the entropy-
+// coded scan are copied verbatim. data that is not a JPEG yields
+// errNotJPEG. A JPEG with nothing removable returns a copy of data.
+func stripJPEGSegments(data []byte) ([]byte, error) {
+	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
+		return nil, errNotJPEG
+	}
+
+	out := make([]byte, 0, len(data))
+	out = append(out, 0xFF, 0xD8)
+	pos := 2
+
+	for pos+4 <= len(data) {
+		if data[pos] != 0xFF {
+			return nil, errNotJPEG
+		}
+		marker := data[pos+1]
+		if marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9) {
+			out = append(out, data[pos:pos+2]...)
+			pos += 2
+			continue
+		}
+		if marker == 0xDA {
+			out = append(out, data[pos:]...)
+			return out, nil
+		}
+		segLen := int(data[pos+2])<<8 | int(data[pos+3])
+		if segLen < 2 || pos+2+segLen > len(data) {
+			return nil, errNotJPEG
+		}
+		segEnd := pos + 2 + segLen
+		if marker == 0xFE || (marker >= 0xE0 && marker <= 0xEF) {
+			if !keepOnStrip(marker, data[pos+4:segEnd]) {
+				pos = segEnd
+				continue
+			}
+		}
+		out = append(out, data[pos:segEnd]...)
+		pos = segEnd
+	}
+	return nil, errNotJPEG
+}
+
 // isExifAPP1 reports whether seg is a full APP1 whose payload starts with
 // "Exif\x00\x00".
 func isExifAPP1(seg []byte) bool {
@@ -201,6 +296,53 @@ func encodeJPEGPreservingMetadata(w io.Writer, img image.Image, orig []byte) err
 		if isExifAPP1(s) {
 			segs[i] = normalizeSavedExif(s)
 		}
+	}
+	out, err := injectJPEGMetadata(encoded, segs)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(out)
+	return err
+}
+
+// isICCAPP2 reports whether seg is a full APP2 whose payload starts with
+// "ICC_PROFILE\x00".
+func isICCAPP2(seg []byte) bool {
+	if len(seg) < 16 || seg[0] != 0xFF || seg[1] != 0xE2 {
+		return false
+	}
+	return string(seg[4:16]) == "ICC_PROFILE\x00"
+}
+
+// jpegICCSegments returns the ICC APP2 segments jpegMetadataSegments
+// collected from data, in file order. Used by the orientation 2–8 strip
+// path, which must re-encode pixels and therefore cannot keep APP14 (that
+// marker describes the original entropy-coded color transform, not
+// image/jpeg.Encode's output).
+func jpegICCSegments(data []byte) [][]byte {
+	var icc [][]byte
+	for _, s := range jpegMetadataSegments(data) {
+		if isICCAPP2(s) {
+			icc = append(icc, s)
+		}
+	}
+	return icc
+}
+
+// encodeJPEGKeepingICC encodes img at jpegSaveQuality, then splices orig's
+// ICC APP2 segments after SOI. Identifying metadata is not copied. A
+// non-JPEG orig, or a JPEG with no ICC, encodes exactly as
+// encodeJPEGForSave would.
+func encodeJPEGKeepingICC(w io.Writer, img image.Image, orig []byte) error {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: jpegSaveQuality}); err != nil {
+		return err
+	}
+	encoded := buf.Bytes()
+	segs := jpegICCSegments(orig)
+	if len(segs) == 0 {
+		_, err := w.Write(encoded)
+		return err
 	}
 	out, err := injectJPEGMetadata(encoded, segs)
 	if err != nil {

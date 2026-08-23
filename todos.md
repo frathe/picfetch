@@ -84,21 +84,42 @@ cannot show the unrotated photo. `SaveRotated` uses this on JPEG save;
 passes the source URI; wallpaper passes nil). Other formats and PNG exports
 remain a plain re-encode with no metadata carry-over.
 
+### 7. Remove Metadata from JPEG in the EXIF window
+
+The EXIF panel (`E` / info overlay's "Show EXIF data" link) now has a
+**Remove Metadata** button at the bottom for JPEGs only — hidden for HEIC,
+RAW, PNG, and WebP. A `widgets.ChoicePanel` confirmation on the panel's own
+window (`confirm.go`, not the main-window `ChoiceCard`) asks before
+`internal/imaging`'s `StripJPEGMetadata` rewrites the original file in place:
+COM/APPn privacy segments (camera, date, GPS, XMP, IPTC, comments) go via
+`jpegexif.go`'s `stripJPEGSegments`/`keepOnStrip` (the inverse of the
+preserve-metadata splice), while JFIF APP0, Adobe APP14, and ICC APP2 stay.
+Exif orientation 2–8 triggers a one-time quality-95 re-encode so the photo
+stays upright without the tag, then splices the original ICC profile back
+(`encodeJPEGKeepingICC`); orientation 1 is a lossless header strip.
+View-only `R` rotation is ignored — Save Changes first. `Host` supplies
+`DisplayedFile`, `AfterMetadataRemoved(u)`, and `ShowToast`; cache and info
+overlay refresh through the host callback.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
 
-### Feature: Button in the exit window: Remove Metadata from file
-This would remove the EXIF data from the file. A confirmation dialog would be
-shown.
+### Truncate MPF / motion-photo trailers when stripping JPEG metadata
+
+`StripJPEGMetadata` drops the MPF APP2 index in the JPEG header but copies
+the scan through EOF, so a second image concatenated after the primary EOI
+(and that copy's own Exif/GPS) can survive a privacy strip. Truncating at
+the primary EOI is a separate change: it needs fixtures and a careful look
+at which trailers are safe to drop.
 
 ### Migrate `internal/ui/exifwin`'s `warmDone` onto `internal/completion.Signal`
 
 `internal/ui/exifwin/exifwin.go`'s `warmDone chan struct{}` (field at
-`exifwin.go:84`, set in `startWarm` at `exifwin.go:278`) is a tenth
+`exifwin.go:108`, set in `startWarm` at `exifwin.go:400`) is a tenth
 hand-rolled copy of the same replace-on-start / close-on-finish / wait-in-test
 contract that item 5's nine fields on `viewer` collapsed into
-`internal/completion.Signal` — `exifwin_test.go:265-270`'s `waitForWarm` still
+`internal/completion.Signal` — `exifwin_test.go:290`'s `waitForWarm` still
 hand-rolls the nil-guard-plus-`select` that `waitFor` replaced everywhere
 else. `internal/completion` is viewer-independent (no Fyne types, no
 `fyne.Do`), so `exifwin` could import it with no cycle. It stayed out of item

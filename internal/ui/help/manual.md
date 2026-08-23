@@ -222,6 +222,27 @@ Files with no Exif data (most PNGs, GIFs, and WebPs, and any JPEG without a
 camera-written Exif segment) show a "no metadata found" message instead of
 an empty window.
 
+At the bottom of the window, JPEGs get a **Remove Metadata** button. It asks
+for confirmation (**Cancel** selected by default; **`←`**/**`→`** and
+**`Return`** / **`Esc`**, same keyboard rules as other PicFetch
+confirmations). It rewrites the **original JPEG** in place. The button is
+hidden for a JPEG with nothing left to remove, including after a successful
+strip.
+
+- JPEG only. HEIC, RAW, PNG, WebP: the button is hidden.
+- Removes camera, date, GPS, XMP, IPTC, and comments. Color profile (ICC) and
+  the JPEG's own color transform stay, so the picture should look the same.
+- A photo shot sideways (Exif orientation 2–8) is re-saved once so it stays
+  upright without the orientation tag; that is a normal JPEG re-encode (quality
+  95), not a lossless copy. The original ICC profile is copied onto that
+  re-encode.
+- A photo already upright is stripped without re-encoding the pixels.
+- View-only rotation (`R`) is not written; use **File -> Save Changes** first
+  if that rotation should land on disk.
+- Some camera and phone files that append a second JPEG after the primary
+  image (multi-picture / motion photos) may keep that copy and its tags.
+- Cannot be undone except from backups / Trash — this is not a Trash move.
+
 Below the tag list, a photo that carries GPS coordinates gets a collapsible
 **Location** section: expand it and a map centred on the spot the photo was
 taken appears, with a pin marking it. It starts collapsed every time the
@@ -752,7 +773,9 @@ Things PicFetch deliberately does not do (yet):
 - **EXIF data window** — `E`, or the info overlay's "Show EXIF data" link,
   opens camera make/model, lens, exposure, aperture, ISO, focal length,
   capture date and coordinates for the current image, plus a collapsible map
-  of where it was taken when the photo carries GPS tags
+  of where it was taken when the photo carries GPS tags; JPEGs also get a
+  **Remove Metadata** button at the bottom that strips identifying tags from
+  the file in place after confirmation, hidden once nothing is left to remove
 - **Picture-frame mode** — `P` toggles a full-screen slideshow with a
   crossfade between images; `↑`/`↓` tune the (default 10s) auto-advance
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in

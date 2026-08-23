@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"os"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -674,6 +675,34 @@ func (v *viewer) displayedFile() (fyne.URI, bool) {
 	u, _, ok := v.CurrentFile()
 
 	return u, ok
+}
+
+// DisplayedFile is the file decoded and on screen, ok=false when the
+// drop zone is showing. Satisfies exifwin.Host; narrower than
+// CurrentFile, which still reports a selected index during a failed load.
+func (v *viewer) DisplayedFile() (fyne.URI, bool) {
+	return v.displayedFile()
+}
+
+// AfterMetadataRemoved is exifwin.Host: the JPEG at u just lost its
+// identifying tags. Evict that file's decode-cache entry so a later visit
+// cannot revive HasEXIF. Overlay size / EXIF-link updates apply only when
+// u is still the file on screen, so a navigation while the confirmation
+// was up cannot hide a different photo's link.
+func (v *viewer) AfterMetadataRemoved(u fyne.URI) {
+	if u == nil {
+		return
+	}
+	v.imgCache.Remove(u.String())
+	if shown, ok := v.displayedFile(); ok && shown.String() == u.String() {
+		if info, err := os.Stat(u.Path()); err == nil {
+			v.currentFileSize = info.Size()
+		}
+		v.currentHasEXIF = false
+		v.syncInfoOverlayVisibility()
+		v.updateInfoOverlay()
+	}
+	v.exif.Refresh()
 }
 
 // RemoveFile drops the file at v.state.files[i] from both v.state.files and

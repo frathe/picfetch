@@ -1,7 +1,10 @@
 package imaging
 
 import (
+	"bytes"
+	"errors"
 	"image/color"
+	"image/jpeg"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -482,4 +485,250 @@ func TestJpegFileBytes(t *testing.T) {
 			t.Fatal("jpegFileBytes: want error for a missing file, got nil")
 		}
 	})
+}
+
+// mustRead is os.ReadFile with the test failing on any error, so the
+// StripJPEGMetadata tests below can inline a read-back without repeating
+// the error check at every call site.
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func TestStripJPEGMetadata_RemovesGPSWithoutTouchingPixelsWhenOrientation1(t *testing.T) {
+	exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, gpsFields{
+		latRef: "N", lat: [3][2]uint32{{48, 1}, {51, 1}, {2960, 100}},
+		lonRef: "E", lon: [3][2]uint32{{2, 1}, {17, 1}, {4020, 100}},
+	})...))
+	path := writeTempFile(t, "gps.jpg", spliceMetadataIntoJPEG(t, markedImage(8, 8), [][]byte{exif}))
+	u := storage.NewFileURI(path)
+
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ReadMetadata(before).HasGPS {
+		t.Fatal("setup: want GPS")
+	}
+
+	if err := StripJPEGMetadata(u); err != nil {
+		t.Fatalf("StripJPEGMetadata: %v", err)
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ReadMetadata(after).Empty() {
+		t.Fatalf("metadata left: %+v", ReadMetadata(after))
+	}
+	pre, err := jpeg.Decode(bytes.NewReader(before))
+	if err != nil {
+		t.Fatal(err)
+	}
+	post, err := jpeg.Decode(bytes.NewReader(after))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pre.Bounds() != post.Bounds() {
+		t.Fatalf("bounds %v vs %v", pre.Bounds(), post.Bounds())
+	}
+}
+
+func TestStripJPEGMetadata_Orientation6StaysUpright(t *testing.T) {
+	path := writeTempFile(t, "rotated.jpg", halfRedHalfBlueJPEG(t, 20, 10, 6))
+	u := storage.NewFileURI(path)
+
+	loadedBefore, err := LoadImage(u, DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := loadedBefore.Frames[0].Bounds()
+	if b.Dx() != 10 || b.Dy() != 20 {
+		t.Fatalf("setup size %dx%d, want 10x20", b.Dx(), b.Dy())
+	}
+
+	if err := StripJPEGMetadata(u); err != nil {
+		t.Fatalf("StripJPEGMetadata: %v", err)
+	}
+
+	if !ReadMetadata(mustRead(t, path)).Empty() {
+		t.Fatal("want no Exif after strip")
+	}
+	if jpegEXIFOrientation(mustRead(t, path)) != 1 {
+		t.Fatal("stripped file must not carry orientation 6")
+	}
+
+	loadedAfter, err := LoadImage(u, DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := loadedAfter.Frames[0]
+	if img.Bounds() != b {
+		t.Fatalf("size %v, want %v (upright)", img.Bounds(), b)
+	}
+	r, _, b2, _ := img.At(5, 5).RGBA()
+	if r < b2 {
+		t.Errorf("top: want red after strip+reload")
+	}
+	r, _, b2, _ = img.At(5, 15).RGBA()
+	if b2 < r {
+		t.Errorf("bottom: want blue after strip+reload")
+	}
+}
+
+func TestStripJPEGMetadata_Orientation6KeepsICC(t *testing.T) {
+	orig := halfRedHalfBlueJPEG(t, 20, 10, 6)
+	icc := wrapAPP2([]byte("ICC_PROFILE\x00\x01\x01dummy-icc"))
+	withICC, err := injectJPEGMetadata(orig, [][]byte{icc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := writeTempFile(t, "rotated-icc.jpg", withICC)
+	u := storage.NewFileURI(path)
+
+	if err := StripJPEGMetadata(u); err != nil {
+		t.Fatalf("StripJPEGMetadata: %v", err)
+	}
+
+	got := mustRead(t, path)
+	if !bytes.Contains(got, []byte("ICC_PROFILE")) {
+		t.Fatal("orientation 2–8 re-encode must keep the original ICC profile")
+	}
+	if !ReadMetadata(got).Empty() {
+		t.Fatal("want no Exif after strip")
+	}
+	if jpegEXIFOrientation(got) != 1 {
+		t.Fatal("stripped file must not carry orientation 6")
+	}
+
+	loaded, err := LoadImage(u, DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := loaded.Frames[0]
+	if img.Bounds().Dx() != 10 || img.Bounds().Dy() != 20 {
+		t.Fatalf("size %v, want 10x20 upright", img.Bounds())
+	}
+}
+
+func TestStripJPEGMetadata_NotJPEG(t *testing.T) {
+	path := writeTempFile(t, "x.png", []byte("\x89PNG\r\n"))
+	err := StripJPEGMetadata(storage.NewFileURI(path))
+	if !errors.Is(err, errNotJPEG) {
+		t.Fatalf("err = %v, want errNotJPEG", err)
+	}
+}
+
+func TestStripJPEGMetadata_NoRemovableSegmentsIsNoop(t *testing.T) {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatal(err)
+	}
+	path := writeTempFile(t, "plain.jpg", buf.Bytes())
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mtime := info.ModTime()
+
+	if err := StripJPEGMetadata(storage.NewFileURI(path)); err != nil {
+		t.Fatal(err)
+	}
+
+	info2, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info2.ModTime().Equal(mtime) {
+		t.Fatal("noop strip must not rewrite the file")
+	}
+}
+
+func TestStripJPEGMetadata_PreservesPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not expose Unix permission bits")
+	}
+
+	path := writeTempFile(t, "private.jpg", halfRedHalfBlueJPEG(t, 4, 4, 6))
+	if err := os.Chmod(path, 0o640); err != nil {
+		t.Fatalf("chmod fixture: %v", err)
+	}
+
+	if err := StripJPEGMetadata(storage.NewFileURI(path)); err != nil {
+		t.Fatalf("StripJPEGMetadata: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat stripped file: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o640); got != want {
+		t.Errorf("stripped file permissions = %o, want %o", got, want)
+	}
+}
+
+func TestStripJPEGMetadata_UpdatesSymlinkTargetWithoutReplacingTheLink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.jpg")
+	if err := os.WriteFile(target, halfRedHalfBlueJPEG(t, 4, 4, 6), 0o600); err != nil {
+		t.Fatalf("write target: %v", err)
+	}
+	link := filepath.Join(dir, "photo.jpg")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	u := storage.NewFileURI(link)
+	if err := StripJPEGMetadata(u); err != nil {
+		t.Fatalf("StripJPEGMetadata: %v", err)
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatalf("lstat link: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Error("StripJPEGMetadata replaced the symlink instead of updating its target")
+	}
+
+	if !ReadMetadata(mustRead(t, target)).Empty() {
+		t.Fatal("want no Exif in the symlink target after strip")
+	}
+}
+
+func TestCanStripJPEGMetadata(t *testing.T) {
+	var plainBuf bytes.Buffer
+	if err := jpeg.Encode(&plainBuf, markedImage(2, 2), &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatal(err)
+	}
+
+	exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, gpsFields{
+		latRef: "N", lat: [3][2]uint32{{48, 1}, {51, 1}, {2960, 100}},
+		lonRef: "E", lon: [3][2]uint32{{2, 1}, {17, 1}, {4020, 100}},
+	})...))
+	gpsJPEG := spliceMetadataIntoJPEG(t, markedImage(8, 8), [][]byte{exif})
+
+	cases := []struct {
+		name string
+		data []byte
+		want bool
+	}{
+		{"stdlib JPEG has nothing removable", plainBuf.Bytes(), false},
+		{"GPS splice is removable", gpsJPEG, true},
+		{"orientation 6 must re-encode", halfRedHalfBlueJPEG(t, 4, 4, 6), true},
+		{"PNG magic is not a JPEG", []byte("\x89PNG\r\n"), false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := CanStripJPEGMetadata(c.data); got != c.want {
+				t.Errorf("CanStripJPEGMetadata(%s) = %v, want %v", c.name, got, c.want)
+			}
+		})
+	}
 }
