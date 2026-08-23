@@ -1,6 +1,7 @@
 // Package exifwin is the EXIF metadata window: a small panel listing the
 // current image's camera settings, opened with the E key or the info
-// overlay's "Show EXIF data" link. Below the list sits a collapsible
+// overlay's "Show EXIF data" link. Below the list (and, for a JPEG with
+// tags to strip, a Remove Metadata button) sits a collapsible
 // OpenStreetMap view, shown only for a photo that carries GPS tags and
 // collapsed until the user expands it - which is also what keeps the widget
 // from fetching any map tiles unasked.
@@ -27,10 +28,11 @@ import (
 
 const (
 	exifW = 420.0
-	// exifH leaves room below mapH for the Remove Metadata button that
-	// now sits in the panel's south, on top of the text and toggle above
-	// the map - without the extra height the map itself would open
-	// shorter than mapH.
+	// exifH leaves room for the Remove Metadata button above the map
+	// (it sits in the north stack with the tag list, not under the map
+	// in the south: a 240px map MinSize in the Border center overflows
+	// and paints over a south slot). Without the extra height the map
+	// itself would open shorter than mapH.
 	exifH = 420.0
 
 	// mapH is the least the map opens at, and mapZoom how far in it
@@ -66,11 +68,14 @@ type Window struct {
 	text *widget.Label
 
 	// strip is the Remove Metadata button, live only while the window is
-	// open. canStrip is whether the current file has anything for it to
+	// open. stripBar is the padded wrapper around it in the north stack,
+	// hidden as a unit so a hidden button does not leave its padding.
+	// canStrip is whether the current file has anything for it to
 	// remove (Task 2's imaging.CanStripJPEGMetadata) - the button is
 	// hidden rather than disabled while it's false, per Florian: no
 	// greyed-out button sitting there for a file with nothing to strip.
 	strip    *widget.Button
+	stripBar *fyne.Container
 	canStrip bool
 
 	// pending is the file the open confirmation is about, nil when none
@@ -147,17 +152,23 @@ func (w *Window) Show() {
 
 		w.strip = widget.NewButton(lang.L("Remove Metadata"), w.requestStrip)
 		w.strip.Importance = widget.DangerImportance
+		w.stripBar = container.NewPadded(w.strip)
 		w.syncStripVisible()
 
-		// Border, not a scrolled box: the metadata takes the height it
-		// needs at the top and the map section gets everything below it,
-		// so dragging the window taller makes the map taller with it.
-		// Nothing here needs to scroll - the panel's minimum size already
-		// covers the longest the metadata gets.
+		// Border, not a scrolled box: the metadata and the strip button
+		// take the height they need at the top and the map section gets
+		// everything below them, so dragging the window taller makes the
+		// map taller with it. The button sits above the map, not in the
+		// south: a map MinSize of mapH in the center overflows a 420px
+		// window and would paint over a south-slot control. Nothing here
+		// needs to scroll - the panel's minimum size already covers the
+		// longest the metadata gets.
 		return container.NewBorder(
-			container.NewPadded(w.text),
-			container.NewPadded(w.strip),
-			nil, nil,
+			container.NewVBox(
+				container.NewPadded(w.text),
+				w.stripBar,
+			),
+			nil, nil, nil,
 			w.location,
 		)
 	}, func() {
@@ -172,6 +183,7 @@ func (w *Window) Show() {
 
 		w.text = nil
 		w.strip = nil
+		w.stripBar = nil
 		w.canStrip = false
 		w.locationMap = nil
 		w.location = nil
@@ -250,10 +262,16 @@ func (w *Window) syncStripVisible() {
 
 	if w.canStrip {
 		w.strip.Show()
+		if w.stripBar != nil {
+			w.stripBar.Show()
+		}
 		return
 	}
 
 	w.strip.Hide()
+	if w.stripBar != nil {
+		w.stripBar.Hide()
+	}
 }
 
 // requestStrip opens the "Remove Metadata?" confirmation for the currently

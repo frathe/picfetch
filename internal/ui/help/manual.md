@@ -222,12 +222,12 @@ Files with no Exif data (most PNGs, GIFs, and WebPs, and any JPEG without a
 camera-written Exif segment) show a "no metadata found" message instead of
 an empty window.
 
-At the bottom of the window, JPEGs get a **Remove Metadata** button. It asks
-for confirmation (**Cancel** selected by default; **`←`**/**`→`** and
-**`Return`** / **`Esc`**, same keyboard rules as other PicFetch
-confirmations). It rewrites the **original JPEG** in place. The button is
-hidden for a JPEG with nothing left to remove, including after a successful
-strip.
+Below the tag list, JPEGs get a **Remove Metadata** button (above the map,
+when there is one). It asks for confirmation (**Cancel** selected by
+default; **`←`**/**`→`** and **`Return`** / **`Esc`**, same keyboard rules as
+other PicFetch confirmations). It rewrites the **original JPEG** in place.
+The button is hidden for a JPEG with nothing left to remove, including after
+a successful strip.
 
 - JPEG only. HEIC, RAW, PNG, WebP: the button is hidden.
 - Removes camera, date, GPS, XMP, IPTC, and comments. Color profile (ICC) and
@@ -774,8 +774,9 @@ Things PicFetch deliberately does not do (yet):
   opens camera make/model, lens, exposure, aperture, ISO, focal length,
   capture date and coordinates for the current image, plus a collapsible map
   of where it was taken when the photo carries GPS tags; JPEGs also get a
-  **Remove Metadata** button at the bottom that strips identifying tags from
-  the file in place after confirmation, hidden once nothing is left to remove
+  **Remove Metadata** button below the tags (above the map) that strips
+  identifying tags from the file in place after confirmation, hidden once
+  nothing is left to remove
 - **Picture-frame mode** — `P` toggles a full-screen slideshow with a
   crossfade between images; `↑`/`↓` tune the (default 10s) auto-advance
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in

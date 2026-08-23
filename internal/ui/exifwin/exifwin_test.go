@@ -584,6 +584,63 @@ func TestStripButton_ShownForAGPSJPEG(t *testing.T) {
 	}
 }
 
+func TestStripButton_SitsAboveTheMap(t *testing.T) {
+	app, host := gpsApp(t)
+	w := New(app, host)
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	w.Window().Resize(fyne.NewSize(exifW, exifH))
+	w.ToggleLocation()
+
+	root := w.Window().Content()
+	btn := w.StripButton()
+	loc := w.Location()
+	btnPos, ok := absolutePos(root, btn)
+	if !ok {
+		t.Fatal("Remove Metadata button is not in the window content tree")
+	}
+	locPos, ok := absolutePos(root, loc)
+	if !ok {
+		t.Fatal("location section is not in the window content tree")
+	}
+	btnBottom := btnPos.Y + btn.Size().Height
+	if locPos.Y+1 < btnBottom {
+		t.Fatalf("location Y=%v sits above button bottom %v: the map would cover Remove Metadata", locPos.Y, btnBottom)
+	}
+	if btn.Size().Height <= 0 {
+		t.Fatal("Remove Metadata button has no laid-out height")
+	}
+}
+
+// absolutePos is the position of target in root's coordinate space, walking
+// nested *fyne.Container parents. Positions on CanvasObject are relative to
+// the parent, so comparing StripButton().Position() to Location().Position()
+// directly is meaningless - they do not share a parent.
+func absolutePos(root, target fyne.CanvasObject) (fyne.Position, bool) {
+	var walk func(n fyne.CanvasObject, acc fyne.Position) (fyne.Position, bool)
+	walk = func(n fyne.CanvasObject, acc fyne.Position) (fyne.Position, bool) {
+		if n == nil {
+			return fyne.Position{}, false
+		}
+		here := acc.Add(n.Position())
+		if n == target {
+			return here, true
+		}
+		c, ok := n.(*fyne.Container)
+		if !ok {
+			return fyne.Position{}, false
+		}
+		for _, ch := range c.Objects {
+			if p, found := walk(ch, here); found {
+				return p, true
+			}
+		}
+		return fyne.Position{}, false
+	}
+	return walk(root, fyne.NewPos(0, 0).Subtract(root.Position()))
+}
+
 func TestRequestStrip_CancelLeavesTheFileUnchanged(t *testing.T) {
 	app, host := gpsApp(t)
 	w := New(app, host)

@@ -248,12 +248,13 @@ Kopie zu öffnen. Dateien ohne Exif-Daten (die meisten PNGs, GIFs und WebPs
 sowie jedes JPEG ohne von einer Kamera geschriebenes Exif-Segment) zeigen
 stattdessen die Meldung „keine Metadaten gefunden“.
 
-Am unteren Fensterrand erscheint bei JPEGs die Schaltfläche
-**Metadaten entfernen**. Sie fragt nach (**Abbrechen** vorausgewählt;
-**`←`**/**`→`** und **`Return`** / **`Esc`**, dieselben Tastatur-Regeln wie
-bei anderen PicFetch-Bestätigungen). Sie schreibt die **ursprüngliche
-JPEG-Datei** direkt um. Die Schaltfläche fehlt, sobald nichts mehr zu
-entfernen ist — auch nach einem erfolgreichen Strip.
+Unterhalb der Tag-Liste erscheint bei JPEGs die Schaltfläche
+**Metadaten entfernen** (oberhalb der Karte, falls eine da ist). Sie fragt
+nach (**Abbrechen** vorausgewählt; **`←`**/**`→`** und **`Return`** /
+**`Esc`**, dieselben Tastatur-Regeln wie bei anderen PicFetch-Bestätigungen).
+Sie schreibt die **ursprüngliche JPEG-Datei** direkt um. Die Schaltfläche
+fehlt, sobald nichts mehr zu entfernen ist — auch nach einem erfolgreichen
+Strip.
 
 - Nur JPEG. Bei HEIC, RAW, PNG und WebP fehlt die Schaltfläche.
 - Entfernt Kamera, Datum, GPS, XMP, IPTC und Kommentare. Farbprofil (ICC)
@@ -876,9 +877,10 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Info-Overlay, öffnet Kamerahersteller/-modell, Objektiv, Belichtung,
   Blende, ISO, Brennweite, Aufnahmedatum und Koordinaten für das aktuelle
   Bild sowie eine ausklappbare Karte des Aufnahmeorts, wenn das Foto
-  GPS-Tags trägt; bei JPEGs steht unten **Metadaten entfernen**, das nach
-  Bestätigung identifizierende Tags direkt aus der Datei entfernt und
-  verschwindet, sobald nichts mehr zu entfernen ist
+  GPS-Tags trägt; bei JPEGs steht unter den Tags (oberhalb der Karte)
+  **Metadaten entfernen**, das nach Bestätigung identifizierende Tags direkt
+  aus der Datei entfernt und verschwindet, sobald nichts mehr zu entfernen
+  ist
 - **Diaschau-Modus** — `P` schaltet eine Vollbild-Diaschau mit Überblendung
   zwischen den Bildern ein/aus; `↑`/`↓` stellen das (standardmäßig 10 s)
   Auto-Weiterschalt-Intervall ein, solange sie aktiv ist; `Shift+P` schaltet
