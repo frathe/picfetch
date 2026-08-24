@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -630,8 +633,11 @@ func injectHashes(t *testing.T, g *Overview, host *fakeHost, hs []uint64) {
 func TestSetHideDuplicates_ChainDoesNotHideUnrelated(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg", "c.jpg")
 	g := newOverview(t, host)
-	injectHashes(t, g, host, []uint64{0, 0x3FF, 0xFFFFF})
-	g.SetDuplicateDistance(imaging.DuplicateMaxDistance)
+	injectHashes(t, g, host, []uint64{1 << 63, 1<<63 | 0x3FF, 1<<63 | 0xFFFFF})
+	// A literal 10: this fixture is built at Hamming 10/10/20 to exercise
+	// linkage, so it pins the threshold it was written for rather than
+	// tracking the shipped default.
+	g.SetDuplicateDistance(10)
 
 	g.SetHideDuplicates(true)
 
@@ -659,8 +665,8 @@ func TestSetBrowsingDuplicates_ChainDoesNotListUnrelated(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg", "c.jpg")
 	host.index = 0
 	g := newOverview(t, host)
-	injectHashes(t, g, host, []uint64{0, 0x3FF, 0xFFFFF})
-	g.SetDuplicateDistance(imaging.DuplicateMaxDistance)
+	injectHashes(t, g, host, []uint64{1 << 63, 1<<63 | 0x3FF, 1<<63 | 0xFFFFF})
+	g.SetDuplicateDistance(10)
 
 	g.SetBrowsingDuplicates(true)
 
@@ -673,5 +679,129 @@ func TestSetBrowsingDuplicates_ChainDoesNotListUnrelated(t *testing.T) {
 	seen := map[int]bool{g.fileIndex(0): true, g.fileIndex(1): true}
 	if !seen[0] || !seen[1] || seen[2] {
 		t.Fatalf("visible hosts = %v, want 0 and 1 only", seen)
+	}
+}
+
+func TestSetHideDuplicates_HubSpokesDoNotHideUnrelated(t *testing.T) {
+	host := hostWith(t, "hub.jpg", "spoke-a.jpg", "spoke-b.jpg")
+	g := newOverview(t, host)
+	const hub uint64 = 0xFFFF000000000000
+	injectHashes(t, g, host, []uint64{hub, hub ^ 0x3FF, hub ^ (0x3FF << 10)})
+	g.SetDuplicateDistance(10)
+
+	g.SetHideDuplicates(true)
+
+	if g.groupSize(0) != 2 {
+		t.Fatalf("groupSize(0) = %d, want 2 (one spoke, not both)", g.groupSize(0))
+	}
+	if g.IsHiddenExtra(2) {
+		t.Error("spoke B is 20 from spoke A and must not hide as hub's extra")
+	}
+	if g.RepresentativeOf(2) == 0 {
+		t.Error("spoke B must not list the hub as representative")
+	}
+}
+
+func TestSetBrowsingDuplicates_HubSpokesDoNotListUnrelated(t *testing.T) {
+	host := hostWith(t, "hub.jpg", "spoke-a.jpg", "spoke-b.jpg")
+	host.index = 0
+	g := newOverview(t, host)
+	const hub uint64 = 0xFFFF000000000000
+	injectHashes(t, g, host, []uint64{hub, hub ^ 0x3FF, hub ^ (0x3FF << 10)})
+	g.SetDuplicateDistance(10)
+
+	g.SetBrowsingDuplicates(true)
+
+	if g.count() != 2 {
+		t.Fatalf("count() = %d, want 2 (hub + one spoke, not both)", g.count())
+	}
+	seen := map[int]bool{g.fileIndex(0): true, g.fileIndex(1): true}
+	if seen[2] {
+		t.Fatal("Shift+D on the hub must not list spoke B")
+	}
+}
+
+// TestSetHideDuplicates_UnrelatedLineArtStaysVisible is the end-to-end lock
+// for the reported bug, and the only duplicate test that goes through the
+// real path - decode, thumbnail, dHash - instead of injectHashes, because
+// the defect was in the hash rather than in the grouping.
+//
+// Three unrelated sketches on white. Reducing them to the dHash grid by
+// sampling a few pixels per cell hit the white background nearly every
+// time, so all three hashed to two or three bits and every one of them
+// matched every other. Hiding extras then left a single cell, and Shift+D
+// on the first file listed the other two as its duplicates.
+func TestSetHideDuplicates_UnrelatedLineArtStaysVisible(t *testing.T) {
+	host := &fakeHost{files: []fyne.URI{
+		uitest.LineArtJPEGURI(t, "sketch-a.jpg", 1),
+		uitest.LineArtJPEGURI(t, "sketch-b.jpg", 2),
+		uitest.LineArtJPEGURI(t, "sketch-c.jpg", 3),
+	}}
+	g := newOverview(t, host)
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	g.Toggle()
+
+	g.SetHideDuplicates(true)
+	g.Settle()
+
+	if g.count() != 3 {
+		t.Fatalf("count() = %d, want 3: unrelated sketches must not hide each other", g.count())
+	}
+	for i := range 3 {
+		if g.groupSize(i) != 1 {
+			t.Errorf("groupSize(%d) = %d, want 1 (hashed and unique)", i, g.groupSize(i))
+		}
+	}
+}
+
+func TestSetHideDuplicates_ZeroHashFirstFileIsUnique(t *testing.T) {
+	host := hostWith(t, "flat.jpg", "sparse-a.jpg", "sparse-b.jpg")
+	g := newOverview(t, host)
+	injectHashes(t, g, host, []uint64{0, 1, 2})
+	g.SetDuplicateDistance(imaging.DuplicateMaxDistance)
+
+	g.SetHideDuplicates(true)
+
+	if g.groupSize(0) != 1 {
+		t.Fatalf("groupSize(0) = %d, want 1 (hash 0 must not absorb sparse hashes)", g.groupSize(0))
+	}
+	if g.RepresentativeOf(1) == 0 || g.RepresentativeOf(2) == 0 {
+		t.Fatal("sparse hashes must not pick the hash-0 first file as representative")
+	}
+}
+
+func garbageURI(t *testing.T, name string) fyne.URI {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, []byte("not an image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return storage.NewFileURI(p)
+}
+
+func TestSetBrowsingDuplicates_FailedDecodeDoesNotRetoast(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg"},
+		[]int{1, 1},
+	)
+	host.files = append(host.files, garbageURI(t, "corrupt.dat"))
+	g := newOverview(t, host)
+	host.index = 0
+
+	g.SetBrowsingDuplicates(true)
+	if len(host.toasts) != 1 {
+		t.Fatalf("toasts = %v, want one analyzing toast on first browse", host.toasts)
+	}
+	g.Settle()
+
+	g.SetBrowsingDuplicates(false)
+	host.toasts = nil
+	g.SetBrowsingDuplicates(true)
+	g.Settle()
+
+	if len(host.toasts) != 0 {
+		t.Fatalf("toasts = %v, want none (failed files must not be re-hashed)", host.toasts)
 	}
 }

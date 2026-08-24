@@ -366,10 +366,17 @@ instead of arrowing through them one at a time.
   **not** switch to a duplicates-only gallery. Press **`D`** again to show
   every thumbnail. How close two thumbnails have to be to count as the same
   shot is the **Duplicate match distance** slider in **File -> Settings…**
-  (0–32, default 10; lower is stricter, and 0 is an exact thumbnail hash).
-  Two files count as copies of the same shot when each is close enough to
-  the group's representative. A chain of similar-looking photos does not
-  merge into one giant group.
+  (0–32, default 6; lower is stricter, and 0 is an exact thumbnail hash).
+  Two files count as copies of the same shot only when every pair in the
+  group is close enough — matching the first file is not enough if the
+  others do not also match each other. A chain of similar-looking photos
+  does not merge into one giant group. Solid-color images (no detail for
+  the matcher) are not grouped as duplicates.
+  Re-saved, re-exported and downscaled copies of one picture match
+  comfortably at the default; raising the slider much above it starts
+  pulling in genuinely different pictures rather than finding more copies.
+  Cropped versions of a picture are not detected at any setting — cropping
+  moves everything in the frame, which is exactly what the matcher looks at.
   Changing the slider while extras are hidden regroups the grid immediately.
   `/` search and hide-duplicates stack: a name filter while extras are
   hidden shows only remaining cells whose names match. While a search is
@@ -638,7 +645,7 @@ needed. macOS and Windows need nothing extra either way.
   neither is installed
 - **File -> Close Files** — returns to the drop zone without quitting
 - **File -> Settings…** — opens the settings window, including the
-  **Duplicate match distance** slider (0–32, default 10; lower is
+  **Duplicate match distance** slider (0–32, default 6; lower is
   stricter, 0 is an exact thumbnail hash) that hide-duplicates (`D`) uses,
   and the **Cache favorite previews on disk** checkbox (on by default) for
   the background favorite-preview generation described below

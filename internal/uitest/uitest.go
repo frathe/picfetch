@@ -99,6 +99,59 @@ func PatternedJPEGURI(t *testing.T, name string, seed int) fyne.URI {
 	return storage.NewFileURI(WriteTempFile(t, name, buf.Bytes()))
 }
 
+// LineArtGray draws thin dark strokes on a white background: a sketch, a
+// screenshot, a logo, a scan - the common case where the subject occupies
+// only a small fraction of the pixels. seed picks the stroke positions, so
+// two seeds are two unrelated pictures.
+//
+// This is the fixture shape that caught the duplicate-detection bug, where
+// reducing such an image to the dHash grid by sampling a few pixels per
+// cell landed on the background nearly every time and reported a near-empty
+// hash. PatternedJPEGURI's dense gradient cannot show that: it has content
+// in every cell.
+func LineArtGray(edge, seed int) *image.Gray {
+	im := image.NewGray(image.Rect(0, 0, edge, edge))
+	for i := range im.Pix {
+		im.Pix[i] = 255
+	}
+
+	v := seed*2654435761 + 12345
+	next := func(n int) int {
+		v = v*1103515245 + 12345
+		return ((v >> 16) & 0x7fff) % n
+	}
+
+	stroke := max(edge/5, 4)
+	for range 14 {
+		x, y := next(edge-stroke), next(edge-stroke)
+		horizontal := next(2) == 0
+		for d := range stroke {
+			for w := range 2 {
+				px, py := x+d, y+w
+				if horizontal {
+					px, py = x+w, y+d
+				}
+				im.SetGray(px, py, color.Gray{Y: 20})
+			}
+		}
+	}
+
+	return im
+}
+
+// LineArtJPEGURI writes a LineArtGray image to a temp file and returns its
+// URI, mirroring PatternedJPEGURI.
+func LineArtJPEGURI(t *testing.T, name string, seed int) fyne.URI {
+	t.Helper()
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, LineArtGray(200, seed), nil); err != nil {
+		t.Fatalf("encode line-art jpeg: %v", err)
+	}
+
+	return storage.NewFileURI(WriteTempFile(t, name, buf.Bytes()))
+}
+
 // EncodeJPEG returns a solid-color w x h JPEG.
 func EncodeJPEG(t *testing.T, w, h int, c color.Color) []byte {
 	t.Helper()

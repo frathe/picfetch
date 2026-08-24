@@ -26,12 +26,34 @@ func (g *Overview) rememberHash(u fyne.URI, img image.Image) {
 	defer g.hashMu.Unlock()
 	if g.hashGen != gen {
 		g.hashes = make(map[string]uint64)
+		g.hashFailed = make(map[string]struct{})
 		g.hashGen = gen
 	}
 	if g.hashes == nil {
 		g.hashes = make(map[string]uint64)
 	}
-	g.hashes[u.String()] = h
+	key := u.String()
+	g.hashes[key] = h
+	delete(g.hashFailed, key)
+}
+
+func (g *Overview) rememberHashFail(u fyne.URI) {
+	if u == nil {
+		return
+	}
+	gen := g.host.Generation()
+
+	g.hashMu.Lock()
+	defer g.hashMu.Unlock()
+	if g.hashGen != gen {
+		g.hashes = make(map[string]uint64)
+		g.hashFailed = make(map[string]struct{})
+		g.hashGen = gen
+	}
+	if g.hashFailed == nil {
+		g.hashFailed = make(map[string]struct{})
+	}
+	g.hashFailed[u.String()] = struct{}{}
 }
 
 func (g *Overview) hashOf(u fyne.URI) (uint64, bool) {
@@ -45,12 +67,24 @@ func (g *Overview) hashOf(u fyne.URI) (uint64, bool) {
 	return h, ok
 }
 
+func (g *Overview) hashFailedOf(u fyne.URI) bool {
+	if u == nil {
+		return false
+	}
+	g.wipeHashesIfStale()
+	g.hashMu.Lock()
+	defer g.hashMu.Unlock()
+	_, ok := g.hashFailed[u.String()]
+	return ok
+}
+
 func (g *Overview) wipeHashesIfStale() {
 	gen := g.host.Generation()
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
 	if g.hashGen != gen {
 		g.hashes = make(map[string]uint64)
+		g.hashFailed = make(map[string]struct{})
 		g.hashGen = gen
 	}
 }
@@ -59,6 +93,7 @@ func (g *Overview) clearHashes() {
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
 	g.hashes = make(map[string]uint64)
+	g.hashFailed = make(map[string]struct{})
 }
 
 // HideDuplicates reports whether extras are currently hidden.
@@ -315,6 +350,9 @@ func (g *Overview) hashRemaining() int {
 		if _, ok := g.hashOf(u); ok {
 			continue
 		}
+		if g.hashFailedOf(u) {
+			continue
+		}
 		if thumb, ok := g.thumbs.Get(u.String()); ok {
 			g.rememberHash(u, thumb)
 			continue
@@ -352,7 +390,8 @@ func (g *Overview) hashRemaining() int {
 				return
 			}
 			thumb, err := imaging.LoadThumbnail(file)
-			if err != nil {
+			if err != nil || thumb == nil {
+				g.rememberHashFail(file)
 				return
 			}
 			g.rememberHash(file, thumb)

@@ -410,10 +410,20 @@ einzeln durchzublättern.
   um jede Miniaturansicht wieder zu zeigen. Wie ähnlich zwei
   Miniaturansichten sein müssen, um als dieselbe Aufnahme zu gelten, stellt
   der Schieberegler **Duplikat-Erkennungsabstand** unter **Datei ->
-  Einstellungen…** ein (0–32, Vorgabe 10; niedriger ist strenger, 0 ist ein
-  exakter Miniaturansicht-Hash). Zwei Dateien gelten als Kopien derselben
-  Aufnahme, wenn jede dem Vertreter der Gruppe nahe genug ist. Eine Kette
-  ähnlich aussehender Fotos wird nicht zu einer Riesengruppe zusammengefasst.
+  Einstellungen…** ein (0–32, Vorgabe 6; niedriger ist strenger, 0 ist ein
+  exakter Miniaturansicht-Hash). Zwei Dateien gelten nur dann als Kopien
+  derselben Aufnahme, wenn jedes Paar in der Gruppe nahe genug ist — dem
+  ersten Bild zu ähneln reicht nicht, wenn die anderen einander nicht
+  ebenfalls ähneln. Eine Kette ähnlich aussehender Fotos wird nicht zu
+  einer Riesengruppe zusammengefasst.
+  Einfarbige Bilder (ohne Detail für den Abgleich) werden nicht als
+  Duplikate gruppiert.
+  Neu gespeicherte, neu exportierte und verkleinerte Kopien eines Bildes
+  werden bei der Vorgabe zuverlässig erkannt; ein deutlich höherer Wert
+  findet kaum weitere Kopien, zieht aber zunehmend wirklich verschiedene
+  Bilder mit hinein. Zugeschnittene Fassungen erkennt der Abgleich bei
+  keiner Einstellung — ein Zuschnitt verschiebt den gesamten Bildinhalt,
+  und genau den vergleicht er.
   Eine Änderung am Schieberegler, während Extra-Kopien ausgeblendet sind,
   gruppiert das Raster sofort neu. `/`-Suche und Ausblenden stapeln sich:
   ein Namensfilter bei ausgeblendeten Extra-Kopien zeigt nur die übrigen
@@ -725,7 +735,7 @@ benötigen in beiden Fällen nichts Zusätzliches.
 - **Datei -> Dateien schließen** — zurück zum Ablagebereich, ohne das
   Programm zu beenden
 - **Datei -> Einstellungen…** — öffnet das Einstellungsfenster, darunter den
-  Schieberegler **Duplikat-Erkennungsabstand** (0–32, Vorgabe 10;
+  Schieberegler **Duplikat-Erkennungsabstand** (0–32, Vorgabe 6;
   niedriger ist strenger, 0 ist ein exakter Miniaturansicht-Hash), den das
   Ausblenden von Duplikaten (`D`) verwendet, und das Kontrollkästchen
   **Favoriten-Vorschauen auf der Festplatte zwischenspeichern** (standardmäßig

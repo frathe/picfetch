@@ -184,9 +184,14 @@ type Overview struct {
 	// hashes maps URI string → dHash. Not stored in thumbs: a hash is 8
 	// bytes and must survive thumbnail eviction. hashGen is the host
 	// Generation those entries belong to; a newer drop wipes them.
-	hashMu  sync.Mutex
-	hashes  map[string]uint64
-	hashGen uint64
+	hashMu sync.Mutex
+	hashes map[string]uint64
+	// hashFailed are URIs whose thumbnail decode already failed this
+	// generation. hashRemaining must not retry them: mixed-format drops
+	// leave unreadable files, and retrying on every Shift+D re-raises
+	// the analyzing toast with no CPU work left to do.
+	hashFailed map[string]struct{}
+	hashGen    uint64
 
 	// hideDupes hides non-representative duplicates; dupeDist is the
 	// Hamming threshold DuplicateGroups uses. groupSizes/groupReps are
@@ -222,6 +227,7 @@ func New(host Host, win fyne.Window) *Overview {
 		thumbs:     imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
 		decodes:    decodepool.New[*fyne.Container, int](thumbConcurrency),
 		hashes:     make(map[string]uint64),
+		hashFailed: make(map[string]struct{}),
 		dupeDist:   imaging.DuplicateMaxDistance,
 		browseHost: -1,
 	}
