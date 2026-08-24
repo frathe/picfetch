@@ -58,6 +58,9 @@ func TestLoadPreferences_NothingSavedReturnsDefaults(t *testing.T) {
 	if !got.FavoritePreviewCache {
 		t.Error("FavoritePreviewCache = false, want true (default is on)")
 	}
+	if got.DuplicateDistanceSet {
+		t.Error("DuplicateDistanceSet = true, want false")
+	}
 }
 
 func TestSavePreferences_RoundTrip(t *testing.T) {
@@ -128,6 +131,29 @@ func TestSavePreferences_SecondaryWindowGeometryRoundTripsAtOrigin(t *testing.T)
 
 	if got := Load(app).ExifWindow; got.X != 0 || got.Y != 0 || !got.PositionSet {
 		t.Errorf("ExifWindow position = (%d, %d, set=%v), want (0, 0, set=true)", got.X, got.Y, got.PositionSet)
+	}
+}
+
+func TestSavePreferences_ZeroDuplicateDistanceRoundTrips(t *testing.T) {
+	app := test.NewApp()
+
+	Save(app, State{DuplicateDistance: 0, DuplicateDistanceSet: true})
+
+	got := Load(app)
+	if got.DuplicateDistance != 0 || !got.DuplicateDistanceSet {
+		t.Errorf("DuplicateDistance = (%d, set=%v), want (0, set=true)", got.DuplicateDistance, got.DuplicateDistanceSet)
+	}
+}
+
+func TestSavePreferences_UnsetDuplicateDistanceDoesNotOverwritePreviouslySaved(t *testing.T) {
+	app := test.NewApp()
+
+	Save(app, State{DuplicateDistance: 0, DuplicateDistanceSet: true})
+	Save(app, State{})
+
+	got := Load(app)
+	if got.DuplicateDistance != 0 || !got.DuplicateDistanceSet {
+		t.Errorf("DuplicateDistance after an unset Save = (%d, set=%v), want (0, set=true) to survive", got.DuplicateDistance, got.DuplicateDistanceSet)
 	}
 }
 

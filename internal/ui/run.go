@@ -115,6 +115,8 @@ func (v *viewer) currentPreferences() preferences.State {
 		MaxThumbCacheMB:      v.settings.thumbCacheMB,
 		MaxFileSizeMB:        v.settings.maxFileMB,
 		FavoritePreviewCache: v.settings.favPreviewCache,
+		DuplicateDistance:    v.DuplicateDistance(),
+		DuplicateDistanceSet: v.settings.dupeDistSet,
 		WindowSize:           v.windowSize,
 		WindowPosX:           posX,
 		WindowPosY:           posY,

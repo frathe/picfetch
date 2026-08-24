@@ -36,9 +36,13 @@ const thumbConcurrency = 4
 // cells - a race no amount of waiting afterwards can undo, only avoided by
 // having nothing to spawn.
 func (g *Overview) Warm() error {
+	g.wipeHashesIfStale()
 	for i := 0; i < g.host.FileCount(); i++ {
 		u := g.host.FileAt(i)
-		if _, ok := g.thumbs.Get(u.String()); ok {
+		if thumb, ok := g.thumbs.Get(u.String()); ok {
+			if _, hashed := g.hashOf(u); !hashed {
+				g.rememberHash(u, thumb)
+			}
 			continue
 		}
 
@@ -47,6 +51,7 @@ func (g *Overview) Warm() error {
 			return err
 		}
 		g.thumbs.Add(u.String(), thumb)
+		g.rememberHash(u, thumb)
 	}
 
 	return nil
@@ -143,12 +148,17 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 	// on screen.
 	fgen := g.filterGen.Load()
 
+	g.wipeHashesIfStale()
+
 	u := g.host.FileAt(i)
 	cacheKey := u.String()
 
 	if thumb, ok := g.thumbs.Get(cacheKey); ok {
 		img.Image = thumb
 		img.Refresh()
+		if _, hashed := g.hashOf(u); !hashed {
+			g.rememberHash(u, thumb)
+		}
 
 		return
 	}
@@ -220,6 +230,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 			// user scrolls back.
 			g.thumbs.Add(cacheKey, thumb)
 		}
+		g.rememberHash(u, thumb)
 
 		g.decodes.Release(key, id)
 

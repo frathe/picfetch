@@ -78,6 +78,27 @@ func TempJPEGURI(t *testing.T, name string, w, h int, c color.Color) fyne.URI {
 	return storage.NewFileURI(WriteTempFile(t, name, EncodeJPEG(t, w, h, c)))
 }
 
+// PatternedJPEGURI writes a seeded grayscale JPEG. Solid-color JPEGs all
+// dHash to 0, so hide-duplicates tests need patterned pixels to tell
+// "same shot" from "different shot".
+func PatternedJPEGURI(t *testing.T, name string, seed int) fyne.URI {
+	t.Helper()
+
+	const w, h = 64, 48
+	img := image.NewGray(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.SetGray(x, y, color.Gray{Y: uint8(x*13 + y*7 + seed*31)})
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatalf("encode patterned jpeg: %v", err)
+	}
+
+	return storage.NewFileURI(WriteTempFile(t, name, buf.Bytes()))
+}
+
 // EncodeJPEG returns a solid-color w x h JPEG.
 func EncodeJPEG(t *testing.T, w, h int, c color.Color) []byte {
 	t.Helper()

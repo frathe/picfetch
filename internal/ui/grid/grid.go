@@ -177,6 +177,25 @@ type Overview struct {
 	// which turned a plain map into a genuine, test-reproducible
 	// concurrent read/write.
 	cellIDs sync.Map
+
+	// hashes maps URI string → dHash. Not stored in thumbs: a hash is 8
+	// bytes and must survive thumbnail eviction. hashGen is the host
+	// Generation those entries belong to; a newer drop wipes them.
+	hashMu  sync.Mutex
+	hashes  map[string]uint64
+	hashGen uint64
+
+	// hideDupes hides non-representative duplicates; dupeDist is the
+	// Hamming threshold DuplicateGroups uses. groupSizes/groupReps are
+	// per host index (0 = unhashed). hashing dedups in-flight hashRemaining
+	// jobs by URI string. hashJobs counts those pool jobs so only the last
+	// one applyFilters (Fyne's test driver runs Do inline on the worker).
+	hideDupes  bool
+	dupeDist   int
+	groupSizes []int
+	groupReps  []int
+	hashing    sync.Map
+	hashJobs   atomic.Int32
 }
 
 // New builds the overview (hidden) around host. win is maximized (see
@@ -191,11 +210,13 @@ type Overview struct {
 // GridWrap (see Close's comment on why).
 func New(host Host, win fyne.Window) *Overview {
 	g := &Overview{
-		host:    host,
-		win:     win,
-		sel:     selection.New(),
-		thumbs:  imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
-		decodes: decodepool.New[*fyne.Container, int](thumbConcurrency),
+		host:     host,
+		win:      win,
+		sel:      selection.New(),
+		thumbs:   imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
+		decodes:  decodepool.New[*fyne.Container, int](thumbConcurrency),
+		hashes:   make(map[string]uint64),
+		dupeDist: imaging.DuplicateMaxDistance,
 	}
 
 	g.wrap = widget.NewGridWrap(
@@ -215,17 +236,24 @@ func New(host Host, win fyne.Window) *Overview {
 			ring := widgets.NewFocusRing(widgets.GridRingWidth, widgets.RingRadius)
 			ring.Hide()
 
-			return container.NewStack(img, tint, ring)
+			badge := canvas.NewText("", theme.Color(theme.ColorNamePrimary))
+			badge.TextSize = 12
+			badge.Alignment = fyne.TextAlignTrailing
+			badge.Hide()
+
+			return container.NewStack(img, tint, badge, ring)
 		},
 		func(id widget.GridWrapItemID, o fyne.CanvasObject) {
 			cell := o.(*fyne.Container)
 			img := cell.Objects[0].(*canvas.Image)
 			tint := cell.Objects[1].(*canvas.Rectangle)
-			ring := cell.Objects[2].(*canvas.Rectangle)
+			badge := cell.Objects[2].(*canvas.Text)
+			ring := cell.Objects[3].(*canvas.Rectangle)
 
 			g.cellIDs.Store(cell, id)
 			setCellHighlighted(ring, id == g.highlight)
 			setCellSelected(tint, g.isSelected(id))
+			g.applyDupBadge(badge, g.fileIndex(id))
 
 			// Refresh reaches this callback whether or not the overlay is
 			// actually open: every ForceRepaint refreshes the whole widget
@@ -371,8 +399,9 @@ func (g *Overview) Toggle() {
 
 	// Start the highlight on whichever image is currently on screen, and
 	// scroll it into view - setHighlight also refreshes the grid, which is
-	// what actually paints the ring.
-	g.setHighlight(g.host.CurrentIndex())
+	// what actually paints the ring. Host index to display index: hide-dupes
+	// (and search) renumber the cells.
+	g.setHighlight(g.displayIndexOf(g.host.CurrentIndex()))
 	g.overlay.Show()
 	g.host.ForceRepaint()
 }

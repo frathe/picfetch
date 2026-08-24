@@ -39,6 +39,7 @@ func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 		WindowPosX:        120,
 		WindowPosY:        340,
 		WindowPositionSet: true,
+		DuplicateDistance: 0, DuplicateDistanceSet: true,
 	})
 
 	v, win := buildStartupViewer(application)
@@ -88,6 +89,9 @@ func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 	}
 	if got, want := imaging.MaxEncodedBytes(), int64(256*bytesPerMB); got != want {
 		t.Errorf("imaging.MaxEncodedBytes() = %d, want %d", got, want)
+	}
+	if got := v.DuplicateDistance(); got != 0 {
+		t.Errorf("DuplicateDistance() = %d, want 0 (saved exact-hash threshold)", got)
 	}
 
 	x, y, ok := v.winPos.Get()
@@ -189,6 +193,9 @@ func TestStartup_OmittedPreferencesUseShippedDefaults(t *testing.T) {
 	if got, want := v.MaxFileSizeMB(), defaultMaxFileSizeMB; got != want {
 		t.Errorf("MaxFileSizeMB() = %d, want %d (the shipped default)", got, want)
 	}
+	if got, want := v.DuplicateDistance(), imaging.DuplicateMaxDistance; got != want {
+		t.Errorf("DuplicateDistance() = %d, want %d (the shipped default)", got, want)
+	}
 	if got, want := win.Canvas().Size(), fyne.NewSize(startW, startH); got != want {
 		t.Errorf("initial window size = %v, want %v (startW/startH)", got, want)
 	}
@@ -199,20 +206,23 @@ func TestStartup_OmittedPreferencesUseShippedDefaults(t *testing.T) {
 
 func TestNormalizePreferenceDefaults(t *testing.T) {
 	defaults := preferences.State{
-		MaxScanFiles:    filescan.DefaultMax,
-		MaxWindowWidth:  defaultMaxWindowWidth,
-		MaxWindowHeight: defaultMaxWindowHeight,
-		MaxImageCacheMB: defaultMaxImageCacheMB,
-		MaxThumbCacheMB: defaultMaxThumbCacheMB,
-		MaxFileSizeMB:   defaultMaxFileSizeMB,
+		MaxScanFiles:      filescan.DefaultMax,
+		MaxWindowWidth:    defaultMaxWindowWidth,
+		MaxWindowHeight:   defaultMaxWindowHeight,
+		MaxImageCacheMB:   defaultMaxImageCacheMB,
+		MaxThumbCacheMB:   defaultMaxThumbCacheMB,
+		MaxFileSizeMB:     defaultMaxFileSizeMB,
+		DuplicateDistance: imaging.DuplicateMaxDistance,
 	}
 	custom := preferences.State{
-		MaxScanFiles:    1,
-		MaxWindowWidth:  1,
-		MaxWindowHeight: 1,
-		MaxImageCacheMB: 1,
-		MaxThumbCacheMB: 1,
-		MaxFileSizeMB:   1,
+		MaxScanFiles:         1,
+		MaxWindowWidth:       1,
+		MaxWindowHeight:      1,
+		MaxImageCacheMB:      1,
+		MaxThumbCacheMB:      1,
+		MaxFileSizeMB:        1,
+		DuplicateDistance:    0,
+		DuplicateDistanceSet: true,
 	}
 	negative := preferences.State{
 		MaxScanFiles:    -1,
@@ -241,6 +251,7 @@ func TestNormalizePreferenceDefaults(t *testing.T) {
 	sentinelsWithDefaults.MaxImageCacheMB = defaultMaxImageCacheMB
 	sentinelsWithDefaults.MaxThumbCacheMB = defaultMaxThumbCacheMB
 	sentinelsWithDefaults.MaxFileSizeMB = defaultMaxFileSizeMB
+	sentinelsWithDefaults.DuplicateDistance = imaging.DuplicateMaxDistance
 
 	for _, tc := range []struct {
 		name  string
@@ -386,5 +397,19 @@ func TestSetFavoritePreviewCache_UpdatesGetterAndCurrentPreferences(t *testing.T
 	}
 	if v.currentPreferences().FavoritePreviewCache {
 		t.Error("currentPreferences().FavoritePreviewCache = true after SetFavoritePreviewCache(false)")
+	}
+}
+
+func TestSetDuplicateDistance_UpdatesGetterAndCurrentPreferences(t *testing.T) {
+	v := newTestViewer(t)
+
+	v.SetDuplicateDistance(0)
+
+	if got := v.DuplicateDistance(); got != 0 {
+		t.Errorf("DuplicateDistance() = %d, want 0", got)
+	}
+	got := v.currentPreferences()
+	if got.DuplicateDistance != 0 || !got.DuplicateDistanceSet {
+		t.Errorf("currentPreferences DuplicateDistance = (%d, set=%v), want (0, set=true)", got.DuplicateDistance, got.DuplicateDistanceSet)
 	}
 }

@@ -2,10 +2,6 @@
 
 ## Done
 
-## ACTIVE DEVELOPMENT
-
-## TODO
-
 ## Duplicate finder (perceptual hash) in the grid — L
 
 A grid mode that computes a perceptual hash (dHash/aHash — ~30 lines of
@@ -16,6 +12,10 @@ identical shots and badges duplicates. Combined with #1/#2, this answers
 viewer does well today. Hash work rides the thumbnail pipeline's
 claim/semaphore machinery, so it inherits cancellation and memory bounds
 for free.
+
+## ACTIVE DEVELOPMENT
+
+## TODO
 
 ## not deemed worth implementing (edge cases)
 

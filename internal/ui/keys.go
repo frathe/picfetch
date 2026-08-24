@@ -194,6 +194,13 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		}
 
 		return
+	case fyne.KeyD:
+		// Same place as G: hide-dupes is useful with one file (no-op) or
+		// while a decode is in flight, and must not wait for the
+		// navigation-length guard below.
+		v.grid.SetHideDuplicates(!v.grid.HideDuplicates())
+
+		return
 	case fyne.KeyI:
 		// Handled before the navigation guard below, same as M/P, so it
 		// works before the first image ever loads too (the card just stays
@@ -274,9 +281,9 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		v.StepImage(-1)
 		return
 	case fyne.KeyHome:
-		v.ShowImage(0)
+		v.ShowImage(v.firstVisibleIndex())
 	case fyne.KeyEnd:
-		v.ShowImage(len(v.state.files) - 1)
+		v.ShowImage(v.lastVisibleIndex())
 	case fyne.KeyS:
 		v.toggleSort()
 	default:

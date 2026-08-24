@@ -41,6 +41,7 @@ type fakeHost struct {
 	thumbCacheMB int
 	maxFileMB    int
 	favPreview   bool
+	dupeDist     int
 
 	sortModeCalls     []filesort.Mode
 	mergeModeCalls    []bool
@@ -53,6 +54,7 @@ type fakeHost struct {
 	thumbCacheCalls   []int
 	maxFileCalls      []int
 	favPreviewCalls   []bool
+	dupeDistCalls     []int
 }
 
 func (f *fakeHost) SortMode() filesort.Mode { return f.sortMode }
@@ -107,6 +109,11 @@ func (f *fakeHost) SetFavoritePreviewCache(on bool) {
 	f.favPreview = on
 	f.favPreviewCalls = append(f.favPreviewCalls, on)
 }
+func (f *fakeHost) DuplicateDistance() int { return f.dupeDist }
+func (f *fakeHost) SetDuplicateDistance(n int) {
+	f.dupeDist = n
+	f.dupeDistCalls = append(f.dupeDistCalls, n)
+}
 
 // TestShow_SeedsEveryControlFromHostWithoutRoundTripping checks both halves
 // of build's own contract: every control reflects the host's current value,
@@ -117,7 +124,7 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 	host := &fakeHost{
 		sortMode: filesort.BySize, mergeMode: true, slideShuffle: true,
 		slideInt: 42 * time.Second, maxScan: 777, maxWinW: 1800, maxWinH: 1100,
-		imgCacheMB: 384, thumbCacheMB: 192, maxFileMB: 256,
+		imgCacheMB: 384, thumbCacheMB: 192, maxFileMB: 256, dupeDist: 7,
 	}
 	w := New(testApp, host)
 
@@ -154,10 +161,17 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 	if got, want := w.maxFileSizeEntry.Text, "256"; got != want {
 		t.Errorf("maxFileSizeEntry.Text = %q, want %q", got, want)
 	}
+	if got, want := w.dupeDistSlider.Value, 7.0; got != want {
+		t.Errorf("dupeDistSlider.Value = %v, want %v", got, want)
+	}
+	if got, want := w.dupeDistValue.Text, "7"; got != want {
+		t.Errorf("dupeDistValue.Text = %q, want %q", got, want)
+	}
 
 	if len(host.sortModeCalls)+len(host.mergeModeCalls)+len(host.slideShuffleCalls)+
 		len(host.slideIntCalls)+len(host.maxScanCalls)+len(host.maxWinWCalls)+len(host.maxWinHCalls)+
-		len(host.imgCacheCalls)+len(host.thumbCacheCalls)+len(host.maxFileCalls) != 0 {
+		len(host.imgCacheCalls)+len(host.thumbCacheCalls)+len(host.maxFileCalls)+
+		len(host.dupeDistCalls) != 0 {
 		t.Errorf("seeding the controls should not call any Set* method on the host, got calls: %+v", host)
 	}
 }
@@ -398,6 +412,22 @@ func TestMaxFileSizeEntry_ValidChangeCallsSetMaxFileSizeMB(t *testing.T) {
 
 	if len(host.maxFileCalls) != 1 || host.maxFileCalls[0] != 64 {
 		t.Errorf("SetMaxFileSizeMB calls = %v, want one call with 64", host.maxFileCalls)
+	}
+}
+
+func TestDupeDistSlider_ChangeCallsSetDuplicateDistance(t *testing.T) {
+	host := &fakeHost{dupeDist: 10}
+	w := New(testApp, host)
+	w.Show()
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	w.dupeDistSlider.SetValue(0)
+
+	if len(host.dupeDistCalls) != 1 || host.dupeDistCalls[0] != 0 {
+		t.Errorf("SetDuplicateDistance calls = %v, want one call with 0", host.dupeDistCalls)
+	}
+	if got, want := w.dupeDistValue.Text, "0"; got != want {
+		t.Errorf("dupeDistValue.Text = %q, want %q", got, want)
 	}
 }
 

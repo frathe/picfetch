@@ -32,6 +32,9 @@ const (
 	keyWindowPosSet    = "windowPosSet"
 
 	keyFavoritePreviewCache = "favoritePreviewCache"
+
+	keyDuplicateDistance    = "duplicateDistance"
+	keyDuplicateDistanceSet = "duplicateDistanceSet"
 )
 
 // geometryKeys names the five preference keys one secondary window's
@@ -126,6 +129,12 @@ type State struct {
 	// check) so that a user who explicitly turns it off can have that
 	// choice persist.
 	FavoritePreviewCache bool
+
+	// DuplicateDistance is the Hamming threshold hide-duplicates uses.
+	// DuplicateDistanceSet distinguishes a saved 0 (exact thumbnail hash)
+	// from "never saved", the same idea WindowPositionSet uses for (0,0).
+	DuplicateDistance    int
+	DuplicateDistanceSet bool
 }
 
 // WindowGeometry is one secondary window's remembered position and size -
@@ -182,6 +191,10 @@ func Save(app fyne.App, s State) {
 		p.SetInt(keyWindowPosX, s.WindowPosX)
 		p.SetInt(keyWindowPosY, s.WindowPosY)
 		p.SetBool(keyWindowPosSet, true)
+	}
+	if s.DuplicateDistanceSet {
+		p.SetInt(keyDuplicateDistance, s.DuplicateDistance)
+		p.SetBool(keyDuplicateDistanceSet, true)
 	}
 
 	saveGeometry(p, settingsWinKeys, s.SettingsWindow)
@@ -250,5 +263,7 @@ func Load(app fyne.App) State {
 		SettingsWindow:       loadGeometry(p, settingsWinKeys),
 		ExifWindow:           loadGeometry(p, exifWinKeys),
 		FavoritePreviewCache: p.BoolWithFallback(keyFavoritePreviewCache, true),
+		DuplicateDistance:    p.Int(keyDuplicateDistance),
+		DuplicateDistanceSet: p.Bool(keyDuplicateDistanceSet),
 	}
 }

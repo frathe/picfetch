@@ -49,6 +49,10 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.SetMaxThumbCacheMB(prefs.MaxThumbCacheMB)
 	view.SetMaxFileSizeMB(prefs.MaxFileSizeMB)
 
+	view.settings.dupeDist = prefs.DuplicateDistance
+	view.settings.dupeDistSet = prefs.DuplicateDistanceSet
+	view.grid.SetDuplicateDistance(view.DuplicateDistance())
+
 	view.SetFavoritePreviewCache(prefs.FavoritePreviewCache)
 
 	view.deletion = deletion.New(view)

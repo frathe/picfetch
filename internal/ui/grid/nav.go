@@ -5,6 +5,8 @@
 package grid
 
 import (
+	"strconv"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/theme"
@@ -100,6 +102,8 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 		if g.sel.Len() == 0 {
 			g.Close()
 		}
+	case fyne.KeyD:
+		g.SetHideDuplicates(!g.hideDupes)
 	case fyne.KeySpace:
 		g.toggleAt(g.highlight)
 	case fyne.KeyReturn, fyne.KeyEnter:
@@ -140,15 +144,18 @@ func (g *Overview) movePage(direction int) {
 }
 
 // escape undoes one layer per press, smallest first: the selection, then the
-// search, then the grid itself. Each of those took the user effort to build,
-// so a single keystroke never throws away more than the one thing they were
-// most likely aiming at.
+// search, then hide-duplicates, then the grid itself. Each of those took the
+// user effort to build, so a single keystroke never throws away more than the
+// one thing they were most likely aiming at. Close does not clear hide:
+// the viewer still skips extras after the grid is dismissed.
 func (g *Overview) escape() {
 	switch {
 	case g.sel.Len() > 0:
 		g.ClearSelection()
 	case g.searching:
 		g.clearSearch()
+	case g.hideDupes:
+		g.SetHideDuplicates(false)
 	default:
 		g.Close()
 	}
@@ -174,4 +181,14 @@ func setCellHighlighted(ring *canvas.Rectangle, highlighted bool) {
 	} else {
 		ring.Hide()
 	}
+}
+
+func (g *Overview) applyDupBadge(badge *canvas.Text, hostIndex int) {
+	n := g.groupSize(hostIndex)
+	if g.hideDupes && n >= 2 {
+		badge.Text = strconv.Itoa(n)
+		badge.Show()
+		return
+	}
+	badge.Hide()
 }

@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	windowW = 460.0
-	windowH = 430.0
+	windowW = 520.0
+	windowH = 500.0
 
 	// time.Duration is an int64 nanosecond count. Reject a larger number of
 	// seconds instead of letting the multiplication in build wrap negative
@@ -80,6 +80,9 @@ type Host interface {
 
 	FavoritePreviewCache() bool
 	SetFavoritePreviewCache(bool)
+
+	DuplicateDistance() int
+	SetDuplicateDistance(int)
 }
 
 // Window is the settings panel. At most one is open at a time (widgets.
@@ -103,6 +106,8 @@ type Window struct {
 	maxWidthEntry, maxHeightEntry *widget.Entry
 	imgCacheEntry, thumbCacheEntry,
 	maxFileSizeEntry *widget.Entry
+	dupeDistSlider *widget.Slider
+	dupeDistValue  *widget.Label
 }
 
 // New returns the settings window for application, reading and writing its
@@ -120,6 +125,7 @@ func (w *Window) Show() {
 		w.intervalEntry, w.maxScanEntry = nil, nil
 		w.maxWidthEntry, w.maxHeightEntry = nil, nil
 		w.imgCacheEntry, w.thumbCacheEntry, w.maxFileSizeEntry = nil, nil, nil
+		w.dupeDistSlider, w.dupeDistValue = nil, nil
 	})
 }
 
@@ -250,6 +256,19 @@ func (w *Window) build() fyne.CanvasObject {
 	maxFileSizeItem := widget.NewFormItem(lang.L("Max file size (MB)"), w.maxFileSizeEntry)
 	maxFileSizeItem.HintText = lang.L("Larger files are not opened at all")
 
+	dist := w.host.DuplicateDistance()
+	w.dupeDistValue = widget.NewLabel(strconv.Itoa(dist))
+	w.dupeDistSlider = widget.NewSlider(0, 32)
+	w.dupeDistSlider.Step = 1
+	w.dupeDistSlider.Value = float64(dist)
+	w.dupeDistSlider.OnChanged = func(v float64) {
+		n := int(v)
+		w.dupeDistValue.SetText(strconv.Itoa(n))
+		w.host.SetDuplicateDistance(n)
+	}
+	dupeDistItem := widget.NewFormItem(lang.L("Duplicate match distance"), container.NewBorder(nil, nil, nil, w.dupeDistValue, w.dupeDistSlider))
+	dupeDistItem.HintText = lang.L("Lower is stricter; 0 is an exact thumbnail hash")
+
 	form := widget.NewForm(
 		widget.NewFormItem(lang.L("Sort order"), w.sortSelect),
 		widget.NewFormItem(lang.L("Picture-frame interval (seconds)"), w.intervalEntry),
@@ -259,6 +278,7 @@ func (w *Window) build() fyne.CanvasObject {
 		imgCacheItem,
 		thumbCacheItem,
 		maxFileSizeItem,
+		dupeDistItem,
 	)
 
 	w.mergeCheck = widget.NewCheck(lang.L("Merge newly dropped files into the current set"), w.host.SetMergeMode)

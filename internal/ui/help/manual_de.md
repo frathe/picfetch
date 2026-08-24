@@ -322,7 +322,10 @@ Bestätigungswahl, nicht das Bild.
 Hinweise:
 
 - Die Pfeiltasten haben nur eine Wirkung, wenn Sie **zwei oder mehr** Bilder
-  abgelegt haben.
+  abgelegt haben. Solange Duplikate ausgeblendet sind (`D`, siehe
+  „Rasteransicht“), überspringen sie die versteckten Extra-Kopien und laufen
+  im Kreis durch die übrigen Dateien; `Home`/`End` springen zur ersten und
+  letzten übrigen Datei.
 - Standardmäßig ist die Auswahl **natürlich sortiert** nach Dateiname, sodass
   `IMG_2.jpg` vor `IMG_10.jpg` kommt, obwohl eine reine Textsortierung sie in
   der anderen Reihenfolge anordnen würde. Drücken Sie **`S`**, um durch vier
@@ -387,15 +390,33 @@ einzeln durchzublättern.
   Strecke zurückzulegen, wobei am ersten bzw. letzten Bild Schluss ist —
   und **`Return`** öffnet die gerade hervorgehobene Miniaturansicht.
 - Drücken Sie **`G`** erneut, oder **`Esc`**, um das Raster ohne Auswahl zu
-  verlassen.
+  verlassen. Das Schließen des Rasters schaltet das Ausblenden von
+  Duplikaten **nicht** aus (siehe `D` unten).
 - Drücken Sie **`/`**, um nach Dateinamen zu suchen: Oben erscheint eine
   Leiste, und Ihre Eingabe filtert das Raster fortlaufend auf die Namen,
   die sie enthalten. Groß- und Kleinschreibung spielt dabei keine Rolle,
   und die Leiste zeigt, wie viel der Auswahl übrig ist (`3 von 847`). Die
   Rücktaste löscht ein Zeichen, Pfeiltasten, `Page Up`/`Page Down` und
   `Return` wirken auf die Treffer genau wie sonst auf das ganze Raster,
-  und **`Esc`** setzt die Suche zurück, sodass wieder alle Bilder
-  erscheinen — ein zweites `Esc` verlässt dann wie gewohnt das Raster.
+  und **`Esc`** setzt die Suche zurück, sodass wieder alle übrigen Bilder
+  erscheinen.
+- Drücken Sie **`D`**, um Extra-Kopien derselben Aufnahme auszublenden. Die
+  volle Dateiliste bleibt geladen; Einzelstücke bleiben immer sichtbar, und
+  jede Gruppe ähnlicher Bilder behält einen Vertreter (die früheste Datei
+  in der aktuellen Reihenfolge). Die übrigen Mitglieder der Gruppe
+  verschwinden aus dem Raster, und verbleibende Zellen, die für zwei oder
+  mehr Dateien stehen, zeigen ein kleines Zähler-Abzeichen. `D` wechselt
+  **nicht** in eine Galerie nur aus Duplikaten. Drücken Sie **`D`** erneut,
+  um jede Miniaturansicht wieder zu zeigen. Wie ähnlich zwei
+  Miniaturansichten sein müssen, um als dieselbe Aufnahme zu gelten, stellt
+  der Schieberegler **Duplikat-Erkennungsabstand** unter **Datei ->
+  Einstellungen…** ein (0–32, Vorgabe 10; niedriger ist strenger, 0 ist ein
+  exakter Miniaturansicht-Hash). Eine Änderung am Schieberegler, während
+  Extra-Kopien ausgeblendet sind, gruppiert das Raster sofort neu. `/`-Suche
+  und Ausblenden stapeln sich: ein Namensfilter bei ausgeblendeten
+  Extra-Kopien zeigt nur die übrigen Zellen, deren Namen passen. Solange
+  eine Suche offen ist, ist `d`/`D` ein Buchstabe der Eingabe, nicht der
+  Ausblend-Schalter.
 - **Mehrere auf einmal auswählen**, um sie gemeinsam zu bearbeiten:
   **`Cmd/Strg+Klick`** auf eine Miniaturansicht nimmt sie in die Auswahl auf
   (ein erneuter Klick nimmt sie wieder heraus), **`Shift+Klick`** wählt
@@ -418,19 +439,26 @@ einzeln durchzublättern.
   Tausenden heraus. Das anschließende Zurücksetzen der Suche lässt die
   Auswahl unberührt.
 - **`Esc`** nimmt jeweils eine Sache zurück: zuerst die Auswahl, dann die
-  Suche, dann das Raster selbst. `G` schließt das Raster wie gewohnt, bleibt
-  aber wirkungslos, solange eine Auswahl oder eine Suche besteht, damit es
-  keine begonnene Arbeit verwirft.
+  Suche, dann das Ausblenden von Duplikaten, dann das Raster selbst. `G`
+  schließt das Raster wie gewohnt, bleibt aber wirkungslos, solange eine
+  Auswahl oder eine Suche besteht, damit es keine begonnene Arbeit
+  verwirft. `G` und Schließen lassen das Ausblenden an: die Einzelbildansicht
+  überspringt weiterhin versteckte Extra-Kopien, bis Sie erneut `D` drücken
+  (oder `Esc` durch diese Stufe, solange das Raster offen ist).
 - Davon abgesehen wird jede andere Taste ignoriert, solange das Raster
   geöffnet ist — Zoom, `S`/`M`/`P`/`I` bewirken nichts, bis Sie entweder eine
   Miniaturansicht auswählen (Klick oder `Return`) oder mit `G`/`Esc`
-  zurückgehen. Solange eine Suche geöffnet ist, sind die Buchstabentasten
-  Zeichen Ihrer Eingabe — `G` schließt das Raster dann nicht mehr, `Esc`
-  schon.
+  zurückgehen. `D` ist die Ausnahme (außer wenn eine Suche offen ist).
+  Solange eine Suche geöffnet ist, sind die Buchstabentasten Zeichen Ihrer
+  Eingabe — `G` schließt das Raster dann nicht mehr und `D` schaltet das
+  Ausblenden nicht um, `Esc` schon.
 - Die Suche schränkt nur ein, was das Raster zeigt. An der Auswahl selbst
   ändert sie nichts: Nach dem Öffnen eines Bildes blättern die Pfeiltasten
   weiterhin durch alle abgelegten Dateien, und beim nächsten Öffnen
-  beginnt das Raster ungefiltert und ohne Auswahl.
+  beginnt das Raster ungefiltert und ohne Auswahl. Das Ausblenden von
+  Duplikaten ist anders: es bleibt nach dem Verlassen des Rasters an, und
+  Pfeiltasten, `Home`/`End` und der Diaschau-Wechsel überspringen die
+  versteckten Extra-Kopien, bis Sie es ausschalten.
 - Miniaturansichten werden im Hintergrund erzeugt, sobald sie ins Blickfeld
   scrollen, jeweils einige auf einmal, sodass das Öffnen des Rasters bei
   einem Ordner mit Tausenden von Bildern das Fenster nicht blockiert,
@@ -456,7 +484,9 @@ Ordner voller Fotos wie einen digitalen Bilderrahmen laufen zu lassen.
   ausscheidende Bild verblasst, das neue blendet ein — statt des sofortigen
   Wechsels beim normalen Durchblättern. Auch die manuelle Navigation
   (`←`/`→`/`Home`/`End`) wird während des Diaschau-Modus auf dieselbe Weise
-  überblendet.
+  überblendet. Sind Duplikate ausgeblendet, überspringen automatischer
+  Wechsel und diese Tasten versteckte Extra-Kopien genauso wie das normale
+  Durchblättern.
 - **`↑`** erhöht das Intervall um eine Sekunde, **`↓`** verringert es (bis
   zu einer Untergrenze von einer Sekunde). Solange der Diaschau-Modus aktiv
   ist, steuern `↑`/`↓` den Timer statt zu navigieren — nutzen Sie
@@ -555,9 +585,14 @@ tatsächlich verschoben wurden.
   **`[Zusammenführen]`** angezeigt
 - **`G`** — Rasteransicht ein-/ausschalten (siehe oben); Pfeiltasten bewegen
   die Hervorhebung, `Page Up`/`Page Down` gleich um eine ganze Seite,
-  `Return` oder ein Klick öffnet sie, `G`/`Esc` bricht ab
-- **`/`** — (nur im Raster) das Raster nach Dateinamen durchsuchen; `Esc`
-  setzt die Suche zurück, ein zweites `Esc` verlässt das Raster
+  `Return` oder ein Klick öffnet sie, `G`/`Esc` bricht ab. `G` schaltet das
+  Ausblenden von Duplikaten nicht aus
+- **`D`** — Extra-Kopien derselben Aufnahme ausblenden (siehe
+  „Rasteransicht“); verbleibende Zellen zeigen ein Zähler-Abzeichen.
+  Solange eine Rastersuche offen ist, tippt die Taste den Buchstaben `d`
+- **`/`** — (nur im Raster) das Raster nach Dateinamen durchsuchen; stapelt
+  sich mit dem Ausblenden von Duplikaten. `Esc` setzt die Suche zurück,
+  dann das Ausblenden, dann verlässt es das Raster
 - **`Leertaste`** — (nur im Raster) die hervorgehobene Miniaturansicht zur
   Auswahl hinzufügen oder wieder herausnehmen
 - **`Cmd`/`Strg+A`** — (nur im Raster) alle gerade angezeigten
@@ -667,7 +702,13 @@ benötigen in beiden Fällen nichts Zusätzliches.
   von beiden installiert, erscheint ein entsprechender Hinweis
 - **Datei -> Dateien schließen** — zurück zum Ablagebereich, ohne das
   Programm zu beenden
-- **Datei -> Einstellungen…** — öffnet das Einstellungsfenster
+- **Datei -> Einstellungen…** — öffnet das Einstellungsfenster, darunter den
+  Schieberegler **Duplikat-Erkennungsabstand** (0–32, Vorgabe 10;
+  niedriger ist strenger, 0 ist ein exakter Miniaturansicht-Hash), den das
+  Ausblenden von Duplikaten (`D`) verwendet, und das Kontrollkästchen
+  **Favoriten-Vorschauen auf der Festplatte zwischenspeichern** (standardmäßig
+  an) für die unten beschriebene Hintergrund-Erzeugung der
+  Favoriten-Vorschauen
 - **Favoriten -> Aktuelle Liste zu Favoriten hinzufügen…** — speichert die
   gesamte aktuell geöffnete Dateiliste als benannte Sammlung. Favoriten
   bleiben nach einem Neustart von PicFetch erhalten. Gespeichert werden
@@ -874,10 +915,16 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   ein/aus; Pfeiltasten bewegen die Hervorhebung, `Page Up`/`Page Down`
   gleich um eine ganze Seite, `Return` oder ein Klick öffnet, `G`/`Esc`
   bricht ohne Auswahl ab
+- **Extra-Kopien ausblenden** — `D` blendet Extra-Kopien derselben Aufnahme
+  aus (Einzelstücke bleiben sichtbar; verbleibende Zellen zeigen ein
+  Zähler-Abzeichen). Pfeiltasten, `Home`/`End` und der Diaschau-Wechsel
+  überspringen die versteckten, bis Sie erneut `D` drücken. `G`/Schließen
+  lassen das an. In den Einstellungen liegt der Abstands-Schieberegler
 - **Suche nach Namen** — `/` im Raster filtert es auf die Dateinamen, die
-  Ihre Eingabe enthalten; `Esc` setzt den Filter zurück, ein zweites `Esc`
-  verlässt das Raster. Filter und Auswahl überleben einander, sodass `/`,
-  gefolgt von `Cmd`/`Strg+A`, genau auf die Treffer wirkt
+  Ihre Eingabe enthalten; stapelt sich mit dem Ausblenden von Duplikaten.
+  `Esc` setzt den Filter zurück, dann das Ausblenden, dann das Raster.
+  Filter und Auswahl überleben einander, sodass `/`, gefolgt von
+  `Cmd`/`Strg+A`, genau auf die Treffer wirkt
 - **Zoom** — `+`/`-` vergrößern/verkleinern (Fenster folgt dem Bild, Minimum
   ist die Startgröße, Maximum kommt aus den Einstellungen), `1` für 100 %,
   `0` für Fenstereinpassung, oder Scrollen zum Zoomen am Mauszeiger; ziehen,

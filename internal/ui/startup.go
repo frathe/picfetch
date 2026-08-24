@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/filescan"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
 )
@@ -58,6 +59,9 @@ func normalizePreferenceDefaults(prefs preferences.State) preferences.State {
 	}
 	if prefs.MaxFileSizeMB <= 0 {
 		prefs.MaxFileSizeMB = defaultMaxFileSizeMB
+	}
+	if !prefs.DuplicateDistanceSet {
+		prefs.DuplicateDistance = imaging.DuplicateMaxDistance
 	}
 
 	return prefs

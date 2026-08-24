@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"math/rand/v2"
 	"os"
 	"slices"
 	"sync/atomic"
@@ -812,10 +813,10 @@ func (v *viewer) Unfocus() {
 // navigation applies here too.
 func (v *viewer) Advance() {
 	if v.slides.Shuffle() {
-		v.ShowImage(randomOtherIndex(len(v.state.files), v.state.index))
+		v.ShowImage(v.randomVisibleOther(v.state.index))
 		return
 	}
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.nextVisibleIndex(v.state.index, 1))
 }
 
 // StepImage moves by delta files (typically +1 or -1), wrapping through
@@ -835,8 +836,77 @@ func (v *viewer) StepImage(delta int) {
 	if len(v.state.files) < 2 || v.loading.Load() {
 		return
 	}
-	v.ShowImage(v.state.index + delta)
+	v.ShowImage(v.nextVisibleIndex(v.state.index, delta))
 	if v.slides.Active() {
 		v.slides.Kick()
 	}
+}
+
+func (v *viewer) nextVisibleIndex(from, delta int) int {
+	n := len(v.state.files)
+	if n == 0 {
+		return 0
+	}
+	if !v.grid.HideDuplicates() || delta == 0 {
+		return from + delta
+	}
+	step := 1
+	if delta < 0 {
+		step = -1
+	}
+	i := from
+	for k := 0; k < absInt(delta); k++ {
+		start := i
+		for {
+			i = (i + step + n) % n
+			if !v.grid.IsHiddenExtra(i) {
+				break
+			}
+			if i == start {
+				return from
+			}
+		}
+	}
+	return i
+}
+
+func (v *viewer) firstVisibleIndex() int {
+	for i := range v.state.files {
+		if !v.grid.IsHiddenExtra(i) {
+			return i
+		}
+	}
+	return 0
+}
+
+func (v *viewer) lastVisibleIndex() int {
+	for i := range slices.Backward(v.state.files) {
+		if !v.grid.IsHiddenExtra(i) {
+			return i
+		}
+	}
+	return 0
+}
+
+func (v *viewer) randomVisibleOther(current int) int {
+	if !v.grid.HideDuplicates() {
+		return randomOtherIndex(len(v.state.files), current)
+	}
+	var vis []int
+	for i := range v.state.files {
+		if i != current && !v.grid.IsHiddenExtra(i) {
+			vis = append(vis, i)
+		}
+	}
+	if len(vis) == 0 {
+		return current
+	}
+	return vis[rand.IntN(len(vis))]
+}
+
+func absInt(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }

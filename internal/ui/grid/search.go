@@ -94,28 +94,42 @@ func (g *Overview) fileIndex(id int) int {
 // previous result: Backspace widens the match set again, and a
 // strings.Contains over a few thousand names is not worth a cache.
 func (g *Overview) applyFilter() {
+	g.rebuildGroups()
 	g.matches = nil
 
-	if g.searching && g.query != "" {
+	nameFilter := g.searching && g.query != ""
+	hide := g.hideDupes
+	if nameFilter || hide {
 		needle := strings.ToLower(g.query)
 		g.matches = make([]int, 0, g.host.FileCount())
-
 		for i := range g.host.FileCount() {
-			if strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
-				g.matches = append(g.matches, i)
+			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
+				continue
 			}
+			if hide && g.IsHiddenExtra(i) {
+				continue
+			}
+			g.matches = append(g.matches, i)
 		}
 	}
 
 	g.filterGen.Add(1)
 
-	g.wrap.Refresh()
-	// The highlight is a display index, so a filter that shortens the grid
-	// under it would leave it pointing past the last cell. After the
-	// refresh, so GridWrap's cursor is moved against the new length.
-	g.setHighlight(0)
-	if g.count() > 0 {
-		g.wrap.ScrollTo(0)
+	// GridWrap's renderer does not exist until the overlay has been shown.
+	// Hide-duplicates can turn on with the grid closed (viewer D), and
+	// hashRemaining's completion applies the filter from a worker; touching
+	// wrap here would panic. Toggle scrolls and highlights when it opens.
+	if g.visible {
+		g.wrap.Refresh()
+		// The highlight is a display index, so a filter that shortens the
+		// grid under it would leave it pointing past the last cell. After
+		// the refresh, so GridWrap's cursor is moved against the new length.
+		g.setHighlight(0)
+		if g.count() > 0 {
+			g.wrap.ScrollTo(0)
+		}
+	} else {
+		g.highlight = 0
 	}
 
 	g.syncTopBar()
@@ -126,12 +140,18 @@ func (g *Overview) applyFilter() {
 // active, and each half appears on its own: a selection built without ever
 // opening the search shows only its count, and vice versa.
 func (g *Overview) syncTopBar() {
-	if g.searching {
+	switch {
+	case g.searching:
 		g.searchLabel.SetText(fmt.Sprintf(lang.L("Search: %s"), g.query))
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
 		g.countLabel.Show()
-	} else {
+	case g.hideDupes:
+		g.searchLabel.SetText(lang.L("Hiding duplicates"))
+		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
+		g.searchLabel.Show()
+		g.countLabel.Show()
+	default:
 		g.searchLabel.Hide()
 		g.countLabel.Hide()
 	}
@@ -143,7 +163,7 @@ func (g *Overview) syncTopBar() {
 		g.selLabel.Hide()
 	}
 
-	if !g.searching && g.sel.Len() == 0 {
+	if !g.searching && g.sel.Len() == 0 && !g.hideDupes {
 		g.searchBar.Hide()
 		g.empty.Hide()
 

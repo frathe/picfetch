@@ -106,6 +106,79 @@ func TestStepImage_NoopWhileFyneDialogIsUp(t *testing.T) {
 	}
 }
 
+func loadPatternedTriple(t *testing.T) *viewer {
+	t.Helper()
+	v := newTestViewer(t)
+	a := uitest.PatternedJPEGURI(t, "a.jpg", 1)
+	b := uitest.PatternedJPEGURI(t, "b.jpg", 1)
+	c := uitest.PatternedJPEGURI(t, "c.jpg", 99)
+	dropAndWait(t, v, a, b, c)
+	if err := v.grid.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	return v
+}
+
+func TestStepImage_SkipsHiddenExtras(t *testing.T) {
+	v := loadPatternedTriple(t)
+	v.grid.SetHideDuplicates(true)
+	waitUntilLoaded(t, v)
+	if v.state.index != 0 {
+		t.Fatalf("index = %d, want 0 (representative)", v.state.index)
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.index != 2 {
+		t.Fatalf("index after StepImage(1) = %d, want 2 (skipped extra at 1)", v.state.index)
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.index != 0 {
+		t.Fatalf("index after wrap = %d, want 0", v.state.index)
+	}
+}
+
+func TestHandleKeyEvent_DTogglesHideDuplicatesWhenGridClosed(t *testing.T) {
+	v := loadPatternedTriple(t)
+	if v.grid.Visible() {
+		t.Fatal("setup: grid should be closed")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	if !v.grid.HideDuplicates() {
+		t.Fatal("D with the grid closed should hide extras")
+	}
+
+	v.grid.SetHideDuplicates(false)
+	v.ShowImage(1)
+	waitUntilLoaded(t, v)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	waitUntilLoaded(t, v)
+	if v.state.index != 0 {
+		t.Fatalf("index = %d, want 0 after hiding while on an extra", v.state.index)
+	}
+}
+
+func TestHandleKeyEvent_HomeEndSkipHiddenExtras(t *testing.T) {
+	v := loadPatternedTriple(t)
+	v.grid.SetHideDuplicates(true)
+	waitUntilLoaded(t, v)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+	waitUntilLoaded(t, v)
+	if v.state.index != 2 {
+		t.Fatalf("End index = %d, want 2 (last visible, not the extra)", v.state.index)
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyHome})
+	waitUntilLoaded(t, v)
+	if v.state.index != 0 {
+		t.Fatalf("Home index = %d, want 0", v.state.index)
+	}
+}
+
 func TestHandleKeyEvent_LeftRightUseStepImage(t *testing.T) {
 	v := newTestViewer(t)
 	a := uitest.TempJPEGURI(t, "a.jpg", 8, 8, color.White)

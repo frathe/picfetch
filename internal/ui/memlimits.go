@@ -51,6 +51,11 @@ type settings struct {
 	// from preferences.State.FavoritePreviewCache in features.go and read
 	// back into it by currentPreferences (run.go).
 	favPreviewCache bool
+
+	// dupeDist is the Hamming threshold the grid's hide-duplicates mode
+	// uses. dupeDistSet distinguishes a saved 0 (exact hash) from unset.
+	dupeDist    int
+	dupeDistSet bool
 }
 
 // bytesPerMB converts the megabyte figures above into the byte budgets
@@ -125,4 +130,26 @@ func (v *viewer) SetMaxFileSizeMB(n int) {
 
 	v.settings.maxFileMB = n
 	imaging.SetMaxEncodedBytes(int64(n) * bytesPerMB)
+}
+
+// DuplicateDistance is the Hamming threshold hide-duplicates uses.
+func (v *viewer) DuplicateDistance() int {
+	if v.settings.dupeDistSet {
+		return v.settings.dupeDist
+	}
+	return imaging.DuplicateMaxDistance
+}
+
+// SetDuplicateDistance clamps n to 0–32, marks it saved, and pushes it to
+// the grid. Live: groups rebuild if hide is already on.
+func (v *viewer) SetDuplicateDistance(n int) {
+	if n < 0 {
+		n = 0
+	}
+	if n > 32 {
+		n = 32
+	}
+	v.settings.dupeDist = n
+	v.settings.dupeDistSet = true
+	v.grid.SetDuplicateDistance(n)
 }
