@@ -647,7 +647,7 @@ Use `errcheck` command to check for unhadled errors.
   lowest-index representative and not union-find connected components. Hash 0 is
   omitted from groups. Failed thumbnail decodes are remembered so `hashRemaining` does not retry them (Shift+D must
   not re-toast analyzing after the pass finished). The file set is
-  never culled; extras are a display filter. `SetHideDuplicates` applies immediately (chrome shows while hashes are pending; unhashed files stay visible). Each `hashRemaining` job rebuilds the hide filter through `g.ui.Do` without resetting the highlight; `Shift+D` browse still waits for the last job before `finishBrowse`. `Shift+D` is a grid-local group filter; `Host` gained `ShowToast` for the
+  never culled; extras are a display filter. `SetHideDuplicates` applies immediately (chrome shows while hashes are pending; unhashed files stay visible). Cache-hit hashing joins the decode pool rather than running on the D-key goroutine. Hash completions compute `DuplicateGroups` on the worker, then install through `g.ui.Do` (apply stays armed until that callback returns; mid-window installs are floored at 250ms; the last job always applies) without resetting the highlight; `Shift+D` browse still waits for the last job before `finishBrowse`. `Shift+D` is a grid-local group filter; `Host` gained `ShowToast` for the
   analyzing toast. `/` search intersects hide; Escape stages selection → search → browse → hide → grid; `G`/Close leave
   hide on but end browse
 - "How do I act on several images at once?" → `internal/selection` (the set and its anchor) +

@@ -3,6 +3,7 @@ package grid
 import (
 	"context"
 	"image"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -11,6 +12,13 @@ import (
 )
 
 const maxDuplicateDistance = 32
+
+// hideApplyMinInterval is how far apart hashRemaining may schedule hide
+// applies while jobs are still running. The last job always applies.
+// Without a floor, an idle UI drains one install and the next hash
+// immediately queues another, so the event loop never sees input until
+// the pool is empty.
+const hideApplyMinInterval = 250 * time.Millisecond
 
 // Hash storage lives on Overview (hashMu / hashes / hashGen), not in the
 // thumbnail ByteCache: a hash is 8 bytes and must survive thumbnail eviction.
@@ -102,8 +110,8 @@ func (g *Overview) HideDuplicates() bool {
 }
 
 // SetHideDuplicates turns extra-hiding on or off. Turning it on hashes any
-// files that have not been hashed yet (thumbnails already in cache are
-// hashed on this goroutine; the rest join the existing decode pool) and
+// files that have not been hashed yet (cache hits and misses both join the
+// decode pool so D never dHashes on the key-handler goroutine) and
 // jumps the host to the group's representative if the current file is an
 // extra. Close does not clear this flag: the viewer still skips extras
 // after the grid is dismissed.
@@ -266,11 +274,16 @@ func (g *Overview) groupSize(hostIndex int) int {
 }
 
 func (g *Overview) rebuildGroups() {
+	g.groupSizes, g.groupReps = g.computeDuplicateGroups()
+}
+
+func (g *Overview) computeDuplicateGroups() (sizes, reps []int) {
+	g.groupComputes.Add(1)
 	n := g.host.FileCount()
-	g.groupSizes = make([]int, n)
-	g.groupReps = make([]int, n)
+	sizes = make([]int, n)
+	reps = make([]int, n)
 	for i := range n {
-		g.groupReps[i] = i
+		reps[i] = i
 	}
 	g.wipeHashesIfStale()
 
@@ -299,15 +312,16 @@ func (g *Overview) rebuildGroups() {
 		}
 		for _, gi := range grp {
 			hi := idx[gi]
-			g.groupSizes[hi] = len(grp)
-			g.groupReps[hi] = rep
+			sizes[hi] = len(grp)
+			reps[hi] = rep
 		}
 	}
 	for i := range n {
-		if hashed[i] && g.groupSizes[i] == 0 {
-			g.groupSizes[i] = 1
+		if hashed[i] && sizes[i] == 0 {
+			sizes[i] = 1
 		}
 	}
+	return sizes, reps
 }
 
 func (g *Overview) displayIndexOf(hostIdx int) int {
@@ -323,20 +337,26 @@ func (g *Overview) displayIndexOf(hostIdx int) int {
 }
 
 // hashRemaining hashes every file that does not already have a dHash.
-// Cache hits run on this goroutine; the rest join the thumbnail pool
-// without a per-cell Claim so Settle still waits, and they do not Add to
-// a full thumbnail cache. Each pool job applyFilters hide-duplicates
-// through g.ui.Do (rebuildFilter(false)) so extras disappear as hashes
-// land. Browse still waits for the last job (finishBrowse) so a partial
-// group is never shown. g.ui.Do stays inside this Go body: Settle's
-// barrier is decodes.Wait, which only covers completions the pool spawned.
+// Cache hits join the thumbnail pool the same way misses do — dHashing
+// them on the D-key goroutine froze the UI for any folder that already
+// fit in the thumb cache. Jobs have no per-cell Claim so Settle still
+// waits, and they do not Add to a full thumbnail cache.
+//
+// DuplicateGroups runs on the worker before g.ui.Do. The callback only
+// installs that snapshot and filters; hideApply stays set until it
+// returns so an idle UI cannot re-arm mid-apply. Mid-window applies are
+// also floored by hideApplyMinInterval; the last job always applies.
+// Browse still waits for the last job (finishBrowse) so a partial group
+// is never shown. g.ui.Do stays inside this Go body: Settle's barrier is
+// decodes.Wait, which only covers completions the pool spawned.
 func (g *Overview) hashRemaining() int {
 	gen := g.host.Generation()
 	g.wipeHashesIfStale()
 
 	type hashJob struct {
-		file fyne.URI
-		key  string
+		file  fyne.URI
+		key   string
+		thumb image.Image
 	}
 	var jobs []hashJob
 	for i := 0; i < g.host.FileCount(); i++ {
@@ -347,15 +367,15 @@ func (g *Overview) hashRemaining() int {
 		if g.hashFailedOf(u) {
 			continue
 		}
-		if thumb, ok := g.thumbs.Get(u.String()); ok {
-			g.rememberHash(u, thumb)
-			continue
-		}
 		key := u.String()
 		if _, loaded := g.hashing.LoadOrStore(key, true); loaded {
 			continue
 		}
-		jobs = append(jobs, hashJob{file: u, key: key})
+		job := hashJob{file: u, key: key}
+		if thumb, ok := g.thumbs.Get(key); ok {
+			job.thumb = thumb
+		}
+		jobs = append(jobs, job)
 	}
 	n := len(jobs)
 	if n == 0 {
@@ -363,12 +383,17 @@ func (g *Overview) hashRemaining() int {
 	}
 	g.hashJobs.Add(int32(n))
 	for _, j := range jobs {
-		file, key := j.file, j.key
+		file, key, cached := j.file, j.key, j.thumb
 		g.decodes.Go(context.Background(), func(acquired bool) {
 			defer func() {
 				g.hashing.Delete(key)
 				remaining := g.hashJobs.Add(-1)
+				if !g.shouldScheduleHideApply(remaining) {
+					return
+				}
+				sizes, reps := g.computeDuplicateGroups()
 				g.ui.Do(func() {
+					defer g.hideApply.Store(false)
 					if gen != g.host.Generation() {
 						return
 					}
@@ -379,7 +404,9 @@ func (g *Overview) hashRemaining() int {
 						return
 					}
 					if g.hideDupes {
-						g.rebuildFilter(false)
+						keepHost := g.fileIndex(g.highlight)
+						g.groupSizes, g.groupReps = sizes, reps
+						g.applyVisibleFilter(false, keepHost)
 						g.jumpIfHiddenExtra()
 					}
 				})
@@ -387,16 +414,37 @@ func (g *Overview) hashRemaining() int {
 			if !acquired || gen != g.host.Generation() {
 				return
 			}
-			thumb, err := imaging.LoadThumbnail(file)
-			if err != nil || thumb == nil {
-				g.rememberHashFail(file)
-				return
+			thumb := cached
+			if thumb == nil {
+				var err error
+				thumb, err = imaging.LoadThumbnail(file)
+				if err != nil || thumb == nil {
+					g.rememberHashFail(file)
+					return
+				}
+				if !g.ThumbCacheFull() {
+					g.thumbs.AddIfFits(file.String(), thumb)
+				}
 			}
 			g.rememberHash(file, thumb)
-			if !g.ThumbCacheFull() {
-				g.thumbs.AddIfFits(file.String(), thumb)
-			}
 		})
 	}
 	return n
+}
+
+func (g *Overview) shouldScheduleHideApply(remaining int32) bool {
+	if remaining == 0 {
+		g.hideApply.Store(true)
+		return true
+	}
+	now := time.Now().UnixMilli()
+	last := g.hideApplyAt.Load()
+	if last != 0 && now-last < hideApplyMinInterval.Milliseconds() {
+		return false
+	}
+	if !g.hideApply.CompareAndSwap(false, true) {
+		return false
+	}
+	g.hideApplyAt.Store(now)
+	return true
 }

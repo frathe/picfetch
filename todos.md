@@ -19,9 +19,11 @@ coverage.
 
 ## Hide-duplicates applies immediately and progressively
 
-`SetHideDuplicates` now shows "Hiding duplicates" chrome right away and
-rebuilds the hide filter after each `hashRemaining` job without yanking
-the highlight; `Shift+D` browse still waits for the last hash job.
+`SetHideDuplicates` now shows "Hiding duplicates" chrome right away.
+Cache-hit hashing and `DuplicateGroups` run on the decode pool so D does
+not freeze the UI; extras drop out as hashes land (armed apply + 250ms
+floor, last job always applies) without yanking the highlight. `Shift+D`
+browse still waits for the last hash job.
 `newTestUI` installs `uitest.UIQueue` via `SetUIQueue` so the app test
 suite drains grid completions the same way the grid package already did.
 Mid-window coverage is

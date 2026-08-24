@@ -199,9 +199,14 @@ type Overview struct {
 	// hideDupes hides non-representative duplicates; dupeDist is the
 	// Hamming threshold DuplicateGroups uses. groupSizes/groupReps are
 	// per host index (0 = unhashed). hashing dedups in-flight hashRemaining
-	// jobs by URI string. hashJobs counts those pool jobs so the last one can
-	// finishBrowse; hide applies on every job via g.ui.Do.
-	hideDupes bool
+	// jobs by URI string. hashJobs counts those pool jobs so the last one
+	// can finishBrowse. hideApply stays set until the in-flight UI
+	// install returns, so an idle fyne.Do cannot re-arm mid-apply and
+	// queue one install per file. hideApplyAt floors mid-window
+	// installs so the event loop still sees input while hashing.
+	hideDupes   bool
+	hideApply   atomic.Bool
+	hideApplyAt atomic.Int64
 	// browseHost is the host index being browsed, or -1 when browse is
 	// off. Zero is a valid file index - New MUST set this to -1.
 	browseHost int
@@ -210,6 +215,9 @@ type Overview struct {
 	groupReps  []int
 	hashing    sync.Map
 	hashJobs   atomic.Int32
+	// groupComputes counts computeDuplicateGroups calls so tests can
+	// tell a hash worker computed off the UI queue rather than inside it.
+	groupComputes atomic.Int32
 }
 
 // New builds the overview (hidden) around host. win is maximized (see

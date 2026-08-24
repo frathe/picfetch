@@ -111,6 +111,15 @@ func (g *Overview) rebuildFilter(resetView bool) {
 	}
 
 	g.rebuildGroups()
+	g.applyVisibleFilter(resetView, keepHost)
+}
+
+// applyVisibleFilter rebuilds matches from the current groups and query
+// and redraws. It does not call DuplicateGroups: hashRemaining computes
+// that on the worker and installs the snapshot before calling this, so
+// the UI goroutine is not stuck in O(n²) complete linkage until the
+// pool drains.
+func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	g.matches = nil
 
 	browsing := g.browseHost >= 0

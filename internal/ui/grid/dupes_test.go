@@ -6,6 +6,8 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -16,6 +18,25 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+// serialUIQueue is fyne.Do on an idle UI goroutine: the callback runs
+// before Do returns to the worker, serialized with other callbacks, and
+// Drain is a no-op because that work already happened. uitest.UIQueue
+// cannot catch hideApply re-arming — it never runs f, so Store(false)
+// never happens and every later job sees the flag still set.
+type serialUIQueue struct {
+	mu sync.Mutex
+	n  atomic.Int32
+}
+
+func (q *serialUIQueue) Do(f func()) {
+	q.n.Add(1)
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	f()
+}
+
+func (q *serialUIQueue) Drain() bool { return false }
 
 func TestWarm_RecordsDifferenceHash(t *testing.T) {
 	host := hostWith(t, "a.jpg")
@@ -346,6 +367,130 @@ func TestSetHideDuplicates_PendingShowsChromeAndLeavesUnhashedVisible(t *testing
 	}
 	if !g.IsHiddenExtra(1) {
 		t.Error("the pair's extra should hide once its hash lands")
+	}
+}
+
+func queuedCompletions(t *testing.T, g *Overview) int {
+	t.Helper()
+	q, ok := g.ui.(*uitest.UIQueue)
+	if !ok {
+		t.Fatalf("ui type = %T, want *uitest.UIQueue", g.ui)
+	}
+	return q.Len()
+}
+
+// TestHashRemaining_CoalescesHideAppliesOntoTheUIQueue pins the lock-up:
+// each hash job used to fyne.Do a full rebuildFilter (DuplicateGroups plus
+// wrap.Refresh), so D on a large cold folder saturated the UI goroutine
+// until every remaining thumbnail had hashed. Completions must share one
+// in-flight apply; the last job always queues so the final state cannot
+// be skipped. Grid stays closed so thumbnail paints do not inflate Len.
+func TestHashRemaining_CoalescesHideAppliesOntoTheUIQueue(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg"},
+		[]int{1, 2, 3, 4, 5},
+	)
+	g := newOverview(t, host)
+	unpark := parkDecodes(t, g)
+	g.SetHideDuplicates(true)
+	if got := g.hashJobs.Load(); got != 5 {
+		t.Fatalf("hashJobs = %d, want 5", got)
+	}
+
+	unpark()
+	g.decodes.Wait()
+
+	if got := queuedCompletions(t, g); got > 2 {
+		t.Fatalf("queued UI completions = %d, want at most 2 (coalesced apply + last job)", got)
+	}
+
+	g.Settle()
+}
+
+// TestHashRemaining_CachedThumbsJoinThePool pins D on a warm cache: those
+// thumbnails used to DifferenceHash on the key-handler goroutine, so a
+// folder that already fit in the 256MB thumb cache froze the UI until
+// hiding was done, with no pool jobs to return to.
+func TestHashRemaining_CachedThumbsJoinThePool(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"a.jpg", "b.jpg", "c.jpg"},
+		[]int{1, 2, 3},
+	)
+	g := newOverview(t, host)
+	for _, u := range host.files {
+		if !g.StoreThumb(u, mustThumb(t, u)) {
+			t.Fatalf("StoreThumb(%s) refused", u.Name())
+		}
+	}
+
+	unpark := parkDecodes(t, g)
+	g.SetHideDuplicates(true)
+
+	if got := g.hashJobs.Load(); got != 3 {
+		t.Fatalf("hashJobs = %d, want 3 (cache hits must join the pool, not dHash on D)", got)
+	}
+	for i, u := range host.files {
+		if _, ok := g.hashOf(u); ok {
+			t.Errorf("file %d (%s) hashed on the caller", i, u.Name())
+		}
+	}
+
+	unpark()
+	g.Settle()
+}
+
+// TestHashRemaining_HideApplyStaysArmedUntilCallbackReturns pins the
+// production lock coalescing missed: fyne.Do is async but an idle UI
+// runs the callback before the next hash lands, and the callback used to
+// Store(false) before DuplicateGroups. Later jobs then each queued
+// another rebuild, and the UI goroutine drained that queue before input.
+func TestHashRemaining_HideApplyStaysArmedUntilCallbackReturns(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg"},
+		[]int{1, 2, 3, 4, 5},
+	)
+	g := newOverview(t, host)
+	q := &serialUIQueue{}
+	g.SetUIQueue(q)
+	unpark := parkDecodes(t, g)
+	g.SetHideDuplicates(true)
+
+	unpark()
+	g.decodes.Wait()
+
+	if got := q.n.Load(); got > 2 {
+		t.Fatalf("UI applies = %d, want at most 2 (in-flight apply must stay armed until it returns)", got)
+	}
+}
+
+// TestHashRemaining_ComputesGroupsBeforeTheUIQueue pins the remaining
+// hitch: even one apply per coalesce window ran DuplicateGroups on the
+// UI goroutine, so a 13k-file folder spent the whole hashing window
+// inside O(n²) complete linkage and never saw input. Workers compute;
+// Drain only installs.
+func TestHashRemaining_ComputesGroupsBeforeTheUIQueue(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg"},
+		[]int{1, 2, 3, 4, 5},
+	)
+	g := newOverview(t, host)
+	unpark := parkDecodes(t, g)
+	g.SetHideDuplicates(true)
+	if got := g.groupComputes.Load(); got != 1 {
+		t.Fatalf("groupComputes after SetHideDuplicates = %d, want 1 (chrome apply)", got)
+	}
+
+	unpark()
+	g.decodes.Wait()
+
+	got := g.groupComputes.Load()
+	if got < 2 {
+		t.Fatalf("groupComputes after Wait = %d, want ≥2 (workers compute before g.ui.Do)", got)
+	}
+
+	g.Settle()
+	if still := g.groupComputes.Load(); still != got {
+		t.Fatalf("groupComputes after Drain = %d, want %d (UI must not DuplicateGroups again)", still, got)
 	}
 }
 
