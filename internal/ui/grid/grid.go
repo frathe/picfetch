@@ -10,6 +10,7 @@ package grid
 
 import (
 	"image"
+	"image/color"
 	"sync"
 	"sync/atomic"
 
@@ -17,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -30,6 +32,12 @@ import (
 // cellSize is the fixed width/height, in canvas points, each grid cell is
 // laid out at.
 const cellSize = 120
+
+// dupBadgeMargin insets the group-size chip from the cell edge so the
+// highlight ring (GridRingWidth) cannot run through the digits.
+const dupBadgeMargin float32 = 10
+
+const dupBadgeTextSize float32 = 14
 
 // Host is what the overview needs from the application: the file set to
 // draw, the generation counter that tells a finished decode whether its
@@ -220,6 +228,61 @@ type Overview struct {
 	groupComputes atomic.Int32
 }
 
+// dupBadge is the group-size chip on a grid cell: white digits on a black
+// backdrop, pinned top-right and stacked above the highlight ring.
+type dupBadge struct {
+	chip  *fyne.Container
+	bg    *canvas.Rectangle
+	label *canvas.Text
+}
+
+func newGridCell() *fyne.Container {
+	img := canvas.NewImageFromImage(nil)
+	img.FillMode = canvas.ImageFillContain
+	img.ScaleMode = canvas.ImageScaleFastest
+	img.SetMinSize(fyne.NewSize(cellSize, cellSize))
+
+	// The selection tint sits under the highlight ring so the ring's
+	// stroke stays crisp over it: the two mark different things and
+	// routinely land on the same cell.
+	tint := widgets.NewSelectionTint()
+	tint.Hide()
+
+	ring := widgets.NewFocusRing(widgets.GridRingWidth, widgets.RingRadius)
+	ring.Hide()
+
+	label := canvas.NewText("", color.White)
+	label.TextSize = dupBadgeTextSize
+	label.TextStyle = fyne.TextStyle{Bold: true}
+	label.Alignment = fyne.TextAlignCenter
+
+	bg := canvas.NewRectangle(color.Black)
+	bg.CornerRadius = 4
+
+	chip := container.NewStack(bg, container.New(
+		layout.NewCustomPaddedLayout(2, 2, 6, 6),
+		label,
+	))
+	chip.Hide()
+
+	// WithoutLayout so the chip can sit in the corner at its own min
+	// size; a Border right-slot would stretch it down the cell. Stacked
+	// last so the highlight stroke cannot paint through the digits.
+	return container.NewStack(img, tint, ring, container.NewWithoutLayout(chip))
+}
+
+func unpackGridCell(cell *fyne.Container) (*canvas.Image, *canvas.Rectangle, *canvas.Rectangle, *dupBadge) {
+	img := cell.Objects[0].(*canvas.Image)
+	tint := cell.Objects[1].(*canvas.Rectangle)
+	ring := cell.Objects[2].(*canvas.Rectangle)
+	chip := cell.Objects[3].(*fyne.Container).Objects[0].(*fyne.Container)
+	return img, tint, ring, &dupBadge{
+		chip:  chip,
+		bg:    chip.Objects[0].(*canvas.Rectangle),
+		label: chip.Objects[1].(*fyne.Container).Objects[0].(*canvas.Text),
+	}
+}
+
 // New builds the overview (hidden) around host. win is maximized (see
 // Toggle) each time the overview opens - a bigger window means bigger, more
 // legible thumbnails - the same reason slideshow.Controller is handed win
@@ -247,38 +310,16 @@ func New(host Host, win fyne.Window) *Overview {
 	g.wrap = widget.NewGridWrap(
 		g.count,
 		func() fyne.CanvasObject {
-			img := canvas.NewImageFromImage(nil)
-			img.FillMode = canvas.ImageFillContain
-			img.ScaleMode = canvas.ImageScaleFastest
-			img.SetMinSize(fyne.NewSize(cellSize, cellSize))
-
-			// The selection tint sits under the highlight ring so the ring's
-			// stroke stays crisp over it: the two mark different things and
-			// routinely land on the same cell.
-			tint := widgets.NewSelectionTint()
-			tint.Hide()
-
-			ring := widgets.NewFocusRing(widgets.GridRingWidth, widgets.RingRadius)
-			ring.Hide()
-
-			badge := canvas.NewText("", theme.Color(theme.ColorNamePrimary))
-			badge.TextSize = 12
-			badge.Alignment = fyne.TextAlignTrailing
-			badge.Hide()
-
-			return container.NewStack(img, tint, badge, ring)
+			return newGridCell()
 		},
 		func(id widget.GridWrapItemID, o fyne.CanvasObject) {
 			cell := o.(*fyne.Container)
-			img := cell.Objects[0].(*canvas.Image)
-			tint := cell.Objects[1].(*canvas.Rectangle)
-			badge := cell.Objects[2].(*canvas.Text)
-			ring := cell.Objects[3].(*canvas.Rectangle)
+			img, tint, ring, badge := unpackGridCell(cell)
 
 			g.cellIDs.Store(cell, id)
 			setCellHighlighted(ring, id == g.highlight)
 			setCellSelected(tint, g.isSelected(id))
-			g.applyDupBadge(badge, g.fileIndex(id))
+			g.applyDupBadge(badge, g.fileIndex(id), cell.Size())
 
 			// Refresh reaches this callback whether or not the overlay is
 			// actually open: every ForceRepaint refreshes the whole widget

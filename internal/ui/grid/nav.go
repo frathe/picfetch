@@ -190,12 +190,20 @@ func setCellHighlighted(ring *canvas.Rectangle, highlighted bool) {
 	}
 }
 
-func (g *Overview) applyDupBadge(badge *canvas.Text, hostIndex int) {
+func (g *Overview) applyDupBadge(b *dupBadge, hostIndex int, cell fyne.Size) {
 	n := g.groupSize(hostIndex)
-	if g.hideDupes && n >= 2 {
-		badge.Text = strconv.Itoa(n)
-		badge.Show()
+	if !g.hideDupes || n < 2 {
+		b.chip.Hide()
 		return
 	}
-	badge.Hide()
+	b.label.Text = strconv.Itoa(n)
+	b.label.Refresh()
+	sz := b.chip.MinSize()
+	b.chip.Resize(sz)
+	w := cell.Width
+	if w <= 0 {
+		w = cellSize
+	}
+	b.chip.Move(fyne.NewPos(w-sz.Width-dupBadgeMargin, dupBadgeMargin))
+	b.chip.Show()
 }

@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
@@ -288,28 +287,67 @@ func TestHandleKey_GLeavesHideDuplicatesOn(t *testing.T) {
 
 func TestApplyDupBadge_ShowsGroupSize(t *testing.T) {
 	g, _ := pairAndUnique(t)
-	badge := canvas.NewText("", color.White)
+	cell := newGridCell()
+	_, _, _, badge := unpackGridCell(cell)
 
-	g.applyDupBadge(badge, 0)
-	if badge.Visible() {
+	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
+	if badge.chip.Visible() {
 		t.Fatal("badge should stay hidden while hide-duplicates is off")
 	}
 
 	g.SetHideDuplicates(true)
-	g.applyDupBadge(badge, 0)
-	if !badge.Visible() || badge.Text != "2" {
-		t.Errorf("representative badge visible=%v text=%q, want visible text \"2\"", badge.Visible(), badge.Text)
+	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
+	if !badge.chip.Visible() || badge.label.Text != "2" {
+		t.Errorf("representative badge visible=%v text=%q, want visible text \"2\"", badge.chip.Visible(), badge.label.Text)
 	}
 
-	g.applyDupBadge(badge, 2)
-	if badge.Visible() {
+	g.applyDupBadge(badge, 2, fyne.NewSize(cellSize, cellSize))
+	if badge.chip.Visible() {
 		t.Error("a unique cell must hide the badge")
 	}
 
 	g.SetHideDuplicates(false)
-	g.applyDupBadge(badge, 0)
-	if badge.Visible() {
+	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
+	if badge.chip.Visible() {
 		t.Error("turning hide off must hide the badge")
+	}
+}
+
+func TestDupBadge_TopRightClearsTheHighlightRing(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+
+	cell := newGridCell()
+	_, _, ring, badge := unpackGridCell(cell)
+	if cell.Objects[2] != ring {
+		t.Fatal("highlight ring must sit under the badge layer")
+	}
+	if cell.Objects[3] == ring {
+		t.Fatal("badge layer must stack above the highlight ring")
+	}
+
+	cell.Resize(fyne.NewSize(cellSize, cellSize))
+	g.applyDupBadge(badge, 0, cell.Size())
+
+	r, _, _, a := badge.bg.FillColor.RGBA()
+	if r != 0 || a != 0xffff {
+		t.Errorf("backdrop RGBA = %d,_,_,%d, want opaque black", r, a)
+	}
+	if !badge.chip.Visible() {
+		t.Fatal("representative badge should be visible")
+	}
+
+	pos := badge.chip.Position()
+	sz := badge.chip.Size()
+	if pos.Y < dupBadgeMargin-0.5 {
+		t.Errorf("badge top = %v, want ≥ %v (clear of the highlight ring)", pos.Y, dupBadgeMargin)
+	}
+	rightGap := cellSize - (pos.X + sz.Width)
+	if rightGap < dupBadgeMargin-0.5 {
+		t.Errorf("badge right gap = %v, want ≥ %v (clear of the highlight ring)", rightGap, dupBadgeMargin)
+	}
+	if pos.X+sz.Width/2 < cellSize/2 {
+		t.Errorf("badge centre X = %v, want the right half of the cell", pos.X+sz.Width/2)
 	}
 }
 
