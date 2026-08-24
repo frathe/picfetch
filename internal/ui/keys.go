@@ -198,8 +198,22 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// Same place as G: hide-dupes is useful with one file (no-op) or
 		// while a decode is in flight, and must not wait for the
 		// navigation-length guard below.
+		//
+		// Shift+D browses the current file's duplicate group and opens
+		// the grid when that actually turns browse on. A unique file is
+		// a silent no-op (do not open an empty group). Picture-frame
+		// ignores Shift+D the same way it ignores G: the two full-window
+		// modes don't compose.
+		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
+			if !v.slides.Active() {
+				v.grid.ToggleBrowseDuplicates()
+				if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
+					v.grid.Toggle()
+				}
+			}
+			return
+		}
 		v.grid.SetHideDuplicates(!v.grid.HideDuplicates())
-
 		return
 	case fyne.KeyI:
 		// Handled before the navigation guard below, same as M/P, so it

@@ -13,6 +13,9 @@ viewer does well today. Hash work rides the thumbnail pipeline's
 claim/semaphore machinery, so it inherits cancellation and memory bounds
 for free.
 
+## browse duplicates
+- when highlighting an image that had duplicated and then pushing shift+d shows all duplicates for that item in a grid view
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO

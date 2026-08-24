@@ -638,10 +638,12 @@ Use `errcheck` command to check for unhadled errors.
   search, the display→host index mapping it needs, and the search bar) + `keys.go`'s `handleTypedRune` (how a typed
   character reaches it)
 - "How does hide-duplicates work?" → `internal/imaging/dhash.go` (`DifferenceHash`/`Hamming`/`DuplicateGroups`) +
-  `internal/ui/grid/dupes.go` (`SetHideDuplicates`, URI hash map, badges, `hashRemaining`) + `keys.go` (`D` while the
-  grid is closed) + `viewer.go`'s `nextVisibleIndex`/`firstVisibleIndex`/`lastVisibleIndex` (arrows, Home/End, slideshow
-  skip extras). The file set is never culled; extras are a display filter. `/` search intersects hide; Escape stages
-  selection → search → hide → grid; `G`/Close leave hide on
+  `internal/ui/grid/dupes.go` (`SetHideDuplicates`, URI hash map, badges, `hashRemaining`, `browseHost` group filter
+  default `-1` off, cleared on Close) + `keys.go` (`D` while the grid is closed; viewer `Shift+D` opens browse and the
+  grid) + `viewer.go`'s `nextVisibleIndex`/`firstVisibleIndex`/`lastVisibleIndex` (arrows, Home/End, slideshow skip
+  extras). The file set is never culled; extras are a display filter. `Shift+D` is a grid-local group filter; `Host`
+  gained `ShowToast` for the analyzing toast. `/` search intersects hide; Escape stages selection → search → browse →
+  hide → grid; `G`/Close leave hide on but end browse
 - "How do I act on several images at once?" → `internal/selection` (the set and its anchor) +
   `internal/ui/grid/selection.go` (the click/key gestures, the tint, `Targets`) + `internal/ui/batch.go` (the only
   place that joins the grid to `deletion` and the clipboard) + `internal/ui/deletion`'s `RequestFiles` (the batch

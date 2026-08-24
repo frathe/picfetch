@@ -371,6 +371,16 @@ instead of arrowing through them one at a time.
   `/` search and hide-duplicates stack: a name filter while extras are
   hidden shows only remaining cells whose names match. While a search is
   open, `d`/`D` is a letter in the query, not the hide toggle.
+- Press **`Shift+D`** to show every copy of the **highlighted** shot (in the
+  grid) or the **current** shot (in image view). The grid lists only that
+  group, including extras `D` would hide.
+- If thumbnails are still being hashed, an info toast says **The images are
+  currently being analyzed**; the group appears when hashing finishes. A
+  unique shot (already hashed, no copies) does nothing.
+- **`Esc`** leaves browse before it turns hide off. **`G`**/Close leave hide
+  on but **end** browse.
+- While `/` search is open, **`Shift+D`** is not browse (`D` is a letter).
+- In picture-frame mode, **`Shift+D`** does nothing, like **`G`**.
 - **Select several at once** to act on them together:
   **`Cmd/Ctrl+click`** a thumbnail to add it to the selection (or click it
   again to take it back out), **`Shift+click`** to select everything
@@ -390,17 +400,18 @@ instead of arrowing through them one at a time.
   `Cmd/Ctrl+A`, `Shift+Delete` clears every holiday photo out of a folder
   of thousands. Clearing the search afterwards leaves the selection intact.
 - **`Esc`** undoes one thing at a time: the selection first, then the
-  search, then hide-duplicates, then the grid itself. `G` closes the grid
+  search, then browse-duplicates, then hide-duplicates, then the grid
+  itself. `G` closes the grid
   as usual, but goes quiet while a selection or a search is still up, so it
   can't throw away work in progress. `G` and Close leave hide-duplicates
   on: the single-image view still skips hidden extras until you press `D`
   again (or `Esc` through that stage while the grid is up).
 - Apart from those, every other key is ignored while the grid is up - zoom,
   `S`/`M`/`P`/`I` all do nothing until you either pick a thumbnail (click
-  or `Return`) or back out with `G`/`Esc`. `D` is the exception (unless a
-  search is open). While a search is open, the letter keys are characters
-  you are typing, so `G` no longer closes the grid and `D` no longer
-  toggles hide-duplicates - `Esc` does.
+  or `Return`) or back out with `G`/`Esc`. `D` and `Shift+D` are the
+  exceptions (unless a search is open). While a search is open, the letter
+  keys are characters you are typing, so `G` no longer closes the grid and
+  `D`/`Shift+D` no longer toggle hide-duplicates or browse - `Esc` does.
 - The search only narrows what the grid shows. It changes nothing about the
   set itself: pick an image and the arrow keys still walk through every
   file you dropped, and the next time you open the grid it starts
@@ -521,9 +532,12 @@ many of them actually went.
 - **`D`** — hide extra copies of the same shot (see "Grid overview");
   remaining cells show a count badge. While a grid search is open, types
   the letter `d` instead
+- **`Shift+D`** — show every copy of the highlighted/current shot (see
+  "Grid overview"); while a grid search is open, types the letter `D`
+  instead
 - **`/`** — (grid only) search the grid by file name; stacks with
-  hide-duplicates. `Esc` clears the search, then hide-duplicates, then
-  leaves the grid
+  hide-duplicates. `Esc` clears the search, then browse-duplicates, then
+  hide-duplicates, then leaves the grid
 - **`Space`** — (grid only) add the highlighted thumbnail to the selection,
   or take it back out
 - **`Cmd`/`Ctrl+A`** — (grid only) select every thumbnail the grid is
@@ -806,9 +820,13 @@ Things PicFetch deliberately does not do (yet):
   visible; remaining cells show a count badge). Arrows, `Home`/`End`, and
   picture-frame advance skip the hidden ones until you press `D` again.
   `G`/Close leave this on. Settings has the match-distance slider
+- **Browse duplicates** — `Shift+D` shows every copy of the
+  highlighted/current shot in the grid, including extras `D` would hide;
+  `G`/Close end browse but leave hide on
 - **Search by name** — `/` inside the grid filters it to the file names
   containing what you type; stacks with hide-duplicates. `Esc` clears the
-  filter, then hide-duplicates, then the grid. The filter survives a
+  filter, then browse-duplicates, then hide-duplicates, then the grid. The
+  filter survives a
   selection and vice versa, so `/`, then `Cmd`/`Ctrl+A`, acts on exactly
   the matches
 - **Zoom** — `+`/`-` zoom in/out (window follows the image, min open size,

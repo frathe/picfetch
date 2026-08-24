@@ -75,6 +75,9 @@ type Host interface {
 	// reason: Fyne's test driver implements no desktop.Driver to read them
 	// from.
 	Modifiers() fyne.KeyModifier
+
+	// ShowToast displays a short, non-blocking notification.
+	ShowToast(msg string)
 }
 
 // Overview is the grid overlay and the state behind it.
@@ -190,7 +193,10 @@ type Overview struct {
 	// per host index (0 = unhashed). hashing dedups in-flight hashRemaining
 	// jobs by URI string. hashJobs counts those pool jobs so only the last
 	// one applyFilters (Fyne's test driver runs Do inline on the worker).
-	hideDupes  bool
+	hideDupes bool
+	// browseHost is the host index being browsed, or -1 when browse is
+	// off. Zero is a valid file index - New MUST set this to -1.
+	browseHost int
 	dupeDist   int
 	groupSizes []int
 	groupReps  []int
@@ -210,13 +216,14 @@ type Overview struct {
 // GridWrap (see Close's comment on why).
 func New(host Host, win fyne.Window) *Overview {
 	g := &Overview{
-		host:     host,
-		win:      win,
-		sel:      selection.New(),
-		thumbs:   imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
-		decodes:  decodepool.New[*fyne.Container, int](thumbConcurrency),
-		hashes:   make(map[string]uint64),
-		dupeDist: imaging.DuplicateMaxDistance,
+		host:       host,
+		win:        win,
+		sel:        selection.New(),
+		thumbs:     imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
+		decodes:    decodepool.New[*fyne.Container, int](thumbConcurrency),
+		hashes:     make(map[string]uint64),
+		dupeDist:   imaging.DuplicateMaxDistance,
+		browseHost: -1,
 	}
 
 	g.wrap = widget.NewGridWrap(
@@ -433,6 +440,12 @@ func (g *Overview) Close() {
 	// one.
 	g.sel.Clear()
 	g.clearSearch()
+	// Browse is a way of working with the grid, like search: G must reopen
+	// the hide/full set, not the last group. Hide-duplicates stays; Close
+	// never clears that standing setting.
+	if g.browseHost >= 0 {
+		g.SetBrowsingDuplicates(false)
+	}
 	// Explicitly, because clearSearch returns early with no search open and
 	// would otherwise leave the bar showing a selection count that no longer
 	// applies the next time the grid opens.

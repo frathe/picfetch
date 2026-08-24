@@ -338,3 +338,275 @@ func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 		t.Fatalf("count() = %d after restoring default distance, want 1", g.count())
 	}
 }
+
+func TestSetBrowsingDuplicates_ShowsOnlyTheGroup(t *testing.T) {
+	g, host := pairAndUnique(t) // host 0,1 pair; host 2 unique
+
+	g.SetBrowsingDuplicates(true)
+
+	if !g.BrowsingDuplicates() {
+		t.Fatal("BrowsingDuplicates() = false after SetBrowsingDuplicates(true)")
+	}
+	if g.count() != 2 {
+		t.Fatalf("count() = %d, want 2 (pair only)", g.count())
+	}
+	if g.fileIndex(0) != 0 || g.fileIndex(1) != 1 {
+		t.Fatalf("visible = [%d, %d], want [0, 1]", g.fileIndex(0), g.fileIndex(1))
+	}
+	if g.Highlight() != 0 {
+		t.Errorf("Highlight() = %d, want 0 (source file)", g.Highlight())
+	}
+	if len(host.toasts) != 0 {
+		t.Errorf("toasts = %v, want none (already hashed)", host.toasts)
+	}
+}
+
+func TestSetBrowsingDuplicates_NoopOnUnique(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.setHighlight(2) // moon.jpg
+
+	g.SetBrowsingDuplicates(true)
+
+	if g.BrowsingDuplicates() {
+		t.Fatal("unique file must not enter browse")
+	}
+	if g.count() != 3 {
+		t.Fatalf("count() = %d, want 3 (unfiltered)", g.count())
+	}
+	if len(host.toasts) != 0 {
+		t.Errorf("toasts = %v, want none (hashes already ready)", host.toasts)
+	}
+}
+
+func TestSetBrowsingDuplicates_ShowsExtrasEvenWhenHideOn(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	if g.count() != 2 {
+		t.Fatalf("setup hide count() = %d, want 2", g.count())
+	}
+	// Display 0 is host 0 (representative). Extra host 1 is hidden.
+	g.setHighlight(0)
+
+	g.SetBrowsingDuplicates(true)
+
+	if g.count() != 2 {
+		t.Fatalf("count() = %d, want 2 (both pair members, unique excluded)", g.count())
+	}
+	seen := map[int]bool{g.fileIndex(0): true, g.fileIndex(1): true}
+	if !seen[0] || !seen[1] {
+		t.Fatalf("visible hosts = %v, want 0 and 1 (extra must be shown)", seen)
+	}
+	if !g.HideDuplicates() {
+		t.Fatal("browse must not clear the hide flag")
+	}
+}
+
+func TestSetBrowsingDuplicates_IntersectsSearch(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.HandleRune('/')
+	for _, r := range "sunset" {
+		g.HandleRune(r)
+	}
+	g.SetBrowsingDuplicates(true)
+	if g.count() != 2 {
+		t.Fatalf("count() = %d, want 2 (sunset pair)", g.count())
+	}
+	g.clearSearch()
+	if !g.BrowsingDuplicates() || g.count() != 2 {
+		t.Fatal("clearing search must leave browse on")
+	}
+}
+
+func TestSyncTopBar_ShowingDuplicates(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetBrowsingDuplicates(true)
+	if got, want := g.searchLabel.Text, lang.L("Showing duplicates"); got != want {
+		t.Errorf("searchLabel = %q, want %q", got, want)
+	}
+	if got, want := g.countLabel.Text, fmt.Sprintf(lang.L("%d of %d"), 2, 3); got != want {
+		t.Errorf("countLabel = %q, want %q", got, want)
+	}
+}
+
+func TestGroupMembers_Pair(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	got := g.groupMembers(1)
+	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("groupMembers(1) = %v, want [0 1]", got)
+	}
+	if g.groupMembers(2) != nil {
+		t.Fatalf("groupMembers(unique) = %v, want nil", g.groupMembers(2))
+	}
+}
+
+func TestHandleKey_ShiftDTogglesBrowseDuplicates(t *testing.T) {
+	g, host := pairAndUnique(t)
+	host.mods = fyne.KeyModifierShift
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	if !g.BrowsingDuplicates() || g.count() != 2 {
+		t.Fatalf("after Shift+D: browse=%v count=%d, want browse=true count=2", g.BrowsingDuplicates(), g.count())
+	}
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	if g.BrowsingDuplicates() || g.count() != 3 {
+		t.Fatalf("second Shift+D: browse=%v count=%d, want browse=false count=3", g.BrowsingDuplicates(), g.count())
+	}
+}
+
+func TestHandleKey_PlainDStillTogglesHideWhileNotSearching(t *testing.T) {
+	g, host := pairAndUnique(t)
+	host.mods = 0
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	if !g.HideDuplicates() || g.BrowsingDuplicates() {
+		t.Fatal("plain D must toggle hide, not browse")
+	}
+}
+
+func TestHandleKey_ShiftDWhileSearchingDoesNotBrowse(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.HandleRune('/')
+	g.HandleRune('x')
+	host.mods = fyne.KeyModifierShift
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	if g.BrowsingDuplicates() {
+		t.Fatal("Shift+D while searching must not browse")
+	}
+	if g.Query() != "x" {
+		t.Errorf("Query() = %q, want %q (KeyD is not a typed rune)", g.Query(), "x")
+	}
+}
+
+func TestHandleKey_EscapeTurnsOffBrowseBeforeHide(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	g.SetBrowsingDuplicates(true)
+	host.mods = 0
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if g.BrowsingDuplicates() {
+		t.Fatal("first Escape should leave browse")
+	}
+	if !g.HideDuplicates() || !g.Visible() {
+		t.Fatal("first Escape should leave hide on and the grid up")
+	}
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if g.HideDuplicates() {
+		t.Fatal("second Escape should turn hide off")
+	}
+	if !g.Visible() {
+		t.Fatal("second Escape should not close the grid")
+	}
+}
+
+func TestClose_ClearsBrowseLeavesHide(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	g.SetBrowsingDuplicates(true)
+
+	g.Close()
+
+	if g.Visible() {
+		t.Fatal("Close should hide the grid")
+	}
+	if g.BrowsingDuplicates() {
+		t.Error("Close must clear browse")
+	}
+	if !g.HideDuplicates() {
+		t.Error("Close must not clear hide-duplicates")
+	}
+}
+
+func TestHandleKey_GClearsBrowse(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetBrowsingDuplicates(true)
+	host.mods = 0
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyG})
+	if g.Visible() {
+		t.Fatal("G should close")
+	}
+	if g.BrowsingDuplicates() {
+		t.Error("G/Close must clear browse")
+	}
+}
+
+func TestSetBrowsingDuplicates_HashesRemainingWithoutWarm(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon.jpg"},
+		[]int{1, 1, 99},
+	)
+	g := newOverview(t, host)
+	g.Toggle()
+	host.index = 0
+
+	g.SetBrowsingDuplicates(true)
+	if len(host.toasts) != 1 || host.toasts[0] != lang.L("The images are currently being analyzed") {
+		t.Fatalf("toasts = %v, want [%q] while hashing", host.toasts, lang.L("The images are currently being analyzed"))
+	}
+	g.Settle()
+
+	if !g.BrowsingDuplicates() {
+		t.Fatal("browse should turn on after remaining files hash")
+	}
+	if g.count() != 2 {
+		t.Fatalf("count() = %d after hashing remaining, want 2", g.count())
+	}
+	if len(host.toasts) != 1 {
+		t.Errorf("toasts after Settle = %v, want still one (no second toast)", host.toasts)
+	}
+}
+
+func TestApplyFilter_BrowsePendingDoesNotCollapseGrid(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon.jpg"},
+		[]int{1, 1, 99},
+	)
+	g := newOverview(t, host)
+	g.Toggle()
+	host.index = 0
+	// Toggle's GridWrap decode fills the thumb cache; hashRemaining would
+	// then remember those hits on this goroutine and the pair would already
+	// be a group. Drain and drop them so hashes are still pending, matching
+	// SetBrowsingDuplicates without Warm.
+	g.Settle()
+	g.clearHashes()
+	g.thumbs.Purge()
+
+	g.SetBrowsingDuplicates(true)
+	g.SetHideDuplicates(true)
+
+	if g.count() != 3 {
+		t.Fatalf("count() = %d while hashes pending, want 3 (not collapsed to the source cell)", g.count())
+	}
+	if !g.BrowsingDuplicates() {
+		t.Fatal("BrowsingDuplicates() = false while hashes pending, want true")
+	}
+
+	g.Settle()
+
+	if !g.BrowsingDuplicates() {
+		t.Fatal("browse should stay on after remaining files hash")
+	}
+	if g.count() != 2 {
+		t.Fatalf("count() = %d after hashing remaining, want 2", g.count())
+	}
+}
+
+func TestSetDuplicateDistance_ExitsBrowseWhenGroupSplits(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	a, b := nearGrayPair()
+	g.rememberHash(host.files[0], a)
+	g.rememberHash(host.files[1], b)
+	g.Toggle()
+	g.SetBrowsingDuplicates(true)
+	if g.count() != 2 {
+		t.Fatalf("setup count() = %d, want 2", g.count())
+	}
+
+	g.SetDuplicateDistance(0)
+	if g.BrowsingDuplicates() {
+		t.Fatal("distance 0 should exit browse when the pair splits")
+	}
+}

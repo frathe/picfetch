@@ -103,7 +103,11 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 			g.Close()
 		}
 	case fyne.KeyD:
-		g.SetHideDuplicates(!g.hideDupes)
+		if g.host.Modifiers()&fyne.KeyModifierShift != 0 {
+			g.ToggleBrowseDuplicates()
+		} else {
+			g.SetHideDuplicates(!g.hideDupes)
+		}
 	case fyne.KeySpace:
 		g.toggleAt(g.highlight)
 	case fyne.KeyReturn, fyne.KeyEnter:
@@ -144,16 +148,19 @@ func (g *Overview) movePage(direction int) {
 }
 
 // escape undoes one layer per press, smallest first: the selection, then the
-// search, then hide-duplicates, then the grid itself. Each of those took the
-// user effort to build, so a single keystroke never throws away more than the
-// one thing they were most likely aiming at. Close does not clear hide:
-// the viewer still skips extras after the grid is dismissed.
+// search, then browse-duplicates, then hide-duplicates, then the grid itself.
+// Each of those took the user effort to build, so a single keystroke never
+// throws away more than the one thing they were most likely aiming at. Close
+// does not clear hide: the viewer still skips extras after the grid is
+// dismissed.
 func (g *Overview) escape() {
 	switch {
 	case g.sel.Len() > 0:
 		g.ClearSelection()
 	case g.searching:
 		g.clearSearch()
+	case g.browseHost >= 0:
+		g.SetBrowsingDuplicates(false)
 	case g.hideDupes:
 		g.SetHideDuplicates(false)
 	default:

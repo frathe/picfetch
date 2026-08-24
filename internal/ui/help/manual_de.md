@@ -417,6 +417,20 @@ einzeln durchzublättern.
   Extra-Kopien zeigt nur die übrigen Zellen, deren Namen passen. Solange
   eine Suche offen ist, ist `d`/`D` ein Buchstabe der Eingabe, nicht der
   Ausblend-Schalter.
+- Drücken Sie **`Shift+D`**, um **Duplikate dieser Aufnahme anzuzeigen** —
+  alle Kopien der **hervorgehobenen** Aufnahme (im Raster) bzw. der
+  **aktuellen** Aufnahme (in der Einzelbildansicht). Das Raster listet nur
+  diese Gruppe, einschließlich Extra-Kopien, die `D` ausblenden würde.
+- Wenn Miniaturansichten noch gehasht werden, erscheint ein Info-Hinweis
+  **Die Bilder werden gerade analysiert**; die Gruppe erscheint, sobald das
+  Hashen abgeschlossen ist. Eine einzigartige Aufnahme (bereits gehasht,
+  keine Kopien) bewirkt nichts.
+- **`Esc`** beendet die Duplikat-Anzeige, bevor das Ausblenden
+  ausgeschaltet wird. **`G`**/Schließen lassen das Ausblenden an,
+  **beenden** aber die Duplikat-Anzeige.
+- Solange die `/`-Suche offen ist, ist **`Shift+D`** keine
+  Duplikat-Anzeige (`D` ist ein Buchstabe).
+- Im Diaschau-Modus bewirkt **`Shift+D`** nichts, wie **`G`**.
 - **Mehrere auf einmal auswählen**, um sie gemeinsam zu bearbeiten:
   **`Cmd/Strg+Klick`** auf eine Miniaturansicht nimmt sie in die Auswahl auf
   (ein erneuter Klick nimmt sie wieder heraus), **`Shift+Klick`** wählt
@@ -439,7 +453,8 @@ einzeln durchzublättern.
   Tausenden heraus. Das anschließende Zurücksetzen der Suche lässt die
   Auswahl unberührt.
 - **`Esc`** nimmt jeweils eine Sache zurück: zuerst die Auswahl, dann die
-  Suche, dann das Ausblenden von Duplikaten, dann das Raster selbst. `G`
+  Suche, dann die Duplikat-Anzeige, dann das Ausblenden von Duplikaten,
+  dann das Raster selbst. `G`
   schließt das Raster wie gewohnt, bleibt aber wirkungslos, solange eine
   Auswahl oder eine Suche besteht, damit es keine begonnene Arbeit
   verwirft. `G` und Schließen lassen das Ausblenden an: die Einzelbildansicht
@@ -448,10 +463,11 @@ einzeln durchzublättern.
 - Davon abgesehen wird jede andere Taste ignoriert, solange das Raster
   geöffnet ist — Zoom, `S`/`M`/`P`/`I` bewirken nichts, bis Sie entweder eine
   Miniaturansicht auswählen (Klick oder `Return`) oder mit `G`/`Esc`
-  zurückgehen. `D` ist die Ausnahme (außer wenn eine Suche offen ist).
-  Solange eine Suche geöffnet ist, sind die Buchstabentasten Zeichen Ihrer
-  Eingabe — `G` schließt das Raster dann nicht mehr und `D` schaltet das
-  Ausblenden nicht um, `Esc` schon.
+  zurückgehen. `D` und `Shift+D` sind die Ausnahmen (außer wenn eine Suche
+  offen ist). Solange eine Suche geöffnet ist, sind die Buchstabentasten
+  Zeichen Ihrer Eingabe — `G` schließt das Raster dann nicht mehr und
+  `D`/`Shift+D` schalten weder Ausblenden noch Duplikat-Anzeige um,
+  `Esc` schon.
 - Die Suche schränkt nur ein, was das Raster zeigt. An der Auswahl selbst
   ändert sie nichts: Nach dem Öffnen eines Bildes blättern die Pfeiltasten
   weiterhin durch alle abgelegten Dateien, und beim nächsten Öffnen
@@ -590,9 +606,13 @@ tatsächlich verschoben wurden.
 - **`D`** — Extra-Kopien derselben Aufnahme ausblenden (siehe
   „Rasteransicht“); verbleibende Zellen zeigen ein Zähler-Abzeichen.
   Solange eine Rastersuche offen ist, tippt die Taste den Buchstaben `d`
+- **`Shift+D`** — Duplikate dieser Aufnahme anzeigen (siehe
+  „Rasteransicht“); solange eine Rastersuche offen ist, tippt die Taste den
+  Buchstaben `D`
 - **`/`** — (nur im Raster) das Raster nach Dateinamen durchsuchen; stapelt
   sich mit dem Ausblenden von Duplikaten. `Esc` setzt die Suche zurück,
-  dann das Ausblenden, dann verlässt es das Raster
+  dann die Duplikat-Anzeige, dann das Ausblenden, dann verlässt es das
+  Raster
 - **`Leertaste`** — (nur im Raster) die hervorgehobene Miniaturansicht zur
   Auswahl hinzufügen oder wieder herausnehmen
 - **`Cmd`/`Strg+A`** — (nur im Raster) alle gerade angezeigten
@@ -920,10 +940,15 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Zähler-Abzeichen). Pfeiltasten, `Home`/`End` und der Diaschau-Wechsel
   überspringen die versteckten, bis Sie erneut `D` drücken. `G`/Schließen
   lassen das an. In den Einstellungen liegt der Abstands-Schieberegler
+- **Duplikate anzeigen** — `Shift+D` zeigt alle Kopien der
+  hervorgehobenen/aktuellen Aufnahme im Raster, einschließlich Extra-Kopien,
+  die `D` ausblenden würde; `G`/Schließen beenden die Anzeige, lassen das
+  Ausblenden aber an
 - **Suche nach Namen** — `/` im Raster filtert es auf die Dateinamen, die
   Ihre Eingabe enthalten; stapelt sich mit dem Ausblenden von Duplikaten.
-  `Esc` setzt den Filter zurück, dann das Ausblenden, dann das Raster.
-  Filter und Auswahl überleben einander, sodass `/`, gefolgt von
+  `Esc` setzt den Filter zurück, dann die Duplikat-Anzeige, dann das
+  Ausblenden, dann das Raster. Filter und Auswahl überleben einander, sodass
+  `/`, gefolgt von
   `Cmd`/`Strg+A`, genau auf die Treffer wirkt
 - **Zoom** — `+`/`-` vergrößern/verkleinern (Fenster folgt dem Bild, Minimum
   ist die Startgröße, Maximum kommt aus den Einstellungen), `1` für 100 %,

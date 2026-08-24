@@ -44,6 +44,8 @@ type fakeHost struct {
 	// (-1 for "none"), so the window-title notification can be asserted in
 	// order without a real title bar.
 	highlighted []int
+
+	toasts []string
 }
 
 func (f *fakeHost) FileCount() int         { return len(f.files) }
@@ -56,6 +58,8 @@ func (f *fakeHost) Unfocus()               { f.unfocused++ }
 func (f *fakeHost) HighlightChanged(i int) { f.highlighted = append(f.highlighted, i) }
 
 func (f *fakeHost) Modifiers() fyne.KeyModifier { return f.mods }
+
+func (f *fakeHost) ShowToast(msg string) { f.toasts = append(f.toasts, msg) }
 
 // hostWith returns a host holding n small real JPEGs - real files because
 // the decode path under test actually reads them.

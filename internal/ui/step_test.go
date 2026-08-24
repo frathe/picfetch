@@ -161,6 +161,53 @@ func TestHandleKeyEvent_DTogglesHideDuplicatesWhenGridClosed(t *testing.T) {
 	}
 }
 
+func TestHandleKeyEvent_ShiftDOpensGridOnCurrentGroup(t *testing.T) {
+	v := loadPatternedTriple(t)
+	stubKeyModifiers(t, v, fyne.KeyModifierShift)
+	if v.grid.Visible() {
+		t.Fatal("setup: grid closed")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	v.grid.Settle()
+
+	if !v.grid.Visible() {
+		t.Fatal("Shift+D on a duplicated file should open the grid")
+	}
+	if !v.grid.BrowsingDuplicates() {
+		t.Fatal("grid should be in browse mode")
+	}
+	if v.grid.HideDuplicates() {
+		t.Fatal("Shift+D must not turn hide on")
+	}
+}
+
+func TestHandleKeyEvent_ShiftDNoopOnUniqueDoesNotOpenGrid(t *testing.T) {
+	v := loadPatternedTriple(t)
+	v.ShowImage(2)
+	waitUntilLoaded(t, v)
+	stubKeyModifiers(t, v, fyne.KeyModifierShift)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	v.grid.Settle()
+
+	if v.grid.Visible() {
+		t.Fatal("Shift+D on a unique file must not open the grid")
+	}
+	if v.grid.BrowsingDuplicates() {
+		t.Fatal("must not enter browse")
+	}
+}
+
+func TestHandleKeyEvent_PlainDStillHidesWhenGridClosed(t *testing.T) {
+	v := loadPatternedTriple(t)
+	stubKeyModifiers(t, v, 0)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	if !v.grid.HideDuplicates() || v.grid.Visible() {
+		t.Fatal("plain D with grid closed should hide extras, not open the grid")
+	}
+}
+
 func TestHandleKeyEvent_HomeEndSkipHiddenExtras(t *testing.T) {
 	v := loadPatternedTriple(t)
 	v.grid.SetHideDuplicates(true)

@@ -97,13 +97,19 @@ func (g *Overview) applyFilter() {
 	g.rebuildGroups()
 	g.matches = nil
 
+	browsing := g.browseHost >= 0
+	browseFilter := browsing && g.groupSize(g.browseHost) >= 2
 	nameFilter := g.searching && g.query != ""
-	hide := g.hideDupes
-	if nameFilter || hide {
+	hide := g.hideDupes && !browsing
+	if nameFilter || hide || browseFilter {
 		needle := strings.ToLower(g.query)
+		hostRep := g.RepresentativeOf(g.browseHost)
 		g.matches = make([]int, 0, g.host.FileCount())
 		for i := range g.host.FileCount() {
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
+				continue
+			}
+			if browseFilter && g.RepresentativeOf(i) != hostRep {
 				continue
 			}
 			if hide && g.IsHiddenExtra(i) {
@@ -146,6 +152,11 @@ func (g *Overview) syncTopBar() {
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
 		g.countLabel.Show()
+	case g.browseHost >= 0:
+		g.searchLabel.SetText(lang.L("Showing duplicates"))
+		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
+		g.searchLabel.Show()
+		g.countLabel.Show()
 	case g.hideDupes:
 		g.searchLabel.SetText(lang.L("Hiding duplicates"))
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
@@ -163,7 +174,7 @@ func (g *Overview) syncTopBar() {
 		g.selLabel.Hide()
 	}
 
-	if !g.searching && g.sel.Len() == 0 && !g.hideDupes {
+	if !g.searching && g.sel.Len() == 0 && !g.hideDupes && g.browseHost < 0 {
 		g.searchBar.Hide()
 		g.empty.Hide()
 

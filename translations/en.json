@@ -106,6 +106,8 @@
    "Search: %s": "Search: %s",
    "%d of %d": "%d of %d",
    "Hiding duplicates": "Hiding duplicates",
+   "Showing duplicates": "Showing duplicates",
+   "The images are currently being analyzed": "The images are currently being analyzed",
    "Duplicate match distance": "Duplicate match distance",
    "Lower is stricter; 0 is an exact thumbnail hash": "Lower is stricter; 0 is an exact thumbnail hash",
    "No file names match": "No file names match",

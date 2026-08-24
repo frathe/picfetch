@@ -5,6 +5,7 @@ import (
 	"image"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/imaging"
 )
@@ -93,15 +94,99 @@ func (g *Overview) SetHideDuplicates(on bool) {
 	}
 }
 
+// BrowsingDuplicates reports whether the grid is showing a single duplicate
+// group.
+func (g *Overview) BrowsingDuplicates() bool {
+	return g.browseHost >= 0
+}
+
+// SetBrowsingDuplicates turns group-browsing on or off. Turning it on hashes
+// any files that have not been hashed yet and filters the grid to the source
+// file's duplicate group. A unique source is a silent no-op.
+func (g *Overview) SetBrowsingDuplicates(on bool) {
+	if !on {
+		if g.browseHost < 0 {
+			return
+		}
+		g.browseHost = -1
+		g.applyFilter()
+		return
+	}
+
+	src := g.host.CurrentIndex()
+	if g.visible {
+		src = g.fileIndex(g.highlight)
+	}
+	if src < 0 {
+		return
+	}
+	// Set before hashRemaining so an inline last-job fyne.Do can finishBrowse.
+	g.browseHost = src
+	pending := g.hashRemaining()
+	if pending > 0 {
+		g.host.ShowToast(lang.L("The images are currently being analyzed"))
+	}
+	if pending == 0 {
+		g.finishBrowse()
+	}
+}
+
+// ToggleBrowseDuplicates turns group-browsing off if it is on, and on if it
+// is off.
+func (g *Overview) ToggleBrowseDuplicates() {
+	g.SetBrowsingDuplicates(!g.BrowsingDuplicates())
+}
+
+// finishBrowse applies the group filter once hashes are ready. A unique
+// source leaves browse off with no toast.
+func (g *Overview) finishBrowse() {
+	if g.browseHost < 0 {
+		return
+	}
+	// Warm records hashes but does not rebuild groups; applyFilter is the
+	// usual rebuild site, and groupSize must see the rebuilt sizes first.
+	g.rebuildGroups()
+	if g.groupSize(g.browseHost) < 2 {
+		g.browseHost = -1
+		g.applyFilter()
+		return
+	}
+	g.applyFilter()
+	if g.visible {
+		id := g.displayIndexOf(g.browseHost)
+		g.setHighlight(id)
+		g.wrap.ScrollTo(id)
+	}
+}
+
+// groupMembers returns host indices in the same duplicate group as
+// hostIndex, in host-index order, or nil when the group has fewer than two
+// members.
+func (g *Overview) groupMembers(hostIndex int) []int {
+	g.rebuildGroups()
+	if g.groupSize(hostIndex) < 2 {
+		return nil
+	}
+	rep := g.RepresentativeOf(hostIndex)
+	var members []int
+	for i := range g.host.FileCount() {
+		if g.RepresentativeOf(i) == rep {
+			members = append(members, i)
+		}
+	}
+	return members
+}
+
 func (g *Overview) jumpIfHiddenExtra() {
 	if i := g.host.CurrentIndex(); g.IsHiddenExtra(i) {
 		g.host.ShowImage(g.RepresentativeOf(i))
 	}
 }
 
-// SetDuplicateDistance clamps n to 0–32 and rebuilds groups. Live: if hide
-// is on, extras are recomputed immediately and the host jumps if the
-// current file became an extra.
+// SetDuplicateDistance clamps n to 0–32 and rebuilds groups. Live: if
+// browsing, the group is re-checked and browse exits when it drops below
+// two members. If hide is on and not browsing, extras are recomputed
+// immediately and the host jumps if the current file became an extra.
 func (g *Overview) SetDuplicateDistance(n int) {
 	if n < 0 {
 		n = 0
@@ -113,6 +198,10 @@ func (g *Overview) SetDuplicateDistance(n int) {
 		return
 	}
 	g.dupeDist = n
+	if g.browseHost >= 0 {
+		g.finishBrowse()
+		return
+	}
 	if g.hideDupes {
 		g.applyFilter()
 		g.jumpIfHiddenExtra()
@@ -248,9 +337,13 @@ func (g *Overview) hashRemaining() int {
 				g.hashing.Delete(key)
 				if g.hashJobs.Add(-1) == 0 {
 					fyne.Do(func() {
-						if g.hideDupes && gen == g.host.Generation() {
-							g.applyFilter()
-							g.jumpIfHiddenExtra()
+						if (g.hideDupes || g.browseHost >= 0) && gen == g.host.Generation() {
+							if g.browseHost >= 0 {
+								g.finishBrowse()
+							} else {
+								g.applyFilter()
+								g.jumpIfHiddenExtra()
+							}
 						}
 					})
 				}

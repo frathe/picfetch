@@ -106,6 +106,8 @@
    "Search: %s": "Suche: %s",
    "%d of %d": "%d von %d",
    "Hiding duplicates": "Duplikate ausblenden",
+   "Showing duplicates": "Duplikate anzeigen",
+   "The images are currently being analyzed": "Die Bilder werden gerade analysiert",
    "Duplicate match distance": "Duplikat-Erkennungsabstand",
    "Lower is stricter; 0 is an exact thumbnail hash": "Niedriger ist strenger; 0 ist ein exakter Miniaturansicht-Hash",
    "No file names match": "Keine Dateinamen passen",
