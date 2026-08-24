@@ -610,3 +610,68 @@ func TestSetDuplicateDistance_ExitsBrowseWhenGroupSplits(t *testing.T) {
 		t.Fatal("distance 0 should exit browse when the pair splits")
 	}
 }
+
+func injectHashes(t *testing.T, g *Overview, host *fakeHost, hs []uint64) {
+	t.Helper()
+	if len(hs) != len(host.files) {
+		t.Fatalf("injectHashes: %d hashes for %d files", len(hs), len(host.files))
+	}
+	g.hashMu.Lock()
+	defer g.hashMu.Unlock()
+	if g.hashes == nil {
+		g.hashes = make(map[string]uint64)
+	}
+	g.hashGen = host.Generation()
+	for i, h := range hs {
+		g.hashes[host.files[i].String()] = h
+	}
+}
+
+func TestSetHideDuplicates_ChainDoesNotHideUnrelated(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg", "c.jpg")
+	g := newOverview(t, host)
+	injectHashes(t, g, host, []uint64{0, 0x3FF, 0xFFFFF})
+	g.SetDuplicateDistance(imaging.DuplicateMaxDistance)
+
+	g.SetHideDuplicates(true)
+
+	if g.count() != 2 {
+		t.Fatalf("count() = %d, want 2 (A visible, B hidden extra, C unique)", g.count())
+	}
+	if !g.IsHiddenExtra(1) {
+		t.Error("B is within distance 10 of A and must be an extra")
+	}
+	if g.IsHiddenExtra(2) {
+		t.Error("C is Hamming 20 from A and must not be hidden as A's extra")
+	}
+	if g.RepresentativeOf(2) != 2 {
+		t.Errorf("RepresentativeOf(2) = %d, want 2", g.RepresentativeOf(2))
+	}
+	if g.groupSize(2) != 1 {
+		t.Errorf("groupSize(2) = %d, want 1 (C is hashed-and-unique, not unhashed)", g.groupSize(2))
+	}
+	if g.groupSize(0) != 2 {
+		t.Errorf("groupSize(0) = %d, want 2 (not the whole set)", g.groupSize(0))
+	}
+}
+
+func TestSetBrowsingDuplicates_ChainDoesNotListUnrelated(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg", "c.jpg")
+	host.index = 0
+	g := newOverview(t, host)
+	injectHashes(t, g, host, []uint64{0, 0x3FF, 0xFFFFF})
+	g.SetDuplicateDistance(imaging.DuplicateMaxDistance)
+
+	g.SetBrowsingDuplicates(true)
+
+	if !g.BrowsingDuplicates() {
+		t.Fatal("A has a duplicate (B); browse must turn on")
+	}
+	if g.count() != 2 {
+		t.Fatalf("count() = %d, want 2 (A and B, not C)", g.count())
+	}
+	seen := map[int]bool{g.fileIndex(0): true, g.fileIndex(1): true}
+	if !seen[0] || !seen[1] || seen[2] {
+		t.Fatalf("visible hosts = %v, want 0 and 1 only", seen)
+	}
+}

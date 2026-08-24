@@ -45,8 +45,12 @@ func Hamming(a, b uint64) int {
 	return bits.OnesCount64(a ^ b)
 }
 
-// DuplicateGroups returns connected components of indices whose hashes
-// are within maxDist Hamming distance. Groups of size 1 are omitted.
+// DuplicateGroups partitions indices into groups of near-duplicates.
+// Each group has a representative at the lowest index; every other
+// member is within maxDist Hamming distance of that representative.
+// Membership is not transitive: A~B and B~C do not put A and C in the
+// same group unless both are within maxDist of the representative.
+// Groups of size 1 are omitted.
 func DuplicateGroups(hashes []uint64, maxDist int) [][]int {
 	n := len(hashes)
 	if n == 0 {
@@ -55,43 +59,30 @@ func DuplicateGroups(hashes []uint64, maxDist int) [][]int {
 	if maxDist < 0 {
 		maxDist = 0
 	}
-	parent := make([]int, n)
-	for i := range parent {
-		parent[i] = i
+
+	assigned := make([]int, n)
+	for i := range assigned {
+		assigned[i] = -1
 	}
-	var find func(int) int
-	find = func(i int) int {
-		if parent[i] != i {
-			parent[i] = find(parent[i])
-		}
-		return parent[i]
-	}
-	union := func(a, b int) {
-		ra, rb := find(a), find(b)
-		if ra != rb {
-			parent[rb] = ra
-		}
-	}
+
+	var out [][]int
 	for i := range n {
+		if assigned[i] >= 0 {
+			continue
+		}
+		grp := []int{i}
+		assigned[i] = i
 		for j := i + 1; j < n; j++ {
+			if assigned[j] >= 0 {
+				continue
+			}
 			if Hamming(hashes[i], hashes[j]) <= maxDist {
-				union(i, j)
+				assigned[j] = i
+				grp = append(grp, j)
 			}
 		}
-	}
-	buckets := make(map[int][]int, n)
-	order := make([]int, 0, n)
-	for i := range n {
-		r := find(i)
-		if _, ok := buckets[r]; !ok {
-			order = append(order, r)
-		}
-		buckets[r] = append(buckets[r], i)
-	}
-	var out [][]int
-	for _, r := range order {
-		if len(buckets[r]) >= 2 {
-			out = append(out, buckets[r])
+		if len(grp) >= 2 {
+			out = append(out, grp)
 		}
 	}
 	return out

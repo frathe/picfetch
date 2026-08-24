@@ -20,6 +20,29 @@ for free.
 
 ## TODO
 
+### bug in duplication detection
+Tester bugreport:
+- I am scanning a big amount of images of mixed formats
+- if I go do g grid view
+- and then select d to filter duplicates
+- the first imgae in list (unsorted) is assigned thousands of duplicates
+- when I highlight it and press shift d
+- I see many different images moth of them are not duplicates of the inital image
+
+Note (2026-08-24): grouping is no longer transitive — each group is a star
+around its representative (the earliest file in the current order). Re-run
+the original mixed-format scan to confirm the chain-merge case is gone.
+Low-contrast / dHash-0 collisions can still form a large star around file
+0; that was left out of this fix (hash 0 is still a valid group).
+
+### grid tests race under `go test -race` when they Toggle
+`go test -race ./internal/ui/grid/` fails on tests that `Toggle` (Fyne
+test driver runs `fyne.Do` inline on the decode-pool worker). Named tests:
+`TestSetBrowsingDuplicates_HashesRemainingWithoutWarm`,
+`TestApplyFilter_BrowsePendingDoesNotCollapseGrid`,
+`TestSetDuplicateDistance_ExitsBrowseWhenGroupSplits`. Production is
+unaffected; this is a test-harness data race, not a user-visible bug.
+
 ## not deemed worth implementing (edge cases)
 
 - There is a bug in the Windows Version: WHen in Gridview, multiselect via

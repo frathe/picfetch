@@ -411,12 +411,14 @@ einzeln durchzublättern.
   Miniaturansichten sein müssen, um als dieselbe Aufnahme zu gelten, stellt
   der Schieberegler **Duplikat-Erkennungsabstand** unter **Datei ->
   Einstellungen…** ein (0–32, Vorgabe 10; niedriger ist strenger, 0 ist ein
-  exakter Miniaturansicht-Hash). Eine Änderung am Schieberegler, während
-  Extra-Kopien ausgeblendet sind, gruppiert das Raster sofort neu. `/`-Suche
-  und Ausblenden stapeln sich: ein Namensfilter bei ausgeblendeten
-  Extra-Kopien zeigt nur die übrigen Zellen, deren Namen passen. Solange
-  eine Suche offen ist, ist `d`/`D` ein Buchstabe der Eingabe, nicht der
-  Ausblend-Schalter.
+  exakter Miniaturansicht-Hash). Zwei Dateien gelten als Kopien derselben
+  Aufnahme, wenn jede dem Vertreter der Gruppe nahe genug ist. Eine Kette
+  ähnlich aussehender Fotos wird nicht zu einer Riesengruppe zusammengefasst.
+  Eine Änderung am Schieberegler, während Extra-Kopien ausgeblendet sind,
+  gruppiert das Raster sofort neu. `/`-Suche und Ausblenden stapeln sich:
+  ein Namensfilter bei ausgeblendeten Extra-Kopien zeigt nur die übrigen
+  Zellen, deren Namen passen. Solange eine Suche offen ist, ist `d`/`D` ein
+  Buchstabe der Eingabe, nicht der Ausblend-Schalter.
 - Drücken Sie **`Shift+D`**, um **Duplikate dieser Aufnahme anzuzeigen** —
   alle Kopien der **hervorgehobenen** Aufnahme (im Raster) bzw. der
   **aktuellen** Aufnahme (in der Einzelbildansicht). Das Raster listet nur

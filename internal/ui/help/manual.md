@@ -367,6 +367,9 @@ instead of arrowing through them one at a time.
   every thumbnail. How close two thumbnails have to be to count as the same
   shot is the **Duplicate match distance** slider in **File -> Settings…**
   (0–32, default 10; lower is stricter, and 0 is an exact thumbnail hash).
+  Two files count as copies of the same shot when each is close enough to
+  the group's representative. A chain of similar-looking photos does not
+  merge into one giant group.
   Changing the slider while extras are hidden regroups the grid immediately.
   `/` search and hide-duplicates stack: a name filter while extras are
   hidden shows only remaining cells whose names match. While a search is
