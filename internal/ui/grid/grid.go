@@ -167,18 +167,21 @@ type Overview struct {
 	// already underway. Wait is what Settle waits on.
 	decodes *decodepool.Pool[*fyne.Container, int]
 
+	// ui is how a decode worker's completion reaches the UI goroutine -
+	// see uiqueue.go for why that is a field and not a direct fyne.Do.
+	ui uiQueue
+
 	// cellIDs tracks which file id each recycled cell is currently
 	// showing: GridWrap reuses a small, fixed pool of cell widgets as the
 	// user scrolls rather than creating one per file, so an async decode
 	// kicked off against an earlier id has to check, once it completes,
 	// that its cell hasn't since been recycled to show a different file. A
-	// *sync.Map, not a plain map: the update callback writes it on the UI
-	// goroutine while a decode's fyne.Do callback reads it - under the
-	// real GLFW driver both run on the same marshaled UI goroutine so a
-	// plain map would never actually race, but the test driver runs
-	// fyne.Do synchronously on the calling (background) goroutine instead,
-	// which turned a plain map into a genuine, test-reproducible
-	// concurrent read/write.
+	// *sync.Map, not a plain map: stillWanted reads it from the decode
+	// worker goroutine, deliberately before decoding and outside g.ui, so
+	// the cheap pre-decode bail (see its call site in requestThumbnail)
+	// doesn't have to marshal - while the cell-update callback writes it
+	// on the UI goroutine. That read/write pair races under any driver,
+	// real or test; it has nothing to do with which one marshals fyne.Do.
 	cellIDs sync.Map
 
 	// hashes maps URI string → dHash. Not stored in thumbs: a hash is 8
@@ -226,6 +229,7 @@ func New(host Host, win fyne.Window) *Overview {
 		sel:        selection.New(),
 		thumbs:     imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
 		decodes:    decodepool.New[*fyne.Container, int](thumbConcurrency),
+		ui:         fyneQueue{},
 		hashes:     make(map[string]uint64),
 		hashFailed: make(map[string]struct{}),
 		dupeDist:   imaging.DuplicateMaxDistance,

@@ -58,11 +58,30 @@ func (g *Overview) Warm() error {
 }
 
 // Settle waits for every thumbnail decode spawned so far to finish -
-// including its completion paint, which runs before the wait returns. The
+// including its completion, which has run by the time Settle returns. The
 // app never needs this; tests do, to keep a decode goroutine from touching
 // widgets after the test that started it has moved on.
+//
+// A single Wait-then-Drain pass is only correct because every g.ui.Do
+// call in this package runs from inside the g.decodes.Go body it
+// belongs to (see the comment above that call in requestThumbnail): by
+// the time Wait returns, every decode spawned so far has already reached
+// its g.ui.Do, so that pass's Drain has everything there is to run.
+//
+// The loop is what keeps that promise for a deferring uiQueue (see
+// uiqueue.go): a drained completion can spawn further decodes -
+// requestThumbnail's own re-request does exactly that, and applyFilter
+// refreshes the wrap, which re-runs the cell-update callback - so waiting
+// once is not enough. It ends on the first pass that finds the pool empty
+// and nothing left to drain, which for the app's fyneQueue is always the
+// first pass, since its Drain is a constant false.
 func (g *Overview) Settle() {
-	g.decodes.Wait()
+	for {
+		g.decodes.Wait()
+		if !g.ui.Drain() {
+			return
+		}
+	}
 }
 
 // Cached reports whether u's thumbnail is in the cache. Contains rather
@@ -176,11 +195,17 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 		return
 	}
 
-	// decodes lets Settle wait for every spawned decode to fully finish -
-	// the pool's count drops only after the completion fyne.Do below has
-	// returned, so a Wait that comes back guarantees no decode goroutine
-	// will touch a widget afterwards. The grid has no cancellation context,
-	// so acquired is always true here and goes unread.
+	// Both g.ui.Do calls below run from inside this same g.decodes.Go
+	// body, on purpose: decodes.Wait only guarantees that the fn it
+	// spawned has returned, so a completion's g.ui.Do has to sit on the
+	// return path of that fn for Wait to guarantee it was reached. A
+	// future completion enqueued from a goroutine the pool doesn't track
+	// - a bare go func(), a time.AfterFunc, a requestLifecycle worker -
+	// would not be covered by that Wait, and could land on g.ui after
+	// Settle had already decided there was nothing left to drain,
+	// reintroducing the same race this queue exists to close. The grid
+	// has no cancellation context, so acquired is always true here and
+	// goes unread.
 	g.decodes.Go(context.Background(), func(bool) {
 		// Bail *before* decoding, not just after: during a fast scroll
 		// through a large set, most queued requests are for cells recycled
@@ -200,7 +225,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 			// and here. Re-check on the UI goroutine, where updates are
 			// serialized, and re-request rather than leave the cell blank
 			// until something else happens to refresh it.
-			fyne.Do(func() {
+			g.ui.Do(func() {
 				if g.stillWanted(key, id, gen, fgen) {
 					g.requestThumbnail(key, img, id, gen)
 				}
@@ -234,7 +259,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 
 		g.decodes.Release(key, id)
 
-		fyne.Do(func() {
+		g.ui.Do(func() {
 			if g.stillWanted(key, id, gen, fgen) {
 				img.Image = thumb
 				img.Refresh()

@@ -540,13 +540,20 @@ func TestSetBrowsingDuplicates_HashesRemainingWithoutWarm(t *testing.T) {
 		[]int{1, 1, 99},
 	)
 	g := newOverview(t, host)
+	// Parked before opening: an unwarmed Toggle spawns a decode per visible
+	// cell, and each one that finishes remembers a hash. Whether they beat
+	// SetBrowsingDuplicates below is what decides whether there is anything
+	// left for it to hash - that is, whether the toast appears at all.
+	// Parked, there provably is.
+	unpark := parkDecodes(t, g)
 	g.Toggle()
-	host.index = 0
 
 	g.SetBrowsingDuplicates(true)
 	if len(host.toasts) != 1 || host.toasts[0] != lang.L("The images are currently being analyzed") {
 		t.Fatalf("toasts = %v, want [%q] while hashing", host.toasts, lang.L("The images are currently being analyzed"))
 	}
+
+	unpark()
 	g.Settle()
 
 	if !g.BrowsingDuplicates() {
@@ -566,15 +573,8 @@ func TestApplyFilter_BrowsePendingDoesNotCollapseGrid(t *testing.T) {
 		[]int{1, 1, 99},
 	)
 	g := newOverview(t, host)
+	unpark := parkDecodes(t, g)
 	g.Toggle()
-	host.index = 0
-	// Toggle's GridWrap decode fills the thumb cache; hashRemaining would
-	// then remember those hits on this goroutine and the pair would already
-	// be a group. Drain and drop them so hashes are still pending, matching
-	// SetBrowsingDuplicates without Warm.
-	g.Settle()
-	g.clearHashes()
-	g.thumbs.Purge()
 
 	g.SetBrowsingDuplicates(true)
 	g.SetHideDuplicates(true)
@@ -586,6 +586,7 @@ func TestApplyFilter_BrowsePendingDoesNotCollapseGrid(t *testing.T) {
 		t.Fatal("BrowsingDuplicates() = false while hashes pending, want true")
 	}
 
+	unpark()
 	g.Settle()
 
 	if !g.BrowsingDuplicates() {
@@ -602,7 +603,14 @@ func TestSetDuplicateDistance_ExitsBrowseWhenGroupSplits(t *testing.T) {
 	a, b := nearGrayPair()
 	g.rememberHash(host.files[0], a)
 	g.rememberHash(host.files[1], b)
+	// Parked before opening, and left parked: hostWith's JPEGs are solid
+	// white, so a decode that landed would rememberHash 0 over the
+	// near-gray pair injected above, leaving the two files exact duplicates
+	// at every distance - the split this test is named for could not
+	// happen. parkDecodes unparks and Settles on cleanup.
+	parkDecodes(t, g)
 	g.Toggle()
+
 	g.SetBrowsingDuplicates(true)
 	if g.count() != 2 {
 		t.Fatalf("setup count() = %d, want 2", g.count())

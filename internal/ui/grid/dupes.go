@@ -374,7 +374,7 @@ func (g *Overview) hashRemaining() int {
 			defer func() {
 				g.hashing.Delete(key)
 				if g.hashJobs.Add(-1) == 0 {
-					fyne.Do(func() {
+					g.ui.Do(func() {
 						if (g.hideDupes || g.browseHost >= 0) && gen == g.host.Generation() {
 							if g.browseHost >= 0 {
 								g.finishBrowse()

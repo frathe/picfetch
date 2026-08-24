@@ -1,7 +1,6 @@
 package grid
 
 import (
-	"context"
 	"image"
 	"image/color"
 	"testing"
@@ -255,8 +254,8 @@ func TestClaimRelease(t *testing.T) {
 // TestRequestThumbnail_RecycledBeforeDecodeBailsAndReleases pins the
 // worker's pre-decode bail: a request whose cell is recycled while the
 // request waits for a slot must neither paint the cell nor keep its claim.
-// The workers are parked by filling the pool from the test, so the recycle
-// deterministically wins the race against the decode.
+// The workers are parked (see parkDecodes), so the recycle deterministically
+// wins the race against the decode.
 func TestRequestThumbnail_RecycledBeforeDecodeBailsAndReleases(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
 	g := newOverview(t, host)
@@ -264,25 +263,12 @@ func TestRequestThumbnail_RecycledBeforeDecodeBailsAndReleases(t *testing.T) {
 	cell, img := newCell()
 	g.cellIDs.Store(cell, 0)
 
-	// The pool waits for its slot on the spawned goroutine, so each parker
-	// has to report that it really holds one before the request below can
-	// be sure of queueing behind them.
-	holding := make(chan struct{}, thumbConcurrency)
-	parked := make(chan struct{})
-	for range thumbConcurrency {
-		g.decodes.Go(context.Background(), func(bool) {
-			holding <- struct{}{}
-			<-parked
-		})
-	}
-	for range thumbConcurrency {
-		<-holding
-	}
+	unpark := parkDecodes(t, g)
 
 	g.requestThumbnail(cell, img, 0, host.gen)
 	g.cellIDs.Store(cell, 1) // the cell scrolls on before a worker picks this up
 
-	close(parked)
+	unpark()
 	g.Settle()
 
 	if img.Image != nil {
@@ -298,7 +284,7 @@ func TestRequestThumbnail_RecycledBeforeDecodeBailsAndReleases(t *testing.T) {
 // set and the cell's own id can both still be current while the query
 // underneath has renumbered the cells, so display cell 0 means a different
 // file than the one this decode was started for. Same parking technique as
-// the recycling test above - fill the pool so the change deterministically
+// the recycling test above - park the pool so the change deterministically
 // beats the decode.
 func TestRequestThumbnail_QueryChangeDiscardsInFlightDecode(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
@@ -307,24 +293,14 @@ func TestRequestThumbnail_QueryChangeDiscardsInFlightDecode(t *testing.T) {
 	cell, img := newCell()
 	g.cellIDs.Store(cell, 0)
 
-	holding := make(chan struct{}, thumbConcurrency)
-	parked := make(chan struct{})
-	for range thumbConcurrency {
-		g.decodes.Go(context.Background(), func(bool) {
-			holding <- struct{}{}
-			<-parked
-		})
-	}
-	for range thumbConcurrency {
-		<-holding
-	}
+	unpark := parkDecodes(t, g)
 
 	g.requestThumbnail(cell, img, 0, host.gen)
 
 	// Display cell 0 now means b.jpg; the decode in flight is for a.jpg.
 	typeQuery(g, "b")
 
-	close(parked)
+	unpark()
 	g.Settle()
 
 	if img.Image != nil {

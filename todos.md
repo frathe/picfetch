@@ -2,6 +2,21 @@
 
 ## Done
 
+## Grid completions are marshalled through a drainable queue
+
+`go test -race ./internal/ui/grid/` was failing on three tests, and the
+cause was never the grid: Fyne's test driver implements `DoFromGoroutine`
+as a bare `f()`, so every `fyne.Do` body ran on the decode-pool worker,
+racing the test goroutine on `canvas.Image`, `widget.Label`, `g.matches`
+and `g.groupSizes`. `Overview` now marshals through a per-instance
+`uiQueue`: `fyneQueue` (a straight `fyne.Do`) in the app, `uitest.UIQueue`
+under the package's own tests, drained by the looping `Settle`. A
+`parkDecodes` harness helper fills the decode pool so a test can open a
+cold grid with nothing decoding under it, which is what makes a
+"hashes still pending" window deterministic. All three tests still open
+the grid on a cold cache with hashes pending, so that flow keeps its
+coverage.
+
 ## Duplicate finder (perceptual hash) in the grid — L
 
 A grid mode that computes a perceptual hash (dHash/aHash — ~30 lines of
@@ -50,13 +65,25 @@ default, so set Duplicate match distance to 6 by hand if it still says 10.
 
 ## TODO
 
-### grid tests race under `go test -race` when they Toggle
-`go test -race ./internal/ui/grid/` fails on tests that `Toggle` (Fyne
-test driver runs `fyne.Do` inline on the decode-pool worker). Named tests:
-`TestSetBrowsingDuplicates_HashesRemainingWithoutWarm`,
-`TestApplyFilter_BrowsePendingDoesNotCollapseGrid`,
-`TestSetDuplicateDistance_ExitsBrowseWhenGroupSplits`. Production is
-unaffected; this is a test-harness data race, not a user-visible bug.
+### grid: undo the production compromises made for the inline test driver
+`SetHideDuplicates` skips its own `applyFilter` when hash jobs are pending,
+and `hashRemaining` lets only the last pool job apply — both, by their own
+comments, to avoid racing Fyne's test driver rather than to serve the user.
+The visible cost is that `D` on a big cold folder leaves the top bar without
+its "Hiding duplicates" label until every thumbnail has hashed, and that
+hiding never advances progressively as hashes arrive. `internal/ui`'s tests
+still build an `Overview` on the app's `fyneQueue`, so `fyne.Do` is still
+inline there; undoing these needs that suite moved onto a drainable queue
+too, or the compromises replaced with real synchronization.
+
+### grid: no test covers the middle of the hashing window
+Every test that parks the decode pool checks the fully-pending state (nothing
+hashed yet) or, after `unpark`+`Settle`, the fully-hashed state. Nothing pins
+`finishBrowse`/`applyFilter`'s behavior with some files hashed and some not —
+the state a user on a large cold folder actually spends the most time in, not
+a regression, just never deterministically constructed. Cheap to add:
+`rememberHash` one of three files up front, `parkDecodes`, `Toggle`, then
+assert `hashRemaining()` returns 2 instead of 3 before `unpark`.
 
 ## not deemed worth implementing (edge cases)
 
