@@ -93,7 +93,7 @@ func newOverview(t *testing.T, host Host) *Overview {
 	t.Cleanup(win.Close)
 
 	g := New(host, win)
-	g.ui = &uitest.UIQueue{}
+	g.SetUIQueue(&uitest.UIQueue{})
 
 	return g
 }

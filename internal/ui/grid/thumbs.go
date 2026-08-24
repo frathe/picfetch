@@ -68,7 +68,7 @@ func (g *Overview) Warm() error {
 // the time Wait returns, every decode spawned so far has already reached
 // its g.ui.Do, so that pass's Drain has everything there is to run.
 //
-// The loop is what keeps that promise for a deferring uiQueue (see
+// The loop is what keeps that promise for a deferring UIQueue (see
 // uiqueue.go): a drained completion can spawn further decodes -
 // requestThumbnail's own re-request does exactly that, and applyFilter
 // refreshes the wrap, which re-runs the cell-update callback - so waiting

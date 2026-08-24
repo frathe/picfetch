@@ -112,20 +112,12 @@ func (g *Overview) SetHideDuplicates(on bool) {
 		return
 	}
 	g.hideDupes = on
-	pending := 0
 	if on {
-		pending = g.hashRemaining()
+		_ = g.hashRemaining()
 	}
-	// Background hash jobs applyFilter from the last pool worker via
-	// fyne.Do. Applying here as well races the test driver, which runs
-	// Do inline on the worker. Skipping the caller applyFilter when jobs
-	// were started delays the first hide until every remaining thumbnail
-	// has hashed.
-	if pending == 0 {
-		g.applyFilter()
-		if on {
-			g.jumpIfHiddenExtra()
-		}
+	g.applyFilter()
+	if on {
+		g.jumpIfHiddenExtra()
 	}
 }
 
@@ -333,9 +325,11 @@ func (g *Overview) displayIndexOf(hostIdx int) int {
 // hashRemaining hashes every file that does not already have a dHash.
 // Cache hits run on this goroutine; the rest join the thumbnail pool
 // without a per-cell Claim so Settle still waits, and they do not Add to
-// a full thumbnail cache. Only the last pool job applyFilters, so concurrent
-// workers cannot rebuild groups at the same time (the test driver runs
-// fyne.Do inline on the worker).
+// a full thumbnail cache. Each pool job applyFilters hide-duplicates
+// through g.ui.Do (rebuildFilter(false)) so extras disappear as hashes
+// land. Browse still waits for the last job (finishBrowse) so a partial
+// group is never shown. g.ui.Do stays inside this Go body: Settle's
+// barrier is decodes.Wait, which only covers completions the pool spawned.
 func (g *Overview) hashRemaining() int {
 	gen := g.host.Generation()
 	g.wipeHashesIfStale()
@@ -373,18 +367,22 @@ func (g *Overview) hashRemaining() int {
 		g.decodes.Go(context.Background(), func(acquired bool) {
 			defer func() {
 				g.hashing.Delete(key)
-				if g.hashJobs.Add(-1) == 0 {
-					g.ui.Do(func() {
-						if (g.hideDupes || g.browseHost >= 0) && gen == g.host.Generation() {
-							if g.browseHost >= 0 {
-								g.finishBrowse()
-							} else {
-								g.applyFilter()
-								g.jumpIfHiddenExtra()
-							}
+				remaining := g.hashJobs.Add(-1)
+				g.ui.Do(func() {
+					if gen != g.host.Generation() {
+						return
+					}
+					if g.browseHost >= 0 {
+						if remaining == 0 {
+							g.finishBrowse()
 						}
-					})
-				}
+						return
+					}
+					if g.hideDupes {
+						g.rebuildFilter(false)
+						g.jumpIfHiddenExtra()
+					}
+				})
 			}()
 			if !acquired || gen != g.host.Generation() {
 				return

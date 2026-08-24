@@ -23,10 +23,10 @@
 ## Concurrency and Fyne
 
 - Scan, load, sort, and vector work each own a `requestLifecycle`; capture its token, check staleness before expensive work and before applying results, and marshal background UI updates through `fyne.Do`.
-- `internal/ui/grid` is the exception: it marshals through its per-instance `uiQueue` (`g.ui.Do`) instead, so its tests can drain completions on the test goroutine rather than letting the Fyne test driver run them inline on the decode worker. Do not "simplify" that back to a direct `fyne.Do`. Every `g.ui.Do` call must be made from inside the `g.decodes.Go` body it belongs to — `Settle`'s barrier is `decodes.Wait()`, which only covers completions the pool itself spawned, so a completion queued from an untracked goroutine would slip past it silently.
+- `internal/ui/grid` is the exception: it marshals through its per-instance `UIQueue` (`g.ui.Do`) instead, so its tests can drain completions on the test goroutine rather than letting the Fyne test driver run them inline on the decode worker; `internal/ui`'s `newTestUI` installs the same drainable queue (`v.grid.SetUIQueue(&uitest.UIQueue{})`). Do not "simplify" that back to a direct `fyne.Do`. Every `g.ui.Do` call must be made from inside the `g.decodes.Go` body it belongs to — `Settle`'s barrier is `decodes.Wait()`, which only covers completions the pool itself spawned, so a completion queued from an untracked goroutine would slip past it silently.
 - Do not add mutable package-level test seams. Runtime/test-configurable values belong on `viewer` or the owning feature.
 - Every goroutine needs cancellation/staleness handling plus an observable stop/done signal. If adding background work, add it to `newTestUI`’s `drain` cleanup in `internal/ui/harness_test.go`.
-- Fyne’s test driver runs `fyne.Do` inline. Use `dropAndWait`, `waitFor*`, feature `Settle`, and existing completion channels before assertions; never sleep to guess completion. (`internal/ui/grid` is the one package where this doesn't apply directly — see the `uiQueue` exception above.)
+- Fyne’s test driver runs `fyne.Do` inline. Use `dropAndWait`, `waitFor*`, feature `Settle`, and existing completion channels before assertions; never sleep to guess completion. (`internal/ui/grid` is the one package where this doesn't apply directly — see the `UIQueue` exception above.)
 
 ## Project Conventions
 

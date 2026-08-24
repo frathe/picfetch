@@ -169,7 +169,7 @@ type Overview struct {
 
 	// ui is how a decode worker's completion reaches the UI goroutine -
 	// see uiqueue.go for why that is a field and not a direct fyne.Do.
-	ui uiQueue
+	ui UIQueue
 
 	// cellIDs tracks which file id each recycled cell is currently
 	// showing: GridWrap reuses a small, fixed pool of cell widgets as the
@@ -199,8 +199,8 @@ type Overview struct {
 	// hideDupes hides non-representative duplicates; dupeDist is the
 	// Hamming threshold DuplicateGroups uses. groupSizes/groupReps are
 	// per host index (0 = unhashed). hashing dedups in-flight hashRemaining
-	// jobs by URI string. hashJobs counts those pool jobs so only the last
-	// one applyFilters (Fyne's test driver runs Do inline on the worker).
+	// jobs by URI string. hashJobs counts those pool jobs so the last one can
+	// finishBrowse; hide applies on every job via g.ui.Do.
 	hideDupes bool
 	// browseHost is the host index being browsed, or -1 when browse is
 	// off. Zero is a valid file index - New MUST set this to -1.

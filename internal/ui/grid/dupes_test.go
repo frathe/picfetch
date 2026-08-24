@@ -313,6 +313,82 @@ func TestSetHideDuplicates_HashesRemainingWithoutWarm(t *testing.T) {
 	}
 }
 
+func TestSetHideDuplicates_PendingShowsChromeAndLeavesUnhashedVisible(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon.jpg"},
+		[]int{1, 1, 99},
+	)
+	g := newOverview(t, host)
+	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
+
+	unpark := parkDecodes(t, g)
+	g.Toggle()
+	g.SetHideDuplicates(true)
+
+	if !g.HideDuplicates() {
+		t.Fatal("HideDuplicates() = false after SetHideDuplicates(true)")
+	}
+	if got, want := g.searchLabel.Text, lang.L("Hiding duplicates"); got != want {
+		t.Errorf("searchLabel = %q, want %q while hashes are still pending", got, want)
+	}
+	if g.count() != 3 {
+		t.Fatalf("count() = %d while the extra is still unhashed, want 3", g.count())
+	}
+	if got := g.hashJobs.Load(); got != 2 {
+		t.Fatalf("hashJobs = %d, want 2 (file 0 already hashed; 1 and 2 still pending)", got)
+	}
+
+	unpark()
+	g.Settle()
+
+	if g.count() != 2 {
+		t.Fatalf("count() = %d after remaining hashes land, want 2", g.count())
+	}
+	if !g.IsHiddenExtra(1) {
+		t.Error("the pair's extra should hide once its hash lands")
+	}
+}
+
+func TestSetHideDuplicates_OnePendingJobHidesExtraWithoutWaitingForAPeer(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon.jpg"},
+		[]int{1, 1, 99},
+	)
+	g := newOverview(t, host)
+	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
+	g.rememberHash(host.files[2], mustThumb(t, host.files[2]))
+
+	unpark := parkDecodes(t, g)
+	g.Toggle()
+	g.SetHideDuplicates(true)
+
+	if g.count() != 3 {
+		t.Fatalf("count() = %d with the extra still unhashed, want 3", g.count())
+	}
+	if got := g.hashJobs.Load(); got != 1 {
+		t.Fatalf("hashJobs = %d, want 1", got)
+	}
+
+	unpark()
+	g.Settle()
+
+	if g.count() != 2 {
+		t.Fatalf("count() = %d after the one remaining job, want 2", g.count())
+	}
+	if !g.IsHiddenExtra(1) {
+		t.Error("the extra should hide when its own job completes")
+	}
+}
+
+func mustThumb(t *testing.T, u fyne.URI) image.Image {
+	t.Helper()
+	thumb, err := imaging.LoadThumbnail(u)
+	if err != nil {
+		t.Fatalf("LoadThumbnail(%s): %v", u.Name(), err)
+	}
+	return thumb
+}
+
 func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
 	g := newOverview(t, host)
@@ -812,4 +888,45 @@ func TestSetBrowsingDuplicates_FailedDecodeDoesNotRetoast(t *testing.T) {
 	if len(host.toasts) != 0 {
 		t.Fatalf("toasts = %v, want none (failed files must not be re-hashed)", host.toasts)
 	}
+}
+
+func TestRebuildFilter_KeepsHighlightedHostWhenAnExtraDisappears(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon.jpg"},
+		[]int{1, 1, 99},
+	)
+	g := newOverview(t, host)
+	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
+	g.rememberHash(host.files[2], mustThumb(t, host.files[2]))
+
+	unpark := parkDecodes(t, g)
+	g.Toggle()
+	g.SetHideDuplicates(true)
+
+	if g.count() != 3 {
+		t.Fatalf("setup count() = %d, want 3 (extra still unhashed)", g.count())
+	}
+	g.setHighlight(2)
+	if g.fileIndex(g.Highlight()) != 2 {
+		t.Fatalf("setup highlight host = %d, want 2", g.fileIndex(g.Highlight()))
+	}
+
+	g.rememberHash(host.files[1], mustThumb(t, host.files[1]))
+	g.rebuildFilter(false)
+
+	if g.count() != 2 {
+		t.Fatalf("count() = %d after extra hashes, want 2", g.count())
+	}
+	if !g.IsHiddenExtra(1) {
+		t.Fatal("index 1 should now be a hidden extra")
+	}
+	if g.fileIndex(g.Highlight()) != 2 {
+		t.Fatalf("Highlight host = %d, want 2 (moon.jpg stayed under the ring; display index may have moved)", g.fileIndex(g.Highlight()))
+	}
+	if g.Highlight() != 1 {
+		t.Fatalf("Highlight() = %d, want 1 (host 2 is now display index 1)", g.Highlight())
+	}
+
+	unpark()
+	g.Settle()
 }

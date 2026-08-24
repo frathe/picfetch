@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // This file is the shared harness every other test file in this package
@@ -73,6 +74,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	fyne.SetCurrentApp(testApp)
 
 	v, win = buildStartupViewer(testApp)
+	v.grid.SetUIQueue(&uitest.UIQueue{})
 
 	// The auto-hide timer must never fire on its own mid-suite: its inline
 	// fyne.Do (under the test driver) would write widgets concurrently with

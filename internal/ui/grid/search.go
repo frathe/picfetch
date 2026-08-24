@@ -94,6 +94,22 @@ func (g *Overview) fileIndex(id int) int {
 // previous result: Backspace widens the match set again, and a
 // strings.Contains over a few thousand names is not worth a cache.
 func (g *Overview) applyFilter() {
+	g.rebuildFilter(true)
+}
+
+// rebuildFilter is applyFilter with a choice of viewport. resetView true
+// (search, D, Escape, distance, selection resync) jumps the ring to cell 0
+// and scrolls there. resetView false is for a hash landing while hide is
+// already on: keep the same host file under the ring so a long cold-folder
+// hash does not yank the user to the top on every completion. The host
+// index is captured before matches is rebuilt - fileIndex after a hide
+// shrinks the grid would read a shifted or out-of-range display index.
+func (g *Overview) rebuildFilter(resetView bool) {
+	keepHost := -1
+	if !resetView {
+		keepHost = g.fileIndex(g.highlight)
+	}
+
 	g.rebuildGroups()
 	g.matches = nil
 
@@ -122,23 +138,62 @@ func (g *Overview) applyFilter() {
 	g.filterGen.Add(1)
 
 	// GridWrap's renderer does not exist until the overlay has been shown.
-	// Hide-duplicates can turn on with the grid closed (viewer D), and
-	// hashRemaining's completion applies the filter from a worker; touching
+	// Hide-duplicates can turn on with the grid closed (viewer D), and a
+	// hashRemaining completion can apply with it still closed; touching
 	// wrap here would panic. Toggle scrolls and highlights when it opens.
 	if g.visible {
 		g.wrap.Refresh()
-		// The highlight is a display index, so a filter that shortens the
-		// grid under it would leave it pointing past the last cell. After
-		// the refresh, so GridWrap's cursor is moved against the new length.
-		g.setHighlight(0)
-		if g.count() > 0 {
-			g.wrap.ScrollTo(0)
+		if resetView {
+			g.setHighlight(0)
+			if g.count() > 0 {
+				g.wrap.ScrollTo(0)
+			}
+		} else {
+			g.restoreHighlight(keepHost)
 		}
-	} else {
+	} else if resetView {
 		g.highlight = 0
 	}
 
 	g.syncTopBar()
+}
+
+// displayIndexOfHost maps a host index to a display index, or -1 when that
+// file is not currently shown. Distinct from displayIndexOf, which returns
+// 0 on a miss (finishBrowse's "scroll somewhere" fallback).
+func (g *Overview) displayIndexOfHost(hostIdx int) int {
+	if hostIdx < 0 {
+		return -1
+	}
+	if g.matches == nil {
+		if hostIdx >= g.host.FileCount() {
+			return -1
+		}
+		return hostIdx
+	}
+	for i, h := range g.matches {
+		if h == hostIdx {
+			return i
+		}
+	}
+	return -1
+}
+
+func (g *Overview) restoreHighlight(host int) {
+	if g.count() == 0 {
+		g.setHighlight(0)
+		return
+	}
+	id := 0
+	if d := g.displayIndexOfHost(host); d >= 0 {
+		id = d
+	} else if d := g.displayIndexOfHost(g.RepresentativeOf(host)); d >= 0 {
+		id = d
+	}
+	if id >= g.count() {
+		id = g.count() - 1
+	}
+	g.setHighlight(id)
 }
 
 // syncTopBar redraws the bar from the current query, match count and
