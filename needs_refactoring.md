@@ -48,24 +48,3 @@ sharpness, not coverage. The fix is a mechanical `if !v.load.Begun() { t.Fatal(.
   well-tested; a parse/format file split is cosmetic.
 - `ARCHITECTURE.md` is ~66 KB and duplicates much per-field/function doc commentary; consider trimming it to the
   navigation map it says it is, so it stops drifting from the code.
-
-Unify nine hand-rolled completion channels behind internal/completion 
-internal/ui had grown nine copies of one contract: a chan struct{} replaced                                                                                                                                                            
-at the start of each background request and closed when it finished, which                                                                                                                                                             
-the test suite waited on instead of polling widget state a producer goroutine                                                                                                                                                          
-might still be writing. Nine fields, nine field comments restating the same                                                                                                                                                            
-discipline, eleven hand-rolled waiters. 
-The rule those copies could only state in prose - a superseded request must                                                                                                                                                            
-still close its own channel without touching the field a newer request now                                                                                                                                                             
-owns - is now enforced by the type: Begin() returns a closure over its own                                                                                                                                                             
-generation, so a stale producer has no way to reach the newer one.                                                                                                                                                                     
-Current()/Handle covers the one case a bare Wait can't: proving a specific,                                                                                                                                                            
-since-superseded generation's goroutine actually exited. 
-drain's two loops merge into one, ordered causally rather than by migration                                                                                                                                                            
-order - chooser, scan, sort, load, animation, then preloads. Each producer's                                                                                                                                                           
-finisher fires after the next stage's Begin, so a row that can still start the                                                                                                                                                         
-work a later row waits on must come first. 
-animFrame, toast.stop, vector.pending, preloads and the two Settle calls stay                                                                                                                                                          
-as they are: an N-event counter, a cancel whose nil-out is load-bearing, and                                                                                                                                                           
-N-goroutine WaitGroup waits are all different contracts from a one-shot                                                                                                                                                                
-completion.                                                          
