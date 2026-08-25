@@ -120,6 +120,8 @@ type Window struct {
 	warming bool
 	warmGen int
 	warm    completion.Signal
+
+	onClosed func()
 }
 
 // New returns the EXIF window for application. host.DisplayedFile is called
@@ -240,6 +242,10 @@ func (w *Window) Show() {
 		w.loading = nil
 		w.expanded = false
 		w.warming = false
+
+		if w.onClosed != nil {
+			w.onClosed()
+		}
 	})
 
 	w.releaseKeyboard()
@@ -573,6 +579,10 @@ func (w *Window) showLocation(m imaging.Metadata) {
 		w.startWarm()
 	}
 }
+
+// SetOnClosed registers f to run when the panel closes. The field is read
+// at close time, so a Set after Show still fires. nil is a no-op.
+func (w *Window) SetOnClosed(f func()) { w.onClosed = f }
 
 // Open reports whether the panel is currently showing.
 func (w *Window) Open() bool {

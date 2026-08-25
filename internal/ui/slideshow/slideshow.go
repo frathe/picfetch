@@ -106,6 +106,8 @@ type Controller struct {
 	// (Shift+P, and the app seeding it from a saved preference) only ever
 	// run on the UI goroutine.
 	shuffle atomic.Bool
+
+	onActive func()
 }
 
 // New builds the controller for win, idle. host supplies the file set, and
@@ -154,6 +156,7 @@ func (c *Controller) enter() {
 	c.running.Go(func() {
 		c.run(gen, kick)
 	})
+	c.fireActive()
 }
 
 // Exit leaves full-screen and stops the auto-advance goroutine by bumping
@@ -174,11 +177,22 @@ func (c *Controller) Exit() {
 	// Put the window back where the user manually left it rather than
 	// wherever the OS chose to un-full-screen it to - see enter's capture.
 	c.pos.Restore(c.win)
+	c.fireActive()
 }
 
 // Active reports whether picture-frame mode is on.
 func (c *Controller) Active() bool {
 	return c.active.Load()
+}
+
+// SetOnActiveChanged registers f to run after picture-frame mode enters or
+// actually leaves. The field is read at fire time. nil is a no-op.
+func (c *Controller) SetOnActiveChanged(f func()) { c.onActive = f }
+
+func (c *Controller) fireActive() {
+	if c.onActive != nil {
+		c.onActive()
+	}
 }
 
 // Interval is the current auto-advance interval, or 0 if none has ever

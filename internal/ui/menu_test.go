@@ -15,30 +15,30 @@ import (
 
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/filepicker"
+	"github.com/frathe/picfetch/internal/filesort"
 	favoriteui "github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // TestBuildMainMenu_Structure checks the bar's shape: File (Open Files…,
-// Save Changes, Export image, Set as Wallpaper, Close Files, a separator,
-// Settings…) followed by Favorites and Help - mirroring help's own
-// TestHelpMenu (manual_test.go), which covers the Help submenu's own
-// contents.
+// Save Changes, Export image, Close Files, a separator, Settings…) followed
+// by Favorites, Actions, Window, and Help - mirroring help's own TestHelpMenu
+// (manual_test.go), which covers the Help submenu's own contents.
 func TestBuildMainMenu_Structure(t *testing.T) {
 	v := newTestViewer(t)
 
 	menu := buildMainMenu(v)
 
-	if len(menu.Items) != 3 {
-		t.Fatalf("top-level menus = %d, want 3 (File, Favorites, Help)", len(menu.Items))
+	if len(menu.Items) != 5 {
+		t.Fatalf("top-level menus = %d, want 5 (File, Favorites, Actions, Window, Help)", len(menu.Items))
 	}
 
 	file := menu.Items[0]
 	if file.Label != "File" {
 		t.Errorf("first menu label = %q, want %q", file.Label, "File")
 	}
-	if len(file.Items) != 7 {
-		t.Fatalf("File menu items = %d, want 7 (Open Files…, Save Changes, Export image, Set as Wallpaper, Close Files, separator, Settings…)", len(file.Items))
+	if len(file.Items) != 6 {
+		t.Fatalf("File menu items = %d, want 6 (Open Files…, Save Changes, Export image, Close Files, separator, Settings…)", len(file.Items))
 	}
 
 	if got := file.Items[0]; got.Label != "Open Files…" || got.Action == nil {
@@ -50,42 +50,173 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 	if got := file.Items[2]; got.Label != "Export image" || got.Action == nil || !got.Disabled {
 		t.Errorf("File menu item 2 = %+v, want %q with an action, starting disabled", got, "Export image")
 	}
-	if got := file.Items[3]; got.Label != "Set as Wallpaper" || got.Action == nil || !got.Disabled {
-		t.Errorf("File menu item 3 = %+v, want %q with an action, starting disabled", got, "Set as Wallpaper")
+	if got := file.Items[3]; got.Label != "Close Files" || got.Action == nil || !got.Disabled {
+		t.Errorf("File menu item 3 = %+v, want %q with an action, starting disabled", got, "Close Files")
 	}
-	if got := file.Items[4]; got.Label != "Close Files" || got.Action == nil || !got.Disabled {
-		t.Errorf("File menu item 4 = %+v, want %q with an action, starting disabled", got, "Close Files")
-	}
-	if !file.Items[5].IsSeparator {
+	if !file.Items[4].IsSeparator {
 		t.Error("expected a separator between Close Files and Settings…")
 	}
-	if got := file.Items[6]; got.Label != "Settings…" || got.Action == nil {
-		t.Errorf("File menu item 6 = %+v, want %q with an action", got, "Settings…")
+	if got := file.Items[5]; got.Label != "Settings…" || got.Action == nil {
+		t.Errorf("File menu item 5 = %+v, want %q with an action", got, "Settings…")
 	}
 
 	if got := menu.Items[1]; got.Label != "Favorites" {
 		t.Errorf("second menu label = %q, want %q", got.Label, "Favorites")
 	}
-	if got := menu.Items[2]; got.Label != "Help" {
-		t.Errorf("third menu label = %q, want %q", got.Label, "Help")
+
+	actions := menu.Items[2]
+	if actions.Label != "Actions" {
+		t.Errorf("third menu label = %q, want %q", actions.Label, "Actions")
+	}
+	if len(actions.Items) != 15 {
+		t.Fatalf("Actions menu items = %d, want 15", len(actions.Items))
+	}
+	wantActionsLabels := []string{
+		"Sort order", "Show/Hide duplicates", "Show variants", "",
+		"Rotate image", "Zoom in", "Zoom out", "",
+		"Toggle merge mode", "Show/Hide info overlay", "",
+		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
+	}
+	for i, want := range wantActionsLabels {
+		got := actions.Items[i]
+		if want == "" {
+			if !got.IsSeparator {
+				t.Errorf("Actions menu item %d: want separator, got %q", i, got.Label)
+			}
+			continue
+		}
+		if got.Label != want {
+			t.Errorf("Actions menu item %d label = %q, want %q", i, got.Label, want)
+		}
+		if got.IsSeparator {
+			t.Errorf("Actions menu item %d (%q) is a separator, want a normal item", i, want)
+		}
+	}
+	sortParent := actions.Items[0]
+	if sortParent.Action != nil {
+		t.Error("Sort order parent Action should be nil (never toggleSort)")
+	}
+	if sortParent.ChildMenu == nil || len(sortParent.ChildMenu.Items) != 5 {
+		t.Fatalf("Sort order ChildMenu items = %d, want 5", len(sortParent.ChildMenu.Items))
+	}
+	modes := filesort.Modes()
+	for i, m := range modes {
+		child := sortParent.ChildMenu.Items[i]
+		if child.Label != filesort.DisplayName(m) {
+			t.Errorf("sort child %d label = %q, want %q", i, child.Label, filesort.DisplayName(m))
+		}
+		if child.Action == nil {
+			t.Errorf("sort child %d (%q) has no action", i, child.Label)
+		}
+	}
+	if !sortParent.ChildMenu.Items[0].Checked {
+		t.Error("Name sort mode should start checked on a fresh viewer")
+	}
+	for i := 1; i < 5; i++ {
+		if sortParent.ChildMenu.Items[i].Checked {
+			t.Errorf("sort child %d (%q) should not start checked", i, sortParent.ChildMenu.Items[i].Label)
+		}
+	}
+	for _, idx := range []int{1, 2, 4, 5, 6, 11, 12, 13, 14} {
+		if !actions.Items[idx].Disabled {
+			t.Errorf("Actions menu item %d (%q) should start disabled", idx, actions.Items[idx].Label)
+		}
+		if actions.Items[idx].Action == nil {
+			t.Errorf("Actions menu item %d (%q) has no action", idx, actions.Items[idx].Label)
+		}
+	}
+	for _, idx := range []int{8, 9} {
+		if actions.Items[idx].Disabled {
+			t.Errorf("Actions menu item %d (%q) should start enabled", idx, actions.Items[idx].Label)
+		}
+		if actions.Items[idx].Action == nil {
+			t.Errorf("Actions menu item %d (%q) has no action", idx, actions.Items[idx].Label)
+		}
+	}
+	if actions.Items[8].Checked {
+		t.Error("Toggle merge mode should start unchecked")
+	}
+	if actions.Items[9].Checked {
+		t.Error("Show/Hide info overlay should start unchecked")
+	}
+
+	window := menu.Items[3]
+	if window.Label != "Window" {
+		t.Errorf("fourth menu label = %q, want %q", window.Label, "Window")
+	}
+	if len(window.Items) != 5 {
+		t.Fatalf("Window menu items = %d, want 5 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help)", len(window.Items))
+	}
+	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help"}
+	for i, want := range wantWindowLabels {
+		got := window.Items[i]
+		if got.Label != want {
+			t.Errorf("Window menu item %d label = %q, want %q", i, got.Label, want)
+		}
+		if got.Action == nil {
+			t.Errorf("Window menu item %d (%q) has no action", i, want)
+		}
+		if got.IsSeparator {
+			t.Errorf("Window menu item %d (%q) is a separator, want a normal item", i, want)
+		}
+	}
+	if !window.Items[0].Disabled || !window.Items[1].Disabled || !window.Items[2].Disabled || !window.Items[3].Disabled {
+		t.Error("Viewer, EXIF Data, Grid View, and Picture-frame mode should start disabled with no files")
+	}
+	if window.Items[4].Disabled {
+		t.Error("Help should start enabled")
+	}
+
+	if got := menu.Items[4]; got.Label != "Help" {
+		t.Errorf("fifth menu label = %q, want %q", got.Label, "Help")
 	}
 }
 
-// TestBuildMainMenu_ExportAndWallpaperItemsDisplayTheirAccelerators covers
-// the display-only *desktop.CustomShortcut menu.go sets on both items -
-// distinct from wireExportShortcuts (export_test.go), which is what
-// actually binds Cmd/Ctrl+E and Cmd/Ctrl+Shift+E; this only pins what the
-// menu shows next to each item as a hint.
-func TestBuildMainMenu_ExportAndWallpaperItemsDisplayTheirAccelerators(t *testing.T) {
+func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
+	v := newTestViewer(t)
+	window := buildMainMenu(v).Items[3]
+
+	if len(window.Items) != 5 {
+		t.Fatalf("Window menu items = %d, want 5", len(window.Items))
+	}
+
+	want := []struct {
+		label string
+		key   fyne.KeyName
+	}{
+		{"Viewer", fyne.KeyV},
+		{"EXIF Data", fyne.KeyE},
+		{"Grid View", fyne.KeyG},
+		{"Picture-frame mode", fyne.KeyP},
+		{"Help", fyne.KeyF1},
+	}
+	for i, tc := range want {
+		got := window.Items[i]
+		if got.Label != tc.label {
+			t.Fatalf("Window menu item %d label = %q, want %q", i, got.Label, tc.label)
+		}
+		shortcut, ok := got.Shortcut.(*desktop.CustomShortcut)
+		if !ok {
+			t.Fatalf("Window menu item %q Shortcut = %#v, want a *desktop.CustomShortcut", tc.label, got.Shortcut)
+		}
+		if shortcut.KeyName != tc.key || shortcut.Modifier != 0 {
+			t.Errorf("Window menu item %q accelerator = %+v, want {%v, 0}", tc.label, shortcut, tc.key)
+		}
+	}
+}
+
+// TestBuildMainMenu_ExportItemDisplaysItsAccelerator covers the display-only
+// *desktop.CustomShortcut menu.go sets on File -> Export image - distinct
+// from wireExportShortcuts (export_test.go), which is what actually binds
+// Cmd/Ctrl+E; this only pins what the menu shows next to the item as a hint.
+// Actions -> Set as Wallpaper's Cmd/Ctrl+Shift+E hint is covered by
+// TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators.
+func TestBuildMainMenu_ExportItemDisplaysItsAccelerator(t *testing.T) {
 	v := newTestViewer(t)
 	file := buildMainMenu(v).Items[0]
 
-	// Guarded the way TestBuildMainMenu_Structure guards the same indices: an
-	// index-out-of-range here would panic rather than fail, and a panic takes
-	// the whole package's test binary - every other result in internal/ui -
-	// down with it.
-	if len(file.Items) < 4 {
-		t.Fatalf("File menu items = %d, want at least 4 (through Set as Wallpaper)", len(file.Items))
+	if len(file.Items) < 3 {
+		t.Fatalf("File menu items = %d, want at least 3 (through Export image)", len(file.Items))
 	}
 
 	export, ok := file.Items[2].Shortcut.(*desktop.CustomShortcut)
@@ -94,14 +225,6 @@ func TestBuildMainMenu_ExportAndWallpaperItemsDisplayTheirAccelerators(t *testin
 	}
 	if export.KeyName != fyne.KeyE || export.Modifier != fyne.KeyModifierShortcutDefault {
 		t.Errorf("Export image accelerator = %+v, want {KeyE, KeyModifierShortcutDefault}", export)
-	}
-
-	wallpaper, ok := file.Items[3].Shortcut.(*desktop.CustomShortcut)
-	if !ok {
-		t.Fatalf("Set as Wallpaper item's Shortcut = %#v, want a *desktop.CustomShortcut", file.Items[3].Shortcut)
-	}
-	if wallpaper.KeyName != fyne.KeyE || wallpaper.Modifier != fyne.KeyModifierShortcutDefault|fyne.KeyModifierShift {
-		t.Errorf("Set as Wallpaper accelerator = %+v, want {KeyE, KeyModifierShortcutDefault|KeyModifierShift}", wallpaper)
 	}
 }
 
@@ -139,7 +262,7 @@ func TestBuildMainMenu_CloseFilesItemResetsToWelcomeState(t *testing.T) {
 	dropAndWait(t, v, a)
 
 	menu := buildMainMenu(v)
-	menu.Items[0].Items[4].Action()
+	menu.Items[0].Items[3].Action()
 
 	if v.state.files != nil {
 		t.Errorf("files = %v, want nil after the Close Files action", v.state.files)
@@ -157,7 +280,7 @@ func TestBuildMainMenu_SettingsItemOpensTheSettingsWindow(t *testing.T) {
 		t.Fatal("settings window should not be open yet")
 	}
 
-	menu.Items[0].Items[6].Action()
+	menu.Items[0].Items[5].Action()
 
 	if !v.settingsWin.Open() {
 		t.Error("the Settings… action should open the settings window")
@@ -292,6 +415,60 @@ func TestWireManageFavoritesShortcut_DoesNothingWhileTheExportPromptIsUp(t *test
 	}
 	if !v.exportPrompt.Visible() {
 		t.Error("the export prompt should still be up")
+	}
+}
+
+// --- Opt/Alt+Shift+F (Add Current List to Favorites) shortcut --------------
+
+func TestWireAddFavoritesShortcut_OpensTheDialog(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
+
+	handler := &fyne.ShortcutHandler{}
+	wireAddFavoritesShortcut(handler, v)
+
+	handler.TypedShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyF,
+		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
+	})
+
+	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
+		t.Errorf("overlay count = %d, want 1 (the Add to Favorites dialog)", n)
+	}
+}
+
+func TestWireAddFavoritesShortcut_DoesNothingWithoutFiles(t *testing.T) {
+	v := newTestViewer(t)
+
+	handler := &fyne.ShortcutHandler{}
+	wireAddFavoritesShortcut(handler, v)
+
+	handler.TypedShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyF,
+		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
+	})
+
+	if n := len(v.win.Canvas().Overlays().List()); n != 0 {
+		t.Errorf("overlay count = %d, want 0 - no files, the dialog must not open", n)
+	}
+}
+
+func TestWireAddFavoritesShortcut_DoesNothingWhileTheDeleteCardIsUp(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
+
+	v.requestDelete()
+	if !v.deletion.Visible() {
+		t.Fatal("the delete card should be up - the premise of this test")
+	}
+
+	v.showAddFavorites()
+
+	if n := len(v.win.Canvas().Overlays().List()); n != 0 {
+		t.Errorf("overlay count = %d, want 0 - the dialog must not open over the delete card", n)
+	}
+	if !v.deletion.Visible() {
+		t.Error("the delete card should still be up")
 	}
 }
 

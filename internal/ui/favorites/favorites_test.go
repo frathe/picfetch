@@ -106,6 +106,28 @@ func TestNewSetsManageItemAccelerator(t *testing.T) {
 	}
 }
 
+// TestNewSetsAddItemAccelerator covers the display-only *desktop.
+// CustomShortcut New sets on f.addItem — distinct from
+// wireAddFavoritesShortcut (internal/ui/shortcuts.go), which is what
+// actually binds Opt/Alt+Shift+F; this only pins what the menu shows next
+// to the item as a hint.
+func TestNewSetsAddItemAccelerator(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	win := app.NewWindow("favorites test")
+	t.Cleanup(win.Close)
+
+	f := New(&fakeHost{}, win)
+
+	got, ok := f.addItem.Shortcut.(*desktop.CustomShortcut)
+	if !ok {
+		t.Fatalf("add item shortcut type = %T, want *desktop.CustomShortcut", f.addItem.Shortcut)
+	}
+	if got.KeyName != fyne.KeyF || got.Modifier != fyne.KeyModifierAlt|fyne.KeyModifierShift {
+		t.Errorf("add item shortcut = %+v, want {KeyF, KeyModifierAlt|KeyModifierShift}", got)
+	}
+}
+
 func TestSetDirBuildsSortedFavoriteItems(t *testing.T) {
 	host := &fakeHost{}
 	f := newFeature(t, host)
@@ -502,7 +524,7 @@ func TestOpenFavoriteReportsLoadError(t *testing.T) {
 // Every test below drives the clash through the real path a user hits it
 // from: open the Add dialog (showAdd), type the clashing name, submit with
 // Return. That also happens to be the only way saveFavorite's Exists branch
-// ever runs in production (favorites.go's addToFavorites is its sole
+// ever runs in production (favorites.go's AddCurrentList is its sole
 // caller) - calling f.saveFavorite(name) directly would test a call shape
 // nothing in this app produces.
 

@@ -33,6 +33,7 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	wireOpenShortcuts(c, view)
 	wireFavoriteShortcuts(c, view.favorites.Open)
 	wireManageFavoritesShortcut(c, view)
+	wireAddFavoritesShortcut(c, view)
 	wireClipboardShortcuts(c, view)
 	wireDeleteShortcut(c, view)
 	wireSelectAllShortcut(c, view)
@@ -154,9 +155,9 @@ func wireSaveShortcut(c shortcutAdder, view *viewer) {
 }
 
 // wireExportShortcuts binds Cmd/Ctrl+E to promptExport (export.go) and
-// Cmd/Ctrl+Shift+E to setAsWallpaper (wallpaper.go) - the File menu's
-// "Export image" and "Set as Wallpaper" actions, both displayed on their
-// menu items (menu.go) as well as bound here. E isn't one of the driver's
+// Cmd/Ctrl+Shift+E to setAsWallpaper (wallpaper.go) - File's "Export image"
+// and Actions' "Set as Wallpaper", both displayed on their menu items
+// (menu.go) as well as bound here. E isn't one of the driver's
 // specially-cased bare shortcuts (only Z/Y/V/C/Insert/X/A are - see
 // wireClipboardShortcuts' own comment), so plain desktop.CustomShortcuts
 // reach both combos the same way Cmd/Ctrl+S reaches wireSaveShortcut above -
@@ -202,4 +203,33 @@ func (v *viewer) showManageFavorites() {
 	}
 
 	v.favorites.ShowManage()
+}
+
+// wireAddFavoritesShortcut binds Opt/Alt+Shift+F to showAddFavorites,
+// reaching the Favorites menu's "Add Current List to Favorites…" item.
+// Distinct from Cmd/Ctrl+Shift+F (Manage). F isn't one of the driver's
+// specially-cased bare shortcuts, so a plain desktop.CustomShortcut
+// reaches it the same way Cmd/Ctrl+S reaches wireSaveShortcut.
+func wireAddFavoritesShortcut(c shortcutAdder, view *viewer) {
+	c.AddShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyF,
+		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
+	}, func(fyne.Shortcut) { view.showAddFavorites() })
+}
+
+// showAddFavorites is what Opt/Alt+Shift+F runs. Same overlay-card guard
+// as showManageFavorites, plus FileCount: the menu item is disabled with
+// no files, and the shortcut must not open an empty Add dialog.
+func (v *viewer) showAddFavorites() {
+	if v.deletion.Visible() || v.exportPrompt.Visible() {
+		return
+	}
+	if v.win != nil && v.win.Canvas().Overlays().Top() != nil {
+		return
+	}
+	if v.FileCount() == 0 {
+		return
+	}
+
+	v.favorites.AddCurrentList()
 }

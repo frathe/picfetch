@@ -153,6 +153,66 @@ func TestExit_NoopWhenAlreadyOff(t *testing.T) {
 	}
 }
 
+func TestController_SetOnActiveChanged(t *testing.T) {
+	c, _ := newController(t, 2)
+	c.SetInterval(time.Hour)
+	var n int
+	c.SetOnActiveChanged(func() { n++ })
+
+	c.Toggle()
+	t.Cleanup(func() { settle(t, c) })
+	if !c.Active() || n != 1 {
+		t.Fatalf("after enter: active=%v n=%d, want true/1", c.Active(), n)
+	}
+
+	c.Exit()
+	if c.Active() || n != 2 {
+		t.Fatalf("after exit: active=%v n=%d, want false/2", c.Active(), n)
+	}
+
+	c.Exit()
+	if n != 2 {
+		t.Errorf("no-op Exit fired the hook: n=%d", n)
+	}
+
+	c2, host := newController(t, 0)
+	c2.SetOnActiveChanged(func() { n = 99 })
+	c2.Toggle()
+	if host.files != 0 {
+		t.Fatal("sanity")
+	}
+	if c2.Active() || n == 99 {
+		t.Error("Toggle with no files must not enter or fire")
+	}
+}
+
+func TestController_SetOnActiveChanged_ToggleWhileActiveFiresOnce(t *testing.T) {
+	c, _ := newController(t, 2)
+	c.SetInterval(time.Hour)
+	var n int
+	c.SetOnActiveChanged(func() { n++ })
+
+	c.Toggle()
+	t.Cleanup(func() { settle(t, c) })
+	c.Toggle()
+	if c.Active() || n != 2 {
+		t.Fatalf("after toggle-off: active=%v n=%d, want false/2", c.Active(), n)
+	}
+}
+
+func TestController_SetOnActiveChanged_SetAfterEnterStillFires(t *testing.T) {
+	c, _ := newController(t, 2)
+	c.SetInterval(time.Hour)
+	c.Toggle()
+	t.Cleanup(func() { settle(t, c) })
+	var n int
+	c.SetOnActiveChanged(func() { n++ })
+	c.Exit()
+	if n != 1 {
+		t.Errorf("exit hook calls = %d, want 1 (set after enter)", n)
+	}
+}
+
 // Exit bumps the generation and kicks the run goroutine awake, so it stops
 // right away rather than sleeping out the rest of its interval. With an
 // hour-long interval, a goroutine that only noticed on timeout would hang

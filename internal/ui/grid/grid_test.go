@@ -117,3 +117,82 @@ func TestClose_ClearsTheSearch(t *testing.T) {
 		t.Errorf("grid length = %d, want the whole set back", got)
 	}
 }
+
+func TestOverview_SetOnVisibilityChanged(t *testing.T) {
+	g := newOverview(t, hostWith(t, "a.jpg"))
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	var n int
+	g.SetOnVisibilityChanged(func() { n++ })
+
+	g.Toggle()
+	if !g.Visible() || n != 1 {
+		t.Fatalf("after open: visible=%v n=%d, want true/1", g.Visible(), n)
+	}
+
+	g.Close()
+	if g.Visible() || n != 2 {
+		t.Fatalf("after close: visible=%v n=%d, want false/2", g.Visible(), n)
+	}
+
+	g.Close()
+	if n != 2 {
+		t.Errorf("no-op Close fired the hook: n=%d", n)
+	}
+}
+
+func TestOverview_SetOnVisibilityChanged_HandleKeyGFiresOnce(t *testing.T) {
+	g := newOverview(t, hostWith(t, "a.jpg"))
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	var n int
+	g.SetOnVisibilityChanged(func() { n++ })
+
+	g.Toggle()
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyG})
+	if g.Visible() || n != 2 {
+		t.Fatalf("after G: visible=%v n=%d, want false/2", g.Visible(), n)
+	}
+}
+
+func TestOverview_SetOnVisibilityChanged_ToggleWhileVisibleFiresOnce(t *testing.T) {
+	g := newOverview(t, hostWith(t, "a.jpg"))
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	var n int
+	g.SetOnVisibilityChanged(func() { n++ })
+
+	g.Toggle()
+	g.Toggle()
+	if g.Visible() || n != 2 {
+		t.Fatalf("after toggle-off: visible=%v n=%d, want false/2", g.Visible(), n)
+	}
+}
+
+func TestOverview_SetOnVisibilityChanged_SetAfterOpenStillFires(t *testing.T) {
+	g := newOverview(t, hostWith(t, "a.jpg"))
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	g.Toggle()
+	var n int
+	g.SetOnVisibilityChanged(func() { n++ })
+	g.Close()
+	if n != 1 {
+		t.Errorf("close hook calls = %d, want 1 (set after open)", n)
+	}
+}
+
+func TestOverview_SetOnVisibilityChanged_NoFilesDoesNotFire(t *testing.T) {
+	g := newOverview(t, &fakeHost{})
+	var n int
+	g.SetOnVisibilityChanged(func() { n++ })
+
+	g.Toggle()
+	if n != 0 {
+		t.Errorf("no-files Toggle fired the hook: n=%d", n)
+	}
+}

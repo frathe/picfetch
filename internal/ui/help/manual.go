@@ -173,9 +173,15 @@ func (h *Help) ShowManual() {
 		return h.manual.content()
 	}, func() {
 		h.manual = nil
+		if h.onManualClosed != nil {
+			h.onManualClosed()
+		}
 	})
 
 	if win := h.manualWin.Window(); win != nil && h.manual != nil {
 		win.Canvas().Focus(h.manual.entry)
+	}
+	if h.onManualOpened != nil {
+		h.onManualOpened()
 	}
 }

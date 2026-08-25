@@ -115,8 +115,9 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// The grid overview (G key, see internal/ui/grid) takes over the
 	// keyboard the same way the delete confirmation does above: arrow keys
 	// move the highlighted cell, Return opens whichever cell is
-	// highlighted, and Escape/G back out without picking anything. Every
-	// other key does nothing.
+	// highlighted, and Escape/G/V back out without picking anything. V
+	// still closes while a selection is pending (it is "go to the image
+	// view", not a toggle). Every other key does nothing.
 	if v.grid.Visible() {
 		v.grid.HandleKey(ev)
 		return
@@ -159,6 +160,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// Handled before the navigation guard below so help stays
 		// reachable while an image is still loading.
 		v.help.ShowManual()
+		v.updateWindowMenuState()
 
 		return
 	case fyne.KeyM:
@@ -167,6 +169,13 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// running, without being ignored.
 		v.toggleMergeMode()
 
+		return
+	case fyne.KeyV:
+		// Window -> Viewer: leave the grid or picture-frame; no-op in the
+		// image view. Not a toggle. When the grid is up this case is not
+		// reached — HandleKey owns V there (and ignores it while searching
+		// so the letter v can still be typed).
+		v.showViewer()
 		return
 	case fyne.KeyP:
 		// Handled before the navigation guard below so picture-frame mode
@@ -191,6 +200,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// other exists.
 		if !v.slides.Active() {
 			v.grid.Toggle()
+			v.updateWindowMenuState()
 		}
 
 		return
@@ -205,15 +215,10 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// ignores Shift+D the same way it ignores G: the two full-window
 		// modes don't compose.
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
-			if !v.slides.Active() {
-				v.grid.ToggleBrowseDuplicates()
-				if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
-					v.grid.Toggle()
-				}
-			}
+			v.browseCurrentDuplicates()
 			return
 		}
-		v.grid.SetHideDuplicates(!v.grid.HideDuplicates())
+		v.toggleHideDuplicates()
 		return
 	case fyne.KeyI:
 		// Handled before the navigation guard below, same as M/P, so it
@@ -226,6 +231,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// Handled before the navigation guard below, same as I - the EXIF panel
 		// itself no-ops with nothing loaded yet.
 		v.exif.Show()
+		v.updateWindowMenuState()
 
 		return
 	case fyne.Key0:

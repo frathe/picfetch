@@ -155,3 +155,91 @@ func TestShowManual_DoesNotUseFullManualInThisTest(t *testing.T) {
 		}
 	}
 }
+
+func TestHelp_ManualOpenAndOnClosed(t *testing.T) {
+	h := New(test.NewApp(), "PicFetch", nil)
+	orig := currentManual
+	t.Cleanup(func() { currentManual = orig })
+	currentManual = func() string { return "# Head\n\nplain text" }
+
+	if h.ManualOpen() {
+		t.Fatal("manual should start closed")
+	}
+
+	var closed int
+	h.SetOnManualClosed(func() { closed++ })
+
+	h.ShowManual()
+	if !h.ManualOpen() {
+		t.Fatal("ManualOpen should be true after ShowManual")
+	}
+	if closed != 0 {
+		t.Fatalf("close hook fired early: %d", closed)
+	}
+
+	win := h.manualWin.Window()
+	if win == nil {
+		t.Fatal("expected an open manual window")
+	}
+	win.Close()
+
+	if h.ManualOpen() {
+		t.Error("ManualOpen should be false after close")
+	}
+	if closed != 1 {
+		t.Errorf("close hook calls = %d, want 1", closed)
+	}
+
+	h.ShowManual()
+	if !h.ManualOpen() {
+		t.Fatal("a second ShowManual after close should open again")
+	}
+	if closed != 1 {
+		t.Fatalf("reopen fired the close hook: %d", closed)
+	}
+	h.manualWin.Window().Close()
+	if closed != 2 {
+		t.Errorf("second close hook calls = %d, want 2", closed)
+	}
+}
+
+func TestHelp_SetOnManualOpenedFiresOnShow(t *testing.T) {
+	h := New(test.NewApp(), "PicFetch", nil)
+	orig := currentManual
+	t.Cleanup(func() { currentManual = orig })
+	currentManual = func() string { return "# Head\n\nplain text" }
+
+	var opened int
+	h.SetOnManualOpened(func() { opened++ })
+
+	h.ShowManual()
+	if opened != 1 {
+		t.Errorf("open hook calls = %d, want 1", opened)
+	}
+	h.ShowManual()
+	if opened != 2 {
+		t.Errorf("a second ShowManual (raise) should fire the open hook again: %d", opened)
+	}
+	h.manualWin.Window().Close()
+}
+
+func TestHelp_ManualOpenAndOnClosed_SetAfterShowStillFires(t *testing.T) {
+	h := New(test.NewApp(), "PicFetch", nil)
+	orig := currentManual
+	t.Cleanup(func() { currentManual = orig })
+	currentManual = func() string { return "# Head\n\nplain text" }
+
+	h.ShowManual()
+	var closed int
+	h.SetOnManualClosed(func() { closed++ })
+
+	win := h.manualWin.Window()
+	if win == nil {
+		t.Fatal("expected an open manual window")
+	}
+	win.Close()
+
+	if closed != 1 {
+		t.Errorf("close hook calls = %d, want 1 (set after ShowManual)", closed)
+	}
+}

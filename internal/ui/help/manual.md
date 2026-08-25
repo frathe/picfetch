@@ -528,6 +528,9 @@ many of them actually went.
   (the removal confirmation included): arrow keys move a ring over each
   favorite and over its `Open`/`Remove` buttons, `Return` activates whichever
   is ringed, `Esc` closes (see "Menu" below)
+- **`Opt`/`Alt+Shift+F`** — open **Add Current List to Favorites…** (greyed
+  out, and this shortcut does nothing, when no files are loaded; see "Menu"
+  below)
 - **`→`** / **`↓`** — next image
 - **`←`** / **`↑`** — previous image
 - **`Home`** / **`End`** — first / last image
@@ -539,6 +542,9 @@ many of them actually went.
   highlight and `Page Up`/`Page Down` move it a page at a time, `Return` or
   a click opens it, `G`/`Esc` backs out. `G` does not turn hide-duplicates
   off
+- **`V`** — return to the normal image view (closes the grid or leaves
+  picture-frame mode). Not a toggle. While a grid search is open, types
+  the letter `v` instead
 - **`D`** — hide extra copies of the same shot (see "Grid overview");
   remaining cells show a count badge. While a grid search is open, types
   the letter `d` instead
@@ -636,20 +642,13 @@ needed. macOS and Windows need nothing extra either way.
   format wins over the one you chose in the prompt. A JPEG exported from
   a JPEG keeps the same metadata as Save Changes; a JPEG exported from
   another format, or any PNG export, has none
-- **File -> Set as Wallpaper** (`Cmd/Ctrl+Shift+E`) — makes the image on
-  screen your desktop wallpaper, exactly as it currently appears. PicFetch
-  writes its own copy into its cache folder and points the desktop at that,
-  so the wallpaper keeps working after you move, rename or trash the
-  original. On Linux this needs `gsettings` (GNOME, Cinnamon, Budgie, Unity)
-  or `plasma-apply-wallpaperimage` (KDE Plasma 5.24+); a message says so if
-  neither is installed
 - **File -> Close Files** — returns to the drop zone without quitting
 - **File -> Settings…** — opens the settings window, including the
   **Duplicate match distance** slider (0–32, default 6; lower is
   stricter, 0 is an exact thumbnail hash) that hide-duplicates (`D`) uses,
   and the **Cache favorite previews on disk** checkbox (on by default) for
   the background favorite-preview generation described below
-- **Favorites -> Add Current List to Favorites…** — saves the complete
+- **Favorites -> Add Current List to Favorites…** (`Opt/Alt+Shift+F`) — saves the complete
   currently open file list as a named collection. Favorites remain available
   after restarting PicFetch. This stores references to the original files,
   not copies of the images; moving or deleting an original means it can no
@@ -689,6 +688,60 @@ needed. macOS and Windows need nothing extra either way.
   is ringed, and **`Esc`** cancels. A confirmed removal moves the
   collection's own folder to the system Trash; it does **not** move or delete
   any of the original images
+- **Actions -> Sort order** (`S`) — submenu of the same five orders as
+  Settings: Name, Capture date, Modified date, File size, Drop order. The
+  current order has a checkmark. Choosing one jumps to it (it does not
+  cycle). `S` still cycles. Re-choosing the current order does nothing
+- **Actions -> Show/Hide duplicates** (`D`) — same as `D`: hides extra
+  copies of the same shot and checkmarks while hide is on. Greyed out
+  when no files are loaded. Works from the menu even while a grid search
+  is open
+- **Actions -> Show variants** (`Shift+D`) — shows every copy of the
+  current/highlighted shot in the grid, same as `Shift+D` once it runs.
+  Checkmarked while that browse filter is on. Greyed out until
+  Show/Hide duplicates is on **and** the current file has duplicates,
+  and also when no files are loaded or picture-frame mode is on. The
+  `Shift+D` key still works with hide off; this menu item does not
+- **Actions -> Rotate image** (`R`) — 90° clockwise, view-only, same as
+  `R`. Greyed out with no image loaded or while the grid is up.
+  `Shift+R` stays keyboard-only
+- **Actions -> Zoom in** (`+`) / **Zoom out** (`-`) — same as the `+`/`-`
+  keys. Greyed out with no image loaded or while the grid is up
+- **Actions -> Toggle merge mode** (`M`) — same as `M`. Checkmarked while
+  merge is on. Works before any files are loaded
+- **Actions -> Show/Hide info overlay** (`I`) — same as `I`. Checkmarked
+  while the overlay preference is on. Greyed out while the grid is up
+- **Actions -> Copy image** (`Cmd/Ctrl+C`) — the displayed pixels, or the
+  grid selection as files. Greyed out when no files are loaded
+- **Actions -> Copy image path** (`Cmd/Ctrl+Shift+C`) — the current
+  file's path. Greyed out when no files are loaded
+- **Actions -> Set as Wallpaper** (`Cmd/Ctrl+Shift+E`) — makes the image on
+  screen your desktop wallpaper, exactly as it currently appears. PicFetch
+  writes its own copy into its cache folder and points the desktop at that,
+  so the wallpaper keeps working after you move, rename or trash the
+  original. On Linux this needs `gsettings` (GNOME, Cinnamon, Budgie, Unity)
+  or `plasma-apply-wallpaperimage` (KDE Plasma 5.24+); a message says so if
+  neither is installed. Greyed out until an image is loaded
+- **Actions -> Move image to Trash** (`Shift+Delete`) — same as
+  `Shift+Delete`: confirms, then moves the current file (or the grid
+  selection) to the Trash. Greyed out when no files are loaded
+- **Window -> Viewer** (`V`) — shows the normal image view. Closes the
+  grid or leaves picture-frame mode if either is up. Greyed out while you
+  are already in that view. `V` is not a toggle. While the grid search
+  (`/`) is open, typing `v` still goes into the query. On macOS these
+  Window items live in the system Window menu, above Minimize
+- **Window -> EXIF Data** (`E`) — opens the EXIF panel for the image on
+  screen, same as the info overlay's "Show EXIF data" link. Greyed out
+  while that panel is already open, or when nothing is displayed
+- **Window -> Grid View** (`G`) — opens the thumbnail overview. Greyed
+  out while the grid is up, while picture-frame mode is on, or when no
+  files are loaded. Closing the grid is Viewer / `V`, `G`, or `Esc` — not
+  this item
+- **Window -> Picture-frame mode** (`P`) — enters full-screen
+  picture-frame mode. Greyed out while it is already on, or when no files
+  are loaded. Leaving is Viewer / `V`, `P`, or `Esc`
+- **Window -> Help** (`F1`) — opens this manual, same as Help -> Manual.
+  Greyed out while the manual window is already open
 - **Help -> Manual** — opens this manual, same as `F1`
 
 ---
@@ -795,7 +848,7 @@ Things PicFetch deliberately does not do (yet):
   adjustment, no resizing. What you can write to disk is a rotation
   (**File -> Save Changes**), a copy in another format
   (**File -> Export image**) and a wallpaper copy
-  (**File -> Set as Wallpaper**), all described in "Menu" below
+  (**Actions -> Set as Wallpaper**), all described in "Menu" below
 - No RAW demosaic or PDF support: RAW files display the camera's embedded
   JPEG preview only; what you can write to disk is still a rotation of
   encodable formats, an export, or a wallpaper copy
@@ -813,39 +866,46 @@ Things PicFetch deliberately does not do (yet):
 - **Open** — click the drop zone, or press `Cmd`/`Ctrl+O` (or
   `Cmd`/`Ctrl+Shift+O`, same thing), for the system file picker (files and
   folders on macOS/Linux, files only on Windows)
-- **Favorites** — Favorites -> Add Current List to Favorites… saves the open
-  list; choose its name to reopen it, or use `Cmd`/`Ctrl+1`–`9` for the first
-  nine sorted favorites and `Cmd`/`Ctrl+0` for the tenth; Manage Favorites…
+- **Favorites** — Favorites -> Add Current List to Favorites…
+  (`Opt`/`Alt+Shift+F`) saves the open list; choose its name to reopen it,
+  or use `Cmd`/`Ctrl+1`–`9` for the first nine sorted favorites and
+  `Cmd`/`Ctrl+0` for the tenth; Manage Favorites… (`Cmd`/`Ctrl+Shift+F`)
   removes collections without touching their original images
-- **Merge mode** — `M` toggles it on/off; while on, drops add to the set
-  instead of replacing it, and the title bar shows `[merge]`
+- **Merge mode** — `M` toggles it on/off (also Actions -> Toggle merge mode);
+  while on, drops add to the set instead of replacing it, and the title bar
+  shows `[merge]`
 - **Next / previous** — `→` `↓` / `←` `↑` (wraps around)
 - **First / last** — `Home` / `End`
 - **Sort order** — `S` cycles name -> capture date -> modified -> size ->
-  unsorted -> back to name
+  unsorted -> back to name (Actions -> Sort order jumps directly to one)
 - **Grid overview** — `G` toggles a full-window thumbnail grid; arrow keys
   move the highlight and `Page Up`/`Page Down` move it a page at a time,
-  `Return` or a click opens it, `G`/`Esc` backs out without picking one
-- **Hide extras** — `D` hides extra copies of the same shot (uniques stay
-  visible; remaining cells show a count badge). Arrows, `Home`/`End`, and
-  picture-frame advance skip the hidden ones until you press `D` again.
-  `G`/Close leave this on. Settings has the match-distance slider
+  `Return` or a click opens it, `G`/`Esc`/`V` (or Window -> Viewer) backs
+  out without picking one
+- **Hide extras** — `D` hides extra copies of the same shot (also Actions ->
+  Show/Hide duplicates; uniques stay visible; remaining cells show a count
+  badge). Arrows, `Home`/`End`, and picture-frame advance skip the hidden
+  ones until you press `D` again. `G`/Close leave this on. Settings has the
+  match-distance slider
 - **Browse duplicates** — `Shift+D` shows every copy of the
-  highlighted/current shot in the grid, including extras `D` would hide;
-  `G`/Close end browse but leave hide on
+  highlighted/current shot in the grid (also Actions -> Show variants),
+  including extras `D` would hide; `G`/Close end browse but leave hide on
 - **Search by name** — `/` inside the grid filters it to the file names
   containing what you type; stacks with hide-duplicates. `Esc` clears the
   filter, then browse-duplicates, then hide-duplicates, then the grid. The
   filter survives a
   selection and vice versa, so `/`, then `Cmd`/`Ctrl+A`, acts on exactly
   the matches
-- **Zoom** — `+`/`-` zoom in/out (window follows the image, min open size,
-  max from Settings), `1` for 100%, `0` for fit-to-window, or scroll to zoom
-  at the cursor; drag, or Shift+scroll, to pan once the image no longer fits
-- **Rotate** — `R`/`Shift+R` rotate 90° clockwise/counter-clockwise,
-  view-only; `0` resets it along with zoom
+- **Zoom** — `+`/`-` zoom in/out (also Actions -> Zoom in/out; window
+  follows the image, min open size, max from Settings), `1` for 100%, `0` for
+  fit-to-window, or scroll to zoom at the cursor; drag, or Shift+scroll, to
+  pan once the image no longer fits
+- **Rotate** — `R`/`Shift+R` rotate 90° clockwise/counter-clockwise
+  (Actions -> Rotate image is clockwise only), view-only; `0` resets it
+  along with zoom
 - **Info overlay** — `I` toggles a card with the file name, position,
-  dimensions, file size, and zoom level
+  dimensions, file size, and zoom level (also Actions -> Show/Hide info
+  overlay)
 - **EXIF data window** — `E`, or the info overlay's "Show EXIF data" link,
   opens camera make/model, lens, exposure, aperture, ISO, focal length,
   capture date and coordinates for the current image, plus a collapsible map
@@ -856,17 +916,17 @@ Things PicFetch deliberately does not do (yet):
 - **Picture-frame mode** — `P` toggles a full-screen slideshow with a
   crossfade between images; `↑`/`↓` tune the (default 10s) auto-advance
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in
-  the title bar)
-- **Copy** — `Cmd`/`Ctrl+C` copies the current image, `Cmd`/`Ctrl+Shift+C`
-  copies its file path; in the grid, `Cmd`/`Ctrl+C` copies the selected
-  files themselves
-- **Delete** — `Shift+Delete` opens a confirmation card (`←`/`→` to choose,
-  `Return` to go, `Esc` to cancel); moves the file to the Trash, or the
-  grid's whole selection
+  the title bar); leave with `V`/`P`/`Esc` or Window -> Viewer
+- **Copy** — `Cmd`/`Ctrl+C` copies the current image (Actions -> Copy image),
+  `Cmd`/`Ctrl+Shift+C` copies its file path (Actions -> Copy image path); in
+  the grid, `Cmd`/`Ctrl+C` copies the selected files themselves
+- **Delete** — `Shift+Delete` opens a confirmation card (Actions -> Move
+  image to Trash; `←`/`→` to choose, `Return` to go, `Esc` to cancel); moves
+  the file to the Trash, or the grid's whole selection
 - **Select in the grid** — `Cmd`/`Ctrl+click` or `Space` to pick one,
   `Shift+click` for a range, `Cmd`/`Ctrl+A` for all of them (or all the
   search matches); `Esc` clears the selection
-- **Manual** — `F1`, or Help -> Manual
+- **Manual** — `F1`, or Help -> Manual or Window -> Help
 - **Clear / Quit** — `Esc` (clears the loaded images first, then quits;
   cancels a folder scan still in progress instead, if one is running)
 - **Formats** — JPEG, PNG, GIF (incl. animated), WebP, BMP, TIFF, ICO, XPM,

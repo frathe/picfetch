@@ -43,6 +43,9 @@ type Help struct {
 	aboutWin  widgets.Singleton
 	manual    *manualView
 
+	onManualClosed func()
+	onManualOpened func()
+
 	// spiral is the Hypno Spiral easter egg, reached only from the manual's
 	// search box (see manual.go's secretPhrase). Built unconditionally here
 	// since spiral.New is cheap - it opens no window until Show is called.
@@ -68,6 +71,20 @@ func New(application fyne.App, title string, art []byte) *Help {
 func (h *Help) OpenSpiral(clockwise bool) {
 	h.spiral.ShowForGesture(clockwise)
 }
+
+// ManualOpen reports whether the end-user manual window is currently showing.
+func (h *Help) ManualOpen() bool { return h.manualWin.Open() }
+
+// SetOnManualClosed registers f to run when the manual window closes. The
+// field is read at close time, so a Set after ShowManual still fires. nil
+// is a no-op.
+func (h *Help) SetOnManualClosed(f func()) { h.onManualClosed = f }
+
+// SetOnManualOpened registers f to run after ShowManual raises or builds
+// the window. The field is read at show time. nil is a no-op. Needed so
+// the app can grey Window -> Help on every door into the manual (Help
+// menu, About link, F1), not only the ones that already wrap ShowManual.
+func (h *Help) SetOnManualOpened(f func()) { h.onManualOpened = f }
 
 // Menu is the app's Help menu: the manual, and an About screen below a
 // separator (the usual place for it in a Help menu). Returns the *fyne.Menu

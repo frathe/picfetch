@@ -92,18 +92,43 @@ type viewer struct {
 	settingsWin *settingswin.Window
 
 	// saveItem is the File menu's "Save Changes" item (save.go), exportItem
-	// its "Export image" one (export.go), wallpaperItem its "Set as
-	// Wallpaper" one (wallpaper.go), and closeFilesItem its "Close Files"
+	// its "Export image" one (export.go), and closeFilesItem its "Close Files"
 	// one (viewer.go's closeFiles) - kept as their own fields, unlike the
 	// other menu items built in menu.go, because their Disabled fields need
 	// updating from outside buildMainMenu itself, at every site that can
-	// change whether there's anything to save, export, set or close:
+	// change whether there's anything to save, export or close:
 	// rotate.go, load.go, clearToDropzone, and save.go itself - see
-	// updateFileMenuState.
+	// updateFileMenuState. Set as Wallpaper lives on the Actions menu
+	// (`actionsWallpaperItem`) rather than File.
 	saveItem       *fyne.MenuItem
 	exportItem     *fyne.MenuItem
-	wallpaperItem  *fyne.MenuItem
 	closeFilesItem *fyne.MenuItem
+
+	// windowViewerItem and siblings are the Window menu items (windowmenu.go) -
+	// kept as fields because their Disabled state is updated from outside
+	// buildMainMenu itself, the same reason the File menu's saveItem lives here.
+	windowViewerItem       *fyne.MenuItem
+	windowExifItem         *fyne.MenuItem
+	windowGridItem         *fyne.MenuItem
+	windowPictureFrameItem *fyne.MenuItem
+	windowHelpItem         *fyne.MenuItem
+
+	// actionsSortItems and siblings are the Actions menu items (actionmenu.go) -
+	// kept as fields because their Disabled/Checked state is updated from
+	// outside buildMainMenu itself, the same reason the File menu's saveItem
+	// lives here.
+	actionsSortItems       []*fyne.MenuItem // len 5, index matches filesort.Modes()
+	actionsHideItem        *fyne.MenuItem
+	actionsShowVariantItem *fyne.MenuItem
+	actionsRotateItem      *fyne.MenuItem
+	actionsZoomInItem      *fyne.MenuItem
+	actionsZoomOutItem     *fyne.MenuItem
+	actionsMergeItem       *fyne.MenuItem
+	actionsInfoItem        *fyne.MenuItem
+	actionsCopyItem        *fyne.MenuItem
+	actionsCopyPathItem    *fyne.MenuItem
+	actionsWallpaperItem   *fyne.MenuItem
+	actionsTrashItem       *fyne.MenuItem
 
 	// restoreLink offers to reload the file set saved when the window last
 	// closed (see session.go). Shown only while welcomeArt is - and only
@@ -479,21 +504,37 @@ func (v *viewer) applyTitle() {
 // search matching no file - which hands the title back to the image view.
 // The dimensions the image view shows alongside the name are deliberately
 // absent: they'd cost a full decode of a file nobody has picked yet.
+// Show-variants enablement follows the highlighted host while the grid is
+// open, so this also reapplies Actions; native Refresh only if Hide or
+// Show-variants Checked/Disabled actually changed.
 func (v *viewer) HighlightChanged(i int) {
 	if i < 0 || i >= len(v.state.files) {
 		v.gridTitle = ""
 		v.applyTitle()
+	} else {
+		title := v.state.files[i].Name()
+		if n := len(v.state.files); n > 1 {
+			title = fmt.Sprintf("%s  (%d/%d)", title, i+1, n)
+		}
 
+		v.gridTitle = title
+		v.applyTitle()
+	}
+
+	if v.actionsHideItem == nil {
 		return
 	}
-
-	title := v.state.files[i].Name()
-	if n := len(v.state.files); n > 1 {
-		title = fmt.Sprintf("%s  (%d/%d)", title, i+1, n)
+	hideChecked := v.actionsHideItem.Checked
+	hideDisabled := v.actionsHideItem.Disabled
+	variantChecked := v.actionsShowVariantItem.Checked
+	variantDisabled := v.actionsShowVariantItem.Disabled
+	v.applyActionsMenuState()
+	if v.actionsHideItem.Checked != hideChecked ||
+		v.actionsHideItem.Disabled != hideDisabled ||
+		v.actionsShowVariantItem.Checked != variantChecked ||
+		v.actionsShowVariantItem.Disabled != variantDisabled {
+		v.refreshMainMenu()
 	}
-
-	v.gridTitle = title
-	v.applyTitle()
 }
 
 // clearToDropzone drops the loaded file list and returns the viewer to an
@@ -520,6 +561,10 @@ func (v *viewer) clearToDropzone() {
 
 	v.img.Image = nil
 	v.img.Hide()
+	// Drop leftover frames so rotate/zoom enablement (len==0) and
+	// rotateBy's no-op agree with the empty drop zone.
+	v.displayFrames = nil
+	v.displayFrameIdx = 0
 	v.clearVector() // an in-flight rasterization must not land on whatever loads next
 
 	// v.infoVisible itself is left alone - it's a standing preference like
@@ -570,6 +615,7 @@ func (v *viewer) toggleMergeMode() {
 func (v *viewer) SetMergeMode(on bool) {
 	v.state.SetMergeMode(on)
 	v.applyTitle()
+	v.updateActionsMenuState()
 }
 
 // MergeMode reports whether merge mode is on - the settings window's

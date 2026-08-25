@@ -1,4 +1,5 @@
-// The window's menu bar: File (open, close, settings), Favorites, and Help.
+// The window's menu bar: File (open, close, settings), Favorites, Actions,
+// Window, and Help.
 
 package ui
 
@@ -6,6 +7,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/lang"
+
+	"github.com/frathe/picfetch/internal/filesort"
 )
 
 // buildMainMenu assembles the menu bar. Composed here rather than inside
@@ -40,24 +43,149 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	}
 	view.exportItem = export
 
-	setWallpaper := fyne.NewMenuItem(lang.L("Set as Wallpaper"), func() { view.setAsWallpaper() })
-	setWallpaper.Disabled = true // updateFileMenuState (save.go) enables it once an image is loaded
-	// Also display-only, also bound in wireExportShortcuts - Shift added to
-	// Export image's own Cmd/Ctrl+E, since the two sit right next to each
-	// other in the menu.
-	setWallpaper.Shortcut = &desktop.CustomShortcut{
-		KeyName:  fyne.KeyE,
-		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
-	}
-	view.wallpaperItem = setWallpaper
-
 	closeFiles := fyne.NewMenuItem(lang.L("Close Files"), func() { view.closeFiles() })
 	closeFiles.Disabled = true // updateFileMenuState (save.go) enables it once a file is loaded
 	view.closeFilesItem = closeFiles
 	settings := fyne.NewMenuItem(lang.L("Settings…"), func() { view.settingsWin.Show() })
 
 	fileMenu := fyne.NewMenu(lang.L("File"),
-		open, save, export, setWallpaper, closeFiles, fyne.NewMenuItemSeparator(), settings)
+		open, save, export, closeFiles, fyne.NewMenuItemSeparator(), settings)
 
-	return fyne.NewMainMenu(fileMenu, view.favorites.Menu(), view.help.Menu())
+	viewerItem := fyne.NewMenuItem(lang.L("Viewer"), view.showViewer)
+	viewerItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyV}
+	viewerItem.Disabled = true
+	view.windowViewerItem = viewerItem
+
+	exifItem := fyne.NewMenuItem(lang.L("EXIF Data"), view.showWindowExif)
+	exifItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyE}
+	exifItem.Disabled = true
+	view.windowExifItem = exifItem
+
+	gridItem := fyne.NewMenuItem(lang.L("Grid View"), view.showWindowGrid)
+	gridItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyG}
+	gridItem.Disabled = true
+	view.windowGridItem = gridItem
+
+	pfItem := fyne.NewMenuItem(lang.L("Picture-frame mode"), view.showWindowPictureFrame)
+	pfItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyP}
+	pfItem.Disabled = true
+	view.windowPictureFrameItem = pfItem
+
+	helpItem := fyne.NewMenuItem(lang.L("Help"), view.showWindowHelp)
+	helpItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyF1}
+	view.windowHelpItem = helpItem
+
+	windowMenu := fyne.NewMenu(lang.L("Window"),
+		viewerItem, exifItem, gridItem, pfItem, helpItem)
+
+	modes := filesort.Modes()
+	sortItems := make([]*fyne.MenuItem, len(modes))
+	for i, m := range modes {
+		mode := m
+		it := fyne.NewMenuItem(filesort.DisplayName(mode), func() { view.setActionsSort(mode) })
+		if mode == view.SortMode() {
+			it.Checked = true
+		}
+		sortItems[i] = it
+	}
+	view.actionsSortItems = sortItems
+
+	sortParent := fyne.NewMenuItem(lang.L("Sort order"), nil)
+	sortParent.ChildMenu = fyne.NewMenu("", sortItems...)
+	sortParent.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyS}
+
+	hideItem := fyne.NewMenuItem(lang.L("Show/Hide duplicates"), view.toggleActionsHideDuplicates)
+	hideItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyD}
+	hideItem.Disabled = true
+	view.actionsHideItem = hideItem
+
+	variantItem := fyne.NewMenuItem(lang.L("Show variants"), view.showActionsVariant)
+	variantItem.Shortcut = &desktop.CustomShortcut{
+		KeyName:  fyne.KeyD,
+		Modifier: fyne.KeyModifierShift,
+	}
+	variantItem.Disabled = true
+	view.actionsShowVariantItem = variantItem
+
+	rotateItem := fyne.NewMenuItem(lang.L("Rotate image"), view.rotateActionsImage)
+	rotateItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyR}
+	rotateItem.Disabled = true
+	view.actionsRotateItem = rotateItem
+
+	zoomIn := fyne.NewMenuItem(lang.L("Zoom in"), view.zoomActionsIn)
+	zoomIn.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyPlus}
+	zoomIn.Disabled = true
+	view.actionsZoomInItem = zoomIn
+
+	zoomOut := fyne.NewMenuItem(lang.L("Zoom out"), view.zoomActionsOut)
+	zoomOut.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyMinus}
+	zoomOut.Disabled = true
+	view.actionsZoomOutItem = zoomOut
+
+	mergeItem := fyne.NewMenuItem(lang.L("Toggle merge mode"), view.toggleActionsMergeMode)
+	// Unmodified M. Fyne's Darwin native menus leave a zero modifier mask
+	// unset, so AppKit would default this to ⌘M (Minimize); refreshMainMenu
+	// clears that via applyUnmodifiedNativeAccelerators.
+	mergeItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyM}
+	view.actionsMergeItem = mergeItem
+
+	infoItem := fyne.NewMenuItem(lang.L("Show/Hide info overlay"), view.toggleActionsInfoOverlay)
+	infoItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyI}
+	view.actionsInfoItem = infoItem
+
+	copyItem := fyne.NewMenuItem(lang.L("Copy image"), view.copyActionsImage)
+	// Display-only: the Cmd/Ctrl+C binding is wireClipboardShortcuts's
+	// AddShortcut of fyne.ShortcutCopy. A second CustomShortcut here would
+	// double-fire copy.
+	copyItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault}
+	copyItem.Disabled = true
+	view.actionsCopyItem = copyItem
+
+	copyPath := fyne.NewMenuItem(lang.L("Copy image path"), view.copyActionsPath)
+	// Display-only, like File -> Export: the Cmd/Ctrl+Shift+C binding is
+	// wireClipboardShortcuts. This just shows the same accelerator.
+	copyPath.Shortcut = &desktop.CustomShortcut{
+		KeyName:  fyne.KeyC,
+		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
+	}
+	copyPath.Disabled = true
+	view.actionsCopyPathItem = copyPath
+
+	wallpaperAction := fyne.NewMenuItem(lang.L("Set as Wallpaper"), view.wallpaperActionsImage)
+	// Display-only: the Cmd/Ctrl+Shift+E binding is wireExportShortcuts.
+	wallpaperAction.Shortcut = &desktop.CustomShortcut{
+		KeyName:  fyne.KeyE,
+		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
+	}
+	wallpaperAction.Disabled = true
+	view.actionsWallpaperItem = wallpaperAction
+
+	trashItem := fyne.NewMenuItem(lang.L("Move image to Trash"), view.trashActionsImage)
+	// Display-only: the Shift+Delete binding is wireDeleteShortcut's
+	// AddShortcut of fyne.ShortcutCut. A CustomShortcut{KeyDelete, Shift}
+	// would never be reached by the driver anyway.
+	trashItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyDelete, Modifier: fyne.KeyModifierShift}
+	trashItem.Disabled = true
+	view.actionsTrashItem = trashItem
+
+	actionsMenu := fyne.NewMenu(lang.L("Actions"),
+		sortParent, hideItem, variantItem,
+		fyne.NewMenuItemSeparator(),
+		rotateItem, zoomIn, zoomOut,
+		fyne.NewMenuItemSeparator(),
+		mergeItem, infoItem,
+		fyne.NewMenuItemSeparator(),
+		copyItem, copyPath, wallpaperAction, trashItem,
+	)
+
+	view.help.SetOnManualClosed(view.updateWindowMenuState)
+	view.help.SetOnManualOpened(view.updateWindowMenuState)
+	view.exif.SetOnClosed(view.updateWindowMenuState)
+	view.grid.SetOnVisibilityChanged(view.updateWindowMenuState)
+	view.slides.SetOnActiveChanged(view.updateWindowMenuState)
+	view.grid.SetOnDupeStateChanged(view.updateActionsMenuState)
+	view.applyActionsMenuState()
+	view.updateWindowMenuState()
+
+	return fyne.NewMainMenu(fileMenu, view.favorites.Menu(), actionsMenu, windowMenu, view.help.Menu())
 }

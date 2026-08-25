@@ -1,5 +1,5 @@
 // Package wallpaper sets the current OS's desktop wallpaper to an image
-// file, for the File > "Set as Wallpaper" action. Each platform needs its
+// file, for the Actions > "Set as Wallpaper" action. Each platform needs its
 // own approach: NSWorkspace on macOS (darwin.go, cgo/AppKit - not an
 // AppleScript "tell application \"System Events\"" shell-out, which would
 // trigger the one-time Automation permission prompt a direct framework call

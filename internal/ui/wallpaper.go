@@ -1,5 +1,5 @@
-// Making the image on screen the desktop wallpaper - the File > "Set as
-// Wallpaper" action.
+// Making the image on screen the desktop wallpaper - the Actions
+// "Set as Wallpaper" action.
 
 package ui
 
@@ -23,18 +23,18 @@ import (
 // in that directory is left alone.
 const wallpaperPrefix = "wallpaper-"
 
-// canSetWallpaper reports whether the File > "Set as Wallpaper" item should
-// be enabled. Deliberately the same condition as canExport (export.go), and
-// for the same reasons: this writes a PNG of the frame on screen, so
-// neither the source format nor an animation nor a pending rotation stands
-// in the way, while !v.loading.Load() still does - mid-load v.img.Image
-// holds the outgoing file's pixels, and those are what would end up on the
-// desktop.
+// canSetWallpaper reports whether the Actions "Set as Wallpaper"
+// item should be enabled. Deliberately the same condition as canExport
+// (export.go), and for the same reasons: this writes a PNG of the frame on
+// screen, so neither the source format nor an animation nor a pending
+// rotation stands in the way, while !v.loading.Load() still does - mid-load
+// v.img.Image holds the outgoing file's pixels, and those are what would
+// end up on the desktop.
 func (v *viewer) canSetWallpaper() bool {
 	return v.canExport()
 }
 
-// setAsWallpaper is the File menu's "Set as Wallpaper" action: it writes the
+// setAsWallpaper is the Actions "Set as Wallpaper" action: it writes the
 // frame on screen into the app's own cache directory and points the OS at
 // that copy. A no-op unless canSetWallpaper() is currently true.
 //

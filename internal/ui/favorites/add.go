@@ -227,10 +227,11 @@ func (f *Feature) newAddDialog(initial string) (dialog.Dialog, *addPanel) {
 
 // showAdd raises the Add to Favorites dialog with initial already in its
 // name field - "" from the Favorites menu's own "Add Current List to
-// Favorites…" item, a typed name from Stage 5's Replace-Cancel. A no-op
-// while one is already up: the menu bar stays live while a Fyne dialog is up
-// (they are canvas overlays, not OS-modal windows), so the menu item can be
-// chosen twice - the same guard ShowManage makes for the same reason.
+// Favorites…" item and from Opt/Alt+Shift+F, a typed name from Stage 5's
+// Replace-Cancel. A no-op while one is already up: the menu bar stays live
+// while a Fyne dialog is up (they are canvas overlays, not OS-modal
+// windows), so the menu item can be chosen twice - the same guard ShowManage
+// makes for the same reason.
 func (f *Feature) showAdd(initial string) {
 	if f.addDialog != nil {
 		return

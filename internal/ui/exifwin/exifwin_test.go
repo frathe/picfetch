@@ -1006,3 +1006,46 @@ func TestRefresh_DismissesConfirmWhenTheFileChanges(t *testing.T) {
 		t.Fatalf("overlay count = %d after navigating away, want the confirmation dismissed", n)
 	}
 }
+
+func TestWindow_SetOnClosedFiresWhenThePanelCloses(t *testing.T) {
+	app, host := testApp(t)
+	w := New(app, host)
+
+	var closed int
+	w.SetOnClosed(func() {
+		closed++
+		if w.Text() != nil {
+			t.Error("close hook ran before existing teardown")
+		}
+	})
+	w.Show()
+	if !w.Open() {
+		t.Fatal("premises: panel should be open")
+	}
+	if closed != 0 {
+		t.Fatalf("close hook fired early: %d", closed)
+	}
+	w.Window().Close()
+	if w.Open() {
+		t.Error("panel should be closed")
+	}
+	if closed != 1 {
+		t.Errorf("close hook calls = %d, want 1", closed)
+	}
+}
+
+func TestWindow_SetOnClosedFiresWhenThePanelCloses_SetAfterShow(t *testing.T) {
+	app, host := testApp(t)
+	w := New(app, host)
+	w.Show()
+	if !w.Open() {
+		t.Fatal("premises: panel should be open")
+	}
+
+	var closed int
+	w.SetOnClosed(func() { closed++ })
+	w.Window().Close()
+	if closed != 1 {
+		t.Errorf("close hook calls = %d, want 1 (set after Show)", closed)
+	}
+}

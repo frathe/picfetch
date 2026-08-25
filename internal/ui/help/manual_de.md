@@ -603,6 +603,9 @@ tatsächlich verschoben wurden.
   die Pfeiltasten bewegen einen Rahmen über die Favoriten und über deren
   Schaltflächen „Öffnen“/„Entfernen“, `Return` löst die gerade markierte
   Option aus, `Esc` schließt (siehe „Menü“ unten)
+- **`Opt`/`Alt+Shift+F`** — „Aktuelle Liste zu Favoriten hinzufügen…“ öffnen
+  (ausgegraut, und dieses Tastenkürzel tut nichts, wenn keine Dateien
+  geladen sind; siehe „Menü“ unten)
 - **`→`** / **`↓`** — nächstes Bild
 - **`←`** / **`↑`** — vorheriges Bild
 - **`Home`** / **`End`** — erstes / letztes Bild
@@ -615,6 +618,9 @@ tatsächlich verschoben wurden.
   die Hervorhebung, `Page Up`/`Page Down` gleich um eine ganze Seite,
   `Return` oder ein Klick öffnet sie, `G`/`Esc` bricht ab. `G` schaltet das
   Ausblenden von Duplikaten nicht aus
+- **`V`** — zur normalen Bildansicht zurückkehren (schließt die Rasteransicht
+  oder verlässt den Bilderrahmen-Modus). Kein Ein-/Ausschalter. Solange eine
+  Rastersuche offen ist, tippt die Taste den Buchstaben `v`
 - **`D`** — Extra-Kopien derselben Aufnahme ausblenden (siehe
   „Rasteransicht“); verbleibende Zellen zeigen ein Zähler-Abzeichen.
   Solange eine Rastersuche offen ist, tippt die Taste den Buchstaben `d`
@@ -723,15 +729,6 @@ benötigen in beiden Fällen nichts Zusätzliches.
   vor dem in der Abfrage gewählten Format. Ein als JPEG exportiertes JPEG
   behält dieselben Metadaten wie „Änderungen speichern“; ein aus einem
   anderen Format exportiertes JPEG oder jeder PNG-Export enthält keine Metadaten
-- **Datei -> Als Hintergrundbild festlegen** (`Cmd/Strg+Shift+E`) — macht
-  das angezeigte Bild zum Hintergrundbild des Schreibtischs, genau so, wie
-  es gerade aussieht. PicFetch legt dafür eine eigene Kopie im
-  Zwischenspeicher an und verweist den Schreibtisch darauf, das
-  Hintergrundbild bleibt also erhalten, wenn Sie das Original verschieben,
-  umbenennen oder in den Papierkorb legen. Unter Linux wird dafür
-  `gsettings` (GNOME, Cinnamon, Budgie, Unity) oder
-  `plasma-apply-wallpaperimage` (KDE Plasma ab 5.24) benötigt; ist keines
-  von beiden installiert, erscheint ein entsprechender Hinweis
 - **Datei -> Dateien schließen** — zurück zum Ablagebereich, ohne das
   Programm zu beenden
 - **Datei -> Einstellungen…** — öffnet das Einstellungsfenster, darunter den
@@ -741,7 +738,7 @@ benötigen in beiden Fällen nichts Zusätzliches.
   **Favoriten-Vorschauen auf der Festplatte zwischenspeichern** (standardmäßig
   an) für die unten beschriebene Hintergrund-Erzeugung der
   Favoriten-Vorschauen
-- **Favoriten -> Aktuelle Liste zu Favoriten hinzufügen…** — speichert die
+- **Favoriten -> Aktuelle Liste zu Favoriten hinzufügen…** (`Opt/Alt+Shift+F`) — speichert die
   gesamte aktuell geöffnete Dateiliste als benannte Sammlung. Favoriten
   bleiben nach einem Neustart von PicFetch erhalten. Gespeichert werden
   Verweise auf die Originaldateien, keine Kopien der Bilder; wird ein
@@ -785,6 +782,72 @@ benötigen in beiden Fällen nichts Zusätzliches.
   Option aus, **`Esc`** bricht ab. Wird bestätigt, wandert nur der eigene
   Ordner der Sammlung in den Papierkorb; die Originalbilder werden **nicht**
   verschoben oder gelöscht
+- **Aktionen -> Sortierreihenfolge** (`S`) — Untermenü mit denselben fünf
+  Sortierungen wie in den Einstellungen: Name, Aufnahmedatum,
+  Änderungszeitpunkt, Dateigröße, Ablagereihenfolge. Die aktuelle
+  Sortierung ist angehakt. Eine Auswahl springt dorthin (schaltet nicht
+  durch). `S` schaltet weiterhin durch. Erneutes Wählen der aktuellen
+  Sortierung ändert nichts
+- **Aktionen -> Duplikate ein-/ausblenden** (`D`) — dasselbe wie `D`:
+  blendet Extra-Kopien derselben Aufnahme aus und ist angehakt, solange das
+  Ausblenden an ist. Ausgegraut, wenn keine Dateien geladen sind.
+  Funktioniert aus dem Menü auch, während eine Rastersuche offen ist
+- **Aktionen -> Varianten anzeigen** (`Shift+D`) — zeigt im Raster jede
+  Kopie der hervorgehobenen/aktuellen Aufnahme, dasselbe wie `Shift+D`,
+  sobald es läuft. Angehakt, solange dieser Browse-Filter an ist.
+  Ausgegraut, bis Duplikate ein-/ausblenden an ist **und** die aktuelle
+  Datei Duplikate hat, und auch ohne geladene Dateien oder im
+  Bilderrahmen-Modus. `Shift+D` funktioniert weiterhin mit ausgeschaltetem
+  Ausblenden; dieser Menüpunkt nicht
+- **Aktionen -> Bild drehen** (`R`) — 90° im Uhrzeigersinn, nur Ansicht,
+  dasselbe wie `R`. Ausgegraut ohne geladenes Bild oder solange das Raster
+  offen ist. `Shift+R` bleibt nur über die Tastatur erreichbar
+- **Aktionen -> Vergrößern** (`+`) / **Verkleinern** (`-`) — dasselbe wie
+  `+`/`-`. Ausgegraut ohne geladenes Bild oder solange das Raster offen ist
+- **Aktionen -> Zusammenführen-Modus umschalten** (`M`) — dasselbe wie `M`.
+  Angehakt, solange der Modus an ist. Funktioniert auch vor dem Laden von
+  Dateien
+- **Aktionen -> Info-Overlay ein-/ausblenden** (`I`) — dasselbe wie `I`.
+  Angehakt, solange die Overlay-Einstellung an ist. Ausgegraut, solange das
+  Raster offen ist
+- **Aktionen -> Bild kopieren** (`Cmd/Strg+C`) — die angezeigten Pixel oder
+  die Rasterauswahl als Dateien. Ausgegraut, wenn keine Dateien geladen sind
+- **Aktionen -> Bildpfad kopieren** (`Cmd/Strg+Shift+C`) — der Pfad der
+  aktuellen Datei. Ausgegraut, wenn keine Dateien geladen sind
+- **Aktionen -> Als Hintergrundbild festlegen** (`Cmd/Strg+Shift+E`) —
+  macht das angezeigte Bild zum Hintergrundbild des Schreibtischs, genau so,
+  wie es gerade aussieht. PicFetch legt dafür eine eigene Kopie im
+  Zwischenspeicher an und verweist den Schreibtisch darauf, das
+  Hintergrundbild bleibt also erhalten, wenn Sie das Original verschieben,
+  umbenennen oder in den Papierkorb legen. Unter Linux wird dafür
+  `gsettings` (GNOME, Cinnamon, Budgie, Unity) oder
+  `plasma-apply-wallpaperimage` (KDE Plasma ab 5.24) benötigt; ist keines
+  von beiden installiert, erscheint ein entsprechender Hinweis. Ausgegraut,
+  bis ein Bild geladen ist
+- **Aktionen -> Bild in den Papierkorb legen** (`Shift+Delete`/`Shift+Entf`)
+  — dasselbe wie `Shift+Delete`: fragt nach, verschiebt dann die aktuelle
+  Datei (oder die Rasterauswahl) in den Papierkorb. Ausgegraut, wenn keine
+  Dateien geladen sind
+- **Fenster -> Bildanzeige** (`V`) — zeigt die normale Bildansicht. Schließt
+  die Rasteransicht oder verlässt den Bilderrahmen-Modus, wenn einer aktiv
+  ist. Ausgegraut, solange Sie bereits in dieser Ansicht sind. `V` ist kein
+  Ein-/Ausschalter. Solange die Rastersuche (`/`) offen ist, tippt die Taste
+  den Buchstaben `v` in die Suche. Unter macOS stehen diese Einträge im
+  System-Menü Fenster, oberhalb von „Miniaturisieren“
+- **Fenster -> EXIF-Daten** (`E`) — öffnet das EXIF-Panel für das gerade
+  angezeigte Bild, genau wie der Link **„EXIF-Daten anzeigen“** im
+  Info-Overlay. Ausgegraut, solange dieses Panel bereits offen ist, oder wenn
+  nichts angezeigt wird
+- **Fenster -> Rasteransicht** (`G`) — öffnet die Miniaturübersicht.
+  Ausgegraut, solange die Rasteransicht angezeigt wird, der Bilderrahmen-Modus
+  aktiv ist, oder keine Dateien geladen sind. Schließen erfolgt über
+  Bildanzeige / `V`, `G` oder `Esc` — nicht über diesen Menüpunkt
+- **Fenster -> Bilderrahmen-Modus** (`P`) — wechselt in den Vollbild-
+  Bilderrahmen-Modus. Ausgegraut, solange er bereits aktiv ist, oder keine
+  Dateien geladen sind. Verlassen erfolgt über Bildanzeige / `V`, `P` oder
+  `Esc`
+- **Fenster -> Hilfe** (`F1`) — öffnet dieses Handbuch, genau wie
+  Hilfe -> Handbuch. Ausgegraut, solange das Handbuchfenster bereits offen ist
 - **Hilfe -> Handbuch** — öffnet dieses Handbuch, genau wie `F1`
 
 ---
@@ -909,7 +972,7 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Farb- oder Belichtungskorrektur, keine Größenänderung. Auf die Festplatte
   schreiben lassen sich eine Drehung (**Datei -> Änderungen speichern**),
   eine Kopie in einem anderen Format (**Datei -> Bild exportieren**) und
-  eine Hintergrundbild-Kopie (**Datei -> Als Hintergrundbild festlegen**),
+  eine Hintergrundbild-Kopie (**Aktionen -> Als Hintergrundbild festlegen**),
   alle unter „Menü“ oben beschrieben
 - Kein RAW-Demosaic und keine PDF-Unterstützung: RAW-Dateien zeigen nur die
   vom Fotoapparat eingebettete JPEG-Vorschau; auf die Festplatte schreiben
@@ -932,44 +995,50 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   (oder `Cmd`/`Strg+Shift+O`, dasselbe), für den System-Dateidialog (Dateien
   und Ordner unter macOS/Linux, nur Dateien unter Windows)
 - **Favoriten** — Favoriten -> Aktuelle Liste zu Favoriten hinzufügen…
-  speichert die geöffnete Liste; der Favoritenname öffnet sie wieder,
-  `Cmd`/`Strg+1`–`9` öffnet die ersten neun sortierten Favoriten und
-  `Cmd`/`Strg+0` den zehnten; „Favoriten verwalten…“ entfernt Sammlungen,
-  ohne ihre Originalbilder anzutasten
-- **Zusammenführen-Modus** — `M` schaltet ihn ein/aus; solange aktiv,
-  ergänzen Ablagen die Auswahl, statt sie zu ersetzen, und die Titelzeile
-  zeigt `[Zusammenführen]`
+  (`Opt`/`Alt+Shift+F`) speichert die geöffnete Liste; der Favoritenname
+  öffnet sie wieder, `Cmd`/`Strg+1`–`9` öffnet die ersten neun sortierten
+  Favoriten und `Cmd`/`Strg+0` den zehnten; „Favoriten verwalten…“
+  (`Cmd`/`Strg+Shift+F`) entfernt Sammlungen, ohne ihre Originalbilder
+  anzutasten
+- **Zusammenführen-Modus** — `M` schaltet ihn ein/aus (auch Aktionen ->
+  Zusammenführen-Modus umschalten); solange aktiv, ergänzen Ablagen die
+  Auswahl, statt sie zu ersetzen, und die Titelzeile zeigt `[Zusammenführen]`
 - **Nächstes / Vorheriges** — `→` `↓` / `←` `↑` (läuft im Kreis)
 - **Erstes / Letztes** — `Home` / `End`
 - **Sortierreihenfolge** — `S` schaltet durch Name -> Aufnahmedatum ->
-  Änderungszeitpunkt -> Größe -> unsortiert -> zurück zu Name
+  Änderungszeitpunkt -> Größe -> unsortiert -> zurück zu Name (Aktionen ->
+  Sortierreihenfolge springt direkt zu einer)
 - **Rasteransicht** — `G` schaltet ein fensterfüllendes Miniaturraster
   ein/aus; Pfeiltasten bewegen die Hervorhebung, `Page Up`/`Page Down`
-  gleich um eine ganze Seite, `Return` oder ein Klick öffnet, `G`/`Esc`
-  bricht ohne Auswahl ab
+  gleich um eine ganze Seite, `Return` oder ein Klick öffnet, `G`/`Esc`/`V`
+  (oder Fenster -> Bildanzeige) bricht ohne Auswahl ab
 - **Extra-Kopien ausblenden** — `D` blendet Extra-Kopien derselben Aufnahme
-  aus (Einzelstücke bleiben sichtbar; verbleibende Zellen zeigen ein
-  Zähler-Abzeichen). Pfeiltasten, `Home`/`End` und der Diaschau-Wechsel
-  überspringen die versteckten, bis Sie erneut `D` drücken. `G`/Schließen
-  lassen das an. In den Einstellungen liegt der Abstands-Schieberegler
+  aus (auch Aktionen -> Duplikate ein-/ausblenden; Einzelstücke bleiben
+  sichtbar; verbleibende Zellen zeigen ein Zähler-Abzeichen). Pfeiltasten,
+  `Home`/`End` und der Diaschau-Wechsel überspringen die versteckten, bis Sie
+  erneut `D` drücken. `G`/Schließen lassen das an. In den Einstellungen liegt
+  der Abstands-Schieberegler
 - **Duplikate anzeigen** — `Shift+D` zeigt alle Kopien der
-  hervorgehobenen/aktuellen Aufnahme im Raster, einschließlich Extra-Kopien,
-  die `D` ausblenden würde; `G`/Schließen beenden die Anzeige, lassen das
-  Ausblenden aber an
+  hervorgehobenen/aktuellen Aufnahme im Raster (auch Aktionen -> Varianten
+  anzeigen), einschließlich Extra-Kopien, die `D` ausblenden würde; `G`/
+  Schließen beenden die Anzeige, lassen das Ausblenden aber an
 - **Suche nach Namen** — `/` im Raster filtert es auf die Dateinamen, die
   Ihre Eingabe enthalten; stapelt sich mit dem Ausblenden von Duplikaten.
   `Esc` setzt den Filter zurück, dann die Duplikat-Anzeige, dann das
   Ausblenden, dann das Raster. Filter und Auswahl überleben einander, sodass
   `/`, gefolgt von
   `Cmd`/`Strg+A`, genau auf die Treffer wirkt
-- **Zoom** — `+`/`-` vergrößern/verkleinern (Fenster folgt dem Bild, Minimum
-  ist die Startgröße, Maximum kommt aus den Einstellungen), `1` für 100 %,
-  `0` für Fenstereinpassung, oder Scrollen zum Zoomen am Mauszeiger; ziehen,
-  oder Shift+Scrollen, zum Verschieben, sobald das Bild nicht mehr passt
-- **Drehen** — `R`/`Shift+R` dreht um 90° im/gegen den Uhrzeigersinn, nur
-  Ansicht; `0` setzt es zusammen mit dem Zoom zurück
+- **Zoom** — `+`/`-` vergrößern/verkleinern (auch Aktionen -> Vergrößern/
+  Verkleinern; Fenster folgt dem Bild, Minimum ist die Startgröße, Maximum
+  kommt aus den Einstellungen), `1` für 100 %, `0` für Fenstereinpassung,
+  oder Scrollen zum Zoomen am Mauszeiger; ziehen, oder Shift+Scrollen, zum
+  Verschieben, sobald das Bild nicht mehr passt
+- **Drehen** — `R`/`Shift+R` dreht um 90° im/gegen den Uhrzeigersinn (Aktionen
+  -> Bild drehen nur im Uhrzeigersinn), nur Ansicht; `0` setzt es zusammen
+  mit dem Zoom zurück
 - **Info-Overlay** — `I` schaltet eine Karte mit Dateiname, Position,
-  Abmessungen, Dateigröße und Zoomstufe ein/aus
+  Abmessungen, Dateigröße und Zoomstufe ein/aus (auch Aktionen -> Info-Overlay
+  ein-/ausblenden)
 - **EXIF-Datenfenster** — `E`, oder der Link „EXIF-Daten anzeigen“ im
   Info-Overlay, öffnet Kamerahersteller/-modell, Objektiv, Belichtung,
   Blende, ISO, Brennweite, Aufnahmedatum und Koordinaten für das aktuelle
@@ -981,17 +1050,20 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
 - **Diaschau-Modus** — `P` schaltet eine Vollbild-Diaschau mit Überblendung
   zwischen den Bildern ein/aus; `↑`/`↓` stellen das (standardmäßig 10 s)
   Auto-Weiterschalt-Intervall ein, solange sie aktiv ist; `Shift+P` schaltet
-  die Zufällige Wiedergabe ein/aus (`[Zufällig]` in der Titelzeile)
-- **Kopieren** — `Cmd`/`Strg+C` kopiert das aktuelle Bild,
-  `Cmd`/`Strg+Shift+C` kopiert seinen Dateipfad; im Raster kopiert
-  `Cmd`/`Strg+C` die ausgewählten Dateien selbst
-- **Löschen** — `Shift+Delete` öffnet eine Bestätigungskarte (`←`/`→` zum
-  Auswählen, `Return` zum Bestätigen, `Esc` zum Abbrechen); verschiebt die
-  Datei in den Papierkorb, oder die ganze Auswahl des Rasters
+  die Zufällige Wiedergabe ein/aus (`[Zufällig]` in der Titelzeile); verlassen
+  mit `V`/`P`/`Esc` oder Fenster -> Bildanzeige
+- **Kopieren** — `Cmd`/`Strg+C` kopiert das aktuelle Bild (Aktionen -> Bild
+  kopieren), `Cmd`/`Strg+Shift+C` kopiert seinen Dateipfad (Aktionen ->
+  Bildpfad kopieren); im Raster kopiert `Cmd`/`Strg+C` die ausgewählten
+  Dateien selbst
+- **Löschen** — `Shift+Delete`/`Shift+Entf` öffnet eine Bestätigungskarte
+  (Aktionen -> Bild in den Papierkorb legen; `←`/`→` zum Auswählen, `Return`
+  zum Bestätigen, `Esc` zum Abbrechen); verschiebt die Datei in den
+  Papierkorb, oder die ganze Auswahl des Rasters
 - **Im Raster auswählen** — `Cmd`/`Strg+Klick` oder `Leertaste` für eine,
   `Shift+Klick` für einen Bereich, `Cmd`/`Strg+A` für alle (bzw. alle
   Suchtreffer); `Esc` setzt die Auswahl zurück
-- **Handbuch** — `F1`, oder Hilfe -> Handbuch
+- **Handbuch** — `F1`, oder Hilfe -> Handbuch oder Fenster -> Hilfe
 - **Leeren / Beenden** — `Esc` (leert zuerst die geladenen Bilder, beendet
   dann; bricht stattdessen einen noch laufenden Ordner-Scan ab, falls einer
   läuft)

@@ -47,7 +47,10 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	scan := newScanUI()
 	sortUIC := newSortUI()
 	toastComp := newToast(func() { view.ForceRepaint() })
-	info := newInfoOverlayUI(func() { view.exif.Show() })
+	info := newInfoOverlayUI(func() {
+		view.exif.Show()
+		view.updateWindowMenuState()
+	})
 
 	loadingBar := widget.NewProgressBarInfinite()
 	loadingBar.Hide()
@@ -142,6 +145,13 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		view.zoom.Widget(), dz.root, scanContainer, sortContainer, overlay, infoOverlay,
 		view.grid.Overlay(), view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
 	window.SetMainMenu(buildMainMenu(view))
+	// Fyne's Darwin driver inserts our Window menu as a second top-level
+	// title next to GLFW's system Window menu. syncNativeMenuBar folds the
+	// two together and then clears AppKit's default Command mask on
+	// unmodified letter accelerators (so M is not shown as ⌘M / Minimize).
+	// It must run after setupNativeMenu, which SetMainMenu queues on the UI
+	// thread via runOnMainWhenCreated.
+	fyne.Do(func() { syncNativeMenuBar(view.win.MainMenu()) })
 
 	window.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {
 		view.handleDrop(uris)

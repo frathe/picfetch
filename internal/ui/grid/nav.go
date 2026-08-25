@@ -55,14 +55,16 @@ func (g *Overview) setHighlight(id int) {
 	}
 }
 
-// HandleKey handles a key press while the grid is up: Escape and G back out
-// of it, Space picks the highlighted cell, Return commits it, arrow keys move
-// the highlight, and Page Up/Page Down move it by one visible page. Every
-// other key is deliberately swallowed by the caller.
+// HandleKey handles a key press while the grid is up: Escape, G, and V back
+// out of it, Space picks the highlighted cell, Return commits it, arrow keys
+// move the highlight, and Page Up/Page Down move it by one visible page.
+// Every other key is deliberately swallowed by the caller. Unlike G, V still
+// closes while a selection is pending: it is "go to the image view", not
+// "toggle the grid". Close already drops the selection.
 //
 // While a search is open the letter keys stop meaning anything here, since
-// each of them is also arriving at HandleRune as a query character - G
-// most visibly, which would otherwise close the grid on its way into the
+// each of them is also arriving at HandleRune as a query character - G and V
+// most visibly, which would otherwise close the grid on their way into the
 // query. Space is left out of the search branch for exactly the same reason:
 // a space typed into a query must not also toggle a cell.
 //
@@ -100,6 +102,10 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 		// and a user part-way through assembling one is far more likely to
 		// have meant Escape's first stage. Escape is the way out either way.
 		if g.sel.Len() == 0 {
+			g.Close()
+		}
+	case fyne.KeyV:
+		if !g.searching {
 			g.Close()
 		}
 	case fyne.KeyD:

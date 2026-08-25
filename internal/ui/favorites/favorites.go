@@ -74,11 +74,19 @@ type Feature struct {
 // New builds the Favorites menu without reading from disk.
 func New(host Host, win fyne.Window) *Feature {
 	f := &Feature{host: host, win: win}
-	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), f.addToFavorites)
+	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), f.AddCurrentList)
 	f.addItem.Disabled = true
+	// Display-only, mirroring Manage Favorites… below: the binding itself
+	// is wireAddFavoritesShortcut's AddShortcut call
+	// (internal/ui/shortcuts.go). This just shows the same accelerator next
+	// to the menu item.
+	f.addItem.Shortcut = &desktop.CustomShortcut{
+		KeyName:  fyne.KeyF,
+		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
+	}
 	f.manageItem = fyne.NewMenuItem(lang.L("Manage Favorites…"), f.ShowManage)
 	// Display-only, mirroring how internal/ui/menu.go sets Export image's
-	// and Set as Wallpaper's Shortcut fields: the binding itself is
+	// and Actions' Set as Wallpaper Shortcut fields: the binding itself is
 	// wireManageFavoritesShortcut's AddShortcut call
 	// (internal/ui/shortcuts.go). This just shows the same accelerator next
 	// to the menu item.
@@ -171,11 +179,11 @@ func (f *Feature) menuLabel(name string) string {
 	return fmt.Sprintf(lang.L("%s (%d)"), name, count)
 }
 
-// addToFavorites is the Favorites menu's own "Add Current List to
-// Favorites…" item - always a fresh, empty dialog; showAdd's initial
-// parameter exists for Stage 5's Replace-Cancel, which reopens with the name
-// that just clashed still in the field.
-func (f *Feature) addToFavorites() {
+// AddCurrentList is the Favorites menu's own "Add Current List to
+// Favorites…" item and the Opt/Alt+Shift+F binding - always a fresh, empty
+// dialog; showAdd's initial parameter exists for Stage 5's Replace-Cancel,
+// which reopens with the name that just clashed still in the field.
+func (f *Feature) AddCurrentList() {
 	f.showAdd("")
 }
 

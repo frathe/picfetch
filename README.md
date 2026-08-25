@@ -61,7 +61,8 @@ set with the keyboard.
   holds (`Holiday 2024 (128)`), and **Manage Favorites…** (also
   `Cmd`/`Ctrl+Shift+F`) is fully keyboard-navigable — arrow keys move a ring
   over the rows and their Open/Remove buttons, `Return` activates whichever
-  is ringed. The **Add to Favorites…** and **Replace Favorite** prompts are
+  is ringed. **Add Current List to Favorites…** is also `Opt`/`Alt+Shift+F`.
+  The **Add to Favorites…** and **Replace Favorite** prompts are
   keyboard-driven too, with the name field auto-focused on open. Opening or
   saving a favorite also saves its grid previews to disk under that
   favorite's own folder in the background, so reopening it paints the grid

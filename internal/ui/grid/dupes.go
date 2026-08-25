@@ -104,6 +104,28 @@ func (g *Overview) clearHashes() {
 	g.hashFailed = make(map[string]struct{})
 }
 
+// SetOnDupeStateChanged registers f to run after hide, browse, last-job
+// hash apply, or duplicate-distance changes. The field is read at fire
+// time. nil is a no-op.
+func (g *Overview) SetOnDupeStateChanged(f func()) { g.onDupeState = f }
+
+func (g *Overview) fireDupeState() {
+	if g.onDupeState != nil {
+		g.onDupeState()
+	}
+}
+
+// SourceDuplicateGroupSize is the duplicate-group size of the source
+// file: the highlight while the grid is visible, otherwise the host's
+// current index. 0 means groups have not been built yet.
+func (g *Overview) SourceDuplicateGroupSize() int {
+	src := g.host.CurrentIndex()
+	if g.visible {
+		src = g.fileIndex(g.highlight)
+	}
+	return g.groupSize(src)
+}
+
 // HideDuplicates reports whether extras are currently hidden.
 func (g *Overview) HideDuplicates() bool {
 	return g.hideDupes
@@ -127,6 +149,7 @@ func (g *Overview) SetHideDuplicates(on bool) {
 	if on {
 		g.jumpIfHiddenExtra()
 	}
+	g.fireDupeState()
 }
 
 // BrowsingDuplicates reports whether the grid is showing a single duplicate
@@ -145,6 +168,7 @@ func (g *Overview) SetBrowsingDuplicates(on bool) {
 		}
 		g.browseHost = -1
 		g.applyFilter()
+		g.fireDupeState()
 		return
 	}
 
@@ -160,6 +184,7 @@ func (g *Overview) SetBrowsingDuplicates(on bool) {
 	pending := g.hashRemaining()
 	if pending > 0 {
 		g.host.ShowToast(lang.L("The images are currently being analyzed"))
+		g.fireDupeState()
 	}
 	if pending == 0 {
 		g.finishBrowse()
@@ -184,6 +209,7 @@ func (g *Overview) finishBrowse() {
 	if g.groupSize(g.browseHost) < 2 {
 		g.browseHost = -1
 		g.applyFilter()
+		g.fireDupeState()
 		return
 	}
 	g.applyFilter()
@@ -192,6 +218,7 @@ func (g *Overview) finishBrowse() {
 		g.setHighlight(id)
 		g.wrap.ScrollTo(id)
 	}
+	g.fireDupeState()
 }
 
 // groupMembers returns host indices in the same duplicate group as
@@ -235,12 +262,13 @@ func (g *Overview) SetDuplicateDistance(n int) {
 	g.dupeDist = n
 	if g.browseHost >= 0 {
 		g.finishBrowse()
-		return
-	}
-	if g.hideDupes {
+	} else if g.hideDupes {
 		g.applyFilter()
 		g.jumpIfHiddenExtra()
+	} else {
+		g.rebuildGroups()
 	}
+	g.fireDupeState()
 }
 
 // IsHiddenExtra reports whether hostIndex is a non-representative member of
@@ -400,6 +428,7 @@ func (g *Overview) hashRemaining() int {
 					if g.browseHost >= 0 {
 						if remaining == 0 {
 							g.finishBrowse()
+							g.fireDupeState()
 						}
 						return
 					}
@@ -408,6 +437,9 @@ func (g *Overview) hashRemaining() int {
 						g.groupSizes, g.groupReps = sizes, reps
 						g.applyVisibleFilter(false, keepHost)
 						g.jumpIfHiddenExtra()
+					}
+					if remaining == 0 {
+						g.fireDupeState()
 					}
 				})
 			}()

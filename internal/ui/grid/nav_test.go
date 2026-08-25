@@ -394,6 +394,36 @@ func TestHandleKey_GDoesNotCloseWhileSearching(t *testing.T) {
 	}
 }
 
+func TestHandleKey_VCloses(t *testing.T) {
+	g := newOverview(t, hostWith(t, "a.jpg"))
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	g.Toggle()
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyV})
+
+	if g.Visible() {
+		t.Error("V should close the grid")
+	}
+}
+
+// TestHandleKey_VDoesNotCloseWhileSearching is V's twin of G: while
+// searching the letter v is a query character, so HandleKey must not Close.
+func TestHandleKey_VDoesNotCloseWhileSearching(t *testing.T) {
+	g, _ := openGrid(t, "violet.jpg", "moon.jpg")
+	typeQuery(g, "v")
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyV})
+
+	if !g.Visible() {
+		t.Error("V should be a query character while searching, not a close")
+	}
+	if g.Query() != "v" {
+		t.Errorf("Query() = %q, want %q - the key event must not also edit the query", g.Query(), "v")
+	}
+}
+
 func TestHandleKey_ReturnWithNoMatchesOpensNothing(t *testing.T) {
 	g, host := openGrid(t, "a.jpg", "b.jpg")
 	typeQuery(g, "zzz")

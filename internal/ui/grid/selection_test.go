@@ -250,6 +250,19 @@ func TestHandleKey_GIsInertWhileASelectionIsPending(t *testing.T) {
 	}
 }
 
+// TestHandleKey_VClosesWhileASelectionIsPending: unlike G, V is "go to the
+// image view", not "toggle the grid". Close already drops the selection.
+func TestHandleKey_VClosesWhileASelectionIsPending(t *testing.T) {
+	g, host := openGrid(t, "a.jpg", "b.jpg")
+	click(g, host, 0, fyne.KeyModifierShortcutDefault)
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyV})
+
+	if g.Visible() {
+		t.Error("V should close the grid even while a selection is pending")
+	}
+}
+
 // --- selection lifetime ----------------------------------------------------
 
 // TestSelection_SurvivesAFilterChange is why the set holds host indices

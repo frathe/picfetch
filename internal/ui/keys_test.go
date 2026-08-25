@@ -146,3 +146,41 @@ func TestHandleTypedRune_GridIsNotACanvasOverlay(t *testing.T) {
 		t.Errorf("Query() = %q, want %q: the grid stopped receiving runes", v.grid.Query(), "a")
 	}
 }
+
+func TestHandleKeyEvent_VLeavesPictureFrameMode(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
+	t.Cleanup(func() { settleSlideshow(t, v) })
+
+	v.togglePictureFrameMode()
+	if !v.slides.Active() {
+		t.Fatal("premises: picture-frame on")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyV})
+
+	if v.slides.Active() {
+		t.Error("V should leave picture-frame mode, same as Window -> Viewer")
+	}
+}
+
+func TestHandleKeyEvent_VNoopsInImageView(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
+
+	if v.grid.Visible() || v.slides.Active() {
+		t.Fatal("premises: image view")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyV})
+
+	if v.grid.Visible() {
+		t.Error("V in the image view must not open the grid")
+	}
+	if v.slides.Active() {
+		t.Error("V in the image view must not enter picture-frame mode")
+	}
+	if !v.windowViewerItem.Disabled {
+		t.Error("Viewer should stay grey in the image view")
+	}
+}

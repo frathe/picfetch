@@ -93,9 +93,11 @@ type Overview struct {
 	host Host
 	win  fyne.Window
 
-	visible bool
-	wrap    *widget.GridWrap
-	overlay *fyne.Container
+	visible      bool
+	onVisibility func()
+	onDupeState  func()
+	wrap         *widget.GridWrap
+	overlay      *fyne.Container
 
 	// The bar across the top of the overlay, hidden until there is either a
 	// search or a selection to report: what was typed on the left, how much
@@ -427,6 +429,16 @@ func (g *Overview) Visible() bool {
 	return g.visible
 }
 
+// SetOnVisibilityChanged registers f to run after the grid opens or
+// actually closes. The field is read at fire time. nil is a no-op.
+func (g *Overview) SetOnVisibilityChanged(f func()) { g.onVisibility = f }
+
+func (g *Overview) fireVisibility() {
+	if g.onVisibility != nil {
+		g.onVisibility()
+	}
+}
+
 // ConsumeMaximized reports whether the window is still sitting maximized
 // from an earlier Toggle and hasn't been undone since, clearing the flag
 // either way - a one-shot check for whoever is about to resize the window
@@ -470,6 +482,7 @@ func (g *Overview) Toggle() {
 	g.setHighlight(g.displayIndexOf(g.host.CurrentIndex()))
 	g.overlay.Show()
 	g.host.ForceRepaint()
+	g.fireVisibility()
 }
 
 // Close dismisses the grid, restoring the normal image view. A no-op when
@@ -513,4 +526,5 @@ func (g *Overview) Close() {
 	g.host.HighlightChanged(-1)
 	g.host.Unfocus()
 	g.host.ForceRepaint()
+	g.fireVisibility()
 }

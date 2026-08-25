@@ -76,12 +76,15 @@ func (v *viewer) saveRotation() {
 	v.ShowToast(lang.L("Saved"))
 }
 
-// updateFileMenuState keeps the File menu's four file-dependent items in
+// updateFileMenuState keeps the File menu's three file-dependent items in
 // sync with what's currently loaded: "Save Changes" with canSaveRotation
-// above, "Export image" plus "Set as Wallpaper" with canExport (export.go,
-// and canSetWallpaper in wallpaper.go, which is the same condition for the
-// same reasons), and "Close Files" with whether there's anything open at
-// all. Called
+// above, "Export image" with canExport (export.go), and "Close Files" with
+// whether there's anything open at all. Actions' "Set as Wallpaper" is
+// updated in the same pass via applyActionsMenuState (canSetWallpaper in
+// wallpaper.go, the same condition as canExport for the same reasons). It
+// also applies the Window and Actions menus' grey-out matrices
+// (FileCount / DisplayedFile / displayFrames) before the shared
+// refreshMainMenu. Called
 // wherever v.rotation, v.displayFrames, v.loading, or the current file can
 // change: rotateBy/resetRotation (rotate.go), ShowImage/finishLoad
 // (load.go), clearToDropzone (viewer.go), and after a successful
@@ -91,10 +94,11 @@ func (v *viewer) updateFileMenuState() {
 	v.saveItem.Disabled = !v.canSaveRotation()
 
 	v.exportItem.Disabled = !v.canExport()
-	v.wallpaperItem.Disabled = !v.canSetWallpaper()
 
 	v.closeFilesItem.Disabled = v.FileCount() == 0
 	v.favorites.SetHasFiles(v.FileCount() > 0)
 
-	v.win.MainMenu().Refresh()
+	v.applyWindowMenuState()
+	v.applyActionsMenuState()
+	v.refreshMainMenu()
 }

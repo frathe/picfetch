@@ -1113,3 +1113,171 @@ func TestRebuildFilter_KeepsHighlightedHostWhenAnExtraDisappears(t *testing.T) {
 	unpark()
 	g.Settle()
 }
+
+func TestSourceDuplicateGroupSize_UnknownUntilGroupsBuilt(t *testing.T) {
+	g, host := pairAndUnique(t)
+	host.index = 0
+	if got := g.SourceDuplicateGroupSize(); got != 0 {
+		t.Fatalf("before hide/browse rebuild: size = %d, want 0 (unknown)", got)
+	}
+
+	g.SetHideDuplicates(true)
+	if got := g.SourceDuplicateGroupSize(); got != 2 {
+		t.Fatalf("pair representative size = %d, want 2", got)
+	}
+
+	host.index = 2
+	// grid is visible: source is the highlight, not host.index.
+	// Move the ring to the unique cell (display index of host 2).
+	g.setHighlight(g.displayIndexOf(2))
+	if got := g.SourceDuplicateGroupSize(); got != 1 {
+		t.Fatalf("unique cell size = %d, want 1", got)
+	}
+}
+
+func TestSourceDuplicateGroupSize_ClosedGridUsesCurrentIndex(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	g.Close()
+	host.index = 2
+	if g.Visible() {
+		t.Fatal("premises: grid closed")
+	}
+	if got := g.SourceDuplicateGroupSize(); got != 1 {
+		t.Fatalf("closed grid unique current = %d, want 1", got)
+	}
+}
+
+func TestSetOnDupeStateChanged_HideAndBrowse(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	var n int
+	g.SetOnDupeStateChanged(func() { n++ })
+
+	g.SetHideDuplicates(true)
+	if n != 1 {
+		t.Fatalf("after hide on: n=%d, want 1", n)
+	}
+	g.SetHideDuplicates(true)
+	if n != 1 {
+		t.Fatalf("idempotent hide fired: n=%d", n)
+	}
+	g.SetHideDuplicates(false)
+	if n != 2 {
+		t.Fatalf("after hide off: n=%d, want 2", n)
+	}
+
+	n = 0
+	g.SetOnDupeStateChanged(func() { n++ }) // still read at fire time
+	g.SetBrowsingDuplicates(true)
+	if !g.BrowsingDuplicates() {
+		t.Fatal("premises: pair should browse")
+	}
+	if n < 1 {
+		t.Fatalf("browse on did not fire: n=%d", n)
+	}
+
+	was := n
+	g.SetBrowsingDuplicates(false)
+	if g.BrowsingDuplicates() {
+		t.Fatal("browse should be off")
+	}
+	if n <= was {
+		t.Fatalf("browse off did not fire: n=%d was=%d", n, was)
+	}
+}
+
+func TestSetOnDupeStateChanged_SetAfterHideStillFiresOnNextChange(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	var n int
+	g.SetOnDupeStateChanged(func() { n++ })
+	g.SetHideDuplicates(false)
+	if n != 1 {
+		t.Fatalf("hook registered after hide-on must still run on hide-off: n=%d", n)
+	}
+}
+
+func TestSetOnDupeStateChanged_NilIsNoop(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetOnDupeStateChanged(nil)
+	g.SetHideDuplicates(true) // must not panic
+}
+
+func TestSetOnDupeStateChanged_SetDuplicateDistanceWhileHide(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	var n int
+	g.SetOnDupeStateChanged(func() { n++ })
+
+	g.SetDuplicateDistance(0)
+	if n != 1 {
+		t.Fatalf("distance change while hide on: n=%d, want 1", n)
+	}
+	g.SetDuplicateDistance(0)
+	if n != 1 {
+		t.Fatalf("idempotent distance fired: n=%d", n)
+	}
+}
+
+func TestSetOnDupeStateChanged_SetDuplicateDistanceWhileIdleRebuilds(t *testing.T) {
+	g, host := pairAndUnique(t)
+	host.index = 0
+	if got := g.SourceDuplicateGroupSize(); got != 0 {
+		t.Fatalf("setup size = %d, want 0 (groups not built)", got)
+	}
+	var n int
+	g.SetOnDupeStateChanged(func() { n++ })
+
+	g.SetDuplicateDistance(0)
+	if n != 1 {
+		t.Fatalf("idle distance change: n=%d, want 1", n)
+	}
+	if got := g.SourceDuplicateGroupSize(); got != 2 {
+		t.Fatalf("idle rebuild pair size = %d, want 2", got)
+	}
+}
+
+func TestSetOnDupeStateChanged_LastHashJobFiresOnce(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg"},
+		[]int{1, 2, 3, 4, 5},
+	)
+	g := newOverview(t, host)
+	unpark := parkDecodes(t, g)
+	var n int
+	g.SetOnDupeStateChanged(func() { n++ })
+
+	g.SetHideDuplicates(true)
+	if n != 1 {
+		t.Fatalf("hide on while pending: n=%d, want 1", n)
+	}
+
+	unpark()
+	g.Settle()
+	if n != 2 {
+		t.Fatalf("after last hash job: n=%d, want 2 (mid-interval applies must not fire)", n)
+	}
+}
+
+func TestSetOnDupeStateChanged_PendingBrowseFiresOnceThenFinish(t *testing.T) {
+	host := hostPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon.jpg"},
+		[]int{1, 1, 99},
+	)
+	g := newOverview(t, host)
+	unpark := parkDecodes(t, g)
+	g.Toggle()
+	var n int
+	g.SetOnDupeStateChanged(func() { n++ })
+
+	g.SetBrowsingDuplicates(true)
+	if n != 1 {
+		t.Fatalf("pending browse: n=%d, want 1", n)
+	}
+
+	unpark()
+	g.Settle()
+	if n < 2 {
+		t.Fatalf("last-job finishBrowse did not fire: n=%d", n)
+	}
+}

@@ -1,4 +1,4 @@
-// canSetWallpaper/setAsWallpaper (wallpaper.go): the File > "Set as
+// canSetWallpaper/setAsWallpaper (wallpaper.go): the Actions > "Set as
 // Wallpaper" action, which writes the frame on screen into the app's own
 // cache directory and points the OS at that copy.
 //
@@ -210,17 +210,17 @@ func TestSetAsWallpaper_DoesNothingWithoutAnImage(t *testing.T) {
 func TestUpdateFileMenuState_TracksTheWallpaperItem(t *testing.T) {
 	v := newTestViewer(t)
 
-	if !v.wallpaperItem.Disabled {
+	if !v.actionsWallpaperItem.Disabled {
 		t.Error("the Set as Wallpaper item should start disabled")
 	}
 
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
-	if v.wallpaperItem.Disabled {
+	if v.actionsWallpaperItem.Disabled {
 		t.Error("the Set as Wallpaper item should be enabled once an image is loaded")
 	}
 
 	v.closeFiles()
-	if !v.wallpaperItem.Disabled {
+	if !v.actionsWallpaperItem.Disabled {
 		t.Error("the Set as Wallpaper item should be disabled again once the files are closed")
 	}
 }
