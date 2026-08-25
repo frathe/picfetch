@@ -31,17 +31,23 @@ func Run(application fyne.App, initial []fyne.URI) {
 	startViewerRuntime(view, window, favstore.DefaultDir())
 	registerShutdown(application, view)
 
-	// Deferred to SetOnStarted rather than called right away: it ends up
-	// calling handleDrop, which touches widgets directly (no fyne.Do) the
-	// same way SetOnDropped's callback does, so it needs the event loop
-	// already running rather than firing before ShowAndRun below starts it.
-	if len(initial) > 0 {
-		application.Lifecycle().SetOnStarted(func() {
+	// Show() (not ShowAndRun) so we can fold Darwin's Window menus after
+	// setupNativeMenu has run. SetMainMenu queues that rebuild until the
+	// GLFW view exists; fyne.Do from buildViewer runs inline before Run
+	// and would merge while the Fyne Window title is still absent. Show
+	// creates the view and drains the queue — two adjacent Window titles
+	// until the fold below. OnStarted repeats it (idempotent) and still
+	// defers CLI drops until the event loop is running, as handleDrop
+	// touches widgets directly.
+	window.Show()
+	syncNativeMenuBar(view.win.MainMenu())
+	application.Lifecycle().SetOnStarted(func() {
+		syncNativeMenuBar(view.win.MainMenu())
+		if len(initial) > 0 {
 			view.handleDrop(initial)
-		})
-	}
-
-	window.ShowAndRun()
+		}
+	})
+	application.Run()
 }
 
 // Runtime side effects start only after feature construction and geometry

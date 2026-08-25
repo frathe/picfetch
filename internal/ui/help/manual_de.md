@@ -257,10 +257,10 @@ nach (**Abbrechen** vorausgewählt; **`←`**/**`→`** und **`Return`** /
 **`Esc`**, dieselben Tastatur-Regeln wie bei anderen PicFetch-Bestätigungen).
 Sie schreibt die **ursprüngliche JPEG-Datei** direkt um. Die Schaltfläche
 fehlt, sobald nichts mehr zu entfernen ist — auch nach einem erfolgreichen
-Strip. Die Tag-Liste zeigt nur Kamera/Objektiv/Belichtung/GPS-Felder, daher
-kann ein JPEG, das noch Kommentare, XMP, IPTC oder Bytes nach dem Bild (ein
-zweites Bild oder ein Motion-Photo-Video) enthält, „keine Metadaten gefunden“
-anzeigen und trotzdem **Metadaten entfernen** anbieten. Die Schaltfläche selbst
+Strip — und immer dann, wenn das Fenster „keine Metadaten gefunden“ anzeigt.
+Identifizierende Bytes, die die Liste nicht zeigt (Kommentare, XMP, IPTC,
+ein zweites Bild nach dem Bild), fallen beim Strip trotzdem weg, wenn die
+Datei Tags *listet*. Die Schaltfläche selbst
 ist eine kompakte Steuerung, keine durchgehende Leiste.
 
 - Nur JPEG. Bei HEIC, RAW, PNG und WebP fehlt die Schaltfläche.
@@ -1045,8 +1045,8 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Bild sowie eine ausklappbare Karte des Aufnahmeorts, wenn das Foto
   GPS-Tags trägt; bei JPEGs steht unter den Tags (oberhalb der Karte)
   **Metadaten entfernen**, das nach Bestätigung identifizierende Tags direkt
-  aus der Datei entfernt und verschwindet, sobald nichts mehr zu entfernen
-  ist; solange das Fenster den Fokus hat, wechseln `←`/`→` das Bild
+  aus der Datei entfernt und fehlt, wenn die Tag-Liste leer ist oder nichts
+  mehr zu entfernen ist; solange das Fenster den Fokus hat, wechseln `←`/`→` das Bild
 - **Diaschau-Modus** — `P` schaltet eine Vollbild-Diaschau mit Überblendung
   zwischen den Bildern ein/aus; `↑`/`↓` stellen das (standardmäßig 10 s)
   Auto-Weiterschalt-Intervall ein, solange sie aktiv ist; `Shift+P` schaltet

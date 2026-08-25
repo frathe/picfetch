@@ -102,6 +102,30 @@ func TestMergeWindowMenus_SecondCallIsNoop(t *testing.T) {
 	}
 }
 
+func TestMergeWindowMenus_FoldsEveryDuplicate(t *testing.T) {
+	main := testNewMenu("")
+	first := testNewMenu("Window")
+	testAddItem(first, "Viewer", false)
+	testAddTopLevel(main, first)
+	second := testNewMenu("Window")
+	testAddItem(second, "EXIF Data", false)
+	testAddTopLevel(main, second)
+	system := testNewMenu("Window")
+	testAddItem(system, "Minimize", false)
+	testAddTopLevel(main, system)
+
+	folded := 0
+	for mergeWindowMenus(main, system, "Window") {
+		folded++
+	}
+	if folded != 2 {
+		t.Fatalf("folded %d Window menus, want 2", folded)
+	}
+	if got := testTopLevelCount(main); got != 1 {
+		t.Fatalf("top-level after folding every duplicate = %d, want 1", got)
+	}
+}
+
 func TestSetMenuItemModifierMask_ClearsDefaultCommand(t *testing.T) {
 	m := testNewMenu("Actions")
 	testAddItemWithKey(m, "Toggle merge mode", "m")

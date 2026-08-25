@@ -37,15 +37,6 @@ func openGridWith(t *testing.T, names ...string) *viewer {
 	return v
 }
 
-// waitForClipboard waits out the goroutine a clipboard copy runs on -
-// v.clipboard is finished once that goroutine has fully run, error toast
-// included, so reading widget state afterwards is race-free.
-func waitForClipboard(t *testing.T, v *viewer) {
-	t.Helper()
-
-	waitFor(t, "the clipboard copy", &v.clipboard)
-}
-
 // --- delete ----------------------------------------------------------------
 
 // TestShiftDelete_WhileGridVisiblePromptsForTheSelection replaces the old

@@ -11,10 +11,6 @@ Menu points
 - help
   Windows that are currently showing are grayed out in the menu
 
-## ACTIVE DEVELOPMENT
-
-## TODO
-
 ### Menu Actions
 Menu points
  - sort with sub menu of sorting options the currently active has a checkmark or is grayed out
@@ -22,6 +18,41 @@ Menu points
  - show variant available it the current item has dupes
  - exif information
 Windows that are currently showing are grayed out in the menu
+
+### Never-started canary
+Before the `completion.Signal` migration, waiting on an operation that had never begun blocked on a nil channel until
+the test timed out with a named message. `Signal.Wait` on a never-begun signal returns nil immediately - which is
+exactly what lets `drain` drop its nil-guard, but also meant a helper that used to fail loudly then returned silently.
+
+The guard went back in unevenly. Helpers that carried an *explicit* `== nil` check kept it as `Begun()`:
+`settleChooser`, `settleWallpaper`, `settleFavoritePreviews`, and `settleToast` - the last being the best of the four,
+since its `stop == nil` answers "pending *now*" rather than "ever begun". Helpers that relied on the *implicit*
+nil-channel block lost theirs silently: `waitUntilLoaded`, `waitForScan`, `waitForSort`, `waitForAnimStopped`,
+`waitForClipboard`.
+
+Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `waitFor` still do not.
+`go test -race ./...` passed with no canary fatals (2026-08-25).
+
+## ACTIVE DEVELOPMENT
+
+## TODO
+
+- `internal/ui/toast.go` merges its `fyne.io/...` and
+  `github.com/frathe/picfetch/...` imports into one block, where ~20 other `internal/ui` files use three
+  blank-line-separated groups. Present since that file's first commit (`9eda18c`). `gofmt` does not enforce grouping by
+  path prefix and `make verify` runs no
+  `goimports -local`, so nothing catches it. Worth a one-line fix the next time that file's imports change for another
+  reason.
+
+- `finishLoad` (`internal/ui/load.go:192-305`) is a 114-line do-everything pipeline (vector setup, fade, overlay, zoom,
+  resize, title, animation, preload). It is linear and well-commented; decompose into named steps only if it needs to
+  change anyway.
+
+- `internal/imaging/exif.go` (687 lines) holds two parsers plus IFD walking plus display formatting. Cohesive and
+  well-tested; a parse/format file split is cosmetic.
+
+- `ARCHITECTURE.md` is ~66 KB and duplicates much per-field/function doc commentary; consider trimming it to the
+  navigation map it says it is, so it stops drifting from the code.
 
 ## not deemed worth implementing (edge cases)
 

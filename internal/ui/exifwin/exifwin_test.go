@@ -722,9 +722,12 @@ func TestStripButton_HiddenForAPNG(t *testing.T) {
 	if w.StripButton() == nil || w.StripButton().Visible() {
 		t.Fatal("want the button hidden for PNG")
 	}
+	if northHolds(w.north, w.stripBar) {
+		t.Fatal("hidden stripBar must not stay in the north stack: Hide alone still paints the row on a live canvas")
+	}
 }
 
-func TestStripButton_ShownForATrailerOnlyJPEG(t *testing.T) {
+func TestStripButton_HiddenWhenTheTagListIsEmpty(t *testing.T) {
 	app := test.NewApp()
 	data := append(uitest.EncodeJPEG(t, 8, 8, color.White), []byte("ftypmp42fake-video")...)
 	u := storage.NewFileURI(uitest.WriteTempFile(t, "trailer.jpg", data))
@@ -733,11 +736,14 @@ func TestStripButton_ShownForATrailerOnlyJPEG(t *testing.T) {
 	w.Show()
 	t.Cleanup(func() { w.Window().Close() })
 
-	if w.StripButton() == nil || !w.StripButton().Visible() {
-		t.Fatal("want the button shown: bytes after EOI are removable even when the tag list is empty")
-	}
 	if got := w.Text().Text; got != lang.L("No EXIF metadata found in this file.") && got != "No EXIF metadata found in this file." {
-		t.Fatalf("text = %q, want the empty-panel message (ReadMetadata sees no camera tags)", got)
+		t.Fatalf("text = %q, want the empty-panel message", got)
+	}
+	if w.StripButton() == nil || w.StripButton().Visible() {
+		t.Fatal("want the button hidden when the panel says there is no EXIF metadata")
+	}
+	if northHolds(w.north, w.stripBar) {
+		t.Fatal("empty tag list must not leave stripBar in the north stack")
 	}
 }
 
@@ -766,6 +772,9 @@ func TestStripButton_HiddenBarTakesNoHeightAfterNavigate(t *testing.T) {
 	if w.StripButton().Visible() {
 		t.Fatal("want the button hidden after navigating to a JPEG with nothing removable")
 	}
+	if northHolds(w.north, w.stripBar) {
+		t.Fatal("hidden stripBar must not stay in the north stack after navigating away")
+	}
 	if got := w.stripBar.Size().Height; got != 0 {
 		t.Fatalf("hidden stripBar height = %v, want 0 (parent layout must run after Hide)", got)
 	}
@@ -786,6 +795,9 @@ func TestStripButton_GainsHeightAfterNavigateToGPS(t *testing.T) {
 	if w.StripButton() == nil || w.StripButton().Visible() {
 		t.Fatal("setup: plain JPEG should hide the button")
 	}
+	if northHolds(w.north, w.stripBar) {
+		t.Fatal("setup: hidden stripBar must not be in the north stack")
+	}
 
 	shown = gps
 	w.Refresh()
@@ -793,8 +805,67 @@ func TestStripButton_GainsHeightAfterNavigateToGPS(t *testing.T) {
 	if !w.StripButton().Visible() {
 		t.Fatal("want the button shown after navigating to a GPS JPEG")
 	}
+	if !northHolds(w.north, w.stripBar) {
+		t.Fatal("shown stripBar must be back in the north stack")
+	}
 	if got := w.stripBar.Size().Height; got <= 0 {
 		t.Fatalf("shown stripBar height = %v, want > 0 (parent layout must run after Show)", got)
+	}
+}
+
+// GPS vs a clean JPEG under RestoreGeometry, which wraps content in the
+// same SizeTracker production uses. Without a window-size change Fyne's
+// Container.Resize is a no-op, so adding/removing the button row must still
+// relayout the Border from the root or the previous file's row sticks.
+func TestStripButton_NorthRowFollowsVisibilityWithoutWindowResize(t *testing.T) {
+	app := test.NewApp()
+	plainU := uitest.TempJPEGURI(t, "plain.jpg", 8, 8, color.White)
+	gpsU := uitest.TempGPSJPEGURI(t, "gps.jpg", 8, 8, 48.858222, 2.2945)
+
+	shown := plainU
+	host := &stubHost{current: func() (fyne.URI, bool) { return shown, true }}
+	w := New(app, host)
+	w.RestoreGeometry(widgets.Geometry{Size: fyne.NewSize(exifW, exifH)})
+	w.Show()
+	t.Cleanup(func() { w.Window().Close() })
+
+	w.Window().Resize(fyne.NewSize(exifW, exifH))
+
+	if w.StripButton() == nil || w.StripButton().Visible() {
+		t.Fatal("setup: plain JPEG should hide the button")
+	}
+	hiddenNorth := w.north.Size().Height
+	if hiddenNorth <= 0 {
+		t.Fatal("setup: north stack should have a laid-out height")
+	}
+
+	shown = gpsU
+	w.Refresh()
+
+	if !w.StripButton().Visible() {
+		t.Fatal("want the button shown for a GPS JPEG")
+	}
+	if got := w.stripBar.Size().Height; got <= 0 {
+		t.Fatalf("shown stripBar height = %v, want > 0", got)
+	}
+	if got := w.north.Size().Height; got <= hiddenNorth {
+		t.Fatalf("north height after showing the button = %v, want > %v (Border must grow the top row without a window resize)", got, hiddenNorth)
+	}
+
+	shown = plainU
+	w.Refresh()
+
+	if w.StripButton().Visible() {
+		t.Fatal("want the button hidden after navigating back to a clean JPEG")
+	}
+	if northHolds(w.north, w.stripBar) {
+		t.Fatal("hidden stripBar must not stay in the north stack after navigating back")
+	}
+	if got := w.stripBar.Size().Height; got != 0 {
+		t.Fatalf("hidden stripBar height = %v, want 0", got)
+	}
+	if got := w.north.Size().Height; got != hiddenNorth {
+		t.Fatalf("north height after hiding the button = %v, want the original %v", got, hiddenNorth)
 	}
 }
 
@@ -922,6 +993,9 @@ func TestRequestStrip_ConfirmRemovesGPSAndCallsHost(t *testing.T) {
 	}
 	if w.StripButton().Visible() {
 		t.Fatal("button should hide after a successful strip")
+	}
+	if northHolds(w.north, w.stripBar) {
+		t.Fatal("stripBar must leave the north stack after a successful strip")
 	}
 	if w.stripBar != nil && w.stripBar.Size().Height != 0 {
 		t.Fatalf("stripBar height after strip = %v, want 0", w.stripBar.Size().Height)

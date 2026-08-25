@@ -145,12 +145,13 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		view.zoom.Widget(), dz.root, scanContainer, sortContainer, overlay, infoOverlay,
 		view.grid.Overlay(), view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
 	window.SetMainMenu(buildMainMenu(view))
-	// Fyne's Darwin driver inserts our Window menu as a second top-level
-	// title next to GLFW's system Window menu. syncNativeMenuBar folds the
-	// two together and then clears AppKit's default Command mask on
-	// unmodified letter accelerators (so M is not shown as ⌘M / Minimize).
-	// It must run after setupNativeMenu, which SetMainMenu queues on the UI
-	// thread via runOnMainWhenCreated.
+	// Fyne's Darwin driver inserts our Window menu next to GLFW's system
+	// Window menu. Folding them must wait until setupNativeMenu has run.
+	// fyne.Do is not enough here: before Run, Do from the main goroutine
+	// runs inline, while SetMainMenu still queues the native rebuild until
+	// the window view exists. Run folds immediately after Show, when that
+	// queue has drained. refreshMainMenu repeats the fold after later
+	// Refresh rebuilds.
 	fyne.Do(func() { syncNativeMenuBar(view.win.MainMenu()) })
 
 	window.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {

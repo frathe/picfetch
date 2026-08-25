@@ -22,8 +22,20 @@ func (v *viewer) refreshMainMenu() {
 	if v.win == nil || v.win.MainMenu() == nil {
 		return
 	}
-	v.win.MainMenu().Refresh()
-	syncNativeMenuBar(v.win.MainMenu())
+	bar := v.win.MainMenu()
+	bar.Refresh()
+	// Refresh is SetMainMenu, which rebuilds the Darwin native bar
+	// (clearNativeMenu + a new Fyne Window next to GLFW's). Merge now if
+	// that rebuild already ran, and again on the next UI turn in case it
+	// was only queued. fyne.Do before Run runs inline and is too early
+	// (see Run: fold after Show).
+	syncNativeMenuBar(bar)
+	fyne.Do(func() {
+		if v.win == nil {
+			return
+		}
+		syncNativeMenuBar(v.win.MainMenu())
+	})
 }
 
 // syncNativeMenuBar is the Darwin native-bar follow-up after every Fyne

@@ -85,7 +85,10 @@ void mergeAppWindowMenus(const char *ourLabel) {
 	if (main == nil || systemWin == nil) {
 		return;
 	}
-	mergeWindowMenus((uintptr_t)(__bridge void *)main, (uintptr_t)(__bridge void *)systemWin, ourLabel);
+	uintptr_t mainPtr = (uintptr_t)(__bridge void *)main;
+	uintptr_t sysPtr = (uintptr_t)(__bridge void *)systemWin;
+	while (mergeWindowMenus(mainPtr, sysPtr, ourLabel) != 0) {
+	}
 }
 
 uintptr_t testNewMenu(const char *title) {

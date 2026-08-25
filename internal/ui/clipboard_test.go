@@ -102,7 +102,7 @@ func TestCopyImageToClipboard_DispatchFailureShowsToast(t *testing.T) {
 	// has fully run, error toast included) is what makes reading the
 	// toast widgets afterward race-free - polling them would read state
 	// the goroutine may still be writing.
-	waitFor(t, "the clipboard copy", &v.clipboard)
+	waitForClipboard(t, v)
 
 	if !v.toast.card.Visible() {
 		t.Error("expected a toast for a clipboard copy failure")

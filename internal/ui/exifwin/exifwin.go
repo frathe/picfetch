@@ -1,7 +1,7 @@
 // Package exifwin is the EXIF metadata window: a small panel listing the
 // current image's camera settings, opened with the E key or the info
-// overlay's "Show EXIF data" link. Below the list (and, for a JPEG with
-// tags to strip, a Remove Metadata button) sits a collapsible
+// overlay's "Show EXIF data" link. Below the list (and, for a JPEG that
+// lists camera tags and has something to strip, a Remove Metadata button) sits a collapsible
 // OpenStreetMap view, shown only for a photo that carries GPS tags and
 // collapsed until the user expands it - which is also what keeps the widget
 // from fetching any map tiles unasked.
@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"slices"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -72,10 +73,9 @@ type Window struct {
 	// strip is the Remove Metadata button, live only while the window is
 	// open. stripBar is the centered wrapper around it in the north stack,
 	// hidden as a unit so a hidden button does not leave its row.
-	// canStrip is whether the current file has anything for it to
-	// remove (Task 2's imaging.CanStripJPEGMetadata) - the button is
-	// hidden rather than disabled while it's false, per Florian: no
-	// greyed-out button sitting there for a file with nothing to strip.
+	// canStrip is whether the button should appear: the file lists
+	// camera/GPS tags *and* StripJPEGMetadata would rewrite it. Hidden
+	// when the panel says "No EXIF metadata found in this file."
 	strip    *widget.Button
 	stripBar *fyne.Container
 	canStrip bool
@@ -87,11 +87,11 @@ type Window struct {
 	pending fyne.URI
 	confirm dialog.Dialog
 
-	// north is the VBox holding the tag list and stripBar, live only while
-	// the window is open. syncStripVisible Refreshes it after Show/Hide:
-	// Fyne does not re-run a parent's layout when a child is hidden, so
-	// without this a hidden stripBar keeps the height of the last layout
-	// (the same trap toggleLocation documents for the map body).
+	// north is the VBox holding the tag list and, when the current file
+	// has something to strip, stripBar. syncStripVisible adds or removes
+	// stripBar rather than only Show/Hide: a hidden child stays in the
+	// tree, and Refreshing the window content still paints it. Relayout
+	// from the window root so the Border re-reads north's MinSize.
 	north *fyne.Container
 
 	// locationMap and location are the OpenStreetMap view and the
@@ -287,7 +287,7 @@ func (w *Window) Refresh() {
 	w.text.SetText(formatExifMetadata(m))
 	w.showLocation(m)
 
-	w.canStrip = imaging.CanStripJPEGMetadata(data)
+	w.canStrip = imaging.CanStripJPEGMetadata(data) && !m.Empty()
 	w.syncStripVisible()
 	w.dismissStalePending()
 }
@@ -307,44 +307,55 @@ func (w *Window) dismissStalePending() {
 	}
 }
 
-// syncStripVisible shows the Remove Metadata button when the current file
-// has anything removable and hides it otherwise. Hidden, not disabled: per
-// Florian, no greyed-out button sitting there for a file with nothing to
-// strip.
+// syncStripVisible shows the Remove Metadata button when canStrip is set
+// and hides it otherwise. Hidden, not disabled: no greyed-out button for a
+// file with nothing the panel lists. The bar is removed from north when
+// hidden: Show/Hide alone leaves it in the tree, and a content Refresh
+// still paints the last visible row.
 func (w *Window) syncStripVisible() {
-	if w.strip == nil {
+	if w.strip == nil || w.stripBar == nil {
 		return
 	}
 
 	if w.canStrip {
 		w.strip.Show()
-		if w.stripBar != nil {
-			w.stripBar.Show()
+		w.stripBar.Show()
+		if w.north != nil && !northHolds(w.north, w.stripBar) {
+			w.north.Add(w.stripBar)
 		}
 	} else {
 		w.strip.Hide()
-		if w.stripBar != nil {
-			w.stripBar.Hide()
-			// layout.vBoxLayout skips an invisible child entirely - it
-			// never calls Resize on one - so a hidden stripBar otherwise
-			// keeps reporting whatever height it last had while visible,
-			// even after north/content below are told to Refresh.
-			w.stripBar.Resize(fyne.NewSize(0, 0))
+		w.stripBar.Hide()
+		// layout.vBoxLayout skips an invisible child entirely - it
+		// never calls Resize on one - so a hidden stripBar otherwise
+		// keeps reporting whatever height it last had while visible.
+		w.stripBar.Resize(fyne.NewSize(0, 0))
+		if w.north != nil {
+			w.north.Remove(w.stripBar)
 		}
 	}
 
-	// Showing/hiding a child does not re-run its parent's layout, and a
-	// hidden child is given no space only on the next layout - without
-	// this a hidden stripBar keeps a full-width hole above the map (the
-	// same trap toggleLocation documents for the map body).
-	if w.north != nil {
-		w.north.Refresh()
+	// Relayout from the window root so the Border re-reads north's MinSize
+	// (a north-only Refresh keeps the last allocated height). Dirty this
+	// window's canvas directly: Container.Show does not repaint, and
+	// CanvasForObject can miss a secondary window. Skip while the content
+	// builder is still running (Window is nil); SetContent lays out.
+	win := w.Window()
+	if win == nil {
+		return
 	}
-	if win := w.Window(); win != nil {
-		if c := win.Content(); c != nil {
-			c.Refresh()
-		}
+	content := win.Content()
+	if content == nil {
+		return
 	}
+	content.Refresh()
+	if c := win.Canvas(); c != nil {
+		c.Refresh(content)
+	}
+}
+
+func northHolds(north *fyne.Container, bar fyne.CanvasObject) bool {
+	return slices.Contains(north.Objects, bar)
 }
 
 // requestStrip opens the "Remove Metadata?" confirmation for the currently

@@ -230,10 +230,11 @@ when there is one). It asks for confirmation (**Cancel** selected by
 default; **`←`**/**`→`** and **`Return`** / **`Esc`**, same keyboard rules as
 other PicFetch confirmations). It rewrites the **original JPEG** in place.
 The button is hidden for a JPEG with nothing left to remove, including after
-a successful strip. The tag list only shows camera/lens/exposure/GPS fields, so
-a JPEG that still has comments, XMP, IPTC, or bytes after the image (a second
-picture or a motion-photo video) can show "no metadata found" and still offer
-**Remove Metadata**. The button itself is a compact control, not a full-width
+a successful strip, and whenever the panel shows "no metadata found". Identifying
+bytes that are not listed (comments, XMP, IPTC, a second picture after the
+image) are still dropped if you strip a file that *does* list tags.
+
+The button itself is a compact control, not a full-width
 bar.
 
 - JPEG only. HEIC, RAW, PNG, WebP: the button is hidden.
@@ -911,8 +912,8 @@ Things PicFetch deliberately does not do (yet):
   capture date and coordinates for the current image, plus a collapsible map
   of where it was taken when the photo carries GPS tags; JPEGs also get a
   **Remove Metadata** button below the tags (above the map) that strips
-  identifying tags from the file in place after confirmation, hidden once
-  nothing is left to remove; while that window is focused, `←`/`→` change image
+  identifying tags from the file in place after confirmation, hidden when
+  the tag list is empty or nothing is left to remove; while that window is focused, `←`/`→` change image
 - **Picture-frame mode** — `P` toggles a full-screen slideshow with a
   crossfade between images; `↑`/`↓` tune the (default 10s) auto-advance
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in

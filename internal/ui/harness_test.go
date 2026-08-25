@@ -222,7 +222,9 @@ const testTimeout = 5 * time.Second
 // waitFor blocks until s's current operation finishes, failing the test on
 // timeout. One helper for every completion.Signal on the viewer, so the
 // testTimeout deadline lives in exactly one place instead of being
-// restated by a hand-rolled select per operation.
+// restated by a hand-rolled select per operation. It deliberately does not
+// check Begun(): drain uses it, and a never-begun Signal must still return
+// immediately.
 func waitFor(t *testing.T, name string, s *completion.Signal) {
 	t.Helper()
 
@@ -278,6 +280,10 @@ func dropAndWaitScan(t *testing.T, v *viewer, uris ...fyne.URI) {
 func waitUntilLoaded(t *testing.T, v *viewer) {
 	t.Helper()
 
+	if !v.load.Begun() {
+		t.Fatal("the image load never started")
+	}
+
 	waitFor(t, "the image to finish loading", &v.load)
 
 	// Also wait out the neighbor preloads finishLoad kicked off (they're
@@ -301,11 +307,19 @@ func waitUntilLoaded(t *testing.T, v *viewer) {
 func waitForScan(t *testing.T, v *viewer) {
 	t.Helper()
 
+	if !v.scanOp.done.Begun() {
+		t.Fatal("the scan never started")
+	}
+
 	waitFor(t, "the scan", &v.scanOp.done)
 }
 
 func waitForSort(t *testing.T, v *viewer) {
 	t.Helper()
+
+	if !v.sortOp.done.Begun() {
+		t.Fatal("the sort never started")
+	}
 
 	waitFor(t, "the sort", &v.sortOp.done)
 }
@@ -341,7 +355,24 @@ func parkAnimate(v *viewer) {
 func waitForAnimStopped(t *testing.T, v *viewer) {
 	t.Helper()
 
+	if !v.anim.Begun() {
+		t.Fatal("the animation never started")
+	}
+
 	waitFor(t, "the animation to stop", &v.anim)
+}
+
+// waitForClipboard waits out the goroutine a clipboard copy runs on -
+// v.clipboard is finished once that goroutine has fully run, error toast
+// included, so reading widget state afterwards is race-free.
+func waitForClipboard(t *testing.T, v *viewer) {
+	t.Helper()
+
+	if !v.clipboard.Begun() {
+		t.Fatal("the clipboard copy never started")
+	}
+
+	waitFor(t, "the clipboard copy", &v.clipboard)
 }
 
 // waitForCached polls imgCache - populated from preloadOne's background
