@@ -47,7 +47,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images`; scan lifecycle is `viewer.scanOp`. |
 | `memlimits.go` | `settings` value plus memory-limit get/set that retune `imgCache`, grid thumb cache, `imaging.SetMaxEncodedBytes`, and the SVG raster cap. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync`, `gridSink`, and the favorite-preview `completion.Signal`. |
-| `load.go` | `ShowImage` / `attemptLoad` / `finishLoad`, neighbor preload (`AddIfFits`), GIF `animate`, `resizeToImage` / `syncWindowToZoom`. |
+| `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `resizeToImage` / `syncWindowToZoom`. |
 | `toast.go` | Self-dismissing notification card and `ShowToast`. |
 | `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark; `displayedDimensions`. |
 | `asyncop.go` | `asyncOpUI` (lifecycle, active, done, spinner) — used only by scan and sort. |

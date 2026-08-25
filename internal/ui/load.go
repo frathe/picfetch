@@ -96,7 +96,7 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 			done()
 			return
 		}
-		v.finishLoad(token, i, u, loaded, done)
+		v.finishLoad(token, u, loaded, done)
 		return
 	}
 
@@ -174,31 +174,55 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 			}
 
 			v.imgCache.Add(u.String(), loaded)
-			v.finishLoad(token, i, u, loaded, done)
+			v.finishLoad(token, u, loaded, done)
 		})
 	}()
 }
 
 // finishLoad displays loaded - already decoded, either just now or earlier
-// and pulled from imgCache - as v.state.files[i], updates the window title/size
-// and animation state, kicks off speculative preloading of its neighbors,
+// and pulled from imgCache - via ordered steps whose constraints live on
+// the helpers, then kicks off speculative preloading of its neighbors
 // and finishes the load signal last. Shared by attemptLoad's disk-decode
 // path (called from inside its completion fyne.Do, which - like every
 // fyne.Do callback in this file - the real driver runs on the UI goroutine
 // but the fyne test driver runs synchronously on whatever goroutine called
 // it) and its cache-hit path (called directly from attemptLoad, always on
 // whichever goroutine called ShowImage()).
-func (v *viewer) finishLoad(token requestToken, _ int, u fyne.URI, loaded *imaging.LoadedImage, done func()) {
+func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.LoadedImage, done func()) {
+	v.installLoadedFrames(loaded)
+	v.presentLoadedImage()
+	v.syncLoadedFileInfo(loaded)
+	v.fitWindowToLoadedImage(loaded)
+	v.applyLoadedTitle(u, loaded)
+	v.clearLoadingChrome()
+	v.startLoadedAnimation(token, loaded)
+	// Must run - and finish reading v.state.files/v.state.index - before the
+	// load signal finishes below: that finish is what a waiter (a test's
+	// waitUntilLoaded, or a future navigation) synchronizes on to know
+	// this call is done touching viewer state. Under the fyne test
+	// driver, this whole function already runs on whatever goroutine
+	// called fyne.Do rather than a dedicated UI goroutine (see
+	// attemptLoad's token comment), so finishing the signal first would
+	// let a waiter go on to mutate v.state.files - via reset() or a fresh
+	// drop - concurrently with this read.
+	v.preloadNeighbors(token)
+	done()
+}
+
+// installLoadedFrames copies loaded onto the viewer's display buffers and
+// resets view-only rotation and GIF frame index for a fresh navigation.
+//
+// A vector's frame is replaced in place by every re-render, so it
+// must not share the backing array of the cached LoadedImage -
+// writing through that would mutate the cache entry and invalidate
+// the byte weight ByteCache computed for it.
+func (v *viewer) installLoadedFrames(loaded *imaging.LoadedImage) {
 	b := loaded.Frames[0].Bounds()
 
 	v.displayFrames = loaded.Frames
 	v.clearVector()
 
 	if loaded.Vector != nil {
-		// A vector's frame is replaced in place by every re-render, so it
-		// must not share the backing array of the cached LoadedImage -
-		// writing through that would mutate the cache entry and invalidate
-		// the byte weight ByteCache computed for it.
 		v.displayFrames = []image.Image{loaded.Frames[0]}
 
 		v.vector.svg = loaded.Vector
@@ -209,12 +233,17 @@ func (v *viewer) finishLoad(token requestToken, _ int, u fyne.URI, loaded *imagi
 
 	v.displayFrameIdx = 0
 	v.rotation = 0
+}
 
-	// In picture-frame mode, the outgoing image was left fading toward
-	// invisible by ShowImage's startFade(0, 1) above (or already is, if
-	// that fade had time to finish); forcing it the rest of the way there
-	// right before the swap hides the new pixels landing mid-fade, then
-	// the fade-in below takes over from a clean, fully-invisible start.
+// presentLoadedImage puts loaded pixels on the canvas and hides the
+// drop-zone / empty-state chrome.
+//
+// In picture-frame mode, the outgoing image was left fading toward
+// invisible by ShowImage's startFade(0, 1) (or already is, if that
+// fade had time to finish); forcing it the rest of the way there
+// right before the swap hides the new pixels landing mid-fade, then
+// the fade-in takes over from a clean, fully-invisible start.
+func (v *viewer) presentLoadedImage() {
 	if v.slides.Active() {
 		v.img.Translucency = 1
 	}
@@ -225,32 +254,42 @@ func (v *viewer) finishLoad(token requestToken, _ int, u fyne.URI, loaded *imagi
 	v.img.Show()
 	v.dropzone.Hide()
 	v.emptyStateArt.Hide()
+}
 
+func (v *viewer) syncLoadedFileInfo(loaded *imaging.LoadedImage) {
 	v.currentFileSize = loaded.FileSize
 	v.currentHasEXIF = loaded.HasEXIF
 	v.currentPreview = loaded.Preview
 	v.syncInfoOverlayVisibility()
 	v.exif.Refresh()
+}
 
-	// Every fresh navigation starts back at fit-to-window rather than
-	// keeping whatever zoom/pan the previous image was left at - a manual
-	// zoom level rarely still makes sense for an unrelated next image.
-	// Applied directly (not just left for the resize below to trigger)
-	// since picture-frame mode skips that resize entirely.
+// fitWindowToLoadedImage starts every navigation at fit-to-window and
+// resizes the window to the new image, except when that resize would
+// fight an overlay that already owns the window size. A manual zoom
+// level rarely still makes sense for an unrelated next image.
+//
+// ResetToFit is applied directly (not just left for the resize below
+// to trigger) since picture-frame mode skips that resize entirely.
+//
+// In picture-frame mode the window is already full-screen and
+// ImageFillContain scales the image to fit it without stretching, so
+// there's nothing to resize to - and resizing a full-screen window is
+// asking for platform-specific trouble. The grid overview is skipped on
+// the same grounds: it fills the window it maximized, and undoGridMaximize
+// would shrink that window while the grid is still drawn over it.
+func (v *viewer) fitWindowToLoadedImage(loaded *imaging.LoadedImage) {
 	v.zoom.ResetToFit()
 
-	// In picture-frame mode the window is already full-screen and
-	// ImageFillContain scales the image to fit it without stretching, so
-	// there's nothing to resize to - and resizing a full-screen window is
-	// asking for platform-specific trouble. The grid overview is skipped on
-	// the same grounds and for the reason spelled out at the probe-time
-	// resize above: it fills the window it maximized, and undoGridMaximize
-	// would shrink that window while the grid is still drawn over it.
 	if !v.slides.Active() && !v.grid.Visible() {
+		b := loaded.Frames[0].Bounds()
 		v.undoGridMaximize()
 		resizeToImage(v.win, b, v.settings.maxWinW, v.settings.maxWinH)
 	}
+}
 
+func (v *viewer) applyLoadedTitle(u fyne.URI, loaded *imaging.LoadedImage) {
+	b := loaded.Frames[0].Bounds()
 	title := fmt.Sprintf("%s — %d x %d", u.Name(), b.Dx(), b.Dy())
 	if loaded.Preview {
 		title += " " + lang.L("(preview)")
@@ -274,37 +313,29 @@ func (v *viewer) finishLoad(token requestToken, _ int, u fyne.URI, loaded *imagi
 	}
 
 	v.setTitle(title)
+}
 
+func (v *viewer) clearLoadingChrome() {
 	v.loading.Store(false)
 	v.loadingBar.Hide()
-	v.updateFileMenuState() // rotation just reset to 0 above, and loading has just cleared - see canSaveRotation
+	v.updateFileMenuState() // rotation just reset to 0, and loading has just cleared - see canSaveRotation
 	v.ForceRepaint()
+}
 
-	// Animated GIFs keep playing until a newer load request (a navigation or
-	// a fresh drop) supersedes this one; animate checks the shared token and
-	// waits on its context. It's spawned only after
-	// ForceRepaint above has finished, not before via a defer: under the
-	// real driver both go through the same serialized fyne.Do queue either
-	// way, but the fyne test driver runs fyne.Do synchronously on the
-	// calling goroutine, so spawning animate first let its own first-frame
-	// Refresh race with this goroutine's still-running ForceRepaint.
-	if len(loaded.Frames) > 1 {
-		stopped := v.anim.Begin()
-		go v.animate(token, loaded.Frames, loaded.Delays, stopped)
+// startLoadedAnimation runs only after clearLoadingChrome's ForceRepaint.
+// Animated GIFs keep playing until a newer load request (a navigation or
+// a fresh drop) supersedes this one; animate checks the shared token and
+// waits on its context. Under the real driver both go through the same
+// serialized fyne.Do queue either way, but the fyne test driver runs
+// fyne.Do synchronously on the calling goroutine, so spawning animate
+// first let its own first-frame Refresh race with this goroutine's
+// still-running ForceRepaint.
+func (v *viewer) startLoadedAnimation(token requestToken, loaded *imaging.LoadedImage) {
+	if len(loaded.Frames) <= 1 {
+		return
 	}
-
-	// Must run - and finish reading v.state.files/v.state.index - before the
-	// load signal finishes below: that finish is what a waiter (a test's
-	// waitUntilLoaded, or a future navigation) synchronizes on to know
-	// this call is done touching viewer state. Under the fyne test
-	// driver, this whole function already runs on whatever goroutine
-	// called fyne.Do rather than a dedicated UI goroutine (see
-	// attemptLoad's token comment), so finishing the signal first would
-	// let a waiter go on to mutate v.state.files - via reset() or a fresh
-	// drop - concurrently with this read.
-	v.preloadNeighbors(token)
-
-	done()
+	stopped := v.anim.Begin()
+	go v.animate(token, loaded.Frames, loaded.Delays, stopped)
 }
 
 // preloadNeighbors speculatively decodes the files immediately before and

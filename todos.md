@@ -12,6 +12,10 @@
 - Trimmed `ARCHITECTURE.md` from per-function commentary to a locator
   package map plus the “Where to look for X” index (2026-08-25).
 
+- `finishLoad` is an orchestrator of named steps in `internal/ui/load.go`
+  (`installLoadedFrames` … `startLoadedAnimation`, then `preloadNeighbors` / `done()`);
+  behavior unchanged (2026-08-25).
+
 ### Menu Window
 Menu points
 - viewer
@@ -46,10 +50,6 @@ Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `wa
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-- `finishLoad` (`internal/ui/load.go:192-305`) is a 114-line do-everything pipeline (vector setup, fade, overlay, zoom,
-  resize, title, animation, preload). It is linear and well-commented; decompose into named steps only if it needs to
-  change anyway.
 
 - `internal/imaging/exif.go` (687 lines) holds two parsers plus IFD walking plus display formatting. Cohesive and
   well-tested; a parse/format file split is cosmetic.
