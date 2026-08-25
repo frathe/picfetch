@@ -55,6 +55,18 @@ Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `wa
 
 ## TODO
 
+- when only a single image is selected or dropped
+  the left and right arrow keys should move to the next/previous image in the same folder.
+
+- if duplicates are hidden, the highest resolution image should be shown.
+
+- if variants a dupe are shown in the grid and one of the variants is selected with return
+  the selected variant should be shown in the viewer and not the highest resolution image.
+  when using the arrow keys in this view it should loop over the variants.
+  ESC -> back to variants grid -> ESC -> back to normal grid.
+
+- possibility to drag a selection rectangle in grid view to select multiple images.
+
 ## not deemed worth implementing (edge cases)
 
 - There is a bug in the Windows Version: WHen in Gridview, multiselect via
