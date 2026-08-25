@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -133,4 +135,45 @@ func TestTranslations_EnglishMapsEachKeyToItself(t *testing.T) {
 			t.Errorf("en.json maps %q to %q, want the key itself", key, value)
 		}
 	}
+}
+
+// TestFyneAppToml_IconExists pins the file fyne install reads when someone
+// runs `fyne install github.com/frathe/picfetch@latest`. The CLI clones the
+// tagged module into a temp dir and looks up [Details] Icon in FyneApp.toml;
+// if that field is empty it falls back to Icon.png at the module root, which
+// this repo does not ship (the PNG lives under assets/). An empty Icon is
+// exactly the "Missing application icon" failure that command produces.
+func TestFyneAppToml_IconExists(t *testing.T) {
+	data, err := os.ReadFile("FyneApp.toml")
+	if err != nil {
+		t.Fatalf("reading FyneApp.toml: %v", err)
+	}
+
+	icon := fyneAppQuotedField(string(data), "Icon")
+	if icon == "" {
+		t.Fatal(`FyneApp.toml has no Icon; fyne install defaults to Icon.png at the module root and fails`)
+	}
+	if filepath.Ext(icon) != ".png" {
+		t.Fatalf("FyneApp.toml Icon = %q, want a .png path", icon)
+	}
+	if _, err := os.Stat(icon); err != nil {
+		t.Fatalf("FyneApp.toml Icon %q does not exist: %v", icon, err)
+	}
+}
+
+// fyneAppQuotedField returns the first `Key = "value"` assignment in a
+// FyneApp.toml body. bump_version.sh parses Version the same way; both
+// depend on fyne's encoder keeping quoted strings on their own line.
+func fyneAppQuotedField(toml, key string) string {
+	prefix := key + ` = "`
+	for line := range strings.SplitSeq(toml, "\n") {
+		line = strings.TrimSpace(line)
+		rest, ok := strings.CutPrefix(line, prefix)
+		if !ok {
+			continue
+		}
+		value, _ := strings.CutSuffix(rest, `"`)
+		return value
+	}
+	return ""
 }

@@ -1,4 +1,5 @@
 [Details]
+Icon = "assets/appIcon.png"
 Name = "PicFetch"
 ID = "io.github.frathe.picfetch"
 Version = "0.2.4"
