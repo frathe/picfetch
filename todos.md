@@ -2,6 +2,9 @@
 
 ## Done
 
+- Trimmed `ARCHITECTURE.md` from per-function commentary to a locator
+  package map plus the “Where to look for X” index (2026-08-25).
+
 ### Menu Window
 Menu points
 - viewer
@@ -50,9 +53,6 @@ Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `wa
 
 - `internal/imaging/exif.go` (687 lines) holds two parsers plus IFD walking plus display formatting. Cohesive and
   well-tested; a parse/format file split is cosmetic.
-
-- `ARCHITECTURE.md` is ~66 KB and duplicates much per-field/function doc commentary; consider trimming it to the
-  navigation map it says it is, so it stops drifting from the code.
 
 ## not deemed worth implementing (edge cases)
 

@@ -27,6 +27,7 @@
 - Do not add mutable package-level test seams. Runtime/test-configurable values belong on `viewer` or the owning feature.
 - Every goroutine needs cancellation/staleness handling plus an observable stop/done signal. If adding background work, add it to `newTestUI`’s `drain` cleanup in `internal/ui/harness_test.go`.
 - Fyne’s test driver runs `fyne.Do` inline. Use `dropAndWait`, `waitFor*`, feature `Settle`, and existing completion channels before assertions; never sleep to guess completion. (`internal/ui/grid` is the one package where this doesn't apply directly — see the `UIQueue` exception above.)
+- `completion.Signal.Wait` on a never-begun signal returns immediately — `drain` and low-level `waitFor` rely on that. Named wait helpers (`waitUntilLoaded`, `waitForScan`, `waitForSort`, `waitForAnimStopped`, `waitForClipboard`) fatal when `!Begun()`.
 
 ## Project Conventions
 

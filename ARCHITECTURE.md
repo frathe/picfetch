@@ -1,748 +1,332 @@
 # PicFetch — Architecture
 
-This document is for AI agents so they can find their way through the project.
-
-PicFetch is a Fyne desktop app for viewing dropped/opened images: one binary, split from a single flat `package main`
-into `internal/...`
-packages. This doc is a navigation map of the current structure — start here to find anything.
+Navigation map for AI agents. PicFetch is a Fyne desktop image viewer: one
+binary, split into `internal/...` packages. Start here to find a file.
+Standing rules (data flow, concurrency, conventions, build) live in
+`AGENTS.md` — do not duplicate them here.
 
 ## Package map
 
 ### `github.com/frathe/picfetch` (package main)
 
-The entry point, and nothing else: `main.go` builds the `fyne.App`, loads the embedded translation bundles, converts
-command-line paths to URIs (`argsToURIs`), and hands over to `ui.Run`. It stays at the module root so
-`go build .`, the Makefile, and `fyne package` keep working unchanged.
+Entry point only. `main.go` builds the `fyne.App`, loads embedded
+`translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
+`ui.Run`.
 
 ### `internal/ui`
 
-The application. Its unexported, package-local `appState` is the model boundary for the current file set: raw scan/drop
-order, displayed order, current index, sort mode, and merge mode. `viewer` is that model's façade and the UI
-orchestration hub: it owns Fyne widgets, rendering, and the operations that turn user events into state transitions.
-Everything that could own state independently of that core is a subpackage, listed after this table.
+The application. Unexported `appState` is the file-set model (scan/drop
+order, displayed order, index, sort, merge). Unexported `viewer` is the
+Fyne façade. Construction order, overlay order, data flow, and concurrency:
+see `AGENTS.md`. Features expose state; `internal/ui` composes them.
 
-This is deliberately not a general controller extraction. Async scan/load/sort/vector work remains with `viewer`, but
-its generation/cancellation mechanics are shared through `lifecycle.go`'s package-local request contract. Window
-geometry, menu enablement, and the widget-facing display/cache state those jobs coordinate remain here too. Native
-file-picker/save dialogs are likewise outside this boundary: `openfiles.go` and `export.go` remain small viewer glue
-over `internal/filepicker`. Feature packages keep their existing narrow consumer-side `Host` interfaces; `appState` is
-not exported or passed to them as a broad controller.
-
-Feature construction is centralized without becoming a registry:
-`features.go`'s one explicit, ordered `registerFeatures` function assigns the eight feature modules directly to
-`viewer`. The order stays visible because it is load-bearing; there is no generic feature interface, mutable registry,
-or second controller layer.
-
-`Run` is the package's only exported symbol. The `viewer` type never leaves the package; what the subpackages see of it
-is a set of exported methods on an unexported type (the "vocabulary" in `viewer.go`), each subpackage binding only to
-the few it declares in its own `Host`
-interface.
+The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 
 #### Its own files
 
-| File(s)          | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `run.go`         | `Run` — the only exported symbol and the explicit high-level runtime lifecycle: build the restored startup viewer, start runtime side effects with `favstore.DefaultDir`, register shutdown, register the CLI drop for `OnStarted`, then enter Fyne's event loop. Private `startViewerRuntime` initializes favorites from its caller-provided directory and starts main-window position polling; the directory parameter lets focused tests use temporary storage. Polling therefore cannot observe a nil slideshow or overwrite restored geometry. The shutdown save stops all three position pollers first (the main window's, and the two secondary windows' if they're still open) and builds its `preferences.State` in `currentPreferences`, split out purely so a test can read it back — `SetOnStopped` itself only ever runs inside a live event loop. Also the app-level constants (`appTitle`, the drop-zone size floor `startW`/`startH` — the window-size *ceiling* is `defaultMaxWindowWidth`/`defaultMaxWindowHeight` in `load.go`, next to the code that enforces it) |
-| `build.go`       | `buildViewer` — top-level window composition from an already loaded `startupState`; it neither reads persistence, restores geometry, starts runtime polling, nor initializes disk-backed favorites storage. It composes the app-owned widgets from `components.go`/`toast.go` with the modules assigned by `registerFeatures`. The explicit typed-key and typed-rune callbacks remain here beside the window assembly, while one call delegates ordered application-wide shortcut registration to `shortcuts.go`. The root overlay stack stays here too, and the tail of its order is load-bearing: the grid's backdrop is opaque, so the delete confirmation, the export-format prompt (`view.exportPrompt.Overlay()`, stacked directly above the delete confirmation), and the toast are stacked *above* it or they render where nobody can see them |
-| `startup.go`     | Startup inputs and restoration: private `startupState`, `loadStartupState` (the only UI-layer calls to `session.Load` and `preferences.Load`), cap-default normalization, and `restoreStartupGeometry` for the main and remembered secondary windows. `buildStartupViewer` is the single load → build → restore path shared by `Run` and test setup, so restoration always follows construction of the settings and EXIF windows. Normalization fills only the six positive caps; slideshow zero, size zeroes, position-set flags, and secondary geometry remain untouched because their zero values carry distinct “not chosen/saved” semantics |
-| `components.go`  | App-owned widget construction: `fixedHeightLayout` and the dropzone, scan, sort, and info-overlay structs/constructors that `buildViewer` composes. Each constructor returns the same small widget cluster whose fields land in `viewer`; the self-dismissing toast remains in `toast.go` with its lifecycle                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `features.go`    | The one explicit feature-construction sequence, `registerFeatures`: help, EXIF, zoom, grid, deletion, slideshow, settings, then favorites. Grid is assigned before its thumbnail-cache budget is applied; slideshow is assigned before `startViewerRuntime` can start the position poller whose skip callback reads it. It assigns concrete viewer fields directly rather than introducing a generic feature interface or registry                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `shortcuts.go`   | Application-wide modified-key shortcut registration: the narrow `shortcutAdder` test seam, one ordered `wireGlobalShortcuts` composition point, and the individual open, favorite, manage-favorites, add-favorites, clipboard, delete, select-all, save, and export wiring functions that focused tests exercise directly. `wireExportShortcuts` binds both `Cmd/Ctrl+E` (`promptExport`, export.go) and `Cmd/Ctrl+Shift+E` (`setAsWallpaper`, wallpaper.go) - E isn't one of the driver's specially-cased bare shortcuts, so both reach it as plain `desktop.CustomShortcut`s the same way `Cmd/Ctrl+S` does. `wireManageFavoritesShortcut` binds `Cmd/Ctrl+Shift+F` to `showManageFavorites`, and `wireAddFavoritesShortcut` binds `Opt/Alt+Shift+F` to `showAddFavorites`, small guard methods kept here rather than beside `internal/ui/favorites` - there is no `internal/ui/favorites.go` for it to sit beside, since that package's menu-bar assembly is a one-liner in `menu.go` - and for the same reason every other binding in this file carries its own guard commentary: a shortcut reaches here without passing through `handleKeyEvent`'s dispatch at all, so it needs its own copy of the check that stops the dialog opening over a delete confirmation or export-format prompt that still believes it owns the keyboard, mirroring `promptExport`'s own guard against those two. The Fyne driver-specific distinctions between built-in shortcuts and `desktop.CustomShortcut` live beside those registrations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `gesture.go`     | The spiral window-drag easter egg's app-side binding: `recordWindowPosition`, the position poller's callback, which fans one sampled reading out to both `winPos` (the remembered position) and `spiralDrag` (the gesture detector, `internal/wingesture`). A recognised spiral calls `spiralGesture`, which `registerFeatures` points at `help.OpenSpiral` — the field exists so this file needs to know nothing about what the gesture is *for*, and so tests can watch it fire without opening a real full-screen shader window |
-| `windowtrack.go` | The app's two window-geometry bindings, one line each now that both mechanisms are shared with the secondary windows that remember their own geometry: `windowSizeTracker` (over `widgets.NewSizeTracker` — records the window's size on every layout pass) and `startWindowPosPolling` (over `winpos.Poll` — keeps `viewer.winPos` current, skipped while the slideshow is full-screen; returns a stop func `Run` calls at shutdown). Plus `widgetGeometry`/`prefGeometry`, the translation between `preferences.WindowGeometry` and `widgets.Geometry` — the same four values, owned separately so neither package has to import the other                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `testdata/`      | Golden-master screenshots for the e2e suite (moved here with the code that reads them, since a relative path can't reach a parent directory)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `state.go`       | The unexported, package-local `appState`: the current files, raw scan/drop order, current index, sort mode, and merge mode. Its mutation helpers copy replacement lists, reset/clamp the index, and remove one corresponding raw-order duplicate, so the model cannot split its displayed and unsorted lists. It is intentionally a state model, not a feature-facing controller: only `viewer` accesses it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `lifecycle.go`   | The package-local async contract: zero-value `revision` and `requestLifecycle` plus immutable `requestToken`. Beginning or invalidating a request advances its revision and cancels the previous context; background work checks the token both before expensive work and before applying through `fyne.Do`. Load, scan, sort, and vector each own an instance rather than sharing invalidation accidentally                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `viewer.go`      | The `viewer` façade and orchestration hub: Fyne/UI state, navigation, image cache, and the small methods that apply `appState` changes to the screen. It owns title handling, `clearToDropzone`/`reset`/`showWelcomeState`, `closeFiles` (the File menu's "Close Files" item — like `reset` but never closes the window), `undoGridMaximize` (undoes a grid-triggered `winpos.Maximize` — see `grid/`'s `ConsumeMaximized` — before a resize elsewhere tries to shrink the window back down), merge-mode toggle/get/set, `showFileIfPresent`, and the exported vocabulary the feature packages' narrow `Host` interfaces bind to (`CurrentFile`, `RemoveFile`, `RemoveFiles`, `ShowImage`, `ShowToast`, `ShowEmptyStateError`, `ForceRepaint`, `FileCount`, `FileAt`, `OpenFiles`, `CurrentIndex`, `Generation`, `Unfocus`, `Modifiers`, `HighlightChanged`, `Advance`). Title handling is two strings, not one: `baseTitle` is what the image view last set, `gridTitle` is the file under the grid overview's highlight (set by `HighlightChanged`, cleared on `-1`), and `applyTitle` lets the second *override* the first rather than replace it — so nothing has to save and restore a title around the grid, and a drop or a clear landing behind the overlay still leaves the right title to fall back to. `Generation` is the dedicated index-to-URI file-set revision consumed by grid and deletion; navigation does not move it. `OpenFiles` sends a favorite's stored list through the existing drop/scan path; `RemoveFiles` is the batch form `internal/ui/deletion` binds to - descending, duplicate-tolerant, and the one place the grid is reconciled after the file set shrinks (`grid.FilesChanged`, plus `grid.Close` once nothing is left); plain `RemoveFile` stays for `load.go`'s failed-decode retry. Three of `viewer`'s field clusters are named sub-structs rather than flattened directly onto it — `vector vectorView` (`vector.go`), `scanOp`/`sortOp asyncOpUI` (`asyncop.go`), and `settings settings` (`memlimits.go`) — and it is worth being explicit about why these three and not some other subset of `viewer`'s many other fields: each was already a de-facto module before it had a name, with its own file and its own single-writer contract (and, for the first two, its own lifecycle), so naming the sub-struct is the type system catching up to a boundary the code already had, not a new one being drawn. This is deliberately **not** a controller extraction — see the "not a general controller extraction" note above, which this grouping keeps faith with exactly as before: nothing moved between packages, no `Host` interface changed, and no feature gained or lost an owner. Four original clusters (vector, scan UI, sort UI, settings-backed state) became three sub-struct *types*, not four, because the scan and sort progress UIs turned out to be the identical shape — one cancellable lifecycle, one active flag, one completion signal, one set of progress widgets — so they share `asyncOpUI` as two instances (`scanOp`, `sortOp`) rather than as two near-duplicate types. `vector` and `scanOp`/`sortOp` are value fields that must never be copied, assigned wholesale, ranged over, or returned by value from a constructor: `vectorView` holds a `sync.WaitGroup`, `asyncOpUI` holds a `requestLifecycle`'s mutex, and `go vet`'s `copylocks` enforces the rule on both — the same rule `winPos winpos.Tracker` above already follows, and the precedent this grouping is built on. `settings` carries no lock and so has no such constraint; it is grouped for the "already exactly one coherent thing" reason `memlimits.go`'s own comment gives, not the safety one |
-| `keys.go`        | `handleKeyEvent` — the single keyboard dispatcher every unmodified key press runs through — plus `handleTypedRune`, its typed-*character* twin (wired to `SetOnTypedRune` alongside it in `build.go`). The grid's filename search is the only consumer of actual characters rather than key names, so runes are delivered only while the grid is up and dropped everywhere else. Both begin with the same guard: while `Canvas().Overlays().Top()` is non-nil, they return without dispatching anything. That is the boundary between Fyne's world and this app's. Fyne routes a key to the canvas's *unfocused* handler — these two functions — whenever `Canvas.Focused()` is nil, and it resolves `Focused()` through the top overlay's focus manager alone, so any dialog whose content takes no focus leaves every key aimed at it arriving here instead, where `Escape` would reset the session or close the window from behind the modal. The guard cannot shadow the app's own modal surfaces, because none of them is a canvas overlay: the delete card, the export-format prompt, the grid, the info card and the toast are all layers of the window content stack assembled in `build.go`, and only Fyne's own dialogs and menus ever put anything in `Overlays()` — which is also what makes `len(Overlays().List())` a reliable "is a dialog up?" assertion in tests. The per-feature handovers below it (deletion, export prompt, grid) are unchanged and still handle the app's own cards. `StepImage` is the shared arrow-key stepper; `handleKeyEvent`'s Left/Right/Up/Down (when not tuning the slideshow interval) call it. Keys typed in the EXIF window never reach `handleKeyEvent` — it is a separate Fyne window with its own unfocused handler via `widgets.Singleton.SetExtraKeys` |
-| `menu.go`        | `buildMainMenu` — the window's menu bar in order: File (Open Files…/Save Changes/Export image/Close Files/Settings…, built here), Favorites (feature menu), Actions (sort/duplicates/rotate/zoom/merge/info/clipboard/wallpaper/trash — items built here, Checked/Disabled sync and handlers in `actionmenu.go`), Window (Viewer / EXIF Data / Grid View / Picture-frame mode / Help, also built here), and Help (feature menu). Window items grey out the surface already showing via `updateWindowMenuState` in `windowmenu.go`; those actions show or enter, they do not toggle off. Actions items use checkmarks for the current sort order, hide-duplicates, browse-variants, merge mode, and info overlay instead. On Darwin, `syncNativeMenuBar` (`windowmenu.go`) folds Window items into GLFW's `NSApp.windowsMenu` (`mergeNativeWindowMenu` in `windowmenu_darwin.go`) after `Show` in `Run` and after every later `refreshMainMenu` native rebuild so the bar does not show two Window titles (`fyne.Do` before `Show` runs inline and is too early), then `applyUnmodifiedNativeAccelerators` clears AppKit's default Command mask on letter accelerators whose `CustomShortcut` asked for no modifiers (so Actions → Toggle merge mode shows `M`, not ⌘M / Minimize). Grid and slideshow still do not import each other — their mutual exclusion stays here; grid stays menu-ignorant through `SetOnDupeStateChanged` (`grid/` fires, `updateActionsMenuState` here refreshes). The one place that decides how those menus compose, per the cross-feature-composition rule below                                                                                                                                                                
-| `actionmenu.go`  | `applyActionsMenuState`/`updateActionsMenuState` and the Actions-menu handlers (`setActionsSort`, hide/show variants, rotate/zoom, merge/info toggles, copy/wallpaper/trash) — keeps Checked/Disabled in sync and runs the same operations as the existing keys. Called from load/sort/merge/info/file-menu paths plus `grid.SetOnDupeStateChanged` so duplicate hide/browse doesn't pull menu types into `grid/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `drop.go`        | Drop handling as UI glue — the recursive walk itself lives in `internal/filescan`. `handleDrop` snapshots merge mode and `v.settings.maxScan` once (a stable cap for the scan's lifetime even if the settings window writes `maxScan` mid-flight — see `SetMaxScan`'s doc comment), shows the spinner, calls `filescan.Images` (`nil` progress on the synchronous no-directories fast path, a `fyne.Do`-marshaling progress closure on the goroutine path), and hands the result to `applyScanResult`, its shared completion step — now taking that same `maxScan` snapshot as a parameter so the truncation toast reports the cap the scan actually ran under, not whatever `v.settings.maxScan` holds by the time the toast fires. `applyScannedFiles` merges or replaces the file set, then reorders and displays it via `sort.go`'s `startSort` instead of sorting inline on the UI goroutine. Also `cancelScan`, and the `settings.maxScan` cap (`memlimits.go`'s `settings` struct) with its `MaxScan`/`SetMaxScan` get/set (the settings window's binding). A scan's lifecycle, its in-flight flag, its per-request completion signal and its progress widgets are one `asyncOpUI` value field, `viewer.scanOp` (see `asyncop.go`) — independent of navigation, so browsing an existing set during a merge-mode scan cannot strand it; a new drop or explicit cancellation supersedes it. `handleDrop` begins it and shows the widgets, `cancelScan` cancels it, `viewer.clearToDropzone` invalidates it (token plus overlay, same as `invalidateSort`, so a reset or empty-state error cannot leave the scan flag/widgets behind with no newer scan to own them), and only a current token's `applyScanResult` may finish it. Shutdown in `run.go` still reaches the bare `scanOp.lifecycle.invalidate()` because nothing will be repainted. |
-| `memlimits.go`   | `settings`, the value struct behind every field the Settings window's `Host` surface reads and writes: `maxScan` (the folder-scan cap), `maxWinW`/`maxWinH` (the window auto-grow ceiling), `imgCacheMB`/`thumbCacheMB`/`maxFileMB` (the app's memory budget) `favPreviewCache` (the favorite-preview-cache toggle), and `dupeDist`/`dupeDistSet` (the Hamming threshold hide-duplicates uses; the set flag is required because 0 is a valid exact-hash threshold) — `viewer` holds one as a plain value field, `settings settings`, seeded partly here (see `build.go`) and partly through the setters below (see `features.go`). Three of the seven — the memory limits — have no single consumer to sit beside, so this file also holds their getter/setter pairs (`MaxImageCacheMB`/`SetMaxImageCacheMB`, `MaxThumbCacheMB`/`SetMaxThumbCacheMB`, `MaxFileSizeMB`/`SetMaxFileSizeMB`) plus `bytesPerMB` and the shipped defaults derived from `internal/imaging`'s own — the image cache is read in `load.go`, the thumbnail cache lives in `internal/ui/grid`, and the encoded-input ceiling is process-wide state in `internal/imaging`, while together they are one coherent thing. The other four fields' getter/setter pairs stay beside their own consumers exactly as before (`MaxScan` in `drop.go`, `MaxWindowWidth`/`MaxWindowHeight` in `load.go`, `FavoritePreviewCache` in `favthumbs.go`) — only their storage moved into this struct. Each memory setter reaches through to what actually enforces the limit (`imgCache.SetBudget`, `grid.SetCacheBytes`, `imaging.SetMaxEncodedBytes`); `SetMaxImageCacheMB` additionally retunes the SVG re-render ceiling through `vectorRasterPixelsFor` + `imaging.SetMaxVectorRasterPixels`, since that raster is deliberately never charged to the cache and the derivation is how the user's one memory setting still bounds it |
-| `favthumbs.go`   | The viewer-side wiring for the disk-backed favorite-preview cache (`internal/favthumbs`): `FavoritePreviewCache`/`SetFavoritePreviewCache`, the settings window's getter/setter pair for the seventh `settings` field, `favPreviewCache` (the same shape `memlimits.go` uses for the other six, storage in `memlimits.go`'s struct, accessors here since this is that field's one consumer); and `SyncFavoritePreviews`, the favorites feature's report that a favorite now holds a given file list — arriving both when one is saved and when one is opened — which is where that report turns into a background thumbnail pass, since `internal/ui/favorites` itself is never told previews exist, the same separation `batch.go` keeps between the grid and deletion. `gridSink` adapts `internal/ui/grid`'s thumbnail cache to `favthumbs.Sink` so a pass can skip decoding what the grid already holds and pre-warm it with what it produces, capped by the grid's own `ThumbCacheFull` so a favorite larger than the budget leaves the head warm rather than evicting itself as it walks the list. Its own request lifecycle and per-pass completion signal, `favThumbLifecycle`/`favThumb` (a `completion.Signal` — see `internal/completion`), are the same one-lifecycle-one-signal shape `scanOp`/`sortOp` have (`asyncop.go`) — but there is no progress UI attached to a favorite-preview pass, so there was never a widget cluster to group them with, and two fields alone don't earn a sub-struct the way eight, six, or seven did |
-| `load.go`        | Loading and displaying images: `ShowImage`/`attemptLoad`/`finishLoad`/`retryAfterLoadFailure`, neighbor preloading (which bails on the *header* when a neighbor's `imaging.EstimateDecodedBytes` exceeds half the cache budget, and writes with `AddIfFits` rather than `Add`, so a speculative decode can never displace the image on screen), the GIF `animate` loop (frame delays go through `viewer.frameAfter`, a write-once `time.After` seam so tests can step frames; production sets it in `build.go`), `resizeToImage` (takes its `maxW`/`maxH` cap as parameters rather than reading a package constant, so each call site passes the viewer's own `settings.maxWinW`/`settings.maxWinH`, see `memlimits.go`'s `settings` struct) plus `syncWindowToZoom` (user zoom's `onChanged` handler: sizes the window to `displayedDimensions` × scale, or unscaled native size while fitting — the `0` key — floored at `startW`/`startH` and capped by `settings.maxWinW`/`settings.maxWinH`; skipped while the grid or slideshow is up, same as `finishLoad`) plus `defaultMaxWindowWidth`/`defaultMaxWindowHeight` and the `MaxWindowWidth`/`SetMaxWindowWidth`/`MaxWindowHeight`/`SetMaxWindowHeight` get/set pairs (the settings window's binding). One `loadLifecycle` token spans a decode's retry chain, preloads, and animation; cancellation wakes semaphore/frame-delay waits promptly |
-| `toast.go`       | The `toast` component - owns its widgets and a cancellable auto-hide lifecycle (atomic generation, a per-show `stop` cancel channel plus a `hidden` completion signal, injected duration) - plus the viewer's `showToast` wrapper                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `info.go`        | The persistent info overlay (I key): toggle/sync/update, `formatFileSize`. `syncInfoOverlayVisibility` also settles the "Show EXIF data" link, shown only when the file on screen actually has metadata (`viewer.currentHasEXIF`, carried on `imaging.LoadedImage` the same way `FileSize` is) — it sits there rather than in `updateInfoOverlay` because that one also runs on every zoom change, and a zoom can't add or remove a file's Exif. A camera-RAW file's `(preview)` mark is the same shape (`viewer.currentPreview` from `LoadedImage.Preview`). Also home to `displayedDimensions`, the one answer to "how big is this image": exactly `img.Image.Bounds()` for a raster format, but the rotation-aware *logical* size for a vector, whose on-screen raster gets denser as the user zooms — the shared rule behind both what the overlay reports and what `rotate.go`'s `applyRotationLayout` sizes the window to, each of which shipped a bug fix for reading the raw bounds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `asyncop.go`     | `asyncOpUI`, the progress-UI bookkeeping a cancellable background operation needs: a `requestLifecycle`, the `active` flag saying whether that lifecycle's request is still meaningfully pending, a per-request completion signal the test suite waits on, and the spinner/label (plus, for a scan, the digging art) shown for as long as it runs. `begin`/`show`/`finish` are its construction-side mechanics, `invalidate`/`cancel` its teardown; what a cancellation *means* to the app — put the drop zone back, repaint, toast — deliberately stays out of the type and at the call sites in `drop.go`/`sort.go`, which is why it takes no `*viewer`. A value field wherever it's embedded, never copied, the `winPos`/`vector` rule. Two consumers, and deliberately only two: the folder scan (`viewer.scanOp`, `drop.go`) and the background reorder (`viewer.sortOp`, `sort.go`). The `art` field is the one asymmetry between them — the scan shows Trane digging above its spinner, the sort has nothing there — so `show`/`finish` nil-guard it rather than the sort carrying a field it never sets. The scan additionally sets its own label text before `show`, which is why revealing the widgets is its own method instead of being folded into `begin` |
-| `sort.go`        | `toggleSort` (the `S` key) and `SetSortMode`/`SortMode` (the settings window's binding — jumps directly to a mode rather than cycling, safe to call before any files are loaded), plus `startSort`/`finishSort`: the shared background-reorder mechanism used by both `SetSortMode` and `drop.go`'s `applyScannedFiles`, so neither freezes the UI on a large stat/Exif-heavy sort. Its lifecycle, active flag, completion signal and progress widgets are one `asyncOpUI` value field, `viewer.sortOp` (see `asyncop.go`) — `startSort` begins it and shows the widgets, `cancelSort` cancels it, and only a current token's `finishSort` may finish it or invoke the completion callback; the orderings themselves live in `internal/filesort` |
-| `rotate.go`      | View-only 90°-step image rotation (`rotateBy`/`resetRotation`/`redrawRotatedFrame`), composed with EXIF orientation at render time - not written to disk until the File > Save Changes action (see `save.go`) explicitly persists it. Stays here rather than becoming a package: it writes `img.Image` on the core load/animation path, which is the app's own side of the contract `zoom/` is written against. `applyRotationLayout` also hands `zoom` a local, axis-swapped *copy* of `v.vector.logical` on a 90/270° turn - never the field itself, which stays unrotated since the re-render target in `vector.go` is built from it - since a vector's fit scale would otherwise be computed against the wrong axis. Both `rotateBy` and `resetRotation` call `updateFileMenuState` *before* `applyRotationLayout`, not after: the layout call's own resize can synchronously spawn a `vector.go` re-render goroutine (a real, single-goroutine-serialized non-issue in production, since `fyne.Do` there marshals onto the UI goroutine - but the fake test driver runs a `fyne.Do` callback inline instead, so `updateFileMenuState`'s read of `v.img.Image` afterward could otherwise race that goroutine's write under `-race`); ordering it first removes the race outright rather than narrowing it, since `updateFileMenuState` needs nothing `applyRotationLayout` computes |
-| `vector.go`      | The debounced SVG re-render: how an image stays sharp as the display scale moves, once `internal/imaging` owns the parsing and rasterizing. `vectorView` is the whole state of it - the parsed `*imaging.Vector`, the logical and raster sizes `requestVectorRender` compares, the `requestLifecycle` a render runs under, the `sync.WaitGroup` the test suite drains, and the four write-once seams (`debounce`/`rasterize`/`after`/`do`) a test can replace - and lives on `viewer` as the value field `vector`, never copied, the same rule `winPos` follows. `requestVectorRender` is `zoom`'s `onScaleChanged` handler - fired for a key, a scroll, or a fit-driven resize - and decides whether the new density is worth a fresh raster via `vectorNeedsRender`'s hysteresis band (`vectorSharpenRatio`/`vectorReleaseRatio`: over 1.05x denser to sharpen, under 0.5x to release memory on the way back out), so a slow scroll or a round-trip zoom doesn't re-render every frame. The raster target is device pixels via `Canvas.PixelCoordinateForPosition` (not `Scale()` — macOS Retina). `rasterizeVector` runs off the UI goroutine under `v.vector.lifecycle`, whose cancellation coalesces a burst by waking superseded debounce waits; it checks its token before rasterizing and again on the `fyne.Do` hand-off, and **cancels that token inside the `fyne.Do` callback** (the same shape as `finishSort`/`applyScanResult`), because production `fyne.Do` is async — cancelling when the goroutine returns makes `token.current()` false before the frame can land (`TestVectorRasterLandsWhenUIHopIsAsync`). It **ForceRepaints** when a frame lands so a window that already grew with zoom still uploads the new texture. `vectorView.clear` drops the parsed vector, both sizes, and invalidates the lifecycle; `viewer.clearVector` calls it and then resets `zoom`'s own logical size, on every image change. The aliasing rule `finishLoad` also observes: a vector's displayed frame is replaced in place by every re-render, so it is given its own one-element `displayFrames` slice rather than sharing the cached `LoadedImage`'s backing array - writing through that would mutate the cache entry and invalidate the byte weight `ByteCache` already computed for it |
-| `save.go`        | `canSaveRotation`/`saveRotation`/`updateFileMenuState`: the File menu's "Save Changes" item (also Cmd/Ctrl+S, see `shortcuts.go`'s `wireSaveShortcut`) that persists `rotate.go`'s view-only rotation back to the file it came from, via `internal/imaging`'s `SaveRotated`/`CanEncode`. Disabled except when there's a loaded, non-animated, encodable-format image with a pending rotation and no load in flight - see `canSaveRotation`'s own doc comment for why each of those matters; a successful save folds the just-written pixels into `displayFrames` and resets `rotation` to 0 so nothing visibly changes. `updateFileMenuState` lives here but drives the remaining image-dependent File-menu items (Save Changes, Export image) and, through `applyActionsMenuState`, Actions' Set as Wallpaper - since every site that calls it can move more than one condition at once                                                                                                                                                                                                                                                                            |
-| `export.go`      | `canExport`/`promptExport`/`exportAs`/`runExport`/`suggestedExportPath`/`exportDestination`: the File menu's single "Export image" item (also `Cmd/Ctrl+E`, see `shortcuts.go`'s `wireExportShortcuts`), which raises a `widgets.ChoiceCard` (built in `features.go`, held as `viewer.exportPrompt`) asking PNG or JPEG before writing the frame on screen to a **new** file via `internal/filepicker`'s `ChooseSave` and `internal/imaging`'s `Export`; each choice's `OnChosen` calls `exportAs` directly, so the save panel never opens until a format is chosen, and Escape leaves without one. `promptExport` guards against the delete confirmation card (`deletion.Visible()`) and against re-showing itself mid-decision (`exportPrompt.Visible()`); `batch.go`'s `requestDelete` carries the mirror-image guard. `canExport` is deliberately far weaker than `save.go`'s `canSaveRotation` - no encodable source format, no single-frame requirement, no pending rotation - because an export picks the *destination's* format, which is how pixels get out of a WebP/HEIC (decode-only here) or out of one frame of an animation; only the `!v.loading.Load()` guard is shared, and for the same reason. `exportDestination` holds the rule that keeps a file's bytes matching its name: an extension the user typed that this module can encode wins over the chosen format, otherwise that format's extension is appended. Reuses `v.chooser` rather than a `completion.Signal` of its own - both panels are app-modal, so the open chooser and the save panel are never in flight at once |
-| `wallpaper.go`   | `canSetWallpaper`/`setAsWallpaper`/`applyWallpaper`/`writeWallpaperFile`/`sweepWallpapers`/`defaultWallpaperDir`: the Actions menu's "Set as Wallpaper" item (also `Cmd/Ctrl+Shift+E`, see `shortcuts.go`'s `wireExportShortcuts`), over `internal/wallpaper`. `canSetWallpaper` is `canExport` verbatim, for the same reasons - what this writes is a PNG of the frame on screen, so neither the source format nor an animation nor a pending rotation matters, while a load in flight still does. It writes that PNG into `viewer.wallpaperDir` (`os.UserCacheDir()/picfetch/wallpapers`, a `t.TempDir()` under test) rather than pointing the OS at the user's own file, because every platform in `internal/wallpaper` stores a *reference*: the user's file is one Shift+Delete away from leaving the desktop with a broken wallpaper, and the copy also carries the rotation, one frame of an animation, and any decode-only format. The name carries a timestamp because macOS caches the desktop picture by path; `sweepWallpapers` is what keeps that from accumulating a file per invocation, and it deliberately runs only after `wallpaper.Set` succeeds - a failed set removes just the file it wrote, since the previous one may still be the live wallpaper |
-| `slideshow.go`   | `togglePictureFrameMode` — the five-line glue that closes the grid before handing over to `slideshow.Toggle`, i.e. the one thing the slideshow package must not know — plus `toggleSlideshowShuffle` and the `SlideShuffle`/`SetSlideShuffle`/`SlideInterval`/`SetSlideInterval` get/set pairs (the settings window's binding)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `batch.go`       | `requestDelete`/`deleteGridSelection`/`copySelection`/`copyGridSelection`/`selectAllInGrid`/`reportFileCopyError` — what Shift+Delete and Cmd/Ctrl+C mean while the grid overview is up. **The only file in the module that knows both sides exist**: `internal/ui/grid` owns a selection and will say what is in it, `internal/ui/deletion` moves a set of files to the Trash, and neither imports the other. Each shortcut routes on `grid.Visible()` — the grid's `Targets()` (its selection, or the highlighted cell alone) while it is showing, the file on screen otherwise. The batch copy goes through `internal/clipboard`'s `CopyFiles` rather than `CopyImage`: a dozen selected images can't meaningfully become one clipboard image, so what goes on the clipboard is file *references* |
-| `session.go`     | `restoreSession` — thin `*viewer` glue over `internal/session`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `clipboard.go`   | `copyPathToClipboard`, `copyImageToClipboard`, `reportClipboardError` — thin `*viewer` glue over `internal/clipboard`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `openfiles.go`   | `openFileDialog`/`runFileChooser`/`reportChooserError` — thin `*viewer` glue over `internal/filepicker` — plus `chooserErrorDetail`, shared with `clipboard.go`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-
-The last four are deliberately files rather than packages: each is a handful of lines binding one `internal/...` package
-to viewer state, with nothing of its own to own.
+| File(s) | Responsibility |
+|---------|----------------|
+| `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. |
+| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules. Overlay tail: grid, delete confirm, export prompt, toast. |
+| `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
+| `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
+| `features.go` | `registerFeatures` assigns help, EXIF, zoom, grid, deletion, slideshow, settings, then favorites. |
+| `shortcuts.go` | `wireGlobalShortcuts` plus per-action `desktop.CustomShortcut` wiring (open, favorites, clipboard, delete, select-all, save, export, wallpaper). |
+| `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
+| `windowtrack.go` | Main-window size tracker and position poller; `widgetGeometry` / `prefGeometry` translate `preferences.WindowGeometry` ↔ `widgets.Geometry`. |
+| `windowmenu.go` | Window-menu Disabled/actions (`applyWindowMenuState`, `updateWindowMenuState`) and `refreshMainMenu` / Darwin sync entry points. |
+| `windowmenu_darwin.go` | After Show and every native rebuild, fold Window items into GLFW’s `NSApp.windowsMenu` and clear AppKit’s default Command mask on unmodified letter accelerators. |
+| `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
+| `testdata/` | Golden screenshots for the e2e suite. |
+| `state.go` | Unexported `appState`. Only `viewer` accesses it. |
+| `lifecycle.go` | `requestLifecycle` / `requestToken`. Load, scan, sort, and vector each own an instance. |
+| `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / `applyTitle`), reset/close, merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
+| `keys.go` | `handleKeyEvent` / `handleTypedRune`. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). |
+| `menu.go` | Menu bar composition: File, Favorites, Actions, Window, Help. Grid/slideshow mutual exclusion lives here, not in those packages. |
+| `actionmenu.go` | Actions-menu Checked/Disabled and handlers (`applyActionsMenuState`). |
+| `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images`; scan lifecycle is `viewer.scanOp`. |
+| `memlimits.go` | `settings` value plus memory-limit get/set that retune `imgCache`, grid thumb cache, `imaging.SetMaxEncodedBytes`, and the SVG raster cap. |
+| `favthumbs.go` | Viewer glue for `favthumbs.Sync`, `gridSink`, and the favorite-preview `completion.Signal`. |
+| `load.go` | `ShowImage` / `attemptLoad` / `finishLoad`, neighbor preload (`AddIfFits`), GIF `animate`, `resizeToImage` / `syncWindowToZoom`. |
+| `toast.go` | Self-dismissing notification card and `ShowToast`. |
+| `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark; `displayedDimensions`. |
+| `asyncop.go` | `asyncOpUI` (lifecycle, active, done, spinner) — used only by scan and sort. |
+| `sort.go` | `toggleSort` / `SetSortMode` / `startSort` / `finishSort` over `filesort.Order`; lifecycle is `viewer.sortOp`. |
+| `rotate.go` | View-only 90° rotation. Call `updateFileMenuState` *before* `applyRotationLayout`. |
+| `vector.go` | Debounced SVG re-render. |
+| `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation` / `updateFileMenuState`). |
+| `export.go` | File > Export image (`promptExport` / `exportAs`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. |
+| `wallpaper.go` | Set as Wallpaper: write a PNG into `viewer.wallpaperDir`, then `wallpaper.Set`. |
+| `slideshow.go` | `togglePictureFrameMode` (closes grid first) plus shuffle/interval bindings. |
+| `batch.go` | Only file that knows both grid selection and deletion/clipboard exist. |
+| `session.go` | `restoreSession` glue over `internal/session`. |
+| `clipboard.go` | Copy-path / copy-image glue over `internal/clipboard`. |
+| `openfiles.go` | Native open-dialog glue over `internal/filepicker`. |
 
 #### Feature packages (`internal/ui/...`)
 
-Each owns its state and its widgets, and declares the interface it needs from the app rather than being handed a shared
-one. Sizes below are that interface, which is the honest measure of how coupled each still is.
-
-| Package        | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Reaches back via                                                                                                                                                                                                                                                                                                                                                                                   |
-|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `zoom/`        | The zoom/pan view of the displayed image (0/1/+/-, click-drag pan, scroll-to-zoom anchored at the pointer), and the widget that lays it out in place of the image itself. Window growth/shrink on zoom is *not* here: `onChanged` is how the app hears a user zoom (`internal/ui`'s `syncWindowToZoom`), so this package stays window-ignorant. Measures against a *logical* size rather than `img.Image.Bounds()` directly — `SetLogicalSize`/unexported `native`, with `LogicalSize` as a test-only reader, the same role `Fitting` plays — because an SVG's raster is re-rendered at a different pixel count as the display scale moves, so the pixel count is no longer the size the image should be drawn at; a raster format never calls `SetLogicalSize` and behaves exactly as before                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Three callbacks now, not zero: `onChanged` (a zoom/pan change, to redraw the info overlay), `modifiers` (an accessor for which keys are held, for Shift+scroll pan), and `onScaleChanged` (the effective display scale moved — from a key, a scroll, or a fit-driven resize — which `internal/ui/vector.go`'s `requestVectorRender` uses to re-rasterize a vector). The single-writer contract itself is unchanged: it still shares one `*canvas.Image` where the app owns `img.Image` (the pixels) and this package owns only its size and position. What changed is that this package stopped assuming the pixel count *is* the image's size, not who writes what — zoom still never writes a pixel                                                                                                                                                                       |
-| `grid/`        | The full-window thumbnail overview (`G` key): a virtualized `widget.GridWrap` over every loaded image, owning its own thumbnail cache (a separate *byte* budget from `imgCache`, so neither evicts the other) and the bounded worker pool that fills it (`thumbs.go`, now an `internal/decodepool.Pool[*fyne.Container, int]`), whose completions marshal through the package's own `uiQueue` (`g.ui.Do`, `uiqueue.go`) rather than `fyne.Do` directly, so this package's tests can drain them on the test goroutine instead of racing Fyne's test driver, which runs `fyne.Do` inline on the worker; `internal/ui`'s `newTestUI` also installs `*uitest.UIQueue` via `SetUIQueue`. `SetCacheBytes` is its one setter, retuning that budget while the app runs — the same shape `slideshow.Controller.SetInterval` already has. Also owns the filename search (`/`, fed by `HandleRune`, `search.go`): a grid-local filter that renumbers the cells it draws while leaving the app's file set untouched — `matches` maps display index → host index, and everything crossing that boundary (`ShowImage`, `FileAt`) goes through `fileIndex`. `filterGen` is the staleness guard it adds alongside the host generation and cell recycling, for the one thing neither can see: a keystroke changes neither the file set nor a cell's id, only what that id *means*. Also owns **hide-duplicates** (`D`, `dupes.go`): extras stay in the host file set; `SetHideDuplicates` hashes remaining files on the existing decode pool (`hashRemaining`, no per-cell `Claim` so `Settle` still waits), rebuilds groups at `dupeDist` (0–32, default `imaging.DuplicateMaxDistance`), and hides non-representative members (`IsHiddenExtra` / `RepresentativeOf`). Remaining cells show a group-size badge (`applyDupBadge`). Close/`G` leave hide on; Escape stages selection → search → hide → grid. Viewer arrows/`Home`/`End`/slideshow `Advance` skip extras via `nextVisibleIndex`. Also owns the **multi-select** (`selection.go`): Cmd/Ctrl+click toggles a cell, Shift+click extends a range, Space and Cmd/Ctrl+A do the same from the keyboard, and `Targets()` is what a batch action acts on — the selection, or the highlighted cell alone when there isn't one. The set holds *host* indices, not the display indices actually clicked, so it survives a filter change; `displayIndex` is `fileIndex`'s inverse, needed to walk a Shift+click's range in display space. Escape stages (selection → search → grid), and both selection gestures call `Host.Unfocus` themselves, since GridWrap grabs canvas focus on every tap and only `Close` used to hand it back. `FilesChanged` is how the app resyncs it after a batch delete shrinks the file set under it. The ring and GridWrap's *own* keyboard cursor are two positions, and GridWrap moves the latter only for the arrow keys it handles itself — so every move of the ring goes through `setHighlight` (`nav.go`), which drives both; `OnHighlighted` (fired by hover *and* by arrow keys) delegates to it behind an `id == g.highlight` guard, which is also what stops `wrap.Highlight`'s re-entry through that callback from recursing. `setHighlight` is also the one place that reports the ring to the app (`Host.HighlightChanged`, guarded on `visible` so a closed grid's `FilesChanged` stays quiet), which is how the window title names the highlighted file while the image view is hidden behind the overlay — the host index, not the display index, so a filtered cell still names the right file, and `-1` for "nothing under the ring" (a search matching nothing, and `Close`) — also exposes `CachedThumb`/`StoreThumb`/`ThumbCacheFull` over the same thumbnail cache, so `internal/favthumbs`' background pass can pre-warm it before the grid ever opens. `ThumbCacheFull` exists because `StoreThumb`'s `AddIfFits` alone can't bound that pre-warm: it refuses only an entry too big for the *whole* budget, and once the cache is merely full it still evicts least-recently-used entries and stores anyway — so a pre-warm that ignored `ThumbCacheFull` would evict its own earliest entries as it walked a large favorite's list, ending up with only the *tail* cached while the grid opens at the *head* | 9-method `Host` — the search added none of them, multi-select added exactly one (`Modifiers`, since a Fyne tap carries no modifier state), and the title added `HighlightChanged`; knows nothing about the slideshow, and nothing about deletion or the clipboard — see below                                                                                                                                                                                                                                                                                                                                     |
-| `deletion/`    | The Shift+Delete confirmation flow: `Confirmer` is now a thin wrapper around `internal/ui/widgets`' `ChoiceCard` (the "Cancel"/"Move to Trash" card and its selection ring live there, extracted so the export prompt could reuse the same shape) plus the pending `targets`, followed by a recoverable `trash.Move`. Takes a **set** of `Target`s (`RequestFiles`), not just the file on screen — `Request` is now the one-target wrapper over it, and worded identically for one file so the existing golden masters still hold. A batch's moves run one after another on the single background goroutine, collecting failures rather than aborting, so one file the OS refuses to move costs neither the rest of the batch nor the truth of the toast (`moved 9 of 12 files…`); only what actually moved is removed from the file set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 7-method `Host` (`CurrentFile`, `RemoveFiles`, `ShowImage`, `ShowEmptyStateError`, `ShowToast`, `ForceRepaint`, `Generation`) — the first of the consumer-side interfaces the split is built on. `RemoveFiles` takes a slice because removing a batch one index at a time would shift every later index out from under the list already captured                                                                                                                                                                                                     |
-| `slideshow/`   | Picture-frame mode (`P` key): the full-screen switch, the auto-advance goroutine, the interval `Up`/`Down` tunes, and the `winpos.Tracker` capture/restore that puts the window back where the user left it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 2-method `Host` (`FileCount`, `Advance`) — the smallest in the split; knows nothing about the grid — see below                                                                                                                                                                                                                                                                                     |
-| `exifwin/`     | The EXIF metadata panel (`E` key and the info overlay's "Show EXIF data" link) over `internal/imaging`'s `ReadMetadata`. Below the tag list sits a collapsible **Location** section (`fyne.io/x/fyne`'s `widget.Map` over OpenStreetMap tiles, a marker on the capture position), hidden outright for a photo with no GPS tags and collapsed on every fresh open — which is what keeps it from fetching a tile unasked. The disclosure is hand-rolled (a button plus a hidden body) rather than a `widget.Accordion` precisely because expanding is the moment tiles start downloading and `Accordion` offers no way to be told. `tiles.go` is why the map doesn't freeze the app: the widget fetches tiles *inside* its raster draw, on the UI goroutine, so `tileFetcher` is installed as its `http.Client` transport and answers a cache miss instantly with `errTilePending` while downloading in the background — the widget skips that tile for the frame (and, importantly, does not cache the failure), and a redraw follows once the batch lands. Expanding first runs `Warm`, a 5×5 prefetch around the position behind a spinner, with the map hidden until it completes so the first frame is whole rather than a grid of holes; tests wait that prefetch on `Window.warm` (`completion.Signal`), not a raw `chan struct{}`. `quietPendingTiles` keeps that same design from filling the log: the widget reports every tile it doesn't get as an error, once per tile per frame, so a zoom or pan onto tiles still downloading would write dozens of blocks a second about this package's normal operation - `tileLogFilter` drops exactly the blocks caused by `errTilePending` and passes everything else, including a `tile fetch error` from any other cause. The panel's own content is a `Border` — metadata label and, for a JPEG with something to strip, a **Remove Metadata** button stacked above the Location section (shown only when `ReadMetadata` is non-empty *and* `CanStripJPEGMetadata` is true; hidden when the panel says no EXIF was found, and for HEIC, RAW, PNG, WebP). The control is shrink-wrapped (`container.NewCenter`, not a full-width `DangerImportance` bar), and `syncStripVisible` adds or removes the bar from the north stack (Hide alone leaves it in the tree and a content Refresh still paints it), zeros its size because VBox never resizes an invisible child, relayouts from the window root so the Border re-reads north's MinSize, and dirties the panel's own canvas (a north-only Refresh leaves the last allocated height and can miss a secondary-window redraw). The button is not in the south: a `mapH` (240px) MinSize in the Border center overflows a 420px window and paints over a south-slot control. The Location section still fills what remains so the map grows with the window rather than sitting at a fixed height; a transparent spacer behind it keeps a floor, and the default height (`420`) is what keeps that floor after the button takes space up top. `confirm.go` raises the strip confirmation on the panel's own window via `widgets.ChoicePanel` (not the main-window `ChoiceCard`), then calls `internal/imaging`'s `StripJPEGMetadata` in place. A geotagged photo's latitude and longitude also appear as ordinary lines in the tag list. Remembers where and how large it was left (`RestoreGeometry`/`Geometry`/`StopTracking`, three lines over `widgets.Singleton`) and floats above the image window (`widgets.Singleton.KeepOnTop`), so navigating back to the photo doesn't bury the panel describing it. While the panel has keyboard focus, Left/Right call `Host.StepImage`; the Remove Metadata confirmation keeps `ChoicePanel` focused so those keys stay on the prompt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `Host`: `DisplayedFile() (fyne.URI, bool)` (the file actually on screen), `AfterMetadataRemoved(u fyne.URI)` (cache/info-overlay refresh after a successful strip of that file), `ShowToast(msg string)` (success and failure toasts from `performStrip`), `StepImage(delta int)` (next/prev through the viewer, not `Advance`)                                                                                                                                                                                                                                                                        |
-| `help/`        | The manual, the About box, and the Help menu, plus the embedded `manual.md`/`manual_de.md` (`currentManual` picks by system locale - German for `de*`, English otherwise). Three Trane pictures (`TaneWithFrame.webp`, `trane_digging.webp`, `trane_wags.webp`) sit between matching sections of both editions; `loadManualMarkdown` parses via `NewRichTextFromMarkdown` then `bindManualImages` rewrites Fyne's file-URI `ImageSegment`s to those `//go:embed`'d bytes after every parse (including search), because a packaged app has no files next to the markdown and `RichText.ParseMarkdown` would Refresh those file URIs first. The manual window has a fixed search field at the top (`Search for...`); Enter highlights matches in the markdown and scrolls the current hit into view, and Enter again on the same query walks to the next. `Menu()` returns the Help `*fyne.Menu` on its own (not a whole `*fyne.MainMenu`) so `internal/ui`'s `menu.go` can compose it with the File menu — the Manual item shows F1 as a display-only accelerator (the key itself is `handleKeyEvent`). Submitting one exact phrase (`secretPhrase` in `manual.go`, deliberately not a `lang.L` key — a translated trigger would be unfindable) searches for nothing and opens the easter egg in `spiral/` below instead. `OpenSpiral(clockwise bool)` is that easter egg's *second* door, called by `internal/ui/gesture.go` when the user swirls the main window in a spiral — it goes through the same `Help`-owned `*spiral.Spiral`, so both doors raise one window rather than each building its own | **Nothing at all** — no interface, no callbacks: everything it draws comes from `New(app, title, art)`, and the spiral it owns needs only that same `fyne.App` |
-| `spiral/`      | The Hypno Spiral easter egg, reachable two ways and both through `help/`: typing the secret phrase into the manual's search box (`Show`, at the default turn speed), or swirling the main window around the desktop in a spiral (`ShowForGesture`, where the direction picks the pattern — clockwise the nautilus, counter-clockwise the ripple; see `internal/wingesture`). Which direction maps to which pattern lives in this package, not at the call site, since knowing what presets exist is its business. A full-screen `canvas.Shader` in its own window, with two GLSL presets (ripple and nautilus, `N`), status/help/FPS overlays, mouse-follow (`F`), and a slider panel that auto-hides once the mouse goes idle. Ported from a standalone Fyne demo, so what were that demo's package-level globals are now one `state` per window. Two adaptations are load-bearing: Escape closes **only this window** (the demo called `app.Quit()` there, which here would take PicFetch down with the easter egg), and the settings overlay must stay the topmost, never-hidden overlay because Fyne's hit-testing walks only `Overlays().Top()` — the full-window mouse tracker lives inside it. The per-frame goroutine follows `slideshow/`'s generation-plus-`Settle` shape, and `frameInterval` is a field rather than a package var so tests can slow it past ever firing: Fyne's test driver runs `fyne.Do` inline on the calling goroutine, so a live frame loop would race the assertions | **Nothing but the `fyne.App`** — `New(app)`, no host interface, no callbacks |
-| `settingswin/` | The Settings window (File > Settings…): one `widget.Form` (sort order, picture-frame interval, folder-scan cap, max window width, max window height, max image cache MB, max thumbnail cache MB, max file size MB, duplicate match distance 0–32) plus three `widget.Check`s (merge mode, picture-frame shuffle, cache favorite previews on disk) below it. Every control seeds from its `Host` getter and pushes a change straight back through the matching setter on its own `OnChanged` — no Save/Apply step, no draft state of its own. The three numeric entries validate via `fyne.io/fyne/v2/data/validation.NewRegexp` (positive whole numbers only) on top of each `Host` setter's own domain clamp (e.g. `SetMaxWindowWidth` flooring at the drop-zone size). Remembers its own geometry exactly as `exifwin/` does, through the same three `widgets.Singleton` methods. On the `internal/ui` side, `viewer` satisfies `Host` for `MaxScan`/`MaxWindowWidth`/`MaxWindowHeight`/`MaxImageCacheMB`/`MaxThumbCacheMB`/`MaxFileSizeMB`/`FavoritePreviewCache` and their setters through one value field, `settings settings` (`internal/ui/memlimits.go`) — that field is exactly this Host surface minus `SortMode`/`MergeMode`/`SlideShuffle`/`SlideInterval`, which come from `appState` and `internal/ui/slideshow` instead | `Host`: a getter/setter pair per preference (`SortMode`/`SetSortMode`, `MergeMode`/`SetMergeMode`, `SlideShuffle`/`SetSlideShuffle`, `SlideInterval`/`SetSlideInterval`, `MaxScan`/`SetMaxScan`, `MaxWindowWidth`/`SetMaxWindowWidth`, `MaxWindowHeight`/`SetMaxWindowHeight`, `MaxImageCacheMB`/`SetMaxImageCacheMB`, `MaxThumbCacheMB`/`SetMaxThumbCacheMB`, `MaxFileSizeMB`/`SetMaxFileSizeMB`, `FavoritePreviewCache`/`SetFavoritePreviewCache`, `DuplicateDistance`/`SetDuplicateDistance`) |
-| `favorites/`   | The Favorites menu and its add, overwrite, manage, and remove dialogs. `New` performs no disk access; production calls `SetDir` from `Run`, while tests opt into a temporary directory. The first ten case-insensitively sorted entries carry Cmd/Ctrl+1–9,0 accelerators; `Open` resolves those permanently registered slots against the latest refresh. Every menu entry and Manage Favorites row is labelled through `menuLabel`, which appends the favorite's stored file count from `favstore.Count` (`Holiday 2024 (128)`) — a count that can't be read falls back to the bare name rather than a toast, since the favorite still lists, still opens through `f.names` (never the label), and still holds its accelerator slot. `manage.go` holds the Manage Favorites dialog and its content, `managePanel` — one of the package's three kinds of `fyne.Focusable` widget this app ever focuses, alongside `widgets.ChoicePanel` and `add.go`'s own `nameEntry` — focused via `Canvas.Focus` right after the dialog is shown; Fyne resolves that call through the *top overlay's* focus manager rather than the window's, which is why a dialog needs focusable content at all for its keys to reach this package. Its ring is two-dimensional: `Up`/`Down` move between favorite rows, `Left`/`Right` move between that row's `Open` and `Remove` buttons — both clamp rather than wrap, the rule `widgets.ChoicePanel.Select` already sets for one axis — `Return` runs the ringed button, a click runs its own button and moves the ring there too, and `Escape` closes the dialog. `Open` hides the dialog before running the same `openFavorite` the menu itself uses; a removal rebuilds the dialog and keeps the ring on the same row index, clamped to the new last row and reset to the `Open` column, so it never lands on a second destructive button by itself. The removal confirmation `Remove` raises and the Replace-favorite confirmation `saveFavorite` raises on a name clash are now one shape, `confirm.go`'s `showConfirm(c confirmation)`: a `dialog.NewCustomWithoutButtons` whose content is an unwrapped, centered message label plus a `widgets.ChoicePanel` built from the package's own `cancelChoice`/`confirmChoice` constants (`Cancel` at index 0 and so the default selection, the confirming action — a red `Remove` or a plain `Replace` — at index 1) — `←`/`→` move the ring between them, `Return` activates whichever is ringed, `Esc` cancels — focused via `Canvas.Focus(panel)` after `Show`, and never `dialog.NewConfirm`, which focuses nothing inside itself and so left `Canvas.Focused()` nil, `Return` unable to answer (a focused Fyne button reacts only to `Space`) and `Escape` resetting the session behind the prompt through `keys.go`. The dialog carries no dismiss button of its own because `Cancel` already is one, and a `confirmation`'s `onCancel` runs for both the `Cancel` choice and `Esc` alike, which is what lets the Replace prompt treat them identically. Whichever way a confirmation closes, its `onClosed` hands the keyboard back: `focusManage` for the removal confirmation, to whichever Manage panel is current since a confirmed removal replaces the one underneath; a plain `Canvas().Unfocus()` for the Replace prompt, whose `onCancel` reopens the Add dialog instead and depends on `showConfirm`'s documented ordering — a panel always dismisses itself, firing `onClosed`, before running a choice or `onCancel` — so the reopened dialog's own focus call is the last thing to touch the canvas, not undone by the outgoing dialog's own teardown arriving late. `add.go` holds the Add to Favorites dialog: `nameEntry`, a `widget.Entry` subclass and the dialog's first keyboard stop (it auto-focuses on open), sitting above a `widgets.ChoicePanel` offering `Cancel`/`Add` as the second; `addPanel` bundles both plus the built content, `newAddDialog(initial)` wires them, and `showAdd(initial)` raises the result — `initial` is what lets the Replace prompt's `Cancel`/`Esc` reopen this dialog with the clashing name still typed, rather than losing it. `↓` in the field hands the panel the keyboard without moving its selection, so it lands on `Cancel`, the default; `↑` hands it back; `←`/`→` mean text-cursor movement in the field and ring movement on the buttons, the same keys doing different things depending on which stop currently holds focus. `Return` in the field is the fast path to `Add` and runs through the panel's own `Select`/`Confirm` rather than `saveFavorite` directly, so both ways of saying `Add` share one dismiss-then-run ordering, and does nothing at all — not even moving the ring — on an invalid name; `Esc` cancels from either stop by hiding the dialog outright, since the Add dialog (unlike a `confirmation`) has no `onCancel` for it to run. `Add` stays disabled while the trimmed name is empty or fails the same disallowed-character check `dialog.NewForm` used to enforce, tracked live off `entry.OnChanged` reading `entry.Validate()`'s return value — not `SetOnValidationChanged`, which Fyne suppresses while the field is already focused, and the field never blurs on its own. `addDialogWidth` (`360`) backs a transparent `canvas.Rectangle` behind the content, the floor a buttonless dialog sized to just an entry and two button labels would otherwise need; a non-nil `f.addDialog` is the guard against a second `showAdd` stacking a dialog over the first, the same guard `ShowManage` makes for itself. `ShowManage` (exported for `shortcuts.go`'s `wireManageFavoritesShortcut`) is reachable from its menu item and from `Cmd`/`Ctrl+Shift+F`; `AddCurrentList` (exported for `wireAddFavoritesShortcut`) is reachable from the Favorites menu's own `Add Current List to Favorites…` item and from `Opt`/`Alt+Shift+F`, and `showAdd` is also what the Replace prompt's own `onCancel` above reopens. Both guard against a second call stacking a second dialog over the first, the same guard `deletion.RequestFiles` and `promptExport` each make for themselves. Removal runs off the UI goroutine because the OS trash implementation may shell out. `writeFavorite` and `openFavorite` each report the favorite's current file list to the host via `SyncFavoritePreviews` — after a successful save, and after a load, respectively — but this package deliberately knows nothing about thumbnails or caches; what that report costs is entirely the host's business (see `internal/favthumbs`). | 5-method `Host` (`FileCount`, `FileAt`, `OpenFiles`, `ShowToast`, `SyncFavoritePreviews`) — the counts and the keyboard-driven dialogs need nothing from the host that opening a favorite didn't already need |
-| `widgets/`     | Viewer-free UI mechanics shared across the packages above: `ChoicePanel` and `ChoiceCard`, which are one prompt split in two along the line between *the choice* and *what surrounds it*. `ChoicePanel` (`choicepanel.go`) is the row of buttons and every rule about picking one — a focus ring per button paired by `Ringed`, `Left`/`Right` moving the selection (clamping, never wrapping), `Return`/`Enter` confirming, `Escape` dismissing and running an optional `SetOnCancel`, `SetOnBack` (the optional hook an `Up` key press runs — `internal/ui/favorites`' Add dialog is the only caller so far, using it to hand the keyboard back to the name field sitting above the panel), `SetChoiceEnabled`/`ChoiceEnabled` (enable or disable one choice, straight through the button's own `Enable`/`Disable`/`Disabled` rather than a parallel `[]bool` so the greyed rendering and the guard can never disagree — the Add dialog greys `Add` while the typed name is empty or invalid; `Select` still moves the ring onto a disabled choice on purpose, matching Fyne's own `dialog.FormDialog`, and a disabled choice runs and dismisses nothing whether it's clicked or confirmed from the keyboard), plus `SetOnDismiss`, the hook that takes whatever *contains* the panel off screen before any chosen action runs. It is a `fyne.Focusable`, which is what lets it serve as a Fyne dialog's content and hold the keyboard while that dialog is up — three cases in `internal/ui/favorites` need this now: the Manage dialog's removal confirmation, the Replace-favorite confirmation (both raised through `confirm.go`'s shared `showConfirm`), and the Add dialog's own `Cancel`/`Add` pair below its name field — all of which would otherwise leave `Canvas.Focused()` nil with their keys falling through to `keys.go`. `ChoiceCard` (`choicecard.go`) *holds* a panel rather than embedding one (embedding would promote `Resize`/`MinSize`/`TypedKey` onto the card's API) and adds only the modal shape around it: the dimmed scrim, the centered card background, the message label, its own visibility, and `HandleKey`, through which the app's dispatcher feeds keys to a panel that is deliberately never focused — the delete confirmation and the export-format prompt are drawn in the window content stack, not as overlays, and this app dispatches every key from the canvas's unfocused handler. Both take the same `repaint` hook (`viewer.ForceRepaint`), the card for visibility changes and the panel for selection changes, because the app has no redraw loop of its own. Also `TappableArea` (the drop zone's tap target), `Singleton` (the raise-or-build lifecycle behind every secondary window, plus the opt-in geometry memory `Remember`/`Geometry`/`StopTracking` turn on — a `winpos.Tracker` and its poller for the position, a `SizeTracker` wrapped around the content for the size, both outliving the window itself so the app can save them at shutdown), and optional `SetExtraKeys` for unfocused non-Escape keys (only `exifwin/` sets it; Escape still closes the window), the opt-in `KeepOnTop` (a `driver/desktop.Window` `RequestAlwaysOnTop` made before the window goes up, since that is the only moment the glfw driver reads it; a no-op on a backend with no native window, the test driver included), `NewSizeTracker` (the size half of that, also used by `internal/ui` for the main window), and the app's hardcoded style values (`CardRadius`, the dropzone/toast/scrim colors, `NewFocusRing`, and `Ringed` — the ring stacked behind a padded button, inset by one step so the stroke lands in the gap rather than underneath the button it marks; moved here from `choicecard.go` and exported when `internal/ui/favorites/manage.go`'s `managePanel` row buttons became its second call site)                                                                                                                                                                                                                                                                                                                | Nothing from the app — a leaf apart from `internal/winpos`, which the geometry memory reads positions through                                                                                                                                                                                                                                                                                                                                                                             |
-| `assets/`      | `WelcomeWebP`/`PlaceholderWebP`, the two images the UI embeds. They live beside the code that draws them because `//go:embed` cannot reach a parent directory; the root `assets/` keeps the icon and README artwork, which the build consumes rather than the program                                                                                                                                                                                                                                                                                                                                                                                                                                 | Nothing — it is a leaf                                                                                                                                                                                                                                                                                                                                                                             |
-
-Concurrency invariant (established when the suite first became
-`-race`-clean, phase 2 stage 2): the viewer has **no mutable package state** - test seams that used to be package vars
-(`toastDuration`,
-`maxScannedFiles`, `currentKeyModifiers`) are per-viewer fields now; write-once construction seams (`vector.after`, `viewer.frameAfter`) are the same rule for timers a test needs to step - and every background goroutine has both a
-staleness guard (`requestToken`, or a feature-local generation where its semantics are richer, guarding a lifecycle such
-as `v.vector.lifecycle`, `v.scanOp.lifecycle`, or `v.sortOp.lifecycle` - see `lifecycle.go` and `asyncop.go`)
-and an explicit stop/done signal: the load token's context plus `v.anim` (GIF playback), `scanOp.done`/`sortOp.done`
-(the folder scan's and background reorder's own per-request completion signals, one `asyncOpUI` instance's `done`
-field each - see `asyncop.go`), `v.load`, the slideshow's `Exit`/`Settle` pair, the
-poller's stop func, the toast's per-show `stop`/`hidden` pair (a raw cancel channel and a completion signal, not two
-of the same shape - see `toast.go`), `v.clipboard`, `v.chooser`, `v.wallpaper`, the
-request lifecycles' cancellable contexts, and the grid's and viewer's
-`decodes`/`preloads`/`vector.pending` completion trackers (`internal/decodepool.Pool.Wait` for the first two, a plain
-`sync.WaitGroup` for the third) for thumbnail, neighbor-preload, and vector-rasterization decodes. `v.anim`, `scanOp.done`/
-`sortOp.done`, `v.load`, `v.clipboard`, `v.chooser`, `v.wallpaper`, and `v.favThumb` (`favthumbs.go`) are all
-`completion.Signal` - see `internal/completion` - the one type that replaced nine hand-rolled one-shot `chan struct{}`
-fields, each closed once by whichever request still owns it. `internal/ui/exifwin.Window.warm` is a tenth
-`completion.Signal`, owned by the EXIF panel for the Location-section prefetch (`startWarm`); tests wait via
-`waitForWarm` in `exifwin_test.go`. It is not a `viewer` field and is not in `newTestUI`'s `drain` — viewer tests
-never expand the map, and the panel's own tests wait the prefetch out themselves. Under Fyne's test driver `fyne.Do`
-runs a goroutine's callback inline rather than marshaling it to a UI thread, so the test suite leans on those signals
-(`settleToast`/`settleThumbs`/`settleSlideshow`/`settleChooser` and the
-`waitFor`/`waitHandle`/`dropAndWait` helpers in `harness_test.go`) instead of ever letting a background goroutine's UI work
-overlap the test goroutine's own. `newTestUI`'s `drain` cleanup waits out all of them at the end of every test, so work
-a test deliberately abandoned can't run on into the next one — if you add a background operation, give it a signal and
-add it there.
-
-The two full-window modes — the grid and the slideshow — must not overlap, and neither package imports the other: the
-guards live in this package's dispatcher (`handleKeyEvent`'s `G` case checks `slides.Active()`) and in
-`togglePictureFrameMode`, which closes the grid on the way in. That is the general rule for cross-feature interaction
-after the split: features expose state and actions, and `internal/ui` decides how they compose.
-
-`appState` is the accepted model boundary inside this package, while `viewer` deliberately remains the façade that
-orchestrates it with widgets and features. The split stops before async scan/load/sort lifecycle, geometry restoration,
-menu enablement, native file-picker/save-dialog glue, display/cache state, and rendering: moving those would either
-mix Fyne lifecycle into the model or widen feature dependencies. Every feature that could own its own state still does,
-through its existing narrow consumer-side interface rather than a shared controller.
+| Package | Responsibility | Reaches back via |
+|---------|----------------|------------------|
+| `internal/ui/zoom/` | Zoom/pan of the displayed image. Window growth is `syncWindowToZoom` in `internal/ui`. | `onChanged`, `modifiers`, `onScaleChanged`. |
+| `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, dupes (D), `Targets()`. `nav.go`: `setHighlight` → `HighlightChanged`. | 10-method `Host` including `Modifiers`. |
+| `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
+| `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
+| `internal/ui/exifwin/` | EXIF panel (E): tag list, optional JPEG strip, GPS map (`tiles.go`, `startWarm`). Geometry via `widgets.Singleton`. | 4-method `Host`. |
+| `internal/ui/help/` | Manual, About, Help menu; embeds `manual.md` / `manual_de.md`. Secret search phrase and window-spiral both open `spiral/`. | Nothing — `New(app, title, art)` only. |
+| `internal/ui/spiral/` | Full-screen shader easter egg. | `New(app)` only. |
+| `internal/ui/settingswin/` | Settings window: form + checks, live `Host` setters, geometry via `Singleton`. | Getter/setter `Host` (sort, merge, slideshow, caps, caches, duplicate distance). |
+| `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `New` does no disk I/O; `SetDir` from `Run`. | 5-method `Host`. |
+| `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard`, `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. | Leaf aside from `internal/winpos`. |
+| `internal/ui/assets/` | `WelcomeWebP` / `PlaceholderWebP`. | Leaf. |
 
 ### `internal/imaging`
 
-Read → probe → decode → EXIF-orient → cache pipeline for image files (JPEG/PNG/GIF including animated, WebP, BMP, TIFF,
-ICO, XPM, HEIC, AVIF, SVG, and camera RAW via embedded JPEG preview), plus a narrower encode-and-write-back path (`save.go`) for the subset of those formats this
-module can also re-encode. HEIC/AVIF decode via
-`github.com/gen2brain/{heic,avif}` (WASM/wazero, no cgo) and apply their own orientation/transform internally, so
-`readEXIFOrientation` deliberately leaves them alone. Camera RAW is viewer-only: `raw.go` extracts the largest embedded
-JPEG (TIFF IFD walk for CR2/NEF/ARW/DNG, SOI scan for CR3/RAF) and `LoadedImage.Preview` is what the title and info
-overlay mark as "(preview)" — there is no demosaic and `CanEncode` stays false. SVG is the odd one out: the only vector format, so unlike every
-raster format its pixels are not fixed at load — `svg.go`/`vector.go` below are what let it be rasterized again as the
-display scale changes. Zero dependency on `viewer`.
+Viewer-independent probe → decode → EXIF-orient → cache pipeline (JPEG, PNG,
+GIF including animated, WebP, BMP, TIFF, ICO, XPM, HEIC, AVIF, SVG, camera
+RAW via embedded JPEG). RAW is preview-only (`LoadedImage.Preview`);
+`CanEncode` is false. SVG is the only vector format (`svg.go` / `vector.go`).
+Encode/write-back for a subset of formats lives in `save.go`.
 
-| File             | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `bytecache.go`   | `ByteCache[V]` — the goroutine-safe LRU **bounded by estimated bytes rather than entry count** that both caches below are built on, plus the weight functions (`imageBytes`, type-switched per concrete `image.Image` so a JPEG's `*image.YCbCr` isn't charged 4 B/px; `loadedImageBytes`, which also charges a retained SVG `Vector`'s parse tree — proportional to its encoded source length, since that is already bounded by `MaxEncodedBytes` and walking the tree itself to measure it would cost more than the charge is worth) and `EstimateDecodedBytes`. Its one load-bearing rule: eviction never removes the *most recently added* entry, so the image being displayed stays resident even under a budget smaller than itself — which is what lets `Add` (the current image) and `AddIfFits` (a speculative neighbor) mean different things                                                                                                                                                                       |
-| `loader.go`      | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `DecodeLoaded`, `LoadImage`, `IsSupportedImage`, `InvalidDimensionsError`; plus the encoded-input ceiling — `DefaultMaxEncodedBytes`/`MaxEncodedBytes`/`SetMaxEncodedBytes` and `InputTooLargeError`, which `readRawBytes` enforces with an `io.LimitReader` of limit+1 (the extra byte is what tells "ended at the limit" from "truncated there"). That limit is a package-level atomic rather than a parameter because it is genuinely process-wide decode policy — see its own comment. `LoadedImage`'s `FileSize` and `HasEXIF` are both filled in by the *caller* (`internal/ui/load.go`, at the two sites that decode into the image cache) rather than by `DecodeLoaded`: the thumbnail path decodes through here too and needs neither. `Preview` is set by `DecodeLoaded` when pixels came from `raw.go`'s embedded-JPEG fallback rather than from `image.Decode` |
-| `raw.go`         | Camera RAW as a viewer-only JPEG preview: unexported `embeddedJPEGPreview` walks TIFF IFDs (JPEGInterchangeFormat 0x0201/0x0202, JPEG-compressed strips, SubIFDs, the next-IFD chain) and falls back to a SOI/EOI scan for CR3 (ISOBMFF) and Fujifilm RAF. `DecodeLoaded` calls it only after `image.Decode` fails; `ReadAndProbe` uses it when `image.DecodeConfig` fails (CR3/RAF). A displayable TIFF that happens to carry a JPEG thumbnail in IFD1 is therefore unchanged. The largest valid JPEG (by pixel count) wins. `LoadedImage.Preview` is the flag `internal/ui/load.go` turns into a "(preview)" title/info-overlay mark; `CanEncode` is false for RAW extensions, so File > Save Changes stays off. Orientation comes from TIFF IFD0, then from the preview JPEG's APP1 |
-| `svg.go`         | SVG format detection and size arithmetic. `isSVGData`'s root-element scan (`svgRootAttrs`) is the real format test, not whether `oksvg` parses the file: `oksvg` accepts a JSON document without complaint and reports a 0×0 viewBox for it, so "did it parse" can't mean "is it an SVG". `MinVectorWidth`/`MinVectorHeight` (520×340) are the floor a smaller SVG's logical size is raised to — deliberately equal to `internal/ui`'s `startW`/`startH`, the app's smallest window, so an icon-sized SVG opens filling that window instead of as a tiny stamp in its corner. `internal/imaging` can't import `internal/ui` to enforce that equality itself, so `internal/ui/vector_test.go`'s `TestVectorFloorMatchesStartWindowSize` pins the two constants together instead. `MaxVectorRasterPixels` caps a single rasterization — no longer a hard constant but derived from the user's image-cache setting (a quarter of the budget's bytes at 4 B/px, clamped to an 8 MP usability floor and the 32 MP `DefaultMaxVectorRasterPixels` ceiling; at the shipped 512 MB default that lands exactly on the old 32,000,000 constant). It is process-wide atomic state in the mold of `MaxEncodedBytes`, seeded by `buildViewer` and retuned by `internal/ui`'s `SetMaxImageCacheMB` (`memlimits.go`'s `vectorRasterPixelsFor` holds the derivation), and enforced by the exported `ClampVectorRaster` — exported because `internal/ui` must clamp its own re-render target through the same function *before* comparing it against the raster already on screen, or a target the cap would shrink anyway would look like a permanently unmet demand for a sharper image, and re-render forever. `svgSizeFrom` also repairs the 0×0 viewBox `oksvg` silently produces for `width="100%"` documents: `oksvg` abandons root-element parsing on the first attribute it can't read, which for most web-exported SVGs is that percentage width, before it ever reaches the viewBox that follows |
-| `vector.go`      | `Vector`/`ParseVector`/`RasterAt`: a parsed SVG kept alive on `LoadedImage` so it can be rasterized again at a different pixel size whenever the zoom level or window size changes, instead of being decoded once like a raster format. `RasterAt`'s mutex guards the whole `SetTarget`-then-`Draw` sequence (`SetTarget` writes the icon's transform, `Draw` reads it) because two of `internal/ui/vector.go`'s `rasterizeVector` goroutines can be inside it on the same `*Vector` at once: one that already passed its own staleness check keeps running while a fresher scale change spawns another and bumps the generation - `TestRasterAtIsSafeForConcurrentUse` covers exactly this. (The grid's thumbnails are not a second party here: `LoadThumbnail` always decodes its own, ephemeral `*Vector` through a separate cache, and discards it after one raster.) Its `recover` sits inside that same lock: `oksvg` panics outright on some inputs (an extreme viewBox raises a slice-bounds panic), and letting that escape would both crash the app and leave the transform half-written under a still-held mutex |
-| `exif.go`        | EXIF orientation-tag parsing (unexported: `readEXIFOrientation` / `jpegEXIFOrientation` / `tiffIFD0Orientation`, `parseExifOrientation`) and the general-purpose tag reader `ReadMetadata`/`Metadata` (camera make/model, lens, exposure, aperture, ISO, focal length, capture date, and the GPS position the EXIF window's map view centers on — the `0x8825` pointer in IFD0 leads to a sub-IFD this reader now follows, and `Metadata.HasGPS` is what tells a photo at (0, 0) from one with no location tags); JPEG APP1 first, then TIFF IFD0 (so a CR2/NEF/DNG's tags are the same walk a JPEG Exif payload already used), then `heic`/`avif`'s own `DecodeExif` for HEIC/AVIF, then the embedded JPEG preview's APP1 if those were empty. Type 13 (IFD) is sized like LONG so SubIFD pointers in RAW files are not skipped |
-| `orientation.go` | Pixel-level rotate/flip transforms (`ApplyOrientation`, `RotateSteps`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `gif.go`         | Animated GIF frame decoding/compositing (unexported: `decodeAnimatedGIF`), under a cumulative byte budget: every frame is retained as a full composited RGBA canvas, so cost is canvas size × frame count. The check runs *before* `gif.DecodeAll`, against a frame count and canvas size that unexported `probeGIF`/`skipGIFExtension`/`skipGIFSubBlocks` walk out of the raw GIF block structure without decoding a pixel — so an over-budget animation allocates nothing at all, and the *transient* paletted decode is bounded too: `image/gif` rejects any frame larger than the logical screen, so `DecodeAll`'s own peak is at most a quarter of the budget just cleared. An over-budget GIF then takes the same nil-slice path a non-animated one does — `image.Decode` yields frame 0 — and reports `truncated` so the UI can say why it isn't moving. A zero budget means "never composite", which is what the thumbnail path passes. `probeGIF` mirrors `image/gif`'s own `readExtension` block for block and is deliberately *more lenient* than it, never stricter: accepting a file the decoder rejects merely lands on the static fallback, while rejecting one it accepts would stop a readable GIF animating. `FuzzProbeGIFAgreesWithDecodeAll` pins that agreement, and found the one case where a plain sub-block walk got it wrong                                                          |
-| `thumbnail.go`   | `NewThumbCache`, `LoadThumbnail`, unexported `scaleToFit`/`fitEdge` — probes and decodes (`ReadAndProbe` + `DecodeLoaded`, the same pipeline `LoadImage` wraps) then downsamples (`golang.org/x/image/draw`, `ApproxBiLinear`) for `internal/ui/grid`. Passes a **zero animation budget**, so a long GIF no longer composites every frame here just to keep frame 0. An SVG never rasterizes at full logical size here: its branch aims `RasterAt` straight at the `fitEdge` target (~200 px), which is near-free, and discards the ephemeral `Vector` after that one raster                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `dhash.go`       | `DifferenceHash`, `Hamming`, `DuplicateGroups`, `DuplicateMaxDistance` (6): a 64-bit thumbnail dHash (9×8 luma, one bit per adjacent pair) and complete-linkage grouping (a file joins only if it is within maxDist of every current member, not just the lowest-index representative), used by `internal/ui/grid` hide-duplicates. The 9×8 reduction (unexported `dhashLuma`/`cellSpan`) **area-averages every source pixel**, and is the one place in the package that deliberately does not use `draw.ApproxBiLinear`: that interpolator's cost, and so its sample count, is independent of the source size, so it read 4 pixels per cell out of the ~500 a cell covers and any picture whose subject was thin against a flat background hashed to a handful of bits — and since two hashes are always within Hamming popcount(a)+popcount(b), every such picture then matched every other one. Uniform images still hash to 0 and are omitted from groups, but only as a guard against a genuinely featureless image (two different solid colours are not the same picture); over a 13k-image library that rule matches nothing. Tests that need distinct shots use patterned pixels, not solid JPEGs; tests for the downsample use `uitest.LineArtGray`, whose subject is sparse. Hashes live on the grid, not in the thumbnail `ByteCache` — 8 bytes that must survive thumbnail eviction |
-| `jpegexif.go`    | Unexported segment-copy machinery `save.go`'s JPEG writers use to preserve metadata across a re-encode: `jpegMetadataSegments` walks COM/APPn segments from SOI to SOS - the header segments a bare `image/jpeg.Encode` never reproduces - and collects them as byte slices, excluding APP0 (JFIF/JFXX, which `jpeg.Encode` always writes itself) and APP2 MPF (multi-picture data tied to the exact bytes of the frames it multiplexes, not portable metadata); ICC APP2 has a different payload shape and is kept. It walks the same markers `jpegEXIFOrientation` (`exif.go`) does, duplicated rather than shared, because the two return different things: an orientation int stopping at the first valid APP1, versus every kept segment collected as bytes. `normalizeSavedExif`/`patchSavedTIFF` reset a copied APP1's IFD0 Orientation to 1 and zero IFD0's next-IFD pointer, unlinking a stale thumbnail IFD1 in place rather than following and compacting it - simpler, and the freed bytes cost nothing once nothing points at them. `injectJPEGMetadata` splices the collected segments back in after a fresh encode's SOI, `encodeJPEGPreservingMetadata` is what `save.go` calls to keep metadata on Save/Export, and `encodeJPEGKeepingICC` is the strip path's orientation 2–8 re-encode: ICC APP2 only, no Exif/XMP/IPTC/COM/APP14. The inverse path for stripping is `stripJPEGSegments`/`keepOnStrip`: the same COM/APPn walk, but segments that carry identifying metadata (Exif APP1, XMP, IPTC, COM, MPF APP2, and the rest) are omitted while JFIF APP0, Adobe APP14, and ICC APP2 stay — what `StripJPEGMetadata` uses when orientation is already 1. The SOS copy stops at the primary EOI (`jpegLength` in `raw.go`) so MPF extra pictures and motion-photo trailers do not survive a strip. Every helper here stays unexported: this is `save.go`'s own machinery, not a public API. |
-| `save.go`        | `SaveRotated`, `Export`, `CanEncode`/`CanEncodeExt`, `StripJPEGMetadata`/`CanStripJPEGMetadata`, an unexported extension→encoder table (JPEG at quality 95 rather than the stdlib's lossier default 75, PNG, single-frame GIF, BMP, TIFF, AVIF - all already linked in for decode). `SaveRotated` and `Export` go through the unexported `writeEncoded`; `StripJPEGMetadata` goes through the same `writeFile` primitive without encoding an `image.Image`. Both write to a temp file in the target's own directory and `os.Rename` it over the destination, so a failed or interrupted write can never corrupt what was there. JPEG `SaveRotated` and JPEG←JPEG `Export` re-read the source, splice metadata segments (Orientation=1, IFD1 unlinked, APP0/MPF skipped) after SOI via `jpegexif.go`; other formats and wallpaper PNG remain a plain re-encode. `StripJPEGMetadata` rewrites a JPEG in place through the same temp-file-then-rename path: `CanStripJPEGMetadata` gates the EXIF window button, orientation 2–8 gets a one-time quality-95 re-encode so the photo stays upright without the tag, then the original ICC APP2 is spliced back via `encodeJPEGKeepingICC` (Adobe APP14 is not: it would misdeclare `image/jpeg.Encode`'s color transform); orientation 1 is a lossless header strip via `stripJPEGSegments`. A trailer after EOI counts as removable and is dropped on both the lossless and the orientation 2–8 paths. `Export` takes the source URI (nil from wallpaper). WebP/HEIC have no Encode in the libraries this module depends on, and ICO/XPM aren't meaningful save targets, so `CanEncode` reports false for all four - `internal/ui/save.go`'s `canSaveRotation` checks it before ever offering the File > Save Changes action. `Export` is the way around all four: it re-encodes into whatever format the *destination* names, so a WebP or HEIC - or one frame of an animation - leaves through File > "Export image" (`internal/ui/export.go`) even though it can never be written back in place. It picks its encoder from the destination extension with no symlink resolution, which is what `CanEncodeExt` exists for: `CanEncode` resolves a symlink first because `SaveRotated` writes through one, while an export destination is a name the user just typed and may not exist yet |
-
-Extracted from `library.go` + the root `orientation.go`/`exif.go`/`gif.go` on 2026-08-13.
+| File | Responsibility |
+|------|----------------|
+| `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` (displayed image) vs `AddIfFits` (speculative preload). |
+| `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `DecodeLoaded`, `LoadImage`, `IsSupportedImage`, `MaxEncodedBytes` / `InputTooLargeError`. |
+| `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
+| `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
+| `vector.go` | `Vector` / `ParseVector` / `RasterAt`. |
+| `exif.go` | Orientation tags + `ReadMetadata` / `Metadata` (including GPS IFD). JPEG APP1, then TIFF IFD0, then HEIC/AVIF, then RAW preview APP1. |
+| `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
+| `gif.go` | Animated GIF compositing, `probeGIF`. |
+| `thumbnail.go` | `LoadThumbnail` / `NewThumbCache`: same probe+decode, then downsample. |
+| `dhash.go` | `DifferenceHash` / `Hamming` / `DuplicateGroups` for grid hide-duplicates. |
+| `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`. |
+| `save.go` | `SaveRotated`, `Export`, `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. |
 
 ### `internal/favstore`
 
-Persists named file lists under the user's config directory. It takes the base
-directory explicitly for every operation, uses atomic temp-file-and-rename
-writes, sorts favorite names case-insensitively, reconstructs JSON index keys
-numerically, and delegates removal to `internal/trash`. `Load` and `Count`
-(how many files a favorite stores, behind the Favorites menu's and Manage
-Favorites' `Name (N)` labels) share an unexported `readList` for the
-read-and-decode half of a `file-list.json`, so the two can never disagree
-about what is actually stored on disk; each still validates every key
-afterward on its own, since `Load` needs the parsed index to sort by and
-`Count` only needs to know each key is well-formed. Both treat a malformed
-key as an error rather than a partial answer, and `Count` reports `0` only
-for a favorite whose (well-formed) list genuinely holds no files, never for
-one it couldn't read — the two have to stay distinguishable. It has no UI or
-mutable package state; `DefaultDir` is the production-path helper.
+Named file lists under a caller-supplied config directory. No UI.
+`DefaultDir` is the production path helper.
+
+| File | Responsibility |
+|------|----------------|
+| `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
 
 ### `internal/favthumbs`
 
-Persists grid previews for a favorite's files under that favorite's own
-directory, `<favorite>/thumbs/`. A preview's filename is
-`<pathhash>-<mtime>-<size>` - `.jpg`, or `.png` when the thumbnail has real
-transparency - so staleness lives in the filename itself rather than a
-separate index file: a changed source simply misses on the next lookup, and
-the stale entry is removed by the next sweep. `Sync` is the whole background
-pass: per file it takes the cheapest route to a current preview (the
-caller's in-memory cache, then disk, then a full decode), offers the result
-back through `Sink`, then sweeps the directory once every file has been
-reached - skipped when the pass was cancelled, since an incomplete pass
-never established which previews are stale. `Sink` is the consumer-side view
-of the caller's in-memory thumbnail cache; both its methods are called from
-several of `Sync`'s worker goroutines at once. Viewer-independent and
-returns errors; `internal/ui/favthumbs.go` wires it to the grid.
+Disk-cached grid previews under `<favorite>/thumbs/`. `Sync` is the
+background pass; `Sink` is the caller’s in-memory thumb cache.
+
+| File | Responsibility |
+|------|----------------|
+| `store.go` / `name.go` | On-disk lookup and filename scheme. |
+| `sync.go` | `Sync` walk: memory → disk → decode, then `Sink`. |
+| `sweep.go` | Deletes stale preview files after a complete pass. |
 
 ### `internal/session`
 
-Persists and restores the set of files that were open when the window last closed, via Fyne's app-scoped cache. Zero
-dependency on `viewer`.
+Last-open file set via Fyne’s app-scoped cache.
 
-| File         | Responsibility                                |
-|--------------|-----------------------------------------------|
-| `session.go` | `Save`, `Load`, unexported `state`/`cacheKey` |
-
-Extracted from the root `session.go` on 2026-08-13. The root `session.go` now holds only `viewer.restoreSession()`, the
-thin glue that hands `v.savedSession` to `handleDrop`.
+| File | Responsibility |
+|------|----------------|
+| `session.go` | `Save`, `Load`. |
 
 ### `internal/preferences`
 
-Persists and restores standing UI preferences (sort order, merge mode, the picture-frame slideshow interval and shuffle
-order, the folder-scan cap, the window-size cap, window size and position) across launches, via Fyne's app-scoped
-`Preferences` store (`fyne.App.Preferences()` — distinct from
-`internal/session`'s app *cache*, which is the transient file-set store). Zero dependency on `viewer`.
+Standing UI preferences via Fyne `Preferences` (not the session cache).
+`SortMode` is a string on disk (`filesort.FromPref` / `Mode.PrefValue`).
+Secondary-window geometry is `WindowGeometry` structs.
 
-| File             | Responsibility                                                                                          |
-|------------------|---------------------------------------------------------------------------------------------------------|
-| `preferences.go` | `Save`, `Load`, `State`, `WindowGeometry`, unexported preference keys and `saveGeometry`/`loadGeometry` |
-
-Added 2026-08-14, mirroring `internal/session`'s shape. `internal/ui/startup.go`'s
-`buildStartupViewer` loads the saved `State`, normalizes only unset caps, hands it to `buildViewer` to seed standing
-feature preferences, and then restores main and secondary window geometry. `Run` starts runtime position polling only
-after that helper returns, and its `SetOnStopped` saves the current values back alongside the existing `session.Save` call.
-`WindowPosX`/`WindowPosY`/`WindowPositionSet`
-were added 2026-08-14 for manual-window-move persistence — see
-`internal/winpos` for why reading a position back needs a whole package of its own where reading a size back didn't.
-`SortMode` (added 2026-08-14 for the multi-criteria sort feature) is a string, not an enum: it was originally a string
-because the enum lived in `package main` and couldn't be imported here without a cycle. `internal/filesort` (stage 5)
-removed that constraint, but the string stays on purpose — it's the on-disk format, and keeping it decoupled from the
-enum's declaration order means reordering or renaming a mode can't silently reinterpret a saved preference.
-`filesort.FromPref`/`Mode.PrefValue` are the translation. `MaxScanFiles`
-and `MaxWindowWidth`/`MaxWindowHeight` were added alongside the Settings window (`internal/ui/settingswin`) so those
-standing preferences persist across launches the same way the others already did; all three use the same
-zero-means-unset sentinel `WindowSize` does, since the viewer itself never accepts a zero cap for any of them (see
-`internal/filescan`'s
-`DefaultMax` and `internal/ui/load.go`'s
-`defaultMaxWindowWidth`/`defaultMaxWindowHeight` fallbacks in
-`startup.go`). `MaxImageCacheMB`/`MaxThumbCacheMB`/`MaxFileSizeMB` were added 2026-08-16 with the byte-bounded image
-memory work and follow the identical pattern (`internal/ui/memlimits.go` holds their defaults and setters). They are
-stored in megabytes rather than bytes on purpose: that is the unit the user typed into the Settings window, so it is the
-unit that round-trips, and the conversion to the byte budgets `internal/imaging` enforces happens in the setters.
-`DuplicateDistance`/`DuplicateDistanceSet` persist the hide-duplicates Hamming threshold (`duplicateDistance` / `duplicateDistanceSet`); Save writes them only when the set flag is true, so a never-touched slider does not overwrite a previously saved 0.
-`SettingsWindow`/`ExifWindow` were added 2026-08-17 so the two secondary windows reappear where and how large the user
-left them, the same as the main window: a `WindowGeometry` each (position, a `PositionSet` flag, size) over five keys
-apiece, written by the shared `saveGeometry`/`loadGeometry` rather than another ten statements in `Save`/`Load`. They are
-grouped into a struct where the main window's own geometry is flat, because there are two of them and any further
-`widgets.Singleton` window that wants remembering adds a third — `internal/ui/windowtrack.go`'s
-`widgetGeometry`/`prefGeometry` translate to and from `widgets.Geometry`, keeping this package free of any UI import.
+| File | Responsibility |
+|------|----------------|
+| `preferences.go` | `Save`, `Load`, `State`, `WindowGeometry`. |
 
 ### `internal/wingesture`
 
-Recognises a spiral drawn by dragging a window around the desktop, and which way round it was drawn. Deliberately pure
-— no Fyne, no cgo, no clock of its own: callers feed it timestamped positions (`internal/winpos` is where those come
-from) and it answers with a `Result`. That boundary is what makes the recognition testable at all, since nothing about
-a native window drag can be reproduced under the Fyne test driver. Zero dependency on `viewer`.
+Pure geometry: timestamped window positions in, spiral `Result` out. No
+Fyne, no cgo. Positions are y-down (positive accumulated angle = clockwise
+on screen). `realdrag_test.go` replays recorded title-bar drags.
 
-| File            | Responsibility                                                                                                                                                                                                                                                                                                                                                                                       |
-|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `wingesture.go` | `Direction`, `Result`, `Config` and its defaults, plus the package doc — which is where the two load-bearing facts live: positions are **y-down** (so a *positive* accumulated angle is clockwise as the user sees it), and the OS reports a dragged window's position only ~10 times a second however fast the caller samples                                                                          |
-| `detector.go`   | `Detector` — the ring buffer, the dedupe of repeated positions, the idle gap that ends a gesture, and the `armed` latch that makes one continuous swirl fire exactly once rather than once per extra turn                                                                                                                                                                                             |
-| `analyse.go`    | The recognition itself, as a function over a slice: centroid, accumulated shortest-arc angle (sign = direction), sign consistency, and a least-squares fit of radius against *unsigned* angular progress — the last being the only thing separating a spiral from a circle, and unsigned precisely so the slope means the same in both directions rather than inverting for every counter-clockwise one |
-
-There is deliberately **no** per-sample minimum radius. Dropping samples near a tight spiral's centre widens the angle
-between the ones that remain, pushing single steps toward the 180° point where the shortest-arc wrap reads the rotation
-backwards — measured, on real drags, at 155° without a gate and 171° with one. An aliased step lands against the
-majority sign instead, so `MinConsistency` already catches it: the check that rejects a noisy path rejects an
-undersampled one too.
-
-`realdrag_test.go` replays window positions recorded from real title-bar drags. They are the package's ground truth —
-every other path in the tests is a mathematician's idea of a spiral, whereas these carry the uneven sample spacing,
-wandering centre, and sampling ceiling the thresholds actually have to survive.
+| File | Responsibility |
+|------|----------------|
+| `wingesture.go` | `Direction`, `Result`, `Config`. |
+| `detector.go` | Ring buffer, idle gap, one-shot `armed` latch. |
+| `analyse.go` | Centroid, accumulated angle, sign consistency, radius-vs-angle fit. |
 
 ### `internal/winpos`
 
-Reads and writes a Fyne desktop window's on-screen position. Fyne's public
-`Window` has no position getter and no "window moved" event at all — only
-`driver/desktop.Window.RequestPosition`, which is write-only — so `Get`
-reaches past that into the raw native window handle (`driver.NativeWindow.RunNative` hands out an `NSWindow`/`HWND`/X11
-handle depending on platform) and asks the OS directly, mirroring exactly what Fyne's own glfw driver does internally
-for its own position bookkeeping so a value round-tripped through `Get` then `Set` lands back where it started. Zero
-dependency on `viewer`.
+Fyne has no position getter and no move event. `Get` reads the native
+handle. `Tracker` remembers the last good reading. `Poll` / `PollAt` sample
+on a background goroutine and hop through `fyne.DoAndWait`.
 
-| File         | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                        |
-|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `winpos.go`  | `Get`, `Set`, `Maximize`, `Unmaximize` — the platform-agnostic dispatch over `driver.NativeWindow`/`desktop.Window`                                                                                                                                                                                                                                                                                                                   |
-| `poll.go`    | `PollAt`, `Poll`, `PollInterval`, and `GestureInterval` — the background sampler, in a general form (`PollAt`: any interval, each reading handed to a callback *on the UI goroutine*) and the common binding of it (`Poll`: keep a `Tracker` current at `PollInterval`). `GestureInterval` is the much shorter one the main window uses, because its readings also feed the spiral drag gesture (`internal/wingesture`), which cares about the path and not just the destination — it is deliberately faster than the ~10 moves/sec the OS itself reports a dragged window at, and the duplicate readings that fall out of oversampling are the consumer's to discard. Also the one place the reasons for polling at all (no move event, no position getter) and for hopping each reading through `fyne.DoAndWait` (AppKit's main-thread the background sampler that keeps a `Tracker` current, and the one place the reasons for polling at all (no move event, no position getter) and for hopping each reading through `fyne.DoAndWait` (AppKit's main-thread rule) are written down. Shared by the main window (`internal/ui/windowtrack.go`) and every `widgets.Singleton` window that remembers its position; `skip` is the caller's own "not right now" rule, which only the main window has one of |
-| `tracker.go` | `Tracker` — the last *good* reading, kept in atomics (`Store`/`Get`/`Capture`/`Restore`). `Get` above answers "where is this window right now", which is unavailable or wrong at exactly the moments the position is needed: while full-screen it reports the screen corner, and at shutdown the event loop the read hops through is winding down. A `Tracker` is what the poller, the slideshow, and the shutdown save share instead |
-| `darwin.go`  | `platformPosition` — cgo/AppKit `NSWindow` frame read, converted out of Cocoa's bottom-left-origin coordinate space. `platformMaximize`/`platformUnmaximize` — `-zoom:`, AppKit's own toggle between the standard and user frame, each guarded to only fire when the window isn't/is already zoomed                                                                                                                                   |
-| `windows.go` | `platformPosition` — `ClientToScreen` via `syscall`, matching glfw's own Win32 position query (not `GetWindowRect`, which would include the non-client frame). `platformMaximize`/`platformUnmaximize` — `ShowWindow(SW_MAXIMIZE)`/`ShowWindow(SW_RESTORE)`                                                                                                                                                                           |
-| `linux.go`   | `platformPosition` — cgo/Xlib `XTranslateCoordinates`; reports `ok=false` on Wayland (no such handle exists there), matching `RequestPosition`'s own documented Wayland limitation. `platformMaximize`/`platformUnmaximize` — an EWMH `_NET_WM_STATE` `ClientMessage` adding/removing both maximized states, X11-only for the same reason                                                                                             |
-| `other.go`   | `platformPosition` — always `ok=false`, for BSD/mobile/wasm/anything else. `platformMaximize`/`platformUnmaximize` — no-ops                                                                                                                                                                                                                                                                                                           |
+| File | Responsibility |
+|------|----------------|
+| `winpos.go` | `Get`, `Set`, `Maximize`, `Unmaximize`. |
+| `poll.go` | `PollAt` / `Poll` / `PollInterval` / `GestureInterval`. |
+| `tracker.go` | `Tracker` atomics: `Store` / `Get` / `Capture` / `Restore`. |
+| `darwin.go` / `windows.go` / `linux.go` / `other.go` | Platform position + maximize. Linux/Wayland: `Get` reports `ok=false`. |
 
-Added 2026-08-14 for the "restore the window where the user manually left it" feature: `internal/ui`'s
-`buildStartupViewer` uses `restoreStartupGeometry` to seed `viewer.winPos` from the saved preference and apply it to the
-window, then `Run` calls `startViewerRuntime`, which starts `startWindowPosPolling` (`windowtrack.go`), a background
-goroutine that keeps the tracker current via `Capture` since —
-unlike a resize — a pure window-drag triggers no layout pass for `windowSizeTracker` to piggyback on. The poller only
-ever runs against a real `driver.NativeWindow` (checked once up front), so the fyne test driver's windows — every test
-in `internal/ui`, including the focused runtime-start test — receive a no-op stop callback instead of a poller
-goroutine. `internal/ui/slideshow` captures
-and restores the same tracker around full-screen, so leaving picture-frame mode puts the window back at the
-manually-placed position instead of wherever the OS chose to un-full-screen it to. The `Tracker` (added 2026-08-14,
-stage 8) is what gives those three consumers one place to share that state, rather than a set of atomics on the viewer
-that each of them reached into.
-
-`Poll` (added 2026-08-17) is that background goroutine itself, moved down here out of `startWindowPosPolling` when the
-Settings and EXIF windows started remembering their own positions too: nothing about the loop was app-specific, and a
-second and third copy of the AppKit-main-thread reasoning is exactly what a shared package exists to prevent. The
-`internal/ui` side kept only its skip rule (no reading while the slideshow is full-screen).
+OS integrations (`clipboard`, `filepicker`, `trash`, `wallpaper`) use
+dispatcher vars and build-tagged platform files; tests stub them via
+`internal/uitest` — see `AGENTS.md`.
 
 ### `internal/clipboard`
 
-Puts PNG-encoded image data onto the system clipboard as real image data, via a per-OS shell-out (AppleScript on macOS,
-xclip/wl-copy on Linux, PowerShell on Windows). Zero dependency on `viewer`.
+PNG image data (`CopyImage`) and file-reference lists (`CopyFiles`).
 
-| File                           | Responsibility                                                                                                                                 |
-|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `clipboard.go`                 | `CopyImage` (exported dispatcher var), unexported per-platform impls (`copyImageDarwin`, `copyImageLinux`, `copyImageWindows`), `writeTempPNG` |
-| `copyfiles.go`                 | `CopyFiles` (exported dispatcher var) — the file-*reference* twin of `CopyImage`, for the grid's batch copy: what a file manager's own Copy produces, so a Paste there creates copies of the files. Unexported `copyFilesLinux` (a `text/uri-list` over the same xclip-then-wl-copy pair), `copyFilesWindows` (PowerShell `Set-Clipboard -LiteralPath`, i.e. CF_HDROP — the very thing `copyImageWindows` avoids), `uriList`, `writeTempList`. An empty list is a deliberate no-op: writing one would clear whatever the clipboard already held |
-| `darwin.go` / `other.go`       | `copyFilesDarwin` (build-tag pair, real cgo/AppKit impl / non-darwin stub) — `NSPasteboard.writeObjects:` over an `NSURL` array, mirroring `internal/trash`'s own darwin.go. Not an osascript shell-out like `copyImageDarwin`: AppleScript has no reliable form for a *list* of files on the clipboard, and scripting Finder to do it would trigger the Automation permission prompt `internal/trash` exists to avoid |
-| `windows.go` / `notwindows.go` | `hideConsoleWindow` (build-tag pair, real impl / no-op twin)                                                                                   |
-
-Extracted from the root `clipboard.go` on 2026-08-13. The root `clipboard.go` now holds only the `*viewer` glue
-(`copyPathToClipboard`, `copyImageToClipboard`, `reportClipboardError`) that encodes the current frame and calls
-`clipboard.CopyImage`.
+| File | Responsibility |
+|------|----------------|
+| `clipboard.go` | `CopyImage` dispatcher + per-OS image copy. |
+| `copyfiles.go` | `CopyFiles` dispatcher + Linux/Windows file-list copy. |
+| `darwin.go` / `other.go` | AppKit `NSPasteboard` file list / stub. |
+| `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/filepicker`
 
-Opens the current OS's own file browser and returns the paths picked, and (via `ChooseSave`) its save panel for File > "Export image":
-zenity on Linux, a WinForms dialog via PowerShell on Windows, in-process cgo/AppKit `NSOpenPanel` on macOS. Linux and
-macOS can pick folders too; Windows is files only (its shell dialog has no mode that combines folder and multi-file
-selection - folders there go through drag-and-drop instead). Zero dependency on `viewer`.
+Native open chooser (`Choose`) and save panel (`ChooseSave`). Linux/macOS
+can pick folders; Windows is files-only.
 
-| File                           | Responsibility                                                                                                                                                                     |
-|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `filepicker.go`                | `Choose`/`ChooseSave` (exported dispatcher vars), `ParseFileList` (exported, shared by both), unexported per-platform impls (`chooseFilesLinux`/`chooseSaveLinux`, `chooseFilesWindows`/`chooseSaveWindows`, `buildPowerShellCmd`/`buildPowerShellSaveCmd`, `powerShellEscape`) |
-| `darwin.go` / `other.go`       | `chooseFilesDarwin` (`NSOpenPanel`) and `chooseSaveDarwin` (`NSSavePanel`) (build-tag pair, real cgo/AppKit impls / non-darwin stubs)                                             |
-| `windows.go` / `notwindows.go` | `hideConsoleWindow` (build-tag pair, real impl / no-op twin)                                                                                                                       |
-
-Extracted from the former platform-specific open-file implementations on 2026-08-13. `internal/ui/openfiles.go` now
-holds only the `*viewer` glue (`openFileDialog`, `runFileChooser`, `reportChooserError`) that calls
-`filepicker.Choose`/`filepicker.ParseFileList`; the shared tappable widget lives in `internal/ui/widgets`.
-
-Note: `hideConsoleWindow` now exists as four separate build-tag-pair copies — here, in `internal/clipboard`, in
-`internal/trash`, and nowhere else (the root `openfiles_windows.go`/`openfiles_notwindows.go` that used to hold another
-copy were deleted, since `main` no longer calls it directly). Each copy is ~10 lines and unexported, so duplicating it
-per package beat introducing a shared package for one tiny OS-quirk helper.
+| File | Responsibility |
+|------|----------------|
+| `filepicker.go` | `Choose` / `ChooseSave` / `ParseFileList` + Linux/Windows impls. |
+| `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel` / stubs. |
+| `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/trash`
 
-Moves a file to the current OS's trash/recycle bin rather than deleting it outright, for `internal/ui/deletion`'s
-Shift+Delete flow. Each platform needs its own approach: `gio trash` (falling back to `trash-cli`'s
-`trash-put`) on Linux, both of which already implement the freedesktop.org trash spec correctly;
-`Microsoft.VisualBasic.FileIO`'s recycle-bin delete via PowerShell on Windows; in-process cgo/AppKit
-`NSWorkspace.recycleURLs:completionHandler:` on macOS — deliberately not an AppleScript
-`tell application "Finder" to delete` shell-out, since scripting another app that way triggers a one-time Automation
-permission prompt that a direct framework call avoids. Zero dependency on `viewer`.
+Move to Trash/Recycle Bin (`Move`). Tests use `uitest.StubTrashMove`.
 
-| File                           | Responsibility                                                                                                       |
-|--------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `trash.go`                     | `Move` (exported dispatcher var), unexported per-platform impls (`moveLinux`, `moveWindows`, `escapePowerShellPath`) |
-| `darwin.go` / `other.go`       | `moveDarwin` (build-tag pair, real cgo/AppKit impl / non-darwin stub)                                                |
-| `windows.go` / `notwindows.go` | `hideConsoleWindow` (build-tag pair, real impl / no-op twin)                                                         |
-
-Added 2026-08-16. `internal/ui/deletion`'s `performDelete` calls
-`trash.Move` in place of the `os.Remove` it used before, and
-`internal/uitest`'s `StubTrashMove` swaps it out the same way
-`StubClipboardCopy` does for `clipboard.CopyImage`, so tests never invoke the real per-OS mover.
+| File | Responsibility |
+|------|----------------|
+| `trash.go` | `Move` dispatcher + Linux/Windows impls. |
+| `darwin.go` / `other.go` | AppKit recycle / stub. |
+| `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/wallpaper`
 
-Makes an image file the desktop wallpaper, for `internal/ui/wallpaper.go`'s Actions "Set as Wallpaper" action. Same
-per-OS-dispatch shape as `internal/trash`: in-process cgo/AppKit
-`NSWorkspace.setDesktopImageURL:forScreen:options:error:` on macOS — deliberately not an AppleScript
-`tell application "System Events" to set picture of every desktop`, for exactly the reason `internal/trash` avoids
-scripting Finder, and it reads each screen's existing options back so only the picture changes, not the user's
-Fill/Fit choice; `SystemParametersInfo` through a PowerShell `Add-Type` P/Invoke on Windows (PowerShell has no
-wallpaper cmdlet, and `SPIF_UPDATEINIFILE|SPIF_SENDWININICHANGE` is what makes the change outlive the session);
-`gsettings`, or `plasma-apply-wallpaperimage` on KDE, on Linux. Zero dependency on `viewer`.
+Set desktop wallpaper (`Set`). UI writes a PNG into the app cache dir
+before calling this.
 
-| File                           | Responsibility                                                                                                                   |
-|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| `wallpaper.go`                 | `Set` (exported dispatcher var), unexported per-platform impls (`setLinux`, `setWindows`), `isKDE`, `fileURI`, `escapePowerShellPath` |
-| `darwin.go` / `other.go`       | `setDarwin` (build-tag pair, real cgo/AppKit impl / non-darwin stub)                                                              |
-| `windows.go` / `notwindows.go` | `hideConsoleWindow` (build-tag pair, real impl / no-op twin) — the fourth copy of it, see `internal/filepicker`'s note           |
-
-Added 2026-08-16. Two things carry the weight on Linux: the KDE check comes *before* the binary lookup, because glib
-is usually installed there too — a lookup-order fallback would find `gsettings`, write the GNOME schema successfully,
-and leave the desktop unchanged while the app reported success, which is the one failure mode worse than an error
-message. And `picture-uri-dark` is written alongside `picture-uri`, since GNOME 42 split the background into a
-light/dark pair and a user in dark mode sees nothing at all change otherwise; its failure is ignored rather than
-reported, because what makes it fail is an older GNOME that has no such key — where the light write was already the
-whole job. `fileURI` goes through `net/url` rather than string concatenation so a `#` in a file name can't truncate
-the URI into a path that isn't there.
-
-The path handed to `Set` must stay readable for as long as it is the wallpaper: every platform here stores a
-reference to the file, not a copy of its pixels. `internal/ui/wallpaper.go` is what guarantees that, by writing its
-own PNG into the user's cache directory instead of pointing any of this at a file the app itself can trash.
+| File | Responsibility |
+|------|----------------|
+| `wallpaper.go` | `Set` dispatcher + Linux/Windows impls. |
+| `darwin.go` / `other.go` | AppKit set-desktop-image / stub. |
+| `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/filescan`
 
-Gathers the displayable images a drop or an open should load, recursing into directories — the walk itself, not what a
-caller does with the result. Zero dependency on `viewer`: it takes `fyne.URI` values as plain data and touches only the
-filesystem.
+Recursive image gather for drop/open.
 
-| File           | Responsibility                                                                                                                            |
-|----------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `filescan.go`  | `Images` (the walk) and `DefaultMax`; an unexported symlink-resolving path helper the directory-cycle guard and the per-call dedupe both key on |
-
-`Images(ctx, uris, max, progress) (images []fyne.URI, truncated bool)` walks `uris`, recursing into directories, and
-stops once it has gathered `max` images (floored to 1 — a 0 cap is not "unlimited", mirroring `SetMaxScan`'s own
-floor). `storage.CanList` is checked before `imaging.IsSupportedImage`, so a directory — which has no extension and
-would otherwise fall through to `MimeType()`'s open-and-sniff fallback — is recognized by a cheap stat instead of
-thousands of needless file opens, exactly the cost `imaging.IsSupportedImage`'s own doc comment warns a recursive
-folder scan can turn into. Dropped URIs are walked in argument order first, then directories are popped off a **LIFO
-stack** — the specific traversal order `internal/filesort`'s `Order` preserves verbatim under `ByDropOrder` ("stupid
-sort"); a queue would silently reorder that mode for every user. A `visitedDirs` set (keyed on that same
-symlink-resolved path) guards against a symlink cycle sending the walk into an unbounded loop, and a per-call
-`seenFiles` set (keyed the same way)
-dedupes a folder dropped alongside one of its own subfolders — neither persists across calls. `progress`, when
-non-nil, runs on the caller's own goroutine rather than being marshaled through `fyne.Do`, throttled to the first
-image, every 10th, and the final call on truncation; wrapping that onto a UI thread is `internal/ui`'s job, not this
-package's. `ctx` is checked before each candidate URI and again at the top of each directory pop; a cancelled walk
-returns whatever it has gathered so far rather than a complete result, which is enough for a caller (`internal/ui`'s
-`handleDrop`) that discards a superseded scan's result anyway.
-
-Extracted from `internal/ui/drop.go`'s `handleDrop` on 2026-08-22. It sits here rather than under `internal/ui` for
-the same reason `internal/filesort` does: it draws nothing and knows about no widget. That placement is also the
-entire payoff of the extraction: `storage.CanList`/`storage.List` need Fyne's file repository, which only
-`test.NewApp()` registers in a bare test binary, so `internal/filescan/filescan_test.go`'s `TestMain` copies
-`internal/filesort`'s (and `internal/imaging`'s) `test.NewApp()` verbatim — no viewer, no window, no `drain` — where
-five of these tests previously needed all three to prove logic that touches no widget at all. `internal/ui/drop.go`
-keeps only what needs the viewer's own state: `handleDrop` (UI glue — snapshot merge mode and the cap, show the
-spinner, call `Images`, apply the result), `applyScanResult`, `applyScannedFiles`, `cancelScan`, and the
-`MaxScan`/`SetMaxScan` binding.
+| File | Responsibility |
+|------|----------------|
+| `filescan.go` | `Images(ctx, uris, max, progress)`; symlink-cycle + per-call dedupe. |
 
 ### `internal/filesort`
 
-The five orderings the `S` key cycles through — natural (numeric-aware)
-file name, Exif capture date falling back to mtime, mtime, size, and raw scan/drop order — plus the window-title label
-for each and the translation to and from `internal/preferences`'s string constants. Zero dependency on
-`viewer`: it takes `fyne.URI` values as plain data and touches only the filesystem and the Exif reader.
+Five orderings the S key cycles, plus `Label` (`lang.L`) and preference
+string translation (`FromPref` / `PrefValue`).
 
-| File          | Responsibility                                                                                                                                                  |
-|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `filesort.go` | `Mode` + its constants, `Next` (the S-key cycle), `Order`, `Label`, `FromPref`/`PrefValue`; unexported: the natural-sort comparison and the stat/Exif sort keys |
-
-Extracted from the root `sort.go` on 2026-08-14. It sits beside
-`internal/imaging` rather than under `internal/ui` because it draws nothing and knows about no widget — which is also
-what resolves the cycle note in
-`internal/preferences` above. `internal/ui/sort.go` keeps only what needs the viewer's own state: the `toggleSort`/
-`SetSortMode` entry points and the
-`startSort`/`finishSort` background-reorder mechanism that calls `Order` off the UI goroutine. The one thing here that
-isn't pure data is `Label`, which returns display text and so goes through `lang.L` — see Translations below.
+| File | Responsibility |
+|------|----------------|
+| `filesort.go` | `Mode`, `Next`, `Order`, `Label`, `FromPref` / `PrefValue`. |
 
 ### `internal/selection`
 
-The multi-select model behind the grid overview's batch actions: a set of file indices plus the anchor a range
-extension measures from. Deliberately just integers — what an index means (a position in the app's file set, not a
-position in the grid) and which gesture calls which method are `internal/ui/grid`'s business. Zero dependency on
-`viewer`, and no fyne import at all, which is why it sits here beside `internal/filesort` and `internal/filescan`
-rather than under `internal/ui`: same rule, it draws nothing and knows about no widget.
+Integer index set + range anchor for grid multi-select. No Fyne import.
 
-| File           | Responsibility                                                                                                                                                                                                                                                                       |
-|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `selection.go` | `Set` + `New`/`Toggle`/`Add`/`Contains`/`Len`/`Clear`/`Replace`/`Indices`/`Anchor`, and the free function `Range`. `Toggle` moves the anchor and `Add` deliberately doesn't — that is what lets a Shift+click re-extend from a fixed end. `Indices` returns a fresh, sorted slice, since a batch action holds its target list across a background trash move |
-
-Added 2026-08-16 with the grid's multi-select. It has **no** `Reindex`-after-delete operation on purpose: every path
-that shrinks the file set clears the selection (`Overview.FilesChanged`), so there is no shifted-index case to carry.
+| File | Responsibility |
+|------|----------------|
+| `selection.go` | `Set`, `Toggle`, `Add`, `Range`. |
 
 ### `internal/decodepool`
 
-Bounds background decode work: a semaphore for how many run at once, a per-key in-flight claim against spawning a
-second goroutine for work already underway, and a `sync.WaitGroup` a test can wait out so no goroutine outlives the
-test that started it. `internal/ui/grid`'s thumbnail decodes and `internal/ui`'s speculative neighbor preload had
-each grown this same semaphore/claim/WaitGroup trio independently; `Pool[K, V]` is the one generic type both now
-share, each its own instance and its own budget of slots. `internal/ui/grid`'s `Overview` holds `decodes
-*decodepool.Pool[*fyne.Container, int]`, collapsing what were separate `sem`/`pending`/`inflight` fields;
-`internal/ui`'s `viewer` holds `preloads *decodepool.Pool[string, struct{}]`, collapsing
-`preloadSem`/`preloading`/`preloadPending`. Zero dependency on `viewer` and no Fyne types at all, which is why it
-sits here beside `internal/filescan`/`internal/filesort`/`internal/selection` rather than under `internal/ui`: same
-rule, it draws nothing and knows about no widget — unlike those three, though, both its consumers reach for it, not
-just one.
+Bounded workers + per-key in-flight claim. Grid thumbs:
+`Pool[*fyne.Container, int]`. Viewer preloads: `Pool[string, struct{}]`.
+Cell staleness stays in `grid/thumbs.go`.
 
-| File            | Responsibility                                                                                                                                    |
-|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `decodepool.go` | `Pool[K, V]` + `New`; `Claim`/`Release`, the per-key in-flight guard; `Go`/`Wait`, the bounded worker pool and the completion count a test drains |
-
-`Go` spawns `fn` on its own goroutine and waits there for a free slot, not in the caller's — the shape both callers
-already had before this type existed, and why `Go` never itself blocks whoever calls it (the grid's cell-update pass
-runs on the UI goroutine and can't stall behind a full pool). Its `ctx` only ever races that wait: when `ctx` loses,
-`Go` still calls `fn(false)` rather than skipping the call outright, which is what lets a caller's `defer`red
-`Release` inside `fn` always run whether or not a slot was ever acquired. That is also where the two claim rules
-turn out to be one: `Claim` is `sync.Map.LoadOrStore` plus an equality check — a claim under a key already claimed
-with an *equal* value refuses, a *different* value supersedes it, and `Release`'s matching `CompareAndDelete` drops
-a claim only if it still names that value, so a superseded worker finishing late can't clobber the newer one. When
-`V` is `struct{}`, every `struct{}` equals every other, so the equality check falls away and `Claim` degrades to
-plain `LoadOrStore`, `Release` to plain `Delete` — the viewer's simpler rule (a URI claim carries no value to
-compare) and the grid's richer one (superseded by a different cell id) are the same method at two different `V`.
-
-`stillWanted` and `cellIDs` deliberately did not move here, and stayed in `internal/ui/grid`'s `thumbs.go` instead:
-answering "does this finished decode still belong on this cell" needs the host generation, the filter generation,
-and cell recycling, none of which a general-purpose pool should know about. The pool answers only "is identical work
-already in flight, and may I start" — the mechanism, not the staleness rule layered on top of it.
-
-Added 2026-08-22, extracted from `internal/ui/grid/thumbs.go`'s decode pool and `internal/ui/load.go`'s preload
-pool.
+| File | Responsibility |
+|------|----------------|
+| `decodepool.go` | `Pool[K,V]`, `Claim` / `Release`, `Go` / `Wait`. |
 
 ### `internal/completion`
 
-The one-shot "this background operation has finished" signal `internal/ui` grew nine hand-rolled copies of — and
-`internal/ui/exifwin` grew a tenth for the Location-section map prefetch: a `chan struct{}` swapped in at the start
-of each request and closed when it finished, which the test suite waited on instead of polling widget state a
-producer goroutine might still be writing. `Signal` is the one type all ten now share: nine zero-value instances on
-`viewer` (`v.load`, `v.anim`, `v.clipboard`, `v.chooser`, `v.wallpaper`, `v.favThumb`, `toast.hidden`, and both
-`asyncOpUI` instances' `done` field, `scanOp.done`/`sortOp.done`), plus `exifwin.Window.warm` on the panel — waited
-by `waitForWarm` in `exifwin_test.go`, not by `harness_test.go`'s `waitFor`. Zero
-dependency on `viewer` and no Fyne types at all - the same rule `internal/decodepool` follows, and deliberately its
-sibling: one audited type replacing N hand-rolled copies of one contract, not a package boundary drawn around a
-feature.
+One-shot “this background op finished” signal. Named wait helpers vs
+`drain`: see `AGENTS.md` § Concurrency and Fyne.
 
-| File            | Responsibility                                                             |
-|-----------------|-----------------------------------------------------------------------------|
-| `completion.go` | `Signal` + `Begin`/`Wait`/`Begun`/`Current`; `Handle` + `Wait`              |
-
-`Begin` supersedes any generation already in flight and hands back the func that finishes *this* one, called exactly
-where the old code called `defer close(done)` - idempotent, so a retry chain that can reach its finish along two
-paths stays correct where a repeated `close(chan)` would panic. There is deliberately no way to get the channel
-itself back out: a superseded producer holds only a closer over its own generation, never something a caller could
-wait on twice with two different meanings. `Wait` reads the *current* generation at call time and blocks until it
-finishes or `ctx` is done - the same behavior "read the channel field once, select on it" had - and returns
-immediately for a Signal that has never begun, so callers don't each need their own nil check — `drain` and the
-low-level `waitFor` in `harness_test.go` rely on that. Named wait helpers in the same harness
-(`waitUntilLoaded`, `waitForScan`, `waitForSort`, `waitForAnimStopped`, `waitForClipboard`) and the settle helpers
-that already used an explicit nil check (`settleChooser`, `settleWallpaper`, `settleFavoritePreviews`) are the
-deliberate exception: they fatal when `!Begun()` so a test that forgot to start the operation fails with a named
-message instead of returning immediately, while cleanup can still wait out whichever subset of operations that test
-happened to start. `settleToast` is the other shape — `stop == nil` answers "pending *now*", not "ever begun". `Current`/`Handle`
-exist for the one case `Wait` can't cover: a test that starts a request, starts a second that supersedes it, and
-needs to prove the *first* request's goroutine actually exited rather than accidentally waiting on the second
-(`internal/ui`'s `waitHandle`, `harness_test.go`).
-
-Added 2026-08-22, extracted from nine near-identical `chan struct{}` fields `internal/ui` had grown, one per
-background operation (the image load, GIF playback, the toast auto-hide, the clipboard copy, the file chooser, the
-wallpaper write, the favorite-preview pass, and the scan/sort `asyncOpUI` instances' own `done` field), and the
-hand-rolled `select`/`time.After` waiter each one needed a copy of; the EXIF panel's Location prefetch joined on
-2026-08-23, still the same contract but owned by `exifwin`, not migrated as part of item 5.
+| File | Responsibility |
+|------|----------------|
+| `completion.go` | `Signal` (`Begin` / `Wait` / `Begun` / `Current`) and `Handle`. |
 
 ### `internal/uitest`
 
-Test fixtures shared across the module's test suites: synthetic images in every format the viewer reads, the temp files
-and URIs to hand them over by, swap-in stubs for the OS-level seams, and the UI queue a feature hands its background
-completions to so they do not run on the worker that produced them. Imported only from `_test.go`
-files, so it never reaches a production binary. Zero dependency on
-`viewer`.
+Test-only fixtures and OS-seam stubs. Never imported from production files.
 
-| File         | Responsibility                                                                                                                                              |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `uitest.go`  | `TempJPEGURI`, `WriteTempFile`, `EncodeJPEG`/`EncodePNG`/`EncodeGIF`/`EncodeAnimatedGIF`, `SVGBytes`/`TempSVGURI` (a synthetic SVG with a given viewBox, so a rasterization of it has visibly non-zero pixels), `CaptureDateJPEG`, `GPSJPEG`/`TempGPSJPEGURI` (a JPEG carrying an Exif GPS sub-IFD, for the EXIF window's map), `TruncatedPNGHeader`, `FakeURI`, `ApproxEqual` |
-| `stubs.go`   | `StubChooser`, `StubSaveChooser`, `StubClipboardCopy`, `StubClipboardCopyFiles`, `StubTrashMove`, `StubWallpaperSet` — swap `filepicker.Choose`/`filepicker.ChooseSave`/`clipboard.CopyImage`/`clipboard.CopyFiles`/`trash.Move`/`wallpaper.Set` for the duration of a test. `internal/ui`'s `newTestUI` also redirects `viewer.wallpaperDir` to a `t.TempDir()`, the way it neutralizes the toast's duration: the wallpaper copy is the one file this suite produces that is meant to outlive the process |
-| `uiqueue.go` | `UIQueue` — `Do` defers a callback, `Drain` runs everything deferred so far on the calling goroutine and reports whether it ran anything. Fyne's test driver is not a marshaling point: `test.(*driver).DoFromGoroutine` calls the function inline on the caller, so a worker's `fyne.Do` body runs *on the worker*, racing the test goroutine on widgets and on whatever unsynchronized state it touches. A feature that marshals through a queue instead gets the app's semantics back under test — deferred, then serialized on the goroutine that drains it. `internal/ui/grid`'s `newOverview` installs one on every `Overview` it builds and `Overview.Settle` drains it; work queued *during* a drain lands in the next one, which is why `Settle` loops |
+| File | Responsibility |
+|------|----------------|
+| `uitest.go` | Temp URIs, synthetic images (including GPS JPEG, SVG), `ApproxEqual`. |
+| `stubs.go` | `StubChooser`, `StubSaveChooser`, `StubClipboardCopy` / `CopyFiles`, `StubTrashMove`, `StubWallpaperSet`. |
+| `uiqueue.go` | Drainable `UIQueue`. |
 
-Added 2026-08-14, replacing per-package copies of the same helpers — Go can't share unexported test helpers across
-packages, and the per-feature package split needs one shared source. What deliberately did **not** move:
-the wait helpers (`waitUntilLoaded`/`waitForScan`/`settleToast`/
-`settleSlideshow`/`dropAndWait`) live in `internal/ui`'s own test files, because they synchronize on unexported `viewer`
-channels and WaitGroups — keeping them there is what stops those sync primitives from becoming exported API. (A
-`settleThumbs` used to be listed here too; it was removed 2026-08-16 as dead code — `drain`, run via
-`t.Cleanup` in every test, already calls `v.grid.Settle()` at teardown, so nothing was left calling `settleThumbs`
-directly.)
+Wait helpers (`waitUntilLoaded`, `dropAndWait`, …) stay in
+`internal/ui/harness_test.go`.
 
 ## Translations
 
-Every user-visible string goes through Fyne's `lang.L`, whose argument **is** the English text and doubles as the lookup
-key — so `en.json` is an identity mapping and a new string means adding the same line to every bundle in
-`translations/`.
-
-`main.go` owns the `//go:embed translations/*.json` and the one
-`lang.AddTranslationsFS` call, because that loads into Fyne's process-wide bundle: every `lang.L` anywhere in the module
-reads from it, wherever that call site lives. So the strings themselves live with the code that draws them —
-`internal/ui`, each feature package under it, and `filesort.Label` — and only the loading is app setup.
-
-Two tests in `main_test.go` guard the part that rots silently: that every locale covers exactly the English key set (a
-new string added to `en.json`
-and nowhere else is otherwise invisible until a German user meets an English word), and that `en.json` really is an
-identity mapping. Both read the embedded FS, so they check what actually ships.
+`main.go` owns `//go:embed translations/*.json` and `lang.AddTranslationsFS`.
+`filesort.Label` and `internal/filepicker` are the `lang.L` call sites
+outside the UI tree. `main_test.go`
+checks locale parity and that `en.json` is an identity map. String rule:
+see `AGENTS.md`.
 
 ## Error handling
 
-There is no logging package anywhere in this module (`grep -rl '"log"\|log/slog'` turns up nothing) — the only
-error-reporting mechanism is Fyne's own `fyne.LogError`, and it is used exclusively at the app/UI-facing layer:
-`main.go`, `internal/ui`'s own files (`clipboard.go`, `openfiles.go`, `save.go`), and `internal/session/session.go`
-(the one lower-level package that already imports `fyne` for `fyne.App`/`storage`). Lower-level, `viewer`-independent
-packages (`internal/clipboard`, `internal/imaging`, `internal/uitest`) do not import `fyne` for this and never will just
-to report an error — an error a caller genuinely cannot or need not act on (a best-effort temp-file cleanup, a read
-handle's `Close` after the read already succeeded) is ignored explicitly instead: `defer func() { _ =
-os.Remove(path) }()`, matching the pattern already used for `_ = tmp.Close()` in `internal/imaging/save.go`. Never leave
-the call bare (`defer os.Remove(path)`) — an explicit `_ =`/`_, _ =` is what tells a reader (and the IDE's
-unhandled-error inspection) that the omission is deliberate, not an oversight.
-
-This applies even to calls that are provably infallible: `bytes.Buffer`/`strings.Builder`'s `Write`/`WriteString`,
-`hash.Hash.Write`, and `fmt.Fprintf`/`Fprint`/`Fprintln` into either never return a non-nil error (this is also why
-`errcheck`'s own default exclude list — `github.com/kisielk/errcheck/errcheck/excludes.go` — omits them). Several test
-helpers that build synthetic file headers by hand (`internal/imaging/loader_test.go`'s `encodeXPM`/
-`truncatedPNGHeader`, `internal/uitest/uitest.go`'s `TruncatedPNGHeader`) still mark every such call `_, _ = ...`, with
-a one-line comment stating why, purely so the code reads as an intentional choice rather than an unhandled error an IDE
-inspection flags.
-
-Use `errcheck` command to check for unhadled errors.
+`fyne.LogError` is used in `main.go`, `internal/ui` glue, and
+`internal/session`. Viewer-independent packages return errors. Ignore rule:
+see `AGENTS.md`.
 
 ## Where to look for X
 
-- "How is an image loaded/decoded/cached?" → `internal/imaging/loader.go` (+ `raw.go` for camera RAW embedded JPEG previews)
-- "How is image memory bounded, and where are the limits set?" → `internal/imaging/bytecache.go` (the byte-weighted LRU
-  both caches use, its never-evict-the-newest rule, and the per-type weight estimates) +
-  `internal/ui/memlimits.go` (the three user-facing limits and their setters) + `internal/imaging/gif.go` (the
-  cumulative animation budget, and `probeGIF`, the block walk that lets it be applied before `gif.DecodeAll` rather
-  than after) + `internal/imaging/loader.go`'s `MaxEncodedBytes` (the ceiling on a file's *encoded* size, enforced
-  before anything is decoded)
-- "Where does the EXIF panel live?" → `internal/ui/exifwin`
-- "Why does the help package import a GLSL shader?" → `internal/ui/spiral`, the Hypno Spiral easter egg. Its one
-  door is `internal/ui/help/manual.go`'s `secretPhrase`, matched in `submit` before the query ever reaches the
-  search code, so the phrase highlights nothing and leaves the search state clean
-- "Why is the log not full of `tile fetch error`?" → `internal/ui/exifwin/tiles.go`'s `quietPendingTiles`/`tileLogFilter`
-- "Why doesn't the EXIF window's map freeze the app while it loads?" → `internal/ui/exifwin/tiles.go` (a
-  non-blocking, byte-bounded caching transport under the map widget, whose own fetching happens inside its raster
-  draw) + `exifwin.go`'s `startWarm`/`syncLoading` (the prefetch and its spinner)
-- "Why is the info overlay's 'Show EXIF data' link missing?" → `internal/ui/info.go`'s `syncInfoOverlayVisibility` (it
-  is only offered for a file that has metadata) + `viewer.currentHasEXIF` + `imaging.LoadedImage`'s `HasEXIF`, filled in
-  by `load.go`'s `attemptLoad`/`preloadOne`. The `E` key is deliberately *not* conditional: it still opens the panel,
-  which says so itself when there's nothing to show
-- "Where is a photo's GPS position read, and where is it shown?" → `internal/imaging/exif.go`'s `parseGPSIFD` +
-  `internal/ui/exifwin`'s collapsible Location section and `formatExifMetadata`'s latitude/longitude lines
-- "How is EXIF orientation handled?" → `internal/imaging/exif.go` + `orientation.go`
-- "How is a camera RAW file shown?" → `internal/imaging/raw.go` (largest embedded JPEG) + `LoadedImage.Preview` + `internal/ui/load.go` / `info.go` (`(preview)` in the title and info overlay)
-- "How does drag-and-drop / folder scanning work?" → `internal/filescan`'s `Images` (the recursive walk itself —
-  symlink-cycle guard, dedupe, the `max` cap, drop order) + `drop.go`'s `handleDrop` (UI glue: snapshot the cap, show
-  the spinner, call `Images`, apply the result)
-- "How is an image shown/preloaded/animated once loaded?" → `load.go`
-- "Which keys do what?" → `keys.go`'s `handleKeyEvent` (key names) and `handleTypedRune` (typed characters, grid search only) + `shortcuts.go` (application-wide modified-key shortcuts)
-- "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go`'s `HandleRune`/`applyFilter`/`fileIndex` (the `/`
-  search, the display→host index mapping it needs, and the search bar) + `keys.go`'s `handleTypedRune` (how a typed
-  character reaches it)
-- "How does hide-duplicates work?" → `internal/imaging/dhash.go` (`DifferenceHash`/`Hamming`/`DuplicateGroups`) +
-  `internal/ui/grid/dupes.go` (`SetHideDuplicates`, URI hash map, badges, `hashRemaining`, `browseHost` group filter
-  default `-1` off, cleared on Close) + `keys.go` (`D` while the grid is closed; viewer `Shift+D` opens browse and the
-  grid) + `viewer.go`'s `nextVisibleIndex`/`firstVisibleIndex`/`lastVisibleIndex` (arrows, Home/End, slideshow skip
-  extras). Groups are complete linkage — every pair inside a group is within the threshold — not stars around the
-  lowest-index representative and not union-find connected components. Hash 0 is
-  omitted from groups. Failed thumbnail decodes are remembered so `hashRemaining` does not retry them (Shift+D must
-  not re-toast analyzing after the pass finished). The file set is
-  never culled; extras are a display filter. `SetHideDuplicates` applies immediately (chrome shows while hashes are pending; unhashed files stay visible). Cache-hit hashing joins the decode pool rather than running on the D-key goroutine. Hash completions compute `DuplicateGroups` on the worker, then install through `g.ui.Do` (apply stays armed until that callback returns; mid-window installs are floored at 250ms; the last job always applies) without resetting the highlight; `Shift+D` browse still waits for the last job before `finishBrowse`. `Shift+D` is a grid-local group filter; `Host` gained `ShowToast` for the
-  analyzing toast. `/` search intersects hide; Escape stages selection → search → browse → hide → grid; `G`/Close leave
-  hide on but end browse
-- "How do I act on several images at once?" → `internal/selection` (the set and its anchor) +
-  `internal/ui/grid/selection.go` (the click/key gestures, the tint, `Targets`) + `internal/ui/batch.go` (the only
-  place that joins the grid to `deletion` and the clipboard) + `internal/ui/deletion`'s `RequestFiles` (the batch
-  prompt and the partial-failure reporting) + `internal/clipboard`'s `CopyFiles` (per-OS file references)
-- "How does zoom/pan work?" → `internal/ui/zoom` (the state, the geometry, and the widget); the keys that drive it are
-  in `keys.go`
-- "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` (the retained parse
-  tree and `RasterAt`) + `internal/imaging/svg.go` (the logical-size floor and the raster
-  ceiling) + `internal/ui/zoom`'s `SetLogicalSize`/`native`/`onScaleChanged` (why a denser
-  raster still lays out at the right scale) + `internal/ui/vector.go` (the debounced
-  re-render). The logical size is what the window, the title and the info overlay are built
-  on; the raster behind it changes with the zoom level — device pixels via
-  `PixelCoordinateForPosition`, and `ForceRepaint` when a frame lands so Retina
-  zoom does not stretch a 1× texture
-- "How does rotation work, and how is it saved to disk?" → `internal/ui/rotate.go` (the view-only R/Shift+R rotation) +
-  `internal/ui/save.go` (the File > Save Changes action/Cmd+S that persists it) + `internal/imaging/save.go` (the
-  per-format encoders, JPEG metadata splice via `jpegexif.go`, and the atomic temp-file-then-rename write)
-- "How do I write an image out in a different format?" → `internal/ui/export.go` (the File > "Export image" action,
-  also `Cmd/Ctrl+E`, and its PNG/JPEG format prompt built on `internal/ui/widgets.ChoiceCard`; the suggested name and
-  the extension rule) + `internal/filepicker`'s `ChooseSave` (the per-OS save panel) + `internal/imaging/save.go`'s
-  `Export` (encode by destination extension, JPEG←JPEG metadata splice via `jpegexif.go`). This is the only path out for a format `CanEncode` reports false for,
-  and the only one that works on an animation
-- "How does 'Set as Wallpaper' work?" → `internal/ui/wallpaper.go` (the action, the PNG copy it writes into the app's
-  cache directory, and why it is a copy at all) + `internal/wallpaper/` (per-OS dispatch: AppKit, PowerShell,
-  gsettings/plasma-apply-wallpaperimage)
-- "How does the slideshow / picture-frame mode work?" → `internal/ui/slideshow` (the mode itself) + `slideshow.go` (the
-  grid guard around it)
-- "How does delete work?" → `internal/ui/deletion` (the flow, single and batch) + `internal/trash` (per-OS
-  move-to-Trash) + `shortcuts.go`'s `wireDeleteShortcut` and `batch.go`'s `requestDelete` (how Shift+Delete reaches it,
-  and how it picks between the file on screen and the grid's selection)
-- "How are native file dialogs implemented?" → `internal/filepicker/` (per-OS open chooser and save panel) +
-  `openfiles.go` and `export.go` (the `*viewer` glue for each)
-- "How is the last session saved/restored?" → `internal/session/session.go` (persistence) + `session.go`
-  (`restoreSession` glue)
-- "How do Favorites work?" → `internal/favstore` (named-list persistence and per-favorite counts) +
-  `internal/favthumbs` (disk-cached grid previews) + `internal/ui/favorites` (the menu, its `Name (N)` counts, and the
-  keyboard-driven Manage Favorites dialog in `manage.go`) + `shortcuts.go`'s `wireManageFavoritesShortcut`
-  (`Cmd`/`Ctrl+Shift+F`) and `wireAddFavoritesShortcut` (`Opt`/`Alt+Shift+F`) + `internal/ui/run.go` (production directory initialization) + `viewer.go`'s `OpenFiles`
-  (existing drop/scan path)
-- "How are favorite previews cached on disk?" → `internal/favthumbs` (the store and the background pass) +
-  `internal/ui/favthumbs.go` (the viewer-side join, lifecycle, and grid pre-warm sink) + `internal/ui/favorites` (where
-  the pass is triggered) + `internal/ui/grid` (the accessors it pre-warms through)
-- "Where is the File menu / Settings window?" → `internal/ui/menu.go`'s `buildMainMenu` (Open Files…/Save
-  Changes/Export image/Close Files/Settings…, composed with Favorites, Actions, the Window menu, and
-  `help.Menu()`) + `internal/ui/actionmenu.go` (Actions Checked/Disabled and handlers) +
-  `internal/ui/settingswin` (the Settings window itself) + `viewer.go`'s `closeFiles` (what "Close Files" runs)
-- "How are preferences (sort order, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, window
-  size/position, favorite-preview-cache toggle) persisted?" → `internal/preferences/preferences.go` (persistence) +
-  `internal/ui/startup.go`
-  (load/default normalization/geometry restoration) + `features.go` (applying loaded feature preferences) +
-  `windowtrack.go` (the size/position trackers) + `run.go` (`currentPreferences`, the shutdown save)
-- "How do the Settings and EXIF windows come back where I left them?" → `internal/ui/widgets`'s `Singleton.Remember`/
-  `Geometry`/`StopTracking` and `NewSizeTracker` (the mechanism, shared by both windows) + `winpos.Poll` (the position
-  half) + `preferences.WindowGeometry` (the storage) + `windowtrack.go`'s `widgetGeometry`/`prefGeometry` (the
-  translation), seeded by `restoreStartupGeometry` and read back in `currentPreferences`. A `Singleton` nobody calls `Remember` on
-  — the manual, the About box — is unaffected and keeps no geometry at all
-- "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos/` (per-OS
-  native handle read + the `Tracker` that remembers the last good one + `Poll`, the background sampler that keeps a
-  Tracker current) + `internal/ui/windowtrack.go`'s `startWindowPosPolling` + `internal/ui/slideshow`'s capture-restore
-  around full-screen
-- "How can dragging the window open something?" → `internal/wingesture` (the spiral recognition, pure geometry) +
-  `internal/ui/gesture.go` (the binding) + `internal/winpos`'s `PollAt`/`GestureInterval` (the samples) +
-  `internal/ui/help`'s `OpenSpiral` and `internal/ui/spiral`'s `ShowForGesture` (the payoff)
-- "How does copy-image-to-clipboard work?" → `internal/clipboard/clipboard.go` (per-OS shell-out) + `clipboard.go`
-  (`*viewer` glue). For copying the *files* rather than the pixels — the grid's batch copy —
-  `internal/clipboard/copyfiles.go` + `darwin.go`, with `batch.go`'s `copySelection` deciding which of the two a
-  Cmd/Ctrl+C means
-- "How does the grid overview / thumbnail generation work?" → `internal/imaging/thumbnail.go` (decode + downsample) +
-  `internal/ui/grid/grid.go` (`widget.GridWrap` wiring) + `internal/ui/grid/thumbs.go` (bounded-concurrency requests,
-  generation/cell-recycling guards) + `internal/ui/grid/uiqueue.go` (the `uiQueue` a finished decode hands its widget
-  work across — `fyneQueue` in the app, `uitest.UIQueue` under the grid's own tests, which is what makes the package
-  `-race` clean while its tests still open the grid on a cold cache)
-- "What decides the window title?" → `viewer.go`'s `setTitle`/`applyTitle` (the mode prefixes and the `gridTitle`
-  override) + `load.go` (name, dimensions and position counter for the image on screen) + `viewer.go`'s
-  `HighlightChanged` (the file the grid overview's ring is on)
-- "How do I write a test that needs an image / a viewer?" → `internal/uitest` for the fixtures, `newTestViewer(t)`/
-  `newTestUI(t)` + `dropAndWait` in `harness_test.go` for the viewer and its wait discipline
-- "How do I add or translate a user-visible string?" → wrap it in `lang.L` where it's drawn, then add the same key to
-  every bundle in `translations/` — see Translations above
-- "Why isn't feature X its own package?" → the ownership and cross-feature-composition rules in the `internal/ui`
-  section above
-- "How/where are errors reported, and when is it OK to ignore one?" → Error handling above
+- "How is an image loaded/decoded/cached?" → `internal/imaging/loader.go` (`raw.go` for camera-RAW previews).
+- "How is image memory bounded, and where are the limits set?" → `internal/imaging/bytecache.go` + `internal/ui/memlimits.go` + `gif.go` + `loader.go` `MaxEncodedBytes`.
+- "Where does the EXIF panel live?" → `internal/ui/exifwin`.
+- "Why does the help package import a GLSL shader?" → `internal/ui/spiral`, opened from `help/manual.go`’s `secretPhrase` or `internal/ui/gesture.go`.
+- "Why is the log not full of `tile fetch error`?" → `internal/ui/exifwin/tiles.go` `quietPendingTiles` / `tileLogFilter`.
+- "Why doesn't the EXIF window's map freeze the app while it loads?" → `exifwin/tiles.go` + `startWarm` / `syncLoading`.
+- "Why is the info overlay's 'Show EXIF data' link missing?" → `info.go` `syncInfoOverlayVisibility` + `viewer.currentHasEXIF`.
+- "Where is a photo's GPS position read, and where is it shown?" → `internal/imaging/exif.go` `parseGPSIFD` + `exifwin` Location section.
+- "How is EXIF orientation handled?" → `internal/imaging/exif.go` + `orientation.go`.
+- "How is a camera RAW file shown?" → `internal/imaging/raw.go` + `LoadedImage.Preview` + `load.go` / `info.go`.
+- "How does drag-and-drop / folder scanning work?" → `internal/filescan.Images` + `drop.go` `handleDrop`.
+- "How is an image shown/preloaded/animated once loaded?" → `load.go`.
+- "Which keys do what?" → `keys.go` (`handleKeyEvent` / `handleTypedRune`) + `shortcuts.go`.
+- "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go` + `keys.go` `handleTypedRune`.
+- "How does hide-duplicates work?" → `internal/imaging/dhash.go` + `internal/ui/grid/dupes.go`.
+- "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
+- "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
+- "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.
+- "How does rotation work, and how is it saved to disk?" → `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.
+- "How do I write an image out in a different format?" → `internal/ui/export.go` + `filepicker.ChooseSave` + `imaging.Export`.
+- "How does 'Set as Wallpaper' work?" → `internal/ui/wallpaper.go` + `internal/wallpaper`.
+- "How does the slideshow / picture-frame mode work?" → `internal/ui/slideshow` + `slideshow.go`.
+- "How does delete work?" → `internal/ui/deletion` + `internal/trash` + `shortcuts.go` / `batch.go` `requestDelete`.
+- "How are native file dialogs implemented?" → `internal/filepicker` + `openfiles.go` / `export.go`.
+- "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
+- "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
+- "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
+- "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.closeFiles`.
+- "How are preferences (sort order, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, window size/position, favorite-preview-cache toggle) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
+- "How do the Settings and EXIF windows come back where I left them?" → `widgets.Singleton.Remember` / `Geometry` / `StopTracking` + `winpos.Poll` + `preferences.WindowGeometry`.
+- "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.
+- "How can dragging the window open something?" → `internal/wingesture` + `gesture.go` + `help.OpenSpiral` / `spiral.ShowForGesture`.
+- "How does copy-image-to-clipboard work?" → `internal/clipboard` + `clipboard.go`. Batch file copy: `copyfiles.go` + `batch.go` `copySelection`.
+- "How does the grid overview / thumbnail generation work?" → `imaging/thumbnail.go` + `grid/grid.go` + `grid/thumbs.go` + `grid/nav.go` + `grid/uiqueue.go`.
+- "What decides the window title?" → `viewer.go` `setTitle` / `applyTitle` / `HighlightChanged` + `load.go` + `grid/nav.go`.
+- "How do I write a test that needs an image / a viewer?" → `internal/uitest` + `newTestViewer` / `newTestUI` + `dropAndWait` in `harness_test.go`.
+- "How do I add or translate a user-visible string?" → `lang.L` at the call site and the same key in every `translations/` bundle. See `AGENTS.md`.
+- "Why isn't feature X its own package?" → `AGENTS.md`.
+- "How/where are errors reported, and when is it OK to ignore one?" → `AGENTS.md`.
 
 ## Keeping this doc current
 
-Update this file whenever the package structure changes: a new
-`internal/...` package is created, files move between packages, or a package is renamed/merged/removed. Update it in the
-same change, not as a follow-up — that rule is what kept it accurate across the two refactorings through the package
-split, and it is the only thing that will keep it accurate as the structure continues to evolve.
+Update this file in the same change when a package is added, removed,
+renamed, or files move between packages. Cells are locators (path, symbol,
+order) — one sentence. Standing rules go in `AGENTS.md`, not here.
