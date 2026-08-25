@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )

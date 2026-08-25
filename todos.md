@@ -2,6 +2,10 @@
 
 ## Done
 
+- Split `internal/ui/toast.go` import groups so stdlib, `fyne.io`, and
+  `github.com/frathe/picfetch` are blank-line-separated like neighbouring
+  `internal/ui` files (2026-08-25).
+
 - Trimmed `ARCHITECTURE.md` from per-function commentary to a locator
   package map plus the “Where to look for X” index (2026-08-25).
 
@@ -39,13 +43,6 @@ Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `wa
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-- `internal/ui/toast.go` merges its `fyne.io/...` and
-  `github.com/frathe/picfetch/...` imports into one block, where ~20 other `internal/ui` files use three
-  blank-line-separated groups. Present since that file's first commit (`9eda18c`). `gofmt` does not enforce grouping by
-  path prefix and `make verify` runs no
-  `goimports -local`, so nothing catches it. Worth a one-line fix the next time that file's imports change for another
-  reason.
 
 - `finishLoad` (`internal/ui/load.go:192-305`) is a 114-line do-everything pipeline (vector setup, fade, overlay, zoom,
   resize, title, animation, preload). It is linear and well-commented; decompose into named steps only if it needs to
