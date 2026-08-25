@@ -8,7 +8,11 @@ LINUX_ARCHES := amd64 arm64
 
 RELEASE_BRANCH := main
 
-.PHONY: all build build-linux-all run fmt vet test verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release help
+# Module path; goimports -local puts these imports in their own group after
+# third-party packages (stdlib / fyne.io+others / github.com/frathe/picfetch).
+GOIMPORTS_LOCAL := github.com/frathe/picfetch
+
+.PHONY: all build build-linux-all run fmt fmt-check vet test verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release help
 
 all: build
 
@@ -19,8 +23,14 @@ build: ## Build a native binary for the current OS/arch into bin/ (stripped, no 
 run: ## Run the app directly (go run .)
 	go run .
 
-fmt: ## Format all Go source files
-	gofmt -l -w .
+fmt: ## Format all Go source files (gofmt + import groups via goimports -local)
+	go tool goimports -local $(GOIMPORTS_LOCAL) -w .
+
+fmt-check: ## Fail if any Go file differs from goimports -local (the CI format gate)
+	@unformatted=$$(go tool goimports -local $(GOIMPORTS_LOCAL) -l .); \
+	if [ -n "$$unformatted" ]; then \
+		echo "These files need goimports (run 'make fmt'):"; echo "$$unformatted"; exit 1; \
+	fi
 
 vet: ## Run go vet
 	go vet ./...
@@ -28,11 +38,7 @@ vet: ## Run go vet
 test: ## Run tests
 	go test ./...
 
-verify: ## Run the same checks CI does (gofmt, vet, build, race tests)
-	@unformatted=$$(gofmt -l .); \
-	if [ -n "$$unformatted" ]; then \
-		echo "These files need gofmt (run 'make fmt'):"; echo "$$unformatted"; exit 1; \
-	fi
+verify: fmt-check ## Run the same checks CI does (goimports, vet, build, race tests)
 	go vet ./...
 	go build ./...
 	go test -race ./...

@@ -39,7 +39,7 @@
 ## Build and Verification
 
 - Use the Makefile: `make run`, `make build`, `make test`, `make fmt`, `make vet`; `make help` lists packaging/security targets.
-- Match CI before handoff: formatting, `go vet ./...`, `go build ./...`, then `go test -race ./...` from the repository root.
+- Match CI before handoff: `make fmt-check` (`goimports -local github.com/frathe/picfetch`), `go vet ./...`, `go build ./...`, then `go test -race ./...` from the repository root.
 - Run focused tests while iterating, e.g. `go test -run TestE2E -v ./internal/ui/...`; the complete suite remains the final check.
 - Golden screenshots are under `internal/ui/testdata/`. Regenerate only with `make golden` (Docker linux/amd64), inspect `internal/ui/testdata/failed/*.png`, and never commit failed renders.
 - Packaging uses Fyne/Fyne-cross; macOS is native, while Windows/Linux cross-builds require Docker. `fyne package` may bump `FyneApp.toml`’s build number.

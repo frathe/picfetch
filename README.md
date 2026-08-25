@@ -198,10 +198,11 @@ packaged build.
 
 | Command                     | Description                                                         |
 |-----------------------------|---------------------------------------------------------------------|
-| `make fmt`                  | `gofmt` all Go source files                                         |
+| `make fmt`                  | `goimports -local github.com/frathe/picfetch` all Go source files   |
+| `make fmt-check`            | Fail if any file differs from that `goimports` (CI format gate)     |
 | `make vet`                  | `go vet ./...`                                                      |
 | `make test`                 | `go test ./...`                                                     |
-| `make verify`               | The same gate CI runs: `gofmt` check, `go vet`, `go build`, `go test -race` |
+| `make verify`               | The same gate CI runs: `goimports` check, `go vet`, `go build`, `go test -race` |
 | `make tidy`                 | `go mod tidy` — tidy go.mod / go.sum                                |
 | `make security`             | Run all security checks (govulncheck + GitHub Dependabot alerts)    |
 | `make security-govulncheck` | Scan dependencies for known Go vulnerabilities with `govulncheck`   |

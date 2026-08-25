@@ -8,7 +8,7 @@
 
 ## Checklist
 
-- [ ] `gofmt -l .` is clean, `go vet ./...` and `go test -race ./...` pass
+- [ ] `make fmt-check` is clean, `go vet ./...` and `go test -race ./...` pass
 - [ ] User-visible strings go through `lang.L`, with the key added to every
       bundle in `translations/`
 - [ ] `internal/ui/help/manual.md` and `manual_de.md` updated, if this

@@ -6,6 +6,9 @@
   `github.com/frathe/picfetch` are blank-line-separated like neighbouring
   `internal/ui` files (2026-08-25).
 
+- `make fmt` / `make fmt-check` / CI use `goimports -local github.com/frathe/picfetch`
+  (pinned as a Go `tool` in `go.mod`) so that grouping cannot regress (2026-08-25).
+
 - Trimmed `ARCHITECTURE.md` from per-function commentary to a locator
   package map plus the “Where to look for X” index (2026-08-25).
 
