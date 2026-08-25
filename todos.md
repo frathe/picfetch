@@ -16,6 +16,10 @@
   (`installLoadedFrames` … `startLoadedAnimation`, then `preloadNeighbors` / `done()`);
   behavior unchanged (2026-08-25).
 
+- Split `internal/imaging/exif.go` into `exif.go` (parsers + GPS), `exififd.go`
+  (IFD walker / tag values), and `exifformat.go` (display formatters). Behavior
+  unchanged (2026-08-25).
+
 ### Menu Window
 Menu points
 - viewer
@@ -50,9 +54,6 @@ Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `wa
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-- `internal/imaging/exif.go` (687 lines) holds two parsers plus IFD walking plus display formatting. Cohesive and
-  well-tested; a parse/format file split is cosmetic.
 
 ## not deemed worth implementing (edge cases)
 

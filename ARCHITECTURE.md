@@ -95,6 +95,8 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
 | `vector.go` | `Vector` / `ParseVector` / `RasterAt`. |
 | `exif.go` | Orientation tags + `ReadMetadata` / `Metadata` (including GPS IFD). JPEG APP1, then TIFF IFD0, then HEIC/AVIF, then RAW preview APP1. |
+| `exififd.go` | Unexported IFD walker (`walkIFD`) and tag value helpers used by `exif.go` and `raw.go`. |
+| `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
 | `gif.go` | Animated GIF compositing, `probeGIF`. |
 | `thumbnail.go` | `LoadThumbnail` / `NewThumbCache`: same probe+decode, then downsample. |
