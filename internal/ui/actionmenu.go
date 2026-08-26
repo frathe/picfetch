@@ -26,7 +26,7 @@ func (v *viewer) applyActionsMenuState() {
 	noImage := len(v.displayFrames) == 0
 
 	v.actionsHideItem.Checked = v.grid.HideDuplicates()
-	v.actionsHideItem.Disabled = noFiles
+	v.actionsHideItem.Disabled = noFiles || v.variantsSession()
 	v.actionsShowVariantItem.Checked = v.grid.BrowsingDuplicates()
 	canShowVariants := v.grid.HideDuplicates() && v.grid.SourceDuplicateGroupSize() >= 2
 	v.actionsShowVariantItem.Disabled = noFiles || v.slides.Active() || !(canShowVariants || v.grid.BrowsingDuplicates())
@@ -74,8 +74,24 @@ func (v *viewer) browseCurrentDuplicates() {
 	}
 }
 
+func (v *viewer) reopenVariantGrid() {
+	if v.slides.Active() {
+		return
+	}
+	v.grid.ClearInspect()
+	v.grid.SetBrowsingDuplicates(true)
+	if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
+		v.grid.Toggle()
+	}
+	v.updateWindowMenuState()
+}
+
+func (v *viewer) variantsSession() bool {
+	return v.grid.BrowsingDuplicates() || v.grid.InspectingDuplicates()
+}
+
 func (v *viewer) toggleActionsHideDuplicates() {
-	if v.FileCount() == 0 {
+	if v.FileCount() == 0 || v.variantsSession() {
 		return
 	}
 	v.toggleHideDuplicates()

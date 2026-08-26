@@ -286,3 +286,17 @@ func TestWindowMenu_GridActionNoopsDuringPictureFrame(t *testing.T) {
 		t.Error("must not open the grid over picture-frame mode")
 	}
 }
+
+func TestWindowMenu_PictureFrameDisabledDuringVariantsSession(t *testing.T) {
+	v := loadBrowsePair(t)
+	if !v.windowPictureFrameItem.Disabled {
+		t.Fatal("Picture-frame should be disabled while browsing variants")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	if !v.windowPictureFrameItem.Disabled {
+		t.Fatal("Picture-frame should be disabled while inspecting")
+	}
+}

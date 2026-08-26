@@ -150,6 +150,8 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.cancelScan()
 		} else if v.sortOp.active {
 			v.cancelSort()
+		} else if v.grid.InspectingDuplicates() {
+			v.reopenVariantGrid()
 		} else if len(v.state.files) == 0 {
 			v.win.Close()
 		} else {
@@ -186,6 +188,9 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
 			v.toggleSlideshowShuffle()
 		} else {
+			if v.grid.InspectingDuplicates() {
+				return
+			}
 			v.togglePictureFrameMode()
 		}
 
@@ -198,12 +203,18 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// The two full-window modes don't compose (P already claims
 		// Escape to leave), so the guard lives here in the dispatcher
 		// rather than inside either package: neither needs to know the
-		// other exists.
-		if !v.slides.Active() {
-			v.grid.Toggle()
-			v.updateWindowMenuState()
+		// other exists. G from inspect reopens the variants grid, same
+		// as Escape, rather than the hide-duplicates overview.
+		if v.slides.Active() {
+			return
 		}
-
+		if v.grid.InspectingDuplicates() {
+			v.reopenVariantGrid()
+			v.updateWindowMenuState()
+			return
+		}
+		v.grid.Toggle()
+		v.updateWindowMenuState()
 		return
 	case fyne.KeyD:
 		// Same place as G: hide-dupes is useful with one file (no-op) or
@@ -214,9 +225,13 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// the grid when that actually turns browse on. A unique file is
 		// a silent no-op (do not open an empty group). Picture-frame
 		// ignores Shift+D the same way it ignores G: the two full-window
-		// modes don't compose.
+		// modes don't compose. Plain D is inert while inspecting so it
+		// cannot jump off a hidden extra.
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
 			v.browseCurrentDuplicates()
+			return
+		}
+		if v.grid.InspectingDuplicates() {
 			return
 		}
 		v.toggleHideDuplicates()

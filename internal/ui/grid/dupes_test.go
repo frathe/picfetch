@@ -695,12 +695,28 @@ func TestSyncTopBar_ShowingDuplicates(t *testing.T) {
 
 func TestGroupMembers_Pair(t *testing.T) {
 	g, _ := pairAndUnique(t)
+	g.rebuildGroups()
 	got := g.groupMembers(1)
 	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("groupMembers(1) = %v, want [0 1]", got)
 	}
 	if g.groupMembers(2) != nil {
 		t.Fatalf("groupMembers(unique) = %v, want nil", g.groupMembers(2))
+	}
+}
+
+func TestInspectMembers_ReadsSnapshotWithoutRebuild(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.rebuildGroups()
+	g.BeginInspect(1)
+	got := g.InspectMembers()
+	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("InspectMembers() = %v, want [0 1]", got)
+	}
+	before := g.groupComputes.Load()
+	_ = g.InspectMembers()
+	if n := g.groupComputes.Load(); n != before {
+		t.Fatalf("InspectMembers incremented groupComputes from %d to %d", before, n)
 	}
 }
 
@@ -1480,5 +1496,204 @@ func TestSetHideDuplicates_JumpsToHighestResolution(t *testing.T) {
 
 	if len(host.shown) == 0 || host.shown[len(host.shown)-1] != 1 {
 		t.Errorf("ShowImage calls = %v, want a jump to representative 1", host.shown)
+	}
+}
+
+func TestBeginInspect_ReportsMembersAndSkipsJump(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	host.index = 1 // extra; equal-size pair, representative is 0
+
+	if g.InspectingDuplicates() {
+		t.Fatal("inspect should start off")
+	}
+	g.BeginInspect(1)
+	if !g.InspectingDuplicates() {
+		t.Fatal("BeginInspect(1) should turn inspect on")
+	}
+	got := g.InspectMembers()
+	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("InspectMembers() = %v, want [0 1]", got)
+	}
+
+	host.shown = nil
+	g.jumpIfHiddenExtra()
+	if len(host.shown) != 0 {
+		t.Errorf("ShowImage calls = %v, want none while inspecting", host.shown)
+	}
+}
+
+func TestJumpIfHiddenExtra_StillJumpsWhenNotInspecting(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	host.index = 1
+	host.shown = nil
+
+	g.jumpIfHiddenExtra()
+	if len(host.shown) != 1 || host.shown[0] != 0 {
+		t.Errorf("ShowImage calls = %v, want jump to representative 0", host.shown)
+	}
+}
+
+func TestClose_ClearsInspectEvenWhenAlreadyHidden(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.BeginInspect(1)
+	if g.Visible() {
+		g.Close()
+	}
+	if g.Visible() {
+		t.Fatal("premises: grid closed")
+	}
+	g.BeginInspect(1)
+	g.Close()
+	if g.InspectingDuplicates() {
+		t.Fatal("Close must clear inspect while the overlay is already hidden")
+	}
+}
+
+func TestToggleOpen_ClearsInspect(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	if g.Visible() {
+		g.Close()
+	}
+	g.BeginInspect(1)
+	g.Toggle()
+	if !g.Visible() {
+		t.Fatal("Toggle should open")
+	}
+	if g.InspectingDuplicates() {
+		t.Fatal("opening the grid with G must end inspect")
+	}
+}
+
+func TestClearInspect_StopsSkippingJump(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	host.index = 1
+	g.BeginInspect(1)
+	g.ClearInspect()
+	host.shown = nil
+	g.jumpIfHiddenExtra()
+	if len(host.shown) != 1 || host.shown[0] != 0 {
+		t.Errorf("after ClearInspect, ShowImage calls = %v, want [0]", host.shown)
+	}
+}
+
+func TestHandleKey_ReturnFromBrowseCommitsExtra(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	g.SetBrowsingDuplicates(true)
+	if g.displayIndexOf(1) < 0 {
+		t.Fatal("extra should be visible while browsing")
+	}
+	g.setHighlight(g.displayIndexOf(1))
+	host.shown = nil
+	host.index = 1 // what the viewer would set after ShowImage; jump uses CurrentIndex
+
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+
+	if g.Visible() {
+		t.Fatal("Return should close the grid")
+	}
+	if g.BrowsingDuplicates() {
+		t.Fatal("Return should end browse")
+	}
+	if !g.InspectingDuplicates() {
+		t.Fatal("Return from browse should begin inspect")
+	}
+	if len(host.shown) != 1 || host.shown[0] != 1 {
+		t.Fatalf("ShowImage calls = %v, want [1] (the extra, not representative 0)", host.shown)
+	}
+
+	g.jumpIfHiddenExtra()
+	if len(host.shown) != 1 || host.shown[0] != 1 {
+		t.Fatalf("after jumpIfHiddenExtra ShowImage = %v, want still [1]", host.shown)
+	}
+}
+
+func TestOnSelected_ClickFromBrowseCommitsExtra(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	g.SetBrowsingDuplicates(true)
+	host.shown = nil
+	host.index = 1
+	click(g, host, g.displayIndexOf(1), 0)
+
+	if !g.InspectingDuplicates() || g.Visible() || g.BrowsingDuplicates() {
+		t.Fatalf("inspect=%v visible=%v browse=%v", g.InspectingDuplicates(), g.Visible(), g.BrowsingDuplicates())
+	}
+	if len(host.shown) != 1 || host.shown[0] != 1 {
+		t.Fatalf("ShowImage = %v, want [1]", host.shown)
+	}
+}
+
+func TestHandleKey_ReturnFromHideGridDoesNotInspect(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	if g.BrowsingDuplicates() {
+		t.Fatal("premises: not browsing")
+	}
+	g.setHighlight(0)
+	host.shown = nil
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	if g.InspectingDuplicates() {
+		t.Fatal("Return from hide-duplicates (not browse) must not begin inspect")
+	}
+}
+
+func TestHandleKey_DNoopWhileBrowsing(t *testing.T) {
+	g, _ := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	g.SetBrowsingDuplicates(true)
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	if !g.HideDuplicates() || !g.BrowsingDuplicates() {
+		t.Fatal("plain D while browsing must not toggle hide or leave browse")
+	}
+}
+
+func TestFilesChanged_ClearsInspectWhenGroupDissolves(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	g.BeginInspect(1)
+	host.files = host.files[2:] // only moon.jpg left
+	host.index = 0
+	host.gen++
+	g.FilesChanged()
+	if g.InspectingDuplicates() {
+		t.Fatal("inspect must end when the group no longer has two members")
+	}
+}
+
+func TestFilesChanged_RetargetsInspectWhenCurrentStillGrouped(t *testing.T) {
+	g, host := openPatterned(t,
+		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon-a.jpg", "moon-b.jpg"},
+		[]int{1, 1, 99, 99},
+	)
+	g.SetHideDuplicates(true)
+	g.BeginInspect(1)
+	host.files = host.files[2:]
+	host.index = 0
+	host.gen++
+	g.FilesChanged()
+	if !g.InspectingDuplicates() {
+		t.Fatal("inspect should retarget onto the remaining group")
+	}
+	members := g.InspectMembers()
+	if len(members) < 2 {
+		t.Fatalf("InspectMembers = %v, want a group of at least 2", members)
+	}
+}
+
+func TestFilesChanged_HideDuplicatesGroupingSurvivesDelete(t *testing.T) {
+	g, host := pairAndUnique(t)
+	g.SetHideDuplicates(true)
+	host.files = host.files[:2]
+	host.gen++
+	g.FilesChanged()
+	if !g.IsHiddenExtra(1) {
+		t.Fatal("the extra must stay hidden after deleting a unique")
+	}
+	if g.count() != 1 {
+		t.Fatalf("count() = %d, want 1", g.count())
 	}
 }

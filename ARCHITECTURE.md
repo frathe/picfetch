@@ -317,7 +317,7 @@ see `AGENTS.md`.
 - "How is an image shown/preloaded/animated once loaded?" → `load.go`.
 - "Which keys do what?" → `keys.go` (`handleKeyEvent` / `handleTypedRune`) + `shortcuts.go`.
 - "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go` + `keys.go` `handleTypedRune`.
-- "How does hide-duplicates work?" → `internal/imaging/dhash.go` + `internal/ui/grid/dupes.go`.
+- "How does hide-duplicates work?" → `internal/imaging/dhash.go` + `internal/ui/grid/dupes.go` (inspect loop: `BeginInspect` / `InspectMembers`; Escape reopen: `internal/ui` `reopenVariantGrid`).
 - "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `grid/marquee.go` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
 - "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
 - "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.

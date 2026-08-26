@@ -41,6 +41,28 @@ func (g *Overview) ensureHashGenLocked(gen uint64) {
 	}
 }
 
+// adoptHashGen records the host's current generation without dropping
+// URI-keyed hashes, hashFailed, or pixels. Incremental shrink
+// (RemoveFiles → FilesChanged) is not a new drop: surviving files keep
+// their hashes so hide-duplicates grouping and inspect retarget still
+// work. Orphan keys for deleted URIs linger until the next full-set
+// change, which is harmless. Do not call ensureHashGenLocked: that
+// wipes on mismatch.
+func (g *Overview) adoptHashGen() {
+	g.hashMu.Lock()
+	defer g.hashMu.Unlock()
+	g.hashGen = g.host.Generation()
+	if g.hashes == nil {
+		g.hashes = make(map[string]uint64)
+	}
+	if g.hashFailed == nil {
+		g.hashFailed = make(map[string]struct{})
+	}
+	if g.pixels == nil {
+		g.pixels = make(map[string]int)
+	}
+}
+
 func (g *Overview) rememberHash(u fyne.URI, img image.Image) {
 	if u == nil || img == nil {
 		return
@@ -247,9 +269,9 @@ func (g *Overview) finishBrowse() {
 
 // groupMembers returns host indices in the same duplicate group as
 // hostIndex, in host-index order, or nil when the group has fewer than two
-// members.
+// members. It reads the installed groupSizes/groupReps snapshot (same as
+// IsHiddenExtra / RepresentativeOf) and does not rebuild.
 func (g *Overview) groupMembers(hostIndex int) []int {
-	g.rebuildGroups()
 	if g.groupSize(hostIndex) < 2 {
 		return nil
 	}
@@ -263,7 +285,57 @@ func (g *Overview) groupMembers(hostIndex int) []int {
 	return members
 }
 
+// BeginInspect starts an inspect session on hostIndex so a hidden extra
+// can stay on screen. Out-of-range or missing files clear inspect instead.
+func (g *Overview) BeginInspect(hostIndex int) {
+	if hostIndex < 0 || hostIndex >= g.host.FileCount() {
+		g.inspectKey = ""
+		return
+	}
+	u := g.host.FileAt(hostIndex)
+	if u == nil {
+		g.inspectKey = ""
+		return
+	}
+	g.inspectKey = u.String()
+}
+
+// ClearInspect ends the inspect session.
+func (g *Overview) ClearInspect() {
+	g.inspectKey = ""
+}
+
+// InspectingDuplicates reports whether an inspect session is active.
+func (g *Overview) InspectingDuplicates() bool {
+	return g.inspectKey != ""
+}
+
+func (g *Overview) inspectSource() int {
+	if g.inspectKey == "" {
+		return -1
+	}
+	for i := 0; i < g.host.FileCount(); i++ {
+		if g.host.FileAt(i).String() == g.inspectKey {
+			return i
+		}
+	}
+	return -1
+}
+
+// InspectMembers returns host indices of the inspected file's duplicate
+// group in host-index order, or nil when inspect is off.
+func (g *Overview) InspectMembers() []int {
+	src := g.inspectSource()
+	if src < 0 {
+		return nil
+	}
+	return g.groupMembers(src)
+}
+
 func (g *Overview) jumpIfHiddenExtra() {
+	if g.InspectingDuplicates() {
+		return
+	}
 	if i := g.host.CurrentIndex(); g.IsHiddenExtra(i) {
 		g.host.ShowImage(g.RepresentativeOf(i))
 	}
@@ -471,7 +543,9 @@ func (g *Overview) hashRemaining() int {
 						keepHost := g.fileIndex(g.highlight)
 						g.groupSizes, g.groupReps = sizes, reps
 						g.applyVisibleFilter(false, keepHost)
-						g.jumpIfHiddenExtra()
+						if !g.InspectingDuplicates() {
+							g.jumpIfHiddenExtra()
+						}
 					}
 					if remaining == 0 {
 						g.fireDupeState()

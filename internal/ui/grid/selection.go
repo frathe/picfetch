@@ -81,8 +81,28 @@ func (g *Overview) SelectAll() {
 // are exactly the ones that just went to the Trash), and applyFilter
 // recomputes the filter's display→host mapping against what is left and
 // resets the highlight into range.
+//
+// Incremental shrink is not a new drop. adoptHashGen keeps URI-keyed
+// hashes and pixels so hide-duplicates grouping and inspect retarget
+// survive RemoveFiles. Orphan entries for deleted URIs linger until the
+// next full-set change, which is harmless. Groups are rebuilt against
+// the adopted hashes before inspect retarget, so the inspect block sees
+// post-delete groups.
 func (g *Overview) FilesChanged() {
 	g.sel.Clear()
+	g.adoptHashGen()
+	g.rebuildGroups()
+	if g.inspectKey != "" {
+		src := g.inspectSource()
+		if src < 0 || len(g.groupMembers(src)) < 2 {
+			cur := g.host.CurrentIndex()
+			if len(g.groupMembers(cur)) >= 2 {
+				g.BeginInspect(cur)
+			} else {
+				g.ClearInspect()
+			}
+		}
+	}
 	g.applyFilter()
 }
 

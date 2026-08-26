@@ -111,7 +111,7 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 	case fyne.KeyD:
 		if g.host.Modifiers()&fyne.KeyModifierShift != 0 {
 			g.ToggleBrowseDuplicates()
-		} else {
+		} else if !g.BrowsingDuplicates() {
 			g.SetHideDuplicates(!g.hideDupes)
 		}
 	case fyne.KeySpace:

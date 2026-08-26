@@ -446,6 +446,15 @@ einzeln durchzublättern.
 - **`Esc`** beendet die Duplikat-Anzeige, bevor das Ausblenden
   ausgeschaltet wird. **`G`**/Schließen lassen das Ausblenden an,
   **beenden** aber die Duplikat-Anzeige.
+- Eine Variante mit `Return` oder einem Klick zu öffnen zeigt **diese** Datei,
+  auch wenn das Ausblenden sonst die Kopie mit der höchsten Auflösung behalten
+  würde. Links/Rechts laufen dann nur durch die Gruppe; Home/Ende springen
+  weiter zum ersten/letzten sichtbaren Bild der ganzen Menge, danach laufen
+  Links/Rechts weiter durch die Gruppe. `Esc` oder `G`
+  in dieser Ansicht öffnet wieder das Varianten-Raster; ein weiteres `Esc`
+  kehrt zum Raster mit ausgeblendeten Extra-Kopien zurück. `D` und der
+  Bilderrahmen-Modus tun nichts, solange Varianten angezeigt werden oder diese
+  Schleife aktiv ist.
 - Solange die `/`-Suche offen ist, ist **`Shift+D`** keine
   Duplikat-Anzeige (`D` ist ein Buchstabe).
 - Im Diaschau-Modus bewirkt **`Shift+D`** nichts, wie **`G`**.
@@ -1038,7 +1047,12 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
 - **Duplikate anzeigen** — `Shift+D` zeigt alle Kopien der
   hervorgehobenen/aktuellen Aufnahme im Raster (auch Aktionen -> Varianten
   anzeigen), einschließlich Extra-Kopien, die `D` ausblenden würde; `G`/
-  Schließen beenden die Anzeige, lassen das Ausblenden aber an
+  Schließen beenden die Anzeige, lassen das Ausblenden aber an. Return/Klick
+  behält die gewählte Kopie auf dem Bildschirm und läuft die Gruppe mit
+  Links/Rechts durch (auch nach Home/Ende, die weiter über die ganze Menge
+  springen); `Esc` oder `G` kehrt zum Varianten-Raster zurück, dann
+  `Esc` zum Raster mit ausgeblendeten Extra-Kopien. `D` und der Bilderrahmen
+  bleiben während dieser Schleife aus
 - **Suche nach Namen** — `/` im Raster filtert es auf die Dateinamen, die
   Ihre Eingabe enthalten; stapelt sich mit dem Ausblenden von Duplikaten.
   `Esc` setzt den Filter zurück, dann die Duplikat-Anzeige, dann das

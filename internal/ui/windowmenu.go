@@ -14,7 +14,7 @@ func (v *viewer) applyWindowMenuState() {
 	v.windowViewerItem.Disabled = !v.grid.Visible() && !v.slides.Active()
 	v.windowExifItem.Disabled = v.exif.Open() || !displayed
 	v.windowGridItem.Disabled = v.grid.Visible() || v.FileCount() == 0 || v.slides.Active()
-	v.windowPictureFrameItem.Disabled = v.slides.Active() || v.FileCount() == 0
+	v.windowPictureFrameItem.Disabled = v.slides.Active() || v.FileCount() == 0 || v.variantsSession()
 	v.windowHelpItem.Disabled = v.help.ManualOpen()
 }
 
@@ -54,7 +54,12 @@ func (v *viewer) updateWindowMenuState() {
 }
 
 func (v *viewer) showViewer() {
-	v.grid.Close()
+	// Close() ClearInspects even when the overlay is already hidden.
+	// V / Window → Viewer is a no-op in the image view, so skip Close
+	// there or inspect would end. Leave the grid or picture-frame as before.
+	if v.grid.Visible() || v.slides.Active() {
+		v.grid.Close()
+	}
 	if v.slides.Active() {
 		v.slides.Exit()
 		v.resetFade()
@@ -72,12 +77,19 @@ func (v *viewer) showWindowGrid() {
 	if v.grid.Visible() || v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
+	if v.grid.InspectingDuplicates() {
+		v.reopenVariantGrid()
+		return
+	}
 	v.grid.Toggle()
 	v.updateWindowMenuState()
 }
 
 func (v *viewer) showWindowPictureFrame() {
 	if v.slides.Active() || v.FileCount() == 0 {
+		return
+	}
+	if v.variantsSession() {
 		return
 	}
 	v.togglePictureFrameMode()

@@ -570,6 +570,7 @@ func (v *viewer) clearToDropzone() {
 	v.scanOp.invalidate() // same shape: supersede the token and finish the overlay if a scan is in flight
 
 	v.state.clearFiles()
+	v.grid.ClearInspect()
 	v.fileSetRevision.advance()
 
 	// Purged, not left to age out: with no files open, every decode the
@@ -914,6 +915,9 @@ func (v *viewer) nextVisibleIndex(from, delta int) int {
 	if n == 0 {
 		return 0
 	}
+	if members := v.grid.InspectMembers(); len(members) >= 2 && delta != 0 {
+		return stepInMembers(members, from, delta)
+	}
 	if !v.grid.HideDuplicates() || delta == 0 {
 		return from + delta
 	}
@@ -976,4 +980,34 @@ func absInt(n int) int {
 		return -n
 	}
 	return n
+}
+
+func stepInMembers(members []int, from, delta int) int {
+	n := len(members)
+	if n == 0 {
+		return from
+	}
+	if delta == 0 {
+		return from
+	}
+	pos := 0
+	found := false
+	for i, m := range members {
+		if m == from {
+			pos = i
+			found = true
+			break
+		}
+	}
+	if !found {
+		pos = 0
+	}
+	step := 1
+	if delta < 0 {
+		step = -1
+	}
+	for k := 0; k < absInt(delta); k++ {
+		pos = (pos + step + n) % n
+	}
+	return members[pos]
 }

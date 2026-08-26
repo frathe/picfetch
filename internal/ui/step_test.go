@@ -380,3 +380,278 @@ func TestHandleKeyEvent_LeftRightUseStepImage(t *testing.T) {
 		t.Fatalf("Left via handleKeyEvent index = %d, want %d", v.state.index, start)
 	}
 }
+
+func loadBrowsePair(t *testing.T) *viewer {
+	t.Helper()
+	v := loadPatternedTriple(t)
+	v.grid.SetHideDuplicates(true)
+	v.grid.Settle()
+	waitUntilLoaded(t, v)
+	v.grid.Toggle()
+	v.grid.SetBrowsingDuplicates(true)
+	v.grid.Settle()
+	if !v.grid.Visible() || !v.grid.BrowsingDuplicates() {
+		t.Fatal("premises: variants grid up")
+	}
+	return v
+}
+
+func TestStepInMembers_Wraps(t *testing.T) {
+	members := []int{0, 3, 5}
+	if got := stepInMembers(members, 3, 1); got != 5 {
+		t.Errorf("step +1 from 3 = %d, want 5", got)
+	}
+	if got := stepInMembers(members, 5, 1); got != 0 {
+		t.Errorf("wrap +1 from 5 = %d, want 0", got)
+	}
+	if got := stepInMembers(members, 0, -1); got != 5 {
+		t.Errorf("wrap -1 from 0 = %d, want 5", got)
+	}
+	if got := stepInMembers(members, 99, 1); got != 3 {
+		t.Errorf("from missing, +1 from pos 0 = %d, want 3", got)
+	}
+}
+
+func TestStepImage_InspectLoopsVariantsNotUniques(t *testing.T) {
+	v := loadBrowsePair(t)
+	// finishBrowse highlights browseHost (current, index 0). One Right is the extra.
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+
+	if v.state.index != 1 {
+		t.Fatalf("index = %d, want 1 (committed extra)", v.state.index)
+	}
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("inspect should be on after Return from browse")
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.index != 0 {
+		t.Fatalf("after StepImage(1) index = %d, want 0 (other variant, not unique 2)", v.state.index)
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.index != 1 {
+		t.Fatalf("after wrap index = %d, want 1", v.state.index)
+	}
+
+	v.StepImage(-1)
+	waitUntilLoaded(t, v)
+	if v.state.index != 0 {
+		t.Fatalf("after StepImage(-1) index = %d, want 0", v.state.index)
+	}
+}
+
+func TestHandleKeyEvent_HomeEndWhileInspectingUseWholeSet(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+	waitUntilLoaded(t, v)
+	if v.state.index != 2 {
+		t.Fatalf("End index = %d, want 2 (last visible of the set, unique)", v.state.index)
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyHome})
+	waitUntilLoaded(t, v)
+	if v.state.index != 0 {
+		t.Fatalf("Home index = %d, want 0 (first visible representative)", v.state.index)
+	}
+}
+
+func TestHandleKeyEvent_ArrowAfterEndWhileInspectingReturnsToGroup(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+	waitUntilLoaded(t, v)
+	if v.state.index != 2 {
+		t.Fatalf("End index = %d, want 2", v.state.index)
+	}
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("inspect stays on after End")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	waitUntilLoaded(t, v)
+	if v.state.index != 1 {
+		t.Fatalf("Right after End index = %d, want 1 (back into the group)", v.state.index)
+	}
+}
+
+func TestHandleKeyEvent_EscapeFromInspectReopensVariantsThenHideGrid(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	if v.grid.Visible() || !v.grid.InspectingDuplicates() {
+		t.Fatal("premises: inspect viewer, grid closed")
+	}
+	startFiles := len(v.state.files)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	v.grid.Settle()
+
+	if len(v.state.files) != startFiles {
+		t.Fatalf("files = %d, want %d (Escape must not reset the session)", len(v.state.files), startFiles)
+	}
+	if !v.grid.Visible() {
+		t.Fatal("Escape from inspect should reopen the grid")
+	}
+	if !v.grid.BrowsingDuplicates() {
+		t.Fatal("reopened grid should be the variants (browse) filter")
+	}
+	if v.grid.InspectingDuplicates() {
+		t.Fatal("inspect ends when the variants grid is back")
+	}
+	if !v.grid.HideDuplicates() {
+		t.Fatal("hide should still be on")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if v.grid.BrowsingDuplicates() {
+		t.Fatal("second Escape should leave browse")
+	}
+	if !v.grid.Visible() {
+		t.Fatal("second Escape should stay on the hide-duplicates grid")
+	}
+	if !v.grid.HideDuplicates() {
+		t.Fatal("second Escape must not turn hide off")
+	}
+}
+
+func TestHandleKeyEvent_EscapeWithoutInspectStillResets(t *testing.T) {
+	v := loadPatternedTriple(t)
+	if v.grid.InspectingDuplicates() || v.grid.Visible() {
+		t.Fatal("premises: image view, not inspecting")
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if len(v.state.files) != 0 {
+		t.Fatal("Escape in the image view without inspect should reset the session")
+	}
+}
+
+func TestHandleKeyEvent_GFromInspectReopensVariants(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+	v.grid.Settle()
+	if !v.grid.Visible() || !v.grid.BrowsingDuplicates() {
+		t.Fatal("G from inspect should reopen the variants grid")
+	}
+	if v.grid.InspectingDuplicates() {
+		t.Fatal("inspect ends when variants reopen")
+	}
+}
+
+func TestHandleKeyEvent_DNoopWhileInspecting(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	if !v.grid.HideDuplicates() {
+		t.Fatal("premises: hide on")
+	}
+	idx := v.state.index
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	if !v.grid.HideDuplicates() {
+		t.Fatal("D while inspecting must not toggle hide")
+	}
+	if v.state.index != idx {
+		t.Fatalf("index = %d, want %d (D must not jump)", v.state.index, idx)
+	}
+}
+
+func TestHandleKeyEvent_PNoopWhileInspecting(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyP})
+	if v.slides.Active() {
+		t.Fatal("P while inspecting must not enter picture-frame")
+	}
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("P must leave inspect on")
+	}
+}
+
+func TestHandleKeyEvent_VFromInspectLeavesInspectOn(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("premises: inspecting")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyV})
+
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("V in the image view must leave inspect on")
+	}
+	if v.grid.Visible() {
+		t.Fatal("V must not open the grid")
+	}
+}
+
+func TestShowWindowGrid_FromInspectReopensVariants(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+
+	v.showWindowGrid()
+	v.grid.Settle()
+	if !v.grid.Visible() || !v.grid.BrowsingDuplicates() {
+		t.Fatal("Window → Grid from inspect should reopen the variants grid")
+	}
+	if v.grid.InspectingDuplicates() {
+		t.Fatal("inspect ends when variants reopen")
+	}
+}
+
+func TestShowWindowPictureFrame_NoopsDuringVariantsSession(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.showWindowPictureFrame()
+	if v.slides.Active() {
+		t.Fatal("Picture-frame while browsing must not enter")
+	}
+	if !v.grid.BrowsingDuplicates() || !v.grid.Visible() {
+		t.Fatal("browsing grid must stay up")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	v.showWindowPictureFrame()
+	if v.slides.Active() {
+		t.Fatal("Picture-frame while inspecting must not enter")
+	}
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("inspect must stay on")
+	}
+}
+
+func TestClearToDropzone_ClearsInspect(t *testing.T) {
+	v := loadBrowsePair(t)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("premises: inspecting")
+	}
+	v.clearToDropzone()
+	if v.grid.InspectingDuplicates() {
+		t.Fatal("clearToDropzone must ClearInspect")
+	}
+}

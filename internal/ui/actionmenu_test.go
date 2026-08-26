@@ -638,3 +638,30 @@ func TestActionsMenu_TrashNoopsWithoutFiles(t *testing.T) {
 		t.Fatal("no files: trash must not open")
 	}
 }
+
+func TestActionsMenu_HideDisabledDuringVariantsSession(t *testing.T) {
+	v := loadBrowsePair(t)
+	hide := requireActionsItem(t, v, "Show/Hide duplicates")
+	if !hide.Disabled {
+		t.Fatal("Show/Hide duplicates should be disabled while browsing variants")
+	}
+	v.actionsHideItem.Action()
+	if !v.grid.HideDuplicates() {
+		t.Fatal("Action must not toggle hide while browsing")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	hide = requireActionsItem(t, v, "Show/Hide duplicates")
+	if !hide.Disabled {
+		t.Fatal("Show/Hide duplicates should be disabled while inspecting")
+	}
+	v.actionsHideItem.Action()
+	if !v.grid.HideDuplicates() {
+		t.Fatal("Action must not toggle hide while inspecting")
+	}
+	if !v.grid.InspectingDuplicates() {
+		t.Fatal("inspect must stay on")
+	}
+}

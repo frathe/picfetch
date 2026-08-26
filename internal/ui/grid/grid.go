@@ -252,6 +252,12 @@ type Overview struct {
 	// browseHost is the host index being browsed, or -1 when browse is
 	// off. Zero is a valid file index - New MUST set this to -1.
 	browseHost int
+	// inspectKey is the URI string of a file committed from the
+	// variants grid, or "" when inspect is off. The viewer loops
+	// InspectMembers and Escape reopens browse. Distinct from
+	// browseHost: browse filters the overlay; inspect survives
+	// closeOverlay(false) (Return/click commit), not Close()/G.
+	inspectKey string
 	dupeDist   int
 	groupSizes []int
 	groupReps  []int
@@ -406,8 +412,12 @@ func New(host Host, win fyne.Window) *Overview {
 			// and an id resolved past that point would map to itself rather
 			// than to the file this cell was actually showing.
 			i := g.fileIndex(id)
-
-			g.Close()
+			if g.BrowsingDuplicates() && i >= 0 && g.groupSize(i) >= 2 {
+				g.BeginInspect(i)
+				g.closeOverlay(false)
+			} else {
+				g.Close()
+			}
 			if i >= 0 {
 				g.host.ShowImage(i)
 			}
@@ -511,6 +521,8 @@ func (g *Overview) Toggle() {
 		return
 	}
 
+	g.ClearInspect()
+
 	g.visible = true
 
 	// Maximize, not full-screen (see winpos.Maximize) - more room for more,
@@ -534,10 +546,12 @@ func (g *Overview) Toggle() {
 	g.fireVisibility()
 }
 
-// Close dismisses the grid, restoring the normal image view. A no-op when
-// it isn't showing, so the app can call it defensively (on every drop, and
-// when entering its other full-window mode) without checking Visible
-// first.
+// Close dismisses the grid, restoring the normal image view. Always
+// clears inspect, including when the overlay is already hidden, so drop
+// and picture-frame cannot leave a leftover inspect session. When it
+// isn't showing, that inspect/browse clear is all it does - the app can
+// still call it defensively (on every drop, and when entering its other
+// full-window mode) without checking Visible first.
 //
 // Unfocuses the canvas on the way out: tapping a thumbnail is a real Fyne
 // widget tap, and Fyne's own GridWrap unconditionally grabs canvas focus
@@ -548,7 +562,21 @@ func (g *Overview) Toggle() {
 // press afterward (arrow keys included) until something else happened to
 // steal focus back.
 func (g *Overview) Close() {
+	g.closeOverlay(true)
+}
+
+// closeOverlay hides the overlay. When clearInspect is true, inspect ends
+// first even if the overlay is already down (drop, picture-frame). When
+// false, inspect survives so a variants commit can keep the extra on
+// screen.
+func (g *Overview) closeOverlay(clearInspect bool) {
+	if clearInspect {
+		g.ClearInspect()
+	}
 	if !g.visible {
+		if g.browseHost >= 0 {
+			g.SetBrowsingDuplicates(false)
+		}
 		return
 	}
 

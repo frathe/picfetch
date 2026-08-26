@@ -396,6 +396,13 @@ instead of arrowing through them one at a time.
   unique shot (already hashed, no copies) does nothing.
 - **`Esc`** leaves browse before it turns hide off. **`G`**/Close leave hide
   on but **end** browse.
+- Committing a variant (`Return` or a click) shows **that** file, even when
+  hide-duplicates would otherwise keep the highest-resolution copy on screen.
+  Left/Right then loop only the group; Home/End still jump to the first/last
+  visible file of the whole set, and Left/Right after that still loop the
+  group. `Esc` or `G` from that view reopens the
+  variants grid; `Esc` again returns to the hide-duplicates grid. `D` and `P`
+  do nothing while variants are showing or that loop is active.
 - While `/` search is open, **`Shift+D`** is not browse (`D` is a letter).
 - In picture-frame mode, **`Shift+D`** does nothing, like **`G`**.
 - **Select several at once** to act on them together:
@@ -904,7 +911,11 @@ Things PicFetch deliberately does not do (yet):
   match-distance slider
 - **Browse duplicates** — `Shift+D` shows every copy of the
   highlighted/current shot in the grid (also Actions -> Show variants),
-  including extras `D` would hide; `G`/Close end browse but leave hide on
+  including extras `D` would hide; `G`/Close end browse but leave hide on.
+  Return/click keeps the chosen copy on screen and loops the group with
+  Left/Right (also after Home/End, which still jump the whole set); `Esc`
+  or `G` returns to the variants grid, then `Esc` to the hide-duplicates
+  grid. `D` and picture-frame stay off during that loop
 - **Search by name** — `/` inside the grid filters it to the file names
   containing what you type; stacks with hide-duplicates. `Esc` clears the
   filter, then browse-duplicates, then hide-duplicates, then the grid. The
