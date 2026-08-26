@@ -115,6 +115,9 @@ The title bar tells you what you are looking at, for example:
 - **`[merge]`** at the very front, only while merge mode (`M`) is on — see
   "Browsing multiple images" below
 
+In the grid, the title bar normally shows the file name; Show variants
+(`Shift+D`) uses `(n/m) [WxH] /path` with no mode prefixes.
+
 ### Photo rotation
 
 Photos taken with a phone or camera held sideways carry an EXIF orientation
@@ -391,6 +394,15 @@ instead of arrowing through them one at a time.
 - Press **`Shift+D`** to show every copy of the **highlighted** shot (in the
   grid) or the **current** shot (in image view). The grid lists only that
   group, including extras `D` would hide.
+- While that variants grid is showing, the duplicate-count badges are hidden
+  (every cell is already a member of the same group).
+- The window title names the highlighted thumbnail as
+  `(position) [widthxheight] full-path`, for example
+  `(2/7) [1440x780] /photos/vacation/IMG_0123.jpg`. `[merge]`, sort-order,
+  and `[shuffle]` prefixes are hidden while variants are showing. Arrow keys
+  and hovering the pointer over a thumbnail both move the highlight, so both
+  update the title. Leaving variants restores the usual file-name title and
+  those prefixes.
 - If thumbnails are still being hashed, an info toast says **The images are
   currently being analyzed**; the group appears when hashing finishes. A
   unique shot (already hashed, no copies) does nothing.
