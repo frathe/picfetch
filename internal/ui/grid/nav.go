@@ -17,6 +17,15 @@ func (g *Overview) Highlight() int {
 	return g.highlight
 }
 
+// SimulateHover moves the ring as GridWrap does when the pointer enters
+// the cell at display index id. Package ui tests drive this because wrap
+// is unexported; it is not a second hover path.
+func (g *Overview) SimulateHover(id int) {
+	if g.wrap != nil && g.wrap.OnHighlighted != nil {
+		g.wrap.OnHighlighted(id)
+	}
+}
+
 // setHighlight moves the ring to display index id and keeps GridWrap's own
 // keyboard cursor on the same cell.
 //
@@ -200,7 +209,7 @@ func setCellHighlighted(ring *canvas.Rectangle, highlighted bool) {
 
 func (g *Overview) applyDupBadge(b *dupBadge, hostIndex int, cell fyne.Size) {
 	n := g.groupSize(hostIndex)
-	if !g.hideDupes || n < 2 {
+	if !g.hideDupes || g.BrowsingDuplicates() || n < 2 {
 		b.chip.Hide()
 		return
 	}

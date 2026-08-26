@@ -130,6 +130,9 @@ Die Titelzeile zeigt, was Sie gerade betrachten, zum Beispiel:
 - **`[Zusammenführen]`** ganz vorne, nur solange der Zusammenführen-Modus
   (`M`) aktiv ist — siehe „Mehrere Bilder durchblättern“ unten
 
+Im Raster steht normalerweise der Dateiname in der Titelzeile; in der
+Variantenansicht gilt `(n/m) [BxH] /Pfad` ohne Modus-Präfixe.
+
 ### Fotorotation
 
 Fotos, die im Hoch- oder Querformat mit einem Handy oder einer Kamera
@@ -439,6 +442,14 @@ einzeln durchzublättern.
   alle Kopien der **hervorgehobenen** Aufnahme (im Raster) bzw. der
   **aktuellen** Aufnahme (in der Einzelbildansicht). Das Raster listet nur
   diese Gruppe, einschließlich Extra-Kopien, die `D` ausblenden würde.
+- In der Variantenansicht sind die Zähl-Badges ausgeblendet.
+- Die Fenstertitelzeile zeigt die hervorgehobene Miniaturansicht als
+  `(Position) [BreitexHöhe] vollständiger-Pfad`, z. B.
+  `(2/7) [1440x780] /photos/vacation/IMG_0123.jpg`. `[Zusammenführen]`, Sortier- und
+  `[Zufällig]`-Präfixe sind in der Variantenansicht ausgeblendet. Pfeiltasten
+  und Zeigen mit der Maus bewegen die Hervorhebung und damit den Titel.
+  Verlassen der Variantenansicht stellt den Dateinamen-Titel und jene Präfixe
+  wieder her.
 - Wenn Miniaturansichten noch gehasht werden, erscheint ein Info-Hinweis
   **Die Bilder werden gerade analysiert**; die Gruppe erscheint, sobald das
   Hashen abgeschlossen ist. Eine einzigartige Aufnahme (bereits gehasht,

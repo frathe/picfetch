@@ -223,14 +223,15 @@ type Overview struct {
 	cellIDs sync.Map
 
 	// hashes maps URI string → dHash. Not stored in thumbs: a hash is 8
-	// bytes and must survive thumbnail eviction. pixels maps URI string
-	// → native Dx*Dy for the same generation; absent means unknown.
-	// Thumbnails are capped, so size cannot be recovered from the thumb
-	// cache. hashGen is the host Generation those entries belong to; a
-	// newer drop wipes hashes, hashFailed, and pixels.
+	// bytes and must survive thumbnail eviction. native maps URI string
+	// → EXIF-oriented pixel size (Dx, Dy) for the same generation;
+	// absent means unknown. Thumbnails are capped, so size cannot be
+	// recovered from the thumb cache. hashGen is the host Generation
+	// those entries belong to; a newer drop wipes hashes, hashFailed,
+	// and native.
 	hashMu sync.Mutex
 	hashes map[string]uint64
-	pixels map[string]int
+	native map[string]image.Point
 	// hashFailed are URIs whose thumbnail decode already failed this
 	// generation. hashRemaining must not retry them: mixed-format drops
 	// leave unreadable files, and retrying on every Shift+D re-raises
@@ -343,7 +344,7 @@ func New(host Host, win fyne.Window) *Overview {
 		ui:         fyneQueue{},
 		hashes:     make(map[string]uint64),
 		hashFailed: make(map[string]struct{}),
-		pixels:     make(map[string]int),
+		native:     make(map[string]image.Point),
 		dupeDist:   imaging.DuplicateMaxDistance,
 		browseHost: -1,
 	}
