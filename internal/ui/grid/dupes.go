@@ -27,7 +27,7 @@ func (g *Overview) ensureHashGenLocked(gen uint64) {
 	if g.hashGen != gen {
 		g.hashes = make(map[string]uint64)
 		g.hashFailed = make(map[string]struct{})
-		g.pixels = make(map[string]int)
+		g.native = make(map[string]image.Point)
 		g.hashGen = gen
 	}
 	if g.hashes == nil {
@@ -36,13 +36,13 @@ func (g *Overview) ensureHashGenLocked(gen uint64) {
 	if g.hashFailed == nil {
 		g.hashFailed = make(map[string]struct{})
 	}
-	if g.pixels == nil {
-		g.pixels = make(map[string]int)
+	if g.native == nil {
+		g.native = make(map[string]image.Point)
 	}
 }
 
 // adoptHashGen records the host's current generation without dropping
-// URI-keyed hashes, hashFailed, or pixels. Incremental shrink
+// URI-keyed hashes, hashFailed, or native. Incremental shrink
 // (RemoveFiles → FilesChanged) is not a new drop: surviving files keep
 // their hashes so hide-duplicates grouping and inspect retarget still
 // work. Orphan keys for deleted URIs linger until the next full-set
@@ -58,8 +58,8 @@ func (g *Overview) adoptHashGen() {
 	if g.hashFailed == nil {
 		g.hashFailed = make(map[string]struct{})
 	}
-	if g.pixels == nil {
-		g.pixels = make(map[string]int)
+	if g.native == nil {
+		g.native = make(map[string]image.Point)
 	}
 }
 
@@ -94,12 +94,12 @@ func (g *Overview) rememberNative(u fyne.URI, native image.Rectangle) {
 	if u == nil {
 		return
 	}
-	px := max(native.Dx()*native.Dy(), 0)
+	sz := image.Pt(max(native.Dx(), 0), max(native.Dy(), 0))
 	gen := g.host.Generation()
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
 	g.ensureHashGenLocked(gen)
-	g.pixels[u.String()] = px
+	g.native[u.String()] = sz
 }
 
 func (g *Overview) hashOf(u fyne.URI) (uint64, bool) {
@@ -124,15 +124,37 @@ func (g *Overview) hashFailedOf(u fyne.URI) bool {
 	return ok
 }
 
-func (g *Overview) pixelCountOf(u fyne.URI) (int, bool) {
+func (g *Overview) nativeSizeOf(u fyne.URI) (image.Point, bool) {
 	if u == nil {
-		return 0, false
+		return image.Point{}, false
 	}
 	g.wipeHashesIfStale()
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
-	n, ok := g.pixels[u.String()]
-	return n, ok
+	sz, ok := g.native[u.String()]
+	return sz, ok
+}
+
+func (g *Overview) pixelCountOf(u fyne.URI) (int, bool) {
+	sz, ok := g.nativeSizeOf(u)
+	if !ok {
+		return 0, false
+	}
+	return sz.X * sz.Y, true
+}
+
+// NativeSize is the EXIF-oriented pixel size of the file at hostIndex.
+// ok is false when the index is out of range or no probe has been stored,
+// or when a stored size has a non-positive edge (failed/empty probe).
+func (g *Overview) NativeSize(hostIndex int) (w, h int, ok bool) {
+	if hostIndex < 0 || hostIndex >= g.host.FileCount() {
+		return 0, 0, false
+	}
+	sz, ok := g.nativeSizeOf(g.host.FileAt(hostIndex))
+	if !ok || sz.X <= 0 || sz.Y <= 0 {
+		return 0, 0, false
+	}
+	return sz.X, sz.Y, true
 }
 
 func (g *Overview) wipeHashesIfStale() {
@@ -147,7 +169,7 @@ func (g *Overview) clearHashes() {
 	defer g.hashMu.Unlock()
 	g.hashes = make(map[string]uint64)
 	g.hashFailed = make(map[string]struct{})
-	g.pixels = make(map[string]int)
+	g.native = make(map[string]image.Point)
 }
 
 // SetOnDupeStateChanged registers f to run after hide, browse, last-job
@@ -424,8 +446,8 @@ func (g *Overview) computeDuplicateGroups() (sizes, reps []int) {
 			hs = append(hs, h)
 			hashed[i] = true
 		}
-		if p, ok := g.pixels[u.String()]; ok {
-			px[i] = p
+		if sz, ok := g.native[u.String()]; ok {
+			px[i] = sz.X * sz.Y
 		}
 	}
 	g.hashMu.Unlock()

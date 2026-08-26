@@ -83,11 +83,11 @@ func (g *Overview) SelectAll() {
 // resets the highlight into range.
 //
 // Incremental shrink is not a new drop. adoptHashGen keeps URI-keyed
-// hashes and pixels so hide-duplicates grouping and inspect retarget
-// survive RemoveFiles. Orphan entries for deleted URIs linger until the
-// next full-set change, which is harmless. Groups are rebuilt against
-// the adopted hashes before inspect retarget, so the inspect block sees
-// post-delete groups.
+// hashes and native sizes so hide-duplicates grouping and inspect
+// retarget survive RemoveFiles. Orphan entries for deleted URIs linger
+// until the next full-set change, which is harmless. Groups are
+// rebuilt against the adopted hashes before inspect retarget, so the
+// inspect block sees post-delete groups.
 func (g *Overview) FilesChanged() {
 	g.sel.Clear()
 	g.adoptHashGen()

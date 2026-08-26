@@ -934,13 +934,13 @@ func injectHashes(t *testing.T, g *Overview, host *fakeHost, hs []uint64) {
 	if g.hashes == nil {
 		g.hashes = make(map[string]uint64)
 	}
-	if g.pixels == nil {
-		g.pixels = make(map[string]int)
+	if g.native == nil {
+		g.native = make(map[string]image.Point)
 	}
 	g.hashGen = host.Generation()
 	for i, h := range hs {
 		g.hashes[host.files[i].String()] = h
-		g.pixels[host.files[i].String()] = 1
+		g.native[host.files[i].String()] = image.Pt(1, 1)
 	}
 }
 
@@ -1352,6 +1352,44 @@ func TestWarm_RecordsNativePixelCountNotThumbnailSize(t *testing.T) {
 	}
 }
 
+func TestNativeSize_ReportsProbeWidthAndHeight(t *testing.T) {
+	u := uitest.TempJPEGURI(t, "big.jpg", 800, 400, color.RGBA{R: 200, G: 20, B: 20, A: 255})
+	host := &fakeHost{files: []fyne.URI{u}}
+	g := newOverview(t, host)
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+
+	w, h, ok := g.NativeSize(0)
+	if !ok {
+		t.Fatal("NativeSize(0) ok=false, want the Warm probe")
+	}
+	if w != 800 || h != 400 {
+		t.Errorf("NativeSize(0) = %dx%d, want 800x400 (not thumbnail size)", w, h)
+	}
+
+	px, pok := g.pixelCountOf(u)
+	if !pok || px != 800*400 {
+		t.Errorf("pixelCountOf = %d ok=%v, want %d true (grouping still uses Dx*Dy)", px, pok, 800*400)
+	}
+
+	if _, _, ok := g.NativeSize(-1); ok {
+		t.Error("NativeSize(-1) must be !ok")
+	}
+	if _, _, ok := g.NativeSize(1); ok {
+		t.Error("NativeSize past FileCount must be !ok")
+	}
+}
+
+func TestNativeSize_UnknownWhenUnprobed(t *testing.T) {
+	u := uitest.TempJPEGURI(t, "a.jpg", 8, 8, color.White)
+	host := &fakeHost{files: []fyne.URI{u}}
+	g := newOverview(t, host)
+	if _, _, ok := g.NativeSize(0); ok {
+		t.Fatal("unprobed file must not report a size")
+	}
+}
+
 func TestWipeHashesIfStale_DropsPixelsOnGenerationChange(t *testing.T) {
 	host := hostWith(t, "a.jpg")
 	g := newOverview(t, host)
@@ -1437,10 +1475,10 @@ func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
 		host.files[1].String(): h,
 		host.files[2].String(): 0x2222222222222222,
 	}
-	g.pixels = map[string]int{
-		host.files[0].String(): 100,
-		host.files[1].String(): 400,
-		host.files[2].String(): 9999,
+	g.native = map[string]image.Point{
+		host.files[0].String(): image.Pt(100, 1),
+		host.files[1].String(): image.Pt(400, 1),
+		host.files[2].String(): image.Pt(9999, 1),
 	}
 	g.hashGen = host.gen
 	g.rebuildGroups()
@@ -1472,9 +1510,9 @@ func TestComputeDuplicateGroups_EqualPixelsKeepsLowestIndex(t *testing.T) {
 		host.files[0].String(): h,
 		host.files[1].String(): h,
 	}
-	g.pixels = map[string]int{
-		host.files[0].String(): 100,
-		host.files[1].String(): 100,
+	g.native = map[string]image.Point{
+		host.files[0].String(): image.Pt(100, 1),
+		host.files[1].String(): image.Pt(100, 1),
 	}
 	g.hashGen = host.gen
 	g.rebuildGroups()
@@ -1491,8 +1529,8 @@ func TestComputeDuplicateGroups_UnknownPixelsLoseToKnown(t *testing.T) {
 		host.files[0].String(): h,
 		host.files[1].String(): h,
 	}
-	g.pixels = map[string]int{
-		host.files[1].String(): 50,
+	g.native = map[string]image.Point{
+		host.files[1].String(): image.Pt(50, 1),
 	}
 	g.hashGen = host.gen
 	g.rebuildGroups()
@@ -1509,9 +1547,9 @@ func TestSetHideDuplicates_JumpsToHighestResolution(t *testing.T) {
 		host.files[0].String(): h,
 		host.files[1].String(): h,
 	}
-	g.pixels = map[string]int{
-		host.files[0].String(): 100,
-		host.files[1].String(): 400,
+	g.native = map[string]image.Point{
+		host.files[0].String(): image.Pt(100, 1),
+		host.files[1].String(): image.Pt(400, 1),
 	}
 	g.hashGen = host.gen
 	host.index = 0
