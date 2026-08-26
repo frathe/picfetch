@@ -19,6 +19,8 @@ func (g *Overview) Highlight() int {
 
 // SimulateHover moves the ring as GridWrap does when the pointer enters
 // the cell at display index id.
+// SimulateHover moves the ring as GridWrap does when the pointer enters
+// the cell at display index id.
 func (g *Overview) SimulateHover(id int) {
 	if g.wrap != nil && g.wrap.OnHighlighted != nil {
 		g.wrap.OnHighlighted(id)
