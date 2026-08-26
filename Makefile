@@ -144,6 +144,9 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 	@# is triggered by the tag push and re-runs CI as a gate, so a red run
 	@# leaves the tag orphaned rather than shipping a broken build.
 	@# A GitHub TUF root bump, if any, is a separate commit before Release.
+	@# Release notes come from todos.md ## Done (empty categories dropped);
+	@# they are written to .github/release-notes.md in the Release commit so
+	@# the workflow can attach them, then Done items are cleared.
 	@set -e; \
 	part=$${PART:-patch}; \
 	branch=$$(git rev-parse --abbrev-ref HEAD); \
@@ -157,12 +160,15 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/$(RELEASE_BRANCH))" ]; then \
 		echo "HEAD and origin/$(RELEASE_BRANCH) have diverged - pull/push first"; exit 1; \
 	fi; \
+	prev_version=$$(sed -nE 's/^Version = "(.*)"/\1/p' FyneApp.toml); \
 	new_version=$$(scripts/bump_version.sh $$part --dry-run); \
 	tag="v$$new_version"; \
 	if git rev-parse -q --verify "refs/tags/$$tag" >/dev/null || \
 	   [ -n "$$(git ls-remote --tags origin "refs/tags/$$tag")" ]; then \
 		echo "Tag $$tag already exists"; exit 1; \
 	fi; \
+	notes=$$(go run ./scripts/releasenotes --prev "$$prev_version" --next "$$new_version") || exit 1; \
+	printf '%s\n\n' "$$notes"; \
 	$(MAKE) sync-tuf-root; \
 	tuf_root="internal/update/embed/tuf-repo.github.com/root.json"; \
 	tuf_changed=$$(git status --porcelain -- "$$tuf_root"); \
@@ -180,8 +186,9 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 		git add "$$tuf_root"; \
 		git commit -m "Update GitHub TUF root"; \
 	fi; \
+	go run ./scripts/releasenotes --prev "$$prev_version" --next "$$new_version" --write .github/release-notes.md --clear-done; \
 	scripts/bump_version.sh $$part >/dev/null; \
-	git add FyneApp.toml; \
+	git add FyneApp.toml .github/release-notes.md todos.md; \
 	git commit -m "Release $$tag"; \
 	git tag -a "$$tag" -m "Release $$tag"; \
 	git push origin "$(RELEASE_BRANCH)"; \

@@ -106,6 +106,9 @@ jobs:
     needs: [build-macos, build-cross]
     runs-on: ubuntu-latest
     steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
@@ -116,4 +119,4 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: .github/release-notes.md

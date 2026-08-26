@@ -2,7 +2,15 @@
 
 ## Done
 
-- possibility to drag a selection rectangle in grid view to select multiple images.
+### What's Changed
+
+#### New Features
+
+#### Bugfix
+
+#### Internal
+
+- `make release` writes GitHub release notes from this Done section (empty categories dropped) and appends the Full Changelog compare link.
 
 ## ACTIVE DEVELOPMENT
 

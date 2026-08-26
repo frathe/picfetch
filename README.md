@@ -229,15 +229,20 @@ make release PART=minor   # or PART=major
 matches `origin/main`; it also refuses if the tag it would create already
 exists locally or on the remote. After a confirmation prompt (`YES=1` skips
 it) it runs `make verify`, bumps `Version`/`Build` in
-[FyneApp.toml](FyneApp.toml), commits that as `Release vX.Y.Z`, tags the
-commit, and pushes the branch and the tag. If the GitHub CLI (`gh`) is
+[FyneApp.toml](FyneApp.toml), writes GitHub release notes from the `## Done`
+section of [todos.md](todos.md) (empty categories dropped, plus a Full
+Changelog compare link) into `.github/release-notes.md`, clears those Done
+items so they are not reused, commits that as `Release vX.Y.Z`, tags the
+commit, and pushes the branch and the tag. The confirmation prompt prints the
+notes first; a Done section with no list items aborts. If the GitHub CLI (`gh`) is
 installed it then finds the Release workflow run for that tag (without
 prompting you to pick among the simultaneous CI run on `main`) and
 follows it until the artifacts are published.
 
 Pushing the tag is what publishes: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 re-runs the full CI suite as a gate, then packages macOS, Windows, and Linux
-artifacts and attaches them to a GitHub release. Nothing is published if that
+artifacts and attaches them to a GitHub release whose body is
+`.github/release-notes.md` from the tagged commit. Nothing is published if that
 run goes red — the tag just sits there, and you can delete it and try again.
 The download links on the [website](https://frathe.github.io/picfetch/) point
 at `releases/latest`, so they need no edit per release.

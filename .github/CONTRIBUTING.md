@@ -28,7 +28,9 @@ make run
   package map and a "where to look for X" index. Update it in the same
   change whenever the package structure changes.
 - Open work is tracked in [todos.md](../todos.md); please don't add
-  TODO/FIXME comments to the code itself.
+  TODO/FIXME comments to the code itself. Shipped work goes under `## Done`
+  (`New Features` / `Bugfix` / `Internal`); `make release` turns that
+  section into the GitHub release notes.
 - For anything beyond a small fix, opening an issue first to discuss the
   approach is welcome but not required.
 
