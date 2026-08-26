@@ -327,6 +327,77 @@ func TestGridHighlight_VariantsTitleUsesSizeAndPath(t *testing.T) {
 	}
 }
 
+func TestGridHighlight_VariantsHoverUpdatesTitleAndHidesMergePrefix(t *testing.T) {
+	v := newTestViewer(t)
+	small := uitest.PatternedJPEGURISize(t, "a.jpg", 1, 64, 48)
+	large := uitest.PatternedJPEGURISize(t, "b.jpg", 1, 192, 144)
+	unique := uitest.PatternedJPEGURI(t, "c.jpg", 99)
+	dropAndWait(t, v, small, large, unique)
+	if err := v.grid.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+
+	v.SetMergeMode(true)
+	v.grid.SetHideDuplicates(true)
+	v.grid.Settle()
+	v.grid.Toggle()
+	v.grid.SetBrowsingDuplicates(true)
+	v.grid.Settle()
+	if !v.grid.Visible() || !v.grid.BrowsingDuplicates() {
+		t.Fatal("premises: variants grid up")
+	}
+
+	startID := v.grid.Highlight()
+	otherID := 1 - startID
+
+	before := v.win.Title()
+	if strings.HasPrefix(before, "[merge]") {
+		t.Fatalf("variants title = %q, must not include [merge]", before)
+	}
+
+	v.grid.SimulateHover(otherID)
+	after := v.win.Title()
+	if after == before {
+		t.Fatalf("title did not change after hovering the other variant, still %q", after)
+	}
+	if strings.HasPrefix(after, "[merge]") {
+		t.Errorf("title = %q, must not include [merge]", after)
+	}
+
+	wantSmall := fmt.Sprintf("(1/3) [64x48] %s", small.Path())
+	wantLarge := fmt.Sprintf("(2/3) [192x144] %s", large.Path())
+	if after != wantSmall && after != wantLarge {
+		t.Errorf("after hover, title = %q, want %q or %q", after, wantSmall, wantLarge)
+	}
+	if strings.Contains(before, small.Path()) && !strings.Contains(after, large.Path()) {
+		t.Errorf("hovered off small, title = %q, want large path", after)
+	}
+	if strings.Contains(before, large.Path()) && !strings.Contains(after, small.Path()) {
+		t.Errorf("hovered off large, title = %q, want small path", after)
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	arrow := v.win.Title()
+	if strings.HasPrefix(arrow, "[merge]") {
+		t.Errorf("after Right, title = %q, must not include [merge]", arrow)
+	}
+	if arrow != wantSmall && arrow != wantLarge {
+		t.Errorf("after Right, title = %q, want %q or %q", arrow, wantSmall, wantLarge)
+	}
+
+	v.grid.Toggle()
+	if v.grid.Visible() {
+		t.Fatal("grid should be closed")
+	}
+	closed := v.win.Title()
+	if strings.Contains(closed, "[64x48]") || strings.Contains(closed, "[192x144]") {
+		t.Errorf("closed-grid title = %q, want image-view title, not variants format", closed)
+	}
+	if !strings.HasPrefix(closed, "[merge] ") {
+		t.Errorf("closed-grid title = %q, want [merge] restored on the image-view title", closed)
+	}
+}
+
 // TestGridHighlight_TitleKeepsTheModePrefixes: the grid's file name takes
 // the *base* title's place, not the whole title - the sort/merge/shuffle
 // prefixes describe modes that are still on behind it.
