@@ -13,6 +13,7 @@
 #### Internal
 
 - Drop deprecated `tar.TypeRegA` in update extract (still accept the historic NUL regular-file typeflag).
+- Install CI's Linux GUI packages in CodeQL so `internal/winpos/linux.go` can compile.
 
 ## ACTIVE DEVELOPMENT
 

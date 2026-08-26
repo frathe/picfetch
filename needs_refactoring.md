@@ -1,0 +1,259 @@
+# PicFetch — Refactoring Backlog
+
+Codebase-quality audit, 2026-08-27. Ordered by severity (High → Low); within a
+tier, by priority score `(Impact + Risk) × (6 − Effort)`, each dimension 1–5
+(effort inverted: cheaper fixes rank higher).
+
+**Overall health is well above average** and the list below is graded on a
+curve: `go vet` clean, zero `TODO/FIXME` markers in production code, all 30
+test packages green, ~38k lines of tests against ~26.5k lines of code,
+coverage 90–100% everywhere except thin OS-integration seams, an up-to-date
+`ARCHITECTURE.md`, and a working refactoring cadence (`finished_refactorings/`).
+The debt that remains is concentrated in two god objects, one inverted
+dependency, and one upstream library bug.
+
+---
+
+## High severity
+
+### 1. HEIC decodes leak native memory (dependency debt)
+
+- **Impact 3 · Risk 5 · Effort 1 → priority 40**
+- Where: `go.mod` — `github.com/gen2brain/heic v0.7.1`, imported by
+  `internal/imaging/loader.go:29` and `internal/imaging/exif.go:12`.
+- The upstream wazero-based decoder leaks native memory on every decode
+  (gen2brain/heic issue #15; fix PR #16 filed by this project 2026-08-20).
+  v0.7.1 is still the latest release and the tree carries no `replace`
+  directive or local mitigation, so a session browsing HEIC-heavy folders
+  grows RSS without bound — multi-GB growth was observed during diagnosis.
+  This is invisible to Go heap profiling (native memory), so it will not
+  resurface in routine pprof checks.
+- **Why it matters**: crash-grade for end users with iPhone photo libraries —
+  the app's core audience for this format.
+- **Fix**: watch for the upstream release containing PR #16 and bump. If it
+  stalls, add a `replace` to the patched fork — one line, immediately
+  shippable. Either way, add a note in `AGENTS.md` so the pin isn't forgotten.
+
+### 2. The duplicate-visibility model lives inside the grid feature
+
+- **Impact 4 · Risk 4 · Effort 4 → priority 16**
+- Where: `internal/ui/grid` owns hide-duplicates state, group membership, and
+  inspect/browse mode; the core viewer reaches into it at **29 call sites**
+  across [viewer.go](internal/ui/viewer.go), [keys.go](internal/ui/keys.go),
+  [actionmenu.go](internal/ui/actionmenu.go), and
+  [windowmenu.go](internal/ui/windowmenu.go)
+  (`IsHiddenExtra`, `InspectMembers`, `InspectingDuplicates`,
+  `BrowsingDuplicates`, `HideDuplicates`).
+- Plain navigation — arrow keys, Home/End, shuffle — must poll the grid
+  overlay's state per index even while the overlay is closed:
+  `nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` /
+  `randomVisibleOther` ([viewer.go:940–1003](internal/ui/viewer.go:940))
+  are filter-aware iteration implemented by poking a feature package.
+  This inverts the codebase's own rule ("features expose state; `internal/ui`
+  composes them" — ARCHITECTURE.md): *which files are visible* is file-set
+  model state, not overlay state.
+- **Why it matters**: this seam is where the bugs actually are — the last
+  three fix branches (variant loop after grid pick, highest-res
+  representative, variants badge/hover) all patched interactions across it.
+  Every mode added near it (slideshow shuffle, inspect, hide-dupes) multiplies
+  the guard combinations in `handleKeyEvent` and the menu-state code.
+- **Fix (staged)**: extract a visibility/grouping model (e.g. `internal/ui`'s
+  own `visibleSet`, or an `internal/dupegroups` package) owning
+  hidden-extras, group membership, and representative choice, fed by the
+  grid's hashing pass and consumed by both the viewer's navigation and the
+  grid's rendering. The grid keeps presentation (badges, filter display,
+  marquee); the viewer stops asking the grid who exists.
+
+### 3. `viewer` god object — 65+ fields and still growing
+
+- **Impact 4 · Risk 3 · Effort 4 → priority 14**
+- Where: the struct definition alone spans
+  [viewer.go:38–468](internal/ui/viewer.go:38); its methods spread across
+  ~30 files of `internal/ui`.
+- The comments are exemplary and the tests thorough, which is why this is
+  Risk 3 and not 5 — but the growth pattern is intact: autoupdate landed 6
+  new fields, the info overlay 7, menu items account for **16 fields** on
+  their own. Every feature keeps paying a "where in the 430-line struct does
+  my field go" tax, and the concurrency notes per field only get harder to
+  hold in one head.
+- **Fix**: continue the existing feature-split practice with field-cluster
+  extractions that have clean seams already visible in the comments:
+  - menu-item state (`saveItem` … `actionsTrashItem`, 16 fields) → a
+    `menus` type with a single recompute entry point (pairs with item 5);
+  - updater state (`update`, `updateDir`, `updateOp`, `updateDone`,
+    `updateCurrentVersion`, `updateDayMu`) → an `updater` type in
+    autoupdate.go;
+  - info-overlay state (`infoVisible`, `infoText`, `exifLink`, `infoCard`,
+    `currentFileSize`, `currentHasEXIF`, `currentPreview`) → info.go;
+  - display state (`displayFrames`, `displayFrameIdx`, `rotation`,
+    `fadeAnim`) → load.go/rotate.go.
+
+### 4. `grid.Overview` is a second god object; the dupe-hash engine deserves its own type
+
+- **Impact 3 · Risk 4 · Effort 3 → priority 21**
+- Where: `internal/ui/grid` — ~2,500 non-test lines, one type across 8 files
+  mixing overlay UI, thumbnail decode pool, search filter, multi-select,
+  marquee gesture, duplicate hashing, and inspect/browse mode.
+- The sharpest cut is the duplicate-hash engine
+  ([dupes.go](internal/ui/grid/dupes.go), 631 lines): fields `hashMu`,
+  `hashes`, `native`, `hashFailed`, `hashGen`, `hashing`, `hashJobs`,
+  `hideApply`, `hideApplyAt`, `groupSizes`, `groupReps` plus
+  `hashRemaining` ([dupes.go:505](internal/ui/grid/dupes.go:505), 109 lines
+  whose completion closure interleaves job accounting, apply throttling,
+  browse finishing, and generation checks). This is the most delicate
+  concurrent code in the repository — a mutex, a `sync.Map`, three atomics,
+  and a generation counter cooperating — and it currently shares a
+  namespace with marquee geometry and search strings.
+- **Why it matters**: isolating the engine behind a small type makes its
+  invariants (generation wipe vs. adopt, throttled apply, last-job barrier)
+  locally checkable and independently testable; today they're guaranteed by
+  cross-file discipline. Item 2 moves the *model* out; this finishes the job
+  by giving the *machinery* a boundary — do them together.
+
+---
+
+## Medium severity
+
+### 5. Menu Checked/Disabled state is synchronized manually from every mutation site
+
+- **Impact 3 · Risk 3 · Effort 2 → priority 24** (highest score in the list —
+  cheap and unlocks item 3's menu extraction)
+- Where: `updateFileMenuState`, `updateActionsMenuState`,
+  `updateWindowMenuState`, `refreshMainMenu` must be remembered at every
+  state-changing site — rotate.go, load.go, save.go, `clearToDropzone`,
+  drop.go, and more.
+- The tell: `HighlightChanged`
+  ([viewer.go:536–559](internal/ui/viewer.go:536)) snapshots four booleans,
+  calls `applyActionsMenuState`, then hand-diffs them to decide whether the
+  native menu needs a refresh. That's an ad-hoc change-detection layer
+  bolted onto push-based invalidation.
+- **Fix**: one `syncMenus()` that recomputes all Checked/Disabled state from
+  the model and internally diffs before touching the native bar, called from
+  a small number of choke points (end of every user action). Deletes the
+  per-site call discipline and the manual diffing.
+
+### 6. `appState` is anemic — file-set invariants enforced from outside
+
+- **Impact 2 · Risk 3 · Effort 2 → priority 20**
+- Where: [state.go](internal/ui/state.go) is 60 lines of getters/setters,
+  while the real invariants live in viewer methods: `RemoveFile`
+  ([viewer.go:808](internal/ui/viewer.go:808)) keeps `files` and
+  `unsortedFiles` in sync *and* advances `fileSetRevision` *and* evicts the
+  image cache; drop.go and sort.go apply merge/sort ordering.
+- **Why it matters**: the revision counter and the files/unsortedFiles sync
+  are exactly the invariants a caller can forget; today nothing but
+  convention makes `fileSetRevision.advance()` accompany a mutation.
+- **Fix**: fold the revision into `appState` so every mutating method
+  advances it itself; let the viewer subscribe for cache eviction. Small,
+  and shrinks item 3 as a side effect.
+
+### 7. Updater dependency tree: sigstore-go + TUF in a desktop image viewer
+
+- **Impact 2 · Risk 3 · Effort 5 → priority 5** (accepted debt — document,
+  don't act)
+- Where: `go.mod` — `sigstore-go`, `sigstore`, `go-tuf/v2` pull in gRPC,
+  OpenTelemetry, the go-openapi suite, certificate-transparency-go, and
+  k8s klog: the majority of the ~120 indirect dependencies exist to verify
+  release signatures for the in-app updater.
+- **Why it matters**: binary size, build time, CVE-scanner noise, and the
+  sigstore ecosystem's fast API churn all land on an app whose job is
+  showing pictures. The choice is deliberate and security-motivated, and
+  `internal/update` isolates it well — so this is a *watch* item: revisit
+  whether a TUF-only + bundle-verification subset can replace the full
+  verifier at the next major sigstore-go bump, and keep the dependency out
+  of any package but `internal/update`.
+
+---
+
+## Low severity
+
+### 8. Favorites preview prewarm competes with the foreground for one budget
+
+- **Impact 2 · Risk 2 · Effort 3 → priority 12**
+- Where: [favthumbs.go](internal/ui/favthumbs.go) (`gridSink`),
+  [sync.go](internal/favthumbs/sync.go).
+- Partially mitigated since first noted: `gridSink.Store` stops offering to
+  the in-memory cache at `ThumbCacheFull()`, so the pass no longer churns
+  its own entries. What remains: a pass over a huge favorite (50k files)
+  still decodes everything for the disk cache at `syncConcurrency = 4`,
+  competing for CPU/IO with whatever the user is doing, and the head-fills-
+  the-budget strategy assumes the user will browse the favorite's head next.
+- **Options** (open design question, not a bug): cap the prewarm's share of
+  the thumb budget; idle-priority workers; skip the in-memory offer entirely
+  above a set size and rely on the disk cache.
+
+### 9. Mode-interaction guards scattered through `handleKeyEvent`
+
+- **Impact 2 · Risk 2 · Effort 3 → priority 12**
+- Where: [keys.go:70–338](internal/ui/keys.go:70). The dispatcher itself is
+  flat and mostly commentary — length is not the issue. The issue is that
+  mode-composition rules (slideshow vs. grid vs. inspect vs. scan/sort
+  cancellation) are encoded positionally: an Escape priority chain plus
+  per-key `InspectingDuplicates`/`slides.Active()` exceptions inside `P`,
+  `G`, and `D`. Each new mode multiplies cases. Largely falls out of item 2;
+  if tackled alone, a small mode-precedence table centralizes the rules.
+
+### 10. OS-seam test coverage (accepted)
+
+- **Impact 2 · Risk 2 · Effort 4 → priority 8**
+- `winpos` 27.9%, `filepicker` 49.4%, `wallpaper` 61.7%, `trash` 66.1%,
+  `clipboard` 66.9% — native-API glue the fyne test driver cannot reach.
+  Acceptable as long as the seams stay thin; keep logic out of these
+  packages so the uncovered surface stays pure OS calls.
+
+### 11. Sentinel-twin lookups: `displayIndexOf` vs `displayIndexOfHost`
+
+- **Impact 1 · Risk 2 · Effort 1 → priority 15**
+- Where: [dupes.go:479](internal/ui/grid/dupes.go:479) returns **0** for
+  not-found; [search.go:173](internal/ui/grid/search.go:173) returns **−1**.
+  Deliberate — the latter's doc comment exists to warn about the former —
+  but two same-shaped functions differing only in failure sentinel is a
+  standing trap. Unify on −1 and handle the fallback explicitly at the two
+  call sites that want "default to first cell".
+
+### 12. cgo `copyTitle` returns a shared static buffer
+
+- **Impact 1 · Risk 2 · Effort 1 → priority 15**
+- Where: [windowmenu_darwin.go:33](internal/ui/windowmenu_darwin.go:33).
+  Safe only while every caller stays on the AppKit main thread and never
+  holds two results at once — neither constraint is written down. Return a
+  `strdup`'d copy freed by the Go side (or document the constraint at the
+  function). `testKeepAlive` also grows unboundedly, though it is test-only.
+
+### 13. Empty directory `internal/favorites/`
+
+- **Impact 1 · Risk 1 · Effort 1 → priority 10**
+- Dead artifact — the feature lives in `internal/ui/favorites`,
+  `internal/favstore`, and `internal/favthumbs`. Delete it before someone
+  greps their way into the wrong place. (Git doesn't track it, so it exists
+  only on this machine: `rmdir internal/favorites`.)
+
+### 14. Duplicated lazy-map initialization in dupes.go
+
+- **Impact 1 · Risk 1 · Effort 1 → priority 10**
+- Where: `ensureHashGenLocked` ([dupes.go:26](internal/ui/grid/dupes.go:26))
+  and `adoptHashGen` ([dupes.go:51](internal/ui/grid/dupes.go:51)) repeat
+  the same three nil-map guards. Extract `ensureMapsLocked()`; the two
+  callers keep their distinct wipe-vs-keep semantics. Falls out of item 4's
+  extraction if that happens first.
+
+---
+
+## Suggested sequencing
+
+Alongside feature work, in this order:
+
+1. **Now (minutes–hours)**: 13, 14, 11, 12 — mechanical cleanups; and set a
+   recurring check on the heic release for item 1 (or land the `replace`).
+2. **Next (a day)**: 5 (menu recompute) and 6 (revision into `appState`) —
+   both shrink the viewer's surface and delete call-site discipline,
+   preparing item 3.
+3. **Then (the big one, staged)**: 2 + 4 together — move the visibility/
+   grouping model out of the grid, then box the hash engine. Stage it like
+   the finished refactorings: model interface first, consumers switched one
+   file at a time, grid last.
+4. **Ongoing**: 3 — one field-cluster extraction per sitting (menus first,
+   since step 2 of this plan created the seam), continuing until the struct
+   comment fits on two screens.
+5. **Watch list**: 1 (bump on release), 7 (revisit at next sigstore-go
+   major), 8 (design decision when favorites grow), 10 (keep seams thin).
