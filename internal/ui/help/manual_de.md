@@ -445,8 +445,8 @@ einzeln durchzublättern.
 - In der Variantenansicht sind die Zähl-Badges ausgeblendet.
 - Die Fenstertitelzeile zeigt die hervorgehobene Miniaturansicht als
   `(Position) [BreitexHöhe] vollständiger-Pfad`, z. B.
-  `(2/7) [1440x780] /photos/vacation/IMG_0123.jpg`. `[merge]`, Sortier- und
-  `[shuffle]`-Präfixe sind in der Variantenansicht ausgeblendet. Pfeiltasten
+  `(2/7) [1440x780] /photos/vacation/IMG_0123.jpg`. `[Zusammenführen]`, Sortier- und
+  `[Zufällig]`-Präfixe sind in der Variantenansicht ausgeblendet. Pfeiltasten
   und Zeigen mit der Maus bewegen die Hervorhebung und damit den Titel.
   Verlassen der Variantenansicht stellt den Dateinamen-Titel und jene Präfixe
   wieder her.
