@@ -22,30 +22,47 @@ func TestHEICDecode_DoesNotGrowRSSUnbounded(t *testing.T) {
 	}
 	path := writeTempFile(t, "leak.heic", data)
 
-	rssBefore, ok := readRSS()
+	// Warm libheif/wazero once so one-time init is not counted as per-decode growth.
+	if _, err := LoadImage(storage.NewFileURI(path), DefaultImgCacheBytes); err != nil {
+		t.Fatalf("warmup decode: %v", err)
+	}
+	settleRSS()
+
+	const mid = 20
+	for i := 0; i < mid; i++ {
+		if _, err := LoadImage(storage.NewFileURI(path), DefaultImgCacheBytes); err != nil {
+			t.Fatalf("decode %d: %v", i, err)
+		}
+	}
+	settleRSS()
+	rssMid, ok := readRSS()
 	if !ok {
 		t.Skip("RSS measurement unavailable on this platform")
 	}
 
-	const iterations = 40
+	const iterations = 20
 	for i := 0; i < iterations; i++ {
-		debug.FreeOSMemory()
-		runtime.GC()
-		_, err := LoadImage(storage.NewFileURI(path), DefaultImgCacheBytes)
-		if err != nil {
-			t.Fatalf("decode %d: %v", i, err)
+		if _, err := LoadImage(storage.NewFileURI(path), DefaultImgCacheBytes); err != nil {
+			t.Fatalf("decode %d: %v", mid+i, err)
 		}
 	}
-	debug.FreeOSMemory()
-	runtime.GC()
-
+	settleRSS()
 	rssAfter, ok := readRSS()
 	if !ok {
 		t.Fatal("RSS measurement failed after decode loop")
 	}
 
-	const maxGrowthMB = 150 // libheif one-time init + headroom; leaky build adds hundreds of MB
-	if growth := rssAfter - rssBefore; growth > maxGrowthMB*1024*1024 {
-		t.Fatalf("RSS grew %d bytes over %d decodes; want <= %d MB (leak suspected)", growth, iterations, maxGrowthMB)
+	// With the upstream leak, RSS climbs roughly linearly with decode count.
+	// After PR #16 the second batch should not add much beyond wasm init noise.
+	const maxGrowthMB = 80
+	if growth := rssAfter - rssMid; growth > maxGrowthMB*1024*1024 {
+		t.Fatalf("RSS grew %d bytes over %d decodes after warmup; want <= %d MB (leak suspected)", growth, iterations, maxGrowthMB)
 	}
+}
+
+func settleRSS() {
+	debug.FreeOSMemory()
+	runtime.GC()
+	debug.FreeOSMemory()
+	runtime.GC()
 }
