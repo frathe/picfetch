@@ -737,7 +737,13 @@ benötigen in beiden Fällen nichts Zusätzliches.
   Ausblenden von Duplikaten (`D`) verwendet, und das Kontrollkästchen
   **Favoriten-Vorschauen auf der Festplatte zwischenspeichern** (standardmäßig
   an) für die unten beschriebene Hintergrund-Erzeugung der
-  Favoriten-Vorschauen
+  Favoriten-Vorschauen, sowie **Nach Updates suchen** (standardmäßig aus).
+  Wenn aktiviert, fragt PicFetch höchstens einmal am Tag bei GitHub nach
+  einer neueren Version, lädt sie im Hintergrund herunter, prüft GitHubs
+  unveränderliche Release-Attestierung und installiert sie beim nächsten
+  Beenden. Der folgende Start zeigt ein Neuigkeiten-Fenster mit den
+  Versionshinweisen. Es gibt keinen Hinweisdialog und keinen automatischen
+  Neustart
 - **Favoriten -> Aktuelle Liste zu Favoriten hinzufügen…** (`Opt/Alt+Shift+F`) — speichert die
   gesamte aktuell geöffnete Dateiliste als benannte Sammlung. Favoriten
   bleiben nach einem Neustart von PicFetch erhalten. Gespeichert werden

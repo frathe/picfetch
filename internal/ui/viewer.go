@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/ui/zoom"
+	"github.com/frathe/picfetch/internal/update"
 	"github.com/frathe/picfetch/internal/wingesture"
 	"github.com/frathe/picfetch/internal/winpos"
 )
@@ -432,6 +434,22 @@ type viewer struct {
 	// constant: this is the one action whose side effect outlives the
 	// process, on the developer's own desktop.
 	wallpaperDir string
+
+	// update is the GitHub Releases client used by maybeStartUpdateCheck
+	// (autoupdate.go). nil until the opt-in is on and a Client is built
+	// (production) or a test assigns one. updateDir is the stage directory
+	// (defaultUpdateDir in production, t.TempDir in tests). updateOp /
+	// updateDone mirror scan/clipboard: one lifecycle + completion.Signal
+	// for the background check/download. updateCurrentVersion overrides
+	// app Metadata().Version in tests (Fyne test apps often ship empty).
+	update               *update.Client
+	updateDir            string
+	updateOp             struct{ lifecycle requestLifecycle }
+	updateDone           completion.Signal
+	updateCurrentVersion string
+	// updateDayMu guards lastUpdateCheckDay: the check goroutine writes it
+	// while OnStopped's currentPreferences reads it, and quit must not Wait.
+	updateDayMu sync.Mutex
 
 	// settings is the whole settings-backed state - see memlimits.go's
 	// settings for what it holds and why it's grouped.

@@ -28,7 +28,7 @@ import (
 
 const (
 	windowW = 520.0
-	windowH = 500.0
+	windowH = 520.0
 
 	// time.Duration is an int64 nanosecond count. Reject a larger number of
 	// seconds instead of letting the multiplication in build wrap negative
@@ -81,6 +81,9 @@ type Host interface {
 	FavoritePreviewCache() bool
 	SetFavoritePreviewCache(bool)
 
+	CheckForUpdates() bool
+	SetCheckForUpdates(bool)
+
 	DuplicateDistance() int
 	SetDuplicateDistance(int)
 }
@@ -101,7 +104,7 @@ type Window struct {
 	// drive that confirmation card's widgets.
 	sortSelect                    *widget.Select
 	mergeCheck, shuffleCheck      *widget.Check
-	favPreviewCheck               *widget.Check
+	favPreviewCheck, updateCheck  *widget.Check
 	intervalEntry, maxScanEntry   *widget.Entry
 	maxWidthEntry, maxHeightEntry *widget.Entry
 	imgCacheEntry, thumbCacheEntry,
@@ -121,7 +124,7 @@ func (w *Window) Show() {
 	w.win.Show(w.app, lang.L("Settings"), fyne.NewSize(windowW, windowH), w.build, func() {
 		w.sortSelect = nil
 		w.mergeCheck, w.shuffleCheck = nil, nil
-		w.favPreviewCheck = nil
+		w.favPreviewCheck, w.updateCheck = nil, nil
 		w.intervalEntry, w.maxScanEntry = nil, nil
 		w.maxWidthEntry, w.maxHeightEntry = nil, nil
 		w.imgCacheEntry, w.thumbCacheEntry, w.maxFileSizeEntry = nil, nil, nil
@@ -290,5 +293,8 @@ func (w *Window) build() fyne.CanvasObject {
 	w.favPreviewCheck = widget.NewCheck(lang.L("Cache favorite previews on disk"), w.host.SetFavoritePreviewCache)
 	w.favPreviewCheck.Checked = w.host.FavoritePreviewCache()
 
-	return container.NewPadded(container.NewVBox(form, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck))
+	w.updateCheck = widget.NewCheck(lang.L("Check for updates"), w.host.SetCheckForUpdates)
+	w.updateCheck.Checked = w.host.CheckForUpdates()
+
+	return container.NewPadded(container.NewVBox(form, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, w.updateCheck))
 }

@@ -6,9 +6,9 @@ import (
 
 // settings is every value the Settings window's Host surface reads and
 // writes, and nothing else: the app's memory budget, the two geometry caps,
-// the folder-scan cap, and the favorite-preview-cache toggle. Grouped so
-// that surface reads as the single concern it is, and so run.go's
-// currentPreferences copy is a flat field-for-field one.
+// the folder-scan cap, the favorite-preview-cache toggle, and the updates
+// checkbox. Grouped so that surface reads as the single concern it is, and
+// so run.go's currentPreferences copy is a flat field-for-field one.
 //
 // The three memory limits (imgCacheMB/thumbCacheMB/maxFileMB) are why this
 // file exists at all: they have no single consumer to sit beside - the image
@@ -51,6 +51,14 @@ type settings struct {
 	// from preferences.State.FavoritePreviewCache in features.go and read
 	// back into it by currentPreferences (run.go).
 	favPreviewCache bool
+
+	// checkForUpdates is the settings window's "Check for updates" checkbox -
+	// see autoupdate.go for its getter/setter pair. lastUpdateCheckDay is the
+	// local calendar day (YYYY-MM-DD) of the last check attempt, or empty
+	// when none has run. Both are restored from preferences.State in
+	// features.go and read back by currentPreferences.
+	checkForUpdates    bool
+	lastUpdateCheckDay string
 
 	// dupeDist is the Hamming threshold the grid's hide-duplicates mode
 	// uses. dupeDistSet distinguishes a saved 0 (exact hash) from unset.

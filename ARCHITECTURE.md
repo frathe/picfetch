@@ -57,6 +57,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation` / `updateFileMenuState`). |
 | `export.go` | File > Export image (`promptExport` / `exportAs`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. |
 | `wallpaper.go` | Set as Wallpaper: write a PNG into `viewer.wallpaperDir`, then `wallpaper.Set`. |
+| `autoupdate.go` | Opt-in daily GitHub update check/download (`maybeStartUpdateCheck`), apply-on-stop (`applyStagedUpdate`), What's New cache helpers. |
 | `slideshow.go` | `togglePictureFrameMode` (closes grid first) plus shuffle/interval bindings. |
 | `batch.go` | Only file that knows both grid selection and deletion/clipboard exist. |
 | `session.go` | `restoreSession` glue over `internal/session`. |
@@ -72,7 +73,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
 | `internal/ui/exifwin/` | EXIF panel (E): tag list, optional JPEG strip, GPS map (`tiles.go`, `startWarm`). Geometry via `widgets.Singleton`. | 4-method `Host`. |
-| `internal/ui/help/` | Manual, About, Help menu; embeds `manual.md` / `manual_de.md`. Secret search phrase and window-spiral both open `spiral/`. | Nothing — `New(app, title, art)` only. |
+| `internal/ui/help/` | Manual, About, What's New (`whatsnew.go`), Help menu; embeds `manual.md` / `manual_de.md`. Secret search phrase and window-spiral both open `spiral/`. | Nothing — `New(app, title, art)` only. |
 | `internal/ui/spiral/` | Full-screen shader easter egg. | `New(app)` only. |
 | `internal/ui/settingswin/` | Settings window: form + checks, live `Host` setters, geometry via `Singleton`. | Getter/setter `Host` (sort, merge, slideshow, caps, caches, duplicate distance). |
 | `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `New` does no disk I/O; `SetDir` from `Run`. | 5-method `Host`. |
@@ -132,6 +133,19 @@ Last-open file set via Fyne’s app-scoped cache.
 |------|----------------|
 | `session.go` | `Save`, `Load`. |
 
+### `internal/update`
+
+GitHub-release check, SHA-256 + immutable release attestation verify, stage, apply.
+
+| File | Responsibility |
+|------|----------------|
+| `update.go` | `Client`, `AssetName`, `Newer`, `Due`. |
+| `github.go` | Releases + release-attestation HTTP. |
+| `checksums.go` | `VerifyHash` (optional API digest). |
+| `download.go` / `extract.go` | Fetch, hash, unzip/tar, `Stage`. |
+| `attest.go` | GitHub Fulcio Sigstore `Verifier` + in-toto release policy. |
+| `apply.go` / `apply_unix.go` / `apply_windows.go` | `Apply` dispatcher. |
+
 ### `internal/preferences`
 
 Standing UI preferences via Fyne `Preferences` (not the session cache).
@@ -140,7 +154,7 @@ Secondary-window geometry is `WindowGeometry` structs.
 
 | File | Responsibility |
 |------|----------------|
-| `preferences.go` | `Save`, `Load`, `State`, `WindowGeometry`. |
+| `preferences.go` | `Save`, `Load`, `SaveLastUpdateCheckDay`, `State`, `WindowGeometry`. |
 
 ### `internal/wingesture`
 
@@ -312,10 +326,11 @@ see `AGENTS.md`.
 - "How does delete work?" → `internal/ui/deletion` + `internal/trash` + `shortcuts.go` / `batch.go` `requestDelete`.
 - "How are native file dialogs implemented?" → `internal/filepicker` + `openfiles.go` / `export.go`.
 - "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
+- "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate.go` + `help/whatsnew.go`. Off by default (`preferences.CheckForUpdates`). Apply is OnStopped, not a relaunch.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.closeFiles`.
-- "How are preferences (sort order, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, window size/position, favorite-preview-cache toggle) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
+- "How are preferences (sort order, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, window size/position, favorite-preview-cache toggle, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
 - "How do the Settings and EXIF windows come back where I left them?" → `widgets.Singleton.Remember` / `Geometry` / `StopTracking` + `winpos.Poll` + `preferences.WindowGeometry`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.
 - "How can dragging the window open something?" → `internal/wingesture` + `gesture.go` + `help.OpenSpiral` / `spiral.ShowForGesture`.

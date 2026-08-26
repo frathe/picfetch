@@ -53,6 +53,10 @@ Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `wa
 
 ## ACTIVE DEVELOPMENT
 
+- In-app updater (opt-in, daily GitHub check, silent download, apply on
+  quit, What's New on next launch). Plan:
+  `.superpowers/plans/2026-08-26-in-app-updater.md`.
+
 ## TODO
 
 - when only a single image is selected or dropped

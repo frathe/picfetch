@@ -27,9 +27,9 @@ import (
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
-// Help owns the two documentation windows. Each is a widgets.Singleton, so
-// a second request raises the window that's already open instead of
-// stacking up duplicates.
+// Help owns the documentation windows (manual, About, What's New). Each is
+// a widgets.Singleton, so a second request raises the window that's already
+// open instead of stacking up duplicates.
 type Help struct {
 	app   fyne.App
 	title string
@@ -39,9 +39,10 @@ type Help struct {
 	// where the app keeps its assets.
 	art []byte
 
-	manualWin widgets.Singleton
-	aboutWin  widgets.Singleton
-	manual    *manualView
+	manualWin   widgets.Singleton
+	aboutWin    widgets.Singleton
+	whatsNewWin widgets.Singleton
+	manual      *manualView
 
 	onManualClosed func()
 	onManualOpened func()

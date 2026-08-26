@@ -648,7 +648,12 @@ needed. macOS and Windows need nothing extra either way.
   **Duplicate match distance** slider (0–32, default 6; lower is
   stricter, 0 is an exact thumbnail hash) that hide-duplicates (`D`) uses,
   and the **Cache favorite previews on disk** checkbox (on by default) for
-  the background favorite-preview generation described below
+  the background favorite-preview generation described below, and **Check
+  for updates** (off by default). When enabled, PicFetch asks GitHub for a
+  newer release at most once per day, downloads it in the background,
+  verifies GitHub's immutable release attestation, and installs it the next
+  time you quit. The following launch shows a What's New window with that
+  release's notes. There is no prompt and no auto-restart
 - **Favorites -> Add Current List to Favorites…** (`Opt/Alt+Shift+F`) — saves the complete
   currently open file list as a named collection. Favorites remain available
   after restarting PicFetch. This stores references to the original files,

@@ -43,6 +43,7 @@ func Run(application fyne.App, initial []fyne.URI) {
 	syncNativeMenuBar(view.win.MainMenu())
 	application.Lifecycle().SetOnStarted(func() {
 		syncNativeMenuBar(view.win.MainMenu())
+		view.maybeShowWhatsNew()
 		if len(initial) > 0 {
 			view.handleDrop(initial)
 		}
@@ -56,6 +57,10 @@ func Run(application fyne.App, initial []fyne.URI) {
 func startViewerRuntime(view *viewer, window fyne.Window, favoritesDir string) {
 	view.favorites.SetDir(favoritesDir)
 	view.stopWinPosPoll = startWindowPosPolling(view, window)
+	if view.updateDir == "" {
+		view.updateDir = defaultUpdateDir()
+	}
+	view.maybeStartUpdateCheck()
 }
 
 // registerShutdown installs the save while the Fyne event loop is still
@@ -87,9 +92,11 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.loadLifecycle.invalidate()
 		view.sortOp.lifecycle.invalidate()
 		view.vector.lifecycle.invalidate()
+		view.updateOp.lifecycle.invalidate()
 
 		session.Save(application, view.state.unsortedFiles)
 		preferences.Save(application, view.currentPreferences())
+		view.applyStagedUpdate()
 	})
 }
 
@@ -121,6 +128,8 @@ func (v *viewer) currentPreferences() preferences.State {
 		MaxThumbCacheMB:      v.settings.thumbCacheMB,
 		MaxFileSizeMB:        v.settings.maxFileMB,
 		FavoritePreviewCache: v.settings.favPreviewCache,
+		CheckForUpdates:      v.settings.checkForUpdates,
+		LastUpdateCheckDay:   v.LastUpdateCheckDay(),
 		DuplicateDistance:    v.DuplicateDistance(),
 		DuplicateDistanceSet: v.settings.dupeDistSet,
 		WindowSize:           v.windowSize,

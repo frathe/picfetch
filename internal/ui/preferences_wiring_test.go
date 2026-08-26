@@ -20,6 +20,7 @@ import (
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/update"
 )
 
 func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
@@ -397,6 +398,78 @@ func TestSetFavoritePreviewCache_UpdatesGetterAndCurrentPreferences(t *testing.T
 	}
 	if v.currentPreferences().FavoritePreviewCache {
 		t.Error("currentPreferences().FavoritePreviewCache = true after SetFavoritePreviewCache(false)")
+	}
+}
+
+// TestCheckForUpdates_DefaultsToFalseOnStartup checks the startup-restore
+// path: preferences.Load defaults CheckForUpdates to false, so a viewer
+// built with nothing ever saved must read the same default once features.go
+// wires it through. currentPreferences must also copy the field (same trap
+// as FavoritePreviewCache).
+func TestCheckForUpdates_DefaultsToFalseOnStartup(t *testing.T) {
+	v := newTestViewer(t)
+
+	if v.CheckForUpdates() {
+		t.Error("CheckForUpdates() = true, want false (the shipped default)")
+	}
+	if v.currentPreferences().CheckForUpdates {
+		t.Error("currentPreferences().CheckForUpdates = true, want false - run.go's literal must set it from the viewer")
+	}
+	if got := v.LastUpdateCheckDay(); got != "" {
+		t.Errorf("LastUpdateCheckDay() = %q, want empty", got)
+	}
+	if got := v.currentPreferences().LastUpdateCheckDay; got != "" {
+		t.Errorf("currentPreferences().LastUpdateCheckDay = %q, want empty - run.go's literal must set it from the viewer", got)
+	}
+}
+
+func TestStartup_RestoresLastUpdateCheckDay(t *testing.T) {
+	application := test.NewApp()
+	preferences.SaveLastUpdateCheckDay(application, "2026-08-26")
+
+	v, win := buildStartupViewer(application)
+	defer win.Close()
+	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) })
+
+	if got := v.LastUpdateCheckDay(); got != "2026-08-26" {
+		t.Errorf("LastUpdateCheckDay() = %q, want 2026-08-26", got)
+	}
+}
+
+// TestSetCheckForUpdates_UpdatesGetterAndCurrentPreferences checks the
+// settings window's binding end to end: a user turning the checkbox on must
+// be reflected both immediately (CheckForUpdates) and at the next shutdown
+// save (currentPreferences).
+//
+// updateCurrentVersion stays empty (Fyne test Metadata) so
+// maybeStartUpdateCheck returns before NewSigstoreVerifier / HTTP.
+func TestSetCheckForUpdates_UpdatesGetterAndCurrentPreferences(t *testing.T) {
+	v := newTestViewer(t)
+	if update.NormalizeVersion(v.currentUpdateVersion()) != "" {
+		t.Fatalf("test app version %q must stay empty so SetCheckForUpdates cannot hit TUF", v.currentUpdateVersion())
+	}
+
+	v.SetCheckForUpdates(true)
+
+	if !v.CheckForUpdates() {
+		t.Error("CheckForUpdates() = false after SetCheckForUpdates(true)")
+	}
+	if !v.currentPreferences().CheckForUpdates {
+		t.Error("currentPreferences().CheckForUpdates = false after SetCheckForUpdates(true)")
+	}
+	if v.update != nil {
+		t.Error("empty version must not construct a production update Client")
+	}
+
+	v.SetLastUpdateCheckDay("2026-08-26")
+	if got := v.LastUpdateCheckDay(); got != "2026-08-26" {
+		t.Errorf("LastUpdateCheckDay() = %q, want %q", got, "2026-08-26")
+	}
+	if got := v.currentPreferences().LastUpdateCheckDay; got != "2026-08-26" {
+		t.Errorf("currentPreferences().LastUpdateCheckDay = %q, want %q", got, "2026-08-26")
+	}
+	if got := preferences.Load(v.app).LastUpdateCheckDay; got != "2026-08-26" {
+		t.Errorf("persisted LastUpdateCheckDay = %q, want %q", got, "2026-08-26")
 	}
 }
 

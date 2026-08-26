@@ -73,6 +73,15 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	// buildViewer was handed. Cheap, unlike test.NewApp - see testApp.
 	fyne.SetCurrentApp(testApp)
 
+	// Update glue persists lastUpdateCheckDay and whatsnew.json onto the
+	// shared test app; clear both so one test's check cannot make Due false
+	// (or leave notes) for the next.
+	testApp.Preferences().SetString("lastUpdateCheckDay", "")
+	testApp.Preferences().SetBool("checkForUpdates", false)
+	if testApp.Cache().Exists(whatsNewCacheKey) {
+		_ = testApp.Cache().Remove(whatsNewCacheKey)
+	}
+
 	v, win = buildStartupViewer(testApp)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 
@@ -97,6 +106,12 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	// wallpaper.Set itself is stubbed per-test (uitest.StubWallpaperSet), so
 	// nothing here ever reaches the desktop.
 	v.wallpaperDir = t.TempDir()
+
+	// Update staging must never touch the real cache directory or construct
+	// a live GitHub client. Tests that exercise Check/Download assign
+	// v.update themselves (httptest + fake Verifier) before enabling the
+	// setting; newTestUI only redirects the stage dir.
+	v.updateDir = t.TempDir()
 
 	var isClosed bool
 	win.SetOnClosed(func() { isClosed = true })
@@ -143,6 +158,7 @@ func drain(t *testing.T, v *viewer) {
 	v.sortOp.lifecycle.invalidate()
 	v.vector.lifecycle.invalidate()
 	v.favThumbLifecycle.invalidate()
+	v.updateOp.lifecycle.invalidate()
 	v.slides.Exit()
 
 	// Vector re-renders: spawned by any effective-scale change, so a test
@@ -174,6 +190,7 @@ func drain(t *testing.T, v *viewer) {
 	}{
 		{"the clipboard copy at cleanup", &v.clipboard},
 		{"the wallpaper at cleanup", &v.wallpaper},
+		{"the update check at cleanup", &v.updateDone},
 		{"the favorite previews at cleanup", &v.favThumb},
 		{"the file chooser at cleanup", &v.chooser},
 		{"the scan at cleanup", &v.scanOp.done},

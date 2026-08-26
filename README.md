@@ -118,6 +118,10 @@ Windows builds for both x64 (`picfetch-windows-amd64.zip`) and ARM64
 (`picfetch-windows-arm64.zip`); grab the one matching your machine. See
 [Building](#building) below to build from source instead.
 
+Releases are immutable. GitHub issues a Sigstore release attestation that
+binds each archive's SHA-256 to the tag. The in-app updater, when enabled,
+refuses to install a build that fails that check.
+
 ### macOS: "app is damaged" warning
 
 ![macOS dialog reading "PicFetch.app" is damaged and can't be opened. You should move it to the Bin.](assets/gatekeeper-warning.png)

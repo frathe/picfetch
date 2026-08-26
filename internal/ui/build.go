@@ -82,6 +82,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 			imgCacheMB: prefs.MaxImageCacheMB,
 		},
 		wallpaperDir:   defaultWallpaperDir(),
+		updateDir:      defaultUpdateDir(),
 		keyModifiers:   defaultKeyModifiers,
 		stopWinPosPoll: noPollerStop,
 	}

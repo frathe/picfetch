@@ -54,6 +54,11 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.grid.SetDuplicateDistance(view.DuplicateDistance())
 
 	view.SetFavoritePreviewCache(prefs.FavoritePreviewCache)
+	// Restore update prefs without SetCheckForUpdates: that setter starts a
+	// network check. Day must be in place before startViewerRuntime's
+	// maybeStartUpdateCheck so Due sees the saved calendar day.
+	view.SetLastUpdateCheckDay(prefs.LastUpdateCheckDay)
+	view.settings.checkForUpdates = prefs.CheckForUpdates
 
 	view.deletion = deletion.New(view)
 

@@ -9,6 +9,7 @@
 package preferences
 
 import (
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -32,6 +33,9 @@ const (
 	keyWindowPosSet    = "windowPosSet"
 
 	keyFavoritePreviewCache = "favoritePreviewCache"
+
+	keyCheckForUpdates    = "checkForUpdates"
+	keyLastUpdateCheckDay = "lastUpdateCheckDay"
 
 	keyDuplicateDistance    = "duplicateDistance"
 	keyDuplicateDistanceSet = "duplicateDistanceSet"
@@ -130,6 +134,16 @@ type State struct {
 	// choice persist.
 	FavoritePreviewCache bool
 
+	// CheckForUpdates is the settings window's opt-in for looking for a newer
+	// release on startup. Defaults to false (plain p.Bool) so a fresh install
+	// never phones home until the user turns it on. LastUpdateCheckDay is the
+	// local calendar day (YYYY-MM-DD) of the last successful check attempt, or
+	// empty when none has run yet. It is persisted only by
+	// SaveLastUpdateCheckDay, not by Save, so a quit-time snapshot cannot
+	// clobber a day the background check already wrote.
+	CheckForUpdates    bool
+	LastUpdateCheckDay string
+
 	// DuplicateDistance is the Hamming threshold hide-duplicates uses.
 	// DuplicateDistanceSet distinguishes a saved 0 (exact thumbnail hash)
 	// from "never saved", the same idea WindowPositionSet uses for (0,0).
@@ -149,18 +163,37 @@ type WindowGeometry struct {
 	Size        fyne.Size
 }
 
+// prefsWriteMu serializes Save and SaveLastUpdateCheckDay. The check
+// goroutine writes the day while OnStopped may still be inside Save, and
+// Fyne's preference store is not documented as concurrent-safe.
+var prefsWriteMu sync.Mutex
+
+// SaveLastUpdateCheckDay persists the local calendar day (YYYY-MM-DD)
+// of the last successful update check without a full Save. Used by the
+// auto-update glue so a crash after Check still skips a second check today,
+// and so OnStopped's Save cannot overwrite a newer day.
+func SaveLastUpdateCheckDay(app fyne.App, day string) {
+	prefsWriteMu.Lock()
+	defer prefsWriteMu.Unlock()
+	app.Preferences().SetString(keyLastUpdateCheckDay, day)
+}
+
 // Save persists s via app.Preferences(). SlideInterval and WindowSize are
 // only written when non-zero, and WindowPosX/WindowPosY only when
 // WindowPositionSet, so a run that never touched picture-frame mode or
 // never got a window-size/position reading (see windowSizeTracker and
 // startWindowPosPolling in internal/ui/windowtrack.go) doesn't clobber a
-// good value saved by an earlier run.
+// good value saved by an earlier run. LastUpdateCheckDay is omitted for
+// the same reason: SaveLastUpdateCheckDay is the only writer of that key.
 func Save(app fyne.App, s State) {
+	prefsWriteMu.Lock()
+	defer prefsWriteMu.Unlock()
 	p := app.Preferences()
 	p.SetString(keySortMode, s.SortMode)
 	p.SetBool(keyMergeMode, s.MergeMode)
 	p.SetBool(keySlideShuffle, s.SlideShuffle)
 	p.SetBool(keyFavoritePreviewCache, s.FavoritePreviewCache)
+	p.SetBool(keyCheckForUpdates, s.CheckForUpdates)
 
 	if s.SlideInterval > 0 {
 		p.SetFloat(keySlideIntervalS, s.SlideInterval.Seconds())
@@ -263,6 +296,8 @@ func Load(app fyne.App) State {
 		SettingsWindow:       loadGeometry(p, settingsWinKeys),
 		ExifWindow:           loadGeometry(p, exifWinKeys),
 		FavoritePreviewCache: p.BoolWithFallback(keyFavoritePreviewCache, true),
+		CheckForUpdates:      p.Bool(keyCheckForUpdates),
+		LastUpdateCheckDay:   p.String(keyLastUpdateCheckDay),
 		DuplicateDistance:    p.Int(keyDuplicateDistance),
 		DuplicateDistanceSet: p.Bool(keyDuplicateDistanceSet),
 	}

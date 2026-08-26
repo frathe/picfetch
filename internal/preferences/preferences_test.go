@@ -1,6 +1,7 @@
 package preferences
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -58,6 +59,12 @@ func TestLoadPreferences_NothingSavedReturnsDefaults(t *testing.T) {
 	if !got.FavoritePreviewCache {
 		t.Error("FavoritePreviewCache = false, want true (default is on)")
 	}
+	if got.CheckForUpdates {
+		t.Error("CheckForUpdates = true, want false")
+	}
+	if got.LastUpdateCheckDay != "" {
+		t.Errorf("LastUpdateCheckDay = %q, want empty", got.LastUpdateCheckDay)
+	}
 	if got.DuplicateDistanceSet {
 		t.Error("DuplicateDistanceSet = true, want false")
 	}
@@ -87,8 +94,13 @@ func TestSavePreferences_RoundTrip(t *testing.T) {
 		ExifWindow: WindowGeometry{
 			X: 300, Y: 310, PositionSet: true, Size: fyne.NewSize(430, 370),
 		},
+		CheckForUpdates:    true,
+		LastUpdateCheckDay: "2026-08-26",
 	}
 	Save(app, want)
+	// LastUpdateCheckDay is not written by Save (quit must not clobber a
+	// day the check goroutine already persisted).
+	SaveLastUpdateCheckDay(app, want.LastUpdateCheckDay)
 
 	got := Load(app)
 	if got != want {
@@ -244,5 +256,53 @@ func TestSavePreferences_UnsetWindowPositionDoesNotOverwritePreviouslySaved(t *t
 	got := Load(app)
 	if got.WindowPosX != 50 || got.WindowPosY != 60 || !got.WindowPositionSet {
 		t.Errorf("position after an unset Save = (%d, %d, set=%v), want (50, 60, set=true) to survive", got.WindowPosX, got.WindowPosY, got.WindowPositionSet)
+	}
+}
+
+func TestSaveLastUpdateCheckDay(t *testing.T) {
+	app := test.NewApp()
+
+	SaveLastUpdateCheckDay(app, "2026-08-26")
+
+	if got := Load(app).LastUpdateCheckDay; got != "2026-08-26" {
+		t.Errorf("LastUpdateCheckDay = %q, want 2026-08-26", got)
+	}
+}
+
+func TestSaveDoesNotClobberLastUpdateCheckDay(t *testing.T) {
+	app := test.NewApp()
+
+	SaveLastUpdateCheckDay(app, "2026-08-26")
+	Save(app, State{CheckForUpdates: true, LastUpdateCheckDay: "2026-08-25"})
+
+	if got := Load(app).LastUpdateCheckDay; got != "2026-08-26" {
+		t.Errorf("LastUpdateCheckDay = %q, want 2026-08-26 (Save must not overwrite)", got)
+	}
+	if !Load(app).CheckForUpdates {
+		t.Error("CheckForUpdates = false, want true")
+	}
+}
+
+func TestSaveAndSaveLastUpdateCheckDayConcurrent(t *testing.T) {
+	app := test.NewApp()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for range 200 {
+			SaveLastUpdateCheckDay(app, "2026-08-26")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range 200 {
+			Save(app, State{CheckForUpdates: true, LastUpdateCheckDay: "2026-08-25"})
+		}
+	}()
+	wg.Wait()
+
+	if got := Load(app).LastUpdateCheckDay; got != "2026-08-26" {
+		t.Errorf("LastUpdateCheckDay = %q, want 2026-08-26", got)
 	}
 }

@@ -41,6 +41,7 @@ type fakeHost struct {
 	thumbCacheMB int
 	maxFileMB    int
 	favPreview   bool
+	updateCheck  bool
 	dupeDist     int
 
 	sortModeCalls     []filesort.Mode
@@ -54,6 +55,7 @@ type fakeHost struct {
 	thumbCacheCalls   []int
 	maxFileCalls      []int
 	favPreviewCalls   []bool
+	updateCheckCalls  []bool
 	dupeDistCalls     []int
 }
 
@@ -108,6 +110,11 @@ func (f *fakeHost) FavoritePreviewCache() bool { return f.favPreview }
 func (f *fakeHost) SetFavoritePreviewCache(on bool) {
 	f.favPreview = on
 	f.favPreviewCalls = append(f.favPreviewCalls, on)
+}
+func (f *fakeHost) CheckForUpdates() bool { return f.updateCheck }
+func (f *fakeHost) SetCheckForUpdates(on bool) {
+	f.updateCheck = on
+	f.updateCheckCalls = append(f.updateCheckCalls, on)
 }
 func (f *fakeHost) DuplicateDistance() int { return f.dupeDist }
 func (f *fakeHost) SetDuplicateDistance(n int) {
@@ -257,6 +264,46 @@ func TestFavPreviewCheck_ChangeCallsSetFavoritePreviewCache(t *testing.T) {
 
 	if len(host.favPreviewCalls) != 1 || !host.favPreviewCalls[0] {
 		t.Errorf("SetFavoritePreviewCache calls = %v, want one call with true", host.favPreviewCalls)
+	}
+}
+
+// TestUpdateCheck_ReflectsHostValue checks both states of the seed, mirroring
+// TestFavPreviewCheck_ReflectsHostValue for the updates checkbox.
+func TestUpdateCheck_ReflectsHostValue(t *testing.T) {
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{"checked when host reports true", true},
+		{"unchecked when host reports false", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			host := &fakeHost{updateCheck: tc.want}
+			w := New(testApp, host)
+			w.Show()
+			t.Cleanup(func() { w.win.Window().Close() })
+
+			if w.updateCheck.Checked != tc.want {
+				t.Errorf("updateCheck.Checked = %v, want %v (seeded from host.CheckForUpdates())", w.updateCheck.Checked, tc.want)
+			}
+			if len(host.updateCheckCalls) != 0 {
+				t.Errorf("seeding updateCheck should not call SetCheckForUpdates, got %v", host.updateCheckCalls)
+			}
+		})
+	}
+}
+
+func TestUpdateCheck_ChangeCallsSetCheckForUpdates(t *testing.T) {
+	host := &fakeHost{updateCheck: false}
+	w := New(testApp, host)
+	w.Show()
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	w.updateCheck.SetChecked(true)
+
+	if len(host.updateCheckCalls) != 1 || !host.updateCheckCalls[0] {
+		t.Errorf("SetCheckForUpdates calls = %v, want one call with true", host.updateCheckCalls)
 	}
 }
 
@@ -498,12 +545,12 @@ func TestOpen_ReflectsWindowLifecycle(t *testing.T) {
 // about whether it was applied at all.
 func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
 	w := New(testApp, &fakeHost{})
-	w.RestoreGeometry(widgets.Geometry{X: 210, Y: 220, PositionSet: true, Size: fyne.NewSize(700, 700)})
+	w.RestoreGeometry(widgets.Geometry{X: 210, Y: 220, PositionSet: true, Size: fyne.NewSize(700, 750)})
 
 	w.Show()
 	t.Cleanup(func() { w.win.Window().Close() })
 
-	if got, want := w.win.Window().Canvas().Size(), fyne.NewSize(700, 700); got != want {
+	if got, want := w.win.Window().Canvas().Size(), fyne.NewSize(700, 750); got != want {
 		t.Errorf("window size = %v, want the saved %v", got, want)
 	}
 
@@ -518,10 +565,10 @@ func TestGeometry_TracksAResizeAndOutlivesTheWindow(t *testing.T) {
 	w.RestoreGeometry(widgets.Geometry{})
 
 	w.Show()
-	w.win.Window().Resize(fyne.NewSize(700, 700))
+	w.win.Window().Resize(fyne.NewSize(700, 750))
 	w.win.Window().Close()
 
-	if got, want := w.Geometry().Size, fyne.NewSize(700, 700); got != want {
+	if got, want := w.Geometry().Size, fyne.NewSize(700, 750); got != want {
 		t.Errorf("Geometry().Size after closing = %v, want the last tracked %v", got, want)
 	}
 }
