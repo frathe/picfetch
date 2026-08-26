@@ -497,20 +497,26 @@ func (v *viewer) setTitle(base string) {
 // space is added here rather than baked into either prefix, so neither
 // translation key carries trailing whitespace a translator could silently
 // drop. While the grid overview is up gridTitle takes baseTitle's place -
-// the image behind it isn't what the user is looking at.
+// the image behind it isn't what the user is looking at. Show-variants
+// goes further and hides every prefix too: its title is a bare
+// `(index/count) [WxH] /absolute/path`, so the bar is only position, size,
+// and path, with nothing else competing for room.
 func (v *viewer) applyTitle() {
 	title := v.baseTitle
 	if v.gridTitle != "" {
 		title = v.gridTitle
 	}
-	if v.state.MergeMode() {
-		title = lang.L("[merge]") + " " + title
-	}
-	if v.slides.Shuffle() {
-		title = lang.L("[shuffle]") + " " + title
-	}
-	if p := filesort.Label(v.state.SortMode()); p != "" {
-		title = p + " " + title
+	hidePrefixes := v.grid != nil && v.grid.BrowsingDuplicates() && v.gridTitle != ""
+	if !hidePrefixes {
+		if v.state.MergeMode() {
+			title = lang.L("[merge]") + " " + title
+		}
+		if v.slides.Shuffle() {
+			title = lang.L("[shuffle]") + " " + title
+		}
+		if p := filesort.Label(v.state.SortMode()); p != "" {
+			title = p + " " + title
+		}
 	}
 	v.win.SetTitle(title)
 }
@@ -520,8 +526,10 @@ func (v *viewer) applyTitle() {
 // overlay, the title is the only place a thumbnail's file name is spelled
 // out in full. i is -1 when nothing is highlighted - the grid closing, or a
 // search matching no file - which hands the title back to the image view.
-// The dimensions the image view shows alongside the name are deliberately
-// absent: they'd cost a full decode of a file nobody has picked yet.
+// The hide-duplicates and unfiltered grids still omit pixel size: that
+// would cost a full decode of a file nobody has picked yet. Show-variants
+// reuses the already-probed native size and the full path instead, and
+// applyTitle omits [merge]/[shuffle]/sort prefixes for that title.
 // Show-variants enablement follows the highlighted host while the grid is
 // open, so this also reapplies Actions; native Refresh only if Hide or
 // Show-variants Checked/Disabled actually changed.
@@ -530,12 +538,7 @@ func (v *viewer) HighlightChanged(i int) {
 		v.gridTitle = ""
 		v.applyTitle()
 	} else {
-		title := v.state.files[i].Name()
-		if n := len(v.state.files); n > 1 {
-			title = fmt.Sprintf("%s  (%d/%d)", title, i+1, n)
-		}
-
-		v.gridTitle = title
+		v.gridTitle = v.gridHighlightTitle(i)
 		v.applyTitle()
 	}
 
@@ -553,6 +556,30 @@ func (v *viewer) HighlightChanged(i int) {
 		v.actionsShowVariantItem.Disabled != variantDisabled {
 		v.refreshMainMenu()
 	}
+}
+
+// gridHighlightTitle names the file under the grid ring. Hide-duplicates
+// and the unfiltered grid keep the basename and a trailing position
+// counter. Show-variants compares copies of one shot, so the title is
+// `(index/count) [WxH] /absolute/path` from the already-probed native
+// size - not a new decode. applyTitle strips mode prefixes for this form.
+func (v *viewer) gridHighlightTitle(i int) string {
+	u := v.state.files[i]
+	if v.grid.BrowsingDuplicates() {
+		head := ""
+		if n := len(v.state.files); n > 1 {
+			head = fmt.Sprintf("(%d/%d) ", i+1, n)
+		}
+		if w, h, ok := v.grid.NativeSize(i); ok {
+			return fmt.Sprintf("%s[%dx%d] %s", head, w, h, u.Path())
+		}
+		return head + u.Path()
+	}
+	title := u.Name()
+	if n := len(v.state.files); n > 1 {
+		title = fmt.Sprintf("%s  (%d/%d)", title, i+1, n)
+	}
+	return title
 }
 
 // clearToDropzone drops the loaded file list and returns the viewer to an
