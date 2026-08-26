@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -102,6 +103,41 @@ func TestExtract_MacOSApp(t *testing.T) {
 	}
 }
 
+func TestSafeJoin(t *testing.T) {
+	dest := t.TempDir()
+	tests := []struct {
+		entry   string
+		wantErr bool
+	}{
+		{entry: "picfetch.exe", wantErr: false},
+		{entry: "PicFetch.app/Contents/MacOS/picfetch", wantErr: false},
+		{entry: "PicFetch.app/", wantErr: false},
+		{entry: "..foo", wantErr: false},
+		{entry: "../escape", wantErr: true},
+		{entry: "/tmp/x", wantErr: true},
+		{entry: "foo/../../etc/passwd", wantErr: true},
+		{entry: "..", wantErr: true},
+		{entry: "", wantErr: true},
+	}
+	for _, tc := range tests {
+		got, err := safeJoin(dest, tc.entry)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("safeJoin(%q) = %q, want error", tc.entry, got)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("safeJoin(%q): %v", tc.entry, err)
+			continue
+		}
+		rel, err := filepath.Rel(dest, got)
+		if err != nil || !filepath.IsLocal(rel) {
+			t.Errorf("safeJoin(%q) = %q, escapes dest", tc.entry, got)
+		}
+	}
+}
+
 func TestExtract_ZipSlipDotDot(t *testing.T) {
 	dest := t.TempDir()
 	parent := filepath.Dir(dest)
@@ -112,6 +148,28 @@ func TestExtract_ZipSlipDotDot(t *testing.T) {
 	_, _, err := extract(context.Background(), zipPath, dest)
 	if err == nil {
 		t.Fatal("want zip-slip error")
+	}
+	if !strings.Contains(err.Error(), "zip slip") {
+		t.Fatalf("err = %v, want zip slip", err)
+	}
+	if _, err := os.Stat(outside); err == nil {
+		t.Fatal("wrote ../escape outside destDir")
+	}
+}
+
+func TestExtract_TarSlipDotDot(t *testing.T) {
+	dest := t.TempDir()
+	parent := filepath.Dir(dest)
+	outside := filepath.Join(parent, "escape")
+	tarPath := writeTarGz(t, t.TempDir(), "slip.tar.gz", map[string][]byte{
+		"../escape": []byte("nope"),
+	})
+	_, _, err := extract(context.Background(), tarPath, dest)
+	if err == nil {
+		t.Fatal("want zip-slip error")
+	}
+	if !strings.Contains(err.Error(), "zip slip") {
+		t.Fatalf("err = %v, want zip slip", err)
 	}
 	if _, err := os.Stat(outside); err == nil {
 		t.Fatal("wrote ../escape outside destDir")
@@ -128,6 +186,39 @@ func TestExtract_ZipSlipAbsolute(t *testing.T) {
 	_, _, err := extract(context.Background(), zipPath, dest)
 	if err == nil {
 		t.Fatal("want zip-slip error")
+	}
+	if !strings.Contains(err.Error(), "zip slip") {
+		t.Fatalf("err = %v, want zip slip", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "tmp", "x")); err == nil {
+		t.Fatal("extracted absolute name into dest")
+	}
+	if existed != nil {
+		if _, err := os.Stat(outside); err == nil {
+			t.Fatal("wrote /tmp/x outside destDir")
+		}
+	} else if b, err := os.ReadFile(outside); err == nil && string(b) == "nope" {
+		_ = os.Remove(outside)
+		t.Fatal("overwrote /tmp/x")
+	}
+}
+
+func TestExtract_TarSlipAbsolute(t *testing.T) {
+	dest := t.TempDir()
+	outside := filepath.Join("/tmp", "x")
+	_, existed := os.Stat(outside)
+	tarPath := writeTarGz(t, t.TempDir(), "slip.tar.gz", map[string][]byte{
+		"/tmp/x": []byte("nope"),
+	})
+	_, _, err := extract(context.Background(), tarPath, dest)
+	if err == nil {
+		t.Fatal("want zip-slip error")
+	}
+	if !strings.Contains(err.Error(), "zip slip") {
+		t.Fatalf("err = %v, want zip slip", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "tmp", "x")); err == nil {
+		t.Fatal("extracted absolute name into dest")
 	}
 	if existed != nil {
 		if _, err := os.Stat(outside); err == nil {
@@ -160,6 +251,27 @@ func TestExtract_LinuxTarball(t *testing.T) {
 	}
 	if string(got) != "elf" {
 		t.Errorf("contents = %q, want elf", got)
+	}
+}
+
+func TestExtractTarEntry_NULTypeflag(t *testing.T) {
+	dest := t.TempDir()
+	const body = "elf"
+	hdr := &tar.Header{
+		Name:     "picfetch-linux-amd64",
+		Mode:     0o755,
+		Size:     int64(len(body)),
+		Typeflag: 0,
+	}
+	if err := extractTarEntry(dest, hdr, strings.NewReader(body)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dest, hdr.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != body {
+		t.Errorf("contents = %q, want %q", got, body)
 	}
 }
 

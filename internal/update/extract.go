@@ -33,15 +33,11 @@ func extract(ctx context.Context, archivePath, destDir string) (binaryPath, plis
 
 func safeJoin(dest, entry string) (string, error) {
 	dest = filepath.Clean(dest)
-	target := filepath.Clean(filepath.Join(dest, entry))
-	rel, err := filepath.Rel(dest, target)
-	if err != nil {
-		return "", fmt.Errorf("zip slip: %q: %w", entry, err)
-	}
-	if strings.HasPrefix(rel, "..") {
+	entry = strings.TrimSuffix(entry, "/")
+	if !filepath.IsLocal(entry) {
 		return "", fmt.Errorf("zip slip: %q", entry)
 	}
-	return target, nil
+	return filepath.Join(dest, entry), nil
 }
 
 func extractZip(ctx context.Context, zipPath, destDir string) error {
@@ -69,11 +65,16 @@ func extractZipFile(destDir string, f *zip.File) error {
 	if f.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("refusing symlink %q", name)
 	}
+	isDir := f.FileInfo().IsDir() || strings.HasSuffix(name, "/")
+	name = strings.TrimSuffix(name, "/")
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("zip slip: %q", name)
+	}
 	target, err := safeJoin(destDir, name)
 	if err != nil {
 		return err
 	}
-	if f.FileInfo().IsDir() || strings.HasSuffix(name, "/") {
+	if isDir {
 		return os.MkdirAll(target, 0o755)
 	}
 	rc, err := f.Open()
@@ -118,6 +119,10 @@ func extractTarEntry(destDir string, hdr *tar.Header, r io.Reader) error {
 	if name == "" || name == "." {
 		return nil
 	}
+	name = strings.TrimSuffix(name, "/")
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("zip slip: %q", name)
+	}
 	switch hdr.Typeflag {
 	case tar.TypeXHeader, tar.TypeXGlobalHeader, tar.TypeGNULongName, tar.TypeGNULongLink:
 		return nil
@@ -127,7 +132,7 @@ func extractTarEntry(destDir string, hdr *tar.Header, r io.Reader) error {
 			return err
 		}
 		return os.MkdirAll(target, 0o755)
-	case tar.TypeReg, tar.TypeRegA:
+	case tar.TypeReg, '\x00':
 		target, err := safeJoin(destDir, name)
 		if err != nil {
 			return err

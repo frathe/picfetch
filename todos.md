@@ -8,7 +8,11 @@
 
 #### Bugfix
 
+- Reject zip/tar entries that are not `filepath.IsLocal` during update extract (GitHub CodeQL go/zipslip).
+
 #### Internal
+
+- Drop deprecated `tar.TypeRegA` in update extract (still accept the historic NUL regular-file typeflag).
 
 ## ACTIVE DEVELOPMENT
 
