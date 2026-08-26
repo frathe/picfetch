@@ -313,6 +313,30 @@ func TestApplyDupBadge_ShowsGroupSize(t *testing.T) {
 	}
 }
 
+func TestApplyDupBadge_HiddenWhileBrowsingDuplicates(t *testing.T) {
+	g, _ := pairAndUnique(t)
+
+	g.SetHideDuplicates(true)
+	cell := newGridCell()
+	_, _, _, badge := unpackGridCell(cell)
+	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
+	if !badge.chip.Visible() {
+		t.Fatal("setup: hide-duplicates should show the group-size chip")
+	}
+
+	g.SetBrowsingDuplicates(true)
+	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
+	if badge.chip.Visible() {
+		t.Fatal("variants browse must hide the group-size chip")
+	}
+
+	g.SetBrowsingDuplicates(false)
+	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
+	if !badge.chip.Visible() || badge.label.Text != "2" {
+		t.Errorf("after leaving browse, chip visible=%v text=%q, want visible \"2\"", badge.chip.Visible(), badge.label.Text)
+	}
+}
+
 func TestDupBadge_TopRightClearsTheHighlightRing(t *testing.T) {
 	g, _ := pairAndUnique(t)
 	g.SetHideDuplicates(true)

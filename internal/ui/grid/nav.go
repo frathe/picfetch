@@ -200,7 +200,7 @@ func setCellHighlighted(ring *canvas.Rectangle, highlighted bool) {
 
 func (g *Overview) applyDupBadge(b *dupBadge, hostIndex int, cell fyne.Size) {
 	n := g.groupSize(hostIndex)
-	if !g.hideDupes || n < 2 {
+	if !g.hideDupes || g.BrowsingDuplicates() || n < 2 {
 		b.chip.Hide()
 		return
 	}
