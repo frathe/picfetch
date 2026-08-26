@@ -18,9 +18,8 @@ func (g *Overview) Highlight() int {
 }
 
 // SimulateHover moves the ring as GridWrap does when the pointer enters
-// the cell at display index id.
-// SimulateHover moves the ring as GridWrap does when the pointer enters
-// the cell at display index id.
+// the cell at display index id. Package ui tests drive this because wrap
+// is unexported; it is not a second hover path.
 func (g *Overview) SimulateHover(id int) {
 	if g.wrap != nil && g.wrap.OnHighlighted != nil {
 		g.wrap.OnHighlighted(id)
