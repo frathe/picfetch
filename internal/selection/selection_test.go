@@ -173,3 +173,31 @@ func TestRange_IsInclusiveAndAscendingWhicheverWayItIsGiven(t *testing.T) {
 		})
 	}
 }
+
+func TestSetAnchor_DoesNotChangeMembership(t *testing.T) {
+	s := New()
+	s.Toggle(1)
+	s.Add(2)
+
+	s.SetAnchor(9)
+
+	if want := []int{1, 2}; !slices.Equal(s.Indices(), want) {
+		t.Errorf("Indices() = %v after SetAnchor(9), want %v", s.Indices(), want)
+	}
+	if a, ok := s.Anchor(); !ok || a != 9 {
+		t.Errorf("Anchor() = (%d, %v), want (9, true)", a, ok)
+	}
+}
+
+func TestSetAnchor_WorksOnAnEmptySet(t *testing.T) {
+	s := New()
+
+	s.SetAnchor(3)
+
+	if s.Len() != 0 {
+		t.Errorf("Len() = %d, want 0", s.Len())
+	}
+	if a, ok := s.Anchor(); !ok || a != 3 {
+		t.Errorf("Anchor() = (%d, %v), want (3, true)", a, ok)
+	}
+}

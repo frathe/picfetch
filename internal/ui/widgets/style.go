@@ -50,6 +50,13 @@ const (
 	// NewSelectionTint). Enough to read as "picked" across both themes and
 	// over any thumbnail, little enough to still see which image it is.
 	SelectionTintAlpha = 90
+
+	// MarqueeStrokeWidth / MarqueeFillAlpha are the grid drag-select
+	// rectangle (see NewMarqueeRect): a hairline of the same primary hue
+	// as the focus ring, with a wash light enough to read the thumbnails
+	// underneath while the drag is in progress.
+	MarqueeStrokeWidth float32 = 1
+	MarqueeFillAlpha   uint8   = 40
 )
 
 var (
@@ -118,4 +125,20 @@ func NewSelectionTint() *canvas.Rectangle {
 	tint.CornerRadius = RingRadius
 
 	return tint
+}
+
+// NewMarqueeRect returns the drag-select rectangle drawn over the grid
+// overview while a marquee is in progress. Hidden until the first Dragged;
+// the grid shows it for the gesture and hides it again on DragEnd, Escape,
+// or Close.
+func NewMarqueeRect() *canvas.Rectangle {
+	c := color.NRGBAModel.Convert(theme.Color(theme.ColorNamePrimary)).(color.NRGBA)
+	fill := c
+	fill.A = MarqueeFillAlpha
+	r := canvas.NewRectangle(fill)
+	r.StrokeColor = c
+	r.StrokeWidth = MarqueeStrokeWidth
+	r.CornerRadius = RingRadius
+	r.Hide()
+	return r
 }

@@ -140,6 +140,34 @@ type Overview struct {
 	// see selection.go.
 	sel *selection.Set
 
+	// marqueeSaved is the host-index selection frozen at mouse-down, so a
+	// Shift/Cmd drag unions against what the user started with rather than
+	// against a live set that the previous Dragged already replaced.
+	marqueeSaved []int
+
+	// marqueeDragging is true between the first Dragged of a gesture and
+	// DragEnd, Escape-cancel, or Close. escape treats it as the first undo
+	// stage so a press during a drag restores the snapshot instead of
+	// clearing the selection the drag just built.
+	marqueeDragging bool
+
+	// marqueeDisarmed suppresses the rest of a gesture after Escape or
+	// Close: the driver keeps sending Dragged until the button comes up,
+	// and without this the next event would start a fresh marquee from
+	// the current point.
+	marqueeDisarmed bool
+
+	// marqueeOrigin is the press point in wrap-content coordinates,
+	// recovered on the first Dragged by subtracting that event's delta.
+	marqueeOrigin fyne.Position
+
+	// catcher is the transparent fyne.Draggable under the padded wrap.
+	// marqueeRect is the painted selection rectangle, parented by
+	// marqueeBox (WithoutLayout) so Stack cannot stretch it.
+	catcher     *marqueeCatcher
+	marqueeRect *canvas.Rectangle
+	marqueeBox  *fyne.Container
+
 	// matches maps a display index - a cell's position in the grid - to
 	// the host's own file index, while a filter is active. nil means no
 	// filter, and is what every index below means "identity" by: the grid
@@ -410,7 +438,23 @@ func New(host Host, win fyne.Window) *Overview {
 	// than dimming it behind a centered card, so it needs to fully hide
 	// whatever's underneath.
 	backdrop := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
-	body := container.NewStack(container.NewPadded(g.wrap), container.NewCenter(g.empty))
+
+	// Body stack order is load-bearing. Walk is back-to-front and the last
+	// match wins: the catcher is Draggable but not Tappable, Hoverable, or
+	// Scrollable, so cell taps, hover, wheel, and the scrollbar still land
+	// on GridWrap, while a drag on a cell or gutter hits the catcher. The
+	// rectangle sits on top in a WithoutLayout layer so Stack cannot
+	// stretch it to the overlay.
+	g.catcher = newMarqueeCatcher(g)
+	g.marqueeRect = widgets.NewMarqueeRect()
+	g.marqueeBox = container.NewWithoutLayout(g.marqueeRect)
+
+	body := container.NewStack(
+		g.catcher,
+		container.NewPadded(g.wrap),
+		container.NewCenter(g.empty),
+		g.marqueeBox,
+	)
 	g.overlay = container.NewStack(backdrop, container.NewBorder(g.searchBar, nil, nil, nil, body))
 	g.overlay.Hide()
 
@@ -511,6 +555,12 @@ func (g *Overview) Close() {
 	// would otherwise be applied to - or, worse, acted on against - the new
 	// one.
 	g.sel.Clear()
+	if g.marqueeDragging {
+		g.marqueeDisarmed = true
+	}
+	g.marqueeDragging = false
+	g.marqueeSaved = nil
+	g.hideMarqueeRect()
 	g.clearSearch()
 	// Browse is a way of working with the grid, like search: G must reopen
 	// the hide/full set, not the last group. Hide-duplicates stays; Close

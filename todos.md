@@ -2,60 +2,9 @@
 
 ## Done
 
-- Split `internal/ui/toast.go` import groups so stdlib, `fyne.io`, and
-  `github.com/frathe/picfetch` are blank-line-separated like neighbouring
-  `internal/ui` files (2026-08-25).
-
-- `make fmt` / `make fmt-check` / CI use `goimports -local github.com/frathe/picfetch`
-  (pinned as a Go `tool` in `go.mod`) so that grouping cannot regress (2026-08-25).
-
-- Trimmed `ARCHITECTURE.md` from per-function commentary to a locator
-  package map plus the “Where to look for X” index (2026-08-25).
-
-- `finishLoad` is an orchestrator of named steps in `internal/ui/load.go`
-  (`installLoadedFrames` … `startLoadedAnimation`, then `preloadNeighbors` / `done()`);
-  behavior unchanged (2026-08-25).
-
-- Split `internal/imaging/exif.go` into `exif.go` (parsers + GPS), `exififd.go`
-  (IFD walker / tag values), and `exifformat.go` (display formatters). Behavior
-  unchanged (2026-08-25).
-
-### Menu Window
-Menu points
-- viewer
-- exif information
-- grid view
-- picture frame mode
-- help
-  Windows that are currently showing are grayed out in the menu
-
-### Menu Actions
-Menu points
- - sort with sub menu of sorting options the currently active has a checkmark or is grayed out
- - hide duplicates checkmarked when active (toggable)
- - show variant available it the current item has dupes
- - exif information
-Windows that are currently showing are grayed out in the menu
-
-### Never-started canary
-Before the `completion.Signal` migration, waiting on an operation that had never begun blocked on a nil channel until
-the test timed out with a named message. `Signal.Wait` on a never-begun signal returns nil immediately - which is
-exactly what lets `drain` drop its nil-guard, but also meant a helper that used to fail loudly then returned silently.
-
-The guard went back in unevenly. Helpers that carried an *explicit* `== nil` check kept it as `Begun()`:
-`settleChooser`, `settleWallpaper`, `settleFavoritePreviews`, and `settleToast` - the last being the best of the four,
-since its `stop == nil` answers "pending *now*" rather than "ever begun". Helpers that relied on the *implicit*
-nil-channel block lost theirs silently: `waitUntilLoaded`, `waitForScan`, `waitForSort`, `waitForAnimStopped`,
-`waitForClipboard`.
-
-Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `waitFor` still do not.
-`go test -race ./...` passed with no canary fatals (2026-08-25).
+- possibility to drag a selection rectangle in grid view to select multiple images.
 
 ## ACTIVE DEVELOPMENT
-
-- In-app updater (opt-in, daily GitHub check, silent download, apply on
-  quit, What's New on next launch). Plan:
-  `.superpowers/plans/2026-08-26-in-app-updater.md`.
 
 ## TODO
 
@@ -68,8 +17,6 @@ Restored: those five named wait helpers now fatal via `Begun()`; `drain` and `wa
   the selected variant should be shown in the viewer and not the highest resolution image.
   when using the arrow keys in this view it should loop over the variants.
   ESC -> back to variants grid -> ESC -> back to normal grid.
-
-- possibility to drag a selection rectangle in grid view to select multiple images.
 
 ## not deemed worth implementing (edge cases)
 

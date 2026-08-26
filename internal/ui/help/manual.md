@@ -397,9 +397,9 @@ instead of arrowing through them one at a time.
   again to take it back out), **`Shift+click`** to select everything
   between it and the last one you clicked, **`Space`** to pick whichever
   thumbnail is highlighted, and **`Cmd/Ctrl+A`** to select the lot.
+  Drag a rectangle across the thumbnails to select everything it touches; hold Shift or Cmd/Ctrl while dragging to add to what was already picked.
   Selected thumbnails are washed in the accent colour, and the top bar
-  counts them (`12 selected`). A plain click still just opens an image, so
-  nothing changes until you hold a modifier.
+  counts them (`12 selected`). A click without dragging still just opens an image.
 - With a selection made, **`Shift+Delete`** moves all of it to the Trash
   (after the usual confirmation, which names the count rather than every
   file), and **`Cmd/Ctrl+C`** copies the files themselves to the clipboard
@@ -410,9 +410,9 @@ instead of arrowing through them one at a time.
   pressing `Cmd/Ctrl+A` selects exactly the matches — `/holiday`,
   `Cmd/Ctrl+A`, `Shift+Delete` clears every holiday photo out of a folder
   of thousands. Clearing the search afterwards leaves the selection intact.
-- **`Esc`** undoes one thing at a time: the selection first, then the
-  search, then browse-duplicates, then hide-duplicates, then the grid
-  itself. `G` closes the grid
+- **`Esc`** undoes one thing at a time: an in-progress drag first, then the
+  selection, then the search, then browse-duplicates, then hide-duplicates,
+  then the grid itself. `G` closes the grid
   as usual, but goes quiet while a selection or a search is still up, so it
   can't throw away work in progress. `G` and Close leave hide-duplicates
   on: the single-image view still skips hidden extras until you press `D`
@@ -559,8 +559,7 @@ many of them actually went.
   or take it back out
 - **`Cmd`/`Ctrl+A`** — (grid only) select every thumbnail the grid is
   currently showing (just the matches, while a search narrows it)
-- **`Cmd`/`Ctrl+click`** / **`Shift+click`** — (grid only) add one
-  thumbnail to the selection / select the whole range up to it
+- **`Cmd`/`Ctrl+click`** / **`Shift+click`** / **click-and-drag** — (grid only) add one thumbnail / select the range / select every thumbnail the rectangle touches (Shift or Cmd/Ctrl+drag adds rather than replacing)
 - **`+`** / **`-`** — zoom in / out (the window scales with the image, within
   the open-size minimum and the Settings maximum)
 - **`1`** — zoom to 100%; **`0`** — back to fit-to-window and the default
@@ -930,7 +929,8 @@ Things PicFetch deliberately does not do (yet):
   image to Trash; `←`/`→` to choose, `Return` to go, `Esc` to cancel); moves
   the file to the Trash, or the grid's whole selection
 - **Select in the grid** — `Cmd`/`Ctrl+click` or `Space` to pick one,
-  `Shift+click` for a range, `Cmd`/`Ctrl+A` for all of them (or all the
+  `Shift+click` for a range, click-and-drag for every thumbnail the
+  rectangle touches (Shift or Cmd/Ctrl+drag adds), `Cmd`/`Ctrl+A` for all of them (or all the
   search matches); `Esc` clears the selection
 - **Manual** — `F1`, or Help -> Manual or Window -> Help
 - **Clear / Quit** — `Esc` (clears the loaded images first, then quits;

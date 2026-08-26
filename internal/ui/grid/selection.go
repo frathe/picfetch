@@ -44,7 +44,7 @@ func (g *Overview) Targets() []int {
 }
 
 // ClearSelection drops the selection, leaving any active filter alone - the
-// first stage of Escape (see escape).
+// Escape stage after an in-progress marquee (see escape).
 func (g *Overview) ClearSelection() {
 	if g.sel.Len() == 0 {
 		return

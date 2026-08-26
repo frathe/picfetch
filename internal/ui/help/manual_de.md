@@ -448,10 +448,11 @@ einzeln durchzublättern.
   (ein erneuter Klick nimmt sie wieder heraus), **`Shift+Klick`** wählt
   alles zwischen ihr und der zuletzt angeklickten aus, **`Leertaste`**
   wählt die gerade hervorgehobene Miniaturansicht, und **`Cmd/Strg+A`**
-  wählt alle aus. Ausgewählte Miniaturansichten sind in der Akzentfarbe
+  wählt alle aus.
+  Ziehen Sie ein Rechteck über die Miniaturansichten, um alles auszuwählen, das es berührt; halten Sie dabei Shift oder Cmd/Strg, um zur bestehenden Auswahl hinzuzufügen.
+  Ausgewählte Miniaturansichten sind in der Akzentfarbe
   eingefärbt, und die obere Leiste zählt sie (`12 ausgewählt`). Ein
-  einfacher Klick öffnet weiterhin nur ein Bild — ohne gedrückte
-  Zusatztaste ändert sich also nichts.
+  Klick ohne Ziehen öffnet weiterhin nur ein Bild.
 - Mit einer getroffenen Auswahl verschiebt **`Shift+Delete`** alles davon in
   den Papierkorb (nach der üblichen Nachfrage, die die Anzahl nennt statt
   jeder einzelnen Datei), und **`Cmd/Strg+C`** kopiert die Dateien selbst in
@@ -464,9 +465,10 @@ einzeln durchzublättern.
   `Cmd/Strg+A`, `Shift+Delete` räumt jedes Urlaubsfoto aus einem Ordner mit
   Tausenden heraus. Das anschließende Zurücksetzen der Suche lässt die
   Auswahl unberührt.
-- **`Esc`** nimmt jeweils eine Sache zurück: zuerst die Auswahl, dann die
-  Suche, dann die Duplikat-Anzeige, dann das Ausblenden von Duplikaten,
-  dann das Raster selbst. `G`
+- **`Esc`** nimmt jeweils eine Sache zurück: zuerst ein noch nicht
+  beendetes Rechteckziehen, dann die Auswahl, dann die Suche, dann die
+  Duplikat-Anzeige, dann das Ausblenden von Duplikaten, dann das Raster
+  selbst. `G`
   schließt das Raster wie gewohnt, bleibt aber wirkungslos, solange eine
   Auswahl oder eine Suche besteht, damit es keine begonnene Arbeit
   verwirft. `G` und Schließen lassen das Ausblenden an: die Einzelbildansicht
@@ -635,9 +637,7 @@ tatsächlich verschoben wurden.
   Auswahl hinzufügen oder wieder herausnehmen
 - **`Cmd`/`Strg+A`** — (nur im Raster) alle gerade angezeigten
   Miniaturansichten auswählen (bei aktiver Suche nur die Treffer)
-- **`Cmd`/`Strg+Klick`** / **`Shift+Klick`** — (nur im Raster) eine
-  Miniaturansicht zur Auswahl hinzufügen / den ganzen Bereich bis dorthin
-  auswählen
+- **`Cmd`/`Strg+Klick`** / **`Shift+Klick`** / **Klicken-und-Ziehen** — (nur im Raster) eine Miniaturansicht zur Auswahl hinzufügen / den Bereich auswählen / jede Miniaturansicht auswählen, die das Rechteck berührt (Shift- oder Cmd/Strg+Ziehen fügt hinzu statt zu ersetzen)
 - **`+`** / **`-`** — vergrößern / verkleinern (das Fenster skaliert mit dem
   Bild, zwischen Startgröße und dem Maximum in den Einstellungen)
 - **`1`** — auf 100 % zoomen; **`0`** — zurück zur Fenstereinpassung und zur
@@ -1067,7 +1067,8 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   zum Bestätigen, `Esc` zum Abbrechen); verschiebt die Datei in den
   Papierkorb, oder die ganze Auswahl des Rasters
 - **Im Raster auswählen** — `Cmd`/`Strg+Klick` oder `Leertaste` für eine,
-  `Shift+Klick` für einen Bereich, `Cmd`/`Strg+A` für alle (bzw. alle
+  `Shift+Klick` für einen Bereich, Klicken-und-Ziehen für jede vom Rechteck
+  berührte Miniaturansicht (Shift- oder Cmd/Strg+Ziehen fügt hinzu), `Cmd`/`Strg+A` für alle (bzw. alle
   Suchtreffer); `Esc` setzt die Auswahl zurück
 - **Handbuch** — `F1`, oder Hilfe -> Handbuch oder Fenster -> Hilfe
 - **Leeren / Beenden** — `Esc` (leert zuerst die geladenen Bilder, beendet

@@ -69,7 +69,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | Package | Responsibility | Reaches back via |
 |---------|----------------|------------------|
 | `internal/ui/zoom/` | Zoom/pan of the displayed image. Window growth is `syncWindowToZoom` in `internal/ui`. | `onChanged`, `modifiers`, `onScaleChanged`. |
-| `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, dupes (D), `Targets()`. `nav.go`: `setHighlight` → `HighlightChanged`. | 10-method `Host` including `Modifiers`. |
+| `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, dupes (D), `marquee.go` (drag rectangle → `Targets()`). `nav.go`: `setHighlight` → `HighlightChanged`. | 10-method `Host` including `Modifiers`. |
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
 | `internal/ui/exifwin/` | EXIF panel (E): tag list, optional JPEG strip, GPS map (`tiles.go`, `startWarm`). Geometry via `widgets.Singleton`. | 4-method `Host`. |
@@ -317,7 +317,7 @@ see `AGENTS.md`.
 - "Which keys do what?" → `keys.go` (`handleKeyEvent` / `handleTypedRune`) + `shortcuts.go`.
 - "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go` + `keys.go` `handleTypedRune`.
 - "How does hide-duplicates work?" → `internal/imaging/dhash.go` + `internal/ui/grid/dupes.go`.
-- "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
+- "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `grid/marquee.go` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
 - "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
 - "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.
 - "How does rotation work, and how is it saved to disk?" → `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.

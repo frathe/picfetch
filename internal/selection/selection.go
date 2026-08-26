@@ -93,10 +93,19 @@ func (s *Set) Indices() []int {
 	return slices.Sorted(maps.Keys(s.members))
 }
 
-// Anchor is the index a range extension measures from, ok=false when no
-// Toggle has happened since the last Clear.
+// Anchor is the index a range extension measures from, ok=false when neither
+// Toggle nor SetAnchor has happened since the last Clear.
 func (s *Set) Anchor() (int, bool) {
 	return s.anchor, s.hasAnchor
+}
+
+// SetAnchor names i as the index a later range extension measures from,
+// without adding or removing members. A marquee uses this so a following
+// Shift+click extends from where the drag started rather than from whatever
+// Toggle last happened to touch.
+func (s *Set) SetAnchor(i int) {
+	s.anchor = i
+	s.hasAnchor = true
 }
 
 // Range is the inclusive span between a and b, always ascending however the

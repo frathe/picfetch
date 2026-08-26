@@ -153,14 +153,16 @@ func (g *Overview) movePage(direction int) {
 	}
 }
 
-// escape undoes one layer per press, smallest first: the selection, then the
-// search, then browse-duplicates, then hide-duplicates, then the grid itself.
-// Each of those took the user effort to build, so a single keystroke never
-// throws away more than the one thing they were most likely aiming at. Close
-// does not clear hide: the viewer still skips extras after the grid is
-// dismissed.
+// escape undoes one layer per press, smallest first: an in-progress marquee,
+// then the selection, then the search, then browse-duplicates, then
+// hide-duplicates, then the grid itself. Each of those took the user effort
+// to build, so a single keystroke never throws away more than the one thing
+// they were most likely aiming at. Close does not clear hide: the viewer
+// still skips extras after the grid is dismissed.
 func (g *Overview) escape() {
 	switch {
+	case g.marqueeDragging:
+		g.cancelMarquee()
 	case g.sel.Len() > 0:
 		g.ClearSelection()
 	case g.searching:
