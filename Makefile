@@ -12,7 +12,7 @@ RELEASE_BRANCH := main
 # third-party packages (stdlib / fyne.io+others / github.com/frathe/picfetch).
 GOIMPORTS_LOCAL := github.com/frathe/picfetch
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release help
+.PHONY: all build build-linux-all run fmt fmt-check vet test verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root help
 
 all: build
 
@@ -32,13 +32,19 @@ fmt-check: ## Fail if any Go file differs from goimports -local (the CI format g
 		echo "These files need goimports (run 'make fmt'):"; echo "$$unformatted"; exit 1; \
 	fi
 
+check-tuf-root: ## Fail if the embedded GitHub TUF root is expired or has fewer than 60 days remaining (offline)
+	go run ./scripts/synctuf --check
+
+sync-tuf-root: ## Fetch and TUF-verify a newer GitHub root into the embed (needs network)
+	go run ./scripts/synctuf --write
+
 vet: ## Run go vet
 	go vet ./...
 
 test: ## Run tests
 	go test ./...
 
-verify: fmt-check ## Run the same checks CI does (goimports, vet, build, race tests)
+verify: fmt-check check-tuf-root ## Run the same checks CI does (goimports, TUF root expiry, vet, build, race tests)
 	go vet ./...
 	go build ./...
 	go test -race ./...
@@ -137,6 +143,7 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 	@# git history. Publishing happens in .github/workflows/release.yml, which
 	@# is triggered by the tag push and re-runs CI as a gate, so a red run
 	@# leaves the tag orphaned rather than shipping a broken build.
+	@# A GitHub TUF root bump, if any, is a separate commit before Release.
 	@set -e; \
 	part=$${PART:-patch}; \
 	branch=$$(git rev-parse --abbrev-ref HEAD); \
@@ -156,12 +163,23 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 	   [ -n "$$(git ls-remote --tags origin "refs/tags/$$tag")" ]; then \
 		echo "Tag $$tag already exists"; exit 1; \
 	fi; \
+	$(MAKE) sync-tuf-root; \
+	tuf_root="internal/update/embed/tuf-repo.github.com/root.json"; \
+	tuf_changed=$$(git status --porcelain -- "$$tuf_root"); \
 	if [ -z "$$YES" ]; then \
-		printf "Release %s from %s (%s)? [y/N] " "$$tag" "$(RELEASE_BRANCH)" "$$(git rev-parse --short HEAD)"; \
+		extra=""; \
+		if [ -n "$$tuf_changed" ]; then \
+			extra=" plus a GitHub TUF root commit"; \
+		fi; \
+		printf "Release %s from %s (%s)%s? [y/N] " "$$tag" "$(RELEASE_BRANCH)" "$$(git rev-parse --short HEAD)" "$$extra"; \
 		read answer; \
 		case $$answer in y|Y|yes|YES) ;; *) echo "Aborted."; exit 1 ;; esac; \
 	fi; \
 	$(MAKE) verify; \
+	if [ -n "$$tuf_changed" ]; then \
+		git add "$$tuf_root"; \
+		git commit -m "Update GitHub TUF root"; \
+	fi; \
 	scripts/bump_version.sh $$part >/dev/null; \
 	git add FyneApp.toml; \
 	git commit -m "Release $$tag"; \

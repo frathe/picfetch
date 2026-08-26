@@ -144,6 +144,7 @@ GitHub-release check, SHA-256 + immutable release attestation verify, stage, app
 | `checksums.go` | `VerifyHash` (optional API digest). |
 | `download.go` / `extract.go` | Fetch, hash, unzip/tar, `Stage`. |
 | `attest.go` | GitHub Fulcio Sigstore `Verifier` + in-toto release policy. |
+| `tufroot.go` | Offline 60-day expiry check and verified sync of `embed/tuf-repo.github.com/root.json`. |
 | `apply.go` / `apply_unix.go` / `apply_windows.go` | `Apply` dispatcher. |
 
 ### `internal/preferences`
@@ -326,7 +327,7 @@ see `AGENTS.md`.
 - "How does delete work?" → `internal/ui/deletion` + `internal/trash` + `shortcuts.go` / `batch.go` `requestDelete`.
 - "How are native file dialogs implemented?" → `internal/filepicker` + `openfiles.go` / `export.go`.
 - "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
-- "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate.go` + `help/whatsnew.go`. Off by default (`preferences.CheckForUpdates`). Apply is OnStopped, not a relaunch.
+- "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate.go` + `help/whatsnew.go`. Off by default (`preferences.CheckForUpdates`). Apply is OnStopped, not a relaunch. GitHub TUF bootstrap expiry: `tufroot.go`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.closeFiles`.
