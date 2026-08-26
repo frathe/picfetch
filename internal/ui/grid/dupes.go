@@ -23,6 +23,24 @@ const hideApplyMinInterval = 250 * time.Millisecond
 // Hash storage lives on Overview (hashMu / hashes / hashGen), not in the
 // thumbnail ByteCache: a hash is 8 bytes and must survive thumbnail eviction.
 
+func (g *Overview) ensureHashGenLocked(gen uint64) {
+	if g.hashGen != gen {
+		g.hashes = make(map[string]uint64)
+		g.hashFailed = make(map[string]struct{})
+		g.pixels = make(map[string]int)
+		g.hashGen = gen
+	}
+	if g.hashes == nil {
+		g.hashes = make(map[string]uint64)
+	}
+	if g.hashFailed == nil {
+		g.hashFailed = make(map[string]struct{})
+	}
+	if g.pixels == nil {
+		g.pixels = make(map[string]int)
+	}
+}
+
 func (g *Overview) rememberHash(u fyne.URI, img image.Image) {
 	if u == nil || img == nil {
 		return
@@ -32,14 +50,7 @@ func (g *Overview) rememberHash(u fyne.URI, img image.Image) {
 
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
-	if g.hashGen != gen {
-		g.hashes = make(map[string]uint64)
-		g.hashFailed = make(map[string]struct{})
-		g.hashGen = gen
-	}
-	if g.hashes == nil {
-		g.hashes = make(map[string]uint64)
-	}
+	g.ensureHashGenLocked(gen)
 	key := u.String()
 	g.hashes[key] = h
 	delete(g.hashFailed, key)
@@ -53,15 +64,20 @@ func (g *Overview) rememberHashFail(u fyne.URI) {
 
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
-	if g.hashGen != gen {
-		g.hashes = make(map[string]uint64)
-		g.hashFailed = make(map[string]struct{})
-		g.hashGen = gen
-	}
-	if g.hashFailed == nil {
-		g.hashFailed = make(map[string]struct{})
-	}
+	g.ensureHashGenLocked(gen)
 	g.hashFailed[u.String()] = struct{}{}
+}
+
+func (g *Overview) rememberNative(u fyne.URI, native image.Rectangle) {
+	if u == nil {
+		return
+	}
+	px := max(native.Dx()*native.Dy(), 0)
+	gen := g.host.Generation()
+	g.hashMu.Lock()
+	defer g.hashMu.Unlock()
+	g.ensureHashGenLocked(gen)
+	g.pixels[u.String()] = px
 }
 
 func (g *Overview) hashOf(u fyne.URI) (uint64, bool) {
@@ -86,15 +102,22 @@ func (g *Overview) hashFailedOf(u fyne.URI) bool {
 	return ok
 }
 
+func (g *Overview) pixelCountOf(u fyne.URI) (int, bool) {
+	if u == nil {
+		return 0, false
+	}
+	g.wipeHashesIfStale()
+	g.hashMu.Lock()
+	defer g.hashMu.Unlock()
+	n, ok := g.pixels[u.String()]
+	return n, ok
+}
+
 func (g *Overview) wipeHashesIfStale() {
 	gen := g.host.Generation()
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
-	if g.hashGen != gen {
-		g.hashes = make(map[string]uint64)
-		g.hashFailed = make(map[string]struct{})
-		g.hashGen = gen
-	}
+	g.ensureHashGenLocked(gen)
 }
 
 func (g *Overview) clearHashes() {
@@ -102,6 +125,7 @@ func (g *Overview) clearHashes() {
 	defer g.hashMu.Unlock()
 	g.hashes = make(map[string]uint64)
 	g.hashFailed = make(map[string]struct{})
+	g.pixels = make(map[string]int)
 }
 
 // SetOnDupeStateChanged registers f to run after hide, browse, last-job
@@ -283,8 +307,8 @@ func (g *Overview) IsHiddenExtra(hostIndex int) bool {
 	return hostIndex != g.groupReps[hostIndex]
 }
 
-// RepresentativeOf is the lowest host index in hostIndex's duplicate group,
-// or hostIndex itself when it is unique, unhashed, or out of range.
+// RepresentativeOf is the highest native pixel count in the group, lowest
+// host index on a tie; itself when unique, unhashed, or out of range.
 func (g *Overview) RepresentativeOf(hostIndex int) int {
 	if hostIndex < 0 || hostIndex >= len(g.groupReps) {
 		return hostIndex
@@ -319,6 +343,7 @@ func (g *Overview) computeDuplicateGroups() (sizes, reps []int) {
 	idx := make([]int, 0, n)
 	hs := make([]uint64, 0, n)
 	hashed := make([]bool, n)
+	px := make([]int, n)
 	dist := g.dupeDist
 	for i := range n {
 		u := g.host.FileAt(i)
@@ -327,15 +352,20 @@ func (g *Overview) computeDuplicateGroups() (sizes, reps []int) {
 			hs = append(hs, h)
 			hashed[i] = true
 		}
+		if p, ok := g.pixels[u.String()]; ok {
+			px[i] = p
+		}
 	}
 	g.hashMu.Unlock()
 
 	groups := imaging.DuplicateGroups(hs, dist)
 	for _, grp := range groups {
 		rep := idx[grp[0]]
+		repPx := px[rep]
 		for _, gi := range grp {
-			if idx[gi] < rep {
-				rep = idx[gi]
+			hi := idx[gi]
+			if px[hi] > repPx || (px[hi] == repPx && hi < rep) {
+				rep, repPx = hi, px[hi]
 			}
 		}
 		for _, gi := range grp {
@@ -364,11 +394,12 @@ func (g *Overview) displayIndexOf(hostIdx int) int {
 	return 0
 }
 
-// hashRemaining hashes every file that does not already have a dHash.
-// Cache hits join the thumbnail pool the same way misses do — dHashing
-// them on the D-key goroutine froze the UI for any folder that already
-// fit in the thumb cache. Jobs have no per-cell Claim so Settle still
-// waits, and they do not Add to a full thumbnail cache.
+// hashRemaining hashes every file that does not already have a dHash,
+// and records native pixel counts for files that have a hash but no
+// size. Cache hits join the thumbnail pool the same way misses do —
+// dHashing them on the D-key goroutine froze the UI for any folder that
+// already fit in the thumb cache. Jobs have no per-cell Claim so Settle
+// still waits, and they do not Add to a full thumbnail cache.
 //
 // DuplicateGroups runs on the worker before g.ui.Do. The callback only
 // installs that snapshot and filters; hideApply stays set until it
@@ -382,14 +413,18 @@ func (g *Overview) hashRemaining() int {
 	g.wipeHashesIfStale()
 
 	type hashJob struct {
-		file  fyne.URI
-		key   string
-		thumb image.Image
+		file   fyne.URI
+		key    string
+		thumb  image.Image
+		hashed bool
+		sized  bool
 	}
 	var jobs []hashJob
 	for i := 0; i < g.host.FileCount(); i++ {
 		u := g.host.FileAt(i)
-		if _, ok := g.hashOf(u); ok {
+		_, hashed := g.hashOf(u)
+		_, sized := g.pixelCountOf(u)
+		if hashed && sized {
 			continue
 		}
 		if g.hashFailedOf(u) {
@@ -399,7 +434,7 @@ func (g *Overview) hashRemaining() int {
 		if _, loaded := g.hashing.LoadOrStore(key, true); loaded {
 			continue
 		}
-		job := hashJob{file: u, key: key}
+		job := hashJob{file: u, key: key, hashed: hashed, sized: sized}
 		if thumb, ok := g.thumbs.Get(key); ok {
 			job.thumb = thumb
 		}
@@ -411,7 +446,7 @@ func (g *Overview) hashRemaining() int {
 	}
 	g.hashJobs.Add(int32(n))
 	for _, j := range jobs {
-		file, key, cached := j.file, j.key, j.thumb
+		file, key, cached, hashed, sized := j.file, j.key, j.thumb, j.hashed, j.sized
 		g.decodes.Go(context.Background(), func(acquired bool) {
 			defer func() {
 				g.hashing.Delete(key)
@@ -447,18 +482,36 @@ func (g *Overview) hashRemaining() int {
 				return
 			}
 			thumb := cached
+			var native image.Rectangle
+			haveNative := false
 			if thumb == nil {
 				var err error
-				thumb, err = imaging.LoadThumbnail(file)
+				thumb, native, err = imaging.LoadThumbnailAndBounds(file)
 				if err != nil || thumb == nil {
 					g.rememberHashFail(file)
 					return
 				}
+				haveNative = true
 				if !g.ThumbCacheFull() {
 					g.thumbs.AddIfFits(file.String(), thumb)
 				}
 			}
-			g.rememberHash(file, thumb)
+			if !hashed {
+				g.rememberHash(file, thumb)
+			}
+			if !sized {
+				if haveNative {
+					g.rememberNative(file, native)
+				} else {
+					_, b, err := imaging.ReadAndProbe(context.Background(), file)
+					if err != nil {
+						// Known-zero so hide/browse stop re-queueing an
+						// unprobeable file (same trade-off as hashFailed).
+						b = image.Rectangle{}
+					}
+					g.rememberNative(file, b)
+				}
+			}
 		})
 	}
 	return n

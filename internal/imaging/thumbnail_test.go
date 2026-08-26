@@ -161,3 +161,49 @@ func TestLoadThumbnailRastersSVGAtThumbnailSize(t *testing.T) {
 		t.Fatal("centre pixel is transparent - nothing was drawn")
 	}
 }
+
+func TestLoadThumbnailAndBounds_NativeSizeIsNotThumbnailSize(t *testing.T) {
+	path := writeTempFile(t, "photo.jpg", encodeJPEG(t, 800, 400, color.RGBA{R: 200, G: 20, B: 20, A: 255}))
+	u := storage.NewFileURI(path)
+
+	thumb, native, err := LoadThumbnailAndBounds(u)
+	if err != nil {
+		t.Fatalf("LoadThumbnailAndBounds: %v", err)
+	}
+	if native.Dx() != 800 || native.Dy() != 400 {
+		t.Errorf("native = %dx%d, want 800x400", native.Dx(), native.Dy())
+	}
+	tb := thumb.Bounds()
+	if tb.Dx() != ThumbnailSize || tb.Dy() != ThumbnailSize/2 {
+		t.Errorf("thumb = %dx%d, want %dx%d", tb.Dx(), tb.Dy(), ThumbnailSize, ThumbnailSize/2)
+	}
+}
+
+func TestLoadThumbnailAndBounds_AccountsForEXIFOrientation(t *testing.T) {
+	path := writeTempFile(t, "rotated.jpg", halfRedHalfBlueJPEG(t, 20, 10, 6))
+
+	_, native, err := LoadThumbnailAndBounds(storage.NewFileURI(path))
+	if err != nil {
+		t.Fatalf("LoadThumbnailAndBounds: %v", err)
+	}
+	if native.Dx() != 10 || native.Dy() != 20 {
+		t.Errorf("native = %dx%d, want 10x20 after orientation 6", native.Dx(), native.Dy())
+	}
+}
+
+func TestLoadThumbnail_WrapsLoadThumbnailAndBounds(t *testing.T) {
+	path := writeTempFile(t, "photo.jpg", encodeJPEG(t, 800, 400, color.RGBA{R: 200, G: 20, B: 20, A: 255}))
+	u := storage.NewFileURI(path)
+
+	a, err := LoadThumbnail(u)
+	if err != nil {
+		t.Fatalf("LoadThumbnail: %v", err)
+	}
+	b, _, err := LoadThumbnailAndBounds(u)
+	if err != nil {
+		t.Fatalf("LoadThumbnailAndBounds: %v", err)
+	}
+	if a.Bounds() != b.Bounds() {
+		t.Errorf("LoadThumbnail bounds %v, LoadThumbnailAndBounds thumb %v", a.Bounds(), b.Bounds())
+	}
+}

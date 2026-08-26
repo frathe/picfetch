@@ -11,6 +11,9 @@ RELEASE_BRANCH := main
 # Module path; goimports -local puts these imports in their own group after
 # third-party packages (stdlib / fyne.io+others / github.com/frathe/picfetch).
 GOIMPORTS_LOCAL := github.com/frathe/picfetch
+# ubuntu-latest + race + Fyne's software renderer: internal/ui is ~10 minutes.
+# go test's default 10m per-package timeout is no longer enough.
+TEST_TIMEOUT := 20m
 
 .PHONY: all build build-linux-all run fmt fmt-check vet test verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root help
 
@@ -42,12 +45,12 @@ vet: ## Run go vet
 	go vet ./...
 
 test: ## Run tests
-	go test ./...
+	go test -timeout $(TEST_TIMEOUT) ./...
 
 verify: fmt-check check-tuf-root ## Run the same checks CI does (goimports, TUF root expiry, vet, build, race tests)
 	go vet ./...
 	go build ./...
-	go test -race ./...
+	go test -timeout $(TEST_TIMEOUT) -race ./...
 
 golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64, matching CI exactly - needs Docker)
 	@# Fyne's software rasterizer renders slightly different anti-aliased

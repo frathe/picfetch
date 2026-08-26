@@ -100,7 +100,7 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
 | `gif.go` | Animated GIF compositing, `probeGIF`. |
-| `thumbnail.go` | `LoadThumbnail` / `NewThumbCache`: same probe+decode, then downsample. |
+| `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. |
 | `dhash.go` | `DifferenceHash` / `Hamming` / `DuplicateGroups` for grid hide-duplicates. |
 | `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`. |
 | `save.go` | `SaveRotated`, `Export`, `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. |

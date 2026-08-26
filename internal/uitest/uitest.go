@@ -99,24 +99,35 @@ func TempDirJPEGURIs(t *testing.T, names ...string) []fyne.URI {
 	return out
 }
 
-// PatternedJPEGURI writes a seeded grayscale JPEG. Solid-color JPEGs all
-// dHash to 0, so hide-duplicates tests need patterned pixels to tell
+// PatternedJPEGURI writes a seeded 64×48 grayscale JPEG. Solid-color JPEGs
+// all dHash to 0, so hide-duplicates tests need patterned pixels to tell
 // "same shot" from "different shot".
 func PatternedJPEGURI(t *testing.T, name string, seed int) fyne.URI {
 	t.Helper()
+	return PatternedJPEGURISize(t, name, seed, 64, 48)
+}
 
-	const w, h = 64, 48
+// PatternedJPEGURISize is PatternedJPEGURI at an explicit size. Same seed
+// at two sizes is the hide-duplicates fixture for "same shot, different
+// resolution": coordinates are nearest-neighbour mapped onto the 64x48
+// pattern so a 192x144 file is an upscale of the 64x48 original, not a
+// steeper pixel-space gradient (which dHash treats as a different picture).
+func PatternedJPEGURISize(t *testing.T, name string, seed, w, h int) fyne.URI {
+	t.Helper()
+	if w <= 0 || h <= 0 {
+		t.Fatalf("PatternedJPEGURISize: invalid size %dx%d", w, h)
+	}
 	img := image.NewGray(image.Rect(0, 0, w, h))
 	for y := range h {
 		for x := range w {
-			img.SetGray(x, y, color.Gray{Y: uint8(x*13 + y*7 + seed*31)})
+			px, py := x*64/w, y*48/h
+			img.SetGray(x, y, color.Gray{Y: uint8(px*13 + py*7 + seed*31)})
 		}
 	}
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, nil); err != nil {
 		t.Fatalf("encode patterned jpeg: %v", err)
 	}
-
 	return storage.NewFileURI(WriteTempFile(t, name, buf.Bytes()))
 }
 

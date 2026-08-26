@@ -116,7 +116,8 @@ func ungroupable(h uint64) bool {
 }
 
 // DuplicateGroups partitions indices into groups of near-duplicates.
-// Each group has a representative at the lowest index. A later file
+// Each group has a representative at the lowest hashes-slice index
+// (grp[0]), not the grid's visible stand-in. A later file
 // joins only if it is within maxDist of *every* current member
 // (complete linkage), so neighbors of the first file that are far
 // from each other do not become one giant group. Hash 0 (uniform

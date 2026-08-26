@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -222,6 +223,58 @@ func TestStepImage_SkipsHiddenExtras(t *testing.T) {
 	if v.state.index != 0 {
 		t.Fatalf("index after wrap = %d, want 0", v.state.index)
 	}
+}
+
+func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
+	v := newTestViewer(t)
+	// ByName is the default; a/b/c keep drop order so index 0 is the
+	// smaller copy, 1 the larger, 2 the unique shot.
+	small := uitest.PatternedJPEGURISize(t, "a.jpg", 1, 64, 48)
+	large := uitest.PatternedJPEGURISize(t, "b.jpg", 1, 192, 144)
+	other := uitest.PatternedJPEGURI(t, "c.jpg", 99)
+	dropAndWait(t, v, small, large, other)
+	if err := v.grid.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+
+	v.grid.SetHideDuplicates(true)
+	v.grid.Settle()
+	waitUntilLoaded(t, v)
+	if v.grid.RepresentativeOf(0) != 1 || !v.grid.IsHiddenExtra(0) || v.grid.IsHiddenExtra(1) || v.grid.IsHiddenExtra(2) {
+		t.Fatalf("same-seed pair did not group: extra(0)=%v extra(1)=%v extra(2)=%v rep=%d/%d Hamming=%d",
+			v.grid.IsHiddenExtra(0), v.grid.IsHiddenExtra(1), v.grid.IsHiddenExtra(2),
+			v.grid.RepresentativeOf(0), v.grid.RepresentativeOf(1),
+			patternedHamming(t, small, large))
+	}
+
+	if v.state.index != 1 {
+		t.Fatalf("index = %d, want 1 (larger copy of seed 1)", v.state.index)
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.index != 2 {
+		t.Fatalf("after StepImage(1) index = %d, want 2 (skipped small extra at 0)", v.state.index)
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.index != 1 {
+		t.Fatalf("after wrap index = %d, want 1", v.state.index)
+	}
+}
+
+func patternedHamming(t *testing.T, a, b fyne.URI) int {
+	t.Helper()
+	ta, err := imaging.LoadThumbnail(a)
+	if err != nil {
+		t.Fatalf("thumb %s: %v", a.Name(), err)
+	}
+	tb, err := imaging.LoadThumbnail(b)
+	if err != nil {
+		t.Fatalf("thumb %s: %v", b.Name(), err)
+	}
+	return imaging.Hamming(imaging.DifferenceHash(ta), imaging.DifferenceHash(tb))
 }
 
 func TestHandleKeyEvent_DTogglesHideDuplicatesWhenGridClosed(t *testing.T) {

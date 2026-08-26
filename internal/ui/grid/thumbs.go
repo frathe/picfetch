@@ -40,18 +40,21 @@ func (g *Overview) Warm() error {
 	for i := 0; i < g.host.FileCount(); i++ {
 		u := g.host.FileAt(i)
 		if thumb, ok := g.thumbs.Get(u.String()); ok {
+			// A cache hit records the hash only; native size is
+			// hashRemaining's job (this path must not probe).
 			if _, hashed := g.hashOf(u); !hashed {
 				g.rememberHash(u, thumb)
 			}
 			continue
 		}
 
-		thumb, err := imaging.LoadThumbnail(u)
+		thumb, native, err := imaging.LoadThumbnailAndBounds(u)
 		if err != nil {
 			return err
 		}
 		g.thumbs.Add(u.String(), thumb)
 		g.rememberHash(u, thumb)
+		g.rememberNative(u, native)
 	}
 
 	return nil
@@ -240,7 +243,8 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 		thumb, ok := g.thumbs.Get(cacheKey)
 		if !ok {
 			var err error
-			if thumb, err = imaging.LoadThumbnail(u); err != nil {
+			var native image.Rectangle
+			if thumb, native, err = imaging.LoadThumbnailAndBounds(u); err != nil {
 				// No retry here: release lets the cell's next update pass
 				// claim and try again, and the normal viewing path is
 				// where the file's actual error surfaces to the user.
@@ -254,6 +258,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 			// it would mean decoding the same file again the moment the
 			// user scrolls back.
 			g.thumbs.Add(cacheKey, thumb)
+			g.rememberNative(u, native)
 		}
 		g.rememberHash(u, thumb)
 

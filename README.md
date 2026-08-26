@@ -206,8 +206,8 @@ packaged build.
 | `make fmt`                  | `goimports -local github.com/frathe/picfetch` all Go source files   |
 | `make fmt-check`            | Fail if any file differs from that `goimports` (CI format gate)     |
 | `make vet`                  | `go vet ./...`                                                      |
-| `make test`                 | `go test ./...`                                                     |
-| `make verify`               | The same gate CI runs: `goimports` check, `go vet`, `go build`, `go test -race` |
+| `make test`                 | `go test -timeout 20m ./...`                                        |
+| `make verify`               | The same gate CI runs: `goimports` check, `go vet`, `go build`, `go test -timeout 20m -race` |
 | `make tidy`                 | `go mod tidy` — tidy go.mod / go.sum                                |
 | `make security`             | Run all security checks (govulncheck + GitHub Dependabot alerts)    |
 | `make security-govulncheck` | Scan dependencies for known Go vulnerabilities with `govulncheck`   |
@@ -253,7 +253,7 @@ push) for the rare case where you want the version bumped by itself.
 
 ## Testing
 
-`make test` (or `go test ./...`) runs everything: unit tests colocated with
+`make test` (or `go test -timeout 20m ./...`) runs everything: unit tests colocated with
 the code they cover (`internal/ui/*_test.go`, `internal/imaging/*_test.go`,
 and so on) plus the end-to-end suite below. Shared test fixtures — synthetic
 images in every supported format, temp files, and stubs for the OS-level

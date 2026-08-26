@@ -409,8 +409,7 @@ einzeln durchzublättern.
   erscheinen.
 - Drücken Sie **`D`**, um Extra-Kopien derselben Aufnahme auszublenden. Die
   volle Dateiliste bleibt geladen; Einzelstücke bleiben immer sichtbar, und
-  jede Gruppe ähnlicher Bilder behält einen Vertreter (die früheste Datei
-  in der aktuellen Reihenfolge). Die übrigen Mitglieder der Gruppe
+  jede Gruppe ähnlicher Bilder behält einen Vertreter (die Datei mit der höchsten Auflösung: die meisten Pixel nach EXIF-Ausrichtung; bei gleicher Größe die früheste Datei in der aktuellen Reihenfolge). Die übrigen Mitglieder der Gruppe
   verschwinden aus dem Raster, und verbleibende Zellen, die für zwei oder
   mehr Dateien stehen, zeigen ein kleines Zähler-Abzeichen. `D` wechselt
   **nicht** in eine Galerie nur aus Duplikaten. Drücken Sie **`D`** erneut,

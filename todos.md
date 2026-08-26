@@ -6,7 +6,12 @@
 
 #### New Features
 
+- When only a single image is selected or dropped,
+  the left and right arrow keys now move to the next/previous image in the same folder.
+
 #### Bugfix
+
+- When duplicates are hidden, the highest resolution image will now be selected by default.
 
 #### Internal
 
@@ -15,12 +20,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-- when only a single image is selected or dropped
-  the left and right arrow keys should move to the next/previous image in the same folder.
-  Plan: `finished_refactorings/2026-08-26-folder-siblings-nav.md`
-
-- if duplicates are hidden, the highest resolution image should be shown.
 
 - if variants a dupe are shown in the grid and one of the variants is selected with return
   the selected variant should be shown in the viewer and not the highest resolution image.

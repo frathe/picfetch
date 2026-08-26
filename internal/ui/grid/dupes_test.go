@@ -379,6 +379,7 @@ func TestSetHideDuplicates_PendingShowsChromeAndLeavesUnhashedVisible(t *testing
 	)
 	g := newOverview(t, host)
 	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
+	g.rememberNative(host.files[0], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
 
 	unpark := parkDecodes(t, g)
 	g.Toggle()
@@ -540,6 +541,8 @@ func TestSetHideDuplicates_OnePendingJobHidesExtraWithoutWaitingForAPeer(t *test
 	g := newOverview(t, host)
 	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
 	g.rememberHash(host.files[2], mustThumb(t, host.files[2]))
+	g.rememberNative(host.files[0], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
+	g.rememberNative(host.files[2], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
 
 	unpark := parkDecodes(t, g)
 	g.Toggle()
@@ -891,9 +894,13 @@ func injectHashes(t *testing.T, g *Overview, host *fakeHost, hs []uint64) {
 	if g.hashes == nil {
 		g.hashes = make(map[string]uint64)
 	}
+	if g.pixels == nil {
+		g.pixels = make(map[string]int)
+	}
 	g.hashGen = host.Generation()
 	for i, h := range hs {
 		g.hashes[host.files[i].String()] = h
+		g.pixels[host.files[i].String()] = 1
 	}
 }
 
@@ -1279,5 +1286,199 @@ func TestSetOnDupeStateChanged_PendingBrowseFiresOnceThenFinish(t *testing.T) {
 	g.Settle()
 	if n < 2 {
 		t.Fatalf("last-job finishBrowse did not fire: n=%d", n)
+	}
+}
+
+func TestWarm_RecordsNativePixelCountNotThumbnailSize(t *testing.T) {
+	// Larger than ThumbnailSize (200) so thumb.Bounds() cannot equal native.
+	u := uitest.TempJPEGURI(t, "big.jpg", 800, 400, color.RGBA{R: 200, G: 20, B: 20, A: 255})
+	host := &fakeHost{files: []fyne.URI{u}}
+	g := newOverview(t, host)
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	px, ok := g.pixelCountOf(u)
+	if !ok {
+		t.Fatal("Warm should record native pixels")
+	}
+	if px != 800*400 {
+		t.Errorf("pixels = %d, want %d (not the thumbnail)", px, 800*400)
+	}
+	if thumb, ok := g.thumbs.Get(u.String()); ok {
+		tb := thumb.Bounds()
+		if tb.Dx()*tb.Dy() == px {
+			t.Fatal("native pixel count must not equal thumbnail bounds")
+		}
+	}
+}
+
+func TestWipeHashesIfStale_DropsPixelsOnGenerationChange(t *testing.T) {
+	host := hostWith(t, "a.jpg")
+	g := newOverview(t, host)
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	host.gen++
+	g.wipeHashesIfStale()
+	if _, ok := g.pixelCountOf(host.files[0]); ok {
+		t.Fatal("pixels must drop when host.Generation changes")
+	}
+}
+
+func TestHashRemaining_BackfillsPixelsForAlreadyHashedFiles(t *testing.T) {
+	u := uitest.TempJPEGURI(t, "big.jpg", 800, 400, color.RGBA{R: 200, G: 20, B: 20, A: 255})
+	host := &fakeHost{files: []fyne.URI{u}}
+	g := newOverview(t, host)
+	thumb := mustThumb(t, u)
+	g.thumbs.Add(u.String(), thumb)
+	g.rememberHash(u, thumb)
+	if _, ok := g.pixelCountOf(u); ok {
+		t.Fatal("setup: pixels should be missing")
+	}
+
+	g.SetHideDuplicates(true)
+	g.Settle()
+
+	px, ok := g.pixelCountOf(u)
+	if !ok {
+		t.Fatal("hashRemaining should backfill pixels for a hashed file")
+	}
+	if px != 800*400 {
+		t.Errorf("pixels = %d, want %d (not the thumbnail)", px, 800*400)
+	}
+	if tb := thumb.Bounds(); tb.Dx()*tb.Dy() == px {
+		t.Fatal("backfill must not use thumbnail bounds as native size")
+	}
+}
+
+func TestHashRemaining_DoesNotRequeueWhenHashAndPixelsExist(t *testing.T) {
+	host := hostWith(t, "a.jpg")
+	g := newOverview(t, host)
+	if err := g.Warm(); err != nil {
+		t.Fatalf("Warm: %v", err)
+	}
+	if n := g.hashRemaining(); n != 0 {
+		t.Fatalf("hashRemaining() = %d, want 0 after Warm", n)
+	}
+}
+
+func TestHashRemaining_FailedProbeRecordsZeroAndDoesNotRequeue(t *testing.T) {
+	u := uitest.TempJPEGURI(t, "gone.jpg", 800, 400, color.RGBA{R: 200, G: 20, B: 20, A: 255})
+	host := &fakeHost{files: []fyne.URI{u}}
+	g := newOverview(t, host)
+	thumb := mustThumb(t, u)
+	g.thumbs.Add(u.String(), thumb)
+	g.rememberHash(u, thumb)
+	if err := os.Remove(u.Path()); err != nil {
+		t.Fatal(err)
+	}
+
+	g.SetHideDuplicates(true)
+	g.Settle()
+
+	px, ok := g.pixelCountOf(u)
+	if !ok {
+		t.Fatal("failed probe must record a size so hide does not requeue")
+	}
+	if px != 0 {
+		t.Errorf("pixels = %d, want 0 after failed probe", px)
+	}
+	if n := g.hashRemaining(); n != 0 {
+		t.Fatalf("hashRemaining() = %d after failed probe, want 0", n)
+	}
+}
+
+func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
+	host := hostWith(t, "small.jpg", "large.jpg", "unique.jpg")
+	g := newOverview(t, host)
+	const h uint64 = 0x1111111111111111
+	g.hashes = map[string]uint64{
+		host.files[0].String(): h,
+		host.files[1].String(): h,
+		host.files[2].String(): 0x2222222222222222,
+	}
+	g.pixels = map[string]int{
+		host.files[0].String(): 100,
+		host.files[1].String(): 400,
+		host.files[2].String(): 9999,
+	}
+	g.hashGen = host.gen
+	g.rebuildGroups()
+
+	if g.RepresentativeOf(0) != 1 || g.RepresentativeOf(1) != 1 {
+		t.Errorf("rep of pair = %d/%d, want 1 (larger file)", g.RepresentativeOf(0), g.RepresentativeOf(1))
+	}
+	if g.RepresentativeOf(2) != 2 {
+		t.Errorf("unique rep = %d, want 2", g.RepresentativeOf(2))
+	}
+
+	g.SetHideDuplicates(true)
+	if g.count() != 2 {
+		t.Fatalf("count() = %d, want 2", g.count())
+	}
+	if g.fileIndex(0) != 1 || g.fileIndex(1) != 2 {
+		t.Fatalf("visible = [%d, %d], want [1, 2] (large + unique)", g.fileIndex(0), g.fileIndex(1))
+	}
+	if !g.IsHiddenExtra(0) || g.IsHiddenExtra(1) || g.IsHiddenExtra(2) {
+		t.Error("only the smaller pair member is a hidden extra")
+	}
+}
+
+func TestComputeDuplicateGroups_EqualPixelsKeepsLowestIndex(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	const h uint64 = 0x1111111111111111
+	g.hashes = map[string]uint64{
+		host.files[0].String(): h,
+		host.files[1].String(): h,
+	}
+	g.pixels = map[string]int{
+		host.files[0].String(): 100,
+		host.files[1].String(): 100,
+	}
+	g.hashGen = host.gen
+	g.rebuildGroups()
+	if g.RepresentativeOf(1) != 0 {
+		t.Errorf("RepresentativeOf(1) = %d, want 0 (tie-break)", g.RepresentativeOf(1))
+	}
+}
+
+func TestComputeDuplicateGroups_UnknownPixelsLoseToKnown(t *testing.T) {
+	host := hostWith(t, "unknown.jpg", "known.jpg")
+	g := newOverview(t, host)
+	const h uint64 = 0x1111111111111111
+	g.hashes = map[string]uint64{
+		host.files[0].String(): h,
+		host.files[1].String(): h,
+	}
+	g.pixels = map[string]int{
+		host.files[1].String(): 50,
+	}
+	g.hashGen = host.gen
+	g.rebuildGroups()
+	if g.RepresentativeOf(0) != 1 {
+		t.Errorf("RepresentativeOf(0) = %d, want 1 (known size wins)", g.RepresentativeOf(0))
+	}
+}
+
+func TestSetHideDuplicates_JumpsToHighestResolution(t *testing.T) {
+	host := hostWith(t, "small.jpg", "large.jpg")
+	g := newOverview(t, host)
+	const h uint64 = 0x1111111111111111
+	g.hashes = map[string]uint64{
+		host.files[0].String(): h,
+		host.files[1].String(): h,
+	}
+	g.pixels = map[string]int{
+		host.files[0].String(): 100,
+		host.files[1].String(): 400,
+	}
+	g.hashGen = host.gen
+	host.index = 0
+
+	g.SetHideDuplicates(true)
+
+	if len(host.shown) == 0 || host.shown[len(host.shown)-1] != 1 {
+		t.Errorf("ShowImage calls = %v, want a jump to representative 1", host.shown)
 	}
 }

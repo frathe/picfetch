@@ -31,6 +31,42 @@ func NewThumbCache(budget int64) *ByteCache[image.Image] {
 	return NewByteCache(budget, imageBytes)
 }
 
+// LoadThumbnailAndBounds is LoadThumbnail plus the file's EXIF-oriented
+// display size from ReadAndProbe (SVG logical size, RAW preview size).
+// Callers that need a representative by resolution use native, not
+// thumb.Bounds - generated thumbs are capped at ThumbnailSize.
+func LoadThumbnailAndBounds(u fyne.URI) (image.Image, image.Rectangle, error) {
+	data, bounds, err := ReadAndProbe(context.Background(), u)
+	if err != nil {
+		return nil, image.Rectangle{}, err
+	}
+
+	// An SVG has no fixed pixels, so rather than rasterizing at full
+	// logical size only for scaleToFit to discard nearly all of it,
+	// rasterize straight at the thumbnail's own size - bounds is the
+	// logical size here, so the aspect comes out identical. The Vector is
+	// ephemeral on purpose: one raster, then discarded (see vector.go's
+	// note on why thumbnails never share the display path's Vector).
+	if isSVGData(data) {
+		vec, err := ParseVector(data)
+		if err != nil {
+			return nil, image.Rectangle{}, err
+		}
+		w, h := fitEdge(bounds.Dx(), bounds.Dy(), ThumbnailSize)
+		thumb, err := vec.RasterAt(w, h)
+		if err != nil {
+			return nil, image.Rectangle{}, err
+		}
+		return thumb, bounds, nil
+	}
+
+	loaded, err := DecodeLoaded(context.Background(), data, 0)
+	if err != nil {
+		return nil, image.Rectangle{}, err
+	}
+	return scaleToFit(loaded.Frames[0], ThumbnailSize), bounds, nil
+}
+
 // LoadThumbnail reads and decodes u exactly like LoadImage - full EXIF
 // orientation correction included - then downsamples the first frame
 // (animated GIFs show only their first frame here, same as every other
@@ -43,34 +79,8 @@ func NewThumbCache(budget int64) *ByteCache[image.Image] {
 // RGBA canvas so this could keep one and discard the rest, which for a
 // large GIF meant gigabytes of allocation per grid cell.
 func LoadThumbnail(u fyne.URI) (image.Image, error) {
-	data, bounds, err := ReadAndProbe(context.Background(), u)
-	if err != nil {
-		return nil, err
-	}
-
-	// An SVG has no fixed pixels, so rather than rasterizing at full
-	// logical size only for scaleToFit to discard nearly all of it,
-	// rasterize straight at the thumbnail's own size - bounds is the
-	// logical size here, so the aspect comes out identical. The Vector is
-	// ephemeral on purpose: one raster, then discarded (see vector.go's
-	// note on why thumbnails never share the display path's Vector).
-	if isSVGData(data) {
-		vec, err := ParseVector(data)
-		if err != nil {
-			return nil, err
-		}
-
-		w, h := fitEdge(bounds.Dx(), bounds.Dy(), ThumbnailSize)
-
-		return vec.RasterAt(w, h)
-	}
-
-	loaded, err := DecodeLoaded(context.Background(), data, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	return scaleToFit(loaded.Frames[0], ThumbnailSize), nil
+	thumb, _, err := LoadThumbnailAndBounds(u)
+	return thumb, err
 }
 
 // scaleToFit downsamples src to fit within maxEdge x maxEdge, preserving

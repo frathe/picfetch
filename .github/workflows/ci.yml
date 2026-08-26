@@ -51,6 +51,10 @@ jobs:
         # The runner's default locale is "C", which is not a well-formed
         # BCP-47 tag, so Fyne logs a three-line parse fault before any test
         # runs. Naming a real one keeps that noise out of the test output.
+        #
+        # -timeout 20m: go test defaults to 10m per package. internal/ui on
+        # ubuntu-latest already took ~9m39s before folder-sibling tests; the
+        # next commit then panicked at 10m0s while a later test was starting.
         env:
           LANG: en_US.UTF-8
-        run: go test -race ./...
+        run: go test -timeout 20m -race ./...

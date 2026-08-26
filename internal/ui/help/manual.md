@@ -367,7 +367,7 @@ instead of arrowing through them one at a time.
   every remaining image is shown again.
 - Press **`D`** to hide extra copies of the same shot. The full file set
   stays loaded; uniques always stay visible, and each group of near-matches
-  keeps one representative (the earliest file in the current order). The
+  keeps one representative (the highest-resolution file: most pixels after EXIF orientation; equal sizes keep the earliest file in the current order). The
   other members of the group disappear from the grid, and remaining cells
   that stand for two or more files show a small count badge. `D` does
   **not** switch to a duplicates-only gallery. Press **`D`** again to show
