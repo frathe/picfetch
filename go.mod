@@ -17,6 +17,8 @@ require (
 	golang.org/x/mod v0.40.0
 )
 
+replace github.com/gen2brain/heic => github.com/frathe/heic v0.0.0-20260820164529-0ac0a39f8206
+
 require (
 	fyne.io/systray v1.12.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
