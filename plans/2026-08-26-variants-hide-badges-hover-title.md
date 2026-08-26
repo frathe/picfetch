@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** In Show variants (`Shift+D`) mode, hide duplicate-count pills on every cell, and set the window title for the highlighted file to `[WxH] (absolute filesystem path)`.
+**Goal:** In Show variants (`Shift+D`) mode, hide duplicate-count pills on every cell, and set the window title for the highlighted file to `(n/m) [WxH] /absolute/path.jpg` with no merge/sort/shuffle prefixes.
 
 **Architecture:** Badge visibility stays inside `internal/ui/grid` (`applyDupBadge`). Native pixel size already exists as a URI-keyed pixel *count* used to pick the highest-resolution representative; extend that store to keep width×height so the title can show dimensions without a new decode. Title formatting stays on `viewer.HighlightChanged` / `applyTitle` (grid reports the host index; it does not format window titles). Hover already drives `GridWrap.OnHighlighted` → `setHighlight` → `HighlightChanged`, so keyboard and pointer share one path.
 
@@ -23,26 +23,20 @@
 
 ---
 
-## Open questions (defaults used below)
+## Decisions (locked)
 
-Answer these before starting subagents. If a default is wrong, say so; the parent will patch this plan first.
-
-1. **Title scope.** Is `[WxH] (path)` only while Show variants is on, or for every grid hover?
-   - **Default A (recommended):** variants browse grid only. Hide-duplicates and the normal grid keep `filename  (n/m)`.
-2. **Hover vs keyboard.** Your wording is “when hovering”. Hover already moves the highlight ring, and arrows use the same `OnHighlighted` callback.
-   - **Default A (recommended):** title follows the **highlighted** cell (hover *and* keyboard). Distinguishing pointer-only hover would need a new Hoverable path and would desync the ring from the title.
-3. **Exact format.** Example given: `[1440x780] (Complete path to the image)`.
-   - **Default A (recommended):** `fmt.Sprintf("[%dx%d] (%s)", w, h, uri.Path())` — no spaces around `x`, square brackets, path in parentheses, filesystem path (`URI.Path()`), not `file://` and not basename-only.
-4. **Mode prefixes.** Grid titles currently keep `[merge]`, sort-order, and `[shuffle]` prefixes via `applyTitle`.
-   - **Default A (recommended):** keep them, so a variants title can look like `[merge] [1440x780] (/photos/copy.jpg)`.
-5. **Position counter.** Image-view and normal-grid titles append `  (2/7)` when more than one file is loaded. Your example omits it.
-   - **Default A (recommended):** omit `(n/m)` while variants are showing (the path already identifies the file; the group is small).
-6. **Unknown size.** Native WxH is recorded during hashing. Variants browse waits for hashes before listing the group, so size is usually present. Cache-hit Warm currently records hash but not native size until `hashRemaining` backfills.
-   - **Default A (recommended):** if size is missing or 0×0, use `(%s)` with the path only (no `[?]` placeholder). When `finishBrowse` / `setHighlight` runs after backfill, the title refreshes.
-7. **Pointer leaving a cell.** GridWrap leaves the ring on the last highlighted cell; there is no MouseOut title restore today.
-   - **Default A (recommended):** do not restore a previous title on MouseOut. Closing variants / the grid already hands the title back (`HighlightChanged(-1)`).
-8. **Inspect / image view.** Committing a variant closes the grid and loads that file; `applyLoadedTitle` already shows `name — W x H  (n/m)`.
-   - **Default A (recommended):** leave image-view and inspect titles unchanged.
+1. **Title scope.** Variants browse grid only. Hide-duplicates and the normal grid keep `filename  (n/m)`.
+2. **Hover vs keyboard.** Title follows the **highlighted** cell (hover *and* keyboard). They already share `OnHighlighted`.
+3. **Exact format (user).** `(2/7) [1440x780] /absolute/path.jpg`
+   - Position first, then a space, then `[WxH]`, then a space, then the filesystem path (`URI.Path()`), **not** wrapped in parentheses, not `file://`, not basename-only.
+   - No spaces around `x` inside the brackets.
+   - `(n/m)` is the highlighted file’s **host index in the full loaded set** (same as today’s grid counter: `i+1` and `len(files)`), not the index inside the variant group. Omit `(n/m)` only when `len(files) == 1` (variants browse itself requires a group of 2+, so this is defensive).
+   - Example for file index 1 of 3 at 192×144: `(2/3) [192x144] /tmp/.../b.jpg`
+4. **Mode prefixes (user).** While the variants grid is showing, **do not** prepend `[merge]`, sort-order, or `[shuffle]`. `applyTitle` skips those prefixes when `BrowsingDuplicates()` is on and `gridTitle` is set. Leaving variants restores the usual prefixes. `TestGridHighlight_TitleKeepsTheModePrefixes` (normal grid) must still pass.
+5. **Position counter (user).** Prepend `(n/m)` as in decision 3. Do **not** also append a second counter.
+6. **Unknown size.** If native WxH is missing or 0×0: `(2/7) /absolute/path.jpg` (counter + path, no `[?]`). `finishBrowse` / `setHighlight` refreshes when the probe lands.
+7. **Pointer leaving a cell.** No MouseOut title restore. Closing variants / the grid hands the title back via `HighlightChanged(-1)`.
+8. **Inspect / image view.** Unchanged (`name — W x H  (n/m)`). Image-view titles keep merge/sort/shuffle prefixes.
 
 ---
 
@@ -55,7 +49,7 @@ Answer these before starting subagents. If a default is wrong, say so; the paren
 | `internal/ui/grid/grid.go` | `Overview` fields: replace URI→pixel-count map with URI→`image.Point` (or equivalent) so WxH survives. |
 | `internal/ui/grid/dupes.go` | `rememberNative`, `pixelCountOf` (derived), new `NativeSize(hostIndex int) (w, h int, ok bool)`, `computeDuplicateGroups` pixel reads, map init/wipe/clear. |
 | `internal/ui/grid/thumbs.go` | No behavior change if `rememberNative` keeps the same signature. |
-| `internal/ui/viewer.go` | `HighlightChanged` / helper: variants title `[WxH] (path)`; otherwise existing basename + counter. |
+| `internal/ui/viewer.go` | `gridHighlightTitle` + `applyTitle`: variants title `(n/m) [WxH] path` with prefixes suppressed; otherwise existing basename + counter and prefixes. |
 | `internal/ui/grid_test.go` | Viewer-level title tests (hover + leave variants). |
 | `internal/ui/help/manual.md` | Grid overview + window-title sections. |
 | `internal/ui/help/manual_de.md` | Same in German. |
@@ -79,7 +73,7 @@ Execute **strictly in order**. Parent reviews the full diff after every task and
 
 Do **not** use Opus unless a task is blocked after one failed implementer pass. If Task 2’s map migration keeps failing review, re-dispatch Task 2 on `claude-opus-5-thinking-high`.
 
-Parent review checklist (every task): Host still 10 methods; no package-level test seams; badges hidden iff `BrowsingDuplicates()`; `pixelCountOf` still native Dx×Dy (not thumbnail bounds); title format matches the decided defaults; tests wait via `Settle` / `dropAndWait`, not sleep; `lang.L` unused for this format; manuals only in Task 5.
+Parent review checklist (every task): Host still 10 methods; no package-level test seams; badges hidden iff `BrowsingDuplicates()`; `pixelCountOf` still native Dx×Dy (not thumbnail bounds); variants title is `(n/m) [WxH] path` with **no** merge/sort/shuffle prefixes; tests wait via `Settle` / `dropAndWait`, not sleep; `lang.L` unused for this format; manuals only in Task 5.
 
 ---
 
@@ -342,15 +336,15 @@ Confirm grouping still prefers the highest `Dx*Dy` (existing `TestStepImage_Hide
 
 ---
 
-### Task 3: Variants highlight title `[WxH] (path)`
+### Task 3: Variants highlight title `(n/m) [WxH] path`
 
 **Files:**
-- Modify: `internal/ui/viewer.go` (`HighlightChanged` and a small helper)
+- Modify: `internal/ui/viewer.go` (`HighlightChanged`, `gridHighlightTitle`, `applyTitle`)
 - Test: `internal/ui/grid_test.go` (first title assertion can live here; Task 4 adds hover/leave coverage)
 
 **Interfaces:**
 - Consumes: `v.grid.BrowsingDuplicates()`, `v.grid.NativeSize(i)`, `v.state.files[i].Name()`, `v.state.files[i].Path()`
-- Produces: `gridTitle` string consumed by `applyTitle` (unchanged prefix logic)
+- Produces: `gridTitle` consumed by `applyTitle`. While `BrowsingDuplicates()` and `gridTitle != ""`, `applyTitle` skips `[merge]` / `[shuffle]` / sort-order prefixes.
 
 Do **not** decode in `HighlightChanged`. Do **not** change `Host.HighlightChanged(i int)`.
 
@@ -369,6 +363,7 @@ func TestGridHighlight_VariantsTitleUsesSizeAndPath(t *testing.T) {
 		t.Fatalf("Warm: %v", err)
 	}
 
+	v.SetMergeMode(true)
 	v.grid.SetHideDuplicates(true)
 	v.grid.Settle()
 	v.grid.Toggle()
@@ -378,22 +373,27 @@ func TestGridHighlight_VariantsTitleUsesSizeAndPath(t *testing.T) {
 		t.Fatal("premises: variants grid up")
 	}
 
-	// Opening browse highlights the source file (display 0 after filter).
 	title := v.win.Title()
-	wantSmall := fmt.Sprintf("[%dx%d] (%s)", 64, 48, small.Path())
-	wantLarge := fmt.Sprintf("[%dx%d] (%s)", 192, 144, large.Path())
-	if !strings.Contains(title, wantSmall) && !strings.Contains(title, wantLarge) {
-		t.Fatalf("variants title = %q, want it to contain %q or %q", title, wantSmall, wantLarge)
+	wantSmall := fmt.Sprintf("(1/3) [64x48] %s", small.Path())
+	wantLarge := fmt.Sprintf("(2/3) [192x144] %s", large.Path())
+	if title != wantSmall && title != wantLarge {
+		t.Fatalf("variants title = %q, want %q or %q", title, wantSmall, wantLarge)
 	}
-	if strings.Contains(title, "a.jpg  (") || strings.Contains(title, "(1/3)") {
-		t.Errorf("variants title = %q, must not use the basename+counter grid title", title)
+	if strings.HasPrefix(title, "[merge]") {
+		t.Errorf("variants title = %q, must not include [merge]", title)
+	}
+	if strings.Contains(title, "a.jpg  (") || strings.Contains(title, " — ") {
+		t.Errorf("variants title = %q, must not use basename or image-view format", title)
 	}
 
 	v.grid.SetBrowsingDuplicates(false)
 	v.grid.Settle()
 	title = v.win.Title()
-	if strings.Contains(title, wantSmall) || strings.Contains(title, wantLarge) {
+	if strings.Contains(title, "[64x48]") || strings.Contains(title, "[192x144]") {
 		t.Errorf("after leaving variants, title = %q, want the basename grid title back", title)
+	}
+	if !strings.HasPrefix(title, "[merge] ") {
+		t.Errorf("after leaving variants, title = %q, want [merge] restored", title)
 	}
 	if !strings.Contains(title, ".jpg") {
 		t.Errorf("after leaving variants, title = %q, want a file name", title)
@@ -409,11 +409,37 @@ Add `"fmt"` to `grid_test.go` imports if missing.
 go test -run TestGridHighlight_VariantsTitleUsesSizeAndPath -count=1 ./internal/ui/
 ```
 
-Expected: FAIL (title still `a.jpg  (n/m)` / `b.jpg  (n/m)`).
+Expected: FAIL (title still `[merge] a.jpg  (n/m)` or similar).
 
-- [ ] **Step 3: Format the title in the viewer**
+- [ ] **Step 3: Format the title in the viewer and skip prefixes**
 
-Replace the title body of `HighlightChanged` in `internal/ui/viewer.go` with a helper. Keep the Actions-menu refresh that follows unchanged.
+`applyTitle` today always prepends merge/sort/shuffle. Skip those while variants are showing:
+
+```go
+func (v *viewer) applyTitle() {
+	title := v.baseTitle
+	if v.gridTitle != "" {
+		title = v.gridTitle
+	}
+	hidePrefixes := v.grid != nil && v.grid.BrowsingDuplicates() && v.gridTitle != ""
+	if !hidePrefixes {
+		if v.state.MergeMode() {
+			title = lang.L("[merge]") + " " + title
+		}
+		if v.slides.Shuffle() {
+			title = lang.L("[shuffle]") + " " + title
+		}
+		if p := filesort.Label(v.state.SortMode()); p != "" {
+			title = p + " " + title
+		}
+	}
+	v.win.SetTitle(title)
+}
+```
+
+Update the `applyTitle` comment to say Show-variants replaces the base title **and** hides mode prefixes, so the bar is only position, size, and path.
+
+Replace the title body of `HighlightChanged` with a helper. Keep the Actions-menu refresh that follows unchanged.
 
 ```go
 func (v *viewer) HighlightChanged(i int) {
@@ -442,17 +468,21 @@ func (v *viewer) HighlightChanged(i int) {
 }
 
 // gridHighlightTitle names the file under the grid ring. Hide-duplicates
-// and the unfiltered grid keep the basename and position counter.
-// Show-variants compares copies of one shot, so the title shows native
-// pixel size and the full path instead — size comes from the grid's
-// already-probed native bounds, not a new decode.
+// and the unfiltered grid keep the basename and a trailing position
+// counter. Show-variants compares copies of one shot, so the title is
+// `(index/count) [WxH] /absolute/path` from the already-probed native
+// size — not a new decode. applyTitle strips mode prefixes for this form.
 func (v *viewer) gridHighlightTitle(i int) string {
 	u := v.state.files[i]
 	if v.grid.BrowsingDuplicates() {
-		if w, h, ok := v.grid.NativeSize(i); ok {
-			return fmt.Sprintf("[%dx%d] (%s)", w, h, u.Path())
+		head := ""
+		if n := len(v.state.files); n > 1 {
+			head = fmt.Sprintf("(%d/%d) ", i+1, n)
 		}
-		return fmt.Sprintf("(%s)", u.Path())
+		if w, h, ok := v.grid.NativeSize(i); ok {
+			return fmt.Sprintf("%s[%dx%d] %s", head, w, h, u.Path())
+		}
+		return head + u.Path()
 	}
 	title := u.Name()
 	if n := len(v.state.files); n > 1 {
@@ -472,7 +502,8 @@ Replace the `HighlightChanged` doc comment so it no longer says dimensions are a
 // search matching no file - which hands the title back to the image view.
 // The hide-duplicates and unfiltered grids still omit pixel size: that
 // would cost a full decode of a file nobody has picked yet. Show-variants
-// reuses the already-probed native size and the full path instead.
+// reuses the already-probed native size and the full path instead, and
+// applyTitle omits [merge]/[shuffle]/sort prefixes for that title.
 // Show-variants enablement follows the highlighted host while the grid is
 // open, so this also reapplies Actions; native Refresh only if Hide or
 // Show-variants Checked/Disabled actually changed.
@@ -486,7 +517,7 @@ Replace the `HighlightChanged` doc comment so it no longer says dimensions are a
 go test -run 'TestGridHighlight_' -count=1 ./internal/ui/
 ```
 
-Expected: PASS, including `TestGridHighlight_TitleKeepsTheModePrefixes`.
+Expected: PASS, including `TestGridHighlight_TitleKeepsTheModePrefixes` (normal grid still has `[merge]`).
 
 - [ ] **Step 5: Stop for parent review**
 
@@ -500,7 +531,7 @@ Expected: PASS, including `TestGridHighlight_TitleKeepsTheModePrefixes`.
 
 **Interfaces:**
 - Consumes: `Overview.SimulateHover(id int)` → existing `wrap.OnHighlighted`; `v.win.Title()`; `SetBrowsingDuplicates` / `Toggle`
-- Produces: viewer-level proof that moving the ring in variants changes `[WxH] (path)`, keeps `[merge]`, and that closing the grid drops that format
+- Produces: viewer-level proof that moving the ring in variants changes `(n/m) [WxH] path`, hides `[merge]`, and that closing the grid drops that format (prefixes return on the image-view title)
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -519,7 +550,7 @@ func (g *Overview) SimulateHover(id int) {
 Add to `internal/ui/grid_test.go`:
 
 ```go
-func TestGridHighlight_VariantsHoverUpdatesTitleAndKeepsMergePrefix(t *testing.T) {
+func TestGridHighlight_VariantsHoverUpdatesTitleAndHidesMergePrefix(t *testing.T) {
 	v := newTestViewer(t)
 	small := uitest.PatternedJPEGURISize(t, "a.jpg", 1, 64, 48)
 	large := uitest.PatternedJPEGURISize(t, "b.jpg", 1, 192, 144)
@@ -543,8 +574,8 @@ func TestGridHighlight_VariantsHoverUpdatesTitleAndKeepsMergePrefix(t *testing.T
 	otherID := 1 - startID
 
 	before := v.win.Title()
-	if !strings.HasPrefix(before, "[merge] ") {
-		t.Fatalf("title = %q, want [merge] prefix", before)
+	if strings.HasPrefix(before, "[merge]") {
+		t.Fatalf("variants title = %q, must not include [merge]", before)
 	}
 
 	v.grid.SimulateHover(otherID)
@@ -552,13 +583,13 @@ func TestGridHighlight_VariantsHoverUpdatesTitleAndKeepsMergePrefix(t *testing.T
 	if after == before {
 		t.Fatalf("title did not change after hovering the other variant, still %q", after)
 	}
-	if !strings.HasPrefix(after, "[merge] ") {
-		t.Errorf("title = %q, want [merge] kept", after)
+	if strings.HasPrefix(after, "[merge]") {
+		t.Errorf("title = %q, must not include [merge]", after)
 	}
 
-	wantSmall := fmt.Sprintf("[%dx%d] (%s)", 64, 48, small.Path())
-	wantLarge := fmt.Sprintf("[%dx%d] (%s)", 192, 144, large.Path())
-	if !strings.Contains(after, wantSmall) && !strings.Contains(after, wantLarge) {
+	wantSmall := fmt.Sprintf("(1/3) [64x48] %s", small.Path())
+	wantLarge := fmt.Sprintf("(2/3) [192x144] %s", large.Path())
+	if after != wantSmall && after != wantLarge {
 		t.Errorf("after hover, title = %q, want %q or %q", after, wantSmall, wantLarge)
 	}
 	if strings.Contains(before, small.Path()) && !strings.Contains(after, large.Path()) {
@@ -570,11 +601,11 @@ func TestGridHighlight_VariantsHoverUpdatesTitleAndKeepsMergePrefix(t *testing.T
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 	arrow := v.win.Title()
-	if !strings.HasPrefix(arrow, "[merge] ") {
-		t.Errorf("after Right, title = %q, want [merge] kept", arrow)
+	if strings.HasPrefix(arrow, "[merge]") {
+		t.Errorf("after Right, title = %q, must not include [merge]", arrow)
 	}
-	if !strings.Contains(arrow, wantSmall) && !strings.Contains(arrow, wantLarge) {
-		t.Errorf("after Right, title = %q, want a variants [WxH] (path)", arrow)
+	if arrow != wantSmall && arrow != wantLarge {
+		t.Errorf("after Right, title = %q, want %q or %q", arrow, wantSmall, wantLarge)
 	}
 
 	v.grid.Toggle()
@@ -585,6 +616,9 @@ func TestGridHighlight_VariantsHoverUpdatesTitleAndKeepsMergePrefix(t *testing.T
 	if strings.Contains(closed, "[64x48]") || strings.Contains(closed, "[192x144]") {
 		t.Errorf("closed-grid title = %q, want image-view title, not variants format", closed)
 	}
+	if !strings.HasPrefix(closed, "[merge] ") {
+		t.Errorf("closed-grid title = %q, want [merge] restored on the image-view title", closed)
+	}
 }
 ```
 
@@ -593,7 +627,7 @@ func TestGridHighlight_VariantsHoverUpdatesTitleAndKeepsMergePrefix(t *testing.T
 - [ ] **Step 2: Run the test**
 
 ```bash
-go test -run TestGridHighlight_VariantsHoverUpdatesTitleAndKeepsMergePrefix -count=1 ./internal/ui/
+go test -run TestGridHighlight_VariantsHoverUpdatesTitleAndHidesMergePrefix -count=1 ./internal/ui/
 ```
 
 Expected: FAIL compile (`SimulateHover` undefined) until Step 1’s method is added; then PASS if Task 3 already formats on `HighlightChanged`. If the title does not change, `OnHighlighted` is a no-op because `id == g.highlight` — then `otherID` was wrong; fix the test, not production.
@@ -627,18 +661,18 @@ No new `lang.L` keys. `main_test.go` locale parity does not cover the manuals.
 In `internal/ui/help/manual.md`, at the `Shift+D` / variants bullets (~391–405), add:
 
 - While that variants grid is showing, the duplicate-count badges are hidden (every cell is already a member of the same group).
-- The window title names the highlighted thumbnail as `[widthxheight] (full path)`, for example `[1440x780] (/photos/vacation/IMG_0123.jpg)`. Arrow keys and hovering the pointer over a thumbnail both move the highlight, so both update the title. Leaving variants restores the usual file-name title.
+- The window title names the highlighted thumbnail as `(position) [widthxheight] full-path`, for example `(2/7) [1440x780] /photos/vacation/IMG_0123.jpg`. `[merge]`, sort-order, and `[shuffle]` prefixes are hidden while variants are showing. Arrow keys and hovering the pointer over a thumbnail both move the highlight, so both update the title. Leaving variants restores the usual file-name title and those prefixes.
 
 Keep the existing commit/inspect/`Esc` loop text.
 
-Optional one-liner under “The window title” (~103) that the grid normally shows the file name, and Show variants uses the `[WxH] (path)` form.
+Optional one-liner under “The window title” (~103) that the grid normally shows the file name, and Show variants uses `(n/m) [WxH] /path` with no mode prefixes.
 
 - [ ] **Step 2: German**
 
 Mirror in `internal/ui/help/manual_de.md` at the matching `Shift+D` bullets (~438–457):
 
 - In der Variantenansicht sind die Zähl-Badges ausgeblendet.
-- Die Fenstertitelzeile zeigt die hervorgehobene Miniaturansicht als `[BreitexHöhe] (vollständiger Pfad)`, z. B. `[1440x780] (/photos/vacation/IMG_0123.jpg)`. Pfeiltasten und Zeigen mit der Maus bewegen die Hervorhebung und damit den Titel. Verlassen der Variantenansicht stellt den Dateinamen-Titel wieder her.
+- Die Fenstertitelzeile zeigt die hervorgehobene Miniaturansicht als `(Position) [BreitexHöhe] vollständiger-Pfad`, z. B. `(2/7) [1440x780] /photos/vacation/IMG_0123.jpg`. `[merge]`, Sortier- und `[shuffle]`-Präfixe sind in der Variantenansicht ausgeblendet. Pfeiltasten und Zeigen mit der Maus bewegen die Hervorhebung und damit den Titel. Verlassen der Variantenansicht stellt den Dateinamen-Titel und jene Präfixe wieder her.
 
 - [ ] **Step 3: No code**
 
@@ -671,5 +705,5 @@ No golden screenshots: this is title strings and chip visibility, not pixels.
 - Changing image-view title format (`name — W x H`).
 - Showing WxH on the hide-duplicates grid (deliberately not decoded today).
 - Hiding badges anywhere except `BrowsingDuplicates()`.
-- New Host methods, package-level seams, or a hover-only title channel unless Q2 is answered as hover-only.
+- New Host methods, package-level seams, or a hover-only title channel (Q2 is locked: highlight drives the title).
 - Windows Ctrl+click grid selection (tracked as not-worth-it / Fyne).
