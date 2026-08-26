@@ -321,9 +321,16 @@ Bestätigungswahl, nicht das Bild.
 
 Hinweise:
 
-- Die Pfeiltasten haben nur eine Wirkung, wenn Sie **zwei oder mehr** Bilder
-  abgelegt haben. Solange Duplikate ausgeblendet sind (`D`, siehe
-  „Rasteransicht“), überspringen sie die versteckten Extra-Kopien und laufen
+- Die Pfeiltasten blättern durch die aktuelle Auswahl und laufen im Kreis.
+  Wenn Sie **eine Bilddatei** geöffnet haben (per Ablegen, Dateidialog oder
+  `picfetch photo.jpg`), lädt PicFetch auch die anderen Bilder im Ordner
+  dieser Datei — keine Unterordner — und bleibt auf der geöffneten Datei
+  stehen, sodass Links/Rechts zu ihren Nachbarn führen. Zwei oder mehr
+  Dateien zu öffnen behält genau diese Teilmenge. Einen Ordner zu öffnen
+  durchsucht ihn weiterhin rekursiv (siehe „Ordner einlesen“). Ein Ordner,
+  der nur dieses eine Bild enthält, hat weiterhin nichts zum Blättern.
+  Solange Duplikate ausgeblendet sind (`D`, siehe „Rasteransicht“),
+  überspringen die Pfeiltasten die versteckten Extra-Kopien und laufen
   im Kreis durch die übrigen Dateien; `Home`/`End` springen zur ersten und
   letzten übrigen Datei.
 - Standardmäßig ist die Auswahl **natürlich sortiert** nach Dateiname, sodass
@@ -683,8 +690,9 @@ tatsächlich verschoben wurden.
   Ablegebildschirm zurückkehren; beendet die App, wenn nichts geladen ist,
   das geleert werden könnte (im Handbuchfenster schließt es nur das
   Handbuch; im Diaschau-Modus verlässt es zuerst den Diaschau-Modus);
-  solange noch ein Ordner-Scan läuft, bricht es stattdessen den Scan ab
-  (siehe „Ordner einlesen“ unten)
+  solange noch ein Scan läuft (ein abgelegter Ordner, oder das Einlesen
+  des Ordners einer einzelnen geöffneten Datei), bricht es stattdessen den
+  Scan ab (siehe „Ordner einlesen“ unten)
 
 **Zwischenablage unter Linux.** Das Kopieren des Bildes selbst (`Strg+C`)
 ruft ein externes Werkzeug auf, da Linux keinen einzigen eingebauten Weg hat,
@@ -880,15 +888,19 @@ Dateien reaktionsfähig bleibt.
 
 **Ordner einlesen.** Enthält Ihr Ablegen Ordner, durchsucht PicFetch diese
 zuerst (und jeden Unterordner), um unterstützte Bilder zu sammeln, bevor
-irgendetwas angezeigt wird:
+irgendetwas angezeigt wird. Eine **einzelne Bilddatei** zu öffnen macht
+einen ähnlichen Scan nur in deren eigenem Ordner (keine Unterordner) und
+bleibt auf der geöffneten Datei stehen:
 
 - Ein Spinner erscheint zusammen mit einem laufenden Zähler, z. B.
   **„Scannen… 42 Bilder“**, der aktualisiert wird, sobald weitere Bilder
-  gefunden werden.
-- Sobald der Scan abgeschlossen ist, verschwindet der Spinner, und das erste
-  gefundene Bild wird angezeigt, genau wie bei einem normalen Ablegen.
-- Ablegen ohne Ordner überspringt diesen Schritt vollständig und lädt
-  sofort.
+  gefunden werden. Ein sehr großer Ordner kann einen Moment brauchen,
+  selbst wenn nur eine Datei geöffnet wurde.
+- Sobald der Scan abgeschlossen ist, verschwindet der Spinner. Ein
+  abgelegter Ordner zeigt das erste gefundene Bild; eine einzelne
+  geöffnete Datei bleibt die Datei, die Sie geöffnet haben.
+- Ablegen von zwei oder mehr losen Dateien (ohne Ordner) überspringt
+  diesen Schritt und lädt sofort.
 - Drücken Sie jederzeit **`Esc`**, während der Spinner angezeigt wird, um
   den Scan abzubrechen. War dies das allererste Ablegen, gelangen Sie zurück
   zum anfänglichen Ablegebildschirm, genau als wäre nichts abgelegt worden;
@@ -1072,7 +1084,7 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Suchtreffer); `Esc` setzt die Auswahl zurück
 - **Handbuch** — `F1`, oder Hilfe -> Handbuch oder Fenster -> Hilfe
 - **Leeren / Beenden** — `Esc` (leert zuerst die geladenen Bilder, beendet
-  dann; bricht stattdessen einen noch laufenden Ordner-Scan ab, falls einer
+  dann; bricht stattdessen einen noch laufenden Scan ab, falls einer
   läuft)
 - **Formate** — JPEG, PNG, GIF (inkl. animiert), WebP, BMP, TIFF, ICO, XPM,
   HEIC/HEIF, AVIF, SVG, Kamera-RAW (eingebettete JPEG-Vorschau)

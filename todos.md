@@ -18,6 +18,7 @@
 
 - when only a single image is selected or dropped
   the left and right arrow keys should move to the next/previous image in the same folder.
+  Plan: `finished_refactorings/2026-08-26-folder-siblings-nav.md`
 
 - if duplicates are hidden, the highest resolution image should be shown.
 

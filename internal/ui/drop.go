@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/filescan"
+	"github.com/frathe/picfetch/internal/imaging"
 )
 
 // cancelScan aborts a scan in progress (Escape while v.scanOp.active is true).
@@ -59,11 +60,13 @@ func (v *viewer) SetMaxScan(n int) {
 }
 
 // handleDrop starts an asynchronous scan for images, recursing into dropped
-// folders and updating a spinner + counter while gathering. The first image
-// is shown once the scan finishes. A plain drop replaces the current set,
-// same as always; with mergeMode on (toggled by M) the newly scanned images
-// are merged into it instead, keeping the sort order applied and jumping to
-// the first image just added.
+// folders and updating a spinner + counter while gathering. A replace-mode
+// drop of one supported image file expands to that file's parent-directory
+// siblings (filescan.Siblings) and keeps the opened file on screen after
+// sort; otherwise the first scanned image is shown once the scan finishes.
+// A plain drop replaces the current set, same as always; with mergeMode on
+// (toggled by M) the newly scanned images are merged into it instead,
+// keeping the sort order applied and jumping to the first image just added.
 func (v *viewer) handleDrop(uris []fyne.URI) {
 	if len(uris) == 0 {
 		return
@@ -105,8 +108,6 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 	// scan. See SetMaxScan's doc comment.
 	maxScan := v.settings.maxScan
 
-	// Fast path for drops that contain no directories – keep tests synchronous
-	// and avoid spawning a goroutine for simple file drops.
 	hasDirs := false
 	for _, u := range uris {
 		if canList, err := storage.CanList(u); err == nil && canList {
@@ -114,11 +115,24 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 			break
 		}
 	}
-	if !hasDirs {
+
+	expandSiblings := !merging && !hasDirs && len(uris) == 1 && imaging.IsSupportedImage(uris[0])
+
+	scan := func(progress func(int)) (images []fyne.URI, truncated bool) {
+		if expandSiblings {
+			return filescan.Siblings(token.context(), uris[0], maxScan, progress)
+		}
+		return filescan.Images(token.context(), uris, maxScan, progress)
+	}
+
+	if !hasDirs && !expandSiblings {
 		// nil progress: this path is synchronous and instantaneous, so
 		// there's nothing to show, and it avoids calling fyne.Do from the
-		// UI goroutine.
-		images, truncated := filescan.Images(token.context(), uris, maxScan, nil)
+		// UI goroutine. Multi-file loose drops and merge-mode single
+		// files stay here; sibling expansion of a possibly large
+		// directory does not — that listing belongs on the goroutine
+		// below, same as a folder drop.
+		images, truncated := scan(nil)
 		fyne.Do(func() {
 			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone)
 		})
@@ -130,8 +144,9 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 		// an explicit cancel - see cancelScan) stop walking the tree instead
 		// of racing storage.List calls to completion for a result nobody
 		// will see; the trailing fyne.Do below re-checks the token and would
-		// discard the result anyway.
-		images, truncated := filescan.Images(token.context(), uris, maxScan, func(n int) {
+		// discard the result anyway. The same context cancels a sibling
+		// listing (Siblings) as a recursive Images walk.
+		images, truncated := scan(func(n int) {
 			fyne.Do(func() {
 				if !token.current() {
 					return
@@ -147,13 +162,14 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 }
 
 // applyScanResult is the shared completion step for both of handleDrop's
-// paths - the synchronous no-directories fast path and the folder-scan
-// goroutine. It must run on the UI goroutine (both callers wrap it in
-// fyne.Do) and always finishes scanDone, honoring that generation's contract
-// even when a newer generation has made this result stale. maxScan is the
-// cap the scan actually ran under (handleDrop's snapshot), so the
-// truncation toast below reports it accurately even if the settings window
-// has since changed v.settings.maxScan.
+// paths - the synchronous no-directories fast path and the background
+// goroutine (recursive folder walk or single-file sibling listing). It must
+// run on the UI goroutine (both callers wrap it in fyne.Do) and always
+// finishes scanDone, honoring that generation's contract even when a newer
+// generation has made this result stale. maxScan is the cap the scan
+// actually ran under (handleDrop's snapshot), so the truncation toast below
+// reports it accurately even if the settings window has since changed
+// v.settings.maxScan.
 func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images []fyne.URI, truncated bool, maxScan int, scanDone func()) {
 	defer scanDone()
 	defer token.cancelContext()
@@ -199,7 +215,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 	// nothing here may touch the UI once it starts. The truncation toast
 	// above raced exactly that way before this ordering was fixed. Under the
 	// real driver the fyne.Do queue serializes both orders identically.
-	v.applyScannedFiles(merging, images)
+	v.applyScannedFiles(merging, images, uris)
 }
 
 // applyScannedFiles merges or replaces the file set with images, then
@@ -208,6 +224,12 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 // capture-date/modified/size modes stat or Exif-read every file, which would
 // otherwise freeze the UI for as long as this scan just took to gather them,
 // right as it finishes.
+//
+// On a non-merge drop of one file, the URI the user opened is shown after
+// the reorder rather than index 0, so sibling expansion does not jump to
+// the first name-sorted neighbour. A folder drop's dropped[0] is a
+// directory, which is never in the image list, so that lookup fails and
+// we still land on index 0.
 //
 // v.state.unsortedFiles and v.state.files are deliberately only ever written together,
 // once the reorder lands - never one without the other. A replacement also
@@ -223,7 +245,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 // onDone callback means that can't happen: whichever reorder's generation is
 // current when it finishes is the one and only writer of both fields for
 // that landing.
-func (v *viewer) applyScannedFiles(merging bool, images []fyne.URI) {
+func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI) {
 	var unsorted []fyne.URI
 	if merging {
 		// Copied rather than appended onto v.state.unsortedFiles directly - same
@@ -249,8 +271,17 @@ func (v *viewer) applyScannedFiles(merging bool, images []fyne.URI) {
 			if !v.showFileIfPresent(images[0]) {
 				v.ShowImage(0)
 			}
-		} else {
-			v.ShowImage(0)
+			return
 		}
+		// Keep the opened file on screen after a single-file replace
+		// (sibling expansion). A folder drop's dropped[0] is a directory
+		// and is never in the image list, so showFileIfPresent fails and
+		// we fall through to ShowImage(0). Do not call IsSupportedImage
+		// here: a directory URI would fall through to MimeType() and
+		// content-sniff the folder.
+		if len(dropped) == 1 && v.showFileIfPresent(dropped[0]) {
+			return
+		}
+		v.ShowImage(0)
 	})
 }

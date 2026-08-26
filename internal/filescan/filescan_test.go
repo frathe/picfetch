@@ -386,3 +386,154 @@ func TestImages_ContextCancellationMidWalkStopsWalk(t *testing.T) {
 		t.Error("truncated = true, want false - the walk was cancelled, not capped")
 	}
 }
+
+func writeJPEG(t *testing.T, dir, name string) fyne.URI {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, uitest.EncodeJPEG(t, 4, 4, color.White), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return storage.NewFileURI(path)
+}
+
+func TestSiblings_ListsSameDirectoryOnly(t *testing.T) {
+	root := t.TempDir()
+	opened := writeJPEG(t, root, "b.jpg")
+	writeJPEG(t, root, "a.jpg")
+	writeJPEG(t, root, "c.jpg")
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(root, "sub")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeJPEG(t, nested, "nested.jpg")
+
+	images, truncated := Siblings(context.Background(), opened, DefaultMax, nil)
+	if truncated {
+		t.Fatal("truncated = true, want false")
+	}
+	if len(images) != 3 {
+		t.Fatalf("images = %d, want 3 (a, b, c) — not notes.txt, not nested.jpg, not the sub dir", len(images))
+	}
+	if images[0].String() != opened.String() {
+		t.Fatalf("images[0] = %q, want the opened URI identity so showFileIfPresent can find it", images[0])
+	}
+	names := make([]string, len(images))
+	for i, u := range images {
+		names[i] = u.Name()
+	}
+	if !slices.Contains(names, "a.jpg") || !slices.Contains(names, "c.jpg") {
+		t.Fatalf("names = %v, want a.jpg and c.jpg among siblings", names)
+	}
+	if slices.Contains(names, "nested.jpg") || slices.Contains(names, "notes.txt") {
+		t.Fatalf("names = %v, must not include nested.jpg or notes.txt", names)
+	}
+}
+
+func TestSiblings_ListFailureReturnsOpenedFile(t *testing.T) {
+	// Parent exists as a URI but List fails because the directory was never created.
+	opened := storage.NewFileURI(filepath.Join(t.TempDir(), "missing-dir", "photo.jpg"))
+	images, truncated := Siblings(context.Background(), opened, DefaultMax, nil)
+	if truncated {
+		t.Fatal("truncated = true, want false")
+	}
+	if len(images) != 1 || images[0].String() != opened.String() {
+		t.Fatalf("images = %v, want just the opened URI after List fails", images)
+	}
+}
+
+func TestSiblings_LonelyFile(t *testing.T) {
+	opened := uitest.TempJPEGURI(t, "solo.jpg", 4, 4, color.White)
+	images, truncated := Siblings(context.Background(), opened, DefaultMax, nil)
+	if truncated || len(images) != 1 {
+		t.Fatalf("images = %d, truncated = %v, want 1 and not truncated", len(images), truncated)
+	}
+	if images[0].String() != opened.String() {
+		t.Fatalf("images[0] = %q, want opened URI %q", images[0], opened)
+	}
+}
+
+func TestSiblings_CapsAtMaxKeepsOpenedFile(t *testing.T) {
+	root := t.TempDir()
+	opened := writeJPEG(t, root, "opened.jpg")
+	for i := range 5 {
+		writeJPEG(t, root, fmt.Sprintf("photo%d.jpg", i))
+	}
+	images, truncated := Siblings(context.Background(), opened, 3, nil)
+	if !truncated || len(images) != 3 {
+		t.Fatalf("images = %d, truncated = %v, want 3 and truncated", len(images), truncated)
+	}
+	if images[0].String() != opened.String() {
+		t.Fatalf("images[0] = %q, want opened file even when the cap is hit", images[0])
+	}
+}
+
+func TestSiblings_MaxFlooredAtOne(t *testing.T) {
+	root := t.TempDir()
+	opened := writeJPEG(t, root, "opened.jpg")
+	writeJPEG(t, root, "other.jpg")
+	images, truncated := Siblings(context.Background(), opened, 0, nil)
+	if len(images) != 1 || !truncated {
+		t.Fatalf("images = %d, truncated = %v, want 1 (the opened file) and truncated", len(images), truncated)
+	}
+	if images[0].String() != opened.String() {
+		t.Fatalf("images[0] = %q, want opened", images[0])
+	}
+}
+
+func TestSiblings_AlreadyCancelledContext(t *testing.T) {
+	root := t.TempDir()
+	opened := writeJPEG(t, root, "opened.jpg")
+	writeJPEG(t, root, "other.jpg")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	images, truncated := Siblings(ctx, opened, DefaultMax, nil)
+	if len(images) != 0 || truncated {
+		t.Fatalf("images = %d, truncated = %v, want nothing from an already-cancelled context", len(images), truncated)
+	}
+}
+
+func TestSiblings_ProgressThrottle(t *testing.T) {
+	root := t.TempDir()
+	opened := writeJPEG(t, root, "photo00.jpg")
+	for i := 1; i < 25; i++ {
+		writeJPEG(t, root, fmt.Sprintf("photo%02d.jpg", i))
+	}
+
+	t.Run("throttled to the first and every 10th call", func(t *testing.T) {
+		var calls []int
+		images, truncated := Siblings(context.Background(), opened, 1000, func(n int) {
+			calls = append(calls, n)
+		})
+		if len(images) != 25 || truncated {
+			t.Fatalf("images = %d, truncated = %v, want 25, not truncated", len(images), truncated)
+		}
+		want := []int{1, 10, 20}
+		if !slices.Equal(calls, want) {
+			t.Errorf("progress calls = %v, want %v", calls, want)
+		}
+	})
+
+	t.Run("truncation forces a final call off the every-10th cadence", func(t *testing.T) {
+		var calls []int
+		images, truncated := Siblings(context.Background(), opened, 13, func(n int) {
+			calls = append(calls, n)
+		})
+		if len(images) != 13 || !truncated {
+			t.Fatalf("images = %d, truncated = %v, want 13, truncated", len(images), truncated)
+		}
+		want := []int{1, 10, 13}
+		if !slices.Equal(calls, want) {
+			t.Errorf("progress calls = %v, want %v", calls, want)
+		}
+	})
+
+	t.Run("nil progress is never called and never panics", func(t *testing.T) {
+		images, truncated := Siblings(context.Background(), opened, DefaultMax, nil)
+		if len(images) != 25 || truncated {
+			t.Fatalf("images = %d, truncated = %v, want 25, not truncated", len(images), truncated)
+		}
+	})
+}

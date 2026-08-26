@@ -272,14 +272,16 @@ func TestMergeModeGetterSetter(t *testing.T) {
 
 // --- the async scan path and its truncation toast ---------------------------
 
-// TestHandleDrop_RecursesIntoNestedDirectories is the only test proving the
-// *asynchronous* drop path - the background-goroutine branch of handleDrop -
-// actually reaches the UI: files loaded, dropzone hidden. The walker half of
-// this scenario (recursing into nested directories, and filtering the
+// TestHandleDrop_RecursesIntoNestedDirectories proves the *asynchronous*
+// drop path for a folder URI - the background-goroutine branch of
+// handleDrop - actually reaches the UI: files loaded, dropzone hidden.
+// Single-file sibling expansion now uses that goroutine too (see
+// TestHandleDrop_SingleFileExpandsSiblingsAndKeepsOpened). The walker half
+// of this scenario (recursing into nested directories, and filtering the
 // .DS_Store clutter that shouldn't be opened to find out it isn't an image)
 // is what TestImages_RecursesIntoNestedDirectories in internal/filescan
 // covers now; what still earns this one its keep is the goroutine-to-UI
-// wiring, not the walk itself.
+// wiring for a directory drop, not the walk itself.
 func TestHandleDrop_RecursesIntoNestedDirectories(t *testing.T) {
 	v := newTestViewer(t)
 
@@ -559,5 +561,108 @@ func TestNavigationDoesNotInvalidateScan(t *testing.T) {
 	}
 
 	v.cancelScan()
+	settleToast(t, v)
+}
+
+func TestHandleDrop_SingleFileExpandsSiblingsAndKeepsOpened(t *testing.T) {
+	v := newTestViewer(t)
+	files := uitest.TempDirJPEGURIs(t, "c.jpg", "a.jpg", "b.jpg")
+	// Drop b.jpg only. Name-sort order is a, b, c — ShowImage(0) would
+	// wrongly land on a.jpg.
+	var opened fyne.URI
+	for _, u := range files {
+		if u.Name() == "b.jpg" {
+			opened = u
+			break
+		}
+	}
+	dropAndWait(t, v, opened)
+
+	if n := len(v.state.files); n != 3 {
+		t.Fatalf("files = %d, want 3 siblings", n)
+	}
+	if v.state.files[v.state.index].Name() != "b.jpg" {
+		t.Fatalf("showing %q at index %d, want b.jpg (the opened file, not the first name-sort entry)", v.state.files[v.state.index].Name(), v.state.index)
+	}
+}
+
+func TestHandleDrop_SingleFileDoesNotRecurse(t *testing.T) {
+	v := newTestViewer(t)
+	root := t.TempDir()
+	openedPath := filepath.Join(root, "top.jpg")
+	if err := os.WriteFile(openedPath, uitest.EncodeJPEG(t, 4, 4, color.White), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(root, "sub")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "nested.jpg"), uitest.EncodeJPEG(t, 4, 4, color.White), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dropAndWait(t, v, storage.NewFileURI(openedPath))
+	if n := len(v.state.files); n != 1 {
+		t.Fatalf("files = %d, want 1 (nested.jpg is in a subdirectory)", n)
+	}
+}
+
+func TestHandleDrop_TwoFilesInSameDirDoNotExpand(t *testing.T) {
+	v := newTestViewer(t)
+	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
+	dropAndWait(t, v, files[0], files[1]) // a and b, not c
+	if n := len(v.state.files); n != 2 {
+		t.Fatalf("files = %d, want 2 (explicit subset, not the whole folder)", n)
+	}
+}
+
+func TestHandleDrop_MergeSingleFileDoesNotExpandSiblings(t *testing.T) {
+	v := newTestViewer(t)
+	existing := uitest.TempJPEGURI(t, "keep.jpg", 4, 4, color.White)
+	dropAndWait(t, v, existing)
+	v.SetMergeMode(true)
+	sibs := uitest.TempDirJPEGURIs(t, "x.jpg", "y.jpg", "z.jpg")
+	var one fyne.URI
+	for _, u := range sibs {
+		if u.Name() == "y.jpg" {
+			one = u
+			break
+		}
+	}
+	dropAndWait(t, v, one)
+	if n := len(v.state.files); n != 2 {
+		t.Fatalf("files = %d, want 2 (existing + merged y.jpg), not the whole sibling folder", n)
+	}
+}
+
+func TestHandleDrop_UnsupportedSingleFileDoesNotExpandFolder(t *testing.T) {
+	v := newTestViewer(t)
+	dir := t.TempDir()
+	txt := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(txt, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "photo.jpg"), uitest.EncodeJPEG(t, 4, 4, color.White), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dropAndWaitScan(t, v, storage.NewFileURI(txt))
+	if n := len(v.state.files); n != 0 {
+		t.Fatalf("files = %d, want 0 — dropping a non-image must not load sibling photos", n)
+	}
+}
+
+func TestHandleDrop_SiblingScanTruncationToast(t *testing.T) {
+	v := newTestViewer(t)
+	v.settings.maxScan = 2
+	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
+	dropAndWait(t, v, files[0])
+	if n := len(v.state.files); n != 2 {
+		t.Fatalf("files = %d, want 2 (maxScan)", n)
+	}
+	if !v.toast.card.Visible() {
+		t.Fatal("want a toast warning that the scan was truncated")
+	}
+	if !strings.Contains(v.toast.text.Text, "2") {
+		t.Errorf("toast text = %q, want it to mention the cap (2)", v.toast.text.Text)
+	}
 	settleToast(t, v)
 }

@@ -44,6 +44,90 @@ func TestStepImage_NoopWithOneFile(t *testing.T) {
 	}
 }
 
+func TestStepImage_SingleFileDropWalksFolderSiblings(t *testing.T) {
+	v := newTestViewer(t)
+	files := uitest.TempDirJPEGURIs(t, "c.jpg", "a.jpg", "b.jpg")
+	var opened fyne.URI
+	for _, u := range files {
+		if u.Name() == "b.jpg" {
+			opened = u
+			break
+		}
+	}
+	dropAndWait(t, v, opened)
+	if v.state.files[v.state.index].Name() != "b.jpg" {
+		t.Fatalf("setup: showing %q, want b.jpg", v.state.files[v.state.index].Name())
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "c.jpg" {
+		t.Fatalf("after StepImage(1) showing %q, want c.jpg (name-sort a,b,c)", v.state.files[v.state.index].Name())
+	}
+
+	v.StepImage(1)
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "a.jpg" {
+		t.Fatalf("after wrap showing %q, want a.jpg", v.state.files[v.state.index].Name())
+	}
+
+	v.StepImage(-1)
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "c.jpg" {
+		t.Fatalf("after StepImage(-1) showing %q, want c.jpg", v.state.files[v.state.index].Name())
+	}
+}
+
+func TestHandleKeyEvent_LeftRightWalkFolderSiblings(t *testing.T) {
+	v := newTestViewer(t)
+	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+	dropAndWait(t, v, files[0])
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "b.jpg" {
+		t.Fatalf("Right showing %q, want b.jpg", v.state.files[v.state.index].Name())
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "a.jpg" {
+		t.Fatalf("Left showing %q, want a.jpg", v.state.files[v.state.index].Name())
+	}
+}
+
+func TestHandleKeyEvent_HomeEndOnFolderSiblings(t *testing.T) {
+	v := newTestViewer(t)
+	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
+	var opened fyne.URI
+	for _, u := range files {
+		if u.Name() == "b.jpg" {
+			opened = u
+			break
+		}
+	}
+	dropAndWait(t, v, opened)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "c.jpg" {
+		t.Fatalf("End showing %q, want c.jpg", v.state.files[v.state.index].Name())
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyHome})
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "a.jpg" {
+		t.Fatalf("Home showing %q, want a.jpg", v.state.files[v.state.index].Name())
+	}
+}
+
+func TestAdvance_SingleFileDropWalksSiblings(t *testing.T) {
+	v := newTestViewer(t)
+	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+	dropAndWait(t, v, files[0])
+	v.Advance()
+	waitUntilLoaded(t, v)
+	if v.state.files[v.state.index].Name() != "b.jpg" {
+		t.Fatalf("Advance showing %q, want b.jpg", v.state.files[v.state.index].Name())
+	}
+}
+
 func TestStepImage_NoopWhileLoading(t *testing.T) {
 	v := newTestViewer(t)
 	a := uitest.TempJPEGURI(t, "a.jpg", 8, 8, color.White)

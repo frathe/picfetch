@@ -290,10 +290,16 @@ choice, not the image.
 
 Notes:
 
-- The arrow keys only do something when you dropped **two or more** images.
-  While hide-duplicates is on (`D`, see "Grid overview"), they skip hidden
-  extras and wrap among the remaining files; `Home`/`End` jump to the first
-  and last remaining file.
+- The arrow keys walk the current set and wrap around. If you opened
+  **one image file** (a drop, the file picker, or `picfetch photo.jpg`),
+  PicFetch also loads the other images in that file's folder — not
+  subfolders — and parks on the file you opened, so Left/Right move to
+  its neighbors. Opening two or more files keeps exactly that subset.
+  Opening a folder still scans it recursively (see "Scanning folders").
+  A folder that contains only that one image still has nothing to step
+  to. While hide-duplicates is on (`D`, see "Grid overview"), arrows
+  skip hidden extras and wrap among the remaining files; `Home`/`End`
+  jump to the first and last remaining file.
 - By default the set is **naturally sorted** by file name, so `IMG_2.jpg`
   comes before `IMG_10.jpg` even though a plain text sort would put them the
   other way round. Press **`S`** to cycle through four more orderings, and
@@ -601,7 +607,8 @@ many of them actually went.
 - **`Esc`** — clear the current images and return to the initial drop screen;
   quits the app if there's nothing loaded to clear (in the manual window it
   only closes the manual; in picture-frame mode it leaves picture-frame mode
-  first); while a folder scan is still running, it cancels the scan instead
+  first); while a scan is still running (a folder drop, or a single-file
+  open listing that file's folder), it cancels the scan instead
   (see "Scanning folders" below)
 
 **Linux clipboard support.** Copying the image itself (`Ctrl+C`) shells out to
@@ -770,13 +777,16 @@ very large files.
 
 **Scanning folders.** If your drop includes any folders, PicFetch first
 walks them (and every subfolder) to collect supported images before showing
-anything:
+anything. Opening **one image file** does a similar scan of that file's
+own folder only (not subfolders), then parks on the file you opened:
 
 - A spinner appears together with a running count, e.g. **"Scanning… 42
-  images"**, updated as more images are found.
-- Once the scan finishes, the spinner disappears and the first image found is
-  shown, just like a normal drop.
-- Drops with no folders skip this step entirely and load immediately.
+  images"**, updated as more images are found. A very large folder can
+  take a moment to list even though only one file was opened.
+- Once the scan finishes, the spinner disappears. A folder drop shows the
+  first image found; a single-file open stays on the file you opened.
+- Drops of two or more loose files (no folders) skip this step and load
+  immediately.
 - Press **`Esc`** at any point while the spinner is up to cancel the scan. If
   this was the very first drop, you're returned to the initial drop screen
   exactly as if nothing had been dropped; if you were merging into an
@@ -934,7 +944,7 @@ Things PicFetch deliberately does not do (yet):
   search matches); `Esc` clears the selection
 - **Manual** — `F1`, or Help -> Manual or Window -> Help
 - **Clear / Quit** — `Esc` (clears the loaded images first, then quits;
-  cancels a folder scan still in progress instead, if one is running)
+  cancels a scan still in progress instead, if one is running)
 - **Formats** — JPEG, PNG, GIF (incl. animated), WebP, BMP, TIFF, ICO, XPM,
   HEIC/HEIF, AVIF, SVG, camera RAW (embedded JPEG preview)
 - **Max window size** — 1500 × 950

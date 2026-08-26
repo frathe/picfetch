@@ -884,11 +884,14 @@ func (v *viewer) Advance() {
 }
 
 // StepImage moves by delta files (typically +1 or -1), wrapping through
-// ShowImage. No-op with fewer than two files, while a load is in flight,
-// while a Fyne dialog overlay is up on the main window (same reason as
-// handleKeyEvent: the dialog owns the keyboard, and StepImage is callable
-// from the always-on-top EXIF window), or while the delete / export-format
-// prompt owns the main window.
+// ShowImage. No-op with fewer than two files in the current set, while a
+// load is in flight, while a Fyne dialog overlay is up on the main window
+// (same reason as handleKeyEvent: the dialog owns the keyboard, and
+// StepImage is callable from the always-on-top EXIF window), or while the
+// delete / export-format prompt owns the main window. A single-file drop
+// may already have been expanded to the parent directory by handleDrop, so
+// this guard is the current set size, not whether the user dropped only
+// one path.
 // Picture-frame shuffle does not apply: this is what the arrow keys do.
 func (v *viewer) StepImage(delta int) {
 	if v.win.Canvas().Overlays().Top() != nil {

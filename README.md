@@ -49,8 +49,9 @@ set with the keyboard.
   collapsible OpenStreetMap view pinned at the capture location for photos
   with GPS tags (collapsed on every open, so no map tiles are fetched
   unasked)
-- Drop multiple files at once and step through them with the arrow keys
-  (wraps around at both ends), or jump to the first/last with `Home`/`End`
+- Drop one image to step through the other images in the same folder
+  with the arrow keys (wraps around at both ends), or drop several files /
+  a folder to walk that set; jump to the first/last with `Home`/`End`
 - `G` opens a full-window thumbnail grid for jumping around a large drop by
   sight instead of arrowing through it; click a thumbnail, or use the arrow
   keys to move a highlight and `Return` to open it. Thumbnails are generated

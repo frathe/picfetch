@@ -1,5 +1,6 @@
 // Package filescan gathers displayable image files from a dropped or opened
-// set of paths, recursing into directories.
+// set of paths. Images recurses into directories; Siblings lists only the
+// parent directory of a single opened file.
 //
 // It sits beside internal/filesort and internal/imaging rather than under
 // internal/ui because it draws nothing and knows about no widget - it walks
@@ -160,5 +161,76 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 		}
 	}
 
+	return images, truncated
+}
+
+// Siblings returns the supported images that share file's parent directory.
+// It does not recurse into subdirectories. If file itself is a supported
+// image it is always the first entry — the caller's URI, not a possibly
+// different URI storage.List produced for the same path — so a caller that
+// looks the opened file up by URI.String() still finds it after a sort.
+// Directories among the children are skipped. max is floored at 1, the same
+// as Images; truncated means the listing stopped at max rather than
+// exhausting the directory. On Parent/List failure the result is just file
+// when it is a supported image, otherwise empty. ctx is checked before any
+// work and before each child; an already-cancelled context returns nil,
+// false rather than a partial directory.
+func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int)) (images []fyne.URI, truncated bool) {
+	if max < 1 {
+		max = 1
+	}
+	if ctx.Err() != nil {
+		return nil, false
+	}
+
+	origin := realPathOf(file)
+	seen := make(map[string]bool)
+	count := 0
+	add := func(u fyne.URI) {
+		if truncated || ctx.Err() != nil {
+			return
+		}
+		if canList, err := storage.CanList(u); err == nil && canList {
+			return
+		}
+		if !imaging.IsSupportedImage(u) {
+			return
+		}
+		pathOf := realPathOf(u)
+		if seen[pathOf] {
+			return
+		}
+		seen[pathOf] = true
+		if pathOf == origin {
+			u = file
+		}
+		images = append(images, u)
+		count++
+		if count >= max {
+			truncated = true
+		}
+		if progress != nil && (count == 1 || count%10 == 0 || truncated) {
+			progress(count)
+		}
+	}
+
+	if imaging.IsSupportedImage(file) {
+		add(file)
+	}
+	if truncated {
+		return images, truncated
+	}
+
+	parent, err := storage.Parent(file)
+	if err != nil {
+		return images, truncated
+	}
+	children, err := storage.List(parent)
+	if err != nil {
+		return images, truncated
+	}
+	for _, child := range children {
+		add(child)
+	}
 	return images, truncated
 }

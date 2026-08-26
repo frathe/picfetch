@@ -61,11 +61,12 @@ func (v *viewer) handleTypedRune(r rune) {
 // handleKeyEvent dispatches a single key press: F1 opens the manual,
 // Escape cancels a scan in progress, resets back to the initial state, or
 // closes the window once there's nothing left to reset/cancel, the
-// arrow/Home/End keys walk through the dropped files, S cycles the sort
-// order (see internal/filesort), M toggles merge mode, and 0/1/+/- control
-// zoom (see internal/ui/zoom). Wired to the window's canvas via
-// SetOnTypedKey in buildViewer (build.go), so tests can drive the exact
-// same dispatch instead of reimplementing it.
+// arrow/Home/End keys walk through the current set (a single-file drop
+// may already have been expanded to same-folder siblings; see handleDrop),
+// S cycles the sort order (see internal/filesort), M toggles merge mode,
+// and 0/1/+/- control zoom (see internal/ui/zoom). Wired to the window's
+// canvas via SetOnTypedKey in buildViewer (build.go), so tests can drive
+// the exact same dispatch instead of reimplementing it.
 func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// A Fyne dialog owns the keyboard whole while it is up. This dispatcher
 	// is the canvas's *unfocused* handler, and Fyne resolves Canvas.Focused
@@ -288,7 +289,9 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 
 	// Ignore repeat events fired while the previous image is still
 	// decoding/rendering, instead of piling up decodes for images the
-	// user has already navigated past.
+	// user has already navigated past. A single-file drop that found
+	// siblings in the same folder has already expanded the set (see
+	// handleDrop); a genuinely lonely file still no-ops here.
 	if len(v.state.files) < 2 || v.loading.Load() {
 		return
 	}

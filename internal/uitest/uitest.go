@@ -41,7 +41,10 @@ import (
 )
 
 // FakeURI is a minimal fyne.URI so tests can control extension and MIME
-// type independently, without touching the filesystem.
+// type independently, without touching the filesystem. Its Path is
+// "/"+FileName under the file scheme: storage.Parent/List on an image
+// FakeURI can walk the real filesystem root. Use TempJPEGURI (or a real
+// file) whenever a directory listing might run.
 type FakeURI struct {
 	FileName, Ext, Mime string
 }
@@ -78,6 +81,24 @@ func TempJPEGURI(t *testing.T, name string, w, h int, c color.Color) fyne.URI {
 	return storage.NewFileURI(WriteTempFile(t, name, EncodeJPEG(t, w, h, c)))
 }
 
+// TempDirJPEGURIs writes solid-color 8×8 white JPEGs named names into a
+// single temp directory and returns their file URIs in the same order.
+// TempJPEGURI cannot be used for sibling tests: each call uses its own
+// t.TempDir(), so the files would not share a parent.
+func TempDirJPEGURIs(t *testing.T, names ...string) []fyne.URI {
+	t.Helper()
+	dir := t.TempDir()
+	out := make([]fyne.URI, len(names))
+	for i, name := range names {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, EncodeJPEG(t, 8, 8, color.White), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		out[i] = storage.NewFileURI(path)
+	}
+	return out
+}
+
 // PatternedJPEGURI writes a seeded grayscale JPEG. Solid-color JPEGs all
 // dHash to 0, so hide-duplicates tests need patterned pixels to tell
 // "same shot" from "different shot".
@@ -86,8 +107,8 @@ func PatternedJPEGURI(t *testing.T, name string, seed int) fyne.URI {
 
 	const w, h = 64, 48
 	img := image.NewGray(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			img.SetGray(x, y, color.Gray{Y: uint8(x*13 + y*7 + seed*31)})
 		}
 	}
@@ -557,8 +578,8 @@ func ApproxEqual(a, b float32) bool {
 
 func solidRGBA(w, h int, c color.Color) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			img.Set(x, y, c)
 		}
 	}
@@ -568,8 +589,8 @@ func solidRGBA(w, h int, c color.Color) *image.RGBA {
 
 func solidPaletted(w, h int, c color.Color) *image.Paletted {
 	img := image.NewPaletted(image.Rect(0, 0, w, h), color.Palette{color.White, c})
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			img.Set(x, y, c)
 		}
 	}

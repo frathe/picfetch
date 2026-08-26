@@ -44,7 +44,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `keys.go` | `handleKeyEvent` / `handleTypedRune`. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). |
 | `menu.go` | Menu bar composition: File, Favorites, Actions, Window, Help. Grid/slideshow mutual exclusion lives here, not in those packages. |
 | `actionmenu.go` | Actions-menu Checked/Disabled and handlers (`applyActionsMenuState`). |
-| `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images`; scan lifecycle is `viewer.scanOp`. |
+| `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images` / `filescan.Siblings`; scan lifecycle is `viewer.scanOp`. |
 | `memlimits.go` | `settings` value plus memory-limit get/set that retune `imgCache`, grid thumb cache, `imaging.SetMaxEncodedBytes`, and the SVG raster cap. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync`, `gridSink`, and the favorite-preview `completion.Signal`. |
 | `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `resizeToImage` / `syncWindowToZoom`. |
@@ -231,11 +231,12 @@ before calling this.
 
 ### `internal/filescan`
 
-Recursive image gather for drop/open.
+Recursive image gather for drop/open, plus a non-recursive sibling listing
+when the user opened a single file.
 
 | File | Responsibility |
 |------|----------------|
-| `filescan.go` | `Images(ctx, uris, max, progress)`; symlink-cycle + per-call dedupe. |
+| `filescan.go` | `Images(ctx, uris, max, progress)` (recursive); `Siblings(ctx, file, max, progress)` (parent dir only, opened file seeded first); symlink-cycle + per-call dedupe. |
 
 ### `internal/filesort`
 
@@ -312,7 +313,7 @@ see `AGENTS.md`.
 - "Where is a photo's GPS position read, and where is it shown?" → `internal/imaging/exif.go` `parseGPSIFD` + `exifwin` Location section.
 - "How is EXIF orientation handled?" → `internal/imaging/exif.go` + `orientation.go`.
 - "How is a camera RAW file shown?" → `internal/imaging/raw.go` + `LoadedImage.Preview` + `load.go` / `info.go`.
-- "How does drag-and-drop / folder scanning work?" → `internal/filescan.Images` + `drop.go` `handleDrop`.
+- "How does drag-and-drop / folder scanning work?" → `internal/filescan.Images` / `filescan.Siblings` (single-file case) + `drop.go` `handleDrop`.
 - "How is an image shown/preloaded/animated once loaded?" → `load.go`.
 - "Which keys do what?" → `keys.go` (`handleKeyEvent` / `handleTypedRune`) + `shortcuts.go`.
 - "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go` + `keys.go` `handleTypedRune`.
