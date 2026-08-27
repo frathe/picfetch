@@ -25,10 +25,10 @@ func (v *viewer) applyActionsMenuState() {
 	gridUp := v.grid.Visible()
 	noImage := len(v.displayFrames) == 0
 
-	v.actionsHideItem.Checked = v.grid.HideDuplicates()
+	v.actionsHideItem.Checked = v.dupes.HideDuplicates()
 	v.actionsHideItem.Disabled = noFiles || v.variantsSession()
 	v.actionsShowVariantItem.Checked = v.grid.BrowsingDuplicates()
-	canShowVariants := v.grid.HideDuplicates() && v.grid.SourceDuplicateGroupSize() >= 2
+	canShowVariants := v.dupes.HideDuplicates() && v.grid.SourceDuplicateGroupSize() >= 2
 	v.actionsShowVariantItem.Disabled = noFiles || v.slides.Active() || !(canShowVariants || v.grid.BrowsingDuplicates())
 
 	rotZoomOff := noImage || gridUp
@@ -61,7 +61,7 @@ func (v *viewer) setActionsSort(m filesort.Mode) {
 }
 
 func (v *viewer) toggleHideDuplicates() {
-	v.grid.SetHideDuplicates(!v.grid.HideDuplicates())
+	v.pushHideDuplicates(!v.dupes.HideDuplicates())
 }
 
 func (v *viewer) browseCurrentDuplicates() {
@@ -78,7 +78,7 @@ func (v *viewer) reopenVariantGrid() {
 	if v.slides.Active() {
 		return
 	}
-	v.grid.ClearInspect()
+	v.dupes.ClearInspect()
 	v.grid.SetBrowsingDuplicates(true)
 	if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
 		v.grid.Toggle()
@@ -87,7 +87,7 @@ func (v *viewer) reopenVariantGrid() {
 }
 
 func (v *viewer) variantsSession() bool {
-	return v.grid.BrowsingDuplicates() || v.grid.InspectingDuplicates()
+	return v.grid.BrowsingDuplicates() || v.dupes.Inspecting()
 }
 
 func (v *viewer) toggleActionsHideDuplicates() {
@@ -105,7 +105,7 @@ func (v *viewer) showActionsVariant() {
 		v.browseCurrentDuplicates() // leave browse even if hide is now off
 		return
 	}
-	if !v.grid.HideDuplicates() || v.grid.SourceDuplicateGroupSize() < 2 {
+	if !v.dupes.HideDuplicates() || v.grid.SourceDuplicateGroupSize() < 2 {
 		return
 	}
 	v.browseCurrentDuplicates()

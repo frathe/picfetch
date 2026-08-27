@@ -123,21 +123,21 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	g.matches = nil
 
 	browsing := g.browseHost >= 0
-	browseFilter := browsing && g.groupSize(g.browseHost) >= 2
+	browseFilter := browsing && g.dupes.GroupSize(g.browseHost) >= 2
 	nameFilter := g.searching && g.query != ""
-	hide := g.HideDuplicates() && !browsing
+	hide := g.dupes.HideDuplicates() && !browsing
 	if nameFilter || hide || browseFilter {
 		needle := strings.ToLower(g.query)
-		hostRep := g.RepresentativeOf(g.browseHost)
+		hostRep := g.dupes.RepresentativeOf(g.browseHost)
 		g.matches = make([]int, 0, g.host.FileCount())
 		for i := range g.host.FileCount() {
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
 				continue
 			}
-			if browseFilter && g.RepresentativeOf(i) != hostRep {
+			if browseFilter && g.dupes.RepresentativeOf(i) != hostRep {
 				continue
 			}
-			if hide && g.IsHiddenExtra(i) {
+			if hide && g.dupes.IsHiddenExtra(i) {
 				continue
 			}
 			g.matches = append(g.matches, i)
@@ -197,7 +197,7 @@ func (g *Overview) restoreHighlight(host int) {
 	id := 0
 	if d := g.displayIndexOfHost(host); d >= 0 {
 		id = d
-	} else if d := g.displayIndexOfHost(g.RepresentativeOf(host)); d >= 0 {
+	} else if d := g.displayIndexOfHost(g.dupes.RepresentativeOf(host)); d >= 0 {
 		id = d
 	}
 	if id >= g.count() {
@@ -222,7 +222,7 @@ func (g *Overview) syncTopBar() {
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
 		g.countLabel.Show()
-	case g.HideDuplicates():
+	case g.dupes.HideDuplicates():
 		g.searchLabel.SetText(lang.L("Hiding duplicates"))
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
@@ -239,7 +239,7 @@ func (g *Overview) syncTopBar() {
 		g.selLabel.Hide()
 	}
 
-	if !g.searching && g.sel.Len() == 0 && !g.HideDuplicates() && g.browseHost < 0 {
+	if !g.searching && g.sel.Len() == 0 && !g.dupes.HideDuplicates() && g.browseHost < 0 {
 		g.searchBar.Hide()
 		g.empty.Hide()
 

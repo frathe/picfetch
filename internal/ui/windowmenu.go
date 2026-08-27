@@ -77,7 +77,7 @@ func (v *viewer) showWindowGrid() {
 	if v.grid.Visible() || v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
-	if v.grid.InspectingDuplicates() {
+	if v.dupes.Inspecting() {
 		v.reopenVariantGrid()
 		return
 	}

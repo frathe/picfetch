@@ -400,7 +400,7 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 			// and an id resolved past that point would map to itself rather
 			// than to the file this cell was actually showing.
 			i := g.fileIndex(id)
-			if g.BrowsingDuplicates() && i >= 0 && g.groupSize(i) >= 2 {
+			if g.BrowsingDuplicates() && i >= 0 && g.dupes.GroupSize(i) >= 2 {
 				g.BeginInspect(i)
 				g.closeOverlay(false)
 			} else {

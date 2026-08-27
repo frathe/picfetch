@@ -121,7 +121,7 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 		if g.host.Modifiers()&fyne.KeyModifierShift != 0 {
 			g.ToggleBrowseDuplicates()
 		} else if !g.BrowsingDuplicates() {
-			g.SetHideDuplicates(!g.HideDuplicates())
+			g.SetHideDuplicates(!g.dupes.HideDuplicates())
 		}
 	case fyne.KeySpace:
 		g.toggleAt(g.highlight)
@@ -178,7 +178,7 @@ func (g *Overview) escape() {
 		g.clearSearch()
 	case g.browseHost >= 0:
 		g.SetBrowsingDuplicates(false)
-	case g.HideDuplicates():
+	case g.dupes.HideDuplicates():
 		g.SetHideDuplicates(false)
 	default:
 		g.Close()
@@ -208,8 +208,8 @@ func setCellHighlighted(ring *canvas.Rectangle, highlighted bool) {
 }
 
 func (g *Overview) applyDupBadge(b *dupBadge, hostIndex int, cell fyne.Size) {
-	n := g.groupSize(hostIndex)
-	if !g.HideDuplicates() || g.BrowsingDuplicates() || n < 2 {
+	n := g.dupes.GroupSize(hostIndex)
+	if !g.dupes.HideDuplicates() || g.BrowsingDuplicates() || n < 2 {
 		b.chip.Hide()
 		return
 	}

@@ -384,11 +384,11 @@ func TestActionsMenu_SortItemNoopWhenAlreadySelected(t *testing.T) {
 func TestActionsMenu_HideTogglesLikeD(t *testing.T) {
 	v := loadPatternedTriple(t)
 	v.actionsHideItem.Action()
-	if !v.grid.HideDuplicates() || !v.actionsHideItem.Checked {
+	if !v.dupes.HideDuplicates() || !v.actionsHideItem.Checked {
 		t.Fatal("Show/Hide duplicates should turn hide on and checkmark")
 	}
 	v.actionsHideItem.Action()
-	if v.grid.HideDuplicates() || v.actionsHideItem.Checked {
+	if v.dupes.HideDuplicates() || v.actionsHideItem.Checked {
 		t.Fatal("second click should turn hide off")
 	}
 }
@@ -396,7 +396,7 @@ func TestActionsMenu_HideTogglesLikeD(t *testing.T) {
 func TestActionsMenu_HideNoopsWithoutFiles(t *testing.T) {
 	v := newTestViewer(t)
 	v.actionsHideItem.Action()
-	if v.grid.HideDuplicates() {
+	if v.dupes.HideDuplicates() {
 		t.Fatal("no files: hide must stay off")
 	}
 }
@@ -412,7 +412,7 @@ func TestActionsMenu_ShowVariantsOpensGridOnPairAfterHide(t *testing.T) {
 	if !v.grid.Visible() || !v.grid.BrowsingDuplicates() {
 		t.Fatal("Show variants on a duplicate (hide on) should browse and open the grid")
 	}
-	if !v.grid.HideDuplicates() {
+	if !v.dupes.HideDuplicates() {
 		t.Fatal("Show variants must leave hide on")
 	}
 	if !v.actionsShowVariantItem.Checked {
@@ -646,7 +646,7 @@ func TestActionsMenu_HideDisabledDuringVariantsSession(t *testing.T) {
 		t.Fatal("Show/Hide duplicates should be disabled while browsing variants")
 	}
 	v.actionsHideItem.Action()
-	if !v.grid.HideDuplicates() {
+	if !v.dupes.HideDuplicates() {
 		t.Fatal("Action must not toggle hide while browsing")
 	}
 
@@ -658,10 +658,10 @@ func TestActionsMenu_HideDisabledDuringVariantsSession(t *testing.T) {
 		t.Fatal("Show/Hide duplicates should be disabled while inspecting")
 	}
 	v.actionsHideItem.Action()
-	if !v.grid.HideDuplicates() {
+	if !v.dupes.HideDuplicates() {
 		t.Fatal("Action must not toggle hide while inspecting")
 	}
-	if !v.grid.InspectingDuplicates() {
+	if !v.dupes.Inspecting() {
 		t.Fatal("inspect must stay on")
 	}
 }

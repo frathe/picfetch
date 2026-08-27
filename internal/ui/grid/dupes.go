@@ -80,13 +80,6 @@ func (g *Overview) pixelCountOf(u fyne.URI) (int, bool) {
 	return g.dupes.PixelCount(u.String())
 }
 
-// NativeSize is the EXIF-oriented pixel size of the file at hostIndex.
-// ok is false when the index is out of range or no probe has been stored,
-// or when a stored size has a non-positive edge (failed/empty probe).
-func (g *Overview) NativeSize(hostIndex int) (w, h int, ok bool) {
-	return g.dupes.NativeSizeAt(hostIndex)
-}
-
 func (g *Overview) wipeHashesIfStale() {
 	g.dupes.WipeIfStale()
 }
@@ -114,12 +107,7 @@ func (g *Overview) SourceDuplicateGroupSize() int {
 	if g.visible {
 		src = g.fileIndex(g.highlight)
 	}
-	return g.groupSize(src)
-}
-
-// HideDuplicates reports whether extras are currently hidden.
-func (g *Overview) HideDuplicates() bool {
-	return g.dupes.HideDuplicates()
+	return g.dupes.GroupSize(src)
 }
 
 // SetHideDuplicates turns extra-hiding on or off. Turning it on hashes any
@@ -128,10 +116,38 @@ func (g *Overview) HideDuplicates() bool {
 // jumps the host to the group's representative if the current file is an
 // extra. Close does not clear this flag: the viewer still skips extras
 // after the grid is dismissed.
+//
+// This is the entry point for callers that hold only the grid: the
+// overview's own D key and its escape ladder (nav.go). The app does not
+// come through here - it owns the model, so it moves the flag there and
+// calls HideDuplicatesChanged for the grid half (viewer.pushHideDuplicates
+// in internal/ui/visibility.go). Same front-half/back-half split the
+// duplicate distance uses, except that one has no grid-side front half
+// left at all - nothing inside the grid changes the threshold, so only
+// DuplicateDistanceChanged survives down here.
 func (g *Overview) SetHideDuplicates(on bool) {
 	if !g.dupes.SetHideDuplicates(on) {
 		return
 	}
+	g.HideDuplicatesChanged(on)
+}
+
+// HideDuplicatesChanged re-applies the grid's own view of a hide flag the
+// model has already accepted: the second half of SetHideDuplicates, split
+// out so the app can set the flag on the model it owns and still get the
+// sequence the grid always ran - hash first when hide just turned on, then
+// re-filter, and only then the model's observers (the jump off a
+// now-hidden extra).
+//
+// on is a parameter rather than a re-read of the model because the two
+// directions do different work: turning hide on has to hash whatever is
+// not hashed yet, turning it off only has to re-filter. A parameterless
+// OnChange observer cannot express that difference, which is why this is
+// an explicit call from the app and not a subscription.
+//
+// Only the caller that actually moved the flag should call this;
+// dupes.Model.SetHideDuplicates reports whether it did.
+func (g *Overview) HideDuplicatesChanged(on bool) {
 	if on {
 		_ = g.hashRemaining()
 	}
@@ -198,9 +214,10 @@ func (g *Overview) finishBrowse() {
 		return
 	}
 	// Warm records hashes but does not rebuild groups; applyFilter is the
-	// usual rebuild site, and groupSize must see the rebuilt sizes first.
+	// usual rebuild site, and the group-size check below must see the
+	// rebuilt sizes first.
 	g.rebuildGroups()
-	if g.groupSize(g.browseHost) < 2 {
+	if g.dupes.GroupSize(g.browseHost) < 2 {
 		g.browseHost = -1
 		g.applyFilter()
 		g.fireDupeState()
@@ -220,8 +237,8 @@ func (g *Overview) finishBrowse() {
 
 // groupMembers returns host indices in the same duplicate group as
 // hostIndex, in host-index order, or nil when the group has fewer than two
-// members. It reads the model's installed group snapshot (same as
-// IsHiddenExtra / RepresentativeOf) and does not rebuild.
+// members. It reads the model's installed group snapshot (same as the
+// model's IsHiddenExtra / RepresentativeOf) and does not rebuild.
 func (g *Overview) groupMembers(hostIndex int) []int {
 	return g.dupes.Members(hostIndex)
 }
@@ -237,51 +254,30 @@ func (g *Overview) ClearInspect() {
 	g.dupes.ClearInspect()
 }
 
-// InspectingDuplicates reports whether an inspect session is active.
-func (g *Overview) InspectingDuplicates() bool {
-	return g.dupes.Inspecting()
-}
-
 func (g *Overview) inspectSource() int {
 	return g.dupes.InspectSource()
 }
 
-// InspectMembers returns host indices of the inspected file's duplicate
-// group in host-index order, or nil when inspect is off.
-func (g *Overview) InspectMembers() []int {
-	return g.dupes.InspectMembers()
-}
-
-// SetDuplicateDistance sets the Hamming threshold - the model clamps it
+// DuplicateDistanceChanged re-applies the grid's own view of a Hamming
+// threshold the model has already accepted - the model is what clamps it
 // to 0–32 - and rebuilds groups. Live: if browsing, the group is
 // re-checked and browse exits when it drops below two members. If hide is
 // on and not browsing, extras are recomputed immediately and the host
 // jumps if the current file became an extra.
 //
-// The app itself does not come through here: it owns the model and sets
-// the threshold on it directly (settingswin drives the slider through
-// viewer.SetDuplicateDistance), then calls DuplicateDistanceChanged for
-// the grid half. This pair is for callers that hold only the grid.
-func (g *Overview) SetDuplicateDistance(n int) {
-	if !g.dupes.SetDistance(n) {
-		return
-	}
-	g.DuplicateDistanceChanged()
-}
-
-// DuplicateDistanceChanged re-applies the grid's own view of a threshold
-// the model has already accepted: the second half of SetDuplicateDistance,
-// split out so the app can set the distance on the model it owns and still
-// get the live regroup in the order the grid always did it - the grid
-// re-filters first, and only then do the model's observers (the jump off a
-// now-hidden extra) run.
+// There is no grid-side setter to pair with it any more: the app owns the
+// model and sets the threshold on it directly (settingswin drives the
+// slider through viewer.SetDuplicateDistance), then calls this for the
+// grid half, so the live regroup still happens in the order the grid
+// always did it - the grid re-filters first, and only then do the model's
+// observers (the jump off a now-hidden extra) run.
 //
 // Only the caller that actually moved the value should call this;
 // dupes.Model.SetDistance reports whether it did.
 func (g *Overview) DuplicateDistanceChanged() {
 	if g.browseHost >= 0 {
 		g.finishBrowse()
-	} else if g.HideDuplicates() {
+	} else if g.dupes.HideDuplicates() {
 		g.applyFilter()
 		// Where the old body called the grid's own jumpIfHiddenExtra.
 		// Browse deliberately keeps no Notify of its own: the jump never
@@ -295,24 +291,6 @@ func (g *Overview) DuplicateDistanceChanged() {
 
 func (g *Overview) duplicateDistance() int {
 	return g.dupes.Distance()
-}
-
-// IsHiddenExtra reports whether hostIndex is a non-representative member of
-// a duplicate group while hide is on. Unhashed files are never extras.
-func (g *Overview) IsHiddenExtra(hostIndex int) bool {
-	return g.dupes.IsHiddenExtra(hostIndex)
-}
-
-// RepresentativeOf is the highest native pixel count in the group, lowest
-// host index on a tie; itself when unique, unhashed, or out of range.
-func (g *Overview) RepresentativeOf(hostIndex int) int {
-	return g.dupes.RepresentativeOf(hostIndex)
-}
-
-// groupSize is 0 if hostIndex is unhashed, 1 if it is a unique hashed file,
-// and ≥2 if it belongs to a duplicate group.
-func (g *Overview) groupSize(hostIndex int) int {
-	return g.dupes.GroupSize(hostIndex)
 }
 
 func (g *Overview) rebuildGroups() {
@@ -395,14 +373,14 @@ func (g *Overview) hashRemaining() int {
 						}
 						return
 					}
-					if g.HideDuplicates() {
+					if g.dupes.HideDuplicates() {
 						keepHost := g.fileIndex(g.highlight)
 						if g.duplicateDistance() != snap.Dist {
 							snap = g.dupes.Compute()
 						}
 						g.dupes.Install(snap)
 						g.applyVisibleFilter(false, keepHost)
-						if !g.InspectingDuplicates() {
+						if !g.dupes.Inspecting() {
 							g.dupes.Notify()
 						}
 					}

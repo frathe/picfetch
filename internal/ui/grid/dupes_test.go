@@ -128,7 +128,7 @@ func TestSetHideDuplicates_HidesExtrasKeepsUniques(t *testing.T) {
 
 	g.SetHideDuplicates(true)
 
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Fatal("HideDuplicates() = false after SetHideDuplicates(true)")
 	}
 	if g.count() != 2 {
@@ -137,17 +137,17 @@ func TestSetHideDuplicates_HidesExtrasKeepsUniques(t *testing.T) {
 	if g.fileIndex(0) != 0 || g.fileIndex(1) != 2 {
 		t.Fatalf("visible host indices = [%d, %d], want [0, 2]", g.fileIndex(0), g.fileIndex(1))
 	}
-	if !g.IsHiddenExtra(1) {
+	if !g.dupes.IsHiddenExtra(1) {
 		t.Error("index 1 should be a hidden extra")
 	}
-	if g.IsHiddenExtra(0) || g.IsHiddenExtra(2) {
+	if g.dupes.IsHiddenExtra(0) || g.dupes.IsHiddenExtra(2) {
 		t.Error("the representative and the unique must stay visible")
 	}
-	if g.RepresentativeOf(1) != 0 {
-		t.Errorf("RepresentativeOf(1) = %d, want 0", g.RepresentativeOf(1))
+	if g.dupes.RepresentativeOf(1) != 0 {
+		t.Errorf("RepresentativeOf(1) = %d, want 0", g.dupes.RepresentativeOf(1))
 	}
-	if g.groupSize(0) != 2 || g.groupSize(2) != 1 {
-		t.Errorf("groupSize(0,2) = (%d, %d), want (2, 1)", g.groupSize(0), g.groupSize(2))
+	if g.dupes.GroupSize(0) != 2 || g.dupes.GroupSize(2) != 1 {
+		t.Errorf("groupSize(0,2) = (%d, %d), want (2, 1)", g.dupes.GroupSize(0), g.dupes.GroupSize(2))
 	}
 	if got, want := g.searchLabel.Text, lang.L("Hiding duplicates"); got != want {
 		t.Errorf("search label = %q, want %q", got, want)
@@ -189,13 +189,13 @@ func TestHandleKey_DTogglesHideDuplicates(t *testing.T) {
 	g, _ := pairAndUnique(t)
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
-	if !g.HideDuplicates() || g.count() != 2 {
-		t.Fatalf("after D: hide=%v count=%d, want hide=true count=2", g.HideDuplicates(), g.count())
+	if !g.dupes.HideDuplicates() || g.count() != 2 {
+		t.Fatalf("after D: hide=%v count=%d, want hide=true count=2", g.dupes.HideDuplicates(), g.count())
 	}
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
-	if g.HideDuplicates() || g.count() != 3 {
-		t.Fatalf("after second D: hide=%v count=%d, want hide=false count=3", g.HideDuplicates(), g.count())
+	if g.dupes.HideDuplicates() || g.count() != 3 {
+		t.Fatalf("after second D: hide=%v count=%d, want hide=false count=3", g.dupes.HideDuplicates(), g.count())
 	}
 }
 
@@ -205,7 +205,7 @@ func TestHandleRune_DIsAQueryCharacterWhileSearching(t *testing.T) {
 	typeQuery(g, "x")
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Fatal("KeyD while searching must not toggle hide-duplicates")
 	}
 	if g.Query() != "x" {
@@ -216,7 +216,7 @@ func TestHandleRune_DIsAQueryCharacterWhileSearching(t *testing.T) {
 	if g.Query() != "xd" {
 		t.Errorf("Query() = %q, want %q", g.Query(), "xd")
 	}
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Fatal("typing d into a search must leave hide-duplicates on")
 	}
 }
@@ -231,7 +231,7 @@ func TestHandleKey_EscapeTurnsOffHideDuplicatesBeforeClosing(t *testing.T) {
 	if g.SelectionCount() != 0 {
 		t.Fatal("first Escape should clear the selection")
 	}
-	if !g.Searching() || !g.HideDuplicates() || !g.Visible() {
+	if !g.Searching() || !g.dupes.HideDuplicates() || !g.Visible() {
 		t.Fatal("first Escape should leave search, hide, and the grid up")
 	}
 
@@ -239,12 +239,12 @@ func TestHandleKey_EscapeTurnsOffHideDuplicatesBeforeClosing(t *testing.T) {
 	if g.Searching() {
 		t.Fatal("second Escape should clear the search")
 	}
-	if !g.HideDuplicates() || !g.Visible() {
+	if !g.dupes.HideDuplicates() || !g.Visible() {
 		t.Fatal("second Escape should leave hide on and the grid up")
 	}
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
-	if g.HideDuplicates() {
+	if g.dupes.HideDuplicates() {
 		t.Fatal("third Escape should turn hide-duplicates off")
 	}
 	if !g.Visible() {
@@ -266,7 +266,7 @@ func TestClose_LeavesHideDuplicatesOn(t *testing.T) {
 	if g.Visible() {
 		t.Fatal("Close should hide the grid")
 	}
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Error("Close must not clear hide-duplicates")
 	}
 }
@@ -280,7 +280,7 @@ func TestHandleKey_GLeavesHideDuplicatesOn(t *testing.T) {
 	if g.Visible() {
 		t.Fatal("G should close the grid")
 	}
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Error("G must not clear hide-duplicates")
 	}
 }
@@ -391,7 +391,7 @@ func TestSetHideDuplicates_HashesRemainingWithoutWarm(t *testing.T) {
 	if _, ok := g.hashOf(host.files[0]); !ok {
 		t.Fatal("hashRemaining should record a dHash for each file")
 	}
-	if !g.IsHiddenExtra(1) {
+	if !g.dupes.IsHiddenExtra(1) {
 		t.Error("the pair's extra should be hidden once hashes land")
 	}
 }
@@ -409,7 +409,7 @@ func TestSetHideDuplicates_PendingShowsChromeAndLeavesUnhashedVisible(t *testing
 	g.Toggle()
 	g.SetHideDuplicates(true)
 
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Fatal("HideDuplicates() = false after SetHideDuplicates(true)")
 	}
 	if got, want := g.searchLabel.Text, lang.L("Hiding duplicates"); got != want {
@@ -428,7 +428,7 @@ func TestSetHideDuplicates_PendingShowsChromeAndLeavesUnhashedVisible(t *testing
 	if g.count() != 2 {
 		t.Fatalf("count() = %d after remaining hashes land, want 2", g.count())
 	}
-	if !g.IsHiddenExtra(1) {
+	if !g.dupes.IsHiddenExtra(1) {
 		t.Error("the pair's extra should hide once its hash lands")
 	}
 }
@@ -585,7 +585,7 @@ func TestSetHideDuplicates_OnePendingJobHidesExtraWithoutWaitingForAPeer(t *test
 	if g.count() != 2 {
 		t.Fatalf("count() = %d after the one remaining job, want 2", g.count())
 	}
-	if !g.IsHiddenExtra(1) {
+	if !g.dupes.IsHiddenExtra(1) {
 		t.Error("the extra should hide when its own job completes")
 	}
 }
@@ -614,15 +614,15 @@ func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 		t.Fatalf("count() = %d at default distance, want 1 (near hashes grouped)", g.count())
 	}
 
-	g.SetDuplicateDistance(0)
+	setDuplicateDistance(g, 0)
 	if g.count() != 2 {
 		t.Fatalf("count() = %d at distance 0, want 2 (exact match only)", g.count())
 	}
-	if g.IsHiddenExtra(1) {
+	if g.dupes.IsHiddenExtra(1) {
 		t.Error("distance 0 should split the Hamming-1 pair")
 	}
 
-	g.SetDuplicateDistance(imaging.DuplicateMaxDistance)
+	setDuplicateDistance(g, imaging.DuplicateMaxDistance)
 	if g.count() != 1 {
 		t.Fatalf("count() = %d after restoring default distance, want 1", g.count())
 	}
@@ -652,7 +652,7 @@ func TestSetDuplicateDistance_HashWorkerInstallKeepsCurrentDistance(t *testing.T
 
 	g.decodes.Wait()
 
-	g.SetDuplicateDistance(0)
+	setDuplicateDistance(g, 0)
 	if g.count() != 2 {
 		t.Fatalf("count() = %d at distance 0, want 2 (exact match only)", g.count())
 	}
@@ -720,7 +720,7 @@ func TestSetBrowsingDuplicates_ShowsExtrasEvenWhenHideOn(t *testing.T) {
 	if !seen[0] || !seen[1] {
 		t.Fatalf("visible hosts = %v, want 0 and 1 (extra must be shown)", seen)
 	}
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Fatal("browse must not clear the hide flag")
 	}
 }
@@ -783,7 +783,7 @@ func TestHandleKey_PlainDStillTogglesHideWhileNotSearching(t *testing.T) {
 	g, host := pairAndUnique(t)
 	host.mods = 0
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
-	if !g.HideDuplicates() || g.BrowsingDuplicates() {
+	if !g.dupes.HideDuplicates() || g.BrowsingDuplicates() {
 		t.Fatal("plain D must toggle hide, not browse")
 	}
 }
@@ -812,12 +812,12 @@ func TestHandleKey_EscapeTurnsOffBrowseBeforeHide(t *testing.T) {
 	if g.BrowsingDuplicates() {
 		t.Fatal("first Escape should leave browse")
 	}
-	if !g.HideDuplicates() || !g.Visible() {
+	if !g.dupes.HideDuplicates() || !g.Visible() {
 		t.Fatal("first Escape should leave hide on and the grid up")
 	}
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
-	if g.HideDuplicates() {
+	if g.dupes.HideDuplicates() {
 		t.Fatal("second Escape should turn hide off")
 	}
 	if !g.Visible() {
@@ -838,7 +838,7 @@ func TestClose_ClearsBrowseLeavesHide(t *testing.T) {
 	if g.BrowsingDuplicates() {
 		t.Error("Close must clear browse")
 	}
-	if !g.HideDuplicates() {
+	if !g.dupes.HideDuplicates() {
 		t.Error("Close must not clear hide-duplicates")
 	}
 }
@@ -938,7 +938,7 @@ func TestSetDuplicateDistance_ExitsBrowseWhenGroupSplits(t *testing.T) {
 		t.Fatalf("setup count() = %d, want 2", g.count())
 	}
 
-	g.SetDuplicateDistance(0)
+	setDuplicateDistance(g, 0)
 	if g.BrowsingDuplicates() {
 		t.Fatal("distance 0 should exit browse when the pair splits")
 	}
@@ -965,7 +965,7 @@ func TestSetHideDuplicates_ChainDoesNotHideUnrelated(t *testing.T) {
 	// A literal 10: this fixture is built at Hamming 10/10/20 to exercise
 	// linkage, so it pins the threshold it was written for rather than
 	// tracking the shipped default.
-	g.SetDuplicateDistance(10)
+	setDuplicateDistance(g, 10)
 
 	g.SetHideDuplicates(true)
 
@@ -979,7 +979,7 @@ func TestSetBrowsingDuplicates_ChainDoesNotListUnrelated(t *testing.T) {
 	host.index = 0
 	g := newOverview(t, host)
 	injectHashes(t, g, host, []uint64{1 << 63, 1<<63 | 0x3FF, 1<<63 | 0xFFFFF})
-	g.SetDuplicateDistance(10)
+	setDuplicateDistance(g, 10)
 
 	g.SetBrowsingDuplicates(true)
 
@@ -1001,7 +1001,7 @@ func TestSetBrowsingDuplicates_HubSpokesDoNotListUnrelated(t *testing.T) {
 	g := newOverview(t, host)
 	const hub uint64 = 0xFFFF000000000000
 	injectHashes(t, g, host, []uint64{hub, hub ^ 0x3FF, hub ^ (0x3FF << 10)})
-	g.SetDuplicateDistance(10)
+	setDuplicateDistance(g, 10)
 
 	g.SetBrowsingDuplicates(true)
 
@@ -1043,8 +1043,8 @@ func TestSetHideDuplicates_UnrelatedLineArtStaysVisible(t *testing.T) {
 		t.Fatalf("count() = %d, want 3: unrelated sketches must not hide each other", g.count())
 	}
 	for i := range 3 {
-		if g.groupSize(i) != 1 {
-			t.Errorf("groupSize(%d) = %d, want 1 (hashed and unique)", i, g.groupSize(i))
+		if g.dupes.GroupSize(i) != 1 {
+			t.Errorf("groupSize(%d) = %d, want 1 (hashed and unique)", i, g.dupes.GroupSize(i))
 		}
 	}
 }
@@ -1110,7 +1110,7 @@ func TestRebuildFilter_KeepsHighlightedHostWhenAnExtraDisappears(t *testing.T) {
 	if g.count() != 2 {
 		t.Fatalf("count() = %d after extra hashes, want 2", g.count())
 	}
-	if !g.IsHiddenExtra(1) {
+	if !g.dupes.IsHiddenExtra(1) {
 		t.Fatal("index 1 should now be a hidden extra")
 	}
 	if g.fileIndex(g.Highlight()) != 2 {
@@ -1223,11 +1223,11 @@ func TestSetOnDupeStateChanged_SetDuplicateDistanceWhileHide(t *testing.T) {
 	var n int
 	g.SetOnDupeStateChanged(func() { n++ })
 
-	g.SetDuplicateDistance(0)
+	setDuplicateDistance(g, 0)
 	if n != 1 {
 		t.Fatalf("distance change while hide on: n=%d, want 1", n)
 	}
-	g.SetDuplicateDistance(0)
+	setDuplicateDistance(g, 0)
 	if n != 1 {
 		t.Fatalf("idempotent distance fired: n=%d", n)
 	}
@@ -1242,7 +1242,7 @@ func TestSetOnDupeStateChanged_SetDuplicateDistanceWhileIdleRebuilds(t *testing.
 	var n int
 	g.SetOnDupeStateChanged(func() { n++ })
 
-	g.SetDuplicateDistance(0)
+	setDuplicateDistance(g, 0)
 	if n != 1 {
 		t.Fatalf("idle distance change: n=%d, want 1", n)
 	}
@@ -1327,7 +1327,7 @@ func TestNativeSize_ReportsProbeWidthAndHeight(t *testing.T) {
 		t.Fatalf("Warm: %v", err)
 	}
 
-	w, h, ok := g.NativeSize(0)
+	w, h, ok := g.dupes.NativeSizeAt(0)
 	if !ok {
 		t.Fatal("NativeSize(0) ok=false, want the Warm probe")
 	}
@@ -1340,10 +1340,10 @@ func TestNativeSize_ReportsProbeWidthAndHeight(t *testing.T) {
 		t.Errorf("pixelCountOf = %d ok=%v, want %d true (grouping still uses Dx*Dy)", px, pok, 800*400)
 	}
 
-	if _, _, ok := g.NativeSize(-1); ok {
+	if _, _, ok := g.dupes.NativeSizeAt(-1); ok {
 		t.Error("NativeSize(-1) must be !ok")
 	}
-	if _, _, ok := g.NativeSize(1); ok {
+	if _, _, ok := g.dupes.NativeSizeAt(1); ok {
 		t.Error("NativeSize past FileCount must be !ok")
 	}
 }
@@ -1352,7 +1352,7 @@ func TestNativeSize_UnknownWhenUnprobed(t *testing.T) {
 	u := uitest.TempJPEGURI(t, "a.jpg", 8, 8, color.White)
 	host := &fakeHost{files: []fyne.URI{u}}
 	g := newOverview(t, host)
-	if _, _, ok := g.NativeSize(0); ok {
+	if _, _, ok := g.dupes.NativeSizeAt(0); ok {
 		t.Fatal("unprobed file must not report a size")
 	}
 }
@@ -1445,11 +1445,11 @@ func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
 	g.dupes.PutNativeSize(host.files[2].String(), image.Pt(9999, 1))
 	g.rebuildGroups()
 
-	if g.RepresentativeOf(0) != 1 || g.RepresentativeOf(1) != 1 {
-		t.Errorf("rep of pair = %d/%d, want 1 (larger file)", g.RepresentativeOf(0), g.RepresentativeOf(1))
+	if g.dupes.RepresentativeOf(0) != 1 || g.dupes.RepresentativeOf(1) != 1 {
+		t.Errorf("rep of pair = %d/%d, want 1 (larger file)", g.dupes.RepresentativeOf(0), g.dupes.RepresentativeOf(1))
 	}
-	if g.RepresentativeOf(2) != 2 {
-		t.Errorf("unique rep = %d, want 2", g.RepresentativeOf(2))
+	if g.dupes.RepresentativeOf(2) != 2 {
+		t.Errorf("unique rep = %d, want 2", g.dupes.RepresentativeOf(2))
 	}
 
 	g.SetHideDuplicates(true)
@@ -1459,7 +1459,7 @@ func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
 	if g.fileIndex(0) != 1 || g.fileIndex(1) != 2 {
 		t.Fatalf("visible = [%d, %d], want [1, 2] (large + unique)", g.fileIndex(0), g.fileIndex(1))
 	}
-	if !g.IsHiddenExtra(0) || g.IsHiddenExtra(1) || g.IsHiddenExtra(2) {
+	if !g.dupes.IsHiddenExtra(0) || g.dupes.IsHiddenExtra(1) || g.dupes.IsHiddenExtra(2) {
 		t.Error("only the smaller pair member is a hidden extra")
 	}
 }
@@ -1486,14 +1486,14 @@ func TestBeginInspect_ReportsMembersAndSkipsJump(t *testing.T) {
 	g.SetHideDuplicates(true)
 	host.index = 1 // extra; equal-size pair, representative is 0
 
-	if g.InspectingDuplicates() {
+	if g.dupes.Inspecting() {
 		t.Fatal("inspect should start off")
 	}
 	g.BeginInspect(1)
-	if !g.InspectingDuplicates() {
+	if !g.dupes.Inspecting() {
 		t.Fatal("BeginInspect(1) should turn inspect on")
 	}
-	got := g.InspectMembers()
+	got := g.dupes.InspectMembers()
 	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("InspectMembers() = %v, want [0 1]", got)
 	}
@@ -1528,7 +1528,7 @@ func TestClose_ClearsInspectEvenWhenAlreadyHidden(t *testing.T) {
 	}
 	g.BeginInspect(1)
 	g.Close()
-	if g.InspectingDuplicates() {
+	if g.dupes.Inspecting() {
 		t.Fatal("Close must clear inspect while the overlay is already hidden")
 	}
 }
@@ -1543,7 +1543,7 @@ func TestToggleOpen_ClearsInspect(t *testing.T) {
 	if !g.Visible() {
 		t.Fatal("Toggle should open")
 	}
-	if g.InspectingDuplicates() {
+	if g.dupes.Inspecting() {
 		t.Fatal("opening the grid with G must end inspect")
 	}
 }
@@ -1580,7 +1580,7 @@ func TestHandleKey_ReturnFromBrowseCommitsExtra(t *testing.T) {
 	if g.BrowsingDuplicates() {
 		t.Fatal("Return should end browse")
 	}
-	if !g.InspectingDuplicates() {
+	if !g.dupes.Inspecting() {
 		t.Fatal("Return from browse should begin inspect")
 	}
 	if len(host.shown) != 1 || host.shown[0] != 1 {
@@ -1605,8 +1605,8 @@ func TestOnSelected_ClickFromBrowseCommitsExtra(t *testing.T) {
 	}
 	click(g, host, d, 0)
 
-	if !g.InspectingDuplicates() || g.Visible() || g.BrowsingDuplicates() {
-		t.Fatalf("inspect=%v visible=%v browse=%v", g.InspectingDuplicates(), g.Visible(), g.BrowsingDuplicates())
+	if !g.dupes.Inspecting() || g.Visible() || g.BrowsingDuplicates() {
+		t.Fatalf("inspect=%v visible=%v browse=%v", g.dupes.Inspecting(), g.Visible(), g.BrowsingDuplicates())
 	}
 	if len(host.shown) != 1 || host.shown[0] != 1 {
 		t.Fatalf("ShowImage = %v, want [1]", host.shown)
@@ -1622,7 +1622,7 @@ func TestHandleKey_ReturnFromHideGridDoesNotInspect(t *testing.T) {
 	g.setHighlight(0)
 	host.shown = nil
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
-	if g.InspectingDuplicates() {
+	if g.dupes.Inspecting() {
 		t.Fatal("Return from hide-duplicates (not browse) must not begin inspect")
 	}
 }
@@ -1632,7 +1632,7 @@ func TestHandleKey_DNoopWhileBrowsing(t *testing.T) {
 	g.SetHideDuplicates(true)
 	g.SetBrowsingDuplicates(true)
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
-	if !g.HideDuplicates() || !g.BrowsingDuplicates() {
+	if !g.dupes.HideDuplicates() || !g.BrowsingDuplicates() {
 		t.Fatal("plain D while browsing must not toggle hide or leave browse")
 	}
 }
@@ -1645,7 +1645,7 @@ func TestFilesChanged_ClearsInspectWhenGroupDissolves(t *testing.T) {
 	host.index = 0
 	host.gen++
 	g.FilesChanged()
-	if g.InspectingDuplicates() {
+	if g.dupes.Inspecting() {
 		t.Fatal("inspect must end when the group no longer has two members")
 	}
 }
@@ -1661,10 +1661,10 @@ func TestFilesChanged_RetargetsInspectWhenCurrentStillGrouped(t *testing.T) {
 	host.index = 0
 	host.gen++
 	g.FilesChanged()
-	if !g.InspectingDuplicates() {
+	if !g.dupes.Inspecting() {
 		t.Fatal("inspect should retarget onto the remaining group")
 	}
-	members := g.InspectMembers()
+	members := g.dupes.InspectMembers()
 	if len(members) < 2 {
 		t.Fatalf("InspectMembers = %v, want a group of at least 2", members)
 	}
@@ -1676,7 +1676,7 @@ func TestFilesChanged_HideDuplicatesGroupingSurvivesDelete(t *testing.T) {
 	host.files = host.files[:2]
 	host.gen++
 	g.FilesChanged()
-	if !g.IsHiddenExtra(1) {
+	if !g.dupes.IsHiddenExtra(1) {
 		t.Fatal("the extra must stay hidden after deleting a unique")
 	}
 	if g.count() != 1 {

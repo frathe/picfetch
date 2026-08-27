@@ -1,9 +1,17 @@
 // Which files the viewer can navigate to: the adapter that lets
-// internal/dupes group over this viewer's file set, and the jump that
-// takes the display off a file the model has just classified as a hidden
-// duplicate extra.
+// internal/dupes group over this viewer's file set, the navigation
+// helpers plain stepping asks it through, the push that turns
+// hide-duplicates on or off, and the jump that takes the display off a
+// file the model has just classified as a hidden duplicate extra.
+//
+// Everything here reads the model the viewer owns, never the grid
+// overlay. That is the point of the file: arrow keys, Home/End and the
+// slideshow's shuffle answer "which file comes next" without a closed
+// overlay having to be consulted per index.
 
 package ui
+
+import "math/rand/v2"
 
 // dupeFileSet adapts the viewer to dupes.FileSet, so the model can group
 // over the loaded files while staying Fyne-free: every fact it stores is
@@ -61,4 +69,68 @@ func (v *viewer) jumpIfHiddenExtra() {
 	if i := v.state.index; v.dupes.IsHiddenExtra(i) {
 		v.ShowImage(v.dupes.RepresentativeOf(i))
 	}
+}
+
+// pushHideDuplicates hands the hide flag to the model and, when the
+// stored value actually moved, lets the grid re-apply its own view of it -
+// hashing whatever is still unhashed when hide just turned on, then
+// re-filtering - before the model's observers run. Exactly the shape of
+// pushDuplicateDistance (memlimits.go), and for the same reason: those two
+// halves have to stay in that order, because jumpIfHiddenExtra must see
+// the group snapshot the grid's re-filter installed.
+//
+// on is passed on rather than left for the grid to re-read because the
+// grid's work differs by direction - see Overview.HideDuplicatesChanged.
+// The grid's own D key still goes through Overview.SetHideDuplicates,
+// which does the same two steps in the same order from the other side.
+func (v *viewer) pushHideDuplicates(on bool) {
+	if !v.dupes.SetHideDuplicates(on) {
+		return
+	}
+
+	v.grid.HideDuplicatesChanged(on)
+}
+
+// nextVisibleIndex is where plain navigation asks the duplicate model
+// which file lies delta steps from here. The inspect-members ring, the
+// hide-off arithmetic and the skip-the-extras walk all live in
+// dupes.Model.NextVisible, so StepImage and Advance no longer poll a
+// closed grid overlay once per index to find out who exists.
+//
+// With hide off the result is deliberately unclamped - NextVisible hands
+// back from+delta as it is, and ShowImage is what folds it into range.
+// Do not add a bounds check on this path.
+func (v *viewer) nextVisibleIndex(from, delta int) int {
+	return v.dupes.NextVisible(from, delta)
+}
+
+// firstVisibleIndex is where Home lands: the first file that is not a
+// hidden duplicate extra, or 0 when nothing qualifies.
+func (v *viewer) firstVisibleIndex() int {
+	return v.dupes.FirstVisible()
+}
+
+// lastVisibleIndex is End's counterpart to firstVisibleIndex.
+func (v *viewer) lastVisibleIndex() int {
+	return v.dupes.LastVisible()
+}
+
+// randomVisibleOther picks the slideshow's next shuffle target. The draw
+// stays on this side of the boundary: internal/dupes must not import
+// math/rand, so it hands back the candidates and this makes the choice.
+//
+// With hide off there is no candidate list worth building - every index
+// but current qualifies - so it keeps going through randomOtherIndex
+// (load.go), the same draw the shuffle has always used.
+func (v *viewer) randomVisibleOther(current int) int {
+	if !v.dupes.HideDuplicates() {
+		return randomOtherIndex(len(v.state.files), current)
+	}
+
+	vis := v.dupes.VisibleIndexesExcept(current)
+	if len(vis) == 0 {
+		return current
+	}
+
+	return vis[rand.IntN(len(vis))]
 }

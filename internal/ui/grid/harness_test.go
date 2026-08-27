@@ -122,6 +122,23 @@ func registerJumpObserver(g *Overview, host Host) {
 	})
 }
 
+// setDuplicateDistance moves the Hamming threshold the way production
+// does, now that Overview has no setter of its own: the app owns the
+// model, so it writes the distance there and calls
+// DuplicateDistanceChanged for the grid half only when the stored value
+// actually moved. This is viewer.pushDuplicateDistance
+// (internal/ui/memlimits.go) with the grid's own model in place of the
+// viewer's, "did it change" short-circuit included - several tests below
+// assert that setting the same distance twice does nothing the second
+// time.
+func setDuplicateDistance(g *Overview, n int) {
+	if !g.dupes.SetDistance(n) {
+		return
+	}
+
+	g.DuplicateDistanceChanged()
+}
+
 // hostSet adapts Host to dupes.FileSet, standing in for the adapter the
 // app builds the real model from (internal/ui's dupeFileSet): production
 // hands grid.New a model the viewer owns, so this is the grid's own way of

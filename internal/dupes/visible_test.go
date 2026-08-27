@@ -458,6 +458,25 @@ func TestStepInMembers_DeltaZeroReturnsFrom(t *testing.T) {
 	}
 }
 
+// TestStepInMembers_Wraps came across from internal/ui's step_test.go
+// with the helper itself: the ring walk is this package's code now, and
+// the viewer only asks for it through NextVisible.
+func TestStepInMembers_Wraps(t *testing.T) {
+	members := []int{0, 3, 5}
+	if got := stepInMembers(members, 3, 1); got != 5 {
+		t.Errorf("step +1 from 3 = %d, want 5", got)
+	}
+	if got := stepInMembers(members, 5, 1); got != 0 {
+		t.Errorf("wrap +1 from 5 = %d, want 0", got)
+	}
+	if got := stepInMembers(members, 0, -1); got != 5 {
+		t.Errorf("wrap -1 from 0 = %d, want 5", got)
+	}
+	if got := stepInMembers(members, 99, 1); got != 3 {
+		t.Errorf("from missing, +1 from pos 0 = %d, want 3", got)
+	}
+}
+
 // TestStepInMembers_FromNotInMembersStartsAtFirst covers the !found
 // branch: when from is not itself a member, the walk starts as if
 // positioned just before the first member.

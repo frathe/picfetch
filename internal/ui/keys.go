@@ -150,7 +150,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.cancelScan()
 		} else if v.sortOp.active {
 			v.cancelSort()
-		} else if v.grid.InspectingDuplicates() {
+		} else if v.dupes.Inspecting() {
 			v.reopenVariantGrid()
 		} else if len(v.state.files) == 0 {
 			v.win.Close()
@@ -188,7 +188,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
 			v.toggleSlideshowShuffle()
 		} else {
-			if v.grid.InspectingDuplicates() {
+			if v.dupes.Inspecting() {
 				return
 			}
 			v.togglePictureFrameMode()
@@ -208,7 +208,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if v.slides.Active() {
 			return
 		}
-		if v.grid.InspectingDuplicates() {
+		if v.dupes.Inspecting() {
 			v.reopenVariantGrid()
 			v.updateWindowMenuState()
 			return
@@ -231,7 +231,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.browseCurrentDuplicates()
 			return
 		}
-		if v.grid.InspectingDuplicates() {
+		if v.dupes.Inspecting() {
 			return
 		}
 		v.toggleHideDuplicates()

@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"image"
-	"math/rand/v2"
 	"os"
 	"slices"
 	"sync"
@@ -581,7 +580,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 		if n := len(v.state.files); n > 1 {
 			head = fmt.Sprintf("(%d/%d) ", i+1, n)
 		}
-		if w, h, ok := v.grid.NativeSize(i); ok {
+		if w, h, ok := v.dupes.NativeSizeAt(i); ok {
 			return fmt.Sprintf("%s[%dx%d] %s", head, w, h, u.Path())
 		}
 		return head + u.Path()
@@ -608,7 +607,7 @@ func (v *viewer) clearToDropzone() {
 	v.scanOp.invalidate() // same shape: supersede the token and finish the overlay if a scan is in flight
 
 	v.state.clearFiles()
-	v.grid.ClearInspect()
+	v.dupes.ClearInspect()
 	v.fileSetRevision.advance()
 
 	// Purged, not left to age out: with no files open, every decode the
@@ -946,106 +945,4 @@ func (v *viewer) StepImage(delta int) {
 	if v.slides.Active() {
 		v.slides.Kick()
 	}
-}
-
-func (v *viewer) nextVisibleIndex(from, delta int) int {
-	n := len(v.state.files)
-	if n == 0 {
-		return 0
-	}
-	if members := v.grid.InspectMembers(); len(members) >= 2 && delta != 0 {
-		return stepInMembers(members, from, delta)
-	}
-	if !v.grid.HideDuplicates() || delta == 0 {
-		return from + delta
-	}
-	step := 1
-	if delta < 0 {
-		step = -1
-	}
-	i := from
-	for k := 0; k < absInt(delta); k++ {
-		start := i
-		for {
-			i = (i + step + n) % n
-			if !v.grid.IsHiddenExtra(i) {
-				break
-			}
-			if i == start {
-				return from
-			}
-		}
-	}
-	return i
-}
-
-func (v *viewer) firstVisibleIndex() int {
-	for i := range v.state.files {
-		if !v.grid.IsHiddenExtra(i) {
-			return i
-		}
-	}
-	return 0
-}
-
-func (v *viewer) lastVisibleIndex() int {
-	for i := range slices.Backward(v.state.files) {
-		if !v.grid.IsHiddenExtra(i) {
-			return i
-		}
-	}
-	return 0
-}
-
-func (v *viewer) randomVisibleOther(current int) int {
-	if !v.grid.HideDuplicates() {
-		return randomOtherIndex(len(v.state.files), current)
-	}
-	var vis []int
-	for i := range v.state.files {
-		if i != current && !v.grid.IsHiddenExtra(i) {
-			vis = append(vis, i)
-		}
-	}
-	if len(vis) == 0 {
-		return current
-	}
-	return vis[rand.IntN(len(vis))]
-}
-
-func absInt(n int) int {
-	if n < 0 {
-		return -n
-	}
-	return n
-}
-
-func stepInMembers(members []int, from, delta int) int {
-	n := len(members)
-	if n == 0 {
-		return from
-	}
-	if delta == 0 {
-		return from
-	}
-	pos := 0
-	found := false
-	for i, m := range members {
-		if m == from {
-			pos = i
-			found = true
-			break
-		}
-	}
-	if !found {
-		pos = 0
-	}
-	step := 1
-	if delta < 0 {
-		step = -1
-	}
-	for k := 0; k < absInt(delta); k++ {
-		pos = (pos + step + n) % n
-	}
-	return members[pos]
 }
