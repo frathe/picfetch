@@ -92,7 +92,7 @@ func (g *Overview) FilesChanged() {
 	g.sel.Clear()
 	g.adoptHashGen()
 	g.rebuildGroups()
-	if g.inspectKey != "" {
+	if g.InspectingDuplicates() {
 		src := g.inspectSource()
 		if src < 0 || len(g.groupMembers(src)) < 2 {
 			cur := g.host.CurrentIndex()

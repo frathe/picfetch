@@ -125,7 +125,7 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	browsing := g.browseHost >= 0
 	browseFilter := browsing && g.groupSize(g.browseHost) >= 2
 	nameFilter := g.searching && g.query != ""
-	hide := g.hideDupes && !browsing
+	hide := g.HideDuplicates() && !browsing
 	if nameFilter || hide || browseFilter {
 		needle := strings.ToLower(g.query)
 		hostRep := g.RepresentativeOf(g.browseHost)
@@ -222,7 +222,7 @@ func (g *Overview) syncTopBar() {
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
 		g.countLabel.Show()
-	case g.hideDupes:
+	case g.HideDuplicates():
 		g.searchLabel.SetText(lang.L("Hiding duplicates"))
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
@@ -239,7 +239,7 @@ func (g *Overview) syncTopBar() {
 		g.selLabel.Hide()
 	}
 
-	if !g.searching && g.sel.Len() == 0 && !g.hideDupes && g.browseHost < 0 {
+	if !g.searching && g.sel.Len() == 0 && !g.HideDuplicates() && g.browseHost < 0 {
 		g.searchBar.Hide()
 		g.empty.Hide()
 

@@ -10,8 +10,8 @@ import "fyne.io/fyne/v2"
 // SetUIQueue, because Fyne's test driver is not a marshaling point - its
 // DoFromGoroutine runs the callback inline on the calling (worker)
 // goroutine, so the completion bodies would otherwise touch canvas.Image,
-// widget.Label, g.matches and g.groupSizes concurrently with the test
-// goroutine that spawned the worker.
+// widget.Label, g.matches and the model's group snapshot concurrently
+// with the test goroutine that spawned the worker.
 //
 // A field on Overview rather than a package-level var, for the reason
 // AGENTS.md gives: it is per-instance configuration. Production New

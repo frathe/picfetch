@@ -539,21 +539,21 @@ func TestHashRemaining_ComputesGroupsBeforeTheUIQueue(t *testing.T) {
 	g := newOverview(t, host)
 	unpark := parkDecodes(t, g)
 	g.SetHideDuplicates(true)
-	if got := g.groupComputes.Load(); got != 1 {
-		t.Fatalf("groupComputes after SetHideDuplicates = %d, want 1 (chrome apply)", got)
+	if got := g.dupes.Computes(); got != 1 {
+		t.Fatalf("Computes() after SetHideDuplicates = %d, want 1 (chrome apply)", got)
 	}
 
 	unpark()
 	g.decodes.Wait()
 
-	got := g.groupComputes.Load()
+	got := g.dupes.Computes()
 	if got < 2 {
-		t.Fatalf("groupComputes after Wait = %d, want ≥2 (workers compute before g.ui.Do)", got)
+		t.Fatalf("Computes() after Wait = %d, want ≥2 (workers compute before g.ui.Do)", got)
 	}
 
 	g.Settle()
-	if still := g.groupComputes.Load(); still != got {
-		t.Fatalf("groupComputes after Drain = %d, want %d (UI must not DuplicateGroups again)", still, got)
+	if still := g.dupes.Computes(); still != got {
+		t.Fatalf("Computes() after Drain = %d, want %d (UI must not DuplicateGroups again)", still, got)
 	}
 }
 
@@ -772,10 +772,10 @@ func TestInspectMembers_ReadsSnapshotWithoutRebuild(t *testing.T) {
 	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("InspectMembers() = %v, want [0 1]", got)
 	}
-	before := g.groupComputes.Load()
+	before := g.dupes.Computes()
 	_ = g.InspectMembers()
-	if n := g.groupComputes.Load(); n != before {
-		t.Fatalf("InspectMembers incremented groupComputes from %d to %d", before, n)
+	if n := g.dupes.Computes(); n != before {
+		t.Fatalf("InspectMembers incremented Computes() from %d to %d", before, n)
 	}
 }
 
@@ -964,18 +964,12 @@ func injectHashes(t *testing.T, g *Overview, host *fakeHost, hs []uint64) {
 	if len(hs) != len(host.files) {
 		t.Fatalf("injectHashes: %d hashes for %d files", len(hs), len(host.files))
 	}
-	g.hashMu.Lock()
-	defer g.hashMu.Unlock()
-	if g.hashes == nil {
-		g.hashes = make(map[string]uint64)
-	}
-	if g.native == nil {
-		g.native = make(map[string]image.Point)
-	}
-	g.hashGen = host.Generation()
+	// PutHash adopts the host's current generation, so the next read's
+	// staleness check does not wipe the facts injected here.
 	for i, h := range hs {
-		g.hashes[host.files[i].String()] = h
-		g.native[host.files[i].String()] = image.Pt(1, 1)
+		key := host.files[i].String()
+		g.dupes.PutHash(key, h)
+		g.dupes.PutNativeSize(key, image.Pt(1, 1))
 	}
 }
 
@@ -1509,17 +1503,12 @@ func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
 	host := hostWith(t, "small.jpg", "large.jpg", "unique.jpg")
 	g := newOverview(t, host)
 	const h uint64 = 0x1111111111111111
-	g.hashes = map[string]uint64{
-		host.files[0].String(): h,
-		host.files[1].String(): h,
-		host.files[2].String(): 0x2222222222222222,
-	}
-	g.native = map[string]image.Point{
-		host.files[0].String(): image.Pt(100, 1),
-		host.files[1].String(): image.Pt(400, 1),
-		host.files[2].String(): image.Pt(9999, 1),
-	}
-	g.hashGen = host.gen
+	g.dupes.PutHash(host.files[0].String(), h)
+	g.dupes.PutHash(host.files[1].String(), h)
+	g.dupes.PutHash(host.files[2].String(), 0x2222222222222222)
+	g.dupes.PutNativeSize(host.files[0].String(), image.Pt(100, 1))
+	g.dupes.PutNativeSize(host.files[1].String(), image.Pt(400, 1))
+	g.dupes.PutNativeSize(host.files[2].String(), image.Pt(9999, 1))
 	g.rebuildGroups()
 
 	if g.RepresentativeOf(0) != 1 || g.RepresentativeOf(1) != 1 {
@@ -1545,15 +1534,10 @@ func TestComputeDuplicateGroups_EqualPixelsKeepsLowestIndex(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
 	g := newOverview(t, host)
 	const h uint64 = 0x1111111111111111
-	g.hashes = map[string]uint64{
-		host.files[0].String(): h,
-		host.files[1].String(): h,
-	}
-	g.native = map[string]image.Point{
-		host.files[0].String(): image.Pt(100, 1),
-		host.files[1].String(): image.Pt(100, 1),
-	}
-	g.hashGen = host.gen
+	g.dupes.PutHash(host.files[0].String(), h)
+	g.dupes.PutHash(host.files[1].String(), h)
+	g.dupes.PutNativeSize(host.files[0].String(), image.Pt(100, 1))
+	g.dupes.PutNativeSize(host.files[1].String(), image.Pt(100, 1))
 	g.rebuildGroups()
 	if g.RepresentativeOf(1) != 0 {
 		t.Errorf("RepresentativeOf(1) = %d, want 0 (tie-break)", g.RepresentativeOf(1))
@@ -1564,14 +1548,9 @@ func TestComputeDuplicateGroups_UnknownPixelsLoseToKnown(t *testing.T) {
 	host := hostWith(t, "unknown.jpg", "known.jpg")
 	g := newOverview(t, host)
 	const h uint64 = 0x1111111111111111
-	g.hashes = map[string]uint64{
-		host.files[0].String(): h,
-		host.files[1].String(): h,
-	}
-	g.native = map[string]image.Point{
-		host.files[1].String(): image.Pt(50, 1),
-	}
-	g.hashGen = host.gen
+	g.dupes.PutHash(host.files[0].String(), h)
+	g.dupes.PutHash(host.files[1].String(), h)
+	g.dupes.PutNativeSize(host.files[1].String(), image.Pt(50, 1))
 	g.rebuildGroups()
 	if g.RepresentativeOf(0) != 1 {
 		t.Errorf("RepresentativeOf(0) = %d, want 1 (known size wins)", g.RepresentativeOf(0))
@@ -1582,15 +1561,10 @@ func TestSetHideDuplicates_JumpsToHighestResolution(t *testing.T) {
 	host := hostWith(t, "small.jpg", "large.jpg")
 	g := newOverview(t, host)
 	const h uint64 = 0x1111111111111111
-	g.hashes = map[string]uint64{
-		host.files[0].String(): h,
-		host.files[1].String(): h,
-	}
-	g.native = map[string]image.Point{
-		host.files[0].String(): image.Pt(100, 1),
-		host.files[1].String(): image.Pt(400, 1),
-	}
-	g.hashGen = host.gen
+	g.dupes.PutHash(host.files[0].String(), h)
+	g.dupes.PutHash(host.files[1].String(), h)
+	g.dupes.PutNativeSize(host.files[0].String(), image.Pt(100, 1))
+	g.dupes.PutNativeSize(host.files[1].String(), image.Pt(400, 1))
 	host.index = 0
 
 	g.SetHideDuplicates(true)

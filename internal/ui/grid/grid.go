@@ -23,6 +23,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/decodepool"
+	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/selection"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -222,53 +223,33 @@ type Overview struct {
 	// real or test; it has nothing to do with which one marshals fyne.Do.
 	cellIDs sync.Map
 
-	// hashes maps URI string → dHash. Not stored in thumbs: a hash is 8
-	// bytes and must survive thumbnail eviction. native maps URI string
-	// → EXIF-oriented pixel size (Dx, Dy) for the same generation;
-	// absent means unknown. Thumbnails are capped, so size cannot be
-	// recovered from the thumb cache. hashGen is the host Generation
-	// those entries belong to; a newer drop wipes hashes, hashFailed,
-	// and native. dupeDist is grouped with these: computeDuplicateGroups
-	// snapshots it under the same lock as the maps, because hashRemaining
-	// workers read it off the UI goroutine.
-	hashMu sync.Mutex
-	hashes map[string]uint64
-	native map[string]image.Point
-	// hashFailed are URIs whose thumbnail decode already failed this
-	// generation. hashRemaining must not retry them: mixed-format drops
-	// leave unreadable files, and retrying on every Shift+D re-raises
-	// the analyzing toast with no CPU work left to do.
-	hashFailed map[string]struct{}
-	hashGen    uint64
-
-	// hideDupes hides non-representative duplicates; dupeDist is the
-	// Hamming threshold DuplicateGroups uses. groupSizes/groupReps are
-	// per host index (0 = unhashed). hashing dedups in-flight hashRemaining
-	// jobs by URI string. hashJobs counts those pool jobs so the last one
-	// can finishBrowse. hideApply stays set until the in-flight UI
-	// install returns, so an idle fyne.Do cannot re-arm mid-apply and
-	// queue one install per file. hideApplyAt floors mid-window
-	// installs so the event loop still sees input while hashing.
-	hideDupes   bool
+	// dupes owns which files are duplicates of which: the hashes and
+	// native sizes, the Hamming threshold, the installed group snapshot,
+	// and the hide-duplicates and inspect modes. The grid constructs it
+	// and feeds it from the hashing pass, which stays here because it is
+	// bound to the decode pool and the overlay.
+	//
+	// hashing dedups in-flight hashRemaining jobs by URI string.
+	// hashJobs counts those pool jobs so the last one can finishBrowse.
+	// hideApply stays set until the in-flight UI install returns, so an
+	// idle fyne.Do cannot re-arm mid-apply and queue one install per
+	// file. hideApplyAt floors mid-window installs so the event loop
+	// still sees input while hashing.
+	dupes       *dupes.Model
 	hideApply   atomic.Bool
 	hideApplyAt atomic.Int64
 	// browseHost is the host index being browsed, or -1 when browse is
 	// off. Zero is a valid file index - New MUST set this to -1.
+	//
+	// Browse is the grid's own mode, deliberately not the model's: it
+	// filters the overlay and every Close clears it, while the model's
+	// inspect session (a file committed out of the variants grid, which
+	// the viewer then loops with InspectMembers and Escape reopens
+	// browse from) survives closeOverlay(false) - the Return/click
+	// commit - and ends only on Close()/G.
 	browseHost int
-	// inspectKey is the URI string of a file committed from the
-	// variants grid, or "" when inspect is off. The viewer loops
-	// InspectMembers and Escape reopens browse. Distinct from
-	// browseHost: browse filters the overlay; inspect survives
-	// closeOverlay(false) (Return/click commit), not Close()/G.
-	inspectKey string
-	dupeDist   int
-	groupSizes []int
-	groupReps  []int
 	hashing    sync.Map
 	hashJobs   atomic.Int32
-	// groupComputes counts computeDuplicateGroups calls so tests can
-	// tell a hash worker computed off the UI queue rather than inside it.
-	groupComputes atomic.Int32
 }
 
 // dupBadge is the group-size chip on a grid cell: white digits on a black
@@ -344,10 +325,7 @@ func New(host Host, win fyne.Window) *Overview {
 		thumbs:     imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
 		decodes:    decodepool.New[*fyne.Container, int](thumbConcurrency),
 		ui:         fyneQueue{},
-		hashes:     make(map[string]uint64),
-		hashFailed: make(map[string]struct{}),
-		native:     make(map[string]image.Point),
-		dupeDist:   imaging.DuplicateMaxDistance,
+		dupes:      dupes.New(hostSet{host: host}),
 		browseHost: -1,
 	}
 
