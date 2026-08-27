@@ -33,6 +33,8 @@ dependency, and one upstream library bug.
 - **Fix**: watch for the upstream release containing PR #16 and bump. If it
   stalls, add a `replace` to the patched fork — one line, immediately
   shippable. Either way, add a note in `AGENTS.md` so the pin isn't forgotten.
+- **Mitigation (2026-08-26):** `go.mod` replace → `frathe/heic@0ac0a39` until
+  upstream releases PR #16. Remove replace on bump.
 
 ### 2. The duplicate-visibility model lives inside the grid feature
 
