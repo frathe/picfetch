@@ -374,10 +374,15 @@ func (g *Overview) SetDuplicateDistance(n int) {
 	if n > maxDuplicateDistance {
 		n = maxDuplicateDistance
 	}
-	if g.dupeDist == n {
+	g.hashMu.Lock()
+	same := g.dupeDist == n
+	if !same {
+		g.dupeDist = n
+	}
+	g.hashMu.Unlock()
+	if same {
 		return
 	}
-	g.dupeDist = n
 	if g.browseHost >= 0 {
 		g.finishBrowse()
 	} else if g.hideDupes {
@@ -387,6 +392,12 @@ func (g *Overview) SetDuplicateDistance(n int) {
 		g.rebuildGroups()
 	}
 	g.fireDupeState()
+}
+
+func (g *Overview) duplicateDistance() int {
+	g.hashMu.Lock()
+	defer g.hashMu.Unlock()
+	return g.dupeDist
 }
 
 // IsHiddenExtra reports whether hostIndex is a non-representative member of
@@ -420,10 +431,10 @@ func (g *Overview) groupSize(hostIndex int) int {
 }
 
 func (g *Overview) rebuildGroups() {
-	g.groupSizes, g.groupReps = g.computeDuplicateGroups()
+	g.groupSizes, g.groupReps, _ = g.computeDuplicateGroups()
 }
 
-func (g *Overview) computeDuplicateGroups() (sizes, reps []int) {
+func (g *Overview) computeDuplicateGroups() (sizes, reps []int, dist int) {
 	g.groupComputes.Add(1)
 	n := g.host.FileCount()
 	sizes = make([]int, n)
@@ -438,7 +449,7 @@ func (g *Overview) computeDuplicateGroups() (sizes, reps []int) {
 	hs := make([]uint64, 0, n)
 	hashed := make([]bool, n)
 	px := make([]int, n)
-	dist := g.dupeDist
+	dist = g.dupeDist
 	for i := range n {
 		u := g.host.FileAt(i)
 		if h, ok := g.hashes[u.String()]; ok {
@@ -473,7 +484,7 @@ func (g *Overview) computeDuplicateGroups() (sizes, reps []int) {
 			sizes[i] = 1
 		}
 	}
-	return sizes, reps
+	return sizes, reps, dist
 }
 
 func (g *Overview) displayIndexOf(hostIdx int) int {
@@ -496,12 +507,15 @@ func (g *Overview) displayIndexOf(hostIdx int) int {
 // still waits, and they do not Add to a full thumbnail cache.
 //
 // DuplicateGroups runs on the worker before g.ui.Do. The callback only
-// installs that snapshot and filters; hideApply stays set until it
-// returns so an idle UI cannot re-arm mid-apply. Mid-window applies are
-// also floored by hideApplyMinInterval; the last job always applies.
-// Browse still waits for the last job (finishBrowse) so a partial group
-// is never shown. g.ui.Do stays inside this Go body: Settle's barrier is
-// decodes.Wait, which only covers completions the pool spawned.
+// installs that snapshot and filters, unless dupeDist changed since the
+// snapshot (settings slider while hashing): then it recomputes so the
+// install cannot undo the live regroup. hideApply stays set until the
+// callback returns so an idle UI cannot re-arm mid-apply. Mid-window
+// applies are also floored by hideApplyMinInterval; the last job always
+// applies. Browse still waits for the last job (finishBrowse) so a
+// partial group is never shown. g.ui.Do stays inside this Go body:
+// Settle's barrier is decodes.Wait, which only covers completions the
+// pool spawned.
 func (g *Overview) hashRemaining() int {
 	gen := g.host.Generation()
 	g.wipeHashesIfStale()
@@ -548,7 +562,7 @@ func (g *Overview) hashRemaining() int {
 				if !g.shouldScheduleHideApply(remaining) {
 					return
 				}
-				sizes, reps := g.computeDuplicateGroups()
+				sizes, reps, snapDist := g.computeDuplicateGroups()
 				g.ui.Do(func() {
 					defer g.hideApply.Store(false)
 					if gen != g.host.Generation() {
@@ -563,6 +577,9 @@ func (g *Overview) hashRemaining() int {
 					}
 					if g.hideDupes {
 						keepHost := g.fileIndex(g.highlight)
+						if g.duplicateDistance() != snapDist {
+							sizes, reps, _ = g.computeDuplicateGroups()
+						}
 						g.groupSizes, g.groupReps = sizes, reps
 						g.applyVisibleFilter(false, keepHost)
 						if !g.InspectingDuplicates() {

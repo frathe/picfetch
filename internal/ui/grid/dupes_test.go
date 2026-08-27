@@ -626,6 +626,41 @@ func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 	if g.count() != 1 {
 		t.Fatalf("count() = %d after restoring default distance, want 1", g.count())
 	}
+	g.Settle()
+}
+
+// TestSetDuplicateDistance_HashWorkerInstallKeepsCurrentDistance is the
+// production interleaving CI's race detector caught in
+// TestSetDuplicateDistance_RegroupsLive: hide-on hashing still has
+// workers (native-size probes, because only hashes were injected), the
+// user moves the distance slider, then those workers' g.ui.Do installs
+// land. A snapshot computed at the old distance would undo the slider.
+func TestSetDuplicateDistance_HashWorkerInstallKeepsCurrentDistance(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	a, b := nearGrayPair()
+	if d := imaging.Hamming(imaging.DifferenceHash(a), imaging.DifferenceHash(b)); d < 1 || d > imaging.DuplicateMaxDistance {
+		t.Fatalf("setup Hamming = %d, want in 1..%d", d, imaging.DuplicateMaxDistance)
+	}
+	g.rememberHash(host.files[0], a)
+	g.rememberHash(host.files[1], b)
+
+	g.SetHideDuplicates(true)
+	if g.count() != 1 {
+		t.Fatalf("count() = %d at default distance, want 1 (near hashes grouped)", g.count())
+	}
+
+	g.decodes.Wait()
+
+	g.SetDuplicateDistance(0)
+	if g.count() != 2 {
+		t.Fatalf("count() = %d at distance 0, want 2 (exact match only)", g.count())
+	}
+
+	g.Settle()
+	if g.count() != 2 {
+		t.Fatalf("count() = %d after hash-worker install, want 2 (must not revert to default-distance grouping)", g.count())
+	}
 }
 
 func TestSetBrowsingDuplicates_ShowsOnlyTheGroup(t *testing.T) {

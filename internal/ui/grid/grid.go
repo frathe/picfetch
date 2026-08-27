@@ -228,7 +228,9 @@ type Overview struct {
 	// absent means unknown. Thumbnails are capped, so size cannot be
 	// recovered from the thumb cache. hashGen is the host Generation
 	// those entries belong to; a newer drop wipes hashes, hashFailed,
-	// and native.
+	// and native. dupeDist is grouped with these: computeDuplicateGroups
+	// snapshots it under the same lock as the maps, because hashRemaining
+	// workers read it off the UI goroutine.
 	hashMu sync.Mutex
 	hashes map[string]uint64
 	native map[string]image.Point
