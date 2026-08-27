@@ -168,8 +168,9 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 }
 
 // displayIndexOfHost maps a host index to a display index, or -1 when that
-// file is not currently shown. Distinct from displayIndexOf, which returns
-// 0 on a miss (finishBrowse's "scroll somewhere" fallback).
+// file is not currently shown (filtered out by search or hide-duplicates,
+// or out of range). Callers that want a fallback cell on a miss - the
+// first cell, or the representative - apply it themselves.
 func (g *Overview) displayIndexOfHost(hostIdx int) int {
 	if hostIdx < 0 {
 		return -1

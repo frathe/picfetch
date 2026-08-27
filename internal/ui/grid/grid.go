@@ -542,8 +542,13 @@ func (g *Overview) Toggle() {
 	// Start the highlight on whichever image is currently on screen, and
 	// scroll it into view - setHighlight also refreshes the grid, which is
 	// what actually paints the ring. Host index to display index: hide-dupes
-	// (and search) renumber the cells.
-	g.setHighlight(g.displayIndexOf(g.host.CurrentIndex()))
+	// (and search) renumber the cells. Default to the first cell when the
+	// current file isn't shown (e.g. it's a hidden extra).
+	id := 0
+	if d := g.displayIndexOfHost(g.host.CurrentIndex()); d >= 0 {
+		id = d
+	}
+	g.setHighlight(id)
 	g.overlay.Show()
 	g.host.ForceRepaint()
 	g.fireVisibility()

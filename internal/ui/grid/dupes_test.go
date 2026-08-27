@@ -1211,7 +1211,11 @@ func TestSourceDuplicateGroupSize_UnknownUntilGroupsBuilt(t *testing.T) {
 	host.index = 2
 	// grid is visible: source is the highlight, not host.index.
 	// Move the ring to the unique cell (display index of host 2).
-	g.setHighlight(g.displayIndexOf(2))
+	id := g.displayIndexOfHost(2)
+	if id < 0 {
+		t.Fatal("unique cell should be visible")
+	}
+	g.setHighlight(id)
 	if got := g.SourceDuplicateGroupSize(); got != 1 {
 		t.Fatalf("unique cell size = %d, want 1", got)
 	}
@@ -1680,10 +1684,10 @@ func TestHandleKey_ReturnFromBrowseCommitsExtra(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
 	g.SetBrowsingDuplicates(true)
-	if g.displayIndexOf(1) < 0 {
+	if g.displayIndexOfHost(1) < 0 {
 		t.Fatal("extra should be visible while browsing")
 	}
-	g.setHighlight(g.displayIndexOf(1))
+	g.setHighlight(g.displayIndexOfHost(1))
 	host.shown = nil
 	host.index = 1 // what the viewer would set after ShowImage; jump uses CurrentIndex
 
@@ -1714,7 +1718,11 @@ func TestOnSelected_ClickFromBrowseCommitsExtra(t *testing.T) {
 	g.SetBrowsingDuplicates(true)
 	host.shown = nil
 	host.index = 1
-	click(g, host, g.displayIndexOf(1), 0)
+	d := g.displayIndexOfHost(1)
+	if d < 0 {
+		t.Fatal("extra should be visible while browsing")
+	}
+	click(g, host, d, 0)
 
 	if !g.InspectingDuplicates() || g.Visible() || g.BrowsingDuplicates() {
 		t.Fatalf("inspect=%v visible=%v browse=%v", g.InspectingDuplicates(), g.Visible(), g.BrowsingDuplicates())

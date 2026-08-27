@@ -23,13 +23,9 @@ const hideApplyMinInterval = 250 * time.Millisecond
 // Hash storage lives on Overview (hashMu / hashes / hashGen), not in the
 // thumbnail ByteCache: a hash is 8 bytes and must survive thumbnail eviction.
 
-func (g *Overview) ensureHashGenLocked(gen uint64) {
-	if g.hashGen != gen {
-		g.hashes = make(map[string]uint64)
-		g.hashFailed = make(map[string]struct{})
-		g.native = make(map[string]image.Point)
-		g.hashGen = gen
-	}
+// ensureMapsLocked allocates hashes, hashFailed, and native if any of them
+// is nil, leaving any existing entries untouched. Callers must hold hashMu.
+func (g *Overview) ensureMapsLocked() {
 	if g.hashes == nil {
 		g.hashes = make(map[string]uint64)
 	}
@@ -39,6 +35,16 @@ func (g *Overview) ensureHashGenLocked(gen uint64) {
 	if g.native == nil {
 		g.native = make(map[string]image.Point)
 	}
+}
+
+func (g *Overview) ensureHashGenLocked(gen uint64) {
+	if g.hashGen != gen {
+		g.hashes = make(map[string]uint64)
+		g.hashFailed = make(map[string]struct{})
+		g.native = make(map[string]image.Point)
+		g.hashGen = gen
+	}
+	g.ensureMapsLocked()
 }
 
 // adoptHashGen records the host's current generation without dropping
@@ -52,15 +58,7 @@ func (g *Overview) adoptHashGen() {
 	g.hashMu.Lock()
 	defer g.hashMu.Unlock()
 	g.hashGen = g.host.Generation()
-	if g.hashes == nil {
-		g.hashes = make(map[string]uint64)
-	}
-	if g.hashFailed == nil {
-		g.hashFailed = make(map[string]struct{})
-	}
-	if g.native == nil {
-		g.native = make(map[string]image.Point)
-	}
+	g.ensureMapsLocked()
 }
 
 func (g *Overview) rememberHash(u fyne.URI, img image.Image) {
@@ -282,7 +280,10 @@ func (g *Overview) finishBrowse() {
 	}
 	g.applyFilter()
 	if g.visible {
-		id := g.displayIndexOf(g.browseHost)
+		id := 0
+		if d := g.displayIndexOfHost(g.browseHost); d >= 0 {
+			id = d
+		}
 		g.setHighlight(id)
 		g.wrap.ScrollTo(id)
 	}
@@ -485,18 +486,6 @@ func (g *Overview) computeDuplicateGroups() (sizes, reps []int, dist int) {
 		}
 	}
 	return sizes, reps, dist
-}
-
-func (g *Overview) displayIndexOf(hostIdx int) int {
-	if g.matches == nil {
-		return hostIdx
-	}
-	for i, h := range g.matches {
-		if h == hostIdx {
-			return i
-		}
-	}
-	return 0
 }
 
 // hashRemaining hashes every file that does not already have a dHash,
