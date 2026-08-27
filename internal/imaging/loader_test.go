@@ -100,6 +100,32 @@ func TestIsSupportedImage(t *testing.T) {
 	}
 }
 
+func TestSupportedExtensions_AllAcceptedByIsSupportedImage(t *testing.T) {
+	for _, ext := range SupportedExtensions() {
+		u := fakeURI{name: "a" + ext, ext: ext}
+		if !IsSupportedImage(u) {
+			t.Errorf("IsSupportedImage(%+v) = false for extension %q returned by SupportedExtensions()", u, ext)
+		}
+	}
+}
+
+// TestSupportedExtensions_ReturnsDefensiveCopy proves a caller mutating the
+// returned slice - as scripts/plistdoctypes does not, but a future caller
+// might - can't corrupt the package's own supportedExtensions list for a
+// later call.
+func TestSupportedExtensions_ReturnsDefensiveCopy(t *testing.T) {
+	first := SupportedExtensions()
+	if len(first) == 0 {
+		t.Fatal("SupportedExtensions() returned no extensions")
+	}
+	first[0] = "*** corrupted ***"
+
+	second := SupportedExtensions()
+	if second[0] == "*** corrupted ***" {
+		t.Fatal("mutating a previously returned slice affected a later call")
+	}
+}
+
 // --- LoadImage ----------------------------------------------------------
 
 func writeTempFile(t *testing.T, name string, data []byte) string {
@@ -523,8 +549,7 @@ func TestLoadImage(t *testing.T) {
 		// any error other than InvalidDimensionsError would mean the header
 		// check didn't catch it first and a full decode was attempted (and
 		// failed) instead.
-		var dimErr *InvalidDimensionsError
-		if !errors.As(err, &dimErr) {
+		if _, ok := errors.AsType[*InvalidDimensionsError](err); !ok {
 			t.Fatalf("err = %v, want an *InvalidDimensionsError", err)
 		}
 	})
@@ -893,8 +918,7 @@ func TestReadAndProbeRejectsGigapixelSVGBeforeDecoding(t *testing.T) {
 
 	_, _, err := ReadAndProbe(context.Background(), storage.NewFileURI(path))
 
-	var dimErr *InvalidDimensionsError
-	if !errors.As(err, &dimErr) {
+	if _, ok := errors.AsType[*InvalidDimensionsError](err); !ok {
 		t.Fatalf("err = %v, want InvalidDimensionsError - 3.6 gigapixels must be refused before allocating", err)
 	}
 }
@@ -909,8 +933,7 @@ func TestReadAndProbeRejectsOverflowingSVGDimensions(t *testing.T) {
 
 	_, _, err := ReadAndProbe(context.Background(), storage.NewFileURI(path))
 
-	var dimErr *InvalidDimensionsError
-	if !errors.As(err, &dimErr) {
+	if _, ok := errors.AsType[*InvalidDimensionsError](err); !ok {
 		t.Fatalf("err = %v, want InvalidDimensionsError", err)
 	}
 }

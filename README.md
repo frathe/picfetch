@@ -36,6 +36,11 @@ set with the keyboard.
   through embedded WASM (no cgo), so they need no system libraries and don't
   complicate cross-compilation. SVG is rasterized on the fly and re-rendered
   as you zoom, so it stays sharp at any zoom level
+- On macOS, the same format list also opens through Finder's **Open With**,
+  a drop on the Dock icon, `open -a`, or double-clicking a file already
+  associated with PicFetch — whether PicFetch is already running or being
+  launched cold by that click, and a folder can be dropped on the Dock icon
+  too
 - Animated GIFs play back frame-by-frame at their encoded speed, correctly
   compositing each frame per its disposal method (a partial-region update
   won't leave stale pixels or wrongly clear the whole frame); playback stops

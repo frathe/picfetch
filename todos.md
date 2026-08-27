@@ -8,6 +8,15 @@
 
 #### Bugfix
 
+- macOS "Open With", dropping a file on the Dock icon, `open -a`, and
+  double-clicking a file already associated with PicFetch now actually open
+  it in the app — every one of those was silently ignored before, whether
+  PicFetch was already running or being launched cold by the click itself.
+  These paths also now cover the app's whole supported format list, not just
+  the seven extensions Finder used to offer them for: HEIC, AVIF, TIFF, SVG,
+  ICO, BMP, and every RAW format PicFetch reads are all included now, and a
+  folder can be dropped on the Dock icon the same as a file.
+
 #### Internal
 
 - Extracted the duplicate-visibility model out of `internal/ui/grid` into a
@@ -26,10 +35,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### on MacOS the basic functionality open with does not work also drag&drop of images onto the (not running) App does not work
-When selecting an image right clicking it and selecting open with PicView the image is not opened.
-When dropping images on the app icon they also do not get opened.
 
 ### `viewer.FileAt` is unguarded and read off the UI goroutine
 

@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
 )
@@ -44,9 +45,17 @@ func Run(application fyne.App, initial []fyne.URI) {
 	application.Lifecycle().SetOnStarted(func() {
 		syncNativeMenuBar(view.win.MainMenu())
 		view.maybeShowWhatsNew()
-		if len(initial) > 0 {
-			view.handleDrop(initial)
-		}
+
+		// Install before opening, not after: a delivery arriving in the
+		// gap between the two would have nobody to take it. Installing
+		// also flushes whatever the cold-start Apple Event queued while
+		// Fyne was still building this window, and that flush shares
+		// pendingInitial with openInitialFiles - so a launch carrying both
+		// command-line paths and an "Open With" ends in one scan, not two.
+		// See internal/ui/openwith.go.
+		view.pendingInitial = initial
+		view.installOpenWithHandler()
+		view.openInitialFiles()
 	})
 	application.Run()
 }
@@ -93,6 +102,14 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.sortOp.lifecycle.invalidate()
 		view.vector.lifecycle.invalidate()
 		view.updateOp.lifecycle.invalidate()
+
+		// Same reasoning as the invalidations above, for the one piece of
+		// state that outlives the viewer: openwith's queue is
+		// process-global, so a delivery landing mid-shutdown would
+		// otherwise reach a viewer whose window is already going away.
+		// Anything still buffered stays buffered - SetHandler(nil) does
+		// not discard it - which costs nothing, as the process is exiting.
+		openwith.SetHandler(nil)
 
 		session.Save(application, view.state.unsortedFiles)
 		preferences.Save(application, view.currentPreferences())

@@ -445,6 +445,16 @@ type viewer struct {
 	// process, on the developer's own desktop.
 	wallpaperDir string
 
+	// pendingInitial is the file set the launch itself carried - the
+	// command-line paths Run was handed, plus anything macOS delivered as
+	// an "Open With" before the viewer existed (see internal/openwith) -
+	// waiting for the event loop to come up before it is opened. Run fills
+	// it in SetOnStarted and openwith.go drains it; whichever of that
+	// file's two paths reaches it first takes the whole batch and clears
+	// it, which is what keeps a launch carrying both kinds of file to a
+	// single scan. Only ever touched on the UI goroutine.
+	pendingInitial []fyne.URI
+
 	// update is the GitHub Releases client used by maybeStartUpdateCheck
 	// (autoupdate.go). nil until the opt-in is on and a Client is built
 	// (production) or a test assigns one. updateDir is the stage directory

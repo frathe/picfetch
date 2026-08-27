@@ -32,17 +32,47 @@ import (
 	_ "golang.org/x/image/webp"      // registers WebP with image.Decode
 )
 
+// supportedExtensions lists every filename extension IsSupportedImage
+// recognizes, lowercase with a leading dot, in the order SupportedExtensions
+// reports them. scripts/plistdoctypes renders this same list into the
+// packaged macOS app's CFBundleTypeExtensions, so this is the one place a
+// new format's extensions need adding.
+var supportedExtensions = []string{
+	".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".ico", ".xpm",
+	".heic", ".heif", ".avif", ".svg",
+	".cr2", ".cr3", ".nef", ".nrw", ".arw", ".dng", ".orf", ".rw2", ".raf", ".pef", ".srw", ".raw",
+}
+
+// supportedExtensionSet is supportedExtensions as a lookup set, built once
+// at init rather than per call.
+var supportedExtensionSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(supportedExtensions))
+	for _, ext := range supportedExtensions {
+		set[ext] = struct{}{}
+	}
+	return set
+}()
+
+// SupportedExtensions returns every filename extension IsSupportedImage
+// recognizes, lowercase with a leading dot, in declared order. The result is
+// a defensive copy - the caller mutating it can't affect supportedExtensions
+// itself. scripts/plistdoctypes is the one caller outside this package,
+// using it to keep the packaged macOS app's CFBundleTypeExtensions list from
+// drifting out of sync with the decoders actually registered above.
+func SupportedExtensions() []string {
+	out := make([]string, len(supportedExtensions))
+	copy(out, supportedExtensions)
+	return out
+}
+
 func IsSupportedImage(u fyne.URI) bool {
-	// Extension is checked first because it's a pure string comparison.
-	// MimeType(), by contrast, opens and content-sniffs the resource
-	// whenever the extension isn't in Go's built-in MIME table (true for
-	// every directory, since they have no extension, and for common
-	// non-image clutter such as .DS_Store) - checking it first turned a
-	// recursive folder scan into thousands of needless file opens.
-	switch strings.ToLower(u.Extension()) {
-	case ".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".ico", ".xpm",
-		".heic", ".heif", ".avif", ".svg",
-		".cr2", ".cr3", ".nef", ".nrw", ".arw", ".dng", ".orf", ".rw2", ".raf", ".pef", ".srw", ".raw":
+	// Extension is checked first because it's a pure map lookup on a
+	// string. MimeType(), by contrast, opens and content-sniffs the
+	// resource whenever the extension isn't in Go's built-in MIME table
+	// (true for every directory, since they have no extension, and for
+	// common non-image clutter such as .DS_Store) - checking it first
+	// turned a recursive folder scan into thousands of needless file opens.
+	if _, ok := supportedExtensionSet[strings.ToLower(u.Extension())]; ok {
 		return true
 	}
 

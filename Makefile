@@ -90,7 +90,7 @@ clean: ## Remove all build artifacts
 
 package-mac: ## Package a macOS .app bundle (native, no Docker) into bin/
 	fyne package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
-	python3 scripts/patch_macos_document_types.py "$(APP_NAME).app/Contents/Info.plist"
+	go run ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
 	mkdir -p $(BIN_DIR)
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"
 	mv "$(APP_NAME).app" "$(BIN_DIR)/"

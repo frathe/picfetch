@@ -9,9 +9,11 @@ Standing rules (data flow, concurrency, conventions, build) live in
 
 ### `github.com/frathe/picfetch` (package main)
 
-Entry point only. `main.go` builds the `fyne.App`, loads embedded
+Entry point only. `main.go` calls `openwith.Install` (first statement, see
+`internal/openwith`), builds the `fyne.App`, loads embedded
 `translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
-`ui.Run`.
+`ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
+test binary that links the Cocoa driver.
 
 ### `internal/ui`
 
@@ -46,6 +48,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `menu.go` | Menu bar composition: File, Favorites, Actions, Window, Help. Grid/slideshow mutual exclusion lives here, not in those packages. |
 | `actionmenu.go` | Actions-menu Checked/Disabled and handlers (`applyActionsMenuState`). |
 | `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images` / `filescan.Siblings`; scan lifecycle is `viewer.scanOp`. |
+| `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. |
 | `memlimits.go` | `settings` value plus memory-limit get/set that retune `imgCache`, grid thumb cache, `imaging.SetMaxEncodedBytes`, and the SVG raster cap. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync`, `gridSink`, and the favorite-preview `completion.Signal`. |
 | `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `resizeToImage` / `syncWindowToZoom`. |
@@ -92,7 +95,7 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | File | Responsibility |
 |------|----------------|
 | `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` (displayed image) vs `AddIfFits` (speculative preload). |
-| `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `DecodeLoaded`, `LoadImage`, `IsSupportedImage`, `MaxEncodedBytes` / `InputTooLargeError`. |
+| `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `DecodeLoaded`, `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
 | `vector.go` | `Vector` / `ParseVector` / `RasterAt`. |
@@ -230,6 +233,21 @@ before calling this.
 | `darwin.go` / `other.go` | AppKit set-desktop-image / stub. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
+### `internal/openwith`
+
+macOS "Open With", Dock drop, `open -a`, and double-clicked associations —
+none of which put files in `argv` for a bundled `.app`. AppKit turns the
+`kAEOpenDocuments` Apple Event into a delegate call, which `Install` grafts
+onto GLFW's delegate class. That event fires inside `glfw.Init()`, before
+`SetOnStarted`, so `Deliver` buffers until `SetHandler` installs the
+viewer's handler and flushes in the same critical section.
+
+| File | Responsibility |
+|------|----------------|
+| `openwith.go` | The queue (`Deliver` / `SetHandler`) and `URIsFromFileURLs`. |
+| `openwith_darwin.{go,h,m}` | `Install` / `DelegateRespondsToOpen` + the `application:openURLs:` / `application:openFiles:` graft. |
+| `openwith_notdarwin.go` | Both report false; other OSes use `argv`. |
+
 ### `internal/filescan`
 
 Recursive image gather for drop/open, plus a non-recursive sibling listing
@@ -352,6 +370,8 @@ see `AGENTS.md`.
 - "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
 - "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate.go` + `help/whatsnew.go`. Off by default (`preferences.CheckForUpdates`). Apply is OnStopped, not a relaunch. GitHub TUF bootstrap expiry: `tufroot.go`.
 - "How are GitHub release notes written?" → `todos.md` `## Done` + `scripts/releasenotes` + `make release` + `.github/workflows/release.yml` `body_path`.
+- "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
+- "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.closeFiles`.

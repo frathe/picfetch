@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -145,6 +146,15 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 // hour.
 func drain(t *testing.T, v *viewer) {
 	t.Helper()
+
+	// Before anything else, and unlike every other row here: the open-with
+	// handler is the one piece of state this viewer installs *outside*
+	// itself. internal/openwith wraps a single package-level queue - one
+	// NSApp callback per process - so a viewer left installed there would
+	// go on receiving a later test's delivery and drop files into a window
+	// this test has already closed. Clearing it first also means nothing
+	// can start a fresh scan behind the waits below.
+	openwith.SetHandler(nil)
 
 	// Supersede any in-flight decode/retry chain first, so a load that was
 	// deliberately abandoned mid-test (a broken-file retry loop, say) stops

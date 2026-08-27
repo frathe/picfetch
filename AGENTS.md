@@ -14,7 +14,7 @@
 - Feature packages such as `internal/ui/grid`, `deletion`, and `slideshow` own their widgets/state and declare narrow consumer-side `Host` interfaces. Do not pass them `appState` or invent a shared controller/registry.
 - Cross-feature decisions stay in `internal/ui`: for example, `batch.go` joins grid selection to deletion/clipboard, and `togglePictureFrameMode` prevents grid/slideshow overlap.
 - Feature construction order in `internal/ui/features.go` and overlay order in `build.go` are load-bearing; preserve explicit composition rather than auto-registration.
-- Input flows through CLI/open/drop → `handleDrop` scan → `filesort.Order` → `ShowImage` → `internal/imaging` probe/decode/orient/cache → Fyne display. Reuse this path rather than creating parallel open/load logic.
+- Input flows through CLI/open/drop → `handleDrop` scan → `filesort.Order` → `ShowImage` → `internal/imaging` probe/decode/orient/cache → Fyne display. Reuse this path rather than creating parallel open/load logic. On macOS, "Open With"/Dock drop/`open -a`/double-click arrive as an Apple Event instead of argv; `internal/openwith`'s queue + `internal/ui/openwith.go` fold that into the same `handleDrop` call, argv files first.
 - `internal/imaging` is viewer-independent. Full images and grid thumbnails use separate byte-budgeted caches; preserve `ByteCache.Add` (displayed image) versus `AddIfFits` (speculative preload) semantics.
 - Session file sets use `internal/session`/Fyne cache; standing settings and geometry use `internal/preferences`/Fyne preferences. Startup wiring is in `internal/ui/startup.go`, shutdown persistence in `run.go`.
 - OS integrations live behind dispatcher vars in `internal/{clipboard,filepicker,trash,wallpaper}` with build-tagged platform files. Tests must replace them via `internal/uitest` stubs, never touch the real desktop.
@@ -39,6 +39,7 @@
 ## Build and Verification
 
 - Use the Makefile: `make run`, `make build`, `make test`, `make fmt`, `make vet`; `make help` lists packaging/security targets.
+- `make package-mac` runs `go run ./scripts/plistdoctypes` to derive the packaged app's `CFBundleTypeExtensions` from `imaging.SupportedExtensions()`; it no longer depends on `python3`.
 - Match CI before handoff: `make fmt-check` (`goimports -local github.com/frathe/picfetch`), `go vet ./...`, `go build ./...`, then `go test -timeout 20m -race ./...` from the repository root.
 - **HEIC decoder pin:** `go.mod` replaces `github.com/gen2brain/heic` with a fork commit containing [gen2brain/heic#16](https://github.com/gen2brain/heic/pull/16) (fixes native memory leak [issue #15](https://github.com/gen2brain/heic/issues/15)). Remove the `replace` and bump to an official release once upstream tags a version that includes that fix. Optional manual RSS check: `PICFETCH_HEIC_LEAK_TEST=1 go test -tags=heicleak -run TestHEICDecode_DoesNotGrowRSSUnbounded ./internal/imaging/...`.
 - Run focused tests while iterating, e.g. `go test -run TestE2E -v ./internal/ui/...`; the complete suite remains the final check.

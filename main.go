@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/ui"
 )
 
@@ -63,6 +64,24 @@ func argsToURIs(args []string) []fyne.URI {
 }
 
 func main() {
+	// First statement in the process, before the fyne.App exists.
+	// openwith.Install grafts the "Open With" methods onto GLFW's
+	// application delegate class, and -[NSApplication setDelegate:] caches
+	// which selectors its delegate answers at the moment it is called -
+	// which GLFW does inside glfw.Init(), so a method grafted after that
+	// is never consulted no matter that the runtime can now find it.
+	// app.NewWithID below creates no window and so never reaches initGLFW,
+	// which is what makes this position both early enough and safe.
+	//
+	// The result is deliberately dropped rather than logged: it is false on
+	// every non-macOS build by design, so logging it would put a line in
+	// every Linux and Windows launch that means nothing, and on macOS false
+	// says only that the Cocoa driver isn't linked or that the methods were
+	// already grafted. Neither is actionable, and neither is a reason not
+	// to start - the app simply behaves as it did before, ignoring
+	// "Open With".
+	openwith.Install()
+
 	application := app.NewWithID(appID)
 
 	if err := lang.AddTranslationsFS(translationsFS, "translations"); err != nil {
