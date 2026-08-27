@@ -27,6 +27,10 @@
 
 ## TODO
 
+### on MacOS the basic functionality open with does not work also drag&drop of images onto the (not running) App does not work
+When selecting an image right clicking it and selecting open with PicView the image is not opened.
+When dropping images on the app icon they also do not get opened.
+
 ### `viewer.FileAt` is unguarded and read off the UI goroutine
 
 - **Impact 4 · Risk 2 · Effort 3 → priority 18**

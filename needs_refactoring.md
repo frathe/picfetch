@@ -38,42 +38,6 @@ the `internal/dupes` extraction, along with items 11, 13 and 14.
 - **Mitigation (2026-08-26):** `go.mod` replace → `frathe/heic@0ac0a39` until
   upstream releases PR #16. Remove replace on bump.
 
-### 2. The duplicate-visibility model lives inside the grid feature — DONE
-
-- **Impact 4 · Risk 4 · Effort 4 → priority 16**
-- Where: `internal/ui/grid` owns hide-duplicates state, group membership, and
-  inspect/browse mode; the core viewer reaches into it at **29 call sites**
-  across [viewer.go](internal/ui/viewer.go), [keys.go](internal/ui/keys.go),
-  [actionmenu.go](internal/ui/actionmenu.go), and
-  [windowmenu.go](internal/ui/windowmenu.go)
-  (`IsHiddenExtra`, `InspectMembers`, `InspectingDuplicates`,
-  `BrowsingDuplicates`, `HideDuplicates`).
-- Plain navigation — arrow keys, Home/End, shuffle — must poll the grid
-  overlay's state per index even while the overlay is closed:
-  `nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` /
-  `randomVisibleOther` ([viewer.go:940–1003](internal/ui/viewer.go:940))
-  are filter-aware iteration implemented by poking a feature package.
-  This inverts the codebase's own rule ("features expose state; `internal/ui`
-  composes them" — ARCHITECTURE.md): *which files are visible* is file-set
-  model state, not overlay state.
-- **Why it matters**: this seam is where the bugs actually are — the last
-  three fix branches (variant loop after grid pick, highest-res
-  representative, variants badge/hover) all patched interactions across it.
-  Every mode added near it (slideshow shuffle, inspect, hide-dupes) multiplies
-  the guard combinations in `handleKeyEvent` and the menu-state code.
-- **Fix (staged)**: extract a visibility/grouping model (e.g. `internal/ui`'s
-  own `visibleSet`, or an `internal/dupegroups` package) owning
-  hidden-extras, group membership, and representative choice, fed by the
-  grid's hashing pass and consumed by both the viewer's navigation and the
-  grid's rendering. The grid keeps presentation (badges, filter display,
-  marquee); the viewer stops asking the grid who exists.
-- **Resolved (2026-08-27):** extracted to `internal/dupes` — Fyne-free,
-  reached through a `FileSet` interface with string keys. The viewer owns
-  the `Model` and answers navigation directly from it
-  (`internal/ui/visibility.go`); the grid reads and feeds it but no longer
-  owns it. See `ARCHITECTURE.md`'s `internal/dupes` entry and `todos.md`
-  Done → Internal.
-
 ### 3. `viewer` god object — 87 fields and still growing
 
 - **Impact 4 · Risk 3 · Effort 4 → priority 14**
@@ -100,34 +64,6 @@ the `internal/dupes` extraction, along with items 11, 13 and 14.
     `currentFileSize`, `currentHasEXIF`, `currentPreview`) → info.go;
   - display state (`displayFrames`, `displayFrameIdx`, `rotation`,
     `fadeAnim`) → load.go/rotate.go.
-
-### 4. `grid.Overview` is a second god object; the dupe-hash engine deserves its own type — DONE
-
-- **Impact 3 · Risk 4 · Effort 3 → priority 21**
-- Where: `internal/ui/grid` — ~2,500 non-test lines, one type across 8 files
-  mixing overlay UI, thumbnail decode pool, search filter, multi-select,
-  marquee gesture, duplicate hashing, and inspect/browse mode.
-- The sharpest cut is the duplicate-hash engine
-  ([dupes.go](internal/ui/grid/dupes.go), 631 lines): fields `hashMu`,
-  `hashes`, `native`, `hashFailed`, `hashGen`, `hashing`, `hashJobs`,
-  `hideApply`, `hideApplyAt`, `groupSizes`, `groupReps` plus
-  `hashRemaining` ([dupes.go:505](internal/ui/grid/dupes.go:505), 109 lines
-  whose completion closure interleaves job accounting, apply throttling,
-  browse finishing, and generation checks). This is the most delicate
-  concurrent code in the repository — a mutex, a `sync.Map`, three atomics,
-  and a generation counter cooperating — and it currently shares a
-  namespace with marquee geometry and search strings.
-- **Why it matters**: isolating the engine behind a small type makes its
-  invariants (generation wipe vs. adopt, throttled apply, last-job barrier)
-  locally checkable and independently testable; today they're guaranteed by
-  cross-file discipline. Item 2 moves the *model* out; this finishes the job
-  by giving the *machinery* a boundary — do them together.
-- **Resolved (2026-08-27):** the model moved to `internal/dupes` (item 2);
-  the hashing machinery moved to `internal/ui/grid/hashengine.go`'s
-  `hashEngine` type — pool, `sync.Map` dedup, job accounting, and the
-  throttle atomics, verbatim. `Overview` keeps `hashRemaining()` as a
-  one-line call into it and `applyHashSnapshot` as the UI-side half of a
-  completion that still needs the overlay (highlight, browse, filter).
 
 ---
 
@@ -222,20 +158,6 @@ the `internal/dupes` extraction, along with items 11, 13 and 14.
   Acceptable as long as the seams stay thin; keep logic out of these
   packages so the uncovered surface stays pure OS calls.
 
-### 11. Sentinel-twin lookups: `displayIndexOf` vs `displayIndexOfHost` — DONE
-
-- **Impact 1 · Risk 2 · Effort 1 → priority 15**
-- Where: [dupes.go:479](internal/ui/grid/dupes.go:479) returns **0** for
-  not-found; [search.go:173](internal/ui/grid/search.go:173) returns **−1**.
-  Deliberate — the latter's doc comment exists to warn about the former —
-  but two same-shaped functions differing only in failure sentinel is a
-  standing trap. Unify on −1 and handle the fallback explicitly at the two
-  call sites that want "default to first cell".
-- **Resolved (2026-08-27):** `displayIndexOf` deleted; every caller uses
-  `displayIndexOfHost` (−1-on-miss) with its own explicit
-  `id := 0; if d := ...; d >= 0 { id = d }` fallback at `Toggle` (grid.go)
-  and `finishBrowse` (dupes.go).
-
 ### 12. cgo `copyTitle` returns a shared static buffer
 
 - **Impact 1 · Risk 2 · Effort 1 → priority 15**
@@ -244,30 +166,6 @@ the `internal/dupes` extraction, along with items 11, 13 and 14.
   holds two results at once — neither constraint is written down. Return a
   `strdup`'d copy freed by the Go side (or document the constraint at the
   function). `testKeepAlive` also grows unboundedly, though it is test-only.
-
-### 13. Empty directory `internal/favorites/` — DONE
-
-- **Impact 1 · Risk 1 · Effort 1 → priority 10**
-- Dead artifact — the feature lives in `internal/ui/favorites`,
-  `internal/favstore`, and `internal/favthumbs`. Delete it before someone
-  greps their way into the wrong place. (Git doesn't track it, so it exists
-  only on this machine: `rmdir internal/favorites`.)
-- **Resolved (2026-08-27):** directory removed; `internal/favorites` no
-  longer exists on disk. Entry kept so the numbering stays contiguous.
-
-### 14. Duplicated lazy-map initialization in dupes.go — DONE
-
-- **Impact 1 · Risk 1 · Effort 1 → priority 10**
-- Where: `ensureHashGenLocked` ([dupes.go:26](internal/ui/grid/dupes.go:26))
-  and `adoptHashGen` ([dupes.go:51](internal/ui/grid/dupes.go:51)) repeat
-  the same three nil-map guards. Extract `ensureMapsLocked()`; the two
-  callers keep their distinct wipe-vs-keep semantics. Falls out of item 4's
-  extraction if that happens first.
-- **Resolved (2026-08-27):** `ensureMapsLocked()` extracted (now
-  `internal/dupes/dupes.go`, moved there with item 2/4); `WipeIfStale`
-  still reallocates all three maps before calling it, `AdoptGeneration`
-  still only calls it — the wipe-vs-keep distinction is unchanged.
-
 ---
 
 ## Suggested sequencing
