@@ -193,6 +193,28 @@ func TestInspectMembers_NilWhenInspectedFileIsGone(t *testing.T) {
 	}
 }
 
+// TestInspectMembers_ReadsSnapshotWithoutRebuild proves InspectMembers only
+// reads the already-installed snapshot: it must never trigger a fresh
+// Compute, which would be expensive linkage work run on every step while
+// inspecting.
+func TestInspectMembers_ReadsSnapshotWithoutRebuild(t *testing.T) {
+	set := newFakeSet(3, 1) // keys: a, b, c
+	m := New(set)
+	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	m.BeginInspect(1)
+
+	got := m.InspectMembers()
+	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("InspectMembers() = %v, want [0 1]", got)
+	}
+
+	before := m.Computes()
+	_ = m.InspectMembers()
+	if n := m.Computes(); n != before {
+		t.Fatalf("InspectMembers incremented Computes() from %d to %d", before, n)
+	}
+}
+
 func TestIsHiddenExtra_FalseWhenHideOff(t *testing.T) {
 	m := New(newFakeSet(3, 1))
 	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
@@ -230,6 +252,68 @@ func TestIsHiddenExtra_FalseForUnhashedFile(t *testing.T) {
 
 	if m.IsHiddenExtra(2) {
 		t.Error("IsHiddenExtra(2) = true for an unhashed file (size 0), want false")
+	}
+}
+
+// TestIsHiddenExtra_ChainDoesNotHideUnrelated proves the model surfaces
+// imaging.DuplicateGroups' star clustering correctly through IsHiddenExtra:
+// a chain of hashes that are pairwise near but not all mutually near must
+// not collapse into one group.
+func TestIsHiddenExtra_ChainDoesNotHideUnrelated(t *testing.T) {
+	set := newFakeSet(3, 1) // a, b, c
+	m := New(set)
+	m.PutHash("a", 1<<63)
+	m.PutHash("b", 1<<63|0x3FF)
+	m.PutHash("c", 1<<63|0xFFFFF)
+	// A literal 10: this fixture is built at Hamming 10/10/20 to exercise
+	// linkage, so it pins the threshold it was written for rather than
+	// tracking the shipped default.
+	m.SetDistance(10)
+	m.Rebuild()
+
+	m.SetHideDuplicates(true)
+
+	if !m.IsHiddenExtra(1) {
+		t.Error("B is within distance 10 of A and must be an extra")
+	}
+	if m.IsHiddenExtra(2) {
+		t.Error("C is Hamming 20 from A and must not be hidden as A's extra")
+	}
+	if got := m.RepresentativeOf(2); got != 2 {
+		t.Errorf("RepresentativeOf(2) = %d, want 2", got)
+	}
+	if got := m.GroupSize(2); got != 1 {
+		t.Errorf("GroupSize(2) = %d, want 1 (C is hashed-and-unique, not unhashed)", got)
+	}
+	if got := m.GroupSize(0); got != 2 {
+		t.Errorf("GroupSize(0) = %d, want 2 (not the whole set)", got)
+	}
+}
+
+// TestIsHiddenExtra_HubSpokesDoNotHideUnrelated is
+// TestIsHiddenExtra_ChainDoesNotHideUnrelated's hub-and-spoke shape: two
+// spokes that are each near the hub but Hamming 20 from each other must
+// group with the hub one at a time, never both at once.
+func TestIsHiddenExtra_HubSpokesDoNotHideUnrelated(t *testing.T) {
+	set := newFakeSet(3, 1) // hub, spoke-a, spoke-b
+	m := New(set)
+	const hub uint64 = 0xFFFF000000000000
+	m.PutHash("a", hub)
+	m.PutHash("b", hub^0x3FF)
+	m.PutHash("c", hub^(0x3FF<<10))
+	m.SetDistance(10)
+	m.Rebuild()
+
+	m.SetHideDuplicates(true)
+
+	if got := m.GroupSize(0); got != 2 {
+		t.Fatalf("GroupSize(0) = %d, want 2 (one spoke, not both)", got)
+	}
+	if m.IsHiddenExtra(2) {
+		t.Error("spoke B is 20 from spoke A and must not hide as hub's extra")
+	}
+	if m.RepresentativeOf(2) == 0 {
+		t.Error("spoke B must not list the hub as representative")
 	}
 }
 

@@ -764,21 +764,6 @@ func TestGroupMembers_Pair(t *testing.T) {
 	}
 }
 
-func TestInspectMembers_ReadsSnapshotWithoutRebuild(t *testing.T) {
-	g, _ := pairAndUnique(t)
-	g.rebuildGroups()
-	g.BeginInspect(1)
-	got := g.InspectMembers()
-	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
-		t.Fatalf("InspectMembers() = %v, want [0 1]", got)
-	}
-	before := g.dupes.Computes()
-	_ = g.InspectMembers()
-	if n := g.dupes.Computes(); n != before {
-		t.Fatalf("InspectMembers incremented Computes() from %d to %d", before, n)
-	}
-}
-
 func TestHandleKey_ShiftDTogglesBrowseDuplicates(t *testing.T) {
 	g, host := pairAndUnique(t)
 	host.mods = fyne.KeyModifierShift
@@ -987,21 +972,6 @@ func TestSetHideDuplicates_ChainDoesNotHideUnrelated(t *testing.T) {
 	if g.count() != 2 {
 		t.Fatalf("count() = %d, want 2 (A visible, B hidden extra, C unique)", g.count())
 	}
-	if !g.IsHiddenExtra(1) {
-		t.Error("B is within distance 10 of A and must be an extra")
-	}
-	if g.IsHiddenExtra(2) {
-		t.Error("C is Hamming 20 from A and must not be hidden as A's extra")
-	}
-	if g.RepresentativeOf(2) != 2 {
-		t.Errorf("RepresentativeOf(2) = %d, want 2", g.RepresentativeOf(2))
-	}
-	if g.groupSize(2) != 1 {
-		t.Errorf("groupSize(2) = %d, want 1 (C is hashed-and-unique, not unhashed)", g.groupSize(2))
-	}
-	if g.groupSize(0) != 2 {
-		t.Errorf("groupSize(0) = %d, want 2 (not the whole set)", g.groupSize(0))
-	}
 }
 
 func TestSetBrowsingDuplicates_ChainDoesNotListUnrelated(t *testing.T) {
@@ -1022,26 +992,6 @@ func TestSetBrowsingDuplicates_ChainDoesNotListUnrelated(t *testing.T) {
 	seen := map[int]bool{g.fileIndex(0): true, g.fileIndex(1): true}
 	if !seen[0] || !seen[1] || seen[2] {
 		t.Fatalf("visible hosts = %v, want 0 and 1 only", seen)
-	}
-}
-
-func TestSetHideDuplicates_HubSpokesDoNotHideUnrelated(t *testing.T) {
-	host := hostWith(t, "hub.jpg", "spoke-a.jpg", "spoke-b.jpg")
-	g := newOverview(t, host)
-	const hub uint64 = 0xFFFF000000000000
-	injectHashes(t, g, host, []uint64{hub, hub ^ 0x3FF, hub ^ (0x3FF << 10)})
-	g.SetDuplicateDistance(10)
-
-	g.SetHideDuplicates(true)
-
-	if g.groupSize(0) != 2 {
-		t.Fatalf("groupSize(0) = %d, want 2 (one spoke, not both)", g.groupSize(0))
-	}
-	if g.IsHiddenExtra(2) {
-		t.Error("spoke B is 20 from spoke A and must not hide as hub's extra")
-	}
-	if g.RepresentativeOf(2) == 0 {
-		t.Error("spoke B must not list the hub as representative")
 	}
 }
 
@@ -1096,22 +1046,6 @@ func TestSetHideDuplicates_UnrelatedLineArtStaysVisible(t *testing.T) {
 		if g.groupSize(i) != 1 {
 			t.Errorf("groupSize(%d) = %d, want 1 (hashed and unique)", i, g.groupSize(i))
 		}
-	}
-}
-
-func TestSetHideDuplicates_ZeroHashFirstFileIsUnique(t *testing.T) {
-	host := hostWith(t, "flat.jpg", "sparse-a.jpg", "sparse-b.jpg")
-	g := newOverview(t, host)
-	injectHashes(t, g, host, []uint64{0, 1, 2})
-	g.SetDuplicateDistance(imaging.DuplicateMaxDistance)
-
-	g.SetHideDuplicates(true)
-
-	if g.groupSize(0) != 1 {
-		t.Fatalf("groupSize(0) = %d, want 1 (hash 0 must not absorb sparse hashes)", g.groupSize(0))
-	}
-	if g.RepresentativeOf(1) == 0 || g.RepresentativeOf(2) == 0 {
-		t.Fatal("sparse hashes must not pick the hash-0 first file as representative")
 	}
 }
 
@@ -1527,33 +1461,6 @@ func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
 	}
 	if !g.IsHiddenExtra(0) || g.IsHiddenExtra(1) || g.IsHiddenExtra(2) {
 		t.Error("only the smaller pair member is a hidden extra")
-	}
-}
-
-func TestComputeDuplicateGroups_EqualPixelsKeepsLowestIndex(t *testing.T) {
-	host := hostWith(t, "a.jpg", "b.jpg")
-	g := newOverview(t, host)
-	const h uint64 = 0x1111111111111111
-	g.dupes.PutHash(host.files[0].String(), h)
-	g.dupes.PutHash(host.files[1].String(), h)
-	g.dupes.PutNativeSize(host.files[0].String(), image.Pt(100, 1))
-	g.dupes.PutNativeSize(host.files[1].String(), image.Pt(100, 1))
-	g.rebuildGroups()
-	if g.RepresentativeOf(1) != 0 {
-		t.Errorf("RepresentativeOf(1) = %d, want 0 (tie-break)", g.RepresentativeOf(1))
-	}
-}
-
-func TestComputeDuplicateGroups_UnknownPixelsLoseToKnown(t *testing.T) {
-	host := hostWith(t, "unknown.jpg", "known.jpg")
-	g := newOverview(t, host)
-	const h uint64 = 0x1111111111111111
-	g.dupes.PutHash(host.files[0].String(), h)
-	g.dupes.PutHash(host.files[1].String(), h)
-	g.dupes.PutNativeSize(host.files[1].String(), image.Pt(50, 1))
-	g.rebuildGroups()
-	if g.RepresentativeOf(0) != 1 {
-		t.Errorf("RepresentativeOf(0) = %d, want 1 (known size wins)", g.RepresentativeOf(0))
 	}
 }
 

@@ -109,6 +109,45 @@ func TestCompute_RepresentativeIsHighestPixelCount(t *testing.T) {
 	}
 }
 
+// TestCompute_UnknownPixelsLoseToKnown covers a group where only one member
+// has ever had its native size probed: the unprobed member's pixel count
+// defaults to 0, so the probed member always wins the representative pick,
+// known or not.
+func TestCompute_UnknownPixelsLoseToKnown(t *testing.T) {
+	set := newFakeSet(2, 1) // a: unprobed, b: probed
+	m := New(set)
+	const h uint64 = 0x1111111111111111
+	m.PutHash("a", h)
+	m.PutHash("b", h)
+	m.PutNativeSize("b", image.Pt(50, 1))
+
+	g := m.Compute()
+
+	if rep := g.RepresentativeOf(0); rep != 1 {
+		t.Errorf("RepresentativeOf(0) = %d, want 1 (known size wins)", rep)
+	}
+}
+
+// TestCompute_ZeroHashFirstFileIsUnique pins that imaging.DuplicateGroups
+// treats hash 0 as ungroupable: a file whose thumbnail happens to hash to 0
+// must not silently absorb genuinely sparse, unrelated hashes.
+func TestCompute_ZeroHashFirstFileIsUnique(t *testing.T) {
+	set := newFakeSet(3, 1) // flat, sparse-a, sparse-b
+	m := New(set)
+	m.PutHash("a", 0)
+	m.PutHash("b", 1)
+	m.PutHash("c", 2)
+
+	g := m.Compute()
+
+	if got := g.Size(0); got != 1 {
+		t.Fatalf("Size(0) = %d, want 1 (hash 0 must not absorb sparse hashes)", got)
+	}
+	if g.RepresentativeOf(1) == 0 || g.RepresentativeOf(2) == 0 {
+		t.Fatal("sparse hashes must not pick the hash-0 first file as representative")
+	}
+}
+
 func TestCompute_RepresentativeIsLowestIndexOnTie(t *testing.T) {
 	set := newFakeSet(3, 1)
 	m := New(set)
@@ -123,6 +162,26 @@ func TestCompute_RepresentativeIsLowestIndexOnTie(t *testing.T) {
 		if rep := g.RepresentativeOf(i); rep != 0 {
 			t.Errorf("RepresentativeOf(%d) = %d, want 0 (lowest index on a tie)", i, rep)
 		}
+	}
+}
+
+// TestCompute_EqualPixelsKeepsLowestIndex is the tie-break at a *recorded*
+// pixel count rather than at the 0 an unprobed file defaults to, so the
+// lowest-index rule is pinned for the case where both members really were
+// probed and really are the same size.
+func TestCompute_EqualPixelsKeepsLowestIndex(t *testing.T) {
+	set := newFakeSet(2, 1)
+	m := New(set)
+	const h uint64 = 0x1111111111111111
+	m.PutHash("a", h)
+	m.PutHash("b", h)
+	m.PutNativeSize("a", image.Pt(100, 1))
+	m.PutNativeSize("b", image.Pt(100, 1))
+
+	g := m.Compute()
+
+	if rep := g.RepresentativeOf(1); rep != 0 {
+		t.Errorf("RepresentativeOf(1) = %d, want 0 (tie-break)", rep)
 	}
 }
 
