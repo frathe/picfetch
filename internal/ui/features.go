@@ -23,7 +23,7 @@ import (
 // assigns the viewer's feature fields; build.go still decides how their
 // widgets compose, and menu.go still decides how their menus compose.
 func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State) {
-	view.help = help.New(application, appTitle, assets.WelcomeWebP)
+	view.help = help.New(application, appTitle, assets.ComparingWebP)
 
 	// The window-drag easter egg (gesture.go): the detector is fed by the
 	// position poller, and a recognised spiral goes to the same Help that

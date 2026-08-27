@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	aboutW = 640.0
-	aboutH = 320.0
+	aboutW = 450.0
+	aboutH = 280.0
 
 	aboutArtSize = 260.0
 )
@@ -23,7 +23,7 @@ const (
 // stacking up duplicates (see widgets.Singleton).
 func (h *Help) ShowAbout() {
 	h.aboutWin.Show(h.app, fmt.Sprintf(lang.L("About %s"), h.title), fyne.NewSize(aboutW, aboutH), func() fyne.CanvasObject {
-		art := canvas.NewImageFromResource(fyne.NewStaticResource("welcome.webp", h.art))
+		art := canvas.NewImageFromResource(fyne.NewStaticResource("comparingImages.webp", h.art))
 		art.FillMode = canvas.ImageFillContain
 		art.ScaleMode = canvas.ImageScaleSmooth
 		art.SetMinSize(fyne.NewSize(aboutArtSize, aboutArtSize))

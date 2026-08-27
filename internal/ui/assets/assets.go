@@ -10,8 +10,7 @@ package assets
 
 import _ "embed"
 
-// WelcomeWebP is the artwork shown beside the drop zone on first launch,
-// and again in the About window.
+// WelcomeWebP is the artwork shown beside the drop zone on first launch.
 //
 //go:embed welcome.webp
 var WelcomeWebP []byte
@@ -26,3 +25,8 @@ var PlaceholderWebP []byte
 //
 //go:embed digging.webp
 var DiggingWebP []byte
+
+// ComparingWebP is shown alongside the about window.
+//
+//go:embed comparingImages.webp
+var ComparingWebP []byte
