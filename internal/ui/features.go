@@ -4,6 +4,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/assets"
 	"github.com/frathe/picfetch/internal/ui/deletion"
@@ -43,15 +44,36 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 		view.requestVectorRender,
 	)
 
+	// The duplicate model is the viewer's, not the grid's: hide-duplicates
+	// survives the overlay closing and plain arrow-key navigation asks it
+	// which files are visible with the grid down. It must exist before
+	// grid.New, which is handed the same model to read and to feed from
+	// its hashing pass, and before the saved threshold is pushed into it
+	// below.
+	view.dupes = dupes.New(dupeFileSet{v: view})
+
+	// Registration order is fire order (dupes.Model.OnChange): this is the
+	// only observer registered today, and it must stay behind whatever
+	// re-filters the grid, because jumpIfHiddenExtra reads the group
+	// snapshot the filter pass installs. The grid keeps that re-filter as
+	// a direct call at each of its own transitions - see
+	// internal/ui/grid/dupes.go - rather than as an observer, because one
+	// of them needs a keepHost argument no parameterless observer can
+	// carry.
+	view.dupes.OnChange(view.jumpIfHiddenExtra)
+
 	// The thumbnail-cache setter reaches into the grid, so the grid must be
 	// registered before saved cache limits are applied.
-	view.grid = grid.New(view, window)
+	view.grid = grid.New(view, window, view.dupes)
 	view.SetMaxThumbCacheMB(prefs.MaxThumbCacheMB)
 	view.SetMaxFileSizeMB(prefs.MaxFileSizeMB)
 
+	// Deliberately not SetDuplicateDistance: that setter marks the value
+	// as saved, and restoring a preference that was never set must not
+	// turn dupeDistSet on behind the user's back.
 	view.settings.dupeDist = prefs.DuplicateDistance
 	view.settings.dupeDistSet = prefs.DuplicateDistanceSet
-	view.grid.SetDuplicateDistance(view.DuplicateDistance())
+	view.pushDuplicateDistance(view.DuplicateDistance())
 
 	view.SetFavoritePreviewCache(prefs.FavoritePreviewCache)
 	// Restore update prefs without SetCheckForUpdates: that setter starts a

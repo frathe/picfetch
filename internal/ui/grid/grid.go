@@ -225,9 +225,11 @@ type Overview struct {
 
 	// dupes owns which files are duplicates of which: the hashes and
 	// native sizes, the Hamming threshold, the installed group snapshot,
-	// and the hide-duplicates and inspect modes. The grid constructs it
-	// and feeds it from the hashing pass, which stays here because it is
-	// bound to the decode pool and the overlay.
+	// and the hide-duplicates and inspect modes. The app constructs it and
+	// hands it to New - hide-duplicates outlives the overlay and plain
+	// navigation asks it questions with the grid closed - and the grid
+	// feeds it from the hashing pass, which stays here because it is bound
+	// to the decode pool and the overlay.
 	//
 	// hashing dedups in-flight hashRemaining jobs by URI string.
 	// hashJobs counts those pool jobs so the last one can finishBrowse.
@@ -312,12 +314,17 @@ func unpackGridCell(cell *fyne.Container) (*canvas.Image, *canvas.Rectangle, *ca
 // legible thumbnails - the same reason slideshow.Controller is handed win
 // directly rather than reaching for it some other way.
 //
+// model is the caller's duplicate model, not one built here: the app owns
+// it (see the dupes field), so hide-duplicates and inspect survive the
+// overlay and the app can answer navigation questions from the same
+// snapshot the grid draws its badges and filter from.
+//
 // Each cell is a small stack of the thumbnail image plus a highlight ring
 // (mirroring the delete confirmation's own selection rings), rather than
 // relying on GridWrap's own built-in highlight rendering - that ties into
 // real Fyne canvas focus, which this app deliberately never hands to
 // GridWrap (see Close's comment on why).
-func New(host Host, win fyne.Window) *Overview {
+func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	g := &Overview{
 		host:       host,
 		win:        win,
@@ -325,7 +332,7 @@ func New(host Host, win fyne.Window) *Overview {
 		thumbs:     imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
 		decodes:    decodepool.New[*fyne.Container, int](thumbConcurrency),
 		ui:         fyneQueue{},
-		dupes:      dupes.New(hostSet{host: host}),
+		dupes:      model,
 		browseHost: -1,
 	}
 

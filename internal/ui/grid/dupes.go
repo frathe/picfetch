@@ -18,34 +18,6 @@ import (
 // the pool is empty.
 const hideApplyMinInterval = 250 * time.Millisecond
 
-// hostSet adapts Host to dupes.FileSet, so the model can group over the
-// grid's file set while staying Fyne-free: every fact it stores is keyed
-// by the URI string the grid already keys its own caches by.
-//
-// KeyAt has to stay a plain lookup. dupes.Model.Compute calls it while
-// holding the model's own mutex - faithfully to the code this replaced,
-// which read g.host.FileAt(i) under hashMu - so anything here that took a
-// lock, or reached back into the model, would deadlock a hashing worker.
-type hostSet struct {
-	host Host
-}
-
-func (s hostSet) Count() int { return s.host.FileCount() }
-
-// KeyAt is the URI string of the file at i, or "" when the host has no
-// URI there: the same nil-URI guard every helper below applies before it
-// touches a fyne.URI, moved to the one place the model reaches through.
-func (s hostSet) KeyAt(i int) string {
-	u := s.host.FileAt(i)
-	if u == nil {
-		return ""
-	}
-
-	return u.String()
-}
-
-func (s hostSet) Generation() uint64 { return s.host.Generation() }
-
 // adoptHashGen records the host's current generation without dropping the
 // model's hashes, hash failures, or native sizes. Incremental shrink
 // (RemoveFiles → FilesChanged) is not a new drop: surviving files keep
@@ -165,7 +137,11 @@ func (g *Overview) SetHideDuplicates(on bool) {
 	}
 	g.applyFilter()
 	if on {
-		g.jumpIfHiddenExtra()
+		// The model's observers, not a call of the grid's own: the jump
+		// off a now-hidden extra runs ShowImage, which belongs to the app
+		// (internal/ui's jumpIfHiddenExtra). Fired after applyFilter, so
+		// the observer sees the group snapshot the filter pass installed.
+		g.dupes.Notify()
 	}
 	g.fireDupeState()
 }
@@ -276,29 +252,41 @@ func (g *Overview) InspectMembers() []int {
 	return g.dupes.InspectMembers()
 }
 
-func (g *Overview) jumpIfHiddenExtra() {
-	if g.InspectingDuplicates() {
-		return
-	}
-	if i := g.host.CurrentIndex(); g.IsHiddenExtra(i) {
-		g.host.ShowImage(g.RepresentativeOf(i))
-	}
-}
-
 // SetDuplicateDistance sets the Hamming threshold - the model clamps it
 // to 0–32 - and rebuilds groups. Live: if browsing, the group is
 // re-checked and browse exits when it drops below two members. If hide is
 // on and not browsing, extras are recomputed immediately and the host
 // jumps if the current file became an extra.
+//
+// The app itself does not come through here: it owns the model and sets
+// the threshold on it directly (settingswin drives the slider through
+// viewer.SetDuplicateDistance), then calls DuplicateDistanceChanged for
+// the grid half. This pair is for callers that hold only the grid.
 func (g *Overview) SetDuplicateDistance(n int) {
 	if !g.dupes.SetDistance(n) {
 		return
 	}
+	g.DuplicateDistanceChanged()
+}
+
+// DuplicateDistanceChanged re-applies the grid's own view of a threshold
+// the model has already accepted: the second half of SetDuplicateDistance,
+// split out so the app can set the distance on the model it owns and still
+// get the live regroup in the order the grid always did it - the grid
+// re-filters first, and only then do the model's observers (the jump off a
+// now-hidden extra) run.
+//
+// Only the caller that actually moved the value should call this;
+// dupes.Model.SetDistance reports whether it did.
+func (g *Overview) DuplicateDistanceChanged() {
 	if g.browseHost >= 0 {
 		g.finishBrowse()
 	} else if g.HideDuplicates() {
 		g.applyFilter()
-		g.jumpIfHiddenExtra()
+		// Where the old body called the grid's own jumpIfHiddenExtra.
+		// Browse deliberately keeps no Notify of its own: the jump never
+		// ran on that path, and the model knows nothing about browse.
+		g.dupes.Notify()
 	} else {
 		g.rebuildGroups()
 	}
@@ -415,7 +403,7 @@ func (g *Overview) hashRemaining() int {
 						g.dupes.Install(snap)
 						g.applyVisibleFilter(false, keepHost)
 						if !g.InspectingDuplicates() {
-							g.jumpIfHiddenExtra()
+							g.dupes.Notify()
 						}
 					}
 					if remaining == 0 {

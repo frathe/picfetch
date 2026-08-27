@@ -17,6 +17,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/decodepool"
+	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/deletion"
@@ -378,6 +379,16 @@ type viewer struct {
 	// left for a wrapper to hold the way deletion's targets are.
 	// handleKeyEvent checks its Visible() the same way it does deletion's.
 	exportPrompt *widgets.ChoiceCard
+
+	// dupes owns which files are duplicates of which - see internal/dupes,
+	// which is Fyne-free and reaches this viewer's file set through the
+	// dupeFileSet adapter (visibility.go). The viewer constructs it, not
+	// the grid: hide-duplicates is a standing setting that outlives the
+	// overlay, and plain arrow-key navigation has to answer "is this file
+	// visible?" with the grid closed. registerFeatures builds it before
+	// grid.New, which is handed the same *dupes.Model to read and feed
+	// from its hashing pass.
+	dupes *dupes.Model
 
 	// grid is the full-window thumbnail overview (G key) - see
 	// internal/ui/grid, which owns the thumbnail cache and its decode

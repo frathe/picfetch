@@ -60,8 +60,10 @@ type settings struct {
 	checkForUpdates    bool
 	lastUpdateCheckDay string
 
-	// dupeDist is the Hamming threshold the grid's hide-duplicates mode
-	// uses. dupeDistSet distinguishes a saved 0 (exact hash) from unset.
+	// dupeDist is the Hamming threshold hide-duplicates groups at - the
+	// saved copy of what internal/dupes holds live, pushed into the model
+	// by SetDuplicateDistance below. dupeDistSet distinguishes a saved 0
+	// (exact hash) from unset.
 	dupeDist    int
 	dupeDistSet bool
 }
@@ -149,7 +151,12 @@ func (v *viewer) DuplicateDistance() int {
 }
 
 // SetDuplicateDistance clamps n to 0–32, marks it saved, and pushes it to
-// the grid. Live: groups rebuild if hide is already on.
+// the duplicate model. Live: groups rebuild if hide is already on.
+//
+// The clamp here is not redundant with dupes.Model.SetDistance's own: this
+// one is what keeps the *saved preference* in range, since v.settings.dupeDist
+// is written before the model ever sees the value and is what
+// currentPreferences round-trips.
 func (v *viewer) SetDuplicateDistance(n int) {
 	if n < 0 {
 		n = 0
@@ -159,5 +166,18 @@ func (v *viewer) SetDuplicateDistance(n int) {
 	}
 	v.settings.dupeDist = n
 	v.settings.dupeDistSet = true
-	v.grid.SetDuplicateDistance(n)
+	v.pushDuplicateDistance(n)
+}
+
+// pushDuplicateDistance hands n to the model and, when the stored value
+// actually moved, lets the grid re-apply its own view of it - re-checking a
+// browsed group, re-filtering while hide is on, or just regrouping - before
+// the model's observers run. That ordering is the whole point of the split:
+// jumpIfHiddenExtra must see the group snapshot the grid's re-filter
+// installed, exactly as it did when the grid owned both halves.
+func (v *viewer) pushDuplicateDistance(n int) {
+	if !v.dupes.SetDistance(n) {
+		return
+	}
+	v.grid.DuplicateDistanceChanged()
 }

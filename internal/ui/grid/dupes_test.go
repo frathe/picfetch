@@ -1499,7 +1499,7 @@ func TestBeginInspect_ReportsMembersAndSkipsJump(t *testing.T) {
 	}
 
 	host.shown = nil
-	g.jumpIfHiddenExtra()
+	g.dupes.Notify()
 	if len(host.shown) != 0 {
 		t.Errorf("ShowImage calls = %v, want none while inspecting", host.shown)
 	}
@@ -1511,7 +1511,7 @@ func TestJumpIfHiddenExtra_StillJumpsWhenNotInspecting(t *testing.T) {
 	host.index = 1
 	host.shown = nil
 
-	g.jumpIfHiddenExtra()
+	g.dupes.Notify()
 	if len(host.shown) != 1 || host.shown[0] != 0 {
 		t.Errorf("ShowImage calls = %v, want jump to representative 0", host.shown)
 	}
@@ -1555,7 +1555,7 @@ func TestClearInspect_StopsSkippingJump(t *testing.T) {
 	g.BeginInspect(1)
 	g.ClearInspect()
 	host.shown = nil
-	g.jumpIfHiddenExtra()
+	g.dupes.Notify()
 	if len(host.shown) != 1 || host.shown[0] != 0 {
 		t.Errorf("after ClearInspect, ShowImage calls = %v, want [0]", host.shown)
 	}
@@ -1587,9 +1587,9 @@ func TestHandleKey_ReturnFromBrowseCommitsExtra(t *testing.T) {
 		t.Fatalf("ShowImage calls = %v, want [1] (the extra, not representative 0)", host.shown)
 	}
 
-	g.jumpIfHiddenExtra()
+	g.dupes.Notify()
 	if len(host.shown) != 1 || host.shown[0] != 1 {
-		t.Fatalf("after jumpIfHiddenExtra ShowImage = %v, want still [1]", host.shown)
+		t.Fatalf("after a model notify ShowImage = %v, want still [1]", host.shown)
 	}
 }
 

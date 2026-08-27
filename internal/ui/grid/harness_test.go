@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -92,11 +93,65 @@ func newOverview(t *testing.T, host Host) *Overview {
 	win := test.NewWindow(nil)
 	t.Cleanup(win.Close)
 
-	g := New(host, win)
+	g := New(host, win, dupes.New(hostSet{host: host}))
 	g.SetUIQueue(&uitest.UIQueue{})
+	registerJumpObserver(g, host)
 
 	return g
 }
+
+// registerJumpObserver stands in for the observer internal/ui registers on
+// the model it owns (viewer.jumpIfHiddenExtra, visibility.go): the grid no
+// longer jumps the host off a hidden extra itself, it fires the model's
+// observers once it has re-filtered, and the app is what turns that into a
+// ShowImage. Registering the equivalent here is what lets this package go
+// on asserting that a grid transition ends with the host on the group's
+// representative - the grid's half of that contract is *when* it notifies.
+//
+// The real jump - including the inspect guard that makes committing an
+// extra out of the variants grid stick - is production code in
+// internal/ui and is tested there.
+func registerJumpObserver(g *Overview, host Host) {
+	g.dupes.OnChange(func() {
+		if g.dupes.Inspecting() {
+			return
+		}
+		if i := host.CurrentIndex(); g.dupes.IsHiddenExtra(i) {
+			host.ShowImage(g.dupes.RepresentativeOf(i))
+		}
+	})
+}
+
+// hostSet adapts Host to dupes.FileSet, standing in for the adapter the
+// app builds the real model from (internal/ui's dupeFileSet): production
+// hands grid.New a model the viewer owns, so this is the grid's own way of
+// getting an equivalent one over a fakeHost.
+//
+// KeyAt has to stay a plain lookup, for the same reason the production
+// adapter's does. dupes.Model.Compute calls it while holding the model's
+// own mutex - faithfully to the code this replaced, which read
+// g.host.FileAt(i) under hashMu - so anything here that took a lock, or
+// reached back into the model, would deadlock a hashing worker.
+type hostSet struct {
+	host Host
+}
+
+func (s hostSet) Count() int { return s.host.FileCount() }
+
+// KeyAt is the URI string of the file at i, or "" when the host has no
+// URI there: the same nil-URI guard every helper in dupes.go applies
+// before it touches a fyne.URI, in the one place the model reaches
+// through.
+func (s hostSet) KeyAt(i int) string {
+	u := s.host.FileAt(i)
+	if u == nil {
+		return ""
+	}
+
+	return u.String()
+}
+
+func (s hostSet) Generation() uint64 { return s.host.Generation() }
 
 // parkDecodes fills the decode pool with jobs that block until the
 // returned unpark runs, so a test can drive the grid - including opening it
