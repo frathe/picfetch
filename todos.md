@@ -8,6 +8,8 @@
 
 #### Bugfix
 
+![Trane drag and drop](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/draganddrop2.png)
+
 - macOS "Open With", dropping a file on the Dock icon, `open -a`, and
   double-clicking a file already associated with PicFetch now actually open
   it in the app — every one of those was silently ignored before, whether
