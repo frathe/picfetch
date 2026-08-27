@@ -41,6 +41,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken`. Load, scan, sort, and vector each own an instance. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / `applyTitle`), reset/close, merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
+| `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
 | `keys.go` | `handleKeyEvent` / `handleTypedRune`. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). |
 | `menu.go` | Menu bar composition: File, Favorites, Actions, Window, Help. Grid/slideshow mutual exclusion lives here, not in those packages. |
 | `actionmenu.go` | Actions-menu Checked/Disabled and handlers (`applyActionsMenuState`). |
@@ -69,7 +70,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | Package | Responsibility | Reaches back via |
 |---------|----------------|------------------|
 | `internal/ui/zoom/` | Zoom/pan of the displayed image. Window growth is `syncWindowToZoom` in `internal/ui`. | `onChanged`, `modifiers`, `onScaleChanged`. |
-| `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, dupes (D), `marquee.go` (drag rectangle → `Targets()`). `nav.go`: `setHighlight` → `HighlightChanged`. | 10-method `Host` including `Modifiers`. |
+| `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, badges, `marquee.go` (drag rectangle → `Targets()`), browse-duplicates (Shift+D), and `hashengine.go`'s pool-driven hashing pass that feeds `internal/dupes`. `nav.go`: `setHighlight` → `HighlightChanged`. Reads the model; does not own it. | 10-method `Host` including `Modifiers`. |
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
 | `internal/ui/exifwin/` | EXIF panel (E): tag list, optional JPEG strip, GPS map (`tiles.go`, `startWarm`). Geometry via `widgets.Singleton`. | 4-method `Host`. |
@@ -255,6 +256,27 @@ Integer index set + range anchor for grid multi-select. No Fyne import.
 |------|----------------|
 | `selection.go` | `Set`, `Toggle`, `Add`, `Range`. |
 
+### `internal/dupes`
+
+Which files in a file set duplicate which others. Fyne-free — reached
+through a `FileSet` interface with string keys, not `fyne.URI` — and its
+only project import is `internal/imaging`. Owns dHashes and native pixel
+sizes keyed by file (generation-scoped: `WipeIfStale` on a fresh drop,
+`AdoptGeneration` on an incremental shrink), the Hamming distance
+threshold, the installed group snapshot (representative = highest native
+pixel count, lowest index on a tie), the hide-duplicates and inspect
+modes, and the visibility queries (`IsVisible` / `NextVisible` /
+`FirstVisible` / `LastVisible` / `VisibleIndexesExcept`) plain navigation
+asks. `internal/ui` owns the `Model` and implements `FileSet`;
+`internal/ui/grid` reads and feeds it (hashing pass, browse, badges) but
+does not own it.
+
+| File | Responsibility |
+|------|----------------|
+| `dupes.go` | `Model`, `FileSet`, hash/native facts, generation (`WipeIfStale` / `AdoptGeneration`), distance clamp, `OnChange` observers. |
+| `groups.go` | `Groups` snapshot, `Compute` / `Install` / `Rebuild`, `GroupSize` / `RepresentativeOf` / `Members`. |
+| `visible.go` | Hide/inspect modes (`SetHideDuplicates`, `BeginInspect` / `ClearInspect` / `InspectMembers`), `IsHiddenExtra`, and the visibility/navigation queries. |
+
 ### `internal/decodepool`
 
 Bounded workers + per-key in-flight claim. Grid thumbs:
@@ -317,7 +339,7 @@ see `AGENTS.md`.
 - "How is an image shown/preloaded/animated once loaded?" → `load.go`.
 - "Which keys do what?" → `keys.go` (`handleKeyEvent` / `handleTypedRune`) + `shortcuts.go`.
 - "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go` + `keys.go` `handleTypedRune`.
-- "How does hide-duplicates work?" → `internal/imaging/dhash.go` + `internal/ui/grid/dupes.go` (inspect loop: `BeginInspect` / `InspectMembers`; Escape reopen: `internal/ui` `reopenVariantGrid`).
+- "How does hide-duplicates work?" → `internal/dupes` (the model: grouping, hide/inspect modes, visibility — `BeginInspect` / `InspectMembers` / `IsHiddenExtra` / `NextVisible`) + `internal/imaging/dhash.go` (the hash and its Hamming linkage) + `internal/ui/grid/hashengine.go` (the pool-driven pass that fills the model) + `grid/dupes.go` (browse). Escape reopen: `internal/ui` `reopenVariantGrid`.
 - "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `grid/marquee.go` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
 - "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
 - "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.
@@ -338,7 +360,7 @@ see `AGENTS.md`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.
 - "How can dragging the window open something?" → `internal/wingesture` + `gesture.go` + `help.OpenSpiral` / `spiral.ShowForGesture`.
 - "How does copy-image-to-clipboard work?" → `internal/clipboard` + `clipboard.go`. Batch file copy: `copyfiles.go` + `batch.go` `copySelection`.
-- "How does the grid overview / thumbnail generation work?" → `imaging/thumbnail.go` + `grid/grid.go` + `grid/thumbs.go` + `grid/nav.go` + `grid/uiqueue.go`.
+- "How does the grid overview / thumbnail generation work?" → `imaging/thumbnail.go` + `grid/grid.go` + `grid/thumbs.go` + `grid/hashengine.go` + `grid/nav.go` + `grid/uiqueue.go`.
 - "What decides the window title?" → `viewer.go` `setTitle` / `applyTitle` / `HighlightChanged` + `load.go` + `grid/nav.go`.
 - "How do I write a test that needs an image / a viewer?" → `internal/uitest` + `newTestViewer` / `newTestUI` + `dropAndWait` in `harness_test.go`.
 - "How do I add or translate a user-visible string?" → `lang.L` at the call site and the same key in every `translations/` bundle. See `AGENTS.md`.

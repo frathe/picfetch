@@ -9,8 +9,10 @@ curve: `go vet` clean, zero `TODO/FIXME` markers in production code, all 30
 test packages green, ~38k lines of tests against ~26.5k lines of code,
 coverage 90–100% everywhere except thin OS-integration seams, an up-to-date
 `ARCHITECTURE.md`, and a working refactoring cadence (`finished_refactorings/`).
-The debt that remains is concentrated in two god objects, one inverted
-dependency, and one upstream library bug.
+The debt that remains is concentrated in one god object (item 3, the
+`viewer`) and one upstream library bug (item 1). The second god object and
+the inverted dependency — items 4 and 2 — were resolved on 2026-08-27 by
+the `internal/dupes` extraction, along with items 11, 13 and 14.
 
 ---
 
@@ -36,12 +38,51 @@ dependency, and one upstream library bug.
 - **Mitigation (2026-08-26):** `go.mod` replace → `frathe/heic@0ac0a39` until
   upstream releases PR #16. Remove replace on bump.
 
-### 3. `viewer` god object — 65+ fields and still growing
+### 2. The duplicate-visibility model lives inside the grid feature — DONE
+
+- **Impact 4 · Risk 4 · Effort 4 → priority 16**
+- Where: `internal/ui/grid` owns hide-duplicates state, group membership, and
+  inspect/browse mode; the core viewer reaches into it at **29 call sites**
+  across [viewer.go](internal/ui/viewer.go), [keys.go](internal/ui/keys.go),
+  [actionmenu.go](internal/ui/actionmenu.go), and
+  [windowmenu.go](internal/ui/windowmenu.go)
+  (`IsHiddenExtra`, `InspectMembers`, `InspectingDuplicates`,
+  `BrowsingDuplicates`, `HideDuplicates`).
+- Plain navigation — arrow keys, Home/End, shuffle — must poll the grid
+  overlay's state per index even while the overlay is closed:
+  `nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` /
+  `randomVisibleOther` ([viewer.go:940–1003](internal/ui/viewer.go:940))
+  are filter-aware iteration implemented by poking a feature package.
+  This inverts the codebase's own rule ("features expose state; `internal/ui`
+  composes them" — ARCHITECTURE.md): *which files are visible* is file-set
+  model state, not overlay state.
+- **Why it matters**: this seam is where the bugs actually are — the last
+  three fix branches (variant loop after grid pick, highest-res
+  representative, variants badge/hover) all patched interactions across it.
+  Every mode added near it (slideshow shuffle, inspect, hide-dupes) multiplies
+  the guard combinations in `handleKeyEvent` and the menu-state code.
+- **Fix (staged)**: extract a visibility/grouping model (e.g. `internal/ui`'s
+  own `visibleSet`, or an `internal/dupegroups` package) owning
+  hidden-extras, group membership, and representative choice, fed by the
+  grid's hashing pass and consumed by both the viewer's navigation and the
+  grid's rendering. The grid keeps presentation (badges, filter display,
+  marquee); the viewer stops asking the grid who exists.
+- **Resolved (2026-08-27):** extracted to `internal/dupes` — Fyne-free,
+  reached through a `FileSet` interface with string keys. The viewer owns
+  the `Model` and answers navigation directly from it
+  (`internal/ui/visibility.go`); the grid reads and feeds it but no longer
+  owns it. See `ARCHITECTURE.md`'s `internal/dupes` entry and `todos.md`
+  Done → Internal.
+
+### 3. `viewer` god object — 87 fields and still growing
 
 - **Impact 4 · Risk 3 · Effort 4 → priority 14**
 - Where: the struct definition alone spans
-  [viewer.go:38–468](internal/ui/viewer.go:38); its methods spread across
-  ~30 files of `internal/ui`.
+  [viewer.go:38–478](internal/ui/viewer.go:38); its methods spread across
+  ~30 files of `internal/ui`. (Grew by one field, `dupes *dupes.Model`,
+  when the duplicate-visibility model moved out from under the grid — item
+  2's resolution; the navigation helpers it replaced were methods, not
+  fields, so they didn't shrink the count on the way out.)
 - The comments are exemplary and the tests thorough, which is why this is
   Risk 3 and not 5 — but the growth pattern is intact: autoupdate landed 6
   new fields, the info overlay 7, menu items account for **16 fields** on
@@ -60,7 +101,7 @@ dependency, and one upstream library bug.
   - display state (`displayFrames`, `displayFrameIdx`, `rotation`,
     `fadeAnim`) → load.go/rotate.go.
 
-### 4. `grid.Overview` is a second god object; the dupe-hash engine deserves its own type
+### 4. `grid.Overview` is a second god object; the dupe-hash engine deserves its own type — DONE
 
 - **Impact 3 · Risk 4 · Effort 3 → priority 21**
 - Where: `internal/ui/grid` — ~2,500 non-test lines, one type across 8 files
@@ -81,6 +122,12 @@ dependency, and one upstream library bug.
   locally checkable and independently testable; today they're guaranteed by
   cross-file discipline. Item 2 moves the *model* out; this finishes the job
   by giving the *machinery* a boundary — do them together.
+- **Resolved (2026-08-27):** the model moved to `internal/dupes` (item 2);
+  the hashing machinery moved to `internal/ui/grid/hashengine.go`'s
+  `hashEngine` type — pool, `sync.Map` dedup, job accounting, and the
+  throttle atomics, verbatim. `Overview` keeps `hashRemaining()` as a
+  one-line call into it and `applyHashSnapshot` as the UI-side half of a
+  completion that still needs the overlay (highlight, browse, filter).
 
 ---
 
@@ -161,9 +208,11 @@ dependency, and one upstream library bug.
   flat and mostly commentary — length is not the issue. The issue is that
   mode-composition rules (slideshow vs. grid vs. inspect vs. scan/sort
   cancellation) are encoded positionally: an Escape priority chain plus
-  per-key `InspectingDuplicates`/`slides.Active()` exceptions inside `P`,
-  `G`, and `D`. Each new mode multiplies cases. Largely falls out of item 2;
-  if tackled alone, a small mode-precedence table centralizes the rules.
+  per-key `v.dupes.Inspecting()`/`slides.Active()` exceptions inside `P`,
+  `G`, and `D`. Each new mode multiplies cases. Item 2 (now resolved) moved
+  where this state lives, not how these guards are structured — the
+  positional encoding is unchanged; if tackled alone, a small
+  mode-precedence table centralizes the rules.
 
 ### 10. OS-seam test coverage (accepted)
 
@@ -173,7 +222,7 @@ dependency, and one upstream library bug.
   Acceptable as long as the seams stay thin; keep logic out of these
   packages so the uncovered surface stays pure OS calls.
 
-### 11. Sentinel-twin lookups: `displayIndexOf` vs `displayIndexOfHost`
+### 11. Sentinel-twin lookups: `displayIndexOf` vs `displayIndexOfHost` — DONE
 
 - **Impact 1 · Risk 2 · Effort 1 → priority 15**
 - Where: [dupes.go:479](internal/ui/grid/dupes.go:479) returns **0** for
@@ -182,6 +231,10 @@ dependency, and one upstream library bug.
   but two same-shaped functions differing only in failure sentinel is a
   standing trap. Unify on −1 and handle the fallback explicitly at the two
   call sites that want "default to first cell".
+- **Resolved (2026-08-27):** `displayIndexOf` deleted; every caller uses
+  `displayIndexOfHost` (−1-on-miss) with its own explicit
+  `id := 0; if d := ...; d >= 0 { id = d }` fallback at `Toggle` (grid.go)
+  and `finishBrowse` (dupes.go).
 
 ### 12. cgo `copyTitle` returns a shared static buffer
 
@@ -192,7 +245,17 @@ dependency, and one upstream library bug.
   `strdup`'d copy freed by the Go side (or document the constraint at the
   function). `testKeepAlive` also grows unboundedly, though it is test-only.
 
-### 14. Duplicated lazy-map initialization in dupes.go
+### 13. Empty directory `internal/favorites/` — DONE
+
+- **Impact 1 · Risk 1 · Effort 1 → priority 10**
+- Dead artifact — the feature lives in `internal/ui/favorites`,
+  `internal/favstore`, and `internal/favthumbs`. Delete it before someone
+  greps their way into the wrong place. (Git doesn't track it, so it exists
+  only on this machine: `rmdir internal/favorites`.)
+- **Resolved (2026-08-27):** directory removed; `internal/favorites` no
+  longer exists on disk. Entry kept so the numbering stays contiguous.
+
+### 14. Duplicated lazy-map initialization in dupes.go — DONE
 
 - **Impact 1 · Risk 1 · Effort 1 → priority 10**
 - Where: `ensureHashGenLocked` ([dupes.go:26](internal/ui/grid/dupes.go:26))
@@ -200,6 +263,10 @@ dependency, and one upstream library bug.
   the same three nil-map guards. Extract `ensureMapsLocked()`; the two
   callers keep their distinct wipe-vs-keep semantics. Falls out of item 4's
   extraction if that happens first.
+- **Resolved (2026-08-27):** `ensureMapsLocked()` extracted (now
+  `internal/dupes/dupes.go`, moved there with item 2/4); `WipeIfStale`
+  still reallocates all three maps before calling it, `AdoptGeneration`
+  still only calls it — the wipe-vs-keep distinction is unchanged.
 
 ---
 
@@ -207,17 +274,17 @@ dependency, and one upstream library bug.
 
 Alongside feature work, in this order:
 
-1. **Now (minutes–hours)**: 13, 14, 11, 12 — mechanical cleanups; and set a
-   recurring check on the heic release for item 1 (or land the `replace`).
+1. **Now (minutes–hours)**: 12 — mechanical cleanup; and set a recurring
+   check on the heic release for item 1 (or land the `replace`).
 2. **Next (a day)**: 5 (menu recompute) and 6 (revision into `appState`) —
    both shrink the viewer's surface and delete call-site discipline,
    preparing item 3.
-3. **Then (the big one, staged)**: 2 + 4 together — move the visibility/
-   grouping model out of the grid, then box the hash engine. Stage it like
-   the finished refactorings: model interface first, consumers switched one
-   file at a time, grid last.
-4. **Ongoing**: 3 — one field-cluster extraction per sitting (menus first,
-   since step 2 of this plan created the seam), continuing until the struct
-   comment fits on two screens.
+3. **Done (2026-08-27, staged)**: 2 + 4 — moved the visibility/grouping
+   model out of the grid into `internal/dupes`, then boxed the hash engine
+   into `grid/hashengine.go`. See their own resolved notes above and
+   `todos.md` Done → Internal.
+4. **Next candidate (the big one)**: 3 — the `viewer` god object, one
+   field-cluster extraction per sitting (menus first, since step 2 clears
+   the way), continuing until the struct comment fits on two screens.
 5. **Watch list**: 1 (bump on release), 7 (revisit at next sigstore-go
    major), 8 (design decision when favorites grow), 10 (keep seams thin).
