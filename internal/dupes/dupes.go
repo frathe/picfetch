@@ -65,6 +65,18 @@ type Model struct {
 
 	dist   int
 	groups Groups
+
+	// hide reports whether duplicate extras are currently hidden from
+	// navigation. It is standing state - it survives across FileSet
+	// changes until a caller turns it off again - and, unlike hashing or
+	// group installs, setting it is a pure flag flip: see
+	// SetHideDuplicates in visible.go for why.
+	hide bool
+	// inspectKey is the file key of an active inspect session, or "" when
+	// none is active. Stored as a key rather than an index so it survives
+	// the file set shifting under it; see BeginInspect in visible.go.
+	inspectKey string
+
 	// computes counts Compute calls so tests can prove a snapshot was
 	// computed off the UI queue rather than inside it.
 	computes atomic.Int32

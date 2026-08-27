@@ -273,12 +273,10 @@ func TestConcurrentPutHashAndCompute_NoRace(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := range 20 {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
+		wg.Go(func() {
 			m.PutHash(set.keys[i], uint64(i))
 			m.PutNativeSize(set.keys[i], image.Pt(i+1, i+1))
-		}(i)
+		})
 	}
 	for range 5 {
 		wg.Go(func() {
