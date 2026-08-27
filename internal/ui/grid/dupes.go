@@ -1,22 +1,14 @@
 package grid
 
 import (
-	"context"
 	"image"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/imaging"
 )
-
-// hideApplyMinInterval is how far apart hashRemaining may schedule hide
-// applies while jobs are still running. The last job always applies.
-// Without a floor, an idle UI drains one install and the next hash
-// immediately queues another, so the event loop never sees input until
-// the pool is empty.
-const hideApplyMinInterval = 250 * time.Millisecond
 
 // adoptHashGen records the host's current generation without dropping the
 // model's hashes, hash failures, or native sizes. Incremental shrink
@@ -297,150 +289,52 @@ func (g *Overview) rebuildGroups() {
 	g.dupes.Rebuild()
 }
 
-// hashRemaining hashes every file that does not already have a dHash,
-// and records native pixel counts for files that have a hash but no
-// size. Cache hits join the thumbnail pool the same way misses do —
-// dHashing them on the D-key goroutine froze the UI for any folder that
-// already fit in the thumb cache. Jobs have no per-cell Claim so Settle
-// still waits, and they do not Add to a full thumbnail cache.
-//
-// DuplicateGroups runs on the worker before g.ui.Do. The callback only
-// installs that snapshot and filters, unless the duplicate distance
-// changed since the snapshot (settings slider while hashing): then it
-// recomputes so the install cannot undo the live regroup. hideApply
-// stays set until the callback returns so an idle UI cannot re-arm
-// mid-apply. Mid-window applies are also floored by
-// hideApplyMinInterval; the last job always applies. Browse still waits
-// for the last job (finishBrowse) so a partial group is never shown.
-// g.ui.Do stays inside this Go body: Settle's barrier is decodes.Wait,
-// which only covers completions the pool spawned.
+// hashRemaining starts the hashing pass for every file the model has no
+// dHash or native size for yet, and returns how many jobs it queued -
+// the grid's one entry point into hashEngine, kept under its old name so
+// hide, browse and the tests all still call the same thing. The pass
+// itself, its job accounting and its throttle live in hashengine.go;
+// applyHashSnapshot below is the half of a completion that has to run on
+// the UI goroutine, which is why the split falls where it does.
 func (g *Overview) hashRemaining() int {
-	gen := g.host.Generation()
-	g.wipeHashesIfStale()
-
-	type hashJob struct {
-		file   fyne.URI
-		key    string
-		thumb  image.Image
-		hashed bool
-		sized  bool
-	}
-	var jobs []hashJob
-	for i := 0; i < g.host.FileCount(); i++ {
-		u := g.host.FileAt(i)
-		_, hashed := g.hashOf(u)
-		_, sized := g.pixelCountOf(u)
-		if hashed && sized {
-			continue
-		}
-		if g.hashFailedOf(u) {
-			continue
-		}
-		key := u.String()
-		if _, loaded := g.hashing.LoadOrStore(key, true); loaded {
-			continue
-		}
-		job := hashJob{file: u, key: key, hashed: hashed, sized: sized}
-		if thumb, ok := g.thumbs.Get(key); ok {
-			job.thumb = thumb
-		}
-		jobs = append(jobs, job)
-	}
-	n := len(jobs)
-	if n == 0 {
-		return 0
-	}
-	g.hashJobs.Add(int32(n))
-	for _, j := range jobs {
-		file, key, cached, hashed, sized := j.file, j.key, j.thumb, j.hashed, j.sized
-		g.decodes.Go(context.Background(), func(acquired bool) {
-			defer func() {
-				g.hashing.Delete(key)
-				remaining := g.hashJobs.Add(-1)
-				if !g.shouldScheduleHideApply(remaining) {
-					return
-				}
-				snap := g.dupes.Compute()
-				g.ui.Do(func() {
-					defer g.hideApply.Store(false)
-					if gen != g.host.Generation() {
-						return
-					}
-					if g.browseHost >= 0 {
-						if remaining == 0 {
-							g.finishBrowse()
-							g.fireDupeState()
-						}
-						return
-					}
-					if g.dupes.HideDuplicates() {
-						keepHost := g.fileIndex(g.highlight)
-						if g.duplicateDistance() != snap.Dist {
-							snap = g.dupes.Compute()
-						}
-						g.dupes.Install(snap)
-						g.applyVisibleFilter(false, keepHost)
-						if !g.dupes.Inspecting() {
-							g.dupes.Notify()
-						}
-					}
-					if remaining == 0 {
-						g.fireDupeState()
-					}
-				})
-			}()
-			if !acquired || gen != g.host.Generation() {
-				return
-			}
-			thumb := cached
-			var native image.Rectangle
-			haveNative := false
-			if thumb == nil {
-				var err error
-				thumb, native, err = imaging.LoadThumbnailAndBounds(file)
-				if err != nil || thumb == nil {
-					g.rememberHashFail(file)
-					return
-				}
-				haveNative = true
-				if !g.ThumbCacheFull() {
-					g.thumbs.AddIfFits(file.String(), thumb)
-				}
-			}
-			if !hashed {
-				g.rememberHash(file, thumb)
-			}
-			if !sized {
-				if haveNative {
-					g.rememberNative(file, native)
-				} else {
-					_, b, err := imaging.ReadAndProbe(context.Background(), file)
-					if err != nil {
-						// Known-zero so hide/browse stop re-queueing an
-						// unprobeable file (same trade-off as hashFailed).
-						b = image.Rectangle{}
-					}
-					g.rememberNative(file, b)
-				}
-			}
-		})
-	}
-	return n
+	return g.hashes.Run(g.applyHashSnapshot)
 }
 
-func (g *Overview) shouldScheduleHideApply(remaining int32) bool {
+// applyHashSnapshot installs a finished hash job's group snapshot and
+// re-applies the grid's own view of it. hashEngine.Run passes this as its
+// apply callback and runs it on the UI goroutine, once per scheduled
+// apply; nothing else calls it.
+//
+// This is everything in the old hashRemaining completion that could not
+// move to the engine, unchanged: it reaches the highlight, the browse
+// source, the filter and the grid's dupe-state notification, all of which
+// are the overlay's and stay on Overview. snap is the snapshot the worker
+// computed off the UI goroutine, remaining is how many jobs were still
+// outstanding when this one finished, and gen is the generation the pass
+// started at - a newer drop makes the whole snapshot meaningless.
+func (g *Overview) applyHashSnapshot(snap dupes.Groups, remaining int32, gen uint64) {
+	if gen != g.host.Generation() {
+		return
+	}
+	if g.browseHost >= 0 {
+		if remaining == 0 {
+			g.finishBrowse()
+			g.fireDupeState()
+		}
+		return
+	}
+	if g.dupes.HideDuplicates() {
+		keepHost := g.fileIndex(g.highlight)
+		if g.duplicateDistance() != snap.Dist {
+			snap = g.dupes.Compute()
+		}
+		g.dupes.Install(snap)
+		g.applyVisibleFilter(false, keepHost)
+		if !g.dupes.Inspecting() {
+			g.dupes.Notify()
+		}
+	}
 	if remaining == 0 {
-		g.hideApply.Store(true)
-		return true
+		g.fireDupeState()
 	}
-	now := time.Now().UnixMilli()
-	last := g.hideApplyAt.Load()
-	if last != 0 && now-last < hideApplyMinInterval.Milliseconds() {
-		return false
-	}
-	if !g.hideApply.CompareAndSwap(false, true) {
-		return false
-	}
-	g.hideApplyAt.Store(now)
-	return true
 }

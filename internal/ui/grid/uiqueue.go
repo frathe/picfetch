@@ -32,12 +32,19 @@ type UIQueue interface {
 // SetUIQueue replaces the marshaler background completions use. Production
 // never calls this. Tests pass *uitest.UIQueue so completions are drained
 // by Settle on the test goroutine. A nil q restores the app's fyneQueue.
+//
+// The hash engine holds the queue itself rather than reaching back through
+// the Overview (hashengine.go), so it is set here too: a test that swapped
+// only the Overview's would still have hashing completions running inline
+// on the decode worker, which is the exact race this queue exists to
+// close.
 func (g *Overview) SetUIQueue(q UIQueue) {
 	if q == nil {
 		g.ui = fyneQueue{}
-		return
+	} else {
+		g.ui = q
 	}
-	g.ui = q
+	g.hashes.ui = g.ui
 }
 
 // fyneQueue is the app's UIQueue - hand the callback to Fyne and let the

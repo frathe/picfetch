@@ -418,7 +418,7 @@ func TestSetHideDuplicates_PendingShowsChromeAndLeavesUnhashedVisible(t *testing
 	if g.count() != 3 {
 		t.Fatalf("count() = %d while the extra is still unhashed, want 3", g.count())
 	}
-	if got := g.hashJobs.Load(); got != 2 {
+	if got := g.hashes.hashJobs.Load(); got != 2 {
 		t.Fatalf("hashJobs = %d, want 2 (file 0 already hashed; 1 and 2 still pending)", got)
 	}
 
@@ -456,7 +456,7 @@ func TestHashRemaining_CoalescesHideAppliesOntoTheUIQueue(t *testing.T) {
 	g := newOverview(t, host)
 	unpark := parkDecodes(t, g)
 	g.SetHideDuplicates(true)
-	if got := g.hashJobs.Load(); got != 5 {
+	if got := g.hashes.hashJobs.Load(); got != 5 {
 		t.Fatalf("hashJobs = %d, want 5", got)
 	}
 
@@ -489,7 +489,7 @@ func TestHashRemaining_CachedThumbsJoinThePool(t *testing.T) {
 	unpark := parkDecodes(t, g)
 	g.SetHideDuplicates(true)
 
-	if got := g.hashJobs.Load(); got != 3 {
+	if got := g.hashes.hashJobs.Load(); got != 3 {
 		t.Fatalf("hashJobs = %d, want 3 (cache hits must join the pool, not dHash on D)", got)
 	}
 	for i, u := range host.files {
@@ -575,7 +575,7 @@ func TestSetHideDuplicates_OnePendingJobHidesExtraWithoutWaitingForAPeer(t *test
 	if g.count() != 3 {
 		t.Fatalf("count() = %d with the extra still unhashed, want 3", g.count())
 	}
-	if got := g.hashJobs.Load(); got != 1 {
+	if got := g.hashes.hashJobs.Load(); got != 1 {
 		t.Fatalf("hashJobs = %d, want 1", got)
 	}
 

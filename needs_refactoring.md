@@ -192,14 +192,6 @@ dependency, and one upstream library bug.
   `strdup`'d copy freed by the Go side (or document the constraint at the
   function). `testKeepAlive` also grows unboundedly, though it is test-only.
 
-### 13. Empty directory `internal/favorites/`
-
-- **Impact 1 · Risk 1 · Effort 1 → priority 10**
-- Dead artifact — the feature lives in `internal/ui/favorites`,
-  `internal/favstore`, and `internal/favthumbs`. Delete it before someone
-  greps their way into the wrong place. (Git doesn't track it, so it exists
-  only on this machine: `rmdir internal/favorites`.)
-
 ### 14. Duplicated lazy-map initialization in dupes.go
 
 - **Impact 1 · Risk 1 · Effort 1 → priority 10**

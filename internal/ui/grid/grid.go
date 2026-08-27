@@ -230,16 +230,18 @@ type Overview struct {
 	// navigation asks it questions with the grid closed - and the grid
 	// feeds it from the hashing pass, which stays here because it is bound
 	// to the decode pool and the overlay.
-	//
-	// hashing dedups in-flight hashRemaining jobs by URI string.
-	// hashJobs counts those pool jobs so the last one can finishBrowse.
-	// hideApply stays set until the in-flight UI install returns, so an
-	// idle fyne.Do cannot re-arm mid-apply and queue one install per
-	// file. hideApplyAt floors mid-window installs so the event loop
-	// still sees input while hashing.
-	dupes       *dupes.Model
-	hideApply   atomic.Bool
-	hideApplyAt atomic.Int64
+	dupes *dupes.Model
+
+	// hashes is that pass: the pool jobs that fill the model with dHashes
+	// and native sizes, the accounting that tells the last job it is the
+	// last, and the throttle that keeps the UI goroutine answering input
+	// while they run. Boxed in hashengine.go rather than left as more
+	// fields here, because a sync.Map and three atomics written by four
+	// decode workers share nothing with the marquee geometry and search
+	// string beside them. hashRemaining (dupes.go) is the grid's entry
+	// point into it.
+	hashes *hashEngine
+
 	// browseHost is the host index being browsed, or -1 when browse is
 	// off. Zero is a valid file index - New MUST set this to -1.
 	//
@@ -250,8 +252,6 @@ type Overview struct {
 	// browse from) survives closeOverlay(false) - the Return/click
 	// commit - and ends only on Close()/G.
 	browseHost int
-	hashing    sync.Map
-	hashJobs   atomic.Int32
 }
 
 // dupBadge is the group-size chip on a grid cell: white digits on a black
@@ -334,6 +334,19 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 		ui:         fyneQueue{},
 		dupes:      model,
 		browseHost: -1,
+	}
+
+	// Built after the literal so the engine can be handed the very
+	// pointers the Overview holds, not a second pool or a second cache:
+	// hash jobs have to land on the same decode pool the cells decode on
+	// (Settle's decodes.Wait barrier covers only that pool) and fill the
+	// same thumbnail cache and the same model the badges read.
+	g.hashes = &hashEngine{
+		host:   host,
+		pool:   g.decodes,
+		thumbs: g.thumbs,
+		model:  model,
+		ui:     g.ui,
 	}
 
 	g.wrap = widget.NewGridWrap(

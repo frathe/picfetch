@@ -65,11 +65,12 @@ func (g *Overview) Warm() error {
 // app never needs this; tests do, to keep a decode goroutine from touching
 // widgets after the test that started it has moved on.
 //
-// A single Wait-then-Drain pass is only correct because every g.ui.Do
-// call in this package runs from inside the g.decodes.Go body it
-// belongs to (see the comment above that call in requestThumbnail): by
+// A single Wait-then-Drain pass is only correct because every UIQueue Do
+// in this package - requestThumbnail's two below, and the hash engine's
+// one in hashengine.go - runs from inside the decode-pool Go body it
+// belongs to (see the comment above those calls in requestThumbnail): by
 // the time Wait returns, every decode spawned so far has already reached
-// its g.ui.Do, so that pass's Drain has everything there is to run.
+// its Do, so that pass's Drain has everything there is to run.
 //
 // The loop is what keeps that promise for a deferring UIQueue (see
 // uiqueue.go): a drained completion can spawn further decodes -
@@ -134,7 +135,16 @@ func (g *Overview) StoreThumb(u fyne.URI, thumb image.Image) bool {
 // the list warm and letting the tail decode on demand exactly as it does
 // today.
 func (g *Overview) ThumbCacheFull() bool {
-	return g.thumbs.Bytes() >= g.thumbs.Budget()
+	return thumbCacheFull(g.thumbs)
+}
+
+// thumbCacheFull is the budget check behind ThumbCacheFull, as a function
+// over the cache rather than a method on Overview, because the hashing
+// pass makes exactly the same speculative write from a type that holds
+// the cache but not the overlay (hashengine.go). One implementation, so
+// the two callers cannot drift apart.
+func thumbCacheFull(c *imaging.ByteCache[image.Image]) bool {
+	return c.Bytes() >= c.Budget()
 }
 
 // SetCacheBytes retunes the thumbnail cache's byte budget and evicts down
