@@ -27,6 +27,15 @@ type appState struct {
 	// it advanced before the files did: a worker could see the new
 	// generation over the old list.
 	published atomic.Pointer[dupes.Snapshot]
+
+	// onRemove is the image-cache eviction hook: removeFile calls it with
+	// the URI it just dropped, after publish(), so a subscriber always
+	// observes the new generation before being asked to evict against it.
+	// Wired in build.go, once the viewer (and its imgCache) exists - state:
+	// is built inside the viewer's own composite literal, so it cannot set
+	// its own hook. nil-guarded because a zero appState, as some tests
+	// construct directly, has no hook and must stay usable.
+	onRemove func(fyne.URI)
 }
 
 func newAppState(sortMode filesort.Mode, mergeMode bool) appState {
@@ -121,6 +130,10 @@ func (s *appState) removeFile(i int) fyne.URI {
 	}
 
 	s.publish()
+
+	if s.onRemove != nil {
+		s.onRemove(target)
+	}
 
 	return target
 }

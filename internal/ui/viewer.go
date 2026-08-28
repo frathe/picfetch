@@ -816,12 +816,13 @@ func (v *viewer) AfterMetadataRemoved(u fyne.URI) {
 // than by URI match, since merge mode allows dropping the same file twice
 // and a match would risk removing the wrong duplicate; unsortedFiles has
 // no equivalent index to use, but any matching duplicate there is an
-// equally valid one to drop.
+// equally valid one to drop. Evicting the removed file's decode from
+// imgCache is appState's job rather than this method's - see its onRemove
+// hook (state.go), which fires for every removal however it is reached.
 func (v *viewer) RemoveFile(i int) {
 	v.invalidateSort() // cancel a sort still in flight - see sortOp's field comment
 
-	target := v.state.removeFile(i)
-	v.imgCache.Remove(target.String())
+	v.state.removeFile(i)
 }
 
 // RemoveFiles drops every named index in one pass - what internal/ui/deletion

@@ -93,6 +93,12 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	view.vector.do = fyne.Do
 	view.frameAfter = time.After
 
+	// Wired here rather than in the literal above: the closure captures view,
+	// whose state field that literal is still building. Any mutator that
+	// goes through appState.removeFile evicts the removed file's decode
+	// without having to remember to - see onRemove's field comment (state.go).
+	view.state.onRemove = func(u fyne.URI) { view.imgCache.Remove(u.String()) }
+
 	view.scanOp.art = scan.art
 	view.scanOp.spinner = scan.spinner
 	view.scanOp.label = scan.label

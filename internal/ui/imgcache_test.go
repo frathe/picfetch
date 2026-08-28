@@ -99,6 +99,26 @@ func TestRemoveFile_PurgesCacheEntry(t *testing.T) {
 	}
 }
 
+// TestAppState_RemoveFileEvictsCacheWithoutCallerAsking proves the eviction
+// is appState's own invariant, not RemoveFile's - it calls the low-level
+// mutator v.state.removeFile directly, bypassing v.RemoveFile entirely, so a
+// future mutator that goes through appState gets the same guarantee for free.
+func TestAppState_RemoveFileEvictsCacheWithoutCallerAsking(t *testing.T) {
+	v := newTestViewer(t)
+
+	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
+	v.state.files = []fyne.URI{a, b}
+	v.state.unsortedFiles = []fyne.URI{a, b}
+	v.imgCache.Add(a.String(), &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}})
+
+	v.state.removeFile(0)
+
+	if v.imgCache.Contains(a.String()) {
+		t.Error("appState.removeFile should evict the removed file's imgCache entry via its onRemove hook")
+	}
+}
+
 // TestAttemptLoad_DisplaysAnImageLargerThanTheWholeCacheBudget is the
 // completion criterion the byte budget had to be designed around: a budget
 // smaller than a single decode must not make the app unable to show that
