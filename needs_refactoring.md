@@ -38,33 +38,6 @@ the `internal/dupes` extraction, along with items 11, 13 and 14.
 - **Mitigation (2026-08-26):** `go.mod` replace → `frathe/heic@0ac0a39` until
   upstream releases PR #16. Remove replace on bump.
 
-### 3. `viewer` god object — 87 fields and still growing
-
-- **Impact 4 · Risk 3 · Effort 4 → priority 14**
-- Where: the struct definition alone spans
-  [viewer.go:38–478](internal/ui/viewer.go:38); its methods spread across
-  ~30 files of `internal/ui`. (Grew by one field, `dupes *dupes.Model`,
-  when the duplicate-visibility model moved out from under the grid — item
-  2's resolution; the navigation helpers it replaced were methods, not
-  fields, so they didn't shrink the count on the way out.)
-- The comments are exemplary and the tests thorough, which is why this is
-  Risk 3 and not 5 — but the growth pattern is intact: autoupdate landed 6
-  new fields, the info overlay 7, menu items account for **16 fields** on
-  their own. Every feature keeps paying a "where in the 430-line struct does
-  my field go" tax, and the concurrency notes per field only get harder to
-  hold in one head.
-- **Fix**: continue the existing feature-split practice with field-cluster
-  extractions that have clean seams already visible in the comments:
-  - menu-item state (`saveItem` … `actionsTrashItem`, 16 fields) → a
-    `menus` type with a single recompute entry point (pairs with item 5);
-  - updater state (`update`, `updateDir`, `updateOp`, `updateDone`,
-    `updateCurrentVersion`, `updateDayMu`) → an `updater` type in
-    autoupdate.go;
-  - info-overlay state (`infoVisible`, `infoText`, `exifLink`, `infoCard`,
-    `currentFileSize`, `currentHasEXIF`, `currentPreview`) → info.go;
-  - display state (`displayFrames`, `displayFrameIdx`, `rotation`,
-    `fadeAnim`) → load.go/rotate.go.
-
 ---
 
 ## Medium severity
