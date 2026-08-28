@@ -24,6 +24,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/help"
+	"github.com/frathe/picfetch/internal/ui/menus"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -93,44 +94,20 @@ type viewer struct {
 	// to the settings-backed state struct below.
 	settingsWin *settingswin.Window
 
-	// saveItem is the File menu's "Save Changes" item (save.go), exportItem
-	// its "Export image" one (export.go), and closeFilesItem its "Close Files"
-	// one (viewer.go's closeFiles) - kept as their own fields, unlike the
-	// other menu items built in menu.go, because their Disabled fields need
-	// updating from outside buildMainMenu itself, at every site that can
-	// change whether there's anything to save, export or close:
-	// rotate.go, load.go, clearToDropzone, and save.go itself - see
-	// updateFileMenuState. Set as Wallpaper lives on the Actions menu
-	// (`actionsWallpaperItem`) rather than File.
-	saveItem       *fyne.MenuItem
-	exportItem     *fyne.MenuItem
-	closeFilesItem *fyne.MenuItem
-
-	// windowViewerItem and siblings are the Window menu items (windowmenu.go) -
-	// kept as fields because their Disabled state is updated from outside
-	// buildMainMenu itself, the same reason the File menu's saveItem lives here.
-	windowViewerItem       *fyne.MenuItem
-	windowExifItem         *fyne.MenuItem
-	windowGridItem         *fyne.MenuItem
-	windowPictureFrameItem *fyne.MenuItem
-	windowHelpItem         *fyne.MenuItem
-
-	// actionsSortItems and siblings are the Actions menu items (actionmenu.go) -
-	// kept as fields because their Disabled/Checked state is updated from
-	// outside buildMainMenu itself, the same reason the File menu's saveItem
-	// lives here.
-	actionsSortItems       []*fyne.MenuItem // len 5, index matches filesort.Modes()
-	actionsHideItem        *fyne.MenuItem
-	actionsShowVariantItem *fyne.MenuItem
-	actionsRotateItem      *fyne.MenuItem
-	actionsZoomInItem      *fyne.MenuItem
-	actionsZoomOutItem     *fyne.MenuItem
-	actionsMergeItem       *fyne.MenuItem
-	actionsInfoItem        *fyne.MenuItem
-	actionsCopyItem        *fyne.MenuItem
-	actionsCopyPathItem    *fyne.MenuItem
-	actionsWallpaperItem   *fyne.MenuItem
-	actionsTrashItem       *fyne.MenuItem
+	// menus holds the File, Window and Actions menu items whose
+	// Checked/Disabled state moves at runtime - the File three ("Save
+	// Changes", "Export image", "Close Files"), the five Window items, and
+	// the twelve Actions ones. They are behind a field, unlike the inert
+	// items built alongside them, because that state has to be updated
+	// from outside buildMainMenu itself, at every site that can change
+	// what is saveable, exportable or open, or which surface is showing:
+	// rotate.go, load.go, sort.go, info.go, keys.go, save.go,
+	// clearToDropzone, and the feature observers registered in
+	// buildMainMenu. internal/ui/menus computes that whole matrix as one
+	// pure function of a State value; menuState and syncMenus below are
+	// where this viewer fills it in. Set as Wallpaper lives on the Actions
+	// menu rather than File.
+	menus *menus.Menus
 
 	// restoreLink offers to reload the file set saved when the window last
 	// closed (see session.go). Shown only while welcomeArt is - and only
@@ -544,8 +521,8 @@ func (v *viewer) applyTitle() {
 // reuses the already-probed native size and the full path instead, and
 // applyTitle omits [merge]/[shuffle]/sort prefixes for that title.
 // Show-variants enablement follows the highlighted host while the grid is
-// open, so this also reapplies Actions; native Refresh only if Hide or
-// Show-variants Checked/Disabled actually changed.
+// open, so this also recomputes the menus; syncMenus refreshes the native
+// bar only if something in that matrix actually moved.
 func (v *viewer) HighlightChanged(i int) {
 	if i < 0 || i >= len(v.state.files) {
 		v.gridTitle = ""
@@ -555,20 +532,7 @@ func (v *viewer) HighlightChanged(i int) {
 		v.applyTitle()
 	}
 
-	if v.actionsHideItem == nil {
-		return
-	}
-	hideChecked := v.actionsHideItem.Checked
-	hideDisabled := v.actionsHideItem.Disabled
-	variantChecked := v.actionsShowVariantItem.Checked
-	variantDisabled := v.actionsShowVariantItem.Disabled
-	v.applyActionsMenuState()
-	if v.actionsHideItem.Checked != hideChecked ||
-		v.actionsHideItem.Disabled != hideDisabled ||
-		v.actionsShowVariantItem.Checked != variantChecked ||
-		v.actionsShowVariantItem.Disabled != variantDisabled {
-		v.refreshMainMenu()
-	}
+	v.syncMenus()
 }
 
 // gridHighlightTitle names the file under the grid ring. Hide-duplicates
@@ -639,7 +603,7 @@ func (v *viewer) clearToDropzone() {
 	v.setTitle(appTitle)
 	v.undoGridMaximize()
 	v.win.Resize(fyne.NewSize(startW, startH))
-	v.updateFileMenuState()
+	v.syncMenus()
 }
 
 // undoGridMaximize restores the window from a grid-triggered maximize (see
@@ -673,7 +637,7 @@ func (v *viewer) toggleMergeMode() {
 func (v *viewer) SetMergeMode(on bool) {
 	v.state.SetMergeMode(on)
 	v.applyTitle()
-	v.updateActionsMenuState()
+	v.syncMenus()
 }
 
 // MergeMode reports whether merge mode is on - the settings window's

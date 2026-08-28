@@ -26,7 +26,7 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 	if len(v.state.files) == 0 {
 		v.state.SetSortMode(m)
 		v.applyTitle()
-		v.updateActionsMenuState()
+		v.syncMenus()
 
 		return
 	}
@@ -47,7 +47,7 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 	// a large sort just to see that their choice registered.
 	v.state.SetSortMode(m)
 	v.applyTitle()
-	v.updateActionsMenuState()
+	v.syncMenus()
 
 	v.startSort(m, unsorted, func(ordered []fyne.URI) {
 		v.state.reorder(ordered)

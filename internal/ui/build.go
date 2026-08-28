@@ -49,7 +49,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	toastComp := newToast(func() { view.ForceRepaint() })
 	info := newInfoOverlayUI(func() {
 		view.exif.Show()
-		view.updateWindowMenuState()
+		view.syncMenus()
 	})
 
 	loadingBar := widget.NewProgressBarInfinite()

@@ -18,7 +18,7 @@ func (v *viewer) toggleInfoOverlay() {
 	v.infoVisible = !v.infoVisible
 	v.syncInfoOverlayVisibility()
 	v.ForceRepaint()
-	v.updateActionsMenuState()
+	v.syncMenus()
 }
 
 // syncInfoOverlayVisibility shows or hides infoCard to match v.infoVisible,

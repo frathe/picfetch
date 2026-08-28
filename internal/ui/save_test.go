@@ -143,7 +143,7 @@ func TestSaveRotation_WritesRotatedPixelsAndResetsState(t *testing.T) {
 	if got := v.img.Image.Bounds(); got != wantBounds {
 		t.Errorf("bounds after save = %v, want unchanged at %v - saving should never itself change what's on screen", got, wantBounds)
 	}
-	if !v.saveItem.Disabled {
+	if !v.menus.Save().Disabled {
 		t.Error("Save Changes menu item should be disabled again once there's nothing left to save")
 	}
 
@@ -241,7 +241,7 @@ func TestSaveRotation_FailedWriteLeavesRotationUnchanged(t *testing.T) {
 func TestSaveItem_DisabledInitially(t *testing.T) {
 	v := newTestViewer(t)
 
-	if !v.saveItem.Disabled {
+	if !v.menus.Save().Disabled {
 		t.Error("Save Changes should start disabled, with nothing loaded")
 	}
 }
@@ -253,14 +253,14 @@ func TestSaveItem_EnabledAfterRotatingAndDisabledAfterNavigatingAway(t *testing.
 	dropAndWait(t, v, a, b)
 
 	v.rotateBy(1)
-	if v.saveItem.Disabled {
+	if v.menus.Save().Disabled {
 		t.Fatal("Save Changes should be enabled after rotating")
 	}
 
 	v.ShowImage(1)
 	waitUntilLoaded(t, v)
 
-	if !v.saveItem.Disabled {
+	if !v.menus.Save().Disabled {
 		t.Error("Save Changes should be disabled again after navigating away - the rotation didn't carry over")
 	}
 }
@@ -271,13 +271,13 @@ func TestSaveItem_DisabledAfterCloseFiles(t *testing.T) {
 	dropAndWait(t, v, a)
 
 	v.rotateBy(1)
-	if v.saveItem.Disabled {
+	if v.menus.Save().Disabled {
 		t.Fatal("Save Changes should be enabled after rotating")
 	}
 
 	v.closeFiles()
 
-	if !v.saveItem.Disabled {
+	if !v.menus.Save().Disabled {
 		t.Error("Save Changes should be disabled after Close Files clears the loaded image")
 	}
 }

@@ -351,12 +351,12 @@ func TestActionsMenu_SortItemJumpsWithoutCycling(t *testing.T) {
 	waitUntilLoaded(t, v)
 
 	// Modes()[3] is BySize — do not cycle S three times.
-	v.actionsSortItems[3].Action()
+	v.menus.Actions().Sort()[3].Action()
 	waitForSort(t, v)
 	if v.SortMode() != filesort.BySize {
 		t.Fatalf("SortMode = %v, want BySize", v.SortMode())
 	}
-	if !v.actionsSortItems[3].Checked || v.actionsSortItems[0].Checked {
+	if !v.menus.Actions().Sort()[3].Checked || v.menus.Actions().Sort()[0].Checked {
 		t.Fatal("File size should be the only checked sort item")
 	}
 }
@@ -369,7 +369,7 @@ func TestActionsMenu_SortItemNoopWhenAlreadySelected(t *testing.T) {
 	if p := filesort.Label(v.SortMode()); p != "" {
 		t.Fatalf("premises: default ByName must have an empty title prefix, got %q", p)
 	}
-	v.actionsSortItems[0].Action() // Name, the default
+	v.menus.Actions().Sort()[0].Action() // Name, the default
 	if v.SortMode() != filesort.ByName {
 		t.Fatal("re-choosing Name must leave ByName")
 	}
@@ -383,19 +383,19 @@ func TestActionsMenu_SortItemNoopWhenAlreadySelected(t *testing.T) {
 
 func TestActionsMenu_HideTogglesLikeD(t *testing.T) {
 	v := loadPatternedTriple(t)
-	v.actionsHideItem.Action()
-	if !v.dupes.HideDuplicates() || !v.actionsHideItem.Checked {
+	v.menus.Actions().Hide().Action()
+	if !v.dupes.HideDuplicates() || !v.menus.Actions().Hide().Checked {
 		t.Fatal("Show/Hide duplicates should turn hide on and checkmark")
 	}
-	v.actionsHideItem.Action()
-	if v.dupes.HideDuplicates() || v.actionsHideItem.Checked {
+	v.menus.Actions().Hide().Action()
+	if v.dupes.HideDuplicates() || v.menus.Actions().Hide().Checked {
 		t.Fatal("second click should turn hide off")
 	}
 }
 
 func TestActionsMenu_HideNoopsWithoutFiles(t *testing.T) {
 	v := newTestViewer(t)
-	v.actionsHideItem.Action()
+	v.menus.Actions().Hide().Action()
 	if v.dupes.HideDuplicates() {
 		t.Fatal("no files: hide must stay off")
 	}
@@ -403,11 +403,11 @@ func TestActionsMenu_HideNoopsWithoutFiles(t *testing.T) {
 
 func TestActionsMenu_ShowVariantsOpensGridOnPairAfterHide(t *testing.T) {
 	v := loadPatternedTriple(t)
-	v.actionsHideItem.Action()
-	if v.actionsShowVariantItem.Disabled {
+	v.menus.Actions().Hide().Action()
+	if v.menus.Actions().ShowVariant().Disabled {
 		t.Fatal("premises: hide on + pair should enable Show variants")
 	}
-	v.actionsShowVariantItem.Action()
+	v.menus.Actions().ShowVariant().Action()
 	v.grid.Settle()
 	if !v.grid.Visible() || !v.grid.BrowsingDuplicates() {
 		t.Fatal("Show variants on a duplicate (hide on) should browse and open the grid")
@@ -415,17 +415,17 @@ func TestActionsMenu_ShowVariantsOpensGridOnPairAfterHide(t *testing.T) {
 	if !v.dupes.HideDuplicates() {
 		t.Fatal("Show variants must leave hide on")
 	}
-	if !v.actionsShowVariantItem.Checked {
+	if !v.menus.Actions().ShowVariant().Checked {
 		t.Fatal("Show variants should be checked while browsing")
 	}
 }
 
 func TestActionsMenu_ShowVariantsNoopsWhileHideOff(t *testing.T) {
 	v := loadPatternedTriple(t)
-	if !v.actionsShowVariantItem.Disabled {
+	if !v.menus.Actions().ShowVariant().Disabled {
 		t.Fatal("premises: hide off must grey Show variants")
 	}
-	v.actionsShowVariantItem.Action()
+	v.menus.Actions().ShowVariant().Action()
 	v.grid.Settle()
 	if v.grid.Visible() || v.grid.BrowsingDuplicates() {
 		t.Fatal("hide off: Show variants must not start browse")
@@ -437,10 +437,10 @@ func TestActionsMenu_ShowVariantsNoopOnUnique(t *testing.T) {
 	v.grid.SetHideDuplicates(true) // rebuild groups so size==1 is known
 	v.ShowImage(2)
 	waitUntilLoaded(t, v)
-	if !v.actionsShowVariantItem.Disabled {
+	if !v.menus.Actions().ShowVariant().Disabled {
 		t.Fatal("premises: unique should grey Show variants")
 	}
-	v.actionsShowVariantItem.Action()
+	v.menus.Actions().ShowVariant().Action()
 	v.grid.Settle()
 	if v.grid.Visible() || v.grid.BrowsingDuplicates() {
 		t.Fatal("unique: must not open browse")
@@ -452,7 +452,7 @@ func TestActionsMenu_ShowVariantsNoopsDuringPictureFrame(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	t.Cleanup(func() { settleSlideshow(t, v) })
 	v.togglePictureFrameMode()
-	v.actionsShowVariantItem.Action()
+	v.menus.Actions().ShowVariant().Action()
 	if v.grid.Visible() || v.grid.BrowsingDuplicates() {
 		t.Fatal("picture-frame: Show variants must no-op, like Shift+D")
 	}
@@ -460,10 +460,10 @@ func TestActionsMenu_ShowVariantsNoopsDuringPictureFrame(t *testing.T) {
 
 func TestActionsMenu_ShowVariantsSecondClickLeavesBrowse(t *testing.T) {
 	v := loadPatternedTriple(t)
-	v.actionsHideItem.Action()
-	v.actionsShowVariantItem.Action()
+	v.menus.Actions().Hide().Action()
+	v.menus.Actions().ShowVariant().Action()
 	v.grid.Settle()
-	v.actionsShowVariantItem.Action()
+	v.menus.Actions().ShowVariant().Action()
 	v.grid.Settle()
 	if v.grid.BrowsingDuplicates() {
 		t.Fatal("second click should leave browse, like Shift+D")
@@ -477,7 +477,7 @@ func TestActionsMenu_RotateTurnsImageClockwise(t *testing.T) {
 	if v.rotation != 0 {
 		t.Fatal("premises: unrotated")
 	}
-	v.actionsRotateItem.Action()
+	v.menus.Actions().Rotate().Action()
 	if v.rotation != 1 {
 		t.Fatalf("rotation = %d, want 1 (clockwise R)", v.rotation)
 	}
@@ -485,7 +485,7 @@ func TestActionsMenu_RotateTurnsImageClockwise(t *testing.T) {
 
 func TestActionsMenu_RotateNoopsWithoutImage(t *testing.T) {
 	v := newTestViewer(t)
-	v.actionsRotateItem.Action()
+	v.menus.Actions().Rotate().Action()
 	if v.rotation != 0 {
 		t.Fatal("no image: rotate must no-op")
 	}
@@ -496,7 +496,7 @@ func TestActionsMenu_RotateNoopsWhileGridVisible(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	waitUntilLoaded(t, v)
 	v.grid.Toggle()
-	v.actionsRotateItem.Action()
+	v.menus.Actions().Rotate().Action()
 	if v.rotation != 0 {
 		t.Fatal("grid up: rotate must no-op")
 	}
@@ -508,8 +508,8 @@ func TestActionsMenu_ZoomNoopsWhileGridVisible(t *testing.T) {
 	waitUntilLoaded(t, v)
 	v.grid.Toggle()
 	start := v.zoom.Percent()
-	v.actionsZoomInItem.Action()
-	v.actionsZoomOutItem.Action()
+	v.menus.Actions().ZoomIn().Action()
+	v.menus.Actions().ZoomOut().Action()
 	if v.zoom.Percent() != start {
 		t.Fatal("grid up: zoom must no-op")
 	}
@@ -520,7 +520,7 @@ func TestActionsMenu_InfoNoopsWhileGridVisible(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	waitUntilLoaded(t, v)
 	v.grid.Toggle()
-	v.actionsInfoItem.Action()
+	v.menus.Actions().Info().Action()
 	if v.infoVisible {
 		t.Fatal("grid up: info overlay must no-op")
 	}
@@ -534,12 +534,12 @@ func TestActionsMenu_ZoomInThenOutChangesPercent(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 400, 200, color.White))
 	waitUntilLoaded(t, v)
 	start := v.zoom.Percent()
-	v.actionsZoomInItem.Action()
+	v.menus.Actions().ZoomIn().Action()
 	if v.zoom.Percent() <= start {
 		t.Fatalf("zoom in percent = %d, want > %d", v.zoom.Percent(), start)
 	}
 	afterIn := v.zoom.Percent()
-	v.actionsZoomOutItem.Action()
+	v.menus.Actions().ZoomOut().Action()
 	if v.zoom.Percent() >= afterIn {
 		t.Fatalf("zoom out percent = %d, want < %d", v.zoom.Percent(), afterIn)
 	}
@@ -547,20 +547,20 @@ func TestActionsMenu_ZoomInThenOutChangesPercent(t *testing.T) {
 
 func TestActionsMenu_MergeToggleChecksItem(t *testing.T) {
 	v := newTestViewer(t)
-	v.actionsMergeItem.Action()
-	if !v.MergeMode() || !v.actionsMergeItem.Checked {
+	v.menus.Actions().Merge().Action()
+	if !v.MergeMode() || !v.menus.Actions().Merge().Checked {
 		t.Fatal("merge should turn on and checkmark")
 	}
-	v.actionsMergeItem.Action()
-	if v.MergeMode() || v.actionsMergeItem.Checked {
+	v.menus.Actions().Merge().Action()
+	if v.MergeMode() || v.menus.Actions().Merge().Checked {
 		t.Fatal("second click should turn merge off")
 	}
 }
 
 func TestActionsMenu_InfoToggleChecksItem(t *testing.T) {
 	v := newTestViewer(t)
-	v.actionsInfoItem.Action()
-	if !v.infoVisible || !v.actionsInfoItem.Checked {
+	v.menus.Actions().Info().Action()
+	if !v.infoVisible || !v.menus.Actions().Info().Checked {
 		t.Fatal("info overlay preference should turn on")
 	}
 }
@@ -570,7 +570,7 @@ func TestActionsMenu_CopyPathWritesClipboard(t *testing.T) {
 	u := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	dropAndWait(t, v, u)
 	waitUntilLoaded(t, v)
-	v.actionsCopyPathItem.Action()
+	v.menus.Actions().CopyPath().Action()
 	if got := v.app.Clipboard().Content(); got != u.Path() {
 		t.Fatalf("clipboard = %q, want %q", got, u.Path())
 	}
@@ -582,7 +582,7 @@ func TestActionsMenu_CopyImageUsesStub(t *testing.T) {
 	waitUntilLoaded(t, v)
 	called := make(chan struct{}, 1)
 	uitest.StubClipboardCopy(t, func([]byte) error { called <- struct{}{}; return nil })
-	v.actionsCopyItem.Action()
+	v.menus.Actions().Copy().Action()
 	select {
 	case <-called:
 	case <-time.After(testTimeout):
@@ -600,7 +600,7 @@ func TestActionsMenu_WallpaperSetsDesktop(t *testing.T) {
 		got = p
 		return nil
 	})
-	v.actionsWallpaperItem.Action()
+	v.menus.Actions().Wallpaper().Action()
 	settleWallpaper(t, v)
 
 	if got == "" {
@@ -615,7 +615,7 @@ func TestActionsMenu_WallpaperNoopsWithoutImage(t *testing.T) {
 		t.Fatal("no image: Set as Wallpaper must not call wallpaper.Set")
 		return nil
 	})
-	v.actionsWallpaperItem.Action()
+	v.menus.Actions().Wallpaper().Action()
 	if v.wallpaper.Begun() {
 		t.Fatal("no image: Set as Wallpaper must not start a wallpaper change")
 	}
@@ -625,7 +625,7 @@ func TestActionsMenu_TrashOpensConfirmation(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	waitUntilLoaded(t, v)
-	v.actionsTrashItem.Action()
+	v.menus.Actions().Trash().Action()
 	if !v.deletion.Visible() {
 		t.Fatal("Move image to Trash should open the confirmation")
 	}
@@ -633,7 +633,7 @@ func TestActionsMenu_TrashOpensConfirmation(t *testing.T) {
 
 func TestActionsMenu_TrashNoopsWithoutFiles(t *testing.T) {
 	v := newTestViewer(t)
-	v.actionsTrashItem.Action()
+	v.menus.Actions().Trash().Action()
 	if v.deletion.Visible() {
 		t.Fatal("no files: trash must not open")
 	}
@@ -645,7 +645,7 @@ func TestActionsMenu_HideDisabledDuringVariantsSession(t *testing.T) {
 	if !hide.Disabled {
 		t.Fatal("Show/Hide duplicates should be disabled while browsing variants")
 	}
-	v.actionsHideItem.Action()
+	v.menus.Actions().Hide().Action()
 	if !v.dupes.HideDuplicates() {
 		t.Fatal("Action must not toggle hide while browsing")
 	}
@@ -657,7 +657,7 @@ func TestActionsMenu_HideDisabledDuringVariantsSession(t *testing.T) {
 	if !hide.Disabled {
 		t.Fatal("Show/Hide duplicates should be disabled while inspecting")
 	}
-	v.actionsHideItem.Action()
+	v.menus.Actions().Hide().Action()
 	if !v.dupes.HideDuplicates() {
 		t.Fatal("Action must not toggle hide while inspecting")
 	}

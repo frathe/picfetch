@@ -482,7 +482,7 @@ func TestWireAddFavoritesShortcut_DoesNothingWhileTheDeleteCardIsUp(t *testing.T
 func TestCloseFilesItem_DisabledWithNoFilesLoaded(t *testing.T) {
 	v := newTestViewer(t)
 
-	if !v.closeFilesItem.Disabled {
+	if !v.menus.CloseFiles().Disabled {
 		t.Error("Close Files menu item should be disabled with nothing loaded")
 	}
 }
@@ -492,7 +492,7 @@ func TestCloseFilesItem_EnabledAfterFilesLoaded(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a)
 
-	if v.closeFilesItem.Disabled {
+	if v.menus.CloseFiles().Disabled {
 		t.Error("Close Files menu item should be enabled once a file is loaded")
 	}
 	if v.favorites.Menu().Items[0].Disabled {
@@ -507,7 +507,7 @@ func TestCloseFilesItem_DisabledAgainAfterCloseFiles(t *testing.T) {
 
 	v.closeFiles()
 
-	if !v.closeFilesItem.Disabled {
+	if !v.menus.CloseFiles().Disabled {
 		t.Error("Close Files menu item should be disabled again once files are closed")
 	}
 	if !v.favorites.Menu().Items[0].Disabled {
@@ -574,4 +574,40 @@ func TestCloseFiles_CancelsScanInProgress(t *testing.T) {
 	}
 
 	settleToast(t, v) // cancelScan raises a "cancelled scanning" toast
+}
+
+// TestSyncMenus_KeepsFavoritesAddItemInStep guards the placement of
+// SetHasFiles inside syncMenus' changed branch (menu.go). Skipping it on an
+// unchanged sync is only safe because the Favorites "Add Current List" item
+// can move only on a turn where Close Files moved too - both are driven by
+// FileCount. If someone lifts SetHasFiles out of that branch, or Apply stops
+// assigning closeFiles.Disabled from NoFiles outright, this catches the drift
+// in whichever direction it happens.
+func TestSyncMenus_KeepsFavoritesAddItemInStep(t *testing.T) {
+	v := newTestViewer(t)
+
+	addItem := v.favorites.Menu().Items[0]
+	if !addItem.Disabled || !v.menus.CloseFiles().Disabled {
+		t.Fatal("both the Favorites add item and Close Files should start disabled with no files")
+	}
+
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
+
+	if addItem.Disabled != v.menus.CloseFiles().Disabled {
+		t.Errorf("after a drop: Favorites add Disabled = %v, Close Files Disabled = %v - they must move together",
+			addItem.Disabled, v.menus.CloseFiles().Disabled)
+	}
+	if addItem.Disabled {
+		t.Error("the Favorites add item should be enabled once a file is loaded")
+	}
+
+	v.clearToDropzone()
+
+	if addItem.Disabled != v.menus.CloseFiles().Disabled {
+		t.Errorf("after clearing: Favorites add Disabled = %v, Close Files Disabled = %v - they must move together",
+			addItem.Disabled, v.menus.CloseFiles().Disabled)
+	}
+	if !addItem.Disabled {
+		t.Error("the Favorites add item should be disabled again once the files are closed")
+	}
 }

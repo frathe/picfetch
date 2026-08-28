@@ -5,187 +5,121 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/lang"
 
-	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/ui/menus"
 )
 
 // buildMainMenu assembles the menu bar. Composed here rather than inside
 // either feature package, per the "internal/ui decides how features
 // compose" rule (see ARCHITECTURE.md) - help.Menu and settingswin.Window
-// both stay ignorant of where they sit in the bar.
+// both stay ignorant of where they sit in the bar. The File, Actions and
+// Window items themselves, and the whole Checked/Disabled matrix over
+// them, live in internal/ui/menus; everything those items do stays here.
 func buildMainMenu(view *viewer) *fyne.MainMenu {
-	open := fyne.NewMenuItem(lang.L("Open Files…"), func() { view.openFileDialog() })
-	// Display-only: the Cmd/Ctrl+O binding itself is wireOpenShortcuts's
-	// AddShortcut call in shortcuts.go. This just shows the same accelerator
-	// as a hint next to the menu item.
-	open.Shortcut = &desktop.CustomShortcut{
-		KeyName:  fyne.KeyO,
-		Modifier: fyne.KeyModifierShortcutDefault,
+	view.menus = menus.New(menus.Callbacks{
+		OpenFiles:    func() { view.openFileDialog() },
+		SaveRotation: func() { view.saveRotation() },
+		PromptExport: func() { view.promptExport() },
+		CloseFiles:   func() { view.closeFiles() },
+		ShowSettings: func() { view.settingsWin.Show() },
+
+		ShowViewer:       view.showViewer,
+		ShowExif:         view.showWindowExif,
+		ShowGrid:         view.showWindowGrid,
+		ShowPictureFrame: view.showWindowPictureFrame,
+		ShowHelp:         view.showWindowHelp,
+
+		SetSort:              view.setActionsSort,
+		ToggleHideDuplicates: view.toggleActionsHideDuplicates,
+		ShowVariant:          view.showActionsVariant,
+		Rotate:               view.rotateActionsImage,
+		ZoomIn:               view.zoomActionsIn,
+		ZoomOut:              view.zoomActionsOut,
+		ToggleMergeMode:      view.toggleActionsMergeMode,
+		ToggleInfoOverlay:    view.toggleActionsInfoOverlay,
+		CopyImage:            view.copyActionsImage,
+		CopyPath:             view.copyActionsPath,
+		SetWallpaper:         view.wallpaperActionsImage,
+		Trash:                view.trashActionsImage,
+	}, view.SortMode())
+
+	view.help.SetOnManualClosed(view.syncMenus)
+	view.help.SetOnManualOpened(view.syncMenus)
+	view.exif.SetOnClosed(view.syncMenus)
+	view.grid.SetOnVisibilityChanged(view.syncMenus)
+	view.slides.SetOnActiveChanged(view.syncMenus)
+	view.grid.SetOnDupeStateChanged(view.syncMenus)
+	view.syncMenus()
+
+	return fyne.NewMainMenu(view.menus.FileMenu(), view.favorites.Menu(), view.menus.ActionsMenu(), view.menus.WindowMenu(), view.help.Menu())
+}
+
+// menuState is the one place the snapshot internal/ui/menus reads is
+// built: every condition its enablement matrix depends on, gathered from
+// whichever feature owns it. One function rather than a Host interface
+// the package calls back through - the dependency surface is then this
+// struct literal, readable at a glance, instead of a dozen methods.
+func (v *viewer) menuState() menus.State {
+	_, displayed := v.DisplayedFile()
+
+	return menus.State{
+		SortMode:         v.SortMode(),
+		VariantGroupSize: v.grid.SourceDuplicateGroupSize(),
+
+		NoFiles:            v.FileCount() == 0,
+		GridUp:             v.grid.Visible(),
+		NoImage:            len(v.displayFrames) == 0,
+		SlidesActive:       v.slides.Active(),
+		ExifOpen:           v.exif.Open(),
+		ManualOpen:         v.help.ManualOpen(),
+		Displayed:          displayed,
+		MergeMode:          v.MergeMode(),
+		HideDuplicates:     v.dupes.HideDuplicates(),
+		BrowsingDuplicates: v.grid.BrowsingDuplicates(),
+		VariantsSession:    v.variantsSession(),
+		InfoVisible:        v.infoVisible,
+		CanSave:            v.canSaveRotation(),
+		CanExport:          v.canExport(),
+		CanWallpaper:       v.canSetWallpaper(),
 	}
+}
 
-	save := fyne.NewMenuItem(lang.L("Save Changes"), func() { view.saveRotation() })
-	save.Disabled = true // updateFileMenuState (save.go) enables it once there's a pending rotation to save
-	save.Shortcut = &desktop.CustomShortcut{
-		KeyName:  fyne.KeyS,
-		Modifier: fyne.KeyModifierShortcutDefault,
+// syncMenus recomputes the whole menu matrix from the current state and
+// rebuilds the native bar only when something in it actually moved. It is
+// the single entry point every site that can change what is loaded,
+// displayed or shown calls; the nil guard covers the window of
+// construction before buildMainMenu has run.
+//
+// Whether there are any files at all also drives the Favorites menu's
+// "Add Current List" item, which belongs to that feature rather than to
+// internal/ui/menus, so it is pushed here alongside.
+//
+// SetHasFiles is inside the changed branch, and before refreshMainMenu,
+// for two reasons that are both load-bearing - do not lift it out:
+//
+//   - It ends in fyne.Menu.Refresh, which is SetMainMenu, which rebuilds
+//     the Darwin native bar. Only refreshMainMenu folds that bar back
+//     together afterwards (syncNativeMenuBar), so a rebuild outside this
+//     branch would leave a duplicate Window menu and Command-prefixed
+//     accelerators on the unmodified letters until the next changed sync.
+//     Ordering it before refreshMainMenu keeps the fold last, which is
+//     the order the per-menu update functions this replaced also kept.
+//   - Skipping it when nothing moved cannot skip a needed update: it reads
+//     FileCount() > 0, the exact complement of the NoFiles that
+//     menuState() reads in the same turn, and Apply assigns
+//     closeFiles.Disabled = NoFiles outright. So the Favorites item can
+//     only move on a turn where closeFiles moved too, which is a turn
+//     Apply reports as changed.
+//
+// The startup sync is the one call where changed can be false with files
+// already loaded; it costs nothing, because addItem is constructed
+// Disabled and SetHasFiles(false) is what that sync would have set.
+func (v *viewer) syncMenus() {
+	if v.menus == nil {
+		return
 	}
-	view.saveItem = save
-
-	export := fyne.NewMenuItem(lang.L("Export image"), func() { view.promptExport() })
-	export.Disabled = true // updateFileMenuState (save.go) enables it once an image is loaded
-	// Display-only, like Open's above: the binding itself is
-	// wireExportShortcuts's AddShortcut call in shortcuts.go.
-	export.Shortcut = &desktop.CustomShortcut{
-		KeyName:  fyne.KeyE,
-		Modifier: fyne.KeyModifierShortcutDefault,
+	if v.menus.Apply(v.menuState()) {
+		v.favorites.SetHasFiles(v.FileCount() > 0)
+		v.refreshMainMenu()
 	}
-	view.exportItem = export
-
-	closeFiles := fyne.NewMenuItem(lang.L("Close Files"), func() { view.closeFiles() })
-	closeFiles.Disabled = true // updateFileMenuState (save.go) enables it once a file is loaded
-	view.closeFilesItem = closeFiles
-	settings := fyne.NewMenuItem(lang.L("Settings…"), func() { view.settingsWin.Show() })
-
-	fileMenu := fyne.NewMenu(lang.L("File"),
-		open, save, export, closeFiles, fyne.NewMenuItemSeparator(), settings)
-
-	viewerItem := fyne.NewMenuItem(lang.L("Viewer"), view.showViewer)
-	viewerItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyV}
-	viewerItem.Disabled = true
-	view.windowViewerItem = viewerItem
-
-	exifItem := fyne.NewMenuItem(lang.L("EXIF Data"), view.showWindowExif)
-	exifItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyE}
-	exifItem.Disabled = true
-	view.windowExifItem = exifItem
-
-	gridItem := fyne.NewMenuItem(lang.L("Grid View"), view.showWindowGrid)
-	gridItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyG}
-	gridItem.Disabled = true
-	view.windowGridItem = gridItem
-
-	pfItem := fyne.NewMenuItem(lang.L("Picture-frame mode"), view.showWindowPictureFrame)
-	pfItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyP}
-	pfItem.Disabled = true
-	view.windowPictureFrameItem = pfItem
-
-	helpItem := fyne.NewMenuItem(lang.L("Help"), view.showWindowHelp)
-	helpItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyF1}
-	view.windowHelpItem = helpItem
-
-	windowMenu := fyne.NewMenu(lang.L("Window"),
-		viewerItem, exifItem, gridItem, pfItem, helpItem)
-
-	modes := filesort.Modes()
-	sortItems := make([]*fyne.MenuItem, len(modes))
-	for i, m := range modes {
-		mode := m
-		it := fyne.NewMenuItem(filesort.DisplayName(mode), func() { view.setActionsSort(mode) })
-		if mode == view.SortMode() {
-			it.Checked = true
-		}
-		sortItems[i] = it
-	}
-	view.actionsSortItems = sortItems
-
-	sortParent := fyne.NewMenuItem(lang.L("Sort order"), nil)
-	sortParent.ChildMenu = fyne.NewMenu("", sortItems...)
-	sortParent.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyS}
-
-	hideItem := fyne.NewMenuItem(lang.L("Show/Hide duplicates"), view.toggleActionsHideDuplicates)
-	hideItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyD}
-	hideItem.Disabled = true
-	view.actionsHideItem = hideItem
-
-	variantItem := fyne.NewMenuItem(lang.L("Show variants"), view.showActionsVariant)
-	variantItem.Shortcut = &desktop.CustomShortcut{
-		KeyName:  fyne.KeyD,
-		Modifier: fyne.KeyModifierShift,
-	}
-	variantItem.Disabled = true
-	view.actionsShowVariantItem = variantItem
-
-	rotateItem := fyne.NewMenuItem(lang.L("Rotate image"), view.rotateActionsImage)
-	rotateItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyR}
-	rotateItem.Disabled = true
-	view.actionsRotateItem = rotateItem
-
-	zoomIn := fyne.NewMenuItem(lang.L("Zoom in"), view.zoomActionsIn)
-	zoomIn.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyPlus}
-	zoomIn.Disabled = true
-	view.actionsZoomInItem = zoomIn
-
-	zoomOut := fyne.NewMenuItem(lang.L("Zoom out"), view.zoomActionsOut)
-	zoomOut.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyMinus}
-	zoomOut.Disabled = true
-	view.actionsZoomOutItem = zoomOut
-
-	mergeItem := fyne.NewMenuItem(lang.L("Toggle merge mode"), view.toggleActionsMergeMode)
-	// Unmodified M. Fyne's Darwin native menus leave a zero modifier mask
-	// unset, so AppKit would default this to ⌘M (Minimize); refreshMainMenu
-	// clears that via applyUnmodifiedNativeAccelerators.
-	mergeItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyM}
-	view.actionsMergeItem = mergeItem
-
-	infoItem := fyne.NewMenuItem(lang.L("Show/Hide info overlay"), view.toggleActionsInfoOverlay)
-	infoItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyI}
-	view.actionsInfoItem = infoItem
-
-	copyItem := fyne.NewMenuItem(lang.L("Copy image"), view.copyActionsImage)
-	// Display-only: the Cmd/Ctrl+C binding is wireClipboardShortcuts's
-	// AddShortcut of fyne.ShortcutCopy. A second CustomShortcut here would
-	// double-fire copy.
-	copyItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault}
-	copyItem.Disabled = true
-	view.actionsCopyItem = copyItem
-
-	copyPath := fyne.NewMenuItem(lang.L("Copy image path"), view.copyActionsPath)
-	// Display-only, like File -> Export: the Cmd/Ctrl+Shift+C binding is
-	// wireClipboardShortcuts. This just shows the same accelerator.
-	copyPath.Shortcut = &desktop.CustomShortcut{
-		KeyName:  fyne.KeyC,
-		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
-	}
-	copyPath.Disabled = true
-	view.actionsCopyPathItem = copyPath
-
-	wallpaperAction := fyne.NewMenuItem(lang.L("Set as Wallpaper"), view.wallpaperActionsImage)
-	// Display-only: the Cmd/Ctrl+Shift+E binding is wireExportShortcuts.
-	wallpaperAction.Shortcut = &desktop.CustomShortcut{
-		KeyName:  fyne.KeyE,
-		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
-	}
-	wallpaperAction.Disabled = true
-	view.actionsWallpaperItem = wallpaperAction
-
-	trashItem := fyne.NewMenuItem(lang.L("Move image to Trash"), view.trashActionsImage)
-	// Display-only: the Shift+Delete binding is wireDeleteShortcut's
-	// AddShortcut of fyne.ShortcutCut. A CustomShortcut{KeyDelete, Shift}
-	// would never be reached by the driver anyway.
-	trashItem.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyDelete, Modifier: fyne.KeyModifierShift}
-	trashItem.Disabled = true
-	view.actionsTrashItem = trashItem
-
-	actionsMenu := fyne.NewMenu(lang.L("Actions"),
-		sortParent, hideItem, variantItem,
-		fyne.NewMenuItemSeparator(),
-		rotateItem, zoomIn, zoomOut,
-		fyne.NewMenuItemSeparator(),
-		mergeItem, infoItem,
-		fyne.NewMenuItemSeparator(),
-		copyItem, copyPath, wallpaperAction, trashItem,
-	)
-
-	view.help.SetOnManualClosed(view.updateWindowMenuState)
-	view.help.SetOnManualOpened(view.updateWindowMenuState)
-	view.exif.SetOnClosed(view.updateWindowMenuState)
-	view.grid.SetOnVisibilityChanged(view.updateWindowMenuState)
-	view.slides.SetOnActiveChanged(view.updateWindowMenuState)
-	view.grid.SetOnDupeStateChanged(view.updateActionsMenuState)
-	view.applyActionsMenuState()
-	view.updateWindowMenuState()
-
-	return fyne.NewMainMenu(fileMenu, view.favorites.Menu(), actionsMenu, windowMenu, view.help.Menu())
 }

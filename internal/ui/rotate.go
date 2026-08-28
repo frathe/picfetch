@@ -25,20 +25,19 @@ func (v *viewer) rotateBy(steps int) {
 	v.rotation = ((v.rotation+steps)%4 + 4) % 4
 	v.redrawRotatedFrame()
 
-	// updateFileMenuState before applyRotationLayout, not after: the layout
-	// call can itself spawn a vector re-render (SetLogicalSize/ResetToFit
-	// changing the effective scale fires zoom's onScaleChanged), and that
+	// syncMenus before applyRotationLayout, not after: the layout call can
+	// itself spawn a vector re-render (SetLogicalSize/ResetToFit changing
+	// the effective scale fires zoom's onScaleChanged), and that
 	// goroutine's eventual write to v.img.Image is ordered against this
 	// method's own continuation only by fyne.Do - a real, single-goroutine
 	// guarantee in production, but the fake test driver runs a fyne.Do
 	// callback inline on whichever goroutine calls it rather than
 	// marshaling it (see ARCHITECTURE.md's concurrency invariant), so
-	// canExport's read of v.img.Image inside updateFileMenuState could
-	// otherwise race that write under -race. updateFileMenuState needs
-	// nothing applyRotationLayout computes - only v.rotation, already set
-	// above - so ordering it first removes the race instead of just hiding
-	// it.
-	v.updateFileMenuState()
+	// canExport's read of v.img.Image inside syncMenus could otherwise
+	// race that write under -race. syncMenus needs nothing
+	// applyRotationLayout computes - only v.rotation, already set above -
+	// so ordering it first removes the race instead of just hiding it.
+	v.syncMenus()
 	v.applyRotationLayout()
 }
 
@@ -55,7 +54,7 @@ func (v *viewer) resetRotation() {
 
 	// Before applyRotationLayout, not after - see rotateBy's identical
 	// ordering for why.
-	v.updateFileMenuState()
+	v.syncMenus()
 	v.applyRotationLayout()
 }
 
@@ -111,10 +110,10 @@ func (v *viewer) applyRotationLayout() {
 		resizeToImage(v.win, image.Rect(0, 0, w, h), v.settings.maxWinW, v.settings.maxWinH)
 	}
 
-	// Deliberately after the layout work above, unlike the
-	// updateFileMenuState calls in rotateBy/resetRotation: this reads
-	// zoom.Percent(), which is only correct once the re-fit has run. Under
-	// the fake test driver that ordering has the same race shape those
+	// Deliberately after the layout work above, unlike the syncMenus
+	// calls in rotateBy/resetRotation: this reads zoom.Percent(), which is
+	// only correct once the re-fit has run. Under the fake test driver
+	// that ordering has the same race shape those
 	// call sites fixed - a re-render goroutine the layout spawned may
 	// write img.Image while this reads it - and unlike them it cannot be
 	// fixed by reordering. Production is safe (fyne.Do serializes onto the

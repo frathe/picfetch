@@ -163,7 +163,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// Handled before the navigation guard below so help stays
 		// reachable while an image is still loading.
 		v.help.ShowManual()
-		v.updateWindowMenuState()
+		v.syncMenus()
 
 		return
 	case fyne.KeyM:
@@ -210,11 +210,11 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		}
 		if v.dupes.Inspecting() {
 			v.reopenVariantGrid()
-			v.updateWindowMenuState()
+			v.syncMenus()
 			return
 		}
 		v.grid.Toggle()
-		v.updateWindowMenuState()
+		v.syncMenus()
 		return
 	case fyne.KeyD:
 		// Same place as G: hide-dupes is useful with one file (no-op) or
@@ -247,7 +247,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// Handled before the navigation guard below, same as I - the EXIF panel
 		// itself no-ops with nothing loaded yet.
 		v.exif.Show()
-		v.updateWindowMenuState()
+		v.syncMenus()
 
 		return
 	case fyne.Key0:

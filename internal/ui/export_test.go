@@ -432,19 +432,19 @@ func TestExportAs_RunsSavePanelInBackground(t *testing.T) {
 func TestExportItem_DisabledInitiallyAndEnabledOnceAnImageLoads(t *testing.T) {
 	v := newTestViewer(t)
 
-	if !v.exportItem.Disabled {
+	if !v.menus.Export().Disabled {
 		t.Error("export item should start disabled, with nothing loaded")
 	}
 
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 
-	if v.exportItem.Disabled {
+	if v.menus.Export().Disabled {
 		t.Error("export item should be enabled once an image is loaded")
 	}
 
 	v.closeFiles()
 
-	if !v.exportItem.Disabled {
+	if !v.menus.Export().Disabled {
 		t.Error("export item should be disabled again after Close Files")
 	}
 }

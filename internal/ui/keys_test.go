@@ -180,7 +180,7 @@ func TestHandleKeyEvent_VNoopsInImageView(t *testing.T) {
 	if v.slides.Active() {
 		t.Error("V in the image view must not enter picture-frame mode")
 	}
-	if !v.windowViewerItem.Disabled {
+	if !v.menus.Window().Viewer().Disabled {
 		t.Error("Viewer should stay grey in the image view")
 	}
 }

@@ -72,33 +72,6 @@ func (v *viewer) saveRotation() {
 	// this file just costs one re-decode instead of a stale cache hit.
 	v.imgCache.Remove(u.String())
 
-	v.updateFileMenuState()
+	v.syncMenus()
 	v.ShowToast(lang.L("Saved"))
-}
-
-// updateFileMenuState keeps the File menu's three file-dependent items in
-// sync with what's currently loaded: "Save Changes" with canSaveRotation
-// above, "Export image" with canExport (export.go), and "Close Files" with
-// whether there's anything open at all. Actions' "Set as Wallpaper" is
-// updated in the same pass via applyActionsMenuState (canSetWallpaper in
-// wallpaper.go, the same condition as canExport for the same reasons). It
-// also applies the Window and Actions menus' grey-out matrices
-// (FileCount / DisplayedFile / displayFrames) before the shared
-// refreshMainMenu. Called
-// wherever v.rotation, v.displayFrames, v.loading, or the current file can
-// change: rotateBy/resetRotation (rotate.go), ShowImage/finishLoad
-// (load.go), clearToDropzone (viewer.go), and after a successful
-// saveRotation above. One function rather than one per item because every
-// one of those sites can move more than one of these conditions at once.
-func (v *viewer) updateFileMenuState() {
-	v.saveItem.Disabled = !v.canSaveRotation()
-
-	v.exportItem.Disabled = !v.canExport()
-
-	v.closeFilesItem.Disabled = v.FileCount() == 0
-	v.favorites.SetHasFiles(v.FileCount() > 0)
-
-	v.applyWindowMenuState()
-	v.applyActionsMenuState()
-	v.refreshMainMenu()
 }

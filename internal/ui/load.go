@@ -39,7 +39,7 @@ func (v *viewer) ShowImage(i int) {
 
 	v.loading.Store(true)
 	v.loadingBar.Show()
-	v.updateFileMenuState() // grey out Save Changes immediately - see canSaveRotation's !v.loading.Load() guard
+	v.syncMenus() // grey out Save Changes immediately - see canSaveRotation's !v.loading.Load() guard
 
 	if firstLoad {
 		v.hint.SetText(lang.L("Loading..."))
@@ -318,7 +318,7 @@ func (v *viewer) applyLoadedTitle(u fyne.URI, loaded *imaging.LoadedImage) {
 func (v *viewer) clearLoadingChrome() {
 	v.loading.Store(false)
 	v.loadingBar.Hide()
-	v.updateFileMenuState() // rotation just reset to 0, and loading has just cleared - see canSaveRotation
+	v.syncMenus() // rotation just reset to 0, and loading has just cleared - see canSaveRotation
 	v.ForceRepaint()
 }
 

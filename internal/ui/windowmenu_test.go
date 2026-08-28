@@ -51,9 +51,9 @@ func TestWindowMenu_FreshViewerDisablesSurfacesExceptHelp(t *testing.T) {
 
 	assertWindowMenuDisabled(t, v, true, true, true, true, false)
 
-	v.updateWindowMenuState()
-	if v.windowHelpItem.Disabled != v.help.ManualOpen() {
-		t.Errorf("windowHelpItem.Disabled = %v, want ManualOpen() (%v)", v.windowHelpItem.Disabled, v.help.ManualOpen())
+	v.syncMenus()
+	if v.menus.Window().Help().Disabled != v.help.ManualOpen() {
+		t.Errorf("Window > Help Disabled = %v, want ManualOpen() (%v)", v.menus.Window().Help().Disabled, v.help.ManualOpen())
 	}
 }
 
@@ -74,8 +74,8 @@ func TestWindowMenu_ExifDisabledWhileOpenAndEnabledAfterClose(t *testing.T) {
 	}
 	// Opens are not close hooks — apply after Show the way E / the info
 	// link / showWindowExif do. Close below is what SetOnClosed covers.
-	v.updateWindowMenuState()
-	if !v.windowExifItem.Disabled {
+	v.syncMenus()
+	if !v.menus.Window().Exif().Disabled {
 		t.Error("EXIF Data should be disabled while the panel is open")
 	}
 
@@ -87,7 +87,7 @@ func TestWindowMenu_ExifDisabledWhileOpenAndEnabledAfterClose(t *testing.T) {
 	if v.exif.Open() {
 		t.Fatal("closing the EXIF window should leave it closed")
 	}
-	if v.windowExifItem.Disabled {
+	if v.menus.Window().Exif().Disabled {
 		t.Error("EXIF Data should be enabled again after close")
 	}
 }
@@ -151,7 +151,7 @@ func TestWindowMenu_PictureFrameLeavesGridItemDisabled(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	t.Cleanup(func() { settleSlideshow(t, v) })
 
-	if v.windowGridItem.Disabled {
+	if v.menus.Window().Grid().Disabled {
 		t.Fatal("Grid View should be enabled after a file is loaded")
 	}
 
@@ -159,7 +159,7 @@ func TestWindowMenu_PictureFrameLeavesGridItemDisabled(t *testing.T) {
 	if !v.slides.Active() {
 		t.Fatal("togglePictureFrameMode should enter picture-frame mode")
 	}
-	if !v.windowGridItem.Disabled {
+	if !v.menus.Window().Grid().Disabled {
 		t.Error("Grid View should stay disabled while picture-frame mode is on")
 	}
 }
@@ -183,11 +183,11 @@ func TestWindowMenu_ViewerLeavesGrid(t *testing.T) {
 	if !v.grid.Visible() {
 		t.Fatal("premises: grid up")
 	}
-	v.windowViewerItem.Action()
+	v.menus.Window().Viewer().Action()
 	if v.grid.Visible() {
 		t.Error("Viewer should close the grid")
 	}
-	if !v.windowViewerItem.Disabled {
+	if !v.menus.Window().Viewer().Disabled {
 		t.Error("Viewer should grey once the image view is back")
 	}
 }
@@ -200,7 +200,7 @@ func TestWindowMenu_ViewerLeavesPictureFrame(t *testing.T) {
 	if !v.slides.Active() {
 		t.Fatal("premises: picture-frame on")
 	}
-	v.windowViewerItem.Action()
+	v.menus.Window().Viewer().Action()
 	if v.slides.Active() {
 		t.Error("Viewer should exit picture-frame mode")
 	}
@@ -210,11 +210,11 @@ func TestWindowMenu_GridActionOpensAndDoesNotToggleOff(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	warmThumbs(t, v)
-	v.windowGridItem.Action()
+	v.menus.Window().Grid().Action()
 	if !v.grid.Visible() {
 		t.Fatal("Grid View should open the grid")
 	}
-	v.windowGridItem.Action() // even if Disabled, Action is callable from tests
+	v.menus.Window().Grid().Action() // even if Disabled, Action is callable from tests
 	if !v.grid.Visible() {
 		t.Error("Grid View must not toggle the grid closed")
 	}
@@ -224,11 +224,11 @@ func TestWindowMenu_PictureFrameActionEntersAndDoesNotToggleOff(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	t.Cleanup(func() { settleSlideshow(t, v) })
-	v.windowPictureFrameItem.Action()
+	v.menus.Window().PictureFrame().Action()
 	if !v.slides.Active() {
 		t.Fatal("should enter picture-frame")
 	}
-	v.windowPictureFrameItem.Action()
+	v.menus.Window().PictureFrame().Action()
 	if !v.slides.Active() {
 		t.Error("Picture-frame mode must not toggle off from the menu")
 	}
@@ -236,7 +236,7 @@ func TestWindowMenu_PictureFrameActionEntersAndDoesNotToggleOff(t *testing.T) {
 
 func TestWindowMenu_GridActionNoopsWithoutFiles(t *testing.T) {
 	v := newTestViewer(t)
-	v.windowGridItem.Action()
+	v.menus.Window().Grid().Action()
 	if v.grid.Visible() {
 		t.Error("no files: grid must stay closed")
 	}
@@ -245,11 +245,11 @@ func TestWindowMenu_GridActionNoopsWithoutFiles(t *testing.T) {
 func TestWindowMenu_ExifActionOpensWhenAFileIsDisplayed(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
-	v.windowExifItem.Action()
+	v.menus.Window().Exif().Action()
 	if !v.exif.Open() {
 		t.Error("EXIF Data should open the panel")
 	}
-	if !v.windowExifItem.Disabled {
+	if !v.menus.Window().Exif().Disabled {
 		t.Error("EXIF item should grey while the panel is open")
 	}
 }
@@ -281,7 +281,7 @@ func TestWindowMenu_GridActionNoopsDuringPictureFrame(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	t.Cleanup(func() { settleSlideshow(t, v) })
 	v.togglePictureFrameMode()
-	v.windowGridItem.Action()
+	v.menus.Window().Grid().Action()
 	if v.grid.Visible() {
 		t.Error("must not open the grid over picture-frame mode")
 	}
@@ -289,14 +289,14 @@ func TestWindowMenu_GridActionNoopsDuringPictureFrame(t *testing.T) {
 
 func TestWindowMenu_PictureFrameDisabledDuringVariantsSession(t *testing.T) {
 	v := loadBrowsePair(t)
-	if !v.windowPictureFrameItem.Disabled {
+	if !v.menus.Window().PictureFrame().Disabled {
 		t.Fatal("Picture-frame should be disabled while browsing variants")
 	}
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	waitUntilLoaded(t, v)
-	if !v.windowPictureFrameItem.Disabled {
+	if !v.menus.Window().PictureFrame().Disabled {
 		t.Fatal("Picture-frame should be disabled while inspecting")
 	}
 }

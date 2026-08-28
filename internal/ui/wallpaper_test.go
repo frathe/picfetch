@@ -207,20 +207,20 @@ func TestSetAsWallpaper_DoesNothingWithoutAnImage(t *testing.T) {
 
 // --- menu state ----------------------------------------------------------
 
-func TestUpdateFileMenuState_TracksTheWallpaperItem(t *testing.T) {
+func TestSyncMenus_TracksTheWallpaperItem(t *testing.T) {
 	v := newTestViewer(t)
 
-	if !v.actionsWallpaperItem.Disabled {
+	if !v.menus.Actions().Wallpaper().Disabled {
 		t.Error("the Set as Wallpaper item should start disabled")
 	}
 
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
-	if v.actionsWallpaperItem.Disabled {
+	if v.menus.Actions().Wallpaper().Disabled {
 		t.Error("the Set as Wallpaper item should be enabled once an image is loaded")
 	}
 
 	v.closeFiles()
-	if !v.actionsWallpaperItem.Disabled {
+	if !v.menus.Actions().Wallpaper().Disabled {
 		t.Error("the Set as Wallpaper item should be disabled again once the files are closed")
 	}
 }

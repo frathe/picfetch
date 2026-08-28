@@ -1,22 +1,11 @@
-// Window menu enablement: which surface is already showing, and the
-// show/enter actions those items run. Composed in menu.go; this file
-// keeps Disabled in sync and implements the actions.
+// Window menu: the show/enter actions its items run, plus the native
+// menu-bar refresh every menu rebuild needs. Which surface is already
+// showing decides what is enabled, but that matrix lives in
+// internal/ui/menus now; this file implements the actions.
 
 package ui
 
 import "fyne.io/fyne/v2"
-
-func (v *viewer) applyWindowMenuState() {
-	if v.windowViewerItem == nil {
-		return
-	}
-	_, displayed := v.DisplayedFile()
-	v.windowViewerItem.Disabled = !v.grid.Visible() && !v.slides.Active()
-	v.windowExifItem.Disabled = v.exif.Open() || !displayed
-	v.windowGridItem.Disabled = v.grid.Visible() || v.FileCount() == 0 || v.slides.Active()
-	v.windowPictureFrameItem.Disabled = v.slides.Active() || v.FileCount() == 0 || v.variantsSession()
-	v.windowHelpItem.Disabled = v.help.ManualOpen()
-}
 
 func (v *viewer) refreshMainMenu() {
 	if v.win == nil || v.win.MainMenu() == nil {
@@ -47,12 +36,6 @@ func syncNativeMenuBar(bar *fyne.MainMenu) {
 	applyUnmodifiedNativeAccelerators(bar)
 }
 
-func (v *viewer) updateWindowMenuState() {
-	v.applyWindowMenuState()
-	v.applyActionsMenuState()
-	v.refreshMainMenu()
-}
-
 func (v *viewer) showViewer() {
 	// Close() ClearInspects even when the overlay is already hidden.
 	// V / Window → Viewer is a no-op in the image view, so skip Close
@@ -65,12 +48,12 @@ func (v *viewer) showViewer() {
 		v.resetFade()
 	}
 	v.win.RequestFocus()
-	v.updateWindowMenuState()
+	v.syncMenus()
 }
 
 func (v *viewer) showWindowExif() {
 	v.exif.Show()
-	v.updateWindowMenuState()
+	v.syncMenus()
 }
 
 func (v *viewer) showWindowGrid() {
@@ -82,7 +65,7 @@ func (v *viewer) showWindowGrid() {
 		return
 	}
 	v.grid.Toggle()
-	v.updateWindowMenuState()
+	v.syncMenus()
 }
 
 func (v *viewer) showWindowPictureFrame() {
@@ -93,10 +76,10 @@ func (v *viewer) showWindowPictureFrame() {
 		return
 	}
 	v.togglePictureFrameMode()
-	v.updateWindowMenuState()
+	v.syncMenus()
 }
 
 func (v *viewer) showWindowHelp() {
 	v.help.ShowManual()
-	v.updateWindowMenuState()
+	v.syncMenus()
 }

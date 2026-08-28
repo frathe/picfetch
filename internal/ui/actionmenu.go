@@ -1,57 +1,13 @@
 // Actions menu: sort, duplicates, image transforms, merge/info toggles,
-// clipboard, wallpaper, and trash. Composed in menu.go; this file keeps
-// Checked/Disabled in sync and holds the actions those items run.
+// clipboard, wallpaper, and trash. The items and their Checked/Disabled
+// matrix live in internal/ui/menus, composed in menu.go; this file holds
+// the actions those items run.
 
 package ui
 
 import (
 	"github.com/frathe/picfetch/internal/filesort"
 )
-
-func (v *viewer) applyActionsMenuState() {
-	if v.actionsHideItem == nil {
-		return
-	}
-	modes := filesort.Modes()
-	cur := v.SortMode()
-	for i, item := range v.actionsSortItems {
-		if item == nil || i >= len(modes) {
-			continue
-		}
-		item.Checked = modes[i] == cur
-		item.Disabled = false
-	}
-	noFiles := v.FileCount() == 0
-	gridUp := v.grid.Visible()
-	noImage := len(v.displayFrames) == 0
-
-	v.actionsHideItem.Checked = v.dupes.HideDuplicates()
-	v.actionsHideItem.Disabled = noFiles || v.variantsSession()
-	v.actionsShowVariantItem.Checked = v.grid.BrowsingDuplicates()
-	canShowVariants := v.dupes.HideDuplicates() && v.grid.SourceDuplicateGroupSize() >= 2
-	v.actionsShowVariantItem.Disabled = noFiles || v.slides.Active() || !(canShowVariants || v.grid.BrowsingDuplicates())
-
-	rotZoomOff := noImage || gridUp
-	v.actionsRotateItem.Disabled = rotZoomOff
-	v.actionsZoomInItem.Disabled = rotZoomOff
-	v.actionsZoomOutItem.Disabled = rotZoomOff
-
-	v.actionsMergeItem.Checked = v.MergeMode()
-	v.actionsMergeItem.Disabled = false
-	v.actionsInfoItem.Checked = v.infoVisible
-	v.actionsInfoItem.Disabled = gridUp
-
-	v.actionsCopyItem.Disabled = noFiles
-	v.actionsCopyPathItem.Disabled = noFiles
-	v.actionsWallpaperItem.Disabled = !v.canSetWallpaper()
-	v.actionsTrashItem.Disabled = noFiles
-}
-
-func (v *viewer) updateActionsMenuState() {
-	v.applyWindowMenuState()
-	v.applyActionsMenuState()
-	v.refreshMainMenu()
-}
 
 func (v *viewer) setActionsSort(m filesort.Mode) {
 	if v.SortMode() == m {
@@ -83,7 +39,7 @@ func (v *viewer) reopenVariantGrid() {
 	if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
 		v.grid.Toggle()
 	}
-	v.updateWindowMenuState()
+	v.syncMenus()
 }
 
 func (v *viewer) variantsSession() bool {
