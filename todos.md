@@ -14,39 +14,6 @@
 
 ## TODO
 
-### Favorites un-merges the macOS native menu bar
-
-`internal/ui/favorites` calls `f.menu.Refresh()` from two sites
-(`SetHasFiles`, `refreshMenu`) with no `syncNativeMenuBar` follow-up.
-`fyne.Menu.Refresh` is a `SetMainMenu`, which rebuilds the Darwin native
-bar; only `refreshMainMenu` folds it back together afterwards. So adding,
-renaming, or deleting a favorite already leaves a duplicate "Window" menu
-and Command-prefixed accelerators on the unmodified letters until the next
-`refreshMainMenu`. Pre-existing, not caused by the `viewer` field-cluster
-refactor. The invariant worth stating: nothing outside `refreshMainMenu`
-may call `Refresh()` on a menu that lives in the main bar.
-
-### The manual-opened observer registration is untested
-
-After `52af098` reduced the menu push sites to choke points, F1 and
-Window → Help have no hand-written `syncMenus`; they rely on
-`help.SetOnManualOpened(view.syncMenus)` staying registered in
-`buildMainMenu`. Deleting that registration passes the entire test suite —
-verified by mutation. No viewer-level test is possible because
-`ShowManual` panics under Fyne's test theme (see the note at the tail of
-`internal/ui/e2e_test.go`). `internal/ui/help`'s own
-`TestHelp_SetOnManualOpenedFiresOnShow` pins that the hook *fires*, not
-that `internal/ui` subscribes to it.
-
-### `maybeStartUpdateCheck` begins its lifecycle token before the verifier is built
-
-`9fb2f79` moved the update client construction inside
-`autoupdate.Updater.Start`, so on `NewSigstoreVerifier()` failure the
-token has already been superseded, where previously it had not.
-Currently unobservable — the build path only runs when the client is nil,
-which is the first call, when no check goroutine exists — but it is a
-real ordering difference from the pre-extraction code.
-
 ### Qodana: the JPEG segment walk is copy-pasted four times
 
 `internal/imaging/exif.go:39` (`jpegEXIFOrientation`), `exif.go:238`
@@ -124,6 +91,39 @@ fix is to lead with the first name rather than to rewrite the sentence.
 - `scripts/releasenotes/main.go:18`, `scripts/synctuf/main.go:22` — the
   `fmt.Fprintf(os.Stderr, ...)` results are unhandled. `_, _ =` matches how
   the rest of the tree marks a deliberately ignored error.
+
+### Favorites un-merges the macOS native menu bar
+
+`internal/ui/favorites` calls `f.menu.Refresh()` from two sites
+(`SetHasFiles`, `refreshMenu`) with no `syncNativeMenuBar` follow-up.
+`fyne.Menu.Refresh` is a `SetMainMenu`, which rebuilds the Darwin native
+bar; only `refreshMainMenu` folds it back together afterwards. So adding,
+renaming, or deleting a favorite already leaves a duplicate "Window" menu
+and Command-prefixed accelerators on the unmodified letters until the next
+`refreshMainMenu`. Pre-existing, not caused by the `viewer` field-cluster
+refactor. The invariant worth stating: nothing outside `refreshMainMenu`
+may call `Refresh()` on a menu that lives in the main bar.
+
+### The manual-opened observer registration is untested
+
+After `52af098` reduced the menu push sites to choke points, F1 and
+Window → Help have no hand-written `syncMenus`; they rely on
+`help.SetOnManualOpened(view.syncMenus)` staying registered in
+`buildMainMenu`. Deleting that registration passes the entire test suite —
+verified by mutation. No viewer-level test is possible because
+`ShowManual` panics under Fyne's test theme (see the note at the tail of
+`internal/ui/e2e_test.go`). `internal/ui/help`'s own
+`TestHelp_SetOnManualOpenedFiresOnShow` pins that the hook *fires*, not
+that `internal/ui` subscribes to it.
+
+### `maybeStartUpdateCheck` begins its lifecycle token before the verifier is built
+
+`9fb2f79` moved the update client construction inside
+`autoupdate.Updater.Start`, so on `NewSigstoreVerifier()` failure the
+token has already been superseded, where previously it had not.
+Currently unobservable — the build path only runs when the client is nil,
+which is the first call, when no check goroutine exists — but it is a
+real ordering difference from the pre-extraction code.
 
 ### Qodana: false positives are flagged in code (done, needs CI confirmation)
 
