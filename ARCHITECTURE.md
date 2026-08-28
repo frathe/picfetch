@@ -18,9 +18,12 @@ test binary that links the Cocoa driver.
 ### `internal/ui`
 
 The application. Unexported `appState` is the file-set model (scan/drop
-order, displayed order, index, sort, merge). Unexported `viewer` is the
-Fyne façade. Construction order, overlay order, data flow, and concurrency:
-see `AGENTS.md`. Features expose state; `internal/ui` composes them.
+order, displayed order, index, sort, merge) and publishes an immutable
+`dupes.Snapshot` — file keys plus generation — atomically on every write to
+`files`; `viewer.Generation()` reads the generation out of that snapshot
+rather than a separate counter. Unexported `viewer` is the Fyne façade.
+Construction order, overlay order, data flow, and concurrency: see
+`AGENTS.md`. Features expose state; `internal/ui` composes them.
 
 The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 
@@ -43,7 +46,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken`. Load, scan, sort, and vector each own an instance. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / `applyTitle`), reset/close, merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
-| `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
+| `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet` by forwarding `appState`'s published `dupes.Snapshot`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
 | `keys.go` | `handleKeyEvent` / `handleTypedRune`. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). |
 | `menu.go` | Menu bar composition: File, Favorites, Actions, Window, Help. Grid/slideshow mutual exclusion lives here, not in those packages. |
 | `actionmenu.go` | Actions-menu Checked/Disabled and handlers (`applyActionsMenuState`). |
@@ -277,22 +280,25 @@ Integer index set + range anchor for grid multi-select. No Fyne import.
 ### `internal/dupes`
 
 Which files in a file set duplicate which others. Fyne-free — reached
-through a `FileSet` interface with string keys, not `fyne.URI` — and its
-only project import is `internal/imaging`. Owns dHashes and native pixel
-sizes keyed by file (generation-scoped: `WipeIfStale` on a fresh drop,
-`AdoptGeneration` on an incremental shrink), the Hamming distance
-threshold, the installed group snapshot (representative = highest native
-pixel count, lowest index on a tie), the hide-duplicates and inspect
-modes, and the visibility queries (`IsVisible` / `NextVisible` /
-`FirstVisible` / `LastVisible` / `VisibleIndexesExcept`) plain navigation
-asks. `internal/ui` owns the `Model` and implements `FileSet`;
-`internal/ui/grid` reads and feeds it (hashing pass, browse, badges) but
-does not own it.
+through a `FileSet` interface with string keys, not `fyne.URI` —
+`Snapshot() Snapshot` is `FileSet`'s only method, handing back an
+immutable {keys, generation, key→index} view rather than answering a live
+count and key lookup — and its only project import is `internal/imaging`.
+Owns dHashes and native pixel sizes keyed by file (generation-scoped:
+`WipeIfStale` on a fresh drop, `AdoptGeneration` on an incremental
+shrink), the Hamming distance threshold, the installed group snapshot
+(representative = highest native pixel count, lowest index on a tie), the
+hide-duplicates and inspect modes, and the visibility queries (`IsVisible`
+/ `NextVisible` / `FirstVisible` / `LastVisible` / `VisibleIndexesExcept`)
+plain navigation asks. `internal/ui` owns the `Model` and implements
+`FileSet`; `internal/ui/grid` reads and feeds it (hashing pass, browse,
+badges) but does not own it.
 
 | File | Responsibility |
 |------|----------------|
-| `dupes.go` | `Model`, `FileSet`, hash/native facts, generation (`WipeIfStale` / `AdoptGeneration`), distance clamp, `OnChange` observers. |
+| `dupes.go` | `Model`, `FileSet`, hash/native facts, generation (`WipeIfStale` / `AdoptGeneration`, read through a `Snapshot`), distance clamp, `OnChange` observers. |
 | `groups.go` | `Groups` snapshot, `Compute` / `Install` / `Rebuild`, `GroupSize` / `RepresentativeOf` / `Members`. |
+| `snapshot.go` | `Snapshot`: the immutable {keys, generation, key→index} view every `Model` method reads through. |
 | `visible.go` | Hide/inspect modes (`SetHideDuplicates`, `BeginInspect` / `ClearInspect` / `InspectMembers`), `IsHiddenExtra`, and the visibility/navigation queries. |
 
 ### `internal/decodepool`

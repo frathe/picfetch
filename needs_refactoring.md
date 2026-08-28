@@ -89,18 +89,25 @@ the `internal/dupes` extraction, along with items 11, 13 and 14.
 
 ### 6. `appState` is anemic — file-set invariants enforced from outside
 
-- **Impact 2 · Risk 3 · Effort 2 → priority 20**
-- Where: [state.go](internal/ui/state.go) is 60 lines of getters/setters,
-  while the real invariants live in viewer methods: `RemoveFile`
-  ([viewer.go:808](internal/ui/viewer.go:808)) keeps `files` and
-  `unsortedFiles` in sync *and* advances `fileSetRevision` *and* evicts the
-  image cache; drop.go and sort.go apply merge/sort ordering.
-- **Why it matters**: the revision counter and the files/unsortedFiles sync
-  are exactly the invariants a caller can forget; today nothing but
-  convention makes `fileSetRevision.advance()` accompany a mutation.
-- **Fix**: fold the revision into `appState` so every mutating method
-  advances it itself; let the viewer subscribe for cache eviction. Small,
-  and shrinks item 3 as a side effect.
+- **Impact 1 · Risk 2 · Effort 2 → priority 12** (was 20; the revision half
+  landed 2026-08-28)
+- **Half done.** The revision no longer lives outside `appState`: the
+  `fileSetRevision` counter is gone, and `setFiles` / `clearFiles` /
+  `removeFile` / `reorder` each end in `publish()`, which republishes the
+  file-set snapshot under a bumped generation as a matter of construction
+  rather than caller convention. `viewer.Generation()` reads that snapshot.
+  See the duplicate-snapshot work in `plans/2026-08-28-dupes-followups.md`.
+- Where: [state.go](internal/ui/state.go) still leaves one invariant to the
+  caller — `RemoveFile` ([viewer.go:820](internal/ui/viewer.go:820)) evicts
+  the image cache itself, so a future mutator that forgets that call leaks
+  decodes of files that are gone. drop.go and sort.go still apply
+  merge/sort ordering from outside.
+- **Why it matters**: cache eviction is now the only file-set invariant
+  nothing but convention enforces. The generation and the
+  files/unsortedFiles sync are both internal to `appState`.
+- **Fix**: let the viewer subscribe to `appState` for cache eviction, so
+  removal evicts without the caller remembering to. Still shrinks item 3 as
+  a side effect.
 
 ### 7. Updater dependency tree: sigstore-go + TUF in a desktop image viewer
 
@@ -174,9 +181,10 @@ Alongside feature work, in this order:
 
 1. **Now (minutes–hours)**: 12 — mechanical cleanup; and set a recurring
    check on the heic release for item 1 (or land the `replace`).
-2. **Next (a day)**: 5 (menu recompute) and 6 (revision into `appState`) —
-   both shrink the viewer's surface and delete call-site discipline,
-   preparing item 3.
+2. **Next (a day)**: 5 (menu recompute) and what is left of 6 (cache
+   eviction into `appState`; the revision half landed 2026-08-28) — both
+   shrink the viewer's surface and delete call-site discipline, preparing
+   item 3.
 3. **Done (2026-08-27, staged)**: 2 + 4 — moved the visibility/grouping
    model out of the grid into `internal/dupes`, then boxed the hash engine
    into `grid/hashengine.go`. See their own resolved notes above and
