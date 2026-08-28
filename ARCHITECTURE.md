@@ -290,16 +290,18 @@ shrink), the Hamming distance threshold, the installed group snapshot
 (representative = highest native pixel count, lowest index on a tie), the
 hide-duplicates and inspect modes, and the visibility queries (`IsVisible`
 / `NextVisible` / `FirstVisible` / `LastVisible` / `VisibleIndexesExcept`)
-plain navigation asks. `internal/ui` owns the `Model` and implements
-`FileSet`; `internal/ui/grid` reads and feeds it (hashing pass, browse,
-badges) but does not own it.
+plain navigation asks. A caller testing many indices reads the model once
+via `Visibility()`, a frozen hide-flag-plus-groups value with its own
+`HiddenExtra` / `Visible` / `RepresentativeOf` / `Size`. `internal/ui`
+owns the `Model` and implements `FileSet`; `internal/ui/grid` reads and
+feeds it (hashing pass, browse, badges) but does not own it.
 
 | File | Responsibility |
 |------|----------------|
 | `dupes.go` | `Model`, `FileSet`, hash/native facts, generation (`WipeIfStale` / `AdoptGeneration`, read through a `Snapshot`), distance clamp, `OnChange` observers. |
 | `groups.go` | `Groups` snapshot, `Compute` / `Install` / `Rebuild`, `GroupSize` / `RepresentativeOf` / `Members`. |
 | `snapshot.go` | `Snapshot`: the immutable {keys, generation, key→index} view every `Model` method reads through. |
-| `visible.go` | Hide/inspect modes (`SetHideDuplicates`, `BeginInspect` / `ClearInspect` / `InspectMembers`), `IsHiddenExtra`, and the visibility/navigation queries. |
+| `visible.go` | Hide/inspect modes (`SetHideDuplicates`, `BeginInspect` / `ClearInspect` / `InspectMembers`), `IsHiddenExtra`, `Visibility`, and the visibility/navigation queries. |
 
 ### `internal/decodepool`
 
@@ -363,7 +365,7 @@ see `AGENTS.md`.
 - "How is an image shown/preloaded/animated once loaded?" → `load.go`.
 - "Which keys do what?" → `keys.go` (`handleKeyEvent` / `handleTypedRune`) + `shortcuts.go`.
 - "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go` + `keys.go` `handleTypedRune`.
-- "How does hide-duplicates work?" → `internal/dupes` (the model: grouping, hide/inspect modes, visibility — `BeginInspect` / `InspectMembers` / `IsHiddenExtra` / `NextVisible`) + `internal/imaging/dhash.go` (the hash and its Hamming linkage) + `internal/ui/grid/hashengine.go` (the pool-driven pass that fills the model) + `grid/dupes.go` (browse). Escape reopen: `internal/ui` `reopenVariantGrid`.
+- "How does hide-duplicates work?" → `internal/dupes` (the model: grouping, hide/inspect modes, visibility — `BeginInspect` / `InspectMembers` / `IsHiddenExtra` / `NextVisible` / `Visibility`) + `internal/imaging/dhash.go` (the hash and its Hamming linkage) + `internal/ui/grid/hashengine.go` (the pool-driven pass that fills the model) + `grid/dupes.go` (browse). Escape reopen: `internal/ui` `reopenVariantGrid`.
 - "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `grid/marquee.go` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
 - "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
 - "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.

@@ -120,10 +120,9 @@ func (e *hashEngine) Run(apply func(snap dupes.Groups, remaining int32, gen uint
 		}
 		// The URI string is the model's key throughout - it stores facts
 		// about files, not fyne.URIs. Read straight off the model here
-		// rather than through Overview's hashOf/pixelCountOf/
-		// hashFailedOf wrappers, which exist to nil-guard the fyne.URI
-		// the cell and Warm paths hand them; the guard above is this
-		// loop's equivalent.
+		// rather than through Overview's hashOf/pixelCountOf wrappers,
+		// which exist to nil-guard the fyne.URI the cell and Warm paths
+		// hand them; the guard above is this loop's equivalent.
 		key := u.String()
 		_, hashed := e.model.Hash(key)
 		_, sized := e.model.PixelCount(key)

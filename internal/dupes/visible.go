@@ -90,43 +90,78 @@ func (m *Model) inspectMembers(s Snapshot) []int {
 	return membersOf(groups, s.Count(), src)
 }
 
-// visibility reads hide and the installed group snapshot in one lock
-// acquisition, for callers that then test many indices against them.
+// Visibility is the model's hide flag and installed group snapshot frozen
+// at one read. Groups' slices are never mutated in place - Install always
+// replaces the struct wholesale, never one of its fields - so a caller
+// holding a Visibility keeps answering off the exact pair it was handed,
+// however the model's hide flag or groups change underneath it afterward.
+// See Model.Visibility for why a caller wants that.
+type Visibility struct {
+	Hide   bool
+	Groups Groups
+}
+
+// HiddenExtra reports whether i is a non-representative member of a
+// duplicate group while hide is on, in three steps: hide off is always
+// false; Groups.Size(i) < 2 is always false too - unhashed files are
+// never extras, because their installed group size is 0, which already
+// fails this check on its own; otherwise i is an extra exactly when it
+// is not its group's representative.
+func (v Visibility) HiddenExtra(i int) bool {
+	if !v.Hide {
+		return false
+	}
+	if v.Groups.Size(i) < 2 {
+		return false
+	}
+
+	return i != v.Groups.RepresentativeOf(i)
+}
+
+// Visible is the negation of HiddenExtra.
+func (v Visibility) Visible(i int) bool {
+	return !v.HiddenExtra(i)
+}
+
+// RepresentativeOf delegates to the frozen Groups.
+func (v Visibility) RepresentativeOf(i int) int {
+	return v.Groups.RepresentativeOf(i)
+}
+
+// Size delegates to the frozen Groups.
+func (v Visibility) Size(i int) int {
+	return v.Groups.Size(i)
+}
+
+// Visibility reads hide and the installed group snapshot in one mutex
+// acquisition, for a caller about to test many indices against them - the
+// same reasoning Snapshot already applies to the file set itself. Read the
+// value once at the top of such a pass and call its methods per index
+// instead of Model's IsHiddenExtra/RepresentativeOf/GroupSize.
+//
 // The walks below used to call IsHiddenExtra per candidate, which is one
 // mutex acquisition per candidate; at 50k files with hide on, that was
 // the cost of a single arrow key.
-func (m *Model) visibility() (hide bool, groups Groups) {
+func (m *Model) Visibility() Visibility {
+	m.visibilityReads.Add(1)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return m.hide, m.groups
+	return Visibility{Hide: m.hide, Groups: m.groups}
 }
 
-// hiddenExtra is IsHiddenExtra's test against an already-read hide flag
-// and group snapshot: no lock, so a walk can call it per index.
-func hiddenExtra(hide bool, groups Groups, i int) bool {
-	if !hide {
-		return false
-	}
-	if groups.Size(i) < 2 {
-		return false
-	}
-
-	return i != groups.RepresentativeOf(i)
+// VisibilityReads is how many times Visibility has run, so tests can prove
+// a filter pass over many indices paid one model-mutex acquisition rather
+// than one per index.
+func (m *Model) VisibilityReads() int32 {
+	return m.visibilityReads.Load()
 }
 
-// IsHiddenExtra reports whether i is a non-representative member of a
-// duplicate group while hide is on. Unhashed files are never extras:
-// their installed group size is 0, which already fails the size check on
-// its own.
-//
-// This is the single-index entry point. A walk over many indices should
-// call visibility() once itself and then hiddenExtra per index, rather
-// than paying a lock acquisition per candidate here.
+// IsHiddenExtra is Visibility.HiddenExtra's single-index entry point. A
+// caller that will test many indices should take a Visibility once
+// instead of paying a lock acquisition per candidate here.
 func (m *Model) IsHiddenExtra(i int) bool {
-	hide, groups := m.visibility()
-
-	return hiddenExtra(hide, groups, i)
+	return m.Visibility().HiddenExtra(i)
 }
 
 // IsVisible is the negation of IsHiddenExtra.
@@ -156,8 +191,8 @@ func (m *Model) NextVisible(from, delta int) int {
 	if members := m.inspectMembers(s); len(members) >= 2 && delta != 0 {
 		return stepInMembers(members, from, delta)
 	}
-	hide, groups := m.visibility()
-	if !hide || delta == 0 {
+	vis := m.Visibility()
+	if !vis.Hide || delta == 0 {
 		return from + delta
 	}
 	step := 1
@@ -169,7 +204,7 @@ func (m *Model) NextVisible(from, delta int) int {
 		start := i
 		for {
 			i = (i + step + n) % n
-			if !hiddenExtra(hide, groups, i) {
+			if !vis.HiddenExtra(i) {
 				break
 			}
 			if i == start {
@@ -187,9 +222,9 @@ func (m *Model) NextVisible(from, delta int) int {
 // off, so this loop degrades to "the first index" on its own.
 func (m *Model) FirstVisible() int {
 	s := m.set.Snapshot()
-	hide, groups := m.visibility()
+	vis := m.Visibility()
 	for i := range s.Count() {
-		if !hiddenExtra(hide, groups, i) {
+		if !vis.HiddenExtra(i) {
 			return i
 		}
 	}
@@ -201,9 +236,9 @@ func (m *Model) FirstVisible() int {
 // nothing qualifies. Same non-check of HideDuplicates as FirstVisible.
 func (m *Model) LastVisible() int {
 	s := m.set.Snapshot()
-	hide, groups := m.visibility()
+	vis := m.Visibility()
 	for i := s.Count() - 1; i >= 0; i-- {
-		if !hiddenExtra(hide, groups, i) {
+		if !vis.HiddenExtra(i) {
 			return i
 		}
 	}
@@ -217,10 +252,10 @@ func (m *Model) LastVisible() int {
 // why this package must not import math/rand.
 func (m *Model) VisibleIndexesExcept(current int) []int {
 	s := m.set.Snapshot()
-	hide, groups := m.visibility()
+	vis := m.Visibility()
 	var out []int
 	for i := range s.Count() {
-		if i != current && !hiddenExtra(hide, groups, i) {
+		if i != current && !vis.HiddenExtra(i) {
 			out = append(out, i)
 		}
 	}

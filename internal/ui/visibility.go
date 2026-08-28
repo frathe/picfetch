@@ -53,8 +53,9 @@ func (v *viewer) jumpIfHiddenExtra() {
 	if v.dupes.Inspecting() {
 		return
 	}
-	if i := v.state.index; v.dupes.IsHiddenExtra(i) {
-		v.ShowImage(v.dupes.RepresentativeOf(i))
+	vis := v.dupes.Visibility()
+	if i := v.state.index; vis.HiddenExtra(i) {
+		v.ShowImage(vis.RepresentativeOf(i))
 	}
 }
 

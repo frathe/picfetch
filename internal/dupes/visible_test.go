@@ -330,6 +330,101 @@ func TestIsVisible_IsNegationOfIsHiddenExtra(t *testing.T) {
 	}
 }
 
+// TestVisibility_AgreesWithPerIndexAccessors proves the batched Visibility
+// value answers exactly what the existing per-index accessors already did,
+// for every kind of index this package distinguishes: a group
+// representative, that group's hidden extra, a hashed-and-unique file, an
+// unhashed file, and both flavors of out-of-range index.
+func TestVisibility_AgreesWithPerIndexAccessors(t *testing.T) {
+	set := newFakeSet(4, 1) // a, b, c, d
+	m := New(set)
+	// 0: representative of a group of two. 1: that group's hidden extra.
+	// 2: hashed and unique. 3: unhashed (size 0).
+	m.Install(Groups{Sizes: []int{2, 2, 1, 0}, Reps: []int{0, 0, 2, 3}})
+	indexes := []int{-1, 0, 1, 2, 3, set.Snapshot().Count()}
+
+	for _, hide := range []bool{true, false} {
+		m.SetHideDuplicates(hide)
+		vis := m.Visibility()
+
+		for _, i := range indexes {
+			if got, want := vis.HiddenExtra(i), m.IsHiddenExtra(i); got != want {
+				t.Errorf("hide=%v: vis.HiddenExtra(%d) = %v, want %v (must agree with IsHiddenExtra)", hide, i, got, want)
+			}
+			if got, want := vis.Visible(i), m.IsVisible(i); got != want {
+				t.Errorf("hide=%v: vis.Visible(%d) = %v, want %v (must agree with IsVisible)", hide, i, got, want)
+			}
+			if got, want := vis.RepresentativeOf(i), m.RepresentativeOf(i); got != want {
+				t.Errorf("hide=%v: vis.RepresentativeOf(%d) = %d, want %d (must agree with Model.RepresentativeOf)", hide, i, got, want)
+			}
+			if got, want := vis.Size(i), m.GroupSize(i); got != want {
+				t.Errorf("hide=%v: vis.Size(%d) = %d, want %d (must agree with GroupSize)", hide, i, got, want)
+			}
+		}
+	}
+}
+
+// TestVisibility_IsAFrozenRead proves a held Visibility keeps answering off
+// the hide flag and Groups it was read with, even after the model's hide
+// flag flips and a different Groups is installed - Install replaces the
+// struct wholesale rather than mutating it in place, so the old value's
+// slices are never touched.
+func TestVisibility_IsAFrozenRead(t *testing.T) {
+	set := newFakeSet(3, 1) // a, b, c
+	m := New(set)
+	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	m.SetHideDuplicates(true)
+
+	vis := m.Visibility()
+
+	m.SetHideDuplicates(false)
+	m.Install(Groups{Sizes: []int{0, 2, 2}, Reps: []int{0, 1, 1}})
+
+	if !vis.Hide {
+		t.Error("vis.Hide = false after the model's hide flag flipped, want true (frozen at read time)")
+	}
+	if !vis.HiddenExtra(1) {
+		t.Error("vis.HiddenExtra(1) = false after the model's groups were replaced, want true (frozen at read time)")
+	}
+	if got := vis.RepresentativeOf(0); got != 0 {
+		t.Errorf("vis.RepresentativeOf(0) = %d after the model's groups were replaced, want 0 (frozen at read time)", got)
+	}
+	if got := vis.Size(0); got != 2 {
+		t.Errorf("vis.Size(0) = %d after the model's groups were replaced, want 2 (frozen at read time)", got)
+	}
+}
+
+// TestVisibility_TakesOneModelReadPerCall is the regression guard for the
+// whole point of this type: a caller testing many indices must pay one
+// model-mutex acquisition, not one per index.
+func TestVisibility_TakesOneModelReadPerCall(t *testing.T) {
+	m := New(newFakeSet(3, 1))
+	before := m.VisibilityReads()
+
+	vis := m.Visibility()
+
+	if got, want := m.VisibilityReads(), before+1; got != want {
+		t.Errorf("VisibilityReads() = %d after one Visibility() call, want %d", got, want)
+	}
+
+	for i := range 64 {
+		_ = vis.HiddenExtra(i)
+		_ = vis.Visible(i)
+		_ = vis.RepresentativeOf(i)
+		_ = vis.Size(i)
+	}
+
+	if got, want := m.VisibilityReads(), before+1; got != want {
+		t.Errorf("VisibilityReads() = %d after testing 64 indices off one held value, want unchanged at %d", got, want)
+	}
+
+	m.Visibility()
+
+	if got, want := m.VisibilityReads(), before+2; got != want {
+		t.Errorf("VisibilityReads() = %d after a second Visibility() call, want %d", got, want)
+	}
+}
+
 // TestNextVisible_StepsWithinInspectMembersRing is branch 1: inspecting a
 // group of two or more overrides everything else, in both step
 // directions, wrapping at either end of the ring. Hide is deliberately

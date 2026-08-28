@@ -82,6 +82,10 @@ type Model struct {
 	// computes counts Compute calls so tests can prove a snapshot was
 	// computed off the UI queue rather than inside it.
 	computes atomic.Int32
+	// visibilityReads counts Visibility calls so tests can prove a filter
+	// pass over many indices paid one model-mutex acquisition rather than
+	// one per index.
+	visibilityReads atomic.Int32
 
 	observers []func()
 }

@@ -122,29 +122,27 @@ func (g *Overview) rebuildFilter(resetView bool) {
 func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	g.matches = nil
 
+	// One mutex acquisition for the whole pass: vis is read once here and
+	// every per-index test below (and the three pre-loop reads) come off
+	// this frozen value instead of re-locking the model per file or, worse,
+	// twice per file.
+	vis := g.dupes.Visibility()
 	browsing := g.browseHost >= 0
-	browseFilter := browsing && g.dupes.GroupSize(g.browseHost) >= 2
+	browseFilter := browsing && vis.Size(g.browseHost) >= 2
 	nameFilter := g.searching && g.query != ""
-	hide := g.dupes.HideDuplicates() && !browsing
+	hide := vis.Hide && !browsing
 	if nameFilter || hide || browseFilter {
 		needle := strings.ToLower(g.query)
-		// Only the browseFilter branch below reads hostRep, and browse is
-		// off (browseHost == -1) for every plain search or hide pass - the
-		// common case. Computing it unconditionally spent a model-mutex
-		// acquisition per filter pass on a value nothing read.
-		hostRep := -1
-		if browseFilter {
-			hostRep = g.dupes.RepresentativeOf(g.browseHost)
-		}
+		hostRep := vis.RepresentativeOf(g.browseHost)
 		g.matches = make([]int, 0, g.host.FileCount())
 		for i := range g.host.FileCount() {
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
 				continue
 			}
-			if browseFilter && g.dupes.RepresentativeOf(i) != hostRep {
+			if browseFilter && vis.RepresentativeOf(i) != hostRep {
 				continue
 			}
-			if hide && g.dupes.IsHiddenExtra(i) {
+			if hide && vis.HiddenExtra(i) {
 				continue
 			}
 			g.matches = append(g.matches, i)

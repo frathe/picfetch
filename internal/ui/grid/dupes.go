@@ -30,13 +30,6 @@ func (g *Overview) rememberHash(u fyne.URI, img image.Image) {
 	g.dupes.PutHash(u.String(), imaging.DifferenceHash(img))
 }
 
-func (g *Overview) rememberHashFail(u fyne.URI) {
-	if u == nil {
-		return
-	}
-	g.dupes.PutFailed(u.String())
-}
-
 // rememberNative records u's native pixel size. The conversion from a
 // probe's rectangle to a plain size happens here because the model stores
 // sizes, not rectangles with an origin; it applies its own clamp for a
@@ -54,14 +47,6 @@ func (g *Overview) hashOf(u fyne.URI) (uint64, bool) {
 	}
 
 	return g.dupes.Hash(u.String())
-}
-
-func (g *Overview) hashFailedOf(u fyne.URI) bool {
-	if u == nil {
-		return false
-	}
-
-	return g.dupes.Failed(u.String())
 }
 
 func (g *Overview) pixelCountOf(u fyne.URI) (int, bool) {
