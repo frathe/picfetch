@@ -100,8 +100,8 @@ func TestSVGReRenderNeverMutatesTheCachedEntry(t *testing.T) {
 	if got := cached.Frames[0].Bounds(); got != cachedBefore {
 		t.Fatalf("re-render mutated the cached frame: %v -> %v", cachedBefore, got)
 	}
-	if v.displayFrames[0] == cached.Frames[0] {
-		t.Fatal("displayFrames must not share the cached entry's backing array")
+	if v.display.Current() == cached.Frames[0] {
+		t.Fatal("the display frame must not share the cached entry's backing array")
 	}
 }
 
@@ -354,9 +354,9 @@ func TestRotatedNonSquareSVGKeepsItsAspectRatio(t *testing.T) {
 	}
 	v.vector.pending.Wait()
 
-	// displayFrames[0] is the raster before rotation is applied, so it must
+	// display.Current() is the raster before rotation is applied, so it must
 	// still be twice as wide as it is tall.
-	b := v.displayFrames[0].Bounds()
+	b := v.display.Current().Bounds()
 	if got, want := float64(b.Dx())/float64(b.Dy()), 2.0; got < want*0.98 || got > want*1.02 {
 		t.Fatalf("unrotated raster is %dx%d (aspect %.3f), want aspect ~2.0 - a swapped target stretches the drawing",
 			b.Dx(), b.Dy(), got)

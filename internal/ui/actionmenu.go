@@ -72,21 +72,21 @@ func (v *viewer) showActionsVariant() {
 }
 
 func (v *viewer) rotateActionsImage() {
-	if len(v.displayFrames) == 0 || v.grid.Visible() {
+	if v.display.Count() == 0 || v.grid.Visible() {
 		return
 	}
 	v.rotateBy(1)
 }
 
 func (v *viewer) zoomActionsIn() {
-	if len(v.displayFrames) == 0 || v.grid.Visible() {
+	if v.display.Count() == 0 || v.grid.Visible() {
 		return
 	}
 	v.zoom.In()
 }
 
 func (v *viewer) zoomActionsOut() {
-	if len(v.displayFrames) == 0 || v.grid.Visible() {
+	if v.display.Count() == 0 || v.grid.Visible() {
 		return
 	}
 	v.zoom.Out()

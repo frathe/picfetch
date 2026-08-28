@@ -218,7 +218,7 @@ func (v *viewer) rasterizeVector(vec *imaging.Vector, w, h int, token requestTok
 
 		// Re-checked on this side too: the generation can move between the
 		// check above and this callback running.
-		if !token.current() || v.vector.svg != vec || len(v.displayFrames) == 0 {
+		if !token.current() || v.vector.svg != vec || v.display.Count() == 0 {
 			return
 		}
 
@@ -226,8 +226,10 @@ func (v *viewer) rasterizeVector(vec *imaging.Vector, w, h int, token requestTok
 
 		// Safe only because finishLoad gave a vector its own one-element
 		// slice - see the comment there. Writing loaded.Frames would mutate
-		// the cached LoadedImage and invalidate its ByteCache weight.
-		v.displayFrames[0] = frame
+		// the cached LoadedImage and invalidate its ByteCache weight. The
+		// current frame is that slice's only element: a vector never
+		// animates, so the display index stays at finishLoad's 0.
+		v.display.ReplaceCurrent(frame)
 		v.vector.raster = image.Pt(b.Dx(), b.Dy())
 
 		// The one place that writes v.img.Image, which is what makes the

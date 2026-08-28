@@ -87,7 +87,7 @@ func (v *viewer) displayedDimensions() (w, h int) {
 	}
 
 	lw, lh := v.vector.logical.Width, v.vector.logical.Height
-	if v.rotation%2 != 0 {
+	if v.display.Rotation()%2 != 0 {
 		lw, lh = lh, lw
 	}
 

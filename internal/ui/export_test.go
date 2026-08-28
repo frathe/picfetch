@@ -130,7 +130,7 @@ func TestExportAs_WritesTheDisplayedFrameToThePickedPath(t *testing.T) {
 
 	// The source must be left exactly as it was: an export is a copy, not a
 	// save, so the pending rotation is still pending afterwards.
-	if v.rotation == 0 {
+	if v.display.Rotation() == 0 {
 		t.Error("rotation = 0, want the pending rotation left untouched by an export")
 	}
 	src, err := loadExported(t, path)

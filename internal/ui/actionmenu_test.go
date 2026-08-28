@@ -474,19 +474,19 @@ func TestActionsMenu_RotateTurnsImageClockwise(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 	waitUntilLoaded(t, v)
-	if v.rotation != 0 {
+	if v.display.Rotation() != 0 {
 		t.Fatal("premises: unrotated")
 	}
 	v.menus.Actions().Rotate().Action()
-	if v.rotation != 1 {
-		t.Fatalf("rotation = %d, want 1 (clockwise R)", v.rotation)
+	if v.display.Rotation() != 1 {
+		t.Fatalf("rotation = %d, want 1 (clockwise R)", v.display.Rotation())
 	}
 }
 
 func TestActionsMenu_RotateNoopsWithoutImage(t *testing.T) {
 	v := newTestViewer(t)
 	v.menus.Actions().Rotate().Action()
-	if v.rotation != 0 {
+	if v.display.Rotation() != 0 {
 		t.Fatal("no image: rotate must no-op")
 	}
 }
@@ -497,7 +497,7 @@ func TestActionsMenu_RotateNoopsWhileGridVisible(t *testing.T) {
 	waitUntilLoaded(t, v)
 	v.grid.Toggle()
 	v.menus.Actions().Rotate().Action()
-	if v.rotation != 0 {
+	if v.display.Rotation() != 0 {
 		t.Fatal("grid up: rotate must no-op")
 	}
 }

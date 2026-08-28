@@ -21,9 +21,9 @@ import (
 //   - !v.loading.Load(): attemptLoad sets v.state.index to the file being
 //     navigated to before that file's pixels have finished decoding, so
 //     mid-load, CurrentFile() already names the new file while
-//     v.displayFrames/v.img.Image still hold the old one's - saving then
+//     v.display/v.img.Image still hold the old one's frames - saving then
 //     would write the wrong file's pixels into the new file's path.
-//   - len(v.displayFrames) == 1: an animated GIF's frames would all need
+//   - v.display.Count() == 1: an animated GIF's frames would all need
 //     re-rotating and re-encoding as a fresh animation, which SaveRotated
 //     doesn't attempt.
 //   - imaging.CanEncode: WebP/HEIC/ICO/XPM have no encoder in this module's
@@ -34,7 +34,7 @@ func (v *viewer) canSaveRotation() bool {
 		return false
 	}
 
-	return v.rotation != 0 && !v.loading.Load() && len(v.displayFrames) == 1 && imaging.CanEncode(u)
+	return v.display.Rotation() != 0 && !v.loading.Load() && v.display.Count() == 1 && imaging.CanEncode(u)
 }
 
 // saveRotation is the File menu's "Save Changes" action (also Cmd/Ctrl+S,
@@ -57,13 +57,13 @@ func (v *viewer) saveRotation() {
 	}
 
 	// The file on disk now holds exactly what v.img.Image already shows, so
-	// folding that into displayFrames and zeroing rotation changes nothing
-	// on screen - it just makes "unrotated" mean the file's new orientation
-	// instead of the one it was decoded at. Without this, the next redraw
-	// (an animate tick, or the 0 key) would revert to the old in-memory
-	// pixels, which the file on disk no longer matches.
-	v.displayFrames[v.displayFrameIdx] = v.img.Image
-	v.rotation = 0
+	// folding that into the display frames and zeroing rotation changes
+	// nothing on screen - it just makes "unrotated" mean the file's new
+	// orientation instead of the one it was decoded at. Without this, the
+	// next redraw (an animate tick, or the 0 key) would revert to the old
+	// in-memory pixels, which the file on disk no longer matches.
+	v.display.ReplaceCurrent(v.img.Image)
+	v.display.ResetRotation()
 
 	// Evicted rather than mutated in place: attemptLoad is the only writer
 	// of this exact key (preloadOne only ever adds neighbors), and it never

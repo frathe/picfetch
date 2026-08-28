@@ -209,7 +209,7 @@ func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.Load
 	done()
 }
 
-// installLoadedFrames copies loaded onto the viewer's display buffers and
+// installLoadedFrames copies loaded onto the viewer's display state and
 // resets view-only rotation and GIF frame index for a fresh navigation.
 //
 // A vector's frame is replaced in place by every re-render, so it
@@ -219,11 +219,11 @@ func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.Load
 func (v *viewer) installLoadedFrames(loaded *imaging.LoadedImage) {
 	b := loaded.Frames[0].Bounds()
 
-	v.displayFrames = loaded.Frames
+	v.display.SetFrames(loaded.Frames)
 	v.clearVector()
 
 	if loaded.Vector != nil {
-		v.displayFrames = []image.Image{loaded.Frames[0]}
+		v.display.SetFrames([]image.Image{loaded.Frames[0]})
 
 		v.vector.svg = loaded.Vector
 		v.vector.logical = fyne.NewSize(float32(b.Dx()), float32(b.Dy()))
@@ -231,8 +231,8 @@ func (v *viewer) installLoadedFrames(loaded *imaging.LoadedImage) {
 		v.zoom.SetLogicalSize(v.vector.logical)
 	}
 
-	v.displayFrameIdx = 0
-	v.rotation = 0
+	v.display.SetIndex(0)
+	v.display.ResetRotation()
 }
 
 // presentLoadedImage puts loaded pixels on the canvas and hides the
@@ -493,7 +493,7 @@ func (v *viewer) animate(token requestToken, frames []image.Image, delays []time
 			}
 
 			idx = (idx + 1) % len(frames)
-			v.displayFrameIdx = idx
+			v.display.SetIndex(idx)
 			v.redrawRotatedFrame()
 		})
 
@@ -553,12 +553,13 @@ func (v *viewer) syncWindowToZoom() {
 	if v.grid != nil && v.grid.Visible() {
 		return
 	}
-	// displayFrames is set by finishLoad on the UI goroutine; its slice
-	// header (length) is never written by the vector render goroutine, which
-	// only writes displayFrames[0] through the existing pointer. Checking
-	// the length here avoids a race on v.img.Image, which the vector
-	// goroutine may be writing concurrently via rasterizeVector's fyne.Do.
-	if len(v.displayFrames) == 0 {
+	// The display frames are set by finishLoad on the UI goroutine; their
+	// slice header (length) is never written by the vector render
+	// goroutine, which only replaces the one frame through the existing
+	// pointer (ReplaceCurrent). Checking the count here avoids a race on
+	// v.img.Image, which the vector goroutine may be writing concurrently
+	// via rasterizeVector's fyne.Do.
+	if v.display.Count() == 0 {
 		return
 	}
 	w, h := v.displayedDimensions()
@@ -597,26 +598,16 @@ func resizeToImage(w fyne.Window, b image.Rectangle, maxW, maxH float32) {
 // at all, so it stays an instant swap exactly as before.
 const slideshowFadeDuration = 400 * time.Millisecond
 
-// startFade stops whatever fade is already running - a no-op if none is -
-// and starts a fresh one ticking v.img's Translucency from start to end
-// over slideshowFadeDuration, refreshing the canvas on every tick.
-// Stopping the previous animation first matters when a fade-in begins
-// before the fade-out before it has finished (a fast, likely
-// cache-hit load - see attemptLoad): without it, the outgoing animation's
-// next tick could overwrite a value the new one already set. Under the
-// fyne test driver, Start ticks straight to the end state synchronously
-// (see fyne/test's driver.StartAnimation), so a test never observes an
-// in-between value.
+// startFade starts a fade ticking v.img's Translucency from start to end
+// over slideshowFadeDuration, refreshing the canvas on every tick. The
+// fade's lifecycle - stopping whichever one is already running first, and
+// why that matters - is display.StartFade's; the translucency math stays
+// here because v.img is the viewer's.
 func (v *viewer) startFade(start, end float64) {
-	if v.fadeAnim != nil {
-		v.fadeAnim.Stop()
-	}
-
-	v.fadeAnim = fyne.NewAnimation(slideshowFadeDuration, func(t float32) {
+	v.display.StartFade(slideshowFadeDuration, func(t float32) {
 		v.img.Translucency = start + float64(t)*(end-start)
 		v.img.Refresh()
 	})
-	v.fadeAnim.Start()
 }
 
 // resetFade cancels any fade transition in progress and puts v.img back to
@@ -624,10 +615,7 @@ func (v *viewer) startFade(start, end float64) {
 // leaving it mid-transition never strands the image invisible or
 // half-faded once it's back in the normal, instant-swap view.
 func (v *viewer) resetFade() {
-	if v.fadeAnim != nil {
-		v.fadeAnim.Stop()
-		v.fadeAnim = nil
-	}
+	v.display.ResetFade()
 	v.img.Translucency = 0
 	v.img.Refresh()
 }

@@ -32,7 +32,7 @@ import (
 // frameClock is time.After that a test steps. parked is signalled each time
 // After is called, so the test can wait until animate is sitting in its
 // select rather than inside fyne.Do - the window where ShowImage's
-// finishLoad would race displayFrames/displayFrameIdx under the test driver.
+// finishLoad would race the display frames/index under the test driver.
 type frameClock struct {
 	ticks  chan time.Time
 	parked chan struct{}
@@ -132,12 +132,12 @@ func TestViewerShow_NavigatingAwayStopsAnimation(t *testing.T) {
 	waitForAnimFrame(t, v, 2)
 	// After() is only called again once fyne.Do has returned, so parking
 	// here is the happens-before that lets this goroutine read
-	// displayFrameIdx (and later call ShowImage) without racing animate's
+	// the display index (and later call ShowImage) without racing animate's
 	// write under the test driver.
 	clock.waitParked(t)
 
-	if v.displayFrameIdx != 1 {
-		t.Fatalf("displayFrameIdx = %d after one clock tick, want 1 - the animation must have actually cycled", v.displayFrameIdx)
+	if v.display.Index() != 1 {
+		t.Fatalf("display.Index() = %d after one clock tick, want 1 - the animation must have actually cycled", v.display.Index())
 	}
 	if _, _, b, _ := v.img.Image.At(0, 0).RGBA(); b == 0 {
 		t.Fatal("expected the blue frame on screen after one clock tick")

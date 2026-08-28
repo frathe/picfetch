@@ -68,7 +68,7 @@ func (v *viewer) menuState() menus.State {
 
 		NoFiles:            v.FileCount() == 0,
 		GridUp:             v.grid.Visible(),
-		NoImage:            len(v.displayFrames) == 0,
+		NoImage:            v.display.Count() == 0,
 		SlidesActive:       v.slides.Active(),
 		ExifOpen:           v.exif.Open(),
 		ManualOpen:         v.help.ManualOpen(),

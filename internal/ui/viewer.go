@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image"
 	"os"
 	"slices"
 	"sync/atomic"
@@ -20,6 +19,7 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/deletion"
+	"github.com/frathe/picfetch/internal/ui/display"
 	"github.com/frathe/picfetch/internal/ui/exifwin"
 	"github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/ui/grid"
@@ -259,21 +259,20 @@ type viewer struct {
 	// drop (concurrency invariant).
 	frameAfter func(time.Duration) <-chan time.Time
 
-	// displayFrames is the current image's decoded, EXIF-corrected frames
-	// (loaded.Frames - unrotated), and displayFrameIdx which one of them is
-	// currently on screen: index 0 for a static image, or whichever one
-	// animate has most recently cycled to for an animated GIF. rotateBy
-	// (rotate.go) needs both to redraw at a new rotation without waiting for
-	// animate's next tick, since it can't otherwise tell which frame of an
-	// in-progress animation is currently up. rotation is the view-only
-	// clockwise quarter-turn count (0-3) composed with the EXIF orientation
-	// already baked into those frames at render time - see
-	// imaging.RotateSteps - and is never written back to disk. Reset to 0 by
-	// every fresh navigation (finishLoad) and the 0 key, mirroring the way
-	// the zoom view resets to fit.
-	displayFrames   []image.Image
-	displayFrameIdx int
-	rotation        int
+	// display owns what is on the canvas right now - the current image's
+	// decoded frames, which of them is up, the view-only rotation, and
+	// the picture-frame crossfade - see internal/ui/display, whose State
+	// doc carries what each piece means. The choreography stays here:
+	// installLoadedFrames (load.go) installs a fresh image's frames and
+	// resets index and rotation on every navigation, animate advances the
+	// index, and rotateBy/resetRotation (rotate.go) turn the rotation and
+	// redraw. The fade is only ever running while picture-frame mode is
+	// active: ShowImage starts one fading the outgoing image out,
+	// finishLoad starts the next fading the incoming one in, and every
+	// path that ends picture-frame mode calls resetFade so the image is
+	// never left invisible or half-faded once it's back in the normal,
+	// instant-swap view. A value field, never copied.
+	display display.State
 
 	// imgCache holds recently decoded frames keyed by URI string, so
 	// navigating back to an image already seen this session - or one
@@ -357,16 +356,6 @@ type viewer struct {
 	// so keeping them from overlapping is this package's job - see
 	// handleKeyEvent's G case and togglePictureFrameMode.
 	slides *slideshow.Controller
-
-	// fadeAnim is the crossfade in progress, if any, between the last
-	// image on screen and the one replacing it - see load.go's
-	// startFade/resetFade. Only ever non-nil while picture-frame mode is
-	// active: ShowImage starts one fading the outgoing image out,
-	// finishLoad starts the next fading the incoming one in, and every
-	// path that ends picture-frame mode calls resetFade so the image is
-	// never left invisible or half-faded once it's back in the normal,
-	// instant-swap view.
-	fadeAnim *fyne.Animation
 
 	// clipboard is begun by copyImageToClipboard (clipboard.go) and
 	// copyGridSelection (batch.go) and finished once that goroutine has
@@ -560,10 +549,9 @@ func (v *viewer) clearToDropzone() {
 
 	v.img.Image = nil
 	v.img.Hide()
-	// Drop leftover frames so rotate/zoom enablement (len==0) and
+	// Drop leftover frames so rotate/zoom enablement (Count() == 0) and
 	// rotateBy's no-op agree with the empty drop zone.
-	v.displayFrames = nil
-	v.displayFrameIdx = 0
+	v.display.Clear()
 	v.clearVector() // an in-flight rasterization must not land on whatever loads next
 
 	// The info card's own standing preference is left alone - it's a

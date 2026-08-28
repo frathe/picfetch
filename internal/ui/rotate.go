@@ -4,8 +4,6 @@ import (
 	"image"
 
 	"fyne.io/fyne/v2"
-
-	"github.com/frathe/picfetch/internal/imaging"
 )
 
 // rotateBy is the R key (clockwise, steps=1) / Shift+R (counter-clockwise,
@@ -18,11 +16,11 @@ import (
 // the window to match - a manual zoom level or window size chosen for the
 // old orientation rarely still makes sense once the axes have swapped.
 func (v *viewer) rotateBy(steps int) {
-	if len(v.displayFrames) == 0 {
+	if v.display.Count() == 0 {
 		return
 	}
 
-	v.rotation = ((v.rotation+steps)%4 + 4) % 4
+	v.display.RotateBy(steps)
 	v.redrawRotatedFrame()
 
 	// syncMenus before applyRotationLayout, not after: the layout call can
@@ -35,8 +33,9 @@ func (v *viewer) rotateBy(steps int) {
 	// marshaling it (see ARCHITECTURE.md's concurrency invariant), so
 	// canExport's read of v.img.Image inside syncMenus could otherwise
 	// race that write under -race. syncMenus needs nothing
-	// applyRotationLayout computes - only v.rotation, already set above -
-	// so ordering it first removes the race instead of just hiding it.
+	// applyRotationLayout computes - only the display rotation, already
+	// set above - so ordering it first removes the race instead of just
+	// hiding it.
 	v.syncMenus()
 	v.applyRotationLayout()
 }
@@ -45,11 +44,10 @@ func (v *viewer) rotateBy(steps int) {
 // clears any view-only rotation back to the image's native EXIF
 // orientation, the same way 0 resets zoom back to fit.
 func (v *viewer) resetRotation() {
-	if v.rotation == 0 {
+	if !v.display.ResetRotation() {
 		return
 	}
 
-	v.rotation = 0
 	v.redrawRotatedFrame()
 
 	// Before applyRotationLayout, not after - see rotateBy's identical
@@ -59,13 +57,13 @@ func (v *viewer) resetRotation() {
 }
 
 // redrawRotatedFrame recomputes v.img.Image from the current unrotated
-// frame (displayFrames[displayFrameIdx]) and rotation, and refreshes the
-// canvas. Shared by rotateBy/resetRotation (a key press) and finishLoad/
-// animate (loading a fresh image or advancing a GIF), so a rotation applied
-// mid-animation keeps being applied to every later frame too, not just the
-// one that happened to be on screen when R was pressed.
+// frame and rotation (display.Rotated) and refreshes the canvas. Shared
+// by rotateBy/resetRotation (a key press) and finishLoad/animate (loading
+// a fresh image or advancing a GIF), so a rotation applied mid-animation
+// keeps being applied to every later frame too, not just the one that
+// happened to be on screen when R was pressed.
 func (v *viewer) redrawRotatedFrame() {
-	v.img.Image = imaging.RotateSteps(v.displayFrames[v.displayFrameIdx], v.rotation)
+	v.img.Image = v.display.Rotated()
 	v.img.Refresh()
 	v.animFrame.Add(1)
 }
@@ -87,7 +85,7 @@ func (v *viewer) applyRotationLayout() {
 	// the wrong axis.
 	if v.vector.svg != nil {
 		logical := v.vector.logical
-		if v.rotation%2 != 0 {
+		if v.display.Rotation()%2 != 0 {
 			logical = fyne.NewSize(logical.Height, logical.Width)
 		}
 

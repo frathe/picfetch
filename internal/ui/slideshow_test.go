@@ -218,7 +218,7 @@ func TestShow_TracksAnimatedGIFLoopDuration(t *testing.T) {
 
 	// Delays still have to sum to 30s - that's what AnimDuration reports -
 	// but they no longer park the goroutine: frameAfter does, so ShowImage
-	// below cannot race animate's writes to displayFrames/displayFrameIdx.
+	// below cannot race animate's writes to the display frames/index.
 	animURI := storage.NewFileURI(uitest.WriteTempFile(t, "anim.gif", uitest.EncodeAnimatedGIF(t, 4, 4,
 		[]color.Color{color.RGBA{R: 255, A: 255}, color.RGBA{B: 255, A: 255}},
 		[]int{1000, 2000}))) // 10s + 20s = 30s total loop, in centiseconds
@@ -459,15 +459,15 @@ func TestTogglePictureFrameMode_ExitResetsFade(t *testing.T) {
 	// mode landed exactly between ShowImage's fade-out and finishLoad's
 	// fade-in.
 	v.img.Translucency = 0.5
-	v.fadeAnim = fyne.NewAnimation(time.Hour, func(float32) {})
+	v.display.StartFade(time.Hour, func(float32) {})
 
 	v.togglePictureFrameMode()
 
 	if v.img.Translucency != 0 {
 		t.Errorf("Translucency after leaving picture-frame mode = %v, want 0", v.img.Translucency)
 	}
-	if v.fadeAnim != nil {
-		t.Error("fadeAnim should be cleared after leaving picture-frame mode")
+	if v.display.Fade() != nil {
+		t.Error("the fade should be cleared after leaving picture-frame mode")
 	}
 }
 
@@ -482,7 +482,7 @@ func TestHandleKeyEvent_EscapeResetsFade(t *testing.T) {
 	t.Cleanup(func() { settleSlideshow(t, v) })
 
 	v.img.Translucency = 0.5
-	v.fadeAnim = fyne.NewAnimation(time.Hour, func(float32) {})
+	v.display.StartFade(time.Hour, func(float32) {})
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
@@ -502,7 +502,7 @@ func TestReset_ResetsFadeLeftMidTransition(t *testing.T) {
 	t.Cleanup(func() { settleSlideshow(t, v) })
 
 	v.img.Translucency = 0.5
-	v.fadeAnim = fyne.NewAnimation(time.Hour, func(float32) {})
+	v.display.StartFade(time.Hour, func(float32) {})
 
 	v.reset()
 

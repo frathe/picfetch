@@ -62,7 +62,7 @@ func TestCanSaveRotation_FalseForUnsupportedFormat(t *testing.T) {
 
 	v.rotateBy(1)
 
-	if v.rotation == 0 {
+	if v.display.Rotation() == 0 {
 		t.Fatal("expected rotateBy to still rotate the view for an unsupported save format")
 	}
 	if v.canSaveRotation() {
@@ -77,7 +77,7 @@ func TestCanSaveRotation_FalseForRAW(t *testing.T) {
 
 	v.rotateBy(1)
 
-	if v.rotation == 0 {
+	if v.display.Rotation() == 0 {
 		t.Fatal("expected rotateBy to still rotate the view of a RAW preview")
 	}
 	if v.canSaveRotation() {
@@ -87,7 +87,7 @@ func TestCanSaveRotation_FalseForRAW(t *testing.T) {
 
 // TestCanSaveRotation_FalseForAnimatedImage parks animate so its background
 // goroutine never fires during the test - nothing here depends on the
-// animation itself, only on displayFrames holding more than one frame.
+// animation itself, only on the display holding more than one frame.
 func TestCanSaveRotation_FalseForAnimatedImage(t *testing.T) {
 	v := newTestViewer(t)
 	parkAnimate(v)
@@ -130,15 +130,15 @@ func TestSaveRotation_WritesRotatedPixelsAndResetsState(t *testing.T) {
 	dropAndWait(t, v, u)
 
 	v.rotateBy(1) // 4x2 -> 2x4
-	if v.rotation == 0 {
+	if v.display.Rotation() == 0 {
 		t.Fatal("expected a nonzero rotation before saving")
 	}
 	wantBounds := v.img.Image.Bounds()
 
 	v.saveRotation()
 
-	if v.rotation != 0 {
-		t.Errorf("rotation = %d, want reset to 0 after a successful save", v.rotation)
+	if v.display.Rotation() != 0 {
+		t.Errorf("rotation = %d, want reset to 0 after a successful save", v.display.Rotation())
 	}
 	if got := v.img.Image.Bounds(); got != wantBounds {
 		t.Errorf("bounds after save = %v, want unchanged at %v - saving should never itself change what's on screen", got, wantBounds)
@@ -200,7 +200,7 @@ func TestSaveRotation_NoOpWhenNothingToSave(t *testing.T) {
 
 	v.saveRotation()
 
-	if v.rotation != 0 {
+	if v.display.Rotation() != 0 {
 		t.Error("saveRotation should no-op with nothing to save")
 	}
 	if v.toast.card.Visible() {
@@ -221,7 +221,7 @@ func TestSaveRotation_FailedWriteLeavesRotationUnchanged(t *testing.T) {
 	dropAndWait(t, v, u)
 
 	v.rotateBy(1)
-	wantRotation := v.rotation
+	wantRotation := v.display.Rotation()
 
 	if err := os.RemoveAll(filepath.Dir(path)); err != nil {
 		t.Fatalf("remove temp dir: %v", err)
@@ -229,8 +229,8 @@ func TestSaveRotation_FailedWriteLeavesRotationUnchanged(t *testing.T) {
 
 	v.saveRotation()
 
-	if v.rotation != wantRotation {
-		t.Errorf("rotation = %d, want unchanged at %d after a failed save", v.rotation, wantRotation)
+	if v.display.Rotation() != wantRotation {
+		t.Errorf("rotation = %d, want unchanged at %d after a failed save", v.display.Rotation(), wantRotation)
 	}
 
 	settleToast(t, v) // saveRotation shows an error toast
@@ -291,7 +291,7 @@ func TestBuildMainMenu_SaveChangesItemInvokesSaveRotation(t *testing.T) {
 	menu := buildMainMenu(v)
 	menu.Items[0].Items[1].Action()
 
-	if v.rotation != 0 {
+	if v.display.Rotation() != 0 {
 		t.Error("the Save Changes menu action should invoke saveRotation")
 	}
 
@@ -317,7 +317,7 @@ func TestWireSaveShortcut_SavesTheCurrentRotation(t *testing.T) {
 
 	handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierShortcutDefault})
 
-	if v.rotation != 0 {
+	if v.display.Rotation() != 0 {
 		t.Error("expected Cmd/Ctrl+S to save the current rotation")
 	}
 

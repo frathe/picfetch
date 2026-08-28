@@ -138,8 +138,8 @@ func TestAttemptLoad_DisplaysAnImageLargerThanTheWholeCacheBudget(t *testing.T) 
 	if v.img.Image == nil {
 		t.Fatal("no image displayed - an image larger than the whole cache budget must still show")
 	}
-	if len(v.displayFrames) != 1 {
-		t.Errorf("displayFrames = %d, want 1", len(v.displayFrames))
+	if v.display.Count() != 1 {
+		t.Errorf("display.Count() = %d, want 1", v.display.Count())
 	}
 	if !v.imgCache.Contains(u.String()) {
 		t.Error("the displayed image should still be cached - ByteCache never evicts its newest entry")
@@ -221,8 +221,8 @@ func TestAttemptLoad_ToastsAndFallsBackToAStaticFrameForAnOversizedAnimation(t *
 	if v.img.Image == nil {
 		t.Fatal("an over-budget animation must still display its first frame")
 	}
-	if len(v.displayFrames) != 1 {
-		t.Errorf("displayFrames = %d, want 1 - the animation should not have been composited", len(v.displayFrames))
+	if v.display.Count() != 1 {
+		t.Errorf("display.Count() = %d, want 1 - the animation should not have been composited", v.display.Count())
 	}
 	if v.anim.Begun() {
 		t.Error("the animation signal is armed, want no animation goroutine for a refused animation")
