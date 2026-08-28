@@ -73,7 +73,7 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 	}
 	wantActionsLabels := []string{
 		"Sort order", "Show/Hide duplicates", "Show variants", "",
-		"Rotate image", "Zoom in", "Zoom out", "",
+		"Rotate image (CW)", "Zoom in", "Zoom out", "",
 		"Toggle merge mode", "Show/Hide info overlay", "",
 		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
 	}

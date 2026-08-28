@@ -733,7 +733,7 @@ needed. macOS and Windows need nothing extra either way.
   Show/Hide duplicates is on **and** the current file has duplicates,
   and also when no files are loaded or picture-frame mode is on. The
   `Shift+D` key still works with hide off; this menu item does not
-- **Actions -> Rotate image** (`R`) — 90° clockwise, view-only, same as
+- **Actions -> Rotate image (CW)** (`R`) — 90° clockwise, view-only, same as
   `R`. Greyed out with no image loaded or while the grid is up.
   `Shift+R` stays keyboard-only
 - **Actions -> Zoom in** (`+`) / **Zoom out** (`-`) — same as the `+`/`-`
@@ -939,8 +939,7 @@ Things PicFetch deliberately does not do (yet):
   fit-to-window, or scroll to zoom at the cursor; drag, or Shift+scroll, to
   pan once the image no longer fits
 - **Rotate** — `R`/`Shift+R` rotate 90° clockwise/counter-clockwise
-  (Actions -> Rotate image is clockwise only), view-only; `0` resets it
-  along with zoom
+  (Actions -> Rotate image (CW)), view-only; `0` resets it along with zoom
 - **Info overlay** — `I` toggles a card with the file name, position,
   dimensions, file size, and zoom level (also Actions -> Show/Hide info
   overlay)

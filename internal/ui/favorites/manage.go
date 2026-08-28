@@ -332,7 +332,7 @@ func (f *Feature) focusManage() {
 func (f *Feature) removeFavorite(name string) {
 	f.showConfirm(confirmation{
 		title:      lang.L("Remove Favorite"),
-		message:    fmt.Sprintf(lang.L("Remove %q from favorites? Its folder will be moved to the Trash."), name),
+		message:    fmt.Sprintf(lang.L("Remove %q from favorites?"), name),
 		action:     lang.L("Remove"),
 		importance: widget.DangerImportance,
 		onConfirm:  func() { f.performRemove(name) },

@@ -5,6 +5,7 @@
 ### What's Changed
 
 #### New Features
+- Changed a few labels to make them less confusing
 
 #### Bugfix
 

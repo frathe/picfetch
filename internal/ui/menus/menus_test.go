@@ -90,7 +90,7 @@ func TestNew_LabelsAndAccelerators(t *testing.T) {
 		{"sortParent", m.sortParent, lang.L("Sort order"), fyne.KeyS, 0},
 		{"actions.hide", m.Actions().Hide(), lang.L("Show/Hide duplicates"), fyne.KeyD, 0},
 		{"actions.showVariant", m.Actions().ShowVariant(), lang.L("Show variants"), fyne.KeyD, fyne.KeyModifierShift},
-		{"actions.rotate", m.Actions().Rotate(), lang.L("Rotate image"), fyne.KeyR, 0},
+		{"actions.rotate", m.Actions().Rotate(), lang.L("Rotate image (CW)"), fyne.KeyR, 0},
 		{"actions.zoomIn", m.Actions().ZoomIn(), lang.L("Zoom in"), fyne.KeyPlus, 0},
 		{"actions.zoomOut", m.Actions().ZoomOut(), lang.L("Zoom out"), fyne.KeyMinus, 0},
 		{"actions.merge", m.Actions().Merge(), lang.L("Toggle merge mode"), fyne.KeyM, 0},

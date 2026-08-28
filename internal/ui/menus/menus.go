@@ -209,7 +209,7 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	}
 	m.actions.showVariant.Disabled = true
 
-	m.actions.rotate = fyne.NewMenuItem(lang.L("Rotate image"), c.Rotate)
+	m.actions.rotate = fyne.NewMenuItem(lang.L("Rotate image (CW)"), c.Rotate)
 	m.actions.rotate.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyR}
 	m.actions.rotate.Disabled = true
 
@@ -337,7 +337,7 @@ func (a ActionItems) Hide() *fyne.MenuItem { return a.hide }
 // ShowVariant is the Actions menu's "Show variants" item.
 func (a ActionItems) ShowVariant() *fyne.MenuItem { return a.showVariant }
 
-// Rotate is the Actions menu's "Rotate image" item.
+// Rotate is the Actions menu's "Rotate image (CW)" item.
 func (a ActionItems) Rotate() *fyne.MenuItem { return a.rotate }
 
 // ZoomIn is the Actions menu's "Zoom in" item.

@@ -75,7 +75,7 @@ func TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators(t *testing.T) {
 		{"Sort order", fyne.KeyS, 0},
 		{"Show/Hide duplicates", fyne.KeyD, 0},
 		{"Show variants", fyne.KeyD, fyne.KeyModifierShift},
-		{"Rotate image", fyne.KeyR, 0},
+		{"Rotate image (CW)", fyne.KeyR, 0},
 		{"Zoom in", fyne.KeyPlus, 0},
 		{"Zoom out", fyne.KeyMinus, 0},
 		{"Toggle merge mode", fyne.KeyM, 0},
@@ -122,7 +122,7 @@ func TestActionsMenu_FreshViewer(t *testing.T) {
 
 	for _, label := range []string{
 		"Show/Hide duplicates", "Show variants",
-		"Rotate image", "Zoom in", "Zoom out",
+		"Rotate image (CW)", "Zoom in", "Zoom out",
 		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
 	} {
 		if !requireActionsItem(t, v, label).Disabled {
@@ -172,7 +172,7 @@ func TestActionsMenu_AfterOneJPEGDrop(t *testing.T) {
 		t.Error("Show variants should stay disabled while hide is off")
 	}
 	for _, label := range []string{
-		"Rotate image", "Zoom in", "Zoom out",
+		"Rotate image (CW)", "Zoom in", "Zoom out",
 		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
 	} {
 		if requireActionsItem(t, v, label).Disabled {
@@ -252,7 +252,7 @@ func TestActionsMenu_PictureFrameLeavesRotateEnabled(t *testing.T) {
 	if requireActionsItem(t, v, "Show/Hide duplicates").Disabled {
 		t.Error("Show/Hide duplicates should stay enabled in picture-frame mode")
 	}
-	if requireActionsItem(t, v, "Rotate image").Disabled {
+	if requireActionsItem(t, v, "Rotate image (CW)").Disabled {
 		t.Error("Rotate image should stay enabled in picture-frame mode")
 	}
 }
@@ -270,7 +270,7 @@ func TestActionsMenu_CloseFiles(t *testing.T) {
 
 	for _, label := range []string{
 		"Show/Hide duplicates", "Show variants",
-		"Rotate image", "Zoom in", "Zoom out",
+		"Rotate image (CW)", "Zoom in", "Zoom out",
 		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
 	} {
 		if !requireActionsItem(t, v, label).Disabled {
@@ -294,7 +294,7 @@ func TestActionsMenu_GridToggleDisablesRotateZoomInfo(t *testing.T) {
 	if !v.grid.Visible() {
 		t.Fatal("Toggle should open the grid")
 	}
-	for _, label := range []string{"Rotate image", "Zoom in", "Zoom out", "Show/Hide info overlay"} {
+	for _, label := range []string{"Rotate image (CW)", "Zoom in", "Zoom out", "Show/Hide info overlay"} {
 		if !requireActionsItem(t, v, label).Disabled {
 			t.Errorf("%q should be disabled while the grid is open", label)
 		}
@@ -309,7 +309,7 @@ func TestActionsMenu_GridToggleDisablesRotateZoomInfo(t *testing.T) {
 	if v.grid.Visible() {
 		t.Fatal("a second Toggle should close the grid")
 	}
-	for _, label := range []string{"Rotate image", "Zoom in", "Zoom out", "Show/Hide info overlay"} {
+	for _, label := range []string{"Rotate image (CW)", "Zoom in", "Zoom out", "Show/Hide info overlay"} {
 		if requireActionsItem(t, v, label).Disabled {
 			t.Errorf("%q should be enabled again after the grid closes", label)
 		}

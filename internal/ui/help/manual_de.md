@@ -832,9 +832,10 @@ benötigen in beiden Fällen nichts Zusätzliches.
   Datei Duplikate hat, und auch ohne geladene Dateien oder im
   Bilderrahmen-Modus. `Shift+D` funktioniert weiterhin mit ausgeschaltetem
   Ausblenden; dieser Menüpunkt nicht
-- **Aktionen -> Bild drehen** (`R`) — 90° im Uhrzeigersinn, nur Ansicht,
-  dasselbe wie `R`. Ausgegraut ohne geladenes Bild oder solange das Raster
-  offen ist. `Shift+R` bleibt nur über die Tastatur erreichbar
+- **Aktionen -> Bild drehen (im Uhrzeigersinn)** (`R`) — 90° im
+  Uhrzeigersinn, nur Ansicht, dasselbe wie `R`. Ausgegraut ohne geladenes
+  Bild oder solange das Raster offen ist. `Shift+R` bleibt nur über die
+  Tastatur erreichbar
 - **Aktionen -> Vergrößern** (`+`) / **Verkleinern** (`-`) — dasselbe wie
   `+`/`-`. Ausgegraut ohne geladenes Bild oder solange das Raster offen ist
 - **Aktionen -> Zusammenführen-Modus umschalten** (`M`) — dasselbe wie `M`.
@@ -1076,8 +1077,8 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   oder Scrollen zum Zoomen am Mauszeiger; ziehen, oder Shift+Scrollen, zum
   Verschieben, sobald das Bild nicht mehr passt
 - **Drehen** — `R`/`Shift+R` dreht um 90° im/gegen den Uhrzeigersinn (Aktionen
-  -> Bild drehen nur im Uhrzeigersinn), nur Ansicht; `0` setzt es zusammen
-  mit dem Zoom zurück
+  -> Bild drehen (im Uhrzeigersinn) dreht nur in diese Richtung), nur
+  Ansicht; `0` setzt es zusammen mit dem Zoom zurück
 - **Info-Overlay** — `I` schaltet eine Karte mit Dateiname, Position,
   Abmessungen, Dateigröße und Zoomstufe ein/aus (auch Aktionen -> Info-Overlay
   ein-/ausblenden)
