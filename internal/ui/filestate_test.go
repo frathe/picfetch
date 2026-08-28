@@ -194,3 +194,39 @@ func TestGenerationTracksFileSetIdentityNotNavigation(t *testing.T) {
 		t.Fatalf("Generation = %d after removal, want greater than %d", got, beforeNavigation)
 	}
 }
+
+// The published snapshot and the generation are one value, so a reader
+// can never hold keys from one file set and a generation from the next.
+func TestFileSnapshot_KeysAndGenerationMoveTogether(t *testing.T) {
+	v := newTestViewer(t)
+	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
+	dropAndWait(t, v, files...)
+
+	before := v.state.snapshot()
+	if got := before.Count(); got != 3 {
+		t.Fatalf("snapshot Count() = %d, want 3", got)
+	}
+	if got := before.KeyAt(0); got != files[0].String() {
+		t.Errorf("snapshot KeyAt(0) = %q, want %q", got, files[0].String())
+	}
+
+	v.RemoveFile(2)
+
+	after := v.state.snapshot()
+	if got := after.Count(); got != 2 {
+		t.Errorf("snapshot Count() = %d after removal, want 2", got)
+	}
+	if after.Generation() <= before.Generation() {
+		t.Errorf("Generation() = %d after removal, want > %d",
+			after.Generation(), before.Generation())
+	}
+	if got := v.Generation(); got != after.Generation() {
+		t.Errorf("v.Generation() = %d, snapshot generation = %d; they must be one value",
+			got, after.Generation())
+	}
+	// The old snapshot is immutable: it still describes the file set it
+	// was published for.
+	if got := before.Count(); got != 3 {
+		t.Errorf("previously published snapshot Count() = %d, want 3", got)
+	}
+}

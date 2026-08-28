@@ -50,7 +50,7 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 	v.updateActionsMenuState()
 
 	v.startSort(m, unsorted, func(ordered []fyne.URI) {
-		v.state.files = ordered
+		v.state.reorder(ordered)
 		v.ForceRepaint()
 		v.showFileIfPresent(current)
 	})
@@ -123,8 +123,11 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 	// would reopen the Escape-quits-mid-reorder bug v.sortOp.active exists
 	// to close, just for a narrower window. Only the token that's still
 	// current when it finishes gets to clear it.
+	//
+	// The generation bump now rides on the file-set write itself
+	// (appState.publish), so it happens inside onDone rather than ahead of
+	// it - a worker can no longer see the new generation over the old list.
 	v.sortOp.finish()
-	v.fileSetRevision.advance()
 
 	onDone(ordered)
 }

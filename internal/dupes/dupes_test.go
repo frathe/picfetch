@@ -16,9 +16,11 @@ type fakeSet struct {
 	gen  uint64
 }
 
-func (f *fakeSet) Count() int         { return len(f.keys) }
-func (f *fakeSet) KeyAt(i int) string { return f.keys[i] }
-func (f *fakeSet) Generation() uint64 { return f.gen }
+// Snapshot rebuilds from keys/gen on every call, which is what lets a
+// test mutate those fields directly and have the next model call see the
+// change - the production adapter (internal/ui's dupeFileSet) instead
+// returns an already-published value.
+func (f *fakeSet) Snapshot() Snapshot { return NewSnapshot(f.keys, f.gen) }
 
 func newFakeSet(n int, gen uint64) *fakeSet {
 	keys := make([]string, n)
@@ -26,6 +28,19 @@ func newFakeSet(n int, gen uint64) *fakeSet {
 		keys[i] = string(rune('a' + i))
 	}
 	return &fakeSet{keys: keys, gen: gen}
+}
+
+// countingSet reports how many times the model asked for a snapshot, so
+// a test can prove a navigation step takes exactly one rather than one
+// per candidate index.
+type countingSet struct {
+	inner     *fakeSet
+	snapshots int
+}
+
+func (c *countingSet) Snapshot() Snapshot {
+	c.snapshots++
+	return c.inner.Snapshot()
 }
 
 func TestNew_DefaultDistanceIsImagingDuplicateMaxDistance(t *testing.T) {

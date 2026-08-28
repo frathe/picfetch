@@ -36,18 +36,23 @@ func (g Groups) RepresentativeOf(i int) int {
 // hashing workers do exactly that; Install is what replaces the model's
 // live snapshot.
 //
-// WipeIfStale is called first, which locks and unlocks on its own; the
-// snapshot build below then takes the lock again rather than nesting it,
-// so a caller cannot deadlock by holding mu across WipeIfStale.
+// The file set is read once, at the top, as an immutable Snapshot: the
+// count and the keys this pass groups over cannot disagree, however the
+// app rewrites its file list meanwhile. Reading that snapshot under mu
+// below is safe precisely because it is a value - it cannot reach back
+// into the model or into the app, so it cannot deadlock a hashing
+// worker. wipeIfStale locks and unlocks on its own first; the snapshot
+// build then takes the lock again rather than nesting it.
 func (m *Model) Compute() Groups {
 	m.computes.Add(1)
-	n := m.set.Count()
+	s := m.set.Snapshot()
+	n := s.Count()
 	sizes := make([]int, n)
 	reps := make([]int, n)
 	for i := range n {
 		reps[i] = i
 	}
-	m.WipeIfStale()
+	m.wipeIfStale(s.Generation())
 
 	m.mu.Lock()
 	idx := make([]int, 0, n)
@@ -56,7 +61,7 @@ func (m *Model) Compute() Groups {
 	px := make([]int, n)
 	dist := m.dist
 	for i := range n {
-		key := m.set.KeyAt(i)
+		key := s.KeyAt(i)
 		if h, ok := m.hashes[key]; ok {
 			idx = append(idx, i)
 			hs = append(hs, h)
@@ -121,21 +126,29 @@ func (m *Model) RepresentativeOf(i int) int {
 // Members returns set indices sharing i's representative, in ascending
 // index order, or nil when the group has fewer than two members.
 func (m *Model) Members(i int) []int {
+	n := m.set.Snapshot().Count()
+
 	m.mu.Lock()
 	groups := m.groups
 	m.mu.Unlock()
 
+	return membersOf(groups, n, i)
+}
+
+// membersOf is Members' body against an already-read Groups snapshot and
+// count, so a caller that has both does not re-take the model mutex.
+func membersOf(groups Groups, n, i int) []int {
 	if groups.Size(i) < 2 {
 		return nil
 	}
 	rep := groups.RepresentativeOf(i)
-	n := m.set.Count()
 	var members []int
 	for j := range n {
 		if groups.RepresentativeOf(j) == rep {
 			members = append(members, j)
 		}
 	}
+
 	return members
 }
 

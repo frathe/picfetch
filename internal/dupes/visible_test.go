@@ -441,6 +441,57 @@ func TestNextVisible_EmptyFileSetReturnsZero(t *testing.T) {
 	}
 }
 
+// One arrow key is one snapshot, however many indices the walk skips.
+// Before this, InspectSource rescanned the whole set for the inspect key
+// on every step, and the skip-hidden-extras walk took the model mutex
+// once per candidate.
+func TestNextVisible_TakesOneSnapshotPerCall(t *testing.T) {
+	set := &countingSet{inner: newFakeSet(64, 1)}
+	m := New(set)
+	set.snapshots = 0
+
+	m.NextVisible(0, 1)
+
+	if set.snapshots != 1 {
+		t.Errorf("NextVisible took %d snapshots, want 1", set.snapshots)
+	}
+}
+
+// The test above reaches branch 2 only, where the walk never runs. These
+// two hold the same one-snapshot budget on the other two branches: the
+// inspect ring, and the walk that skips hidden extras index by index.
+func TestNextVisible_TakesOneSnapshotWhileInspecting(t *testing.T) {
+	set := &countingSet{inner: newFakeSet(4, 1)}
+	m := New(set)
+	// Group {0, 2}: rep 0. 1 and 3 are unhashed.
+	m.Install(Groups{Sizes: []int{2, 0, 2, 0}, Reps: []int{0, 1, 0, 3}})
+	m.BeginInspect(0)
+	set.snapshots = 0
+
+	if got := m.NextVisible(0, 1); got != 2 {
+		t.Fatalf("NextVisible(0, 1) = %d, want 2 (next member in the ring)", got)
+	}
+	if set.snapshots != 1 {
+		t.Errorf("NextVisible took %d snapshots, want 1", set.snapshots)
+	}
+}
+
+func TestNextVisible_TakesOneSnapshotWhileSkippingHiddenExtras(t *testing.T) {
+	set := &countingSet{inner: newFakeSet(4, 1)}
+	m := New(set)
+	// Group {0, 2}: rep 0, so 2 is a hidden extra. 1 and 3 are unhashed.
+	m.Install(Groups{Sizes: []int{2, 0, 2, 0}, Reps: []int{0, 1, 0, 3}})
+	m.SetHideDuplicates(true)
+	set.snapshots = 0
+
+	if got := m.NextVisible(1, 1); got != 3 {
+		t.Fatalf("NextVisible(1, 1) = %d, want 3 (skips the hidden extra at 2)", got)
+	}
+	if set.snapshots != 1 {
+		t.Errorf("NextVisible took %d snapshots, want 1", set.snapshots)
+	}
+}
+
 // TestStepInMembers_EmptyMembersReturnsFrom and the two tests below call
 // stepInMembers directly: NextVisible's branch 1 guard (len(members) >= 2
 // && delta != 0) never lets an empty or zero-delta case reach it, so

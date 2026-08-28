@@ -11,42 +11,29 @@
 
 package ui
 
-import "math/rand/v2"
+import (
+	"math/rand/v2"
+
+	"github.com/frathe/picfetch/internal/dupes"
+)
 
 // dupeFileSet adapts the viewer to dupes.FileSet, so the model can group
 // over the loaded files while staying Fyne-free: every fact it stores is
 // keyed by the URI string the rest of the app already keys its caches by.
 //
-// It wraps the same FileCount/FileAt/Generation the feature packages'
-// Host interfaces bind to (see viewer.go), rather than reading
-// v.state.files directly, so there is one definition of "the file set"
-// for every consumer.
-//
-// KeyAt has to stay a plain lookup. dupes.Model.Compute calls it while
-// holding the model's own mutex - faithfully to the code this replaced,
-// which read the host's FileAt(i) under hashMu - so anything here that
-// took a lock, or reached back into the model, would deadlock a hashing
-// worker. If it ever needs to, hoist the key slice out of the lock in
-// Compute instead.
+// It forwards appState's published snapshot rather than reading
+// v.state.files, so there is one definition of "the file set" for every
+// consumer and only one goroutine ever touches the slice. The nil-URI
+// guard every duplicate helper used to apply before it touched a
+// fyne.URI lives in publish, which writes "" for an absent URI.
 type dupeFileSet struct {
 	v *viewer
 }
 
-func (s dupeFileSet) Count() int { return s.v.FileCount() }
-
-// KeyAt is the URI string of the file at i, or "" when there is no URI
-// there: the nil-URI guard every duplicate helper used to apply before it
-// touched a fyne.URI, moved to the one place the model reaches through.
-func (s dupeFileSet) KeyAt(i int) string {
-	u := s.v.FileAt(i)
-	if u == nil {
-		return ""
-	}
-
-	return u.String()
-}
-
-func (s dupeFileSet) Generation() uint64 { return s.v.Generation() }
+// Snapshot is the viewer's published, immutable view of the file set:
+// what dupes.Model reads instead of walking a live count and key lookup
+// while the UI goroutine replaces the slice underneath it.
+func (s dupeFileSet) Snapshot() dupes.Snapshot { return s.v.state.snapshot() }
 
 // jumpIfHiddenExtra moves the display to the current file's group
 // representative when the model has just made that file a hidden extra -

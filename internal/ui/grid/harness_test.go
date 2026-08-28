@@ -143,32 +143,25 @@ func setDuplicateDistance(g *Overview, n int) {
 // app builds the real model from (internal/ui's dupeFileSet): production
 // hands grid.New a model the viewer owns, so this is the grid's own way of
 // getting an equivalent one over a fakeHost.
-//
-// KeyAt has to stay a plain lookup, for the same reason the production
-// adapter's does. dupes.Model.Compute calls it while holding the model's
-// own mutex - faithfully to the code this replaced, which read
-// g.host.FileAt(i) under hashMu - so anything here that took a lock, or
-// reached back into the model, would deadlock a hashing worker.
 type hostSet struct {
 	host Host
 }
 
-func (s hostSet) Count() int { return s.host.FileCount() }
-
-// KeyAt is the URI string of the file at i, or "" when the host has no
-// URI there: the same nil-URI guard every helper in dupes.go applies
-// before it touches a fyne.URI, in the one place the model reaches
-// through.
-func (s hostSet) KeyAt(i int) string {
-	u := s.host.FileAt(i)
-	if u == nil {
-		return ""
+// Snapshot rebuilds from the host on every call. Production hands
+// grid.New a model the viewer owns, whose adapter returns an
+// already-published value; this stands in for it over a fakeHost, with
+// the same nil-URI-becomes-empty-key rule.
+func (s hostSet) Snapshot() dupes.Snapshot {
+	n := s.host.FileCount()
+	keys := make([]string, n)
+	for i := range n {
+		if u := s.host.FileAt(i); u != nil {
+			keys[i] = u.String()
+		}
 	}
 
-	return u.String()
+	return dupes.NewSnapshot(keys, s.host.Generation())
 }
-
-func (s hostSet) Generation() uint64 { return s.host.Generation() }
 
 // parkDecodes fills the decode pool with jobs that block until the
 // returned unpark runs, so a test can drive the grid - including opening it

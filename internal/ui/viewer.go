@@ -145,13 +145,6 @@ type viewer struct {
 
 	state appState
 
-	// fileSetRevision is the identity of the index-to-URI mapping exposed to
-	// feature packages. Grid thumbnail and deletion work capture it through
-	// Generation and discard results after a drop, reorder, removal, or clear.
-	// It is deliberately independent of loadLifecycle: navigation changes the
-	// displayed index but not what any index means.
-	fileSetRevision revision
-
 	// loadLifecycle owns a logical navigation and all of its descendants:
 	// probe/decode retries, neighbor preloads, and GIF animation. A newer
 	// navigation, drop, clear, or shutdown cancels and supersedes the token.
@@ -618,7 +611,6 @@ func (v *viewer) clearToDropzone() {
 
 	v.state.clearFiles()
 	v.dupes.ClearInspect()
-	v.fileSetRevision.advance()
 
 	// Purged, not left to age out: with no files open, every decode the
 	// cache holds is of something unreachable, so keeping them just spends
@@ -829,7 +821,6 @@ func (v *viewer) RemoveFile(i int) {
 	v.invalidateSort() // cancel a sort still in flight - see sortOp's field comment
 
 	target := v.state.removeFile(i)
-	v.fileSetRevision.advance()
 	v.imgCache.Remove(target.String())
 }
 
@@ -906,8 +897,16 @@ func (v *viewer) CurrentIndex() int {
 
 // Generation is the current index-to-URI file-set revision. Navigation does
 // not change it; replacement, reorder, removal, and clear operations do.
+// Grid thumbnail and deletion work captures it and discards results whose
+// generation has moved on. It is deliberately independent of
+// loadLifecycle: navigation changes the displayed index but not what any
+// index means.
+//
+// It is read out of the published snapshot rather than a counter of its
+// own, so the generation and the keys it describes are one value - see
+// appState.publish.
 func (v *viewer) Generation() uint64 {
-	return v.fileSetRevision.current()
+	return v.state.snapshot().Generation()
 }
 
 // Unfocus releases Fyne's canvas focus.

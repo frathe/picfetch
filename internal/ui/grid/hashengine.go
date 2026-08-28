@@ -67,7 +67,9 @@ type hashEngine struct {
 	// hideApply stays set until the in-flight UI install returns, so an
 	// idle fyne.Do cannot re-arm mid-apply and queue one install per
 	// file. hideApplyAt floors mid-window installs so the event loop
-	// still sees input while hashing.
+	// still sees input while hashing; beginPass clears it between passes
+	// so a stale floor from a finished pass cannot swallow a new pass's
+	// first mid-window apply.
 	hideApply   atomic.Bool
 	hideApplyAt atomic.Int64
 }
@@ -109,13 +111,19 @@ func (e *hashEngine) Run(apply func(snap dupes.Groups, remaining int32, gen uint
 	var jobs []hashJob
 	for i := 0; i < e.host.FileCount(); i++ {
 		u := e.host.FileAt(i)
+		// An index with no URI has nothing this pass can dedup, cache or
+		// hash by, so skip it rather than dereferencing it below. Every
+		// neighbouring helper (rememberHash, hashOf, ... in
+		// grid/dupes.go) guards the same way.
+		if u == nil {
+			continue
+		}
 		// The URI string is the model's key throughout - it stores facts
 		// about files, not fyne.URIs. Read straight off the model here
 		// rather than through Overview's hashOf/pixelCountOf/
 		// hashFailedOf wrappers, which exist to nil-guard the fyne.URI
-		// the cell and Warm paths hand them; this loop already cannot
-		// survive a nil URI, since the key it dedups and caches by is
-		// that URI's own string.
+		// the cell and Warm paths hand them; the guard above is this
+		// loop's equivalent.
 		key := u.String()
 		_, hashed := e.model.Hash(key)
 		_, sized := e.model.PixelCount(key)
@@ -138,7 +146,7 @@ func (e *hashEngine) Run(apply func(snap dupes.Groups, remaining int32, gen uint
 	if n == 0 {
 		return 0
 	}
-	e.hashJobs.Add(int32(n))
+	e.beginPass(n)
 	for _, j := range jobs {
 		file, key, cached, hashed, sized := j.file, j.key, j.thumb, j.hashed, j.sized
 		e.pool.Go(context.Background(), func(acquired bool) {
@@ -197,6 +205,26 @@ func (e *hashEngine) Run(apply func(snap dupes.Groups, remaining int32, gen uint
 		})
 	}
 	return n
+}
+
+// beginPass books n new jobs onto the counter and, when this is the first
+// work in flight, clears the mid-window throttle floor.
+//
+// shouldScheduleHideApply leaves hideApplyAt at the previous pass's last
+// mid-window timestamp when that pass ended, so without this a pass
+// starting within hideApplyMinInterval of the old one's last apply would
+// skip its own first mid-window apply. The last job always applies, so
+// that was latency, not lost work - this removes the latency.
+//
+// The Load/Add pair is deliberately not atomic as a unit: a worker
+// finishing between the two can only make this look like a continuing
+// pass and keep a floor that is about to expire anyway. The cost of
+// losing that race is one throttled apply, never a wrong result.
+func (e *hashEngine) beginPass(n int) {
+	if e.hashJobs.Load() == 0 {
+		e.hideApplyAt.Store(0)
+	}
+	e.hashJobs.Add(int32(n))
 }
 
 func (e *hashEngine) shouldScheduleHideApply(remaining int32) bool {

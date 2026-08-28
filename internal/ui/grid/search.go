@@ -128,7 +128,14 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	hide := g.dupes.HideDuplicates() && !browsing
 	if nameFilter || hide || browseFilter {
 		needle := strings.ToLower(g.query)
-		hostRep := g.dupes.RepresentativeOf(g.browseHost)
+		// Only the browseFilter branch below reads hostRep, and browse is
+		// off (browseHost == -1) for every plain search or hide pass - the
+		// common case. Computing it unconditionally spent a model-mutex
+		// acquisition per filter pass on a value nothing read.
+		hostRep := -1
+		if browseFilter {
+			hostRep = g.dupes.RepresentativeOf(g.browseHost)
+		}
 		g.matches = make([]int, 0, g.host.FileCount())
 		for i := range g.host.FileCount() {
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {

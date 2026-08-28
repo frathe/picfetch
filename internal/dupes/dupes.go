@@ -25,11 +25,13 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-// FileSet is the ordered file set the model groups over.
+// FileSet is the ordered file set the model groups over. It hands back an
+// immutable Snapshot rather than answering Count/KeyAt/Generation live:
+// the model is read from hashing workers while the app replaces the file
+// set on its UI goroutine, and a method that took a count and then a key
+// could see the two disagree. See Snapshot.
 type FileSet interface {
-	Count() int
-	KeyAt(i int) string // stable per file; the app passes URI strings
-	Generation() uint64 // file-set revision; a change invalidates stored facts
+	Snapshot() Snapshot
 }
 
 // MaxDistance is the largest Hamming threshold SetDistance accepts.
@@ -127,7 +129,13 @@ func (m *Model) wipeIfStaleLocked(gen uint64) {
 // generation, wiping hashes, hashFailed, and native when they don't.
 // Every read path in this file calls it first.
 func (m *Model) WipeIfStale() {
-	gen := m.set.Generation()
+	m.wipeIfStale(m.set.Snapshot().Generation())
+}
+
+// wipeIfStale is WipeIfStale against a generation the caller already
+// holds, so a method that has taken a snapshot does not take a second
+// one just to re-read the same number.
+func (m *Model) wipeIfStale(gen uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.wipeIfStaleLocked(gen)
@@ -140,9 +148,10 @@ func (m *Model) WipeIfStale() {
 // files linger until the next full-set change, which is harmless. Do
 // not call WipeIfStale here: that wipes on a mismatch.
 func (m *Model) AdoptGeneration() {
+	gen := m.set.Snapshot().Generation()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.gen = m.set.Generation()
+	m.gen = gen
 	m.ensureMapsLocked()
 }
 
@@ -158,7 +167,7 @@ func (m *Model) Clear() {
 // PutHash records key's dHash, adopting set's current generation if it
 // has moved on, and clears any failure previously recorded for key.
 func (m *Model) PutHash(key string, h uint64) {
-	gen := m.set.Generation()
+	gen := m.set.Snapshot().Generation()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.wipeIfStaleLocked(gen)
@@ -169,7 +178,7 @@ func (m *Model) PutHash(key string, h uint64) {
 // PutFailed marks key's thumbnail decode as having already failed this
 // generation.
 func (m *Model) PutFailed(key string) {
-	gen := m.set.Generation()
+	gen := m.set.Snapshot().Generation()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.wipeIfStaleLocked(gen)
@@ -182,7 +191,7 @@ func (m *Model) PutFailed(key string) {
 // rectangles with an origin.
 func (m *Model) PutNativeSize(key string, sz image.Point) {
 	sz = image.Pt(max(sz.X, 0), max(sz.Y, 0))
-	gen := m.set.Generation()
+	gen := m.set.Snapshot().Generation()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.wipeIfStaleLocked(gen)
@@ -230,13 +239,15 @@ func (m *Model) PixelCount(key string) (int, bool) {
 // set. ok is false when i is out of range, no probe has been stored for
 // it, or a stored size has a non-positive edge (failed/empty probe).
 func (m *Model) NativeSizeAt(i int) (w, h int, ok bool) {
-	if i < 0 || i >= m.set.Count() {
+	key := m.set.Snapshot().KeyAt(i)
+	if key == "" {
 		return 0, 0, false
 	}
-	sz, ok := m.NativeSize(m.set.KeyAt(i))
+	sz, ok := m.NativeSize(key)
 	if !ok || sz.X <= 0 || sz.Y <= 0 {
 		return 0, 0, false
 	}
+
 	return sz.X, sz.Y, true
 }
 
