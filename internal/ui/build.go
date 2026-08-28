@@ -20,6 +20,7 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	"github.com/frathe/picfetch/internal/ui/infoview"
 )
 
 // buildViewer wires up every widget, the drop handler, and the key handler
@@ -49,7 +50,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	scan := newScanUI()
 	sortUIC := newSortUI()
 	toastComp := newToast(func() { view.ForceRepaint() })
-	info := newInfoOverlayUI(func() {
+	info := infoview.New(func() {
 		view.exif.Show()
 		// Same reason showWindowExif syncs by hand: the EXIF window
 		// fires an observer on close, none on open.
@@ -72,9 +73,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		savedSession:  savedSession,
 		loadingBar:    loadingBar,
 		toast:         toastComp,
-		infoText:      info.text,
-		infoCard:      info.card,
-		exifLink:      info.exifLink,
+		info:          info,
 		state:         newAppState(filesort.FromPref(prefs.SortMode), prefs.MergeMode),
 		baseTitle:     appTitle,
 		imgCache:      imaging.NewImgCache(int64(prefs.MaxImageCacheMB) * bytesPerMB),
@@ -141,10 +140,11 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	toastOverlay := container.New(layout.NewVBoxLayout(), layout.NewSpacer(), container.NewCenter(toastComp.card))
 
 	// Pinned to the top-left corner: an HBox with a trailing spacer keeps
-	// infoCard at its natural (unstretched) width instead of HBox's default
-	// of filling the row, and nesting that inside a VBox (with nothing
-	// below it) keeps it pinned to the top instead of vertically centered.
-	infoOverlay := container.New(layout.NewVBoxLayout(), container.NewHBox(info.card, layout.NewSpacer()))
+	// the info card at its natural (unstretched) width instead of HBox's
+	// default of filling the row, and nesting that inside a VBox (with
+	// nothing below it) keeps it pinned to the top instead of vertically
+	// centered.
+	infoOverlay := container.New(layout.NewVBoxLayout(), container.NewHBox(info.Object(), layout.NewSpacer()))
 
 	// Order is paint order, back to front, and the tail of it is load-bearing.
 	// The grid's backdrop is opaque and fills the window, so anything stacked

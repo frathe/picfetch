@@ -139,7 +139,7 @@ func TestHandleKeyEvent_EOpensExifWindow(t *testing.T) {
 }
 
 // TestExifLink_OpensExifWindow checks the info overlay's "Show EXIF data"
-// link (build.go's infoCard wiring) reaches v.exif.Show, mirroring how
+// link (build.go's info-card wiring) reaches v.exif.Show, mirroring how
 // e2e_test.go drives restoreLink's own OnTapped directly rather than a real
 // simulated click.
 func TestExifLink_OpensExifWindow(t *testing.T) {
@@ -148,7 +148,7 @@ func TestExifLink_OpensExifWindow(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 40, 20, color.White)
 	dropAndWait(t, v, a)
 
-	v.exifLink.OnTapped()
+	v.info.ExifLink().OnTapped()
 
 	if !v.exif.Open() {
 		t.Error("the info overlay's EXIF link should open the EXIF window")
@@ -168,10 +168,10 @@ func TestExifLink_HiddenWhenTheImageHasNoExifData(t *testing.T) {
 
 	v.toggleInfoOverlay()
 
-	if !v.infoCard.Visible() {
+	if !v.info.Object().Visible() {
 		t.Fatal("the info card itself should be showing")
 	}
-	if v.exifLink.Visible() {
+	if v.info.ExifLink().Visible() {
 		t.Error("the EXIF link should be hidden for a file with no EXIF metadata")
 	}
 }
@@ -184,7 +184,7 @@ func TestExifLink_ShownWhenTheImageHasExifData(t *testing.T) {
 
 	v.toggleInfoOverlay()
 
-	if !v.exifLink.Visible() {
+	if !v.info.ExifLink().Visible() {
 		t.Error("the EXIF link should be shown for a file that has EXIF metadata")
 	}
 }
@@ -199,21 +199,21 @@ func TestExifLink_VisibilityFollowsNavigation(t *testing.T) {
 	dropAndWait(t, v, storage.NewFileURI(withExif), plain)
 
 	v.toggleInfoOverlay()
-	if !v.exifLink.Visible() {
+	if !v.info.ExifLink().Visible() {
 		t.Fatal("the EXIF link should be shown for the first file, which has EXIF metadata")
 	}
 
 	v.ShowImage(v.state.index + 1)
 	waitUntilLoaded(t, v)
 
-	if v.exifLink.Visible() {
+	if v.info.ExifLink().Visible() {
 		t.Error("the EXIF link should hide again after navigating to a file with no EXIF metadata")
 	}
 
 	v.ShowImage(v.state.index - 1)
 	waitUntilLoaded(t, v)
 
-	if !v.exifLink.Visible() {
+	if !v.info.ExifLink().Visible() {
 		t.Error("the EXIF link should come back when navigating to the file that does have EXIF metadata")
 	}
 }
@@ -222,8 +222,8 @@ func TestExifLink_VisibilityFollowsNavigation(t *testing.T) {
 //
 // The button itself lives in exifwin (exifwin_test.go, confirm_test.go);
 // these cover the viewer's side of a successful strip - AfterMetadataRemoved
-// hiding the EXIF link, refreshing currentFileSize/currentHasEXIF, and
-// evicting the decode cache so a later visit can't revive stale state.
+// hiding the EXIF link, refreshing the info card's FileSize/HasEXIF facts,
+// and evicting the decode cache so a later visit can't revive stale state.
 
 // TestStripMetadata_HidesExifLinkAndShrinksReportedSize drives a strip
 // end-to-end through the same keyboard path a user would: open the panel,
@@ -238,9 +238,9 @@ func TestStripMetadata_HidesExifLinkAndShrinksReportedSize(t *testing.T) {
 	u := uitest.TempGPSJPEGURI(t, "gps.jpg", 40, 20, 48.858222, 2.2945)
 	dropAndWait(t, v, u)
 
-	beforeSize := v.currentFileSize
+	beforeSize := v.info.FileSize()
 	v.toggleInfoOverlay()
-	if !v.exifLink.Visible() {
+	if !v.info.ExifLink().Visible() {
 		t.Fatal("setup: the EXIF link should be shown")
 	}
 
@@ -255,33 +255,33 @@ func TestStripMetadata_HidesExifLinkAndShrinksReportedSize(t *testing.T) {
 
 	settleToast(t, v)
 
-	if v.currentHasEXIF {
-		t.Fatal("currentHasEXIF still true")
+	if v.info.HasEXIF() {
+		t.Fatal("HasEXIF still true")
 	}
-	if v.exifLink.Visible() {
+	if v.info.ExifLink().Visible() {
 		t.Fatal("EXIF link should hide")
 	}
 
 	// GPS APP1 is only a few hundred bytes, so the stripped file should
 	// come back strictly smaller; if some platform's re-encode ever
-	// leaves currentFileSize unchanged, ReadMetadata coming back empty
+	// leaves the reported size unchanged, ReadMetadata coming back empty
 	// still proves the strip did its job - see the brief's own note on
 	// this being the fallback assertion.
-	if v.currentFileSize <= 0 || v.currentFileSize >= beforeSize {
+	if v.info.FileSize() <= 0 || v.info.FileSize() >= beforeSize {
 		data, err := os.ReadFile(u.Path())
 		if err != nil {
-			t.Fatalf("file size %d, want smaller than %d; also failed to re-read file: %v", v.currentFileSize, beforeSize, err)
+			t.Fatalf("file size %d, want smaller than %d; also failed to re-read file: %v", v.info.FileSize(), beforeSize, err)
 		}
 		m := imaging.ReadMetadata(data)
 		if !m.Empty() {
-			t.Fatalf("file size %d, want smaller than %d, and metadata is still present: %+v", v.currentFileSize, beforeSize, m)
+			t.Fatalf("file size %d, want smaller than %d, and metadata is still present: %+v", v.info.FileSize(), beforeSize, m)
 		}
 		info, err := os.Stat(u.Path())
 		if err != nil {
 			t.Fatalf("could not Stat the stripped file: %v", err)
 		}
-		if v.currentFileSize != info.Size() {
-			t.Errorf("currentFileSize = %d, want it to match the file's actual size %d after the strip", v.currentFileSize, info.Size())
+		if v.info.FileSize() != info.Size() {
+			t.Errorf("FileSize() = %d, want it to match the file's actual size %d after the strip", v.info.FileSize(), info.Size())
 		}
 	}
 

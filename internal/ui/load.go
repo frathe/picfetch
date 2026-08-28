@@ -257,9 +257,7 @@ func (v *viewer) presentLoadedImage() {
 }
 
 func (v *viewer) syncLoadedFileInfo(loaded *imaging.LoadedImage) {
-	v.currentFileSize = loaded.FileSize
-	v.currentHasEXIF = loaded.HasEXIF
-	v.currentPreview = loaded.Preview
+	v.info.SetFile(loaded.FileSize, loaded.HasEXIF, loaded.Preview)
 	v.syncInfoOverlayVisibility()
 	v.exif.Refresh()
 }

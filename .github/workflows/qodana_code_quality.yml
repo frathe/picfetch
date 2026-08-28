@@ -29,8 +29,8 @@ jobs:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
         with:
           # When pr-mode is set to true, Qodana analyzes only the files that have been changed
-          args: --apply-fixes
-          pr-mode: false
+          #args: --apply-fixes
+          pr-mode: true
           use-caches: true
           post-pr-comment: true
           use-annotations: true

@@ -660,7 +660,7 @@ func TestHandleKeyEvent_ExportPromptSwallowsNavigationButRespondsToItsOwnKeys(t 
 
 	// I toggles the persistent info overlay.
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyI})
-	if v.infoCard.Visible() {
+	if v.info.Object().Visible() {
 		t.Error("I (info overlay) should be swallowed while the export prompt is up")
 	}
 

@@ -168,8 +168,8 @@ func TestSaveRotation_PreservesJPEGExif(t *testing.T) {
 	u := storage.NewFileURI(path)
 	dropAndWait(t, v, u)
 
-	if !v.currentHasEXIF {
-		t.Fatal("setup: GPSJPEG should set currentHasEXIF")
+	if !v.info.HasEXIF() {
+		t.Fatal("setup: GPSJPEG should set HasEXIF")
 	}
 
 	v.rotateBy(1) // 8x4 → 4x8

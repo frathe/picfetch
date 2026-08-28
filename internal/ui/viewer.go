@@ -24,6 +24,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/help"
+	"github.com/frathe/picfetch/internal/ui/infoview"
 	"github.com/frathe/picfetch/internal/ui/menus"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
@@ -307,30 +308,13 @@ type viewer struct {
 	// updateInfoOverlay callback registerFeatures hands it.
 	zoom *zoom.Zoom
 
-	// infoVisible is a standing preference toggled by I, mirroring
-	// sortMode/mergeMode: it survives navigation and drops, but the card
-	// itself (infoCard/infoText) is only ever actually shown while an image
-	// is on screen - see syncInfoOverlayVisibility. currentFileSize is the
-	// current file's raw byte count, carried on imaging.LoadedImage (populated in
-	// attemptLoad, so a cache hit has it too) since nothing else in viewer
-	// tracks the undecoded size.
-	infoVisible bool
-	infoText    *widget.Label
-	// exifLink is the "Show EXIF data" link inside infoCard - see
-	// components.go's construction and build.go's callback wiring. Kept as
-	// its own field only so tests can trigger it directly (OnTapped) the
-	// same way e2e_test.go does for restoreLink, without a real click through
-	// the widget tree. It is only shown for a file that actually has metadata
-	// to show (currentHasEXIF, carried the same way currentFileSize is): the
-	// link is a promise, and offering it for a file with no Exif at all can
-	// only ever open a panel saying so. currentPreview is the matching flag
-	// for a camera-RAW embedded JPEG (imaging.LoadedImage.Preview): the
-	// info overlay and window title mark those "(preview)".
-	exifLink        *widget.Hyperlink
-	infoCard        *fyne.Container
-	currentFileSize int64
-	currentHasEXIF  bool
-	currentPreview  bool
+	// info is the persistent info overlay (I key) - see internal/ui/infoview,
+	// which owns its own widgets, its standing show/hide preference, and the
+	// current file's raw facts (byte size, EXIF presence, RAW-preview flag).
+	// toggleInfoOverlay/syncInfoOverlayVisibility/updateInfoOverlay (info.go)
+	// are the thin glue that builds its State snapshot from state.files/
+	// zoom/vector, none of which infoview has access to.
+	info *infoview.Card
 
 	// deletion is the Shift+Delete confirmation flow - see
 	// internal/ui/deletion, which owns its own widgets and selection state
@@ -582,10 +566,11 @@ func (v *viewer) clearToDropzone() {
 	v.displayFrameIdx = 0
 	v.clearVector() // an in-flight rasterization must not land on whatever loads next
 
-	// v.infoVisible itself is left alone - it's a standing preference like
-	// sortMode/mergeMode, so the card comes back on the next load if it
-	// was on, same as syncInfoOverlayVisibility already does from finishLoad.
-	v.infoCard.Hide()
+	// The info card's own standing preference is left alone - it's a
+	// preference like sortMode/mergeMode, so the card comes back on the
+	// next load if it was on. state.files and img.Image are already
+	// cleared above, so this call only hides the widget.
+	v.syncInfoOverlayVisibility()
 
 	v.loading.Store(false)
 	v.loadingBar.Hide()
@@ -757,10 +742,12 @@ func (v *viewer) AfterMetadataRemoved(u fyne.URI) {
 	}
 	v.imgCache.Remove(u.String())
 	if shown, ok := v.displayedFile(); ok && shown.String() == u.String() {
-		if info, err := os.Stat(u.Path()); err == nil {
-			v.currentFileSize = info.Size()
+		info, err := os.Stat(u.Path())
+		var size int64
+		if err == nil {
+			size = info.Size()
 		}
-		v.currentHasEXIF = false
+		v.info.AfterMetadataRemoved(size, err == nil)
 		v.syncInfoOverlayVisibility()
 		v.updateInfoOverlay()
 	}

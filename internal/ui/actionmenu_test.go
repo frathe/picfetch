@@ -521,7 +521,7 @@ func TestActionsMenu_InfoNoopsWhileGridVisible(t *testing.T) {
 	waitUntilLoaded(t, v)
 	v.grid.Toggle()
 	v.menus.Actions().Info().Action()
-	if v.infoVisible {
+	if v.info.Visible() {
 		t.Fatal("grid up: info overlay must no-op")
 	}
 }
@@ -560,7 +560,7 @@ func TestActionsMenu_MergeToggleChecksItem(t *testing.T) {
 func TestActionsMenu_InfoToggleChecksItem(t *testing.T) {
 	v := newTestViewer(t)
 	v.menus.Actions().Info().Action()
-	if !v.infoVisible || !v.menus.Actions().Info().Checked {
+	if !v.info.Visible() || !v.menus.Actions().Info().Checked {
 		t.Fatal("info overlay preference should turn on")
 	}
 }

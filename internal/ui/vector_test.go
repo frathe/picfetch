@@ -389,7 +389,7 @@ func TestSVGReRendersAfterRotation(t *testing.T) {
 // swaps zoom's own logical size.
 //
 // Asserts against displayedDimensions() - the value updateInfoOverlay
-// renders - rather than v.infoText itself while zooming: updateInfoOverlay's
+// renders - rather than v.info.Text() itself while zooming: updateInfoOverlay's
 // own nil-check reads v.img.Image, and toggling the overlay on during the
 // zoom loop below would let that read race an in-flight rasterizeVector
 // goroutine's write to the same field under the fake test driver, which -
@@ -397,7 +397,7 @@ func TestSVGReRendersAfterRotation(t *testing.T) {
 // - runs a fyne.Do callback inline on whichever goroutine calls it (see
 // ARCHITECTURE.md's concurrency invariant). The final check, once
 // vector.pending.Wait() has drained every goroutine spawned by the rotation
-// too, has nothing left to race and does go through the real v.infoText.
+// too, has nothing left to race and does go through the real v.info.Text().
 func TestInfoOverlayReportsLogicalSizeNotLiveRaster(t *testing.T) {
 	v, _, _ := newTestUI(t)
 	dropAndWait(t, v, uitest.TempSVGURI(t, "wide.svg", 200, 100)) // logical 520x260
@@ -431,7 +431,7 @@ func TestInfoOverlayReportsLogicalSizeNotLiveRaster(t *testing.T) {
 	// Nothing is in flight now, so it's safe to also confirm the value
 	// reaches the overlay's actual rendered text, not just the helper.
 	v.toggleInfoOverlay()
-	if got := strings.Split(v.infoText.Text, "\n")[1]; got != "260 x 520" {
+	if got := strings.Split(v.info.Text().Text, "\n")[1]; got != "260 x 520" {
 		t.Fatalf("infoText dimensions = %q, want %q", got, "260 x 520")
 	}
 }

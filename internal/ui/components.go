@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/ui/assets"
@@ -165,36 +164,4 @@ func newSortUI() sortUI {
 	label.Hide()
 
 	return sortUI{spinner: spinner, label: label}
-}
-
-// infoUI is the persistent info overlay (I key, see toggleInfoOverlay in
-// info.go) - unlike the toast it never auto-hides itself, and it's several
-// distinct lines rather than one centered message, so it uses the theme's
-// own overlay-background/foreground pairing (the same one dialogs use)
-// instead of the toast's fixed, deliberately loud warning colors - legible
-// in both light and dark themes without hardcoding either.
-type infoUI struct {
-	text     *widget.Label
-	exifLink *widget.Hyperlink
-	card     *fyne.Container
-}
-
-// newInfoOverlayUI builds the info card. onShowExif backs the "Show EXIF
-// data" link right below the card's own text (the click equivalent of the E
-// key, see internal/ui/exifwin); like newDropzoneUI's callbacks it
-// only ever runs on a later tap, so it may close over a not-yet-assigned
-// viewer variable.
-func newInfoOverlayUI(onShowExif func()) infoUI {
-	bg := canvas.NewRectangle(theme.Color(theme.ColorNameOverlayBackground))
-	bg.CornerRadius = widgets.CardRadius
-	text := widget.NewLabel("")
-	text.Alignment = fyne.TextAlignLeading
-
-	exifLink := widget.NewHyperlink(lang.L("Show EXIF data"), nil)
-	exifLink.OnTapped = onShowExif
-
-	card := container.NewStack(bg, container.NewPadded(container.NewVBox(text, exifLink)))
-	card.Hide()
-
-	return infoUI{text: text, exifLink: exifLink, card: card}
 }

@@ -77,7 +77,7 @@ func (v *viewer) menuState() menus.State {
 		HideDuplicates:     v.dupes.HideDuplicates(),
 		BrowsingDuplicates: v.grid.BrowsingDuplicates(),
 		VariantsSession:    v.variantsSession(),
-		InfoVisible:        v.infoVisible,
+		InfoVisible:        v.info.Visible(),
 		CanSave:            v.canSaveRotation(),
 		CanExport:          v.canExport(),
 		CanWallpaper:       v.canSetWallpaper(),

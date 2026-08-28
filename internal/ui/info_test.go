@@ -22,29 +22,26 @@ import (
 // is a standing one, like naturalSort/mergeMode:
 // TestClearToDropzone_HidesInfoCardButKeepsThePreference checks it
 // survives a reset even though the card itself is one of the things that
-// reset hides. TestFormatFileSize is the pure byte-count formatting
-// helper underneath the card's text.
+// reset hides. The pure byte-count formatting helper underneath the
+// card's text (formatFileSize) now lives in internal/ui/infoview, with its
+// own boundary tests there; wantSizeText below mirrors it just to build
+// this file's expected strings from a real file's on-disk size.
 
-func TestFormatFileSize(t *testing.T) {
-	cases := []struct {
-		n    int64
-		want string
-	}{
-		{0, "0 B"},
-		{500, "500 B"},
-		{1023, "1023 B"},
-		{1024, "1.0 KiB"},
-		{1500, "1.5 KiB"},
-		{1_048_576, "1.0 MiB"},
-		{1_500_000, "1.4 MiB"},
-		{1_073_741_824, "1.0 GiB"},
+// wantSizeText mirrors infoview's own (unexported, already
+// boundary-tested) formatFileSize, purely so the tests below can build an
+// expected info-card string from a real file's actual on-disk size.
+func wantSizeText(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
 	}
 
-	for _, c := range cases {
-		if got := formatFileSize(c.n); got != c.want {
-			t.Errorf("formatFileSize(%d) = %q, want %q", c.n, got, c.want)
-		}
+	div, exp := int64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
 	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // TestToggleInfoOverlay_HiddenUntilAnImageIsLoaded guards against I turning
@@ -56,17 +53,17 @@ func TestToggleInfoOverlay_HiddenUntilAnImageIsLoaded(t *testing.T) {
 	v := newTestViewer(t)
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyI})
-	if !v.infoVisible {
-		t.Fatal("infoVisible should flip on right away, even with nothing loaded")
+	if !v.info.Visible() {
+		t.Fatal("the info preference should flip on right away, even with nothing loaded")
 	}
-	if v.infoCard.Visible() {
+	if v.info.Object().Visible() {
 		t.Fatal("infoCard should stay hidden until an image is actually on screen")
 	}
 
 	a := uitest.TempJPEGURI(t, "a.jpg", 40, 20, color.White)
 	dropAndWait(t, v, a)
 
-	if !v.infoCard.Visible() {
+	if !v.info.Object().Visible() {
 		t.Error("infoCard should appear once the first image loads, since the toggle was already on")
 	}
 }
@@ -83,7 +80,7 @@ func TestToggleInfoOverlay_ContentAndPersistenceAcrossNavigation(t *testing.T) {
 	dropAndWait(t, v, a, b)
 
 	v.toggleInfoOverlay()
-	if !v.infoCard.Visible() {
+	if !v.info.Object().Visible() {
 		t.Fatal("infoCard should be visible right after toggling on with an image already loaded")
 	}
 
@@ -96,8 +93,8 @@ func TestToggleInfoOverlay_ContentAndPersistenceAcrossNavigation(t *testing.T) {
 	// test is about is the card's content and that it stays current. The
 	// fit math itself is internal/ui/zoom's to test, against a viewport it
 	// can actually control.
-	want := fmt.Sprintf("a.jpg  (1/2)\n40 x 20\n%s\nZoom: %d%%", formatFileSize(aInfo.Size()), v.zoom.Percent())
-	if got := v.infoText.Text; got != want {
+	want := fmt.Sprintf("a.jpg  (1/2)\n40 x 20\n%s\nZoom: %d%%", wantSizeText(aInfo.Size()), v.zoom.Percent())
+	if got := v.info.Text().Text; got != want {
 		t.Errorf("infoText = %q, want %q", got, want)
 	}
 
@@ -111,21 +108,21 @@ func TestToggleInfoOverlay_ContentAndPersistenceAcrossNavigation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat b.jpg: %v", err)
 	}
-	want = fmt.Sprintf("b.jpg  (2/2)\n80 x 10\n%s\nZoom: %d%%", formatFileSize(bInfo.Size()), v.zoom.Percent())
-	if got := v.infoText.Text; got != want {
+	want = fmt.Sprintf("b.jpg  (2/2)\n80 x 10\n%s\nZoom: %d%%", wantSizeText(bInfo.Size()), v.zoom.Percent())
+	if got := v.info.Text().Text; got != want {
 		t.Errorf("infoText after navigating = %q, want %q", got, want)
 	}
 
 	// Toggling off hides it; toggling back on immediately re-shows current info.
 	v.toggleInfoOverlay()
-	if v.infoCard.Visible() {
+	if v.info.Object().Visible() {
 		t.Fatal("infoCard should hide once toggled off")
 	}
 	v.toggleInfoOverlay()
-	if !v.infoCard.Visible() {
+	if !v.info.Object().Visible() {
 		t.Fatal("infoCard should reappear once toggled back on")
 	}
-	if got := v.infoText.Text; got != want {
+	if got := v.info.Text().Text; got != want {
 		t.Errorf("infoText after re-enabling = %q, want %q (still on b.jpg)", got, want)
 	}
 }
@@ -145,13 +142,13 @@ func TestToggleInfoOverlay_ZoomLineTracksZoomChanges(t *testing.T) {
 
 	v.toggleInfoOverlay()
 
-	if !strings.HasSuffix(v.infoText.Text, fitPct) {
-		t.Errorf("infoText = %q, want it to end with the %q fit scale", v.infoText.Text, fitPct)
+	if !strings.HasSuffix(v.info.Text().Text, fitPct) {
+		t.Errorf("infoText = %q, want it to end with the %q fit scale", v.info.Text().Text, fitPct)
 	}
 
 	v.zoom.ActualSize()
-	if !strings.HasSuffix(v.infoText.Text, "Zoom: 100%") {
-		t.Errorf("infoText after ActualSize = %q, want it to end with 100%%", v.infoText.Text)
+	if !strings.HasSuffix(v.info.Text().Text, "Zoom: 100%") {
+		t.Errorf("infoText after ActualSize = %q, want it to end with 100%%", v.info.Text().Text)
 	}
 
 	v.zoom.In()
@@ -159,13 +156,13 @@ func TestToggleInfoOverlay_ZoomLineTracksZoomChanges(t *testing.T) {
 		t.Fatalf("setup: zoom percent after In = %d, want more than 100", v.zoom.Percent())
 	}
 	want := fmt.Sprintf("Zoom: %d%%", v.zoom.Percent())
-	if !strings.HasSuffix(v.infoText.Text, want) {
-		t.Errorf("infoText after In = %q, want it to end with %q", v.infoText.Text, want)
+	if !strings.HasSuffix(v.info.Text().Text, want) {
+		t.Errorf("infoText after In = %q, want it to end with %q", v.info.Text().Text, want)
 	}
 
 	v.zoom.FitToWindow()
-	if !strings.HasSuffix(v.infoText.Text, fitPct) {
-		t.Errorf("infoText after FitToWindow = %q, want back to %q", v.infoText.Text, fitPct)
+	if !strings.HasSuffix(v.info.Text().Text, fitPct) {
+		t.Errorf("infoText after FitToWindow = %q, want back to %q", v.info.Text().Text, fitPct)
 	}
 }
 
@@ -181,17 +178,17 @@ func TestClearToDropzone_HidesInfoCardButKeepsThePreference(t *testing.T) {
 
 	v.reset()
 
-	if !v.infoVisible {
-		t.Error("infoVisible preference should survive a reset")
+	if !v.info.Visible() {
+		t.Error("the info preference should survive a reset")
 	}
-	if v.infoCard.Visible() {
+	if v.info.Object().Visible() {
 		t.Error("infoCard should be hidden once reset back to the empty drop zone")
 	}
 
 	b := uitest.TempJPEGURI(t, "b.jpg", 40, 20, color.White)
 	dropAndWait(t, v, b)
 
-	if !v.infoCard.Visible() {
+	if !v.info.Object().Visible() {
 		t.Error("infoCard should reappear on the next load since the preference was still on")
 	}
 }
@@ -203,10 +200,10 @@ func TestToggleInfoOverlay_RAWMarksPreview(t *testing.T) {
 	dropAndWait(t, v, raw)
 	v.toggleInfoOverlay()
 
-	if !strings.Contains(v.infoText.Text, lang.L("(preview)")) {
-		t.Errorf("infoText = %q, want %q on a RAW preview", v.infoText.Text, lang.L("(preview)"))
+	if !strings.Contains(v.info.Text().Text, lang.L("(preview)")) {
+		t.Errorf("infoText = %q, want %q on a RAW preview", v.info.Text().Text, lang.L("(preview)"))
 	}
-	if !strings.Contains(v.infoText.Text, "photo.nef") {
-		t.Errorf("infoText = %q, want the RAW filename", v.infoText.Text)
+	if !strings.Contains(v.info.Text().Text, "photo.nef") {
+		t.Errorf("infoText = %q, want the RAW filename", v.info.Text().Text)
 	}
 }
