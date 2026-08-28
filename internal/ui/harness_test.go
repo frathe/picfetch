@@ -12,6 +12,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/openwith"
+	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -79,8 +80,8 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	// (or leave notes) for the next.
 	testApp.Preferences().SetString("lastUpdateCheckDay", "")
 	testApp.Preferences().SetBool("checkForUpdates", false)
-	if testApp.Cache().Exists(whatsNewCacheKey) {
-		_ = testApp.Cache().Remove(whatsNewCacheKey)
+	if testApp.Cache().Exists(autoupdate.WhatsNewCacheKey) {
+		_ = testApp.Cache().Remove(autoupdate.WhatsNewCacheKey)
 	}
 
 	v, win = buildStartupViewer(testApp)
@@ -110,9 +111,9 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 
 	// Update staging must never touch the real cache directory or construct
 	// a live GitHub client. Tests that exercise Check/Download assign
-	// v.update themselves (httptest + fake Verifier) before enabling the
-	// setting; newTestUI only redirects the stage dir.
-	v.updateDir = t.TempDir()
+	// v.updater's client themselves (httptest + fake Verifier) before
+	// enabling the setting; newTestUI only redirects the stage dir.
+	v.updater.SetDir(t.TempDir())
 
 	var isClosed bool
 	win.SetOnClosed(func() { isClosed = true })
@@ -168,7 +169,7 @@ func drain(t *testing.T, v *viewer) {
 	v.sortOp.lifecycle.invalidate()
 	v.vector.lifecycle.invalidate()
 	v.favThumbLifecycle.invalidate()
-	v.updateOp.lifecycle.invalidate()
+	v.updateOp.invalidate()
 	v.slides.Exit()
 
 	// Vector re-renders: spawned by any effective-scale change, so a test
@@ -200,7 +201,7 @@ func drain(t *testing.T, v *viewer) {
 	}{
 		{"the clipboard copy at cleanup", &v.clipboard},
 		{"the wallpaper at cleanup", &v.wallpaper},
-		{"the update check at cleanup", &v.updateDone},
+		{"the update check at cleanup", v.updater.Done()},
 		{"the favorite previews at cleanup", &v.favThumb},
 		{"the file chooser at cleanup", &v.chooser},
 		{"the scan at cleanup", &v.scanOp.done},

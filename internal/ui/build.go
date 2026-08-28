@@ -18,6 +18,8 @@ import (
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/ui/autoupdate"
 )
 
 // buildViewer wires up every widget, the drop handler, and the key handler
@@ -83,8 +85,10 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 			maxWinH:    prefs.MaxWindowHeight,
 			imgCacheMB: prefs.MaxImageCacheMB,
 		},
-		wallpaperDir:   defaultWallpaperDir(),
-		updateDir:      defaultUpdateDir(),
+		wallpaperDir: defaultWallpaperDir(),
+		updater: autoupdate.New(application, autoupdate.DefaultDir(), func(day string) {
+			preferences.SaveLastUpdateCheckDay(application, day)
+		}),
 		keyModifiers:   defaultKeyModifiers,
 		stopWinPosPoll: noPollerStop,
 	}

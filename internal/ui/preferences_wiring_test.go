@@ -457,7 +457,7 @@ func TestSetCheckForUpdates_UpdatesGetterAndCurrentPreferences(t *testing.T) {
 	if !v.currentPreferences().CheckForUpdates {
 		t.Error("currentPreferences().CheckForUpdates = false after SetCheckForUpdates(true)")
 	}
-	if v.update != nil {
+	if v.updater.Client() != nil {
 		t.Error("empty version must not construct a production update Client")
 	}
 

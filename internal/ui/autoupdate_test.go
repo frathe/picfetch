@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/update"
 )
 
@@ -187,31 +188,31 @@ func attachUpdateClient(t *testing.T, v *viewer, srv *httptest.Server, now func(
 		HTTP:     doer,
 		Now:      now,
 		Verify:   &fakeUpdateVerifier{},
-		StageDir: v.updateDir,
+		StageDir: v.updater.Dir(),
 		GOOS:     runtime.GOOS,
 		GOARCH:   runtime.GOARCH,
 	})
-	v.update = c
+	v.updater.SetClient(c)
 	return c
 }
 
 func TestUpdateCheck_SettingOffNeverCallsHTTP(t *testing.T) {
 	v := newTestViewer(t)
-	v.updateCurrentVersion = "0.2.5"
-	v.update = update.NewClient(update.Config{
+	v.updater.SetCurrentVersion("0.2.5")
+	v.updater.SetClient(update.NewClient(update.Config{
 		HTTP:     errorDoer{t: t},
 		Now:      fixedNow("2026-08-26"),
 		Verify:   &fakeUpdateVerifier{},
-		StageDir: v.updateDir,
+		StageDir: v.updater.Dir(),
 		GOOS:     runtime.GOOS,
 		GOARCH:   runtime.GOARCH,
-	})
+	}))
 
 	// Setting stays off (newTestViewer default). maybeStart must not run Check.
 	v.maybeStartUpdateCheck()
-	waitFor(t, "update check", &v.updateDone)
+	waitFor(t, "update check", v.updater.Done())
 
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("want no stage.json, stat err %v", err)
 	}
 }
@@ -222,10 +223,10 @@ func TestUpdateCheck_SameVersionRecordsDayNoStage(t *testing.T) {
 	digest := strings.Repeat("a", 64)
 	srv := serveUpdateAPI(t, "v0.2.5", "notes", asset, nil, digest)
 	attachUpdateClient(t, v, srv, fixedNow("2026-08-26"), nil)
-	v.updateCurrentVersion = "0.2.5"
+	v.updater.SetCurrentVersion("0.2.5")
 
 	v.SetCheckForUpdates(true)
-	waitFor(t, "update check", &v.updateDone)
+	waitFor(t, "update check", v.updater.Done())
 
 	if got := v.LastUpdateCheckDay(); got != "2026-08-26" {
 		t.Errorf("LastUpdateCheckDay = %q, want 2026-08-26", got)
@@ -233,7 +234,7 @@ func TestUpdateCheck_SameVersionRecordsDayNoStage(t *testing.T) {
 	if got := preferences.Load(v.app).LastUpdateCheckDay; got != "2026-08-26" {
 		t.Errorf("persisted LastUpdateCheckDay = %q, want 2026-08-26", got)
 	}
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("want no stage.json when already current, stat err %v", err)
 	}
 }
@@ -246,15 +247,15 @@ func TestUpdateCheck_NewerReleaseStagesBinary(t *testing.T) {
 	digest := hex.EncodeToString(sum[:])
 	srv := serveUpdateAPI(t, "v0.2.6", "## Fixes\n\n- toast", asset, archive, digest)
 	attachUpdateClient(t, v, srv, fixedNow("2026-08-26"), nil)
-	v.updateCurrentVersion = "0.2.5"
+	v.updater.SetCurrentVersion("0.2.5")
 
 	v.SetCheckForUpdates(true)
-	waitFor(t, "update check", &v.updateDone)
+	waitFor(t, "update check", v.updater.Done())
 
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); err != nil {
 		t.Fatalf("stage.json: %v", err)
 	}
-	st, err := update.LoadStage(v.updateDir)
+	st, err := update.LoadStage(v.updater.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +298,7 @@ func TestUpdateCheck_TurningOffInvalidatesInFlight(t *testing.T) {
 	t.Cleanup(func() { close(block) })
 
 	attachUpdateClient(t, v, srv, fixedNow("2026-08-26"), nil)
-	v.updateCurrentVersion = "0.2.5"
+	v.updater.SetCurrentVersion("0.2.5")
 	v.SetCheckForUpdates(true)
 
 	select {
@@ -307,9 +308,9 @@ func TestUpdateCheck_TurningOffInvalidatesInFlight(t *testing.T) {
 	}
 
 	v.SetCheckForUpdates(false)
-	waitFor(t, "update check", &v.updateDone)
+	waitFor(t, "update check", v.updater.Done())
 
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("cancelled check must not leave stage.json, stat err %v", err)
 	}
 }
@@ -322,17 +323,17 @@ func TestUpdateCheck_TurningOffKeepsCompletedStage(t *testing.T) {
 	digest := hex.EncodeToString(sum[:])
 	srv := serveUpdateAPI(t, "v0.2.6", "notes", asset, archive, digest)
 	attachUpdateClient(t, v, srv, fixedNow("2026-08-26"), nil)
-	v.updateCurrentVersion = "0.2.5"
+	v.updater.SetCurrentVersion("0.2.5")
 
 	v.SetCheckForUpdates(true)
-	waitFor(t, "update check", &v.updateDone)
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); err != nil {
+	waitFor(t, "update check", v.updater.Done())
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); err != nil {
 		t.Fatalf("stage.json before turn-off: %v", err)
 	}
 
 	v.SetCheckForUpdates(false)
 
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); err != nil {
 		t.Fatalf("completed stage must survive SetCheckForUpdates(false): %v", err)
 	}
 }
@@ -343,49 +344,49 @@ func TestUpdateCheck_RestoredTodayDoesNotCheck(t *testing.T) {
 	// never SetCheckForUpdates — that would start a check.
 	v.SetLastUpdateCheckDay("2026-08-26")
 	v.settings.checkForUpdates = true
-	v.updateCurrentVersion = "0.2.5"
-	v.update = update.NewClient(update.Config{
+	v.updater.SetCurrentVersion("0.2.5")
+	v.updater.SetClient(update.NewClient(update.Config{
 		HTTP:     errorDoer{t: t},
 		Now:      fixedNow("2026-08-26"),
 		Verify:   &fakeUpdateVerifier{},
-		StageDir: v.updateDir,
+		StageDir: v.updater.Dir(),
 		GOOS:     runtime.GOOS,
 		GOARCH:   runtime.GOARCH,
-	})
+	}))
 
 	v.maybeStartUpdateCheck()
-	waitFor(t, "update check", &v.updateDone)
+	waitFor(t, "update check", v.updater.Done())
 }
 
 func TestUpdateCheck_RemovesStaleStage(t *testing.T) {
 	v := newTestViewer(t)
-	v.updateCurrentVersion = "0.2.6"
-	bin := filepath.Join(v.updateDir, "picfetch-staged")
-	if err := os.MkdirAll(v.updateDir, 0o700); err != nil {
+	v.updater.SetCurrentVersion("0.2.6")
+	bin := filepath.Join(v.updater.Dir(), "picfetch-staged")
+	if err := os.MkdirAll(v.updater.Dir(), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(bin, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := update.SaveStage(v.updateDir, update.Stage{Version: "v0.2.5", Notes: "stale", BinaryPath: bin}); err != nil {
+	if err := update.SaveStage(v.updater.Dir(), update.Stage{Version: "v0.2.5", Notes: "stale", BinaryPath: bin}); err != nil {
 		t.Fatal(err)
 	}
 
 	v.SetLastUpdateCheckDay("2026-08-26")
 	v.settings.checkForUpdates = true
-	v.update = update.NewClient(update.Config{
+	v.updater.SetClient(update.NewClient(update.Config{
 		HTTP:     errorDoer{t: t},
 		Now:      fixedNow("2026-08-26"),
 		Verify:   &fakeUpdateVerifier{},
-		StageDir: v.updateDir,
+		StageDir: v.updater.Dir(),
 		GOOS:     runtime.GOOS,
 		GOARCH:   runtime.GOARCH,
-	})
+	}))
 
 	v.maybeStartUpdateCheck()
-	waitFor(t, "update check", &v.updateDone)
+	waitFor(t, "update check", v.updater.Done())
 
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("stale stage must be removed, stat err %v", err)
 	}
 }
@@ -398,29 +399,29 @@ func TestDrain_WaitsUpdateDone(t *testing.T) {
 	digest := hex.EncodeToString(sum[:])
 	srv := serveUpdateAPI(t, "v0.2.6", "notes", asset, archive, digest)
 	attachUpdateClient(t, v, srv, fixedNow("2026-08-26"), nil)
-	v.updateCurrentVersion = "0.2.5"
+	v.updater.SetCurrentVersion("0.2.5")
 	v.SetCheckForUpdates(true)
 
-	// drain (registered by newTestUI cleanup) must wait updateDone. Waiting
-	// here mirrors drain's waitFor on a never-begun-safe Signal.
-	waitFor(t, "update check", &v.updateDone)
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); err != nil {
+	// drain (registered by newTestUI cleanup) must wait v.updater.Done().
+	// Waiting here mirrors drain's waitFor on a never-begun-safe Signal.
+	waitFor(t, "update check", v.updater.Done())
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); err != nil {
 		t.Fatalf("stage.json after drainable update: %v", err)
 	}
 }
 
 func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 	v := newTestViewer(t)
-	v.updateCurrentVersion = "0.2.5"
-	bin := filepath.Join(v.updateDir, "picfetch-staged")
-	if err := os.MkdirAll(v.updateDir, 0o700); err != nil {
+	v.updater.SetCurrentVersion("0.2.5")
+	bin := filepath.Join(v.updater.Dir(), "picfetch-staged")
+	if err := os.MkdirAll(v.updater.Dir(), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(bin, []byte("new"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	st := update.Stage{Version: "v0.2.6", Notes: "hello notes", BinaryPath: bin}
-	if err := update.SaveStage(v.updateDir, st); err != nil {
+	if err := update.SaveStage(v.updater.Dir(), st); err != nil {
 		t.Fatal(err)
 	}
 
@@ -434,7 +435,7 @@ func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 	}
 	t.Cleanup(func() { update.Apply = orig })
 
-	v.applyStagedUpdate()
+	v.updater.ApplyStagedUpdate()
 
 	if gotStage.Version != "v0.2.6" || gotStage.Notes != "hello notes" {
 		t.Errorf("Apply stage = %+v", gotStage)
@@ -442,7 +443,7 @@ func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 	if gotDest == "" {
 		t.Error("Apply dest empty")
 	}
-	wn, err := loadWhatsNew(v.app)
+	wn, err := autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +451,7 @@ func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 		t.Errorf("whatsNew = %+v", wn)
 	}
 	if runtime.GOOS != "windows" {
-		if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("unix should RemoveStage after Apply, stat err %v", err)
 		}
 	}
@@ -458,15 +459,15 @@ func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 
 func TestApplyStagedUpdate_SameVersionRemovesWithoutApply(t *testing.T) {
 	v := newTestViewer(t)
-	v.updateCurrentVersion = "0.2.6"
-	bin := filepath.Join(v.updateDir, "picfetch-staged")
-	if err := os.MkdirAll(v.updateDir, 0o700); err != nil {
+	v.updater.SetCurrentVersion("0.2.6")
+	bin := filepath.Join(v.updater.Dir(), "picfetch-staged")
+	if err := os.MkdirAll(v.updater.Dir(), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(bin, []byte("same"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := update.SaveStage(v.updateDir, update.Stage{Version: "v0.2.6", Notes: "old", BinaryPath: bin}); err != nil {
+	if err := update.SaveStage(v.updater.Dir(), update.Stage{Version: "v0.2.6", Notes: "old", BinaryPath: bin}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -477,12 +478,12 @@ func TestApplyStagedUpdate_SameVersionRemovesWithoutApply(t *testing.T) {
 	}
 	t.Cleanup(func() { update.Apply = orig })
 
-	v.applyStagedUpdate()
+	v.updater.ApplyStagedUpdate()
 
-	if _, err := os.Stat(filepath.Join(v.updateDir, "stage.json")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("want stage removed, stat err %v", err)
 	}
-	wn, err := loadWhatsNew(v.app)
+	wn, err := autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,20 +494,20 @@ func TestApplyStagedUpdate_SameVersionRemovesWithoutApply(t *testing.T) {
 
 func TestWhatsNewCache_RoundTripAndClear(t *testing.T) {
 	v := newTestViewer(t)
-	if err := saveWhatsNew(v.app, "v0.2.6", "body text"); err != nil {
+	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "body text"); err != nil {
 		t.Fatal(err)
 	}
-	got, err := loadWhatsNew(v.app)
+	got, err := autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got == nil || got.Version != "v0.2.6" || got.Body != "body text" {
 		t.Fatalf("loadWhatsNew = %+v", got)
 	}
-	if err := clearWhatsNew(v.app); err != nil {
+	if err := autoupdate.ClearWhatsNew(v.app); err != nil {
 		t.Fatal(err)
 	}
-	got, err = loadWhatsNew(v.app)
+	got, err = autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,16 +518,16 @@ func TestWhatsNewCache_RoundTripAndClear(t *testing.T) {
 
 func TestMaybeShowWhatsNew_ShowsAndClearsCache(t *testing.T) {
 	v := newTestViewer(t)
-	if err := saveWhatsNew(v.app, "v0.2.6", "# notes"); err != nil {
+	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "# notes"); err != nil {
 		t.Fatal(err)
 	}
-	v.updateCurrentVersion = "0.2.6"
+	v.updater.SetCurrentVersion("0.2.6")
 
 	v.maybeShowWhatsNew()
 	if !v.help.WhatsNewOpen() {
 		t.Fatal("WhatsNewOpen should be true after matching maybeShowWhatsNew")
 	}
-	wn, err := loadWhatsNew(v.app)
+	wn, err := autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,7 +539,7 @@ func TestMaybeShowWhatsNew_ShowsAndClearsCache(t *testing.T) {
 	// window may still be open; Singleton.Open stays true either way, so
 	// assert via cache staying empty and a fresh viewer with no cache.
 	v.maybeShowWhatsNew()
-	wn, err = loadWhatsNew(v.app)
+	wn, err = autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -549,7 +550,7 @@ func TestMaybeShowWhatsNew_ShowsAndClearsCache(t *testing.T) {
 
 func TestMaybeShowWhatsNew_EmptyCacheDoesNotShow(t *testing.T) {
 	v := newTestViewer(t)
-	v.updateCurrentVersion = "0.2.6"
+	v.updater.SetCurrentVersion("0.2.6")
 	v.maybeShowWhatsNew()
 	if v.help.WhatsNewOpen() {
 		t.Error("maybeShowWhatsNew must not open when cache is empty")
@@ -558,15 +559,15 @@ func TestMaybeShowWhatsNew_EmptyCacheDoesNotShow(t *testing.T) {
 
 func TestMaybeShowWhatsNew_VersionMismatchDoesNotShow(t *testing.T) {
 	v := newTestViewer(t)
-	if err := saveWhatsNew(v.app, "v0.2.6", "# notes"); err != nil {
+	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "# notes"); err != nil {
 		t.Fatal(err)
 	}
-	v.updateCurrentVersion = "0.2.5"
+	v.updater.SetCurrentVersion("0.2.5")
 	v.maybeShowWhatsNew()
 	if v.help.WhatsNewOpen() {
 		t.Error("version mismatch must not show What's New")
 	}
-	wn, err := loadWhatsNew(v.app)
+	wn, err := autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,12 +578,12 @@ func TestMaybeShowWhatsNew_VersionMismatchDoesNotShow(t *testing.T) {
 
 func TestStartViewerRuntime_DefaultOffDoesNotAssignClient(t *testing.T) {
 	v, win, _ := newTestUI(t)
-	if v.update != nil {
-		t.Fatal("newTestUI must not assign v.update")
+	if v.updater.Client() != nil {
+		t.Fatal("newTestUI must not assign v.updater's client")
 	}
 	startViewerRuntime(v, win, t.TempDir())
 	t.Cleanup(v.stopWinPosPoll)
-	if v.update != nil {
+	if v.updater.Client() != nil {
 		t.Fatal("startViewerRuntime with CheckForUpdates=false must not construct a Client")
 	}
 }

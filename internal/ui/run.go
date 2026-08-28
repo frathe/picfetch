@@ -10,6 +10,7 @@ import (
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
+	"github.com/frathe/picfetch/internal/ui/autoupdate"
 )
 
 const (
@@ -66,8 +67,8 @@ func Run(application fyne.App, initial []fyne.URI) {
 func startViewerRuntime(view *viewer, window fyne.Window, favoritesDir string) {
 	view.favorites.SetDir(favoritesDir)
 	view.stopWinPosPoll = startWindowPosPolling(view, window)
-	if view.updateDir == "" {
-		view.updateDir = defaultUpdateDir()
+	if view.updater.Dir() == "" {
+		view.updater.SetDir(autoupdate.DefaultDir())
 	}
 	view.maybeStartUpdateCheck()
 }
@@ -101,7 +102,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.loadLifecycle.invalidate()
 		view.sortOp.lifecycle.invalidate()
 		view.vector.lifecycle.invalidate()
-		view.updateOp.lifecycle.invalidate()
+		view.updateOp.invalidate()
 
 		// Same reasoning as the invalidations above, for the one piece of
 		// state that outlives the viewer: openwith's queue is
@@ -113,7 +114,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 		session.Save(application, view.state.unsortedFiles)
 		preferences.Save(application, view.currentPreferences())
-		view.applyStagedUpdate()
+		view.updater.ApplyStagedUpdate()
 	})
 }
 

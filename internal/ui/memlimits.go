@@ -53,12 +53,12 @@ type settings struct {
 	favPreviewCache bool
 
 	// checkForUpdates is the settings window's "Check for updates" checkbox -
-	// see autoupdate.go for its getter/setter pair. lastUpdateCheckDay is the
-	// local calendar day (YYYY-MM-DD) of the last check attempt, or empty
-	// when none has run. Both are restored from preferences.State in
-	// features.go and read back by currentPreferences.
-	checkForUpdates    bool
-	lastUpdateCheckDay string
+	// see autoupdate.go for its getter/setter pair, which delegates to
+	// v.updater for the rest of the opt-in update state (internal/ui/
+	// autoupdate.Updater, including the last-check day this struct used to
+	// hold). Restored from preferences.State in features.go and read back by
+	// currentPreferences.
+	checkForUpdates bool
 
 	// dupeDist is the Hamming threshold hide-duplicates groups at - the
 	// saved copy of what internal/dupes holds live, pushed into the model

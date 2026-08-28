@@ -18,7 +18,7 @@ the `internal/dupes` extraction, along with items 11, 13 and 14.
 
 ## High severity
 
-### 1. HEIC decodes leak native memory (dependency debt)
+### 1. HEIC decodes leak native memory (dependency debt) [temp fix applied]
 
 - **Impact 3 · Risk 5 · Effort 1 → priority 40**
 - Where: `go.mod` — `github.com/gen2brain/heic v0.7.1`, imported by

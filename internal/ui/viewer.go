@@ -5,7 +5,6 @@ import (
 	"image"
 	"os"
 	"slices"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/deletion"
 	"github.com/frathe/picfetch/internal/ui/exifwin"
 	"github.com/frathe/picfetch/internal/ui/favorites"
@@ -29,7 +29,6 @@ import (
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/ui/zoom"
-	"github.com/frathe/picfetch/internal/update"
 	"github.com/frathe/picfetch/internal/wingesture"
 	"github.com/frathe/picfetch/internal/winpos"
 )
@@ -425,21 +424,15 @@ type viewer struct {
 	// single scan. Only ever touched on the UI goroutine.
 	pendingInitial []fyne.URI
 
-	// update is the GitHub Releases client used by maybeStartUpdateCheck
-	// (autoupdate.go). nil until the opt-in is on and a Client is built
-	// (production) or a test assigns one. updateDir is the stage directory
-	// (defaultUpdateDir in production, t.TempDir in tests). updateOp /
-	// updateDone mirror scan/clipboard: one lifecycle + completion.Signal
-	// for the background check/download. updateCurrentVersion overrides
-	// app Metadata().Version in tests (Fyne test apps often ship empty).
-	update               *update.Client
-	updateDir            string
-	updateOp             struct{ lifecycle requestLifecycle }
-	updateDone           completion.Signal
-	updateCurrentVersion string
-	// updateDayMu guards lastUpdateCheckDay: the check goroutine writes it
-	// while OnStopped's currentPreferences reads it, and quit must not Wait.
-	updateDayMu sync.Mutex
+	// updater owns the release-check/download policy, the staged-update
+	// lifecycle, the What's-New cache, and the last-check-day storage - see
+	// internal/ui/autoupdate. updateOp mirrors scanOp/loadLifecycle: one
+	// requestLifecycle for the background check/download, kept here rather
+	// than promoted into that package (this refactor's locked decision on
+	// cancellation), so maybeStartUpdateCheck (autoupdate.go) begins the
+	// token and hands Updater.Start its context and a staleness func.
+	updater  *autoupdate.Updater
+	updateOp requestLifecycle
 
 	// settings is the whole settings-backed state - see memlimits.go's
 	// settings for what it holds and why it's grouped.
