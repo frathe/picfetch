@@ -8,4 +8,4 @@ import "os/exec"
 // SysProcAttr field, so it needs this no-op twin for every other platform:
 // buildPowerShellCmd is compiled - and unit-tested - everywhere, even
 // though Choose only ever dispatches to it on Windows.
-func hideConsoleWindow(*exec.Cmd) {}
+func hideConsoleWindow(_ *exec.Cmd) {}

@@ -13,6 +13,6 @@ func chooseFilesDarwin() ([]byte, error) {
 
 // chooseSaveDarwin is the same arrangement for the save panel, unreachable
 // behind ChooseSave's own GOOS switch.
-func chooseSaveDarwin(string) ([]byte, error) {
+func chooseSaveDarwin(_ string) ([]byte, error) {
 	return nil, errors.New("the macOS save panel only exists in darwin builds")
 }

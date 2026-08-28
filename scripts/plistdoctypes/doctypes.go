@@ -184,6 +184,9 @@ const plistAnchor = `<plist version="1.0">`
 // broken bundle.
 func insertDocumentTypes(plist string, extensions []string) (string, error) {
 	if strings.Contains(plist, "<key>CFBundleDocumentTypes</key>") {
+		// Capitalised because the string starts with the file's proper name,
+		// which is the one case the lowercase-error-string rule allows.
+		//goland:noinspection GoErrorStringFormat
 		return "", fmt.Errorf("Info.plist already has a CFBundleDocumentTypes entry")
 	}
 

@@ -36,7 +36,7 @@ func (t *TappableArea) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(t.content)
 }
 
-func (t *TappableArea) Tapped(*fyne.PointEvent) {
+func (t *TappableArea) Tapped(_ *fyne.PointEvent) {
 	if t.onTapped != nil {
 		t.onTapped()
 	}
@@ -47,13 +47,13 @@ func (t *TappableArea) Cursor() desktop.Cursor {
 }
 
 // MouseIn, MouseMoved, and MouseOut implement desktop.Hoverable.
-func (t *TappableArea) MouseIn(*desktop.MouseEvent) {
+func (t *TappableArea) MouseIn(_ *desktop.MouseEvent) {
 	if t.OnHover != nil {
 		t.OnHover(true)
 	}
 }
 
-func (t *TappableArea) MouseMoved(*desktop.MouseEvent) {}
+func (t *TappableArea) MouseMoved(_ *desktop.MouseEvent) {}
 
 func (t *TappableArea) MouseOut() {
 	if t.OnHover != nil {

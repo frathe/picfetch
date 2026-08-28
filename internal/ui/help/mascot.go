@@ -124,7 +124,7 @@ func (m *mascotSegment) Update(o fyne.CanvasObject) {
 	img.Refresh()
 }
 
-func (m *mascotSegment) Select(fyne.Position, fyne.Position) {}
+func (m *mascotSegment) Select(_ fyne.Position, _ fyne.Position) {}
 
 func (m *mascotSegment) SelectedText() string { return "" }
 

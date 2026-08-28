@@ -148,7 +148,7 @@ func (p *managePanel) FocusLost() {}
 
 // TypedRune ignores every rune: this panel has no type-ahead, and a stray
 // character must not disturb the ring.
-func (p *managePanel) TypedRune(rune) {}
+func (p *managePanel) TypedRune(_ rune) {}
 
 // TypedKey moves the ring (clamping at every edge rather than wrapping, the
 // rule widgets.ChoicePanel.Select sets for its one axis), runs the ringed

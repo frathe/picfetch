@@ -6,4 +6,4 @@ import "fyne.io/fyne/v2"
 
 func mergeNativeWindowMenu() {}
 
-func applyUnmodifiedNativeAccelerators(*fyne.MainMenu) {}
+func applyUnmodifiedNativeAccelerators(_ *fyne.MainMenu) {}

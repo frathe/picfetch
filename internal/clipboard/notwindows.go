@@ -8,4 +8,4 @@ import "os/exec"
 // SysProcAttr field, so it needs this no-op twin for every other platform:
 // copyImageWindows is compiled - and unit-tested - everywhere, even though
 // CopyImage only ever dispatches to it on Windows.
-func hideConsoleWindow(*exec.Cmd) {}
+func hideConsoleWindow(_ *exec.Cmd) {}

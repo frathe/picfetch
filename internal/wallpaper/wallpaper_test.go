@@ -92,6 +92,9 @@ func TestSetLinux_IgnoresAMissingDarkKey(t *testing.T) {
 	stubLookups(t, "/usr/bin/gsettings", "")
 	captureCommands(t, func(args []string) error {
 		if slices.Contains(args, "picture-uri-dark") {
+			// Copied verbatim from what gsettings actually prints; the stub is
+			// only worth anything if it matches the real text byte for byte.
+			//goland:noinspection GoErrorStringFormat
 			return errors.New("No such key 'picture-uri-dark'")
 		}
 		return nil

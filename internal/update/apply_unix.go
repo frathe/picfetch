@@ -61,6 +61,6 @@ func copyFile(src, dst string) error {
 // applyWindows's real implementation (apply_windows.go) only compiles on
 // Windows. Apply's GOOS switch makes this stub unreachable; it exists so
 // the package still compiles everywhere else.
-func applyWindows(Stage, string) error {
+func applyWindows(_ Stage, _ string) error {
 	return errors.New("windows apply only exists in windows builds")
 }

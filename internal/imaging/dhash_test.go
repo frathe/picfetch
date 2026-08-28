@@ -155,6 +155,10 @@ func TestDuplicateGroups_NegativeMaxDistTreatedAsZero(t *testing.T) {
 	}
 }
 
+// The explicit uint64 on every line is deliberate: these are 64-bit hash bit
+// patterns, and spelling the width out is the point rather than clutter.
+//
+//goland:noinspection GoVarAndConstTypeMayBeOmitted
 const (
 	// Non-zero stem so hash 0 (uniform images) is not a cluster member.
 	chainStem uint64 = 1 << 63
@@ -188,6 +192,7 @@ func TestDuplicateGroups_MultipleGroupsKeepFirstSeenOrder(t *testing.T) {
 
 func TestDuplicateGroups_LaterNearDupesDoNotJoinEarlierFarRep(t *testing.T) {
 	// X claims A (dist 10); A' is dist 1 from A but 11 from X, so A' is a singleton.
+	//goland:noinspection GoVarAndConstTypeMayBeOmitted
 	const x, a, aPrime uint64 = chainStem, chainStem | 0x3FF, chainStem | 0x7FF
 	if Hamming(x, a) != 10 || Hamming(a, aPrime) != 1 || Hamming(x, aPrime) != 11 {
 		t.Fatalf("fixture Hamming: X-A=%d A-A'=%d X-A'=%d, want 10, 1, 11",

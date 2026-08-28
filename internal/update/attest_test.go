@@ -29,6 +29,11 @@ func (f *fakeVerifier) Verify(_ context.Context, digest, bundle []byte, policy V
 	return f.err
 }
 
+// The three constant comparisons below are reported as "always false", which
+// is precisely the passing state: this test exists to pin those constants, so
+// the analyser proving them correct is the assertion succeeding, not a defect.
+//
+//goland:noinspection GoBoolExpressions
 func TestReleaseAttestationIdentity(t *testing.T) {
 	if ReleaseAttestationSAN != "https://dotcom.releases.github.com" {
 		t.Errorf("ReleaseAttestationSAN = %q", ReleaseAttestationSAN)

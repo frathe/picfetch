@@ -305,7 +305,7 @@ func (p *ChoicePanel) TypedKey(ev *fyne.KeyEvent) {
 
 // TypedRune ignores every rune: the panel has no type-ahead, and a stray
 // character must not disturb the selection.
-func (p *ChoicePanel) TypedRune(rune) {}
+func (p *ChoicePanel) TypedRune(_ rune) {}
 
 // FocusGained and FocusLost have nothing to do: the ring is drawn from the
 // panel's own selected index rather than from Fyne's focus state (see the

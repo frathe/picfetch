@@ -275,6 +275,12 @@ func loadGeometry(p fyne.Preferences, k geometryKeys) WindowGeometry {
 // startW/startH).
 func Load(app fyne.App) State {
 	p := app.Preferences()
+
+	// float64(time.Second) is reported as a redundant conversion but is
+	// load-bearing: Preferences.Float returns float64 and time.Second is a
+	// typed time.Duration constant, so without it the multiplication does
+	// not compile.
+	//goland:noinspection GoRedundantConversion
 	return State{
 		SortMode:        p.StringWithFallback(keySortMode, SortByName),
 		MergeMode:       p.Bool(keyMergeMode),

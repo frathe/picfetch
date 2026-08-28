@@ -88,11 +88,21 @@ func decodeAnimatedGIF(data []byte, budget int64) ([]image.Image, []time.Duratio
 
 		// DisposalPrevious means "after this frame, restore the canvas to
 		// how it looked before this frame was drawn", so snapshot now.
+		//
+		// Both GoMaybeNil suppressions below are for one false positive: the
+		// analyser sees `canvasImg = beforeFrame` at the tail of the loop,
+		// notes that beforeFrame starts nil, and concludes canvasImg may be
+		// nil here. That assignment only runs under DisposalPrevious, and
+		// this branch - the same condition, earlier in the same iteration -
+		// has always assigned beforeFrame before it can. copyRGBA never
+		// returns nil.
 		if disposal == gif.DisposalPrevious {
+			//goland:noinspection GoMaybeNil
 			beforeFrame = copyRGBA(canvasImg)
 		}
 
 		draw.Draw(canvasImg, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
+		//goland:noinspection GoMaybeNil
 		frames = append(frames, copyRGBA(canvasImg))
 
 		delay := time.Duration(g.Delay[i]) * 10 * time.Millisecond
