@@ -15,6 +15,11 @@
   drop under `-race`.
 - A file the scanner produced no URI for no longer panics the hashing
   pass.
+- A crash when pressing 0 after rotating an image and returning to the
+  drop zone. `clearToDropzone` cleared the frames but left the rotation
+  set, and the 0 key is handled ahead of the navigation guard, so
+  `resetRotation` indexed an empty frame slice. Reproducible in four
+  keystrokes: open, R, Escape, 0.
 
 #### Internal
 
@@ -38,37 +43,60 @@
   index. `applyVisibleFilter`'s filter pass and `jumpIfHiddenExtra` now
   take one such read instead of one (in fact two) model-mutex
   acquisitions per file.
+- Split the `viewer` god object from 87 fields to 55: four new
+  subpackages, each reading a value `State` snapshot built in exactly one
+  `internal/ui` function rather than a `Host` interface —
+  `internal/ui/menus` (the 20 File/Window/Actions menu items and their
+  whole Checked/Disabled matrix as `Apply(State)`, −19 fields),
+  `internal/ui/autoupdate` (the release check/download policy, staged-
+  update lifecycle, and What's-New cache, −4 fields), `internal/ui/infoview`
+  (the persistent info overlay's widgets and text formatting, −6 fields),
+  and `internal/ui/display` (decoded frames, frame index, view-only
+  rotation, and crossfade, −3 fields). A `Host` for `menus` alone would
+  have needed roughly a dozen methods, which is why these four read a
+  snapshot instead. Also lands needs_refactoring.md item 5 (`menuState()`/
+  `syncMenus()` replace the per-site Checked/Disabled push and
+  `HighlightChanged`'s four-boolean hand-diff with one recompute-and-diff
+  entry point, called from 16 choke points instead of the previous 23 call
+  sites) and the rest of item 6 (`appState` now evicts the image cache
+  itself on file removal via an `onRemove` hook, wired in `build.go`).
 
 ## ACTIVE DEVELOPMENT
 
 ## TODO
 
-### `viewer` god object — 87 fields and still growing
+### Favorites un-merges the macOS native menu bar
 
-- **Impact 4 · Risk 3 · Effort 4 → priority 14**
-- Where: the struct definition alone spans
-  [viewer.go:38–478](internal/ui/viewer.go:38); its methods spread across
-  ~30 files of `internal/ui`. (Grew by one field, `dupes *dupes.Model`,
-  when the duplicate-visibility model moved out from under the grid — item
-  2's resolution; the navigation helpers it replaced were methods, not
-  fields, so they didn't shrink the count on the way out.)
-- The comments are exemplary and the tests thorough, which is why this is
-  Risk 3 and not 5 — but the growth pattern is intact: autoupdate landed 6
-  new fields, the info overlay 7, menu items account for **16 fields** on
-  their own. Every feature keeps paying a "where in the 430-line struct does
-  my field go" tax, and the concurrency notes per field only get harder to
-  hold in one head.
-- **Fix**: continue the existing feature-split practice with field-cluster
-  extractions that have clean seams already visible in the comments:
-  - menu-item state (`saveItem` … `actionsTrashItem`, 16 fields) → a
-    `menus` type with a single recompute entry point (pairs with item 5);
-  - updater state (`update`, `updateDir`, `updateOp`, `updateDone`,
-    `updateCurrentVersion`, `updateDayMu`) → an `updater` type in
-    autoupdate.go;
-  - info-overlay state (`infoVisible`, `infoText`, `exifLink`, `infoCard`,
-    `currentFileSize`, `currentHasEXIF`, `currentPreview`) → info.go;
-  - display state (`displayFrames`, `displayFrameIdx`, `rotation`,
-    `fadeAnim`) → load.go/rotate.go.
+`internal/ui/favorites` calls `f.menu.Refresh()` from two sites
+(`SetHasFiles`, `refreshMenu`) with no `syncNativeMenuBar` follow-up.
+`fyne.Menu.Refresh` is a `SetMainMenu`, which rebuilds the Darwin native
+bar; only `refreshMainMenu` folds it back together afterwards. So adding,
+renaming, or deleting a favorite already leaves a duplicate "Window" menu
+and Command-prefixed accelerators on the unmodified letters until the next
+`refreshMainMenu`. Pre-existing, not caused by the `viewer` field-cluster
+refactor. The invariant worth stating: nothing outside `refreshMainMenu`
+may call `Refresh()` on a menu that lives in the main bar.
+
+### The manual-opened observer registration is untested
+
+After `52af098` reduced the menu push sites to choke points, F1 and
+Window → Help have no hand-written `syncMenus`; they rely on
+`help.SetOnManualOpened(view.syncMenus)` staying registered in
+`buildMainMenu`. Deleting that registration passes the entire test suite —
+verified by mutation. No viewer-level test is possible because
+`ShowManual` panics under Fyne's test theme (see the note at the tail of
+`internal/ui/e2e_test.go`). `internal/ui/help`'s own
+`TestHelp_SetOnManualOpenedFiresOnShow` pins that the hook *fires*, not
+that `internal/ui` subscribes to it.
+
+### `maybeStartUpdateCheck` begins its lifecycle token before the verifier is built
+
+`9fb2f79` moved the update client construction inside
+`autoupdate.Updater.Start`, so on `NewSigstoreVerifier()` failure the
+token has already been superseded, where previously it had not.
+Currently unobservable — the build path only runs when the client is nil,
+which is the first call, when no check goroutine exists — but it is a
+real ordering difference from the pre-extraction code.
 
 ## not deemed worth implementing (edge cases)
 

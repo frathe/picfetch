@@ -39,7 +39,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action `desktop.CustomShortcut` wiring (open, favorites, clipboard, delete, select-all, save, export, wallpaper). |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
 | `windowtrack.go` | Main-window size tracker and position poller; `widgetGeometry` / `prefGeometry` translate `preferences.WindowGeometry` ↔ `widgets.Geometry`. |
-| `windowmenu.go` | Window-menu Disabled/actions (`applyWindowMenuState`, `updateWindowMenuState`) and `refreshMainMenu` / Darwin sync entry points. |
+| `windowmenu.go` | Window-menu action handlers (`showViewer`, `showWindowExif`, `showWindowGrid`, `showWindowPictureFrame`, `showWindowHelp` — grid/picture-frame mutual exclusion lives in the first two) plus `refreshMainMenu` / `syncNativeMenuBar` and the Darwin sync entry points. The Checked/Disabled matrix itself lives in `internal/ui/menus`. |
 | `windowmenu_darwin.go` | After Show and every native rebuild, fold Window items into GLFW’s `NSApp.windowsMenu` and clear AppKit’s default Command mask on unmodified letter accelerators. |
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
@@ -48,8 +48,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / `applyTitle`), reset/close, merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
 | `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet` by forwarding `appState`'s published `dupes.Snapshot`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
 | `keys.go` | `handleKeyEvent` / `handleTypedRune`. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). |
-| `menu.go` | Menu bar composition: File, Favorites, Actions, Window, Help. Grid/slideshow mutual exclusion lives here, not in those packages. |
-| `actionmenu.go` | Actions-menu Checked/Disabled and handlers (`applyActionsMenuState`). |
+| `menu.go` | `buildMainMenu` builds `internal/ui/menus.Menus` and assembles the bar: File, Favorites, Actions, Window, Help. `menuState()` is the one function that builds the `menus.State` snapshot; `syncMenus()` applies it and refreshes the native bar only when something actually changed. |
+| `actionmenu.go` | Actions-menu handlers (`setActionsSort`, `toggleActionsHideDuplicates`, `showActionsVariant`, `rotateActionsImage`, …). The Checked/Disabled matrix lives in `internal/ui/menus`. |
 | `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images` / `filescan.Siblings`; scan lifecycle is `viewer.scanOp`. |
 | `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. |
 | `memlimits.go` | `settings` value plus memory-limit get/set that retune `imgCache`, grid thumb cache, `imaging.SetMaxEncodedBytes`, and the SVG raster cap. |
@@ -59,12 +59,12 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark; `displayedDimensions`. |
 | `asyncop.go` | `asyncOpUI` (lifecycle, active, done, spinner) — used only by scan and sort. |
 | `sort.go` | `toggleSort` / `SetSortMode` / `startSort` / `finishSort` over `filesort.Order`; lifecycle is `viewer.sortOp`. |
-| `rotate.go` | View-only 90° rotation. Call `updateFileMenuState` *before* `applyRotationLayout`. |
+| `rotate.go` | View-only 90° rotation (state lives in `internal/ui/display`). Call `syncMenus` *before* `applyRotationLayout` — a documented `-race` fix under the fake test driver, not call-site discipline. |
 | `vector.go` | Debounced SVG re-render. |
-| `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation` / `updateFileMenuState`). |
+| `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation`, ending in `syncMenus`). |
 | `export.go` | File > Export image (`promptExport` / `exportAs`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. |
 | `wallpaper.go` | Set as Wallpaper: write a PNG into `viewer.wallpaperDir`, then `wallpaper.Set`. |
-| `autoupdate.go` | Opt-in daily GitHub update check/download (`maybeStartUpdateCheck`), apply-on-stop (`applyStagedUpdate`), What's New cache helpers. |
+| `autoupdate.go` | Viewer-side glue only: `maybeStartUpdateCheck` gates the opt-in daily GitHub check then hands off to `internal/ui/autoupdate.Updater.Start`; `maybeShowWhatsNew` opens release notes via `autoupdate.LoadWhatsNew`/`ClearWhatsNew`. The check/download policy, the staged-update lifecycle (`ApplyStagedUpdate`), and the What's-New cache itself now live in `internal/ui/autoupdate`. |
 | `slideshow.go` | `togglePictureFrameMode` (closes grid first) plus shuffle/interval bindings. |
 | `batch.go` | Only file that knows both grid selection and deletion/clipboard exist. |
 | `session.go` | `restoreSession` glue over `internal/session`. |
@@ -84,6 +84,10 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/spiral/` | Full-screen shader easter egg. | `New(app)` only. |
 | `internal/ui/settingswin/` | Settings window: form + checks, live `Host` setters, geometry via `Singleton`. | Getter/setter `Host` (sort, merge, slideshow, caps, caches, duplicate distance). |
 | `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `New` does no disk I/O; `SetDir` from `Run`. | 5-method `Host`. |
+| `internal/ui/menus/` | The 20 stateful File/Window/Actions menu items and their whole Checked/Disabled matrix as `Apply(State) (changed bool)`, a pure function of a value snapshot. Fyne-typed but viewer-free, unit-testable with no app. Menu-bar assembly, the Darwin native-bar fold, the real shortcut bindings, and every action the items run all stay in `internal/ui`. | No Host: `Apply(State)` over a value snapshot built by `menu.go`'s `menuState()`. |
+| `internal/ui/autoupdate/` | The opt-in release check/download policy, the staged-update lifecycle (`Updater.Start` / `ApplyStagedUpdate`), the last-check-day mutex, and the What's-New cache (`whatsnew.go`). | No Host: takes a `context.Context` and a staleness func per call (`Start`), plus a `Persist` seam — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
+| `internal/ui/infoview/` | The persistent info overlay (I key): its three widgets, the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
+| `internal/ui/display/` | What's currently on the canvas: the decoded frames, which one is up, the view-only rotation (composing `imaging.RotateSteps` itself, in `Rotated`), and the picture-frame crossfade. | No Host: a value `State` field on `viewer`, mutated through its own methods, never copied. |
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard`, `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | `WelcomeWebP` / `PlaceholderWebP`. | Leaf. |
 
@@ -357,7 +361,9 @@ see `AGENTS.md`.
 - "Why does the help package import a GLSL shader?" → `internal/ui/spiral`, opened from `help/manual.go`’s `secretPhrase` or `internal/ui/gesture.go`.
 - "Why is the log not full of `tile fetch error`?" → `internal/ui/exifwin/tiles.go` `quietPendingTiles` / `tileLogFilter`.
 - "Why doesn't the EXIF window's map freeze the app while it loads?" → `exifwin/tiles.go` + `startWarm` / `syncLoading`.
-- "Why is the info overlay's 'Show EXIF data' link missing?" → `info.go` `syncInfoOverlayVisibility` + `viewer.currentHasEXIF`.
+- "Why is the info overlay's 'Show EXIF data' link missing?" → `info.go` `syncInfoOverlayVisibility` + `internal/ui/infoview` `Card.Sync` / `HasEXIF`.
+- "How does the persistent info overlay (I key) work?" → `internal/ui/infoview` + `info.go`.
+- "Why is a menu item greyed out (Checked/Disabled)?" → `internal/ui/menus` `Apply` + `menu.go` `menuState` / `syncMenus`.
 - "Where is a photo's GPS position read, and where is it shown?" → `internal/imaging/exif.go` `parseGPSIFD` + `exifwin` Location section.
 - "How is EXIF orientation handled?" → `internal/imaging/exif.go` + `orientation.go`.
 - "How is a camera RAW file shown?" → `internal/imaging/raw.go` + `LoadedImage.Preview` + `load.go` / `info.go`.
@@ -369,14 +375,14 @@ see `AGENTS.md`.
 - "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `grid/marquee.go` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
 - "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
 - "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.
-- "How does rotation work, and how is it saved to disk?" → `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.
+- "How does rotation work, and how is it saved to disk?" → `internal/ui/display` (frames/rotation state) + `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.
 - "How do I write an image out in a different format?" → `internal/ui/export.go` + `filepicker.ChooseSave` + `imaging.Export`.
 - "How does 'Set as Wallpaper' work?" → `internal/ui/wallpaper.go` + `internal/wallpaper`.
 - "How does the slideshow / picture-frame mode work?" → `internal/ui/slideshow` + `slideshow.go`.
 - "How does delete work?" → `internal/ui/deletion` + `internal/trash` + `shortcuts.go` / `batch.go` `requestDelete`.
 - "How are native file dialogs implemented?" → `internal/filepicker` + `openfiles.go` / `export.go`.
 - "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
-- "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate.go` + `help/whatsnew.go`. Off by default (`preferences.CheckForUpdates`). Apply is OnStopped, not a relaunch. GitHub TUF bootstrap expiry: `tufroot.go`.
+- "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate` (check/download policy, staged-update lifecycle, What's-New cache) + `internal/ui/autoupdate.go` (`maybeStartUpdateCheck` / `maybeShowWhatsNew`) + `help/whatsnew.go` (the window). Off by default (`preferences.CheckForUpdates`). Apply is OnStopped, not a relaunch. GitHub TUF bootstrap expiry: `tufroot.go`.
 - "How are GitHub release notes written?" → `todos.md` `## Done` + `scripts/releasenotes` + `make release` + `.github/workflows/release.yml` `body_path`.
 - "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
 - "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
