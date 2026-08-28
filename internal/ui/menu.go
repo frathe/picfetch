@@ -87,8 +87,11 @@ func (v *viewer) menuState() menus.State {
 // syncMenus recomputes the whole menu matrix from the current state and
 // rebuilds the native bar only when something in it actually moved. It is
 // the single entry point every site that can change what is loaded,
-// displayed or shown calls; the nil guard covers the window of
-// construction before buildMainMenu has run.
+// displayed or shown calls - directly, or through the feature observers
+// registered in buildMainMenu, which cover the surface toggles (grid,
+// picture-frame, manual, EXIF close) so those don't sync per call site;
+// the nil guard covers the window of construction before buildMainMenu
+// has run.
 //
 // Whether there are any files at all also drives the Favorites menu's
 // "Add Current List" item, which belongs to that feature rather than to

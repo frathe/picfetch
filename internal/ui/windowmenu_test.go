@@ -204,6 +204,9 @@ func TestWindowMenu_ViewerLeavesPictureFrame(t *testing.T) {
 	if v.slides.Active() {
 		t.Error("Viewer should exit picture-frame mode")
 	}
+	// The action carries no syncMenus of its own; slideshow's
+	// SetOnActiveChanged observer is what must resync the matrix here.
+	assertWindowMenuDisabled(t, v, true, false, false, false, false)
 }
 
 func TestWindowMenu_GridActionOpensAndDoesNotToggleOff(t *testing.T) {

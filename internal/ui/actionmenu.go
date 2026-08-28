@@ -39,6 +39,10 @@ func (v *viewer) reopenVariantGrid() {
 	if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
 		v.grid.Toggle()
 	}
+	// Not redundant with the grid observers: the model's ClearInspect
+	// fires nothing, and SetBrowsingDuplicates can no-op without firing
+	// when it finds no source file - this call is what resyncs the menus
+	// on that path, for every door in (Escape, G, Window -> Grid View).
 	v.syncMenus()
 }
 

@@ -1,7 +1,14 @@
 // Window menu: the show/enter actions its items run, plus the native
 // menu-bar refresh every menu rebuild needs. Which surface is already
 // showing decides what is enabled, but that matrix lives in
-// internal/ui/menus now; this file implements the actions.
+// internal/ui/menus now; this file implements the actions. The actions
+// don't resync that matrix themselves: the feature observers registered
+// in buildMainMenu (grid visibility, slideshow active, manual
+// opened/closed) fire syncMenus after each surface change settles, on
+// these doors and every other one - the grid's own G/Escape, the About
+// window's manual link - alike. The EXIF panel is the one exception: it
+// reports closes but not opens, so its openers sync by hand (see
+// showWindowExif).
 
 package ui
 
@@ -48,11 +55,13 @@ func (v *viewer) showViewer() {
 		v.resetFade()
 	}
 	v.win.RequestFocus()
-	v.syncMenus()
 }
 
 func (v *viewer) showWindowExif() {
 	v.exif.Show()
+	// By hand: the EXIF window fires an observer on close (SetOnClosed in
+	// buildMainMenu) but none on open, so every opener - this item, the E
+	// key, the info card's link - resyncs itself after Show.
 	v.syncMenus()
 }
 
@@ -65,7 +74,6 @@ func (v *viewer) showWindowGrid() {
 		return
 	}
 	v.grid.Toggle()
-	v.syncMenus()
 }
 
 func (v *viewer) showWindowPictureFrame() {
@@ -76,10 +84,8 @@ func (v *viewer) showWindowPictureFrame() {
 		return
 	}
 	v.togglePictureFrameMode()
-	v.syncMenus()
 }
 
 func (v *viewer) showWindowHelp() {
 	v.help.ShowManual()
-	v.syncMenus()
 }

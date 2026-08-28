@@ -49,6 +49,8 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	toastComp := newToast(func() { view.ForceRepaint() })
 	info := newInfoOverlayUI(func() {
 		view.exif.Show()
+		// Same reason showWindowExif syncs by hand: the EXIF window
+		// fires an observer on close, none on open.
 		view.syncMenus()
 	})
 
