@@ -52,6 +52,29 @@ func TestSetOverlayContentTextBackdropGrowsWithLineCount(t *testing.T) {
 	}
 }
 
+// TestFPSBackdropColorValues pins the three backdrop colours themselves.
+// TestUpdateFPSBackdropColorThresholds below checks which one updateFPS
+// picks for a given frame time, but it now compares against these same
+// vars, so on its own it would pass just as happily if a colour were
+// changed. This is the test that fails when one is.
+func TestFPSBackdropColorValues(t *testing.T) {
+	tests := []struct {
+		name string
+		got  color.NRGBA
+		want color.NRGBA
+	}{
+		{"good", fpsGoodColor, color.NRGBA{R: 0, G: 120, B: 0, A: 180}},
+		{"warn", fpsWarnColor, color.NRGBA{R: 120, G: 120, B: 0, A: 180}},
+		{"bad", fpsBadColor, color.NRGBA{R: 150, G: 0, B: 0, A: 180}},
+	}
+
+	for _, tt := range tests {
+		if tt.got != tt.want {
+			t.Errorf("%s color = %v; want %v", tt.name, tt.got, tt.want)
+		}
+	}
+}
+
 func TestUpdateFPSBackdropColorThresholds(t *testing.T) {
 	a := test.NewApp()
 	w := a.NewWindow("")
@@ -63,10 +86,10 @@ func TestUpdateFPSBackdropColorThresholds(t *testing.T) {
 		dt   float64
 		want color.NRGBA
 	}{
-		{"above 60fps is dark green", 1.0 / 61.0, color.NRGBA{0, 120, 0, 180}},
-		{"between 40 and 60fps is dark yellow", 1.0 / 50.0, color.NRGBA{120, 120, 0, 180}},
-		{"below 40fps is red", 1.0 / 20.0, color.NRGBA{150, 0, 0, 180}},
-		{"zero dt guards against divide by zero, reporting 0fps (red)", 0, color.NRGBA{150, 0, 0, 180}},
+		{"above 60fps is dark green", 1.0 / 61.0, fpsGoodColor},
+		{"between 40 and 60fps is dark yellow", 1.0 / 50.0, fpsWarnColor},
+		{"below 40fps is red", 1.0 / 20.0, fpsBadColor},
+		{"zero dt guards against divide by zero, reporting 0fps (red)", 0, fpsBadColor},
 	}
 
 	for _, tt := range tests {

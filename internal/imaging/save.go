@@ -2,6 +2,7 @@ package imaging
 
 import (
 	"context"
+	"errors"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -180,7 +181,7 @@ func jpegFileBytes(path string) ([]byte, error) {
 
 	magic := make([]byte, 2)
 	if _, err := io.ReadFull(f, magic); err != nil {
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return nil, nil
 		}
 		return nil, err

@@ -143,12 +143,12 @@ func TestApplyUnix_CopyFailureRestoresOld(t *testing.T) {
 
 func TestApplyUnix_EvalSymlinks(t *testing.T) {
 	dir := t.TempDir()
-	real := filepath.Join(dir, "real")
-	if err := os.WriteFile(real, []byte("old"), 0o755); err != nil {
+	target := filepath.Join(dir, "target")
+	if err := os.WriteFile(target, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	link := filepath.Join(dir, "link")
-	if err := os.Symlink(real, link); err != nil {
+	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
 	}
 	staged := filepath.Join(dir, "staged")
@@ -160,7 +160,7 @@ func TestApplyUnix_EvalSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := os.ReadFile(real)
+	got, err := os.ReadFile(target)
 	if err != nil {
 		t.Fatal(err)
 	}

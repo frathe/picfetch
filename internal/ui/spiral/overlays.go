@@ -22,7 +22,7 @@ import (
 
 // contentOverlayBackdropColor is the shared translucent black backdrop used
 // by every content overlay.
-var contentOverlayBackdropColor = color.NRGBA{0, 0, 0, 191}
+var contentOverlayBackdropColor = color.NRGBA{R: 0, G: 0, B: 0, A: 191}
 
 // contentOverlayPadding is the space, in points, between a content
 // overlay's backdrop edge and the text drawn on top of it.
@@ -153,6 +153,17 @@ func newFPSOverlay() *fyne.Container {
 	return o
 }
 
+// fpsGoodColor, fpsWarnColor, and fpsBadColor are the performance
+// overlay's three backdrop colours, from healthy to stalling. They are
+// package-level so overlays_test.go can name the one it expects instead
+// of repeating the literals - see TestFPSBackdropColorValues, which is
+// what pins the values themselves.
+var (
+	fpsGoodColor = color.NRGBA{R: 0, G: 120, B: 0, A: 180}   // Dark Green
+	fpsWarnColor = color.NRGBA{R: 120, G: 120, B: 0, A: 180} // Dark Yellow
+	fpsBadColor  = color.NRGBA{R: 150, G: 0, B: 0, A: 180}   // Red
+)
+
 // updateFPS rebuilds the performance overlay from a per-frame delta time,
 // coloring its backdrop green/yellow/red as a quick visual read of frame
 // health without needing to read the number. dt == 0 (the very first frame,
@@ -166,11 +177,11 @@ func updateFPS(w fyne.Window, o *fyne.Container, dt float64) {
 
 	var bgColor color.NRGBA
 	if fps > 60 {
-		bgColor = color.NRGBA{0, 120, 0, 180} // Dark Green
+		bgColor = fpsGoodColor
 	} else if fps >= 40 {
-		bgColor = color.NRGBA{120, 120, 0, 180} // Dark Yellow
+		bgColor = fpsWarnColor
 	} else {
-		bgColor = color.NRGBA{150, 0, 0, 180} // Red
+		bgColor = fpsBadColor
 	}
 
 	// Position top-right: Canvas width minus some padding

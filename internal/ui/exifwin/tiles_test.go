@@ -161,7 +161,7 @@ func TestRoundTrip_AnswersAMissImmediatelyAndFetchesInTheBackground(t *testing.T
 		t.Error("RoundTrip returned a response for an uncached tile, want none")
 	}
 
-	if err != errTilePending {
+	if !errors.Is(err, errTilePending) {
 		t.Fatalf("RoundTrip() err = %v, want errTilePending", err)
 	}
 
@@ -215,7 +215,7 @@ func TestRoundTrip_DownloadsATileOnlyOnce(t *testing.T) {
 	// Every repaint re-asks for the same tile while it is on its way; only
 	// the first of those may turn into a request.
 	for range 5 {
-		if _, err := f.RoundTrip(req); err != errTilePending {
+		if _, err := f.RoundTrip(req); !errors.Is(err, errTilePending) {
 			t.Fatalf("RoundTrip() err = %v, want errTilePending", err)
 		}
 	}
@@ -296,7 +296,7 @@ func TestOnChange_ReportsABackgroundBatchButNotAPrefetch(t *testing.T) {
 		t.Fatalf("new request: %v", err)
 	}
 
-	if _, err := f.RoundTrip(req); err != errTilePending {
+	if _, err := f.RoundTrip(req); !errors.Is(err, errTilePending) {
 		t.Fatalf("RoundTrip() err = %v, want errTilePending", err)
 	}
 

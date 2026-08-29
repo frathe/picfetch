@@ -460,6 +460,6 @@ func cr3WithJPEG(jpegBytes []byte) []byte {
 
 func rafWithJPEG(jpegBytes []byte) []byte {
 	head := make([]byte, 256)
-	copy(head, []byte("FUJIFILMCCD-RAW "))
+	copy(head, "FUJIFILMCCD-RAW ")
 	return append(head, jpegBytes...)
 }

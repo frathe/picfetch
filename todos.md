@@ -10,6 +10,25 @@
 
 #### Internal
 
+- Small mechanical Qodana fixes, five categories. `imaging/save.go` and
+  `exifwin/tiles_test.go` compare errors with `errors.Is` now;
+  `update/extract.go` and `plistdoctypes/doctypes_test.go` deliberately keep
+  `err == io.EOF`, because the inspection does not flag the documented
+  `tar.Reader.Next` / `xml.Decoder.Token` loop terminators and the bare
+  sentinel is what those APIs promise. `raw_test.go` drops a redundant
+  `[]byte` conversion (`copy` takes a string source). `apply_test.go`'s
+  local `real` became `target`, filename string included, so it no longer
+  shadows the builtin. The two scripts mark their ignored `Fprintf` results
+  `_, _ =`, matching `scripts/plistdoctypes/main.go`. The spiral FPS
+  backdrop colours were the only non-trivial one: they were positional
+  `color.NRGBA` literals written out in both `overlays.go` and
+  `overlays_test.go`, so they moved into package-level
+  `fpsGoodColor`/`fpsWarnColor`/`fpsBadColor` that both sides name. That
+  alone would have gutted the test - it would compare a var against itself
+  and only catch a wrong threshold - so `TestFPSBackdropColorValues` was
+  added to pin the values, and verified by mutation: bumping
+  `fpsGoodColor`'s G to 121 fails it while the threshold test still passes.
+
 - Doc-comment openings: `GoCommentStart` wants the documented element's name
   as the comment's first token, followed by whitespace - an optional leading
   `A`/`An`/`The` is the only thing allowed in front. Punctuation glued to
@@ -59,23 +78,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Qodana: small mechanical fixes
-
-- `internal/imaging/save.go:183` — `err == io.EOF || err == io.ErrUnexpectedEOF`
-  should be `errors.Is`. `io.ReadFull` documents returning those two
-  unwrapped, so this is correct today; the change is about not depending on
-  that. Same pattern in `internal/ui/exifwin/tiles_test.go:164,218,299`.
-- `internal/ui/spiral/overlays.go:25,169,171,173` — name the fields in the
-  `color.NRGBA{0, 0, 0, 191}` literals. Cheap readability win on colour
-  constants where positional args are easy to misread. Four more of the same
-  in `overlays_test.go:66-69`.
-- `internal/imaging/raw_test.go:463` — `copy(head, []byte("FUJIFILM..."))`,
-  the conversion is redundant; `copy` takes a string directly.
-- `internal/update/apply_test.go:146` — local `real` shadows the builtin.
-- `scripts/releasenotes/main.go:18`, `scripts/synctuf/main.go:22` — the
-  `fmt.Fprintf(os.Stderr, ...)` results are unhandled. `_, _ =` matches how
-  the rest of the tree marks a deliberately ignored error.
 
 ### Favorites un-merges the macOS native menu bar
 
