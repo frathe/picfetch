@@ -10,6 +10,68 @@
 
 #### Internal
 
+- Qodana's false-positive suppressions are confirmed in CI, not just under
+  GoLand's engine: at `210fee5` (run `33270269940`), the summary CSV counts
+  the 12 findings covered by the 8 `//goland:noinspection` comments exactly —
+  `GoMaybeNil` 2, `GoBoolExpressions` 3, `GoRedundantConversion` 1,
+  `GoErrorStringFormat` 2, `GoVarAndConstTypeMayBeOmitted` 4, summing to 12 —
+  and none of the 12 appear anywhere in `qodana.sarif.json`'s results, whose
+  only `ruleId` values are `DuplicatedCode` and `GoTypeAssertionOnErrors`:
+  12-of-12 suppressed. The other 18 suppressions, the `GoUnusedParameter` `_`
+  renames, never produced a CSV row at all — the blank identifier removes the
+  finding before the inspection pass counts it, rather than suppressing a
+  counted one. The earlier prediction that the next CI run would show "30
+  fewer problems (155 -> 125 on a full scan)" was wrong, and not because the
+  suppressions failed: 155 was an IDE Project Default scan and 125 assumed CI
+  would run that same profile, but CI runs `qodana.starter` instead, so an
+  IDE Project Default total and a CI `qodana.starter` total were never
+  comparable in the first place.
+
+- CI does not under-report duplication against a full scan — the old framing
+  had it backwards. Qodana emits one SARIF result per duplicate *cluster*,
+  not per fragment: at `210fee5` the SARIF holds 33 `DuplicatedCode` results
+  occupying 71 location slots, and the slots are not disjoint because 8
+  fragments each belong to 2 clusters (55 fragments in exactly 1 cluster, 8
+  in exactly 2: 55×1 + 8×2 = 71), so 71 slots reduce to 63 distinct
+  fragments. The summary CSV counts 75 `DuplicatedCode` rows, and the gap
+  closes completely rather than leaving a mystery: 75 CSV rows = 71
+  test-file fragments + 4 production fragments already suppressed at source
+  in the orientation pixel loops (see Orientation transforms below), and 71
+  − 8 serialisation losses = 63 SARIF fragments, so the 12-fragment
+  CSV-to-SARIF gap is 8 + 4 with nothing left unexplained. At `210fee5` the
+  IDE finds 71 `DuplicatedCode` fragments and CI finds 63; CI's 63 are a
+  strict subset of the IDE's 71, and the 8 fragments CI is missing — 7 in
+  `internal/imaging/loader_test.go` and 1 in `internal/update/tufroot_test.go`
+  — are accounted for by a genuine Qodana serialisation failure that the CI
+  run recorded itself as 3 `DuplicatesProblem` "Can't find duplicate problem
+  in db" warnings naming exactly those 2 files and no others. All 33
+  clusters at `210fee5` were test-only — every fragment in every cluster
+  lives in a `_test.go` file — so `qodana.yaml` now excludes those files from
+  `DuplicatedCode` by explicit path; run `33274422606` at `ed3d4e6` confirmed
+  it, returning 0 SARIF results.
+
+- Making the `DuplicatedCode` exclusion actually take effect needed three
+  attempts, but the mechanism itself was never broken — only the pattern.
+  `exclude:` with a `paths:` glob compiles into a real scope:
+  `log/effective.profile.xml` shows `<scope
+  name="qodana.yaml.exclude.DuplicatedCode" level="INFORMATION"
+  enabled="false" />` nested inside the `DuplicatedCode` inspection element
+  itself, proving the entry reached the engine — but a compiled, disabled
+  scope that matches no file suppresses nothing. Both `"**/*_test.go"` (run
+  `33273666731` at `d38f6e8`) and `"**_test.go"` (run `33274030031` at
+  `f481c4a`) failed exactly that way: 33 `DuplicatedCode` results both times,
+  unchanged from baseline. The second glob is the dialect JetBrains uses for
+  its own built-in scopes (`glob:**.md`, `glob:**.test.ts`), so it was not a
+  wild guess, and it still did not match. Neither failure was a delivery
+  problem — each run's `log/qodana-config.json` echoes back the exact
+  pattern that run was given, and neither run's `idea.log` shows a cache hit
+  or restore. Explicit file paths work: with `qodana.yaml`'s `paths:`
+  replaced by the 30 flagged test files listed by path, run `33274422606` at
+  `ed3d4e6` returned 0 SARIF results. That the CSV's `DuplicatedCode` count
+  fell to 4 rather than 0 on that run is the proof the exclusion narrowed the
+  inspection instead of disabling it outright — a full disable would have
+  zeroed the CSV too, not just the SARIF.
+
 - Update-check lifecycle ordering is restored: after its existing gates,
   `maybeStartUpdateCheck` prepares the verifier/client through the
   instance-owned `Updater` verifier-factory seam before `updateOp.begin()`,
@@ -122,54 +184,34 @@
 
 ## TODO
 
-### Qodana: false positives are flagged in code (done, needs CI confirmation)
+### Qodana drops detected duplicates during serialisation (upstream)
 
-All 30 non-issues are now suppressed at the source rather than in
-`qodana.yaml`, so the reason travels with the code instead of sitting in a
-config file nobody reads. Two mechanisms:
+At `210fee5` (run `33270269940`), the IDE reports 71 `DuplicatedCode`
+fragments and the CI SARIF reports 63, with CI's 63 a strict subset of the
+IDE's 71. The 8 fragments CI is missing are 7 in
+`internal/imaging/loader_test.go` and 1 at
+`internal/update/tufroot_test.go:173`. That run's own `log/idea.log` carries
+exactly 3 `#o.j.q.s.i.r.g.DuplicatesProblem` "Can't find duplicate problem in
+db" warnings, naming exactly those two files and no others, emitted
+immediately after the line `The Project analysis stage completed in 41s` —
+so Qodana's own log shows detection succeeded and serialisation into the
+report/SARIF failed afterwards. This is an upstream defect, not a picfetch
+config problem: nothing here suppresses or excludes those two files, and the
+drop happens before any project-side filtering runs.
 
-- **`GoUnusedParameter`, 18 hits — named `_` rather than suppressed.** Every
-  one is either a build-tag stub twin whose signature is fixed by the real
-  implementation (`clipboard`, `filepicker`, `trash`, `wallpaper`'s
-  `notwindows.go`/`other.go` pairs, `ui/windowmenu_notdarwin.go`,
-  `update/apply_unix.go`) or a Fyne interface method
-  (`widgets/tappable.go` x3, `widgets/choicepanel.go`,
-  `ui/favorites/manage.go`, `ui/help/mascot.go`). The blank identifier is the
-  idiomatic Go way to say "deliberately ignored" and the inspection honours
-  it, so this needs no suppression comment at all.
-- **8 `//goland:noinspection` comments**, each with a sentence saying why the
-  finding is wrong: `imaging/gif.go` x2 (`GoMaybeNil`),
-  `update/attest_test.go` (`GoBoolExpressions`),
-  `plistdoctypes/doctypes.go` and `wallpaper/wallpaper_test.go`
-  (`GoErrorStringFormat`), `preferences/preferences.go`
-  (`GoRedundantConversion`), `imaging/dhash_test.go` x2
-  (`GoVarAndConstTypeMayBeOmitted`).
-
-Note the doc-comment trap: a `//goland:noinspection` line is a directive and
-`go doc` drops it, but ordinary prose placed next to it is absorbed into the
-doc comment. Explaining a suppression above an exported declaration leaks the
-explanation into the public API docs - `preferences.Load` did exactly that
-until the note was moved inside the function body. Keep the reasoning in the
-body, or on unexported/test declarations.
-
-Not yet confirmed end to end: the release Qodana linter refuses to run
-without `QODANA_TOKEN`, so this was verified with GoLand's inspection engine
-(same engine, looser profile) plus placement experiments proving statement-,
-function- and declaration-level suppression all take. The next CI run should
-show 30 fewer problems (155 -> 125 on a full scan); if any survive, the likely culprit is the
-declaration-level directive on `dhash_test.go`'s `const` block.
-
-### Qodana: CI under-reports duplication against a full scan
-
-The `qodana_code_quality.yml` run on `4cc8bb5` reported 107 problems
-(High 26 / Moderate 81); a full IDE scan at `e9cfe7b` reports 155
-(High 26 / Moderate 129). The High counts match exactly and every non-
-duplication inspection matches one-for-one — the entire 48-problem gap is
-`DuplicatedCode`, 42 in CI against 90 locally. Worth understanding before
-trusting the CI number as a gate: `pr-mode: true` narrows what gets
-analysed, and with `upload-result: false` there is no SARIF artifact to
-check the run against without Qodana Cloud access. Flipping `upload-result`
-to `true` would at least make the CI report retrievable.
+`qodana.yaml`'s new `_test.go` exclusion (see Done → Internal above) makes
+this defect invisible going forward in this repository, because every
+dropped fragment happens to live in a test file that the exclusion now
+removes from the inspection entirely — recorded here so the defect is not
+lost along with the rule that used to surface it. Of the 12-fragment
+CSV-to-SARIF gap at `210fee5`, these 8 serialisation losses are one part; the
+other 4 are the source-suppressed production fragments in the orientation
+pixel loops recorded above, so nothing about that gap is left open — only
+the underlying serialisation defect itself is. See
+`finished_refactorings/2026-08-29-qodana-evidence.md` for the decoded byte
+offsets and anchoring detail, and `plans/2026-08-29-qodana-serialisation-bug-report.md`,
+Task 8's draft of the upstream report text — as of this writing not yet
+submitted to JetBrains; check that file for whether it has been sent since.
 
 ## not deemed worth implementing (edge cases)
 

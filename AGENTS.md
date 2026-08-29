@@ -46,4 +46,10 @@
 - Run focused tests while iterating, e.g. `go test -run TestE2E -v ./internal/ui/...`; the complete suite remains the final check.
 - Golden screenshots are under `internal/ui/testdata/`. Regenerate only with `make golden` (Docker linux/amd64), inspect `internal/ui/testdata/failed/*.png`, and never commit failed renders.
 - Packaging uses Fyne/Fyne-cross; macOS is native, while Windows/Linux cross-builds require Docker. `fyne package` may bump `FyneApp.toml`’s build number.
+- **Reading a Qodana report:** `qodana.sarif.json` is the post-suppression result set and
+  counts one result per duplicate *cluster*; `log/qodana_inspections_summary.csv` counts
+  every finding *before* both source-level suppressions and `qodana.yaml`'s config-level
+  scope exclusions, and one row per *fragment*. The two disagree by design — compare
+  fragment sets, never totals. CI runs the `qodana.starter` profile, not the IDE Project
+  Default, so IDE and CI totals are not comparable either.
 

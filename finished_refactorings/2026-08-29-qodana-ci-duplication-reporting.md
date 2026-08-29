@@ -1,5 +1,9 @@
 # Qodana CI Duplication Reporting — Implementation Plan
 
+> **Superseded 2026-08-29** by `finished_refactorings/2026-08-29-qodana-duplication-close.md`.
+> Chunks 1–2 landed as commit `210fee5`. Chunks 3–7 were replaced: their premise, that CI
+> under-reports duplication, was disproved by run `33270269940`.
+
 > Requested execution style: subagent-driven development with primary-agent
 > review and correction after every chunk. The requested `superpowers` skill is
 > not available in this session's skill allowlist, so this plan spells out the
