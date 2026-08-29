@@ -217,6 +217,44 @@ func TestUpdateCheck_SettingOffNeverCallsHTTP(t *testing.T) {
 	}
 }
 
+func TestUpdateCheck_VerifierFailurePreservesLifecycle(t *testing.T) {
+	v := newTestViewer(t)
+	updateAssetName(t)
+	v.updater.SetCurrentVersion("0.2.5")
+	v.settings.checkForUpdates = true
+	wantErr := errors.New("verifier unavailable")
+	calls := 0
+	v.updater.SetVerifierFactory(func() (update.Verifier, error) {
+		calls++
+		return nil, wantErr
+	})
+	prior := v.updateOp.begin()
+	wantRevision := v.updateOp.currentRevision()
+
+	v.maybeStartUpdateCheck()
+
+	if calls != 1 {
+		t.Errorf("verifier factory calls = %d, want 1", calls)
+	}
+	if got := v.updateOp.currentRevision(); got != wantRevision {
+		t.Errorf("update lifecycle revision = %d, want unchanged %d", got, wantRevision)
+	}
+	if !prior.current() {
+		t.Error("prior update lifecycle token is no longer current")
+	}
+	select {
+	case <-prior.context().Done():
+		t.Error("prior update lifecycle context was cancelled")
+	default:
+	}
+	if v.updater.Client() != nil {
+		t.Error("Client() after verifier failure must remain nil")
+	}
+	if v.updater.Done().Begun() {
+		t.Error("Done() after verifier failure must not report Begun")
+	}
+}
+
 func TestUpdateCheck_SameVersionRecordsDayNoStage(t *testing.T) {
 	v := newTestViewer(t)
 	asset := updateAssetName(t)

@@ -10,6 +10,16 @@
 
 #### Internal
 
+- Update-check lifecycle ordering is restored: after its existing gates,
+  `maybeStartUpdateCheck` prepares the verifier/client through the
+  instance-owned `Updater` verifier-factory seam before `updateOp.begin()`,
+  then calls `Updater.Start`. The focused
+  `TestUpdateCheck_VerifierFailurePreservesLifecycle` regression test proves
+  a verifier failure preserves the revision and prior token/context, leaves
+  the client nil, and never begins completion. Moving `begin` above
+  `EnsureClient` makes that test fail on the lifecycle preservation; restoring
+  the intended order passes.
+
 - `buildMainMenu`'s exact `help.SetOnManualOpened(view.syncMenus)` observer
   registration is covered by
   `TestBuildMainMenu_ManualOpenedObserverSyncsWindowHelp`. The test scopes
@@ -111,15 +121,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### `maybeStartUpdateCheck` begins its lifecycle token before the verifier is built
-
-`9fb2f79` moved the update client construction inside
-`autoupdate.Updater.Start`, so on `NewSigstoreVerifier()` failure the
-token has already been superseded, where previously it had not.
-Currently unobservable — the build path only runs when the client is nil,
-which is the first call, when no check goroutine exists — but it is a
-real ordering difference from the pre-extraction code.
 
 ### Qodana: false positives are flagged in code (done, needs CI confirmation)
 

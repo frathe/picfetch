@@ -8,6 +8,7 @@ package autoupdate
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,6 +22,8 @@ import (
 	"github.com/frathe/picfetch/internal/update"
 )
 
+var errClientNotPrepared = errors.New("update client not prepared")
+
 // DefaultDir is the production stage directory: a "picfetch/updates"
 // subdirectory of the OS cache dir, or os.TempDir() if that can't be
 // resolved.
@@ -32,15 +35,19 @@ func DefaultDir() string {
 	return filepath.Join(base, "picfetch", "updates")
 }
 
-// Updater owns the update.Client (nil until built by Start or a test
-// assigns one), the staged-update directory, the background
-// check/download's completion signal, the current-version override, and
-// the last-check calendar day plus the mutex that guards it.
+// Updater owns the lazily prepared update.Client, the staged-update
+// directory, the background check/download's completion signal, the
+// current-version override, and the last-check calendar day plus the mutex
+// that guards it.
 type Updater struct {
 	app fyne.App
 
 	dir    string
 	client *update.Client
+
+	// Instance-owned to keep preparation lazy and testable without a mutable
+	// package seam.
+	verifierFactory func() (update.Verifier, error)
 
 	done completion.Signal
 
@@ -65,7 +72,12 @@ type Updater struct {
 // background check still records today without the caller waiting for the
 // check goroutine.
 func New(app fyne.App, dir string, persist func(day string)) *Updater {
-	return &Updater{app: app, dir: dir, persist: persist}
+	return &Updater{
+		app:             app,
+		dir:             dir,
+		verifierFactory: update.NewSigstoreVerifier,
+		persist:         persist,
+	}
 }
 
 // Dir and SetDir round-trip the staged-update directory. SetDir exists for
@@ -75,12 +87,40 @@ func New(app fyne.App, dir string, persist func(day string)) *Updater {
 func (u *Updater) Dir() string       { return u.dir }
 func (u *Updater) SetDir(dir string) { u.dir = dir }
 
-// Client and SetClient round-trip the GitHub Releases client. nil until the
-// opt-in is on and Start builds one, or a test assigns one directly
-// (httptest + a fake Verifier) to exercise Check/Download without hitting
-// GitHub for real.
+// Client and SetClient round-trip the GitHub Releases client. nil until
+// EnsureClient prepares one, or a test assigns one directly (httptest + a
+// fake Verifier) to exercise Check/Download without hitting GitHub for real.
 func (u *Updater) Client() *update.Client     { return u.client }
 func (u *Updater) SetClient(c *update.Client) { u.client = c }
+
+// SetVerifierFactory replaces the lazy verifier constructor. It is a narrow
+// test seam for preparation failures; nil restores the production factory.
+func (u *Updater) SetVerifierFactory(factory func() (update.Verifier, error)) {
+	if factory == nil {
+		factory = update.NewSigstoreVerifier
+	}
+	u.verifierFactory = factory
+}
+
+// EnsureClient lazily prepares the GitHub Releases client. Successful
+// preparation is idempotent; a verifier-construction failure leaves the client
+// nil so a later call can retry.
+func (u *Updater) EnsureClient() error {
+	if u.client != nil {
+		return nil
+	}
+	ver, err := u.verifierFactory()
+	if err != nil {
+		return err
+	}
+	u.client = update.NewClient(update.Config{
+		HTTP:     &http.Client{Timeout: 30 * time.Second},
+		Now:      time.Now,
+		Verify:   ver,
+		StageDir: u.dir,
+	})
+	return nil
+}
 
 // SetCurrentVersion overrides CurrentVersion for tests - production Fyne
 // apps ship a real Metadata().Version, but Fyne's test app leaves it empty.
@@ -147,10 +187,10 @@ func (u *Updater) RemoveStaleStage() {
 	}
 }
 
-// Start begins the background check/download's completion signal and runs
-// it on its own goroutine. It lazily builds the update.Client the first
-// time it is called - a Sigstore verifier plus a 30s-timeout HTTP client -
-// unless a test has already assigned one via SetClient.
+// Start begins the background check/download's completion signal and runs it
+// on its own goroutine. The caller must first prepare a client with EnsureClient
+// or assign one directly via SetClient. Without one, Start returns an error
+// without beginning the completion signal or starting a goroutine.
 //
 // ctx is the caller's per-request context (internal/ui's updateOp
 // lifecycle token); stale reports whether that token has since been
@@ -160,19 +200,9 @@ func (u *Updater) RemoveStaleStage() {
 // the caller through CurrentVersion so gating decisions (is it due, is
 // there an asset for this OS/arch) and the check itself agree on the same
 // value.
-func (u *Updater) Start(ctx context.Context, stale func() bool, currentVersion string) {
+func (u *Updater) Start(ctx context.Context, stale func() bool, currentVersion string) error {
 	if u.client == nil {
-		ver, err := update.NewSigstoreVerifier()
-		if err != nil {
-			fyne.LogError("update verifier unavailable", err)
-			return
-		}
-		u.client = update.NewClient(update.Config{
-			HTTP:     &http.Client{Timeout: 30 * time.Second},
-			Now:      time.Now,
-			Verify:   ver,
-			StageDir: u.dir,
-		})
+		return errClientNotPrepared
 	}
 
 	done := u.done.Begin()
@@ -199,6 +229,7 @@ func (u *Updater) Start(ctx context.Context, stale func() bool, currentVersion s
 		// Finished stage is kept even if the token was cancelled mid-download
 		// (SetCheckForUpdates(false)): apply-on-stop still needs the bits.
 	}()
+	return nil
 }
 
 // ApplyStagedUpdate replaces the running binary with a completed stage, if

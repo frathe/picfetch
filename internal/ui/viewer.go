@@ -397,13 +397,14 @@ type viewer struct {
 	// single scan. Only ever touched on the UI goroutine.
 	pendingInitial []fyne.URI
 
-	// updater owns the release-check/download policy, the staged-update
-	// lifecycle, the What's-New cache, and the last-check-day storage - see
-	// internal/ui/autoupdate. updateOp mirrors scanOp/loadLifecycle: one
-	// requestLifecycle for the background check/download, kept here rather
-	// than promoted into that package (this refactor's locked decision on
-	// cancellation), so maybeStartUpdateCheck (autoupdate.go) begins the
-	// token and hands Updater.Start its context and a staleness func.
+	// updater owns client preparation, the release-check/download policy, the
+	// staged-update lifecycle, the What's-New cache, and the last-check-day
+	// storage - see internal/ui/autoupdate. updateOp mirrors
+	// scanOp/loadLifecycle: one requestLifecycle for the background
+	// check/download, kept here rather than promoted into that package (this
+	// refactor's locked decision on cancellation), so
+	// maybeStartUpdateCheck (autoupdate.go) prepares the client, then begins
+	// the token and hands Updater.Start its context and a staleness func.
 	updater  *autoupdate.Updater
 	updateOp requestLifecycle
 

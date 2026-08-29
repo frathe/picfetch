@@ -1,7 +1,10 @@
 package autoupdate
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +13,12 @@ import (
 
 	"github.com/frathe/picfetch/internal/update"
 )
+
+type fakeVerifier struct{}
+
+func (fakeVerifier) Verify(context.Context, []byte, []byte, update.VerifyPolicy) error {
+	return nil
+}
 
 // --- Due / not-due -----------------------------------------------------
 
@@ -232,6 +241,107 @@ func TestUpdater_ClientRoundTrip(t *testing.T) {
 	u.SetClient(c)
 	if u.Client() != c {
 		t.Error("Client() must return exactly what SetClient assigned")
+	}
+}
+
+func TestUpdater_EnsureClient_PreSetClientBypassesVerifierFactory(t *testing.T) {
+	u := New(test.NewApp(), t.TempDir(), nil)
+	want := update.NewClient(update.Config{StageDir: u.Dir()})
+	u.SetClient(want)
+	calls := 0
+	u.SetVerifierFactory(func() (update.Verifier, error) {
+		calls++
+		return fakeVerifier{}, nil
+	})
+
+	if err := u.EnsureClient(); err != nil {
+		t.Fatalf("EnsureClient() error = %v, want nil", err)
+	}
+	if calls != 0 {
+		t.Errorf("verifier factory calls = %d, want 0", calls)
+	}
+	if got := u.Client(); got != want {
+		t.Error("EnsureClient() replaced the pre-set client")
+	}
+}
+
+func TestUpdater_EnsureClient_SuccessIsIdempotent(t *testing.T) {
+	u := New(test.NewApp(), t.TempDir(), nil)
+	calls := 0
+	u.SetVerifierFactory(func() (update.Verifier, error) {
+		calls++
+		return fakeVerifier{}, nil
+	})
+
+	if err := u.EnsureClient(); err != nil {
+		t.Fatalf("first EnsureClient() error = %v, want nil", err)
+	}
+	want := u.Client()
+	if want == nil {
+		t.Fatal("Client() after successful EnsureClient() must not be nil")
+	}
+	if err := u.EnsureClient(); err != nil {
+		t.Fatalf("second EnsureClient() error = %v, want nil", err)
+	}
+	if calls != 1 {
+		t.Errorf("verifier factory calls = %d, want 1", calls)
+	}
+	if got := u.Client(); got != want {
+		t.Error("repeated EnsureClient() replaced the prepared client")
+	}
+}
+
+func TestUpdater_EnsureClient_FailureIsRetryable(t *testing.T) {
+	u := New(test.NewApp(), t.TempDir(), nil)
+	wantErr := errors.New("verifier unavailable")
+	calls := 0
+	u.SetVerifierFactory(func() (update.Verifier, error) {
+		calls++
+		if calls == 1 {
+			return nil, wantErr
+		}
+		return fakeVerifier{}, nil
+	})
+
+	if err := u.EnsureClient(); !errors.Is(err, wantErr) {
+		t.Fatalf("first EnsureClient() error = %v, want errors.Is(_, %v)", err, wantErr)
+	}
+	if u.Client() != nil {
+		t.Fatal("Client() after failed EnsureClient() must remain nil")
+	}
+	if err := u.EnsureClient(); err != nil {
+		t.Fatalf("second EnsureClient() error = %v, want nil", err)
+	}
+	if calls != 2 {
+		t.Errorf("verifier factory calls = %d, want 2", calls)
+	}
+	if u.Client() == nil {
+		t.Fatal("Client() after successful retry must not be nil")
+	}
+}
+
+func TestUpdater_EnsureClient_NilVerifierFactoryRestoresDefault(t *testing.T) {
+	u := New(test.NewApp(), t.TempDir(), nil)
+	u.SetVerifierFactory(func() (update.Verifier, error) { return fakeVerifier{}, nil })
+	u.SetVerifierFactory(nil)
+
+	got := reflect.ValueOf(u.verifierFactory).Pointer()
+	want := reflect.ValueOf(update.NewSigstoreVerifier).Pointer()
+	if got != want {
+		t.Error("SetVerifierFactory(nil) did not restore update.NewSigstoreVerifier")
+	}
+}
+
+func TestUpdater_Start_RequiresPreparedClient(t *testing.T) {
+	u := New(test.NewApp(), t.TempDir(), nil)
+
+	err := u.Start(context.Background(), func() bool { return false }, "v0.2.6")
+
+	if !errors.Is(err, errClientNotPrepared) {
+		t.Fatalf("Start() error = %v, want errors.Is(_, %v)", err, errClientNotPrepared)
+	}
+	if u.Done().Begun() {
+		t.Error("Done() after invalid Start must not report Begun")
 	}
 }
 

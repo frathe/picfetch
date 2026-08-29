@@ -3,6 +3,8 @@ package ui
 import (
 	"runtime"
 
+	"fyne.io/fyne/v2"
+
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/update"
 )
@@ -38,8 +40,9 @@ func (v *viewer) currentUpdateVersion() string { return v.updater.CurrentVersion
 // maybeStartUpdateCheck is the viewer-side entry point into
 // internal/ui/autoupdate: it removes any now-stale staged update, gates on
 // the opt-in setting, a usable current version, today's due-ness, and
-// asset availability for this OS/arch, then begins updateOp's lifecycle
-// token and hands Updater.Start its context and a staleness func.
+// asset availability for this OS/arch, then prepares the verifier/client
+// before beginning updateOp's lifecycle token and handing Updater.Start its
+// context and a staleness func.
 func (v *viewer) maybeStartUpdateCheck() {
 	v.updater.RemoveStaleStage()
 
@@ -56,9 +59,15 @@ func (v *viewer) maybeStartUpdateCheck() {
 	if _, ok := update.AssetName(runtime.GOOS, runtime.GOARCH); !ok {
 		return
 	}
+	if err := v.updater.EnsureClient(); err != nil {
+		fyne.LogError("update verifier unavailable", err)
+		return
+	}
 
 	token := v.updateOp.begin()
-	v.updater.Start(token.context(), func() bool { return !token.current() }, cur)
+	if err := v.updater.Start(token.context(), func() bool { return !token.current() }, cur); err != nil {
+		fyne.LogError("update check failed to start", err)
+	}
 }
 
 // maybeShowWhatsNew opens the release-notes window once after an applied
