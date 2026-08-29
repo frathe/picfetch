@@ -17,55 +17,16 @@ var errNotJPEG = errors.New("not a JPEG")
 // segments verbatim into a freshly written JPEG to preserve metadata a
 // bare image/jpeg.Encode call would otherwise drop. data that is not a
 // JPEG yields nil.
-//
-// This walks JPEG markers the same way jpegEXIFOrientation (exif.go) does,
-// duplicated rather than shared: that walker returns an orientation int and
-// stops at the first APP1 with a valid tag, while this one collects a
-// different, filtered subset of segments as byte slices.
 func jpegMetadataSegments(data []byte) [][]byte {
-	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
-		return nil
-	}
-
 	var segs [][]byte
-
-	pos := 2
-
-	for pos+4 <= len(data) {
-		if data[pos] != 0xFF {
-			break
-		}
-
-		marker := data[pos+1]
-
-		if marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9) {
-			pos += 2
-			continue
-		}
-
-		if marker == 0xDA { // start of scan: header segments are over
-			break
-		}
-
-		segLen := int(data[pos+2])<<8 | int(data[pos+3])
-
-		if segLen < 2 || pos+2+segLen > len(data) {
-			break
-		}
-
-		segEnd := pos + 2 + segLen
-
+	walkJPEGSegments(data, func(marker byte, payload []byte) bool {
 		if marker == 0xFE || (marker >= 0xE0 && marker <= 0xEF) {
-			if !skipSegment(marker, data[pos+4:segEnd]) {
-				seg := make([]byte, segEnd-pos)
-				copy(seg, data[pos:segEnd])
-				segs = append(segs, seg)
+			if !skipSegment(marker, payload) {
+				segs = append(segs, jpegSegmentBytes(marker, payload))
 			}
 		}
-
-		pos = segEnd
-	}
-
+		return true
+	})
 	return segs
 }
 
@@ -106,38 +67,20 @@ func keepOnStrip(marker byte, payload []byte) bool {
 // at least one COM/APPn segment or bytes after the primary EOI.
 // Non-JPEG data is false.
 func jpegHasRemovableMetadata(data []byte) bool {
-	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
-		return false
-	}
 	if n := jpegLength(data); n > 0 && n < len(data) {
 		return true
 	}
-	pos := 2
-	for pos+4 <= len(data) {
-		if data[pos] != 0xFF {
-			break
-		}
-		marker := data[pos+1]
-		if marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9) {
-			pos += 2
-			continue
-		}
-		if marker == 0xDA {
-			break
-		}
-		segLen := int(data[pos+2])<<8 | int(data[pos+3])
-		if segLen < 2 || pos+2+segLen > len(data) {
-			break
-		}
-		segEnd := pos + 2 + segLen
+	found := false
+	walkJPEGSegments(data, func(marker byte, payload []byte) bool {
 		if marker == 0xFE || (marker >= 0xE0 && marker <= 0xEF) {
-			if !keepOnStrip(marker, data[pos+4:segEnd]) {
-				return true
+			if !keepOnStrip(marker, payload) {
+				found = true
+				return false
 			}
 		}
-		pos = segEnd
-	}
-	return false
+		return true
+	})
+	return found
 }
 
 // stripJPEGSegments returns a copy of a JPEG with removable metadata
