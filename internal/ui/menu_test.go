@@ -12,6 +12,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/theme"
 
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/filepicker"
@@ -202,6 +203,46 @@ func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
 		if shortcut.KeyName != tc.key || shortcut.Modifier != 0 {
 			t.Errorf("Window menu item %q accelerator = %+v, want {%v, 0}", tc.label, shortcut, tc.key)
 		}
+	}
+}
+
+func TestBuildMainMenu_ManualOpenedObserverSyncsWindowHelp(t *testing.T) {
+	fyne.SetCurrentApp(testApp)
+	originalTheme := testApp.Settings().Theme()
+	t.Cleanup(func() { testApp.Settings().SetTheme(originalTheme) })
+	testApp.Settings().SetTheme(theme.DefaultTheme())
+
+	v := newTestViewer(t)
+	windowHelp := v.menus.Window().Help()
+	if windowHelp.Disabled {
+		t.Fatal("Window > Help should start enabled")
+	}
+
+	windowsBefore := make(map[fyne.Window]struct{})
+	for _, window := range testApp.Driver().AllWindows() {
+		windowsBefore[window] = struct{}{}
+	}
+
+	v.help.ShowManual()
+
+	var newWindows []fyne.Window
+	for _, window := range testApp.Driver().AllWindows() {
+		if _, existed := windowsBefore[window]; !existed {
+			newWindows = append(newWindows, window)
+		}
+	}
+	for _, window := range newWindows {
+		t.Cleanup(window.Close)
+	}
+	if len(newWindows) != 1 {
+		t.Fatalf("new windows after ShowManual = %d, want 1", len(newWindows))
+	}
+
+	if !v.help.ManualOpen() {
+		t.Error("manual should be open after ShowManual")
+	}
+	if !windowHelp.Disabled {
+		t.Error("Window > Help should be disabled after the manual opens")
 	}
 }
 

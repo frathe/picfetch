@@ -10,6 +10,16 @@
 
 #### Internal
 
+- `buildMainMenu`'s exact `help.SetOnManualOpened(view.syncMenus)` observer
+  registration is covered by
+  `TestBuildMainMenu_ManualOpenedObserverSyncsWindowHelp`. The test scopes
+  `theme.DefaultTheme()` to this case because the shared Fyne test theme
+  cannot render the manual's complete Markdown font combinations; it identifies
+  and closes the newly created manual window and restores the original theme
+  during cleanup. Removing the observer registration makes the test fail,
+  leaving Window → Help enabled after the manual opens; the restored
+  registration passes.
+
 - Favorites no longer un-merges the macOS native menu bar. The original note
   here had the diagnosis half wrong, so for the record: `SetHasFiles` was
   never an unguarded site - `syncMenus` folds on the very next line,
@@ -101,18 +111,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### The manual-opened observer registration is untested
-
-After `52af098` reduced the menu push sites to choke points, F1 and
-Window → Help have no hand-written `syncMenus`; they rely on
-`help.SetOnManualOpened(view.syncMenus)` staying registered in
-`buildMainMenu`. Deleting that registration passes the entire test suite —
-verified by mutation. No viewer-level test is possible because
-`ShowManual` panics under Fyne's test theme (see the note at the tail of
-`internal/ui/e2e_test.go`). `internal/ui/help`'s own
-`TestHelp_SetOnManualOpenedFiresOnShow` pins that the hook *fires*, not
-that `internal/ui` subscribes to it.
 
 ### `maybeStartUpdateCheck` begins its lifecycle token before the verifier is built
 

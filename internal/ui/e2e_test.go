@@ -308,8 +308,10 @@ func TestE2E_DeleteConfirmationShowsWhichButtonReturnWillPress(t *testing.T) {
 	test.AssertRendersToImage(t, "delete_confirm_danger.png", win.Canvas())
 }
 
-// F1/showManual is intentionally not covered here: Fyne's test theme only
-// defines fonts for 6 specific TextStyle combinations (test/theme.go), and
-// the manual's markdown produces at least one combination outside that set
-// (likely bold-inside-a-code-span), so CachedFontFace hits a nil font
-// resource and panics - a gap in Fyne's test theme, not in this app.
+// F1/showManual is intentionally not covered by the screenshot tests here:
+// Fyne's test theme only defines fonts for 6 specific TextStyle combinations
+// (test/theme.go), and the manual's markdown produces at least one combination
+// outside that set (likely bold-inside-a-code-span), so CachedFontFace hits a
+// nil font resource and panics - a gap in Fyne's test theme, not in this app.
+// TestBuildMainMenu_ManualOpenedObserverSyncsWindowHelp covers the focused
+// non-screenshot menu-wiring path by temporarily using theme.DefaultTheme().
