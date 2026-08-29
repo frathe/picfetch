@@ -44,4 +44,10 @@ func TestWorkflowGatesUntrustedReleaseTag(t *testing.T) {
 	if !strings.Contains(yml, "gh release view") {
 		t.Error("job must require a published GitHub release before calling winget-releaser")
 	}
+	if !strings.Contains(yml, "isDraft") {
+		t.Error("job must reject draft GitHub releases, not only that gh release view succeeds")
+	}
+	if !strings.Contains(yml, `[ "$draft" != "false" ]`) {
+		t.Error("job must require isDraft to be false")
+	}
 }
