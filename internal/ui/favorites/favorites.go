@@ -43,6 +43,12 @@ type Host interface {
 	// thumbnails or caches; it only reports that a favorite's file list is
 	// now this, and leaves what that costs to the host.
 	SyncFavoritePreviews(favDir string, files []fyne.URI)
+
+	// RefreshMenus re-publishes the main menu bar. This feature calls it
+	// after changing its own menu's items, because fyne.Menu.Refresh is
+	// SetMainMenu underneath: on Darwin that rebuilds the native bar, and
+	// only the host knows how to fold it back together afterwards.
+	RefreshMenus()
 }
 
 // Feature owns the Favorites menu and its dialogs.
@@ -110,10 +116,11 @@ func (f *Feature) SetDir(dir string) {
 	f.refreshMenu()
 }
 
-// SetHasFiles enables adding the current list when it is non-empty.
+// SetHasFiles enables adding the current list when it is non-empty. It
+// deliberately does not re-publish the menu: its one caller is
+// internal/ui's syncMenus, which folds the bar on the very next line.
 func (f *Feature) SetHasFiles(has bool) {
 	f.addItem.Disabled = !has
-	f.menu.Refresh()
 }
 
 // ShortcutForIndex returns the Cmd/Ctrl+digit accelerator for a zero-based
@@ -160,7 +167,7 @@ func (f *Feature) refreshMenu() bool {
 	items = append(items, f.manageItem)
 	f.names = names
 	f.menu.Items = items
-	f.menu.Refresh()
+	f.host.RefreshMenus()
 	return true
 }
 

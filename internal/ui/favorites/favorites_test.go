@@ -31,6 +31,8 @@ type fakeHost struct {
 	syncedDirs  []string
 	syncedFiles [][]fyne.URI
 	calls       []string
+
+	refreshMenus int
 }
 
 func (h *fakeHost) FileCount() int        { return len(h.files) }
@@ -45,6 +47,7 @@ func (h *fakeHost) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	h.syncedFiles = append(h.syncedFiles, slices.Clone(files))
 	h.calls = append(h.calls, "sync")
 }
+func (h *fakeHost) RefreshMenus() { h.refreshMenus++ }
 
 func newFeature(t *testing.T, host *fakeHost) *Feature {
 	t.Helper()
@@ -367,6 +370,26 @@ func TestSetHasFilesTogglesAddItem(t *testing.T) {
 	}
 }
 
+// TestSetHasFilesDoesNotRefreshMenus pins the deliberate omission: SetHasFiles
+// only flips addItem.Disabled and leaves publishing the bar to its one
+// caller, internal/ui's syncMenus, which folds it on the very next line. If
+// this ever grows a Refresh call of its own, syncMenus's later fold would run
+// on top of it and, on Darwin, leave a duplicate "Window" menu and
+// Command-prefixed accelerators on the unmodified letters until the next
+// unrelated sync.
+func TestSetHasFilesDoesNotRefreshMenus(t *testing.T) {
+	host := &fakeHost{}
+	f := newFeature(t, host)
+	host.refreshMenus = 0
+
+	f.SetHasFiles(true)
+	f.SetHasFiles(false)
+
+	if host.refreshMenus != 0 {
+		t.Errorf("RefreshMenus called %d times by SetHasFiles, want 0", host.refreshMenus)
+	}
+}
+
 func TestWriteFavoriteSavesCurrentListAndRefreshesMenu(t *testing.T) {
 	host := &fakeHost{files: []fyne.URI{
 		storage.NewFileURI("/photos/a.jpg"),
@@ -388,6 +411,27 @@ func TestWriteFavoriteSavesCurrentListAndRefreshesMenu(t *testing.T) {
 	}
 	if len(host.toasts) != 1 || !strings.Contains(host.toasts[0], "Trip") {
 		t.Errorf("toasts = %v, want saved Trip", host.toasts)
+	}
+}
+
+// TestAddCurrentListRefreshesMenusExactlyOnce drives the save through the
+// real path a user takes - the Favorites menu's "Add Current List to
+// Favorites…" item, the name field, Return - rather than calling writeFavorite
+// or refreshMenu directly. fyne.Menu.Refresh is SetMainMenu underneath: on
+// Darwin it rebuilds the whole native bar and undoes the Window-menu merge
+// and the unmodified-letter accelerator fixups, so only host.RefreshMenus may
+// run here, and it has to run exactly once, not zero and not twice.
+func TestAddCurrentListRefreshesMenusExactlyOnce(t *testing.T) {
+	host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/photos/a.jpg")}}
+	f := newFeature(t, host)
+	host.refreshMenus = 0
+
+	f.AddCurrentList()
+	test.Type(f.addPanel.entry, "Trip")
+	typeKey(t, f.win, fyne.KeyReturn)
+
+	if host.refreshMenus != 1 {
+		t.Errorf("RefreshMenus called %d times after adding a favorite, want 1", host.refreshMenus)
 	}
 }
 

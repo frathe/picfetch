@@ -344,6 +344,79 @@ func TestFavoriteShortcutOpensStoredFilesThroughViewer(t *testing.T) {
 	}
 }
 
+// mainMenuRecorder is a fyne.Window that notes, every time something reads
+// its main menu, which items the Favorites menu held at that moment. Reading
+// the bar is what refreshMainMenu (windowmenu.go) does and the only trace it
+// leaves on this platform: fyne.MainMenu.Refresh re-hands the very same
+// pointer to test.window.SetMainMenu, which just stores it, and both halves
+// of syncNativeMenuBar dead-end on NSApp's nil mainMenu/windowsMenu in a test
+// binary with no GLFW app - so neither the window's menu identity nor its
+// contents move when the bar is re-published. Recording at read time rather
+// than afterwards is deliberate: it is what pins the ordering inside
+// favorites' refreshMenu, which must rewrite its items before asking the
+// host to publish them.
+type mainMenuRecorder struct {
+	fyne.Window
+
+	favorites *fyne.Menu
+	published [][]string
+}
+
+func (w *mainMenuRecorder) MainMenu() *fyne.MainMenu {
+	bar := w.Window.MainMenu()
+	if bar == nil {
+		return nil
+	}
+	for _, menu := range bar.Items {
+		if menu != w.favorites {
+			continue
+		}
+		labels := make([]string, len(menu.Items))
+		for i, item := range menu.Items {
+			labels[i] = item.Label
+		}
+		w.published = append(w.published, labels)
+	}
+	return bar
+}
+
+// TestRefreshMenus_FavoriteChangeRepublishesTheBarThroughTheViewer covers
+// viewer.RefreshMenus (windowmenu.go), the Host method internal/ui/favorites
+// calls at the end of every refreshMenu - the one funnel an add, a delete and
+// this SetDir rebuild all pass through. The feature is viewer-independent and
+// so must not call fyne.Menu.Refresh itself: that is SetMainMenu underneath,
+// which on Darwin rebuilds the native bar and undoes both the Window-menu
+// merge and the unmodified-letter accelerator fixups. Stub RefreshMenus out,
+// or let the Host method quietly stop being wired to refreshMainMenu, and
+// adding or deleting a favorite leaves a duplicate "Window" menu and
+// Command-prefixed accelerators on the bar until some unrelated syncMenus
+// happens to fold it back.
+func TestRefreshMenus_FavoriteChangeRepublishesTheBarThroughTheViewer(t *testing.T) {
+	v, win, _ := newTestUI(t)
+
+	dir := t.TempDir()
+	image := uitest.TempJPEGURI(t, "trip.jpg", 4, 4, color.White)
+	if err := favstore.Save(dir, "Trip", []fyne.URI{image}); err != nil {
+		t.Fatalf("favstore.Save: %v", err)
+	}
+
+	// Swapped for the length of the rebuild only, the same per-viewer
+	// override style newTestUI uses for toast.duration and frameAfter.
+	recorder := &mainMenuRecorder{Window: win, favorites: v.favorites.Menu()}
+	v.win = recorder
+	defer func() { v.win = win }()
+	v.favorites.SetDir(dir)
+
+	if len(recorder.published) == 0 {
+		t.Fatal("rebuilding the Favorites menu never reached refreshMainMenu - viewer.RefreshMenus has to re-publish the bar")
+	}
+	if !slices.ContainsFunc(recorder.published, func(labels []string) bool {
+		return slices.Contains(labels, "Trip (1)")
+	}) {
+		t.Errorf("Favorites items per publish = %v, want one publish already holding %q", recorder.published, "Trip (1)")
+	}
+}
+
 // --- Cmd/Ctrl+Shift+F (Manage Favorites) shortcut --------------------------
 
 // TestWireManageFavoritesShortcut_OpensTheDialog covers wireManageFavoritesShortcut

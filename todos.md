@@ -10,6 +10,29 @@
 
 #### Internal
 
+- Favorites no longer un-merges the macOS native menu bar. The original note
+  here had the diagnosis half wrong, so for the record: `SetHasFiles` was
+  never an unguarded site - `syncMenus` folds on the very next line,
+  deliberately - `SetDir` is covered by the startup fold at `run.go:45`, and
+  there is no rename path at all, since `favstore` exposes only `Save` and
+  `Remove`. The two real paths were adding a favorite (`favorites.go:249`)
+  and deleting one (`manage.go:362`), both reaching `refreshMenu` with
+  nothing to fold the bar afterwards. `favorites.Host` gained
+  `RefreshMenus`, which the viewer implements as `refreshMainMenu`;
+  `refreshMenu` calls it instead of `f.menu.Refresh`, and `SetHasFiles` now
+  only flips `Disabled`. The invariant is structural rather than documented:
+  `internal/ui/favorites` never calls `fyne.Menu.Refresh`, so
+  `refreshMainMenu` is the only place a main-bar menu is re-published.
+  Pinned at both ends - three tests in `favorites` that the feature makes
+  the call (and that `SetHasFiles` does not), one in `internal/ui` that the
+  viewer's method reaches `refreshMainMenu`. Fyne's test driver records
+  nothing when the bar is re-published: `MainMenu.Refresh` re-hands the same
+  pointer to `test.window.SetMainMenu`, which just stores it, and both
+  `syncNativeMenuBar` steps dead-end on NSApp's nil menus in a test binary.
+  The only trace is `refreshMainMenu` reading the window's menu, so the
+  viewer test observes that through a decorator on the per-viewer `v.win`.
+  All four verified by mutation.
+
 - Small mechanical Qodana fixes, five categories. `imaging/save.go` and
   `exifwin/tiles_test.go` compare errors with `errors.Is` now;
   `update/extract.go` and `plistdoctypes/doctypes_test.go` deliberately keep
@@ -78,18 +101,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Favorites un-merges the macOS native menu bar
-
-`internal/ui/favorites` calls `f.menu.Refresh()` from two sites
-(`SetHasFiles`, `refreshMenu`) with no `syncNativeMenuBar` follow-up.
-`fyne.Menu.Refresh` is a `SetMainMenu`, which rebuilds the Darwin native
-bar; only `refreshMainMenu` folds it back together afterwards. So adding,
-renaming, or deleting a favorite already leaves a duplicate "Window" menu
-and Command-prefixed accelerators on the unmodified letters until the next
-`refreshMainMenu`. Pre-existing, not caused by the `viewer` field-cluster
-refactor. The invariant worth stating: nothing outside `refreshMainMenu`
-may call `Refresh()` on a menu that lives in the main bar.
 
 ### The manual-opened observer registration is untested
 

@@ -778,6 +778,33 @@ func TestPerformRemoveTrashesDirectoryAndRefreshesMenu(t *testing.T) {
 	}
 }
 
+// TestPerformRemoveRefreshesMenusExactlyOnce is the delete-side half of the
+// same fix TestAddCurrentListRefreshesMenusExactlyOnce (favorites_test.go)
+// pins for add: performRemove does its rebuild on a goroutine and marshals
+// back through fyne.Do, so f.pending.Wait() is what makes this assertion safe
+// to make at all. fyne.Menu.Refresh is SetMainMenu underneath - on Darwin
+// that rebuilds the whole native bar - so a stray call to it here, instead of
+// through host.RefreshMenus, would leave a duplicate "Window" menu and
+// Command-prefixed accelerators on the unmodified letters until the next
+// unrelated sync.
+func TestPerformRemoveRefreshesMenusExactlyOnce(t *testing.T) {
+	host := &fakeHost{}
+	f := newFeature(t, host)
+	if err := favstore.Save(f.dir, "Trip", nil); err != nil {
+		t.Fatal(err)
+	}
+	f.SetDir(f.dir)
+	uitest.StubTrashMove(t, func(path string) error { return os.RemoveAll(path) })
+	host.refreshMenus = 0
+
+	f.performRemove("Trip")
+	f.pending.Wait()
+
+	if host.refreshMenus != 1 {
+		t.Errorf("RefreshMenus called %d times after removing a favorite, want 1", host.refreshMenus)
+	}
+}
+
 func TestPerformRemoveReportsTrashError(t *testing.T) {
 	host := &fakeHost{}
 	f := newFeature(t, host)

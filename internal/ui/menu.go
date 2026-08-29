@@ -100,13 +100,13 @@ func (v *viewer) menuState() menus.State {
 // SetHasFiles is inside the changed branch, and before refreshMainMenu,
 // for two reasons that are both load-bearing - do not lift it out:
 //
-//   - It ends in fyne.Menu.Refresh, which is SetMainMenu, which rebuilds
-//     the Darwin native bar. Only refreshMainMenu folds that bar back
-//     together afterwards (syncNativeMenuBar), so a rebuild outside this
-//     branch would leave a duplicate Window menu and Command-prefixed
-//     accelerators on the unmodified letters until the next changed sync.
-//     Ordering it before refreshMainMenu keeps the fold last, which is
-//     the order the per-menu update functions this replaced also kept.
+//   - SetHasFiles itself no longer publishes anything - it only flips
+//     addItem.Disabled - so refreshMainMenu on the next line is what
+//     actually gets that new state onto the bar. Ordering it before
+//     refreshMainMenu still matters: that is the one call that folds the
+//     Darwin native bar back together (syncNativeMenuBar) after Apply's
+//     own item changes, and it has to see the Favorites item's post-toggle
+//     state to publish it, not the state from before this turn.
 //   - Skipping it when nothing moved cannot skip a needed update: it reads
 //     FileCount() > 0, the exact complement of the NoFiles that
 //     menuState() reads in the same turn, and Apply assigns

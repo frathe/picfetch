@@ -34,6 +34,12 @@ func (v *viewer) refreshMainMenu() {
 	})
 }
 
+// RefreshMenus is the favorites feature's way to ask for the fold, since
+// internal/ui/favorites is viewer-independent and cannot reach
+// refreshMainMenu itself. Adding or deleting a favorite rewrites that
+// menu's items, and every such rewrite has to end here.
+func (v *viewer) RefreshMenus() { v.refreshMainMenu() }
+
 // syncNativeMenuBar is the Darwin native-bar follow-up after every Fyne
 // MainMenu rebuild: fold Window items into NSApp.windowsMenu, then clear
 // AppKit's default Command mask on unmodified letter accelerators. Both
