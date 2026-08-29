@@ -28,13 +28,14 @@ jobs:
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
         with:
-          # When pr-mode is set to true, Qodana analyzes only the files that have been changed
+          # Pull requests use differential analysis against their merge base.
+          # Pushes to main and workflow_dispatch runs scan the full project.
           #args: --apply-fixes
-          pr-mode: true
+          pr-mode: ${{ github.event_name == 'pull_request' }}
           use-caches: true
           post-pr-comment: true
           use-annotations: true
           # Upload Qodana results (SARIF, other artifacts, logs) as an artifact to the job
-          upload-result: false
+          upload-result: true
           # quick-fixes available in Ultimate and Ultimate Plus plans
           push-fixes: pull-request
