@@ -20,6 +20,19 @@
 
 ## TODO
 
+### Upgrade Fyne past 2.8.0 after its cache-clock regression is fixed
+
+Fyne 2.8.1 changed `internal/cache.expiringCache.setAlive` to extend entries
+from a cached timestamp that only advances when `cache.Clean` runs. Fyne's
+test driver does not run that frame-clean path continuously, so after the
+one-minute `ValidDuration`, newly constructed canvas-object associations are
+already expired. The next capture can then skip nested layout; PicFetch's
+first e2e golden leaves "Drop images here" at the top-left after the preceding
+race tests have run for a minute. `FYNE_CACHE=100ms go test -race -run
+'^(TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators|TestE2E_InitialLaunchShowsWelcome)$'
+./internal/ui` is a fast reproducer on 2.8.1 and passes on 2.8.0. Keep the
+direct dependency pinned until an upstream release fixes the cached clock.
+
 ### Qodana: settingswin's numeric entries are five copies of one block
 
 `internal/ui/settingswin/settingswin.go:208,217,226,238,250` — the max-scan,
