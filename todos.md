@@ -10,6 +10,28 @@
 
 #### Internal
 
+- Doc-comment openings: `GoCommentStart` wants the documented element's name
+  as the comment's first token, followed by whitespace - an optional leading
+  `A`/`An`/`The` is the only thing allowed in front. Punctuation glued to
+  the name breaks it - a slash, a comma, or a colon all fail even when the
+  comment already opens with the right word, which is why `Dir/SetDir` and
+  `MouseIn, MouseMoved, and MouseOut` were both flagged. The slash-joined
+  pairs became the `X and Y` form `zoom.In`/`Out`,
+  `widgets.FocusGained`/`FocusLost` and `imaging.MinVectorWidth`/`Height`
+  already used; the three `widgets/style.go` group comments now lead with
+  the first constant in their `const`/`var` group; and `internal/ui`'s five
+  file-level notes gained a blank line before `package ui`, which detaches
+  them from the package clause - the form 69 other files in the tree already
+  use, with `run.go` keeping the one real package doc.
+  `spiral.ShowForGesture` and `Show` shared one comment block that opened by
+  describing `Show`, so it was split: `go doc Spiral.Show` printed nothing
+  before and prints its paragraph now. Also normalized the six unflagged
+  sites with the same shape in `load.go` and `preferences.go`; the
+  inspection skips struct fields and mid-comment references, so those were
+  consistency rather than findings. Verified through GoLand's inspection
+  engine over all 13 files, which is the same engine Qodana runs and needs
+  no `QODANA_TOKEN`.
+
 - Test image fixture duplication: `wrapAPP1` now owns Exif APP1 framing,
   `littleEndianTIFF` shares TIFF header and integer emission across the
   capture-date, RAW-preview, and GPS fixtures, and imaging's oversized-PNG
@@ -37,22 +59,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Qodana: 19 doc comments don't start with the element they document
-
-`GoCommentStart`, all mechanical, all correct per Go doc convention:
-
-- Five package comments in `internal/ui` that need the `Package ui ...` form
-  or a blank line to detach them from the package clause: `build.go`,
-  `components.go`, `favthumbs.go`, `shortcuts.go`, `startup.go`.
-- Fourteen exported-element comments that don't lead with the name:
-  `ui/autoupdate.go:10,25`, `ui/autoupdate/updater.go:71,78,119`,
-  `ui/favthumbs.go:18`, `ui/load.go:516,521`, `ui/memlimits.go:86`,
-  `ui/spiral/spiral.go:130`, `ui/widgets/style.go:29,42,66`,
-  `ui/widgets/tappable.go:49`.
-
-Several are the "A, B, and C implement X" shape (`tappable.go:49`), where the
-fix is to lead with the first name rather than to rewrite the sentence.
 
 ### Qodana: small mechanical fixes
 

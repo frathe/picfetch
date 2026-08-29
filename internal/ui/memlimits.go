@@ -83,8 +83,9 @@ const (
 	defaultMaxFileSizeMB   = imaging.DefaultMaxEncodedBytes / bytesPerMB
 )
 
-// MaxImageCacheMB/MaxThumbCacheMB/MaxFileSizeMB report the current limits -
-// the settings window's getters.
+// MaxImageCacheMB reports the decoded-image cache budget,
+// MaxThumbCacheMB the thumbnail cache's, and MaxFileSizeMB the
+// per-file encoded ceiling - the settings window's getters.
 func (v *viewer) MaxImageCacheMB() int { return v.settings.imgCacheMB }
 func (v *viewer) MaxThumbCacheMB() int { return v.settings.thumbCacheMB }
 func (v *viewer) MaxFileSizeMB() int   { return v.settings.maxFileMB }

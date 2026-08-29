@@ -1,6 +1,7 @@
 // Application-wide shortcut registration. The individual wiring functions
 // remain separate so focused tests can exercise the production bindings
 // directly through Fyne's shortcut handler.
+
 package ui
 
 import (

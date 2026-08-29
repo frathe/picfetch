@@ -2,6 +2,7 @@
 // widget clusters buildViewer composes into the window. Each new*UI
 // constructor builds one cluster and returns it as a small struct - the
 // widgets themselves still land in the viewer's flat fields for now.
+
 package ui
 
 import (

@@ -26,7 +26,8 @@ const (
 	// the info overlay, and the delete-confirmation card.
 	CardRadius = 8
 
-	// The dropzone's rounded border box.
+	// DropzoneBorderWidth and DropzoneBorderRadius outline the dropzone's
+	// rounded border box.
 	DropzoneBorderWidth  = 4
 	DropzoneBorderRadius = 14
 
@@ -39,9 +40,11 @@ const (
 	// above the spinner and label.
 	ScanArtSize = 120
 
-	// Focus rings (see NewFocusRing): the delete-confirmation buttons use a
-	// thinner ring than the grid's cell highlight, whose stroke has to stay
-	// visible against a busy thumbnail behind it.
+	// ButtonRingWidth and GridRingWidth are the focus rings' stroke widths
+	// (see NewFocusRing), RingRadius their shared corner radius: the
+	// delete-confirmation buttons use a thinner ring than the grid's cell
+	// highlight, whose stroke has to stay visible against a busy thumbnail
+	// behind it.
 	ButtonRingWidth = 2
 	GridRingWidth   = 3
 	RingRadius      = 6
@@ -63,11 +66,12 @@ var (
 	DropzoneBorderColor = color.NRGBA{R: 100, G: 100, B: 135, A: 200}
 	DropzoneHoverColor  = color.NRGBA{R: 150, G: 150, B: 205, A: 255}
 
-	// The toast's fixed, deliberately loud warning colors: dark text for
-	// contrast against the pastel-orange background. Not theme-derived on
-	// purpose - the toast should look the same, and stand out the same, in
-	// both light and dark themes (contrast the info overlay, which uses the
-	// theme's own overlay-background/foreground pairing instead).
+	// ToastBGColor and ToastTextColor are the toast's fixed, deliberately loud
+	// warning colors: dark text for contrast against the pastel-orange
+	// background. Not theme-derived on purpose - the toast should look the
+	// same, and stand out the same, in both light and dark themes (contrast
+	// the info overlay, which uses the theme's own
+	// overlay-background/foreground pairing instead).
 	ToastBGColor   = color.NRGBA{R: 255, G: 179, B: 128, A: 235}
 	ToastTextColor = color.NRGBA{R: 51, G: 26, B: 0, A: 255}
 

@@ -46,7 +46,8 @@ func (t *TappableArea) Cursor() desktop.Cursor {
 	return desktop.PointerCursor
 }
 
-// MouseIn, MouseMoved, and MouseOut implement desktop.Hoverable.
+// MouseIn implements desktop.Hoverable, as do MouseMoved and
+// MouseOut below.
 func (t *TappableArea) MouseIn(_ *desktop.MouseEvent) {
 	if t.OnHover != nil {
 		t.OnHover(true)

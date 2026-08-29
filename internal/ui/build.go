@@ -1,6 +1,7 @@
 // Application assembly and wiring: buildViewer composes app-owned
 // components with the registered feature widgets, builds the root overlay
 // stack, and installs the window's input handlers.
+
 package ui
 
 import (

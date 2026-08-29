@@ -503,27 +503,27 @@ func (v *viewer) animate(token requestToken, frames []image.Image, delays []time
 	}
 }
 
-// defaultMaxWindowWidth/defaultMaxWindowHeight cap how large the window is
-// ever allowed to auto-grow to fit a loaded image, until the settings
+// defaultMaxWindowWidth and defaultMaxWindowHeight cap how large the window
+// is ever allowed to auto-grow to fit a loaded image, until the settings
 // window (internal/ui/settingswin) changes them - see the viewer's
-// settings.maxWinW/maxWinH fields (memlimits.go) and
-// MaxWindowWidth/MaxWindowHeight below.
+// settings.maxWinW/maxWinH fields (memlimits.go) and MaxWindowWidth and
+// MaxWindowHeight below.
 const (
 	defaultMaxWindowWidth  = 1500.0
 	defaultMaxWindowHeight = 950.0
 )
 
-// MaxWindowWidth/MaxWindowHeight report the current window-size cap - the
-// settings window's getters.
+// MaxWindowWidth and MaxWindowHeight report the current window-size cap -
+// the settings window's getters.
 func (v *viewer) MaxWindowWidth() float32  { return v.settings.maxWinW }
 func (v *viewer) MaxWindowHeight() float32 { return v.settings.maxWinH }
 
-// SetMaxWindowWidth/SetMaxWindowHeight set the window-size cap directly -
-// the settings window's binding. Floored at the drop-zone size
+// SetMaxWindowWidth and SetMaxWindowHeight set the window-size cap
+// directly - the settings window's binding. Floored at the drop-zone size
 // (startW/startH): resizeToImage already never shrinks the window below
 // that regardless of the cap, so a lower value would silently have no
-// effect - flooring here instead of just letting that happen keeps what
-// the settings window shows in sync with what the window actually does.
+// effect - flooring here instead of just letting that happen keeps what the
+// settings window shows in sync with what the window actually does.
 func (v *viewer) SetMaxWindowWidth(w float32) {
 	if w < startW {
 		w = startW

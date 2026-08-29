@@ -7,10 +7,10 @@ import (
 	"github.com/frathe/picfetch/internal/update"
 )
 
-// CheckForUpdates/SetCheckForUpdates are the settings window's getter/setter
-// pair for the opt-in updates preference. Turning the setting on starts a
-// check when due; turning it off cancels an in-flight check but leaves an
-// already-complete stage on disk for apply-on-stop.
+// CheckForUpdates and SetCheckForUpdates are the settings window's
+// getter/setter pair for the opt-in updates preference. Turning the setting
+// on starts a check when due; turning it off cancels an in-flight check but
+// leaves an already-complete stage on disk for apply-on-stop.
 func (v *viewer) CheckForUpdates() bool { return v.settings.checkForUpdates }
 
 func (v *viewer) SetCheckForUpdates(on bool) {
@@ -22,9 +22,9 @@ func (v *viewer) SetCheckForUpdates(on bool) {
 	v.updateOp.invalidate()
 }
 
-// LastUpdateCheckDay/SetLastUpdateCheckDay round-trip the local calendar
-// day (YYYY-MM-DD) of the last update check, or empty when none has run
-// yet - storage and persistence live on v.updater, see
+// LastUpdateCheckDay and SetLastUpdateCheckDay round-trip the local
+// calendar day (YYYY-MM-DD) of the last update check, or empty when none
+// has run yet - storage and persistence live on v.updater, see
 // internal/ui/autoupdate.Updater.
 func (v *viewer) LastUpdateCheckDay() string { return v.updater.LastCheckDay() }
 

@@ -85,28 +85,28 @@ type State struct {
 	// its own built-in default at that point.
 	MaxScanFiles int
 
-	// MaxWindowWidth/MaxWindowHeight cap how large the window is ever
+	// MaxWindowWidth and MaxWindowHeight cap how large the window is ever
 	// allowed to auto-grow to fit a loaded image - see internal/ui's
-	// maxWinW/maxWinH fields and resizeToImage (load.go). Zero means
-	// "nothing saved yet", the same sentinel MaxScanFiles above uses,
-	// since the viewer never accepts a zero cap itself.
+	// maxWinW/maxWinH fields and resizeToImage (load.go). Zero means "nothing
+	// saved yet", the same sentinel MaxScanFiles above uses, since the viewer
+	// never accepts a zero cap itself.
 	MaxWindowWidth  float32
 	MaxWindowHeight float32
 
-	// MaxImageCacheMB/MaxThumbCacheMB are the byte budgets, in megabytes,
+	// MaxImageCacheMB and MaxThumbCacheMB are the byte budgets, in megabytes,
 	// for the decoded-image and thumbnail caches (internal/imaging's
 	// ByteCache). MaxFileSizeMB is the ceiling on a file's encoded size,
-	// before any of it is decoded - see imaging.MaxEncodedBytes. All three
-	// use the same zero-means-unset sentinel MaxScanFiles above does; the
-	// megabyte unit rather than raw bytes is what the settings window shows
-	// and what the user typed, so it's what gets stored.
+	// before any of it is decoded - see imaging.MaxEncodedBytes. All three use
+	// the same zero-means-unset sentinel MaxScanFiles above does; the megabyte
+	// unit rather than raw bytes is what the settings window shows and what
+	// the user typed, so it's what gets stored.
 	MaxImageCacheMB int
 	MaxThumbCacheMB int
 	MaxFileSizeMB   int
 
 	WindowSize fyne.Size // zero Size means "nothing saved yet"
 
-	// WindowPosX/WindowPosY are the on-screen position (see
+	// WindowPosX and WindowPosY are the on-screen position (see
 	// internal/winpos, the only way to read one back at all) a manual move
 	// last left the window at; WindowPositionSet distinguishes "saved at
 	// (0,0)" from "never saved", which a zero-value check like WindowSize's
@@ -115,11 +115,11 @@ type State struct {
 	WindowPosX, WindowPosY int
 	WindowPositionSet      bool
 
-	// SettingsWindow/ExifWindow are where those two secondary windows
+	// SettingsWindow and ExifWindow are where those two secondary windows
 	// (internal/ui/settingswin, internal/ui/exifwin) were last left. Grouped
 	// into a struct where the main window's own geometry above is flat,
-	// because there are two of them and every further widgets.Singleton
-	// window that wants to be remembered adds another - see WindowGeometry.
+	// because there are two of them and every further widgets.Singleton window
+	// that wants to be remembered adds another - see WindowGeometry.
 	SettingsWindow WindowGeometry
 	ExifWindow     WindowGeometry
 

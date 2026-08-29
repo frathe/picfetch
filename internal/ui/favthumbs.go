@@ -2,6 +2,7 @@
 // preview cache (internal/favthumbs): the "Cache favorite previews on disk"
 // preference the settings window binds to, and the background pass the
 // favorites feature asks for whenever a favorite's file list changes.
+
 package ui
 
 import (
@@ -15,9 +16,9 @@ import (
 	"github.com/frathe/picfetch/internal/ui/grid"
 )
 
-// FavoritePreviewCache/SetFavoritePreviewCache are the settings window's
-// getter/setter pair for the preference, the same shape memlimits.go uses
-// for the three memory limits.
+// FavoritePreviewCache and SetFavoritePreviewCache are the settings
+// window's getter/setter pair for the preference, the same shape
+// memlimits.go uses for the three memory limits.
 func (v *viewer) FavoritePreviewCache() bool { return v.settings.favPreviewCache }
 
 // SetFavoritePreviewCache applies the preference, and switching it off also

@@ -1,6 +1,7 @@
 // Startup assembly loads persisted inputs once, constructs the complete
 // viewer, and only then restores geometry. Runtime side effects remain in
 // run.go and start after this sequence returns.
+
 package ui
 
 import (

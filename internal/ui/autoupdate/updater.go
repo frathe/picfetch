@@ -68,14 +68,14 @@ func New(app fyne.App, dir string, persist func(day string)) *Updater {
 	return &Updater{app: app, dir: dir, persist: persist}
 }
 
-// Dir/SetDir round-trip the staged-update directory. SetDir exists for
+// Dir and SetDir round-trip the staged-update directory. SetDir exists for
 // tests, and for internal/ui's startViewerRuntime, which fills in
 // DefaultDir only when nothing set one first - the seam that lets a test
 // viewer install a t.TempDir() ahead of it.
 func (u *Updater) Dir() string       { return u.dir }
 func (u *Updater) SetDir(dir string) { u.dir = dir }
 
-// Client/SetClient round-trip the GitHub Releases client. nil until the
+// Client and SetClient round-trip the GitHub Releases client. nil until the
 // opt-in is on and Start builds one, or a test assigns one directly
 // (httptest + a fake Verifier) to exercise Check/Download without hitting
 // GitHub for real.
@@ -116,7 +116,7 @@ func (u *Updater) Due(now time.Time) bool {
 // load are.
 func (u *Updater) Done() *completion.Signal { return &u.done }
 
-// LastCheckDay/SetLastCheckDay round-trip the local calendar day
+// LastCheckDay and SetLastCheckDay round-trip the local calendar day
 // (YYYY-MM-DD) of the last update check, or empty when none has run yet.
 func (u *Updater) LastCheckDay() string {
 	u.dayMu.Lock()

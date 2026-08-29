@@ -127,10 +127,6 @@ func (s *Spiral) Open() bool {
 	return s.win != nil
 }
 
-// Show raises the window if it is already open, or builds and shows a fresh
-// full-screen one. Mirrors widgets.Singleton.Show's raise behaviour - the
-// easter egg is a single window, and finding it a second time should bring
-// the one already up to the front rather than stack another on top of it.
 // ShowForGesture opens the spiral on the pattern the user's gesture asked
 // for, and is the window-drag gesture's way in (internal/wingesture, wired
 // up in internal/ui/gesture.go): swirling the window clockwise brings up the
@@ -160,6 +156,10 @@ func (s *Spiral) ShowForGesture(clockwise bool) {
 	s.Show()
 }
 
+// Show raises the window if it is already open, or builds and shows a fresh
+// full-screen one. Mirrors widgets.Singleton.Show's raise behaviour - the
+// easter egg is a single window, and finding it a second time should bring
+// the one already up to the front rather than stack another on top of it.
 func (s *Spiral) Show() {
 	if s.win != nil {
 		s.win.Show()
