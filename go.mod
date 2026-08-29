@@ -9,7 +9,7 @@ require (
 	github.com/fyne-io/oksvg v0.2.0
 	github.com/gen2brain/avif v0.6.0
 	github.com/gen2brain/heic v0.7.1
-	github.com/sigstore/sigstore v1.10.8
+	github.com/sigstore/sigstore v1.10.9
 	github.com/sigstore/sigstore-go v1.3.0
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/theupdateframework/go-tuf/v2 v2.4.2
@@ -111,8 +111,8 @@ require (
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260523011958-0a33c5d7ca68 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260727163830-6c54dddc4772 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260720155508-bb71a54f79dc // indirect
 	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
