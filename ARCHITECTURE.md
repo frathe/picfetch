@@ -113,6 +113,7 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | `gif.go` | Animated GIF compositing, `probeGIF`. |
 | `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. |
 | `dhash.go` | `DifferenceHash` / `Hamming` / `DuplicateGroups` for grid hide-duplicates. |
+| `jpegseg.go` | Unexported JPEG header-segment walker (`walkJPEGSegments`) used by `exif.go` and `jpegexif.go`. Stops at SOS; does not walk entropy-coded scans (`jpegLength` in `raw.go`) or copy/strip (`stripJPEGSegments` in `jpegexif.go`). |
 | `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`. |
 | `save.go` | `SaveRotated`, `Export`, `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. |
 

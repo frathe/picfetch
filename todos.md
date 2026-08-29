@@ -10,24 +10,15 @@
 
 #### Internal
 
+- JPEG header-segment walk: `walkJPEGSegments` in `internal/imaging/jpegseg.go`
+  is the one SOI-to-SOS marker loop; `jpegEXIFOrientation`, `jpegMetadata`,
+  `jpegMetadataSegments`, and `jpegHasRemovableMetadata` keep only their
+  per-segment bodies. `stripJPEGSegments` and `jpegLength` stay separate —
+  they copy/error and walk entropy-coded scans, respectively.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Qodana: the JPEG segment walk is copy-pasted four times
-
-`internal/imaging/exif.go:39` (`jpegEXIFOrientation`), `exif.go:238`
-(`jpegMetadata`), `internal/imaging/jpegexif.go:35`, and `jpegexif.go:117`
-each carry their own copy of the same marker-skipping state machine: the
-`data[pos] != 0xFF` bail, the no-payload marker set
-(`0xD8 || 0x01 || 0xD0..0xD9`), the `0xDA` start-of-scan stop, and the
-`segLen < 2 || pos+2+segLen > len(data)` bounds check. Only the body that
-runs per segment differs. This is the one duplication finding with a real
-correctness cost — a fix to the bounds check or the marker set in one copy
-silently leaves the other three wrong. Extract one iterator, something like
-`forEachJPEGSegment(data []byte, fn func(marker byte, payload []byte) bool)`,
-and reduce all four to their per-segment body. 4 of the 90 `DuplicatedCode`
-hits, and the highest value in the report.
 
 ### Qodana: settingswin's numeric entries are five copies of one block
 
