@@ -46,6 +46,10 @@ func RotateSteps(img image.Image, steps int) image.Image {
 	}
 }
 
+// flipH keeps a direct pixel loop because a shared coordinate callback or
+// transform branch would add work to every pixel in this hot path.
+//
+//goland:noinspection DuplicatedCode
 func flipH(src image.Image) image.Image {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -60,6 +64,10 @@ func flipH(src image.Image) image.Image {
 	return out
 }
 
+// flipV keeps a direct pixel loop because a shared coordinate callback or
+// transform branch would add work to every pixel in this hot path.
+//
+//goland:noinspection DuplicatedCode
 func flipV(src image.Image) image.Image {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -89,7 +97,10 @@ func rotate180(src image.Image) image.Image {
 }
 
 // rotate90CW rotates the image 90 degrees clockwise, swapping width and
-// height.
+// height. It keeps a direct pixel loop because a shared coordinate callback
+// or transform branch would add work to every pixel in this hot path.
+//
+//goland:noinspection DuplicatedCode
 func rotate90CW(src image.Image) image.Image {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
@@ -105,7 +116,11 @@ func rotate90CW(src image.Image) image.Image {
 }
 
 // rotate270CW rotates the image 270 degrees clockwise (90 counterclockwise),
-// swapping width and height.
+// swapping width and height. It keeps a direct pixel loop because a shared
+// coordinate callback or transform branch would add work to every pixel in
+// this hot path.
+//
+//goland:noinspection DuplicatedCode
 func rotate270CW(src image.Image) image.Image {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
