@@ -49,4 +49,4 @@ include:
 exclude:
   - name: DuplicatedCode
     paths:
-      - "**/*_test.go"
+      - "**_test.go"
