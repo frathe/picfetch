@@ -29,49 +29,17 @@ func readEXIFOrientation(data []byte) int {
 // itself, split out so TIFF-container RAW files can use IFD0's orientation
 // tag without pretending to be a JPEG.
 func jpegEXIFOrientation(data []byte) int {
-	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
-		return 1
-	}
-
-	pos := 2
-
-	for pos+4 <= len(data) {
-		if data[pos] != 0xFF {
-			break
-		}
-
-		marker := data[pos+1]
-
-		// Markers with no payload: SOI (already consumed), restart markers,
-		// and TEM. Skip straight past them.
-		if marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9) {
-			pos += 2
-			continue
-		}
-
-		if marker == 0xDA { // start of scan: header segments are over
-			break
-		}
-
-		segLen := int(data[pos+2])<<8 | int(data[pos+3])
-
-		if segLen < 2 || pos+2+segLen > len(data) {
-			break
-		}
-
-		segStart := pos + 4
-		segEnd := pos + 2 + segLen
-
-		if marker == 0xE1 { // APP1
-			if o := parseExifOrientation(data[segStart:segEnd]); o != 0 {
-				return o
+	found := 1
+	walkJPEGSegments(data, func(marker byte, payload []byte) bool {
+		if marker == 0xE1 {
+			if o := parseExifOrientation(payload); o != 0 {
+				found = o
+				return false
 			}
 		}
-
-		pos = segEnd
-	}
-
-	return 1
+		return true
+	})
+	return found
 }
 
 func tiffIFD0Orientation(data []byte) int {
@@ -228,50 +196,20 @@ func ReadMetadata(data []byte) Metadata {
 }
 
 func jpegMetadata(data []byte) Metadata {
-	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
-		return Metadata{}
-	}
-
-	pos := 2
-
-	for pos+4 <= len(data) {
-		if data[pos] != 0xFF {
-			break
+	var found Metadata
+	walkJPEGSegments(data, func(marker byte, payload []byte) bool {
+		if marker != 0xE1 {
+			return true
 		}
-
-		marker := data[pos+1]
-
-		if marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9) {
-			pos += 2
-			continue
-		}
-
-		if marker == 0xDA {
-			break
-		}
-
-		segLen := int(data[pos+2])<<8 | int(data[pos+3])
-
-		if segLen < 2 || pos+2+segLen > len(data) {
-			break
-		}
-
-		segStart := pos + 4
-		segEnd := pos + 2 + segLen
-
-		if marker == 0xE1 {
-			seg := data[segStart:segEnd]
-			if len(seg) >= 8 && string(seg[:6]) == "Exif\x00\x00" {
-				if m := parseExifMetadata(seg[6:]); !m.Empty() {
-					return m
-				}
+		if len(payload) >= 8 && string(payload[:6]) == "Exif\x00\x00" {
+			if m := parseExifMetadata(payload[6:]); !m.Empty() {
+				found = m
+				return false
 			}
 		}
-
-		pos = segEnd
-	}
-
-	return Metadata{}
+		return true
+	})
+	return found
 }
 
 // isobmffMetadata reads Exif metadata out of an ISOBMFF-boxed file (HEIC or
