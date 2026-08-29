@@ -2,17 +2,24 @@
 # io.github.frathe.picfetch. vedantmgoyal9/winget-releaser requires at least
 # one version already in winget-pkgs; this job will fail until
 # https://github.com/microsoft/winget-pkgs/pull/425898 is merged.
+#
+# Triggered by the Release workflow completing, not on: release: GitHub does
+# not start new workflow runs from events created with GITHUB_TOKEN, and
+# release.yml publishes via action-gh-release with that default token. This
+# also keeps the job after assets are public.
 name: Publish to WinGet
 
 on:
-  release:
-    types: [released]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
 
 permissions:
   contents: read
 
 jobs:
   publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-slim
     steps:
       - uses: vedantmgoyal9/winget-releaser@v2
@@ -21,5 +28,7 @@ jobs:
           # Default regex is exe/msi/msix/appx and misses these portable zips.
           # Only Windows zip assets; not Linux tarballs or macOS zips.
           installers-regex: 'picfetch-windows-(amd64|arm64)\.zip$'
+          # workflow_run runs on the default branch; the tag lives here.
+          release-tag: ${{ github.event.workflow_run.head_branch }}
           # Classic PAT with public_repo (fine-grained PATs are not supported).
           token: ${{ secrets.WINGET_TOKEN }}
