@@ -10,11 +10,19 @@ import (
 // own coordinates, so transforms can be checked by looking up where a given
 // source pixel ended up.
 func markedImage(w, h int) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	return markedImageBounds(image.Rect(0, 0, w, h))
+}
 
-	for y := range h {
-		for x := range w {
-			img.Set(x, y, color.RGBA{R: uint8(x), G: uint8(y), B: 0, A: 255})
+func markedImageBounds(bounds image.Rectangle) *image.RGBA {
+	img := image.NewRGBA(bounds)
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			img.SetRGBA(x, y, color.RGBA{
+				R: uint8(x - bounds.Min.X),
+				G: uint8(y - bounds.Min.Y),
+				A: 255,
+			})
 		}
 	}
 
@@ -25,6 +33,45 @@ func at(t *testing.T, img image.Image, x, y int) (int, int) {
 	t.Helper()
 	c := img.At(x, y).(color.RGBA)
 	return int(c.R), int(c.G)
+}
+
+func TestOrientationTransformsNonZeroBounds(t *testing.T) {
+	sourceBounds := image.Rect(5, 7, 8, 9)
+	src := markedImageBounds(sourceBounds)
+	w, h := sourceBounds.Dx(), sourceBounds.Dy()
+
+	tests := []struct {
+		name       string
+		transform  func(image.Image) image.Image
+		wantBounds image.Rectangle
+		dest       func(x, y int) (int, int)
+	}{
+		{"flip horizontal", flipH, image.Rect(0, 0, w, h), func(x, y int) (int, int) { return w - 1 - x, y }},
+		{"flip vertical", flipV, image.Rect(0, 0, w, h), func(x, y int) (int, int) { return x, h - 1 - y }},
+		{"rotate 180", rotate180, image.Rect(0, 0, w, h), func(x, y int) (int, int) { return w - 1 - x, h - 1 - y }},
+		{"rotate 90 clockwise", rotate90CW, image.Rect(0, 0, h, w), func(x, y int) (int, int) { return h - 1 - y, x }},
+		{"rotate 270 clockwise", rotate270CW, image.Rect(0, 0, h, w), func(x, y int) (int, int) { return y, w - 1 - x }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.transform(src)
+			if got.Bounds() != test.wantBounds {
+				t.Fatalf("bounds = %v, want %v", got.Bounds(), test.wantBounds)
+			}
+
+			for y := range h {
+				for x := range w {
+					destX, destY := test.dest(x, y)
+					gotX, gotY := at(t, got, destX, destY)
+					if gotX != x || gotY != y {
+						t.Errorf("source (%d,%d): pixel at (%d,%d) = (%d,%d), want (%d,%d)",
+							x, y, destX, destY, gotX, gotY, x, y)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestApplyOrientation(t *testing.T) {
