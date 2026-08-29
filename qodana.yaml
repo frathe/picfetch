@@ -42,11 +42,13 @@ profile:
 linter: jetbrains/qodana-go:2026.2
 include:
   - name: DuplicatedCode
-# Every DuplicatedCode fragment in this repository lives in a _test.go file:
-# shared table-test scaffolding that reads better repeated than extracted.
-# Production duplication is still reported. Two glob dialects
-# ("**/*_test.go", then "**_test.go") were tried first and did not take, so
-# this lists the files explicitly. See
+# Every DuplicatedCode fragment this run writes to the SARIF lives in a
+# _test.go file: shared table-test scaffolding that reads better repeated
+# than extracted. The only production duplication is the orientation pixel
+# loops in internal/imaging/orientation.go, which carry their own
+# source-local //goland:noinspection DuplicatedCode suppressions. Two glob
+# dialects ("**/*_test.go", then "**_test.go") were tried first and did not
+# take, so this lists the files explicitly. See
 # finished_refactorings/2026-08-29-qodana-duplication-close.md.
 exclude:
   - name: DuplicatedCode
