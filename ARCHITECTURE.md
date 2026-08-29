@@ -385,6 +385,7 @@ see `AGENTS.md`.
 - "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
 - "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate` (check/download policy, staged-update lifecycle, What's-New cache) + `internal/ui/autoupdate.go` (`maybeStartUpdateCheck` / `maybeShowWhatsNew`) + `help/whatsnew.go` (the window). Off by default (`preferences.CheckForUpdates`). Apply is OnStopped, not a relaunch. GitHub TUF bootstrap expiry: `tufroot.go`.
 - "How are GitHub release notes written?" → `todos.md` `## Done` + `scripts/releasenotes` + `make release` + `.github/workflows/release.yml` `body_path`.
+- "How is a WinGet publish gated after Release?" → `.github/workflows/winget.yml` + `scripts/wingettag` (vX.Y.Z allowlist; `workflow_run` must be `release.yml` on a published tag).
 - "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
 - "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.

@@ -1,0 +1,71 @@
+# Publishes each GitHub release to microsoft/winget-pkgs as
+# io.github.frathe.picfetch. vedantmgoyal9/winget-releaser requires at least
+# one version already in winget-pkgs; this job will fail until
+# https://github.com/microsoft/winget-pkgs/pull/425898 is merged.
+#
+# Triggered by the Release workflow completing, not on: release: GitHub does
+# not start new workflow runs from events created with GITHUB_TOKEN, and
+# release.yml publishes via action-gh-release with that default token. This
+# also keeps the job after assets are public.
+#
+# workflow_run matches by display name, so a same-repo workflow that also
+# uses name: Release would otherwise fire this job (default branch, secrets)
+# without a real v* GitHub release. Gate on the workflow file path, a push
+# event, a vX.Y.Z tag allowlist (scripts/wingettag.Pattern), and a published
+# release before handing the tag to winget-releaser, which interpolates
+# release-tag into inline pwsh.
+name: Publish to WinGet
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.path == '.github/workflows/release.yml' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-slim
+    steps:
+      - name: Allowlist the triggering tag
+        id: tag
+        shell: bash
+        env:
+          CANDIDATE: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -eu
+          # CANDIDATE is an env var, not interpolated into this script, so a
+          # crafted ref cannot break out of the shell. [[ =~ ]] applies ^$ to
+          # the whole value (grep -Eq is line-oriented). The regex is
+          # scripts/wingettag.Pattern.
+          if [[ ! "$CANDIDATE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "refusing ref that is not a vX.Y.Z tag" >&2
+            exit 1
+          fi
+          printf 'tag=%s\n' "$CANDIDATE" >> "$GITHUB_OUTPUT"
+
+      - name: Require a published GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -eu
+          name=$(gh release view "$TAG" --json tagName --jq .tagName)
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft)
+          if [ "$name" != "$TAG" ] || [ "$draft" != "false" ]; then
+            echo "refusing unpublished or mismatched GitHub release" >&2
+            exit 1
+          fi
+
+      - uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: io.github.frathe.picfetch
+          # Default regex is exe/msi/msix/appx and misses these portable zips.
+          # Only Windows zip assets; not Linux tarballs or macOS zips.
+          installers-regex: 'picfetch-windows-(amd64|arm64)\.zip$'
+          release-tag: ${{ steps.tag.outputs.tag }}
+          # Classic PAT with public_repo (fine-grained PATs are not supported).
+          token: ${{ secrets.WINGET_TOKEN }}
