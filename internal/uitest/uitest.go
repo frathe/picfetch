@@ -258,6 +258,47 @@ func EncodeAnimatedGIF(t *testing.T, w, h int, colors []color.Color, delays []in
 	return buf.Bytes()
 }
 
+// wrapAPP1 inserts a TIFF payload as an Exif APP1 segment immediately
+// after the JPEG SOI marker.
+func wrapAPP1(data, tiff []byte) []byte {
+	seg := append([]byte("Exif\x00\x00"), tiff...)
+	length := len(seg) + 2
+	app1 := append([]byte{0xFF, 0xE1, byte(length >> 8), byte(length)}, seg...)
+
+	out := append([]byte{}, data[:2]...)
+	out = append(out, app1...)
+	out = append(out, data[2:]...)
+
+	return out
+}
+
+const tiffHeaderSize = 8
+
+type littleEndianTIFF struct {
+	bytes.Buffer
+}
+
+func newLittleEndianTIFF() *littleEndianTIFF {
+	buf := new(littleEndianTIFF)
+	_, _ = buf.WriteString("II")
+	buf.u16(0x002A)
+	buf.u32(tiffHeaderSize)
+
+	return buf
+}
+
+func (b *littleEndianTIFF) u16(v uint16) {
+	var data [2]byte
+	binary.LittleEndian.PutUint16(data[:], v)
+	_, _ = b.Write(data[:])
+}
+
+func (b *littleEndianTIFF) u32(v uint32) {
+	var data [4]byte
+	binary.LittleEndian.PutUint32(data[:], v)
+	_, _ = b.Write(data[:])
+}
+
 // CaptureDateJPEG builds a minimal encoded JPEG carrying a single Exif
 // DateTime tag (0x0132) set to raw ("YYYY:MM:DD HH:MM:SS") - just enough for
 // imaging.CaptureDate, which the capture-date sort mode relies on, to read a
@@ -269,39 +310,23 @@ func CaptureDateJPEG(t *testing.T, w, h int, raw string) []byte {
 	dateBytes := append([]byte(raw), 0) // NUL-terminated ASCII
 
 	const (
-		headerSize   = 8 // "II" + magic(2) + IFD0 offset(4)
 		ifd0EntryCnt = 1
 		ifd0Size     = 2 + ifd0EntryCnt*12 + 4
 	)
-	valueOffset := uint32(headerSize + ifd0Size)
+	valueOffset := uint32(tiffHeaderSize + ifd0Size)
 
-	le := binary.LittleEndian
-	u16 := func(v uint16) []byte { b := make([]byte, 2); le.PutUint16(b, v); return b }
-	u32 := func(v uint32) []byte { b := make([]byte, 4); le.PutUint32(b, v); return b }
+	tiff := newLittleEndianTIFF()
 
-	var tiff bytes.Buffer
-	tiff.WriteString("II")
-	tiff.Write(u16(0x002A))
-	tiff.Write(u32(headerSize))
+	tiff.u16(ifd0EntryCnt)
+	tiff.u16(0x0132) // DateTime
+	tiff.u16(2)      // ASCII
+	tiff.u32(uint32(len(dateBytes)))
+	tiff.u32(valueOffset)
+	tiff.u32(0) // next IFD offset
 
-	tiff.Write(u16(ifd0EntryCnt))
-	tiff.Write(u16(0x0132)) // DateTime
-	tiff.Write(u16(2))      // ASCII
-	tiff.Write(u32(uint32(len(dateBytes))))
-	tiff.Write(u32(valueOffset))
-	tiff.Write(u32(0)) // next IFD offset
+	_, _ = tiff.Write(dateBytes)
 
-	tiff.Write(dateBytes)
-
-	seg := append([]byte("Exif\x00\x00"), tiff.Bytes()...)
-	length := len(seg) + 2
-	app1 := append([]byte{0xFF, 0xE1, byte(length >> 8), byte(length)}, seg...)
-
-	out := append([]byte{}, data[:2]...)
-	out = append(out, app1...)
-	out = append(out, data[2:]...)
-
-	return out
+	return wrapAPP1(data, tiff.Bytes())
 }
 
 // RAWPreview is the options EncodeRAWPreview uses to wrap a JPEG in a
@@ -360,9 +385,8 @@ func EncodeRAWPreview(t *testing.T, p RAWPreview) []byte {
 		addASCII(0x0132, p.DateTime)
 	}
 
-	const headerSize = 8
 	ifdSize := 2 + 12*len(entries) + 4 + 24 // two more entries for 0x0201/0x0202
-	valuePos := uint32(headerSize + ifdSize)
+	valuePos := uint32(tiffHeaderSize + ifdSize)
 
 	var valueArea []byte
 	place := func(b []byte) uint32 {
@@ -380,30 +404,22 @@ func EncodeRAWPreview(t *testing.T, p RAWPreview) []byte {
 	addInline(0x0201, 4, 1, jpegPos)                // JPEGInterchangeFormat
 	addInline(0x0202, 4, 1, uint32(len(jpegBytes))) // JPEGInterchangeFormatLength
 
-	le := binary.LittleEndian
-	u16 := func(v uint16) []byte { b := make([]byte, 2); le.PutUint16(b, v); return b }
-	u32 := func(v uint32) []byte { b := make([]byte, 4); le.PutUint32(b, v); return b }
+	buf := newLittleEndianTIFF()
 
-	// bytes.Buffer.Write/WriteString never return a non-nil error, so every
-	// result below is ignored deliberately.
-	buf := new(bytes.Buffer)
-	_, _ = buf.WriteString("II")
-	_, _ = buf.Write(u16(0x002A))
-	_, _ = buf.Write(u32(headerSize))
-
-	_, _ = buf.Write(u16(uint16(len(entries))))
+	buf.u16(uint16(len(entries)))
 	for _, e := range entries {
-		_, _ = buf.Write(u16(e.tag))
-		_, _ = buf.Write(u16(e.typ))
-		_, _ = buf.Write(u32(e.count))
+		buf.u16(e.tag)
+		buf.u16(e.typ)
+		buf.u32(e.count)
 		if e.typ == 3 && e.extra == nil { // SHORT inline
-			_, _ = buf.Write(u16(uint16(e.value)))
-			_, _ = buf.Write(u16(0))
+			buf.u16(uint16(e.value))
+			buf.u16(0)
 		} else {
-			_, _ = buf.Write(u32(e.value))
+			buf.u32(e.value)
 		}
 	}
-	_, _ = buf.Write(u32(0)) // next IFD
+	buf.u32(0) // next IFD
+	// bytes.Buffer.Write never returns a non-nil error, so results below are ignored deliberately.
 	_, _ = buf.Write(valueArea)
 	_, _ = buf.Write(jpegBytes)
 
@@ -431,17 +447,12 @@ func GPSJPEG(t *testing.T, w, h int, lat, lon float64) []byte {
 	data := EncodeJPEG(t, w, h, color.White)
 
 	const (
-		headerSize  = 8 // "II" + magic(2) + IFD0 offset(4)
 		ifd0Size    = 2 + 1*12 + 4
 		gpsEntryCnt = 4
 		gpsSize     = 2 + gpsEntryCnt*12 + 4
 	)
-	gpsOffset := uint32(headerSize + ifd0Size)
+	gpsOffset := uint32(tiffHeaderSize + ifd0Size)
 	valueOffset := gpsOffset + gpsSize
-
-	le := binary.LittleEndian
-	u16 := func(v uint16) []byte { b := make([]byte, 2); le.PutUint16(b, v); return b }
-	u32 := func(v uint32) []byte { b := make([]byte, 4); le.PutUint32(b, v); return b }
 
 	// Exif carries the hemisphere in its own tag, so the coordinate itself
 	// is written unsigned.
@@ -455,54 +466,43 @@ func GPSJPEG(t *testing.T, w, h int, lat, lon float64) []byte {
 		return b
 	}
 
-	buf := new(bytes.Buffer)
-	buf.WriteString("II")
-	buf.Write(u16(0x002A))
-	buf.Write(u32(headerSize))
+	buf := newLittleEndianTIFF()
 
-	buf.Write(u16(1))
-	buf.Write(u16(0x8825)) // GPSIFDPointer
-	buf.Write(u16(4))      // LONG
-	buf.Write(u32(1))
-	buf.Write(u32(gpsOffset))
-	buf.Write(u32(0)) // next IFD offset
+	buf.u16(1)
+	buf.u16(0x8825) // GPSIFDPointer
+	buf.u16(4)      // LONG
+	buf.u32(1)
+	buf.u32(gpsOffset)
+	buf.u32(0) // next IFD offset
 
-	buf.Write(u16(gpsEntryCnt))
+	buf.u16(gpsEntryCnt)
 
-	buf.Write(u16(0x0001)) // GPSLatitudeRef
-	buf.Write(u16(2))      // ASCII
-	buf.Write(u32(2))
-	buf.Write(ref(lat, "N", "S"))
+	buf.u16(0x0001) // GPSLatitudeRef
+	buf.u16(2)      // ASCII
+	buf.u32(2)
+	_, _ = buf.Write(ref(lat, "N", "S"))
 
-	buf.Write(u16(0x0002)) // GPSLatitude
-	buf.Write(u16(5))      // RATIONAL
-	buf.Write(u32(3))
-	buf.Write(u32(valueOffset))
+	buf.u16(0x0002) // GPSLatitude
+	buf.u16(5)      // RATIONAL
+	buf.u32(3)
+	buf.u32(valueOffset)
 
-	buf.Write(u16(0x0003)) // GPSLongitudeRef
-	buf.Write(u16(2))
-	buf.Write(u32(2))
-	buf.Write(ref(lon, "E", "W"))
+	buf.u16(0x0003) // GPSLongitudeRef
+	buf.u16(2)
+	buf.u32(2)
+	_, _ = buf.Write(ref(lon, "E", "W"))
 
-	buf.Write(u16(0x0004)) // GPSLongitude
-	buf.Write(u16(5))
-	buf.Write(u32(3))
-	buf.Write(u32(valueOffset + 24)) // three rationals past the latitude
+	buf.u16(0x0004) // GPSLongitude
+	buf.u16(5)
+	buf.u32(3)
+	buf.u32(valueOffset + 24) // three rationals past the latitude
 
-	buf.Write(u32(0)) // next IFD offset
+	buf.u32(0) // next IFD offset
 
-	buf.Write(dmsRationals(lat))
-	buf.Write(dmsRationals(lon))
+	_, _ = buf.Write(dmsRationals(lat))
+	_, _ = buf.Write(dmsRationals(lon))
 
-	seg := append([]byte("Exif\x00\x00"), buf.Bytes()...)
-	length := len(seg) + 2
-	app1 := append([]byte{0xFF, 0xE1, byte(length >> 8), byte(length)}, seg...)
-
-	out := append([]byte{}, data[:2]...)
-	out = append(out, app1...)
-	out = append(out, data[2:]...)
-
-	return out
+	return wrapAPP1(data, buf.Bytes())
 }
 
 // dmsRationals encodes the magnitude of a decimal-degree coordinate as the

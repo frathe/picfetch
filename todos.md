@@ -10,6 +10,12 @@
 
 #### Internal
 
+- Test image fixture duplication: `wrapAPP1` now owns Exif APP1 framing,
+  `littleEndianTIFF` shares TIFF header and integer emission across the
+  capture-date, RAW-preview, and GPS fixtures, and imaging's oversized-PNG
+  test reuses `uitest.TruncatedPNGHeader`; byte-level tests lock both helper
+  formats.
+
 - Orientation transforms: the five direct pixel loops stay separate to avoid
   callback dispatch or transform branching in the per-pixel hot path. The
   four reported `DuplicatedCode` copies carry source-local suppressions and
@@ -31,14 +37,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### Qodana: uitest.go wraps an APP1 segment twice
-
-`internal/uitest/uitest.go:296` and `:497` both end with the same six lines
-that build `Exif\x00\x00` + TIFF, prepend the `0xFF 0xE1` length header, and
-splice the result in after `data[:2]`. A `wrapAPP1(data, tiff []byte) []byte`
-helper covers both. `:458` and `:547` are flagged as part of the same
-clusters. 4 `DuplicatedCode` hits.
 
 ### Qodana: 19 doc comments don't start with the element they document
 

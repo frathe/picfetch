@@ -3,10 +3,8 @@ package imaging
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"image"
 	"image/color"
 	"image/gif"
@@ -25,6 +23,8 @@ import (
 	"github.com/gen2brain/avif"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // TestMain registers the fyne test app so storage.NewFileURI's "file" scheme
@@ -538,7 +538,7 @@ func TestLoadImage(t *testing.T) {
 	})
 
 	t.Run("rejects an absurd header-declared size without a full decode", func(t *testing.T) {
-		path := writeTempFile(t, "bomb.png", truncatedPNGHeader(t, 60000, 60000))
+		path := writeTempFile(t, "bomb.png", uitest.TruncatedPNGHeader(t, 60000, 60000))
 
 		_, err := LoadImage(storage.NewFileURI(path), DefaultImgCacheBytes)
 		if err == nil {
@@ -553,46 +553,6 @@ func TestLoadImage(t *testing.T) {
 			t.Fatalf("err = %v, want an *InvalidDimensionsError", err)
 		}
 	})
-}
-
-// truncatedPNGHeader builds a PNG file containing only the 8-byte signature
-// and a single, correctly-checksummed IHDR chunk declaring width x height -
-// no IDAT/IEND, so it's useless for a full decode but perfectly readable by
-// image.DecodeConfig, which for a non-paletted color type stops as soon as
-// IHDR has been parsed. Used to prove ReadAndProbe/LoadImage reject an
-// invalid declared size from the header alone, without needing the rest of
-// the file.
-func truncatedPNGHeader(t *testing.T, width, height uint32) []byte {
-	t.Helper()
-
-	// bytes.Buffer.Write/WriteString and hash.Hash.Write never return a
-	// non-nil error, so every result below is ignored deliberately.
-	var buf bytes.Buffer
-	_, _ = buf.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'})
-
-	data := make([]byte, 13)
-	binary.BigEndian.PutUint32(data[0:4], width)
-	binary.BigEndian.PutUint32(data[4:8], height)
-	data[8] = 8 // bit depth
-	data[9] = 6 // color type: truecolor with alpha
-	// data[10:13] (compression/filter/interlace methods) are left at 0.
-
-	var length [4]byte
-	binary.BigEndian.PutUint32(length[:], uint32(len(data)))
-	_, _ = buf.Write(length[:])
-
-	crc := crc32.NewIEEE()
-	_, _ = crc.Write([]byte("IHDR"))
-	_, _ = crc.Write(data)
-
-	_, _ = buf.WriteString("IHDR")
-	_, _ = buf.Write(data)
-
-	var crcBytes [4]byte
-	binary.BigEndian.PutUint32(crcBytes[:], crc.Sum32())
-	_, _ = buf.Write(crcBytes[:])
-
-	return buf.Bytes()
 }
 
 // halfRedHalfBlueJPEG encodes a w x h image with a red left half and a blue
