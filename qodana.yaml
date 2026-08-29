@@ -44,9 +44,40 @@ include:
   - name: DuplicatedCode
 # Every DuplicatedCode fragment in this repository lives in a _test.go file:
 # shared table-test scaffolding that reads better repeated than extracted.
-# Production duplication is still reported. See
+# Production duplication is still reported. Two glob dialects
+# ("**/*_test.go", then "**_test.go") were tried first and did not take, so
+# this lists the files explicitly. See
 # finished_refactorings/2026-08-29-qodana-duplication-close.md.
 exclude:
   - name: DuplicatedCode
     paths:
-      - "**_test.go"
+      - "internal/clipboard/clipboard_test.go"
+      - "internal/clipboard/copyfiles_test.go"
+      - "internal/favthumbs/store_test.go"
+      - "internal/favthumbs/sweep_test.go"
+      - "internal/favthumbs/sync_test.go"
+      - "internal/filepicker/filepicker_test.go"
+      - "internal/filescan/filescan_test.go"
+      - "internal/imaging/gif_test.go"
+      - "internal/imaging/loader_test.go"
+      - "internal/imaging/orientation_test.go"
+      - "internal/imaging/raw_test.go"
+      - "internal/imaging/save_test.go"
+      - "internal/ui/autoupdate_test.go"
+      - "internal/ui/drop_test.go"
+      - "internal/ui/exifwin/exifwin_test.go"
+      - "internal/ui/favorites/confirm_test.go"
+      - "internal/ui/favorites/favorites_test.go"
+      - "internal/ui/favthumbs_test.go"
+      - "internal/ui/filestate_test.go"
+      - "internal/ui/grid/dupes_test.go"
+      - "internal/ui/grid_test.go"
+      - "internal/ui/imgcache_test.go"
+      - "internal/ui/menu_test.go"
+      - "internal/ui/slideshow_test.go"
+      - "internal/ui/step_test.go"
+      - "internal/update/apply_test.go"
+      - "internal/update/attest_test.go"
+      - "internal/update/extract_test.go"
+      - "internal/update/tufroot_repo_test.go"
+      - "internal/update/tufroot_test.go"
