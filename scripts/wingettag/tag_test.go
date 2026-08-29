@@ -1,6 +1,7 @@
 package wingettag
 
 import (
+	"errors"
 	"os/exec"
 	"testing"
 )
@@ -49,7 +50,7 @@ func TestPatternMatchesBashERE(t *testing.T) {
 		err := cmd.Run()
 		got := err == nil
 		if !got {
-			if _, ok := err.(*exec.ExitError); !ok {
+			if _, ok := errors.AsType[*exec.ExitError](err); !ok {
 				t.Fatalf("bash %q: %v", tc.tag, err)
 			}
 		}
