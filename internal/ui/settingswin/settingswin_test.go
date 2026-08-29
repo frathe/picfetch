@@ -590,3 +590,65 @@ func TestShow_WithoutRestoreGeometryUsesTheBuiltInSize(t *testing.T) {
 		t.Errorf("window width = %v, want the built-in %v", got, want)
 	}
 }
+
+// TestNewPositiveIntEntry pins the helper in isolation, before build switches
+// onto it. Invalid text is the mid-edit state (empty, garbage, zero, overflow)
+// and must not reach set — the same contract
+// TestMaxScanEntry_InvalidTextIsIgnored / TestMemoryEntries_InvalidTextIsIgnored
+// already make through the widgets.
+func TestNewPositiveIntEntry(t *testing.T) {
+	validate := func(string) error { return nil }
+
+	t.Run("seeds Text from get without calling set", func(t *testing.T) {
+		var calls []int
+		e := newPositiveIntEntry(func() int { return 42 }, func(n int) { calls = append(calls, n) }, 0, validate)
+		if got, want := e.Text, "42"; got != want {
+			t.Errorf("Text = %q, want %q", got, want)
+		}
+		if len(calls) != 0 {
+			t.Errorf("set called on seed: %v", calls)
+		}
+		if e.Validator == nil {
+			t.Error("Validator is nil, want the validate argument")
+		}
+	})
+
+	t.Run("valid change calls set", func(t *testing.T) {
+		var calls []int
+		e := newPositiveIntEntry(func() int { return 1 }, func(n int) { calls = append(calls, n) }, 0, validate)
+		e.SetText("100")
+		if len(calls) != 1 || calls[0] != 100 {
+			t.Errorf("set calls = %v, want [100]", calls)
+		}
+	})
+
+	t.Run("invalid text is ignored", func(t *testing.T) {
+		var calls []int
+		e := newPositiveIntEntry(func() int { return 1 }, func(n int) { calls = append(calls, n) }, 0, validate)
+		for _, text := range []string{"", "abc", "-1", "0", "99999999999999999999"} {
+			e.SetText(text)
+		}
+		if len(calls) != 0 {
+			t.Errorf("set calls = %v, want none for invalid input", calls)
+		}
+	})
+
+	t.Run("max 0 has no ceiling", func(t *testing.T) {
+		var calls []int
+		e := newPositiveIntEntry(func() int { return 1 }, func(n int) { calls = append(calls, n) }, 0, validate)
+		e.SetText("1048577")
+		if len(calls) != 1 || calls[0] != 1048577 {
+			t.Errorf("set calls = %v, want [1048577] (unbounded)", calls)
+		}
+	})
+
+	t.Run("maxMemoryMB is accepted, one over is ignored", func(t *testing.T) {
+		var calls []int
+		e := newPositiveIntEntry(func() int { return 1 }, func(n int) { calls = append(calls, n) }, maxMemoryMB, validate)
+		e.SetText("1048576")
+		e.SetText("1048577")
+		if len(calls) != 1 || calls[0] != maxMemoryMB {
+			t.Errorf("set calls = %v, want [%d] (the ceiling, not one over)", calls, maxMemoryMB)
+		}
+	})
+}

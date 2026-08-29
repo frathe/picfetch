@@ -159,6 +159,25 @@ func (w *Window) StopTracking() {
 	w.win.StopTracking()
 }
 
+// newPositiveIntEntry is the numeric form field used by every standing integer
+// preference except the picture-frame interval (that one is an int64-second
+// count that has to survive a Duration multiply). Text is seeded from get
+// without going through SetText, so opening the window does not round-trip the
+// current value back into the host. OnChanged ignores anything that isn't a
+// positive int, and when max > 0 also anything above that ceiling — the same
+// mid-edit "leave the last good value in the host" behaviour the six copies had.
+func newPositiveIntEntry(get func() int, set func(int), max int, validate fyne.StringValidator) *widget.Entry {
+	e := widget.NewEntry()
+	e.Validator = validate
+	e.Text = strconv.Itoa(get())
+	e.OnChanged = func(s string) {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 && (max <= 0 || n <= max) {
+			set(n)
+		}
+	}
+	return e
+}
+
 // build lays out every control, each one seeded from the host's current
 // value and wired to push a change straight back through it. Initial
 // seeding sets the widgets' fields directly rather than through their own
