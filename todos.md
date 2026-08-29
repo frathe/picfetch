@@ -10,6 +10,11 @@
 
 #### Internal
 
+- Orientation transforms: the five direct pixel loops stay separate to avoid
+  callback dispatch or transform branching in the per-pixel hot path. The
+  four reported `DuplicatedCode` copies carry source-local suppressions and
+  explanations; characterization tests cover offset source bounds.
+
 - JPEG header-segment walk: `walkJPEGSegments` in `internal/imaging/jpegseg.go`
   is the one SOI-to-SOS marker loop; `jpegEXIFOrientation`, `jpegMetadata`,
   `jpegMetadataSegments`, and `jpegHasRemovableMetadata` keep only their
@@ -26,19 +31,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-
-### Qodana: orientation.go's five transforms differ only by coordinate map
-
-`internal/imaging/orientation.go` — `flipH`, `flipV`, `rotate180`,
-`rotate90CW`, and `rotate270CW` are the identical bounds/alloc/nested-loop
-body with a different `out.Set(...)` destination. Reported at lines 50, 64,
-94, and 110. Worth collapsing, but check the cost first: the obvious shape
-(pass a `func(x, y, w, h int) (int, int)`) puts an indirect call in the
-per-pixel inner loop, which is exactly where this code cannot afford one.
-Prefer a form that keeps the mapping inlinable, or leave these alone and
-suppress — the duplication here is honest and stable, unlike the JPEG walk
-above. 4 `DuplicatedCode` hits.
 
 ### Qodana: uitest.go wraps an APP1 segment twice
 
@@ -162,21 +154,6 @@ trusting the CI number as a gate: `pr-mode: true` narrows what gets
 analysed, and with `upload-result: false` there is no SARIF artifact to
 check the run against without Qodana Cloud access. Flipping `upload-result`
 to `true` would at least make the CI report retrievable.
-
-## not implementing (waiting for upstream fixes)
-
-### Upgrade Fyne past 2.8.0 after its cache-clock regression is fixed
-
-Fyne 2.8.1 changed `internal/cache.expiringCache.setAlive` to extend entries
-from a cached timestamp that only advances when `cache.Clean` runs. Fyne's
-test driver does not run that frame-clean path continuously, so after the
-one-minute `ValidDuration`, newly constructed canvas-object associations are
-already expired. The next capture can then skip nested layout; PicFetch's
-first e2e golden leaves "Drop images here" at the top-left after the preceding
-race tests have run for a minute. `FYNE_CACHE=100ms go test -race -run
-'^(TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators|TestE2E_InitialLaunchShowsWelcome)$'
-./internal/ui` is a fast reproducer on 2.8.1 and passes on 2.8.0. Keep the
-direct dependency pinned until an upstream release fixes the cached clock.
 
 ## not deemed worth implementing (edge cases)
 
