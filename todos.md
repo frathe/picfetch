@@ -16,32 +16,17 @@
   per-segment bodies. `stripJPEGSegments` and `jpegLength` stay separate —
   they copy/error and walk entropy-coded scans, respectively.
 
+- Settings numeric entries: `newPositiveIntEntry` in
+  `internal/ui/settingswin/settingswin.go` is the one positive-int Entry
+  constructor; max-scan, max-width, max-height, image-cache, thumb-cache,
+  and max-file-size keep only their Host getter/setter (and the float32
+  wrap on window size). The picture-frame interval stays a ParseInt +
+  Duration path.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
 
-### Upgrade Fyne past 2.8.0 after its cache-clock regression is fixed
-
-Fyne 2.8.1 changed `internal/cache.expiringCache.setAlive` to extend entries
-from a cached timestamp that only advances when `cache.Clean` runs. Fyne's
-test driver does not run that frame-clean path continuously, so after the
-one-minute `ValidDuration`, newly constructed canvas-object associations are
-already expired. The next capture can then skip nested layout; PicFetch's
-first e2e golden leaves "Drop images here" at the top-left after the preceding
-race tests have run for a minute. `FYNE_CACHE=100ms go test -race -run
-'^(TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators|TestE2E_InitialLaunchShowsWelcome)$'
-./internal/ui` is a fast reproducer on 2.8.1 and passes on 2.8.0. Keep the
-direct dependency pinned until an upstream release fixes the cached clock.
-
-### Qodana: settingswin's numeric entries are five copies of one block
-
-`internal/ui/settingswin/settingswin.go:208,217,226,238,250` — the max-scan,
-max-width, max-height, image-cache, thumb-cache, and max-file-size entries
-are each the same six lines: `widget.NewEntry()`, `Validator = positiveInt`,
-`Text = strconv.Itoa(get())`, and an `OnChanged` that does
-`strconv.Atoi` + `n > 0` (+ `n <= maxMemoryMB` for the three memory ones)
-before calling the setter. One helper taking a getter, a setter, and an
-optional upper bound collapses all six. 5 `DuplicatedCode` hits.
 
 ### Qodana: orientation.go's five transforms differ only by coordinate map
 
@@ -177,6 +162,21 @@ trusting the CI number as a gate: `pr-mode: true` narrows what gets
 analysed, and with `upload-result: false` there is no SARIF artifact to
 check the run against without Qodana Cloud access. Flipping `upload-result`
 to `true` would at least make the CI report retrievable.
+
+## not implementing (waiting for upstream fixes)
+
+### Upgrade Fyne past 2.8.0 after its cache-clock regression is fixed
+
+Fyne 2.8.1 changed `internal/cache.expiringCache.setAlive` to extend entries
+from a cached timestamp that only advances when `cache.Clean` runs. Fyne's
+test driver does not run that frame-clean path continuously, so after the
+one-minute `ValidDuration`, newly constructed canvas-object associations are
+already expired. The next capture can then skip nested layout; PicFetch's
+first e2e golden leaves "Drop images here" at the top-left after the preceding
+race tests have run for a minute. `FYNE_CACHE=100ms go test -race -run
+'^(TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators|TestE2E_InitialLaunchShowsWelcome)$'
+./internal/ui` is a fast reproducer on 2.8.1 and passes on 2.8.0. Keep the
+direct dependency pinned until an upstream release fixes the cached clock.
 
 ## not deemed worth implementing (edge cases)
 
