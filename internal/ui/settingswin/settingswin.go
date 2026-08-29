@@ -212,68 +212,36 @@ func (w *Window) build() fyne.CanvasObject {
 		}
 	}
 
-	w.maxScanEntry = widget.NewEntry()
-	w.maxScanEntry.Validator = positiveInt
-	w.maxScanEntry.Text = strconv.Itoa(w.host.MaxScan())
-	w.maxScanEntry.OnChanged = func(s string) {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			w.host.SetMaxScan(n)
-		}
-	}
+	w.maxScanEntry = newPositiveIntEntry(w.host.MaxScan, w.host.SetMaxScan, 0, positiveInt)
 
 	maxScanItem := widget.NewFormItem(lang.L("Max files per folder scan"), w.maxScanEntry)
 	maxScanItem.HintText = lang.L("Caps how many images a single recursive folder scan will gather")
 
-	w.maxWidthEntry = widget.NewEntry()
-	w.maxWidthEntry.Validator = positiveInt
-	w.maxWidthEntry.Text = strconv.Itoa(int(w.host.MaxWindowWidth()))
-	w.maxWidthEntry.OnChanged = func(s string) {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			w.host.SetMaxWindowWidth(float32(n))
-		}
-	}
+	w.maxWidthEntry = newPositiveIntEntry(
+		func() int { return int(w.host.MaxWindowWidth()) },
+		func(n int) { w.host.SetMaxWindowWidth(float32(n)) },
+		0,
+		positiveInt,
+	)
 
-	w.maxHeightEntry = widget.NewEntry()
-	w.maxHeightEntry.Validator = positiveInt
-	w.maxHeightEntry.Text = strconv.Itoa(int(w.host.MaxWindowHeight()))
-	w.maxHeightEntry.OnChanged = func(s string) {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			w.host.SetMaxWindowHeight(float32(n))
-		}
-	}
+	w.maxHeightEntry = newPositiveIntEntry(
+		func() int { return int(w.host.MaxWindowHeight()) },
+		func(n int) { w.host.SetMaxWindowHeight(float32(n)) },
+		0,
+		positiveInt,
+	)
 
-	w.imgCacheEntry = widget.NewEntry()
-	w.imgCacheEntry.Validator = positiveInt
-	w.imgCacheEntry.Text = strconv.Itoa(w.host.MaxImageCacheMB())
-	w.imgCacheEntry.OnChanged = func(s string) {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= maxMemoryMB {
-			w.host.SetMaxImageCacheMB(n)
-		}
-	}
+	w.imgCacheEntry = newPositiveIntEntry(w.host.MaxImageCacheMB, w.host.SetMaxImageCacheMB, maxMemoryMB, positiveInt)
 
 	imgCacheItem := widget.NewFormItem(lang.L("Max image cache (MB)"), w.imgCacheEntry)
 	imgCacheItem.HintText = lang.L("Memory kept for recently viewed images")
 
-	w.thumbCacheEntry = widget.NewEntry()
-	w.thumbCacheEntry.Validator = positiveInt
-	w.thumbCacheEntry.Text = strconv.Itoa(w.host.MaxThumbCacheMB())
-	w.thumbCacheEntry.OnChanged = func(s string) {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= maxMemoryMB {
-			w.host.SetMaxThumbCacheMB(n)
-		}
-	}
+	w.thumbCacheEntry = newPositiveIntEntry(w.host.MaxThumbCacheMB, w.host.SetMaxThumbCacheMB, maxMemoryMB, positiveInt)
 
 	thumbCacheItem := widget.NewFormItem(lang.L("Max thumbnail cache (MB)"), w.thumbCacheEntry)
 	thumbCacheItem.HintText = lang.L("Memory kept for grid-view thumbnails")
 
-	w.maxFileSizeEntry = widget.NewEntry()
-	w.maxFileSizeEntry.Validator = positiveInt
-	w.maxFileSizeEntry.Text = strconv.Itoa(w.host.MaxFileSizeMB())
-	w.maxFileSizeEntry.OnChanged = func(s string) {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 && n <= maxMemoryMB {
-			w.host.SetMaxFileSizeMB(n)
-		}
-	}
+	w.maxFileSizeEntry = newPositiveIntEntry(w.host.MaxFileSizeMB, w.host.SetMaxFileSizeMB, maxMemoryMB, positiveInt)
 
 	maxFileSizeItem := widget.NewFormItem(lang.L("Max file size (MB)"), w.maxFileSizeEntry)
 	maxFileSizeItem.HintText = lang.L("Larger files are not opened at all")

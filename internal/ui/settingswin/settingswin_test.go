@@ -367,6 +367,24 @@ func TestMaxScanEntry_InvalidTextIsIgnored(t *testing.T) {
 	}
 }
 
+// TestMaxScanEntry_AcceptsAValueAboveMaxMemoryMB locks the unbounded path:
+// scan count is not a memory budget, so a value that the three memory
+// entries would reject must still reach SetMaxScan. Without this, wiring
+// maxScan through newPositiveIntEntry(..., maxMemoryMB, ...) would still
+// pass TestMaxScanEntry_ValidChangeCallsSetMaxScan (250000 < maxMemoryMB).
+func TestMaxScanEntry_AcceptsAValueAboveMaxMemoryMB(t *testing.T) {
+	host := &fakeHost{}
+	w := New(testApp, host)
+	w.Show()
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	w.maxScanEntry.SetText("1048577")
+
+	if len(host.maxScanCalls) != 1 || host.maxScanCalls[0] != 1048577 {
+		t.Errorf("SetMaxScan calls = %v, want one call with 1048577 (no memory ceiling on scan count)", host.maxScanCalls)
+	}
+}
+
 func TestMaxWidthEntry_ValidChangeCallsSetMaxWindowWidth(t *testing.T) {
 	host := &fakeHost{}
 	w := New(testApp, host)
@@ -433,6 +451,22 @@ func TestImgCacheEntry_ValidChangeCallsSetMaxImageCacheMB(t *testing.T) {
 
 	if len(host.imgCacheCalls) != 1 || host.imgCacheCalls[0] != 768 {
 		t.Errorf("SetMaxImageCacheMB calls = %v, want one call with 768", host.imgCacheCalls)
+	}
+}
+
+// TestImgCacheEntry_AcceptsMaxMemoryMB locks the inclusive ceiling the three
+// memory OnChanged blocks already had (`n <= maxMemoryMB`). The invalid-text
+// table only checks one-over (1048577).
+func TestImgCacheEntry_AcceptsMaxMemoryMB(t *testing.T) {
+	host := &fakeHost{}
+	w := New(testApp, host)
+	w.Show()
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	w.imgCacheEntry.SetText("1048576")
+
+	if len(host.imgCacheCalls) != 1 || host.imgCacheCalls[0] != maxMemoryMB {
+		t.Errorf("SetMaxImageCacheMB calls = %v, want one call with %d", host.imgCacheCalls, maxMemoryMB)
 	}
 }
 
