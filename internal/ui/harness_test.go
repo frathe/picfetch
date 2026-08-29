@@ -212,6 +212,16 @@ func drain(t *testing.T, v *viewer) {
 		waitFor(t, c.name, c.sig)
 	}
 
+	// Done names only the latest generation. A manual request can supersede
+	// an automatic worker while the older one is still unwinding before it
+	// reaches the serialized stage transaction, so drain the updater's full
+	// worker set as a second barrier.
+	updateCtx, cancelUpdate := context.WithTimeout(context.Background(), testTimeout)
+	defer cancelUpdate()
+	if err := v.updater.Settle(updateCtx); err != nil {
+		t.Fatal("timed out draining all update workers at cleanup")
+	}
+
 	settled := make(chan struct{})
 	go func() {
 		v.preloads.Wait()

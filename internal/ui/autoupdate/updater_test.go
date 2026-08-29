@@ -1,10 +1,22 @@
 package autoupdate
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +30,143 @@ type fakeVerifier struct{}
 
 func (fakeVerifier) Verify(context.Context, []byte, []byte, update.VerifyPolicy) error {
 	return nil
+}
+
+type failingVerifier struct{ err error }
+
+func (v failingVerifier) Verify(context.Context, []byte, []byte, update.VerifyPolicy) error {
+	return v.err
+}
+
+type blockingVerifier struct {
+	once    sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (v *blockingVerifier) Verify(context.Context, []byte, []byte, update.VerifyPolicy) error {
+	v.once.Do(func() { close(v.entered) })
+	<-v.release
+	return nil
+}
+
+func updaterAssetName(t *testing.T) string {
+	t.Helper()
+	name, ok := update.AssetName(runtime.GOOS, runtime.GOARCH)
+	if !ok {
+		t.Skipf("no update asset for %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+	return name
+}
+
+func updaterNativeArchive(t *testing.T, assetName string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	switch {
+	case strings.HasSuffix(assetName, ".tar.gz"):
+		gw := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(gw)
+		name := strings.TrimSuffix(assetName, ".tar.gz")
+		body := []byte("elf")
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(body))}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(body); err != nil {
+			t.Fatal(err)
+		}
+		if err := tw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := gw.Close(); err != nil {
+			t.Fatal(err)
+		}
+	case strings.Contains(assetName, "windows"):
+		zw := zip.NewWriter(&buf)
+		w, err := zw.Create("picfetch.exe")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("exe")); err != nil {
+			t.Fatal(err)
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatal(err)
+		}
+	case strings.Contains(assetName, "macos"):
+		zw := zip.NewWriter(&buf)
+		for name, body := range map[string]string{
+			"PicFetch.app/Contents/MacOS/picfetch": "macho",
+			"PicFetch.app/Contents/Info.plist":     "plist",
+		} {
+			w, err := zw.Create(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := w.Write([]byte(body)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatal(err)
+		}
+	default:
+		t.Fatalf("unsupported update asset %q", assetName)
+	}
+	return buf.Bytes()
+}
+
+func updaterReleaseServer(t *testing.T, version, assetName string, archive []byte, digest string, archiveCalls *int) *httptest.Server {
+	t.Helper()
+	var callsMu sync.Mutex
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/repos/frathe/picfetch/releases/latest":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tag_name": version,
+				"body":     "release notes",
+				"assets": []any{map[string]any{
+					"name":                 assetName,
+					"browser_download_url": srv.URL + "/" + assetName,
+					"digest":               "sha256:" + digest,
+				}},
+			})
+		case r.URL.Path == "/"+assetName:
+			if archiveCalls != nil {
+				callsMu.Lock()
+				(*archiveCalls)++
+				callsMu.Unlock()
+			}
+			_, _ = w.Write(archive)
+		case strings.Contains(r.URL.Path, "/attestations/"):
+			_, _ = w.Write([]byte(`{"attestations":[{"bundle":{"mediaType":"test"}}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func updaterClient(u *Updater, srv *httptest.Server, verifier update.Verifier, now time.Time) *update.Client {
+	return update.NewClient(update.Config{
+		BaseURL:  srv.URL,
+		HTTP:     srv.Client(),
+		Now:      func() time.Time { return now },
+		Verify:   verifier,
+		StageDir: u.Dir(),
+		GOOS:     runtime.GOOS,
+		GOARCH:   runtime.GOARCH,
+	})
+}
+
+func waitUpdater(t *testing.T, u *Updater) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := u.Settle(ctx); err != nil {
+		t.Fatal("timed out waiting for updater workers")
+	}
 }
 
 // --- Due / not-due -----------------------------------------------------
@@ -154,6 +303,27 @@ func TestUpdater_RemoveStaleStage_SameStagedVersionIsRemoved(t *testing.T) {
 
 	if _, err := update.LoadStage(dir); err == nil {
 		t.Error("a stage matching the current version must be removed too - Newer is strict")
+	}
+}
+
+func TestUpdater_RemoveStaleStage_DoesNotBlockActiveTransaction(t *testing.T) {
+	dir := t.TempDir()
+	if err := update.SaveStage(dir, update.Stage{Version: "v0.2.5", Notes: "stale"}); err != nil {
+		t.Fatal(err)
+	}
+	u := New(test.NewApp(), dir, nil)
+	u.SetCurrentVersion("0.2.6")
+
+	<-u.transaction
+	u.RemoveStaleStage()
+	if _, err := update.LoadStage(dir); err != nil {
+		t.Fatalf("busy cleanup should leave the worker-owned stage alone: %v", err)
+	}
+	u.transaction <- struct{}{}
+
+	u.RemoveStaleStage()
+	if _, err := update.LoadStage(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("idle cleanup should remove the stale stage, got: %v", err)
 	}
 }
 
@@ -382,5 +552,377 @@ func TestDefaultDir_EndsInPicfetchUpdates(t *testing.T) {
 	want := filepath.Join("picfetch", "updates")
 	if filepath.Base(filepath.Dir(got)) != "picfetch" || filepath.Base(got) != "updates" {
 		t.Errorf("DefaultDir() = %q, want it to end in %q", got, want)
+	}
+}
+
+// --- manual events / shared worker -----------------------------------------
+
+func TestUpdater_StartManual_CurrentEventAndSuccessfulCheckDay(t *testing.T) {
+	asset := updaterAssetName(t)
+	now := time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)
+	srv := updaterReleaseServer(t, "v0.2.5", asset, nil, strings.Repeat("0", 64), nil)
+	u := New(test.NewApp(), t.TempDir(), nil)
+	u.SetClient(updaterClient(u, srv, fakeVerifier{}, now))
+
+	var events []string
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Current:     func() { events = append(events, "current") },
+		Downloading: func(string) { events = append(events, "downloading") },
+		Ready:       func(update.Stage) { events = append(events, "ready") },
+		Failed:      func(error) { events = append(events, "failed") },
+	})
+	waitUpdater(t, u)
+
+	if want := []string{"current"}; !reflect.DeepEqual(events, want) {
+		t.Errorf("events = %v, want %v", events, want)
+	}
+	if got := u.LastCheckDay(); got != "2026-08-30" {
+		t.Errorf("LastCheckDay() = %q, want 2026-08-30", got)
+	}
+}
+
+func TestUpdater_StartManual_DownloadEventOrder(t *testing.T) {
+	asset := updaterAssetName(t)
+	archive := updaterNativeArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), nil)
+	u := New(test.NewApp(), t.TempDir(), nil)
+	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
+
+	var events []string
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Downloading: func(version string) { events = append(events, "downloading:"+version) },
+		Progress:    func(update.DownloadProgress) { events = append(events, "progress") },
+		Current:     func() { events = append(events, "current") },
+		Ready:       func(st update.Stage) { events = append(events, "ready:"+st.Version) },
+		Failed:      func(error) { events = append(events, "failed") },
+	})
+	waitUpdater(t, u)
+
+	if len(events) < 3 {
+		t.Fatalf("events = %v, want downloading, progress, ready", events)
+	}
+	if events[0] != "downloading:v0.2.6" || events[len(events)-1] != "ready:v0.2.6" {
+		t.Errorf("events = %v, want downloading first and ready last", events)
+	}
+	for _, event := range events[1 : len(events)-1] {
+		if event != "progress" {
+			t.Errorf("middle event = %q, want progress; all events %v", event, events)
+		}
+	}
+}
+
+func TestUpdater_StartManual_ReusesMatchingUsableStageAfterCheck(t *testing.T) {
+	asset := updaterAssetName(t)
+	archive := updaterNativeArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	archiveCalls := 0
+	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), &archiveCalls)
+	dir := t.TempDir()
+	u := New(test.NewApp(), dir, nil)
+	client := updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local))
+	rel, err := client.Check(context.Background(), "v0.2.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := client.Download(context.Background(), *rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	downloadsBeforeManual := archiveCalls
+	u.SetClient(client)
+
+	var got update.Stage
+	var downloading, failed bool
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Downloading: func(string) { downloading = true },
+		Ready:       func(st update.Stage) { got = st },
+		Failed:      func(error) { failed = true },
+	})
+	waitUpdater(t, u)
+
+	if got.Version != want.Version || got.BinaryPath != want.BinaryPath {
+		t.Errorf("Ready stage = %+v, want cached %+v", got, want)
+	}
+	if archiveCalls != downloadsBeforeManual || downloading || failed {
+		t.Errorf("archiveCalls=%d before=%d downloading=%v failed=%v, want reuse without download/failure", archiveCalls, downloadsBeforeManual, downloading, failed)
+	}
+}
+
+func TestUpdater_StartManual_MissingVerifierNeverReusesVerifiedStage(t *testing.T) {
+	asset := updaterAssetName(t)
+	archive := updaterNativeArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), nil)
+	u := New(test.NewApp(), t.TempDir(), nil)
+	client := updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local))
+	rel, err := client.Check(context.Background(), "v0.2.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Download(context.Background(), *rel); err != nil {
+		t.Fatal(err)
+	}
+	u.SetClient(nil)
+	wantErr := errors.New("verifier unavailable")
+	u.SetVerifierFactory(func() (update.Verifier, error) { return nil, wantErr })
+
+	var ready bool
+	var gotErr error
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Ready:  func(update.Stage) { ready = true },
+		Failed: func(err error) { gotErr = err },
+	})
+	waitUpdater(t, u)
+
+	if ready || !errors.Is(gotErr, wantErr) {
+		t.Errorf("ready=%v error=%v, want verifier failure and no Ready", ready, gotErr)
+	}
+}
+
+func TestUpdater_StartManual_UnverifiedMatchingStageNeverReady(t *testing.T) {
+	asset := updaterAssetName(t)
+	archive := updaterNativeArchive(t, asset)
+	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, strings.Repeat("f", 64), nil)
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "forged")
+	if err := os.WriteFile(bin, []byte("forged"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := update.SaveStage(dir, update.Stage{Version: "v0.2.6", BinaryPath: bin}); err != nil {
+		t.Fatal(err)
+	}
+	u := New(test.NewApp(), dir, nil)
+	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
+
+	var ready, failed bool
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Ready:  func(update.Stage) { ready = true },
+		Failed: func(error) { failed = true },
+	})
+	waitUpdater(t, u)
+	if ready || !failed {
+		t.Errorf("ready=%v failed=%v, want forged stage rejection followed by download failure", ready, failed)
+	}
+}
+
+func TestUpdater_StartManual_TamperedVerifiedStageIsRedownloaded(t *testing.T) {
+	asset := updaterAssetName(t)
+	archive := updaterNativeArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	archiveCalls := 0
+	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), &archiveCalls)
+	u := New(test.NewApp(), t.TempDir(), nil)
+	client := updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local))
+	rel, err := client.Check(context.Background(), "v0.2.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := client.Download(context.Background(), *rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(st.BinaryPath, []byte("tampered"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	downloadsBeforeManual := archiveCalls
+	u.SetClient(client)
+
+	var ready, failed bool
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Ready:  func(update.Stage) { ready = true },
+		Failed: func(error) { failed = true },
+	})
+	waitUpdater(t, u)
+	if !ready || failed || archiveCalls != downloadsBeforeManual+1 {
+		t.Errorf("ready=%v failed=%v archiveCalls=%d before=%d, want verified redownload", ready, failed, archiveCalls, downloadsBeforeManual)
+	}
+	loaded, err := update.LoadStage(u.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := update.ValidateStageForPlatform(loaded, runtime.GOOS, runtime.GOARCH); err != nil {
+		t.Fatalf("redownloaded stage = %v", err)
+	}
+}
+
+func TestUpdater_StartManual_CheckFailureDoesNotRecordDay(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "nope", http.StatusBadGateway)
+	}))
+	t.Cleanup(srv.Close)
+	u := New(test.NewApp(), t.TempDir(), nil)
+	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
+
+	var failures int
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Failed: func(error) { failures++ },
+	})
+	waitUpdater(t, u)
+
+	if failures != 1 {
+		t.Errorf("Failed calls = %d, want 1", failures)
+	}
+	if got := u.LastCheckDay(); got != "" {
+		t.Errorf("LastCheckDay() = %q after failed check, want empty", got)
+	}
+}
+
+func TestUpdater_StartManual_WrongDigestNeverReadyAndLeavesNoStage(t *testing.T) {
+	testManualVerificationFailure(t, fakeVerifier{}, strings.Repeat("f", 64))
+}
+
+func TestUpdater_StartManual_AttestationFailureNeverReadyAndLeavesNoStage(t *testing.T) {
+	wantErr := errors.New("attestation rejected")
+	testManualVerificationFailure(t, failingVerifier{err: wantErr}, "")
+}
+
+func testManualVerificationFailure(t *testing.T, verifier update.Verifier, digestOverride string) {
+	t.Helper()
+	asset := updaterAssetName(t)
+	archive := updaterNativeArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	digest := hex.EncodeToString(sum[:])
+	if digestOverride != "" {
+		digest = digestOverride
+	}
+	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, digest, nil)
+	u := New(test.NewApp(), t.TempDir(), nil)
+	u.SetClient(updaterClient(u, srv, verifier, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
+
+	var ready, failed bool
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Ready:  func(update.Stage) { ready = true },
+		Failed: func(error) { failed = true },
+	})
+	waitUpdater(t, u)
+
+	if ready || !failed {
+		t.Errorf("ready=%v failed=%v, want no Ready and one failure path", ready, failed)
+	}
+	if _, err := update.LoadStage(u.Dir()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("verification failure left a usable stage: %v", err)
+	}
+}
+
+func TestUpdater_StartManual_PreparesVerifierOnTrackedWorker(t *testing.T) {
+	u := New(test.NewApp(), t.TempDir(), nil)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	wantErr := errors.New("preparation failed")
+	u.SetVerifierFactory(func() (update.Verifier, error) {
+		close(started)
+		<-release
+		return nil, wantErr
+	})
+
+	var got error
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Failed: func(err error) { got = err },
+	})
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("verifier preparation never started")
+	}
+	if !u.Done().Begun() {
+		t.Fatal("manual verifier preparation is not tracked by Done")
+	}
+	close(release)
+	waitUpdater(t, u)
+	if !errors.Is(got, wantErr) {
+		t.Errorf("Failed error = %v, want %v", got, wantErr)
+	}
+}
+
+func TestUpdater_SettleWaitsForSupersededWorker(t *testing.T) {
+	asset := updaterAssetName(t)
+	srv := updaterReleaseServer(t, "v0.2.5", asset, nil, strings.Repeat("0", 64), nil)
+	u := New(test.NewApp(), t.TempDir(), nil)
+	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
+
+	staleEntered := make(chan struct{})
+	releaseStale := make(chan struct{})
+	var once sync.Once
+	u.StartManual(context.Background(), func() bool {
+		once.Do(func() { close(staleEntered) })
+		<-releaseStale
+		return true
+	}, "v0.2.5", Events{})
+	first := u.Done().Current()
+	select {
+	case <-staleEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first worker did not reach staleness check")
+	}
+
+	if err := u.Start(context.Background(), func() bool { return false }, "v0.2.5"); err != nil {
+		t.Fatal(err)
+	}
+	latest := u.Done().Current()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := latest.Wait(ctx); err != nil {
+		t.Fatal("latest worker did not finish")
+	}
+
+	settled := make(chan struct{})
+	go func() {
+		_ = u.Settle(context.Background())
+		close(settled)
+	}()
+	select {
+	case <-settled:
+		t.Fatal("Settle returned while superseded worker was still running")
+	default:
+	}
+	close(releaseStale)
+	if err := first.Wait(ctx); err != nil {
+		t.Fatal("superseded worker did not finish")
+	}
+	select {
+	case <-settled:
+	case <-ctx.Done():
+		t.Fatal("Settle did not return after all workers finished")
+	}
+}
+
+func TestUpdater_AutomaticAndManualShareCompleteTransaction(t *testing.T) {
+	asset := updaterAssetName(t)
+	archive := updaterNativeArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	archiveCalls := 0
+	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), &archiveCalls)
+	verifier := &blockingVerifier{entered: make(chan struct{}), release: make(chan struct{})}
+	u := New(test.NewApp(), t.TempDir(), nil)
+	u.SetClient(updaterClient(u, srv, verifier, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
+
+	if err := u.Start(context.Background(), func() bool { return false }, "v0.2.5"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-verifier.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("automatic request did not reach attestation verification")
+	}
+	if got := len(u.transaction); got != 0 {
+		t.Fatalf("transaction token available during verification (len=%d), want held", got)
+	}
+
+	var manualReady bool
+	u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+		Ready: func(update.Stage) { manualReady = true },
+	})
+	close(verifier.release)
+	waitUpdater(t, u)
+
+	if archiveCalls != 1 {
+		t.Errorf("archive downloads = %d, want one download followed by matching-stage reuse", archiveCalls)
+	}
+	if !manualReady {
+		t.Error("manual request did not report the stage written by the serialized automatic request")
+	}
+	if got := len(u.transaction); got != 1 {
+		t.Errorf("transaction token count after settle = %d, want 1", got)
 	}
 }

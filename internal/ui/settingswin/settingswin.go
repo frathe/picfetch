@@ -13,12 +13,14 @@
 package settingswin
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/validation"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
@@ -83,6 +85,8 @@ type Host interface {
 
 	CheckForUpdates() bool
 	SetCheckForUpdates(bool)
+	CheckForUpdatesNow(UpdateCallbacks)
+	PerformUpdate() error
 
 	DuplicateDistance() int
 	SetDuplicateDistance(int)
@@ -105,12 +109,30 @@ type Window struct {
 	sortSelect                    *widget.Select
 	mergeCheck, shuffleCheck      *widget.Check
 	favPreviewCheck, updateCheck  *widget.Check
+	updateNow                     *widget.Button
 	intervalEntry, maxScanEntry   *widget.Entry
 	maxWidthEntry, maxHeightEntry *widget.Entry
 	imgCacheEntry, thumbCacheEntry,
 	maxFileSizeEntry *widget.Entry
 	dupeDistSlider *widget.Slider
 	dupeDistValue  *widget.Label
+
+	// updateFlow identifies the currently live manual-update request. Host
+	// callbacks are already delivered on the UI thread, so this narrow
+	// monotonically increasing value is enough to reject callbacks from a
+	// closed Settings window or a superseded request without a lock.
+	updateFlow       uint64
+	updateActive     bool
+	updatePerforming bool
+
+	// The current update dialog and its visible controls are held so package
+	// tests can assert the state machine without reaching through Fyne's
+	// overlay internals. They are replaced together on every phase change.
+	updateDialog   dialog.Dialog
+	updateMessage  *widget.Label
+	updateProgress *widget.ProgressBar
+	updateInfinite *widget.ProgressBarInfinite
+	updateChoices  *widgets.ChoicePanel
 }
 
 // New returns the settings window for application, reading and writing its
@@ -122,9 +144,11 @@ func New(application fyne.App, host Host) *Window {
 // Show opens the settings window, or raises it if it's already open.
 func (w *Window) Show() {
 	w.win.Show(w.app, lang.L("Settings"), fyne.NewSize(windowW, windowH), w.build, func() {
+		w.closeUpdateFlow()
 		w.sortSelect = nil
 		w.mergeCheck, w.shuffleCheck = nil, nil
 		w.favPreviewCheck, w.updateCheck = nil, nil
+		w.updateNow = nil
 		w.intervalEntry, w.maxScanEntry = nil, nil
 		w.maxWidthEntry, w.maxHeightEntry = nil, nil
 		w.imgCacheEntry, w.thumbCacheEntry, w.maxFileSizeEntry = nil, nil, nil
@@ -282,6 +306,241 @@ func (w *Window) build() fyne.CanvasObject {
 
 	w.updateCheck = widget.NewCheck(lang.L("Check for updates"), w.host.SetCheckForUpdates)
 	w.updateCheck.Checked = w.host.CheckForUpdates()
+	w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
 
-	return container.NewPadded(container.NewVBox(form, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, w.updateCheck))
+	return container.NewPadded(container.NewVBox(form, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, w.updateCheck, w.updateNow))
+}
+
+// startUpdateCheck owns the Settings window's one manual request. Disabling
+// both update controls makes a rapid double tap harmless and stops a setting
+// toggle from starting a competing automatic request while this UI flow is
+// visible.
+func (w *Window) startUpdateCheck() {
+	if w.updateActive || w.updateNow == nil || w.win.Window() == nil {
+		return
+	}
+
+	w.updateFlow++
+	flow := w.updateFlow
+	w.updateActive = true
+	w.updatePerforming = false
+	w.setUpdateControlsEnabled(false)
+	w.showChecking(flow)
+
+	w.host.CheckForUpdatesNow(UpdateCallbacks{
+		Downloading: func(version string) {
+			if w.flowActive(flow) {
+				w.showDownloading(flow, version)
+			}
+		},
+		Progress: func(downloaded, total int64) {
+			if w.flowActive(flow) {
+				w.showDownloadProgress(flow, downloaded, total)
+			}
+		},
+		Current: func() {
+			if w.flowActive(flow) {
+				w.showCurrent(flow)
+			}
+		},
+		Ready: func(version string) {
+			if w.flowActive(flow) {
+				w.showReady(flow, version)
+			}
+		},
+		Failed: func(err error) {
+			if w.flowActive(flow) {
+				w.showFailed(flow, err)
+			}
+		},
+	})
+}
+
+func (w *Window) flowActive(flow uint64) bool {
+	return w.updateActive && w.updateFlow == flow && w.win.Window() != nil
+}
+
+func (w *Window) setUpdateControlsEnabled(enabled bool) {
+	for _, control := range []fyne.Disableable{w.updateNow, w.updateCheck} {
+		if control == nil {
+			continue
+		}
+		if enabled {
+			control.Enable()
+		} else {
+			control.Disable()
+		}
+	}
+}
+
+// finishUpdateFlow admits the controls for a later manual check and makes
+// every later callback from this request stale. The terminal dialog stays up
+// independently, which is safe because it is modal and all callback paths
+// first test flowActive.
+func (w *Window) finishUpdateFlow(flow uint64) {
+	if w.updateFlow != flow {
+		return
+	}
+	w.updateActive = false
+	w.updatePerforming = false
+	w.setUpdateControlsEnabled(true)
+}
+
+// closeUpdateFlow is the Settings-window teardown boundary. A completed
+// backend stage deliberately remains available, but it no longer has any
+// live widgets to update.
+func (w *Window) closeUpdateFlow() {
+	w.hideUpdateDialog()
+	w.updateActive = false
+	w.updatePerforming = false
+	w.updateFlow++
+	w.updateMessage = nil
+	w.updateProgress = nil
+	w.updateInfinite = nil
+	w.updateChoices = nil
+}
+
+func (w *Window) showChecking(flow uint64) {
+	if !w.flowActive(flow) {
+		return
+	}
+
+	w.updateMessage = widget.NewLabel(lang.L("Checking for updates…"))
+	w.updateMessage.Alignment = fyne.TextAlignCenter
+	w.updateProgress = nil
+	w.updateInfinite = widget.NewProgressBarInfinite()
+	w.updateChoices = nil
+	w.showUpdateDialog(container.NewVBox(w.updateMessage, w.updateInfinite))
+}
+
+func (w *Window) showDownloading(flow uint64, version string) {
+	if !w.flowActive(flow) {
+		return
+	}
+
+	w.updateMessage = widget.NewLabel(fmt.Sprintf(lang.L("Downloading version %s"), version))
+	w.updateMessage.Alignment = fyne.TextAlignCenter
+	w.updateProgress = widget.NewProgressBar()
+	w.updateProgress.Hide()
+	w.updateInfinite = widget.NewProgressBarInfinite()
+	w.updateChoices = nil
+	w.showUpdateDialog(container.NewVBox(w.updateMessage, w.updateProgress, w.updateInfinite))
+}
+
+func (w *Window) showDownloadProgress(flow uint64, downloaded, total int64) {
+	if !w.flowActive(flow) || w.updateProgress == nil || w.updateInfinite == nil {
+		return
+	}
+
+	if total <= 0 {
+		w.updateProgress.Hide()
+		w.updateInfinite.Show()
+		return
+	}
+
+	value := float64(downloaded) / float64(total)
+	if value < 0 {
+		value = 0
+	} else if value > 1 {
+		value = 1
+	}
+	w.updateInfinite.Hide()
+	w.updateProgress.Show()
+	w.updateProgress.SetValue(value)
+}
+
+func (w *Window) showCurrent(flow uint64) {
+	if !w.flowActive(flow) {
+		return
+	}
+	w.finishUpdateFlow(flow)
+	w.showTerminalMessage(lang.L("You are on the current version."), func() {})
+}
+
+func (w *Window) showFailed(flow uint64, err error) {
+	if !w.flowActive(flow) {
+		return
+	}
+	w.finishUpdateFlow(flow)
+	w.showTerminalMessage(fmt.Sprintf(lang.L("Could not check for updates: %v"), err), func() {})
+}
+
+func (w *Window) showReady(flow uint64, _ string) {
+	if !w.flowActive(flow) {
+		return
+	}
+
+	w.hideUpdateDialog()
+	w.updateMessage = widget.NewLabel(lang.L("Update downloaded successfully."))
+	w.updateMessage.Alignment = fyne.TextAlignCenter
+	w.updateProgress, w.updateInfinite = nil, nil
+	w.updateChoices = widgets.NewChoicePanel(nil,
+		widgets.Choice{Label: lang.L("Later"), OnChosen: func() { w.finishUpdateFlow(flow) }},
+		widgets.Choice{Label: lang.L("Perform update"), OnChosen: func() { w.performUpdate(flow) }},
+	)
+	w.updateChoices.SetOnDismiss(func() { w.hideUpdateDialog() })
+	w.updateChoices.SetOnCancel(func() { w.finishUpdateFlow(flow) })
+	w.showUpdateDialog(container.NewVBox(w.updateMessage, w.updateChoices))
+}
+
+func (w *Window) performUpdate(flow uint64) {
+	if !w.flowActive(flow) || w.updatePerforming {
+		return
+	}
+	// ChoicePanel hides before running this action. Keep the flow active until
+	// the host accepts the request so a second callback or tap cannot begin a
+	// competing action in the small failure-recovery window.
+	w.updatePerforming = true
+	if err := w.host.PerformUpdate(); err != nil {
+		fyne.LogError("perform update failed", err)
+		w.updatePerforming = false
+		w.finishUpdateFlow(flow)
+		w.showTerminalMessage(fmt.Sprintf(lang.L("Could not perform update: %v"), err), func() {})
+	}
+}
+
+// showTerminalMessage uses ChoicePanel even for the single OK choice so the
+// modal owns keyboard focus and Return/Escape cannot leak into Settings.
+func (w *Window) showTerminalMessage(message string, onOK func()) {
+	w.hideUpdateDialog()
+	w.updateMessage = widget.NewLabel(message)
+	w.updateMessage.Alignment = fyne.TextAlignCenter
+	w.updateProgress, w.updateInfinite = nil, nil
+	w.updateChoices = widgets.NewChoicePanel(nil, widgets.Choice{Label: lang.L("OK"), OnChosen: onOK})
+	w.updateChoices.SetOnDismiss(func() { w.hideUpdateDialog() })
+	w.updateChoices.SetOnCancel(onOK)
+	w.showUpdateDialog(container.NewVBox(w.updateMessage, w.updateChoices))
+}
+
+// showUpdateDialog replaces the previous phase's modal and parents the new
+// one to the Settings window. No callback reaches here after close because
+// flowActive protects all asynchronous entries; terminal paths additionally
+// tolerate a user closing Settings between phase changes.
+func (w *Window) showUpdateDialog(content fyne.CanvasObject) {
+	win := w.win.Window()
+	if win == nil {
+		return
+	}
+
+	w.hideUpdateDialog()
+	var d dialog.Dialog
+	d = dialog.NewCustomWithoutButtons(lang.L("Software Update"), content, win)
+	d.SetOnClosed(func() {
+		if w.updateDialog == d {
+			w.updateDialog = nil
+		}
+	})
+	w.updateDialog = d
+	d.Show()
+	if w.updateChoices != nil {
+		win.Canvas().Focus(w.updateChoices)
+	}
+}
+
+func (w *Window) hideUpdateDialog() {
+	d := w.updateDialog
+	w.updateDialog = nil
+	if d != nil {
+		d.Hide()
+	}
 }

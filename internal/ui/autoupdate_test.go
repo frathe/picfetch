@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,14 +22,17 @@ import (
 
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/update"
 )
 
 type fakeUpdateVerifier struct {
-	err error
+	err   error
+	calls int
 }
 
 func (f *fakeUpdateVerifier) Verify(_ context.Context, _, _ []byte, _ update.VerifyPolicy) error {
+	f.calls++
 	return f.err
 }
 
@@ -194,6 +198,26 @@ func attachUpdateClient(t *testing.T, v *viewer, srv *httptest.Server, now func(
 	})
 	v.updater.SetClient(c)
 	return c
+}
+
+func saveVerifiedUpdateStage(t *testing.T, v *viewer, version, notes string) update.Stage {
+	t.Helper()
+	asset := updateAssetName(t)
+	archive := nativeUpdateArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	srv := serveUpdateAPI(t, version, notes, asset, archive, hex.EncodeToString(sum[:]))
+	client := attachUpdateClient(t, v, srv, fixedNow("2026-08-30"), nil)
+	st, err := client.Download(context.Background(), update.Release{
+		Version:     version,
+		Notes:       notes,
+		AssetName:   asset,
+		AssetURL:    srv.URL + "/" + asset,
+		AssetDigest: hex.EncodeToString(sum[:]),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
 }
 
 func TestUpdateCheck_SettingOffNeverCallsHTTP(t *testing.T) {
@@ -376,6 +400,261 @@ func TestUpdateCheck_TurningOffKeepsCompletedStage(t *testing.T) {
 	}
 }
 
+func TestManualUpdateCheck_BypassesSettingAndDailyGate(t *testing.T) {
+	v := newTestViewer(t)
+	asset := updateAssetName(t)
+	srv := serveUpdateAPI(t, "v0.2.5", "notes", asset, nil, strings.Repeat("0", 64))
+	attachUpdateClient(t, v, srv, fixedNow("2026-08-30"), nil)
+	v.updater.SetCurrentVersion("0.2.5")
+	v.SetLastUpdateCheckDay("2026-08-30")
+	if v.CheckForUpdates() {
+		t.Fatal("test requires automatic updates to remain off")
+	}
+
+	var current, failed int
+	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{
+		Current: func() { current++ },
+		Failed:  func(error) { failed++ },
+	})
+	waitFor(t, "manual update check", v.updater.Done())
+
+	if current != 1 || failed != 0 {
+		t.Errorf("current=%d failed=%d, want current=1 failed=0", current, failed)
+	}
+	if got := v.LastUpdateCheckDay(); got != "2026-08-30" {
+		t.Errorf("LastUpdateCheckDay() = %q, want successful manual check day", got)
+	}
+}
+
+func TestManualUpdateCheck_PreparationFailureArrivesThroughCallback(t *testing.T) {
+	v := newTestViewer(t)
+	updateAssetName(t)
+	v.updater.SetCurrentVersion("0.2.5")
+	wantErr := errors.New("verifier unavailable")
+	v.updater.SetVerifierFactory(func() (update.Verifier, error) { return nil, wantErr })
+
+	var got error
+	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{Failed: func(err error) { got = err }})
+	waitFor(t, "manual update preparation", v.updater.Done())
+
+	if !errors.Is(got, wantErr) {
+		t.Errorf("Failed error = %v, want %v", got, wantErr)
+	}
+	if v.updater.Client() != nil {
+		t.Error("failed manual preparation must leave Client nil")
+	}
+}
+
+func TestAutomaticCheckDoesNotBlockOrSupersedeManualPreparation(t *testing.T) {
+	v := newTestViewer(t)
+	updateAssetName(t)
+	v.updater.SetCurrentVersion("0.2.5")
+	v.settings.checkForUpdates = true
+	started := make(chan struct{})
+	release := make(chan struct{})
+	wantErr := errors.New("manual verifier unavailable")
+	v.updater.SetVerifierFactory(func() (update.Verifier, error) {
+		close(started)
+		<-release
+		return nil, wantErr
+	})
+
+	var got error
+	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{Failed: func(err error) { got = err }})
+	select {
+	case <-started:
+	case <-time.After(testTimeout):
+		t.Fatal("manual verifier preparation did not start")
+	}
+	wantRevision := v.updateOp.currentRevision()
+
+	returned := make(chan struct{})
+	go func() {
+		v.maybeStartUpdateCheck()
+		close(returned)
+	}()
+	select {
+	case <-returned:
+	case <-time.After(testTimeout):
+		t.Fatal("automatic check blocked behind manual verifier preparation")
+	}
+	if gotRevision := v.updateOp.currentRevision(); gotRevision != wantRevision {
+		t.Errorf("automatic check superseded manual revision: got %d, want %d", gotRevision, wantRevision)
+	}
+
+	close(release)
+	waitFor(t, "manual verifier preparation", v.updater.Done())
+	if !errors.Is(got, wantErr) {
+		t.Errorf("manual Failed error = %v, want %v", got, wantErr)
+	}
+}
+
+func TestManualUpdateCheck_ReadyCallbackUsesVersionString(t *testing.T) {
+	v := newTestViewer(t)
+	asset := updateAssetName(t)
+	archive := nativeUpdateArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	srv := serveUpdateAPI(t, "v0.2.6", "notes", asset, archive, hex.EncodeToString(sum[:]))
+	attachUpdateClient(t, v, srv, fixedNow("2026-08-30"), nil)
+	v.updater.SetCurrentVersion("0.2.5")
+
+	var readyVersion string
+	var progressCalls int
+	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{
+		Progress: func(downloaded, total int64) {
+			progressCalls++
+			if downloaded < 0 {
+				t.Errorf("negative download progress %d/%d", downloaded, total)
+			}
+		},
+		Ready:  func(version string) { readyVersion = version },
+		Failed: func(err error) { t.Errorf("unexpected update failure: %v", err) },
+	})
+	waitFor(t, "manual update download", v.updater.Done())
+
+	if readyVersion != "v0.2.6" {
+		t.Errorf("Ready version = %q, want v0.2.6", readyVersion)
+	}
+	if progressCalls == 0 {
+		t.Error("manual update emitted no progress callbacks")
+	}
+}
+
+// TestManualUpdateFlow_CallbacksReadyThenPerformRequestsRelaunch covers the
+// viewer integration boundary: a verified fake GitHub release drives the
+// Settings callback vocabulary in order, then the ready stage can request the
+// existing shutdown-time apply path with explicit relaunch intent. The
+// per-viewer quit and update.Apply seams keep the test from quitting,
+// replacing the test executable, or starting a process.
+func TestManualUpdateFlow_CallbacksReadyThenPerformRequestsRelaunch(t *testing.T) {
+	v := newTestViewer(t)
+	asset := updateAssetName(t)
+	archive := nativeUpdateArchive(t, asset)
+	sum := sha256.Sum256(archive)
+	srv := serveUpdateAPI(t, "v0.2.6", "manual-flow notes", asset, archive, hex.EncodeToString(sum[:]))
+	verifier := &fakeUpdateVerifier{}
+	v.updater.SetClient(update.NewClient(update.Config{
+		BaseURL:  srv.URL,
+		HTTP:     srv.Client(),
+		Now:      fixedNow("2026-08-30"),
+		Verify:   verifier,
+		StageDir: v.updater.Dir(),
+		GOOS:     runtime.GOOS,
+		GOARCH:   runtime.GOARCH,
+	}))
+	v.updater.SetCurrentVersion("0.2.5")
+
+	var events []string
+	var callbackErr error
+	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{
+		Downloading: func(version string) { events = append(events, "downloading:"+version) },
+		Progress: func(downloaded, total int64) {
+			events = append(events, "progress")
+			if downloaded < 0 || total <= 0 || downloaded > total {
+				callbackErr = fmt.Errorf("invalid progress %d/%d", downloaded, total)
+			}
+		},
+		Ready:  func(version string) { events = append(events, "ready:"+version) },
+		Failed: func(err error) { callbackErr = err },
+	})
+	waitFor(t, "manual update flow", v.updater.Done())
+
+	if callbackErr != nil {
+		t.Fatalf("manual update callback failure: %v", callbackErr)
+	}
+	if verifier.calls != 1 {
+		t.Fatalf("release-attestation verifier calls = %d, want 1", verifier.calls)
+	}
+	if len(events) < 3 || events[0] != "downloading:v0.2.6" || events[len(events)-1] != "ready:v0.2.6" {
+		t.Fatalf("manual callback sequence = %v, want Downloading -> Progress -> Ready", events)
+	}
+	for _, event := range events[1 : len(events)-1] {
+		if event != "progress" {
+			t.Fatalf("manual callback sequence = %v, want only progress between Downloading and Ready", events)
+		}
+	}
+
+	quitCalls := 0
+	v.quit = func() { quitCalls++ }
+	if err := v.PerformUpdate(); err != nil {
+		t.Fatal(err)
+	}
+	if quitCalls != 1 {
+		t.Fatalf("quit calls = %d, want 1", quitCalls)
+	}
+
+	var applied update.ApplyOptions
+	originalApply := update.Apply
+	update.Apply = func(_ update.Stage, _ string, options update.ApplyOptions) error {
+		applied = options
+		return nil
+	}
+	t.Cleanup(func() { update.Apply = originalApply })
+	v.updater.ApplyStagedUpdate()
+	if !applied.Relaunch {
+		t.Error("PerformUpdate did not record relaunch intent for shutdown apply")
+	}
+}
+
+func TestManualUpdateCheck_CancelledRequestEmitsNoTerminalCallback(t *testing.T) {
+	v := newTestViewer(t)
+	asset := updateAssetName(t)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/frathe/picfetch/releases/latest" {
+			http.NotFound(w, r)
+			return
+		}
+		close(started)
+		<-release
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"tag_name": "v0.2.5",
+			"assets":   []any{map[string]any{"name": asset, "browser_download_url": srv.URL + "/" + asset}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(unblock)
+	attachUpdateClient(t, v, srv, fixedNow("2026-08-30"), nil)
+	v.updater.SetCurrentVersion("0.2.5")
+
+	var terminal int
+	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{
+		Current: func() { terminal++ },
+		Ready:   func(string) { terminal++ },
+		Failed:  func(error) { terminal++ },
+	})
+	select {
+	case <-started:
+	case <-time.After(testTimeout):
+		t.Fatal("manual update check did not reach HTTP")
+	}
+	v.updateOp.invalidate()
+	unblock()
+	waitFor(t, "cancelled manual update check", v.updater.Done())
+
+	if terminal != 0 {
+		t.Errorf("cancelled request terminal callbacks = %d, want 0", terminal)
+	}
+}
+
+func TestCurrentUpdateCallback_DropsEventSupersededWhileQueued(t *testing.T) {
+	v := newTestViewer(t)
+	token := v.updateOp.begin()
+	called := false
+	queued := currentUpdateCallback(token, func() { called = true })
+
+	v.updateOp.invalidate()
+	queued()
+
+	if called {
+		t.Error("queued update callback ran after its token was superseded")
+	}
+}
+
 func TestUpdateCheck_RestoredTodayDoesNotCheck(t *testing.T) {
 	v := newTestViewer(t)
 	// Field-only restore (registerFeatures): day before enabling the flag,
@@ -451,24 +730,16 @@ func TestDrain_WaitsUpdateDone(t *testing.T) {
 func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 	v := newTestViewer(t)
 	v.updater.SetCurrentVersion("0.2.5")
-	bin := filepath.Join(v.updater.Dir(), "picfetch-staged")
-	if err := os.MkdirAll(v.updater.Dir(), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(bin, []byte("new"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	st := update.Stage{Version: "v0.2.6", Notes: "hello notes", BinaryPath: bin}
-	if err := update.SaveStage(v.updater.Dir(), st); err != nil {
-		t.Fatal(err)
-	}
+	saveVerifiedUpdateStage(t, v, "v0.2.6", "hello notes")
 
 	var gotStage update.Stage
 	var gotDest string
+	var gotOptions update.ApplyOptions
 	orig := update.Apply
-	update.Apply = func(stage update.Stage, dest string) error {
+	update.Apply = func(stage update.Stage, dest string, options update.ApplyOptions) error {
 		gotStage = stage
 		gotDest = dest
+		gotOptions = options
 		return nil
 	}
 	t.Cleanup(func() { update.Apply = orig })
@@ -480,6 +751,9 @@ func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 	}
 	if gotDest == "" {
 		t.Error("Apply dest empty")
+	}
+	if gotOptions.Relaunch {
+		t.Error("normal shutdown apply unexpectedly requested relaunch")
 	}
 	wn, err := autoupdate.LoadWhatsNew(v.app)
 	if err != nil {
@@ -510,7 +784,7 @@ func TestApplyStagedUpdate_SameVersionRemovesWithoutApply(t *testing.T) {
 	}
 
 	orig := update.Apply
-	update.Apply = func(update.Stage, string) error {
+	update.Apply = func(update.Stage, string, update.ApplyOptions) error {
 		t.Error("Apply must not run when staged version is not newer")
 		return nil
 	}
@@ -527,6 +801,138 @@ func TestApplyStagedUpdate_SameVersionRemovesWithoutApply(t *testing.T) {
 	}
 	if wn != nil {
 		t.Errorf("whatsNew = %+v, want nil", wn)
+	}
+}
+
+func TestApplyStagedUpdate_UnverifiedStageNeverApplies(t *testing.T) {
+	v := newTestViewer(t)
+	v.updater.SetCurrentVersion("0.2.5")
+	bin := filepath.Join(v.updater.Dir(), "forged-stage")
+	if err := os.MkdirAll(v.updater.Dir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bin, []byte("forged"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := update.SaveStage(v.updater.Dir(), update.Stage{Version: "v0.2.6", BinaryPath: bin}); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := update.Apply
+	update.Apply = func(update.Stage, string, update.ApplyOptions) error {
+		t.Error("Apply must not run for a stage without verified provenance")
+		return nil
+	}
+	t.Cleanup(func() { update.Apply = orig })
+
+	v.updater.ApplyStagedUpdate()
+	if _, err := update.LoadStage(v.updater.Dir()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unverified stage should be removed, got %v", err)
+	}
+	if notes, err := autoupdate.LoadWhatsNew(v.app); err != nil || notes != nil {
+		t.Fatalf("unverified stage wrote What's New: notes=%+v err=%v", notes, err)
+	}
+}
+
+func TestPerformUpdate_RecordsRelaunchThenQuits(t *testing.T) {
+	v := newTestViewer(t)
+	v.updater.SetCurrentVersion("0.2.5")
+	saveVerifiedUpdateStage(t, v, "v0.2.6", "restart notes")
+
+	quitCalls := 0
+	v.quit = func() { quitCalls++ }
+	if err := v.PerformUpdate(); err != nil {
+		t.Fatal(err)
+	}
+	if quitCalls != 1 {
+		t.Fatalf("quit calls = %d, want 1", quitCalls)
+	}
+
+	var gotOptions update.ApplyOptions
+	orig := update.Apply
+	update.Apply = func(_ update.Stage, _ string, options update.ApplyOptions) error {
+		gotOptions = options
+		return nil
+	}
+	t.Cleanup(func() { update.Apply = orig })
+	v.updater.ApplyStagedUpdate()
+	if !gotOptions.Relaunch {
+		t.Error("PerformUpdate intent did not propagate to apply")
+	}
+}
+
+func TestPerformUpdate_InvalidMissingOrSameStageDoesNotQuit(t *testing.T) {
+	tests := []struct {
+		name  string
+		stage *update.Stage
+	}{
+		{name: "missing metadata"},
+		{name: "missing binary", stage: &update.Stage{Version: "v0.2.6", BinaryPath: "/missing/picfetch-staged"}},
+		{name: "unverified binary", stage: &update.Stage{Version: "v0.2.6"}},
+		{name: "invalid version", stage: &update.Stage{Version: "not-a-version"}},
+		{name: "same version", stage: &update.Stage{Version: "v0.2.5"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newTestViewer(t)
+			v.updater.SetCurrentVersion("0.2.5")
+			if tc.stage != nil {
+				stage := *tc.stage
+				if stage.BinaryPath == "" {
+					stage.BinaryPath = filepath.Join(v.updater.Dir(), "picfetch-staged")
+					if err := os.MkdirAll(v.updater.Dir(), 0o700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(stage.BinaryPath, []byte("staged"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := update.SaveStage(v.updater.Dir(), stage); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			quitCalls := 0
+			v.quit = func() { quitCalls++ }
+			if err := v.PerformUpdate(); err == nil {
+				t.Fatal("PerformUpdate succeeded for an unusable stage")
+			}
+			if quitCalls != 0 {
+				t.Errorf("quit calls = %d, want 0", quitCalls)
+			}
+		})
+	}
+}
+
+func TestApplyStagedUpdate_RelaunchFailureRetainsNotesAndStage(t *testing.T) {
+	v := newTestViewer(t)
+	v.updater.SetCurrentVersion("0.2.5")
+	saveVerifiedUpdateStage(t, v, "v0.2.6", "recoverable notes")
+	v.quit = func() {}
+	if err := v.PerformUpdate(); err != nil {
+		t.Fatal(err)
+	}
+
+	wantErr := errors.New("relaunch failed")
+	orig := update.Apply
+	update.Apply = func(_ update.Stage, _ string, options update.ApplyOptions) error {
+		if !options.Relaunch {
+			t.Error("apply did not receive relaunch intent")
+		}
+		return wantErr
+	}
+	t.Cleanup(func() { update.Apply = orig })
+	v.updater.ApplyStagedUpdate()
+
+	wn, err := autoupdate.LoadWhatsNew(v.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wn == nil || wn.Version != "v0.2.6" || wn.Body != "recoverable notes" {
+		t.Errorf("whatsNew after relaunch failure = %+v", wn)
+	}
+	if _, err := update.LoadStage(v.updater.Dir()); err != nil {
+		t.Fatalf("stage must remain recoverable after relaunch failure: %v", err)
 	}
 }
 

@@ -46,6 +46,21 @@ type Stage struct {
 	Notes      string
 	BinaryPath string
 	PlistPath  string // darwin extracted Info.plist; empty otherwise
+
+	// verification is written only by Client.Download after the release
+	// archive has passed its digest and Sigstore checks. Keeping it
+	// unexported prevents callers from accidentally turning an arbitrary
+	// Stage literal into trusted update provenance.
+	verification stageVerification
+}
+
+type stageVerification struct {
+	AssetName     string
+	ArchiveDigest string
+	BinaryDigest  string
+	PlistDigest   string
+	GOOS          string
+	GOARCH        string
 }
 
 type Client struct {

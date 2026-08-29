@@ -674,11 +674,28 @@ needed. macOS and Windows need nothing extra either way.
   stricter, 0 is an exact thumbnail hash) that hide-duplicates (`D`) uses,
   and the **Cache favorite previews on disk** checkbox (on by default) for
   the background favorite-preview generation described below, and **Check
-  for updates** (off by default). When enabled, PicFetch asks GitHub for a
-  newer release at most once per day, downloads it in the background,
-  verifies GitHub's immutable release attestation, and installs it the next
-  time you quit. The following launch shows a What's New window with that
-  release's notes. There is no prompt and no auto-restart
+  for updates** (off by default). When enabled, PicFetch checks GitHub in the
+  background at most once per day. It silently downloads a newer release,
+  verifies its supplied SHA-256 digest when GitHub provides one and always
+  verifies GitHub's immutable Sigstore release attestation before staging it.
+  A staged update is installed on a normal quit without relaunching PicFetch;
+  the next time you start PicFetch manually, a What's New window shows that
+  release's notes.
+
+  **Check now** is a one-time manual check. It works even when automatic
+  checks are off and bypasses the daily limit. PicFetch first shows that it is
+  checking; if you already have the current version, it shows an OK-only
+  message. For a newer version it names the version and shows a determinate
+  download bar only when the archive size is known; otherwise the bar remains
+  indeterminate. The archive is verified and staged using the same SHA-256
+  and mandatory Sigstore-attestation checks as an automatic download. A check,
+  download, verification, extraction, or staging failure is shown in an
+  OK-only error message.
+
+  Once the update is ready, choose **Later** to leave it staged; a normal quit
+  still installs it without restarting. Choose **Perform update** to quit,
+  install the staged version during shutdown, and relaunch PicFetch. The
+  updated launch then shows What's New for that version.
 - **Favorites -> Add Current List to Favorites…** (`Opt/Alt+Shift+F`) — saves the complete
   currently open file list as a named collection. Favorites remain available
   after restarting PicFetch. This stores references to the original files,

@@ -64,6 +64,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	view = &viewer{
 		app:           application,
 		win:           window,
+		quit:          application.Quit,
 		img:           img,
 		hint:          dz.hint,
 		dropzone:      dz.root,

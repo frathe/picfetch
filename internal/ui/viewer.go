@@ -37,8 +37,13 @@ import (
 // viewer bundles the UI elements and the navigation state so the drop
 // handler and the key handler can share them without package-level globals.
 type viewer struct {
-	app        fyne.App
-	win        fyne.Window
+	app fyne.App
+	win fyne.Window
+	// quit requests application shutdown after PerformUpdate has successfully
+	// recorded apply-and-relaunch intent. buildViewer initializes it from the
+	// app instance; tests replace this per-viewer seam so they never stop the
+	// shared test app.
+	quit       func()
 	img        *canvas.Image
 	hint       *widget.Label
 	dropzone   *fyne.Container

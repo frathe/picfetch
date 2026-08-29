@@ -765,12 +765,33 @@ benötigen in beiden Fällen nichts Zusätzliches.
   **Favoriten-Vorschauen auf der Festplatte zwischenspeichern** (standardmäßig
   an) für die unten beschriebene Hintergrund-Erzeugung der
   Favoriten-Vorschauen, sowie **Nach Updates suchen** (standardmäßig aus).
-  Wenn aktiviert, fragt PicFetch höchstens einmal am Tag bei GitHub nach
-  einer neueren Version, lädt sie im Hintergrund herunter, prüft GitHubs
-  unveränderliche Release-Attestierung und installiert sie beim nächsten
-  Beenden. Der folgende Start zeigt ein Neuigkeiten-Fenster mit den
-  Versionshinweisen. Es gibt keinen Hinweisdialog und keinen automatischen
-  Neustart
+  Wenn aktiviert, prüft PicFetch höchstens einmal täglich im Hintergrund bei
+  GitHub auf eine neuere Version. Diese wird unauffällig heruntergeladen;
+  ein von GitHub bereitgestellter SHA-256-Digest wird, falls vorhanden,
+  geprüft, ebenso zwingend GitHubs unveränderliche
+  Sigstore-Release-Attestierung, bevor das Update bereitgestellt wird. Ein
+  bereitgestelltes Update wird beim normalen Beenden ohne Neustart installiert.
+  Beim nächsten manuellen Start zeigt PicFetch ein Neuigkeiten-Fenster mit
+  den Versionshinweisen.
+
+  **Jetzt prüfen** startet eine einmalige manuelle Prüfung. Sie funktioniert
+  auch bei deaktivierter automatischer Prüfung und umgeht die tägliche
+  Begrenzung. Zuerst zeigt PicFetch die laufende Suche. Ist die installierte
+  Version aktuell, erscheint eine Meldung nur mit **OK**. Bei einer neueren
+  Version wird die Versionsnummer angezeigt; ein Fortschrittsbalken mit
+  Prozentanzeige erscheint nur, wenn die Archivgröße bekannt ist, andernfalls
+  bleibt er unbestimmt. Das Archiv wird mit derselben SHA-256-Prüfung und
+  derselben verpflichtenden Sigstore-Attestierungsprüfung wie bei einem
+  automatischen Download verifiziert und bereitgestellt. Fehler beim Prüfen,
+  Herunterladen,
+  Verifizieren, Entpacken oder Bereitstellen werden in einer Meldung nur mit
+  **OK** angezeigt.
+
+  Mit **Später** bleibt das Update bereitgestellt; beim normalen Beenden wird
+  es weiterhin ohne Neustart installiert. **Update installieren** beendet
+  PicFetch, installiert die bereitgestellte Version beim Herunterfahren und
+  startet PicFetch neu. Der aktualisierte Start zeigt anschließend die
+  Neuigkeiten zu dieser Version.
 - **Favoriten -> Aktuelle Liste zu Favoriten hinzufügen…** (`Opt/Alt+Shift+F`) — speichert die
   gesamte aktuell geöffnete Dateiliste als benannte Sammlung. Favoriten
   bleiben nach einem Neustart von PicFetch erhalten. Gespeichert werden

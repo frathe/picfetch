@@ -1,6 +1,7 @@
 package settingswin
 
 import (
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -57,6 +58,10 @@ type fakeHost struct {
 	favPreviewCalls   []bool
 	updateCheckCalls  []bool
 	dupeDistCalls     []int
+
+	updateCallbacks []UpdateCallbacks
+	performErr      error
+	performCalls    int
 }
 
 func (f *fakeHost) SortMode() filesort.Mode { return f.sortMode }
@@ -115,6 +120,13 @@ func (f *fakeHost) CheckForUpdates() bool { return f.updateCheck }
 func (f *fakeHost) SetCheckForUpdates(on bool) {
 	f.updateCheck = on
 	f.updateCheckCalls = append(f.updateCheckCalls, on)
+}
+func (f *fakeHost) CheckForUpdatesNow(callbacks UpdateCallbacks) {
+	f.updateCallbacks = append(f.updateCallbacks, callbacks)
+}
+func (f *fakeHost) PerformUpdate() error {
+	f.performCalls++
+	return f.performErr
 }
 func (f *fakeHost) DuplicateDistance() int { return f.dupeDist }
 func (f *fakeHost) SetDuplicateDistance(n int) {
@@ -685,4 +697,217 @@ func TestNewPositiveIntEntry(t *testing.T) {
 			t.Errorf("set calls = %v, want [%d] (the ceiling, not one over)", calls, maxMemoryMB)
 		}
 	})
+}
+
+func newUpdateTestWindow(t *testing.T, host *fakeHost) *Window {
+	t.Helper()
+	w := New(testApp, host)
+	w.Show()
+	t.Cleanup(func() {
+		if win := w.win.Window(); win != nil {
+			win.Close()
+		}
+	})
+	return w
+}
+
+// TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow locks the
+// Settings placement and makes the double-activation guard observable through
+// the consumer-side Host rather than a real updater worker.
+func TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow(t *testing.T) {
+	host := &fakeHost{}
+	w := newUpdateTestWindow(t, host)
+
+	content, ok := w.win.Window().Content().(*fyne.Container)
+	if !ok || len(content.Objects) != 1 {
+		t.Fatalf("settings content = %#v, want its padded VBox", w.win.Window().Content())
+	}
+	settings, ok := content.Objects[0].(*fyne.Container)
+	if !ok || len(settings.Objects) < 2 {
+		t.Fatalf("settings VBox = %#v, want update controls", content.Objects[0])
+	}
+	if got := settings.Objects[len(settings.Objects)-2]; got != w.updateCheck {
+		t.Errorf("object before Check now = %T, want the automatic update checkbox", got)
+	}
+	if got := settings.Objects[len(settings.Objects)-1]; got != w.updateNow {
+		t.Errorf("last settings object = %T, want Check now button", got)
+	}
+
+	test.Tap(w.updateNow)
+	test.Tap(w.updateNow)
+
+	if got := len(host.updateCallbacks); got != 1 {
+		t.Errorf("CheckForUpdatesNow calls = %d, want one despite a duplicate tap", got)
+	}
+	if !w.updateNow.Disabled() || !w.updateCheck.Disabled() {
+		t.Error("update controls should be disabled while checking")
+	}
+	if got, want := w.updateMessage.Text, "Checking for updates…"; got != want {
+		t.Errorf("checking message = %q, want %q", got, want)
+	}
+	if w.updateInfinite == nil || w.updateInfinite.Hidden || w.updateDialog == nil {
+		t.Error("checking should show an indeterminate modal dialog")
+	}
+}
+
+func TestSettingsContentFitsActualWindow(t *testing.T) {
+	w := newUpdateTestWindow(t, &fakeHost{})
+	min := w.win.Window().Content().MinSize()
+	size := w.win.Window().Canvas().Size()
+	if min.Width > size.Width || min.Height > size.Height {
+		t.Errorf("settings content minimum = %v, exceeds actual window size %v", min, size)
+	}
+}
+
+func TestUpdateDownloadProgress_SwitchesAndClamps(t *testing.T) {
+	host := &fakeHost{}
+	w := newUpdateTestWindow(t, host)
+	test.Tap(w.updateNow)
+	callbacks := host.updateCallbacks[0]
+
+	callbacks.Downloading("v2.3.4")
+	if got, want := w.updateMessage.Text, "Downloading version v2.3.4"; got != want {
+		t.Errorf("download message = %q, want %q", got, want)
+	}
+	if !w.updateProgress.Hidden || w.updateInfinite.Hidden {
+		t.Error("download should start indeterminate until a positive total arrives")
+	}
+
+	callbacks.Progress(9, 0)
+	if !w.updateProgress.Hidden || w.updateInfinite.Hidden {
+		t.Error("a zero total must remain indeterminate")
+	}
+	callbacks.Progress(25, 100)
+	if w.updateProgress.Hidden || !w.updateInfinite.Hidden {
+		t.Error("a positive total must switch to the determinate bar")
+	}
+	if got, want := w.updateProgress.Value, 0.25; got != want {
+		t.Errorf("determinate value = %v, want %v", got, want)
+	}
+	callbacks.Progress(-1, 100)
+	if got := w.updateProgress.Value; got != 0 {
+		t.Errorf("negative downloaded value = %v, want clamped 0", got)
+	}
+	callbacks.Progress(101, 100)
+	if got := w.updateProgress.Value; got != 1 {
+		t.Errorf("oversized downloaded value = %v, want clamped 1", got)
+	}
+	callbacks.Progress(1, -1)
+	if !w.updateProgress.Hidden || w.updateInfinite.Hidden {
+		t.Error("an unknown total after a known one must restore the infinite bar")
+	}
+}
+
+func TestUpdateCurrentAndFailureRestoreControls(t *testing.T) {
+	t.Run("current", func(t *testing.T) {
+		host := &fakeHost{}
+		w := newUpdateTestWindow(t, host)
+		test.Tap(w.updateNow)
+		host.updateCallbacks[0].Current()
+
+		if got, want := w.updateMessage.Text, "You are on the current version."; got != want {
+			t.Errorf("current message = %q, want %q", got, want)
+		}
+		if w.updateNow.Disabled() || w.updateCheck.Disabled() || w.updateActive {
+			t.Error("current result should restore the controls and finish the request")
+		}
+		if w.updateChoices == nil || w.updateChoices.Selected() != 0 {
+			t.Error("current dialog should have an OK ChoicePanel selected at index zero")
+		}
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		host := &fakeHost{}
+		w := newUpdateTestWindow(t, host)
+		test.Tap(w.updateNow)
+		host.updateCallbacks[0].Failed(errors.New("offline"))
+
+		if got, want := w.updateMessage.Text, "Could not check for updates: offline"; got != want {
+			t.Errorf("failure message = %q, want %q", got, want)
+		}
+		if w.updateNow.Disabled() || w.updateCheck.Disabled() || w.updateActive {
+			t.Error("failure result should restore the controls and finish the request")
+		}
+	})
+}
+
+func TestUpdateReady_LaterIsDefaultAndPerformIsSecond(t *testing.T) {
+	host := &fakeHost{}
+	w := newUpdateTestWindow(t, host)
+	test.Tap(w.updateNow)
+	host.updateCallbacks[0].Ready("v2.3.4")
+
+	if got, want := w.updateMessage.Text, "Update downloaded successfully."; got != want {
+		t.Errorf("ready message = %q, want %q", got, want)
+	}
+	if got := w.updateChoices.Selected(); got != 0 {
+		t.Errorf("default ready choice = %d, want Later at index 0", got)
+	}
+	if got := w.win.Window().Canvas().Focused(); got != w.updateChoices {
+		t.Errorf("focused update control = %T, want the ready ChoicePanel", got)
+	}
+	w.updateChoices.Confirm()
+	if host.performCalls != 0 {
+		t.Fatalf("default Later choice performed %d updates, want none", host.performCalls)
+	}
+	if w.updateNow.Disabled() || w.updateCheck.Disabled() || w.updateActive {
+		t.Fatal("Later should restore controls and leave Settings recoverable")
+	}
+
+	// A fresh flow proves the second position is the disruptive choice.
+	test.Tap(w.updateNow)
+	host.updateCallbacks[1].Ready("v2.3.4")
+	w.updateChoices.Select(1)
+	w.updateChoices.Confirm()
+	if got := host.performCalls; got != 1 {
+		t.Errorf("second ready choice performed %d updates, want one", got)
+	}
+	if !w.updateNow.Disabled() || !w.updateCheck.Disabled() {
+		t.Error("a successful Perform update request should keep controls disabled for app shutdown")
+	}
+	// Calling the already-dismissed test seam again must not duplicate the
+	// disruptive host call; a real user cannot click a hidden button either.
+	w.updateChoices.Confirm()
+	if got := host.performCalls; got != 1 {
+		t.Errorf("duplicate Perform update calls = %d, want one", got)
+	}
+}
+
+func TestUpdatePerformFailureShowsRecoverableError(t *testing.T) {
+	host := &fakeHost{performErr: errors.New("stage disappeared")}
+	w := newUpdateTestWindow(t, host)
+	test.Tap(w.updateNow)
+	host.updateCallbacks[0].Ready("v2.3.4")
+	w.updateChoices.Select(1)
+	w.updateChoices.Confirm()
+
+	if got := host.performCalls; got != 1 {
+		t.Errorf("PerformUpdate calls = %d, want one", got)
+	}
+	if got, want := w.updateMessage.Text, "Could not perform update: stage disappeared"; got != want {
+		t.Errorf("perform failure message = %q, want %q", got, want)
+	}
+	if w.updateNow.Disabled() || w.updateCheck.Disabled() || w.updateActive {
+		t.Error("a failed Perform update should restore controls for recovery")
+	}
+}
+
+func TestUpdateCallbacksAfterSettingsCloseAreIgnored(t *testing.T) {
+	host := &fakeHost{}
+	w := newUpdateTestWindow(t, host)
+	test.Tap(w.updateNow)
+	callbacks := host.updateCallbacks[0]
+	w.win.Window().Close()
+
+	// These model queued worker events after the Settings parent has been
+	// destroyed. The only correct result is a no-op with no replacement window.
+	callbacks.Downloading("v2.3.4")
+	callbacks.Progress(50, 100)
+	callbacks.Current()
+	callbacks.Ready("v2.3.4")
+	callbacks.Failed(errors.New("late"))
+
+	if w.Open() || w.updateDialog != nil || w.updateNow != nil {
+		t.Error("late callbacks must not recreate or mutate the closed Settings UI")
+	}
 }

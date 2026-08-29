@@ -6,6 +6,11 @@
 
 #### New Features
 
+- Added manual update checks in Settings: **Check now** bypasses the automatic
+  daily gate, shows checking/current/download/error states, verifies and
+  stages updates, and offers **Later** or **Perform update** to apply and
+  relaunch with What's New on the updated launch.
+
 #### Bugfix
 
 #### Internal
@@ -184,6 +189,8 @@
 
 ## TODO
 
+## not deemed worth implementing (edge cases)
+
 ### Qodana drops detected duplicates during serialisation (upstream)
 
 At `210fee5` (run `33270269940`), the IDE reports 71 `DuplicatedCode`
@@ -212,8 +219,6 @@ the underlying serialisation defect itself is. See
 offsets and anchoring detail, and `plans/2026-08-29-qodana-serialisation-bug-report.md`,
 Task 8's draft of the upstream report text — as of this writing not yet
 submitted to JetBrains; check that file for whether it has been sent since.
-
-## not deemed worth implementing (edge cases)
 
 - There is a bug in the Windows Version: WHen in Gridview, multiselect via
   the space key works, but when trying it with mouse and Ctrl key, it does not.
