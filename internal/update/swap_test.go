@@ -181,6 +181,7 @@ func TestSwapBinary_CopyFailureRestoresOriginal(t *testing.T) {
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
+		"remove dest",
 		"rename old→dest",
 	)
 	if ops.relaunched {
@@ -210,6 +211,7 @@ func TestSwapBinary_RestoreFailureReportsBoth(t *testing.T) {
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
+		"remove dest",
 		"rename old→dest",
 		"rename old→dest",
 		"rename old→dest",
@@ -240,6 +242,7 @@ func TestSwapBinary_RestoreRetriesTheRename(t *testing.T) {
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
+		"remove dest",
 		"rename old→dest",
 		"rename old→dest",
 	)

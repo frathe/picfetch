@@ -84,7 +84,11 @@ func applyUnixWithLauncher(stage Stage, dest string, options ApplyOptions, launc
 		_ = os.Remove(plistOld)
 	}
 	if options.Relaunch {
-		return launch(dest)
+		if err := launch(dest); err != nil {
+			// The update itself succeeded, so this is reported without a
+			// rollback: the user only has to start PicFetch again.
+			return &ApplyError{Op: "relaunch", Path: dest, Err: err}
+		}
 	}
 	return nil
 }

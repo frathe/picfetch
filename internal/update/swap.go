@@ -58,6 +58,9 @@ func swapBinary(stagedPath, dest string, options ApplyOptions, ops binaryOps) er
 		return &ApplyError{Op: "rename", Path: dest, Err: err}
 	}
 	if err := ops.Copy(stagedPath, dest); err != nil {
+		// A failed copy can still leave dest behind as a truncated file;
+		// removing it first gives the restoring rename a clear destination.
+		_ = ops.Remove(dest)
 		return restoreBinary(ops, dest, old, "copy", err)
 	}
 

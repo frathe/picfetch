@@ -309,6 +309,16 @@ func TestApplyUnix_RelaunchFailureReturnedAfterInstall(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("error = %v, want %v", err, wantErr)
 	}
+	var applyErr *ApplyError
+	if !errors.As(err, &applyErr) {
+		t.Fatalf("error = %T (%v), want *ApplyError so a failed relaunch is not recorded as a failed install", err, err)
+	}
+	if applyErr.Op != "relaunch" {
+		t.Errorf("Op = %q, want relaunch", applyErr.Op)
+	}
+	if applyErr.Path != dest {
+		t.Errorf("Path = %q, want %q", applyErr.Path, dest)
+	}
 	got, readErr := os.ReadFile(dest)
 	if readErr != nil {
 		t.Fatal(readErr)
