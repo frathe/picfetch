@@ -42,6 +42,7 @@ func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 		WindowPosX:        120,
 		WindowPosY:        340,
 		WindowPositionSet: true,
+		StaticWindowSize:  true,
 		DuplicateDistance: 0, DuplicateDistanceSet: true,
 	})
 
@@ -54,6 +55,9 @@ func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 	}
 	if !v.state.MergeMode() {
 		t.Error("mergeMode = false, want true (from saved preferences)")
+	}
+	if !v.StaticWindowSize() {
+		t.Error("StaticWindowSize() = false, want true (from saved preferences)")
 	}
 	if got, want := v.slides.Interval(), 7*time.Second; got != want {
 		t.Errorf("slides.Interval() = %v, want %v", got, want)
@@ -505,6 +509,34 @@ func TestSetCheckForUpdates_UpdatesGetterAndCurrentPreferences(t *testing.T) {
 	}
 	if got := preferences.Load(v.app).LastUpdateCheckDay; got != "2026-08-26" {
 		t.Errorf("persisted LastUpdateCheckDay = %q, want %q", got, "2026-08-26")
+	}
+}
+
+// TestStaticWindowSize_DefaultsToFalseOnStartup checks the startup-restore
+// path: preferences.Load defaults StaticWindowSize to false.
+func TestStaticWindowSize_DefaultsToFalseOnStartup(t *testing.T) {
+	v := newTestViewer(t)
+
+	if v.StaticWindowSize() {
+		t.Error("StaticWindowSize() = true, want false (the shipped default)")
+	}
+	if v.currentPreferences().StaticWindowSize {
+		t.Error("currentPreferences().StaticWindowSize = true, want false - run.go's literal must set it from the viewer")
+	}
+}
+
+// TestSetStaticWindowSize_UpdatesGetterAndCurrentPreferences checks the
+// settings window's binding end to end.
+func TestSetStaticWindowSize_UpdatesGetterAndCurrentPreferences(t *testing.T) {
+	v := newTestViewer(t)
+
+	v.SetStaticWindowSize(true)
+
+	if !v.StaticWindowSize() {
+		t.Error("StaticWindowSize() = false after SetStaticWindowSize(true)")
+	}
+	if !v.currentPreferences().StaticWindowSize {
+		t.Error("currentPreferences().StaticWindowSize = false after SetStaticWindowSize(true)")
 	}
 }
 

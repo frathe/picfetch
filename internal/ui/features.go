@@ -81,6 +81,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// maybeStartUpdateCheck so Due sees the saved calendar day.
 	view.SetLastUpdateCheckDay(prefs.LastUpdateCheckDay)
 	view.settings.checkForUpdates = prefs.CheckForUpdates
+	view.settings.staticWindowSize = prefs.StaticWindowSize
 
 	view.deletion = deletion.New(view)
 

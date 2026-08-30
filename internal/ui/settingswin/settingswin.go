@@ -1,10 +1,10 @@
 // Package settingswin is the Settings window, reachable from the File menu:
 // one place to see and change every standing preference the app has - sort
 // order, appearance, merge mode, picture-frame shuffle and interval, the
-// folder-scan cap, the window-size cap, the three memory limits (image cache,
-// thumbnail cache, maximum file size), and whether favorite previews are
-// cached to disk - instead of only discovering them by stumbling onto their
-// keyboard shortcuts.
+// folder-scan cap, the window-size cap, whether the window stays a fixed
+// size, the three memory limits (image cache, thumbnail cache, maximum file
+// size), and whether favorite previews are cached to disk - instead of only
+// discovering them by stumbling onto their keyboard shortcuts.
 //
 // Every control applies live, through its own OnChanged, the same
 // immediate-effect behavior the S/M/Shift+P keys already give their own
@@ -75,6 +75,9 @@ type Host interface {
 	MaxWindowHeight() float32
 	SetMaxWindowHeight(float32)
 
+	StaticWindowSize() bool
+	SetStaticWindowSize(bool)
+
 	MaxImageCacheMB() int
 	SetMaxImageCacheMB(int)
 
@@ -113,6 +116,7 @@ type Window struct {
 	themeSelect, sortSelect       *widget.Select
 	mergeCheck, shuffleCheck      *widget.Check
 	favPreviewCheck, updateCheck  *widget.Check
+	staticSizeCheck               *widget.Check
 	updateNow                     *widget.Button
 	updateVersion                 *widget.Label
 	intervalEntry, maxScanEntry   *widget.Entry
@@ -154,6 +158,7 @@ func (w *Window) Show() {
 		w.sortSelect = nil
 		w.mergeCheck, w.shuffleCheck = nil, nil
 		w.favPreviewCheck, w.updateCheck = nil, nil
+		w.staticSizeCheck = nil
 		w.updateNow = nil
 		w.updateVersion = nil
 		w.intervalEntry, w.maxScanEntry = nil, nil
@@ -326,13 +331,16 @@ func (w *Window) build() fyne.CanvasObject {
 	w.favPreviewCheck = widget.NewCheck(lang.L("Cache favorite previews on disk"), w.host.SetFavoritePreviewCache)
 	w.favPreviewCheck.Checked = w.host.FavoritePreviewCache()
 
+	w.staticSizeCheck = widget.NewCheck(lang.L("Keep a fixed window size"), w.host.SetStaticWindowSize)
+	w.staticSizeCheck.Checked = w.host.StaticWindowSize()
+
 	w.updateCheck = widget.NewCheck(lang.L("Check for updates"), w.host.SetCheckForUpdates)
 	w.updateCheck.Checked = w.host.CheckForUpdates()
 	w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
-	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.staticSizeCheck, w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
 	appearanceSettings := container.NewVBox(w.themeSelect)
 	updates := container.NewVBox(w.updateVersion, w.updateCheck, w.updateNow)
 

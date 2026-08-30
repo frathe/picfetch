@@ -53,6 +53,7 @@ type fakeHost struct {
 	maxFileMB    int
 	favPreview   bool
 	updateCheck  bool
+	staticSize   bool
 	dupeDist     int
 
 	themeModeCalls    []appearance.Mode
@@ -68,6 +69,7 @@ type fakeHost struct {
 	maxFileCalls      []int
 	favPreviewCalls   []bool
 	updateCheckCalls  []bool
+	staticSizeCalls   []bool
 	dupeDistCalls     []int
 
 	updateCallbacks []UpdateCallbacks
@@ -111,6 +113,11 @@ func (f *fakeHost) MaxWindowHeight() float32 { return f.maxWinH }
 func (f *fakeHost) SetMaxWindowHeight(h float32) {
 	f.maxWinH = h
 	f.maxWinHCalls = append(f.maxWinHCalls, h)
+}
+func (f *fakeHost) StaticWindowSize() bool { return f.staticSize }
+func (f *fakeHost) SetStaticWindowSize(on bool) {
+	f.staticSize = on
+	f.staticSizeCalls = append(f.staticSizeCalls, on)
 }
 func (f *fakeHost) MaxImageCacheMB() int { return f.imgCacheMB }
 func (f *fakeHost) SetMaxImageCacheMB(n int) {
@@ -161,6 +168,7 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 		sortMode:  filesort.BySize, mergeMode: true, slideShuffle: true,
 		slideInt: 42 * time.Second, maxScan: 777, maxWinW: 1800, maxWinH: 1100,
 		imgCacheMB: 384, thumbCacheMB: 192, maxFileMB: 256, dupeDist: 7,
+		staticSize: true,
 	}
 	w := New(testApp, host)
 
@@ -178,6 +186,9 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 	}
 	if !w.shuffleCheck.Checked {
 		t.Error("shuffleCheck should be checked, seeded from host.SlideShuffle() = true")
+	}
+	if !w.staticSizeCheck.Checked {
+		t.Error("staticSizeCheck should be checked, seeded from host.StaticWindowSize() = true")
 	}
 	if got, want := w.intervalEntry.Text, "42"; got != want {
 		t.Errorf("intervalEntry.Text = %q, want %q", got, want)
@@ -210,7 +221,7 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 	if len(host.themeModeCalls)+len(host.sortModeCalls)+len(host.mergeModeCalls)+len(host.slideShuffleCalls)+
 		len(host.slideIntCalls)+len(host.maxScanCalls)+len(host.maxWinWCalls)+len(host.maxWinHCalls)+
 		len(host.imgCacheCalls)+len(host.thumbCacheCalls)+len(host.maxFileCalls)+
-		len(host.dupeDistCalls) != 0 {
+		len(host.dupeDistCalls)+len(host.staticSizeCalls) != 0 {
 		t.Errorf("seeding the controls should not call any Set* method on the host, got calls: %+v", host)
 	}
 }
@@ -349,6 +360,43 @@ func TestUpdateCheck_ChangeCallsSetCheckForUpdates(t *testing.T) {
 
 	if len(host.updateCheckCalls) != 1 || !host.updateCheckCalls[0] {
 		t.Errorf("SetCheckForUpdates calls = %v, want one call with true", host.updateCheckCalls)
+	}
+}
+
+func TestStaticSizeCheck_ReflectsHostValue(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"off", false},
+		{"on", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host := &fakeHost{staticSize: tc.want}
+			w := New(testApp, host)
+			w.Show()
+			t.Cleanup(func() { w.win.Window().Close() })
+
+			if w.staticSizeCheck.Checked != tc.want {
+				t.Errorf("staticSizeCheck.Checked = %v, want %v (seeded from host.StaticWindowSize())", w.staticSizeCheck.Checked, tc.want)
+			}
+			if len(host.staticSizeCalls) != 0 {
+				t.Errorf("seeding staticSizeCheck should not call SetStaticWindowSize, got %v", host.staticSizeCalls)
+			}
+		})
+	}
+}
+
+func TestStaticSizeCheck_ChangeCallsSetStaticWindowSize(t *testing.T) {
+	host := &fakeHost{staticSize: false}
+	w := New(testApp, host)
+	w.Show()
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	w.staticSizeCheck.SetChecked(true)
+
+	if len(host.staticSizeCalls) != 1 || !host.staticSizeCalls[0] {
+		t.Errorf("SetStaticWindowSize calls = %v, want one call with true", host.staticSizeCalls)
 	}
 }
 
@@ -818,6 +866,7 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 		"image cache": w.imgCacheEntry, "thumbnail cache": w.thumbCacheEntry,
 		"file-size cap": w.maxFileSizeEntry, "duplicate distance": w.dupeDistSlider,
 		"merge": w.mergeCheck, "shuffle": w.shuffleCheck, "favorite previews": w.favPreviewCheck,
+		"fixed window size": w.staticSizeCheck,
 	} {
 		if !containsCanvasObject(general, control) {
 			t.Errorf("General tab does not contain %s control", name)

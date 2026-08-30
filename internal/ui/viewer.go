@@ -532,9 +532,10 @@ func (v *viewer) gridHighlightTitle(i int) string {
 }
 
 // clearToDropzone drops the loaded file list and returns the viewer to an
-// empty drop-zone state: no image, no files, window back to its start size
-// and title. Callers pick which art (welcomeArt or emptyStateArt) belongs
-// in the box afterward and are responsible for repainting.
+// empty drop-zone state: no image, no files, and (unless a fixed window
+// size is set) the window back to its start size and title. Callers pick
+// which art (welcomeArt or emptyStateArt) belongs in the box afterward and
+// are responsible for repainting.
 func (v *viewer) clearToDropzone() {
 	// A full-screen dropzone would look broken, and there's nothing left to
 	// frame - safe to call even when picture-frame mode is already off.
@@ -574,7 +575,13 @@ func (v *viewer) clearToDropzone() {
 
 	v.setTitle(appTitle)
 	v.undoGridMaximize()
-	v.win.Resize(fyne.NewSize(startW, startH))
+	// With a fixed window size the empty drop zone must not shrink the
+	// window back to startW×startH - that is exactly the size the user
+	// asked to keep. Dynamic mode still resets to the drop-zone size so
+	// Escape returns to the same compact welcome frame as a fresh launch.
+	if !v.settings.staticWindowSize {
+		v.win.Resize(fyne.NewSize(startW, startH))
+	}
 	v.syncMenus()
 }
 

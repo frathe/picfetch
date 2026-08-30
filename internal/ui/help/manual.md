@@ -100,6 +100,11 @@ Each time an image is shown, the window resizes to match it:
 - You can always resize the window yourself afterwards by dragging its edge.
   The image is scaled to fit and is never cropped or distorted.
 
+Settings > General has **Keep a fixed window size**. When that is on, PicFetch
+stops resizing the window to fit each image (and also stops growing or
+shrinking it when you zoom or rotate). Your own size is kept, including across
+launches.
+
 ### The window title
 
 The title bar tells you what you are looking at, for example:

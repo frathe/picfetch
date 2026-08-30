@@ -7,9 +7,10 @@ import (
 
 // settings is every value the Settings window's Host surface reads and
 // writes, and nothing else: the application appearance, memory budget, two
-// geometry caps, folder-scan cap, favorite-preview-cache toggle, and updates
-// checkbox. Grouped so that surface reads as the single concern it is, and so
-// run.go's currentPreferences copy is a flat field-for-field one.
+// geometry caps, fixed-window-size toggle, folder-scan cap,
+// favorite-preview-cache toggle, and updates checkbox. Grouped so that
+// surface reads as the single concern it is, and so run.go's
+// currentPreferences copy is a flat field-for-field one.
 //
 // The three memory limits (imgCacheMB/thumbCacheMB/maxFileMB) are why this
 // file exists at all: they have no single consumer to sit beside - the image
@@ -65,6 +66,12 @@ type settings struct {
 	// hold). Restored from preferences.State in features.go and read back by
 	// currentPreferences.
 	checkForUpdates bool
+
+	// staticWindowSize is the settings window's "Keep a fixed window size"
+	// checkbox - see load.go for its getter/setter and the autoResizeToImage
+	// guard. Restored from preferences.State in features.go and read back by
+	// currentPreferences.
+	staticWindowSize bool
 
 	// dupeDist is the Hamming threshold hide-duplicates groups at - the
 	// saved copy of what internal/dupes holds live, pushed into the model

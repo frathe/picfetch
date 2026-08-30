@@ -70,6 +70,9 @@ func TestLoadPreferences_NothingSavedReturnsDefaults(t *testing.T) {
 	if got.LastUpdateCheckDay != "" {
 		t.Errorf("LastUpdateCheckDay = %q, want empty", got.LastUpdateCheckDay)
 	}
+	if got.StaticWindowSize {
+		t.Error("StaticWindowSize = true, want false")
+	}
 	if got.DuplicateDistanceSet {
 		t.Error("DuplicateDistanceSet = true, want false")
 	}
@@ -102,6 +105,7 @@ func TestSavePreferences_RoundTrip(t *testing.T) {
 		},
 		CheckForUpdates:    true,
 		LastUpdateCheckDay: "2026-08-26",
+		StaticWindowSize:   true,
 	}
 	Save(app, want)
 	// LastUpdateCheckDay is not written by Save (quit must not clobber a

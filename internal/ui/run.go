@@ -156,6 +156,7 @@ func (v *viewer) currentPreferences() preferences.State {
 		FavoritePreviewCache: v.settings.favPreviewCache,
 		CheckForUpdates:      v.settings.checkForUpdates,
 		LastUpdateCheckDay:   v.LastUpdateCheckDay(),
+		StaticWindowSize:     v.settings.staticWindowSize,
 		DuplicateDistance:    v.DuplicateDistance(),
 		DuplicateDistanceSet: v.settings.dupeDistSet,
 		WindowSize:           v.windowSize,

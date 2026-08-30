@@ -55,7 +55,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `memlimits.go` | `settings` value plus memory-limit get/set that retune `imgCache`, grid thumb cache, `imaging.SetMaxEncodedBytes`, and the SVG raster cap. |
 | `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync`, `gridSink`, and the favorite-preview `completion.Signal`. |
-| `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `resizeToImage` / `syncWindowToZoom`. |
+| `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `autoResizeToImage` / `resizeToImage` / `syncWindowToZoom` (static-size gate). |
 | `toast.go` | Self-dismissing notification card and `ShowToast`. |
 | `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark; `displayedDimensions`. |
 | `asyncop.go` | `asyncOpUI` (lifecycle, active, done, spinner) — used only by scan and sort. |
@@ -406,7 +406,7 @@ see `AGENTS.md`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.closeFiles`.
-- "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, window size/position, favorite-preview-cache toggle, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
+- "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, static window size, window size/position, favorite-preview-cache toggle, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
 - "How does Light/Dark/System appearance work?" → `internal/appearance` + `internal/ui/theme.go` + `settingswin`.
 - "How do the Settings and EXIF windows come back where I left them?" → `widgets.Singleton.Remember` / `Geometry` / `StopTracking` + `winpos.Poll` + `preferences.WindowGeometry`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.

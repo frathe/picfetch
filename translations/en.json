@@ -95,6 +95,7 @@
    "Merge newly dropped files into the current set": "Merge newly dropped files into the current set",
    "Shuffle picture-frame order": "Shuffle picture-frame order",
    "Cache favorite previews on disk": "Cache favorite previews on disk",
+   "Keep a fixed window size": "Keep a fixed window size",
    "Check for updates": "Check for updates",
    "Check now": "Check now",
    "Software Update": "Software Update",

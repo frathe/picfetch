@@ -1,8 +1,8 @@
 // Package preferences persists and restores standing UI preferences - sort
 // order, merge mode, application appearance, the picture-frame slideshow's
-// interval and shuffle order, window size and position, and whether favorite
-// previews are cached to disk - across launches, via Fyne's app-scoped
-// Preferences store. Unlike
+// interval and shuffle order, window size and position, whether the window
+// stays a fixed size, and whether favorite previews are cached to disk -
+// across launches, via Fyne's app-scoped Preferences store. Unlike
 // internal/session (which persists the transient dropped file set),
 // everything here is a setting the user deliberately chose and expects to
 // stick, so it belongs in fyne.Preferences: unlike the app cache, it's meant
@@ -40,6 +40,8 @@ const (
 
 	keyCheckForUpdates    = "checkForUpdates"
 	keyLastUpdateCheckDay = "lastUpdateCheckDay"
+
+	keyStaticWindowSize = "staticWindowSize"
 
 	keyDuplicateDistance    = "duplicateDistance"
 	keyDuplicateDistanceSet = "duplicateDistanceSet"
@@ -149,6 +151,12 @@ type State struct {
 	CheckForUpdates    bool
 	LastUpdateCheckDay string
 
+	// StaticWindowSize is the settings window's "Keep a fixed window size"
+	// checkbox. When true, the main window no longer auto-resizes to fit
+	// loaded images, zoom steps, or rotations; the user-chosen size from
+	// WindowSize is kept instead. Defaults to false (plain p.Bool).
+	StaticWindowSize bool
+
 	// DuplicateDistance is the Hamming threshold hide-duplicates uses.
 	// DuplicateDistanceSet distinguishes a saved 0 (exact thumbnail hash)
 	// from "never saved", the same idea WindowPositionSet uses for (0,0).
@@ -200,6 +208,7 @@ func Save(app fyne.App, s State) {
 	p.SetBool(keySlideShuffle, s.SlideShuffle)
 	p.SetBool(keyFavoritePreviewCache, s.FavoritePreviewCache)
 	p.SetBool(keyCheckForUpdates, s.CheckForUpdates)
+	p.SetBool(keyStaticWindowSize, s.StaticWindowSize)
 
 	if s.SlideInterval > 0 {
 		p.SetFloat(keySlideIntervalS, s.SlideInterval.Seconds())
@@ -311,6 +320,7 @@ func Load(app fyne.App) State {
 		FavoritePreviewCache: p.BoolWithFallback(keyFavoritePreviewCache, true),
 		CheckForUpdates:      p.Bool(keyCheckForUpdates),
 		LastUpdateCheckDay:   p.String(keyLastUpdateCheckDay),
+		StaticWindowSize:     p.Bool(keyStaticWindowSize),
 		DuplicateDistance:    p.Int(keyDuplicateDistance),
 		DuplicateDistanceSet: p.Bool(keyDuplicateDistanceSet),
 	}

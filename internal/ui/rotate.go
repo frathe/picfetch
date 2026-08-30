@@ -105,7 +105,7 @@ func (v *viewer) applyRotationLayout() {
 		// helper, as the info overlay reports; for every raster format
 		// displayedDimensions still returns exactly these bounds.
 		w, h := v.displayedDimensions()
-		resizeToImage(v.win, image.Rect(0, 0, w, h), v.settings.maxWinW, v.settings.maxWinH)
+		v.autoResizeToImage(image.Rect(0, 0, w, h))
 	}
 
 	// Deliberately after the layout work above, unlike the syncMenus
