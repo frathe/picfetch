@@ -4,23 +4,26 @@ How the engineering skills should consume this repo's domain documentation when 
 
 ## Before exploring, read these
 
+- **`ARCHITECTURE.md`** at the repo root: the authoritative package map and "where to look for X" index. It already exists and is the structural counterpart to the `CONTEXT.md` glossary — read it before touching code. Per `AGENTS.md`, update it in the same change whenever packages are added, removed, renamed, or files move between packages.
 - **`CONTEXT.md`** at the repo root, or
 - **`CONTEXT-MAP.md`** at the repo root if it exists: it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
 - **`docs/adr/`**: read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
+`ARCHITECTURE.md` is maintained by hand and always present. For the rest: if they don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
 ## File structure
 
-Single-context repo (most repos):
+This repo is single-context:
 
 ```
 /
-├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
-└── src/
+├── ARCHITECTURE.md          ← package map + "where to look for X" index (hand-maintained, always present)
+├── CONTEXT.md               ← domain glossary (created lazily by /domain-modeling)
+├── docs/adr/                ← hard-to-reverse decisions (created lazily)
+│   ├── 0001-....md
+│   └── 0002-....md
+├── internal/                ← application packages
+└── main.go
 ```
 
 Multi-context repo (presence of `CONTEXT-MAP.md` at the root):

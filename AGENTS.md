@@ -67,5 +67,5 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` + `docs/adr/` at the repo root, created lazily by `/domain-modeling`. See `docs/agents/domain.md`.
+Single-context. `ARCHITECTURE.md` at the repo root is the standing package map (read it before code); `CONTEXT.md` + `docs/adr/` are created lazily by `/domain-modeling`. See `docs/agents/domain.md`.
 
