@@ -144,6 +144,7 @@ func (v *viewer) currentPreferences() preferences.State {
 	return preferences.State{
 		SortMode:             v.state.SortMode().PrefValue(),
 		MergeMode:            v.state.MergeMode(),
+		ThemeMode:            v.settings.themeMode,
 		SlideInterval:        v.slides.Interval(),
 		SlideShuffle:         v.slides.Shuffle(),
 		MaxScanFiles:         v.settings.maxScan,

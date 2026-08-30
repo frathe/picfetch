@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -28,9 +29,11 @@ import (
 // for a fresh window from inputs already loaded by loadStartupState. Tests
 // call the same assembly path, so e2e coverage cannot drift from Run.
 func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Window) {
-	window := application.NewWindow(appTitle)
 	savedSession := startup.savedSession
 	prefs := startup.prefs
+	themeMode := prefs.ThemeMode.Normalized()
+	appearance.Apply(application, themeMode)
+	window := application.NewWindow(appTitle)
 
 	// Declared ahead of the constructors below so their tap/click callbacks
 	// can close over it: a callback only ever runs on a later interaction,
@@ -81,6 +84,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		imgCache:      imaging.NewImgCache(int64(prefs.MaxImageCacheMB) * bytesPerMB),
 		preloads:      decodepool.New[string, struct{}](preloadConcurrency),
 		settings: settings{
+			themeMode:  themeMode,
 			maxScan:    prefs.MaxScanFiles,
 			maxWinW:    prefs.MaxWindowWidth,
 			maxWinH:    prefs.MaxWindowHeight,

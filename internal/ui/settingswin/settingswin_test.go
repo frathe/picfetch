@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -31,6 +33,7 @@ func TestMain(m *testing.M) {
 // observed, without a real viewer or window. Mirrors
 // internal/ui/deletion's own fakeHost.
 type fakeHost struct {
+	themeMode    appearance.Mode
 	sortMode     filesort.Mode
 	mergeMode    bool
 	slideShuffle bool
@@ -45,6 +48,7 @@ type fakeHost struct {
 	updateCheck  bool
 	dupeDist     int
 
+	themeModeCalls    []appearance.Mode
 	sortModeCalls     []filesort.Mode
 	mergeModeCalls    []bool
 	slideShuffleCalls []bool
@@ -64,6 +68,11 @@ type fakeHost struct {
 	performCalls    int
 }
 
+func (f *fakeHost) ThemeMode() appearance.Mode { return f.themeMode }
+func (f *fakeHost) SetThemeMode(mode appearance.Mode) {
+	f.themeMode = mode
+	f.themeModeCalls = append(f.themeModeCalls, mode)
+}
 func (f *fakeHost) SortMode() filesort.Mode { return f.sortMode }
 func (f *fakeHost) SetSortMode(m filesort.Mode) {
 	f.sortMode = m
@@ -141,7 +150,8 @@ func (f *fakeHost) SetDuplicateDistance(n int) {
 // each risk, since every one of them fires its own OnChanged.
 func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 	host := &fakeHost{
-		sortMode: filesort.BySize, mergeMode: true, slideShuffle: true,
+		themeMode: appearance.Dark,
+		sortMode:  filesort.BySize, mergeMode: true, slideShuffle: true,
 		slideInt: 42 * time.Second, maxScan: 777, maxWinW: 1800, maxWinH: 1100,
 		imgCacheMB: 384, thumbCacheMB: 192, maxFileMB: 256, dupeDist: 7,
 	}
@@ -150,6 +160,9 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 	w.Show()
 	t.Cleanup(func() { w.win.Window().Close() })
 
+	if got, want := w.themeSelect.Selected, appearance.DisplayName(appearance.Dark); got != want {
+		t.Errorf("themeSelect.Selected = %q, want %q", got, want)
+	}
 	if got, want := w.sortSelect.Selected, filesort.DisplayName(filesort.BySize); got != want {
 		t.Errorf("sortSelect.Selected = %q, want %q", got, want)
 	}
@@ -187,11 +200,24 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 		t.Errorf("dupeDistValue.Text = %q, want %q", got, want)
 	}
 
-	if len(host.sortModeCalls)+len(host.mergeModeCalls)+len(host.slideShuffleCalls)+
+	if len(host.themeModeCalls)+len(host.sortModeCalls)+len(host.mergeModeCalls)+len(host.slideShuffleCalls)+
 		len(host.slideIntCalls)+len(host.maxScanCalls)+len(host.maxWinWCalls)+len(host.maxWinHCalls)+
 		len(host.imgCacheCalls)+len(host.thumbCacheCalls)+len(host.maxFileCalls)+
 		len(host.dupeDistCalls) != 0 {
 		t.Errorf("seeding the controls should not call any Set* method on the host, got calls: %+v", host)
+	}
+}
+
+func TestThemeSelect_ChangeCallsSetThemeMode(t *testing.T) {
+	host := &fakeHost{themeMode: appearance.System}
+	w := New(testApp, host)
+	w.Show()
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	w.themeSelect.SetSelected(appearance.DisplayName(appearance.Light))
+
+	if len(host.themeModeCalls) != 1 || host.themeModeCalls[0] != appearance.Light {
+		t.Errorf("SetThemeMode calls = %v, want one call with Light", host.themeModeCalls)
 	}
 }
 
@@ -585,10 +611,8 @@ func TestOpen_ReflectsWindowLifecycle(t *testing.T) {
 	}
 }
 
-// The saved size is deliberately larger than the form's own MinSize in both
-// directions: Fyne never lays a window out smaller than its content needs,
-// so a saved size below that floor would be clamped and tell us nothing
-// about whether it was applied at all.
+// The saved size is deliberately different from the built-in size in both
+// directions, so observing it proves restoration applied it.
 func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	w.RestoreGeometry(widgets.Geometry{X: 210, Y: 220, PositionSet: true, Size: fyne.NewSize(700, 750)})
@@ -720,11 +744,15 @@ func TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow(t *testing.T
 
 	content, ok := w.win.Window().Content().(*fyne.Container)
 	if !ok || len(content.Objects) != 1 {
-		t.Fatalf("settings content = %#v, want its padded VBox", w.win.Window().Content())
+		t.Fatalf("settings content = %#v, want its padded scroll", w.win.Window().Content())
 	}
-	settings, ok := content.Objects[0].(*fyne.Container)
+	scroll, ok := content.Objects[0].(*container.Scroll)
+	if !ok {
+		t.Fatalf("settings content child = %#v, want vertical scroll", content.Objects[0])
+	}
+	settings, ok := scroll.Content.(*fyne.Container)
 	if !ok || len(settings.Objects) < 2 {
-		t.Fatalf("settings VBox = %#v, want update controls", content.Objects[0])
+		t.Fatalf("settings scroll content = %#v, want update controls", scroll.Content)
 	}
 	if got := settings.Objects[len(settings.Objects)-2]; got != w.updateCheck {
 		t.Errorf("object before Check now = %T, want the automatic update checkbox", got)
@@ -752,10 +780,10 @@ func TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow(t *testing.T
 
 func TestSettingsContentFitsActualWindow(t *testing.T) {
 	w := newUpdateTestWindow(t, &fakeHost{})
-	min := w.win.Window().Content().MinSize()
+	minimum := w.win.Window().Content().MinSize()
 	size := w.win.Window().Canvas().Size()
-	if min.Width > size.Width || min.Height > size.Height {
-		t.Errorf("settings content minimum = %v, exceeds actual window size %v", min, size)
+	if minimum.Width > size.Width || minimum.Height > size.Height {
+		t.Errorf("settings content minimum = %v, exceeds actual window size %v", minimum, size)
 	}
 }
 

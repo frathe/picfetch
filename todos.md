@@ -10,6 +10,8 @@
   daily gate, shows checking/current/download/error states, verifies and
   stages updates, and offers **Later** or **Perform update** to apply and
   relaunch with What's New on the updated launch.
+- Added an **Appearance** choice in Settings with Light, Dark, and System
+  default modes. The System default follows operating-system theme changes.
 
 #### Bugfix
 
@@ -22,6 +24,11 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
+
+### Feature: Static window size via options toggel
+- add a toggle to the settings dialog to allow the user to set a static window size
+- when the toggle is enabled, the window does not get automatically resized anymore.
+- when the user resizes the window, the current size is saved and kept when the app is closed.
 
 ## not deemed worth implementing (edge cases)
 

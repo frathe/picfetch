@@ -7,6 +7,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
+
+	"github.com/frathe/picfetch/internal/appearance"
 )
 
 func TestLoadPreferences_NothingSavedReturnsDefaults(t *testing.T) {
@@ -19,6 +21,9 @@ func TestLoadPreferences_NothingSavedReturnsDefaults(t *testing.T) {
 	}
 	if got.MergeMode {
 		t.Error("MergeMode = true, want false")
+	}
+	if got.ThemeMode != appearance.System {
+		t.Errorf("ThemeMode = %v, want System", got.ThemeMode)
 	}
 	if got.SlideInterval != 0 {
 		t.Errorf("SlideInterval = %v, want 0", got.SlideInterval)
@@ -76,6 +81,7 @@ func TestSavePreferences_RoundTrip(t *testing.T) {
 	want := State{
 		SortMode:          SortBySize,
 		MergeMode:         true,
+		ThemeMode:         appearance.Dark,
 		SlideInterval:     7 * time.Second,
 		SlideShuffle:      true,
 		MaxScanFiles:      5000,
@@ -105,6 +111,15 @@ func TestSavePreferences_RoundTrip(t *testing.T) {
 	got := Load(app)
 	if got != want {
 		t.Errorf("Load() = %+v, want %+v", got, want)
+	}
+}
+
+func TestLoadPreferences_UnknownThemeModeFallsBackToSystem(t *testing.T) {
+	app := test.NewApp()
+	app.Preferences().SetString(keyThemeMode, "future-mode")
+
+	if got := Load(app).ThemeMode; got != appearance.System {
+		t.Errorf("ThemeMode = %v, want System", got)
 	}
 }
 

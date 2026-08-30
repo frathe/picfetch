@@ -53,6 +53,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images` / `filescan.Siblings`; scan lifecycle is `viewer.scanOp`. |
 | `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. |
 | `memlimits.go` | `settings` value plus memory-limit get/set that retune `imgCache`, grid thumb cache, `imaging.SetMaxEncodedBytes`, and the SVG raster cap. |
+| `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync`, `gridSink`, and the favorite-preview `completion.Signal`. |
 | `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `resizeToImage` / `syncWindowToZoom`. |
 | `toast.go` | Self-dismissing notification card and `ShowToast`. |
@@ -171,6 +172,17 @@ Secondary-window geometry is `WindowGeometry` structs.
 | File | Responsibility |
 |------|----------------|
 | `preferences.go` | `Save`, `Load`, `SaveLastUpdateCheckDay`, `State`, `WindowGeometry`. |
+
+### `internal/appearance`
+
+Application-wide System/Light/Dark mode, independent of the viewer. Forced
+modes wrap Fyne's current theme and override only its color variant; returning
+to System restores the underlying theme so Fyne's OS appearance watcher keeps
+switching automatically.
+
+| File | Responsibility |
+|------|----------------|
+| `appearance.go` | `Mode`, translated picker labels, stable preference values, and `Apply`. |
 
 ### `internal/wingesture`
 
@@ -394,7 +406,8 @@ see `AGENTS.md`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.closeFiles`.
-- "How are preferences (sort order, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, window size/position, favorite-preview-cache toggle, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
+- "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, window size/position, favorite-preview-cache toggle, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
+- "How does Light/Dark/System appearance work?" → `internal/appearance` + `internal/ui/theme.go` + `settingswin`.
 - "How do the Settings and EXIF windows come back where I left them?" → `widgets.Singleton.Remember` / `Geometry` / `StopTracking` + `winpos.Poll` + `preferences.WindowGeometry`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.
 - "How can dragging the window open something?" → `internal/wingesture` + `gesture.go` + `help.OpenSpiral` / `spiral.ShowForGesture`.

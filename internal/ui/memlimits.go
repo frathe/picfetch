@@ -1,14 +1,15 @@
 package ui
 
 import (
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
 // settings is every value the Settings window's Host surface reads and
-// writes, and nothing else: the app's memory budget, the two geometry caps,
-// the folder-scan cap, the favorite-preview-cache toggle, and the updates
-// checkbox. Grouped so that surface reads as the single concern it is, and
-// so run.go's currentPreferences copy is a flat field-for-field one.
+// writes, and nothing else: the application appearance, memory budget, two
+// geometry caps, folder-scan cap, favorite-preview-cache toggle, and updates
+// checkbox. Grouped so that surface reads as the single concern it is, and so
+// run.go's currentPreferences copy is a flat field-for-field one.
 //
 // The three memory limits (imgCacheMB/thumbCacheMB/maxFileMB) are why this
 // file exists at all: they have no single consumer to sit beside - the image
@@ -27,6 +28,11 @@ import (
 // internal/imaging actually enforces happens in the setters, which stay
 // where their consumers are.
 type settings struct {
+	// themeMode is the Settings window's application-wide appearance choice.
+	// theme.go applies it through internal/appearance, build.go restores it,
+	// and currentPreferences writes it back at shutdown.
+	themeMode appearance.Mode
+
 	// maxScan caps how many images a single recursive folder scan will
 	// gather - see handleDrop (drop.go). A field rather than the package
 	// var it used to be, so tests shrink it per-viewer instead of

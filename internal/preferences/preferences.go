@@ -1,7 +1,8 @@
 // Package preferences persists and restores standing UI preferences - sort
-// order, merge mode, the picture-frame slideshow's interval and shuffle
-// order, window size and position, and whether favorite previews are cached
-// to disk - across launches, via Fyne's app-scoped Preferences store. Unlike
+// order, merge mode, application appearance, the picture-frame slideshow's
+// interval and shuffle order, window size and position, and whether favorite
+// previews are cached to disk - across launches, via Fyne's app-scoped
+// Preferences store. Unlike
 // internal/session (which persists the transient dropped file set),
 // everything here is a setting the user deliberately chose and expects to
 // stick, so it belongs in fyne.Preferences: unlike the app cache, it's meant
@@ -13,11 +14,14 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/appearance"
 )
 
 const (
 	keySortMode        = "sortMode"
 	keyMergeMode       = "mergeMode"
+	keyThemeMode       = "themeMode"
 	keySlideIntervalS  = "slideIntervalSeconds"
 	keySlideShuffle    = "slideShuffle"
 	keyMaxScanFiles    = "maxScanFiles"
@@ -75,6 +79,7 @@ type State struct {
 	// for how an empty or unrecognized value is handled.
 	SortMode      string
 	MergeMode     bool
+	ThemeMode     appearance.Mode
 	SlideInterval time.Duration
 	SlideShuffle  bool
 
@@ -191,6 +196,7 @@ func Save(app fyne.App, s State) {
 	p := app.Preferences()
 	p.SetString(keySortMode, s.SortMode)
 	p.SetBool(keyMergeMode, s.MergeMode)
+	p.SetString(keyThemeMode, s.ThemeMode.PrefValue())
 	p.SetBool(keySlideShuffle, s.SlideShuffle)
 	p.SetBool(keyFavoritePreviewCache, s.FavoritePreviewCache)
 	p.SetBool(keyCheckForUpdates, s.CheckForUpdates)
@@ -284,6 +290,7 @@ func Load(app fyne.App) State {
 	return State{
 		SortMode:        p.StringWithFallback(keySortMode, SortByName),
 		MergeMode:       p.Bool(keyMergeMode),
+		ThemeMode:       appearance.FromPref(p.String(keyThemeMode)),
 		SlideInterval:   time.Duration(p.Float(keySlideIntervalS) * float64(time.Second)),
 		SlideShuffle:    p.Bool(keySlideShuffle),
 		MaxScanFiles:    p.Int(keyMaxScanFiles),

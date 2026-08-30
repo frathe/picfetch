@@ -1,10 +1,10 @@
 // Package settingswin is the Settings window, reachable from the File menu:
 // one place to see and change every standing preference the app has - sort
-// order, merge mode, picture-frame shuffle and interval, the folder-scan
-// cap, the window-size cap, the three memory limits (image cache, thumbnail
-// cache, maximum file size), and whether favorite previews are cached to
-// disk - instead of only discovering them by stumbling onto their keyboard
-// shortcuts.
+// order, appearance, merge mode, picture-frame shuffle and interval, the
+// folder-scan cap, the window-size cap, the three memory limits (image cache,
+// thumbnail cache, maximum file size), and whether favorite previews are
+// cached to disk - instead of only discovering them by stumbling onto their
+// keyboard shortcuts.
 //
 // Every control applies live, through its own OnChanged, the same
 // immediate-effect behavior the S/M/Shift+P keys already give their own
@@ -24,6 +24,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -50,6 +51,9 @@ const (
 // exists for it (where one exists) - the window itself holds no state of
 // its own to reconcile later.
 type Host interface {
+	ThemeMode() appearance.Mode
+	SetThemeMode(appearance.Mode)
+
 	SortMode() filesort.Mode
 	SetSortMode(filesort.Mode)
 
@@ -106,7 +110,7 @@ type Window struct {
 	// as fields rather than locals inside build so this package's own tests
 	// can drive them directly, the same way internal/ui/deletion's tests
 	// drive that confirmation card's widgets.
-	sortSelect                    *widget.Select
+	themeSelect, sortSelect       *widget.Select
 	mergeCheck, shuffleCheck      *widget.Check
 	favPreviewCheck, updateCheck  *widget.Check
 	updateNow                     *widget.Button
@@ -145,6 +149,7 @@ func New(application fyne.App, host Host) *Window {
 func (w *Window) Show() {
 	w.win.Show(w.app, lang.L("Settings"), fyne.NewSize(windowW, windowH), w.build, func() {
 		w.closeUpdateFlow()
+		w.themeSelect = nil
 		w.sortSelect = nil
 		w.mergeCheck, w.shuffleCheck = nil, nil
 		w.favPreviewCheck, w.updateCheck = nil, nil
@@ -210,6 +215,21 @@ func newPositiveIntEntry(get func() int, set func(int), max int, validate fyne.S
 // host before the window has even been shown.
 func (w *Window) build() fyne.CanvasObject {
 	positiveInt := validation.NewRegexp(`^[1-9][0-9]*$`, lang.L("must be a positive whole number"))
+	themeModes := appearance.Modes()
+	themeLabels := make([]string, len(themeModes))
+	for i, mode := range themeModes {
+		themeLabels[i] = appearance.DisplayName(mode)
+	}
+
+	w.themeSelect = widget.NewSelect(themeLabels, func(selected string) {
+		for i, label := range themeLabels {
+			if label == selected {
+				w.host.SetThemeMode(themeModes[i])
+				return
+			}
+		}
+	})
+	w.themeSelect.Selected = appearance.DisplayName(w.host.ThemeMode())
 
 	modes := filesort.Modes()
 	labels := make([]string, len(modes))
@@ -284,6 +304,7 @@ func (w *Window) build() fyne.CanvasObject {
 	dupeDistItem.HintText = lang.L("Lower is stricter; 0 is an exact thumbnail hash")
 
 	form := widget.NewForm(
+		widget.NewFormItem(lang.L("Appearance"), w.themeSelect),
 		widget.NewFormItem(lang.L("Sort order"), w.sortSelect),
 		widget.NewFormItem(lang.L("Picture-frame interval (seconds)"), w.intervalEntry),
 		maxScanItem,
@@ -308,7 +329,8 @@ func (w *Window) build() fyne.CanvasObject {
 	w.updateCheck.Checked = w.host.CheckForUpdates()
 	w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
 
-	return container.NewPadded(container.NewVBox(form, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, w.updateCheck, w.updateNow))
+	settings := container.NewVBox(form, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, w.updateCheck, w.updateNow)
+	return container.NewPadded(container.NewVScroll(settings))
 }
 
 // startUpdateCheck owns the Settings window's one manual request. Disabling

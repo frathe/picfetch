@@ -14,7 +14,9 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/filesort"
@@ -101,6 +103,39 @@ func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 	}
 	if x != 120 || y != 340 {
 		t.Errorf("winPos = (%d, %d), want the saved (120, 340)", x, y)
+	}
+}
+
+func TestThemeMode_RestoresAppliesLiveAndPersists(t *testing.T) {
+	application := test.NewApp()
+	base := theme.DefaultTheme()
+	application.Settings().SetTheme(base)
+	preferences.Save(application, preferences.State{ThemeMode: appearance.Dark})
+
+	v, win := buildStartupViewer(application)
+	defer win.Close()
+	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) })
+
+	if got := v.ThemeMode(); got != appearance.Dark {
+		t.Errorf("ThemeMode() = %v, want Dark from saved preferences", got)
+	}
+	dark := application.Settings().Theme().Color(theme.ColorNameBackground, theme.VariantLight)
+	if want := base.Color(theme.ColorNameBackground, theme.VariantDark); dark != want {
+		t.Errorf("restored background = %v, want dark %v", dark, want)
+	}
+
+	v.SetThemeMode(appearance.Light)
+	light := application.Settings().Theme().Color(theme.ColorNameBackground, theme.VariantDark)
+	if want := base.Color(theme.ColorNameBackground, theme.VariantLight); light != want {
+		t.Errorf("live background = %v, want light %v", light, want)
+	}
+	if got := v.currentPreferences().ThemeMode; got != appearance.Light {
+		t.Errorf("currentPreferences().ThemeMode = %v, want Light", got)
+	}
+
+	v.SetThemeMode(appearance.System)
+	if got := application.Settings().Theme(); got != base {
+		t.Errorf("system theme = %T, want restored base theme", got)
 	}
 }
 
