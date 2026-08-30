@@ -134,7 +134,7 @@ func updaterReleaseServer(t *testing.T, version, assetName string, archive []byt
 		case r.URL.Path == "/"+assetName:
 			if archiveCalls != nil {
 				callsMu.Lock()
-				(*archiveCalls)++
+				*archiveCalls++
 				callsMu.Unlock()
 			}
 			_, _ = w.Write(archive)
@@ -625,6 +625,9 @@ func TestUpdater_StartManual_ReusesMatchingUsableStageAfterCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if rel == nil {
+		t.Fatal("Check found no release to download")
+	}
 	want, err := client.Download(context.Background(), *rel)
 	if err != nil {
 		t.Fatal(err)
@@ -659,6 +662,9 @@ func TestUpdater_StartManual_MissingVerifierNeverReusesVerifiedStage(t *testing.
 	rel, err := client.Check(context.Background(), "v0.2.5")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if rel == nil {
+		t.Fatal("Check found no release to download")
 	}
 	if _, err := client.Download(context.Background(), *rel); err != nil {
 		t.Fatal(err)
@@ -717,6 +723,9 @@ func TestUpdater_StartManual_TamperedVerifiedStageIsRedownloaded(t *testing.T) {
 	rel, err := client.Check(context.Background(), "v0.2.5")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if rel == nil {
+		t.Fatal("Check found no release to download")
 	}
 	st, err := client.Download(context.Background(), *rel)
 	if err != nil {

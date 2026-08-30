@@ -214,6 +214,27 @@ func newPositiveIntEntry(get func() int, set func(int), max int, validate fyne.S
 	return e
 }
 
+// selectFrom builds a Select whose options are displayName(modes[i]) and
+// whose OnChanged maps the chosen label back to modes[i] via set. Selected
+// is seeded from displayName(current) without SetSelected, matching
+// newPositiveIntEntry's no-round-trip rule.
+func selectFrom[T any](modes []T, displayName func(T) string, current T, set func(T)) *widget.Select {
+	labels := make([]string, len(modes))
+	for i, m := range modes {
+		labels[i] = displayName(m)
+	}
+	sel := widget.NewSelect(labels, func(selected string) {
+		for i, label := range labels {
+			if label == selected {
+				set(modes[i])
+				return
+			}
+		}
+	})
+	sel.Selected = displayName(current)
+	return sel
+}
+
 // build lays out every control, each one seeded from the host's current
 // value and wired to push a change straight back through it. Initial
 // seeding sets the widgets' fields directly rather than through their own
@@ -222,37 +243,9 @@ func newPositiveIntEntry(get func() int, set func(int), max int, validate fyne.S
 // host before the window has even been shown.
 func (w *Window) build() fyne.CanvasObject {
 	positiveInt := validation.NewRegexp(`^[1-9][0-9]*$`, lang.L("must be a positive whole number"))
-	themeModes := appearance.Modes()
-	themeLabels := make([]string, len(themeModes))
-	for i, mode := range themeModes {
-		themeLabels[i] = appearance.DisplayName(mode)
-	}
 
-	w.themeSelect = widget.NewSelect(themeLabels, func(selected string) {
-		for i, label := range themeLabels {
-			if label == selected {
-				w.host.SetThemeMode(themeModes[i])
-				return
-			}
-		}
-	})
-	w.themeSelect.Selected = appearance.DisplayName(w.host.ThemeMode())
-
-	modes := filesort.Modes()
-	labels := make([]string, len(modes))
-	for i, m := range modes {
-		labels[i] = filesort.DisplayName(m)
-	}
-
-	w.sortSelect = widget.NewSelect(labels, func(s string) {
-		for i, l := range labels {
-			if l == s {
-				w.host.SetSortMode(modes[i])
-				return
-			}
-		}
-	})
-	w.sortSelect.Selected = filesort.DisplayName(w.host.SortMode())
+	w.themeSelect = selectFrom(appearance.Modes(), appearance.DisplayName, w.host.ThemeMode(), w.host.SetThemeMode)
+	w.sortSelect = selectFrom(filesort.Modes(), filesort.DisplayName, w.host.SortMode(), w.host.SetSortMode)
 
 	w.intervalEntry = widget.NewEntry()
 	w.intervalEntry.Validator = positiveInt
