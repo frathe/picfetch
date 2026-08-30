@@ -1,8 +1,0 @@
-bin/
-.DS_Store
-fyne-cross/
-internal/ui/testdata/failed/
-.idea
-.vscode
-.claude/memory
-.superpowers
