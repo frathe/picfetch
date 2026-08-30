@@ -492,6 +492,11 @@ func (u *Updater) RequestApplyAndRelaunch() error {
 	return nil
 }
 
+// applyOpRelaunch is update.ApplyError.Op for the one failure that happens
+// after the update is already installed. internal/update owns the value;
+// this is the only place the UI layer has to tell that step apart.
+const applyOpRelaunch = "relaunch"
+
 // ApplyStagedUpdate replaces the running binary with a completed stage, if
 // one exists and is still newer than CurrentVersion - called from
 // internal/ui's shutdown handler, after the event loop has stopped taking
@@ -522,10 +527,39 @@ func (u *Updater) ApplyStagedUpdate() {
 		return
 	}
 	if err := update.Apply(st, dest, u.applyOptions); err != nil {
-		fyne.LogError("failed to apply update", err)
-		return
+		var applyErr *update.ApplyError
+		op := ""
+		if errors.As(err, &applyErr) {
+			op = applyErr.Op
+		}
+		if op != applyOpRelaunch {
+			fyne.LogError("failed to apply update", err)
+			if saveErr := SaveApplyFailure(u.app, ApplyFailure{
+				Version: st.Version,
+				Reason:  string(update.ClassifyApplyError(err)),
+				Op:      op,
+				Path:    dest,
+				Detail:  err.Error(),
+			}); saveErr != nil {
+				fyne.LogError("failed to record update failure", saveErr)
+			}
+			// The stage stays: the download is verified and still newer, so
+			// the next shutdown can retry a write that a virus scanner or a
+			// locked file happened to refuse this time.
+			return
+		}
+		// swapBinary only reaches the relaunch after the new binary is
+		// installed and verified, so this is a successful update that failed
+		// to start itself - the user does that. Recording it would greet
+		// them on the next launch, which is already the new build, with a
+		// dialog saying the update was not installed and the previous
+		// version is still running: both false, and stacked on top of the
+		// What's New dialog for the very version it denies.
+		fyne.LogError("update installed, but PicFetch could not start the new version", err)
 	}
-	if runtime.GOOS != "windows" {
-		_ = update.RemoveStage(u.dir)
-	}
+	_ = update.RemoveStage(u.dir)
+	// Clear where the state changes, not only where it is reported: a
+	// surviving record would keep vetoing the backup sweep on every later
+	// launch, and would report a failure for an update that worked.
+	_ = ClearApplyFailure(u.app)
 }

@@ -47,6 +47,23 @@ jobs:
       - name: Build
         run: go build ./...
 
+      - name: Cross-build Windows
+        # ./internal/... rather than ./... - the root package pulls in
+        # Fyne's glfw driver, and go-gl/gl's build constraints exclude every
+        # file for a Windows cross-compile target, so `go build ./...` for
+        # GOOS=windows fails here on the main package alone. That's a
+        # pre-existing Fyne cross-build gap, not something this change can
+        # fix; internal/... still covers every //go:build windows file,
+        # including internal/ui.
+        run: |
+          GOOS=windows GOARCH=amd64 go build ./internal/...
+          GOOS=windows GOARCH=arm64 go build ./internal/...
+
+      - name: Vet Windows
+        # Same ./internal/... scope as Cross-build Windows above, and for
+        # the same reason.
+        run: GOOS=windows GOARCH=amd64 go vet ./internal/...
+
       - name: Test
         # The runner's default locale is "C", which is not a well-formed
         # BCP-47 tag, so Fyne logs a three-line parse fault before any test
@@ -58,3 +75,26 @@ jobs:
         env:
           LANG: en_US.UTF-8
         run: go test -timeout 20m -race ./...
+
+  windows-test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Test
+        # Not -race: the race detector needs a C toolchain, which this
+        # runner doesn't have by default. Not ./...: internal/ui isn't
+        # excluded for lack of a display driver - it uses the same headless
+        # fyne.io/fyne/v2/test driver as internal/ui/autoupdate below. It's
+        # excluded because it already costs ~9m39s on ubuntu-latest (see the
+        # Test step above) and could carry golden-master/font differences on
+        # Windows; these two packages are the file-replacement update logic,
+        # not the concurrent UI.
+        run: go test ./internal/update/... ./internal/ui/autoupdate/...

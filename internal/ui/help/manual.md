@@ -220,7 +220,7 @@ geotagged — its **latitude** and **longitude** in decimal degrees, one line
 per tag that's actually present in the file. `E` opens the same window
 directly, without
 needing the info overlay open first. The window updates if you navigate to a
-different image while it's still open (from the image window, or with `←`/`→`
+different image while it's still open (from the image window, or with `Left`/`Right`
 while the EXIF window itself is focused), and — like the manual and About
 windows — `Esc` closes just that window, and pressing `E` again while it's
 already open brings it back to the front instead of opening a second copy.
@@ -230,7 +230,7 @@ an empty window.
 
 Below the tag list, JPEGs get a **Remove Metadata** button (above the map,
 when there is one). It asks for confirmation (**Cancel** selected by
-default; **`←`**/**`→`** and **`Return`** / **`Esc`**, same keyboard rules as
+default; **`Left`**/**`Right`** and **`Return`** / **`Esc`**, same keyboard rules as
 other PicFetch confirmations). It rewrites the **original JPEG** in place.
 The button is hidden for a JPEG with nothing left to remove, including after
 a successful strip, and whenever the panel shows "no metadata found". Identifying
@@ -278,17 +278,17 @@ files, which carry no GPS tags at all.
 
 Drop several files at once and step through them with the keyboard:
 
-- **`→`** or **`↓`** — next image
-- **`←`** or **`↑`** — previous image
+- **`Right`** or **`Down`** — next image
+- **`Left`** or **`Up`** — previous image
 - **`Home`** — jump to the first image
 - **`End`** — jump to the last image
 
-Navigation **wraps around**: pressing `→` on the last image returns to the
-first, and `←` on the first goes to the last.
+Navigation **wraps around**: pressing `Right` on the last image returns to the
+first, and `Left` on the first goes to the last.
 
-While the **EXIF data window** is focused, `←` and `→` do the same next/previous
+While the **EXIF data window** is focused, `Left` and `Right` do the same next/previous
 step (including wrap-around). `Esc` still closes only that window. While
-**Remove Metadata** is asking for confirmation, `←`/`→` move the confirmation
+**Remove Metadata** is asking for confirmation, `Left`/`Right` move the confirmation
 choice, not the image.
 
 Notes:
@@ -475,18 +475,18 @@ photos like a digital picture frame.
   the next image, wrapping around at the end just like manual navigation.
   Each transition **crossfades** — the outgoing image fades to nothing, the
   incoming one fades in — instead of the instant swap ordinary browsing
-  uses. Manual navigation (`←`/`→`/`Home`/`End`) crossfades the same way
+  uses. Manual navigation (`Left`/`Right`/`Home`/`End`) crossfades the same way
   while picture-frame mode is on. If hide-duplicates is on, auto-advance
   and those keys skip hidden extras the same way ordinary browsing does.
-- **`↑`** increases the interval by one second, **`↓`** decreases it (down to
-  a floor of one second). While picture-frame mode is on, `↑`/`↓` control the
-  timer instead of navigating — use **`←`**/**`→`** (or `Home`/`End`) to
+- **`Up`** increases the interval by one second, **`Down`** decreases it (down to
+  a floor of one second). While picture-frame mode is on, `Up`/`Down` control the
+  timer instead of navigating — use **`Left`**/**`Right`** (or `Home`/`End`) to
   navigate manually, which still works as usual and restarts the countdown
   from the new image.
 - **`Shift+P`** turns **shuffle** on or off: with it on, auto-advance picks a
   random other image each time instead of the next one in order (never the
   one already on screen), and the title bar starts with **`[shuffle]`**.
-  Manual navigation with `←`/`→`/`Home`/`End` is unaffected either way — it
+  Manual navigation with `Left`/`Right`/`Home`/`End` is unaffected either way — it
   always steps through the set in order. Shuffle works as a standing
   preference like merge mode: `Shift+P` works even before you ever turn
   picture-frame mode on, and outside it too.
@@ -518,8 +518,8 @@ press is always visible before you press it.
 You can respond either way:
 
 - **With the mouse**: click either button directly.
-- **With the keyboard**: press **`→`** to move the selection onto
-  "Move to Trash" (**`←`** moves it back to Cancel) — the outline moves
+- **With the keyboard**: press **`Right`** to move the selection onto
+  "Move to Trash" (**`Left`** moves it back to Cancel) — the outline moves
   with it — then **`Return`** to go with whichever one is currently
   selected. **`Esc`** cancels immediately from either selection.
 
@@ -557,8 +557,8 @@ many of them actually went.
 - **`Opt`/`Alt+Shift+F`** — open **Add Current List to Favorites…** (greyed
   out, and this shortcut does nothing, when no files are loaded; see "Menu"
   below)
-- **`→`** / **`↓`** — next image
-- **`←`** / **`↑`** — previous image
+- **`Right`** / **`Down`** — next image
+- **`Left`** / **`Up`** — previous image
 - **`Home`** / **`End`** — first / last image
 - **`S`** — cycle sort order: name -> capture date -> modified -> size ->
   unsorted -> back to name
@@ -602,7 +602,7 @@ many of them actually went.
   also reachable via the **"Show EXIF data"** link in the info overlay.
   While that window is focused, Left/Right change image.
 - **`Cmd`/`Ctrl+E`** — export the current image to a new file: a prompt asks
-  which format (**`←`**/**`→`** to choose between PNG and JPEG, **`Return`**
+  which format (**`Left`**/**`Right`** to choose between PNG and JPEG, **`Return`**
   to export, **`Esc`** to cancel), then you name the file in the system save
   panel (see "Menu" below). Plain `E` above still opens the EXIF window —
   only the modified combination exports
@@ -621,7 +621,7 @@ many of them actually went.
   crossfade between images, see above)
 - **`Shift+P`** — toggle shuffle order for picture-frame mode's
   auto-advance; shown in the title bar as a **`[shuffle]`** prefix
-- **`↑`** / **`↓`** *(while in picture-frame mode)* — increase / decrease the
+- **`Up`** / **`Down`** *(while in picture-frame mode)* — increase / decrease the
   auto-advance interval by one second
 - **`Esc`** — clear the current images and return to the initial drop screen;
   quits the app if there's nothing loaded to clear (in the manual window it
@@ -658,7 +658,7 @@ needed. macOS and Windows need nothing extra either way.
   stored in EXIF is dropped so it cannot show the unrotated photo
 - **File -> Export image** (`Cmd/Ctrl+E`) — asks which format to export to
   with a keyboard-enabled prompt, the same shape as the delete confirmation
-  card: **`←`**/**`→`** to choose between **PNG** (selected by default) and
+  card: **`Left`**/**`Right`** to choose between **PNG** (selected by default) and
   **JPEG**, **`Return`** to export, **`Esc`** to cancel without opening a
   save panel at all. The chosen format then saves the image as it currently
   appears, rotation included, to a new file you name. Unlike Save Changes it
@@ -696,6 +696,15 @@ needed. macOS and Windows need nothing extra either way.
   still installs it without restarting. Choose **Perform update** to quit,
   install the staged version during shutdown, and relaunch PicFetch. The
   updated launch then shows What's New for that version.
+
+  On Windows, if PicFetch could not replace itself — most often because
+  Controlled Folder Access is protecting the folder it lives in — it says so
+  the next time you start it, naming the file and offering a button to the
+  PicFetch download page. To let updates apply automatically, allow PicFetch
+  through Windows Security -> Virus & threat protection -> Ransomware
+  protection -> Allow an app through Controlled folder access, or keep
+  PicFetch outside the protected user folders (Documents, Pictures, Music,
+  Videos, Desktop).
 - **Favorites -> Add Current List to Favorites…** (`Opt/Alt+Shift+F`) — saves the complete
   currently open file list as a named collection. Favorites remain available
   after restarting PicFetch. This stores references to the original files,
@@ -703,9 +712,9 @@ needed. macOS and Windows need nothing extra either way.
   longer be loaded from the favorite. The dialog is fully keyboard-driven:
   the name field is already focused when it opens, so you can start typing
   right away; **`Return`** in the field saves with whatever name is
-  currently typed, **`↓`** moves down to a ring over **Cancel**/**Add**
-  (starting on **Cancel**), **`↑`** moves back up to the field, **`←`**/
-  **`→`** move the ring once you're there, and **`Esc`** cancels from either
+  currently typed, **`Down`** moves down to a ring over **Cancel**/**Add**
+  (starting on **Cancel**), **`Up`** moves back up to the field, **`Left`**/
+  **`Right`** move the ring once you're there, and **`Esc`** cancels from either
   place. **Add** stays greyed out until the name is usable — anything but
   empty, or containing `/ \ : * ? " < > |`. Saving also starts preparing
   that favorite's grid previews in the background, so opening its Grid
@@ -716,7 +725,7 @@ needed. macOS and Windows need nothing extra either way.
   case-insensitively. The first nine show `Cmd/Ctrl+1` through
   `Cmd/Ctrl+9`; the tenth shows `Cmd/Ctrl+0`. Saving another collection with
   an existing name asks before replacing its stored list, and that prompt is
-  keyboard-driven too: **`←`**/**`→`** move a ring between **Cancel** and
+  keyboard-driven too: **`Left`**/**`Right`** move a ring between **Cancel** and
   **Replace** — it starts on **Cancel**, so `Return` never replaces anything
   by itself — **`Return`** activates whichever is ringed, and **`Esc`**
   cancels. Either way of cancelling reopens the Add dialog with the name you
@@ -725,12 +734,12 @@ needed. macOS and Windows need nothing extra either way.
   missing, so its Grid Overview opens quickly
 - **Favorites -> Manage Favorites…** (also `Cmd/Ctrl+Shift+F`) — lists every
   saved collection, each with the same file count, and lets you open or
-  remove one. Fully keyboard-driven: **`↑`**/**`↓`** move a ring between
-  rows, **`←`**/**`→`** move it between that row's **Open** and **Remove**
+  remove one. Fully keyboard-driven: **`Up`**/**`Down`** move a ring between
+  rows, **`Left`**/**`Right`** move it between that row's **Open** and **Remove**
   buttons, **`Return`** activates whichever is ringed, and a click always
   runs whichever button you actually click, wherever the ring currently sits.
   **`Esc`** closes the dialog. Removing a favorite asks for confirmation
-  first, and that prompt is keyboard-driven as well: **`←`**/**`→`** move the
+  first, and that prompt is keyboard-driven as well: **`Left`**/**`Right`** move the
   ring between **Cancel** and **Remove** — it starts on **Cancel**, so
   `Return` never removes anything by itself — **`Return`** activates whichever
   is ringed, and **`Esc`** cancels. A confirmed removal moves the
@@ -925,7 +934,7 @@ Things PicFetch deliberately does not do (yet):
 - **Merge mode** — `M` toggles it on/off (also Actions -> Toggle merge mode);
   while on, drops add to the set instead of replacing it, and the title bar
   shows `[merge]`
-- **Next / previous** — `→` `↓` / `←` `↑` (wraps around)
+- **Next / previous** — `Right` `Down` / `Left` `Up` (wraps around)
 - **First / last** — `Home` / `End`
 - **Sort order** — `S` cycles name -> capture date -> modified -> size ->
   unsorted -> back to name (Actions -> Sort order jumps directly to one)
@@ -966,16 +975,16 @@ Things PicFetch deliberately does not do (yet):
   of where it was taken when the photo carries GPS tags; JPEGs also get a
   **Remove Metadata** button below the tags (above the map) that strips
   identifying tags from the file in place after confirmation, hidden when
-  the tag list is empty or nothing is left to remove; while that window is focused, `←`/`→` change image
+  the tag list is empty or nothing is left to remove; while that window is focused, `Left`/`Right` change image
 - **Picture-frame mode** — `P` toggles a full-screen slideshow with a
-  crossfade between images; `↑`/`↓` tune the (default 10s) auto-advance
+  crossfade between images; `Up`/`Down` tune the (default 10s) auto-advance
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in
   the title bar); leave with `V`/`P`/`Esc` or Window -> Viewer
 - **Copy** — `Cmd`/`Ctrl+C` copies the current image (Actions -> Copy image),
   `Cmd`/`Ctrl+Shift+C` copies its file path (Actions -> Copy image path); in
   the grid, `Cmd`/`Ctrl+C` copies the selected files themselves
 - **Delete** — `Shift+Delete` opens a confirmation card (Actions -> Move
-  image to Trash; `←`/`→` to choose, `Return` to go, `Esc` to cancel); moves
+  image to Trash; `Left`/`Right` to choose, `Return` to go, `Esc` to cancel); moves
   the file to the Trash, or the grid's whole selection
 - **Select in the grid** — `Cmd`/`Ctrl+click` or `Space` to pick one,
   `Shift+click` for a range, click-and-drag for every thumbnail the

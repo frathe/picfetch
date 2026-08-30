@@ -6,21 +6,38 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"syscall"
+	"strconv"
 )
 
-// createNoWindow is CREATE_NO_WINDOW (same constant as clipboard/wallpaper).
-const createNoWindow = 0x08000000
-
+// applyWindows installs the staged binary over the running executable from
+// inside this process. Controlled Folder Access never trusts cmd.exe, so the
+// apply script this replaced was blocked outright whenever PicFetch lived in
+// a protected folder; picfetch.exe is judged on its own reputation instead.
 func applyWindows(stage Stage, dest string, options ApplyOptions) error {
-	scriptPath := dest + ".apply.cmd"
-	script := windowsApplyScript(dest, stage.BinaryPath, os.Getpid(), options)
-	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
-		return err
-	}
-	cmd := exec.Command("cmd", "/C", scriptPath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow}
-	return cmd.Start()
+	return swapBinary(stage.BinaryPath, dest, options, defaultBinaryOps(relaunchWindows))
+}
+
+// relaunchWindows starts the freshly installed executable and tells it which
+// process to wait for. The new instance must not touch preferences before the
+// old one is gone: Apply runs inside Fyne's stopped callback, and Fyne saves
+// preferences immediately after that callback returns.
+func relaunchWindows(dest string) error {
+	return windowsRelaunchCommand(dest, os.Getpid()).Start()
+}
+
+// windowsRelaunchCommand sets no CREATE_NO_WINDOW, unlike the console helpers
+// in trash, wallpaper, filepicker and clipboard: those start console-subsystem
+// tools, while this starts picfetch.exe, which release builds link as
+// GUI-subsystem (fyne-cross without -console) and which therefore has no
+// console for the flag to suppress.
+func windowsRelaunchCommand(dest string, pid int) *exec.Cmd {
+	cmd := exec.Command(dest)
+	// The successor is started with no arguments because main.go treats every
+	// bare argument as a file to open, so the PID travels in an inherited
+	// environment instead of a replaced one: the user's own variables have to
+	// survive an update.
+	cmd.Env = append(os.Environ(), AwaitPIDEnv+"="+strconv.Itoa(pid))
+	return cmd
 }
 
 // applyUnix's real implementation (apply_unix.go) only compiles off

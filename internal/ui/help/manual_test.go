@@ -66,21 +66,28 @@ func TestManualHasNoMarkdownTables(t *testing.T) {
 	}
 }
 
-// TestManualUnicodeArrowsStayInCodeSpans guards a Fyne font quirk: the
-// regular (non-monospace) face shapes U+2192 as a visible arrow plus a
-// .notdef glyph, which the painter draws as � after every arrow. Key
-// arrows belong in backticks (the monospace face has them); cycles and
-// menu paths use ASCII "->", as the keyboard-shortcuts section already does.
-func TestManualUnicodeArrowsStayInCodeSpans(t *testing.T) {
-	fenced := regexp.MustCompile("(?s)```.*?```")
-	inline := regexp.MustCompile("`[^`]*`")
-	arrow := regexp.MustCompile(`[←↑→↓]`)
+// TestManualHasNoUnicodeArrows guards a Fyne font quirk. The theme's regular
+// face (NotoSans) carries no arrow glyphs at all, so the shaper falls back to
+// the symbol face - InterSymbols, a 23-glyph subset of Inter - and go-text
+// keeps that face across the next character instead of splitting the run.
+// The subset holds arrows and little else: no space, no "/", no hyphen. So
+// whatever follows an arrow shapes to .notdef and the painter substitutes
+// U+FFFD for it, and "Windows-Sicherheit \u2192 Viren-" reaches the user as
+// "Windows-Sicherheit \u2192\ufffd Viren-".
+//
+// An earlier version of this check allowed arrows inside code spans, on the
+// grounds that the monospace face carries the whole range. That held for the
+// span itself and broke everywhere the surrounding markup pulled the text
+// back into the regular face. Nothing is gained by drawing the fine line:
+// use ASCII throughout - "->" for menu paths and cycles, the key names
+// "Left", "Right", "Up" and "Down" for the keys themselves.
+func TestManualHasNoUnicodeArrows(t *testing.T) {
+	arrow := regexp.MustCompile(`[\x{2190}\x{2191}\x{2192}\x{2193}]`)
 
 	for name, md := range manuals {
-		body := inline.ReplaceAllString(fenced.ReplaceAllString(md, ""), "")
-		for i, line := range strings.Split(body, "\n") {
+		for i, line := range strings.Split(md, "\n") {
 			if arrow.MatchString(line) {
-				t.Errorf("%s:%d has a Unicode arrow outside a code span: %q", name, i+1, strings.TrimSpace(line))
+				t.Errorf("%s:%d has a Unicode arrow: %q - write the key name (Left/Right/Up/Down) or ASCII \"->\"", name, i+1, strings.TrimSpace(line))
 			}
 		}
 	}

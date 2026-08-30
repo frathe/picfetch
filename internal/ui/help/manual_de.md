@@ -247,7 +247,7 @@ tatsächlich in der
 Datei vorhanden ist. `E` öffnet dasselbe Fenster direkt, ohne dass das
 Info-Overlay vorher geöffnet sein muss. Das Fenster aktualisiert sich, wenn Sie bei
 geöffnetem Fenster zu einem anderen Bild wechseln (aus dem Bildfenster, oder mit
-`←`/`→`, solange das EXIF-Fenster selbst den Fokus hat), und — wie beim Handbuch-
+`Left`/`Right`, solange das EXIF-Fenster selbst den Fokus hat), und — wie beim Handbuch-
 und Info-Fenster — schließt `Esc` nur dieses Fenster, und ein erneuter Druck
 auf `E`, während es bereits offen ist, holt es nach vorne, statt eine zweite
 Kopie zu öffnen. Dateien ohne Exif-Daten (die meisten PNGs, GIFs und WebPs
@@ -256,7 +256,7 @@ stattdessen die Meldung „keine Metadaten gefunden“.
 
 Unterhalb der Tag-Liste erscheint bei JPEGs die Schaltfläche
 **Metadaten entfernen** (oberhalb der Karte, falls eine da ist). Sie fragt
-nach (**Abbrechen** vorausgewählt; **`←`**/**`→`** und **`Return`** /
+nach (**Abbrechen** vorausgewählt; **`Left`**/**`Right`** und **`Return`** /
 **`Esc`**, dieselben Tastatur-Regeln wie bei anderen PicFetch-Bestätigungen).
 Sie schreibt die **ursprüngliche JPEG-Datei** direkt um. Die Schaltfläche
 fehlt, sobald nichts mehr zu entfernen ist — auch nach einem erfolgreichen
@@ -309,17 +309,17 @@ Kacheln von [OpenStreetMap](https://openstreetmap.org)
 Legen Sie mehrere Dateien auf einmal ab und blättern Sie mit der Tastatur
 durch:
 
-- **`→`** oder **`↓`** — nächstes Bild
-- **`←`** oder **`↑`** — vorheriges Bild
+- **`Right`** oder **`Down`** — nächstes Bild
+- **`Left`** oder **`Up`** — vorheriges Bild
 - **`Home`** — zum ersten Bild springen
 - **`End`** — zum letzten Bild springen
 
-Die Navigation **läuft im Kreis**: `→` beim letzten Bild springt zurück zum
-ersten, `←` beim ersten Bild zum letzten.
+Die Navigation **läuft im Kreis**: `Right` beim letzten Bild springt zurück zum
+ersten, `Left` beim ersten Bild zum letzten.
 
-Solange das **EXIF-Datenfenster** den Fokus hat, blättern `←` und `→` genau
+Solange das **EXIF-Datenfenster** den Fokus hat, blättern `Left` und `Right` genau
 so weiter (einschließlich im Kreis). `Esc` schließt weiterhin nur dieses
-Fenster. Während **Metadaten entfernen** nachfragt, bewegen `←`/`→` die
+Fenster. Während **Metadaten entfernen** nachfragt, bewegen `Left`/`Right` die
 Bestätigungswahl, nicht das Bild.
 
 Hinweise:
@@ -539,21 +539,21 @@ Ordner voller Fotos wie einen digitalen Bilderrahmen laufen zu lassen.
   manueller Navigation. Jeder Wechsel wird **überblendet** — das
   ausscheidende Bild verblasst, das neue blendet ein — statt des sofortigen
   Wechsels beim normalen Durchblättern. Auch die manuelle Navigation
-  (`←`/`→`/`Home`/`End`) wird während des Diaschau-Modus auf dieselbe Weise
+  (`Left`/`Right`/`Home`/`End`) wird während des Diaschau-Modus auf dieselbe Weise
   überblendet. Sind Duplikate ausgeblendet, überspringen automatischer
   Wechsel und diese Tasten versteckte Extra-Kopien genauso wie das normale
   Durchblättern.
-- **`↑`** erhöht das Intervall um eine Sekunde, **`↓`** verringert es (bis
+- **`Up`** erhöht das Intervall um eine Sekunde, **`Down`** verringert es (bis
   zu einer Untergrenze von einer Sekunde). Solange der Diaschau-Modus aktiv
-  ist, steuern `↑`/`↓` den Timer statt zu navigieren — nutzen Sie
-  **`←`**/**`→`** (oder `Home`/`End`) zum manuellen Navigieren, das
+  ist, steuern `Up`/`Down` den Timer statt zu navigieren — nutzen Sie
+  **`Left`**/**`Right`** (oder `Home`/`End`) zum manuellen Navigieren, das
   weiterhin wie gewohnt funktioniert und den Countdown ab dem neuen Bild neu
   startet.
 - **`Shift+P`** schaltet **Zufällige Wiedergabe** ein oder aus: Ist sie
   aktiv, wählt der automatische Wechsel jedes Mal ein zufälliges anderes
   Bild statt des nächsten in der Reihenfolge (nie das gerade angezeigte),
   und die Titelzeile beginnt mit **`[Zufällig]`**. Die manuelle Navigation
-  mit `←`/`→`/`Home`/`End` bleibt davon unberührt — sie durchläuft die
+  mit `Left`/`Right`/`Home`/`End` bleibt davon unberührt — sie durchläuft die
   Auswahl immer in Reihenfolge. Die Zufällige Wiedergabe verhält sich wie
   eine dauerhafte Einstellung, genau wie der Zusammenführen-Modus:
   `Shift+P` funktioniert schon, bevor Sie den Diaschau-Modus überhaupt
@@ -589,8 +589,8 @@ was `Return` auslösen wird, bevor Sie es drücken.
 Sie können auf beide Arten antworten:
 
 - **Mit der Maus**: Klicken Sie direkt auf eine der beiden Schaltflächen.
-- **Mit der Tastatur**: Drücken Sie **`→`**, um die Auswahl auf „In den
-  Papierkorb verschieben“ zu verschieben (**`←`** verschiebt sie zurück auf
+- **Mit der Tastatur**: Drücken Sie **`Right`**, um die Auswahl auf „In den
+  Papierkorb verschieben“ zu verschieben (**`Left`** verschiebt sie zurück auf
   „Abbrechen“) —
   der Rahmen bewegt sich mit — und dann **`Return`**, um mit der jeweils
   ausgewählten Option fortzufahren. **`Esc`** bricht sofort ab, egal welche
@@ -634,8 +634,8 @@ tatsächlich verschoben wurden.
 - **`Opt`/`Alt+Shift+F`** — „Aktuelle Liste zu Favoriten hinzufügen…“ öffnen
   (ausgegraut, und dieses Tastenkürzel tut nichts, wenn keine Dateien
   geladen sind; siehe „Menü“ unten)
-- **`→`** / **`↓`** — nächstes Bild
-- **`←`** / **`↑`** — vorheriges Bild
+- **`Right`** / **`Down`** — nächstes Bild
+- **`Left`** / **`Up`** — vorheriges Bild
 - **`Home`** / **`End`** — erstes / letztes Bild
 - **`S`** — Sortierreihenfolge durchschalten: Name -> Aufnahmedatum ->
   Änderungszeitpunkt -> Größe -> unsortiert -> zurück zu Name
@@ -683,7 +683,7 @@ tatsächlich verschoben wurden.
   Info-Overlay erreichbar. Solange dieses Fenster den Fokus hat, wechseln
   Links/Rechts das Bild.
 - **`Cmd`/`Strg+E`** — das aktuelle Bild in eine neue Datei exportieren: eine
-  Abfrage fragt nach dem Format (**`←`**/**`→`** wählt zwischen PNG und JPEG,
+  Abfrage fragt nach dem Format (**`Left`**/**`Right`** wählt zwischen PNG und JPEG,
   **`Return`** exportiert, **`Esc`** bricht ab), danach benennen Sie die Datei
   im Speichern-Dialog des Systems (siehe „Menü“ unten). Das einfache `E` oben
   öffnet weiterhin das EXIF-Fenster — nur die Tastenkombination exportiert
@@ -703,7 +703,7 @@ tatsächlich verschoben wurden.
 - **`Shift+P`** — Zufällige Wiedergabe für den automatischen Wechsel im
   Diaschau-Modus ein-/ausschalten; wird in der Titelzeile mit dem Präfix
   **`[Zufällig]`** angezeigt
-- **`↑`** / **`↓`** *(im Diaschau-Modus)* — das Auto-Weiterschalt-Intervall
+- **`Up`** / **`Down`** *(im Diaschau-Modus)* — das Auto-Weiterschalt-Intervall
   um eine Sekunde erhöhen/verringern
 - **`Esc`** — die aktuellen Bilder leeren und zum anfänglichen
   Ablegebildschirm zurückkehren; beendet die App, wenn nichts geladen ist,
@@ -744,7 +744,7 @@ benötigen in beiden Fällen nichts Zusätzliches.
   JPEG-Vorschaubild wird entfernt, damit es nicht das ungedrehte Foto zeigt
 - **Datei -> Bild exportieren** (`Cmd/Strg+E`) — fragt über eine
   tastaturbedienbare Abfrage nach dem gewünschten Format, in
-  derselben Form wie die Lösch-Bestätigung: **`←`**/**`→`** wählt zwischen
+  derselben Form wie die Lösch-Bestätigung: **`Left`**/**`Right`** wählt zwischen
   **PNG** (standardmäßig ausgewählt) und **JPEG**, **`Return`** exportiert,
   **`Esc`** bricht ab, ohne einen Speichern-Dialog zu öffnen. Das gewählte
   Format speichert das Bild dann so, wie es gerade angezeigt wird, Drehung
@@ -792,6 +792,16 @@ benötigen in beiden Fällen nichts Zusätzliches.
   PicFetch, installiert die bereitgestellte Version beim Herunterfahren und
   startet PicFetch neu. Der aktualisierte Start zeigt anschließend die
   Neuigkeiten zu dieser Version.
+
+  Konnte sich PicFetch unter Windows nicht selbst ersetzen – meist, weil der
+  Überwachte Ordnerzugriff den Installationsordner schützt –, meldet PicFetch
+  das beim nächsten Start, nennt die betroffene Datei und bietet eine
+  Schaltfläche zur Download-Seite. Damit Updates wieder automatisch
+  übernommen werden, erlauben Sie PicFetch den Zugriff unter
+  Windows-Sicherheit -> Viren- & Bedrohungsschutz -> Ransomware-Schutz -> App
+  durch überwachten Ordnerzugriff zulassen, oder installieren Sie PicFetch
+  außerhalb der geschützten Benutzerordner (Dokumente, Bilder, Musik, Videos,
+  Desktop).
 - **Favoriten -> Aktuelle Liste zu Favoriten hinzufügen…** (`Opt/Alt+Shift+F`) — speichert die
   gesamte aktuell geöffnete Dateiliste als benannte Sammlung. Favoriten
   bleiben nach einem Neustart von PicFetch erhalten. Gespeichert werden
@@ -800,9 +810,9 @@ benötigen in beiden Fällen nichts Zusätzliches.
   geladen werden. Der Dialog ist vollständig über die Tastatur bedienbar:
   beim Öffnen ist bereits das Namensfeld fokussiert, Sie können also sofort
   lostippen; **`Return`** im Feld speichert mit dem gerade eingegebenen
-  Namen, **`↓`** bewegt die Tastatur weiter zu einem Rahmen über
-  „Abbrechen“/„Hinzufügen“ (steht anfangs auf „Abbrechen“), **`↑`** bewegt
-  sie zurück zum Feld, **`←`**/**`→`** bewegen dort den Rahmen, und
+  Namen, **`Down`** bewegt die Tastatur weiter zu einem Rahmen über
+  „Abbrechen“/„Hinzufügen“ (steht anfangs auf „Abbrechen“), **`Up`** bewegt
+  sie zurück zum Feld, **`Left`**/**`Right`** bewegen dort den Rahmen, und
   **`Esc`** bricht von beiden Stellen aus ab. „Hinzufügen“ bleibt
   ausgegraut, solange der Name ungültig ist — also leer ist oder eines der
   Zeichen `/ \ : * ? " < > |` enthält
@@ -815,7 +825,7 @@ benötigen in beiden Fällen nichts Zusätzliches.
   eine Sammlung unter einem bereits vorhandenen Namen gespeichert, fragt
   PicFetch vor dem Ersetzen der gespeicherten Liste nach, und auch diese
   Rückfrage lässt sich vollständig über die Tastatur beantworten:
-  **`←`**/**`→`** bewegen einen Rahmen zwischen „Abbrechen“ und „Ersetzen“
+  **`Left`**/**`Right`** bewegen einen Rahmen zwischen „Abbrechen“ und „Ersetzen“
   — er steht anfangs auf „Abbrechen“, sodass `Return` von sich aus nichts
   ersetzt —, **`Return`** löst die markierte Option aus, **`Esc`** bricht
   ab. Beide Wege, die Rückfrage abzubrechen, öffnen den Dialog zum
@@ -824,13 +834,13 @@ benötigen in beiden Fällen nichts Zusätzliches.
 - **Favoriten -> Favoriten verwalten…** (auch `Cmd`/`Strg+Shift+F`) — zeigt
   alle gespeicherten Sammlungen mit ihrer Dateianzahl an und lässt Sie eine
   davon öffnen oder entfernen. Vollständig über die Tastatur bedienbar:
-  **`↑`**/**`↓`** bewegen den Rahmen zwischen den Zeilen, **`←`**/**`→`**
+  **`Up`**/**`Down`** bewegen den Rahmen zwischen den Zeilen, **`Left`**/**`Right`**
   bewegen ihn zwischen den Schaltflächen „Öffnen“ und „Entfernen“ der
   jeweiligen Zeile, **`Return`** löst die gerade markierte Option aus, und
   ein Klick führt immer die angeklickte Schaltfläche aus, unabhängig davon,
   wo der Rahmen gerade steht. **`Esc`** schließt den Dialog. Das Entfernen
   fragt vorher nach Bestätigung; auch diese Rückfrage lässt sich vollständig
-  über die Tastatur beantworten: **`←`**/**`→`** bewegen den Rahmen zwischen
+  über die Tastatur beantworten: **`Left`**/**`Right`** bewegen den Rahmen zwischen
   „Abbrechen“ und „Entfernen“ — er steht anfangs auf „Abbrechen“, sodass
   `Return` von sich aus nichts entfernt —, **`Return`** löst die markierte
   Option aus, **`Esc`** bricht ab. Wird bestätigt, wandert nur der eigene
@@ -1062,7 +1072,7 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
 - **Zusammenführen-Modus** — `M` schaltet ihn ein/aus (auch Aktionen ->
   Zusammenführen-Modus umschalten); solange aktiv, ergänzen Ablagen die
   Auswahl, statt sie zu ersetzen, und die Titelzeile zeigt `[Zusammenführen]`
-- **Nächstes / Vorheriges** — `→` `↓` / `←` `↑` (läuft im Kreis)
+- **Nächstes / Vorheriges** — `Right` `Down` / `Left` `Up` (läuft im Kreis)
 - **Erstes / Letztes** — `Home` / `End`
 - **Sortierreihenfolge** — `S` schaltet durch Name -> Aufnahmedatum ->
   Änderungszeitpunkt -> Größe -> unsortiert -> zurück zu Name (Aktionen ->
@@ -1110,9 +1120,9 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   GPS-Tags trägt; bei JPEGs steht unter den Tags (oberhalb der Karte)
   **Metadaten entfernen**, das nach Bestätigung identifizierende Tags direkt
   aus der Datei entfernt und fehlt, wenn die Tag-Liste leer ist oder nichts
-  mehr zu entfernen ist; solange das Fenster den Fokus hat, wechseln `←`/`→` das Bild
+  mehr zu entfernen ist; solange das Fenster den Fokus hat, wechseln `Left`/`Right` das Bild
 - **Diaschau-Modus** — `P` schaltet eine Vollbild-Diaschau mit Überblendung
-  zwischen den Bildern ein/aus; `↑`/`↓` stellen das (standardmäßig 10 s)
+  zwischen den Bildern ein/aus; `Up`/`Down` stellen das (standardmäßig 10 s)
   Auto-Weiterschalt-Intervall ein, solange sie aktiv ist; `Shift+P` schaltet
   die Zufällige Wiedergabe ein/aus (`[Zufällig]` in der Titelzeile); verlassen
   mit `V`/`P`/`Esc` oder Fenster -> Bildanzeige
@@ -1121,7 +1131,7 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Bildpfad kopieren); im Raster kopiert `Cmd`/`Strg+C` die ausgewählten
   Dateien selbst
 - **Löschen** — `Shift+Delete`/`Shift+Entf` öffnet eine Bestätigungskarte
-  (Aktionen -> Bild in den Papierkorb legen; `←`/`→` zum Auswählen, `Return`
+  (Aktionen -> Bild in den Papierkorb legen; `Left`/`Right` zum Auswählen, `Return`
   zum Bestätigen, `Esc` zum Abbrechen); verschiebt die Datei in den
   Papierkorb, oder die ganze Auswahl des Rasters
 - **Im Raster auswählen** — `Cmd`/`Strg+Klick` oder `Leertaste` für eine,

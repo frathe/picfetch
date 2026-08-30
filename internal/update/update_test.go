@@ -1,6 +1,7 @@
 package update
 
 import (
+	"net/url"
 	"testing"
 	"time"
 )
@@ -84,5 +85,27 @@ func TestNormalizeVersion(t *testing.T) {
 		if got := NormalizeVersion(tc.in); got != tc.want {
 			t.Errorf("NormalizeVersion(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestDownloadPageURL_IsAParseableLinkToTheProjectSite(t *testing.T) {
+	// The failure dialog parses this constant at the moment the user asks
+	// for the download page, so a typo would surface as a dead button
+	// rather than a build error.
+	u, err := url.Parse(DownloadPageURL)
+	if err != nil {
+		t.Fatalf("url.Parse(%q) = %v", DownloadPageURL, err)
+	}
+	if u.Scheme != "https" {
+		t.Errorf("scheme = %q, want https", u.Scheme)
+	}
+	if want := RepoOwner + ".github.io"; u.Host != want {
+		t.Errorf("host = %q, want %q", u.Host, want)
+	}
+	if want := "/" + RepoName + "/"; u.Path != want {
+		t.Errorf("path = %q, want %q", u.Path, want)
+	}
+	if u.Fragment != "downloads" {
+		t.Errorf("fragment = %q, want downloads - the link has to land on the download list", u.Fragment)
 	}
 }

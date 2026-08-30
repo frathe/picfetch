@@ -6,15 +6,40 @@
 
 #### New Features
 
+- Added manual update checks in Settings: **Check now** bypasses the automatic
+  daily gate, shows checking/current/download/error states, verifies and
+  stages updates, and offers **Later** or **Perform update** to apply and
+  relaunch with What's New on the updated launch.
+
 #### Bugfix
 
+- Windows: if PicFetch lived in a protected folder (Documents, Music, and the like), Controlled Folder Access blocked every in-app update. The update now applies without going through cmd.exe, so that block is gone.
+  If Windows still refuses the write (the app isn't signed), you get a message on the next launch with a button to the download page instead of a silent fail. That dialog actually fits the window, and German text no longer shows garbage characters.
+
 #### Internal
+
 
 ## ACTIVE DEVELOPMENT
 
 ## TODO
 
 ## not deemed worth implementing (edge cases)
+
+- Windows releases are not Authenticode-signed. Controlled Folder Access and
+  SmartScreen both judge by signature and reputation as well as by which
+  program is writing, so an unsigned `picfetch.exe` can still be blocked
+  even with the in-process swap (see Done → Bugfix above, where the block
+  would now name `picfetch.exe` instead of `cmd.exe`). The real remaining
+  fix is signing the Windows release build — Azure Trusted Signing or a
+  purchased certificate — in `.github/workflows/release.yml`, which runs no
+  `signtool` today.
+
+- There is a bug in the Windows Version: WHen in Gridview, multiselect via
+  the space key works, but when trying it with mouse and Ctrl key, it does not.
+  Holding the Ctrl key down and clicking on an image does not select it but
+  instead opens it. Observation, when pushing the Ctrl key at exactly the same time
+  as clicking on the image, it actually works, and the image is selected.
+  (this seems to be a bug in fyne, created an issue, sorry Windows users)
 
 ### Qodana drops detected duplicates during serialisation (upstream)
 
@@ -44,10 +69,3 @@ the underlying serialisation defect itself is. See
 offsets and anchoring detail, and `plans/2026-08-29-qodana-serialisation-bug-report.md`,
 Task 8's draft of the upstream report text — as of this writing not yet
 submitted to JetBrains; check that file for whether it has been sent since.
-
-- There is a bug in the Windows Version: WHen in Gridview, multiselect via
-  the space key works, but when trying it with mouse and Ctrl key, it does not.
-  Holding the Ctrl key down and clicking on an image does not select it but
-  instead opens it. Observation, when pushing the Ctrl key at exactly the same time
-  as clicking on the image, it actually works, and the image is selected.
-  (this seems to be a bug in fyne, created an issue, sorry Windows users)

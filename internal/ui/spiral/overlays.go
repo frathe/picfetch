@@ -123,8 +123,8 @@ func updateStatus(w fyne.Window, st *state, statusText *fyne.Container) {
 		fmt.Sprintf(lang.L("Scale: %sx"), f32toStr(mi.scale)),
 		fmt.Sprintf(lang.L("Logical: %s×%s pts"), f32toStr(mi.logicalW), f32toStr(mi.logicalH)),
 		fmt.Sprintf(lang.L("Pattern: %s (N)"), st.presetName()),
-		fmt.Sprintf(lang.L("Turn speed: %s (←/→)"), strconv.FormatFloat(st.speed(), 'f', 2, 64)),
-		fmt.Sprintf(lang.L("Colour speed: %s (↑/↓)"), strconv.FormatFloat(st.hueSpeed(), 'f', 2, 64)),
+		fmt.Sprintf(lang.L("Turn speed: %s (Left/Right)"), strconv.FormatFloat(st.speed(), 'f', 2, 64)),
+		fmt.Sprintf(lang.L("Colour speed: %s (Up/Down)"), strconv.FormatFloat(st.hueSpeed(), 'f', 2, 64)),
 		lang.L("Press R to hide"),
 	}
 
@@ -213,8 +213,8 @@ func updateHelpText(o *fyne.Container) {
 		lang.L("N:   Switch spiral pattern"),
 		lang.L("P:   Toggle FPS counter"),
 		lang.L("R:   Toggle resolution info"),
-		lang.L("←/→: Adjust turn speed"),
-		lang.L("↑/↓: Adjust colour speed"),
+		lang.L("Left/Right: Adjust turn speed"),
+		lang.L("Up/Down: Adjust colour speed"),
 	}
 
 	setOverlayContentText(o, strings.Join(lines, "\n"), helpLineHeight, 16)

@@ -45,7 +45,14 @@ func Run(application fyne.App, initial []fyne.URI) {
 	syncNativeMenuBar(view.win.MainMenu())
 	application.Lifecycle().SetOnStarted(func() {
 		syncNativeMenuBar(view.win.MainMenu())
+		// The failure report takes its record from the sweep rather than
+		// re-reading the cache, and that data dependency is what keeps the
+		// report ordered after the sweep: reporting clears the record, and a
+		// cleared record reads as a clean install, so a reporter that ran
+		// first would let the sweep take the last working binary.
+		failure := view.sweepUpdateBackup()
 		view.maybeShowWhatsNew()
+		view.maybeShowUpdateFailure(failure)
 
 		// Install before opening, not after: a delivery arriving in the
 		// gap between the two would have nobody to take it. Installing

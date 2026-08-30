@@ -19,6 +19,13 @@ const (
 	GitHubTUFMirror       = "https://tuf-repo.github.com"
 )
 
+// DownloadPageURL is the human-facing download page PicFetch offers when it
+// could not install an update itself. It points at the project site rather
+// than the GitHub release, which lists bare asset files and leaves the user
+// to work out which one is theirs; the site names the platforms and carries
+// the install notes.
+const DownloadPageURL = "https://" + RepoOwner + ".github.io/" + RepoName + "/#downloads"
+
 type Config struct {
 	BaseURL  string // default APIHost, httptest in tests
 	HTTP     Doer

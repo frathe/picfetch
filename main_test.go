@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 func TestArgsToURIs_ResolvesRelativeToAbsolute(t *testing.T) {
@@ -135,6 +136,52 @@ func TestTranslations_EnglishMapsEachKeyToItself(t *testing.T) {
 			t.Errorf("en.json maps %q to %q, want the key itself", key, value)
 		}
 	}
+}
+
+// TestTranslations_NoArrowFollowedByASpace guards the same Fyne font quirk
+// internal/ui/help's manual check guards, on the side the manual cannot see.
+// The theme's regular face (NotoSans) has no arrow glyphs, so the shaper
+// falls back to the symbol face - InterSymbols, a 23-glyph subset of Inter
+// holding the arrows and nothing else. go-text does not let a space end a
+// run (shaping.ignoreFaceChange treats every Zs as face-neutral), so the
+// space right after an arrow is shaped with that subset, comes out as
+// .notdef, and painter.DrawStringOffset substitutes U+FFFD for it, so a
+// label reading "Security -> Virus" spelled with U+2192 draws a replacement
+// box where the space should be.
+//
+// Arrows themselves are fine and the spiral overlay ships several - it is
+// only the space after one that breaks, which is why this checks the pair
+// rather than banning the character.
+func TestTranslations_NoArrowFollowedByASpace(t *testing.T) {
+	locales, err := fs.Glob(translationsFS, "translations/*.json")
+	if err != nil {
+		t.Fatalf("listing embedded translations: %v", err)
+	}
+
+	for _, path := range locales {
+		locale := filepath.Base(path)
+		for key, value := range loadBundle(t, locale) {
+			for _, s := range []string{key, value} {
+				if i := arrowBeforeSpace(s); i >= 0 {
+					t.Errorf("%s: %q has an arrow followed by a space at offset %d - the space renders as a box, use \"->\" instead", locale, s, i)
+				}
+			}
+		}
+	}
+}
+
+// arrowBeforeSpace returns the byte offset of the first arrow that is
+// directly followed by a space, or -1.
+func arrowBeforeSpace(s string) int {
+	var prev rune
+	var prevAt int
+	for i, r := range s {
+		if strings.ContainsRune("\u2190\u2191\u2192\u2193", prev) && unicode.IsSpace(r) {
+			return prevAt
+		}
+		prev, prevAt = r, i
+	}
+	return -1
 }
 
 // TestFyneAppToml_IconExists pins the file fyne install reads when someone
