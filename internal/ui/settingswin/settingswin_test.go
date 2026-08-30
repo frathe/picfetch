@@ -22,6 +22,13 @@ import (
 // every single test instead of once for the package.
 var testApp fyne.App
 
+type metadataApp struct {
+	fyne.App
+	metadata fyne.AppMetadata
+}
+
+func (a metadataApp) Metadata() fyne.AppMetadata { return a.metadata }
+
 func TestMain(m *testing.M) {
 	testApp = test.NewApp()
 	os.Exit(m.Run())
@@ -841,6 +848,24 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	}
 }
 
+func TestUpdatesTab_ShowsCurrentVersionAndBuild(t *testing.T) {
+	app := metadataApp{
+		App:      testApp,
+		metadata: fyne.AppMetadata{Version: "2.3.4", Build: 567},
+	}
+	w := New(app, &fakeHost{})
+	w.Show()
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	updates := tabVBox(t, settingsTabs(t, w).Items[2])
+	if got, want := w.updateVersion.Text, "Version 2.3.4 (Build 567)"; got != want {
+		t.Errorf("version label = %q, want %q", got, want)
+	}
+	if got := updates.Objects[0]; got != w.updateVersion {
+		t.Errorf("first Updates object = %T, want current version label", got)
+	}
+}
+
 // TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow locks the
 // Updates-tab placement and makes the double-activation guard observable
 // through the consumer-side Host rather than a real updater worker.
@@ -850,13 +875,13 @@ func TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow(t *testing.T
 
 	tabs := settingsTabs(t, w)
 	updates := tabVBox(t, tabs.Items[2])
-	if len(updates.Objects) != 2 {
-		t.Fatalf("Updates tab object count = %d, want 2", len(updates.Objects))
+	if len(updates.Objects) != 3 {
+		t.Fatalf("Updates tab object count = %d, want 3", len(updates.Objects))
 	}
-	if got := updates.Objects[0]; got != w.updateCheck {
+	if got := updates.Objects[1]; got != w.updateCheck {
 		t.Errorf("object before Check now = %T, want the automatic update checkbox", got)
 	}
-	if got := updates.Objects[1]; got != w.updateNow {
+	if got := updates.Objects[2]; got != w.updateNow {
 		t.Errorf("last settings object = %T, want Check now button", got)
 	}
 

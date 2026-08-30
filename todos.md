@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added current app version and build number to Settings > Updates.
 - Split Settings into General, Appearance, and Updates tabs so related options
   are easier to find.
 - Added manual update checks in Settings: **Check now** bypasses the automatic
@@ -26,7 +27,6 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
- - in settings tab updates add information about current app version and build number.
 
 ### cgo `copyTitle` returns a shared static buffer
 

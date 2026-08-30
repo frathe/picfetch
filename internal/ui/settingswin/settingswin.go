@@ -114,6 +114,7 @@ type Window struct {
 	mergeCheck, shuffleCheck      *widget.Check
 	favPreviewCheck, updateCheck  *widget.Check
 	updateNow                     *widget.Button
+	updateVersion                 *widget.Label
 	intervalEntry, maxScanEntry   *widget.Entry
 	maxWidthEntry, maxHeightEntry *widget.Entry
 	imgCacheEntry, thumbCacheEntry,
@@ -154,6 +155,7 @@ func (w *Window) Show() {
 		w.mergeCheck, w.shuffleCheck = nil, nil
 		w.favPreviewCheck, w.updateCheck = nil, nil
 		w.updateNow = nil
+		w.updateVersion = nil
 		w.intervalEntry, w.maxScanEntry = nil, nil
 		w.maxWidthEntry, w.maxHeightEntry = nil, nil
 		w.imgCacheEntry, w.thumbCacheEntry, w.maxFileSizeEntry = nil, nil, nil
@@ -327,10 +329,12 @@ func (w *Window) build() fyne.CanvasObject {
 	w.updateCheck = widget.NewCheck(lang.L("Check for updates"), w.host.SetCheckForUpdates)
 	w.updateCheck.Checked = w.host.CheckForUpdates()
 	w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
+	meta := w.app.Metadata()
+	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
 	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
 	appearanceSettings := container.NewVBox(w.themeSelect)
-	updates := container.NewVBox(w.updateCheck, w.updateNow)
+	updates := container.NewVBox(w.updateVersion, w.updateCheck, w.updateNow)
 
 	return container.NewAppTabs(
 		container.NewTabItem(lang.L("General"), container.NewPadded(container.NewVScroll(general))),
