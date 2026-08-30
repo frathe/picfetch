@@ -2,6 +2,7 @@
 
 ## Start Here
 
+- `.agents/skills/improved_sdd_tdd_cycle.md` is the working agreement for *how* work gets done — routing, delegation limits, review ownership, verification. This file is the conventions; that one is the process. Read it before planning anything larger than a two-file fix.
 - Read `ARCHITECTURE.md` before code: it is the authoritative package map and “where to look for X” index.
 - Update `ARCHITECTURE.md` in the same change when packages are added, removed, renamed, or files move between packages.
 - Open work belongs in `todos.md`; do not add `TODO`/`FIXME` comments to source.
@@ -33,6 +34,7 @@
 ## Project Conventions
 
 - Every user-visible string is `lang.L("English text")`; add that exact key to every `translations/*.json` bundle. English is an identity map and `main_test.go` enforces locale parity.
+- No Unicode arrows in anything the app draws — not in `lang.L` keys or catalogue values, not in the manuals, not even inside backticks. The theme font (NotoSans) has no arrow glyphs, the shaper falls back to a 23-glyph symbol subset with no space, `/` or `-`, and the character *after* the arrow is painted as `�`. Write menu paths and cycles as ASCII `->` and keys as `Left` / `Right` / `Up` / `Down`. Guarded by `TestManualHasNoUnicodeArrows` and `TestTranslationsHaveNoUnicodeArrows`.
 - Report UI-boundary failures with `fyne.LogError`; viewer-independent packages return errors. Mark intentionally ignored errors explicitly (`_ =` or `_, _ =`) so IDE/`errcheck` inspections see intent.
 - Use `internal/uitest` for synthetic image formats, temp URIs, approximate comparisons, and OS seam stubs. UI tests should build through `newTestUI`/`newTestViewer`, which mirror production startup.
 - Keep platform-specific behavior in existing build-tag pairs and preserve no-cgo HEIC/AVIF decoding through `gen2brain` WASM; Fyne itself still requires a C/OpenGL toolchain.

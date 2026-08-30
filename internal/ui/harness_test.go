@@ -75,13 +75,16 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	// buildViewer was handed. Cheap, unlike test.NewApp - see testApp.
 	fyne.SetCurrentApp(testApp)
 
-	// Update glue persists lastUpdateCheckDay and whatsnew.json onto the
-	// shared test app; clear both so one test's check cannot make Due false
-	// (or leave notes) for the next.
+	// Update glue persists lastUpdateCheckDay, whatsnew.json and
+	// updatefailure.json onto the shared test app; clear all three so one
+	// test's check cannot make Due false, leave notes, or leave a recorded
+	// apply failure for the next.
 	testApp.Preferences().SetString("lastUpdateCheckDay", "")
 	testApp.Preferences().SetBool("checkForUpdates", false)
-	if testApp.Cache().Exists(autoupdate.WhatsNewCacheKey) {
-		_ = testApp.Cache().Remove(autoupdate.WhatsNewCacheKey)
+	for _, key := range []string{autoupdate.WhatsNewCacheKey, autoupdate.ApplyFailureCacheKey} {
+		if testApp.Cache().Exists(key) {
+			_ = testApp.Cache().Remove(key)
+		}
 	}
 
 	v, win = buildStartupViewer(testApp)

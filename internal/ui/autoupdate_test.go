@@ -3,6 +3,7 @@ package ui
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -10,8 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,6 +22,12 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
@@ -762,10 +771,10 @@ func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 	if wn == nil || wn.Version != "v0.2.6" || wn.Body != "hello notes" {
 		t.Errorf("whatsNew = %+v", wn)
 	}
-	if runtime.GOOS != "windows" {
-		if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("unix should RemoveStage after Apply, stat err %v", err)
-		}
+	// Windows is no longer excepted: the in-process swap completes before
+	// Apply returns, so nothing outlives it that still needs the staged file.
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("RemoveStage after Apply, stat err %v", err)
 	}
 }
 
@@ -1051,4 +1060,606 @@ func TestLastUpdateCheckDay_ConcurrentWithCurrentPreferences(t *testing.T) {
 		}
 	}()
 	wg.Wait()
+}
+
+// updateBackupFixture writes an executable and the backup beside it, and
+// returns the executable's path.
+func updateBackupFixture(t *testing.T) string {
+	t.Helper()
+	dest := filepath.Join(t.TempDir(), "picfetch")
+	for _, suffix := range []string{"", ".old"} {
+		if err := os.WriteFile(dest+suffix, []byte("x"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dest
+}
+
+func backupExists(t *testing.T, dest string) bool {
+	t.Helper()
+	_, err := os.Stat(dest + ".old")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	return err == nil
+}
+
+func TestSweepUpdateBackup_KeepsTheBackupAfterAFailedRestore(t *testing.T) {
+	// Op "restore" means the swap could neither install the new binary nor
+	// put the old one back, so what sits at dest may be a half-written file
+	// that stats fine. The backup is the only executable known to work.
+	v := newTestViewer(t)
+	dest := updateBackupFixture(t)
+	if err := autoupdate.SaveApplyFailure(v.app, autoupdate.ApplyFailure{
+		Version: "v0.2.6",
+		Reason:  string(update.ReasonAccessDenied),
+		Op:      "restore",
+		Path:    dest,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := v.sweepUpdateBackupAt(dest)
+
+	if !backupExists(t, dest) {
+		t.Error("swept the backup a failed restore left as the only working executable")
+	}
+	if got == nil || got.Op != "restore" {
+		t.Errorf("returned record = %+v, want the restore failure the report is built from", got)
+	}
+}
+
+func TestSweepUpdateBackup_SweepsWithNoFailureRecord(t *testing.T) {
+	v := newTestViewer(t)
+	dest := updateBackupFixture(t)
+
+	got := v.sweepUpdateBackupAt(dest)
+
+	if backupExists(t, dest) {
+		t.Error("an applied update left its predecessor on disk forever")
+	}
+	if got != nil {
+		t.Errorf("returned record = %+v, want nil so nothing is reported", got)
+	}
+}
+
+func TestSweepUpdateBackup_SweepsAfterAFailureThatLeftTheExecutableAlone(t *testing.T) {
+	// Every step but "restore" either never touched dest or already rolled
+	// it back, so the running executable is intact and the backup is dead
+	// weight.
+	for _, op := range []string{"", "rename", "copy", "verify", "relaunch"} {
+		t.Run(op, func(t *testing.T) {
+			v := newTestViewer(t)
+			dest := updateBackupFixture(t)
+			if err := autoupdate.SaveApplyFailure(v.app, autoupdate.ApplyFailure{
+				Version: "v0.2.6",
+				Reason:  string(update.ReasonAccessDenied),
+				Op:      op,
+				Path:    dest,
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			got := v.sweepUpdateBackupAt(dest)
+
+			if backupExists(t, dest) {
+				t.Errorf("Op %q kept a backup nothing depends on", op)
+			}
+			if got == nil || got.Op != op {
+				t.Errorf("returned record = %+v, want the failure with Op %q", got, op)
+			}
+		})
+	}
+}
+
+func TestSweepUpdateBackup_KeepsTheBackupWhenTheRecordCannotBeRead(t *testing.T) {
+	// An unreadable record is not the same as no record: it might have said
+	// "restore", and losing the last working executable is the worse of the
+	// two mistakes.
+	v := newTestViewer(t)
+	dest := updateBackupFixture(t)
+	w, err := v.app.Cache().Write(autoupdate.ApplyFailureCacheKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("{not json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := v.sweepUpdateBackupAt(dest)
+
+	if !backupExists(t, dest) {
+		t.Error("swept the backup on the strength of a record it could not read")
+	}
+	if got != nil {
+		t.Errorf("returned record = %+v, want nil: an unreadable record says nothing worth reporting", got)
+	}
+}
+
+// --- next-launch update failure report --------------------------------------
+
+// updateFailurePath is a path no message template can produce on its own, so
+// a test that looks for it is really asking whether the record's Path was
+// substituted in.
+const updateFailurePath = "/Applications/PicFetch.app/Contents/MacOS/picfetch"
+
+// updateFailureDetail stands in for the raw OS error text. It must never
+// reach the user: an errno-flavoured sentence explains nothing and cannot be
+// translated.
+const updateFailureDetail = "update apply: copy " + updateFailurePath + ": CreateFile: Access is denied."
+
+func updateFailureRecord(reason update.FailureReason) autoupdate.ApplyFailure {
+	return autoupdate.ApplyFailure{
+		Version: "v0.2.6",
+		Reason:  string(reason),
+		Op:      "copy",
+		Path:    updateFailurePath,
+		Detail:  updateFailureDetail,
+	}
+}
+
+// updateFailureReasons is every value the switch can see: the four declared
+// reasons plus the shapes a hand-edited or future-written cache file could
+// carry. The empty string is what a record saved before Reason existed would
+// decode to.
+var updateFailureReasons = []update.FailureReason{
+	update.ReasonAccessDenied,
+	update.ReasonVirusBlocked,
+	update.ReasonSharingViolation,
+	update.ReasonUnknown,
+	"",
+	"ACCESS-DENIED",
+	"reason-from-a-newer-picfetch",
+}
+
+func TestMaybeShowUpdateFailure_NoRecordShowsNothing(t *testing.T) {
+	v := newTestViewer(t)
+
+	v.maybeShowUpdateFailure(nil)
+
+	if n := len(v.win.Canvas().Overlays().List()); n != 0 {
+		t.Errorf("overlay count = %d, want 0 - a launch after a clean apply must stay quiet", n)
+	}
+}
+
+func TestMaybeShowUpdateFailure_ClearsRecord(t *testing.T) {
+	v := newTestViewer(t)
+	rec := updateFailureRecord(update.ReasonAccessDenied)
+	if err := autoupdate.SaveApplyFailure(v.app, rec); err != nil {
+		t.Fatal(err)
+	}
+
+	v.maybeShowUpdateFailure(&rec)
+
+	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
+		t.Errorf("overlay count = %d, want 1 (the update failure dialog)", n)
+	}
+	got, err := autoupdate.LoadApplyFailure(v.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != nil {
+		t.Errorf("record after the report = %+v, want nil so the next launch stays quiet", got)
+	}
+}
+
+// TestMaybeShowUpdateFailure_ReportsWhateverVersionFailed pins the deliberate
+// difference from maybeShowWhatsNew: that one is gated on the cached version
+// matching this build, and the same gate here would suppress the dialog
+// without clearing the record - stranding an Op "restore" that vetoes the
+// backup sweep on every later launch.
+func TestMaybeShowUpdateFailure_ReportsWhateverVersionFailed(t *testing.T) {
+	v := newTestViewer(t)
+	v.updater.SetCurrentVersion("0.2.5")
+	rec := updateFailureRecord(update.ReasonAccessDenied)
+	rec.Version = "v9.9.9"
+	if err := autoupdate.SaveApplyFailure(v.app, rec); err != nil {
+		t.Fatal(err)
+	}
+
+	v.maybeShowUpdateFailure(&rec)
+
+	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
+		t.Errorf("overlay count = %d, want 1 - the report must not be version-gated", n)
+	}
+	got, err := autoupdate.LoadApplyFailure(v.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != nil {
+		t.Errorf("record after the report = %+v, want nil", got)
+	}
+}
+
+func TestUpdateFailureMessage_AccessDeniedNamesFolderAccessAndPath(t *testing.T) {
+	got := updateFailureMessage(updateFailureRecord(update.ReasonAccessDenied), "windows")
+
+	if !strings.Contains(got, updateFailurePath) {
+		t.Errorf("message = %q, want it to name the path that could not be replaced", got)
+	}
+	if !strings.Contains(got, "Controlled Folder Access") {
+		t.Errorf("message = %q, want it to name Controlled Folder Access, the usual cause", got)
+	}
+	if generic := updateFailureMessage(updateFailureRecord(update.ReasonUnknown), "windows"); got == generic {
+		t.Errorf("access-denied message is identical to the generic one (%q) - the classification buys the user nothing", got)
+	}
+}
+
+// TestUpdateFailureMessage_ControlledFolderAccessIsWindowsOnly is the pin on
+// the one sentence in this app that is true on one platform and false on the
+// others. A read-only install directory on macOS or Linux makes applyUnix
+// return "permission denied", which ClassifyApplyError maps to the same
+// ReasonAccessDenied - and before this gate the user was told Windows had
+// blocked PicFetch.
+func TestUpdateFailureMessage_ControlledFolderAccessIsWindowsOnly(t *testing.T) {
+	rec := updateFailureRecord(update.ReasonAccessDenied)
+	generic := updateFailureMessage(updateFailureRecord(update.ReasonUnknown), "windows")
+
+	for _, goos := range []string{"darwin", "linux", "freebsd", ""} {
+		got := updateFailureMessage(rec, goos)
+
+		for _, forbidden := range []string{"Windows", "Controlled Folder Access", "Ordnerzugriff"} {
+			if strings.Contains(got, forbidden) {
+				t.Errorf("message on %q = %q, want no mention of %q", goos, got, forbidden)
+			}
+		}
+		if got != generic {
+			t.Errorf("message on %q = %q, want the generic wording %q", goos, got, generic)
+		}
+	}
+
+	if got := updateFailureMessage(rec, "windows"); !strings.Contains(got, "Controlled Folder Access") {
+		t.Errorf("message on windows = %q, want it to name Controlled Folder Access", got)
+	}
+}
+
+func TestUpdateFailureMessage_UnknownReasonFallsBackToGeneric(t *testing.T) {
+	want := updateFailureMessage(updateFailureRecord(update.ReasonUnknown), "windows")
+
+	for _, reason := range []update.FailureReason{"", "ACCESS-DENIED", "reason-from-a-newer-picfetch"} {
+		if got := updateFailureMessage(updateFailureRecord(reason), "windows"); got != want {
+			t.Errorf("message for reason %q = %q, want the generic %q", reason, got, want)
+		}
+	}
+	if !strings.Contains(want, updateFailurePath) {
+		t.Errorf("generic message = %q, want it to name the path", want)
+	}
+}
+
+func TestUpdateFailureMessage_VirusBlockedNamesTheScannerWithoutThePath(t *testing.T) {
+	// The antivirus string carries no %s: the file the scanner ate is the
+	// download, not the executable the record's Path names.
+	got := updateFailureMessage(updateFailureRecord(update.ReasonVirusBlocked), "windows")
+
+	if !strings.Contains(got, "antivirus") {
+		t.Errorf("message = %q, want it to name the antivirus", got)
+	}
+	if strings.Contains(got, updateFailurePath) {
+		t.Errorf("message = %q, want no path - the template has no verb to hold one", got)
+	}
+}
+
+func TestUpdateFailureMessage_SharingViolationSaysTheFileWasInUse(t *testing.T) {
+	got := updateFailureMessage(updateFailureRecord(update.ReasonSharingViolation), "windows")
+
+	if !strings.Contains(got, updateFailurePath) {
+		t.Errorf("message = %q, want it to name the locked path", got)
+	}
+	if !strings.Contains(got, "in use") {
+		t.Errorf("message = %q, want it to say the file was in use", got)
+	}
+}
+
+// TestUpdateFailureMessage_EveryReasonReassuresAndStaysWellFormed is the
+// invariant sweep: whatever the record says, the user is told the old
+// PicFetch still works, no raw error text leaks through, and no template was
+// handed the wrong number of arguments.
+func TestUpdateFailureMessage_EveryReasonReassuresAndStaysWellFormed(t *testing.T) {
+	reassurance := lang.L("The previous version is still installed and running.")
+
+	for _, goos := range []string{"windows", "darwin", "linux"} {
+		for _, reason := range updateFailureReasons {
+			t.Run(goos+"/"+string(reason), func(t *testing.T) {
+				got := updateFailureMessage(updateFailureRecord(reason), goos)
+
+				if !strings.Contains(got, reassurance) {
+					t.Errorf("message = %q, want it to end with %q", got, reassurance)
+				}
+				if strings.Contains(got, updateFailureDetail) {
+					t.Errorf("message = %q, want the raw OS error kept out of it", got)
+				}
+				if strings.Contains(got, "%!") {
+					t.Errorf("message = %q, want no Sprintf argument mismatch", got)
+				}
+				if strings.Contains(got, "%s") {
+					t.Errorf("message = %q, want the path substituted, not the verb left standing", got)
+				}
+			})
+		}
+	}
+}
+
+// TestUpdateFailureMessage_EachClassifiedReasonHasItsOwnWording proves the
+// switch actually branches: collapsing any arm into the generic one makes two
+// of these equal.
+func TestUpdateFailureMessage_EachClassifiedReasonHasItsOwnWording(t *testing.T) {
+	seen := map[string]update.FailureReason{}
+	for _, reason := range []update.FailureReason{
+		update.ReasonAccessDenied,
+		update.ReasonVirusBlocked,
+		update.ReasonSharingViolation,
+		update.ReasonUnknown,
+	} {
+		got := updateFailureMessage(updateFailureRecord(reason), "windows")
+		if other, dup := seen[got]; dup {
+			t.Errorf("reasons %q and %q produce the same message %q", other, reason, got)
+		}
+		seen[got] = reason
+	}
+}
+
+// TestUpdateFailureMessage_EmptyRecordStillSaysSomethingUseful covers the
+// zero value: a record whose fields never got filled in must still yield a
+// sentence, not a bare template.
+func TestUpdateFailureMessage_EmptyRecordStillSaysSomethingUseful(t *testing.T) {
+	got := updateFailureMessage(autoupdate.ApplyFailure{}, "windows")
+
+	if !strings.Contains(got, lang.L("The previous version is still installed and running.")) {
+		t.Errorf("message = %q, want the reassurance even with nothing recorded", got)
+	}
+	if strings.Contains(got, "%!") || strings.Contains(got, "%s") {
+		t.Errorf("message = %q, want a substituted template", got)
+	}
+}
+
+// germanUpdateFailureMessage builds the message a German user reads, from
+// the shipped catalogue rather than a copy: lang.L has no bundle loaded in
+// this package's tests (main.go is what calls AddTranslationsFS), so the only
+// way to measure the translated wording is to read it off disk.
+func germanUpdateFailureMessage(t *testing.T, path string) string {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", "translations", "de.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var catalogue map[string]string
+	if err := json.Unmarshal(raw, &catalogue); err != nil {
+		t.Fatal(err)
+	}
+	lookup := func(key string) string {
+		value, ok := catalogue[key]
+		if !ok {
+			t.Fatalf("de.json has no entry for %q", key)
+		}
+		return value
+	}
+	var cfaKey string
+	for key := range catalogue {
+		if strings.HasPrefix(key, "Windows blocked PicFetch from replacing itself at %s.") {
+			cfaKey = key
+		}
+	}
+	if cfaKey == "" {
+		t.Fatal("de.json has no Controlled Folder Access entry")
+	}
+	return fmt.Sprintf(lookup(cfaKey), path) + "\n\n" +
+		lookup("The previous version is still installed and running.")
+}
+
+// updateFailureMessages is the set of wordings the failure dialog has to
+// lay out: the German Controlled Folder Access text is the longest, and a
+// deep install path pushes even the English one over a fixed box.
+func updateFailureMessages(t *testing.T) map[string]string {
+	t.Helper()
+
+	const deepPath = `C:\Users\Ein sehr langer Benutzername\Documents\Programme\PicFetch portable\bin\picfetch.exe`
+	deep := updateFailureRecord(update.ReasonAccessDenied)
+	deep.Path = deepPath
+
+	return map[string]string{
+		"english":     updateFailureMessage(updateFailureRecord(update.ReasonAccessDenied), "windows"),
+		"german":      germanUpdateFailureMessage(t, updateFailurePath),
+		"deep path":   updateFailureMessage(deep, "windows"),
+		"german deep": germanUpdateFailureMessage(t, deepPath),
+	}
+}
+
+// showUpdateFailureDialog opens the real dialog on win, sized the way
+// maybeShowUpdateFailure sizes it, and hands back the scrolled body.
+func showUpdateFailureDialog(t *testing.T, win fyne.Window, message string) *container.Scroll {
+	t.Helper()
+
+	body := updateFailureContent(message, updateFailureBodySize(win.Canvas().Size()))
+	d := dialog.NewCustomConfirm(
+		lang.L("Update could not be installed"),
+		lang.L("Open download page"),
+		lang.L("Close"),
+		body,
+		func(bool) {},
+		win,
+	)
+	d.Show()
+	t.Cleanup(d.Hide)
+
+	if needed, canvas := d.MinSize(), win.Canvas().Size(); needed.Width > canvas.Width || needed.Height > canvas.Height {
+		t.Errorf("dialog MinSize = %v, want no larger than the %v canvas - the popup gets clamped and the overflow is simply cut", needed, canvas)
+	}
+	if _, ok := body.Content.(*widget.Label); !ok {
+		t.Fatalf("scrolled content = %T, want the message label", body.Content)
+	}
+	if got, want := body.Content.Size().Width, body.Size().Width; got > want+0.5 {
+		t.Errorf("content width %.1f exceeds the %.1f viewport - the message would need a horizontal scrollbar", got, want)
+	}
+	return body
+}
+
+// TestUpdateFailureContent_KeepsTheWholeMessageReachableAtTheSmallestWindow
+// is calibrated to startW x startH, the size PicFetch opens at with no
+// remembered geometry. A modal popup is clamped to its canvas and whatever
+// the dialog cannot fit is cut off, not made reachable - the German
+// Controlled Folder Access text overflows a window that small, so at this
+// size the scroll is what carries the tail.
+func TestUpdateFailureContent_KeepsTheWholeMessageReachableAtTheSmallestWindow(t *testing.T) {
+	_, win, _ := newTestUI(t)
+
+	canvas := win.Canvas().Size()
+	if canvas.Width != startW || canvas.Height != startH {
+		t.Fatalf("canvas = %v, want %vx%v - this test's numbers assume the default window", canvas, startW, startH)
+	}
+
+	for name, message := range updateFailureMessages(t) {
+		t.Run(name, func(t *testing.T) {
+			body := showUpdateFailureDialog(t, win, message)
+
+			label := body.Content.(*widget.Label)
+			if got, want := label.Size().Height, label.MinSize().Height; got+0.5 < want {
+				t.Errorf("label laid out at %.1fpt but needs %.1fpt - the tail of the message is cut off, not scrollable", got, want)
+			}
+			if got := body.Size().Height; got < updateFailureBodyMinH {
+				t.Errorf("visible body = %.1fpt, want at least %dpt - the message is a sliver", got, updateFailureBodyMinH)
+			}
+
+			body.ScrollToBottom()
+			if reached, need := body.Offset.Y+body.Size().Height, body.Content.Size().Height; reached+0.5 < need {
+				t.Errorf("scrolled to %.1fpt of %.1fpt - the end of the message cannot be reached", reached, need)
+			}
+		})
+	}
+}
+
+// TestUpdateFailureContent_NeedsNoScrollingOnARoomyWindow is the reason the
+// body is sized from the canvas at all. The dialog is the one place PicFetch
+// asks the user to go and change a Windows security setting, and a message
+// that arrives two visible lines at a time reads as a warning to dismiss
+// rather than an instruction to follow. Any window with room for the whole
+// text has to show the whole text.
+//
+// 1280x800 stands in for a normal desktop window - well under the size the
+// screenshot that prompted this came from, so the maxima are what bound the
+// body here, not the canvas.
+func TestUpdateFailureContent_NeedsNoScrollingOnARoomyWindow(t *testing.T) {
+	_, win, _ := newTestUI(t)
+	win.Resize(fyne.NewSize(1280, 800))
+
+	for name, message := range updateFailureMessages(t) {
+		t.Run(name, func(t *testing.T) {
+			body := showUpdateFailureDialog(t, win, message)
+
+			if got, want := body.Content.Size().Height, body.Size().Height; got > want+0.5 {
+				t.Errorf("message needs %.1fpt in a %.1fpt viewport - it still has to be scrolled on a window with room to spare", got, want)
+			}
+			if body.Offset.Y != 0 {
+				t.Errorf("body opened scrolled to %.1f, want the top", body.Offset.Y)
+			}
+		})
+	}
+}
+
+// TestUpdateFailureBodySize_TracksTheCanvasBetweenItsBounds covers the two
+// clamps without opening a dialog: a window too small for the floor, and one
+// large enough that the maxima stop the paragraph from spanning the display.
+func TestUpdateFailureBodySize_TracksTheCanvasBetweenItsBounds(t *testing.T) {
+	tests := []struct {
+		name   string
+		canvas fyne.Size
+		want   fyne.Size
+	}{
+		{"tiny window takes the floor", fyne.NewSize(120, 90), fyne.NewSize(updateFailureBodyMinW, updateFailureBodyMinH)},
+		{"default window takes the canvas", fyne.NewSize(startW, startH), fyne.NewSize(startW-updateFailureChromeW, startH-updateFailureChromeH)},
+		{"full screen takes the maxima", fyne.NewSize(3840, 2160), fyne.NewSize(updateFailureBodyMaxW, updateFailureBodyMaxH)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := updateFailureBodySize(tc.canvas); got != tc.want {
+				t.Errorf("updateFailureBodySize(%v) = %v, want %v", tc.canvas, got, tc.want)
+			}
+		})
+	}
+}
+
+// urlRecorder is the shared test app with OpenURL replaced. Embedding the
+// interface keeps the substitution local to one viewer: nothing calls
+// fyne.SetCurrentApp, so the process-wide current app newTestUI depends on
+// stays the one every widget was built against.
+type urlRecorder struct {
+	fyne.App
+
+	got *url.URL
+	err error
+}
+
+func (r *urlRecorder) OpenURL(u *url.URL) error {
+	r.got = u
+	return r.err
+}
+
+func TestOpenReleasesPage_HandsTheReleasesURLToTheApp(t *testing.T) {
+	v := newTestViewer(t)
+	recorder := &urlRecorder{App: v.app}
+	v.app = recorder
+
+	v.openReleasesPage()
+
+	if recorder.got == nil {
+		t.Fatal("OpenURL was never called - the confirm button would do nothing")
+	}
+	if got := recorder.got.String(); got != update.DownloadPageURL {
+		t.Errorf("OpenURL got %q, want %q", got, update.DownloadPageURL)
+	}
+}
+
+// TestOpenReleasesPage_LogsAnAppThatCannotOpenTheURL covers the branch a
+// desktop with no registered https handler takes. Swallowing it would leave
+// a button that silently does nothing.
+func TestOpenReleasesPage_LogsAnAppThatCannotOpenTheURL(t *testing.T) {
+	v := newTestViewer(t)
+	v.app = &urlRecorder{App: v.app, err: errors.New("no handler for https")}
+
+	logged := captureLog(t, v.openReleasesPage)
+
+	for _, want := range []string{"failed to open the download page", "no handler for https"} {
+		if !strings.Contains(logged, want) {
+			t.Errorf("log = %q, want it to mention %q", logged, want)
+		}
+	}
+}
+
+// captureLog collects what fn writes through the standard logger, which is
+// where fyne.LogError ends up. Unlike the same pattern in internal/ui/help
+// the buffer is mutex-guarded: this package keeps background goroutines
+// alive across tests, and one of them logging mid-capture would otherwise be
+// a data race rather than just noise.
+func captureLog(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var buf lockedBuffer
+	restore := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(restore) })
+
+	fn()
+
+	log.SetOutput(restore)
+	return buf.String()
+}
+
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

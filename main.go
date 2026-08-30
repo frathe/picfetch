@@ -18,6 +18,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/ui"
+	"github.com/frathe/picfetch/internal/update"
 )
 
 // translationsFS stays here rather than moving into internal/ui with the
@@ -81,6 +82,10 @@ func main() {
 	// to start - the app simply behaves as it did before, ignoring
 	// "Open With".
 	openwith.Install()
+
+	// Before app.NewWithID: an update relaunch must not read or write
+	// preferences while the process it replaced is still flushing its own.
+	update.CleanupPredecessor()
 
 	application := app.NewWithID(appID)
 

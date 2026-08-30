@@ -4,7 +4,6 @@ package update
 
 import (
 	"errors"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,27 +113,6 @@ func unixRelaunchCommand(dest string, pid int) *exec.Cmd {
 	// shell's diagnostic on PicFetch's stderr instead of discarding it.
 	cmd.Stderr = os.Stderr
 	return cmd
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = in.Close() }()
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
-	if err != nil {
-		return err
-	}
-	_, copyErr := io.Copy(out, in)
-	closeErr := out.Close()
-	if copyErr != nil {
-		return copyErr
-	}
-	return closeErr
 }
 
 // applyWindows's real implementation (apply_windows.go) only compiles on
