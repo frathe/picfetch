@@ -55,3 +55,17 @@
   fragment sets, never totals. CI runs the `qodana.starter` profile, not the IDE Project
   Default, so IDE and CI totals are not comparable either.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in the `frathe/picfetch` GitHub Issues, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root, created lazily by `/domain-modeling`. See `docs/agents/domain.md`.
+
