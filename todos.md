@@ -6,6 +6,8 @@
 
 #### New Features
 
+![sorting_images.png](assets/trane/sorting_images.png)
+
 - Added current app version and build number to Settings > Updates.
 - Split Settings into General, Appearance, and Updates tabs so related options
   are easier to find.
