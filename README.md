@@ -124,6 +124,12 @@ Windows builds for both x64 (`picfetch-windows-amd64.zip`) and ARM64
 (`picfetch-windows-arm64.zip`); grab the one matching your machine. See
 [Building](#building) below to build from source instead.
 
+### Windows (WinGet)
+
+```powershell
+winget install io.github.frathe.picfetch
+```
+
 Releases are immutable. GitHub issues a Sigstore release attestation that
 binds each archive's SHA-256 to the tag. The in-app updater, when enabled,
 refuses to install a build that fails that check.
@@ -322,32 +328,49 @@ for a drop. Add the matching wait if you add a scenario that starts one.
 
 ## Project layout
 
-```sh
-main.go               Entry point: app setup, translations, CLI arguments
-internal/ui/          The application - the viewer core and the key dispatcher
-  run.go              Run(): explicit startup/runtime/shutdown lifecycle
-  startup.go          Loads startup state, normalizes defaults, restores geometry
-  build.go            buildViewer(): top-level window/overlay composition
-  components.go       App-owned widget clusters and fixed-height layout
-  features.go         Explicit ordered construction of all eight feature modules
-  shortcuts.go        Ordered global modified-key shortcut registration
-  zoom/ grid/         One package per feature that owns its own state,
-  slideshow/ help/    each declaring only what it needs from the app
-  deletion/ exifwin/
-  settingswin/ favorites/
-  widgets/            Shared viewer-free UI mechanics
-  assets/             Placeholder/welcome art, embedded at build time
-  help/manual.md      End-user manual, embedded at build time
-  testdata/           Golden master screenshots for the e2e suite
-internal/imaging/     Read - decode - EXIF-orient - cache pipeline
-internal/favthumbs/   Disk-cached grid previews for favorites
-internal/uitest/      Shared test fixtures and OS-seam stubs
-translations/         JSON translation bundles, embedded at build time
-assets/               Icon and README artwork (packaging, not embedded)
-docs/                 Landing page, published at frathe.github.io/picfetch
-FyneApp.toml          Fyne app metadata (name, ID, version, build number)
-Makefile              Build, package, and dev-workflow tasks
-ARCHITECTURE.md       Package map - start here to find anything
+```text
+main.go                   Thin entry point: app setup, translations, CLI paths
+internal/
+  ui/                     Viewer state, app composition, and key dispatch
+    run.go                Explicit startup/runtime/shutdown lifecycle
+    startup.go            Startup state, defaults, and geometry restoration
+    build.go              Top-level window and overlay composition
+    components.go         App-owned widget clusters and layout
+    features.go           Ordered construction of feature modules
+    shortcuts.go          Global modified-key shortcut registration
+    zoom/ grid/           Feature packages that own their widgets and state
+    deletion/ slideshow/
+    exifwin/ favorites/
+    settingswin/ help/
+    spiral/
+    autoupdate/           Update orchestration and cached update state
+    display/ infoview/    Viewer-decoupled display, info, and menu state
+    menus/
+    widgets/              Shared viewer-free UI mechanics
+    assets/               Embedded placeholder and welcome artwork
+    help/manual.md        Embedded end-user manual
+    testdata/             Golden screenshots for the end-to-end suite
+  imaging/                Probe, decode, orient, encode, and image caches
+  update/                 Verified download, staging, and platform apply logic
+  appearance/             Application-wide light/dark appearance handling
+  preferences/ session/   Standing preferences and last-open file sets
+  filescan/ filesort/     File discovery and ordering
+  dupes/ selection/       Duplicate detection and selection helpers
+  favstore/ favthumbs/    Favorite lists and their cached grid previews
+  clipboard/ filepicker/  Platform integrations behind testable dispatchers
+  trash/ wallpaper/
+  openwith/               macOS Apple Event open queue
+  completion/ decodepool/ Background-work coordination primitives
+  wingesture/ winpos/     Window gesture and position tracking
+  uitest/                 Shared fixtures, UI queues, and OS seam stubs
+translations/             Embedded JSON translation bundles
+assets/                   Application icon and README artwork
+docs/agents/              Agent-facing domain and issue-triage guidance
+scripts/                  Version, release, TUF, and WinGet automation
+.github/                  CI/release workflows and community files
+FyneApp.toml              Fyne app metadata: name, ID, version, and build
+Makefile                  Build, package, verification, and release tasks
+ARCHITECTURE.md           Authoritative package map and navigation index
 ```
 
 ## Contributing
