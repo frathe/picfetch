@@ -4,18 +4,36 @@ package ui
 
 import "testing"
 
+func newTestMenu(t *testing.T, title string) uintptr {
+	t.Helper()
+	menu := testNewMenu(title)
+	t.Cleanup(func() { testReleaseMenu(menu) })
+	return menu
+}
+
+func TestNativeMenuTitleCopiesHaveIndependentLifetime(t *testing.T) {
+	menu := newTestMenu(t, "Window")
+	testAddItem(menu, "Viewer", false)
+	testAddItem(menu, "EXIF Data", false)
+
+	first, second := testHeldItemTitles(menu, 0, 1)
+	if first != "Viewer" || second != "EXIF Data" {
+		t.Fatalf("held titles = %q, %q; want Viewer, EXIF Data", first, second)
+	}
+}
+
 func TestMergeWindowMenus_MovesItemsOntoSystemWindowMenu(t *testing.T) {
-	main := testNewMenu("")
-	file := testNewMenu("File")
+	main := newTestMenu(t, "")
+	file := newTestMenu(t, "File")
 	testAddItem(file, "Open", false)
 	testAddTopLevel(main, file)
 
-	ours := testNewMenu("Window")
+	ours := newTestMenu(t, "Window")
 	testAddItem(ours, "Viewer", false)
 	testAddItem(ours, "EXIF Data", false)
 	testAddTopLevel(main, ours)
 
-	system := testNewMenu("Window")
+	system := newTestMenu(t, "Window")
 	testAddItem(system, "Minimize", false)
 	testAddItem(system, "Zoom", false)
 	testAddTopLevel(main, system)
@@ -61,12 +79,12 @@ func TestMergeWindowMenus_MovesItemsOntoSystemWindowMenu(t *testing.T) {
 }
 
 func TestMergeWindowMenus_MatchesLocalizedPicFetchTitle(t *testing.T) {
-	main := testNewMenu("")
-	ours := testNewMenu("Fenster")
+	main := newTestMenu(t, "")
+	ours := newTestMenu(t, "Fenster")
 	testAddItem(ours, "Bildanzeige", false)
 	testAddTopLevel(main, ours)
 
-	system := testNewMenu("Window")
+	system := newTestMenu(t, "Window")
 	testAddItem(system, "Minimize", false)
 	testAddTopLevel(main, system)
 
@@ -82,11 +100,11 @@ func TestMergeWindowMenus_MatchesLocalizedPicFetchTitle(t *testing.T) {
 }
 
 func TestMergeWindowMenus_SecondCallIsNoop(t *testing.T) {
-	main := testNewMenu("")
-	ours := testNewMenu("Window")
+	main := newTestMenu(t, "")
+	ours := newTestMenu(t, "Window")
 	testAddItem(ours, "Viewer", false)
 	testAddTopLevel(main, ours)
-	system := testNewMenu("Window")
+	system := newTestMenu(t, "Window")
 	testAddItem(system, "Minimize", false)
 	testAddTopLevel(main, system)
 
@@ -103,14 +121,14 @@ func TestMergeWindowMenus_SecondCallIsNoop(t *testing.T) {
 }
 
 func TestMergeWindowMenus_FoldsEveryDuplicate(t *testing.T) {
-	main := testNewMenu("")
-	first := testNewMenu("Window")
+	main := newTestMenu(t, "")
+	first := newTestMenu(t, "Window")
 	testAddItem(first, "Viewer", false)
 	testAddTopLevel(main, first)
-	second := testNewMenu("Window")
+	second := newTestMenu(t, "Window")
 	testAddItem(second, "EXIF Data", false)
 	testAddTopLevel(main, second)
-	system := testNewMenu("Window")
+	system := newTestMenu(t, "Window")
 	testAddItem(system, "Minimize", false)
 	testAddTopLevel(main, system)
 
@@ -127,7 +145,7 @@ func TestMergeWindowMenus_FoldsEveryDuplicate(t *testing.T) {
 }
 
 func TestSetMenuItemModifierMask_ClearsDefaultCommand(t *testing.T) {
-	m := testNewMenu("Actions")
+	m := newTestMenu(t, "Actions")
 	testAddItemWithKey(m, "Toggle merge mode", "m")
 
 	const nsEventModifierFlagCommand = 1 << 20
@@ -143,8 +161,8 @@ func TestSetMenuItemModifierMask_ClearsDefaultCommand(t *testing.T) {
 }
 
 func TestMergeWindowMenus_NoDuplicateIsNoop(t *testing.T) {
-	main := testNewMenu("")
-	system := testNewMenu("Window")
+	main := newTestMenu(t, "")
+	system := newTestMenu(t, "Window")
 	testAddItem(system, "Minimize", false)
 	testAddTopLevel(main, system)
 

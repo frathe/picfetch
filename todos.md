@@ -23,19 +23,13 @@
 
 #### Internal
 
+- Made macOS native-menu title reads return caller-owned C strings, removing
+  shared-buffer aliasing and truncation. Native-menu test fixtures now release
+  their retained AppKit menus after each test.
 
 ## ACTIVE DEVELOPMENT
 
 ## TODO
-
-### cgo `copyTitle` returns a shared static buffer
-
-- **Impact 1 · Risk 2 · Effort 1 → priority 15**
-- Where: [windowmenu_darwin.go:33](internal/ui/windowmenu_darwin.go:33).
-  Safe only while every caller stays on the AppKit main thread and never
-  holds two results at once — neither constraint is written down. Return a
-  `strdup`'d copy freed by the Go side (or document the constraint at the
-  function). `testKeepAlive` also grows unboundedly, though it is test-only.
 
 ### Feature: Static window size via options toggel
 - add a toggle to the settings dialog to allow the user to set a static window size

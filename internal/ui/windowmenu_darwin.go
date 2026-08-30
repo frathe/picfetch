@@ -18,28 +18,9 @@ package ui
 // separators, and must sit well above PicFetch's own callback IDs.
 static const NSInteger fyneWindowMergeSeparatorTag = 105000;
 
-static NSMutableArray *testKeepAlive;
-
-static void testKeep(id obj) {
-	if (obj == nil) {
-		return;
-	}
-	if (testKeepAlive == nil) {
-		testKeepAlive = [[NSMutableArray alloc] init];
-	}
-	[testKeepAlive addObject:obj];
-}
-
-static const char *copyTitle(NSString *s) {
-	static char buf[512];
+static char *copyTitle(NSString *s) {
 	const char *utf = [s UTF8String];
-	if (utf == NULL) {
-		buf[0] = 0;
-		return buf;
-	}
-	strncpy(buf, utf, sizeof(buf) - 1);
-	buf[sizeof(buf) - 1] = 0;
-	return buf;
+	return strdup(utf == NULL ? "" : utf);
 }
 
 int mergeWindowMenus(uintptr_t mainMenuPtr, uintptr_t systemWinPtr, const char *ourLabel) {
@@ -94,8 +75,13 @@ void mergeAppWindowMenus(const char *ourLabel) {
 uintptr_t testNewMenu(const char *title) {
 	NSString *t = [NSString stringWithUTF8String:title ? title : ""];
 	NSMenu *m = [[NSMenu alloc] initWithTitle:t];
-	testKeep(m);
-	return (uintptr_t)(__bridge void *)m;
+	return (uintptr_t)CFBridgingRetain(m);
+}
+
+void testReleaseMenu(uintptr_t menuPtr) {
+	if (menuPtr != 0) {
+		CFRelease((CFTypeRef)(void *)menuPtr);
+	}
 }
 
 void testAddItem(uintptr_t menuPtr, const char *title, int isSep) {
@@ -123,13 +109,10 @@ int testTopLevelCount(uintptr_t mainPtr) {
 	return (int)[main numberOfItems];
 }
 
-const char *testTopLevelSubmenuTitle(uintptr_t mainPtr, int index) {
+char *testTopLevelSubmenuTitle(uintptr_t mainPtr, int index) {
 	NSMenu *main = (__bridge NSMenu *)(void *)mainPtr;
 	NSMenu *sub = [[main itemAtIndex:index] submenu];
-	if (sub == nil) {
-		return "";
-	}
-	return copyTitle(sub.title);
+	return copyTitle(sub == nil ? @"" : sub.title);
 }
 
 int testItemCount(uintptr_t menuPtr) {
@@ -142,7 +125,7 @@ int testItemIsSeparator(uintptr_t menuPtr, int index) {
 	return [[m itemAtIndex:index] isSeparatorItem] ? 1 : 0;
 }
 
-const char *testItemTitle(uintptr_t menuPtr, int index) {
+char *testItemTitle(uintptr_t menuPtr, int index) {
 	NSMenu *m = (__bridge NSMenu *)(void *)menuPtr;
 	return copyTitle([[m itemAtIndex:index] title]);
 }
@@ -251,6 +234,10 @@ func testNewMenu(title string) uintptr {
 	return uintptr(C.testNewMenu(c))
 }
 
+func testReleaseMenu(menu uintptr) {
+	C.testReleaseMenu(C.uintptr_t(menu))
+}
+
 func testAddItem(menu uintptr, title string, sep bool) {
 	c := C.CString(title)
 	defer C.free(unsafe.Pointer(c))
@@ -270,7 +257,7 @@ func testTopLevelCount(main uintptr) int {
 }
 
 func testTopLevelSubmenuTitle(main uintptr, index int) string {
-	return C.GoString(C.testTopLevelSubmenuTitle(C.uintptr_t(main), C.int(index)))
+	return stringFromOwnedCString(C.testTopLevelSubmenuTitle(C.uintptr_t(main), C.int(index)))
 }
 
 func testItemCount(menu uintptr) int {
@@ -282,7 +269,20 @@ func testItemIsSeparator(menu uintptr, index int) bool {
 }
 
 func testItemTitle(menu uintptr, index int) string {
-	return C.GoString(C.testItemTitle(C.uintptr_t(menu), C.int(index)))
+	return stringFromOwnedCString(C.testItemTitle(C.uintptr_t(menu), C.int(index)))
+}
+
+func testHeldItemTitles(menu uintptr, first, second int) (string, string) {
+	firstTitle := C.testItemTitle(C.uintptr_t(menu), C.int(first))
+	secondTitle := C.testItemTitle(C.uintptr_t(menu), C.int(second))
+	defer C.free(unsafe.Pointer(firstTitle))
+	defer C.free(unsafe.Pointer(secondTitle))
+	return C.GoString(firstTitle), C.GoString(secondTitle)
+}
+
+func stringFromOwnedCString(c *C.char) string {
+	defer C.free(unsafe.Pointer(c))
+	return C.GoString(c)
 }
 
 func testAddItemWithKey(menu uintptr, title, key string) {
@@ -351,8 +351,8 @@ func applyUnmodifiedNativeItems(menuTitle string, items []*fyne.MenuItem) {
 // Referenced so `go build` (which skips tests) still compiles the AppKit
 // harness windowmenu_darwin_test.go needs. Go forbids cgo in _test.go files.
 var _ = []any{
-	testNewMenu, testAddItem, testAddTopLevel,
+	testNewMenu, testReleaseMenu, testAddItem, testAddTopLevel,
 	testTopLevelCount, testTopLevelSubmenuTitle,
-	testItemCount, testItemIsSeparator, testItemTitle,
+	testItemCount, testItemIsSeparator, testItemTitle, testHeldItemTitles,
 	testAddItemWithKey, testItemModifierMask, setMenuItemModifierMask,
 }
