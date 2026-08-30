@@ -303,8 +303,7 @@ func (w *Window) build() fyne.CanvasObject {
 	dupeDistItem := widget.NewFormItem(lang.L("Duplicate match distance"), container.NewBorder(nil, nil, nil, w.dupeDistValue, w.dupeDistSlider))
 	dupeDistItem.HintText = lang.L("Lower is stricter; 0 is an exact thumbnail hash")
 
-	form := widget.NewForm(
-		widget.NewFormItem(lang.L("Appearance"), w.themeSelect),
+	generalForm := widget.NewForm(
 		widget.NewFormItem(lang.L("Sort order"), w.sortSelect),
 		widget.NewFormItem(lang.L("Picture-frame interval (seconds)"), w.intervalEntry),
 		maxScanItem,
@@ -329,8 +328,15 @@ func (w *Window) build() fyne.CanvasObject {
 	w.updateCheck.Checked = w.host.CheckForUpdates()
 	w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
 
-	settings := container.NewVBox(form, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, w.updateCheck, w.updateNow)
-	return container.NewPadded(container.NewVScroll(settings))
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
+	appearanceSettings := container.NewVBox(w.themeSelect)
+	updates := container.NewVBox(w.updateCheck, w.updateNow)
+
+	return container.NewAppTabs(
+		container.NewTabItem(lang.L("General"), container.NewPadded(container.NewVScroll(general))),
+		container.NewTabItem(lang.L("Appearance"), container.NewPadded(container.NewVScroll(appearanceSettings))),
+		container.NewTabItem(lang.L("Updates"), container.NewPadded(container.NewVScroll(updates))),
+	)
 }
 
 // startUpdateCheck owns the Settings window's one manual request. Disabling

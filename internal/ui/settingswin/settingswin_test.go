@@ -735,29 +735,128 @@ func newUpdateTestWindow(t *testing.T, host *fakeHost) *Window {
 	return w
 }
 
+func settingsTabs(t *testing.T, w *Window) *container.AppTabs {
+	t.Helper()
+
+	tabs, ok := w.win.Window().Content().(*container.AppTabs)
+	if !ok {
+		t.Fatalf("settings content = %T, want *container.AppTabs", w.win.Window().Content())
+	}
+	return tabs
+}
+
+func tabVBox(t *testing.T, item *container.TabItem) *fyne.Container {
+	t.Helper()
+
+	padded, ok := item.Content.(*fyne.Container)
+	if !ok || len(padded.Objects) != 1 {
+		t.Fatalf("%q tab content = %T, want one padded scroll", item.Text, item.Content)
+	}
+	scroll, ok := padded.Objects[0].(*container.Scroll)
+	if !ok {
+		t.Fatalf("%q tab padded child = %T, want *container.Scroll", item.Text, padded.Objects[0])
+	}
+	content, ok := scroll.Content.(*fyne.Container)
+	if !ok {
+		t.Fatalf("%q tab scroll content = %T, want *fyne.Container", item.Text, scroll.Content)
+	}
+	return content
+}
+
+func containsCanvasObject(root, target fyne.CanvasObject) bool {
+	if root == target {
+		return true
+	}
+
+	switch object := root.(type) {
+	case *fyne.Container:
+		for _, child := range object.Objects {
+			if containsCanvasObject(child, target) {
+				return true
+			}
+		}
+	case *container.Scroll:
+		return containsCanvasObject(object.Content, target)
+	case *widget.Form:
+		for _, item := range object.Items {
+			if containsCanvasObject(item.Widget, target) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
+	w := newUpdateTestWindow(t, &fakeHost{})
+	tabs := settingsTabs(t, w)
+
+	wantLabels := []string{"General", "Appearance", "Updates"}
+	if len(tabs.Items) != len(wantLabels) {
+		t.Fatalf("tab count = %d, want %d", len(tabs.Items), len(wantLabels))
+	}
+	for i, want := range wantLabels {
+		if got := tabs.Items[i].Text; got != want {
+			t.Errorf("tab %d label = %q, want %q", i, got, want)
+		}
+	}
+	if got := tabs.SelectedIndex(); got != 0 {
+		t.Errorf("selected tab = %d, want General at index 0", got)
+	}
+
+	general := tabs.Items[0].Content
+	for name, control := range map[string]fyne.CanvasObject{
+		"sort": w.sortSelect, "interval": w.intervalEntry, "scan cap": w.maxScanEntry,
+		"window width": w.maxWidthEntry, "window height": w.maxHeightEntry,
+		"image cache": w.imgCacheEntry, "thumbnail cache": w.thumbCacheEntry,
+		"file-size cap": w.maxFileSizeEntry, "duplicate distance": w.dupeDistSlider,
+		"merge": w.mergeCheck, "shuffle": w.shuffleCheck, "favorite previews": w.favPreviewCheck,
+	} {
+		if !containsCanvasObject(general, control) {
+			t.Errorf("General tab does not contain %s control", name)
+		}
+	}
+	for name, control := range map[string]fyne.CanvasObject{
+		"appearance": w.themeSelect, "automatic updates": w.updateCheck, "manual updates": w.updateNow,
+	} {
+		if containsCanvasObject(general, control) {
+			t.Errorf("General tab unexpectedly contains %s control", name)
+		}
+	}
+
+	appearanceTab := tabs.Items[1].Content
+	if !containsCanvasObject(appearanceTab, w.themeSelect) {
+		t.Error("Appearance tab does not contain appearance selector")
+	}
+	if containsCanvasObject(appearanceTab, w.sortSelect) || containsCanvasObject(appearanceTab, w.updateCheck) {
+		t.Error("Appearance tab contains a General or Updates control")
+	}
+
+	updates := tabs.Items[2].Content
+	if !containsCanvasObject(updates, w.updateCheck) || !containsCanvasObject(updates, w.updateNow) {
+		t.Error("Updates tab does not contain both update controls")
+	}
+	if containsCanvasObject(updates, w.themeSelect) || containsCanvasObject(updates, w.sortSelect) {
+		t.Error("Updates tab contains an Appearance or General control")
+	}
+}
+
 // TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow locks the
-// Settings placement and makes the double-activation guard observable through
-// the consumer-side Host rather than a real updater worker.
+// Updates-tab placement and makes the double-activation guard observable
+// through the consumer-side Host rather than a real updater worker.
 func TestUpdateNow_IsDirectlyBelowTheAutomaticCheckAndStartsOneFlow(t *testing.T) {
 	host := &fakeHost{}
 	w := newUpdateTestWindow(t, host)
 
-	content, ok := w.win.Window().Content().(*fyne.Container)
-	if !ok || len(content.Objects) != 1 {
-		t.Fatalf("settings content = %#v, want its padded scroll", w.win.Window().Content())
+	tabs := settingsTabs(t, w)
+	updates := tabVBox(t, tabs.Items[2])
+	if len(updates.Objects) != 2 {
+		t.Fatalf("Updates tab object count = %d, want 2", len(updates.Objects))
 	}
-	scroll, ok := content.Objects[0].(*container.Scroll)
-	if !ok {
-		t.Fatalf("settings content child = %#v, want vertical scroll", content.Objects[0])
-	}
-	settings, ok := scroll.Content.(*fyne.Container)
-	if !ok || len(settings.Objects) < 2 {
-		t.Fatalf("settings scroll content = %#v, want update controls", scroll.Content)
-	}
-	if got := settings.Objects[len(settings.Objects)-2]; got != w.updateCheck {
+	if got := updates.Objects[0]; got != w.updateCheck {
 		t.Errorf("object before Check now = %T, want the automatic update checkbox", got)
 	}
-	if got := settings.Objects[len(settings.Objects)-1]; got != w.updateNow {
+	if got := updates.Objects[1]; got != w.updateNow {
 		t.Errorf("last settings object = %T, want Check now button", got)
 	}
 

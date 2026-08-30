@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Split Settings into General, Appearance, and Updates tabs so related options
+  are easier to find.
 - Added manual update checks in Settings: **Check now** bypasses the automatic
   daily gate, shows checking/current/download/error states, verifies and
   stages updates, and offers **Later** or **Perform update** to apply and
@@ -24,6 +26,16 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
+ - in settings tab updates add information about current app version and build number.
+
+### cgo `copyTitle` returns a shared static buffer
+
+- **Impact 1 · Risk 2 · Effort 1 → priority 15**
+- Where: [windowmenu_darwin.go:33](internal/ui/windowmenu_darwin.go:33).
+  Safe only while every caller stays on the AppKit main thread and never
+  holds two results at once — neither constraint is written down. Return a
+  `strdup`'d copy freed by the Go side (or document the constraint at the
+  function). `testKeepAlive` also grows unboundedly, though it is test-only.
 
 ### Feature: Static window size via options toggel
 - add a toggle to the settings dialog to allow the user to set a static window size
