@@ -292,7 +292,13 @@ func TestApplyUnix_NormalApplyDoesNotRelaunch(t *testing.T) {
 }
 
 func TestApplyUnix_RelaunchFailureReturnedAfterInstall(t *testing.T) {
-	dir := t.TempDir()
+	// applyUnix resolves symlinks in dest, and macOS's temp dir sits behind
+	// the /var -> /private/var symlink, so resolve dir before the Path of
+	// the reported ApplyError is compared against it.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	dest := filepath.Join(dir, "picfetch")
 	if err := os.WriteFile(dest, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
@@ -303,7 +309,7 @@ func TestApplyUnix_RelaunchFailureReturnedAfterInstall(t *testing.T) {
 	}
 	wantErr := errors.New("launch failed")
 
-	err := applyUnixWithLauncher(Stage{BinaryPath: staged}, dest, ApplyOptions{Relaunch: true}, func(string) error {
+	err = applyUnixWithLauncher(Stage{BinaryPath: staged}, dest, ApplyOptions{Relaunch: true}, func(string) error {
 		return wantErr
 	})
 	if !errors.Is(err, wantErr) {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 )
@@ -419,12 +420,16 @@ func TestSwapBinary_DefaultOpsInstallTheStagedBytes(t *testing.T) {
 	// after Apply reports success, so a retry still has something to retry.
 	assertSwapFile(t, staged, "new build")
 
-	info, err := os.Stat(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm()&0o100 == 0 {
-		t.Errorf("installed binary mode = %v, want the owner-execute bit", info.Mode().Perm())
+	// Windows does not expose Unix permission bits, and executability there
+	// comes from the .exe extension, so the mode check is Unix-only.
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0o100 == 0 {
+			t.Errorf("installed binary mode = %v, want the owner-execute bit", info.Mode().Perm())
+		}
 	}
 }
 
