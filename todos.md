@@ -9,6 +9,8 @@
  - Copy selection: rectangular image-region copy from the normal viewer
    (Actions -> Copy selection, Opt/Alt+Shift+C).
 
+ - Copy Selection: Cmd/Ctrl+C copies the active image-region selection.
+
  - Settings: maximum window width, maximum window height, and fixed window
    size now live under Appearance.
 
@@ -42,8 +44,11 @@
 
 ## TODO
 
-- when a copy selection is active, and the user presses cmd-c, the selection
-  is copied to the clipboard.
+- Compare two grid-selected images with Cmd+D: open a temporary side-by-side
+  view with linked zoom and pan, button to switch to a swipe compare view (slider wipe),
+  there should be a swap sides button, The button should be on the top right,
+  is possible the buttons should be inside the windows title bar.
+  and Escape returning to Grid View while preserving both selections.
 
 ## not deemed worth implementing (edge cases)
 

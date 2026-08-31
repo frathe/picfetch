@@ -58,7 +58,10 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 
 // yieldingMenuCallbacks is the menu-bar yield: every PicFetch command the
 // bar can start cancels idle Copy Selection (or blocks while a copy is
-// pending), except zoom and Copy Selection itself, which keep the mode.
+// pending), except zoom, Copy Selection itself, and Copy image. Copy image
+// routes through copySelection so the native Cmd/Ctrl+C menu accelerator can
+// copy an active image-region selection before falling back to the grid or
+// displayed image.
 func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 	c.OpenFiles = v.yieldThen(c.OpenFiles)
 	c.SaveRotation = v.yieldThen(c.SaveRotation)
@@ -76,7 +79,6 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 	c.Rotate = v.yieldThen(c.Rotate)
 	c.ToggleMergeMode = v.yieldThen(c.ToggleMergeMode)
 	c.ToggleInfoOverlay = v.yieldThen(c.ToggleInfoOverlay)
-	c.CopyImage = v.yieldThen(c.CopyImage)
 	c.CopyPath = v.yieldThen(c.CopyPath)
 	c.SetWallpaper = v.yieldThen(c.SetWallpaper)
 	c.Trash = v.yieldThen(c.Trash)

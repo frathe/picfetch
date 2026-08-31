@@ -20,6 +20,7 @@ func TestYieldingMenuCallbacksWrapsEveryField(t *testing.T) {
 	exempt := map[string]bool{
 		"ZoomIn":        true, // zoom keeps the mode — see yieldingMenuCallbacks
 		"ZoomOut":       true,
+		"CopyImage":     true, // context-routes an active selection before falling back
 		"CopySelection": true, // Copy Selection itself must not cancel the mode
 	}
 

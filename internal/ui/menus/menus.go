@@ -235,9 +235,10 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	m.actions.info.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyI}
 
 	m.actions.copy = fyne.NewMenuItem(lang.L("Copy image"), c.CopyImage)
-	// Display-only: the Cmd/Ctrl+C binding is wireClipboardShortcuts's
-	// AddShortcut of fyne.ShortcutCopy (internal/ui/shortcuts.go). A second
-	// CustomShortcut here would double-fire copy.
+	// The canvas binding is wireClipboardShortcuts's AddShortcut of
+	// fyne.ShortcutCopy (internal/ui/shortcuts.go). Native menu bars can invoke
+	// this item's callback from the same accelerator instead; internal/ui gives
+	// both paths the same context-aware copy command.
 	m.actions.copy.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault}
 	m.actions.copy.Disabled = true
 

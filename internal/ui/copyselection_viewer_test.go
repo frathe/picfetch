@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"bytes"
+	"image"
 	"image/color"
+	"image/png"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -156,21 +159,20 @@ func TestCopySelectionCancel(t *testing.T) {
 	}
 }
 
-func TestWireCopySelectionShortcut(t *testing.T) {
+func TestWireGlobalShortcuts_CopySelectionWithCopyShortcut(t *testing.T) {
 	v := newTestViewer(t)
 	u := uitest.TempJPEGURI(t, "photo.jpg", 40, 20, color.White)
 	dropAndWait(t, v, u)
 
-	imageCopies := 0
-	uitest.StubClipboardCopy(t, func([]byte) error {
-		imageCopies++
+	var copiedImage []byte
+	uitest.StubClipboardCopy(t, func(data []byte) error {
+		copiedImage = data
 		return nil
 	})
 	v.app.Clipboard().SetContent("untouched")
 
 	handler := &fyne.ShortcutHandler{}
-	wireClipboardShortcuts(handler, v)
-	wireCopySelectionShortcut(handler, v)
+	wireGlobalShortcuts(handler, v)
 
 	handler.TypedShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyC,
@@ -179,16 +181,24 @@ func TestWireCopySelectionShortcut(t *testing.T) {
 	if !v.regionCopy.State().Active {
 		t.Fatal("Alt+Shift+C did not start Copy Selection mode")
 	}
-	if imageCopies != 0 || v.app.Clipboard().Content() != "untouched" {
-		t.Fatalf("Alt+Shift+C fired an existing copy action: image copies=%d text=%q",
-			imageCopies, v.app.Clipboard().Content())
+	if copiedImage != nil || v.app.Clipboard().Content() != "untouched" {
+		t.Fatalf("Alt+Shift+C fired an existing copy action: image copied=%v text=%q",
+			copiedImage != nil, v.app.Clipboard().Content())
 	}
 
-	v.cancelRegionCopy()
+	selectRegion(t, v, copySelectionBounds)
+	v.handleKeyEvent(&fyne.KeyEvent{Name: desktop.KeySuperLeft})
 	handler.TypedShortcut(&fyne.ShortcutCopy{})
 	waitForClipboard(t, v)
-	if imageCopies != 1 {
-		t.Fatalf("Cmd/Ctrl+C image copies = %d, want 1", imageCopies)
+	copied, err := png.Decode(bytes.NewReader(copiedImage))
+	if err != nil {
+		t.Fatalf("decode Cmd/Ctrl+C clipboard PNG: %v", err)
+	}
+	if got := copied.Bounds(); got != image.Rect(0, 0, 12, 9) {
+		t.Fatalf("Cmd/Ctrl+C copied bounds = %v, want selected 12x9 region", got)
+	}
+	if v.regionCopy.State().Active {
+		t.Fatal("Cmd/Ctrl+C left Copy Selection active after copying")
 	}
 
 	handler.TypedShortcut(&desktop.CustomShortcut{
@@ -197,5 +207,28 @@ func TestWireCopySelectionShortcut(t *testing.T) {
 	})
 	if got := v.app.Clipboard().Content(); got != u.Path() {
 		t.Fatalf("Cmd/Ctrl+Shift+C clipboard text = %q, want %q", got, u.Path())
+	}
+}
+
+func TestCopyImageMenuActionCopiesActiveSelection(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "photo.jpg", 40, 20, color.White))
+
+	var copiedImage []byte
+	uitest.StubClipboardCopy(t, func(data []byte) error {
+		copiedImage = data
+		return nil
+	})
+	selectRegion(t, v, copySelectionBounds)
+
+	v.menus.Actions().Copy().Action()
+	waitForClipboard(t, v)
+
+	copied, err := png.Decode(bytes.NewReader(copiedImage))
+	if err != nil {
+		t.Fatalf("decode menu copy clipboard PNG: %v", err)
+	}
+	if got := copied.Bounds(); got != image.Rect(0, 0, 12, 9) {
+		t.Fatalf("menu copy bounds = %v, want selected 12x9 region", got)
 	}
 }

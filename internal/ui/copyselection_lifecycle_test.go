@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/filesort"
@@ -124,6 +125,18 @@ func TestCopySelectionUnknownKeyCancels(t *testing.T) {
 
 	if got := v.regionCopy.State(); got.Active {
 		t.Fatalf("Copy Selection stayed active after an unowned key: %+v", got)
+	}
+}
+
+func TestCopySelectionCommandKeyDoesNotCancel(t *testing.T) {
+	v := newTestViewer(t)
+	loadTwoCopySelectionImages(t, v)
+	selectRegion(t, v, copySelectionBounds)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: desktop.KeySuperLeft})
+
+	if got := v.regionCopy.State(); !got.Active || !got.HasSelection {
+		t.Fatalf("State() after pressing Command = %+v, want active with selection", got)
 	}
 }
 

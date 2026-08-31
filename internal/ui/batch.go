@@ -69,13 +69,15 @@ func (v *viewer) deleteGridSelection() {
 }
 
 // copySelection is what Cmd/Ctrl+C runs (see wireClipboardShortcuts): the
-// grid's selection as file references while the overview is up, and the
-// displayed frame as image data otherwise. Two different things on one
-// shortcut, because they are the same intent applied to two different
-// subjects - a dozen selected images cannot meaningfully become one clipboard
-// image, and a single image being viewed is more useful as pixels than as a
-// path.
+// active image-region selection as cropped image data, the grid selection as
+// file references while the overview is up, and the displayed frame as image
+// data otherwise. Different things share one shortcut because they are the
+// same intent applied to the subject the user is currently working with.
 func (v *viewer) copySelection() {
+	if v.regionCopy.State().Active {
+		v.regionCopy.HandleKey(fyne.KeyReturn)
+		return
+	}
 	if v.grid.Visible() {
 		v.copyGridSelection()
 		return

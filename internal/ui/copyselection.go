@@ -6,6 +6,7 @@ import (
 	"image"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/clipboard"
@@ -128,15 +129,20 @@ func (v *viewer) yieldCopySelection() bool {
 	return true
 }
 
-// copySelectionKeepsKey is the viewer-side keep list: keys whose dispatcher
-// case touches nothing but v.zoom stay available without cancelling.
-// Feature.HandleKey owns Escape, copy, and navigation. Key0 is deliberately
-// absent: its case also calls resetRotation, and an orientation change must
-// yield the mode exactly as R does — check any key added here against its
-// full handleKeyEvent case, not its name.
+// copySelectionKeepsKey is the viewer-side keep list: modifier-only events
+// touch no command, and keys whose dispatcher case touches nothing but v.zoom
+// stay available without cancelling. Feature.HandleKey owns Escape, copy, and
+// navigation. Key0 is deliberately absent: its case also calls resetRotation,
+// and an orientation change must yield the mode exactly as R does — check any
+// key added here against its full handleKeyEvent case, not its name.
 func copySelectionKeepsKey(key fyne.KeyName) bool {
 	switch key {
 	case fyne.Key1, fyne.KeyPlus, fyne.KeyEqual, fyne.KeyMinus:
+		return true
+	case desktop.KeyShiftLeft, desktop.KeyShiftRight,
+		desktop.KeyControlLeft, desktop.KeyControlRight,
+		desktop.KeyAltLeft, desktop.KeyAltRight,
+		desktop.KeySuperLeft, desktop.KeySuperRight:
 		return true
 	}
 	return false

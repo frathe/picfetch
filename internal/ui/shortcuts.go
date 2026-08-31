@@ -36,7 +36,7 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	wireFavoriteShortcuts(yielding, view.favorites.Open)
 	wireManageFavoritesShortcut(yielding, view)
 	wireAddFavoritesShortcut(yielding, view)
-	wireClipboardShortcuts(yielding, view)
+	wireClipboardShortcuts(c, view)
 	wireCopySelectionShortcut(c, view)
 	wireDeleteShortcut(yielding, view)
 	wireSelectAllShortcut(yielding, view)
@@ -44,9 +44,11 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	wireExportShortcuts(yielding, view)
 }
 
-// yieldingShortcuts is the canvas-shortcut yield: every binding except
-// Copy Selection itself cancels idle Copy Selection (or blocks while a
-// copy is pending) before the command runs.
+// yieldingShortcuts is the canvas-shortcut yield: every binding registered
+// through it cancels idle Copy Selection (or blocks while a copy is pending)
+// before the command runs. Copy Selection and the clipboard shortcuts own
+// their mode coordination directly, so wireGlobalShortcuts registers those
+// against the underlying adder instead.
 type yieldingShortcuts struct {
 	inner shortcutAdder
 	view  *viewer
@@ -94,8 +96,9 @@ func wireFavoriteShortcuts(c shortcutAdder, open func(index int)) {
 	}
 }
 
-// wireClipboardShortcuts binds Cmd/Ctrl+C to copy the current image and
-// Cmd/Ctrl+Shift+C to copy its file path (clipboard.go). Both need
+// wireClipboardShortcuts binds Cmd/Ctrl+C to copy the active image-region
+// selection, the grid selection, or the current image, in that priority order.
+// Cmd/Ctrl+Shift+C copies the current image's file path (clipboard.go). Both need
 // AddShortcut rather than handleKeyEvent's plain SetOnTypedKey dispatch, for
 // the same reason wireOpenShortcuts does: modified key combos never reach
 // TypedKey at all. Deliberately not gated behind handleKeyEvent's
@@ -121,12 +124,16 @@ func wireClipboardShortcuts(c shortcutAdder, view *viewer) {
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyC,
 		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
-	}, func(fyne.Shortcut) { view.copyPathToClipboard() })
+	}, func(fyne.Shortcut) {
+		if view.yieldCopySelection() {
+			view.copyPathToClipboard()
+		}
+	})
 }
 
 // wireCopySelectionShortcut binds Option/Alt+Shift+C to the Actions menu's
 // Copy selection command. It is deliberately separate from the two existing
-// C bindings above: neither their shortcut types nor their behavior changes.
+// C bindings above because the shortcut types remain distinct.
 func wireCopySelectionShortcut(c shortcutAdder, view *viewer) {
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyC,
