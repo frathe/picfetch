@@ -6,6 +6,8 @@
 
 #### New Features
 
+ - settings moved resource limits into its own settings tab.
+
 #### Bugfix
 
 #### Internal
