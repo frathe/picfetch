@@ -12,26 +12,36 @@
 # event, a vX.Y.Z tag allowlist (scripts/wingettag.Pattern), and a published
 # release before handing the tag to winget-releaser, which interpolates
 # release-tag into inline pwsh.
+#
+# workflow_dispatch retries a published tag after workflow fixes land on main.
+# Re-running a failed workflow_run job keeps the workflow file from that run's
+# commit, so dispatch is the supported retry path.
 name: Publish to WinGet
 
 on:
   workflow_run:
     workflows: ["Release"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: Published vX.Y.Z tag to submit to WinGet (e.g. v0.2.14)
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   publish:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.path == '.github/workflows/release.yml' && github.event.workflow_run.event == 'push' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.path == '.github/workflows/release.yml' && github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-slim
     steps:
       - name: Allowlist the triggering tag
         id: tag
         shell: bash
         env:
-          CANDIDATE: ${{ github.event.workflow_run.head_branch }}
+          CANDIDATE: ${{ github.event_name == 'workflow_dispatch' && inputs.release-tag || github.event.workflow_run.head_branch }}
         run: |
           set -eu
           # CANDIDATE is an env var, not interpolated into this script, so a

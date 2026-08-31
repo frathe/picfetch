@@ -24,10 +24,16 @@ func TestWorkflowGatesUntrustedReleaseTag(t *testing.T) {
 		t.Error("release-tag must not be taken directly from workflow_run.head_branch")
 	}
 	if n := strings.Count(yml, "github.event.workflow_run.head_branch"); n != 1 {
-		t.Errorf("head_branch must appear exactly once (as CANDIDATE env), found %d", n)
+		t.Errorf("head_branch must appear exactly once (in CANDIDATE env), found %d", n)
 	}
-	if !strings.Contains(yml, "CANDIDATE: ${{ github.event.workflow_run.head_branch }}") {
-		t.Error("head_branch must enter the job only as the CANDIDATE env var")
+	if !strings.Contains(yml, "CANDIDATE: ${{ github.event_name == 'workflow_dispatch' && inputs.release-tag || github.event.workflow_run.head_branch }}") {
+		t.Error("tag must enter the job only via the allowlisted CANDIDATE env var")
+	}
+	if !strings.Contains(yml, "workflow_dispatch:") {
+		t.Error("workflow must support workflow_dispatch for retrying failed publishes")
+	}
+	if !strings.Contains(yml, "inputs.release-tag") {
+		t.Error("workflow_dispatch must take release-tag so retries do not depend on workflow_run")
 	}
 	if !strings.Contains(yml, "github.event.workflow_run.path == '.github/workflows/release.yml'") {
 		t.Error("job must require the triggering workflow file to be release.yml, not any workflow named Release")
