@@ -59,7 +59,7 @@
 
 ### Issue tracker
 
-Issues and specs live in the `frathe/picfetch` GitHub Issues, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues and specs live as local Markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -68,4 +68,3 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 ### Domain docs
 
 Single-context. `ARCHITECTURE.md` at the repo root is the standing package map (read it before code); `CONTEXT.md` + `docs/adr/` are created lazily by `/domain-modeling`. See `docs/agents/domain.md`.
-
