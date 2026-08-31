@@ -26,6 +26,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
@@ -35,68 +36,26 @@ const (
 
 	// time.Duration is an int64 nanosecond count. Reject a larger number of
 	// seconds instead of letting the multiplication in build wrap negative
-	// and get mistaken for the one-second minimum by the host.
+	// and get mistaken for the one-second minimum by ApplySettings.
 	maxDurationSeconds = int64(1<<63-1) / int64(time.Second)
 
 	// The memory limits are typed in megabytes and multiplied out to bytes
-	// by the host, so reject anything that couldn't survive that shift -
+	// by ApplySettings, so reject anything that couldn't survive that shift -
 	// same reasoning as maxDurationSeconds above. A terabyte is already far
 	// past anything a machine could honour.
 	maxMemoryMB = 1 << 20
 )
 
-// Host is what the settings window needs from the app: read/write access to
-// every standing preference it exposes. Every setter is expected to apply
-// its change immediately, the same as the keyboard shortcut that already
-// exists for it (where one exists) - the window itself holds no state of
-// its own to reconcile later.
+// Host is what the settings window needs from the app after it has been
+// seeded with a preferences.State snapshot: ApplySettings pushes the whole
+// form back so live side effects (cache retune, appearance, sort) can run,
+// and the two update verbs stay out of that snapshot because they are
+// requests, not standing values. ApplySettings is not a pure persist - the
+// viewer diffs and calls the same setters the keyboard shortcuts use.
 type Host interface {
-	ThemeMode() appearance.Mode
-	SetThemeMode(appearance.Mode)
-
-	SortMode() filesort.Mode
-	SetSortMode(filesort.Mode)
-
-	MergeMode() bool
-	SetMergeMode(bool)
-
-	SlideShuffle() bool
-	SetSlideShuffle(bool)
-
-	SlideInterval() time.Duration
-	SetSlideInterval(time.Duration)
-
-	MaxScan() int
-	SetMaxScan(int)
-
-	MaxWindowWidth() float32
-	SetMaxWindowWidth(float32)
-
-	MaxWindowHeight() float32
-	SetMaxWindowHeight(float32)
-
-	StaticWindowSize() bool
-	SetStaticWindowSize(bool)
-
-	MaxImageCacheMB() int
-	SetMaxImageCacheMB(int)
-
-	MaxThumbCacheMB() int
-	SetMaxThumbCacheMB(int)
-
-	MaxFileSizeMB() int
-	SetMaxFileSizeMB(int)
-
-	FavoritePreviewCache() bool
-	SetFavoritePreviewCache(bool)
-
-	CheckForUpdates() bool
-	SetCheckForUpdates(bool)
+	ApplySettings(preferences.State)
 	CheckForUpdatesNow(UpdateCallbacks)
 	PerformUpdate() error
-
-	DuplicateDistance() int
-	SetDuplicateDistance(int)
 }
 
 // Window is the settings panel. At most one is open at a time (widgets.
@@ -105,6 +64,11 @@ type Host interface {
 type Window struct {
 	app  fyne.App
 	host Host
+
+	// prefs is the form snapshot Show seeded, mutated by each control, and
+	// pushed back through Host.ApplySettings. Ignored while the window is
+	// already open: a second Show raises rather than rebuilding.
+	prefs preferences.State
 
 	win widgets.Singleton
 
@@ -144,14 +108,19 @@ type Window struct {
 	updateChoices  *widgets.ChoicePanel
 }
 
-// New returns the settings window for application, reading and writing its
-// preferences through host.
+// New returns the settings window for application. Show seeds the form
+// from a preferences.State snapshot; later edits go through host.
 func New(application fyne.App, host Host) *Window {
 	return &Window{app: application, host: host}
 }
 
 // Show opens the settings window, or raises it if it's already open.
-func (w *Window) Show() {
+// prefs is the standing-preferences snapshot used to seed the form; it is
+// ignored when the window is already showing, so in-flight edits stay put.
+func (w *Window) Show(prefs preferences.State) {
+	if !w.win.Open() {
+		w.prefs = prefs
+	}
 	w.win.Show(w.app, lang.L("Settings"), fyne.NewSize(windowW, windowH), w.build, func() {
 		w.closeUpdateFlow()
 		w.themeSelect = nil
@@ -199,9 +168,9 @@ func (w *Window) StopTracking() {
 // preference except the picture-frame interval (that one is an int64-second
 // count that has to survive a Duration multiply). Text is seeded from get
 // without going through SetText, so opening the window does not round-trip the
-// current value back into the host. OnChanged ignores anything that isn't a
+// current value back into ApplySettings. OnChanged ignores anything that isn't a
 // positive int, and when max > 0 also anything above that ceiling — the same
-// mid-edit "leave the last good value in the host" behaviour the six copies had.
+// mid-edit "leave the last good value in the snapshot" behaviour the six copies had.
 func newPositiveIntEntry(get func() int, set func(int), max int, validate fyne.StringValidator) *widget.Entry {
 	e := widget.NewEntry()
 	e.Validator = validate
@@ -212,6 +181,13 @@ func newPositiveIntEntry(get func() int, set func(int), max int, validate fyne.S
 		}
 	}
 	return e
+}
+
+// apply mutates the seeded snapshot and pushes the whole form back through
+// the host. Invalid mid-edit input never reaches here.
+func (w *Window) apply(mutate func(*preferences.State)) {
+	mutate(&w.prefs)
+	w.host.ApplySettings(w.prefs)
 }
 
 // selectFrom builds a Select whose options are displayName(modes[i]) and
@@ -235,62 +211,86 @@ func selectFrom[T any](modes []T, displayName func(T) string, current T, set fun
 	return sel
 }
 
-// build lays out every control, each one seeded from the host's current
-// value and wired to push a change straight back through it. Initial
-// seeding sets the widgets' fields directly rather than through their own
-// SetSelected/SetChecked/SetText - those fire OnChanged themselves, which
-// would otherwise round-trip the freshly read value straight back into the
-// host before the window has even been shown.
+// build lays out every control, each one seeded from the snapshot Show
+// stored and wired to push a change straight back through ApplySettings.
+// Initial seeding sets the widgets' fields directly rather than through
+// their own SetSelected/SetChecked/SetText - those fire OnChanged themselves,
+// which would otherwise round-trip the freshly read value straight back
+// into ApplySettings before the window has even been shown.
 func (w *Window) build() fyne.CanvasObject {
 	positiveInt := validation.NewRegexp(`^[1-9][0-9]*$`, lang.L("must be a positive whole number"))
 
-	w.themeSelect = selectFrom(appearance.Modes(), appearance.DisplayName, w.host.ThemeMode(), w.host.SetThemeMode)
-	w.sortSelect = selectFrom(filesort.Modes(), filesort.DisplayName, w.host.SortMode(), w.host.SetSortMode)
+	w.themeSelect = selectFrom(appearance.Modes(), appearance.DisplayName, w.prefs.ThemeMode, func(mode appearance.Mode) {
+		w.apply(func(s *preferences.State) { s.ThemeMode = mode })
+	})
+	w.sortSelect = selectFrom(filesort.Modes(), filesort.DisplayName, filesort.FromPref(w.prefs.SortMode), func(mode filesort.Mode) {
+		w.apply(func(s *preferences.State) { s.SortMode = mode.PrefValue() })
+	})
 
 	w.intervalEntry = widget.NewEntry()
 	w.intervalEntry.Validator = positiveInt
-	w.intervalEntry.Text = strconv.Itoa(int(w.host.SlideInterval().Seconds()))
+	w.intervalEntry.Text = strconv.Itoa(int(w.prefs.SlideInterval.Seconds()))
 	w.intervalEntry.OnChanged = func(s string) {
 		if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 && n <= maxDurationSeconds {
-			w.host.SetSlideInterval(time.Duration(n) * time.Second)
+			w.apply(func(p *preferences.State) { p.SlideInterval = time.Duration(n) * time.Second })
 		}
 	}
 
-	w.maxScanEntry = newPositiveIntEntry(w.host.MaxScan, w.host.SetMaxScan, 0, positiveInt)
+	w.maxScanEntry = newPositiveIntEntry(
+		func() int { return w.prefs.MaxScanFiles },
+		func(n int) { w.apply(func(s *preferences.State) { s.MaxScanFiles = n }) },
+		0,
+		positiveInt,
+	)
 
 	maxScanItem := widget.NewFormItem(lang.L("Max files per folder scan"), w.maxScanEntry)
 	maxScanItem.HintText = lang.L("Caps how many images a single recursive folder scan will gather")
 
 	w.maxWidthEntry = newPositiveIntEntry(
-		func() int { return int(w.host.MaxWindowWidth()) },
-		func(n int) { w.host.SetMaxWindowWidth(float32(n)) },
+		func() int { return int(w.prefs.MaxWindowWidth) },
+		func(n int) { w.apply(func(s *preferences.State) { s.MaxWindowWidth = float32(n) }) },
 		0,
 		positiveInt,
 	)
 
 	w.maxHeightEntry = newPositiveIntEntry(
-		func() int { return int(w.host.MaxWindowHeight()) },
-		func(n int) { w.host.SetMaxWindowHeight(float32(n)) },
+		func() int { return int(w.prefs.MaxWindowHeight) },
+		func(n int) { w.apply(func(s *preferences.State) { s.MaxWindowHeight = float32(n) }) },
 		0,
 		positiveInt,
 	)
 
-	w.imgCacheEntry = newPositiveIntEntry(w.host.MaxImageCacheMB, w.host.SetMaxImageCacheMB, maxMemoryMB, positiveInt)
+	w.imgCacheEntry = newPositiveIntEntry(
+		func() int { return w.prefs.MaxImageCacheMB },
+		func(n int) { w.apply(func(s *preferences.State) { s.MaxImageCacheMB = n }) },
+		maxMemoryMB,
+		positiveInt,
+	)
 
 	imgCacheItem := widget.NewFormItem(lang.L("Max image cache (MB)"), w.imgCacheEntry)
 	imgCacheItem.HintText = lang.L("Memory kept for recently viewed images")
 
-	w.thumbCacheEntry = newPositiveIntEntry(w.host.MaxThumbCacheMB, w.host.SetMaxThumbCacheMB, maxMemoryMB, positiveInt)
+	w.thumbCacheEntry = newPositiveIntEntry(
+		func() int { return w.prefs.MaxThumbCacheMB },
+		func(n int) { w.apply(func(s *preferences.State) { s.MaxThumbCacheMB = n }) },
+		maxMemoryMB,
+		positiveInt,
+	)
 
 	thumbCacheItem := widget.NewFormItem(lang.L("Max thumbnail cache (MB)"), w.thumbCacheEntry)
 	thumbCacheItem.HintText = lang.L("Memory kept for grid-view thumbnails")
 
-	w.maxFileSizeEntry = newPositiveIntEntry(w.host.MaxFileSizeMB, w.host.SetMaxFileSizeMB, maxMemoryMB, positiveInt)
+	w.maxFileSizeEntry = newPositiveIntEntry(
+		func() int { return w.prefs.MaxFileSizeMB },
+		func(n int) { w.apply(func(s *preferences.State) { s.MaxFileSizeMB = n }) },
+		maxMemoryMB,
+		positiveInt,
+	)
 
 	maxFileSizeItem := widget.NewFormItem(lang.L("Max file size (MB)"), w.maxFileSizeEntry)
 	maxFileSizeItem.HintText = lang.L("Larger files are not opened at all")
 
-	dist := w.host.DuplicateDistance()
+	dist := w.prefs.DuplicateDistance
 	w.dupeDistValue = widget.NewLabel(strconv.Itoa(dist))
 	w.dupeDistSlider = widget.NewSlider(0, 32)
 	w.dupeDistSlider.Step = 1
@@ -298,7 +298,10 @@ func (w *Window) build() fyne.CanvasObject {
 	w.dupeDistSlider.OnChanged = func(v float64) {
 		n := int(v)
 		w.dupeDistValue.SetText(strconv.Itoa(n))
-		w.host.SetDuplicateDistance(n)
+		w.apply(func(s *preferences.State) {
+			s.DuplicateDistance = n
+			s.DuplicateDistanceSet = true
+		})
 	}
 	dupeDistItem := widget.NewFormItem(lang.L("Duplicate match distance"), container.NewBorder(nil, nil, nil, w.dupeDistValue, w.dupeDistSlider))
 	dupeDistItem.HintText = lang.L("Lower is stricter; 0 is an exact thumbnail hash")
@@ -312,20 +315,30 @@ func (w *Window) build() fyne.CanvasObject {
 	)
 	limitsForm := widget.NewForm(maxScanItem, imgCacheItem, thumbCacheItem, maxFileSizeItem)
 
-	w.mergeCheck = widget.NewCheck(lang.L("Merge newly dropped files into the current set"), w.host.SetMergeMode)
-	w.mergeCheck.Checked = w.host.MergeMode()
+	w.mergeCheck = widget.NewCheck(lang.L("Merge newly dropped files into the current set"), func(on bool) {
+		w.apply(func(s *preferences.State) { s.MergeMode = on })
+	})
+	w.mergeCheck.Checked = w.prefs.MergeMode
 
-	w.shuffleCheck = widget.NewCheck(lang.L("Shuffle picture-frame order"), w.host.SetSlideShuffle)
-	w.shuffleCheck.Checked = w.host.SlideShuffle()
+	w.shuffleCheck = widget.NewCheck(lang.L("Shuffle picture-frame order"), func(on bool) {
+		w.apply(func(s *preferences.State) { s.SlideShuffle = on })
+	})
+	w.shuffleCheck.Checked = w.prefs.SlideShuffle
 
-	w.favPreviewCheck = widget.NewCheck(lang.L("Cache favorite previews on disk"), w.host.SetFavoritePreviewCache)
-	w.favPreviewCheck.Checked = w.host.FavoritePreviewCache()
+	w.favPreviewCheck = widget.NewCheck(lang.L("Cache favorite previews on disk"), func(on bool) {
+		w.apply(func(s *preferences.State) { s.FavoritePreviewCache = on })
+	})
+	w.favPreviewCheck.Checked = w.prefs.FavoritePreviewCache
 
-	w.staticSizeCheck = widget.NewCheck(lang.L("Keep a fixed window size"), w.host.SetStaticWindowSize)
-	w.staticSizeCheck.Checked = w.host.StaticWindowSize()
+	w.staticSizeCheck = widget.NewCheck(lang.L("Keep a fixed window size"), func(on bool) {
+		w.apply(func(s *preferences.State) { s.StaticWindowSize = on })
+	})
+	w.staticSizeCheck.Checked = w.prefs.StaticWindowSize
 
-	w.updateCheck = widget.NewCheck(lang.L("Check for updates"), w.host.SetCheckForUpdates)
-	w.updateCheck.Checked = w.host.CheckForUpdates()
+	w.updateCheck = widget.NewCheck(lang.L("Check for updates"), func(on bool) {
+		w.apply(func(s *preferences.State) { s.CheckForUpdates = on })
+	})
+	w.updateCheck.Checked = w.prefs.CheckForUpdates
 	w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))

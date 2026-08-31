@@ -23,43 +23,18 @@
    `HandleKey` owns Escape/copy/navigation; `keys.go` no longer lists
    which commands cancel.
 
+ - Settings window is seeded from `settingsState()` (`preferences.State`)
+   and writes through `ApplySettings`, which diffs and calls the existing
+   setters. Host is `ApplySettings` plus `CheckForUpdatesNow` /
+   `PerformUpdate`. Keyboard shortcuts still use the per-field setters.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
 
 Architecture review, 2026-08-31. Remaining deepening candidates.
 
-### Collapse the settings Host
-
-- **Worth exploring.** In-process.
-- Where: [settingswin.go](internal/ui/settingswin/settingswin.go) `Host`
-  (~32 methods), [memlimits.go](internal/ui/memlimits.go),
-  [theme.go](internal/ui/theme.go), [autoupdate.go](internal/ui/autoupdate.go),
-  [preferences.go](internal/preferences/preferences.go) (`State` already
-  exists), `fakeHost` in `settingswin_test.go`.
-- The Host is field-for-field with the form. Deleting it does not remove
-  that surface — it reappears 1:1 on the viewer. `fakeHost` already proves
-  two adapters, so the seam is real; it is just shallow.
-- **Fix**: drive the window from the standing preferences value plus a
-  small apply path for live side effects (cache retune, appearance). Keep
-  `CheckForUpdatesNow` / `PerformUpdate` as the only update verbs. Same
-  exception menus already used (AGENTS.md: value snapshot when a Host
-  would be a dozen-plus methods). Apply cannot be a pure snapshot.
-
 ### Give ShowImage a home
-
-- **Speculative.** In-process.
-- Where: [load.go](internal/ui/load.go) (~675 lines),
-  [vector.go](internal/ui/vector.go) (~274 lines),
-  [display.go](internal/ui/display/display.go) (already extracted),
-  [animationpause.go](internal/ui/animationpause.go).
-- `display` took frames and rotation; the load choreography stayed on the
-  viewer. Copy Selection's freeze now reaches through `load.go`.
-- **Fix**: only if the Copy Selection pixel-path deepening does not absorb
-  the pause as an internal seam. Then concentrate ShowImage / finishLoad /
-  animate / vector behind one load interface the viewer composes. Reopens
-  the 2026-08-28 field-cluster plan, which stopped at `display` on purpose.
-  A load Host risks becoming as wide as the pipeline.
 
 ## not deemed worth implementing (edge cases)
 

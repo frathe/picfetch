@@ -2,15 +2,17 @@ package ui
 
 import (
 	"github.com/frathe/picfetch/internal/appearance"
+	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/preferences"
 )
 
-// settings is every value the Settings window's Host surface reads and
-// writes, and nothing else: the application appearance, memory budget, two
-// geometry caps, fixed-window-size toggle, folder-scan cap,
-// favorite-preview-cache toggle, and updates checkbox. Grouped so that
-// surface reads as the single concern it is, and so run.go's
-// currentPreferences copy is a flat field-for-field one.
+// settings is every standing preference the Settings window's snapshot
+// reads and ApplySettings writes, and nothing else: the application
+// appearance, memory budget, two geometry caps, fixed-window-size toggle,
+// folder-scan cap, favorite-preview-cache toggle, and updates checkbox.
+// Grouped so that surface reads as the single concern it is, and so
+// run.go's currentPreferences copy is a flat field-for-field one.
 //
 // The three memory limits (imgCacheMB/thumbCacheMB/maxFileMB) are why this
 // file exists at all: they have no single consumer to sit beside - the image
@@ -194,4 +196,85 @@ func (v *viewer) pushDuplicateDistance(n int) {
 		return
 	}
 	v.grid.DuplicateDistanceChanged()
+}
+
+// settingsState is the form snapshot Settings Show is seeded from: the
+// standing preferences the window can edit, with the same getter
+// substitutions the old Host surface used (SlideInterval falls back to the
+// picture-frame default; DuplicateDistance falls back to
+// imaging.DuplicateMaxDistance). Geometry and last-update-check day stay on
+// currentPreferences; they are not form fields and ApplySettings ignores
+// them.
+func (v *viewer) settingsState() preferences.State {
+	return preferences.State{
+		SortMode:             v.SortMode().PrefValue(),
+		MergeMode:            v.MergeMode(),
+		ThemeMode:            v.ThemeMode(),
+		SlideInterval:        v.SlideInterval(),
+		SlideShuffle:         v.SlideShuffle(),
+		MaxScanFiles:         v.MaxScan(),
+		MaxWindowWidth:       v.MaxWindowWidth(),
+		MaxWindowHeight:      v.MaxWindowHeight(),
+		MaxImageCacheMB:      v.MaxImageCacheMB(),
+		MaxThumbCacheMB:      v.MaxThumbCacheMB(),
+		MaxFileSizeMB:        v.MaxFileSizeMB(),
+		FavoritePreviewCache: v.FavoritePreviewCache(),
+		CheckForUpdates:      v.CheckForUpdates(),
+		StaticWindowSize:     v.StaticWindowSize(),
+		DuplicateDistance:    v.DuplicateDistance(),
+		DuplicateDistanceSet: v.settings.dupeDistSet,
+	}
+}
+
+// ApplySettings is the Settings window's write path. next is a full form
+// snapshot, not a patch: only fields that differ from the live viewer
+// state run their setters, so changing the scan cap does not restart a
+// sort or retune caches. Does not persist; shutdown Save still goes
+// through currentPreferences.
+func (v *viewer) ApplySettings(next preferences.State) {
+	if next.ThemeMode != v.settings.themeMode {
+		v.SetThemeMode(next.ThemeMode)
+	}
+	if mode := filesort.FromPref(next.SortMode); mode != v.SortMode() {
+		v.SetSortMode(mode)
+	}
+	if next.MergeMode != v.MergeMode() {
+		v.SetMergeMode(next.MergeMode)
+	}
+	if next.SlideShuffle != v.SlideShuffle() {
+		v.SetSlideShuffle(next.SlideShuffle)
+	}
+	if next.SlideInterval != v.SlideInterval() {
+		v.SetSlideInterval(next.SlideInterval)
+	}
+	if next.MaxScanFiles != v.MaxScan() {
+		v.SetMaxScan(next.MaxScanFiles)
+	}
+	if next.MaxWindowWidth != v.MaxWindowWidth() {
+		v.SetMaxWindowWidth(next.MaxWindowWidth)
+	}
+	if next.MaxWindowHeight != v.MaxWindowHeight() {
+		v.SetMaxWindowHeight(next.MaxWindowHeight)
+	}
+	if next.StaticWindowSize != v.StaticWindowSize() {
+		v.SetStaticWindowSize(next.StaticWindowSize)
+	}
+	if next.MaxImageCacheMB != v.MaxImageCacheMB() {
+		v.SetMaxImageCacheMB(next.MaxImageCacheMB)
+	}
+	if next.MaxThumbCacheMB != v.MaxThumbCacheMB() {
+		v.SetMaxThumbCacheMB(next.MaxThumbCacheMB)
+	}
+	if next.MaxFileSizeMB != v.MaxFileSizeMB() {
+		v.SetMaxFileSizeMB(next.MaxFileSizeMB)
+	}
+	if next.FavoritePreviewCache != v.FavoritePreviewCache() {
+		v.SetFavoritePreviewCache(next.FavoritePreviewCache)
+	}
+	if next.CheckForUpdates != v.CheckForUpdates() {
+		v.SetCheckForUpdates(next.CheckForUpdates)
+	}
+	if next.DuplicateDistance != v.DuplicateDistance() || (next.DuplicateDistanceSet && !v.settings.dupeDistSet) {
+		v.SetDuplicateDistance(next.DuplicateDistance)
+	}
 }

@@ -1,7 +1,7 @@
 package settingswin
 
 // UpdateCallbacks is the Settings window's consumer-side vocabulary for a
-// manual update request. The Host delivers every callback on Fyne's UI thread.
+// manual update request. Host.CheckForUpdatesNow delivers every callback on Fyne's UI thread.
 // Values stay primitive so settingswin does not depend on the updater or
 // internal/update packages.
 type UpdateCallbacks struct {

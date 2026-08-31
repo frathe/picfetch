@@ -20,6 +20,8 @@ import (
 	"github.com/frathe/picfetch/internal/wingesture"
 )
 
+var _ settingswin.Host = (*viewer)(nil)
+
 // registerFeatures constructs every feature in dependency order. It only
 // assigns the viewer's feature fields; build.go still decides how their
 // widgets compose, and menu.go still decides how their menus compose.

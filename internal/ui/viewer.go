@@ -93,11 +93,10 @@ type viewer struct {
 	exif *exifwin.Window
 
 	// settingsWin is the Settings window (File menu) - see
-	// internal/ui/settingswin, which reaches back through the Host
-	// interface this viewer satisfies (SortMode/MergeMode/SlideShuffle/
-	// SlideInterval/MaxScan/MaxWindowWidth/MaxWindowHeight and their
-	// setters). Named settingsWin, not settings, because that name belongs
-	// to the settings-backed state struct below.
+	// internal/ui/settingswin, which is seeded from settingsState() and
+	// reaches back through ApplySettings plus the two update verbs.
+	// Named settingsWin, not settings, because that name belongs to the
+	// settings-backed state struct below.
 	settingsWin *settingswin.Window
 
 	// menus holds the File, Window and Actions menu items whose

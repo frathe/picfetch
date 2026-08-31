@@ -13,6 +13,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
@@ -34,115 +35,23 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// fakeHost records what the panel asked the app to do, and answers every
-// getter from its own fields - the whole point of Host being a
-// consumer-side interface: the panel can be driven, and every effect
-// observed, without a real viewer or window. Mirrors
-// internal/ui/deletion's own fakeHost.
+// fakeHost records what the panel asked the app to do. prefs is the snapshot
+// Show seeds from; applyCalls is every ApplySettings push. Mirrors
+// internal/ui/deletion's own fakeHost: the panel can be driven, and every
+// effect observed, without a real viewer or window.
 type fakeHost struct {
-	themeMode    appearance.Mode
-	sortMode     filesort.Mode
-	mergeMode    bool
-	slideShuffle bool
-	slideInt     time.Duration
-	maxScan      int
-	maxWinW      float32
-	maxWinH      float32
-	imgCacheMB   int
-	thumbCacheMB int
-	maxFileMB    int
-	favPreview   bool
-	updateCheck  bool
-	staticSize   bool
-	dupeDist     int
+	prefs preferences.State
 
-	themeModeCalls    []appearance.Mode
-	sortModeCalls     []filesort.Mode
-	mergeModeCalls    []bool
-	slideShuffleCalls []bool
-	slideIntCalls     []time.Duration
-	maxScanCalls      []int
-	maxWinWCalls      []float32
-	maxWinHCalls      []float32
-	imgCacheCalls     []int
-	thumbCacheCalls   []int
-	maxFileCalls      []int
-	favPreviewCalls   []bool
-	updateCheckCalls  []bool
-	staticSizeCalls   []bool
-	dupeDistCalls     []int
+	applyCalls []preferences.State
 
 	updateCallbacks []UpdateCallbacks
 	performErr      error
 	performCalls    int
 }
 
-func (f *fakeHost) ThemeMode() appearance.Mode { return f.themeMode }
-func (f *fakeHost) SetThemeMode(mode appearance.Mode) {
-	f.themeMode = mode
-	f.themeModeCalls = append(f.themeModeCalls, mode)
-}
-func (f *fakeHost) SortMode() filesort.Mode { return f.sortMode }
-func (f *fakeHost) SetSortMode(m filesort.Mode) {
-	f.sortMode = m
-	f.sortModeCalls = append(f.sortModeCalls, m)
-}
-func (f *fakeHost) MergeMode() bool { return f.mergeMode }
-func (f *fakeHost) SetMergeMode(b bool) {
-	f.mergeMode = b
-	f.mergeModeCalls = append(f.mergeModeCalls, b)
-}
-func (f *fakeHost) SlideShuffle() bool { return f.slideShuffle }
-func (f *fakeHost) SetSlideShuffle(b bool) {
-	f.slideShuffle = b
-	f.slideShuffleCalls = append(f.slideShuffleCalls, b)
-}
-func (f *fakeHost) SlideInterval() time.Duration { return f.slideInt }
-func (f *fakeHost) SetSlideInterval(d time.Duration) {
-	f.slideInt = d
-	f.slideIntCalls = append(f.slideIntCalls, d)
-}
-func (f *fakeHost) MaxScan() int            { return f.maxScan }
-func (f *fakeHost) SetMaxScan(n int)        { f.maxScan = n; f.maxScanCalls = append(f.maxScanCalls, n) }
-func (f *fakeHost) MaxWindowWidth() float32 { return f.maxWinW }
-func (f *fakeHost) SetMaxWindowWidth(w float32) {
-	f.maxWinW = w
-	f.maxWinWCalls = append(f.maxWinWCalls, w)
-}
-func (f *fakeHost) MaxWindowHeight() float32 { return f.maxWinH }
-func (f *fakeHost) SetMaxWindowHeight(h float32) {
-	f.maxWinH = h
-	f.maxWinHCalls = append(f.maxWinHCalls, h)
-}
-func (f *fakeHost) StaticWindowSize() bool { return f.staticSize }
-func (f *fakeHost) SetStaticWindowSize(on bool) {
-	f.staticSize = on
-	f.staticSizeCalls = append(f.staticSizeCalls, on)
-}
-func (f *fakeHost) MaxImageCacheMB() int { return f.imgCacheMB }
-func (f *fakeHost) SetMaxImageCacheMB(n int) {
-	f.imgCacheMB = n
-	f.imgCacheCalls = append(f.imgCacheCalls, n)
-}
-func (f *fakeHost) MaxThumbCacheMB() int { return f.thumbCacheMB }
-func (f *fakeHost) SetMaxThumbCacheMB(n int) {
-	f.thumbCacheMB = n
-	f.thumbCacheCalls = append(f.thumbCacheCalls, n)
-}
-func (f *fakeHost) MaxFileSizeMB() int { return f.maxFileMB }
-func (f *fakeHost) SetMaxFileSizeMB(n int) {
-	f.maxFileMB = n
-	f.maxFileCalls = append(f.maxFileCalls, n)
-}
-func (f *fakeHost) FavoritePreviewCache() bool { return f.favPreview }
-func (f *fakeHost) SetFavoritePreviewCache(on bool) {
-	f.favPreview = on
-	f.favPreviewCalls = append(f.favPreviewCalls, on)
-}
-func (f *fakeHost) CheckForUpdates() bool { return f.updateCheck }
-func (f *fakeHost) SetCheckForUpdates(on bool) {
-	f.updateCheck = on
-	f.updateCheckCalls = append(f.updateCheckCalls, on)
+func (f *fakeHost) ApplySettings(s preferences.State) {
+	f.prefs = s
+	f.applyCalls = append(f.applyCalls, s)
 }
 func (f *fakeHost) CheckForUpdatesNow(callbacks UpdateCallbacks) {
 	f.updateCallbacks = append(f.updateCallbacks, callbacks)
@@ -151,29 +60,49 @@ func (f *fakeHost) PerformUpdate() error {
 	f.performCalls++
 	return f.performErr
 }
-func (f *fakeHost) DuplicateDistance() int { return f.dupeDist }
-func (f *fakeHost) SetDuplicateDistance(n int) {
-	f.dupeDist = n
-	f.dupeDistCalls = append(f.dupeDistCalls, n)
+
+func showSettings(t *testing.T, host *fakeHost) *Window {
+	t.Helper()
+	w := New(testApp, host)
+	w.Show(host.prefs)
+	t.Cleanup(func() {
+		if win := w.win.Window(); win != nil {
+			win.Close()
+		}
+	})
+	return w
+}
+
+func lastApply(t *testing.T, host *fakeHost) preferences.State {
+	t.Helper()
+	if len(host.applyCalls) == 0 {
+		t.Fatal("ApplySettings was not called")
+	}
+	return host.applyCalls[len(host.applyCalls)-1]
 }
 
 // TestShow_SeedsEveryControlFromHostWithoutRoundTripping checks both halves
-// of build's own contract: every control reflects the host's current value,
-// and none of that seeding round-trips back into the host as a spurious
-// Set* call - which Select.SetSelected/Check.SetChecked/Entry.SetText would
-// each risk, since every one of them fires its own OnChanged.
+// of build's own contract: every control reflects the snapshot Show was
+// given, and none of that seeding round-trips back as a spurious
+// ApplySettings call - which Select.SetSelected/Check.SetChecked/Entry.SetText
+// would each risk, since every one of them fires its own OnChanged.
 func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
-	host := &fakeHost{
-		themeMode: appearance.Dark,
-		sortMode:  filesort.BySize, mergeMode: true, slideShuffle: true,
-		slideInt: 42 * time.Second, maxScan: 777, maxWinW: 1800, maxWinH: 1100,
-		imgCacheMB: 384, thumbCacheMB: 192, maxFileMB: 256, dupeDist: 7,
-		staticSize: true,
-	}
-	w := New(testApp, host)
-
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	host := &fakeHost{prefs: preferences.State{
+		ThemeMode:         appearance.Dark,
+		SortMode:          preferences.SortBySize,
+		MergeMode:         true,
+		SlideShuffle:      true,
+		SlideInterval:     42 * time.Second,
+		MaxScanFiles:      777,
+		MaxWindowWidth:    1800,
+		MaxWindowHeight:   1100,
+		MaxImageCacheMB:   384,
+		MaxThumbCacheMB:   192,
+		MaxFileSizeMB:     256,
+		DuplicateDistance: 7,
+		StaticWindowSize:  true,
+	}}
+	w := showSettings(t, host)
 
 	if got, want := w.themeSelect.Selected, appearance.DisplayName(appearance.Dark); got != want {
 		t.Errorf("themeSelect.Selected = %q, want %q", got, want)
@@ -182,13 +111,13 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 		t.Errorf("sortSelect.Selected = %q, want %q", got, want)
 	}
 	if !w.mergeCheck.Checked {
-		t.Error("mergeCheck should be checked, seeded from host.MergeMode() = true")
+		t.Error("mergeCheck should be checked, seeded from MergeMode = true")
 	}
 	if !w.shuffleCheck.Checked {
-		t.Error("shuffleCheck should be checked, seeded from host.SlideShuffle() = true")
+		t.Error("shuffleCheck should be checked, seeded from SlideShuffle = true")
 	}
 	if !w.staticSizeCheck.Checked {
-		t.Error("staticSizeCheck should be checked, seeded from host.StaticWindowSize() = true")
+		t.Error("staticSizeCheck should be checked, seeded from StaticWindowSize = true")
 	}
 	if got, want := w.intervalEntry.Text, "42"; got != want {
 		t.Errorf("intervalEntry.Text = %q, want %q", got, want)
@@ -218,35 +147,33 @@ func TestShow_SeedsEveryControlFromHostWithoutRoundTripping(t *testing.T) {
 		t.Errorf("dupeDistValue.Text = %q, want %q", got, want)
 	}
 
-	if len(host.themeModeCalls)+len(host.sortModeCalls)+len(host.mergeModeCalls)+len(host.slideShuffleCalls)+
-		len(host.slideIntCalls)+len(host.maxScanCalls)+len(host.maxWinWCalls)+len(host.maxWinHCalls)+
-		len(host.imgCacheCalls)+len(host.thumbCacheCalls)+len(host.maxFileCalls)+
-		len(host.dupeDistCalls)+len(host.staticSizeCalls) != 0 {
-		t.Errorf("seeding the controls should not call any Set* method on the host, got calls: %+v", host)
+	if len(host.applyCalls) != 0 {
+		t.Errorf("seeding the controls should not call ApplySettings, got %d calls", len(host.applyCalls))
 	}
 }
 
 func TestThemeSelect_ChangeCallsSetThemeMode(t *testing.T) {
-	host := &fakeHost{themeMode: appearance.System}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	host := &fakeHost{prefs: preferences.State{ThemeMode: appearance.System}}
+	w := showSettings(t, host)
 
 	w.themeSelect.SetSelected(appearance.DisplayName(appearance.Light))
 
-	if len(host.themeModeCalls) != 1 || host.themeModeCalls[0] != appearance.Light {
-		t.Errorf("SetThemeMode calls = %v, want one call with Light", host.themeModeCalls)
+	if got := lastApply(t, host); got.ThemeMode != appearance.Light {
+		t.Errorf("ApplySettings ThemeMode = %v, want Light", got.ThemeMode)
+	}
+	if len(host.applyCalls) != 1 {
+		t.Errorf("ApplySettings calls = %d, want 1", len(host.applyCalls))
 	}
 }
 
 func TestShow_RaisesTheSameWindowOnASecondCall(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 
-	w.Show()
+	w.Show(preferences.State{})
 	t.Cleanup(func() { w.win.Window().Close() })
 	win := w.win.Window()
 
-	w.Show()
+	w.Show(preferences.State{})
 
 	if w.win.Window() != win {
 		t.Error("a second Show should raise the existing window, not open a new one")
@@ -254,32 +181,34 @@ func TestShow_RaisesTheSameWindowOnASecondCall(t *testing.T) {
 }
 
 func TestSortSelect_ChangeCallsSetSortMode(t *testing.T) {
-	host := &fakeHost{sortMode: filesort.ByName}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	host := &fakeHost{prefs: preferences.State{SortMode: preferences.SortByName}}
+	w := showSettings(t, host)
 
 	w.sortSelect.SetSelected(filesort.DisplayName(filesort.ByCaptureDate))
 
-	if len(host.sortModeCalls) != 1 || host.sortModeCalls[0] != filesort.ByCaptureDate {
-		t.Errorf("SetSortMode calls = %v, want one call with ByCaptureDate", host.sortModeCalls)
+	if got := lastApply(t, host); got.SortMode != preferences.SortByCaptureDate {
+		t.Errorf("ApplySettings SortMode = %q, want %q", got.SortMode, preferences.SortByCaptureDate)
+	}
+	if len(host.applyCalls) != 1 {
+		t.Errorf("ApplySettings calls = %d, want 1", len(host.applyCalls))
 	}
 }
 
 func TestChecks_ChangeCallTheMatchingSetter(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.mergeCheck.SetChecked(true)
 	w.shuffleCheck.SetChecked(true)
 
-	if len(host.mergeModeCalls) != 1 || !host.mergeModeCalls[0] {
-		t.Errorf("SetMergeMode calls = %v, want one call with true", host.mergeModeCalls)
+	if len(host.applyCalls) != 2 {
+		t.Fatalf("ApplySettings calls = %d, want 2", len(host.applyCalls))
 	}
-	if len(host.slideShuffleCalls) != 1 || !host.slideShuffleCalls[0] {
-		t.Errorf("SetSlideShuffle calls = %v, want one call with true", host.slideShuffleCalls)
+	if !host.applyCalls[0].MergeMode {
+		t.Errorf("first ApplySettings MergeMode = false, want true")
+	}
+	if !host.applyCalls[1].SlideShuffle || !host.applyCalls[1].MergeMode {
+		t.Errorf("second ApplySettings = %+v, want MergeMode and SlideShuffle both true", host.applyCalls[1])
 	}
 }
 
@@ -298,28 +227,24 @@ func TestFavPreviewCheck_ReflectsHostValue(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			host := &fakeHost{favPreview: tc.want}
-			w := New(testApp, host)
-			w.Show()
-			t.Cleanup(func() { w.win.Window().Close() })
+			host := &fakeHost{prefs: preferences.State{FavoritePreviewCache: tc.want}}
+			w := showSettings(t, host)
 
 			if w.favPreviewCheck.Checked != tc.want {
-				t.Errorf("favPreviewCheck.Checked = %v, want %v (seeded from host.FavoritePreviewCache())", w.favPreviewCheck.Checked, tc.want)
+				t.Errorf("favPreviewCheck.Checked = %v, want %v (seeded from FavoritePreviewCache)", w.favPreviewCheck.Checked, tc.want)
 			}
 		})
 	}
 }
 
 func TestFavPreviewCheck_ChangeCallsSetFavoritePreviewCache(t *testing.T) {
-	host := &fakeHost{favPreview: false}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	host := &fakeHost{prefs: preferences.State{FavoritePreviewCache: false}}
+	w := showSettings(t, host)
 
 	w.favPreviewCheck.SetChecked(true)
 
-	if len(host.favPreviewCalls) != 1 || !host.favPreviewCalls[0] {
-		t.Errorf("SetFavoritePreviewCache calls = %v, want one call with true", host.favPreviewCalls)
+	if got := lastApply(t, host); !got.FavoritePreviewCache {
+		t.Errorf("ApplySettings FavoritePreviewCache = false, want true")
 	}
 }
 
@@ -335,31 +260,27 @@ func TestUpdateCheck_ReflectsHostValue(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			host := &fakeHost{updateCheck: tc.want}
-			w := New(testApp, host)
-			w.Show()
-			t.Cleanup(func() { w.win.Window().Close() })
+			host := &fakeHost{prefs: preferences.State{CheckForUpdates: tc.want}}
+			w := showSettings(t, host)
 
 			if w.updateCheck.Checked != tc.want {
-				t.Errorf("updateCheck.Checked = %v, want %v (seeded from host.CheckForUpdates())", w.updateCheck.Checked, tc.want)
+				t.Errorf("updateCheck.Checked = %v, want %v (seeded from CheckForUpdates)", w.updateCheck.Checked, tc.want)
 			}
-			if len(host.updateCheckCalls) != 0 {
-				t.Errorf("seeding updateCheck should not call SetCheckForUpdates, got %v", host.updateCheckCalls)
+			if len(host.applyCalls) != 0 {
+				t.Errorf("seeding updateCheck should not call ApplySettings, got %d calls", len(host.applyCalls))
 			}
 		})
 	}
 }
 
 func TestUpdateCheck_ChangeCallsSetCheckForUpdates(t *testing.T) {
-	host := &fakeHost{updateCheck: false}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	host := &fakeHost{prefs: preferences.State{CheckForUpdates: false}}
+	w := showSettings(t, host)
 
 	w.updateCheck.SetChecked(true)
 
-	if len(host.updateCheckCalls) != 1 || !host.updateCheckCalls[0] {
-		t.Errorf("SetCheckForUpdates calls = %v, want one call with true", host.updateCheckCalls)
+	if got := lastApply(t, host); !got.CheckForUpdates {
+		t.Errorf("ApplySettings CheckForUpdates = false, want true")
 	}
 }
 
@@ -372,44 +293,38 @@ func TestStaticSizeCheck_ReflectsHostValue(t *testing.T) {
 		{"on", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			host := &fakeHost{staticSize: tc.want}
-			w := New(testApp, host)
-			w.Show()
-			t.Cleanup(func() { w.win.Window().Close() })
+			host := &fakeHost{prefs: preferences.State{StaticWindowSize: tc.want}}
+			w := showSettings(t, host)
 
 			if w.staticSizeCheck.Checked != tc.want {
-				t.Errorf("staticSizeCheck.Checked = %v, want %v (seeded from host.StaticWindowSize())", w.staticSizeCheck.Checked, tc.want)
+				t.Errorf("staticSizeCheck.Checked = %v, want %v (seeded from StaticWindowSize)", w.staticSizeCheck.Checked, tc.want)
 			}
-			if len(host.staticSizeCalls) != 0 {
-				t.Errorf("seeding staticSizeCheck should not call SetStaticWindowSize, got %v", host.staticSizeCalls)
+			if len(host.applyCalls) != 0 {
+				t.Errorf("seeding staticSizeCheck should not call ApplySettings, got %d calls", len(host.applyCalls))
 			}
 		})
 	}
 }
 
 func TestStaticSizeCheck_ChangeCallsSetStaticWindowSize(t *testing.T) {
-	host := &fakeHost{staticSize: false}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	host := &fakeHost{prefs: preferences.State{StaticWindowSize: false}}
+	w := showSettings(t, host)
 
 	w.staticSizeCheck.SetChecked(true)
 
-	if len(host.staticSizeCalls) != 1 || !host.staticSizeCalls[0] {
-		t.Errorf("SetStaticWindowSize calls = %v, want one call with true", host.staticSizeCalls)
+	if got := lastApply(t, host); !got.StaticWindowSize {
+		t.Errorf("ApplySettings StaticWindowSize = false, want true")
 	}
 }
 
 func TestIntervalEntry_ValidChangeCallsSetSlideInterval(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.intervalEntry.SetText("15")
 
-	if len(host.slideIntCalls) != 1 || host.slideIntCalls[0] != 15*time.Second {
-		t.Errorf("SetSlideInterval calls = %v, want one call with 15s", host.slideIntCalls)
+	if got := lastApply(t, host); got.SlideInterval != 15*time.Second {
+		t.Errorf("ApplySettings SlideInterval = %v, want 15s", got.SlideInterval)
 	}
 }
 
@@ -419,131 +334,113 @@ func TestIntervalEntry_ValidChangeCallsSetSlideInterval(t *testing.T) {
 // too, rather than overflowing to a negative duration.
 func TestIntervalEntry_InvalidTextIsIgnored(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	for _, text := range []string{"", "abc", "-5", "0", "9223372037", "999999999999999999999999"} {
 		w.intervalEntry.SetText(text)
 	}
 
-	if len(host.slideIntCalls) != 0 {
-		t.Errorf("SetSlideInterval calls = %v, want none for invalid input", host.slideIntCalls)
+	if len(host.applyCalls) != 0 {
+		t.Errorf("ApplySettings calls = %d, want none for invalid input", len(host.applyCalls))
 	}
 }
 
 func TestMaxScanEntry_ValidChangeCallsSetMaxScan(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.maxScanEntry.SetText("250000")
 
-	if len(host.maxScanCalls) != 1 || host.maxScanCalls[0] != 250000 {
-		t.Errorf("SetMaxScan calls = %v, want one call with 250000", host.maxScanCalls)
+	if got := lastApply(t, host); got.MaxScanFiles != 250000 {
+		t.Errorf("ApplySettings MaxScanFiles = %d, want 250000", got.MaxScanFiles)
 	}
 }
 
 func TestMaxScanEntry_InvalidTextIsIgnored(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	for _, text := range []string{"", "abc", "-1", "0"} {
 		w.maxScanEntry.SetText(text)
 	}
 
-	if len(host.maxScanCalls) != 0 {
-		t.Errorf("SetMaxScan calls = %v, want none for invalid input", host.maxScanCalls)
+	if len(host.applyCalls) != 0 {
+		t.Errorf("ApplySettings calls = %d, want none for invalid input", len(host.applyCalls))
 	}
 }
 
 // TestMaxScanEntry_AcceptsAValueAboveMaxMemoryMB locks the unbounded path:
 // scan count is not a memory budget, so a value that the three memory
-// entries would reject must still reach SetMaxScan. Without this, wiring
+// entries would reject must still reach ApplySettings. Without this, wiring
 // maxScan through newPositiveIntEntry(..., maxMemoryMB, ...) would still
 // pass TestMaxScanEntry_ValidChangeCallsSetMaxScan (250000 < maxMemoryMB).
 func TestMaxScanEntry_AcceptsAValueAboveMaxMemoryMB(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.maxScanEntry.SetText("1048577")
 
-	if len(host.maxScanCalls) != 1 || host.maxScanCalls[0] != 1048577 {
-		t.Errorf("SetMaxScan calls = %v, want one call with 1048577 (no memory ceiling on scan count)", host.maxScanCalls)
+	if got := lastApply(t, host); got.MaxScanFiles != 1048577 {
+		t.Errorf("ApplySettings MaxScanFiles = %d, want 1048577 (no memory ceiling on scan count)", got.MaxScanFiles)
 	}
 }
 
 func TestMaxWidthEntry_ValidChangeCallsSetMaxWindowWidth(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.maxWidthEntry.SetText("1600")
 
-	if len(host.maxWinWCalls) != 1 || host.maxWinWCalls[0] != 1600 {
-		t.Errorf("SetMaxWindowWidth calls = %v, want one call with 1600", host.maxWinWCalls)
+	if got := lastApply(t, host); got.MaxWindowWidth != 1600 {
+		t.Errorf("ApplySettings MaxWindowWidth = %v, want 1600", got.MaxWindowWidth)
 	}
 }
 
 func TestMaxWidthEntry_InvalidTextIsIgnored(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	for _, text := range []string{"", "abc", "-1", "0"} {
 		w.maxWidthEntry.SetText(text)
 	}
 
-	if len(host.maxWinWCalls) != 0 {
-		t.Errorf("SetMaxWindowWidth calls = %v, want none for invalid input", host.maxWinWCalls)
+	if len(host.applyCalls) != 0 {
+		t.Errorf("ApplySettings calls = %d, want none for invalid input", len(host.applyCalls))
 	}
 }
 
 func TestMaxHeightEntry_ValidChangeCallsSetMaxWindowHeight(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.maxHeightEntry.SetText("1000")
 
-	if len(host.maxWinHCalls) != 1 || host.maxWinHCalls[0] != 1000 {
-		t.Errorf("SetMaxWindowHeight calls = %v, want one call with 1000", host.maxWinHCalls)
+	if got := lastApply(t, host); got.MaxWindowHeight != 1000 {
+		t.Errorf("ApplySettings MaxWindowHeight = %v, want 1000", got.MaxWindowHeight)
 	}
 }
 
 func TestMaxHeightEntry_InvalidTextIsIgnored(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	for _, text := range []string{"", "abc", "-1", "0"} {
 		w.maxHeightEntry.SetText(text)
 	}
 
-	if len(host.maxWinHCalls) != 0 {
-		t.Errorf("SetMaxWindowHeight calls = %v, want none for invalid input", host.maxWinHCalls)
+	if len(host.applyCalls) != 0 {
+		t.Errorf("ApplySettings calls = %d, want none for invalid input", len(host.applyCalls))
 	}
 }
 
 func TestImgCacheEntry_ValidChangeCallsSetMaxImageCacheMB(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.imgCacheEntry.SetText("768")
 
-	if len(host.imgCacheCalls) != 1 || host.imgCacheCalls[0] != 768 {
-		t.Errorf("SetMaxImageCacheMB calls = %v, want one call with 768", host.imgCacheCalls)
+	if got := lastApply(t, host); got.MaxImageCacheMB != 768 {
+		t.Errorf("ApplySettings MaxImageCacheMB = %d, want 768", got.MaxImageCacheMB)
 	}
 }
 
@@ -552,53 +449,46 @@ func TestImgCacheEntry_ValidChangeCallsSetMaxImageCacheMB(t *testing.T) {
 // table only checks one-over (1048577).
 func TestImgCacheEntry_AcceptsMaxMemoryMB(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.imgCacheEntry.SetText("1048576")
 
-	if len(host.imgCacheCalls) != 1 || host.imgCacheCalls[0] != maxMemoryMB {
-		t.Errorf("SetMaxImageCacheMB calls = %v, want one call with %d", host.imgCacheCalls, maxMemoryMB)
+	if got := lastApply(t, host); got.MaxImageCacheMB != maxMemoryMB {
+		t.Errorf("ApplySettings MaxImageCacheMB = %d, want %d", got.MaxImageCacheMB, maxMemoryMB)
 	}
 }
 
 func TestThumbCacheEntry_ValidChangeCallsSetMaxThumbCacheMB(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.thumbCacheEntry.SetText("128")
 
-	if len(host.thumbCacheCalls) != 1 || host.thumbCacheCalls[0] != 128 {
-		t.Errorf("SetMaxThumbCacheMB calls = %v, want one call with 128", host.thumbCacheCalls)
+	if got := lastApply(t, host); got.MaxThumbCacheMB != 128 {
+		t.Errorf("ApplySettings MaxThumbCacheMB = %d, want 128", got.MaxThumbCacheMB)
 	}
 }
 
 func TestMaxFileSizeEntry_ValidChangeCallsSetMaxFileSizeMB(t *testing.T) {
 	host := &fakeHost{}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	w := showSettings(t, host)
 
 	w.maxFileSizeEntry.SetText("64")
 
-	if len(host.maxFileCalls) != 1 || host.maxFileCalls[0] != 64 {
-		t.Errorf("SetMaxFileSizeMB calls = %v, want one call with 64", host.maxFileCalls)
+	if got := lastApply(t, host); got.MaxFileSizeMB != 64 {
+		t.Errorf("ApplySettings MaxFileSizeMB = %d, want 64", got.MaxFileSizeMB)
 	}
 }
 
 func TestDupeDistSlider_ChangeCallsSetDuplicateDistance(t *testing.T) {
-	host := &fakeHost{dupeDist: 10}
-	w := New(testApp, host)
-	w.Show()
-	t.Cleanup(func() { w.win.Window().Close() })
+	host := &fakeHost{prefs: preferences.State{DuplicateDistance: 10}}
+	w := showSettings(t, host)
 
 	w.dupeDistSlider.SetValue(0)
 
-	if len(host.dupeDistCalls) != 1 || host.dupeDistCalls[0] != 0 {
-		t.Errorf("SetDuplicateDistance calls = %v, want one call with 0", host.dupeDistCalls)
+	got := lastApply(t, host)
+	if got.DuplicateDistance != 0 || !got.DuplicateDistanceSet {
+		t.Errorf("ApplySettings DuplicateDistance = (%d, set=%v), want (0, set=true)", got.DuplicateDistance, got.DuplicateDistanceSet)
 	}
 	if got, want := w.dupeDistValue.Text, "0"; got != want {
 		t.Errorf("dupeDistValue.Text = %q, want %q", got, want)
@@ -617,29 +507,23 @@ func TestMemoryEntries_InvalidTextIsIgnored(t *testing.T) {
 	cases := []struct {
 		name  string
 		entry func(*Window) *widget.Entry
-		calls func(*fakeHost) []int
 	}{
-		{"image cache", func(w *Window) *widget.Entry { return w.imgCacheEntry },
-			func(f *fakeHost) []int { return f.imgCacheCalls }},
-		{"thumbnail cache", func(w *Window) *widget.Entry { return w.thumbCacheEntry },
-			func(f *fakeHost) []int { return f.thumbCacheCalls }},
-		{"max file size", func(w *Window) *widget.Entry { return w.maxFileSizeEntry },
-			func(f *fakeHost) []int { return f.maxFileCalls }},
+		{"image cache", func(w *Window) *widget.Entry { return w.imgCacheEntry }},
+		{"thumbnail cache", func(w *Window) *widget.Entry { return w.thumbCacheEntry }},
+		{"max file size", func(w *Window) *widget.Entry { return w.maxFileSizeEntry }},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			host := &fakeHost{}
-			w := New(testApp, host)
-			w.Show()
-			t.Cleanup(func() { w.win.Window().Close() })
+			w := showSettings(t, host)
 
 			for _, text := range bad {
 				c.entry(w).SetText(text)
 			}
 
-			if got := c.calls(host); len(got) != 0 {
-				t.Errorf("setter calls = %v, want none for invalid input", got)
+			if len(host.applyCalls) != 0 {
+				t.Errorf("ApplySettings calls = %d, want none for invalid input", len(host.applyCalls))
 			}
 		})
 	}
@@ -652,7 +536,7 @@ func TestOpen_ReflectsWindowLifecycle(t *testing.T) {
 		t.Fatal("Open() = true before Show was ever called")
 	}
 
-	w.Show()
+	w.Show(preferences.State{})
 	if !w.Open() {
 		t.Error("Open() = false, want true once Show has run")
 	}
@@ -672,7 +556,7 @@ func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	w.RestoreGeometry(widgets.Geometry{X: 210, Y: 220, PositionSet: true, Size: fyne.NewSize(700, 750)})
 
-	w.Show()
+	w.Show(preferences.State{})
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	if got, want := w.win.Window().Canvas().Size(), fyne.NewSize(700, 750); got != want {
@@ -689,7 +573,7 @@ func TestGeometry_TracksAResizeAndOutlivesTheWindow(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	w.RestoreGeometry(widgets.Geometry{})
 
-	w.Show()
+	w.Show(preferences.State{})
 	w.win.Window().Resize(fyne.NewSize(700, 750))
 	w.win.Window().Close()
 
@@ -708,7 +592,7 @@ func TestStopTracking_IsSafeWithNoWindowOpen(t *testing.T) {
 func TestShow_WithoutRestoreGeometryUsesTheBuiltInSize(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 
-	w.Show()
+	w.Show(preferences.State{})
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	if got, want := w.win.Window().Canvas().Size().Width, float32(windowW); got != want {
@@ -781,7 +665,7 @@ func TestNewPositiveIntEntry(t *testing.T) {
 func newUpdateTestWindow(t *testing.T, host *fakeHost) *Window {
 	t.Helper()
 	w := New(testApp, host)
-	w.Show()
+	w.Show(host.prefs)
 	t.Cleanup(func() {
 		if win := w.win.Window(); win != nil {
 			win.Close()
@@ -929,7 +813,7 @@ func TestUpdatesTab_ShowsCurrentVersionAndBuild(t *testing.T) {
 		metadata: fyne.AppMetadata{Version: "2.3.4", Build: 567},
 	}
 	w := New(app, &fakeHost{})
-	w.Show()
+	w.Show(preferences.State{})
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	updates := tabVBox(t, settingsTabs(t, w).Items[2])
