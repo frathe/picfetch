@@ -41,6 +41,9 @@ func TestWorkflowGatesUntrustedReleaseTag(t *testing.T) {
 	if !strings.Contains(yml, "release-tag: ${{ steps.tag.outputs.tag }}") {
 		t.Error("winget-releaser must receive the allowlisted tag output, not the raw event field")
 	}
+	if !strings.Contains(yml, "GH_REPO: ${{ github.repository }}") {
+		t.Error("gh must set GH_REPO; the job has no checkout, so gh cannot infer the repo from git")
+	}
 	if !strings.Contains(yml, "gh release view") {
 		t.Error("job must require a published GitHub release before calling winget-releaser")
 	}

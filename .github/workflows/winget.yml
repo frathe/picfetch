@@ -1,7 +1,5 @@
 # Publishes each GitHub release to microsoft/winget-pkgs as
-# io.github.frathe.picfetch. vedantmgoyal9/winget-releaser requires at least
-# one version already in winget-pkgs; this job will fail until
-# https://github.com/microsoft/winget-pkgs/pull/425898 is merged.
+# io.github.frathe.picfetch.
 #
 # Triggered by the Release workflow completing, not on: release: GitHub does
 # not start new workflow runs from events created with GITHUB_TOKEN, and
@@ -50,6 +48,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          # gh infers the repo from git remotes. This job has no checkout, so
+          # GH_REPO is required; without it, `gh release view` fails with
+          # "not a git repository".
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -eu
