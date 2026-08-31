@@ -53,4 +53,7 @@ func TestWorkflowGatesUntrustedReleaseTag(t *testing.T) {
 	if !strings.Contains(yml, `[ "$draft" != "false" ]`) {
 		t.Error("job must require isDraft to be false")
 	}
+	if strings.Contains(yml, "vedantmgoyal9/winget-releaser@v2") {
+		t.Error("winget-releaser@v2 is broken on ubuntu-slim; pin to a commit SHA with the cargo-binstall fix (vedantmgoyal9/winget-releaser#334)")
+	}
 }

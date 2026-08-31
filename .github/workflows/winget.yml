@@ -62,7 +62,9 @@ jobs:
             exit 1
           fi
 
-      - uses: vedantmgoyal9/winget-releaser@v2
+      # @v2 predates the ubuntu-slim fix (vedantmgoyal9/winget-releaser#334):
+      # it runs `cargo binstall` but ubuntu-slim has no Rust toolchain.
+      - uses: vedantmgoyal9/winget-releaser@b3a5dae0047c6180023acba3f548c55fdf6b7193
         with:
           identifier: io.github.frathe.picfetch
           # Default regex is exe/msi/msix/appx and misses these portable zips.
