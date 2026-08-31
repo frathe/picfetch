@@ -14,11 +14,70 @@
 
 ## TODO
 
-- Compare two grid-selected images with Cmd+D: open a temporary side-by-side
-  view with linked zoom and pan, button to switch to a swipe compare view (slider wipe),
-  there should be a swap sides button, The button should be on the top right,
-  is possible the buttons should be inside the windows title bar.
-  and Escape returning to Grid View while preserving both selections.
+### Compare two grid-selected images
+
+- **Entry:** `Cmd+D` on macOS and `Ctrl+D` elsewhere runs **Actions -> Compare
+  selected images**. Enable it only in Grid View with exactly two explicitly
+  selected images. Otherwise remain in Grid View and show **Select exactly 2
+  images to compare**; never substitute the highlighted image or silently pick
+  two from a larger selection. A selected image remains eligible when the
+  current filename or duplicate filter hides its thumbnail.
+- **Surface and restoration:** Show comparison as an opaque main-window overlay
+  above the still-open grid, not as a separate window. `Escape` and **Back to
+  Grid** remove only that overlay and reveal the grid with both selections,
+  filter, highlight, and scroll position unchanged.
+- **Initial layout:** Every comparison starts fitted and centered in fixed
+  50/50 side-by-side panes. The image earlier in grid/file order starts on the
+  left; selection order is not changed or persisted. Each new comparison resets
+  to side-by-side mode, while its inactive swipe divider starts at 50%.
+- **Controls:** Keep a compact, translucent toolbar permanently visible at the
+  top right of the comparison content. Its labeled buttons are **Swipe** (or
+  **Side by side** when swipe is active), **Swap**, and **Back to Grid**. Native
+  title-bar controls are explicitly out of scope because Fyne does not support
+  them portably.
+- **Swipe:** Display both images in the full comparison viewport with the left
+  image revealed to the left of a draggable vertical divider and the right
+  image to its right. The divider itself is the drag target; dragging elsewhere
+  pans both images. In swipe mode, `Left` / `Right` move the divider by 5
+  percentage points, `Shift+Left` / `Shift+Right` move it by 1 point, and
+  `Home` / `End` move it to 0% / 100%. Those keys do nothing in side-by-side
+  mode.
+- **Linked view:** Both images share a normalized image-space center and the
+  same zoom multiplier relative to their respective fitted sizes. Wheel and
+  `+` / `-` zoom both images; dragging either image and `Shift`+wheel pan both;
+  `0` fits both; `1` displays both at actual pixel size. Clamp the shared center
+  to the intersection of both images' valid pan ranges so neither image exposes
+  blank overscroll or drifts out of sync.
+- **Mode, resize, and swap state:** Switching layouts and resizing the window
+  preserve the shared center and zoom multiplier while recomputing fitted scale
+  for the new viewport. Actual-size mode preserves its absolute 100% scale.
+  **Swap** exchanges the images, badges, title order, and swipe roles while
+  preserving the layout, transform, and divider position; it never changes the
+  grid selection or file order.
+- **Identity:** Show a translucent base-filename badge at the bottom-left and
+  bottom-right corners in both layouts. When the base names match, use the
+  shortest distinguishing `folder/file` suffix. Set the window title to
+  `Compare: left.jpg | right.jpg - PicFetch`, update it after a swap, and
+  restore the grid's highlighted-file title on exit.
+- **Loading:** Open the overlay immediately and decode both sources concurrently
+  with a spinner in each pane. Keep **Back to Grid** enabled but disable **Swipe**
+  and **Swap** until both images are ready. `Escape` cancels pending work. If
+  either source fails, return to the untouched grid, preserve the selections,
+  show a non-blocking error, and do not remove either file from the set.
+- **Command isolation:** While comparison is active, allow only its controls,
+  linked zoom/pan, `Escape`, F1 help, and normal window closing. Disable or
+  ignore unrelated viewer, grid, navigation, rotation, sorting, copy, delete,
+  export, favorite, and picture-frame commands. Refuse drops, file-dialog
+  opens, and native Open With deliveries with **Return to Grid View before
+  opening files** rather than queueing or replacing the comparison.
+- **Fidelity:** Keep raster images at full decoded resolution, rerasterize each
+  SVG as zoom changes, and use embedded RAW previews as the normal viewer does.
+  Freeze animated images on their first decoded frame. Ignore temporary
+  viewer-only rotation and use each image's canonical EXIF-corrected
+  orientation.
+- **Honest limit:** Comparing two full-resolution decodes can require roughly
+  their combined decoded memory. Keep the existing input-size safeguards and
+  report a load failure instead of silently reducing comparison quality.
 
 ## not deemed worth implementing (edge cases)
 
