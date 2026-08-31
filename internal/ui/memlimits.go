@@ -226,6 +226,33 @@ func (v *viewer) settingsState() preferences.State {
 	}
 }
 
+func applySettingChange[T comparable](prev, next T, apply func(T)) {
+	if next != prev {
+		apply(next)
+	}
+}
+
+func (v *viewer) applyViewSettings(prev, next preferences.State) {
+	applySettingChange(prev.MergeMode, next.MergeMode, v.SetMergeMode)
+	applySettingChange(prev.SlideShuffle, next.SlideShuffle, v.SetSlideShuffle)
+	applySettingChange(prev.SlideInterval, next.SlideInterval, v.SetSlideInterval)
+}
+
+func (v *viewer) applyLimitSettings(prev, next preferences.State) {
+	applySettingChange(prev.MaxScanFiles, next.MaxScanFiles, v.SetMaxScan)
+	applySettingChange(prev.MaxWindowWidth, next.MaxWindowWidth, v.SetMaxWindowWidth)
+	applySettingChange(prev.MaxWindowHeight, next.MaxWindowHeight, v.SetMaxWindowHeight)
+	applySettingChange(prev.StaticWindowSize, next.StaticWindowSize, v.SetStaticWindowSize)
+	applySettingChange(prev.MaxImageCacheMB, next.MaxImageCacheMB, v.SetMaxImageCacheMB)
+	applySettingChange(prev.MaxThumbCacheMB, next.MaxThumbCacheMB, v.SetMaxThumbCacheMB)
+	applySettingChange(prev.MaxFileSizeMB, next.MaxFileSizeMB, v.SetMaxFileSizeMB)
+}
+
+func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {
+	applySettingChange(prev.FavoritePreviewCache, next.FavoritePreviewCache, v.SetFavoritePreviewCache)
+	applySettingChange(prev.CheckForUpdates, next.CheckForUpdates, v.SetCheckForUpdates)
+}
+
 // ApplySettings is the Settings window's write path. prev and next are the
 // form snapshot before and after the one control edit that triggered this
 // push, so only the edited field runs its setter — never a field a
@@ -233,50 +260,15 @@ func (v *viewer) settingsState() preferences.State {
 // live-state diff mistook those for edits and silently reverted them).
 // Does not persist; shutdown Save still goes through currentPreferences.
 func (v *viewer) ApplySettings(prev, next preferences.State) {
-	if next.ThemeMode != prev.ThemeMode {
-		v.SetThemeMode(next.ThemeMode)
-	}
+	applySettingChange(prev.ThemeMode, next.ThemeMode, v.SetThemeMode)
 	// Also guarded against the live mode: SetSortMode restarts a background
 	// sort, which re-selecting the already-active order must not do.
 	if mode := filesort.FromPref(next.SortMode); next.SortMode != prev.SortMode && mode != v.SortMode() {
 		v.SetSortMode(mode)
 	}
-	if next.MergeMode != prev.MergeMode {
-		v.SetMergeMode(next.MergeMode)
-	}
-	if next.SlideShuffle != prev.SlideShuffle {
-		v.SetSlideShuffle(next.SlideShuffle)
-	}
-	if next.SlideInterval != prev.SlideInterval {
-		v.SetSlideInterval(next.SlideInterval)
-	}
-	if next.MaxScanFiles != prev.MaxScanFiles {
-		v.SetMaxScan(next.MaxScanFiles)
-	}
-	if next.MaxWindowWidth != prev.MaxWindowWidth {
-		v.SetMaxWindowWidth(next.MaxWindowWidth)
-	}
-	if next.MaxWindowHeight != prev.MaxWindowHeight {
-		v.SetMaxWindowHeight(next.MaxWindowHeight)
-	}
-	if next.StaticWindowSize != prev.StaticWindowSize {
-		v.SetStaticWindowSize(next.StaticWindowSize)
-	}
-	if next.MaxImageCacheMB != prev.MaxImageCacheMB {
-		v.SetMaxImageCacheMB(next.MaxImageCacheMB)
-	}
-	if next.MaxThumbCacheMB != prev.MaxThumbCacheMB {
-		v.SetMaxThumbCacheMB(next.MaxThumbCacheMB)
-	}
-	if next.MaxFileSizeMB != prev.MaxFileSizeMB {
-		v.SetMaxFileSizeMB(next.MaxFileSizeMB)
-	}
-	if next.FavoritePreviewCache != prev.FavoritePreviewCache {
-		v.SetFavoritePreviewCache(next.FavoritePreviewCache)
-	}
-	if next.CheckForUpdates != prev.CheckForUpdates {
-		v.SetCheckForUpdates(next.CheckForUpdates)
-	}
+	v.applyViewSettings(prev, next)
+	v.applyLimitSettings(prev, next)
+	v.applyIntegrationSettings(prev, next)
 	if next.DuplicateDistance != prev.DuplicateDistance || next.DuplicateDistanceSet != prev.DuplicateDistanceSet {
 		v.SetDuplicateDistance(next.DuplicateDistance)
 	}

@@ -11,7 +11,7 @@ import (
 
 type overlayLayout struct{}
 
-func (overlayLayout) MinSize([]fyne.CanvasObject) fyne.Size {
+func (overlayLayout) MinSize(_ []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(0, 0)
 }
 
@@ -26,9 +26,9 @@ func (overlayLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	}
 	button := objects[1]
 	pad := theme.Size(theme.SizeNameInnerPadding)
-	min := button.MinSize()
-	button.Resize(min)
-	button.Move(fyne.NewPos(size.Width-min.Width-pad, size.Height-min.Height-pad))
+	buttonSize := button.MinSize()
+	button.Resize(buttonSize)
+	button.Move(fyne.NewPos(size.Width-buttonSize.Width-pad, size.Height-buttonSize.Height-pad))
 }
 
 type overlayRenderer struct {
@@ -64,7 +64,7 @@ func (r *overlayRenderer) Objects() []fyne.CanvasObject { return r.objects }
 
 func (r *overlayRenderer) MinSize() fyne.Size { return fyne.NewSize(0, 0) }
 
-func (r *overlayRenderer) Layout(fyne.Size) { r.layoutChrome() }
+func (r *overlayRenderer) Layout(_ fyne.Size) { r.layoutChrome() }
 
 func (r *overlayRenderer) Refresh() {
 	r.border.StrokeColor = theme.Color(theme.ColorNamePrimary)

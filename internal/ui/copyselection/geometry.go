@@ -84,9 +84,9 @@ func (f *Feature) imageToCanvas(p pointF) fyne.Position {
 }
 
 func (f *Feature) canvasRect(r rectF) (fyne.Position, fyne.Size) {
-	min := f.imageToCanvas(r.min)
-	max := f.imageToCanvas(r.max)
-	return min, fyne.NewSize(max.X-min.X, max.Y-min.Y)
+	topLeft := f.imageToCanvas(r.min)
+	bottomRight := f.imageToCanvas(r.max)
+	return topLeft, fyne.NewSize(bottomRight.X-topLeft.X, bottomRight.Y-topLeft.Y)
 }
 
 func (f *Feature) canvasPointInRect(pos fyne.Position, r rectF) bool {
@@ -160,29 +160,31 @@ func (f *Feature) handleAt(pos fyne.Position) handleKind {
 func moveRect(start rectF, grab, at pointF, bounds image.Rectangle) rectF {
 	width := start.max.x - start.min.x
 	height := start.max.y - start.min.y
-	min := pointF{x: start.min.x + at.x - grab.x, y: start.min.y + at.y - grab.y}
+	movedMin := pointF{x: start.min.x + at.x - grab.x, y: start.min.y + at.y - grab.y}
 	maxX := float64(bounds.Max.X)
 	maxY := float64(bounds.Max.Y)
 	minX := float64(bounds.Min.X)
 	minY := float64(bounds.Min.Y)
-	if min.x < minX {
-		min.x = minX
+	if movedMin.x < minX {
+		movedMin.x = minX
 	}
-	if min.y < minY {
-		min.y = minY
+	if movedMin.y < minY {
+		movedMin.y = minY
 	}
-	if min.x+width > maxX {
-		min.x = maxX - width
+	if movedMin.x+width > maxX {
+		movedMin.x = maxX - width
 	}
-	if min.y+height > maxY {
-		min.y = maxY - height
+	if movedMin.y+height > maxY {
+		movedMin.y = maxY - height
 	}
-	return rectF{min: min, max: pointF{x: min.x + width, y: min.y + height}}
+	return rectF{min: movedMin, max: pointF{x: movedMin.x + width, y: movedMin.y + height}}
 }
 
 func resizeRect(start rectF, handle handleKind, at pointF) rectF {
 	r := start
 	switch handle {
+	case handleNone:
+		// No edge or corner moves.
 	case handleNW:
 		r.min = at
 	case handleN:
