@@ -749,17 +749,24 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 		"scan cap": w.maxScanEntry, "image cache": w.imgCacheEntry,
 		"thumbnail cache": w.thumbCacheEntry, "file-size cap": w.maxFileSizeEntry,
 	}
+	windowAppearanceControls := map[string]fyne.CanvasObject{
+		"window width": w.maxWidthEntry, "window height": w.maxHeightEntry,
+		"fixed window size": w.staticSizeCheck,
+	}
 
 	general := tabs.Items[0].Content
 	for name, control := range map[string]fyne.CanvasObject{
 		"sort": w.sortSelect, "interval": w.intervalEntry,
-		"window width": w.maxWidthEntry, "window height": w.maxHeightEntry,
 		"duplicate distance": w.dupeDistSlider,
 		"merge":              w.mergeCheck, "shuffle": w.shuffleCheck, "favorite previews": w.favPreviewCheck,
-		"fixed window size": w.staticSizeCheck,
 	} {
 		if !containsCanvasObject(general, control) {
 			t.Errorf("General tab does not contain %s control", name)
+		}
+	}
+	for name, control := range windowAppearanceControls {
+		if containsCanvasObject(general, control) {
+			t.Errorf("General tab unexpectedly contains %s control", name)
 		}
 	}
 	for name, control := range limitControls {
@@ -778,6 +785,11 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	appearanceTab := tabs.Items[1].Content
 	if !containsCanvasObject(appearanceTab, w.themeSelect) {
 		t.Error("Appearance tab does not contain appearance selector")
+	}
+	for name, control := range windowAppearanceControls {
+		if !containsCanvasObject(appearanceTab, control) {
+			t.Errorf("Appearance tab does not contain %s control", name)
+		}
 	}
 	if containsCanvasObject(appearanceTab, w.sortSelect) || containsCanvasObject(appearanceTab, w.updateCheck) {
 		t.Error("Appearance tab contains a General or Updates control")

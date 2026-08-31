@@ -9,6 +9,9 @@
  - Copy selection: rectangular image-region copy from the normal viewer
    (Actions -> Copy selection, Opt/Alt+Shift+C).
 
+ - Settings: maximum window width, maximum window height, and fixed window
+   size now live under Appearance.
+
 #### Bugfix
 
 #### Internal
@@ -39,9 +42,8 @@
 
 ## TODO
 
-Architecture review, 2026-08-31. Remaining deepening candidates.
-
-### Give ShowImage a home
+- when a copy selection is active, and the user presses cmd-c, the selection
+  is copied to the clipboard.
 
 ## not deemed worth implementing (edge cases)
 

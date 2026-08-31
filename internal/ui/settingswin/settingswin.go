@@ -312,9 +312,11 @@ func (w *Window) build() fyne.CanvasObject {
 	generalForm := widget.NewForm(
 		widget.NewFormItem(lang.L("Sort order"), w.sortSelect),
 		widget.NewFormItem(lang.L("Picture-frame interval (seconds)"), w.intervalEntry),
+		dupeDistItem,
+	)
+	windowSizeForm := widget.NewForm(
 		widget.NewFormItem(lang.L("Max window width"), w.maxWidthEntry),
 		widget.NewFormItem(lang.L("Max window height"), w.maxHeightEntry),
-		dupeDistItem,
 	)
 	limitsForm := widget.NewForm(maxScanItem, imgCacheItem, thumbCacheItem, maxFileSizeItem)
 
@@ -346,8 +348,8 @@ func (w *Window) build() fyne.CanvasObject {
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
-	general := container.NewVBox(generalForm, widget.NewSeparator(), w.staticSizeCheck, w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
-	appearanceSettings := container.NewVBox(w.themeSelect)
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
+	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
 	updates := container.NewVBox(w.updateVersion, w.updateCheck, w.updateNow)
 
 	return container.NewAppTabs(
