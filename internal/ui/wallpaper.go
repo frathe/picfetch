@@ -50,6 +50,9 @@ func (v *viewer) canSetWallpaper() bool {
 // goroutine below starts - mirroring exportAs, and for the same reason:
 // v.img.Image belongs to the load path.
 func (v *viewer) setAsWallpaper() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if !v.canSetWallpaper() {
 		return
 	}

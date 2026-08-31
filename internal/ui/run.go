@@ -109,6 +109,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.loadLifecycle.invalidate()
 		view.sortOp.lifecycle.invalidate()
 		view.vector.lifecycle.invalidate()
+		view.regionCopyLifecycle.invalidate()
 		view.updateOp.invalidate()
 
 		// Same reasoning as the invalidations above, for the one piece of

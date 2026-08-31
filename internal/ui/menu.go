@@ -21,7 +21,12 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		SaveRotation: func() { view.saveRotation() },
 		PromptExport: func() { view.promptExport() },
 		CloseFiles:   func() { view.closeFiles() },
-		ShowSettings: func() { view.settingsWin.Show() },
+		ShowSettings: func() {
+			if !view.cancelRegionCopyBeforeAction() {
+				return
+			}
+			view.settingsWin.Show()
+		},
 
 		ShowViewer:       view.showViewer,
 		ShowExif:         view.showWindowExif,
@@ -38,6 +43,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		ToggleMergeMode:      view.toggleActionsMergeMode,
 		ToggleInfoOverlay:    view.toggleActionsInfoOverlay,
 		CopyImage:            view.copyActionsImage,
+		CopySelection:        view.copyActionsSelection,
 		CopyPath:             view.copyActionsPath,
 		SetWallpaper:         view.wallpaperActionsImage,
 		Trash:                view.trashActionsImage,
@@ -81,6 +87,7 @@ func (v *viewer) menuState() menus.State {
 		CanSave:            v.canSaveRotation(),
 		CanExport:          v.canExport(),
 		CanWallpaper:       v.canSetWallpaper(),
+		CanCopySelection:   v.regionCopyAvailable(),
 	}
 }
 

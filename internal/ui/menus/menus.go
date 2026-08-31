@@ -51,6 +51,7 @@ type Callbacks struct {
 	ToggleMergeMode      func()
 	ToggleInfoOverlay    func()
 	CopyImage            func()
+	CopySelection        func()
 	CopyPath             func()
 	SetWallpaper         func()
 	Trash                func()
@@ -82,6 +83,7 @@ type State struct {
 	CanSave            bool // a pending rotation can be written back
 	CanExport          bool
 	CanWallpaper       bool
+	CanCopySelection   bool
 }
 
 // Menus holds every menu item whose Checked or Disabled state moves at
@@ -115,18 +117,19 @@ type WindowItems struct {
 // ActionItems are the Actions menu's items: sort, duplicates, image
 // transforms, merge/info toggles, clipboard, wallpaper, and trash.
 type ActionItems struct {
-	sort        []*fyne.MenuItem // len 5, index matches filesort.Modes()
-	hide        *fyne.MenuItem
-	showVariant *fyne.MenuItem
-	rotate      *fyne.MenuItem
-	zoomIn      *fyne.MenuItem
-	zoomOut     *fyne.MenuItem
-	merge       *fyne.MenuItem
-	info        *fyne.MenuItem
-	copy        *fyne.MenuItem
-	copyPath    *fyne.MenuItem
-	wallpaper   *fyne.MenuItem
-	trash       *fyne.MenuItem
+	sort          []*fyne.MenuItem // len 5, index matches filesort.Modes()
+	hide          *fyne.MenuItem
+	showVariant   *fyne.MenuItem
+	rotate        *fyne.MenuItem
+	zoomIn        *fyne.MenuItem
+	zoomOut       *fyne.MenuItem
+	merge         *fyne.MenuItem
+	info          *fyne.MenuItem
+	copy          *fyne.MenuItem
+	copySelection *fyne.MenuItem
+	copyPath      *fyne.MenuItem
+	wallpaper     *fyne.MenuItem
+	trash         *fyne.MenuItem
 }
 
 // New builds every item with its label, its accelerator, and the Disabled
@@ -238,6 +241,13 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	m.actions.copy.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault}
 	m.actions.copy.Disabled = true
 
+	m.actions.copySelection = fyne.NewMenuItem(lang.L("Copy selection"), c.CopySelection)
+	m.actions.copySelection.Shortcut = &desktop.CustomShortcut{
+		KeyName:  fyne.KeyC,
+		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
+	}
+	m.actions.copySelection.Disabled = true
+
 	m.actions.copyPath = fyne.NewMenuItem(lang.L("Copy image path"), c.CopyPath)
 	// Display-only, like File -> Export: the Cmd/Ctrl+Shift+C binding is
 	// wireClipboardShortcuts (internal/ui/shortcuts.go). This just shows
@@ -286,7 +296,7 @@ func (m *Menus) ActionsMenu() *fyne.Menu {
 		fyne.NewMenuItemSeparator(),
 		m.actions.merge, m.actions.info,
 		fyne.NewMenuItemSeparator(),
-		m.actions.copy, m.actions.copyPath, m.actions.wallpaper, m.actions.trash,
+		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.wallpaper, m.actions.trash,
 	)
 }
 
@@ -354,6 +364,9 @@ func (a ActionItems) Info() *fyne.MenuItem { return a.info }
 
 // Copy is the Actions menu's "Copy image" item.
 func (a ActionItems) Copy() *fyne.MenuItem { return a.copy }
+
+// CopySelection is the Actions menu's "Copy selection" item.
+func (a ActionItems) CopySelection() *fyne.MenuItem { return a.copySelection }
 
 // CopyPath is the Actions menu's "Copy image path" item.
 func (a ActionItems) CopyPath() *fyne.MenuItem { return a.copyPath }
@@ -433,6 +446,7 @@ func (m *Menus) applyActions(s State) {
 	m.actions.info.Disabled = gridUp
 
 	m.actions.copy.Disabled = noFiles
+	m.actions.copySelection.Disabled = !s.CanCopySelection
 	m.actions.copyPath.Disabled = noFiles
 	m.actions.wallpaper.Disabled = !s.CanWallpaper
 	m.actions.trash.Disabled = noFiles
@@ -448,14 +462,14 @@ type pair struct {
 // diff the whole matrix instead of each assignment reporting for itself -
 // an assignment added later is then covered without being told to be.
 func (m *Menus) pairs() []pair {
-	items := make([]*fyne.MenuItem, 0, len(m.actions.sort)+19)
+	items := make([]*fyne.MenuItem, 0, len(m.actions.sort)+20)
 	items = append(items, m.save, m.export, m.closeFiles)
 	items = append(items, m.window.viewer, m.window.exif, m.window.grid,
 		m.window.pictureFrame, m.window.help)
 	items = append(items, m.actions.sort...)
 	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.rotate,
 		m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info,
-		m.actions.copy, m.actions.copyPath, m.actions.wallpaper, m.actions.trash)
+		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.wallpaper, m.actions.trash)
 
 	out := make([]pair, len(items))
 	for i, it := range items {

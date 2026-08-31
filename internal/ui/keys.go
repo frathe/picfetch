@@ -55,6 +55,14 @@ func (v *viewer) handleTypedRune(r rune) {
 
 	if v.grid.Visible() {
 		v.grid.HandleRune(r)
+		return
+	}
+
+	// Copy Selection owns typed input while it is active so characters
+	// cannot leak into a later grid search. Geometry editing stays
+	// pointer-based; there is nothing to type here.
+	if v.regionCopy.State().Active {
+		return
 	}
 }
 
@@ -122,6 +130,31 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	if v.grid.Visible() {
 		v.grid.HandleKey(ev)
 		return
+	}
+
+	// Copy Selection owns the keyboard after those modals: Escape, Return,
+	// Enter, and image-navigation keys stay inside the feature. Zoom keys
+	// keep working without cancelling. Every other PicFetch command cancels
+	// the mode first, then runs as usual. A pending copy swallows all of
+	// this except window close, which never arrives here.
+	if v.regionCopy.State().Active {
+		if v.regionCopy.State().Busy {
+			v.regionCopy.HandleKey(ev.Name)
+			return
+		}
+		switch ev.Name {
+		case fyne.Key0, fyne.Key1, fyne.KeyPlus, fyne.KeyEqual, fyne.KeyMinus:
+			// Zoom stays available without cancelling.
+		case fyne.KeyEscape, fyne.KeyReturn, fyne.KeyEnter,
+			fyne.KeyLeft, fyne.KeyRight, fyne.KeyUp, fyne.KeyDown, fyne.KeyHome, fyne.KeyEnd:
+			v.regionCopy.HandleKey(ev.Name)
+			return
+		case fyne.KeyF1, fyne.KeyM, fyne.KeyV, fyne.KeyP, fyne.KeyG, fyne.KeyD,
+			fyne.KeyI, fyne.KeyE, fyne.KeyR, fyne.KeyS:
+			v.cancelRegionCopy()
+		default:
+			return
+		}
 	}
 
 	switch ev.Name {

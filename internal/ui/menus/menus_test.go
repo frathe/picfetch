@@ -56,6 +56,7 @@ func TestNew_InitialDisabledMatchesTheBarAsBuilt(t *testing.T) {
 		{"actions.merge", m.Actions().Merge(), false},
 		{"actions.info", m.Actions().Info(), false},
 		{"actions.copy", m.Actions().Copy(), true},
+		{"actions.copySelection", m.Actions().CopySelection(), true},
 		{"actions.copyPath", m.Actions().CopyPath(), true},
 		{"actions.wallpaper", m.Actions().Wallpaper(), true},
 		{"actions.trash", m.Actions().Trash(), true},
@@ -96,6 +97,7 @@ func TestNew_LabelsAndAccelerators(t *testing.T) {
 		{"actions.merge", m.Actions().Merge(), lang.L("Toggle merge mode"), fyne.KeyM, 0},
 		{"actions.info", m.Actions().Info(), lang.L("Show/Hide info overlay"), fyne.KeyI, 0},
 		{"actions.copy", m.Actions().Copy(), lang.L("Copy image"), fyne.KeyC, mod},
+		{"actions.copySelection", m.Actions().CopySelection(), lang.L("Copy selection"), fyne.KeyC, fyne.KeyModifierAlt | fyne.KeyModifierShift},
 		{"actions.copyPath", m.Actions().CopyPath(), lang.L("Copy image path"), fyne.KeyC, mod | fyne.KeyModifierShift},
 		{"actions.wallpaper", m.Actions().Wallpaper(), lang.L("Set as Wallpaper"), fyne.KeyE, mod | fyne.KeyModifierShift},
 		{"actions.trash", m.Actions().Trash(), lang.L("Move image to Trash"), fyne.KeyDelete, fyne.KeyModifierShift},
@@ -178,9 +180,58 @@ func TestActionsMenu_Composition(t *testing.T) {
 		nil,
 		a.Merge(), a.Info(),
 		nil,
-		a.Copy(), a.CopyPath(), a.Wallpaper(), a.Trash(),
+		a.Copy(), a.CopySelection(), a.CopyPath(), a.Wallpaper(), a.Trash(),
 	}
 	assertItems(t, "Actions", menu.Items, want)
+}
+
+func TestActionsMenu_CopySelection(t *testing.T) {
+	fired := false
+	m := New(Callbacks{CopySelection: func() { fired = true }}, filesort.ByName)
+	a := m.Actions()
+
+	menu := m.ActionsMenu()
+	copyIndex, selectionIndex, pathIndex := -1, -1, -1
+	for i, item := range menu.Items {
+		switch item {
+		case a.Copy():
+			copyIndex = i
+		case a.CopySelection():
+			selectionIndex = i
+		case a.CopyPath():
+			pathIndex = i
+		}
+	}
+	if !(copyIndex >= 0 && copyIndex+1 == selectionIndex && selectionIndex+1 == pathIndex) {
+		t.Fatalf("clipboard item indexes = copy:%d selection:%d path:%d, want consecutive in that order",
+			copyIndex, selectionIndex, pathIndex)
+	}
+
+	item := a.CopySelection()
+	if item.Label != lang.L("Copy selection") {
+		t.Errorf("CopySelection Label = %q, want %q", item.Label, lang.L("Copy selection"))
+	}
+	shortcut, ok := item.Shortcut.(*desktop.CustomShortcut)
+	if !ok {
+		t.Fatalf("CopySelection Shortcut = %T, want *desktop.CustomShortcut", item.Shortcut)
+	}
+	if shortcut.KeyName != fyne.KeyC || shortcut.Modifier != fyne.KeyModifierAlt|fyne.KeyModifierShift {
+		t.Errorf("CopySelection shortcut = %v+%v, want Alt+Shift+C", shortcut.Modifier, shortcut.KeyName)
+	}
+	if !item.Disabled || item.Checked {
+		t.Errorf("initial CopySelection state = {Disabled:%v Checked:%v}, want {true false}", item.Disabled, item.Checked)
+	}
+
+	if !m.Apply(State{CanCopySelection: true}) {
+		t.Fatal("Apply did not report CopySelection becoming enabled")
+	}
+	if item.Disabled || item.Checked {
+		t.Errorf("available CopySelection state = {Disabled:%v Checked:%v}, want {false false}", item.Disabled, item.Checked)
+	}
+	item.Action()
+	if !fired {
+		t.Fatal("CopySelection item did not run its callback")
+	}
 }
 
 func TestWindowMenu_Composition(t *testing.T) {
@@ -273,6 +324,7 @@ func everythingOn() State {
 		CanSave:            true,
 		CanExport:          true,
 		CanWallpaper:       true,
+		CanCopySelection:   true,
 	}
 }
 
@@ -555,7 +607,7 @@ func TestApply_ChangedIsFalseWhenNothingMoves(t *testing.T) {
 	}{
 		{"zero state", State{}},
 		{"everything on", everythingOn()},
-		{"a loaded, displayed file", State{SortMode: filesort.ByModTime, Displayed: true, CanSave: true, CanExport: true, CanWallpaper: true}},
+		{"a loaded, displayed file", State{SortMode: filesort.ByModTime, Displayed: true, CanSave: true, CanExport: true, CanWallpaper: true, CanCopySelection: true}},
 		{"empty drop zone", State{NoFiles: true, NoImage: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -618,6 +670,7 @@ func TestApply_ChangedIsTrueForASingleFlip(t *testing.T) {
 		{"CanSave", base, flip(func(s *State) { s.CanSave = true })},
 		{"CanExport", base, flip(func(s *State) { s.CanExport = true })},
 		{"CanWallpaper", base, flip(func(s *State) { s.CanWallpaper = true })},
+		{"CanCopySelection", base, flip(func(s *State) { s.CanCopySelection = true })},
 		{"VariantGroupSize crossing 2", hiding, hidingWithGroup},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -658,6 +711,7 @@ func TestApply_IsIdempotent(t *testing.T) {
 		HideDuplicates:   true,
 		Displayed:        true,
 		CanExport:        true,
+		CanCopySelection: true,
 	}
 
 	fresh := newMenus()
@@ -690,7 +744,7 @@ func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 		m.Window().PictureFrame(), m.Window().Help(),
 		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Rotate(),
 		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),
-		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopyPath(),
+		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopySelection(), m.Actions().CopyPath(),
 		m.Actions().Wallpaper(), m.Actions().Trash(),
 	}
 	items = append(items, m.Actions().Sort()...)
@@ -745,6 +799,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		ToggleMergeMode:      record("ToggleMergeMode"),
 		ToggleInfoOverlay:    record("ToggleInfoOverlay"),
 		CopyImage:            record("CopyImage"),
+		CopySelection:        record("CopySelection"),
 		CopyPath:             record("CopyPath"),
 		SetWallpaper:         record("SetWallpaper"),
 		Trash:                record("Trash"),
@@ -772,6 +827,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		{m.Actions().Merge(), "ToggleMergeMode"},
 		{m.Actions().Info(), "ToggleInfoOverlay"},
 		{m.Actions().Copy(), "CopyImage"},
+		{m.Actions().CopySelection(), "CopySelection"},
 		{m.Actions().CopyPath(), "CopyPath"},
 		{m.Actions().Wallpaper(), "SetWallpaper"},
 		{m.Actions().Trash(), "Trash"},

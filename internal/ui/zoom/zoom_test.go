@@ -44,6 +44,113 @@ func newZoom(t *testing.T, native image.Rectangle, viewport fyne.Size) (*Zoom, *
 	return z, &changes
 }
 
+func newZoomWithModifiers(t *testing.T, native image.Rectangle, viewport fyne.Size,
+	modifiers func() fyne.KeyModifier,
+) *Zoom {
+	t.Helper()
+
+	img := canvas.NewImageFromImage(nil)
+	if !native.Empty() {
+		img.Image = image.NewRGBA(native)
+	}
+	z := New(img, nil, modifiers, nil)
+	z.Widget().Resize(viewport)
+
+	return z
+}
+
+func assertGeometry(t *testing.T, got Geometry, wantPosition fyne.Position, wantSize fyne.Size) {
+	t.Helper()
+
+	if !uitest.ApproxEqual(got.Position.X, wantPosition.X) ||
+		!uitest.ApproxEqual(got.Position.Y, wantPosition.Y) ||
+		!uitest.ApproxEqual(got.Size.Width, wantSize.Width) ||
+		!uitest.ApproxEqual(got.Size.Height, wantSize.Height) {
+		t.Errorf("Geometry() = {Position:%v Size:%v}, want {Position:%v Size:%v}",
+			got.Position, got.Size, wantPosition, wantSize)
+	}
+}
+
+func TestGeometry_FitReportsDisplayedImageBounds(t *testing.T) {
+	z, _ := newZoom(t, image.Rect(0, 0, 400, 200), fyne.NewSize(800, 600))
+
+	assertGeometry(t, z.Geometry(), fyne.NewPos(0, 100), fyne.NewSize(800, 400))
+}
+
+func TestGeometry_ManualZoomReportsScaledBounds(t *testing.T) {
+	z, _ := newZoom(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200))
+
+	z.In()
+
+	assertGeometry(t, z.Geometry(), fyne.NewPos(-25, -25), fyne.NewSize(250, 250))
+}
+
+func TestGeometry_CursorAnchoredWheelZoom(t *testing.T) {
+	z, _ := newZoom(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200))
+
+	z.HandleScroll(&fyne.ScrollEvent{
+		PointEvent: fyne.PointEvent{Position: fyne.NewPos(150, 150)},
+		Scrolled:   fyne.NewDelta(0, 69.31472),
+	})
+
+	assertGeometry(t, z.Geometry(), fyne.NewPos(-150, -150), fyne.NewSize(400, 400))
+}
+
+func TestGeometry_TracksPanResetAndViewportResize(t *testing.T) {
+	z, _ := newZoom(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200))
+	z.In()
+
+	z.Widget().(fyne.Draggable).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(10, -5)})
+	assertGeometry(t, z.Geometry(), fyne.NewPos(-15, -30), fyne.NewSize(250, 250))
+
+	z.ResetToFit()
+	assertGeometry(t, z.Geometry(), fyne.NewPos(0, 0), fyne.NewSize(200, 200))
+
+	z.Widget().Resize(fyne.NewSize(300, 200))
+	assertGeometry(t, z.Geometry(), fyne.NewPos(50, 0), fyne.NewSize(200, 200))
+}
+
+func TestGeometry_ShiftScrollPan(t *testing.T) {
+	z := newZoomWithModifiers(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200),
+		func() fyne.KeyModifier { return fyne.KeyModifierShift })
+	z.In()
+
+	z.HandleScroll(&fyne.ScrollEvent{Scrolled: fyne.NewDelta(20, -5)})
+
+	assertGeometry(t, z.Geometry(), fyne.NewPos(-5, -30), fyne.NewSize(250, 250))
+}
+
+func TestGeometryChanged_ReportsOnlyRealChanges(t *testing.T) {
+	img := canvas.NewImageFromImage(image.NewRGBA(image.Rect(0, 0, 100, 100)))
+	z := New(img, nil, nil, nil)
+
+	var got []Geometry
+	z.SetOnGeometryChanged(func(geometry Geometry) {
+		got = append(got, geometry)
+	})
+
+	z.Widget().Resize(fyne.NewSize(200, 200))
+	z.In()
+	z.Widget().(fyne.Draggable).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(10, -5)})
+	z.ResetToFit()
+	z.Widget().Resize(fyne.NewSize(300, 200))
+	z.ResetToFit() // Identical layout must stay silent.
+
+	want := []Geometry{
+		{Position: fyne.NewPos(0, 0), Size: fyne.NewSize(200, 200)},
+		{Position: fyne.NewPos(-25, -25), Size: fyne.NewSize(250, 250)},
+		{Position: fyne.NewPos(-15, -30), Size: fyne.NewSize(250, 250)},
+		{Position: fyne.NewPos(0, 0), Size: fyne.NewSize(200, 200)},
+		{Position: fyne.NewPos(50, 0), Size: fyne.NewSize(200, 200)},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("geometry callbacks = %v, want %v", got, want)
+	}
+	for i := range want {
+		assertGeometry(t, got[i], want[i].Position, want[i].Size)
+	}
+}
+
 // pointUnderCursor returns the native-pixel coordinate currently displayed
 // at the given cursor position, using the same layout math as apply. Tests
 // use it to check that a scroll-zoom keeps the point under the cursor fixed
@@ -481,6 +588,49 @@ func TestScrolled_NilModifiersZoomsRatherThanPanning(t *testing.T) {
 	if z.Fitting() {
 		t.Error("with no modifiers func, a scroll should zoom as usual")
 	}
+}
+
+func TestHandleScroll_MatchesImageWidget(t *testing.T) {
+	t.Run("wheel zoom", func(t *testing.T) {
+		direct, _ := newZoom(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200))
+		widgetPath, _ := newZoom(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200))
+		event := &fyne.ScrollEvent{
+			PointEvent: fyne.PointEvent{Position: fyne.NewPos(150, 150)},
+			Scrolled:   fyne.NewDelta(0, 50),
+		}
+
+		direct.HandleScroll(event)
+		widgetPath.Widget().(fyne.Scrollable).Scrolled(event)
+
+		if direct.Fitting() != widgetPath.Fitting() || direct.Scale() != widgetPath.Scale() ||
+			direct.Geometry() != widgetPath.Geometry() {
+			t.Fatalf("direct state = {fit:%v scale:%v geometry:%+v}, widget state = "+
+				"{fit:%v scale:%v geometry:%+v}", direct.Fitting(), direct.Scale(), direct.Geometry(),
+				widgetPath.Fitting(), widgetPath.Scale(), widgetPath.Geometry())
+		}
+	})
+
+	t.Run("Shift pan", func(t *testing.T) {
+		modifiers := func() fyne.KeyModifier { return fyne.KeyModifierShift }
+		direct := newZoomWithModifiers(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200), modifiers)
+		widgetPath := newZoomWithModifiers(t, image.Rect(0, 0, 100, 100), fyne.NewSize(200, 200), modifiers)
+		for _, z := range []*Zoom{direct, widgetPath} {
+			z.In()
+		}
+		event := &fyne.ScrollEvent{
+			PointEvent: fyne.PointEvent{Position: fyne.NewPos(100, 100)},
+			Scrolled:   fyne.NewDelta(20, -5),
+		}
+
+		direct.HandleScroll(event)
+		widgetPath.Widget().(fyne.Scrollable).Scrolled(event)
+
+		if direct.Scale() != widgetPath.Scale() || direct.Geometry() != widgetPath.Geometry() {
+			t.Fatalf("direct state = {scale:%v geometry:%+v}, widget state = "+
+				"{scale:%v geometry:%+v}", direct.Scale(), direct.Geometry(),
+				widgetPath.Scale(), widgetPath.Geometry())
+		}
+	})
 }
 
 func TestDragged_Pans(t *testing.T) {

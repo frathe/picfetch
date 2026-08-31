@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/driver/desktop"
 
 	"github.com/frathe/picfetch/internal/filesort"
@@ -81,6 +82,7 @@ func TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators(t *testing.T) {
 		{"Toggle merge mode", fyne.KeyM, 0},
 		{"Show/Hide info overlay", fyne.KeyI, 0},
 		{"Copy image", fyne.KeyC, fyne.KeyModifierShortcutDefault},
+		{"Copy selection", fyne.KeyC, fyne.KeyModifierAlt | fyne.KeyModifierShift},
 		{"Copy image path", fyne.KeyC, fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift},
 		{"Set as Wallpaper", fyne.KeyE, fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift},
 		{"Move image to Trash", fyne.KeyDelete, fyne.KeyModifierShift},
@@ -123,7 +125,7 @@ func TestActionsMenu_FreshViewer(t *testing.T) {
 	for _, label := range []string{
 		"Show/Hide duplicates", "Show variants",
 		"Rotate image (CW)", "Zoom in", "Zoom out",
-		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
+		"Copy image", "Copy selection", "Copy image path", "Set as Wallpaper", "Move image to Trash",
 	} {
 		if !requireActionsItem(t, v, label).Disabled {
 			t.Errorf("%q should start disabled", label)
@@ -173,7 +175,7 @@ func TestActionsMenu_AfterOneJPEGDrop(t *testing.T) {
 	}
 	for _, label := range []string{
 		"Rotate image (CW)", "Zoom in", "Zoom out",
-		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
+		"Copy image", "Copy selection", "Copy image path", "Set as Wallpaper", "Move image to Trash",
 	} {
 		if requireActionsItem(t, v, label).Disabled {
 			t.Errorf("%q should be enabled after a file is loaded", label)
@@ -255,6 +257,9 @@ func TestActionsMenu_PictureFrameLeavesRotateEnabled(t *testing.T) {
 	if requireActionsItem(t, v, "Rotate image (CW)").Disabled {
 		t.Error("Rotate image should stay enabled in picture-frame mode")
 	}
+	if !requireActionsItem(t, v, "Copy selection").Disabled {
+		t.Error("Copy selection should be disabled in picture-frame mode")
+	}
 }
 
 func TestActionsMenu_CloseFiles(t *testing.T) {
@@ -271,7 +276,7 @@ func TestActionsMenu_CloseFiles(t *testing.T) {
 	for _, label := range []string{
 		"Show/Hide duplicates", "Show variants",
 		"Rotate image (CW)", "Zoom in", "Zoom out",
-		"Copy image", "Copy image path", "Set as Wallpaper", "Move image to Trash",
+		"Copy image", "Copy selection", "Copy image path", "Set as Wallpaper", "Move image to Trash",
 	} {
 		if !requireActionsItem(t, v, label).Disabled {
 			t.Errorf("%q should be disabled after closeFiles", label)
@@ -294,7 +299,7 @@ func TestActionsMenu_GridToggleDisablesRotateZoomInfo(t *testing.T) {
 	if !v.grid.Visible() {
 		t.Fatal("Toggle should open the grid")
 	}
-	for _, label := range []string{"Rotate image (CW)", "Zoom in", "Zoom out", "Show/Hide info overlay"} {
+	for _, label := range []string{"Rotate image (CW)", "Zoom in", "Zoom out", "Show/Hide info overlay", "Copy selection"} {
 		if !requireActionsItem(t, v, label).Disabled {
 			t.Errorf("%q should be disabled while the grid is open", label)
 		}
@@ -309,10 +314,91 @@ func TestActionsMenu_GridToggleDisablesRotateZoomInfo(t *testing.T) {
 	if v.grid.Visible() {
 		t.Fatal("a second Toggle should close the grid")
 	}
-	for _, label := range []string{"Rotate image (CW)", "Zoom in", "Zoom out", "Show/Hide info overlay"} {
+	for _, label := range []string{"Rotate image (CW)", "Zoom in", "Zoom out", "Show/Hide info overlay", "Copy selection"} {
 		if requireActionsItem(t, v, label).Disabled {
 			t.Errorf("%q should be enabled again after the grid closes", label)
 		}
+	}
+}
+
+func TestCopySelectionAvailability(t *testing.T) {
+	loadImage := func(t *testing.T, v *viewer) {
+		t.Helper()
+		dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.White))
+	}
+
+	for _, tc := range []struct {
+		name      string
+		setup     func(*testing.T, *viewer)
+		available bool
+	}{
+		{"initial viewer", func(*testing.T, *viewer) {}, false},
+		{"decoded image", loadImage, true},
+		{"loading", func(t *testing.T, v *viewer) {
+			loadImage(t, v)
+			v.loading.Store(true)
+			t.Cleanup(func() { v.loading.Store(false) })
+		}, false},
+		{"grid view", func(t *testing.T, v *viewer) {
+			loadImage(t, v)
+			warmThumbs(t, v)
+			v.grid.Toggle()
+		}, false},
+		{"picture frame", func(t *testing.T, v *viewer) {
+			loadImage(t, v)
+			v.togglePictureFrameMode()
+			t.Cleanup(func() { settleSlideshow(t, v) })
+		}, false},
+		{"delete prompt", func(t *testing.T, v *viewer) {
+			loadImage(t, v)
+			v.deletion.Request()
+		}, false},
+		{"export prompt", func(t *testing.T, v *viewer) {
+			loadImage(t, v)
+			v.promptExport()
+		}, false},
+		{"Fyne overlay", func(t *testing.T, v *viewer) {
+			loadImage(t, v)
+			overlay := canvas.NewRectangle(color.Transparent)
+			v.win.Canvas().Overlays().Add(overlay)
+			t.Cleanup(func() { v.win.Canvas().Overlays().Remove(overlay) })
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newTestViewer(t)
+			tc.setup(t, v)
+
+			state := v.menuState()
+			if state.CanCopySelection != tc.available {
+				t.Fatalf("menuState().CanCopySelection = %v, want %v", state.CanCopySelection, tc.available)
+			}
+			v.menus.Apply(state)
+			item := v.menus.Actions().CopySelection()
+			if item.Disabled == tc.available {
+				t.Errorf("Copy selection Disabled = %v, want %v", item.Disabled, !tc.available)
+			}
+			if item.Checked {
+				t.Error("Copy selection must remain an ordinary, unchecked item")
+			}
+
+			item.Action()
+			if active := v.regionCopy.State().Active; active != tc.available {
+				t.Fatalf("Copy Selection active after menu action = %v, want %v", active, tc.available)
+			}
+			if !tc.available {
+				return
+			}
+
+			before := v.regionCopy.State()
+			item.Action()
+			if after := v.regionCopy.State(); after != before {
+				t.Errorf("repeated menu action changed state from %+v to %+v", before, after)
+			}
+			if item.Checked {
+				t.Error("Copy selection became checked while active")
+			}
+			v.cancelRegionCopy()
+		})
 	}
 }
 

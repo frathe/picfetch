@@ -60,17 +60,7 @@ func (w *imageWidget) DragEnd() {}
 // widget. Shift+scroll plays the same role here that it does in browsers
 // remapping the wheel to a second axis.
 func (w *imageWidget) Scrolled(ev *fyne.ScrollEvent) {
-	if w.z.modifiers != nil && w.z.modifiers()&fyne.KeyModifierShift != 0 {
-		w.z.panBy(ev.Scrolled)
-
-		return
-	}
-
-	if ev.Scrolled.DY == 0 {
-		return
-	}
-
-	w.z.at(ev.Scrolled.DY, ev.Position)
+	w.z.HandleScroll(ev)
 }
 
 // Cursor makes the widget desktop.Cursorable; the shape itself is Zoom's

@@ -95,6 +95,9 @@ func (v *viewer) canExport() bool {
 // would otherwise re-Show the card and reset the ring back to PNG under
 // someone who had already moved it to JPEG and was reaching for Return.
 func (v *viewer) promptExport() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if !v.canExport() || v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}

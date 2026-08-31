@@ -13,6 +13,9 @@ import "github.com/frathe/picfetch/internal/ui/infoview"
 // but, unlike a toast, it never auto-hides: once on, it stays up across
 // navigation and zoom changes until toggled off again.
 func (v *viewer) toggleInfoOverlay() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	v.info.Toggle()
 	v.syncInfoOverlayVisibility()
 	v.ForceRepaint()

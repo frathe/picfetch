@@ -478,6 +478,10 @@ func (v *viewer) animate(token requestToken, frames []image.Image, delays []time
 	idx := 0
 
 	for {
+		if !v.animationPause.wait(token.context()) {
+			return
+		}
+
 		select {
 		case <-v.frameAfter(delays[idx]):
 		case <-token.context().Done():
@@ -487,14 +491,16 @@ func (v *viewer) animate(token requestToken, frames []image.Image, delays []time
 		stale := false
 
 		fyne.Do(func() {
-			if !token.current() {
-				stale = true
-				return
-			}
+			v.animationPause.advance(func() {
+				if !token.current() {
+					stale = true
+					return
+				}
 
-			idx = (idx + 1) % len(frames)
-			v.display.SetIndex(idx)
-			v.redrawRotatedFrame()
+				idx = (idx + 1) % len(frames)
+				v.display.SetIndex(idx)
+				v.redrawRotatedFrame()
+			})
 		})
 
 		if stale {

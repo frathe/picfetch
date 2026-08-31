@@ -81,6 +81,10 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 	// about to be replaced (or, in merge mode, about to change), so a drop
 	// arriving while it's open closes it back to the normal view instead of
 	// leaving it showing stale thumbnails.
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
+
 	v.deletion.Cancel()
 	v.grid.Close()
 

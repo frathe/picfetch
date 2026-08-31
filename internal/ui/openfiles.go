@@ -18,6 +18,9 @@ import (
 // per-OS dispatch. It always runs on its own goroutine since every backing
 // command blocks until the user closes the dialog.
 func (v *viewer) openFileDialog() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	// chooser is finished once this pick's goroutine has fully run, error
 	// toast included, so a test can wait for it rather than leave it
 	// running into the next one. That matters more than it looks:

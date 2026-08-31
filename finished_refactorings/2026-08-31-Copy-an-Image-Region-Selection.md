@@ -1,6 +1,6 @@
 # Copy an Image-Region Selection
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

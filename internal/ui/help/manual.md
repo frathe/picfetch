@@ -617,6 +617,14 @@ many of them actually went.
   image data you can paste into another app (not a file). In the grid
   overview it copies the selected *files* instead, so a paste in your file
   manager creates copies of them
+- **`Opt`/`Alt+Shift+C`** — Copy Selection mode in the normal image view.
+  Drag a rectangle on the image (it stays inside the picture). Drag inside
+  the rectangle to move it, or drag a handle to resize it. **Copy to
+  clipboard** (or `Return`/`Enter`) copies that image-region at the image's
+  own resolution as PNG, with none of the window UI in the result. `Esc`
+  leaves the mode without changing the clipboard. Zoom and pan still work.
+  Unavailable while the grid or picture-frame mode is up, while a prompt
+  owns the window, or when no decoded image is showing
 - **`Cmd`/`Ctrl+Shift+C`** — copy the current image's file path to the
   clipboard
 - **`Shift+Delete`** — move the current file to the Trash, after confirming
@@ -778,6 +786,12 @@ needed. macOS and Windows need nothing extra either way.
   while the overlay preference is on. Greyed out while the grid is up
 - **Actions -> Copy image** (`Cmd/Ctrl+C`) — the displayed pixels, or the
   grid selection as files. Greyed out when no files are loaded
+- **Actions -> Copy selection** (`Opt/Alt+Shift+C`) — starts Copy Selection
+  mode so you can copy one rectangular image-region instead of the whole
+  picture. Drag to draw the rectangle, then move or resize it; **Copy to
+  clipboard** (or `Return`) copies full-resolution PNG pixels. `Esc` cancels
+  without changing the clipboard. Greyed out with no decoded image, while
+  the grid or picture-frame mode is up, or while a prompt owns the window
 - **Actions -> Copy image path** (`Cmd/Ctrl+Shift+C`) — the current
   file's path. Greyed out when no files are loaded
 - **Actions -> Set as Wallpaper** (`Cmd/Ctrl+Shift+E`) — makes the image on
@@ -913,13 +927,21 @@ Things PicFetch deliberately does not do (yet):
 - No zoom control within picture-frame mode itself, and no per-image timing
   override — every image gets the same interval (animated GIFs aside)
 - No image editing beyond rotation: no cropping, no colour or exposure
-  adjustment, no resizing. What you can write to disk is a rotation
-  (**File -> Save Changes**), a copy in another format
+  adjustment, no resizing. Copy Selection copies a region to the clipboard
+  and does not change the source file. What you can write to disk is a
+  rotation (**File -> Save Changes**), a copy in another format
   (**File -> Export image**) and a wallpaper copy
   (**Actions -> Set as Wallpaper**), all described in "Menu" below
 - No RAW demosaic or PDF support: RAW files display the camera's embedded
-  JPEG preview only; what you can write to disk is still a rotation of
-  encodable formats, an export, or a wallpaper copy
+  JPEG preview only; Copy Selection copies that preview, and what you can
+  write to disk is still a rotation of encodable formats, an export, or a
+  wallpaper copy
+- SVG Copy Selection uses the image's logical size and the same vector
+  raster safety cap as on-screen rendering; it does not raise that cap
+- An animated image is frozen on the frame showing when Copy Selection
+  starts and resumes when the mode ends (timing phase need not match)
+- A very large Copy Selection can still fail if the process or the OS
+  clipboard cannot accept it; the rectangle stays so you can retry
 - No playback controls (pause, step, restart) for animated GIFs
 - No offline maps: the EXIF window's location view needs a working internet
   connection, since it draws live OpenStreetMap tiles
@@ -989,6 +1011,7 @@ Things PicFetch deliberately does not do (yet):
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in
   the title bar); leave with `V`/`P`/`Esc` or Window -> Viewer
 - **Copy** — `Cmd`/`Ctrl+C` copies the current image (Actions -> Copy image),
+  `Opt`/`Alt+Shift+C` copies an image-region (Actions -> Copy selection),
   `Cmd`/`Ctrl+Shift+C` copies its file path (Actions -> Copy image path); in
   the grid, `Cmd`/`Ctrl+C` copies the selected files themselves
 - **Delete** — `Shift+Delete` opens a confirmation card (Actions -> Move

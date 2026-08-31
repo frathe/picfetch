@@ -10,6 +10,9 @@ import (
 )
 
 func (v *viewer) setActionsSort(m filesort.Mode) {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.SortMode() == m {
 		return
 	}
@@ -17,10 +20,16 @@ func (v *viewer) setActionsSort(m filesort.Mode) {
 }
 
 func (v *viewer) toggleHideDuplicates() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	v.pushHideDuplicates(!v.dupes.HideDuplicates())
 }
 
 func (v *viewer) browseCurrentDuplicates() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.slides.Active() {
 		return
 	}
@@ -106,6 +115,13 @@ func (v *viewer) copyActionsImage() {
 		return
 	}
 	v.copySelection()
+}
+
+func (v *viewer) copyActionsSelection() {
+	if !v.regionCopyAvailable() {
+		return
+	}
+	v.startRegionCopy()
 }
 
 func (v *viewer) copyActionsPath() { v.copyPathToClipboard() }

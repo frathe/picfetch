@@ -21,6 +21,7 @@ package ui
 
 import (
 	"errors"
+	"image"
 	"image/color"
 	"testing"
 
@@ -306,6 +307,25 @@ func TestE2E_DeleteConfirmationShowsWhichButtonReturnWillPress(t *testing.T) {
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 
 	test.AssertRendersToImage(t, "delete_confirm_danger.png", win.Canvas())
+}
+
+func TestE2E_CopySelection(t *testing.T) {
+	v, win, _ := newTestUI(t)
+
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "one.jpg", 40, 30, color.RGBA{G: 200, A: 255}))
+	selectRegion(t, v, image.Rect(8, 6, 32, 24))
+
+	if got := v.regionCopy.State(); !got.Active || !got.HasSelection || got.Busy {
+		t.Fatalf("Copy Selection state = %+v, want active with a committed rectangle", got)
+	}
+	if !v.regionCopy.Overlay().Visible() {
+		t.Fatal("Copy Selection overlay is hidden after a committed rectangle")
+	}
+	if v.info.Object().Visible() {
+		t.Fatal("information overlay remains painted during Copy Selection mode")
+	}
+
+	test.AssertRendersToImage(t, "copy_selection.png", win.Canvas())
 }
 
 // F1/showManual is intentionally not covered by the screenshot tests here:

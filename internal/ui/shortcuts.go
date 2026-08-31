@@ -36,6 +36,7 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	wireManageFavoritesShortcut(c, view)
 	wireAddFavoritesShortcut(c, view)
 	wireClipboardShortcuts(c, view)
+	wireCopySelectionShortcut(c, view)
 	wireDeleteShortcut(c, view)
 	wireSelectAllShortcut(c, view)
 	wireSaveShortcut(c, view)
@@ -103,6 +104,16 @@ func wireClipboardShortcuts(c shortcutAdder, view *viewer) {
 		KeyName:  fyne.KeyC,
 		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
 	}, func(fyne.Shortcut) { view.copyPathToClipboard() })
+}
+
+// wireCopySelectionShortcut binds Option/Alt+Shift+C to the Actions menu's
+// Copy selection command. It is deliberately separate from the two existing
+// C bindings above: neither their shortcut types nor their behavior changes.
+func wireCopySelectionShortcut(c shortcutAdder, view *viewer) {
+	c.AddShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyC,
+		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
+	}, func(fyne.Shortcut) { view.copyActionsSelection() })
 }
 
 // wireSelectAllShortcut binds Cmd/Ctrl+A to the grid's select-all
@@ -199,6 +210,9 @@ func wireManageFavoritesShortcut(c shortcutAdder, view *viewer) {
 // against for itself, mirrored here rather than shared because the two
 // prompts' own guard against each other already lives on their side.
 func (v *viewer) showManageFavorites() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}
@@ -222,6 +236,9 @@ func wireAddFavoritesShortcut(c shortcutAdder, view *viewer) {
 // as showManageFavorites, plus FileCount: the menu item is disabled with
 // no files, and the shortcut must not open an empty Add dialog.
 func (v *viewer) showAddFavorites() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}

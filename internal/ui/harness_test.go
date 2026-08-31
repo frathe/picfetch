@@ -104,6 +104,13 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	// moments later - zeroed here the same way the toast's duration is.
 	v.vector.debounce = 0
 
+	// Zoom reports presentation geometry from inside renderer Layout.
+	// Production defers the Copy Selection update through fyne.Do; the test
+	// driver runs that inline anyway, so make the per-viewer seam explicit
+	// and deterministic here.
+	v.regionCopyDo = func(f func()) { f() }
+	v.regionCopyDoAndWait = func(f func()) { f() }
+
 	// setAsWallpaper writes a PNG it then hands to the OS, and unlike every
 	// other file this suite produces that one is meant to outlive the
 	// process - so it is redirected out of the user's real cache directory
@@ -171,6 +178,8 @@ func drain(t *testing.T, v *viewer) {
 	v.scanOp.lifecycle.invalidate()
 	v.sortOp.lifecycle.invalidate()
 	v.vector.lifecycle.invalidate()
+	v.regionCopyLifecycle.invalidate()
+	v.animationPause.unpause()
 	v.favThumbLifecycle.invalidate()
 	v.updateOp.invalidate()
 	v.slides.Exit()

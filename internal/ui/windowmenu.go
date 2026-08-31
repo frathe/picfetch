@@ -50,6 +50,9 @@ func syncNativeMenuBar(bar *fyne.MainMenu) {
 }
 
 func (v *viewer) showViewer() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	// Close() ClearInspects even when the overlay is already hidden.
 	// V / Window → Viewer is a no-op in the image view, so skip Close
 	// there or inspect would end. Leave the grid or picture-frame as before.
@@ -64,6 +67,9 @@ func (v *viewer) showViewer() {
 }
 
 func (v *viewer) showWindowExif() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	v.exif.Show()
 	// By hand: the EXIF window fires an observer on close (SetOnClosed in
 	// buildMainMenu) but none on open, so every opener - this item, the E
@@ -72,6 +78,9 @@ func (v *viewer) showWindowExif() {
 }
 
 func (v *viewer) showWindowGrid() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.grid.Visible() || v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
@@ -83,6 +92,9 @@ func (v *viewer) showWindowGrid() {
 }
 
 func (v *viewer) showWindowPictureFrame() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
@@ -93,5 +105,8 @@ func (v *viewer) showWindowPictureFrame() {
 }
 
 func (v *viewer) showWindowHelp() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	v.help.ShowManual()
 }

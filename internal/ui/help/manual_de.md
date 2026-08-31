@@ -693,6 +693,15 @@ tatsächlich verschoben wurden.
   kopieren, als Bilddaten, die Sie in eine andere App einfügen können (keine
   Datei). In der Rasteransicht werden stattdessen die ausgewählten *Dateien*
   kopiert, sodass ein Einfügen im Dateimanager Kopien davon erzeugt
+- **`Opt`/`Alt+Shift+C`** — Auswahl-kopieren-Modus in der normalen
+  Bildansicht. Ziehen Sie ein Rechteck auf dem Bild (es bleibt innerhalb des
+  Bildes). Ziehen innerhalb des Rechtecks verschiebt es, Ziehen an einem
+  Anfasser ändert die Größe. **In die Zwischenablage kopieren** (oder
+  `Return`/`Enter`) kopiert diesen Bildbereich in der Auflösung des Bildes
+  als PNG, ohne die Fensteroberfläche. `Esc` verlässt den Modus, ohne die
+  Zwischenablage zu ändern. Zoom und Verschieben bleiben möglich.
+  Nicht verfügbar, solange Raster oder Diaschau-Modus aktiv sind, ein Dialog
+  das Fenster besitzt, oder kein dekodiertes Bild angezeigt wird
 - **`Cmd`/`Strg+Shift+C`** — den Dateipfad des aktuellen Bildes in die
   Zwischenablage kopieren
 - **`Shift+Delete`** — die aktuelle Datei nach Bestätigung in den Papierkorb
@@ -880,6 +889,14 @@ benötigen in beiden Fällen nichts Zusätzliches.
   Raster offen ist
 - **Aktionen -> Bild kopieren** (`Cmd/Strg+C`) — die angezeigten Pixel oder
   die Rasterauswahl als Dateien. Ausgegraut, wenn keine Dateien geladen sind
+- **Aktionen -> Auswahl kopieren** (`Opt/Alt+Shift+C`) — startet den
+  Auswahl-kopieren-Modus, damit Sie einen rechteckigen Bildbereich statt des
+  ganzen Bildes kopieren können. Ziehen zeichnet das Rechteck, danach können
+  Sie es verschieben oder in der Größe ändern; **In die Zwischenablage
+  kopieren** (oder `Return`) kopiert PNG-Pixel in voller Auflösung. `Esc`
+  bricht ab, ohne die Zwischenablage zu ändern. Ausgegraut ohne dekodiertes
+  Bild, solange Raster oder Diaschau-Modus aktiv sind, oder solange ein
+  Dialog das Fenster besitzt
 - **Aktionen -> Bildpfad kopieren** (`Cmd/Strg+Shift+C`) — der Pfad der
   aktuellen Datei. Ausgegraut, wenn keine Dateien geladen sind
 - **Aktionen -> Als Hintergrundbild festlegen** (`Cmd/Strg+Shift+E`) —
@@ -1041,15 +1058,26 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   bildspezifische Zeitsteuerung — jedes Bild erhält dasselbe Intervall
   (animierte GIFs ausgenommen)
 - Keine Bildbearbeitung über das Drehen hinaus: kein Zuschneiden, keine
-  Farb- oder Belichtungskorrektur, keine Größenänderung. Auf die Festplatte
-  schreiben lassen sich eine Drehung (**Datei -> Änderungen speichern**),
-  eine Kopie in einem anderen Format (**Datei -> Bild exportieren**) und
-  eine Hintergrundbild-Kopie (**Aktionen -> Als Hintergrundbild festlegen**),
-  alle unter „Menü“ oben beschrieben
+  Farb- oder Belichtungskorrektur, keine Größenänderung. Auswahl kopieren
+  legt einen Bereich in die Zwischenablage und ändert die Quelldatei nicht.
+  Auf die Festplatte schreiben lassen sich eine Drehung (**Datei ->
+  Änderungen speichern**), eine Kopie in einem anderen Format (**Datei ->
+  Bild exportieren**) und eine Hintergrundbild-Kopie (**Aktionen -> Als
+  Hintergrundbild festlegen**), alle unter „Menü“ oben beschrieben
 - Kein RAW-Demosaic und keine PDF-Unterstützung: RAW-Dateien zeigen nur die
-  vom Fotoapparat eingebettete JPEG-Vorschau; auf die Festplatte schreiben
-  lassen sich weiterhin eine Drehung encodierbarer Formate, ein Export oder
-  eine Hintergrundbild-Kopie
+  vom Fotoapparat eingebettete JPEG-Vorschau; Auswahl kopieren kopiert
+  diese Vorschau, und auf die Festplatte schreiben lassen sich weiterhin
+  eine Drehung encodierbarer Formate, ein Export oder eine
+  Hintergrundbild-Kopie
+- Auswahl kopieren bei SVG nutzt die logische Bildgröße und dieselbe
+  Vektor-Raster-Obergrenze wie die Anzeige; die Obergrenze wird nicht
+  angehoben
+- Ein animiertes Bild bleibt auf dem beim Start von Auswahl kopieren
+  sichtbaren Einzelbild stehen und läuft weiter, wenn der Modus endet (die
+  genaue Taktphase muss nicht erhalten bleiben)
+- Eine sehr große Auswahl kann trotzdem fehlschlagen, wenn der Prozess oder
+  die Systemzwischenablage sie nicht aufnehmen kann; das Rechteck bleibt
+  zum erneuten Versuch stehen
 - Keine Wiedergabesteuerung (Pause, Einzelschritt, Neustart) für animierte
   GIFs
 - Keine Offline-Karten: die Ortsansicht im EXIF-Fenster benötigt eine
@@ -1130,8 +1158,9 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   die Zufällige Wiedergabe ein/aus (`[Zufällig]` in der Titelzeile); verlassen
   mit `V`/`P`/`Esc` oder Fenster -> Bildanzeige
 - **Kopieren** — `Cmd`/`Strg+C` kopiert das aktuelle Bild (Aktionen -> Bild
-  kopieren), `Cmd`/`Strg+Shift+C` kopiert seinen Dateipfad (Aktionen ->
-  Bildpfad kopieren); im Raster kopiert `Cmd`/`Strg+C` die ausgewählten
+  kopieren), `Opt`/`Alt+Shift+C` kopiert einen Bildbereich (Aktionen ->
+  Auswahl kopieren), `Cmd`/`Strg+Shift+C` kopiert seinen Dateipfad (Aktionen
+  -> Bildpfad kopieren); im Raster kopiert `Cmd`/`Strg+C` die ausgewählten
   Dateien selbst
 - **Löschen** — `Shift+Delete`/`Shift+Entf` öffnet eine Bestätigungskarte
   (Aktionen -> Bild in den Papierkorb legen; `Left`/`Right` zum Auswählen, `Return`

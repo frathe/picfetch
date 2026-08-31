@@ -152,6 +152,8 @@
    "Toggle merge mode": "Zusammenführen-Modus umschalten",
    "Show/Hide info overlay": "Info-Overlay ein-/ausblenden",
    "Copy image": "Bild kopieren",
+   "Copy selection": "Auswahl kopieren",
+   "Copy to clipboard": "In die Zwischenablage kopieren",
    "Copy image path": "Bildpfad kopieren",
    "Move image to Trash": "Bild in den Papierkorb legen",
    "Window": "Fenster",

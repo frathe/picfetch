@@ -17,11 +17,11 @@
 // without a lock or a callback: a new frame arriving from the app never
 // disturbs the layout, and a zoom never disturbs the pixels.
 //
-// The three funcs New takes are the only other coupling. onChanged is how
-// the app hears that the zoom level moved (it redraws its info overlay);
-// modifiers reports which keyboard modifiers are held, which Fyne only
-// exposes through the desktop driver, so the app injects it and tests stub
-// it.
+// The three funcs New takes and the optional geometry callback are the only
+// other coupling. onChanged is how the app hears that the zoom level moved
+// (it redraws its info overlay); modifiers reports which keyboard modifiers
+// are held, which Fyne only exposes through the desktop driver, so the app
+// injects it and tests stub it.
 //
 // One wrinkle that contract creates: an SVG's raster is re-rendered at a
 // different pixel count as the scale moves, so the number of pixels the
@@ -30,9 +30,10 @@
 // SetLogicalSize) rather than against img.Image.Bounds() directly. Raster
 // formats leave it unset and behave exactly as before.
 //
-// onScaleChanged is the third and last callback. It fires from apply -
-// which runs inside the renderer's Layout - so its handler must not touch
-// a widget synchronously; it may only record state and spawn.
+// onScaleChanged is the third constructor callback. It fires from apply -
+// which runs inside the renderer's Layout - so its handler must not touch a
+// widget synchronously; it may only record state and spawn. Geometry-change
+// delivery has the same layout-time constraint; see SetOnGeometryChanged.
 package zoom
 
 import (
@@ -71,6 +72,13 @@ const (
 	scrollSensitivity = float32(0.01)
 )
 
+// Geometry is the displayed image's presentation bounds in the zoom
+// widget's coordinate space. It describes zoom output, not any overlay state.
+type Geometry struct {
+	Position fyne.Position
+	Size     fyne.Size
+}
+
 // Zoom is the zoom/pan state and the widget that renders it.
 type Zoom struct {
 	// img is the app's image - see the package doc for who writes what.
@@ -83,7 +91,7 @@ type Zoom struct {
 	onChanged func()
 
 	// modifiers reports the keyboard modifiers currently held, for the
-	// Shift+scroll pan (see imageWidget.Scrolled). May be nil, read as
+	// Shift+scroll pan (see HandleScroll). May be nil, read as
 	// "nothing held".
 	modifiers func() fyne.KeyModifier
 
@@ -127,6 +135,12 @@ type Zoom struct {
 	// independent of how many pixels actually back it. Zero means "use the
 	// raster's own bounds", which is every format except SVG.
 	logical fyne.Size
+
+	// geometry is the image content's last applied presentation bounds.
+	geometry Geometry
+
+	// onGeometryChanged reports a real change to geometry. May be nil.
+	onGeometryChanged func(Geometry)
 }
 
 // New builds the zoom view over img. onChanged and modifiers may both be
@@ -149,6 +163,38 @@ func New(img *canvas.Image, onChanged func(), modifiers func() fyne.KeyModifier,
 // of the image itself.
 func (z *Zoom) Widget() fyne.CanvasObject {
 	return z.widget
+}
+
+// Geometry reports the image content's last applied presentation bounds.
+func (z *Zoom) Geometry() Geometry {
+	return z.geometry
+}
+
+// SetOnGeometryChanged replaces the per-instance presentation-geometry
+// callback. apply delivers it synchronously after moving or sizing the image,
+// and apply may itself be running inside imageRenderer.Layout. A callback must
+// therefore not synchronously mutate another widget; it may record the value
+// or hand it to a caller-owned UI-safe queue. Synchronous record-only delivery
+// keeps direct component tests deterministic.
+func (z *Zoom) SetOnGeometryChanged(callback func(Geometry)) {
+	z.onGeometryChanged = callback
+}
+
+// HandleScroll applies the zoom view's scroll behavior for any canvas object
+// presenting the image. Holding Shift pans; other vertical scroll zooms at
+// the event position. Horizontal-only scroll is ignored.
+func (z *Zoom) HandleScroll(ev *fyne.ScrollEvent) {
+	if z.modifiers != nil && z.modifiers()&fyne.KeyModifierShift != 0 {
+		z.panBy(ev.Scrolled)
+
+		return
+	}
+
+	if ev.Scrolled.DY == 0 {
+		return
+	}
+
+	z.at(ev.Scrolled.DY, ev.Position)
 }
 
 // Fitting reports whether the image is scaled to fit the viewport rather
@@ -415,6 +461,16 @@ func (z *Zoom) apply() {
 		z.img.Resize(z.viewport)
 		z.img.Move(fyne.NewPos(0, 0))
 
+		n := z.native()
+		if n.Width <= 0 || n.Height <= 0 {
+			z.setGeometry(Geometry{})
+
+			return
+		}
+		s := z.fitScale()
+		scaled := fyne.NewSize(n.Width*s, n.Height*s)
+		z.setGeometry(Geometry{Position: z.originFor(scaled, z.pan), Size: scaled})
+
 		return
 	}
 
@@ -432,6 +488,7 @@ func (z *Zoom) apply() {
 		z.pan = fyne.NewPos(0, 0)
 		z.img.Resize(z.viewport)
 		z.img.Move(fyne.NewPos(0, 0))
+		z.setGeometry(Geometry{})
 
 		return
 	}
@@ -441,6 +498,18 @@ func (z *Zoom) apply() {
 
 	z.img.Resize(scaled)
 	z.img.Move(z.originFor(scaled, z.pan))
+	z.setGeometry(Geometry{Position: z.img.Position(), Size: z.img.Size()})
+}
+
+func (z *Zoom) setGeometry(geometry Geometry) {
+	if geometry == z.geometry {
+		return
+	}
+
+	z.geometry = geometry
+	if z.onGeometryChanged != nil {
+		z.onGeometryChanged(geometry)
+	}
 }
 
 // changed notifies the app that the zoom level moved.

@@ -22,6 +22,7 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/infoview"
 )
 
@@ -103,6 +104,9 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	view.vector.after = time.After
 	view.vector.do = fyne.Do
 	view.frameAfter = time.After
+	view.regionCopyDo = fyne.Do
+	view.regionCopyEncode = copyselection.PNG
+	view.regionCopyDoAndWait = fyne.DoAndWait
 
 	// Wired here rather than in the literal above: the closure captures view,
 	// whose state field that literal is still building. Any mutator that
@@ -162,7 +166,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	// by it) and the toast that reports what the batch did.
 	window.SetContent(container.New(windowSizeTracker(view, window),
 		view.zoom.Widget(), dz.root, scanContainer, sortContainer, overlay, infoOverlay,
-		view.grid.Overlay(), view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
+		view.regionCopy.Overlay(), view.grid.Overlay(), view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
 	window.SetMainMenu(buildMainMenu(view))
 	// Fyne's Darwin driver inserts our Window menu next to GLFW's system
 	// Window menu. Folding them must wait until setupNativeMenu has run.

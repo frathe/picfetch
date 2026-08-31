@@ -34,6 +34,9 @@ import (
 // first, would hand their next Right/Return to the card they can't see. See
 // promptExport (export.go) for the same guard in the other direction.
 func (v *viewer) requestDelete() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.exportPrompt.Visible() {
 		return
 	}
@@ -76,6 +79,9 @@ func (v *viewer) deleteGridSelection() {
 // image, and a single image being viewed is more useful as pixels than as a
 // path.
 func (v *viewer) copySelection() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.grid.Visible() {
 		v.copyGridSelection()
 		return

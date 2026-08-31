@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"slices"
 	"sync/atomic"
@@ -18,6 +19,7 @@ import (
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/deletion"
 	"github.com/frathe/picfetch/internal/ui/display"
 	"github.com/frathe/picfetch/internal/ui/exifwin"
@@ -102,7 +104,7 @@ type viewer struct {
 	// menus holds the File, Window and Actions menu items whose
 	// Checked/Disabled state moves at runtime - the File three ("Save
 	// Changes", "Export image", "Close Files"), the five Window items, and
-	// the twelve Actions ones. They are behind a field, unlike the inert
+	// the thirteen Actions ones. They are behind a field, unlike the inert
 	// items built alongside them, because that state has to be updated
 	// from outside buildMainMenu itself, at every site that can change
 	// what is saveable, exportable or open, or which surface is showing:
@@ -312,6 +314,35 @@ type viewer struct {
 	// updateInfoOverlay callback registerFeatures hands it.
 	zoom *zoom.Zoom
 
+	// regionCopy is the transient image-region selection surface. The
+	// feature owns pointer interaction and image-space geometry; this viewer
+	// owns its composition with zoom, information-overlay visibility, source
+	// pixels, menus, and the clipboard worker (copyselection.go).
+	regionCopy *copyselection.Feature
+
+	// regionCopyDo defers geometry notifications out of zoom's renderer
+	// Layout before they mutate the selection overlay. Production uses
+	// fyne.Do; newTestUI installs a synchronous per-viewer seam so focused
+	// tests stay deterministic under Fyne's inline test driver.
+	regionCopyDo func(func())
+
+	// regionCopyInfoVisible remembers whether the information card itself
+	// was painted when Copy Selection mode began. Its standing I-key
+	// preference remains owned by infoview.Card and is never toggled here.
+	regionCopyInfoVisible bool
+
+	// regionCopySource is the immutable displayed source captured at mode
+	// entry. The lifecycle cancels stale crop/encode work; the two function
+	// fields are per-viewer seams for deterministic failure and UI-hop tests.
+	regionCopySource    regionCopySource
+	regionCopyLifecycle requestLifecycle
+	regionCopyEncode    func(image.Image, image.Rectangle) ([]byte, error)
+	regionCopyDoAndWait func(func())
+
+	// animationPause keeps an animated frame fixed from source capture until
+	// Copy Selection ends, without replacing the load-owned animation loop.
+	animationPause animationPause
+
 	// info is the persistent info overlay (I key) - see internal/ui/infoview,
 	// which owns its own widgets, its standing show/hide preference, and the
 	// current file's raw facts (byte size, EXIF presence, RAW-preview flag).
@@ -362,8 +393,9 @@ type viewer struct {
 	// handleKeyEvent's G case and togglePictureFrameMode.
 	slides *slideshow.Controller
 
-	// clipboard is begun by copyImageToClipboard (clipboard.go) and
-	// copyGridSelection (batch.go) and finished once that goroutine has
+	// clipboard is begun by copyImageToClipboard (clipboard.go),
+	// copyGridSelection (batch.go), and Copy Selection, and finished once
+	// that goroutine has
 	// fully run, error reporting included. chooser is the same for the
 	// native file dialog, shared by openFileDialog (openfiles.go) and
 	// exportAs (export.go) - they mean "the native dialog goroutine" and
@@ -607,6 +639,9 @@ func (v *viewer) undoGridMaximize() {
 // instead of replacing it - see SetMergeMode below, which does the actual
 // work.
 func (v *viewer) toggleMergeMode() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	v.SetMergeMode(!v.state.MergeMode())
 }
 
@@ -660,6 +695,9 @@ func (v *viewer) reset() {
 // in progress first - unlike Escape (handleKeyEvent), it never closes the
 // window, since File > Close is a distinct action from quitting the app.
 func (v *viewer) closeFiles() {
+	if !v.cancelRegionCopyBeforeAction() {
+		return
+	}
 	if v.scanOp.active {
 		v.cancelScan()
 	}

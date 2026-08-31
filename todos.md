@@ -6,6 +6,9 @@
 
 #### New Features
 
+ - Copy selection: rectangular image-region copy from the normal viewer
+   (Actions -> Copy selection, Opt/Alt+Shift+C).
+
 #### Bugfix
 
 #### Internal
@@ -13,6 +16,80 @@
 ## ACTIVE DEVELOPMENT
 
 ## TODO
+
+Architecture review, 2026-08-31. Four deepening candidates, strongest first.
+The HTML write-up is not in the repo (OS temp). No ADRs to contradict.
+
+### Deepen Copy Selection through the pixel path
+
+- **Strong** (top recommendation). In-process.
+- Where: [copyselection.go](internal/ui/copyselection.go) (viewer adapter),
+  [copyselection/](internal/ui/copyselection/),
+  [animationpause.go](internal/ui/animationpause.go),
+  [features.go](internal/ui/features.go), [load.go](internal/ui/load.go),
+  [info.go](internal/ui/info.go) `displayedDimensions`.
+- Copy Selection mode is deep for drawing an image-region selection and
+  shallow for copying it: the Feature hands a rectangle out, and freeze /
+  SVG crop / encode / clipboard / GIF pause live in the viewer adapter.
+  Package tests cover gestures; the raster/SVG/GIF copy bugs sit in
+  `copyselection_{sources,pixels,worker}_test.go`. `zoom.Geometry` is
+  already the presentation seam and stays put.
+- **Fix**: move freeze, crop, and encode into the Copy Selection module.
+  The viewer starts the mode and supplies the existing clipboard adapter.
+  Animation pause becomes an internal seam; oriented displayed size stops
+  hiding in `info.go`.
+
+### One yield for Copy Selection mode
+
+- **Worth exploring.** In-process. Related: `needs_refactoring.md` item 9
+  (mode-interaction guards in `handleKeyEvent`).
+- Where: [copyselection.go](internal/ui/copyselection.go)
+  `cancelRegionCopyBeforeAction` (~16 files), [keys.go](internal/ui/keys.go)
+  (second key table: which keys cancel, zoom, or stay),
+  [shortcuts.go](internal/ui/shortcuts.go),
+  [actionmenu.go](internal/ui/actionmenu.go),
+  [windowmenu.go](internal/ui/windowmenu.go), plus drop / rotate / save /
+  export / openfiles / wallpaper / sort / slideshow / info / batch /
+  clipboard.
+- Copy Selection mode occupancy leaks across every command entry.
+  `keys.go` duplicates `HandleKey` policy. Copy Selection is still the
+  only occupant, so a generic occupancy seam would be hypothetical.
+- **Fix**: concentrate yield policy in one module that command entry
+  already has to cross (busy blocks, idle cancels, zoom does not yield,
+  close still runs). Do not invent a feature registry; cross-feature
+  decisions stay in `internal/ui`.
+
+### Collapse the settings Host
+
+- **Worth exploring.** In-process.
+- Where: [settingswin.go](internal/ui/settingswin/settingswin.go) `Host`
+  (~32 methods), [memlimits.go](internal/ui/memlimits.go),
+  [theme.go](internal/ui/theme.go), [autoupdate.go](internal/ui/autoupdate.go),
+  [preferences.go](internal/preferences/preferences.go) (`State` already
+  exists), `fakeHost` in `settingswin_test.go`.
+- The Host is field-for-field with the form. Deleting it does not remove
+  that surface — it reappears 1:1 on the viewer. `fakeHost` already proves
+  two adapters, so the seam is real; it is just shallow.
+- **Fix**: drive the window from the standing preferences value plus a
+  small apply path for live side effects (cache retune, appearance). Keep
+  `CheckForUpdatesNow` / `PerformUpdate` as the only update verbs. Same
+  exception menus already used (AGENTS.md: value snapshot when a Host
+  would be a dozen-plus methods). Apply cannot be a pure snapshot.
+
+### Give ShowImage a home
+
+- **Speculative.** In-process.
+- Where: [load.go](internal/ui/load.go) (~675 lines),
+  [vector.go](internal/ui/vector.go) (~274 lines),
+  [display.go](internal/ui/display/display.go) (already extracted),
+  [animationpause.go](internal/ui/animationpause.go).
+- `display` took frames and rotation; the load choreography stayed on the
+  viewer. Copy Selection's freeze now reaches through `load.go`.
+- **Fix**: only if the Copy Selection pixel-path deepening does not absorb
+  the pause as an internal seam. Then concentrate ShowImage / finishLoad /
+  animate / vector behind one load interface the viewer composes. Reopens
+  the 2026-08-28 field-cluster plan, which stopped at `display` on purpose.
+  A load Host risks becoming as wide as the pipeline.
 
 ## not deemed worth implementing (edge cases)
 

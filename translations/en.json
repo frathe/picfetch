@@ -152,6 +152,8 @@
    "Toggle merge mode": "Toggle merge mode",
    "Show/Hide info overlay": "Show/Hide info overlay",
    "Copy image": "Copy image",
+   "Copy selection": "Copy selection",
+   "Copy to clipboard": "Copy to clipboard",
    "Copy image path": "Copy image path",
    "Move image to Trash": "Move image to Trash",
    "Window": "Window",

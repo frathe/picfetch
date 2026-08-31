@@ -104,6 +104,20 @@ func TestManualDocumentsItsOwnShortcut(t *testing.T) {
 	}
 }
 
+func TestManualDocumentsCopySelection(t *testing.T) {
+	for name, md := range manuals {
+		if !strings.Contains(md, "Opt") || !strings.Contains(md, "Alt+Shift+C") {
+			t.Errorf("%s does not document the Copy selection shortcut Opt/Alt+Shift+C", name)
+		}
+	}
+	if !strings.Contains(manualMD, "Actions -> Copy selection") {
+		t.Error("manual.md does not document Actions -> Copy selection")
+	}
+	if !strings.Contains(manualDE, "Aktionen -> Auswahl kopieren") {
+		t.Error("manual_de.md does not document Aktionen -> Auswahl kopieren")
+	}
+}
+
 // TestCurrentManual_GermanLocaleUsesGermanManual and
 // TestCurrentManual_OtherLocaleFallsBackToEnglish cover currentManual's
 // locale switch (manual.go) via the systemLocale var, the way this codebase

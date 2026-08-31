@@ -7,6 +7,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/assets"
+	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/deletion"
 	"github.com/frathe/picfetch/internal/ui/exifwin"
 	"github.com/frathe/picfetch/internal/ui/favorites"
@@ -43,6 +44,24 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 		func() fyne.KeyModifier { return view.keyModifiers() },
 		view.requestVectorRender,
 	)
+	view.regionCopy = copyselection.New(copyselection.Callbacks{
+		Copy:   view.copyRegionSelection,
+		Ended:  view.finishRegionCopy,
+		Scroll: view.zoom.HandleScroll,
+	})
+	view.zoom.SetOnGeometryChanged(func(geometry zoom.Geometry) {
+		do := view.regionCopyDo
+		if do == nil {
+			do = fyne.Do
+		}
+		do(func() {
+			if !view.regionCopy.State().Active {
+				return
+			}
+			view.regionCopy.ViewChanged(view.regionCopyView(geometry))
+			view.ForceRepaint()
+		})
+	})
 
 	// The duplicate model is the viewer's, not the grid's: hide-duplicates
 	// survives the overlay closing and plain arrow-key navigation asks it
