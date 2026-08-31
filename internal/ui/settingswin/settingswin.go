@@ -306,14 +306,11 @@ func (w *Window) build() fyne.CanvasObject {
 	generalForm := widget.NewForm(
 		widget.NewFormItem(lang.L("Sort order"), w.sortSelect),
 		widget.NewFormItem(lang.L("Picture-frame interval (seconds)"), w.intervalEntry),
-		maxScanItem,
 		widget.NewFormItem(lang.L("Max window width"), w.maxWidthEntry),
 		widget.NewFormItem(lang.L("Max window height"), w.maxHeightEntry),
-		imgCacheItem,
-		thumbCacheItem,
-		maxFileSizeItem,
 		dupeDistItem,
 	)
+	limitsForm := widget.NewForm(maxScanItem, imgCacheItem, thumbCacheItem, maxFileSizeItem)
 
 	w.mergeCheck = widget.NewCheck(lang.L("Merge newly dropped files into the current set"), w.host.SetMergeMode)
 	w.mergeCheck.Checked = w.host.MergeMode()
@@ -341,6 +338,7 @@ func (w *Window) build() fyne.CanvasObject {
 		container.NewTabItem(lang.L("General"), container.NewPadded(container.NewVScroll(general))),
 		container.NewTabItem(lang.L("Appearance"), container.NewPadded(container.NewVScroll(appearanceSettings))),
 		container.NewTabItem(lang.L("Updates"), container.NewPadded(container.NewVScroll(updates))),
+		container.NewTabItem(lang.L("Limits"), container.NewPadded(container.NewVScroll(limitsForm))),
 	)
 }
 

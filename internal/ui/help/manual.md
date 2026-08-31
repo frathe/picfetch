@@ -678,9 +678,12 @@ needed. macOS and Windows need nothing extra either way.
   **Duplicate match distance** slider (0–32, default 6; lower is
   stricter, 0 is an exact thumbnail hash) that hide-duplicates (`D`) uses,
   and the **Cache favorite previews on disk** checkbox (on by default) for
-  the background favorite-preview generation described below, and **Check
-  for updates** (off by default). When enabled, PicFetch checks GitHub in the
-  background at most once per day. It silently downloads a newer release,
+  the background favorite-preview generation described below. The **Limits**
+  tab contains **Max files per folder scan**, **Max image cache (MB)**,
+  **Max thumbnail cache (MB)**, and **Max file size (MB)**. **Check for
+  updates** (off by default) is under Updates. When enabled, PicFetch checks
+  GitHub in the background at most once per day. It silently downloads a
+  newer release,
   verifies its supplied SHA-256 digest when GitHub provides one and always
   verifies GitHub's immutable Sigstore release attestation before staging it.
   A staged update is installed on a normal quit without relaunching PicFetch;

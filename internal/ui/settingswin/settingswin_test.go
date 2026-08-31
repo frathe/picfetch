@@ -846,7 +846,7 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	w := newUpdateTestWindow(t, &fakeHost{})
 	tabs := settingsTabs(t, w)
 
-	wantLabels := []string{"General", "Appearance", "Updates"}
+	wantLabels := []string{"General", "Appearance", "Updates", "Limits"}
 	if len(tabs.Items) != len(wantLabels) {
 		t.Fatalf("tab count = %d, want %d", len(tabs.Items), len(wantLabels))
 	}
@@ -859,17 +859,26 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 		t.Errorf("selected tab = %d, want General at index 0", got)
 	}
 
+	limitControls := map[string]fyne.CanvasObject{
+		"scan cap": w.maxScanEntry, "image cache": w.imgCacheEntry,
+		"thumbnail cache": w.thumbCacheEntry, "file-size cap": w.maxFileSizeEntry,
+	}
+
 	general := tabs.Items[0].Content
 	for name, control := range map[string]fyne.CanvasObject{
-		"sort": w.sortSelect, "interval": w.intervalEntry, "scan cap": w.maxScanEntry,
+		"sort": w.sortSelect, "interval": w.intervalEntry,
 		"window width": w.maxWidthEntry, "window height": w.maxHeightEntry,
-		"image cache": w.imgCacheEntry, "thumbnail cache": w.thumbCacheEntry,
-		"file-size cap": w.maxFileSizeEntry, "duplicate distance": w.dupeDistSlider,
-		"merge": w.mergeCheck, "shuffle": w.shuffleCheck, "favorite previews": w.favPreviewCheck,
+		"duplicate distance": w.dupeDistSlider,
+		"merge":              w.mergeCheck, "shuffle": w.shuffleCheck, "favorite previews": w.favPreviewCheck,
 		"fixed window size": w.staticSizeCheck,
 	} {
 		if !containsCanvasObject(general, control) {
 			t.Errorf("General tab does not contain %s control", name)
+		}
+	}
+	for name, control := range limitControls {
+		if containsCanvasObject(general, control) {
+			t.Errorf("General tab unexpectedly contains %s control", name)
 		}
 	}
 	for name, control := range map[string]fyne.CanvasObject{
@@ -894,6 +903,23 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	}
 	if containsCanvasObject(updates, w.themeSelect) || containsCanvasObject(updates, w.sortSelect) {
 		t.Error("Updates tab contains an Appearance or General control")
+	}
+
+	limits := tabs.Items[3].Content
+	for name, control := range limitControls {
+		if !containsCanvasObject(limits, control) {
+			t.Errorf("Limits tab does not contain %s control", name)
+		}
+	}
+	for name, control := range map[string]fyne.CanvasObject{
+		"sort": w.sortSelect, "interval": w.intervalEntry,
+		"window width": w.maxWidthEntry, "window height": w.maxHeightEntry,
+		"duplicate distance": w.dupeDistSlider, "appearance": w.themeSelect,
+		"automatic updates": w.updateCheck, "manual updates": w.updateNow,
+	} {
+		if containsCanvasObject(limits, control) {
+			t.Errorf("Limits tab unexpectedly contains %s control", name)
+		}
 	}
 }
 

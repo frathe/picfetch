@@ -764,8 +764,11 @@ benötigen in beiden Fällen nichts Zusätzliches.
   Ausblenden von Duplikaten (`D`) verwendet, und das Kontrollkästchen
   **Favoriten-Vorschauen auf der Festplatte zwischenspeichern** (standardmäßig
   an) für die unten beschriebene Hintergrund-Erzeugung der
-  Favoriten-Vorschauen, sowie **Nach Updates suchen** (standardmäßig aus).
-  Wenn aktiviert, prüft PicFetch höchstens einmal täglich im Hintergrund bei
+  Favoriten-Vorschauen. Im Tab **Grenzwerte** stehen **Maximale Dateien pro
+  Ordner-Scan**, **Maximaler Bildcache (MB)**, **Maximaler Miniaturbild-Cache
+  (MB)** und **Maximale Dateigröße (MB)**. **Nach Updates suchen**
+  (standardmäßig aus) steht unter Updates. Wenn aktiviert, prüft PicFetch
+  höchstens einmal täglich im Hintergrund bei
   GitHub auf eine neuere Version. Diese wird unauffällig heruntergeladen;
   ein von GitHub bereitgestellter SHA-256-Digest wird, falls vorhanden,
   geprüft, ebenso zwingend GitHubs unveränderliche
