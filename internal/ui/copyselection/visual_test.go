@@ -28,7 +28,7 @@ func TestModeActivation(t *testing.T) {
 		t.Fatal("Copy to clipboard is visible before a rectangle is committed")
 	}
 
-	feature.Start(sampleView)
+	feature.Start(sampleView, copyselection.Source{})
 	if got := feature.State(); got != (copyselection.State{Active: true}) {
 		t.Fatalf("State() after repeated Start = %+v, want unchanged", got)
 	}

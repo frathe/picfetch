@@ -9,75 +9,9 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/clipboard"
-	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/zoom"
 )
-
-// regionCopySource is the source presentation captured when the mode begins.
-// Raster and RAW inputs retain their oriented displayed frame. SVG retains
-// the parsed vector plus logical size and view rotation so the worker can
-// rasterize at source resolution instead of the zoom-dependent canvas size.
-type regionCopySource struct {
-	raster    image.Image
-	vector    *imaging.Vector
-	logical   image.Point
-	rotation  int
-	rasterize func(*imaging.Vector, int, int) (image.Image, error)
-	animated  bool
-}
-
-func (s regionCopySource) pixels() (image.Image, error) {
-	if s.vector == nil {
-		if s.raster == nil {
-			return nil, errors.New("copy selection source is unavailable")
-		}
-		return s.raster, nil
-	}
-	if s.logical.X <= 0 || s.logical.Y <= 0 || s.rasterize == nil {
-		return nil, errors.New("copy selection vector source is unavailable")
-	}
-
-	frame, err := s.rasterize(s.vector, s.logical.X, s.logical.Y)
-	if err != nil {
-		return nil, err
-	}
-	return imaging.RotateSteps(frame, s.rotation), nil
-}
-
-// cropBounds maps the feature's oriented logical SVG coordinates onto the
-// actual raster returned by RasterAt. They are identical below the safety
-// ceiling; above it, RasterAt scales both axes down and the crop must follow
-// that same scale. Raster sources already use literal pixel coordinates.
-func (s regionCopySource) cropBounds(bounds, pixels image.Rectangle) (image.Rectangle, error) {
-	if s.vector == nil {
-		return bounds, nil
-	}
-
-	logical := image.Rect(0, 0, s.logical.X, s.logical.Y)
-	if s.rotation%2 != 0 {
-		logical = image.Rect(0, 0, s.logical.Y, s.logical.X)
-	}
-	if logical.Empty() || bounds.Empty() || bounds.Intersect(logical) != bounds || pixels.Empty() {
-		return image.Rectangle{}, fmt.Errorf("copy selection bounds %v outside SVG source %v", bounds, logical)
-	}
-
-	return image.Rect(
-		scaleFloor(bounds.Min.X, logical.Dx(), pixels.Dx()),
-		scaleFloor(bounds.Min.Y, logical.Dy(), pixels.Dy()),
-		scaleCeil(bounds.Max.X, logical.Dx(), pixels.Dx()),
-		scaleCeil(bounds.Max.Y, logical.Dy(), pixels.Dy()),
-	), nil
-}
-
-func scaleFloor(value, from, to int) int {
-	return int(int64(value) * int64(to) / int64(from))
-}
-
-func scaleCeil(value, from, to int) int {
-	numerator := int64(value) * int64(to)
-	return int((numerator + int64(from) - 1) / int64(from))
-}
 
 // regionCopyAvailable is the one viewer-side availability rule shared by
 // direct activation, the menu snapshot, and the shortcut action. A decoded
@@ -100,43 +34,47 @@ func (v *viewer) startRegionCopy() {
 		return
 	}
 
-	source, ok := v.captureRegionCopySource()
+	source, animated, ok := v.captureRegionCopySource()
 	if !ok {
 		return
 	}
-	v.regionCopy.Start(v.regionCopyView(v.zoom.Geometry()))
+	v.regionCopy.Start(v.regionCopyView(v.zoom.Geometry(), source), source)
 	if !v.regionCopy.State().Active {
-		if source.animated {
+		if animated {
 			v.animationPause.unpause()
 		}
 		return
 	}
-	v.regionCopySource = source
+	v.regionCopyAnimated = animated
 	v.regionCopyInfoVisible = v.info.Object().Visible()
 	v.info.Object().Hide()
 	v.ForceRepaint()
 }
 
-func (v *viewer) captureRegionCopySource() (regionCopySource, bool) {
+func (v *viewer) captureRegionCopySource() (source copyselection.Source, animated bool, ok bool) {
 	if v.vector.svg != nil {
-		return regionCopySource{
-			vector:    v.vector.svg,
-			logical:   image.Pt(int(v.vector.logical.Width+0.5), int(v.vector.logical.Height+0.5)),
-			rotation:  v.display.Rotation(),
-			rasterize: v.vector.rasterize,
-		}, true
+		return copyselection.VectorSource(
+			v.vector.svg,
+			image.Pt(int(v.vector.logical.Width+0.5), int(v.vector.logical.Height+0.5)),
+			v.display.Rotation(),
+			v.vector.rasterize,
+		), false, true
 	}
 
-	source := regionCopySource{animated: v.display.Count() > 1}
-	capture := func() { source.raster = v.display.Rotated() }
-	if source.animated {
+	animated = v.display.Count() > 1
+	var raster image.Image
+	capture := func() { raster = v.display.Rotated() }
+	if animated {
 		if !v.animationPause.pause(capture) {
-			return regionCopySource{}, false
+			return copyselection.Source{}, false, false
 		}
 	} else {
 		capture()
 	}
-	return source, source.raster != nil
+	if raster == nil {
+		return copyselection.Source{}, animated, false
+	}
+	return copyselection.RasterSource(raster), animated, true
 }
 
 // finishRegionCopy restores viewer-owned state after cancellation or a
@@ -144,10 +82,10 @@ func (v *viewer) captureRegionCopySource() (regionCopySource, bool) {
 // overlay and cleared its transient state.
 func (v *viewer) finishRegionCopy() {
 	v.regionCopyLifecycle.invalidate()
-	if v.regionCopySource.animated {
+	if v.regionCopyAnimated {
 		v.animationPause.unpause()
 	}
-	v.regionCopySource = regionCopySource{}
+	v.regionCopyAnimated = false
 
 	if v.regionCopyInfoVisible {
 		v.syncInfoOverlayVisibility()
@@ -177,25 +115,25 @@ func (v *viewer) cancelRegionCopyBeforeAction() bool {
 }
 
 // regionCopyView is the sole adapter from the zoom presentation to the
-// selection feature's oriented image coordinate system. displayedDimensions
-// supplies logical SVG dimensions and accounts for view-only quarter turns.
-func (v *viewer) regionCopyView(geometry zoom.Geometry) copyselection.View {
-	if v.display.Count() == 0 || v.img.Image == nil {
+// selection feature's oriented image coordinate system. Source.Bounds is
+// the captured image-space.
+func (v *viewer) regionCopyView(geometry zoom.Geometry, source copyselection.Source) copyselection.View {
+	bounds := source.Bounds()
+	if bounds.Empty() || v.img.Image == nil {
 		return copyselection.View{}
 	}
-	w, h := v.displayedDimensions()
 	return copyselection.View{
-		ImageBounds: image.Rect(0, 0, w, h),
+		ImageBounds: bounds,
 		Position:    geometry.Position,
 		Size:        geometry.Size,
 	}
 }
 
-// copyRegionSelection crops, encodes, and dispatches the captured source off
-// the UI thread. The shared clipboard completion signal finishes only after
-// the final UI update, so tests and shutdown can wait without sleeping.
+// copyRegionSelection encodes the captured source off the UI thread and
+// dispatches PNG bytes to the clipboard. The shared clipboard completion
+// signal finishes only after the final UI update, so tests and shutdown can
+// wait without sleeping.
 func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
-	source := v.regionCopySource
 	token := v.regionCopyLifecycle.begin()
 	done := v.clipboard.Begin()
 
@@ -206,19 +144,7 @@ func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
 		if !token.current() {
 			return
 		}
-		var data []byte
-		cropBounds := bounds
-		pixels, err := source.pixels()
-		if err == nil && token.current() {
-			cropBounds, err = source.cropBounds(bounds, pixels.Bounds())
-		}
-		if err == nil && token.current() {
-			encode := v.regionCopyEncode
-			if encode == nil {
-				encode = copyselection.PNG
-			}
-			data, err = encode(pixels, cropBounds)
-		}
+		data, err := v.regionCopy.Encode(bounds)
 		if err == nil && token.current() {
 			err = clipboard.CopyImage(data)
 		}

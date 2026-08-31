@@ -70,29 +70,3 @@ func (v *viewer) infoState() infoview.State {
 		ZoomPercent: v.zoom.Percent(),
 	}
 }
-
-// displayedDimensions is the pixel size updateInfoOverlay reports. For
-// every raster format it's the raster's own bounds, same as before. For a
-// vector it is deliberately not that: rasterizeVector replaces v.img.Image
-// with a denser raster on every landed re-render, so reading its bounds
-// directly would make the reported dimensions climb as the user zooms in -
-// an internal implementation detail (how sharp the current raster happens
-// to be) leaking into a field that is supposed to answer "how big is this
-// image". v.vector.logical is what the window and the title are already
-// built on, so it's what this reports too. A local copy has its axes
-// swapped on a 90/270 rotation, exactly as applyRotationLayout's does for
-// zoom - v.vector.logical itself is never mutated, since the re-render
-// target in vector.go is built from it in unrotated space.
-func (v *viewer) displayedDimensions() (w, h int) {
-	if v.vector.svg == nil {
-		b := v.img.Image.Bounds()
-		return b.Dx(), b.Dy()
-	}
-
-	lw, lh := v.vector.logical.Width, v.vector.logical.Height
-	if v.display.Rotation()%2 != 0 {
-		lw, lh = lh, lw
-	}
-
-	return int(lw + 0.5), int(lh + 0.5)
-}

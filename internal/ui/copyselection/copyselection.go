@@ -1,6 +1,7 @@
 // Package copyselection owns the transient interaction for selecting an
-// image-space rectangle to copy. It is viewer-independent: callers provide
-// current presentation geometry and callbacks for the three effects that
+// image-space rectangle to copy, including crop and PNG encode of the
+// captured source. It is viewer-independent: callers provide current
+// presentation geometry, a Source, and callbacks for the three effects that
 // cross the package boundary.
 package copyselection
 
@@ -36,7 +37,8 @@ type Callbacks struct {
 	Scroll func(*fyne.ScrollEvent)
 }
 
-// Feature owns Copy Selection mode state and its full-window overlay.
+// Feature owns Copy Selection mode state, its overlay, and the captured
+// source Encode uses to produce PNG bytes.
 type Feature struct {
 	callbacks Callbacks
 	overlay   *fyne.Container
@@ -44,6 +46,8 @@ type Feature struct {
 	button    *widget.Button
 
 	view      View
+	source    Source
+	encode    func(image.Image, image.Rectangle) ([]byte, error)
 	state     State
 	committed rectF
 	gesture   gesture
@@ -63,13 +67,14 @@ func New(callbacks Callbacks) *Feature {
 // Overlay returns the single canvas object the viewer composes.
 func (f *Feature) Overlay() fyne.CanvasObject { return f.overlay }
 
-// Start begins a fresh Copy Selection mode for view.
-func (f *Feature) Start(view View) {
+// Start begins a fresh Copy Selection mode for view, holding source for Encode.
+func (f *Feature) Start(view View, source Source) {
 	if f.state.Active || !validView(view) {
 		return
 	}
 
 	f.view = view
+	f.source = source
 	f.committed = rectF{}
 	f.gesture = gesture{}
 	f.state = State{Active: true}
@@ -78,9 +83,13 @@ func (f *Feature) Start(view View) {
 }
 
 // ViewChanged updates presentation geometry without changing selected image
-// coordinates.
+// coordinates. ImageBounds stay those captured at Start.
 func (f *Feature) ViewChanged(view View) {
-	if !f.state.Active || !validView(view) {
+	if !f.state.Active {
+		return
+	}
+	view.ImageBounds = f.view.ImageBounds
+	if !validView(view) {
 		return
 	}
 	f.view = view
@@ -129,6 +138,27 @@ func (f *Feature) Complete(err error) {
 	f.end()
 }
 
+// Encode returns a zero-origin PNG of bounds from the source captured at Start.
+func (f *Feature) Encode(bounds image.Rectangle) ([]byte, error) {
+	if f.encode == nil {
+		return f.source.Encode(bounds)
+	}
+	pixels, err := f.source.pixels()
+	if err != nil {
+		return nil, err
+	}
+	crop, err := f.source.cropBounds(bounds, pixels.Bounds())
+	if err != nil {
+		return nil, err
+	}
+	return f.encode(pixels, crop)
+}
+
+// SetEncode replaces PNG encoding after crop. Production leaves this unset.
+func (f *Feature) SetEncode(fn func(image.Image, image.Rectangle) ([]byte, error)) {
+	f.encode = fn
+}
+
 func (f *Feature) requestCopy() {
 	if !f.state.HasSelection || f.callbacks.Copy == nil {
 		return
@@ -145,6 +175,7 @@ func (f *Feature) requestCopy() {
 
 func (f *Feature) end() {
 	f.state = State{}
+	f.source = Source{}
 	f.committed = rectF{}
 	f.gesture = gesture{}
 	f.overlay.Hide()

@@ -1,7 +1,10 @@
 package copyselection_test
 
 import (
+	"bytes"
 	"image"
+	"image/color"
+	"image/png"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -42,6 +45,49 @@ func TestDrawSelection(t *testing.T) {
 	}
 }
 
+func TestFeatureEncode_UsesSourceCapturedAtStart(t *testing.T) {
+	src := image.NewNRGBA(image.Rect(0, 0, 100, 80))
+	src.SetNRGBA(25, 20, color.NRGBA{R: 255, A: 200})
+	src.SetNRGBA(74, 59, color.NRGBA{G: 180, A: 127})
+
+	view := copyselection.View{
+		ImageBounds: image.Rect(0, 0, 100, 80),
+		Position:    fyne.NewPos(20, 10),
+		Size:        fyne.NewSize(200, 160),
+	}
+	var copied []image.Rectangle
+	test.NewTempApp(t)
+	feature := copyselection.New(copyselection.Callbacks{
+		Copy: func(bounds image.Rectangle) { copied = append(copied, bounds) },
+	})
+	selectionCanvas := test.NewCanvas()
+	selectionCanvas.SetPadded(false)
+	selectionCanvas.SetContent(feature.Overlay())
+	selectionCanvas.Resize(fyne.NewSize(300, 220))
+	feature.Start(view, copyselection.RasterSource(src))
+
+	test.Drag(selectionCanvas, fyne.NewPos(70, 50), -100, -80)
+	feature.HandleKey(fyne.KeyReturn)
+	if len(copied) != 1 {
+		t.Fatalf("copy requests = %d, want 1", len(copied))
+	}
+
+	data, err := feature.Encode(copied[0])
+	if err != nil {
+		t.Fatalf("Encode() error = %v", err)
+	}
+	got, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("png.Decode() error = %v", err)
+	}
+	if pixel := color.NRGBAModel.Convert(got.At(0, 0)).(color.NRGBA); pixel != (color.NRGBA{R: 255, A: 200}) {
+		t.Errorf("encoded origin pixel = %#v, want marked source (25,20)", pixel)
+	}
+	if pixel := color.NRGBAModel.Convert(got.At(49, 39)).(color.NRGBA); pixel != (color.NRGBA{G: 180, A: 127}) {
+		t.Errorf("encoded far pixel = %#v, want marked source (74,59)", pixel)
+	}
+}
+
 func TestInvalidReplacement(t *testing.T) {
 	var copied []image.Rectangle
 	view := copyselection.View{
@@ -73,6 +119,6 @@ func newFeatureCanvas(t *testing.T, view copyselection.View, callbacks copyselec
 	selectionCanvas.SetPadded(false)
 	selectionCanvas.SetContent(feature.Overlay())
 	selectionCanvas.Resize(fyne.NewSize(300, 220))
-	feature.Start(view)
+	feature.Start(view, copyselection.Source{})
 	return feature, selectionCanvas
 }

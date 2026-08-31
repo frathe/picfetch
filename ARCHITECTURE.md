@@ -57,10 +57,10 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync`, `gridSink`, and the favorite-preview `completion.Signal`. |
 | `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `autoResizeToImage` / `resizeToImage` / `syncWindowToZoom` (static-size gate). |
 | `toast.go` | Self-dismissing notification card and `ShowToast`. |
-| `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark; `displayedDimensions`. |
+| `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark. |
 | `asyncop.go` | `asyncOpUI` (lifecycle, active, done, spinner) — used only by scan and sort. |
 | `sort.go` | `toggleSort` / `SetSortMode` / `startSort` / `finishSort` over `filesort.Order`; lifecycle is `viewer.sortOp`. |
-| `rotate.go` | View-only 90° rotation (state lives in `internal/ui/display`). Call `syncMenus` *before* `applyRotationLayout` — a documented `-race` fix under the fake test driver, not call-site discipline. |
+| `rotate.go` | View-only 90° rotation (state lives in `internal/ui/display`). `displayedDimensions` is the oriented raster/SVG size. Call `syncMenus` *before* `applyRotationLayout` — a documented `-race` fix under the fake test driver, not call-site discipline. |
 | `vector.go` | Debounced SVG re-render. |
 | `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation`, ending in `syncMenus`). |
 | `export.go` | File > Export image (`promptExport` / `exportAs`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. |
@@ -70,7 +70,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `batch.go` | Only file that knows both grid selection and deletion/clipboard exist. |
 | `session.go` | `restoreSession` glue over `internal/session`. |
 | `clipboard.go` | Copy-path / copy-image glue over `internal/clipboard`. |
-| `copyselection.go` | Viewer adapter for `internal/ui/copyselection`: availability, start/cancel, zoom `Geometry` to `View`, animation pause, PNG crop worker, `cancelRegionCopyBeforeAction`. |
+| `copyselection.go` | Viewer adapter for `internal/ui/copyselection`: availability, start/cancel, zoom `Geometry` to `View`, animation pause, clipboard worker, `cancelRegionCopyBeforeAction`. |
 | `animationpause.go` | Serializes animated-frame advancement with Copy Selection's stable source capture. |
 | `openfiles.go` | Native open-dialog glue over `internal/filepicker`. |
 
@@ -79,7 +79,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | Package | Responsibility | Reaches back via |
 |---------|----------------|------------------|
 | `internal/ui/zoom/` | Zoom/pan of the displayed image. `Geometry` / `HandleScroll` / `SetOnGeometryChanged` are the presentation seam Copy Selection uses; this package does not import `copyselection`. Window growth is `syncWindowToZoom` in `internal/ui`. | `onChanged`, `modifiers`, `onScaleChanged`. |
-| `internal/ui/copyselection/` | Transient Copy Selection mode: image-region geometry, pointer gestures, overlay, `PNG` crop. Viewer-independent through `Callbacks`. | `Copy`, `Ended`, `Scroll`. |
+| `internal/ui/copyselection/` | Transient Copy Selection mode: image-region geometry, overlay, and captured `Source` crop/encode. | `Copy`, `Ended`, `Scroll`. |
 | `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, badges, `marquee.go` (drag rectangle → `Targets()`), browse-duplicates (Shift+D), and `hashengine.go`'s pool-driven hashing pass that feeds `internal/dupes`. `nav.go`: `setHighlight` → `HighlightChanged`. Reads the model; does not own it. | 10-method `Host` including `Modifiers`. |
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
@@ -415,7 +415,7 @@ see `AGENTS.md`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.
 - "How can dragging the window open something?" → `internal/wingesture` + `gesture.go` + `help.OpenSpiral` / `spiral.ShowForGesture`.
 - "How does copy-image-to-clipboard work?" → `internal/clipboard` + `clipboard.go`. Batch file copy: `copyfiles.go` + `batch.go` `copySelection`.
-- "How does Copy Selection (image-region copy) work?" → `internal/ui/copyselection` + `copyselection.go` + zoom `Geometry` / `HandleScroll`. Overlay sits above the info card and below grid/delete/export/toast in `build.go`.
+- "How does Copy Selection (image-region copy) work?" → `internal/ui/copyselection` (`Source` / `Encode`) + `copyselection.go` (pause, clipboard worker) + zoom `Geometry` / `HandleScroll` + overlay order in `build.go`.
 - "How does the grid overview / thumbnail generation work?" → `imaging/thumbnail.go` + `grid/grid.go` + `grid/thumbs.go` + `grid/hashengine.go` + `grid/nav.go` + `grid/uiqueue.go`.
 - "What decides the window title?" → `viewer.go` `setTitle` / `applyTitle` / `HighlightChanged` + `load.go` + `grid/nav.go`.
 - "How do I write a test that needs an image / a viewer?" → `internal/uitest` + `newTestViewer` / `newTestUI` + `dropAndWait` in `harness_test.go`.

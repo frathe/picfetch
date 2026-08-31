@@ -58,7 +58,10 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 			if !view.regionCopy.State().Active {
 				return
 			}
-			view.regionCopy.ViewChanged(view.regionCopyView(geometry))
+			view.regionCopy.ViewChanged(copyselection.View{
+				Position: geometry.Position,
+				Size:     geometry.Size,
+			})
 			view.ForceRepaint()
 		})
 	})

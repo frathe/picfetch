@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
-	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -27,11 +26,6 @@ func TestCopySelectionPixels(t *testing.T) {
 	v.zoom.Widget().(fyne.Draggable).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(35, -20)})
 
 	var copied []byte
-	var requested image.Rectangle
-	v.regionCopyEncode = func(src image.Image, bounds image.Rectangle) ([]byte, error) {
-		requested = bounds
-		return copyselection.PNG(src, bounds)
-	}
 	uitest.StubClipboardCopy(t, func(data []byte) error {
 		copied = append([]byte(nil), data...)
 		return nil
@@ -44,8 +38,8 @@ func TestCopySelectionPixels(t *testing.T) {
 
 	got := decodeRegionCopyPNG(t, copied)
 	if got.Bounds() != image.Rect(0, 0, wantBounds.Dx(), wantBounds.Dy()) {
-		t.Fatalf("requested source bounds = %v; copied bounds = %v, want %v and %dx%d zero-origin PNG",
-			requested, got.Bounds(), wantBounds, wantBounds.Dx(), wantBounds.Dy())
+		t.Fatalf("copied bounds = %v, want %v and %dx%d zero-origin PNG",
+			got.Bounds(), wantBounds, wantBounds.Dx(), wantBounds.Dy())
 	}
 	for y := range wantBounds.Dy() {
 		for x := range wantBounds.Dx() {

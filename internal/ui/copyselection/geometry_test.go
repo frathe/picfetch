@@ -65,3 +65,22 @@ func TestHiDPIGeometry(t *testing.T) {
 		t.Fatalf("copy requests after HiDPI scale = %v, want the original image pixels [(25,20)-(75,60)]", copied)
 	}
 }
+
+func TestViewChangedKeepsImageBounds(t *testing.T) {
+	var copied []image.Rectangle
+	feature, selectionCanvas := newFeatureCanvas(t, sampleView, copyselection.Callbacks{
+		Copy: func(bounds image.Rectangle) { copied = append(copied, bounds) },
+	})
+	commitSampleSelection(t, selectionCanvas)
+
+	feature.ViewChanged(copyselection.View{
+		ImageBounds: image.Rect(0, 0, 50, 40),
+		Position:    sampleView.Position,
+		Size:        sampleView.Size,
+	})
+	feature.HandleKey(fyne.KeyReturn)
+
+	if len(copied) != 1 || copied[0] != image.Rect(25, 20, 75, 60) {
+		t.Fatalf("copy requests after a lying ImageBounds = %v, want the Start image-space [(25,20)-(75,60)]", copied)
+	}
+}

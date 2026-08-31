@@ -212,27 +212,3 @@ func TestCopySelectionRAWPreview(t *testing.T) {
 		t.Fatalf("RAW preview copy pixel = %#v, want opaque embedded blue preview", pixel)
 	}
 }
-
-func TestRegionCopySourceMapsLogicalSVGSelectionToCappedRaster(t *testing.T) {
-	source := regionCopySource{
-		vector:  &imaging.Vector{},
-		logical: image.Pt(100, 50),
-	}
-
-	got, err := source.cropBounds(image.Rect(25, 10, 76, 41), image.Rect(0, 0, 20, 10))
-	if err != nil {
-		t.Fatalf("cropBounds() error = %v", err)
-	}
-	if want := image.Rect(5, 2, 16, 9); got != want {
-		t.Fatalf("cropBounds() = %v, want outward-scaled capped raster bounds %v", got, want)
-	}
-
-	source.rotation = 1
-	got, err = source.cropBounds(image.Rect(10, 25, 41, 76), image.Rect(0, 0, 10, 20))
-	if err != nil {
-		t.Fatalf("rotated cropBounds() error = %v", err)
-	}
-	if want := image.Rect(2, 5, 9, 16); got != want {
-		t.Fatalf("rotated cropBounds() = %v, want outward-scaled capped raster bounds %v", got, want)
-	}
-}

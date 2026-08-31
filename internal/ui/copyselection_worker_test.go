@@ -99,62 +99,39 @@ func TestCopySelectionSuccess(t *testing.T) {
 	if v.toast.card.Visible() {
 		t.Fatal("successful copy showed an error toast")
 	}
-	if v.regionCopySource.raster != nil || v.regionCopySource.vector != nil {
+	if _, err := v.regionCopy.Encode(selection); err == nil {
 		t.Fatal("successful copy retained its captured source")
 	}
 }
 
 func TestCopySelectionEncodeFailure(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		fail func(*viewer)
-	}{
-		{
-			name: "crop validation",
-			fail: func(v *viewer) {
-				v.regionCopySource.raster = image.NewNRGBA(image.Rect(0, 0, 1, 1))
-			},
-		},
-		{
-			name: "PNG encoding",
-			fail: func(v *viewer) {
-				v.regionCopyEncode = func(image.Image, image.Rectangle) ([]byte, error) {
-					return nil, errors.New("synthetic PNG failure")
-				}
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			v := newTestViewer(t)
-			dropAndWait(t, v, regionCopyPNGURI(t, "failure.png", markedRegionCopyImage(10, 8)))
+	v := newTestViewer(t)
+	dropAndWait(t, v, regionCopyPNGURI(t, "failure.png", markedRegionCopyImage(10, 8)))
 
-			dispatches := 0
-			uitest.StubClipboardCopy(t, func([]byte) error {
-				dispatches++
-				return nil
-			})
+	dispatches := 0
+	uitest.StubClipboardCopy(t, func([]byte) error {
+		dispatches++
+		return nil
+	})
 
-			selectRegion(t, v, image.Rect(2, 2, 8, 6))
-			savedSource := v.regionCopySource
-			savedEncode := v.regionCopyEncode
-			tc.fail(v)
-			v.regionCopy.HandleKey(fyne.KeyReturn)
-			waitForClipboard(t, v)
+	selectRegion(t, v, image.Rect(2, 2, 8, 6))
+	v.regionCopy.SetEncode(func(image.Image, image.Rectangle) ([]byte, error) {
+		return nil, errors.New("synthetic PNG failure")
+	})
+	v.regionCopy.HandleKey(fyne.KeyReturn)
+	waitForClipboard(t, v)
 
-			assertRecoverableRegionCopyFailure(t, v)
-			if dispatches != 0 {
-				t.Fatalf("clipboard dispatches after crop/encode failure = %d, want 0", dispatches)
-			}
-			settleToast(t, v)
+	assertRecoverableRegionCopyFailure(t, v)
+	if dispatches != 0 {
+		t.Fatalf("clipboard dispatches after encode failure = %d, want 0", dispatches)
+	}
+	settleToast(t, v)
 
-			v.regionCopySource = savedSource
-			v.regionCopyEncode = savedEncode
-			v.regionCopy.HandleKey(fyne.KeyReturn)
-			waitForClipboard(t, v)
-			if dispatches != 1 || v.regionCopy.State().Active {
-				t.Fatalf("retry = {dispatches:%d state:%+v}, want one dispatch and inactive", dispatches, v.regionCopy.State())
-			}
-		})
+	v.regionCopy.SetEncode(nil)
+	v.regionCopy.HandleKey(fyne.KeyReturn)
+	waitForClipboard(t, v)
+	if dispatches != 1 || v.regionCopy.State().Active {
+		t.Fatalf("retry = {dispatches:%d state:%+v}, want one dispatch and inactive", dispatches, v.regionCopy.State())
 	}
 }
 

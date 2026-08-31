@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image"
 	"os"
 	"slices"
 	"sync/atomic"
@@ -315,9 +314,10 @@ type viewer struct {
 	zoom *zoom.Zoom
 
 	// regionCopy is the transient image-region selection surface. The
-	// feature owns pointer interaction and image-space geometry; this viewer
-	// owns its composition with zoom, information-overlay visibility, source
-	// pixels, menus, and the clipboard worker (copyselection.go).
+	// feature owns pointer interaction, image-space geometry, and the
+	// captured source's crop/encode path; this viewer owns composition with
+	// zoom, information-overlay visibility, animation pause, menus, and the
+	// clipboard worker (copyselection.go).
 	regionCopy *copyselection.Feature
 
 	// regionCopyDo defers geometry notifications out of zoom's renderer
@@ -331,12 +331,14 @@ type viewer struct {
 	// preference remains owned by infoview.Card and is never toggled here.
 	regionCopyInfoVisible bool
 
-	// regionCopySource is the immutable displayed source captured at mode
-	// entry. The lifecycle cancels stale crop/encode work; the two function
-	// fields are per-viewer seams for deterministic failure and UI-hop tests.
-	regionCopySource    regionCopySource
+	// regionCopyAnimated is whether finishRegionCopy must unpause the
+	// load-owned animation loop. The captured pixels themselves live on
+	// the Feature.
+	regionCopyAnimated bool
+
+	// regionCopyLifecycle cancels stale crop/encode work; regionCopyDoAndWait
+	// is a per-viewer seam for deterministic UI-hop tests.
 	regionCopyLifecycle requestLifecycle
-	regionCopyEncode    func(image.Image, image.Rectangle) ([]byte, error)
 	regionCopyDoAndWait func(func())
 
 	// animationPause keeps an animated frame fixed from source capture until

@@ -13,31 +13,15 @@
 
 #### Internal
 
+ - Copy Selection crop/encode lives on `copyselection.Source` / `Feature.Encode`.
+   The viewer still starts the mode, pauses animated frames, and writes the
+   clipboard. Oriented displayed size moved from `info.go` to `rotate.go`.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
 
-Architecture review, 2026-08-31. Four deepening candidates, strongest first.
-The HTML write-up is not in the repo (OS temp). No ADRs to contradict.
-
-### Deepen Copy Selection through the pixel path
-
-- **Strong** (top recommendation). In-process.
-- Where: [copyselection.go](internal/ui/copyselection.go) (viewer adapter),
-  [copyselection/](internal/ui/copyselection/),
-  [animationpause.go](internal/ui/animationpause.go),
-  [features.go](internal/ui/features.go), [load.go](internal/ui/load.go),
-  [info.go](internal/ui/info.go) `displayedDimensions`.
-- Copy Selection mode is deep for drawing an image-region selection and
-  shallow for copying it: the Feature hands a rectangle out, and freeze /
-  SVG crop / encode / clipboard / GIF pause live in the viewer adapter.
-  Package tests cover gestures; the raster/SVG/GIF copy bugs sit in
-  `copyselection_{sources,pixels,worker}_test.go`. `zoom.Geometry` is
-  already the presentation seam and stays put.
-- **Fix**: move freeze, crop, and encode into the Copy Selection module.
-  The viewer starts the mode and supplies the existing clipboard adapter.
-  Animation pause becomes an internal seam; oriented displayed size stops
-  hiding in `info.go`.
+Architecture review, 2026-08-31. Remaining deepening candidates.
 
 ### One yield for Copy Selection mode
 

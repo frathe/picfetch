@@ -22,7 +22,6 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
-	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/infoview"
 )
 
@@ -105,7 +104,6 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	view.vector.do = fyne.Do
 	view.frameAfter = time.After
 	view.regionCopyDo = fyne.Do
-	view.regionCopyEncode = copyselection.PNG
 	view.regionCopyDoAndWait = fyne.DoAndWait
 
 	// Wired here rather than in the literal above: the closure captures view,
