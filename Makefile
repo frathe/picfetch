@@ -14,8 +14,10 @@ GOIMPORTS_LOCAL := github.com/frathe/picfetch
 # ubuntu-latest + race + Fyne's software renderer: internal/ui is ~10 minutes.
 # go test's default 10m per-package timeout is no longer enough.
 TEST_TIMEOUT := 20m
+TEST_IMAGE := ubuntu:24.04
+TEST_RACE :=
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root help
+.PHONY: all build build-linux-all run fmt fmt-check vet test test-native test-race verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root help
 
 all: build
 
@@ -44,13 +46,34 @@ sync-tuf-root: ## Fetch and TUF-verify a newer GitHub root into the embed (needs
 vet: ## Run go vet
 	go vet ./...
 
-test: ## Run tests
+test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (needs Docker)
+	docker run --rm --platform linux/amd64 \
+		-v "$(CURDIR):/work" -w /work \
+		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
+		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
+		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
+		$(TEST_IMAGE) bash -c '\
+			set -e; \
+			apt-get update -qq; \
+			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
+			locale-gen en_US.UTF-8 >/dev/null; \
+			export LANG=en_US.UTF-8; \
+			status=0; \
+			go test -timeout $(TEST_TIMEOUT) $(TEST_RACE) ./... || status=$$?; \
+			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi; \
+			exit $$status \
+		'
+
+test-native: ## Run tests directly on the current OS/architecture
 	go test -timeout $(TEST_TIMEOUT) ./...
+
+test-race: TEST_RACE := -race
+test-race: test
 
 verify: fmt-check check-tuf-root ## Run the same checks CI does (goimports, TUF root expiry, vet, build, race tests)
 	go vet ./...
 	go build ./...
-	go test -timeout $(TEST_TIMEOUT) -race ./...
+	$(MAKE) test-race
 
 golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64, matching CI exactly - needs Docker)
 	@# Fyne's software rasterizer renders slightly different anti-aliased

@@ -53,9 +53,10 @@ func (v *viewer) startRegionCopy() {
 
 func (v *viewer) captureRegionCopySource() (source copyselection.Source, animated bool, ok bool) {
 	if v.vector.svg != nil {
+		w, h := roundedLogical(v.vector.logical)
 		return copyselection.VectorSource(
 			v.vector.svg,
-			image.Pt(int(v.vector.logical.Width+0.5), int(v.vector.logical.Height+0.5)),
+			image.Pt(w, h),
 			v.display.Rotation(),
 			v.vector.rasterize,
 		), false, true
@@ -63,7 +64,13 @@ func (v *viewer) captureRegionCopySource() (source copyselection.Source, animate
 
 	animated = v.display.Count() > 1
 	var raster image.Image
-	capture := func() { raster = v.display.Rotated() }
+	// v.img.Image is the displayed oriented frame redrawRotatedFrame keeps
+	// current for every raster path. Capturing it instead of re-running
+	// display.Rotated() avoids a second full-size RGBA that the Source
+	// would pin for the whole mode. It stays stable while the mode is
+	// active: animations are paused right here, and every rotation or
+	// navigation path yields the mode before touching the frame.
+	capture := func() { raster = v.img.Image }
 	if animated {
 		if !v.animationPause.pause(capture) {
 			return copyselection.Source{}, false, false
@@ -72,7 +79,12 @@ func (v *viewer) captureRegionCopySource() (source copyselection.Source, animate
 		capture()
 	}
 	if raster == nil {
-		return copyselection.Source{}, animated, false
+		// Release what this function acquired: the caller cleans up only
+		// after a failed Start, not after a failed capture.
+		if animated {
+			v.animationPause.unpause()
+		}
+		return copyselection.Source{}, false, false
 	}
 	return copyselection.RasterSource(raster), animated, true
 }
@@ -116,11 +128,15 @@ func (v *viewer) yieldCopySelection() bool {
 	return true
 }
 
-// copySelectionKeepsKey is the viewer-side keep list: zoom stays available
-// without cancelling. Feature.HandleKey owns Escape, copy, and navigation.
+// copySelectionKeepsKey is the viewer-side keep list: keys whose dispatcher
+// case touches nothing but v.zoom stay available without cancelling.
+// Feature.HandleKey owns Escape, copy, and navigation. Key0 is deliberately
+// absent: its case also calls resetRotation, and an orientation change must
+// yield the mode exactly as R does — check any key added here against its
+// full handleKeyEvent case, not its name.
 func copySelectionKeepsKey(key fyne.KeyName) bool {
 	switch key {
-	case fyne.Key0, fyne.Key1, fyne.KeyPlus, fyne.KeyEqual, fyne.KeyMinus:
+	case fyne.Key1, fyne.KeyPlus, fyne.KeyEqual, fyne.KeyMinus:
 		return true
 	}
 	return false

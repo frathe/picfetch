@@ -154,9 +154,9 @@ isn't actually corrupted — to open it anyway:
 - Go 1.26.6 or newer (see the `go` directive in [go.mod](go.mod))
 - A C toolchain for cgo (Fyne's OpenGL bindings require it) — Xcode Command
   Line Tools on macOS, `gcc` + `libgl1-mesa-dev`/`xorg-dev` on Linux
-- [Docker](https://www.docker.com/) — only needed to cross-compile the
-  Windows or Linux builds via `fyne-cross`, or to regenerate e2e golden
-  masters via `make golden`
+- [Docker](https://www.docker.com/) — used by `make test`/`make verify` so
+  tests and golden comparisons run on Linux/amd64 like CI, and also needed
+  for cross-compilation and `make golden`
 - [`govulncheck`](https://go.dev/security/vuln) and the
   [GitHub CLI](https://cli.github.com/) (`gh`) — only needed for the
   `make security*` targets. `govulncheck` is installed by
@@ -217,8 +217,9 @@ packaged build.
 | `make fmt`                  | `goimports -local github.com/frathe/picfetch` all Go source files   |
 | `make fmt-check`            | Fail if any file differs from that `goimports` (CI format gate)     |
 | `make vet`                  | `go vet ./...`                                                      |
-| `make test`                 | `go test -timeout 20m ./...`                                        |
-| `make verify`               | The same gate CI runs: `goimports` check, `go vet`, `go build`, `go test -timeout 20m -race` |
+| `make test`                 | Run `go test -timeout 20m ./...` in Linux/amd64 Docker, matching CI and golden rendering |
+| `make test-native`          | Run the same suite directly on the host (goldens can differ outside Linux/amd64) |
+| `make verify`               | The same gate CI runs; its race-test step uses the `make test` Linux/amd64 container |
 | `make tidy`                 | `go mod tidy` — tidy go.mod / go.sum                                |
 | `make security`             | Run all security checks (govulncheck + GitHub Dependabot alerts)    |
 | `make security-govulncheck` | Scan dependencies for known Go vulnerabilities with `govulncheck`   |
@@ -264,11 +265,15 @@ push) for the rare case where you want the version bumped by itself.
 
 ## Testing
 
-`make test` (or `go test -timeout 20m ./...`) runs everything: unit tests colocated with
-the code they cover (`internal/ui/*_test.go`, `internal/imaging/*_test.go`,
-and so on) plus the end-to-end suite below. Shared test fixtures — synthetic
-images in every supported format, temp files, and stubs for the OS-level
-seams — live in `internal/uitest`.
+`make test` runs everything in an Ubuntu 24.04 Linux/amd64 container: unit
+tests colocated with the code they cover (`internal/ui/*_test.go`,
+`internal/imaging/*_test.go`, and so on) plus the end-to-end suite below. It
+keeps Docker volumes for the Go build and module caches, so later runs reuse
+the downloaded toolchain and dependencies. `make test-native` is the direct
+host equivalent when platform-specific behavior is the point, but its golden
+pixels can differ outside Linux/amd64. Shared test fixtures — synthetic images
+in every supported format, temp files, and stubs for the OS-level seams — live
+in `internal/uitest`.
 
 ### End-to-end suite (`internal/ui/e2e_test.go`)
 
@@ -290,7 +295,8 @@ a drop, `handleKeyEvent` for a key press — and checks two things:
   alone can't see — it's what caught the "stale image left behind an error
   toast" regression during development.
 
-Run just this suite with:
+Run just this suite natively with the command below. On a non-Linux/amd64 host,
+use `make golden` when the screenshot verdict itself matters.
 
 ```sh
 go test -run TestE2E -v ./...

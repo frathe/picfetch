@@ -82,7 +82,9 @@ func (v *viewer) applyRotationLayout() {
 	// A 90/270-degree turn swaps which axis is which, and the zoom math
 	// measures a vector against its logical size rather than its raster -
 	// so that size has to turn with it, or fit scale is computed against
-	// the wrong axis.
+	// the wrong axis. The float swap below is the fyne.Size twin of the
+	// integer swap-and-round in displayedDimensions/roundedLogical; zoom
+	// needs the unrounded size, so the two deliberately do not share code.
 	if v.vector.svg != nil {
 		logical := v.vector.logical
 		if v.display.Rotation()%2 != 0 {
@@ -139,10 +141,18 @@ func (v *viewer) displayedDimensions() (w, h int) {
 		return b.Dx(), b.Dy()
 	}
 
-	lw, lh := v.vector.logical.Width, v.vector.logical.Height
+	w, h = roundedLogical(v.vector.logical)
 	if v.display.Rotation()%2 != 0 {
-		lw, lh = lh, lw
+		w, h = h, w
 	}
 
-	return int(lw + 0.5), int(lh + 0.5)
+	return w, h
+}
+
+// roundedLogical is the one rounding from a vector's float logical size to
+// the integer pixel space the app reports and crops in. displayedDimensions
+// and the Copy Selection capture must agree on it exactly, or the crop
+// space drifts off-by-one from the dimensions the UI reports.
+func roundedLogical(l fyne.Size) (w, h int) {
+	return int(l.Width + 0.5), int(l.Height + 0.5)
 }

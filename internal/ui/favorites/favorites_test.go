@@ -33,6 +33,11 @@ type fakeHost struct {
 	calls       []string
 
 	refreshMenus int
+
+	// blockCommands makes RunCommand refuse, the way the real host does
+	// while a copy is pending; runCommands counts arrivals either way.
+	blockCommands bool
+	runCommands   int
 }
 
 func (h *fakeHost) FileCount() int        { return len(h.files) }
@@ -48,6 +53,13 @@ func (h *fakeHost) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	h.calls = append(h.calls, "sync")
 }
 func (h *fakeHost) RefreshMenus() { h.refreshMenus++ }
+func (h *fakeHost) RunCommand(fn func()) {
+	h.runCommands++
+	if h.blockCommands {
+		return
+	}
+	fn()
+}
 
 func newFeature(t *testing.T, host *fakeHost) *Feature {
 	t.Helper()
@@ -60,6 +72,44 @@ func newFeature(t *testing.T, host *fakeHost) *Feature {
 	f := New(host, win)
 	f.SetDir(t.TempDir())
 	return f
+}
+
+// Every Favorites menu action goes through Host.RunCommand, so the host's
+// command-entry rules (yielding Copy Selection) cover this menu without
+// internal/ui wrapping its items from the outside. A refused command runs
+// nothing — not even the preview sync openFavorite fires before opening.
+func TestMenuActionsRunThroughHostRunCommand(t *testing.T) {
+	host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/tmp/a.jpg")}}
+	f := newFeature(t, host)
+	f.writeFavorite("trip")
+	if len(f.names) != 1 {
+		t.Fatalf("setup: favorites = %v, want [trip]", f.names)
+	}
+	favoriteItem := f.menu.Items[2] // addItem, separator, then the favorite
+
+	host.blockCommands = true
+	host.calls = nil
+	before := host.runCommands
+
+	f.addItem.Action()
+	f.manageItem.Action()
+	favoriteItem.Action()
+
+	if host.runCommands != before+3 {
+		t.Errorf("RunCommand arrivals = %d, want %d", host.runCommands, before+3)
+	}
+	if f.addDialog != nil || f.manageDialog != nil {
+		t.Error("a refused command still opened its dialog")
+	}
+	if len(host.calls) != 0 {
+		t.Errorf("a refused favorite open still did work: calls = %v", host.calls)
+	}
+
+	host.blockCommands = false
+	favoriteItem.Action()
+	if len(host.calls) != 2 || host.calls[0] != "sync" || host.calls[1] != "open" {
+		t.Errorf("allowed favorite open calls = %v, want [sync open]", host.calls)
+	}
 }
 
 func TestNewBuildsStaticMenuWithoutDiskAccess(t *testing.T) {

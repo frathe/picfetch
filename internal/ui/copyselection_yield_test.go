@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -94,4 +96,94 @@ func TestHandleDropBlockedWhileCopyPendingShowsToast(t *testing.T) {
 	close(release)
 	waitForClipboard(t, v)
 	settleToast(t, v)
+}
+
+// 0 is not a pure zoom key: its handler also clears view rotation. Under
+// an active selection that would change orientation while the captured
+// bounds stay axis-swapped, so 0 must yield the mode the same way R does.
+func TestKey0YieldsCopySelectionAndResetsRotation(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "photo.jpg", 40, 20, color.White))
+
+	v.rotateBy(1)
+	if v.display.Rotation() == 0 {
+		t.Fatal("precondition: rotation did not apply")
+	}
+
+	v.startRegionCopy()
+	if !v.regionCopy.State().Active {
+		t.Fatal("precondition: Copy Selection did not start")
+	}
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.Key0})
+
+	if v.regionCopy.State().Active {
+		t.Error("0 changed orientation but left Copy Selection active")
+	}
+	if v.display.Rotation() != 0 {
+		t.Errorf("rotation after 0 = %d, want 0", v.display.Rotation())
+	}
+}
+
+// The Favorites menu's own items must yield like every other menu command;
+// they were the gap in the hand-wrapped menu callbacks.
+func TestFavoritesMenuYieldsCopySelection(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "photo.jpg", 40, 20, color.White))
+
+	v.startRegionCopy()
+	if !v.regionCopy.State().Active {
+		t.Fatal("precondition: Copy Selection did not start")
+	}
+
+	// Items[0] is "Add Current List to Favorites…" — see favorites.New.
+	v.favorites.Menu().Items[0].Action()
+
+	if v.regionCopy.State().Active {
+		t.Error("the Favorites menu ran a command without yielding Copy Selection")
+	}
+}
+
+// A capture that produces no frame must release the animation pause it
+// acquired: the caller only cleans up after a failed Start, not a failed
+// capture, and a held pause freezes the animation loop for the session.
+func TestCaptureRegionCopySourceReleasesPauseWhenCaptureFails(t *testing.T) {
+	v := newTestViewer(t)
+	path := uitest.WriteTempFile(t, "anim.gif", uitest.EncodeAnimatedGIF(t, 4, 3,
+		[]color.Color{color.NRGBA{R: 255, A: 255}, color.NRGBA{B: 255, A: 255}},
+		[]int{1000, 1000}))
+	dropAndWait(t, v, storage.NewFileURI(path))
+	if v.display.Count() < 2 {
+		t.Fatal("precondition: the dropped GIF is not animated")
+	}
+
+	v.img.Image = nil // simulate the display layer handing back no frame
+	_, animated, ok := v.captureRegionCopySource()
+	if ok || animated {
+		t.Fatalf("capture with no frame = (animated=%v, ok=%v), want (false, false)", animated, ok)
+	}
+
+	if !v.animationPause.pause(func() {}) {
+		t.Fatal("failed capture left the animation pause held")
+	}
+	v.animationPause.unpause()
+}
+
+// Zoom geometry changes fire for the app's whole lifetime; while Copy
+// Selection is inactive they must not queue UI work at all.
+func TestZoomGeometryCallbackSkipsInactiveMode(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "photo.jpg", 800, 400, color.White))
+
+	dispatches := 0
+	v.regionCopyDo = func(f func()) {
+		dispatches++
+		f()
+	}
+
+	test.Scroll(v.win.Canvas(), fyne.NewPos(100, 100), 0, 20)
+
+	if dispatches != 0 {
+		t.Fatalf("geometry dispatches while Copy Selection is inactive = %d, want 0", dispatches)
+	}
 }

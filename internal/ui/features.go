@@ -52,6 +52,17 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 		Scroll: view.zoom.HandleScroll,
 	})
 	view.zoom.SetOnGeometryChanged(func(geometry zoom.Geometry) {
+		// Delivered synchronously, possibly inside imageRenderer.Layout —
+		// see zoom.SetOnGeometryChanged. Reading mode state here is safe;
+		// mutating widgets is not, so the update still crosses
+		// regionCopyDo. The Active read is hoisted so the common inactive
+		// frame pays no closure or queue hop, and re-checked inside because
+		// the mode can end between queueing and running. No ForceRepaint:
+		// ViewChanged's own chrome sync refreshes the selection overlay,
+		// and zoom's apply already painted the image.
+		if !view.regionCopy.State().Active {
+			return
+		}
 		do := view.regionCopyDo
 		if do == nil {
 			do = fyne.Do
@@ -64,7 +75,6 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 				Position: geometry.Position,
 				Size:     geometry.Size,
 			})
-			view.ForceRepaint()
 		})
 	})
 

@@ -107,6 +107,17 @@ func (v *viewer) yieldThenMode(fn func(filesort.Mode)) func(filesort.Mode) {
 	}
 }
 
+// RunCommand is favorites.Host's command entry: the same yield every
+// menus.Callbacks field gets from yieldingMenuCallbacks, supplied to the
+// favorites package as a runner so its menu items are covered from the
+// inside instead of wrapped item-by-item out here.
+func (v *viewer) RunCommand(fn func()) {
+	if !v.yieldCopySelection() {
+		return
+	}
+	fn()
+}
+
 // menuState is the one place the snapshot internal/ui/menus reads is
 // built: every condition its enablement matrix depends on, gathered from
 // whichever feature owns it. One function rather than a Host interface

@@ -49,6 +49,14 @@ type Host interface {
 	// SetMainMenu underneath: on Darwin that rebuilds the native bar, and
 	// only the host knows how to fold it back together afterwards.
 	RefreshMenus()
+
+	// RunCommand runs a menu-initiated PicFetch command under the host's
+	// command-entry rules — today: yield Copy Selection, cancelling an idle
+	// selection and refusing while a copy is pending. Every action this
+	// menu can start goes through it; the keyboard shortcuts reaching the
+	// same actions are wrapped on the host's side instead (internal/ui's
+	// yielding shortcut adder).
+	RunCommand(fn func())
 }
 
 // Feature owns the Favorites menu and its dialogs.
@@ -80,7 +88,7 @@ type Feature struct {
 // New builds the Favorites menu without reading from disk.
 func New(host Host, win fyne.Window) *Feature {
 	f := &Feature{host: host, win: win}
-	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), f.AddCurrentList)
+	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), func() { f.host.RunCommand(f.AddCurrentList) })
 	f.addItem.Disabled = true
 	// Display-only, mirroring Manage Favorites… below: the binding itself
 	// is wireAddFavoritesShortcut's AddShortcut call
@@ -90,7 +98,7 @@ func New(host Host, win fyne.Window) *Feature {
 		KeyName:  fyne.KeyF,
 		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
 	}
-	f.manageItem = fyne.NewMenuItem(lang.L("Manage Favorites…"), f.ShowManage)
+	f.manageItem = fyne.NewMenuItem(lang.L("Manage Favorites…"), func() { f.host.RunCommand(f.ShowManage) })
 	// Display-only, mirroring how internal/ui/menu.go sets Export image's
 	// and Actions' Set as Wallpaper Shortcut fields: the binding itself is
 	// wireManageFavoritesShortcut's AddShortcut call
@@ -154,7 +162,7 @@ func (f *Feature) refreshMenu() bool {
 	for i, name := range names {
 		favoriteName := name
 		item := fyne.NewMenuItem(f.menuLabel(favoriteName), func() {
-			f.openFavorite(favoriteName)
+			f.host.RunCommand(func() { f.openFavorite(favoriteName) })
 		})
 		if shortcut := ShortcutForIndex(i); shortcut != nil {
 			item.Shortcut = shortcut

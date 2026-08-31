@@ -41,13 +41,13 @@
 
 ## Build and Verification
 
-- Use the Makefile: `make run`, `make build`, `make test`, `make fmt`, `make vet`; `make help` lists packaging/security targets.
+- Use the Makefile: `make run`, `make build`, `make test`, `make fmt`, `make vet`; `make test` runs in Linux/amd64 Docker so golden rendering matches CI, while `make test-native` is the explicit host-platform check. `make help` lists packaging/security targets.
 - `make package-mac` runs `go run ./scripts/plistdoctypes` to derive the packaged app's `CFBundleTypeExtensions` from `imaging.SupportedExtensions()`; it no longer depends on `python3`.
-- Match CI before handoff: `make fmt-check` (`goimports -local github.com/frathe/picfetch`), `go vet ./...`, `go build ./...`, then `go test -timeout 20m -race ./...` from the repository root.
+- Match CI before handoff with `make verify`: formatting/TUF checks, vet and build run from the repository root, and the race suite runs through the same Linux/amd64 Docker path as `make test`.
 - **HEIC decoder pin:** `go.mod` replaces `github.com/gen2brain/heic` with a fork commit containing [gen2brain/heic#16](https://github.com/gen2brain/heic/pull/16) (fixes native memory leak [issue #15](https://github.com/gen2brain/heic/issues/15)). Remove the `replace` and bump to an official release once upstream tags a version that includes that fix. Optional manual RSS check: `PICFETCH_HEIC_LEAK_TEST=1 go test -tags=heicleak -run TestHEICDecode_DoesNotGrowRSSUnbounded ./internal/imaging/...`.
 - Run focused tests while iterating, e.g. `go test -run TestE2E -v ./internal/ui/...`; the complete suite remains the final check.
 - Golden screenshots are under `internal/ui/testdata/`. Regenerate only with `make golden` (Docker linux/amd64), inspect `internal/ui/testdata/failed/*.png`, and never commit failed renders.
-- Packaging uses Fyne/Fyne-cross; macOS is native, while Windows/Linux cross-builds require Docker. `fyne package` may bump `FyneApp.toml`’s build number.
+- Tests/golden rendering and Windows/Linux packaging use Docker; macOS packaging is native. `fyne package` may bump `FyneApp.toml`’s build number.
 - **Reading a Qodana report:** `qodana.sarif.json` is the post-suppression result set and
   counts one result per duplicate *cluster*; `log/qodana_inspections_summary.csv` counts
   every finding *before* both source-level suppressions and `qodana.yaml`'s config-level

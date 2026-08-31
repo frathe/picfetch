@@ -55,7 +55,7 @@ type Feature struct {
 
 // New constructs an inactive Copy Selection feature.
 func New(callbacks Callbacks) *Feature {
-	f := &Feature{callbacks: callbacks}
+	f := &Feature{callbacks: callbacks, encode: PNG}
 	f.input = newInputArea(f)
 	f.button = widget.NewButton(lang.L("Copy to clipboard"), func() { f.requestCopy() })
 	f.button.Hide()
@@ -145,24 +145,19 @@ func (f *Feature) Complete(err error) {
 	f.end()
 }
 
-// Encode returns a zero-origin PNG of bounds from the source captured at Start.
+// Encode returns a zero-origin encoding of bounds from the source captured
+// at Start — PNG unless SetEncode replaced the final step.
 func (f *Feature) Encode(bounds image.Rectangle) ([]byte, error) {
-	if f.encode == nil {
-		return f.source.Encode(bounds)
-	}
-	pixels, err := f.source.pixels()
-	if err != nil {
-		return nil, err
-	}
-	crop, err := f.source.cropBounds(bounds, pixels.Bounds())
-	if err != nil {
-		return nil, err
-	}
-	return f.encode(pixels, crop)
+	return f.source.encodeWith(f.encode, bounds)
 }
 
-// SetEncode replaces PNG encoding after crop. Production leaves this unset.
+// SetEncode replaces the encoding step that runs after crop, for tests
+// that need a failing or recording encoder. nil restores the PNG default.
+// Every call still runs the one Source pipeline; only the last step swaps.
 func (f *Feature) SetEncode(fn func(image.Image, image.Rectangle) ([]byte, error)) {
+	if fn == nil {
+		fn = PNG
+	}
 	f.encode = fn
 }
 

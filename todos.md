@@ -13,20 +13,27 @@
 
 #### Internal
 
- - Copy Selection crop/encode lives on `copyselection.Source` / `Feature.Encode`.
-   The viewer still starts the mode, pauses animated frames, and writes the
-   clipboard. Oriented displayed size moved from `info.go` to `rotate.go`.
+ - Copy Selection crop/encode uses one `copyselection.Source` pipeline, even
+   with the test encoder seam. Raster capture pins the displayed frame instead
+   of allocating a duplicate rotation; SVG capture and crop share one oriented
+   logical-size definition.
 
- - Copy Selection yield sits at command entry: `yieldingMenuCallbacks`,
-   `yieldingShortcuts`, `handleKeyEvent`, and `handleDrop`. Busy blocks,
-   idle cancels, zoom does not yield, window close still runs. Feature
-   `HandleKey` owns Escape/copy/navigation; `keys.go` no longer lists
-   which commands cancel.
+ - Copy Selection yield is enforced at command entry and at the `ShowImage`
+   chokepoint. Favorites menu actions use the same host runner, callback
+   completeness is guarded by reflection, and a busy-copy refusal now shows
+   feedback. `0` yields because it resets rotation; pure zoom keys still keep
+   the mode.
 
  - Settings window is seeded from `settingsState()` (`preferences.State`)
-   and writes through `ApplySettings`, which diffs and calls the existing
-   setters. Host is `ApplySettings` plus `CheckForUpdatesNow` /
-   `PerformUpdate`. Keyboard shortcuts still use the per-field setters.
+   and sends the snapshot before and after each edit to `ApplySettings`, which
+   applies only that patch. Main-window shortcut changes made while Settings
+   is open are no longer reverted by the next unrelated form edit.
+
+ - Zoom geometry skips Copy Selection dispatch entirely while the mode is
+   inactive and refreshes only the selection chrome while active.
+
+ - `make test` and the race-test phase of `make verify` run in cached
+   Linux/amd64 Docker environments, so local golden comparisons match CI.
 
 ## ACTIVE DEVELOPMENT
 

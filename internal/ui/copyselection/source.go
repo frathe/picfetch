@@ -31,8 +31,30 @@ func VectorSource(vector *imaging.Vector, logical image.Point, rotation int, ras
 	return Source{vector: vector, logical: logical, rotation: rotation, rasterize: rasterize}
 }
 
+// orientedLogical is the captured SVG's logical size with view-only quarter
+// turns applied — the single definition of the mode's vector image-space.
+// Bounds and cropBounds both read it, so the rectangle the selection is
+// drawn against and the rectangle the crop is validated against cannot
+// drift apart.
+func (s Source) orientedLogical() (w, h int) {
+	w, h = s.logical.X, s.logical.Y
+	if s.rotation%2 != 0 {
+		w, h = h, w
+	}
+	return w, h
+}
+
 // Encode returns a zero-origin PNG of bounds from the captured source.
 func (s Source) Encode(bounds image.Rectangle) ([]byte, error) {
+	return s.encodeWith(PNG, bounds)
+}
+
+// encodeWith is the one crop-and-encode pipeline: resolve pixels, map
+// bounds into them, hand both to encode. Feature.Encode injects its
+// configurable encoder here; any step added to this pipeline reaches the
+// seam-installed test encoders too, which is the point of there being
+// exactly one.
+func (s Source) encodeWith(encode func(image.Image, image.Rectangle) ([]byte, error), bounds image.Rectangle) ([]byte, error) {
 	pixels, err := s.pixels()
 	if err != nil {
 		return nil, err
@@ -41,7 +63,7 @@ func (s Source) Encode(bounds image.Rectangle) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return PNG(pixels, crop)
+	return encode(pixels, crop)
 }
 
 // Bounds is the oriented image rectangle Copy Selection mode uses as its
@@ -49,10 +71,7 @@ func (s Source) Encode(bounds image.Rectangle) ([]byte, error) {
 // size with view-only quarter turns applied.
 func (s Source) Bounds() image.Rectangle {
 	if s.vector != nil {
-		w, h := s.logical.X, s.logical.Y
-		if s.rotation%2 != 0 {
-			w, h = h, w
-		}
+		w, h := s.orientedLogical()
 		if w <= 0 || h <= 0 {
 			return image.Rectangle{}
 		}
@@ -92,10 +111,8 @@ func (s Source) cropBounds(bounds, pixels image.Rectangle) (image.Rectangle, err
 		return bounds, nil
 	}
 
-	logical := image.Rect(0, 0, s.logical.X, s.logical.Y)
-	if s.rotation%2 != 0 {
-		logical = image.Rect(0, 0, s.logical.Y, s.logical.X)
-	}
+	w, h := s.orientedLogical()
+	logical := image.Rect(0, 0, w, h)
 	if logical.Empty() || bounds.Empty() || bounds.Intersect(logical) != bounds || pixels.Empty() {
 		return image.Rectangle{}, fmt.Errorf("copy selection bounds %v outside SVG source %v", bounds, logical)
 	}

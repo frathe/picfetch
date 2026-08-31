@@ -4,6 +4,8 @@
 
 **Goal:** Fix the ten verified findings from the architectural review of `feature/copy-selection`: state duplicated across seams (settings snapshot, captured image, key keep-list), the hand-enumerated "yield Copy Selection" invariant, and four smaller memory/pipeline/duplication cleanups.
 
+**Implementation status:** All implementation and verification steps are complete. Per-task commit steps remain intentionally unchecked: `AGENTS.md` forbids agents from running `git commit`, and the completed work is already present in the branch's existing commits.
+
 **Architecture:** Two mechanism-level moves carry most of the weight: (1) the Settings window pushes *patch* diffs (prev vs next snapshot) instead of being diffed against live viewer state, and (2) the Copy Selection yield moves into the one chokepoint every displayed-image change funnels through (`ShowImage`), with a completeness test guarding the remaining per-callback menu wrapping. The rest are local, verified-equivalent replacements.
 
 **Tech Stack:** Go 1.26, Fyne v2. All tests run headless under Fyne's test driver: `go test ./internal/...`.
@@ -53,7 +55,7 @@ The Settings window today holds a snapshot seeded once at Show and pushes the *w
 - Consumes: nothing from other tasks.
 - Produces: `ApplySettings(prev, next preferences.State)` on the viewer and on `settingswin.Host`. Later tasks do not depend on it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/ui/settings_apply_test.go`:
 
@@ -85,12 +87,12 @@ func TestApplySettings_DoesNotRevertLiveShortcutChanges(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it — expect a COMPILE failure**
+- [x] **Step 2: Run it — expect a COMPILE failure**
 
 Run: `go test ./internal/ui -run TestApplySettings_DoesNotRevertLiveShortcutChanges`
 Expected: compile error — `too many arguments in call to v.ApplySettings` (the signature is still one-argument).
 
-- [ ] **Step 3: Change the viewer's ApplySettings to patch semantics**
+- [x] **Step 3: Change the viewer's ApplySettings to patch semantics**
 
 In `internal/ui/memlimits.go`, replace the whole `ApplySettings` function (currently lines 229–280, from the doc comment through the closing brace) with:
 
@@ -152,7 +154,7 @@ func (v *viewer) ApplySettings(prev, next preferences.State) {
 }
 ```
 
-- [ ] **Step 4: Change the settingswin side**
+- [x] **Step 4: Change the settingswin side**
 
 In `internal/ui/settingswin/settingswin.go`:
 
@@ -187,7 +189,7 @@ func (w *Window) apply(mutate func(*preferences.State)) {
 }
 ```
 
-- [ ] **Step 5: Update the settingswin test fake**
+- [x] **Step 5: Update the settingswin test fake**
 
 In `internal/ui/settingswin/settingswin_test.go`, add a `prevCalls` field to the fakeHost struct (after `applyCalls []preferences.State` at line 45):
 
@@ -230,7 +232,7 @@ func TestApply_PassesThePreviousSnapshot(t *testing.T) {
 }
 ```
 
-- [ ] **Step 6: Fix the remaining callers**
+- [x] **Step 6: Fix the remaining callers**
 
 Run `go build ./...`. The remaining compile errors are the existing calls in `internal/ui/settings_apply_test.go` (four tests call `v.ApplySettings(next)` after `next := v.settingsState()`). For each, rename the first snapshot to `prev`, copy it, and pass both. The pattern, using the first test as the example (lines 40–44):
 
@@ -243,7 +245,7 @@ Run `go build ./...`. The remaining compile errors are the existing calls in `in
 
 Apply the same mechanical change to every `v.ApplySettings(` call in that file. Do not change any assertion.
 
-- [ ] **Step 7: Run the affected tests**
+- [x] **Step 7: Run the affected tests**
 
 Run: `go build ./... && go test ./internal/ui/settingswin ./internal/ui -run 'TestApply|TestApplySettings|TestSettings' -count=1`
 Expected: PASS, including the new tests from Steps 1 and 5.
@@ -273,7 +275,7 @@ Main-window arrow behavior is unchanged: while the mode is active, `Feature.Hand
 - Consumes: nothing from other tasks.
 - Produces: `yieldCopySelection() bool` now shows a toast on refusal; `ShowImage` is guaranteed to yield. Tasks 3–5 rely on both.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `internal/ui/copyselection_yield_test.go`:
 
@@ -377,12 +379,12 @@ func TestHandleDropBlockedWhileCopyPendingShowsToast(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run them — expect failures**
+- [x] **Step 2: Run them — expect failures**
 
 Run: `go test ./internal/ui -run 'TestStepImageYieldsIdleCopySelection|TestStepImageBlockedWhileCopyPending|TestHandleDropBlockedWhileCopyPendingShowsToast' -count=1`
 Expected: FAIL — the first test fails with "navigation left Copy Selection active", the other two fail on the missing toast.
 
-- [ ] **Step 3: Add the toast to yieldCopySelection**
+- [x] **Step 3: Add the toast to yieldCopySelection**
 
 In `internal/ui/copyselection.go`, replace `yieldCopySelection` (lines 105–114) with:
 
@@ -404,7 +406,7 @@ func (v *viewer) yieldCopySelection() bool {
 
 (`lang` is already imported in this file.)
 
-- [ ] **Step 4: Add the translation keys**
+- [x] **Step 4: Add the translation keys**
 
 In `translations/en.json`, add (anywhere alongside the other toast strings, e.g. after `"could not copy the image: %v"`):
 
@@ -418,7 +420,7 @@ In `translations/de.json`, add the same key in the matching spot:
    "finishing the copy - try again in a moment": "Kopieren wird noch abgeschlossen - bitte gleich noch einmal versuchen",
 ```
 
-- [ ] **Step 5: Add the chokepoint yield to ShowImage**
+- [x] **Step 5: Add the chokepoint yield to ShowImage**
 
 In `internal/ui/load.go`, inside `ShowImage` directly after the `len(v.state.files) == 0` guard (lines 23–25), insert:
 
@@ -434,7 +436,7 @@ In `internal/ui/load.go`, inside `ShowImage` directly after the `len(v.state.fil
 	}
 ```
 
-- [ ] **Step 6: Run the new tests, then the package**
+- [x] **Step 6: Run the new tests, then the package**
 
 Run: `go test ./internal/ui -run 'TestStepImageYieldsIdleCopySelection|TestStepImageBlockedWhileCopyPending|TestHandleDropBlockedWhileCopyPendingShowsToast' -count=1`
 Expected: PASS.
@@ -463,7 +465,7 @@ git commit -m "Yield Copy Selection at the ShowImage chokepoint and toast refusa
 - Consumes: Task 2's yield semantics (0 now cancels the mode via the dispatcher's yield).
 - Produces: nothing later tasks use.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/ui/copyselection_yield_test.go`:
 
@@ -496,12 +498,12 @@ func TestKey0YieldsCopySelectionAndResetsRotation(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it — expect failure**
+- [x] **Step 2: Run it — expect failure**
 
 Run: `go test ./internal/ui -run TestKey0YieldsCopySelectionAndResetsRotation -count=1`
 Expected: FAIL with "0 changed orientation but left Copy Selection active".
 
-- [ ] **Step 3: Remove Key0 from the keep list**
+- [x] **Step 3: Remove Key0 from the keep list**
 
 In `internal/ui/copyselection.go`, replace `copySelectionKeepsKey` (lines 116–124) with:
 
@@ -521,7 +523,7 @@ func copySelectionKeepsKey(key fyne.KeyName) bool {
 }
 ```
 
-- [ ] **Step 4: Run the test and the package**
+- [x] **Step 4: Run the test and the package**
 
 Run: `go test ./internal/ui -run TestKey0 -count=1 && go test ./internal/ui -count=1`
 Expected: PASS (no existing test asserts 0 keeps the mode — verified before this plan was written).
@@ -549,7 +551,7 @@ The Favorites menu items call `AddCurrentList` / `ShowManage` / `openFavorite` d
 - Consumes: `yieldCopySelection` (Task 2's toast version).
 - Produces: `favorites.Host` gains `RunCommand(fn func())`; the viewer implements it in `menu.go`. Task 5's exempt list does not include favorites (they are not `menus.Callbacks` fields).
 
-- [ ] **Step 1: Extend the favorites fake host and write the failing package test**
+- [x] **Step 1: Extend the favorites fake host and write the failing package test**
 
 In `internal/ui/favorites/favorites_test.go`, add two fields to the `fakeHost` struct (after `refreshMenus int` at line 35):
 
@@ -614,12 +616,12 @@ func TestMenuActionsRunThroughHostRunCommand(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it — expect failure**
+- [x] **Step 2: Run it — expect failure**
 
 Run: `go test ./internal/ui/favorites -run TestMenuActionsRunThroughHostRunCommand`
 Expected: FAIL with `RunCommand arrivals = 0, want 3` — the menu items don't route through the host yet. (A compile error here means the fake from Step 1 was mistyped; fix that first.)
 
-- [ ] **Step 3: Add RunCommand to favorites.Host and route the menu items**
+- [x] **Step 3: Add RunCommand to favorites.Host and route the menu items**
 
 In `internal/ui/favorites/favorites.go`, add to the `Host` interface (after `RefreshMenus()`):
 
@@ -653,7 +655,7 @@ In `refreshMenu` (line 156), change the per-favorite item to:
 		})
 ```
 
-- [ ] **Step 4: Implement RunCommand on the viewer**
+- [x] **Step 4: Implement RunCommand on the viewer**
 
 In `internal/ui/menu.go`, after `yieldThenMode` (line 108), add:
 
@@ -670,11 +672,11 @@ func (v *viewer) RunCommand(fn func()) {
 }
 ```
 
-- [ ] **Step 5: Fix any other Host implementors**
+- [x] **Step 5: Fix any other Host implementors**
 
 Run: `go build ./... && go vet ./...`. If any other type implements `favorites.Host` (search with `grep -rn "favorites.Host\|SyncFavoritePreviews" --include="*.go" internal | grep -v internal/ui/favorites`), give it the same trivial `RunCommand(fn func()) { fn() }` unless it is the viewer. The known implementors are the viewer (real) and the favorites test fakes (`fakeHost`, which `addGuardDuringSave` embeds, so it inherits the method).
 
-- [ ] **Step 6: Write the viewer-level integration test**
+- [x] **Step 6: Write the viewer-level integration test**
 
 Append to `internal/ui/copyselection_yield_test.go`:
 
@@ -699,7 +701,7 @@ func TestFavoritesMenuYieldsCopySelection(t *testing.T) {
 }
 ```
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `go test ./internal/ui/favorites -count=1 && go test ./internal/ui -run 'TestFavoritesMenuYieldsCopySelection' -count=1`
 Expected: PASS.
@@ -724,7 +726,7 @@ git commit -m "Route Favorites menu actions through a host RunCommand that yield
 - Consumes: `v.yieldingMenuCallbacks` (menu.go:62), `menus.Callbacks` (internal/ui/menus/menus.go:32), Task 2's yield.
 - Produces: nothing.
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Create `internal/ui/menu_yield_test.go`:
 
@@ -806,7 +808,7 @@ func TestYieldingMenuCallbacksWrapsEveryField(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it — expect PASS, then prove it can fail**
+- [x] **Step 2: Run it — expect PASS, then prove it can fail**
 
 Run: `go test ./internal/ui -run TestYieldingMenuCallbacksWrapsEveryField -count=1`
 Expected: PASS (every current field is wrapped).
@@ -836,7 +838,7 @@ Equivalence argument (verified during review — rely on it): every raster path 
 - Consumes: Tasks 2 and 3 (the "nothing rewrites v.img.Image while active" argument needs their yields in place — do not reorder).
 - Produces: `captureRegionCopySource` now returns `animated == false` whenever `ok == false`; it owns releasing the pause on its own failure. `startRegionCopy` still owns the release when `Feature.Start` fails afterwards.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/ui/copyselection_yield_test.go` (add `"fyne.io/fyne/v2/storage"` to the imports):
 
@@ -867,12 +869,12 @@ func TestCaptureRegionCopySourceReleasesPauseWhenCaptureFails(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it — expect failure**
+- [x] **Step 2: Run it — expect failure**
 
 Run: `go test ./internal/ui -run TestCaptureRegionCopySourceReleasesPauseWhenCaptureFails -count=1`
 Expected: FAIL. Today the nil-frame path is only reachable once capture reads `v.img.Image` (Step 3), so before the change the test fails at the `(animated=%v, ok=%v)` check — `display.Rotated()` still returns a frame — or, if it does return nil, at the held-pause check. Either failure is the defect being pinned.
 
-- [ ] **Step 3: Rewrite the raster half of captureRegionCopySource**
+- [x] **Step 3: Rewrite the raster half of captureRegionCopySource**
 
 In `internal/ui/copyselection.go`, replace lines 64–77 (from `animated = v.display.Count() > 1` through the `return copyselection.RasterSource(...)` line) with:
 
@@ -904,7 +906,7 @@ In `internal/ui/copyselection.go`, replace lines 64–77 (from `animated = v.dis
 	return copyselection.RasterSource(raster), animated, true
 ```
 
-- [ ] **Step 4: Run the new test and every Copy Selection test**
+- [x] **Step 4: Run the new test and every Copy Selection test**
 
 Run: `go test ./internal/ui -run 'TestCaptureRegionCopySourceReleasesPauseWhenCaptureFails|TestCopySelection' -count=1 && go test ./internal/ui/copyselection -count=1`
 Expected: PASS — the existing pixel-equality tests (`copyselection_pixels_test.go`, `copyselection_worker_test.go`, `copyselection_sources_test.go`) are the equivalence proof for the capture change, including the rotated and animated cases.
@@ -932,7 +934,7 @@ Reading `regionCopy.State()` synchronously in the callback is safe: `zoom.SetOnG
 - Consumes: nothing from other tasks.
 - Produces: nothing.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `internal/ui/copyselection_yield_test.go` (add `"fyne.io/fyne/v2/test"` and `"fyne.io/fyne/v2"` to the imports if not already present):
 
@@ -957,12 +959,12 @@ func TestZoomGeometryCallbackSkipsInactiveMode(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run it — expect failure**
+- [x] **Step 2: Run it — expect failure**
 
 Run: `go test ./internal/ui -run TestZoomGeometryCallbackSkipsInactiveMode -count=1`
 Expected: FAIL with a non-zero dispatch count.
 
-- [ ] **Step 3: Rewrite the callback**
+- [x] **Step 3: Rewrite the callback**
 
 In `internal/ui/features.go`, replace the whole `view.zoom.SetOnGeometryChanged(...)` call (lines 54–69) with:
 
@@ -995,7 +997,7 @@ In `internal/ui/features.go`, replace the whole `view.zoom.SetOnGeometryChanged(
 	})
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `go test ./internal/ui -run 'TestZoomGeometryCallbackSkipsInactiveMode|TestCopySelection' -count=1`
 Expected: PASS — `TestCopySelectionZoomPanResize` still counts dispatches because it starts the mode before scrolling; it now also implicitly verifies the active path still delivers.
@@ -1021,7 +1023,7 @@ git commit -m "Skip geometry dispatch while Copy Selection is inactive and stop 
 - Consumes: nothing from other tasks.
 - Produces: `Source.encodeWith(encode func(image.Image, image.Rectangle) ([]byte, error), bounds image.Rectangle) ([]byte, error)` (unexported); `Feature.SetEncode(nil)` now restores the PNG default (the worker test at `internal/ui/copyselection_worker_test.go:130` already relies on nil meaning "back to PNG").
 
-- [ ] **Step 1: Rewrite Source.Encode around encodeWith**
+- [x] **Step 1: Rewrite Source.Encode around encodeWith**
 
 In `internal/ui/copyselection/source.go`, replace `Encode` (lines 34–45) with:
 
@@ -1049,7 +1051,7 @@ func (s Source) encodeWith(encode func(image.Image, image.Rectangle) ([]byte, er
 }
 ```
 
-- [ ] **Step 2: Default the Feature's encoder and drop the fork**
+- [x] **Step 2: Default the Feature's encoder and drop the fork**
 
 In `internal/ui/copyselection/copyselection.go`:
 
@@ -1083,7 +1085,7 @@ func (f *Feature) SetEncode(fn func(image.Image, image.Rectangle) ([]byte, error
 }
 ```
 
-- [ ] **Step 3: Run both packages' suites**
+- [x] **Step 3: Run both packages' suites**
 
 Run: `go test ./internal/ui/copyselection ./internal/ui -run '.' -count=1`
 Expected: PASS. The worker tests (`TestCopySelectionEncodeFailure` installs a failing encoder, then `SetEncode(nil)` and retries) exercise both the seam and the restored default through the unified pipeline.
@@ -1110,7 +1112,7 @@ The round-SVG-logical-size and swap-axes-when-rotation-is-odd computations exist
 - Consumes: Task 6's version of `captureRegionCopySource` (this task edits its vector branch; Task 6 edited the raster branch).
 - Produces: `roundedLogical(l fyne.Size) (w, h int)` in package `ui`; `(s Source) orientedLogical() (w, h int)` in package `copyselection`.
 
-- [ ] **Step 1: Add the rounding helper and use it in displayedDimensions**
+- [x] **Step 1: Add the rounding helper and use it in displayedDimensions**
 
 In `internal/ui/rotate.go`, append at the end of the file:
 
@@ -1137,7 +1139,7 @@ In `displayedDimensions` (lines 136–148), replace the vector branch (the lines
 
 (Swapping before or after rounding is equivalent — each axis rounds independently.)
 
-- [ ] **Step 2: Use it at the capture site**
+- [x] **Step 2: Use it at the capture site**
 
 In `internal/ui/copyselection.go`, replace the vector branch of `captureRegionCopySource` (lines 55–62) with:
 
@@ -1153,7 +1155,7 @@ In `internal/ui/copyselection.go`, replace the vector branch of `captureRegionCo
 	}
 ```
 
-- [ ] **Step 3: Add the orientation helper in copyselection**
+- [x] **Step 3: Add the orientation helper in copyselection**
 
 In `internal/ui/copyselection/source.go`, add after `VectorSource` (line 32):
 
@@ -1200,7 +1202,7 @@ with:
 	logical := image.Rect(0, 0, w, h)
 ```
 
-- [ ] **Step 4: Cross-reference the float swap that stays**
+- [x] **Step 4: Cross-reference the float swap that stays**
 
 In `internal/ui/rotate.go`, inside `applyRotationLayout`'s vector branch (the comment block above `if v.vector.svg != nil`, line 82), append one sentence to the existing comment:
 
@@ -1210,7 +1212,7 @@ In `internal/ui/rotate.go`, inside `applyRotationLayout`'s vector branch (the co
 	// unrounded size, so the two deliberately do not share code.
 ```
 
-- [ ] **Step 5: Run the affected suites**
+- [x] **Step 5: Run the affected suites**
 
 Run: `go test ./internal/ui/copyselection ./internal/ui -count=1`
 Expected: PASS — the SVG source tests (`source_test.go`, `copyselection_sources_test.go`) and rotation tests (`rotate_test.go`) pin the behavior these helpers must reproduce exactly.
@@ -1226,17 +1228,17 @@ git commit -m "Share one oriented-logical-size definition per package."
 
 ### Task 10: Full verification
 
-- [ ] **Step 1: Full build, vet, and test run**
+- [x] **Step 1: Full build, vet, and test run**
 
 Run: `go build ./... && go vet ./... && go test ./... -count=1`
 Expected: everything passes. `-count=1` defeats the test cache — the point is a fresh run of the whole module.
 
-- [ ] **Step 2: Race check on the touched packages**
+- [x] **Step 2: Race check on the touched packages**
 
 Run: `go test -race ./internal/ui ./internal/ui/copyselection ./internal/ui/favorites ./internal/ui/settingswin -count=1`
 Expected: PASS with no race reports. The capture change (Task 6) and the geometry callback (Task 7) are the reason this step exists — do not skip it.
 
-- [ ] **Step 3: Confirm the working tree is clean and every commit landed**
+- [x] **Step 3: Confirm the working tree is clean and every commit landed**
 
 Run: `git status && git log --oneline main..HEAD`
 Expected: clean tree; the nine task commits on top of the branch's existing history.
