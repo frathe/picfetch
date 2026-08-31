@@ -25,6 +25,7 @@
    "Restore last session (%d images)": "Letzte Sitzung wiederherstellen (%d Bilder)",
    "could not open the file browser: %v": "Dateibrowser konnte nicht geöffnet werden: %v",
    "could not copy the image: %v": "Bild konnte nicht kopiert werden: %v",
+   "finishing the copy - try again in a moment": "Kopieren wird noch abgeschlossen - bitte gleich noch einmal versuchen",
    "Zoom: %d%%": "Zoom: %d%%",
    "(preview)": "(Vorschau)",
    "[merge]": "[Zusammenführen]",

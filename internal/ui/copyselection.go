@@ -103,10 +103,13 @@ func (v *viewer) cancelRegionCopy() {
 }
 
 // yieldCopySelection lets another PicFetch command run. A pending copy
-// blocks that command; idle mode cancels first. Zoom and pan must not
-// call this. Window close and shutdown remain available while busy.
+// blocks that command — with a toast, so the refusal is visible wherever
+// the command came from (drop, menu, favorite, EXIF window); idle mode
+// cancels first. Zoom and pan must not call this. Window close and
+// shutdown remain available while busy.
 func (v *viewer) yieldCopySelection() bool {
 	if v.regionCopy != nil && v.regionCopy.State().Busy {
+		v.ShowToast(lang.L("finishing the copy - try again in a moment"))
 		return false
 	}
 	v.cancelRegionCopy()

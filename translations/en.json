@@ -25,6 +25,7 @@
    "Restore last session (%d images)": "Restore last session (%d images)",
    "could not open the file browser: %v": "could not open the file browser: %v",
    "could not copy the image: %v": "could not copy the image: %v",
+   "finishing the copy - try again in a moment": "finishing the copy - try again in a moment",
    "Zoom: %d%%": "Zoom: %d%%",
    "(preview)": "(preview)",
    "[merge]": "[merge]",

@@ -24,6 +24,16 @@ func (v *viewer) ShowImage(i int) {
 		return
 	}
 
+	// Copy Selection pins a source captured from the displayed image and,
+	// for animations, holds the frame-advance pause. Yield here — the one
+	// chokepoint every displayed-image change funnels through — so no
+	// caller (EXIF-window arrows, sort completion, jumpIfHiddenExtra) can
+	// swap the image under an active selection. The per-entry-point yields
+	// stay for their earlier, cheaper refusal; this is the backstop.
+	if !v.yieldCopySelection() {
+		return
+	}
+
 	// Once an image is on screen we keep showing it until the new one is
 	// ready, instead of blanking out to the drop-hint on every navigation.
 	firstLoad := v.img.Image == nil
