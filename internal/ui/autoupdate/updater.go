@@ -157,12 +157,18 @@ func (u *Updater) EnsureClient() error {
 		return err
 	}
 	u.client = update.NewClient(update.Config{
-		HTTP:     &http.Client{Timeout: 30 * time.Second},
+		HTTP:     newUpdateHTTPClient(120 * time.Second),
 		Now:      time.Now,
 		Verify:   ver,
 		StageDir: u.dir,
 	})
 	return nil
+}
+
+func newUpdateHTTPClient(responseHeaderTimeout time.Duration) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = responseHeaderTimeout
+	return &http.Client{Transport: transport}
 }
 
 // SetCurrentVersion overrides CurrentVersion for tests - production Fyne
@@ -527,9 +533,8 @@ func (u *Updater) ApplyStagedUpdate() {
 		return
 	}
 	if err := update.Apply(st, dest, u.applyOptions); err != nil {
-		var applyErr *update.ApplyError
 		op := ""
-		if errors.As(err, &applyErr) {
+		if applyErr, ok := errors.AsType[*update.ApplyError](err); ok {
 			op = applyErr.Op
 		}
 		if op != applyOpRelaunch {

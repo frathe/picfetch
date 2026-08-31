@@ -8,6 +8,9 @@
 
 #### Bugfix
 
+- Slow update downloads no longer fail merely because receiving the archive
+  takes longer than the updater's network timeout.
+
 #### Internal
 
 ## ACTIVE DEVELOPMENT

@@ -10,6 +10,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -458,6 +460,34 @@ func TestUpdater_EnsureClient_SuccessIsIdempotent(t *testing.T) {
 	}
 	if got := u.Client(); got != want {
 		t.Error("repeated EnsureClient() replaced the prepared client")
+	}
+}
+
+func TestUpdateHTTPClient_AllowsSlowResponseBody(t *testing.T) {
+	const (
+		body    = "slow update archive"
+		timeout = 25 * time.Millisecond
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprint(len(body)))
+		_, _ = io.WriteString(w, body[:1])
+		w.(http.Flusher).Flush()
+		time.Sleep(4 * timeout)
+		_, _ = io.WriteString(w, body[1:])
+	}))
+	defer srv.Close()
+
+	resp, err := newUpdateHTTPClient(timeout).Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Get() before reading the slow body = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	got, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("reading a response body slower than the header timeout = %v", err)
+	}
+	if string(got) != body {
+		t.Errorf("body = %q, want %q", got, body)
 	}
 }
 
