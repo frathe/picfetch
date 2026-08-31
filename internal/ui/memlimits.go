@@ -226,55 +226,58 @@ func (v *viewer) settingsState() preferences.State {
 	}
 }
 
-// ApplySettings is the Settings window's write path. next is a full form
-// snapshot, not a patch: only fields that differ from the live viewer
-// state run their setters, so changing the scan cap does not restart a
-// sort or retune caches. Does not persist; shutdown Save still goes
-// through currentPreferences.
-func (v *viewer) ApplySettings(next preferences.State) {
-	if next.ThemeMode != v.settings.themeMode {
+// ApplySettings is the Settings window's write path. prev and next are the
+// form snapshot before and after the one control edit that triggered this
+// push, so only the edited field runs its setter — never a field a
+// main-window shortcut changed while the Settings window was open (the old
+// live-state diff mistook those for edits and silently reverted them).
+// Does not persist; shutdown Save still goes through currentPreferences.
+func (v *viewer) ApplySettings(prev, next preferences.State) {
+	if next.ThemeMode != prev.ThemeMode {
 		v.SetThemeMode(next.ThemeMode)
 	}
-	if mode := filesort.FromPref(next.SortMode); mode != v.SortMode() {
+	// Also guarded against the live mode: SetSortMode restarts a background
+	// sort, which re-selecting the already-active order must not do.
+	if mode := filesort.FromPref(next.SortMode); next.SortMode != prev.SortMode && mode != v.SortMode() {
 		v.SetSortMode(mode)
 	}
-	if next.MergeMode != v.MergeMode() {
+	if next.MergeMode != prev.MergeMode {
 		v.SetMergeMode(next.MergeMode)
 	}
-	if next.SlideShuffle != v.SlideShuffle() {
+	if next.SlideShuffle != prev.SlideShuffle {
 		v.SetSlideShuffle(next.SlideShuffle)
 	}
-	if next.SlideInterval != v.SlideInterval() {
+	if next.SlideInterval != prev.SlideInterval {
 		v.SetSlideInterval(next.SlideInterval)
 	}
-	if next.MaxScanFiles != v.MaxScan() {
+	if next.MaxScanFiles != prev.MaxScanFiles {
 		v.SetMaxScan(next.MaxScanFiles)
 	}
-	if next.MaxWindowWidth != v.MaxWindowWidth() {
+	if next.MaxWindowWidth != prev.MaxWindowWidth {
 		v.SetMaxWindowWidth(next.MaxWindowWidth)
 	}
-	if next.MaxWindowHeight != v.MaxWindowHeight() {
+	if next.MaxWindowHeight != prev.MaxWindowHeight {
 		v.SetMaxWindowHeight(next.MaxWindowHeight)
 	}
-	if next.StaticWindowSize != v.StaticWindowSize() {
+	if next.StaticWindowSize != prev.StaticWindowSize {
 		v.SetStaticWindowSize(next.StaticWindowSize)
 	}
-	if next.MaxImageCacheMB != v.MaxImageCacheMB() {
+	if next.MaxImageCacheMB != prev.MaxImageCacheMB {
 		v.SetMaxImageCacheMB(next.MaxImageCacheMB)
 	}
-	if next.MaxThumbCacheMB != v.MaxThumbCacheMB() {
+	if next.MaxThumbCacheMB != prev.MaxThumbCacheMB {
 		v.SetMaxThumbCacheMB(next.MaxThumbCacheMB)
 	}
-	if next.MaxFileSizeMB != v.MaxFileSizeMB() {
+	if next.MaxFileSizeMB != prev.MaxFileSizeMB {
 		v.SetMaxFileSizeMB(next.MaxFileSizeMB)
 	}
-	if next.FavoritePreviewCache != v.FavoritePreviewCache() {
+	if next.FavoritePreviewCache != prev.FavoritePreviewCache {
 		v.SetFavoritePreviewCache(next.FavoritePreviewCache)
 	}
-	if next.CheckForUpdates != v.CheckForUpdates() {
+	if next.CheckForUpdates != prev.CheckForUpdates {
 		v.SetCheckForUpdates(next.CheckForUpdates)
 	}
-	if next.DuplicateDistance != v.DuplicateDistance() || (next.DuplicateDistanceSet && !v.settings.dupeDistSet) {
+	if next.DuplicateDistance != prev.DuplicateDistance || next.DuplicateDistanceSet != prev.DuplicateDistanceSet {
 		v.SetDuplicateDistance(next.DuplicateDistance)
 	}
 }

@@ -47,13 +47,14 @@ const (
 )
 
 // Host is what the settings window needs from the app after it has been
-// seeded with a preferences.State snapshot: ApplySettings pushes the whole
-// form back so live side effects (cache retune, appearance, sort) can run,
+// seeded with a preferences.State snapshot: ApplySettings receives the form
+// snapshot before and after the one control edit, so the app applies only
+// the edited fields (patch semantics — a stale snapshot must never revert a
+// preference a main-window shortcut changed while this window was open),
 // and the two update verbs stay out of that snapshot because they are
-// requests, not standing values. ApplySettings is not a pure persist - the
-// viewer diffs and calls the same setters the keyboard shortcuts use.
+// requests, not standing values.
 type Host interface {
-	ApplySettings(preferences.State)
+	ApplySettings(prev, next preferences.State)
 	CheckForUpdatesNow(UpdateCallbacks)
 	PerformUpdate() error
 }
@@ -183,11 +184,13 @@ func newPositiveIntEntry(get func() int, set func(int), max int, validate fyne.S
 	return e
 }
 
-// apply mutates the seeded snapshot and pushes the whole form back through
-// the host. Invalid mid-edit input never reaches here.
+// apply mutates the seeded snapshot and pushes the before/after pair
+// through the host, which applies only what actually changed between the
+// two. Invalid mid-edit input never reaches here.
 func (w *Window) apply(mutate func(*preferences.State)) {
+	prev := w.prefs
 	mutate(&w.prefs)
-	w.host.ApplySettings(w.prefs)
+	w.host.ApplySettings(prev, w.prefs)
 }
 
 // selectFrom builds a Select whose options are displayName(modes[i]) and

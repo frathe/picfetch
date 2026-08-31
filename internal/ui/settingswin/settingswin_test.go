@@ -43,15 +43,17 @@ type fakeHost struct {
 	prefs preferences.State
 
 	applyCalls []preferences.State
+	prevCalls  []preferences.State
 
 	updateCallbacks []UpdateCallbacks
 	performErr      error
 	performCalls    int
 }
 
-func (f *fakeHost) ApplySettings(s preferences.State) {
-	f.prefs = s
-	f.applyCalls = append(f.applyCalls, s)
+func (f *fakeHost) ApplySettings(prev, next preferences.State) {
+	f.prefs = next
+	f.prevCalls = append(f.prevCalls, prev)
+	f.applyCalls = append(f.applyCalls, next)
 }
 func (f *fakeHost) CheckForUpdatesNow(callbacks UpdateCallbacks) {
 	f.updateCallbacks = append(f.updateCallbacks, callbacks)
@@ -1020,5 +1022,26 @@ func TestUpdateCallbacksAfterSettingsCloseAreIgnored(t *testing.T) {
 
 	if w.Open() || w.updateDialog != nil || w.updateNow != nil {
 		t.Error("late callbacks must not recreate or mutate the closed Settings UI")
+	}
+}
+
+// Each push must carry the snapshot as it was before that one edit — the
+// second call's prev is the first call's next — which is what lets the app
+// apply only the edited field.
+func TestApply_PassesThePreviousSnapshot(t *testing.T) {
+	host := &fakeHost{prefs: preferences.State{}}
+	w := showSettings(t, host)
+
+	w.mergeCheck.SetChecked(true)
+	w.shuffleCheck.SetChecked(true)
+
+	if len(host.applyCalls) != 2 || len(host.prevCalls) != 2 {
+		t.Fatalf("apply calls = %d/%d prev, want 2/2", len(host.applyCalls), len(host.prevCalls))
+	}
+	if host.prevCalls[0].MergeMode {
+		t.Error("first prev already has the edit applied")
+	}
+	if host.prevCalls[1] != host.applyCalls[0] {
+		t.Error("second prev is not the first push's next — the chain is broken")
 	}
 }
