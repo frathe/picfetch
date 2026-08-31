@@ -16,9 +16,6 @@ import (
 // text clipboard. No shell-out needed here, unlike copyImageToClipboard
 // below - fyne.Clipboard already handles text on every platform.
 func (v *viewer) copyPathToClipboard() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	if len(v.state.files) == 0 {
 		return
 	}

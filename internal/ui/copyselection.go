@@ -102,16 +102,25 @@ func (v *viewer) cancelRegionCopy() {
 	v.regionCopy.Cancel()
 }
 
-// cancelRegionCopyBeforeAction cancels Copy Selection so another PicFetch
-// command can run. It returns false while a copy worker is pending, and
-// that command must not proceed. Zoom and pan must not call this. Window
-// close and shutdown remain available while busy.
-func (v *viewer) cancelRegionCopyBeforeAction() bool {
+// yieldCopySelection lets another PicFetch command run. A pending copy
+// blocks that command; idle mode cancels first. Zoom and pan must not
+// call this. Window close and shutdown remain available while busy.
+func (v *viewer) yieldCopySelection() bool {
 	if v.regionCopy != nil && v.regionCopy.State().Busy {
 		return false
 	}
 	v.cancelRegionCopy()
 	return true
+}
+
+// copySelectionKeepsKey is the viewer-side keep list: zoom stays available
+// without cancelling. Feature.HandleKey owns Escape, copy, and navigation.
+func copySelectionKeepsKey(key fyne.KeyName) bool {
+	switch key {
+	case fyne.Key0, fyne.Key1, fyne.KeyPlus, fyne.KeyEqual, fyne.KeyMinus:
+		return true
+	}
+	return false
 }
 
 // regionCopyView is the sole adapter from the zoom presentation to the

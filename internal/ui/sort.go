@@ -10,9 +10,6 @@ import (
 // toggleSort is the S key: it cycles the state sort mode to the next mode - see
 // SetSortMode below, which does the actual work.
 func (v *viewer) toggleSort() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	v.SetSortMode(v.state.SortMode().Next())
 }
 

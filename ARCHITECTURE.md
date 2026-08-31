@@ -36,7 +36,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, deletion, slideshow, settings, then favorites. |
-| `shortcuts.go` | `wireGlobalShortcuts` plus per-action `desktop.CustomShortcut` wiring (open, favorites, clipboard, copy selection, delete, select-all, save, export, wallpaper). |
+| `shortcuts.go` | `wireGlobalShortcuts` plus per-action `desktop.CustomShortcut` wiring (open, favorites, clipboard, copy selection, delete, select-all, save, export, wallpaper). `yieldingShortcuts` wraps every binding except Copy Selection. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
 | `windowtrack.go` | Main-window size tracker and position poller; `widgetGeometry` / `prefGeometry` translate `preferences.WindowGeometry` ↔ `widgets.Geometry`. |
 | `windowmenu.go` | Window-menu action handlers (`showViewer`, `showWindowExif`, `showWindowGrid`, `showWindowPictureFrame`, `showWindowHelp` — grid/picture-frame mutual exclusion lives in the first two) plus `refreshMainMenu` / `syncNativeMenuBar` and the Darwin sync entry points. The Checked/Disabled matrix itself lives in `internal/ui/menus`. |
@@ -47,8 +47,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `lifecycle.go` | `requestLifecycle` / `requestToken`. Load, scan, sort, vector, and copy-selection encode each own an instance. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / `applyTitle`), reset/close, merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
 | `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet` by forwarding `appState`'s published `dupes.Snapshot`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
-| `keys.go` | `handleKeyEvent` / `handleTypedRune`. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). Copy Selection owns keys after deletion/export/grid. |
-| `menu.go` | `buildMainMenu` builds `internal/ui/menus.Menus` and assembles the bar: File, Favorites, Actions, Window, Help. `menuState()` is the one function that builds the `menus.State` snapshot; `syncMenus()` applies it and refreshes the native bar only when something actually changed. |
+| `keys.go` | `handleKeyEvent` / `handleTypedRune`. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). Copy Selection: `HandleKey` consumes Escape/copy/navigation; unowned keys `yieldCopySelection` except zoom. |
+| `menu.go` | `buildMainMenu` builds `internal/ui/menus.Menus` and assembles the bar: File, Favorites, Actions, Window, Help. `yieldingMenuCallbacks` wraps every command except zoom and Copy Selection. `menuState()` is the one function that builds the `menus.State` snapshot; `syncMenus()` applies it and refreshes the native bar only when something actually changed. |
 | `actionmenu.go` | Actions-menu handlers (`setActionsSort`, `toggleActionsHideDuplicates`, `showActionsVariant`, `rotateActionsImage`, …). The Checked/Disabled matrix lives in `internal/ui/menus`. |
 | `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images` / `filescan.Siblings`; scan lifecycle is `viewer.scanOp`. |
 | `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. |
@@ -70,7 +70,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `batch.go` | Only file that knows both grid selection and deletion/clipboard exist. |
 | `session.go` | `restoreSession` glue over `internal/session`. |
 | `clipboard.go` | Copy-path / copy-image glue over `internal/clipboard`. |
-| `copyselection.go` | Viewer adapter for `internal/ui/copyselection`: availability, start/cancel, zoom `Geometry` to `View`, animation pause, clipboard worker, `cancelRegionCopyBeforeAction`. |
+| `copyselection.go` | Viewer adapter for `internal/ui/copyselection`: availability, start/cancel, zoom `Geometry` to `View`, animation pause, clipboard worker, `yieldCopySelection`. Command entry yields through `yieldingMenuCallbacks`, `yieldingShortcuts`, `handleKeyEvent`, and `handleDrop`. |
 | `animationpause.go` | Serializes animated-frame advancement with Copy Selection's stable source capture. |
 | `openfiles.go` | Native open-dialog glue over `internal/filepicker`. |
 
@@ -79,7 +79,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | Package | Responsibility | Reaches back via |
 |---------|----------------|------------------|
 | `internal/ui/zoom/` | Zoom/pan of the displayed image. `Geometry` / `HandleScroll` / `SetOnGeometryChanged` are the presentation seam Copy Selection uses; this package does not import `copyselection`. Window growth is `syncWindowToZoom` in `internal/ui`. | `onChanged`, `modifiers`, `onScaleChanged`. |
-| `internal/ui/copyselection/` | Transient Copy Selection mode: image-region geometry, overlay, and captured `Source` crop/encode. | `Copy`, `Ended`, `Scroll`. |
+| `internal/ui/copyselection/` | Transient Copy Selection mode: image-region geometry, overlay, and captured `Source` crop/encode. `HandleKey` reports whether the mode consumed the key. | `Copy`, `Ended`, `Scroll`. |
 | `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, badges, `marquee.go` (drag rectangle → `Targets()`), browse-duplicates (Shift+D), and `hashengine.go`'s pool-driven hashing pass that feeds `internal/dupes`. `nav.go`: `setHighlight` → `HighlightChanged`. Reads the model; does not own it. | 10-method `Host` including `Modifiers`. |
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
@@ -415,7 +415,7 @@ see `AGENTS.md`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.
 - "How can dragging the window open something?" → `internal/wingesture` + `gesture.go` + `help.OpenSpiral` / `spiral.ShowForGesture`.
 - "How does copy-image-to-clipboard work?" → `internal/clipboard` + `clipboard.go`. Batch file copy: `copyfiles.go` + `batch.go` `copySelection`.
-- "How does Copy Selection (image-region copy) work?" → `internal/ui/copyselection` (`Source` / `Encode`) + `copyselection.go` (pause, clipboard worker) + zoom `Geometry` / `HandleScroll` + overlay order in `build.go`.
+- "How does Copy Selection (image-region copy) work?" → `internal/ui/copyselection` (`Source` / `Encode`, `HandleKey`) + `copyselection.go` (pause, clipboard worker, `yieldCopySelection`) + `menu.go` `yieldingMenuCallbacks` + `shortcuts.go` `yieldingShortcuts` + zoom `Geometry` / `HandleScroll` + overlay order in `build.go`.
 - "How does the grid overview / thumbnail generation work?" → `imaging/thumbnail.go` + `grid/grid.go` + `grid/thumbs.go` + `grid/hashengine.go` + `grid/nav.go` + `grid/uiqueue.go`.
 - "What decides the window title?" → `viewer.go` `setTitle` / `applyTitle` / `HighlightChanged` + `load.go` + `grid/nav.go`.
 - "How do I write a test that needs an image / a viewer?" → `internal/uitest` + `newTestViewer` / `newTestUI` + `dropAndWait` in `harness_test.go`.

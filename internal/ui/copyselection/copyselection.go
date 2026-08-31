@@ -108,6 +108,9 @@ func (f *Feature) Cancel() {
 func (f *Feature) State() State { return f.state }
 
 // HandleKey handles or suppresses a key while Copy Selection owns input.
+// It returns true for keys the mode consumes: Escape, Return/Enter, image
+// navigation, and every key while a copy is pending. Unowned keys return
+// false so the viewer can yield or keep the mode.
 func (f *Feature) HandleKey(key fyne.KeyName) bool {
 	if !f.state.Active {
 		return false
@@ -119,10 +122,14 @@ func (f *Feature) HandleKey(key fyne.KeyName) bool {
 	switch key {
 	case fyne.KeyEscape:
 		f.Cancel()
+		return true
 	case fyne.KeyReturn, fyne.KeyEnter:
 		f.requestCopy()
+		return true
+	case fyne.KeyLeft, fyne.KeyRight, fyne.KeyUp, fyne.KeyDown, fyne.KeyHome, fyne.KeyEnd:
+		return true
 	}
-	return true
+	return false
 }
 
 // Complete reports the result of the viewer's asynchronous copy request.

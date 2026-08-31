@@ -18,9 +18,6 @@ import (
 // pair: the grid is already closed on the way out, so closing it again
 // costs nothing.
 func (v *viewer) togglePictureFrameMode() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	v.grid.Close()
 
 	wasActive := v.slides.Active()

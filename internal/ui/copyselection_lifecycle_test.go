@@ -110,9 +110,20 @@ func TestCopySelectionRepeatedActivation(t *testing.T) {
 	before := v.regionCopy.State()
 
 	v.copyActionsSelection()
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyC})
 	if got := v.regionCopy.State(); got != before {
 		t.Fatalf("repeated activation changed state from %+v to %+v", before, got)
+	}
+}
+
+func TestCopySelectionUnknownKeyCancels(t *testing.T) {
+	v := newTestViewer(t)
+	loadTwoCopySelectionImages(t, v)
+	selectRegion(t, v, copySelectionBounds)
+
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyC})
+
+	if got := v.regionCopy.State(); got.Active {
+		t.Fatalf("Copy Selection stayed active after an unowned key: %+v", got)
 	}
 }
 
@@ -213,8 +224,15 @@ func TestCopySelectionCancelsBeforeOtherCommands(t *testing.T) {
 		{
 			name: "copy image",
 			act: func(t *testing.T, v *viewer) {
+				v.menus.Actions().Copy().Action()
+				waitForClipboard(t, v)
+			},
+		},
+		{
+			name: "copy image shortcut",
+			act: func(t *testing.T, v *viewer) {
 				handler := &fyne.ShortcutHandler{}
-				wireClipboardShortcuts(handler, v)
+				wireGlobalShortcuts(handler, v)
 				handler.TypedShortcut(&fyne.ShortcutCopy{})
 				waitForClipboard(t, v)
 			},
@@ -292,7 +310,14 @@ func TestCopySelectionCancelsBeforeOtherCommands(t *testing.T) {
 		},
 		{
 			name: "sort",
-			act:  func(_ *testing.T, v *viewer) { v.setActionsSort(filesort.BySize) },
+			act: func(_ *testing.T, v *viewer) {
+				for i, mode := range filesort.Modes() {
+					if mode == filesort.BySize {
+						v.menus.Actions().Sort()[i].Action()
+						return
+					}
+				}
+			},
 			assert: func(t *testing.T, v *viewer) {
 				if v.SortMode() != filesort.BySize {
 					t.Fatalf("sort mode = %v, want BySize", v.SortMode())

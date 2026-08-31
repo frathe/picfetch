@@ -17,31 +17,17 @@
    The viewer still starts the mode, pauses animated frames, and writes the
    clipboard. Oriented displayed size moved from `info.go` to `rotate.go`.
 
+ - Copy Selection yield sits at command entry: `yieldingMenuCallbacks`,
+   `yieldingShortcuts`, `handleKeyEvent`, and `handleDrop`. Busy blocks,
+   idle cancels, zoom does not yield, window close still runs. Feature
+   `HandleKey` owns Escape/copy/navigation; `keys.go` no longer lists
+   which commands cancel.
+
 ## ACTIVE DEVELOPMENT
 
 ## TODO
 
 Architecture review, 2026-08-31. Remaining deepening candidates.
-
-### One yield for Copy Selection mode
-
-- **Worth exploring.** In-process. Related: `needs_refactoring.md` item 9
-  (mode-interaction guards in `handleKeyEvent`).
-- Where: [copyselection.go](internal/ui/copyselection.go)
-  `cancelRegionCopyBeforeAction` (~16 files), [keys.go](internal/ui/keys.go)
-  (second key table: which keys cancel, zoom, or stay),
-  [shortcuts.go](internal/ui/shortcuts.go),
-  [actionmenu.go](internal/ui/actionmenu.go),
-  [windowmenu.go](internal/ui/windowmenu.go), plus drop / rotate / save /
-  export / openfiles / wallpaper / sort / slideshow / info / batch /
-  clipboard.
-- Copy Selection mode occupancy leaks across every command entry.
-  `keys.go` duplicates `HandleKey` policy. Copy Selection is still the
-  only occupant, so a generic occupancy seam would be hypothetical.
-- **Fix**: concentrate yield policy in one module that command entry
-  already has to cross (busy blocks, idle cancels, zoom does not yield,
-  close still runs). Do not invent a feature registry; cross-feature
-  decisions stay in `internal/ui`.
 
 ### Collapse the settings Host
 

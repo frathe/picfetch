@@ -641,9 +641,6 @@ func (v *viewer) undoGridMaximize() {
 // instead of replacing it - see SetMergeMode below, which does the actual
 // work.
 func (v *viewer) toggleMergeMode() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	v.SetMergeMode(!v.state.MergeMode())
 }
 
@@ -697,9 +694,6 @@ func (v *viewer) reset() {
 // in progress first - unlike Escape (handleKeyEvent), it never closes the
 // window, since File > Close is a distinct action from quitting the app.
 func (v *viewer) closeFiles() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	if v.scanOp.active {
 		v.cancelScan()
 	}

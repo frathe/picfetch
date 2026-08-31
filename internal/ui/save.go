@@ -44,9 +44,6 @@ func (v *viewer) canSaveRotation() bool {
 // here rather than trusted from the menu item's Disabled state, since the
 // shortcut bypasses the menu entirely.
 func (v *viewer) saveRotation() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	if !v.canSaveRotation() {
 		return
 	}

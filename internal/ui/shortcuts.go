@@ -31,16 +31,34 @@ type shortcutAdder interface {
 // one visible sequence. This is the same order buildViewer used before the
 // registration moved out of the top-level assembly.
 func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
-	wireOpenShortcuts(c, view)
-	wireFavoriteShortcuts(c, view.favorites.Open)
-	wireManageFavoritesShortcut(c, view)
-	wireAddFavoritesShortcut(c, view)
-	wireClipboardShortcuts(c, view)
+	yielding := yieldingShortcuts{inner: c, view: view}
+	wireOpenShortcuts(yielding, view)
+	wireFavoriteShortcuts(yielding, view.favorites.Open)
+	wireManageFavoritesShortcut(yielding, view)
+	wireAddFavoritesShortcut(yielding, view)
+	wireClipboardShortcuts(yielding, view)
 	wireCopySelectionShortcut(c, view)
-	wireDeleteShortcut(c, view)
-	wireSelectAllShortcut(c, view)
-	wireSaveShortcut(c, view)
-	wireExportShortcuts(c, view)
+	wireDeleteShortcut(yielding, view)
+	wireSelectAllShortcut(yielding, view)
+	wireSaveShortcut(yielding, view)
+	wireExportShortcuts(yielding, view)
+}
+
+// yieldingShortcuts is the canvas-shortcut yield: every binding except
+// Copy Selection itself cancels idle Copy Selection (or blocks while a
+// copy is pending) before the command runs.
+type yieldingShortcuts struct {
+	inner shortcutAdder
+	view  *viewer
+}
+
+func (y yieldingShortcuts) AddShortcut(shortcut fyne.Shortcut, handler func(fyne.Shortcut)) {
+	y.inner.AddShortcut(shortcut, func(s fyne.Shortcut) {
+		if !y.view.yieldCopySelection() {
+			return
+		}
+		handler(s)
+	})
 }
 
 // wireOpenShortcuts binds Cmd/Ctrl+O and Cmd/Ctrl+Shift+O to the same
@@ -210,9 +228,6 @@ func wireManageFavoritesShortcut(c shortcutAdder, view *viewer) {
 // against for itself, mirrored here rather than shared because the two
 // prompts' own guard against each other already lives on their side.
 func (v *viewer) showManageFavorites() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	if v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}
@@ -236,9 +251,6 @@ func wireAddFavoritesShortcut(c shortcutAdder, view *viewer) {
 // as showManageFavorites, plus FileCount: the menu item is disabled with
 // no files, and the shortcut must not open an empty Add dialog.
 func (v *viewer) showAddFavorites() {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	if v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}

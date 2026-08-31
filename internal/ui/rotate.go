@@ -16,9 +16,6 @@ import (
 // the window to match - a manual zoom level or window size chosen for the
 // old orientation rarely still makes sense once the axes have swapped.
 func (v *viewer) rotateBy(steps int) {
-	if !v.cancelRegionCopyBeforeAction() {
-		return
-	}
 	if v.display.Count() == 0 {
 		return
 	}

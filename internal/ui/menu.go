@@ -6,6 +6,7 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 
+	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/ui/menus"
 )
 
@@ -16,17 +17,12 @@ import (
 // Window items themselves, and the whole Checked/Disabled matrix over
 // them, live in internal/ui/menus; everything those items do stays here.
 func buildMainMenu(view *viewer) *fyne.MainMenu {
-	view.menus = menus.New(menus.Callbacks{
+	view.menus = menus.New(view.yieldingMenuCallbacks(menus.Callbacks{
 		OpenFiles:    func() { view.openFileDialog() },
 		SaveRotation: func() { view.saveRotation() },
 		PromptExport: func() { view.promptExport() },
 		CloseFiles:   func() { view.closeFiles() },
-		ShowSettings: func() {
-			if !view.cancelRegionCopyBeforeAction() {
-				return
-			}
-			view.settingsWin.Show()
-		},
+		ShowSettings: func() { view.settingsWin.Show() },
 
 		ShowViewer:       view.showViewer,
 		ShowExif:         view.showWindowExif,
@@ -47,7 +43,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		CopyPath:             view.copyActionsPath,
 		SetWallpaper:         view.wallpaperActionsImage,
 		Trash:                view.trashActionsImage,
-	}, view.SortMode())
+	}), view.SortMode())
 
 	view.help.SetOnManualClosed(view.syncMenus)
 	view.help.SetOnManualOpened(view.syncMenus)
@@ -58,6 +54,57 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.syncMenus()
 
 	return fyne.NewMainMenu(view.menus.FileMenu(), view.favorites.Menu(), view.menus.ActionsMenu(), view.menus.WindowMenu(), view.help.Menu())
+}
+
+// yieldingMenuCallbacks is the menu-bar yield: every PicFetch command the
+// bar can start cancels idle Copy Selection (or blocks while a copy is
+// pending), except zoom and Copy Selection itself, which keep the mode.
+func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
+	c.OpenFiles = v.yieldThen(c.OpenFiles)
+	c.SaveRotation = v.yieldThen(c.SaveRotation)
+	c.PromptExport = v.yieldThen(c.PromptExport)
+	c.CloseFiles = v.yieldThen(c.CloseFiles)
+	c.ShowSettings = v.yieldThen(c.ShowSettings)
+	c.ShowViewer = v.yieldThen(c.ShowViewer)
+	c.ShowExif = v.yieldThen(c.ShowExif)
+	c.ShowGrid = v.yieldThen(c.ShowGrid)
+	c.ShowPictureFrame = v.yieldThen(c.ShowPictureFrame)
+	c.ShowHelp = v.yieldThen(c.ShowHelp)
+	c.SetSort = v.yieldThenMode(c.SetSort)
+	c.ToggleHideDuplicates = v.yieldThen(c.ToggleHideDuplicates)
+	c.ShowVariant = v.yieldThen(c.ShowVariant)
+	c.Rotate = v.yieldThen(c.Rotate)
+	c.ToggleMergeMode = v.yieldThen(c.ToggleMergeMode)
+	c.ToggleInfoOverlay = v.yieldThen(c.ToggleInfoOverlay)
+	c.CopyImage = v.yieldThen(c.CopyImage)
+	c.CopyPath = v.yieldThen(c.CopyPath)
+	c.SetWallpaper = v.yieldThen(c.SetWallpaper)
+	c.Trash = v.yieldThen(c.Trash)
+	return c
+}
+
+func (v *viewer) yieldThen(fn func()) func() {
+	if fn == nil {
+		return nil
+	}
+	return func() {
+		if !v.yieldCopySelection() {
+			return
+		}
+		fn()
+	}
+}
+
+func (v *viewer) yieldThenMode(fn func(filesort.Mode)) func(filesort.Mode) {
+	if fn == nil {
+		return nil
+	}
+	return func(m filesort.Mode) {
+		if !v.yieldCopySelection() {
+			return
+		}
+		fn(m)
+	}
 }
 
 // menuState is the one place the snapshot internal/ui/menus reads is

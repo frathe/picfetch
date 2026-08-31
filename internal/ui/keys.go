@@ -132,27 +132,15 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		return
 	}
 
-	// Copy Selection owns the keyboard after those modals: Escape, Return,
-	// Enter, and image-navigation keys stay inside the feature. Zoom keys
-	// keep working without cancelling. Every other PicFetch command cancels
-	// the mode first, then runs as usual. A pending copy swallows all of
-	// this except window close, which never arrives here.
-	if v.regionCopy.State().Active {
-		if v.regionCopy.State().Busy {
-			v.regionCopy.HandleKey(ev.Name)
-			return
-		}
-		switch ev.Name {
-		case fyne.Key0, fyne.Key1, fyne.KeyPlus, fyne.KeyEqual, fyne.KeyMinus:
-			// Zoom stays available without cancelling.
-		case fyne.KeyEscape, fyne.KeyReturn, fyne.KeyEnter,
-			fyne.KeyLeft, fyne.KeyRight, fyne.KeyUp, fyne.KeyDown, fyne.KeyHome, fyne.KeyEnd:
-			v.regionCopy.HandleKey(ev.Name)
-			return
-		case fyne.KeyF1, fyne.KeyM, fyne.KeyV, fyne.KeyP, fyne.KeyG, fyne.KeyD,
-			fyne.KeyI, fyne.KeyE, fyne.KeyR, fyne.KeyS:
-			v.cancelRegionCopy()
-		default:
+	// Copy Selection owns Escape, Return/Enter, and image navigation via
+	// HandleKey. Zoom keys keep the mode. Every other key yields, then
+	// runs as usual. A pending copy swallows all of this except window
+	// close, which never arrives here.
+	if v.regionCopy.HandleKey(ev.Name) {
+		return
+	}
+	if v.regionCopy.State().Active && !copySelectionKeepsKey(ev.Name) {
+		if !v.yieldCopySelection() {
 			return
 		}
 	}
