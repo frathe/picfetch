@@ -45,6 +45,7 @@ type Callbacks struct {
 	SetSort              func(filesort.Mode)
 	ToggleHideDuplicates func()
 	ShowVariant          func()
+	Compare              func()
 	Rotate               func()
 	ZoomIn               func()
 	ZoomOut              func()
@@ -84,6 +85,8 @@ type State struct {
 	CanExport          bool
 	CanWallpaper       bool
 	CanCopySelection   bool
+	CanCompare         bool
+	ComparisonActive   bool // comparison exclusively owns main-window commands
 }
 
 // Menus holds every menu item whose Checked or Disabled state moves at
@@ -120,6 +123,7 @@ type ActionItems struct {
 	sort          []*fyne.MenuItem // len 5, index matches filesort.Modes()
 	hide          *fyne.MenuItem
 	showVariant   *fyne.MenuItem
+	compare       *fyne.MenuItem
 	rotate        *fyne.MenuItem
 	zoomIn        *fyne.MenuItem
 	zoomOut       *fyne.MenuItem
@@ -212,6 +216,13 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	}
 	m.actions.showVariant.Disabled = true
 
+	m.actions.compare = fyne.NewMenuItem(lang.L("Compare selected images"), c.Compare)
+	m.actions.compare.Shortcut = &desktop.CustomShortcut{
+		KeyName:  fyne.KeyD,
+		Modifier: fyne.KeyModifierShortcutDefault,
+	}
+	m.actions.compare.Disabled = true
+
 	m.actions.rotate = fyne.NewMenuItem(lang.L("Rotate image (CW)"), c.Rotate)
 	m.actions.rotate.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyR}
 	m.actions.rotate.Disabled = true
@@ -287,11 +298,11 @@ func (m *Menus) FileMenu() *fyne.Menu {
 }
 
 // ActionsMenu is the Actions menu, in four separator-delimited groups:
-// sort and duplicates, image transforms, the merge/info toggles, then
+// sort, duplicates and comparison, image transforms, the merge/info toggles, then
 // what can be done with the current file.
 func (m *Menus) ActionsMenu() *fyne.Menu {
 	return fyne.NewMenu(lang.L("Actions"),
-		m.sortParent, m.actions.hide, m.actions.showVariant,
+		m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare,
 		fyne.NewMenuItemSeparator(),
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		fyne.NewMenuItemSeparator(),
@@ -348,6 +359,9 @@ func (a ActionItems) Hide() *fyne.MenuItem { return a.hide }
 // ShowVariant is the Actions menu's "Show variants" item.
 func (a ActionItems) ShowVariant() *fyne.MenuItem { return a.showVariant }
 
+// Compare is the Actions menu's "Compare selected images" item.
+func (a ActionItems) Compare() *fyne.MenuItem { return a.compare }
+
 // Rotate is the Actions menu's "Rotate image (CW)" item.
 func (a ActionItems) Rotate() *fyne.MenuItem { return a.rotate }
 
@@ -383,14 +397,15 @@ func (a ActionItems) Trash() *fyne.MenuItem { return a.trash }
 // menu bar only when there is something new to show.
 //
 // It recomputes every item on every call rather than trusting a caller to
-// say what changed: the matrix is 20 items of boolean arithmetic, and a
-// caller that guesses wrong is exactly how a menu goes stale.
+// say what changed: the matrix is compact boolean arithmetic, and a caller
+// that guesses wrong is exactly how a menu goes stale.
 func (m *Menus) Apply(s State) (changed bool) {
 	before := m.pairs()
 
 	m.applyFile(s)
 	m.applyWindow(s)
 	m.applyActions(s)
+	m.applyComparisonIsolation(s.ComparisonActive)
 
 	return !slices.Equal(before, m.pairs())
 }
@@ -400,11 +415,49 @@ func (m *Menus) Apply(s State) (changed bool) {
 // Favorites menu, but that stays in internal/ui - it is a feature menu,
 // not one of these items.
 func (m *Menus) applyFile(s State) {
+	m.open.Disabled = false
 	m.save.Disabled = !s.CanSave
 
 	m.export.Disabled = !s.CanExport
 
 	m.closeFiles.Disabled = s.NoFiles
+	m.settings.Disabled = false
+}
+
+// applyComparisonIsolation is the final override on the ordinary menu
+// matrix. Checked state still reflects the covered viewer/grid underneath,
+// but comparison exclusively owns commands until it closes. Help remains
+// governed by ManualOpen so it can still be opened and raised from F1 or the
+// Window menu.
+func (m *Menus) applyComparisonIsolation(active bool) {
+	if !active {
+		return
+	}
+
+	m.open.Disabled = true
+	m.save.Disabled = true
+	m.export.Disabled = true
+	m.closeFiles.Disabled = true
+	m.settings.Disabled = true
+
+	m.window.viewer.Disabled = true
+	m.window.exif.Disabled = true
+	m.window.grid.Disabled = true
+	m.window.pictureFrame.Disabled = true
+
+	m.sortParent.Disabled = true
+	for _, item := range m.actions.sort {
+		item.Disabled = true
+	}
+	for _, item := range []*fyne.MenuItem{
+		m.actions.hide, m.actions.showVariant, m.actions.compare,
+		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
+		m.actions.merge, m.actions.info, m.actions.copy,
+		m.actions.copySelection, m.actions.copyPath,
+		m.actions.wallpaper, m.actions.trash,
+	} {
+		item.Disabled = true
+	}
 }
 
 // applyWindow greys out whichever surface is already showing.
@@ -419,6 +472,7 @@ func (m *Menus) applyWindow(s State) {
 // applyActions is the Actions menu's share of the matrix.
 func (m *Menus) applyActions(s State) {
 	modes := filesort.Modes()
+	m.sortParent.Disabled = false
 	for i, item := range m.actions.sort {
 		if item == nil || i >= len(modes) {
 			continue
@@ -435,6 +489,7 @@ func (m *Menus) applyActions(s State) {
 	m.actions.showVariant.Checked = s.BrowsingDuplicates
 	canShowVariants := s.HideDuplicates && s.VariantGroupSize >= 2
 	m.actions.showVariant.Disabled = noFiles || s.SlidesActive || !(canShowVariants || s.BrowsingDuplicates)
+	m.actions.compare.Disabled = !s.CanCompare
 
 	rotZoomOff := noImage || gridUp
 	m.actions.rotate.Disabled = rotZoomOff
@@ -463,12 +518,13 @@ type pair struct {
 // diff the whole matrix instead of each assignment reporting for itself -
 // an assignment added later is then covered without being told to be.
 func (m *Menus) pairs() []pair {
-	items := make([]*fyne.MenuItem, 0, len(m.actions.sort)+20)
-	items = append(items, m.save, m.export, m.closeFiles)
+	items := make([]*fyne.MenuItem, 0, len(m.actions.sort)+23)
+	items = append(items, m.open, m.save, m.export, m.closeFiles, m.settings)
 	items = append(items, m.window.viewer, m.window.exif, m.window.grid,
 		m.window.pictureFrame, m.window.help)
+	items = append(items, m.sortParent)
 	items = append(items, m.actions.sort...)
-	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.rotate,
+	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.rotate,
 		m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info,
 		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.wallpaper, m.actions.trash)
 

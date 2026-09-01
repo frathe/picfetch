@@ -95,6 +95,9 @@ func (v *viewer) canExport() bool {
 // would otherwise re-Show the card and reset the ring back to PNG under
 // someone who had already moved it to JPEG and was reaching for Return.
 func (v *viewer) promptExport() {
+	if v.comparisonActive() {
+		return
+	}
 	if !v.canExport() || v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}
@@ -114,6 +117,9 @@ func (v *viewer) promptExport() {
 // the user spends in a modal dialog, and v.img.Image belongs to the load
 // path.
 func (v *viewer) exportAs(ext string) {
+	if v.comparisonActive() {
+		return
+	}
 	if !v.canExport() {
 		return
 	}

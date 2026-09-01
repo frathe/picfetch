@@ -53,6 +53,13 @@ func (v *viewer) handleTypedRune(r rune) {
 		return
 	}
 
+	// Comparison owns the still-open grid underneath it. No comparison
+	// control consumes runes, so drop them before filename search can build
+	// a query that appears only after returning to Grid View.
+	if v.comparisonActive() {
+		return
+	}
+
 	if v.grid.Visible() {
 		v.grid.HandleRune(r)
 		return
@@ -115,9 +122,25 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// plain, unmodified E below - that still opens the EXIF panel - since
 	// the prompt is only ever reached through the modified shortcut
 	// (wireExportShortcuts) or the menu, both of which bypass this switch
-	// entirely.
 	if v.exportPrompt.Visible() {
 		v.exportPrompt.HandleKey(ev)
+		return
+	}
+
+	// Comparison covers an open grid rather than closing it, and owns the
+	// main-window keyboard while visible. Escape returns to that covered
+	// grid, F1 keeps Help reachable, and comparison's own transform keys
+	// are delegated to it; every other viewer/grid key is swallowed here
+	// before either surface underneath can see it.
+	if v.comparisonActive() {
+		switch ev.Name {
+		case fyne.KeyEscape:
+			v.compare.Close()
+		case fyne.KeyF1:
+			v.help.ShowManual()
+		default:
+			v.compare.HandleKey(ev.Name)
+		}
 		return
 	}
 

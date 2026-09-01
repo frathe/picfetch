@@ -18,6 +18,9 @@ import (
 // per-OS dispatch. It always runs on its own goroutine since every backing
 // command blocks until the user closes the dialog.
 func (v *viewer) openFileDialog() {
+	if v.refuseOpenDuringComparison() {
+		return
+	}
 	// chooser is finished once this pick's goroutine has fully run, error
 	// toast included, so a test can wait for it rather than leave it
 	// running into the next one. That matters more than it looks:
@@ -50,6 +53,9 @@ func (v *viewer) openFileDialog() {
 // goroutine would still hit. Production always reaches runFileChooser
 // through the goroutine in openFileDialog above.
 func (v *viewer) runFileChooser() {
+	if v.refuseOpenDuringComparison() {
+		return
+	}
 	out, err := filepicker.Choose()
 	if err != nil {
 		v.reportChooserError(err, runtime.GOOS)

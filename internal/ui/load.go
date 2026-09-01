@@ -20,6 +20,9 @@ import (
 // next one is tried automatically - see attemptLoad - so a bad file never
 // gets stuck on screen or left inconsistent with v.state.index.
 func (v *viewer) ShowImage(i int) {
+	if v.comparisonActive() {
+		return
+	}
 	if len(v.state.files) == 0 {
 		return
 	}

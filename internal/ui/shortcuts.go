@@ -32,16 +32,27 @@ type shortcutAdder interface {
 // registration moved out of the top-level assembly.
 func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	yielding := yieldingShortcuts{inner: c, view: view}
-	wireOpenShortcuts(yielding, view)
+	wireOpenShortcuts(yieldingShortcuts{inner: c, view: view, comparisonAllowed: true}, view)
 	wireFavoriteShortcuts(yielding, view.favorites.Open)
 	wireManageFavoritesShortcut(yielding, view)
 	wireAddFavoritesShortcut(yielding, view)
 	wireClipboardShortcuts(c, view)
 	wireCopySelectionShortcut(c, view)
+	wireCompareShortcut(yielding, view)
 	wireDeleteShortcut(yielding, view)
 	wireSelectAllShortcut(yielding, view)
 	wireSaveShortcut(yielding, view)
 	wireExportShortcuts(yielding, view)
+}
+
+// wireCompareShortcut binds Cmd/Ctrl+D to the comparison command. D is not
+// one of Fyne's built-in shortcut types, so the desktop custom shortcut is
+// the production path on every desktop platform.
+func wireCompareShortcut(c shortcutAdder, view *viewer) {
+	c.AddShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyD,
+		Modifier: fyne.KeyModifierShortcutDefault,
+	}, func(fyne.Shortcut) { view.compareSelected() })
 }
 
 // yieldingShortcuts is the canvas-shortcut yield: every binding registered
@@ -50,12 +61,16 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 // their mode coordination directly, so wireGlobalShortcuts registers those
 // against the underlying adder instead.
 type yieldingShortcuts struct {
-	inner shortcutAdder
-	view  *viewer
+	inner             shortcutAdder
+	view              *viewer
+	comparisonAllowed bool
 }
 
 func (y yieldingShortcuts) AddShortcut(shortcut fyne.Shortcut, handler func(fyne.Shortcut)) {
 	y.inner.AddShortcut(shortcut, func(s fyne.Shortcut) {
+		if y.view.comparisonActive() && !y.comparisonAllowed {
+			return
+		}
 		if !y.view.yieldCopySelection() {
 			return
 		}
@@ -235,6 +250,9 @@ func wireManageFavoritesShortcut(c shortcutAdder, view *viewer) {
 // against for itself, mirrored here rather than shared because the two
 // prompts' own guard against each other already lives on their side.
 func (v *viewer) showManageFavorites() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}
@@ -258,6 +276,9 @@ func wireAddFavoritesShortcut(c shortcutAdder, view *viewer) {
 // as showManageFavorites, plus FileCount: the menu item is disabled with
 // no files, and the shortcut must not open an empty Add dialog.
 func (v *viewer) showAddFavorites() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}

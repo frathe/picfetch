@@ -89,6 +89,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 
 	v, win = buildStartupViewer(testApp)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.compare.SetUIQueue(&uitest.UIQueue{})
 
 	// The auto-hide timer must never fire on its own mid-suite: its inline
 	// fyne.Do (under the test driver) would write widgets concurrently with
@@ -183,6 +184,7 @@ func drain(t *testing.T, v *viewer) {
 	v.favThumbLifecycle.invalidate()
 	v.updateOp.invalidate()
 	v.slides.Exit()
+	v.compare.Close()
 
 	// Vector re-renders: spawned by any effective-scale change, so a test
 	// that zoomed or resized may still have one in flight. Must stay below
@@ -220,6 +222,7 @@ func drain(t *testing.T, v *viewer) {
 		{"the sort at cleanup", &v.sortOp.done},
 		{"the load at cleanup", &v.load},
 		{"the animation at cleanup", &v.anim},
+		{"the comparison at cleanup", v.compare.Done()},
 	} {
 		waitFor(t, c.name, c.sig)
 	}
@@ -232,6 +235,12 @@ func drain(t *testing.T, v *viewer) {
 	defer cancelUpdate()
 	if err := v.updater.Settle(updateCtx); err != nil {
 		t.Fatal("timed out draining all update workers at cleanup")
+	}
+
+	compareCtx, cancelCompare := context.WithTimeout(context.Background(), testTimeout)
+	defer cancelCompare()
+	if err := v.compare.Settle(compareCtx); err != nil {
+		t.Fatal("timed out draining all comparison workers at cleanup")
 	}
 
 	settled := make(chan struct{})

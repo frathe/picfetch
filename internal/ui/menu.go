@@ -33,6 +33,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		SetSort:              view.setActionsSort,
 		ToggleHideDuplicates: view.toggleActionsHideDuplicates,
 		ShowVariant:          view.showActionsVariant,
+		Compare:              view.compareSelected,
 		Rotate:               view.rotateActionsImage,
 		ZoomIn:               view.zoomActionsIn,
 		ZoomOut:              view.zoomActionsOut,
@@ -49,6 +50,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.help.SetOnManualOpened(view.syncMenus)
 	view.exif.SetOnClosed(view.syncMenus)
 	view.grid.SetOnVisibilityChanged(view.syncMenus)
+	view.grid.SetOnSelectionChanged(view.syncMenus)
 	view.slides.SetOnActiveChanged(view.syncMenus)
 	view.grid.SetOnDupeStateChanged(view.syncMenus)
 	view.syncMenus()
@@ -58,12 +60,13 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 
 // yieldingMenuCallbacks is the menu-bar yield: every PicFetch command the
 // bar can start cancels idle Copy Selection (or blocks while a copy is
-// pending), except zoom, Copy Selection itself, and Copy image. Copy image
-// routes through copySelection so the native Cmd/Ctrl+C menu accelerator can
-// copy an active image-region selection before falling back to the grid or
-// displayed image.
+// pending), except zoom, Copy Selection itself, and Copy image. Comparison
+// adds a second gate: ordinary commands stop here, while Help still opens and
+// Open reaches its refusal toast. Copy image routes through copySelection so
+// the native Cmd/Ctrl+C menu accelerator can copy an active image-region
+// selection before falling back to the grid or displayed image.
 func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
-	c.OpenFiles = v.yieldThen(c.OpenFiles)
+	c.OpenFiles = v.yieldThenAllowedDuringComparison(c.OpenFiles)
 	c.SaveRotation = v.yieldThen(c.SaveRotation)
 	c.PromptExport = v.yieldThen(c.PromptExport)
 	c.CloseFiles = v.yieldThen(c.CloseFiles)
@@ -72,10 +75,11 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 	c.ShowExif = v.yieldThen(c.ShowExif)
 	c.ShowGrid = v.yieldThen(c.ShowGrid)
 	c.ShowPictureFrame = v.yieldThen(c.ShowPictureFrame)
-	c.ShowHelp = v.yieldThen(c.ShowHelp)
+	c.ShowHelp = v.yieldThenAllowedDuringComparison(c.ShowHelp)
 	c.SetSort = v.yieldThenMode(c.SetSort)
 	c.ToggleHideDuplicates = v.yieldThen(c.ToggleHideDuplicates)
 	c.ShowVariant = v.yieldThen(c.ShowVariant)
+	c.Compare = v.yieldThen(c.Compare)
 	c.Rotate = v.yieldThen(c.Rotate)
 	c.ToggleMergeMode = v.yieldThen(c.ToggleMergeMode)
 	c.ToggleInfoOverlay = v.yieldThen(c.ToggleInfoOverlay)
@@ -86,6 +90,21 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 }
 
 func (v *viewer) yieldThen(fn func()) func() {
+	if fn == nil {
+		return nil
+	}
+	return func() {
+		if v.comparisonActive() {
+			return
+		}
+		if !v.yieldCopySelection() {
+			return
+		}
+		fn()
+	}
+}
+
+func (v *viewer) yieldThenAllowedDuringComparison(fn func()) func() {
 	if fn == nil {
 		return nil
 	}
@@ -102,6 +121,9 @@ func (v *viewer) yieldThenMode(fn func(filesort.Mode)) func(filesort.Mode) {
 		return nil
 	}
 	return func(m filesort.Mode) {
+		if v.comparisonActive() {
+			return
+		}
 		if !v.yieldCopySelection() {
 			return
 		}
@@ -109,11 +131,15 @@ func (v *viewer) yieldThenMode(fn func(filesort.Mode)) func(filesort.Mode) {
 	}
 }
 
-// RunCommand is favorites.Host's command entry: the same yield every
-// menus.Callbacks field gets from yieldingMenuCallbacks, supplied to the
-// favorites package as a runner so its menu items are covered from the
-// inside instead of wrapped item-by-item out here.
+// RunCommand is favorites.Host's command entry: the same comparison gate and
+// Copy Selection yield every ordinary menus.Callbacks field gets from
+// yieldingMenuCallbacks, supplied to the favorites package as a runner so its
+// menu items are covered from the inside instead of wrapped item-by-item out
+// here.
 func (v *viewer) RunCommand(fn func()) {
+	if v.comparisonActive() {
+		return
+	}
 	if !v.yieldCopySelection() {
 		return
 	}
@@ -148,6 +174,8 @@ func (v *viewer) menuState() menus.State {
 		CanExport:          v.canExport(),
 		CanWallpaper:       v.canSetWallpaper(),
 		CanCopySelection:   v.regionCopyAvailable(),
+		CanCompare:         v.grid.Visible() && v.grid.SelectionCount() == 2,
+		ComparisonActive:   v.comparisonActive(),
 	}
 }
 
@@ -160,36 +188,33 @@ func (v *viewer) menuState() menus.State {
 // the nil guard covers the window of construction before buildMainMenu
 // has run.
 //
-// Whether there are any files at all also drives the Favorites menu's
-// "Add Current List" item, which belongs to that feature rather than to
-// internal/ui/menus, so it is pushed here alongside.
+// Whether there are any files at all and whether comparison owns the main
+// window also drive the Favorites menu, which belongs to that feature rather
+// than to internal/ui/menus, so both facts are pushed here alongside.
 //
-// SetHasFiles is inside the changed branch, and before refreshMainMenu,
-// for two reasons that are both load-bearing - do not lift it out:
+// Both Favorites setters are inside the changed branch, and before
+// refreshMainMenu, for two reasons that are both load-bearing - do not lift
+// them out:
 //
-//   - SetHasFiles itself no longer publishes anything - it only flips
-//     addItem.Disabled - so refreshMainMenu on the next line is what
-//     actually gets that new state onto the bar. Ordering it before
-//     refreshMainMenu still matters: that is the one call that folds the
-//     Darwin native bar back together (syncNativeMenuBar) after Apply's
-//     own item changes, and it has to see the Favorites item's post-toggle
-//     state to publish it, not the state from before this turn.
-//   - Skipping it when nothing moved cannot skip a needed update: it reads
-//     FileCount() > 0, the exact complement of the NoFiles that
-//     menuState() reads in the same turn, and Apply assigns
-//     closeFiles.Disabled = NoFiles outright. So the Favorites item can
-//     only move on a turn where closeFiles moved too, which is a turn
-//     Apply reports as changed.
+//   - Neither setter publishes anything. refreshMainMenu on the next line is
+//     what gets their new Disabled state onto the bar and performs the Darwin
+//     native-bar fold, so it must see both post-toggle values.
+//   - Skipping them when nothing moved cannot skip a needed update. FileCount
+//     is also State.NoFiles, which moves Close Files, while comparison
+//     visibility is State.ComparisonActive, whose final override always moves
+//     the normally-enabled Open and Settings items on entry and exit. Either
+//     Favorites fact can therefore change only on a turn Apply reports.
 //
 // The startup sync is the one call where changed can be false with files
-// already loaded; it costs nothing, because addItem is constructed
-// Disabled and SetHasFiles(false) is what that sync would have set.
+// already loaded; it costs nothing, because Add is constructed Disabled and
+// comparison is constructed inactive.
 func (v *viewer) syncMenus() {
 	if v.menus == nil {
 		return
 	}
 	if v.menus.Apply(v.menuState()) {
 		v.favorites.SetHasFiles(v.FileCount() > 0)
+		v.favorites.SetCommandsEnabled(!v.comparisonActive())
 		v.refreshMainMenu()
 	}
 }

@@ -10,6 +10,9 @@ import (
 )
 
 func (v *viewer) setActionsSort(m filesort.Mode) {
+	if v.comparisonActive() {
+		return
+	}
 	if v.SortMode() == m {
 		return
 	}
@@ -51,6 +54,9 @@ func (v *viewer) variantsSession() bool {
 }
 
 func (v *viewer) toggleActionsHideDuplicates() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.FileCount() == 0 || v.variantsSession() {
 		return
 	}
@@ -58,6 +64,9 @@ func (v *viewer) toggleActionsHideDuplicates() {
 }
 
 func (v *viewer) showActionsVariant() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.FileCount() == 0 || v.slides.Active() {
 		return
 	}
@@ -72,6 +81,9 @@ func (v *viewer) showActionsVariant() {
 }
 
 func (v *viewer) rotateActionsImage() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.display.Count() == 0 || v.grid.Visible() {
 		return
 	}
@@ -79,6 +91,9 @@ func (v *viewer) rotateActionsImage() {
 }
 
 func (v *viewer) zoomActionsIn() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.display.Count() == 0 || v.grid.Visible() {
 		return
 	}
@@ -86,15 +101,26 @@ func (v *viewer) zoomActionsIn() {
 }
 
 func (v *viewer) zoomActionsOut() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.display.Count() == 0 || v.grid.Visible() {
 		return
 	}
 	v.zoom.Out()
 }
 
-func (v *viewer) toggleActionsMergeMode() { v.toggleMergeMode() }
+func (v *viewer) toggleActionsMergeMode() {
+	if v.comparisonActive() {
+		return
+	}
+	v.toggleMergeMode()
+}
 
 func (v *viewer) toggleActionsInfoOverlay() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.grid.Visible() {
 		return
 	}
@@ -102,6 +128,9 @@ func (v *viewer) toggleActionsInfoOverlay() {
 }
 
 func (v *viewer) copyActionsImage() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.FileCount() == 0 {
 		return
 	}
@@ -109,17 +138,33 @@ func (v *viewer) copyActionsImage() {
 }
 
 func (v *viewer) copyActionsSelection() {
+	if v.comparisonActive() {
+		return
+	}
 	if !v.regionCopyAvailable() {
 		return
 	}
 	v.startRegionCopy()
 }
 
-func (v *viewer) copyActionsPath() { v.copyPathToClipboard() }
+func (v *viewer) copyActionsPath() {
+	if v.comparisonActive() {
+		return
+	}
+	v.copyPathToClipboard()
+}
 
-func (v *viewer) wallpaperActionsImage() { v.setAsWallpaper() }
+func (v *viewer) wallpaperActionsImage() {
+	if v.comparisonActive() {
+		return
+	}
+	v.setAsWallpaper()
+}
 
 func (v *viewer) trashActionsImage() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.FileCount() == 0 {
 		return
 	}

@@ -6,6 +6,53 @@
 
 #### New Features
 
+![Trane comparing files](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_comparing_images.webp)
+
+##### Compare two images
+
+- Grid View can now compare exactly two explicitly selected images with
+  **Actions -> Compare selected images** (`Cmd+D` on macOS, `Ctrl+D`
+  elsewhere). The opaque in-window comparison opens immediately, loads both
+  fitted 50/50 panes concurrently, and returns through **Back to Grid** or
+  `Esc` without changing selection, filter, highlight, scroll position, title,
+  or file set. Selected files hidden by a filter remain eligible, and a load
+  failure returns safely to the untouched grid.
+- Comparison now permanently identifies both sides with translucent corner
+  badges and an exact left-to-right window title. Matching basenames expand to
+  the shortest distinguishing folder/file suffix. A compact translucent
+  top-right toolbar keeps **Back to Grid** available while loading and enables
+  **Swap** once both images are ready; Swap exchanges both roles immediately
+  without another decode or any change to the covered grid.
+- Comparison is now an exclusive main-window mode. Its toolbar, `Esc`, F1 help,
+  and normal window closing remain available, while ordinary viewer, grid,
+  file, Favorites, and Actions commands are disabled and guarded at their
+  direct entries. A full-surface input shield keeps typed and pointer input out
+  of the covered grid. Drops, file-dialog requests, and native Open With
+  deliveries are discarded with **Return to Grid View before opening files**.
+- Zoom and pan now stay linked across the comparison panes. Wheel and
+  `+` / `-` zoom both, dragging either pane or using `Shift`+wheel pans both,
+  `0` fits and centers both, and `1` shows both at actual pixel size. The
+  shared normalized center is clamped so neither pane exposes blank space.
+- Comparison can now switch from fixed side-by-side panes to a full-viewport
+  swipe reveal. The ready-gated **Swipe** / **Side by side** control retains
+  the linked view and divider position; dragging the themed divider changes
+  only the reveal, while ordinary drags still pan both images. `Left` / `Right`
+  move the divider by 5 percentage points, their Shift variants move it by 1,
+  and `Home` / `End` choose 0% / 100%.
+- Layout switches and main-window resizes now preserve the shared point of
+  interest and zoom while recomputing each image's fitted scale and clamping
+  away blank space. Actual size remains an absolute 100% scale, and **Swap**
+  preserves the layout, transform, and divider while exchanging swipe roles.
+  Every new comparison resets fitted and centered, side by side, at 50%.
+- Comparison now preserves the canonical source fidelity of every supported
+  format. Raster panes retain their full decoded first frame, EXIF orientation
+  and RAW embedded previews follow the normal imaging path, and animations stay
+  frozen on frame zero. SVGs rerender per pane at the current device-pixel size
+  after zoom, layout, resize, and Swap, with cancellation and stale-result
+  protection. Existing encoded-input and vector-raster limits remain honest;
+  failures return to the unchanged grid instead of reducing or removing a
+  source, while two successful full decodes may use their combined memory.
+
 #### Bugfix
 
 - Slow update downloads no longer fail merely because receiving the archive
@@ -19,68 +66,77 @@
 
 ### Compare two grid-selected images
 
-- **Entry:** `Cmd+D` on macOS and `Ctrl+D` elsewhere runs **Actions -> Compare
-  selected images**. Enable it only in Grid View with exactly two explicitly
-  selected images. Otherwise remain in Grid View and show **Select exactly 2
-  images to compare**; never substitute the highlighted image or silently pick
-  two from a larger selection. A selected image remains eligible when the
-  current filename or duplicate filter hides its thumbnail.
-- **Surface and restoration:** Show comparison as an opaque main-window overlay
-  above the still-open grid, not as a separate window. `Escape` and **Back to
-  Grid** remove only that overlay and reveal the grid with both selections,
-  filter, highlight, and scroll position unchanged.
-- **Initial layout:** Every comparison starts fitted and centered in fixed
-  50/50 side-by-side panes. The image earlier in grid/file order starts on the
-  left; selection order is not changed or persisted. Each new comparison resets
-  to side-by-side mode, while its inactive swipe divider starts at 50%.
-- **Controls:** Keep a compact, translucent toolbar permanently visible at the
-  top right of the comparison content. Its labeled buttons are **Swipe** (or
-  **Side by side** when swipe is active), **Swap**, and **Back to Grid**. Native
-  title-bar controls are explicitly out of scope because Fyne does not support
-  them portably.
-- **Swipe:** Display both images in the full comparison viewport with the left
-  image revealed to the left of a draggable vertical divider and the right
-  image to its right. The divider itself is the drag target; dragging elsewhere
-  pans both images. In swipe mode, `Left` / `Right` move the divider by 5
-  percentage points, `Shift+Left` / `Shift+Right` move it by 1 point, and
-  `Home` / `End` move it to 0% / 100%. Those keys do nothing in side-by-side
-  mode.
-- **Linked view:** Both images share a normalized image-space center and the
-  same zoom multiplier relative to their respective fitted sizes. Wheel and
-  `+` / `-` zoom both images; dragging either image and `Shift`+wheel pan both;
-  `0` fits both; `1` displays both at actual pixel size. Clamp the shared center
-  to the intersection of both images' valid pan ranges so neither image exposes
-  blank overscroll or drifts out of sync.
-- **Mode, resize, and swap state:** Switching layouts and resizing the window
-  preserve the shared center and zoom multiplier while recomputing fitted scale
-  for the new viewport. Actual-size mode preserves its absolute 100% scale.
-  **Swap** exchanges the images, badges, title order, and swipe roles while
-  preserving the layout, transform, and divider position; it never changes the
-  grid selection or file order.
-- **Identity:** Show a translucent base-filename badge at the bottom-left and
-  bottom-right corners in both layouts. When the base names match, use the
-  shortest distinguishing `folder/file` suffix. Set the window title to
-  `Compare: left.jpg | right.jpg - PicFetch`, update it after a swap, and
-  restore the grid's highlighted-file title on exit.
-- **Loading:** Open the overlay immediately and decode both sources concurrently
-  with a spinner in each pane. Keep **Back to Grid** enabled but disable **Swipe**
-  and **Swap** until both images are ready. `Escape` cancels pending work. If
-  either source fails, return to the untouched grid, preserve the selections,
-  show a non-blocking error, and do not remove either file from the set.
-- **Command isolation:** While comparison is active, allow only its controls,
-  linked zoom/pan, `Escape`, F1 help, and normal window closing. Disable or
-  ignore unrelated viewer, grid, navigation, rotation, sorting, copy, delete,
-  export, favorite, and picture-frame commands. Refuse drops, file-dialog
-  opens, and native Open With deliveries with **Return to Grid View before
-  opening files** rather than queueing or replacing the comparison.
-- **Fidelity:** Keep raster images at full decoded resolution, rerasterize each
-  SVG as zoom changes, and use embedded RAW previews as the normal viewer does.
-  Freeze animated images on their first decoded frame. Ignore temporary
-  viewer-only rotation and use each image's canonical EXIF-corrected
-  orientation.
-- **Honest limit:** Comparing two full-resolution decodes can require roughly
-  their combined decoded memory. Keep the existing input-size safeguards and
-  report a load failure instead of silently reducing comparison quality.
+- **Manual Comparison:** When the ctrl-key is hold down and one of the sides is paned of zoomed,
+
+### Compare two grid-selected images additions
+- fix: 
+  - Warning:(128, 6) Variable 'container' collides with imported package name
+    ~/Projects/picfetch/internal/ui/compare_test.go
+  - Warning:(75, 6) Variable 'container' collides with imported package name
+- only the side the cursor is on is affected. so the lock between the two sides is released as long
+  the crtl key is hold down. WHen letting go of ctrl the two sides are glued back together. but at
+  the current position and zoom level. from there one pan and zoom again influences both sides.
+- swipe view should be the default view in comarison mode..
+
+### Functional test coverage
+
+Audit baseline, 2026-09-01: package-local statement coverage came from a
+passing run of:
+
+```sh
+go test -count=1 -skip '^TestE2E' \
+  -coverprofile=/tmp/picfetch-cover-clean.out ./...
+```
+
+"Effective" coverage below additionally instruments the named package while
+running its existing higher-level tests. Percentages locate candidates;
+completion means pinning useful PicFetch behavior through an established
+interface, not reaching a blanket coverage target.
+
+1. **P0 - `internal/update` (77.2% local / 78.8% effective).**
+   - Through `update.Apply`, force a plist-backup failure after binary
+     replacement begins (a conflicting `Info.plist.old` is the deterministic
+     fixture). Verify the installed binary and plist remain the original
+     versions and partial replacement files are removed.
+   - Through `Client.Download` with an HTTP test server and fake external
+     verifier, reject ZIP symlinks and TAR symlink/hardlink entries. No usable
+     stage or file outside the staging directory may be created.
+   - Do not exercise the real Sigstore implementation or unreachable platform
+     stubs merely to cover their lines.
+2. **P1 - `internal/filesort` (73.7% local / 89.9% effective).**
+   - Pin `FromPref` / `PrefValue` round-trips for every `Modes` entry and the
+     unknown-value fallback to `ByName`.
+   - Verify missing files use the documented zero-key fallback for capture
+     date, modification time, and size sorts, while `Order` leaves its input
+     slice unchanged.
+3. **P1 - `internal/ui/copyselection` (85.4% local / 88.1% effective).**
+   - Through `Feature` and canvas gestures, verify all eight image-region
+     selection handles resize the correct edges, including corner and crossed
+     movement.
+   - Move a committed image-region selection beyond each image edge and verify
+     it clamps to the image while preserving its dimensions.
+   - Do not test `resizeRect`, renderer no-ops, or Fyne event methods directly.
+4. **P2 - `internal/favthumbs` (86.9%).**
+   - Verify `Read` falls through from a corrupt JPEG preview to a valid PNG
+     sibling.
+   - Verify `Sweep` preserves directories and other non-regular files whose
+     names resemble preview files.
+5. **P3 - `scripts/releasenotes` (86.8%).**
+   - Exercise `Build` and `ClearDone` with CRLF input and with `## Done` as the
+     final section, preserving surrounding Markdown and changelog output.
+
+Future tests stay at the exported seams named above. Each must be seen failing
+against a deliberate behavior break before it is accepted, then pass its
+focused package test and `make verify` at final handoff.
+
+Do not chase the low numbers in `main`, `internal/uitest`, `scripts/synctuf`,
+Fyne widget adapters, or the accepted OS-integration seams. `internal/session`
+and `internal/favstore` already cover their useful persistence behavior; their
+remaining gaps are chiefly framework/filesystem failure plumbing.
+`internal/ui/autoupdate` and `internal/appearance` reach 91.4% and 96.4%
+respectively when their higher-level tests are counted. Re-audit
+`internal/ui/compare` only after the current command-isolation work lands; its
+present uncovered input-shield methods are deliberate no-ops.
 
 ## not deemed worth implementing (edge cases)
 

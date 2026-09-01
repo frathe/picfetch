@@ -51,11 +51,10 @@ type Host interface {
 	RefreshMenus()
 
 	// RunCommand runs a menu-initiated PicFetch command under the host's
-	// command-entry rules — today: yield Copy Selection, cancelling an idle
-	// selection and refusing while a copy is pending. Every action this
-	// menu can start goes through it; the keyboard shortcuts reaching the
-	// same actions are wrapped on the host's side instead (internal/ui's
-	// yielding shortcut adder).
+	// command-entry rules: comparison isolation plus the Copy Selection
+	// yield. Every action this menu can start goes through it; the keyboard
+	// shortcuts reaching the same actions are wrapped on the host's side
+	// instead (internal/ui's yielding shortcut adder).
 	RunCommand(fn func())
 }
 
@@ -65,10 +64,12 @@ type Feature struct {
 	win  fyne.Window
 	dir  string
 
-	menu       *fyne.Menu
-	addItem    *fyne.MenuItem
-	manageItem *fyne.MenuItem
-	names      []string
+	menu            *fyne.Menu
+	addItem         *fyne.MenuItem
+	manageItem      *fyne.MenuItem
+	names           []string
+	hasFiles        bool
+	commandsEnabled bool
 
 	// manageDialog and managePanel are the Manage Favorites dialog while it
 	// is up, and nil whenever it is not - see manage.go, where a non-nil
@@ -87,7 +88,7 @@ type Feature struct {
 
 // New builds the Favorites menu without reading from disk.
 func New(host Host, win fyne.Window) *Feature {
-	f := &Feature{host: host, win: win}
+	f := &Feature{host: host, win: win, commandsEnabled: true}
 	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), func() { f.host.RunCommand(f.AddCurrentList) })
 	f.addItem.Disabled = true
 	// Display-only, mirroring Manage Favorites… below: the binding itself
@@ -128,7 +129,29 @@ func (f *Feature) SetDir(dir string) {
 // deliberately does not re-publish the menu: its one caller is
 // internal/ui's syncMenus, which folds the bar on the very next line.
 func (f *Feature) SetHasFiles(has bool) {
-	f.addItem.Disabled = !has
+	f.hasFiles = has
+	f.syncCommandAvailability()
+}
+
+// SetCommandsEnabled enables or disables every command in the Favorites
+// menu while preserving whether Add Current List should be available when
+// commands are enabled again. It does not publish the menu; syncMenus owns
+// the single main-bar refresh immediately after applying all menu state.
+func (f *Feature) SetCommandsEnabled(enabled bool) {
+	f.commandsEnabled = enabled
+	f.syncCommandAvailability()
+}
+
+func (f *Feature) syncCommandAvailability() {
+	for _, item := range f.menu.Items {
+		if item.IsSeparator {
+			continue
+		}
+		item.Disabled = !f.commandsEnabled
+	}
+	if f.commandsEnabled {
+		f.addItem.Disabled = !f.hasFiles
+	}
 }
 
 // ShortcutForIndex returns the Cmd/Ctrl+digit accelerator for a zero-based
@@ -175,6 +198,7 @@ func (f *Feature) refreshMenu() bool {
 	items = append(items, f.manageItem)
 	f.names = names
 	f.menu.Items = items
+	f.syncCommandAvailability()
 	f.host.RefreshMenus()
 	return true
 }

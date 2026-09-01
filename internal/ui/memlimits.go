@@ -260,6 +260,9 @@ func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {
 // live-state diff mistook those for edits and silently reverted them).
 // Does not persist; shutdown Save still goes through currentPreferences.
 func (v *viewer) ApplySettings(prev, next preferences.State) {
+	if v.comparisonActive() {
+		return
+	}
 	applySettingChange(prev.ThemeMode, next.ThemeMode, v.SetThemeMode)
 	// Also guarded against the live mode: SetSortMode restarts a background
 	// sort, which re-selecting the already-active order must not do.

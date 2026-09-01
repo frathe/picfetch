@@ -6,33 +6,41 @@ until the user returns to Grid View.
 
 **Blocked by:** 01: Open and close a fitted side-by-side comparison
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Acceptance criteria
 
-- [ ] While comparison is active, its own toolbar and transform controls,
+- [x] While comparison is active, its own toolbar and transform controls,
   `Escape`, F1 help, and normal window closing remain available. F1 opens help
   without closing or replacing the comparison.
   Verify: `go test ./internal/ui/... -run 'Compare(AllowedCommands|Help)' -count=1`
-- [ ] Viewer/grid switching, file navigation, rotation, sorting, copying,
+- [x] Viewer/grid switching, file navigation, rotation, sorting, copying,
   deletion, export, favorites, wallpaper, merge, information, EXIF, and
   picture-frame commands are disabled in menus and ignored when reached by a
   keyboard shortcut or direct callback.
   Verify: `go test ./internal/ui/... -run 'Compare(CommandIsolation|MenuState)' -count=1`
-- [ ] Unrelated typed keys and pointer gestures cannot leak through the opaque
+- [x] Unrelated typed keys and pointer gestures cannot leak through the opaque
   comparison overlay to the still-open grid or the hidden viewer beneath it.
   Verify: `go test ./internal/ui/... -run 'Compare(InputIsolation|GridLeak)' -count=1`
-- [ ] File-dialog requests, drops, and native Open With deliveries are refused
+- [x] File-dialog requests, drops, and native Open With deliveries are refused
   with **Return to Grid View before opening files**. They neither queue work nor
   replace or close the active comparison.
   Verify: `go test ./internal/ui/... -run 'CompareOpenRefusal' -count=1`
-- [ ] Isolation applies at every command entry point rather than relying only
+- [x] Isolation applies at every command entry point rather than relying only
   on disabled menu items, so accelerators and programmatic feature callbacks
   cannot bypass it.
   Verify: `go test ./internal/ui/... -run 'CompareCommandEntryPoints' -count=1`
-- [ ] The refusal message is localized in every catalogue and both manuals
+- [x] The refusal message is localized in every catalogue and both manuals
   describe the exclusive-mode behavior.
   Verify: `go test ./... -run 'Translations|Manual' -count=1`
 
 ## Comments
 
+- 2026-09-01: Implemented exclusive comparison-mode command, menu, keyboard,
+  pointer, and open-input isolation. Help, normal window closing, Escape, and
+  comparison-owned controls remain available.
+- 2026-09-01: Exercised each isolation boundary with a failing guard mutation,
+  restored it, and reran all six acceptance commands successfully.
+- 2026-09-01: `make verify` passed, including the Linux/amd64 race suite
+  (`internal/ui` 622.956s). A focused ordering regression also passes after
+  moving comparison activation notification ahead of loader startup.

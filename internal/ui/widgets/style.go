@@ -23,7 +23,7 @@ import (
 
 const (
 	// CardRadius rounds every card-shaped overlay background: the toast,
-	// the info overlay, and the delete-confirmation card.
+	// the info overlay, comparison chrome, and the delete-confirmation card.
 	CardRadius = 8
 
 	// DropzoneBorderWidth and DropzoneBorderRadius outline the dropzone's

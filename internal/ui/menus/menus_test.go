@@ -50,6 +50,7 @@ func TestNew_InitialDisabledMatchesTheBarAsBuilt(t *testing.T) {
 		{"sortParent", m.sortParent, false},
 		{"actions.hide", m.Actions().Hide(), true},
 		{"actions.showVariant", m.Actions().ShowVariant(), true},
+		{"actions.compare", m.Actions().Compare(), true},
 		{"actions.rotate", m.Actions().Rotate(), true},
 		{"actions.zoomIn", m.Actions().ZoomIn(), true},
 		{"actions.zoomOut", m.Actions().ZoomOut(), true},
@@ -91,6 +92,7 @@ func TestNew_LabelsAndAccelerators(t *testing.T) {
 		{"sortParent", m.sortParent, lang.L("Sort order"), fyne.KeyS, 0},
 		{"actions.hide", m.Actions().Hide(), lang.L("Show/Hide duplicates"), fyne.KeyD, 0},
 		{"actions.showVariant", m.Actions().ShowVariant(), lang.L("Show variants"), fyne.KeyD, fyne.KeyModifierShift},
+		{"actions.compare", m.Actions().Compare(), lang.L("Compare selected images"), fyne.KeyD, mod},
 		{"actions.rotate", m.Actions().Rotate(), lang.L("Rotate image (CW)"), fyne.KeyR, 0},
 		{"actions.zoomIn", m.Actions().ZoomIn(), lang.L("Zoom in"), fyne.KeyPlus, 0},
 		{"actions.zoomOut", m.Actions().ZoomOut(), lang.L("Zoom out"), fyne.KeyMinus, 0},
@@ -174,7 +176,7 @@ func TestActionsMenu_Composition(t *testing.T) {
 	}
 	a := m.Actions()
 	want := []*fyne.MenuItem{
-		m.sortParent, a.Hide(), a.ShowVariant(),
+		m.sortParent, a.Hide(), a.ShowVariant(), a.Compare(),
 		nil,
 		a.Rotate(), a.ZoomIn(), a.ZoomOut(),
 		nil,
@@ -231,6 +233,37 @@ func TestActionsMenu_CopySelection(t *testing.T) {
 	item.Action()
 	if !fired {
 		t.Fatal("CopySelection item did not run its callback")
+	}
+}
+
+func TestCompareEntry_MenuItem(t *testing.T) {
+	fired := false
+	m := New(Callbacks{Compare: func() { fired = true }}, filesort.ByName)
+	item := m.Actions().Compare()
+
+	if item.Label != lang.L("Compare selected images") {
+		t.Errorf("Compare Label = %q, want %q", item.Label, lang.L("Compare selected images"))
+	}
+	shortcut, ok := item.Shortcut.(*desktop.CustomShortcut)
+	if !ok {
+		t.Fatalf("Compare Shortcut = %T, want *desktop.CustomShortcut", item.Shortcut)
+	}
+	if shortcut.KeyName != fyne.KeyD || shortcut.Modifier != fyne.KeyModifierShortcutDefault {
+		t.Errorf("Compare shortcut = %v+%v, want ShortcutDefault+D", shortcut.Modifier, shortcut.KeyName)
+	}
+	if !item.Disabled || item.Checked {
+		t.Errorf("initial Compare state = {Disabled:%v Checked:%v}, want {true false}", item.Disabled, item.Checked)
+	}
+
+	if !m.Apply(State{CanCompare: true}) {
+		t.Fatal("Apply did not report Compare becoming enabled")
+	}
+	if item.Disabled || item.Checked {
+		t.Errorf("available Compare state = {Disabled:%v Checked:%v}, want {false false}", item.Disabled, item.Checked)
+	}
+	item.Action()
+	if !fired {
+		t.Fatal("Compare item did not run its callback")
 	}
 }
 
@@ -325,6 +358,7 @@ func everythingOn() State {
 		CanExport:          true,
 		CanWallpaper:       true,
 		CanCopySelection:   true,
+		CanCompare:         true,
 	}
 }
 
@@ -607,7 +641,7 @@ func TestApply_ChangedIsFalseWhenNothingMoves(t *testing.T) {
 	}{
 		{"zero state", State{}},
 		{"everything on", everythingOn()},
-		{"a loaded, displayed file", State{SortMode: filesort.ByModTime, Displayed: true, CanSave: true, CanExport: true, CanWallpaper: true, CanCopySelection: true}},
+		{"a loaded, displayed file", State{SortMode: filesort.ByModTime, Displayed: true, CanSave: true, CanExport: true, CanWallpaper: true, CanCopySelection: true, CanCompare: true}},
 		{"empty drop zone", State{NoFiles: true, NoImage: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -671,6 +705,7 @@ func TestApply_ChangedIsTrueForASingleFlip(t *testing.T) {
 		{"CanExport", base, flip(func(s *State) { s.CanExport = true })},
 		{"CanWallpaper", base, flip(func(s *State) { s.CanWallpaper = true })},
 		{"CanCopySelection", base, flip(func(s *State) { s.CanCopySelection = true })},
+		{"CanCompare", base, flip(func(s *State) { s.CanCompare = true })},
 		{"VariantGroupSize crossing 2", hiding, hidingWithGroup},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -712,6 +747,7 @@ func TestApply_IsIdempotent(t *testing.T) {
 		Displayed:        true,
 		CanExport:        true,
 		CanCopySelection: true,
+		CanCompare:       true,
 	}
 
 	fresh := newMenus()
@@ -739,10 +775,11 @@ func TestApply_IsIdempotent(t *testing.T) {
 func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 	m := newMenus()
 	items := []*fyne.MenuItem{
-		m.Save(), m.Export(), m.CloseFiles(),
+		m.open, m.Save(), m.Export(), m.CloseFiles(), m.settings,
 		m.Window().Viewer(), m.Window().Exif(), m.Window().Grid(),
 		m.Window().PictureFrame(), m.Window().Help(),
-		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Rotate(),
+		m.sortParent,
+		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.Actions().Rotate(),
 		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),
 		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopySelection(), m.Actions().CopyPath(),
 		m.Actions().Wallpaper(), m.Actions().Trash(),
@@ -771,6 +808,36 @@ func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 	}
 }
 
+func TestCompareMenuState_DisablesEveryOrdinaryItemButHelp(t *testing.T) {
+	m := newMenus()
+	m.Apply(State{
+		ComparisonActive: true,
+		CanSave:          true,
+		CanExport:        true,
+		CanWallpaper:     true,
+		CanCopySelection: true,
+		CanCompare:       true,
+		Displayed:        true,
+	})
+
+	for _, menu := range []*fyne.Menu{m.FileMenu(), m.ActionsMenu()} {
+		for _, item := range menu.Items {
+			if item.IsSeparator {
+				continue
+			}
+			checkDisabled(t, menu.Label+" -> "+item.Label, item, true)
+			if item.ChildMenu != nil {
+				for _, child := range item.ChildMenu.Items {
+					checkDisabled(t, item.Label+" -> "+child.Label, child, true)
+				}
+			}
+		}
+	}
+	for _, item := range m.WindowMenu().Items {
+		checkDisabled(t, "Window -> "+item.Label, item, item != m.Window().Help())
+	}
+}
+
 // TestNew_ItemsRunTheirOwnCallback pins the wiring internal/ui depends on:
 // every item runs the callback it was given, and each sort item passes its
 // own mode rather than the last one in the loop.
@@ -793,6 +860,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		SetSort:              func(mode filesort.Mode) { sorted = append(sorted, mode) },
 		ToggleHideDuplicates: record("ToggleHideDuplicates"),
 		ShowVariant:          record("ShowVariant"),
+		Compare:              record("Compare"),
 		Rotate:               record("Rotate"),
 		ZoomIn:               record("ZoomIn"),
 		ZoomOut:              record("ZoomOut"),
@@ -821,6 +889,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		{m.Window().Help(), "ShowHelp"},
 		{m.Actions().Hide(), "ToggleHideDuplicates"},
 		{m.Actions().ShowVariant(), "ShowVariant"},
+		{m.Actions().Compare(), "Compare"},
 		{m.Actions().Rotate(), "Rotate"},
 		{m.Actions().ZoomIn(), "ZoomIn"},
 		{m.Actions().ZoomOut(), "ZoomOut"},

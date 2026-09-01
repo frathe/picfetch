@@ -118,6 +118,154 @@ func TestManualDocumentsCopySelection(t *testing.T) {
 	}
 }
 
+func TestManualDocumentsComparisonEntryAndExit(t *testing.T) {
+	for name, phrase := range map[string]string{
+		"manual.md":    "Actions -> Compare selected images",
+		"manual_de.md": "Aktionen -> Ausgewählte Bilder vergleichen",
+	} {
+		if !strings.Contains(manuals[name], phrase) {
+			t.Errorf("%s does not document %s", name, phrase)
+		}
+	}
+	if !strings.Contains(manualMD, "Cmd/Ctrl+D") || !strings.Contains(manualMD, "Back to Grid") {
+		t.Error("manual.md does not document the comparison shortcut and exit")
+	}
+	if !strings.Contains(manualDE, "Cmd/Strg+D") || !strings.Contains(manualDE, "Zurück zur Rasteransicht") {
+		t.Error("manual_de.md does not document the comparison shortcut and exit")
+	}
+}
+
+func TestManualDocumentsComparisonIdentityAndSwap(t *testing.T) {
+	for _, phrase := range []string{
+		"bottom-corner badges",
+		"**Swap**",
+		"Compare: left.jpg | right.jpg - PicFetch",
+	} {
+		if !strings.Contains(manualMD, phrase) {
+			t.Errorf("manual.md does not document comparison identity/Swap phrase %q", phrase)
+		}
+	}
+	for _, phrase := range []string{
+		"Abzeichen in den unteren Ecken",
+		"**Tauschen**",
+		"Vergleich: links.jpg | rechts.jpg - PicFetch",
+	} {
+		if !strings.Contains(manualDE, phrase) {
+			t.Errorf("manual_de.md does not document comparison identity/Swap phrase %q", phrase)
+		}
+	}
+}
+
+func TestManualDocumentsComparisonCommandIsolation(t *testing.T) {
+	for _, phrase := range []string{
+		"exclusive main-window mode",
+		"Return to Grid View before opening files",
+		"F1",
+	} {
+		if !strings.Contains(manualMD, phrase) {
+			t.Errorf("manual.md does not document comparison isolation phrase %q", phrase)
+		}
+	}
+	for _, phrase := range []string{
+		"exklusiver Hauptfenster-Modus",
+		"Kehren Sie zur Rasteransicht zurück, bevor Sie Dateien öffnen",
+		"F1",
+	} {
+		if !strings.Contains(manualDE, phrase) {
+			t.Errorf("manual_de.md does not document comparison isolation phrase %q", phrase)
+		}
+	}
+}
+
+func TestManualDocumentsComparisonLinkedZoomAndPan(t *testing.T) {
+	english := strings.Join(strings.Fields(manualMD), " ")
+	for _, phrase := range []string{
+		"Zoom and pan stay linked",
+		"**`0`** fits and centers both",
+		"**`1`** shows both at 100%",
+		"Dragging either comparison pane or using Shift+scroll pans both",
+	} {
+		if !strings.Contains(english, phrase) {
+			t.Errorf("manual.md does not document linked comparison phrase %q", phrase)
+		}
+	}
+	german := strings.Join(strings.Fields(manualDE), " ")
+	for _, phrase := range []string{
+		"Zoom und Verschieben bleiben gekoppelt",
+		"**`0`** passt beide Bilder ein und zentriert sie",
+		"**`1`** zeigt beide mit 100 %",
+		"Ziehen in einem Vergleichsbereich oder Shift+Scrollen verschiebt beide",
+	} {
+		if !strings.Contains(german, phrase) {
+			t.Errorf("manual_de.md does not document linked comparison phrase %q", phrase)
+		}
+	}
+}
+
+func TestManualDocumentsComparisonSwipe(t *testing.T) {
+	english := strings.Join(strings.Fields(manualMD), " ")
+	for _, phrase := range []string{
+		"**Swipe** switches both images to the full comparison viewport",
+		"Drag the divider to change the reveal; dragging elsewhere continues to pan both images",
+		"**`Left`** / **`Right`** move the divider by 5 percentage points",
+		"**`Shift+Left`** / **`Shift+Right`** by 1 point",
+		"**`Home`** / **`End`** move it to 0%/100%",
+		"**Side by side** returns",
+	} {
+		if !strings.Contains(english, phrase) {
+			t.Errorf("manual.md does not document swipe comparison phrase %q", phrase)
+		}
+	}
+
+	german := strings.Join(strings.Fields(manualDE), " ")
+	for _, phrase := range []string{
+		"**Wischen** legt beide Bilder über den vollständigen Vergleichsbereich",
+		"Ziehen Sie die Trennlinie, um die Aufteilung zu ändern; Ziehen an anderer Stelle verschiebt weiterhin beide Bilder",
+		"Solange Wischen aktiv ist, verschieben **`Left`** / **`Right`** die Trennlinie um 5 Prozentpunkte",
+		"**`Shift+Left`** / **`Shift+Right`** um 1 Prozentpunkt",
+		"**`Home`** / **`End`** setzen sie auf 0 %/100 %",
+		"**Nebeneinander** kehrt",
+	} {
+		if !strings.Contains(german, phrase) {
+			t.Errorf("manual_de.md does not document swipe comparison phrase %q", phrase)
+		}
+	}
+}
+
+func TestManualDocumentsComparisonSourceFidelity(t *testing.T) {
+	english := strings.Join(strings.Fields(manualMD), " ")
+	for _, phrase := range []string{
+		"full decoded resolution",
+		"canonical EXIF-corrected orientation",
+		"SVGs re-render at their effective screen-pixel size",
+		"RAW files use the same embedded JPEG preview",
+		"Animated inputs stay frozen on their first decoded frame",
+		"combined decoded memory",
+		"encoded-input and vector-raster limits",
+		"never downsampled or removed",
+	} {
+		if !strings.Contains(english, phrase) {
+			t.Errorf("manual.md does not document comparison source fidelity phrase %q", phrase)
+		}
+	}
+
+	german := strings.Join(strings.Fields(manualDE), " ")
+	for _, phrase := range []string{
+		"vollen dekodierten Auflösung",
+		"kanonische EXIF-korrigierte Ausrichtung",
+		"SVGs werden für ihre effektive Bildschirm-Pixelgröße neu gerendert",
+		"RAW-Dateien verwenden dieselbe eingebettete JPEG-Vorschau",
+		"Animierte Eingaben bleiben auf ihrem ersten dekodierten Einzelbild eingefroren",
+		"kombinierten dekodierten Speicher",
+		"Grenzen für kodierte Eingaben und Vektor-Raster",
+		"weder verkleinert noch entfernt",
+	} {
+		if !strings.Contains(german, phrase) {
+			t.Errorf("manual_de.md does not document comparison source fidelity phrase %q", phrase)
+		}
+	}
+}
+
 // TestCurrentManual_GermanLocaleUsesGermanManual and
 // TestCurrentManual_OtherLocaleFallsBackToEnglish cover currentManual's
 // locale switch (manual.go) via the systemLocale var, the way this codebase

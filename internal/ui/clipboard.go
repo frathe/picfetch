@@ -16,6 +16,9 @@ import (
 // text clipboard. No shell-out needed here, unlike copyImageToClipboard
 // below - fyne.Clipboard already handles text on every platform.
 func (v *viewer) copyPathToClipboard() {
+	if v.comparisonActive() {
+		return
+	}
 	if len(v.state.files) == 0 {
 		return
 	}
@@ -28,6 +31,9 @@ func (v *viewer) copyPathToClipboard() {
 // dialog. Always runs on its own goroutine, mirroring openFileDialog: every
 // backing command blocks on external I/O.
 func (v *viewer) copyImageToClipboard() {
+	if v.comparisonActive() {
+		return
+	}
 	img := v.img.Image
 	if img == nil {
 		return

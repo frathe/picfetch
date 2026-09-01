@@ -109,6 +109,7 @@ func (g *Overview) applyMarquee(origin, at fyne.Position, add bool) {
 	g.wrap.Refresh()
 	g.syncTopBar()
 	g.host.ForceRepaint()
+	g.fireSelectionChanged()
 }
 
 func (g *Overview) marqueeLattice() marqueeGrid {
@@ -239,6 +240,7 @@ func (g *Overview) hideMarqueeRect() {
 }
 
 func (g *Overview) cancelMarquee() {
+	changed := !slices.Equal(g.sel.Indices(), g.marqueeSaved)
 	g.sel.Replace(g.marqueeSaved)
 	g.wrap.Refresh()
 	g.syncTopBar()
@@ -247,4 +249,7 @@ func (g *Overview) cancelMarquee() {
 	g.marqueeDisarmed = true
 	g.marqueeDragging = false
 	g.marqueeSaved = nil
+	if changed {
+		g.fireSelectionChanged()
+	}
 }

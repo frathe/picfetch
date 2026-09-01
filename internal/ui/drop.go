@@ -71,6 +71,9 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 	if len(uris) == 0 {
 		return
 	}
+	if v.refuseOpenDuringComparison() {
+		return
+	}
 
 	// A drag-and-drop is a separate OS-level event, not gated by the
 	// keyboard the way handleKeyEvent's own guard blocks everything else

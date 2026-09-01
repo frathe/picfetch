@@ -69,11 +69,11 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 	if actions.Label != "Actions" {
 		t.Errorf("third menu label = %q, want %q", actions.Label, "Actions")
 	}
-	if len(actions.Items) != 16 {
-		t.Fatalf("Actions menu items = %d, want 16", len(actions.Items))
+	if len(actions.Items) != 17 {
+		t.Fatalf("Actions menu items = %d, want 17", len(actions.Items))
 	}
 	wantActionsLabels := []string{
-		"Sort order", "Show/Hide duplicates", "Show variants", "",
+		"Sort order", "Show/Hide duplicates", "Show variants", "Compare selected images", "",
 		"Rotate image (CW)", "Zoom in", "Zoom out", "",
 		"Toggle merge mode", "Show/Hide info overlay", "",
 		"Copy image", "Copy selection", "Copy image path", "Set as Wallpaper", "Move image to Trash",
@@ -118,7 +118,7 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 			t.Errorf("sort child %d (%q) should not start checked", i, sortParent.ChildMenu.Items[i].Label)
 		}
 	}
-	for _, idx := range []int{1, 2, 4, 5, 6, 11, 12, 13, 14} {
+	for _, idx := range []int{1, 2, 3, 5, 6, 7, 12, 13, 14, 15} {
 		if !actions.Items[idx].Disabled {
 			t.Errorf("Actions menu item %d (%q) should start disabled", idx, actions.Items[idx].Label)
 		}
@@ -126,7 +126,7 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 			t.Errorf("Actions menu item %d (%q) has no action", idx, actions.Items[idx].Label)
 		}
 	}
-	for _, idx := range []int{8, 9} {
+	for _, idx := range []int{9, 10} {
 		if actions.Items[idx].Disabled {
 			t.Errorf("Actions menu item %d (%q) should start enabled", idx, actions.Items[idx].Label)
 		}
@@ -134,10 +134,10 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 			t.Errorf("Actions menu item %d (%q) has no action", idx, actions.Items[idx].Label)
 		}
 	}
-	if actions.Items[8].Checked {
+	if actions.Items[9].Checked {
 		t.Error("Toggle merge mode should start unchecked")
 	}
-	if actions.Items[9].Checked {
+	if actions.Items[10].Checked {
 		t.Error("Show/Hide info overlay should start unchecked")
 	}
 

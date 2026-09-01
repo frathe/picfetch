@@ -17,6 +17,11 @@ func (g *Overview) Highlight() int {
 	return g.highlight
 }
 
+// ScrollOffset is the current vertical Grid View viewport offset.
+func (g *Overview) ScrollOffset() float32 {
+	return g.wrap.GetScrollOffset()
+}
+
 // SimulateHover moves the ring as GridWrap does when the pointer enters
 // the cell at display index id. Package ui tests drive this because wrap
 // is unexported; it is not a second hover path.

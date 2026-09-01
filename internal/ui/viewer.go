@@ -18,6 +18,7 @@ import (
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	compareui "github.com/frathe/picfetch/internal/ui/compare"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/deletion"
 	"github.com/frathe/picfetch/internal/ui/display"
@@ -100,10 +101,9 @@ type viewer struct {
 	settingsWin *settingswin.Window
 
 	// menus holds the File, Window and Actions menu items whose
-	// Checked/Disabled state moves at runtime - the File three ("Save
-	// Changes", "Export image", "Close Files"), the five Window items, and
-	// the thirteen Actions ones. They are behind a field, unlike the inert
-	// items built alongside them, because that state has to be updated
+	// Checked/Disabled state moves at runtime - all five File items, the five
+	// Window items, the Sort parent and children, and the remaining Actions
+	// items. They are behind a field because that state has to be updated
 	// from outside buildMainMenu itself, at every site that can change
 	// what is saveable, exportable or open, or which surface is showing:
 	// rotate.go, load.go, sort.go, info.go, keys.go, save.go,
@@ -385,6 +385,12 @@ type viewer struct {
 	// dispatch, the same way it does for the delete confirmation.
 	grid *grid.Overview
 
+	// compare is the opaque two-image surface stacked above the still-open
+	// grid. The feature owns its widgets and workers; this viewer owns only
+	// selection-to-URI composition and the injected full-image loader.
+	compare     *compareui.Feature
+	compareLoad compareui.Loader
+
 	// slides is picture-frame mode (P key) - see internal/ui/slideshow,
 	// which owns the full-screen switch, the auto-advance goroutine and
 	// the interval behind it, and reaches back through a two-method Host
@@ -453,8 +459,8 @@ type viewer struct {
 	// keyModifiers reports the keyboard modifiers currently held -
 	// defaultKeyModifiers (keys.go) in production, stubbed by tests (the
 	// fyne test driver can't synthesize modifier state at all). Read by
-	// handleKeyEvent's Shift+R, and by the zoom view's Shift+scroll pan
-	// through the closure registerFeatures hands it.
+	// handleKeyEvent's Shift+R, and by the normal and comparison zoom views'
+	// Shift+scroll pan through the closures registerFeatures hands them.
 	keyModifiers func() fyne.KeyModifier
 
 	// vector is the whole state of the SVG re-render - see vector.go's
@@ -491,12 +497,18 @@ func (v *viewer) setTitle(base string) {
 // the active drop/sort/slideshow mode visible at a glance. The separating
 // space is added here rather than baked into either prefix, so neither
 // translation key carries trailing whitespace a translator could silently
-// drop. While the grid overview is up gridTitle takes baseTitle's place -
-// the image behind it isn't what the user is looking at. Show-variants
-// goes further and hides every prefix too: its title is a bare
+// drop. While comparison owns the main-window surface it sets its exact title
+// through compareOrderChanged, so ordinary underlying-state refreshes return
+// here without replacing it; closing comparison calls applyTitle again. While
+// the grid overview is up gridTitle takes baseTitle's place - the image behind
+// it isn't what the user is looking at. Show-variants goes further and hides
+// every prefix too: its title is a bare
 // `(index/count) [WxH] /absolute/path`, so the bar is only position, size,
 // and path, with nothing else competing for room.
 func (v *viewer) applyTitle() {
+	if v.compare != nil && v.compare.Visible() {
+		return
+	}
 	title := v.baseTitle
 	if v.gridTitle != "" {
 		title = v.gridTitle
@@ -693,6 +705,9 @@ func (v *viewer) reset() {
 // in progress first - unlike Escape (handleKeyEvent), it never closes the
 // window, since File > Close is a distinct action from quitting the app.
 func (v *viewer) closeFiles() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.scanOp.active {
 		v.cancelScan()
 	}
@@ -818,6 +833,9 @@ func (v *viewer) RemoveFile(i int) {
 // empty file set has no cells to draw and Toggle itself refuses to open in
 // that state.
 func (v *viewer) RemoveFiles(indices []int) {
+	if v.comparisonActive() {
+		return
+	}
 	prev := -1
 	for _, i := range slices.Backward(slices.Sorted(slices.Values(indices))) {
 		if i == prev || i < 0 || i >= len(v.state.files) {
@@ -902,6 +920,9 @@ func (v *viewer) Unfocus() {
 // goes through, so the crossfade and everything else load.go does on a
 // navigation applies here too.
 func (v *viewer) Advance() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.slides.Shuffle() {
 		v.ShowImage(v.randomVisibleOther(v.state.index))
 		return
@@ -920,6 +941,9 @@ func (v *viewer) Advance() {
 // one path.
 // Picture-frame shuffle does not apply: this is what the arrow keys do.
 func (v *viewer) StepImage(delta int) {
+	if v.comparisonActive() {
+		return
+	}
 	if v.win.Canvas().Overlays().Top() != nil {
 		return
 	}

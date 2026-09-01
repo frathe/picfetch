@@ -206,6 +206,25 @@ func TestSelectAll_PicksOnlyTheFilteredSubset(t *testing.T) {
 	}
 }
 
+func TestSelectionChanged_NotifiesAfterEveryPublicSelectionChange(t *testing.T) {
+	g, host := openGrid(t, "a.jpg", "b.jpg", "c.jpg")
+	var seen [][]int
+	g.SetOnSelectionChanged(func() {
+		seen = append(seen, g.Selection())
+	})
+
+	click(g, host, 0, fyne.KeyModifierShortcutDefault)
+	click(g, host, 2, fyne.KeyModifierShift)
+	g.ClearSelection()
+	g.SelectAll()
+	g.SelectAll() // unchanged membership must not publish a phantom change
+
+	want := [][]int{{0}, {0, 1, 2}, nil, {0, 1, 2}}
+	if !slices.EqualFunc(seen, want, slices.Equal[[]int]) {
+		t.Errorf("selection notifications = %v, want %v", seen, want)
+	}
+}
+
 // TestHandleKey_EscapeClearsSelectionBeforeSearch pins the staging: each
 // Escape undoes one layer, so nothing that took effort to build is thrown
 // away by the keystroke that was meant to undo something smaller.

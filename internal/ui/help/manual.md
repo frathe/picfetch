@@ -430,6 +430,50 @@ instead of arrowing through them one at a time.
   Drag a rectangle across the thumbnails to select everything it touches; hold Shift or Cmd/Ctrl while dragging to add to what was already picked.
   Selected thumbnails are washed in the accent colour, and the top bar
   counts them (`12 selected`). A click without dragging still just opens an image.
+- With exactly two files selected, press **`Cmd/Ctrl+D`** or choose
+  **Actions -> Compare selected images**. An opaque comparison opens in the
+  same window with both images fitted into fixed 50/50 panes; the file earlier
+  in the current grid order is on the left. Each side shows its own spinner
+  while loading. Translucent bottom-corner badges identify the files by base
+  name; if those names match, both expand to the shortest distinguishing
+  folder/file suffix. The window title follows the same order, for example
+  `Compare: left.jpg | right.jpg - PicFetch`. A translucent toolbar stays at
+  the top right: **Back to Grid** remains available while loading, and
+  **Swap** becomes available once both images are ready. Swap exchanges the
+  images, badges, and title without loading either file again. **Swipe**
+  switches both images to the full comparison viewport and adds a vertical
+  divider. It becomes available only once both images are ready. Drag the
+  divider to change the reveal; dragging elsewhere continues to pan both
+  images. While swipe is active, **`Left`** / **`Right`** move the divider by
+  5 percentage points, **`Shift+Left`** / **`Shift+Right`** by 1 point, and
+  **`Home`** / **`End`** move it to 0%/100%. **Side by side** returns to fixed
+  50/50 panes. Switching layouts keeps the linked view and divider position;
+  a new comparison starts side by side at 50%. Zoom and pan stay linked
+  between the comparison panes. Scroll over either pane or use
+  **`+`** / **`-`** to zoom both around the shared view. Dragging either
+  comparison pane or using Shift+scroll pans both; the shared point is clamped
+  so neither image can be pulled away from its pane. **`0`** fits and centers
+  both; **`1`** shows both at 100% (one decoded image pixel per canvas point).
+  Raster sources stay at full decoded resolution and use their canonical
+  EXIF-corrected orientation; a temporary rotation in the single-image viewer
+  is not carried into comparison. SVGs re-render at their effective
+  screen-pixel size whenever zoom, layout, or window size changes. RAW files
+  use the same embedded JPEG preview as the normal viewer. Animated inputs stay
+  frozen on their first decoded frame for the entire comparison session.
+  Full fidelity can require the combined decoded memory of both sources even
+  when the image cache retains only one. The existing encoded-input and
+  vector-raster limits still apply. If either source cannot complete, PicFetch
+  reports the load failure and returns to the unchanged grid; the panes are
+  never downsampled or removed to make the comparison fit a limit.
+  **Back to Grid** or **`Esc`** returns to the unchanged grid, including
+  selections that a filename or duplicate filter currently hides.
+- Comparison is an exclusive main-window mode. Until you return to Grid View,
+  PicFetch disables or ignores ordinary viewer, grid, file, Favorites, and
+  Actions commands; typed keys and pointer gestures do not reach the covered
+  surfaces. The comparison toolbar, **`Esc`**, **`F1`** help, and normal window
+  closing remain available. Attempts to open files through the file dialog, a
+  drop, or the operating system's Open With delivery are discarded and show
+  **Return to Grid View before opening files**.
 - With a selection made, **`Shift+Delete`** moves all of it to the Trash
   (after the usual confirmation, which names the count rather than every
   file), and **`Cmd/Ctrl+C`** copies the files themselves to the clipboard
@@ -450,7 +494,8 @@ instead of arrowing through them one at a time.
 - Apart from those, every other key is ignored while the grid is up - zoom,
   `S`/`M`/`P`/`I` all do nothing until you either pick a thumbnail (click
   or `Return`) or back out with `G`/`Esc`. `D` and `Shift+D` are the
-  exceptions (unless a search is open). While a search is open, the letter
+  exceptions (unless a search is open); `Cmd/Ctrl+D` also opens comparison
+  when exactly two files are selected. While a search is open, the letter
   keys are characters you are typing, so `G` no longer closes the grid and
   `D`/`Shift+D` no longer toggle hide-duplicates or browse - `Esc` does.
 - The search only narrows what the grid shows. It changes nothing about the
@@ -775,6 +820,11 @@ needed. macOS and Windows need nothing extra either way.
   Show/Hide duplicates is on **and** the current file has duplicates,
   and also when no files are loaded or picture-frame mode is on. The
   `Shift+D` key still works with hide off; this menu item does not
+- **Actions -> Compare selected images** (`Cmd/Ctrl+D`) — compares exactly
+  two explicitly selected grid files in fitted side-by-side panes. Greyed out
+  unless the grid is open with exactly two selections. The comparison toolbar
+  can **Swap** the identified sides once both are ready. **Back to Grid** or
+  `Esc` returns to the untouched grid
 - **Actions -> Rotate image (CW)** (`R`) — 90° clockwise, view-only, same as
   `R`. Greyed out with no image loaded or while the grid is up.
   `Shift+R` stays keyboard-only

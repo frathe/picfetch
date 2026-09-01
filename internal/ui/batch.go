@@ -34,6 +34,9 @@ import (
 // first, would hand their next Right/Return to the card they can't see. See
 // promptExport (export.go) for the same guard in the other direction.
 func (v *viewer) requestDelete() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.exportPrompt.Visible() {
 		return
 	}
@@ -74,6 +77,9 @@ func (v *viewer) deleteGridSelection() {
 // data otherwise. Different things share one shortcut because they are the
 // same intent applied to the subject the user is currently working with.
 func (v *viewer) copySelection() {
+	if v.comparisonActive() {
+		return
+	}
 	if v.regionCopy.State().Active {
 		v.regionCopy.HandleKey(fyne.KeyReturn)
 		return
@@ -148,6 +154,9 @@ func (v *viewer) reportFileCopyError(err error) {
 // selection there would make it appear out of nowhere the next time the
 // overview opened.
 func (v *viewer) selectAllInGrid() {
+	if v.comparisonActive() {
+		return
+	}
 	if !v.grid.Visible() {
 		return
 	}

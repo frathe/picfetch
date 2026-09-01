@@ -1,12 +1,16 @@
 package ui
 
 import (
+	"context"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/assets"
+	compareui "github.com/frathe/picfetch/internal/ui/compare"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/deletion"
 	"github.com/frathe/picfetch/internal/ui/exifwin"
@@ -99,6 +103,19 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// The thumbnail-cache setter reaches into the grid, so the grid must be
 	// registered before saved cache limits are applied.
 	view.grid = grid.New(view, window, view.dupes)
+	view.compare = compareui.New(
+		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
+			return view.compareLoad(ctx, uri)
+		},
+		compareui.Callbacks{
+			Repaint:      view.ForceRepaint,
+			Opened:       view.syncMenus,
+			Closed:       view.comparisonClosed,
+			Failed:       view.compareFailed,
+			OrderChanged: view.compareOrderChanged,
+			Modifiers:    func() fyne.KeyModifier { return view.keyModifiers() },
+		},
+	)
 	view.SetMaxThumbCacheMB(prefs.MaxThumbCacheMB)
 	view.SetMaxFileSizeMB(prefs.MaxFileSizeMB)
 

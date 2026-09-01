@@ -420,9 +420,46 @@ func TestSetHasFilesTogglesAddItem(t *testing.T) {
 	}
 }
 
+func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.T) {
+	host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/photos/a.jpg")}}
+	f := newFeature(t, host)
+	f.SetHasFiles(true)
+	if err := favstore.Save(f.dir, "Trip", host.files); err != nil {
+		t.Fatal(err)
+	}
+	f.SetDir(f.dir)
+
+	f.SetCommandsEnabled(false)
+	for _, item := range f.menu.Items {
+		if !item.IsSeparator && !item.Disabled {
+			t.Errorf("%q stayed enabled during comparison", item.Label)
+		}
+	}
+
+	// Rebuilding the dynamic entries while isolation is active must not
+	// publish a newly enabled favorite into the menu.
+	if err := favstore.Save(f.dir, "Another", host.files); err != nil {
+		t.Fatal(err)
+	}
+	f.SetDir(f.dir)
+	for _, item := range f.menu.Items {
+		if !item.IsSeparator && !item.Disabled {
+			t.Errorf("refreshed %q became enabled during comparison", item.Label)
+		}
+	}
+
+	f.SetCommandsEnabled(true)
+	for _, item := range f.menu.Items {
+		if !item.IsSeparator && item.Disabled {
+			t.Errorf("%q stayed disabled after comparison", item.Label)
+		}
+	}
+}
+
 // TestSetHasFilesDoesNotRefreshMenus pins the deliberate omission: SetHasFiles
-// only flips addItem.Disabled and leaves publishing the bar to its one
-// caller, internal/ui's syncMenus, which folds it on the very next line. If
+// only recomputes the feature's item availability and leaves publishing the
+// bar to its one caller, internal/ui's syncMenus, which folds it on the very
+// next line. If
 // this ever grows a Refresh call of its own, syncMenus's later fold would run
 // on top of it and, on Darwin, leave a duplicate "Window" menu and
 // Command-prefixed accelerators on the unmodified letters until the next

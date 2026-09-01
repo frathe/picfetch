@@ -97,6 +97,7 @@ type Overview struct {
 	visible      bool
 	onVisibility func()
 	onDupeState  func()
+	onSelection  func()
 	wrap         *widget.GridWrap
 	overlay      *fyne.Container
 
@@ -499,6 +500,16 @@ func (g *Overview) fireVisibility() {
 	}
 }
 
+// SetOnSelectionChanged registers f to run after explicit grid selection
+// membership changes. The field is read at fire time. nil is a no-op.
+func (g *Overview) SetOnSelectionChanged(f func()) { g.onSelection = f }
+
+func (g *Overview) fireSelectionChanged() {
+	if g.onSelection != nil {
+		g.onSelection()
+	}
+}
+
 // ConsumeMaximized reports whether the window is still sitting maximized
 // from an earlier Toggle and hasn't been undone since, clearing the flag
 // either way - a one-shot check for whoever is about to resize the window
@@ -593,6 +604,7 @@ func (g *Overview) closeOverlay(clearInspect bool) {
 	// where a query or a selection left over from the previous file set
 	// would otherwise be applied to - or, worse, acted on against - the new
 	// one.
+	hadSelection := g.sel.Len() > 0
 	g.sel.Clear()
 	if g.marqueeDragging {
 		g.marqueeDisarmed = true
@@ -615,5 +627,8 @@ func (g *Overview) closeOverlay(clearInspect bool) {
 	g.host.HighlightChanged(-1)
 	g.host.Unfocus()
 	g.host.ForceRepaint()
+	if hadSelection {
+		g.fireSelectionChanged()
+	}
 	g.fireVisibility()
 }

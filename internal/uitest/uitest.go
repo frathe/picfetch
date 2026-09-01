@@ -258,6 +258,40 @@ func EncodeAnimatedGIF(t *testing.T, w, h int, colors []color.Color, delays []in
 	return buf.Bytes()
 }
 
+// EncodeOrientedJPEG builds a JPEG whose left half is red and right half is
+// blue, then adds an Exif Orientation tag. The asymmetric pixels let callers
+// verify both the corrected bounds and which edge moved where after decode.
+func EncodeOrientedJPEG(t *testing.T, w, h int, orientation uint16) []byte {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := range h {
+		for x := range w {
+			if x < w/2 {
+				img.Set(x, y, color.RGBA{R: 255, A: 255})
+			} else {
+				img.Set(x, y, color.RGBA{B: 255, A: 255})
+			}
+		}
+	}
+
+	var jpegBytes bytes.Buffer
+	if err := jpeg.Encode(&jpegBytes, img, &jpeg.Options{Quality: 100}); err != nil {
+		t.Fatalf("encode oriented jpeg: %v", err)
+	}
+
+	tiff := newLittleEndianTIFF()
+	tiff.u16(1)
+	tiff.u16(0x0112) // Orientation
+	tiff.u16(3)      // SHORT
+	tiff.u32(1)
+	tiff.u16(orientation)
+	tiff.u16(0)
+	tiff.u32(0) // next IFD offset
+
+	return wrapAPP1(jpegBytes.Bytes(), tiff.Bytes())
+}
+
 // wrapAPP1 inserts a TIFF payload as an Exif APP1 segment immediately
 // after the JPEG SOI marker.
 func wrapAPP1(data, tiff []byte) []byte {

@@ -479,6 +479,61 @@ einzeln durchzublättern.
   Ausgewählte Miniaturansichten sind in der Akzentfarbe
   eingefärbt, und die obere Leiste zählt sie (`12 ausgewählt`). Ein
   Klick ohne Ziehen öffnet weiterhin nur ein Bild.
+- Sind genau zwei Dateien ausgewählt, drücken Sie **`Cmd/Strg+D`** oder wählen
+  **Aktionen -> Ausgewählte Bilder vergleichen**. Im selben Fenster erscheint
+  eine undurchsichtige Vergleichsansicht, in der beide Bilder in feste
+  50/50-Bereiche eingepasst sind; die in der aktuellen Rasterreihenfolge
+  frühere Datei steht links. Während des Ladens zeigt jede Seite einen eigenen
+  Fortschrittsbalken. Durchscheinende Abzeichen in den unteren Ecken benennen
+  die Dateien mit ihrem Basisnamen; sind diese gleich, werden beide zum
+  kürzesten unterscheidbaren Ordner/Datei-Suffix erweitert. Der Fenstertitel
+  folgt derselben Reihenfolge, zum Beispiel
+  `Vergleich: links.jpg | rechts.jpg - PicFetch`. Oben rechts bleibt eine
+  durchscheinende Werkzeugleiste sichtbar: **Zurück zur Rasteransicht** ist
+  auch beim Laden verfügbar, **Tauschen** wird aktiv, sobald beide Bilder
+  bereit sind. Tauschen vertauscht Bilder, Abzeichen und Titel, ohne eine Datei
+  erneut zu laden. **Wischen** legt beide Bilder über den vollständigen
+  Vergleichsbereich und fügt eine senkrechte Trennlinie hinzu. Die Schaltfläche
+  wird erst aktiv, sobald beide Bilder bereit sind. Ziehen Sie die Trennlinie,
+  um die Aufteilung zu ändern; Ziehen an anderer Stelle verschiebt weiterhin
+  beide Bilder. Solange Wischen aktiv ist, verschieben **`Left`** / **`Right`**
+  die Trennlinie um 5 Prozentpunkte, **`Shift+Left`** / **`Shift+Right`** um 1
+  Prozentpunkt und **`Home`** / **`End`** setzen sie auf 0 %/100 %.
+  **Nebeneinander** kehrt zu festen 50/50-Bereichen zurück. Beim Wechsel der
+  Anordnung bleiben die gekoppelte Ansicht und die Trennlinienposition erhalten;
+  ein neuer Vergleich beginnt nebeneinander bei 50 %. Zoom und Verschieben
+  bleiben gekoppelt zwischen den beiden Vergleichsbereichen. Scrollen Sie über
+  einem Bereich oder verwenden Sie
+  **`+`** / **`-`**, um beide um die gemeinsame Ansicht zu zoomen. Ziehen in
+  einem Vergleichsbereich oder Shift+Scrollen verschiebt beide; der gemeinsame
+  Punkt wird so begrenzt, dass kein Bild aus seinem Bereich gezogen werden
+  kann. **`0`** passt beide Bilder ein und zentriert sie; **`1`** zeigt beide
+  mit 100 % (ein dekodiertes Bildpixel pro Canvas-Punkt).
+  Rasterquellen bleiben in der vollen dekodierten Auflösung und verwenden ihre
+  kanonische EXIF-korrigierte Ausrichtung; eine vorübergehende Drehung in der
+  Einzelbildansicht wird nicht in den Vergleich übernommen. SVGs werden für
+  ihre effektive Bildschirm-Pixelgröße neu gerendert, sobald sich Zoom,
+  Anordnung oder Fenstergröße ändern. RAW-Dateien verwenden dieselbe
+  eingebettete JPEG-Vorschau wie die normale Einzelbildansicht. Animierte
+  Eingaben bleiben auf ihrem ersten dekodierten Einzelbild eingefroren, solange
+  der Vergleich geöffnet ist. Volle Wiedergabetreue kann den kombinierten
+  dekodierten Speicher beider Quellen beanspruchen, auch wenn der Bild-Cache nur
+  eine davon behält. Die vorhandenen Grenzen für kodierte Eingaben und
+  Vektor-Raster gelten weiterhin. Kann eine Quelle nicht vollständig geladen
+  werden, meldet PicFetch den Fehler und kehrt zum unveränderten Raster zurück;
+  die Bereiche werden weder verkleinert noch entfernt, um eine Grenze
+  einzuhalten. **Zurück zur
+  Rasteransicht** oder **`Esc`** bringt Sie zum unveränderten Raster zurück,
+  auch wenn ein Datei- oder Duplikatfilter ausgewählte Bilder gerade ausblendet.
+- Der Vergleich ist ein exklusiver Hauptfenster-Modus. Bis Sie zur
+  Rasteransicht zurückkehren, deaktiviert oder ignoriert PicFetch normale
+  Befehle für Betrachter, Raster, Dateien, Favoriten und Aktionen; Tastatur-
+  und Zeigereingaben erreichen die verdeckten Ansichten nicht. Die
+  Vergleichs-Werkzeugleiste, **`Esc`**, die Hilfe mit **`F1`** und das normale
+  Schließen des Fensters bleiben verfügbar. Versuche, Dateien über den
+  Dateidialog, durch Ablegen oder über die Öffnen-mit-Übergabe des
+  Betriebssystems zu öffnen, werden verworfen und zeigen
+  **Kehren Sie zur Rasteransicht zurück, bevor Sie Dateien öffnen**.
 - Mit einer getroffenen Auswahl verschiebt **`Shift+Delete`** alles davon in
   den Papierkorb (nach der üblichen Nachfrage, die die Anzahl nennt statt
   jeder einzelnen Datei), und **`Cmd/Strg+C`** kopiert die Dateien selbst in
@@ -504,8 +559,9 @@ einzeln durchzublättern.
   geöffnet ist — Zoom, `S`/`M`/`P`/`I` bewirken nichts, bis Sie entweder eine
   Miniaturansicht auswählen (Klick oder `Return`) oder mit `G`/`Esc`
   zurückgehen. `D` und `Shift+D` sind die Ausnahmen (außer wenn eine Suche
-  offen ist). Solange eine Suche geöffnet ist, sind die Buchstabentasten
-  Zeichen Ihrer Eingabe — `G` schließt das Raster dann nicht mehr und
+  offen ist); `Cmd/Strg+D` öffnet außerdem den Vergleich, wenn genau zwei
+  Dateien ausgewählt sind. Solange eine Suche geöffnet ist, sind die
+  Buchstabentasten Zeichen Ihrer Eingabe — `G` schließt das Raster dann nicht mehr und
   `D`/`Shift+D` schalten weder Ausblenden noch Duplikat-Anzeige um,
   `Esc` schon.
 - Die Suche schränkt nur ein, was das Raster zeigt. An der Auswahl selbst
@@ -875,6 +931,12 @@ benötigen in beiden Fällen nichts Zusätzliches.
   Datei Duplikate hat, und auch ohne geladene Dateien oder im
   Bilderrahmen-Modus. `Shift+D` funktioniert weiterhin mit ausgeschaltetem
   Ausblenden; dieser Menüpunkt nicht
+- **Aktionen -> Ausgewählte Bilder vergleichen** (`Cmd/Strg+D`) — vergleicht
+  genau zwei ausdrücklich ausgewählte Rasterdateien in eingepassten
+  nebeneinanderliegenden Bereichen. Ausgegraut, außer das Raster ist mit genau
+  zwei ausgewählten Dateien geöffnet. In der Vergleichs-Werkzeugleiste
+  vertauscht **Tauschen** die bezeichneten Seiten, sobald beide bereit sind.
+  **Zurück zur Rasteransicht** oder `Esc` kehrt zum unveränderten Raster zurück
 - **Aktionen -> Bild drehen (im Uhrzeigersinn)** (`R`) — 90° im
   Uhrzeigersinn, nur Ansicht, dasselbe wie `R`. Ausgegraut ohne geladenes
   Bild oder solange das Raster offen ist. `Shift+R` bleibt nur über die

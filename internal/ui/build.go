@@ -55,10 +55,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	sortUIC := newSortUI()
 	toastComp := newToast(func() { view.ForceRepaint() })
 	info := infoview.New(func() {
-		view.exif.Show()
-		// Same reason showWindowExif syncs by hand: the EXIF window
-		// fires an observer on close, none on open.
-		view.syncMenus()
+		view.showWindowExif()
 	})
 
 	loadingBar := widget.NewProgressBarInfinite()
@@ -105,6 +102,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	view.frameAfter = time.After
 	view.regionCopyDo = fyne.Do
 	view.regionCopyDoAndWait = fyne.DoAndWait
+	view.compareLoad = view.loadComparedImage
 
 	// Wired here rather than in the literal above: the closure captures view,
 	// whose state field that literal is still building. Any mutator that
@@ -158,13 +156,14 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	// The grid's backdrop is opaque and fills the window, so anything stacked
 	// below it is simply invisible while it is open - which is fine for the
 	// image view underneath, and wrong for the things that now have to
-	// appear *over* an open grid: the batch delete confirmation and the
-	// export-format prompt (both share widgets.ChoiceCard, whose own scrim
+	// appear *over* an open grid: comparison, the batch delete confirmation,
+	// the export-format prompt (the latter two share widgets.ChoiceCard, whose scrim
 	// is translucent, so the grid dims through it rather than being hidden
 	// by it) and the toast that reports what the batch did.
 	window.SetContent(container.New(windowSizeTracker(view, window),
 		view.zoom.Widget(), dz.root, scanContainer, sortContainer, overlay, infoOverlay,
-		view.regionCopy.Overlay(), view.grid.Overlay(), view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
+		view.regionCopy.Overlay(), view.grid.Overlay(), view.compare.Overlay(),
+		view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
 	window.SetMainMenu(buildMainMenu(view))
 	// Fyne's Darwin driver inserts our Window menu next to GLFW's system
 	// Window menu. Folding them must wait until setupNativeMenu has run.

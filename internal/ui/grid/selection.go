@@ -10,6 +10,8 @@
 package grid
 
 import (
+	"slices"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 
@@ -54,6 +56,7 @@ func (g *Overview) ClearSelection() {
 	g.wrap.Refresh()
 	g.syncTopBar()
 	g.host.ForceRepaint()
+	g.fireSelectionChanged()
 }
 
 // SelectAll picks every cell the grid is currently drawing - the *filtered*
@@ -66,11 +69,15 @@ func (g *Overview) SelectAll() {
 			all = append(all, i)
 		}
 	}
+	if slices.Equal(g.sel.Indices(), all) {
+		return
+	}
 
 	g.sel.Replace(all)
 	g.wrap.Refresh()
 	g.syncTopBar()
 	g.host.ForceRepaint()
+	g.fireSelectionChanged()
 }
 
 // FilesChanged resyncs the grid with a file set that has shrunk under it -
@@ -89,6 +96,7 @@ func (g *Overview) SelectAll() {
 // rebuilt against the adopted hashes before inspect retarget, so the
 // inspect block sees post-delete groups.
 func (g *Overview) FilesChanged() {
+	hadSelection := g.sel.Len() > 0
 	g.sel.Clear()
 	g.adoptHashGen()
 	g.rebuildGroups()
@@ -104,6 +112,9 @@ func (g *Overview) FilesChanged() {
 		}
 	}
 	g.applyFilter()
+	if hadSelection {
+		g.fireSelectionChanged()
+	}
 }
 
 // toggleAt flips whether the cell at display index id is selected, and makes
@@ -149,15 +160,20 @@ func (g *Overview) extendTo(id int) {
 		return
 	}
 
+	before := g.sel.Indices()
 	for _, d := range selection.Range(anchorDisplay, id) {
 		if i := g.fileIndex(d); i >= 0 {
 			g.sel.Add(i)
 		}
 	}
+	if slices.Equal(before, g.sel.Indices()) {
+		return
+	}
 
 	g.wrap.Refresh()
 	g.syncTopBar()
 	g.host.ForceRepaint()
+	g.fireSelectionChanged()
 }
 
 // displayIndex is fileIndex's inverse: where the host's file i is currently
@@ -191,6 +207,7 @@ func (g *Overview) selectionChangedAt(id int) {
 	g.wrap.RefreshItem(id)
 	g.syncTopBar()
 	g.host.ForceRepaint()
+	g.fireSelectionChanged()
 }
 
 // isSelected reports whether the cell at display index id shows a selected
