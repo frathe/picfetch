@@ -66,7 +66,7 @@ func (l paneImageLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	l.feature.applyTransform()
 }
 
-func (paneImageLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.Size{} }
+func (paneImageLayout) MinSize(_ []fyne.CanvasObject) fyne.Size { return fyne.Size{} }
 
 // HandleKey applies comparison-owned transform keys. The caller still owns
 // Escape and F1, and swallows every unsupported key while comparison is active.

@@ -67,25 +67,30 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 // selection before falling back to the grid or displayed image.
 func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 	c.OpenFiles = v.yieldThenAllowedDuringComparison(c.OpenFiles)
-	c.SaveRotation = v.yieldThen(c.SaveRotation)
-	c.PromptExport = v.yieldThen(c.PromptExport)
-	c.CloseFiles = v.yieldThen(c.CloseFiles)
-	c.ShowSettings = v.yieldThen(c.ShowSettings)
-	c.ShowViewer = v.yieldThen(c.ShowViewer)
-	c.ShowExif = v.yieldThen(c.ShowExif)
-	c.ShowGrid = v.yieldThen(c.ShowGrid)
-	c.ShowPictureFrame = v.yieldThen(c.ShowPictureFrame)
 	c.ShowHelp = v.yieldThenAllowedDuringComparison(c.ShowHelp)
 	c.SetSort = v.yieldThenMode(c.SetSort)
-	c.ToggleHideDuplicates = v.yieldThen(c.ToggleHideDuplicates)
-	c.ShowVariant = v.yieldThen(c.ShowVariant)
-	c.Compare = v.yieldThen(c.Compare)
-	c.Rotate = v.yieldThen(c.Rotate)
-	c.ToggleMergeMode = v.yieldThen(c.ToggleMergeMode)
-	c.ToggleInfoOverlay = v.yieldThen(c.ToggleInfoOverlay)
-	c.CopyPath = v.yieldThen(c.CopyPath)
-	c.SetWallpaper = v.yieldThen(c.SetWallpaper)
-	c.Trash = v.yieldThen(c.Trash)
+
+	for _, callback := range []*func(){
+		&c.SaveRotation,
+		&c.PromptExport,
+		&c.CloseFiles,
+		&c.ShowSettings,
+		&c.ShowViewer,
+		&c.ShowExif,
+		&c.ShowGrid,
+		&c.ShowPictureFrame,
+		&c.ToggleHideDuplicates,
+		&c.ShowVariant,
+		&c.Compare,
+		&c.Rotate,
+		&c.ToggleMergeMode,
+		&c.ToggleInfoOverlay,
+		&c.CopyPath,
+		&c.SetWallpaper,
+		&c.Trash,
+	} {
+		*callback = v.yieldThen(*callback)
+	}
 	return c
 }
 

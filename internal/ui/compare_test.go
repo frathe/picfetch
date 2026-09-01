@@ -77,8 +77,8 @@ func comparisonButton(t *testing.T, root fyne.CanvasObject, text string) *widget
 		if button, ok := object.(*widget.Button); ok && button.Text == text {
 			found = button
 		}
-		if container, ok := object.(*fyne.Container); ok {
-			for _, child := range container.Objects {
+		if fyneContainer, ok := object.(*fyne.Container); ok {
+			for _, child := range fyneContainer.Objects {
 				walk(child)
 			}
 		}
@@ -130,8 +130,8 @@ func comparisonGridWrap(t *testing.T, root fyne.CanvasObject) *widget.GridWrap {
 		if gridWrap, ok := object.(*widget.GridWrap); ok {
 			found = gridWrap
 		}
-		if container, ok := object.(*fyne.Container); ok {
-			for _, child := range container.Objects {
+		if fyneContainer, ok := object.(*fyne.Container); ok {
+			for _, child := range fyneContainer.Objects {
 				walk(child)
 			}
 		}

@@ -45,7 +45,7 @@ func (l comparisonContentLayout) Layout(_ []fyne.CanvasObject, size fyne.Size) {
 	}
 }
 
-func (comparisonContentLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.Size{} }
+func (comparisonContentLayout) MinSize(_ []fyne.CanvasObject) fyne.Size { return fyne.Size{} }
 
 func (f *Feature) layoutContent(size fyne.Size) {
 	if f.layoutMode == swipe {

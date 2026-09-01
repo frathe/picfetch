@@ -474,7 +474,7 @@ func (overlayLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	}
 }
 
-func (overlayLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.Size{} }
+func (overlayLayout) MinSize(_ []fyne.CanvasObject) fyne.Size { return fyne.Size{} }
 
 type requestLifecycle struct {
 	revision atomic.Uint64

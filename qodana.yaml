@@ -42,13 +42,13 @@ profile:
 linter: jetbrains/qodana-go:2026.2
 include:
   - name: DuplicatedCode
-# Every DuplicatedCode fragment this run writes to the SARIF lives in a
-# _test.go file: shared table-test scaffolding that reads better repeated
-# than extracted. The only production duplication is the orientation pixel
-# loops in internal/imaging/orientation.go, which carry their own
-# source-local //goland:noinspection DuplicatedCode suppressions. Two glob
-# dialects ("**/*_test.go", then "**_test.go") were tried first and did not
-# take, so this lists every *_test.go file explicitly. See
+# Shared table-test scaffolding is intentionally excluded from DuplicatedCode
+# because it reads better repeated than extracted; production duplication
+# remains actionable. The intentional orientation pixel loops in
+# internal/imaging/orientation.go carry their own source-local
+# //goland:noinspection DuplicatedCode suppressions. Two glob dialects
+# ("**/*_test.go", then "**_test.go") were tried first and did not take, so
+# this lists every *_test.go file explicitly. See
 # finished_refactorings/2026-08-29-qodana-duplication-close.md.
 exclude:
   - name: DuplicatedCode
@@ -100,6 +100,10 @@ exclude:
       - "internal/ui/autoupdate_test.go"
       - "internal/ui/batch_test.go"
       - "internal/ui/clipboard_test.go"
+      - "internal/ui/compare/compare_test.go"
+      - "internal/ui/compare/vector_test.go"
+      - "internal/ui/compare_fidelity_test.go"
+      - "internal/ui/compare_test.go"
       - "internal/ui/copyselection/copyselection_test.go"
       - "internal/ui/copyselection/edit_test.go"
       - "internal/ui/copyselection/geometry_test.go"

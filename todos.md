@@ -6,59 +6,45 @@
 
 #### New Features
 
-![Trane comparing files](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_comparing_images.webp)
+![Trane comparing images](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_comparing_images.webp)
 
 ##### Compare two images
 
-- Grid View can now compare exactly two explicitly selected images with
-  **Actions -> Compare selected images** (`Cmd+D` on macOS, `Ctrl+D`
-  elsewhere). The opaque in-window comparison opens immediately, loads both
-  fitted 50/50 panes concurrently, and returns through **Back to Grid** or
-  `Esc` without changing selection, filter, highlight, scroll position, title,
-  or file set. Selected files hidden by a filter remain eligible, and a load
-  failure returns safely to the untouched grid.
-- Comparison now permanently identifies both sides with translucent corner
-  badges and an exact left-to-right window title. Matching basenames expand to
-  the shortest distinguishing folder/file suffix. A compact translucent
-  top-right toolbar keeps **Back to Grid** available while loading and enables
-  **Swap** once both images are ready; Swap exchanges both roles immediately
-  without another decode or any change to the covered grid.
-- Comparison is now an exclusive main-window mode. Its toolbar, `Esc`, F1 help,
-  and normal window closing remain available, while ordinary viewer, grid,
-  file, Favorites, and Actions commands are disabled and guarded at their
-  direct entries. A full-surface input shield keeps typed and pointer input out
-  of the covered grid. Drops, file-dialog requests, and native Open With
-  deliveries are discarded with **Return to Grid View before opening files**.
-- Zoom and pan now stay linked across the comparison panes. Wheel and
-  `+` / `-` zoom both, dragging either pane or using `Shift`+wheel pans both,
-  `0` fits and centers both, and `1` shows both at actual pixel size. The
-  shared normalized center is clamped so neither pane exposes blank space.
-- Comparison can now switch from fixed side-by-side panes to a full-viewport
-  swipe reveal. The ready-gated **Swipe** / **Side by side** control retains
-  the linked view and divider position; dragging the themed divider changes
-  only the reveal, while ordinary drags still pan both images. `Left` / `Right`
-  move the divider by 5 percentage points, their Shift variants move it by 1,
-  and `Home` / `End` choose 0% / 100%.
-- Layout switches and main-window resizes now preserve the shared point of
-  interest and zoom while recomputing each image's fitted scale and clamping
-  away blank space. Actual size remains an absolute 100% scale, and **Swap**
-  preserves the layout, transform, and divider while exchanging swipe roles.
-  Every new comparison resets fitted and centered, side by side, at 50%.
-- Comparison now preserves the canonical source fidelity of every supported
-  format. Raster panes retain their full decoded first frame, EXIF orientation
-  and RAW embedded previews follow the normal imaging path, and animations stay
-  frozen on frame zero. SVGs rerender per pane at the current device-pixel size
-  after zoom, layout, resize, and Swap, with cancellation and stale-result
-  protection. Existing encoded-input and vector-raster limits remain honest;
-  failures return to the unchanged grid instead of reducing or removing a
-  source, while two successful full decodes may use their combined memory.
+- In Grid View, select exactly two images and choose
+  **Actions -> Compare selected images** (`Cmd+D` on macOS or `Ctrl+D` on
+  Windows and Linux). Choose **Back to Grid** or press `Esc` when you are done.
+  Your selection, filter, highlighted image, scroll position, and file list
+  will be exactly as you left them.
+- Each image is clearly labeled. If both images have the same filename, their
+  folder names are included so you can tell them apart. Once both images have
+  loaded, choose **Swap** to exchange their positions instantly.
+- Zooming and panning stay synchronized so you can inspect the same area in
+  both images. Use the mouse wheel or `+` / `-` to zoom, drag either image or
+  use `Shift`+wheel to pan, press `0` to fit and center both images, or press
+  `1` to view them at actual size.
+- Switch between **Side by side** and **Swipe** without losing your current
+  zoom or position. In Swipe view, drag the divider or use `Left` / `Right` to
+  reveal more of either image. Hold `Shift` for smaller keyboard adjustments,
+  or press `Home` / `End` to show only one image. New comparisons start fitted
+  and centered in a 50/50 side-by-side view.
+- Resizing the window, changing layouts, or swapping the images preserves your
+  current view. PicFetch also keeps the normal orientation and image quality
+  for supported formats, uses embedded previews for RAW files, freezes
+  animations on their first frame, and keeps SVGs sharp as you zoom.
+- Comparison takes over the main window, so other viewer and file commands are
+  unavailable until you return to Grid View. Return to Grid View before opening
+  or dropping more files. If either selected image cannot be loaded, PicFetch
+  safely returns to your unchanged grid.
 
 #### Bugfix
 
-- Slow update downloads no longer fail merely because receiving the archive
-  takes longer than the updater's network timeout.
+- In-app updates no longer fail when downloading the update archive takes a
+  long time on a slow connection.
 
 #### Internal
+
+- Cleaned up comparison-related Qodana findings and added the new comparison
+  tests to the test-duplication exclusions.
 
 ## ACTIVE DEVELOPMENT
 
@@ -69,10 +55,6 @@
 - **Manual Comparison:** When the ctrl-key is hold down and one of the sides is paned of zoomed,
 
 ### Compare two grid-selected images additions
-- fix: 
-  - Warning:(128, 6) Variable 'container' collides with imported package name
-    ~/Projects/picfetch/internal/ui/compare_test.go
-  - Warning:(75, 6) Variable 'container' collides with imported package name
 - only the side the cursor is on is affected. so the lock between the two sides is released as long
   the crtl key is hold down. WHen letting go of ctrl the two sides are glued back together. but at
   the current position and zoom level. from there one pan and zoom again influences both sides.

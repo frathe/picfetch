@@ -41,17 +41,17 @@ func (s *inputShield) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
 }
 
-func (*inputShield) Tapped(*fyne.PointEvent)          {}
-func (*inputShield) TappedSecondary(*fyne.PointEvent) {}
-func (*inputShield) DoubleTapped(*fyne.PointEvent)    {}
-func (*inputShield) Dragged(*fyne.DragEvent)          {}
-func (*inputShield) DragEnd()                         {}
-func (*inputShield) Scrolled(*fyne.ScrollEvent)       {}
-func (*inputShield) MouseDown(*desktop.MouseEvent)    {}
-func (*inputShield) MouseUp(*desktop.MouseEvent)      {}
-func (*inputShield) MouseIn(*desktop.MouseEvent)      {}
-func (*inputShield) MouseMoved(*desktop.MouseEvent)   {}
-func (*inputShield) MouseOut()                        {}
+func (*inputShield) Tapped(_ *fyne.PointEvent)          {}
+func (*inputShield) TappedSecondary(_ *fyne.PointEvent) {}
+func (*inputShield) DoubleTapped(_ *fyne.PointEvent)    {}
+func (*inputShield) Dragged(_ *fyne.DragEvent)          {}
+func (*inputShield) DragEnd()                           {}
+func (*inputShield) Scrolled(_ *fyne.ScrollEvent)       {}
+func (*inputShield) MouseDown(_ *desktop.MouseEvent)    {}
+func (*inputShield) MouseUp(_ *desktop.MouseEvent)      {}
+func (*inputShield) MouseIn(_ *desktop.MouseEvent)      {}
+func (*inputShield) MouseMoved(_ *desktop.MouseEvent)   {}
+func (*inputShield) MouseOut()                          {}
 
 func (*inputShield) Cursor() desktop.Cursor { return desktop.DefaultCursor }
 
