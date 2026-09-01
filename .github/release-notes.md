@@ -2,36 +2,44 @@
 
 ### New Features
 
- - Copy selection: rectangular image-region copy from the normal viewer
-   (Actions -> Copy selection, Opt/Alt+Shift+C).
+![Trane comparing images](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_comparing_images.webp)
 
- - Copy Selection: Cmd/Ctrl+C copies the active image-region selection.
+#### Compare two images
 
- - Settings: maximum window width, maximum window height, and fixed window
-   size now live under Appearance.
+- In Grid View, select exactly two images and choose
+  **Actions -> Compare selected images** (`Cmd+D` on macOS or `Ctrl+D` on
+  Windows and Linux). Choose **Back to Grid** or press `Esc` when you are done.
+  Your selection, filter, highlighted image, scroll position, and file list
+  will be exactly as you left them.
+- Each image is clearly labeled. If both images have the same filename, their
+  folder names are included so you can tell them apart. Once both images have
+  loaded, choose **Swap** to exchange their positions instantly.
+- Zooming and panning stay synchronized so you can inspect the same area in
+  both images. Use the mouse wheel or `+` / `-` to zoom, drag either image or
+  use `Shift`+wheel to pan, press `0` to fit and center both images, or press
+  `1` to view them at actual size.
+- Switch between **Side by side** and **Swipe** without losing your current
+  zoom or position. In Swipe view, drag the divider or use `Left` / `Right` to
+  reveal more of either image. Hold `Shift` for smaller keyboard adjustments,
+  or press `Home` / `End` to show only one image. New comparisons start fitted
+  and centered in a 50/50 side-by-side view.
+- Resizing the window, changing layouts, or swapping the images preserves your
+  current view. PicFetch also keeps the normal orientation and image quality
+  for supported formats, uses embedded previews for RAW files, freezes
+  animations on their first frame, and keeps SVGs sharp as you zoom.
+- Comparison takes over the main window, so other viewer and file commands are
+  unavailable until you return to Grid View. Return to Grid View before opening
+  or dropping more files. If either selected image cannot be loaded, PicFetch
+  safely returns to your unchanged grid.
+
+### Bugfix
+
+- In-app updates no longer fail when downloading the update archive takes a
+  long time on a slow connection.
 
 ### Internal
 
- - Copy Selection crop/encode uses one `copyselection.Source` pipeline, even
-   with the test encoder seam. Raster capture pins the displayed frame instead
-   of allocating a duplicate rotation; SVG capture and crop share one oriented
-   logical-size definition.
+- Cleaned up comparison-related Qodana findings and added the new comparison
+  tests to the test-duplication exclusions.
 
- - Copy Selection yield is enforced at command entry and at the `ShowImage`
-   chokepoint. Favorites menu actions use the same host runner, callback
-   completeness is guarded by reflection, and a busy-copy refusal now shows
-   feedback. `0` yields because it resets rotation; pure zoom keys still keep
-   the mode.
-
- - Settings window is seeded from `settingsState()` (`preferences.State`)
-   and sends the snapshot before and after each edit to `ApplySettings`, which
-   applies only that patch. Main-window shortcut changes made while Settings
-   is open are no longer reverted by the next unrelated form edit.
-
- - Zoom geometry skips Copy Selection dispatch entirely while the mode is
-   inactive and refreshes only the selection chrome while active.
-
- - `make test` and the race-test phase of `make verify` run in cached
-   Linux/amd64 Docker environments, so local golden comparisons match CI.
-
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v0.2.14...v0.2.15
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v0.2.15...v0.2.16
