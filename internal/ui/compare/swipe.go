@@ -90,6 +90,18 @@ func (f *Feature) layoutSwipeReveal(size fyne.Size) {
 	f.divider.Resize(fyne.NewSize(thickness, size.Height))
 }
 
+func (f *Feature) paneVisibleArea(index int) (fyne.Position, fyne.Size) {
+	viewport := f.viewports[index]
+	if f.layoutMode != swipe {
+		return fyne.Position{}, viewport
+	}
+	boundary := min(max(f.dividerAt, 0), 1) * viewport.Width
+	if index == 0 {
+		return fyne.Position{}, fyne.NewSize(boundary, viewport.Height)
+	}
+	return fyne.NewPos(boundary, 0), fyne.NewSize(viewport.Width-boundary, viewport.Height)
+}
+
 func (f *Feature) layoutReveal(index int, clipPosition fyne.Position, clipSize fyne.Size, rootPosition fyne.Position, rootSize fyne.Size) {
 	reveal := f.reveals[index]
 	reveal.clip.Move(clipPosition)
@@ -151,13 +163,13 @@ func (f *Feature) setDivider(position float32) {
 	f.layoutSwipeReveal(f.content.Size())
 }
 
-func (f *Feature) handleDividerKey(name fyne.KeyName) bool {
+func (f *Feature) handleDividerKey(name fyne.KeyName, modifiers fyne.KeyModifier) bool {
 	if f.layoutMode != swipe {
 		return false
 	}
 
 	step := dividerKeyStep
-	if f.callbacks.Modifiers != nil && f.callbacks.Modifiers()&fyne.KeyModifierShift != 0 {
+	if modifiers&fyne.KeyModifierShift != 0 {
 		step = dividerFineKeyStep
 	}
 	switch name {

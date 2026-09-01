@@ -12,19 +12,40 @@ import (
 // defaultKeyModifiers reports the keyboard modifiers currently held, which
 // a fyne.KeyEvent doesn't carry: desktop.Driver.CurrentKeyModifiers is kept
 // in sync by the glfw driver on every key event regardless of which widget
-// has focus, unlike a window-level SetOnKeyDown/SetOnKeyUp hook, which Fyne
-// only calls when nothing focusable currently has focus. Both consumers -
-// Shift+R below and internal/ui/zoom's Shift+scroll pan - reach it through
-// the viewer's keyModifiers field rather than calling it directly, so tests
-// can stub it per-viewer: Fyne's test driver doesn't implement
-// desktop.Driver at all, so the type assertion here is always false under
-// test.
+// has focus, unlike a window-level SetOnKeyDown hook, which Fyne only calls
+// when nothing focusable currently has focus. Consumers including Shift+R,
+// comparison's physical Ctrl+L toggle, and internal/ui/zoom's Shift+scroll
+// pan reach it through the viewer's keyModifiers field rather than calling it
+// directly, so tests can stub it per-viewer: Fyne's test driver doesn't
+// implement desktop.Driver at all, so the type assertion here is always false
+// under test.
 func defaultKeyModifiers() fyne.KeyModifier {
 	if d, ok := fyne.CurrentApp().Driver().(desktop.Driver); ok {
 		return d.CurrentKeyModifiers()
 	}
 
 	return 0
+}
+
+type comparisonKeyDownCanvas interface {
+	OnKeyDown() func(*fyne.KeyEvent)
+	SetOnKeyDown(func(*fyne.KeyEvent))
+}
+
+// wireComparisonLinkToggleHook handles exact physical Ctrl+L presses before
+// Fyne turns modified keys into shortcuts. OnKeyDown runs for the press edge
+// but not key repeat, so holding L cannot toggle repeatedly. Existing canvas
+// hooks are preserved.
+func wireComparisonLinkToggleHook(c comparisonKeyDownCanvas, view *viewer) {
+	previousDown := c.OnKeyDown()
+	c.SetOnKeyDown(func(ev *fyne.KeyEvent) {
+		if previousDown != nil {
+			previousDown(ev)
+		}
+		if ev != nil && ev.Name == fyne.KeyL && view.keyModifiers() == fyne.KeyModifierControl {
+			view.compare.ToggleLink()
+		}
+	})
 }
 
 // handleTypedRune dispatches a single typed character. The grid's filename

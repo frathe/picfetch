@@ -111,6 +111,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.vector.lifecycle.invalidate()
 		view.regionCopyLifecycle.invalidate()
 		view.updateOp.invalidate()
+		view.compare.Close()
 
 		// Same reasoning as the invalidations above, for the one piece of
 		// state that outlives the viewer: openwith's queue is

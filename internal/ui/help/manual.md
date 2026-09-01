@@ -431,14 +431,17 @@ instead of arrowing through them one at a time.
   Selected thumbnails are washed in the accent colour, and the top bar
   counts them (`12 selected`). A click without dragging still just opens an image.
 - With exactly two files selected, press **`Cmd/Ctrl+D`** or choose
-  **Actions -> Compare selected images**. An opaque comparison opens in the
+  **Actions -> Compare selected images**. On macOS, `Cmd+D` is the native
+  shortcut; physical **`Ctrl+D`** also works on macOS. An opaque comparison opens in the
   same window with both images fitted into fixed 50/50 panes; the file earlier
   in the current grid order is on the left. Each side shows its own spinner
   while loading. Translucent bottom-corner badges identify the files by base
   name; if those names match, both expand to the shortest distinguishing
   folder/file suffix. The window title follows the same order, for example
-  `Compare: left.jpg | right.jpg - PicFetch`. A translucent toolbar stays at
-  the top right: **Back to Grid** remains available while loading, and
+  `Compare: left.jpg | right.jpg - PicFetch`. A separate translucent card holds
+  the top-left **Unlink** button; it and physical **`Ctrl+L`** remain inactive
+  until both images are ready. A translucent action toolbar stays at the top
+  right: **Back to Grid** remains available while loading, and
   **Swap** becomes available once both images are ready. Swap exchanges the
   images, badges, and title without loading either file again. **Swipe**
   switches both images to the full comparison viewport and adds a vertical
@@ -446,20 +449,44 @@ instead of arrowing through them one at a time.
   divider to change the reveal; dragging elsewhere continues to pan both
   images. While swipe is active, **`Left`** / **`Right`** move the divider by
   5 percentage points, **`Shift+Left`** / **`Shift+Right`** by 1 point, and
-  **`Home`** / **`End`** move it to 0%/100%. **Side by side** returns to fixed
-  50/50 panes. Switching layouts keeps the linked view and divider position;
-  a new comparison starts side by side at 50%. Zoom and pan stay linked
-  between the comparison panes. Scroll over either pane or use
-  **`+`** / **`-`** to zoom both around the shared view. Dragging either
-  comparison pane or using Shift+scroll pans both; the shared point is clamped
-  so neither image can be pulled away from its pane. **`0`** fits and centers
-  both; **`1`** shows both at 100% (one decoded image pixel per canvas point).
+  **`Home`** / **`End`** move it to 0%/100%.
+  **Side by side** returns to fixed 50/50 panes. Switching layouts preserves
+  each photo's position and size, the camera, and the divider position; a new
+  comparison starts side by side at 50%. During normal linked use, zoom and pan operate
+  one overhead camera above the two photos. Scroll over either pane or use
+  **`+`** / **`-`** to zoom that camera; dragging either comparison pane or
+  using Shift+scroll moves both views by the same screen distance. Camera
+  movement stops before either photo can pass completely beyond the centre of
+  its pane. **`0`** frames both photos in their current arrangement with one
+  camera move while retaining their relative sizes and offsets. **`1`** returns the camera to
+  its 1x home view relative to the stored arrangement; after the photos have
+  been resized separately, it does not make both of them decoded-pixel 100%.
+  Use the top-left **Unlink** button or press physical **`Ctrl+L`** (`Ctrl`,
+  including on macOS; not `Cmd`) to toggle the panes between linked and
+  unlinked views. The first click or press unlinks them until either control is
+  used again; releasing Control has no effect. Once unlinked, the button
+  changes to **Link**, and the status **Unlinked** appears immediately beside
+  it, followed by **Left** or **Right** once a pane has been targeted. Drag,
+  scroll, or Shift+scroll then changes only the pane under the pointer;
+  unmodified **`0`**, **`1`**, **`+`**, and **`-`** change the
+  hovered or last-hovered photo and do nothing until a pane has been targeted.
+  Here **`0`** fits and centres only that photo in the current camera view, and
+  **`1`** shows only that photo at decoded-pixel 100%. A photo may be moved
+  until one of its edges reaches the pane centre. Changing the link state never
+  moves or resizes either photo: pressing **`Ctrl+L`** again locks the current
+  arrangement, and later linked controls move only the camera. Window resizing
+  and layout changes preserve the photo arrangement and camera. Swap locks and
+  clears any divergence from the last-targeted side before exchanging the images. A
+  new comparison always starts linked.
   Raster sources stay at full decoded resolution and use their canonical
   EXIF-corrected orientation; a temporary rotation in the single-image viewer
   is not carried into comparison. SVGs re-render at their effective
   screen-pixel size whenever zoom, layout, or window size changes. RAW files
   use the same embedded JPEG preview as the normal viewer. Animated inputs stay
   frozen on their first decoded frame for the entire comparison session.
+  A bounded overview remains visible while sharper detail tiles arrive in the background.
+  Pan and zoom update that stable GPU surface directly, so interaction does not
+  wait for the sharper tiles.
   Full fidelity can require the combined decoded memory of both sources even
   when the image cache retains only one. The existing encoded-input and
   vector-raster limits still apply. If either source cannot complete, PicFetch

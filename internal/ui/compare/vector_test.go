@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"image/color"
+	"sync"
 	"testing"
 	"time"
 
@@ -51,7 +52,7 @@ func TestCompareSettle_WaitsForQueuedVectorCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode SVG fixture: %v", err)
 	}
-	feature := New(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
+	feature := newReferenceFeature(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 		if uri.Name() == "left.svg" {
 			return vector, nil
 		}
@@ -79,6 +80,67 @@ func TestCompareSettle_WaitsForQueuedVectorCompletion(t *testing.T) {
 	}
 }
 
+func TestCompareSettle_DrainsVectorReplacementBeforeWaitingForObsoleteTiles(t *testing.T) {
+	app := fynetest.NewApp()
+	t.Cleanup(app.Quit)
+
+	vector, err := imaging.DecodeLoaded(context.Background(), uitest.SVGBytes(4096, 2048), imaging.DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatalf("decode SVG fixture: %v", err)
+	}
+	feature := newFeature(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
+		if uri.Name() == "left.svg" {
+			return vector, nil
+		}
+		return &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 40, 20))}}, nil
+	}, Callbacks{}, newShaderPaneRenderer)
+	feature.vectorDebounce = 0
+	feature.vectorPixels = func(fyne.CanvasObject, fyne.Size) (int, int) { return 2048, 1024 }
+	queue := &uitest.UIQueue{}
+	feature.SetUIQueue(queue)
+
+	left := feature.panes[0].renderer.(*shaderPaneRenderer)
+	oldTileStarted := make(chan struct{})
+	var started sync.Once
+	left.generateTile = func(ctx context.Context, source *renderSource, key tileKey) (*renderTile, error) {
+		if source.frame.Bounds().Dx() == 4096 {
+			started.Do(func() { close(oldTileStarted) })
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		return generateRenderTile(ctx, source, key)
+	}
+	feature.vectorRasterize = func(_ *imaging.Vector, width, height int) (image.Image, error) {
+		select {
+		case <-oldTileStarted:
+		case <-time.After(time.Second):
+			t.Fatal("obsolete tile worker did not start before vector replacement")
+		}
+		return image.NewRGBA(image.Rect(0, 0, width, height)), nil
+	}
+
+	feature.Overlay().Resize(fyne.NewSize(800, 400))
+	feature.Open([2]fyne.URI{
+		storage.NewFileURI("left.svg"),
+		storage.NewFileURI("right.png"),
+	})
+	t.Cleanup(func() {
+		feature.Close()
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = feature.Settle(cleanupCtx)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := feature.Settle(ctx); err != nil {
+		t.Fatalf("Settle waited for an obsolete tile before applying its queued vector replacement: %v", err)
+	}
+	if got := feature.rendered[0].Bounds().Size(); got != image.Pt(2048, 1024) {
+		t.Fatalf("settled vector raster = %v, want 2048x1024 replacement", got)
+	}
+}
+
 func TestCompareStale_VectorRenderCannotPaintSupersededTarget(t *testing.T) {
 	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
@@ -91,7 +153,7 @@ func TestCompareStale_VectorRenderCannotPaintSupersededTarget(t *testing.T) {
 	newFinished := make(chan struct{})
 	releaseOld := make(chan struct{})
 
-	feature := New(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
+	feature := newReferenceFeature(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 		if uri.Name() == "left.svg" {
 			return vector, nil
 		}
@@ -157,7 +219,7 @@ func TestCompareCancel_VectorCompletionCannotPaintAfterClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode SVG fixture: %v", err)
 	}
-	feature := New(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
+	feature := newReferenceFeature(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 		if uri.Name() == "left.svg" {
 			return vector, nil
 		}
@@ -206,7 +268,7 @@ func TestCompareVector_RasterTargetHonorsExistingPixelLimit(t *testing.T) {
 		t.Fatalf("decode SVG fixture: %v", err)
 	}
 	requested := image.Point{}
-	feature := New(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
+	feature := newReferenceFeature(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 		if uri.Name() == "left.svg" {
 			return vector, nil
 		}

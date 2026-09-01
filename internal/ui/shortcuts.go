@@ -45,14 +45,23 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	wireExportShortcuts(yielding, view)
 }
 
-// wireCompareShortcut binds Cmd/Ctrl+D to the comparison command. D is not
-// one of Fyne's built-in shortcut types, so the desktop custom shortcut is
-// the production path on every desktop platform.
+// wireCompareShortcut binds the platform-native Cmd/Ctrl+D and physical
+// Ctrl+D to the comparison command. On platforms whose native shortcut is
+// already Control, the second registration is omitted. D is not one of
+// Fyne's built-in shortcut types, so desktop custom shortcuts are the
+// production path on every desktop platform.
 func wireCompareShortcut(c shortcutAdder, view *viewer) {
+	open := func(fyne.Shortcut) { view.compareSelected() }
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyD,
 		Modifier: fyne.KeyModifierShortcutDefault,
-	}, func(fyne.Shortcut) { view.compareSelected() })
+	}, open)
+	if fyne.KeyModifierShortcutDefault != fyne.KeyModifierControl {
+		c.AddShortcut(&desktop.CustomShortcut{
+			KeyName:  fyne.KeyD,
+			Modifier: fyne.KeyModifierControl,
+		}, open)
+	}
 }
 
 // yieldingShortcuts is the canvas-shortcut yield: every binding registered

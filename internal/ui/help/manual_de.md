@@ -480,7 +480,9 @@ einzeln durchzublättern.
   eingefärbt, und die obere Leiste zählt sie (`12 ausgewählt`). Ein
   Klick ohne Ziehen öffnet weiterhin nur ein Bild.
 - Sind genau zwei Dateien ausgewählt, drücken Sie **`Cmd/Strg+D`** oder wählen
-  **Aktionen -> Ausgewählte Bilder vergleichen**. Im selben Fenster erscheint
+  **Aktionen -> Ausgewählte Bilder vergleichen**. Unter macOS ist `Cmd+D` die
+  native Tastenkombination; die physische **`Ctrl+D`** funktioniert unter macOS ebenfalls.
+  Im selben Fenster erscheint
   eine undurchsichtige Vergleichsansicht, in der beide Bilder in feste
   50/50-Bereiche eingepasst sind; die in der aktuellen Rasterreihenfolge
   frühere Datei steht links. Während des Ladens zeigt jede Seite einen eigenen
@@ -488,8 +490,11 @@ einzeln durchzublättern.
   die Dateien mit ihrem Basisnamen; sind diese gleich, werden beide zum
   kürzesten unterscheidbaren Ordner/Datei-Suffix erweitert. Der Fenstertitel
   folgt derselben Reihenfolge, zum Beispiel
-  `Vergleich: links.jpg | rechts.jpg - PicFetch`. Oben rechts bleibt eine
-  durchscheinende Werkzeugleiste sichtbar: **Zurück zur Rasteransicht** ist
+  `Vergleich: links.jpg | rechts.jpg - PicFetch`. Eine separate
+  durchscheinende Karte enthält die Schaltfläche **Entkoppeln** oben links;
+  sie und die physische Tastenkombination **`Ctrl+L`** bleiben inaktiv, bis
+  beide Bilder bereit sind. Oben rechts bleibt eine durchscheinende
+  Aktionsleiste sichtbar: **Zurück zur Rasteransicht** ist
   auch beim Laden verfügbar, **Tauschen** wird aktiv, sobald beide Bilder
   bereit sind. Tauschen vertauscht Bilder, Abzeichen und Titel, ohne eine Datei
   erneut zu laden. **Wischen** legt beide Bilder über den vollständigen
@@ -500,15 +505,39 @@ einzeln durchzublättern.
   die Trennlinie um 5 Prozentpunkte, **`Shift+Left`** / **`Shift+Right`** um 1
   Prozentpunkt und **`Home`** / **`End`** setzen sie auf 0 %/100 %.
   **Nebeneinander** kehrt zu festen 50/50-Bereichen zurück. Beim Wechsel der
-  Anordnung bleiben die gekoppelte Ansicht und die Trennlinienposition erhalten;
-  ein neuer Vergleich beginnt nebeneinander bei 50 %. Zoom und Verschieben
-  bleiben gekoppelt zwischen den beiden Vergleichsbereichen. Scrollen Sie über
-  einem Bereich oder verwenden Sie
-  **`+`** / **`-`**, um beide um die gemeinsame Ansicht zu zoomen. Ziehen in
-  einem Vergleichsbereich oder Shift+Scrollen verschiebt beide; der gemeinsame
-  Punkt wird so begrenzt, dass kein Bild aus seinem Bereich gezogen werden
-  kann. **`0`** passt beide Bilder ein und zentriert sie; **`1`** zeigt beide
-  mit 100 % (ein dekodiertes Bildpixel pro Canvas-Punkt).
+  Anordnung bleiben Position und Größe beider Fotos, die Kamera und die
+  Trennlinienposition erhalten; ein neuer Vergleich beginnt nebeneinander bei
+  50 %. Im normal gekoppelten Zustand steuern Zoom und Verschieben eine
+  gemeinsame Kamera über den beiden Fotos. Scrollen Sie über einem Bereich
+  oder verwenden Sie **`+`** / **`-`**, um diese Kamera zu zoomen. Ziehen in
+  einem Vergleichsbereich oder Shift+Scrollen bewegt beide Ansichten um
+  dieselbe Bildschirmstrecke. Die Kamerabewegung stoppt, bevor ein Foto die
+  Mitte seines Bereichs vollständig passiert. **`0`** rahmt beide Fotos in ihrer
+  aktuellen Anordnung mit einer Kamerabewegung ein und behält ihre relativen
+  Größen und Versätze bei. **`1`** setzt die Kamera auf ihre 1x-Ausgangsansicht relativ
+  zur gespeicherten Anordnung zurück; nach getrenntem Skalieren zeigt
+  es nicht beide Fotos mit 100 % der dekodierten Pixelgröße. Verwenden Sie die
+  Schaltfläche **Entkoppeln** oben links oder drücken Sie die physische
+  Tastenkombination **`Ctrl+L`** (`Ctrl`/`Strg`, auch unter macOS; nicht `Cmd`),
+  um zwischen gekoppelten und entkoppelten Ansichten umzuschalten. Der erste
+  Klick oder Tastendruck entkoppelt die Bereiche, bis eines der beiden
+  Bedienelemente erneut verwendet wird; das Loslassen von Control hat keine
+  Wirkung. Nach dem Entkoppeln wechselt die Schaltfläche zu **Koppeln**, und der
+  Status **Entkoppelt** erscheint direkt daneben; nach der Auswahl eines
+  Bereichs folgt zusätzlich **Links** oder **Rechts**. Ziehen, Scrollen oder Shift+Scrollen
+  ändert dann nur den Bereich unter dem Mauszeiger; die unveränderten Tasten
+  **`0`**, **`1`**, **`+`** und **`-`** ändern das Foto unter dem Mauszeiger
+  beziehungsweise das zuletzt berührte Foto und bewirken nichts, solange noch
+  kein Bereich ausgewählt wurde. Dabei passt **`0`** nur dieses Foto in die
+  aktuelle Kameraansicht ein und zentriert es; **`1`** zeigt nur dieses Foto mit
+  100 % der dekodierten Pixelgröße. Ein Foto lässt sich verschieben, bis einer
+  seiner Ränder die Mitte des Bereichs erreicht. Das Umschalten der Kopplung
+  bewegt oder skaliert keines der Fotos: Beim erneuten Drücken von **`Ctrl+L`**
+  wird die aktuelle Anordnung gekoppelt, danach verändern gekoppelte Befehle nur
+  noch die Kamera. Fenstergrößen- und Anordnungsänderungen bewahren die
+  Fotoanordnung und Kamera. Tauschen koppelt und verwirft zuerst alle
+  Unterschiede anhand des zuletzt berührten Bereichs und vertauscht dann die
+  Bilder. Ein neuer Vergleich beginnt immer gekoppelt.
   Rasterquellen bleiben in der vollen dekodierten Auflösung und verwenden ihre
   kanonische EXIF-korrigierte Ausrichtung; eine vorübergehende Drehung in der
   Einzelbildansicht wird nicht in den Vergleich übernommen. SVGs werden für
@@ -516,7 +545,10 @@ einzeln durchzublättern.
   Anordnung oder Fenstergröße ändern. RAW-Dateien verwenden dieselbe
   eingebettete JPEG-Vorschau wie die normale Einzelbildansicht. Animierte
   Eingaben bleiben auf ihrem ersten dekodierten Einzelbild eingefroren, solange
-  der Vergleich geöffnet ist. Volle Wiedergabetreue kann den kombinierten
+  der Vergleich geöffnet ist. Eine begrenzte Übersicht bleibt sichtbar, während schärfere
+  Detailkacheln im Hintergrund eintreffen. Verschieben und Zoomen aktualisieren diese stabile
+  GPU-Fläche direkt, sodass die Interaktion nicht auf die schärferen Kacheln wartet.
+  Volle Wiedergabetreue kann den kombinierten
   dekodierten Speicher beider Quellen beanspruchen, auch wenn der Bild-Cache nur
   eine davon behält. Die vorhandenen Grenzen für kodierte Eingaben und
   Vektor-Raster gelten weiterhin. Kann eine Quelle nicht vollständig geladen

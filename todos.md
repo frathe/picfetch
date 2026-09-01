@@ -6,20 +6,24 @@
 
 #### New Features
 
+- Comparison pane linking can be toggled with the ready-gated **Unlink** / **Link**
+  control at the top left or physical `Ctrl+L` on every platform. Its adjacent
+  status identifies the targeted side while unlinked. Pan, wheel/Shift+wheel,
+  and `0` / `1` / `+` / `-` then affect only that photo; once linked again, the
+  same controls move one overhead camera while both photos retain their current
+  arrangement.
+
 #### Bugfix
+
+- Locking or unlocking comparison panes no longer moves or resizes either
+  photo.
+- Pan and zoom in side-by-side and Swipe comparison now render through bounded
+  GPU tiles instead of resampling the full images on every gesture.
+- Physical `Ctrl+D` opens comparison alongside the platform-native shortcut.
 
 #### Internal
 
-## ACTIVE DEVELOPMENT
-
 ## TODO
-
-### Compare two grid-selected images additions
-- **Manual Comparison:** When the ctrl-key is hold down and one of the sides is paned of zoomed, 
-  only the side the cursor is on is affected. so the lock between the two sides is released as long
-  the crtl key is hold down. WHen letting go of ctrl the two sides are glued back together. but at
-  the current position and zoom level. from there one pan and zoom again influences both sides.
-- swipe view should be the default view in comarison mode..
 
 ### Functional test coverage
 

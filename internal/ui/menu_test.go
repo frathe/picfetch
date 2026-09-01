@@ -385,6 +385,27 @@ func TestFavoriteShortcutOpensStoredFilesThroughViewer(t *testing.T) {
 	}
 }
 
+func TestGlobalFavoriteShortcutOpensStoredFilesThroughViewer(t *testing.T) {
+	v := newTestViewer(t)
+	dir := t.TempDir()
+	image := uitest.TempJPEGURI(t, "global-shortcut-favorite.jpg", 4, 4, color.White)
+	if err := favstore.Save(dir, "Trip", []fyne.URI{image}); err != nil {
+		t.Fatalf("favstore.Save: %v", err)
+	}
+	v.favorites.SetDir(dir)
+
+	handler := &fyne.ShortcutHandler{}
+	wireGlobalShortcuts(handler, v)
+	handler.TypedShortcut(favoriteui.ShortcutForIndex(0))
+	waitForScan(t, v)
+	waitForSort(t, v)
+	waitUntilLoaded(t, v)
+
+	if len(v.state.files) != 1 || v.state.files[0].Path() != image.Path() {
+		t.Errorf("files = %v, want favorite image %q", v.state.files, image.Path())
+	}
+}
+
 // mainMenuRecorder is a fyne.Window that notes, every time something reads
 // its main menu, which items the Favorites menu held at that moment. Reading
 // the bar is what refreshMainMenu (windowmenu.go) does and the only trace it

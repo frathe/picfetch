@@ -434,6 +434,9 @@ func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.
 		if !item.IsSeparator && !item.Disabled {
 			t.Errorf("%q stayed enabled during comparison", item.Label)
 		}
+		if item != f.addItem && item != f.manageItem && !item.IsSeparator && item.Shortcut == nil {
+			t.Errorf("disabled favorite %q lost its display shortcut", item.Label)
+		}
 	}
 
 	// Rebuilding the dynamic entries while isolation is active must not
@@ -446,12 +449,22 @@ func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.
 		if !item.IsSeparator && !item.Disabled {
 			t.Errorf("refreshed %q became enabled during comparison", item.Label)
 		}
+		if item != f.addItem && item != f.manageItem && !item.IsSeparator && item.Shortcut == nil {
+			t.Errorf("refreshed disabled favorite %q lost its display shortcut", item.Label)
+		}
 	}
 
 	f.SetCommandsEnabled(true)
 	for _, item := range f.menu.Items {
 		if !item.IsSeparator && item.Disabled {
 			t.Errorf("%q stayed disabled after comparison", item.Label)
+		}
+	}
+	for i := range f.names {
+		item := f.menu.Items[2+i]
+		want := ShortcutForIndex(i)
+		if want != nil && (item.Shortcut == nil || item.Shortcut.ShortcutName() != want.ShortcutName()) {
+			t.Errorf("favorite %q shortcut after comparison = %v, want restored %q", item.Label, item.Shortcut, want.ShortcutName())
 		}
 	}
 }
