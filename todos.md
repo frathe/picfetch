@@ -50,12 +50,9 @@
 
 ## TODO
 
-### Compare two grid-selected images
-
-- **Manual Comparison:** When the ctrl-key is hold down and one of the sides is paned of zoomed,
-
 ### Compare two grid-selected images additions
-- only the side the cursor is on is affected. so the lock between the two sides is released as long
+- **Manual Comparison:** When the ctrl-key is hold down and one of the sides is paned of zoomed, 
+  only the side the cursor is on is affected. so the lock between the two sides is released as long
   the crtl key is hold down. WHen letting go of ctrl the two sides are glued back together. but at
   the current position and zoom level. from there one pan and zoom again influences both sides.
 - swipe view should be the default view in comarison mode..
