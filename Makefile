@@ -15,9 +15,10 @@ GOIMPORTS_LOCAL := github.com/frathe/picfetch
 # go test's default 10m per-package timeout is no longer enough.
 TEST_TIMEOUT := 20m
 TEST_IMAGE := ubuntu:24.04
+TEST_CONTAINER_LABEL := io.github.frathe.picfetch.test=true
 TEST_RACE :=
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test test-native test-race verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root help
+.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root help
 
 all: build
 
@@ -46,8 +47,12 @@ sync-tuf-root: ## Fetch and TUF-verify a newer GitHub root into the embed (needs
 vet: ## Run go vet
 	go vet ./...
 
+update-test-image: ## Pull the latest Linux/amd64 Ubuntu image used by Docker tests
+	docker pull --platform linux/amd64 "$(TEST_IMAGE)"
+
 test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (needs Docker)
 	docker run --rm --platform linux/amd64 \
+		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
 		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
@@ -55,7 +60,7 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
+			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
 			locale-gen en_US.UTF-8 >/dev/null; \
 			export LANG=en_US.UTF-8; \
 			status=0; \
@@ -63,6 +68,26 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi; \
 			exit $$status \
 		'
+
+enter-test-container: ## Open Bash in the running test container (htop/top available)
+	@container_ids=$$(docker ps --filter "label=$(TEST_CONTAINER_LABEL)" --format '{{.ID}}') || exit $$?; \
+	set -- $$container_ids; \
+	if [ "$$#" -eq 0 ]; then \
+		echo "No PicFetch test container is running. Start one with 'make test' or 'make verify'."; \
+		exit 1; \
+	fi; \
+	if [ "$$#" -gt 1 ]; then \
+		echo "Multiple PicFetch test containers are running; stop all but the one you want to enter:"; \
+		docker ps --filter "label=$(TEST_CONTAINER_LABEL)" --format '  {{.ID}}\t{{.Names}}\t{{.Status}}'; \
+		exit 1; \
+	fi; \
+	exec docker exec -it "$$1" bash -lc '\
+		if ! command -v htop >/dev/null || ! command -v top >/dev/null; then \
+			echo "Waiting for test container setup to finish..."; \
+			until command -v htop >/dev/null && command -v top >/dev/null; do sleep 1; done; \
+		fi; \
+		exec bash \
+	'
 
 test-native: ## Run tests directly on the current OS/architecture
 	go test -timeout $(TEST_TIMEOUT) ./...
@@ -87,7 +112,7 @@ golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64,
 	docker run --rm --platform linux/amd64 \
 		-v "$(CURDIR):/work" -w /work \
 		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
-		ubuntu:24.04 bash -c '\
+		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
 			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \

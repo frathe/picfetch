@@ -217,6 +217,7 @@ packaged build.
 | `make fmt`                  | `goimports -local github.com/frathe/picfetch` all Go source files   |
 | `make fmt-check`            | Fail if any file differs from that `goimports` (CI format gate)     |
 | `make vet`                  | `go vet ./...`                                                      |
+| `make update-test-image`    | Pull the latest Linux/amd64 Ubuntu image used by Docker tests       |
 | `make test`                 | Run `go test -timeout 20m ./...` in Linux/amd64 Docker, matching CI and golden rendering |
 | `make test-native`          | Run the same suite directly on the host (goldens can differ outside Linux/amd64) |
 | `make verify`               | The same gate CI runs; its race-test step uses the `make test` Linux/amd64 container |
@@ -269,11 +270,12 @@ push) for the rare case where you want the version bumped by itself.
 tests colocated with the code they cover (`internal/ui/*_test.go`,
 `internal/imaging/*_test.go`, and so on) plus the end-to-end suite below. It
 keeps Docker volumes for the Go build and module caches, so later runs reuse
-the downloaded toolchain and dependencies. `make test-native` is the direct
-host equivalent when platform-specific behavior is the point, but its golden
-pixels can differ outside Linux/amd64. Shared test fixtures — synthetic images
-in every supported format, temp files, and stubs for the OS-level seams — live
-in `internal/uitest`.
+the downloaded toolchain and dependencies. Run `make update-test-image` to
+refresh the cached Ubuntu image from its upstream tag before testing.
+`make test-native` is the direct host equivalent when platform-specific
+behavior is the point, but its golden pixels can differ outside Linux/amd64.
+Shared test fixtures — synthetic images in every supported format, temp files,
+and stubs for the OS-level seams — live in `internal/uitest`.
 
 ### End-to-end suite (`internal/ui/e2e_test.go`)
 
