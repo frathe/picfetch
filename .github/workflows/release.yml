@@ -91,29 +91,137 @@ jobs:
             tar -czf "picfetch-linux-$arch.tar.gz" "picfetch-linux-$arch"
           done
 
-      - name: Upload Windows/Linux artifacts
+      - name: Upload unsigned Windows artifacts for signing
         uses: actions/upload-artifact@v7
         with:
-          name: picfetch-cross
+          name: picfetch-windows-unsigned
           path: |
             bin/picfetch-windows-amd64.zip
             bin/picfetch-windows-arm64.zip
+          if-no-files-found: error
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: picfetch-linux
+          path: |
             bin/picfetch-linux-amd64.tar.gz
             bin/picfetch-linux-arm64.tar.gz
           if-no-files-found: error
 
+  sign-windows:
+    # Keep the code-signing credentials behind the protected GitHub Environment
+    # configured in docs/release-signing.md. This job signs only tag-release
+    # artifacts after the test gate and must finish before publication.
+    needs: build-cross
+    runs-on: windows-latest
+    environment: release-signing
+    permissions:
+      contents: read
+    steps:
+      - name: Download unsigned Windows artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: picfetch-windows-unsigned
+          path: dist/windows-unsigned
+
+      - name: Download and verify Certum SimplySign Desktop
+        shell: pwsh
+        run: |
+          $installerUrl = 'https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi'
+          Invoke-WebRequest -Uri $installerUrl -OutFile SimplySignDesktop.msi -ErrorAction Stop
+
+          $signature = Get-AuthenticodeSignature -FilePath SimplySignDesktop.msi
+          if ($signature.Status -ne 'Valid') {
+            throw "SimplySign installer has an invalid Authenticode signature: $($signature.Status)."
+          }
+          Write-Host "Verified SimplySign installer publisher: $($signature.SignerCertificate.Subject)"
+
+      - name: Authenticate Certum SimplySign
+        # This commit is the reviewed v1 release of the third-party action.
+        # Do not replace it with a floating tag: it receives the TOTP secret.
+        uses: dismine/windows-app-signing-setup-action@89ae3b032d4bc7a5b98d1a42a34e61ecb6faad64 # v1
+        with:
+          certum-username: ${{ secrets.CERTUM_USERNAME }}
+          certum-otp-uri: ${{ secrets.CERTUM_OTP_URI }}
+          certum-key-id: ${{ secrets.CERTUM_CERT_THUMBPRINT }}
+          simplysign-url: https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi
+
+      - name: Sign, timestamp, and verify Windows executables
+        shell: pwsh
+        env:
+          CERTUM_CERT_THUMBPRINT: ${{ secrets.CERTUM_CERT_THUMBPRINT }}
+        run: |
+          $signtool = Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits\10\bin' -Filter signtool.exe -Recurse |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Select-Object -First 1
+          if ($null -eq $signtool) {
+            throw 'SignTool.exe was not found in the Windows SDK.'
+          }
+
+          $archives = @(Get-ChildItem -Path dist/windows-unsigned -Filter 'picfetch-windows-*.zip' -File)
+          if ($archives.Count -ne 2) {
+            throw "Expected exactly two Windows archives, found $($archives.Count)."
+          }
+
+          New-Item -ItemType Directory -Force -Path dist/windows-signed | Out-Null
+          foreach ($archive in $archives) {
+            $unpacked = Join-Path dist/unpacked $archive.BaseName
+            Expand-Archive -Path $archive.FullName -DestinationPath $unpacked -Force
+            $executable = Join-Path $unpacked 'picfetch.exe'
+            if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+              throw "Expected executable is missing from $($archive.Name)."
+            }
+
+            & $signtool.FullName sign /fd sha256 /tr http://time.certum.pl /td sha256 /sha1 $env:CERTUM_CERT_THUMBPRINT /v $executable
+            if ($LASTEXITCODE -ne 0) {
+              throw "Signing failed for $($archive.Name)."
+            }
+            & $signtool.FullName verify /pa /all /v /tw $executable
+            if ($LASTEXITCODE -ne 0) {
+              throw "Signature verification failed for $($archive.Name)."
+            }
+
+            Compress-Archive -Path $executable -DestinationPath (Join-Path dist/windows-signed $archive.Name) -Force
+          }
+
+      - name: Upload verified signed Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: picfetch-windows-signed
+          path: dist/windows-signed/picfetch-windows-*.zip
+          if-no-files-found: error
+
   release:
-    needs: [build-macos, build-cross]
+    needs: [build-macos, build-cross, sign-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v7
 
-      - name: Download artifacts
+      - name: Download macOS artifacts
         uses: actions/download-artifact@v8
         with:
+          name: picfetch-macos-arm64
           path: dist
-          merge-multiple: true
+
+      - name: Download Intel macOS artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: picfetch-macos-x86_64
+          path: dist
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: picfetch-linux
+          path: dist
+
+      - name: Download signed Windows artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: picfetch-windows-signed
+          path: dist
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
