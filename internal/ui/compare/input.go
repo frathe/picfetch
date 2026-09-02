@@ -56,8 +56,8 @@ func (*inputShield) MouseOut()                          {}
 func (*inputShield) Cursor() desktop.Cursor { return desktop.DefaultCursor }
 
 // paneInput is the interactive layer inside one clipped image viewport. It
-// forwards pointer intent to the Feature, which owns the single transform
-// shared by both panes.
+// forwards pointer intent and hover targeting to the Feature, which chooses
+// the shared camera or that pane's photo transform.
 type paneInput struct {
 	widget.BaseWidget
 
@@ -68,6 +68,7 @@ type paneInput struct {
 var (
 	_ fyne.Draggable     = (*paneInput)(nil)
 	_ fyne.Scrollable    = (*paneInput)(nil)
+	_ desktop.Hoverable  = (*paneInput)(nil)
 	_ desktop.Cursorable = (*paneInput)(nil)
 )
 
@@ -82,7 +83,12 @@ func (p *paneInput) CreateRenderer() fyne.WidgetRenderer {
 }
 
 func (p *paneInput) Scrolled(ev *fyne.ScrollEvent) {
-	p.feature.handleScroll(p.index, ev)
+	if ev == nil {
+		return
+	}
+	viewportEvent := *ev
+	viewportEvent.Position = viewportEvent.Position.Add(p.Position())
+	p.feature.handleScroll(p.index, &viewportEvent)
 }
 
 func (p *paneInput) Dragged(ev *fyne.DragEvent) {
@@ -93,8 +99,18 @@ func (p *paneInput) Dragged(ev *fyne.DragEvent) {
 
 func (*paneInput) DragEnd() {}
 
+func (p *paneInput) MouseIn(_ *desktop.MouseEvent) {
+	p.feature.setHoveredPane(p.index)
+}
+
+func (p *paneInput) MouseMoved(_ *desktop.MouseEvent) {
+	p.feature.setHoveredPane(p.index)
+}
+
+func (*paneInput) MouseOut() {}
+
 func (p *paneInput) Cursor() desktop.Cursor {
-	if p.feature.canPan() {
+	if p.feature.canPan(p.index) {
 		return desktop.PointerCursor
 	}
 	return desktop.DefaultCursor

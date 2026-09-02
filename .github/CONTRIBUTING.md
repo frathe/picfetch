@@ -10,7 +10,7 @@ participating, you're expected to uphold it.
 
 ## Getting set up
 
-- Go 1.26.6 or newer (see the `go` directive in [go.mod](../go.mod))
+- Go 1.27.1 or newer (see the `go` directive in [go.mod](../go.mod))
 - A C toolchain for cgo (Fyne's OpenGL bindings require it) — Xcode Command
   Line Tools on macOS, `gcc` + `libgl1-mesa-dev`/`xorg-dev` on Linux
 - See the [README](../README.md#requirements) for the full list, including
@@ -43,7 +43,7 @@ make run
    ```sh
    make fmt-check      # goimports -local; should print nothing / exit 0
    go vet ./...
-   go test -timeout 20m -race ./...
+   go test -timeout 30m -race ./...
    ```
 
    Or via the [Makefile](../Makefile): `make fmt`, `make vet`, `make test`.
@@ -74,7 +74,7 @@ make run
 - Open the PR against `main` and fill in the pull request template.
 - Keep the change focused — unrelated cleanup makes review harder and is
   easier to land as its own PR.
-- CI (`goimports -local`, `go vet`, `go build`, `go test -timeout 20m -race`) must pass.
+- CI (`goimports -local`, `go vet`, `go build`, `go test -timeout 30m -race`) must pass.
 - A maintainer will review and may ask for changes before merging.
 
 ## Reporting bugs and requesting features

@@ -13,12 +13,12 @@ RELEASE_BRANCH := main
 GOIMPORTS_LOCAL := github.com/frathe/picfetch
 # ubuntu-latest + race + Fyne's software renderer: internal/ui is ~10 minutes.
 # go test's default 10m per-package timeout is no longer enough.
-TEST_TIMEOUT := 20m
+TEST_TIMEOUT := 30m
 TEST_IMAGE := ubuntu:24.04
 TEST_CONTAINER_LABEL := io.github.frathe.picfetch.test=true
 TEST_RACE :=
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root help
+.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions help
 
 all: build
 
@@ -43,6 +43,75 @@ check-tuf-root: ## Fail if the embedded GitHub TUF root is expired or has fewer 
 
 sync-tuf-root: ## Fetch and TUF-verify a newer GitHub root into the embed (needs network)
 	go run ./scripts/synctuf --write
+
+sync-qodana-test-exclusions: ## Synchronize Qodana's duplication exclusions with every *_test.go file
+	@set -eu; \
+	listed=$$(mktemp); \
+	entries=$$(mktemp); \
+	updated=$$(mktemp); \
+	trap 'rm -f "$$listed" "$$entries" "$$updated"' 0 1 2 3 15; \
+	git ls-files --cached --others --exclude-standard -- '*_test.go' > "$$listed"; \
+	while IFS= read -r test_file; do [ -f "$$test_file" ] && printf '%s\n' "$$test_file"; done < "$$listed" | \
+		LC_ALL=C sort -u | \
+		awk '{ printf "      - \"%s\"\n", $$0 }' > "$$entries"; \
+	awk -v entries="$$entries" '\
+		function emit_entries(entry) { \
+			while ((getline entry < entries) > 0) print entry; \
+			close(entries); \
+		} \
+		{ \
+			if ($$0 == "exclude:") { in_exclude = 1; print; next } \
+			if (in_paths) { \
+				if ($$0 ~ /^      - /) { \
+					if ($$0 !~ /_test\.go"$$/) print; \
+					next; \
+				} \
+				in_paths = 0; \
+				in_duplicate = 0; \
+			} \
+			if (in_exclude && $$0 == "  - name: DuplicatedCode") in_duplicate = 1; \
+			if (in_duplicate && $$0 == "    paths:") { \
+				print; \
+				emit_entries(); \
+				in_paths = 1; \
+				replaced = 1; \
+				next; \
+			} \
+			if (in_exclude && $$0 !~ /^ /) in_exclude = 0; \
+			print; \
+		} \
+		END { \
+			if (!replaced) { \
+				print "DuplicatedCode exclusion paths block not found in qodana.yaml" > "/dev/stderr"; \
+				exit 1; \
+			} \
+		}' qodana.yaml > "$$updated"; \
+	if cmp -s qodana.yaml "$$updated"; then \
+		echo "Qodana test exclusions are already synchronized."; \
+	else \
+		cp "$$updated" qodana.yaml; \
+		echo "Updated qodana.yaml test exclusions."; \
+	fi; \
+	$(MAKE) --no-print-directory check-qodana-test-exclusions
+
+check-qodana-test-exclusions: ## Fail if qodana.yaml does not exclude every *_test.go from duplication checks
+	@set -eu; \
+	listed=$$(mktemp); \
+	test_files=$$(mktemp); \
+	excluded_files=$$(mktemp); \
+	trap 'rm -f "$$listed" "$$test_files" "$$excluded_files"' 0 1 2 3 15; \
+	git ls-files --cached --others --exclude-standard -- '*_test.go' > "$$listed"; \
+	while IFS= read -r test_file; do [ -f "$$test_file" ] && printf '%s\n' "$$test_file"; done < "$$listed" | \
+		LC_ALL=C sort -u > "$$test_files"; \
+	sed -nE 's/^      - "([^"]+_test\.go)"$$/\1/p' qodana.yaml | LC_ALL=C sort -u > "$$excluded_files"; \
+	missing=$$(comm -23 "$$test_files" "$$excluded_files"); \
+	stale=$$(comm -13 "$$test_files" "$$excluded_files"); \
+	if [ -n "$$missing$$stale" ]; then \
+		if [ -n "$$missing" ]; then printf 'Missing Qodana test exclusions:\n%s\n' "$$missing"; fi; \
+		if [ -n "$$stale" ]; then printf 'Stale Qodana test exclusions:\n%s\n' "$$stale"; fi; \
+		echo "Run 'make sync-qodana-test-exclusions' to update qodana.yaml."; \
+		exit 1; \
+	fi
 
 vet: ## Run go vet
 	go vet ./...
@@ -95,7 +164,7 @@ test-native: ## Run tests directly on the current OS/architecture
 test-race: TEST_RACE := -race
 test-race: test
 
-verify: fmt-check check-tuf-root ## Run the same checks CI does (goimports, TUF root expiry, vet, build, race tests)
+verify: fmt-check check-tuf-root check-qodana-test-exclusions ## Run the same checks CI does (format, TUF root, Qodana exclusions, vet, build, race tests)
 	go vet ./...
 	go build ./...
 	$(MAKE) test-race
@@ -124,8 +193,8 @@ golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64,
 tidy: ## Tidy go.mod / go.sum
 	go mod tidy
 
-security-govulncheck: ## Scan dependencies for known Go vulnerabilities (govulncheck)
-	govulncheck ./...
+security-govulncheck: ## Scan dependencies with the module-pinned govulncheck
+	go tool govulncheck ./...
 
 security-github: ## List open GitHub Dependabot alerts for this repo (needs `gh auth login`)
 	gh api "repos/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/dependabot/alerts" \
@@ -175,10 +244,9 @@ build-linux-all: package-linux ## Alias for package-linux: cross-compile Linux b
 
 build-all: package-mac package-windows package-linux ## Build release artifacts for macOS, Windows, and Linux
 
-install-tools: ## Install the fyne, fyne-cross, and govulncheck CLI tools
+install-tools: ## Install the fyne and fyne-cross packaging tools
 	go install fyne.io/fyne/v2/cmd/fyne@latest
 	go install github.com/fyne-io/fyne-cross@latest
-	go install golang.org/x/vuln/cmd/govulncheck@latest
 
 install-linux-tools: ## Install apt dev headers needed to build natively on Linux (OpenGL, X11, Wayland; needs sudo)
 	sudo apt-get update

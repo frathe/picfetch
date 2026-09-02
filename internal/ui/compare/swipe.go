@@ -90,12 +90,31 @@ func (f *Feature) layoutSwipeReveal(size fyne.Size) {
 	f.divider.Resize(fyne.NewSize(thickness, size.Height))
 }
 
+func (f *Feature) paneVisibleArea(index int) (fyne.Position, fyne.Size) {
+	viewport := f.viewports[index]
+	if f.layoutMode != swipe {
+		return fyne.Position{}, viewport
+	}
+	boundary := min(max(f.dividerAt, 0), 1) * viewport.Width
+	if index == 0 {
+		return fyne.Position{}, fyne.NewSize(boundary, viewport.Height)
+	}
+	return fyne.NewPos(boundary, 0), fyne.NewSize(viewport.Width-boundary, viewport.Height)
+}
+
+func (f *Feature) layoutPaneInput(index int, input fyne.CanvasObject) {
+	position, size := f.paneVisibleArea(index)
+	input.Move(position)
+	input.Resize(size)
+}
+
 func (f *Feature) layoutReveal(index int, clipPosition fyne.Position, clipSize fyne.Size, rootPosition fyne.Position, rootSize fyne.Size) {
 	reveal := f.reveals[index]
 	reveal.clip.Move(clipPosition)
 	reveal.clip.Resize(clipSize)
 	f.panes[index].root.Move(rootPosition)
 	f.panes[index].root.Resize(rootSize)
+	f.layoutPaneInput(index, f.panes[index].input)
 }
 
 func dividerThickness() float32 {
@@ -149,15 +168,16 @@ func (f *Feature) setDivider(position float32) {
 	// on every pointer event. The visible clips and pane offset mark the canvas
 	// dirty as they move, so the static images and linked transform stay cached.
 	f.layoutSwipeReveal(f.content.Size())
+	f.applyReveal()
 }
 
-func (f *Feature) handleDividerKey(name fyne.KeyName) bool {
+func (f *Feature) handleDividerKey(name fyne.KeyName, modifiers fyne.KeyModifier) bool {
 	if f.layoutMode != swipe {
 		return false
 	}
 
 	step := dividerKeyStep
-	if f.callbacks.Modifiers != nil && f.callbacks.Modifiers()&fyne.KeyModifierShift != 0 {
+	if modifiers&fyne.KeyModifierShift != 0 {
 		step = dividerFineKeyStep
 	}
 	switch name {

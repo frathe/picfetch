@@ -2,8 +2,8 @@ package compare
 
 import "fyne.io/fyne/v2"
 
-// UIQueue is how comparison load and vector workers hand completed widget
-// work to the UI goroutine. Production uses fyneQueue; tests install a
+// UIQueue is how comparison load, vector, and tile workers hand completed
+// widget work to the UI goroutine. Production uses fyneQueue; tests install a
 // drainable queue because Fyne's test driver runs fyne.Do inline on the worker.
 type UIQueue interface {
 	Do(func())

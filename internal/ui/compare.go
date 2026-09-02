@@ -50,6 +50,7 @@ func (v *viewer) compareSelected() {
 		}
 		sources[i] = v.FileAt(index)
 	}
+	v.Unfocus()
 	v.compare.Open(sources)
 }
 

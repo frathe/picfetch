@@ -81,11 +81,11 @@ func requireSuccessfulCompareLoad(t *testing.T, loads map[string]observedCompare
 	return result.loaded
 }
 
-func comparisonImageHolding(t *testing.T, v *viewer, frame image.Image) *canvas.Image {
+func comparisonImageHolding(t *testing.T, v *viewer, frame image.Image) *canvas.Shader {
 	t.Helper()
 
-	for _, candidate := range comparisonImages(v.compare.Overlay()) {
-		if candidate.Image == frame {
+	for _, candidate := range comparisonShaders(v.compare.Overlay()) {
+		if candidate.Textures["overview"] == frame {
 			return candidate
 		}
 	}
@@ -161,8 +161,8 @@ func TestCompareAnimated_FreezesFirstDecodedFrameForEntireSession(t *testing.T) 
 	assertFrozen := func(stage string) {
 		t.Helper()
 		comparisonImageHolding(t, v, first)
-		for _, candidate := range comparisonImages(v.compare.Overlay()) {
-			if candidate.Image == later {
+		for _, candidate := range comparisonShaders(v.compare.Overlay()) {
+			if candidate.Textures["overview"] == later {
 				t.Fatalf("comparison displayed a later animation frame %s", stage)
 			}
 		}

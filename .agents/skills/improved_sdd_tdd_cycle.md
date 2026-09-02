@@ -31,7 +31,7 @@ understanding more than once:
 | **Peer-tier delegation** | An agent as strong as the Lead redoes what the Lead already knows. | Delegate *down* or not at all. §4 |
 | **Reading to answer a grep** | Whole files loaded to establish one fact. | Ask the shell first. §10 |
 | **Regex work sent to a model** | A model reasons through what `sed` does for free. | Script it. §7, rule S |
-| **Full-suite runs while iterating** | `go test -timeout 20m -race ./...` × every loop. | Targeted packages until the final gate. §10 |
+| **Full-suite runs while iterating** | `go test -timeout 30m -race ./...` × every loop. | Targeted packages until the final gate. §10 |
 | **Verifying by re-reading** | Re-derive from the diff what one command would have told you. | Evidence is command output. §10 |
 
 The one delegation that *saves* Lead context rather than spending it is
@@ -379,7 +379,7 @@ say so plainly.
 | "It works on Windows" | A Windows run, or an explicit statement that it is unverified |
 
 **While iterating:** targeted packages only — `go test ./internal/update/`,
-`go test ./internal/ui/ -run TestUpdateFailure`. The full `-race` suite is 20
+`go test ./internal/ui/ -run TestUpdateFailure`. The full `-race` suite is 30
 minutes; running it every loop is pure cost with no new information.
 
 **Final gate, once, before handoff** (matches CI — `AGENTS.md §Build and Verification`):
@@ -388,7 +388,7 @@ minutes; running it every loop is pure cost with no new information.
 make fmt-check
 go vet ./...
 go build ./...
-go test -timeout 20m -race ./...
+go test -timeout 30m -race ./...
 ```
 
 Cross-platform work adds `GOOS=windows GOARCH=amd64 go vet ./internal/...`.

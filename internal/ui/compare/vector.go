@@ -2,7 +2,6 @@ package compare
 
 import (
 	"image"
-	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -14,7 +13,7 @@ const defaultCompareVectorDebounce = 90 * time.Millisecond
 
 type vectorRasterState struct {
 	lifecycle requestLifecycle
-	pending   sync.WaitGroup
+	pending   workTracker
 	raster    image.Point
 	requested image.Point
 }
@@ -54,6 +53,22 @@ func displayPixelSize(object fyne.CanvasObject, display fyne.Size) (int, int) {
 	return int(position.X + 0.5), int(position.Y + 0.5)
 }
 
+func displayPixelPosition(object fyne.CanvasObject) image.Point {
+	if object == nil {
+		return image.Point{}
+	}
+	position := object.Position()
+	if app := fyne.CurrentApp(); app != nil && app.Driver() != nil {
+		driver := app.Driver()
+		if canvas := driver.CanvasForObject(object); canvas != nil {
+			position = driver.AbsolutePositionForObject(object)
+			x, y := canvas.PixelCoordinateForPosition(position)
+			return image.Pt(x, y)
+		}
+	}
+	return image.Pt(int(position.X+0.5), int(position.Y+0.5))
+}
+
 func (f *Feature) requestVectorRender(index int, display fyne.Size) {
 	if !f.active || !f.ready || index < 0 || index >= len(f.loaded) {
 		return
@@ -63,7 +78,7 @@ func (f *Feature) requestVectorRender(index int, display fyne.Size) {
 		return
 	}
 
-	width, height := f.vectorPixels(f.panes[index].image, display)
+	width, height := f.vectorPixels(f.panes[index].input, display)
 	width, height = imaging.ClampVectorRaster(width, height)
 	target := image.Pt(width, height)
 	state := &f.vectors[index]
@@ -102,6 +117,10 @@ func (f *Feature) rasterizeVector(index int, vector *imaging.Vector, target imag
 	if err != nil || !token.latest() {
 		return
 	}
+	prepared, err := f.prepareSource(token.context(), frame)
+	if err != nil || !token.latest() {
+		return
+	}
 
 	f.queueUI(func() {
 		state := &f.vectors[index]
@@ -110,9 +129,9 @@ func (f *Feature) rasterizeVector(index int, vector *imaging.Vector, target imag
 			return
 		}
 		f.rendered[index] = frame
+		f.renderSources[index] = prepared
 		state.setRaster(frame)
-		f.panes[index].image.Image = frame
-		f.panes[index].image.Refresh()
-		f.repaint()
+		f.panes[index].present(paneScene{source: f.renderSources[index]})
+		f.applyTransform()
 	})
 }

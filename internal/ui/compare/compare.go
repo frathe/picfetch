@@ -44,18 +44,16 @@ type Callbacks struct {
 }
 
 type pane struct {
-	root    *fyne.Container
-	image   *canvas.Image
-	input   *paneInput
-	spinner *widget.ProgressBarInfinite
+	root     *fyne.Container
+	renderer paneRenderer
+	scene    paneScene
+	input    *paneInput
+	spinner  *widget.ProgressBarInfinite
 }
 
-func newPaneImage() *canvas.Image {
-	img := canvas.NewImageFromImage(nil)
-	img.FillMode = canvas.ImageFillContain
-	img.ScaleMode = canvas.ImageScaleSmooth
-	img.Hide()
-	return img
+func (p *pane) present(scene paneScene) {
+	p.scene = scene
+	p.renderer.Present(scene)
 }
 
 func newPaneSpinner() *widget.ProgressBarInfinite {
@@ -73,31 +71,38 @@ type Feature struct {
 
 	overlay      *fyne.Container
 	content      *fyne.Container
+	toolbar      *fyne.Container
 	panes        [2]pane
 	reveals      [2]paneReveal
 	divider      *swipeDivider
+	linkToggle   *widget.Button
 	layoutToggle *widget.Button
 	swap         *widget.Button
+	unlinkStatus *widget.Label
 	badges       [2]*widget.Label
 
-	sources    [2]fyne.URI
-	identities [2]string
-	loaded     [2]*imaging.LoadedImage
-	rendered   [2]image.Image
-	vectors    [2]vectorRasterState
+	sources       [2]fyne.URI
+	identities    [2]string
+	loaded        [2]*imaging.LoadedImage
+	rendered      [2]image.Image
+	renderSources [2]*renderSource
+	vectors       [2]vectorRasterState
 
 	active bool
 	ready  bool
 
-	transform  linkedTransform
-	viewports  [2]fyne.Size
-	layoutMode comparisonLayout
-	dividerAt  float32
+	photoTransforms [2]photoTransform
+	camera          cameraTransform
+	viewports       [2]fyne.Size
+	layoutMode      comparisonLayout
+	dividerAt       float32
+	unlinked        bool
+	hoveredPane     int
 
 	lifecycle requestLifecycle
 	done      completion.Signal
-	workers   sync.WaitGroup
-	uiPending sync.WaitGroup
+	workers   workTracker
+	uiPending workTracker
 	uiCount   atomic.Int64
 	ui        UIQueue
 
@@ -105,25 +110,41 @@ type Feature struct {
 	vectorAfter     func(time.Duration) <-chan time.Time
 	vectorRasterize func(vector *imaging.Vector, width, height int) (image.Image, error)
 	vectorPixels    func(fyne.CanvasObject, fyne.Size) (int, int)
+	prepareSource   func(context.Context, image.Image) (*renderSource, error)
 }
 
 // New constructs one initially hidden comparison surface.
 func New(loader Loader, callbacks Callbacks) *Feature {
+	return newFeature(loader, callbacks, newShaderPaneRenderer)
+}
+
+func newFeature(loader Loader, callbacks Callbacks, rendererFactory paneRendererFactory) *Feature {
 	f := &Feature{
-		loader:         loader,
-		callbacks:      callbacks,
-		transform:      defaultLinkedTransform(),
-		dividerAt:      defaultDivider,
-		layoutMode:     sideBySide,
-		vectorDebounce: defaultCompareVectorDebounce,
-		vectorAfter:    time.After,
+		loader:          loader,
+		callbacks:       callbacks,
+		photoTransforms: [2]photoTransform{defaultPhotoTransform(), defaultPhotoTransform()},
+		camera:          defaultCameraTransform(),
+		dividerAt:       defaultDivider,
+		layoutMode:      sideBySide,
+		hoveredPane:     -1,
+		vectorDebounce:  defaultCompareVectorDebounce,
+		vectorAfter:     time.After,
 		vectorRasterize: func(vector *imaging.Vector, width, height int) (image.Image, error) {
 			return vector.RasterAt(width, height)
 		},
-		vectorPixels: displayPixelSize,
-		ui:           fyneQueue{},
+		vectorPixels:  displayPixelSize,
+		prepareSource: prepareRenderSource,
+		ui:            fyneQueue{},
 	}
-	f.panes = [2]pane{newPane(f, 0), newPane(f, 1)}
+	f.panes = [2]pane{
+		newPane(f, 0, rendererFactory(0)),
+		newPane(f, 1, rendererFactory(1)),
+	}
+	for i := range f.panes {
+		if renderer, ok := f.panes[i].renderer.(paneRendererQueue); ok {
+			renderer.setQueueUI(f.queueUI)
+		}
+	}
 	f.reveals = [2]paneReveal{newPaneReveal(f.panes[0].root), newPaneReveal(f.panes[1].root)}
 	f.divider = newSwipeDivider(f)
 	f.divider.Hide()
@@ -138,16 +159,21 @@ func New(loader Loader, callbacks Callbacks) *Feature {
 	f.layoutToggle.Disable()
 	f.swap = widget.NewButton(lang.L("Swap"), f.swapSides)
 	f.swap.Disable()
+	f.linkToggle = widget.NewButton(lang.L("Unlink"), f.ToggleLink)
+	f.linkToggle.Disable()
+	f.unlinkStatus = widget.NewLabel("")
+	f.unlinkStatus.Hide()
 	back := widget.NewButton(lang.L("Back to Grid"), f.Close)
-	toolbarCard := newChromeCard(container.NewHBox(f.layoutToggle, f.swap, back))
-	toolbar := container.NewHBox(layout.NewSpacer(), toolbarCard)
+	linkCard := newChromeCard(container.NewHBox(f.linkToggle, f.unlinkStatus))
+	actionCard := newChromeCard(container.NewHBox(f.layoutToggle, f.swap, back))
+	f.toolbar = container.NewHBox(linkCard, layout.NewSpacer(), actionCard)
 	var badgeCards [2]*fyne.Container
 	for i := range f.badges {
 		f.badges[i] = widget.NewLabel("")
 		badgeCards[i] = newChromeCard(f.badges[i])
 	}
 	badges := container.NewHBox(badgeCards[0], layout.NewSpacer(), badgeCards[1])
-	chrome := container.NewBorder(toolbar, badges, nil, nil)
+	chrome := container.NewBorder(f.toolbar, badges, nil, nil)
 	backdrop := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
 	// The comparison surface sits in the main window's root stack even while
 	// hidden. Keep its minimum size at zero so merely registering the feature
@@ -221,7 +247,8 @@ func (f *Feature) Overlay() fyne.CanvasObject { return f.overlay }
 // Visible reports whether a comparison session owns the main-window surface.
 func (f *Feature) Visible() bool { return f.active }
 
-// Ready reports whether both panes hold a decoded first frame.
+// Ready reports whether both panes hold a decoded first frame and a
+// display-ready overview.
 func (f *Feature) Ready() bool { return f.ready }
 
 // Done returns the replaceable completion signal for the latest Open call.
@@ -236,8 +263,14 @@ func (f *Feature) Open(sources [2]fyne.URI) {
 
 	f.active = true
 	f.ready = false
-	f.transform = defaultLinkedTransform()
+	initialTransform := defaultPhotoTransform()
+	f.photoTransforms = [2]photoTransform{initialTransform, initialTransform}
+	f.camera = defaultCameraTransform()
+	f.unlinked = false
+	f.hoveredPane = -1
+	f.syncLinkControls()
 	f.resetLayout()
+	f.linkToggle.Disable()
 	f.layoutToggle.Disable()
 	f.swap.Disable()
 	f.sources = sources
@@ -248,8 +281,9 @@ func (f *Feature) Open(sources [2]fyne.URI) {
 	f.notifyOrderChanged()
 	for i := range f.panes {
 		f.loaded[i] = nil
-		f.panes[i].image.Image = nil
-		f.panes[i].image.Hide()
+		f.rendered[i] = nil
+		f.renderSources[i] = nil
+		f.panes[i].present(paneScene{})
 		f.panes[i].spinner.Show()
 	}
 	f.overlay.Show()
@@ -283,65 +317,141 @@ func (f *Feature) Settle(ctx context.Context) error {
 		// Every worker queues its UI completion before marking itself done.
 		// A drained load completion can start vector work, so repeat until
 		// both worker sets and the queue are empty at the same boundary.
-		if err := waitWithContext(ctx, f.workers.Wait); err != nil {
+		if err := f.workers.WaitContext(ctx); err != nil {
 			return err
 		}
 		for i := range f.vectors {
-			if err := waitWithContext(ctx, f.vectors[i].pending.Wait); err != nil {
+			if err := f.vectors[i].pending.WaitContext(ctx); err != nil {
 				return err
 			}
 		}
-		if f.ui.Drain() {
+		// A queued vector completion replaces its render source and cancels
+		// obsolete tile work. Apply every upstream completion before waiting
+		// on renderers or that cancellation dependency can deadlock Settle.
+		if advanced, err := f.settleUI(ctx); err != nil {
+			return err
+		} else if advanced {
 			continue
 		}
-		if f.uiCount.Load() == 0 {
-			return nil
+		for i := range f.panes {
+			if err := f.panes[i].renderer.Wait(ctx); err != nil {
+				return err
+			}
 		}
-		if err := waitWithContext(ctx, f.uiPending.Wait); err != nil {
+		if advanced, err := f.settleUI(ctx); err != nil {
 			return err
+		} else if !advanced {
+			return nil
 		}
 	}
 }
 
-func waitWithContext(ctx context.Context, wait func()) error {
-	done := make(chan struct{})
-	go func() {
-		wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+func (f *Feature) settleUI(ctx context.Context) (bool, error) {
+	if f.ui.Drain() {
+		return true, nil
 	}
+	if f.uiCount.Load() == 0 {
+		return false, nil
+	}
+	if err := f.uiPending.WaitContext(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (f *Feature) hide() {
 	f.clearVectorRasters()
 	f.active = false
 	f.ready = false
+	f.unlinked = false
+	f.hoveredPane = -1
+	f.syncLinkControls()
+	f.linkToggle.Disable()
 	f.layoutToggle.Disable()
 	f.swap.Disable()
 	f.sources = [2]fyne.URI{}
 	f.identities = [2]string{}
 	f.loaded = [2]*imaging.LoadedImage{}
 	f.rendered = [2]image.Image{}
+	f.renderSources = [2]*renderSource{}
 	for i := range f.panes {
 		f.badges[i].SetText("")
-		f.panes[i].image.Image = nil
-		f.panes[i].image.Hide()
+		f.panes[i].present(paneScene{})
 		f.panes[i].spinner.Hide()
 	}
 	f.overlay.Hide()
 	f.repaint()
 }
 
+func (f *Feature) currentModifiers() fyne.KeyModifier {
+	if f.callbacks.Modifiers == nil {
+		return 0
+	}
+	return f.callbacks.Modifiers()
+}
+
+// ToggleLink switches a ready comparison between photo-local and shared-camera
+// input. Loading or inactive comparisons ignore it. The visible photo poses and
+// camera stay unchanged in either direction.
+func (f *Feature) ToggleLink() {
+	if !f.active || !f.ready {
+		return
+	}
+	f.unlinked = !f.unlinked
+	f.syncLinkControls()
+	f.repaint()
+}
+
+func (f *Feature) setHoveredPane(index int) {
+	if index < 0 || index >= len(f.panes) {
+		return
+	}
+	if f.hoveredPane == index {
+		return
+	}
+	f.hoveredPane = index
+	f.syncLinkControls()
+}
+
+func (f *Feature) syncLinkControls() {
+	if f.linkToggle != nil {
+		label := lang.L("Unlink")
+		if f.unlinked {
+			label = lang.L("Link")
+		}
+		f.linkToggle.SetText(label)
+	}
+
+	if f.unlinkStatus == nil || !f.active || !f.unlinked {
+		if f.unlinkStatus != nil {
+			f.unlinkStatus.Hide()
+		}
+		if f.toolbar != nil {
+			f.toolbar.Refresh()
+		}
+		return
+	}
+
+	text := lang.L("Unlinked")
+	switch f.hoveredPane {
+	case 0:
+		text = lang.L("Unlinked: Left")
+	case 1:
+		text = lang.L("Unlinked: Right")
+	}
+	f.unlinkStatus.SetText(text)
+	f.unlinkStatus.Show()
+	if f.toolbar != nil {
+		f.toolbar.Refresh()
+	}
+}
+
 type loadResult struct {
-	index  int
-	uri    fyne.URI
-	loaded *imaging.LoadedImage
-	err    error
+	index    int
+	uri      fyne.URI
+	loaded   *imaging.LoadedImage
+	prepared *renderSource
+	err      error
 }
 
 func (f *Feature) load(token requestToken, sources [2]fyne.URI, done func()) {
@@ -349,7 +459,14 @@ func (f *Feature) load(token requestToken, sources [2]fyne.URI, done func()) {
 	for i, uri := range sources {
 		go func() {
 			loaded, err := f.loadOne(token.context(), uri)
-			results <- loadResult{index: i, uri: uri, loaded: loaded, err: err}
+			if err == nil {
+				err = validateLoaded(loaded)
+			}
+			var prepared *renderSource
+			if err == nil {
+				prepared, err = f.prepareSource(token.context(), loaded.Frames[0])
+			}
+			results <- loadResult{index: i, uri: uri, loaded: loaded, prepared: prepared, err: err}
 		}()
 	}
 
@@ -378,24 +495,17 @@ func (f *Feature) load(token requestToken, sources [2]fyne.URI, done func()) {
 			return
 		}
 
-		for _, result := range loaded {
-			if err := validateLoaded(result.loaded); err != nil {
-				f.fail(result.uri, err)
-				return
-			}
-		}
-
 		for i, result := range loaded {
 			f.loaded[i] = result.loaded
 			f.rendered[i] = result.loaded.Frames[0]
+			f.renderSources[i] = result.prepared
 			f.vectors[i].setRaster(result.loaded.Frames[0])
-			f.panes[i].image.Image = f.rendered[i]
+			f.panes[i].present(paneScene{source: f.renderSources[i]})
 			f.panes[i].spinner.Hide()
-			f.panes[i].image.Show()
-			f.panes[i].image.Refresh()
 		}
 		f.ready = true
 		f.applyTransform()
+		f.linkToggle.Enable()
 		f.layoutToggle.Enable()
 		f.swap.Enable()
 		f.repaint()
@@ -406,16 +516,27 @@ func (f *Feature) swapSides() {
 	if !f.active || !f.ready {
 		return
 	}
+	reference := 0
+	if f.hoveredPane >= 0 && f.hoveredPane < len(f.photoTransforms) {
+		reference = f.hoveredPane
+	}
+	if f.unlinked || f.photoTransforms[0] != f.photoTransforms[1] {
+		commonTransform := f.visiblePhotoTransform(reference)
+		f.photoTransforms = [2]photoTransform{commonTransform, commonTransform}
+		f.camera = defaultCameraTransform()
+	}
+	f.unlinked = false
+	f.syncLinkControls()
 	f.sources[0], f.sources[1] = f.sources[1], f.sources[0]
 	f.identities[0], f.identities[1] = f.identities[1], f.identities[0]
 	f.clearVectorRequests()
 	f.loaded[0], f.loaded[1] = f.loaded[1], f.loaded[0]
 	f.rendered[0], f.rendered[1] = f.rendered[1], f.rendered[0]
+	f.renderSources[0], f.renderSources[1] = f.renderSources[1], f.renderSources[0]
 	for i := range f.panes {
 		f.badges[i].SetText(f.identities[i])
 		f.vectors[i].setRaster(f.rendered[i])
-		f.panes[i].image.Image = f.rendered[i]
-		f.panes[i].image.Refresh()
+		f.panes[i].present(paneScene{source: f.renderSources[i]})
 	}
 	f.applyTransform()
 	f.notifyOrderChanged()

@@ -18,3 +18,13 @@ _Avoid_: Crop, grid selection
 A transient single-image-viewer mode for defining an image-region selection
 to copy as image data.
 _Avoid_: Crop mode, screenshot mode
+
+**Linked comparison**:
+A two-photo comparison state where view adjustments affect both photos
+together.
+_Avoid_: Locked comparison
+
+**Unlinked comparison**:
+A two-photo comparison state where view adjustments affect one targeted photo
+without changing the other.
+_Avoid_: Unlocked comparison

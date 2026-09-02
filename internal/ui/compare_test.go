@@ -41,20 +41,116 @@ func waitForCompare(t *testing.T, v *viewer) {
 }
 
 func fireCompareShortcut(v *viewer) {
+	fireCompareShortcutWithModifier(v, fyne.KeyModifierShortcutDefault)
+}
+
+func fireCompareShortcutWithModifier(v *viewer, modifier fyne.KeyModifier) {
 	handler := &fyne.ShortcutHandler{}
 	wireGlobalShortcuts(handler, v)
 	handler.TypedShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyD,
-		Modifier: fyne.KeyModifierShortcutDefault,
+		Modifier: modifier,
 	})
 }
 
-func comparisonImages(root fyne.CanvasObject) []*canvas.Image {
-	var images []*canvas.Image
+type shortcutCapture struct {
+	shortcuts []fyne.Shortcut
+}
+
+func (c *shortcutCapture) AddShortcut(shortcut fyne.Shortcut, _ func(fyne.Shortcut)) {
+	c.shortcuts = append(c.shortcuts, shortcut)
+}
+
+func TestCompareShortcut_RegistersDefaultAndPhysicalControlWithoutDuplicates(t *testing.T) {
+	v, _, _ := newTestUI(t)
+	capture := &shortcutCapture{}
+	wireCompareShortcut(capture, v)
+
+	want := map[fyne.KeyModifier]bool{fyne.KeyModifierShortcutDefault: true}
+	want[fyne.KeyModifierControl] = true
+	got := make(map[fyne.KeyModifier]int)
+	for _, shortcut := range capture.shortcuts {
+		custom, ok := shortcut.(*desktop.CustomShortcut)
+		if !ok {
+			t.Fatalf("comparison shortcut type = %T, want *desktop.CustomShortcut", shortcut)
+		}
+		if custom.KeyName != fyne.KeyD {
+			t.Errorf("comparison shortcut key = %v, want D", custom.KeyName)
+		}
+		got[custom.Modifier]++
+	}
+	for modifier := range want {
+		if got[modifier] != 1 {
+			t.Errorf("comparison D shortcut registrations for modifier %v = %d, want 1", modifier, got[modifier])
+		}
+	}
+	for modifier, count := range got {
+		if !want[modifier] || count != 1 {
+			t.Errorf("unexpected comparison D shortcut registration: modifier=%v count=%d", modifier, count)
+		}
+	}
+}
+
+func TestCompareShortcut_PhysicalControlOpensComparison(t *testing.T) {
+	v := openGridWith(t, "left.jpg", "right.jpg")
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+
+	fireCompareShortcutWithModifier(v, fyne.KeyModifierControl)
+	waitForCompare(t, v)
+	if !v.compare.Visible() {
+		t.Fatal("physical Ctrl+D did not open comparison")
+	}
+}
+
+func TestShutdownClosesActiveComparisonBeforeEventLoopStops(t *testing.T) {
+	application := fynetest.NewApp()
+	v, win := buildStartupViewer(application)
+	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.compare.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(win.Close)
+	t.Cleanup(func() { drain(t, v) })
+
+	uris := []fyne.URI{
+		uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White),
+		uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White),
+		uitest.TempJPEGURI(t, "c.jpg", 4, 4, color.White),
+	}
+	dropAndWait(t, v, uris...)
+	warmThumbs(t, v)
+	v.grid.Toggle()
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	fireCompareShortcut(v)
+	waitForCompare(t, v)
+
+	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
+	if !ok {
+		t.Skip("test app lifecycle does not expose its stopped hook")
+	}
+	original := lifecycle.OnStopped()
+	registerShutdown(application, v)
+	shutdown := lifecycle.OnStopped()
+	application.Lifecycle().SetOnStopped(original)
+	if shutdown == nil {
+		t.Fatal("registerShutdown did not install a stopped hook")
+	}
+
+	shutdown()
+	if v.compare.Visible() {
+		t.Fatal("shutdown left comparison workers and surface active")
+	}
+}
+
+func comparisonShaders(root fyne.CanvasObject) []*canvas.Shader {
+	var shaders []*canvas.Shader
 	var walk func(fyne.CanvasObject)
 	walk = func(object fyne.CanvasObject) {
-		if img, ok := object.(*canvas.Image); ok && img.Image != nil {
-			images = append(images, img)
+		if shader, ok := object.(*canvas.Shader); ok &&
+			strings.HasPrefix(shader.Name, "picfetch-compare-tiled-") && shader.Visible() {
+			shaders = append(shaders, shader)
 		}
 		switch object := object.(type) {
 		case *fyne.Container:
@@ -66,7 +162,7 @@ func comparisonImages(root fyne.CanvasObject) []*canvas.Image {
 		}
 	}
 	walk(root)
-	return images
+	return shaders
 }
 
 func comparisonButton(t *testing.T, root fyne.CanvasObject, text string) *widget.Button {
@@ -89,6 +185,36 @@ func comparisonButton(t *testing.T, root fyne.CanvasObject, text string) *widget
 	}
 	return found
 }
+
+func comparisonHasVisibleLabel(root fyne.CanvasObject, text string) bool {
+	found := false
+	var walk func(fyne.CanvasObject)
+	walk = func(object fyne.CanvasObject) {
+		if label, ok := object.(*widget.Label); ok && label.Visible() && label.Text == text {
+			found = true
+		}
+		switch object := object.(type) {
+		case *fyne.Container:
+			for _, child := range object.Objects {
+				walk(child)
+			}
+		case *container.Clip:
+			walk(object.Content)
+		}
+	}
+	walk(root)
+	return found
+}
+
+type comparisonKeyHooks struct {
+	down func(*fyne.KeyEvent)
+	up   func(*fyne.KeyEvent)
+}
+
+func (h *comparisonKeyHooks) OnKeyDown() func(*fyne.KeyEvent)      { return h.down }
+func (h *comparisonKeyHooks) SetOnKeyDown(fn func(*fyne.KeyEvent)) { h.down = fn }
+func (h *comparisonKeyHooks) OnKeyUp() func(*fyne.KeyEvent)        { return h.up }
+func (h *comparisonKeyHooks) SetOnKeyUp(fn func(*fyne.KeyEvent))   { h.up = fn }
 
 func comparisonBackButton(t *testing.T, root fyne.CanvasObject) *widget.Button {
 	t.Helper()
@@ -584,7 +710,7 @@ func TestCompareZoom_KeyboardRoutesToComparisonWithoutChangingCoveredState(t *te
 	fireCompareShortcut(v)
 	waitForCompare(t, v)
 
-	images := comparisonImages(v.compare.Overlay())
+	images := comparisonShaders(v.compare.Overlay())
 	if len(images) != 2 {
 		t.Fatalf("comparison images = %d, want 2", len(images))
 	}
@@ -593,7 +719,7 @@ func TestCompareZoom_KeyboardRoutesToComparisonWithoutChangingCoveredState(t *te
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
 
-	images = comparisonImages(v.compare.Overlay())
+	images = comparisonShaders(v.compare.Overlay())
 	for i, img := range images {
 		if img.Size().Width <= beforeSizes[i].Width || img.Size().Height <= beforeSizes[i].Height {
 			t.Errorf("comparison image %d after + = %v, want larger than %v", i, img.Size(), beforeSizes[i])
@@ -601,6 +727,223 @@ func TestCompareZoom_KeyboardRoutesToComparisonWithoutChangingCoveredState(t *te
 	}
 	if got := snapshotCompareCommands(v); got != beforeState {
 		t.Errorf("comparison zoom key changed covered app state\n got: %+v\nwant: %+v", got, beforeState)
+	}
+}
+
+func TestCompareLinkControl_CtrlLAndButtonShareReadyGate(t *testing.T) {
+	v := openGridWith(t, "left.jpg", "right.jpg")
+	v.grid.SelectAll()
+
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	releaseLoads := func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}
+	t.Cleanup(releaseLoads)
+	v.compareLoad = func(_ context.Context, _ fyne.URI) (*imaging.LoadedImage, error) {
+		started <- struct{}{}
+		<-release
+		return &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 20, 10))}}, nil
+	}
+
+	fireCompareShortcut(v)
+	for range 2 {
+		select {
+		case <-started:
+		case <-time.After(testTimeout):
+			t.Fatal("timed out waiting for both comparison loads to start")
+		}
+	}
+
+	overlay := v.compare.Overlay()
+	unlink := comparisonButton(t, overlay, lang.L("Unlink"))
+	if !unlink.Disabled() {
+		t.Fatal("Unlink is enabled before both comparison images are ready")
+	}
+
+	var modifiers fyne.KeyModifier
+	v.keyModifiers = func() fyne.KeyModifier { return modifiers }
+	hooks := &comparisonKeyHooks{}
+	wireComparisonLinkToggleHook(hooks, v)
+	modifiers = fyne.KeyModifierControl
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	modifiers = 0
+
+	if got := comparisonButton(t, overlay, lang.L("Unlink")); got != unlink {
+		t.Error("pre-ready Ctrl+L replaced the disabled Unlink control")
+	}
+	if !unlink.Disabled() {
+		t.Error("pre-ready Ctrl+L enabled the Unlink control")
+	}
+	if comparisonHasVisibleLabel(overlay, lang.L("Unlinked")) {
+		t.Error("pre-ready Ctrl+L showed the Unlinked status")
+	}
+
+	releaseLoads()
+	waitForCompare(t, v)
+	if unlink.Disabled() {
+		t.Fatal("Unlink stayed disabled after both comparison images became ready")
+	}
+
+	modifiers = fyne.KeyModifierControl
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	modifiers = 0
+	link := comparisonButton(t, overlay, lang.L("Link"))
+	if link != unlink {
+		t.Error("Ctrl+L replaced the comparison link control")
+	}
+	if !comparisonHasVisibleLabel(overlay, lang.L("Unlinked")) {
+		t.Error("ready Ctrl+L did not show the Unlinked status")
+	}
+
+	fynetest.Tap(link)
+	if got := comparisonButton(t, overlay, lang.L("Unlink")); got != unlink {
+		t.Error("Link tap replaced the comparison link control")
+	}
+	if comparisonHasVisibleLabel(overlay, lang.L("Unlinked")) {
+		t.Error("Link tap left the Unlinked status visible")
+	}
+}
+
+func TestCompareLinkToggle_CanvasOverlayOwnsPhysicalCtrlL(t *testing.T) {
+	v := openActiveComparisonWithExtra(t)
+	v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierControl }
+	hooks := &comparisonKeyHooks{}
+	wireComparisonLinkToggleHook(hooks, v)
+
+	modal := canvas.NewRectangle(color.Transparent)
+	v.win.Canvas().Overlays().Add(modal)
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	if comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Fatal("physical Ctrl+L unlinked comparison behind a canvas overlay")
+	}
+
+	v.win.Canvas().Overlays().Remove(modal)
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	if !comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Error("physical Ctrl+L stayed blocked after the canvas overlay was removed")
+	}
+}
+
+func TestCompareLinkToggle_ZoomsOnlyTheLastHoveredPaneWithoutHeldModifier(t *testing.T) {
+	v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+	v.compareLoad = func(_ context.Context, _ fyne.URI) (*imaging.LoadedImage, error) {
+		return &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 800, 400))}}, nil
+	}
+	var modifiers fyne.KeyModifier
+	v.keyModifiers = func() fyne.KeyModifier { return modifiers }
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+	fireCompareShortcut(v)
+	waitForCompare(t, v)
+
+	images := comparisonShaders(v.compare.Overlay())
+	if len(images) != 2 {
+		t.Fatalf("comparison images = %d, want 2", len(images))
+	}
+	before := [2]fyne.Size{images[0].Size(), images[1].Size()}
+	overlayPosition := v.app.Driver().AbsolutePositionForObject(v.compare.Overlay())
+	leftCenter := overlayPosition.Add(fyne.NewPos(v.compare.Overlay().Size().Width/4, v.compare.Overlay().Size().Height/2))
+	fynetest.MoveMouse(v.win.Canvas(), leftCenter)
+
+	hooks := &comparisonKeyHooks{}
+	wireComparisonLinkToggleHook(hooks, v)
+	modifiers = fyne.KeyModifierControl
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	modifiers = 0
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
+
+	images = comparisonShaders(v.compare.Overlay())
+	if images[0].Size().Width <= before[0].Width {
+		t.Errorf("left unlinked comparison image after + = %v, want larger than %v", images[0].Size(), before[0])
+	}
+	if images[1].Size() != before[1] {
+		t.Errorf("right comparison image after left-targeted + = %v, want unchanged %v", images[1].Size(), before[1])
+	}
+}
+
+func TestCompareLinkToggle_ChainsHookPersistsAndRelinksOnSecondPress(t *testing.T) {
+	v := openActiveComparisonWithExtra(t)
+	var modifiers fyne.KeyModifier
+	v.keyModifiers = func() fyne.KeyModifier { return modifiers }
+
+	downCalls, upCalls := 0, 0
+	hooks := &comparisonKeyHooks{
+		down: func(*fyne.KeyEvent) { downCalls++ },
+		up:   func(*fyne.KeyEvent) { upCalls++ },
+	}
+	wireComparisonLinkToggleHook(hooks, v)
+
+	modifiers = fyne.KeyModifierControl
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	if !comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Fatal("first Ctrl+L press did not show the comparison unlink status")
+	}
+	for range 3 {
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyL})
+	}
+	if !comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Error("repeated typed L events retriggered the physical Ctrl+L toggle")
+	}
+
+	modifiers = 0
+	hooks.up(&fyne.KeyEvent{Name: desktop.KeyControlLeft})
+	if !comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Error("releasing Control relinked panes toggled apart by Ctrl+L")
+	}
+
+	modifiers = fyne.KeyModifierControl
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	if comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Error("second Ctrl+L press did not relink the comparison panes")
+	}
+	if downCalls != 2 || upCalls != 1 {
+		t.Errorf("existing key-hook calls = down %d up %d, want 2 and 1", downCalls, upCalls)
+	}
+}
+
+func TestCompareLinkToggle_ControlAloneDoesNotChangeMode(t *testing.T) {
+	v := openActiveComparisonWithExtra(t)
+	var modifiers fyne.KeyModifier
+	v.keyModifiers = func() fyne.KeyModifier { return modifiers }
+
+	hooks := &comparisonKeyHooks{}
+	wireComparisonLinkToggleHook(hooks, v)
+
+	modifiers = fyne.KeyModifierControl
+	hooks.down(&fyne.KeyEvent{Name: desktop.KeyControlLeft})
+	if comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Error("pressing Control by itself unlinked the comparison panes")
+	}
+}
+
+func TestCompareLinkToggle_RequiresExactPhysicalControlL(t *testing.T) {
+	tests := []struct {
+		name      string
+		modifiers fyne.KeyModifier
+	}{
+		{name: "no modifier"},
+		{name: "Shift", modifiers: fyne.KeyModifierShift},
+		{name: "Command", modifiers: fyne.KeyModifierSuper},
+		{name: "Control Shift", modifiers: fyne.KeyModifierControl | fyne.KeyModifierShift},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			v := openActiveComparisonWithExtra(t)
+			v.keyModifiers = func() fyne.KeyModifier { return tc.modifiers }
+			hooks := &comparisonKeyHooks{}
+			wireComparisonLinkToggleHook(hooks, v)
+
+			hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+			if comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+				t.Errorf("L with modifiers %v toggled comparison linking", tc.modifiers)
+			}
+		})
 	}
 }
 
@@ -621,13 +964,13 @@ func TestComparePanInputs_CanvasDragAndShiftWheelStayInComparison(t *testing.T) 
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
 	}
 
-	images := comparisonImages(v.compare.Overlay())
+	images := comparisonShaders(v.compare.Overlay())
 	beforeState := snapshotCompareCommands(v)
 	leftBefore := images[0].Position()
 	canvasSize := v.win.Canvas().Size()
 	leftCenter := fyne.NewPos(canvasSize.Width/4, canvasSize.Height/2)
 	fynetest.Drag(v.win.Canvas(), leftCenter, 40, 20)
-	images = comparisonImages(v.compare.Overlay())
+	images = comparisonShaders(v.compare.Overlay())
 	if images[0].Position() == leftBefore {
 		t.Fatal("canvas drag did not pan the active comparison view")
 	}
@@ -637,7 +980,7 @@ func TestComparePanInputs_CanvasDragAndShiftWheelStayInComparison(t *testing.T) 
 	rightCenter := fyne.NewPos(canvasSize.Width*3/4, canvasSize.Height/2)
 	fynetest.Scroll(v.win.Canvas(), rightCenter, -15, 25)
 	v.keyModifiers = func() fyne.KeyModifier { return 0 }
-	images = comparisonImages(v.compare.Overlay())
+	images = comparisonShaders(v.compare.Overlay())
 	if images[1].Position() == rightBefore {
 		t.Fatal("canvas Shift+wheel did not pan the active comparison view")
 	}
@@ -661,7 +1004,7 @@ func TestCompareSwipePointer_CanvasRoutesDividerAndPaneDrag(t *testing.T) {
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
 	}
 
-	images := comparisonImages(v.compare.Overlay())
+	images := comparisonShaders(v.compare.Overlay())
 	if len(images) != 2 {
 		t.Fatalf("comparison images = %d, want 2", len(images))
 	}
@@ -677,7 +1020,7 @@ func TestCompareSwipePointer_CanvasRoutesDividerAndPaneDrag(t *testing.T) {
 	if !uitest.ApproxEqual(afterDivider, beforeDivider+80) {
 		t.Errorf("canvas divider drag moved center to %.2f, want %.2f", afterDivider, beforeDivider+80)
 	}
-	images = comparisonImages(v.compare.Overlay())
+	images = comparisonShaders(v.compare.Overlay())
 	for i, img := range images {
 		if img.Position() != beforePositions[i] {
 			t.Errorf("comparison image %d moved during canvas divider drag: %v, want %v", i, img.Position(), beforePositions[i])
@@ -688,7 +1031,7 @@ func TestCompareSwipePointer_CanvasRoutesDividerAndPaneDrag(t *testing.T) {
 	overlayPosition := v.app.Driver().AbsolutePositionForObject(v.compare.Overlay())
 	panePoint := overlayPosition.Add(fyne.NewPos(v.compare.Overlay().Size().Width/4, v.compare.Overlay().Size().Height/2))
 	fynetest.Drag(v.win.Canvas(), panePoint, 40, 20)
-	images = comparisonImages(v.compare.Overlay())
+	images = comparisonShaders(v.compare.Overlay())
 	if images[0].Position() == afterDividerPositions[0] {
 		t.Fatal("canvas drag away from the divider did not pan the comparison images")
 	}
@@ -719,6 +1062,33 @@ func TestCompareDividerKeys_ViewerRoutesShiftWithoutChangingCoveredState(t *test
 	}
 	if got := snapshotCompareCommands(v); got != before {
 		t.Errorf("divider keys changed covered app state\n got: %+v\nwant: %+v", got, before)
+	}
+}
+
+func TestCompareDividerKeys_RemainActiveWhilePanesAreUnlinked(t *testing.T) {
+	v := openActiveComparisonWithExtra(t)
+	fynetest.Tap(comparisonButton(t, v.compare.Overlay(), lang.L("Swipe")))
+	divider, _ := comparisonDivider(t, v.compare.Overlay())
+	width := v.compare.Overlay().Size().Width
+	var modifiers fyne.KeyModifier
+	v.keyModifiers = func() fyne.KeyModifier { return modifiers }
+	hooks := &comparisonKeyHooks{}
+	wireComparisonLinkToggleHook(hooks, v)
+
+	modifiers = fyne.KeyModifierControl
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	modifiers = 0
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	if center := divider.Position().X + divider.Size().Width/2; !uitest.ApproxEqual(center, width*0.55) {
+		t.Fatalf("unlinked Right divider center = %.2f, want %.2f", center, width*0.55)
+	}
+	modifiers = fyne.KeyModifierShift
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	if center := divider.Position().X + divider.Size().Width/2; !uitest.ApproxEqual(center, width*0.54) {
+		t.Errorf("unlinked Shift+Left divider center = %.2f, want fine step to %.2f", center, width*0.54)
+	}
+	if !comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Error("divider keys relinked panes toggled apart by Ctrl+L")
 	}
 }
 
@@ -846,11 +1216,11 @@ func TestCompareSelection_HiddenHostIndicesDetermineLeftAndRight(t *testing.T) {
 	fireCompareShortcut(v)
 	waitForCompare(t, v)
 
-	images := comparisonImages(v.compare.Overlay())
+	images := comparisonShaders(v.compare.Overlay())
 	if len(images) != 2 {
 		t.Fatalf("comparison images = %d, want 2", len(images))
 	}
-	if left, right := images[0].Image.Bounds().Dx(), images[1].Image.Bounds().Dx(); left != 111 || right != 222 {
+	if left, right := images[0].Textures["overview"].Bounds().Dx(), images[1].Textures["overview"].Bounds().Dx(); left != 111 || right != 222 {
 		t.Errorf("left/right source widths = %d/%d, want 111/222 in ascending host order", left, right)
 	}
 	if got, want := v.grid.Selection(), []int{1, 3}; !slices.Equal(got, want) {
@@ -891,8 +1261,8 @@ func TestCompareSelection_DuplicateFilterKeepsHiddenSelectedHostFile(t *testing.
 	}
 	fireCompareShortcut(v)
 	waitForCompare(t, v)
-	images := comparisonImages(v.compare.Overlay())
-	if len(images) != 2 || images[0].Image.Bounds().Dx() != 101 || images[1].Image.Bounds().Dx() != 202 {
+	images := comparisonShaders(v.compare.Overlay())
+	if len(images) != 2 || images[0].Textures["overview"].Bounds().Dx() != 101 || images[1].Textures["overview"].Bounds().Dx() != 202 {
 		t.Errorf("comparison did not retain hidden host selection in file order")
 	}
 	v.compare.Close()

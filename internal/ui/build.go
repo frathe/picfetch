@@ -193,6 +193,9 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	window.Canvas().SetOnTypedRune(func(r rune) {
 		view.handleTypedRune(r)
 	})
+	if desktopCanvas, ok := window.Canvas().(comparisonKeyDownCanvas); ok {
+		wireComparisonLinkToggleHook(desktopCanvas, view)
+	}
 
 	wireGlobalShortcuts(window.Canvas(), view)
 

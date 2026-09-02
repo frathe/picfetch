@@ -130,8 +130,14 @@ func TestManualDocumentsComparisonEntryAndExit(t *testing.T) {
 	if !strings.Contains(manualMD, "Cmd/Ctrl+D") || !strings.Contains(manualMD, "Back to Grid") {
 		t.Error("manual.md does not document the comparison shortcut and exit")
 	}
+	if !strings.Contains(manualMD, "physical **`Ctrl+D`** also works on macOS") {
+		t.Error("manual.md does not document the physical Ctrl+D comparison shortcut on macOS")
+	}
 	if !strings.Contains(manualDE, "Cmd/Strg+D") || !strings.Contains(manualDE, "Zurück zur Rasteransicht") {
 		t.Error("manual_de.md does not document the comparison shortcut and exit")
+	}
+	if !strings.Contains(manualDE, "physische **`Ctrl+D`** funktioniert unter macOS ebenfalls") {
+		t.Error("manual_de.md does not document the physical Ctrl+D comparison shortcut on macOS")
 	}
 }
 
@@ -177,27 +183,39 @@ func TestManualDocumentsComparisonCommandIsolation(t *testing.T) {
 	}
 }
 
-func TestManualDocumentsComparisonLinkedZoomAndPan(t *testing.T) {
+func TestManualDocumentsComparisonCameraAndPhotoControls(t *testing.T) {
 	english := strings.Join(strings.Fields(manualMD), " ")
 	for _, phrase := range []string{
-		"Zoom and pan stay linked",
-		"**`0`** fits and centers both",
-		"**`1`** shows both at 100%",
-		"Dragging either comparison pane or using Shift+scroll pans both",
+		"zoom and pan operate one overhead camera above the two photos",
+		"**`0`** frames both photos in their current arrangement with one camera move",
+		"**`1`** returns the camera to its 1x home view",
+		"using Shift+scroll moves both views by the same screen distance",
+		"Here **`0`** fits and centres only that photo",
+		"Changing the link state never moves or resizes either photo",
+		"top-left **Unlink** button",
+		"remain inactive until both images are ready",
+		"button changes to **Link**",
+		"status **Unlinked** appears immediately beside it",
 	} {
 		if !strings.Contains(english, phrase) {
-			t.Errorf("manual.md does not document linked comparison phrase %q", phrase)
+			t.Errorf("manual.md does not document comparison camera/photo phrase %q", phrase)
 		}
 	}
 	german := strings.Join(strings.Fields(manualDE), " ")
 	for _, phrase := range []string{
-		"Zoom und Verschieben bleiben gekoppelt",
-		"**`0`** passt beide Bilder ein und zentriert sie",
-		"**`1`** zeigt beide mit 100 %",
-		"Ziehen in einem Vergleichsbereich oder Shift+Scrollen verschiebt beide",
+		"Zoom und Verschieben eine gemeinsame Kamera über den beiden Fotos",
+		"**`0`** rahmt beide Fotos in ihrer aktuellen Anordnung mit einer Kamerabewegung ein",
+		"**`1`** setzt die Kamera auf ihre 1x-Ausgangsansicht",
+		"Shift+Scrollen bewegt beide Ansichten um dieselbe Bildschirmstrecke",
+		"passt **`0`** nur dieses Foto in die aktuelle Kameraansicht ein",
+		"Das Umschalten der Kopplung bewegt oder skaliert keines der Fotos",
+		"Schaltfläche **Entkoppeln** oben links",
+		"bleiben inaktiv, bis beide Bilder bereit sind",
+		"wechselt die Schaltfläche zu **Koppeln**",
+		"Status **Entkoppelt** erscheint direkt daneben",
 	} {
 		if !strings.Contains(german, phrase) {
-			t.Errorf("manual_de.md does not document linked comparison phrase %q", phrase)
+			t.Errorf("manual_de.md does not document comparison camera/photo phrase %q", phrase)
 		}
 	}
 }
@@ -240,6 +258,8 @@ func TestManualDocumentsComparisonSourceFidelity(t *testing.T) {
 		"SVGs re-render at their effective screen-pixel size",
 		"RAW files use the same embedded JPEG preview",
 		"Animated inputs stay frozen on their first decoded frame",
+		"overview remains visible while sharper detail tiles arrive in the background",
+		"Pan and zoom update that stable GPU surface directly",
 		"combined decoded memory",
 		"encoded-input and vector-raster limits",
 		"never downsampled or removed",
@@ -256,6 +276,8 @@ func TestManualDocumentsComparisonSourceFidelity(t *testing.T) {
 		"SVGs werden für ihre effektive Bildschirm-Pixelgröße neu gerendert",
 		"RAW-Dateien verwenden dieselbe eingebettete JPEG-Vorschau",
 		"Animierte Eingaben bleiben auf ihrem ersten dekodierten Einzelbild eingefroren",
+		"Übersicht bleibt sichtbar, während schärfere Detailkacheln im Hintergrund eintreffen",
+		"Verschieben und Zoomen aktualisieren diese stabile GPU-Fläche direkt",
 		"kombinierten dekodierten Speicher",
 		"Grenzen für kodierte Eingaben und Vektor-Raster",
 		"weder verkleinert noch entfernt",
