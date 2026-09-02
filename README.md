@@ -219,7 +219,7 @@ packaged build.
 | `make fmt-check`            | Fail if any file differs from that `goimports` (CI format gate)     |
 | `make vet`                  | `go vet ./...`                                                      |
 | `make update-test-image`    | Pull the latest Linux/amd64 Ubuntu image used by Docker tests       |
-| `make test`                 | Run `go test -timeout 20m ./...` in Linux/amd64 Docker, matching CI and golden rendering |
+| `make test`                 | Run `go test -timeout 30m ./...` in Linux/amd64 Docker, matching CI and golden rendering |
 | `make test-native`          | Run the same suite directly on the host (goldens can differ outside Linux/amd64) |
 | `make verify`               | The same gate CI runs; its race-test step uses the `make test` Linux/amd64 container |
 | `make tidy`                 | `go mod tidy` — tidy go.mod / go.sum                                |

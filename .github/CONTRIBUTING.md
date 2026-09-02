@@ -43,7 +43,7 @@ make run
    ```sh
    make fmt-check      # goimports -local; should print nothing / exit 0
    go vet ./...
-   go test -timeout 20m -race ./...
+   go test -timeout 30m -race ./...
    ```
 
    Or via the [Makefile](../Makefile): `make fmt`, `make vet`, `make test`.
@@ -74,7 +74,7 @@ make run
 - Open the PR against `main` and fill in the pull request template.
 - Keep the change focused — unrelated cleanup makes review harder and is
   easier to land as its own PR.
-- CI (`goimports -local`, `go vet`, `go build`, `go test -timeout 20m -race`) must pass.
+- CI (`goimports -local`, `go vet`, `go build`, `go test -timeout 30m -race`) must pass.
 - A maintainer will review and may ask for changes before merging.
 
 ## Reporting bugs and requesting features

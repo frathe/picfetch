@@ -13,7 +13,7 @@ RELEASE_BRANCH := main
 GOIMPORTS_LOCAL := github.com/frathe/picfetch
 # ubuntu-latest + race + Fyne's software renderer: internal/ui is ~10 minutes.
 # go test's default 10m per-package timeout is no longer enough.
-TEST_TIMEOUT := 20m
+TEST_TIMEOUT := 30m
 TEST_IMAGE := ubuntu:24.04
 TEST_CONTAINER_LABEL := io.github.frathe.picfetch.test=true
 TEST_RACE :=
