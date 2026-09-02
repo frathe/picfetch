@@ -12,15 +12,46 @@
 
 ## TODO
 
-### Retire the GitHub-hosted Intel macOS runner before August 2027
+### Reduce CI wall-clock time through measured test sharding
 
-GitHub plans to retire `macos-15-intel`, its final hosted x86_64 macOS
-runner, in August 2027. Before then, decide whether PicFetch will stop
-shipping an Intel macOS archive or retain it through another build path. If
-Intel support remains, replace the `macos-15-intel` release job with a tested
-alternative; otherwise remove the x86_64 artifact and update the release and
-installation documentation. The native Apple-silicon build is not affected
-by Rosetta's retirement.
+The full GitHub Actions CI currently takes roughly 21 minutes. Reduce its
+wall-clock time without removing the race detector, weakening the test scope,
+or hiding failures behind optional jobs. Treat this as a separate pull request
+after the first signed Windows release.
+
+1. **Measure the current critical path.**
+   - Capture package and top-level test durations from a representative Linux
+     `-race` run, preferably as machine-readable `go test -json` output.
+   - Record at least three comparable `main` runs so runner variance is not
+     mistaken for an improvement.
+   - Confirm how much time is spent in setup, validation/build steps, the
+     non-UI packages, and `internal/ui` before choosing shard boundaries.
+2. **Start independent work in parallel.**
+   - Split formatting, TUF-root validation, vetting, normal builds, and Windows
+     cross-builds from the Linux race tests so neither group waits for the
+     other after checkout and toolchain setup.
+   - Keep the existing Windows test job independent.
+   - Preserve every job as a required dependency of the reusable CI workflow,
+     so tag releases cannot proceed after any shard or validation job fails.
+3. **Shard the long `internal/ui` package safely.**
+   - Run the remaining packages with `-race` in their own job.
+   - Divide `internal/ui` top-level tests into approximately three
+     duration-balanced jobs running on separate GitHub-hosted runners. Do not
+     broadly add `t.Parallel()`: Fyne and UI tests can share process-global
+     state, whereas separate runners provide isolation.
+   - Make shard assignment deterministic and add a guard that fails when a
+     top-level test is unassigned or assigned more than once. New tests must be
+     covered automatically or force an explicit shard update.
+4. **Preserve and verify the safety properties.**
+   - Retain `-race`, the 30-minute package timeout, the explicit locale, and
+     the current package coverage on Linux and Windows.
+   - Ensure cancellation, logs, and failure names still identify the exact
+     failed shard and test.
+   - Compare at least three post-change runs with the recorded baseline. Aim
+     for an 8-12 minute median wall-clock time; accept a different result only
+     if the measured critical path explains it and no coverage was lost.
+   - Document the trade-off: lower elapsed time uses more concurrent runner
+     capacity and may consume more total runner minutes.
 
 ### Functional test coverage
 
@@ -81,6 +112,18 @@ remaining gaps are chiefly framework/filesystem failure plumbing.
 respectively when their higher-level tests are counted. Re-audit
 `internal/ui/compare` only after the current command-isolation work lands; its
 present uncovered input-shield methods are deliberate no-ops.
+
+## LATER
+
+### Retire the GitHub-hosted Intel macOS runner before August 2027
+
+GitHub plans to retire `macos-15-intel`, its final hosted x86_64 macOS
+runner, in August 2027. Before then, decide whether PicFetch will stop
+shipping an Intel macOS archive or retain it through another build path. If
+Intel support remains, replace the `macos-15-intel` release job with a tested
+alternative; otherwise remove the x86_64 artifact and update the release and
+installation documentation. The native Apple-silicon build is not affected
+by Rosetta's retirement.
 
 ## not deemed worth implementing (edge cases)
 
