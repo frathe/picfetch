@@ -6,6 +6,8 @@
 
 #### New Features
 
+![Trane comparing images](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_lightwall.png)
+
 - Comparison pane linking can be toggled with the ready-gated **Unlink** / **Link**
   control at the top left or physical `Ctrl+L` on every platform. Its adjacent
   status identifies the targeted side while unlinked. Pan, wheel/Shift+wheel,
