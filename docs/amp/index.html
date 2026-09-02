@@ -1,13 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html amp lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-vimeo"
+            src="https://cdn.ampproject.org/v0/amp-vimeo-0.1.js"></script>
+    <script async custom-element="amp-lightbox-gallery"
+            src="https://cdn.ampproject.org/v0/amp-lightbox-gallery-0.1.js"></script>
     <title>PicFetch — a small, fast image viewer for macOS, Windows and Linux</title>
+    <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
     <meta name="description"
           content="PicFetch is a small multi-platform desktop app for quickly viewing and browsing images. Drop one or more images onto the window and step through them with the keyboard.">
     <link rel="canonical" href="https://frathe.github.io/picfetch/">
-    <link rel="amphtml" href="https://frathe.github.io/picfetch/amp/">
     <link rel="icon" type="image/png" sizes="32x32"
           href="https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/Favicons%20%28TaneWithFrame%29/favicon-32.png">
     <link rel="icon" type="image/png" sizes="36x36"
@@ -24,8 +28,8 @@
           href="https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/Favicons%20%28TaneWithFrame%29/favicon-192.png">
     <link rel="apple-touch-icon" sizes="180x180"
           href="https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/Favicons%20%28TaneWithFrame%29/favicon-180-precomposed.png">
-    <link rel="shortcut icon" href="./favicon.ico">
-    <link rel="manifest" href="./manifest.json">
+    <link rel="shortcut icon" href="../favicon.ico">
+    <link rel="manifest" href="../manifest.json">
 
     <meta property="og:type" content="website">
     <meta property="og:title" content="PicFetch — a small, fast image viewer">
@@ -34,8 +38,9 @@
     <meta property="og:image" content="https://raw.githubusercontent.com/frathe/picfetch/main/assets/social_logo.jpg">
     <meta name="twitter:card" content="summary_large_image">
 
-    <style>
-        /* Palette picked from the header artwork: deep indigo, warm tan accent. */
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+    <noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <style amp-custom>
         :root {
             --bg: #ffffff;
             --bg-soft: #f6f5fa;
@@ -47,7 +52,6 @@
             --note-bg: #fdf6e7;
             --note-br: #e0c583;
             --shadow: 0 1px 2px rgb(27 23 38 / 6%), 0 8px 24px rgb(27 23 38 / 8%);
-            --overlay: rgb(246 245 250 / 60%);
         }
 
         @media (prefers-color-scheme: dark) {
@@ -62,7 +66,6 @@
                 --note-bg: #241d33;
                 --note-br: #6b5730;
                 --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 35%);
-                --overlay: rgb(29 24 48 / 60%);
             }
         }
 
@@ -109,24 +112,12 @@
             border-bottom: 1px solid var(--border);
         }
 
-        img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        /* --- hero ------------------------------------------------------------ */
-
         .banner {
             margin: 2rem 0 0;
             border: 1px solid var(--border);
             border-radius: 12px;
             overflow: hidden;
             box-shadow: var(--shadow);
-        }
-
-        .banner img {
-            width: 100%;
         }
 
         .tagline {
@@ -164,12 +155,6 @@
             color: var(--accent-fg);
         }
 
-        .btn-primary:hover {
-            filter: brightness(1.1);
-        }
-
-        /* --- generic cards --------------------------------------------------- */
-
         .grid {
             display: grid;
             gap: 1rem;
@@ -197,8 +182,6 @@
             font-size: .94rem;
         }
 
-        /* --- screenshots ------------------------------------------------------ */
-
         .screens {
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         }
@@ -211,8 +194,7 @@
             box-shadow: var(--shadow);
         }
 
-        .shot img {
-            width: 100%;
+        .shot amp-img {
             cursor: pointer;
         }
 
@@ -223,59 +205,12 @@
             font-size: .88rem;
         }
 
-        /* --- lightbox ----------------------------------------------------------- */
-
-        .lightbox {
-            display: none;
-            position: fixed;
-            inset: 0;
-            align-items: center;
-            justify-content: center;
-            padding: 3rem 1.5rem;
-            background: var(--overlay);
-            z-index: 100;
-        }
-
-        .lightbox.open {
-            display: flex;
-        }
-
-        .lightbox-frame {
-            position: relative;
-            max-width: min(90vw, 960px);
-            max-height: 90vh;
-        }
-
-        .lightbox-frame img {
-            display: block;
-            max-width: 100%;
-            max-height: 90vh;
+        .video {
+            overflow: hidden;
             border: 1px solid var(--border);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-        }
-
-        .lightbox-close {
-            position: absolute;
-            top: -.85rem;
-            right: -.85rem;
-            width: 2.25rem;
-            height: 2.25rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid var(--border);
-            border-radius: 50%;
+            border-radius: 10px;
             background: var(--bg-soft);
-            color: var(--fg);
-            font-size: 1.2rem;
-            line-height: 1;
-            cursor: pointer;
             box-shadow: var(--shadow);
-        }
-
-        .lightbox-close:hover {
-            border-color: var(--accent);
         }
 
         kbd {
@@ -288,8 +223,6 @@
             white-space: nowrap;
             color: var(--fg);
         }
-
-        /* --- download -------------------------------------------------------- */
 
         .dl h3 {
             display: flex;
@@ -337,12 +270,14 @@
             padding: .1em .4em;
         }
 
-        /* --- footer ---------------------------------------------------------- */
-
         footer {
             margin-top: 3.5rem;
             border-top: 1px solid var(--border);
             padding-top: 1.5rem;
+        }
+
+        .footer-art {
+            margin-bottom: 1.5rem;
         }
 
         .links {
@@ -365,11 +300,12 @@
 
 <body>
 <div class="wrap">
-
     <header>
         <div class="banner">
-            <img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/header.jpg"
-                 alt="PicFetch — the app window showing a 'Drop images here' prompt beside the mascot artwork">
+            <amp-img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/header.jpg"
+                     width="1200" height="400" layout="responsive"
+                     alt="PicFetch — the app window showing a 'Drop images here' prompt beside the mascot artwork">
+            </amp-img>
         </div>
 
         <p class="tagline">
@@ -384,36 +320,34 @@
     </header>
 
     <main>
-
         <h2>See it in action</h2>
-        <div>
-            <div style="padding:66% 0 0 0;position:relative;">
-                <iframe src="https://player.vimeo.com/video/1220283616?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479&amp;autoplay=1&amp;muted=1&amp;loop=1"
-                        frameborder="0"
-                        allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
-                        referrerpolicy="strict-origin-when-cross-origin"
-                        style="position:absolute;top:0;left:0;width:100%;height:100%;" title="PicFetch"></iframe>
-            </div>
+        <div class="video">
+            <amp-vimeo data-videoid="1220283616" width="1000" height="660"
+                       layout="responsive" autoplay>
+            </amp-vimeo>
         </div>
 
         <h2>Screenshots</h2>
         <ul class="grid screens">
             <li class="shot">
-                <img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/main_screen.png"
-                     alt="PicFetch's main window showing the 'Drop images here' prompt before any images are loaded"
-                     loading="lazy">
+                <amp-img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/main_screen.png"
+                         width="520" height="372" layout="responsive" lightbox="screenshots"
+                         alt="PicFetch's main window showing the 'Drop images here' prompt before any images are loaded">
+                </amp-img>
                 <p>Drop images onto the window to get started</p>
             </li>
             <li class="shot">
-                <img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/picture_galery.png"
-                     alt="Thumbnail grid view showing dozens of photos at once, with the current image highlighted"
-                     loading="lazy">
+                <amp-img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/picture_galery.png"
+                         width="2758" height="1772" layout="responsive" lightbox="screenshots"
+                         alt="Thumbnail grid view showing dozens of photos at once, with the current image highlighted">
+                </amp-img>
                 <p>The thumbnail grid for finding an image by sight</p>
             </li>
             <li class="shot">
-                <img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/viewer.png"
-                     alt="A zoomed-in photo with the file info overlay and the EXIF data window open, showing camera, aperture, focal length and capture date"
-                     loading="lazy">
+                <amp-img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/viewer.png"
+                         width="2088" height="1160" layout="responsive" lightbox="screenshots"
+                         alt="A zoomed-in photo with the file info overlay and the EXIF data window open, showing camera, aperture, focal length and capture date">
+                </amp-img>
                 <p>Zoomed in, with file info and EXIF data on show</p>
             </li>
         </ul>
@@ -485,14 +419,10 @@
         </ul>
 
         <h2>Compare images with ease</h2>
-        <div>
-            <div style="padding:66% 0 0 0;position:relative;">
-                <iframe src="https://player.vimeo.com/video/1223380739?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479"
-                        frameborder="0"
-                        allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
-                        referrerpolicy="strict-origin-when-cross-origin"
-                        style="position:absolute;top:0;left:0;width:100%;height:100%;" title="image_compare"></iframe>
-            </div>
+        <div class="video">
+            <amp-vimeo data-videoid="1223380739" width="1000" height="660"
+                       layout="responsive">
+            </amp-vimeo>
         </div>
 
         <h2 id="downloads">Download</h2>
@@ -549,12 +479,14 @@
                 quarantine flag and then open it normally.
             </p>
         </div>
-
     </main>
 
     <footer>
-        <img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_comparing_images.webp"
-             alt="PicFetch mascot trane, at work comparing images for you.">
+        <amp-img class="footer-art"
+                 src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_comparing_images.webp"
+                 width="1024" height="935" layout="responsive"
+                 alt="PicFetch mascot trane, at work comparing images for you.">
+        </amp-img>
         <ul class="links">
             <li><a href="https://github.com/frathe/picfetch">Source code</a></li>
             <li><a href="https://github.com/frathe/picfetch/releases">Releases</a></li>
@@ -572,37 +504,6 @@
             and built with <a href="https://fyne.io/">Fyne</a>.
         </p>
     </footer>
-
 </div>
-
-<div class="lightbox" id="lightbox">
-    <div class="lightbox-frame">
-        <button class="lightbox-close" id="lightboxClose" aria-label="Close">&times;</button>
-        <img id="lightboxImg" src="" alt="">
-    </div>
-</div>
-
-<script>
-    (() => {
-        const lightbox = document.getElementById('lightbox');
-        const lightboxImg = document.getElementById('lightboxImg');
-
-        document.querySelectorAll('.shot img').forEach((img) => {
-            img.addEventListener('click', () => {
-                lightboxImg.src = img.src;
-                lightboxImg.alt = img.alt;
-                lightbox.classList.add('open');
-            });
-        });
-
-        const closeLightbox = () => lightbox.classList.remove('open');
-
-        document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
-        lightbox.addEventListener('click', (e) => {
-            if (e.target === lightbox) closeLightbox();
-        });
-    })();
-</script>
-<script src="https://player.vimeo.com/api/player.js"></script>
 </body>
 </html>
