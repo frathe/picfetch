@@ -124,8 +124,8 @@ golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64,
 tidy: ## Tidy go.mod / go.sum
 	go mod tidy
 
-security-govulncheck: ## Scan dependencies for known Go vulnerabilities (govulncheck)
-	govulncheck ./...
+security-govulncheck: ## Scan dependencies with the module-pinned govulncheck
+	go tool govulncheck ./...
 
 security-github: ## List open GitHub Dependabot alerts for this repo (needs `gh auth login`)
 	gh api "repos/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/dependabot/alerts" \
@@ -175,10 +175,9 @@ build-linux-all: package-linux ## Alias for package-linux: cross-compile Linux b
 
 build-all: package-mac package-windows package-linux ## Build release artifacts for macOS, Windows, and Linux
 
-install-tools: ## Install the fyne, fyne-cross, and govulncheck CLI tools
+install-tools: ## Install the fyne and fyne-cross packaging tools
 	go install fyne.io/fyne/v2/cmd/fyne@latest
 	go install github.com/fyne-io/fyne-cross@latest
-	go install golang.org/x/vuln/cmd/govulncheck@latest
 
 install-linux-tools: ## Install apt dev headers needed to build natively on Linux (OpenGL, X11, Wayland; needs sudo)
 	sudo apt-get update

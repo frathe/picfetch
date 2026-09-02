@@ -10,7 +10,7 @@ participating, you're expected to uphold it.
 
 ## Getting set up
 
-- Go 1.26.6 or newer (see the `go` directive in [go.mod](../go.mod))
+- Go 1.27.1 or newer (see the `go` directive in [go.mod](../go.mod))
 - A C toolchain for cgo (Fyne's OpenGL bindings require it) — Xcode Command
   Line Tools on macOS, `gcc` + `libgl1-mesa-dev`/`xorg-dev` on Linux
 - See the [README](../README.md#requirements) for the full list, including

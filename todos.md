@@ -25,6 +25,12 @@
 
 - Updated the indirect gRPC-Go dependency to `v1.83.2`, resolving
   `CVE-2026-84304` / `GHSA-vp52-pcj8-j9qc`. Was never used (better save than sorry)
+- Raised the minimum Go version to `1.27.1`, pinned `govulncheck` at `v1.7.0`,
+  and updated Rekor to `v1.5.4`, which replaces its unmaintained
+  `x/crypto/openpgp` implementation with the maintained Proton fork. The scan
+  finds no reachable or imported vulnerabilities; `GO-2026-5932` remains only
+  a module-level notice because latest `x/crypto v0.55.0` is still required for
+  unaffected cryptography and the advisory has no patched release.
 
 ## TODO
 

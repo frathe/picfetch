@@ -151,17 +151,18 @@ isn't actually corrupted — to open it anyway:
 
 ## Requirements
 
-- Go 1.26.6 or newer (see the `go` directive in [go.mod](go.mod))
+- Go 1.27.1 or newer (see the `go` directive in [go.mod](go.mod))
 - A C toolchain for cgo (Fyne's OpenGL bindings require it) — Xcode Command
   Line Tools on macOS, `gcc` + `libgl1-mesa-dev`/`xorg-dev` on Linux
 - [Docker](https://www.docker.com/) — used by `make test`/`make verify` so
   tests and golden comparisons run on Linux/amd64 like CI, and also needed
   for cross-compilation and `make golden`
-- [`govulncheck`](https://go.dev/security/vuln) and the
-  [GitHub CLI](https://cli.github.com/) (`gh`) — only needed for the
-  `make security*` targets. `govulncheck` is installed by
-  `make install-tools`; `gh` must be installed separately (e.g. `brew install
-  gh`) and authenticated via `gh auth login`
+- The [GitHub CLI](https://cli.github.com/) (`gh`) — only needed for
+  `make security-github` and the combined `make security` target. It must be
+  installed separately (e.g. `brew install gh`) and authenticated via
+  `gh auth login`. `make security-govulncheck` runs the repository-pinned
+  [`govulncheck`](https://go.dev/security/vuln) through Go, with no separate
+  installation required
 
 ## Running
 
@@ -183,7 +184,7 @@ list them.
 | `make package-windows` | Windows `.exe` files, cross-compiled via `fyne-cross`/Docker, to `bin/picfetch-windows-<arch>.exe` |
 | `make package-linux`   | Linux binaries, cross-compiled via `fyne-cross`/Docker, to `bin/picfetch-linux-<arch>`             |
 | `make build-all`       | Runs `package-mac`, `package-windows`, and `package-linux`                                         |
-| `make install-tools`   | Installs the `fyne`, `fyne-cross`, and `govulncheck` CLIs used by the package/security targets     |
+| `make install-tools`   | Installs the `fyne` and `fyne-cross` CLIs used by the packaging targets                            |
 
 Packaging is done with the [`fyne`](https://pkg.go.dev/fyne.io/fyne/v2/cmd/fyne)
 CLI (native OS builds) and [`fyne-cross`](https://github.com/fyne-io/fyne-cross)
@@ -223,13 +224,16 @@ packaged build.
 | `make verify`               | The same gate CI runs; its race-test step uses the `make test` Linux/amd64 container |
 | `make tidy`                 | `go mod tidy` — tidy go.mod / go.sum                                |
 | `make security`             | Run all security checks (govulncheck + GitHub Dependabot alerts)    |
-| `make security-govulncheck` | Scan dependencies for known Go vulnerabilities with `govulncheck`   |
+| `make security-govulncheck` | Scan dependencies with the repository-pinned `govulncheck`          |
 | `make security-github`      | List open GitHub Dependabot alerts via `gh` (needs `gh auth login`) |
 | `make clean`                | Remove `bin/`, `fyne-cross/`, and any stray packaged app/zip        |
 
 > **Note:** `make security-github` requires the [GitHub CLI](https://cli.github.com/)
 > (`gh`) to be installed and authenticated (`gh auth login`), and it must be run
 > from a checkout with a GitHub `origin` remote.
+
+`make security-govulncheck` invokes the version declared as a tool dependency
+in [go.mod](go.mod), so its first run may download that pinned module.
 
 ### Releasing
 
