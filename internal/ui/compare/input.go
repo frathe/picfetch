@@ -83,7 +83,12 @@ func (p *paneInput) CreateRenderer() fyne.WidgetRenderer {
 }
 
 func (p *paneInput) Scrolled(ev *fyne.ScrollEvent) {
-	p.feature.handleScroll(p.index, ev)
+	if ev == nil {
+		return
+	}
+	viewportEvent := *ev
+	viewportEvent.Position = viewportEvent.Position.Add(p.Position())
+	p.feature.handleScroll(p.index, &viewportEvent)
 }
 
 func (p *paneInput) Dragged(ev *fyne.DragEvent) {

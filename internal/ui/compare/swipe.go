@@ -102,12 +102,19 @@ func (f *Feature) paneVisibleArea(index int) (fyne.Position, fyne.Size) {
 	return fyne.NewPos(boundary, 0), fyne.NewSize(viewport.Width-boundary, viewport.Height)
 }
 
+func (f *Feature) layoutPaneInput(index int, input fyne.CanvasObject) {
+	position, size := f.paneVisibleArea(index)
+	input.Move(position)
+	input.Resize(size)
+}
+
 func (f *Feature) layoutReveal(index int, clipPosition fyne.Position, clipSize fyne.Size, rootPosition fyne.Position, rootSize fyne.Size) {
 	reveal := f.reveals[index]
 	reveal.clip.Move(clipPosition)
 	reveal.clip.Resize(clipSize)
 	f.panes[index].root.Move(rootPosition)
 	f.panes[index].root.Resize(rootSize)
+	f.layoutPaneInput(index, f.panes[index].input)
 }
 
 func dividerThickness() float32 {

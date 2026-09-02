@@ -635,6 +635,193 @@ func TestCompareSwipeLayout_UsesAlignedFullViewportImagesAndKeepsChrome(t *testi
 	}
 }
 
+func TestCompareSwipeUnlinkedCanvasRoutesPointerByReveal(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	feature := newReferenceFeature(func(_ context.Context, _ fyne.URI) (*imaging.LoadedImage, error) {
+		return loadedImage(1600, 800), nil
+	}, Callbacks{})
+	win := test.NewWindow(feature.Overlay())
+	win.SetPadded(false)
+	win.Resize(fyne.NewSize(800, 400))
+	t.Cleanup(win.Close)
+	feature.Open([2]fyne.URI{
+		storage.NewFileURI("left.png"),
+		storage.NewFileURI("right.png"),
+	})
+	waitForDone(t, feature)
+	test.Tap(comparisonButton(t, feature.Overlay(), "Swipe"))
+	test.Tap(comparisonButton(t, feature.Overlay(), "Unlink"))
+
+	overlayPosition := app.Driver().AbsolutePositionForObject(feature.Overlay())
+	canvasPoint := func(x float32) fyne.Position {
+		return overlayPosition.Add(fyne.NewPos(x, feature.Overlay().Size().Height/2))
+	}
+	assertTarget := func(want string) {
+		t.Helper()
+		if got := labelTexts(feature.Overlay()); !slices.Contains(got, "Unlinked: "+want) {
+			t.Fatalf("labels after pointing at %s reveal = %v, want Unlinked: %s", want, got, want)
+		}
+	}
+
+	test.MoveMouse(win.Canvas(), canvasPoint(200))
+	assertTarget("Left")
+	beforeKey := renderedPanes(feature.Overlay())
+	beforeKeySizes := [2]fyne.Size{beforeKey[0].image.Size(), beforeKey[1].image.Size()}
+	feature.HandleKey(fyne.KeyPlus)
+	afterKey := renderedPanes(feature.Overlay())
+	if afterKey[0].image.Size().Width <= beforeKeySizes[0].Width {
+		t.Errorf("left image after left-targeted + = %v, want larger than %v", afterKey[0].image.Size(), beforeKeySizes[0])
+	}
+	if afterKey[1].image.Size() != beforeKeySizes[1] {
+		t.Errorf("right image after left-targeted + = %v, want unchanged %v", afterKey[1].image.Size(), beforeKeySizes[1])
+	}
+
+	beforeDrag := renderedPanes(feature.Overlay())
+	beforeDragPositions := [2]fyne.Position{beforeDrag[0].image.Position(), beforeDrag[1].image.Position()}
+	test.Drag(win.Canvas(), canvasPoint(200), 40, 20)
+	afterDrag := renderedPanes(feature.Overlay())
+	if afterDrag[0].image.Position() == beforeDragPositions[0] {
+		t.Fatal("canvas drag over the left reveal did not pan the left image")
+	}
+	if afterDrag[1].image.Position() != beforeDragPositions[1] {
+		t.Errorf("right image after left-reveal drag = %v, want unchanged %v", afterDrag[1].image.Position(), beforeDragPositions[1])
+	}
+
+	test.MoveMouse(win.Canvas(), canvasPoint(700))
+	assertTarget("Right")
+	beforeWheel := renderedPanes(feature.Overlay())
+	beforeWheelSizes := [2]fyne.Size{beforeWheel[0].image.Size(), beforeWheel[1].image.Size()}
+	test.Scroll(win.Canvas(), canvasPoint(700), 0, 10)
+	afterWheel := renderedPanes(feature.Overlay())
+	if afterWheel[0].image.Size() != beforeWheelSizes[0] {
+		t.Errorf("left image after right-reveal wheel = %v, want unchanged %v", afterWheel[0].image.Size(), beforeWheelSizes[0])
+	}
+	if afterWheel[1].image.Size().Width <= beforeWheelSizes[1].Width {
+		t.Errorf("right image after right-reveal wheel = %v, want larger than %v", afterWheel[1].image.Size(), beforeWheelSizes[1])
+	}
+
+	beforeRightKey := renderedPanes(feature.Overlay())
+	beforeRightKeySizes := [2]fyne.Size{beforeRightKey[0].image.Size(), beforeRightKey[1].image.Size()}
+	feature.HandleKey(fyne.KeyPlus)
+	afterRightKey := renderedPanes(feature.Overlay())
+	if afterRightKey[0].image.Size() != beforeRightKeySizes[0] {
+		t.Errorf("left image after right-targeted + = %v, want unchanged %v", afterRightKey[0].image.Size(), beforeRightKeySizes[0])
+	}
+	if afterRightKey[1].image.Size().Width <= beforeRightKeySizes[1].Width {
+		t.Errorf("right image after right-targeted + = %v, want larger than %v", afterRightKey[1].image.Size(), beforeRightKeySizes[1])
+	}
+
+	divider, _ := horizontalResizeTarget(t, feature.Overlay())
+	dividerPosition := app.Driver().AbsolutePositionForObject(divider)
+	dividerPoint := dividerPosition.Add(fyne.NewPos(divider.Size().Width/2, divider.Size().Height/2))
+	test.Drag(win.Canvas(), dividerPoint, 200, 0)
+	if center := divider.Position().X + divider.Size().Width/2; !uitest.ApproxEqual(center, 600) {
+		t.Fatalf("divider center after canvas drag = %.2f, want 600", center)
+	}
+	test.MoveMouse(win.Canvas(), canvasPoint(550))
+	assertTarget("Left")
+	beforeMovedKey := renderedPanes(feature.Overlay())
+	beforeMovedKeySizes := [2]fyne.Size{beforeMovedKey[0].image.Size(), beforeMovedKey[1].image.Size()}
+	feature.HandleKey(fyne.KeyMinus)
+	afterMovedKey := renderedPanes(feature.Overlay())
+	if afterMovedKey[0].image.Size().Width >= beforeMovedKeySizes[0].Width {
+		t.Errorf("left image after moved-reveal - = %v, want smaller than %v", afterMovedKey[0].image.Size(), beforeMovedKeySizes[0])
+	}
+	if afterMovedKey[1].image.Size() != beforeMovedKeySizes[1] {
+		t.Errorf("right image after moved-reveal - = %v, want unchanged %v", afterMovedKey[1].image.Size(), beforeMovedKeySizes[1])
+	}
+
+	feature.HandleKey(fyne.KeyEnd)
+	test.MoveMouse(win.Canvas(), canvasPoint(700))
+	assertTarget("Left")
+	feature.HandleKey(fyne.KeyHome)
+	assertTarget("Left")
+	test.MoveMouse(win.Canvas(), canvasPoint(100))
+	assertTarget("Right")
+
+	link := comparisonButton(t, feature.Overlay(), "Link")
+	linkPosition := app.Driver().AbsolutePositionForObject(link)
+	test.MoveMouse(win.Canvas(), linkPosition.Add(fyne.NewPos(link.Size().Width/2, link.Size().Height/2)))
+	assertTarget("Right")
+}
+
+func TestCompareSwipeUnlinkedRightWheelPreservesViewportAnchor(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+
+	feature := newReferenceFeature(func(_ context.Context, _ fyne.URI) (*imaging.LoadedImage, error) {
+		return loadedImage(1600, 800), nil
+	}, Callbacks{})
+	win := test.NewWindow(feature.Overlay())
+	win.SetPadded(false)
+	win.Resize(fyne.NewSize(800, 400))
+	t.Cleanup(win.Close)
+	feature.Open([2]fyne.URI{
+		storage.NewFileURI("left.png"),
+		storage.NewFileURI("right.png"),
+	})
+	waitForDone(t, feature)
+	test.Tap(comparisonButton(t, feature.Overlay(), "Swipe"))
+	test.Tap(comparisonButton(t, feature.Overlay(), "Unlink"))
+
+	before := renderedPanes(feature.Overlay())
+	if len(before) != 2 {
+		t.Fatalf("rendered panes = %d, want 2", len(before))
+	}
+	rightScroll := paneScrollable(t, before[1])
+	rightInput, ok := rightScroll.(fyne.CanvasObject)
+	if !ok {
+		t.Fatalf("right scroll target %T is not a canvas object", rightScroll)
+	}
+	if got, want := rightInput.Position(), fyne.NewPos(400, 0); got != want {
+		t.Fatalf("right Swipe input position = %v, want reveal origin %v", got, want)
+	}
+
+	localCursor := fyne.NewPos(100, 180)
+	viewportCursor := localCursor.Add(rightInput.Position())
+	anchored := normalizedPoint(before[1], viewportCursor)
+	wantLeftSize := before[0].image.Size()
+	wantLeftPosition := before[0].image.Position()
+	wantRightBeforeSize := before[1].image.Size()
+	event := &fyne.ScrollEvent{
+		Position:         localCursor,
+		AbsolutePosition: fyne.NewPos(713, 257),
+		Scrolled:         fyne.NewDelta(3, 10),
+	}
+	wantEventPosition := event.Position
+	wantEventAbsolutePosition := event.AbsolutePosition
+	wantEventDelta := event.Scrolled
+
+	rightScroll.Scrolled(event)
+	after := renderedPanes(feature.Overlay())
+	if after[1].image.Size().Width <= wantRightBeforeSize.Width {
+		t.Errorf("right image after wheel = %v, want larger than %v", after[1].image.Size(), wantRightBeforeSize)
+	}
+	if got := normalizedPoint(after[1], viewportCursor); !approxPosition(got, anchored) {
+		t.Errorf("right normalized point under viewport cursor after wheel = %v, want anchored %v", got, anchored)
+	}
+	if after[0].image.Size() != wantLeftSize || after[0].image.Position() != wantLeftPosition {
+		t.Errorf("left image changed during right wheel: got {%v %v}, want {%v %v}",
+			after[0].image.Size(), after[0].image.Position(), wantLeftSize, wantLeftPosition)
+	}
+	if event.Position != wantEventPosition || event.AbsolutePosition != wantEventAbsolutePosition || event.Scrolled != wantEventDelta {
+		t.Errorf("wheel handler mutated caller event to {%v %v %v}, want {%v %v %v}",
+			event.Position, event.AbsolutePosition, event.Scrolled,
+			wantEventPosition, wantEventAbsolutePosition, wantEventDelta)
+	}
+
+	wantRightSize := after[1].image.Size()
+	wantRightPosition := after[1].image.Position()
+	rightScroll.Scrolled(nil)
+	afterNil := renderedPanes(feature.Overlay())
+	if afterNil[1].image.Size() != wantRightSize || afterNil[1].image.Position() != wantRightPosition {
+		t.Errorf("nil wheel changed right image to {%v %v}, want {%v %v}",
+			afterNil[1].image.Size(), afterNil[1].image.Position(), wantRightSize, wantRightPosition)
+	}
+}
+
 func TestCompareSwipePointer_DividerDragChangesRevealWithoutPanning(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
@@ -794,8 +981,8 @@ func TestCompareInteraction_PanAndZoomDoNotRepaintOwner(t *testing.T) {
 			for range 50 {
 				draggable.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(1, 1)})
 				scrollable.Scrolled(&fyne.ScrollEvent{
-					PointEvent: fyne.PointEvent{Position: fyne.NewPos(200, 200)},
-					Scrolled:   fyne.NewDelta(0, 0.25),
+					Position: fyne.NewPos(200, 200),
+					Scrolled: fyne.NewDelta(0, 0.25),
 				})
 			}
 
@@ -1750,8 +1937,8 @@ func TestCompareRasterFidelity_PreservesFullDecodedFramesAcrossTransforms(t *tes
 	feature.HandleKey(fyne.KeyPlus)
 	panes := renderedPanes(feature.Overlay())
 	paneScrollable(t, panes[0]).Scrolled(&fyne.ScrollEvent{
-		PointEvent: fyne.PointEvent{Position: fyne.NewPos(200, 250)},
-		Scrolled:   fyne.NewDelta(0, 10),
+		Position: fyne.NewPos(200, 250),
+		Scrolled: fyne.NewDelta(0, 10),
 	})
 	paneDraggable(t, panes[1]).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(30, -20)})
 	feature.Overlay().Resize(fyne.NewSize(960, 640))
@@ -1943,8 +2130,8 @@ func TestCompareCameraZoom_WheelAnchorsCorrespondingPointsInBothPanes(t *testing
 	leftWidth := before[0].image.Size().Width
 	rightHeight := before[1].image.Size().Height
 	paneScrollable(t, before[0]).Scrolled(&fyne.ScrollEvent{
-		PointEvent: fyne.PointEvent{Position: cursor},
-		Scrolled:   fyne.NewDelta(0, 10),
+		Position: cursor,
+		Scrolled: fyne.NewDelta(0, 10),
 	})
 
 	after := renderedPanes(feature.Overlay())
@@ -1982,8 +2169,8 @@ func TestCompareCameraClamp_WheelKeepsBothPhotosOverTheirPaneCenters(t *testing.
 
 	panes := renderedPanes(feature.Overlay())
 	paneScrollable(t, panes[0]).Scrolled(&fyne.ScrollEvent{
-		PointEvent: fyne.PointEvent{Position: fyne.NewPos(0, 0)},
-		Scrolled:   fyne.NewDelta(0, 100),
+		Position: fyne.NewPos(0, 0),
+		Scrolled: fyne.NewDelta(0, 100),
 	})
 
 	panes = renderedPanes(feature.Overlay())
@@ -2091,8 +2278,8 @@ func TestCompareLinkToggle_WheelZoomsOnlyTheGesturePane(t *testing.T) {
 	leftWidth := before[0].image.Size().Width
 	wantRight := before[1].image.Size()
 	paneScrollable(t, before[0]).Scrolled(&fyne.ScrollEvent{
-		PointEvent: fyne.PointEvent{Position: fyne.NewPos(200, 200)},
-		Scrolled:   fyne.NewDelta(0, 10),
+		Position: fyne.NewPos(200, 200),
+		Scrolled: fyne.NewDelta(0, 10),
 	})
 
 	after := renderedPanes(feature.Overlay())
@@ -2519,8 +2706,8 @@ func TestCompareCameraWheel_PreservesDivergenceAndSurvivesUnlock(t *testing.T) {
 	beforeSizes := [2]fyne.Size{linkedBefore[0].image.Size(), linkedBefore[1].image.Size()}
 	anchored := [2]fyne.Position{normalizedPoint(linkedBefore[0], cursor), normalizedPoint(linkedBefore[1], cursor)}
 	paneScrollable(t, linkedBefore[0]).Scrolled(&fyne.ScrollEvent{
-		PointEvent: fyne.PointEvent{Position: cursor},
-		Scrolled:   fyne.NewDelta(0, 10),
+		Position: cursor,
+		Scrolled: fyne.NewDelta(0, 10),
 	})
 	linkedAfter := renderedPanes(feature.Overlay())
 	ratio := linkedAfter[0].image.Size().Width / beforeSizes[0].Width
@@ -2590,8 +2777,8 @@ func TestCompareSwapWhileUnlinked_LocksAndClearsDivergentPhotoPoses(t *testing.T
 
 	beforeWidths := [2]float32{panes[0].image.Size().Width, panes[1].image.Size().Width}
 	paneScrollable(t, panes[0]).Scrolled(&fyne.ScrollEvent{
-		PointEvent: fyne.PointEvent{Position: fyne.NewPos(200, 200)},
-		Scrolled:   fyne.NewDelta(0, 10),
+		Position: fyne.NewPos(200, 200),
+		Scrolled: fyne.NewDelta(0, 10),
 	})
 	panes = renderedPanes(feature.Overlay())
 	leftRatio := panes[0].image.Size().Width / beforeWidths[0]

@@ -69,11 +69,10 @@ type paneImageLayout struct {
 }
 
 func (l paneImageLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	if len(objects) > 1 {
-		objects[1].Move(fyne.NewPos(0, 0))
-		objects[1].Resize(size)
-	}
 	l.feature.viewports[l.index] = size
+	if len(objects) > 1 {
+		l.feature.layoutPaneInput(l.index, objects[1])
+	}
 	l.feature.applyTransform()
 }
 
@@ -370,8 +369,6 @@ func (f *Feature) applyTransform() {
 		return
 	}
 	for i := range f.panes {
-		f.panes[i].input.Move(fyne.NewPos(0, 0))
-		f.panes[i].input.Resize(f.viewports[i])
 		native := frameSize(f.loaded[i])
 		if !validViewport(native) {
 			continue

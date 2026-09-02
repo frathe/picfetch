@@ -15,8 +15,11 @@
 
 #### Bugfix
 
-- Locking or unlocking comparison panes no longer moves or resizes either
+- Linking or unlinking comparison panes no longer moves or resizes either
   photo.
+- In Swipe comparison, pointer hover, pan, wheel, and transform-key targeting
+  now follow the revealed photo while panes are unlinked instead of always
+  selecting the right photo.
 - Pan and zoom in side-by-side and Swipe comparison now render through bounded
   GPU tiles instead of resampling the full images on every gesture.
 - Physical `Ctrl+D` opens comparison alongside the platform-native shortcut.
