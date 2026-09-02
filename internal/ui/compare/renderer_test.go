@@ -30,7 +30,7 @@ func (r *recordingPaneRenderer) Present(scene paneScene) {
 	r.scenes = append(r.scenes, scene)
 }
 
-func (r *recordingPaneRenderer) Wait(context.Context) error {
+func (r *recordingPaneRenderer) Wait(_ context.Context) error {
 	r.waits++
 	return nil
 }

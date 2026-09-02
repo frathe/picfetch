@@ -102,7 +102,7 @@ type canvasPaneRenderer struct {
 	image *canvas.Image
 }
 
-func newCanvasPaneRenderer(int) paneRenderer {
+func newCanvasPaneRenderer(_ int) paneRenderer {
 	img := canvas.NewImageFromImage(nil)
 	img.FillMode = canvas.ImageFillContain
 	img.ScaleMode = canvas.ImageScaleSmooth
@@ -129,4 +129,4 @@ func (r *canvasPaneRenderer) Present(scene paneScene) {
 	}
 }
 
-func (*canvasPaneRenderer) Wait(context.Context) error { return nil }
+func (*canvasPaneRenderer) Wait(_ context.Context) error { return nil }

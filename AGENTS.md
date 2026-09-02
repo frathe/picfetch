@@ -36,6 +36,7 @@
 - Every user-visible string is `lang.L("English text")`; add that exact key to every `translations/*.json` bundle. English is an identity map and `main_test.go` enforces locale parity.
 - No Unicode arrows in anything the app draws — not in `lang.L` keys or catalogue values, not in the manuals, not even inside backticks. The theme font (NotoSans) has no arrow glyphs, the shaper falls back to a 23-glyph symbol subset with no space, `/` or `-`, and the character *after* the arrow is painted as `�`. Write menu paths and cycles as ASCII `->` and keys as `Left` / `Right` / `Up` / `Down`. Guarded by `TestManualHasNoUnicodeArrows` and `TestTranslationsHaveNoUnicodeArrows`.
 - Report UI-boundary failures with `fyne.LogError`; viewer-independent packages return errors. Mark intentionally ignored errors explicitly (`_ =` or `_, _ =`) so IDE/`errcheck` inspections see intent.
+- In concrete functions and methods, name intentionally unused parameters `_` (for example, `func f(_ context.Context)`); Qodana's `GoUnusedParameter` inspection flags unnamed required parameters such as `func f(context.Context)`.
 - Use `internal/uitest` for synthetic image formats, temp URIs, approximate comparisons, and OS seam stubs. UI tests should build through `newTestUI`/`newTestViewer`, which mirror production startup.
 - Keep platform-specific behavior in existing build-tag pairs and preserve no-cgo HEIC/AVIF decoding through `gen2brain` WASM; Fyne itself still requires a C/OpenGL toolchain.
 
@@ -48,6 +49,7 @@
 - Run focused tests while iterating, e.g. `go test -run TestE2E -v ./internal/ui/...`; the complete suite remains the final check.
 - Golden screenshots are under `internal/ui/testdata/`. Regenerate only with `make golden` (Docker linux/amd64), inspect `internal/ui/testdata/failed/*.png`, and never commit failed renders.
 - Tests/golden rendering and Windows/Linux packaging use Docker; macOS packaging is native. `fyne package` may bump `FyneApp.toml`’s build number.
+- **Qodana test exclusions:** Whenever adding a `_test.go` file, add its exact repository-relative path to `qodana.yaml` under `exclude` -> `DuplicatedCode` -> `paths`; test-file globs do not work there.
 - **Reading a Qodana report:** `qodana.sarif.json` is the post-suppression result set and
   counts one result per duplicate *cluster*; `log/qodana_inspections_summary.csv` counts
   every finding *before* both source-level suppressions and `qodana.yaml`'s config-level

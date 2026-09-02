@@ -236,3 +236,4 @@ exclude:
       - "scripts/synctuf/main_test.go"
       - "scripts/wingettag/tag_test.go"
       - "scripts/wingettag/workflow_test.go"
+      - "internal/ui/compare/shader_test.go"
