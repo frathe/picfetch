@@ -809,6 +809,26 @@ func TestCompareLinkControl_CtrlLAndButtonShareReadyGate(t *testing.T) {
 	}
 }
 
+func TestCompareLinkToggle_CanvasOverlayOwnsPhysicalCtrlL(t *testing.T) {
+	v := openActiveComparisonWithExtra(t)
+	v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierControl }
+	hooks := &comparisonKeyHooks{}
+	wireComparisonLinkToggleHook(hooks, v)
+
+	modal := canvas.NewRectangle(color.Transparent)
+	v.win.Canvas().Overlays().Add(modal)
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	if comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Fatal("physical Ctrl+L unlinked comparison behind a canvas overlay")
+	}
+
+	v.win.Canvas().Overlays().Remove(modal)
+	hooks.down(&fyne.KeyEvent{Name: fyne.KeyL})
+	if !comparisonHasVisibleLabel(v.compare.Overlay(), lang.L("Unlinked")) {
+		t.Error("physical Ctrl+L stayed blocked after the canvas overlay was removed")
+	}
+}
+
 func TestCompareLinkToggle_ZoomsOnlyTheLastHoveredPaneWithoutHeldModifier(t *testing.T) {
 	v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 	v.compareLoad = func(_ context.Context, _ fyne.URI) (*imaging.LoadedImage, error) {

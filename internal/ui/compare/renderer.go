@@ -67,8 +67,8 @@ func newPreparedRenderSource(frame, overview image.Image) *renderSource {
 }
 
 // paneScene is one complete presentation snapshot. Logical geometry stays in
-// Fyne points while displaySize records the corresponding physical pixels for
-// mip selection and vector raster targets.
+// Fyne points while panePosition and displaySize record physical pixels for
+// fragment lookup, mip selection, and vector raster targets.
 type paneScene struct {
 	source         *renderSource
 	viewport       fyne.Size
@@ -77,6 +77,7 @@ type paneScene struct {
 	revealSize     fyne.Size
 	imagePosition  fyne.Position
 	imageSize      fyne.Size
+	panePosition   image.Point
 	displaySize    image.Point
 }
 

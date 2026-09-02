@@ -42,7 +42,8 @@ func wireComparisonLinkToggleHook(c comparisonKeyDownCanvas, view *viewer) {
 		if previousDown != nil {
 			previousDown(ev)
 		}
-		if ev != nil && ev.Name == fyne.KeyL && view.keyModifiers() == fyne.KeyModifierControl {
+		if ev != nil && ev.Name == fyne.KeyL && view.keyModifiers() == fyne.KeyModifierControl &&
+			view.win.Canvas().Overlays().Top() == nil {
 			view.compare.ToggleLink()
 		}
 	})

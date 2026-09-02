@@ -53,6 +53,22 @@ func displayPixelSize(object fyne.CanvasObject, display fyne.Size) (int, int) {
 	return int(position.X + 0.5), int(position.Y + 0.5)
 }
 
+func displayPixelPosition(object fyne.CanvasObject) image.Point {
+	if object == nil {
+		return image.Point{}
+	}
+	position := object.Position()
+	if app := fyne.CurrentApp(); app != nil && app.Driver() != nil {
+		driver := app.Driver()
+		if canvas := driver.CanvasForObject(object); canvas != nil {
+			position = driver.AbsolutePositionForObject(object)
+			x, y := canvas.PixelCoordinateForPosition(position)
+			return image.Pt(x, y)
+		}
+	}
+	return image.Pt(int(position.X+0.5), int(position.Y+0.5))
+}
+
 func (f *Feature) requestVectorRender(index int, display fyne.Size) {
 	if !f.active || !f.ready || index < 0 || index >= len(f.loaded) {
 		return
@@ -115,7 +131,7 @@ func (f *Feature) rasterizeVector(index int, vector *imaging.Vector, target imag
 		f.rendered[index] = frame
 		f.renderSources[index] = prepared
 		state.setRaster(frame)
-		f.panes[index].renderer.Present(paneScene{source: f.renderSources[index]})
+		f.panes[index].present(paneScene{source: f.renderSources[index]})
 		f.applyTransform()
 	})
 }

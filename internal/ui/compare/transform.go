@@ -384,7 +384,7 @@ func (f *Feature) applyTransform() {
 		)
 		revealPosition, revealSize := f.paneVisibleArea(i)
 		width, height := f.vectorPixels(f.panes[i].input, scaled)
-		f.panes[i].renderer.Present(paneScene{
+		f.panes[i].present(paneScene{
 			source:         f.renderSources[i],
 			viewport:       f.viewports[i],
 			revealSet:      true,
@@ -392,9 +392,23 @@ func (f *Feature) applyTransform() {
 			revealSize:     revealSize,
 			imagePosition:  position,
 			imageSize:      scaled,
+			panePosition:   displayPixelPosition(f.panes[i].root),
 			displaySize:    image.Pt(width, height),
 		})
 		f.requestVectorRender(i, scaled)
+	}
+}
+
+func (f *Feature) applyReveal() {
+	for i := range f.panes {
+		scene := f.panes[i].scene
+		if scene.source == nil {
+			continue
+		}
+		scene.revealSet = true
+		scene.revealPosition, scene.revealSize = f.paneVisibleArea(i)
+		scene.panePosition = displayPixelPosition(f.panes[i].root)
+		f.panes[i].present(scene)
 	}
 }
 

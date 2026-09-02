@@ -46,8 +46,14 @@ type Callbacks struct {
 type pane struct {
 	root     *fyne.Container
 	renderer paneRenderer
+	scene    paneScene
 	input    *paneInput
 	spinner  *widget.ProgressBarInfinite
+}
+
+func (p *pane) present(scene paneScene) {
+	p.scene = scene
+	p.renderer.Present(scene)
 }
 
 func newPaneSpinner() *widget.ProgressBarInfinite {
@@ -277,7 +283,7 @@ func (f *Feature) Open(sources [2]fyne.URI) {
 		f.loaded[i] = nil
 		f.rendered[i] = nil
 		f.renderSources[i] = nil
-		f.panes[i].renderer.Present(paneScene{})
+		f.panes[i].present(paneScene{})
 		f.panes[i].spinner.Show()
 	}
 	f.overlay.Show()
@@ -370,7 +376,7 @@ func (f *Feature) hide() {
 	f.renderSources = [2]*renderSource{}
 	for i := range f.panes {
 		f.badges[i].SetText("")
-		f.panes[i].renderer.Present(paneScene{})
+		f.panes[i].present(paneScene{})
 		f.panes[i].spinner.Hide()
 	}
 	f.overlay.Hide()
@@ -494,7 +500,7 @@ func (f *Feature) load(token requestToken, sources [2]fyne.URI, done func()) {
 			f.rendered[i] = result.loaded.Frames[0]
 			f.renderSources[i] = result.prepared
 			f.vectors[i].setRaster(result.loaded.Frames[0])
-			f.panes[i].renderer.Present(paneScene{source: f.renderSources[i]})
+			f.panes[i].present(paneScene{source: f.renderSources[i]})
 			f.panes[i].spinner.Hide()
 		}
 		f.ready = true
@@ -530,7 +536,7 @@ func (f *Feature) swapSides() {
 	for i := range f.panes {
 		f.badges[i].SetText(f.identities[i])
 		f.vectors[i].setRaster(f.rendered[i])
-		f.panes[i].renderer.Present(paneScene{source: f.renderSources[i]})
+		f.panes[i].present(paneScene{source: f.renderSources[i]})
 	}
 	f.applyTransform()
 	f.notifyOrderChanged()

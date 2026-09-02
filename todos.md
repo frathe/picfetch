@@ -22,12 +22,22 @@
 - In Swipe comparison, pointer hover, pan, wheel, and transform-key targeting
   now follow the revealed photo while panes are unlinked instead of always
   selecting the right photo.
+- Moving the Swipe divider now refreshes detail tiles for the newly revealed
+  area without repainting or re-decoding the comparison surface.
+- Large images keep sharp comparison detail on GLES because tile lookup uses
+  visible pane pixels instead of source-normalized values that mediump can
+  round to zero.
+- Physical `Ctrl+L` now respects Fyne dialogs and popup menus instead of
+  changing comparison link state behind their canvas overlay.
 - Pan and zoom in side-by-side and Swipe comparison now render through bounded
   GPU tiles instead of resampling the full images on every gesture.
 - Physical `Ctrl+D` opens comparison alongside the platform-native shortcut.
 
 #### Internal
 
+- Qodana's duplication exclusions now cover every `*_test.go` file. Run
+  `make sync-qodana-test-exclusions` after adding or removing tests;
+  `make verify` checks that the list stays synchronized.
 - Updated the indirect gRPC-Go dependency to `v1.83.2`, resolving
   `CVE-2026-84304` / `GHSA-vp52-pcj8-j9qc`. Was never used (better save than sorry)
 - Raised the minimum Go version to `1.27.1`, pinned `govulncheck` at `v1.7.0`,

@@ -168,6 +168,7 @@ func (f *Feature) setDivider(position float32) {
 	// on every pointer event. The visible clips and pane offset mark the canvas
 	// dirty as they move, so the static images and linked transform stay cached.
 	f.layoutSwipeReveal(f.content.Size())
+	f.applyReveal()
 }
 
 func (f *Feature) handleDividerKey(name fyne.KeyName, modifiers fyne.KeyModifier) bool {

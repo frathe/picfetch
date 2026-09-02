@@ -134,6 +134,57 @@ func TestPaneRendererScene_PresentsStableSourceGeometryAndLifecycle(t *testing.T
 	}
 }
 
+func TestPaneRendererScene_DividerMoveRepublishesRevealWithoutTransform(t *testing.T) {
+	app := fynetest.NewApp()
+	t.Cleanup(app.Quit)
+
+	renderers := [2]*recordingPaneRenderer{
+		newRecordingPaneRenderer(),
+		newRecordingPaneRenderer(),
+	}
+	feature := newFeature(func(_ context.Context, _ fyne.URI) (*imaging.LoadedImage, error) {
+		return &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 1600, 800))}}, nil
+	}, Callbacks{}, func(index int) paneRenderer { return renderers[index] })
+	feature.vectorPixels = func(fyne.CanvasObject, fyne.Size) (int, int) { return 800, 400 }
+	feature.Overlay().Resize(fyne.NewSize(800, 400))
+	feature.Open([2]fyne.URI{
+		storage.NewFileURI("left.png"),
+		storage.NewFileURI("right.png"),
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := feature.Settle(ctx); err != nil {
+		t.Fatalf("Settle after Open: %v", err)
+	}
+	feature.layoutMode = swipe
+	feature.layoutSwipe(fyne.NewSize(800, 400))
+
+	before := [2]paneScene{renderers[0].latest(t), renderers[1].latest(t)}
+	beforeCounts := [2]int{len(renderers[0].scenes), len(renderers[1].scenes)}
+	feature.HandleKey(fyne.KeyEnd)
+
+	wantReveals := [2]struct {
+		position fyne.Position
+		size     fyne.Size
+	}{
+		{size: fyne.NewSize(800, 400)},
+		{position: fyne.NewPos(800, 0), size: fyne.NewSize(0, 400)},
+	}
+	for i, renderer := range renderers {
+		if got := len(renderer.scenes); got != beforeCounts[i]+1 {
+			t.Errorf("pane %d presentations after divider move = %d, want %d", i, got, beforeCounts[i]+1)
+		}
+		got := renderer.latest(t)
+		want := before[i]
+		want.revealPosition = wantReveals[i].position
+		want.revealSize = wantReveals[i].size
+		want.panePosition = displayPixelPosition(feature.panes[i].root)
+		if got != want {
+			t.Errorf("pane %d scene after divider move = %+v, want reveal update %+v", i, got, want)
+		}
+	}
+}
+
 func TestNew_UsesTiledShaderRenderersForBothPanes(t *testing.T) {
 	feature := New(nil, Callbacks{})
 	for i := range feature.panes {
