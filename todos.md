@@ -23,6 +23,9 @@
 
 #### Internal
 
+- Updated the indirect gRPC-Go dependency to `v1.83.2`, resolving
+  `CVE-2026-84304` / `GHSA-vp52-pcj8-j9qc`. Was never used (better save than sorry)
+
 ## TODO
 
 ### Functional test coverage
