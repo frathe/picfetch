@@ -2,44 +2,45 @@
 
 ### New Features
 
-![Trane comparing images](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_comparing_images.webp)
+![Trane comparing images](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_lightwall.png)
 
-#### Compare two images
-
-- In Grid View, select exactly two images and choose
-  **Actions -> Compare selected images** (`Cmd+D` on macOS or `Ctrl+D` on
-  Windows and Linux). Choose **Back to Grid** or press `Esc` when you are done.
-  Your selection, filter, highlighted image, scroll position, and file list
-  will be exactly as you left them.
-- Each image is clearly labeled. If both images have the same filename, their
-  folder names are included so you can tell them apart. Once both images have
-  loaded, choose **Swap** to exchange their positions instantly.
-- Zooming and panning stay synchronized so you can inspect the same area in
-  both images. Use the mouse wheel or `+` / `-` to zoom, drag either image or
-  use `Shift`+wheel to pan, press `0` to fit and center both images, or press
-  `1` to view them at actual size.
-- Switch between **Side by side** and **Swipe** without losing your current
-  zoom or position. In Swipe view, drag the divider or use `Left` / `Right` to
-  reveal more of either image. Hold `Shift` for smaller keyboard adjustments,
-  or press `Home` / `End` to show only one image. New comparisons start fitted
-  and centered in a 50/50 side-by-side view.
-- Resizing the window, changing layouts, or swapping the images preserves your
-  current view. PicFetch also keeps the normal orientation and image quality
-  for supported formats, uses embedded previews for RAW files, freezes
-  animations on their first frame, and keeps SVGs sharp as you zoom.
-- Comparison takes over the main window, so other viewer and file commands are
-  unavailable until you return to Grid View. Return to Grid View before opening
-  or dropping more files. If either selected image cannot be loaded, PicFetch
-  safely returns to your unchanged grid.
+- Comparison pane linking can be toggled with the ready-gated **Unlink** / **Link**
+  control at the top left or physical `Ctrl+L` on every platform. Its adjacent
+  status identifies the targeted side while unlinked. Pan, wheel/Shift+wheel,
+  and `0` / `1` / `+` / `-` then affect only that photo; once linked again, the
+  same controls move one overhead camera while both photos retain their current
+  arrangement.
 
 ### Bugfix
 
-- In-app updates no longer fail when downloading the update archive takes a
-  long time on a slow connection.
+- Linking or unlinking comparison panes no longer moves or resizes either
+  photo.
+- In Swipe comparison, pointer hover, pan, wheel, and transform-key targeting
+  now follow the revealed photo while panes are unlinked instead of always
+  selecting the right photo.
+- Moving the Swipe divider now refreshes detail tiles for the newly revealed
+  area without repainting or re-decoding the comparison surface.
+- Large images keep sharp comparison detail on GLES because tile lookup uses
+  visible pane pixels instead of source-normalized values that mediump can
+  round to zero.
+- Physical `Ctrl+L` now respects Fyne dialogs and popup menus instead of
+  changing comparison link state behind their canvas overlay.
+- Pan and zoom in side-by-side and Swipe comparison now render through bounded
+  GPU tiles instead of resampling the full images on every gesture.
+- Physical `Ctrl+D` opens comparison alongside the platform-native shortcut.
 
 ### Internal
 
-- Cleaned up comparison-related Qodana findings and added the new comparison
-  tests to the test-duplication exclusions.
+- Qodana's duplication exclusions now cover every `*_test.go` file. Run
+  `make sync-qodana-test-exclusions` after adding or removing tests;
+  `make verify` checks that the list stays synchronized.
+- Updated the indirect gRPC-Go dependency to `v1.83.2`, resolving
+  `CVE-2026-84304` / `GHSA-vp52-pcj8-j9qc`. Was never used (better save than sorry)
+- Raised the minimum Go version to `1.27.1`, pinned `govulncheck` at `v1.7.0`,
+  and updated Rekor to `v1.5.4`, which replaces its unmaintained
+  `x/crypto/openpgp` implementation with the maintained Proton fork. The scan
+  finds no reachable or imported vulnerabilities; `GO-2026-5932` remains only
+  a module-level notice because latest `x/crypto v0.55.0` is still required for
+  unaffected cryptography and the advisory has no patched release.
 
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v0.2.15...v0.2.16
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v0.2.16...v0.2.17
