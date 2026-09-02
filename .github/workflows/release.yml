@@ -145,7 +145,8 @@ jobs:
           certum-username: ${{ secrets.CERTUM_USERNAME }}
           certum-otp-uri: ${{ secrets.CERTUM_OTP_URI }}
           certum-key-id: ${{ secrets.CERTUM_CERT_THUMBPRINT }}
-          simplysign-url: https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi
+          # Install the verified local MSI; fail if it is missing instead of downloading a fallback.
+          simplysign-url: https://simplysign-installer.invalid/SimplySignDesktop.msi
 
       - name: Sign, timestamp, and verify Windows executables
         shell: pwsh
