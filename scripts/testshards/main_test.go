@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSummarize_ReportsInterleavedPackagesAndTopLevelTests(t *testing.T) {
@@ -740,7 +741,7 @@ func TestMakeTestRemainsCompleteAndUnsharded(t *testing.T) {
 	}
 }
 
-func TestMakeRaceRunsCanonicalSequentialContractInOneContainer(t *testing.T) {
+func TestMakeRaceRunsCanonicalConcurrentContractInOneContainer(t *testing.T) {
 	public := makeDryRun(t, "test-race")
 	if count := strings.Count(public, "docker run --rm --platform linux/amd64"); count != 1 {
 		t.Fatalf("make test-race starts %d Linux/amd64 containers, want 1:\n%s", count, public)
@@ -752,20 +753,44 @@ func TestMakeRaceRunsCanonicalSequentialContractInOneContainer(t *testing.T) {
 	}
 
 	direct := makeDryRun(t, "test-race-direct")
-	ordered := []string{
-		"testshards check",
-		"testshards partition",
-		"-shard \"ui-1\"",
-		"-shard \"ui-2\"",
-		"-shard \"ui-3\"",
+	guard := strings.Index(direct, "testshards check")
+	firstPartition := strings.Index(direct, "testshards partition")
+	if guard < 0 || firstPartition < 0 || guard >= firstPartition {
+		t.Fatalf("race manifest guard must precede partition launch:\n%s", direct)
 	}
-	position := -1
-	for _, want := range ordered {
-		next := strings.Index(direct[position+1:], want)
-		if next < 0 {
-			t.Fatalf("sequential race contract is missing %q after byte %d:\n%s", want, position, direct)
+	for _, want := range []string{
+		"test-race-non-ui-direct &",
+		"test-race-ui-direct TEST_SHARD=ui-1 &",
+		"test-race-ui-direct TEST_SHARD=ui-2 &",
+		"test-race-ui-direct TEST_SHARD=ui-3 &",
+		"wait \"$pid\"",
+	} {
+		if !strings.Contains(direct, want) {
+			t.Fatalf("concurrent race contract is missing %q:\n%s", want, direct)
 		}
-		position += next + 1
+	}
+}
+
+func TestMakeRaceConcurrentContractWaitsForEveryPartitionAndPropagatesFailure(t *testing.T) {
+	for _, failPartition := range []string{"", "ui-2"} {
+		name := "success"
+		if failPartition != "" {
+			name = "failure"
+		}
+		t.Run(name, func(t *testing.T) {
+			result := runRaceContractFixture(t, failPartition)
+			if failPartition == "" && result.err != nil {
+				t.Fatalf("race contract failed: %v\n%s", result.err, result.output)
+			}
+			if failPartition != "" && result.err == nil {
+				t.Fatalf("race contract ignored %s failure:\n%s", failPartition, result.output)
+			}
+			for _, partition := range []string{"non-ui", "ui-1", "ui-2", "ui-3"} {
+				if !strings.Contains(result.events, "done:"+partition+"\n") {
+					t.Fatalf("race contract returned before %s finished:\n%s", partition, result.events)
+				}
+			}
+		})
 	}
 }
 
@@ -780,6 +805,7 @@ func TestMakeDirectRacePartitionsShareFlagsLocaleAndCapture(t *testing.T) {
 			args: []string{"test-race-non-ui-direct"},
 			want: []string{
 				"testshards partition -package \"./internal/ui\"",
+				"capture -out \"/tmp/picfetch-test-non-ui.json\"",
 				"-partition \"non-ui\"",
 			},
 		},
@@ -789,6 +815,7 @@ func TestMakeDirectRacePartitionsShareFlagsLocaleAndCapture(t *testing.T) {
 			want: []string{
 				"testshards regex -manifest \".github/testshards/internal-ui.tsv\" -shard \"ui-2\"",
 				"-run \"$filter\" ./internal/ui",
+				"capture -out \"/tmp/picfetch-test-ui-2.json\"",
 				"-partition \"ui-2\"",
 			},
 		},
@@ -830,6 +857,106 @@ func TestMakeDirectUIRaceRejectsInvalidShardAndPrintsTheContract(t *testing.T) {
 			t.Fatalf("invalid-shard output is missing %q:\n%s", want, output)
 		}
 	}
+}
+
+type raceContractResult struct {
+	events string
+	output string
+	err    error
+}
+
+func runRaceContractFixture(t *testing.T, failPartition string) raceContractResult {
+	t.Helper()
+	dir := t.TempDir()
+	runner := filepath.Join(dir, "make-runner")
+	writeTestFile(t, runner, `#!/bin/sh
+set -eu
+partition=
+for arg in "$@"; do
+	case "$arg" in
+		check-test-shards-direct) partition=check ;;
+		test-race-non-ui-direct) partition=non-ui ;;
+		TEST_SHARD=*) partition=${arg#TEST_SHARD=} ;;
+	esac
+done
+if [ "$partition" = check ]; then
+	printf 'check\n' >> "$RACE_TEST_DIR/events"
+	exit 0
+fi
+printf 'start:%s\n' "$partition" >> "$RACE_TEST_DIR/events"
+: > "$RACE_TEST_DIR/$partition.started"
+while [ ! -f "$RACE_TEST_DIR/release" ]; do sleep 0.01; done
+printf 'done:%s\n' "$partition" >> "$RACE_TEST_DIR/events"
+if [ "$partition" = "$RACE_FAIL_PARTITION" ]; then exit 7; fi
+`)
+	if err := os.Chmod(runner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	command := exec.Command(
+		"make",
+		"--no-print-directory",
+		"test-race-direct",
+		"MAKE="+runner,
+	)
+	command.Dir = filepath.Join("..", "..")
+	command.Env = append(os.Environ(), "RACE_TEST_DIR="+dir, "RACE_FAIL_PARTITION="+failPartition)
+	var commandOutput bytes.Buffer
+	command.Stdout = &commandOutput
+	command.Stderr = &commandOutput
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	var runErr error
+	go func() {
+		runErr = command.Wait()
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	allStarted := false
+	for time.Now().Before(deadline) {
+		allStarted = true
+		for _, partition := range []string{"non-ui", "ui-1", "ui-2", "ui-3"} {
+			if _, err := os.Stat(filepath.Join(dir, partition+".started")); err != nil {
+				allStarted = false
+				break
+			}
+		}
+		if allStarted {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !allStarted {
+		writeTestFile(t, filepath.Join(dir, "release"), "")
+		<-done
+		events, _ := os.ReadFile(filepath.Join(dir, "events"))
+		t.Fatalf("partitions were not launched concurrently:\n%s", events)
+	}
+	select {
+	case <-done:
+		t.Fatal("race contract returned without waiting for blocked partitions")
+	default:
+	}
+
+	writeTestFile(t, filepath.Join(dir, "release"), "")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		_ = command.Process.Kill()
+		<-done
+		t.Fatal("race contract did not return after every partition finished")
+	}
+	events, err := os.ReadFile(filepath.Join(dir, "events"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(events), "check\n") {
+		t.Fatalf("partition launched before the manifest guard:\n%s", events)
+	}
+	return raceContractResult{events: string(events), output: commandOutput.String(), err: runErr}
 }
 
 func writeEventStream(t *testing.T, contents string) string {

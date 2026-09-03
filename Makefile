@@ -141,14 +141,23 @@ check-test-shards-direct:
 	go run ./scripts/testshards check -package "$(TEST_SHARD_PACKAGE)" -manifest "$(TEST_SHARD_MANIFEST)"
 
 # Internal entry points for a prepared Linux/amd64 runner. The public test-race
-# target enters Docker once and runs this sequence there; hosted CI can call the
-# partition targets directly without nesting Docker.
+# target enters Docker once, checks the manifest, then runs all partitions
+# concurrently there; hosted CI can call the partition targets directly.
 test-race-direct:
 	@$(MAKE) --no-print-directory check-test-shards-direct
-	@$(MAKE) --no-print-directory test-race-non-ui-direct
-	@$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-1
-	@$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-2
-	@$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-3
+	@bash -c '\
+		set -u; \
+		pids=""; \
+		$(MAKE) --no-print-directory test-race-non-ui-direct & pids="$$pids $$!"; \
+		$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-1 & pids="$$pids $$!"; \
+		$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-2 & pids="$$pids $$!"; \
+		$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-3 & pids="$$pids $$!"; \
+		status=0; \
+		for pid in $$pids; do \
+			if ! wait "$$pid"; then status=1; fi; \
+		done; \
+		exit "$$status" \
+	'
 
 test-race-non-ui-direct: override TEST_PARTITION := non-ui
 test-race-non-ui-direct:
@@ -214,7 +223,7 @@ enter-test-container: ## Open Bash in the running test container (htop/top avail
 test-native: ## Run tests directly on the current OS/architecture
 	go test -timeout $(TEST_TIMEOUT) ./...
 
-test-race: ## Run the guarded race partitions sequentially in one Linux/amd64 Docker container
+test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Docker container
 	docker run --rm --platform linux/amd64 \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
