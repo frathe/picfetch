@@ -247,6 +247,7 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 		"MakeAppx.exe",
 		"/h SHA256",
 		"SignTool.exe",
+		"X509Store('TrustedPeople', 'LocalMachine')",
 		"appcert test",
 		"picfetch-microsoft-store.msixbundle",
 		"wack-report.xml",
@@ -254,6 +255,9 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 		if !bytes.Contains(workflow, []byte(want)) {
 			t.Errorf("Microsoft Store workflow missing %q", want)
 		}
+	}
+	if bytes.Contains(workflow, []byte("X509Store('TrustedPeople', 'CurrentUser')")) {
+		t.Error("Microsoft Store workflow trusts its test certificate only for the current user")
 	}
 
 	makefile, err := os.ReadFile(filepath.Join(root, "Makefile"))
