@@ -78,7 +78,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 func runWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: testshards <summarize|plan|check|regex|capture|partition> [arguments]")
+		return errors.New("usage: testshards <summarize|plan|check|regex|capture|ci-failures|partition> [arguments]")
 	}
 
 	switch args[0] {
@@ -92,11 +92,248 @@ func runWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer) erro
 		return runRegex(args[1:], stdout, stderr)
 	case "capture":
 		return runCapture(args[1:], stdin, stdout, stderr)
+	case "ci-failures":
+		return runCIFailures(args[1:], stdin, stdout)
 	case "partition":
 		return runPartition(args[1:], stdout, stderr)
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+type ciFailure struct {
+	job       string
+	partition string
+	packageID string
+	test      string
+	details   []string
+}
+
+type ciJobError struct {
+	job     string
+	details []string
+}
+
+func runCIFailures(args []string, stdin io.Reader, stdout io.Writer) error {
+	if len(args) != 0 {
+		return errors.New("usage: testshards ci-failures")
+	}
+	failures, jobErrors, err := collectCIFailures(stdin)
+	if err != nil {
+		return err
+	}
+	return writeCIFailures(stdout, failures, jobErrors)
+}
+
+func collectCIFailures(input io.Reader) ([]ciFailure, []ciJobError, error) {
+	scanner := bufio.NewScanner(input)
+	failures := make([]ciFailure, 0)
+	failureIndex := make(map[string]int)
+	jobErrors := make([]ciJobError, 0)
+	jobErrorIndex := make(map[string]int)
+	jobsWithTestOutput := make(map[string]bool)
+
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), "\t")
+		job := ""
+		if len(fields) > 1 {
+			job = strings.TrimSpace(fields[0])
+		}
+		if detail, ok := ciWorkflowError(fields); ok {
+			index, exists := jobErrorIndex[job]
+			if !exists {
+				index = len(jobErrors)
+				jobErrorIndex[job] = index
+				jobErrors = append(jobErrors, ciJobError{job: job})
+			}
+			jobErrors[index].details = appendUnique(jobErrors[index].details, detail)
+		}
+
+		kind, marker := ciRecordMarker(fields)
+		if marker < 0 {
+			continue
+		}
+		values, detail := ciRecordValues(fields[marker+1:])
+		if kind != "failure" && values["action"] != "fail" {
+			continue
+		}
+		testName := values["test"]
+		if testName == "" {
+			testName = values["name"]
+		}
+		if kind == "test" && testName == "" {
+			continue
+		}
+		partition := values["partition"]
+		packageID := values["package"]
+		key := strings.Join([]string{job, partition, packageID, testName}, "\x00")
+		index, exists := failureIndex[key]
+		if !exists {
+			index = len(failures)
+			failureIndex[key] = index
+			failures = append(failures, ciFailure{
+				job:       job,
+				partition: partition,
+				packageID: packageID,
+				test:      testName,
+			})
+		}
+		if detail != "" {
+			failures[index].details = appendUnique(failures[index].details, strings.TrimSpace(detail))
+		}
+		jobsWithTestOutput[job] = true
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, fmt.Errorf("read CI log: %w", err)
+	}
+	failures = withoutRedundantPackageFailures(failures)
+
+	visibleJobErrors := make([]ciJobError, 0, len(jobErrors))
+	for _, jobError := range jobErrors {
+		if !jobsWithTestOutput[jobError.job] {
+			visibleJobErrors = append(visibleJobErrors, jobError)
+		}
+	}
+	return failures, visibleJobErrors, nil
+}
+
+func withoutRedundantPackageFailures(failures []ciFailure) []ciFailure {
+	packagesWithFailedTests := make(map[string]bool)
+	for _, failure := range failures {
+		if failure.test != "" {
+			key := strings.Join([]string{failure.job, failure.partition, failure.packageID}, "\x00")
+			packagesWithFailedTests[key] = true
+		}
+	}
+	filtered := make([]ciFailure, 0, len(failures))
+	for _, failure := range failures {
+		key := strings.Join([]string{failure.job, failure.partition, failure.packageID}, "\x00")
+		if failure.test == "" && packagesWithFailedTests[key] {
+			continue
+		}
+		filtered = append(filtered, failure)
+	}
+	return filtered
+}
+
+func ciWorkflowError(fields []string) (string, bool) {
+	for _, field := range fields {
+		if _, after, ok := strings.Cut(field, "##[error]"); ok {
+			return strings.TrimSpace(after), true
+		}
+	}
+	return "", false
+}
+
+func ciRecordMarker(fields []string) (string, int) {
+	if len(fields) != 0 {
+		switch strings.TrimSpace(fields[0]) {
+		case "failure", "test", "package":
+			return strings.TrimSpace(fields[0]), 0
+		}
+	}
+	for index := 2; index < len(fields); index++ {
+		field := fields[index]
+		marker := strings.TrimSpace(field)
+		if separator := strings.LastIndexByte(marker, ' '); separator >= 0 {
+			marker = marker[separator+1:]
+		}
+		switch marker {
+		case "failure", "test", "package":
+			return marker, index
+		}
+	}
+	return "", -1
+}
+
+func ciRecordValues(fields []string) (map[string]string, string) {
+	values := make(map[string]string)
+	for index, field := range fields {
+		name, value, ok := strings.Cut(field, "=")
+		if !ok || !slices.Contains([]string{"partition", "package", "test", "name", "action", "elapsed"}, name) {
+			return values, strings.Join(fields[index:], "\t")
+		}
+		values[name] = value
+	}
+	return values, ""
+}
+
+func appendUnique(values []string, value string) []string {
+	if value == "" || slices.Contains(values, value) {
+		return values
+	}
+	return append(values, value)
+}
+
+func writeCIFailures(output io.Writer, failures []ciFailure, jobErrors []ciJobError) error {
+	failedTests := 0
+	failedPackages := 0
+	for _, failure := range failures {
+		if failure.test == "" {
+			failedPackages++
+		} else {
+			failedTests++
+		}
+	}
+	counts := make([]string, 0, 3)
+	if failedTests != 0 {
+		counts = append(counts, countedLabel(failedTests, "failed test", "failed tests"))
+	}
+	if failedPackages != 0 {
+		counts = append(counts, countedLabel(failedPackages, "failed package", "failed packages"))
+	}
+	if len(jobErrors) != 0 {
+		counts = append(counts, countedLabel(len(jobErrors), "job error", "job errors"))
+	}
+	if len(counts) == 0 {
+		_, err := fmt.Fprintln(output, "No failed test details found in the CI log.")
+		return err
+	}
+	if _, err := fmt.Fprintf(output, "CI failure details (%s)\n", strings.Join(counts, ", ")); err != nil {
+		return err
+	}
+	for _, failure := range failures {
+		label := failure.partition
+		if label == "" {
+			label = failure.job
+		}
+		title := failure.packageID
+		if failure.test != "" {
+			title += " — " + failure.test
+		}
+		if _, err := fmt.Fprintf(output, "\n[%s] %s\n", label, title); err != nil {
+			return err
+		}
+		if len(failure.details) == 0 {
+			if _, err := fmt.Fprintln(output, "  (no diagnostic output)"); err != nil {
+				return err
+			}
+			continue
+		}
+		for _, detail := range failure.details {
+			if _, err := fmt.Fprintf(output, "  %s\n", strings.TrimSpace(detail)); err != nil {
+				return err
+			}
+		}
+	}
+	for _, jobError := range jobErrors {
+		if _, err := fmt.Fprintf(output, "\n[%s] job error\n", jobError.job); err != nil {
+			return err
+		}
+		for _, detail := range jobError.details {
+			if _, err := fmt.Fprintf(output, "  %s\n", detail); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func countedLabel(count int, singular, plural string) string {
+	if count == 1 {
+		return fmt.Sprintf("%d %s", count, singular)
+	}
+	return fmt.Sprintf("%d %s", count, plural)
 }
 
 func runPartition(args []string, stdout, stderr io.Writer) error {

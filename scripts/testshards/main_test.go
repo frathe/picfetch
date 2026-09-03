@@ -683,6 +683,95 @@ func TestCapture_RejectsCaptureFailure(t *testing.T) {
 	}
 }
 
+func TestCIFailures_AggregatesEveryFailedTestAcrossJobs(t *testing.T) {
+	input := strings.NewReader(strings.TrimSpace(`
+Linux race (non-ui, attempt 1)	go test	2026-09-03T16:00:00Z failure	partition=non-ui	package=example/msixstage	test=TestStoreListingAssets	    msixstage_test.go:230: viewer.png is too small
+Linux race (non-ui, attempt 1)	Run race tests	2026-09-03T16:00:01Z test	partition=non-ui	package=example/msixstage	name=TestStoreListingAssets	action=fail	elapsed=0.010
+Linux race (non-ui, attempt 1)	Run race tests	2026-09-03T16:00:01Z package	partition=non-ui	package=example/msixstage	action=fail	elapsed=0.020
+Linux race (ui-2, attempt 1)	Run race tests	2026-09-03T16:00:02Z failure	partition=ui-2	package=example/ui	test=TestViewer	    viewer_test.go:42: images differ
+Linux race (ui-2, attempt 1)	Run race tests	2026-09-03T16:00:03Z failure	partition=ui-2	package=example/ui	test=TestViewer	    expected golden master
+Linux race (ui-2, attempt 1)	Run race tests	2026-09-03T16:00:04Z test	partition=ui-2	package=example/ui	name=TestViewer	action=fail	elapsed=1.250
+Linux race (ui-3, attempt 1)	Run race tests	2026-09-03T16:00:05Z test	partition=ui-3	package=example/ui	name=TestPassing	action=pass	elapsed=0.100
+`) + "\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := runWithInput([]string{"ci-failures"}, input, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := strings.TrimSpace(`
+CI failure details (2 failed tests)
+
+[non-ui] example/msixstage — TestStoreListingAssets
+  msixstage_test.go:230: viewer.png is too small
+
+[ui-2] example/ui — TestViewer
+  viewer_test.go:42: images differ
+  expected golden master
+`) + "\n"
+	if stdout.String() != want {
+		t.Fatalf("stdout:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+func TestCIFailures_ReportsPackageAndSetupFailuresWithoutTestEvents(t *testing.T) {
+	input := strings.NewReader(strings.TrimSpace(`
+Linux race (non-ui, attempt 1)	Run race tests	2026-09-03T16:00:00Z failure	partition=non-ui	package=example/broken	./broken.go:12: undefined: missing
+Linux race (non-ui, attempt 1)	Run race tests	2026-09-03T16:00:01Z package	partition=non-ui	package=example/broken	action=fail	elapsed=0.000
+Windows build	Install tools	2026-09-03T16:00:02Z ##[error]Process completed with exit code 1.
+`) + "\n")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := runWithInput([]string{"ci-failures"}, input, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("run: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := strings.TrimSpace(`
+CI failure details (1 failed package, 1 job error)
+
+[non-ui] example/broken
+  ./broken.go:12: undefined: missing
+
+[Windows build] job error
+  Process completed with exit code 1.
+`) + "\n"
+	if stdout.String() != want {
+		t.Fatalf("stdout:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+func TestMakeCIFailuresFindsLatestCompletedRunOrAcceptsRunID(t *testing.T) {
+	output := makeDryRun(t, "ci-failures")
+	for _, want := range []string{
+		`gh run list --workflow "CI"`,
+		`--branch "$branch" --status completed --limit 1`,
+		`gh run view "$run" --log-failed`,
+		`go run ./scripts/testshards ci-failures`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("make ci-failures output is missing %q:\n%s", want, output)
+		}
+	}
+
+	explicit := makeDryRun(t, "ci-failures", "CI_RUN=33800732837")
+	if !strings.Contains(explicit, `run="33800732837"`) {
+		t.Fatalf("make ci-failures does not accept an explicit run ID:\n%s", explicit)
+	}
+	command := exec.Command("make", "--no-print-directory", "help")
+	command.Dir = filepath.Join("..", "..")
+	help, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("make help: %v\n%s", err, help)
+	}
+	if !strings.Contains(string(help), "ci-failures") {
+		t.Fatalf("make help does not list ci-failures:\n%s", help)
+	}
+}
+
 func TestPackagePartition_ExcludesOnlyExactMainUIPackage(t *testing.T) {
 	root := preparePartitionFixture(t, true)
 	t.Chdir(root)

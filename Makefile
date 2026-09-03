@@ -26,11 +26,14 @@ TEST_SHARD_MANIFEST := .github/testshards/internal-ui.tsv
 TEST_SHARD_PACKAGE := ./internal/ui
 TEST_PARTITION :=
 TEST_CAPTURE ?= /tmp/picfetch-test-$(TEST_PARTITION).json
+CI_RUN ?=
+CI_WORKFLOW ?= CI
+CI_BRANCH ?= $(shell git branch --show-current)
 COVERAGE_DIR := coverage
 COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test coverage update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
+.PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 
 all: build
 
@@ -227,6 +230,25 @@ coverage: ## Generate HTML source-line coverage from the full unsharded Docker s
 			chown -R "$$HOST_UID:$$HOST_GID" "$(COVERAGE_DIR)"; \
 			exit "$$status" \
 		'
+
+ci-failures: ## Aggregate failed-test details from the latest completed CI run (optional: CI_RUN=ID)
+	@set -eu; \
+	command -v gh >/dev/null 2>&1 || { echo "GitHub CLI (gh) is required." >&2; exit 1; }; \
+	branch="$(CI_BRANCH)"; \
+	run="$(CI_RUN)"; \
+	if [ -z "$$run" ]; then \
+		if [ -z "$$branch" ]; then echo "Cannot detect the current branch; pass CI_RUN=<ID>." >&2; exit 1; fi; \
+		run="$$(gh run list --workflow "$(CI_WORKFLOW)" --branch "$$branch" --status completed --limit 1 --json databaseId --jq '.[0].databaseId')"; \
+	fi; \
+	if [ -z "$$run" ]; then echo "No completed $(CI_WORKFLOW) run found for branch $$branch." >&2; exit 1; fi; \
+	conclusion="$$(gh run view "$$run" --json conclusion --jq '.conclusion')"; \
+	url="$$(gh run view "$$run" --json url --jq '.url')"; \
+	echo "CI run $$run ($$conclusion)"; \
+	echo "$$url"; \
+	log="$$(mktemp)"; \
+	trap 'rm -f "$$log"' 0 1 2 3 15; \
+	gh run view "$$run" --log-failed > "$$log"; \
+	go run ./scripts/testshards ci-failures < "$$log"
 
 enter-test-container: ## Open Bash in the running test container (htop/top available)
 	@container_ids=$$(docker ps --filter "label=$(TEST_CONTAINER_LABEL)" --format '{{.ID}}') || exit $$?; \
