@@ -1,7 +1,7 @@
 // Command plistdoctypes inserts CFBundleDocumentTypes into a packaged
 // macOS Info.plist. `fyne package -os darwin` (see Makefile's package-mac
 // target) generates Info.plist from a fixed template
-// (fyne.io/fyne/v2/cmd/fyne's templates/data/Info.plist) that has no hook
+// (fyne.io/tools/cmd/fyne's templates/data/Info.plist) that has no hook
 // for document-type / file-association metadata, so this runs as a
 // post-processing step instead of being something FyneApp.toml can
 // express.

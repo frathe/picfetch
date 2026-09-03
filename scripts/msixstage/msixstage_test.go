@@ -266,7 +266,14 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"package-windows-store:", "-tags microsoftstore", "$(BIN_NAME)-microsoft-store-$$arch.exe"} {
+	for _, want := range []string{
+		"warm-fyne-cross-windows:",
+		`-v "$(FYNE_CROSS_CACHE):/go"`,
+		"package-windows-store: warm-fyne-cross-windows",
+		"-cache $(FYNE_CROSS_CACHE)",
+		"-tags microsoftstore",
+		"$(BIN_NAME)-microsoft-store-$$arch.exe",
+	} {
 		if !bytes.Contains(makefile, []byte(want)) {
 			t.Errorf("Microsoft Store build target missing %q", want)
 		}
@@ -278,6 +285,22 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 	}
 	if !bytes.Contains(ci, []byte("ci-${{ github.workflow }}-${{ github.ref }}")) {
 		t.Error("reusable CI concurrency does not distinguish the Release and Microsoft Store callers")
+	}
+}
+
+func TestPackagingToolsUseCurrentFyneCLI(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", ".."))
+	for _, name := range []string{"Makefile", filepath.Join(".github", "workflows", "release.yml")} {
+		content, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(content, []byte("fyne.io/fyne/v2/cmd/fyne")) {
+			t.Errorf("%s installs the deprecated Fyne CLI package", name)
+		}
+		if !bytes.Contains(content, []byte("fyne.io/tools/cmd/fyne")) {
+			t.Errorf("%s does not install the current Fyne CLI package", name)
+		}
 	}
 }
 
@@ -300,8 +323,8 @@ func assertImageSize(t *testing.T, path string, want image.Point) {
 func writeTestIcon(t *testing.T, path string) {
 	t.Helper()
 	img := image.NewNRGBA(image.Rect(0, 0, 32, 32))
-	for y := 0; y < 32; y++ {
-		for x := 0; x < 32; x++ {
+	for y := range 32 {
+		for x := range 32 {
 			img.SetNRGBA(x, y, color.NRGBA{R: uint8(x * 8), G: uint8(y * 8), B: 80, A: 255})
 		}
 	}

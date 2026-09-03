@@ -88,6 +88,9 @@ func main() {
 	// preferences while the process it replaced is still flushing its own.
 	// Microsoft Store builds never stage or apply GitHub-delivered binaries,
 	// so they must not inspect or clean that channel's predecessor files.
+	// Qodana analyzes the default build, where StoreManaged is a constant false;
+	// the microsoftstore build tag replaces it with the true variant.
+	//goland:noinspection GoBoolExpressions
 	if !distribution.StoreManaged {
 		update.CleanupPredecessor()
 	}

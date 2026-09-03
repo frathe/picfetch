@@ -78,7 +78,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 func runWithInput(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: testshards <summarize|plan|check|regex|capture|partition> ...")
+		return errors.New("usage: testshards <summarize|plan|check|regex|capture|partition> [arguments]")
 	}
 
 	switch args[0] {
@@ -407,7 +407,7 @@ func runCheck(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if buildContext.GOOS != runtime.GOOS || buildContext.GOARCH != runtime.GOARCH {
-		return fmt.Errorf("Go build context %s/%s does not match running testshards executable %s/%s", buildContext.GOOS, buildContext.GOARCH, runtime.GOOS, runtime.GOARCH)
+		return fmt.Errorf("go build context %s/%s does not match running testshards executable %s/%s", buildContext.GOOS, buildContext.GOARCH, runtime.GOOS, runtime.GOARCH)
 	}
 	inventory, err := loadRunnableInventory(*packageArg)
 	if err != nil {

@@ -5,6 +5,9 @@ ICON     := assets/appIcon.png
 BIN_DIR  := bin
 WIN_ARCHES := amd64 arm64
 LINUX_ARCHES := amd64 arm64
+FYNE_CROSS_ENGINE ?= docker
+FYNE_CROSS_WINDOWS_IMAGE ?= fyneio/fyne-cross-images:windows
+FYNE_CROSS_CACHE ?= $(dir $(shell go env GOCACHE))fyne-cross
 
 RELEASE_BRANCH := main
 
@@ -27,7 +30,7 @@ COVERAGE_DIR := coverage
 COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test coverage update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
+.PHONY: all build build-linux-all run fmt fmt-check vet test coverage update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 
 all: build
 
@@ -314,24 +317,28 @@ package-mac: ## Package a macOS .app bundle (native, no Docker) into bin/
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"
 	mv "$(APP_NAME).app" "$(BIN_DIR)/"
 
-package-windows: ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
+warm-fyne-cross-windows: ## Cache the go.mod toolchain before Fyne parses Go command JSON
+	mkdir -p "$(FYNE_CROSS_CACHE)"
+	$(FYNE_CROSS_ENGINE) run --rm -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(FYNE_CROSS_WINDOWS_IMAGE)" go version >/dev/null
+
+package-windows: warm-fyne-cross-windows ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
+		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe; \
 	done
 
-package-windows-store: ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
+package-windows-store: warm-fyne-cross-windows ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
+		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-microsoft-store-$$arch.exe; \
 	done
 
-package-windows-debug: ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES
+package-windows-debug: warm-fyne-cross-windows ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
+		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME)-debug.exe $(BIN_DIR)/$(BIN_NAME)-debug-windows-$$arch.exe; \
 	done
 
@@ -354,7 +361,7 @@ build-linux-all: package-linux ## Alias for package-linux: cross-compile Linux b
 build-all: package-mac package-windows package-linux ## Build release artifacts for macOS, Windows, and Linux
 
 install-tools: ## Install the fyne and fyne-cross packaging tools
-	go install fyne.io/fyne/v2/cmd/fyne@latest
+	go install fyne.io/tools/cmd/fyne@latest
 	go install github.com/fyne-io/fyne-cross@latest
 
 install-linux-tools: ## Install apt dev headers needed to build natively on Linux (OpenGL, X11, Wayland; needs sudo)

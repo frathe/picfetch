@@ -175,7 +175,7 @@ func renderManifest(meta appMetadata, arch string) (string, error) {
 
 	var fileTypes strings.Builder
 	for _, ext := range imaging.SupportedExtensions() {
-		fmt.Fprintf(&fileTypes, "              <uap:FileType>%s</uap:FileType>\n", ext)
+		_, _ = fmt.Fprintf(&fileTypes, "              <uap:FileType>%s</uap:FileType>\n", ext)
 	}
 
 	return fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
