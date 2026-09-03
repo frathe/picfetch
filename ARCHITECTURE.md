@@ -15,6 +15,22 @@ Entry point only. `main.go` calls `openwith.Install` (first statement, see
 `ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
 
+### `scripts/testshards`
+
+Repository tooling for measured Linux race-test sharding. It parses complete
+`go test -json` streams, emits deterministic package/top-level-test summaries,
+plans a reviewable manifest from median durations with stable LPT tie-breaking,
+checks that manifest against the build-selected Linux test inventory, derives
+the fail-closed non-UI package partition, and emits exact shard filters. Its
+capture path streams compact partition/package/test diagnostics while retaining
+the raw events outside the repository; the generated assignment lives at
+`.github/testshards/internal-ui.tsv`.
+
+| File | Responsibility |
+|------|----------------|
+| `main.go` | `summarize`, `plan`, `check`, `regex`, `partition`, and `capture` command paths: complete event-stream validation, deterministic assignment, live build-selected inventory and parallel-call checks, exact anchored filters, exact-package subtraction, concise diagnostics, and raw preservation. |
+| `main_test.go` | Command-boundary fixtures for event streams and capture, deterministic planning, every manifest rejection, build-selected runnable forms, parallel-call refusal, exact filter generation, package partitioning, and Make contract expansion. |
+
 ### `internal/ui`
 
 The application. Unexported `appState` is the file-set model (scan/drop
@@ -405,6 +421,7 @@ see `AGENTS.md`.
 - "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
 - "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate` (serialized automatic/manual checks, staging, apply intent, What's-New cache, apply-failure cache) + `internal/ui/autoupdate.go` (`maybeStartUpdateCheck` / `CheckForUpdatesNow` / `PerformUpdate` / `maybeShowWhatsNew` / `maybeShowUpdateFailure`) + `settingswin` (manual dialogs) + `help/whatsnew.go` (the window). Automatic checks are off by default (`preferences.CheckForUpdates`) and stage silently. Apply remains OnStopped: normal shutdown installs without relaunch; explicit Perform update adds a post-apply relaunch. On Windows that relaunch starts the new executable with `PICFETCH_UPDATE_AWAIT_PID` set to the installing process's PID; `update.CleanupPredecessor` (`internal/update/await.go`), called from `main.go` before `app.NewWithID`, waits on that PID before preferences are touched, unsets the variable, and sweeps leftovers from pre-2026-08-30 updates. If `update.Apply` fails, `ClassifyApplyError` (`internal/update/applyerr.go`) records the reason via `autoupdate.SaveApplyFailure`, and `maybeShowUpdateFailure` explains it on the next launch with a button to the releases page — releases are unsigned, so Controlled Folder Access can still deny the write even to `picfetch.exe` itself. GitHub TUF bootstrap expiry: `tufroot.go`.
 - "How are GitHub release notes written?" → `todos.md` `## Done` + `scripts/releasenotes` + `make release` + `.github/workflows/release.yml` `body_path`.
+- "How are Linux race-test shards measured and assigned?" → `scripts/testshards` + `.github/testshards/internal-ui.tsv` + the measured CI sharding plan.
 - "How is a WinGet publish gated after Release?" → `.github/workflows/winget.yml` + `scripts/wingettag` (vX.Y.Z allowlist; `workflow_run` must be `release.yml` on a published tag).
 - "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
 - "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.

@@ -17,8 +17,14 @@ TEST_TIMEOUT := 30m
 TEST_IMAGE := ubuntu:24.04
 TEST_CONTAINER_LABEL := io.github.frathe.picfetch.test=true
 TEST_RACE :=
+TEST_RACE_FLAGS := -race -count=1 -timeout $(TEST_TIMEOUT)
+TEST_LOCALE := en_US.UTF-8
+TEST_SHARD_MANIFEST := .github/testshards/internal-ui.tsv
+TEST_SHARD_PACKAGE := ./internal/ui
+TEST_PARTITION :=
+TEST_CAPTURE ?= /tmp/picfetch-test-$(TEST_PARTITION).json
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions help
+.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 
 all: build
 
@@ -116,6 +122,53 @@ check-qodana-test-exclusions: ## Fail if qodana.yaml does not exclude every *_te
 vet: ## Run go vet
 	go vet ./...
 
+check-test-shards: ## Validate the UI shard manifest against the live Linux/amd64 test inventory
+	docker run --rm --platform linux/amd64 \
+		--label "$(TEST_CONTAINER_LABEL)" \
+		-v "$(CURDIR):/work" -w /work \
+		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
+		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
+		$(TEST_IMAGE) bash -c '\
+			set -e; \
+			apt-get update -qq; \
+			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
+			make --no-print-directory check-test-shards-direct \
+		'
+
+# Internal entry point for a prepared Linux/amd64 runner. Use the public Docker
+# target above for canonical validation from any host.
+check-test-shards-direct:
+	go run ./scripts/testshards check -package "$(TEST_SHARD_PACKAGE)" -manifest "$(TEST_SHARD_MANIFEST)"
+
+# Internal entry points for a prepared Linux/amd64 runner. The public test-race
+# target enters Docker once and runs this sequence there; hosted CI can call the
+# partition targets directly without nesting Docker.
+test-race-direct:
+	@$(MAKE) --no-print-directory check-test-shards-direct
+	@$(MAKE) --no-print-directory test-race-non-ui-direct
+	@$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-1
+	@$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-2
+	@$(MAKE) --no-print-directory test-race-ui-direct TEST_SHARD=ui-3
+
+test-race-non-ui-direct: override TEST_PARTITION := non-ui
+test-race-non-ui-direct:
+	bash -c '\
+		set -eu -o pipefail; \
+		packages="$$(go run ./scripts/testshards partition -package "$(TEST_SHARD_PACKAGE)")"; \
+		LANG="$(TEST_LOCALE)" go test $(TEST_RACE_FLAGS) -json $$packages | \
+			go run ./scripts/testshards capture -out "$(TEST_CAPTURE)" -partition "$(TEST_PARTITION)" \
+	'
+
+test-race-ui-direct: override TEST_PARTITION = $(TEST_SHARD)
+test-race-ui-direct:
+	bash -c '\
+		set -eu -o pipefail; \
+		case "$(TEST_SHARD)" in ui-1|ui-2|ui-3) ;; *) echo "TEST_SHARD must be one of ui-1, ui-2, or ui-3" >&2; exit 2;; esac; \
+		filter="$$(go run ./scripts/testshards regex -manifest "$(TEST_SHARD_MANIFEST)" -shard "$(TEST_SHARD)")"; \
+		LANG="$(TEST_LOCALE)" go test $(TEST_RACE_FLAGS) -json -run "$$filter" $(TEST_SHARD_PACKAGE) | \
+			go run ./scripts/testshards capture -out "$(TEST_CAPTURE)" -partition "$(TEST_PARTITION)" \
+	'
+
 update-test-image: ## Pull the latest Linux/amd64 Ubuntu image used by Docker tests
 	docker pull --platform linux/amd64 "$(TEST_IMAGE)"
 
@@ -129,7 +182,7 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
+			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
 			locale-gen en_US.UTF-8 >/dev/null; \
 			export LANG=en_US.UTF-8; \
 			status=0; \
@@ -161,8 +214,23 @@ enter-test-container: ## Open Bash in the running test container (htop/top avail
 test-native: ## Run tests directly on the current OS/architecture
 	go test -timeout $(TEST_TIMEOUT) ./...
 
-test-race: TEST_RACE := -race
-test-race: test
+test-race: ## Run the guarded race partitions sequentially in one Linux/amd64 Docker container
+	docker run --rm --platform linux/amd64 \
+		--label "$(TEST_CONTAINER_LABEL)" \
+		-v "$(CURDIR):/work" -w /work \
+		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
+		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
+		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
+		$(TEST_IMAGE) bash -c '\
+			set -e; \
+			apt-get update -qq; \
+			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
+			locale-gen $(TEST_LOCALE) >/dev/null; \
+			status=0; \
+			make --no-print-directory test-race-direct || status=$$?; \
+			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi; \
+			exit $$status \
+		'
 
 verify: fmt-check check-tuf-root check-qodana-test-exclusions ## Run the same checks CI does (format, TUF root, Qodana exclusions, vet, build, race tests)
 	go vet ./...

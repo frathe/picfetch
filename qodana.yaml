@@ -241,5 +241,6 @@ exclude:
       - "scripts/releasenotes/main_test.go"
       - "scripts/releasenotes/notes_test.go"
       - "scripts/synctuf/main_test.go"
+      - "scripts/testshards/main_test.go"
       - "scripts/wingettag/tag_test.go"
       - "scripts/wingettag/workflow_test.go"
