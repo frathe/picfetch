@@ -23,8 +23,11 @@ TEST_SHARD_MANIFEST := .github/testshards/internal-ui.tsv
 TEST_SHARD_PACKAGE := ./internal/ui
 TEST_PARTITION :=
 TEST_CAPTURE ?= /tmp/picfetch-test-$(TEST_PARTITION).json
+COVERAGE_DIR := coverage
+COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
+.PHONY: all build build-linux-all run fmt fmt-check vet test coverage update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 
 all: build
 
@@ -198,6 +201,28 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 			go test -timeout $(TEST_TIMEOUT) $(TEST_RACE) ./... || status=$$?; \
 			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi; \
 			exit $$status \
+		'
+
+coverage: ## Generate HTML source-line coverage from the full unsharded Docker suite
+	mkdir -p "$(COVERAGE_DIR)"
+	docker run --rm --platform linux/amd64 \
+		--label "$(TEST_CONTAINER_LABEL)" \
+		-v "$(CURDIR):/work" -w /work \
+		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
+		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
+		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
+		$(TEST_IMAGE) bash -c '\
+			set -e; \
+			apt-get update -qq; \
+			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
+			locale-gen $(TEST_LOCALE) >/dev/null; \
+			export LANG=$(TEST_LOCALE); \
+			rm -f "$(COVERAGE_PROFILE)" "$(COVERAGE_HTML)"; \
+			status=0; \
+			go test -timeout $(TEST_TIMEOUT) -coverprofile="$(COVERAGE_PROFILE)" ./... || status=$$?; \
+			if [ "$$status" -eq 0 ]; then go tool cover -html="$(COVERAGE_PROFILE)" -o "$(COVERAGE_HTML)" || status=$$?; fi; \
+			chown -R "$$HOST_UID:$$HOST_GID" "$(COVERAGE_DIR)"; \
+			exit "$$status" \
 		'
 
 enter-test-container: ## Open Bash in the running test container (htop/top available)

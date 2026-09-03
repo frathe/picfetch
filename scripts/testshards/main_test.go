@@ -741,6 +741,51 @@ func TestMakeTestRemainsCompleteAndUnsharded(t *testing.T) {
 	}
 }
 
+func TestMakeCoverageRunsCompleteUnshardedSuiteAndBuildsHTML(t *testing.T) {
+	output := makeDryRun(t, "coverage")
+	for _, want := range []string{
+		"docker run --rm --platform linux/amd64",
+		"locale-gen en_US.UTF-8",
+		"go test -timeout 30m -coverprofile=\"coverage/coverage.out\" ./...",
+		"go tool cover -html=\"coverage/coverage.out\" -o \"coverage/coverage.html\"",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("make coverage output is missing %q:\n%s", want, output)
+		}
+	}
+	for _, forbidden := range []string{"testshards", "-race", "-run"} {
+		if strings.Contains(output, forbidden) {
+			t.Fatalf("make coverage unexpectedly contains %q:\n%s", forbidden, output)
+		}
+	}
+
+	command := exec.Command("make", "--no-print-directory", "help")
+	command.Dir = filepath.Join("..", "..")
+	help, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("make help: %v\n%s", err, help)
+	}
+	if !strings.Contains(string(help), "coverage") || !strings.Contains(string(help), "full unsharded Docker suite") {
+		t.Fatalf("make help does not document the coverage contract:\n%s", help)
+	}
+
+	makefile, err := os.ReadFile(filepath.Join("..", "..", "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?m)^\.PHONY:.*\bcoverage\b`).Match(makefile) {
+		t.Fatal("coverage target is not phony, so an existing coverage directory would suppress it")
+	}
+
+	ignored, err := os.ReadFile(filepath.Join("..", "..", ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(ignored), "coverage/\n") {
+		t.Fatalf("coverage artifacts are not ignored:\n%s", ignored)
+	}
+}
+
 func TestMakeRaceRunsCanonicalConcurrentContractInOneContainer(t *testing.T) {
 	public := makeDryRun(t, "test-race")
 	if count := strings.Count(public, "docker run --rm --platform linux/amd64"); count != 1 {
