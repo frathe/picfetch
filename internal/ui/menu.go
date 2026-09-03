@@ -22,7 +22,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		SaveRotation: func() { view.saveRotation() },
 		PromptExport: func() { view.promptExport() },
 		CloseFiles:   func() { view.closeFiles() },
-		ShowSettings: func() { view.settingsWin.Show(view.settingsState()) },
+		ShowSettings: func() { view.settingsWin.Show(view.settingsState(), view.storeManaged) },
 
 		ShowViewer:       view.showViewer,
 		ShowExif:         view.showWindowExif,

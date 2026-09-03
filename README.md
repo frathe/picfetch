@@ -182,6 +182,7 @@ list them.
 | `make build`           | Native binary for the current OS/arch, output to `bin/picfetch`                                    |
 | `make package-mac`     | macOS `.app` bundle, output to `bin/PicFetch.app` (no Docker required)                             |
 | `make package-windows` | Windows `.exe` files, cross-compiled via `fyne-cross`/Docker, to `bin/picfetch-windows-<arch>.exe` |
+| `make package-windows-store` | Store-managed Windows `.exe` inputs for the MSIX workflow, to `bin/picfetch-microsoft-store-<arch>.exe` |
 | `make package-linux`   | Linux binaries, cross-compiled via `fyne-cross`/Docker, to `bin/picfetch-linux-<arch>`             |
 | `make build-all`       | Runs `package-mac`, `package-windows`, and `package-linux`                                         |
 | `make install-tools`   | Installs the `fyne` and `fyne-cross` CLIs used by the packaging targets                            |
@@ -197,6 +198,11 @@ don't collide; override on the command line for a single arch, e.g. `make
 package-linux LINUX_ARCHES=arm64` or `make package-windows WIN_ARCHES=amd64`.
 `fyne-cross windows` also supports `386`, and `fyne-cross linux` also supports
 `386` and `arm`.
+
+Microsoft Store delivery uses the separate `package-windows-store` target and
+the Windows SDK packaging workflow documented in
+[docs/microsoft-store.md](docs/microsoft-store.md). Store builds leave updates
+to Microsoft Store instead of using PicFetch's GitHub self-updater.
 
 > **Note:** running an `amd64` Linux binary under an x86 emulator (e.g.
 > Box64) on ARM hardware is unreliable for OpenGL apps like this one — build

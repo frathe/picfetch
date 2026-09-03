@@ -50,9 +50,11 @@ func Run(application fyne.App, initial []fyne.URI) {
 		// report ordered after the sweep: reporting clears the record, and a
 		// cleared record reads as a clean install, so a reporter that ran
 		// first would let the sweep take the last working binary.
-		failure := view.sweepUpdateBackup()
-		view.maybeShowWhatsNew()
-		view.maybeShowUpdateFailure(failure)
+		if !view.storeManaged {
+			failure := view.sweepUpdateBackup()
+			view.maybeShowWhatsNew()
+			view.maybeShowUpdateFailure(failure)
+		}
 
 		// Install before opening, not after: a delivery arriving in the
 		// gap between the two would have nobody to take it. Installing
@@ -123,7 +125,9 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 		session.Save(application, view.state.unsortedFiles)
 		preferences.Save(application, view.currentPreferences())
-		view.updater.ApplyStagedUpdate()
+		if !view.storeManaged {
+			view.updater.ApplyStagedUpdate()
+		}
 	})
 }
 

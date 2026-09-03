@@ -18,6 +18,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/decodepool"
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
@@ -76,6 +77,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		loadingBar:    loadingBar,
 		toast:         toastComp,
 		info:          info,
+		storeManaged:  distribution.StoreManaged,
 		state:         newAppState(filesort.FromPref(prefs.SortMode), prefs.MergeMode),
 		baseTitle:     appTitle,
 		imgCache:      imaging.NewImgCache(int64(prefs.MaxImageCacheMB) * bytesPerMB),

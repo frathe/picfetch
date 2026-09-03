@@ -63,8 +63,9 @@ type Host interface {
 // Singleton): a second request raises the existing window rather than
 // stacking up duplicates.
 type Window struct {
-	app  fyne.App
-	host Host
+	app                   fyne.App
+	host                  Host
+	updatesManagedByStore bool
 
 	// prefs is the form snapshot Show seeded, mutated by each control, and
 	// pushed back through Host.ApplySettings. Ignored while the window is
@@ -84,6 +85,7 @@ type Window struct {
 	staticSizeCheck               *widget.Check
 	updateNow                     *widget.Button
 	updateVersion                 *widget.Label
+	updateManaged                 *widget.Label
 	intervalEntry, maxScanEntry   *widget.Entry
 	maxWidthEntry, maxHeightEntry *widget.Entry
 	imgCacheEntry, thumbCacheEntry,
@@ -118,9 +120,10 @@ func New(application fyne.App, host Host) *Window {
 // Show opens the settings window, or raises it if it's already open.
 // prefs is the standing-preferences snapshot used to seed the form; it is
 // ignored when the window is already showing, so in-flight edits stay put.
-func (w *Window) Show(prefs preferences.State) {
+func (w *Window) Show(prefs preferences.State, updatesManagedByStore bool) {
 	if !w.win.Open() {
 		w.prefs = prefs
+		w.updatesManagedByStore = updatesManagedByStore
 	}
 	w.win.Show(w.app, lang.L("Settings"), fyne.NewSize(windowW, windowH), w.build, func() {
 		w.closeUpdateFlow()
@@ -131,6 +134,7 @@ func (w *Window) Show(prefs preferences.State) {
 		w.staticSizeCheck = nil
 		w.updateNow = nil
 		w.updateVersion = nil
+		w.updateManaged = nil
 		w.intervalEntry, w.maxScanEntry = nil, nil
 		w.maxWidthEntry, w.maxHeightEntry = nil, nil
 		w.imgCacheEntry, w.thumbCacheEntry, w.maxFileSizeEntry = nil, nil, nil
@@ -340,17 +344,25 @@ func (w *Window) build() fyne.CanvasObject {
 	})
 	w.staticSizeCheck.Checked = w.prefs.StaticWindowSize
 
-	w.updateCheck = widget.NewCheck(lang.L("Check for updates"), func(on bool) {
-		w.apply(func(s *preferences.State) { s.CheckForUpdates = on })
-	})
-	w.updateCheck.Checked = w.prefs.CheckForUpdates
-	w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
 	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
 	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
-	updates := container.NewVBox(w.updateVersion, w.updateCheck, w.updateNow)
+	updates := container.NewVBox(w.updateVersion)
+	if w.updatesManagedByStore {
+		w.updateManaged = widget.NewLabel(lang.L("Updates are managed by Microsoft Store."))
+		w.updateManaged.Wrapping = fyne.TextWrapWord
+		updates.Add(w.updateManaged)
+	} else {
+		w.updateCheck = widget.NewCheck(lang.L("Check for updates"), func(on bool) {
+			w.apply(func(s *preferences.State) { s.CheckForUpdates = on })
+		})
+		w.updateCheck.Checked = w.prefs.CheckForUpdates
+		w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
+		updates.Add(w.updateCheck)
+		updates.Add(w.updateNow)
+	}
 
 	return container.NewAppTabs(
 		container.NewTabItem(lang.L("General"), container.NewPadded(container.NewVScroll(general))),

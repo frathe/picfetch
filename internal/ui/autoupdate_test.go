@@ -250,6 +250,61 @@ func TestUpdateCheck_SettingOffNeverCallsHTTP(t *testing.T) {
 	}
 }
 
+func TestUpdateCheck_StoreManagedBuildNeverTouchesGitHubStage(t *testing.T) {
+	v := newTestViewer(t)
+	v.storeManaged = true
+	v.settings.checkForUpdates = true
+	v.updater.SetCurrentVersion("0.2.6")
+	calls := 0
+	v.updater.SetVerifierFactory(func() (update.Verifier, error) {
+		calls++
+		return &fakeUpdateVerifier{}, nil
+	})
+
+	bin := filepath.Join(v.updater.Dir(), "picfetch-staged")
+	if err := os.WriteFile(bin, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := update.SaveStage(v.updater.Dir(), update.Stage{Version: "v0.2.5", BinaryPath: bin}); err != nil {
+		t.Fatal(err)
+	}
+
+	v.maybeStartUpdateCheck()
+
+	if calls != 0 {
+		t.Errorf("verifier factory calls = %d, want 0", calls)
+	}
+	if v.updater.Done().Begun() || v.updateOp.currentRevision() != 0 {
+		t.Error("Store-managed automatic update began background work")
+	}
+	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); err != nil {
+		t.Fatalf("Store-managed check touched an existing GitHub stage: %v", err)
+	}
+}
+
+func TestMicrosoftStoreUpdateActionsAreRefused(t *testing.T) {
+	v := newTestViewer(t)
+	v.storeManaged = true
+	v.settings.checkForUpdates = true
+
+	v.SetCheckForUpdates(true)
+	if v.CheckForUpdates() || v.currentPreferences().CheckForUpdates {
+		t.Error("Store-managed build retained the GitHub update preference")
+	}
+
+	var manualErr error
+	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{Failed: func(err error) { manualErr = err }})
+	if manualErr == nil || manualErr.Error() != "updates are managed by Microsoft Store" {
+		t.Fatalf("manual update error = %v", manualErr)
+	}
+	if err := v.PerformUpdate(); err == nil || err.Error() != "updates are managed by Microsoft Store" {
+		t.Fatalf("PerformUpdate error = %v", err)
+	}
+	if v.updater.Done().Begun() {
+		t.Error("Store-managed manual update began background work")
+	}
+}
+
 func TestUpdateCheck_VerifierFailurePreservesLifecycle(t *testing.T) {
 	v := newTestViewer(t)
 	updateAssetName(t)

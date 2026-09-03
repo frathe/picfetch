@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/ui"
 	"github.com/frathe/picfetch/internal/update"
@@ -85,7 +86,11 @@ func main() {
 
 	// Before app.NewWithID: an update relaunch must not read or write
 	// preferences while the process it replaced is still flushing its own.
-	update.CleanupPredecessor()
+	// Microsoft Store builds never stage or apply GitHub-delivered binaries,
+	// so they must not inspect or clean that channel's predecessor files.
+	if !distribution.StoreManaged {
+		update.CleanupPredecessor()
+	}
 
 	application := app.NewWithID(appID)
 

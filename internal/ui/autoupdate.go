@@ -22,9 +22,16 @@ import (
 // getter/setter pair for the opt-in updates preference. Turning the setting
 // on starts a check when due; turning it off cancels an in-flight check but
 // leaves an already-complete stage on disk for apply-on-stop.
-func (v *viewer) CheckForUpdates() bool { return v.settings.checkForUpdates }
+func (v *viewer) CheckForUpdates() bool {
+	return v.settings.checkForUpdates && !v.storeManaged
+}
 
 func (v *viewer) SetCheckForUpdates(on bool) {
+	if v.storeManaged {
+		v.settings.checkForUpdates = false
+		v.updateOp.invalidate()
+		return
+	}
 	v.settings.checkForUpdates = on
 	if on {
 		v.maybeStartUpdateCheck()
@@ -53,6 +60,9 @@ func (v *viewer) currentUpdateVersion() string { return v.updater.CurrentVersion
 // before beginning updateOp's lifecycle token and handing Updater.Start its
 // context and a staleness func.
 func (v *viewer) maybeStartUpdateCheck() {
+	if v.storeManaged {
+		return
+	}
 	v.updater.RemoveStaleStage()
 
 	if !v.CheckForUpdates() {
@@ -91,6 +101,12 @@ func (v *viewer) maybeStartUpdateCheck() {
 // on Updater's tracked worker; this entry point only validates cheap local
 // prerequisites and adapts worker events onto Fyne's UI thread.
 func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
+	if v.storeManaged {
+		if callbacks.Failed != nil {
+			callbacks.Failed(errors.New("updates are managed by Microsoft Store"))
+		}
+		return
+	}
 	token := v.updateOp.begin()
 	runOnUI := func(callback func()) {
 		if callback == nil {
@@ -157,6 +173,9 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 // usable staged update still exists. The actual file replacement remains in
 // Run's SetOnStopped callback, after session and preference persistence.
 func (v *viewer) PerformUpdate() error {
+	if v.storeManaged {
+		return errors.New("updates are managed by Microsoft Store")
+	}
 	if err := v.updater.RequestApplyAndRelaunch(); err != nil {
 		return err
 	}

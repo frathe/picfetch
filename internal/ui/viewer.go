@@ -41,6 +41,10 @@ import (
 type viewer struct {
 	app fyne.App
 	win fyne.Window
+	// storeManaged is immutable in production and copied from the build-tag
+	// fact in internal/distribution. Tests can set the per-viewer value to
+	// exercise both delivery channels without mutable package-level seams.
+	storeManaged bool
 	// quit requests application shutdown after PerformUpdate has successfully
 	// recorded apply-and-relaunch intent. buildViewer initializes it from the
 	// app instance; tests replace this per-viewer seam so they never stop the

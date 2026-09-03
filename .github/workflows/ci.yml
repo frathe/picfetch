@@ -11,7 +11,10 @@ on:
   workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # github.workflow is the caller's name for reusable-workflow runs. Keep the
+  # ordinary Release and Microsoft Store package gates for the same tag from
+  # cancelling each other while still cancelling superseded runs of either.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

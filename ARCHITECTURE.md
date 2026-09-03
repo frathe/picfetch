@@ -10,7 +10,8 @@ Standing rules (data flow, concurrency, conventions, build) live in
 ### `github.com/frathe/picfetch` (package main)
 
 Entry point only. `main.go` calls `openwith.Install` (first statement, see
-`internal/openwith`), builds the `fyne.App`, loads embedded
+`internal/openwith`), skips GitHub-update predecessor cleanup for Store-managed
+builds, builds the `fyne.App`, loads embedded
 `translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
 `ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
@@ -47,8 +48,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 
 | File(s) | Responsibility |
 |---------|----------------|
-| `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown cancels an active comparison before the event loop stops. |
-| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules. Overlay tail: copy selection, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
+| `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown cancels an active comparison before the event loop stops. Store-managed builds skip GitHub update startup and staged-binary apply. |
+| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, comparison, deletion, slideshow, settings, then favorites. |
@@ -81,7 +82,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation`, ending in `syncMenus`). |
 | `export.go` | File > Export image (`promptExport` / `exportAs`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. |
 | `wallpaper.go` | Set as Wallpaper: write a PNG into `viewer.wallpaperDir`, then `wallpaper.Set`. |
-| `autoupdate.go` | Viewer-side update glue: `maybeStartUpdateCheck` gates the opt-in daily check; `CheckForUpdatesNow` adapts manual worker callbacks through `fyne.Do` with an inner staleness check; `PerformUpdate` records relaunch intent and requests quit; `maybeShowWhatsNew` opens cached release notes. Policy, staging, and cache live in `internal/ui/autoupdate`. |
+| `autoupdate.go` | Viewer-side update glue: `maybeStartUpdateCheck` gates the opt-in daily check; `CheckForUpdatesNow` adapts manual worker callbacks through `fyne.Do` with an inner staleness check; `PerformUpdate` records relaunch intent and requests quit; `maybeShowWhatsNew` opens cached release notes. Every update entry point refuses a Store-managed viewer. Policy, staging, and cache live in `internal/ui/autoupdate`. |
 | `slideshow.go` | `togglePictureFrameMode` (closes grid first) plus shuffle/interval bindings. |
 | `batch.go` | Routes delete/copy commands by the current subject: image-region selection, grid selection, or displayed image. |
 | `session.go` | `restoreSession` glue over `internal/session`. |
@@ -104,7 +105,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/exifwin/` | EXIF panel (E): tag list, optional JPEG strip, GPS map (`tiles.go`, `startWarm`). Geometry via `widgets.Singleton`. | 4-method `Host`. |
 | `internal/ui/help/` | Manual, About, What's New (`whatsnew.go`), Help menu; embeds `manual.md` / `manual_de.md`. Secret search phrase and window-spiral both open `spiral/`. | Nothing — `New(app, title, art)` only. |
 | `internal/ui/spiral/` | Full-screen shader easter egg. | `New(app)` only. |
-| `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits, update dialogs, snapshot seed, live apply, Singleton geometry. | `Show(State)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
+| `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits, update dialogs, snapshot seed, live apply, Singleton geometry. `Show(State, storeManaged)` replaces the GitHub update controls with Store-owned-update copy when applicable. | `Show(State, bool)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
 | `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `New` does no disk I/O; `SetDir` from `Run`. `SetCommandsEnabled` preserves Add's file availability while disabling both static and dynamically rebuilt menu entries during comparison. | 6-method `Host`. |
 | `internal/ui/menus/` | The stateful File/Window/Actions menu items and their whole Checked/Disabled matrix as `Apply(State) (changed bool)`, a pure function of a value snapshot. `ComparisonActive` applies a final all-ordinary-items-disabled override while leaving Help available. Fyne-typed but viewer-free, unit-testable with no app. Menu-bar assembly, the Darwin native-bar fold, the real shortcut bindings, and every action the items run all stay in `internal/ui`. | No Host: `Apply(State)` over a value snapshot built by `menu.go`'s `menuState()`. |
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Both caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
@@ -204,6 +205,13 @@ switching automatically.
 | File | Responsibility |
 |------|----------------|
 | `appearance.go` | `Mode`, translated picker labels, stable preference values, and `Apply`. |
+
+### `internal/distribution`
+
+Compile-time distribution policy. `StoreManaged` is false for ordinary builds
+and true only with the `microsoftstore` build tag. `internal/ui` snapshots it
+when constructing a viewer so Microsoft Store packages cannot use the GitHub
+self-updater while all other distributions retain the existing behavior.
 
 ### `internal/wingesture`
 

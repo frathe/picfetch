@@ -24,7 +24,7 @@ TEST_SHARD_PACKAGE := ./internal/ui
 TEST_PARTITION :=
 TEST_CAPTURE ?= /tmp/picfetch-test-$(TEST_PARTITION).json
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac package-windows package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
+.PHONY: all build build-linux-all run fmt fmt-check vet test update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 
 all: build
 
@@ -285,6 +285,13 @@ package-windows: ## Cross-compile Windows .exe files via fyne-cross (needs Docke
 	for arch in $(WIN_ARCHES); do \
 		fyne-cross windows -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe; \
+	done
+
+package-windows-store: ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
+	mkdir -p $(BIN_DIR)
+	for arch in $(WIN_ARCHES); do \
+		fyne-cross windows -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
+		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-microsoft-store-$$arch.exe; \
 	done
 
 package-windows-debug: ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES

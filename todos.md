@@ -6,6 +6,12 @@
 
 #### New Features
 
+- Added the Microsoft Store MSIX delivery path: exact reserved package
+  identity, generated x64/ARM64 manifests and assets, a Store-managed build
+  mode that disables GitHub self-updates, Windows CI packaging/WACK checks,
+  localized listing copy, and an explicit privacy disclosure for the optional
+  OpenStreetMap EXIF-location view.
+
 #### Bugfix
 
 #### Internal

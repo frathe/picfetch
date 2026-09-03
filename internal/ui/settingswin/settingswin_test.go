@@ -66,7 +66,7 @@ func (f *fakeHost) PerformUpdate() error {
 func showSettings(t *testing.T, host *fakeHost) *Window {
 	t.Helper()
 	w := New(testApp, host)
-	w.Show(host.prefs)
+	w.Show(host.prefs, false)
 	t.Cleanup(func() {
 		if win := w.win.Window(); win != nil {
 			win.Close()
@@ -171,11 +171,11 @@ func TestThemeSelect_ChangeCallsSetThemeMode(t *testing.T) {
 func TestShow_RaisesTheSameWindowOnASecondCall(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 
-	w.Show(preferences.State{})
+	w.Show(preferences.State{}, false)
 	t.Cleanup(func() { w.win.Window().Close() })
 	win := w.win.Window()
 
-	w.Show(preferences.State{})
+	w.Show(preferences.State{}, false)
 
 	if w.win.Window() != win {
 		t.Error("a second Show should raise the existing window, not open a new one")
@@ -538,7 +538,7 @@ func TestOpen_ReflectsWindowLifecycle(t *testing.T) {
 		t.Fatal("Open() = true before Show was ever called")
 	}
 
-	w.Show(preferences.State{})
+	w.Show(preferences.State{}, false)
 	if !w.Open() {
 		t.Error("Open() = false, want true once Show has run")
 	}
@@ -558,7 +558,7 @@ func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	w.RestoreGeometry(widgets.Geometry{X: 210, Y: 220, PositionSet: true, Size: fyne.NewSize(700, 750)})
 
-	w.Show(preferences.State{})
+	w.Show(preferences.State{}, false)
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	if got, want := w.win.Window().Canvas().Size(), fyne.NewSize(700, 750); got != want {
@@ -575,7 +575,7 @@ func TestGeometry_TracksAResizeAndOutlivesTheWindow(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	w.RestoreGeometry(widgets.Geometry{})
 
-	w.Show(preferences.State{})
+	w.Show(preferences.State{}, false)
 	w.win.Window().Resize(fyne.NewSize(700, 750))
 	w.win.Window().Close()
 
@@ -594,7 +594,7 @@ func TestStopTracking_IsSafeWithNoWindowOpen(t *testing.T) {
 func TestShow_WithoutRestoreGeometryUsesTheBuiltInSize(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 
-	w.Show(preferences.State{})
+	w.Show(preferences.State{}, false)
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	if got, want := w.win.Window().Canvas().Size().Width, float32(windowW); got != want {
@@ -667,7 +667,7 @@ func TestNewPositiveIntEntry(t *testing.T) {
 func newUpdateTestWindow(t *testing.T, host *fakeHost) *Window {
 	t.Helper()
 	w := New(testApp, host)
-	w.Show(host.prefs)
+	w.Show(host.prefs, false)
 	t.Cleanup(func() {
 		if win := w.win.Window(); win != nil {
 			win.Close()
@@ -827,7 +827,7 @@ func TestUpdatesTab_ShowsCurrentVersionAndBuild(t *testing.T) {
 		metadata: fyne.AppMetadata{Version: "2.3.4", Build: 567},
 	}
 	w := New(app, &fakeHost{})
-	w.Show(preferences.State{})
+	w.Show(preferences.State{}, false)
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	updates := tabVBox(t, settingsTabs(t, w).Items[2])
@@ -836,6 +836,30 @@ func TestUpdatesTab_ShowsCurrentVersionAndBuild(t *testing.T) {
 	}
 	if got := updates.Objects[0]; got != w.updateVersion {
 		t.Errorf("first Updates object = %T, want current version label", got)
+	}
+}
+
+func TestUpdatesTab_MicrosoftStoreOwnsUpdates(t *testing.T) {
+	host := &fakeHost{prefs: preferences.State{CheckForUpdates: true}}
+	w := New(testApp, host)
+	w.Show(host.prefs, true)
+	t.Cleanup(func() { w.win.Window().Close() })
+
+	updates := tabVBox(t, settingsTabs(t, w).Items[2])
+	if w.updateCheck != nil || w.updateNow != nil {
+		t.Error("Microsoft Store build exposes GitHub update controls")
+	}
+	if w.updateManaged == nil {
+		t.Fatal("Microsoft Store update explanation is missing")
+	}
+	if got, want := w.updateManaged.Text, "Updates are managed by Microsoft Store."; got != want {
+		t.Errorf("update explanation = %q, want %q", got, want)
+	}
+	if !containsCanvasObject(updates, w.updateManaged) {
+		t.Error("Updates tab does not contain the Microsoft Store explanation")
+	}
+	if len(host.applyCalls) != 0 || len(host.updateCallbacks) != 0 {
+		t.Error("opening Store-managed Settings started update work")
 	}
 }
 
