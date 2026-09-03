@@ -841,6 +841,8 @@ func TestMakeRaceConcurrentContractWaitsForEveryPartitionAndPropagatesFailure(t 
 }
 
 func TestMakeDirectRacePartitionsShareFlagsLocaleAndCapture(t *testing.T) {
+	t.Setenv("TEST_CAPTURE", "/tmp/external-capture.json")
+
 	tests := []struct {
 		name string
 		args []string
@@ -1125,6 +1127,11 @@ func makeDryRun(t *testing.T, args ...string) string {
 	commandArgs := append([]string{"--no-print-directory", "-n"}, args...)
 	command := exec.Command("make", commandArgs...)
 	command.Dir = filepath.Join("..", "..")
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "TEST_CAPTURE=") {
+			command.Env = append(command.Env, entry)
+		}
+	}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("make %s: %v\n%s", strings.Join(args, " "), err, output)
