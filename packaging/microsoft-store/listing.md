@@ -87,9 +87,9 @@ English and German user interface
 
 ### What's new
 
-First Microsoft Store release of PicFetch. Store builds receive installation
-and updates through Microsoft Store while retaining the complete desktop image
-viewer experience.
+PicFetch 1.0.0 is the first Microsoft Store release. Store builds receive
+installation and updates through Microsoft Store while retaining the complete
+desktop image viewer experience.
 
 ### Screenshot 1
 
@@ -152,8 +152,8 @@ Deutsche und englische Benutzeroberfläche
 
 ### Neuigkeiten
 
-Erste Microsoft-Store-Version von PicFetch. Store-Builds werden über den
-Microsoft Store installiert und aktualisiert und bieten den vollständigen
+PicFetch 1.0.0 ist die erste Microsoft-Store-Version. Store-Builds werden über
+den Microsoft Store installiert und aktualisiert und bieten den vollständigen
 Desktop-Bildbetrachter.
 
 ### Screenshot 1

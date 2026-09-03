@@ -25,9 +25,16 @@ Microsoft signature after certification.
 ## Versioning
 
 MSIX requires a four-part numeric version with a non-zero first component, and
-the Store reserves the fourth component. PicFetch therefore maps the monotonic
-`Build` in `FyneApp.toml` to `1.0.<Build>.0`. This remains strictly increasing
-even while PicFetch's public semantic version is below 1.0.
+the Store reserves the fourth component. Starting with PicFetch 1.0.0, the
+three-part public `Version` in `FyneApp.toml` is therefore also the Store
+version, with a trailing zero added for MSIX: for example, PicFetch `1.0.0`
+becomes `1.0.0.0` and PicFetch `1.0.1` becomes `1.0.1.0`. The separate Fyne
+`Build` counter remains internal packaging metadata and does not affect the
+public version in either release channel.
+
+Store packaging deliberately rejects versions below 1.0.0, prerelease labels,
+and components outside MSIX's 0..65535 range. The first Store submission must
+therefore be built from the `v1.0.0` release tag, not from an older `v0.*` tag.
 
 ## Partner Center
 

@@ -4,9 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 177 entries, 326.750s median-weight sum
+# ui-1: 178 entries, 326.750s baseline median-weight sum
 # ui-2: 178 entries, 327.070s median-weight sum
-# ui-3: 212 entries, 326.740s median-weight sum
+# ui-3: 213 entries, 326.740s baseline median-weight sum
+# post-baseline additions: 2 tests assigned across the lightest baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -119,6 +120,7 @@ TestManualUpdateFlow_CallbacksReadyThenPerformRequestsRelaunch	ui-1
 TestMaxWindowSizeGetterSetter	ui-1
 TestMaybeShowWhatsNew_ShowsAndClearsCache	ui-1
 TestMemoryLimitSetters_FloorAtOne	ui-1
+TestMicrosoftStoreUpdateActionsAreRefused	ui-1
 TestOpenInitialFiles_ArgvAndADeliveryBecomeOneScanWithArgvFirst	ui-1
 TestOpenInitialFiles_PlainLaunchStartsNoScan	ui-1
 TestOpenShortcuts_InvokeFileDialog	ui-1
@@ -544,6 +546,7 @@ TestTogglePictureFrameMode_EntersAndExitsFullScreen	ui-3
 TestToggleSort_CyclesThroughAllModesAndBackToName	ui-3
 TestUpdateCheck_NewerReleaseStagesBinary	ui-3
 TestUpdateCheck_SameVersionRecordsDayNoStage	ui-3
+TestUpdateCheck_StoreManagedBuildNeverTouchesGitHubStage	ui-3
 TestUpdateCheck_VerifierFailurePreservesLifecycle	ui-3
 TestUpdateFailureBodySize_TracksTheCanvasBetweenItsBounds	ui-3
 TestUpdateFailureMessage_AccessDeniedNamesFolderAccessAndPath	ui-3

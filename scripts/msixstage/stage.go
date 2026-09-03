@@ -25,7 +25,6 @@ const (
 
 type appMetadata struct {
 	Version string
-	Build   int
 }
 
 type stageOptions struct {
@@ -123,12 +122,6 @@ func readAppMetadata(r io.Reader) (appMetadata, error) {
 		switch strings.TrimSpace(key) {
 		case "Version":
 			meta.Version = strings.Trim(strings.TrimSpace(value), `"`)
-		case "Build":
-			build, err := strconv.Atoi(strings.TrimSpace(value))
-			if err != nil {
-				return appMetadata{}, fmt.Errorf("invalid Fyne build: %w", err)
-			}
-			meta.Build = build
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -137,17 +130,31 @@ func readAppMetadata(r io.Reader) (appMetadata, error) {
 	if meta.Version == "" {
 		return appMetadata{}, fmt.Errorf("FyneApp.toml has no Version")
 	}
-	if _, err := storeVersion(meta.Build); err != nil {
+	if _, err := storeVersion(meta.Version); err != nil {
 		return appMetadata{}, err
 	}
 	return meta, nil
 }
 
-func storeVersion(build int) (string, error) {
-	if build < 1 || build > 65535 {
-		return "", fmt.Errorf("Fyne Build %d is outside the MSIX range 1..65535", build)
+func storeVersion(version string) (string, error) {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("PicFetch version %q is not MAJOR.MINOR.PATCH", version)
 	}
-	return fmt.Sprintf("1.0.%d.0", build), nil
+
+	numbers := make([]int, len(parts))
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || part != strconv.Itoa(n) {
+			return "", fmt.Errorf("PicFetch version %q contains a non-canonical numeric component", version)
+		}
+		if n < 0 || n > 65535 || (i == 0 && n == 0) {
+			return "", fmt.Errorf("PicFetch version %q is outside the MSIX range 1..65535.0..65535.0..65535", version)
+		}
+		numbers[i] = n
+	}
+
+	return fmt.Sprintf("%d.%d.%d.0", numbers[0], numbers[1], numbers[2]), nil
 }
 
 func renderManifest(meta appMetadata, arch string) (string, error) {
@@ -161,7 +168,7 @@ func renderManifest(meta appMetadata, arch string) (string, error) {
 		return "", fmt.Errorf("unsupported architecture %q (want amd64 or arm64)", arch)
 	}
 
-	version, err := storeVersion(meta.Build)
+	version, err := storeVersion(meta.Version)
 	if err != nil {
 		return "", err
 	}

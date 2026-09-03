@@ -20,7 +20,7 @@ GitHub self-updater must not offer or apply an update there.
 |---|---|
 | Store identity | `OpenSourceDeveloperFloria.PicFetch` / `CN=D9654E56-586C-4C1E-ABC8-71CCDC33B78F` / `Open Source Developer Florian Rathe`, copied from Partner Center. |
 | Package shape | One unsigned `.msixbundle` containing x64 and ARM64 application packages; Microsoft signs it after certification. |
-| Store version | `1.0.<Fyne Build>.0`. `Build` is already monotonic; the first component is non-zero and the fourth remains Store-reserved zero. |
+| Store version | Starting with the first Store release at PicFetch `1.0.0`, append the Store-reserved fourth component to the public semantic version: `<Major>.<Minor>.<Patch>.0`. `FyneApp.toml` remains the single version source for GitHub and Microsoft Store; its separate `Build` counter is internal packaging metadata. |
 | Device family | `Windows.Desktop`, minimum Windows 10 build 19041, x64 and ARM64 only. |
 | Trust model | Packaged classic desktop app at medium integrity with the required `runFullTrust` capability. |
 | File associations | One `windows.fileTypeAssociation` generated from `imaging.SupportedExtensions()`. |
@@ -33,7 +33,8 @@ GitHub self-updater must not offer or apply an update there.
 ## Acceptance criteria
 
 1. The staging command emits a schema-shaped manifest with the exact Store
-   identity, x64/ARM64 architecture mapping, `1.0.<Build>.0`, Desktop targeting,
+   identity, x64/ARM64 architecture mapping, `<Major>.<Minor>.<Patch>.0` derived
+   from `FyneApp.toml`'s public version, Desktop targeting,
    `runFullTrust`, and every supported extension.
 
    ```sh
@@ -126,8 +127,9 @@ Depends: none.
 Contract: `go run ./scripts/msixstage -arch <amd64|arm64> -exe <path> -out
 <directory>` creates `AppxManifest.xml`, `picfetch.exe`, and `Assets/*.png`.
 
-Test: manifest values, version validation, architecture validation, extension
-parity, copied executable, and exact asset sizes.
+Test: manifest values, semantic-version-to-MSIX mapping and validation,
+architecture validation, extension parity, copied executable, and exact asset
+sizes.
 
 Verify: `go test ./scripts/msixstage`.
 

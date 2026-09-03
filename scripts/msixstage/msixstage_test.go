@@ -16,7 +16,7 @@ import (
 )
 
 func TestRenderManifest_UsesStoreIdentityVersionAndArchitecture(t *testing.T) {
-	manifest, err := renderManifest(appMetadata{Version: "0.2.17", Build: 440}, "amd64")
+	manifest, err := renderManifest(appMetadata{Version: "1.0.0"}, "amd64")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func TestRenderManifest_UsesStoreIdentityVersionAndArchitecture(t *testing.T) {
 	for _, want := range []string{
 		`Name="OpenSourceDeveloperFloria.PicFetch"`,
 		`Publisher="CN=D9654E56-586C-4C1E-ABC8-71CCDC33B78F"`,
-		`Version="1.0.440.0"`,
+		`Version="1.0.0.0"`,
 		`ProcessorArchitecture="x64"`,
 		`Name="Windows.Desktop"`,
 		`MinVersion="10.0.19041.0"`,
@@ -49,7 +49,7 @@ func TestRenderManifest_UsesStoreIdentityVersionAndArchitecture(t *testing.T) {
 }
 
 func TestRenderManifest_MapsArm64AndRejectsUnsupportedArchitecture(t *testing.T) {
-	manifest, err := renderManifest(appMetadata{Version: "0.2.17", Build: 440}, "arm64")
+	manifest, err := renderManifest(appMetadata{Version: "1.0.0"}, "arm64")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,13 +57,13 @@ func TestRenderManifest_MapsArm64AndRejectsUnsupportedArchitecture(t *testing.T)
 		t.Error("ARM64 manifest has no arm64 package architecture")
 	}
 
-	if _, err := renderManifest(appMetadata{Version: "0.2.17", Build: 440}, "386"); err == nil {
+	if _, err := renderManifest(appMetadata{Version: "1.0.0"}, "386"); err == nil {
 		t.Fatal("unsupported architecture was accepted")
 	}
 }
 
 func TestRenderManifest_EmitsEverySupportedImageExtension(t *testing.T) {
-	manifest, err := renderManifest(appMetadata{Version: "0.2.17", Build: 440}, "amd64")
+	manifest, err := renderManifest(appMetadata{Version: "1.0.0"}, "amd64")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,27 +76,36 @@ func TestRenderManifest_EmitsEverySupportedImageExtension(t *testing.T) {
 	}
 }
 
-func TestStoreVersion_UsesMonotonicBuildAndStoreReservedRevision(t *testing.T) {
+func TestStoreVersion_UsesSemanticVersionAndStoreReservedRevision(t *testing.T) {
 	for _, tc := range []struct {
-		build int
-		want  string
+		version string
+		want    string
 	}{
-		{1, "1.0.1.0"},
-		{440, "1.0.440.0"},
-		{65535, "1.0.65535.0"},
+		{"1.0.0", "1.0.0.0"},
+		{"1.2.3", "1.2.3.0"},
+		{"65535.65535.65535", "65535.65535.65535.0"},
 	} {
-		got, err := storeVersion(tc.build)
+		got, err := storeVersion(tc.version)
 		if err != nil {
-			t.Fatalf("storeVersion(%d): %v", tc.build, err)
+			t.Fatalf("storeVersion(%q): %v", tc.version, err)
 		}
 		if got != tc.want {
-			t.Errorf("storeVersion(%d) = %q, want %q", tc.build, got, tc.want)
+			t.Errorf("storeVersion(%q) = %q, want %q", tc.version, got, tc.want)
 		}
 	}
 
-	for _, build := range []int{0, -1, 65536} {
-		if _, err := storeVersion(build); err == nil {
-			t.Errorf("storeVersion(%d) succeeded, want error", build)
+	for _, version := range []string{
+		"0.2.17",
+		"1.2",
+		"1.2.3.4",
+		"1.2.3-beta.1",
+		"1.02.3",
+		"1.-1.0",
+		"1.65536.0",
+		"65536.0.0",
+	} {
+		if _, err := storeVersion(version); err == nil {
+			t.Errorf("storeVersion(%q) succeeded, want error", version)
 		}
 	}
 }
@@ -104,13 +113,13 @@ func TestStoreVersion_UsesMonotonicBuildAndStoreReservedRevision(t *testing.T) {
 func TestReadAppMetadata(t *testing.T) {
 	got, err := readAppMetadata(strings.NewReader(`[Details]
 Name = "PicFetch"
-Version = "0.2.17"
+Version = "1.0.0"
 Build = 440
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Version != "0.2.17" || got.Build != 440 {
+	if got.Version != "1.0.0" {
 		t.Fatalf("metadata = %+v", got)
 	}
 }
@@ -120,7 +129,7 @@ func TestStage_CopiesExecutableAndRendersAssets(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "assets"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "FyneApp.toml"), []byte("Version = \"0.2.17\"\nBuild = 440\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "FyneApp.toml"), []byte("Version = \"1.0.0\"\nBuild = 441\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	writeTestIcon(t, filepath.Join(root, "assets", "appIcon.png"))
@@ -147,7 +156,7 @@ func TestStage_CopiesExecutableAndRendersAssets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(manifest, []byte(`Version="1.0.440.0"`)) {
+	if !bytes.Contains(manifest, []byte(`Version="1.0.0.0"`)) {
 		t.Fatalf("staged manifest has wrong version:\n%s", manifest)
 	}
 

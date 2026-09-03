@@ -16,6 +16,10 @@
 
 #### Internal
 
+- Unified GitHub and Microsoft Store release versioning for the 1.0 launch:
+  `FyneApp.toml` is the single public version source, and MSIX appends only its
+  Store-reserved fourth zero component.
+
 - Reduced the measured median reusable CI gate from 22:17 to 7:52 while
   retaining Linux race coverage, native Windows tests, validation, and release
   failure gating. The final topology can use six concurrent required runners
