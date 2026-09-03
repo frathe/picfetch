@@ -18,8 +18,9 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  validation:
+    name: Validation (attempt ${{ github.run_attempt }})
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -40,6 +41,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+
+      - name: Validate UI shard manifest
+        run: make check-test-shards-direct
 
       - name: Vet
         run: go vet ./...
@@ -64,19 +68,72 @@ jobs:
         # the same reason.
         run: GOOS=windows GOARCH=amd64 go vet ./internal/...
 
-      - name: Test
-        # The runner's default locale is "C", which is not a well-formed
-        # BCP-47 tag, so Fyne logs a three-line parse fault before any test
-        # runs. Naming a real one keeps that noise out of the test output.
-        #
-        # -timeout 30m: go test defaults to 10m per package. internal/ui on
-        # ubuntu-latest already took ~9m39s before folder-sibling tests; the
-        # next commit then panicked at 10m0s while a later test was starting.
+  linux-race:
+    name: Linux race (${{ matrix.partition }}, attempt ${{ github.run_attempt }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [non-ui, ui-1, ui-2, ui-3]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install Linux GUI build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+
+      - name: Run ${{ matrix.partition }} race contract (attempt ${{ github.run_attempt }})
+        id: race
         env:
-          LANG: en_US.UTF-8
-        run: go test -timeout 30m -race ./...
+          TEST_CAPTURE: ${{ runner.temp }}/go-test-linux-race-${{ matrix.partition }}.json
+        run: |
+          case "${{ matrix.partition }}" in
+            non-ui)
+              make --no-print-directory test-race-non-ui-direct
+              ;;
+            ui-1|ui-2|ui-3)
+              make --no-print-directory test-race-ui-direct TEST_SHARD="${{ matrix.partition }}"
+              ;;
+            *)
+              echo "Unexpected Linux race partition: ${{ matrix.partition }}" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Summarize ${{ matrix.partition }} race result (attempt ${{ github.run_attempt }})
+        if: always()
+        env:
+          PARTITION: ${{ matrix.partition }}
+          RACE_OUTCOME: ${{ steps.race.outcome }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          {
+            echo "## Linux race \`$PARTITION\` (attempt \`$RUN_ATTEMPT\`)"
+            echo
+            echo "- Workflow attempt: \`$RUN_ATTEMPT\`"
+            echo "- Test step outcome: \`$RACE_OUTCOME\`"
+            echo "- Raw-event artifact: \`linux-race-$PARTITION-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ${{ matrix.partition }} raw events (attempt ${{ github.run_attempt }})
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-race-${{ matrix.partition }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-test-linux-race-${{ matrix.partition }}.json
+          if-no-files-found: error
+          retention-days: 14
 
   windows-test:
+    name: Windows tests (attempt ${{ github.run_attempt }})
     runs-on: windows-latest
     steps:
       - name: Check out code
@@ -93,8 +150,8 @@ jobs:
         # runner doesn't have by default. Not ./...: internal/ui isn't
         # excluded for lack of a display driver - it uses the same headless
         # fyne.io/fyne/v2/test driver as internal/ui/autoupdate below. It's
-        # excluded because it already costs ~9m39s on ubuntu-latest (see the
-        # Test step above) and could carry golden-master/font differences on
-        # Windows; these two packages are the file-replacement update logic,
-        # not the concurrent UI.
+        # excluded because it already costs ~9m39s in a monolithic Ubuntu run
+        # and could carry golden-master/font differences on Windows; these two
+        # packages are the file-replacement update logic, not the concurrent
+        # UI.
         run: go test ./internal/update/... ./internal/ui/autoupdate/...
