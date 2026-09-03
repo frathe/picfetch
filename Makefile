@@ -214,7 +214,7 @@ coverage: ## Generate HTML source-line coverage from the full unsharded Docker s
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
+			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
 			locale-gen $(TEST_LOCALE) >/dev/null; \
 			export LANG=$(TEST_LOCALE); \
 			rm -f "$(COVERAGE_PROFILE)" "$(COVERAGE_HTML)"; \

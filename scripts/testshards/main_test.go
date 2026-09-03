@@ -745,6 +745,7 @@ func TestMakeCoverageRunsCompleteUnshardedSuiteAndBuildsHTML(t *testing.T) {
 	output := makeDryRun(t, "coverage")
 	for _, want := range []string{
 		"docker run --rm --platform linux/amd64",
+		"apt-get install -y -qq make",
 		"locale-gen en_US.UTF-8",
 		"go test -timeout 30m -coverprofile=\"coverage/coverage.out\" ./...",
 		"go tool cover -html=\"coverage/coverage.out\" -o \"coverage/coverage.html\"",
