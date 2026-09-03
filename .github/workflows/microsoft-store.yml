@@ -116,7 +116,9 @@ jobs:
           }
           & $appcert reset
           if ($LASTEXITCODE -ne 0) { throw 'Windows App Certification Kit reset failed.' }
-          & $appcert test -appxpackagepath dist/picfetch-microsoft-store.msixbundle -reportoutputpath dist/wack-report.xml
+          $packagePath = (Resolve-Path -LiteralPath 'dist/picfetch-microsoft-store.msixbundle').Path
+          $reportPath = Join-Path (Resolve-Path -LiteralPath 'dist').Path 'wack-report.xml'
+          & $appcert test -appxpackagepath $packagePath -reportoutputpath $reportPath
           if ($LASTEXITCODE -ne 0) { throw 'Windows App Certification Kit rejected the MSIX bundle.' }
 
       - name: Upload Microsoft Store bundle and certification report

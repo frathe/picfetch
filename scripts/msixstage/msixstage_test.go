@@ -249,6 +249,8 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 		"SignTool.exe",
 		"X509Store('TrustedPeople', 'LocalMachine')",
 		"appcert test",
+		"Resolve-Path -LiteralPath 'dist/picfetch-microsoft-store.msixbundle'",
+		"Join-Path (Resolve-Path -LiteralPath 'dist').Path 'wack-report.xml'",
 		"picfetch-microsoft-store.msixbundle",
 		"wack-report.xml",
 	} {
