@@ -336,26 +336,43 @@ func translationEntryCurrent(unit translationUnit, entry TranslationCacheEntry) 
 func protectTerms(source string, terms []string, escape bool) (string, error) {
 	sortedTerms := append([]string(nil), terms...)
 	sort.SliceStable(sortedTerms, func(i, j int) bool { return len(sortedTerms[i]) > len(sortedTerms[j]) })
-	protected := source
-	placeholders := make([]string, len(sortedTerms))
 	for index, term := range sortedTerms {
 		if term == "" {
 			return "", fmt.Errorf("protected term at index %d is empty", index)
 		}
-		placeholder := fmt.Sprintf("PICFETCHPROTECTED%04dTOKEN", index)
-		if strings.Contains(source, placeholder) {
-			return "", fmt.Errorf("source contains reserved protection marker %q", placeholder)
+	}
+
+	var protected strings.Builder
+	protected.Grow(len(source))
+	writeText := func(value string) {
+		if escape {
+			protected.WriteString(stdhtml.EscapeString(value))
+			return
 		}
-		placeholders[index] = placeholder
-		protected = strings.ReplaceAll(protected, term, placeholder)
+		protected.WriteString(value)
 	}
-	if escape {
-		protected = stdhtml.EscapeString(protected)
+	plainStart := 0
+	for position := 0; position < len(source); {
+		matched := ""
+		for _, term := range sortedTerms {
+			if strings.HasPrefix(source[position:], term) {
+				matched = term
+				break
+			}
+		}
+		if matched == "" {
+			position++
+			continue
+		}
+		writeText(source[plainStart:position])
+		protected.WriteString("<keep>")
+		writeText(matched)
+		protected.WriteString("</keep>")
+		position += len(matched)
+		plainStart = position
 	}
-	for index, placeholder := range placeholders {
-		protected = strings.ReplaceAll(protected, placeholder, "<keep>"+stdhtml.EscapeString(sortedTerms[index])+"</keep>")
-	}
-	return protected, nil
+	writeText(source[plainStart:])
+	return protected.String(), nil
 }
 
 func requestTranslations(ctx context.Context, options TranslateOptions, units []translationUnit) ([]string, error) {

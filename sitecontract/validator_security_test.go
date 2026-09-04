@@ -50,33 +50,47 @@ func TestMakeUpdateDoesNotExposeDeepLCredentialToAMPValidator(t *testing.T) {
 	}
 }
 
-func TestDirectNodeTargetsDoNotInheritDeepLCredential(t *testing.T) {
+func TestDirectNodeTargetsHonorOverridesWithoutInheritingDeepLCredential(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test Node fixture uses a POSIX shell script")
 	}
 	repo := repositoryRoot(t)
 	fixtureRoot := t.TempDir()
-	fakeNode := filepath.Join(fixtureRoot, "node")
+	fakeNode := filepath.Join(fixtureRoot, "custom-node")
 	script := "#!/bin/sh\n" +
 		"if [ -n \"${DEEPL_API_KEY+x}\" ]; then\n" +
 		"  echo 'DeepL credential leaked to Node target' >&2\n" +
 		"  exit 41\n" +
-		"fi\n"
+		"fi\n" +
+		"printf 'custom Node arguments: %s\\n' \"$*\"\n"
 	if err := os.WriteFile(fakeNode, []byte(script), 0o700); err != nil {
 		t.Fatalf("write fake Node executable: %v", err)
 	}
-	environment := withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "PATH")
-	environment = append(environment,
-		"DEEPL_API_KEY="+strings.Repeat("z", 24),
-		"PATH="+fixtureRoot+string(os.PathListSeparator)+os.Getenv("PATH"),
-	)
-	for _, target := range []string{"validate-amp", "test-browser"} {
-		t.Run(target, func(t *testing.T) {
-			cmd := exec.Command("make", target)
+	environment := append(withoutEnvironment(os.Environ(), "DEEPL_API_KEY"), "DEEPL_API_KEY="+strings.Repeat("z", 24))
+	tests := []struct {
+		name         string
+		target       string
+		extraSetting string
+		wantArgument string
+	}{
+		{name: "validate AMP", target: "validate-amp", extraSetting: "AMP_VALIDATOR=custom-validator-wrapper", wantArgument: "custom-validator-wrapper"},
+		{name: "test browser", target: "test-browser", wantArgument: "site/tools/test-language.cjs"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			arguments := []string{testCase.target, "NODE=" + fakeNode}
+			if testCase.extraSetting != "" {
+				arguments = append(arguments, testCase.extraSetting)
+			}
+			cmd := exec.Command("make", arguments...)
 			cmd.Dir = repo
 			cmd.Env = environment
-			if combined, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("%s exposed a DeepL credential to Node: %v\n%s", target, err, combined)
+			combined, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("%s failed through configured Node command: %v\n%s", testCase.target, err, combined)
+			}
+			if want := "custom Node arguments: " + testCase.wantArgument; !strings.Contains(string(combined), want) {
+				t.Fatalf("%s ignored a configured command: want %q in output\n%s", testCase.target, want, combined)
 			}
 		})
 	}

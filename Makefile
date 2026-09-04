@@ -41,7 +41,7 @@ check:
 	$(MAKE) test-browser
 
 validate-amp:
-	env -u DEEPL_API_KEY node site/tools/validate-amp.cjs
+	env -u DEEPL_API_KEY "$(NODE)" "$(AMP_VALIDATOR)"
 
 test-browser:
-	env -u DEEPL_API_KEY node site/tools/test-language.cjs
+	env -u DEEPL_API_KEY "$(NODE)" site/tools/test-language.cjs

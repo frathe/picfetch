@@ -55,6 +55,12 @@ type page struct {
 }
 
 func Build(options BuildOptions) error {
+	if len(options.Locales) == 0 {
+		return fmt.Errorf("build requires at least one locale")
+	}
+	if len(options.Formats) == 0 {
+		return fmt.Errorf("build requires at least one format")
+	}
 	data, err := os.ReadFile(options.SourcePath)
 	if err != nil {
 		return fmt.Errorf("read website source %q: %w", options.SourcePath, err)

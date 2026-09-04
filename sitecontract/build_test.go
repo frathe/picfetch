@@ -40,6 +40,50 @@ func TestMakeBuildGeneratesEnglishRegularPage(t *testing.T) {
 	}
 }
 
+func TestMakeBuildRejectsEmptyLocaleOrFormatSelection(t *testing.T) {
+	tests := []struct {
+		name       string
+		locales    string
+		formats    string
+		diagnostic string
+	}{
+		{name: "locales", locales: "", formats: "regular", diagnostic: "build requires at least one locale"},
+		{name: "formats", locales: "en", formats: "", diagnostic: "build requires at least one format"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			output := t.TempDir()
+			indexPath := filepath.Join(output, "index.html")
+			prior := []byte("prior generated page\n")
+			if err := os.WriteFile(indexPath, prior, 0o600); err != nil {
+				t.Fatalf("write prior generated page: %v", err)
+			}
+
+			cmd := exec.Command("make", "build",
+				"SITE_OUTPUT_DIR="+output,
+				"SITE_LOCALES="+testCase.locales,
+				"SITE_FORMATS="+testCase.formats,
+			)
+			cmd.Dir = repo
+			combined, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("make build accepted an empty %s selection", testCase.name)
+			}
+			if !strings.Contains(string(combined), testCase.diagnostic) {
+				t.Fatalf("empty-%s diagnostic is not actionable:\n%s", testCase.name, combined)
+			}
+			after, err := os.ReadFile(indexPath)
+			if err != nil {
+				t.Fatalf("read prior generated page after rejected build: %v", err)
+			}
+			if string(after) != string(prior) {
+				t.Fatalf("rejected empty-%s build changed prior output", testCase.name)
+			}
+		})
+	}
+}
+
 func TestRegularVideoAspectRatioComesFromAuthoredDimensions(t *testing.T) {
 	repo := repositoryRoot(t)
 	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
