@@ -188,9 +188,12 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, 
 		ids := make(map[string]struct{})
 		var fragments []string
 		type localReference struct {
-			raw      string
-			path     string
-			fragment string
+			element            string
+			attribute          string
+			requireRegularFile bool
+			raw                string
+			path               string
+			fragment           string
 		}
 		var localReferences []localReference
 		var invalidURL string
@@ -201,7 +204,8 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, 
 				case "id":
 					ids[attribute.Val] = struct{}{}
 				case "href", "src":
-					if strings.HasPrefix(attribute.Val, "#") && len(attribute.Val) > 1 {
+					requireRegularFile := localReferenceRequiresRegularFile(node, attribute.Key)
+					if strings.HasPrefix(attribute.Val, "#") && len(attribute.Val) > 1 && !requireRegularFile {
 						fragments = append(fragments, attribute.Val)
 						continue
 					}
@@ -238,11 +242,14 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, 
 						}
 						continue
 					}
-					if attribute.Val != "" && parsed.Scheme == "" && parsed.Host == "" && parsed.Path != "" {
+					if attribute.Val != "" && parsed.Scheme == "" && parsed.Host == "" && (parsed.Path != "" || requireRegularFile) {
 						localReferences = append(localReferences, localReference{
-							raw:      attribute.Val,
-							path:     parsed.Path,
-							fragment: parsed.Fragment,
+							element:            node.Data,
+							attribute:          attribute.Key,
+							requireRegularFile: requireRegularFile,
+							raw:                attribute.Val,
+							path:               parsed.Path,
+							fragment:           parsed.Fragment,
 						})
 					}
 				}
@@ -257,34 +264,83 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, 
 			}
 		}
 		for _, reference := range localReferences {
-			target, err := resolveLocalPath(relative, reference.path, siteBasePath)
-			if err != nil {
-				return fmt.Errorf("broken local link %q in %s: %w", reference.raw, relative, err)
+			referenceKind := "link"
+			switch {
+			case reference.attribute == "src":
+				referenceKind = reference.element + "[src]"
+			case reference.element == "link" && reference.requireRegularFile:
+				referenceKind = "link[href]"
 			}
-			generatedExists, err := pathExistsWithoutSymlinks(generatedRoot, target)
+			if reference.requireRegularFile && reference.path == "" {
+				return fmt.Errorf("broken local %s %q in %s: regular-file URL must include a path", referenceKind, reference.raw, relative)
+			}
+			if reference.requireRegularFile && localFileURLHasDirectoryForm(reference.path) {
+				return fmt.Errorf("broken local %s %q in %s: regular-file URL must not end in a slash or dot segment", referenceKind, reference.raw, relative)
+			}
+			target, err := resolveLocalPath(relative, reference.path, siteBasePath, !reference.requireRegularFile)
 			if err != nil {
-				return fmt.Errorf("broken local link %q in %s: %w", reference.raw, relative, err)
+				return fmt.Errorf("broken local %s %q in %s: %w", referenceKind, reference.raw, relative, err)
+			}
+			resolvedTarget, generatedExists, err := resolveExistingLocalTarget(generatedRoot, target, reference.requireRegularFile)
+			if err != nil {
+				return fmt.Errorf("broken local %s %q in %s: %w", referenceKind, reference.raw, relative, err)
 			}
 			targetRoot := generatedRoot
 			targetExists := generatedExists
 			if !generatedExists {
+				deployedTarget, deployedExists, deployedErr := resolveExistingLocalTarget(deployedRoot, target, reference.requireRegularFile)
 				targetRoot = deployedRoot
-				targetExists, err = pathExistsWithoutSymlinks(deployedRoot, target)
+				targetExists = deployedExists
+				err = deployedErr
 				if err != nil {
-					return fmt.Errorf("broken local link %q in %s: %w", reference.raw, relative, err)
+					return fmt.Errorf("broken local %s %q in %s: %w", referenceKind, reference.raw, relative, err)
+				}
+				// Prefer a directory route's concrete index path in diagnostics,
+				// even if neither root contains that index yet.
+				if deployedExists || resolvedTarget == target {
+					resolvedTarget = deployedTarget
 				}
 			}
 			if !targetExists {
-				return fmt.Errorf("broken local link %q in %s: target %s does not exist", reference.raw, relative, target)
+				return fmt.Errorf("broken local %s %q in %s: target %s does not exist", referenceKind, reference.raw, relative, resolvedTarget)
 			}
 			if reference.fragment != "" {
-				if err := validateLinkedFragment(targetRoot, target, reference.fragment); err != nil {
+				if err := validateLinkedFragment(targetRoot, resolvedTarget, reference.fragment); err != nil {
 					return fmt.Errorf("%w (referenced from %s)", err, relative)
 				}
 			}
 		}
 	}
 	return nil
+}
+
+func localFileURLHasDirectoryForm(path string) bool {
+	lastSlash := strings.LastIndex(path, "/")
+	lastSegment := path[lastSlash+1:]
+	return lastSegment == "" || lastSegment == "." || lastSegment == ".."
+}
+
+func localReferenceRequiresRegularFile(node *html.Node, attribute string) bool {
+	if attribute == "src" {
+		// Frame sources are page navigations and may use directory routes;
+		// other src attributes identify file-valued resources.
+		return node.Data != "iframe" && node.Data != "frame" && node.Data != "amp-iframe"
+	}
+	if attribute != "href" || node.Data != "link" {
+		return false
+	}
+	for _, candidate := range node.Attr {
+		if candidate.Key != "rel" {
+			continue
+		}
+		for _, relationship := range strings.Fields(strings.ToLower(candidate.Val)) {
+			switch relationship {
+			case "apple-touch-icon", "apple-touch-icon-precomposed", "icon", "manifest", "mask-icon", "modulepreload", "preload", "stylesheet":
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func validateLinkedFragment(root, target, fragment string) error {
@@ -310,7 +366,7 @@ func validateLinkedFragment(root, target, fragment string) error {
 	return nil
 }
 
-func resolveLocalPath(pagePath, reference, siteBasePath string) (string, error) {
+func resolveLocalPath(pagePath, reference, siteBasePath string, resolveDirectoryRoute bool) (string, error) {
 	var target string
 	if strings.HasPrefix(reference, "/") {
 		var siteRelativeReference string
@@ -333,13 +389,17 @@ func resolveLocalPath(pagePath, reference, siteBasePath string) (string, error) 
 	if target == ".." || strings.HasPrefix(target, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("target escapes the generated site")
 	}
-	if strings.HasSuffix(reference, "/") || target == "." {
+	if resolveDirectoryRoute && (strings.HasSuffix(reference, "/") || target == ".") {
 		target = filepath.Join(target, "index.html")
 	}
 	return target, nil
 }
 
 func pathExistsWithoutSymlinks(root, relative string) (bool, error) {
+	return localTargetExists(root, relative, false)
+}
+
+func localTargetExists(root, relative string, requireRegularFile bool) (bool, error) {
 	openedRoot, err := openSecureReadRoot(root)
 	if err != nil {
 		return false, err
@@ -348,14 +408,54 @@ func pathExistsWithoutSymlinks(root, relative string) (bool, error) {
 	if err := openedRoot.validateRelativePath(relative); err != nil {
 		return false, fmt.Errorf("local-link target %q: %w", relative, err)
 	}
-	_, err = openedRoot.handle.Lstat(relative)
+	info, err := openedRoot.handle.Lstat(relative)
 	if os.IsNotExist(err) {
 		return false, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("inspect local-link target %q: %w", relative, err)
 	}
+	if requireRegularFile && !info.Mode().IsRegular() {
+		return false, fmt.Errorf("target %s is not a regular file", filepath.ToSlash(relative))
+	}
 	return true, nil
+}
+
+func resolveExistingLocalTarget(root, relative string, requireRegularFile bool) (string, bool, error) {
+	openedRoot, err := openSecureReadRoot(root)
+	if err != nil {
+		return relative, false, err
+	}
+	defer func() { _ = openedRoot.handle.Close() }()
+	if err := openedRoot.validateRelativePath(relative); err != nil {
+		return relative, false, fmt.Errorf("local-link target %q: %w", relative, err)
+	}
+	info, err := openedRoot.handle.Lstat(relative)
+	if os.IsNotExist(err) {
+		return relative, false, nil
+	}
+	if err != nil {
+		return relative, false, fmt.Errorf("inspect local-link target %q: %w", relative, err)
+	}
+
+	resolved := relative
+	if info.IsDir() && !requireRegularFile {
+		resolved = filepath.Join(relative, "index.html")
+		if err := openedRoot.validateRelativePath(resolved); err != nil {
+			return resolved, false, fmt.Errorf("local-link target %q: %w", resolved, err)
+		}
+		info, err = openedRoot.handle.Lstat(resolved)
+		if os.IsNotExist(err) {
+			return resolved, false, nil
+		}
+		if err != nil {
+			return resolved, false, fmt.Errorf("inspect local-link target %q: %w", resolved, err)
+		}
+	}
+	if !info.Mode().IsRegular() {
+		return resolved, false, fmt.Errorf("target %s is not a regular file", filepath.ToSlash(resolved))
+	}
+	return resolved, true, nil
 }
 
 func readFileWithoutSymlinks(root, relative string) ([]byte, error) {

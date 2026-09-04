@@ -625,7 +625,7 @@ func marshalDeepLRequest(units []translationUnit) ([]byte, error) {
 		SourceLang:         "EN",
 		TagHandling:        "html",
 		TagHandlingVersion: "v2",
-		IgnoreTags:         []string{"keep", "code", "kbd"},
+		IgnoreTags:         []string{"keep", "pre", "code", "kbd"},
 	}
 	for index, unit := range units {
 		payload.Text[index] = unit.RequestHTML
@@ -727,14 +727,14 @@ func validateOpaqueContent(unit translationUnit, translated string) error {
 	if unit.Format == "html" {
 		expectedOpaque, err := opaqueMarkdownSubtrees(expected)
 		if err != nil {
-			return fmt.Errorf("inspect protected code or keyboard content in source %s: %w", unit.ID, err)
+			return fmt.Errorf("inspect protected code or keyboard content, including preformatted blocks, in source %s: %w", unit.ID, err)
 		}
 		actualOpaque, err := opaqueMarkdownSubtrees(actual)
 		if err != nil {
-			return fmt.Errorf("inspect protected code or keyboard content in translation %s: %w", unit.ID, err)
+			return fmt.Errorf("inspect protected code or keyboard content, including preformatted blocks, in translation %s: %w", unit.ID, err)
 		}
 		if !slices.Equal(expectedOpaque, actualOpaque) {
-			return fmt.Errorf("translation changed protected code or keyboard content in %s", unit.ID)
+			return fmt.Errorf("translation changed protected code or keyboard content, including a preformatted block, in %s", unit.ID)
 		}
 		expectedURLs, err := opaqueMarkdownURLBindings(expected)
 		if err != nil {
@@ -814,7 +814,7 @@ func opaqueMarkdownSubtrees(value string) ([]string, error) {
 	var subtrees []string
 	var visit func(*xhtml.Node) error
 	visit = func(node *xhtml.Node) error {
-		if node.Type == xhtml.ElementNode && (node.Data == "code" || node.Data == "kbd") {
+		if node.Type == xhtml.ElementNode && opaqueMarkdownElement(node.Data) {
 			var rendered bytes.Buffer
 			if err := xhtml.Render(&rendered, node); err != nil {
 				return err
@@ -835,6 +835,10 @@ func opaqueMarkdownSubtrees(value string) ([]string, error) {
 		}
 	}
 	return subtrees, nil
+}
+
+func opaqueMarkdownElement(name string) bool {
+	return name == "pre" || name == "code" || name == "kbd"
 }
 
 type opaqueMarkdownURLBinding struct {
@@ -926,18 +930,20 @@ func inspectTranslatableHTML(value string, retainProtection bool) (translatableH
 		switch tokenType {
 		case xhtml.StartTagToken:
 			token := tokenizer.Token()
-			for _, attribute := range token.Attr {
-				if attribute.Namespace == "" && attribute.Key == "title" {
-					appendAttribute(attribute.Val)
+			if opaqueMarkdownElement(token.Data) {
+				if ignoredDepth == 0 {
+					separate()
 				}
-			}
-			if token.Data == "code" || token.Data == "kbd" {
-				separate()
 				ignoredDepth++
 				continue
 			}
 			if ignoredDepth > 0 {
 				continue
+			}
+			for _, attribute := range token.Attr {
+				if attribute.Namespace == "" && attribute.Key == "title" {
+					appendAttribute(attribute.Val)
+				}
 			}
 			if retainProtection && token.Data == "keep" {
 				text.WriteString("<keep>")
@@ -946,11 +952,13 @@ func inspectTranslatableHTML(value string, retainProtection bool) (translatableH
 			}
 		case xhtml.EndTagToken:
 			token := tokenizer.Token()
-			if token.Data == "code" || token.Data == "kbd" {
+			if opaqueMarkdownElement(token.Data) {
 				if ignoredDepth > 0 {
 					ignoredDepth--
 				}
-				separate()
+				if ignoredDepth == 0 {
+					separate()
+				}
 				continue
 			}
 			if ignoredDepth > 0 {
@@ -963,12 +971,12 @@ func inspectTranslatableHTML(value string, retainProtection bool) (translatableH
 			}
 		case xhtml.SelfClosingTagToken:
 			token := tokenizer.Token()
-			for _, attribute := range token.Attr {
-				if attribute.Namespace == "" && attribute.Key == "title" {
-					appendAttribute(attribute.Val)
-				}
-			}
 			if ignoredDepth == 0 {
+				for _, attribute := range token.Attr {
+					if attribute.Namespace == "" && attribute.Key == "title" {
+						appendAttribute(attribute.Val)
+					}
+				}
 				separate()
 			}
 		case xhtml.CommentToken, xhtml.DoctypeToken:
@@ -999,6 +1007,9 @@ func validateCachedTranslation(unit translationUnit, translated string, legacyRe
 		}
 		translated, err = validateMarkdownLinkBindings(unit, translated, legacyRequest)
 		if err != nil {
+			return "", err
+		}
+		if err := validateMarkdownStructure(unit, translated); err != nil {
 			return "", err
 		}
 	} else if !hasVisibleText(translated) {

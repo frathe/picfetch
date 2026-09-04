@@ -174,6 +174,280 @@ func TestCheckGeneratedRejectsMissingLocalAsset(t *testing.T) {
 	}
 }
 
+func TestCheckGeneratedRejectsLocalAssetDirectory(t *testing.T) {
+	for _, testCase := range []struct {
+		source     string
+		diagnostic string
+	}{
+		{source: "/picfetch/de", diagnostic: "target de is not a regular file"},
+		{source: "/picfetch/de/", diagnostic: "regular-file URL must not end in a slash or dot segment"},
+	} {
+		t.Run(testCase.source, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			cachePath := createControlledGermanCache(t, repo)
+			templates := copyTemplateDirectory(t, repo)
+			regularPath := filepath.Join(templates, "regular.html.tmpl")
+			regular, err := os.ReadFile(regularPath)
+			if err != nil {
+				t.Fatalf("read copied regular template: %v", err)
+			}
+			broken := strings.Replace(string(regular), "https://player.vimeo.com/api/player.js", testCase.source, 1)
+			if broken == string(regular) {
+				t.Fatal("test setup did not create a directory-valued local asset reference")
+			}
+			if err := os.WriteFile(regularPath, []byte(broken), 0o600); err != nil {
+				t.Fatalf("write template with directory-valued local asset reference: %v", err)
+			}
+
+			output := t.TempDir()
+			build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			build.Dir = repo
+			if combined, err := build.CombinedOutput(); err != nil {
+				t.Fatalf("prepare generated site with directory-valued local asset reference: %v\n%s", err, combined)
+			}
+			writeStaticSiteFiles(t, output)
+
+			check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			check.Dir = repo
+			combined, err := check.CombinedOutput()
+			if err == nil {
+				t.Fatal("check-generated accepted a local src whose target is a directory")
+			}
+			if !strings.Contains(string(combined), `broken local script[src] "`+testCase.source+`"`) || !strings.Contains(string(combined), testCase.diagnostic) {
+				t.Fatalf("directory-valued-local-asset diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
+func TestCheckGeneratedRejectsLocalLinkAssetDirectory(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	output := t.TempDir()
+	build := exec.Command("make", "build", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	build.Dir = repo
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("prepare generated site: %v\n%s", err, combined)
+	}
+	if err := os.WriteFile(filepath.Join(output, "favicon.ico"), []byte("test icon"), 0o600); err != nil {
+		t.Fatalf("write static favicon: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(output, "manifest.json"), 0o755); err != nil {
+		t.Fatalf("create directory in place of local manifest: %v", err)
+	}
+
+	check := exec.Command("make", "check-generated", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	check.Dir = repo
+	combined, err := check.CombinedOutput()
+	if err == nil {
+		t.Fatal("check-generated accepted a local link asset whose target is a directory")
+	}
+	if !strings.Contains(string(combined), "broken local link[href]") || !strings.Contains(string(combined), "target manifest.json is not a regular file") {
+		t.Fatalf("directory-valued-local-link-asset diagnostic is not actionable:\n%s", combined)
+	}
+}
+
+func TestCheckGeneratedRejectsTrailingSlashOnLocalFileReference(t *testing.T) {
+	for _, suffix := range []string{"/", "/."} {
+		t.Run(suffix, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			cachePath := createControlledGermanCache(t, repo)
+			templates := copyTemplateDirectory(t, repo)
+			regularPath := filepath.Join(templates, "regular.html.tmpl")
+			regular, err := os.ReadFile(regularPath)
+			if err != nil {
+				t.Fatalf("read copied regular template: %v", err)
+			}
+			broken := strings.Replace(string(regular), `{{.LocalPrefix}}manifest.json`, `{{.LocalPrefix}}manifest.json`+suffix, 1)
+			if broken == string(regular) {
+				t.Fatal("test setup did not add directory syntax to a local file reference")
+			}
+			if err := os.WriteFile(regularPath, []byte(broken), 0o600); err != nil {
+				t.Fatalf("write template with directory-form local file reference: %v", err)
+			}
+
+			output := t.TempDir()
+			build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			build.Dir = repo
+			if combined, err := build.CombinedOutput(); err != nil {
+				t.Fatalf("prepare generated site: %v\n%s", err, combined)
+			}
+			writeStaticSiteFiles(t, output)
+
+			check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			check.Dir = repo
+			combined, err := check.CombinedOutput()
+			if err == nil {
+				t.Fatal("check-generated accepted directory syntax on a local file reference")
+			}
+			if !strings.Contains(string(combined), "broken local link[href]") || !strings.Contains(string(combined), "regular-file URL must not end in a slash or dot segment") {
+				t.Fatalf("directory-form-local-file diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
+func TestCheckGeneratedRejectsPathlessLocalFileReference(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		old  string
+		bad  string
+		kind string
+	}{
+		{name: "src fragment", old: "https://player.vimeo.com/api/player.js", bad: "#downloads", kind: "script[src]"},
+		{name: "manifest query", old: `{{.LocalPrefix}}manifest.json`, bad: "?v=1", kind: "link[href]"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			cachePath := createControlledGermanCache(t, repo)
+			templates := copyTemplateDirectory(t, repo)
+			regularPath := filepath.Join(templates, "regular.html.tmpl")
+			regular, err := os.ReadFile(regularPath)
+			if err != nil {
+				t.Fatalf("read copied regular template: %v", err)
+			}
+			broken := strings.Replace(string(regular), testCase.old, testCase.bad, 1)
+			if broken == string(regular) {
+				t.Fatal("test setup did not create a pathless local file reference")
+			}
+			if err := os.WriteFile(regularPath, []byte(broken), 0o600); err != nil {
+				t.Fatalf("write template with pathless local file reference: %v", err)
+			}
+
+			output := t.TempDir()
+			build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			build.Dir = repo
+			if combined, err := build.CombinedOutput(); err != nil {
+				t.Fatalf("prepare generated site: %v\n%s", err, combined)
+			}
+			writeStaticSiteFiles(t, output)
+
+			check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			check.Dir = repo
+			combined, err := check.CombinedOutput()
+			if err == nil {
+				t.Fatal("check-generated accepted a pathless local file reference")
+			}
+			if !strings.Contains(string(combined), "broken local "+testCase.kind) || !strings.Contains(string(combined), "regular-file URL must include a path") {
+				t.Fatalf("pathless-local-file diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
+func TestCheckGeneratedAllowsLocalHrefDirectoryRoute(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	templates := copyTemplateDirectory(t, repo)
+	regularPath := filepath.Join(templates, "regular.html.tmpl")
+	regular, err := os.ReadFile(regularPath)
+	if err != nil {
+		t.Fatalf("read copied regular template: %v", err)
+	}
+	withDirectoryRoute := strings.Replace(
+		string(regular),
+		`{{range .LanguageLinks}}<a href="{{.URL}}"`,
+		`{{range .LanguageLinks}}<a href="/picfetch/de"`,
+		1,
+	)
+	if withDirectoryRoute == string(regular) {
+		t.Fatal("test setup did not create a directory-valued local page link")
+	}
+	if err := os.WriteFile(regularPath, []byte(withDirectoryRoute), 0o600); err != nil {
+		t.Fatalf("write template with directory-valued local page link: %v", err)
+	}
+
+	output := t.TempDir()
+	build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	build.Dir = repo
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("prepare generated site with directory-valued local page link: %v\n%s", err, combined)
+	}
+	writeStaticSiteFiles(t, output)
+
+	check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	check.Dir = repo
+	if combined, err := check.CombinedOutput(); err != nil {
+		t.Fatalf("check-generated rejected a valid local href directory route: %v\n%s", err, combined)
+	}
+}
+
+func TestCheckGeneratedAllowsLocalIframeDirectoryRoute(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	templates := copyTemplateDirectory(t, repo)
+	regularPath := filepath.Join(templates, "regular.html.tmpl")
+	regular, err := os.ReadFile(regularPath)
+	if err != nil {
+		t.Fatalf("read copied regular template: %v", err)
+	}
+	withDirectoryRoute := strings.Replace(string(regular), `src="{{.Video.RegularURL}}"`, `src="/picfetch/de"`, 1)
+	if withDirectoryRoute == string(regular) {
+		t.Fatal("test setup did not create a directory-valued local iframe route")
+	}
+	if err := os.WriteFile(regularPath, []byte(withDirectoryRoute), 0o600); err != nil {
+		t.Fatalf("write template with directory-valued iframe route: %v", err)
+	}
+
+	output := t.TempDir()
+	build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	build.Dir = repo
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("prepare generated site with directory-valued iframe route: %v\n%s", err, combined)
+	}
+	writeStaticSiteFiles(t, output)
+
+	check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	check.Dir = repo
+	if combined, err := check.CombinedOutput(); err != nil {
+		t.Fatalf("check-generated rejected a valid local iframe directory route: %v\n%s", err, combined)
+	}
+}
+
+func TestCheckGeneratedRejectsDirectoryRouteWithoutIndex(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	templates := copyTemplateDirectory(t, repo)
+	regularPath := filepath.Join(templates, "regular.html.tmpl")
+	regular, err := os.ReadFile(regularPath)
+	if err != nil {
+		t.Fatalf("read copied regular template: %v", err)
+	}
+	withEmptyDirectoryRoute := strings.Replace(
+		string(regular),
+		`{{range .LanguageLinks}}<a href="{{.URL}}"`,
+		`{{range .LanguageLinks}}<a href="/picfetch/empty"`,
+		1,
+	)
+	if withEmptyDirectoryRoute == string(regular) {
+		t.Fatal("test setup did not create a local page link to an empty directory")
+	}
+	if err := os.WriteFile(regularPath, []byte(withEmptyDirectoryRoute), 0o600); err != nil {
+		t.Fatalf("write template with empty-directory route: %v", err)
+	}
+
+	output := t.TempDir()
+	build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	build.Dir = repo
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("prepare generated site with empty-directory route: %v\n%s", err, combined)
+	}
+	writeStaticSiteFiles(t, output)
+	if err := os.Mkdir(filepath.Join(output, "empty"), 0o755); err != nil {
+		t.Fatalf("create empty route directory: %v", err)
+	}
+
+	check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	check.Dir = repo
+	combined, err := check.CombinedOutput()
+	if err == nil {
+		t.Fatal("check-generated accepted a directory route without an index page")
+	}
+	if !strings.Contains(string(combined), `broken local link "/picfetch/empty"`) || !strings.Contains(string(combined), "target empty/index.html does not exist") {
+		t.Fatalf("empty-directory-route diagnostic is not actionable:\n%s", combined)
+	}
+}
+
 func TestCheckGeneratedRejectsMalformedExternalURL(t *testing.T) {
 	repo := repositoryRoot(t)
 	cachePath := createControlledGermanCache(t, repo)

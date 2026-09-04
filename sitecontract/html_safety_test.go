@@ -92,7 +92,7 @@ func TestMakeBuildRejectsUnsafeHTMLInGermanCache(t *testing.T) {
 	}
 }
 
-func TestMakeBuildCanonicalizesParserRepairedGermanHTML(t *testing.T) {
+func TestMakeBuildCanonicalizesStructurallyEquivalentParserRepairedGermanHTML(t *testing.T) {
 	repo := repositoryRoot(t)
 	cachePath := createControlledGermanCache(t, repo)
 	type entry struct {
@@ -114,7 +114,7 @@ func TestMakeBuildCanonicalizesParserRepairedGermanHTML(t *testing.T) {
 		t.Fatalf("parse controlled cache: %v", err)
 	}
 	repaired := cache.Entries["hero.tagline"]
-	repaired.Text = `</div><p>Repaired text</p><strong>closed by parser`
+	repaired.Text = `<p>Repaired text`
 	cache.Entries["hero.tagline"] = repaired
 	data, err = json.MarshalIndent(cache, "", "  ")
 	if err != nil {
@@ -141,10 +141,10 @@ func TestMakeBuildCanonicalizesParserRepairedGermanHTML(t *testing.T) {
 		t.Fatalf("read generated German page: %v", err)
 	}
 	html := string(page)
-	if !strings.Contains(html, `<div class="tagline"><p>Repaired text</p><strong>closed by parser</strong></div>`) {
+	if !strings.Contains(html, `<div class="tagline"><p>Repaired text</p></div>`) {
 		t.Fatalf("generated page did not contain canonical repaired HTML:\n%s", html)
 	}
-	if strings.Contains(html, `</div><p>Repaired text`) {
+	if strings.Contains(html, `<p>Repaired text</div>`) {
 		t.Fatal("generated page emitted the unvalidated cache bytes")
 	}
 }

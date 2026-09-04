@@ -83,7 +83,7 @@ func TestMakeTranslateUsesDeepLContractAndWritesCache(t *testing.T) {
 		for _, tag := range request.IgnoreTags {
 			ignoreTags[tag] = true
 		}
-		for _, tag := range []string{"keep", "code", "kbd"} {
+		for _, tag := range []string{"keep", "pre", "code", "kbd"} {
 			if !ignoreTags[tag] {
 				requestError = "ignore_tags must contain " + tag
 			}
