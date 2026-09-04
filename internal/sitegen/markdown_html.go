@@ -207,7 +207,7 @@ func validateMarkdownLink(raw string) error {
 	if err != nil {
 		return fmt.Errorf("link %q is invalid: %w", raw, err)
 	}
-	if parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.Fragment != "" {
+	if parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.RawQuery == "" && !parsed.ForceQuery && parsed.Fragment != "" {
 		return nil
 	}
 	if parsed.Scheme != "https" {

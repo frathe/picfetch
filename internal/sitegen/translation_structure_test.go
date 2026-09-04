@@ -37,6 +37,16 @@ func TestValidateCachedTranslationRejectsMarkdownStructureChanges(t *testing.T) 
 			source:     `<p>First</p><p>Second</p>`,
 			translated: `<p></p><p>Erste und zweite</p>`,
 		},
+		{
+			name:       "deleted direct text before inline element",
+			source:     `<p>Delete me <strong>keep</strong></p>`,
+			translated: `<p><strong>behalten</strong></p>`,
+		},
+		{
+			name:       "moved direct text across inline element",
+			source:     `<p><strong>Keep</strong> move me</p>`,
+			translated: `<p>Verschoben <strong>behalten</strong></p>`,
+		},
 	}
 
 	for _, testCase := range tests {
@@ -54,12 +64,35 @@ func TestValidateCachedTranslationRejectsMarkdownStructureChanges(t *testing.T) 
 }
 
 func TestValidateCachedTranslationAllowsTextChangesWithinMarkdownStructure(t *testing.T) {
-	const source = `<ol start="3"><li value="4"><strong>First</strong></li><li>Second</li></ol>`
-	const translated = `<ol start="3"><li value="4"><strong>Erste</strong></li><li>Zweite</li></ol>`
-	unit := newTranslationUnit("test.markdown", source, "html", source, nil)
+	tests := []struct {
+		name       string
+		source     string
+		translated string
+	}{
+		{
+			name:       "arbitrary translated text",
+			source:     `<ol start="3"><li value="4"><strong>First</strong></li><li>Second</li></ol>`,
+			translated: `<ol start="3"><li value="4"><strong>Vollstaendig anders</strong></li><li>Neu formuliert</li></ol>`,
+		},
+		{
+			name:       "visible text remains beside inline child",
+			source:     `<p>Before <strong>bold</strong> after</p>`,
+			translated: "<p>\nVorher\t<strong>fett</strong> danach\n</p>",
+		},
+		{
+			name:       "whitespace-only adjacency is insignificant",
+			source:     `<p><em>First</em>   <strong>Second</strong></p>`,
+			translated: "<p>\n<em>Erste</em><strong>Zweite</strong>\n</p>",
+		},
+	}
 
-	if _, err := validateCachedTranslation(unit, translated, false); err != nil {
-		t.Fatalf("validateCachedTranslation rejected translated text with unchanged structure: %v", err)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			unit := newTranslationUnit("test.markdown", testCase.source, "html", testCase.source, nil)
+			if _, err := validateCachedTranslation(unit, testCase.translated, false); err != nil {
+				t.Fatalf("validateCachedTranslation rejected translated text with unchanged structure: %v", err)
+			}
+		})
 	}
 }
 

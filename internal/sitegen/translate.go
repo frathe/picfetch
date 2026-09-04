@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
@@ -29,6 +30,7 @@ import (
 
 const translationCacheVersion = 1
 const maxDeepLRequestBytes = 96 << 10
+const maxDeepLResponseBytes = 8 << 20
 const maxDeepLTextsPerRequest = 50
 
 type TranslateOptions struct {
@@ -662,8 +664,18 @@ func requestTranslationBatch(ctx context.Context, options TranslateOptions, endp
 		_, _ = io.Copy(io.Discard, response.Body)
 		return nil, deepLStatusError(response.StatusCode)
 	}
+	responseBody, err := io.ReadAll(io.LimitReader(response.Body, maxDeepLResponseBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read DeepL response: %w", err)
+	}
+	if len(responseBody) > maxDeepLResponseBytes {
+		return nil, fmt.Errorf("DeepL response exceeds %d MiB limit", maxDeepLResponseBytes>>20)
+	}
+	if !utf8.Valid(responseBody) {
+		return nil, fmt.Errorf("DeepL returned invalid UTF-8")
+	}
 	var decoded deepLResponse
-	decoder := json.NewDecoder(io.LimitReader(response.Body, 8<<20))
+	decoder := json.NewDecoder(bytes.NewReader(responseBody))
 	if err := decoder.Decode(&decoded); err != nil {
 		return nil, fmt.Errorf("DeepL returned malformed JSON: %w", err)
 	}

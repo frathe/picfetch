@@ -25,6 +25,7 @@ const (
 	markdownStructureAttribute
 	markdownStructureElementEnd
 	markdownStructureBoundLink
+	markdownStructureVisibleText
 )
 
 func validateMarkdownStructure(unit translationUnit, translated string) error {
@@ -61,7 +62,14 @@ func markdownStructureSignature(value string, boundMarkers map[string]struct{}) 
 	var visit func(*xhtml.Node, *[]markdownStructureToken, bool) bool
 	visit = func(node *xhtml.Node, tokens *[]markdownStructureToken, captureBoundLink bool) bool {
 		if node.Type == xhtml.TextNode {
-			return hasVisibleText(node.Data)
+			visible := hasVisibleText(node.Data)
+			if visible {
+				// The words may change, but retaining their position relative to
+				// inline children prevents text from silently leaving a link or
+				// emphasized span while keeping the same element skeleton.
+				*tokens = append(*tokens, markdownStructureToken{Kind: markdownStructureVisibleText})
+			}
+			return visible
 		}
 		if node.Type != xhtml.ElementNode {
 			return false

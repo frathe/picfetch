@@ -80,6 +80,46 @@ func TestCheckGeneratedRejectsBrokenInternalAnchor(t *testing.T) {
 	}
 }
 
+func TestCheckGeneratedRejectsBrokenQueryBearingInternalAnchor(t *testing.T) {
+	for _, href := range []string{"?preview=1#missing", "?#missing"} {
+		t.Run(href, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			cachePath := createControlledGermanCache(t, repo)
+			templates := copyTemplateDirectory(t, repo)
+			regularPath := filepath.Join(templates, "regular.html.tmpl")
+			regular, err := os.ReadFile(regularPath)
+			if err != nil {
+				t.Fatalf("read copied regular template: %v", err)
+			}
+			broken := strings.Replace(string(regular), `href="{{.URL}}"`, `href="`+href+`"`, 1)
+			if broken == string(regular) {
+				t.Fatal("test setup did not create a broken query-bearing internal anchor")
+			}
+			if err := os.WriteFile(regularPath, []byte(broken), 0o600); err != nil {
+				t.Fatalf("write template with query-bearing internal anchor: %v", err)
+			}
+
+			output := t.TempDir()
+			build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			build.Dir = repo
+			if combined, err := build.CombinedOutput(); err != nil {
+				t.Fatalf("prepare generated site with query-bearing internal anchor: %v\n%s", err, combined)
+			}
+			writeStaticSiteFiles(t, output)
+
+			check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			check.Dir = repo
+			combined, err := check.CombinedOutput()
+			if err == nil {
+				t.Fatalf("check-generated accepted broken query-bearing internal anchor %q", href)
+			}
+			if !strings.Contains(string(combined), "broken internal anchor #missing") {
+				t.Fatalf("query-bearing-internal-anchor diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
 func TestCheckGeneratedRejectsBrokenAnchorOnLinkedPage(t *testing.T) {
 	repo := repositoryRoot(t)
 	cachePath := createControlledGermanCache(t, repo)

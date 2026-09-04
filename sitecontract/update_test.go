@@ -170,7 +170,7 @@ func echoingDeepLServer(t *testing.T) *httptest.Server {
 		}
 		translations := make([]map[string]string, len(payload.Text))
 		for index, source := range payload.Text {
-			translations[index] = map[string]string{"text": "Deutsch: " + source}
+			translations[index] = map[string]string{"text": prefixPlainTextTranslation("Deutsch: ", source)}
 		}
 		if err := json.NewEncoder(response).Encode(map[string]any{"translations": translations}); err != nil {
 			t.Errorf("write fake DeepL response: %v", err)

@@ -102,7 +102,7 @@ func TestMakeTranslateUsesDeepLContractAndWritesCache(t *testing.T) {
 			}
 			translations[index] = map[string]string{
 				"detected_source_language": "EN",
-				"text":                     fmt.Sprintf("German translation %d: %s", index, text),
+				"text":                     prefixPlainTextTranslation(fmt.Sprintf("German translation %d: ", index), text),
 			}
 		}
 		response := map[string]any{"translations": translations}

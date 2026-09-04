@@ -205,10 +205,6 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, 
 					ids[attribute.Val] = struct{}{}
 				case "href", "src":
 					requireRegularFile := localReferenceRequiresRegularFile(node, attribute.Key)
-					if strings.HasPrefix(attribute.Val, "#") && len(attribute.Val) > 1 && !requireRegularFile {
-						fragments = append(fragments, attribute.Val)
-						continue
-					}
 					parsed, parseErr := url.Parse(attribute.Val)
 					if parseErr != nil {
 						if invalidURL == "" {
@@ -240,6 +236,10 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, 
 							invalidURL = attribute.Val
 							invalidURLReason = "invalid external URL"
 						}
+						continue
+					}
+					if !requireRegularFile && parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.Fragment != "" {
+						fragments = append(fragments, "#"+parsed.Fragment)
 						continue
 					}
 					if attribute.Val != "" && parsed.Scheme == "" && parsed.Host == "" && (parsed.Path != "" || requireRegularFile) {

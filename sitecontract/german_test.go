@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	xhtml "golang.org/x/net/html"
 )
 
 func TestMakeBuildGeneratesGermanRegularFromCurrentCache(t *testing.T) {
@@ -126,7 +128,7 @@ func createControlledGermanCacheForSource(t *testing.T, repo, sourcePath string)
 		}
 		translations := make([]map[string]string, len(payload.Text))
 		for index, text := range payload.Text {
-			translations[index] = map[string]string{"text": "Deutsch: " + text}
+			translations[index] = map[string]string{"text": prefixPlainTextTranslation("Deutsch: ", text)}
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"translations": translations})
 	}))
@@ -141,4 +143,28 @@ func createControlledGermanCacheForSource(t *testing.T, repo, sourcePath string)
 		t.Fatalf("create controlled German cache: %v\n%s", err, combined)
 	}
 	return cachePath
+}
+
+// prefixPlainTextTranslation gives controlled text units an observable fake
+// translation without changing the root or text-slot structure of rendered
+// Markdown HTML. Plain-text requests may contain <keep> protection elements,
+// so the first significant token—not merely the presence of markup—identifies
+// the request shape.
+func prefixPlainTextTranslation(prefix, source string) string {
+	tokenizer := xhtml.NewTokenizer(strings.NewReader(source))
+	for {
+		switch tokenizer.Next() {
+		case xhtml.ErrorToken:
+			return prefix + source
+		case xhtml.TextToken:
+			if strings.TrimSpace(tokenizer.Token().Data) != "" {
+				return prefix + source
+			}
+		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
+			if tokenizer.Token().Data == "keep" {
+				return prefix + source
+			}
+			return source
+		}
+	}
 }

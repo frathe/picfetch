@@ -135,6 +135,121 @@ func TestMakeTranslateRejectsMalformedResponseWithoutTouchingCache(t *testing.T)
 	}
 }
 
+func TestMakeTranslateRejectsInvalidUTF8ResponseWithoutTouchingCache(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := filepath.Join(t.TempDir(), "de.json")
+	prior := []byte("{\n  \"version\": 1,\n  \"locale\": \"de\",\n  \"entries\": {}\n}\n")
+	if err := os.WriteFile(cachePath, prior, 0o600); err != nil {
+		t.Fatalf("write prior translation cache: %v", err)
+	}
+
+	var injected atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload struct {
+			Text []string `json:"text"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			http.Error(response, "bad request", http.StatusBadRequest)
+			return
+		}
+		_, _ = response.Write([]byte(`{"translations":[`))
+		for index, text := range payload.Text {
+			if index > 0 {
+				_, _ = response.Write([]byte(","))
+			}
+			encoded, err := json.Marshal(text)
+			if err != nil {
+				t.Errorf("encode fake translation: %v", err)
+				return
+			}
+			if text == "Close" {
+				encoded = append(encoded[:len(encoded)-1], 0xff, '"')
+				injected.Store(true)
+			}
+			_, _ = response.Write([]byte(`{"text":`))
+			_, _ = response.Write(encoded)
+			_, _ = response.Write([]byte("}"))
+		}
+		_, _ = response.Write([]byte(`]}`))
+	}))
+	defer server.Close()
+
+	cmd := exec.Command("make", "translate", "SITE_TRANSLATIONS="+cachePath)
+	cmd.Dir = repo
+	cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+	cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("u", 24), "DEEPL_API_URL="+server.URL)
+	combined, err := cmd.CombinedOutput()
+	if !injected.Load() {
+		t.Fatal("fake DeepL response did not inject invalid UTF-8")
+	}
+	if err == nil {
+		t.Fatal("make translate accepted a DeepL response containing invalid UTF-8")
+	}
+	if !strings.Contains(string(combined), "invalid UTF-8") {
+		t.Fatalf("invalid-UTF-8 diagnostic is not actionable:\n%s", combined)
+	}
+	assertFileBytes(t, cachePath, prior)
+}
+
+func TestMakeTranslateRejectsOversizedResponseWithoutTouchingCache(t *testing.T) {
+	const maxResponseBytes = 8 << 20
+	repo := repositoryRoot(t)
+	cachePath := filepath.Join(t.TempDir(), "de.json")
+	prior := []byte("{\n  \"version\": 1,\n  \"locale\": \"de\",\n  \"entries\": {}\n}\n")
+	if err := os.WriteFile(cachePath, prior, 0o600); err != nil {
+		t.Fatalf("write prior translation cache: %v", err)
+	}
+
+	var sentOversized atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload struct {
+			Text []string `json:"text"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			http.Error(response, "bad request", http.StatusBadRequest)
+			return
+		}
+		translations := make([]map[string]string, len(payload.Text))
+		for index, text := range payload.Text {
+			translations[index] = map[string]string{"text": text}
+		}
+		encoded, err := json.Marshal(map[string]any{"translations": translations})
+		if err != nil {
+			t.Errorf("encode fake response: %v", err)
+			return
+		}
+		if len(encoded) >= maxResponseBytes {
+			t.Errorf("fake response is too large to pad to the boundary: %d bytes", len(encoded))
+			return
+		}
+		body := make([]byte, maxResponseBytes+1)
+		copy(body, encoded)
+		for index := len(encoded); index < maxResponseBytes; index++ {
+			body[index] = ' '
+		}
+		body[maxResponseBytes] = 'x'
+		sentOversized.Store(true)
+		_, _ = response.Write(body)
+	}))
+	defer server.Close()
+
+	cmd := exec.Command("make", "translate", "SITE_TRANSLATIONS="+cachePath)
+	cmd.Dir = repo
+	cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+	cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("o", 24), "DEEPL_API_URL="+server.URL)
+	combined, err := cmd.CombinedOutput()
+	if !sentOversized.Load() {
+		t.Fatal("fake DeepL server did not send an oversized response")
+	}
+	if err == nil {
+		t.Fatal("make translate accepted a DeepL response larger than 8 MiB")
+	}
+	if !strings.Contains(string(combined), "exceeds 8 MiB limit") {
+		t.Fatalf("oversized-response diagnostic is not actionable:\n%s", combined)
+	}
+	assertFileBytes(t, cachePath, prior)
+}
+
 func TestMakeTranslateRejectsVisiblyEmptyContentWithoutTouchingCache(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -147,7 +147,7 @@ func TestMakeTranslateHandlesProtectedTermsThatOccurInInternalMarkerNames(t *tes
 				sawWrappedTerms = true
 				mu.Unlock()
 			}
-			translations[index] = map[string]string{"text": "Deutsch: " + text}
+			translations[index] = map[string]string{"text": prefixPlainTextTranslation("Deutsch: ", text)}
 		}
 		if err := json.NewEncoder(response).Encode(map[string]any{"translations": translations}); err != nil {
 			t.Errorf("write fake DeepL response: %v", err)

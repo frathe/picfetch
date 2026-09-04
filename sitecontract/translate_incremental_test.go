@@ -32,7 +32,7 @@ func TestMakeTranslateRequestsOnlyChangedUnitsAndPrunesObsoleteEntries(t *testin
 		mu.Unlock()
 		translations := make([]map[string]string, len(payload.Text))
 		for index, source := range payload.Text {
-			translations[index] = map[string]string{"text": "Deutsch: " + source}
+			translations[index] = map[string]string{"text": prefixPlainTextTranslation("Deutsch: ", source)}
 		}
 		_ = json.NewEncoder(response).Encode(map[string]any{"translations": translations})
 	}))
@@ -264,7 +264,7 @@ func TestMakeTranslateRefreshesTitleAttributeWhenProtectionIsRemoved(t *testing.
 			if shouldTranslateTitle && text == "MarkerTitle" {
 				text = "Übersetzter Titel"
 			}
-			translations[index] = map[string]string{"text": "Deutsch: " + text}
+			translations[index] = map[string]string{"text": prefixPlainTextTranslation("Deutsch: ", text)}
 		}
 		_ = json.NewEncoder(response).Encode(map[string]any{"translations": translations})
 	}))
@@ -337,7 +337,7 @@ func TestMakeTranslateTranslatesMarkdownLinkTitleAsSeparateUnit(t *testing.T) {
 		mu.Unlock()
 		translations := make([]map[string]string, len(payload.Text))
 		for index, text := range payload.Text {
-			translated := "Deutsch: " + text
+			translated := prefixPlainTextTranslation("Deutsch: ", text)
 			if text == "Read more" {
 				translated = "Mehr erfahren"
 			}
