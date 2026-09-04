@@ -1,0 +1,420 @@
+{
+  "version": 1,
+  "locale": "de",
+  "entries": {
+    "downloads.introduction": {
+      "source_hash": "14f8d20f476d548ecbadb7aeff2b38338a44d5b818453ef3c8f8eeb244a3a1e5",
+      "request_hash": "4ce777c135822298994c46b8a07e83922ffdc224042588e2c8e07d27cb39a78c",
+      "format": "html",
+      "text": "\u003cp\u003eVorkompilierte Binärdateien, keine „Go“-Toolchain erforderlich – über die unten stehenden Links wird immer die neueste Version heruntergeladen. Möchten Sie lieber aus dem Quellcode kompilieren? Die \u003ca href=\"https://github.com/frathe/picfetch#building\" title=\"sitegen-link-binding-be6d3a4d3836475713ce745cc0aca7019031dc4a3cd2a6263101f04f91512a8b\"\u003eKompilieranleitung\u003c/a\u003e finden Sie im Repository.\u003c/p\u003e"
+    },
+    "downloads.linux.amd64": {
+      "source_hash": "e91374543450544ad19cfbae075cb02450883102ad9f256acbcbc4465a60b3f3",
+      "request_hash": "1ab85d721abd6e7e1abe8be08f5698eddf763ce4e4981c51126f3cb513c8feff",
+      "format": "text",
+      "text": "x64 (amd64)"
+    },
+    "downloads.linux.arm64": {
+      "source_hash": "3a8d055c8fba3b6098ba85bd127558a309b1bf636dd89c353b4068268625c6a6",
+      "request_hash": "b0433029503277015aab9d40e531ff8fa4d336bd6fbf5a04b59772af450fb356",
+      "format": "text",
+      "text": "ARM64"
+    },
+    "downloads.linux.title": {
+      "source_hash": "4828e60247c1636f57b7446a314e7f599c12b53d40061cc851a1442004354fed",
+      "request_hash": "f90f90f23548129e2c209dd2dd3a724b0ec843e1d3ae3cf76719eb35f5a5a0d5",
+      "format": "text",
+      "text": "Linux"
+    },
+    "downloads.macos.arm64": {
+      "source_hash": "153badbe4e57f6545ad051fe175b8bae9ecfe2af782f75a3210f3ffa0f12ae12",
+      "request_hash": "8c4276a4787b0c750630ffbd0786273336e66864d77561891a84752bc9ad263a",
+      "format": "text",
+      "text": "Apple Silicon (arm64)"
+    },
+    "downloads.macos.title": {
+      "source_hash": "aed6b7aa2a0511a9bbcaae2a10127a3139fc6494c57769b31b1a694c14483ce7",
+      "request_hash": "b427f2c24393b1285522c34a9dd5770e03b84bf79956f8c951c8305de6410d15",
+      "format": "text",
+      "text": "macOS"
+    },
+    "downloads.macos.x86-64": {
+      "source_hash": "c262c0f547ba7087a5b452a5846f5bd3b621841dc4307ad6ab4a46b96785cc0d",
+      "request_hash": "64cf83b0a36a0bb6261ee9af5932ea26a31ab37457ec580ceea95951710758c6",
+      "format": "text",
+      "text": "Intel (x86_64)"
+    },
+    "downloads.warning.body": {
+      "source_hash": "bbfa4a441af4fa5159ff93f2c8425447be0a59e4be4b6653d0c1ca0d4eb8149c",
+      "request_hash": "4a6bf8ae61128371c87d5f81fefe23fdc8d21ac94cb4ba2feca2d8a9a8bfdf0d",
+      "format": "html",
+      "text": "\u003cp\u003eDie Release-Version ist weder mit einem „Apple Developer ID“ signiert noch beglaubigt, daher wird sie von „Gatekeeper“ nach dem Herunterladen in Quarantäne verschoben und als beschädigt gemeldet. Das ist sie jedoch nicht – um sie trotzdem zu öffnen, klicken Sie entweder mit der rechten Maustaste (Control-click) \u003ccode\u003ePicFetch.app\u003c/code\u003e und wählen Sie \u003cstrong\u003e„Öffnen“\u003c/strong\u003e, bestätigen Sie den angezeigten Dialog, oder führen Sie \u003ccode\u003exattr -cr \u0026quot;/path/to/PicFetch.app\u0026quot;\u003c/code\u003e in „Terminal“, um die Quarantäne aufzuheben, und öffnen Sie die Datei anschließend wie gewohnt.\u003c/p\u003e"
+    },
+    "downloads.warning.title": {
+      "source_hash": "9270ee72bfecaa7bdbcff091e4c310009f4773df215cc0f436b31d07bfedbc46",
+      "request_hash": "253cc348294ee30c65a8cc54c5aec54996e776c7c9a7fa30a45b35c54a327f9c",
+      "format": "text",
+      "text": "macOS: Warnmeldung „App ist beschädigt“"
+    },
+    "downloads.windows.amd64": {
+      "source_hash": "e91374543450544ad19cfbae075cb02450883102ad9f256acbcbc4465a60b3f3",
+      "request_hash": "1ab85d721abd6e7e1abe8be08f5698eddf763ce4e4981c51126f3cb513c8feff",
+      "format": "text",
+      "text": "x64 (amd64)"
+    },
+    "downloads.windows.arm64": {
+      "source_hash": "3a8d055c8fba3b6098ba85bd127558a309b1bf636dd89c353b4068268625c6a6",
+      "request_hash": "b0433029503277015aab9d40e531ff8fa4d336bd6fbf5a04b59772af450fb356",
+      "format": "text",
+      "text": "ARM64"
+    },
+    "downloads.windows.title": {
+      "source_hash": "d598026a9cbc60505f138ce53ac78088d582100c196d0f70c7e2538d4a8d7e10",
+      "request_hash": "f0572918562f0f49ce866135ce5df4fc392b501b0b52e460dba8d44ca1860382",
+      "format": "text",
+      "text": "Windows"
+    },
+    "features.animated-gifs.body": {
+      "source_hash": "5abed6456a584a26c81195d9f8975a2e76c7f570665011798793f9cfae8e991e",
+      "request_hash": "560a664d7a8701c84f42b837245e37ff2644edb76bb7ce1265a73723b848ef08",
+      "format": "html",
+      "text": "\u003cp\u003eWird Bild für Bild mit der kodierten Geschwindigkeit wiedergegeben und pro Bild korrekt zusammengesetzt, sodass bei Teilaktualisierungen niemals veraltete Pixel zurückbleiben.\u003c/p\u003e"
+    },
+    "features.animated-gifs.title": {
+      "source_hash": "a18a751cc5d8bfd809525f5568436c18d6dd125a588f19e69f29c8cadc236a71",
+      "request_hash": "6a81f291600af6998dd6497819f0469131ef654d704a6b4849713d4d920183d9",
+      "format": "text",
+      "text": "Animiertes „GIFs“"
+    },
+    "features.drop-anything.body": {
+      "source_hash": "7b83a68cc1a39f6ed6ab858b1baf77e7eec96fac57525d359f8b954ccf272458",
+      "request_hash": "c45a1be2ec9065d308d854683f620f8fab3238bbf25e442e195d2dd7c9ac2599",
+      "format": "html",
+      "text": "\u003cp\u003eJPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, SVG, HEIC, AVIF und camera RAW (integrierte Vorschau unter JPEG). HEIC und AVIF decodieren über das integrierte WASM und benötigen daher keine Systembibliotheken.\u003c/p\u003e"
+    },
+    "features.drop-anything.title": {
+      "source_hash": "0559fbc4aa64be8a000f6718baf9ac40f2b0adeb8100ea09eac4f014268c844a",
+      "request_hash": "0559fbc4aa64be8a000f6718baf9ac40f2b0adeb8100ea09eac4f014268c844a",
+      "format": "text",
+      "text": "Fast alles fallen lassen"
+    },
+    "features.exif-aware.body": {
+      "source_hash": "70ae6988db9457a2504afe0e1b69de9b75ab32c6f9d5923debf7822e5bf664d9",
+      "request_hash": "45875a18d6f7f93e55f7feeedfc16314a749daabd890f89fc61a58c1837d8a19",
+      "format": "html",
+      "text": "\u003cp\u003eJPEGs automatische Drehung entsprechend dem Ausrichtungs-Tag, und unter \u003ckbd\u003eE\u003c/kbd\u003e werden Kamera, Objektiv, Belichtung, Blende, ISO, Aufnahmedatum und Koordinaten angezeigt – sowie eine einklappbare Ansicht unter OpenStreetMap, die an der Stelle fixiert ist, an der ein mit GPSgetaggtes Foto aufgenommen wurde, und die so lange ausgeblendet bleibt, bis Sie sie aufrufen.\u003c/p\u003e"
+    },
+    "features.exif-aware.title": {
+      "source_hash": "d9b1855611cbe28067bcf2306649e7293540542b626e0886d0773d1a301b749a",
+      "request_hash": "a1abdd4dc164bdc2a813ae4f86bcdaad6e7ccc113d27c066ad7b3caf3fc18b33",
+      "format": "text",
+      "text": "EXIF sich dessen bewusst"
+    },
+    "features.folders-merging.body": {
+      "source_hash": "35265358ebbb3f05a32953070213bf387c886ba2309122b54e9011a9af2be8bd",
+      "request_hash": "54a9d2351f61a032ef81c0e9bc87a07121ade2aa811da89a7de2a0c7c2abcb56",
+      "format": "html",
+      "text": "\u003cp\u003eZiehen Sie Ordner per Drag \u0026amp; Drop hinein, um sie rekursiv zu scannen – mit einem Live-Zähler für große Verzeichnisbäume. Mit dem Befehl „\u003ckbd\u003eM\u003c/kbd\u003e“ werden weitere per Drag \u0026amp; Drop hinzugefügte Ordner der bestehenden Auswahl hinzugefügt, anstatt diese zu ersetzen.\u003c/p\u003e"
+    },
+    "features.folders-merging.title": {
+      "source_hash": "9ca560fd39e389dad532abc3590c8cf529e9cb34c4d87e75c06b0d5d97344768",
+      "request_hash": "9ca560fd39e389dad532abc3590c8cf529e9cb34c4d87e75c06b0d5d97344768",
+      "format": "text",
+      "text": "Ordner und Zusammenführen"
+    },
+    "features.hide-duplicates.body": {
+      "source_hash": "4a68d354047faae767c49566ee1f407c3e9f020715972d19727e28b829ae3220",
+      "request_hash": "cd0540c7a5059dac6ff9328be3871b19ce57a6a66b774050a8960f4a16ad9b3b",
+      "format": "html",
+      "text": "\u003cp\u003eDurch das Ausblenden von Duplikaten und das Herausfiltern von Störelementen lassen sich große Bildmengen mühelos durchsehen. \u003ckbd\u003ed\u003c/kbd\u003e und \u003ckbd\u003eShift\u003c/kbd\u003e+\u003ckbd\u003eD\u003c/kbd\u003e (um doppelte Varianten anzuzeigen).\u003c/p\u003e"
+    },
+    "features.hide-duplicates.title": {
+      "source_hash": "9447e589108845de126292dc0f62156a00132cf099de9e442c22d32373adbe44",
+      "request_hash": "9447e589108845de126292dc0f62156a00132cf099de9e442c22d32373adbe44",
+      "format": "text",
+      "text": "Doppelte Bilder ausblenden"
+    },
+    "features.keyboard-browsing.body": {
+      "source_hash": "2fb1ac15363c8478a1e4f613fc9809f75f22645b926705c8ebe2c6f2a50128db",
+      "request_hash": "08c8b0c3e3941dc868c0f9b14f54aea91c06d31d816e7c0cb0ecddca65add585",
+      "format": "html",
+      "text": "\u003cp\u003eBlättern Sie mit den Pfeiltasten durch eine Reihe (mit Umbruch an beiden Enden) oder springen Sie mit „\u003ckbd\u003eHome\u003c/kbd\u003e“ und „\u003ckbd\u003eEnd\u003c/kbd\u003e“ direkt zu den Enden.\u003c/p\u003e"
+    },
+    "features.keyboard-browsing.title": {
+      "source_hash": "fac6ff2fbe034d3e7df1ad0fc53180ce2183ac6c7abfeaa8e714cdd3f87a07f4",
+      "request_hash": "fac6ff2fbe034d3e7df1ad0fc53180ce2183ac6c7abfeaa8e714cdd3f87a07f4",
+      "format": "text",
+      "text": "Navigation mit der Tastatur"
+    },
+    "features.named-favorites.body": {
+      "source_hash": "761093552b5fb6e9fd82e07964161a9b1811bd8fca8fa4b1ef2e25dc2c90183d",
+      "request_hash": "c0c03282703b08525ebd2cd0456fd57ff439bbf3529b9c6d2d010435785eba82",
+      "format": "html",
+      "text": "\u003cp\u003eSpeichern Sie die aktuelle Dateiliste als Sammlung und öffnen Sie sie nach einem Neustart über das Menü „Favoriten“ erneut. Die ersten zehn Einträge sind über folgende Tastenkombinationen mit einem Tastendruck erreichbar: \u003ckbd\u003eCmd/Ctrl\u003c/kbd\u003e+\u003ckbd\u003e1\u003c/kbd\u003e–\u003ckbd\u003e9\u003c/kbd\u003e und \u003ckbd\u003eCmd/Ctrl\u003c/kbd\u003e+\u003ckbd\u003e0\u003c/kbd\u003e.\u003c/p\u003e"
+    },
+    "features.named-favorites.title": {
+      "source_hash": "b8582443cfd44348bdd051a991c7a633d73eee3c6a69ad7a9a0f6f0272f07b7f",
+      "request_hash": "b8582443cfd44348bdd051a991c7a633d73eee3c6a69ad7a9a0f6f0272f07b7f",
+      "format": "text",
+      "text": "Namentlich genannte Favoriten"
+    },
+    "features.sorting.body": {
+      "source_hash": "a852d270b2e219e500cf18b327b421ca1c4ecb8fc1458e2a3992c7ab7e62d7c8",
+      "request_hash": "efc7829dcdf367aabd24f12abffb54975012cd1042c948ad358299eb28e94125",
+      "format": "html",
+      "text": "\u003cp\u003eStandardmäßig natürliche Namensreihenfolge, daher \u003ccode\u003eIMG_2\u003c/code\u003e steht vor \u003ccode\u003eIMG_10\u003c/code\u003e. „\u003ckbd\u003eS\u003c/kbd\u003e“ wechselt zwischen Aufnahmedatum, Änderungszeitpunkt, Größe und der ursprünglichen Reihenfolge der Drop-Dateien hin und her.\u003c/p\u003e"
+    },
+    "features.sorting.title": {
+      "source_hash": "907c9bd38f93aa31697ea19e8683021d7474748b8c9559ae785938ba8a8889df",
+      "request_hash": "907c9bd38f93aa31697ea19e8683021d7474748b8c9559ae785938ba8a8889df",
+      "format": "text",
+      "text": "Sortieren, das Sinn macht"
+    },
+    "features.thumbnail-grid.body": {
+      "source_hash": "40b27a2f03d0caa998af90a80d5f3cf8c6efd30e0f6a89b6b61b474c5a38ef51",
+      "request_hash": "0a007206e64218cb0b5d59aad390a736baa51c8c82b8b427a75aca7b1846aee5",
+      "format": "html",
+      "text": "\u003cp\u003e\u003ckbd\u003eG\u003c/kbd\u003e Öffnet ein Vollbild-Raster, mit dem sich Bilder anhand ihres Aussehens finden lassen. Die Miniaturansichten werden nach und nach geladen, sodass auch ein Ordner mit mehreren tausend Dateien reaktionsschnell bleibt.\u003c/p\u003e"
+    },
+    "features.thumbnail-grid.title": {
+      "source_hash": "303a2002a80977b665ecee678ddfd6ac9d7a17de971d1a3bef9fb33ec52b17a9",
+      "request_hash": "303a2002a80977b665ecee678ddfd6ac9d7a17de971d1a3bef9fb33ec52b17a9",
+      "format": "text",
+      "text": "Miniaturansichten-Raster"
+    },
+    "features.zoom-pan.body": {
+      "source_hash": "789dd5eb8aee97c704fbf112a51f2c2c28fda8472a1f8684fefb062a60b7793b",
+      "request_hash": "7a438baafaafbb309795491eff852028afe479348578dfb256dc408df7da1aef",
+      "format": "html",
+      "text": "\u003cp\u003e\u003ckbd\u003e+\u003c/kbd\u003e \u003ckbd\u003e−\u003c/kbd\u003e \u003ckbd\u003e1\u003c/kbd\u003e \u003ckbd\u003e0\u003c/kbd\u003e oder scrollen Sie, um den Bereich um den Cursor herum zu vergrößern. Klicken und ziehen Sie oder halten Sie die \u003ckbd\u003eShift\u003c/kbd\u003e-Taste gedrückt und scrollen Sie, um den vergrößerten Bereich zu verschieben.\u003c/p\u003e"
+    },
+    "features.zoom-pan.title": {
+      "source_hash": "e6cf347fffe1a1e693c61e955ab62c6c1abb927ff6b2c1809567f7cab8879b45",
+      "request_hash": "e6cf347fffe1a1e693c61e955ab62c6c1abb927ff6b2c1809567f7cab8879b45",
+      "format": "text",
+      "text": "Zoomen und Schwenken"
+    },
+    "footer.colophon": {
+      "source_hash": "d64fb95a4b0105c8613f70ae86c8501f2c2cbed23158da8baac4bd3a8af38bb6",
+      "request_hash": "7e8e53e56b2ed15742e1a7fea30bd72adb85cd5bc2d9b69db08a67a795e7d3ab",
+      "format": "html",
+      "text": "\u003cp\u003ePicFetch ist kostenlos und Open Source unter der „\u003ca href=\"https://github.com/frathe/picfetch/blob/main/LICENSE\" title=\"sitegen-link-binding-c404b1f0761f893ee03695d397a6dbedff9a9796d24c5d567bb9558ab4966303\"\u003eMIT“-Lizenz\u003c/a\u003e und wurde mit \u003ca href=\"https://fyne.io/\" title=\"sitegen-link-binding-6275f58c52b197049c7c06e54e31ea9101746e1ff6fc46a2fac452402b8cac6a\"\u003eFyne\u003c/a\u003e erstellt.\u003c/p\u003e"
+    },
+    "footer.image-alt": {
+      "source_hash": "11f3df8f4f224d712a310672a753fc9464dae9ea9f360adcc9da07d45f92f1d6",
+      "request_hash": "e02a910c165a89ff90558aeca69f20fe40932fb0b2b1f2cb0d68886f5d150e39",
+      "format": "text",
+      "text": "PicFetch Maskottchen Trane ist gerade dabei, Bilder für euch zu vergleichen."
+    },
+    "footer.links.buy-coffee": {
+      "source_hash": "f65a6e40cbc44798ac9b502d55d3babd036f54208463f1115828844f6f621db9",
+      "request_hash": "f65a6e40cbc44798ac9b502d55d3babd036f54208463f1115828844f6f621db9",
+      "format": "text",
+      "text": "Lade mich auf einen Kaffee ein"
+    },
+    "footer.links.contributing": {
+      "source_hash": "2b18598c711f43c293b07a684a115fcccd7f616dc451c5a1e29779792e3c1ed3",
+      "request_hash": "2b18598c711f43c293b07a684a115fcccd7f616dc451c5a1e29779792e3c1ed3",
+      "format": "text",
+      "text": "Beitragen"
+    },
+    "footer.links.issues": {
+      "source_hash": "666067dd376e5d4553b8fd554f855855819ad213ae825022d2a32dfa28431115",
+      "request_hash": "666067dd376e5d4553b8fd554f855855819ad213ae825022d2a32dfa28431115",
+      "format": "text",
+      "text": "Themen"
+    },
+    "footer.links.license": {
+      "source_hash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
+      "request_hash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
+      "format": "text",
+      "text": "Lizenz"
+    },
+    "footer.links.manual": {
+      "source_hash": "b0b9fe24ffa9629125bdc59b122f80d605ab604eb1b74485c2f2ecfde26576ae",
+      "request_hash": "b0b9fe24ffa9629125bdc59b122f80d605ab604eb1b74485c2f2ecfde26576ae",
+      "format": "text",
+      "text": "Handbuch"
+    },
+    "footer.links.privacy": {
+      "source_hash": "ba445cff3898a3f24f415f90fbef1c8169ea21949a40680c5e1c5975843d1b5e",
+      "request_hash": "ba445cff3898a3f24f415f90fbef1c8169ea21949a40680c5e1c5975843d1b5e",
+      "format": "text",
+      "text": "Datenschutzerklärung"
+    },
+    "footer.links.releases": {
+      "source_hash": "1a6f7cae06cc1fc970e8cf6853f2fca490446395409e26d830eae6b7e6581b38",
+      "request_hash": "1a6f7cae06cc1fc970e8cf6853f2fca490446395409e26d830eae6b7e6581b38",
+      "format": "text",
+      "text": "Veröffentlichungen"
+    },
+    "footer.links.security": {
+      "source_hash": "8f6fb4eb7f42c0e245e29e63f5b82cc3ba19852681d1ed9aed291f59cf75ec0e",
+      "request_hash": "8f6fb4eb7f42c0e245e29e63f5b82cc3ba19852681d1ed9aed291f59cf75ec0e",
+      "format": "text",
+      "text": "Sicherheit"
+    },
+    "footer.links.source": {
+      "source_hash": "bf046c7395cb38ee8549eb538ef0681c1a0aa736b2bf36b548420a968fdb7787",
+      "request_hash": "bf046c7395cb38ee8549eb538ef0681c1a0aa736b2bf36b548420a968fdb7787",
+      "format": "text",
+      "text": "Quellcode"
+    },
+    "hero.actions.download": {
+      "source_hash": "d6eafe82359100423c93c5ce53c352c1b51ca1e699215fcec3f5c5dd9bf12d24",
+      "request_hash": "d6eafe82359100423c93c5ce53c352c1b51ca1e699215fcec3f5c5dd9bf12d24",
+      "format": "text",
+      "text": "Herunterladen"
+    },
+    "hero.actions.github": {
+      "source_hash": "20672423d71690888afb7caa922ea2a23592d49346341b1eee292de65189a296",
+      "request_hash": "feaaae9706ebb5f07d9a95df4a99568f8c904265ed6cfa3cb0ffb403cd66ea7b",
+      "format": "text",
+      "text": "Auf GitHub ansehen"
+    },
+    "hero.image-alt": {
+      "source_hash": "2f39d1e2c662234ac3d9f517790b0be5b9a29d60498c02b5e12b42c7cdfaf376",
+      "request_hash": "73ebb625840f679ba98e3016fc989bfb51a675325d2e2afdc1e7f138ea4818e3",
+      "format": "text",
+      "text": "PicFetch — das App-Fenster, in dem neben der Maskottchen-Grafik die Aufforderung „Bilder hier ablegen“ angezeigt wird"
+    },
+    "hero.tagline": {
+      "source_hash": "8b3e7f011f84661eb03f38d04ef3b2b8eb1638c3ed0b3f8c636fec53594d4ce9",
+      "request_hash": "632a9dd54a1c88017b6d4f0ba896db3303a084b5a53c0c33cc1e5d5c77a9f06f",
+      "format": "html",
+      "text": "\u003cp\u003eEine kleine Desktop-App zum schnellen Anzeigen und Durchblättern von Bildern. Ziehen Sie ein oder mehrere Bilder in das Fenster und blättern Sie mit der Tastatur durch die Bilderserie.\u003c/p\u003e"
+    },
+    "labels.deepl-disclosure": {
+      "source_hash": "db393ae3e57e12c33359ea277086e8e719f14104c6356879be6fcd6a130d024a",
+      "request_hash": "d102cccd8f9c0cdcd72e8751e4ef96386e4ae7ae5e3d57359d5b130add0825bc",
+      "format": "text",
+      "text": "Diese Seite wurde mit DeepL übersetzt und nicht bearbeitet."
+    },
+    "labels.english": {
+      "source_hash": "ba118bf7fc9c1aedc1edb28a0aa86e0b43b681f222af6616e13c43be87815b06",
+      "request_hash": "ba118bf7fc9c1aedc1edb28a0aa86e0b43b681f222af6616e13c43be87815b06",
+      "format": "text",
+      "text": "Englisch"
+    },
+    "labels.german": {
+      "source_hash": "a659b60d246dce8d4865d45673963de83d0e49a57e8559da98581c2bc5d7d97f",
+      "request_hash": "a659b60d246dce8d4865d45673963de83d0e49a57e8559da98581c2bc5d7d97f",
+      "format": "text",
+      "text": "Deutsch"
+    },
+    "labels.language-selector": {
+      "source_hash": "bba5b40bdd28c66e413c02fac811aab366d20aa19fe15348a8c907d46957ce77",
+      "request_hash": "bba5b40bdd28c66e413c02fac811aab366d20aa19fe15348a8c907d46957ce77",
+      "format": "text",
+      "text": "Sprache auswählen"
+    },
+    "labels.lightbox-close": {
+      "source_hash": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed",
+      "request_hash": "7d9eb7acb13e24625c404401d8e88b2350e32162455885f18276cf802f7701ed",
+      "format": "text",
+      "text": "Schließen"
+    },
+    "metadata.description": {
+      "source_hash": "fe597bc1b5d7162f4583ca5d5bc1aa22dec0d910a59edba3f4aa6bee9794759a",
+      "request_hash": "98319cc4bc63809923a4ffba74ff7d4cf326df7c77ad2899adee8fea7bd6c25c",
+      "format": "text",
+      "text": "PicFetch ist eine kleine, plattformübergreifende Desktop-Anwendung zum schnellen Anzeigen und Durchsuchen von Bildern. Ziehen Sie ein oder mehrere Bilder in das Fenster und blättern Sie mit der Tastatur durch sie hindurch."
+    },
+    "metadata.open-graph-description": {
+      "source_hash": "b492cdcab51b43850e43d389daea58ca65a0ab27db04c6dfdfc2fa9c6b566255",
+      "request_hash": "51bb3a48b0c07246a360f0ac8c746fac01a446abc668f6cb49c9a1b44e9f975c",
+      "format": "text",
+      "text": "Ziehen Sie ein oder mehrere Bilder in das Fenster und blättern Sie mit der Tastatur durch sie hindurch. Kostenlos und Open Source, für macOS, Windows und Linux."
+    },
+    "metadata.open-graph-title": {
+      "source_hash": "da26b80749f014eb7a84d377a81416f685a78addc5d8d01623eb7e3f53011ab5",
+      "request_hash": "6bcf0babaaa240195c90df80bf135ab31e3378735310195fb08f352b6ef742b1",
+      "format": "text",
+      "text": "PicFetch — ein kleiner, schneller Bildbetrachter"
+    },
+    "metadata.title": {
+      "source_hash": "76d391b339e5b719cb36ea92ce34b65a65532025ec8793cdf3fe7f15c91dd883",
+      "request_hash": "2404d488ad4346ec41eebbdbfa85f671608304769eba9c3040bd5b9db51cd06a",
+      "format": "text",
+      "text": "PicFetch — ein kleiner, schneller Bildbetrachter für macOS, Windows und Linux"
+    },
+    "screenshots.gallery.alt": {
+      "source_hash": "9c4fdc5d42ecc62aac880ef615222bc28c8a1bc2ee2d9e52064f831eb9cd8a37",
+      "request_hash": "9c4fdc5d42ecc62aac880ef615222bc28c8a1bc2ee2d9e52064f831eb9cd8a37",
+      "format": "text",
+      "text": "Miniaturansicht im Rasterformat, in der Dutzende von Fotos gleichzeitig angezeigt werden, wobei das aktuelle Bild hervorgehoben ist"
+    },
+    "screenshots.gallery.caption": {
+      "source_hash": "9f33d84ac53d2216182ae4330c08ae3528b7ac0010367d30f34772f00f1a6dff",
+      "request_hash": "9f33d84ac53d2216182ae4330c08ae3528b7ac0010367d30f34772f00f1a6dff",
+      "format": "text",
+      "text": "Das Miniaturbild-Raster zum Auffinden eines Bildes anhand des Aussehens"
+    },
+    "screenshots.main.alt": {
+      "source_hash": "473f375ae7d362f4528e3728609a012be026b0e3a11dd7b1ed6b8b4a3b008c1b",
+      "request_hash": "c7941924ab53b0d0391fe9bcd9793a8535369fffb8a2ccd1b84f55733410b07c",
+      "format": "text",
+      "text": "Das Hauptfenster von PicFetch mit der Aufforderung „Bilder hier ablegen“, bevor Bilder geladen werden"
+    },
+    "screenshots.main.caption": {
+      "source_hash": "8f34cf88ac0819b0517045aadb8be2e8b45dcd7cb02abe3114f7e31425aedd84",
+      "request_hash": "8f34cf88ac0819b0517045aadb8be2e8b45dcd7cb02abe3114f7e31425aedd84",
+      "format": "text",
+      "text": "Zieh Bilder in das Fenster, um loszulegen"
+    },
+    "screenshots.viewer.alt": {
+      "source_hash": "46c5af32c5e6bb138b86fef8017842badf128705e861dfc5e96b111d4f7906d1",
+      "request_hash": "180a58bf9e4d4441a270fdc77a0bf91b9a2cecd9951643abd8574675ff6ac97b",
+      "format": "text",
+      "text": "Ein vergrößertes Foto mit eingeblendeten Dateiinformationen und dem geöffneten Datenfenster „EXIF“, das Kamera, Blende, Brennweite und Aufnahmedatum anzeigt"
+    },
+    "screenshots.viewer.caption": {
+      "source_hash": "553d74b600607d0700e226f577469a7f63f8bbd471b1523b1b861430a83af989",
+      "request_hash": "a7d7a2a5b2390d465d43c09ff639b8b3ef19aa56e894e050465b2617eaa0da93",
+      "format": "text",
+      "text": "Vergrößerte Ansicht mit angezeigten Dateiinformationen und „EXIF“-Daten"
+    },
+    "sections.demo-compare.heading": {
+      "source_hash": "763f4ec329f8bd1f6c575f09b34adc2051fde8db88e25fd7c70cd73957c791c6",
+      "request_hash": "763f4ec329f8bd1f6c575f09b34adc2051fde8db88e25fd7c70cd73957c791c6",
+      "format": "text",
+      "text": "Bilder ganz einfach vergleichen"
+    },
+    "sections.demo-main.heading": {
+      "source_hash": "26ceae0deed7525be24452096952602462eaf982f3353af6932b77ef27af5856",
+      "request_hash": "26ceae0deed7525be24452096952602462eaf982f3353af6932b77ef27af5856",
+      "format": "text",
+      "text": "Sehen Sie es in Aktion"
+    },
+    "sections.downloads.heading": {
+      "source_hash": "d6eafe82359100423c93c5ce53c352c1b51ca1e699215fcec3f5c5dd9bf12d24",
+      "request_hash": "d6eafe82359100423c93c5ce53c352c1b51ca1e699215fcec3f5c5dd9bf12d24",
+      "format": "text",
+      "text": "Herunterladen"
+    },
+    "sections.features.heading": {
+      "source_hash": "5697d03daef4de9cf8db7cb11755f71358a32b4acca94909a9d449f71040d2dd",
+      "request_hash": "5697d03daef4de9cf8db7cb11755f71358a32b4acca94909a9d449f71040d2dd",
+      "format": "text",
+      "text": "Funktionen"
+    },
+    "sections.screenshots.heading": {
+      "source_hash": "067348ce68943b630359fea7b8b9aa2f7e00bda7532fa406f0286c943261f823",
+      "request_hash": "067348ce68943b630359fea7b8b9aa2f7e00bda7532fa406f0286c943261f823",
+      "format": "text",
+      "text": "Screenshots"
+    },
+    "videos.demo-compare.title": {
+      "source_hash": "d02102bf136e4d103e963ec98db8f52ee50c4e4c82ccb6b0b028a4a18d4bc225",
+      "request_hash": "d02102bf136e4d103e963ec98db8f52ee50c4e4c82ccb6b0b028a4a18d4bc225",
+      "format": "text",
+      "text": "Bildvergleich"
+    },
+    "videos.demo-main.title": {
+      "source_hash": "f319ba9635d3b0dcb64b8720d0c2ed44b397dfc37647bc40201f10456a3989bf",
+      "request_hash": "fa730363424791d46f55292c06e9eb005c897e41141fd7e32c51ae57dc6fa618",
+      "format": "text",
+      "text": "PicFetch"
+    }
+  }
+}

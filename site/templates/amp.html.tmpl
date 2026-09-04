@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html amp lang="{{.Locale}}">
+<head>
+    <meta charset="utf-8">
+    <script async src="https://cdn.ampproject.org/v0.js"></script>
+    <script async custom-element="amp-vimeo" src="https://cdn.ampproject.org/v0/amp-vimeo-0.1.js"></script>
+    <script async custom-element="amp-lightbox-gallery" src="https://cdn.ampproject.org/v0/amp-lightbox-gallery-0.1.js"></script>
+    <title>{{text .Content.Metadata.Title}}</title>
+    <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+    <meta name="description" content="{{text .Content.Metadata.Description}}">
+    <link rel="canonical" href="{{.CanonicalURL}}">
+    {{range .Alternates}}<link rel="alternate" hreflang="{{.Language}}" href="{{.URL}}">
+    {{end}}{{range .Content.Icons}}<link rel="{{.Rel}}"{{if .Type}} type="{{.Type}}"{{end}} sizes="{{.Sizes}}" href="{{.Href}}">
+    {{end}}<link rel="shortcut icon" href="{{.LocalPrefix}}favicon.ico">
+    <link rel="manifest" href="{{.LocalPrefix}}manifest.json">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{text .Content.Metadata.OpenGraphTitle}}">
+    <meta property="og:description" content="{{text .Content.Metadata.OpenGraphDescription}}">
+    <meta property="og:image" content="{{.Content.Metadata.OpenGraphImage}}">
+    <meta property="og:locale" content="{{.OpenGraphLocale}}">
+    <meta property="og:locale:alternate" content="{{.OpenGraphAlternate}}">
+    <meta name="twitter:card" content="summary_large_image">
+    <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+    <noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
+    <style amp-custom>{{.CSS}}</style>
+</head>
+<body>
+<div class="wrap">
+    {{if .ShowLanguageSelector}}<nav class="language-selector" aria-label="{{text .Content.Labels.LanguageSelector}}">
+        {{range .LanguageLinks}}<a href="{{.URL}}" hreflang="{{.Locale}}" aria-label="{{text .Label}}"{{if .Current}} aria-current="page"{{end}}><span aria-hidden="true">{{.Flag}}</span> {{text .Label}}</a>{{end}}
+    </nav>{{end}}
+    <header>
+        <div class="banner"><amp-img src="{{.Content.Hero.Image.URL}}" width="{{.Content.Hero.Image.Width}}" height="{{.Content.Hero.Image.Height}}" layout="responsive" alt="{{text .Content.Hero.Alt}}"></amp-img></div>
+        <div class="tagline">{{markdown .Content.Hero.Tagline}}</div>
+        <div class="cta">{{range .Content.Hero.Actions}}<a class="btn{{if .Primary}} btn-primary{{end}}" href="{{.Href}}">{{text .Label}}</a>{{end}}</div>
+    </header>
+    <main>
+        {{range .Content.Sections}}
+        {{if eq .Kind "video"}}<h2>{{text .Heading}}</h2>
+        <div class="video"><amp-vimeo data-videoid="{{.Video.VideoID}}" width="{{.Video.Width}}" height="{{.Video.Height}}" layout="responsive" aria-label="{{text .Video.Title}}"{{if .Video.Autoplay}} autoplay{{end}}></amp-vimeo></div>
+        {{else if eq .Kind "screenshots"}}<h2>{{text .Heading}}</h2>
+        <ul class="grid screens">{{range .Screenshots}}<li class="shot"><amp-img src="{{.Image.URL}}" width="{{.Image.Width}}" height="{{.Image.Height}}" layout="responsive" lightbox="screenshots" alt="{{text .Alt}}"></amp-img><p>{{text .Caption}}</p></li>{{end}}</ul>
+        {{else if eq .Kind "features"}}<h2>{{text .Heading}}</h2>
+        <ul class="grid">{{range .Features}}<li class="card"><h3>{{text .Title}}</h3>{{markdown .Body}}</li>{{end}}</ul>
+        {{else if eq .Kind "downloads"}}<h2 id="{{.Anchor}}">{{text .Heading}}</h2>
+        {{markdown .Body}}
+        <ul class="grid dl">{{range .DownloadGroups}}<li class="card"><h3>{{text .Title}}</h3><ul>{{range .Links}}<li><a href="{{.Href}}">{{text .Label}}</a></li>{{end}}</ul></li>{{end}}</ul>
+        <div class="note"><h3>{{text .Notice.Title}}</h3>{{markdown .Notice.Body}}</div>{{end}}
+        {{end}}
+    </main>
+    <footer>
+        <amp-img class="footer-art" src="{{.Content.Footer.Image.URL}}" width="{{.Content.Footer.Image.Width}}" height="{{.Content.Footer.Image.Height}}" layout="responsive" alt="{{text .Content.Footer.Alt}}"></amp-img>
+        <ul class="links">{{range .Content.Footer.Links}}<li><a href="{{.Href}}">{{text .Label}}</a></li>{{end}}</ul>
+        <div class="colophon">{{markdown .Content.Footer.Colophon}}</div>
+        {{if .IsGerman}}<p class="translation-disclosure">{{text .Content.Labels.DeepLDisclosure}}</p>{{end}}
+    </footer>
+</div>
+</body>
+</html>

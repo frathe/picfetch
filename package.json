@@ -1,0 +1,11 @@
+{
+  "name": "picfetch-site-tools",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "amphtml-validator": "1.0.38",
+    "playwright-core": "1.62.1"
+  }
+}

@@ -1,0 +1,7 @@
+.idea
+.DS_Store
+.env
+.env.local
+/bin/
+/coverage/
+/node_modules/
