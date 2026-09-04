@@ -1,0 +1,6 @@
+.idea
+.env
+.env.local
+/bin/
+/coverage/
+/node_modules/

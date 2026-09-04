@@ -1,0 +1,275 @@
+package sitegen
+
+import (
+	"bytes"
+	"fmt"
+	"html/template"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/renderer/html"
+)
+
+type BuildOptions struct {
+	SourcePath       string
+	TemplatesPath    string
+	TranslationsPath string
+	OutputPath       string
+	Locales          []string
+	Formats          []string
+}
+
+type Alternate struct {
+	Language string
+	URL      string
+}
+
+type LanguageLink struct {
+	Locale  string
+	URL     string
+	Flag    string
+	Label   LocalizedText
+	Current bool
+}
+
+type page struct {
+	Content              *Content
+	Locale               string
+	CanonicalURL         string
+	AMPURL               string
+	Alternates           []Alternate
+	LanguageLinks        []LanguageLink
+	LocalPrefix          string
+	OpenGraphLocale      string
+	OpenGraphAlternate   string
+	CSS                  template.CSS
+	IsGerman             bool
+	DetectGerman         bool
+	ShowLanguageSelector bool
+	translations         map[string]string
+	markdownTranslations map[string]template.HTML
+}
+
+func Build(options BuildOptions) error {
+	data, err := os.ReadFile(options.SourcePath)
+	if err != nil {
+		return fmt.Errorf("read website source %q: %w", options.SourcePath, err)
+	}
+	content, err := ParseContent(data)
+	if err != nil {
+		return err
+	}
+
+	css, err := os.ReadFile(filepath.Join(options.TemplatesPath, "style.css"))
+	if err != nil {
+		return fmt.Errorf("read shared site styles: %w", err)
+	}
+	var germanText map[string]string
+	var germanMarkdown map[string]template.HTML
+	if contains(options.Locales, "de") {
+		germanText, germanMarkdown, err = loadCurrentGermanTranslations(content, options.TranslationsPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	outputs := make(map[string][]byte)
+	for _, locale := range options.Locales {
+		for _, format := range options.Formats {
+			if (locale != "en" && locale != "de") || (format != "regular" && format != "amp") {
+				return fmt.Errorf("build locale %q format %q: not implemented", locale, format)
+			}
+			textTranslations := map[string]string{}
+			markdownTranslations := map[string]template.HTML(nil)
+			if locale == "de" {
+				textTranslations = germanText
+				markdownTranslations = germanMarkdown
+			}
+			pageData, err := newPage(content, locale, format, css, contains(options.Locales, "de"), textTranslations, markdownTranslations)
+			if err != nil {
+				return err
+			}
+			output, err := renderPage(options.TemplatesPath, format, pageData)
+			if err != nil {
+				return err
+			}
+			outputs[routePath(locale, format)] = output
+		}
+	}
+	return writeOutputs(options.OutputPath, outputs)
+}
+
+func loadCurrentGermanTranslations(content *Content, cachePath string) (map[string]string, map[string]template.HTML, error) {
+	units, err := collectTranslationUnits(content)
+	if err != nil {
+		return nil, nil, err
+	}
+	cache, err := readTranslationCache(cachePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	missing := make([]string, 0)
+	textTranslations := make(map[string]string)
+	markdownTranslations := make(map[string]template.HTML)
+	for _, unit := range units {
+		entry, ok := cache.Entries[unit.ID]
+		if !ok || entry.SourceHash != unit.SourceHash || entry.Format != unit.Format || strings.TrimSpace(entry.Text) == "" {
+			missing = append(missing, unit.ID)
+			continue
+		}
+		if err := validateCachedTranslation(unit, entry.Text); err != nil {
+			return nil, nil, err
+		}
+		if unit.Format == "html" {
+			markdownTranslations[unit.ID] = template.HTML(entry.Text)
+		} else {
+			textTranslations[unit.ID] = entry.Text
+		}
+	}
+	if len(missing) > 0 {
+		return nil, nil, fmt.Errorf("missing or stale German translation: %s", strings.Join(missing, ", "))
+	}
+	return textTranslations, markdownTranslations, nil
+}
+
+func newPage(content *Content, locale, format string, css []byte, multilingual bool, textTranslations map[string]string, translatedMarkdown map[string]template.HTML) (*page, error) {
+	markdown := translatedMarkdown
+	if locale == "en" {
+		markdown = make(map[string]template.HTML, len(content.Markdown))
+		engine := goldmark.New(goldmark.WithRendererOptions(html.WithUnsafe()))
+		for id, source := range content.Markdown {
+			var rendered bytes.Buffer
+			if err := engine.Convert([]byte(source), &rendered); err != nil {
+				return nil, fmt.Errorf("render Markdown section %q: %w", id, err)
+			}
+			renderedHTML := strings.TrimSpace(rendered.String())
+			if err := validateSafeMarkdownHTML(id, renderedHTML); err != nil {
+				return nil, err
+			}
+			markdown[id] = template.HTML(renderedHTML)
+		}
+	}
+	base := strings.TrimRight(content.Site.BaseURL, "/") + "/"
+	canonicalURL := base
+	ampURL := base + "amp/"
+	alternateEnglish := base
+	alternateGerman := base + "de/"
+	localPrefix := "./"
+	languageEnglish := base
+	languageGerman := base + "de/"
+	openGraphLocale := "en_GB"
+	openGraphAlternate := "de_DE"
+	if locale == "de" {
+		canonicalURL = base + "de/"
+		ampURL = base + "de/amp/"
+		localPrefix = "../"
+		openGraphLocale = "de_DE"
+		openGraphAlternate = "en_GB"
+	}
+	if format == "amp" {
+		alternateEnglish = base + "amp/"
+		alternateGerman = base + "de/amp/"
+		localPrefix = "../"
+		if locale == "de" {
+			localPrefix = "../../"
+		}
+		languageEnglish = alternateEnglish
+		languageGerman = alternateGerman
+	}
+	return &page{
+		Content:      content,
+		Locale:       locale,
+		CanonicalURL: canonicalURL,
+		AMPURL:       ampURL,
+		Alternates: []Alternate{
+			{Language: "en", URL: alternateEnglish},
+			{Language: "de", URL: alternateGerman},
+			{Language: "x-default", URL: alternateEnglish},
+		},
+		LanguageLinks: []LanguageLink{
+			{Locale: "en", URL: languageEnglish, Flag: content.LanguageFlags.English, Label: content.Labels.English, Current: locale == "en"},
+			{Locale: "de", URL: languageGerman, Flag: content.LanguageFlags.German, Label: content.Labels.German, Current: locale == "de"},
+		},
+		LocalPrefix:          localPrefix,
+		OpenGraphLocale:      openGraphLocale,
+		OpenGraphAlternate:   openGraphAlternate,
+		CSS:                  template.CSS(css),
+		IsGerman:             locale == "de",
+		DetectGerman:         multilingual && locale == "en" && format == "regular",
+		ShowLanguageSelector: multilingual,
+		translations:         textTranslations,
+		markdownTranslations: markdown,
+	}, nil
+}
+
+func contains(values []string, want string) bool {
+	return slices.Contains(values, want)
+}
+
+func renderPage(templatesPath, format string, data *page) ([]byte, error) {
+	functions := template.FuncMap{
+		"text": func(value LocalizedText) (string, error) {
+			if translated, ok := data.translations[value.ID]; ok {
+				return translated, nil
+			}
+			if data.IsGerman {
+				return "", fmt.Errorf("missing German translation %s", value.ID)
+			}
+			return value.Text, nil
+		},
+		"markdown": func(id string) (template.HTML, error) {
+			translated, ok := data.markdownTranslations[id]
+			if !ok {
+				return "", fmt.Errorf("missing %s Markdown section %s", data.Locale, id)
+			}
+			return translated, nil
+		},
+		"safeURL": func(value string) template.URL {
+			return template.URL(value)
+		},
+	}
+	filename := format + ".html.tmpl"
+	tmpl, err := template.New(filename).Funcs(functions).ParseFiles(filepath.Join(templatesPath, filename))
+	if err != nil {
+		return nil, fmt.Errorf("parse %s template: %w", format, err)
+	}
+	var rendered bytes.Buffer
+	if err := tmpl.Execute(&rendered, data); err != nil {
+		return nil, fmt.Errorf("render %s %s page: %w", data.Locale, format, err)
+	}
+	return normalizeHTML(rendered.Bytes()), nil
+}
+
+func normalizeHTML(data []byte) []byte {
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	for index := range lines {
+		lines[index] = strings.TrimRight(lines[index], " \t")
+	}
+	return []byte(strings.Join(lines, "\n") + "\n")
+}
+
+func routePath(locale, format string) string {
+	parts := make([]string, 0, 2)
+	if locale == "de" {
+		parts = append(parts, "de")
+	}
+	if format == "amp" {
+		parts = append(parts, "amp")
+	}
+	parts = append(parts, "index.html")
+	return filepath.Join(parts...)
+}
+
+func writeOutputs(root string, outputs map[string][]byte) error {
+	files := make(map[string][]byte, len(outputs))
+	for relative, data := range outputs {
+		files[filepath.Join(root, relative)] = data
+	}
+	if err := commitFileSet(files, root); err != nil {
+		return fmt.Errorf("publish generated pages: %w", err)
+	}
+	return nil
+}

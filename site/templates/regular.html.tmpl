@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="{{.Locale}}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{text .Content.Metadata.Title}}</title>
+    <meta name="description" content="{{text .Content.Metadata.Description}}">
+    <link rel="canonical" href="{{.CanonicalURL}}">
+    <link rel="amphtml" href="{{.AMPURL}}">
+    {{range .Alternates}}<link rel="alternate" hreflang="{{.Language}}" href="{{.URL}}">
+    {{end}}{{range .Content.Icons}}<link rel="{{.Rel}}"{{if .Type}} type="{{.Type}}"{{end}} sizes="{{.Sizes}}" href="{{.Href}}">
+    {{end}}<link rel="shortcut icon" href="{{.LocalPrefix}}favicon.ico">
+    <link rel="manifest" href="{{.LocalPrefix}}manifest.json">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{text .Content.Metadata.OpenGraphTitle}}">
+    <meta property="og:description" content="{{text .Content.Metadata.OpenGraphDescription}}">
+    <meta property="og:image" content="{{.Content.Metadata.OpenGraphImage}}">
+    <meta property="og:locale" content="{{.OpenGraphLocale}}">
+    <meta property="og:locale:alternate" content="{{.OpenGraphAlternate}}">
+    <meta name="twitter:card" content="summary_large_image">
+    <style>{{.CSS}}</style>
+</head>
+<body>
+<div class="wrap">
+    {{if .ShowLanguageSelector}}<nav class="language-selector" aria-label="{{text .Content.Labels.LanguageSelector}}">
+        {{range .LanguageLinks}}<a href="{{.URL}}" lang="{{.Locale}}" hreflang="{{.Locale}}" aria-label="{{text .Label}}"{{if .Current}} aria-current="page"{{end}} data-language="{{.Locale}}"><span aria-hidden="true">{{.Flag}}</span> {{text .Label}}</a>{{end}}
+    </nav>{{end}}
+    <header>
+        <div class="banner"><img src="{{.Content.Hero.Image.URL}}" alt="{{text .Content.Hero.Alt}}"></div>
+        <div class="tagline">{{markdown .Content.Hero.Tagline}}</div>
+        <div class="cta">{{range .Content.Hero.Actions}}<a class="btn{{if .Primary}} btn-primary{{end}}" href="{{.Href}}">{{text .Label}}</a>{{end}}</div>
+    </header>
+    <main>
+        {{range .Content.Sections}}
+        {{if eq .Kind "video"}}<h2>{{text .Heading}}</h2>
+        <div><div style="padding:66% 0 0 0;position:relative;"><iframe src="{{safeURL .Video.RegularURL}}" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;top:0;left:0;width:100%;height:100%;" title="{{text .Video.Title}}"></iframe></div></div>
+        {{else if eq .Kind "screenshots"}}<h2>{{text .Heading}}</h2>
+        <ul class="grid screens">{{range .Screenshots}}<li class="shot"><img src="{{.Image.URL}}" alt="{{text .Alt}}" loading="lazy"><p>{{text .Caption}}</p></li>{{end}}</ul>
+        {{else if eq .Kind "features"}}<h2>{{text .Heading}}</h2>
+        <ul class="grid">{{range .Features}}<li class="card"><h3>{{text .Title}}</h3>{{markdown .Body}}</li>{{end}}</ul>
+        {{else if eq .Kind "downloads"}}<h2 id="{{.Anchor}}">{{text .Heading}}</h2>
+        {{markdown .Body}}
+        <ul class="grid dl">{{range .DownloadGroups}}<li class="card"><h3>{{text .Title}}</h3><ul>{{range .Links}}<li><a href="{{.Href}}">{{text .Label}}</a></li>{{end}}</ul></li>{{end}}</ul>
+        <div class="note"><h3>{{text .Notice.Title}}</h3>{{markdown .Notice.Body}}</div>{{end}}
+        {{end}}
+    </main>
+    <footer>
+        <img class="footer-art" src="{{.Content.Footer.Image.URL}}" alt="{{text .Content.Footer.Alt}}">
+        <ul class="links">{{range .Content.Footer.Links}}<li><a href="{{.Href}}">{{text .Label}}</a></li>{{end}}</ul>
+        <div class="colophon">{{markdown .Content.Footer.Colophon}}</div>
+        {{if .IsGerman}}<p class="translation-disclosure">{{text .Content.Labels.DeepLDisclosure}}</p>{{end}}
+    </footer>
+</div>
+<div class="lightbox" id="lightbox"><div class="lightbox-frame"><button class="lightbox-close" id="lightboxClose" aria-label="{{text .Content.Labels.LightboxClose}}">&times;</button><img id="lightboxImg" src="" alt=""></div></div>
+<script>
+(() => {
+    const preferenceKey = 'picfetch-language';
+    const readLanguagePreference = () => { try { return localStorage.getItem(preferenceKey); } catch (_) { return null; } };
+    const saveLanguagePreference = (language) => { try { localStorage.setItem(preferenceKey, language); } catch (_) {} };
+    document.querySelectorAll('[data-language]').forEach((link) => link.addEventListener('click', () => saveLanguagePreference(link.dataset.language)));
+    {{if .DetectGerman}}const storedLanguage = readLanguagePreference();
+    const preferredLanguage = Array.from(navigator.languages || [navigator.language]).find((language) => typeof language === 'string' && language.length > 0);
+    if (storedLanguage === 'de' || (storedLanguage !== 'en' && preferredLanguage && preferredLanguage.toLowerCase().startsWith('de'))) window.location.replace('./de/');{{end}}
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    document.querySelectorAll('.shot img').forEach((img) => img.addEventListener('click', () => { lightboxImg.src = img.src; lightboxImg.alt = img.alt; lightbox.classList.add('open'); }));
+    const closeLightbox = () => lightbox.classList.remove('open');
+    document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+    lightbox.addEventListener('click', (event) => { if (event.target === lightbox) closeLightbox(); });
+})();
+</script>
+<script src="https://player.vimeo.com/api/player.js"></script>
+</body>
+</html>
