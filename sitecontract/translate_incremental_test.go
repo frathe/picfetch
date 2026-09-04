@@ -261,8 +261,8 @@ func TestMakeTranslateRefreshesTitleAttributeWhenProtectionIsRemoved(t *testing.
 		mu.Unlock()
 		translations := make([]map[string]string, len(payload.Text))
 		for index, text := range payload.Text {
-			if shouldTranslateTitle {
-				text = strings.ReplaceAll(text, `title="MarkerTitle"`, `title="Übersetzter Titel"`)
+			if shouldTranslateTitle && text == "MarkerTitle" {
+				text = "Übersetzter Titel"
 			}
 			translations[index] = map[string]string{"text": "Deutsch: " + text}
 		}
@@ -291,7 +291,7 @@ func TestMakeTranslateRefreshesTitleAttributeWhenProtectionIsRemoved(t *testing.
 	mu.Lock()
 	removalRequest := append([]string(nil), requested...)
 	mu.Unlock()
-	if len(removalRequest) != 1 || !strings.Contains(removalRequest[0], `title="MarkerTitle"`) {
+	if len(removalRequest) != 1 || removalRequest[0] != "MarkerTitle" {
 		t.Fatalf("removing title protection requested %d unexpected units: %q", len(removalRequest), removalRequest)
 	}
 	cache, err := os.ReadFile(cachePath)
@@ -300,5 +300,95 @@ func TestMakeTranslateRefreshesTitleAttributeWhenProtectionIsRemoved(t *testing.
 	}
 	if !strings.Contains(string(cache), "Übersetzter Titel") {
 		t.Fatal("formerly protected Markdown title was not refreshed for translation")
+	}
+}
+
+func TestMakeTranslateTranslatesMarkdownLinkTitleAsSeparateUnit(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	needle := "A small desktop app for quickly viewing and browsing images."
+	withTitle := strings.Replace(string(source), needle,
+		needle+` Read the [guide](https://example.test/guide "Read more").`, 1)
+	if withTitle == string(source) {
+		t.Fatal("test setup did not add a Markdown link title")
+	}
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(withTitle), 0o600); err != nil {
+		t.Fatalf("write source with Markdown link title: %v", err)
+	}
+
+	var (
+		mu        sync.Mutex
+		requested []string
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload struct {
+			Text []string `json:"text"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			http.Error(response, "bad request", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		requested = append(requested, payload.Text...)
+		mu.Unlock()
+		translations := make([]map[string]string, len(payload.Text))
+		for index, text := range payload.Text {
+			translated := "Deutsch: " + text
+			if text == "Read more" {
+				translated = "Mehr erfahren"
+			}
+			translations[index] = map[string]string{"text": translated}
+		}
+		_ = json.NewEncoder(response).Encode(map[string]any{"translations": translations})
+	}))
+	defer server.Close()
+
+	cachePath := filepath.Join(t.TempDir(), "de.json")
+	translate := exec.Command("make", "translate", "SITE_SOURCE="+sourcePath, "SITE_TRANSLATIONS="+cachePath)
+	translate.Dir = repo
+	translate.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+	translate.Env = append(translate.Env, "DEEPL_API_KEY="+strings.Repeat("i", 24), "DEEPL_API_URL="+server.URL)
+	if combined, err := translate.CombinedOutput(); err != nil {
+		t.Fatalf("make translate failed: %v\n%s", err, combined)
+	}
+
+	mu.Lock()
+	requests := append([]string(nil), requested...)
+	mu.Unlock()
+	separateTitle := 0
+	for _, text := range requests {
+		if text == "Read more" {
+			separateTitle++
+		}
+		if strings.Contains(text, `title="Read more"`) {
+			t.Fatalf("Markdown title was left inside an HTML translation unit: %q", text)
+		}
+	}
+	if separateTitle != 1 {
+		t.Fatalf("Markdown title was requested %d times as separate text, want once", separateTitle)
+	}
+
+	output := t.TempDir()
+	build := exec.Command("make", "build",
+		"SITE_SOURCE="+sourcePath,
+		"SITE_TRANSLATIONS="+cachePath,
+		"SITE_OUTPUT_DIR="+output,
+		"SITE_LOCALES=de",
+		"SITE_FORMATS=regular",
+	)
+	build.Dir = repo
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("make build failed: %v\n%s", err, combined)
+	}
+	page, err := os.ReadFile(filepath.Join(output, "de", "index.html"))
+	if err != nil {
+		t.Fatalf("read generated German page: %v", err)
+	}
+	if !strings.Contains(string(page), `href="https://example.test/guide" title="Mehr erfahren"`) {
+		t.Fatalf("German page does not contain the translated Markdown title:\n%s", page)
 	}
 }

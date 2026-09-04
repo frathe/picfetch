@@ -12,6 +12,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/renderer/html"
+	xhtml "golang.org/x/net/html"
 )
 
 type BuildOptions struct {
@@ -119,6 +120,7 @@ func loadCurrentGermanTranslations(content *Content, cachePath string) (map[stri
 		return nil, nil, err
 	}
 	missing := make([]string, 0)
+	validatedTranslations := make(map[string]string, len(units))
 	textTranslations := make(map[string]string)
 	markdownTranslations := make(map[string]template.HTML)
 	for _, unit := range units {
@@ -131,14 +133,22 @@ func loadCurrentGermanTranslations(content *Content, cachePath string) (map[stri
 		if err != nil {
 			return nil, nil, err
 		}
-		if unit.Format == "html" {
-			markdownTranslations[unit.ID] = template.HTML(validated)
-		} else {
-			textTranslations[unit.ID] = validated
-		}
+		validatedTranslations[unit.ID] = validated
 	}
 	if len(missing) > 0 {
 		return nil, nil, fmt.Errorf("missing or stale German translation: %s", strings.Join(missing, ", "))
+	}
+	for _, unit := range units {
+		validated := validatedTranslations[unit.ID]
+		if unit.Format == "html" {
+			assembled, err := restoreMarkdownLinkTitles(unit, validated, validatedTranslations)
+			if err != nil {
+				return nil, nil, err
+			}
+			markdownTranslations[unit.ID] = template.HTML(assembled)
+		} else {
+			textTranslations[unit.ID] = validated
+		}
 	}
 	return textTranslations, markdownTranslations, nil
 }
@@ -257,11 +267,66 @@ func renderPage(templatesPath, format string, data *page) ([]byte, error) {
 }
 
 func normalizeHTML(data []byte) []byte {
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	for index := range lines {
-		lines[index] = strings.TrimRight(lines[index], " \t")
+	data = bytes.TrimSpace(data)
+	preformatted := preformattedHTMLBytes(data)
+	var normalized bytes.Buffer
+	for lineStart := 0; lineStart < len(data); {
+		lineEnd := bytes.IndexByte(data[lineStart:], '\n')
+		if lineEnd < 0 {
+			lineEnd = len(data)
+		} else {
+			lineEnd += lineStart
+		}
+		trimmedEnd := lineEnd
+		for trimmedEnd > lineStart && !preformatted[trimmedEnd-1] && (data[trimmedEnd-1] == ' ' || data[trimmedEnd-1] == '\t') {
+			trimmedEnd--
+		}
+		normalized.Write(data[lineStart:trimmedEnd])
+		if lineEnd == len(data) {
+			break
+		}
+		normalized.WriteByte('\n')
+		lineStart = lineEnd + 1
 	}
-	return []byte(strings.Join(lines, "\n") + "\n")
+	normalized.WriteByte('\n')
+	return normalized.Bytes()
+}
+
+// preformattedHTMLBytes marks bytes whose whitespace is rendered verbatim by
+// HTML. The normalizer may clean up template indentation around the document,
+// but must not rewrite fenced code embedded in a <pre> element.
+func preformattedHTMLBytes(data []byte) []bool {
+	preformatted := make([]bool, len(data))
+	tokenizer := xhtml.NewTokenizer(bytes.NewReader(data))
+	offset := 0
+	preDepth := 0
+	for {
+		tokenType := tokenizer.Next()
+		if tokenType == xhtml.ErrorToken {
+			break
+		}
+		raw := tokenizer.Raw()
+		protected := preDepth > 0
+		token := xhtml.Token{}
+		if tokenType == xhtml.StartTagToken || tokenType == xhtml.EndTagToken {
+			token = tokenizer.Token()
+		}
+		if tokenType == xhtml.EndTagToken && token.Data == "pre" && preDepth > 0 {
+			preDepth--
+			protected = preDepth > 0
+		}
+		if protected {
+			end := min(offset+len(raw), len(preformatted))
+			for index := offset; index < end; index++ {
+				preformatted[index] = true
+			}
+		}
+		offset += len(raw)
+		if tokenType == xhtml.StartTagToken && token.Data == "pre" {
+			preDepth++
+		}
+	}
+	return preformatted
 }
 
 func routePath(locale, format string) string {

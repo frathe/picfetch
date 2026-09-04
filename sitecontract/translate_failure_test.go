@@ -92,6 +92,74 @@ func TestMakeTranslateRejectsMalformedResponseWithoutTouchingCache(t *testing.T)
 	}
 }
 
+func TestMakeTranslateRejectsVisiblyEmptyContentWithoutTouchingCache(t *testing.T) {
+	tests := []struct {
+		name        string
+		matches     func(string) bool
+		translation string
+		identity    string
+	}{
+		{
+			name: "Markdown HTML",
+			matches: func(text string) bool {
+				return strings.Contains(text, "A small desktop app for quickly viewing")
+			},
+			translation: "<p> \t </p>",
+			identity:    "hero.tagline",
+		},
+		{
+			name:        "plain text with zero-width character",
+			matches:     func(text string) bool { return text == "Close" },
+			translation: "\u200b",
+			identity:    "labels.lightbox-close",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			cachePath := filepath.Join(t.TempDir(), "de.json")
+			prior := []byte("{\n  \"version\": 1,\n  \"locale\": \"de\",\n  \"entries\": {}\n}\n")
+			if err := os.WriteFile(cachePath, prior, 0o600); err != nil {
+				t.Fatalf("write prior translation cache: %v", err)
+			}
+
+			server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				var payload struct {
+					Text []string `json:"text"`
+				}
+				if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+					http.Error(response, "bad request", http.StatusBadRequest)
+					return
+				}
+				translations := make([]map[string]string, len(payload.Text))
+				for index, text := range payload.Text {
+					translated := text
+					if test.matches(text) {
+						translated = test.translation
+					}
+					translations[index] = map[string]string{"text": translated}
+				}
+				_ = json.NewEncoder(response).Encode(map[string]any{"translations": translations})
+			}))
+			defer server.Close()
+
+			cmd := exec.Command("make", "translate", "SITE_TRANSLATIONS="+cachePath)
+			cmd.Dir = repo
+			cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+			cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("x", 24), "DEEPL_API_URL="+server.URL)
+			combined, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatal("make translate accepted visibly empty content")
+			}
+			if !strings.Contains(string(combined), test.identity) || !strings.Contains(string(combined), "no visible text") {
+				t.Fatalf("empty-content diagnostic is not actionable:\n%s", combined)
+			}
+			assertFileBytes(t, cachePath, prior)
+		})
+	}
+}
+
 func TestBuildRejectsMissingGermanTranslations(t *testing.T) {
 	repo := repositoryRoot(t)
 	output := t.TempDir()

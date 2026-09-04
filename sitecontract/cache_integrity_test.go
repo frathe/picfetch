@@ -197,3 +197,70 @@ func TestBuildRejectsModifiedMultilineFencedCodeInGermanCache(t *testing.T) {
 		t.Fatalf("multiline-code diagnostic is not actionable:\n%s", combined)
 	}
 }
+
+func TestBuildRejectsModifiedTailOfNestedKeyboardMarkup(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	needle := "A small desktop app for quickly viewing and browsing images."
+	withNestedKeyboard := strings.Replace(string(source), needle,
+		needle+` Press <kbd><code>Ctrl</code>+C</kbd> to continue.`, 1)
+	if withNestedKeyboard == string(source) {
+		t.Fatal("test setup did not add nested keyboard markup")
+	}
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(withNestedKeyboard), 0o600); err != nil {
+		t.Fatalf("write source with nested keyboard markup: %v", err)
+	}
+	cachePath := createControlledGermanCacheForSource(t, repo, sourcePath)
+
+	type cacheEntry struct {
+		SourceHash  string `json:"source_hash"`
+		RequestHash string `json:"request_hash"`
+		Format      string `json:"format"`
+		Text        string `json:"text"`
+	}
+	var cache struct {
+		Version int                   `json:"version"`
+		Locale  string                `json:"locale"`
+		Entries map[string]cacheEntry `json:"entries"`
+	}
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("read controlled cache: %v", err)
+	}
+	if err := json.Unmarshal(data, &cache); err != nil {
+		t.Fatalf("parse controlled cache: %v", err)
+	}
+	entry := cache.Entries["hero.tagline"]
+	entry.Text = strings.Replace(entry.Text, "</code>+C</kbd>", "</code>+V</kbd>", 1)
+	if !strings.Contains(entry.Text, "</code>+V</kbd>") {
+		t.Fatal("test setup did not modify the tail of the nested keyboard markup")
+	}
+	cache.Entries["hero.tagline"] = entry
+	data, err = json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		t.Fatalf("encode modified cache: %v", err)
+	}
+	if err := os.WriteFile(cachePath, append(data, '\n'), 0o600); err != nil {
+		t.Fatalf("write modified cache: %v", err)
+	}
+
+	cmd := exec.Command("make", "build",
+		"SITE_SOURCE="+sourcePath,
+		"SITE_TRANSLATIONS="+cachePath,
+		"SITE_OUTPUT_DIR="+t.TempDir(),
+		"SITE_LOCALES=de",
+		"SITE_FORMATS=regular",
+	)
+	cmd.Dir = repo
+	combined, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("make build accepted a changed tail in nested keyboard markup")
+	}
+	if !strings.Contains(string(combined), "hero.tagline") || !strings.Contains(string(combined), "protected code or keyboard content") {
+		t.Fatalf("nested-keyboard diagnostic is not actionable:\n%s", combined)
+	}
+}

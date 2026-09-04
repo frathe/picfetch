@@ -15,22 +15,24 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/yuin/goldmark"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 const translationCacheVersion = 1
 const maxDeepLRequestBytes = 96 << 10
 const maxDeepLTextsPerRequest = 50
 
-var ignoredElement = regexp.MustCompile(`(?s)<(?:code|kbd)(?:\s[^>]*)?>(.*?)</(?:code|kbd)>`)
 var opaqueAttribute = regexp.MustCompile(`(?:href|src)="([^"]+)"`)
-var protectedElement = regexp.MustCompile(`<keep>(.*?)</keep>`)
 
 type TranslateOptions struct {
 	SourcePath string
@@ -61,6 +63,14 @@ type translationUnit struct {
 	Format         string
 	RequestHTML    string
 	ProtectedTerms []string
+	MarkdownTitles []markdownLinkTitle
+}
+
+type markdownLinkTitle struct {
+	ID     string
+	Marker string
+	Href   string
+	Source string
 }
 
 type deepLRequest struct {
@@ -127,9 +137,6 @@ func Translate(options TranslateOptions) error {
 			if err != nil {
 				return err
 			}
-			if strings.TrimSpace(validated) == "" {
-				return fmt.Errorf("DeepL returned an empty translation for %s", unit.ID)
-			}
 			next.Entries[unit.ID] = TranslationCacheEntry{
 				SourceHash:  unit.SourceHash,
 				RequestHash: unit.RequestHash,
@@ -157,7 +164,7 @@ func collectTranslationUnits(content *Content) ([]translationUnit, error) {
 		if err != nil {
 			return fmt.Errorf("prepare translation unit %s: %w", value.ID, err)
 		}
-		units = append(units, newTranslationUnit(value.ID, value.Text, "text", protected, content.Site.ProtectedTerms, ""))
+		units = append(units, newTranslationUnit(value.ID, value.Text, "text", protected, content.Site.ProtectedTerms))
 		return nil
 	}
 	addMarkdown := func(id string) error {
@@ -171,15 +178,28 @@ func collectTranslationUnits(content *Content) ([]translationUnit, error) {
 		if err != nil {
 			return err
 		}
-		requestHTML, err := protectMarkdownHTML(validated, content.Site.ProtectedTerms)
+		titleStrippedHTML, titles, err := extractMarkdownLinkTitles(id, validated)
+		if err != nil {
+			return fmt.Errorf("prepare translation unit %s link titles: %w", id, err)
+		}
+		requestHTML, err := protectMarkdownHTML(titleStrippedHTML, content.Site.ProtectedTerms)
 		if err != nil {
 			return fmt.Errorf("prepare translation unit %s: %w", id, err)
 		}
-		protectedAttributeState, err := protectedMarkdownAttributeState(validated, content.Site.ProtectedTerms)
-		if err != nil {
-			return fmt.Errorf("prepare translation unit %s attributes: %w", id, err)
+		parentSource := source
+		if len(titles) > 0 {
+			parentSource = titleStrippedHTML
 		}
-		units = append(units, newTranslationUnit(id, source, "html", requestHTML, content.Site.ProtectedTerms, protectedAttributeState))
+		unit := newTranslationUnit(id, parentSource, "html", requestHTML, content.Site.ProtectedTerms)
+		unit.MarkdownTitles = titles
+		units = append(units, unit)
+		for _, title := range titles {
+			protected, err := protectTerms(title.Source, content.Site.ProtectedTerms, true)
+			if err != nil {
+				return fmt.Errorf("prepare translation unit %s: %w", title.ID, err)
+			}
+			units = append(units, newTranslationUnit(title.ID, title.Source, "text", protected, content.Site.ProtectedTerms))
+		}
 		return nil
 	}
 
@@ -269,7 +289,98 @@ func collectTranslationUnits(content *Content) ([]translationUnit, error) {
 		return nil, err
 	}
 	sort.Slice(units, func(i, j int) bool { return units[i].ID < units[j].ID })
+	for index := 1; index < len(units); index++ {
+		if units[index-1].ID == units[index].ID {
+			return nil, fmt.Errorf("duplicate derived translation identity %q", units[index].ID)
+		}
+	}
 	return units, nil
+}
+
+func extractMarkdownLinkTitles(id, value string) (string, []markdownLinkTitle, error) {
+	nodes, err := parseMarkdownFragment(value)
+	if err != nil {
+		return "", nil, err
+	}
+	occurrences := make(map[string]int)
+	titles := make([]markdownLinkTitle, 0)
+	var visit func(*xhtml.Node) error
+	visit = func(node *xhtml.Node) error {
+		if node.Type == xhtml.ElementNode && node.Data == "a" {
+			href := markdownAttribute(node, "href")
+			titleAttribute := -1
+			for index, attribute := range node.Attr {
+				if attribute.Namespace == "" && attribute.Key == "title" {
+					if titleAttribute >= 0 {
+						return fmt.Errorf("link has more than one title attribute")
+					}
+					titleAttribute = index
+				}
+			}
+			if titleAttribute >= 0 {
+				occurrences[href]++
+				hrefHash := sha256.Sum256([]byte(href))
+				titleID := id + "#link-title-" + hex.EncodeToString(hrefHash[:]) + "-" + strconv.Itoa(occurrences[href])
+				markerHash := sha256.Sum256([]byte(titleID))
+				marker := "sitegen-link-title-" + hex.EncodeToString(markerHash[:])
+				titles = append(titles, markdownLinkTitle{
+					ID:     titleID,
+					Marker: marker,
+					Href:   href,
+					Source: node.Attr[titleAttribute].Val,
+				})
+				node.Attr[titleAttribute].Val = marker
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			if err := visit(child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, node := range nodes {
+		if err := visit(node); err != nil {
+			return "", nil, err
+		}
+	}
+	rendered, err := renderMarkdownFragment(nodes)
+	if err != nil {
+		return "", nil, err
+	}
+	canonical, err := canonicalSafeMarkdownHTML(id, rendered)
+	if err != nil {
+		return "", nil, err
+	}
+	return canonical, titles, nil
+}
+
+func parseMarkdownFragment(value string) ([]*xhtml.Node, error) {
+	context := &xhtml.Node{Type: xhtml.ElementNode, DataAtom: atom.Div, Data: "div"}
+	nodes, err := xhtml.ParseFragment(strings.NewReader(value), context)
+	if err != nil {
+		return nil, fmt.Errorf("parse Markdown HTML fragment: %w", err)
+	}
+	return nodes, nil
+}
+
+func renderMarkdownFragment(nodes []*xhtml.Node) (string, error) {
+	var rendered bytes.Buffer
+	for _, node := range nodes {
+		if err := xhtml.Render(&rendered, node); err != nil {
+			return "", fmt.Errorf("render Markdown HTML fragment: %w", err)
+		}
+	}
+	return rendered.String(), nil
+}
+
+func markdownAttribute(node *xhtml.Node, name string) string {
+	for _, attribute := range node.Attr {
+		if attribute.Namespace == "" && attribute.Key == name {
+			return attribute.Val
+		}
+	}
+	return ""
 }
 
 func protectMarkdownHTML(value string, terms []string) (string, error) {
@@ -316,13 +427,9 @@ func protectMarkdownHTML(value string, terms []string) (string, error) {
 	}
 }
 
-func newTranslationUnit(id, source, format, requestHTML string, protectedTerms []string, protectedAttributeState string) translationUnit {
+func newTranslationUnit(id, source, format, requestHTML string, protectedTerms []string) translationUnit {
 	sourceHash := sha256.Sum256([]byte(source))
-	requestIdentity := requestHTML
-	if protectedAttributeState != "" {
-		requestIdentity += "\x00protected-markdown-attributes\x00" + protectedAttributeState
-	}
-	requestHash := sha256.Sum256([]byte(requestIdentity))
+	requestHash := sha256.Sum256([]byte(requestHTML))
 	return translationUnit{
 		ID:             id,
 		Source:         source,
@@ -332,21 +439,6 @@ func newTranslationUnit(id, source, format, requestHTML string, protectedTerms [
 		RequestHTML:    requestHTML,
 		ProtectedTerms: append([]string(nil), protectedTerms...),
 	}
-}
-
-func protectedMarkdownAttributeState(value string, terms []string) (string, error) {
-	content, err := inspectTranslatableHTML(value, false)
-	if err != nil {
-		return "", err
-	}
-	protected, err := protectTerms(content.Attributes, terms, false)
-	if err != nil {
-		return "", err
-	}
-	if protected == content.Attributes {
-		return "", nil
-	}
-	return protected, nil
 }
 
 func translationEntryCurrent(unit translationUnit, entry TranslationCacheEntry) bool {
@@ -550,7 +642,15 @@ func deepLStatusError(status int) error {
 func validateOpaqueContent(unit translationUnit, translated string) error {
 	expected := stripProtection(unit.RequestHTML)
 	actual := stripProtection(translated)
-	if !sameCapturedValues(ignoredElement, expected, actual, 0) {
+	expectedOpaque, err := opaqueMarkdownSubtrees(expected)
+	if err != nil {
+		return fmt.Errorf("inspect protected code or keyboard content in source %s: %w", unit.ID, err)
+	}
+	actualOpaque, err := opaqueMarkdownSubtrees(actual)
+	if err != nil {
+		return fmt.Errorf("inspect protected code or keyboard content in translation %s: %w", unit.ID, err)
+	}
+	if !slices.Equal(expectedOpaque, actualOpaque) {
 		return fmt.Errorf("translation changed protected code or keyboard content in %s", unit.ID)
 	}
 	if !sameCapturedValues(opaqueAttribute, expected, actual, 1) {
@@ -559,8 +659,8 @@ func validateOpaqueContent(unit translationUnit, translated string) error {
 	terms := append([]string(nil), unit.ProtectedTerms...)
 	sort.SliceStable(terms, func(i, j int) bool { return len(terms[i]) > len(terms[j]) })
 	seen := make(map[string]bool, len(terms))
-	requestText := ignoredElement.ReplaceAllString(unit.RequestHTML, "")
-	remaining := ignoredElement.ReplaceAllString(actual, "")
+	requestText := unit.RequestHTML
+	remaining := actual
 	requestAttributes := ""
 	remainingAttributes := ""
 	if unit.Format == "html" {
@@ -602,6 +702,37 @@ func validateOpaqueContent(unit translationUnit, translated string) error {
 		}
 	}
 	return nil
+}
+
+func opaqueMarkdownSubtrees(value string) ([]string, error) {
+	nodes, err := parseMarkdownFragment(value)
+	if err != nil {
+		return nil, err
+	}
+	var subtrees []string
+	var visit func(*xhtml.Node) error
+	visit = func(node *xhtml.Node) error {
+		if node.Type == xhtml.ElementNode && (node.Data == "code" || node.Data == "kbd") {
+			var rendered bytes.Buffer
+			if err := xhtml.Render(&rendered, node); err != nil {
+				return err
+			}
+			subtrees = append(subtrees, rendered.String())
+			return nil
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			if err := visit(child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, node := range nodes {
+		if err := visit(node); err != nil {
+			return nil, err
+		}
+	}
+	return subtrees, nil
 }
 
 type translatableHTMLContent struct {
@@ -726,11 +857,163 @@ func validateCachedTranslation(unit translationUnit, translated string) (string,
 			return "", err
 		}
 		translated = canonical
+		visible, err := hasVisibleMarkdownContent(translated)
+		if err != nil {
+			return "", fmt.Errorf("inspect translated Markdown in %s: %w", unit.ID, err)
+		}
+		if !visible {
+			return "", fmt.Errorf("translation for %s has no visible text", unit.ID)
+		}
+		if err := validateMarkdownLinkTitleMarkers(unit, translated); err != nil {
+			return "", err
+		}
+	} else if !hasVisibleText(translated) {
+		return "", fmt.Errorf("translation for %s has no visible text", unit.ID)
 	}
 	if err := validateOpaqueContent(unit, translated); err != nil {
 		return "", err
 	}
 	return translated, nil
+}
+
+func hasVisibleMarkdownContent(value string) (bool, error) {
+	nodes, err := parseMarkdownFragment(value)
+	if err != nil {
+		return false, err
+	}
+	var visible bool
+	var visit func(*xhtml.Node)
+	visit = func(node *xhtml.Node) {
+		if visible {
+			return
+		}
+		if node.Type == xhtml.TextNode && hasVisibleText(node.Data) {
+			visible = true
+			return
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	for _, node := range nodes {
+		visit(node)
+	}
+	return visible, nil
+}
+
+func hasVisibleText(value string) bool {
+	for _, character := range value {
+		if unicode.IsGraphic(character) && !unicode.IsSpace(character) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateMarkdownLinkTitleMarkers(unit translationUnit, value string) error {
+	expected := make(map[string]markdownLinkTitle, len(unit.MarkdownTitles))
+	for _, title := range unit.MarkdownTitles {
+		expected[title.Marker] = title
+	}
+	found := make(map[string]int, len(expected))
+	nodes, err := parseMarkdownFragment(value)
+	if err != nil {
+		return fmt.Errorf("inspect Markdown link titles in %s: %w", unit.ID, err)
+	}
+	var validationErr error
+	var visit func(*xhtml.Node)
+	visit = func(node *xhtml.Node) {
+		if validationErr != nil {
+			return
+		}
+		if node.Type == xhtml.ElementNode && node.Data == "a" {
+			href := markdownAttribute(node, "href")
+			for _, attribute := range node.Attr {
+				if attribute.Namespace != "" || attribute.Key != "title" {
+					continue
+				}
+				title, ok := expected[attribute.Val]
+				if !ok {
+					validationErr = fmt.Errorf("translation changed a Markdown link title marker in %s", unit.ID)
+					return
+				}
+				if href != title.Href {
+					validationErr = fmt.Errorf("translation moved a Markdown link title marker to a different link in %s", unit.ID)
+					return
+				}
+				found[attribute.Val]++
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	for _, node := range nodes {
+		visit(node)
+	}
+	if validationErr != nil {
+		return validationErr
+	}
+	for marker := range expected {
+		if found[marker] != 1 {
+			return fmt.Errorf("translation changed Markdown link title marker in %s (got %d occurrences, want 1)", unit.ID, found[marker])
+		}
+	}
+	return nil
+}
+
+func restoreMarkdownLinkTitles(unit translationUnit, value string, translations map[string]string) (string, error) {
+	if len(unit.MarkdownTitles) == 0 {
+		return value, nil
+	}
+	titlesByMarker := make(map[string]markdownLinkTitle, len(unit.MarkdownTitles))
+	for _, title := range unit.MarkdownTitles {
+		titlesByMarker[title.Marker] = title
+	}
+	nodes, err := parseMarkdownFragment(value)
+	if err != nil {
+		return "", fmt.Errorf("restore Markdown link titles in %s: %w", unit.ID, err)
+	}
+	var restoreErr error
+	var visit func(*xhtml.Node)
+	visit = func(node *xhtml.Node) {
+		if restoreErr != nil {
+			return
+		}
+		if node.Type == xhtml.ElementNode && node.Data == "a" {
+			for index := range node.Attr {
+				attribute := &node.Attr[index]
+				if attribute.Namespace != "" || attribute.Key != "title" {
+					continue
+				}
+				title, ok := titlesByMarker[attribute.Val]
+				if !ok {
+					restoreErr = fmt.Errorf("restore Markdown link titles in %s: unknown title marker", unit.ID)
+					return
+				}
+				translated, ok := translations[title.ID]
+				if !ok {
+					restoreErr = fmt.Errorf("restore Markdown link titles in %s: missing German translation %s", unit.ID, title.ID)
+					return
+				}
+				attribute.Val = translated
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	for _, node := range nodes {
+		visit(node)
+	}
+	if restoreErr != nil {
+		return "", restoreErr
+	}
+	rendered, err := renderMarkdownFragment(nodes)
+	if err != nil {
+		return "", fmt.Errorf("restore Markdown link titles in %s: %w", unit.ID, err)
+	}
+	return canonicalSafeMarkdownHTML(unit.ID, rendered)
 }
 
 func stripProtection(value string) string {
