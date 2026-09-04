@@ -46,6 +46,50 @@ func TestCheckGeneratedRejectsIncompleteLocaleFormatMatrix(t *testing.T) {
 }
 
 func TestCheckGeneratedRejectsUnexpectedGeneratedRoute(t *testing.T) {
+	for _, relative := range []string{
+		filepath.Join("fr", "index.html"),
+		"fr.html",
+		"old-amp.html",
+		"STALE.HTML",
+	} {
+		relative := relative
+		t.Run(relative, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			cachePath := createControlledGermanCache(t, repo)
+			output := t.TempDir()
+
+			build := exec.Command("make", "build", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			build.Dir = repo
+			if combined, err := build.CombinedOutput(); err != nil {
+				t.Fatalf("prepare complete generated site: %v\n%s", err, combined)
+			}
+			writeStaticSiteFiles(t, output)
+			if err := os.WriteFile(filepath.Join(output, "google3c65c0a6b3b51cc2.html"), []byte("google-site-verification\n"), 0o600); err != nil {
+				t.Fatalf("write allowed search-verification artifact: %v", err)
+			}
+
+			staleRoute := filepath.Join(output, relative)
+			if err := os.MkdirAll(filepath.Dir(staleRoute), 0o755); err != nil {
+				t.Fatalf("create stale route directory: %v", err)
+			}
+			if err := os.WriteFile(staleRoute, []byte("<!doctype html><html lang=\"fr\"><body>stale</body></html>\n"), 0o600); err != nil {
+				t.Fatalf("write stale route: %v", err)
+			}
+
+			check := exec.Command("make", "check-generated", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			check.Dir = repo
+			combined, err := check.CombinedOutput()
+			if err == nil {
+				t.Fatal("check-generated accepted an unexpected generated route")
+			}
+			if !strings.Contains(string(combined), "unexpected generated route: "+filepath.ToSlash(relative)) {
+				t.Fatalf("unexpected-route diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
+func TestCheckGeneratedAllowsSearchVerificationHTML(t *testing.T) {
 	repo := repositoryRoot(t)
 	cachePath := createControlledGermanCache(t, repo)
 	output := t.TempDir()
@@ -56,22 +100,13 @@ func TestCheckGeneratedRejectsUnexpectedGeneratedRoute(t *testing.T) {
 		t.Fatalf("prepare complete generated site: %v\n%s", err, combined)
 	}
 	writeStaticSiteFiles(t, output)
-
-	staleRoute := filepath.Join(output, "fr", "index.html")
-	if err := os.MkdirAll(filepath.Dir(staleRoute), 0o755); err != nil {
-		t.Fatalf("create stale route directory: %v", err)
-	}
-	if err := os.WriteFile(staleRoute, []byte("<!doctype html><html lang=\"fr\"><body>stale</body></html>\n"), 0o600); err != nil {
-		t.Fatalf("write stale route: %v", err)
+	if err := os.WriteFile(filepath.Join(output, "google3c65c0a6b3b51cc2.html"), []byte("google-site-verification\n"), 0o600); err != nil {
+		t.Fatalf("write allowed search-verification artifact: %v", err)
 	}
 
 	check := exec.Command("make", "check-generated", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
 	check.Dir = repo
-	combined, err := check.CombinedOutput()
-	if err == nil {
-		t.Fatal("check-generated accepted an unexpected generated route")
-	}
-	if !strings.Contains(string(combined), "unexpected generated route: fr/index.html") {
-		t.Fatalf("unexpected-route diagnostic is not actionable:\n%s", combined)
+	if combined, err := check.CombinedOutput(); err != nil {
+		t.Fatalf("check-generated rejected the search-verification artifact: %v\n%s", err, combined)
 	}
 }

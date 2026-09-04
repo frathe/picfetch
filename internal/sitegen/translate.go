@@ -693,8 +693,14 @@ func translationEndpoint(override, key string) (string, error) {
 		}
 	}
 	parsed, err := url.Parse(base)
-	if err != nil || parsed.Host == "" {
+	if err != nil {
 		return "", fmt.Errorf("DeepL endpoint %q is not a valid URL", base)
+	}
+	if err := validateURLAuthority(parsed); err != nil {
+		return "", fmt.Errorf("DeepL endpoint %q has an invalid URL authority: %w", base, err)
+	}
+	if parsed.RawQuery != "" || parsed.ForceQuery || strings.Contains(base, "#") {
+		return "", fmt.Errorf("DeepL endpoint must not include a query or fragment")
 	}
 	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && (parsed.Hostname() == "127.0.0.1" || parsed.Hostname() == "localhost" || parsed.Hostname() == "::1")) {
 		return "", fmt.Errorf("DeepL endpoint must use HTTPS (HTTP is allowed only for loopback tests)")

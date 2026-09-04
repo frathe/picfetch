@@ -115,38 +115,46 @@ func TestMakeUpdateValidationFailureLeavesCacheAndPagesUntouched(t *testing.T) {
 }
 
 func TestMakeUpdateRejectsUnexpectedExistingRouteBeforePublishing(t *testing.T) {
-	repo := repositoryRoot(t)
-	fixtureRoot := t.TempDir()
-	cachePath := filepath.Join(fixtureRoot, "de.json")
-	output := filepath.Join(fixtureRoot, "docs")
-	if err := os.MkdirAll(filepath.Join(output, "fr"), 0o755); err != nil {
-		t.Fatalf("create deployment fixture: %v", err)
-	}
-	writeStaticSiteFiles(t, output)
-	priorPage := []byte("prior deployment\n")
-	if err := os.WriteFile(filepath.Join(output, "index.html"), priorPage, 0o600); err != nil {
-		t.Fatalf("write prior root page: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(output, "fr", "index.html"), []byte("stale French route\n"), 0o600); err != nil {
-		t.Fatalf("write stale route: %v", err)
-	}
-	server := echoingDeepLServer(t)
-	defer server.Close()
+	for _, relative := range []string{filepath.Join("fr", "index.html"), "old-amp.html"} {
+		relative := relative
+		t.Run(relative, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			fixtureRoot := t.TempDir()
+			cachePath := filepath.Join(fixtureRoot, "de.json")
+			output := filepath.Join(fixtureRoot, "docs")
+			if err := os.MkdirAll(filepath.Join(output, filepath.Dir(relative)), 0o755); err != nil {
+				t.Fatalf("create deployment fixture: %v", err)
+			}
+			writeStaticSiteFiles(t, output)
+			if err := os.WriteFile(filepath.Join(output, "google3c65c0a6b3b51cc2.html"), []byte("google-site-verification\n"), 0o600); err != nil {
+				t.Fatalf("write allowed search-verification artifact: %v", err)
+			}
+			priorPage := []byte("prior deployment\n")
+			if err := os.WriteFile(filepath.Join(output, "index.html"), priorPage, 0o600); err != nil {
+				t.Fatalf("write prior root page: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(output, relative), []byte("stale route\n"), 0o600); err != nil {
+				t.Fatalf("write stale route: %v", err)
+			}
+			server := echoingDeepLServer(t)
+			defer server.Close()
 
-	cmd := exec.Command("make", "update", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
-	cmd.Dir = repo
-	cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
-	cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("w", 24), "DEEPL_API_URL="+server.URL, "npm_config_offline=true")
-	combined, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatal("make update accepted an unexpected existing generated route")
-	}
-	if !strings.Contains(string(combined), "unexpected generated route: fr/index.html") {
-		t.Fatalf("unexpected-route update diagnostic is not actionable:\n%s", combined)
-	}
-	assertFileBytes(t, filepath.Join(output, "index.html"), priorPage)
-	if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
-		t.Fatalf("rejected update published translation cache: %v", err)
+			cmd := exec.Command("make", "update", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+			cmd.Dir = repo
+			cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+			cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("w", 24), "DEEPL_API_URL="+server.URL, "npm_config_offline=true")
+			combined, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatal("make update accepted an unexpected existing generated route")
+			}
+			if !strings.Contains(string(combined), "unexpected generated route: "+filepath.ToSlash(relative)) {
+				t.Fatalf("unexpected-route update diagnostic is not actionable:\n%s", combined)
+			}
+			assertFileBytes(t, filepath.Join(output, "index.html"), priorPage)
+			if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
+				t.Fatalf("rejected update published translation cache: %v", err)
+			}
+		})
 	}
 }
 

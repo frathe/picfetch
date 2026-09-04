@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -40,6 +41,48 @@ func TestMakeTranslateRequiresCredentialWithoutTouchingCache(t *testing.T) {
 	}
 	if !bytes.Equal(after, prior) {
 		t.Fatalf("failed translation changed the prior cache\nwant: %q\n got: %q", prior, after)
+	}
+}
+
+func TestMakeTranslateRejectsEndpointQueryOrFragmentWithoutTouchingCache(t *testing.T) {
+	for _, suffix := range []string{"?tenant=x", "?", "#tenant", "#"} {
+		suffix := suffix
+		t.Run(suffix, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			cachePath := filepath.Join(t.TempDir(), "de.json")
+			prior := []byte("{\n  \"version\": 1,\n  \"locale\": \"de\",\n  \"entries\": {}\n}\n")
+			if err := os.WriteFile(cachePath, prior, 0o600); err != nil {
+				t.Fatalf("write prior translation cache: %v", err)
+			}
+
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				requests.Add(1)
+				http.Error(response, "unexpected request", http.StatusInternalServerError)
+			}))
+			defer server.Close()
+
+			cmd := exec.Command(
+				"make",
+				"translate",
+				"SITE_TRANSLATIONS="+cachePath,
+				"DEEPL_ENV_FILE="+filepath.Join(t.TempDir(), "missing.env"),
+			)
+			cmd.Dir = repo
+			cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+			cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("q", 24), "DEEPL_API_URL="+server.URL+suffix)
+			combined, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatal("make translate accepted a DeepL endpoint with a query or fragment")
+			}
+			if !strings.Contains(string(combined), "must not include a query or fragment") {
+				t.Fatalf("query-or-fragment diagnostic is not actionable:\n%s", combined)
+			}
+			if got := requests.Load(); got != 0 {
+				t.Fatalf("invalid DeepL endpoint made %d network request(s)", got)
+			}
+			assertFileBytes(t, cachePath, prior)
+		})
 	}
 }
 

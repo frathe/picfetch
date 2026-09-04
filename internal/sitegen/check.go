@@ -118,10 +118,14 @@ func rejectObsoleteGermanTranslations(sourcePath, cachePath string) error {
 }
 
 func rejectUnexpectedGeneratedRoutes(root string, expectedPaths []string) error {
-	expected := make(map[string]struct{}, len(expectedPaths))
+	expected := make(map[string]struct{}, len(expectedPaths)+1)
 	for _, path := range expectedPaths {
 		expected[filepath.ToSlash(filepath.Clean(path))] = struct{}{}
 	}
+	// GitHub Pages serves this ownership-verification token as a standalone
+	// static artifact. It is deliberately the only HTML file outside the four
+	// generated locale/format routes.
+	expected["google3c65c0a6b3b51cc2.html"] = struct{}{}
 	openedRoot, err := openSecureReadRoot(root)
 	if err != nil {
 		return fmt.Errorf("inspect generated routes: %w", err)
@@ -135,7 +139,7 @@ func rejectUnexpectedGeneratedRoutes(root string, expectedPaths []string) error 
 		if entry.Type()&fs.ModeSymlink != 0 {
 			return fmt.Errorf("generated deployment contains symbolic link: %s", strings.TrimPrefix(path, "./"))
 		}
-		if entry.IsDir() || entry.Name() != "index.html" {
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".html") {
 			return nil
 		}
 		relative := strings.TrimPrefix(path, "./")
