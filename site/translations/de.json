@@ -4,9 +4,9 @@
   "entries": {
     "downloads.introduction": {
       "source_hash": "14f8d20f476d548ecbadb7aeff2b38338a44d5b818453ef3c8f8eeb244a3a1e5",
-      "request_hash": "3c0db960bebe6bf32aae1a6901ab0a4ae6031bfdde36e1459e2173d61c6a5462",
+      "request_hash": "4ce777c135822298994c46b8a07e83922ffdc224042588e2c8e07d27cb39a78c",
       "format": "html",
-      "text": "\u003cp\u003eVorkompilierte Binärdateien, keine „Go“-Toolchain erforderlich – über die unten stehenden Links wird immer die neueste Version heruntergeladen. Möchten Sie lieber aus dem Quellcode kompilieren? Die \u003ca href=\"https://github.com/frathe/picfetch#building\"\u003eKompilieranleitung\u003c/a\u003e finden Sie im Repository.\u003c/p\u003e"
+      "text": "\u003cp\u003eVorkompilierte Binärdateien, keine „Go“-Toolchain erforderlich – über die unten stehenden Links wird immer die neueste Version heruntergeladen. Möchten Sie lieber aus dem Quellcode kompilieren? Die \u003ca href=\"https://github.com/frathe/picfetch#building\" title=\"sitegen-link-binding-be6d3a4d3836475713ce745cc0aca7019031dc4a3cd2a6263101f04f91512a8b\"\u003eKompilieranleitung\u003c/a\u003e finden Sie im Repository.\u003c/p\u003e"
     },
     "downloads.linux.amd64": {
       "source_hash": "e91374543450544ad19cfbae075cb02450883102ad9f256acbcbc4465a60b3f3",
@@ -196,9 +196,9 @@
     },
     "footer.colophon": {
       "source_hash": "d64fb95a4b0105c8613f70ae86c8501f2c2cbed23158da8baac4bd3a8af38bb6",
-      "request_hash": "f32f7c83ea33e44dc756a33a94601c81b9a31130af60c5c331eb1abb4bcbd87b",
+      "request_hash": "7e8e53e56b2ed15742e1a7fea30bd72adb85cd5bc2d9b69db08a67a795e7d3ab",
       "format": "html",
-      "text": "\u003cp\u003ePicFetch ist kostenlos und Open Source unter der „\u003ca href=\"https://github.com/frathe/picfetch/blob/main/LICENSE\"\u003eMIT“-Lizenz\u003c/a\u003e und wurde mit \u003ca href=\"https://fyne.io/\"\u003eFyne\u003c/a\u003e erstellt.\u003c/p\u003e"
+      "text": "\u003cp\u003ePicFetch ist kostenlos und Open Source unter der „\u003ca href=\"https://github.com/frathe/picfetch/blob/main/LICENSE\" title=\"sitegen-link-binding-c404b1f0761f893ee03695d397a6dbedff9a9796d24c5d567bb9558ab4966303\"\u003eMIT“-Lizenz\u003c/a\u003e und wurde mit \u003ca href=\"https://fyne.io/\" title=\"sitegen-link-binding-6275f58c52b197049c7c06e54e31ea9101746e1ff6fc46a2fac452402b8cac6a\"\u003eFyne\u003c/a\u003e erstellt.\u003c/p\u003e"
     },
     "footer.image-alt": {
       "source_hash": "11f3df8f4f224d712a310672a753fc9464dae9ea9f360adcc9da07d45f92f1d6",

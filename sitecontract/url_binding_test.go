@@ -130,12 +130,29 @@ func TestTranslateMigratesLegacyMarkdownURLBindingsOffline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read checked-in German cache: %v", err)
 	}
+	legacy = makeLegacyMarkdownURLBindingCache(t, legacy)
 	if strings.Contains(string(legacy), "sitegen-link-binding-") {
-		t.Fatal("checked-in German cache is no longer a legacy URL-binding fixture")
+		t.Fatal("test setup did not create a legacy URL-binding cache")
 	}
 	cachePath := filepath.Join(t.TempDir(), "de.json")
 	if err := os.WriteFile(cachePath, legacy, 0o600); err != nil {
 		t.Fatalf("copy checked-in German cache: %v", err)
+	}
+	legacyBuild := exec.Command("make", "build",
+		"SITE_TRANSLATIONS="+cachePath,
+		"SITE_OUTPUT_DIR="+t.TempDir(),
+		"SITE_LOCALES=de",
+		"SITE_FORMATS=regular",
+	)
+	legacyBuild.Dir = repo
+	combined, err := legacyBuild.CombinedOutput()
+	if err == nil {
+		t.Fatal("make build treated a migratable legacy cache as current")
+	}
+	if !strings.Contains(string(combined), "missing or stale German translation") ||
+		!strings.Contains(string(combined), "downloads.introduction") ||
+		!strings.Contains(string(combined), "footer.colophon") {
+		t.Fatalf("legacy-cache diagnostic is not actionable:\n%s", combined)
 	}
 	runTranslate := func() []byte {
 		t.Helper()
@@ -185,6 +202,53 @@ func TestTranslateMigratesLegacyMarkdownURLBindingsOffline(t *testing.T) {
 	if strings.Contains(string(page), "sitegen-link-") {
 		t.Fatal("German page leaked an internal URL-binding marker")
 	}
+}
+
+func makeLegacyMarkdownURLBindingCache(t *testing.T, current []byte) []byte {
+	t.Helper()
+	type cacheEntry struct {
+		SourceHash  string `json:"source_hash"`
+		RequestHash string `json:"request_hash"`
+		Format      string `json:"format"`
+		Text        string `json:"text"`
+	}
+	var cache struct {
+		Version int                   `json:"version"`
+		Locale  string                `json:"locale"`
+		Entries map[string]cacheEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(current, &cache); err != nil {
+		t.Fatalf("parse current German cache: %v", err)
+	}
+	legacyHashes := map[string]string{
+		"downloads.introduction": "3c0db960bebe6bf32aae1a6901ab0a4ae6031bfdde36e1459e2173d61c6a5462",
+		"footer.colophon":        "f32f7c83ea33e44dc756a33a94601c81b9a31130af60c5c331eb1abb4bcbd87b",
+	}
+	for id, legacyHash := range legacyHashes {
+		entry, ok := cache.Entries[id]
+		if !ok {
+			t.Fatalf("current German cache has no %s entry", id)
+		}
+		for {
+			markerStart := strings.Index(entry.Text, ` title="sitegen-link-binding-`)
+			if markerStart < 0 {
+				break
+			}
+			markerEnd := strings.Index(entry.Text[markerStart+len(` title="`):], `"`)
+			if markerEnd < 0 {
+				t.Fatalf("unterminated URL-binding marker in %s", id)
+			}
+			markerEnd += markerStart + len(` title="`) + 1
+			entry.Text = entry.Text[:markerStart] + entry.Text[markerEnd:]
+		}
+		entry.RequestHash = legacyHash
+		cache.Entries[id] = entry
+	}
+	encoded, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		t.Fatalf("encode legacy German cache: %v", err)
+	}
+	return append(encoded, '\n')
 }
 
 func TestBuildRejectsDuplicateMarkdownURLAttributes(t *testing.T) {

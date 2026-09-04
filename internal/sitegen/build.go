@@ -129,7 +129,7 @@ func loadCurrentGermanTranslations(content *Content, cachePath string) (map[stri
 			missing = append(missing, unit.ID)
 			continue
 		}
-		validated, err := validateCachedTranslation(unit, entry.Text, translationEntryUsesLegacyRequest(unit, entry))
+		validated, err := validateCachedTranslation(unit, entry.Text, false)
 		if err != nil {
 			return nil, nil, err
 		}

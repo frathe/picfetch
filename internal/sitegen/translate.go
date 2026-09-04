@@ -108,8 +108,8 @@ func Translate(options TranslateOptions) error {
 	next := TranslationCache{Version: translationCacheVersion, Locale: "de", Entries: make(map[string]TranslationCacheEntry, len(units))}
 	pending := make([]translationUnit, 0)
 	for _, unit := range units {
-		entry, current := prior.Entries[unit.ID]
-		if current && translationEntryCurrent(unit, entry) {
+		entry, exists := prior.Entries[unit.ID]
+		if exists && (translationEntryCurrent(unit, entry) || translationEntryMigratable(unit, entry)) {
 			legacy := translationEntryUsesLegacyRequest(unit, entry)
 			if validated, err := validateCachedTranslation(unit, entry.Text, legacy); err == nil {
 				entry.RequestHash = unit.RequestHash
@@ -505,12 +505,17 @@ func newTranslationUnit(id, source, format, requestHTML string, protectedTerms [
 }
 
 func translationEntryCurrent(unit translationUnit, entry TranslationCacheEntry) bool {
-	requestCurrent := entry.RequestHash == unit.RequestHash ||
-		(unit.LegacyRequestHash != "" && entry.RequestHash == unit.LegacyRequestHash)
 	return entry.SourceHash == unit.SourceHash &&
-		requestCurrent &&
+		entry.RequestHash == unit.RequestHash &&
 		entry.Format == unit.Format &&
 		strings.TrimSpace(entry.Text) != ""
+}
+
+func translationEntryMigratable(unit translationUnit, entry TranslationCacheEntry) bool {
+	return entry.SourceHash == unit.SourceHash &&
+		entry.Format == unit.Format &&
+		strings.TrimSpace(entry.Text) != "" &&
+		translationEntryUsesLegacyRequest(unit, entry)
 }
 
 func translationEntryUsesLegacyRequest(unit translationUnit, entry TranslationCacheEntry) bool {
