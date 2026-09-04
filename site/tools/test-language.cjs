@@ -32,37 +32,38 @@ function staticServer(root) {
 async function main() {
   const root = path.resolve(process.argv[2] || process.env.SITE_OUTPUT_DIR || 'docs');
   const server = staticServer(root);
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
-  const address = server.address();
-  const baseURL = `http://127.0.0.1:${address.port}`;
-  const browser = await chromium.launch({channel: 'chrome', headless: true});
-
-  async function destination(route, languages, storedLanguage) {
-    const context = await browser.newContext({locale: languages[0]});
-	await context.route('**/*', (route) => {
-	  const target = route.request().url();
-	  return target.startsWith(`${baseURL}/`) ? route.continue() : route.abort();
-	});
-    await context.addInitScript(({configuredLanguages, stored}) => {
-      Object.defineProperty(navigator, 'languages', {get: () => configuredLanguages});
-      Object.defineProperty(navigator, 'language', {get: () => configuredLanguages[0]});
-      if (stored === null) {
-        localStorage.removeItem('picfetch-language');
-      } else {
-        localStorage.setItem('picfetch-language', stored);
-      }
-    }, {configuredLanguages: languages, stored: storedLanguage});
-    const page = await context.newPage();
-	await page.goto(`${baseURL}${route}`, {waitUntil: 'domcontentloaded'});
-    const result = new URL(page.url()).pathname;
-    await context.close();
-    return result;
-  }
-
+  let browser;
   try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    const baseURL = `http://127.0.0.1:${address.port}`;
+    browser = await chromium.launch({channel: 'chrome', headless: true});
+
+    async function destination(route, languages, storedLanguage) {
+      const context = await browser.newContext({locale: languages[0]});
+      await context.route('**/*', (route) => {
+        const target = route.request().url();
+        return target.startsWith(`${baseURL}/`) ? route.continue() : route.abort();
+      });
+      await context.addInitScript(({configuredLanguages, stored}) => {
+        Object.defineProperty(navigator, 'languages', {get: () => configuredLanguages});
+        Object.defineProperty(navigator, 'language', {get: () => configuredLanguages[0]});
+        if (stored === null) {
+          localStorage.removeItem('picfetch-language');
+        } else {
+          localStorage.setItem('picfetch-language', stored);
+        }
+      }, {configuredLanguages: languages, stored: storedLanguage});
+      const page = await context.newPage();
+      await page.goto(`${baseURL}${route}`, {waitUntil: 'domcontentloaded'});
+      const result = new URL(page.url()).pathname;
+      await context.close();
+      return result;
+    }
+
     for (const locale of ['de', 'de-DE', 'de-AT', 'de-CH']) {
       assertEqual(await destination('/', [locale], null), '/de/', `${locale} first visit`);
     }
@@ -75,12 +76,12 @@ async function main() {
     assertEqual(await destination('/de/amp/', ['en-GB'], null), '/de/amp/', 'German AMP route never redirects');
 
     const context = await browser.newContext({locale: 'en-GB'});
-	await context.route('**/*', (route) => {
-	  const target = route.request().url();
-	  return target.startsWith(`${baseURL}/`) ? route.continue() : route.abort();
-	});
+    await context.route('**/*', (route) => {
+      const target = route.request().url();
+      return target.startsWith(`${baseURL}/`) ? route.continue() : route.abort();
+    });
     const page = await context.newPage();
-	await page.goto(`${baseURL}/`, {waitUntil: 'domcontentloaded'});
+    await page.goto(`${baseURL}/`, {waitUntil: 'domcontentloaded'});
     const stored = await page.evaluate(() => {
       const germanLink = document.querySelector('[data-language="de"]');
       germanLink.addEventListener('click', (event) => event.preventDefault());
@@ -92,8 +93,15 @@ async function main() {
 
     process.stdout.write('browser language behavior: PASS\n');
   } finally {
-    await browser.close();
-    await new Promise((resolve) => server.close(resolve));
+    try {
+      if (browser) {
+        await browser.close();
+      }
+    } finally {
+      if (server.listening) {
+        await new Promise((resolve) => server.close(resolve));
+      }
+    }
   }
 }
 

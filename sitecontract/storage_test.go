@@ -62,13 +62,14 @@ const server = http.createServer((request, response) => {
 });
 
 (async () => {
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
-  const address = server.address();
-  const browser = await chromium.launch({channel: 'chrome', headless: true});
+  let browser;
   try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    browser = await chromium.launch({channel: 'chrome', headless: true});
     const context = await browser.newContext();
     await context.route('**/*', route => route.request().url().startsWith('http://127.0.0.1:') ? route.continue() : route.abort());
     await context.addInitScript(() => {
@@ -84,8 +85,15 @@ const server = http.createServer((request, response) => {
     }
     await context.close();
   } finally {
-    await browser.close();
-    await new Promise(resolve => server.close(resolve));
+    try {
+      if (browser) {
+        await browser.close();
+      }
+    } finally {
+      if (server.listening) {
+        await new Promise(resolve => server.close(resolve));
+      }
+    }
   }
 })().catch(error => {
   process.stderr.write(error.message + '\n');

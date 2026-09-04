@@ -197,6 +197,116 @@ func TestInvalidSourceRejectsTextAndMarkdownIdentityCollision(t *testing.T) {
 	}
 }
 
+func TestInvalidSourceRejectsQueryAndFragmentInBaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+	}{
+		{name: "query", baseURL: "https://example.test/site?preview=1"},
+		{name: "empty query", baseURL: "https://example.test/site?"},
+		{name: "fragment", baseURL: "https://example.test/site#preview"},
+		{name: "empty fragment", baseURL: "https://example.test/site#"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+			if err != nil {
+				t.Fatalf("read website source: %v", err)
+			}
+			broken := strings.Replace(string(source),
+				"  base_url: https://frathe.github.io/picfetch/",
+				"  base_url: '"+testCase.baseURL+"'",
+				1,
+			)
+			if broken == string(source) {
+				t.Fatal("test setup did not change site.base_url")
+			}
+			sourcePath := filepath.Join(t.TempDir(), "website.md")
+			if err := os.WriteFile(sourcePath, []byte(broken), 0o600); err != nil {
+				t.Fatalf("write website source with invalid base URL: %v", err)
+			}
+
+			cmd := exec.Command("make", "build",
+				"SITE_SOURCE="+sourcePath,
+				"SITE_OUTPUT_DIR="+t.TempDir(),
+				"SITE_LOCALES=en",
+				"SITE_FORMATS=regular",
+			)
+			cmd.Dir = repo
+			combined, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("make build accepted site.base_url %q", testCase.baseURL)
+			}
+			if !strings.Contains(string(combined), "site.base_url") || !strings.Contains(string(combined), "query or fragment") {
+				t.Fatalf("invalid-base-URL diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
+func TestInvalidSourceRejectsReservedAndDuplicateDownloadAnchors(t *testing.T) {
+	tests := []struct {
+		name       string
+		change     func(string) string
+		diagnostic string
+	}{
+		{
+			name: "template-owned ID",
+			change: func(source string) string {
+				return strings.Replace(source, "    anchor: downloads", "    anchor: lightbox", 1)
+			},
+			diagnostic: `reserved anchor "lightbox"`,
+		},
+		{
+			name: "duplicate downloads anchor",
+			change: func(source string) string {
+				duplicate := `  - id: downloads-copy
+    kind: downloads
+    anchor: downloads
+    heading:
+      id: sections.downloads-copy.heading
+      text: Download copy
+`
+				return strings.Replace(source, "footer:\n", duplicate+"footer:\n", 1)
+			},
+			diagnostic: `duplicate anchor "downloads"`,
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+			if err != nil {
+				t.Fatalf("read website source: %v", err)
+			}
+			broken := testCase.change(string(source))
+			if broken == string(source) {
+				t.Fatal("test setup did not change a downloads anchor")
+			}
+			sourcePath := filepath.Join(t.TempDir(), "website.md")
+			if err := os.WriteFile(sourcePath, []byte(broken), 0o600); err != nil {
+				t.Fatalf("write website source with conflicting anchor: %v", err)
+			}
+
+			cmd := exec.Command("make", "build",
+				"SITE_SOURCE="+sourcePath,
+				"SITE_OUTPUT_DIR="+t.TempDir(),
+				"SITE_LOCALES=en",
+				"SITE_FORMATS=regular",
+			)
+			cmd.Dir = repo
+			combined, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatal("make build accepted a conflicting downloads anchor")
+			}
+			if !strings.Contains(string(combined), testCase.diagnostic) {
+				t.Fatalf("conflicting-anchor diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
 func TestMakeBuildGeneratesEnglishAMPFromSharedSource(t *testing.T) {
 	repo := repositoryRoot(t)
 	output := t.TempDir()

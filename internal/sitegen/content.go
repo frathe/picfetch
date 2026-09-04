@@ -14,6 +14,10 @@ var markdownHeading = regexp.MustCompile(`^##\s+.+\s+\{#([a-z][a-z0-9.-]*)\}\s*$
 var stableIdentity = regexp.MustCompile(`^[a-z][a-z0-9.-]*$`)
 var vimeoVideoID = regexp.MustCompile(`^[0-9]+$`)
 
+var reservedSectionAnchors = map[string]string{
+	"lightbox": "regular-page lightbox",
+}
+
 type Content struct {
 	Site          Site              `yaml:"site"`
 	Metadata      Metadata          `yaml:"metadata"`
@@ -275,6 +279,7 @@ func validateContent(content *Content) error {
 		translationIDs: make(map[string]string),
 		markdownRefs:   make(map[string]string),
 		itemIDs:        make(map[string]string),
+		sectionAnchors: make(map[string]string),
 	}
 	return validator.validate()
 }
@@ -284,10 +289,11 @@ type contentValidator struct {
 	translationIDs map[string]string
 	markdownRefs   map[string]string
 	itemIDs        map[string]string
+	sectionAnchors map[string]string
 }
 
 func (v *contentValidator) validate() error {
-	if err := v.requireURL("site.base_url", v.content.Site.BaseURL, false); err != nil {
+	if err := v.requireBaseURL("site.base_url", v.content.Site.BaseURL); err != nil {
 		return err
 	}
 	if strings.TrimSpace(v.content.Site.ProductName) == "" {
@@ -414,8 +420,8 @@ func (v *contentValidator) validate() error {
 				}
 			}
 		case "downloads":
-			if !stableIdentity.MatchString(section.Anchor) {
-				return fmt.Errorf("%s.anchor: stable identity is required", path)
+			if err := v.requireSectionAnchor(path+".anchor", section.Anchor); err != nil {
+				return err
 			}
 			if err := v.requireMarkdown(path+".body", section.Body); err != nil {
 				return err
@@ -515,6 +521,20 @@ func (v *contentValidator) requireItemID(path, id string) error {
 	return nil
 }
 
+func (v *contentValidator) requireSectionAnchor(path, anchor string) error {
+	if !stableIdentity.MatchString(anchor) {
+		return fmt.Errorf("%s: stable identity is required", path)
+	}
+	if owner, reserved := reservedSectionAnchors[anchor]; reserved {
+		return fmt.Errorf("%s: reserved anchor %q is owned by the %s", path, anchor, owner)
+	}
+	if firstPath, exists := v.sectionAnchors[anchor]; exists {
+		return fmt.Errorf("%s: duplicate anchor %q (already used by %s)", path, anchor, firstPath)
+	}
+	v.sectionAnchors[anchor] = path
+	return nil
+}
+
 func (v *contentValidator) requireAsset(path string, asset Asset) error {
 	if err := v.requireURL(path+".url", asset.URL, false); err != nil {
 		return err
@@ -545,6 +565,20 @@ func (v *contentValidator) requireURL(path, raw string, allowFragment bool) erro
 	}
 	if parsed.Scheme != "https" || parsed.Host == "" {
 		return fmt.Errorf("%s: absolute HTTPS URL is required", path)
+	}
+	return nil
+}
+
+func (v *contentValidator) requireBaseURL(path, raw string) error {
+	if err := v.requireURL(path, raw, false); err != nil {
+		return err
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("%s: invalid URL: %w", path, err)
+	}
+	if parsed.RawQuery != "" || parsed.ForceQuery || strings.Contains(raw, "#") {
+		return fmt.Errorf("%s: query or fragment is not allowed", path)
 	}
 	return nil
 }
