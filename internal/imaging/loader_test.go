@@ -488,10 +488,10 @@ func TestLoadImage(t *testing.T) {
 		}
 
 		// The fixture carries Exif orientation 6 (a 90-degree rotation); the
-		// heic decoder already applies it before returning pixels, and
-		// readEXIFOrientation only recognizes the JPEG APP1 container, so it
-		// correctly no-ops on a HEIC file's bytes. If LoadImage applied the
-		// rotation a second time on top of the decoder's own correction,
+		// heic decoder already applies it before returning pixels, and the
+		// shared orientation reader correctly no-ops on the HEIC container
+		// bytes. If LoadImage applied the rotation a second time on top of the
+		// decoder's own correction,
 		// these bounds would come out swapped.
 		b := loaded.Frames[0].Bounds()
 		if b.Dx() != 480 || b.Dy() != 640 {

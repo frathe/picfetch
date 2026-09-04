@@ -18,19 +18,28 @@ func TestSettingsDefaultsAndRanges(t *testing.T) {
 		Overlap:          0.08,
 		MaximumRotation:  7,
 		Frame:            FrameNone,
+		DropShadow:       true,
 	}
 	if got := DefaultSettings(); got != want {
 		t.Fatalf("DefaultSettings() = %+v, want %+v", got, want)
 	}
 
 	valid := []Settings{
-		{MinimumShortEdge: 0.10, SizeVariation: 0, Overlap: 0, MaximumRotation: 0, Frame: FrameNone},
-		{MinimumShortEdge: 0.30, SizeVariation: 0.25, Overlap: 0.20, MaximumRotation: 12, Frame: FramePolaroid},
+		{MinimumShortEdge: 0.10, SizeVariation: 0, Overlap: 0, MaximumRotation: 0, Frame: FrameNone, DropShadow: false},
+		{MinimumShortEdge: 0.30, SizeVariation: 0.25, Overlap: 0.20, MaximumRotation: 12, Frame: FramePolaroid, DropShadow: true},
 	}
 	for _, settings := range valid {
 		if err := settings.Validate(); err != nil {
 			t.Errorf("Settings.Validate(%+v) = %v, want nil", settings, err)
 		}
+	}
+}
+
+func TestSettingsNormalizationPreservesDropShadowChoice(t *testing.T) {
+	settings := DefaultSettings()
+	settings.DropShadow = false
+	if got := settings.Normalized(); got.DropShadow {
+		t.Fatal("Settings.Normalized() enabled an explicitly disabled drop shadow")
 	}
 }
 

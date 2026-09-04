@@ -3,6 +3,7 @@
 ## Start Here
 
 - `.agents/skills/improved_sdd_tdd_cycle.md` is the working agreement for *how* work gets done — routing, delegation limits, review ownership, verification. This file is the conventions; that one is the process. Read it before planning anything larger than a two-file fix.
+- `plans/` holds active Standard/Deep SDD implementation plans; `.scratch/` holds issue-tracker specs and tickets. Move an accepted plan to `finished_refactorings/`.
 - Read `ARCHITECTURE.md` before code: it is the authoritative package map and “where to look for X” index.
 - Update `ARCHITECTURE.md` in the same change when packages are added, removed, renamed, or files move between packages.
 - Open work belongs in `todos.md`; do not add `TODO`/`FIXME` comments to source.
@@ -19,16 +20,16 @@
 - Input flows through CLI/open/drop → `handleDrop` scan → `filesort.Order` → `ShowImage` → `internal/imaging` probe/decode/orient/cache → Fyne display. Reuse this path rather than creating parallel open/load logic. On macOS, "Open With"/Dock drop/`open -a`/double-click arrive as an Apple Event instead of argv; `internal/openwith`'s queue + `internal/ui/openwith.go` fold that into the same `handleDrop` call, argv files first.
 - `internal/imaging` is viewer-independent. Full images and grid thumbnails use separate byte-budgeted caches; preserve `ByteCache.Add` (displayed image) versus `AddIfFits` (speculative preload) semantics.
 - Session file sets use `internal/session`/Fyne cache; standing settings and geometry use `internal/preferences`/Fyne preferences. Startup wiring is in `internal/ui/startup.go`, shutdown persistence in `run.go`.
-- OS integrations live behind dispatcher vars in `internal/{clipboard,filepicker,trash,wallpaper}` with build-tagged platform files. Tests must replace them via `internal/uitest` stubs, never touch the real desktop.
+- OS integrations live behind dispatcher vars in `internal/{clipboard,displays,filepicker,trash,wallpaper}` with build-tagged platform files. Tests must replace them via `internal/uitest` stubs, never touch the real desktop.
 - Keep `appID` synchronized across `main.go`, `FyneApp.toml`, and `Makefile`; changing it disconnects existing preferences/session data.
 
 ## Concurrency and Fyne
 
 - Scan, load, sort, and vector work each own a `requestLifecycle`; capture its token, check staleness before expensive work and before applying results, and marshal background UI updates through `fyne.Do`.
-- `internal/ui/grid` and `internal/ui/compare` are the per-instance `UIQueue` exceptions: their tests drain completions instead of letting the Fyne test driver run them inline on decode/raster workers. `internal/ui`'s `newTestUI` installs a drainable `uitest.UIQueue` on both features; keep their worker completions on `g.ui.Do` / `f.queueUI`. Every `g.ui.Do` call stays inside its owning `g.decodes.Go` body because grid `Settle` is bounded by `decodes.Wait()`. Compare `Settle` waits its load worker and both pane raster waitgroups, drains queued completions, then repeats: applying a queued load can start fresh vector work.
+- `internal/ui/grid`, `internal/ui/compare`, and `internal/ui/mosaicwin` are the per-instance `UIQueue` exceptions: their tests drain completions instead of letting the Fyne test driver run them inline on workers. `internal/ui`'s `newTestUI` installs a drainable `uitest.UIQueue` on all three; keep worker completions on `g.ui.Do` / `f.queueUI` / `w.ui.Do`. Every `g.ui.Do` call stays inside its owning `g.decodes.Go` body because grid `Settle` is bounded by `decodes.Wait()`. Compare `Settle` waits its load worker and both pane raster waitgroups, drains queued completions, then repeats because applying a queued load can start fresh vector work. Mosaic `Settle` waits its complete worker set, drains queued completions, and repeats because a drained action can start work.
 - Do not add mutable package-level test seams. Runtime/test-configurable values belong on `viewer` or the owning feature.
 - Every goroutine needs cancellation/staleness handling plus an observable stop/done signal. If adding background work, add it to `newTestUI`’s `drain` cleanup in `internal/ui/harness_test.go`.
-- Fyne’s test driver runs `fyne.Do` inline. Use `dropAndWait`, `waitFor*`, feature `Settle`, and existing completion channels before assertions; never sleep to guess completion. Grid and comparison marshal through the `UIQueue` exception above.
+- Fyne’s test driver runs `fyne.Do` inline. Use `dropAndWait`, `waitFor*`, feature `Settle`, and existing completion channels before assertions; never sleep to guess completion. Grid, comparison, and mosaic window work marshal through the `UIQueue` exception above.
 - `completion.Signal.Wait` on a never-begun signal returns immediately — `drain` and low-level `waitFor` rely on that. Named wait helpers (`waitUntilLoaded`, `waitForScan`, `waitForSort`, `waitForAnimStopped`, `waitForClipboard`) fatal when `!Begun()`.
 
 ## Project Conventions

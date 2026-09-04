@@ -18,8 +18,8 @@ static int attachedScreenCount(void) {
 	}
 }
 
-static int screenInfoAt(int index, uint32_t *displayID, int *x, int *y,
-	int *width, int *height, char **name) {
+static int screenInfoAt(int index, uint32_t *displayID, int *width,
+	int *height, char **name) {
 	@autoreleasepool {
 		NSArray<NSScreen *> *screens = [NSScreen screens];
 		if (index < 0 || index >= (int)screens.count) {
@@ -31,14 +31,16 @@ static int screenInfoAt(int index, uint32_t *displayID, int *x, int *y,
 			return 0;
 		}
 		CGDirectDisplayID ident = (CGDirectDisplayID)number.unsignedIntValue;
-		CGRect bounds = CGDisplayBounds(ident);
+		CGDisplayModeRef mode = CGDisplayCopyDisplayMode(ident);
+		if (mode == NULL) {
+			return 0;
+		}
 		NSString *label = screen.localizedName;
 		const char *utf8 = label.UTF8String;
 		*displayID = (uint32_t)ident;
-		*x = (int)bounds.origin.x;
-		*y = (int)bounds.origin.y;
-		*width = (int)bounds.size.width;
-		*height = (int)bounds.size.height;
+		*width = (int)CGDisplayModeGetPixelWidth(mode);
+		*height = (int)CGDisplayModeGetPixelHeight(mode);
+		CGDisplayModeRelease(mode);
 		*name = strdup(utf8 == NULL ? "Display" : utf8);
 		return *name != NULL;
 	}
@@ -87,9 +89,9 @@ func platformInspect(context any) ([]Display, ID, error) {
 	displays := make([]Display, 0, count)
 	for index := range count {
 		var displayID C.uint32_t
-		var x, y, width, height C.int
+		var width, height C.int
 		var name *C.char
-		if C.screenInfoAt(C.int(index), &displayID, &x, &y, &width, &height, &name) == 0 {
+		if C.screenInfoAt(C.int(index), &displayID, &width, &height, &name) == 0 {
 			return nil, "", fmt.Errorf("inspect macOS display %d", index)
 		}
 		label := C.GoString(name)
@@ -97,7 +99,7 @@ func platformInspect(context any) ([]Display, ID, error) {
 		displays = append(displays, Display{
 			ID:     ID(strconv.FormatUint(uint64(displayID), 10)),
 			Name:   label,
-			Bounds: image.Rect(int(x), int(y), int(x+width), int(y+height)),
+			Bounds: image.Rect(0, 0, int(width), int(height)),
 		})
 	}
 	defaultNative := C.defaultScreenForWindow(C.uintptr_t(window.NSWindow))

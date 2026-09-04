@@ -66,10 +66,10 @@ current Grid result, leaving generation lifecycle to ticket 06.
 - Removed targets cannot fall back to another display at Generate time.
 
 ```sh
-go test ./internal/ui/menus -run 'TestApply_.*Mosaic|TestActionsMenu' &&
-go test ./internal/ui/mosaicwin -run 'TestMosaic(Window|Controls|Target|Snapshot)' &&
-go test ./internal/ui -run 'TestMosaic(Menu|Sources|Window)' &&
-go test . -run 'TestTranslations_' &&
+go test ./internal/ui/menus -run 'TestApply_.*Mosaic|TestActionsMenu' -count=1 &&
+go test ./internal/ui/mosaicwin -run 'TestMosaic(Window|Controls|Target|Snapshot)' -count=1 &&
+go test ./internal/ui -run 'TestMosaic(Menu|Sources|Window)' -count=1 &&
+go test . -run 'TestTranslations_' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

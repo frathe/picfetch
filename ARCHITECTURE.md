@@ -131,7 +131,7 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
 | `vector.go` | `Vector` / `ParseVector` / `RasterAt`. |
-| `exif.go` | Orientation tags + `ReadMetadata` / `Metadata` (including GPS IFD). JPEG APP1, then TIFF IFD0, then HEIC/AVIF, then RAW preview APP1. |
+| `exif.go` | Orientation tags from JPEG APP1, PNG eXIf, WebP EXIF, and TIFF IFD0 + `ReadMetadata` / `Metadata` (including GPS IFD). Metadata scans JPEG APP1, then TIFF IFD0, then HEIC/AVIF, then RAW preview APP1. |
 | `exififd.go` | Unexported IFD walker (`walkIFD`) and tag value helpers used by `exif.go` and `raw.go`. |
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
@@ -240,9 +240,16 @@ on a background goroutine and hop through `fyne.DoAndWait`.
 | `tracker.go` | `Tracker` atomics: `Store` / `Get` / `Capture` / `Restore`. |
 | `darwin.go` / `windows.go` / `linux.go` / `other.go` | Platform position + maximize. Linux/Wayland: `Get` reports `ok=false`. |
 
-OS integrations (`clipboard`, `filepicker`, `trash`, `wallpaper`) use
+OS integrations (`clipboard`, `displays`, `filepicker`, `trash`, `wallpaper`) use
 dispatcher vars and build-tagged platform files; tests stub them via
 `internal/uitest` — see `AGENTS.md`.
+
+### `internal/wincom`
+
+Windows-only COM declarations shared by native adapters. It owns the
+`IDesktopWallpaper` GUIDs, vtable layout, activation constants, and HRESULT
+failure predicate; `internal/displays` and `internal/wallpaper` retain their
+feature-specific behavior and error reporting.
 
 ### `internal/displays`
 

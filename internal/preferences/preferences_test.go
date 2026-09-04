@@ -26,11 +26,43 @@ func TestMosaicPreferences_DefaultsAndRoundTrip(t *testing.T) {
 			Overlap:          0,
 			MaximumRotation:  0,
 			Frame:            frame,
+			DropShadow:       false,
 		}
 		Save(app, State{MosaicSettings: want})
 		if got := Load(app).MosaicSettings; got != want {
 			t.Errorf("MosaicSettings(%s) = %+v, want %+v", frame, got, want)
 		}
+	}
+}
+
+func TestMosaicPreferences_DropShadowDefaultsEnabled(t *testing.T) {
+	app := test.NewApp()
+
+	if got := Load(app).MosaicSettings.DropShadow; !got {
+		t.Fatal("fresh MosaicSettings.DropShadow = false, want shipped default true")
+	}
+}
+
+func TestMosaicPreferences_DropShadowRoundTripsBothChoices(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{name: "enabled", want: true},
+		{name: "disabled", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := test.NewApp()
+			settings := mosaic.DefaultSettings()
+			settings.DropShadow = tt.want
+
+			Save(app, State{MosaicSettings: settings})
+
+			if got := Load(app).MosaicSettings.DropShadow; got != tt.want {
+				t.Fatalf("MosaicSettings.DropShadow = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

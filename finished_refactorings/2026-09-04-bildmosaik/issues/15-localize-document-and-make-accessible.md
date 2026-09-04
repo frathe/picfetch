@@ -59,10 +59,10 @@ actions are operable and meaningfully exposed without a mouse.
 - Architecture and Qodana guards report no drift.
 
 ```sh
-go test ./internal/ui/mosaicwin -run 'TestMosaicAccessibility|TestMosaicKeyboard' &&
-go test . -run 'TestTranslations_' &&
-go test ./internal/ui -run 'TestTranslationsHaveNoUnicodeArrows' &&
-go test ./internal/ui/help -run 'TestManual' &&
+go test ./internal/ui/mosaicwin -run 'TestMosaicAccessibility|TestMosaicKeyboard' -count=1 &&
+go test . -run 'TestTranslations_' -count=1 &&
+go test ./internal/ui -run 'TestTranslationsHaveNoUnicodeArrows' -count=1 &&
+go test ./internal/ui/help -run 'TestManual' -count=1 &&
 make check-qodana-test-exclusions &&
 make fmt-check
 ```

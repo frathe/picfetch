@@ -55,7 +55,7 @@ preserving the existing all-screen AppKit behavior for ordinary wallpaper.
   recorded in ticket 16.
 
 ```sh
-go test ./internal/wallpaper -run 'TestSetDarwin_(Target|NoTarget|Missing)' &&
+go test ./internal/wallpaper -run 'TestSetDarwin_(Target|NoTarget|Missing)' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

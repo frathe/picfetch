@@ -59,7 +59,7 @@ main window through one native seam, using native pixel geometry throughout.
   deferred to ticket 16's smoke matrix.
 
 ```sh
-go test ./internal/displays ./internal/uitest -run 'Test(Display|Inspect|StubDisplays)' &&
+go test ./internal/displays ./internal/uitest -run 'Test(Display|Inspect|StubDisplays)' -count=1 &&
 GOOS=windows GOARCH=amd64 go vet ./internal/displays/... &&
 make check-qodana-test-exclusions
 ```

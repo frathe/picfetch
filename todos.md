@@ -6,16 +6,27 @@
 
 #### New Features
 
-- Added a keyboard-accessible Image Mosaic workflow to Grid View. It snapshots
-  the explicit selection or current filtered result, generates a covered
-  native-display-sized composition locally, supports regeneration and PNG/JPEG
-  export, and can target one Windows or macOS display. Linux refuses targeted
-  wallpaper honestly while retaining Save Image and the existing global
-  wallpaper action.
+![Trane building a mosaic](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_mosaic.webp)
 
-#### Bugfix
+- **Create an Image Mosaic from Grid View.** Turn your selected images—or all images matching your current filters—into a collage sized to fill your screen. Everything is generated locally on your device.
+- Generate a new arrangement, save it as a PNG or JPEG, or set it as your wallpaper.
+- On Windows and macOS, choose which monitor gets the wallpaper. On Linux, you can save the mosaic or use the existing wallpaper option, but targeting a specific monitor isn’t supported.
+- Use the mosaic controls with a keyboard.
+- Choose **Start Over** from the finished preview to create another mosaic with your settings preserved—handy for setting up another monitor.
+- Customize the look, including optional drop shadows, under **Advanced**.
 
-#### Internal
+#### Fixes and Improvements
+
+- Fixed mosaic controls that appeared disabled or didn’t respond properly.
+- Fixed overlapping text while generating a mosaic.
+- Reduced excessive image overlap so more of each photo stays visible.
+- Smoothed jagged borders and rotated image edges while keeping photos sharp.
+- Improved image handling: photos follow their saved orientation, all unique images are used before any repeat, and selected duplicates use the highest-resolution version available in Grid View.
+- Improved sizing for high-resolution Mac displays and handling of monitor changes before generation.
+
+#### Behind the Scenes
+
+- Improved error reporting and cleaned up internal code and documentation to make the mosaic feature easier to maintain.
 
 ## TODO
 

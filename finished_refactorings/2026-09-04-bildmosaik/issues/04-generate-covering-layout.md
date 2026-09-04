@@ -57,7 +57,7 @@ coverage and respecting every configured bound.
   deterministic result of a non-cancelled request.
 
 ```sh
-go test ./internal/mosaic -run 'TestLayout_(Deterministic|Bounds|Coverage|Pool|Cancel)'
+go test ./internal/mosaic -run 'TestLayout_(Deterministic|Bounds|Coverage|Pool|Cancel)' -count=1
 ```
 
 ## Non-Goals

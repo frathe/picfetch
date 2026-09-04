@@ -53,7 +53,7 @@ validated settings and requests in, a read-only rendered result out.
   display enumeration, file picker, wallpaper, or preference behavior.
 
 ```sh
-go test ./internal/mosaic -run 'Test(Settings|FrameStyle|Request|Result)' &&
+go test ./internal/mosaic -run 'Test(Settings|FrameStyle|Request|Result)' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

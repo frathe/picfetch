@@ -141,6 +141,19 @@ func TestManualDocumentsComparisonEntryAndExit(t *testing.T) {
 	}
 }
 
+func TestManualDocumentsMosaicStartOver(t *testing.T) {
+	for name, phrases := range map[string][]string{
+		"manual.md":    {"**Start Over** returns to configuration", "choose another display"},
+		"manual_de.md": {"mit **Neu beginnen** zur Konfiguration zurück", "anderen Bildschirm"},
+	} {
+		for _, phrase := range phrases {
+			if !strings.Contains(manuals[name], phrase) {
+				t.Errorf("%s does not document the mosaic continuation phrase %q", name, phrase)
+			}
+		}
+	}
+}
+
 func TestManualDocumentsComparisonIdentityAndSwap(t *testing.T) {
 	for _, phrase := range []string{
 		"bottom-corner badges",

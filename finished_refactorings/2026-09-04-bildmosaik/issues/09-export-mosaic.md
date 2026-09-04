@@ -58,9 +58,9 @@ picker and atomic image encoder without reading viewer display state.
 - Exported JPEG contains no EXIF copied from any source.
 
 ```sh
-go test ./internal/ui/mosaicwin -run 'TestMosaicExport' &&
-go test ./internal/imaging -run 'TestExport' &&
-go test . -run 'TestTranslations_' &&
+go test ./internal/ui/mosaicwin -run 'TestMosaicExport' -count=1 &&
+go test ./internal/imaging -run 'TestExport' -count=1 &&
+go test . -run 'TestTranslations_' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

@@ -10,12 +10,17 @@ import (
 // namedSelect supplies the accessible name Fyne's Select does not carry on
 // its own. The visible label beside it uses the same localized name.
 type namedSelect struct {
-	*widget.Select
+	widget.Select
 	name string
 }
 
 func newNamedSelect(name string, options []string, changed func(string)) *namedSelect {
-	return &namedSelect{Select: widget.NewSelect(options, changed), name: name}
+	selectWidget := &namedSelect{name: name}
+	selectWidget.Options = options
+	selectWidget.OnChanged = changed
+	selectWidget.ExtendBaseWidget(selectWidget)
+
+	return selectWidget
 }
 
 func (s *namedSelect) AccessibilityLabel() string {
@@ -30,26 +35,28 @@ func (*namedSelect) AccessibilityRole() fyne.AccessibleRole { return fyne.Access
 // namedSlider gives a standard Slider a localized, value-bearing accessible
 // name while its valueLabel makes the same changing value visible on screen.
 type namedSlider struct {
-	*widget.Slider
+	widget.Slider
 	name       string
 	format     func(float64) string
 	valueLabel *widget.Label
 }
 
 func newNamedSlider(name string, minimum, maximum, step, value float64, format func(float64) string, changed func(float64)) *namedSlider {
-	slider := widget.NewSlider(minimum, maximum)
-	slider.Step = step
-	slider.Value = value
 	named := &namedSlider{
-		Slider:     slider,
 		name:       name,
 		format:     format,
 		valueLabel: widget.NewLabel(format(value)),
 	}
-	slider.OnChanged = func(next float64) {
+	named.Min = minimum
+	named.Max = maximum
+	named.Step = step
+	named.Value = value
+	named.Orientation = widget.Horizontal
+	named.OnChanged = func(next float64) {
 		named.valueLabel.SetText(format(next))
 		changed(next)
 	}
+	named.ExtendBaseWidget(named)
 
 	return named
 }
@@ -63,11 +70,16 @@ func (*namedSlider) AccessibilityRole() fyne.AccessibleRole { return fyne.Access
 // actionButton keeps Fyne's standard button rendering/accessibility and makes
 // both common keyboard activation keys equivalent.
 type actionButton struct {
-	*widget.Button
+	widget.Button
 }
 
 func newActionButton(label string, tapped func()) *actionButton {
-	return &actionButton{Button: widget.NewButton(label, tapped)}
+	button := &actionButton{}
+	button.Text = label
+	button.OnTapped = tapped
+	button.ExtendBaseWidget(button)
+
+	return button
 }
 
 func (b *actionButton) TypedKey(event *fyne.KeyEvent) {

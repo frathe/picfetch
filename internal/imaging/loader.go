@@ -361,9 +361,10 @@ func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Re
 }
 
 // DecodeLoaded finishes decoding data - already read and header-validated by
-// ReadAndProbe - applying EXIF orientation correction where present. JPEG
-// files carry the tag in APP1; TIFF-container RAW files carry it in IFD0.
-// Animated GIFs are decoded to every frame instead of just the first.
+// ReadAndProbe - applying EXIF orientation correction where present. The
+// shared reader handles JPEG APP1, PNG eXIf, WebP EXIF, and TIFF-container RAW
+// metadata. Animated GIFs are decoded to every frame instead of just the
+// first.
 //
 // ctx is checked once, up front, rather than threaded into the decode
 // itself: unlike ReadAndProbe's file read, decoding already-in-memory

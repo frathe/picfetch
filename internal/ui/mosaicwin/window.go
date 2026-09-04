@@ -103,10 +103,12 @@ type Window struct {
 
 	root, config, previewPanel   *fyne.Container
 	sourceLabel, status          *widget.Label
+	previewStatus                *widget.Label
 	displaySelect, frameSelect   *namedSelect
 	formatSelect                 *namedSelect
 	minimum, variation           *namedSlider
 	overlap, rotation            *namedSlider
+	dropShadow                   *namedCheck
 	minimumValue, variationValue *widget.Label
 	overlapValue, rotationValue  *widget.Label
 	loading                      *widget.ProgressBarInfinite
@@ -114,7 +116,7 @@ type Window struct {
 	advancedControls             *fyne.Container
 	refreshButton                *actionButton
 	generateButton, cancelButton *actionButton
-	regenerateButton, wallpaperButton,
+	startOverButton, regenerateButton, wallpaperButton,
 	saveButton, closeButton *actionButton
 	preview *canvas.Image
 
@@ -163,6 +165,7 @@ func (w *Window) Show(snapshot Snapshot) {
 func (w *Window) build() fyne.CanvasObject {
 	w.sourceLabel = widget.NewLabel(w.sourceDescription())
 	w.status = widget.NewLabel(w.statusText)
+	w.previewStatus = widget.NewLabel(w.statusText)
 	w.displaySelect = newNamedSelect(lang.L("Target display"), nil, func(label string) {
 		if id, ok := w.displayLabels[label]; ok {
 			w.target = id
@@ -172,22 +175,22 @@ func (w *Window) build() fyne.CanvasObject {
 	w.syncDisplayOptions()
 	w.refreshButton = newActionButton(lang.L("Refresh Displays"), w.RefreshTargets)
 
-	w.minimum = settingSlider(lang.L("Minimum image size"), 0.10, 0.30, 0.01, w.settings.MinimumShortEdge, percentValue, func(value float64) {
+	w.minimum = newNamedSlider(lang.L("Minimum image size"), 0.10, 0.30, 0.01, w.settings.MinimumShortEdge, percentValue, func(value float64) {
 		settings := w.settings
 		settings.MinimumShortEdge = value
 		w.acceptSettings(settings)
 	})
-	w.variation = settingSlider(lang.L("Size variation"), 0, 0.25, 0.01, w.settings.SizeVariation, percentValue, func(value float64) {
+	w.variation = newNamedSlider(lang.L("Size variation"), 0, 0.25, 0.01, w.settings.SizeVariation, percentValue, func(value float64) {
 		settings := w.settings
 		settings.SizeVariation = value
 		w.acceptSettings(settings)
 	})
-	w.overlap = settingSlider(lang.L("Overlap"), 0, 0.20, 0.01, w.settings.Overlap, percentValue, func(value float64) {
+	w.overlap = newNamedSlider(lang.L("Overlap"), 0, 0.20, 0.01, w.settings.Overlap, percentValue, func(value float64) {
 		settings := w.settings
 		settings.Overlap = value
 		w.acceptSettings(settings)
 	})
-	w.rotation = settingSlider(lang.L("Maximum rotation"), 0, 12, 1, w.settings.MaximumRotation, degreeValue, func(value float64) {
+	w.rotation = newNamedSlider(lang.L("Maximum rotation"), 0, 12, 1, w.settings.MaximumRotation, degreeValue, func(value float64) {
 		settings := w.settings
 		settings.MaximumRotation = value
 		w.acceptSettings(settings)
@@ -209,15 +212,23 @@ func (w *Window) build() fyne.CanvasObject {
 		w.acceptSettings(settings)
 	})
 	w.frameSelect.SetSelected(frameLabel(w.settings.Frame))
+	w.dropShadow = newNamedCheck(lang.L("Drop shadow"), w.settings.DropShadow, func(checked bool) {
+		settings := w.settings
+		settings.DropShadow = checked
+		w.acceptSettings(settings)
+	})
 
 	w.minimumValue = w.minimum.valueLabel
 	w.variationValue = w.variation.valueLabel
 	w.overlapValue = w.overlap.valueLabel
 	w.rotationValue = w.rotation.valueLabel
 	w.advancedControls = container.NewVBox(
+		labelledSlider(lang.L("Minimum image size"), w.minimum),
+		labelledControl(lang.L("Frame"), w.frameSelect),
 		labelledSlider(lang.L("Size variation"), w.variation),
 		labelledSlider(lang.L("Overlap"), w.overlap),
 		labelledSlider(lang.L("Maximum rotation"), w.rotation),
+		w.dropShadow,
 	)
 	w.advancedControls.Hide()
 	w.advancedButton = newActionButton(lang.L("Advanced"), func() {
@@ -236,8 +247,6 @@ func (w *Window) build() fyne.CanvasObject {
 			w.sourceLabel,
 			widget.NewSeparator(),
 			labelledControl(lang.L("Target display"), container.NewBorder(nil, nil, nil, w.refreshButton, w.displaySelect)),
-			labelledSlider(lang.L("Minimum image size"), w.minimum),
-			labelledControl(lang.L("Frame"), w.frameSelect),
 			w.advancedButton,
 			w.advancedControls,
 			w.status,
@@ -260,16 +269,17 @@ func (w *Window) build() fyne.CanvasObject {
 		w.formatSelect.SetSelected(lang.L("PNG"))
 	}
 	w.regenerateButton = newActionButton(lang.L("Regenerate"), w.Regenerate)
+	w.startOverButton = newActionButton(lang.L("Start Over"), w.StartOver)
 	w.wallpaperButton = newActionButton(lang.L("Set as Wallpaper"), w.SetWallpaper)
 	w.saveButton = newActionButton(lang.L("Save Image"), w.SaveImage)
 	w.closeButton = newActionButton(lang.L("Close"), w.Close)
-	w.previewPanel = container.NewBorder(nil,
+	w.previewPanel = container.NewBorder(container.NewHBox(w.startOverButton),
 		container.NewVBox(
 			labelledControl(lang.L("Image format"), w.formatSelect),
 			container.NewHBox(w.regenerateButton, w.wallpaperButton, w.saveButton, w.closeButton),
 		),
 		nil, nil,
-		container.NewStack(w.preview, container.NewVBox(w.status)),
+		container.NewStack(w.preview, container.NewVBox(w.previewStatus)),
 	)
 	w.previewPanel.Hide()
 	w.loading = widget.NewProgressBarInfinite()
@@ -280,9 +290,24 @@ func (w *Window) build() fyne.CanvasObject {
 	return w.root
 }
 
-func settingSlider(name string, minimum, maximum, step, value float64, format func(float64) string, changed func(float64)) *namedSlider {
-	return newNamedSlider(name, minimum, maximum, step, value, format, changed)
+type namedCheck struct {
+	widget.Check
+	name string
 }
+
+func newNamedCheck(name string, checked bool, changed func(bool)) *namedCheck {
+	check := &namedCheck{name: name}
+	check.Text = name
+	check.OnChanged = changed
+	check.ExtendBaseWidget(check)
+	check.SetChecked(checked)
+
+	return check
+}
+
+func (c *namedCheck) AccessibilityLabel() string { return c.name }
+
+func (*namedCheck) AccessibilityRole() fyne.AccessibleRole { return fyne.AccessibleRoleButton }
 
 func labelledControl(label string, control fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewBorder(nil, nil, widget.NewLabel(label), nil, control)
@@ -342,7 +367,7 @@ func (w *Window) startGeneration(supersede bool) {
 	if !w.Opened() || w.host == nil || len(w.snapshot.Sources) == 0 || w.target == "" || (!supersede && w.Busy()) {
 		return
 	}
-	display, ok := w.selectedDisplay()
+	display, ok := w.refreshSelectedDisplay()
 	if !ok {
 		return
 	}
@@ -370,6 +395,7 @@ func (w *Window) startGeneration(supersede bool) {
 			w.generationBusy = false
 			w.loading.Hide()
 			if generateErr != nil {
+				fyne.LogError("failed to generate mosaic", generateErr)
 				w.setStatus(fmt.Sprintf(lang.L("Mosaic generation failed: %v"), generateErr))
 				w.syncActions()
 				return
@@ -382,7 +408,7 @@ func (w *Window) startGeneration(supersede bool) {
 			w.previewPanel.Show()
 			w.setStatus("")
 			w.syncActions()
-			w.win.Window().Canvas().Focus(w.regenerateButton)
+			w.win.Window().Canvas().Focus(w.startOverButton)
 		})
 	})
 }
@@ -391,6 +417,23 @@ func (w *Window) startGeneration(supersede bool) {
 // seed. Direct calls may supersede active work; disabled widgets prevent an
 // accidental duplicate click in normal UI use.
 func (w *Window) Regenerate() { w.startGeneration(true) }
+
+// StartOver returns an idle finished workflow to configuration while retaining
+// the command-entry inputs needed to generate for another display.
+func (w *Window) StartOver() {
+	if !w.PreviewActionsEnabled() {
+		return
+	}
+	w.result = mosaic.Result{}
+	w.hasResult = false
+	w.preview.Image = nil
+	w.preview.Refresh()
+	w.previewPanel.Hide()
+	w.config.Show()
+	w.setStatus("")
+	w.syncActions()
+	w.win.Window().Canvas().Focus(w.displaySelect)
+}
 
 // Cancel supersedes active work and returns to the configuration state.
 func (w *Window) Cancel() {
@@ -446,18 +489,26 @@ func (w *Window) RefreshTargets() {
 	if !w.Opened() || w.host == nil || w.Busy() {
 		return
 	}
+	_, _ = w.refreshSelectedDisplay()
+}
+
+func (w *Window) refreshSelectedDisplay() (displays.Display, bool) {
 	topology, err := w.host.InspectMosaicDisplays()
 	if err != nil {
+		fyne.LogError("failed to refresh mosaic displays", err)
 		w.setStatus(fmt.Sprintf(lang.L("Could not refresh displays: %v"), err))
-		return
+		return displays.Display{}, false
 	}
 	w.snapshot.Displays = displays.Snapshot{Displays: slices.Clone(topology.Displays), Default: topology.Default}
-	if _, attached := w.selectedDisplay(); !attached {
+	display, attached := w.selectedDisplay()
+	if !attached {
 		w.target = ""
 		w.setStatus(lang.L("The selected display is no longer attached. Choose another display."))
 	}
 	w.syncDisplayOptions()
 	w.syncActions()
+
+	return display, attached
 }
 
 func (w *Window) syncActions() {
@@ -480,8 +531,12 @@ func (w *Window) syncActions() {
 			setDisableableEnabled(slider, configurationEnabled)
 		}
 	}
+	if w.dropShadow != nil {
+		setDisableableEnabled(w.dropShadow, configurationEnabled)
+	}
 	setEnabled(w.generateButton, canGenerate)
 	setEnabled(w.refreshButton, w.Opened() && !w.Busy())
+	setEnabled(w.startOverButton, w.hasResult && !w.Busy())
 	setEnabled(w.regenerateButton, canGenerate && w.hasResult)
 	setEnabled(w.wallpaperButton, w.hasResult && !w.Busy())
 	setEnabled(w.saveButton, w.hasResult && !w.Busy())
@@ -511,6 +566,9 @@ func (w *Window) setStatus(text string) {
 	if w.status != nil {
 		w.status.SetText(text)
 	}
+	if w.previewStatus != nil {
+		w.previewStatus.SetText(text)
+	}
 }
 
 // SetWallpaper starts the host's target-aware wallpaper effect from a captured
@@ -533,6 +591,7 @@ func (w *Window) SetWallpaper() {
 			if err == nil {
 				w.setStatus(lang.L("Mosaic set as wallpaper."))
 			} else {
+				fyne.LogError("failed to set mosaic wallpaper", err)
 				var unsupported *wallpaper.TargetUnsupportedError
 				switch {
 				case errors.As(err, &unsupported):
@@ -557,16 +616,17 @@ func (w *Window) closed() {
 	w.result = mosaic.Result{}
 	w.hasResult = false
 	w.root, w.config, w.previewPanel = nil, nil, nil
-	w.sourceLabel, w.status = nil, nil
+	w.sourceLabel, w.status, w.previewStatus = nil, nil, nil
 	w.displaySelect, w.frameSelect = nil, nil
 	w.formatSelect = nil
 	w.minimum, w.variation, w.overlap, w.rotation = nil, nil, nil, nil
+	w.dropShadow = nil
 	w.minimumValue, w.variationValue, w.overlapValue, w.rotationValue = nil, nil, nil, nil
 	w.loading = nil
 	w.advancedButton, w.advancedControls = nil, nil
 	w.refreshButton = nil
 	w.generateButton, w.cancelButton = nil, nil
-	w.regenerateButton, w.wallpaperButton, w.saveButton, w.closeButton = nil, nil, nil, nil
+	w.startOverButton, w.regenerateButton, w.wallpaperButton, w.saveButton, w.closeButton = nil, nil, nil, nil, nil
 	w.preview = nil
 }
 
@@ -585,8 +645,8 @@ func (w *Window) Opened() bool        { return w.win.Open() }
 func (w *Window) Window() fyne.Window { return w.win.Window() }
 func (w *Window) Busy() bool          { return w.generationBusy || w.actionBusy }
 func (w *Window) CanGenerate() bool {
-	_, target := w.selectedDisplay()
-	return w.Opened() && target && !w.Busy() && len(w.snapshot.Sources) > 0
+	_, attached := w.selectedDisplay()
+	return w.Opened() && attached && !w.Busy() && len(w.snapshot.Sources) > 0
 }
 func (w *Window) PreviewActionsEnabled() bool   { return w.hasResult && !w.Busy() && w.Opened() }
 func (w *Window) Target() displays.ID           { return w.target }

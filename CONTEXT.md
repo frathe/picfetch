@@ -28,3 +28,17 @@ _Avoid_: Locked comparison
 A two-photo comparison state where view adjustments affect one targeted photo
 without changing the other.
 _Avoid_: Unlocked comparison
+
+**Grid result**:
+The complete set of image files currently represented by Grid View after its
+active filtering, including files outside the visible scroll area.
+_Avoid_: Visible cells, current files
+
+**Target display**:
+The attached display chosen as a mosaic's native-pixel output and wallpaper
+destination.
+_Avoid_: Screen, monitor, default display
+
+**Source pool**:
+The fixed set of images available to supply cards for one mosaic generation.
+_Avoid_: Sources, image list, Grid result

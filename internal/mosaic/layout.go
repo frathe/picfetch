@@ -15,6 +15,11 @@ type candidate struct {
 
 type candidateFunc func() (candidate, error)
 
+const (
+	minimumPrimaryNovelty    = 0.45
+	minimumPrimaryVisibility = 0.45
+)
+
 type floatRect struct {
 	width  float64
 	height float64
@@ -31,6 +36,7 @@ type placement struct {
 	shadowSize  float64
 	angle       float64
 	frame       FrameStyle
+	repair      bool
 }
 
 type layoutPlan struct {
@@ -74,7 +80,13 @@ func walkLayout(
 	// signed seed into both words also keeps negative seeds deterministic.
 	random := rand.New(rand.NewPCG(uint64(seed), uint64(seed)^0x9e3779b97f4a7c15))
 	baseShort := float64(min(target.X, target.Y)) * settings.MinimumShortEdge
+	if settings.SizeVariation < 1 {
+		baseShort /= 1 - settings.SizeVariation
+	}
 	nextUncovered := 0
+	primaryOwner := make([]uint32, len(plan.covered))
+	primaryVisible := make([]int, 0)
+	primaryArea := make([]int, 0)
 
 	// Every placement is centered on an uncovered pixel (or reset there after
 	// jitter), so it covers at least that pixel. Target area is therefore a
@@ -109,7 +121,7 @@ func walkLayout(
 		}
 		angle := symmetric(random.Float64(), settings.MaximumRotation)
 		anchorX, anchorY := float64(x)+0.5, float64(y)+0.5
-		candidatePlacement := newPlacement(item.id, 0, 0, width, height, angle, settings.Frame)
+		candidatePlacement := newPlacement(item.id, 0, 0, width, height, angle, settings.Frame, settings.DropShadow)
 		// Put the first uncovered pixel just inside the card's leading edges.
 		// This advances most of each card into uncovered space instead of
 		// centering half of it over already covered pixels. Randomizing each
@@ -128,6 +140,8 @@ func walkLayout(
 			candidatePlacement.centerX = anchorX
 			candidatePlacement.centerY = anchorY
 		}
+		candidatePlacement.repair = placementUncoveredFraction(plan.covered, target, candidatePlacement) < minimumPrimaryNovelty ||
+			!preservesPrimaryVisibility(primaryOwner, primaryVisible, primaryArea, target, candidatePlacement)
 		if onPlacement != nil {
 			if err := onPlacement(candidatePlacement); err != nil {
 				return layoutPlan{}, err
@@ -135,6 +149,11 @@ func walkLayout(
 		}
 
 		plan.placements = append(plan.placements, candidatePlacement)
+		primaryVisible = append(primaryVisible, 0)
+		primaryArea = append(primaryArea, 0)
+		if !candidatePlacement.repair {
+			applyPrimaryPlacement(primaryOwner, primaryVisible, primaryArea, target, len(plan.placements)-1, candidatePlacement)
+		}
 		markCovered(plan.covered, target, candidatePlacement)
 	}
 
@@ -152,10 +171,13 @@ func symmetric(unit, maximum float64) float64 {
 	return (unit*2 - 1) * maximum
 }
 
-func newPlacement(id int, centerX, centerY, width, height, angle float64, frame FrameStyle) placement {
+func newPlacement(id int, centerX, centerY, width, height, angle float64, frame FrameStyle, dropShadow bool) placement {
 	shorter := math.Min(width, height)
 	border, footer := frameInsets(frame, shorter)
-	shadow := math.Max(0.5, shorter*0.035)
+	shadow := 0.0
+	if dropShadow {
+		shadow = math.Max(0.5, shorter*0.035)
+	}
 
 	return placement{
 		candidateID: id,
@@ -194,6 +216,84 @@ func markCovered(covered []bool, target image.Point, placement placement) {
 	}
 }
 
+func placementUncoveredFraction(covered []bool, target image.Point, placement placement) float64 {
+	bounds := placementPixelBounds(placement).Intersect(image.Rectangle{Max: target})
+	total, uncovered := 0, 0
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			if !placementCovers(placement, float64(x)+0.5, float64(y)+0.5) {
+				continue
+			}
+			total++
+			if !covered[y*target.X+x] {
+				uncovered++
+			}
+		}
+	}
+	if total == 0 {
+		return 0
+	}
+
+	return float64(uncovered) / float64(total)
+}
+
+func preservesPrimaryVisibility(
+	owners []uint32,
+	visible []int,
+	areas []int,
+	target image.Point,
+	placement placement,
+) bool {
+	occluded := make(map[int]int)
+	bounds := placementPixelBounds(placement).Intersect(image.Rectangle{Max: target})
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			if !placementCovers(placement, float64(x)+0.5, float64(y)+0.5) {
+				continue
+			}
+			owner := owners[y*target.X+x]
+			if owner != 0 {
+				occluded[int(owner)-1]++
+			}
+		}
+	}
+	for index, pixels := range occluded {
+		if index >= len(areas) || areas[index] == 0 {
+			continue
+		}
+		if float64(visible[index]-pixels)/float64(areas[index]) < minimumPrimaryVisibility {
+			return false
+		}
+	}
+
+	return true
+}
+
+func applyPrimaryPlacement(
+	owners []uint32,
+	visible []int,
+	areas []int,
+	target image.Point,
+	index int,
+	placement placement,
+) {
+	bounds := placementPixelBounds(placement).Intersect(image.Rectangle{Max: target})
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			if !placementCovers(placement, float64(x)+0.5, float64(y)+0.5) {
+				continue
+			}
+			pixel := y*target.X + x
+			if previous := owners[pixel]; previous != 0 {
+				visible[int(previous)-1]--
+			}
+			owners[pixel] = uint32(index + 1)
+			visible[index]++
+			areas[index]++
+		}
+	}
+}
+
 func placementPixelBounds(placement placement) image.Rectangle {
 	halfWidth := placement.bodyWidth / 2
 	shadow := placement.shadowSize
@@ -221,17 +321,8 @@ func placementPixelBounds(placement placement) image.Rectangle {
 func placementCovers(placement placement, x, y float64) bool {
 	localX, localY := inverseRotate(placement, x, y)
 	halfWidth := placement.bodyWidth / 2
-	body := localX >= -halfWidth && localX <= halfWidth &&
+	return localX >= -halfWidth && localX <= halfWidth &&
 		localY >= placement.bodyTop && localY <= placement.bodyBottom
-	if body {
-		return true
-	}
-
-	// The shadow extends down and right from the card and is part of both
-	// occupancy and rendering geometry.
-	shadow := placement.shadowSize
-	return localX >= -halfWidth+shadow && localX <= halfWidth+shadow &&
-		localY >= placement.bodyTop+shadow && localY <= placement.bodyBottom+shadow
 }
 
 func inverseRotate(placement placement, x, y float64) (float64, float64) {

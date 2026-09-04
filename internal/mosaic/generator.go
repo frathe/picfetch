@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"math/rand/v2"
 	"strings"
 
@@ -62,6 +63,7 @@ func (g *Generator) Generate(ctx context.Context, request Request) (Result, erro
 	active := make(map[int]*loadedSource)
 	canvas := image.NewNRGBA(image.Rectangle{Max: request.target})
 	fillNRGBA(canvas, color.NRGBA{R: 28, G: 30, B: 34, A: 255})
+	primaryLayer := image.NewNRGBA(canvas.Bounds())
 
 	next := func() (candidate, error) {
 		entry, source, err := pool.next(ctx)
@@ -82,17 +84,19 @@ func (g *Generator) Generate(ctx context.Context, request Request) (Result, erro
 			return fmt.Errorf("mosaic source %d was not loaded", placement.candidateID)
 		}
 
-		return renderPlacement(ctx, canvas, source, placement)
+		destination := primaryLayer
+		if placement.repair {
+			destination = canvas
+		}
+
+		return renderPlacement(ctx, destination, source, placement)
 	}
 
 	_, err := walkLayout(ctx, request.target, request.settings, request.seed, next, onPlacement)
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return Result{}, err
-		}
-
 		return Result{}, err
 	}
+	draw.Draw(canvas, canvas.Bounds(), primaryLayer, primaryLayer.Bounds().Min, draw.Over)
 
 	// canvas was allocated for this result and was never shared with a caller,
 	// so ownership can transfer without a second target-sized copy.
@@ -122,11 +126,15 @@ func loadCanonicalSource(ctx context.Context, uri fyne.URI) (*loadedSource, erro
 	if len(decoded.Frames) == 0 || decoded.Frames[0] == nil {
 		return nil, fmt.Errorf("decoded image has no frame")
 	}
+	sourceBounds := decoded.Frames[0].Bounds()
+	if decoded.Vector != nil {
+		sourceBounds = bounds
+	}
 
 	return &loadedSource{
 		pixels: decoded.Frames[0],
 		vector: decoded.Vector,
-		bounds: bounds,
+		bounds: sourceBounds,
 	}, nil
 }
 
@@ -146,9 +154,15 @@ type sourcePool struct {
 }
 
 func newSourcePool(sources []fyne.URI, seed int64, load sourceLoader) *sourcePool {
-	entries := make([]sourceEntry, len(sources))
-	for i, uri := range sources {
-		entries[i] = sourceEntry{id: i, uri: uri}
+	entries := make([]sourceEntry, 0, len(sources))
+	seen := make(map[string]struct{}, len(sources))
+	for _, uri := range sources {
+		key := uri.String()
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		entries = append(entries, sourceEntry{id: len(entries), uri: uri})
 	}
 	random := rand.New(rand.NewPCG(uint64(seed)^0x243f6a8885a308d3, uint64(seed)^0x13198a2e03707344))
 	random.Shuffle(len(entries), func(i, j int) {

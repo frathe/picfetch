@@ -53,8 +53,8 @@ teaching Grid View about mosaics.
 - Existing copy/delete `Targets()` behavior does not change.
 
 ```sh
-go test ./internal/ui/grid -run 'Test(ResultIndexes|ResultChanged|Targets)' &&
-go test ./internal/ui -run 'TestMosaicSources|TestMosaicSnapshot' &&
+go test ./internal/ui/grid -run 'Test(ResultIndexes|ResultChanged|Targets)' -count=1 &&
+go test ./internal/ui -run 'TestMosaicSources|TestMosaicSnapshot' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

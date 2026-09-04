@@ -51,8 +51,8 @@ request before any global mutation they cannot truthfully honor.
   limitation. Ticket 16 records actual GNOME/KDE versions and behavior.
 
 ```sh
-go test ./internal/wallpaper -run 'Test(SetLinux|LinuxTarget|FileURI)' &&
-go test ./internal/ui/mosaicwin -run 'TestMosaicWallpaper_TargetUnsupported' &&
+go test ./internal/wallpaper -run 'Test(SetLinux|LinuxTarget|FileURI)' -count=1 &&
+go test ./internal/ui/mosaicwin -run 'TestMosaicWallpaper_TargetUnsupported' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

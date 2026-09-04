@@ -52,6 +52,7 @@ const (
 	keyMosaicOverlap          = "mosaicOverlap"
 	keyMosaicMaximumRotation  = "mosaicMaximumRotation"
 	keyMosaicFrame            = "mosaicFrame"
+	keyMosaicDropShadow       = "mosaicDropShadow"
 )
 
 // geometryKeys names the five preference keys one secondary window's
@@ -260,7 +261,7 @@ func Save(app fyne.App, s State) {
 	}
 	// MinimumShortEdge cannot validly be zero, so it is the one safe marker
 	// for an old caller that did not seed mosaic settings at all. Once seeded,
-	// the other three numeric values are written unconditionally because zero
+	// the remaining numeric values are written unconditionally because zero
 	// is an explicit, valid user choice for each.
 	if s.MosaicSettings.MinimumShortEdge != 0 {
 		settings := s.MosaicSettings.Normalized()
@@ -269,6 +270,7 @@ func Save(app fyne.App, s State) {
 		p.SetFloat(keyMosaicOverlap, settings.Overlap)
 		p.SetFloat(keyMosaicMaximumRotation, settings.MaximumRotation)
 		p.SetString(keyMosaicFrame, string(settings.Frame))
+		p.SetBool(keyMosaicDropShadow, settings.DropShadow)
 	}
 
 	saveGeometry(p, settingsWinKeys, s.SettingsWindow)
@@ -324,6 +326,7 @@ func Load(app fyne.App) State {
 		Overlap:          p.FloatWithFallback(keyMosaicOverlap, defaults.Overlap),
 		MaximumRotation:  p.FloatWithFallback(keyMosaicMaximumRotation, defaults.MaximumRotation),
 		Frame:            mosaic.FrameStyleFromPreference(p.StringWithFallback(keyMosaicFrame, string(defaults.Frame))),
+		DropShadow:       p.BoolWithFallback(keyMosaicDropShadow, defaults.DropShadow),
 	}.Normalized()
 
 	// float64(time.Second) is reported as a redundant conversion but is

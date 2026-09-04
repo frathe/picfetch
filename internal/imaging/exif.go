@@ -13,15 +13,70 @@ import (
 )
 
 // readEXIFOrientation returns the orientation tag's value (1-8), or 1 (no
-// correction needed). JPEG files store it in an APP1 Exif segment; TIFF-
-// container RAW files store it in IFD0. A missing or unreadable tag is 1.
+// correction needed). JPEG files store it in an APP1 Exif segment, PNG files
+// in an eXIf chunk, WebP files in an EXIF chunk, and TIFF-container RAW files
+// in IFD0. A missing or unreadable tag is 1.
 func readEXIFOrientation(data []byte) int {
 	if len(data) >= 4 && data[0] == 0xFF && data[1] == 0xD8 {
 		return jpegEXIFOrientation(data)
 	}
+	if o := pngEXIFOrientation(data); o != 1 {
+		return o
+	}
+	if o := webpEXIFOrientation(data); o != 1 {
+		return o
+	}
 	if o := tiffIFD0Orientation(data); o != 1 {
 		return o
 	}
+	return 1
+}
+
+func webpEXIFOrientation(data []byte) int {
+	if len(data) < 12 || string(data[:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		return 1
+	}
+
+	for offset := 12; offset+8 <= len(data); {
+		length := uint64(binary.LittleEndian.Uint32(data[offset+4 : offset+8]))
+		payloadStart := offset + 8
+		payloadEnd := uint64(payloadStart) + length
+		padding := length % 2
+		if payloadEnd+padding > uint64(len(data)) {
+			return 1
+		}
+		if string(data[offset:offset+4]) == "EXIF" {
+			payload := data[payloadStart:int(payloadEnd)]
+			if orientation := parseExifOrientation(payload); orientation != 0 {
+				return orientation
+			}
+			return tiffIFD0Orientation(payload)
+		}
+		offset = int(payloadEnd + padding)
+	}
+
+	return 1
+}
+
+func pngEXIFOrientation(data []byte) int {
+	const signature = "\x89PNG\r\n\x1a\n"
+	if len(data) < len(signature) || string(data[:len(signature)]) != signature {
+		return 1
+	}
+
+	for offset := len(signature); offset+12 <= len(data); {
+		length := uint64(binary.BigEndian.Uint32(data[offset : offset+4]))
+		payloadStart := offset + 8
+		payloadEnd := uint64(payloadStart) + length
+		if payloadEnd+4 > uint64(len(data)) {
+			return 1
+		}
+		if string(data[offset+4:offset+8]) == "eXIf" {
+			return tiffIFD0Orientation(data[payloadStart:int(payloadEnd)])
+		}
+		offset = int(payloadEnd) + 4
+	}
+
 	return 1
 }
 

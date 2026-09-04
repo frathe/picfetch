@@ -67,7 +67,7 @@ canonical decode behavior and returning exact target-sized pixels.
 - Source files are byte-for-byte unchanged before and after generation.
 
 ```sh
-go test ./internal/mosaic -run 'TestGenerate_(SourceFidelity|FrameStyles|Unreadable|LazyPool|SourcesUnchanged)'
+go test ./internal/mosaic -run 'TestGenerate_(SourceFidelity|FrameStyles|Unreadable|LazyPool|SourcesUnchanged)' -count=1
 ```
 
 ## Non-Goals

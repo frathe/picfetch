@@ -54,9 +54,9 @@ while preserving the current PowerShell/SystemParametersInfo no-target path.
   display behavior and persistence after exit are recorded in ticket 16.
 
 ```sh
-go test ./internal/wallpaper -run 'TestSetWindows_(Legacy|Dispatch|Escapes)' &&
+go test ./internal/wallpaper -run 'TestSetWindows_(Legacy|Dispatch|Escapes)' -count=1 &&
 GOOS=windows GOARCH=amd64 go vet ./internal/wallpaper/... &&
-GOOS=windows GOARCH=amd64 go test -c -o /tmp/picfetch-wallpaper-windows.test.exe ./internal/wallpaper &&
+GOOS=windows GOARCH=amd64 go test -c -count=1 -o /tmp/picfetch-wallpaper-windows.test.exe ./internal/wallpaper &&
 make check-qodana-test-exclusions
 ```
 

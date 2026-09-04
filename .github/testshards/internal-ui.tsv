@@ -7,7 +7,7 @@
 # ui-1: 182 entries, 326.750s baseline median-weight sum
 # ui-2: 182 entries, 327.070s median-weight sum
 # ui-3: 217 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 14 tests assigned across the baseline shards
+# post-baseline additions: 15 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -123,6 +123,7 @@ TestMemoryLimitSetters_FloorAtOne	ui-1
 TestMicrosoftStoreUpdateActionsAreRefused	ui-1
 TestMosaicMenu_FollowsGridResultImmediately	ui-1
 TestMosaicSnapshot_DoesNotRetargetAfterGridMutation	ui-1
+TestMosaicSources_HiddenDuplicatesUseHighestResolution	ui-1
 TestMosaicWallpaper_CleanupIsScopedPerTarget	ui-1
 TestMosaicWindow_DirectInvocationGuardsClosedOrEmptyGrid	ui-1
 TestOpenInitialFiles_ArgvAndADeliveryBecomeOneScanWithArgvFirst	ui-1

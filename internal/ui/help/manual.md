@@ -547,20 +547,24 @@ an already-open mosaic window, and generation never modifies a source file.
 
 Choose the target display by its name, native pixel resolution, and aspect
 ratio. **Refresh Displays** updates that list; if the chosen display has been
-removed, PicFetch requires a new selection. **Minimum image size** and **Frame** are immediately visible;
-**Advanced** reveals size variation, overlap, and maximum rotation. Generate
-runs in the background. `Esc` cancels an active generation and a second `Esc`
-closes the window; when idle, `Esc` closes it directly. All controls and
-actions are reachable with `Tab` and `Shift+Tab`, and `Enter` or `Space`
-activates a focused button.
+removed, PicFetch requires a new selection. **Advanced** reveals minimum image
+size, frame, size variation, overlap, maximum rotation, and the drop-shadow
+option; the target display is the only visual setting shown while Advanced is
+collapsed. Generate runs in the background. `Esc` cancels an active generation
+and a second `Esc` closes the window; when idle, `Esc` closes it directly. All
+controls and actions are reachable with `Tab` and `Shift+Tab`, and `Enter` or
+`Space` activates a focused button.
 
-After generation, **Regenerate** keeps the same sources, display, and settings
-but makes a new arrangement. **Save Image** exports the exact full-resolution
-result as PNG or JPEG. **Set as Wallpaper** uses a PicFetch-owned persistent
-copy: on Windows and macOS it changes only the chosen display, while the
-ordinary main-window wallpaper command remains global/all-screen. Linux's
-available GNOME/KDE integrations are global-only, so a targeted mosaic request
-is refused before any desktop change; **Save Image** remains available.
+After generation, **Start Over** returns to configuration, discards the current
+preview and status, and keeps the sources, selected display, visual settings,
+and export format so you can choose another display and generate its wallpaper.
+**Regenerate** keeps the same sources, display, and settings but makes a new
+arrangement. **Save Image** exports the exact full-resolution result as PNG or
+JPEG. **Set as Wallpaper** uses a PicFetch-owned persistent copy: on Windows and
+macOS it changes only the chosen display, while the ordinary main-window
+wallpaper command remains global/all-screen. Linux's available GNOME/KDE
+integrations are global-only, so a targeted mosaic request is refused before
+any desktop change; **Save Image** remains available.
 
 ---
 

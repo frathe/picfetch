@@ -623,22 +623,28 @@ Quelldatei.
 Wählen Sie den Zielbildschirm anhand von Name, nativer Pixelauflösung und
 Seitenverhältnis. **Bildschirme aktualisieren** aktualisiert diese Liste; wurde
 der gewählte Bildschirm entfernt, verlangt PicFetch eine neue Auswahl.
-**Minimale Bildgröße** und **Rahmen** sind sofort sichtbar;
-**Erweitert** blendet Größenvariation, Überlappung und maximale Drehung ein.
-Die Erstellung läuft im Hintergrund. `Esc` bricht eine laufende Erstellung ab,
-ein zweites `Esc` schließt das Fenster; ohne laufende Arbeit schließt `Esc` es
-direkt. Alle Bedienelemente und Aktionen sind mit `Tab` und `Shift+Tab`
-erreichbar; `Enter` oder die Leertaste aktiviert eine fokussierte Schaltfläche.
+**Erweitert** blendet minimale Bildgröße, Rahmen, Größenvariation,
+Überlappung, maximale Drehung und die Schlagschattenoption ein; bei
+eingeklappten erweiterten Einstellungen ist der Zielbildschirm die einzige
+sichtbare Gestaltungseinstellung. Die Erstellung läuft im Hintergrund. `Esc`
+bricht eine laufende Erstellung ab, ein zweites `Esc` schließt das Fenster;
+ohne laufende Arbeit schließt `Esc` es direkt. Alle Bedienelemente und Aktionen
+sind mit `Tab` und `Shift+Tab` erreichbar; `Enter` oder die Leertaste aktiviert
+eine fokussierte Schaltfläche.
 
-Nach der Erstellung behält **Neu erstellen** Quellen, Bildschirm und
-Einstellungen bei, erzeugt aber eine neue Anordnung. **Bild speichern**
-exportiert das exakte Ergebnis in voller Auflösung als PNG oder JPEG. **Als
-Hintergrundbild festlegen** verwendet eine dauerhafte PicFetch-eigene Kopie:
-Unter Windows und macOS wird nur der gewählte Bildschirm geändert, während der
-gewöhnliche Hintergrundbildbefehl im Hauptfenster global bzw. für alle
-Bildschirme gilt. Die verfügbaren GNOME-/KDE-Integrationen unter Linux arbeiten
-nur global; deshalb wird ein zielgerichtetes Mosaik vor jeder Änderung des
-Desktops abgelehnt. **Bild speichern** bleibt verfügbar.
+Nach der Erstellung kehren Sie mit **Neu beginnen** zur Konfiguration zurück,
+verwerfen die aktuelle Vorschau und Statusmeldung und behalten Quellen,
+ausgewählten Bildschirm, visuelle Einstellungen und Exportformat bei, damit
+Sie einen anderen Bildschirm wählen und dessen Hintergrundbild erstellen
+können. **Neu erstellen** behält Quellen, Bildschirm und Einstellungen bei,
+erzeugt aber eine neue Anordnung. **Bild speichern** exportiert das exakte
+Ergebnis in voller Auflösung als PNG oder JPEG. **Als Hintergrundbild
+festlegen** verwendet eine dauerhafte PicFetch-eigene Kopie: Unter Windows und
+macOS wird nur der gewählte Bildschirm geändert, während der gewöhnliche
+Hintergrundbildbefehl im Hauptfenster global bzw. für alle Bildschirme gilt.
+Die verfügbaren GNOME-/KDE-Integrationen unter Linux arbeiten nur global;
+deshalb wird ein zielgerichtetes Mosaik vor jeder Änderung des Desktops
+abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ---
 

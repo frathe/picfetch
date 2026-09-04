@@ -206,6 +206,7 @@ func TestMosaicPreferences_RestoreAndCurrentSnapshot(t *testing.T) {
 		Overlap:          0.14,
 		MaximumRotation:  0,
 		Frame:            mosaic.FramePolaroid,
+		DropShadow:       false,
 	}
 	geometry := preferences.WindowGeometry{
 		X: 410, Y: 220, PositionSet: true, Size: fyne.NewSize(810, 640),
@@ -243,6 +244,9 @@ func TestStartup_OmittedPreferencesUseShippedDefaults(t *testing.T) {
 	}
 	if v.slides.Shuffle() {
 		t.Error("slides.Shuffle() = true, want false (the shipped default)")
+	}
+	if !v.mosaicWin.Settings().DropShadow {
+		t.Error("mosaic drop shadow = false, want true (the shipped default)")
 	}
 	if got, want := v.MaxScan(), filescan.DefaultMax; got != want {
 		t.Errorf("MaxScan() = %d, want %d (the shipped default)", got, want)

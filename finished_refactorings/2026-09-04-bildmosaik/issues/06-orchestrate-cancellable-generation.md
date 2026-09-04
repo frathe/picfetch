@@ -59,8 +59,8 @@ make all generations observable to deterministic tests and shutdown cleanup.
   `internal/mosaic`, not duplicated in the window.
 
 ```sh
-go test ./internal/ui/mosaicwin -run 'TestMosaic(Generate|Supersede|Cancel|Settle)' &&
-go test ./internal/ui -run 'TestMosaic(Drain|Shutdown)' &&
+go test ./internal/ui/mosaicwin -run 'TestMosaic(Generate|Supersede|Cancel|Settle)' -count=1 &&
+go test ./internal/ui -run 'TestMosaic(Drain|Shutdown)' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

@@ -58,8 +58,8 @@ second rendering path or a mutable result identity.
   mutation alive.
 
 ```sh
-go test ./internal/ui/mosaicwin -run 'TestMosaic(Preview|Regenerate|ActionGate|FailureKeepsPreview|Close)' &&
-go test . -run 'TestTranslations_' &&
+go test ./internal/ui/mosaicwin -run 'TestMosaic(Preview|Regenerate|ActionGate|FailureKeepsPreview|Close)' -count=1 &&
+go test . -run 'TestTranslations_' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

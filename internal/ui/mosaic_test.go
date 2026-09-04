@@ -130,6 +130,75 @@ func TestMosaicSources_UsesCompleteFilteredResultWithoutSelection(t *testing.T) 
 	}
 }
 
+func TestMosaicSources_HiddenDuplicatesUseHighestResolution(t *testing.T) {
+	setup := func(t *testing.T, selectRepresentative bool) (*viewer, fyne.URI, fyne.URI) {
+		t.Helper()
+		v, _, _ := newTestUI(t)
+		small := uitest.PatternedJPEGURISize(t, "a-small.jpg", 1, 64, 48)
+		large := uitest.PatternedJPEGURISize(t, "b-large.jpg", 1, 192, 144)
+		dropAndWait(t, v, small, large)
+		if err := v.grid.Warm(); err != nil {
+			t.Fatalf("Warm: %v", err)
+		}
+		v.grid.Toggle()
+		v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+		if selectRepresentative {
+			v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+			v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+		}
+		v.grid.SetHideDuplicates(true)
+		v.grid.Settle()
+		waitUntilLoaded(t, v)
+		if !v.dupes.IsHiddenExtra(0) || v.dupes.RepresentativeOf(0) != 1 {
+			t.Fatalf("setup did not hide the smaller duplicate: hidden=%v representative=%d", v.dupes.IsHiddenExtra(0), v.dupes.RepresentativeOf(0))
+		}
+		return v, small, large
+	}
+
+	t.Run("selected hidden member is substituted", func(t *testing.T) {
+		v, _, large := setup(t, false)
+		uitest.StubDisplays(t, func(fyne.Window) (displays.Snapshot, error) {
+			return displays.Snapshot{
+				Displays: []displays.Display{{ID: "main", Name: "Main", Bounds: image.Rect(0, 0, 80, 50)}},
+				Default:  "main",
+			}, nil
+		})
+
+		v.menus.Actions().Mosaic().Action()
+		if got, want := uriNames(v.mosaicWin.Snapshot().Sources), []string{large.Name()}; !slices.Equal(got, want) {
+			t.Fatalf("mosaic sources = %v, want highest-resolution representative %v", got, want)
+		}
+		v.mosaicWin.Close()
+	})
+
+	t.Run("selected group is collapsed", func(t *testing.T) {
+		v, _, large := setup(t, true)
+		got, err := v.mosaicSources()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := []string{large.Name()}; !slices.Equal(uriNames(got), want) {
+			t.Fatalf("mosaic sources = %v, want one representative %v", uriNames(got), want)
+		}
+	})
+
+	t.Run("browsed variants keep the explicit selection", func(t *testing.T) {
+		v, small, _ := setup(t, false)
+		v.grid.SetBrowsingDuplicates(true)
+		v.grid.Settle()
+		if !v.grid.BrowsingDuplicates() {
+			t.Fatal("setup did not enter duplicate browsing")
+		}
+		got, err := v.mosaicSources()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := []string{small.Name()}; !slices.Equal(uriNames(got), want) {
+			t.Fatalf("mosaic sources while browsing = %v, want explicit selection %v", uriNames(got), want)
+		}
+	})
+}
+
 func TestMosaicSnapshot_DoesNotRetargetAfterGridMutation(t *testing.T) {
 	v, _, _ := newTestUI(t)
 	dropAndWait(t, v,

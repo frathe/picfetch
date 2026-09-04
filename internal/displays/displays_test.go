@@ -3,6 +3,9 @@ package displays
 import (
 	"errors"
 	"image"
+	"os"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -71,5 +74,63 @@ func TestInspectUnsupported_IsTyped(t *testing.T) {
 	var unsupported *UnsupportedError
 	if !errors.As(err, &unsupported) {
 		t.Fatalf("inspectWindow(nil) = %v, want UnsupportedError", err)
+	}
+}
+
+func TestInspectDarwinSourceUsesNativeModePixelsAndPointSpaceSelection(t *testing.T) {
+	source, err := os.ReadFile("darwin.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := string(source)
+	for _, required := range []string{
+		"CGDisplayCopyDisplayMode(ident)",
+		"CGDisplayModeGetPixelWidth(mode)",
+		"CGDisplayModeGetPixelHeight(mode)",
+		"NSIntersectionRect(frame, screen.frame)",
+		"Bounds: image.Rect(0, 0, int(width), int(height))",
+	} {
+		if !strings.Contains(code, required) {
+			t.Errorf("darwin display inspection does not contain %q", required)
+		}
+	}
+	if strings.Contains(code, "*width = (int)bounds.size.width") || strings.Contains(code, "*height = (int)bounds.size.height") {
+		t.Error("darwin display inspection still reports point-space dimensions")
+	}
+	if strings.Contains(code, "CGDisplayBounds(ident)") {
+		t.Error("darwin display inspection mixes a point-space origin into native-pixel bounds")
+	}
+}
+
+func TestWindowsDesktopWallpaperScaffoldingIsShared(t *testing.T) {
+	paths := []string{"windows.go", "../wallpaper/target_windows.go", "../wincom/desktopwallpaper_windows.go"}
+	var combined strings.Builder
+	for _, path := range paths {
+		source, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		combined.Write(source)
+	}
+	for _, unique := range []string{
+		"type desktopWallpaperVtbl struct",
+		"0xc2cf3110",
+		"0xb92b56a9",
+		"return int32(uint32(value)) < 0",
+	} {
+		if count := strings.Count(combined.String(), unique); count != 1 {
+			t.Errorf("Windows COM scaffold %q occurs %d times, want exactly once", unique, count)
+		}
+	}
+
+	bareCall := regexp.MustCompile(`(?m)^\s*(?:defer\s+)?[A-Za-z0-9_]+\.Call\(`)
+	for _, path := range paths[:2] {
+		source, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if call := bareCall.Find(source); call != nil {
+			t.Errorf("%s discards syscall results with bare call %q", path, strings.TrimSpace(string(call)))
+		}
 	}
 }

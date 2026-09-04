@@ -13,12 +13,31 @@ import (
 )
 
 // mosaicSources resolves the current Grid subject on the UI goroutine and
-// immediately snapshots its URIs. Explicit selection is exclusive; without
-// one, every member of the filtered Grid result is used.
+// immediately snapshots its URIs. Explicit selection is exclusive except
+// that a selected duplicate currently hidden by the Grid resolves to the
+// group's highest-resolution representative. Without a selection, every
+// member of the filtered Grid result is used.
 func (v *viewer) mosaicSources() ([]fyne.URI, error) {
 	indices := v.grid.Selection()
 	if len(indices) == 0 {
 		indices = v.grid.ResultIndexes()
+	} else if !v.grid.BrowsingDuplicates() {
+		visibility := v.dupes.Visibility()
+		if visibility.Hide {
+			resolved := make([]int, 0, len(indices))
+			seen := make(map[int]struct{}, len(indices))
+			for _, index := range indices {
+				if visibility.HiddenExtra(index) {
+					index = visibility.RepresentativeOf(index)
+				}
+				if _, exists := seen[index]; exists {
+					continue
+				}
+				seen[index] = struct{}{}
+				resolved = append(resolved, index)
+			}
+			indices = resolved
+		}
 	}
 	if len(indices) == 0 {
 		return nil, fmt.Errorf("mosaic source pool is empty")

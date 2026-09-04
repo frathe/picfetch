@@ -67,10 +67,10 @@ ordinary viewer pixels and mosaic result pixels can request an optional display.
 - Tests stub the new dispatcher and never change the developer's desktop.
 
 ```sh
-go test ./internal/wallpaper -run 'Test(Request|TargetUnsupported)' &&
-go test ./internal/ui -run 'Test.*Wallpaper' &&
-go test ./internal/ui/mosaicwin -run 'TestMosaicWallpaper' &&
-go test . -run 'TestTranslations_' &&
+go test ./internal/wallpaper -run 'Test(Request|TargetUnsupported)' -count=1 &&
+go test ./internal/ui -run 'Test.*Wallpaper' -count=1 &&
+go test ./internal/ui/mosaicwin -run 'TestMosaicWallpaper' -count=1 &&
+go test . -run 'TestTranslations_' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

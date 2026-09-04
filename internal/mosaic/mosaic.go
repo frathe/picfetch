@@ -42,6 +42,7 @@ type Settings struct {
 	Overlap          float64
 	MaximumRotation  float64
 	Frame            FrameStyle
+	DropShadow       bool
 }
 
 // DefaultSettings returns the product defaults.
@@ -52,6 +53,7 @@ func DefaultSettings() Settings {
 		Overlap:          0.08,
 		MaximumRotation:  7,
 		Frame:            FrameNone,
+		DropShadow:       true,
 	}
 }
 

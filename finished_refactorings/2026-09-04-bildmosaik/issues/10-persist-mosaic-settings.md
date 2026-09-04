@@ -53,9 +53,9 @@ the existing standing-preferences flow, never through session/cache storage.
 - Existing Settings/EXIF geometry and all prior preferences retain their tests.
 
 ```sh
-go test ./internal/preferences -run 'Test.*Mosaic' &&
-go test ./internal/ui/mosaicwin -run 'TestMosaic(Settings|Geometry)' &&
-go test ./internal/ui -run 'TestMosaicPreferences' &&
+go test ./internal/preferences -run 'Test.*Mosaic' -count=1 &&
+go test ./internal/ui/mosaicwin -run 'TestMosaic(Settings|Geometry)' -count=1 &&
+go test ./internal/ui -run 'TestMosaicPreferences' -count=1 &&
 make check-qodana-test-exclusions
 ```
 

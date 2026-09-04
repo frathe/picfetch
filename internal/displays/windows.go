@@ -10,28 +10,12 @@ import (
 	"unsafe"
 
 	"fyne.io/fyne/v2/driver"
-)
 
-type winGUID struct {
-	data1 uint32
-	data2 uint16
-	data3 uint16
-	data4 [8]byte
-}
+	"github.com/frathe/picfetch/internal/wincom"
+)
 
 type winRect struct {
 	left, top, right, bottom int32
-}
-
-type desktopWallpaper struct {
-	vtbl *desktopWallpaperVtbl
-}
-
-type desktopWallpaperVtbl struct {
-	queryInterface, addRef, release                   uintptr
-	setWallpaper, getWallpaper                        uintptr
-	getMonitorDevicePathAt, getMonitorDevicePathCount uintptr
-	getMonitorRECT                                    uintptr
 }
 
 var (
@@ -44,16 +28,6 @@ var (
 	procGetWindowRectDisplays = user32Display.NewProc("GetWindowRect")
 )
 
-var (
-	clsidDesktopWallpaper = winGUID{0xc2cf3110, 0x460e, 0x4fc1, [8]byte{0xb9, 0xd0, 0x8a, 0x1c, 0x0c, 0x9c, 0xc4, 0xbd}}
-	iidDesktopWallpaper   = winGUID{0xb92b56a9, 0x8b55, 0x4e14, [8]byte{0x9a, 0x89, 0x01, 0x99, 0xbb, 0xb6, 0xf9, 0x3b}}
-)
-
-const (
-	coinitApartmentThreaded = 0x2
-	clsctxLocalServer       = 0x4
-)
-
 func platformInspect(context any) (found []Display, defaultID ID, err error) {
 	window, ok := context.(driver.WindowsWindowContext)
 	if !ok || window.HWND == 0 {
@@ -62,42 +36,43 @@ func platformInspect(context any) (found []Display, defaultID ID, err error) {
 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	hr, _, _ := procCoInitializeEx.Call(0, coinitApartmentThreaded)
-	if failedHRESULT(hr) {
+	hr, _, _ := procCoInitializeEx.Call(0, wincom.COInitApartmentThreaded)
+	if wincom.FailedHRESULT(hr) {
 		return nil, "", fmt.Errorf("initialize COM for display inspection: HRESULT 0x%08x", uint32(hr))
 	}
-	defer procCoUninitialize.Call()
+	defer func() { _, _, _ = procCoUninitialize.Call() }()
 
-	var api *desktopWallpaper
+	classID, interfaceID := wincom.DesktopWallpaperIDs()
+	var api *wincom.DesktopWallpaper
 	hr, _, _ = procCoCreateInstance.Call(
-		uintptr(unsafe.Pointer(&clsidDesktopWallpaper)), 0, clsctxLocalServer,
-		uintptr(unsafe.Pointer(&iidDesktopWallpaper)), uintptr(unsafe.Pointer(&api)),
+		uintptr(unsafe.Pointer(&classID)), 0, wincom.CLSCTXLocalServer,
+		uintptr(unsafe.Pointer(&interfaceID)), uintptr(unsafe.Pointer(&api)),
 	)
-	if failedHRESULT(hr) || api == nil {
+	if wincom.FailedHRESULT(hr) || api == nil {
 		return nil, "", &UnsupportedError{Reason: fmt.Sprintf("IDesktopWallpaper unavailable (HRESULT 0x%08x)", uint32(hr))}
 	}
-	defer syscall.SyscallN(api.vtbl.release, uintptr(unsafe.Pointer(api)))
+	defer syscall.SyscallN(api.ReleaseProc(), uintptr(unsafe.Pointer(api)))
 
 	var count uint32
-	hr, _, _ = syscall.SyscallN(api.vtbl.getMonitorDevicePathCount, uintptr(unsafe.Pointer(api)), uintptr(unsafe.Pointer(&count)))
-	if failedHRESULT(hr) {
+	hr, _, _ = syscall.SyscallN(api.MonitorDevicePathCountProc(), uintptr(unsafe.Pointer(api)), uintptr(unsafe.Pointer(&count)))
+	if wincom.FailedHRESULT(hr) {
 		return nil, "", fmt.Errorf("count attached monitors: HRESULT 0x%08x", uint32(hr))
 	}
 	for index := uint32(0); index < count; index++ {
 		var devicePath *uint16
-		hr, _, _ = syscall.SyscallN(api.vtbl.getMonitorDevicePathAt, uintptr(unsafe.Pointer(api)), uintptr(index), uintptr(unsafe.Pointer(&devicePath)))
-		if failedHRESULT(hr) || devicePath == nil {
+		hr, _, _ = syscall.SyscallN(api.MonitorDevicePathAtProc(), uintptr(unsafe.Pointer(api)), uintptr(index), uintptr(unsafe.Pointer(&devicePath)))
+		if wincom.FailedHRESULT(hr) || devicePath == nil {
 			return nil, "", fmt.Errorf("read monitor %d device path: HRESULT 0x%08x", index, uint32(hr))
 		}
 		path := windowsUTF16String(devicePath)
-		procCoTaskMemFree.Call(uintptr(unsafe.Pointer(devicePath)))
+		_, _, _ = procCoTaskMemFree.Call(uintptr(unsafe.Pointer(devicePath)))
 		pathUTF16, conversionErr := syscall.UTF16PtrFromString(path)
 		if conversionErr != nil {
 			return nil, "", fmt.Errorf("prepare monitor %d device path: %w", index, conversionErr)
 		}
 		var bounds winRect
-		hr, _, _ = syscall.SyscallN(api.vtbl.getMonitorRECT, uintptr(unsafe.Pointer(api)), uintptr(unsafe.Pointer(pathUTF16)), uintptr(unsafe.Pointer(&bounds)))
-		if failedHRESULT(hr) {
+		hr, _, _ = syscall.SyscallN(api.MonitorRECTProc(), uintptr(unsafe.Pointer(api)), uintptr(unsafe.Pointer(pathUTF16)), uintptr(unsafe.Pointer(&bounds)))
+		if wincom.FailedHRESULT(hr) {
 			return nil, "", fmt.Errorf("read monitor %d bounds: HRESULT 0x%08x", index, uint32(hr))
 		}
 		found = append(found, Display{
@@ -127,8 +102,4 @@ func windowsUTF16String(value *uint16) string {
 	}
 
 	return syscall.UTF16ToString(units[:length])
-}
-
-func failedHRESULT(value uintptr) bool {
-	return int32(uint32(value)) < 0
 }
