@@ -132,6 +132,62 @@ func TestBuildRejectsModifiedOpaqueValuesInReusedGermanCache(t *testing.T) {
 	}
 }
 
+func TestBuildRejectsSwappedMarkdownLinksInReusedGermanCache(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	type cacheEntry struct {
+		SourceHash  string `json:"source_hash"`
+		RequestHash string `json:"request_hash"`
+		Format      string `json:"format"`
+		Text        string `json:"text"`
+	}
+	var cache struct {
+		Version int                   `json:"version"`
+		Locale  string                `json:"locale"`
+		Entries map[string]cacheEntry `json:"entries"`
+	}
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("read controlled cache: %v", err)
+	}
+	if err := json.Unmarshal(data, &cache); err != nil {
+		t.Fatalf("parse controlled cache: %v", err)
+	}
+	entry, ok := cache.Entries["footer.colophon"]
+	if !ok {
+		t.Fatal("controlled cache has no footer.colophon entry")
+	}
+	const licenseURL = "https://github.com/frathe/picfetch/blob/main/LICENSE"
+	const fyneURL = "https://fyne.io/"
+	if strings.Count(entry.Text, licenseURL) != 1 || strings.Count(entry.Text, fyneURL) != 1 {
+		t.Fatalf("test setup expected one LICENSE and one Fyne link in footer.colophon: %q", entry.Text)
+	}
+	entry.Text = strings.NewReplacer(licenseURL, fyneURL, fyneURL, licenseURL).Replace(entry.Text)
+	cache.Entries["footer.colophon"] = entry
+	data, err = json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		t.Fatalf("encode modified cache: %v", err)
+	}
+	if err := os.WriteFile(cachePath, append(data, '\n'), 0o600); err != nil {
+		t.Fatalf("write modified cache: %v", err)
+	}
+
+	cmd := exec.Command("make", "build",
+		"SITE_TRANSLATIONS="+cachePath,
+		"SITE_OUTPUT_DIR="+t.TempDir(),
+		"SITE_LOCALES=de",
+		"SITE_FORMATS=regular",
+	)
+	cmd.Dir = repo
+	combined, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("make build accepted Markdown links whose destinations were swapped")
+	}
+	if !strings.Contains(string(combined), "footer.colophon") || !strings.Contains(string(combined), "protected URL") {
+		t.Fatalf("swapped-link diagnostic is not actionable:\n%s", combined)
+	}
+}
+
 func TestBuildRejectsModifiedMultilineFencedCodeInGermanCache(t *testing.T) {
 	repo := repositoryRoot(t)
 	source, err := os.ReadFile(filepath.Join(repo, "website.md"))

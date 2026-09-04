@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -195,11 +196,20 @@ func parseMarkdownSections(body []byte) (map[string]string, error) {
 		if id == "" {
 			return nil
 		}
-		value := strings.TrimSpace(strings.Join(lines, "\n"))
-		if value == "" {
+		start := 0
+		for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
+			start++
+		}
+		end := len(lines)
+		if fenceMarker == 0 {
+			for end > start && strings.TrimSpace(lines[end-1]) == "" {
+				end--
+			}
+		}
+		if start == end {
 			return fmt.Errorf("markdown section %q: content is required", id)
 		}
-		sections[id] = value
+		sections[id] = strings.Join(lines[start:end], "\n")
 		return nil
 	}
 
@@ -594,8 +604,25 @@ func (v *contentValidator) requireURL(path, raw string, allowFragment bool) erro
 	if allowFragment && parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.Fragment != "" {
 		return nil
 	}
-	if parsed.Scheme != "https" || parsed.Host == "" {
+	if parsed.Scheme != "https" {
 		return fmt.Errorf("%s: absolute HTTPS URL is required", path)
+	}
+	if err := validateURLAuthority(parsed); err != nil {
+		return fmt.Errorf("%s: invalid URL authority: %w", path, err)
+	}
+	return nil
+}
+
+func validateURLAuthority(parsed *url.URL) error {
+	if parsed.Hostname() == "" {
+		return fmt.Errorf("hostname is required")
+	}
+	port := parsed.Port()
+	if strings.HasSuffix(parsed.Host, ":") || port != "" {
+		portNumber, err := strconv.ParseUint(port, 10, 16)
+		if err != nil || portNumber == 0 {
+			return fmt.Errorf("port must be an integer from 1 through 65535")
+		}
 	}
 	return nil
 }

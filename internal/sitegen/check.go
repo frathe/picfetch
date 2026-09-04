@@ -219,7 +219,15 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, 
 						}
 						continue
 					}
-					if ((parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host == "") || (parsed.Scheme == "" && parsed.Host != "") {
+					if parsed.Scheme == "http" || parsed.Scheme == "https" {
+						if authorityErr := validateURLAuthority(parsed); authorityErr != nil {
+							if invalidURL == "" {
+								invalidURL = attribute.Val
+								invalidURLReason = "invalid external URL (" + authorityErr.Error() + ")"
+							}
+							continue
+						}
+					} else if parsed.Scheme == "" && parsed.Host != "" {
 						if invalidURL == "" {
 							invalidURL = attribute.Val
 							invalidURLReason = "invalid external URL"

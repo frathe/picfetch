@@ -392,3 +392,134 @@ func TestMakeTranslateTranslatesMarkdownLinkTitleAsSeparateUnit(t *testing.T) {
 		t.Fatalf("German page does not contain the translated Markdown title:\n%s", page)
 	}
 }
+
+func TestMakeTranslateRefreshesOnlyAffectedUnitWhenProductNameChanges(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	firstSource := strings.Replace(string(source), "  product_name: PicFetch\n", "  product_name: PhotoOne\n", 1)
+	firstSource = strings.Replace(firstSource, "    text: Close\n", "    text: PhotoOne PhotoTwo\n", 1)
+	firstSource = strings.Replace(firstSource,
+		`[MIT licence](https://github.com/frathe/picfetch/blob/main/LICENSE)`,
+		`PhotoOne PhotoTwo [MIT licence](https://github.com/frathe/picfetch/blob/main/LICENSE "PhotoOne PhotoTwo licence")`,
+		1,
+	)
+	secondSource := strings.Replace(firstSource, "  product_name: PhotoOne\n", "  product_name: PhotoTwo\n", 1)
+	if firstSource == string(source) || secondSource == firstSource ||
+		!strings.Contains(firstSource, "text: PhotoOne PhotoTwo") ||
+		!strings.Contains(firstSource, `"PhotoOne PhotoTwo licence"`) {
+		t.Fatal("test setup did not isolate a product-name protection change")
+	}
+	firstSourcePath := filepath.Join(t.TempDir(), "first.md")
+	secondSourcePath := filepath.Join(t.TempDir(), "second.md")
+	if err := os.WriteFile(firstSourcePath, []byte(firstSource), 0o600); err != nil {
+		t.Fatalf("write first source: %v", err)
+	}
+	if err := os.WriteFile(secondSourcePath, []byte(secondSource), 0o600); err != nil {
+		t.Fatalf("write second source: %v", err)
+	}
+
+	var (
+		mu        sync.Mutex
+		requested []string
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload struct {
+			Text []string `json:"text"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			http.Error(response, "bad request", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		requested = append(requested, payload.Text...)
+		mu.Unlock()
+		translations := make([]map[string]string, len(payload.Text))
+		for index, text := range payload.Text {
+			translations[index] = map[string]string{"text": text}
+		}
+		_ = json.NewEncoder(response).Encode(map[string]any{"translations": translations})
+	}))
+	defer server.Close()
+
+	cachePath := filepath.Join(t.TempDir(), "de.json")
+	runTranslate := func(sourcePath string) {
+		t.Helper()
+		cmd := exec.Command("make", "translate", "SITE_SOURCE="+sourcePath, "SITE_TRANSLATIONS="+cachePath)
+		cmd.Dir = repo
+		cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+		cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("i", 24), "DEEPL_API_URL="+server.URL)
+		if combined, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("make translate failed: %v\n%s", err, combined)
+		}
+	}
+	runTranslate(firstSourcePath)
+
+	type cacheEntry struct {
+		SourceHash  string `json:"source_hash"`
+		RequestHash string `json:"request_hash"`
+	}
+	readEntries := func() map[string]cacheEntry {
+		t.Helper()
+		data, err := os.ReadFile(cachePath)
+		if err != nil {
+			t.Fatalf("read translation cache: %v", err)
+		}
+		var cache struct {
+			Entries map[string]cacheEntry `json:"entries"`
+		}
+		if err := json.Unmarshal(data, &cache); err != nil {
+			t.Fatalf("parse translation cache: %v", err)
+		}
+		return cache.Entries
+	}
+	before := readEntries()
+	mu.Lock()
+	requested = nil
+	mu.Unlock()
+	runTranslate(secondSourcePath)
+	after := readEntries()
+
+	mu.Lock()
+	secondRequest := append([]string(nil), requested...)
+	mu.Unlock()
+	if len(secondRequest) != 3 {
+		t.Fatalf("product-name change requested %d unexpected units: %q", len(secondRequest), secondRequest)
+	}
+	var sawText, sawMarkdown, sawTitle bool
+	for _, text := range secondRequest {
+		switch {
+		case text == "PhotoOne <keep>PhotoTwo</keep>":
+			sawText = true
+		case strings.Contains(text, "PhotoOne <keep>PhotoTwo</keep> <a"):
+			sawMarkdown = true
+		case text == "PhotoOne <keep>PhotoTwo</keep> licence":
+			sawTitle = true
+		}
+	}
+	if !sawText || !sawMarkdown || !sawTitle {
+		t.Fatalf("product-name change did not refresh text, Markdown, and title units (text=%t Markdown=%t title=%t): %q", sawText, sawMarkdown, sawTitle, secondRequest)
+	}
+	targetIDs := []string{"labels.lightbox-close", "footer.colophon"}
+	for id := range before {
+		if strings.HasPrefix(id, "footer.colophon#link-title-") {
+			targetIDs = append(targetIDs, id)
+		}
+	}
+	if len(targetIDs) != 3 {
+		t.Fatalf("found %d affected cache identities, want three: %q", len(targetIDs), targetIDs)
+	}
+	for _, id := range targetIDs {
+		if before[id].SourceHash != after[id].SourceHash {
+			t.Errorf("unchanged English text changed source hash for %s", id)
+		}
+		if before[id].RequestHash == after[id].RequestHash {
+			t.Errorf("product-name protection change did not change request hash for %s", id)
+		}
+	}
+	if before["metadata.title"].RequestHash != after["metadata.title"].RequestHash {
+		t.Fatal("product-name change invalidated an unaffected explicitly protected unit")
+	}
+}

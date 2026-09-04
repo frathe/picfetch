@@ -2,7 +2,9 @@ package sitegen
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"regexp"
 	"strings"
@@ -31,6 +33,9 @@ var markdownElementAttributes = map[string]map[string]bool{
 }
 
 func canonicalSafeMarkdownHTML(id, value string) (string, error) {
+	if err := validateNoDuplicateMarkdownAttributes(id, value); err != nil {
+		return "", err
+	}
 	context := &html.Node{Type: html.ElementNode, DataAtom: atom.Div, Data: "div"}
 	nodes, err := html.ParseFragment(strings.NewReader(value), context)
 	if err != nil {
@@ -52,6 +57,106 @@ func canonicalSafeMarkdownHTML(id, value string) (string, error) {
 	return strings.ReplaceAll(strings.TrimSpace(canonical.String()), "&#34;", "&quot;"), nil
 }
 
+func validateNoDuplicateMarkdownAttributes(id, value string) error {
+	tokenizer := html.NewTokenizer(strings.NewReader(value))
+	for {
+		tokenType := tokenizer.Next()
+		if tokenType == html.ErrorToken {
+			if errors.Is(tokenizer.Err(), io.EOF) {
+				return nil
+			}
+			return fmt.Errorf("unsafe HTML in %s: inspect attributes: %w", id, tokenizer.Err())
+		}
+		if tokenType != html.StartTagToken && tokenType != html.SelfClosingTagToken {
+			continue
+		}
+		element, attribute, duplicate := duplicateRawHTMLAttribute(tokenizer.Raw())
+		if duplicate {
+			return fmt.Errorf("unsafe HTML in %s: duplicate attribute %s on <%s>", id, attribute, element)
+		}
+	}
+}
+
+// x/net/html follows the browser parser and discards later duplicate
+// attributes. Inspect each raw start tag first so canonicalization cannot hide
+// an ambiguous attribute binding from validation.
+func duplicateRawHTMLAttribute(raw []byte) (string, string, bool) {
+	if len(raw) < 3 || raw[0] != '<' {
+		return "", "", false
+	}
+	position := 1
+	elementStart := position
+	for position < len(raw) && !rawHTMLAttributeDelimiter(raw[position]) {
+		position++
+	}
+	element := strings.ToLower(string(raw[elementStart:position]))
+	seen := make(map[string]bool)
+	for position < len(raw) {
+		for position < len(raw) && rawHTMLSpace(raw[position]) {
+			position++
+		}
+		if position >= len(raw) || raw[position] == '>' {
+			return "", "", false
+		}
+		if raw[position] == '/' {
+			closing := position + 1
+			for closing < len(raw) && rawHTMLSpace(raw[closing]) {
+				closing++
+			}
+			if closing >= len(raw) || raw[closing] == '>' {
+				return "", "", false
+			}
+			position++
+			continue
+		}
+		attributeStart := position
+		for position < len(raw) && !rawHTMLAttributeDelimiter(raw[position]) && raw[position] != '=' {
+			position++
+		}
+		attribute := strings.ToLower(string(raw[attributeStart:position]))
+		if seen[attribute] {
+			return element, attribute, true
+		}
+		seen[attribute] = true
+		for position < len(raw) && rawHTMLSpace(raw[position]) {
+			position++
+		}
+		if position >= len(raw) || raw[position] != '=' {
+			continue
+		}
+		position++
+		for position < len(raw) && rawHTMLSpace(raw[position]) {
+			position++
+		}
+		if position >= len(raw) {
+			return "", "", false
+		}
+		if raw[position] == '\'' || raw[position] == '"' {
+			quote := raw[position]
+			position++
+			for position < len(raw) && raw[position] != quote {
+				position++
+			}
+			if position < len(raw) {
+				position++
+			}
+			continue
+		}
+		for position < len(raw) && !rawHTMLSpace(raw[position]) && raw[position] != '>' {
+			position++
+		}
+	}
+	return "", "", false
+}
+
+func rawHTMLAttributeDelimiter(value byte) bool {
+	return rawHTMLSpace(value) || value == '/' || value == '>'
+}
+
+func rawHTMLSpace(value byte) bool {
+	return value == ' ' || value == '\n' || value == '\r' || value == '\t' || value == '\f'
+}
+
 func validateMarkdownNode(id string, node *html.Node) error {
 	switch node.Type {
 	case html.TextNode:
@@ -61,7 +166,13 @@ func validateMarkdownNode(id string, node *html.Node) error {
 		if !ok {
 			return fmt.Errorf("unsafe HTML in %s: element <%s> is not allowed", id, node.Data)
 		}
+		seenAttributes := make(map[string]bool, len(node.Attr))
 		for _, attribute := range node.Attr {
+			attributeIdentity := attribute.Namespace + "\x00" + attribute.Key
+			if seenAttributes[attributeIdentity] {
+				return fmt.Errorf("unsafe HTML in %s: duplicate attribute %s on <%s>", id, attribute.Key, node.Data)
+			}
+			seenAttributes[attributeIdentity] = true
 			if attribute.Namespace != "" || !allowedAttributes[attribute.Key] {
 				return fmt.Errorf("unsafe HTML in %s: attribute %s on <%s> is not allowed", id, attribute.Key, node.Data)
 			}
@@ -99,8 +210,11 @@ func validateMarkdownLink(raw string) error {
 	if parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.Fragment != "" {
 		return nil
 	}
-	if parsed.Scheme != "https" || parsed.Host == "" {
+	if parsed.Scheme != "https" {
 		return fmt.Errorf("link %q must be an HTTPS URL or internal fragment", raw)
+	}
+	if err := validateURLAuthority(parsed); err != nil {
+		return fmt.Errorf("link %q has invalid URL authority: %w", raw, err)
 	}
 	return nil
 }

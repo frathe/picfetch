@@ -27,6 +27,36 @@ func TestCheckGeneratedRejectsUnsupportedAndMalformedURLs(t *testing.T) {
 			invalid:    "%zz",
 			diagnostic: "invalid URL",
 		},
+		{
+			name:       "HTTPS authority without hostname",
+			old:        "https://player.vimeo.com/api/player.js",
+			invalid:    "https://user@:443/file",
+			diagnostic: "invalid external URL",
+		},
+		{
+			name:       "HTTP authority with empty port",
+			old:        "https://player.vimeo.com/api/player.js",
+			invalid:    "http://example.test:/file",
+			diagnostic: "invalid external URL",
+		},
+		{
+			name:       "HTTPS authority with nonnumeric port",
+			old:        "https://player.vimeo.com/api/player.js",
+			invalid:    "https://example.test:notaport/file",
+			diagnostic: "invalid external URL",
+		},
+		{
+			name:       "HTTP authority with zero port",
+			old:        "https://player.vimeo.com/api/player.js",
+			invalid:    "http://example.test:0/file",
+			diagnostic: "invalid external URL",
+		},
+		{
+			name:       "HTTPS authority with out-of-range port",
+			old:        "https://player.vimeo.com/api/player.js",
+			invalid:    "https://example.test:99999/file",
+			diagnostic: "invalid external URL",
+		},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
