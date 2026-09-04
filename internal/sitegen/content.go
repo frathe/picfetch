@@ -12,6 +12,7 @@ import (
 
 var markdownHeading = regexp.MustCompile(`^##\s+.+\s+\{#([a-z][a-z0-9.-]*)\}\s*$`)
 var stableIdentity = regexp.MustCompile(`^[a-z][a-z0-9.-]*$`)
+var vimeoVideoID = regexp.MustCompile(`^[0-9]+$`)
 
 type Content struct {
 	Site          Site              `yaml:"site"`
@@ -98,13 +99,20 @@ type Section struct {
 }
 
 type Video struct {
-	ID         string        `yaml:"id"`
-	VideoID    string        `yaml:"video_id"`
-	RegularURL string        `yaml:"regular_url"`
-	Width      int           `yaml:"width"`
-	Height     int           `yaml:"height"`
-	Autoplay   bool          `yaml:"autoplay"`
-	Title      LocalizedText `yaml:"title"`
+	ID       string        `yaml:"id"`
+	VideoID  string        `yaml:"video_id"`
+	Width    int           `yaml:"width"`
+	Height   int           `yaml:"height"`
+	Autoplay bool          `yaml:"autoplay"`
+	Title    LocalizedText `yaml:"title"`
+}
+
+func (v *Video) RegularURL() string {
+	result := "https://player.vimeo.com/video/" + url.PathEscape(v.VideoID) + "?badge=0&autopause=0&player_id=0&app_id=58479"
+	if v.Autoplay {
+		result += "&autoplay=1&muted=1&loop=1"
+	}
+	return result
 }
 
 type Screenshot struct {
@@ -177,6 +185,8 @@ func parseMarkdownSections(body []byte) (map[string]string, error) {
 	sections := make(map[string]string)
 	var id string
 	var lines []string
+	var fenceMarker byte
+	var fenceLength int
 	flush := func() error {
 		if id == "" {
 			return nil
@@ -190,12 +200,24 @@ func parseMarkdownSections(body []byte) (map[string]string, error) {
 	}
 
 	for lineNumber, line := range strings.Split(string(body), "\n") {
+		if fenceMarker != 0 {
+			lines = append(lines, line)
+			if closesMarkdownFence(line, fenceMarker, fenceLength) {
+				fenceMarker = 0
+				fenceLength = 0
+			}
+			continue
+		}
 		match := markdownHeading.FindStringSubmatch(line)
 		if match == nil {
 			if id == "" && strings.TrimSpace(line) != "" {
 				return nil, fmt.Errorf("markdown line %d: content must follow a level-two heading with a stable {#id}", lineNumber+1)
 			}
 			lines = append(lines, line)
+			if marker, length, ok := opensMarkdownFence(line); ok {
+				fenceMarker = marker
+				fenceLength = length
+			}
 			continue
 		}
 		if err := flush(); err != nil {
@@ -211,6 +233,40 @@ func parseMarkdownSections(body []byte) (map[string]string, error) {
 		return nil, err
 	}
 	return sections, nil
+}
+
+func opensMarkdownFence(line string) (byte, int, bool) {
+	start := 0
+	for start < len(line) && start < 4 && line[start] == ' ' {
+		start++
+	}
+	if start > 3 || start == len(line) || (line[start] != '`' && line[start] != '~') {
+		return 0, 0, false
+	}
+	marker := line[start]
+	end := start
+	for end < len(line) && line[end] == marker {
+		end++
+	}
+	if end-start < 3 || (marker == '`' && strings.ContainsRune(line[end:], '`')) {
+		return 0, 0, false
+	}
+	return marker, end - start, true
+}
+
+func closesMarkdownFence(line string, marker byte, minimumLength int) bool {
+	start := 0
+	for start < len(line) && start < 4 && line[start] == ' ' {
+		start++
+	}
+	if start > 3 || start == len(line) || line[start] != marker {
+		return false
+	}
+	end := start
+	for end < len(line) && line[end] == marker {
+		end++
+	}
+	return end-start >= minimumLength && strings.TrimSpace(line[end:]) == ""
 }
 
 func validateContent(content *Content) error {
@@ -313,11 +369,11 @@ func (v *contentValidator) validate() error {
 			if err := v.requireItemID(path+".video.id", section.Video.ID); err != nil {
 				return err
 			}
-			if strings.TrimSpace(section.Video.VideoID) == "" || section.Video.Width <= 0 || section.Video.Height <= 0 {
-				return fmt.Errorf("%s.video: video_id, width, and height are required", path)
+			if !vimeoVideoID.MatchString(section.Video.VideoID) {
+				return fmt.Errorf("%s.video.video_id: a decimal Vimeo video ID is required", path)
 			}
-			if err := v.requireURL(path+".video.regular_url", section.Video.RegularURL, false); err != nil {
-				return err
+			if section.Video.Width <= 0 || section.Video.Height <= 0 {
+				return fmt.Errorf("%s.video: positive width and height are required", path)
 			}
 			if err := v.requireText(path+".video.title", section.Video.Title); err != nil {
 				return err

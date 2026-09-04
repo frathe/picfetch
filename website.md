@@ -7,6 +7,14 @@ site:
     - macOS
     - Windows
     - Linux
+    - Apple Silicon
+    - Intel
+    - ARM64
+    - arm64
+    - x64
+    - amd64
+    - x86_64
+    - Control-click
     - Go
     - GitHub
     - JPEG
@@ -25,10 +33,12 @@ site:
     - RAW
     - WASM
     - EXIF
+    - ISO
     - GPS
     - OpenStreetMap
     - Gatekeeper
     - Apple Developer ID
+    - DeepL
     - Terminal
     - MIT
     - Fyne
@@ -132,7 +142,6 @@ sections:
     video:
       id: vimeo-main
       video_id: '1220283616'
-      regular_url: https://player.vimeo.com/video/1220283616?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=1&muted=1&loop=1
       width: 1000
       height: 660
       autoplay: true
@@ -242,7 +251,6 @@ sections:
     video:
       id: vimeo-compare
       video_id: '1223380739'
-      regular_url: https://player.vimeo.com/video/1223380739?badge=0&autopause=0&player_id=0&app_id=58479
       width: 1000
       height: 660
       title:

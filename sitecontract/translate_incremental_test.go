@@ -123,3 +123,75 @@ func TestMakeTranslateRequestsOnlyChangedUnitsAndPrunesObsoleteEntries(t *testin
 		t.Fatalf("refreshed cache has %d entries, want %d", len(cache.Entries), initialCount)
 	}
 }
+
+func TestMakeTranslateRepairsCacheWhenProtectionConfigurationChanges(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := filepath.Join(t.TempDir(), "de.json")
+	var (
+		mu        sync.Mutex
+		requested []string
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload struct {
+			Text []string `json:"text"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			http.Error(response, "bad request", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		requested = append(requested, payload.Text...)
+		mu.Unlock()
+		translations := make([]map[string]string, len(payload.Text))
+		for index, source := range payload.Text {
+			translated := source
+			if !strings.Contains(source, "<keep>viewer</keep>") {
+				translated = strings.ReplaceAll(source, "viewer", "Betrachter")
+			}
+			translations[index] = map[string]string{"text": translated}
+		}
+		_ = json.NewEncoder(response).Encode(map[string]any{"translations": translations})
+	}))
+	defer server.Close()
+
+	runTranslate := func(sourcePath string) {
+		t.Helper()
+		cmd := exec.Command("make", "translate", "SITE_SOURCE="+sourcePath, "SITE_TRANSLATIONS="+cachePath)
+		cmd.Dir = repo
+		cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+		cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("i", 24), "DEEPL_API_URL="+server.URL)
+		if combined, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("make translate failed: %v\n%s", err, combined)
+		}
+	}
+	runTranslate("website.md")
+
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	changed := strings.Replace(string(source), "    - PicFetch\n", "    - PicFetch\n    - viewer\n", 1)
+	if changed == string(source) {
+		t.Fatal("test setup did not add a protected term")
+	}
+	changedSource := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(changedSource, []byte(changed), 0o600); err != nil {
+		t.Fatalf("write source with changed protection configuration: %v", err)
+	}
+	mu.Lock()
+	requested = nil
+	mu.Unlock()
+	runTranslate(changedSource)
+
+	mu.Lock()
+	repairRequest := append([]string(nil), requested...)
+	mu.Unlock()
+	if len(repairRequest) == 0 {
+		t.Fatal("protection change did not request repair of invalid cached translations")
+	}
+	for _, text := range repairRequest {
+		if !strings.Contains(text, "<keep>viewer</keep>") {
+			t.Fatalf("repair request did not protect the newly configured term: %q", text)
+		}
+	}
+}

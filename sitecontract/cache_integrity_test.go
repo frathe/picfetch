@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -32,6 +33,42 @@ func TestBuildRejectsModifiedOpaqueValuesInReusedGermanCache(t *testing.T) {
 			name:       "duplicated protected term",
 			entryID:    "metadata.title",
 			appendText: " PicFetch",
+		},
+		{
+			name:        "protected keyboard action",
+			entryID:     "downloads.warning.body",
+			original:    "Control-click",
+			replacement: "Strg-Klick",
+		},
+		{
+			name:        "protected architecture family",
+			entryID:     "downloads.macos.arm64",
+			original:    "Apple Silicon",
+			replacement: "Apple-Chip",
+		},
+		{
+			name:        "protected processor vendor",
+			entryID:     "downloads.macos.x86-64",
+			original:    "Intel",
+			replacement: "Prozessor",
+		},
+		{
+			name:        "protected architecture identifier",
+			entryID:     "downloads.macos.arm64",
+			original:    "arm64",
+			replacement: "armv8",
+		},
+		{
+			name:        "protected camera identifier",
+			entryID:     "features.exif-aware.body",
+			original:    "ISO",
+			replacement: "Lichtempfindlichkeit",
+		},
+		{
+			name:        "protected translation provider",
+			entryID:     "labels.deepl-disclosure",
+			original:    "DeepL",
+			replacement: "Übersetzungsdienst",
 		},
 	}
 	for _, testCase := range tests {
@@ -91,5 +128,70 @@ func TestBuildRejectsModifiedOpaqueValuesInReusedGermanCache(t *testing.T) {
 				t.Fatalf("opaque-cache diagnostic is not actionable:\n%s", combined)
 			}
 		})
+	}
+}
+
+func TestBuildRejectsModifiedMultilineFencedCodeInGermanCache(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	needle := "A small desktop app for quickly viewing and browsing images. Drop one or more onto the window, and step through the set with the keyboard.\n\n## Drop almost anything {#features.drop-anything.body}"
+	replacement := "A small desktop app for quickly viewing and browsing images. Drop one or more onto the window, and step through the set with the keyboard.\n\n```shell\npicfetch --safe\npicfetch --readonly\n```\n\n## Drop almost anything {#features.drop-anything.body}"
+	changed := strings.Replace(string(source), needle, replacement, 1)
+	if changed == string(source) {
+		t.Fatal("test setup did not add multiline fenced code")
+	}
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(changed), 0o600); err != nil {
+		t.Fatalf("write source with multiline fenced code: %v", err)
+	}
+	cachePath := createControlledGermanCacheForSource(t, repo, sourcePath)
+
+	var cache struct {
+		Version int    `json:"version"`
+		Locale  string `json:"locale"`
+		Entries map[string]struct {
+			SourceHash string `json:"source_hash"`
+			Format     string `json:"format"`
+			Text       string `json:"text"`
+		} `json:"entries"`
+	}
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("read controlled cache: %v", err)
+	}
+	if err := json.Unmarshal(data, &cache); err != nil {
+		t.Fatalf("parse controlled cache: %v", err)
+	}
+	entry := cache.Entries["hero.tagline"]
+	entry.Text = strings.Replace(entry.Text, "picfetch --readonly", "picfetch --write", 1)
+	if !strings.Contains(entry.Text, "picfetch --write") {
+		t.Fatal("test setup did not modify fenced code in the cache")
+	}
+	cache.Entries["hero.tagline"] = entry
+	data, err = json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		t.Fatalf("encode modified cache: %v", err)
+	}
+	if err := os.WriteFile(cachePath, append(data, '\n'), 0o600); err != nil {
+		t.Fatalf("write modified cache: %v", err)
+	}
+
+	cmd := exec.Command("make", "build",
+		"SITE_SOURCE="+sourcePath,
+		"SITE_TRANSLATIONS="+cachePath,
+		"SITE_OUTPUT_DIR="+t.TempDir(),
+		"SITE_LOCALES=de",
+		"SITE_FORMATS=regular",
+	)
+	cmd.Dir = repo
+	combined, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("make build accepted modified multiline fenced code")
+	}
+	if !strings.Contains(string(combined), "protected code") || !strings.Contains(string(combined), "hero.tagline") {
+		t.Fatalf("multiline-code diagnostic is not actionable:\n%s", combined)
 	}
 }

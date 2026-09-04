@@ -1,10 +1,10 @@
 # 05: Publish German AMP and complete page discovery
 
+Type: task
+Status: resolved
+Blocked by: 02, 04
+
 **What to build:** Complete the four-page site with a localized German AMP experience and an unambiguous canonical, AMP, language-alternate, and social-metadata graph across every public route.
-
-**Blocked by:** 02: Generate the English AMP page from the shared source; 04: Publish the German regular experience
-
-**Status:** resolved
 
 - [x] The German AMP route is generated from the shared content model and current German cache with no independently maintained prose.
 - [x] The German AMP page declares `de` and contains complete localized visible, metadata, alternative-text, ARIA, warning, footer, selector, and disclosure content.

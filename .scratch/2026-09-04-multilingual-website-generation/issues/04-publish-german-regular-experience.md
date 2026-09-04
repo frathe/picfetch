@@ -1,10 +1,10 @@
 # 04: Publish the German regular experience
 
+Type: task
+Status: resolved
+Blocked by: 03
+
 **What to build:** Publish a complete German regular page and give regular-page visitors accessible manual language controls plus respectful first-visit browser-language selection.
-
-**Blocked by:** 03: Refresh German translations through DeepL
-
-**Status:** resolved
 
 - [x] The German regular route is generated entirely from the English source model and the current German translation cache.
 - [x] The German document declares `de` and localizes visible copy, titles, descriptions, social metadata, screenshot captions, alternative text, ARIA labels, warnings, footer text, and selector labels.

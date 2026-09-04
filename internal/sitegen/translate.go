@@ -26,7 +26,7 @@ import (
 const translationCacheVersion = 1
 const maxDeepLRequestBytes = 96 << 10
 
-var ignoredElement = regexp.MustCompile(`<(?:code|kbd)(?:\s[^>]*)?>(.*?)</(?:code|kbd)>`)
+var ignoredElement = regexp.MustCompile(`(?s)<(?:code|kbd)(?:\s[^>]*)?>(.*?)</(?:code|kbd)>`)
 var opaqueAttribute = regexp.MustCompile(`(?:href|src)="([^"]+)"`)
 var protectedElement = regexp.MustCompile(`<keep>(.*?)</keep>`)
 
@@ -97,11 +97,10 @@ func Translate(options TranslateOptions) error {
 	for _, unit := range units {
 		entry, current := prior.Entries[unit.ID]
 		if current && entry.SourceHash == unit.SourceHash && entry.Format == unit.Format && strings.TrimSpace(entry.Text) != "" {
-			if err := validateCachedTranslation(unit, entry.Text); err != nil {
-				return err
+			if err := validateCachedTranslation(unit, entry.Text); err == nil {
+				next.Entries[unit.ID] = entry
+				continue
 			}
-			next.Entries[unit.ID] = entry
-			continue
 		}
 		pending = append(pending, unit)
 	}

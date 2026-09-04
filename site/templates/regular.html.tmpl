@@ -33,7 +33,7 @@
     <main>
         {{range .Content.Sections}}
         {{if eq .Kind "video"}}<h2>{{text .Heading}}</h2>
-        <div><div style="padding:66% 0 0 0;position:relative;"><iframe src="{{safeURL .Video.RegularURL}}" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;top:0;left:0;width:100%;height:100%;" title="{{text .Video.Title}}"></iframe></div></div>
+        <div><div style="padding:{{videoAspectRatioPadding .Video}} 0 0 0;position:relative;"><iframe src="{{.Video.RegularURL}}" frameborder="0" allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;top:0;left:0;width:100%;height:100%;" title="{{text .Video.Title}}"></iframe></div></div>
         {{else if eq .Kind "screenshots"}}<h2>{{text .Heading}}</h2>
         <ul class="grid screens">{{range .Screenshots}}<li class="shot"><img src="{{.Image.URL}}" alt="{{text .Alt}}" loading="lazy"><p>{{text .Caption}}</p></li>{{end}}</ul>
         {{else if eq .Kind "features"}}<h2>{{text .Heading}}</h2>

@@ -1,10 +1,10 @@
 # 03: Refresh German translations through DeepL
 
+Type: task
+Status: resolved
+Blocked by: 01
+
 **What to build:** Let maintainers deliberately refresh a safe, reviewable German translation cache from the English source while keeping ordinary builds offline, deterministic, and independent of live credentials.
-
-**Blocked by:** 01: Generate the English regular page from Markdown
-
-**Status:** resolved
 
 - [x] Every language-sensitive source value, including metadata and accessibility text, is exposed as a stable translation unit.
 - [x] URLs, commands, code, filenames, keyboard labels, IDs, dimensions, product names, and designated technical terms are protected from translation.

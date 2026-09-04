@@ -40,7 +40,7 @@
     "downloads.warning.body": {
       "source_hash": "bbfa4a441af4fa5159ff93f2c8425447be0a59e4be4b6653d0c1ca0d4eb8149c",
       "format": "html",
-      "text": "\u003cp\u003eDie Release-Version ist weder mit einem „Apple Developer ID“ signiert noch beglaubigt, daher wird sie von „Gatekeeper“ nach dem Herunterladen in Quarantäne verschoben und als beschädigt gemeldet. Das ist sie jedoch nicht – um sie trotzdem zu öffnen, klicken Sie entweder mit der rechten Maustaste (Strg-Klick) \u003ccode\u003ePicFetch.app\u003c/code\u003e und wählen Sie \u003cstrong\u003e„Öffnen“\u003c/strong\u003e, bestätigen Sie den angezeigten Dialog, oder führen Sie \u003ccode\u003exattr -cr \u0026quot;/path/to/PicFetch.app\u0026quot;\u003c/code\u003e in „Terminal“, um die Quarantäne aufzuheben, und öffnen Sie die Datei anschließend wie gewohnt.\u003c/p\u003e"
+      "text": "\u003cp\u003eDie Release-Version ist weder mit einem „Apple Developer ID“ signiert noch beglaubigt, daher wird sie von „Gatekeeper“ nach dem Herunterladen in Quarantäne verschoben und als beschädigt gemeldet. Das ist sie jedoch nicht – um sie trotzdem zu öffnen, klicken Sie entweder mit der rechten Maustaste (Control-click) \u003ccode\u003ePicFetch.app\u003c/code\u003e und wählen Sie \u003cstrong\u003e„Öffnen“\u003c/strong\u003e, bestätigen Sie den angezeigten Dialog, oder führen Sie \u003ccode\u003exattr -cr \u0026quot;/path/to/PicFetch.app\u0026quot;\u003c/code\u003e in „Terminal“, um die Quarantäne aufzuheben, und öffnen Sie die Datei anschließend wie gewohnt.\u003c/p\u003e"
     },
     "downloads.warning.title": {
       "source_hash": "9270ee72bfecaa7bdbcff091e4c310009f4773df215cc0f436b31d07bfedbc46",

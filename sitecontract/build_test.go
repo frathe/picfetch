@@ -40,6 +40,106 @@ func TestMakeBuildGeneratesEnglishRegularPage(t *testing.T) {
 	}
 }
 
+func TestRegularVideoAspectRatioComesFromAuthoredDimensions(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	changed := strings.Replace(string(source), "      width: 1000\n      height: 660", "      width: 1600\n      height: 900", 1)
+	if changed == string(source) {
+		t.Fatal("test setup did not change the first video dimensions")
+	}
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(changed), 0o600); err != nil {
+		t.Fatalf("write website source with a 16:9 video: %v", err)
+	}
+	output := t.TempDir()
+
+	cmd := exec.Command("make", "build", "SITE_SOURCE="+sourcePath, "SITE_OUTPUT_DIR="+output, "SITE_LOCALES=en", "SITE_FORMATS=regular")
+	cmd.Dir = repo
+	if combined, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("make build failed: %v\n%s", err, combined)
+	}
+	page, err := os.ReadFile(filepath.Join(output, "index.html"))
+	if err != nil {
+		t.Fatalf("read generated English regular page: %v", err)
+	}
+	if !strings.Contains(string(page), `style="padding:56.25% 0 0 0;position:relative;"`) {
+		t.Fatal("regular video wrapper does not use the authored 16:9 aspect ratio")
+	}
+}
+
+func TestVideoIdentityAndAutoplayDriveBothFormats(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	changed := strings.Replace(string(source), "      video_id: '1220283616'", "      video_id: '987654321'", 1)
+	changed = strings.Replace(changed, "      autoplay: true", "      autoplay: false", 1)
+	if changed == string(source) || strings.Contains(changed, "      video_id: '1220283616'") {
+		t.Fatal("test setup did not change the first video identity and autoplay behavior")
+	}
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(changed), 0o600); err != nil {
+		t.Fatalf("write website source with changed video: %v", err)
+	}
+	output := t.TempDir()
+
+	cmd := exec.Command("make", "build", "SITE_SOURCE="+sourcePath, "SITE_OUTPUT_DIR="+output, "SITE_LOCALES=en", "SITE_FORMATS=regular,amp")
+	cmd.Dir = repo
+	if combined, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("make build failed: %v\n%s", err, combined)
+	}
+	regular, err := os.ReadFile(filepath.Join(output, "index.html"))
+	if err != nil {
+		t.Fatalf("read generated English regular page: %v", err)
+	}
+	amp, err := os.ReadFile(filepath.Join(output, "amp", "index.html"))
+	if err != nil {
+		t.Fatalf("read generated English AMP page: %v", err)
+	}
+	if !strings.Contains(string(regular), `src="https://player.vimeo.com/video/987654321?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479"`) {
+		t.Fatal("regular page did not derive its URL from the authored video identity and disabled autoplay")
+	}
+	if !strings.Contains(string(amp), `<amp-vimeo data-videoid="987654321" width="1000" height="660" layout="responsive" aria-label="PicFetch"></amp-vimeo>`) {
+		t.Fatal("AMP page did not use the same authored video identity and disabled autoplay")
+	}
+}
+
+func TestMarkdownSectionHeadingInsideFenceIsLiteralContent(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	needle := "A small desktop app for quickly viewing and browsing images. Drop one or more onto the window, and step through the set with the keyboard.\n\n## Drop almost anything {#features.drop-anything.body}"
+	replacement := "A small desktop app for quickly viewing and browsing images. Drop one or more onto the window, and step through the set with the keyboard.\n\n```markdown\n## Example {#not-a-section}\n```\n\n## Drop almost anything {#features.drop-anything.body}"
+	changed := strings.Replace(string(source), needle, replacement, 1)
+	if changed == string(source) {
+		t.Fatal("test setup did not add a fenced Markdown example")
+	}
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(changed), 0o600); err != nil {
+		t.Fatalf("write website source with fenced example: %v", err)
+	}
+	output := t.TempDir()
+
+	cmd := exec.Command("make", "build", "SITE_SOURCE="+sourcePath, "SITE_OUTPUT_DIR="+output, "SITE_LOCALES=en", "SITE_FORMATS=regular")
+	cmd.Dir = repo
+	if combined, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("make build rejected a heading inside fenced code: %v\n%s", err, combined)
+	}
+	page, err := os.ReadFile(filepath.Join(output, "index.html"))
+	if err != nil {
+		t.Fatalf("read generated English regular page: %v", err)
+	}
+	if !strings.Contains(string(page), `<pre><code class="language-markdown">## Example {#not-a-section}`) {
+		t.Fatal("heading inside fenced code was not rendered as literal code")
+	}
+}
+
 func TestInvalidSourceReportsAffectedField(t *testing.T) {
 	repo := repositoryRoot(t)
 	source, err := os.ReadFile(filepath.Join(repo, "website.md"))

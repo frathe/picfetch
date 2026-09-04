@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -227,8 +228,12 @@ func renderPage(templatesPath, format string, data *page) ([]byte, error) {
 			}
 			return translated, nil
 		},
-		"safeURL": func(value string) template.URL {
-			return template.URL(value)
+		"videoAspectRatioPadding": func(video *Video) (template.CSS, error) {
+			if video == nil || video.Width <= 0 || video.Height <= 0 {
+				return "", fmt.Errorf("video dimensions must be positive")
+			}
+			percentage := float64(video.Height) * 100 / float64(video.Width)
+			return template.CSS(strconv.FormatFloat(percentage, 'f', -1, 64) + "%"), nil
 		},
 	}
 	filename := format + ".html.tmpl"

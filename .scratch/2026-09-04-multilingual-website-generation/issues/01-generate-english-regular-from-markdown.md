@@ -1,10 +1,10 @@
 # 01: Generate the English regular page from Markdown
 
+Type: task
+Status: resolved
+Blocked by: none
+
 **What to build:** Give maintainers one readable English Markdown content source and an offline Go-based build that deterministically reproduces the existing regular website without changing what visitors see or how it behaves.
-
-**Blocked by:** None (can start immediately)
-
-**Status:** resolved
 
 - [x] One root-level English Markdown document is the only authored source for page metadata, assets, links, repeated content, accessibility labels, and prose.
 - [x] The document uses YAML front matter for structured values and Markdown sections for prose, with stable identities for repeated or translatable content.

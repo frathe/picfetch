@@ -1,10 +1,10 @@
 # 06: Guard the local publishing workflow
 
+Type: task
+Status: resolved
+Blocked by: 05
+
 **What to build:** Give maintainers one reliable local update-and-check workflow that prevents incomplete translations, stale pages, invalid AMP, broken internal navigation, or nondeterministic output from reaching the existing GitHub Pages deployment.
-
-**Blocked by:** 05: Publish German AMP and complete page discovery
-
-**Status:** resolved
 
 - [x] `make update` performs translation refresh, four-page generation, and validation in the agreed order and stops immediately on failure.
 - [x] `make check` runs automated tests, generates into an isolated temporary destination, and fails when committed deployment artifacts differ from a clean generation.

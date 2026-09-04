@@ -1,10 +1,10 @@
 # 02: Generate the English AMP page from the shared source
 
+Type: task
+Status: resolved
+Blocked by: 01
+
 **What to build:** Generate the English AMP experience from the same content model as the regular page so maintainers no longer duplicate English content while AMP visitors retain the existing accelerated experience.
-
-**Blocked by:** 01: Generate the English regular page from Markdown
-
-**Status:** resolved
 
 - [x] The generator renders an English AMP page from the content model introduced by Ticket 01 without adding a second content source.
 - [x] Regular and AMP renderers receive the same section ordering, text, links, assets, metadata, and accessibility values.
