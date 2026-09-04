@@ -1,6 +1,7 @@
 package sitegen
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -29,18 +30,26 @@ var markdownElementAttributes = map[string]map[string]bool{
 	"ul":         {},
 }
 
-func validateSafeMarkdownHTML(id, value string) error {
+func canonicalSafeMarkdownHTML(id, value string) (string, error) {
 	context := &html.Node{Type: html.ElementNode, DataAtom: atom.Div, Data: "div"}
 	nodes, err := html.ParseFragment(strings.NewReader(value), context)
 	if err != nil {
-		return fmt.Errorf("unsafe HTML in %s: parse fragment: %w", id, err)
+		return "", fmt.Errorf("unsafe HTML in %s: parse fragment: %w", id, err)
 	}
 	for _, node := range nodes {
 		if err := validateMarkdownNode(id, node); err != nil {
-			return err
+			return "", err
 		}
 	}
-	return nil
+	var canonical bytes.Buffer
+	for _, node := range nodes {
+		if err := html.Render(&canonical, node); err != nil {
+			return "", fmt.Errorf("render validated HTML in %s: %w", id, err)
+		}
+	}
+	// html.Render uses the numeric form for quotes in text nodes. Keep the
+	// existing, equally safe named entity so generated pages remain stable.
+	return strings.ReplaceAll(strings.TrimSpace(canonical.String()), "&#34;", "&quot;"), nil
 }
 
 func validateMarkdownNode(id string, node *html.Node) error {

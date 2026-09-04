@@ -51,9 +51,10 @@ func TestMakeTranslateRequestsOnlyChangedUnitsAndPrunesObsoleteEntries(t *testin
 	runTranslate("website.md")
 
 	type cacheEntry struct {
-		SourceHash string `json:"source_hash"`
-		Format     string `json:"format"`
-		Text       string `json:"text"`
+		SourceHash  string `json:"source_hash"`
+		RequestHash string `json:"request_hash"`
+		Format      string `json:"format"`
+		Text        string `json:"text"`
 	}
 	type cacheDocument struct {
 		Version int                   `json:"version"`
@@ -192,6 +193,26 @@ func TestMakeTranslateRepairsCacheWhenProtectionConfigurationChanges(t *testing.
 	for _, text := range repairRequest {
 		if !strings.Contains(text, "<keep>viewer</keep>") {
 			t.Fatalf("repair request did not protect the newly configured term: %q", text)
+		}
+	}
+
+	mu.Lock()
+	requested = nil
+	mu.Unlock()
+	runTranslate("website.md")
+
+	mu.Lock()
+	removalRequest := append([]string(nil), requested...)
+	mu.Unlock()
+	if len(removalRequest) == 0 {
+		t.Fatal("removing a protection rule did not refresh affected cached translations")
+	}
+	for _, text := range removalRequest {
+		if strings.Contains(text, "<keep>viewer</keep>") {
+			t.Fatalf("request retained a removed protection rule: %q", text)
+		}
+		if !strings.Contains(text, "viewer") {
+			t.Fatalf("protection-removal refresh requested an unaffected unit: %q", text)
 		}
 	}
 }

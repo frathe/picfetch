@@ -79,9 +79,10 @@ func TestBuildRejectsModifiedOpaqueValuesInReusedGermanCache(t *testing.T) {
 				Version int    `json:"version"`
 				Locale  string `json:"locale"`
 				Entries map[string]struct {
-					SourceHash string `json:"source_hash"`
-					Format     string `json:"format"`
-					Text       string `json:"text"`
+					SourceHash  string `json:"source_hash"`
+					RequestHash string `json:"request_hash"`
+					Format      string `json:"format"`
+					Text        string `json:"text"`
 				} `json:"entries"`
 			}
 			data, err := os.ReadFile(cachePath)
@@ -138,7 +139,7 @@ func TestBuildRejectsModifiedMultilineFencedCodeInGermanCache(t *testing.T) {
 		t.Fatalf("read website source: %v", err)
 	}
 	needle := "A small desktop app for quickly viewing and browsing images. Drop one or more onto the window, and step through the set with the keyboard.\n\n## Drop almost anything {#features.drop-anything.body}"
-	replacement := "A small desktop app for quickly viewing and browsing images. Drop one or more onto the window, and step through the set with the keyboard.\n\n```shell\npicfetch --safe\npicfetch --readonly\n```\n\n## Drop almost anything {#features.drop-anything.body}"
+	replacement := "A small desktop app for quickly viewing and browsing images. Drop one or more onto the window, and step through the set with the keyboard. Run `PicFetch --help` for details.\n\n```shell\nPicFetch --safe\nPicFetch --readonly\n```\n\n## Drop almost anything {#features.drop-anything.body}"
 	changed := strings.Replace(string(source), needle, replacement, 1)
 	if changed == string(source) {
 		t.Fatal("test setup did not add multiline fenced code")
@@ -153,9 +154,10 @@ func TestBuildRejectsModifiedMultilineFencedCodeInGermanCache(t *testing.T) {
 		Version int    `json:"version"`
 		Locale  string `json:"locale"`
 		Entries map[string]struct {
-			SourceHash string `json:"source_hash"`
-			Format     string `json:"format"`
-			Text       string `json:"text"`
+			SourceHash  string `json:"source_hash"`
+			RequestHash string `json:"request_hash"`
+			Format      string `json:"format"`
+			Text        string `json:"text"`
 		} `json:"entries"`
 	}
 	data, err := os.ReadFile(cachePath)
@@ -166,8 +168,8 @@ func TestBuildRejectsModifiedMultilineFencedCodeInGermanCache(t *testing.T) {
 		t.Fatalf("parse controlled cache: %v", err)
 	}
 	entry := cache.Entries["hero.tagline"]
-	entry.Text = strings.Replace(entry.Text, "picfetch --readonly", "picfetch --write", 1)
-	if !strings.Contains(entry.Text, "picfetch --write") {
+	entry.Text = strings.Replace(entry.Text, "PicFetch --readonly", "PicFetch --write", 1)
+	if !strings.Contains(entry.Text, "PicFetch --write") {
 		t.Fatal("test setup did not modify fenced code in the cache")
 	}
 	cache.Entries["hero.tagline"] = entry

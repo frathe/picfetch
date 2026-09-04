@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestMakeTranslateBatchesRequestsBelowDeepLLimit(t *testing.T) {
+func TestMakeTranslateBatchesRequestsWithinDeepLLimits(t *testing.T) {
 	repo := repositoryRoot(t)
 	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
 	if err != nil {
@@ -32,6 +32,7 @@ func TestMakeTranslateBatchesRequestsBelowDeepLLimit(t *testing.T) {
 
 	var mu sync.Mutex
 	requestCount := 0
+	largestBatch := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		body, readErr := io.ReadAll(request.Body)
 		if readErr != nil {
@@ -49,8 +50,15 @@ func TestMakeTranslateBatchesRequestsBelowDeepLLimit(t *testing.T) {
 			http.Error(w, "bad JSON", http.StatusBadRequest)
 			return
 		}
+		if len(payload.Text) > 50 {
+			http.Error(w, "too many texts", http.StatusBadRequest)
+			return
+		}
 		mu.Lock()
 		requestCount++
+		if len(payload.Text) > largestBatch {
+			largestBatch = len(payload.Text)
+		}
 		mu.Unlock()
 		translations := make([]map[string]string, len(payload.Text))
 		for index, text := range payload.Text {
@@ -68,9 +76,12 @@ func TestMakeTranslateBatchesRequestsBelowDeepLLimit(t *testing.T) {
 		t.Fatalf("make translate did not batch large input: %v\n%s", err, combined)
 	}
 	mu.Lock()
-	gotRequestCount := requestCount
+	gotRequestCount, gotLargestBatch := requestCount, largestBatch
 	mu.Unlock()
 	if gotRequestCount < 2 {
 		t.Fatalf("large translation used %d request, want at least two bounded batches", gotRequestCount)
+	}
+	if gotLargestBatch > 50 {
+		t.Fatalf("large translation sent %d texts in one request, want at most 50", gotLargestBatch)
 	}
 }

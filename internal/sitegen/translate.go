@@ -21,10 +21,12 @@ import (
 
 	"github.com/yuin/goldmark"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
+	xhtml "golang.org/x/net/html"
 )
 
 const translationCacheVersion = 1
 const maxDeepLRequestBytes = 96 << 10
+const maxDeepLTextsPerRequest = 50
 
 var ignoredElement = regexp.MustCompile(`(?s)<(?:code|kbd)(?:\s[^>]*)?>(.*?)</(?:code|kbd)>`)
 var opaqueAttribute = regexp.MustCompile(`(?:href|src)="([^"]+)"`)
@@ -45,15 +47,17 @@ type TranslationCache struct {
 }
 
 type TranslationCacheEntry struct {
-	SourceHash string `json:"source_hash"`
-	Format     string `json:"format"`
-	Text       string `json:"text"`
+	SourceHash  string `json:"source_hash"`
+	RequestHash string `json:"request_hash"`
+	Format      string `json:"format"`
+	Text        string `json:"text"`
 }
 
 type translationUnit struct {
 	ID             string
 	Source         string
 	SourceHash     string
+	RequestHash    string
 	Format         string
 	RequestHTML    string
 	ProtectedTerms []string
@@ -96,8 +100,9 @@ func Translate(options TranslateOptions) error {
 	pending := make([]translationUnit, 0)
 	for _, unit := range units {
 		entry, current := prior.Entries[unit.ID]
-		if current && entry.SourceHash == unit.SourceHash && entry.Format == unit.Format && strings.TrimSpace(entry.Text) != "" {
-			if err := validateCachedTranslation(unit, entry.Text); err == nil {
+		if current && translationEntryCurrent(unit, entry) {
+			if validated, err := validateCachedTranslation(unit, entry.Text); err == nil {
+				entry.Text = validated
 				next.Entries[unit.ID] = entry
 				continue
 			}
@@ -118,21 +123,18 @@ func Translate(options TranslateOptions) error {
 			if unit.Format == "text" {
 				translated = stdhtml.UnescapeString(translated)
 			}
-			if err := validateOpaqueContent(unit, translated); err != nil {
+			validated, err := validateCachedTranslation(unit, translated)
+			if err != nil {
 				return err
 			}
-			if unit.Format == "html" {
-				if err := validateSafeMarkdownHTML(unit.ID, translated); err != nil {
-					return err
-				}
-			}
-			if strings.TrimSpace(translated) == "" {
+			if strings.TrimSpace(validated) == "" {
 				return fmt.Errorf("DeepL returned an empty translation for %s", unit.ID)
 			}
 			next.Entries[unit.ID] = TranslationCacheEntry{
-				SourceHash: unit.SourceHash,
-				Format:     unit.Format,
-				Text:       translated,
+				SourceHash:  unit.SourceHash,
+				RequestHash: unit.RequestHash,
+				Format:      unit.Format,
+				Text:        validated,
 			}
 		}
 	}
@@ -160,16 +162,19 @@ func collectTranslationUnits(content *Content) ([]translationUnit, error) {
 	}
 	addMarkdown := func(id string) error {
 		source := content.Markdown[id]
-		protected, err := protectTerms(source, content.Site.ProtectedTerms, false)
+		var rendered bytes.Buffer
+		engine := goldmark.New(goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()))
+		if err := engine.Convert([]byte(source), &rendered); err != nil {
+			return fmt.Errorf("render translation unit %s: %w", id, err)
+		}
+		validated, err := canonicalSafeMarkdownHTML(id, strings.TrimSpace(rendered.String()))
+		if err != nil {
+			return err
+		}
+		requestHTML, err := protectMarkdownHTML(validated, content.Site.ProtectedTerms)
 		if err != nil {
 			return fmt.Errorf("prepare translation unit %s: %w", id, err)
 		}
-		var rendered bytes.Buffer
-		engine := goldmark.New(goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()))
-		if err := engine.Convert([]byte(protected), &rendered); err != nil {
-			return fmt.Errorf("render translation unit %s: %w", id, err)
-		}
-		requestHTML := protectIgnoredContents(strings.TrimSpace(rendered.String()))
 		units = append(units, newTranslationUnit(id, source, "html", requestHTML, content.Site.ProtectedTerms))
 		return nil
 	}
@@ -263,27 +268,69 @@ func collectTranslationUnits(content *Content) ([]translationUnit, error) {
 	return units, nil
 }
 
-func protectIgnoredContents(value string) string {
-	return ignoredElement.ReplaceAllStringFunc(value, func(element string) string {
-		openEnd := strings.IndexByte(element, '>')
-		closeStart := strings.LastIndex(element, "</")
-		if openEnd < 0 || closeStart <= openEnd {
-			return element
+func protectMarkdownHTML(value string, terms []string) (string, error) {
+	tokenizer := xhtml.NewTokenizer(strings.NewReader(value))
+	var protected strings.Builder
+	ignoredDepth := 0
+	for {
+		tokenType := tokenizer.Next()
+		if tokenType == xhtml.ErrorToken {
+			if errors.Is(tokenizer.Err(), io.EOF) {
+				return protected.String(), nil
+			}
+			return "", tokenizer.Err()
 		}
-		return element[:openEnd+1] + "<keep>" + element[openEnd+1:closeStart] + "</keep>" + element[closeStart:]
-	})
+		raw := tokenizer.Raw()
+		switch tokenType {
+		case xhtml.StartTagToken:
+			token := tokenizer.Token()
+			protected.Write(raw)
+			if token.Data == "code" || token.Data == "kbd" {
+				protected.WriteString("<keep>")
+				ignoredDepth++
+			}
+		case xhtml.EndTagToken:
+			token := tokenizer.Token()
+			if token.Data == "code" || token.Data == "kbd" {
+				protected.WriteString("</keep>")
+				ignoredDepth--
+			}
+			protected.Write(raw)
+		case xhtml.TextToken:
+			if ignoredDepth > 0 {
+				protected.Write(raw)
+				continue
+			}
+			text, err := protectTerms(tokenizer.Token().Data, terms, true)
+			if err != nil {
+				return "", err
+			}
+			protected.WriteString(text)
+		default:
+			protected.Write(raw)
+		}
+	}
 }
 
 func newTranslationUnit(id, source, format, requestHTML string, protectedTerms []string) translationUnit {
-	hash := sha256.Sum256([]byte(source))
+	sourceHash := sha256.Sum256([]byte(source))
+	requestHash := sha256.Sum256([]byte(requestHTML))
 	return translationUnit{
 		ID:             id,
 		Source:         source,
-		SourceHash:     hex.EncodeToString(hash[:]),
+		SourceHash:     hex.EncodeToString(sourceHash[:]),
+		RequestHash:    hex.EncodeToString(requestHash[:]),
 		Format:         format,
 		RequestHTML:    requestHTML,
 		ProtectedTerms: append([]string(nil), protectedTerms...),
 	}
+}
+
+func translationEntryCurrent(unit translationUnit, entry TranslationCacheEntry) bool {
+	return entry.SourceHash == unit.SourceHash &&
+		entry.RequestHash == unit.RequestHash &&
+		entry.Format == unit.Format &&
+		strings.TrimSpace(entry.Text) != ""
 }
 
 func protectTerms(source string, terms []string, escape bool) (string, error) {
@@ -340,7 +387,7 @@ func translationBatches(units []translationUnit) ([][]translationUnit, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(body) <= maxDeepLRequestBytes {
+		if len(candidate) <= maxDeepLTextsPerRequest && len(body) <= maxDeepLRequestBytes {
 			current = candidate
 			continue
 		}
@@ -472,7 +519,8 @@ func validateOpaqueContent(unit translationUnit, translated string) error {
 	terms := append([]string(nil), unit.ProtectedTerms...)
 	sort.SliceStable(terms, func(i, j int) bool { return len(terms[i]) > len(terms[j]) })
 	seen := make(map[string]bool, len(terms))
-	remaining := actual
+	requestText := ignoredElement.ReplaceAllString(unit.RequestHTML, "")
+	remaining := ignoredElement.ReplaceAllString(actual, "")
 	for _, term := range terms {
 		if seen[term] {
 			continue
@@ -483,7 +531,7 @@ func validateOpaqueContent(unit translationUnit, translated string) error {
 		if unit.Format == "html" {
 			renderedTerm = requestTerm
 		}
-		required := strings.Count(unit.RequestHTML, "<keep>"+requestTerm+"</keep>")
+		required := strings.Count(requestText, "<keep>"+requestTerm+"</keep>")
 		if actualCount := strings.Count(remaining, renderedTerm); actualCount != required {
 			return fmt.Errorf("translation changed protected term %q in %s (got %d occurrences, want %d)", term, unit.ID, actualCount, required)
 		}
@@ -515,14 +563,18 @@ func sameCapturedValues(pattern *regexp.Regexp, expected, actual string, group i
 	return true
 }
 
-func validateCachedTranslation(unit translationUnit, translated string) error {
-	if err := validateOpaqueContent(unit, translated); err != nil {
-		return err
-	}
+func validateCachedTranslation(unit translationUnit, translated string) (string, error) {
 	if unit.Format == "html" {
-		return validateSafeMarkdownHTML(unit.ID, translated)
+		canonical, err := canonicalSafeMarkdownHTML(unit.ID, translated)
+		if err != nil {
+			return "", err
+		}
+		translated = canonical
 	}
-	return nil
+	if err := validateOpaqueContent(unit, translated); err != nil {
+		return "", err
+	}
+	return translated, nil
 }
 
 func stripProtection(value string) string {

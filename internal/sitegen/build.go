@@ -117,17 +117,18 @@ func loadCurrentGermanTranslations(content *Content, cachePath string) (map[stri
 	markdownTranslations := make(map[string]template.HTML)
 	for _, unit := range units {
 		entry, ok := cache.Entries[unit.ID]
-		if !ok || entry.SourceHash != unit.SourceHash || entry.Format != unit.Format || strings.TrimSpace(entry.Text) == "" {
+		if !ok || !translationEntryCurrent(unit, entry) {
 			missing = append(missing, unit.ID)
 			continue
 		}
-		if err := validateCachedTranslation(unit, entry.Text); err != nil {
+		validated, err := validateCachedTranslation(unit, entry.Text)
+		if err != nil {
 			return nil, nil, err
 		}
 		if unit.Format == "html" {
-			markdownTranslations[unit.ID] = template.HTML(entry.Text)
+			markdownTranslations[unit.ID] = template.HTML(validated)
 		} else {
-			textTranslations[unit.ID] = entry.Text
+			textTranslations[unit.ID] = validated
 		}
 	}
 	if len(missing) > 0 {
@@ -147,10 +148,11 @@ func newPage(content *Content, locale, format string, css []byte, multilingual b
 				return nil, fmt.Errorf("render Markdown section %q: %w", id, err)
 			}
 			renderedHTML := strings.TrimSpace(rendered.String())
-			if err := validateSafeMarkdownHTML(id, renderedHTML); err != nil {
+			validated, err := canonicalSafeMarkdownHTML(id, renderedHTML)
+			if err != nil {
 				return nil, err
 			}
-			markdown[id] = template.HTML(renderedHTML)
+			markdown[id] = template.HTML(validated)
 		}
 	}
 	base := strings.TrimRight(content.Site.BaseURL, "/") + "/"

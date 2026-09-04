@@ -25,6 +25,7 @@ func TestMakeTranslateUsesDeepLContractAndWritesCache(t *testing.T) {
 	var (
 		mu                 sync.Mutex
 		requestCount       int
+		largestBatch       int
 		requestError       string
 		sawRenderedHTML    bool
 		sawProtectedKeep   bool
@@ -59,7 +60,13 @@ func TestMakeTranslateUsesDeepLContractAndWritesCache(t *testing.T) {
 
 		mu.Lock()
 		requestCount++
+		if len(request.Text) > largestBatch {
+			largestBatch = len(request.Text)
+		}
 		defer mu.Unlock()
+		if len(request.Text) > 50 {
+			requestError = fmt.Sprintf("request contains %d texts, want at most 50", len(request.Text))
+		}
 		if request.TargetLang != "DE" {
 			requestError = "target_lang must be DE"
 		}
@@ -118,11 +125,14 @@ func TestMakeTranslateUsesDeepLContractAndWritesCache(t *testing.T) {
 	}
 
 	mu.Lock()
-	gotRequestCount, gotRequestError := requestCount, requestError
+	gotRequestCount, gotLargestBatch, gotRequestError := requestCount, largestBatch, requestError
 	gotRenderedHTML, gotProtectedKeep := sawRenderedHTML, sawProtectedKeep
 	mu.Unlock()
-	if gotRequestCount != 1 {
-		t.Fatalf("make translate made %d DeepL requests, want one batched request", gotRequestCount)
+	if gotRequestCount != 2 {
+		t.Fatalf("make translate made %d DeepL requests, want two batches for more than 50 texts", gotRequestCount)
+	}
+	if gotLargestBatch > 50 {
+		t.Fatalf("make translate sent %d texts in one request, want at most 50", gotLargestBatch)
 	}
 	if gotRequestError != "" {
 		t.Fatal(gotRequestError)
@@ -142,8 +152,9 @@ func TestMakeTranslateUsesDeepLContractAndWritesCache(t *testing.T) {
 		Version int    `json:"version"`
 		Locale  string `json:"locale"`
 		Entries map[string]struct {
-			SourceHash string `json:"source_hash"`
-			Text       string `json:"text"`
+			SourceHash  string `json:"source_hash"`
+			RequestHash string `json:"request_hash"`
+			Text        string `json:"text"`
 		} `json:"entries"`
 	}
 	if err := json.Unmarshal(cache, &document); err != nil {
@@ -161,6 +172,9 @@ func TestMakeTranslateUsesDeepLContractAndWritesCache(t *testing.T) {
 	for id, entry := range document.Entries {
 		if strings.TrimSpace(entry.SourceHash) == "" {
 			t.Errorf("cache entry %q has an empty source hash", id)
+		}
+		if strings.TrimSpace(entry.RequestHash) == "" {
+			t.Errorf("cache entry %q has an empty request hash", id)
 		}
 		if strings.TrimSpace(entry.Text) == "" {
 			t.Errorf("cache entry %q has empty translated text", id)

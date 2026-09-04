@@ -23,7 +23,7 @@
 <body>
 <div class="wrap">
     {{if .ShowLanguageSelector}}<nav class="language-selector" aria-label="{{text .Content.Labels.LanguageSelector}}">
-        {{range .LanguageLinks}}<a href="{{.URL}}" lang="{{.Locale}}" hreflang="{{.Locale}}" aria-label="{{text .Label}}"{{if .Current}} aria-current="page"{{end}} data-language="{{.Locale}}"><span aria-hidden="true">{{.Flag}}</span> {{text .Label}}</a>{{end}}
+        {{range .LanguageLinks}}<a href="{{.URL}}" hreflang="{{.Locale}}" aria-label="{{text .Label}}"{{if .Current}} aria-current="page"{{end}} data-language="{{.Locale}}"><span aria-hidden="true">{{.Flag}}</span> {{text .Label}}</a>{{end}}
     </nav>{{end}}
     <header>
         <div class="banner"><img src="{{.Content.Hero.Image.URL}}" alt="{{text .Content.Hero.Alt}}"></div>

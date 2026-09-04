@@ -57,13 +57,21 @@ func TestFourPageMetadataAndSelectorMatrix(t *testing.T) {
 			`property="og:locale" content="` + testCase.ogLocale + `"`,
 			`href="` + testCase.localPrefix + `favicon.ico"`,
 			`href="` + testCase.localPrefix + `manifest.json"`,
-			`href="` + testCase.englishPeer + `" lang="en" hreflang="en"`,
-			`href="` + testCase.germanPeer + `" lang="de" hreflang="de"`,
+			`href="` + testCase.englishPeer + `" hreflang="en"`,
+			`href="` + testCase.germanPeer + `" hreflang="de"`,
 			`aria-label="` + labelPrefix + `English"`,
 			`aria-label="` + labelPrefix + `German"`,
 		} {
 			if !strings.Contains(html, want) {
 				t.Errorf("%s does not contain %q", testCase.path, want)
+			}
+		}
+		for _, unwanted := range []string{
+			`href="` + testCase.englishPeer + `" lang=`,
+			`href="` + testCase.germanPeer + `" lang=`,
+		} {
+			if strings.Contains(html, unwanted) {
+				t.Errorf("%s contains misleading selector language metadata %q", testCase.path, unwanted)
 			}
 		}
 		if testCase.amp != "" && !strings.Contains(html, `rel="amphtml" href="`+testCase.amp+`"`) {
