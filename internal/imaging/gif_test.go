@@ -7,6 +7,8 @@ import (
 	"image/gif"
 	"testing"
 	"time"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // buildGIF assembles a raw animated GIF from frames that may be smaller than
@@ -213,6 +215,45 @@ func TestDecodeAnimatedGIF_ZeroBudgetSkipsCompositingWithoutReportingTruncation(
 	}
 	if truncated {
 		t.Error("truncated = true for a caller that asked for no animation at all, want false")
+	}
+}
+
+func TestDecodeLoaded_FrozenGIFPreservesLogicalCanvas(t *testing.T) {
+	data := uitest.EncodePartialFrameGIF(t)
+	animated, err := DecodeLoaded(t.Context(), data, DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name      string
+		budget    int64
+		truncated bool
+	}{
+		{name: "animation disabled"},
+		{name: "animation over budget", budget: 1, truncated: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			frozen, err := DecodeLoaded(t.Context(), data, tt.budget)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(frozen.Frames) != 1 || frozen.AnimationTruncated != tt.truncated {
+				t.Fatalf("frozen frames=%d truncated=%v", len(frozen.Frames), frozen.AnimationTruncated)
+			}
+			first := frozen.Frames[0]
+			if want := image.Rect(0, 0, 80, 40); first.Bounds() != want {
+				t.Fatalf("frozen GIF bounds = %v, want logical canvas %v", first.Bounds(), want)
+			}
+			for y := range 40 {
+				for x := range 80 {
+					got := color.NRGBAModel.Convert(first.At(x, y))
+					want := color.NRGBAModel.Convert(animated.Frames[0].At(x, y))
+					if got != want {
+						t.Fatalf("frozen first frame pixel (%d,%d) = %v, want %v", x, y, got, want)
+					}
+				}
+			}
+		})
 	}
 }
 

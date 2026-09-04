@@ -43,8 +43,7 @@ func TestDisplayDefault_UsesGreatestWindowIntersection(t *testing.T) {
 
 func TestDisplaySnapshot_RejectsEmptyAndInvalidTopology(t *testing.T) {
 	_, err := newSnapshot(nil, "")
-	var empty *EmptyError
-	if !errors.As(err, &empty) {
+	if _, ok := errors.AsType[*EmptyError](err); !ok {
 		t.Fatalf("empty snapshot = %v, want EmptyError", err)
 	}
 
@@ -61,8 +60,7 @@ func TestDisplaySnapshot_RejectsEmptyAndInvalidTopology(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := newSnapshot(tt.displays, tt.fallback)
-			var invalid *InvalidTopologyError
-			if !errors.As(err, &invalid) {
+			if _, ok := errors.AsType[*InvalidTopologyError](err); !ok {
 				t.Fatalf("newSnapshot() = %v, want InvalidTopologyError", err)
 			}
 		})
@@ -71,8 +69,7 @@ func TestDisplaySnapshot_RejectsEmptyAndInvalidTopology(t *testing.T) {
 
 func TestInspectUnsupported_IsTyped(t *testing.T) {
 	_, err := inspectWindow(nil)
-	var unsupported *UnsupportedError
-	if !errors.As(err, &unsupported) {
+	if _, ok := errors.AsType[*UnsupportedError](err); !ok {
 		t.Fatalf("inspectWindow(nil) = %v, want UnsupportedError", err)
 	}
 }
@@ -103,7 +100,7 @@ func TestInspectDarwinSourceUsesNativeModePixelsAndPointSpaceSelection(t *testin
 }
 
 func TestWindowsDesktopWallpaperScaffoldingIsShared(t *testing.T) {
-	paths := []string{"windows.go", "../wallpaper/target_windows.go", "../wincom/desktopwallpaper_windows.go"}
+	paths := []string{"windows.go", "../wallpaper/target_windows.go", "../wincom/desktopwallpaper_windows.go", "../wincom/monitor.go"}
 	var combined strings.Builder
 	for _, path := range paths {
 		source, err := os.ReadFile(path)

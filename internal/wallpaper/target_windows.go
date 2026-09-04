@@ -77,8 +77,12 @@ func setWindowsTargetNative(target, path *uint16) error {
 				uintptr(unsafe.Pointer(selected)),
 				uintptr(unsafe.Pointer(&bounds)),
 			)
-			if wincom.FailedHRESULT(validateHR) {
-				return fmt.Errorf("validate selected display: HRESULT 0x%08x", uint32(validateHR))
+			attached, err := wincom.MonitorAttached(validateHR)
+			if err != nil {
+				return fmt.Errorf("validate selected display: %w", err)
+			}
+			if !attached {
+				return fmt.Errorf("the selected display is no longer attached")
 			}
 			return nil
 		},

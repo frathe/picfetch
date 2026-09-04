@@ -332,12 +332,21 @@ func (w *Window) sourceDescription() string {
 func (w *Window) syncDisplayOptions() {
 	w.displayLabels = make(map[string]displays.ID, len(w.snapshot.Displays.Displays))
 	options := make([]string, 0, len(w.snapshot.Displays.Displays))
-	selected := ""
+	labelCounts := make(map[string]int)
 	for _, display := range w.snapshot.Displays.Displays {
 		width, height := display.Bounds.Dx(), display.Bounds.Dy()
 		aspect := float64(width) / float64(height)
 		label := fmt.Sprintf(lang.L("%s - %d x %d (%.2f:1)"), display.Name, width, height, aspect)
 		options = append(options, label)
+		labelCounts[label]++
+	}
+	selected := ""
+	for index, display := range w.snapshot.Displays.Displays {
+		label := options[index]
+		if labelCounts[label] > 1 {
+			label = fmt.Sprintf(lang.L("%s (%d)"), label, index+1)
+			options[index] = label
+		}
 		w.displayLabels[label] = display.ID
 		if display.ID == w.target {
 			selected = label

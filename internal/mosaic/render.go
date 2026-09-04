@@ -181,13 +181,19 @@ func rotatedRectangleMask(
 	placement placement,
 	left, top, right, bottom float64,
 ) *image.Alpha {
-	mask := image.NewAlpha(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
-	rasterizer := vector.NewRasterizer(bounds.Dx(), bounds.Dy())
+	rasterBounds := bounds
+	if placement.angle != 0 {
+		// The filter needs actual off-canvas coverage on each side. Clipping
+		// before filtering would turn the canvas boundary into a photo edge.
+		rasterBounds = bounds.Inset(-1)
+	}
+	mask := image.NewAlpha(image.Rect(0, 0, rasterBounds.Dx(), rasterBounds.Dy()))
+	rasterizer := vector.NewRasterizer(rasterBounds.Dx(), rasterBounds.Dy())
 	radians := placement.angle * math.Pi / 180
 	sin, cos := math.Sincos(radians)
 	toMask := func(x, y float64) (float32, float32) {
-		rotatedX := placement.centerX + x*cos - y*sin - float64(bounds.Min.X)
-		rotatedY := placement.centerY + x*sin + y*cos - float64(bounds.Min.Y)
+		rotatedX := placement.centerX + x*cos - y*sin - float64(rasterBounds.Min.X)
+		rotatedY := placement.centerY + x*sin + y*cos - float64(rasterBounds.Min.Y)
 		return float32(rotatedX), float32(rotatedY)
 	}
 
@@ -203,6 +209,10 @@ func rotatedRectangleMask(
 	rasterizer.Draw(mask, mask.Bounds(), image.Opaque, image.Point{})
 	if placement.angle != 0 {
 		softenCoverageMask(mask)
+		mask = mask.SubImage(mask.Bounds().Inset(1)).(*image.Alpha)
+		// Callers address the returned mask relative to bounds.Min. Rebase
+		// the cropped view without copying its pixels or changing its stride.
+		mask.Rect = mask.Rect.Sub(mask.Rect.Min)
 	}
 
 	return mask

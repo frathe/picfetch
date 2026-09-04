@@ -264,6 +264,12 @@ func imageBytes(m image.Image) int64 {
 	return EstimateDecodedBytes(m.Bounds())
 }
 
+// DecodedBytes estimates the retained pixel and vector memory of a loaded
+// image, using the same accounting as the viewer's byte-budgeted cache.
+func (l *LoadedImage) DecodedBytes() int64 {
+	return loadedImageBytes(l)
+}
+
 // loadedImageBytes weighs a whole LoadedImage: every frame, since an
 // animated GIF retains a full composited canvas for each one and that -
 // not the single-frame case - is what the budget has to survive. The

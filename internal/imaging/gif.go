@@ -24,8 +24,9 @@ const minFrameDelay = 100 * time.Millisecond
 // budget caps the total bytes the composited frames may retain. An
 // animation over budget takes the same nil-slice path, with truncated set
 // so the caller can tell the user why a GIF isn't moving; a budget of zero
-// or less means "never composite an animation at all", which is what the
-// thumbnail path passes since it keeps only the first frame anyway.
+// or less means "never retain multiple animation frames", which is what the
+// thumbnail and mosaic paths pass. The frozen path still restores the first
+// frame to the logical canvas through compositeGIFCanvas.
 //
 // The budget bounds the transient decode as well as the retained frames,
 // because probeGIF answers "how many frames, on what canvas" from the block
@@ -120,6 +121,26 @@ func decodeAnimatedGIF(data []byte, budget int64) ([]image.Image, []time.Duratio
 	}
 
 	return frames, delays, false
+}
+
+// compositeGIFCanvas restores the logical canvas around a partial first
+// frame. DecodeConfig reads only the header, so a frozen animation never pays
+// for decoding later frames. Its transparent backing matches decodeAnimatedGIF.
+func compositeGIFCanvas(data []byte, first image.Image) (image.Image, error) {
+	config, err := gif.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if err := checkDimensions(config.Width, config.Height); err != nil {
+		return nil, err
+	}
+	bounds := image.Rect(0, 0, config.Width, config.Height)
+	if first.Bounds() == bounds {
+		return first, nil
+	}
+	canvas := image.NewRGBA(bounds)
+	draw.Draw(canvas, first.Bounds(), first, first.Bounds().Min, draw.Over)
+	return canvas, nil
 }
 
 // The three block markers a GIF's top-level grammar can start a block with,

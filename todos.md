@@ -23,6 +23,10 @@
 - Smoothed jagged borders and rotated image edges while keeping photos sharp.
 - Improved image handling: photos follow their saved orientation, all unique images are used before any repeat, and selected duplicates use the highest-resolution version available in Grid View.
 - Improved sizing for high-resolution Mac displays and handling of monitor changes before generation.
+- Fixed target selection for identical monitors and translated fallback display names.
+- Disconnected Windows monitors no longer block mosaic creation or accept wallpaper changes.
+- Bounded the memory retained by repeated mosaic sources and preserved the full canvas of partial-frame GIFs.
+- Removed artificial fading where rotated photos extend past the canvas boundary.
 
 #### Behind the Scenes
 
@@ -33,7 +37,7 @@
 ### Validate image mosaics on physical multi-display desktops
 
 Run the supervised native smoke matrix in
-`.scratch/bildmosaik/issues/16-release-hardening-and-native-smoke-tests.md` on
+`finished_refactorings/2026-09-04-bildmosaik/issues/16-release-hardening-and-native-smoke-tests.md` on
 Windows, macOS, GNOME, and KDE hosts with the listed display arrangements.
 Automated tests and cross-builds cover the implementation, but they cannot
 prove a real desktop changed, retained its Fill/Fit options, or persisted after

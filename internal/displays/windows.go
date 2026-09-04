@@ -72,12 +72,15 @@ func platformInspect(context any) (found []Display, defaultID ID, err error) {
 		}
 		var bounds winRect
 		hr, _, _ = syscall.SyscallN(api.MonitorRECTProc(), uintptr(unsafe.Pointer(api)), uintptr(unsafe.Pointer(pathUTF16)), uintptr(unsafe.Pointer(&bounds)))
-		if wincom.FailedHRESULT(hr) {
-			return nil, "", fmt.Errorf("read monitor %d bounds: HRESULT 0x%08x", index, uint32(hr))
+		attached, monitorErr := wincom.MonitorAttached(hr)
+		if monitorErr != nil {
+			return nil, "", fmt.Errorf("read monitor %d bounds: %w", index, monitorErr)
+		}
+		if !attached {
+			continue
 		}
 		found = append(found, Display{
 			ID:     ID(path),
-			Name:   fmt.Sprintf("Display %d", index+1),
 			Bounds: image.Rect(int(bounds.left), int(bounds.top), int(bounds.right), int(bounds.bottom)),
 		})
 	}

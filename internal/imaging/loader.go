@@ -389,15 +389,21 @@ func DecodeLoaded(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 
 	// An animation refused for its size falls through to exactly the same
 	// path a static image takes, since image.Decode on a GIF returns its
-	// first frame - so the static fallback costs nothing beyond carrying
-	// the flag out to the caller.
-	decoded, _, err := image.Decode(bytes.NewReader(data))
+	// first frame. A partial GIF frame is then composited onto its logical
+	// canvas without decoding any subsequent frames.
+	decoded, format, err := image.Decode(bytes.NewReader(data))
 
 	if err != nil {
 		if loaded, ok := decodeEmbeddedPreview(data); ok {
 			return loaded, nil
 		}
 		return nil, err
+	}
+	if format == "gif" {
+		decoded, err = compositeGIFCanvas(data, decoded)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &LoadedImage{

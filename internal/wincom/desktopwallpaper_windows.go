@@ -42,11 +42,6 @@ func DesktopWallpaperIDs() (GUID, GUID) {
 	return classID, interfaceID
 }
 
-// FailedHRESULT reports whether an HRESULT has its failure bit set.
-func FailedHRESULT(value uintptr) bool {
-	return int32(uint32(value)) < 0
-}
-
 func (api *DesktopWallpaper) ReleaseProc() uintptr {
 	return api.vtbl.release
 }

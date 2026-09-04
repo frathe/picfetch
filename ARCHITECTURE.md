@@ -101,7 +101,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/copyselection/` | Transient Copy Selection mode: image-region geometry, overlay, and captured `Source` crop/encode. `HandleKey` reports whether the mode consumed the key. | `Copy`, `Ended`, `Scroll`. |
 | `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, badges, explicit host-index selection plus its change observer, `marquee.go` (drag rectangle → `Targets()`), browse-duplicates (Shift+D), and `hashengine.go`'s pool-driven hashing pass that feeds `internal/dupes`. `nav.go`: `setHighlight` → `HighlightChanged`. Reads the model; does not own it. | 10-method `Host` including `Modifiers`. |
 | `internal/ui/compare/` | Opaque main-window comparison surface: switchable gapless 50/50 and full-viewport swipe layouts compose two persistent photo transforms with one shared camera transform; each image has one reveal clip so swipe keeps aligned image coordinates. In Swipe, each pane input mirrors its current reveal even though the render viewport remains full-size, and reveal-local wheel coordinates are translated back into that viewport. The ready-gated top-left Unlink/Link control and physical `Ctrl+L` share `ToggleLink`; its adjacent status reports only the active unlinked target, while layout/Swap/Back stay in a separate top-right card. `ToggleLink` changes only input ownership and never changes rendered geometry. Linked pan/zoom moves the camera, linked `0` frames both current photo poses without rewriting them, and linked `1` returns the camera home. Unlinked pointer input and transform keys target the hovered or last-hovered photo; its `0` / `1` fit or show that photo at decoded-pixel size in the current camera. Photo centers and camera movement stop when an image edge reaches its pane center. Resize and layout preserve both photo poses and the camera; Swap deliberately clears divergence from the last-targeted visible pose before exchanging sources. A private `paneRenderer` scene seam keeps transforms independent from presentation; production owns two stable `canvas.Shader` objects while tests can inject the canvas reference adapter. Each immutable render source retains the canonical decoded frame, a long-edge-1024 overview, and a 64 MiB detail-tile cache. The planner uses physical display density and the actual side-by-side/swipe reveal, skips details when the overview is sufficient, and binds at most seven guttered detail tiles without shuffling stable sampler slots. One cancellable worker per pane generates tiles; publications are coalesced and marshalled through the feature's `UIQueue`. Pan/zoom changes shader geometry and uniforms without repainting the viewer root. Each SVG still gets a pane-local device-pixel raster, clamped by `imaging.ClampVectorRaster`, before entering the same overview/tile path. `Settle` covers load, vector, tile, and causal queued completions with reusable channel-epoch barriers. Fyne's software test painter does not render `canvas.Shader`, so deterministic pixel tests use the reference adapter; native runtime acceptance uses the GL painter. The feature also owns divider input, permanent chrome, ready-gated layout/link/Swap controls, the input shield, and the replaceable completion signal. It receives an ordered URI pair and never reads or mutates grid/viewer state. | `Loader` plus `Callbacks` (`Repaint`, `Closed`, `Failed`, `OrderChanged`, `Modifiers`). |
-| `internal/ui/mosaicwin/` | Dedicated configuration/preview window with immutable command-entry sources/topology, accessible controls and focus order, cancellable generation lifecycle, stale-result rejection, exact-result export, targeted wallpaper callback, and remembered geometry. It is a secondary window, not a main-window overlay. | 3-method `Host` (`GenerateMosaic`, `InspectMosaicDisplays`, `SetMosaicWallpaper`). |
+| `internal/ui/mosaicwin/` | Dedicated configuration/preview window with immutable command-entry sources/topology, accessible controls and focus order, distinct labels for identically named displays while preserving target IDs, cancellable generation lifecycle, stale-result rejection, exact-result export, targeted wallpaper callback, and remembered geometry. It is a secondary window, not a main-window overlay. | 3-method `Host` (`GenerateMosaic`, `InspectMosaicDisplays`, `SetMosaicWallpaper`). |
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
 | `internal/ui/exifwin/` | EXIF panel (E): tag list, optional JPEG strip, GPS map (`tiles.go`, `startWarm`). Geometry via `widgets.Singleton`. | 4-method `Host`. |
@@ -126,7 +126,7 @@ Encode/write-back for a subset of formats lives in `save.go`.
 
 | File | Responsibility |
 |------|----------------|
-| `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` (displayed image) vs `AddIfFits` (speculative preload). |
+| `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` (displayed image) vs `AddIfFits` (speculative preload). `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `DecodeLoaded`, `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
@@ -135,7 +135,7 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | `exififd.go` | Unexported IFD walker (`walkIFD`) and tag value helpers used by `exif.go` and `raw.go`. |
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
-| `gif.go` | Animated GIF compositing, `probeGIF`. |
+| `gif.go` | Animated GIF compositing, `probeGIF`, and logical-canvas restoration for a frozen partial first frame without decoding later frames. |
 | `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. |
 | `dhash.go` | `DifferenceHash` / `Hamming` / `DuplicateGroups` for grid hide-duplicates. |
 | `jpegseg.go` | Unexported JPEG header-segment walker (`walkJPEGSegments`) used by `exif.go` and `jpegexif.go`. Stops at SOS; does not walk entropy-coded scans (`jpegLength` in `raw.go`) or copy/strip (`stripJPEGSegments` in `jpegexif.go`). |
@@ -246,10 +246,13 @@ dispatcher vars and build-tagged platform files; tests stub them via
 
 ### `internal/wincom`
 
-Windows-only COM declarations shared by native adapters. It owns the
-`IDesktopWallpaper` GUIDs, vtable layout, activation constants, and HRESULT
-failure predicate; `internal/displays` and `internal/wallpaper` retain their
-feature-specific behavior and error reporting.
+COM declarations and result handling shared by native Windows adapters.
+`desktopwallpaper_windows.go` owns the `IDesktopWallpaper` GUIDs, vtable layout,
+and activation constants. Portable `monitor.go` owns the HRESULT failure
+predicate and `MonitorAttached`, which distinguishes an attached monitor
+(`S_OK`) from a retained, detached entry (`S_FALSE`). `internal/displays` and
+`internal/wallpaper` retain their native calls, COM lifetime, feature-specific
+behavior, and error reporting.
 
 ### `internal/displays`
 
@@ -257,8 +260,9 @@ Native attached-display inspection. `Inspect(fyne.Window)` returns an ordered
 snapshot of opaque platform IDs, user-facing names, native-pixel bounds, and
 the display containing the greatest part of the PicFetch window. macOS uses
 `NSScreen`/CoreGraphics IDs, Windows uses `IDesktopWallpaper` monitor device
-paths, Linux uses XRandR under X11 and explicitly reports Wayland unsupported.
-Callers compare IDs but never parse them.
+paths while skipping retained detached entries, Linux uses XRandR under X11 and
+explicitly reports Wayland unsupported. The shared snapshot builder supplies
+localized fallback names. Callers compare IDs but never parse them.
 
 ### `internal/mosaic`
 
@@ -266,8 +270,10 @@ Viewer-independent mosaic generation. Its small public contract snapshots and
 validates source URIs, native-pixel target size, deterministic seed, and visual
 settings, then returns immutable rendered pixels. Layout, lazy canonical image
 loading, coverage, frame/shadow geometry, and rendering stay inside the
-package; it has no Grid, display-enumeration, picker, wallpaper, preference, or
-widget behavior.
+package. Repeated sources use a generation-local 64 MiB byte cache; oversized
+sources render without being retained. Rotated masks include a filter margin
+before clipping so canvas boundaries do not fade. The package has no Grid,
+display-enumeration, picker, wallpaper, preference, or widget behavior.
 
 ### `internal/clipboard`
 

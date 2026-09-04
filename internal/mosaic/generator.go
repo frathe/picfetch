@@ -23,15 +23,18 @@ type loadedSource struct {
 
 type sourceLoader func(context.Context, fyne.URI) (*loadedSource, error)
 
+const defaultRepeatCacheBytes = 64 << 20
+
 // Generator owns the generation dependencies for one caller. New returns the
 // production generator; the package-level Generate is the usual entry point.
 type Generator struct {
-	load sourceLoader
+	load       sourceLoader
+	cacheBytes int64
 }
 
 // New creates a mosaic generator backed by PicFetch's canonical image loader.
 func New() *Generator {
-	return &Generator{load: loadCanonicalSource}
+	return &Generator{load: loadCanonicalSource, cacheBytes: defaultRepeatCacheBytes}
 }
 
 // Generate renders one validated request with a fresh production generator.
@@ -60,6 +63,9 @@ func (g *Generator) Generate(ctx context.Context, request Request) (Result, erro
 	}
 
 	pool := newSourcePool(request.sources, request.seed, g.load)
+	if g.cacheBytes > 0 {
+		pool.cache.SetBudget(g.cacheBytes)
+	}
 	active := make(map[int]*loadedSource)
 	canvas := image.NewNRGBA(image.Rectangle{Max: request.target})
 	fillNRGBA(canvas, color.NRGBA{R: 28, G: 30, B: 34, A: 255})
@@ -148,7 +154,7 @@ type sourcePool struct {
 	cursor   int
 	cycle    int
 	readable []sourceEntry
-	cache    map[int]*loadedSource
+	cache    *imaging.ByteCache[*loadedSource]
 	attempts []string
 	load     sourceLoader
 }
@@ -169,7 +175,11 @@ func newSourcePool(sources []fyne.URI, seed int64, load sourceLoader) *sourcePoo
 		entries[i], entries[j] = entries[j], entries[i]
 	})
 
-	return &sourcePool{entries: entries, cache: make(map[int]*loadedSource), load: load}
+	cache := imaging.NewByteCache(defaultRepeatCacheBytes, func(source *loadedSource) int64 {
+		loaded := imaging.LoadedImage{Frames: []image.Image{source.pixels}, Vector: source.vector}
+		return loaded.DecodedBytes()
+	})
+	return &sourcePool{entries: entries, cache: cache, load: load}
 }
 
 func (p *sourcePool) next(ctx context.Context) (sourceEntry, *loadedSource, error) {
@@ -191,17 +201,18 @@ func (p *sourcePool) next(ctx context.Context) (sourceEntry, *loadedSource, erro
 		return sourceEntry{}, nil, &NoReadableSourcesError{Attempts: append([]string(nil), p.attempts...)}
 	}
 	// Once the original shuffled pool is exhausted, cycle only through the
-	// entries already proven readable. Cache begins at the first repeat; unique
-	// one-use sources were released immediately after their placement.
+	// entries already proven readable. Repeats share a byte-budgeted cache;
+	// oversized sources are released after each placement instead of retained.
 	for tried := 0; tried < len(p.readable); tried++ {
 		entry := p.readable[p.cycle%len(p.readable)]
 		p.cycle++
-		if source := p.cache[entry.id]; source != nil {
+		key := entry.uri.String()
+		if source, ok := p.cache.Get(key); ok {
 			return entry, source, nil
 		}
 		source, err := p.load(ctx, entry.uri)
 		if err == nil {
-			p.cache[entry.id] = source
+			_ = p.cache.AddIfFits(key, source)
 			return entry, source, nil
 		}
 		if contextError(ctx, err) != nil {

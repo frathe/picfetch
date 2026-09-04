@@ -258,6 +258,31 @@ func EncodeAnimatedGIF(t *testing.T, w, h int, colors []color.Color, delays []in
 	return buf.Bytes()
 }
 
+// EncodePartialFrameGIF builds an 80x40 animation whose first frame is a red
+// 10x20 rectangle at (30,10), surrounded by transparent canvas. The second
+// frame fills the canvas blue, so frozen-image tests can detect later frames.
+func EncodePartialFrameGIF(t *testing.T) []byte {
+	t.Helper()
+	palette := color.Palette{color.Transparent, color.RGBA{R: 255, A: 255}, color.RGBA{B: 255, A: 255}}
+	first := image.NewPaletted(image.Rect(30, 10, 40, 30), palette)
+	for index := range first.Pix {
+		first.Pix[index] = 1
+	}
+	second := image.NewPaletted(image.Rect(0, 0, 80, 40), palette)
+	for index := range second.Pix {
+		second.Pix[index] = 2
+	}
+	var buffer bytes.Buffer
+	if err := gif.EncodeAll(&buffer, &gif.GIF{
+		Image:  []*image.Paletted{first, second},
+		Delay:  []int{5, 5},
+		Config: image.Config{ColorModel: palette, Width: 80, Height: 40},
+	}); err != nil {
+		t.Fatalf("encode partial-frame GIF: %v", err)
+	}
+	return buffer.Bytes()
+}
+
 // EncodeOrientedJPEG builds a JPEG whose left half is red and right half is
 // blue, then adds an Exif Orientation tag. The asymmetric pixels let callers
 // verify both the corrected bounds and which edge moved where after decode.

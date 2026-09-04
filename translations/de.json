@@ -240,6 +240,8 @@
    "%.0f degrees": "%.0f Grad",
    "Generate": "Erstellen",
    "Target display": "Zielbildschirm",
+   "Display %d": "Bildschirm %d",
+   "%s (%d)": "%s (%d)",
    "Refresh Displays": "Bildschirme aktualisieren",
    "Minimum image size": "Minimale Bildgröße",
    "Frame": "Rahmen",

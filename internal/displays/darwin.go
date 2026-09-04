@@ -41,7 +41,7 @@ static int screenInfoAt(int index, uint32_t *displayID, int *width,
 		*width = (int)CGDisplayModeGetPixelWidth(mode);
 		*height = (int)CGDisplayModeGetPixelHeight(mode);
 		CGDisplayModeRelease(mode);
-		*name = strdup(utf8 == NULL ? "Display" : utf8);
+		*name = strdup(utf8 == NULL ? "" : utf8);
 		return *name != NULL;
 	}
 }

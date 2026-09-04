@@ -161,6 +161,51 @@ func TestRenderPlacement_AntialiasesRotatedFrameEdges(t *testing.T) {
 	}
 }
 
+func TestRenderPlacement_ClippedCanvasPreservesCoverage(t *testing.T) {
+	sourcePixels := image.NewNRGBA(image.Rect(0, 0, 12, 12))
+	solid := color.NRGBA{R: 25, G: 80, B: 180, A: 255}
+	fillNRGBA(sourcePixels, solid)
+	source := &loadedSource{pixels: sourcePixels, bounds: sourcePixels.Bounds()}
+	for _, tt := range []struct {
+		name   string
+		width  float64
+		height float64
+		angle  float64
+		full   bool
+	}{
+		{name: "unrotated full coverage", width: 300, height: 300, full: true},
+		{name: "rotated full coverage", width: 300, height: 300, angle: 7, full: true},
+		{name: "counterclockwise full coverage", width: 300, height: 300, angle: -12, full: true},
+		{name: "card edge crosses canvas", width: 100, height: 50, angle: 7},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// A nonzero origin also exercises the destination-mask coordinate
+			// mapping used by clipped transform bands.
+			bounds := image.Rect(10, 20, 90, 100)
+			clipped := image.NewNRGBA(bounds)
+			larger := image.NewNRGBA(bounds.Inset(-10))
+			placed := newPlacement(0, 50, 60, tt.width, tt.height, tt.angle, FrameNone, false)
+			if err := renderPlacement(t.Context(), clipped, source, placed); err != nil {
+				t.Fatal(err)
+			}
+			if err := renderPlacement(t.Context(), larger, source, placed); err != nil {
+				t.Fatal(err)
+			}
+			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					got, want := clipped.NRGBAAt(x, y), larger.NRGBAAt(x, y)
+					if tt.full && got != solid {
+						t.Fatalf("fully covering card faded at (%d,%d): %v, want %v", x, y, got, solid)
+					}
+					if absInt(int(got.A)-int(want.A)) > 1 {
+						t.Fatalf("clipping changed coverage at (%d,%d): %v, want %v", x, y, got, want)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestRenderPlacement_AreaCoverageMatchesRotatedCardGeometry(t *testing.T) {
 	sourcePixels := image.NewNRGBA(image.Rect(0, 0, 24, 16))
 	fillNRGBA(sourcePixels, color.NRGBA{R: 25, G: 80, B: 180, A: 255})
@@ -488,6 +533,29 @@ func TestGenerate_RespectsDecodedOrientation(t *testing.T) {
 	}
 }
 
+func TestGenerate_SourceFidelityPartialGIFMatchesCompositedPNG(t *testing.T) {
+	gifSource := storage.NewFileURI(uitest.WriteTempFile(t, "partial.gif", uitest.EncodePartialFrameGIF(t)))
+	pngSource := mosaicPNG(t, "first-canvas.png", 80, 40, func(x, y int) color.NRGBA {
+		if x >= 30 && x < 40 && y >= 10 && y < 30 {
+			return color.NRGBA{R: 255, A: 255}
+		}
+		return color.NRGBA{}
+	})
+	settings := DefaultSettings()
+	target := image.Pt(120, 80)
+	actual, err := Generate(t.Context(), mustRequest(t, []fyne.URI{gifSource}, target, settings, 987))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := Generate(t.Context(), mustRequest(t, []fyne.URI{pngSource}, target, settings, 987))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(actual.Image().(*image.NRGBA).Pix, expected.Image().(*image.NRGBA).Pix) {
+		t.Fatal("partial GIF rendered differently from its composited first canvas")
+	}
+}
+
 func TestGenerate_SourceFidelityCanonicalFormats(t *testing.T) {
 	oriented := storage.NewFileURI(uitest.WriteTempFile(
 		t, "oriented.jpg", uitest.EncodeOrientedJPEG(t, 12, 6, 6),
@@ -586,10 +654,10 @@ func TestGenerate_FrameStyles(t *testing.T) {
 		return color.NRGBA{A: 255}
 	})
 	want := map[FrameStyle]string{
-		FrameNone:      "d05e0124f64ef52eff7bd6e5222ec8e59e5668be484d067bf63bdc8330d52854",
-		FrameThinLight: "4f83f9d4116a8460d00f9bc4a1ff81849140940252e53a43ba0d42c8ee31269e",
-		FrameThinDark:  "3861291343c1efc843119adcd12108cf0f32a50d2367cfa06ada9b8f27efab04",
-		FramePolaroid:  "6c92aa0aba579e6fdb93193ce2e4075420fa13a3244e4e6bee71f1a4d90bdf26",
+		FrameNone:      "e7e376f3d51cc95808695b21ef90c2eef4456209d64344a4f1a671cc87bda6a8",
+		FrameThinLight: "0fae27605e21ad40622cde33a9711d12bfc1fcf0d875a24986f623eee9964b8a",
+		FrameThinDark:  "dbbfa3dd4d9a5cf0c94aececaeaf92e2abc9e9512c22149086d037b1afe03580",
+		FramePolaroid:  "cface678e0bd83b0b83864b1101c190529ad8526763e16ea4123ea3cbac2dc90",
 	}
 	seen := make(map[[32]byte]FrameStyle)
 	for _, frame := range []FrameStyle{FrameNone, FrameThinLight, FrameThinDark, FramePolaroid} {
@@ -625,6 +693,53 @@ func TestGenerate_UnreadableSources(t *testing.T) {
 	var unreadable *NoReadableSourcesError
 	if !errors.As(err, &unreadable) || len(unreadable.Attempts) != 1 {
 		t.Fatalf("all-broken Generate() = %v, want one-attempt NoReadableSourcesError", err)
+	}
+}
+
+func TestGenerate_RepeatCacheBoundsRetentionWithoutChangingPixels(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		sources    int
+		cacheBytes int64
+	}{
+		{name: "one source exceeds budget", sources: 1, cacheBytes: 1},
+		{name: "combined sources exceed budget", sources: 3, cacheBytes: 384},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sources := make([]fyne.URI, tt.sources)
+			colors := make(map[string]color.NRGBA)
+			for index := range sources {
+				sources[index] = storage.NewFileURI(filepath.Join("/virtual", fmt.Sprintf("photo-%d.png", index)))
+				colors[sources[index].String()] = color.NRGBA{R: uint8(60 + index*60), G: 60, B: 100, A: 255}
+			}
+			loads := make(map[string]int)
+			generator := New()
+			generator.cacheBytes = tt.cacheBytes
+			generator.load = func(_ context.Context, uri fyne.URI) (*loadedSource, error) {
+				loads[uri.String()]++
+				pixels := image.NewNRGBA(image.Rect(0, 0, 8, 6))
+				fillNRGBA(pixels, colors[uri.String()])
+				return &loadedSource{pixels: pixels, bounds: pixels.Bounds()}, nil
+			}
+			request := mustRequest(t, sources, image.Pt(120, 80), DefaultSettings(), 987)
+			bounded, err := generator.Generate(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, source := range sources {
+				if got := loads[source.String()]; got <= 2 {
+					t.Errorf("source %q loaded %d times; repeated images exceeding %d bytes were never evicted", source.Name(), got, tt.cacheBytes)
+				}
+			}
+			generator.cacheBytes = defaultRepeatCacheBytes
+			cached, err := generator.Generate(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(bounded.Image().(*image.NRGBA).Pix, cached.Image().(*image.NRGBA).Pix) {
+				t.Fatal("evicting repeated sources changed the generated pixels")
+			}
+		})
 	}
 }
 

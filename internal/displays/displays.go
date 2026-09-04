@@ -8,6 +8,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver"
+	"fyne.io/fyne/v2/lang"
 )
 
 // ID is an opaque platform identifier. Callers may compare and retain it for
@@ -95,7 +96,7 @@ func newSnapshot(displays []Display, defaultID ID) (Snapshot, error) {
 		}
 		seen[display.ID] = struct{}{}
 		if display.Name == "" {
-			display.Name = fmt.Sprintf("Display %d", index+1)
+			display.Name = fmt.Sprintf(lang.L("Display %d"), index+1)
 		}
 	}
 	if defaultID == "" {

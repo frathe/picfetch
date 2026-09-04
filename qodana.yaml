@@ -241,6 +241,7 @@ exclude:
       - "internal/wallpaper/darwin_test.go"
       - "internal/wallpaper/target_windows_test.go"
       - "internal/wallpaper/wallpaper_test.go"
+      - "internal/wincom/monitor_test.go"
       - "internal/wingesture/detector_test.go"
       - "internal/wingesture/realdrag_test.go"
       - "internal/winpos/poll_test.go"

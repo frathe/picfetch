@@ -7,3 +7,5 @@ internal/ui/testdata/failed/
 .vscode
 .claude/memory
 .superpowers
+node_modules/
+.env.local

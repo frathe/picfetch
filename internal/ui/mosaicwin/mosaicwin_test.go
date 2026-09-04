@@ -391,6 +391,52 @@ func TestMosaicCancel_IdleClosesConfigurationWindow(t *testing.T) {
 	}
 }
 
+func TestMosaicTarget_IdenticalDisplaysRemainIndividuallySelectable(t *testing.T) {
+	topology := displays.Snapshot{
+		Displays: []displays.Display{
+			{ID: "one", Name: "DELL U2723QE", Bounds: image.Rect(0, 0, 80, 50)},
+			{ID: "two", Name: "DELL U2723QE", Bounds: image.Rect(80, 0, 160, 50)},
+		},
+		Default: "one",
+	}
+	host := successfulHost(t)
+	host.inspect = func() (displays.Snapshot, error) { return topology, nil }
+	var wallpaperTarget displays.ID
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, target displays.ID) error {
+		wallpaperTarget = target
+		return nil
+	}
+	w := New(test.NewApp(), host)
+	w.SetUIQueue(&uitest.UIQueue{})
+	snapshot := mustSnapshot(t)
+	snapshot.Displays = topology
+	w.Show(snapshot)
+	defer w.Close()
+	if w.Target() != "one" {
+		t.Fatalf("initial target = %q, want the default display one", w.Target())
+	}
+	if w.displaySelect.Options[0] == w.displaySelect.Options[1] {
+		t.Fatal("identical displays have indistinguishable choices")
+	}
+	w.displaySelect.SetSelected(w.displaySelect.Options[1])
+	if w.Target() != "two" {
+		t.Fatalf("second choice targets %q, want two", w.Target())
+	}
+	topology.Displays[0], topology.Displays[1] = topology.Displays[1], topology.Displays[0]
+	w.RefreshTargets()
+	if w.Target() != "two" {
+		t.Fatalf("reordered refresh changed the target to %q", w.Target())
+	}
+	w.displaySelect.SetSelected(w.displaySelect.Options[1])
+	w.Generate()
+	settleWindow(t, w)
+	w.SetWallpaper()
+	settleWindow(t, w)
+	if wallpaperTarget != "one" {
+		t.Fatalf("wallpaper target = %q, want the explicitly selected display one", wallpaperTarget)
+	}
+}
+
 func TestMosaicTarget_RefreshRequiresNewChoiceAfterRemoval(t *testing.T) {
 	topology := displays.Snapshot{
 		Displays: []displays.Display{
