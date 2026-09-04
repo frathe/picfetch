@@ -236,6 +236,12 @@
       "format": "text",
       "text": "Handbuch"
     },
+    "footer.links.privacy": {
+      "source_hash": "ba445cff3898a3f24f415f90fbef1c8169ea21949a40680c5e1c5975843d1b5e",
+      "request_hash": "ba445cff3898a3f24f415f90fbef1c8169ea21949a40680c5e1c5975843d1b5e",
+      "format": "text",
+      "text": "Datenschutzerklärung"
+    },
     "footer.links.releases": {
       "source_hash": "1a6f7cae06cc1fc970e8cf6853f2fca490446395409e26d830eae6b7e6581b38",
       "request_hash": "1a6f7cae06cc1fc970e8cf6853f2fca490446395409e26d830eae6b7e6581b38",

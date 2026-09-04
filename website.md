@@ -326,6 +326,9 @@ footer:
     - id: source
       label: {id: footer.links.source, text: Source code}
       href: https://github.com/frathe/picfetch
+    - id: privacy
+      label: {id: footer.links.privacy, text: Privacy policy}
+      href: https://github.com/frathe/picfetch/blob/main/PRIVACY.md
     - id: releases
       label: {id: footer.links.releases, text: Releases}
       href: https://github.com/frathe/picfetch/releases
