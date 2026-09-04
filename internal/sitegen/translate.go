@@ -157,7 +157,7 @@ func collectTranslationUnits(content *Content) ([]translationUnit, error) {
 		if err != nil {
 			return fmt.Errorf("prepare translation unit %s: %w", value.ID, err)
 		}
-		units = append(units, newTranslationUnit(value.ID, value.Text, "text", protected, content.Site.ProtectedTerms))
+		units = append(units, newTranslationUnit(value.ID, value.Text, "text", protected, content.Site.ProtectedTerms, ""))
 		return nil
 	}
 	addMarkdown := func(id string) error {
@@ -175,7 +175,11 @@ func collectTranslationUnits(content *Content) ([]translationUnit, error) {
 		if err != nil {
 			return fmt.Errorf("prepare translation unit %s: %w", id, err)
 		}
-		units = append(units, newTranslationUnit(id, source, "html", requestHTML, content.Site.ProtectedTerms))
+		protectedAttributeState, err := protectedMarkdownAttributeState(validated, content.Site.ProtectedTerms)
+		if err != nil {
+			return fmt.Errorf("prepare translation unit %s attributes: %w", id, err)
+		}
+		units = append(units, newTranslationUnit(id, source, "html", requestHTML, content.Site.ProtectedTerms, protectedAttributeState))
 		return nil
 	}
 
@@ -312,9 +316,13 @@ func protectMarkdownHTML(value string, terms []string) (string, error) {
 	}
 }
 
-func newTranslationUnit(id, source, format, requestHTML string, protectedTerms []string) translationUnit {
+func newTranslationUnit(id, source, format, requestHTML string, protectedTerms []string, protectedAttributeState string) translationUnit {
 	sourceHash := sha256.Sum256([]byte(source))
-	requestHash := sha256.Sum256([]byte(requestHTML))
+	requestIdentity := requestHTML
+	if protectedAttributeState != "" {
+		requestIdentity += "\x00protected-markdown-attributes\x00" + protectedAttributeState
+	}
+	requestHash := sha256.Sum256([]byte(requestIdentity))
 	return translationUnit{
 		ID:             id,
 		Source:         source,
@@ -324,6 +332,21 @@ func newTranslationUnit(id, source, format, requestHTML string, protectedTerms [
 		RequestHTML:    requestHTML,
 		ProtectedTerms: append([]string(nil), protectedTerms...),
 	}
+}
+
+func protectedMarkdownAttributeState(value string, terms []string) (string, error) {
+	content, err := inspectTranslatableHTML(value, false)
+	if err != nil {
+		return "", err
+	}
+	protected, err := protectTerms(content.Attributes, terms, false)
+	if err != nil {
+		return "", err
+	}
+	if protected == content.Attributes {
+		return "", nil
+	}
+	return protected, nil
 }
 
 func translationEntryCurrent(unit translationUnit, entry TranslationCacheEntry) bool {

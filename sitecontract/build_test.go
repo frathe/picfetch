@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -390,6 +391,75 @@ func TestInvalidSourceRejectsDownloadGroupWithoutLinks(t *testing.T) {
 	}
 	if !strings.Contains(string(combined), "sections[4].download_groups[0].links: at least one link is required") {
 		t.Fatalf("empty-download-group diagnostic is not actionable:\n%s", combined)
+	}
+}
+
+func TestInvalidSourceRejectsFieldsOwnedByAnotherSectionKind(t *testing.T) {
+	repo := repositoryRoot(t)
+	sourceBytes, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	source := string(sourceBytes)
+
+	sectionKinds := []struct {
+		kind  string
+		id    string
+		index int
+	}{
+		{kind: "video", id: "demo-main", index: 0},
+		{kind: "screenshots", id: "screenshots", index: 1},
+		{kind: "features", id: "features", index: 2},
+		{kind: "downloads", id: "downloads", index: 4},
+	}
+	sectionFields := []struct {
+		name  string
+		owner string
+		yaml  string
+	}{
+		{name: "video", owner: "video", yaml: "    video: {}\n"},
+		{name: "screenshots", owner: "screenshots", yaml: "    screenshots:\n      - {}\n"},
+		{name: "features", owner: "features", yaml: "    features:\n      - {}\n"},
+		{name: "anchor", owner: "downloads", yaml: "    anchor: incompatible\n"},
+		{name: "body", owner: "downloads", yaml: "    body: incompatible\n"},
+		{name: "download_groups", owner: "downloads", yaml: "    download_groups:\n      - {}\n"},
+		{name: "notice", owner: "downloads", yaml: "    notice: {}\n"},
+	}
+
+	for _, sectionKind := range sectionKinds {
+		for _, field := range sectionFields {
+			if field.owner == sectionKind.kind {
+				continue
+			}
+			t.Run(sectionKind.kind+"/"+field.name, func(t *testing.T) {
+				needle := "  - id: " + sectionKind.id + "\n    kind: " + sectionKind.kind + "\n"
+				broken := strings.Replace(source, needle, needle+field.yaml, 1)
+				if broken == source {
+					t.Fatalf("test setup could not add %s to the %s section", field.name, sectionKind.kind)
+				}
+				sourcePath := filepath.Join(t.TempDir(), "website.md")
+				if err := os.WriteFile(sourcePath, []byte(broken), 0o600); err != nil {
+					t.Fatalf("write website source with incompatible section field: %v", err)
+				}
+
+				cmd := exec.Command("make", "build",
+					"SITE_SOURCE="+sourcePath,
+					"SITE_OUTPUT_DIR="+t.TempDir(),
+					"SITE_LOCALES=en",
+					"SITE_FORMATS=regular",
+				)
+				cmd.Dir = repo
+				combined, err := cmd.CombinedOutput()
+				if err == nil {
+					t.Fatalf("make build accepted %s on a %s section", field.name, sectionKind.kind)
+				}
+				diagnostic := "sections[" + strconv.Itoa(sectionKind.index) + "]." + field.name
+				kindDiagnostic := "section kind \"" + field.owner + "\", not \"" + sectionKind.kind + "\""
+				if !strings.Contains(string(combined), diagnostic) || !strings.Contains(string(combined), kindDiagnostic) {
+					t.Fatalf("incompatible-field diagnostic does not identify %s:\n%s", diagnostic, combined)
+				}
+			})
+		}
 	}
 }
 

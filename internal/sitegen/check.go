@@ -17,6 +17,9 @@ func Check(options BuildOptions) error {
 	if !sameValues(options.Locales, []string{"en", "de"}) || !sameValues(options.Formats, []string{"regular", "amp"}) {
 		return fmt.Errorf("check requires the complete locale/format matrix: locales en,de and formats regular,amp")
 	}
+	if err := rejectObsoleteGermanTranslations(options.SourcePath, options.TranslationsPath); err != nil {
+		return err
+	}
 	siteBasePath, err := configuredSiteBasePath(options.SourcePath)
 	if err != nil {
 		return err
@@ -78,6 +81,40 @@ func Check(options BuildOptions) error {
 		}
 	}
 	return nil
+}
+
+func rejectObsoleteGermanTranslations(sourcePath, cachePath string) error {
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return fmt.Errorf("read website source %q for translation-cache validation: %w", sourcePath, err)
+	}
+	content, err := ParseContent(data)
+	if err != nil {
+		return err
+	}
+	units, err := collectTranslationUnits(content)
+	if err != nil {
+		return err
+	}
+	cache, err := readTranslationCache(cachePath)
+	if err != nil {
+		return err
+	}
+	current := make(map[string]struct{}, len(units))
+	for _, unit := range units {
+		current[unit.ID] = struct{}{}
+	}
+	obsolete := make([]string, 0)
+	for id := range cache.Entries {
+		if _, ok := current[id]; !ok {
+			obsolete = append(obsolete, id)
+		}
+	}
+	if len(obsolete) == 0 {
+		return nil
+	}
+	sort.Strings(obsolete)
+	return fmt.Errorf("obsolete German translation cache entries: %s; run make translate or make update", strings.Join(obsolete, ", "))
 }
 
 func rejectUnexpectedGeneratedRoutes(root string, expectedPaths []string) error {

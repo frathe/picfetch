@@ -216,3 +216,89 @@ func TestMakeTranslateRepairsCacheWhenProtectionConfigurationChanges(t *testing.
 		}
 	}
 }
+
+func TestMakeTranslateRefreshesTitleAttributeWhenProtectionIsRemoved(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	withTitle := strings.Replace(string(source),
+		"A small desktop app for quickly viewing and browsing images.",
+		`A small desktop app for quickly viewing and browsing images. Read the [guide](https://example.test/guide "MarkerTitle").`,
+		1,
+	)
+	withProtection := strings.Replace(withTitle, "    - PicFetch\n", "    - PicFetch\n    - MarkerTitle\n", 1)
+	withoutProtection := strings.Replace(withProtection, "    - MarkerTitle\n", "", 1)
+	if withProtection == string(source) || withoutProtection == withProtection || !strings.Contains(withoutProtection, `"MarkerTitle"`) {
+		t.Fatal("test setup did not isolate a protected Markdown title attribute")
+	}
+	protectedSource := filepath.Join(t.TempDir(), "protected.md")
+	unprotectedSource := filepath.Join(t.TempDir(), "unprotected.md")
+	if err := os.WriteFile(protectedSource, []byte(withProtection), 0o600); err != nil {
+		t.Fatalf("write source with protected title attribute: %v", err)
+	}
+	if err := os.WriteFile(unprotectedSource, []byte(withoutProtection), 0o600); err != nil {
+		t.Fatalf("write source with unprotected title attribute: %v", err)
+	}
+
+	var (
+		mu             sync.Mutex
+		requested      []string
+		translateTitle bool
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload struct {
+			Text []string `json:"text"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			http.Error(response, "bad request", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		requested = append(requested, payload.Text...)
+		shouldTranslateTitle := translateTitle
+		mu.Unlock()
+		translations := make([]map[string]string, len(payload.Text))
+		for index, text := range payload.Text {
+			if shouldTranslateTitle {
+				text = strings.ReplaceAll(text, `title="MarkerTitle"`, `title="Übersetzter Titel"`)
+			}
+			translations[index] = map[string]string{"text": "Deutsch: " + text}
+		}
+		_ = json.NewEncoder(response).Encode(map[string]any{"translations": translations})
+	}))
+	defer server.Close()
+
+	cachePath := filepath.Join(t.TempDir(), "de.json")
+	runTranslate := func(sourcePath string) {
+		t.Helper()
+		cmd := exec.Command("make", "translate", "SITE_SOURCE="+sourcePath, "SITE_TRANSLATIONS="+cachePath)
+		cmd.Dir = repo
+		cmd.Env = withoutEnvironment(os.Environ(), "DEEPL_API_KEY", "DEEPL_API_URL")
+		cmd.Env = append(cmd.Env, "DEEPL_API_KEY="+strings.Repeat("i", 24), "DEEPL_API_URL="+server.URL)
+		if combined, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("make translate failed: %v\n%s", err, combined)
+		}
+	}
+	runTranslate(protectedSource)
+	mu.Lock()
+	requested = nil
+	translateTitle = true
+	mu.Unlock()
+	runTranslate(unprotectedSource)
+
+	mu.Lock()
+	removalRequest := append([]string(nil), requested...)
+	mu.Unlock()
+	if len(removalRequest) != 1 || !strings.Contains(removalRequest[0], `title="MarkerTitle"`) {
+		t.Fatalf("removing title protection requested %d unexpected units: %q", len(removalRequest), removalRequest)
+	}
+	cache, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("read refreshed translation cache: %v", err)
+	}
+	if !strings.Contains(string(cache), "Übersetzter Titel") {
+		t.Fatal("formerly protected Markdown title was not refreshed for translation")
+	}
+}

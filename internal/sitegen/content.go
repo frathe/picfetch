@@ -367,6 +367,9 @@ func (v *contentValidator) validate() error {
 		if err := v.requireText(path+".heading", section.Heading); err != nil {
 			return err
 		}
+		if err := validateSectionKindFields(path, section); err != nil {
+			return err
+		}
 		switch section.Kind {
 		case "video":
 			if section.Video == nil {
@@ -455,8 +458,6 @@ func (v *contentValidator) validate() error {
 			if err := v.requireMarkdown(path+".notice.body", section.Notice.Body); err != nil {
 				return err
 			}
-		default:
-			return fmt.Errorf("%s.kind: unsupported value %q", path, section.Kind)
 		}
 	}
 	if err := v.requireAsset("footer.image", v.content.Footer.Image); err != nil {
@@ -476,6 +477,33 @@ func (v *contentValidator) validate() error {
 	for id := range v.content.Markdown {
 		if _, referenced := v.markdownRefs[id]; !referenced {
 			return fmt.Errorf("markdown section %q: no schema field references this content", id)
+		}
+	}
+	return nil
+}
+
+func validateSectionKindFields(path string, section Section) error {
+	switch section.Kind {
+	case "video", "screenshots", "features", "downloads":
+	default:
+		return fmt.Errorf("%s.kind: unsupported value %q", path, section.Kind)
+	}
+	fields := []struct {
+		name      string
+		ownerKind string
+		populated bool
+	}{
+		{name: "video", ownerKind: "video", populated: section.Video != nil},
+		{name: "screenshots", ownerKind: "screenshots", populated: section.Screenshots != nil},
+		{name: "features", ownerKind: "features", populated: section.Features != nil},
+		{name: "anchor", ownerKind: "downloads", populated: section.Anchor != ""},
+		{name: "body", ownerKind: "downloads", populated: section.Body != ""},
+		{name: "download_groups", ownerKind: "downloads", populated: section.DownloadGroups != nil},
+		{name: "notice", ownerKind: "downloads", populated: section.Notice != nil},
+	}
+	for _, field := range fields {
+		if field.populated && field.ownerKind != section.Kind {
+			return fmt.Errorf("%s.%s: field is only valid for section kind %q, not %q", path, field.name, field.ownerKind, section.Kind)
 		}
 	}
 	return nil
