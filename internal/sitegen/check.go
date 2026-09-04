@@ -17,6 +17,10 @@ func Check(options BuildOptions) error {
 	if !sameValues(options.Locales, []string{"en", "de"}) || !sameValues(options.Formats, []string{"regular", "amp"}) {
 		return fmt.Errorf("check requires the complete locale/format matrix: locales en,de and formats regular,amp")
 	}
+	siteBasePath, err := configuredSiteBasePath(options.SourcePath)
+	if err != nil {
+		return err
+	}
 	first, err := os.MkdirTemp("", "picfetch-site-check-first-*")
 	if err != nil {
 		return fmt.Errorf("create first isolated check directory: %w", err)
@@ -43,7 +47,7 @@ func Check(options BuildOptions) error {
 	if err := rejectUnexpectedGeneratedRoutes(options.OutputPath, paths); err != nil {
 		return err
 	}
-	if err := validateGeneratedLinks(first, options.OutputPath, paths); err != nil {
+	if err := validateGeneratedLinks(first, options.OutputPath, paths, siteBasePath); err != nil {
 		return err
 	}
 	for _, relative := range paths {
@@ -113,7 +117,23 @@ func rejectUnexpectedGeneratedRoutes(root string, expectedPaths []string) error 
 	return nil
 }
 
-func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string) error {
+func configuredSiteBasePath(sourcePath string) (string, error) {
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return "", fmt.Errorf("read website source %q for link validation: %w", sourcePath, err)
+	}
+	content, err := ParseContent(data)
+	if err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(content.Site.BaseURL)
+	if err != nil {
+		return "", fmt.Errorf("parse site base URL for link validation: %w", err)
+	}
+	return strings.TrimRight(parsed.Path, "/") + "/", nil
+}
+
+func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, siteBasePath string) error {
 	for _, relative := range paths {
 		data, err := readFileWithoutSymlinks(generatedRoot, relative)
 		if err != nil {
@@ -188,7 +208,7 @@ func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string) 
 			}
 		}
 		for _, reference := range localReferences {
-			target, err := resolveLocalPath(relative, reference.path)
+			target, err := resolveLocalPath(relative, reference.path, siteBasePath)
 			if err != nil {
 				return fmt.Errorf("broken local link %q in %s: %w", reference.raw, relative, err)
 			}
@@ -241,10 +261,22 @@ func validateLinkedFragment(root, target, fragment string) error {
 	return nil
 }
 
-func resolveLocalPath(pagePath, reference string) (string, error) {
+func resolveLocalPath(pagePath, reference, siteBasePath string) (string, error) {
 	var target string
 	if strings.HasPrefix(reference, "/") {
-		target = filepath.FromSlash(strings.TrimLeft(reference, "/"))
+		var siteRelativeReference string
+		siteRoot := strings.TrimSuffix(siteBasePath, "/")
+		switch {
+		case siteBasePath == "/":
+			siteRelativeReference = strings.TrimPrefix(reference, "/")
+		case reference == siteRoot:
+			siteRelativeReference = ""
+		case strings.HasPrefix(reference, siteBasePath):
+			siteRelativeReference = strings.TrimPrefix(reference, siteBasePath)
+		default:
+			return "", fmt.Errorf("root-relative target %q is outside configured site base %q", reference, siteBasePath)
+		}
+		target = filepath.FromSlash(strings.TrimLeft(siteRelativeReference, "/"))
 	} else {
 		target = filepath.Join(filepath.Dir(pagePath), filepath.FromSlash(reference))
 	}

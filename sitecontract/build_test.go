@@ -307,6 +307,48 @@ func TestInvalidSourceRejectsReservedAndDuplicateDownloadAnchors(t *testing.T) {
 	}
 }
 
+func TestInvalidSourceRejectsDownloadGroupWithoutLinks(t *testing.T) {
+	repo := repositoryRoot(t)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	const groupStart = "      - id: macos\n"
+	const linksStart = "        links:\n"
+	const nextGroup = "      - id: windows\n"
+	groupOffset := strings.Index(string(source), groupStart)
+	if groupOffset < 0 {
+		t.Fatal("test setup could not find the macOS download group")
+	}
+	linksOffset := strings.Index(string(source[groupOffset:]), linksStart)
+	nextGroupOffset := strings.Index(string(source[groupOffset:]), nextGroup)
+	if linksOffset < 0 || nextGroupOffset < 0 || linksOffset >= nextGroupOffset {
+		t.Fatal("test setup could not isolate the macOS download links")
+	}
+	linksOffset += groupOffset
+	nextGroupOffset += groupOffset
+	broken := string(source[:linksOffset]) + "        links: []\n" + string(source[nextGroupOffset:])
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(broken), 0o600); err != nil {
+		t.Fatalf("write website source with empty download group: %v", err)
+	}
+
+	cmd := exec.Command("make", "build",
+		"SITE_SOURCE="+sourcePath,
+		"SITE_OUTPUT_DIR="+t.TempDir(),
+		"SITE_LOCALES=en",
+		"SITE_FORMATS=regular",
+	)
+	cmd.Dir = repo
+	combined, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("make build accepted a download group without links")
+	}
+	if !strings.Contains(string(combined), "sections[4].download_groups[0].links: at least one link is required") {
+		t.Fatalf("empty-download-group diagnostic is not actionable:\n%s", combined)
+	}
+}
+
 func TestMakeBuildGeneratesEnglishAMPFromSharedSource(t *testing.T) {
 	repo := repositoryRoot(t)
 	output := t.TempDir()

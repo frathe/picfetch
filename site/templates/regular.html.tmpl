@@ -56,11 +56,23 @@
 (() => {
     const preferenceKey = 'picfetch-language';
     const readLanguagePreference = () => { try { return localStorage.getItem(preferenceKey); } catch (_) { return null; } };
-    const saveLanguagePreference = (language) => { try { localStorage.setItem(preferenceKey, language); } catch (_) {} };
-    document.querySelectorAll('[data-language]').forEach((link) => link.addEventListener('click', () => saveLanguagePreference(link.dataset.language)));
-    {{if .DetectGerman}}const storedLanguage = readLanguagePreference();
+    const saveLanguagePreference = (language) => { try { localStorage.setItem(preferenceKey, language); return true; } catch (_) { return false; } };
+    document.querySelectorAll('[data-language]').forEach((link) => link.addEventListener('click', () => {
+        if (!saveLanguagePreference(link.dataset.language) && link.dataset.language === 'en') {
+            const fallbackURL = new URL(link.href);
+            fallbackURL.searchParams.set('language', 'en');
+            link.href = fallbackURL.href;
+        }
+    }));
+    {{if .DetectGerman}}const requestedLanguage = new URLSearchParams(window.location.search).get('language');
+    if (requestedLanguage === 'en') {
+        const cleanURL = new URL(window.location.href);
+        cleanURL.searchParams.delete('language');
+        window.history.replaceState(null, '', cleanURL.href);
+    }
+    const storedLanguage = readLanguagePreference();
     const preferredLanguage = Array.from(navigator.languages || [navigator.language]).find((language) => typeof language === 'string' && language.length > 0);
-    if (storedLanguage === 'de' || (storedLanguage !== 'en' && preferredLanguage && preferredLanguage.toLowerCase().startsWith('de'))) window.location.replace('./de/');{{end}}
+    if (requestedLanguage !== 'en' && (storedLanguage === 'de' || (storedLanguage !== 'en' && preferredLanguage && preferredLanguage.toLowerCase().startsWith('de')))) window.location.replace('./de/');{{end}}
     const lightbox = document.getElementById('lightbox');
     const lightboxImg = document.getElementById('lightboxImg');
     document.querySelectorAll('.shot img').forEach((img) => img.addEventListener('click', () => { lightboxImg.src = img.src; lightboxImg.alt = img.alt; lightbox.classList.add('open'); }));

@@ -7,9 +7,10 @@ import (
 	"testing"
 )
 
-// TestRegularPageKeepsLightboxWhenStorageIsUnavailable protects the ordinary
-// page's interactive image behavior in browsers that deny Web Storage.
-func TestRegularPageKeepsLightboxWhenStorageIsUnavailable(t *testing.T) {
+// TestRegularPageKeepsInteractionsWhenStorageIsUnavailable protects the
+// ordinary page's language selector and lightbox in browsers that deny Web
+// Storage.
+func TestRegularPageKeepsInteractionsWhenStorageIsUnavailable(t *testing.T) {
 	repo := repositoryRoot(t)
 	cachePath := createControlledGermanCache(t, repo)
 	output := t.TempDir()
@@ -34,7 +35,7 @@ func TestRegularPageKeepsLightboxWhenStorageIsUnavailable(t *testing.T) {
 	test.Dir = repo
 	test.Env = append(os.Environ(), "NODE_PATH="+filepath.Join(repo, "node_modules"))
 	if combined, err := test.CombinedOutput(); err != nil {
-		t.Fatalf("lightbox behavior with unavailable storage failed: %v\n%s", err, combined)
+		t.Fatalf("regular-page interactions with unavailable storage failed: %v\n%s", err, combined)
 	}
 }
 
@@ -70,15 +71,30 @@ const server = http.createServer((request, response) => {
     });
     const address = server.address();
     browser = await chromium.launch({channel: 'chrome', headless: true});
-    const context = await browser.newContext();
+    const context = await browser.newContext({locale: 'de-DE'});
     await context.route('**/*', route => route.request().url().startsWith('http://127.0.0.1:') ? route.continue() : route.abort());
     await context.addInitScript(() => {
       const unavailable = () => { throw new DOMException('The operation is insecure.', 'SecurityError'); };
       Object.defineProperty(Storage.prototype, 'getItem', {value: unavailable});
       Object.defineProperty(Storage.prototype, 'setItem', {value: unavailable});
+      Object.defineProperty(navigator, 'languages', {get: () => ['de-DE']});
+      Object.defineProperty(navigator, 'language', {get: () => 'de-DE'});
     });
     const page = await context.newPage();
-    await page.goto('http://127.0.0.1:' + address.port + '/', {waitUntil: 'domcontentloaded'});
+    const baseURL = 'http://127.0.0.1:' + address.port;
+    await page.goto(baseURL + '/de/', {waitUntil: 'domcontentloaded'});
+    const englishLink = page.locator('[data-language="en"]');
+    const authoredURL = new URL(await englishLink.getAttribute('href'));
+    if (authoredURL.searchParams.has('language')) {
+      throw new Error('language selector polluted the authored canonical URL with its fallback marker');
+    }
+    await englishLink.evaluate((link, localURL) => { link.href = localURL; }, baseURL + '/');
+    await englishLink.click();
+    await page.waitForLoadState('networkidle');
+    const selectedURL = new URL(page.url());
+    if (selectedURL.pathname !== '/' || await page.locator('html').getAttribute('lang') !== 'en') {
+      throw new Error('English selection was redirected back to German when Web Storage was unavailable');
+    }
     await page.locator('.shot img').first().click();
     if (!await page.locator('#lightbox.open').isVisible()) {
       throw new Error('lightbox did not open after storage methods threw SecurityError');

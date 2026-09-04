@@ -89,7 +89,7 @@ func TestCheckGeneratedRejectsBrokenAnchorOnLinkedPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read copied regular template: %v", err)
 	}
-	broken := strings.Replace(string(regular), `href="{{.URL}}"`, `href="/de/#missing"`, 1)
+	broken := strings.Replace(string(regular), `href="{{.URL}}"`, `href="/picfetch/de/#missing"`, 1)
 	if broken == string(regular) {
 		t.Fatal("test setup did not create a broken cross-page anchor")
 	}
@@ -112,6 +112,41 @@ func TestCheckGeneratedRejectsBrokenAnchorOnLinkedPage(t *testing.T) {
 	}
 	if !strings.Contains(string(combined), "broken linked anchor #missing") || !strings.Contains(string(combined), "de/index.html") {
 		t.Fatalf("broken-linked-anchor diagnostic is not actionable:\n%s", combined)
+	}
+}
+
+func TestCheckGeneratedRejectsRootRelativeLinkOutsideSiteBase(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	templates := copyTemplateDirectory(t, repo)
+	regularPath := filepath.Join(templates, "regular.html.tmpl")
+	regular, err := os.ReadFile(regularPath)
+	if err != nil {
+		t.Fatalf("read copied regular template: %v", err)
+	}
+	broken := strings.Replace(string(regular), `href="{{.URL}}"`, `href="/de/"`, 1)
+	if broken == string(regular) {
+		t.Fatal("test setup did not create a root-relative link outside the site base")
+	}
+	if err := os.WriteFile(regularPath, []byte(broken), 0o600); err != nil {
+		t.Fatalf("write template with root-relative link outside the site base: %v", err)
+	}
+	output := t.TempDir()
+	build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	build.Dir = repo
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("prepare generated site with root-relative link outside the site base: %v\n%s", err, combined)
+	}
+	writeStaticSiteFiles(t, output)
+
+	check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	check.Dir = repo
+	combined, err := check.CombinedOutput()
+	if err == nil {
+		t.Fatal("check-generated accepted a root-relative link outside the configured site base")
+	}
+	if !strings.Contains(string(combined), `root-relative target "/de/" is outside configured site base "/picfetch/"`) {
+		t.Fatalf("outside-site-base diagnostic is not actionable:\n%s", combined)
 	}
 }
 

@@ -437,6 +437,9 @@ func (v *contentValidator) validate() error {
 				if err := v.requireText(groupPath+".title", group.Title); err != nil {
 					return err
 				}
+				if len(group.Links) == 0 {
+					return fmt.Errorf("%s.links: at least one link is required", groupPath)
+				}
 				for linkIndex, link := range group.Links {
 					if err := v.requireLink(fmt.Sprintf("%s.links[%d]", groupPath, linkIndex), link); err != nil {
 						return err

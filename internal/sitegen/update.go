@@ -51,6 +51,10 @@ func Update(options UpdateOptions) error {
 	if err := Build(stagedBuild); err != nil {
 		return fmt.Errorf("site generation failed: %w", err)
 	}
+	siteBasePath, err := configuredSiteBasePath(options.Build.SourcePath)
+	if err != nil {
+		return fmt.Errorf("generated-site validation failed: %w", err)
+	}
 	paths := generatedPaths(stagedBuild.Locales, stagedBuild.Formats)
 	if _, err := os.Lstat(options.Build.OutputPath); err == nil {
 		if err := rejectUnexpectedGeneratedRoutes(options.Build.OutputPath, paths); err != nil {
@@ -59,7 +63,7 @@ func Update(options UpdateOptions) error {
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("inspect current generated-site root: %w", err)
 	}
-	if err := validateGeneratedLinks(stagedOutput, options.Build.OutputPath, paths); err != nil {
+	if err := validateGeneratedLinks(stagedOutput, options.Build.OutputPath, paths, siteBasePath); err != nil {
 		return fmt.Errorf("generated-site validation failed: %w", err)
 	}
 	if err := validateStagedAMP(options, stagedOutput); err != nil {

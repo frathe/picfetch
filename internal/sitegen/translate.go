@@ -521,6 +521,22 @@ func validateOpaqueContent(unit translationUnit, translated string) error {
 	seen := make(map[string]bool, len(terms))
 	requestText := ignoredElement.ReplaceAllString(unit.RequestHTML, "")
 	remaining := ignoredElement.ReplaceAllString(actual, "")
+	requestAttributes := ""
+	remainingAttributes := ""
+	if unit.Format == "html" {
+		requestContent, err := inspectTranslatableHTML(unit.RequestHTML, true)
+		if err != nil {
+			return fmt.Errorf("inspect protected terms in source HTML for %s: %w", unit.ID, err)
+		}
+		translatedContent, err := inspectTranslatableHTML(actual, false)
+		if err != nil {
+			return fmt.Errorf("inspect protected terms in translated HTML for %s: %w", unit.ID, err)
+		}
+		requestText = requestContent.Text
+		remaining = translatedContent.Text
+		requestAttributes = requestContent.Attributes
+		remainingAttributes = translatedContent.Attributes
+	}
 	for _, term := range terms {
 		if seen[term] {
 			continue
@@ -529,15 +545,115 @@ func validateOpaqueContent(unit translationUnit, translated string) error {
 		requestTerm := stdhtml.EscapeString(term)
 		renderedTerm := term
 		if unit.Format == "html" {
-			renderedTerm = requestTerm
+			requestTerm = term
 		}
 		required := strings.Count(requestText, "<keep>"+requestTerm+"</keep>")
 		if actualCount := strings.Count(remaining, renderedTerm); actualCount != required {
 			return fmt.Errorf("translation changed protected term %q in %s (got %d occurrences, want %d)", term, unit.ID, actualCount, required)
 		}
 		remaining = strings.ReplaceAll(remaining, renderedTerm, strings.Repeat("\x00", len(renderedTerm)))
+		if unit.Format == "html" {
+			requiredInAttributes := strings.Count(requestAttributes, term)
+			if actualCount := strings.Count(remainingAttributes, term); actualCount != requiredInAttributes {
+				return fmt.Errorf("translation changed protected term %q in Markdown attributes for %s (got %d occurrences, want %d)", term, unit.ID, actualCount, requiredInAttributes)
+			}
+			requestAttributes = strings.ReplaceAll(requestAttributes, term, strings.Repeat("\x00", len(term)))
+			remainingAttributes = strings.ReplaceAll(remainingAttributes, term, strings.Repeat("\x00", len(term)))
+		}
 	}
 	return nil
+}
+
+type translatableHTMLContent struct {
+	Text       string
+	Attributes string
+}
+
+// inspectTranslatableHTML separates visible text from translatable title
+// attributes. Protection markers are optionally retained in visible text so
+// source counts can be compared without mistaking opaque URLs for prose.
+func inspectTranslatableHTML(value string, retainProtection bool) (translatableHTMLContent, error) {
+	tokenizer := xhtml.NewTokenizer(strings.NewReader(value))
+	var text strings.Builder
+	var attributes strings.Builder
+	ignoredDepth := 0
+	separate := func() {
+		if text.Len() > 0 {
+			text.WriteByte(0)
+		}
+	}
+	appendAttribute := func(value string) {
+		if attributes.Len() > 0 {
+			attributes.WriteByte(0)
+		}
+		attributes.WriteString(value)
+	}
+	for {
+		tokenType := tokenizer.Next()
+		if tokenType == xhtml.ErrorToken {
+			if errors.Is(tokenizer.Err(), io.EOF) {
+				return translatableHTMLContent{Text: text.String(), Attributes: attributes.String()}, nil
+			}
+			return translatableHTMLContent{}, tokenizer.Err()
+		}
+		switch tokenType {
+		case xhtml.StartTagToken:
+			token := tokenizer.Token()
+			for _, attribute := range token.Attr {
+				if attribute.Namespace == "" && attribute.Key == "title" {
+					appendAttribute(attribute.Val)
+				}
+			}
+			if token.Data == "code" || token.Data == "kbd" {
+				separate()
+				ignoredDepth++
+				continue
+			}
+			if ignoredDepth > 0 {
+				continue
+			}
+			if retainProtection && token.Data == "keep" {
+				text.WriteString("<keep>")
+			} else {
+				separate()
+			}
+		case xhtml.EndTagToken:
+			token := tokenizer.Token()
+			if token.Data == "code" || token.Data == "kbd" {
+				if ignoredDepth > 0 {
+					ignoredDepth--
+				}
+				separate()
+				continue
+			}
+			if ignoredDepth > 0 {
+				continue
+			}
+			if retainProtection && token.Data == "keep" {
+				text.WriteString("</keep>")
+			} else {
+				separate()
+			}
+		case xhtml.SelfClosingTagToken:
+			token := tokenizer.Token()
+			for _, attribute := range token.Attr {
+				if attribute.Namespace == "" && attribute.Key == "title" {
+					appendAttribute(attribute.Val)
+				}
+			}
+			if ignoredDepth == 0 {
+				separate()
+			}
+		case xhtml.CommentToken, xhtml.DoctypeToken:
+			if ignoredDepth == 0 {
+				separate()
+			}
+		case xhtml.TextToken:
+			if ignoredDepth == 0 {
+				text.WriteString(tokenizer.Token().Data)
+			}
+		}
+	}
 }
 
 func sameCapturedValues(pattern *regexp.Regexp, expected, actual string, group int) bool {
