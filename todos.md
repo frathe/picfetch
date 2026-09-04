@@ -6,11 +6,27 @@
 
 #### New Features
 
+- Added a keyboard-accessible Image Mosaic workflow to Grid View. It snapshots
+  the explicit selection or current filtered result, generates a covered
+  native-display-sized composition locally, supports regeneration and PNG/JPEG
+  export, and can target one Windows or macOS display. Linux refuses targeted
+  wallpaper honestly while retaining Save Image and the existing global
+  wallpaper action.
+
 #### Bugfix
 
 #### Internal
 
 ## TODO
+
+### Validate image mosaics on physical multi-display desktops
+
+Run the supervised native smoke matrix in
+`.scratch/bildmosaik/issues/16-release-hardening-and-native-smoke-tests.md` on
+Windows, macOS, GNOME, and KDE hosts with the listed display arrangements.
+Automated tests and cross-builds cover the implementation, but they cannot
+prove a real desktop changed, retained its Fill/Fit options, or persisted after
+PicFetch exited.
 
 ### Publish PicFetch in Microsoft Store
 

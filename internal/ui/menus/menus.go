@@ -46,6 +46,7 @@ type Callbacks struct {
 	ToggleHideDuplicates func()
 	ShowVariant          func()
 	Compare              func()
+	Mosaic               func()
 	Rotate               func()
 	ZoomIn               func()
 	ZoomOut              func()
@@ -86,6 +87,7 @@ type State struct {
 	CanWallpaper       bool
 	CanCopySelection   bool
 	CanCompare         bool
+	CanMosaic          bool
 	ComparisonActive   bool // comparison exclusively owns main-window commands
 }
 
@@ -124,6 +126,7 @@ type ActionItems struct {
 	hide          *fyne.MenuItem
 	showVariant   *fyne.MenuItem
 	compare       *fyne.MenuItem
+	mosaic        *fyne.MenuItem
 	rotate        *fyne.MenuItem
 	zoomIn        *fyne.MenuItem
 	zoomOut       *fyne.MenuItem
@@ -222,6 +225,8 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 		Modifier: fyne.KeyModifierShortcutDefault,
 	}
 	m.actions.compare.Disabled = true
+	m.actions.mosaic = fyne.NewMenuItem(lang.L("Generate Image Mosaic..."), c.Mosaic)
+	m.actions.mosaic.Disabled = true
 
 	m.actions.rotate = fyne.NewMenuItem(lang.L("Rotate image (CW)"), c.Rotate)
 	m.actions.rotate.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyR}
@@ -302,7 +307,7 @@ func (m *Menus) FileMenu() *fyne.Menu {
 // what can be done with the current file.
 func (m *Menus) ActionsMenu() *fyne.Menu {
 	return fyne.NewMenu(lang.L("Actions"),
-		m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare,
+		m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic,
 		fyne.NewMenuItemSeparator(),
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		fyne.NewMenuItemSeparator(),
@@ -361,6 +366,9 @@ func (a ActionItems) ShowVariant() *fyne.MenuItem { return a.showVariant }
 
 // Compare is the Actions menu's "Compare selected images" item.
 func (a ActionItems) Compare() *fyne.MenuItem { return a.compare }
+
+// Mosaic is the Actions menu's "Generate Image Mosaic..." item.
+func (a ActionItems) Mosaic() *fyne.MenuItem { return a.mosaic }
 
 // Rotate is the Actions menu's "Rotate image (CW)" item.
 func (a ActionItems) Rotate() *fyne.MenuItem { return a.rotate }
@@ -450,7 +458,7 @@ func (m *Menus) applyComparisonIsolation(active bool) {
 		item.Disabled = true
 	}
 	for _, item := range []*fyne.MenuItem{
-		m.actions.hide, m.actions.showVariant, m.actions.compare,
+		m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic,
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		m.actions.merge, m.actions.info, m.actions.copy,
 		m.actions.copySelection, m.actions.copyPath,
@@ -490,6 +498,7 @@ func (m *Menus) applyActions(s State) {
 	canShowVariants := s.HideDuplicates && s.VariantGroupSize >= 2
 	m.actions.showVariant.Disabled = noFiles || s.SlidesActive || !(canShowVariants || s.BrowsingDuplicates)
 	m.actions.compare.Disabled = !s.CanCompare
+	m.actions.mosaic.Disabled = !s.CanMosaic
 
 	rotZoomOff := noImage || gridUp
 	m.actions.rotate.Disabled = rotZoomOff
@@ -518,13 +527,13 @@ type pair struct {
 // diff the whole matrix instead of each assignment reporting for itself -
 // an assignment added later is then covered without being told to be.
 func (m *Menus) pairs() []pair {
-	items := make([]*fyne.MenuItem, 0, len(m.actions.sort)+23)
+	items := make([]*fyne.MenuItem, 0, len(m.actions.sort)+24)
 	items = append(items, m.open, m.save, m.export, m.closeFiles, m.settings)
 	items = append(items, m.window.viewer, m.window.exif, m.window.grid,
 		m.window.pictureFrame, m.window.help)
 	items = append(items, m.sortParent)
 	items = append(items, m.actions.sort...)
-	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.rotate,
+	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic, m.actions.rotate,
 		m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info,
 		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.wallpaper, m.actions.trash)
 

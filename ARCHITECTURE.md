@@ -52,7 +52,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
-| `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, comparison, deletion, slideshow, settings, then favorites. |
+| `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action shortcut wiring (open, favorites, clipboard, copy selection, comparison, delete, select-all, save, export, wallpaper). Comparison registers the native `Cmd/Ctrl+D` plus physical `Ctrl+D` when those differ. `yieldingShortcuts` blocks ordinary commands during comparison and otherwise yields Copy Selection; Open is admitted only far enough to show comparison's refusal. Copy Selection and clipboard bindings also defend their own direct entries. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
 | `windowtrack.go` | Main-window size tracker and position poller; `widgetGeometry` / `prefGeometry` translate `preferences.WindowGeometry` ↔ `widgets.Geometry`. |
@@ -81,7 +81,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `vector.go` | Debounced SVG re-render. |
 | `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation`, ending in `syncMenus`). |
 | `export.go` | File > Export image (`promptExport` / `exportAs`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. |
-| `wallpaper.go` | Set as Wallpaper: write a PNG into `viewer.wallpaperDir`, then `wallpaper.Set`. |
+| `mosaic.go` | Cross-feature mosaic composition: snapshot explicit Grid selection or the complete filtered result, inspect displays, open the singleton workflow, and adapt generation/display refresh into its narrow Host. |
+| `wallpaper.go` | Shared ordinary/mosaic wallpaper lifecycle: serialize work, export captured pixels to a global or hashed-target cache scope, call `wallpaper.Set(Request)`, and sweep only copies no longer backing another scope. |
 | `autoupdate.go` | Viewer-side update glue: `maybeStartUpdateCheck` gates the opt-in daily check; `CheckForUpdatesNow` adapts manual worker callbacks through `fyne.Do` with an inner staleness check; `PerformUpdate` records relaunch intent and requests quit; `maybeShowWhatsNew` opens cached release notes. Every update entry point refuses a Store-managed viewer. Policy, staging, and cache live in `internal/ui/autoupdate`. |
 | `slideshow.go` | `togglePictureFrameMode` (closes grid first) plus shuffle/interval bindings. |
 | `batch.go` | Routes delete/copy commands by the current subject: image-region selection, grid selection, or displayed image. |
@@ -100,6 +101,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/copyselection/` | Transient Copy Selection mode: image-region geometry, overlay, and captured `Source` crop/encode. `HandleKey` reports whether the mode consumed the key. | `Copy`, `Ended`, `Scroll`. |
 | `internal/ui/grid/` | Overview (G): `GridWrap`, thumb cache, `decodepool`, `uiqueue.go`, search, badges, explicit host-index selection plus its change observer, `marquee.go` (drag rectangle → `Targets()`), browse-duplicates (Shift+D), and `hashengine.go`'s pool-driven hashing pass that feeds `internal/dupes`. `nav.go`: `setHighlight` → `HighlightChanged`. Reads the model; does not own it. | 10-method `Host` including `Modifiers`. |
 | `internal/ui/compare/` | Opaque main-window comparison surface: switchable gapless 50/50 and full-viewport swipe layouts compose two persistent photo transforms with one shared camera transform; each image has one reveal clip so swipe keeps aligned image coordinates. In Swipe, each pane input mirrors its current reveal even though the render viewport remains full-size, and reveal-local wheel coordinates are translated back into that viewport. The ready-gated top-left Unlink/Link control and physical `Ctrl+L` share `ToggleLink`; its adjacent status reports only the active unlinked target, while layout/Swap/Back stay in a separate top-right card. `ToggleLink` changes only input ownership and never changes rendered geometry. Linked pan/zoom moves the camera, linked `0` frames both current photo poses without rewriting them, and linked `1` returns the camera home. Unlinked pointer input and transform keys target the hovered or last-hovered photo; its `0` / `1` fit or show that photo at decoded-pixel size in the current camera. Photo centers and camera movement stop when an image edge reaches its pane center. Resize and layout preserve both photo poses and the camera; Swap deliberately clears divergence from the last-targeted visible pose before exchanging sources. A private `paneRenderer` scene seam keeps transforms independent from presentation; production owns two stable `canvas.Shader` objects while tests can inject the canvas reference adapter. Each immutable render source retains the canonical decoded frame, a long-edge-1024 overview, and a 64 MiB detail-tile cache. The planner uses physical display density and the actual side-by-side/swipe reveal, skips details when the overview is sufficient, and binds at most seven guttered detail tiles without shuffling stable sampler slots. One cancellable worker per pane generates tiles; publications are coalesced and marshalled through the feature's `UIQueue`. Pan/zoom changes shader geometry and uniforms without repainting the viewer root. Each SVG still gets a pane-local device-pixel raster, clamped by `imaging.ClampVectorRaster`, before entering the same overview/tile path. `Settle` covers load, vector, tile, and causal queued completions with reusable channel-epoch barriers. Fyne's software test painter does not render `canvas.Shader`, so deterministic pixel tests use the reference adapter; native runtime acceptance uses the GL painter. The feature also owns divider input, permanent chrome, ready-gated layout/link/Swap controls, the input shield, and the replaceable completion signal. It receives an ordered URI pair and never reads or mutates grid/viewer state. | `Loader` plus `Callbacks` (`Repaint`, `Closed`, `Failed`, `OrderChanged`, `Modifiers`). |
+| `internal/ui/mosaicwin/` | Dedicated configuration/preview window with immutable command-entry sources/topology, accessible controls and focus order, cancellable generation lifecycle, stale-result rejection, exact-result export, targeted wallpaper callback, and remembered geometry. It is a secondary window, not a main-window overlay. | 3-method `Host` (`GenerateMosaic`, `InspectMosaicDisplays`, `SetMosaicWallpaper`). |
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` is the batch path; `Request` is the one-file wrapper. | 7-method `Host`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. | 2-method `Host`. Knows nothing about the grid. |
 | `internal/ui/exifwin/` | EXIF panel (E): tag list, optional JPEG strip, GPS map (`tiles.go`, `startWarm`). Geometry via `widgets.Singleton`. | 4-method `Host`. |
@@ -193,7 +195,7 @@ Secondary-window geometry is `WindowGeometry` structs.
 
 | File | Responsibility |
 |------|----------------|
-| `preferences.go` | `Save`, `Load`, `SaveLastUpdateCheckDay`, `State`, `WindowGeometry`. |
+| `preferences.go` | `Save`, `Load`, `SaveLastUpdateCheckDay`, `State`, `WindowGeometry`; persists normalized mosaic visual settings and secondary-window geometry, never mosaic sources or display IDs. |
 
 ### `internal/appearance`
 
@@ -242,6 +244,24 @@ OS integrations (`clipboard`, `filepicker`, `trash`, `wallpaper`) use
 dispatcher vars and build-tagged platform files; tests stub them via
 `internal/uitest` — see `AGENTS.md`.
 
+### `internal/displays`
+
+Native attached-display inspection. `Inspect(fyne.Window)` returns an ordered
+snapshot of opaque platform IDs, user-facing names, native-pixel bounds, and
+the display containing the greatest part of the PicFetch window. macOS uses
+`NSScreen`/CoreGraphics IDs, Windows uses `IDesktopWallpaper` monitor device
+paths, Linux uses XRandR under X11 and explicitly reports Wayland unsupported.
+Callers compare IDs but never parse them.
+
+### `internal/mosaic`
+
+Viewer-independent mosaic generation. Its small public contract snapshots and
+validates source URIs, native-pixel target size, deterministic seed, and visual
+settings, then returns immutable rendered pixels. Layout, lazy canonical image
+loading, coverage, frame/shadow geometry, and rendering stay inside the
+package; it has no Grid, display-enumeration, picker, wallpaper, preference, or
+widget behavior.
+
 ### `internal/clipboard`
 
 PNG image data (`CopyImage`) and file-reference lists (`CopyFiles`).
@@ -276,14 +296,18 @@ Move to Trash/Recycle Bin (`Move`). Tests use `uitest.StubTrashMove`.
 
 ### `internal/wallpaper`
 
-Set desktop wallpaper (`Set`). UI writes a PNG into the app cache dir
-before calling this.
+Set desktop wallpaper through `Set(Request)`, where a zero target retains the
+legacy global/all-screen action and an opaque display ID requests one screen.
+UI writes a persistent PNG into its cache before calling this. A typed
+`TargetUnsupportedError` distinguishes an honest platform limitation from a
+native execution failure.
 
 | File | Responsibility |
 |------|----------------|
-| `wallpaper.go` | `Set` dispatcher + Linux/Windows impls. |
-| `darwin.go` / `other.go` | AppKit set-desktop-image / stub. |
-| `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
+| `wallpaper.go` | `Request`, `Set` dispatcher, typed limitation, legacy Linux/GNOME/KDE and Windows PowerShell global paths. Linux rejects targets before lookup or mutation. |
+| `darwin.go` / `other.go` | AppKit all-screen or exact preflighted `NSScreen` set / non-Darwin stub. |
+| `target_windows.go` | Targeted `IDesktopWallpaper`: COM-thread lifetime, exact device-path validation, and single-monitor set. |
+| `windows.go` / `notwindows.go` | `hideConsoleWindow` pair plus non-Windows target stub. |
 
 ### `internal/openwith`
 
@@ -423,6 +447,7 @@ see `AGENTS.md`.
 - "How does rotation work, and how is it saved to disk?" → `internal/ui/display` (frames/rotation state) + `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.
 - "How do I write an image out in a different format?" → `internal/ui/export.go` + `filepicker.ChooseSave` + `imaging.Export`.
 - "How does 'Set as Wallpaper' work?" → `internal/ui/wallpaper.go` + `internal/wallpaper`.
+- "How is an image mosaic sourced, generated, previewed, exported, and targeted to a display?" → `internal/ui/mosaic.go` + `internal/ui/mosaicwin` + `internal/mosaic` + `internal/displays` + `internal/ui/wallpaper.go`.
 - "How does the slideshow / picture-frame mode work?" → `internal/ui/slideshow` + `slideshow.go`.
 - "How does delete work?" → `internal/ui/deletion` + `internal/trash` + `shortcuts.go` / `batch.go` `requestDelete`.
 - "How are native file dialogs implemented?" → `internal/filepicker` + `openfiles.go` / `export.go`.

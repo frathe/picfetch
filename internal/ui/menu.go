@@ -34,6 +34,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		ToggleHideDuplicates: view.toggleActionsHideDuplicates,
 		ShowVariant:          view.showActionsVariant,
 		Compare:              view.compareSelected,
+		Mosaic:               view.showMosaic,
 		Rotate:               view.rotateActionsImage,
 		ZoomIn:               view.zoomActionsIn,
 		ZoomOut:              view.zoomActionsOut,
@@ -51,6 +52,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.exif.SetOnClosed(view.syncMenus)
 	view.grid.SetOnVisibilityChanged(view.syncMenus)
 	view.grid.SetOnSelectionChanged(view.syncMenus)
+	view.grid.SetOnResultChanged(view.syncMenus)
 	view.slides.SetOnActiveChanged(view.syncMenus)
 	view.grid.SetOnDupeStateChanged(view.syncMenus)
 	view.syncMenus()
@@ -82,6 +84,7 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 		&c.ToggleHideDuplicates,
 		&c.ShowVariant,
 		&c.Compare,
+		&c.Mosaic,
 		&c.Rotate,
 		&c.ToggleMergeMode,
 		&c.ToggleInfoOverlay,
@@ -180,6 +183,7 @@ func (v *viewer) menuState() menus.State {
 		CanWallpaper:       v.canSetWallpaper(),
 		CanCopySelection:   v.regionCopyAvailable(),
 		CanCompare:         v.grid.Visible() && v.grid.SelectionCount() == 2,
+		CanMosaic:          v.grid.Visible() && len(v.grid.ResultIndexes()) > 0,
 		ComparisonActive:   v.comparisonActive(),
 	}
 }

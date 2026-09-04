@@ -21,6 +21,7 @@ import (
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/update"
 )
@@ -194,6 +195,34 @@ func TestCurrentPreferences_CarriesSecondaryWindowGeometry(t *testing.T) {
 	}
 	if got.ExifWindow != saved {
 		t.Errorf("ExifWindow = %+v, want %+v", got.ExifWindow, saved)
+	}
+}
+
+func TestMosaicPreferences_RestoreAndCurrentSnapshot(t *testing.T) {
+	application := test.NewApp()
+	settings := mosaic.Settings{
+		MinimumShortEdge: 0.24,
+		SizeVariation:    0,
+		Overlap:          0.14,
+		MaximumRotation:  0,
+		Frame:            mosaic.FramePolaroid,
+	}
+	geometry := preferences.WindowGeometry{
+		X: 410, Y: 220, PositionSet: true, Size: fyne.NewSize(810, 640),
+	}
+	preferences.Save(application, preferences.State{MosaicSettings: settings, MosaicWindow: geometry})
+
+	v, win := buildStartupViewer(application)
+	defer win.Close()
+	if got := v.mosaicWin.Settings(); got != settings {
+		t.Fatalf("restored mosaic settings = %+v, want %+v", got, settings)
+	}
+	if got := prefGeometry(v.mosaicWin.Geometry()); got != geometry {
+		t.Fatalf("restored mosaic geometry = %+v, want %+v", got, geometry)
+	}
+	current := v.currentPreferences()
+	if current.MosaicSettings != settings || current.MosaicWindow != geometry {
+		t.Fatalf("current mosaic preferences = settings %+v geometry %+v", current.MosaicSettings, current.MosaicWindow)
 	}
 }
 

@@ -29,6 +29,20 @@ func (g *Overview) SelectionCount() int {
 	return g.sel.Len()
 }
 
+// ResultIndexes returns every host file index represented by the current Grid
+// result, in display order. It is independent of explicit selection and the
+// highlighted cell, and includes virtualized cells outside the viewport.
+func (g *Overview) ResultIndexes() []int {
+	result := make([]int, 0, g.count())
+	for displayIndex := range g.count() {
+		if hostIndex := g.fileIndex(displayIndex); hostIndex >= 0 {
+			result = append(result, hostIndex)
+		}
+	}
+
+	return result
+}
+
 // Targets is what a batch action should run against: the selection when
 // there is one, and otherwise the highlighted cell alone, so the batch
 // shortcuts still mean something with nothing explicitly picked. Empty only

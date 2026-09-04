@@ -90,6 +90,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v, win = buildStartupViewer(testApp)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
+	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
 
 	// The auto-hide timer must never fire on its own mid-suite: its inline
 	// fyne.Do (under the test driver) would write widgets concurrently with
@@ -185,6 +186,7 @@ func drain(t *testing.T, v *viewer) {
 	v.updateOp.invalidate()
 	v.slides.Exit()
 	v.compare.Close()
+	v.mosaicWin.Close()
 
 	// Vector re-renders: spawned by any effective-scale change, so a test
 	// that zoomed or resized may still have one in flight. Must stay below
@@ -241,6 +243,12 @@ func drain(t *testing.T, v *viewer) {
 	defer cancelCompare()
 	if err := v.compare.Settle(compareCtx); err != nil {
 		t.Fatal("timed out draining all comparison workers at cleanup")
+	}
+
+	mosaicCtx, cancelMosaic := context.WithTimeout(context.Background(), testTimeout)
+	defer cancelMosaic()
+	if err := v.mosaicWin.Settle(mosaicCtx); err != nil {
+		t.Fatal("timed out draining all mosaic workers at cleanup")
 	}
 
 	settled := make(chan struct{})

@@ -10,3 +10,10 @@ import "errors"
 func setDarwin(_ string) error {
 	return errors.New("the macOS wallpaper setter only exists in darwin builds")
 }
+
+func setDarwinRequest(request Request) error {
+	if request.Target != "" {
+		return &TargetUnsupportedError{Platform: "macOS", Reason: "the native adapter is unavailable in this build"}
+	}
+	return setDarwin(request.Path)
+}

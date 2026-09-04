@@ -170,6 +170,7 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	}
 
 	g.syncTopBar()
+	g.syncResultChanged()
 }
 
 // displayIndexOfHost maps a host index to a display index, or -1 when that

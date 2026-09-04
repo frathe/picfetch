@@ -610,6 +610,36 @@ einzeln durchzublättern.
 - Das Raster benötigt mindestens ein geladenes Bild und lässt sich nicht mit
   dem Diaschau-Modus kombinieren — das Öffnen des einen schließt das andere.
 
+### Bildmosaike
+
+Wählen Sie bei geöffnetem Raster **Aktionen -> Bildmosaik erstellen...**. Wenn
+Sie Miniaturansichten ausdrücklich ausgewählt haben, bilden nur diese Dateien
+den Quellenvorrat; andernfalls verwendet PicFetch eine Momentaufnahme aller
+Bilder im aktuellen gefilterten Rasterergebnis. Spätere Auswahl-, Filter-,
+Navigations-, Umbenennungs- oder Löschvorgänge ändern das Ziel eines bereits
+geöffneten Mosaikfensters nicht, und die Erstellung verändert niemals eine
+Quelldatei.
+
+Wählen Sie den Zielbildschirm anhand von Name, nativer Pixelauflösung und
+Seitenverhältnis. **Bildschirme aktualisieren** aktualisiert diese Liste; wurde
+der gewählte Bildschirm entfernt, verlangt PicFetch eine neue Auswahl.
+**Minimale Bildgröße** und **Rahmen** sind sofort sichtbar;
+**Erweitert** blendet Größenvariation, Überlappung und maximale Drehung ein.
+Die Erstellung läuft im Hintergrund. `Esc` bricht eine laufende Erstellung ab,
+ein zweites `Esc` schließt das Fenster; ohne laufende Arbeit schließt `Esc` es
+direkt. Alle Bedienelemente und Aktionen sind mit `Tab` und `Shift+Tab`
+erreichbar; `Enter` oder die Leertaste aktiviert eine fokussierte Schaltfläche.
+
+Nach der Erstellung behält **Neu erstellen** Quellen, Bildschirm und
+Einstellungen bei, erzeugt aber eine neue Anordnung. **Bild speichern**
+exportiert das exakte Ergebnis in voller Auflösung als PNG oder JPEG. **Als
+Hintergrundbild festlegen** verwendet eine dauerhafte PicFetch-eigene Kopie:
+Unter Windows und macOS wird nur der gewählte Bildschirm geändert, während der
+gewöhnliche Hintergrundbildbefehl im Hauptfenster global bzw. für alle
+Bildschirme gilt. Die verfügbaren GNOME-/KDE-Integrationen unter Linux arbeiten
+nur global; deshalb wird ein zielgerichtetes Mosaik vor jeder Änderung des
+Desktops abgelehnt. **Bild speichern** bleibt verfügbar.
+
 ---
 
 ## 9. Diaschau-Modus
@@ -969,6 +999,11 @@ benötigen in beiden Fällen nichts Zusätzliches.
   zwei ausgewählten Dateien geöffnet. In der Vergleichs-Werkzeugleiste
   vertauscht **Tauschen** die bezeichneten Seiten, sobald beide bereit sind.
   **Zurück zur Rasteransicht** oder `Esc` kehrt zum unveränderten Raster zurück
+- **Aktionen -> Bildmosaik erstellen...** — öffnet den Mosaikablauf für die
+  ausdrückliche Rasterauswahl oder, wenn nichts ausgewählt ist, für jedes Bild
+  im aktuellen Rasterergebnis. Außerhalb eines nicht leeren Rasterergebnisses
+  ausgegraut. Bedienelemente, Export und der Hintergrundbildumfang je Plattform
+  sind oben unter „Bildmosaike“ beschrieben
 - **Aktionen -> Bild drehen (im Uhrzeigersinn)** (`R`) — 90° im
   Uhrzeigersinn, nur Ansicht, dasselbe wie `R`. Ausgegraut ohne geladenes
   Bild oder solange das Raster offen ist. `Shift+R` bleibt nur über die

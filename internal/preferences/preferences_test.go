@@ -1,6 +1,7 @@
 package preferences
 
 import (
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -9,7 +10,58 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/appearance"
+	"github.com/frathe/picfetch/internal/mosaic"
 )
+
+func TestMosaicPreferences_DefaultsAndRoundTrip(t *testing.T) {
+	app := test.NewApp()
+	if got := Load(app).MosaicSettings; got != mosaic.DefaultSettings() {
+		t.Fatalf("fresh MosaicSettings = %+v, want %+v", got, mosaic.DefaultSettings())
+	}
+
+	for _, frame := range []mosaic.FrameStyle{mosaic.FrameNone, mosaic.FrameThinLight, mosaic.FrameThinDark, mosaic.FramePolaroid} {
+		want := mosaic.Settings{
+			MinimumShortEdge: 0.10,
+			SizeVariation:    0,
+			Overlap:          0,
+			MaximumRotation:  0,
+			Frame:            frame,
+		}
+		Save(app, State{MosaicSettings: want})
+		if got := Load(app).MosaicSettings; got != want {
+			t.Errorf("MosaicSettings(%s) = %+v, want %+v", frame, got, want)
+		}
+	}
+}
+
+func TestMosaicPreferences_NormalizesEachInvalidFieldIndependently(t *testing.T) {
+	app := test.NewApp()
+	p := app.Preferences()
+	p.SetFloat(keyMosaicMinimumShortEdge, math.NaN())
+	p.SetFloat(keyMosaicSizeVariation, 0.20)
+	p.SetFloat(keyMosaicOverlap, math.Inf(1))
+	p.SetFloat(keyMosaicMaximumRotation, 3)
+	p.SetString(keyMosaicFrame, "future-frame")
+
+	got := Load(app).MosaicSettings
+	want := mosaic.DefaultSettings()
+	want.SizeVariation = 0.20
+	want.MaximumRotation = 3
+	if got != want {
+		t.Fatalf("normalized MosaicSettings = %+v, want %+v", got, want)
+	}
+}
+
+func TestMosaicPreferences_GeometryRoundTripsAndUnsetDoesNotOverwrite(t *testing.T) {
+	app := test.NewApp()
+	want := WindowGeometry{X: 0, Y: 0, PositionSet: true, Size: fyne.NewSize(720, 560)}
+	Save(app, State{MosaicSettings: mosaic.DefaultSettings(), MosaicWindow: want})
+	Save(app, State{MosaicSettings: mosaic.DefaultSettings()})
+
+	if got := Load(app).MosaicWindow; got != want {
+		t.Fatalf("MosaicWindow = %+v, want %+v", got, want)
+	}
+}
 
 func TestLoadPreferences_NothingSavedReturnsDefaults(t *testing.T) {
 	app := test.NewApp()
@@ -106,6 +158,7 @@ func TestSavePreferences_RoundTrip(t *testing.T) {
 		CheckForUpdates:    true,
 		LastUpdateCheckDay: "2026-08-26",
 		StaticWindowSize:   true,
+		MosaicSettings:     mosaic.DefaultSettings(),
 	}
 	Save(app, want)
 	// LastUpdateCheckDay is not written by Save (quit must not clobber a

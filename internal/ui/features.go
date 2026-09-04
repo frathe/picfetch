@@ -17,6 +17,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/help"
+	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -25,6 +26,7 @@ import (
 )
 
 var _ settingswin.Host = (*viewer)(nil)
+var _ mosaicwin.Host = (*viewer)(nil)
 
 // registerFeatures constructs every feature in dependency order. It only
 // assigns the viewer's feature fields; build.go still decides how their
@@ -116,6 +118,8 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 			Modifiers:    func() fyne.KeyModifier { return view.keyModifiers() },
 		},
 	)
+	view.mosaicWin = mosaicwin.New(application, view)
+	view.mosaicWin.RestoreSettings(prefs.MosaicSettings)
 	view.SetMaxThumbCacheMB(prefs.MaxThumbCacheMB)
 	view.SetMaxFileSizeMB(prefs.MaxFileSizeMB)
 

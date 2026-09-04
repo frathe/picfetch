@@ -39,6 +39,9 @@ type Singleton struct {
 	// Escape still closes this window (manual, About, Settings, EXIF).
 	// The EXIF panel is the only caller today (Left/Right change image).
 	extraKeys func(*fyne.KeyEvent)
+	// escape may consume Escape for a feature-specific cancellable state. A
+	// false result keeps Singleton's normal close behavior.
+	escape func() bool
 
 	// stopPoll stops the position poller behind the open window, and is nil
 	// whenever none is running. Called on close, and by StopTracking at
@@ -105,6 +108,12 @@ func (s *Singleton) SetExtraKeys(f func(*fyne.KeyEvent)) {
 	s.extraKeys = f
 }
 
+// SetEscape lets a secondary feature consume Escape while it has cancellable
+// work. Returning false preserves Singleton's ordinary close-on-Escape rule.
+func (s *Singleton) SetEscape(f func() bool) {
+	s.escape = f
+}
+
 // StopTracking stops the position poller without closing the window, for
 // the one case closing doesn't cover: the app shutting down while the
 // window is still open, where the poller must stop before the event loop
@@ -157,6 +166,9 @@ func (s *Singleton) Show(app fyne.App, title string, size fyne.Size, build func(
 
 	win.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
 		if ev.Name == fyne.KeyEscape {
+			if s.escape != nil && s.escape() {
+				return
+			}
 			win.Close()
 			return
 		}

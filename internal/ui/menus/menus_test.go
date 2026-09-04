@@ -51,6 +51,7 @@ func TestNew_InitialDisabledMatchesTheBarAsBuilt(t *testing.T) {
 		{"actions.hide", m.Actions().Hide(), true},
 		{"actions.showVariant", m.Actions().ShowVariant(), true},
 		{"actions.compare", m.Actions().Compare(), true},
+		{"actions.mosaic", m.Actions().Mosaic(), true},
 		{"actions.rotate", m.Actions().Rotate(), true},
 		{"actions.zoomIn", m.Actions().ZoomIn(), true},
 		{"actions.zoomOut", m.Actions().ZoomOut(), true},
@@ -176,7 +177,7 @@ func TestActionsMenu_Composition(t *testing.T) {
 	}
 	a := m.Actions()
 	want := []*fyne.MenuItem{
-		m.sortParent, a.Hide(), a.ShowVariant(), a.Compare(),
+		m.sortParent, a.Hide(), a.ShowVariant(), a.Compare(), a.Mosaic(),
 		nil,
 		a.Rotate(), a.ZoomIn(), a.ZoomOut(),
 		nil,
@@ -185,6 +186,26 @@ func TestActionsMenu_Composition(t *testing.T) {
 		a.Copy(), a.CopySelection(), a.CopyPath(), a.Wallpaper(), a.Trash(),
 	}
 	assertItems(t, "Actions", menu.Items, want)
+}
+
+func TestApply_MosaicFollowsCanMosaicAndComparisonIsolation(t *testing.T) {
+	fired := false
+	m := New(Callbacks{Mosaic: func() { fired = true }}, filesort.ByName)
+	item := m.Actions().Mosaic()
+	if item.Label != lang.L("Generate Image Mosaic...") || !item.Disabled {
+		t.Fatalf("initial Mosaic item = {label:%q disabled:%v}", item.Label, item.Disabled)
+	}
+	if !m.Apply(State{CanMosaic: true}) || item.Disabled {
+		t.Fatal("CanMosaic did not enable the mosaic item")
+	}
+	item.Action()
+	if !fired {
+		t.Fatal("Mosaic item did not call its callback")
+	}
+	m.Apply(State{CanMosaic: true, ComparisonActive: true})
+	if !item.Disabled {
+		t.Fatal("comparison isolation did not disable the mosaic item")
+	}
 }
 
 func TestActionsMenu_CopySelection(t *testing.T) {
@@ -359,6 +380,7 @@ func everythingOn() State {
 		CanWallpaper:       true,
 		CanCopySelection:   true,
 		CanCompare:         true,
+		CanMosaic:          true,
 	}
 }
 
@@ -706,6 +728,7 @@ func TestApply_ChangedIsTrueForASingleFlip(t *testing.T) {
 		{"CanWallpaper", base, flip(func(s *State) { s.CanWallpaper = true })},
 		{"CanCopySelection", base, flip(func(s *State) { s.CanCopySelection = true })},
 		{"CanCompare", base, flip(func(s *State) { s.CanCompare = true })},
+		{"CanMosaic", base, flip(func(s *State) { s.CanMosaic = true })},
 		{"VariantGroupSize crossing 2", hiding, hidingWithGroup},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -779,7 +802,7 @@ func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 		m.Window().Viewer(), m.Window().Exif(), m.Window().Grid(),
 		m.Window().PictureFrame(), m.Window().Help(),
 		m.sortParent,
-		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.Actions().Rotate(),
+		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.Actions().Mosaic(), m.Actions().Rotate(),
 		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),
 		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopySelection(), m.Actions().CopyPath(),
 		m.Actions().Wallpaper(), m.Actions().Trash(),
@@ -861,6 +884,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		ToggleHideDuplicates: record("ToggleHideDuplicates"),
 		ShowVariant:          record("ShowVariant"),
 		Compare:              record("Compare"),
+		Mosaic:               record("Mosaic"),
 		Rotate:               record("Rotate"),
 		ZoomIn:               record("ZoomIn"),
 		ZoomOut:              record("ZoomOut"),
@@ -890,6 +914,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		{m.Actions().Hide(), "ToggleHideDuplicates"},
 		{m.Actions().ShowVariant(), "ShowVariant"},
 		{m.Actions().Compare(), "Compare"},
+		{m.Actions().Mosaic(), "Mosaic"},
 		{m.Actions().Rotate(), "Rotate"},
 		{m.Actions().ZoomIn(), "ZoomIn"},
 		{m.Actions().ZoomOut(), "ZoomOut"},

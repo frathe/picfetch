@@ -2,7 +2,7 @@ package ui
 
 import "testing"
 
-func TestBuildViewer_RegistersAllEightFeatures(t *testing.T) {
+func TestBuildViewer_RegistersAllFeatures(t *testing.T) {
 	view := newTestViewer(t)
 
 	features := []struct {
@@ -17,6 +17,7 @@ func TestBuildViewer_RegistersAllEightFeatures(t *testing.T) {
 		{name: "slideshow", registered: view.slides != nil},
 		{name: "settings", registered: view.settingsWin != nil},
 		{name: "favorites", registered: view.favorites != nil},
+		{name: "mosaic", registered: view.mosaicWin != nil},
 	}
 
 	for _, feature := range features {

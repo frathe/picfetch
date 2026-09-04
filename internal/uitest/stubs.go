@@ -3,7 +3,10 @@ package uitest
 import (
 	"testing"
 
+	"fyne.io/fyne/v2"
+
 	"github.com/frathe/picfetch/internal/clipboard"
+	"github.com/frathe/picfetch/internal/displays"
 	"github.com/frathe/picfetch/internal/filepicker"
 	"github.com/frathe/picfetch/internal/trash"
 	"github.com/frathe/picfetch/internal/wallpaper"
@@ -24,6 +27,16 @@ func StubChooser(t *testing.T, out []byte, err error) {
 	orig := filepicker.Choose
 	t.Cleanup(func() { filepicker.Choose = orig })
 	filepicker.Choose = func() ([]byte, error) { return out, err }
+}
+
+// StubDisplays makes displays.Inspect use a deterministic topology without
+// reading the developer's attached monitors.
+func StubDisplays(t *testing.T, fn func(fyne.Window) (displays.Snapshot, error)) {
+	t.Helper()
+
+	orig := displays.Inspect
+	t.Cleanup(func() { displays.Inspect = orig })
+	displays.Inspect = fn
 }
 
 // StubSaveChooser makes filepicker.ChooseSave call fn instead of opening
@@ -72,10 +85,20 @@ func StubTrashMove(t *testing.T, fn func(path string) error) {
 // StubWallpaperSet makes wallpaper.Set call fn instead of changing the
 // machine's real desktop wallpaper - the one stub here whose absence a test
 // run would leave visibly behind on the developer's own screen.
-func StubWallpaperSet(t *testing.T, fn func(path string) error) {
+func StubWallpaperSet(t *testing.T, fn any) {
 	t.Helper()
 
 	orig := wallpaper.Set
 	t.Cleanup(func() { wallpaper.Set = orig })
-	wallpaper.Set = fn
+	switch set := fn.(type) {
+	case func(string) error:
+		// Keep older viewer tests terse while the production seam carries the
+		// optional display target. Tests concerned with targeting pass the full
+		// Request form below.
+		wallpaper.Set = func(request wallpaper.Request) error { return set(request.Path) }
+	case func(wallpaper.Request) error:
+		wallpaper.Set = set
+	default:
+		t.Fatalf("unsupported wallpaper stub type %T", fn)
+	}
 }

@@ -75,6 +75,7 @@ func restoreStartupGeometry(view *viewer, window fyne.Window, startup startupSta
 
 	view.settingsWin.RestoreGeometry(widgetGeometry(prefs.SettingsWindow))
 	view.exif.RestoreGeometry(widgetGeometry(prefs.ExifWindow))
+	view.mosaicWin.RestoreGeometry(widgetGeometry(prefs.MosaicWindow))
 
 	initialSize := fyne.NewSize(startW, startH)
 	if prefs.WindowSize.Width > 0 && prefs.WindowSize.Height > 0 {

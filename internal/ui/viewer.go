@@ -28,6 +28,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/help"
 	"github.com/frathe/picfetch/internal/ui/infoview"
 	"github.com/frathe/picfetch/internal/ui/menus"
+	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -103,6 +104,10 @@ type viewer struct {
 	// Named settingsWin, not settings, because that name belongs to the
 	// settings-backed state struct below.
 	settingsWin *settingswin.Window
+
+	// mosaicWin owns the dedicated secondary mosaic workflow. It is not part
+	// of the main window's load-bearing overlay stack.
+	mosaicWin *mosaicwin.Window
 
 	// menus holds the File, Window and Actions menu items whose
 	// Checked/Disabled state moves at runtime - all five File items, the five
@@ -427,6 +432,9 @@ type viewer struct {
 	// Value fields, never copied: each holds a mutex.
 	wallpaper completion.Signal
 	favThumb  completion.Signal
+	// wallpaperBusy serializes the ordinary action and the mosaic window's
+	// targeted action across their otherwise independent worker lifecycles.
+	wallpaperBusy atomic.Bool
 
 	// wallpaperDir is where setAsWallpaper (wallpaper.go) writes the PNG it
 	// hands to the OS - defaultWallpaperDir in production, a t.TempDir() in

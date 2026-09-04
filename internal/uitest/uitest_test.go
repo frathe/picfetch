@@ -3,8 +3,31 @@ package uitest
 import (
 	"bytes"
 	"encoding/binary"
+	"image"
 	"testing"
+
+	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/displays"
 )
+
+func TestStubDisplays(t *testing.T) {
+	want := displays.Snapshot{
+		Displays: []displays.Display{{ID: "fixture", Name: "Fixture", Bounds: image.Rect(0, 0, 1920, 1080)}},
+		Default:  "fixture",
+	}
+	StubDisplays(t, func(_ fyne.Window) (displays.Snapshot, error) {
+		return want, nil
+	})
+
+	got, err := displays.Inspect(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Default != want.Default || got.Displays[0] != want.Displays[0] {
+		t.Fatalf("Inspect() = %+v, want %+v", got, want)
+	}
+}
 
 func TestLittleEndianTIFF_WritesHeaderAndIntegers(t *testing.T) {
 	buf := newLittleEndianTIFF()

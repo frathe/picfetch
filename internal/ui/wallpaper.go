@@ -4,6 +4,9 @@
 package ui
 
 import (
+	"context"
+	"crypto/sha256"
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -14,7 +17,9 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/displays"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/wallpaper"
 )
 
@@ -22,6 +27,8 @@ import (
 // sweepWallpapers matches on to clear the one it replaces. Everything else
 // in that directory is left alone.
 const wallpaperPrefix = "wallpaper-"
+
+var errWallpaperBusy = wallpaper.ErrBusy
 
 // canSetWallpaper reports whether the Actions "Set as Wallpaper"
 // item should be enabled. Deliberately the same condition as canExport
@@ -56,6 +63,10 @@ func (v *viewer) setAsWallpaper() {
 	if !v.canSetWallpaper() {
 		return
 	}
+	if !v.wallpaperBusy.CompareAndSwap(false, true) {
+		v.reportWallpaperError(errWallpaperBusy)
+		return
+	}
 
 	src, _, _ := v.CurrentFile()
 	img := v.img.Image
@@ -67,37 +78,44 @@ func (v *viewer) setAsWallpaper() {
 
 	go func() {
 		defer done()
+		defer v.wallpaperBusy.Store(false)
 
-		v.applyWallpaper(src, img)
+		if err := v.applyWallpaper(context.Background(), img, src.Name(), ""); err != nil {
+			v.reportWallpaperError(err)
+			return
+		}
+		fyne.Do(func() {
+			v.ShowToast(fmt.Sprintf(lang.L("set %q as the wallpaper"), src.Name()))
+		})
 	}()
 }
 
-// applyWallpaper is split out from setAsWallpaper the way runExport is from
-// exportAs, so tests can drive the whole write-then-set path on a single
-// goroutine. src is used only for the name the toast reports; img is passed
-// in rather than read from the viewer here, since this runs off the UI
-// goroutine.
-func (v *viewer) applyWallpaper(src fyne.URI, img image.Image) {
-	dest, err := v.writeWallpaperFile(img)
+// applyWallpaper is the single write-then-set lifecycle used by both viewer
+// pixels and immutable mosaic-result pixels. The caller owns wallpaperBusy.
+func (v *viewer) applyWallpaper(ctx context.Context, img image.Image, label string, target displays.ID) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	dest, err := v.writeWallpaperFile(img, target)
 	if err != nil {
-		v.reportWallpaperError(err)
-		return
+		return fmt.Errorf("write wallpaper copy for %q: %w", label, err)
 	}
 
-	if err := wallpaper.Set(dest); err != nil {
+	if err := ctx.Err(); err != nil {
+		_ = os.Remove(dest)
+		return err
+	}
+	if err := wallpaper.Set(wallpaper.Request{Path: dest, Target: target}); err != nil {
 		// The file just written is of no use to anyone now, and the previous
 		// one may well still be the active wallpaper - so this removes only
 		// what this call added, and sweeps nothing.
 		_ = os.Remove(dest)
-		v.reportWallpaperError(err)
-		return
+		return fmt.Errorf("set wallpaper for %q: %w", label, err)
 	}
 
-	sweepWallpapers(v.wallpaperDir, dest)
+	sweepWallpapers(v.wallpaperDir, dest, target)
 
-	fyne.Do(func() {
-		v.ShowToast(fmt.Sprintf(lang.L("set %q as the wallpaper"), src.Name()))
-	})
+	return nil
 }
 
 // writeWallpaperFile encodes img as a PNG in the viewer's own cache
@@ -106,12 +124,12 @@ func (v *viewer) applyWallpaper(src fyne.URI, img image.Image) {
 // path: re-pointing it at the same path with different content can leave
 // the old picture on screen. sweepWallpapers is what keeps that from
 // accumulating a file per invocation.
-func (v *viewer) writeWallpaperFile(img image.Image) (string, error) {
+func (v *viewer) writeWallpaperFile(img image.Image, target displays.ID) (string, error) {
 	if err := os.MkdirAll(v.wallpaperDir, 0o755); err != nil {
 		return "", err
 	}
 
-	name := fmt.Sprintf("%s%d.png", wallpaperPrefix, time.Now().UnixNano())
+	name := fmt.Sprintf("%s%s-%d.png", wallpaperPrefix, wallpaperScope(target), time.Now().UnixNano())
 	dest := filepath.Join(v.wallpaperDir, name)
 	if err := imaging.Export(storage.NewFileURI(dest), img, nil); err != nil {
 		return "", err
@@ -125,8 +143,12 @@ func (v *viewer) writeWallpaperFile(img image.Image) (string, error) {
 // a file that can't be removed costs a few hundred KB of cache and nothing
 // else, and there is nothing useful to tell the user about it - the wallpaper
 // they asked for is already on screen by the time this runs.
-func sweepWallpapers(dir, keep string) {
-	matches, err := filepath.Glob(filepath.Join(dir, wallpaperPrefix+"*.png"))
+func sweepWallpapers(dir, keep string, target displays.ID) {
+	pattern := wallpaperPrefix + "*.png"
+	if target != "" {
+		pattern = wallpaperPrefix + wallpaperScope(target) + "-*.png"
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, pattern))
 	if err != nil {
 		return
 	}
@@ -139,6 +161,34 @@ func sweepWallpapers(dir, keep string) {
 	}
 }
 
+// wallpaperScope turns an opaque platform ID into a stable filesystem-safe
+// cache partition without persisting the raw identifier.
+func wallpaperScope(target displays.ID) string {
+	if target == "" {
+		return "global"
+	}
+	digest := sha256.Sum256([]byte(target))
+	return fmt.Sprintf("target-%x", digest[:8])
+}
+
+// SetMosaicWallpaper applies the immutable latest result to exactly the
+// selected display. It deliberately never reads the main viewer image.
+func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID) error {
+	if target == "" {
+		return errors.New("mosaic wallpaper requires a target display")
+	}
+	pixels := result.Image()
+	if pixels == nil {
+		return errors.New("mosaic wallpaper has no generated pixels")
+	}
+	if !v.wallpaperBusy.CompareAndSwap(false, true) {
+		return errWallpaperBusy
+	}
+	defer v.wallpaperBusy.Store(false)
+
+	return v.applyWallpaper(ctx, pixels, lang.L("Image Mosaic"), target)
+}
+
 // reportWallpaperError toasts a failed wallpaper change from the background
 // goroutine. One message for both halves of the operation - writing the copy
 // and handing it to the OS - since the error itself says which, and neither
@@ -147,6 +197,10 @@ func (v *viewer) reportWallpaperError(err error) {
 	fyne.LogError("failed to set the wallpaper", err)
 
 	fyne.Do(func() {
+		if errors.Is(err, wallpaper.ErrBusy) {
+			v.ShowToast(lang.L("Another wallpaper change is already in progress."))
+			return
+		}
 		v.ShowToast(fmt.Sprintf(lang.L("could not set the wallpaper: %v"), err))
 	})
 }

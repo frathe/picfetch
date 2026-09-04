@@ -7,6 +7,7 @@ package wallpaper
 #cgo LDFLAGS: -framework AppKit
 
 #import <AppKit/AppKit.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 // setWallpaper points every screen's desktop picture at path via
@@ -26,12 +27,27 @@ package wallpaper
 // Screen / Stretch choice, and their background color) are read back and
 // passed through, so setting a wallpaper from this app changes the picture
 // and nothing else. Returns NULL on success, or a malloc'd error message.
-static char *setWallpaper(const char *path) {
+static char *setWallpaper(const char *path, uint32_t displayID, int targeted) {
 	@autoreleasepool {
 		NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
 		NSArray<NSScreen *> *screens = [NSScreen screens];
 		if (screens.count == 0) {
 			return strdup("no screen is attached");
+		}
+
+		NSScreen *targetScreen = nil;
+		if (targeted) {
+			for (NSScreen *screen in screens) {
+				NSNumber *number = screen.deviceDescription[@"NSScreenNumber"];
+				if (number != nil && number.unsignedIntValue == displayID) {
+					targetScreen = screen;
+					break;
+				}
+			}
+			if (targetScreen == nil) {
+				return strdup("the selected display is no longer attached");
+			}
+			screens = @[targetScreen];
 		}
 
 		for (NSScreen *screen in screens) {
@@ -52,6 +68,8 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"unsafe"
 )
 
@@ -59,10 +77,34 @@ import (
 // AppKit's NSWorkspace, in-process - see setWallpaper above for why not an
 // osascript shell-out.
 func setDarwin(path string) error {
+	return setDarwinNative(path, 0, false)
+}
+
+func setDarwinRequest(request Request) error {
+	return setDarwinRequestWith(request, setDarwinNative)
+}
+
+func setDarwinRequestWith(request Request, native func(string, uint32, bool) error) error {
+	if request.Target == "" {
+		return native(request.Path, 0, false)
+	}
+	displayID, err := strconv.ParseUint(string(request.Target), 10, 32)
+	if err != nil {
+		return fmt.Errorf("invalid macOS display ID %q: %w", request.Target, err)
+	}
+
+	return native(request.Path, uint32(displayID), true)
+}
+
+func setDarwinNative(path string, displayID uint32, targeted bool) error {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	cErr := C.setWallpaper(cPath)
+	targetedInt := C.int(0)
+	if targeted {
+		targetedInt = 1
+	}
+	cErr := C.setWallpaper(cPath, C.uint32_t(displayID), targetedInt)
 	if cErr == nil {
 		return nil
 	}

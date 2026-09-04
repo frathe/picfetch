@@ -107,6 +107,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.stopWinPosPoll()
 		view.settingsWin.StopTracking()
 		view.exif.StopTracking()
+		view.mosaicWin.StopTracking()
 		view.scanOp.lifecycle.invalidate()
 		view.loadLifecycle.invalidate()
 		view.sortOp.lifecycle.invalidate()
@@ -114,6 +115,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.regionCopyLifecycle.invalidate()
 		view.updateOp.invalidate()
 		view.compare.Close()
+		view.mosaicWin.Close()
 
 		// Same reasoning as the invalidations above, for the one piece of
 		// state that outlives the viewer: openwith's queue is
@@ -171,5 +173,7 @@ func (v *viewer) currentPreferences() preferences.State {
 		WindowPositionSet:    posSet,
 		SettingsWindow:       prefGeometry(v.settingsWin.Geometry()),
 		ExifWindow:           prefGeometry(v.exif.Geometry()),
+		MosaicWindow:         prefGeometry(v.mosaicWin.Geometry()),
+		MosaicSettings:       v.mosaicWin.Settings(),
 	}
 }

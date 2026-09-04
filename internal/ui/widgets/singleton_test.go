@@ -180,6 +180,29 @@ func TestSingleton_EscapeStillClosesWhenExtraKeysSet(t *testing.T) {
 	}
 }
 
+func TestSingleton_EscapeOverrideCanHandleWithoutClosing(t *testing.T) {
+	app := test.NewApp()
+	var s Singleton
+	handled := true
+	calls := 0
+	s.SetEscape(func() bool {
+		calls++
+		return handled
+	})
+	s.Show(app, "esc", fyne.NewSize(300, 200), newSingletonContent, nil)
+
+	handler := s.Window().Canvas().OnTypedKey()
+	handler(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if !s.Open() || calls != 1 {
+		t.Fatalf("handled Escape open=%v calls=%d, want open and one callback", s.Open(), calls)
+	}
+	handled = false
+	handler(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if s.Open() || calls != 2 {
+		t.Fatalf("unhandled Escape open=%v calls=%d, want closed and two callbacks", s.Open(), calls)
+	}
+}
+
 func TestSingleton_NilExtraKeysKeepsEscapeOnly(t *testing.T) {
 	app := test.NewApp()
 	var s Singleton

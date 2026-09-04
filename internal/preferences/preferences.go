@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/appearance"
+	"github.com/frathe/picfetch/internal/mosaic"
 )
 
 const (
@@ -45,6 +46,12 @@ const (
 
 	keyDuplicateDistance    = "duplicateDistance"
 	keyDuplicateDistanceSet = "duplicateDistanceSet"
+
+	keyMosaicMinimumShortEdge = "mosaicMinimumShortEdge"
+	keyMosaicSizeVariation    = "mosaicSizeVariation"
+	keyMosaicOverlap          = "mosaicOverlap"
+	keyMosaicMaximumRotation  = "mosaicMaximumRotation"
+	keyMosaicFrame            = "mosaicFrame"
 )
 
 // geometryKeys names the five preference keys one secondary window's
@@ -60,6 +67,7 @@ type geometryKeys struct {
 var (
 	settingsWinKeys = geometryKeys{"settingsWinPosX", "settingsWinPosY", "settingsWinPosSet", "settingsWinWidth", "settingsWinHeight"}
 	exifWinKeys     = geometryKeys{"exifWinPosX", "exifWinPosY", "exifWinPosSet", "exifWinWidth", "exifWinHeight"}
+	mosaicWinKeys   = geometryKeys{"mosaicWinPosX", "mosaicWinPosY", "mosaicWinPosSet", "mosaicWinWidth", "mosaicWinHeight"}
 )
 
 // Valid values for State.SortMode, persisted under keySortMode. Defined as
@@ -129,6 +137,12 @@ type State struct {
 	// that wants to be remembered adds another - see WindowGeometry.
 	SettingsWindow WindowGeometry
 	ExifWindow     WindowGeometry
+	MosaicWindow   WindowGeometry
+
+	// MosaicSettings are the last valid visual controls from the mosaic
+	// window. Sources, seed, display target, pixels, and lifecycle state are
+	// deliberately transient and never enter standing preferences.
+	MosaicSettings mosaic.Settings
 
 	// FavoritePreviewCache is the one preference in this struct whose
 	// default is true rather than the zero value: favorites/disk thumbnail
@@ -244,9 +258,22 @@ func Save(app fyne.App, s State) {
 		p.SetInt(keyDuplicateDistance, s.DuplicateDistance)
 		p.SetBool(keyDuplicateDistanceSet, true)
 	}
+	// MinimumShortEdge cannot validly be zero, so it is the one safe marker
+	// for an old caller that did not seed mosaic settings at all. Once seeded,
+	// the other three numeric values are written unconditionally because zero
+	// is an explicit, valid user choice for each.
+	if s.MosaicSettings.MinimumShortEdge != 0 {
+		settings := s.MosaicSettings.Normalized()
+		p.SetFloat(keyMosaicMinimumShortEdge, settings.MinimumShortEdge)
+		p.SetFloat(keyMosaicSizeVariation, settings.SizeVariation)
+		p.SetFloat(keyMosaicOverlap, settings.Overlap)
+		p.SetFloat(keyMosaicMaximumRotation, settings.MaximumRotation)
+		p.SetString(keyMosaicFrame, string(settings.Frame))
+	}
 
 	saveGeometry(p, settingsWinKeys, s.SettingsWindow)
 	saveGeometry(p, exifWinKeys, s.ExifWindow)
+	saveGeometry(p, mosaicWinKeys, s.MosaicWindow)
 }
 
 // saveGeometry writes one secondary window's geometry under k, position and
@@ -290,6 +317,14 @@ func loadGeometry(p fyne.Preferences, k geometryKeys) WindowGeometry {
 // startW/startH).
 func Load(app fyne.App) State {
 	p := app.Preferences()
+	defaults := mosaic.DefaultSettings()
+	mosaicSettings := mosaic.Settings{
+		MinimumShortEdge: p.FloatWithFallback(keyMosaicMinimumShortEdge, defaults.MinimumShortEdge),
+		SizeVariation:    p.FloatWithFallback(keyMosaicSizeVariation, defaults.SizeVariation),
+		Overlap:          p.FloatWithFallback(keyMosaicOverlap, defaults.Overlap),
+		MaximumRotation:  p.FloatWithFallback(keyMosaicMaximumRotation, defaults.MaximumRotation),
+		Frame:            mosaic.FrameStyleFromPreference(p.StringWithFallback(keyMosaicFrame, string(defaults.Frame))),
+	}.Normalized()
 
 	// float64(time.Second) is reported as a redundant conversion but is
 	// load-bearing: Preferences.Float returns float64 and time.Second is a
@@ -317,6 +352,8 @@ func Load(app fyne.App) State {
 		WindowPositionSet:    p.Bool(keyWindowPosSet),
 		SettingsWindow:       loadGeometry(p, settingsWinKeys),
 		ExifWindow:           loadGeometry(p, exifWinKeys),
+		MosaicWindow:         loadGeometry(p, mosaicWinKeys),
+		MosaicSettings:       mosaicSettings,
 		FavoritePreviewCache: p.BoolWithFallback(keyFavoritePreviewCache, true),
 		CheckForUpdates:      p.Bool(keyCheckForUpdates),
 		LastUpdateCheckDay:   p.String(keyLastUpdateCheckDay),

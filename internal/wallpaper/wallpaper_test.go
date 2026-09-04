@@ -6,7 +6,39 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/frathe/picfetch/internal/displays"
 )
+
+func TestRequestAndTargetUnsupportedAreTyped(t *testing.T) {
+	request := Request{Path: "/tmp/mosaic.png", Target: displays.ID("opaque-monitor")}
+	if request.Path != "/tmp/mosaic.png" || request.Target != "opaque-monitor" {
+		t.Fatalf("request = %+v", request)
+	}
+	err := error(&TargetUnsupportedError{Platform: "linux"})
+	var unsupported *TargetUnsupportedError
+	if !errors.As(err, &unsupported) || unsupported.Platform != "linux" {
+		t.Fatalf("errors.As(%v) failed", err)
+	}
+}
+
+func TestLinuxTarget_ReturnsUnsupportedBeforeAnyLookupOrCommand(t *testing.T) {
+	lookups := 0
+	originalG, originalP := lookupGsettings, lookupPlasmaApply
+	t.Cleanup(func() { lookupGsettings, lookupPlasmaApply = originalG, originalP })
+	lookupGsettings = func() (string, error) { lookups++; return "gsettings", nil }
+	lookupPlasmaApply = func() (string, error) { lookups++; return "plasma", nil }
+	commands := captureCommands(t, nil)
+
+	err := setLinuxRequest(Request{Path: "/tmp/mosaic.png", Target: "display-1"})
+	var unsupported *TargetUnsupportedError
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("setLinuxRequest() = %v, want TargetUnsupportedError", err)
+	}
+	if lookups != 0 || len(*commands) != 0 {
+		t.Fatalf("targeted Linux request performed %d lookups and %d commands", lookups, len(*commands))
+	}
+}
 
 // captureCommands swaps runWallpaperCommand for a recorder, returning a
 // pointer to the argument lists of every command the code under test ran, in
@@ -224,6 +256,38 @@ func TestSetWindows_BuildsExpectedScript(t *testing.T) {
 		if !strings.Contains(script, want) {
 			t.Errorf("script does not contain %q:\n%s", want, script)
 		}
+	}
+}
+
+func TestSetWindows_DispatchesTargetWithoutGlobalFallback(t *testing.T) {
+	commands := captureCommands(t, nil)
+	request := Request{Path: `C:\Users\me\mosaic.png`, Target: `\\?\DISPLAY#opaque`}
+	var got Request
+	if err := setWindowsRequestWith(request, func(targeted Request) error {
+		got = targeted
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got != request {
+		t.Fatalf("target adapter request = %+v, want %+v", got, request)
+	}
+	if len(*commands) != 0 {
+		t.Fatalf("targeted dispatch ran global PowerShell commands: %v", *commands)
+	}
+}
+
+func TestSetWindows_LegacyRequestUsesExistingPowerShellPath(t *testing.T) {
+	commands := captureCommands(t, nil)
+	targetCalls := 0
+	if err := setWindowsRequestWith(Request{Path: `C:\wallpaper.png`}, func(Request) error {
+		targetCalls++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if targetCalls != 0 || len(*commands) != 1 {
+		t.Fatalf("legacy request targetCalls=%d commands=%v", targetCalls, *commands)
 	}
 }
 

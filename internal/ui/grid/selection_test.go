@@ -355,6 +355,54 @@ func TestFilesChanged_ClearsTheSelectionAndClampsTheHighlight(t *testing.T) {
 
 // --- targets ---------------------------------------------------------------
 
+func TestResultIndexes_ReturnsEveryDrawnHostIndex(t *testing.T) {
+	g, _ := openGrid(t, "sun1.jpg", "moon.jpg", "sun2.jpg", "star.jpg")
+	typeQuery(g, "sun")
+
+	want := []int{0, 2}
+	got := g.ResultIndexes()
+	if !slices.Equal(got, want) {
+		t.Fatalf("ResultIndexes() = %v, want %v", got, want)
+	}
+
+	got[0] = 99
+	if !slices.Equal(g.ResultIndexes(), want) {
+		t.Fatal("ResultIndexes retained a caller-owned result slice")
+	}
+}
+
+func TestResultIndexes_IsIndependentOfSelectionAndHighlight(t *testing.T) {
+	g, host := openGrid(t, "a.jpg", "b.jpg", "c.jpg")
+	click(g, host, 1, fyne.KeyModifierShortcutDefault)
+	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+
+	if want := []int{0, 1, 2}; !slices.Equal(g.ResultIndexes(), want) {
+		t.Fatalf("ResultIndexes() = %v, want %v", g.ResultIndexes(), want)
+	}
+	if want := []int{1}; !slices.Equal(g.Selection(), want) {
+		t.Fatalf("Selection() = %v, want %v", g.Selection(), want)
+	}
+}
+
+func TestResultChanged_NotifiesOnlyAfterMembershipChanges(t *testing.T) {
+	g, host := openGrid(t, "sun.jpg", "moon.jpg")
+	var seen [][]int
+	g.SetOnResultChanged(func() {
+		seen = append(seen, g.ResultIndexes())
+	})
+
+	g.HandleRune('/') // opening an empty search retains every result
+	g.HandleRune('s') // only sun remains
+	g.backspace()     // all results return
+	host.files = host.files[:1]
+	g.FilesChanged() // shrinking the host changes the unfiltered result
+
+	want := [][]int{{0}, {0, 1}, {0}}
+	if !slices.EqualFunc(seen, want, slices.Equal[[]int]) {
+		t.Fatalf("result notifications = %v, want %v", seen, want)
+	}
+}
+
 func TestTargets_IsTheSelectionWhenThereIsOne(t *testing.T) {
 	g, host := openGrid(t, "a.jpg", "b.jpg", "c.jpg")
 

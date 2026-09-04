@@ -11,6 +11,7 @@ package grid
 import (
 	"image"
 	"image/color"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -98,6 +99,8 @@ type Overview struct {
 	onVisibility func()
 	onDupeState  func()
 	onSelection  func()
+	onResult     func()
+	lastResult   []int
 	wrap         *widget.GridWrap
 	overlay      *fyne.Container
 
@@ -474,6 +477,7 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	)
 	g.overlay = container.NewStack(backdrop, container.NewBorder(g.searchBar, nil, nil, nil, body))
 	g.overlay.Hide()
+	g.lastResult = g.ResultIndexes()
 
 	return g
 }
@@ -507,6 +511,21 @@ func (g *Overview) SetOnSelectionChanged(f func()) { g.onSelection = f }
 func (g *Overview) fireSelectionChanged() {
 	if g.onSelection != nil {
 		g.onSelection()
+	}
+}
+
+// SetOnResultChanged registers f to run after the current displayed result's
+// membership changes. The field is read at fire time. nil is a no-op.
+func (g *Overview) SetOnResultChanged(f func()) { g.onResult = f }
+
+func (g *Overview) syncResultChanged() {
+	result := g.ResultIndexes()
+	if slices.Equal(g.lastResult, result) {
+		return
+	}
+	g.lastResult = result
+	if g.onResult != nil {
+		g.onResult()
 	}
 }
 

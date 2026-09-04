@@ -537,6 +537,31 @@ instead of arrowing through them one at a time.
 - The grid needs at least one image loaded, and doesn't combine with
   picture-frame mode - opening one closes the other.
 
+### Image mosaics
+
+While the Grid is open, choose **Actions -> Generate Image Mosaic...**. If
+you explicitly selected thumbnails, only those files become the source pool;
+otherwise PicFetch snapshots every image in the current filtered Grid result.
+Later selection, filtering, navigation, renaming, or deletion does not retarget
+an already-open mosaic window, and generation never modifies a source file.
+
+Choose the target display by its name, native pixel resolution, and aspect
+ratio. **Refresh Displays** updates that list; if the chosen display has been
+removed, PicFetch requires a new selection. **Minimum image size** and **Frame** are immediately visible;
+**Advanced** reveals size variation, overlap, and maximum rotation. Generate
+runs in the background. `Esc` cancels an active generation and a second `Esc`
+closes the window; when idle, `Esc` closes it directly. All controls and
+actions are reachable with `Tab` and `Shift+Tab`, and `Enter` or `Space`
+activates a focused button.
+
+After generation, **Regenerate** keeps the same sources, display, and settings
+but makes a new arrangement. **Save Image** exports the exact full-resolution
+result as PNG or JPEG. **Set as Wallpaper** uses a PicFetch-owned persistent
+copy: on Windows and macOS it changes only the chosen display, while the
+ordinary main-window wallpaper command remains global/all-screen. Linux's
+available GNOME/KDE integrations are global-only, so a targeted mosaic request
+is refused before any desktop change; **Save Image** remains available.
+
 ---
 
 ## 9. Picture-frame mode
@@ -852,6 +877,10 @@ needed. macOS and Windows need nothing extra either way.
   unless the grid is open with exactly two selections. The comparison toolbar
   can **Swap** the identified sides once both are ready. **Back to Grid** or
   `Esc` returns to the untouched grid
+- **Actions -> Generate Image Mosaic...** — opens the mosaic workflow for the
+  explicit Grid selection, or for every current Grid result when nothing is
+  selected. Greyed out outside a non-empty Grid result. See "Image mosaics"
+  above for controls, export, and per-platform wallpaper scope
 - **Actions -> Rotate image (CW)** (`R`) — 90° clockwise, view-only, same as
   `R`. Greyed out with no image loaded or while the grid is up.
   `Shift+R` stays keyboard-only

@@ -16,23 +16,54 @@ package wallpaper
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/frathe/picfetch/internal/displays"
 )
 
-// Set dispatches to the current OS's own way of making path the desktop
+// Request names the persistent PicFetch-owned image and, optionally, the
+// opaque display that should receive it. A zero Target preserves the legacy
+// all-desktop action.
+type Request struct {
+	Path   string
+	Target displays.ID
+}
+
+// ErrBusy reports that another PicFetch wallpaper copy/set/cleanup operation
+// owns the shared lifecycle. Callers can retain their current preview and try
+// again after that operation completes.
+var ErrBusy = errors.New("another wallpaper change is already in progress")
+
+// TargetUnsupportedError reports a platform that cannot truthfully apply a
+// selected-display request without changing other displays too.
+type TargetUnsupportedError struct {
+	Platform string
+	Reason   string
+}
+
+func (e *TargetUnsupportedError) Error() string {
+	if e.Reason == "" {
+		return fmt.Sprintf("%s cannot set wallpaper for one selected display", e.Platform)
+	}
+
+	return fmt.Sprintf("%s cannot set wallpaper for one selected display: %s", e.Platform, e.Reason)
+}
+
+// Set dispatches to the current OS's own way of making request.Path the desktop
 // wallpaper. A var so callers' tests can stub the whole platform dispatch.
-var Set = func(path string) error {
+var Set = func(request Request) error {
 	switch runtime.GOOS {
 	case "darwin":
-		return setDarwin(path)
+		return setDarwinRequest(request)
 	case "windows":
-		return setWindows(path)
+		return setWindowsRequest(request)
 	default:
-		return setLinux(path)
+		return setLinuxRequest(request)
 	}
 }
 
@@ -87,6 +118,17 @@ func setLinux(path string) error {
 	return nil
 }
 
+func setLinuxRequest(request Request) error {
+	if request.Target != "" {
+		return &TargetUnsupportedError{
+			Platform: "Linux",
+			Reason:   "the active desktop integration applies wallpaper globally; Save Image remains available",
+		}
+	}
+
+	return setLinux(request.Path)
+}
+
 // isKDE reports whether this is a KDE Plasma session. XDG_CURRENT_DESKTOP is
 // colon-separated and may name several desktops ("KDE", but also
 // "KDE:Plasma"), so this is a substring test rather than an equality one.
@@ -130,6 +172,18 @@ if ([PicFetchWallpaper]::SystemParametersInfo(20, 0, "` + escapePowerShellPath(p
 	hideConsoleWindow(cmd)
 	_, err := runWallpaperCommand(cmd)
 	return err
+}
+
+func setWindowsRequest(request Request) error {
+	return setWindowsRequestWith(request, setWindowsTarget)
+}
+
+func setWindowsRequestWith(request Request, targeted func(Request) error) error {
+	if request.Target == "" {
+		return setWindows(request.Path)
+	}
+
+	return targeted(request)
 }
 
 // escapePowerShellPath escapes path for embedding inside a double-quoted

@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 178 entries, 326.750s baseline median-weight sum
-# ui-2: 178 entries, 327.070s median-weight sum
-# ui-3: 213 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 2 tests assigned across the lightest baseline shards
+# ui-1: 182 entries, 326.750s baseline median-weight sum
+# ui-2: 182 entries, 327.070s median-weight sum
+# ui-3: 217 entries, 326.740s baseline median-weight sum
+# post-baseline additions: 14 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -121,6 +121,10 @@ TestMaxWindowSizeGetterSetter	ui-1
 TestMaybeShowWhatsNew_ShowsAndClearsCache	ui-1
 TestMemoryLimitSetters_FloorAtOne	ui-1
 TestMicrosoftStoreUpdateActionsAreRefused	ui-1
+TestMosaicMenu_FollowsGridResultImmediately	ui-1
+TestMosaicSnapshot_DoesNotRetargetAfterGridMutation	ui-1
+TestMosaicWallpaper_CleanupIsScopedPerTarget	ui-1
+TestMosaicWindow_DirectInvocationGuardsClosedOrEmptyGrid	ui-1
 TestOpenInitialFiles_ArgvAndADeliveryBecomeOneScanWithArgvFirst	ui-1
 TestOpenInitialFiles_PlainLaunchStartsNoScan	ui-1
 TestOpenShortcuts_InvokeFileDialog	ui-1
@@ -291,6 +295,10 @@ TestMaybeShowUpdateFailure_NoRecordShowsNothing	ui-2
 TestMaybeShowUpdateFailure_ReportsWhateverVersionFailed	ui-2
 TestMaybeShowWhatsNew_EmptyCacheDoesNotShow	ui-2
 TestMemoryLimitGettersAndSetters	ui-2
+TestMosaicPreferences_RestoreAndCurrentSnapshot	ui-2
+TestMosaicSources_UsesCompleteFilteredResultWithoutSelection	ui-2
+TestMosaicWallpaper_PassesExactResultAndOpaqueTarget	ui-2
+TestMosaicWindow_OpensFromMenuWithDefensiveSnapshot	ui-2
 TestNavigationDoesNotInvalidateScan	ui-2
 TestOpenReleasesPage_HandsTheReleasesURLToTheApp	ui-2
 TestOpenReleasesPage_LogsAnAppThatCannotOpenTheURL	ui-2
@@ -391,7 +399,7 @@ TestBatchDelete_RemovesEverySelectedFileAndLeavesTheGridOpen	ui-3
 TestBuildMainMenu_ExportItemDisplaysItsAccelerator	ui-3
 TestBuildMainMenu_ManualOpenedObserverSyncsWindowHelp	ui-3
 TestBuildViewer_NoSavedSessionHidesRestoreLink	ui-3
-TestBuildViewer_RegistersAllEightFeatures	ui-3
+TestBuildViewer_RegistersAllFeatures	ui-3
 TestCanSaveRotation_FalseForUnsupportedFormat	ui-3
 TestCanSaveRotation_FalseWhileLoading	ui-3
 TestCanSaveRotation_TrueAfterRotatingAnEncodableFormat	ui-3
@@ -473,6 +481,10 @@ TestMaxScanGetterSetter	ui-3
 TestMaybeShowUpdateFailure_ClearsRecord	ui-3
 TestMaybeShowWhatsNew_VersionMismatchDoesNotShow	ui-3
 TestMergeModeGetterSetter	ui-3
+TestMosaicDrain_ClosesWindowAndClearsTransientState	ui-3
+TestMosaicShutdown_ClosesWindowBeforeTheEventLoopStops	ui-3
+TestMosaicSources_UsesExplicitSelectionExclusively	ui-3
+TestMosaicWallpaper_RejectsOverlapAndDeletesOnlyFailedCopy	ui-3
 TestNormalizePreferenceDefaults	ui-3
 TestOpenFileDialog_RunsChooserInBackground	ui-3
 TestOpenInitialFiles_OpensPendingWhenNothingWasDelivered	ui-3
