@@ -290,6 +290,41 @@ func TestInvalidSourceRejectsQueryAndFragmentInBaseURL(t *testing.T) {
 	}
 }
 
+func TestInvalidSourceRejectsQueryBearingInternalFragment(t *testing.T) {
+	for _, href := range []string{"?preview=1#downloads", "?#downloads"} {
+		t.Run(href, func(t *testing.T) {
+			repo := repositoryRoot(t)
+			source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+			if err != nil {
+				t.Fatalf("read website source: %v", err)
+			}
+			broken := strings.Replace(string(source), "href: '#downloads'", "href: '"+href+"'", 1)
+			if broken == string(source) {
+				t.Fatal("test setup did not create a query-bearing internal fragment")
+			}
+			sourcePath := filepath.Join(t.TempDir(), "website.md")
+			if err := os.WriteFile(sourcePath, []byte(broken), 0o600); err != nil {
+				t.Fatalf("write source with query-bearing internal fragment: %v", err)
+			}
+
+			cmd := exec.Command("make", "build",
+				"SITE_SOURCE="+sourcePath,
+				"SITE_OUTPUT_DIR="+t.TempDir(),
+				"SITE_LOCALES=en",
+				"SITE_FORMATS=regular",
+			)
+			cmd.Dir = repo
+			combined, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("make build accepted query-bearing internal fragment %q", href)
+			}
+			if !strings.Contains(string(combined), "hero.actions[0].href") || !strings.Contains(string(combined), "absolute HTTPS URL is required") {
+				t.Fatalf("query-bearing-fragment diagnostic is not actionable:\n%s", combined)
+			}
+		})
+	}
+}
+
 func TestInvalidSourceRejectsReservedAndDuplicateDownloadAnchors(t *testing.T) {
 	tests := []struct {
 		name       string

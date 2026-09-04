@@ -601,7 +601,7 @@ func (v *contentValidator) requireURL(path, raw string, allowFragment bool) erro
 	if err != nil {
 		return fmt.Errorf("%s: invalid URL: %w", path, err)
 	}
-	if allowFragment && parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.Fragment != "" {
+	if allowFragment && parsed.Scheme == "" && parsed.Host == "" && parsed.Path == "" && parsed.RawQuery == "" && !parsed.ForceQuery && parsed.Fragment != "" {
 		return nil
 	}
 	if parsed.Scheme != "https" {
