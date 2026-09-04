@@ -1,6 +1,7 @@
 package sitecontract_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -84,5 +85,37 @@ func TestBuildRejectsTrailingDataInGermanCache(t *testing.T) {
 	}
 	if strings.Contains(string(combined), filepath.Base(cachePath)+": no such file") {
 		t.Fatalf("test fixture disappeared unexpectedly:\n%s", combined)
+	}
+}
+
+func TestBuildRejectsInvalidUTF8InGermanCache(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	cache, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("read controlled cache: %v", err)
+	}
+	textOffset := bytes.Index(cache, []byte("Deutsch: "))
+	if textOffset < 0 {
+		t.Fatal("controlled cache has no fake translated text to corrupt")
+	}
+	cache[textOffset] = 0xff
+	if err := os.WriteFile(cachePath, cache, 0o600); err != nil {
+		t.Fatalf("write cache with invalid UTF-8: %v", err)
+	}
+
+	cmd := exec.Command("make", "build",
+		"SITE_TRANSLATIONS="+cachePath,
+		"SITE_OUTPUT_DIR="+t.TempDir(),
+		"SITE_LOCALES=de",
+		"SITE_FORMATS=regular",
+	)
+	cmd.Dir = repo
+	combined, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatal("make build accepted invalid UTF-8 in the German cache")
+	}
+	if !strings.Contains(string(combined), "German translation cache") || !strings.Contains(string(combined), "invalid UTF-8") {
+		t.Fatalf("invalid-cache-UTF-8 diagnostic is not actionable:\n%s", combined)
 	}
 }

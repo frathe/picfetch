@@ -1266,6 +1266,9 @@ func readTranslationCache(path string) (TranslationCache, error) {
 	if err != nil {
 		return TranslationCache{}, fmt.Errorf("read German translation cache: %w", err)
 	}
+	if !utf8.Valid(data) {
+		return TranslationCache{}, fmt.Errorf("parse German translation cache: invalid UTF-8")
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cache); err != nil {
