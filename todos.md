@@ -6,11 +6,30 @@
 
 #### New Features
 
+- **Startup flags for scripting and picture-frame use.** `picfetch` now takes
+  `--slideshow`, `--shuffle`, `--interval=8s`, `--sort=name|date|modified|size|drop`,
+  `--merge`, `--max-files=N` and `--help`, parsed in the new `internal/launch`
+  and applied by `viewer.applyLaunchOptions`. Flags may sit anywhere among the
+  paths, an unknown one exits 2, and macOS's `-psn_*` is ignored so a Finder
+  launch cannot be broken by it. Every flag is session-only: the pre-flag value
+  is what gets saved at shutdown, so a scripted launch never rewrites the
+  user's standing settings. See `plans/2026-09-05-launch-flags.md`.
+
 #### Bugfix
 
 #### Internal
 
 ## TODO
+
+## Export options: resize + strip metadata — S/M
+
+The export prompt (`Cmd/Ctrl+E`, `widgets.ChoiceCard`) currently chooses
+format only. Add two options: "max dimension" (e.g. 1600/2400/original,
+reusing `imaging`'s scaling) and "strip metadata" (encode without EXIF —
+for JPEG this is re-encoding minus the APP1 segment, which
+`internal/imaging/save.go` already gets close to). Turns export into
+"prepare this photo for the web/mail" — a privacy feature and a
+convenience feature in one.
 
 ### Publish PicFetch in Microsoft Store
 

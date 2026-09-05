@@ -172,6 +172,37 @@ make run
 go run .
 ```
 
+### Command-line flags
+
+`picfetch` opens the files and folders it is given, and takes a few flags that
+set up the launch. Run `picfetch --help` for the same list.
+
+| Flag | Effect |
+|------|--------|
+| `--slideshow` | Start in picture-frame mode once the given files have loaded. |
+| `--shuffle` | Advance to a random file in picture-frame mode. |
+| `--interval=DURATION` | Picture-frame auto-advance interval, e.g. `8s` or `1m30s`. |
+| `--sort=MODE` | Order the file set: `name`, `date`, `modified`, `size`, or `drop`. |
+| `--merge` | Merge the opened files into the current set instead of replacing it. |
+| `--max-files=N` | Stop a scan after N images. |
+| `--help` | Print the flag list and exit. |
+
+Flags may appear anywhere among the paths, `-flag` reads the same as `--flag`,
+and values take either `--flag=value` or `--flag value`. Boolean flags take
+`--flag` or `--flag=false`. Use `--` to end flag parsing when a path starts
+with a dash. An unrecognized flag is an error and exits 2 rather than starting
+with the flag ignored.
+
+**Every flag applies to that launch only.** None of them change the settings
+saved in the Settings window, so `picfetch --shuffle ~/photos` shuffles this
+once and leaves your standing preferences alone.
+
+A photo frame that starts with the machine is then just:
+
+```sh
+picfetch --slideshow --shuffle --interval=20s /srv/photos
+```
+
 ## Building
 
 All build tasks are defined in the [Makefile](Makefile). Run `make help` to

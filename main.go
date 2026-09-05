@@ -8,6 +8,9 @@ package main
 
 import (
 	"embed"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -17,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/ui"
 	"github.com/frathe/picfetch/internal/update"
@@ -65,7 +69,41 @@ func argsToURIs(args []string) []fyne.URI {
 	return uris
 }
 
+// launchArgs turns the raw command line into the paths and options main
+// starts with. exit is negative when the launch should go ahead, and
+// otherwise the process's exit status: 0 for --help, which is a successful
+// answer to a question rather than a failed launch, and 2 for a bad flag.
+//
+// A bad flag stops the launch instead of being ignored, because the failure
+// this guards is a typo in an autostart unit or a shell script, where a
+// window that opens with the flag quietly dropped looks like the flag did
+// nothing. The writers are parameters so a test can read both streams
+// without touching the process's own.
+func launchArgs(args []string, stdout, stderr io.Writer) (paths []string, opts launch.Options, exit int) {
+	paths, opts, err := launch.Parse(args)
+	switch {
+	case errors.Is(err, launch.ErrHelp):
+		_, _ = io.WriteString(stdout, launch.Usage())
+
+		return nil, launch.Options{}, 0
+	case err != nil:
+		_, _ = fmt.Fprintf(stderr, "picfetch: %v\n\n%s", err, launch.Usage())
+
+		return nil, launch.Options{}, 2
+	}
+
+	return paths, opts, -1
+}
+
 func main() {
+	// Before every side effect below: --help and a rejected flag must not
+	// graft Objective-C methods, touch the update channel, or create an app
+	// whose preferences would then be flushed on the way out.
+	paths, opts, exit := launchArgs(os.Args[1:], os.Stdout, os.Stderr)
+	if exit >= 0 {
+		os.Exit(exit)
+	}
+
 	// First statement in the process, before the fyne.App exists.
 	// openwith.Install grafts the "Open With" methods onto GLFW's
 	// application delegate class, and -[NSApplication setDelegate:] caches
@@ -101,5 +139,5 @@ func main() {
 		fyne.LogError("failed to load translations", err)
 	}
 
-	ui.Run(application, argsToURIs(os.Args[1:]))
+	ui.Run(application, argsToURIs(paths), opts)
 }

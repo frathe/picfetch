@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 186 entries, 326.750s baseline median-weight sum
-# ui-2: 185 entries, 327.070s median-weight sum
-# ui-3: 219 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 23 tests assigned across the baseline shards
+# ui-1: 189 entries, 326.750s baseline median-weight sum
+# ui-2: 188 entries, 327.070s median-weight sum
+# ui-3: 221 entries, 326.740s baseline median-weight sum
+# post-baseline additions: 31 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -115,6 +115,9 @@ TestInstallOpenWithHandler_FlushesADeliveryThatArrivedBeforeInstall	ui-1
 TestInvalidateLoad_CancelsPriorLoadContext	ui-1
 TestKey0YieldsCopySelectionAndResetsRotation	ui-1
 TestLastUpdateCheckDay_ConcurrentWithCurrentPreferences	ui-1
+TestLaunchOptions_AppliesEverySetting	ui-1
+TestLaunchOptions_PictureFrameSpentWhenTheLaunchLoadsNothing	ui-1
+TestLaunchOptions_PictureFrameStartsAfterTheLaunchFilesLoad	ui-1
 TestManualUpdateCheck_CancelledRequestEmitsNoTerminalCallback	ui-1
 TestManualUpdateFlow_CallbacksReadyThenPerformRequestsRelaunch	ui-1
 TestMaxWindowSizeGetterSetter	ui-1
@@ -294,6 +297,9 @@ TestInvalidateLoad_WakesAnimateImmediately	ui-2
 TestInvalidateSortCancelsAndFinalizesCurrentProgress	ui-2
 TestJumpIfHiddenExtra_JumpsAgainAfterClearInspect	ui-2
 TestJumpIfHiddenExtra_MovesToRepresentative	ui-2
+TestLaunchOptions_PictureFrameStartsOnlyOnce	ui-2
+TestLaunchOptions_PreFlagValueWinsOverALiveChange	ui-2
+TestLaunchOptions_SavedPreferencesKeepPreFlagValues	ui-2
 TestManualUpdateCheck_ReadyCallbackUsesVersionString	ui-2
 TestMaybeShowUpdateFailure_NoRecordShowsNothing	ui-2
 TestMaybeShowUpdateFailure_ReportsWhateverVersionFailed	ui-2
@@ -482,6 +488,8 @@ TestHandleTypedRune_GridVisible_SwallowedByDeleteConfirmation	ui-3
 TestHandleTypedRune_OnlyReachesTheGridWhileItIsUp	ui-3
 TestInvalidateLoad_ZeroValueIsSafe	ui-3
 TestJumpIfHiddenExtra_NoopWhileInspecting	ui-3
+TestLaunchOptions_UntouchedSettingsStillSaveLiveValues	ui-3
+TestLaunchOptions_ZeroOptionsChangeNothing	ui-3
 TestManualUpdateCheck_BypassesSettingAndDailyGate	ui-3
 TestManualUpdateCheck_PreparationFailureArrivesThroughCallback	ui-3
 TestMaxScanGetterSetter	ui-3

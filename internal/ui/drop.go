@@ -198,6 +198,11 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 		} else {
 			v.ShowEmptyStateError(msg)
 		}
+
+		// A --slideshow launch whose paths held no image is spent here
+		// rather than left armed for whatever the user drops next.
+		v.startPendingPictureFrame()
+
 		return
 	}
 
@@ -273,6 +278,13 @@ func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI) {
 			v.state.setFiles(unsorted, ordered)
 		}
 		v.ForceRepaint()
+
+		// Here rather than anywhere earlier because this is the first point
+		// at which the files a --slideshow launch asked to frame exist:
+		// picture-frame mode no-ops at zero files. Before the ShowImage
+		// calls below, so entering full-screen and showing the first image
+		// are one repaint rather than two.
+		v.startPendingPictureFrame()
 
 		if merging {
 			if !v.showFileIfPresent(images[0]) {

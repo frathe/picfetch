@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
@@ -27,9 +28,17 @@ const (
 // Run builds the viewer's window and hands control to Fyne's event loop,
 // which it does not return from until the window closes. initial is the
 // file set to open on startup (command-line arguments, resolved to URIs by
-// the caller); empty for a plain launch.
-func Run(application fyne.App, initial []fyne.URI) {
+// the caller); empty for a plain launch. opts carries that launch's flags,
+// already parsed and validated by internal/launch; the zero value is a
+// plain launch that overrides nothing.
+func Run(application fyne.App, initial []fyne.URI, opts launch.Options) {
 	view, window := buildStartupViewer(application)
+
+	// After construction, so the flags override what saved preferences just
+	// seeded, and before Show, so the window comes up already in the state
+	// the command line asked for.
+	view.applyLaunchOptions(opts)
+
 	startViewerRuntime(view, window, favstore.DefaultDir())
 	registerShutdown(application, view)
 
@@ -149,7 +158,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 func (v *viewer) currentPreferences() preferences.State {
 	posX, posY, posSet := v.winPos.Get()
 
-	return preferences.State{
+	state := preferences.State{
 		SortMode:             v.state.SortMode().PrefValue(),
 		MergeMode:            v.state.MergeMode(),
 		ThemeMode:            v.settings.themeMode,
@@ -176,4 +185,11 @@ func (v *viewer) currentPreferences() preferences.State {
 		MosaicWindow:         prefGeometry(v.mosaicWin.Geometry()),
 		MosaicSettings:       v.mosaicWin.Settings(),
 	}
+
+	// Last, so a launch flag never outlives the launch that carried it: the
+	// setters above wrote the flag's value into the live viewer, and this
+	// puts the value it replaced back for saving. See launchoptions.go.
+	v.launchOverride.restore(&state)
+
+	return state
 }

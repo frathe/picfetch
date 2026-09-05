@@ -9,9 +9,10 @@ Standing rules (data flow, concurrency, conventions, build) live in
 
 ### `github.com/frathe/picfetch` (package main)
 
-Entry point only. `main.go` calls `openwith.Install` (first statement, see
-`internal/openwith`), skips GitHub-update predecessor cleanup for Store-managed
-builds, builds the `fyne.App`, loads embedded
+Entry point only. `main.go` parses the command line (`launchArgs`, see
+`internal/launch`) before any side effect, calls `openwith.Install` (first
+statement after that, see `internal/openwith`), skips GitHub-update predecessor
+cleanup for Store-managed builds, builds the `fyne.App`, loads embedded
 `translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
 `ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
@@ -365,6 +366,17 @@ when the user opened a single file.
 | File | Responsibility |
 |------|----------------|
 | `filescan.go` | `Images(ctx, uris, max, progress)` (recursive); `Siblings(ctx, file, max, progress)` (parent dir only, opened file seeded first); symlink-cycle + per-call dedupe. |
+
+### `internal/launch`
+
+Command-line flag parsing into the `Options` value `ui.Run` applies at startup.
+Hand-rolled rather than `flag`, so flags may appear anywhere among the paths;
+rejects an unknown flag, ignores macOS's `-psn_*`, and validates `--sort`
+against the `preferences.SortBy*` vocabulary. No Fyne import.
+
+| File | Responsibility |
+|------|----------------|
+| `launch.go` | `Options`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
 
 ### `internal/filesort`
 

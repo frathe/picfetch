@@ -224,3 +224,71 @@ func fyneAppQuotedField(toml, key string) string {
 	}
 	return ""
 }
+
+// --- launch flags -----------------------------------------------------------
+
+// TestLaunchArgs_HelpPrintsUsageAndExits pins --help as a success: usage on
+// stdout, nothing on stderr, exit 0. A GUI binary that answered --help with a
+// window would be useless in a shell.
+func TestLaunchArgs_HelpPrintsUsageAndExits(t *testing.T) {
+	var stdout, stderr strings.Builder
+
+	paths, _, exit := launchArgs([]string{"--help"}, &stdout, &stderr)
+
+	if exit != 0 {
+		t.Errorf("exit = %d, want 0", exit)
+	}
+	if len(paths) != 0 {
+		t.Errorf("paths = %q, want none", paths)
+	}
+	if !strings.Contains(stdout.String(), "--slideshow") {
+		t.Errorf("stdout = %q, want the usage text", stdout.String())
+	}
+	if stderr.String() != "" {
+		t.Errorf("stderr = %q, want nothing", stderr.String())
+	}
+}
+
+// TestLaunchArgs_BadFlagExitsTwo is the case the strict parser exists for: a
+// typo in a Pi autostart unit has to fail loudly rather than start the app
+// with the flag silently ignored.
+func TestLaunchArgs_BadFlagExitsTwo(t *testing.T) {
+	var stdout, stderr strings.Builder
+
+	_, _, exit := launchArgs([]string{"--slidshow", "/photos"}, &stdout, &stderr)
+
+	if exit != 2 {
+		t.Errorf("exit = %d, want 2", exit)
+	}
+	if !strings.Contains(stderr.String(), "--slidshow") {
+		t.Errorf("stderr = %q, want it to name the bad flag", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--sort") {
+		t.Errorf("stderr = %q, want the usage text alongside the error", stderr.String())
+	}
+	if stdout.String() != "" {
+		t.Errorf("stdout = %q, want nothing - a failure belongs on stderr", stdout.String())
+	}
+}
+
+// TestLaunchArgs_GoodArgsKeepGoing checks the ordinary launch: a negative
+// exit code means main carries on to open the window, with the paths and
+// options the command line asked for.
+func TestLaunchArgs_GoodArgsKeepGoing(t *testing.T) {
+	var stdout, stderr strings.Builder
+
+	paths, opts, exit := launchArgs([]string{"--slideshow", "/photos"}, &stdout, &stderr)
+
+	if exit >= 0 {
+		t.Errorf("exit = %d, want a negative code meaning 'keep going'", exit)
+	}
+	if want := []string{"/photos"}; len(paths) != 1 || paths[0] != want[0] {
+		t.Errorf("paths = %q, want %q", paths, want)
+	}
+	if !opts.PictureFrame {
+		t.Error("opts.PictureFrame = false, want true")
+	}
+	if stdout.String() != "" || stderr.String() != "" {
+		t.Errorf("stdout = %q, stderr = %q, want both empty", stdout.String(), stderr.String())
+	}
+}

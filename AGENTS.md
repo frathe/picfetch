@@ -11,7 +11,7 @@
 
 ## Architecture and Data Flow
 
-- `main.go` only creates the Fyne app, embeds translations, converts CLI paths, and calls `internal/ui.Run`; keep package `main` thin.
+- `main.go` only creates the Fyne app, embeds translations, converts CLI paths, and calls `internal/ui.Run`; keep package `main` thin. Launch flags parse in `internal/launch` (`Options`, `Parse`, `Usage`) and are applied by `viewer.applyLaunchOptions`; a new flag goes in that package's `flagSpecs` table, not into `main.go`. That package's usage and error text is deliberately English rather than `lang.L`: it goes to stderr for a shell or a journal, not to anything the app draws.
 - `internal/ui/appState` owns the current/unsorted file lists, index, sort mode, and merge mode. The unexported `viewer` is its Fyne-facing façade; `ui.Run` is the package’s only exported entry point.
 - Feature packages such as `internal/ui/grid`, `deletion`, and `slideshow` own their widgets/state and declare narrow consumer-side `Host` interfaces. Do not pass them `appState` or invent a shared controller/registry.
 - `internal/ui/menus`, `infoview`, `display`, and `autoupdate` are the exception: they take a value `State` snapshot built in exactly one `internal/ui` function, not a `Host`. `settingswin` is the same exception on the read side (`settingsState()` at Show) plus a 3-method Host (`ApplySettings` and the two update verbs) because live side effects cannot be a pure snapshot. A narrow Host doesn't fit when a package reads state spread across five-plus features — `menus` alone would need ~13 methods — so default to `Host` and reach for a `State` snapshot only when the same case applies.

@@ -461,6 +461,19 @@ type viewer struct {
 	// single scan. Only ever touched on the UI goroutine.
 	pendingInitial []fyne.URI
 
+	// pendingPictureFrame is the --slideshow launch flag, waiting for files
+	// to exist: slideshow.Toggle no-ops at zero files, and options are
+	// applied before anything has been scanned. startPendingPictureFrame
+	// (launchoptions.go) spends it once the launch scan finishes, whether or
+	// not that scan found an image. Only ever touched on the UI goroutine.
+	pendingPictureFrame bool
+
+	// launchOverride remembers what each launch flag replaced, so shutdown
+	// saves the pre-flag value rather than the flag's - see
+	// applyLaunchOptions. A scripted launch overrides the run, not the
+	// user's saved settings.
+	launchOverride launchOverride
+
 	// updater owns client preparation, the release-check/download policy, the
 	// staged-update lifecycle, the What's-New cache, and the last-check-day
 	// storage - see internal/ui/autoupdate. updateOp mirrors

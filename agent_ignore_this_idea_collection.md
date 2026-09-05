@@ -45,16 +45,6 @@ Fyne-side it's a layer in `build.go`'s content stack behind `v.img`
 (a `canvas.Raster` for the checkerboard), shown only while an image is up.
 Small, visible polish that every icon/asset designer notices immediately.
 
-## 7. Export options: resize + strip metadata — S/M
-
-The export prompt (`Cmd/Ctrl+E`, `widgets.ChoiceCard`) currently chooses
-format only. Add two options: "max dimension" (e.g. 1600/2400/original,
-reusing `imaging`'s scaling) and "strip metadata" (encode without EXIF —
-for JPEG this is re-encoding minus the APP1 segment, which
-`internal/imaging/save.go` already gets close to). Turns export into
-"prepare this photo for the web/mail" — a privacy feature and a
-convenience feature in one.
-
 ## 8. Watch-folder auto-refresh — M
 
 An opt-in per-session toggle: when the dropped set came from a folder,
@@ -64,17 +54,6 @@ the usual dedupe. Picture-frame mode is the killer use: a frame pointed at
 a synced/camera-upload folder shows new photos as they arrive. Needs care
 with scan lifecycles (debounce bursts; a watch event must not supersede a
 user drop), which the `requestLifecycle` machinery already models well.
-
-## 9. Startup flags for scripting and kiosk use — S
-
-The binary already accepts paths; add `--slideshow` (start in
-picture-frame mode), `--shuffle`, `--interval=8s`, `--sort=date`,
-`--merge`, `--recursive-limit=n`. All of them map to existing viewer
-setters that the settings window already drives, so `main.go`'s
-`argsToURIs` grows a small flag-parsing sibling and `ui.Run` gets an
-options struct. Makes PicFetch usable as a photo-frame appliance
-(autostart on a Pi) and in shell workflows — cheap surface area for a
-whole new deployment story.
 
 ## Honorable mentions (not in the 10)
 

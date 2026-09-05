@@ -19,6 +19,17 @@ A transient single-image-viewer mode for defining an image-region selection
 to copy as image data.
 _Avoid_: Crop mode, screenshot mode
 
+**Picture-frame mode**:
+A full-screen single-image-viewer mode that advances through the file set on
+a timed interval.
+_Avoid_: Slideshow, kiosk mode (the `--slideshow` launch flag keeps the
+common word on purpose - do not rename it to match this entry)
+
+**Kiosk mode**:
+Unclaimed. A locked appliance state that suppresses the app's own exits is
+not a PicFetch concept - picture-frame mode can always be left.
+_Avoid_: Using this as another name for Picture-frame mode
+
 **Linked comparison**:
 A two-photo comparison state where view adjustments affect both photos
 together.
