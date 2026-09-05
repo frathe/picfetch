@@ -268,12 +268,21 @@ func TestOnChange_ReportsABackgroundBatchButNotAPrefetch(t *testing.T) {
 	var mu sync.Mutex
 	var calls, last int
 
+	// The callback's own completion, not Pending(), is what this test has to
+	// wait on: release decrements the counter and only then calls onChange,
+	// so a waitForPending here would be free to look between the two and see
+	// a callback that has not run yet. Buffered because nothing is waiting on
+	// the prefetch's reports, and blocking the fetching goroutine on a report
+	// no one reads would deadlock the very thing under test.
+	fired := make(chan int, 1+(2*prefetchRadius+1)*(2*prefetchRadius+1))
+
 	f.SetOnChange(func(pending int) {
 		mu.Lock()
-		defer mu.Unlock()
-
 		calls++
 		last = pending
+		mu.Unlock()
+
+		fired <- pending
 	})
 
 	f.Warm(48.858222, 2.2945, mapZoom)
@@ -300,7 +309,11 @@ func TestOnChange_ReportsABackgroundBatchButNotAPrefetch(t *testing.T) {
 		t.Fatalf("RoundTrip() err = %v, want errTilePending", err)
 	}
 
-	waitForPending(t, f)
+	select {
+	case <-fired:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the background tile to report to onChange")
+	}
 
 	mu.Lock()
 	defer mu.Unlock()

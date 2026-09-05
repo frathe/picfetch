@@ -13,21 +13,14 @@
 
 #### Internal
 
+- Synchronize the EXIF tile callback test with callback completion, so it waits
+  on the `onChange` report itself instead of the pending counter that `release`
+  clears just before calling back.
 - Complete the full Linux race verification, including the Finis companion.
 - Recover v1.0.1 with all six platform archives and signed Windows builds,
   preserving its tag, then restore the normal tag-triggered release workflow.
 
 ## TODO
-
-### Synchronize the EXIF tile callback test with callback completion
-
-`TestOnChange_ReportsABackgroundBatchButNotAPrefetch` intermittently asserts
-before its callback runs: `waitForPending` observes zero after `release`
-decrements the counter but before it calls `onChange`. The release-cleanup
-race suite observed `onChange fired 0 times`; 30 focused Linux race reruns
-passed. Make the assertion deterministic by waiting on observable callback
-completion, without retries or suppressing failures. The EXIF code and test
-were unchanged by the release repair.
 
 ### Validate image mosaics on physical multi-display desktops
 

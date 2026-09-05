@@ -7,7 +7,7 @@
 # ui-1: 182 entries, 326.750s baseline median-weight sum
 # ui-2: 182 entries, 327.070s median-weight sum
 # ui-3: 217 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 15 tests assigned across the baseline shards
+# post-baseline additions: 16 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -299,6 +299,7 @@ TestMemoryLimitGettersAndSetters	ui-2
 TestMosaicPreferences_RestoreAndCurrentSnapshot	ui-2
 TestMosaicSources_UsesCompleteFilteredResultWithoutSelection	ui-2
 TestMosaicWallpaper_PassesExactResultAndOpaqueTarget	ui-2
+TestMosaicWallpaper_SoloForwardsToTheRequest	ui-2
 TestMosaicWindow_OpensFromMenuWithDefensiveSnapshot	ui-2
 TestNavigationDoesNotInvalidateScan	ui-2
 TestOpenReleasesPage_HandsTheReleasesURLToTheApp	ui-2

@@ -30,6 +30,7 @@
 - Do not add mutable package-level test seams. Runtime/test-configurable values belong on `viewer` or the owning feature.
 - Every goroutine needs cancellation/staleness handling plus an observable stop/done signal. If adding background work, add it to `newTestUI`’s `drain` cleanup in `internal/ui/harness_test.go`.
 - Fyne’s test driver runs `fyne.Do` inline. Use `dropAndWait`, `waitFor*`, feature `Settle`, and existing completion channels before assertions; never sleep to guess completion. Grid, comparison, and mosaic window work marshal through the `UIQueue` exception above.
+- An in-flight counter is not a completion signal for the callback that follows it. `tileFetcher.release` decrements `pending` and *then* calls `onChange`, so a test polling for `Pending() == 0` may assert in between and see a callback that has not run. Wait on the callback's own observable effect — a channel it sends on — never on a counter its caller cleared first.
 - `completion.Signal.Wait` on a never-begun signal returns immediately — `drain` and low-level `waitFor` rely on that. Named wait helpers (`waitUntilLoaded`, `waitForScan`, `waitForSort`, `waitForAnimStopped`, `waitForClipboard`) fatal when `!Begun()`.
 
 ## Project Conventions
