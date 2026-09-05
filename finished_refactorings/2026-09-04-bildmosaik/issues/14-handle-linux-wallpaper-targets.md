@@ -70,3 +70,19 @@ the implementation ticket's triage status.
 
 Implemented and verified on 2026-09-04: targeted Linux requests return the typed
 limitation before lookup/mutation while legacy GNOME/KDE global behavior stays green.
+
+Bugfix 2026-09-05: native testing on a single-monitor GNOME/Wayland (XWayland)
+desktop found that mosaic wallpaper could never succeed at all, even though
+there was no second display it could have disturbed. mosaicwin always selects
+a real target (it requires one to enable Generate), so every mosaic wallpaper
+request on Linux hit this ticket's blanket rejection unconditionally. Global
+and single-display application are the same operation when only one display
+is attached, so this is not the "per-monitor promise" or "silent global
+fallback" this ticket's Non-Goals rule out - the user's selection of the one
+available display *is* the explicit request. `wallpaper.Request` gained a
+`Solo bool` set by the caller (`mosaicwin.Window.SetWallpaper`, from its own
+topology snapshot) confirming the target is currently the only attached
+display; `setLinuxRequest` honors it and applies globally instead of
+returning `TargetUnsupportedError`. Multi-display topologies are unaffected
+and continue to refuse a Linux target. See `internal/wallpaper/wallpaper.go`,
+`internal/ui/wallpaper.go`, and `internal/ui/mosaicwin/window.go`.

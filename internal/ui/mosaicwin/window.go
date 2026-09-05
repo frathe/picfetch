@@ -73,7 +73,11 @@ func cloneSnapshot(snapshot Snapshot) Snapshot {
 type Host interface {
 	GenerateMosaic(context.Context, mosaic.Request) (mosaic.Result, error)
 	InspectMosaicDisplays() (displays.Snapshot, error)
-	SetMosaicWallpaper(context.Context, mosaic.Result, displays.ID) error
+	// SetMosaicWallpaper's solo argument confirms the target is currently the
+	// only attached display - see wallpaper.Request.Solo for why that lets a
+	// platform that can't truthfully address one display among several
+	// honor it anyway.
+	SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID, solo bool) error
 }
 
 // Window is the one secondary mosaic workflow window.
@@ -587,11 +591,12 @@ func (w *Window) SetWallpaper() {
 		return
 	}
 	result, target := w.result, w.target
+	solo := len(w.snapshot.Displays.Displays) == 1
 	ctx, revision := w.actionLifecycle.begin()
 	w.actionBusy = true
 	w.syncActions()
 	w.workers.Go(func() {
-		err := w.host.SetMosaicWallpaper(ctx, result, target)
+		err := w.host.SetMosaicWallpaper(ctx, result, target, solo)
 		w.ui.Do(func() {
 			if !w.actionLifecycle.current(revision) || !w.Opened() {
 				return

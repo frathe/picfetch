@@ -40,6 +40,25 @@ func TestLinuxTarget_ReturnsUnsupportedBeforeAnyLookupOrCommand(t *testing.T) {
 	}
 }
 
+// TestLinuxTarget_SoleDisplayAppliesGlobally covers the common single-monitor
+// desktop: mosaicwin always sends a real Target, but when that target is the
+// only attached display there is no other desktop a global change could
+// wrongly affect, so the request carries Solo and must be honored exactly
+// like a no-target request rather than rejected outright.
+func TestLinuxTarget_SoleDisplayAppliesGlobally(t *testing.T) {
+	t.Setenv("XDG_CURRENT_DESKTOP", "GNOME")
+	stubLookups(t, "/usr/bin/gsettings", "")
+	got := captureCommands(t, nil)
+
+	err := setLinuxRequest(Request{Path: "/home/me/mosaic.png", Target: "display-1", Solo: true})
+	if err != nil {
+		t.Fatalf("setLinuxRequest() = %v, want nil for the sole attached display", err)
+	}
+	if len(*got) == 0 {
+		t.Fatal("a solo targeted request ran no wallpaper command")
+	}
+}
+
 // captureCommands swaps runWallpaperCommand for a recorder, returning a
 // pointer to the argument lists of every command the code under test ran, in
 // order. fail, when non-nil, decides which of them report an error - the

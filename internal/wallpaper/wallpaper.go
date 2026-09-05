@@ -32,6 +32,13 @@ import (
 type Request struct {
 	Path   string
 	Target displays.ID
+
+	// Solo tells a platform that cannot truthfully address one display among
+	// several that Target is nonetheless safe to honor as a global change:
+	// the caller has confirmed it is the only display currently attached, so
+	// there is no other desktop a global write could wrongly affect. Ignored
+	// by platforms (Windows, macOS) that already target displays for real.
+	Solo bool
 }
 
 // ErrBusy reports that another PicFetch wallpaper copy/set/cleanup operation
@@ -119,7 +126,7 @@ func setLinux(path string) error {
 }
 
 func setLinuxRequest(request Request) error {
-	if request.Target != "" {
+	if request.Target != "" && !request.Solo {
 		return &TargetUnsupportedError{
 			Platform: "Linux",
 			Reason:   "the active desktop integration applies wallpaper globally; Save Image remains available",

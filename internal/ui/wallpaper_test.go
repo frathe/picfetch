@@ -220,7 +220,7 @@ func TestMosaicWallpaper_PassesExactResultAndOpaqueTarget(t *testing.T) {
 		return nil
 	})
 
-	if err := v.SetMosaicWallpaper(context.Background(), result, displays.ID("opaque/display\\path")); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), result, displays.ID("opaque/display\\path"), false); err != nil {
 		t.Fatal(err)
 	}
 	if got.Target != displays.ID("opaque/display\\path") {
@@ -238,6 +238,28 @@ func TestMosaicWallpaper_PassesExactResultAndOpaqueTarget(t *testing.T) {
 	}
 }
 
+// TestMosaicWallpaper_SoloForwardsToTheRequest covers the single-monitor
+// desktop: mosaicwin always supplies a real Target, but when the caller
+// confirms it is the only attached display, the platform dispatcher (Linux
+// in particular - see internal/wallpaper) needs to know that applying it is
+// safe as a global change rather than an unsupported per-display one.
+func TestMosaicWallpaper_SoloForwardsToTheRequest(t *testing.T) {
+	v := newTestViewer(t)
+	result := testMosaicResult(t, color.White)
+	var got wallpaper.Request
+	uitest.StubWallpaperSet(t, func(request wallpaper.Request) error {
+		got = request
+		return nil
+	})
+
+	if err := v.SetMosaicWallpaper(context.Background(), result, "only-display", true); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Solo {
+		t.Fatal("solo target was not forwarded to the platform wallpaper request")
+	}
+}
+
 func TestMosaicWallpaper_CleanupIsScopedPerTarget(t *testing.T) {
 	v := newTestViewer(t)
 	var requests []wallpaper.Request
@@ -248,17 +270,17 @@ func TestMosaicWallpaper_CleanupIsScopedPerTarget(t *testing.T) {
 	first := testMosaicResult(t, color.NRGBA{R: 255, A: 255})
 	second := testMosaicResult(t, color.NRGBA{B: 255, A: 255})
 
-	if err := v.SetMosaicWallpaper(context.Background(), first, "display-a"); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), first, "display-a", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := v.SetMosaicWallpaper(context.Background(), second, "display-b"); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), second, "display-b", false); err != nil {
 		t.Fatal(err)
 	}
 	if got := wallpaperFiles(t, v); len(got) != 2 {
 		t.Fatalf("two target files = %v, want 2", got)
 	}
 	firstA, firstB := requests[0].Path, requests[1].Path
-	if err := v.SetMosaicWallpaper(context.Background(), second, "display-a"); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), second, "display-a", false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(firstA); !errors.Is(err, os.ErrNotExist) {
@@ -294,10 +316,10 @@ func TestMosaicWallpaper_RejectsOverlapAndDeletesOnlyFailedCopy(t *testing.T) {
 		return errors.New("native failure")
 	})
 	done := make(chan error, 1)
-	go func() { done <- v.SetMosaicWallpaper(context.Background(), result, "display-a") }()
+	go func() { done <- v.SetMosaicWallpaper(context.Background(), result, "display-a", false) }()
 	<-started
 
-	err := v.SetMosaicWallpaper(context.Background(), result, "display-b")
+	err := v.SetMosaicWallpaper(context.Background(), result, "display-b", false)
 	if !errors.Is(err, errWallpaperBusy) {
 		t.Fatalf("overlapping wallpaper call = %v, want errWallpaperBusy", err)
 	}

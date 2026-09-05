@@ -80,7 +80,7 @@ func (v *viewer) setAsWallpaper() {
 		defer done()
 		defer v.wallpaperBusy.Store(false)
 
-		if err := v.applyWallpaper(context.Background(), img, src.Name(), ""); err != nil {
+		if err := v.applyWallpaper(context.Background(), img, src.Name(), "", false); err != nil {
 			v.reportWallpaperError(err)
 			return
 		}
@@ -92,7 +92,10 @@ func (v *viewer) setAsWallpaper() {
 
 // applyWallpaper is the single write-then-set lifecycle used by both viewer
 // pixels and immutable mosaic-result pixels. The caller owns wallpaperBusy.
-func (v *viewer) applyWallpaper(ctx context.Context, img image.Image, label string, target displays.ID) error {
+// solo tells a platform that cannot truthfully address one display among
+// several that target is nonetheless the only display currently attached, so
+// honoring it as a global change is safe - see wallpaper.Request.Solo.
+func (v *viewer) applyWallpaper(ctx context.Context, img image.Image, label string, target displays.ID, solo bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -105,7 +108,7 @@ func (v *viewer) applyWallpaper(ctx context.Context, img image.Image, label stri
 		_ = os.Remove(dest)
 		return err
 	}
-	if err := wallpaper.Set(wallpaper.Request{Path: dest, Target: target}); err != nil {
+	if err := wallpaper.Set(wallpaper.Request{Path: dest, Target: target, Solo: solo}); err != nil {
 		// The file just written is of no use to anyone now, and the previous
 		// one may well still be the active wallpaper - so this removes only
 		// what this call added, and sweeps nothing.
@@ -172,8 +175,10 @@ func wallpaperScope(target displays.ID) string {
 }
 
 // SetMosaicWallpaper applies the immutable latest result to exactly the
-// selected display. It deliberately never reads the main viewer image.
-func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID) error {
+// selected display. It deliberately never reads the main viewer image. solo
+// is the caller's confirmation that target is currently the only attached
+// display - see wallpaper.Request.Solo for why that matters to Linux.
+func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID, solo bool) error {
 	if target == "" {
 		return errors.New("mosaic wallpaper requires a target display")
 	}
@@ -186,7 +191,7 @@ func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, t
 	}
 	defer v.wallpaperBusy.Store(false)
 
-	return v.applyWallpaper(ctx, pixels, lang.L("Image Mosaic"), target)
+	return v.applyWallpaper(ctx, pixels, lang.L("Image Mosaic"), target, solo)
 }
 
 // reportWallpaperError toasts a failed wallpaper change from the background
