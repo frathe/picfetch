@@ -11,6 +11,9 @@
 - Windows packaging warms the Go toolchain as the same user as fyne-cross,
   preventing root-owned module cache failures on fresh release runners.
 
+- On Linux the mosaic functionality now can set the generated mosaic as wallpaper.
+  Tested on Ubuntu 24.04.4 LTS
+
 #### Internal
 
 - Pin `internal/update`'s two P0 recovery behaviors: `Apply` restores the
