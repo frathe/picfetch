@@ -9,12 +9,17 @@ on:
   # than a copy of them that can drift - a tag push doesn't match the
   # branch/PR triggers above, so without this a release ran no tests at all.
   workflow_call:
+    inputs:
+      source-ref:
+        description: Exact source commit to test for release recovery
+        required: false
+        type: string
 
 concurrency:
   # github.workflow is the caller's name for reusable-workflow runs. Keep the
   # ordinary Release and Microsoft Store package gates for the same tag from
   # cancelling each other while still cancelling superseded runs of either.
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ inputs.source-ref }}
   cancel-in-progress: true
 
 permissions:
@@ -27,6 +32,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -81,6 +88,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -141,6 +150,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source-ref || github.sha }}
 
       - name: Set up Go
         uses: actions/setup-go@v7

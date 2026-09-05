@@ -8,16 +8,26 @@
 
 #### Bugfix
 
+- Windows packaging warms the Go toolchain as the same user as fyne-cross,
+  preventing root-owned module cache failures on fresh release runners.
+
 #### Internal
+
+- Add manual recovery of an unpublished release from its unchanged version tag,
+  using the corrected packaging recipe and retaining CI and signing gates.
+- Complete the full Linux race verification, including the Finis companion.
 
 ## TODO
 
-### Verify the Finis companion on Linux
+### Activate v1.0.1 release recovery
 
-Run `make verify` when connectivity permits. Finis’s focused tests, native vet
-and build, and visual checks passed; Linux race verification was stopped during
-dependency setup at the user’s request. See
-`finished_refactorings/2026-09-05-finis.md`.
+Land the reviewed repair, then dispatch Release on `main` with
+`release-tag=v1.0.1`. The tag stays at
+`4cbb9f6bf2e3d9225baa1138cb459fc6cf6db78c`; no GitHub release exists yet.
+The existing signing environment still requires its reviewer approval.
+`make verify`, workflow checks, and Windows/Linux packaging from the preserved
+tag all pass. The user authorized committing, landing, and running recovery.
+See `finished_refactorings/2026-09-05-release-recovery.md` for the commands and verification.
 
 ### Validate image mosaics on physical multi-display desktops
 

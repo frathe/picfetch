@@ -4,20 +4,68 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: Existing unpublished version tag to recover without moving it
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.release-tag || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
+  source:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.source.outputs.tag }}
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Check out release refs
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release source
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag || github.ref_name }}
+          RECOVERY: ${{ github.event_name == 'workflow_dispatch' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$RECOVERY" == true ]]; then
+            if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo 'Recovery requires a stable version tag such as v1.0.1.' >&2
+              exit 1
+            fi
+            releases=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].tag_name')
+            if grep -Fxq -- "$RELEASE_TAG" <<< "$releases"; then
+              echo 'Recovery refuses to overwrite an existing release.' >&2
+              exit 1
+            fi
+          fi
+          sha=$(git rev-parse --verify --end-of-options "refs/tags/$RELEASE_TAG^{commit}")
+          printf 'tag=%s\nsha=%s\n' "$RELEASE_TAG" "$sha" >> "$GITHUB_OUTPUT"
+
   # The gate: a tag push runs the full CI suite (format, vet, build, test)
   # before anything is packaged, and every job below needs it, so a red test
   # leaves the release unpublished instead of shipping. Reuses ci.yml rather
   # than restating its steps, so the two can't drift apart.
   test:
+    needs: source
     uses: ./.github/workflows/ci.yml
+    with:
+      source-ref: ${{ needs.source.outputs.sha }}
 
   build-macos:
-    needs: test
+    needs: [source, test]
     strategy:
       matrix:
         include:
@@ -29,6 +77,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.source.outputs.sha }}
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -55,11 +105,26 @@ jobs:
           if-no-files-found: error
 
   build-cross:
-    needs: test
+    needs: [source, test]
     runs-on: ubuntu-latest
+    env:
+      RELEASE_MAKEFILE: ${{ github.event_name == 'workflow_dispatch' && '.release-tooling/Makefile' || 'Makefile' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+
+      # Recover the original source using only the revised packaging recipe.
+      # The hidden checkout is ignored by Go's ./... package discovery.
+      - name: Check out corrected packaging recipe
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .release-tooling
+          sparse-checkout: Makefile
+          sparse-checkout-cone-mode: false
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -71,10 +136,10 @@ jobs:
         run: go install github.com/fyne-io/fyne-cross@latest
 
       - name: Package Windows binary
-        run: make package-windows
+        run: make -f "$RELEASE_MAKEFILE" package-windows
 
       - name: Package Linux binaries
-        run: make package-linux
+        run: make -f "$RELEASE_MAKEFILE" package-linux
 
       - name: Archive artifacts
         run: |
@@ -194,11 +259,13 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build-macos, build-cross, sign-windows]
+    needs: [source, build-macos, build-cross, sign-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.source.outputs.sha }}
 
       - name: Download macOS artifacts
         uses: actions/download-artifact@v8
@@ -227,5 +294,6 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ needs.source.outputs.tag }}
           files: dist/*
           body_path: .github/release-notes.md

@@ -341,7 +341,8 @@ package-mac: ## Package a macOS .app bundle (native, no Docker) into bin/
 
 warm-fyne-cross-windows: ## Cache the go.mod toolchain before Fyne parses Go command JSON
 	mkdir -p "$(FYNE_CROSS_CACHE)"
-	$(FYNE_CROSS_ENGINE) run --rm -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(FYNE_CROSS_WINDOWS_IMAGE)" go version >/dev/null
+	# Match fyne-cross's UID so warm-up does not leave a root-owned module cache.
+	$(FYNE_CROSS_ENGINE) run --rm --user $$(id -u) -e HOME=/tmp -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(FYNE_CROSS_WINDOWS_IMAGE)" go version >/dev/null
 
 package-windows: warm-fyne-cross-windows ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
