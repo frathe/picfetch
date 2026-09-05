@@ -53,3 +53,18 @@ _Avoid_: Screen, monitor, default display
 **Source pool**:
 The fixed set of images available to supply cards for one mosaic generation.
 _Avoid_: Sources, image list, Grid result
+
+**Metadata removal**:
+Rewriting an original image file in place so its identifying tags are gone.
+The file that had the tags is the file that loses them.
+_Avoid_: Strip, scrub, sanitize
+
+**Metadata omission**:
+Writing an exported copy without the source's identifying tags. The source
+keeps everything it had.
+_Avoid_: Strip, remove, sanitize, metadata removal
+
+**Export size limit**:
+The longest-edge ceiling applied to an exported copy. A photo already inside
+the ceiling is exported at its own size, never enlarged to meet it.
+_Avoid_: Resize, max dimension, scale, downsample
