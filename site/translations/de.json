@@ -146,6 +146,18 @@
       "format": "text",
       "text": "Navigation mit der Tastatur"
     },
+    "features.mosaic-generator.body": {
+      "source_hash": "d9bbe4d1f465d410ea660f3a73859d879e5b6c8393a3eab329229cf4c455c89e",
+      "request_hash": "bfbf611bbceeb9ceca03f2250e59bfe03bcedb7128471ade8e484ae3cad7b4ca",
+      "format": "html",
+      "text": "\u003cp\u003eWandeln Sie Ihre Auswahl in der Rasteransicht – oder das aktuell gefilterte Raster, wenn nichts ausgewählt ist – in ein Bildmosaik in Displaygröße um. Wählen Sie das Ziel-Display aus, passen Sie das Layout an, generieren Sie es anschließend neu, speichern Sie es als „PNG“ oder „JPEG“ oder legen Sie es als Hintergrundbild fest.\u003c/p\u003e"
+    },
+    "features.mosaic-generator.title": {
+      "source_hash": "eeb8766a970492b486381dca197a3495c24a0d026562b67f5fb5d4c4defdb282",
+      "request_hash": "eeb8766a970492b486381dca197a3495c24a0d026562b67f5fb5d4c4defdb282",
+      "format": "text",
+      "text": "Mosaikgenerator"
+    },
     "features.named-favorites.body": {
       "source_hash": "761093552b5fb6e9fd82e07964161a9b1811bd8fca8fa4b1ef2e25dc2c90183d",
       "request_hash": "c0c03282703b08525ebd2cd0456fd57ff439bbf3529b9c6d2d010435785eba82",
@@ -361,6 +373,30 @@
       "request_hash": "8f34cf88ac0819b0517045aadb8be2e8b45dcd7cb02abe3114f7e31425aedd84",
       "format": "text",
       "text": "Zieh Bilder in das Fenster, um loszulegen"
+    },
+    "screenshots.mosaic-creation.alt": {
+      "source_hash": "fd442997d6707c083f549d73fb08b9e48ddc8e9e9d0b1d477cabac04cd17230e",
+      "request_hash": "fd442997d6707c083f549d73fb08b9e48ddc8e9e9d0b1d477cabac04cd17230e",
+      "format": "text",
+      "text": "Ein generiertes Bildmosaik aus überlappenden, gerahmten Reisefotos, mit Funktionen zum Neuerstellen, Speichern oder Festlegen als Hintergrundbild"
+    },
+    "screenshots.mosaic-creation.caption": {
+      "source_hash": "bd8e45f026df50f7e82378764fd4c2f50c8109f0ffbe0b28e90e4a45afead52d",
+      "request_hash": "bd8e45f026df50f7e82378764fd4c2f50c8109f0ffbe0b28e90e4a45afead52d",
+      "format": "text",
+      "text": "Erstellen Sie ein Mosaik in Bildschirmgröße, speichern Sie es anschließend oder legen Sie es als Hintergrundbild fest"
+    },
+    "screenshots.mosaic-settings.alt": {
+      "source_hash": "7971cb1b35262133f81f0b7fe743e7db20c84c28434e3dd45cdd7d6bac162482",
+      "request_hash": "7971cb1b35262133f81f0b7fe743e7db20c84c28434e3dd45cdd7d6bac162482",
+      "format": "text",
+      "text": "Das Einstellungsfenster „Bildmosaik“ mit einer Auswahl von 403 Bildern, einer Zielanzeigeauswahl sowie erweiterten Steuerelementen für Bildgröße, Rahmen, Größenvariation, Überlappung, Drehung und Schlagschatten"
+    },
+    "screenshots.mosaic-settings.caption": {
+      "source_hash": "1730c4df202df90d77c8ee9bb8bd530252141a7c89de470fd072b51b4e285c35",
+      "request_hash": "1730c4df202df90d77c8ee9bb8bd530252141a7c89de470fd072b51b4e285c35",
+      "format": "text",
+      "text": "Wählen Sie eine Anzeige aus und passen Sie das Erscheinungsbild des Mosaiks an"
     },
     "screenshots.viewer.alt": {
       "source_hash": "46c5af32c5e6bb138b86fef8017842badf128705e861dfc5e96b111d4f7906d1",
