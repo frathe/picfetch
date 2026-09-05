@@ -86,3 +86,33 @@ display; `setLinuxRequest` honors it and applies globally instead of
 returning `TargetUnsupportedError`. Multi-display topologies are unaffected
 and continue to refuse a Linux target. See `internal/wallpaper/wallpaper.go`,
 `internal/ui/wallpaper.go`, and `internal/ui/mosaicwin/window.go`.
+
+Bugfix 2026-09-05 (second finding): the `Solo` change above was necessary but
+not sufficient — the wallpaper still did not visibly change on the reporter's
+GNOME 46 desktop. Two further defects, both in the pre-existing GNOME path
+rather than in mosaic code:
+
+1. **The key GNOME actually displays was never written.** GNOME 42+ keeps a
+   light/dark background pair, and a user with
+   `org.gnome.desktop.interface color-scheme = 'prefer-dark'` sees *only*
+   `picture-uri-dark`. `setLinux` treated the `picture-uri` write as the whole
+   operation and appended a best-effort dark write whose error it discarded,
+   documented as "the one thing that makes it fail is running on an older
+   GNOME". That premise is false, so the failure mode was the worst possible
+   one: picfetch reported success while the desktop kept the old picture.
+   The schema is now asked whether it defines `picture-uri-dark`; the key is
+   skipped outright on a pre-42 GNOME and every other failure is reported.
+   Only an unreadable schema listing stays forgiving.
+2. **Sandbox-injected GSettings schemas shadowed the host's.** A snap- or
+   flatpak-wrapped launcher redirects schema lookup through
+   `GSETTINGS_SCHEMA_DIR`, `XDG_DATA_HOME`, *and* `XDG_DATA_DIRS` at its own
+   bundled copies of the host's desktop schemas. The VS Code snap still ships
+   a pre-GNOME-42 `org.gnome.desktop.background` with no `picture-uri-dark`,
+   so picfetch launched from that session concluded the running GNOME 46
+   could not do dark wallpapers at all. Because the wallpaper is a host
+   setting, `hostSchemaEnv` now scrubs those three variables for the gsettings
+   child while preserving the rest of the environment — the session bus
+   address above all, without which nothing reaches dconf.
+
+Verified natively on GNOME 46 / Wayland in dark mode from the affected snap
+environment: `picture-uri-dark` now lands on the generated mosaic.

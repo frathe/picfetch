@@ -317,7 +317,7 @@ native execution failure.
 
 | File | Responsibility |
 |------|----------------|
-| `wallpaper.go` | `Request`, `Set` dispatcher, typed limitation, legacy Linux/GNOME/KDE and Windows PowerShell global paths. Linux rejects targets before lookup or mutation. |
+| `wallpaper.go` | `Request` (including `Solo`), `Set` dispatcher, typed limitation, legacy Linux/GNOME/KDE and Windows PowerShell global paths. Linux rejects a target before lookup or mutation unless it is the only attached display. GNOME writes `picture-uri` *and* the 42+ `picture-uri-dark` — the only key on screen in dark mode — skipping the dark key only when the schema genuinely lacks it and otherwise reporting its failure. `hostSchemaEnv` scrubs `GSETTINGS_SCHEMA_DIR` / `XDG_DATA_HOME` / `XDG_DATA_DIRS` so a snap-wrapped launcher cannot redirect a host desktop write at its own stale bundled schemas. |
 | `darwin.go` / `other.go` | AppKit all-screen or exact preflighted `NSScreen` set / non-Darwin stub. |
 | `target_windows.go` | Targeted `IDesktopWallpaper`: COM-thread lifetime, exact device-path validation, and single-monitor set. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair plus non-Windows target stub. |

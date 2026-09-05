@@ -59,6 +59,183 @@ func TestLinuxTarget_SoleDisplayAppliesGlobally(t *testing.T) {
 	}
 }
 
+// TestHostSchemaEnv_DropsSandboxInjectedSchemaSources pins the reason the
+// gsettings child gets a scrubbed environment. A snap- or flatpak-wrapped
+// launcher (the VS Code snap is the one this was found on) redirects all
+// three GSettings schema sources at its own bundled copies of the *host's*
+// desktop schemas, which are frequently years out of date - the VS Code snap
+// still ships a pre-GNOME-42 org.gnome.desktop.background with no
+// picture-uri-dark. picfetch is writing a host desktop setting, so it has to
+// resolve the host's schemas no matter who launched it.
+func TestHostSchemaEnv_DropsSandboxInjectedSchemaSources(t *testing.T) {
+	got := hostSchemaEnv([]string{
+		"GSETTINGS_SCHEMA_DIR=/home/me/snap/code/259/.local/share/glib-2.0/schemas",
+		"XDG_DATA_HOME=/home/me/snap/code/259/.local/share",
+		"XDG_DATA_DIRS=/home/me/snap/code/259/.local/share:/snap/code/259/usr/share:/var/lib/snapd/desktop:/usr/local/share:/usr/share",
+		"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
+	})
+
+	for _, unwanted := range []string{"GSETTINGS_SCHEMA_DIR", "XDG_DATA_HOME"} {
+		if slices.ContainsFunc(got, func(entry string) bool {
+			return strings.HasPrefix(entry, unwanted+"=")
+		}) {
+			t.Errorf("env still carries the sandbox's %s: %v", unwanted, got)
+		}
+	}
+	if !slices.Contains(got, "XDG_DATA_DIRS=/usr/local/share:/usr/share") {
+		t.Errorf("env = %v, want XDG_DATA_DIRS reduced to the host entries", got)
+	}
+	// Scrubbing must stay surgical: gsettings reaches dconf over the session
+	// bus, so losing this would break every write instead of fixing one.
+	if !slices.Contains(got, "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus") {
+		t.Errorf("env = %v, want the session bus address preserved", got)
+	}
+}
+
+// TestHostSchemaEnv_DropsAnEntirelySandboxedDataDirList pins the difference
+// between an empty XDG_DATA_DIRS and an absent one: glib falls back to
+// /usr/local/share:/usr/share only when the variable is gone, so setting it
+// to "" would strand the lookup with nowhere to search.
+func TestHostSchemaEnv_DropsAnEntirelySandboxedDataDirList(t *testing.T) {
+	got := hostSchemaEnv([]string{"XDG_DATA_DIRS=/snap/code/259/usr/share:/var/lib/snapd/desktop"})
+
+	if len(got) != 0 {
+		t.Errorf("hostSchemaEnv() = %v, want XDG_DATA_DIRS dropped rather than emptied", got)
+	}
+}
+
+// TestHostSchemaEnv_LeavesAnOrdinaryEnvironmentAlone guards against the
+// scrub firing on a normal desktop session, where every one of these
+// variables is the host's own and must survive untouched.
+func TestHostSchemaEnv_LeavesAnOrdinaryEnvironmentAlone(t *testing.T) {
+	env := []string{
+		"XDG_DATA_HOME=/home/me/.local/share",
+		"XDG_DATA_DIRS=/usr/local/share:/usr/share",
+		"PATH=/usr/bin",
+	}
+
+	if got := hostSchemaEnv(env); !slices.Equal(got, env) {
+		t.Errorf("hostSchemaEnv(%v) = %v, want it unchanged", env, got)
+	}
+}
+
+// TestSetLinux_ReportsAFailedDarkKeyWrite is the regression test for the bug
+// this whole path was reported for: on GNOME 42+ in dark mode picture-uri-dark
+// is the *only* key on screen, so swallowing its failure told the user the
+// wallpaper had changed while their desktop kept the old picture.
+func TestSetLinux_ReportsAFailedDarkKeyWrite(t *testing.T) {
+	t.Setenv("XDG_CURRENT_DESKTOP", "GNOME")
+	stubLookups(t, "/usr/bin/gsettings", "")
+	stubDarkKey(t, true, nil)
+	captureCommands(t, func(args []string) error {
+		if slices.Contains(args, "picture-uri-dark") {
+			return errors.New("No such key “picture-uri-dark”")
+		}
+		return nil
+	})
+
+	err := setLinux("/home/me/photo.png")
+	if err == nil {
+		t.Fatal("setLinux() = nil, want the failed dark-key write reported")
+	}
+	if !strings.Contains(err.Error(), "picture-uri-dark") {
+		t.Errorf("setLinux() error = %v, want it to name the key that failed", err)
+	}
+}
+
+// TestSetLinux_SkipsTheDarkKeyBeforeGnome42 replaces the old
+// "ignore a missing dark key" behavior: rather than running a command that
+// is known to fail and discarding the error, the schema is asked first and
+// the key is simply not written when it does not exist.
+func TestSetLinux_SkipsTheDarkKeyBeforeGnome42(t *testing.T) {
+	t.Setenv("XDG_CURRENT_DESKTOP", "GNOME")
+	stubLookups(t, "/usr/bin/gsettings", "")
+	stubDarkKey(t, false, nil)
+	got := captureCommands(t, nil)
+
+	if err := setLinux("/home/me/photo.png"); err != nil {
+		t.Errorf("setLinux() error = %v, want nil on a pre-42 GNOME", err)
+	}
+	if len(*got) != 1 {
+		t.Errorf("ran %d commands, want only the picture-uri write: %v", len(*got), *got)
+	}
+}
+
+// TestSetLinux_StaysForgivingWhenTheSchemaCannotBeRead keeps an unreadable
+// schema listing from turning a wallpaper change that may well have worked
+// into a reported failure.
+func TestSetLinux_StaysForgivingWhenTheSchemaCannotBeRead(t *testing.T) {
+	t.Setenv("XDG_CURRENT_DESKTOP", "GNOME")
+	stubLookups(t, "/usr/bin/gsettings", "")
+	stubDarkKey(t, false, errors.New("list-keys failed"))
+	captureCommands(t, func(args []string) error {
+		if slices.Contains(args, "picture-uri-dark") {
+			return errors.New("No such key")
+		}
+		return nil
+	})
+
+	if err := setLinux("/home/me/photo.png"); err != nil {
+		t.Errorf("setLinux() error = %v, want nil when the schema could not be read", err)
+	}
+}
+
+// TestDarkBackgroundKeyExists_ReadsTheHostSchemaListing covers the probe
+// itself, including that it runs against the scrubbed host environment.
+func TestDarkBackgroundKeyExists_ReadsTheHostSchemaListing(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		listing string
+		want    bool
+	}{
+		{name: "gnome 46", listing: "picture-options\npicture-uri\npicture-uri-dark\nprimary-color\n", want: true},
+		{name: "pre-42", listing: "picture-options\npicture-uri\nshow-desktop-icons\n", want: false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			// A real sandbox override has to be present in this process's own
+			// environment, or "the child does not carry it" would hold even
+			// for a command that simply inherits everything.
+			t.Setenv("GSETTINGS_SCHEMA_DIR", "/home/me/snap/code/259/.local/share/glib-2.0/schemas")
+
+			var ran *exec.Cmd
+			orig := runWallpaperCommand
+			t.Cleanup(func() { runWallpaperCommand = orig })
+			runWallpaperCommand = func(cmd *exec.Cmd) ([]byte, error) {
+				ran = cmd
+				return []byte(testCase.listing), nil
+			}
+
+			got, err := darkBackgroundKeyExists("/usr/bin/gsettings")
+			if err != nil || got != testCase.want {
+				t.Fatalf("darkBackgroundKeyExists() = %v, %v, want %v, nil", got, err, testCase.want)
+			}
+			if !slices.Contains(ran.Args, "list-keys") || !slices.Contains(ran.Args, gnomeBackgroundSchema) {
+				t.Errorf("probe command = %v, want it to list the background schema's keys", ran.Args)
+			}
+			// A nil Env is exec's "inherit the parent's", which would hand the
+			// child the sandbox override this whole path exists to escape.
+			if ran.Env == nil {
+				t.Fatal("probe inherited the ambient environment, want an explicit scrubbed one")
+			}
+			if slices.ContainsFunc(ran.Env, func(entry string) bool {
+				return strings.HasPrefix(entry, "GSETTINGS_SCHEMA_DIR=")
+			}) {
+				t.Errorf("probe env = %v, want the sandbox schema override dropped", ran.Env)
+			}
+		})
+	}
+}
+
+// stubDarkKey pins what the background schema is found to contain, so a test
+// can choose its GNOME generation without stubbing the listing command.
+func stubDarkKey(t *testing.T, exists bool, err error) {
+	t.Helper()
+
+	orig := darkBackgroundKeyExists
+	t.Cleanup(func() { darkBackgroundKeyExists = orig })
+	darkBackgroundKeyExists = func(string) (bool, error) { return exists, err }
+}
+
 // captureCommands swaps runWallpaperCommand for a recorder, returning a
 // pointer to the argument lists of every command the code under test ran, in
 // order. fail, when non-nil, decides which of them report an error - the
@@ -112,6 +289,7 @@ func stubLookups(t *testing.T, gsettings, plasma string) {
 func TestSetLinux_SetsBothGnomeBackgroundKeys(t *testing.T) {
 	t.Setenv("XDG_CURRENT_DESKTOP", "GNOME")
 	stubLookups(t, "/usr/bin/gsettings", "")
+	stubDarkKey(t, true, nil)
 	got := captureCommands(t, nil)
 
 	if err := setLinux("/home/me/photo.png"); err != nil {
@@ -132,27 +310,6 @@ func TestSetLinux_SetsBothGnomeBackgroundKeys(t *testing.T) {
 		if !slices.Contains(args, "file:///home/me/photo.png") {
 			t.Errorf("command %d = %v, want it to carry the file:// URI", i, args)
 		}
-	}
-}
-
-// TestSetLinux_IgnoresAMissingDarkKey covers GNOME before 42, where
-// picture-uri-dark does not exist and gsettings fails on it. The light key
-// is the whole job there, so that failure must not be reported as one.
-func TestSetLinux_IgnoresAMissingDarkKey(t *testing.T) {
-	t.Setenv("XDG_CURRENT_DESKTOP", "GNOME")
-	stubLookups(t, "/usr/bin/gsettings", "")
-	captureCommands(t, func(args []string) error {
-		if slices.Contains(args, "picture-uri-dark") {
-			// Copied verbatim from what gsettings actually prints; the stub is
-			// only worth anything if it matches the real text byte for byte.
-			//goland:noinspection GoErrorStringFormat
-			return errors.New("No such key 'picture-uri-dark'")
-		}
-		return nil
-	})
-
-	if err := setLinux("/home/me/photo.png"); err != nil {
-		t.Errorf("setLinux() error = %v, want nil - a missing dark key is not a failure", err)
 	}
 }
 
