@@ -422,6 +422,103 @@ func TestReadArchive_OversizeHasNoTerminal(t *testing.T) {
 	}
 }
 
+// Release archives never carry links, so Download refuses any archive that
+// does. Each fixture below is an escape a link-honouring extractor would
+// complete: the tar symlink case has been observed writing "pwned" into the
+// sibling directory, and the hard link case pulls a file from outside the
+// stage into it.
+func TestDownload_RefusesLinkArchiveEntries(t *testing.T) {
+	const payloadName = "picfetch-linux-amd64"
+	cases := []struct {
+		name      string
+		assetName string
+		archive   func(t *testing.T, root string) []byte
+	}{
+		{
+			name:      "zip symlink",
+			assetName: payloadName + ".zip",
+			archive: func(t *testing.T, _ string) []byte {
+				return zipArchiveBytes(t, []archiveEntry{
+					{name: "link", linkTarget: "../outside/pwned"},
+					{name: payloadName, body: []byte("elf")},
+				})
+			},
+		},
+		{
+			name:      "tar symlink",
+			assetName: payloadName + ".tar.gz",
+			archive: func(t *testing.T, _ string) []byte {
+				return tarGzArchiveBytes(t, []archiveEntry{
+					{name: "escape", linkTarget: "../outside"},
+					{name: "escape/pwned", body: []byte("owned")},
+					{name: payloadName, body: []byte("elf")},
+				})
+			},
+		},
+		{
+			name:      "tar hard link",
+			assetName: payloadName + ".tar.gz",
+			archive: func(t *testing.T, root string) []byte {
+				return tarGzArchiveBytes(t, []archiveEntry{
+					{name: "stolen", linkTarget: filepath.Join(root, "outside", "secret"), hard: true},
+					{name: payloadName, body: []byte("elf")},
+				})
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			outside := filepath.Join(root, "outside")
+			if err := os.MkdirAll(outside, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(outside, "secret"), []byte("secret"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			stageDir := filepath.Join(root, "stage")
+
+			archive := tc.archive(t, root)
+			sum := sha256.Sum256(archive)
+			srv := serveDownload(t, tc.assetName, archive, okAttest)
+			c := downloadClient(t, srv, &fakeVerifier{}, stageDir)
+
+			_, err = c.Download(context.Background(), Release{
+				Version:     "v0.2.7",
+				AssetName:   tc.assetName,
+				AssetURL:    srv.URL + "/" + tc.assetName,
+				AssetDigest: hex.EncodeToString(sum[:]),
+			})
+			if err == nil {
+				t.Fatal("Download accepted an archive carrying a link entry")
+			}
+			if !strings.Contains(err.Error(), "refusing") {
+				t.Fatalf("Download error = %v, want the link entry refused", err)
+			}
+			if _, statErr := os.Stat(stageDir); !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("stage directory survived a refused archive: %v", statErr)
+			}
+			if _, loadErr := LoadStage(stageDir); loadErr == nil {
+				t.Error("a refused archive left a loadable stage")
+			}
+			entries, err := os.ReadDir(outside)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 1 || entries[0].Name() != "secret" {
+				var names []string
+				for _, e := range entries {
+					names = append(names, e.Name())
+				}
+				t.Errorf("beside the stage directory = %v, want only the pre-existing secret", names)
+			}
+		})
+	}
+}
+
 func TestDownload_WrongDigest(t *testing.T) {
 	archive := linuxArchive(t)
 	srv := serveDownload(t, "picfetch-linux-amd64.tar.gz", archive, func(w http.ResponseWriter, _ *http.Request) {

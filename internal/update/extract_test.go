@@ -3,6 +3,7 @@ package update
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"os"
@@ -69,6 +70,78 @@ func writeTarGz(t *testing.T, dir, name string, files map[string][]byte) string 
 		t.Fatal(err)
 	}
 	return path
+}
+
+// archiveEntry is one ordered member of an archive fixture. A non-empty
+// linkTarget makes it a symlink entry, or a hard link when hard is set;
+// otherwise it is a regular file holding body. Ordering matters for hostile
+// fixtures, where a link entry has to precede the entry that would be written
+// through it, so this cannot use writeZip/writeTarGz's name-keyed maps.
+type archiveEntry struct {
+	name       string
+	body       []byte
+	linkTarget string
+	hard       bool
+}
+
+func zipArchiveBytes(t *testing.T, entries []archiveEntry) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, e := range entries {
+		hdr := &zip.FileHeader{Name: e.name, Method: zip.Deflate}
+		body := e.body
+		if e.linkTarget != "" {
+			hdr.SetMode(os.ModeSymlink | 0o777)
+			body = []byte(e.linkTarget)
+		} else {
+			hdr.SetMode(0o755)
+		}
+		w, err := zw.CreateHeader(hdr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func tarGzArchiveBytes(t *testing.T, entries []archiveEntry) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	for _, e := range entries {
+		hdr := &tar.Header{Name: e.name, Mode: 0o755, Typeflag: tar.TypeReg, Size: int64(len(e.body))}
+		if e.linkTarget != "" {
+			hdr.Typeflag = tar.TypeSymlink
+			if e.hard {
+				hdr.Typeflag = tar.TypeLink
+			}
+			hdr.Linkname = e.linkTarget
+			hdr.Size = 0
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if hdr.Size > 0 {
+			if _, err := tw.Write(e.body); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
 
 func TestExtract_MacOSApp(t *testing.T) {

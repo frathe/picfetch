@@ -129,6 +129,79 @@ func TestApplyUnix_PlistCopyFailureLeavesInstalledFilesUntouched(t *testing.T) {
 	}
 }
 
+// A directory occupying Info.plist.old makes the plist backup rename fail
+// after the executable swap has already completed. That is the only window in
+// which Apply has to undo a finished binary replacement, so it is the case
+// that proves the rollback rather than the pre-swap abort covered above.
+func TestApplyUnix_PlistBackupFailureAfterBinarySwapRestoresOriginals(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents := filepath.Join(dir, "PicFetch.app", "Contents")
+	dest := filepath.Join(contents, "MacOS", "picfetch")
+	plistDest := filepath.Join(contents, "Info.plist")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("old binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plistDest, []byte("old plist"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(plistDest+".old", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(dir, "staged")
+	if err := os.WriteFile(staged, []byte("new binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stagedPlist := filepath.Join(dir, "staged.plist")
+	if err := os.WriteFile(stagedPlist, []byte("new plist"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err = applyUnix(Stage{BinaryPath: staged, PlistPath: stagedPlist}, dest, ApplyOptions{})
+
+	var linkErr *os.LinkError
+	if !errors.As(err, &linkErr) {
+		t.Fatalf("applyUnix error = %v, want the failed plist backup rename", err)
+	}
+	if linkErr.Old != plistDest || linkErr.New != plistDest+".old" {
+		t.Fatalf("failed rename = %q -> %q, want the plist backup", linkErr.Old, linkErr.New)
+	}
+	gotBinary, readErr := os.ReadFile(dest)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(gotBinary) != "old binary" {
+		t.Errorf("installed binary = %q, want old binary", gotBinary)
+	}
+	st, statErr := os.Stat(dest)
+	if statErr != nil {
+		t.Fatal(statErr)
+	}
+	if st.Mode().Perm() != 0o755 {
+		t.Errorf("restored binary mode = %o, want 0755", st.Mode().Perm())
+	}
+	gotPlist, readErr := os.ReadFile(plistDest)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(gotPlist) != "old plist" {
+		t.Errorf("installed plist = %q, want old plist", gotPlist)
+	}
+	for _, leftover := range []string{dest + ".new", dest + ".old", plistDest + ".new"} {
+		if _, err := os.Stat(leftover); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("partial replacement %q remains: %v", leftover, err)
+		}
+	}
+	if st, err := os.Stat(plistDest + ".old"); err != nil || !st.IsDir() {
+		t.Errorf("conflicting Info.plist.old = %v (dir %v), want the untouched directory", err, st != nil && st.IsDir())
+	}
+}
+
 func TestApplyUnix_UnwritableDestLeavesOld(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory write bits")

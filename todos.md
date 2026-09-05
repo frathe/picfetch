@@ -13,6 +13,11 @@
 
 #### Internal
 
+- Pin `internal/update`'s two P0 recovery behaviors: `Apply` restores the
+  original binary and `Info.plist` when the plist backup fails after the
+  executable swap has completed, and `Client.Download` refuses release archives
+  carrying ZIP symlink, TAR symlink, or TAR hard link entries without leaving a
+  loadable stage or writing outside the stage directory.
 - Synchronize the EXIF tile callback test with callback completion, so it waits
   on the `onChange` report itself instead of the pending counter that `release`
   clears just before calling back.
@@ -124,16 +129,7 @@ running its existing higher-level tests. Percentages locate candidates;
 completion means pinning useful PicFetch behavior through an established
 interface, not reaching a blanket coverage target.
 
-1. **P0 - `internal/update` (77.2% local / 78.8% effective).**
-   - Through `update.Apply`, force a plist-backup failure after binary
-     replacement begins (a conflicting `Info.plist.old` is the deterministic
-     fixture). Verify the installed binary and plist remain the original
-     versions and partial replacement files are removed.
-   - Through `Client.Download` with an HTTP test server and fake external
-     verifier, reject ZIP symlinks and TAR symlink/hardlink entries. No usable
-     stage or file outside the staging directory may be created.
-   - Do not exercise the real Sigstore implementation or unreachable platform
-     stubs merely to cover their lines.
+1. ~~**P0 - `internal/update`**~~ - done, see Done -> Internal above.
 2. **P1 - `internal/filesort` (73.7% local / 89.9% effective).**
    - Pin `FromPref` / `PrefValue` round-trips for every `Modes` entry and the
      unknown-value fallback to `ByName`.
