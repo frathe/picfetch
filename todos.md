@@ -27,15 +27,6 @@
 
 ## TODO
 
-### Validate image mosaics on physical multi-display desktops
-
-Run the supervised native smoke matrix in
-`finished_refactorings/2026-09-04-bildmosaik/issues/16-release-hardening-and-native-smoke-tests.md` on
-Windows, macOS, GNOME, and KDE hosts with the listed display arrangements.
-Automated tests and cross-builds cover the implementation, but they cannot
-prove a real desktop changed, retained its Fill/Fit options, or persisted after
-PicFetch exited.
-
 ### Publish PicFetch in Microsoft Store
 
 Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX
@@ -113,57 +104,6 @@ when Store credentials or approval are unavailable, that no Store mutation can
 happen before approval, and that an approved run submits exactly one package
 version and exposes enough status to distinguish upload, validation,
 certification, and publication failures.
-
-### Functional test coverage
-
-Audit baseline, 2026-09-01: package-local statement coverage came from a
-passing run of:
-
-```sh
-go test -count=1 -skip '^TestE2E' \
-  -coverprofile=/tmp/picfetch-cover-clean.out ./...
-```
-
-"Effective" coverage below additionally instruments the named package while
-running its existing higher-level tests. Percentages locate candidates;
-completion means pinning useful PicFetch behavior through an established
-interface, not reaching a blanket coverage target.
-
-1. ~~**P0 - `internal/update`**~~ - done, see Done -> Internal above.
-2. **P1 - `internal/filesort` (73.7% local / 89.9% effective).**
-   - Pin `FromPref` / `PrefValue` round-trips for every `Modes` entry and the
-     unknown-value fallback to `ByName`.
-   - Verify missing files use the documented zero-key fallback for capture
-     date, modification time, and size sorts, while `Order` leaves its input
-     slice unchanged.
-3. **P1 - `internal/ui/copyselection` (85.4% local / 88.1% effective).**
-   - Through `Feature` and canvas gestures, verify all eight image-region
-     selection handles resize the correct edges, including corner and crossed
-     movement.
-   - Move a committed image-region selection beyond each image edge and verify
-     it clamps to the image while preserving its dimensions.
-   - Do not test `resizeRect`, renderer no-ops, or Fyne event methods directly.
-4. **P2 - `internal/favthumbs` (86.9%).**
-   - Verify `Read` falls through from a corrupt JPEG preview to a valid PNG
-     sibling.
-   - Verify `Sweep` preserves directories and other non-regular files whose
-     names resemble preview files.
-5. **P3 - `scripts/releasenotes` (86.8%).**
-   - Exercise `Build` and `ClearDone` with CRLF input and with `## Done` as the
-     final section, preserving surrounding Markdown and changelog output.
-
-Future tests stay at the exported seams named above. Each must be seen failing
-against a deliberate behavior break before it is accepted, then pass its
-focused package test and `make verify` at final handoff.
-
-Do not chase the low numbers in `main`, `internal/uitest`, `scripts/synctuf`,
-Fyne widget adapters, or the accepted OS-integration seams. `internal/session`
-and `internal/favstore` already cover their useful persistence behavior; their
-remaining gaps are chiefly framework/filesystem failure plumbing.
-`internal/ui/autoupdate` and `internal/appearance` reach 91.4% and 96.4%
-respectively when their higher-level tests are counted. Re-audit
-`internal/ui/compare` only after the current command-isolation work lands; its
-present uncovered input-shield methods are deliberate no-ops.
 
 ## LATER
 
