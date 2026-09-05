@@ -166,6 +166,7 @@ exclude:
       - "internal/ui/harness_test.go"
       - "internal/ui/help/about_test.go"
       - "internal/ui/help/easteregg_test.go"
+      - "internal/ui/help/finis_test.go"
       - "internal/ui/help/manual_search_test.go"
       - "internal/ui/help/manual_test.go"
       - "internal/ui/help/mascot_test.go"

@@ -1,4 +1,5 @@
 {
+   "Finis": "Finis",
    "Drop images here": "Drop images here",
    "Loading...": "Loading...",
    "Help": "Help",
@@ -177,7 +178,6 @@
    "Picture-frame mode": "Picture-frame mode",
    "Add Current List to Favorites…": "Add Current List to Favorites…",
    "Manage Favorites…": "Manage Favorites…",
-   "%s (%d)": "%s (%d)",
    "could not list favorites: %v": "could not list favorites: %v",
    "enter a name without / \\ : * ? \" < > |": "enter a name without / \\ : * ? \" < > |",
    "Add to Favorites": "Add to Favorites",

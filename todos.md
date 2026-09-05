@@ -14,6 +14,8 @@
 - Use the mosaic controls with a keyboard.
 - Choose **Start Over** from the finished preview to create another mosaic with your settings preserved—handy for setting up another monitor.
 - Customize the look, including optional drop shadows, under **Advanced**.
+- Added the hidden Finis companion: type `finis` in manual search, then move the
+  pointer in his window to guide his gaze. Escape closes the companion.
 
 #### Fixes and Improvements
 
@@ -33,6 +35,13 @@
 - Improved error reporting and cleaned up internal code and documentation to make the mosaic feature easier to maintain.
 
 ## TODO
+
+### Verify the Finis companion on Linux
+
+Run `make verify` when connectivity permits. Finis’s focused tests, native vet
+and build, and visual checks passed; Linux race verification was stopped during
+dependency setup at the user’s request. See
+`finished_refactorings/2026-09-05-finis.md`.
 
 ### Validate image mosaics on physical multi-display desktops
 

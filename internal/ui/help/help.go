@@ -9,7 +9,8 @@
 // to exist between the About window and the manual window, since the About
 // box links to the manual: both are methods on one type here.
 //
-// Help also owns the Hypno Spiral easter egg (internal/ui/spiral), reached
+// Help also owns Finis, the cursor-following companion in finis.go, and
+// the Hypno Spiral easter egg (internal/ui/spiral), reached
 // only by typing a secret phrase into the manual's search box (see
 // manual.go's secretPhrase and manualView.submit). That doesn't cost this
 // package the "needs nothing from the viewer" property above: the spiral
@@ -42,6 +43,8 @@ type Help struct {
 	manualWin   widgets.Singleton
 	aboutWin    widgets.Singleton
 	whatsNewWin widgets.Singleton
+	finisWin    widgets.Singleton
+	finis       *finisView
 	manual      *manualView
 
 	onManualClosed func()

@@ -151,3 +151,29 @@ func TestHelp_OpenSpiralTwiceKeepsOneWindow(t *testing.T) {
 		t.Error("a second gesture should re-aim the open spiral, not replace it")
 	}
 }
+
+func TestHelp_FinisSearchOpensCompanion(t *testing.T) {
+	a := test.NewApp()
+	t.Cleanup(a.Quit)
+	h := New(a, "PicFetch", nil)
+	original := currentManual
+	t.Cleanup(func() { currentManual = original })
+	currentManual = func() string { return "Finis likes pictures." }
+	h.ShowManual()
+	for _, query := range []string{"finis", " FINIS "} {
+		h.manual.entry.SetText(query)
+		h.manual.entry.OnSubmitted(query)
+		count := 0
+		for _, window := range a.Driver().AllWindows() {
+			if window.Title() == "Finis" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("companion windows = %d, want 1", count)
+		}
+		if h.manual.entry.Text != "" {
+			t.Fatal("secret search was not cleared")
+		}
+	}
+}

@@ -60,6 +60,9 @@ var currentManual = func() string {
 // defeats the point of an easter egg whose only door is this search box.
 const secretPhrase = "please hypnotize me"
 
+// finisPhrase is the same hidden character name in every locale.
+const finisPhrase = "finis"
+
 // manualView is the search-enabled manual page: a fixed entry above the
 // scrollable markdown. Submit (Enter) highlights matches and scrolls the
 // current hit into view; a repeated submit of the same query walks forward.
@@ -75,6 +78,7 @@ type manualView struct {
 	// onSecret fires when submit sees secretPhrase exactly. nil is a valid
 	// no-op, which is what the search-only tests in this package pass.
 	onSecret func()
+	onFinis  func()
 }
 
 func newManualView(source string, onSecret func()) *manualView {
@@ -98,12 +102,18 @@ func (v *manualView) content() fyne.CanvasObject {
 func (v *manualView) submit(q string) {
 	q = normalizeQuery(q)
 
-	if strings.EqualFold(q, secretPhrase) {
+	if strings.EqualFold(q, secretPhrase) || strings.EqualFold(q, finisPhrase) {
+		callback := v.onSecret
+		if strings.EqualFold(q, finisPhrase) {
+			callback = v.onFinis
+		}
+		loadManualMarkdown(v.text, v.source)
+		v.text.Refresh()
 		v.entry.SetText("")
 		v.state = searchState{}
 		v.current = nil
-		if v.onSecret != nil {
-			v.onSecret()
+		if callback != nil {
+			callback()
 		}
 
 		return
@@ -169,6 +179,7 @@ func (v *manualView) scrollTo(loc *widget.TextSegment) {
 func (h *Help) ShowManual() {
 	h.manualWin.Show(h.app, lang.L("PicFetch Manual"), fyne.NewSize(manualW, manualH), func() fyne.CanvasObject {
 		h.manual = newManualView(currentManual(), h.spiral.Show)
+		h.manual.onFinis = h.showFinis
 
 		return h.manual.content()
 	}, func() {

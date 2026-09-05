@@ -1,4 +1,5 @@
 {
+   "Finis": "Finis",
    "Drop images here": "Bilder hier ablegen",
    "Loading...": "Wird geladen...",
    "Help": "Hilfe",
@@ -177,7 +178,6 @@
    "Picture-frame mode": "Bilderrahmen-Modus",
    "Add Current List to Favorites…": "Aktuelle Liste zu Favoriten hinzufügen…",
    "Manage Favorites…": "Favoriten verwalten…",
-   "%s (%d)": "%s (%d)",
    "could not list favorites: %v": "Favoriten konnten nicht aufgelistet werden: %v",
    "enter a name without / \\ : * ? \" < > |": "Namen ohne / \\ : * ? \" < > | eingeben",
    "Add to Favorites": "Zu Favoriten hinzufügen",
