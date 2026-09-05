@@ -118,6 +118,26 @@ func TestManualDocumentsCopySelection(t *testing.T) {
 	}
 }
 
+// TestManualDocumentsReveal pins both halves of the command a user has to
+// find in writing: the accelerator, and the menu path it also lives on.
+func TestManualDocumentsReveal(t *testing.T) {
+	// The modifier name is itself translated - Ctrl in English, Strg in
+	// German - so this checks each manual for its own spelling rather than
+	// one string in both.
+	if !strings.Contains(manualMD, "Ctrl+R`") {
+		t.Error("manual.md does not document the Cmd/Ctrl+R reveal shortcut")
+	}
+	if !strings.Contains(manualDE, "Strg+R`") {
+		t.Error("manual_de.md does not document the Cmd/Strg+R reveal shortcut")
+	}
+	if !strings.Contains(manualMD, "Actions -> Reveal in file manager") {
+		t.Error("manual.md does not document Actions -> Reveal in file manager")
+	}
+	if !strings.Contains(manualDE, "Aktionen -> Im Dateimanager anzeigen") {
+		t.Error("manual_de.md does not document Aktionen -> Im Dateimanager anzeigen")
+	}
+}
+
 func TestManualDocumentsComparisonEntryAndExit(t *testing.T) {
 	for name, phrase := range map[string]string{
 		"manual.md":    "Actions -> Compare selected images",

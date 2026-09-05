@@ -20,7 +20,7 @@
 - Input flows through CLI/open/drop → `handleDrop` scan → `filesort.Order` → `ShowImage` → `internal/imaging` probe/decode/orient/cache → Fyne display. Reuse this path rather than creating parallel open/load logic. On macOS, "Open With"/Dock drop/`open -a`/double-click arrive as an Apple Event instead of argv; `internal/openwith`'s queue + `internal/ui/openwith.go` fold that into the same `handleDrop` call, argv files first.
 - `internal/imaging` is viewer-independent. Full images and grid thumbnails use separate byte-budgeted caches; preserve `ByteCache.Add` (displayed image) versus `AddIfFits` (speculative preload) semantics.
 - Session file sets use `internal/session`/Fyne cache; standing settings and geometry use `internal/preferences`/Fyne preferences. Startup wiring is in `internal/ui/startup.go`, shutdown persistence in `run.go`.
-- OS integrations live behind dispatcher vars in `internal/{clipboard,displays,filepicker,trash,wallpaper}` with build-tagged platform files. Tests must replace them via `internal/uitest` stubs, never touch the real desktop.
+- OS integrations live behind dispatcher vars in `internal/{clipboard,displays,filemanager,filepicker,trash,wallpaper}` with build-tagged platform files. Tests must replace them via `internal/uitest` stubs, never touch the real desktop.
 - Keep `appID` synchronized across `main.go`, `FyneApp.toml`, and `Makefile`; changing it disconnects existing preferences/session data.
 
 ## Concurrency and Fyne
@@ -40,6 +40,7 @@
 - Report UI-boundary failures with `fyne.LogError`; viewer-independent packages return errors. Mark intentionally ignored errors explicitly (`_ =` or `_, _ =`) so IDE/`errcheck` inspections see intent.
 - In concrete functions and methods, name intentionally unused parameters `_` (for example, `func f(_ context.Context)`); Qodana's `GoUnusedParameter` inspection flags unnamed required parameters such as `func f(context.Context)`.
 - Use `internal/uitest` for synthetic image formats, temp URIs, approximate comparisons, and OS seam stubs. UI tests should build through `newTestUI`/`newTestViewer`, which mirror production startup.
+- `CanvasObject.Visible()` is the object's own hidden flag, not a statement about the tree it is in: a widget that was built and then left out of its container still reports `true`. A test that asserts only `Visible()` therefore passes on a widget that never reaches the screen. When the fact under test is "this is *in* the surface", walk the container from its root — see `infoview`'s `inCard` in `card_test.go`. `Visible()` alone is enough only for a widget already known to be in the tree whose show/hide is what moves.
 - Keep platform-specific behavior in existing build-tag pairs and preserve no-cgo HEIC/AVIF decoding through `gen2brain` WASM; Fyne itself still requires a C/OpenGL toolchain.
 
 ## Build and Verification
@@ -52,6 +53,7 @@
 - Golden screenshots are under `internal/ui/testdata/`. Regenerate only with `make golden` (Docker linux/amd64), inspect `internal/ui/testdata/failed/*.png`, and never commit failed renders.
 - Tests/golden rendering and Windows/Linux packaging use Docker; macOS packaging is native. `fyne package` may bump `FyneApp.toml`’s build number.
 - **Qodana test exclusions:** Whenever adding a `_test.go` file, add its exact repository-relative path to `qodana.yaml` under `exclude` -> `DuplicatedCode` -> `paths`; test-file globs do not work there.
+- **UI shard manifest:** Whenever adding a top-level test to `internal/ui`, assign it a shard in `.github/testshards/internal-ui.tsv` (rows are sorted within each `ui-N` block) and refresh that block's entry count in the header comments. `scripts/testshards check` demands an exact assignment for every runnable and runs *before* the race suite in `make verify` / CI, so a missing row fails the gate after the Docker image is already built. `make check-test-shards` is the same check on its own, in seconds.
 - **Reading a Qodana report:** `qodana.sarif.json` is the post-suppression result set and
   counts one result per duplicate *cluster*; `log/qodana_inspections_summary.csv` counts
   every finding *before* both source-level suppressions and `qodana.yaml`'s config-level

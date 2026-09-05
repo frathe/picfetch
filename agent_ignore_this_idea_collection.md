@@ -45,15 +45,6 @@ Fyne-side it's a layer in `build.go`'s content stack behind `v.img`
 (a `canvas.Raster` for the checkerboard), shown only while an image is up.
 Small, visible polish that every icon/asset designer notices immediately.
 
-## 6. "Reveal in file manager" and "Copy path" — S
-
-`Cmd/Ctrl+R` menu item + info-overlay link: open Finder / Explorer /
-xdg file manager with the current file selected, plus a "Copy full path"
-sibling. Shell-out per platform (`open -R`, `explorer /select,`,
-`dbus/xdg-open` fallback) following the pattern `internal/wallpaper` and
-`internal/clipboard` already use for OS integration, including their
-test-seam/`Done`-channel discipline. Tiny feature, used constantly.
-
 ## 7. Export options: resize + strip metadata — S/M
 
 The export prompt (`Cmd/Ctrl+E`, `widgets.ChoiceCard`) currently chooses

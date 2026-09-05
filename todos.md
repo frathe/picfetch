@@ -6,6 +6,14 @@
 
 #### New Features
 
+- "Reveal in file manager" opens the current image's folder with the file
+  already selected, from Actions (`Cmd/Ctrl+R`), or from a link in the info
+  overlay (`I`). macOS uses `open -R`, Windows `explorer.exe /select,`, and
+  Linux the freedesktop `org.freedesktop.FileManager1.ShowItems` D-Bus call
+  that Nautilus, Dolphin, Nemo, Thunar and PCManFM answer, falling back to
+  `xdg-open` on the folder where nothing implements it. Always acts on the
+  file on screen, never on the grid selection.
+
 #### Bugfix
 
 - Windows packaging warms the Go toolchain as the same user as fyne-cross,

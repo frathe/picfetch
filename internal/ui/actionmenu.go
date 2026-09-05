@@ -1,5 +1,5 @@
 // Actions menu: sort, duplicates, image transforms, merge/info toggles,
-// clipboard, wallpaper, and trash. The items and their Checked/Disabled
+// clipboard, reveal, wallpaper, and trash. The items and their Checked/Disabled
 // matrix live in internal/ui/menus, composed in menu.go; this file holds
 // the actions those items run.
 
@@ -152,6 +152,13 @@ func (v *viewer) copyActionsPath() {
 		return
 	}
 	v.copyPathToClipboard()
+}
+
+func (v *viewer) revealActionsFile() {
+	if v.comparisonActive() {
+		return
+	}
+	v.revealCurrentFile()
 }
 
 func (v *viewer) wallpaperActionsImage() {

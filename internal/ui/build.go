@@ -57,6 +57,8 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	toastComp := newToast(func() { view.ForceRepaint() })
 	info := infoview.New(func() {
 		view.showWindowExif()
+	}, func() {
+		view.revealCurrentFile()
 	})
 
 	loadingBar := widget.NewProgressBarInfinite()

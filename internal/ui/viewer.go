@@ -422,6 +422,14 @@ type viewer struct {
 	clipboard completion.Signal
 	chooser   completion.Signal
 
+	// reveal is begun by revealCurrentFile (reveal.go) and finished once
+	// that goroutine has fully run, error toast included - the same
+	// contract clipboard keeps, for the same reason: every file manager
+	// this dispatches to is an external process.
+	//
+	// Value field, never copied: it holds a mutex.
+	reveal completion.Signal
+
 	// wallpaper is begun by setAsWallpaper (wallpaper.go) and finished
 	// once the change has fully landed, toast included. favThumb is the
 	// same for SyncFavoritePreviews' pass over a favorite's previews

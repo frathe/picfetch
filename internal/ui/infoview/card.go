@@ -1,8 +1,8 @@
 // Package infoview owns the persistent info overlay (the I key, see
-// internal/ui/info.go's toggleInfoOverlay): its three widgets - the text
-// label, the "Show EXIF data" link, and the card container - the current
-// file's raw facts (byte size, EXIF presence, RAW-preview flag), and its
-// own toggle preference and text formatting. It has no window of its own
+// internal/ui/info.go's toggleInfoOverlay): its four widgets - the text
+// label, the "Show EXIF data" and "Reveal in file manager" links, and the
+// card container - the current file's raw facts (byte size, EXIF presence,
+// RAW-preview flag), and its own toggle preference and text formatting. It has no window of its own
 // and reads nothing outside itself: internal/ui builds the State snapshot
 // Update renders from, since only it has state.files/zoom/vector to read.
 package infoview
@@ -48,9 +48,10 @@ type State struct {
 type Card struct {
 	visible bool
 
-	text     *widget.Label
-	exifLink *widget.Hyperlink
-	card     *fyne.Container
+	text       *widget.Label
+	exifLink   *widget.Hyperlink
+	revealLink *widget.Hyperlink
+	card       *fyne.Container
 
 	fileSize int64
 	hasEXIF  bool
@@ -59,10 +60,11 @@ type Card struct {
 
 // New builds the info card. onShowExif backs the "Show EXIF data" link
 // right below the card's own text (the click equivalent of the E key, see
-// internal/ui/exifwin); like the dropzone's own tap callbacks, it only
-// ever runs on a later tap, so it may close over a not-yet-assigned viewer
-// variable.
-func New(onShowExif func()) *Card {
+// internal/ui/exifwin) and onReveal the "Reveal in file manager" link under
+// it (the click equivalent of Cmd/Ctrl+R, see internal/ui/reveal.go); like
+// the dropzone's own tap callbacks, both only ever run on a later tap, so
+// they may close over a not-yet-assigned viewer variable.
+func New(onShowExif, onReveal func()) *Card {
 	bg := canvas.NewRectangle(theme.Color(theme.ColorNameOverlayBackground))
 	bg.CornerRadius = widgets.CardRadius
 	text := widget.NewLabel("")
@@ -71,10 +73,13 @@ func New(onShowExif func()) *Card {
 	exifLink := widget.NewHyperlink(lang.L("Show EXIF data"), nil)
 	exifLink.OnTapped = onShowExif
 
-	card := container.NewStack(bg, container.NewPadded(container.NewVBox(text, exifLink)))
+	revealLink := widget.NewHyperlink(lang.L("Reveal in file manager"), nil)
+	revealLink.OnTapped = onReveal
+
+	card := container.NewStack(bg, container.NewPadded(container.NewVBox(text, exifLink, revealLink)))
 	card.Hide()
 
-	return &Card{text: text, exifLink: exifLink, card: card}
+	return &Card{text: text, exifLink: exifLink, revealLink: revealLink, card: card}
 }
 
 // Object hands the card's container to build.go's overlay stack.
@@ -88,6 +93,10 @@ func (c *Card) Text() *widget.Label { return c.text }
 // ExifLink is the "Show EXIF data" link inside the card, exposed so
 // callers can drive its OnTapped and read its visibility directly.
 func (c *Card) ExifLink() *widget.Hyperlink { return c.exifLink }
+
+// RevealLink is the "Reveal in file manager" link inside the card, exposed
+// so callers can drive its OnTapped and read its visibility directly.
+func (c *Card) RevealLink() *widget.Hyperlink { return c.revealLink }
 
 // FileSize is the current file's raw byte count, as last recorded by
 // SetFile or AfterMetadataRemoved.
@@ -143,7 +152,9 @@ func (c *Card) Visible() bool { return c.visible }
 // The "Show EXIF data" link is settled here too, rather than in Update:
 // this is the one path that runs when the file on screen changes, while
 // Update also runs on every zoom change - and a zoom can't add or remove
-// a file's metadata.
+// a file's metadata. The "Reveal in file manager" link needs no such rule -
+// every file the card can describe has a folder to show it in - so it is
+// shown and hidden with the card itself by being inside it.
 func (c *Card) Sync(hasImage bool, s State) {
 	if c.visible && hasImage {
 		c.Update(s)

@@ -216,6 +216,7 @@ func drain(t *testing.T, v *viewer) {
 		sig  *completion.Signal
 	}{
 		{"the clipboard copy at cleanup", &v.clipboard},
+		{"the file-manager reveal at cleanup", &v.reveal},
 		{"the wallpaper at cleanup", &v.wallpaper},
 		{"the update check at cleanup", v.updater.Done()},
 		{"the favorite previews at cleanup", &v.favThumb},
@@ -440,6 +441,19 @@ func waitForClipboard(t *testing.T, v *viewer) {
 	}
 
 	waitFor(t, "the clipboard copy", &v.clipboard)
+}
+
+// waitForReveal waits out the goroutine a file-manager reveal runs on -
+// v.reveal is finished once that goroutine has fully run, error toast
+// included, exactly as waitForClipboard's is.
+func waitForReveal(t *testing.T, v *viewer) {
+	t.Helper()
+
+	if !v.reveal.Begun() {
+		t.Fatal("the file-manager reveal never started")
+	}
+
+	waitFor(t, "the file-manager reveal", &v.reveal)
 }
 
 // waitForCached polls imgCache - populated from preloadOne's background

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/clipboard"
 	"github.com/frathe/picfetch/internal/displays"
+	"github.com/frathe/picfetch/internal/filemanager"
 	"github.com/frathe/picfetch/internal/filepicker"
 	"github.com/frathe/picfetch/internal/trash"
 	"github.com/frathe/picfetch/internal/wallpaper"
@@ -14,8 +15,9 @@ import (
 
 // The stubs below swap the exported dispatcher vars that stand in front of
 // this app's OS-level shell-outs (a native file dialog, a clipboard copy, a
-// trash move, a wallpaper change). Those vars exist precisely so tests never actually open a
-// dialog, touch the system clipboard, or move a file to the real Trash;
+// trash move, a wallpaper change, a file-manager reveal). Those vars exist
+// precisely so tests never actually open a dialog, touch the system
+// clipboard, move a file to the real Trash, or raise a file-manager window;
 // each restores the real implementation on cleanup, so a test that stubs
 // one can't affect the ones that follow.
 
@@ -80,6 +82,18 @@ func StubTrashMove(t *testing.T, fn func(path string) error) {
 	orig := trash.Move
 	t.Cleanup(func() { trash.Move = orig })
 	trash.Move = fn
+}
+
+// StubReveal makes filemanager.Reveal call fn instead of opening the
+// developer's own Finder/Explorer/Nautilus window - the reveal twin of
+// StubTrashMove, and, like StubWallpaperSet, a stub whose absence a test run
+// would leave visibly behind on their screen.
+func StubReveal(t *testing.T, fn func(path string) error) {
+	t.Helper()
+
+	orig := filemanager.Reveal
+	t.Cleanup(func() { filemanager.Reveal = orig })
+	filemanager.Reveal = fn
 }
 
 // StubWallpaperSet makes wallpaper.Set call fn instead of changing the

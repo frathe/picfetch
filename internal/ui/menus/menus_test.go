@@ -60,6 +60,7 @@ func TestNew_InitialDisabledMatchesTheBarAsBuilt(t *testing.T) {
 		{"actions.copy", m.Actions().Copy(), true},
 		{"actions.copySelection", m.Actions().CopySelection(), true},
 		{"actions.copyPath", m.Actions().CopyPath(), true},
+		{"actions.reveal", m.Actions().Reveal(), true},
 		{"actions.wallpaper", m.Actions().Wallpaper(), true},
 		{"actions.trash", m.Actions().Trash(), true},
 	} {
@@ -102,6 +103,7 @@ func TestNew_LabelsAndAccelerators(t *testing.T) {
 		{"actions.copy", m.Actions().Copy(), lang.L("Copy image"), fyne.KeyC, mod},
 		{"actions.copySelection", m.Actions().CopySelection(), lang.L("Copy selection"), fyne.KeyC, fyne.KeyModifierAlt | fyne.KeyModifierShift},
 		{"actions.copyPath", m.Actions().CopyPath(), lang.L("Copy image path"), fyne.KeyC, mod | fyne.KeyModifierShift},
+		{"actions.reveal", m.Actions().Reveal(), lang.L("Reveal in file manager"), fyne.KeyR, mod},
 		{"actions.wallpaper", m.Actions().Wallpaper(), lang.L("Set as Wallpaper"), fyne.KeyE, mod | fyne.KeyModifierShift},
 		{"actions.trash", m.Actions().Trash(), lang.L("Move image to Trash"), fyne.KeyDelete, fyne.KeyModifierShift},
 	} {
@@ -183,7 +185,7 @@ func TestActionsMenu_Composition(t *testing.T) {
 		nil,
 		a.Merge(), a.Info(),
 		nil,
-		a.Copy(), a.CopySelection(), a.CopyPath(), a.Wallpaper(), a.Trash(),
+		a.Copy(), a.CopySelection(), a.CopyPath(), a.Reveal(), a.Wallpaper(), a.Trash(),
 	}
 	assertItems(t, "Actions", menu.Items, want)
 }
@@ -526,6 +528,7 @@ func TestApply_ClipboardWallpaperAndTrash(t *testing.T) {
 			m.Apply(tc.state)
 			checkDisabled(t, "copy", m.Actions().Copy(), tc.wantNoFiles)
 			checkDisabled(t, "copyPath", m.Actions().CopyPath(), tc.wantNoFiles)
+			checkDisabled(t, "reveal", m.Actions().Reveal(), tc.wantNoFiles)
 			checkDisabled(t, "trash", m.Actions().Trash(), tc.wantNoFiles)
 			checkDisabled(t, "wallpaper", m.Actions().Wallpaper(), tc.wantWallpaper)
 		})
@@ -805,7 +808,7 @@ func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.Actions().Mosaic(), m.Actions().Rotate(),
 		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),
 		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopySelection(), m.Actions().CopyPath(),
-		m.Actions().Wallpaper(), m.Actions().Trash(),
+		m.Actions().Reveal(), m.Actions().Wallpaper(), m.Actions().Trash(),
 	}
 	items = append(items, m.Actions().Sort()...)
 
@@ -893,6 +896,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		CopyImage:            record("CopyImage"),
 		CopySelection:        record("CopySelection"),
 		CopyPath:             record("CopyPath"),
+		Reveal:               record("Reveal"),
 		SetWallpaper:         record("SetWallpaper"),
 		Trash:                record("Trash"),
 	}, filesort.ByName)
@@ -923,6 +927,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		{m.Actions().Copy(), "CopyImage"},
 		{m.Actions().CopySelection(), "CopySelection"},
 		{m.Actions().CopyPath(), "CopyPath"},
+		{m.Actions().Reveal(), "Reveal"},
 		{m.Actions().Wallpaper(), "SetWallpaper"},
 		{m.Actions().Trash(), "Trash"},
 	} {

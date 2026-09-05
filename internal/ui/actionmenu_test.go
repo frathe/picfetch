@@ -84,6 +84,7 @@ func TestBuildMainMenu_ActionsItemsDisplayTheirAccelerators(t *testing.T) {
 		{"Copy image", fyne.KeyC, fyne.KeyModifierShortcutDefault},
 		{"Copy selection", fyne.KeyC, fyne.KeyModifierAlt | fyne.KeyModifierShift},
 		{"Copy image path", fyne.KeyC, fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift},
+		{"Reveal in file manager", fyne.KeyR, fyne.KeyModifierShortcutDefault},
 		{"Set as Wallpaper", fyne.KeyE, fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift},
 		{"Move image to Trash", fyne.KeyDelete, fyne.KeyModifierShift},
 	}

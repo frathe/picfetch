@@ -828,6 +828,9 @@ tatsächlich verschoben wurden.
   das Fenster besitzt, oder kein dekodiertes Bild angezeigt wird
 - **`Cmd`/`Strg+Shift+C`** — den Dateipfad des aktuellen Bildes in die
   Zwischenablage kopieren
+- **`Cmd`/`Strg+R`** — die aktuelle Datei im Dateimanager anzeigen, in ihrem
+  Ordner bereits ausgewählt (siehe „Menü“ unten). Ein einfaches `R` dreht
+  weiterhin das Bild
 - **`Shift+Delete`** — die aktuelle Datei nach Bestätigung in den Papierkorb
   verschieben (siehe „Eine Datei löschen“ oben); in der Rasteransicht alles
   dort Ausgewählte
@@ -857,6 +860,14 @@ Debian/Ubuntu. Ohne eines der beiden zeigt `Strg+C` eine Fehler-Toast-Meldung,
 statt zu kopieren. Das Kopieren des Dateipfads (`Strg+Shift+C`) ist reiner
 Text und funktioniert immer, ohne zusätzliches Werkzeug. macOS und Windows
 benötigen in beiden Fällen nichts Zusätzliches.
+
+**Dateimanager unter Linux.** „Im Dateimanager anzeigen“ (`Strg+R`) bittet
+Ihren Dateimanager über D-Bus, den Ordner mit der bereits ausgewählten Datei
+zu öffnen — Nautilus, Dolphin, Nemo, Thunar und PCManFM beantworten das alle.
+Auf einem Schreibtisch ohne einen solchen Dateimanager wird auf `xdg-open` für
+den Ordner zurückgegriffen, der ihn öffnet, ohne etwas auszuwählen. Ist keines
+von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
+(Finder) und Windows (Explorer) wird die Datei immer selbst ausgewählt.
 
 ---
 
@@ -1034,6 +1045,12 @@ benötigen in beiden Fällen nichts Zusätzliches.
   Dialog das Fenster besitzt
 - **Aktionen -> Bildpfad kopieren** (`Cmd/Strg+Shift+C`) — der Pfad der
   aktuellen Datei. Ausgegraut, wenn keine Dateien geladen sind
+- **Aktionen -> Im Dateimanager anzeigen** (`Cmd/Strg+R`) — öffnet Finder,
+  Explorer oder Ihren Linux-Dateimanager mit der aktuellen Datei ausgewählt,
+  damit Sie sie außerhalb von PicFetch umbenennen, verschieben oder teilen
+  können. Das Info-Overlay (`I`) enthält denselben Befehl als Link. Immer die
+  angezeigte Datei, nie die Rasterauswahl. Ausgegraut, wenn keine Dateien
+  geladen sind
 - **Aktionen -> Als Hintergrundbild festlegen** (`Cmd/Strg+Shift+E`) —
   macht das angezeigte Bild zum Hintergrundbild des Schreibtischs, genau so,
   wie es gerade aussieht. PicFetch legt dafür eine eigene Kopie im

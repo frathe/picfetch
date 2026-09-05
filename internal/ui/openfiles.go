@@ -102,8 +102,8 @@ func (v *viewer) reportChooserError(err error, goos string) {
 // populates its Stderr field with whatever the failed command printed,
 // which is almost always the actually useful part (an AppleScript error
 // message, a missing-binary complaint, and so on). Shared with
-// reportClipboardError in clipboard.go, the same kind of chooser-adjacent
-// shell-out failure.
+// reportClipboardError in clipboard.go and reportRevealError in reveal.go,
+// the same kind of chooser-adjacent shell-out failure.
 func chooserErrorDetail(err error) string {
 	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		if msg := strings.TrimSpace(string(exitErr.Stderr)); msg != "" {

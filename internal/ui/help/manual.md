@@ -728,6 +728,8 @@ many of them actually went.
   owns the window, or when no decoded image is showing
 - **`Cmd`/`Ctrl+Shift+C`** — copy the current image's file path to the
   clipboard
+- **`Cmd`/`Ctrl+R`** — show the current file in your file manager, selected
+  in its own folder (see "Menu" below). Plain `R` still rotates the image
 - **`Shift+Delete`** — move the current file to the Trash, after confirming
   (see "Deleting a file" above); in the grid overview, everything selected
   there
@@ -753,6 +755,13 @@ either by default — add one with your package manager, e.g.
 Without one, `Ctrl+C` shows an error toast instead of copying. Copying the
 file path (`Ctrl+Shift+C`) is plain text and always works, no extra tool
 needed. macOS and Windows need nothing extra either way.
+
+**Linux file-manager support.** "Reveal in file manager" (`Ctrl+R`) asks your
+file manager over D-Bus to open the folder with the file already selected,
+which Nautilus, Dolphin, Nemo, Thunar and PCManFM all answer. On a desktop
+with no such file manager it falls back to `xdg-open` on the folder, which
+opens it without selecting anything. If neither is available you get an error
+toast. macOS (Finder) and Windows (Explorer) always select the file itself.
 
 ---
 
@@ -904,6 +913,11 @@ needed. macOS and Windows need nothing extra either way.
   the grid or picture-frame mode is up, or while a prompt owns the window
 - **Actions -> Copy image path** (`Cmd/Ctrl+Shift+C`) — the current
   file's path. Greyed out when no files are loaded
+- **Actions -> Reveal in file manager** (`Cmd/Ctrl+R`) — opens Finder,
+  Explorer or your Linux file manager with the current file selected, so you
+  can rename, move or share it outside PicFetch. The info overlay (`I`)
+  carries the same command as a link. Always the file on screen, never the
+  grid selection. Greyed out when no files are loaded
 - **Actions -> Set as Wallpaper** (`Cmd/Ctrl+Shift+E`) — makes the image on
   screen your desktop wallpaper, exactly as it currently appears. PicFetch
   writes its own copy into its cache folder and points the desktop at that,

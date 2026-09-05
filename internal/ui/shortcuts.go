@@ -43,6 +43,22 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	wireSelectAllShortcut(yielding, view)
 	wireSaveShortcut(yielding, view)
 	wireExportShortcuts(yielding, view)
+	wireRevealShortcut(yielding, view)
+}
+
+// wireRevealShortcut binds Cmd/Ctrl+R to revealCurrentFile (reveal.go) -
+// Actions' "Reveal in file manager", displayed with the same accelerator on
+// its menu item (internal/ui/menus). R isn't one of the driver's
+// specially-cased bare shortcuts (only Z/Y/V/C/Insert/X/A are - see
+// wireClipboardShortcuts' own comment), so a plain desktop.CustomShortcut
+// reaches it the same way Cmd/Ctrl+S reaches wireSaveShortcut. Plain,
+// unmodified R still rotates the image (handleKeyEvent, keys.go) - only this
+// modified combo is new.
+func wireRevealShortcut(c shortcutAdder, view *viewer) {
+	c.AddShortcut(&desktop.CustomShortcut{
+		KeyName:  fyne.KeyR,
+		Modifier: fyne.KeyModifierShortcutDefault,
+	}, func(fyne.Shortcut) { view.revealCurrentFile() })
 }
 
 // wireCompareShortcut binds the platform-native Cmd/Ctrl+D and physical

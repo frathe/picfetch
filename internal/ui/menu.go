@@ -43,6 +43,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		CopyImage:            view.copyActionsImage,
 		CopySelection:        view.copyActionsSelection,
 		CopyPath:             view.copyActionsPath,
+		Reveal:               view.revealActionsFile,
 		SetWallpaper:         view.wallpaperActionsImage,
 		Trash:                view.trashActionsImage,
 	}), view.SortMode())
@@ -89,6 +90,7 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 		&c.ToggleMergeMode,
 		&c.ToggleInfoOverlay,
 		&c.CopyPath,
+		&c.Reveal,
 		&c.SetWallpaper,
 		&c.Trash,
 	} {

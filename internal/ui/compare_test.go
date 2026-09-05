@@ -623,10 +623,11 @@ func TestCompareCommandIsolation_ShortcutsAreIgnored(t *testing.T) {
 	}
 	v.favorites.SetDir(favoriteDir)
 
-	var clipboardImage, clipboardFiles, wallpaper bool
+	var clipboardImage, clipboardFiles, wallpaper, revealed bool
 	uitest.StubClipboardCopy(t, func([]byte) error { clipboardImage = true; return nil })
 	uitest.StubClipboardCopyFiles(t, func([]string) error { clipboardFiles = true; return nil })
 	uitest.StubWallpaperSet(t, func(string) error { wallpaper = true; return nil })
+	uitest.StubReveal(t, func(string) error { revealed = true; return nil })
 	uitest.StubChooser(t, nil, nil)
 
 	compareLoads := 0
@@ -652,6 +653,7 @@ func TestCompareCommandIsolation_ShortcutsAreIgnored(t *testing.T) {
 		&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierShortcutDefault},
 		&desktop.CustomShortcut{KeyName: fyne.KeyE, Modifier: fyne.KeyModifierShortcutDefault},
 		&desktop.CustomShortcut{KeyName: fyne.KeyE, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift},
+		&desktop.CustomShortcut{KeyName: fyne.KeyR, Modifier: fyne.KeyModifierShortcutDefault},
 	} {
 		handler.TypedShortcut(shortcut)
 	}
@@ -662,15 +664,18 @@ func TestCompareCommandIsolation_ShortcutsAreIgnored(t *testing.T) {
 	if v.wallpaper.Begun() {
 		waitFor(t, "the wallpaper command", &v.wallpaper)
 	}
+	if v.reveal.Begun() {
+		waitForReveal(t, v)
+	}
 	if got := snapshotCompareCommands(v); got != before {
 		t.Errorf("shortcut changed covered app state\n got: %+v\nwant: %+v", got, before)
 	}
 	if compareLoads != 0 {
 		t.Errorf("Compare shortcut restarted %d source loads", compareLoads)
 	}
-	if clipboardImage || clipboardFiles || wallpaper || v.app.Clipboard().Content() != clipboardText {
-		t.Errorf("shortcut reached an OS integration: image=%v files=%v wallpaper=%v textChanged=%v",
-			clipboardImage, clipboardFiles, wallpaper, v.app.Clipboard().Content() != clipboardText)
+	if clipboardImage || clipboardFiles || wallpaper || revealed || v.app.Clipboard().Content() != clipboardText {
+		t.Errorf("shortcut reached an OS integration: image=%v files=%v wallpaper=%v reveal=%v textChanged=%v",
+			clipboardImage, clipboardFiles, wallpaper, revealed, v.app.Clipboard().Content() != clipboardText)
 	}
 	if v.toast.card.Visible() {
 		t.Errorf("ordinary shortcut raised unexpected toast %q", v.toast.text.Text)

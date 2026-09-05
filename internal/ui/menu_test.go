@@ -69,14 +69,15 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 	if actions.Label != "Actions" {
 		t.Errorf("third menu label = %q, want %q", actions.Label, "Actions")
 	}
-	if len(actions.Items) != 18 {
-		t.Fatalf("Actions menu items = %d, want 18", len(actions.Items))
+	if len(actions.Items) != 19 {
+		t.Fatalf("Actions menu items = %d, want 19", len(actions.Items))
 	}
 	wantActionsLabels := []string{
 		"Sort order", "Show/Hide duplicates", "Show variants", "Compare selected images", "Generate Image Mosaic...", "",
 		"Rotate image (CW)", "Zoom in", "Zoom out", "",
 		"Toggle merge mode", "Show/Hide info overlay", "",
-		"Copy image", "Copy selection", "Copy image path", "Set as Wallpaper", "Move image to Trash",
+		"Copy image", "Copy selection", "Copy image path", "Reveal in file manager",
+		"Set as Wallpaper", "Move image to Trash",
 	}
 	for i, want := range wantActionsLabels {
 		got := actions.Items[i]

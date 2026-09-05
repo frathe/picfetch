@@ -88,6 +88,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `batch.go` | Routes delete/copy commands by the current subject: image-region selection, grid selection, or displayed image. |
 | `session.go` | `restoreSession` glue over `internal/session`. |
 | `clipboard.go` | Copy-path / copy-image glue over `internal/clipboard`. |
+| `reveal.go` | Actions > "Reveal in file manager" (`Cmd/Ctrl+R`) and the info overlay's link of the same name: current-file path, own goroutine behind `viewer.reveal`, toast on failure. Glue over `internal/filemanager`. |
 | `copyselection.go` | Viewer adapter for `internal/ui/copyselection`: availability, start/cancel, zoom `Geometry` to `View`, animation pause, clipboard worker, `yieldCopySelection`. Command entry yields through `yieldingMenuCallbacks`, `yieldingShortcuts`, `handleKeyEvent`, and `handleDrop`. |
 | `compare.go` | Viewer adapter for `internal/ui/compare`: validates exactly two explicit grid selections, resolves ascending host indices to URIs, unfocuses the covered grid so desktop modifier hooks remain reachable, and loads through the canonical full-image cache/probe/decode path. That path preserves EXIF-corrected pixels, RAW previews, animation decoding/budget policy, encoded-input limits, and the original first frame; the feature deliberately freezes animation. The adapter owns the exact comparison-window title callback and reports failures without mutating the grid or file set. `comparisonActive()` is the composition layer's sole exclusive-mode fact; `refuseOpenDuringComparison()` owns the localized discard policy. |
 | `animationpause.go` | Serializes animated-frame advancement with Copy Selection's stable source capture. |
@@ -111,7 +112,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `New` does no disk I/O; `SetDir` from `Run`. `SetCommandsEnabled` preserves Add's file availability while disabling both static and dynamically rebuilt menu entries during comparison. | 6-method `Host`. |
 | `internal/ui/menus/` | The stateful File/Window/Actions menu items and their whole Checked/Disabled matrix as `Apply(State) (changed bool)`, a pure function of a value snapshot. `ComparisonActive` applies a final all-ordinary-items-disabled override while leaving Help available. Fyne-typed but viewer-free, unit-testable with no app. Menu-bar assembly, the Darwin native-bar fold, the real shortcut bindings, and every action the items run all stay in `internal/ui`. | No Host: `Apply(State)` over a value snapshot built by `menu.go`'s `menuState()`. |
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Both caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
-| `internal/ui/infoview/` | The persistent info overlay (I key): its three widgets, the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
+| `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
 | `internal/ui/display/` | What's currently on the canvas: the decoded frames, which one is up, the view-only rotation (composing `imaging.RotateSteps` itself, in `Rotated`), and the picture-frame crossfade. | No Host: a value `State` field on `viewer`, mutated through its own methods, never copied. |
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard`, `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | `WelcomeWebP` / `PlaceholderWebP`. | Leaf. |
@@ -240,7 +241,8 @@ on a background goroutine and hop through `fyne.DoAndWait`.
 | `tracker.go` | `Tracker` atomics: `Store` / `Get` / `Capture` / `Restore`. |
 | `darwin.go` / `windows.go` / `linux.go` / `other.go` | Platform position + maximize. Linux/Wayland: `Get` reports `ok=false`. |
 
-OS integrations (`clipboard`, `displays`, `filepicker`, `trash`, `wallpaper`) use
+OS integrations (`clipboard`, `displays`, `filemanager`, `filepicker`, `trash`,
+`wallpaper`) use
 dispatcher vars and build-tagged platform files; tests stub them via
 `internal/uitest` — see `AGENTS.md`.
 
@@ -321,6 +323,24 @@ native execution failure.
 | `darwin.go` / `other.go` | AppKit all-screen or exact preflighted `NSScreen` set / non-Darwin stub. |
 | `target_windows.go` | Targeted `IDesktopWallpaper`: COM-thread lifetime, exact device-path validation, and single-monitor set. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair plus non-Windows target stub. |
+
+### `internal/filemanager`
+
+Show one file selected in the current OS's own file manager, through
+`Reveal(path)`. macOS runs `open -R` - a LaunchServices binary rather than an
+Apple Event, so unlike this repo's other macOS integrations it needs no cgo to
+avoid an Automation prompt. Windows runs `explorer.exe /select,"<path>"` with
+the command line built by hand, because os/exec's escaping would quote the
+`/select,` prefix along with the path; explorer's own non-zero exit is
+discarded, which is why the path is stat'ed first. Linux calls
+`org.freedesktop.FileManager1.ShowItems` over `dbus-send --print-reply` (the
+only portable way to get the file *selected*) and falls back to `xdg-open` on
+its parent directory.
+
+| File | Responsibility |
+|------|----------------|
+| `filemanager.go` | `Reveal` dispatcher, the three platform paths, `fileURI`, and the portable `explorerCmdLine`. |
+| `windows.go` / `notwindows.go` | `applyExplorerCommandLine` pair: `SysProcAttr.CmdLine` on Windows, no-op elsewhere. |
 
 ### `internal/openwith`
 
@@ -459,6 +479,7 @@ see `AGENTS.md`.
 - "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.
 - "How does rotation work, and how is it saved to disk?" → `internal/ui/display` (frames/rotation state) + `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.
 - "How do I write an image out in a different format?" → `internal/ui/export.go` + `filepicker.ChooseSave` + `imaging.Export`.
+- "How do I open the current image's folder in Finder/Explorer/my file manager?" -> `internal/ui/reveal.go` + `internal/filemanager` + `shortcuts.go` `wireRevealShortcut` + `internal/ui/infoview` `RevealLink`.
 - "How does 'Set as Wallpaper' work?" → `internal/ui/wallpaper.go` + `internal/wallpaper`.
 - "How is an image mosaic sourced, generated, previewed, exported, and targeted to a display?" → `internal/ui/mosaic.go` + `internal/ui/mosaicwin` + `internal/mosaic` + `internal/displays` + `internal/ui/wallpaper.go`.
 - "How does the slideshow / picture-frame mode work?" → `internal/ui/slideshow` + `slideshow.go`.

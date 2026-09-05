@@ -55,6 +55,7 @@ type Callbacks struct {
 	CopyImage            func()
 	CopySelection        func()
 	CopyPath             func()
+	Reveal               func()
 	SetWallpaper         func()
 	Trash                func()
 }
@@ -120,7 +121,7 @@ type WindowItems struct {
 }
 
 // ActionItems are the Actions menu's items: sort, duplicates, image
-// transforms, merge/info toggles, clipboard, wallpaper, and trash.
+// transforms, merge/info toggles, clipboard, reveal, wallpaper, and trash.
 type ActionItems struct {
 	sort          []*fyne.MenuItem // len 5, index matches filesort.Modes()
 	hide          *fyne.MenuItem
@@ -135,6 +136,7 @@ type ActionItems struct {
 	copy          *fyne.MenuItem
 	copySelection *fyne.MenuItem
 	copyPath      *fyne.MenuItem
+	reveal        *fyne.MenuItem
 	wallpaper     *fyne.MenuItem
 	trash         *fyne.MenuItem
 }
@@ -275,6 +277,20 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	}
 	m.actions.copyPath.Disabled = true
 
+	// One label on every platform rather than Finder/Explorer/Files wording
+	// per OS: a runtime.GOOS branch has no business in this deliberately
+	// viewer-free package, and three labels would be three keys in every
+	// catalogue for one command.
+	m.actions.reveal = fyne.NewMenuItem(lang.L("Reveal in file manager"), c.Reveal)
+	// Display-only, like File -> Export: the Cmd/Ctrl+R binding is
+	// wireRevealShortcut (internal/ui/shortcuts.go). Unmodified R stays
+	// Rotate, above.
+	m.actions.reveal.Shortcut = &desktop.CustomShortcut{
+		KeyName:  fyne.KeyR,
+		Modifier: fyne.KeyModifierShortcutDefault,
+	}
+	m.actions.reveal.Disabled = true
+
 	m.actions.wallpaper = fyne.NewMenuItem(lang.L("Set as Wallpaper"), c.SetWallpaper)
 	// Display-only: the Cmd/Ctrl+Shift+E binding is wireExportShortcuts
 	// (internal/ui/shortcuts.go).
@@ -313,7 +329,8 @@ func (m *Menus) ActionsMenu() *fyne.Menu {
 		fyne.NewMenuItemSeparator(),
 		m.actions.merge, m.actions.info,
 		fyne.NewMenuItemSeparator(),
-		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.wallpaper, m.actions.trash,
+		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
+		m.actions.wallpaper, m.actions.trash,
 	)
 }
 
@@ -394,6 +411,9 @@ func (a ActionItems) CopySelection() *fyne.MenuItem { return a.copySelection }
 // CopyPath is the Actions menu's "Copy image path" item.
 func (a ActionItems) CopyPath() *fyne.MenuItem { return a.copyPath }
 
+// Reveal is the Actions menu's "Reveal in file manager" item.
+func (a ActionItems) Reveal() *fyne.MenuItem { return a.reveal }
+
 // Wallpaper is the Actions menu's "Set as Wallpaper" item.
 func (a ActionItems) Wallpaper() *fyne.MenuItem { return a.wallpaper }
 
@@ -461,7 +481,7 @@ func (m *Menus) applyComparisonIsolation(active bool) {
 		m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic,
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		m.actions.merge, m.actions.info, m.actions.copy,
-		m.actions.copySelection, m.actions.copyPath,
+		m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
 		m.actions.wallpaper, m.actions.trash,
 	} {
 		item.Disabled = true
@@ -513,6 +533,7 @@ func (m *Menus) applyActions(s State) {
 	m.actions.copy.Disabled = noFiles
 	m.actions.copySelection.Disabled = !s.CanCopySelection
 	m.actions.copyPath.Disabled = noFiles
+	m.actions.reveal.Disabled = noFiles
 	m.actions.wallpaper.Disabled = !s.CanWallpaper
 	m.actions.trash.Disabled = noFiles
 }
@@ -535,7 +556,8 @@ func (m *Menus) pairs() []pair {
 	items = append(items, m.actions.sort...)
 	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic, m.actions.rotate,
 		m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info,
-		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.wallpaper, m.actions.trash)
+		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
+		m.actions.wallpaper, m.actions.trash)
 
 	out := make([]pair, len(items))
 	for i, it := range items {

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/test"
 )
@@ -39,7 +40,7 @@ func TestFormatFileSize(t *testing.T) {
 }
 
 func TestToggle_FlipsAndReportsVisible(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	if c.Visible() {
 		t.Fatal("new Card should start with the preference off")
 	}
@@ -53,7 +54,7 @@ func TestToggle_FlipsAndReportsVisible(t *testing.T) {
 }
 
 func TestUpdate_NoopWhileNotVisible(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.SetFile(100, false, false)
 
 	c.Update(State{Name: "a.jpg", Count: 1, Width: 4, Height: 4, ZoomPercent: 100})
@@ -64,7 +65,7 @@ func TestUpdate_NoopWhileNotVisible(t *testing.T) {
 }
 
 func TestUpdate_PreviewSuffix(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.Toggle()
 	c.SetFile(100, false, true)
 
@@ -76,7 +77,7 @@ func TestUpdate_PreviewSuffix(t *testing.T) {
 }
 
 func TestUpdate_NoPreviewSuffixWhenNotAPreview(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.Toggle()
 	c.SetFile(100, false, false)
 
@@ -91,7 +92,7 @@ func TestUpdate_NoPreviewSuffixWhenNotAPreview(t *testing.T) {
 // boundary directly: absent at Count==1, present and 1-indexed from
 // Count==2 up.
 func TestUpdate_PositionSuffixOnlyWhenMoreThanOneFile(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.Toggle()
 	c.SetFile(100, false, false)
 
@@ -112,7 +113,7 @@ func TestUpdate_PositionSuffixOnlyWhenMoreThanOneFile(t *testing.T) {
 }
 
 func TestUpdate_RendersDimensionsAndZoom(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.Toggle()
 	c.SetFile(1024, false, false)
 
@@ -127,7 +128,7 @@ func TestUpdate_RendersDimensionsAndZoom(t *testing.T) {
 }
 
 func TestSync_HidesCardWhenNoImage(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.Toggle()
 
 	c.Sync(false, State{})
@@ -138,7 +139,7 @@ func TestSync_HidesCardWhenNoImage(t *testing.T) {
 }
 
 func TestSync_HidesCardWhenPreferenceOff(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 
 	c.Sync(true, State{Name: "a.jpg", Count: 1})
 
@@ -148,7 +149,7 @@ func TestSync_HidesCardWhenPreferenceOff(t *testing.T) {
 }
 
 func TestSync_ShowsCardAndRefreshesTextWhenBothTrue(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.Toggle()
 	c.SetFile(1024, false, false)
 
@@ -165,7 +166,7 @@ func TestSync_ShowsCardAndRefreshesTextWhenBothTrue(t *testing.T) {
 // TestSync_ExifLinkFollowsHasEXIF is the exifLink show/hide rule: settled
 // in Sync from whichever facts SetFile last recorded, not in Update.
 func TestSync_ExifLinkFollowsHasEXIF(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.Toggle()
 
 	c.SetFile(100, true, false)
@@ -182,7 +183,7 @@ func TestSync_ExifLinkFollowsHasEXIF(t *testing.T) {
 }
 
 func TestAfterMetadataRemoved_ClearsEXIFAndUpdatesSizeWhenKnown(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.SetFile(1000, true, false)
 
 	c.AfterMetadataRemoved(800, true)
@@ -198,7 +199,7 @@ func TestAfterMetadataRemoved_ClearsEXIFAndUpdatesSizeWhenKnown(t *testing.T) {
 }
 
 func TestAfterMetadataRemoved_KeepsOldSizeWhenUnknown(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 	c.SetFile(1000, true, false)
 
 	c.AfterMetadataRemoved(0, false)
@@ -214,7 +215,7 @@ func TestAfterMetadataRemoved_KeepsOldSizeWhenUnknown(t *testing.T) {
 }
 
 func TestFileSizeAndHasEXIF_ReflectLastSetFile(t *testing.T) {
-	c := New(func() {})
+	c := New(func() {}, func() {})
 
 	if got := c.FileSize(); got != 0 {
 		t.Errorf("FileSize() on a fresh Card = %d, want 0", got)
@@ -234,11 +235,74 @@ func TestFileSizeAndHasEXIF_ReflectLastSetFile(t *testing.T) {
 
 func TestOnShowExif_FiresOnTap(t *testing.T) {
 	var fired bool
-	c := New(func() { fired = true })
+	c := New(func() { fired = true }, func() {})
 
 	c.ExifLink().OnTapped()
 
 	if !fired {
 		t.Error("tapping exifLink should call onShowExif")
+	}
+}
+
+func TestOnReveal_FiresOnTap(t *testing.T) {
+	var fired bool
+	c := New(func() {}, func() { fired = true })
+
+	c.RevealLink().OnTapped()
+
+	if !fired {
+		t.Error("tapping revealLink should call onReveal")
+	}
+}
+
+// inCard reports whether target is somewhere in the card's object tree.
+// Visible() alone cannot answer that: a Hyperlink that was built and then
+// left out of the container still reports Visible() true, since the flag is
+// the widget's own rather than a fact about the tree it is in.
+func inCard(root, target fyne.CanvasObject) bool {
+	if root == target {
+		return true
+	}
+
+	group, ok := root.(*fyne.Container)
+	if !ok {
+		return false
+	}
+	for _, child := range group.Objects {
+		if inCard(child, target) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// TestSync_RevealLinkFollowsTheCardNotEXIF is the one rule that separates
+// the two links: every file the card can describe has a folder to show it
+// in, so the reveal link is shown whenever the card itself is, while the
+// EXIF link comes and goes with the file's metadata.
+func TestSync_RevealLinkFollowsTheCardNotEXIF(t *testing.T) {
+	c := New(func() {}, func() {})
+	c.Toggle()
+
+	if !inCard(c.Object(), c.RevealLink()) {
+		t.Fatal("revealLink is not in the card's object tree, so it never reaches the screen")
+	}
+
+	c.SetFile(100, false, false)
+	c.Sync(true, State{Name: "a.jpg", Count: 1})
+	if !c.RevealLink().Visible() {
+		t.Error("revealLink should show for a file with no EXIF metadata")
+	}
+
+	c.SetFile(100, true, false)
+	c.Sync(true, State{Name: "a.jpg", Count: 1})
+	if !c.RevealLink().Visible() {
+		t.Error("revealLink should show for a file that has EXIF metadata too")
+	}
+
+	c.Sync(false, State{})
+	if c.Object().Visible() {
+		t.Error("card should hide with no image on screen")
 	}
 }
