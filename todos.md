@@ -13,21 +13,21 @@
 
 #### Internal
 
-- Add manual recovery of an unpublished release from its unchanged version tag,
-  using the corrected packaging recipe and retaining CI and signing gates.
 - Complete the full Linux race verification, including the Finis companion.
+- Recover v1.0.1 with all six platform archives and signed Windows builds,
+  preserving its tag, then restore the normal tag-triggered release workflow.
 
 ## TODO
 
-### Activate v1.0.1 release recovery
+### Synchronize the EXIF tile callback test with callback completion
 
-Land the reviewed repair, then dispatch Release on `main` with
-`release-tag=v1.0.1`. The tag stays at
-`4cbb9f6bf2e3d9225baa1138cb459fc6cf6db78c`; no GitHub release exists yet.
-The existing signing environment still requires its reviewer approval.
-`make verify`, workflow checks, and Windows/Linux packaging from the preserved
-tag all pass. The user authorized committing, landing, and running recovery.
-See `finished_refactorings/2026-09-05-release-recovery.md` for the commands and verification.
+`TestOnChange_ReportsABackgroundBatchButNotAPrefetch` intermittently asserts
+before its callback runs: `waitForPending` observes zero after `release`
+decrements the counter but before it calls `onChange`. The release-cleanup
+race suite observed `onChange fired 0 times`; 30 focused Linux race reruns
+passed. Make the assertion deterministic by waiting on observable callback
+completion, without retries or suppressing failures. The EXIF code and test
+were unchanged by the release repair.
 
 ### Validate image mosaics on physical multi-display desktops
 

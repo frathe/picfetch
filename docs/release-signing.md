@@ -52,37 +52,6 @@ the action installs it.
 The timestamp keeps a valid signature trustworthy after the certificate later
 expires, provided it was signed while the certificate was valid.
 
-## Recover an unpublished release without moving its tag
-
-If packaging failed after a version tag was pushed, land the reviewed build
-fix and recovery workflow on `main`, then dispatch the Release workflow with
-the existing tag:
-
-```sh
-gh workflow run release.yml --repo frathe/picfetch --ref main -f release-tag=v1.0.1
-```
-
-Recovery accepts an existing stable version tag and refuses to overwrite a
-GitHub release, including a draft. It resolves the tag to a commit once and
-uses that commit for every CI job, application build, and release notes.
-The cross-build reads only the Makefile from the dispatched workflow revision,
-so its corrected packaging commands can build the original application source.
-The tag is never moved, and previous run artifacts are retained.
-
-Both macOS and cross-platform artifacts are rebuilt in the new run. The same
-protected `release-signing` environment, SignTool verification, and publication
-dependencies still apply. Recovery runs from `main`, and the environment's
-required reviewer must approve the signing job as usual.
-
-After the run succeeds, verify all six platform archives in the v1.0.1 release
-and confirm the tag's commit is unchanged. The WinGet workflow automatically
-follows tag-push releases only; dispatch its existing manual recovery after
-the GitHub release is published:
-
-```sh
-gh workflow run winget.yml --repo frathe/picfetch --ref main -f release-tag=v1.0.1
-```
-
 ## First release
 
 Before relying on an automatic public release, run the workflow on a test tag

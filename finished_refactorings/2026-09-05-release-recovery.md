@@ -54,7 +54,7 @@ Verify: `make verify`; `GOOS=windows GOARCH=amd64 go vet ./internal/...`;
 Windows/Linux packaging; `git diff --check`.
 Budget: 0 spawns, 1 final review, 1 full race suite.
 
-## Activation after the reviewed change is committed
+## Incident execution and cleanup decision
 
 The user explicitly overrode the repository's no-commit instruction and
 authorized committing, landing the reviewed repair on `main`, and recovering
@@ -62,24 +62,30 @@ the current release. The tag must stay unchanged. The existing signing
 environment permits `main` and requires the repository owner's reviewer
 approval; that gate remains in force.
 
-After landing the reviewed change, run:
+The reviewed change landed as `33adc7d` and started Release run
+`33943314463`. The user then explicitly requested removing every temporary
+recovery capability after this release succeeds. Future failures should have
+separate incident-specific recovery rather than a standing manual release path.
 
-```sh
-gh workflow run release.yml --repo frathe/picfetch --ref main -f release-tag=v1.0.1
-```
+Cleanup restores `.github/workflows/release.yml`, `.github/workflows/ci.yml`,
+and `docs/release-signing.md` exactly to their pre-incident contents. It removes
+the temporary source-resolution and recovery-wiring tests. The cache UID/HOME
+fix and its executed-command regression test remain. This document records the
+incident history, not a supported recovery procedure.
 
-Watch the resulting Release run through CI, builds, the existing signing gate,
-and publication. Confirm all six platform archives exist and the tag still
-resolves to the SHA above. Manual release recovery does not trigger the
-push-only WinGet handoff; its existing manual workflow can be dispatched
-with `release-tag=v1.0.1` after the GitHub release succeeds.
+Run `33943314463` completed successfully. v1.0.1 was published on 2026-09-05
+with all six expected platform archives uploaded and nonempty; both Windows
+archives passed the workflow's signature verification. The annotated tag
+object remains `9394939c0f177fee18dbb7c73ee9eca09684ffb2` and its source commit
+remains `4cbb9f6bf2e3d9225baa1138cb459fc6cf6db78c`. Cleanup was held until
+these publication and tag checks passed.
 
 ## Honest limits and ledger
 
 Local cross-builds validate compilation and packaging, not Windows runtime
-behavior. GitHub signing and publication can only be validated after landing
-and dispatching the workflow. A previously root-owned persistent cache may
-still need its ownership repaired; fresh GitHub runners do not have one.
+behavior. GitHub signing and publication passed in the recovery run. A
+previously root-owned persistent cache may still need its ownership repaired;
+fresh GitHub runners do not have one.
 
 Verified on 2026-09-05:
 
@@ -114,3 +120,13 @@ Verified on 2026-09-05:
 | 1 | 0 / 0 | 1 | no |
 | 2 | 0 / 0 | 1 | no |
 | 3 | 0 / 0 | 1 | passed |
+| 4: user-requested cleanup | 0 / 0 | 1 | one unrelated EXIF test failure |
+
+Task 4 adds a second full verification because the user requested removing the
+temporary workflow after the initial repair was already verified and landed.
+Its format, TUF, exclusion, vet, build and all UI race partitions passed.
+The non-UI partition observed `TestOnChange_ReportsABackgroundBatchButNotAPrefetch`
+asserting before its callback: the unchanged helper waits for `Pending()==0`,
+which `release` sets before invoking `onChange`. Thirty focused Linux race
+reruns passed. This separate test-synchronization follow-up is in `todos.md`.
+Cleanup's focused race tests, workflow lint and exact restoration check passed.
