@@ -2,32 +2,34 @@
 
 ### New Features
 
-![Trane building a mosaic](https://raw.githubusercontent.com/frathe/picfetch/main/assets/trane/trane_mosaic.webp)
+- "Reveal in file manager" opens the current image's folder with the file
+  already selected, from Actions (`Cmd/Ctrl+R`), or from a link in the info
+  overlay (`I`). macOS uses `open -R`, Windows `explorer.exe /select,`, and
+  Linux the freedesktop `org.freedesktop.FileManager1.ShowItems` D-Bus call
+  that Nautilus, Dolphin, Nemo, Thunar and PCManFM answer, falling back to
+  `xdg-open` on the folder where nothing implements it. Always acts on the
+  file on screen, never on the grid selection.
 
-- **Create an Image Mosaic from Grid View.** Turn your selected images—or all images matching your current filters—into a collage sized to fill your screen. Everything is generated locally on your device.
-- Generate a new arrangement, save it as a PNG or JPEG, or set it as your wallpaper.
-- On Windows and macOS, choose which monitor gets the wallpaper. On Linux, you can save the mosaic or use the existing wallpaper option, but targeting a specific monitor isn’t supported.
-- Use the mosaic controls with a keyboard.
-- Choose **Start Over** from the finished preview to create another mosaic with your settings preserved—handy for setting up another monitor.
-- Customize the look, including optional drop shadows, under **Advanced**.
-- Added the hidden Finis companion: type `finis` in manual search, then move the
-  pointer in his window to guide his gaze. Escape closes the companion.
+### Bugfix
 
-### Fixes and Improvements
+- Windows packaging warms the Go toolchain as the same user as fyne-cross,
+  preventing root-owned module cache failures on fresh release runners.
 
-- Fixed mosaic controls that appeared disabled or didn’t respond properly.
-- Fixed overlapping text while generating a mosaic.
-- Reduced excessive image overlap so more of each photo stays visible.
-- Smoothed jagged borders and rotated image edges while keeping photos sharp.
-- Improved image handling: photos follow their saved orientation, all unique images are used before any repeat, and selected duplicates use the highest-resolution version available in Grid View.
-- Improved sizing for high-resolution Mac displays and handling of monitor changes before generation.
-- Fixed target selection for identical monitors and translated fallback display names.
-- Disconnected Windows monitors no longer block mosaic creation or accept wallpaper changes.
-- Bounded the memory retained by repeated mosaic sources and preserved the full canvas of partial-frame GIFs.
-- Removed artificial fading where rotated photos extend past the canvas boundary.
+- On Linux the mosaic functionality now can set the generated mosaic as wallpaper.
+  Tested on Ubuntu 24.04.4 LTS
 
-### Behind the Scenes
+### Internal
 
-- Improved error reporting and cleaned up internal code and documentation to make the mosaic feature easier to maintain.
+- Pin `internal/update`'s two P0 recovery behaviors: `Apply` restores the
+  original binary and `Info.plist` when the plist backup fails after the
+  executable swap has completed, and `Client.Download` refuses release archives
+  carrying ZIP symlink, TAR symlink, or TAR hard link entries without leaving a
+  loadable stage or writing outside the stage directory.
+- Synchronize the EXIF tile callback test with callback completion, so it waits
+  on the `onChange` report itself instead of the pending counter that `release`
+  clears just before calling back.
+- Complete the full Linux race verification, including the Finis companion.
+- Recover v1.0.1 with all six platform archives and signed Windows builds,
+  preserving its tag, then restore the normal tag-triggered release workflow.
 
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.0...v1.0.1
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.1...v1.0.2
