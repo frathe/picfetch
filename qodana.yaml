@@ -60,7 +60,7 @@ exclude:
       - "internal/completion/completion_test.go"
       - "internal/decodepool/decodepool_test.go"
       - "internal/displays/displays_test.go"
-      - "internal/displays/linux_test.go"
+      - "internal/displays/xrandr_test.go"
       - "internal/distribution/distribution_store_test.go"
       - "internal/distribution/distribution_test.go"
       - "internal/dupes/dupes_test.go"
