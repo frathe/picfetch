@@ -3,6 +3,7 @@
 package displays
 
 import (
+	"errors"
 	"image"
 	"testing"
 )
@@ -28,7 +29,7 @@ HDMI-1 disconnected (normal left inverted right x axis y axis)`
 
 func TestDisplayLinux_ParseXRandREmptyIsTyped(t *testing.T) {
 	_, err := parseXRandR("HDMI-1 disconnected\n")
-	if _, ok := err.(*EmptyError); !ok {
+	if _, ok := errors.AsType[*EmptyError](err); !ok {
 		t.Fatalf("parseXRandR() = %v, want EmptyError", err)
 	}
 }

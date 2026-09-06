@@ -73,10 +73,10 @@ func cloneSnapshot(snapshot Snapshot) Snapshot {
 type Host interface {
 	GenerateMosaic(context.Context, mosaic.Request) (mosaic.Result, error)
 	InspectMosaicDisplays() (displays.Snapshot, error)
-	// SetMosaicWallpaper's solo argument confirms the target is currently the
-	// only attached display - see wallpaper.Request.Solo for why that lets a
-	// platform that can't truthfully address one display among several
-	// honor it anyway.
+	// SetMosaicWallpaper takes a solo argument confirming the target is
+	// currently the only attached display - see wallpaper.Request.Solo for why
+	// that lets a platform that can't truthfully address one display among
+	// several honor it anyway.
 	SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID, solo bool) error
 }
 

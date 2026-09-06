@@ -219,11 +219,12 @@ func TestMosaicWallpaper_PassesExactResultAndOpaqueTarget(t *testing.T) {
 		got = request
 		return nil
 	})
+	const target displays.ID = "opaque/display\\path"
 
-	if err := v.SetMosaicWallpaper(context.Background(), result, displays.ID("opaque/display\\path"), false); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), result, target, false); err != nil {
 		t.Fatal(err)
 	}
-	if got.Target != displays.ID("opaque/display\\path") {
+	if got.Target != target {
 		t.Fatalf("wallpaper target = %q, want the opaque selected ID", got.Target)
 	}
 	written, err := loadExported(t, got.Path)

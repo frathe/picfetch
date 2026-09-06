@@ -197,8 +197,11 @@ func TestApplyUnix_PlistBackupFailureAfterBinarySwapRestoresOriginals(t *testing
 			t.Errorf("partial replacement %q remains: %v", leftover, err)
 		}
 	}
-	if st, err := os.Stat(plistDest + ".old"); err != nil || !st.IsDir() {
-		t.Errorf("conflicting Info.plist.old = %v (dir %v), want the untouched directory", err, st != nil && st.IsDir())
+	backup, backupErr := os.Stat(plistDest + ".old")
+	if backupErr != nil {
+		t.Errorf("conflicting Info.plist.old = %v, want the untouched directory", backupErr)
+	} else if !backup.IsDir() {
+		t.Error("conflicting Info.plist.old is a file, want the untouched directory")
 	}
 }
 

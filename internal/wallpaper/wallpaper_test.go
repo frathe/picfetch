@@ -31,8 +31,7 @@ func TestLinuxTarget_ReturnsUnsupportedBeforeAnyLookupOrCommand(t *testing.T) {
 	commands := captureCommands(t, nil)
 
 	err := setLinuxRequest(Request{Path: "/tmp/mosaic.png", Target: "display-1"})
-	var unsupported *TargetUnsupportedError
-	if !errors.As(err, &unsupported) {
+	if _, ok := errors.AsType[*TargetUnsupportedError](err); !ok {
 		t.Fatalf("setLinuxRequest() = %v, want TargetUnsupportedError", err)
 	}
 	if lookups != 0 || len(*commands) != 0 {
@@ -129,6 +128,9 @@ func TestSetLinux_ReportsAFailedDarkKeyWrite(t *testing.T) {
 	stubDarkKey(t, true, nil)
 	captureCommands(t, func(args []string) error {
 		if slices.Contains(args, "picture-uri-dark") {
+			// Capitalised because it reproduces gsettings' own wording; the
+			// test asserts on how a real failure reads, not on our phrasing.
+			//goland:noinspection GoErrorStringFormat
 			return errors.New("No such key “picture-uri-dark”")
 		}
 		return nil
@@ -170,6 +172,9 @@ func TestSetLinux_StaysForgivingWhenTheSchemaCannotBeRead(t *testing.T) {
 	stubDarkKey(t, false, errors.New("list-keys failed"))
 	captureCommands(t, func(args []string) error {
 		if slices.Contains(args, "picture-uri-dark") {
+			// Capitalised because it reproduces gsettings' own wording; the
+			// test asserts on how a real failure reads, not on our phrasing.
+			//goland:noinspection GoErrorStringFormat
 			return errors.New("No such key")
 		}
 		return nil

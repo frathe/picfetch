@@ -480,10 +480,10 @@ func TestGenerate_SourceFidelity(t *testing.T) {
 		t.Fatal(err)
 	}
 	var red, blue bool
-	image := result.Image().(*image.NRGBA)
-	for y := range image.Bounds().Dy() {
-		for x := range image.Bounds().Dx() {
-			pixel := image.NRGBAAt(x, y)
+	pixels := result.Image().(*image.NRGBA)
+	for y := range pixels.Bounds().Dy() {
+		for x := range pixels.Bounds().Dx() {
+			pixel := pixels.NRGBAAt(x, y)
 			red = red || pixel.R > 230 && pixel.B < 25
 			blue = blue || pixel.B > 230 && pixel.R < 25
 		}
@@ -835,17 +835,17 @@ func TestGenerate_SourcesUnchanged(t *testing.T) {
 func mosaicPNG(t *testing.T, name string, width, height int, pixel func(int, int) color.NRGBA) fyne.URI {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
-	image := image.NewNRGBA(image.Rect(0, 0, width, height))
+	pixels := image.NewNRGBA(image.Rect(0, 0, width, height))
 	for y := range height {
 		for x := range width {
-			image.SetNRGBA(x, y, pixel(x, y))
+			pixels.SetNRGBA(x, y, pixel(x, y))
 		}
 	}
 	file, err := os.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := png.Encode(file, image); err != nil {
+	if err := png.Encode(file, pixels); err != nil {
 		_ = file.Close()
 		t.Fatal(err)
 	}
