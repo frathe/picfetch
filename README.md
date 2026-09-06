@@ -124,6 +124,10 @@ Windows builds for both x64 (`picfetch-windows-amd64.zip`) and ARM64
 (`picfetch-windows-arm64.zip`); grab the one matching your machine. See
 [Building](#building) below to build from source instead.
 
+### Windows (Microsoft Store)
+
+[![Download from the Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9p0dm0kth01k?ocid=webpdpshare)
+
 ### Windows (WinGet)
 
 ```powershell
