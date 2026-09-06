@@ -89,25 +89,72 @@ func LoadThumbnail(u fyne.URI) (image.Image, error) {
 // (but much slower on a large downscale) BiLinear kernel - draw.Interpolator's
 // own doc recommends it as the speed/quality tradeoff for exactly this case,
 // and a small preview doesn't need kernel-grade sharpness.
+//
+// ScaleForExport is the same shape at the other end of that tradeoff. The
+// two are deliberately separate functions rather than one taking a kernel:
+// nothing populating a thumbnail cache should ever be one argument away
+// from paying export-grade sampling costs per cell.
 func scaleToFit(src image.Image, maxEdge int) image.Image {
+	return scaleWith(draw.ApproxBiLinear, src, maxEdge)
+}
+
+// ScaleForExport applies an export size limit of maxEdge to src: its longest
+// edge is brought to that ceiling, the aspect ratio is preserved, and an
+// image already inside the ceiling is returned as itself rather than
+// enlarged to meet it. A maxEdge of zero or less is no ceiling at all, so an
+// export at Original size never pays for a resampling pass that would change
+// nothing.
+//
+// CatmullRom rather than the thumbnail path's ApproxBiLinear: this is a
+// photo somebody is about to mail or post, where the approximate kernel's
+// softness is visible, and it runs once per export rather than once per
+// grid cell.
+func ScaleForExport(src image.Image, maxEdge int) image.Image {
+	return scaleWith(draw.CatmullRom, src, maxEdge)
+}
+
+// SizeLimitApplies reports whether an export size limit of maxEdge would
+// actually change an image whose bounds are b - false both for no ceiling at
+// all and for a ceiling the image is already inside, since neither enlarges
+// anything.
+//
+// This is the one place that question is answered. internal/ui asks it
+// before an export to decide whether the size belongs in the suggested
+// filename and the completion toast, and Export asks it to decide whether
+// the source's dimension tags have been made false; both read the same rule
+// ScaleForExport itself follows, so no caller can drift from it.
+func SizeLimitApplies(b image.Rectangle, maxEdge int) bool {
+	w, h := fitEdge(b.Dx(), b.Dy(), maxEdge)
+
+	return w != b.Dx() || h != b.Dy()
+}
+
+// scaleWith is what scaleToFit and ScaleForExport share: the fitting rule,
+// the never-upscale check, and the destination image. Only the kernel
+// differs, and it is the caller's whole reason for existing.
+func scaleWith(kernel draw.Interpolator, src image.Image, maxEdge int) image.Image {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
-	if w <= 0 || h <= 0 || (w <= maxEdge && h <= maxEdge) {
+
+	dw, dh := fitEdge(w, h, maxEdge)
+	if w <= 0 || h <= 0 || (dw == w && dh == h) {
 		return src
 	}
 
-	dw, dh := fitEdge(w, h, maxEdge)
-
 	dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
-	draw.ApproxBiLinear.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)
+	kernel.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)
 	return dst
 }
 
-// fitEdge is the size scaleToFit scales to, separated so LoadThumbnail's
-// SVG branch can aim a rasterization at it directly: w x h reduced to fit
-// within maxEdge on the longer side, aspect preserved, never upscaled.
+// fitEdge is the size the scalers above scale to, separated so
+// LoadThumbnail's SVG branch can aim a rasterization at it directly and so
+// SizeLimitApplies can ask what a ceiling would do without doing it: w x h
+// reduced to fit within maxEdge on the longer side, aspect preserved, never
+// upscaled. A maxEdge of zero or less is no ceiling, and returns w x h
+// unchanged - "Original" in the export prompt's terms, and the answer that
+// keeps a caller from having to special-case it.
 func fitEdge(w, h, maxEdge int) (int, int) {
-	if w <= maxEdge && h <= maxEdge {
+	if maxEdge <= 0 || (w <= maxEdge && h <= maxEdge) {
 		return w, h
 	}
 

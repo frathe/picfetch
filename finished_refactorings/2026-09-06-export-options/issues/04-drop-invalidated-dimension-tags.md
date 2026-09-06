@@ -40,15 +40,19 @@ IFD0 and Exif SubIFD tags first, the 0xA005 chase second.
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A resized export with metadata included carries none of the listed dimension tags, verified by reading tags back out of the written file
-- [ ] Camera, lens, exposure, date and GPS tags are still present on that same file
-- [ ] MakerNote is still present
-- [ ] Resolution/DPI tags are still present
-- [ ] An export at Original size drops nothing
-- [ ] An export whose chosen limit exceeded the photo's own size drops nothing
-- [ ] The Interoperability IFD's dimension tags are dropped, reached through the pointer in the Exif SubIFD rather than IFD0
-- [ ] Removing an entry leaves every surviving entry's value readable, confirming absolute offsets survived the shift
-- [ ] The rotate-and-save path's written output is unchanged, covered by its existing tests
-- [ ] A malformed or truncated metadata block leaves the block unchanged rather than panicking, matching the existing walker's failure mode
+- [x] A resized export with metadata included carries none of the listed dimension tags, verified by reading tags back out of the written file
+- [x] Camera, lens, exposure, date and GPS tags are still present on that same file
+- [x] MakerNote is still present
+- [x] Resolution/DPI tags are still present
+- [x] An export at Original size drops nothing
+- [x] An export whose chosen limit exceeded the photo's own size drops nothing
+- [x] The Interoperability IFD's dimension tags are dropped, reached through the pointer in the Exif SubIFD rather than IFD0
+- [x] Removing an entry leaves every surviving entry's value readable, confirming absolute offsets survived the shift
+- [x] The rotate-and-save path's written output is unchanged, covered by its existing tests
+- [x] A malformed or truncated metadata block leaves the block unchanged rather than panicking, matching the existing walker's failure mode
+
+## Comments
+
+2026-09-06 — Delivered: the in-place TIFF patcher gained removeIFDEntries, dropping the closed dimension-tag set from IFD0, the Exif SubIFD and the Interop IFD (reached through 0xA005) only when the pixels actually changed. MakerNote, DPI, GPS and the rotate-and-save path are untouched.

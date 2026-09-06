@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 189 entries, 326.750s baseline median-weight sum
-# ui-2: 188 entries, 327.070s median-weight sum
-# ui-3: 221 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 31 tests assigned across the baseline shards
+# ui-1: 195 entries, 326.750s baseline median-weight sum
+# ui-2: 194 entries, 327.070s median-weight sum
+# ui-3: 227 entries, 326.740s baseline median-weight sum
+# post-baseline additions: 49 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -83,7 +83,13 @@ TestExifLink_HiddenWhenTheImageHasNoExifData	ui-1
 TestExifLink_ShownWhenTheImageHasExifData	ui-1
 TestExifLink_VisibilityFollowsNavigation	ui-1
 TestExifWindow_LeftRightChangeImage	ui-1
+TestExportAs_OmittingMetadataStillWritesAnUprightCopy	ui-1
+TestExportAs_OmittingMetadataWritesACleanCopyAndKeepsTheOriginal	ui-1
 TestExportAs_RunsSavePanelInBackground	ui-1
+TestExportAs_SizeLimitCapsTheWrittenFile	ui-1
+TestExportAs_SuggestedNameCarriesTheAppliedSize	ui-1
+TestExportAs_ToastReportsASizeOnlyWhenOneApplied	ui-1
+TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking	ui-1
 TestFavoriteShortcutOpensStoredFilesThroughViewer	ui-1
 TestFinishLoad_PreloadsBothNeighbors	ui-1
 TestGenerationTracksFileSetIdentityNotNavigation	ui-1
@@ -265,6 +271,12 @@ TestExifLink_OpensExifWindow	ui-2
 TestExportAs_AppendsTheExtensionOfTheFormatActuallyPicked	ui-2
 TestExportAs_CancelWritesNothing	ui-2
 TestExportAs_ReportsAFailedWrite	ui-2
+TestExportAs_ToastReportsOmissionOnlyWhenTheBoxWasUnchecked	ui-2
+TestExportOptions_DefaultToOriginalSizeAndFullMetadata	ui-2
+TestExportOptions_MetadataRowStatesItsJPEGOnlyScope	ui-2
+TestExportOptions_OriginalLabelReportsARAWsPreviewSize	ui-2
+TestExportOptions_OriginalLabelStatesTheFramesLongestEdge	ui-2
+TestExportPrompt_ClickingTheMetadataCheckboxTwiceReturnsToTheDefault	ui-2
 TestFavoritePreviewCache_DefaultsToTrueOnStartup	ui-2
 TestFavoritesMenuYieldsCopySelection	ui-2
 TestHandleDrop_AcceptsPNGAndGIF	ui-2
@@ -459,6 +471,11 @@ TestExportAs_NoOpWithNothingLoaded	ui-3
 TestExportAs_SuggestsTheSourceNameWithTheNewExtensionInItsOwnFolder	ui-3
 TestExportAs_WritesTheDisplayedFrameToThePickedPath	ui-3
 TestExportItem_DisabledInitiallyAndEnabledOnceAnImageLoads	ui-3
+TestExportPrompt_EscapeFromTheSizeRowCancels	ui-3
+TestExportPrompt_KeyboardReachesTheSizeRow	ui-3
+TestExportPrompt_OnlyTheFocusedRowIsHighlighted	ui-3
+TestExportPrompt_ReturnOnTheMetadataRowTicksTheBoxInsteadOfExporting	ui-3
+TestExportPrompt_SpaceTogglesTheMetadataRow	ui-3
 TestFavoritesMenuItemOpensStoredFilesThroughViewer	ui-3
 TestFileSnapshot_KeysAndGenerationMoveTogether	ui-3
 TestFinishLoad_ResetsRotationOnNavigation	ui-3
@@ -507,6 +524,7 @@ TestOpenWithHandler_DeliveryMergesWhenMergeModeIsOn	ui-3
 TestPerformDelete_LastFileReturnsToEmptyDropzone	ui-3
 TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError	ui-3
 TestPerformUpdate_RecordsRelaunchThenQuits	ui-3
+TestPromptExport_OpensAtDefaultsAfterANonDefaultExport	ui-3
 TestRandomOtherIndex_CoversEveryOtherIndex	ui-3
 TestRandomOtherIndex_EmptyOrSingleReturnsCurrentUnchanged	ui-3
 TestRandomOtherIndex_NeverReturnsCurrent	ui-3

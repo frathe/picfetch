@@ -103,7 +103,7 @@ type Window struct {
 	lastSeed        int64
 	exportFormat    ExportFormat
 	clock           func() time.Time
-	exporter        func(fyne.URI, image.Image, fyne.URI) error
+	exporter        func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error
 
 	root, config, previewPanel   *fyne.Container
 	sourceLabel, status          *widget.Label

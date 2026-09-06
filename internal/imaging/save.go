@@ -112,7 +112,10 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 			return err
 		}
 		encode = func(w io.Writer, img image.Image) error {
-			return encodeJPEGPreservingMetadata(w, img, orig)
+			// Never dropping dimension tags here: SaveRotated resizes
+			// nothing, so nothing in the source's metadata has been made
+			// false by the time it is spliced back on.
+			return encodeJPEGPreservingMetadata(w, img, orig, false)
 		}
 	}
 
@@ -129,11 +132,32 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 // opens at 0600, so writeEncoded has to be told the mode either way.
 const defaultExportPerm = 0o644
 
+// ExportOptions is what the user asked the export to do to the pixels and
+// the metadata on the way out, beyond the format dest's extension already
+// names. Its zero value is the behaviour Export has always had - full size,
+// source metadata carried across - so a caller with no opinion (the
+// wallpaper and mosaic paths, which write generated pixels with no source
+// file at all) passes ExportOptions{} and gets exactly that.
+type ExportOptions struct {
+	// MaxEdge is a ceiling on the exported copy's longest edge in pixels,
+	// aspect preserved, never enlarging: an image already inside the ceiling
+	// is written at its own size. 0 means no ceiling.
+	MaxEdge int
+
+	// OmitMetadata writes the copy without the source's identifying tags -
+	// metadata omission, which touches only the copy, as opposed to
+	// StripJPEGMetadata's irreversible in-place metadata removal. The colour
+	// profile still survives; see encodeJPEGKeepingICC.
+	OmitMetadata bool
+}
+
 // Export writes img to dest, encoded in dest's format. src is the file
 // the pixels came from and may be nil. When dest is JPEG and src is a
 // readable JPEG, dest receives a normalized copy of src's metadata
 // segments (same rules as SaveRotated). A read failure on src does not
-// fail the export: pixels are written without metadata.
+// fail the export: pixels are written without metadata. opts can cap the
+// written copy's longest edge and drop the source's identifying tags; its
+// zero value writes what this function has always written.
 //
 // The destination's extension alone picks the encoder: unlike SaveRotated,
 // no symlink is resolved first, since dest is a destination the user just
@@ -142,7 +166,7 @@ const defaultExportPerm = 0o644
 // (keeping its own permission bits), atomically, by the same
 // temp-file-then-rename writeEncoded gives SaveRotated - so an export over
 // a previous copy cannot damage it if the encode fails partway.
-func Export(dest fyne.URI, img image.Image, src fyne.URI) error {
+func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) error {
 	ext := dest.Extension()
 	encode, ok := encoders[strings.ToLower(ext)]
 	if !ok {
@@ -154,15 +178,33 @@ func Export(dest fyne.URI, img image.Image, src fyne.URI) error {
 		perm = info.Mode().Perm()
 	}
 
+	// The size limit is applied before the encoder is chosen so that
+	// everything downstream - the metadata splice below included - is
+	// looking at the pixels that will actually be written.
+	out := ScaleForExport(img, opts.MaxEdge)
+
+	// The trigger for dropping the tags that would now lie is that the
+	// ceiling actually changed the pixels, not that one was chosen: a 2400
+	// ceiling on an 1800px photo invalidates nothing and must drop nothing.
+	resized := SizeLimitApplies(img.Bounds(), opts.MaxEdge)
+
 	if isJPEGExt(ext) && src != nil && src.Path() != "" {
 		if orig, err := jpegFileBytes(src.Path()); err == nil && orig != nil {
 			encode = func(w io.Writer, img image.Image) error {
-				return encodeJPEGPreservingMetadata(w, img, orig)
+				if opts.OmitMetadata {
+					// The ICC-preserving encode rather than a bare one:
+					// omission is about the tags that identify the
+					// photographer and the camera, not about the colours the
+					// recipient sees. Adobe APP14 is deliberately not spliced
+					// back - see encodeJPEGKeepingICC.
+					return encodeJPEGKeepingICC(w, img, orig)
+				}
+				return encodeJPEGPreservingMetadata(w, img, orig, resized)
 			}
 		}
 	}
 
-	return writeEncoded(path, perm, encode, img)
+	return writeEncoded(path, perm, encode, out)
 }
 
 // jpegFileBytes returns path's full contents if it starts with the JPEG SOI

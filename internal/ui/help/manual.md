@@ -710,8 +710,13 @@ many of them actually went.
 - **`Cmd`/`Ctrl+E`** — export the current image to a new file: a prompt asks
   which format (**`Left`**/**`Right`** to choose between PNG and JPEG, **`Return`**
   to export, **`Esc`** to cancel), then you name the file in the system save
-  panel (see "Menu" below). Plain `E` above still opens the EXIF window —
-  only the modified combination exports
+  panel (see "Menu" below). **`Up`** and **`Down`** move between the format
+  buttons and the prompt's two options above them, and only the row you are
+  on is highlighted brightly — an export size limit (**`Left`**/**`Right`**
+  to pick one) and **Include camera metadata** (**`Space`** or **`Return`**
+  to tick or untick it). **`Return`** exports from anywhere else in the
+  prompt, and **`Esc`** cancels from anywhere. Plain `E` above still opens
+  the EXIF window — only the modified combination exports
 - **`Cmd`/`Ctrl+Shift+E`** — make the current image the desktop wallpaper
   (see "Menu" below)
 - **`Cmd`/`Ctrl+C`** — copy the current image to the system clipboard, as
@@ -788,9 +793,34 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   works for every image the app can display, including WebP and HEIC files
   and a single frame of an animated GIF, and it never touches the original.
   If the name you type already ends in a format PicFetch can write, that
-  format wins over the one you chose in the prompt. A JPEG exported from
-  a JPEG keeps the same metadata as Save Changes; a JPEG exported from
-  another format, or any PNG export, has none
+  format wins over the one you chose in the prompt
+- **The export prompt's two options** — both start at the behaviour above
+  every time the prompt opens, and neither is remembered afterwards:
+  - **Export size limit** — **Original**, **2400 px**, **1600 px** or
+    **1000 px**, applied to the image's longest edge with the proportions
+    kept. A photo already smaller than the limit you pick is exported at its
+    own size; nothing is ever enlarged. The **Original** entry states the
+    picture's real longest edge, so you can see at a glance whether a
+    smaller limit would change anything — for a camera RAW that is the size
+    of the preview stored inside it, which is what the app displays. When a
+    limit actually applies, the save panel opens with the size in the
+    suggested file name (`holiday-1600.jpg`), so a smaller copy does not
+    collide with the picture it came from
+  - **Include camera metadata (JPEG only)** — ticked by default, which
+    copies the source JPEG's metadata into the exported file exactly as
+    Save Changes does. Untick it to write the copy without the camera,
+    capture-date and GPS tags — your own file keeps all of them, since an
+    export only ever writes the new copy. The embedded colour profile is
+    kept either way, so colours do not shift for whoever receives it. PNG
+    files carry no metadata in either case, which is why the option names
+    JPEG. If you want the tags gone from the *original* rather than from a
+    copy, that is **Remove Metadata** in the EXIF window, which rewrites the
+    file itself and cannot be undone
+  - A JPEG exported from another format, or any PNG export, has no metadata
+    to begin with. A JPEG exported with metadata *and* a size limit that
+    changed the pixels keeps everything except the handful of tags that
+    recorded the old width and height, which are dropped rather than left
+    stating a size the file no longer has
 - **File -> Close Files** — returns to the drop zone without quitting
 - **File -> Settings…** — opens the settings window, including the
   **Duplicate match distance** slider (0–32, default 6; lower is

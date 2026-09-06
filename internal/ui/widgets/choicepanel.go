@@ -64,6 +64,12 @@ type ChoicePanel struct {
 	choices  []Choice
 	selected int
 
+	// active is whether this panel is where the keyboard currently is. A
+	// card with extra rows above the buttons clears it while the selection
+	// is up in them, so only one ring on the card is ever at full strength -
+	// see SetSelectionActive.
+	active bool
+
 	content fyne.CanvasObject
 	buttons []*widget.Button
 	rings   []*canvas.Rectangle
@@ -72,7 +78,7 @@ type ChoicePanel struct {
 // NewChoicePanel builds the button row over the given choices, left to right.
 // Index 0 is the leftmost button and the default selection.
 func NewChoicePanel(repaint func(), choices ...Choice) *ChoicePanel {
-	p := &ChoicePanel{repaint: repaint, choices: choices}
+	p := &ChoicePanel{repaint: repaint, choices: choices, active: true}
 	p.ExtendBaseWidget(p)
 
 	cells := make([]fyne.CanvasObject, len(choices))
@@ -175,6 +181,27 @@ func (p *ChoicePanel) ChoiceEnabled(i int) bool {
 	return !p.buttons[i].Disabled()
 }
 
+// SetSelectionActive says whether this panel currently holds the keyboard.
+// The selection does not move either way: an inactive panel still shows
+// which choice is selected, just at the muted stroke SetRingActive draws,
+// so a card whose keyboard has moved up into its extra rows has exactly one
+// ring at full strength.
+//
+// Panels are born active, which is every panel that is the only thing on
+// its surface (deletion's confirmation, the favorites dialogs) - none of
+// them ever calls this.
+func (p *ChoicePanel) SetSelectionActive(active bool) {
+	p.active = active
+	for _, ring := range p.rings {
+		SetRingActive(ring, active)
+	}
+	p.Refresh()
+
+	if p.repaint != nil {
+		p.repaint()
+	}
+}
+
 // Select moves the selection to index i, clamping to the choice range rather
 // than wrapping, and redraws whichever ring now marks it.
 //
@@ -200,13 +227,7 @@ func (p *ChoicePanel) Select(i int) {
 	}
 
 	p.selected = i
-	for idx, ring := range p.rings {
-		if idx == i {
-			ring.Show()
-		} else {
-			ring.Hide()
-		}
-	}
+	MarkOnly(p.rings, i)
 	// Refreshing the panel rather than trusting each ring's own Show/Hide:
 	// Fyne only registers an object with its canvas the first time it is
 	// painted while visible, so a ring that has been hidden since the panel

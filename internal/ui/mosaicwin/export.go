@@ -51,7 +51,7 @@ func (w *Window) SaveImage() {
 			} else {
 				destination := mosaicExportDestination(picked[0], format)
 				name = destination.Name()
-				err = w.exporter(destination, pixels, nil)
+				err = w.exporter(destination, pixels, nil, imaging.ExportOptions{})
 			}
 		}
 		if err != nil {
@@ -112,7 +112,7 @@ func (w *Window) SetClock(clock func() time.Time) {
 	w.clock = clock
 }
 
-func (w *Window) SetExporter(exporter func(fyne.URI, image.Image, fyne.URI) error) {
+func (w *Window) SetExporter(exporter func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error) {
 	if exporter == nil {
 		w.exporter = imaging.Export
 		return

@@ -27,16 +27,20 @@ routine export keeps today's short message.
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The export prompt offers Original, 2400, 1600 and 1000 as an export size limit
-- [ ] The limit applies to the longest edge with aspect ratio preserved
-- [ ] A photo already inside the chosen ceiling is exported at its own size and never enlarged
-- [ ] The Original option's label states the frame's actual longest edge in pixels
-- [ ] A RAW file's Original label reports the embedded preview's dimensions, matching what is actually written
-- [ ] Scaling for export uses a higher-quality interpolator than the thumbnail path, which keeps its existing kernel unchanged
-- [ ] The longest-edge fitting rule is reused from the imaging module rather than reimplemented
-- [ ] The suggested filename carries the applied size when a limit changed the pixels, and is unchanged at Original size
-- [ ] The completion toast reports the size only when it differs from the default
-- [ ] The option resets to Original every time the prompt opens, and is never persisted
-- [ ] New labels have translation entries in both shipped languages
+- [x] The export prompt offers Original, 2400, 1600 and 1000 as an export size limit
+- [x] The limit applies to the longest edge with aspect ratio preserved
+- [x] A photo already inside the chosen ceiling is exported at its own size and never enlarged
+- [x] The Original option's label states the frame's actual longest edge in pixels
+- [x] A RAW file's Original label reports the embedded preview's dimensions, matching what is actually written
+- [x] Scaling for export uses a higher-quality interpolator than the thumbnail path, which keeps its existing kernel unchanged
+- [x] The longest-edge fitting rule is reused from the imaging module rather than reimplemented
+- [x] The suggested filename carries the applied size when a limit changed the pixels, and is unchanged at Original size
+- [x] The completion toast reports the size only when it differs from the default
+- [x] The option resets to Original every time the prompt opens, and is never persisted
+- [x] New labels have translation entries in both shipped languages
+
+## Comments
+
+2026-09-06 — Delivered: rungs Original/2400/1600/1000 on the longest edge via the exported imaging.FitEdge and imaging.ScaleForExport (CatmullRom; the thumbnail path keeps ApproxBiLinear). The applied limit joins the suggested filename and the toast only when it actually changed the pixels.

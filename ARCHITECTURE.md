@@ -81,7 +81,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `rotate.go` | View-only 90° rotation (state lives in `internal/ui/display`). `displayedDimensions` is the oriented raster/SVG size. Call `syncMenus` *before* `applyRotationLayout` — a documented `-race` fix under the fake test driver, not call-site discipline. |
 | `vector.go` | Debounced SVG re-render. |
 | `save.go` | File > Save Changes (`canSaveRotation` / `saveRotation`, ending in `syncMenus`). |
-| `export.go` | File > Export image (`promptExport` / `exportAs`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. |
+| `export.go` | File > Export image (`promptExport` / `exportAs` / `runExport`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. Carries an `exportRequest` (format plus `imaging.ExportOptions`) and reports the applied size limit in the suggested name and the toast. |
+| `exportoptions.go` | The export prompt's extra rows (`exportOptions`, a `widgets.ExtraRows`): the export size limit rungs and the "Include camera metadata" `widget.Check`, reset to defaults on every open. Both Fyne controls grab canvas focus on tap; the checkbox hands it back from its own `OnChanged` (every effective tap toggles it), while the rungs are tappable labels because a radio item focuses without firing `OnChanged` when the value doesn't change. |
 | `mosaic.go` | Cross-feature mosaic composition: snapshot explicit Grid selection or the complete filtered result, inspect displays, open the singleton workflow, and adapt generation/display refresh into its narrow Host. |
 | `wallpaper.go` | Shared ordinary/mosaic wallpaper lifecycle: serialize work, export captured pixels to a global or hashed-target cache scope, call `wallpaper.Set(Request)`, and sweep only copies no longer backing another scope. |
 | `autoupdate.go` | Viewer-side update glue: `maybeStartUpdateCheck` gates the opt-in daily check; `CheckForUpdatesNow` adapts manual worker callbacks through `fyne.Do` with an inner staleness check; `PerformUpdate` records relaunch intent and requests quit; `maybeShowWhatsNew` opens cached release notes. Every update entry point refuses a Store-managed viewer. Policy, staging, and cache live in `internal/ui/autoupdate`. |
@@ -115,7 +116,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Both caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
 | `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
 | `internal/ui/display/` | What's currently on the canvas: the decoded frames, which one is up, the view-only rotation (composing `imaging.RotateSteps` itself, in `Rotated`), and the picture-frame crossfade. | No Host: a value `State` field on `viewer`, mutated through its own methods, never copied. |
-| `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard`, `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. | Leaf aside from `internal/winpos`. |
+| `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | `WelcomeWebP` / `PlaceholderWebP`. | Leaf. |
 
 ### `internal/imaging`
@@ -138,11 +139,11 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
 | `gif.go` | Animated GIF compositing, `probeGIF`, and logical-canvas restoration for a frozen partial first frame without decoding later frames. |
-| `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. |
+| `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. Also `FitEdge` (the shared longest-edge rule) and `ScaleForExport` (CatmullRom, for exports) beside the unexported ApproxBiLinear `scaleToFit` thumbnails use. |
 | `dhash.go` | `DifferenceHash` / `Hamming` / `DuplicateGroups` for grid hide-duplicates. |
 | `jpegseg.go` | Unexported JPEG header-segment walker (`walkJPEGSegments`) used by `exif.go` and `jpegexif.go`. Stops at SOS; does not walk entropy-coded scans (`jpegLength` in `raw.go`) or copy/strip (`stripJPEGSegments` in `jpegexif.go`). |
-| `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`. |
-| `save.go` | `SaveRotated`, `Export`, `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. |
+| `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`, plus the in-place TIFF patcher: orientation normalization, next-IFD unlinking, and `removeIFDEntries` dropping the dimension tags a resized export invalidated (IFD0, Exif SubIFD, and the Interop IFD reached through 0xA005). |
+| `save.go` | `SaveRotated`, `Export` (+ `ExportOptions`: size limit and metadata omission), `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. |
 
 ### `internal/favstore`
 
@@ -490,7 +491,7 @@ see `AGENTS.md`.
 - "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
 - "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.
 - "How does rotation work, and how is it saved to disk?" → `internal/ui/display` (frames/rotation state) + `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.
-- "How do I write an image out in a different format?" → `internal/ui/export.go` + `filepicker.ChooseSave` + `imaging.Export`.
+- "How do I write an image out in a different format, at a smaller size, or without camera metadata?" → `internal/ui/export.go` + `internal/ui/exportoptions.go` + `filepicker.ChooseSave` + `imaging.Export`/`ExportOptions`.
 - "How do I open the current image's folder in Finder/Explorer/my file manager?" -> `internal/ui/reveal.go` + `internal/filemanager` + `shortcuts.go` `wireRevealShortcut` + `internal/ui/infoview` `RevealLink`.
 - "How does 'Set as Wallpaper' work?" → `internal/ui/wallpaper.go` + `internal/wallpaper`.
 - "How is an image mosaic sourced, generated, previewed, exported, and targeted to a display?" → `internal/ui/mosaic.go` + `internal/ui/mosaicwin` + `internal/mosaic` + `internal/displays` + `internal/ui/wallpaper.go`.

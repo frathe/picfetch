@@ -134,7 +134,7 @@ func (v *viewer) writeWallpaperFile(img image.Image, target displays.ID) (string
 
 	name := fmt.Sprintf("%s%s-%d.png", wallpaperPrefix, wallpaperScope(target), time.Now().UnixNano())
 	dest := filepath.Join(v.wallpaperDir, name)
-	if err := imaging.Export(storage.NewFileURI(dest), img, nil); err != nil {
+	if err := imaging.Export(storage.NewFileURI(dest), img, nil, imaging.ExportOptions{}); err != nil {
 		return "", err
 	}
 

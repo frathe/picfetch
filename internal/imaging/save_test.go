@@ -249,7 +249,7 @@ func TestExport(t *testing.T) {
 				dest := filepath.Join(t.TempDir(), "copy"+ext)
 
 				const w, h = 4, 3
-				if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil); err != nil {
+				if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil, ExportOptions{}); err != nil {
 					t.Fatalf("Export: %v", err)
 				}
 
@@ -272,7 +272,7 @@ func TestExport(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "from-a-webp.png")
 
 		const w, h = 3, 2
-		if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil, ExportOptions{}); err != nil {
 			t.Fatalf("Export: %v", err)
 		}
 
@@ -294,7 +294,7 @@ func TestExport(t *testing.T) {
 		dest := writeTempFile(t, "existing.png", []byte("placeholder, never read back"))
 
 		const w, h = 5, 2
-		if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(w, h), nil, ExportOptions{}); err != nil {
 			t.Fatalf("Export: %v", err)
 		}
 
@@ -313,7 +313,7 @@ func TestExport(t *testing.T) {
 	t.Run("unsupported destination format writes nothing at all", func(t *testing.T) {
 		dir := t.TempDir()
 
-		if err := Export(storage.NewFileURI(filepath.Join(dir, "copy.webp")), markedImage(2, 2), nil); err == nil {
+		if err := Export(storage.NewFileURI(filepath.Join(dir, "copy.webp")), markedImage(2, 2), nil, ExportOptions{}); err == nil {
 			t.Fatal("Export: want error for a format with no encoder, got nil")
 		}
 
@@ -330,7 +330,7 @@ func TestExport(t *testing.T) {
 		original := []byte("the previous copy, which a failed export must not damage")
 		dest := writeTempFile(t, "copy.webp", original)
 
-		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), nil); err == nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), nil, ExportOptions{}); err == nil {
 			t.Fatal("Export: want error for a format with no encoder, got nil")
 		}
 
@@ -350,7 +350,7 @@ func TestExport_JPEGSourceKeepsMetadataOnJPEGDest(t *testing.T) {
 
 	t.Run("jpeg dest", func(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "copy.jpg")
-		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), src); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), src, ExportOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		got, err := os.ReadFile(dest)
@@ -364,7 +364,7 @@ func TestExport_JPEGSourceKeepsMetadataOnJPEGDest(t *testing.T) {
 
 	t.Run("png dest stays a PNG without JPEG APPn", func(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "copy.png")
-		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), src); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), src, ExportOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		got, err := os.ReadFile(dest)
@@ -381,7 +381,7 @@ func TestExport_JPEGSourceKeepsMetadataOnJPEGDest(t *testing.T) {
 
 	t.Run("nil src still encodes", func(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "bare.jpg")
-		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), nil); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), nil, ExportOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		got, err := os.ReadFile(dest)
@@ -396,7 +396,7 @@ func TestExport_JPEGSourceKeepsMetadataOnJPEGDest(t *testing.T) {
 	t.Run("non-JPEG src to JPEG dest still encodes without splicing", func(t *testing.T) {
 		pngSrc := storage.NewFileURI(writeTempFile(t, "source.png", uitest.EncodePNG(t, 4, 3, color.White)))
 		dest := filepath.Join(t.TempDir(), "copy.jpg")
-		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), pngSrc); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(4, 3), pngSrc, ExportOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		got, err := os.ReadFile(dest)
@@ -414,7 +414,7 @@ func TestExport_JPEGSourceKeepsMetadataOnJPEGDest(t *testing.T) {
 	t.Run("unreadable src still encodes", func(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "copy.jpg")
 		missing := storage.NewFileURI(filepath.Join(t.TempDir(), "gone.jpg"))
-		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), missing); err != nil {
+		if err := Export(storage.NewFileURI(dest), markedImage(2, 2), missing, ExportOptions{}); err != nil {
 			t.Fatalf("unreadable src must not fail export: %v", err)
 		}
 		got, err := os.ReadFile(dest)
@@ -800,5 +800,353 @@ func TestCanStripJPEGMetadata(t *testing.T) {
 				t.Errorf("CanStripJPEGMetadata(%s) = %v, want %v", c.name, got, c.want)
 			}
 		})
+	}
+}
+
+// --- ExportOptions ---------------------------------------------------------
+
+// TestExport_DefaultOptionsWriteTheUntouchedFile pins the promise the
+// options value was added under: the zero value is today's behaviour, byte
+// for byte. Comparing against encodeJPEGPreservingMetadata's own output
+// rather than a golden file keeps that honest without pinning the bytes
+// image/jpeg happens to produce in one Go release.
+func TestExport_DefaultOptionsWriteTheUntouchedFile(t *testing.T) {
+	srcPath := writeTempFile(t, "geo.jpg", uitest.GPSJPEG(t, 8, 4, 48.858, 2.294))
+	src := storage.NewFileURI(srcPath)
+	img := markedImage(8, 4)
+
+	dest := filepath.Join(t.TempDir(), "copy.jpg")
+	if err := Export(storage.NewFileURI(dest), img, src, ExportOptions{}); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	var want bytes.Buffer
+	if err := encodeJPEGPreservingMetadata(&want, img, mustRead(t, srcPath), false); err != nil {
+		t.Fatalf("encodeJPEGPreservingMetadata: %v", err)
+	}
+
+	if got := mustRead(t, dest); !bytes.Equal(got, want.Bytes()) {
+		t.Errorf("default-options export wrote %d bytes, want the %d the metadata-preserving encode produces",
+			len(got), want.Len())
+	}
+}
+
+// TestExport_SizeLimitCapsTheLongestEdge covers the export size limit end
+// to end - what is on disk afterwards, at every rung the prompt offers,
+// including the one that is not a limit at all.
+func TestExport_SizeLimitCapsTheLongestEdge(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		w, h         int
+		maxEdge      int
+		wantW, wantH int
+	}{
+		{"original writes the frame's own size", 900, 600, 0, 900, 600},
+		{"landscape capped on its width", 900, 600, 300, 300, 200},
+		{"portrait capped on its height", 600, 900, 300, 200, 300},
+		{"a photo already inside the limit is never enlarged", 200, 150, 300, 200, 150},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, ext := range []string{".png", ".jpg"} {
+				t.Run(ext, func(t *testing.T) {
+					dest := filepath.Join(t.TempDir(), "copy"+ext)
+
+					err := Export(storage.NewFileURI(dest), markedImage(tc.w, tc.h), nil,
+						ExportOptions{MaxEdge: tc.maxEdge})
+					if err != nil {
+						t.Fatalf("Export: %v", err)
+					}
+
+					loaded, err := LoadImage(storage.NewFileURI(dest), DefaultImgCacheBytes)
+					if err != nil {
+						t.Fatalf("reload the exported file: %v", err)
+					}
+					if b := loaded.Frames[0].Bounds(); b.Dx() != tc.wantW || b.Dy() != tc.wantH {
+						t.Errorf("exported bounds = %v, want %dx%d", b, tc.wantW, tc.wantH)
+					}
+				})
+			}
+		})
+	}
+}
+
+// --- metadata omission -----------------------------------------------------
+//
+// Omission is the export operation: the *copy* is written without the
+// source's identifying tags and the source keeps everything it had - as
+// opposed to StripJPEGMetadata's metadata removal, which rewrites the
+// original in place and cannot be undone.
+
+func TestExport_OmitMetadataWritesACleanCopyAndLeavesTheSourceAlone(t *testing.T) {
+	srcBytes := uitest.GPSJPEG(t, 8, 4, 48.858, 2.294)
+	srcPath := writeTempFile(t, "geo.jpg", srcBytes)
+	src := storage.NewFileURI(srcPath)
+
+	dest := filepath.Join(t.TempDir(), "copy.jpg")
+	err := Export(storage.NewFileURI(dest), markedImage(8, 4), src, ExportOptions{OmitMetadata: true})
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	got := mustRead(t, dest)
+	if ReadMetadata(got).HasGPS {
+		t.Error("an omitted-metadata export still carries the source's GPS position")
+	}
+	for _, seg := range jpegMetadataSegments(got) {
+		if isExifAPP1(seg) {
+			t.Error("an omitted-metadata export still carries an Exif APP1 segment")
+		}
+	}
+
+	if !ReadMetadata(mustRead(t, srcPath)).HasGPS {
+		t.Error("omitting metadata from a copy must never touch the source file")
+	}
+}
+
+// TestExport_OmitMetadataKeepsTheColourProfile is why omission goes through
+// the ICC-preserving encode rather than a bare jpeg.Encode: the recipient's
+// colours must not shift because the sender ticked a privacy box.
+func TestExport_OmitMetadataKeepsTheColourProfile(t *testing.T) {
+	icc := wrapAPP2(append([]byte("ICC_PROFILE\x00"), 1, 1, 'p', 'r', 'o', 'f'))
+	exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, eiffelGPS())...))
+	srcPath := writeTempFile(t, "profiled.jpg",
+		spliceMetadataIntoJPEG(t, markedImage(8, 4), [][]byte{exif, icc, wrapAPP14()}))
+
+	dest := filepath.Join(t.TempDir(), "copy.jpg")
+	err := Export(storage.NewFileURI(dest), markedImage(8, 4), storage.NewFileURI(srcPath),
+		ExportOptions{OmitMetadata: true})
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	got := mustRead(t, dest)
+	if len(jpegICCSegments(got)) != 1 {
+		t.Errorf("omitted-metadata export carries %d ICC segments, want the source's one", len(jpegICCSegments(got)))
+	}
+	// APP14 must not come back: it describes the *original* entropy-coded
+	// colour transform, and would misdeclare what image/jpeg.Encode just
+	// wrote.
+	for _, seg := range jpegMetadataSegments(got) {
+		if len(seg) >= 2 && seg[1] == 0xEE {
+			t.Error("omitted-metadata export spliced the Adobe APP14 segment back on")
+		}
+	}
+}
+
+// TestExport_OmitMetadataOnAPNGIsTheSameFileEitherWay covers the reason the
+// checkbox's label states its JPEG-only scope permanently instead of
+// greying itself out: for a PNG the answer never mattered.
+func TestExport_OmitMetadataOnAPNGIsTheSameFileEitherWay(t *testing.T) {
+	src := storage.NewFileURI(writeTempFile(t, "geo.jpg", uitest.GPSJPEG(t, 8, 4, 48.858, 2.294)))
+	img := markedImage(8, 4)
+
+	kept := filepath.Join(t.TempDir(), "kept.png")
+	omitted := filepath.Join(t.TempDir(), "omitted.png")
+	if err := Export(storage.NewFileURI(kept), img, src, ExportOptions{}); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	if err := Export(storage.NewFileURI(omitted), img, src, ExportOptions{OmitMetadata: true}); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	if !bytes.Equal(mustRead(t, kept), mustRead(t, omitted)) {
+		t.Error("the metadata choice changed a PNG export, which carries no metadata either way")
+	}
+}
+
+// TestExport_OmitMetadataAndASizeLimitTogether is the combination the
+// prompt makes reachable in one keystroke, and the one where an
+// implementation that resized only on the metadata-preserving branch would
+// silently write full-size pixels.
+func TestExport_OmitMetadataAndASizeLimitTogether(t *testing.T) {
+	src := storage.NewFileURI(writeTempFile(t, "geo.jpg", uitest.GPSJPEG(t, 900, 600, 48.858, 2.294)))
+
+	dest := filepath.Join(t.TempDir(), "copy.jpg")
+	err := Export(storage.NewFileURI(dest), markedImage(900, 600), src,
+		ExportOptions{MaxEdge: 300, OmitMetadata: true})
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	got := mustRead(t, dest)
+	if ReadMetadata(got).HasGPS {
+		t.Error("a resized omitted-metadata export still carries GPS")
+	}
+	loaded, err := LoadImage(storage.NewFileURI(dest), DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatalf("reload the exported file: %v", err)
+	}
+	if b := loaded.Frames[0].Bounds(); b.Dx() != 300 || b.Dy() != 200 {
+		t.Errorf("exported bounds = %v, want 300x200", b)
+	}
+}
+
+// --- dimension tags a resize invalidated -----------------------------------
+
+// exportedDimensionTags is the tag sets a written export exposes, per IFD -
+// the same view a program reading the file would get.
+func exportedDimensionTags(t *testing.T, opts ExportOptions, w, h int) map[int]map[uint16][]byte {
+	t.Helper()
+
+	src := storage.NewFileURI(writeTempFile(t, "camera.jpg", dimensionTagJPEG(t, w, h)))
+	dest := filepath.Join(t.TempDir(), "copy.jpg")
+	if err := Export(storage.NewFileURI(dest), markedImage(w, h), src, opts); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	return readIFDs(t, mustRead(t, dest))
+}
+
+// TestExport_ResizeDropsTheDimensionTagsItInvalidated is the whole point of
+// the removal: after a real resize, no tag in the file still claims the
+// original's pixel dimensions, so a reader falls back to the JPEG frame
+// header - which carries the true size for free - instead of believing a
+// stale one.
+func TestExport_ResizeDropsTheDimensionTagsItInvalidated(t *testing.T) {
+	ifds := exportedDimensionTags(t, ExportOptions{MaxEdge: 300}, 900, 600)
+
+	for _, tc := range []struct {
+		ifd  int
+		name string
+		tags []uint16
+	}{
+		{tiffIFD0, "IFD0", []uint16{0x0100, 0x0101}},
+		{tiffExifIFD, "the Exif SubIFD", []uint16{0xA002, 0xA003, 0x9214, 0xA214}},
+		{tiffInteropIFD, "the Interoperability IFD", []uint16{0x1001, 0x1002}},
+	} {
+		if ifds[tc.ifd] == nil {
+			t.Fatalf("%s is missing from the written file entirely", tc.name)
+		}
+		for _, tag := range tc.tags {
+			if _, present := ifds[tc.ifd][tag]; present {
+				t.Errorf("%s still carries tag %#04x after a resize", tc.name, tag)
+			}
+		}
+	}
+}
+
+// TestExport_ResizeKeepsEverythingItDidNotInvalidate is the other half, and
+// the more important one: dropping the tags a resize made false must not
+// cost the user the metadata they explicitly asked to keep. MakerNote stays
+// because it cannot be audited, and the resolution/DPI trio because it
+// states print density rather than a pixel count.
+func TestExport_ResizeKeepsEverythingItDidNotInvalidate(t *testing.T) {
+	ifds := exportedDimensionTags(t, ExportOptions{MaxEdge: 300}, 900, 600)
+
+	for _, tc := range []struct {
+		ifd  int
+		name string
+		tag  uint16
+		what string
+	}{
+		{tiffIFD0, "IFD0", 0x010F, "Make"},
+		{tiffIFD0, "IFD0", 0x0110, "Model"},
+		{tiffIFD0, "IFD0", 0x011A, "XResolution"},
+		{tiffIFD0, "IFD0", 0x011B, "YResolution"},
+		{tiffIFD0, "IFD0", 0x0128, "ResolutionUnit"},
+		{tiffIFD0, "IFD0", 0x8825, "the GPS pointer"},
+		{tiffExifIFD, "the Exif SubIFD", 0x829A, "ExposureTime"},
+		{tiffExifIFD, "the Exif SubIFD", 0x9003, "DateTimeOriginal"},
+		{tiffExifIFD, "the Exif SubIFD", 0x927C, "MakerNote"},
+		{tiffExifIFD, "the Exif SubIFD", 0xA434, "LensModel"},
+		{tiffInteropIFD, "the Interoperability IFD", 0x0001, "InteropIndex"},
+	} {
+		if _, present := ifds[tc.ifd][tc.tag]; !present {
+			t.Errorf("%s lost %s (%#04x), which a resize does not invalidate", tc.name, tc.what, tc.tag)
+		}
+	}
+}
+
+// TestExport_ResizeLeavesSurvivingValuesReadable is what proves the entries
+// were moved rather than the file scrambled: every value below lives in the
+// TIFF's trailing value area at an absolute offset, so a removal that
+// shifted those offsets - or corrupted an entry while compacting - would
+// read back as garbage rather than as an error.
+func TestExport_ResizeLeavesSurvivingValuesReadable(t *testing.T) {
+	src := storage.NewFileURI(writeTempFile(t, "camera.jpg", dimensionTagJPEG(t, 900, 600)))
+	dest := filepath.Join(t.TempDir(), "copy.jpg")
+	if err := Export(storage.NewFileURI(dest), markedImage(900, 600), src, ExportOptions{MaxEdge: 300}); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	got := mustRead(t, dest)
+
+	m := ReadMetadata(got)
+	if m.Make != "Canon" || m.Model != "EOS 90D" {
+		t.Errorf("camera = %q / %q, want Canon / EOS 90D", m.Make, m.Model)
+	}
+	if m.LensModel != "EF50mm f/1.8" {
+		t.Errorf("LensModel = %q, want EF50mm f/1.8", m.LensModel)
+	}
+	if !m.HasGPS {
+		t.Error("the GPS position did not survive the removal")
+	}
+	if m.ExposureTime == "" {
+		t.Error("ExposureTime did not survive the removal")
+	}
+
+	ifds := readIFDs(t, got)
+	if note := string(ifds[tiffExifIFD][0x927C]); note != "MAKERNOTE-8" {
+		t.Errorf("MakerNote reads %q, want it byte-for-byte intact", note)
+	}
+
+	// Orientation is still normalized to 1 on the way out, exactly as it
+	// was before any of this: the pixels written are already upright.
+	if orient := ifds[tiffIFD0][0x0112]; len(orient) < 2 || orient[0] != 1 {
+		t.Errorf("Orientation reads % x, want the normalized 1", orient)
+	}
+}
+
+// TestExport_KeepsDimensionTagsWhenThePixelsDidNotChange pins the trigger:
+// it is that the pixels actually changed, not that a rung was selected.
+func TestExport_KeepsDimensionTagsWhenThePixelsDidNotChange(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts ExportOptions
+	}{
+		{"original size", ExportOptions{}},
+		{"a limit larger than the photo", ExportOptions{MaxEdge: 2400}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ifds := exportedDimensionTags(t, tc.opts, 900, 600)
+
+			for _, tag := range []uint16{0x0100, 0x0101} {
+				if _, present := ifds[tiffIFD0][tag]; !present {
+					t.Errorf("IFD0 lost tag %#04x, which nothing invalidated", tag)
+				}
+			}
+			for _, tag := range []uint16{0xA002, 0xA003, 0x9214, 0xA214} {
+				if _, present := ifds[tiffExifIFD][tag]; !present {
+					t.Errorf("the Exif SubIFD lost tag %#04x, which nothing invalidated", tag)
+				}
+			}
+			for _, tag := range []uint16{0x1001, 0x1002} {
+				if _, present := ifds[tiffInteropIFD][tag]; !present {
+					t.Errorf("the Interoperability IFD lost tag %#04x, which nothing invalidated", tag)
+				}
+			}
+		})
+	}
+}
+
+// TestSaveRotated_LeavesDimensionTagsAlone guards the path this feature
+// must not touch: Save Changes resizes nothing, so its metadata
+// normalization has to keep behaving exactly as it did.
+func TestSaveRotated_LeavesDimensionTagsAlone(t *testing.T) {
+	path := writeTempFile(t, "camera.jpg", dimensionTagJPEG(t, 90, 60))
+
+	if err := SaveRotated(storage.NewFileURI(path), markedImage(60, 90)); err != nil {
+		t.Fatalf("SaveRotated: %v", err)
+	}
+
+	ifds := readIFDs(t, mustRead(t, path))
+	for _, tag := range []uint16{0x0100, 0x0101} {
+		if _, present := ifds[tiffIFD0][tag]; !present {
+			t.Errorf("a rotate-and-save dropped IFD0 tag %#04x", tag)
+		}
+	}
+	for _, tag := range []uint16{0xA002, 0xA003} {
+		if _, present := ifds[tiffExifIFD][tag]; !present {
+			t.Errorf("a rotate-and-save dropped Exif SubIFD tag %#04x", tag)
+		}
 	}
 }

@@ -377,6 +377,13 @@ type viewer struct {
 	// handleKeyEvent checks its Visible() the same way it does deletion's.
 	exportPrompt *widgets.ChoiceCard
 
+	// exportOptions is that prompt's extra rows (exportoptions.go): the
+	// export size limit and the metadata checkbox. A field of its own
+	// rather than something reached through the card, because exportAs
+	// reads it at commit time and promptExport tells it the frame's size
+	// before every open.
+	exportOptions *exportOptions
+
 	// dupes owns which files are duplicates of which - see internal/dupes,
 	// which is Fyne-free and reaches this viewer's file set through the
 	// dupeFileSet adapter (visibility.go). The viewer constructs it, not

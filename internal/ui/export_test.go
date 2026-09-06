@@ -733,20 +733,26 @@ func TestSuggestedExportPath(t *testing.T) {
 		name string
 		path string
 		ext  string
+		edge int
 		want string
 	}{
-		{"swaps the extension", "/photos/holiday.webp", ".png", "/photos/holiday.png"},
-		{"keeps a name with no extension", "/photos/holiday", ".png", "/photos/holiday.png"},
-		{"only the last dot is the extension", "/photos/holiday.2024.heic", ".jpg", "/photos/holiday.2024.jpg"},
+		{"swaps the extension", "/photos/holiday.webp", ".png", 0, "/photos/holiday.png"},
+		{"keeps a name with no extension", "/photos/holiday", ".png", 0, "/photos/holiday.png"},
+		{"only the last dot is the extension", "/photos/holiday.2024.heic", ".jpg", 0, "/photos/holiday.2024.jpg"},
 		// A name that is nothing but an extension would otherwise suggest a
 		// bare ".png", which the panel shows as an empty file-name field.
-		{"falls back for a name that is only an extension", "/photos/.jpg", ".png", "/photos/image.png"},
+		{"falls back for a name that is only an extension", "/photos/.jpg", ".png", 0, "/photos/image.png"},
+		// An applied size limit joins the name, so a resized copy exported
+		// into the source's own folder doesn't open pre-filled with the
+		// source's own name.
+		{"carries an applied size limit", "/photos/holiday.jpg", ".jpg", 1600, "/photos/holiday-1600.jpg"},
+		{"carries it onto a fallback name too", "/photos/.jpg", ".png", 1000, "/photos/image-1000.png"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := suggestedExportPath(storage.NewFileURI(tt.path), tt.ext); got != tt.want {
-				t.Errorf("suggestedExportPath(%q, %q) = %q, want %q", tt.path, tt.ext, got, tt.want)
+			if got := suggestedExportPath(storage.NewFileURI(tt.path), tt.ext, tt.edge); got != tt.want {
+				t.Errorf("suggestedExportPath(%q, %q, %d) = %q, want %q", tt.path, tt.ext, tt.edge, got, tt.want)
 			}
 		})
 	}

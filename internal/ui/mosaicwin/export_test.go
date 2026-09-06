@@ -43,7 +43,7 @@ func TestMosaicExport_UsesTimestampDirectoryFormatAndExactPixels(t *testing.T) {
 			var gotDest fyne.URI
 			var gotImage image.Image
 			var gotSource fyne.URI
-			w.SetExporter(func(dest fyne.URI, pixels image.Image, source fyne.URI) error {
+			w.SetExporter(func(dest fyne.URI, pixels image.Image, source fyne.URI, _ imaging.ExportOptions) error {
 				gotDest, gotImage, gotSource = dest, pixels, source
 				return nil
 			})
@@ -91,7 +91,7 @@ func TestMosaicExport_CancelAndFailuresKeepPreview(t *testing.T) {
 			before, _ := w.Result()
 			uitest.StubSaveChooser(t, func(string) ([]byte, error) { return tt.pickerOut, tt.pickerErr })
 			exports := 0
-			w.SetExporter(func(fyne.URI, image.Image, fyne.URI) error { exports++; return tt.exportErr })
+			w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error { exports++; return tt.exportErr })
 
 			w.SaveImage()
 			settleWindow(t, w)
@@ -198,7 +198,7 @@ func TestMosaicExport_CloseAndReopenRejectsLateCompletion(t *testing.T) {
 	uitest.StubSaveChooser(t, func(string) ([]byte, error) {
 		return []byte(filepath.Join(t.TempDir(), "mosaic.png") + "\n"), nil
 	})
-	w.SetExporter(func(fyne.URI, image.Image, fyne.URI) error {
+	w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error {
 		close(started)
 		<-release
 		return nil

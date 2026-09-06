@@ -155,7 +155,8 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	choices := make([]widgets.Choice, 2)
 	choices[pngChoice] = widgets.Choice{Label: lang.L("PNG"), OnChosen: func() { view.exportAs(exportPNGExt) }}
 	choices[jpegChoice] = widgets.Choice{Label: lang.L("JPEG"), OnChosen: func() { view.exportAs(exportJPEGExt) }}
-	view.exportPrompt = widgets.NewChoiceCard(view.ForceRepaint, choices...)
+	view.exportOptions = newExportOptions(view.ForceRepaint, view.Unfocus)
+	view.exportPrompt = widgets.NewChoiceCardWithRows(view.ForceRepaint, view.exportOptions, choices...)
 
 	// Run starts the position poller only after buildViewer returns. Register
 	// the slideshow first because the poller's skip callback reads Active.

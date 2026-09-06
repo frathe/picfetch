@@ -144,6 +144,45 @@ func TestFitEdge(t *testing.T) {
 	}
 }
 
+// TestFitEdge_NoCeilingIsTheSizeItself covers the value the export path
+// spells "Original": a maxEdge of zero (or less) is not a ceiling of zero,
+// it is no ceiling at all. Without this the arithmetic below would floor
+// every side at one and report a 1x1 image.
+func TestFitEdge_NoCeilingIsTheSizeItself(t *testing.T) {
+	for _, maxEdge := range []int{0, -1} {
+		w, h := fitEdge(800, 600, maxEdge)
+		if w != 800 || h != 600 {
+			t.Errorf("fitEdge(800, 600, %d) = %dx%d, want the size itself", maxEdge, w, h)
+		}
+	}
+}
+
+// TestSizeLimitApplies covers the predicate both the export prompt and the
+// encoder read: whether a ceiling would change anything at all. It is what
+// decides whether the size joins the suggested filename and the toast, and
+// whether the source's dimension tags have been made false.
+func TestSizeLimitApplies(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		w, h    int
+		maxEdge int
+		want    bool
+	}{
+		{"a ceiling under the photo", 3000, 2000, 2400, true},
+		{"a ceiling over the photo", 1800, 1200, 2400, false},
+		{"a ceiling exactly on the photo", 2400, 1600, 2400, false},
+		{"no ceiling at all", 3000, 2000, 0, false},
+		{"a ceiling under the photo's short edge only", 2000, 3000, 2400, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := SizeLimitApplies(image.Rect(0, 0, tc.w, tc.h), tc.maxEdge)
+			if got != tc.want {
+				t.Errorf("SizeLimitApplies(%dx%d, %d) = %v, want %v", tc.w, tc.h, tc.maxEdge, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLoadThumbnailRastersSVGAtThumbnailSize(t *testing.T) {
 	// 800x600 is its own logical size (over the 520x340 floor), so the
 	// thumbnail must come back at 200x150 - and with drawn pixels, proving
@@ -205,5 +244,90 @@ func TestLoadThumbnail_WrapsLoadThumbnailAndBounds(t *testing.T) {
 	}
 	if a.Bounds() != b.Bounds() {
 		t.Errorf("LoadThumbnail bounds %v, LoadThumbnailAndBounds thumb %v", a.Bounds(), b.Bounds())
+	}
+}
+
+// --- ScaleForExport --------------------------------------------------------
+
+// TestScaleForExport_AppliesTheCeilingToTheLongestEdge covers the rule the
+// export size limit is: the longest edge lands exactly on the ceiling, the
+// short one follows the aspect ratio, and an image already inside the
+// ceiling comes back as itself rather than as a re-encoded copy of itself.
+func TestScaleForExport_AppliesTheCeilingToTheLongestEdge(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		w, h         int
+		maxEdge      int
+		wantW, wantH int
+	}{
+		{"landscape", 3000, 2000, 1000, 1000, 666},
+		{"portrait", 2000, 3000, 1000, 666, 1000},
+		{"square", 2400, 2400, 1600, 1600, 1600},
+		{"already inside the ceiling", 800, 600, 1000, 800, 600},
+		{"exactly on the ceiling", 1000, 500, 1000, 1000, 500},
+		{"no ceiling at all", 3000, 2000, 0, 3000, 2000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := markedImage(tc.w, tc.h)
+
+			got := ScaleForExport(src, tc.maxEdge)
+
+			if b := got.Bounds(); b.Dx() != tc.wantW || b.Dy() != tc.wantH {
+				t.Errorf("ScaleForExport(%dx%d, %d) = %v, want %dx%d",
+					tc.w, tc.h, tc.maxEdge, b, tc.wantW, tc.wantH)
+			}
+		})
+	}
+}
+
+// TestScaleForExport_ReturnsTheSameImageWhenNothingChanges is what keeps an
+// Original-size export byte-identical to what it always wrote: no ceiling
+// means no re-sampling pass at all, not a resample to the same size.
+func TestScaleForExport_ReturnsTheSameImageWhenNothingChanges(t *testing.T) {
+	src := markedImage(800, 600)
+
+	for _, maxEdge := range []int{0, 1000} {
+		if got := ScaleForExport(src, maxEdge); got != image.Image(src) {
+			t.Errorf("ScaleForExport(800x600, %d) returned a copy, want the source image itself", maxEdge)
+		}
+	}
+}
+
+// TestScaleForExport_DoesNotWriteTheThumbnailScalersPixels is the guard
+// behind "an export is not a thumbnail": the two paths exist at opposite
+// ends of a speed/quality tradeoff, and a photo someone is about to mail
+// must not come out of the export path resampled the way a 200px grid cell
+// is. Both outputs are compared as pixels, over a hard black/white edge
+// where any difference in resampling shows - nothing here reaches into how
+// either one arrived at them.
+func TestScaleForExport_DoesNotWriteTheThumbnailScalersPixels(t *testing.T) {
+	const w, h = 400, 400
+	src := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := range h {
+		for x := range w {
+			c := color.RGBA{A: 255}
+			if x >= w/2 {
+				c = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+			}
+			src.Set(x, y, c)
+		}
+	}
+
+	export := ScaleForExport(src, 100)
+	thumb := scaleToFit(src, 100)
+
+	same := true
+	for y := 0; y < 100 && same; y++ {
+		for x := range 100 {
+			er, eg, eb, _ := export.At(x, y).RGBA()
+			tr, tg, tb, _ := thumb.At(x, y).RGBA()
+			if er != tr || eg != tg || eb != tb {
+				same = false
+				break
+			}
+		}
+	}
+	if same {
+		t.Error("the export path wrote the thumbnail path's pixels, want an export resampled for a photo rather than for a grid cell")
 	}
 }

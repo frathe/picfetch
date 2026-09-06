@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/widget"
 )
 
 // threeChoices gives clamping something real to hit at both ends - a
@@ -289,4 +291,326 @@ func TestChoiceCard_RingReturnsNilOutOfRange(t *testing.T) {
 	if c.Ring(3) != nil {
 		t.Error("Ring(len(choices)) should be nil")
 	}
+}
+
+// --- extra rows ------------------------------------------------------------
+//
+// The optional block a card can draw above its button row (the export
+// prompt's size limit and metadata checkbox). Everything below is the card's
+// side of that contract - which stop the keys go to, and which keys never
+// leave the button row whichever stop is focused. What the rows themselves
+// draw is their own package's business.
+
+// fakeRows is a two-stop ExtraRows recording what the card hands it, so the
+// tests below can assert on delegation without pulling in a real options
+// widget. handles is the set of keys it claims to have used, so a test can
+// play both a row with something to activate and a row without.
+type fakeRows struct {
+	content fyne.CanvasObject
+	focused int
+	keys    []fyne.KeyName
+	handles map[fyne.KeyName]bool
+	resets  int
+}
+
+func newFakeRows() *fakeRows {
+	return &fakeRows{content: widget.NewLabel("rows"), focused: -1}
+}
+
+func (f *fakeRows) Content() fyne.CanvasObject { return f.content }
+
+func (f *fakeRows) Rows() int { return 2 }
+
+func (f *fakeRows) Focus(row int) { f.focused = row }
+
+func (f *fakeRows) HandleKey(ev *fyne.KeyEvent) bool {
+	f.keys = append(f.keys, ev.Name)
+
+	return f.handles[ev.Name]
+}
+
+func (f *fakeRows) Reset() { f.resets++ }
+
+// TestChoiceCard_ShowStartsOnTheButtonRow is what keeps Cmd/Ctrl+E followed
+// by Return a two-keystroke export: however many rows the card carries, the
+// selection starts on the buttons, not in the options above them.
+func TestChoiceCard_ShowStartsOnTheButtonRow(t *testing.T) {
+	var chosen []int
+	rows := newFakeRows()
+	c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+
+	c.Show("pick one")
+
+	if rows.focused != -1 {
+		t.Errorf("rows focused = %d after Show, want -1 (the button row holds the selection)", rows.focused)
+	}
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+
+	if len(chosen) != 1 || chosen[0] != 0 {
+		t.Errorf("chosen = %v, want the first choice run straight from Show", chosen)
+	}
+}
+
+// TestChoiceCard_ShowResetsTheRows pins the rule that the prompt always
+// states the whole truth about what it is about to write: options never
+// carry over from a previous open.
+func TestChoiceCard_ShowResetsTheRows(t *testing.T) {
+	var chosen []int
+	rows := newFakeRows()
+	c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+
+	c.Show("first")
+	c.Hide()
+	c.Show("second")
+
+	if rows.resets != 2 {
+		t.Errorf("rows reset %d times, want one per Show (2)", rows.resets)
+	}
+}
+
+func TestChoiceCard_UpAndDownMoveBetweenRowsAndButtonsAndClamp(t *testing.T) {
+	var chosen []int
+	rows := newFakeRows()
+	c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+	c.Show("pick one")
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	if rows.focused != 1 {
+		t.Errorf("rows focused = %d after Up from the buttons, want the last row (1)", rows.focused)
+	}
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	if rows.focused != 0 {
+		t.Errorf("rows focused = %d after a second Up, want the first row (0)", rows.focused)
+	}
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	if rows.focused != 0 {
+		t.Errorf("rows focused = %d after Up at the top, want it clamped to 0", rows.focused)
+	}
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+	if rows.focused != 1 {
+		t.Errorf("rows focused = %d after Down, want row 1", rows.focused)
+	}
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+	if rows.focused != -1 {
+		t.Errorf("rows focused = %d after Down from the last row, want -1 (the buttons)", rows.focused)
+	}
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+	if rows.focused != -1 {
+		t.Errorf("rows focused = %d after Down at the bottom, want it clamped to the buttons", rows.focused)
+	}
+}
+
+// TestChoiceCard_KeysGoToWhicheverStopHoldsTheSelection covers the split
+// that makes one keyboard serve both blocks: Left/Right steer the buttons
+// while the buttons hold the selection, and the rows once it has moved up
+// into them.
+func TestChoiceCard_KeysGoToWhicheverStopHoldsTheSelection(t *testing.T) {
+	var chosen []int
+	rows := newFakeRows()
+	c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+	c.Show("pick one")
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	if got := c.Selected(); got != 1 {
+		t.Errorf("Selected() = %d after Right on the button row, want 1", got)
+	}
+	if len(rows.keys) != 0 {
+		t.Errorf("rows received %v, want nothing while the buttons hold the selection", rows.keys)
+	}
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+
+	if want := []fyne.KeyName{fyne.KeyRight, fyne.KeySpace}; len(rows.keys) != 2 ||
+		rows.keys[0] != want[0] || rows.keys[1] != want[1] {
+		t.Errorf("rows received %v, want %v once the selection moved up into them", rows.keys, want)
+	}
+	if got := c.Selected(); got != 1 {
+		t.Errorf("Selected() = %d, want the button selection left where it was (1)", got)
+	}
+}
+
+// TestChoiceCard_ReturnAndEscapeAlwaysReachTheButtons is the other half of
+// that split: the two committing keys belong to the prompt as a whole, not
+// to whichever row the selection happens to be sitting on.
+func TestChoiceCard_ReturnAndEscapeAlwaysReachTheButtons(t *testing.T) {
+	t.Run("return commits from a row with nothing to activate", func(t *testing.T) {
+		var chosen []int
+		rows := newFakeRows()
+		c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+		c.Show("pick one")
+
+		c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight}) // buttons: A -> B
+		c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})    // up into the rows
+		c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+
+		if len(chosen) != 1 || chosen[0] != 1 {
+			t.Errorf("chosen = %v, want the selected button (1) run once the row declined Return", chosen)
+		}
+		if c.Visible() {
+			t.Error("the card should be hidden after Return")
+		}
+	})
+
+	// The other half of that rule, and the one a user pressing Return on a
+	// highlighted checkbox is relying on: a row that says it used the key
+	// keeps it, and the prompt stays up.
+	t.Run("return is the row's when the row activates something", func(t *testing.T) {
+		var chosen []int
+		rows := newFakeRows()
+		rows.handles = map[fyne.KeyName]bool{fyne.KeyReturn: true}
+		c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+		c.Show("pick one")
+
+		c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+		c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+
+		if len(chosen) != 0 {
+			t.Errorf("chosen = %v, want nothing committed while the row was using Return", chosen)
+		}
+		if !c.Visible() {
+			t.Error("the card should still be up: the row took Return, it did not commit")
+		}
+		if len(rows.keys) != 1 || rows.keys[0] != fyne.KeyReturn {
+			t.Errorf("rows received %v, want the Return handed down to them", rows.keys)
+		}
+	})
+
+	t.Run("escape cancels from a row", func(t *testing.T) {
+		var chosen []int
+		cancelled := 0
+		rows := newFakeRows()
+		c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+		c.SetOnCancel(func() { cancelled++ })
+		c.Show("pick one")
+
+		c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+		c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+
+		if cancelled != 1 {
+			t.Errorf("onCancel ran %d times, want 1", cancelled)
+		}
+		if len(chosen) != 0 {
+			t.Errorf("chosen = %v, want nothing run by Escape", chosen)
+		}
+		if c.Visible() {
+			t.Error("Escape should hide the card from a focused row too")
+		}
+		if len(rows.keys) != 0 {
+			t.Errorf("rows received %v, want Escape kept by the card", rows.keys)
+		}
+	})
+}
+
+// TestChoiceCard_RowsContentIsInTheCard walks the overlay rather than
+// trusting Visible(): a widget built and then left out of its container
+// still reports true, so only finding it under the overlay's root proves it
+// reaches the screen.
+func TestChoiceCard_RowsContentIsInTheCard(t *testing.T) {
+	var chosen []int
+	rows := newFakeRows()
+	c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+
+	if !inTree(c.Overlay(), rows.content) {
+		t.Error("the rows' content should be part of the card's overlay")
+	}
+}
+
+// TestChoiceCard_WithoutRowsIgnoresUpAndDown is the delete confirmation's
+// card: the same widget with nothing passed for the rows slot, where Up and
+// Down stay as inert as they have always been.
+func TestChoiceCard_WithoutRowsIgnoresUpAndDown(t *testing.T) {
+	var chosen []int
+	c := NewChoiceCard(nil, threeChoices(&chosen)...)
+	c.Show("delete?")
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+
+	if got := c.Selected(); got != 0 {
+		t.Errorf("Selected() = %d after Up/Down on a card with no rows, want 0", got)
+	}
+	if !c.Visible() {
+		t.Error("Up/Down must not dismiss a card with no rows")
+	}
+	if len(chosen) != 0 {
+		t.Errorf("chosen = %v, want Up/Down to run nothing", chosen)
+	}
+}
+
+// inTree reports whether want is somewhere under root, walking containers
+// the way infoview's own inCard helper does.
+func inTree(root, want fyne.CanvasObject) bool {
+	if root == want {
+		return true
+	}
+	if c, ok := root.(*fyne.Container); ok {
+		for _, o := range c.Objects {
+			if inTree(o, want) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// TestChoiceCard_OnlyOneRingIsAtFullStrength is the readability rule the
+// extra rows made necessary: with a ring on the buttons and a mark on the
+// focused row, two highlights at once leave the eye with no answer to
+// "where am I?". The buttons keep showing which choice is selected, muted,
+// and brighten again when the selection comes back down to them.
+func TestChoiceCard_OnlyOneRingIsAtFullStrength(t *testing.T) {
+	var chosen []int
+	rows := newFakeRows()
+	c := NewChoiceCardWithRows(nil, rows, threeChoices(&chosen)...)
+	c.Show("pick one")
+
+	full := strokeAlpha(t, c.Ring(0))
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	muted := strokeAlpha(t, c.Ring(0))
+	if muted >= full {
+		t.Errorf("the button ring is drawn at alpha %d with the selection up in the rows, want it muted below %d", muted, full)
+	}
+	if !c.Ring(0).Visible() {
+		t.Error("the button ring should stay visible while muted - it is still the choice Return would run")
+	}
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+	if back := strokeAlpha(t, c.Ring(0)); back != full {
+		t.Errorf("the button ring is drawn at alpha %d back on the button row, want the full %d", back, full)
+	}
+}
+
+// TestChoiceCard_WithoutRowsKeepsItsRingAtFullStrength is the delete
+// confirmation: one block on the card, so nothing ever mutes.
+func TestChoiceCard_WithoutRowsKeepsItsRingAtFullStrength(t *testing.T) {
+	var chosen []int
+	c := NewChoiceCard(nil, threeChoices(&chosen)...)
+	c.Show("delete?")
+
+	full := strokeAlpha(t, c.Ring(0))
+
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+
+	if got := strokeAlpha(t, c.Ring(1)); got != full {
+		t.Errorf("ring alpha = %d on a card with no rows, want the full %d", got, full)
+	}
+}
+
+// strokeAlpha is a ring's stroke opacity, the difference between "you are
+// here" and "this is still the choice".
+func strokeAlpha(t *testing.T, ring *canvas.Rectangle) uint8 {
+	t.Helper()
+
+	if ring == nil {
+		t.Fatal("no ring to read a stroke from")
+	}
+	_, _, _, a := ring.StrokeColor.RGBA()
+
+	return uint8(a >> 8)
 }

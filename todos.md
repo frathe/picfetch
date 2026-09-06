@@ -6,6 +6,30 @@
 
 #### New Features
 
+- **Export options: an export size limit and metadata omission.** The export
+  prompt (`Cmd/Ctrl+E`) now carries two rows above its PNG/JPEG buttons,
+  reachable with Up/Down and reset to today's behaviour on every open: an
+  **export size limit** (Original / 2400 / 1600 / 1000 on the longest edge,
+  aspect preserved, never enlarging, with the Original rung labelled with the
+  frame's own longest edge) and **Include camera metadata (JPEG only)**,
+  which when unchecked writes the copy without the source's identifying tags
+  while the source keeps all of them. A limit that actually changed the pixels
+  joins the suggested filename and the completion toast; an export at the
+  defaults is byte-identical to what it always wrote, with the short toast it
+  always showed. `imaging.Export` grew an `ExportOptions` value (the wallpaper
+  and mosaic paths pass defaults), `imaging.ScaleForExport` scales with
+  CatmullRom while the thumbnail cache keeps ApproxBiLinear, and the in-place
+  TIFF patcher learned to *remove* entries so a resized JPEG exported with its
+  metadata no longer carries dimension tags claiming the original's size -
+  MakerNote and DPI deliberately kept. See
+  `plans/2026-09-06-export-options.md` and `.scratch/export-options/`.
+
+  The TODO this closes claimed the metadata half was something
+  `internal/imaging/save.go` "already gets close to". It was in fact complete
+  and shipped as the EXIF window's in-place **metadata removal**; the work here
+  was making an existing export default optional (**metadata omission**), not
+  building a stripper.
+
 - **Startup flags for scripting and picture-frame use.** `picfetch` now takes
   `--slideshow`, `--shuffle`, `--interval=8s`, `--sort=name|date|modified|size|drop`,
   `--merge`, `--max-files=N` and `--help`, parsed in the new `internal/launch`
@@ -21,15 +45,30 @@
 
 ## TODO
 
-## Export options: resize + strip metadata — S/M
+### Dimension tags survive a rotated or EXIF-oriented export
 
-The export prompt (`Cmd/Ctrl+E`, `widgets.ChoiceCard`) currently chooses
-format only. Add two options: "max dimension" (e.g. 1600/2400/original,
-reusing `imaging`'s scaling) and "strip metadata" (encode without EXIF —
-for JPEG this is re-encoding minus the APP1 segment, which
-`internal/imaging/save.go` already gets close to). Turns export into
-"prepare this photo for the web/mail" — a privacy feature and a
-convenience feature in one.
+Found while reviewing the export-options work, pre-existing since export
+started preserving metadata. `imaging.Export` drops the dimension tags a
+resize invalidated (`SizeLimitApplies` decides), but a *rotation* invalidates
+exactly the same tags and nothing fires:
+
+- Exporting a 900x600 JPEG at Original size after a 90-degree turn in the
+  viewer writes 600x900 pixels while IFD0 `0x0100` still reads 900. Verified
+  directly against a written file.
+- The same holds for any source whose EXIF Orientation is 5-8: export writes
+  the upright frame and normalizes Orientation to 1, while `0x0100`/`0x0101`
+  and `0xA002`/`0xA003` still describe the stored, unrotated frame.
+
+Ticket 04 scoped its trigger to the size limit ("choosing 2400 for an 1800px
+photo drops nothing"), so this is out of that ticket rather than a defect in
+it - but the reason the tags are dropped at all ("no program reads the file as
+claiming a size it does not have") covers this case just as well.
+
+The fix is one predicate, not new machinery: compare the written frame's
+dimensions against the source JPEG's own SOF header instead of against the
+scaler's input, which catches the resize, the viewer rotation and the
+orientation normalization in one. It changes what exports write for every
+EXIF-rotated photo, so it wants a decision rather than a quiet patch.
 
 ### Publish PicFetch in Microsoft Store
 

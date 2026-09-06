@@ -445,7 +445,7 @@ func buildExifWithThumbnailIFD(t *testing.T) []byte {
 func TestNormalizeSavedExif(t *testing.T) {
 	t.Run("sets orientation 6 to 1 and leaves the rest of the payload intact", func(t *testing.T) {
 		app1 := wrapAsAPP1(buildExifSegment(t, 6, false))
-		got := normalizeSavedExif(app1)
+		got := normalizeSavedExif(app1, false)
 		if parseExifOrientation(got[4:]) != 1 {
 			t.Errorf("orientation = %d, want 1", parseExifOrientation(got[4:]))
 		}
@@ -456,7 +456,7 @@ func TestNormalizeSavedExif(t *testing.T) {
 
 	t.Run("big-endian orientation 8 becomes 1", func(t *testing.T) {
 		app1 := wrapAsAPP1(buildExifSegment(t, 8, true))
-		got := normalizeSavedExif(app1)
+		got := normalizeSavedExif(app1, false)
 		if parseExifOrientation(got[4:]) != 1 {
 			t.Errorf("orientation = %d, want 1", parseExifOrientation(got[4:]))
 		}
@@ -473,7 +473,7 @@ func TestNormalizeSavedExif(t *testing.T) {
 			t.Fatal("fixture: IFD1 pointer should be non-zero before normalize")
 		}
 
-		got := normalizeSavedExif(app1)
+		got := normalizeSavedExif(app1, false)
 		gtiff := got[10:]
 		gnum := le.Uint16(gtiff[ifd0 : ifd0+2])
 		gnext := ifd0 + 2 + uint32(gnum)*12
@@ -487,7 +487,7 @@ func TestNormalizeSavedExif(t *testing.T) {
 
 	t.Run("XMP APP1 is returned copied, not rewritten as Exif", func(t *testing.T) {
 		in := wrapAsAPP1([]byte("http://ns.adobe.com/xap/1.0/\x00<x/>"))
-		got := normalizeSavedExif(in)
+		got := normalizeSavedExif(in, false)
 		if !bytes.Equal(got, in) {
 			t.Fatalf("got %x, want copy of XMP", got)
 		}
@@ -510,7 +510,7 @@ func TestEncodeJPEGPreservingMetadata(t *testing.T) {
 		orig := spliceMetadataIntoJPEG(t, markedImage(4, 3), [][]byte{com, xmp, exif, icc})
 
 		var out bytes.Buffer
-		if err := encodeJPEGPreservingMetadata(&out, markedImage(3, 2), orig); err != nil {
+		if err := encodeJPEGPreservingMetadata(&out, markedImage(3, 2), orig, false); err != nil {
 			t.Fatal(err)
 		}
 		m := ReadMetadata(out.Bytes())
@@ -538,7 +538,7 @@ func TestEncodeJPEGPreservingMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 		var out bytes.Buffer
-		if err := encodeJPEGPreservingMetadata(&out, markedImage(2, 2), origBuf.Bytes()); err != nil {
+		if err := encodeJPEGPreservingMetadata(&out, markedImage(2, 2), origBuf.Bytes(), false); err != nil {
 			t.Fatal(err)
 		}
 		if segs := jpegMetadataSegments(out.Bytes()); len(segs) != 0 {
@@ -621,4 +621,327 @@ func gpsTrailerJPEG(t *testing.T) []byte {
 	t.Helper()
 	exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), buildGPSExifTIFF(t, eiffelGPS())...))
 	return spliceMetadataIntoJPEG(t, markedImage(4, 4), [][]byte{exif})
+}
+
+// --- dropping dimension tags a resize invalidated ---------------------------
+
+// dimensionExif is the fixture the tag-dropping tests work from: the tags a
+// resize makes false, spread across all three IFDs that carry them, mixed
+// in with the ones that must survive it - camera, lens, exposure, date,
+// GPS, MakerNote and the resolution/DPI trio.
+type dimensionExif struct {
+	width, height uint32
+	orientation   uint16
+	makerNote     []byte
+}
+
+// tiffEntry is one IFD entry for buildDimensionExifTIFF. Exactly one of
+// value (an inline value, already in the entry's own 4 bytes) and data (an
+// oversized value, placed in the trailing value area) is used; ifd names a
+// sub-IFD whose offset becomes the value instead.
+type tiffEntry struct {
+	tag, typ uint16
+	count    uint32
+	value    uint32
+	data     []byte
+	ifd      int // index into the IFD list below, or -1
+}
+
+const (
+	tiffIFD0 = iota
+	tiffExifIFD
+	tiffInteropIFD
+	tiffGPSIFD
+	tiffIFDCount
+)
+
+// buildDimensionExifTIFF lays out a little-endian TIFF with IFD0, an Exif
+// SubIFD, an Interoperability IFD (reached through the 0xA005 pointer in
+// the Exif SubIFD, not through IFD0) and a GPS IFD, followed by one shared
+// value area every oversized value points into with an absolute offset.
+// The four IFDs are written back to back, so removing an entry from one
+// leaves the ones after it exactly where they were - which is the property
+// the removal has to preserve.
+func buildDimensionExifTIFF(t *testing.T, f dimensionExif) []byte {
+	t.Helper()
+
+	bo := binary.LittleEndian
+	u16 := func(v uint16) []byte { b := make([]byte, 2); bo.PutUint16(b, v); return b }
+	u32 := func(v uint32) []byte { b := make([]byte, 4); bo.PutUint32(b, v); return b }
+	asciiZ := func(s string) []byte { return append([]byte(s), 0) }
+	rational := func(num, den uint32) []byte { return append(u32(num), u32(den)...) }
+	shorts := func(a, b uint16) uint32 { return uint32(a) | uint32(b)<<16 }
+
+	ifds := make([][]tiffEntry, tiffIFDCount)
+	ifds[tiffIFD0] = []tiffEntry{
+		{tag: 0x0100, typ: 4, count: 1, value: f.width, ifd: -1},  // ImageWidth
+		{tag: 0x0101, typ: 4, count: 1, value: f.height, ifd: -1}, // ImageLength
+		{tag: 0x010F, typ: 2, data: asciiZ("Canon"), ifd: -1},     // Make
+		{tag: 0x0110, typ: 2, data: asciiZ("EOS 90D"), ifd: -1},   // Model
+		{tag: 0x0112, typ: 3, count: 1, value: uint32(f.orientation), ifd: -1},
+		{tag: 0x011A, typ: 5, count: 1, data: rational(300, 1), ifd: -1}, // XResolution
+		{tag: 0x011B, typ: 5, count: 1, data: rational(300, 1), ifd: -1}, // YResolution
+		{tag: 0x0128, typ: 3, count: 1, value: 2, ifd: -1},               // ResolutionUnit
+		{tag: 0x8769, typ: 4, count: 1, ifd: tiffExifIFD},                // Exif SubIFD
+		{tag: 0x8825, typ: 4, count: 1, ifd: tiffGPSIFD},                 // GPS IFD
+	}
+	ifds[tiffExifIFD] = []tiffEntry{
+		{tag: 0x829A, typ: 5, count: 1, data: rational(1, 200), ifd: -1},    // ExposureTime
+		{tag: 0x9003, typ: 2, data: asciiZ("2024:08:12 14:33:02"), ifd: -1}, // DateTimeOriginal
+		{tag: 0x9214, typ: 3, count: 2, value: shorts(120, 80), ifd: -1},    // SubjectArea
+		{tag: 0x927C, typ: 7, count: uint32(len(f.makerNote)), data: f.makerNote, ifd: -1},
+		{tag: 0xA002, typ: 4, count: 1, value: f.width, ifd: -1},        // PixelXDimension
+		{tag: 0xA003, typ: 4, count: 1, value: f.height, ifd: -1},       // PixelYDimension
+		{tag: 0xA005, typ: 4, count: 1, ifd: tiffInteropIFD},            // Interoperability
+		{tag: 0xA214, typ: 3, count: 2, value: shorts(60, 40), ifd: -1}, // SubjectLocation
+		{tag: 0xA434, typ: 2, data: asciiZ("EF50mm f/1.8"), ifd: -1},    // LensModel
+	}
+	ifds[tiffInteropIFD] = []tiffEntry{
+		{tag: 0x0001, typ: 2, count: 4, value: bo.Uint32(asciiZ("R98")), ifd: -1}, // InteropIndex
+		{tag: 0x1001, typ: 4, count: 1, value: f.width, ifd: -1},                  // RelatedImageWidth
+		{tag: 0x1002, typ: 4, count: 1, value: f.height, ifd: -1},                 // RelatedImageLength
+	}
+	ifds[tiffGPSIFD] = []tiffEntry{
+		{tag: 0x0001, typ: 2, count: 2, value: bo.Uint32([]byte{'N', 0, 0, 0}), ifd: -1},
+		{tag: 0x0002, typ: 5, count: 3, data: append(append(rational(48, 1), rational(51, 1)...), rational(29, 1)...), ifd: -1},
+		{tag: 0x0003, typ: 2, count: 2, value: bo.Uint32([]byte{'E', 0, 0, 0}), ifd: -1},
+		{tag: 0x0004, typ: 5, count: 3, data: append(append(rational(2, 1), rational(17, 1)...), rational(38, 1)...), ifd: -1},
+	}
+
+	offsets := make([]uint32, tiffIFDCount)
+	next := uint32(tiffHeaderBytes)
+	for i, entries := range ifds {
+		offsets[i] = next
+		next += uint32(2 + len(entries)*12 + 4)
+	}
+	valueAreaStart := next
+
+	var valueArea []byte
+	place := func(b []byte) uint32 {
+		offset := valueAreaStart + uint32(len(valueArea))
+		valueArea = append(valueArea, b...)
+		return offset
+	}
+
+	buf := new(bytes.Buffer)
+	buf.WriteString("II")
+	buf.Write(u16(0x002A))
+	buf.Write(u32(offsets[tiffIFD0]))
+
+	for _, entries := range ifds {
+		buf.Write(u16(uint16(len(entries))))
+		for _, e := range entries {
+			count := e.count
+			value := e.value
+			switch {
+			case e.ifd >= 0:
+				value = offsets[e.ifd]
+			case len(e.data) > 4:
+				if count == 0 {
+					count = uint32(len(e.data))
+				}
+				value = place(e.data)
+			case len(e.data) > 0:
+				if count == 0 {
+					count = uint32(len(e.data))
+				}
+				padded := make([]byte, 4)
+				copy(padded, e.data)
+				value = bo.Uint32(padded)
+			}
+			buf.Write(u16(e.tag))
+			buf.Write(u16(e.typ))
+			buf.Write(u32(count))
+			buf.Write(u32(value))
+		}
+		buf.Write(u32(0)) // next-IFD pointer
+	}
+
+	if buf.Len() != int(valueAreaStart) {
+		t.Fatalf("IFD layout mismatch: wrote %d bytes, want %d", buf.Len(), valueAreaStart)
+	}
+	buf.Write(valueArea)
+
+	return buf.Bytes()
+}
+
+// tiffHeaderBytes is the byte order marker, magic and IFD0 offset that open
+// every TIFF payload.
+const tiffHeaderBytes = 8
+
+// dimensionTagJPEG is buildDimensionExifTIFF spliced into a real JPEG, the
+// shape a camera file reaches Export in.
+func dimensionTagJPEG(t *testing.T, w, h int) []byte {
+	t.Helper()
+
+	tiff := buildDimensionExifTIFF(t, dimensionExif{
+		width:       uint32(w),
+		height:      uint32(h),
+		orientation: 6,
+		makerNote:   []byte("MAKERNOTE-8"),
+	})
+
+	return spliceMetadataIntoJPEG(t, markedImage(w, h),
+		[][]byte{wrapAsAPP1(append([]byte("Exif\x00\x00"), tiff...))})
+}
+
+// exifTIFFOf is the TIFF payload of data's Exif APP1 segment.
+func exifTIFFOf(t *testing.T, data []byte) []byte {
+	t.Helper()
+
+	var tiff []byte
+	walkJPEGSegments(data, func(marker byte, payload []byte) bool {
+		if marker == 0xE1 && len(payload) >= 8 && string(payload[:6]) == "Exif\x00\x00" {
+			tiff = payload[6:]
+			return false
+		}
+		return true
+	})
+	if tiff == nil {
+		t.Fatal("no Exif APP1 segment in the written file")
+	}
+
+	return tiff
+}
+
+// readIFDs walks a written file's IFD0, Exif SubIFD and Interoperability
+// IFD and returns each one's tags mapped to their values - what a reader of
+// the exported file actually sees.
+func readIFDs(t *testing.T, data []byte) map[int]map[uint16][]byte {
+	t.Helper()
+
+	tiff := exifTIFFOf(t, data)
+	bo, ok := tiffOrder(tiff)
+	if !ok {
+		t.Fatal("the written file's Exif payload is not a TIFF")
+	}
+
+	out := map[int]map[uint16][]byte{}
+	collect := func(offset uint32) map[uint16][]byte {
+		tags := map[uint16][]byte{}
+		walkIFD(tiff, bo, offset, func(tag, _ uint16, val []byte) {
+			tags[tag] = append([]byte(nil), val...)
+		})
+		return tags
+	}
+
+	out[tiffIFD0] = collect(bo.Uint32(tiff[4:8]))
+	if v, ok := out[tiffIFD0][0x8769]; ok && len(v) >= 4 {
+		out[tiffExifIFD] = collect(bo.Uint32(v))
+		if iv, ok := out[tiffExifIFD][0xA005]; ok && len(iv) >= 4 {
+			out[tiffInteropIFD] = collect(bo.Uint32(iv))
+		}
+	}
+
+	return out
+}
+
+// TestRemoveIFDEntries covers the entry removal itself - the one piece of
+// genuinely new machinery in the export options feature, and the only place
+// in this module that has ever moved an IFD entry rather than overwriting
+// one in place.
+func TestRemoveIFDEntries(t *testing.T) {
+	bo := binary.LittleEndian
+
+	// A four-entry IFD at offset 8 with a non-zero next-IFD pointer, so a
+	// removal that forgot to rewrite that pointer at its new position would
+	// show up as a zero rather than as the value below.
+	const nextIFD = 0x1234
+	build := func(tags ...uint16) []byte {
+		buf := new(bytes.Buffer)
+		buf.Write([]byte("II"))
+		_ = binary.Write(buf, bo, uint16(0x002A))
+		_ = binary.Write(buf, bo, uint32(8))
+		_ = binary.Write(buf, bo, uint16(len(tags)))
+		for i, tag := range tags {
+			_ = binary.Write(buf, bo, tag)
+			_ = binary.Write(buf, bo, uint16(4))        // LONG
+			_ = binary.Write(buf, bo, uint32(1))        // count
+			_ = binary.Write(buf, bo, uint32(0xA000+i)) // a recognizable value
+		}
+		_ = binary.Write(buf, bo, uint32(nextIFD))
+		return buf.Bytes()
+	}
+
+	t.Run("survivors keep their order, values and next-IFD pointer", func(t *testing.T) {
+		tiff := build(0x0100, 0x010F, 0x0101, 0x0110)
+
+		removeIFDEntries(tiff, bo, 8, ifd0DimensionTags)
+
+		if got := bo.Uint16(tiff[8:10]); got != 2 {
+			t.Fatalf("entry count = %d, want 2 after removing two of four", got)
+		}
+		for i, want := range []struct {
+			tag   uint16
+			value uint32
+		}{{0x010F, 0xA001}, {0x0110, 0xA003}} {
+			entry := 10 + i*12
+			if tag := bo.Uint16(tiff[entry : entry+2]); tag != want.tag {
+				t.Errorf("entry %d tag = %#04x, want %#04x", i, tag, want.tag)
+			}
+			if value := bo.Uint32(tiff[entry+8 : entry+12]); value != want.value {
+				t.Errorf("entry %d value = %#x, want %#x - the entry moved but its contents must not", i, value, want.value)
+			}
+		}
+		if got := bo.Uint32(tiff[10+2*12 : 10+2*12+4]); got != nextIFD {
+			t.Errorf("next-IFD pointer at its new position = %#x, want %#x", got, nextIFD)
+		}
+	})
+
+	t.Run("an IFD with nothing to remove is untouched", func(t *testing.T) {
+		tiff := build(0x010F, 0x0110)
+		before := append([]byte(nil), tiff...)
+
+		removeIFDEntries(tiff, bo, 8, ifd0DimensionTags)
+
+		if !bytes.Equal(tiff, before) {
+			t.Error("an IFD carrying none of the tags was rewritten anyway")
+		}
+	})
+
+	t.Run("a truncated IFD is left alone rather than panicking", func(t *testing.T) {
+		full := build(0x0100, 0x010F, 0x0101, 0x0110)
+		for _, cut := range []int{len(full) - 1, len(full) - 13, 12, 9} {
+			tiff := append([]byte(nil), full[:cut]...)
+			before := append([]byte(nil), tiff...)
+
+			removeIFDEntries(tiff, bo, 8, ifd0DimensionTags)
+
+			if !bytes.Equal(tiff, before) {
+				t.Errorf("a block truncated to %d bytes was rewritten, want it left exactly as it arrived", cut)
+			}
+		}
+	})
+}
+
+// TestNormalizeSavedExif_DropDimensionsSurvivesAMalformedBlock is the same
+// failure mode one level up, where a real file's damage would arrive: a
+// segment this walk cannot make sense of comes back out of an export byte
+// for byte, rather than half-rewritten or panicking mid-splice.
+func TestNormalizeSavedExif_DropDimensionsSurvivesAMalformedBlock(t *testing.T) {
+	full := buildDimensionExifTIFF(t, dimensionExif{width: 900, height: 600, orientation: 1, makerNote: []byte("MN")})
+
+	for _, tc := range []struct {
+		name string
+		tiff []byte
+	}{
+		{"not a TIFF at all", []byte("this is not a TIFF payload at all")},
+		{"header only", full[:8]},
+		{"cut inside IFD0's entries", full[:20]},
+		{"cut between IFD0 and the Exif SubIFD", full[:60]},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app1 := wrapAsAPP1(append([]byte("Exif\x00\x00"), tc.tiff...))
+			before := append([]byte(nil), app1...)
+
+			got := normalizeSavedExif(app1, true)
+
+			if !bytes.Equal(app1, before) {
+				t.Error("normalizeSavedExif mutated the input segment")
+			}
+			if !bytes.Equal(got, before) {
+				t.Error("a block this walk cannot make sense of came back rewritten, want it passed through untouched")
+			}
+		})
+	}
 }

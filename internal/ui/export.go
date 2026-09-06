@@ -102,6 +102,13 @@ func (v *viewer) promptExport() {
 		return
 	}
 
+	// The rows have no way to reach the frame themselves, and the Original
+	// rung's label states its longest edge - so it is set here, from the
+	// image the export is about to be run over, immediately before the card
+	// resets everything else.
+	b := v.img.Image.Bounds()
+	v.exportOptions.SetSourceEdge(max(b.Dx(), b.Dy()))
+
 	v.exportPrompt.Show(lang.L("Export as which format?"))
 }
 
@@ -126,6 +133,7 @@ func (v *viewer) exportAs(ext string) {
 
 	src, _, _ := v.CurrentFile()
 	img := v.img.Image
+	req := exportRequest{ext: ext, opts: v.exportOptions.Options()}
 
 	// chooser is shared with openFileDialog's own goroutine rather than
 	// given a twin of its own: it means "the native file dialog
@@ -136,16 +144,33 @@ func (v *viewer) exportAs(ext string) {
 	go func() {
 		defer done()
 
-		v.runExport(src, img, ext)
+		v.runExport(src, img, req)
 	}()
+}
+
+// exportRequest is everything the export runner needs about *how* to write
+// the file, as opposed to what it is writing: the format the prompt's button
+// named, and the options its rows carried. One value rather than a widening
+// argument list because both halves are decided in the same place at the
+// same moment - the prompt, on the UI goroutine - and neither is meaningful
+// to the runner without the other.
+type exportRequest struct {
+	ext  string
+	opts imaging.ExportOptions
 }
 
 // runExport is split out from exportAs the way runFileChooser is from
 // openFileDialog, so tests can drive the whole panel-to-file path on a
-// single goroutine. src and img are passed in rather than read from the
-// viewer here, since this runs off the UI goroutine.
-func (v *viewer) runExport(src fyne.URI, img image.Image, ext string) {
-	out, err := filepicker.ChooseSave(suggestedExportPath(src, ext))
+// single goroutine. src, img and req are passed in rather than read from
+// the viewer here, since this runs off the UI goroutine.
+func (v *viewer) runExport(src fyne.URI, img image.Image, req exportRequest) {
+	// The applied edge, not the requested one: a 2400 limit on an 1800px
+	// photo changes nothing, so it must not name the file or appear in the
+	// toast either. Everything below reports what was written rather than
+	// what was asked for.
+	edge := appliedExportEdge(img, req.opts.MaxEdge)
+
+	out, err := filepicker.ChooseSave(suggestedExportPath(src, req.ext, edge))
 	if err != nil {
 		v.reportChooserError(err, runtime.GOOS)
 		return
@@ -155,9 +180,9 @@ func (v *viewer) runExport(src fyne.URI, img image.Image, ext string) {
 	if len(picked) == 0 {
 		return // cancelled
 	}
-	dest := exportDestination(picked[0], ext)
+	dest := exportDestination(picked[0], req.ext)
 
-	if err := imaging.Export(dest, img, src); err != nil {
+	if err := imaging.Export(dest, img, src, req.opts); err != nil {
 		fyne.LogError("failed to export image", err)
 		fyne.Do(func() {
 			v.ShowToast(fmt.Sprintf(lang.L("could not export %q: %v"), dest.Name(), err))
@@ -166,8 +191,43 @@ func (v *viewer) runExport(src fyne.URI, img image.Image, ext string) {
 	}
 
 	fyne.Do(func() {
-		v.ShowToast(fmt.Sprintf(lang.L("Exported %q"), dest.Name()))
+		v.ShowToast(exportedToast(dest.Name(), edge, req.opts.OmitMetadata))
 	})
+}
+
+// appliedExportEdge is the size limit that actually changed img's pixels,
+// or 0 for an export that came out at the frame's own size - whether
+// because no limit was chosen or because the photo was already inside the
+// one that was. The question goes to imaging rather than being answered by
+// comparing the limit against the longest edge here, so what the name and
+// the toast report can never drift from what the encoder actually did.
+func appliedExportEdge(img image.Image, maxEdge int) int {
+	if imaging.SizeLimitApplies(img.Bounds(), maxEdge) {
+		return maxEdge
+	}
+
+	return 0
+}
+
+// exportedToast is the message a finished export reports, and it reports
+// the outcome rather than the request: an export at the defaults keeps the
+// short confirmation it has always shown (the file's own name already
+// carries the format actually written, so an extension the user typed over
+// the format they picked shows up there without a word about it), and only
+// a copy that differs from those defaults spells out how.
+func exportedToast(name string, edge int, omitted bool) string {
+	var details []string
+	if edge > 0 {
+		details = append(details, fmt.Sprintf(lang.L("%d px"), edge))
+	}
+	if omitted {
+		details = append(details, lang.L("no camera metadata"))
+	}
+	if len(details) == 0 {
+		return fmt.Sprintf(lang.L("Exported %q"), name)
+	}
+
+	return fmt.Sprintf(lang.L("Exported %q (%s)"), name, strings.Join(details, ", "))
 }
 
 // suggestedExportPath is what the save panel opens pre-filled with: the
@@ -175,7 +235,13 @@ func (v *viewer) runExport(src fyne.URI, img image.Image, ext string) {
 // source file's own folder. A full path rather than a bare name, since that
 // is what every panel in internal/filepicker needs to open somewhere more
 // useful than the working directory.
-func suggestedExportPath(src fyne.URI, ext string) string {
+//
+// edge is the size limit that actually applied (0 for a copy at the frame's
+// own size), and when there is one the name carries it - a resized copy
+// exported into the source's own folder would otherwise open pre-filled
+// with a name that collides with the very file it came from. At Original
+// size the suggestion is exactly what it has always been.
+func suggestedExportPath(src fyne.URI, ext string, edge int) string {
 	name := src.Name()
 	base := strings.TrimSuffix(name, filepath.Ext(name))
 	if base == "" {
@@ -183,6 +249,9 @@ func suggestedExportPath(src fyne.URI, ext string) string {
 		// be worth one line rather than a suggestion of "" that the panel
 		// would show as an empty file-name field.
 		base = "image"
+	}
+	if edge > 0 {
+		base = fmt.Sprintf("%s-%d", base, edge)
 	}
 
 	return filepath.Join(filepath.Dir(src.Path()), base+ext)

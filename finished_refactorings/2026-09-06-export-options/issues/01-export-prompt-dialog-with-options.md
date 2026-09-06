@@ -28,17 +28,21 @@ its own card byte-identical.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The export prompt remains a choice card; its `Overlay()` stays in the window content stack at its current position
-- [ ] The shared choice card accepts optional extra rows above its button row, and optional Up/Down delegation
-- [ ] The delete confirmation passes no extra rows and renders and behaves exactly as before
-- [ ] Format buttons still commit the export; Escape still cancels without opening the save panel
-- [ ] The prompt is still refused during a comparison, while loading, and while the delete confirmation is visible
-- [ ] Raising the delete confirmation is still refused while the export prompt is up
-- [ ] Re-invoking the export shortcut while the prompt is up does not reset an already-moved selection
-- [ ] An options value is carried from the prompt through the viewer's export runner into the imaging module's export entry point
-- [ ] The imaging module's other export caller (the wallpaper path) passes defaults and is otherwise unchanged
-- [ ] With defaults, exported files are byte-identical to what the previous implementation produced
-- [ ] Every existing test that reaches the export prompt through the card's API still compiles and passes unmodified, across all eight files that do so
-- [ ] Verified with the Docker test target, not a native `go test` run — see the verification note in the spec
+- [x] The export prompt remains a choice card; its `Overlay()` stays in the window content stack at its current position
+- [x] The shared choice card accepts optional extra rows above its button row, and optional Up/Down delegation
+- [x] The delete confirmation passes no extra rows and renders and behaves exactly as before
+- [x] Format buttons still commit the export; Escape still cancels without opening the save panel
+- [x] The prompt is still refused during a comparison, while loading, and while the delete confirmation is visible
+- [x] Raising the delete confirmation is still refused while the export prompt is up
+- [x] Re-invoking the export shortcut while the prompt is up does not reset an already-moved selection
+- [x] An options value is carried from the prompt through the viewer's export runner into the imaging module's export entry point
+- [x] The imaging module's other export caller (the wallpaper path) passes defaults and is otherwise unchanged
+- [x] With defaults, exported files are byte-identical to what the previous implementation produced
+- [x] Every existing test that reaches the export prompt through the card's API still compiles and passes unmodified, across all eight files that do so
+- [x] Verified with the Docker test target, not a native `go test` run — see the verification note in the spec
+
+## Comments
+
+2026-09-06 — Delivered: the prompt stayed a choice card and grew an optional ExtraRows slot with Up/Down delegation; imaging.Export widened to carry an ExportOptions value. Note the ticket undercounted Export's call sites - internal/ui/mosaicwin holds it as a field and re-exposes its type through SetExporter, so that path passes defaults too.

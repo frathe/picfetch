@@ -26,6 +26,16 @@ type ChoiceCard struct {
 	// leave the two disagreeing.
 	panel *ChoicePanel
 
+	// rows is the optional block drawn above the buttons, nil for a card
+	// that is only a message and a button row (deletion's confirmation).
+	rows ExtraRows
+
+	// focus is which vertical stop currently holds the selection: a row
+	// index while it is inside rows, len(rows) - i.e. rows.Rows() - once it
+	// is back on the button row. Show always leaves it on the buttons, so a
+	// prompt raised and immediately confirmed still runs a choice.
+	focus int
+
 	// repaint is called after every visibility change - the app has no
 	// automatic redraw loop, so a hidden window has to be told to paint again
 	// itself (see viewer.ForceRepaint, which every caller so far passes in
@@ -37,10 +47,43 @@ type ChoiceCard struct {
 	message *widget.Label
 }
 
+// ExtraRows is the optional block a ChoiceCard draws above its button row -
+// the export prompt's size limit and metadata checkbox - together with its
+// side of the card's keyboard story. A card built without one is a message
+// and a button row, exactly as the delete confirmation has always been.
+//
+// The vertical stops are rows 0..Rows()-1 and then the button row, so Focus
+// is called with -1 when the selection has moved back down onto the buttons
+// and there is no row to mark. Reset runs on every Show, so the prompt can
+// never open in a state a previous use left behind.
+//
+// HandleKey reports whether the row used the key. That answer only decides
+// anything for Return and Enter: a row that has something to activate (a
+// checkbox to tick) takes them, because that is what a user pressing Return
+// on a highlighted checkbox means; a row that has nothing to activate
+// returns false and the card commits the prompt instead. Escape is never
+// offered at all - cancelling belongs to the prompt as a whole, from any
+// stop.
+type ExtraRows interface {
+	Content() fyne.CanvasObject
+	Rows() int
+	Focus(row int)
+	HandleKey(ev *fyne.KeyEvent) bool
+	Reset()
+}
+
 // NewChoiceCard builds the card (hidden) with the given choices, left to
 // right. Index 0 is the leftmost button and the default selection.
 func NewChoiceCard(repaint func(), choices ...Choice) *ChoiceCard {
-	c := &ChoiceCard{repaint: repaint}
+	return NewChoiceCardWithRows(repaint, nil, choices...)
+}
+
+// NewChoiceCardWithRows is NewChoiceCard with a block of extra rows drawn
+// between the message and the buttons, and reachable with Up/Down. A nil
+// rows argument builds exactly the card NewChoiceCard does - nothing is
+// added to the layout and Up/Down stay inert.
+func NewChoiceCardWithRows(repaint func(), rows ExtraRows, choices ...Choice) *ChoiceCard {
+	c := &ChoiceCard{repaint: repaint, rows: rows}
 
 	c.panel = NewChoicePanel(repaint, choices...)
 	// The card is what a confirmed or cancelled prompt has to take off
@@ -56,7 +99,12 @@ func NewChoiceCard(repaint func(), choices ...Choice) *ChoiceCard {
 
 	cardBG := canvas.NewRectangle(theme.Color(theme.ColorNameOverlayBackground))
 	cardBG.CornerRadius = CardRadius
-	card := container.NewStack(cardBG, container.NewPadded(container.NewVBox(c.message, c.panel)))
+	stacked := []fyne.CanvasObject{c.message}
+	if rows != nil {
+		stacked = append(stacked, rows.Content())
+	}
+	stacked = append(stacked, c.panel)
+	card := container.NewStack(cardBG, container.NewPadded(container.NewVBox(stacked...)))
 
 	c.overlay = container.NewStack(scrim, container.NewCenter(card))
 	c.overlay.Hide()
@@ -111,6 +159,10 @@ func (c *ChoiceCard) SetOnCancel(onCancel func()) {
 func (c *ChoiceCard) Show(message string) {
 	c.message.SetText(message)
 	c.Select(0)
+	if c.rows != nil {
+		c.rows.Reset()
+		c.focusStop(c.rows.Rows())
+	}
 
 	c.visible = true
 	c.overlay.Show()
@@ -151,9 +203,85 @@ func (c *ChoiceCard) Confirm() {
 // selected, Escape hides the card and runs onCancel if one is registered.
 // Every other key is deliberately left to the caller.
 //
+// A card carrying extra rows adds one dimension to that: Up and Down move
+// between the rows and the button row (clamping at both ends), and every key
+// the card doesn't claim for itself goes to whichever stop currently holds
+// the selection. Up and Down are free to mean this precisely because the app
+// dispatcher hands the card *every* key while it is up, so nothing outside
+// is competing for them - and a card built without rows leaves both as inert
+// as they have always been.
+//
 // The app's key dispatcher calls this rather than Fyne delivering it to the
 // panel, because nothing on this card ever holds widget focus - see the type
 // comment.
 func (c *ChoiceCard) HandleKey(ev *fyne.KeyEvent) {
-	c.panel.TypedKey(ev)
+	if c.rows == nil {
+		c.panel.TypedKey(ev)
+		return
+	}
+
+	switch ev.Name {
+	case fyne.KeyUp:
+		c.focusStop(c.focus - 1)
+	case fyne.KeyDown:
+		c.focusStop(c.focus + 1)
+	case fyne.KeyEscape:
+		// Cancelling is the prompt's, never a row's: Escape backs out of the
+		// whole card from whichever stop the selection is on.
+		c.panel.TypedKey(ev)
+	case fyne.KeyReturn, fyne.KeyEnter:
+		// Offered to the focused row first, so Return on a highlighted
+		// checkbox ticks it rather than committing the prompt out from under
+		// someone who was reaching for the control they were looking at. A
+		// row with nothing to activate declines, and the buttons commit -
+		// which is still the case the moment the card opens, so the prompt
+		// stays two keystrokes deep.
+		if c.rowsHoldSelection() && c.rows.HandleKey(ev) {
+			return
+		}
+		c.panel.TypedKey(ev)
+	default:
+		if c.rowsHoldSelection() {
+			c.rows.HandleKey(ev)
+			return
+		}
+		c.panel.TypedKey(ev)
+	}
+}
+
+// rowsHoldSelection reports whether the selection is currently up in the
+// extra rows rather than on the button row.
+func (c *ChoiceCard) rowsHoldSelection() bool {
+	return c.rows != nil && c.focus < c.rows.Rows()
+}
+
+// focusStop moves the selection to vertical stop i - a row index, or
+// rows.Rows() for the button row - clamping at both ends rather than
+// wrapping, the same rule ChoicePanel.Select applies horizontally. The rows
+// are told which of theirs is marked, or -1 once the selection is back on
+// the buttons.
+func (c *ChoiceCard) focusStop(i int) {
+	buttons := c.rows.Rows()
+	if i > buttons {
+		i = buttons
+	}
+	if i < 0 {
+		i = 0
+	}
+
+	c.focus = i
+	if i == buttons {
+		c.rows.Focus(-1)
+	} else {
+		c.rows.Focus(i)
+	}
+	// Exactly one ring at full strength on the card: the buttons keep
+	// showing which format is selected while the keyboard is up in the
+	// rows, but muted, so the bright one is always the answer to "where am
+	// I?" - see SetRingActive.
+	c.panel.SetSelectionActive(i == buttons)
+
+	if c.repaint != nil {
+		c.repaint()
+	}
 }

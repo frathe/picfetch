@@ -146,6 +146,7 @@ exclude:
       - "internal/ui/exifwin/exifwin_test.go"
       - "internal/ui/exifwin/tiles_test.go"
       - "internal/ui/export_test.go"
+      - "internal/ui/exportoptions_test.go"
       - "internal/ui/favorites/add_test.go"
       - "internal/ui/favorites/confirm_test.go"
       - "internal/ui/favorites/favorites_test.go"

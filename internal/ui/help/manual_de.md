@@ -809,7 +809,13 @@ tatsächlich verschoben wurden.
 - **`Cmd`/`Strg+E`** — das aktuelle Bild in eine neue Datei exportieren: eine
   Abfrage fragt nach dem Format (**`Left`**/**`Right`** wählt zwischen PNG und JPEG,
   **`Return`** exportiert, **`Esc`** bricht ab), danach benennen Sie die Datei
-  im Speichern-Dialog des Systems (siehe „Menü“ unten). Das einfache `E` oben
+  im Speichern-Dialog des Systems (siehe „Menü“ unten). **`Up`** und **`Down`**
+  wechseln zwischen den Format-Schaltflächen und den beiden Optionen darüber,
+  wobei immer nur die Zeile hell hervorgehoben ist, auf der Sie gerade sind —
+  einer maximalen Exportgröße (**`Left`**/**`Right`** wählt eine aus) und
+  **Kameradaten einbeziehen** (**`Space`** oder **`Return`** setzt oder
+  entfernt das Häkchen). **`Return`** exportiert von jeder anderen Stelle der
+  Abfrage aus, **`Esc`** bricht von überall ab. Das einfache `E` oben
   öffnet weiterhin das EXIF-Fenster — nur die Tastenkombination exportiert
 - **`Cmd`/`Strg+Shift+E`** — das aktuelle Bild als Hintergrundbild des
   Schreibtischs festlegen (siehe „Menü“ unten)
@@ -897,9 +903,36 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   HEIC-Dateien und für ein einzelnes Bild eines animierten GIFs, und die
   Originaldatei bleibt unangetastet. Endet der von Ihnen eingegebene Name
   bereits auf ein Format, das PicFetch schreiben kann, hat dieses Vorrang
-  vor dem in der Abfrage gewählten Format. Ein als JPEG exportiertes JPEG
-  behält dieselben Metadaten wie „Änderungen speichern“; ein aus einem
-  anderen Format exportiertes JPEG oder jeder PNG-Export enthält keine Metadaten
+  vor dem in der Abfrage gewählten Format
+- **Die beiden Optionen der Export-Abfrage** — beide stehen bei jedem Öffnen
+  wieder auf dem oben beschriebenen Verhalten und werden danach nicht gemerkt:
+  - **Maximale Exportgröße** — **Original**, **2400 px**, **1600 px** oder
+    **1000 px**, angewendet auf die längste Kante des Bildes, unter Beibehaltung
+    der Seitenverhältnisse. Ein Foto, das bereits kleiner als die gewählte
+    Grenze ist, wird in seiner eigenen Größe exportiert; vergrößert wird nie.
+    Der Eintrag **Original** nennt die tatsächliche längste Kante des Bildes,
+    sodass Sie sofort sehen, ob eine kleinere Grenze überhaupt etwas ändert —
+    bei einer Kamera-RAW-Datei ist das die Größe der darin gespeicherten
+    Vorschau, also dessen, was das Programm anzeigt. Wenn eine Grenze
+    tatsächlich greift, öffnet der Speichern-Dialog mit der Größe im
+    vorgeschlagenen Dateinamen (`urlaub-1600.jpg`), damit die verkleinerte
+    Kopie nicht mit dem Bild kollidiert, aus dem sie stammt
+  - **Kameradaten einbeziehen (nur JPEG)** — standardmäßig aktiviert; damit
+    werden die Metadaten des Quell-JPEGs genauso in die exportierte Datei
+    übernommen wie bei „Änderungen speichern“. Ohne Häkchen wird die Kopie
+    ohne Kamera-, Aufnahmedatums- und GPS-Angaben geschrieben — Ihre eigene
+    Datei behält sie alle, denn ein Export schreibt immer nur die neue Kopie.
+    Das eingebettete Farbprofil bleibt in beiden Fällen erhalten, damit sich
+    die Farben beim Empfänger nicht verschieben. PNG-Dateien tragen ohnehin
+    keine Metadaten, deshalb nennt die Option JPEG. Sollen die Angaben aus dem
+    *Original* statt aus einer Kopie verschwinden, ist das **Metadaten
+    entfernen** im EXIF-Fenster, das die Datei selbst umschreibt und nicht
+    rückgängig gemacht werden kann
+  - Ein aus einem anderen Format exportiertes JPEG und jeder PNG-Export haben
+    von vornherein keine Metadaten. Ein JPEG, das mit Metadaten *und* einer
+    tatsächlich greifenden Größengrenze exportiert wird, behält alles außer
+    den wenigen Angaben, die die alte Breite und Höhe festhielten; diese
+    werden entfernt, statt eine Größe zu nennen, die die Datei nicht mehr hat
 - **Datei -> Dateien schließen** — zurück zum Ablagebereich, ohne das
   Programm zu beenden
 - **Datei -> Einstellungen…** — öffnet das Einstellungsfenster, darunter den

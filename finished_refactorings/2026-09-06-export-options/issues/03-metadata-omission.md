@@ -30,17 +30,21 @@ routine export keeps today's short message.
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The export prompt offers an "Include camera metadata (JPEG only)" checkbox, checked by default
-- [ ] Checked produces a file identical to what export writes today
-- [ ] Unchecked writes a JPEG with no identifying tags, verified by reading tags back out of the written file
-- [ ] The source file is never modified, whichever way the box is set
-- [ ] An embedded colour profile survives omission
-- [ ] A source whose orientation tag is not 1 is written upright when metadata is omitted
-- [ ] The Adobe APP14 segment is not spliced back onto an omitted-metadata export
-- [ ] Exporting to PNG behaves identically regardless of the checkbox
-- [ ] No confirmation dialog is shown; the wording never says "strip" or "remove"
-- [ ] The completion toast reports omission only when the box was unchecked
-- [ ] The option resets to checked every time the prompt opens, and is never persisted
-- [ ] New labels have translation entries in both shipped languages
+- [x] The export prompt offers an "Include camera metadata (JPEG only)" checkbox, checked by default
+- [x] Checked produces a file identical to what export writes today
+- [x] Unchecked writes a JPEG with no identifying tags, verified by reading tags back out of the written file
+- [x] The source file is never modified, whichever way the box is set
+- [x] An embedded colour profile survives omission
+- [x] A source whose orientation tag is not 1 is written upright when metadata is omitted
+- [x] The Adobe APP14 segment is not spliced back onto an omitted-metadata export
+- [x] Exporting to PNG behaves identically regardless of the checkbox
+- [x] No confirmation dialog is shown; the wording never says "strip" or "remove"
+- [x] The completion toast reports omission only when the box was unchecked
+- [x] The option resets to checked every time the prompt opens, and is never persisted
+- [x] New labels have translation entries in both shipped languages
+
+## Comments
+
+2026-09-06 — Delivered: "Include camera metadata (JPEG only)", checked by default, unchecking routes the export through the existing ICC-preserving encode. Drawn as a tappable label rather than a widget.Check, which grabs canvas focus on tap and would swallow Return and Escape from the prompt.

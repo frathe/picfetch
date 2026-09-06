@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 )
 
 // This file gathers the app's shared hardcoded style values - everything
@@ -53,6 +52,12 @@ const (
 	// NewSelectionTint). Enough to read as "picked" across both themes and
 	// over any thumbnail, little enough to still see which image it is.
 	SelectionTintAlpha = 90
+
+	// InactiveRingAlpha is how opaque a focus ring is drawn once the
+	// keyboard has moved somewhere else (see SetRingActive) - the same
+	// opacity as the grid's "picked" wash, because it is saying the same
+	// thing: this is still the choice, it is just no longer where you are.
+	InactiveRingAlpha = SelectionTintAlpha
 
 	// MarqueeStrokeWidth / MarqueeFillAlpha are the grid drag-select
 	// rectangle (see NewMarqueeRect): a hairline of the same primary hue
@@ -100,16 +105,57 @@ func NewFocusRing(strokeWidth, cornerRadius float32) *canvas.Rectangle {
 	return ring
 }
 
-// Ringed pairs a button with its selection ring: the ring fills the cell,
-// the button is inset by one padding step inside it, so the ring's stroke
-// lands in that gap instead of underneath the button. Stacking the two at
+// SetRingActive draws ring at full strength or muted, without moving or
+// hiding it: full while the surface it marks holds the keyboard, muted once
+// the keyboard has moved to another row of the same prompt.
+//
+// Two rings at full strength on one card is the thing this exists to
+// prevent - the eye reads both as "you are here" and neither as the answer.
+// Muting rather than hiding keeps the answer to "which format will Return
+// write?" on screen while the keyboard is up in the options.
+func SetRingActive(ring *canvas.Rectangle, active bool) {
+	stroke := color.NRGBAModel.Convert(theme.Color(theme.ColorNamePrimary)).(color.NRGBA)
+	if !active {
+		stroke.A = InactiveRingAlpha
+	}
+
+	ring.StrokeColor = stroke
+	ring.Refresh()
+}
+
+// Ringed pairs a widget with its selection ring: the ring fills the cell,
+// the widget is inset by one padding step inside it, so the ring's stroke
+// lands in that gap instead of underneath the widget. Stacking the two at
 // the same size hides the ring entirely - a Fyne button paints an opaque
 // background across its whole area, including the DangerImportance red -
 // and the card then looks identical whichever button is selected. Behind
 // rather than on top so the ring can never sit between the pointer and the
-// button it marks.
-func Ringed(ring *canvas.Rectangle, btn *widget.Button) *fyne.Container {
-	return container.NewStack(ring, container.NewPadded(btn))
+// widget it marks.
+//
+// Any canvas object rather than a button specifically: the export prompt
+// rings a whole row of options to say where the keyboard is, which is the
+// same idea one step larger.
+func Ringed(ring *canvas.Rectangle, obj fyne.CanvasObject) *fyne.Container {
+	return container.NewStack(ring, container.NewPadded(obj))
+}
+
+// MarkOnly shows mark i and hides every other one - the show-one, hide-rest
+// half of every selection this app draws for itself, shared so the choice
+// panel's rings and the export prompt's rung tints cannot drift apart. An
+// out-of-range index hides all of them.
+//
+// Callers still Refresh the container afterwards: Fyne only registers an
+// object with its canvas the first time it is painted while visible, so a
+// mark hidden since its surface went up has no canvas to mark dirty and
+// would silently fail to appear (see viewer.ForceRepaint for the same trap).
+func MarkOnly(marks []*canvas.Rectangle, i int) {
+	for idx, mark := range marks {
+		if idx == i {
+			mark.Show()
+		} else {
+			mark.Hide()
+		}
+	}
 }
 
 // NewSelectionTint returns the translucent wash the grid overview draws over

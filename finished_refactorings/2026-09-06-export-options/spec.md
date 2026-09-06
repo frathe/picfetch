@@ -1,6 +1,6 @@
 # Export options: export size limit + metadata omission
 
-Status: ready-for-agent
+Status: done
 
 ## Problem Statement
 

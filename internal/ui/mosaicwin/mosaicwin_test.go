@@ -18,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/displays"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -328,7 +329,7 @@ func TestMosaicKeyboard_EnterAndSpaceReachEveryPreviewAction(t *testing.T) {
 
 	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(t.TempDir() + "/mosaic.png\n"), nil })
 	exports := 0
-	w.SetExporter(func(fyne.URI, image.Image, fyne.URI) error { exports++; return nil })
+	w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error { exports++; return nil })
 	w.Window().Canvas().Focus(w.saveButton)
 	w.saveButton.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
 	settleWindow(t, w)
@@ -851,7 +852,7 @@ func TestMosaicStartOver_IsDisabledDuringRegeneration(t *testing.T) {
 	w.Generate()
 	settleWindow(t, w)
 	exports := 0
-	w.SetExporter(func(fyne.URI, image.Image, fyne.URI) error { exports++; return nil })
+	w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error { exports++; return nil })
 
 	w.Regenerate()
 	<-started
