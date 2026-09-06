@@ -54,6 +54,14 @@ app configured. Launching from Finder still works as before.
 
 ## TODO
 
+### Address the 2026-09-06 maintainability audit
+
+Track the reconciled findings in [needs_refactoring.md](needs_refactoring.md) and execute the
+[phased implementation plan](plans/2026-09-06-maintainability-plan.md). Start with checked EXIF
+offsets and bounded mosaic scratch allocation; keep the remaining correctness, lifecycle,
+platform and accepted watch items linked to their stable MA identifiers. No refactors have
+been implemented by the audit.
+
 ### Publish PicFetch in Microsoft Store
 
 Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX bundle, make the Store build defer updates to
