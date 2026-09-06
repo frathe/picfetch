@@ -187,6 +187,28 @@ sections:
         caption:
           id: screenshots.viewer.caption
           text: Zoomed in, with file info and EXIF data on show
+      - id: mosaic-settings
+        image:
+          url: https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/mosaic_setting.png
+          width: 1726
+          height: 956
+        alt:
+          id: screenshots.mosaic-settings.alt
+          text: The Image Mosaic settings window showing a 403-image selection, target display picker, and advanced controls for image size, frame, size variation, overlap, rotation and drop shadows
+        caption:
+          id: screenshots.mosaic-settings.caption
+          text: Choose a display and tune the look of the mosaic
+      - id: mosaic-creation
+        image:
+          url: https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/mosaic_creation.png
+          width: 3456
+          height: 2166
+        alt:
+          id: screenshots.mosaic-creation.alt
+          text: A generated image mosaic made from overlapping framed travel photographs, with controls to regenerate, save it, or set it as wallpaper
+        caption:
+          id: screenshots.mosaic-creation.caption
+          text: Generate a display-sized mosaic, then save it or set it as wallpaper
   - id: features
     kind: features
     heading:
@@ -208,6 +230,11 @@ sections:
           id: features.thumbnail-grid.title
           text: Thumbnail grid
         body: features.thumbnail-grid.body
+      - id: mosaic-generator
+        title:
+          id: features.mosaic-generator.title
+          text: Mosaic generator
+        body: features.mosaic-generator.body
       - id: zoom-pan
         title:
           id: features.zoom-pan.title
@@ -380,6 +407,10 @@ Step through a set with the arrow keys (wrapping at both ends), or jump straight
 ## Thumbnail grid {#features.thumbnail-grid.body}
 
 <kbd>G</kbd> opens a full-window grid for finding an image by sight. Thumbnails load lazily, so a folder of several thousand files stays responsive.
+
+## Mosaic generator {#features.mosaic-generator.body}
+
+Turn your Grid View selection — or the current filtered grid when nothing is selected — into a display-sized image mosaic. Choose the target display, tune the layout, then regenerate, save it as PNG or JPEG, or set it as wallpaper.
 
 ## Zoom and pan {#features.zoom-pan.body}
 
