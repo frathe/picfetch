@@ -75,6 +75,8 @@ kbd { font: 600 .8em/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 .dl ul { list-style: none; margin: .6rem 0 0; padding: 0; }
 .dl li { margin: .35rem 0; }
 .dl a { font-size: .94rem; }
+.store-badge { display: inline-block; max-width: 100%; margin-top: .6rem; vertical-align: top; }
+.store-badge img, .store-badge amp-img { max-width: 100%; }
 .note { background: var(--note-bg); border: 1px solid var(--note-br); border-radius: 10px; padding: 1rem 1.25rem; margin: 1.5rem 0 0; }
 .note h3 { margin: 0 0 .5rem; font-size: 1rem; }
 .note p { margin: .5rem 0 0; font-size: .94rem; }
@@ -85,4 +87,3 @@ footer { margin-top: 3.5rem; border-top: 1px solid var(--border); padding-top: 1
 .colophon { color: var(--fg-muted); font-size: .9rem; }
 .colophon p { margin: 0; }
 .translation-disclosure { color: var(--fg-muted); font-size: .82rem; margin: 1.5rem 0; }
-

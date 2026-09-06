@@ -134,9 +134,17 @@ type Feature struct {
 }
 
 type DownloadGroup struct {
-	ID    string        `yaml:"id"`
-	Title LocalizedText `yaml:"title"`
-	Links []Link        `yaml:"links"`
+	ID    string         `yaml:"id"`
+	Title LocalizedText  `yaml:"title"`
+	Badge *DownloadBadge `yaml:"badge"`
+	Links []Link         `yaml:"links"`
+}
+
+type DownloadBadge struct {
+	// Name is the store's brand name, shared across locales.
+	Name   string           `yaml:"name"`
+	Href   string           `yaml:"href"`
+	Images map[string]Asset `yaml:"images"`
 }
 
 type Notice struct {
@@ -449,6 +457,20 @@ func (v *contentValidator) validate() error {
 				}
 				if err := v.requireText(groupPath+".title", group.Title); err != nil {
 					return err
+				}
+				if group.Badge != nil {
+					badgePath := groupPath + ".badge"
+					if strings.TrimSpace(group.Badge.Name) == "" {
+						return fmt.Errorf("%s.name: store name is required", badgePath)
+					}
+					if err := v.requireURL(badgePath+".href", group.Badge.Href, false); err != nil {
+						return err
+					}
+					for _, locale := range []string{"en", "de"} {
+						if err := v.requireAsset(badgePath+".images."+locale, group.Badge.Images[locale]); err != nil {
+							return err
+						}
+					}
 				}
 				if len(group.Links) == 0 {
 					return fmt.Errorf("%s.links: at least one link is required", groupPath)

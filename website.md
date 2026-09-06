@@ -283,6 +283,18 @@ sections:
         title:
           id: downloads.windows.title
           text: Windows
+        badge:
+          name: Microsoft Store
+          href: https://apps.microsoft.com/detail/9p0dm0kth01k?ocid=webpdpshare
+          images:
+            en:
+              url: https://get.microsoft.com/images/en-us%20dark.svg
+              width: 161
+              height: 44
+            de:
+              url: https://get.microsoft.com/images/de%20dark.svg
+              width: 183
+              height: 44
         links:
           - id: windows-amd64
             label:

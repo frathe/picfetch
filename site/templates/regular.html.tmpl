@@ -40,7 +40,7 @@
         <ul class="grid">{{range .Features}}<li class="card"><h3>{{text .Title}}</h3>{{markdown .Body}}</li>{{end}}</ul>
         {{else if eq .Kind "downloads"}}<h2 id="{{.Anchor}}">{{text .Heading}}</h2>
         {{markdown .Body}}
-        <ul class="grid dl">{{range .DownloadGroups}}<li class="card"><h3>{{text .Title}}</h3><ul>{{range .Links}}<li><a href="{{.Href}}">{{text .Label}}</a></li>{{end}}</ul></li>{{end}}</ul>
+        <ul class="grid dl">{{range .DownloadGroups}}<li class="card"><h3>{{text .Title}}</h3>{{with .Badge}}{{$image := index .Images $.Locale}}<a class="store-badge" href="{{.Href}}"><img src="{{$image.URL}}" width="{{$image.Width}}" height="{{$image.Height}}" alt="{{.Name}}" loading="lazy"></a>{{end}}<ul>{{range .Links}}<li><a href="{{.Href}}">{{text .Label}}</a></li>{{end}}</ul></li>{{end}}</ul>
         <div class="note"><h3>{{text .Notice.Title}}</h3>{{markdown .Notice.Body}}</div>{{end}}
         {{end}}
     </main>
