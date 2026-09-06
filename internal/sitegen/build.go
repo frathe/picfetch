@@ -107,6 +107,13 @@ func Build(options BuildOptions) error {
 			outputs[routePath(locale, format)] = output
 		}
 	}
+	if contains(options.Formats, "regular") {
+		sitemap, err := renderSitemap(content.Site.BaseURL, options.Locales)
+		if err != nil {
+			return err
+		}
+		outputs["sitemap.xml"] = sitemap
+	}
 	return writeOutputs(options.OutputPath, outputs)
 }
 
@@ -262,6 +269,9 @@ func renderPage(templatesPath, format string, data *page) ([]byte, error) {
 	var rendered bytes.Buffer
 	if err := tmpl.Execute(&rendered, data); err != nil {
 		return nil, fmt.Errorf("render %s %s page: %w", data.Locale, format, err)
+	}
+	if err := validateCanonical(rendered.Bytes(), data.CanonicalURL); err != nil {
+		return nil, fmt.Errorf("%s %s page: %w", data.Locale, format, err)
 	}
 	return normalizeHTML(rendered.Bytes()), nil
 }

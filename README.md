@@ -10,6 +10,7 @@ Generated deployment artifacts are:
 - `docs/de/index.html` — German regular page
 - `docs/amp/index.html` — English AMP page
 - `docs/de/amp/index.html` — German AMP page
+- `docs/sitemap.xml` — preferred English and German regular URLs
 - `site/translations/de.json` — derived German translations
 
 ## One-time setup
@@ -63,17 +64,49 @@ make check           # offline; run tests and reject stale generated output
 stale; they never substitute English on a German page. Routine tests use a local
 fake service and do not call DeepL.
 
+Every generated page must have exactly one canonical link in its HTML head,
+pointing to its language's regular URL. Builds reject missing, duplicate, or
+incorrect canonical links before replacing any published files. The sitemap is
+generated from `site.base_url` alongside the pages, and `make check` rejects a
+missing or stale sitemap. Template or generator changes that do not change
+translated content can use `make build` followed by `make check` offline.
+
 Review the authored, translated, and generated changes together before pushing:
 
 ```sh
 git diff -- website.md site/translations/de.json \
   docs/index.html docs/de/index.html \
-  docs/amp/index.html docs/de/amp/index.html
+  docs/amp/index.html docs/de/amp/index.html docs/sitemap.xml
 make check
 ```
 
 GitHub Pages continues to publish the committed files beneath `docs/` after the
 branch is pushed; there is no separate deployment step here.
+
+## Search indexing
+
+The preferred indexed pages are `https://frathe.github.io/picfetch/` and
+`https://frathe.github.io/picfetch/de/`. AMP pages and `index.html` aliases declare
+the corresponding regular URL as canonical. The sitemap contains only the two
+regular URLs; AMP discovery and language alternates remain in the HTML.
+
+After publishing, submit `https://frathe.github.io/picfetch/sitemap.xml` in the
+Search Console property `https://frathe.github.io/picfetch/`. Inspect the regular
+URLs, run the live test, and request indexing. For a duplicate warning, compare
+the last crawl date, user-declared canonical, and Google-selected canonical.
+Google may still report an older canonical choice while it reprocesses the site.
+Confirm the preferred URLs become indexed; duplicate aliases need not be indexed.
+
+The separate `frathe/frathe.github.io` repository owns the host homepage and
+redirects it to `/picfetch/`. Preserve its matching canonical and immediate
+redirect. If Google selects the host homepage instead, inspect that page too.
+A `docs/robots.txt` here would be served at `/picfetch/robots.txt`, whereas crawlers
+read robots rules only at `https://frathe.github.io/robots.txt`. Sitemap submission
+works without adding a robots file to this project. `.gitignore` does not control
+search indexing.
+
+See Google's [canonical URL guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)
+and [Page indexing report documentation](https://support.google.com/webmasters/answer/7440203).
 
 ## Branch safety
 

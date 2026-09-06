@@ -176,6 +176,9 @@ func configuredSiteBasePath(sourcePath string) (string, error) {
 
 func validateGeneratedLinks(generatedRoot, deployedRoot string, paths []string, siteBasePath string) error {
 	for _, relative := range paths {
+		if filepath.Ext(relative) != ".html" {
+			continue
+		}
 		data, err := readFileWithoutSymlinks(generatedRoot, relative)
 		if err != nil {
 			return fmt.Errorf("open generated page %s for link validation: %w", relative, err)
@@ -478,11 +481,14 @@ func walkHTML(node *html.Node, visit func(*html.Node)) {
 }
 
 func generatedPaths(locales, formats []string) []string {
-	paths := make([]string, 0, len(locales)*len(formats))
+	paths := make([]string, 0, len(locales)*len(formats)+1)
 	for _, locale := range locales {
 		for _, format := range formats {
 			paths = append(paths, routePath(locale, format))
 		}
+	}
+	if contains(formats, "regular") {
+		paths = append(paths, "sitemap.xml")
 	}
 	sort.Strings(paths)
 	return paths
