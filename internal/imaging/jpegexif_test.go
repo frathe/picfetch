@@ -445,7 +445,7 @@ func buildExifWithThumbnailIFD(t *testing.T) []byte {
 func TestNormalizeSavedExif(t *testing.T) {
 	t.Run("sets orientation 6 to 1 and leaves the rest of the payload intact", func(t *testing.T) {
 		app1 := wrapAsAPP1(buildExifSegment(t, 6, false))
-		got := normalizeSavedExif(app1, false)
+		got := normalizeSavedExif(app1, image.Point{})
 		if parseExifOrientation(got[4:]) != 1 {
 			t.Errorf("orientation = %d, want 1", parseExifOrientation(got[4:]))
 		}
@@ -456,7 +456,7 @@ func TestNormalizeSavedExif(t *testing.T) {
 
 	t.Run("big-endian orientation 8 becomes 1", func(t *testing.T) {
 		app1 := wrapAsAPP1(buildExifSegment(t, 8, true))
-		got := normalizeSavedExif(app1, false)
+		got := normalizeSavedExif(app1, image.Point{})
 		if parseExifOrientation(got[4:]) != 1 {
 			t.Errorf("orientation = %d, want 1", parseExifOrientation(got[4:]))
 		}
@@ -473,7 +473,7 @@ func TestNormalizeSavedExif(t *testing.T) {
 			t.Fatal("fixture: IFD1 pointer should be non-zero before normalize")
 		}
 
-		got := normalizeSavedExif(app1, false)
+		got := normalizeSavedExif(app1, image.Point{})
 		gtiff := got[10:]
 		gnum := le.Uint16(gtiff[ifd0 : ifd0+2])
 		gnext := ifd0 + 2 + uint32(gnum)*12
@@ -487,7 +487,7 @@ func TestNormalizeSavedExif(t *testing.T) {
 
 	t.Run("XMP APP1 is returned copied, not rewritten as Exif", func(t *testing.T) {
 		in := wrapAsAPP1([]byte("http://ns.adobe.com/xap/1.0/\x00<x/>"))
-		got := normalizeSavedExif(in, false)
+		got := normalizeSavedExif(in, image.Point{})
 		if !bytes.Equal(got, in) {
 			t.Fatalf("got %x, want copy of XMP", got)
 		}
@@ -510,7 +510,7 @@ func TestEncodeJPEGPreservingMetadata(t *testing.T) {
 		orig := spliceMetadataIntoJPEG(t, markedImage(4, 3), [][]byte{com, xmp, exif, icc})
 
 		var out bytes.Buffer
-		if err := encodeJPEGPreservingMetadata(&out, markedImage(3, 2), orig, false); err != nil {
+		if err := encodeJPEGPreservingMetadata(&out, markedImage(3, 2), orig, image.Point{}); err != nil {
 			t.Fatal(err)
 		}
 		m := ReadMetadata(out.Bytes())
@@ -538,7 +538,7 @@ func TestEncodeJPEGPreservingMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 		var out bytes.Buffer
-		if err := encodeJPEGPreservingMetadata(&out, markedImage(2, 2), origBuf.Bytes(), false); err != nil {
+		if err := encodeJPEGPreservingMetadata(&out, markedImage(2, 2), origBuf.Bytes(), image.Point{}); err != nil {
 			t.Fatal(err)
 		}
 		if segs := jpegMetadataSegments(out.Bytes()); len(segs) != 0 {
@@ -843,6 +843,11 @@ func readIFDs(t *testing.T, data []byte) map[int]map[uint16][]byte {
 func TestRemoveIFDEntries(t *testing.T) {
 	bo := binary.LittleEndian
 
+	// The dimension tags spelled out rather than taken from
+	// ifd0DimensionTags, which now carries an axis per tag: what is under
+	// test here is the removal mechanics, over a plain list of tags.
+	dropped := []uint16{0x0100, 0x0101}
+
 	// A four-entry IFD at offset 8 with a non-zero next-IFD pointer, so a
 	// removal that forgot to rewrite that pointer at its new position would
 	// show up as a zero rather than as the value below.
@@ -866,7 +871,7 @@ func TestRemoveIFDEntries(t *testing.T) {
 	t.Run("survivors keep their order, values and next-IFD pointer", func(t *testing.T) {
 		tiff := build(0x0100, 0x010F, 0x0101, 0x0110)
 
-		removeIFDEntries(tiff, bo, 8, ifd0DimensionTags)
+		removeIFDEntries(tiff, bo, 8, dropped)
 
 		if got := bo.Uint16(tiff[8:10]); got != 2 {
 			t.Fatalf("entry count = %d, want 2 after removing two of four", got)
@@ -892,7 +897,7 @@ func TestRemoveIFDEntries(t *testing.T) {
 		tiff := build(0x010F, 0x0110)
 		before := append([]byte(nil), tiff...)
 
-		removeIFDEntries(tiff, bo, 8, ifd0DimensionTags)
+		removeIFDEntries(tiff, bo, 8, dropped)
 
 		if !bytes.Equal(tiff, before) {
 			t.Error("an IFD carrying none of the tags was rewritten anyway")
@@ -905,7 +910,7 @@ func TestRemoveIFDEntries(t *testing.T) {
 			tiff := append([]byte(nil), full[:cut]...)
 			before := append([]byte(nil), tiff...)
 
-			removeIFDEntries(tiff, bo, 8, ifd0DimensionTags)
+			removeIFDEntries(tiff, bo, 8, dropped)
 
 			if !bytes.Equal(tiff, before) {
 				t.Errorf("a block truncated to %d bytes was rewritten, want it left exactly as it arrived", cut)
@@ -914,11 +919,13 @@ func TestRemoveIFDEntries(t *testing.T) {
 	})
 }
 
-// TestNormalizeSavedExif_DropDimensionsSurvivesAMalformedBlock is the same
+// TestNormalizeSavedExif_CorrectionSurvivesAMalformedBlock is the same
 // failure mode one level up, where a real file's damage would arrive: a
 // segment this walk cannot make sense of comes back out of an export byte
-// for byte, rather than half-rewritten or panicking mid-splice.
-func TestNormalizeSavedExif_DropDimensionsSurvivesAMalformedBlock(t *testing.T) {
+// for byte, rather than half-rewritten or panicking mid-splice. It binds
+// the patching path as much as the removal one - an entry that happens to
+// sit inside a truncated IFD must not be corrected either.
+func TestNormalizeSavedExif_CorrectionSurvivesAMalformedBlock(t *testing.T) {
 	full := buildDimensionExifTIFF(t, dimensionExif{width: 900, height: 600, orientation: 1, makerNote: []byte("MN")})
 
 	for _, tc := range []struct {
@@ -934,7 +941,7 @@ func TestNormalizeSavedExif_DropDimensionsSurvivesAMalformedBlock(t *testing.T) 
 			app1 := wrapAsAPP1(append([]byte("Exif\x00\x00"), tc.tiff...))
 			before := append([]byte(nil), app1...)
 
-			got := normalizeSavedExif(app1, true)
+			got := normalizeSavedExif(app1, image.Pt(600, 900))
 
 			if !bytes.Equal(app1, before) {
 				t.Error("normalizeSavedExif mutated the input segment")
@@ -944,4 +951,205 @@ func TestNormalizeSavedExif_DropDimensionsSurvivesAMalformedBlock(t *testing.T) 
 			}
 		})
 	}
+}
+
+// --- correcting dimension tags rather than dropping them --------------------
+
+// buildIFD0TIFF builds a little-endian TIFF whose IFD0 holds exactly the
+// given inline entries and nothing else - enough to exercise
+// patchSavedTIFF's value rules directly, without the four-IFD camera
+// fixture above.
+func buildIFD0TIFF(t *testing.T, entries ...tiffEntry) []byte {
+	t.Helper()
+
+	bo := binary.LittleEndian
+	buf := new(bytes.Buffer)
+	buf.WriteString("II")
+	_ = binary.Write(buf, bo, uint16(0x002A))
+	_ = binary.Write(buf, bo, uint32(tiffHeaderBytes))
+	_ = binary.Write(buf, bo, uint16(len(entries)))
+	for _, e := range entries {
+		_ = binary.Write(buf, bo, e.tag)
+		_ = binary.Write(buf, bo, e.typ)
+		_ = binary.Write(buf, bo, e.count)
+		_ = binary.Write(buf, bo, e.value)
+	}
+	_ = binary.Write(buf, bo, uint32(0)) // next-IFD pointer
+
+	return buf.Bytes()
+}
+
+// ifd0Entry is one entry read back out of a patched TIFF: its declared type
+// and its raw value bytes, so a test can assert that a patch corrected the
+// number without quietly changing the type it is stored as.
+type ifd0Entry struct {
+	typ uint16
+	val []byte
+}
+
+func readIFD0Entries(t *testing.T, tiff []byte) map[uint16]ifd0Entry {
+	t.Helper()
+
+	bo, ok := tiffOrder(tiff)
+	if !ok {
+		t.Fatal("fixture is not a TIFF")
+	}
+
+	entries := map[uint16]ifd0Entry{}
+	walkIFD(tiff, bo, bo.Uint32(tiff[4:8]), func(tag, typ uint16, val []byte) {
+		entries[tag] = ifd0Entry{typ: typ, val: append([]byte(nil), val...)}
+	})
+
+	return entries
+}
+
+// TestPatchSavedTIFF_CorrectsDimensionTagsKeepingTheirType is the heart of
+// correcting rather than dropping: the number becomes the frame that was
+// actually written, and the entry stays the type it was declared as, so a
+// reader parsing by type is not handed four bytes where it expects two.
+func TestPatchSavedTIFF_CorrectsDimensionTagsKeepingTheirType(t *testing.T) {
+	const shortType, longType = 3, 4
+
+	for _, tc := range []struct {
+		name string
+		typ  uint16
+	}{
+		{"LONG entries", longType},
+		{"SHORT entries", shortType},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tiff := buildIFD0TIFF(t,
+				tiffEntry{tag: 0x0100, typ: tc.typ, count: 1, value: 900},
+				tiffEntry{tag: 0x0101, typ: tc.typ, count: 1, value: 600},
+				tiffEntry{tag: 0x010F, typ: longType, count: 1, value: 42}, // Make-ish: untouched
+			)
+
+			patchSavedTIFF(tiff, image.Pt(600, 900))
+
+			entries := readIFD0Entries(t, tiff)
+			for _, want := range []struct {
+				tag   uint16
+				value int
+			}{{0x0100, 600}, {0x0101, 900}} {
+				e, present := entries[want.tag]
+				if !present {
+					t.Fatalf("tag %#04x was dropped, want it corrected to %d", want.tag, want.value)
+				}
+				if got := tagValue(t, e.val); got != want.value {
+					t.Errorf("tag %#04x reads %d, want the written frame's %d", want.tag, got, want.value)
+				}
+				if e.typ != tc.typ {
+					t.Errorf("tag %#04x is stored as type %d, want its declared type %d left alone", want.tag, e.typ, tc.typ)
+				}
+			}
+			if _, present := entries[0x010F]; !present {
+				t.Error("a tag that is not a dimension was touched")
+			}
+		})
+	}
+}
+
+// TestPatchSavedTIFF_RemovesADimensionTagItCannotCorrect is the safety
+// property the whole change rests on: where the truth will not fit the
+// entry as declared, the entry goes rather than being left holding a
+// number that is now simply wrong.
+func TestPatchSavedTIFF_RemovesADimensionTagItCannotCorrect(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		entry tiffEntry
+		size  image.Point
+	}{
+		{
+			"a SHORT too small for the new value",
+			tiffEntry{tag: 0x0100, typ: 3, count: 1, value: 900},
+			image.Pt(70000, 600), // over a SHORT's 65535 ceiling
+		},
+		{
+			"a type this patcher will not write",
+			tiffEntry{tag: 0x0100, typ: 5, count: 1, value: 900}, // RATIONAL
+			image.Pt(600, 900),
+		},
+		{
+			"a count other than one",
+			tiffEntry{tag: 0x0100, typ: 4, count: 2, value: 900},
+			image.Pt(600, 900),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tiff := buildIFD0TIFF(t, tc.entry,
+				tiffEntry{tag: 0x0101, typ: 4, count: 1, value: 600},
+			)
+
+			patchSavedTIFF(tiff, tc.size)
+
+			if _, present := readIFD0Entries(t, tiff)[0x0100]; present {
+				t.Error("tag 0x0100 survived a patch it could not honestly hold, want it removed instead")
+			}
+		})
+	}
+}
+
+// TestPatchSavedTIFF_ZeroSizeLeavesDimensionTagsAlone covers the value that
+// says "the tags still describe this file": a written frame is never 0x0,
+// so the zero point is unambiguous, and SaveRotated passes exactly that.
+func TestPatchSavedTIFF_ZeroSizeLeavesDimensionTagsAlone(t *testing.T) {
+	tiff := buildIFD0TIFF(t,
+		tiffEntry{tag: 0x0100, typ: 4, count: 1, value: 900},
+		tiffEntry{tag: 0x0101, typ: 4, count: 1, value: 600},
+	)
+
+	patchSavedTIFF(tiff, image.Point{})
+
+	entries := readIFD0Entries(t, tiff)
+	for _, want := range []struct {
+		tag   uint16
+		value int
+	}{{0x0100, 900}, {0x0101, 600}} {
+		e, present := entries[want.tag]
+		if !present {
+			t.Fatalf("tag %#04x was dropped by a no-op patch", want.tag)
+		}
+		if got := tagValue(t, e.val); got != want.value {
+			t.Errorf("tag %#04x reads %d, want it left at %d", want.tag, got, want.value)
+		}
+	}
+}
+
+// TestPatchSavedTIFF_CorrectsEveryCopyOfARepeatedTag covers a file that
+// breaks the rule that a tag appears once per IFD. Correcting only the
+// first copy would leave the second holding the old size and report success,
+// so nothing would remove it either - the one outcome this whole design
+// exists to make impossible.
+func TestPatchSavedTIFF_CorrectsEveryCopyOfARepeatedTag(t *testing.T) {
+	t.Run("both copies corrected", func(t *testing.T) {
+		tiff := buildIFD0TIFF(t,
+			tiffEntry{tag: 0x0100, typ: 4, count: 1, value: 900},
+			tiffEntry{tag: 0x0100, typ: 4, count: 1, value: 900},
+		)
+
+		patchSavedTIFF(tiff, image.Pt(600, 900))
+
+		// readIFD0Entries keys by tag, so the entry it reports is the last
+		// one in the IFD - exactly the copy a first-match-only patch skips.
+		e, present := readIFD0Entries(t, tiff)[0x0100]
+		if !present {
+			t.Fatal("tag 0x0100 disappeared entirely")
+		}
+		if got := tagValue(t, e.val); got != 600 {
+			t.Errorf("the last copy of 0x0100 reads %d, want the written frame's 600", got)
+		}
+	})
+
+	t.Run("one bad copy condemns them all", func(t *testing.T) {
+		tiff := buildIFD0TIFF(t,
+			tiffEntry{tag: 0x0100, typ: 4, count: 1, value: 900},
+			tiffEntry{tag: 0x0100, typ: 5, count: 1, value: 900}, // RATIONAL: uncorrectable
+		)
+
+		patchSavedTIFF(tiff, image.Pt(600, 900))
+
+		if _, present := readIFD0Entries(t, tiff)[0x0100]; present {
+			t.Error("a copy of 0x0100 survived that could not be corrected, want every copy removed")
+		}
+	})
 }

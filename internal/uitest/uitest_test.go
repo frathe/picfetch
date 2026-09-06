@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"image"
+	"image/color"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -82,5 +83,49 @@ func TestWrapAPP1_SplicesExifAfterSOI(t *testing.T) {
 	}
 	if !bytes.Equal(got[tiffEnd:], jpegData[2:]) {
 		t.Errorf("JPEG remainder = % X, want % X", got[tiffEnd:], jpegData[2:])
+	}
+}
+
+// TestDimensionTaggedJPEG_RoundTripsThroughExifIFD0Tag covers the pair
+// together, since a test asserting what an export left in a tag is only as
+// trustworthy as the reader it asks: the builder writes the two dimension
+// tags, and the reader reads back exactly those values and finds nothing
+// the fixture never wrote.
+func TestDimensionTaggedJPEG_RoundTripsThroughExifIFD0Tag(t *testing.T) {
+	data := DimensionTaggedJPEG(t, 900, 600)
+
+	for _, want := range []struct {
+		tag   uint16
+		value int
+	}{{0x0100, 900}, {0x0101, 600}} {
+		got, ok := ExifIFD0Tag(data, want.tag)
+		if !ok {
+			t.Errorf("tag %#04x is missing from a freshly built fixture", want.tag)
+			continue
+		}
+		if got != want.value {
+			t.Errorf("tag %#04x reads %d, want %d", want.tag, got, want.value)
+		}
+	}
+	if _, ok := ExifIFD0Tag(data, 0x0112); ok { // Orientation, never written here
+		t.Error("ExifIFD0Tag found a tag the fixture never wrote")
+	}
+}
+
+func TestExifIFD0Tag_NotFoundWithoutReadableExif(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data []byte
+	}{
+		{"not a JPEG at all", []byte("plainly not a JPEG")},
+		{"empty", nil},
+		{"a JPEG with no Exif segment", EncodeJPEG(t, 4, 4, color.White)},
+		{"truncated mid-segment", DimensionTaggedJPEG(t, 900, 600)[:12]},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, ok := ExifIFD0Tag(tc.data, 0x0100); ok {
+				t.Error("ExifIFD0Tag reported a tag it could not have read")
+			}
+		})
 	}
 }

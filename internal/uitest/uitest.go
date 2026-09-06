@@ -495,6 +495,131 @@ func TempRAWURI(t *testing.T, name string, w, h int, c color.Color) fyne.URI {
 	})))
 }
 
+// DimensionTaggedJPEG builds a minimal encoded JPEG whose IFD0 carries only
+// ImageWidth (0x0100) and ImageLength (0x0101), both set to w x h - the
+// tags that describe a file's own stored frame, and so the ones an export
+// has to drop once it writes pixels of a different shape (a resize, a
+// rotation, or an Orientation 5-8 source). Pair it with ExifIFD0HasTag to
+// assert on what a written file kept.
+func DimensionTaggedJPEG(t *testing.T, w, h int) []byte {
+	t.Helper()
+
+	data := EncodeJPEG(t, w, h, color.White)
+
+	buf := newLittleEndianTIFF()
+
+	buf.u16(2) // entry count
+	for _, entry := range []struct {
+		tag   uint16
+		value uint32
+	}{
+		{0x0100, uint32(w)}, // ImageWidth
+		{0x0101, uint32(h)}, // ImageLength
+	} {
+		buf.u16(entry.tag)
+		buf.u16(4) // LONG
+		buf.u32(1) // count
+		buf.u32(entry.value)
+	}
+	buf.u32(0) // next IFD offset
+
+	return wrapAPP1(data, buf.Bytes())
+}
+
+// ExifIFD0Tag is the value of data's IFD0 entry for tag, and whether that
+// entry is there at all - the two questions a test asks of a file an export
+// just wrote: did this tag survive, and does it now say the right thing.
+// Only count-1 SHORT and LONG entries are read, which is every tag stating
+// a pixel dimension; anything else reports not-found rather than a number
+// it had to guess at. Not-found for data with no Exif, and for a malformed
+// or truncated block, which is indistinguishable from an absent tag as far
+// as any reader of the file is concerned.
+func ExifIFD0Tag(data []byte, tag uint16) (int, bool) {
+	tiff := exifTIFF(data)
+	if len(tiff) < 8 {
+		return 0, false
+	}
+
+	var bo binary.ByteOrder
+	switch string(tiff[:2]) {
+	case "II":
+		bo = binary.LittleEndian
+	case "MM":
+		bo = binary.BigEndian
+	default:
+		return 0, false
+	}
+
+	ifd0 := uint64(bo.Uint32(tiff[4:8]))
+	if ifd0+2 > uint64(len(tiff)) {
+		return 0, false
+	}
+
+	entries := ifd0 + 2
+	for i := range uint64(bo.Uint16(tiff[ifd0 : ifd0+2])) {
+		entry := entries + i*12
+		if entry+12 > uint64(len(tiff)) {
+			break
+		}
+		if bo.Uint16(tiff[entry:entry+2]) != tag {
+			continue
+		}
+
+		if count := bo.Uint32(tiff[entry+4 : entry+8]); count != 1 {
+			return 0, false
+		}
+		switch bo.Uint16(tiff[entry+2 : entry+4]) {
+		case 3: // SHORT, in the low half of the entry's own value bytes
+			return int(bo.Uint16(tiff[entry+8 : entry+10])), true
+		case 4: // LONG
+			return int(bo.Uint32(tiff[entry+8 : entry+12])), true
+		}
+
+		return 0, false
+	}
+
+	return 0, false
+}
+
+// exifTIFF is the TIFF payload of data's Exif APP1 segment (everything
+// after "Exif\x00\x00"), or nil when there is none. A deliberately small
+// header walk: internal/imaging has a thorough one, but it is unexported,
+// and a test asserting on a written file only needs to find one segment.
+func exifTIFF(data []byte) []byte {
+	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
+		return nil
+	}
+
+	pos := 2
+	for pos+4 <= len(data) {
+		if data[pos] != 0xFF {
+			return nil
+		}
+
+		marker := data[pos+1]
+		if marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9) {
+			pos += 2
+			continue
+		}
+		if marker == 0xDA { // SOS: the header is over
+			return nil
+		}
+
+		segLen := int(data[pos+2])<<8 | int(data[pos+3])
+		if segLen < 2 || pos+2+segLen > len(data) {
+			return nil
+		}
+
+		payload := data[pos+4 : pos+2+segLen]
+		if marker == 0xE1 && len(payload) >= 6 && string(payload[:6]) == "Exif\x00\x00" {
+			return payload[6:]
+		}
+		pos += 2 + segLen
+	}
+
+	return nil
+}
+
 // GPSJPEG builds a minimal encoded JPEG carrying an Exif GPS sub-IFD (the
 // 0x8825 pointer in IFD0, then the latitude/longitude reference and
 // degrees/minutes/seconds tags) for the given signed decimal degrees -

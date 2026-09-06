@@ -13,6 +13,7 @@ package ui
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"os"
@@ -22,6 +23,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/filepicker"
@@ -768,4 +770,68 @@ func loadExported(t *testing.T, path string) (image.Image, error) {
 		return nil, err
 	}
 	return loaded.Frames[0], nil
+}
+
+// --- a viewer rotation invalidating dimension tags (export-dimension-tags/02) ---
+
+// TestExportAs_RotationCorrectsDimensionTagsButNotFilenameOrToast is the
+// viewer-level half of .scratch/export-dimension-tags/issues/02:
+// internal/imaging's own
+// TestExport_RotatedFrameAtOriginalSizeCorrectsTheDimensionTags covers the
+// mechanism directly; this proves the viewer path actually reaches it end to
+// end - rotate, export at Original size, read the tags back off the written
+// file and find the rotated size in them - while the suggested filename and
+// the completion toast, which report a size *limit* specifically, stay
+// exactly what an un-rotated Original-size export gets: a rotation is not a
+// size limit and must not add a "-2400"-style suffix or word to either.
+func TestExportAs_RotationCorrectsDimensionTagsButNotFilenameOrToast(t *testing.T) {
+	v := newTestViewer(t)
+	path := uitest.WriteTempFile(t, "holiday.jpg", uitest.DimensionTaggedJPEG(t, 900, 600))
+	dropAndWait(t, v, storage.NewFileURI(path))
+
+	v.rotateBy(1) // 900x600 -> 600x900 on screen; the source file itself is untouched
+
+	var suggested string
+	dest := filepath.Join(t.TempDir(), "copy.jpg")
+	uitest.StubSaveChooser(t, func(s string) ([]byte, error) {
+		suggested = s
+		return []byte(dest + "\n"), nil
+	})
+
+	v.exportAs(".jpg")
+	settleChooser(t, v)
+
+	if want := filepath.Join(filepath.Dir(path), "holiday.jpg"); suggested != want {
+		t.Errorf("a rotation must not change the suggested name: got %q, want %q", suggested, want)
+	}
+
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatalf("read the exported file: %v", err)
+	}
+	// 900x600 turned once is written as 600x900, and the tags describing
+	// the file have to say so rather than still reading the source's shape.
+	for _, want := range []struct {
+		tag   uint16
+		value int
+		what  string
+	}{
+		{0x0100, 600, "ImageWidth"},
+		{0x0101, 900, "ImageLength"},
+	} {
+		value, ok := uitest.ExifIFD0Tag(got, want.tag)
+		if !ok {
+			t.Errorf("the exported file lost IFD0's %s, want it corrected to %d", want.what, want.value)
+			continue
+		}
+		if value != want.value {
+			t.Errorf("IFD0 %s reads %d, want the rotated frame's %d", want.what, value, want.value)
+		}
+	}
+
+	if want, got := fmt.Sprintf(lang.L("Exported %q"), "copy.jpg"), v.toast.text.Text; got != want {
+		t.Errorf("toast = %q, want %q - a rotation must not report a size limit", got, want)
+	}
+
+	settleToast(t, v)
 }

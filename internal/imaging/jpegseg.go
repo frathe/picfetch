@@ -52,6 +52,34 @@ func walkJPEGSegments(data []byte, fn func(marker byte, payload []byte) bool) {
 	}
 }
 
+// jpegFrameSize is the pixel size recorded in data's own frame header - the
+// size the file's Exif dimension tags describe. ok is false for data that is
+// not a JPEG, or whose frame header cannot be read.
+func jpegFrameSize(data []byte) (w, h int, ok bool) {
+	walkJPEGSegments(data, func(marker byte, payload []byte) bool {
+		if marker < 0xC0 || marker > 0xCF || marker == 0xC4 || marker == 0xC8 || marker == 0xCC {
+			return true
+		}
+
+		// Found the frame header: stop the walk either way. A short or
+		// zero-sized payload here means ok stays false rather than us
+		// guessing from a later, unrelated marker.
+		if len(payload) < 5 {
+			return false
+		}
+
+		height := int(payload[1])<<8 | int(payload[2])
+		width := int(payload[3])<<8 | int(payload[4])
+		if width == 0 || height == 0 {
+			return false
+		}
+
+		w, h, ok = width, height, true
+		return false
+	})
+	return w, h, ok
+}
+
 // jpegSegmentBytes returns a standalone on-disk COM/APPn segment: 0xFF,
 // marker, 2-byte big-endian length (len(payload)+2), then payload. The
 // result is a copy, so the caller may mutate it.

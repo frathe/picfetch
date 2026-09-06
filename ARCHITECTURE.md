@@ -141,9 +141,9 @@ Encode/write-back for a subset of formats lives in `save.go`.
 | `gif.go` | Animated GIF compositing, `probeGIF`, and logical-canvas restoration for a frozen partial first frame without decoding later frames. |
 | `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. Also `FitEdge` (the shared longest-edge rule) and `ScaleForExport` (CatmullRom, for exports) beside the unexported ApproxBiLinear `scaleToFit` thumbnails use. |
 | `dhash.go` | `DifferenceHash` / `Hamming` / `DuplicateGroups` for grid hide-duplicates. |
-| `jpegseg.go` | Unexported JPEG header-segment walker (`walkJPEGSegments`) used by `exif.go` and `jpegexif.go`. Stops at SOS; does not walk entropy-coded scans (`jpegLength` in `raw.go`) or copy/strip (`stripJPEGSegments` in `jpegexif.go`). |
-| `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`, plus the in-place TIFF patcher: orientation normalization, next-IFD unlinking, and `removeIFDEntries` dropping the dimension tags a resized export invalidated (IFD0, Exif SubIFD, and the Interop IFD reached through 0xA005). |
-| `save.go` | `SaveRotated`, `Export` (+ `ExportOptions`: size limit and metadata omission), `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. |
+| `jpegseg.go` | Unexported JPEG header-segment walker (`walkJPEGSegments`) used by `exif.go` and `jpegexif.go`, plus `jpegFrameSize` reading the SOF frame size the file's own dimension tags describe. Stops at SOS; does not walk entropy-coded scans (`jpegLength` in `raw.go`) or copy/strip (`stripJPEGSegments` in `jpegexif.go`). |
+| `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`, plus the in-place TIFF patcher: orientation normalization, next-IFD unlinking, and the dimension-tag correction an export applies across IFD0, the Exif SubIFD and the Interop IFD (reached through 0xA005) once the written frame stops matching them - `patchIFDDimension` rewrites what it can hold honestly, `removeIFDEntries` takes the rest plus the two coordinate tags no size can repair. Both refuse an IFD that does not wholly fit. |
+| `save.go` | `SaveRotated`, `Export` (+ `ExportOptions`: size limit and metadata omission), `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. `dimensionTagsInvalidated` decides whether the source's dimension tags still describe what is being written, by comparing the written bounds against the source's own frame header - so a resize, a viewer rotation and an Orientation 5-8 source all correct them; `SaveRotated` passes the zero size, meaning leave them alone. |
 
 ### `internal/favstore`
 
@@ -447,7 +447,7 @@ Test-only fixtures and OS-seam stubs. Never imported from production files.
 
 | File | Responsibility |
 |------|----------------|
-| `uitest.go` | Temp URIs, synthetic images (including animated GIF, EXIF-oriented/GPS JPEG, RAW preview, SVG), `ApproxEqual`. |
+| `uitest.go` | Temp URIs, synthetic images (including animated GIF, EXIF-oriented/GPS/dimension-tagged JPEG, RAW preview, SVG), `ExifIFD0HasTag` for asserting on a written file's tags, `ApproxEqual`. |
 | `stubs.go` | `StubChooser`, `StubSaveChooser`, `StubClipboardCopy` / `CopyFiles`, `StubTrashMove`, `StubWallpaperSet`. |
 | `uiqueue.go` | Drainable `UIQueue`. |
 

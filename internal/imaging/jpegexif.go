@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"math"
 	"slices"
 )
 
@@ -173,31 +174,65 @@ func injectJPEGMetadata(encoded []byte, segs [][]byte) ([]byte, error) {
 	return out, nil
 }
 
-// Dimension tags: the closed, deliberately narrow set a resize turns into
-// a false claim about the file. They are removed rather than rewritten to
-// the new values - a reader then falls back to the JPEG frame header, which
-// carries the true size for free, instead of trusting a second source of
-// truth this app would have to keep correct forever.
+// Dimension tags: the closed, deliberately narrow set that a written frame
+// of a different shape turns into a false claim about the file. Each one
+// states a size, so each one has a true value - the frame actually being
+// written - and is corrected to it rather than dropped. What cannot be
+// corrected is removed instead (see patchIFDDimension): a tag holding a
+// number that is simply wrong is worse than an absent one, and absence
+// still leaves a reader the JPEG frame header, which carries the true size
+// for free.
 //
 // MakerNote and the resolution/DPI tags are explicitly *not* here.
 // MakerNote may contain pixel geometry but cannot be audited, and removing
 // it on suspicion would discard the lens and body detail a user asked to
 // keep; DPI states intended print density rather than a pixel count, and
 // dropping it would land photos at a default density in layout software.
+// dimensionTag pairs a tag with which edge of the written frame it states.
+// Carrying the axis on the tag rather than inferring it from position keeps
+// a list and its meaning from drifting apart: adding a tag forces whoever
+// adds it to say which edge it claims, instead of relying on every list
+// staying in width-then-height order forever.
+type dimensionTag struct {
+	tag uint16
+
+	// vertical marks a tag that states the frame's height; the zero value
+	// states its width, which is the first of every pair below.
+	vertical bool
+}
+
+// edge is the value tag should now hold, given the frame being written.
+func (d dimensionTag) edge(corrected image.Point) int {
+	if d.vertical {
+		return corrected.Y
+	}
+
+	return corrected.X
+}
+
 var (
-	ifd0DimensionTags = []uint16{
-		0x0100, // ImageWidth
-		0x0101, // ImageLength
+	ifd0DimensionTags = []dimensionTag{
+		{tag: 0x0100},                 // ImageWidth
+		{tag: 0x0101, vertical: true}, // ImageLength
 	}
-	exifDimensionTags = []uint16{
+	exifDimensionTags = []dimensionTag{
+		{tag: 0xA002},                 // PixelXDimension
+		{tag: 0xA003, vertical: true}, // PixelYDimension
+	}
+	interopDimensionTags = []dimensionTag{
+		{tag: 0x1001},                 // RelatedImageWidth
+		{tag: 0x1002, vertical: true}, // RelatedImageLength
+	}
+
+	// exifCoordinateTags are the two the same invalidation reaches that a
+	// corrected width and height cannot repair: they are positions *inside*
+	// the frame, not sizes of it, and rotating or scaling one needs the
+	// transform that produced the new frame - which this module never sees,
+	// since it infers that something changed from the pixels rather than
+	// being told what. They are removed, as all eight used to be.
+	exifCoordinateTags = []uint16{
 		0x9214, // SubjectArea
-		0xA002, // PixelXDimension
-		0xA003, // PixelYDimension
 		0xA214, // SubjectLocation
-	}
-	interopDimensionTags = []uint16{
-		0x1001, // RelatedImageWidth
-		0x1002, // RelatedImageLength
 	}
 )
 
@@ -209,11 +244,12 @@ const interopIFDPointer = 0xA005
 // normalizeSavedExif returns a copy of app1 (a full FF E1 Exif segment)
 // with IFD0 Orientation (tag 0x0112) set to 1 when that tag is present
 // as a SHORT, and with IFD0's next-IFD pointer zeroed so a thumbnail
-// IFD1 is no longer linked. When dropDimensions is true - the export path,
-// and only when a size limit actually changed the pixels - the tags listed
-// above are removed as well. If app1 is not a well-formed Exif APP1, it
-// is returned copied and unchanged.
-func normalizeSavedExif(app1 []byte, dropDimensions bool) []byte {
+// IFD1 is no longer linked. corrected is the size of the frame being
+// written when that frame no longer matches what the source's dimension
+// tags describe, and the zero value when it still does - a written frame is
+// never 0x0, so nothing else has to be passed to say "leave them alone". If
+// app1 is not a well-formed Exif APP1, it is returned copied and unchanged.
+func normalizeSavedExif(app1 []byte, corrected image.Point) []byte {
 	out := make([]byte, len(app1))
 	copy(out, app1)
 
@@ -221,19 +257,21 @@ func normalizeSavedExif(app1 []byte, dropDimensions bool) []byte {
 		return out
 	}
 
-	patchSavedTIFF(out[10:], dropDimensions)
+	patchSavedTIFF(out[10:], corrected)
 	return out
 }
 
 // patchSavedTIFF rewrites tiff (an Exif APP1 payload's TIFF portion, i.e.
 // app1[10:]) in place: it forces IFD0's Orientation entry to 1, zeroes
 // IFD0's next-IFD pointer so a thumbnail IFD1 is unlinked, and - when
-// dropDimensions is set - removes the dimension tags from IFD0, the Exif
-// SubIFD and the Interoperability IFD. It does not follow the next-IFD
+// corrected is not the zero value - rewrites the dimension tags across
+// IFD0, the Exif SubIFD and the Interoperability IFD to that size,
+// removing the ones it cannot rewrite honestly along with the two
+// coordinate tags no size can repair. It does not follow the next-IFD
 // pointer or compact the freed bytes. Every offset is bounds checked
 // against len(tiff); any failure to locate IFD0 leaves tiff unchanged
 // rather than panicking.
-func patchSavedTIFF(tiff []byte, dropDimensions bool) {
+func patchSavedTIFF(tiff []byte, corrected image.Point) {
 	bo, ok := tiffOrder(tiff)
 	if !ok {
 		return
@@ -244,32 +282,19 @@ func patchSavedTIFF(tiff []byte, dropDimensions bool) {
 		return
 	}
 
-	if dropDimensions {
-		// Both pointers are read before anything is removed. Their values
-		// are absolute offsets from the TIFF start and so survive any
-		// entry shift untouched - but the *entries holding them* move, so
-		// reading them afterwards would mean chasing them again.
-		if exifOffset, ok := savedIFDPointer(tiff, bo, ifd0Offset, exifIFDPointer); ok {
-			if interopOffset, ok := savedIFDPointer(tiff, bo, exifOffset, interopIFDPointer); ok {
-				removeIFDEntries(tiff, bo, interopOffset, interopDimensionTags)
-			}
-			removeIFDEntries(tiff, bo, exifOffset, exifDimensionTags)
-		}
-		removeIFDEntries(tiff, bo, ifd0Offset, ifd0DimensionTags)
+	if corrected != (image.Point{}) {
+		correctSavedDimensions(tiff, bo, ifd0Offset, corrected)
 	}
 
-	// Re-read after the removal above: IFD0's entry count is exactly what
-	// it may just have changed, and both the orientation walk and the
+	// Re-walked after the correction above: IFD0's entry count is exactly
+	// what it may just have changed, and both the orientation entry and the
 	// next-IFD pointer's position are measured from it.
-	numEntries := uint64(bo.Uint16(tiff[ifd0Offset : ifd0Offset+2]))
-	entriesStart := ifd0Offset + 2
+	entries, nextIFDOffset, ok := ifdEntryOffsets(tiff, bo, ifd0Offset)
+	if !ok {
+		return
+	}
 
-	for i := range numEntries {
-		entryOffset := entriesStart + i*12
-		if entryOffset+12 > uint64(len(tiff)) {
-			break
-		}
-
+	for _, entryOffset := range entries {
 		if bo.Uint16(tiff[entryOffset:entryOffset+2]) != 0x0112 {
 			continue
 		}
@@ -281,30 +306,168 @@ func patchSavedTIFF(tiff []byte, dropDimensions bool) {
 		}
 	}
 
-	nextIFDOffset := entriesStart + numEntries*12
-	if nextIFDOffset+4 <= uint64(len(tiff)) {
-		bo.PutUint32(tiff[nextIFDOffset:nextIFDOffset+4], 0)
-	}
+	bo.PutUint32(tiff[nextIFDOffset:nextIFDOffset+4], 0)
 }
 
-// savedIFDPointer is the offset a sub-IFD pointer entry (tag, a LONG or
-// IFD holding one absolute offset) points at, or ok=false when the IFD at
-// ifdOffset has no such entry, or one whose target lies outside tiff.
-// Deliberately its own small walk rather than walkIFD, which reports values
-// but not the entry offsets the removal below needs to reason about.
-func savedIFDPointer(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tag uint16) (uint64, bool) {
+// correctSavedDimensions rewrites every dimension tag across IFD0, the Exif
+// SubIFD and the Interoperability IFD to corrected, and removes the ones
+// that cannot be rewritten honestly plus the two coordinate tags that no
+// width and height can repair.
+//
+// Patching happens before any removal, because a removal shifts the entries
+// after it and every patch below addresses an entry by walking to it. Both
+// sub-IFD pointers are read first for the same reason, and because their
+// values are absolute offsets from the TIFF start: they survive an entry
+// shift untouched, but the entries *holding* them move.
+func correctSavedDimensions(tiff []byte, bo binary.ByteOrder, ifd0Offset uint64, corrected image.Point) {
+	exifOffset, hasExif := savedIFDPointer(tiff, bo, ifd0Offset, exifIFDPointer)
+	interopOffset, hasInterop := uint64(0), false
+	if hasExif {
+		interopOffset, hasInterop = savedIFDPointer(tiff, bo, exifOffset, interopIFDPointer)
+	}
+
+	dropIFD0 := correctIFDDimensions(tiff, bo, ifd0Offset, ifd0DimensionTags, corrected)
+
+	var dropExif, dropInterop []uint16
+	if hasExif {
+		dropExif = append(
+			correctIFDDimensions(tiff, bo, exifOffset, exifDimensionTags, corrected),
+			exifCoordinateTags...)
+	}
+	if hasInterop {
+		dropInterop = correctIFDDimensions(tiff, bo, interopOffset, interopDimensionTags, corrected)
+	}
+
+	// The three removals are independent of each other: every offset above
+	// was read before any of them, and an entry shift can only move entries
+	// within one IFD, never the IFDs themselves, which are addressed
+	// absolutely from the TIFF start. The order is just the order they were
+	// walked in.
+	if hasInterop {
+		removeIFDEntries(tiff, bo, interopOffset, dropInterop)
+	}
+	if hasExif {
+		removeIFDEntries(tiff, bo, exifOffset, dropExif)
+	}
+	removeIFDEntries(tiff, bo, ifd0Offset, dropIFD0)
+}
+
+// correctIFDDimensions rewrites each of tags in the IFD at ifdOffset to the
+// edge of corrected it states, and returns the ones that could not be
+// rewritten honestly, for the caller to remove instead.
+func correctIFDDimensions(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tags []dimensionTag, corrected image.Point) []uint16 {
+	var failed []uint16
+	for _, t := range tags {
+		if !patchIFDDimension(tiff, bo, ifdOffset, t.tag, t.edge(corrected)) {
+			failed = append(failed, t.tag)
+		}
+	}
+
+	return failed
+}
+
+// patchIFDDimension overwrites the inline value of tag in the IFD at
+// ifdOffset with v, honouring the entry's declared type so a reader parsing
+// by type is not handed four bytes where it expects two.
+//
+// It reports false only when the entry is there and cannot hold v honestly
+// - a type this does not write, a count other than 1, or a SHORT that v
+// overflows - so the caller removes it rather than leaving a wrong number
+// behind. A tag that is simply absent reports true: there is nothing to
+// correct and nothing to remove.
+func patchIFDDimension(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tag uint16, v int) bool {
+	// A truncated IFD is reported as success so the caller does not try to
+	// remove from it either - see ifdEntryOffsets for why it is left whole.
+	entries, _, ok := ifdEntryOffsets(tiff, bo, ifdOffset)
+	if !ok {
+		return true
+	}
+
+	corrected := true
+	for _, entryOffset := range entries {
+		if bo.Uint16(tiff[entryOffset:entryOffset+2]) != tag {
+			continue
+		}
+
+		// Every match, not the first: a well-formed IFD carries a tag once,
+		// but a file that repeats one would otherwise keep the later copy
+		// at the old size, reported as a success so nothing removed it -
+		// exactly the wrong number this is here to prevent. One failure
+		// condemns them all, and removeIFDEntries takes every copy.
+		if !correctInlineDimension(tiff, bo, entryOffset, v) {
+			corrected = false
+		}
+	}
+
+	return corrected
+}
+
+// correctInlineDimension overwrites the single inline value of the entry at
+// entryOffset with v, in the type the entry declares. It reports false for
+// anything it will not write honestly: a count other than 1, a type that is
+// neither SHORT nor LONG, or a value that does not fit the one declared -
+// including a non-positive v, which is no size at all.
+//
+// Both types hold that value inside the entry's own four bytes, so
+// correcting one never touches the value area or any offset pointing into
+// it.
+func correctInlineDimension(tiff []byte, bo binary.ByteOrder, entryOffset uint64, v int) bool {
+	if count := bo.Uint32(tiff[entryOffset+4 : entryOffset+8]); count != 1 {
+		return false
+	}
+
+	switch typ := bo.Uint16(tiff[entryOffset+2 : entryOffset+4]); {
+	case typ == 3 && v > 0 && v <= math.MaxUint16: // SHORT
+		bo.PutUint16(tiff[entryOffset+8:entryOffset+10], uint16(v))
+	case typ == 4 && v > 0 && uint64(v) <= math.MaxUint32: // LONG
+		bo.PutUint32(tiff[entryOffset+8:entryOffset+12], uint32(v))
+	default:
+		return false
+	}
+
+	return true
+}
+
+// ifdEntryOffsets is where each entry of the IFD at ifdOffset begins, plus
+// the offset of the next-IFD pointer that follows them. ok is false for an
+// IFD whose declared entries do not all fit inside tiff.
+//
+// That all-or-nothing rule is the one every writer here shares: a block
+// this cannot see the whole of is left exactly as it arrived, because an
+// entry that happens to fit inside a truncated IFD is not evidence that it
+// is the entry it claims to be. Deliberately its own walk rather than
+// walkIFD, which reports values but not the entry offsets a writer needs.
+func ifdEntryOffsets(tiff []byte, bo binary.ByteOrder, ifdOffset uint64) (entries []uint64, nextIFD uint64, ok bool) {
 	if ifdOffset+2 > uint64(len(tiff)) {
-		return 0, false
+		return nil, 0, false
 	}
 
 	numEntries := uint64(bo.Uint16(tiff[ifdOffset : ifdOffset+2]))
 	entriesStart := ifdOffset + 2
 
+	nextIFD = entriesStart + numEntries*12
+	if nextIFD+4 > uint64(len(tiff)) {
+		return nil, 0, false
+	}
+
+	entries = make([]uint64, 0, numEntries)
 	for i := range numEntries {
-		entryOffset := entriesStart + i*12
-		if entryOffset+12 > uint64(len(tiff)) {
-			break
-		}
+		entries = append(entries, entriesStart+i*12)
+	}
+
+	return entries, nextIFD, true
+}
+
+// savedIFDPointer is the offset a sub-IFD pointer entry (tag, a LONG or
+// IFD holding one absolute offset) points at, or ok=false when the IFD at
+// ifdOffset has no such entry, or one whose target lies outside tiff.
+func savedIFDPointer(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tag uint16) (uint64, bool) {
+	entries, _, ok := ifdEntryOffsets(tiff, bo, ifdOffset)
+	if !ok {
+		return 0, false
+	}
+
+	for _, entryOffset := range entries {
 		if bo.Uint16(tiff[entryOffset:entryOffset+2]) != tag {
 			continue
 		}
@@ -341,21 +504,16 @@ func savedIFDPointer(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tag uin
 // should come out of an export exactly as it went in, which is the same
 // failure mode walkIFD chose for reading.
 func removeIFDEntries(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tags []uint16) {
-	if ifdOffset+2 > uint64(len(tiff)) {
+	entries, nextIFDOffset, ok := ifdEntryOffsets(tiff, bo, ifdOffset)
+	if !ok {
 		return
 	}
 
-	numEntries := uint64(bo.Uint16(tiff[ifdOffset : ifdOffset+2]))
 	entriesStart := ifdOffset + 2
-	nextIFDOffset := entriesStart + numEntries*12
-	if nextIFDOffset+4 > uint64(len(tiff)) {
-		return
-	}
 	nextIFD := bo.Uint32(tiff[nextIFDOffset : nextIFDOffset+4])
 
 	kept := uint64(0)
-	for i := range numEntries {
-		entryOffset := entriesStart + i*12
+	for _, entryOffset := range entries {
 		if slices.Contains(tags, bo.Uint16(tiff[entryOffset:entryOffset+2])) {
 			continue
 		}
@@ -365,7 +523,7 @@ func removeIFDEntries(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tags [
 		}
 		kept++
 	}
-	if kept == numEntries {
+	if kept == uint64(len(entries)) {
 		return
 	}
 
@@ -376,10 +534,11 @@ func removeIFDEntries(tiff []byte, bo binary.ByteOrder, ifdOffset uint64, tags [
 
 // encodeJPEGPreservingMetadata encodes img at jpegSaveQuality, then
 // splices orig's metadata segments after SOI. Exif APP1 segments are
-// passed through normalizeSavedExif first, with dropDimensions set when
-// img is no longer the size orig's tags describe. A non-JPEG orig, or a
+// passed through normalizeSavedExif first, carrying corrected - the size
+// img is being written at when that is no longer the size orig's tags
+// describe, and the zero value when it still is. A non-JPEG orig, or a
 // JPEG with no metadata, encodes exactly as encodeJPEGForSave would.
-func encodeJPEGPreservingMetadata(w io.Writer, img image.Image, orig []byte, dropDimensions bool) error {
+func encodeJPEGPreservingMetadata(w io.Writer, img image.Image, orig []byte, corrected image.Point) error {
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: jpegSaveQuality}); err != nil {
 		return err
@@ -392,7 +551,7 @@ func encodeJPEGPreservingMetadata(w io.Writer, img image.Image, orig []byte, dro
 	}
 	for i, s := range segs {
 		if isExifAPP1(s) {
-			segs[i] = normalizeSavedExif(s, dropDimensions)
+			segs[i] = normalizeSavedExif(s, corrected)
 		}
 	}
 	out, err := injectJPEGMetadata(encoded, segs)

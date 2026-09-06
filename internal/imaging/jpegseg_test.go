@@ -2,7 +2,10 @@ package imaging
 
 import (
 	"bytes"
+	"image/color"
 	"testing"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 type jpegVisit struct {
@@ -115,6 +118,130 @@ func TestWalkJPEGSegments(t *testing.T) {
 		})
 		if n != 1 {
 			t.Fatalf("callbacks = %d, want 1", n)
+		}
+	})
+}
+
+// sofPayload builds a start-of-frame payload: precision, height, width (both
+// big-endian, height first), then whatever extra bytes a case needs (usually
+// a component count and per-component triplets, none of which jpegFrameSize
+// reads).
+func sofPayload(precision byte, height, width uint16, extra ...byte) []byte {
+	p := []byte{precision, byte(height >> 8), byte(height), byte(width >> 8), byte(width)}
+	return append(p, extra...)
+}
+
+func TestJPEGFrameSize(t *testing.T) {
+	t.Run("non-JPEG and nil report ok=false", func(t *testing.T) {
+		if _, _, ok := jpegFrameSize([]byte("\x89PNG")); ok {
+			t.Fatal("ok = true, want false for non-JPEG data")
+		}
+		if _, _, ok := jpegFrameSize(nil); ok {
+			t.Fatal("ok = true, want false for nil data")
+		}
+	})
+
+	t.Run("SOI only, no segments at all", func(t *testing.T) {
+		if _, _, ok := jpegFrameSize([]byte{0xFF, 0xD8}); ok {
+			t.Fatal("ok = true, want false: there is no frame header to read")
+		}
+	})
+
+	t.Run("baseline SOF0 from a real encoder", func(t *testing.T) {
+		// 9x4 is asymmetric so a height/width swap fails this test.
+		data := uitest.EncodeJPEG(t, 9, 4, color.White)
+		w, h, ok := jpegFrameSize(data)
+		if !ok {
+			t.Fatal("ok = false, want true")
+		}
+		if w != 9 || h != 4 {
+			t.Fatalf("got %dx%d, want 9x4", w, h)
+		}
+	})
+
+	t.Run("progressive SOF2, hand-assembled", func(t *testing.T) {
+		// image/jpeg cannot encode progressive JPEGs, so this segment is
+		// built by hand. 21x6 is asymmetric and distinct from the baseline
+		// case above, so a swap or a hardcoded return also fails this test.
+		sof2 := jpegSegmentBytes(0xC2, sofPayload(8, 6, 21, 1, 0x11, 0))
+		w, h, ok := jpegFrameSize(jpegWith(sof2))
+		if !ok {
+			t.Fatal("ok = false, want true")
+		}
+		if w != 21 || h != 6 {
+			t.Fatalf("got %dx%d, want 21x6", w, h)
+		}
+	})
+
+	t.Run("DHT (0xC4) is not mistaken for a frame header", func(t *testing.T) {
+		dht := jpegSegmentBytes(0xC4, sofPayload(8, 999, 888))
+		if _, _, ok := jpegFrameSize(jpegWith(dht)); ok {
+			t.Fatal("ok = true, want false: a DHT payload must not be read as SOF")
+		}
+	})
+
+	t.Run("reserved JPG marker (0xC8) is not mistaken for a frame header", func(t *testing.T) {
+		reserved := jpegSegmentBytes(0xC8, sofPayload(8, 999, 888))
+		if _, _, ok := jpegFrameSize(jpegWith(reserved)); ok {
+			t.Fatal("ok = true, want false: 0xC8 must not be read as SOF")
+		}
+	})
+
+	t.Run("DAC (0xCC) is not mistaken for a frame header", func(t *testing.T) {
+		dac := jpegSegmentBytes(0xCC, sofPayload(8, 999, 888))
+		if _, _, ok := jpegFrameSize(jpegWith(dac)); ok {
+			t.Fatal("ok = true, want false: a DAC payload must not be read as SOF")
+		}
+	})
+
+	t.Run("skips a leading DHT and finds the real SOF0", func(t *testing.T) {
+		dht := jpegSegmentBytes(0xC4, []byte{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+		sof0 := jpegSegmentBytes(0xC0, sofPayload(8, 12, 34, 1, 0x11, 0))
+		w, h, ok := jpegFrameSize(jpegWith(dht, sof0))
+		if !ok {
+			t.Fatal("ok = false, want true")
+		}
+		if w != 34 || h != 12 {
+			t.Fatalf("got %dx%d, want 34x12", w, h)
+		}
+	})
+
+	t.Run("no SOF before SOS, only a COM segment", func(t *testing.T) {
+		com := []byte{0xFF, 0xFE, 0x00, 0x05, 'h', 'i', 0x00}
+		if _, _, ok := jpegFrameSize(jpegWith(com)); ok {
+			t.Fatal("ok = true, want false: no frame header is present")
+		}
+	})
+
+	t.Run("4-byte payload is too short", func(t *testing.T) {
+		short := jpegSegmentBytes(0xC0, []byte{8, 0, 12, 0}) // missing the low width byte
+		if _, _, ok := jpegFrameSize(jpegWith(short)); ok {
+			t.Fatal("ok = true, want false: 4 bytes cannot hold height and width")
+		}
+	})
+
+	t.Run("5-byte payload is exactly usable", func(t *testing.T) {
+		exact := jpegSegmentBytes(0xC0, sofPayload(8, 12, 34)) // no components byte at all
+		w, h, ok := jpegFrameSize(jpegWith(exact))
+		if !ok {
+			t.Fatal("ok = false, want true")
+		}
+		if w != 34 || h != 12 {
+			t.Fatalf("got %dx%d, want 34x12", w, h)
+		}
+	})
+
+	t.Run("zero width reports ok=false", func(t *testing.T) {
+		zeroW := jpegSegmentBytes(0xC0, sofPayload(8, 12, 0, 1, 0x11, 0))
+		if _, _, ok := jpegFrameSize(jpegWith(zeroW)); ok {
+			t.Fatal("ok = true, want false for a zero width")
+		}
+	})
+
+	t.Run("zero height (DNL deferral) reports ok=false", func(t *testing.T) {
+		zeroH := jpegSegmentBytes(0xC0, sofPayload(8, 0, 34, 1, 0x11, 0))
+		if _, _, ok := jpegFrameSize(jpegWith(zeroH)); ok {
+			t.Fatal("ok = true, want false for a zero height")
 		}
 	})
 }

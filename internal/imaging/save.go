@@ -112,10 +112,11 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 			return err
 		}
 		encode = func(w io.Writer, img image.Image) error {
-			// Never dropping dimension tags here: SaveRotated resizes
-			// nothing, so nothing in the source's metadata has been made
-			// false by the time it is spliced back on.
-			return encodeJPEGPreservingMetadata(w, img, orig, false)
+			// The zero size, meaning "the dimension tags still describe
+			// this file": SaveRotated resizes nothing, so nothing in the
+			// source's metadata has been made false by the time it is
+			// spliced back on.
+			return encodeJPEGPreservingMetadata(w, img, orig, image.Point{})
 		}
 	}
 
@@ -183,28 +184,64 @@ func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) er
 	// looking at the pixels that will actually be written.
 	out := ScaleForExport(img, opts.MaxEdge)
 
-	// The trigger for dropping the tags that would now lie is that the
-	// ceiling actually changed the pixels, not that one was chosen: a 2400
-	// ceiling on an 1800px photo invalidates nothing and must drop nothing.
-	resized := SizeLimitApplies(img.Bounds(), opts.MaxEdge)
-
 	if isJPEGExt(ext) && src != nil && src.Path() != "" {
 		if orig, err := jpegFileBytes(src.Path()); err == nil && orig != nil {
-			encode = func(w io.Writer, img image.Image) error {
+			// Answered here, once, while both frames are still in scope
+			// under their own names: out is what will be written, img is
+			// what arrived. Inside the closure below only one of them has a
+			// name, which is how a first attempt at this compared the
+			// already-scaled frame against itself.
+			//
+			// The size rather than a flag: what the tags need is not "you
+			// are wrong" but the frame they should have been describing all
+			// along, and the zero value carries "nothing to correct".
+			var corrected image.Point
+			if dimensionTagsInvalidated(out.Bounds(), orig, SizeLimitApplies(img.Bounds(), opts.MaxEdge)) {
+				corrected = image.Pt(out.Bounds().Dx(), out.Bounds().Dy())
+			}
+
+			// frame rather than img: what the encoders map hands this
+			// closure is out, not Export's own img, and one name for each
+			// keeps the two from being mistaken for each other again.
+			encode = func(w io.Writer, frame image.Image) error {
 				if opts.OmitMetadata {
 					// The ICC-preserving encode rather than a bare one:
 					// omission is about the tags that identify the
 					// photographer and the camera, not about the colours the
 					// recipient sees. Adobe APP14 is deliberately not spliced
 					// back - see encodeJPEGKeepingICC.
-					return encodeJPEGKeepingICC(w, img, orig)
+					return encodeJPEGKeepingICC(w, frame, orig)
 				}
-				return encodeJPEGPreservingMetadata(w, img, orig, resized)
+
+				return encodeJPEGPreservingMetadata(w, frame, orig, corrected)
 			}
 		}
 	}
 
 	return writeEncoded(path, perm, encode, out)
+}
+
+// dimensionTagsInvalidated reports whether written - the bounds of the
+// pixels about to be encoded - differs from the frame orig's own header
+// records, i.e. whether orig's dimension tags would now describe a file
+// that no longer matches them. fallback is the answer for a source whose
+// frame header cannot be read.
+//
+// This one predicate catches every cause of that mismatch - an export size
+// limit that actually resized, a rotation applied in the viewer (Export
+// writes the frame on screen, already rotated, while orig's header still
+// describes the file as it sat on disk), and a source whose Orientation is
+// 5-8 (the decode path already transposed the frame Export receives, and
+// the export normalizes Orientation to 1 on the way out) - without Export
+// having to be told which one happened. A same-size export, including a
+// 180-degree turn (which swaps no dimension), invalidates nothing.
+func dimensionTagsInvalidated(written image.Rectangle, orig []byte, fallback bool) bool {
+	w, h, ok := jpegFrameSize(orig)
+	if !ok {
+		return fallback
+	}
+
+	return written.Dx() != w || written.Dy() != h
 }
 
 // jpegFileBytes returns path's full contents if it starts with the JPEG SOI

@@ -2,7 +2,10 @@ package imaging
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"image"
 	"image/color"
 	"image/jpeg"
 	"os"
@@ -821,7 +824,7 @@ func TestExport_DefaultOptionsWriteTheUntouchedFile(t *testing.T) {
 	}
 
 	var want bytes.Buffer
-	if err := encodeJPEGPreservingMetadata(&want, img, mustRead(t, srcPath), false); err != nil {
+	if err := encodeJPEGPreservingMetadata(&want, img, mustRead(t, srcPath), image.Point{}); err != nil {
 		t.Fatalf("encodeJPEGPreservingMetadata: %v", err)
 	}
 
@@ -988,41 +991,175 @@ func TestExport_OmitMetadataAndASizeLimitTogether(t *testing.T) {
 func exportedDimensionTags(t *testing.T, opts ExportOptions, w, h int) map[int]map[uint16][]byte {
 	t.Helper()
 
-	src := storage.NewFileURI(writeTempFile(t, "camera.jpg", dimensionTagJPEG(t, w, h)))
+	return exportedDimensionTagsFrom(t, dimensionTagJPEG(t, w, h), w, h, opts)
+}
+
+// exportedDimensionTagsFrom is exportedDimensionTags generalized to a
+// caller-built src and a written frame of its own (fw, fh) rather than
+// src's (w, h): a resize never swaps width and height, but a rotation on
+// screen or an Orientation 5-8 decode does, so the tests below need to hand
+// Export a frame shaped differently from the one src's header describes.
+func exportedDimensionTagsFrom(t *testing.T, src []byte, fw, fh int, opts ExportOptions) map[int]map[uint16][]byte {
+	t.Helper()
+
+	srcURI := storage.NewFileURI(writeTempFile(t, "camera.jpg", src))
 	dest := filepath.Join(t.TempDir(), "copy.jpg")
-	if err := Export(storage.NewFileURI(dest), markedImage(w, h), src, opts); err != nil {
+	if err := Export(storage.NewFileURI(dest), markedImage(fw, fh), srcURI, opts); err != nil {
 		t.Fatalf("Export: %v", err)
 	}
 
 	return readIFDs(t, mustRead(t, dest))
 }
 
-// TestExport_ResizeDropsTheDimensionTagsItInvalidated is the whole point of
-// the removal: after a real resize, no tag in the file still claims the
-// original's pixel dimensions, so a reader falls back to the JPEG frame
-// header - which carries the true size for free - instead of believing a
-// stale one.
-func TestExport_ResizeDropsTheDimensionTagsItInvalidated(t *testing.T) {
-	ifds := exportedDimensionTags(t, ExportOptions{MaxEdge: 300}, 900, 600)
+// dimensionTagJPEGOriented is dimensionTagJPEG's counterpart for a caller
+// that needs a specific Exif Orientation: dimensionTagJPEG always bakes in
+// 6. The tests below use it to keep two causes separately provable - "the
+// frame handed to Export is transposed" (true whatever Orientation says)
+// and "the source's own Orientation says 5-8" (a claim about the file, not
+// about the frame) - even though dimensionTagsInvalidated itself never
+// looks at Orientation at all.
+func dimensionTagJPEGOriented(t *testing.T, w, h int, orientation uint16) []byte {
+	t.Helper()
+
+	tiff := buildDimensionExifTIFF(t, dimensionExif{
+		width:       uint32(w),
+		height:      uint32(h),
+		orientation: orientation,
+		makerNote:   []byte("MAKERNOTE-8"),
+	})
+
+	return spliceMetadataIntoJPEG(t, markedImage(w, h),
+		[][]byte{wrapAsAPP1(append([]byte("Exif\x00\x00"), tiff...))})
+}
+
+// dimensionTagCases is the closed set of tags a resize, a rotation or an
+// Orientation 5-8 export invalidates - IFD0's width/height, the Exif
+// SubIFD's PixelXDimension/PixelYDimension/SubjectArea/SubjectLocation, and
+// the Interoperability IFD's RelatedImageWidth/RelatedImageLength. Shared by
+// assertDimensionTagsDropped and assertDimensionTagsSurvive so both check
+// the exact same set TestExport_ResizeCorrectsTheDimensionTagsItInvalidated
+// pins, rather than a hand-copied one that could quietly drift from it.
+// dimensionTagCases is every tag an invalidating export touches, with the
+// edge of the written frame each one states - and the two that state a
+// coordinate inside the frame instead, which no width and height can
+// correct. Shared by assertDimensionTagsCorrected and
+// assertDimensionTagsSurvive so the two can never check different sets.
+var dimensionTagCases = []struct {
+	ifd        int
+	name       string
+	tag        uint16
+	vertical   bool
+	coordinate bool
+}{
+	{tiffIFD0, "IFD0", 0x0100, false, false},
+	{tiffIFD0, "IFD0", 0x0101, true, false},
+	{tiffExifIFD, "the Exif SubIFD", 0xA002, false, false},
+	{tiffExifIFD, "the Exif SubIFD", 0xA003, true, false},
+	{tiffExifIFD, "the Exif SubIFD", 0x9214, false, true},
+	{tiffExifIFD, "the Exif SubIFD", 0xA214, false, true},
+	{tiffInteropIFD, "the Interoperability IFD", 0x1001, false, false},
+	{tiffInteropIFD, "the Interoperability IFD", 0x1002, true, false},
+}
+
+// assertDimensionTagsCorrected is what an invalidating export now leaves
+// behind: the six tags that state a size read the frame actually written,
+// and the two that state a position within it are gone.
+func assertDimensionTagsCorrected(t *testing.T, ifds map[int]map[uint16][]byte, w, h int) {
+	t.Helper()
+
+	for _, tc := range dimensionTagCases {
+		if ifds[tc.ifd] == nil {
+			t.Fatalf("%s is missing from the written file entirely", tc.name)
+		}
+
+		val, present := ifds[tc.ifd][tc.tag]
+		if tc.coordinate {
+			if present {
+				t.Errorf("%s still carries %#04x, a coordinate no width and height can correct", tc.name, tc.tag)
+			}
+			continue
+		}
+
+		want := w
+		if tc.vertical {
+			want = h
+		}
+		if !present {
+			t.Errorf("%s lost tag %#04x, want it corrected to %d rather than dropped", tc.name, tc.tag, want)
+			continue
+		}
+		if got := tagValue(t, val); got != want {
+			t.Errorf("%s tag %#04x reads %d, want the written frame's %d", tc.name, tc.tag, got, want)
+		}
+	}
+}
+
+// tagValue reads a count-1 SHORT or LONG value. Every fixture here is
+// little-endian.
+func tagValue(t *testing.T, val []byte) int {
+	t.Helper()
+
+	switch len(val) {
+	case 2:
+		return int(binary.LittleEndian.Uint16(val))
+	case 4:
+		return int(binary.LittleEndian.Uint32(val))
+	}
+	t.Fatalf("value is %d bytes, want a 2-byte SHORT or 4-byte LONG", len(val))
+
+	return 0
+}
+
+func assertDimensionTagsSurvive(t *testing.T, ifds map[int]map[uint16][]byte) {
+	t.Helper()
+
+	for _, tc := range dimensionTagCases {
+		if _, present := ifds[tc.ifd][tc.tag]; !present {
+			t.Errorf("%s lost tag %#04x, which nothing invalidated", tc.name, tc.tag)
+		}
+	}
+}
+
+// assertCameraMetadataSurvives checks the tags a rotation or an Orientation
+// normalization must never touch - the same list
+// TestExport_ResizeKeepsEverythingItDidNotInvalidate checks for a resize:
+// camera, lens, exposure, date, GPS, MakerNote and the resolution/DPI trio.
+func assertCameraMetadataSurvives(t *testing.T, ifds map[int]map[uint16][]byte) {
+	t.Helper()
 
 	for _, tc := range []struct {
 		ifd  int
 		name string
-		tags []uint16
+		tag  uint16
+		what string
 	}{
-		{tiffIFD0, "IFD0", []uint16{0x0100, 0x0101}},
-		{tiffExifIFD, "the Exif SubIFD", []uint16{0xA002, 0xA003, 0x9214, 0xA214}},
-		{tiffInteropIFD, "the Interoperability IFD", []uint16{0x1001, 0x1002}},
+		{tiffIFD0, "IFD0", 0x010F, "Make"},
+		{tiffIFD0, "IFD0", 0x0110, "Model"},
+		{tiffIFD0, "IFD0", 0x011A, "XResolution"},
+		{tiffIFD0, "IFD0", 0x011B, "YResolution"},
+		{tiffIFD0, "IFD0", 0x0128, "ResolutionUnit"},
+		{tiffIFD0, "IFD0", 0x8825, "the GPS pointer"},
+		{tiffExifIFD, "the Exif SubIFD", 0x829A, "ExposureTime"},
+		{tiffExifIFD, "the Exif SubIFD", 0x9003, "DateTimeOriginal"},
+		{tiffExifIFD, "the Exif SubIFD", 0x927C, "MakerNote"},
+		{tiffExifIFD, "the Exif SubIFD", 0xA434, "LensModel"},
+		{tiffInteropIFD, "the Interoperability IFD", 0x0001, "InteropIndex"},
 	} {
-		if ifds[tc.ifd] == nil {
-			t.Fatalf("%s is missing from the written file entirely", tc.name)
-		}
-		for _, tag := range tc.tags {
-			if _, present := ifds[tc.ifd][tag]; present {
-				t.Errorf("%s still carries tag %#04x after a resize", tc.name, tag)
-			}
+		if _, present := ifds[tc.ifd][tc.tag]; !present {
+			t.Errorf("%s lost %s (%#04x)", tc.name, tc.what, tc.tag)
 		}
 	}
+}
+
+// TestExport_ResizeCorrectsTheDimensionTagsItInvalidated is the whole point
+// of the correction: after a real resize, every tag that states a size
+// states the size actually written, so a reader of Exif dimensions and a
+// reader of the JPEG frame header get the same answer.
+func TestExport_ResizeCorrectsTheDimensionTagsItInvalidated(t *testing.T) {
+	// 900x600 capped at 300 on the longest edge is written as 300x200.
+	ifds := exportedDimensionTags(t, ExportOptions{MaxEdge: 300}, 900, 600)
+
+	assertDimensionTagsCorrected(t, ifds, 300, 200)
 }
 
 // TestExport_ResizeKeepsEverythingItDidNotInvalidate is the other half, and
@@ -1148,5 +1285,109 @@ func TestSaveRotated_LeavesDimensionTagsAlone(t *testing.T) {
 		if _, present := ifds[tiffExifIFD][tag]; !present {
 			t.Errorf("a rotate-and-save dropped Exif SubIFD tag %#04x", tag)
 		}
+	}
+}
+
+// --- dimension tags a rotation or an Orientation 5-8 decode invalidated ----
+
+// TestExport_RotatedFrameAtOriginalSizeCorrectsTheDimensionTags is the
+// viewer-rotation cause spec.md describes: Export writes the frame on
+// screen, which is already rotated, while the source file's own header
+// still records its unrotated size. Orientation itself is left at 1 here,
+// isolating this from an Orientation 5-8 source below - a frame shaped
+// differently from what the source's own header says must be enough on its
+// own, regardless of what the Orientation tag claims.
+func TestExport_RotatedFrameAtOriginalSizeCorrectsTheDimensionTags(t *testing.T) {
+	src := dimensionTagJPEGOriented(t, 900, 600, 1)
+	ifds := exportedDimensionTagsFrom(t, src, 600, 900, ExportOptions{})
+
+	assertDimensionTagsCorrected(t, ifds, 600, 900)
+	assertCameraMetadataSurvives(t, ifds)
+}
+
+// TestExport_Orientation5Through8SourceAtOriginalSizeCorrectsTheDimensionTags
+// covers the decode-side cause: an Orientation of 5-8 means the frame
+// handed to Export is already transposed relative to the bytes on disk, and
+// the export normalizes Orientation to 1 on the way out - so the width and
+// height tags, left as they are, would now describe the wrong frame.
+func TestExport_Orientation5Through8SourceAtOriginalSizeCorrectsTheDimensionTags(t *testing.T) {
+	for _, orientation := range []uint16{5, 6, 7, 8} {
+		t.Run(fmt.Sprintf("orientation %d", orientation), func(t *testing.T) {
+			src := dimensionTagJPEGOriented(t, 900, 600, orientation)
+			ifds := exportedDimensionTagsFrom(t, src, 600, 900, ExportOptions{})
+
+			assertDimensionTagsCorrected(t, ifds, 600, 900)
+			assertCameraMetadataSurvives(t, ifds)
+		})
+	}
+}
+
+// TestExport_UnrotatedOrientation1OriginalSizeExportDropsNothing pins the
+// trigger's other edge: an Orientation-1 source, exported unrotated at
+// Original size, must not lose anything - there is nothing here for a
+// dimension tag to lie about.
+func TestExport_UnrotatedOrientation1OriginalSizeExportDropsNothing(t *testing.T) {
+	src := dimensionTagJPEGOriented(t, 900, 600, 1)
+	ifds := exportedDimensionTagsFrom(t, src, 900, 600, ExportOptions{})
+
+	assertDimensionTagsSurvive(t, ifds)
+}
+
+// TestExport_180DegreeTurnDropsNothing is spec.md's "honest limit": a
+// 180-degree turn (Orientation 3) changes no dimension, so the width/height
+// tags stay true even though the frame is upside down relative to what the
+// file's Orientation tag asked for. SubjectArea/SubjectLocation are
+// coordinates within the frame and a real 180-degree turn does invalidate
+// those too, but catching that would mean Export inferring a rotation
+// happened rather than reading it off the pixels - left alone deliberately,
+// see spec.md's "honest limit" section.
+func TestExport_180DegreeTurnDropsNothing(t *testing.T) {
+	src := dimensionTagJPEGOriented(t, 900, 600, 3)
+	ifds := exportedDimensionTagsFrom(t, src, 900, 600, ExportOptions{})
+
+	assertDimensionTagsSurvive(t, ifds)
+}
+
+// TestExport_FallsBackToTheSizeLimitAnswerWhenTheFrameHeaderCannotBeRead
+// covers a source whose own frame header cannot be read: jpegWith(exif) is
+// SOI, one Exif APP1 segment carrying the full dimension-tag set, and then a
+// bare SOS with no frame-header marker before it at all, so jpegFrameSize
+// has nothing to read and reports not-ok. dimensionTagsInvalidated must not
+// guess in that case, and must not fail the export either - it falls back
+// to the size-limit trigger it otherwise replaces.
+func TestExport_FallsBackToTheSizeLimitAnswerWhenTheFrameHeaderCannotBeRead(t *testing.T) {
+	tiff := buildDimensionExifTIFF(t, dimensionExif{
+		width: 900, height: 600, orientation: 1, makerNote: []byte("MN"),
+	})
+	exif := wrapAsAPP1(append([]byte("Exif\x00\x00"), tiff...))
+	orig := jpegWith(exif)
+
+	for _, tc := range []struct {
+		name      string
+		opts      ExportOptions
+		wantWidth int
+	}{
+		// Nothing invalidated, so the tag is left exactly as the source
+		// wrote it; invalidated, so it is corrected to the written frame.
+		{"no size limit applied: the fallback answer is false", ExportOptions{}, 900},
+		{"a limit that actually resizes: the fallback answer is true", ExportOptions{MaxEdge: 300}, 300},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := storage.NewFileURI(writeTempFile(t, "unreadable-frame.jpg", orig))
+			dest := filepath.Join(t.TempDir(), "copy.jpg")
+
+			if err := Export(storage.NewFileURI(dest), markedImage(900, 600), src, tc.opts); err != nil {
+				t.Fatalf("Export: %v", err)
+			}
+
+			ifds := readIFDs(t, mustRead(t, dest))
+			val, present := ifds[tiffIFD0][0x0100]
+			if !present {
+				t.Fatal("IFD0 lost ImageWidth entirely, want it either left alone or corrected")
+			}
+			if got := tagValue(t, val); got != tc.wantWidth {
+				t.Errorf("IFD0 ImageWidth reads %d, want %d", got, tc.wantWidth)
+			}
+		})
 	}
 }

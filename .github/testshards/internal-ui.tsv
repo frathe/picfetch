@@ -5,9 +5,9 @@
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
 # ui-1: 195 entries, 326.750s baseline median-weight sum
-# ui-2: 194 entries, 327.070s median-weight sum
+# ui-2: 195 entries, 327.070s median-weight sum
 # ui-3: 227 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 49 tests assigned across the baseline shards
+# post-baseline additions: 50 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -271,6 +271,7 @@ TestExifLink_OpensExifWindow	ui-2
 TestExportAs_AppendsTheExtensionOfTheFormatActuallyPicked	ui-2
 TestExportAs_CancelWritesNothing	ui-2
 TestExportAs_ReportsAFailedWrite	ui-2
+TestExportAs_RotationCorrectsDimensionTagsButNotFilenameOrToast	ui-2
 TestExportAs_ToastReportsOmissionOnlyWhenTheBoxWasUnchecked	ui-2
 TestExportOptions_DefaultToOriginalSizeAndFullMetadata	ui-2
 TestExportOptions_MetadataRowStatesItsJPEGOnlyScope	ui-2
