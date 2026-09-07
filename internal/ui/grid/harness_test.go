@@ -95,6 +95,7 @@ func newOverview(t *testing.T, host Host) *Overview {
 
 	g := New(host, win, dupes.New(hostSet{host: host}))
 	g.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(func() { g.Stop(); g.Settle() })
 	registerJumpObserver(g, host)
 
 	return g

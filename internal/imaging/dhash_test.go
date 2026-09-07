@@ -2,6 +2,9 @@ package imaging
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -257,5 +260,39 @@ func TestDuplicateGroups_ZeroHashIsNotAStarCenter(t *testing.T) {
 				t.Fatalf("hash 0 joined group %v", grp)
 			}
 		}
+	}
+}
+
+// The context cancels at an observed work boundary, with no timing/scheduler
+// assumptions. Done and Err retain the ordinary context cancellation contract.
+type groupingCancelContext struct {
+	context.Context
+	cancel        context.CancelFunc
+	checks, after int
+}
+
+func (c *groupingCancelContext) Err() error {
+	c.checks++
+	if c.checks >= c.after {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestDuplicateGroupsContextCancelsWithoutPartialResults(t *testing.T) {
+	for _, after := range []int{1, 3} {
+		t.Run(fmt.Sprintf("boundary=%d", after), func(t *testing.T) {
+			base, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx := &groupingCancelContext{Context: base, cancel: cancel, after: after}
+			hashes := make([]uint64, 2000)
+			for i := range hashes {
+				hashes[i] = 7
+			}
+			groups, err := DuplicateGroupsContext(ctx, hashes, 6)
+			if !errors.Is(err, context.Canceled) || groups != nil {
+				t.Errorf("cancelled grouping returned %d groups and %v", len(groups), err)
+			}
+		})
 	}
 }

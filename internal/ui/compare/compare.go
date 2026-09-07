@@ -643,3 +643,26 @@ func (t requestToken) cancelContext() {
 		t.cancel()
 	}
 }
+
+// Refresh replaces source pixels while retaining the comparison session.
+func (f *Feature) Refresh() {
+	if !f.active {
+		return
+	}
+	token := f.lifecycle.begin()
+	done := f.done.Begin()
+	f.clearVectorRasters()
+	f.ready = false
+	f.linkToggle.Disable()
+	f.layoutToggle.Disable()
+	f.swap.Disable()
+	for i := range f.panes {
+		f.loaded[i] = nil
+		f.rendered[i] = nil
+		f.renderSources[i] = nil
+		f.panes[i].present(paneScene{})
+		f.panes[i].spinner.Show()
+	}
+	sources := f.sources
+	f.workers.Go(func() { f.load(token, sources, done) })
+}

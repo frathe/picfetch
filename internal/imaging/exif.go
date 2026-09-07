@@ -147,33 +147,34 @@ func parseExifOrientation(seg []byte) int {
 
 	ifdOffset := bo.Uint32(tiff[4:8])
 
-	if ifdOffset+2 > uint32(len(tiff)) {
+	header, ok := tiffSpan(tiff, uint64(ifdOffset), 2)
+	if !ok {
 		return 0
 	}
 
-	numEntries := bo.Uint16(tiff[ifdOffset : ifdOffset+2])
-	entriesStart := ifdOffset + 2
+	numEntries := bo.Uint16(header)
+	entriesStart := uint64(ifdOffset) + 2
 
-	for i := uint32(0); i < uint32(numEntries); i++ {
+	for i := uint64(0); i < uint64(numEntries); i++ {
 		entryOffset := entriesStart + i*12
-
-		if entryOffset+12 > uint32(len(tiff)) {
+		entry, ok := tiffSpan(tiff, entryOffset, 12)
+		if !ok {
 			break
 		}
 
-		tag := bo.Uint16(tiff[entryOffset : entryOffset+2])
+		tag := bo.Uint16(entry[:2])
 
 		if tag != 0x0112 {
 			continue
 		}
 
-		valType := bo.Uint16(tiff[entryOffset+2 : entryOffset+4])
+		valType := bo.Uint16(entry[2:4])
 
 		if valType != 3 { // SHORT
 			return 0
 		}
 
-		v := bo.Uint16(tiff[entryOffset+8 : entryOffset+10])
+		v := bo.Uint16(entry[8:10])
 
 		if v < 1 || v > 8 {
 			return 0

@@ -148,13 +148,42 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Test
-        # Not -race: the race detector needs a C toolchain, which this
-        # runner doesn't have by default. Not ./...: internal/ui isn't
-        # excluded for lack of a display driver - it uses the same headless
-        # fyne.io/fyne/v2/test driver as internal/ui/autoupdate below. It's
-        # excluded because it already costs ~9m39s in a monolithic Ubuntu run
-        # and could carry golden-master/font differences on Windows; these two
-        # packages are the file-replacement update logic, not the concurrent
-        # UI.
-        run: go test ./internal/update/... ./internal/ui/autoupdate/...
+      - name: Execute native Windows guards
+        run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json"
+
+      - name: Execute Microsoft Store distribution guards
+        run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json"
+
+      - name: Upload native guard events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-guards-${{ runner.os }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-guards-*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  macos-test:
+    name: macOS native guards (attempt ${{ github.run_attempt }})
+    runs-on: macos-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Execute Cocoa-linked macOS guards
+        run: go run ./scripts/nativeguards -suite macos -capture "${{ runner.temp }}/native-guards-macos.json"
+
+      - name: Upload native guard events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-guards-${{ runner.os }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-guards-*.json
+          if-no-files-found: error
+          retention-days: 14

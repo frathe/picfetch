@@ -37,7 +37,7 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Install fyne CLI
-        run: go install fyne.io/tools/cmd/fyne@latest
+        run: make install-fyne
 
       - name: Package macOS app
         run: make package-mac
@@ -68,7 +68,7 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Install fyne-cross CLI
-        run: go install github.com/fyne-io/fyne-cross@latest
+        run: make install-fyne-cross
 
       - name: Package Windows binary
         run: make package-windows

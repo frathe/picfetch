@@ -7,12 +7,14 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -26,6 +28,7 @@ import (
 )
 
 type fakeHost struct {
+	exported  []imaging.WriteResult
 	generate  func(context.Context, mosaic.Request) (mosaic.Result, error)
 	inspect   func() (displays.Snapshot, error)
 	wallpaper func(context.Context, mosaic.Result, displays.ID, bool) error
@@ -327,9 +330,14 @@ func TestMosaicKeyboard_EnterAndSpaceReachEveryPreviewAction(t *testing.T) {
 		t.Fatalf("Enter on Set as Wallpaper calls=%d", wallpaperCalls)
 	}
 
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(t.TempDir() + "/mosaic.png\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
+		return storage.NewFileURI(filepath.Join(t.TempDir(), "mosaic.png")), nil
+	})
 	exports := 0
-	w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error { exports++; return nil })
+	w.SetExporter(func(_ context.Context, _ fyne.URI, _ image.Image, _ fyne.URI, _ imaging.ExportOptions) (imaging.WriteResult, error) {
+		exports++
+		return imaging.WriteResult{}, nil
+	})
 	w.Window().Canvas().Focus(w.saveButton)
 	w.saveButton.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
 	settleWindow(t, w)
@@ -852,7 +860,10 @@ func TestMosaicStartOver_IsDisabledDuringRegeneration(t *testing.T) {
 	w.Generate()
 	settleWindow(t, w)
 	exports := 0
-	w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error { exports++; return nil })
+	w.SetExporter(func(_ context.Context, _ fyne.URI, _ image.Image, _ fyne.URI, _ imaging.ExportOptions) (imaging.WriteResult, error) {
+		exports++
+		return imaging.WriteResult{}, nil
+	})
 
 	w.Regenerate()
 	<-started
@@ -871,7 +882,7 @@ func TestMosaicStartOver_IsDisabledDuringRegeneration(t *testing.T) {
 func TestMosaicStartOver_IsDisabledDuringExport(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
 		close(started)
 		<-release
 		return nil, nil
@@ -1285,4 +1296,8 @@ func sameURIs(a, b []fyne.URI) bool {
 		}
 	}
 	return true
+}
+
+func (h *fakeHost) AfterFileExported(result imaging.WriteResult) {
+	h.exported = append(h.exported, result)
 }

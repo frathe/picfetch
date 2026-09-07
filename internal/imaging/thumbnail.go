@@ -36,11 +36,35 @@ func NewThumbCache(budget int64) *ByteCache[image.Image] {
 // Callers that need a representative by resolution use native, not
 // thumb.Bounds - generated thumbs are capped at ThumbnailSize.
 func LoadThumbnailAndBounds(u fyne.URI) (image.Image, image.Rectangle, error) {
-	data, bounds, err := ReadAndProbe(context.Background(), u)
+	return LoadThumbnailAndBoundsContext(context.Background(), u)
+}
+
+// LoadThumbnailAndBoundsContext checks cancellation through source reads and
+// between probe, decode/rasterization and scaling. Already-running decoder or
+// sampling calls are not interruptible; cancelled pixels are never returned.
+func LoadThumbnailAndBoundsContext(ctx context.Context, u fyne.URI) (image.Image, image.Rectangle, error) {
+	return loadThumbnailAndBounds(ctx, u, decodeThumbnail)
+}
+
+func loadThumbnailAndBounds(ctx context.Context, u fyne.URI, decode func(context.Context, []byte, image.Rectangle) (image.Image, error)) (image.Image, image.Rectangle, error) {
+	data, bounds, err := ReadAndProbe(ctx, u)
 	if err != nil {
 		return nil, image.Rectangle{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, image.Rectangle{}, err
+	}
+	thumb, err := decode(ctx, data, bounds)
+	if cancelled := ctx.Err(); cancelled != nil {
+		return nil, image.Rectangle{}, cancelled
+	}
+	if err != nil {
+		return nil, image.Rectangle{}, err
+	}
+	return thumb, bounds, nil
+}
 
+func decodeThumbnail(ctx context.Context, data []byte, bounds image.Rectangle) (image.Image, error) {
 	// An SVG has no fixed pixels, so rather than rasterizing at full
 	// logical size only for scaleToFit to discard nearly all of it,
 	// rasterize straight at the thumbnail's own size - bounds is the
@@ -50,21 +74,27 @@ func LoadThumbnailAndBounds(u fyne.URI) (image.Image, image.Rectangle, error) {
 	if isSVGData(data) {
 		vec, err := ParseVector(data)
 		if err != nil {
-			return nil, image.Rectangle{}, err
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 		w, h := fitEdge(bounds.Dx(), bounds.Dy(), ThumbnailSize)
 		thumb, err := vec.RasterAt(w, h)
 		if err != nil {
-			return nil, image.Rectangle{}, err
+			return nil, err
 		}
-		return thumb, bounds, nil
+		return thumb, nil
 	}
 
-	loaded, err := DecodeLoaded(context.Background(), data, 0)
-	if err != nil {
-		return nil, image.Rectangle{}, err
+	loaded, err := DecodeLoaded(ctx, data, 0)
+	if cancelled := ctx.Err(); cancelled != nil {
+		return nil, cancelled
 	}
-	return scaleToFit(loaded.Frames[0], ThumbnailSize), bounds, nil
+	if err != nil {
+		return nil, err
+	}
+	return scaleToFit(loaded.Frames[0], ThumbnailSize), nil
 }
 
 // LoadThumbnail reads and decodes u exactly like LoadImage - full EXIF
@@ -80,6 +110,12 @@ func LoadThumbnailAndBounds(u fyne.URI) (image.Image, image.Rectangle, error) {
 // large GIF meant gigabytes of allocation per grid cell.
 func LoadThumbnail(u fyne.URI) (image.Image, error) {
 	thumb, _, err := LoadThumbnailAndBounds(u)
+	return thumb, err
+}
+
+// LoadThumbnailContext is the context-bearing form of LoadThumbnail.
+func LoadThumbnailContext(ctx context.Context, u fyne.URI) (image.Image, error) {
+	thumb, _, err := LoadThumbnailAndBoundsContext(ctx, u)
 	return thumb, err
 }
 

@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/trash"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 func TestMain(m *testing.M) {
@@ -20,6 +21,14 @@ func TestMain(m *testing.M) {
 	// drives the component directly.
 	test.NewApp()
 	os.Exit(m.Run())
+}
+
+func newConfirmer(t *testing.T, host Host) *Confirmer {
+	t.Helper()
+	c := New(host)
+	c.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(func() { c.Close(); c.Settle() })
+	return c
 }
 
 // fakeHost records what the confirmation asked the app to do. It is the
@@ -53,6 +62,24 @@ func (f *fakeHost) CurrentFile() (fyne.URI, int, bool) {
 	return f.files[f.index], f.index, true
 }
 
+func (f *fakeHost) ReconcileDeletedFiles(uris []fyne.URI) bool {
+	keys := make(map[string]bool, len(uris))
+	for _, uri := range uris {
+		keys[uri.String()] = true
+	}
+	var indices []int
+	for i, uri := range f.files {
+		if keys[uri.String()] {
+			indices = append(indices, i)
+		}
+	}
+	if len(indices) == 0 {
+		return false
+	}
+	f.RemoveFiles(indices)
+	return true
+}
+
 // RemoveFiles drops every named index in one pass, descending, so an earlier
 // removal can't shift a later index out from under the same call - the same
 // thing the real viewer has to do.
@@ -73,7 +100,6 @@ func (f *fakeHost) ShowImage(i int)              { f.shown = append(f.shown, i) 
 func (f *fakeHost) ShowToast(msg string)         { f.toasts = append(f.toasts, msg) }
 func (f *fakeHost) ShowEmptyStateError(m string) { f.emptied = append(f.emptied, m) }
 func (f *fakeHost) ForceRepaint()                { f.repaints++ }
-func (f *fakeHost) Generation() uint64           { return f.gen }
 
 // stubTrashMove makes trash.Move behave like a plain remove, so these tests
 // exercise the confirmation flow's own logic without ever invoking the real
@@ -108,7 +134,7 @@ func tempFiles(t *testing.T, names ...string) []fyne.URI {
 
 func TestRequest_ShowsCardWithMessageAndCancelSelectedByDefault(t *testing.T) {
 	host := &fakeHost{files: tempFiles(t, "sunset.jpg")}
-	c := New(host)
+	c := newConfirmer(t, host)
 
 	c.Request()
 
@@ -127,7 +153,7 @@ func TestRequest_ShowsCardWithMessageAndCancelSelectedByDefault(t *testing.T) {
 }
 
 func TestRequest_NoOpWithNothingLoaded(t *testing.T) {
-	c := New(&fakeHost{})
+	c := newConfirmer(t, &fakeHost{})
 
 	c.Request()
 
@@ -137,7 +163,7 @@ func TestRequest_NoOpWithNothingLoaded(t *testing.T) {
 }
 
 func TestRequest_ReopeningDoesNotResetAnAlreadyMadeSelection(t *testing.T) {
-	c := New(&fakeHost{files: tempFiles(t, "a.jpg")})
+	c := newConfirmer(t, &fakeHost{files: tempFiles(t, "a.jpg")})
 
 	c.Request()
 	c.setSelection(true)
@@ -150,7 +176,7 @@ func TestRequest_ReopeningDoesNotResetAnAlreadyMadeSelection(t *testing.T) {
 }
 
 func TestSetSelection_TogglesRingVisibility(t *testing.T) {
-	c := New(&fakeHost{})
+	c := newConfirmer(t, &fakeHost{})
 
 	c.setSelection(true)
 	if c.card.Ring(cancelChoice).Visible() || !c.card.Ring(dangerChoice).Visible() {
@@ -164,7 +190,7 @@ func TestSetSelection_TogglesRingVisibility(t *testing.T) {
 }
 
 func TestHandleKey_MovesSelectionAndCancels(t *testing.T) {
-	c := New(&fakeHost{files: tempFiles(t, "a.jpg")})
+	c := newConfirmer(t, &fakeHost{files: tempFiles(t, "a.jpg")})
 	c.Request()
 
 	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
@@ -185,7 +211,7 @@ func TestHandleKey_MovesSelectionAndCancels(t *testing.T) {
 
 func TestHandleKey_ReturnWithCancelSelectedJustHidesTheCard(t *testing.T) {
 	host := &fakeHost{files: tempFiles(t, "a.jpg")}
-	c := New(host)
+	c := newConfirmer(t, host)
 	c.Request()
 
 	c.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
@@ -205,7 +231,7 @@ func TestPerformDelete_RemovesFileAndAdvances(t *testing.T) {
 	stubTrashMove(t)
 	files := tempFiles(t, "a.jpg", "b.jpg")
 	host := &fakeHost{files: files}
-	c := New(host)
+	c := newConfirmer(t, host)
 
 	// Captured before the delete: RemoveFile shifts the survivor down over
 	// the removed entry, and files here shares its backing array, so
@@ -239,7 +265,7 @@ func TestPerformDelete_LastFileFallsBackToEmptyState(t *testing.T) {
 	stubTrashMove(t)
 	files := tempFiles(t, "only.jpg")
 	host := &fakeHost{files: files}
-	c := New(host)
+	c := newConfirmer(t, host)
 	c.Request()
 
 	c.setSelection(true)
@@ -270,7 +296,7 @@ func TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError(t *testing.T) {
 	}
 
 	host := &fakeHost{files: []fyne.URI{storage.NewFileURI(stubborn)}}
-	c := New(host)
+	c := newConfirmer(t, host)
 	c.Request()
 
 	c.setSelection(true)
@@ -288,41 +314,26 @@ func TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError(t *testing.T) {
 	}
 }
 
-// TestPerformDelete_SkipsFileSetMutationIfGenerationChangesDuringTheMove
-// guards against a race the async redesign introduces: trash.Move runs on
-// its own goroutine (see performDelete's doc comment for why it must), so
-// something else - a fresh drop, a reset, another delete - can change the
-// app's file set while it's still in flight, which would make the
-// captured index stale by the time the move finishes. The move to Trash
-// itself must still go through (the file shouldn't leak just because the
-// bookkeeping got skipped), but RemoveFile/ShowImage/ShowEmptyStateError
-// must not run against an index that may no longer mean what it did.
-func TestPerformDelete_SkipsFileSetMutationIfGenerationChangesDuringTheMove(t *testing.T) {
+// Generation changes cannot suppress reconciliation of a successful OS move.
+func TestPerformDelete_ReconcilesAfterGenerationChangesDuringMove(t *testing.T) {
 	host := &fakeHost{files: tempFiles(t, "a.jpg")}
-	c := New(host)
-
+	path := host.files[0].Path()
+	c := newConfirmer(t, host)
 	orig := trash.Move
 	t.Cleanup(func() { trash.Move = orig })
 	trash.Move = func(path string) error {
-		// Stands in for a fresh drop (or any other event) landing while
-		// the move to Trash is still in flight.
 		host.gen++
 		return os.Remove(path)
 	}
-
 	c.Request()
 	c.setSelection(true)
 	c.confirmSelection()
 	c.Settle()
-
-	if _, err := os.Stat(host.files[0].Path()); !os.IsNotExist(err) {
-		t.Error("the file should still be moved to Trash even though the generation changed mid-flight")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("confirmed file survived: %v", err)
 	}
-	if len(host.removed) != 0 {
-		t.Error("RemoveFile must not run against a file set that moved on during the async move")
-	}
-	if len(host.shown) != 0 || len(host.emptied) != 0 {
-		t.Error("neither ShowImage nor ShowEmptyStateError should run once the generation is stale")
+	if len(host.files) != 0 || len(host.removed) != 1 || len(host.emptied) != 1 {
+		t.Errorf("successful deletion was not reconciled: files=%v removed=%v empty=%v", host.files, host.removed, host.emptied)
 	}
 }
 

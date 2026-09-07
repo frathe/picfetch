@@ -52,16 +52,18 @@ func noPollerStop() {}
 // the path the window took and not just where it stopped. One poller serves
 // both: v.recordWindowPosition is where the single reading fans out.
 //
-// The returned func stops the poller goroutine; Run's SetOnStopped calls it
-// just before the final preferences save, so at shutdown the goroutine
-// isn't left blocked inside fyne.DoAndWait against an event loop that's
-// winding down (the tracker keeps its last reading, so the save still has
-// a value). A no-op func, never nil, when no poller started.
+// The returned func requests cancellation without waiting; Run's SetOnStopped
+// calls it before the final preferences save. Queued reads can be discarded
+// without a live event loop. waitWinPosPoll observes actual worker completion
+// off UI, including a native read already in progress. The tracker retains its
+// last reading. Non-native windows supply an already-completed poller.
 func startWindowPosPolling(v *viewer, win fyne.Window) (stop func()) {
 	if v.slides == nil {
 		panic("ui: startWindowPosPolling called before slideshow construction")
 	}
-	return winpos.PollAt(win, winpos.GestureInterval, v.slides.Active, v.recordWindowPosition)
+	poll := winpos.PollAt(win, winpos.GestureInterval, v.slides.Active, v.recordWindowPosition)
+	v.waitWinPosPoll = poll.Wait
+	return poll.Stop
 }
 
 // widgetGeometry and prefGeometry translate one secondary window's geometry

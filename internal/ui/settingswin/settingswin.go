@@ -605,3 +605,6 @@ func (w *Window) hideUpdateDialog() {
 		d.Hide()
 	}
 }
+
+// WaitForTracking observes position polling after StopTracking, off UI.
+func (w *Window) WaitForTracking() { w.win.WaitForTracking() }

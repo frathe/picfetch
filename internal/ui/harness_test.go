@@ -91,6 +91,12 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
+	v.deletion.SetUIQueue(&uitest.UIQueue{})
+	v.slides.SetUIQueue(&uitest.UIQueue{})
+	v.exif.SetUIQueue(&uitest.UIQueue{})
+	v.fileWork.ui = &uitest.UIQueue{}
+	v.chooserUI = &uitest.UIQueue{}
+	v.clipboardWork.ui = &uitest.UIQueue{}
 
 	// The auto-hide timer must never fire on its own mid-suite: its inline
 	// fyne.Do (under the test driver) would write widgets concurrently with
@@ -168,6 +174,13 @@ func drain(t *testing.T, v *viewer) {
 	// this test has already closed. Clearing it first also means nothing
 	// can start a fresh scan behind the waits below.
 	openwith.SetHandler(nil)
+	v.closeFileWork()
+	v.closeClipboardWork()
+	v.closeOpenChooser()
+	v.stopWinPosPoll()
+	v.settingsWin.StopTracking()
+	v.exif.StopTracking()
+	v.mosaicWin.StopTracking()
 
 	// Supersede any in-flight decode/retry chain first, so a load that was
 	// deliberately abandoned mid-test (a broken-file retry loop, say) stops
@@ -182,11 +195,15 @@ func drain(t *testing.T, v *viewer) {
 	v.vector.lifecycle.invalidate()
 	v.regionCopyLifecycle.invalidate()
 	v.animationPause.unpause()
-	v.favThumbLifecycle.invalidate()
+	v.closeFavoritePreviews()
+	v.grid.Stop()
+	v.exif.Stop()
 	v.updateOp.invalidate()
 	v.slides.Exit()
 	v.compare.Close()
 	v.mosaicWin.Close()
+	v.deletion.Close()
+	v.deletion.Settle()
 
 	// Vector re-renders: spawned by any effective-scale change, so a test
 	// that zoomed or resized may still have one in flight. Must stay below
@@ -195,6 +212,10 @@ func drain(t *testing.T, v *viewer) {
 	// and no slideshow advance can start a load is this Wait racing no
 	// further Add.
 	v.vector.pending.Wait()
+	drainClipboard(t, v)
+	drainFileWork(t, v)
+	waitFor(t, "the file chooser at cleanup", &v.chooser)
+	drainOpenChooser(t, v)
 
 	// Ordered causally, not chronologically: a row that can still start
 	// the work a later row waits on must come first, or a finish landing
@@ -202,10 +223,9 @@ func drain(t *testing.T, v *viewer) {
 	// (finishLoad begins v.anim and spawns animate before its own done()).
 	// The chain is chooser -> scan -> sort -> load -> animation -> preloads
 	// (preloads is waited out separately, below) - chooser first because
-	// runFileChooser calls handleDrop, which begins scan, synchronously
-	// before the chooser's own finisher fires, so a scan wait that ran
-	// ahead of the chooser wait could still miss a scan that starts while
-	// the chooser goroutine is still unwinding. This loop enforces every
+	// chooserUI delivery calls handleDrop and begins scan. The explicit
+	// native-worker wait and queue drain above must precede these waits;
+	// otherwise a scan could begin behind a wait which already returned. This loop enforces every
 	// edge in that chain now. Ordering helps here in a way a chan-value
 	// table couldn't: these rows hold *completion.Signal, and Wait reads
 	// the live generation at call time, so a correctly ordered row also
@@ -220,7 +240,6 @@ func drain(t *testing.T, v *viewer) {
 		{"the wallpaper at cleanup", &v.wallpaper},
 		{"the update check at cleanup", v.updater.Done()},
 		{"the favorite previews at cleanup", &v.favThumb},
-		{"the file chooser at cleanup", &v.chooser},
 		{"the scan at cleanup", &v.scanOp.done},
 		{"the sort at cleanup", &v.sortOp.done},
 		{"the load at cleanup", &v.load},
@@ -254,16 +273,22 @@ func drain(t *testing.T, v *viewer) {
 
 	settled := make(chan struct{})
 	go func() {
+		v.waitWinPosPoll()
+		v.settingsWin.WaitForTracking()
+		v.exif.WaitForTracking()
+		v.mosaicWin.WaitForTracking()
+		v.favThumbWorkers.Wait()
 		v.preloads.Wait()
 		v.grid.Settle()
 		v.slides.Settle()
+		v.exif.Settle()
 		close(settled)
 	}()
 
 	select {
 	case <-settled:
 	case <-time.After(testTimeout):
-		t.Fatal("timed out draining preload/thumbnail/slideshow goroutines at cleanup")
+		t.Fatal("timed out draining favorite/preload/thumbnail/slideshow goroutines at cleanup")
 	}
 }
 
@@ -430,9 +455,8 @@ func waitForAnimStopped(t *testing.T, v *viewer) {
 	waitFor(t, "the animation to stop", &v.anim)
 }
 
-// waitForClipboard waits out the goroutine a clipboard copy runs on -
-// v.clipboard is finished once that goroutine has fully run, error toast
-// included, so reading widget state afterwards is race-free.
+// waitForClipboard waits encoding/dispatch, drains queued results, then observes
+// the operation's completion. A dispatcher-entry channel precedes UI effects.
 func waitForClipboard(t *testing.T, v *viewer) {
 	t.Helper()
 
@@ -440,7 +464,21 @@ func waitForClipboard(t *testing.T, v *viewer) {
 		t.Fatal("the clipboard copy never started")
 	}
 
+	drainClipboard(t, v)
 	waitFor(t, "the clipboard copy", &v.clipboard)
+}
+
+func drainClipboard(t *testing.T, v *viewer) {
+	t.Helper()
+	finished := make(chan struct{})
+	go func() { v.clipboardWork.workers.Wait(); close(finished) }()
+	select {
+	case <-finished:
+	case <-time.After(testTimeout):
+		t.Fatal("timed out waiting for clipboard encoding/dispatch")
+	}
+	for v.clipboardWork.ui.Drain() {
+	}
 }
 
 // waitForReveal waits out the goroutine a file-manager reveal runs on -
@@ -498,19 +536,29 @@ func settleToast(t *testing.T, v *viewer) {
 	v.toast.autoHide(v.toast.gen.Load())
 }
 
-// settleChooser waits for openFileDialog's background goroutine to finish.
-// Signalling from inside a filepicker.Choose stub is not enough: the stub
-// returns first, and the error path renders a toast afterwards - so a test
-// that only waited on its own stub channel left that rendering running
-// concurrently with whatever came next.
+// settleChooser waits for native work and drains open results on this test's
+// UI goroutine. Only then can callers wait for any child scan/sort/load work.
 func settleChooser(t *testing.T, v *viewer) {
 	t.Helper()
-
 	if !v.chooser.Begun() {
 		t.Fatal("no file-chooser goroutine pending to settle")
 	}
-
+	drainFileWork(t, v)
 	waitFor(t, "the file-chooser goroutine", &v.chooser)
+	drainOpenChooser(t, v)
+}
+
+func drainOpenChooser(t *testing.T, v *viewer) {
+	t.Helper()
+	stopped := make(chan struct{})
+	go func() { v.openChooserWorkers.Wait(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(testTimeout):
+		t.Fatal("timed out waiting for all native open chooser workers")
+	}
+	for v.chooserUI.Drain() {
+	}
 }
 
 // settleSlideshow leaves picture-frame mode (a no-op when it's already
@@ -531,6 +579,7 @@ func settleSlideshow(t *testing.T, v *viewer) {
 	settled := make(chan struct{})
 	go func() {
 		v.slides.Settle()
+		v.exif.Settle()
 		close(settled)
 	}()
 

@@ -1,12 +1,17 @@
 package favthumbs
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,7 +81,8 @@ func (s *testSink) setCached(src fyne.URI, thumb image.Image) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.cached[src.String()] = thumb
+	name, _ := EntryName(src)
+	s.cached[src.String()] = &Preview{Image: thumb, SourceVersion: name}
 }
 
 // storeCalls is the number of Store invocations, not the number of
@@ -460,5 +466,202 @@ func TestSyncDeduplicatesRepeatedFiles(t *testing.T) {
 	}
 	if got := sink.storeCalls(); got != 2 {
 		t.Errorf("Store was called %d times, want 2 - the repeated file was worked twice", got)
+	}
+}
+
+func TestSyncReplacesLegacyPreviewAfterCompletePass(t *testing.T) {
+	t.Parallel()
+	favDir := filepath.Join(t.TempDir(), "Trip")
+	src := uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.RGBA{R: 200, A: 255})
+	if err := Write(favDir, src, newOpaqueThumb(8, 8, color.RGBA{G: 255, A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(src.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, _ := pathHash(src)
+	legacy := filepath.Join(Dir(favDir), fmt.Sprintf("%s-%d-%d.jpg", hash, info.ModTime().Unix(), info.Size()))
+	if err := os.Rename(previewPath(t, favDir, src, ".jpg"), legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Read(favDir, src); ok {
+		t.Error("legacy whole-second entry was accepted as current")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := Sync(ctx, favDir, []fyne.URI{src}, newTestSink()); err == nil {
+		t.Error("cancelled sync returned success")
+	}
+	if !fileExists(legacy) {
+		t.Fatal("cancelled pass removed an unvisited legacy preview")
+	}
+	if err := Sync(context.Background(), favDir, []fyne.URI{src}, newTestSink()); err != nil {
+		t.Fatal(err)
+	}
+	if fileExists(legacy) {
+		t.Error("complete pass retained obsolete legacy preview")
+	}
+	if _, ok := Read(favDir, src); !ok {
+		t.Error("complete pass failed to create the current preview")
+	}
+}
+
+func TestSync_CancelsHeldReadsAndSlotWaiterWithoutPublishingOrSweeping(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	favDir, srcDir := t.TempDir(), t.TempDir()
+	stale := newSourceFile(t, srcDir, "stale.jpg")
+	if err := Write(favDir, stale, newOpaqueThumb(4, 4, color.RGBA{G: 255, A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	stalePath := previewPath(t, favDir, stale, ".jpg")
+	data := uitest.CaptureDateJPEG(t, 4, 4, "2020:01:01 00:00:00")
+	entered, release := make(chan struct{}, syncConcurrency), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	defer unblock()
+	reads, closed := make([]int, syncConcurrency), make([]bool, syncConcurrency)
+	files := make([]fyne.URI, syncConcurrency+1)
+	for i := range syncConcurrency {
+		src := newSourceFile(t, srcDir, fmt.Sprintf("source-%d.jpg", i))
+		files[i] = uitest.ReaderURI(src, func() (io.ReadCloser, error) {
+			r := bytes.NewReader(data)
+			first := true
+			return uitest.ReadCloser{
+				ReadFunc: func(p []byte) (int, error) {
+					reads[i]++
+					if first {
+						first = false
+						entered <- struct{}{}
+						<-release
+					}
+					return r.Read(p)
+				},
+				CloseFunc: func() error { closed[i] = true; return nil },
+			}, nil
+		})
+	}
+	var waiterOpens atomic.Int32
+	files[syncConcurrency] = uitest.ReaderURI(newSourceFile(t, srcDir, "waiter.jpg"), func() (io.ReadCloser, error) {
+		waiterOpens.Add(1)
+		return io.NopCloser(bytes.NewReader(data)), nil
+	})
+	sink := newTestSink()
+	done := make(chan error, 1)
+	go func() { done <- Sync(ctx, favDir, files, sink) }()
+	for range syncConcurrency {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("decode slots did not fill")
+		}
+	}
+	cancel()
+	unblock()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Sync = %v, want cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("cancelled pass did not complete")
+	}
+	for i := range syncConcurrency {
+		if reads[i] != 1 || !closed[i] {
+			t.Errorf("source %d reads=%d closed=%v, want 1/true", i, reads[i], closed[i])
+		}
+		if hasCurrentPreview(favDir, files[i]) {
+			t.Errorf("cancelled source %d published disk preview", i)
+		}
+	}
+	if waiterOpens.Load() != 0 || sink.storeCalls() != 0 {
+		t.Errorf("waiter opens=%d stores=%d, want 0/0", waiterOpens.Load(), sink.storeCalls())
+	}
+	if !fileExists(stalePath) {
+		t.Error("cancelled pass swept an unvisited preview")
+	}
+	// The next complete pass uses the same sources and converges while idle.
+	if err := Sync(context.Background(), favDir, files, sink); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range files {
+		if !hasCurrentPreview(favDir, u) {
+			t.Errorf("idle pass did not write %v", u)
+		}
+	}
+	if fileExists(stalePath) {
+		t.Error("complete pass did not sweep the stale preview")
+	}
+}
+
+type cancelAfterCacheSink struct {
+	*testSink
+	cancel context.CancelFunc
+	hit    bool
+}
+
+func (s cancelAfterCacheSink) Cached(_ fyne.URI) (image.Image, bool) {
+	s.cancel()
+	return newOpaqueThumb(4, 4, color.RGBA{R: 255, A: 255}), s.hit
+}
+
+func TestSync_CancellationAfterMemoryLookupStopsDiskAndStore(t *testing.T) {
+	for _, hit := range []bool{false, true} {
+		t.Run(fmt.Sprint(hit), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			dir := t.TempDir()
+			src := uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White)
+			if !hit { // A disk hit must not be offered after the preceding lookup cancelled.
+				if err := Write(dir, src, newOpaqueThumb(4, 4, color.RGBA{A: 255})); err != nil {
+					t.Fatal(err)
+				}
+			}
+			sink := cancelAfterCacheSink{testSink: newTestSink(), cancel: cancel, hit: hit}
+			if err := Sync(ctx, dir, []fyne.URI{src}, sink); !errors.Is(err, context.Canceled) {
+				t.Errorf("Sync = %v", err)
+			}
+			if sink.storeCalls() != 0 {
+				t.Error("cancelled pass offered a disk hit")
+			}
+			if hit && hasCurrentPreview(dir, src) {
+				t.Error("cancelled memory hit wrote a preview")
+			}
+		})
+	}
+}
+
+func TestSync_SourceReplacementDuringDecodeCannotLabelOldPixelsAsCurrent(t *testing.T) {
+	favDir := t.TempDir()
+	src := uitest.TempJPEGURI(t, "source.jpg", 8, 16, color.White)
+	old, err := os.ReadFile(src.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := uitest.CaptureDateJPEG(t, 16, 8, "2026:09:07 01:02:03")
+	u := uitest.ReaderURI(src, func() (io.ReadCloser, error) {
+		// The reader already owns the old bytes while an atomic replacement
+		// becomes visible to a subsequent EntryName stat.
+		if err := os.WriteFile(src.Path(), replacement, 0o600); err != nil {
+			return nil, err
+		}
+		return io.NopCloser(bytes.NewReader(old)), nil
+	})
+	sink := newTestSink()
+	if err := Sync(context.Background(), favDir, []fyne.URI{u}, sink); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Read(favDir, src); ok {
+		t.Error("old decode was stored under replacement's current preview name")
+	}
+	if _, ok := sink.storedFor(u); ok {
+		t.Error("old decode was offered to the current memory sink")
+	}
+	if err := Sync(context.Background(), favDir, []fyne.URI{src}, sink); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Read(favDir, src); !ok {
+		t.Error("replacement could not populate its own preview on retry")
 	}
 }

@@ -7,6 +7,8 @@
 package winpos
 
 import (
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -48,65 +50,112 @@ const GestureInterval = 60 * time.Millisecond
 // manually-placed position this exists to remember - it would clobber the
 // value the slideshow captured on the way in for its own exit to restore.
 //
-// Each reading is hopped onto the main goroutine via fyne.DoAndWait, the
-// same pattern internal/filepicker/darwin.go uses for NSOpenPanel: darwin's
-// Get reaches into NSWindow.frame through cgo, and RunNative
-// (window_darwin.go) runs that callback synchronously on whatever goroutine
-// called it rather than marshaling to the main thread itself, so without
-// this hop every tick reads AppKit state directly from this background
-// goroutine - a plain violation of AppKit's main-thread-only rule. It's
-// harmless in isolation, but contends with the main thread's own AppKit/GL
-// work closely enough to stall it badly under load - e.g. internal/ui/grid
-// uploading a screenful of thumbnail textures - which is what turned
-// "instant" grid population into a multi-minute one. Safe to call from here
-// specifically because this goroutine is never the UI goroutine (DoAndWait
-// would deadlock if it were) - the same guarantee chooseFilesDarwin's own
-// doc comment spells out for its call site.
+// Each native read and its callback run through fyne.Do on UI. Darwin's
+// RunNative does not marshal an NSWindow frame read to AppKit's main thread.
+// Only one reading may be queued at a time, and skip is checked inside it.
 //
-// fn therefore runs *inside* that hop, on the UI goroutine, which is both
-// why it may touch widgets directly and why it must stay cheap: whatever it
-// does is time the main thread is not rendering.
-//
-// The returned func stops the goroutine, and callers must run it before the
-// event loop winds down - at shutdown for a window that lives as long as the
-// app, on close for one that doesn't - so the goroutine isn't left blocked
-// inside fyne.DoAndWait against a loop that will never run it. A no-op func,
-// never nil, when no poller started.
-func PollAt(win fyne.Window, interval time.Duration, skip func() bool, fn func(x, y int)) (stop func()) {
+// Stop is nonblocking and idempotent. It can discard a queued read and finish
+// the worker without the event loop running that callback. If a native read
+// has already begun, Done closes only after it returns; its cancelled result
+// is discarded. Call Stop while shutting down UI, and Wait off UI when actual
+// worker completion is needed. A non-native window returns a completed handle.
+func PollAt(win fyne.Window, interval time.Duration, skip func() bool, fn func(x, y int)) *Poller {
 	if _, ok := win.(driver.NativeWindow); !ok {
-		return func() {}
+		p := &Poller{stop: make(chan struct{}), done: make(chan struct{})}
+		close(p.done)
+		return p
 	}
 
-	done := make(chan struct{})
-
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-			case <-done:
-				return
-			}
-			if skip != nil && skip() {
-				continue
-			}
-			fyne.DoAndWait(func() {
-				if x, y, ok := Get(win); ok {
-					fn(x, y)
-				}
-			})
-		}
-	}()
-
-	return func() { close(done) }
+	ticker := time.NewTicker(interval)
+	p := startPoll(ticker.C, ticker.Stop, skip, fn, func() (int, int, bool) { return Get(win) }, fyne.Do)
+	return p
 }
 
 // Poll keeps t current with win's position at PollInterval - the common
 // case, and a thin binding of PollAt above, which owns the loop itself and
 // every reason it has to be a poller at all. The tracker keeps its last
-// reading after the returned stop func runs, so a save afterwards still has
+// reading after the returned Poller is stopped, so a save afterwards still has
 // a value.
-func Poll(win fyne.Window, t *Tracker, skip func() bool) (stop func()) {
+func Poll(win fyne.Window, t *Tracker, skip func() bool) *Poller {
 	return PollAt(win, PollInterval, skip, t.Store)
+}
+
+// Poller owns cancellation and actual worker completion. Stop never waits.
+type Poller struct {
+	stop chan struct{}
+	done chan struct{}
+	once sync.Once
+}
+
+// Stop requests cancellation without waiting for dispatch or an active read.
+func (p *Poller) Stop() {
+	if p != nil {
+		p.once.Do(func() { close(p.stop) })
+	}
+}
+
+// Done closes when the worker and any already-started read have finished.
+func (p *Poller) Done() <-chan struct{} { return p.done }
+
+// Wait observes Done; call it off UI, after Stop.
+func (p *Poller) Wait() {
+	if p != nil {
+		<-p.done
+	}
+}
+
+// startPoll owns the same loop as PollAt; each dependency is captured per call.
+func startPoll(ticks <-chan time.Time, stopTicks func(), skip func() bool, publish func(int, int), read func() (int, int, bool), dispatch func(func())) *Poller {
+	p := &Poller{stop: make(chan struct{}), done: make(chan struct{})}
+	go func() {
+		defer close(p.done)
+		defer stopTicks()
+		for {
+			select {
+			case <-ticks:
+			case <-p.stop:
+				return
+			}
+
+			if p.stopped() {
+				return
+			}
+			// 0 pending, 1 executing, 2 discarded. Stop can abandon a queued
+			// callback, but Done must still cover an already active native read.
+			var admission atomic.Uint32
+			applied := make(chan struct{})
+			dispatch(func() {
+				if !admission.CompareAndSwap(0, 1) {
+					return
+				}
+				defer close(applied)
+				if p.stopped() || (skip != nil && skip()) {
+					return
+				}
+				x, y, ok := read()
+				if ok && !p.stopped() {
+					publish(x, y)
+				}
+			})
+			select {
+			case <-applied:
+			case <-p.stop:
+				if admission.CompareAndSwap(0, 2) {
+					return
+				}
+				<-applied
+				return
+			}
+		}
+	}()
+	return p
+}
+
+func (p *Poller) stopped() bool {
+	select {
+	case <-p.stop:
+		return true
+	default:
+		return false
+	}
 }

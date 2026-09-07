@@ -79,7 +79,7 @@ func (m *Model) InspectMembers() []int {
 func (m *Model) inspectMembers(s Snapshot) []int {
 	m.mu.Lock()
 	key := m.inspectKey
-	groups := m.groups
+	groups := m.readableGroupsLocked(s.Generation())
 	m.mu.Unlock()
 
 	src := s.IndexOf(key)
@@ -143,11 +143,15 @@ func (v Visibility) Size(i int) int {
 // mutex acquisition per candidate; at 50k files with hide on, that was
 // the cost of a single arrow key.
 func (m *Model) Visibility() Visibility {
+	return m.visibility(m.set.Snapshot())
+}
+
+func (m *Model) visibility(s Snapshot) Visibility {
 	m.visibilityReads.Add(1)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return Visibility{Hide: m.hide, Groups: m.groups}
+	return Visibility{Hide: m.hide, Groups: m.readableGroupsLocked(s.Generation())}
 }
 
 // VisibilityReads is how many times Visibility has run, so tests can prove
@@ -191,7 +195,7 @@ func (m *Model) NextVisible(from, delta int) int {
 	if members := m.inspectMembers(s); len(members) >= 2 && delta != 0 {
 		return stepInMembers(members, from, delta)
 	}
-	vis := m.Visibility()
+	vis := m.visibility(s)
 	if !vis.Hide || delta == 0 {
 		return from + delta
 	}
@@ -222,7 +226,7 @@ func (m *Model) NextVisible(from, delta int) int {
 // off, so this loop degrades to "the first index" on its own.
 func (m *Model) FirstVisible() int {
 	s := m.set.Snapshot()
-	vis := m.Visibility()
+	vis := m.visibility(s)
 	for i := range s.Count() {
 		if !vis.HiddenExtra(i) {
 			return i
@@ -236,7 +240,7 @@ func (m *Model) FirstVisible() int {
 // nothing qualifies. Same non-check of HideDuplicates as FirstVisible.
 func (m *Model) LastVisible() int {
 	s := m.set.Snapshot()
-	vis := m.Visibility()
+	vis := m.visibility(s)
 	for i := s.Count() - 1; i >= 0; i-- {
 		if !vis.HiddenExtra(i) {
 			return i
@@ -252,7 +256,7 @@ func (m *Model) LastVisible() int {
 // why this package must not import math/rand.
 func (m *Model) VisibleIndexesExcept(current int) []int {
 	s := m.set.Snapshot()
-	vis := m.Visibility()
+	vis := m.visibility(s)
 	var out []int
 	for i := range s.Count() {
 		if i != current && !vis.HiddenExtra(i) {

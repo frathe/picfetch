@@ -48,10 +48,7 @@ func (v *viewer) revealCurrentFile() {
 	}()
 }
 
-// reportRevealError logs the failure and shows it as a toast on every
-// platform, like reportClipboardError and unlike reportChooserError: there
-// is no cancel to mistake a failure for here, because nothing about this
-// command asks the user a question.
+// reportRevealError logs a failed file-manager reveal and shows a toast.
 func (v *viewer) reportRevealError(err error) {
 	detail := chooserErrorDetail(err)
 	fyne.LogError("file manager reveal failed", errors.New(detail))

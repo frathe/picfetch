@@ -1,17 +1,79 @@
 package ui
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"image"
 	"image/color"
+	"io"
 	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestExifNavigationCancelsMetadataBeforeTheNextImageLoads(t *testing.T) {
+	for _, clear := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clear=%v", clear), func(t *testing.T) {
+			v, _, _ := newTestUI(t)
+			oldFile := uitest.TempGPSJPEGURI(t, "old.jpg", 40, 20, 48.858222, 2.2945)
+			newFile := uitest.TempJPEGURI(t, "new.jpg", 40, 20, color.RGBA{B: 255, A: 255})
+			dropAndWait(t, v, oldFile)
+			v.exif.Show()
+			v.exif.Settle()
+			oldData, err := os.ReadFile(oldFile.Path())
+			if err != nil {
+				t.Fatal(err)
+			}
+			oldEntered, oldRelease := make(chan struct{}), make(chan struct{})
+			var oldOnce sync.Once
+			old := uitest.ReaderURI(oldFile, func() (io.ReadCloser, error) {
+				oldOnce.Do(func() { close(oldEntered) })
+				<-oldRelease
+				return io.NopCloser(bytes.NewReader(oldData)), nil
+			})
+			newEntered, newRelease := make(chan struct{}), make(chan struct{})
+			var enteredOnce sync.Once
+			fresh := uitest.ReaderURI(newFile, func() (io.ReadCloser, error) {
+				enteredOnce.Do(func() { close(newEntered) })
+				<-newRelease
+				return os.Open(newFile.Path())
+			})
+			v.state.files = []fyne.URI{old, fresh}
+			v.exif.Refresh()
+			<-oldEntered
+			if clear {
+				v.clearToDropzone()
+			} else {
+				v.ShowImage(1)
+				<-newEntered
+				if _, ok := v.DisplayedFile(); ok {
+					t.Error("metadata admission treated a selected, still-loading source as displayed")
+				}
+			}
+			close(oldRelease)
+			v.exif.Settle()
+			if v.exif.Text().Text != "" || v.exif.Location().Visible() || v.exif.StripButton().Visible() {
+				t.Errorf("obsolete metadata during navigation/reset: text=%q, GPS=%v, strip=%v", v.exif.Text().Text, v.exif.Location().Visible(), v.exif.StripButton().Visible())
+			}
+			close(newRelease)
+			if !clear {
+				waitUntilLoaded(t, v)
+				v.exif.Settle()
+			}
+			v.exif.Window().Close()
+		})
+	}
+}
 
 // --- EXIF panel wiring ------------------------------------------------
 //
@@ -28,6 +90,7 @@ func TestShowExifWindow_NoopWithNothingLoaded(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	v.exif.Show()
+	v.exif.Settle()
 
 	if v.exif.Open() {
 		t.Error("showExifWindow should no-op with nothing loaded")
@@ -47,6 +110,7 @@ func TestShowExifWindow_OpensAndRaisesSameWindow(t *testing.T) {
 	dropAndWait(t, v, a)
 
 	v.exif.Show()
+	v.exif.Settle()
 
 	win := v.exif.Window()
 	if win == nil {
@@ -54,6 +118,7 @@ func TestShowExifWindow_OpensAndRaisesSameWindow(t *testing.T) {
 	}
 
 	v.exif.Show()
+	v.exif.Settle()
 
 	if v.exif.Window() != win {
 		t.Error("a second showExifWindow call should raise the existing window, not open a new one")
@@ -80,6 +145,7 @@ func TestShowExifWindow_ContentAndRefreshOnNavigation(t *testing.T) {
 	dropAndWait(t, v, a, b)
 
 	v.exif.Show()
+	v.exif.Settle()
 
 	want := "No EXIF metadata found in this file."
 	if got := v.exif.Text().Text; got != want {
@@ -88,6 +154,7 @@ func TestShowExifWindow_ContentAndRefreshOnNavigation(t *testing.T) {
 
 	v.ShowImage(v.state.index + 1)
 	waitUntilLoaded(t, v)
+	v.exif.Settle()
 
 	if got := v.exif.Text().Text; got != want {
 		t.Errorf("exifText after navigating should stay in sync, got %q, want %q", got, want)
@@ -101,6 +168,7 @@ func TestExifWindow_LeftRightChangeImage(t *testing.T) {
 	dropAndWait(t, v, a, b)
 
 	v.exif.Show()
+	v.exif.Settle()
 	start := v.state.index
 	canvas := v.exif.Window().Canvas()
 	if got := canvas.Focused(); got != nil {
@@ -205,6 +273,7 @@ func TestExifLink_VisibilityFollowsNavigation(t *testing.T) {
 
 	v.ShowImage(v.state.index + 1)
 	waitUntilLoaded(t, v)
+	v.exif.Settle()
 
 	if v.info.ExifLink().Visible() {
 		t.Error("the EXIF link should hide again after navigating to a file with no EXIF metadata")
@@ -245,6 +314,7 @@ func TestStripMetadata_HidesExifLinkAndShrinksReportedSize(t *testing.T) {
 	}
 
 	v.exif.Show()
+	v.exif.Settle()
 	v.exif.StripButton().OnTapped()
 	panel, ok := v.exif.Window().Canvas().Focused().(*widgets.ChoicePanel)
 	if !ok {
@@ -252,6 +322,8 @@ func TestStripMetadata_HidesExifLinkAndShrinksReportedSize(t *testing.T) {
 	}
 	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	v.exif.Settle()
+	drainFileWork(t, v)
 
 	settleToast(t, v)
 
@@ -287,5 +359,67 @@ func TestStripMetadata_HidesExifLinkAndShrinksReportedSize(t *testing.T) {
 
 	if v.imgCache.Contains(u.String()) {
 		t.Fatal("imgCache should have been evicted")
+	}
+}
+
+func TestShutdownStopsExifAdmission(t *testing.T) {
+	application := test.NewApp()
+	v, win := buildStartupViewer(application)
+	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.compare.SetUIQueue(&uitest.UIQueue{})
+	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
+	v.slides.SetUIQueue(&uitest.UIQueue{})
+	v.deletion.SetUIQueue(&uitest.UIQueue{})
+	v.exif.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(win.Close)
+	t.Cleanup(func() { drain(t, v) })
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White))
+	v.exif.Show()
+	v.exif.Settle()
+	if !v.exif.Open() {
+		t.Fatal("fixture did not open EXIF before shutdown")
+	}
+	v.exif.Window().Close()
+	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
+	if !ok {
+		t.Fatal("test lifecycle has no stopped hook")
+	}
+	original := lifecycle.OnStopped()
+	registerShutdown(application, v)
+	shutdown := lifecycle.OnStopped()
+	application.Lifecycle().SetOnStopped(original)
+	shutdown()
+	v.exif.Show()
+	v.exif.Settle()
+	if v.exif.Open() {
+		t.Error("shutdown EXIF window admitted fresh work")
+	}
+}
+
+func TestMetadataRemovalRefreshesCurrentAliasWithoutLosingRotation(t *testing.T) {
+	v, _, _ := newTestUI(t)
+	source := uitest.TempGPSJPEGURI(t, "gps.jpg", 40, 20, 48.858222, 2.2945)
+	aliasPath := filepath.Join(t.TempDir(), "alias.jpg")
+	if err := os.Symlink(source.Path(), aliasPath); err != nil {
+		t.Fatal(err)
+	}
+	alias := storage.NewFileURI(aliasPath)
+	dropAndWait(t, v, alias)
+	v.rotateBy(1)
+	v.exif.Show()
+	v.exif.Settle()
+	before := v.info.FileSize()
+	result, err := imaging.StripJPEGMetadataContext(context.Background(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.AfterMetadataRemoved(source, result)
+	drainFileWork(t, v)
+	v.exif.Settle()
+	if v.info.HasEXIF() || v.info.FileSize() >= before {
+		t.Errorf("current alias retained old metadata: EXIF=%v bytes=%d/%d", v.info.HasEXIF(), v.info.FileSize(), before)
+	}
+	if v.display.Rotation() != 1 || v.img.Image.Bounds().Size() != image.Pt(20, 40) {
+		t.Error("metadata refresh replaced unsaved view rotation")
 	}
 }

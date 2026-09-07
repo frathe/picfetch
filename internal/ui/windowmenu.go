@@ -15,7 +15,7 @@ package ui
 import "fyne.io/fyne/v2"
 
 func (v *viewer) refreshMainMenu() {
-	if v.win == nil || v.win.MainMenu() == nil {
+	if v.stopping || v.win == nil || v.win.MainMenu() == nil {
 		return
 	}
 	bar := v.win.MainMenu()
@@ -25,13 +25,8 @@ func (v *viewer) refreshMainMenu() {
 	// that rebuild already ran, and again on the next UI turn in case it
 	// was only queued. fyne.Do before Run runs inline and is too early
 	// (see Run: fold after Show).
-	syncNativeMenuBar(bar)
-	fyne.Do(func() {
-		if v.win == nil {
-			return
-		}
-		syncNativeMenuBar(v.win.MainMenu())
-	})
+	v.syncNativeMenuBar()
+	fyne.Do(v.syncNativeMenuBar)
 }
 
 // RefreshMenus is the favorites feature's way to ask for the fold, since
@@ -44,9 +39,12 @@ func (v *viewer) RefreshMenus() { v.refreshMainMenu() }
 // MainMenu rebuild: fold Window items into NSApp.windowsMenu, then clear
 // AppKit's default Command mask on unmodified letter accelerators. Both
 // steps are no-ops off Darwin.
-func syncNativeMenuBar(bar *fyne.MainMenu) {
+func (v *viewer) syncNativeMenuBar() {
+	if v.stopping || v.win == nil {
+		return
+	}
 	mergeNativeWindowMenu()
-	applyUnmodifiedNativeAccelerators(bar)
+	applyUnmodifiedNativeAccelerators(v.win.MainMenu())
 }
 
 func (v *viewer) showViewer() {

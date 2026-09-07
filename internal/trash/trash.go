@@ -64,25 +64,16 @@ func moveLinux(path string) error {
 	return err
 }
 
-// homeTrashEnv is os.Environ() with XDG_DATA_HOME forced to its
-// freedesktop.org default of $HOME/.local/share. gio/trash-put resolve the
-// home trash directory as $XDG_DATA_HOME/Trash, and confined launchers -
-// notably a snap-packaged terminal like VS Code's, which this app is
-// routinely built and run from - override XDG_DATA_HOME to a private
-// per-app data directory for sandboxing, without touching HOME. Inheriting
-// that override makes trash.Move report success while the file lands
-// somewhere the desktop's own file manager never looks, which is
-// indistinguishable from a silent permanent delete. HOME itself isn't
-// touched by that redirection (confirmed against a real snap-confined
-// shell), so overriding just XDG_DATA_HOME here is enough to put the file
-// where the file manager's Trash view actually looks.
+// homeTrashEnv preserves the desktop's ordinary XDG configuration. A snap
+// launcher can redirect XDG_DATA_HOME into its private per-revision home
+// without changing HOME; only that identified layout uses the host default.
+// Other custom data directories belong to the user and remain authoritative.
 func homeTrashEnv() []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return os.Environ()
-	}
-
 	env := os.Environ()
+	home, err := os.UserHomeDir()
+	if err != nil || !snapDataHome(home, os.Getenv("XDG_DATA_HOME")) {
+		return env
+	}
 	out := env[:0]
 	for _, kv := range env {
 		if !strings.HasPrefix(kv, "XDG_DATA_HOME=") {
@@ -90,6 +81,33 @@ func homeTrashEnv() []string {
 		}
 	}
 	return append(out, "XDG_DATA_HOME="+filepath.Join(home, ".local", "share"))
+}
+
+func snapDataHome(home, dataHome string) bool {
+	if dataHome == "" || filepath.Clean(dataHome) != dataHome {
+		return false
+	}
+	relative, err := filepath.Rel(filepath.Join(home, "snap"), dataHome)
+	if err != nil {
+		return false
+	}
+	parts := strings.Split(filepath.ToSlash(relative), "/")
+	if len(parts) != 4 || parts[0] == ".." || parts[0] == "" || parts[2] != ".local" || parts[3] != "share" {
+		return false
+	}
+	revision := parts[1]
+	if revision == "current" || revision == "common" {
+		return true
+	}
+	if revision == "" {
+		return false
+	}
+	for _, c := range revision {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // moveWindows shells out to Microsoft.VisualBasic.FileIO.FileSystem's

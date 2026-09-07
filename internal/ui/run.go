@@ -51,9 +51,9 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) {
 	// defers CLI drops until the event loop is running, as handleDrop
 	// touches widgets directly.
 	window.Show()
-	syncNativeMenuBar(view.win.MainMenu())
+	view.syncNativeMenuBar()
 	application.Lifecycle().SetOnStarted(func() {
-		syncNativeMenuBar(view.win.MainMenu())
+		view.syncNativeMenuBar()
 		// The failure report takes its record from the sweep rather than
 		// re-reading the cache, and that data dependency is what keeps the
 		// report ordered after the sweep: reporting clears the record, and a
@@ -91,8 +91,8 @@ func startViewerRuntime(view *viewer, window fyne.Window, favoritesDir string) {
 	view.maybeStartUpdateCheck()
 }
 
-// registerShutdown installs the save while the Fyne event loop is still
-// available to synchronously flush preferences.
+// registerShutdown retires UI updates, cancels work, and saves state before
+// Fyne performs its guaranteed final preferences flush.
 func registerShutdown(application fyne.App, view *viewer) {
 	// Wired via SetOnStopped, not run after ShowAndRun returns: Fyne's own
 	// app.Preferences() schedules its on-disk flush through a debounced
@@ -109,14 +109,22 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// have run - so writing the preferences from here piggybacks on that
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
-		// Stopped first, all three of them: each poller hops through
-		// fyne.DoAndWait on every tick, and the event loop they need is
-		// about to wind down. The secondary windows only have one running
-		// if they're still open right now, and StopTracking says so itself.
+		view.stopping = true
+		view.closeFileWork()
+		view.closeClipboardWork()
+		view.closeOpenChooser()
+		view.closeFavoritePreviews()
+		view.grid.Stop()
+		view.exif.Stop()
+		view.deletion.Close()
+		// Cancel main and secondary position sampling. Stop discards queued
+		// reads without waiting on the retired UI;
+		// completion is observed separately by the test harness off UI.
 		view.stopWinPosPoll()
 		view.settingsWin.StopTracking()
 		view.exif.StopTracking()
 		view.mosaicWin.StopTracking()
+		view.slides.Close()
 		view.scanOp.lifecycle.invalidate()
 		view.loadLifecycle.invalidate()
 		view.sortOp.lifecycle.invalidate()
@@ -144,8 +152,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 // currentPreferences is everything worth remembering about this run, ready
 // for preferences.Save. Split out of the SetOnStopped callback above purely
-// so it can be read back in a test - the callback itself only ever runs
-// inside a live Fyne event loop.
+// so it can be read back in a test before Fyne performs its final flush.
 //
 // view.windowSize is kept current by windowSizeTracker (windowtrack.go) on
 // every layout, so it already reflects the window's last size by the time

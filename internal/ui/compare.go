@@ -58,20 +58,35 @@ func (v *viewer) compareSelected() {
 // path and cache without changing the displayed file or removing failures
 // from the file set.
 func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
-	if loaded, ok := v.imgCache.Get(uri.String()); ok {
-		return loaded, nil
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		writer := v.imgCache.Capture()
+		if loaded, ok := v.imgCache.Get(uri.String()); ok {
+			if writer.Current() {
+				return loaded, nil
+			}
+			continue
+		}
+		data, _, err := imaging.ReadAndProbe(ctx, uri)
+		if err != nil {
+			if !writer.Current() {
+				continue
+			}
+			return nil, err
+		}
+		loaded, err := imaging.DecodeRecord(ctx, data, v.imgCache.Budget())
+		if !writer.Current() {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if writer.Add(uri.String(), loaded) {
+			return loaded, nil
+		}
 	}
-
-	data, _, err := imaging.ReadAndProbe(ctx, uri)
-	if err != nil {
-		return nil, err
-	}
-	loaded, err := imaging.DecodeLoaded(ctx, data, v.imgCache.Budget())
-	if err != nil {
-		return nil, err
-	}
-	v.imgCache.Add(uri.String(), loaded)
-	return loaded, nil
 }
 
 func (v *viewer) compareFailed(uri fyne.URI, err error) {

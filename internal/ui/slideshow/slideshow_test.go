@@ -3,10 +3,12 @@ package slideshow
 import (
 	"os"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/uitest"
 	"github.com/frathe/picfetch/internal/winpos"
 )
 
@@ -397,4 +399,178 @@ func TestSetAnimDuration_ExtendsTheWait(t *testing.T) {
 	if got, want := waitDuration(c.Interval(), c.AnimDuration()), 5*time.Second; got != want {
 		t.Errorf("wait after clearing the loop = %v, want the %v interval", got, want)
 	}
+}
+
+func TestQueuedAdvanceWaitsForApplication(t *testing.T) {
+	c, host := newController(t, 3)
+	synctest.Test(t, func(t *testing.T) {
+		queue := &uitest.UIQueue{}
+		c.SetUIQueue(queue)
+		ticks := make(chan time.Time)
+		requested := make(chan time.Duration, 8)
+		c.after = func(d time.Duration) <-chan time.Time { requested <- d; return ticks }
+		c.SetInterval(7 * time.Second)
+		c.Toggle()
+		defer c.Exit()
+		synctest.Wait()
+		if got := <-requested; got != 7*time.Second {
+			t.Fatalf("delay = %v", got)
+		}
+		ticks <- time.Time{}
+		synctest.Wait()
+		if queue.Len() != 1 {
+			t.Fatalf("queued advances = %d", queue.Len())
+		}
+		select {
+		case got := <-requested:
+			t.Fatalf("next countdown %v began before queued advance applied", got)
+		default:
+		}
+		queue.Drain()
+		synctest.Wait()
+		if host.advances != 1 {
+			t.Fatalf("advances = %d", host.advances)
+		}
+		if got := <-requested; got != 7*time.Second {
+			t.Fatalf("next delay = %v", got)
+		}
+		c.Exit()
+		synctest.Wait()
+		c.Settle()
+	})
+}
+
+func TestQueuedAdvanceIsDiscardedAfterExitOrRestart(t *testing.T) {
+	for _, restart := range []bool{false, true} {
+		name := "exit"
+		if restart {
+			name = "restart"
+		}
+		t.Run(name, func(t *testing.T) {
+			c, host := newController(t, 3)
+			synctest.Test(t, func(t *testing.T) {
+				queue := &uitest.UIQueue{}
+				c.SetUIQueue(queue)
+				ticks := make(chan time.Time)
+				c.after = func(_ time.Duration) <-chan time.Time { return ticks }
+				c.Toggle()
+				defer c.Exit()
+				synctest.Wait()
+				ticks <- time.Time{}
+				synctest.Wait()
+				if queue.Len() != 1 {
+					t.Fatal("advance was not queued")
+				}
+				c.Exit()
+				synctest.Wait()
+				// Settle cannot wait for the callback: it has not been applied yet.
+				c.running.Wait()
+				if restart {
+					c.Toggle()
+					synctest.Wait()
+				}
+				queue.Drain()
+				synctest.Wait()
+				if host.advances != 0 {
+					t.Fatal("stale callback advanced the ended session")
+				}
+				c.Exit()
+				synctest.Wait()
+				c.Settle()
+			})
+		})
+	}
+}
+
+func TestKickDiscardsAlreadyQueuedTimedAdvance(t *testing.T) {
+	c, host := newController(t, 3)
+	synctest.Test(t, func(t *testing.T) {
+		queue := &uitest.UIQueue{}
+		c.SetUIQueue(queue)
+		ticks := make(chan time.Time)
+		c.after = func(_ time.Duration) <-chan time.Time { return ticks }
+		c.Toggle()
+		defer c.Exit()
+		synctest.Wait()
+		ticks <- time.Time{}
+		synctest.Wait()
+		c.Kick()
+		synctest.Wait()
+		queue.Drain()
+		synctest.Wait()
+		if host.advances != 0 {
+			t.Fatal("timed callback advanced after manual navigation reset the countdown")
+		}
+		c.Exit()
+		synctest.Wait()
+		c.Settle()
+	})
+}
+
+func TestCloseStopsQueuedWorkAndPreventsRestart(t *testing.T) {
+	c, host := newController(t, 3)
+	synctest.Test(t, func(t *testing.T) {
+		queue := &uitest.UIQueue{}
+		c.SetUIQueue(queue)
+		ticks := make(chan time.Time)
+		c.after = func(_ time.Duration) <-chan time.Time { return ticks }
+		c.Toggle()
+		defer c.Exit()
+		synctest.Wait()
+		ticks <- time.Time{}
+		synctest.Wait()
+		c.Close()
+		synctest.Wait()
+		c.Settle()
+		c.Toggle()
+		synctest.Wait()
+		if c.Active() {
+			t.Error("closed controller entered a new session")
+		}
+		queue.Drain()
+		if host.advances != 0 {
+			t.Error("closed controller advanced")
+		}
+		c.Exit()
+		synctest.Wait()
+		c.Settle()
+	})
+}
+
+func TestQueuedAdvanceRechecksSessionAtApplication(t *testing.T) {
+	c, host := newController(t, 3)
+	synctest.Test(t, func(t *testing.T) {
+		queue := &heldSubmissionQueue{release: make(chan struct{})}
+		c.SetUIQueue(queue)
+		ticks := make(chan time.Time)
+		c.after = func(_ time.Duration) <-chan time.Time { return ticks }
+		c.Toggle()
+		defer c.Exit()
+		synctest.Wait()
+		ticks <- time.Time{}
+		synctest.Wait()
+		if queue.Len() != 1 {
+			t.Fatal("advance was not queued")
+		}
+		c.Exit()
+		// The worker is still held inside submission and cannot acknowledge stop.
+		// UI must reject the old session independently of that worker catching up.
+		queue.Drain()
+		if host.advances != 0 {
+			t.Error("UI applied a stale session before its worker observed stop")
+		}
+		close(queue.release)
+		synctest.Wait()
+		c.Settle()
+	})
+}
+
+type heldSubmissionQueue struct {
+	uitest.UIQueue
+	release chan struct{}
+}
+
+func (q *heldSubmissionQueue) Do(f func()) {
+	q.UIQueue.Do(f)
+	<-q.release
 }

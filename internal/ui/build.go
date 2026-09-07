@@ -97,6 +97,9 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		}),
 		keyModifiers:   defaultKeyModifiers,
 		stopWinPosPoll: noPollerStop,
+		waitWinPosPoll: noPollerStop,
+		clipboardWork:  newClipboardWork(),
+		fileWork:       newFileMutationWork(),
 	}
 
 	view.vector.debounce = defaultVectorDebounce
@@ -104,6 +107,8 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	view.vector.after = time.After
 	view.vector.do = fyne.Do
 	view.frameAfter = time.After
+	view.frameDo = fyne.Do
+	view.chooserUI = fyneChooserQueue{}
 	view.regionCopyDo = fyne.Do
 	view.regionCopyDoAndWait = fyne.DoAndWait
 	view.compareLoad = view.loadComparedImage
@@ -176,7 +181,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	// the window view exists. Run folds immediately after Show, when that
 	// queue has drained. refreshMainMenu repeats the fold after later
 	// Refresh rebuilds.
-	fyne.Do(func() { syncNativeMenuBar(view.win.MainMenu()) })
+	fyne.Do(view.syncNativeMenuBar)
 
 	window.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {
 		view.handleDrop(uris)

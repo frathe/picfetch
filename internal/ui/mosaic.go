@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/displays"
+	"github.com/frathe/picfetch/internal/imaging"
 	mosaiccore "github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 )
@@ -100,4 +101,12 @@ func (v *viewer) GenerateMosaic(ctx context.Context, request mosaiccore.Request)
 
 func (v *viewer) InspectMosaicDisplays() (displays.Snapshot, error) {
 	return displays.Inspect(v.win)
+}
+
+// AfterFileExported reconciles a mosaic destination that may alias a source.
+func (v *viewer) AfterFileExported(result imaging.WriteResult) {
+	if result.Committed {
+		v.imgCache.Purge()
+	}
+	v.afterFileWrite(result, true, true, func() {})
 }

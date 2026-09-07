@@ -2,7 +2,7 @@
 
 Updated by the project-wide maintainability audit, 2026-09-06.
 
-Status: documentation-only audit complete; all findings remain open. Implementation is proposed separately in [the phased plan](plans/2026-09-06-maintainability-plan.md). [Validation evidence and reproducible probes](plans/2026-09-06-maintainability-validation.md) accompany this report.
+Status: audit complete; MA-001, MA-002, MA-003, MA-004, MA-006, MA-007, MA-008, MA-009, MA-010, MA-011, MA-013, MA-014, MA-015, MA-016, MA-018, MA-019 are resolved with evidence below and other findings remain open. Implementation is tracked separately in [the phased plan](plans/2026-09-06-maintainability-plan.md). [Validation evidence and reproducible probes](plans/2026-09-06-maintainability-validation.md) accompany this report.
 
 ## Baseline and scope
 
@@ -68,6 +68,8 @@ Locations: [internal/imaging/exififd.go:13-28](https://github.com/frathe/picfetc
 
 **Recommended direction.** Use checked, widened offset arithmetic before every header/entry/value span calculation. The writer already demonstrates a safer uint64 pattern. Share the arithmetic contract across readers without forcing readers and writers to share malformed-block policy. Add both-endian, root/sub-IFD, near-end, overflow and truncated-value regressions; fuzz metadata and orientation entry points for no panics.
 
+**Resolution (2026-09-06).** Checked TIFF reader spans implemented in [ticket 01](.scratch/maintainability/issues/01-safe-tiff-spans.md). Both-endian root/nested/truncated regressions pass after reproducing the original panics; 30-second fuzzing completed 3,181,251 executions. Imaging tests, vet and `make verify` passed. Historical evidence above is retained.
+
 <a id="ma-002"></a>
 
 ## MA-002 — Mosaic scratch allocation ignores the visible intersection
@@ -81,6 +83,8 @@ Locations: [internal/mosaic/layout.go:114-121](https://github.com/frathe/picfetc
 **Impact.** A modest valid input can request gigabytes of transient memory for an approximately 8 MB output, outside the bounded repeat cache. Host memory determines whether the result is severe pressure or process termination.
 
 **Recommended direction.** Prepare only the source region needed for the visible intersection, or tile it under an explicit scratch-memory budget that includes resampling/masks. Preserve placement, crop, rotation and edge quality; do not fix this by distorting source aspect ratios. Validate both wide and tall sources and cancellation before expensive preparation.
+
+**Resolution (2026-09-06).** [Ticket 02](.scratch/maintainability/issues/02-bounded-mosaic-preparation.md) bounds live scratch to 64 MiB through observed preparation plans and visible-region tiles, including resampling, masks and extra SVG rasterization. Panoramic rendering, cancellation, patterned rotated fidelity, source-format/window tests and `make verify` pass. Historical allocation evidence above is retained.
 
 <a id="ma-003"></a>
 
@@ -110,6 +114,8 @@ Locations: [internal/ui/deletion/deletion.go:158-174](https://github.com/frathe/
 
 **Recommended direction.** Reconcile successful deletions by stable URI identity in the current file set, or capture and enforce the prompt generation before interpreting indices. Define changes both while the prompt is open and while trash work runs. Copy target slices at the boundary. Test reorder, fresh drop, partial failure and overlapping confirmations with stubbed trash operations.
 
+**Resolution (2026-09-06).** Deletion now captures copied, deduplicated URI targets and reconciles actual successes by current identity. Reorder/replacement, partial and overlapping moves, duplicates, comparison changes and closed UI are covered with temp files and drainable completions. See [ticket 03](.scratch/maintainability/issues/03-deletion-target-identity.md). Lead review, negative guards and the shared `make verify` gate pass (623 Linux UI tests plus the remaining race packages). Historical audit evidence above is retained.
+
 <a id="ma-005"></a>
 
 ## MA-005 — Native chooser transport changes legal POSIX paths
@@ -123,6 +129,8 @@ Locations: [internal/filepicker/darwin.go:28-32](https://github.com/frathe/picfe
 **Impact.** The path acted on can differ from the one confirmed in the native panel. For save, the truncated destination could be a different existing file whose overwrite was never confirmed. That overwrite scenario follows from the path flow; the audit did not execute it.
 
 **Recommended direction.** Return structured paths from native adapters and distinguish one save destination from multi-open results. Choose an unambiguous subprocess transport supported by each backend; handle unsupported filenames explicitly rather than silently changing them. Add newline, trailing-CR, whitespace, Unicode, cancellation and multiple-selection round trips.
+
+**Resolution (2026-09-07).** Exact structured chooser paths and single save destinations are implemented and validated through actual Darwin, Linux and Windows transports, plus chooser-to-open/export guards. Ticket 06 is resolved; Windows PowerShell execution passes without skipped tests. Shared negative verification and the final `make verify` gate pass. See [native evidence](.scratch/maintainability/evidence/25-native-guards.md#offline-windows-execution). Historical audit evidence above is retained.
 
 <a id="ma-006"></a>
 
@@ -138,6 +146,8 @@ Locations: [internal/ui/compare.go:60-74](https://github.com/frathe/picfetch/blo
 
 **Recommended direction.** Create one canonical complete LoadedImage construction step for these callers, while keeping foreground versus speculative cache admission explicit. Assert all three paths produce equivalent metadata, preserve cancellation checks, and retain `Add` versus `AddIfFits` semantics.
 
+**Resolution (2026-09-06).** Foreground, preload and comparison now share imaging.DecodeRecord for canonical frames and complete size/EXIF facts. Comparison-first navigation exposes the actual size and EXIF link in the window tree. See [ticket 04](.scratch/maintainability/issues/04-complete-image-cache-records.md). Lead review, negative guards and the shared `make verify` gate pass (623 Linux UI tests plus the remaining race packages). Historical audit evidence above is retained.
+
 <a id="ma-007"></a>
 
 ## MA-007 — Save Changes leaves rotated EXIF dimensions contradictory
@@ -151,6 +161,8 @@ Locations: [internal/imaging/save.go:109-122](https://github.com/frathe/picfetch
 **Impact.** Consumers choosing EXIF dimensions disagree with consumers reading the encoded image. This was an earlier deliberate policy, but the resulting metadata is false; changing it should explicitly revise that policy and its test.
 
 **Recommended direction.** Reuse the existing dimension-invalidated logic for SaveRotated, preserving correctable dimension tags and removing geometry that cannot be made true. Check numeric values for quarter turns, EXIF orientation 5-8, and unchanged geometry; retain unrelated metadata, DPI and color profiles.
+
+**Resolution (2026-09-06).** Save Changes now applies the same dimension-invalidated correction as export. Numeric quarter-turn/orientation 5–8 checks replace the former leave-dimensions-alone policy; unchanged geometry and tolerant malformed fallback remain. See [ticket 05](.scratch/maintainability/issues/05-saved-jpeg-dimensions.md). Lead review, negative guards and the shared `make verify` gate pass (623 Linux UI tests plus the remaining race packages). Historical audit evidence above is retained.
 
 <a id="ma-008"></a>
 
@@ -166,6 +178,8 @@ Locations: [internal/imaging/dhash.go:124-166](https://github.com/frathe/picfetc
 
 **Recommended direction.** Cache grouping by file generation/hash revision/distance; filter names against the accepted snapshot. Compute changed groups off UI, cancel/coalesce superseded work, and publish only current snapshots. Benchmark indexing only after this separation. Preserve the current greedy complete-linkage grouping and representative rules; transitive connected components are not equivalent.
 
+**Resolution (2026-09-07).** [Ticket 24](.scratch/maintainability/issues/24-reusable-duplicate-groups.md) reuses immutable keyed groups and runs changed computations on cancellable, coalesced grid workers. Complete-linkage equivalence and stale installation guards pass, with 27 rejected negative mutations. [Benchmarks](.scratch/maintainability/evidence/24-grouping-benchmarks.md) cover unrelated/dense 10k/50k/200k inputs; unchanged reuse allocates nothing. The shared `make verify` gate passes all 665 Linux UI tests and remaining race packages. Historical audit measurements above are retained.
+
 <a id="ma-009"></a>
 
 ## MA-009 — Old thumbnail workers can publish facts into a new generation
@@ -180,6 +194,8 @@ Locations: [internal/ui/grid/hashengine.go:164-201](https://github.com/frathe/pi
 
 **Recommended direction.** Make fact publication conditional on the generation captured when work began, checked atomically with model mutation. Decide explicitly which cache entries can survive a file-set reorder versus source replacement. Add a gated decoder test: pause old read, replace/reset the same URI, complete old success/failure, and verify current facts remain untouched.
 
+**Resolution (2026-09-06).** Captured FactWriters reject old same-URI success/failure/native facts under the mutation lock and invalidate on reset; adoption retains established facts. Ticket 18 is resolved. Controlled red/green guards and negative mutations pass; shared `make verify` passes all 641 UI tests and remaining race packages. See the active implementation plan for commands and logs.
+
 <a id="ma-010"></a>
 
 ## MA-010 — Ancillary image APIs discard caller cancellation
@@ -193,6 +209,8 @@ Locations: [internal/imaging/loader.go:297-304](https://github.com/frathe/picfet
 **Impact.** New work can remain behind obsolete reads on large files or slow/network storage. Outer cancellation tokens communicate a stronger promise than the nested operations honor.
 
 **Recommended direction.** Add context-bearing ancillary APIs and thread existing sort/pass/generation contexts through read/probe/decode boundaries. Describe limits where a third-party decoder cannot interrupt in-memory work. Test a reader paused between chunks, cancellation before acquiring a slot, and completion of cancelled passes; avoid sleep-based timing assertions.
+
+**Resolution (2026-09-06).** Capture sorting, favorite preview reads and grid/native backfill propagate cancellation and track shutdown completion. Tickets 15–17 are resolved; an active underlying read/decoder still has to return. Controlled red/green guards and negative mutations pass; shared `make verify` passes all 641 UI tests and remaining race packages. See the active implementation plan for commands and logs.
 
 <a id="ma-011"></a>
 
@@ -222,6 +240,8 @@ Locations: [internal/clipboard/copyfiles.go:89-96](https://github.com/frathe/pic
 
 **Recommended direction.** Specify UTF-8 at the consumer and test actual Windows PowerShell list decoding with accented, CJK and emoji filenames while stubbing clipboard mutation. Inspect chooser stdout encoding when touching native path transport, but do not assume that separate boundary has the same defect.
 
+**Resolution (2026-09-07).** The Windows PowerShell consumer explicitly decodes BOM-less lists as UTF-8. Actual native tests exercise accented, CJK and emoji paths under an explicitly non-UTF8 default, preserving order, failure and cleanup behavior with clipboard mutation stubbed. Ticket 08 is resolved; native guards, negative verification and the final `make verify` gate pass. See [native evidence](.scratch/maintainability/evidence/25-native-guards.md#offline-windows-execution). Historical audit evidence above is retained.
+
 <a id="ma-013"></a>
 
 ## MA-013 — Trash workaround overrides legitimate XDG configuration
@@ -240,6 +260,8 @@ Locations: [internal/trash/trash.go:67-92](https://github.com/frathe/picfetch/bl
 
 ## MA-014 — Several image actions still do expensive work on UI
 
+**Resolution (2026-09-07).** Tickets 21–23 move whole-image clipboard encoding, EXIF reads, Save Changes and metadata removal to owned cancellable workers. Resolved-path transactions serialize Save/Strip/Export (including mosaic and symlink aliases), while committed results reconcile caches and the current view without retargeting cancelled work. Source-versioned previews and cache revisions reject stale pixels. Forty-three ticket-23 negative guards and `make verify` (665 UI tests plus all other race packages) pass; tickets 21/22 retain their earlier evidence.
+
 **P2 · Confirmed synchronous call paths; latency not benchmarked. Confidence: High for placement; medium for workload impact.**
 
 Locations: [internal/ui/clipboard.go:38-55](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/clipboard.go#L38-L55); [internal/ui/save.go:46-60](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/save.go#L46-L60); [internal/ui/exifwin/exifwin.go:263-290](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/exifwin/exifwin.go#L263-L290); [internal/ui/exifwin/exifwin.go:391-412](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/exifwin/exifwin.go#L391-L412).
@@ -254,6 +276,8 @@ Locations: [internal/ui/clipboard.go:38-55](https://github.com/frathe/picfetch/b
 
 ## MA-015 — Map tile concurrency and failure state lack a shared bound
 
+**Resolution (2026-09-06).** Ticket 19 now shares four workers and a 64-job queue across warm/foreground tile requests, bounds expiring failures, cancels obsolete window sessions and tracks callback completion. Fifteen negative guards and `make verify` (644 UI tests plus all remaining race packages) pass. The upstream global decoded tile cache remains a separately recorded follow-up, not a claimed RSS bound.
+
 **P2 · Confirmed resource-lifetime risk; stress/network run omitted. Confidence: High for structure; medium for workload impact.**
 
 Locations: [internal/ui/exifwin/tiles.go:206-215](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/exifwin/tiles.go#L206-L215); [internal/ui/exifwin/tiles.go:236-275](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/exifwin/tiles.go#L236-L275); [internal/ui/exifwin/tiles.go:337-371](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/exifwin/tiles.go#L337-L371); [internal/ui/exifwin/exifwin.go:504-543](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/exifwin/exifwin.go#L504-L543).
@@ -267,6 +291,8 @@ Locations: [internal/ui/exifwin/tiles.go:206-215](https://github.com/frathe/picf
 <a id="ma-016"></a>
 
 ## MA-016 — Position-poller stop does not establish worker completion
+
+**Resolution (2026-09-06).** Ticket 20 separates nonblocking Stop from Done/Wait, discards queued reads, waits actual active reads, and retains main/secondary completion in the harness. Eight negative guards and `make verify` pass. A native macOS 26.6.2 arm64 run exercised window movement, secondary close/reopen, and app exit with Settings open; evidence is in `.scratch/maintainability/evidence/20-native-poller-smoke.md`.
 
 **P2 · Confirmed lifecycle-contract gap; native shutdown hang unverified. Confidence: High for contract; medium for consequence.**
 
@@ -434,3 +460,15 @@ The review did not attempt a real OOM, native GL race run, interactive latency b
 ## Handoff
 
 Start with bounded EXIF arithmetic and mosaic scratch-memory containment. The plan keeps quick local fixes separate from larger async/path work and gives each work package observable acceptance criteria. Rebase the findings against current source before implementation, especially the excluded display extraction. Maintain these IDs in tickets/PRs and append resolution evidence rather than silently deleting findings.
+
+## Additional Phase 2 resolutions (2026-09-06)
+
+**MA-011 — Clipboard temp-file errors: resolved in the working tree.** The fault-injected write/close transaction first lost all primary causes (six red cases including short writes). `TestWriteTempPNGFile_PreservesPrimaryFailures` now checks errors.Is, ordered close/removal, cleanup failures and actual temp-file removal. The full package passes natively (0.325s) and in the common race gate (1.072s). Removing the primary error or short-write guard with overlays makes the regression fail. See ticket 07 under `.scratch/maintainability/issues/`. Shared `make verify` passes all 625 Linux UI tests and remaining race packages; no commit created.
+
+**MA-013 — Ordinary XDG Trash configuration: resolved in the working tree.** `TestMoveLinux_PreservesOrdinaryXDGAndNormalizesSnap` reproduced blanket overriding through both gio and trash-put stubs. Absent, empty, default and legitimate custom settings now survive; only the identified canonical home/snap/app/revision/.local/share shape is normalized. Numeric revisions, current/common and unrelated near misses are covered; parent and unrelated environment values are unchanged. Trash/wallpaper suites pass natively (0.573s/0.799s) and under Linux race (1.061s/1.110s). Both over-normalizing custom paths and omitting real snap normalization fail negative overlays. See ticket 09 under `.scratch/maintainability/issues/`. Shared `make verify` passes all 625 Linux UI tests and remaining race packages; no commit created.
+
+**MA-018 — Subsecond favorite-preview identity: resolved in the working tree.** `TestEntryNamePreservesSubsecondPrecision`, `TestReadMissesSameSizeSubsecondEdit` and `TestSyncReplacesLegacyPreviewAfterCompletePass` reproduced whole-second collisions, stale actual preview reuse and accepted legacy entries. The host filesystem preserves .1s and .9s in one second, with same-size changed bytes. Separate seconds/nanoseconds fields retain precision outside UnixNano range. Legacy keys miss, complete sync sweeps them, and cancellation preserves unvisited entries. Full favthumbs passes natively (1.144s) and under Linux race (1.491s); timestamp and premature-sweep mutations fail the guards. See ticket 10 under `.scratch/maintainability/issues/`. Shared `make verify` passes all 625 Linux UI tests and remaining race packages; no commit created.
+
+**MA-019 — Non-wrapping RSS growth: resolved in the working tree.** `TestRSSGrowth` first reproduced 18446744073709551576 bytes of apparent growth on declining samples. Increasing/equal/decreasing and uint64 endpoints now pass. Required Linux command `go test -tags=heicleak ./internal/imaging -run '^TestRSSGrowth$' -count=1 -v` executes all five cases without the opt-in (0.058s); log `/private/tmp/picfetch-maintainability-11-linux-rss.log`. Removing the decline guard makes the test fail. The long experiment, build tag and HEIC mitigation are unchanged. See ticket 11 under `.scratch/maintainability/issues/`. Shared `make verify` passes all 625 Linux UI tests and remaining race packages; no commit created.
+
+**MA-003 — Queued UI pacing and chooser ownership: resolved in the working tree.** Tickets 12–14 pace animation and picture-frame intervals after acknowledged application, cancel pending workers without requiring UI progress, and guard chooser admission/delivery with request identity. Controlled clocks/queues cover pause, exit/restart/Kick, reverse results, intervening input, comparison and shutdown. Sixteen negative mutations were rejected. The shared `make verify` passes native vet/build, all 637 Linux UI tests and remaining race packages; log `/private/tmp/picfetch-maintainability-12-14-verify.log`. Already blocking native dialogs remain noninterruptible, with tracked completion when they return. See the active plan for exact named tests and limits. No commit created.

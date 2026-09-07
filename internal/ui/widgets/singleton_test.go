@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"testing"
+	"testing/synctest"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
@@ -231,4 +232,62 @@ func TestSingleton_ExtraKeysReadAtEventTime(t *testing.T) {
 	if got != fyne.KeyRight {
 		t.Errorf("got %v, want Right — extraKeys must be read inside the handler, not copied at Show", got)
 	}
+}
+
+type heldPositionPoller struct {
+	done                 chan struct{}
+	stopCalls, waitCalls int
+}
+
+func (p *heldPositionPoller) Stop()                 { p.stopCalls++ }
+func (p *heldPositionPoller) Wait()                 { p.waitCalls++; <-p.done }
+func (p *heldPositionPoller) Done() <-chan struct{} { return p.done }
+
+func TestSingleton_TrackingCompletionRetainsClosedWindowWorkers(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var s Singleton
+		old := &heldPositionPoller{done: make(chan struct{})}
+		current := &heldPositionPoller{done: make(chan struct{})}
+		s.rememberPoller(old)
+		s.StopTracking()
+		s.StopTracking()
+		s.rememberPoller(current)
+		s.StopTracking()
+		if old.stopCalls != 1 || current.stopCalls != 1 {
+			t.Error("close/reopen did not stop each sampler once")
+		}
+		finished := make(chan struct{})
+		go func() { s.WaitForTracking(); close(finished) }()
+		synctest.Wait()
+		if old.waitCalls != 1 {
+			t.Error("completion did not include the closed window's worker")
+		}
+		select {
+		case <-finished:
+			t.Error("tracking completed with active workers")
+		default:
+		}
+		close(old.done)
+		synctest.Wait()
+		if current.waitCalls != 1 {
+			t.Error("completion did not include the latest worker")
+		}
+		select {
+		case <-finished:
+			t.Error("tracking completed before latest worker stopped")
+		default:
+		}
+		close(current.done)
+		<-finished
+		// A later open prunes completed handles; they are not retained for
+		// every window opened during a long session.
+		next := &heldPositionPoller{done: make(chan struct{})}
+		s.rememberPoller(next)
+		close(next.done)
+		s.StopTracking()
+		s.WaitForTracking()
+		if old.waitCalls != 1 || current.waitCalls != 1 || next.waitCalls != 1 {
+			t.Error("completed tracking handles were retained after reopen")
+		}
+	})
 }

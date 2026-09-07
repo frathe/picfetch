@@ -1,8 +1,13 @@
 package dupes
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"image"
+	"math/bits"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -293,7 +298,7 @@ func TestInstallAndRebuild(t *testing.T) {
 		t.Errorf("GroupSize(0) = %d after Rebuild, want 2", got)
 	}
 
-	m.Install(Groups{Sizes: []int{9, 9}, Reps: []int{1, 1}})
+	installFixtureGroups(m, Groups{Sizes: []int{9, 9}, Reps: []int{1, 1}})
 	if got := m.GroupSize(0); got != 9 {
 		t.Errorf("GroupSize(0) = %d after a manual Install, want 9", got)
 	}
@@ -347,5 +352,320 @@ func TestConcurrentPutHashAndCompute_NoRace(t *testing.T) {
 	m.Rebuild()
 	if got := m.GroupSize(0); got == 0 {
 		t.Error("GroupSize(0) = 0 after concurrent hashing and Compute, want a hashed file's group to be recorded")
+	}
+}
+
+func TestGroupingReusesOnlyUnchangedAcceptedFacts(t *testing.T) {
+	m := New(newFakeSet(2, 1))
+	m.PutHash("a", 5)
+	m.PutHash("b", 5)
+	m.PutNativeSize("a", image.Pt(2, 2))
+	if _, ok := m.CurrentGroups(); ok {
+		t.Fatal("uncomputed groups reported current")
+	}
+	m.Rebuild()
+	key, computes := m.GroupingKey(), m.Computes()
+	for range 3 {
+		m.PutHash("a", 5)
+		m.PutNativeSize("a", image.Pt(2, 2))
+		m.Rebuild()
+	}
+	if m.GroupingKey() != key || m.Computes() != computes {
+		t.Errorf("unchanged grouping recomputed: %d -> %d", computes, m.Computes())
+	}
+	if g, ok := m.CurrentGroups(); !ok || g.Size(0) != 2 {
+		t.Error("accepted groups were not reusable")
+	}
+	m.PutNativeSize("b", image.Pt(8, 8))
+	if _, ok := m.CurrentGroups(); ok {
+		t.Error("changed native facts still reported current")
+	}
+	m.Rebuild()
+	if m.RepresentativeOf(0) != 1 || m.Computes() != computes+1 {
+		t.Error("changed representative did not compute once")
+	}
+}
+
+func TestGroupingRejectsObsoleteAndUntaggedSnapshots(t *testing.T) {
+	changes := map[string]func(*Model, *fakeSet){
+		"hash":        func(m *Model, _ *fakeSet) { m.PutHash("b", ^uint64(0)) },
+		"native":      func(m *Model, _ *fakeSet) { m.PutNativeSize("b", image.Pt(30, 30)) },
+		"distance":    func(m *Model, _ *fakeSet) { m.SetDistance(0) },
+		"replacement": func(_ *Model, s *fakeSet) { s.gen++ },
+		"adoption":    func(m *Model, s *fakeSet) { s.gen++; s.keys = s.keys[:1]; m.AdoptGeneration() },
+		"reset":       func(m *Model, _ *fakeSet) { m.Clear() },
+	}
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			set := newFakeSet(2, 1)
+			m := New(set)
+			m.PutHash("a", 5)
+			m.PutHash("b", 7)
+			old := m.Compute()
+			key := m.GroupingKey()
+			if !m.Install(old) {
+				t.Fatal("fresh snapshot rejected")
+			}
+			change(m, set)
+			if key == m.GroupingKey() {
+				t.Error("changed input reused grouping identity")
+			}
+			if _, ok := m.CurrentGroups(); ok {
+				t.Error("old accepted groups reported current after input change")
+			}
+			if m.Install(old) {
+				t.Error("obsolete snapshot installed")
+			}
+			fresh := m.Compute()
+			if !m.Install(fresh) {
+				t.Fatal("fresh snapshot rejected after input change")
+			}
+			if m.Install(Groups{Sizes: []int{99}}) {
+				t.Error("untagged fabricated snapshot installed")
+			}
+			if got, ok := m.CurrentGroups(); !ok || !slices.Equal(got.Sizes, fresh.Sizes) || !slices.Equal(got.Reps, fresh.Reps) {
+				t.Error("obsolete install replaced current groups")
+			}
+		})
+	}
+}
+
+func TestGroupingCancelledComputationCannotInstall(t *testing.T) {
+	m := New(newFakeSet(2, 1))
+	m.PutHash("a", 5)
+	m.PutHash("b", 5)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	g, err := m.ComputeContext(ctx)
+	if !errors.Is(err, context.Canceled) || m.Install(g) {
+		t.Errorf("cancelled compute published a snapshot: %v", err)
+	}
+}
+
+// Visibility tests supply membership directly; tag it with their current
+// fixture input without invoking the algorithm their assertions do not test.
+func installFixtureGroups(m *Model, g Groups) {
+	g.key, g.valid = m.GroupingKey(), true
+	m.Install(g)
+}
+
+// benchmarkSet mirrors production's immutable published snapshot; fakeSet is
+// unsuitable here because it rebuilds and copies its keys on every call.
+type benchmarkSet struct{ snapshot Snapshot }
+
+func (s benchmarkSet) Snapshot() Snapshot { return s.snapshot }
+
+func benchmarkGroupingModel(n int, dense bool) *Model {
+	keys := make([]string, n)
+	for i := range keys {
+		keys[i] = "image-" + strconv.Itoa(i)
+	}
+	m := New(benchmarkSet{snapshot: NewSnapshot(keys, 1)})
+	facts := m.CaptureFacts()
+	seed := uint64(1)
+	for i, key := range keys {
+		seed ^= seed << 13
+		seed ^= seed >> 7
+		seed ^= seed << 17
+		hash := seed
+		if dense {
+			hash = 0xf0f0f0f0f0f0f0f0 ^ (uint64(1) << uint(i%64))
+		}
+		facts.PutHash(key, hash)
+		facts.PutNativeSize(key, image.Pt(1+i%64, 1+i%64))
+	}
+	return m
+}
+
+func BenchmarkGrouping(b *testing.B) {
+	for _, distribution := range []string{"unrelated", "dense"} {
+		b.Run(distribution, func(b *testing.B) {
+			for _, n := range []int{10000, 50000, 200000} {
+				b.Run(strconv.Itoa(n), func(b *testing.B) {
+					b.Run("cold", func(b *testing.B) {
+						m := benchmarkGroupingModel(n, distribution == "dense")
+						b.ReportAllocs()
+						for b.Loop() {
+							g := m.Compute()
+							if len(g.Sizes) != n {
+								b.Fatal("grouping lost files")
+							}
+							if distribution == "dense" && (g.Size(0) != n || g.RepresentativeOf(0) != 63) {
+								b.Fatal("dense grouping changed membership or representative")
+							}
+						}
+					})
+					b.Run("reuse", func(b *testing.B) {
+						m := benchmarkGroupingModel(n, distribution == "dense")
+						m.Rebuild()
+						b.ReportAllocs()
+						for b.Loop() {
+							m.Rebuild()
+						}
+						if m.Computes() != 1 {
+							b.Fatal("unchanged accepted grouping recomputed")
+						}
+					})
+				})
+			}
+		})
+	}
+}
+
+func TestGroupingMatchesGreedyOracleAcrossDistributionsAndDistances(t *testing.T) {
+	for _, n := range []int{0, 1, 8, 63, 257, 1024} {
+		for _, distance := range []int{0, 1, 3, 4, 6, 7, 8, 16, 32} {
+			t.Run(fmt.Sprintf("n=%d/distance=%d", n, distance), func(t *testing.T) {
+				keys := make([]string, n)
+				hashes := make([]uint64, n)
+				known := make([]bool, n)
+				native := make([]image.Point, n)
+				seed := uint64(42)
+				for i := range keys {
+					keys[i] = strconv.Itoa(i)
+					seed ^= seed << 13
+					seed ^= seed >> 7
+					seed ^= seed << 17
+					hashes[i] = seed
+					switch i % 6 {
+					case 0:
+						hashes[i] = 0
+					case 1:
+						hashes[i] = 0xf0f0f0f0f0f0f0f0
+					case 2:
+						hashes[i] = 0xf0f0f0f0f0f0f0f0 ^ (uint64(1) << uint(i%64))
+					case 3:
+						hashes[i] = 0xf0f0f0f0f0f0f0f0 ^ (seed & 255)
+					}
+					known[i] = i%11 != 0
+					native[i] = image.Pt(int(seed%5), int((seed>>8)%5))
+				}
+				m := New(benchmarkSet{snapshot: NewSnapshot(keys, 1)})
+				m.SetDistance(distance)
+				facts := m.CaptureFacts()
+				for i, key := range keys {
+					if known[i] {
+						facts.PutHash(key, hashes[i])
+					}
+					facts.PutNativeSize(key, native[i])
+				}
+				got := m.Compute()
+				want := greedyGroupingOracle(hashes, known, native, distance)
+				if !slices.Equal(got.Sizes, want.Sizes) || !slices.Equal(got.Reps, want.Reps) {
+					t.Fatalf("group membership/representatives differ from original greedy complete linkage")
+				}
+			})
+		}
+	}
+}
+
+// This retains the original first-unassigned, forward-scan algorithm. It is
+// intentionally independent of the indexed implementation and its helpers.
+func greedyGroupingOracle(hashes []uint64, known []bool, native []image.Point, distance int) Groups {
+	g := Groups{Sizes: make([]int, len(hashes)), Reps: make([]int, len(hashes))}
+	assigned := make([]bool, len(hashes))
+	for i := range hashes {
+		g.Reps[i] = i
+		if known[i] {
+			g.Sizes[i] = 1
+		}
+	}
+	for i, h := range hashes {
+		if !known[i] || h == 0 || assigned[i] {
+			continue
+		}
+		members := []int{i}
+		assigned[i] = true
+		for j := i + 1; j < len(hashes); j++ {
+			if !known[j] || hashes[j] == 0 || assigned[j] {
+				continue
+			}
+			fits := true
+			for _, member := range members {
+				if bits.OnesCount64(hashes[member]^hashes[j]) > distance {
+					fits = false
+					break
+				}
+			}
+			if fits {
+				members = append(members, j)
+				assigned[j] = true
+			}
+		}
+		representative := i
+		for _, member := range members {
+			if native[member].X*native[member].Y > native[representative].X*native[representative].Y {
+				representative = member
+			}
+		}
+		for _, member := range members {
+			g.Sizes[member] = len(members)
+			g.Reps[member] = representative
+		}
+	}
+	return g
+}
+
+func TestGroupingIndexedCandidatesKeepGreedyCompleteLinkage(t *testing.T) {
+	base := uint64(0x0123456789abcdef)
+	cases := map[string][]uint64{
+		"one changed bit in every projection": {base, base ^ 1 ^ (1 << 16) ^ (1 << 32) ^ (1 << 48)},
+		"earliest compatible group":           {base ^ 7, base ^ (7 << 16), base},
+		"every member must fit":               {base, base ^ 7, base ^ (7 << 16)},
+	}
+	for name, tail := range cases {
+		t.Run(name, func(t *testing.T) {
+			const prefix = 257
+			n := prefix + len(tail)
+			keys := make([]string, n)
+			hashes := make([]uint64, n)
+			known := make([]bool, n)
+			native := make([]image.Point, n)
+			seed := uint64(42)
+			for i := range n {
+				keys[i] = strconv.Itoa(i)
+				known[i] = true
+				native[i] = image.Pt(1+i%3, 1+i%3)
+				seed ^= seed << 13
+				seed ^= seed >> 7
+				seed ^= seed << 17
+				hashes[i] = seed
+			}
+			copy(hashes[prefix:], tail)
+			m := New(benchmarkSet{snapshot: NewSnapshot(keys, 1)})
+			m.SetDistance(4)
+			facts := m.CaptureFacts()
+			for i, key := range keys {
+				facts.PutHash(key, hashes[i])
+				facts.PutNativeSize(key, native[i])
+			}
+			got, want := m.Compute(), greedyGroupingOracle(hashes, known, native, 4)
+			if !slices.Equal(got.Sizes, want.Sizes) || !slices.Equal(got.Reps, want.Reps) {
+				t.Fatalf("indexed candidates changed original greedy membership or representatives")
+			}
+		})
+	}
+}
+
+func TestGroupingReadersRejectDifferentFileIdentity(t *testing.T) {
+	for _, reset := range []bool{false, true} {
+		t.Run(fmt.Sprint(reset), func(t *testing.T) {
+			set := &fakeSet{keys: []string{"a", "b"}}
+			m := New(set)
+			m.PutHash("a", 7)
+			m.PutHash("b", 7)
+			m.Rebuild()
+			m.SetHideDuplicates(true)
+			m.BeginInspect(0)
+			if reset {
+				m.Clear()
+			} else {
+				set.gen++
+				m.AdoptGeneration()
+			}
+			if m.GroupSize(0) != 0 || m.RepresentativeOf(1) != 1 || len(m.Members(0)) != 0 || len(m.InspectMembers()) != 0 || m.IsHiddenExtra(1) {
+				t.Fatal("old file identity still controls group readers")
+			}
+		})
 	}
 }

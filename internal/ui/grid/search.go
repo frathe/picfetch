@@ -114,11 +114,8 @@ func (g *Overview) rebuildFilter(resetView bool) {
 	g.applyVisibleFilter(resetView, keepHost)
 }
 
-// applyVisibleFilter rebuilds matches from the current groups and query
-// and redraws. It does not call DuplicateGroups: hashRemaining computes
-// that on the worker and installs the snapshot before calling this, so
-// the UI goroutine is not stuck in O(n²) complete linkage until the
-// pool drains.
+// applyVisibleFilter filters the accepted snapshot with the current query.
+// Changed grouping arrives through groupwork.go; this pass never computes it.
 func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	g.matches = nil
 
@@ -128,7 +125,7 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	// twice per file.
 	vis := g.dupes.Visibility()
 	browsing := g.browseHost >= 0
-	browseFilter := browsing && vis.Size(g.browseHost) >= 2
+	browseFilter := browsing && g.hashes.hashJobs.Load() == 0 && vis.Size(g.browseHost) >= 2
 	nameFilter := g.searching && g.query != ""
 	hide := vis.Hide && !browsing
 	if nameFilter || hide || browseFilter {

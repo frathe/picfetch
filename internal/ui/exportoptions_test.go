@@ -93,7 +93,7 @@ func TestExportOptions_OriginalLabelReportsARAWsPreviewSize(t *testing.T) {
 	}
 
 	dest := filepath.Join(t.TempDir(), "copy.png")
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 	v.exportAs(".png")
 	settleChooser(t, v)
 
@@ -119,7 +119,7 @@ func TestExportPrompt_KeyboardReachesTheSizeRow(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.White))
 
 	var suggested string
-	uitest.StubSaveChooser(t, func(s string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(s string) (fyne.URI, error) {
 		suggested = s
 		return nil, nil // cancelled: this test is about the keyboard, not the file
 	})
@@ -171,7 +171,7 @@ func TestExportPrompt_EscapeFromTheSizeRowCancels(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.White))
 
 	called := false
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
 		called = true
 		return nil, nil
 	})
@@ -207,7 +207,7 @@ func TestExportAs_SizeLimitCapsTheWrittenFile(t *testing.T) {
 			dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", tc.w, tc.h, color.White))
 
 			dest := filepath.Join(t.TempDir(), "copy.png")
-			uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 			v.promptExport()
 			selectExportRung(t, v, tc.rung)
@@ -251,7 +251,7 @@ func TestExportAs_SuggestedNameCarriesTheAppliedSize(t *testing.T) {
 			dropAndWait(t, v, storage.NewFileURI(path))
 
 			var suggested string
-			uitest.StubSaveChooser(t, func(s string) ([]byte, error) {
+			uitest.StubSaveChooser(t, func(s string) (fyne.URI, error) {
 				suggested = s
 				return nil, nil // cancelled: the suggested name is all this asserts on
 			})
@@ -289,7 +289,7 @@ func TestExportAs_ToastReportsASizeOnlyWhenOneApplied(t *testing.T) {
 			dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 1200, 800, color.White))
 
 			dest := filepath.Join(t.TempDir(), "copy.png")
-			uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 			v.promptExport()
 			selectExportRung(t, v, tc.rung)
@@ -469,7 +469,7 @@ func TestExportAs_OmittingMetadataWritesACleanCopyAndKeepsTheOriginal(t *testing
 	dropAndWait(t, v, storage.NewFileURI(path))
 
 	dest := filepath.Join(t.TempDir(), "copy.jpg")
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 	v.promptExport()
 	v.exportOptions.setMetadataIncluded(false)
@@ -501,7 +501,7 @@ func TestExportAs_OmittingMetadataStillWritesAnUprightCopy(t *testing.T) {
 	dropAndWait(t, v, storage.NewFileURI(path))
 
 	dest := filepath.Join(t.TempDir(), "copy.jpg")
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 	v.promptExport()
 	v.exportOptions.setMetadataIncluded(false)
@@ -541,7 +541,7 @@ func TestExportAs_ToastReportsOmissionOnlyWhenTheBoxWasUnchecked(t *testing.T) {
 			dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.White))
 
 			dest := filepath.Join(t.TempDir(), "copy.jpg")
-			uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 			v.promptExport()
 			v.exportOptions.setMetadataIncluded(tc.included)
@@ -575,7 +575,7 @@ func TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking(t *tes
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.White))
 
 	var suggested string
-	uitest.StubSaveChooser(t, func(s string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(s string) (fyne.URI, error) {
 		suggested = s
 		return nil, nil // cancelled: this test is about the keyboard
 	})
@@ -636,7 +636,7 @@ func TestExportPrompt_ReturnOnTheMetadataRowTicksTheBoxInsteadOfExporting(t *tes
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.White))
 
 	opened := false
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
 		opened = true
 		return nil, nil
 	})

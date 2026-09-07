@@ -15,6 +15,7 @@ package filesort
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sort"
 	"strings"
@@ -98,11 +99,14 @@ func Order(ctx context.Context, m Mode, raw []fyne.URI) []fyne.URI {
 	case ByDropOrder:
 		// Already in raw order - nothing to do.
 	case ByCaptureDate:
-		sortByInt64Key(ctx, ordered, func(u fyne.URI) int64 { return captureOrModTime(u).UnixNano() })
+		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) {
+			date, err := captureOrModTime(ctx, u)
+			return date.UnixNano(), err
+		})
 	case ByModTime:
-		sortByInt64Key(ctx, ordered, func(u fyne.URI) int64 { return modTimeOf(u).UnixNano() })
+		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) { return modTimeOf(u).UnixNano(), nil })
 	case BySize:
-		sortByInt64Key(ctx, ordered, fileSizeOf)
+		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) { return fileSizeOf(u), nil })
 	default: // ByName
 		if ctx.Err() == nil {
 			sort.SliceStable(ordered, func(i, j int) bool {
@@ -127,7 +131,7 @@ func Order(ctx context.Context, m Mode, raw []fyne.URI) []fyne.URI {
 // sort: the caller discards the whole result on cancellation anyway (see
 // Order's own comment), so there's nothing to gain from finishing
 // correctly, only disk I/O to avoid.
-func sortByInt64Key(ctx context.Context, files []fyne.URI, key func(fyne.URI) int64) {
+func sortByInt64Key(ctx context.Context, files []fyne.URI, key func(fyne.URI) (int64, error)) {
 	type item struct {
 		u fyne.URI
 		k int64
@@ -138,7 +142,11 @@ func sortByInt64Key(ctx context.Context, files []fyne.URI, key func(fyne.URI) in
 		if ctx.Err() != nil {
 			return
 		}
-		items[i] = item{u, key(u)}
+		k, err := key(u)
+		if err != nil {
+			return
+		}
+		items[i] = item{u, k}
 	}
 
 	if ctx.Err() != nil {
@@ -185,16 +193,24 @@ func fileSizeOf(u fyne.URI) int64 {
 }
 
 // captureOrModTime returns u's Exif capture date (see
-// imaging.CaptureDate), falling back to its filesystem modification time
+// imaging.CaptureDateContext), falling back to its filesystem modification time
 // for anything with no readable capture date - a screenshot, a PNG, or a
 // JPEG that simply carries no DateTimeOriginal/DateTime tag - so the
 // capture-date sort mode still produces a sensible, total order instead of
-// clumping every such file at the same zero-time position.
-func captureOrModTime(u fyne.URI) time.Time {
-	if t, ok := imaging.CaptureDate(u); ok {
-		return t
+// clumping every such file at the same zero-time position. Cancellation stops
+// the sort instead of falling back to another filesystem operation.
+func captureOrModTime(ctx context.Context, u fyne.URI) (time.Time, error) {
+	date, ok, err := imaging.CaptureDateContext(ctx, u)
+	if ctx.Err() != nil {
+		return time.Time{}, ctx.Err()
 	}
-	return modTimeOf(u)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return time.Time{}, err
+	}
+	if ok {
+		return date, nil
+	}
+	return modTimeOf(u), nil
 }
 
 // Label returns the window-title prefix for m, or "" for the

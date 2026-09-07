@@ -5,9 +5,7 @@ ICON     := assets/appIcon.png
 BIN_DIR  := bin
 WIN_ARCHES := amd64 arm64
 LINUX_ARCHES := amd64 arm64
-FYNE_CROSS_ENGINE ?= docker
-FYNE_CROSS_WINDOWS_IMAGE ?= fyneio/fyne-cross-images:windows
-FYNE_CROSS_CACHE ?= $(dir $(shell go env GOCACHE))fyne-cross
+include packaging/tools.mk
 
 RELEASE_BRANCH := main
 
@@ -33,7 +31,7 @@ COVERAGE_DIR := coverage
 COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
+.PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows warm-fyne-cross-linux package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-fyne install-fyne-cross install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 
 all: build
 
@@ -332,60 +330,76 @@ security: security-govulncheck security-github ## Run all security checks (govul
 clean: ## Remove all build artifacts
 	rm -rf $(BIN_DIR) fyne-cross "$(APP_NAME).app" "$(BIN_NAME).zip"
 
-package-mac: ## Package a macOS .app bundle (native, no Docker) into bin/
-	fyne package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
+package-mac: install-fyne ## Package a macOS .app bundle (native, no Docker) into bin/
+	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
 	go run ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
 	mkdir -p $(BIN_DIR)
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"
 	mv "$(APP_NAME).app" "$(BIN_DIR)/"
 
-warm-fyne-cross-windows: ## Cache the go.mod toolchain before Fyne parses Go command JSON
+warm-fyne-cross-windows: PACKAGING_IMAGE = $(FYNE_CROSS_WINDOWS_IMAGE)
+warm-fyne-cross-linux: PACKAGING_IMAGE = $(FYNE_CROSS_LINUX_IMAGE)
+warm-fyne-cross-windows warm-fyne-cross-linux: ## Cache the project toolchain and report the resolved container inputs
 	mkdir -p "$(FYNE_CROSS_CACHE)"
 	# Match fyne-cross's UID so warm-up does not leave a root-owned module cache.
-	$(FYNE_CROSS_ENGINE) run --rm --user $$(id -u) -e HOME=/tmp -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(FYNE_CROSS_WINDOWS_IMAGE)" go version >/dev/null
+	$(FYNE_CROSS_ENGINE) run --rm --user $$(id -u) -e HOME=/tmp -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(PACKAGING_IMAGE)" go version
+	$(FYNE_CROSS_ENGINE) image inspect --format '{{.Id}} {{.RepoDigests}} {{.Os}}/{{.Architecture}}' "$(PACKAGING_IMAGE)"
+	$(FYNE_CROSS_ENGINE) run --rm --user $$(id -u) -e HOME=/tmp -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(PACKAGING_IMAGE)" /usr/local/bin/fyne version
 
-package-windows: warm-fyne-cross-windows ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
+package-windows: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
-		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
+		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe || exit 1; \
 	done
 
-package-windows-store: warm-fyne-cross-windows ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
+package-windows-store: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
-		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-microsoft-store-$$arch.exe; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
+		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-microsoft-store-$$arch.exe || exit 1; \
 	done
 
-package-windows-debug: warm-fyne-cross-windows ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES
+package-windows-debug: warm-fyne-cross-windows install-fyne-cross ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
-		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME)-debug.exe $(BIN_DIR)/$(BIN_NAME)-debug-windows-$$arch.exe; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
+		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME)-debug.exe $(BIN_DIR)/$(BIN_NAME)-debug-windows-$$arch.exe || exit 1; \
 	done
 
-package-linux: ## Cross-compile Linux binaries via fyne-cross (needs Docker) into bin/, one per arch in LINUX_ARCHES (stripped by default)
+package-linux: warm-fyne-cross-linux install-fyne-cross ## Cross-compile Linux binaries via fyne-cross (needs Docker) into bin/, one per arch in LINUX_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
 	for arch in $(LINUX_ARCHES); do \
-		fyne-cross linux -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
-		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-linux-$$arch; \
+		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
+		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-linux-$$arch || exit 1; \
 	done
 
-package-linux-debug: ## Cross-compile unstripped Linux binaries for diagnosing startup failures, one per arch in LINUX_ARCHES
+package-linux-debug: warm-fyne-cross-linux install-fyne-cross ## Cross-compile unstripped Linux binaries for diagnosing startup failures, one per arch in LINUX_ARCHES
 	mkdir -p $(BIN_DIR)
 	for arch in $(LINUX_ARCHES); do \
-		fyne-cross linux -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -no-strip-debug || exit 1; \
-		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-debug-linux-$$arch; \
+		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -no-strip-debug || exit 1; \
+		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-debug-linux-$$arch || exit 1; \
 	done
 
 build-linux-all: package-linux ## Alias for package-linux: cross-compile Linux binaries for all LINUX_ARCHES via fyne-cross (needs Docker)
 
 build-all: package-mac package-windows package-linux ## Build release artifacts for macOS, Windows, and Linux
 
-install-tools: ## Install the fyne and fyne-cross packaging tools
-	go install fyne.io/tools/cmd/fyne@latest
-	go install github.com/fyne-io/fyne-cross@latest
+$(FYNE_BIN):
+	mkdir -p "$(dir $(FYNE_BIN))"
+	GOBIN="$(abspath $(dir $(FYNE_BIN)))" go install fyne.io/tools/cmd/fyne@$(FYNE_VERSION)
+
+$(FYNE_CROSS_BIN):
+	mkdir -p "$(dir $(FYNE_CROSS_BIN))"
+	GOBIN="$(abspath $(dir $(FYNE_CROSS_BIN)))" go install github.com/fyne-io/fyne-cross@$(FYNE_CROSS_VERSION)
+
+install-fyne: $(FYNE_BIN) ## Install and report the reviewed native packaging CLI
+	go version -m "$(FYNE_BIN)"
+
+install-fyne-cross: $(FYNE_CROSS_BIN) ## Install and report the reviewed cross-packaging CLI
+	go version -m "$(FYNE_CROSS_BIN)"
+
+install-tools: install-fyne install-fyne-cross ## Install both reviewed packaging tools into .tools/
 
 install-linux-tools: ## Install apt dev headers needed to build natively on Linux (OpenGL, X11, Wayland; needs sudo)
 	sudo apt-get update
@@ -455,4 +469,4 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 	scripts/watch_release.sh "$$tag"
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"}; {printf "  %-16s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"}; {printf "  %-16s %s\n", $$1, $$2}'

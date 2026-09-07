@@ -104,7 +104,7 @@ func TestCompareShortcut_PhysicalControlOpensComparison(t *testing.T) {
 	}
 }
 
-func TestShutdownClosesActiveComparisonBeforeEventLoopStops(t *testing.T) {
+func TestShutdownClosesComparisonWithoutRefreshingRetiredUI(t *testing.T) {
 	application := fynetest.NewApp()
 	v, win := buildStartupViewer(application)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
@@ -138,9 +138,27 @@ func TestShutdownClosesActiveComparisonBeforeEventLoopStops(t *testing.T) {
 		t.Fatal("registerShutdown did not install a stopped hook")
 	}
 
+	beforeTitle := win.Title()
+	openItem := win.MainMenu().Items[0].Items[0]
+	if !openItem.Disabled {
+		t.Fatal("comparison did not disable the Open menu item")
+	}
+	recorder := &mainMenuRecorder{Window: win, favorites: win.MainMenu().Items[0]}
+	v.win = recorder
 	shutdown()
 	if v.compare.Visible() {
 		t.Fatal("shutdown left comparison workers and surface active")
+	}
+	if win.Title() != beforeTitle {
+		t.Error("shutdown comparison callback changed the closing window title")
+	}
+	if !openItem.Disabled {
+		t.Error("shutdown comparison callback rebuilt the closing native menu")
+	}
+	v.RefreshMenus()
+	v.syncNativeMenuBar() // A fold queued before shutdown must also retire.
+	if len(recorder.published) != 0 {
+		t.Errorf("closing viewer read the native menu %d times", len(recorder.published))
 	}
 }
 

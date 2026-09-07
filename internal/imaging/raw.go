@@ -143,17 +143,19 @@ func collectTIFFJPEGs(data []byte) [][]byte {
 }
 
 func nextIFDOffset(tiff []byte, bo binary.ByteOrder, ifdOffset uint32) uint32 {
-	if ifdOffset+2 > uint32(len(tiff)) {
+	header, ok := tiffSpan(tiff, uint64(ifdOffset), 2)
+	if !ok {
 		return 0
 	}
 
-	n := uint32(bo.Uint16(tiff[ifdOffset : ifdOffset+2]))
-	pos := ifdOffset + 2 + n*12
-	if pos+4 > uint32(len(tiff)) {
+	n := uint64(bo.Uint16(header))
+	pos := uint64(ifdOffset) + 2 + n*12
+	next, ok := tiffSpan(tiff, pos, 4)
+	if !ok {
 		return 0
 	}
 
-	return bo.Uint32(tiff[pos : pos+4])
+	return bo.Uint32(next)
 }
 
 func uintsValue(bo binary.ByteOrder, typ uint16, val []byte) []uint32 {
@@ -190,7 +192,7 @@ func sliceJPEG(data []byte, off, length uint32) []byte {
 		return nil
 	}
 
-	blob := data[off : off+length]
+	blob := data[uint64(off) : uint64(off)+uint64(length)]
 	if !isJPEG(blob) {
 		return nil
 	}
@@ -198,7 +200,8 @@ func sliceJPEG(data []byte, off, length uint32) []byte {
 }
 
 func haveRange(data []byte, off, length uint32) bool {
-	return length > 0 && uint64(off)+uint64(length) <= uint64(len(data))
+	_, ok := tiffSpan(data, uint64(off), uint64(length))
+	return length > 0 && ok
 }
 
 func concatStrips(data []byte, offs, lens []uint32) []byte {
@@ -225,7 +228,7 @@ func concatStrips(data []byte, offs, lens []uint32) []byte {
 		if !haveRange(data, off, lens[i]) {
 			return nil
 		}
-		out = append(out, data[off:off+lens[i]]...)
+		out = append(out, data[uint64(off):uint64(off)+uint64(lens[i])]...)
 	}
 	return out
 }

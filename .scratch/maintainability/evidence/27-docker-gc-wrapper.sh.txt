@@ -1,0 +1,7 @@
+#!/bin/sh
+# Only this invocation's child test containers get the runtime GC setting.
+if [ "$1" = run ]; then
+    shift
+    exec /usr/local/bin/docker run -e GOGC=25 "$@"
+fi
+exec /usr/local/bin/docker "$@"

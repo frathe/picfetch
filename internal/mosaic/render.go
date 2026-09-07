@@ -20,6 +20,10 @@ const (
 )
 
 func renderPlacement(ctx context.Context, destination *image.NRGBA, source *loadedSource, placement placement) error {
+	return renderPlacementWithBudget(ctx, destination, source, placement, maxPreparationBytes, nil)
+}
+
+func renderPlacementWithBudget(ctx context.Context, destination *image.NRGBA, source *loadedSource, placement placement, budget uint64, beforePrepare func(preparationPlan) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -27,13 +31,65 @@ func renderPlacement(ctx context.Context, destination *image.NRGBA, source *load
 	if bounds.Empty() {
 		return nil
 	}
+	plan, err := planPreparation(source, placement, bounds)
+	if err != nil {
+		return err
+	}
+	var sourceImage image.Image
+	render := func(tile image.Rectangle, plan preparationPlan) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if plan.bytes > budget {
+			return fmt.Errorf("mosaic preparation needs %d bytes, budget %d", plan.bytes, budget)
+		}
+		if beforePrepare != nil {
+			if err := beforePrepare(plan); err != nil {
+				return err
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if sourceImage == nil {
+			width, height := plan.width, plan.height
+			if plan.vectorSize.X > 0 {
+				width, height = plan.vectorSize.X, plan.vectorSize.Y
+			}
+			sourceImage, err = sourceImageAt(source, width, height)
+			if err != nil {
+				return err
+			}
+		}
+		return renderPlacementTile(ctx, destination, sourceImage, placement, tile, plan)
+	}
+	if plan.bytes <= budget {
+		return render(bounds, plan)
+	}
+	transform := preparationTransform(placement, plan)
+	sourceSize := source.bounds.Size()
+	if source.pixels != nil {
+		sourceSize = source.pixels.Bounds().Size()
+	}
+	for top := bounds.Min.Y; top < bounds.Max.Y; top += preparationTileSize {
+		for left := bounds.Min.X; left < bounds.Max.X; left += preparationTileSize {
+			tile := image.Rect(left, top, min(left+preparationTileSize, bounds.Max.X), min(top+preparationTileSize, bounds.Max.Y))
+			if err := render(tile, plan.forTile(tile, transform, sourceSize)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
+func renderPlacementTile(ctx context.Context, destination *image.NRGBA, source image.Image, placement placement, bounds image.Rectangle, plan preparationPlan) error {
 	halfBodyWidth := placement.bodyWidth / 2
 	if placement.shadowSize > 0 {
 		shadow := placement.shadowSize
 		mask := rotatedRectangleMask(
 			bounds,
 			placement,
+			plan.tiled,
 			-halfBodyWidth+shadow,
 			placement.bodyTop+shadow,
 			halfBodyWidth+shadow,
@@ -49,6 +105,7 @@ func renderPlacement(ctx context.Context, destination *image.NRGBA, source *load
 		mask := rotatedRectangleMask(
 			bounds,
 			placement,
+			plan.tiled,
 			-halfBodyWidth,
 			placement.bodyTop,
 			halfBodyWidth,
@@ -59,7 +116,7 @@ func renderPlacement(ctx context.Context, destination *image.NRGBA, source *load
 		}
 	}
 
-	prepared, transform, err := prepareSourceLayer(source, placement, backing)
+	prepared, transform, err := prepareSourceLayer(ctx, source, placement, backing, plan)
 	if err != nil {
 		return err
 	}
@@ -72,6 +129,7 @@ func renderPlacement(ctx context.Context, destination *image.NRGBA, source *load
 	mask := rotatedRectangleMask(
 		bounds,
 		placement,
+		plan.tiled,
 		-halfImageWidth,
 		-halfImageHeight,
 		halfImageWidth,
@@ -93,33 +151,38 @@ func renderPlacement(ctx context.Context, destination *image.NRGBA, source *load
 	return nil
 }
 
-func prepareSourceLayer(source *loadedSource, placement placement, backing color.NRGBA) (*image.NRGBA, f64.Aff3, error) {
-	width := max(1, int(math.Ceil(placement.imageRect.width*sourceRenderScale)))
-	height := max(1, int(math.Ceil(placement.imageRect.height*sourceRenderScale)))
-	interior := image.Rect(
-		sourceEdgePadding,
-		sourceEdgePadding,
-		sourceEdgePadding+width,
-		sourceEdgePadding+height,
-	)
-	layer := image.NewNRGBA(image.Rect(
-		0,
-		0,
-		width+sourceEdgePadding*2,
-		height+sourceEdgePadding*2,
-	))
-	draw.Draw(layer, layer.Bounds(), image.NewUniform(backing), image.Point{}, draw.Src)
-
-	sourceImage, err := sourceImageAt(source, width, height)
-	if err != nil {
+func prepareSourceLayer(ctx context.Context, source image.Image, placement placement, backing color.NRGBA, plan preparationPlan) (*image.NRGBA, f64.Aff3, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, f64.Aff3{}, err
 	}
-	xdraw.CatmullRom.Scale(layer, interior, sourceImage, sourceImage.Bounds(), xdraw.Over, nil)
-	// The destination-space mask owns the silhouette. Extending the nearest
-	// prepared color prevents affine samples just outside the logical photo
-	// from introducing transparent black before that mask is applied.
-	extendSourceEdges(layer, interior)
+	interior := plan.interior()
+	layer := image.NewNRGBA(plan.layer)
+	draw.Draw(layer, layer.Bounds(), image.NewUniform(backing), image.Point{}, draw.Src)
+	if !plan.tiled {
+		xdraw.CatmullRom.Scale(layer, interior, source, source.Bounds(), xdraw.Over, nil)
+	} else {
+		sourceBounds := source.Bounds()
+		xScale := float64(plan.width) / float64(sourceBounds.Dx())
+		yScale := float64(plan.height) / float64(sourceBounds.Dy())
+		transform := f64.Aff3{xScale, 0, float64(interior.Min.X) - xScale*float64(sourceBounds.Min.X),
+			0, yScale, float64(interior.Min.Y) - yScale*float64(sourceBounds.Min.Y)}
+		visible := interior.Intersect(layer.Bounds())
+		for top := visible.Min.Y; top < visible.Max.Y; top += transformBandRows {
+			if err := ctx.Err(); err != nil {
+				return nil, f64.Aff3{}, err
+			}
+			band := layer.SubImage(image.Rect(visible.Min.X, top, visible.Max.X, min(top+transformBandRows, visible.Max.Y))).(*image.NRGBA)
+			xdraw.CatmullRom.Transform(band, transform, source, sourceBounds, xdraw.Over, nil)
+		}
+	}
+	// The destination mask owns the silhouette. Padding samples the nearest
+	// interior color, so affine filtering never blends transparent black.
+	extendSourceEdges(layer, interior.Intersect(layer.Bounds()))
+	return layer, preparationTransform(placement, plan), nil
+}
 
+func preparationTransform(placement placement, plan preparationPlan) f64.Aff3 {
+	width, height := plan.width, plan.height
 	scaleX := placement.imageRect.width / float64(width)
 	scaleY := placement.imageRect.height / float64(height)
 	halfImageWidth := placement.imageRect.width / 2
@@ -137,7 +200,7 @@ func prepareSourceLayer(source *loadedSource, placement placement, backing color
 		placement.centerY + localMinX*sin + localMinY*cos,
 	}
 
-	return layer, transform, nil
+	return transform
 }
 
 func sourceImageAt(source *loadedSource, width, height int) (image.Image, error) {
@@ -154,6 +217,9 @@ func sourceImageAt(source *loadedSource, width, height int) (image.Image, error)
 }
 
 func extendSourceEdges(layer *image.NRGBA, interior image.Rectangle) {
+	if interior.Empty() {
+		return
+	}
 	for y := interior.Min.Y; y < interior.Max.Y; y++ {
 		left := layer.NRGBAAt(interior.Min.X, y)
 		right := layer.NRGBAAt(interior.Max.X-1, y)
@@ -179,6 +245,7 @@ func extendSourceEdges(layer *image.NRGBA, interior image.Rectangle) {
 func rotatedRectangleMask(
 	bounds image.Rectangle,
 	placement placement,
+	clip bool,
 	left, top, right, bottom float64,
 ) *image.Alpha {
 	rasterBounds := bounds
@@ -188,23 +255,34 @@ func rotatedRectangleMask(
 		rasterBounds = bounds.Inset(-1)
 	}
 	mask := image.NewAlpha(image.Rect(0, 0, rasterBounds.Dx(), rasterBounds.Dy()))
-	rasterizer := vector.NewRasterizer(rasterBounds.Dx(), rasterBounds.Dy())
+	rasterHeight := rasterBounds.Dy()
+	if clip {
+		// x/image uses fixed-point edges for surfaces <= 512 on both axes.
+		// Their accumulated rounding changes when an edge is split into tiles.
+		// A padded raster selects the floating-point path used by large full
+		// surfaces; the extra rows are scratch only and are never drawn.
+		rasterHeight = max(rasterHeight, 513)
+	}
+	rasterizer := vector.NewRasterizer(rasterBounds.Dx(), rasterHeight)
 	radians := placement.angle * math.Pi / 180
 	sin, cos := math.Sincos(radians)
-	toMask := func(x, y float64) (float32, float32) {
-		rotatedX := placement.centerX + x*cos - y*sin - float64(rasterBounds.Min.X)
-		rotatedY := placement.centerY + x*sin + y*cos - float64(rasterBounds.Min.Y)
-		return float32(rotatedX), float32(rotatedY)
+	toMask := func(x, y float64) f64.Vec2 {
+		return f64.Vec2{placement.centerX + x*cos - y*sin - float64(rasterBounds.Min.X),
+			placement.centerY + x*sin + y*cos - float64(rasterBounds.Min.Y)}
 	}
-
-	x, y := toMask(left, top)
-	rasterizer.MoveTo(x, y)
-	x, y = toMask(right, top)
-	rasterizer.LineTo(x, y)
-	x, y = toMask(right, bottom)
-	rasterizer.LineTo(x, y)
-	x, y = toMask(left, bottom)
-	rasterizer.LineTo(x, y)
+	points := []f64.Vec2{toMask(left, top), toMask(right, top), toMask(right, bottom), toMask(left, bottom)}
+	if clip {
+		// Clip before float32/fixed-point rasterization. Very long off-canvas
+		// edges otherwise overflow or accumulate error while walking to a tile.
+		points = clipMaskPolygon(points, rasterBounds.Size())
+	}
+	if len(points) == 0 {
+		return image.NewAlpha(image.Rectangle{Max: bounds.Size()})
+	}
+	rasterizer.MoveTo(float32(points[0][0]), float32(points[0][1]))
+	for _, point := range points[1:] {
+		rasterizer.LineTo(float32(point[0]), float32(point[1]))
+	}
 	rasterizer.ClosePath()
 	rasterizer.Draw(mask, mask.Bounds(), image.Opaque, image.Point{})
 	if placement.angle != 0 {
@@ -216,6 +294,38 @@ func rotatedRectangleMask(
 	}
 
 	return mask
+}
+
+func clipMaskPolygon(points []f64.Vec2, size image.Point) []f64.Vec2 {
+	for axis, limit := range []float64{float64(size.X), float64(size.Y)} {
+		for _, upper := range []bool{false, true} {
+			boundary := 0.0
+			if upper {
+				boundary = limit
+			}
+			inside := func(p f64.Vec2) bool {
+				if upper {
+					return p[axis] <= boundary
+				}
+				return p[axis] >= boundary
+			}
+			clipped := make([]f64.Vec2, 0, len(points)+1)
+			for i, a := range points {
+				b := points[(i+1)%len(points)]
+				if inside(a) {
+					clipped = append(clipped, a)
+				}
+				if inside(a) != inside(b) {
+					fraction := (boundary - a[axis]) / (b[axis] - a[axis])
+					crossing := f64.Vec2{a[0] + fraction*(b[0]-a[0]), a[1] + fraction*(b[1]-a[1])}
+					crossing[axis] = boundary
+					clipped = append(clipped, crossing)
+				}
+			}
+			points = clipped
+		}
+	}
+	return points
 }
 
 func softenCoverageMask(mask *image.Alpha) {

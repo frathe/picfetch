@@ -32,7 +32,8 @@ func TestStartWindowPosPolling_TestDriverGetsNoopStop(t *testing.T) {
 	if stop == nil {
 		t.Fatal("startWindowPosPolling should never return a nil stop func")
 	}
-	stop() // must not panic or block
+	stop()             // must not panic or block
+	v.waitWinPosPoll() // non-native completion is already established
 }
 
 func TestStartWindowPosPolling_PanicsWithoutConstructedSlideshow(t *testing.T) {

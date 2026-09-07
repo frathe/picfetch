@@ -168,10 +168,14 @@ func (v *viewer) regionCopyView(geometry zoom.Geometry, source copyselection.Sou
 // signal finishes only after the final UI update, so tests and shutdown can
 // wait without sleeping.
 func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
+	_, done, ok := v.beginClipboardCopy(false)
+	if !ok {
+		v.regionCopy.Complete(errors.New("clipboard copy already pending"))
+		return
+	}
 	token := v.regionCopyLifecycle.begin()
-	done := v.clipboard.Begin()
 
-	go func() {
+	v.clipboardWork.workers.Go(func() {
 		defer done()
 		defer token.cancelContext()
 
@@ -202,7 +206,7 @@ func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
 			}
 			v.regionCopy.Complete(nil)
 		})
-	}()
+	})
 }
 
 func (v *viewer) reportRegionCopyError(err error) {

@@ -380,6 +380,9 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 	if v.stopWinPosPoll == nil {
 		t.Fatal("buildStartupViewer left stopWinPosPoll nil")
 	}
+	if v.waitWinPosPoll == nil {
+		t.Fatal("construction left poller completion nil")
+	}
 	noPollerStopName := funcName(noPollerStop)
 	if got := funcName(v.stopWinPosPoll); got != noPollerStopName {
 		t.Fatalf("buildStartupViewer stop callback = %s, want noPollerStop %s", got, noPollerStopName)
@@ -405,6 +408,11 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 		t.Fatal("startViewerRuntime left stopWinPosPoll nil")
 	}
 	t.Cleanup(runtimeStop)
+	if v.waitWinPosPoll == nil || funcName(v.waitWinPosPoll) == noPollerStopName {
+		t.Fatal("runtime did not bind actual poller completion")
+	}
+	runtimeStop()
+	v.waitWinPosPoll()
 	if got := funcName(runtimeStop); got == noPollerStopName {
 		t.Fatalf("startViewerRuntime left noPollerStop installed (%s)", got)
 	}

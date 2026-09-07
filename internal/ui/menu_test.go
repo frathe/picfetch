@@ -281,7 +281,7 @@ func TestBuildMainMenu_OpenFilesItemInvokesTheNativeChooser(t *testing.T) {
 	called := make(chan struct{})
 	orig := filepicker.Choose
 	t.Cleanup(func() { filepicker.Choose = orig })
-	filepicker.Choose = func() ([]byte, error) {
+	filepicker.Choose = func() ([]fyne.URI, error) {
 		close(called)
 		return nil, errors.New("stub: not exercising the success path here")
 	}

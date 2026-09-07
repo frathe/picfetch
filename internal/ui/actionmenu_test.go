@@ -205,6 +205,7 @@ func TestActionsMenu_SWithTwoFilesChecksCaptureDate(t *testing.T) {
 func TestActionsMenu_HideDuplicatesEnablesVariantsOnPairNotUnique(t *testing.T) {
 	v := loadPatternedTriple(t)
 	v.grid.SetHideDuplicates(true)
+	v.grid.Settle()
 	waitUntilLoaded(t, v)
 
 	if !requireActionsItem(t, v, "Show/Hide duplicates").Checked {
@@ -491,6 +492,7 @@ func TestActionsMenu_HideNoopsWithoutFiles(t *testing.T) {
 func TestActionsMenu_ShowVariantsOpensGridOnPairAfterHide(t *testing.T) {
 	v := loadPatternedTriple(t)
 	v.menus.Actions().Hide().Action()
+	v.grid.Settle()
 	if v.menus.Actions().ShowVariant().Disabled {
 		t.Fatal("premises: hide on + pair should enable Show variants")
 	}
@@ -548,6 +550,7 @@ func TestActionsMenu_ShowVariantsNoopsDuringPictureFrame(t *testing.T) {
 func TestActionsMenu_ShowVariantsSecondClickLeavesBrowse(t *testing.T) {
 	v := loadPatternedTriple(t)
 	v.menus.Actions().Hide().Action()
+	v.grid.Settle()
 	v.menus.Actions().ShowVariant().Action()
 	v.grid.Settle()
 	v.menus.Actions().ShowVariant().Action()

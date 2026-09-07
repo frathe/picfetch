@@ -14,6 +14,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -509,4 +510,59 @@ func TestReset_ResetsFadeLeftMidTransition(t *testing.T) {
 	if v.img.Translucency != 0 {
 		t.Errorf("Translucency after reset mid-transition = %v, want 0", v.img.Translucency)
 	}
+}
+
+func TestShutdownStopsPictureFrameWithQueuedAdvance(t *testing.T) {
+	application := fynetest.NewApp()
+	v, win := buildStartupViewer(application)
+	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.compare.SetUIQueue(&uitest.UIQueue{})
+	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(win.Close)
+	t.Cleanup(func() { drain(t, v) })
+	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.Black)
+	dropAndWait(t, v, a, b)
+	v.preloads.Wait()
+	queue := &pictureFrameCompletionQueue{queued: make(chan struct{}, 1)}
+	v.slides.SetUIQueue(queue)
+	v.slides.SetInterval(time.Nanosecond)
+	v.slides.Toggle()
+	select {
+	case <-queue.queued:
+	case <-time.After(testTimeout):
+		t.Fatal("advance was not queued")
+	}
+	before := v.state.index
+	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
+	if !ok {
+		t.Fatal("test app lifecycle does not expose its stopped hook")
+	}
+	original := lifecycle.OnStopped()
+	registerShutdown(application, v)
+	shutdown := lifecycle.OnStopped()
+	application.Lifecycle().SetOnStopped(original)
+	shutdown()
+	if v.slides.Active() {
+		t.Fatal("shutdown left picture-frame worker active")
+	}
+	// The worker must be cancellable before its held UI callback can run.
+	v.slides.Settle()
+	if v.state.index != before {
+		t.Fatal("queued advance changed a stopped viewer")
+	}
+	v.slides.Toggle()
+	if v.slides.Active() {
+		t.Fatal("shutdown controller accepted a new session")
+	}
+}
+
+type pictureFrameCompletionQueue struct {
+	uitest.UIQueue
+	queued chan struct{}
+}
+
+func (q *pictureFrameCompletionQueue) Do(f func()) {
+	q.UIQueue.Do(f)
+	q.queued <- struct{}{}
 }

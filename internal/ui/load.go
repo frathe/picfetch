@@ -36,6 +36,10 @@ func (v *viewer) ShowImage(i int) {
 	if !v.yieldCopySelection() {
 		return
 	}
+	v.cancelImageClipboard()
+	v.cancelSave()
+	v.cancelExport()
+	v.exif.Invalidate()
 
 	// Once an image is on screen we keep showing it until the new one is
 	// ready, instead of blanking out to the drop-hint on every navigation.
@@ -80,6 +84,10 @@ func (v *viewer) ShowImage(i int) {
 // invalidateLoad cancels and permanently supersedes the current logical
 // navigation, including its decode/retry chain, preloads, and animation.
 func (v *viewer) invalidateLoad() uint64 {
+	v.cancelImageClipboard()
+	v.cancelSave()
+	v.cancelExport()
+	v.exif.Invalidate()
 	return v.loadLifecycle.invalidate()
 }
 
@@ -98,6 +106,7 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 	i = ((i % n) + n) % n
 	v.state.index = i
 	u := v.state.files[i]
+	cacheWrite := v.imgCache.Capture()
 
 	// A cache hit - either a file already viewed this session, or one
 	// preloadNeighbors decoded speculatively ahead of time - skips the disk
@@ -107,6 +116,10 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 	if loaded, ok := v.imgCache.Get(u.String()); ok {
 		if !token.current() {
 			done()
+			return
+		}
+		if !cacheWrite.Current() {
+			v.attemptLoad(token, i, done)
 			return
 		}
 		v.finishLoad(token, u, loaded, done)
@@ -128,7 +141,7 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 				// grid. Only reachable since the grid's batch delete, which
 				// re-shows whatever takes a deleted file's place without
 				// closing the grid first.
-				if token.current() && !v.slides.Active() && !v.grid.Visible() {
+				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() {
 					v.undoGridMaximize()
 					v.autoResizeToImage(bounds)
 				}
@@ -141,16 +154,16 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 			// animation whose composited frames couldn't fit in the cache
 			// at all is exactly the one not worth compositing, so this
 			// needs no limit of its own.
-			loaded, err = imaging.DecodeLoaded(token.context(), data, v.imgCache.Budget())
-			if err == nil {
-				loaded.FileSize = int64(len(data))
-				loaded.HasEXIF = !imaging.ReadMetadata(data).Empty()
-			}
+			loaded, err = imaging.DecodeRecord(token.context(), data, v.imgCache.Budget())
 		}
 
 		fyne.Do(func() {
 			if !token.current() {
 				done() // user already navigated elsewhere
+				return
+			}
+			if !cacheWrite.Current() {
+				v.attemptLoad(token, i, done)
 				return
 			}
 
@@ -186,7 +199,10 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 				v.ShowToast(fmt.Sprintf(lang.L("animation in %q is too large to play"), u.Name()))
 			}
 
-			v.imgCache.Add(u.String(), loaded)
+			if !cacheWrite.Add(u.String(), loaded) {
+				v.attemptLoad(token, i, done)
+				return
+			}
 			v.finishLoad(token, u, loaded, done)
 		})
 	}()
@@ -208,6 +224,7 @@ func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.Load
 	v.fitWindowToLoadedImage(loaded)
 	v.applyLoadedTitle(u, loaded)
 	v.clearLoadingChrome()
+	v.exif.Refresh()
 	v.startLoadedAnimation(token, loaded)
 	// Must run - and finish reading v.state.files/v.state.index - before the
 	// load signal finishes below: that finish is what a waiter (a test's
@@ -272,7 +289,6 @@ func (v *viewer) presentLoadedImage() {
 func (v *viewer) syncLoadedFileInfo(loaded *imaging.LoadedImage) {
 	v.info.SetFile(loaded.FileSize, loaded.HasEXIF, loaded.Preview)
 	v.syncInfoOverlayVisibility()
-	v.exif.Refresh()
 }
 
 // fitWindowToLoadedImage starts every navigation at fit-to-window and
@@ -382,11 +398,12 @@ const preloadConcurrency = 2
 // flight. The token is checked before and after the decode so a preload started
 // for a set of files that's since been replaced by a fresh drop doesn't
 // keep working, or land a stale result, after the fact; its context backs that up
-// by making ReadAndProbe/DecodeLoaded themselves stop doing I/O partway
-// through, for a preload that goes stale while it's actually running
+// by making ReadAndProbe stop doing I/O partway through and DecodeRecord
+// skip a decode that has not started, for a preload that goes stale while it's actually running
 // rather than while it is still queued for a slot.
 func (v *viewer) preloadOne(token requestToken, u fyne.URI) {
 	key := u.String()
+	cacheWrite := v.imgCache.Capture()
 
 	// Contains, not Get: a presence test on a speculative path shouldn't
 	// promote the neighbor to most-recently-used, which under a tight byte
@@ -432,12 +449,10 @@ func (v *viewer) preloadOne(token requestToken, u fyne.URI) {
 			return
 		}
 
-		loaded, err := imaging.DecodeLoaded(token.context(), data, budget)
+		loaded, err := imaging.DecodeRecord(token.context(), data, budget)
 		if err != nil {
 			return
 		}
-		loaded.FileSize = int64(len(data))
-		loaded.HasEXIF = !imaging.ReadMetadata(data).Empty()
 
 		b := loaded.Frames[0].Bounds()
 		if b.Dx() == 0 || b.Dy() == 0 {
@@ -452,7 +467,7 @@ func (v *viewer) preloadOne(token requestToken, u fyne.URI) {
 		// refusal costs only the decode that just happened, whereas Add's
 		// never-evict-the-newest rule would let a preloaded neighbor
 		// displace the image the user is looking at.
-		_ = v.imgCache.AddIfFits(key, loaded)
+		_ = cacheWrite.AddIfFits(key, loaded)
 	})
 }
 
@@ -474,50 +489,48 @@ func (v *viewer) retryAfterLoadFailure(token requestToken, msg string, i int, do
 	v.attemptLoad(token, i, done)
 }
 
-// animate cycles an animated GIF's frames on their own goroutine, sleeping
-// between frames for each one's delay and updating the canvas image via
-// fyne.Do. It stops once its load token is cancelled or superseded, the same
-// staleness contract ShowImage's decode goroutine uses, so a navigation or a
-// fresh drop wakes the previous animation immediately. stopped is called right before it
-// returns, and animFrame is bumped after every frame write, so tests can
-// wait on those instead of reading v.img.Image from another goroutine - see
-// the animFrame/anim comment on the viewer struct. Frame delays go
-// through v.frameAfter (time.After in production) so a test can step
-// frames instead of racing a live timer; the seam is write-once, set
-// before the first drop.
+// animate owns the frame index on its worker and starts each delay only
+// after UI acknowledges the preceding frame application. A captured load token
+// rejects stale callbacks. Cancellation ends the worker without waiting for UI;
+// buffered acknowledgements let any later callback finish without blocking.
+// frameAfter and frameDo are per-viewer seams configured before playback.
+// stopped and animFrame retain the harness's completion/progress contract.
 func (v *viewer) animate(token requestToken, frames []image.Image, delays []time.Duration, stopped func()) {
 	defer stopped()
-
 	idx := 0
-
-	for {
-		if !v.animationPause.wait(token.context()) {
+	for token.current() {
+		if !v.animationPause.wait(token.context()) || !token.current() {
 			return
 		}
-
 		select {
 		case <-v.frameAfter(delays[idx]):
 		case <-token.context().Done():
 			return
 		}
 
-		stale := false
-
-		fyne.Do(func() {
+		next := (idx + 1) % len(frames)
+		applied := make(chan bool, 1)
+		v.frameDo(func() {
+			advanced := false
 			v.animationPause.advance(func() {
 				if !token.current() {
-					stale = true
 					return
 				}
-
-				idx = (idx + 1) % len(frames)
-				v.display.SetIndex(idx)
+				v.display.SetIndex(next)
 				v.redrawRotatedFrame()
+				advanced = true
 			})
+			// Buffered: cancellation may already have stopped this worker. UI never
+			// waits for it, and a late callback still has to pass the token check.
+			applied <- advanced
 		})
-
-		if stale {
+		select {
+		case <-token.context().Done():
 			return
+		case advanced := <-applied:
+			if advanced {
+				idx = next
+			}
 		}
 	}
 }

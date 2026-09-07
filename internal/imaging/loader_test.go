@@ -943,3 +943,36 @@ func TestLoadedImageBytesChargesForVector(t *testing.T) {
 		t.Fatalf("loadedImageBytes = %d, want more than the frame's own %d", got, frameOnly)
 	}
 }
+
+func TestCaptureDateContext_CancelsInsideSourceRead(t *testing.T) {
+	for _, finalEOF := range []bool{false, true} {
+		t.Run(fmt.Sprintf("final-EOF-%v", finalEOF), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			data := uitest.CaptureDateJPEG(t, 4, 4, "2020:01:01 00:00:00")
+			reads, closed := 0, false
+			reader := uitest.ReadCloser{
+				ReadFunc: func(p []byte) (int, error) {
+					reads++
+					if reads == 1 {
+						cancel()
+						if finalEOF {
+							return copy(p, data), io.EOF
+						}
+						return copy(p, data[:8]), nil
+					}
+					return 0, io.EOF
+				},
+				CloseFunc: func() error { closed = true; return nil },
+			}
+			u := uitest.ReaderURI(storage.NewFileURI("/capture.jpg"), func() (io.ReadCloser, error) { return reader, nil })
+			date, ok, err := CaptureDateContext(ctx, u)
+			if !errors.Is(err, context.Canceled) || ok || !date.IsZero() {
+				t.Errorf("cancelled date = %v, %v, %v; want zero, false, context.Canceled", date, ok, err)
+			}
+			if reads != 1 || !closed {
+				t.Errorf("reader calls=%d closed=%v, want 1/true", reads, closed)
+			}
+		})
+	}
+}

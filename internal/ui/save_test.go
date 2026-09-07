@@ -5,6 +5,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -136,6 +137,7 @@ func TestSaveRotation_WritesRotatedPixelsAndResetsState(t *testing.T) {
 	wantBounds := v.img.Image.Bounds()
 
 	v.saveRotation()
+	drainFileWork(t, v)
 
 	if v.display.Rotation() != 0 {
 		t.Errorf("rotation = %d, want reset to 0 after a successful save", v.display.Rotation())
@@ -174,6 +176,7 @@ func TestSaveRotation_PreservesJPEGExif(t *testing.T) {
 
 	v.rotateBy(1) // 8x4 → 4x8
 	v.saveRotation()
+	drainFileWork(t, v)
 	settleToast(t, v)
 
 	saved, err := os.ReadFile(path)
@@ -199,6 +202,7 @@ func TestSaveRotation_NoOpWhenNothingToSave(t *testing.T) {
 	dropAndWait(t, v, a)
 
 	v.saveRotation()
+	drainFileWork(t, v)
 
 	if v.display.Rotation() != 0 {
 		t.Error("saveRotation should no-op with nothing to save")
@@ -228,6 +232,7 @@ func TestSaveRotation_FailedWriteLeavesRotationUnchanged(t *testing.T) {
 	}
 
 	v.saveRotation()
+	drainFileWork(t, v)
 
 	if v.display.Rotation() != wantRotation {
 		t.Errorf("rotation = %d, want unchanged at %d after a failed save", v.display.Rotation(), wantRotation)
@@ -290,6 +295,7 @@ func TestBuildMainMenu_SaveChangesItemInvokesSaveRotation(t *testing.T) {
 
 	menu := buildMainMenu(v)
 	menu.Items[0].Items[1].Action()
+	waitForSave(t, v)
 
 	if v.display.Rotation() != 0 {
 		t.Error("the Save Changes menu action should invoke saveRotation")
@@ -316,10 +322,37 @@ func TestWireSaveShortcut_SavesTheCurrentRotation(t *testing.T) {
 	wireSaveShortcut(handler, v)
 
 	handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierShortcutDefault})
+	waitForSave(t, v)
 
 	if v.display.Rotation() != 0 {
 		t.Error("expected Cmd/Ctrl+S to save the current rotation")
 	}
 
 	settleToast(t, v) // saveRotation shows a "Saved" toast
+}
+
+func TestSaveRotation_CorrectsJPEGDimensionValues(t *testing.T) {
+	for _, steps := range []int{1, -1} {
+		t.Run(fmt.Sprintf("steps %d", steps), func(t *testing.T) {
+			v := newTestViewer(t)
+			path := uitest.WriteTempFile(t, "camera.jpg", uitest.DimensionTaggedJPEG(t, 8, 4))
+			dropAndWait(t, v, storage.NewFileURI(path))
+			v.rotateBy(steps)
+			v.saveRotation()
+			drainFileWork(t, v)
+			settleToast(t, v)
+			saved, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, tag := range []struct {
+				id    uint16
+				value int
+			}{{0x0100, 4}, {0x0101, 8}} {
+				if got, ok := uitest.ExifIFD0Tag(saved, tag.id); !ok || got != tag.value {
+					t.Errorf("saved tag %#x = %d (present %v), want %d", tag.id, got, ok, tag.value)
+				}
+			}
+		})
+	}
 }

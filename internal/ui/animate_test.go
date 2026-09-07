@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"image"
 	"image/color"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2/storage"
@@ -180,4 +182,160 @@ func TestInvalidateLoad_WakesAnimateImmediately(t *testing.T) {
 
 	waitForAnimStopped(t, v)
 	v.loadLifecycle.invalidate() // repeated invalidation must remain safe
+}
+
+func TestAnimationQueuedFramePacing(t *testing.T) {
+	v := newTestViewer(t)
+	frames := []image.Image{
+		newQueuedAnimationFrame(color.RGBA{R: 255, A: 255}),
+		newQueuedAnimationFrame(color.RGBA{G: 255, A: 255}),
+		newQueuedAnimationFrame(color.RGBA{B: 255, A: 255}),
+	}
+	v.display.SetFrames(frames)
+	v.redrawRotatedFrame()
+	synctest.Test(t, func(t *testing.T) {
+		var lifecycle requestLifecycle
+		token := lifecycle.begin()
+		defer token.cancelContext()
+		queue := &uitest.UIQueue{}
+		ticks := make(chan time.Time)
+		requested := make(chan time.Duration, 8)
+		v.frameDo = queue.Do
+		v.frameAfter = func(d time.Duration) <-chan time.Time { requested <- d; return ticks }
+		delays := []time.Duration{time.Second, 2 * time.Second, 3 * time.Second}
+		stopped := make(chan struct{})
+		go v.animate(token, frames, delays, func() { close(stopped) })
+		synctest.Wait()
+		if got := <-requested; got != delays[0] {
+			t.Fatalf("initial delay = %v", got)
+		}
+		for step := 1; step <= 4; step++ {
+			ticks <- time.Time{}
+			synctest.Wait()
+			if queue.Len() != 1 {
+				t.Fatalf("queued frames = %d, want exactly one", queue.Len())
+			}
+			select {
+			case got := <-requested:
+				t.Fatalf("requested delay %v before queued frame applied", got)
+			default:
+			}
+			queue.Drain()
+			synctest.Wait()
+			next := step % len(frames)
+			if got := <-requested; got != delays[next] {
+				t.Fatalf("next delay = %v, want applied frame's %v", got, delays[next])
+			}
+			if v.display.Index() != next || v.img.Image != frames[next] {
+				t.Fatalf("wrong displayed frame: index %d, want %d", v.display.Index(), next)
+			}
+		}
+		token.cancelContext()
+		synctest.Wait()
+		select {
+		case <-stopped:
+		default:
+			t.Fatal("animation did not stop")
+		}
+	})
+}
+
+func newQueuedAnimationFrame(c color.Color) image.Image {
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	for y := range 2 {
+		for x := range 2 {
+			img.Set(x, y, c)
+		}
+	}
+	return img
+}
+
+func TestAnimationCancellationDiscardsQueuedFrame(t *testing.T) {
+	v := newTestViewer(t)
+	frames := []image.Image{newQueuedAnimationFrame(color.Black), newQueuedAnimationFrame(color.White)}
+	v.display.SetFrames(frames)
+	v.redrawRotatedFrame()
+	synctest.Test(t, func(t *testing.T) {
+		var lifecycle requestLifecycle
+		token := lifecycle.begin()
+		defer token.cancelContext()
+		queue := &uitest.UIQueue{}
+		ticks := make(chan time.Time)
+		v.frameDo = queue.Do
+		v.frameAfter = func(_ time.Duration) <-chan time.Time { return ticks }
+		stopped := make(chan struct{})
+		go v.animate(token, frames, []time.Duration{time.Second, 2 * time.Second}, func() { close(stopped) })
+		synctest.Wait()
+		ticks <- time.Time{}
+		synctest.Wait()
+		if queue.Len() != 1 {
+			t.Fatal("frame was not queued")
+		}
+		token.cancelContext()
+		synctest.Wait()
+		select {
+		case <-stopped:
+		default:
+			t.Fatal("cancellation waited for UI application")
+		}
+		replacement := newQueuedAnimationFrame(color.RGBA{G: 255, A: 255})
+		v.display.SetFrames([]image.Image{replacement, frames[1]})
+		v.display.SetIndex(0)
+		v.redrawRotatedFrame()
+		writes := v.animFrame.Load()
+		queue.Drain()
+		if v.img.Image != replacement || v.animFrame.Load() != writes {
+			t.Fatal("late frame changed replacement image")
+		}
+	})
+}
+
+func TestAnimationQueuedPauseKeepsCapturedFrame(t *testing.T) {
+	v := newTestViewer(t)
+	frames := []image.Image{newQueuedAnimationFrame(color.Black), newQueuedAnimationFrame(color.White)}
+	v.display.SetFrames(frames)
+	v.redrawRotatedFrame()
+	synctest.Test(t, func(t *testing.T) {
+		var lifecycle requestLifecycle
+		token := lifecycle.begin()
+		defer token.cancelContext()
+		defer v.animationPause.unpause()
+		queue := &uitest.UIQueue{}
+		ticks := make(chan time.Time)
+		requested := make(chan time.Duration, 4)
+		v.frameDo = queue.Do
+		v.frameAfter = func(d time.Duration) <-chan time.Time { requested <- d; return ticks }
+		stopped := make(chan struct{})
+		go v.animate(token, frames, []time.Duration{time.Second, 2 * time.Second}, func() { close(stopped) })
+		synctest.Wait()
+		<-requested
+		ticks <- time.Time{}
+		synctest.Wait()
+		captured := image.Image(nil)
+		if !v.animationPause.pause(func() { captured = v.img.Image }) {
+			t.Fatal("pause failed")
+		}
+		queue.Drain()
+		synctest.Wait()
+		if v.img.Image != captured || v.display.Index() != 0 {
+			t.Fatal("queued application changed the captured frame")
+		}
+		select {
+		case got := <-requested:
+			t.Fatalf("scheduled %v while source capture was paused", got)
+		default:
+		}
+		v.animationPause.unpause()
+		synctest.Wait()
+		if got := <-requested; got != time.Second {
+			t.Fatalf("resumed delay = %v, want unchanged frame's 1s", got)
+		}
+		token.cancelContext()
+		synctest.Wait()
+		select {
+		case <-stopped:
+		default:
+			t.Fatal("animation did not stop after pause")
+		}
+	})
 }

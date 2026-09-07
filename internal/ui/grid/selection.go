@@ -110,20 +110,14 @@ func (g *Overview) SelectAll() {
 // rebuilt against the adopted hashes before inspect retarget, so the
 // inspect block sees post-delete groups.
 func (g *Overview) FilesChanged() {
+	g.adoptHashGen()
+	g.restartWork()
 	hadSelection := g.sel.Len() > 0
 	g.sel.Clear()
-	g.adoptHashGen()
-	g.rebuildGroups()
-	if g.dupes.Inspecting() {
-		src := g.inspectSource()
-		if src < 0 || len(g.groupMembers(src)) < 2 {
-			cur := g.host.CurrentIndex()
-			if len(g.groupMembers(cur)) >= 2 {
-				g.BeginInspect(cur)
-			} else {
-				g.ClearInspect()
-			}
-		}
+	g.grouping.retarget = true
+	if g.rebuildGroups() {
+		g.grouping.retarget = false
+		g.retargetInspect()
 	}
 	g.applyFilter()
 	if hadSelection {
@@ -252,4 +246,18 @@ func setCellSelected(tint *canvas.Rectangle, selected bool) {
 // range over cells the user never pointed at).
 func pickModifier(mods fyne.KeyModifier) (toggle, extend bool) {
 	return mods&fyne.KeyModifierShortcutDefault != 0, mods&fyne.KeyModifierShift != 0
+}
+
+func (g *Overview) retargetInspect() {
+	if g.dupes.Inspecting() {
+		src := g.inspectSource()
+		if src < 0 || len(g.groupMembers(src)) < 2 {
+			cur := g.host.CurrentIndex()
+			if len(g.groupMembers(cur)) >= 2 {
+				g.BeginInspect(cur)
+			} else {
+				g.ClearInspect()
+			}
+		}
+	}
 }

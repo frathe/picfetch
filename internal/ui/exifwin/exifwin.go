@@ -13,6 +13,7 @@ import (
 	"image/color"
 	"slices"
 	"strings"
+	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -52,7 +53,7 @@ const (
 // was just rewritten, not whatever is on screen now.
 type Host interface {
 	DisplayedFile() (fyne.URI, bool)
-	AfterMetadataRemoved(u fyne.URI)
+	AfterMetadataRemoved(u fyne.URI, result imaging.WriteResult)
 	ShowToast(msg string)
 	StepImage(delta int)
 }
@@ -116,10 +117,16 @@ type Window struct {
 	// see tiles.go for why the widget's own fetching can't be left to it.
 	// warming and warmGen track the prefetch that fills the first view,
 	// warm is the completion.Signal tests wait on - see internal/completion.
-	tiles   *tileFetcher
-	warming bool
-	warmGen int
-	warm    completion.Signal
+	tiles       *tileFetcher
+	warming     bool
+	warmGen     int
+	warm        completion.Signal
+	warmWorkers sync.WaitGroup
+	ui          UIQueue
+	stopped     bool
+	stripFile   func(context.Context, fyne.URI) (imaging.WriteResult, error)
+	stripWork   stripMutation
+	metadata    metadataRead
 
 	onClosed func()
 }
@@ -128,9 +135,11 @@ type Window struct {
 // on every open and refresh to find the file to read.
 func New(application fyne.App, host Host) *Window {
 	w := &Window{
-		app:   application,
-		host:  host,
-		tiles: newTileFetcher(osmTiles, nil),
+		app:       application,
+		host:      host,
+		tiles:     newTileFetcher(osmTiles, nil),
+		ui:        fyneQueue{},
+		stripFile: imaging.StripJPEGMetadataContext,
 	}
 
 	// The panel is read against the photo it describes, so it floats above
@@ -181,21 +190,18 @@ func (w *Window) releaseKeyboard() {
 // it's already open. A no-op when nothing is displayed, since there's no
 // file to read metadata from.
 func (w *Window) Show() {
+	if w.stopped {
+		return
+	}
 	if _, ok := w.host.DisplayedFile(); !ok {
 		return
 	}
-
-	// Raising an already-open window must first sync it to whatever image
-	// is now current; Refresh no-ops while the window isn't open yet (text
-	// nil), so the fresh-window path below isn't affected.
-	w.Refresh()
 
 	w.win.Show(w.app, lang.L("EXIF Data"), fyne.NewSize(exifW, exifH), func() fyne.CanvasObject {
 		w.text = widget.NewLabel("")
 		w.text.Wrapping = fyne.TextWrapWord
 
 		w.buildLocation()
-		w.Refresh()
 
 		w.strip = widget.NewButton(lang.L("Remove Metadata"), w.requestStrip)
 		w.strip.Importance = widget.DangerImportance
@@ -221,11 +227,11 @@ func (w *Window) Show() {
 			w.location,
 		)
 	}, func() {
+		w.cancelStrip()
+		w.cancelMetadata()
 		w.tiles.SetOnChange(nil)
 
-		// Anything a prefetch still has in flight belongs to a window that
-		// no longer exists.
-		w.warmGen++
+		w.cancelTiles()
 
 		w.hideConfirm()
 		w.pending = nil
@@ -249,47 +255,7 @@ func (w *Window) Show() {
 	})
 
 	w.releaseKeyboard()
-}
-
-// Refresh re-reads the current file's raw bytes and updates the panel from
-// them. A no-op while the window isn't open. Called both from Show (opening,
-// or raising an already-open window onto whatever image is now current) and
-// by the app's finishLoad, so navigating to a different image while the
-// window is up keeps it in sync instead of showing a stale file's metadata.
-//
-// Re-reading from disk here rather than keeping the raw bytes from the
-// original decode around is a deliberate trade: the image cache only ever
-// holds decoded pixels (see its own size comment), and the EXIF window is an
-// on-demand, comparatively rare action - not worth doubling every cached
-// entry's memory with raw file bytes it usually never needs.
-func (w *Window) Refresh() {
-	u, ok := w.host.DisplayedFile()
-	if w.text == nil || !ok {
-		return
-	}
-
-	// context.Background(): this is a quick, on-demand, synchronous re-read
-	// for the EXIF panel, not part of the cancellable load/preload chain
-	// internal/ui's ShowImage/attemptLoad/preloadOne share a generation's
-	// context for.
-	data, _, err := imaging.ReadAndProbe(context.Background(), u)
-	if err != nil {
-		w.text.SetText(lang.L("Could not read this file's metadata."))
-		w.showLocation(imaging.Metadata{})
-		w.canStrip = false
-		w.syncStripVisible()
-		w.dismissStalePending()
-		return
-	}
-
-	m := imaging.ReadMetadata(data)
-
-	w.text.SetText(formatExifMetadata(m))
-	w.showLocation(m)
-
-	w.canStrip = imaging.CanStripJPEGMetadata(data) && !m.Empty()
-	w.syncStripVisible()
-	w.dismissStalePending()
+	w.Refresh() // Last: all widgets and window handlers exist before a result can arrive.
 }
 
 // dismissStalePending hides the open confirmation if it no longer matches
@@ -313,6 +279,13 @@ func (w *Window) dismissStalePending() {
 // hidden: Show/Hide alone leaves it in the tree, and a content Refresh
 // still paints the last visible row.
 func (w *Window) syncStripVisible() {
+	if w.strip != nil {
+		if w.stripWork.pending {
+			w.strip.Disable()
+		} else {
+			w.strip.Enable()
+		}
+	}
 	if w.strip == nil || w.stripBar == nil {
 		return
 	}
@@ -363,7 +336,7 @@ func northHolds(north *fyne.Container, bar fyne.CanvasObject) bool {
 // button is hidden in the first case, but this guards the same ground for
 // any other caller (a future menu item or shortcut).
 func (w *Window) requestStrip() {
-	if !w.canStrip {
+	if w.stopped || w.stripWork.pending || !w.canStrip {
 		return
 	}
 
@@ -388,31 +361,6 @@ func (w *Window) requestStrip() {
 	w.pending = u
 }
 
-// performStrip rewrites u in place with imaging.StripJPEGMetadata and
-// reports the outcome by toast - the only place in this package that
-// toasts, so a successful strip never shows twice (once here, once from
-// Host.AfterMetadataRemoved, which only re-reads the panel and does not
-// toast on its own).
-//
-// The Refresh here duplicates what the production Host.AfterMetadataRemoved
-// (viewer.AfterMetadataRemoved) already does through its own call to
-// exif.Refresh() - harmless since Refresh just re-reads the file, and it is
-// what keeps this window in sync for any Host whose AfterMetadataRemoved
-// does not refresh it itself.
-func (w *Window) performStrip(u fyne.URI) {
-	w.pending = nil
-
-	if err := imaging.StripJPEGMetadata(u); err != nil {
-		fyne.LogError("failed to remove metadata", err)
-		w.host.ShowToast(fmt.Sprintf(lang.L("could not remove metadata from %q: %v"), u.Name(), err))
-		return
-	}
-
-	w.host.AfterMetadataRemoved(u)
-	w.Refresh()
-	w.host.ShowToast(lang.L("Metadata removed"))
-}
-
 // buildLocation assembles the collapsible location section: a disclosure
 // button, and under it the map with a loading indicator stacked over it.
 //
@@ -421,6 +369,8 @@ func (w *Window) performStrip(u fyne.URI) {
 // offers no way to be told when that happens - the whole point of this
 // section is that nothing is fetched until the user asks for it.
 func (w *Window) buildLocation() {
+	w.tiles.Restart()
+	w.observeTiles(w.warmGen)
 	w.locationMap = xwidget.NewMapWithOptions(
 		xwidget.WithOsmTiles(),
 		xwidget.WithTileSource(w.tiles.template),
@@ -429,26 +379,6 @@ func (w *Window) buildLocation() {
 		xwidget.WithScrollButtons(false),
 		xwidget.AtZoomLevel(mapZoom),
 	)
-
-	// A tile that arrives after the frame that asked for it only reaches
-	// the screen if the map is told to redraw - see tiles.go. Redrawing
-	// once the batch is in, rather than per tile, is what keeps a pan
-	// across a dozen new tiles from queueing a dozen repaints of a map
-	// that is still mostly holes.
-	w.tiles.SetOnChange(func(pending int) {
-		if pending > 0 {
-			return
-		}
-
-		fyne.Do(func() {
-			if w.locationMap == nil {
-				return
-			}
-
-			w.syncLoading()
-			w.locationMap.Refresh()
-		})
-	})
 
 	spinner := widget.NewProgressBarInfinite()
 	w.loading = container.NewCenter(container.NewVBox(widget.NewLabel(lang.L("Loading map…")), spinner))
@@ -490,6 +420,7 @@ func (w *Window) toggleLocation() {
 		return
 	}
 
+	w.cancelTiles()
 	w.toggle.SetIcon(theme.MenuExpandIcon())
 	w.body.Hide()
 	w.location.Refresh()
@@ -502,12 +433,14 @@ func (w *Window) toggleLocation() {
 // already navigated away from - or for a window they have since closed -
 // from touching anything when it finishes.
 func (w *Window) startWarm() {
-	if !w.hasPos || w.locationMap == nil {
+	if w.stopped || !w.hasPos || w.locationMap == nil {
 		return
 	}
 
 	w.warmGen++
 	gen := w.warmGen
+	ctx := w.tiles.Restart()
+	w.observeTiles(gen)
 	lat, lon := w.lat, w.lon
 
 	done := w.warm.Begin()
@@ -523,13 +456,12 @@ func (w *Window) startWarm() {
 
 	tiles := w.tiles
 
-	go func() {
-		tiles.Warm(lat, lon, mapZoom)
+	w.warmWorkers.Go(func() {
+		defer done()
+		tiles.WarmContext(ctx, lat, lon, mapZoom)
 
-		fyne.Do(func() {
-			defer done()
-
-			if gen != w.warmGen || w.locationMap == nil {
+		w.ui.Do(func() {
+			if ctx.Err() != nil || gen != w.warmGen || w.stopped || w.locationMap == nil {
 				return
 			}
 
@@ -541,7 +473,7 @@ func (w *Window) startWarm() {
 			// same reason expanding the section does.
 			w.body.Refresh()
 		})
-	}()
+	})
 }
 
 // syncLoading shows the indicator while the first view is still being
@@ -574,6 +506,7 @@ func (w *Window) showLocation(m imaging.Metadata) {
 	w.lat, w.lon, w.hasPos = m.Latitude, m.Longitude, m.HasGPS
 
 	if !m.HasGPS {
+		w.cancelTiles()
 		w.location.Hide()
 		return
 	}
@@ -706,3 +639,29 @@ func formatExifMetadata(m imaging.Metadata) string {
 
 	return strings.Join(lines, "\n")
 }
+
+func (w *Window) observeTiles(gen int) {
+	// A tile that arrives after the frame that asked for it only reaches
+	// the screen if the map is told to redraw - see tiles.go. Redrawing
+	// once the batch is in, rather than per tile, is what keeps a pan
+	// across a dozen new tiles from queueing a dozen repaints of a map
+	// that is still mostly holes.
+	w.tiles.SetOnChange(func(pending int) {
+		if pending > 0 {
+			return
+		}
+
+		w.ui.Do(func() {
+			if gen != w.warmGen || w.stopped || w.locationMap == nil {
+				return
+			}
+
+			w.syncLoading()
+			w.locationMap.Refresh()
+		})
+	})
+
+}
+
+// WaitForTracking observes position polling after StopTracking, off UI.
+func (w *Window) WaitForTracking() { w.win.WaitForTracking() }

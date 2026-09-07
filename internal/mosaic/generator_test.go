@@ -16,7 +16,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -29,6 +28,169 @@ import (
 func TestMain(m *testing.M) {
 	test.NewApp()
 	os.Exit(m.Run())
+}
+
+func TestGenerate_PreparationBudget(t *testing.T) {
+	stop := errors.New("observed preparation before allocation")
+	for _, size := range []image.Point{
+		{1, 1}, {10, 1}, {100, 1}, {1000, 1}, {10000, 1},
+		{1, 10}, {1, 100}, {1, 1000}, {1, 10000}, {10000, 10000},
+	} {
+		t.Run(fmt.Sprintf("%dx%d", size.X, size.Y), func(t *testing.T) {
+			g := New()
+			g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+				return &loadedSource{bounds: image.Rectangle{Max: size}}, nil
+			}
+			observed := false
+			g.beforePrepare = func(plan preparationPlan) error {
+				observed = true
+				if plan.bytes > maxPreparationBytes {
+					t.Errorf("preparation requests %d bytes, budget %d (layer %v)", plan.bytes, maxPreparationBytes, plan.layer)
+				}
+				return stop
+			}
+			request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), DefaultSettings(), 42)
+			if _, err := g.Generate(context.Background(), request); !errors.Is(err, stop) || !observed {
+				t.Fatalf("Generate = %v, observed = %v", err, observed)
+			}
+		})
+	}
+}
+
+func TestRenderPlacement_TiledMatchesFullPreparation(t *testing.T) {
+	for _, size := range []image.Point{{97, 61}, {1500, 800}} {
+		pixels := image.NewNRGBA(image.Rectangle{Min: image.Pt(7, 11), Max: image.Pt(7+size.X, 11+size.Y)})
+		for y := pixels.Rect.Min.Y; y < pixels.Rect.Max.Y; y++ {
+			for x := pixels.Rect.Min.X; x < pixels.Rect.Max.X; x++ {
+				pixels.SetNRGBA(x, y, color.NRGBA{R: uint8(x * 3), G: uint8(y * 4), B: uint8((x + y) * 2), A: uint8(120 + (x+y)%136)})
+			}
+		}
+		source := &loadedSource{pixels: pixels, bounds: pixels.Bounds()}
+		for _, angle := range []float64{0, 7, -12} {
+			t.Run(fmt.Sprintf("%dx%d/angle%g", size.X, size.Y, angle), func(t *testing.T) {
+				bounds := image.Rect(10, 20, 610, 520)
+				full, tiled := image.NewNRGBA(bounds), image.NewNRGBA(bounds)
+				placed := newPlacement(1, 300.25, 230.75, 540, 360, angle, FramePolaroid, true)
+				if err := renderPlacement(t.Context(), full, source, placed); err != nil {
+					t.Fatal(err)
+				}
+				const budget = 8 << 20
+				plans := 0
+				if err := renderPlacementWithBudget(t.Context(), tiled, source, placed, budget, func(plan preparationPlan) error {
+					plans++
+					if !plan.tiled || plan.bytes > budget {
+						t.Fatalf("expected bounded tiles, got %+v", plan)
+					}
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if plans < 2 {
+					t.Fatalf("only %d preparation plans", plans)
+				}
+				maxDifference := 0
+				totalDifference := 0.0
+				var worst image.Point
+				for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+					for x := bounds.Min.X; x < bounds.Max.X; x++ {
+						ar, ag, ab, aa := full.At(x, y).RGBA()
+						br, bg, bb, ba := tiled.At(x, y).RGBA()
+						for i, a := range []uint32{ar, ag, ab, aa} {
+							b := []uint32{br, bg, bb, ba}[i]
+							difference := math.Abs(float64(a)-float64(b)) / 257
+							totalDifference += difference
+							if delta := int(math.Ceil(difference)); delta > maxDifference {
+								maxDifference, worst = delta, image.Pt(x, y)
+							}
+						}
+					}
+				}
+				// Resampling normalization and rebased mask rasterization round
+				// separately. Bound both the worst edge and mean visible difference.
+				meanDifference := totalDifference / float64(len(full.Pix))
+				if maxDifference > 4 || meanDifference > 0.1 {
+					t.Fatalf("tiled/full premultiplied difference max=%d mean=%g at %v (full %v, tiled %v), want max <= 4 and mean <= 0.1", maxDifference, meanDifference, worst, full.At(worst.X, worst.Y), tiled.At(worst.X, worst.Y))
+				}
+			})
+		}
+	}
+}
+
+func TestRenderPlacement_PanoramasStayBounded(t *testing.T) {
+	for _, size := range []image.Point{{10000, 1}, {1, 10000}} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			pixels := image.NewNRGBA(image.Rectangle{Max: size})
+			solid := color.NRGBA{R: 25, G: 80, B: 180, A: 255}
+			fillNRGBA(pixels, solid)
+			source := &loadedSource{pixels: pixels, bounds: pixels.Bounds()}
+			destination := image.NewNRGBA(image.Rect(0, 0, 520, 340))
+			placed := newPlacement(1, 260, 170, float64(size.X)*600, float64(size.Y)*600, 7, FrameNone, false)
+			plans := 0
+			if err := renderPlacementWithBudget(t.Context(), destination, source, placed, maxPreparationBytes, func(plan preparationPlan) error {
+				plans++
+				if !plan.tiled || plan.bytes > maxPreparationBytes {
+					t.Fatalf("unbounded preparation: %+v", plan)
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if plans < 2 {
+				t.Fatal("panorama did not exercise tile boundaries")
+			}
+			for y := range 340 {
+				for x := range 520 {
+					if got := destination.NRGBAAt(x, y); got != solid {
+						t.Fatalf("pixel (%d,%d) = %v, want %v", x, y, got, solid)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGenerate_CancelBeforePreparation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	g := New()
+	g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+		// No pixels: any preparation after cancellation would return a
+		// missing-pixels error instead of the required cancellation.
+		return &loadedSource{bounds: image.Rect(0, 0, 10000, 1)}, nil
+	}
+	plans := 0
+	g.beforePrepare = func(_ preparationPlan) error {
+		plans++
+		cancel()
+		return nil
+	}
+	request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), DefaultSettings(), 42)
+	if _, err := g.Generate(ctx, request); !errors.Is(err, context.Canceled) || plans != 1 {
+		t.Fatalf("Generate = %v, preparations = %d", err, plans)
+	}
+}
+
+func TestGenerate_VectorPreparationBudget(t *testing.T) {
+	stop := errors.New("observed vector preparation")
+	for _, size := range []image.Point{{10000, 1}, {1, 10000}, {10000, 10000}} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			g := New()
+			uri := uitest.TempSVGURI(t, "source.svg", size.X, size.Y)
+			observed := false
+			g.beforePrepare = func(plan preparationPlan) error {
+				observed = true
+				if plan.bytes > maxPreparationBytes || plan.vectorSize.X <= 0 || plan.vectorSize.Y <= 0 ||
+					uint64(plan.vectorSize.X)*uint64(plan.vectorSize.Y)*12 > plan.bytes {
+					t.Fatalf("vector raster is missing from bounded preparation: %+v", plan)
+				}
+				return stop
+			}
+			request := mustRequest(t, []fyne.URI{uri}, image.Pt(1920, 1080), DefaultSettings(), 42)
+			if _, err := g.Generate(t.Context(), request); !errors.Is(err, stop) || !observed {
+				t.Fatalf("Generate = %v, observed = %v", err, observed)
+			}
+		})
+	}
 }
 
 func TestGenerate_DeterministicAndCoverage(t *testing.T) {
@@ -378,7 +540,9 @@ func TestRenderPlacement_StopsBetweenTransformBands(t *testing.T) {
 	source := &loadedSource{pixels: sourcePixels, bounds: sourcePixels.Bounds()}
 	destination := image.NewNRGBA(image.Rect(0, 0, 220, 220))
 	placed := newPlacement(1, 110, 110, 180, 180, 0, FrameNone, false)
-	ctx := &cancelAfterChecksContext{cancelAt: 3}
+	ctx := &cancelWhenContext{Context: t.Context(), when: func() bool {
+		return destination.NRGBAAt(110, 30).A != 0
+	}}
 
 	if err := renderPlacement(ctx, destination, source, placed); !errors.Is(err, context.Canceled) {
 		t.Fatalf("renderPlacement() = %v, want context.Canceled", err)
@@ -386,24 +550,22 @@ func TestRenderPlacement_StopsBetweenTransformBands(t *testing.T) {
 	if got := destination.NRGBAAt(110, 180).A; got != 0 {
 		t.Fatalf("pixel below first transform band has alpha %d after cancellation, want zero", got)
 	}
+	if got := destination.NRGBAAt(110, 30).A; got == 0 {
+		t.Fatal("cancellation occurred before any transform band was drawn")
+	}
 }
 
-type cancelAfterChecksContext struct {
-	checks   int
-	cancelAt int
+type cancelWhenContext struct {
+	context.Context
+	when func() bool
 }
 
-func (c *cancelAfterChecksContext) Deadline() (time.Time, bool) { return time.Time{}, false }
-func (*cancelAfterChecksContext) Done() <-chan struct{}         { return nil }
-func (c *cancelAfterChecksContext) Err() error {
-	c.checks++
-	if c.checks >= c.cancelAt {
+func (c *cancelWhenContext) Err() error {
+	if c.when() {
 		return context.Canceled
 	}
-
-	return nil
+	return c.Context.Err()
 }
-func (*cancelAfterChecksContext) Value(_ any) any { return nil }
 
 func TestGenerate_DropShadowCanBeDisabled(t *testing.T) {
 	source := mosaicPNG(t, "shadow-source.png", 12, 8, func(_, _ int) color.NRGBA {

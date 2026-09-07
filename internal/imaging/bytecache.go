@@ -18,10 +18,11 @@ import (
 // the image cache without going through fyne.Do, and internal/ui/grid's
 // worker pool does the same for thumbnails.
 type ByteCache[V any] struct {
-	mu     sync.Mutex
-	budget int64
-	used   int64
-	weigh  func(V) int64
+	mu       sync.Mutex
+	budget   int64
+	used     int64
+	weigh    func(V) int64
+	revision uint64
 
 	// ll orders entries most- to least-recently used (front is newest);
 	// items indexes into it so a lookup doesn't walk the list.
@@ -29,11 +30,60 @@ type ByteCache[V any] struct {
 	items map[string]*list.Element
 }
 
+// CacheWriter is captured before a producer reads source pixels. Purge
+// invalidates it; admission and the actual cache mutation share one lock.
+type CacheWriter[V any] struct {
+	cache    *ByteCache[V]
+	revision uint64
+}
+
+// Capture names the cache contents' current revision before source work.
+func (c *ByteCache[V]) Capture() CacheWriter[V] {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return CacheWriter[V]{cache: c, revision: c.revision}
+}
+
+func (w CacheWriter[V]) Current() bool {
+	if w.cache == nil {
+		return false
+	}
+	w.cache.mu.Lock()
+	defer w.cache.mu.Unlock()
+	return w.revision == w.cache.revision
+}
+
+// Add admits current display pixels with ByteCache.Add's oversized retention.
+func (w CacheWriter[V]) Add(key string, value V) bool {
+	if w.cache == nil {
+		return false
+	}
+	w.cache.mu.Lock()
+	defer w.cache.mu.Unlock()
+	if w.revision != w.cache.revision {
+		return false
+	}
+	w.cache.add(key, value)
+	return true
+}
+
+// AddIfFits admits current speculation only within the current byte budget.
+func (w CacheWriter[V]) AddIfFits(key string, value V) bool {
+	if w.cache == nil {
+		return false
+	}
+	w.cache.mu.Lock()
+	defer w.cache.mu.Unlock()
+	if w.revision != w.cache.revision || w.cache.weigh(value) > w.cache.budget {
+		return false
+	}
+	w.cache.add(key, value)
+	return true
+}
+
 // cacheEntry is what ll's elements hold. The weight is stored rather than
-// recomputed on eviction because the value may have been mutated in place
-// since it was added (internal/ui/save.go swaps a rotated frame into a
-// LoadedImage it then evicts) - the running total has to be unwound by
-// exactly what was added to it, or it drifts.
+// recomputed on eviction: the running total must be unwound by exactly
+// what was added to it, even for callers whose values can change weight.
 type cacheEntry[V any] struct {
 	key    string
 	val    V
@@ -166,6 +216,7 @@ func (c *ByteCache[V]) Remove(key string) {
 func (c *ByteCache[V]) Purge() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.revision++
 
 	c.ll.Init()
 	c.items = make(map[string]*list.Element)

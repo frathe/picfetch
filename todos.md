@@ -6,7 +6,12 @@
 
 #### New Features
 
-#### New Features
+### Publish PicFetch in Microsoft Store
+
+Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX bundle, make the Store build defer updates to
+Microsoft Store, retain the portable GitHub/WinGet channel, validate on Windows with WACK, prepare the English/German
+listing and privacy policy, then submit it for certification. Implementation plan:
+`plans/2026-09-03-microsoft-store-msix.md`.
 
 ##### **Export options (Cmd/Ctrl+E)**
 
@@ -58,17 +63,12 @@ app configured. Launching from Finder still works as before.
 
 Track the reconciled findings in [needs_refactoring.md](needs_refactoring.md) and execute the
 [phased implementation plan](plans/2026-09-06-maintainability-plan.md) against the
-[ready-for-agent specification](.scratch/maintainability/spec.md). Start with checked EXIF
-offsets and bounded mosaic scratch allocation; keep the remaining correctness, lifecycle,
-platform and accepted watch items linked to their stable MA identifiers. No refactors have
-been implemented by the audit.
-
-### Publish PicFetch in Microsoft Store
-
-Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX bundle, make the Store build defer updates to
-Microsoft Store, retain the portable GitHub/WinGet channel, validate on Windows with WACK, prepare the English/German
-listing and privacy policy, then submit it for certification. Implementation plan:
-`plans/2026-09-03-microsoft-store-msix.md`.
+[specification](.scratch/maintainability/spec.md) and [published tickets](.scratch/maintainability/ticket-breakdown.md). Implementation is in progress: checked TIFF spans, bounded mosaic preparation, deletion identity,
+complete cache records and saved JPEG dimensions (MA-001/002/004/006/007) are complete;
+clipboard errors, Trash configuration, preview timestamps and RSS arithmetic
+(MA-011/013/018/019) are also complete. MA-005 chooser paths and MA-012 Windows
+list decoding now pass their actual Windows guards and are complete. Queued animation/picture-frame pacing and chooser lifecycle (MA-003, tickets 12–14), ancillary read cancellation and generation-safe duplicate facts (tickets 15–18) have passed their common gates. The ticket 15 manual-test correction, map lifetime and position-poller work (MA-015/016) pass the next common gate; native poller movement/close/shutdown also passed. Background clipboard encoding and EXIF reads (tickets 21–22) pass their shared common gate; serialized original-file mutations and committed-write/cache reconciliation (ticket 23, completing MA-014) pass their common gate. Duplicate-group reuse/cancellation (ticket 24, MA-008) passes its common gate and measured benchmarks. Native Windows/macOS/Store guards pass; the comparison shutdown crash is fixed and gated. Packaging inputs are pinned, all seven artifacts build with inspected metadata, and the actual macOS package renders/quits cleanly. All eight Windows package runs and 14 required native guards pass without skips; the follow-up common gate passes. Remaining comparison coverage, Windows/Linux graphical startup and WACK evidence stay open. Keep remaining correctness, lifecycle,
+platform and accepted watch work linked to the stable MA identifiers and ticket evidence.
 
 ### Automate Microsoft Store updates after the initial publication
 
@@ -171,3 +171,5 @@ open — only the underlying serialisation defect itself is. See
 `finished_refactorings/2026-08-29-qodana-evidence.md` for the decoded byte offsets and anchoring detail, and
 `plans/2026-08-29-qodana-serialisation-bug-report.md`, Task 8's draft of the upstream report text — as of this writing
 not yet submitted to JetBrains; check that file for whether it has been sent since.
+
+- Follow up the pinned fyne.x map widget’s process-global decoded tile cache (`widget/mapcache.go`): PicFetch’s 16 MiB tile cache bounds encoded bytes only; the upstream decoded map has no eviction. Track separately from MA-015 request/failure bounds.

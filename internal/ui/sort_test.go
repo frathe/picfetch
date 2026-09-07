@@ -1,11 +1,17 @@
 package ui
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"image/color"
+	"io"
+	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 
@@ -332,5 +338,208 @@ func TestHandleKeyEvent_EscapeDuringResortOfExistingFilesDoesNotClearThem(t *tes
 	}
 	if v.sortOp.active {
 		t.Error("Escape's cancelSort should clear v.sortOp.active")
+	}
+}
+
+func TestCaptureSort_CancelsHeldReadWithoutInstallingOrder(t *testing.T) {
+	v := newTestViewer(t)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	defer unblock()
+	data := bytes.NewReader(make([]byte, 4096))
+	reads, closed := 0, false
+	source := uitest.ReaderURI(uitest.FakeURI{FileName: "old.jpg", Ext: ".jpg"}, func() (io.ReadCloser, error) {
+		return uitest.ReadCloser{
+			ReadFunc: func(p []byte) (int, error) {
+				reads++
+				if reads == 1 {
+					close(entered)
+					<-release
+				}
+				return data.Read(p)
+			},
+			CloseFunc: func() error { closed = true; return nil },
+		}, nil
+	})
+	current := []fyne.URI{uitest.FakeURI{FileName: "current.jpg", Ext: ".jpg"}}
+	v.state.files = slices.Clone(current)
+	v.state.unsortedFiles = slices.Clone(current)
+	applied := false
+	v.startSort(filesort.ByCaptureDate, []fyne.URI{source}, func(ordered []fyne.URI) {
+		applied = true
+		v.state.reorder(ordered)
+	})
+	completion := v.sortOp.done.Current()
+	select {
+	case <-entered:
+	case <-time.After(testTimeout):
+		t.Fatal("sort did not start its source read")
+	}
+	v.cancelSort()
+	unblock() // An already-blocked underlying Read must return before it can observe cancellation.
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	if err := completion.Wait(ctx); err != nil {
+		t.Fatal("cancelled sort did not complete:", err)
+	}
+	if reads != 1 || !closed {
+		t.Errorf("reads=%d closed=%v, want 1/true", reads, closed)
+	}
+	if applied || !slices.Equal(v.state.files, current) {
+		t.Errorf("obsolete sort installed %v", v.state.files)
+	}
+}
+
+func TestCaptureSort_CancellationRestoresMenuAndAllowsRetry(t *testing.T) {
+	v := newTestViewer(t)
+	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.Black)
+	for i, u := range []fyne.URI{b, a} {
+		stamp := time.Unix(int64(1000+i), 0)
+		if err := os.Chtimes(u.Path(), stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dropAndWait(t, v, b)
+
+	entered, release := make(chan struct{}), make(chan struct{})
+	var readOnce, releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	defer unblock()
+	source := uitest.ReaderURI(a, func() (io.ReadCloser, error) {
+		r, err := os.Open(a.Path())
+		if err != nil {
+			return nil, err
+		}
+		return uitest.ReadCloser{
+			ReadFunc: func(p []byte) (int, error) {
+				readOnce.Do(func() { close(entered); <-release })
+				return r.Read(p)
+			},
+			CloseFunc: r.Close,
+		}, nil
+	})
+	// Keep a real displayed image, with a controlled ancillary reader for
+	// the other file. Name order and capture-date fallback order differ.
+	before := []fyne.URI{source, b}
+	v.state.setFiles([]fyne.URI{b, source}, before)
+	v.state.index = 1
+	v.applyTitle()
+	v.syncMenus()
+	title := v.win.Title()
+	assertRestored := func() {
+		t.Helper()
+		if !slices.Equal(v.state.files, before) || v.state.index != 1 {
+			t.Errorf("cancelled sort changed files/index: %v/%d", v.state.files, v.state.index)
+		}
+		for _, mode := range filesort.Modes() {
+			item := requireSortChild(t, v, filesort.DisplayName(mode))
+			if item.Checked != (mode == filesort.ByName) {
+				t.Errorf("cancelled sort menu %q checked=%v, want name order", item.Label, item.Checked)
+			}
+		}
+		if v.SortMode() != filesort.ByName || v.currentPreferences().SortMode != filesort.ByName.PrefValue() {
+			t.Errorf("cancelled sort retained mode %v, want name order", v.SortMode())
+		}
+		if got := v.win.Title(); got != title {
+			t.Errorf("cancelled sort title=%q, want %q", got, title)
+		}
+	}
+
+	requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Action()
+	completion := v.sortOp.done.Current()
+	select {
+	case <-entered:
+	case <-time.After(testTimeout):
+		t.Fatal("capture sort did not start its source read")
+	}
+	if !requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Checked {
+		t.Error("pending sort should immediately acknowledge capture date")
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	assertRestored() // Restore immediately, even while the old read is held.
+	unblock()
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	if err := completion.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	assertRestored() // A stale completion cannot select the cancelled mode.
+
+	requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Action()
+	waitForSort(t, v)
+	waitUntilLoaded(t, v)
+	if got := v.state.files; !slices.Equal(got, []fyne.URI{b, source}) {
+		t.Errorf("retry order=%v, want capture-date order b.jpg, a.jpg", got)
+	}
+	if !requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Checked {
+		t.Error("successful retry did not select capture date")
+	}
+}
+
+func TestCaptureSort_SupersededCompletionPreservesCancellationBaseline(t *testing.T) {
+	v := newTestViewer(t)
+	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.Black)
+	dropAndWait(t, v, b, a)
+	v.SetSortMode(filesort.ByDropOrder)
+	waitForSort(t, v)
+	waitUntilLoaded(t, v)
+
+	// Each source open owns a gate, so the obsolete read can finish while
+	// its replacement remains paused. Later thumbnail/preload reads do not
+	// use this source: both sorts are cancelled before installing it.
+	opened := make(chan chan struct{}, 2)
+	source := uitest.ReaderURI(a, func() (io.ReadCloser, error) {
+		release := make(chan struct{})
+		var once sync.Once
+		return uitest.ReadCloser{
+			ReadFunc: func(_ []byte) (int, error) {
+				once.Do(func() { opened <- release; <-release })
+				return 0, io.EOF
+			},
+			CloseFunc: func() error { return nil },
+		}, nil
+	})
+	v.state.setFiles([]fyne.URI{b, source}, []fyne.URI{b, source})
+	waitRead := func() func() {
+		t.Helper()
+		select {
+		case release := <-opened:
+			var once sync.Once
+			unblock := func() { once.Do(func() { close(release) }) }
+			t.Cleanup(unblock)
+			return unblock
+		case <-time.After(testTimeout):
+			t.Fatal("sort never reached controlled read")
+			return nil
+		}
+	}
+	v.SetSortMode(filesort.ByCaptureDate)
+	old := v.sortOp.done.Current()
+	releaseOld := waitRead()
+	v.SetSortMode(filesort.ByCaptureDate)
+	current := v.sortOp.done.Current()
+	releaseCurrent := waitRead()
+	releaseOld()
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	if err := old.Wait(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !v.sortOp.active || !requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Checked {
+		t.Error("old completion changed the replacement sort's presentation")
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if v.SortMode() != filesort.ByDropOrder || !requireSortChild(t, v, filesort.DisplayName(filesort.ByDropOrder)).Checked {
+		t.Errorf("cancellation mode=%v, want last completed drop order", v.SortMode())
+	}
+	if !strings.HasPrefix(v.win.Title(), "[unsorted] ") {
+		t.Errorf("cancelled replacement title=%q, want drop-order prefix", v.win.Title())
+	}
+	releaseCurrent()
+	if err := current.Wait(ctx); err != nil {
+		t.Fatal(err)
 	}
 }

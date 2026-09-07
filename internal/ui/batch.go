@@ -65,7 +65,7 @@ func (v *viewer) deleteGridSelection() {
 		if i < 0 || i >= len(v.state.files) {
 			continue
 		}
-		ts = append(ts, deletion.Target{URI: v.state.files[i], Index: i})
+		ts = append(ts, deletion.Target{URI: v.state.files[i]})
 	}
 
 	v.deletion.RequestFiles(ts)
@@ -113,18 +113,21 @@ func (v *viewer) copyGridSelection() {
 		return
 	}
 
-	done := v.clipboard.Begin()
-
-	go func() {
-		defer done()
-
-		if err := clipboard.CopyFiles(paths); err != nil {
-			v.reportFileCopyError(err)
-
+	token, done, ok := v.beginClipboardCopy(false)
+	if !ok {
+		return
+	}
+	v.clipboardWork.workers.Go(func() {
+		if !token.current() {
+			done()
 			return
 		}
-
-		fyne.Do(func() {
+		err := clipboard.CopyFiles(paths)
+		v.completeClipboardCopy(token, done, func() {
+			if err != nil {
+				v.reportFileCopyError(err)
+				return
+			}
 			if len(paths) == 1 {
 				v.ShowToast(lang.L("copied 1 file"))
 				return
@@ -132,21 +135,15 @@ func (v *viewer) copyGridSelection() {
 
 			v.ShowToast(fmt.Sprintf(lang.L("copied %d files"), len(paths)))
 		})
-	}()
+	})
 }
 
-// reportFileCopyError logs a failed file-reference copy and shows it as a
-// toast, the same way reportClipboardError does for image data and for the
-// same reason: this either worked or genuinely failed, on every OS, with none
-// of the cancel-vs-failure ambiguity that keeps reportChooserError quiet on
-// Linux.
+// reportFileCopyError logs a failed file-reference copy and shows a toast.
 func (v *viewer) reportFileCopyError(err error) {
 	detail := chooserErrorDetail(err)
 	fyne.LogError("clipboard file copy failed", errors.New(detail))
 
-	fyne.Do(func() {
-		v.ShowToast(fmt.Sprintf(lang.L("could not copy the files: %v"), detail))
-	})
+	v.ShowToast(fmt.Sprintf(lang.L("could not copy the files: %v"), detail))
 }
 
 // selectAllInGrid is Cmd/Ctrl+A, and does nothing outside the grid: there is

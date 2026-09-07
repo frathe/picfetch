@@ -7,50 +7,93 @@
 package filepicker
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"unicode/utf8"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 )
 
-// Choose produces the raw, newline-separated path list the current OS's own
-// file browser returned. A var so callers' tests can stub the whole
-// platform dispatch without needing any of these tools - or a display - to
-// actually be present.
-var Choose = func() ([]byte, error) {
+// Choose returns the exact selected file/folder identities in selection order.
+// A nil list with no error means cancellation. Native transport is decoded here,
+// so consumers never split filenames or interpret command output themselves.
+var Choose = func() ([]fyne.URI, error) {
+	var out []byte
+	var err error
 	switch runtime.GOOS {
 	case "darwin":
-		return chooseFilesDarwin()
+		out, err = chooseFilesDarwin()
 	case "windows":
-		return chooseFilesWindows()
+		out, err = chooseFilesWindows()
 	default:
-		return chooseFilesLinux()
+		out, err = chooseFilesLinux()
 	}
+	return decodePickedPaths(out, err)
 }
 
-// ChooseSave produces the single destination path the current OS's own save
-// panel returned, for internal/ui's File > "Export as…" actions - the
-// counterpart to Choose, and a var for the same reason. suggestedPath is a
-// full path, not a bare name: every panel below uses its directory as the
-// one to open in (the image's own folder, in practice) and its base name as
-// the pre-filled file name.
-//
-// The output is newline-terminated exactly like Choose's, so callers decode
-// it with the same ParseFileList; a cancel yields no path at all rather
-// than an error on macOS and Windows, and an error indistinguishable from a
-// failure on Linux - see chooseFilesLinux for why.
-var ChooseSave = func(suggestedPath string) ([]byte, error) {
+// ChooseSave returns exactly the destination confirmed by the native panel.
+// Nil with no error means cancellation; more than one result is a protocol error.
+// suggestedPath supplies both the initial directory and the proposed name.
+var ChooseSave = func(suggestedPath string) (fyne.URI, error) {
+	var out []byte
+	var err error
 	switch runtime.GOOS {
 	case "darwin":
-		return chooseSaveDarwin(suggestedPath)
+		out, err = chooseSaveDarwin(suggestedPath)
 	case "windows":
-		return chooseSaveWindows(suggestedPath)
+		out, err = chooseSaveWindows(suggestedPath)
 	default:
-		return chooseSaveLinux(suggestedPath)
+		out, err = chooseSaveLinux(suggestedPath)
 	}
+	return decodePickedDestination(out, err)
+}
+
+func decodePickedDestination(out []byte, err error) (fyne.URI, error) {
+	picked, err := decodePickedPaths(out, err)
+	if err != nil || picked == nil {
+		return nil, err
+	}
+	if len(picked) != 1 {
+		return nil, errors.New("save panel returned more than one destination")
+	}
+	return picked[0], nil
+}
+
+// Native adapters emit a JSON array of paths, or null for cancellation.
+// An empty successful selection is distinct from cancellation and cannot be used.
+func decodePickedPaths(out []byte, err error) ([]fyne.URI, error) {
+	if err != nil {
+		return nil, err
+	}
+	if !utf8.Valid(out) {
+		return nil, errors.New("file chooser returned invalid UTF-8")
+	}
+	var paths []string
+	if err := json.Unmarshal(out, &paths); err != nil {
+		return nil, fmt.Errorf("invalid file chooser result: %w", err)
+	}
+	if paths == nil {
+		return nil, nil
+	}
+	if len(paths) == 0 {
+		return nil, errors.New("file chooser returned an empty selection")
+	}
+	uris := make([]fyne.URI, len(paths))
+	for i, picked := range paths {
+		if strings.ContainsRune(picked, 0) || !(path.IsAbs(picked) || filepath.IsAbs(picked)) {
+			return nil, errors.New("file chooser returned an invalid absolute path")
+		}
+		uris[i] = storage.NewFileURI(picked)
+	}
+	return uris, nil
 }
 
 // lookupZenity finds the zenity binary; a var so tests can force either
@@ -62,13 +105,8 @@ var lookupZenity = exec.LookPath
 // stdout; a var so tests can stub the process out entirely.
 var runZenityCommand = func(cmd *exec.Cmd) ([]byte, error) { return cmd.Output() }
 
-// chooseFilesLinux shells out to zenity, the closest thing Linux desktops
-// have to one standard native file dialog. GTK's file chooser (the widget
-// zenity itself wraps) lets a user select folders as well as files while in
-// multi-select mode - highlighting a folder selects it instead of
-// navigating into it - so one dialog covers both without a mode switch. If
-// zenity isn't installed, the caller treats the returned error the same as
-// a cancel - see the viewer's runFileChooser.
+// chooseFilesLinux runs Zenity and validates its native path framing. Missing
+// tools and execution/transport failures remain distinct from cancellation.
 func chooseFilesLinux() ([]byte, error) {
 	path, err := lookupZenity("zenity")
 	if err != nil {
@@ -76,15 +114,15 @@ func chooseFilesLinux() ([]byte, error) {
 	}
 
 	cmd := exec.Command(path, "--file-selection", "--multiple",
-		"--separator=\n", "--title="+lang.L("Open images"))
-	return runZenityCommand(cmd)
+		"--separator="+zenityPathSeparator, "--title="+lang.L("Open images"))
+	out, err := runZenityCommand(cmd)
+	return zenityResult(out, err, true)
 }
 
 // chooseSaveLinux is chooseFilesLinux's save-panel twin: the same zenity
-// file selector in --save mode. --confirm-overwrite makes zenity itself ask
-// before returning an existing path, so imaging.Export is never the first
-// thing to find out it's replacing a file. Multi-select is meaningless here,
-// so --multiple is deliberately absent.
+// file selector in --save mode. The native save panel owns overwrite
+// confirmation (older Zenity needs --confirm-overwrite). Multi-select is
+// meaningless here, so --multiple is deliberately absent.
 func chooseSaveLinux(suggestedPath string) ([]byte, error) {
 	path, err := lookupZenity("zenity")
 	if err != nil {
@@ -93,7 +131,8 @@ func chooseSaveLinux(suggestedPath string) ([]byte, error) {
 
 	cmd := exec.Command(path, "--file-selection", "--save", "--confirm-overwrite",
 		"--filename="+suggestedPath, "--title="+lang.L("Export image"))
-	return runZenityCommand(cmd)
+	out, err := runZenityCommand(cmd)
+	return zenityResult(out, err, false)
 }
 
 // chooseFilesWindows shells out to a WinForms OpenFileDialog via
@@ -119,8 +158,9 @@ $dlg = New-Object System.Windows.Forms.OpenFileDialog
 $dlg.Multiselect = $true
 $dlg.Title = "` + powerShellEscape(lang.L("Open images")) + `"
 if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-	$dlg.FileNames | ForEach-Object { Write-Output $_ }
-}`
+	Write-PickedPaths $dlg.FileNames
+} else { [Console]::Write("null") }`
+	script = powerShellPickerScript(script)
 
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 	hideConsoleWindow(cmd)
@@ -149,8 +189,9 @@ $dlg.InitialDirectory = [System.IO.Path]::GetDirectoryName("` + escaped + `")
 $dlg.OverwritePrompt = $true
 $dlg.Title = "` + powerShellEscape(lang.L("Export image")) + `"
 if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-	Write-Output $dlg.FileName
-}`
+	Write-PickedPaths @($dlg.FileName)
+} else { [Console]::Write("null") }`
+	script = powerShellPickerScript(script)
 
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 	hideConsoleWindow(cmd)
@@ -165,25 +206,46 @@ func powerShellEscape(s string) string {
 	return strings.ReplaceAll(s, `"`, "`\"")
 }
 
-// ParseFileList splits a native file chooser's newline-separated stdout
-// into file URIs. Shared by all three OS-specific choosers, since each is
-// built to emit one absolute path per line. A trailing separator, blank
-// lines, and a trailing \r per line (PowerShell's Write-Output uses CRLF
-// line endings on Windows) are all tolerated.
-func ParseFileList(out []byte) []fyne.URI {
-	trimmed := strings.TrimRight(string(out), "\r\n")
-	if trimmed == "" {
-		return nil
-	}
+// Zenity prints canonical GFile paths. An internal double slash cannot occur
+// in one such path, so this separator also preserves every filename character.
+// A single save needs no separator: remove only Zenity's final output newline.
+const zenityPathSeparator = "//picfetch-file//"
 
-	lines := strings.Split(trimmed, "\n")
-	uris := make([]fyne.URI, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimRight(line, "\r")
-		if line == "" {
-			continue
+func zenityResult(out []byte, err error, multiple bool) ([]byte, error) {
+	if err != nil {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() == 1 {
+			return []byte("null"), nil
 		}
-		uris = append(uris, storage.NewFileURI(line))
+		return nil, err
 	}
-	return uris
+	if !utf8.Valid(out) || !strings.HasSuffix(string(out), "\n") || strings.ContainsRune(string(out), 0) {
+		return nil, errors.New("unsupported zenity path transport")
+	}
+	payload := strings.TrimSuffix(string(out), "\n")
+	paths := []string{payload}
+	if multiple {
+		paths = strings.Split(payload, zenityPathSeparator)
+	}
+	for _, picked := range paths {
+		if !path.IsAbs(picked) || path.Clean(picked) != picked {
+			return nil, errors.New("zenity returned an empty or noncanonical path")
+		}
+	}
+	return json.Marshal(paths)
+}
+
+// The same serializer is exercised without opening a dialog by Windows native
+// protocol tests. Console encoding is explicit even on legacy Windows PowerShell.
+func powerShellPickerScript(body string) string {
+	return `$ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+function Write-PickedPaths([string[]]$paths) {
+	[Console]::Write((ConvertTo-Json -InputObject $paths -Compress))
+}
+try {
+` + body + `
+} catch {
+	[Console]::Error.WriteLine($_.Exception.Message)
+	exit 1
+}`
 }

@@ -27,8 +27,9 @@ func typeKey(t *testing.T, win fyne.Window, name fyne.KeyName) {
 // selection.
 func TestShowConfirmGivesTheKeyboardToItsPanelStartingOnCancel(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.showConfirm(confirmation{title: "Title", message: "Message", action: "Confirm"})
@@ -49,8 +50,9 @@ func TestShowConfirmGivesTheKeyboardToItsPanelStartingOnCancel(t *testing.T) {
 // say Cancel, and has to leave onCancel looking at already-closed state.
 func TestShowConfirmEscapeRunsOnCancelAfterTheDialogCloses(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	var ran int
@@ -79,8 +81,9 @@ func TestShowConfirmEscapeRunsOnCancelAfterTheDialogCloses(t *testing.T) {
 // Escape would close the window behind the prompt rather than cancel it.
 func TestShowConfirmEscapeDoesNotCloseTheEXIFWindow(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.showConfirm(confirmation{title: "Title", message: "Message", action: "Confirm"})
@@ -97,8 +100,9 @@ func TestShowConfirmEscapeDoesNotCloseTheEXIFWindow(t *testing.T) {
 
 func TestShowConfirmEscapeLeavesCanvasUnfocused(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.showConfirm(confirmation{title: "Title", message: "Message", action: "Confirm"})

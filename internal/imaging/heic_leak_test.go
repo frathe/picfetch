@@ -55,7 +55,7 @@ func TestHEICDecode_DoesNotGrowRSSUnbounded(t *testing.T) {
 	// With the upstream leak, RSS climbs roughly linearly with decode count.
 	// After PR #16 the second batch should not add much beyond wasm init noise.
 	const maxGrowthMB = 80
-	if growth := rssAfter - rssMid; growth > maxGrowthMB*1024*1024 {
+	if growth := rssGrowth(rssMid, rssAfter); growth > maxGrowthMB*1024*1024 {
 		t.Fatalf("RSS grew %d bytes over %d decodes after warmup; want <= %d MB (leak suspected)", growth, iterations, maxGrowthMB)
 	}
 }
@@ -65,4 +65,30 @@ func settleRSS() {
 	runtime.GC()
 	debug.FreeOSMemory()
 	runtime.GC()
+}
+
+func rssGrowth(before, after uint64) uint64 {
+	if after <= before {
+		return 0
+	}
+	return after - before
+}
+
+func TestRSSGrowth(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		before, after, want uint64
+	}{
+		{"increase", 100, 140, 40},
+		{"equal", 100, 100, 0},
+		{"decrease", 140, 100, 0},
+		{"maximum increase", 0, ^uint64(0), ^uint64(0)},
+		{"maximum decrease", ^uint64(0), 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rssGrowth(tc.before, tc.after); got != tc.want {
+				t.Errorf("growth = %d, want %d", got, tc.want)
+			}
+		})
+	}
 }

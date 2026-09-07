@@ -207,6 +207,7 @@ func loadPatternedTriple(t *testing.T) *viewer {
 func TestStepImage_SkipsHiddenExtras(t *testing.T) {
 	v := loadPatternedTriple(t)
 	v.grid.SetHideDuplicates(true)
+	v.grid.Settle()
 	waitUntilLoaded(t, v)
 	if v.state.index != 0 {
 		t.Fatalf("index = %d, want 0 (representative)", v.state.index)
@@ -284,6 +285,7 @@ func TestHandleKeyEvent_DTogglesHideDuplicatesWhenGridClosed(t *testing.T) {
 	}
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	v.grid.Settle()
 	if !v.dupes.HideDuplicates() {
 		t.Fatal("D with the grid closed should hide extras")
 	}
@@ -292,6 +294,7 @@ func TestHandleKeyEvent_DTogglesHideDuplicatesWhenGridClosed(t *testing.T) {
 	v.ShowImage(1)
 	waitUntilLoaded(t, v)
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	v.grid.Settle()
 	waitUntilLoaded(t, v)
 	if v.state.index != 0 {
 		t.Fatalf("index = %d, want 0 after hiding while on an extra", v.state.index)

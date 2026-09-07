@@ -73,6 +73,7 @@ func cloneSnapshot(snapshot Snapshot) Snapshot {
 type Host interface {
 	GenerateMosaic(context.Context, mosaic.Request) (mosaic.Result, error)
 	InspectMosaicDisplays() (displays.Snapshot, error)
+	AfterFileExported(imaging.WriteResult)
 	// SetMosaicWallpaper takes a solo argument confirming the target is
 	// currently the only attached display - see wallpaper.Request.Solo for why
 	// that lets a platform that can't truthfully address one display among
@@ -103,7 +104,7 @@ type Window struct {
 	lastSeed        int64
 	exportFormat    ExportFormat
 	clock           func() time.Time
-	exporter        func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error
+	exporter        func(context.Context, fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) (imaging.WriteResult, error)
 
 	root, config, previewPanel   *fyne.Container
 	sourceLabel, status          *widget.Label
@@ -137,7 +138,7 @@ func New(application fyne.App, host Host) *Window {
 		seed:          func() int64 { return time.Now().UnixNano() },
 		clock:         time.Now,
 		exportFormat:  ExportPNG,
-		exporter:      imaging.Export,
+		exporter:      imaging.ExportContext,
 		displayLabels: make(map[string]displays.ID),
 	}
 	w.win.SetEscape(w.handleEscape)
@@ -739,3 +740,6 @@ func frameLabel(frame mosaic.FrameStyle) string {
 		return lang.L("None")
 	}
 }
+
+// WaitForTracking observes position polling after StopTracking, off UI.
+func (w *Window) WaitForTracking() { w.win.WaitForTracking() }

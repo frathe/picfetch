@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"fyne.io/fyne/v2"
 )
@@ -35,8 +36,8 @@ func pathHash(src fyne.URI) (string, bool) {
 }
 
 // EntryName returns the preview file's base name (no extension) for the
-// source file src: "<pathhash>-<mtime>-<size>". It reports false when src
-// cannot be stat-ed, which is the caller's signal to leave any existing
+// source src: "<pathhash>-<mtime seconds>.<nanoseconds>-<size>". It reports
+// false when src cannot be stat-ed, telling the caller to leave any existing
 // preview for src alone rather than treat it as stale.
 func EntryName(src fyne.URI) (string, bool) {
 	hash, ok := pathHash(src)
@@ -49,5 +50,9 @@ func EntryName(src fyne.URI) (string, bool) {
 		return "", false
 	}
 
-	return fmt.Sprintf("%s-%d-%d", hash, info.ModTime().Unix(), info.Size()), true
+	return entryName(hash, info.ModTime(), info.Size()), true
+}
+
+func entryName(hash string, modified time.Time, size int64) string {
+	return fmt.Sprintf("%s-%d.%09d-%d", hash, modified.Unix(), modified.Nanosecond(), size)
 }

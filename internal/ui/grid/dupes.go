@@ -23,22 +23,22 @@ func (g *Overview) adoptHashGen() {
 // rememberHash dHashes img here, on whichever goroutine already holds the
 // decoded thumbnail, and hands the model only the 8-byte result: the
 // model knows nothing about images.
-func (g *Overview) rememberHash(u fyne.URI, img image.Image) {
+func rememberHash(facts dupes.FactWriter, u fyne.URI, img image.Image) bool {
 	if u == nil || img == nil {
-		return
+		return false
 	}
-	g.dupes.PutHash(u.String(), imaging.DifferenceHash(img))
+	return facts.PutHash(u.String(), imaging.DifferenceHash(img))
 }
 
 // rememberNative records u's native pixel size. The conversion from a
 // probe's rectangle to a plain size happens here because the model stores
 // sizes, not rectangles with an origin; it applies its own clamp for a
 // negative edge.
-func (g *Overview) rememberNative(u fyne.URI, native image.Rectangle) {
+func rememberNative(facts dupes.FactWriter, u fyne.URI, native image.Rectangle) bool {
 	if u == nil {
-		return
+		return false
 	}
-	g.dupes.PutNativeSize(u.String(), image.Pt(native.Dx(), native.Dy()))
+	return facts.PutNativeSize(u.String(), image.Pt(native.Dx(), native.Dy()))
 }
 
 func (g *Overview) hashOf(u fyne.URI) (uint64, bool) {
@@ -65,8 +65,8 @@ func (g *Overview) clearHashes() {
 	g.dupes.Clear()
 }
 
-// SetOnDupeStateChanged registers f to run after hide, browse, last-job
-// hash apply, or duplicate-distance changes. The field is read at fire
+// SetOnDupeStateChanged registers f to run after hide, browse, completed
+// grouping, or duplicate-distance changes. The field is read at fire
 // time. nil is a no-op.
 func (g *Overview) SetOnDupeStateChanged(f func()) { g.onDupeState = f }
 
@@ -129,7 +129,7 @@ func (g *Overview) HideDuplicatesChanged(on bool) {
 		_ = g.hashRemaining()
 	}
 	g.applyFilter()
-	if on {
+	if _, current := g.dupes.CurrentGroups(); on && current {
 		// The model's observers, not a call of the grid's own: the jump
 		// off a now-hidden extra runs ShowImage, which belongs to the app
 		// (internal/ui's jumpIfHiddenExtra). Fired after applyFilter, so
@@ -143,6 +143,12 @@ func (g *Overview) HideDuplicatesChanged(on bool) {
 // group.
 func (g *Overview) BrowsingDuplicates() bool {
 	return g.browseHost >= 0
+}
+
+// BrowseReady reports a completed group that can be presented by the host.
+func (g *Overview) BrowseReady() bool {
+	snapshot, current := g.dupes.CurrentGroups()
+	return g.browseHost >= 0 && g.hashes.hashJobs.Load() == 0 && current && snapshot.Size(g.browseHost) >= 2
 }
 
 // SetBrowsingDuplicates turns group-browsing on or off. Turning it on hashes
@@ -166,7 +172,7 @@ func (g *Overview) SetBrowsingDuplicates(on bool) {
 	if src < 0 {
 		return
 	}
-	// Set before hashRemaining so an inline last-job fyne.Do can finishBrowse.
+	// Capture the browse source before admitting its background hash pass.
 	g.browseHost = src
 	pending := g.hashRemaining()
 	if pending > 0 {
@@ -193,7 +199,9 @@ func (g *Overview) finishBrowse() {
 	// Warm records hashes but does not rebuild groups; applyFilter is the
 	// usual rebuild site, and the group-size check below must see the
 	// rebuilt sizes first.
-	g.rebuildGroups()
+	if !g.rebuildGroups() {
+		return
+	}
 	if g.dupes.GroupSize(g.browseHost) < 2 {
 		g.browseHost = -1
 		g.applyFilter()
@@ -239,7 +247,7 @@ func (g *Overview) inspectSource() int {
 // threshold the model has already accepted - the model is what clamps it
 // to 0–32 - and rebuilds groups. Live: if browsing, the group is
 // re-checked and browse exits when it drops below two members. If hide is
-// on and not browsing, extras are recomputed immediately and the host
+// on and not browsing, extras are recomputed in the pool and the host
 // jumps if the current file became an extra.
 //
 // There is no grid-side setter to pair with it any more: the app owns the
@@ -252,16 +260,16 @@ func (g *Overview) inspectSource() int {
 // Only the caller that actually moved the value should call this;
 // dupes.Model.SetDistance reports whether it did.
 func (g *Overview) DuplicateDistanceChanged() {
+	// Startup restores the threshold before any files or test UI queue exist.
+	if g.host.FileCount() == 0 {
+		g.fireDupeState()
+		return
+	}
+	g.resumeWork()
 	if g.browseHost >= 0 {
 		g.finishBrowse()
-	} else if g.dupes.HideDuplicates() {
-		g.applyFilter()
-		// Where the old body called the grid's own jumpIfHiddenExtra.
-		// Browse deliberately keeps no Notify of its own: the jump never
-		// ran on that path, and the model knows nothing about browse.
-		g.dupes.Notify()
 	} else {
-		g.rebuildGroups()
+		g.applyFilter()
 	}
 	g.fireDupeState()
 }
@@ -270,56 +278,29 @@ func (g *Overview) duplicateDistance() int {
 	return g.dupes.Distance()
 }
 
-func (g *Overview) rebuildGroups() {
-	g.dupes.Rebuild()
-}
-
-// hashRemaining starts the hashing pass for every file the model has no
-// dHash or native size for yet, and returns how many jobs it queued -
-// the grid's one entry point into hashEngine, kept under its old name so
-// hide, browse and the tests all still call the same thing. The pass
-// itself, its job accounting and its throttle live in hashengine.go;
-// applyHashSnapshot below is the half of a completion that has to run on
-// the UI goroutine, which is why the split falls where it does.
+// hashRemaining fills missing facts. Its throttled UI notification requests
+// grouping through the same cancellable owner as search and distance changes.
 func (g *Overview) hashRemaining() int {
-	return g.hashes.Run(g.applyHashSnapshot)
+	ctx := g.resumeWork()
+	return g.hashes.Run(ctx, g.hashFactsReady)
 }
 
-// applyHashSnapshot installs a finished hash job's group snapshot and
-// re-applies the grid's own view of it. hashEngine.Run passes this as its
-// apply callback and runs it on the UI goroutine, once per scheduled
-// apply; nothing else calls it.
-//
-// This is everything in the old hashRemaining completion that could not
-// move to the engine, unchanged: it reaches the highlight, the browse
-// source, the filter and the grid's dupe-state notification, all of which
-// are the overlay's and stay on Overview. snap is the snapshot the worker
-// computed off the UI goroutine, remaining is how many jobs were still
-// outstanding when this one finished, and gen is the generation the pass
-// started at - a newer drop makes the whole snapshot meaningless.
-func (g *Overview) applyHashSnapshot(snap dupes.Groups, remaining int32, gen uint64) {
+func (g *Overview) hashFactsReady(remaining int32, gen uint64) {
 	if gen != g.host.Generation() {
 		return
 	}
-	if g.browseHost >= 0 {
+	if !g.dupes.HideDuplicates() && g.browseHost < 0 {
 		if remaining == 0 {
-			g.finishBrowse()
 			g.fireDupeState()
 		}
 		return
 	}
-	if g.dupes.HideDuplicates() {
-		keepHost := g.fileIndex(g.highlight)
-		if g.duplicateDistance() != snap.Dist {
-			snap = g.dupes.Compute()
-		}
-		g.dupes.Install(snap)
-		g.applyVisibleFilter(false, keepHost)
-		if !g.dupes.Inspecting() {
-			g.dupes.Notify()
-		}
+	if g.browseHost >= 0 && remaining != 0 {
+		return
 	}
-	if remaining == 0 {
-		g.fireDupeState()
+	if g.rebuildGroups() {
+		if snapshot, current := g.dupes.CurrentGroups(); current {
+			g.groupsReady(snapshot)
+		}
 	}
 }

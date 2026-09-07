@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -417,5 +420,36 @@ func TestGridHighlight_TitleKeepsTheModePrefixes(t *testing.T) {
 	}
 	if !strings.Contains(title, "alpha.jpg") {
 		t.Errorf("title = %q, want it to name the highlighted file", title)
+	}
+}
+
+func TestShutdownStopsGridAdmission(t *testing.T) {
+	application := test.NewApp()
+	v, win := buildStartupViewer(application)
+	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.compare.SetUIQueue(&uitest.UIQueue{})
+	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
+	v.slides.SetUIQueue(&uitest.UIQueue{})
+	v.deletion.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(win.Close)
+	t.Cleanup(func() { drain(t, v) })
+	src := uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White)
+	v.state.replaceFiles([]fyne.URI{src}, []fyne.URI{src})
+	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
+	if !ok {
+		t.Fatal("test lifecycle has no stopped hook")
+	}
+	original := lifecycle.OnStopped()
+	registerShutdown(application, v)
+	shutdown := lifecycle.OnStopped()
+	application.Lifecycle().SetOnStopped(original)
+	shutdown()
+	if err := v.grid.Warm(); !errors.Is(err, context.Canceled) {
+		t.Errorf("shutdown grid admitted warm: %v", err)
+	}
+	v.grid.Toggle()
+	v.grid.Settle()
+	if v.grid.Visible() || v.grid.Cached(src) {
+		t.Error("shutdown grid reopened or populated its cache")
 	}
 }

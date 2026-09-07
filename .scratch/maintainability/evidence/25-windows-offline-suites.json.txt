@@ -1,0 +1,80 @@
+[
+  {
+    "name": "wallpaper",
+    "directory": "internal/wallpaper",
+    "package": "github.com/frathe/picfetch/internal/wallpaper",
+    "binary": "picfetch-test-wallpaper-r2.exe",
+    "guards": [
+      "TestSetWindows_TargetPreservesOpaqueIDAndUnicodePath",
+      "TestSetWindows_TargetValidationFailsBeforeMutation"
+    ]
+  },
+  {
+    "name": "clipboard",
+    "directory": "internal/clipboard",
+    "package": "github.com/frathe/picfetch/internal/clipboard",
+    "binary": "picfetch-test-clipboard.exe",
+    "guards": [
+      "TestCopyFilesWindows_DecodesUTF8WithNonUTF8Default"
+    ]
+  },
+  {
+    "name": "filepicker",
+    "directory": "internal/filepicker",
+    "package": "github.com/frathe/picfetch/internal/filepicker",
+    "binary": "picfetch-test-filepicker.exe",
+    "guards": [
+      "TestWindowsPickerTransport_EmitsUTF8PathArrays"
+    ]
+  },
+  {
+    "name": "update",
+    "directory": "internal/update",
+    "package": "github.com/frathe/picfetch/internal/update",
+    "binary": "picfetch-test-update.exe",
+    "guards": [
+      "TestApplyWindows_ReplacesDestAndKeepsOld",
+      "TestApplyWindows_MissingStagedBinaryRestoresDest",
+      "TestWindowsRelaunchCommand_PassesThePIDInTheInheritedEnvironment",
+      "TestClassifyApplyError_WindowsErrno",
+      "TestWaitMilliseconds_NeverConvertsToAnUnboundedWait"
+    ]
+  },
+  {
+    "name": "ui-autoupdate",
+    "directory": "internal/ui/autoupdate",
+    "package": "github.com/frathe/picfetch/internal/ui/autoupdate",
+    "binary": "picfetch-test-ui-autoupdate.exe",
+    "guards": [
+      "TestUpdater_AutomaticAndManualShareCompleteTransaction",
+      "TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform"
+    ]
+  },
+  {
+    "name": "distribution",
+    "directory": "internal/distribution",
+    "package": "github.com/frathe/picfetch/internal/distribution",
+    "binary": "picfetch-test-distribution.exe",
+    "guards": [
+      "TestStoreManaged_DefaultBuildIsFalse"
+    ]
+  },
+  {
+    "name": "store-distribution",
+    "directory": "internal/distribution",
+    "package": "github.com/frathe/picfetch/internal/distribution",
+    "binary": "picfetch-test-store-distribution.exe",
+    "guards": [
+      "TestStoreManaged_MicrosoftStoreBuildIsTrue"
+    ]
+  },
+  {
+    "name": "store-ui-autoupdate",
+    "directory": "internal/ui/autoupdate",
+    "package": "github.com/frathe/picfetch/internal/ui/autoupdate",
+    "binary": "picfetch-test-store-ui-autoupdate.exe",
+    "guards": [
+      "TestUpdater_AutomaticAndManualShareCompleteTransaction"
+    ]
+  }
+]

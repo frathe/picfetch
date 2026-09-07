@@ -200,7 +200,7 @@ type Overview struct {
 	// decodes bounds concurrent thumbnail decodes and gates duplicate work
 	// per recycled cell - see internal/decodepool. The key is the cell
 	// container (the stable per-slot widget, not the image inside it) and the
-	// value is the file id that cell's in-flight decode is working toward, so
+	// value carries the file id and work revision that the decode targets, so
 	// a cell recycled onto a different file supersedes rather than blocks.
 	//
 	// The duplicate gate earns its keep here specifically: every repaint
@@ -208,7 +208,10 @@ type Overview struct {
 	// multi-megapixel decode easily outlives several repaints - without the
 	// gate, each of those passes would queue another goroutine for work
 	// already underway. Wait is what Settle waits on.
-	decodes *decodepool.Pool[*fyne.Container, int]
+	decodes *decodepool.Pool[*fyne.Container, thumbClaim]
+
+	work     workSession
+	grouping groupWork
 
 	// ui is how a decode worker's completion reaches the UI goroutine -
 	// see uiqueue.go for why that is a field and not a direct fyne.Do.
@@ -334,24 +337,14 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 		win:        win,
 		sel:        selection.New(),
 		thumbs:     imaging.NewThumbCache(imaging.DefaultThumbCacheBytes),
-		decodes:    decodepool.New[*fyne.Container, int](thumbConcurrency),
+		decodes:    decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency),
 		ui:         fyneQueue{},
 		dupes:      model,
 		browseHost: -1,
 	}
 
-	// Built after the literal so the engine can be handed the very
-	// pointers the Overview holds, not a second pool or a second cache:
-	// hash jobs have to land on the same decode pool the cells decode on
-	// (Settle's decodes.Wait barrier covers only that pool) and fill the
-	// same thumbnail cache and the same model the badges read.
-	g.hashes = &hashEngine{
-		host:   host,
-		pool:   g.decodes,
-		thumbs: g.thumbs,
-		model:  model,
-		ui:     g.ui,
-	}
+	// Initialize the first work session over the shared pool, cache and model.
+	g.restartWork()
 
 	g.wrap = widget.NewGridWrap(
 		g.count,
@@ -552,9 +545,21 @@ func (g *Overview) Toggle() {
 		return
 	}
 
+	if g.resumeWork().Err() != nil {
+		return
+	}
 	g.ClearInspect()
 
 	g.visible = true
+	// Close cancels an unfinished pass while keeping the standing hide flag.
+	// Reopening must finish that analysis, including files outside the viewport.
+	if g.dupes.HideDuplicates() {
+		_ = g.hashRemaining()
+	}
+
+	if g.dupes.HideDuplicates() {
+		g.rebuildFilter(false)
+	}
 
 	// Maximize, not full-screen (see winpos.Maximize) - more room for more,
 	// bigger thumbnails at once, without picture-frame mode's chrome-free
@@ -606,6 +611,7 @@ func (g *Overview) Close() {
 // false, inspect survives so a variants commit can keep the extra on
 // screen.
 func (g *Overview) closeOverlay(clearInspect bool) {
+	g.work.cancel()
 	if clearInspect {
 		g.ClearInspect()
 	}

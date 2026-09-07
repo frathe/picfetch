@@ -3,6 +3,7 @@ package compare
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -3406,5 +3407,68 @@ func TestCompareStale_OlderCompletionCannotRepaintANewerSession(t *testing.T) {
 	panes := renderedPanes(feature.Overlay())
 	if len(panes) != 2 || panes[0].image.Image != newLeft.Frames[0] || panes[1].image.Image != newRight.Frames[0] {
 		t.Error("stale completion replaced the newer comparison images")
+	}
+}
+
+func TestCompareRefresh_ReplacesQueuedPixelsAndPreservesTransforms(t *testing.T) {
+	for _, ready := range []bool{false, true} {
+		t.Run(fmt.Sprintf("ready=%v", ready), func(t *testing.T) {
+			app := test.NewApp()
+			t.Cleanup(app.Quit)
+			var width atomic.Int32
+			width.Store(400)
+			opened := 0
+			f := newReferenceFeature(func(_ context.Context, _ fyne.URI) (*imaging.LoadedImage, error) {
+				return loadedImage(int(width.Load()), 200), nil
+			}, Callbacks{Opened: func() { opened++ }})
+			f.SetUIQueue(&uitest.UIQueue{})
+			win := test.NewWindow(f.Overlay())
+			win.Resize(fyne.NewSize(800, 400))
+			t.Cleanup(win.Close)
+			ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
+			defer cancel()
+			defer func() {
+				f.Close()
+				if err := f.Settle(ctx); err != nil {
+					t.Error(err)
+				}
+			}()
+			f.Open([2]fyne.URI{storage.NewFileURI("left.png"), storage.NewFileURI("right.png")})
+			if err := f.workers.WaitContext(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if ready {
+				if err := f.Settle(ctx); err != nil {
+					t.Fatal(err)
+				}
+				test.Tap(comparisonButton(t, f.Overlay(), "Swap"))
+				test.Tap(comparisonButton(t, f.Overlay(), "Swipe"))
+				f.HandleKey(fyne.KeyRight)
+				f.HandleKey(fyne.KeyPlus)
+				test.Tap(comparisonButton(t, f.Overlay(), "Unlink"))
+				f.hoveredPane = 0
+				f.HandleKey(fyne.KeyPlus)
+			}
+			photos, camera, sources := f.photoTransforms, f.camera, f.sources
+			unlinked, divider := f.unlinked, f.dividerAt
+			width.Store(800)
+			f.Refresh()
+			if err := f.Settle(ctx); err != nil {
+				t.Fatal(err)
+			}
+			for i := range f.loaded {
+				if f.loaded[i] == nil || f.loaded[i].Frames[0].Bounds().Dx() != 800 {
+					t.Errorf("pane %d retained old queued pixels", i)
+				}
+			}
+			if f.photoTransforms != photos || f.camera != camera || f.sources != sources || f.unlinked != unlinked || f.dividerAt != divider || opened != 1 {
+				t.Error("refresh reset the comparison session")
+			}
+			f.Close()
+			f.Refresh()
+			if f.Visible() {
+				t.Error("refresh reopened closed comparison")
+			}
+		})
 	}
 }

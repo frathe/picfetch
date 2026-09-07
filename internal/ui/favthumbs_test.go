@@ -1,16 +1,26 @@
 package ui
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"image"
 	"image/color"
+	"io"
 	"os"
 	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/favthumbs"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -199,4 +209,172 @@ func TestSetFavoritePreviewCacheOnLeavesAPassAlone(t *testing.T) {
 	if !token.current() {
 		t.Error("turning the preference on should not disturb a pass already running")
 	}
+}
+
+func TestFavoritePreviews_SupersededWorkersRemainTracked(t *testing.T) {
+	v := newTestViewer(t)
+	// Synctest owns these channels and waitgroups. Its bubble waits for every
+	// goroutine to exit; afterward discard the completed test-only handles so
+	// the outer viewer cleanup never selects on a channel from another bubble.
+	t.Cleanup(func() {
+		v.favThumb = completion.Signal{}
+		v.favThumbLifecycle = requestLifecycle{}
+		v.favThumbWorkers = sync.WaitGroup{}
+	})
+	v.settings.favPreviewCache = true
+	src := uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White)
+	data, err := os.ReadFile(src.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldDir, newDir := t.TempDir(), t.TempDir()
+	synctest.Test(t, func(t *testing.T) {
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		unblock := func() { once.Do(func() { close(release) }) }
+		defer unblock()
+		first := true
+		reader := bytes.NewReader(data)
+		u := uitest.ReaderURI(src, func() (io.ReadCloser, error) {
+			return uitest.ReadCloser{
+				ReadFunc: func(p []byte) (int, error) {
+					if first {
+						first = false
+						close(entered)
+						<-release
+					}
+					return reader.Read(p)
+				},
+				CloseFunc: func() error { return nil },
+			}, nil
+		})
+		v.SyncFavoritePreviews(oldDir, []fyne.URI{u})
+		<-entered
+		old := v.favThumb.Current()
+		v.SyncFavoritePreviews(newDir, nil)
+		synctest.Wait()
+		settled := make(chan struct{})
+		go func() { v.favThumbWorkers.Wait(); close(settled) }()
+		synctest.Wait()
+		select {
+		case <-settled:
+			t.Error("full worker wait ignored the superseded held read")
+		default:
+		}
+		v.closeFavoritePreviews()
+		unblock()
+		synctest.Wait()
+		select {
+		case <-settled:
+		default:
+			t.Fatal("full worker wait did not complete")
+		}
+		if err := old.Wait(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		previous := v.favThumb.Current()
+		v.SyncFavoritePreviews(newDir, nil)
+		synctest.Wait()
+		if v.favThumb.Current() != previous {
+			t.Error("closed viewer admitted another preview pass")
+		}
+	})
+}
+
+func TestShutdownCancelsFavoritePreviews(t *testing.T) {
+	application := test.NewApp()
+	v, win := buildStartupViewer(application)
+	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.compare.SetUIQueue(&uitest.UIQueue{})
+	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
+	v.slides.SetUIQueue(&uitest.UIQueue{})
+	v.deletion.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(win.Close)
+	t.Cleanup(func() { drain(t, v) })
+	v.settings.favPreviewCache = true
+	src := uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White)
+	data, err := os.ReadFile(src.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	defer unblock()
+	reader, reads := bytes.NewReader(data), 0
+	u := uitest.ReaderURI(src, func() (io.ReadCloser, error) {
+		return uitest.ReadCloser{
+			ReadFunc: func(p []byte) (int, error) {
+				reads++
+				if reads == 1 {
+					close(entered)
+					<-release
+				}
+				return reader.Read(p)
+			},
+			CloseFunc: func() error { return nil },
+		}, nil
+	})
+	dir := t.TempDir()
+	v.SyncFavoritePreviews(dir, []fyne.URI{u})
+	select {
+	case <-entered:
+	case <-time.After(testTimeout):
+		t.Fatal("favorite read did not start")
+	}
+	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
+	if !ok {
+		t.Fatal("test lifecycle has no stopped hook")
+	}
+	original := lifecycle.OnStopped()
+	registerShutdown(application, v)
+	shutdown := lifecycle.OnStopped()
+	application.Lifecycle().SetOnStopped(original)
+	shutdown() // Must return while the external read is still held.
+	unblock()
+	settleFavoritePreviews(t, v)
+	if reads != 1 {
+		t.Errorf("shutdown source reads=%d, want 1", reads)
+	}
+	if _, ok := favthumbs.Read(dir, u); ok {
+		t.Error("shutdown allowed a disk preview write")
+	}
+	if _, ok := v.grid.CachedThumb(u); ok {
+		t.Error("shutdown allowed a thumbnail cache write")
+	}
+	previous := v.favThumb.Current()
+	v.SyncFavoritePreviews(dir, nil)
+	settleFavoritePreviews(t, v)
+	if v.favThumb.Current() != previous {
+		t.Error("shutdown admitted a new preview pass")
+	}
+}
+
+func TestFavoritePreviewAfterCommitBeforeNotificationRejectsOldMemoryHit(t *testing.T) {
+	v, _, _ := newTestUI(t)
+	source := uitest.TempJPEGURI(t, "source.jpg", 8, 16, color.White)
+	dropAndWait(t, v, source)
+	if err := v.grid.Warm(); err != nil {
+		t.Fatal(err)
+	}
+	result, err := imaging.ExportContext(context.Background(), source, image.NewRGBA(image.Rect(0, 0, 16, 8)), nil, imaging.ExportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The disk replacement is accomplished, while its UI notification and
+	// the old thumbnail-cache invalidation have not run yet.
+	v.SetFavoritePreviewCache(true)
+	dir := t.TempDir()
+	v.SyncFavoritePreviews(dir, []fyne.URI{source})
+	v.favThumbWorkers.Wait()
+	preview, ok := favthumbs.Read(dir, source)
+	if !ok {
+		t.Fatal("favorite pass did not produce a current preview")
+	}
+	if preview.Bounds().Dx() <= preview.Bounds().Dy() {
+		t.Errorf("old memory hit was labelled as replacement's current preview: %v", preview.Bounds())
+	}
+	v.AfterFileExported(result)
+	drainFileWork(t, v)
+	waitUntilLoaded(t, v)
 }

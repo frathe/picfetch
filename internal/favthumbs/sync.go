@@ -2,6 +2,7 @@ package favthumbs
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"sync"
 
@@ -30,12 +31,21 @@ const syncConcurrency = 4
 // concurrent use. Binding this to a mutex-guarded cache (imaging.ByteCache
 // is one) satisfies that; a bare map does not.
 type Sink interface {
-	// Cached returns a thumbnail the caller already holds in memory.
+	// Cached returns a thumbnail the caller already holds in memory. Sync
+	// reuses it only when it is a Preview naming the current source version.
 	Cached(src fyne.URI) (image.Image, bool)
 
 	// Store offers a thumbnail to the caller's cache. The caller decides
 	// whether to keep it; Sync does not care whether it was kept.
 	Store(src fyne.URI, thumb image.Image)
+}
+
+// Preview carries the file version captured before its pixels were read.
+// A plain image remains usable for display, but cannot prove a current disk
+// preview: a file mutation may have preceded its cache-invalidation delivery.
+type Preview struct {
+	image.Image
+	SourceVersion string
 }
 
 // Sync brings favDir's previews in line with files: every file ends up with
@@ -46,7 +56,7 @@ type Sink interface {
 // Each file takes the cheapest route that gets it there. A thumbnail the
 // caller already holds needs neither a decode nor a read, only a write if
 // disk is behind. A preview already on disk needs no decode. Only a file
-// that is in neither place pays for imaging.LoadThumbnail.
+// that is in neither place pays for imaging.LoadThumbnailContext.
 //
 // One file's failure does not abort its peers - a truncated download in a
 // favorite of two thousand should cost one preview, not all of them - so
@@ -121,7 +131,7 @@ loop:
 				return
 			}
 
-			if err := syncFile(favDir, u, sink); err != nil {
+			if err := syncFile(ctx, favDir, u, sink); err != nil {
 				fail(err)
 			}
 		})
@@ -151,29 +161,45 @@ loop:
 // syncFile brings one file's preview up to date, taking the cheapest of the
 // three routes that applies. It is the body of a worker goroutine, so it
 // touches nothing shared beyond sink, which the caller owns and guards.
-func syncFile(favDir string, u fyne.URI, sink Sink) error {
+func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	name, named := EntryName(u)
+	if !named {
+		return fmt.Errorf("favthumbs: cannot determine entry name for %v", u)
+	}
+	current := func() bool { now, ok := EntryName(u); return named && ok && name == now }
 	if sink != nil {
-		if thumb, ok := sink.Cached(u); ok {
+		thumb, ok := sink.Cached(u)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if preview, versioned := thumb.(*Preview); ok && versioned && preview.SourceVersion == name {
 			// Deliberately no Store here: the sink is where this
 			// thumbnail just came from, so offering it back is pure
 			// churn. Disk still has to catch up if it is behind, and
 			// hasCurrentPreview answers that with a stat rather than the
 			// decode Read would cost to reach the same conclusion.
 			if hasCurrentPreview(favDir, u) {
-				return nil
+				return ctx.Err()
 			}
-			return Write(favDir, u, thumb)
+			return writeEntryContext(ctx, favDir, name, thumb)
 		}
 	}
 
-	if thumb, ok := Read(favDir, u); ok {
-		if sink != nil {
-			sink.Store(u, thumb)
+	thumb, ok, err := ReadContext(ctx, favDir, u)
+	if err != nil {
+		return err
+	}
+	if ok {
+		if sink != nil && current() {
+			sink.Store(u, &Preview{Image: thumb, SourceVersion: name})
 		}
 		return nil
 	}
 
-	thumb, err := imaging.LoadThumbnail(u)
+	thumb, err = imaging.LoadThumbnailContext(ctx, u)
 	if err != nil {
 		return err
 	}
@@ -181,9 +207,12 @@ func syncFile(favDir string, u fyne.URI, sink Sink) error {
 	// The sink is offered the thumbnail even when the write fails: a full
 	// disk or a read-only volume is no reason to make the caller decode
 	// this file again for the display it is about to paint.
-	err = Write(favDir, u, thumb)
-	if sink != nil {
-		sink.Store(u, thumb)
+	err = writeEntryContext(ctx, favDir, name, thumb)
+	if cancelled := ctx.Err(); cancelled != nil {
+		return cancelled
+	}
+	if sink != nil && current() {
+		sink.Store(u, &Preview{Image: thumb, SourceVersion: name})
 	}
 	return err
 }

@@ -1,110 +1,110 @@
 # Maintainability ticket breakdown
 
-Status: draft — awaiting breakdown approval
+Status: published — implementation in progress
 Date: 2026-09-06
 
 Prepared from the [specification](spec.md) and its [phased plan](../../plans/2026-09-06-maintainability-plan.md).
-There are **32 draft tickets: 27 required, 3 conditional, and 2 accepted-watch reminders**.
-All 24 MA items are accounted for. The parent specification and existing audit/plan status are unchanged.
+There are **32 published tickets: 27 required, 3 conditional, and 2 accepted-watch reminders**.
+All 24 MA items are accounted for. The parent specification and historical audit evidence are preserved.
 
-The full ticket bodies live in `drafts/` pending approval. Publishing will move them to `issues/`, set their triage status to `ready-for-agent`, update this index's links, and retain each activation condition. Drafts are not a claim that work has begun or that a finding is fixed.
+The user requested `/implement sdd tdd` on the parent specification. The prepared bodies are published in `issues/` with their activation conditions preserved. Tickets 01–25 are resolved with evidence in their issue files, including the ticket 15 manual-test correction and the completed Windows/Store native guards. Ticket 26 has partial native renderer evidence. Ticket 27 has reviewed inputs, all required artifact builds and native macOS package evidence; Windows/Linux native startup and WACK stay open. Unchecked required tickets and remaining MA findings stay open.
 
-## Proposed breakdown
+## Published breakdown
 
-1. **[Reject malformed TIFF spans safely](drafts/01-safe-tiff-spans.md)** — MA-001; required.
+1. **[Reject malformed TIFF spans safely](issues/01-safe-tiff-spans.md)** — MA-001; required.
    **Blocked by:** None. **Delivers:** Open malformed EXIF-bearing images and RAW previews without a panic while retaining valid metadata and orientation.
 
-2. **[Bound mosaic preparation without changing composition](drafts/02-bounded-mosaic-preparation.md)** — MA-002; required.
+2. **[Bound mosaic preparation without changing composition](issues/02-bounded-mosaic-preparation.md)** — MA-002; required.
    **Blocked by:** None. **Delivers:** Generate a mosaic from extremely wide or tall source images under an explicit scratch-memory budget, preserving placement and edge quality.
 
-3. **[Reconcile confirmed deletions by file identity](drafts/03-deletion-target-identity.md)** — MA-004; required.
+3. **[Reconcile confirmed deletions by file identity](issues/03-deletion-target-identity.md)** — MA-004; required.
    **Blocked by:** None. **Delivers:** Delete the confirmed files and reconcile only successful removals with the current Grid result even when its ordering or generation changes.
 
-4. **[Construct complete shared image-cache records](drafts/04-complete-image-cache-records.md)** — MA-006; required.
+4. **[Construct complete shared image-cache records](issues/04-complete-image-cache-records.md)** — MA-006; required.
    **Blocked by:** None. **Delivers:** Show consistent size, EXIF information and canonical pixels regardless of whether foreground loading, preloading or comparison first cached an image.
 
-5. **[Save truthful rotated JPEG dimensions](drafts/05-saved-jpeg-dimensions.md)** — MA-007; required.
+5. **[Save truthful rotated JPEG dimensions](issues/05-saved-jpeg-dimensions.md)** — MA-007; required.
    **Blocked by:** None. **Delivers:** Save Changes writes JPEG dimension metadata that agrees with the encoded frame after rotation and orientation normalization.
 
-6. **[Preserve exact native chooser paths](drafts/06-exact-native-chooser-paths.md)** — MA-005; required.
+6. **[Preserve exact native chooser paths](issues/06-exact-native-chooser-paths.md)** — MA-005; required.
    **Blocked by:** None. **Delivers:** Open exactly the selected files and save to exactly the confirmed destination, preserving every path boundary supported by each native backend.
 
-7. **[Preserve clipboard temporary-file errors](drafts/07-clipboard-temp-errors.md)** — MA-011; required.
+7. **[Preserve clipboard temporary-file errors](issues/07-clipboard-temp-errors.md)** — MA-011; required.
    **Blocked by:** None. **Delivers:** Report the original temporary PNG write or close error rather than apparent success after cleanup.
 
-8. **[Decode Windows copied-file lists explicitly as UTF-8](drafts/08-windows-file-list-encoding.md)** — MA-012; required.
+8. **[Decode Windows copied-file lists explicitly as UTF-8](issues/08-windows-file-list-encoding.md)** — MA-012; required.
    **Blocked by:** None. **Delivers:** Copy Windows file references containing accented, CJK and emoji names without changing their paths at the PowerShell boundary.
 
-9. **[Respect ordinary XDG Trash configuration](drafts/09-trash-xdg-configuration.md)** — MA-013; required.
+9. **[Respect ordinary XDG Trash configuration](issues/09-trash-xdg-configuration.md)** — MA-013; required.
    **Blocked by:** None. **Delivers:** Honor the user's normal Trash data directory while retaining the identified sandbox-redirection workaround.
 
-10. **[Invalidate favorite previews on subsecond edits](drafts/10-preview-subsecond-identity.md)** — MA-018; required.
+10. **[Invalidate favorite previews on subsecond edits](issues/10-preview-subsecond-identity.md)** — MA-018; required.
    **Blocked by:** None. **Delivers:** Refresh a favorite preview after a same-size source edit whose available modification timestamp differs within one second.
 
-11. **[Handle declining RSS in the optional HEIC check](drafts/11-safe-rss-growth.md)** — MA-019; required.
+11. **[Handle declining RSS in the optional HEIC check](issues/11-safe-rss-growth.md)** — MA-019; required.
    **Blocked by:** None. **Delivers:** Treat declining or unchanged RSS as no positive growth instead of unsigned-underflow evidence of a leak.
 
-12. **[Pace animation after queued frame application](drafts/12-queued-animation-pacing.md)** — MA-003; required.
+12. **[Pace animation after queued frame application](issues/12-queued-animation-pacing.md)** — MA-003; required.
    **Blocked by:** None. **Delivers:** Play heterogeneous animation frame delays correctly when UI dispatch is delayed, and stop obsolete playback observably.
 
-13. **[Reject late picture-frame advances](drafts/13-queued-picture-frame-advances.md)** — MA-003; required.
+13. **[Reject late picture-frame advances](issues/13-queued-picture-frame-advances.md)** — MA-003; required.
    **Blocked by:** None. **Delivers:** Leaving picture-frame mode prevents queued advances from changing the closed or subsequent session.
 
-14. **[Keep chooser admission and results on UI](drafts/14-chooser-ui-admission.md)** — MA-003; required.
+14. **[Keep chooser admission and results on UI](issues/14-chooser-ui-admission.md)** — MA-003; required.
    **Blocked by:** None. **Delivers:** Native file choosing remains background work while admission checks, comparison refusal and result handling run on UI.
 
-15. **[Cancel capture-date sorting inside source reads](drafts/15-capture-sort-cancellation.md)** — MA-010; required.
+15. **[Cancel capture-date sorting inside source reads](issues/15-capture-sort-cancellation.md)** — MA-010; required.
    **Blocked by:** None. **Delivers:** Cancel a capture-date sort during an ancillary source read so obsolete work releases the sort request promptly where the reader supports it.
 
-16. **[Cancel favorite thumbnail reads through imaging](drafts/16-favorite-thumbnail-cancellation.md)** — MA-010; required.
+16. **[Cancel favorite thumbnail reads through imaging](issues/16-favorite-thumbnail-cancellation.md)** — MA-010; required.
    **Blocked by:** None. **Delivers:** Cancel a favorite preview pass through thumbnail read/probe/decode boundaries while retaining previews the pass never visited.
 
-17. **[Cancel grid thumbnails and native-size backfill](drafts/17-grid-read-cancellation.md)** — MA-010; required.
+17. **[Cancel grid thumbnails and native-size backfill](issues/17-grid-read-cancellation.md)** — MA-010; required.
    **Blocked by:** 16. **Delivers:** Superseding or closing grid work cancels obsolete thumbnail reads, hash work and native-size backfill without admitting cancelled decode-slot waiters.
 
-18. **[Admit thumbnail facts only to their source generation](drafts/18-generation-safe-facts.md)** — MA-009; required.
+18. **[Admit thumbnail facts only to their source generation](issues/18-generation-safe-facts.md)** — MA-009; required.
    **Blocked by:** None. **Delivers:** Keep old hashes, failure markers and native dimensions out of a replacement/reset file set, including same-URI replacement.
 
-19. **[Bound aggregate map requests and failure state](drafts/19-bounded-map-lifetime.md)** — MA-015; required.
+19. **[Bound aggregate map requests and failure state](issues/19-bounded-map-lifetime.md)** — MA-015; required.
    **Blocked by:** None. **Delivers:** Map navigation and window closure keep aggregate fetch concurrency and failure metadata bounded while retaining useful deduplication and cache behavior.
 
-20. **[Make position-poller shutdown observable](drafts/20-position-poller-completion.md)** — MA-016; required.
+20. **[Make position-poller shutdown observable](issues/20-position-poller-completion.md)** — MA-016; required.
    **Blocked by:** None. **Delivers:** Stopping window-position polling prevents queued native reads from updating a closed target and exposes actual worker completion.
 
-21. **[Move whole-image clipboard encoding off UI](drafts/21-background-clipboard-encoding.md)** — MA-014; required.
+21. **[Move whole-image clipboard encoding off UI](issues/21-background-clipboard-encoding.md)** — MA-014; required.
    **Blocked by:** None. **Delivers:** Copy the captured displayed image while input and redraw remain responsive throughout PNG encoding and clipboard dispatch.
 
-22. **[Load EXIF panel data without blocking UI](drafts/22-background-exif-refresh.md)** — MA-014; required.
+22. **[Load EXIF panel data without blocking UI](issues/22-background-exif-refresh.md)** — MA-014; required.
    **Blocked by:** None. **Delivers:** Open or refresh the EXIF panel without blocking input while a slow source is read, and show only metadata for the current displayed request.
 
-23. **[Run original-file mutations in serialized background work](drafts/23-background-original-file-mutations.md)** — MA-014; required.
+23. **[Run original-file mutations in serialized background work](issues/23-background-original-file-mutations.md)** — MA-014; required.
    **Blocked by:** None. **Delivers:** Save Changes and metadata removal leave the UI responsive and cannot overlap unsafely on the same original source.
 
-24. **[Reuse cancellable duplicate-group snapshots](drafts/24-reusable-duplicate-groups.md)** — MA-008; required.
+24. **[Reuse cancellable duplicate-group snapshots](issues/24-reusable-duplicate-groups.md)** — MA-008; required.
    **Blocked by:** 18. **Delivers:** Searching a warm Grid result reuses unchanged duplicate groups, while changed grouping computes away from UI and cannot install obsolete results.
 
-25. **[Execute omitted native and Store regression guards](drafts/25-native-and-store-ci-guards.md)** — MA-017; required.
+25. **[Execute omitted native and Store regression guards](issues/25-native-and-store-ci-guards.md)** — MA-017; required.
    **Blocked by:** None. **Delivers:** Release validation actually executes the existing Windows, macOS and Store-specific guards with visible evidence of test selection.
 
-26. **[Maintain and exercise production comparison GL smoke checks](drafts/26-native-comparison-gl-smoke.md)** — MA-017; required.
+26. **[Maintain and exercise production comparison GL smoke checks](issues/26-native-comparison-gl-smoke.md)** — MA-017; required.
    **Blocked by:** None. **Delivers:** Verify comparison's actual shader output and interactions in a documented, repeatable native desktop smoke procedure.
 
-27. **[Pin and validate reviewed packaging inputs](drafts/27-reviewed-packaging-inputs.md)** — MA-020; required.
+27. **[Pin and validate reviewed packaging inputs](issues/27-reviewed-packaging-inputs.md)** — MA-020; required.
    **Blocked by:** None. **Delivers:** Local, release and Store builds use reviewed packaging tool/image inputs and produce inspectable, smoke-tested artifacts without publication.
 
-28. **[Measure foreground contention during favorite prewarming](drafts/28-measure-preview-contention.md)** — MA-021; conditional.
+28. **[Measure foreground contention during favorite prewarming](issues/28-measure-preview-contention.md)** — MA-021; conditional.
    **Blocked by:** 15, 16, 17. **Delivers:** Determine whether current favorite prewarming materially delays visible image work using a repeatable cold-favorite workload.
 
-29. **[Protect foreground capacity if prewarm measurements justify it](drafts/29-foreground-preview-capacity.md)** — MA-021; conditional.
+29. **[Protect foreground capacity if prewarm measurements justify it](issues/29-foreground-preview-capacity.md)** — MA-021; conditional.
    **Blocked by:** 28. **Delivers:** Apply the smallest measured prewarm share/yield policy that preserves interactive capacity and still completes disk previews when idle.
 
-30. **[Consolidate repeated command admission when routes are touched](drafts/30-command-admission-policy.md)** — MA-022; conditional.
+30. **[Consolidate repeated command admission when routes are touched](issues/30-command-admission-policy.md)** — MA-022; conditional.
    **Blocked by:** 12, 13, 14. **Delivers:** Preserve command behavior across menus, keyboard and direct entry while simplifying repeated admission decisions in touched routes.
 
-31. **[Reassess the HEIC fork at its next dependency update](drafts/31-heic-fork-retirement-watch.md)** — MA-023; watch.
+31. **[Reassess the HEIC fork at its next dependency update](issues/31-heic-fork-retirement-watch.md)** — MA-023; watch.
    **Blocked by:** 11. **Delivers:** At a future authorized HEIC update, determine whether an official release can replace the fork while preserving its leak mitigation.
 
-32. **[Measure verifier footprint at its next major upgrade](drafts/32-verifier-footprint-watch.md)** — MA-024; watch.
+32. **[Measure verifier footprint at its next major upgrade](issues/32-verifier-footprint-watch.md)** — MA-024; watch.
    **Blocked by:** None. **Delivers:** At a future authorized major verifier upgrade, measure dependency cost and retain the update trust/provenance contract through any justified reduction.
 
 ## Why these boundaries and edges
@@ -140,30 +140,30 @@ After publication, a ticket is eligible only when every numbered blocker is comp
 
 | Spec finding / acceptance | Tickets | Scope |
 | --- | --- | --- |
-| MA-001 / AC01 | [01: Reject malformed TIFF spans safely](drafts/01-safe-tiff-spans.md) | required |
-| MA-002 / AC02 | [02: Bound mosaic preparation without changing composition](drafts/02-bounded-mosaic-preparation.md) | required |
-| MA-003 / AC03 | [12: Pace animation after queued frame application](drafts/12-queued-animation-pacing.md); [13: Reject late picture-frame advances](drafts/13-queued-picture-frame-advances.md); [14: Keep chooser admission and results on UI](drafts/14-chooser-ui-admission.md) | required |
-| MA-004 / AC04 | [03: Reconcile confirmed deletions by file identity](drafts/03-deletion-target-identity.md) | required |
-| MA-005 / AC05 | [06: Preserve exact native chooser paths](drafts/06-exact-native-chooser-paths.md) | required |
-| MA-006 / AC06 | [04: Construct complete shared image-cache records](drafts/04-complete-image-cache-records.md) | required |
-| MA-007 / AC07 | [05: Save truthful rotated JPEG dimensions](drafts/05-saved-jpeg-dimensions.md) | required |
-| MA-008 / AC08 | [24: Reuse cancellable duplicate-group snapshots](drafts/24-reusable-duplicate-groups.md) | required |
-| MA-009 / AC09 | [18: Admit thumbnail facts only to their source generation](drafts/18-generation-safe-facts.md) | required |
-| MA-010 / AC10 | [15: Cancel capture-date sorting inside source reads](drafts/15-capture-sort-cancellation.md); [16: Cancel favorite thumbnail reads through imaging](drafts/16-favorite-thumbnail-cancellation.md); [17: Cancel grid thumbnails and native-size backfill](drafts/17-grid-read-cancellation.md) | required |
-| MA-011 / AC11 | [07: Preserve clipboard temporary-file errors](drafts/07-clipboard-temp-errors.md) | required |
-| MA-012 / AC12 | [08: Decode Windows copied-file lists explicitly as UTF-8](drafts/08-windows-file-list-encoding.md) | required |
-| MA-013 / AC13 | [09: Respect ordinary XDG Trash configuration](drafts/09-trash-xdg-configuration.md) | required |
-| MA-014 / AC14 | [21: Move whole-image clipboard encoding off UI](drafts/21-background-clipboard-encoding.md); [22: Load EXIF panel data without blocking UI](drafts/22-background-exif-refresh.md); [23: Run original-file mutations in serialized background work](drafts/23-background-original-file-mutations.md) | required |
-| MA-015 / AC15 | [19: Bound aggregate map requests and failure state](drafts/19-bounded-map-lifetime.md) | required |
-| MA-016 / AC16 | [20: Make position-poller shutdown observable](drafts/20-position-poller-completion.md) | required |
-| MA-017 / AC17 | [25: Execute omitted native and Store regression guards](drafts/25-native-and-store-ci-guards.md); [26: Maintain and exercise production comparison GL smoke checks](drafts/26-native-comparison-gl-smoke.md) | required |
-| MA-018 / AC18 | [10: Invalidate favorite previews on subsecond edits](drafts/10-preview-subsecond-identity.md) | required |
-| MA-019 / AC19 | [11: Handle declining RSS in the optional HEIC check](drafts/11-safe-rss-growth.md) | required |
-| MA-020 / AC20 | [27: Pin and validate reviewed packaging inputs](drafts/27-reviewed-packaging-inputs.md) | required |
-| MA-021 / AC21 | [28: Measure foreground contention during favorite prewarming](drafts/28-measure-preview-contention.md); [29: Protect foreground capacity if prewarm measurements justify it](drafts/29-foreground-preview-capacity.md) | conditional |
-| MA-022 / AC22 | [30: Consolidate repeated command admission when routes are touched](drafts/30-command-admission-policy.md) | conditional |
-| MA-023 / AC23 | [31: Reassess the HEIC fork at its next dependency update](drafts/31-heic-fork-retirement-watch.md) | watch |
-| MA-024 / AC24 | [32: Measure verifier footprint at its next major upgrade](drafts/32-verifier-footprint-watch.md) | watch |
+| MA-001 / AC01 | [01: Reject malformed TIFF spans safely](issues/01-safe-tiff-spans.md) | required |
+| MA-002 / AC02 | [02: Bound mosaic preparation without changing composition](issues/02-bounded-mosaic-preparation.md) | required |
+| MA-003 / AC03 | [12: Pace animation after queued frame application](issues/12-queued-animation-pacing.md); [13: Reject late picture-frame advances](issues/13-queued-picture-frame-advances.md); [14: Keep chooser admission and results on UI](issues/14-chooser-ui-admission.md) | required |
+| MA-004 / AC04 | [03: Reconcile confirmed deletions by file identity](issues/03-deletion-target-identity.md) | required |
+| MA-005 / AC05 | [06: Preserve exact native chooser paths](issues/06-exact-native-chooser-paths.md) | required |
+| MA-006 / AC06 | [04: Construct complete shared image-cache records](issues/04-complete-image-cache-records.md) | required |
+| MA-007 / AC07 | [05: Save truthful rotated JPEG dimensions](issues/05-saved-jpeg-dimensions.md) | required |
+| MA-008 / AC08 | [24: Reuse cancellable duplicate-group snapshots](issues/24-reusable-duplicate-groups.md) | required |
+| MA-009 / AC09 | [18: Admit thumbnail facts only to their source generation](issues/18-generation-safe-facts.md) | required |
+| MA-010 / AC10 | [15: Cancel capture-date sorting inside source reads](issues/15-capture-sort-cancellation.md); [16: Cancel favorite thumbnail reads through imaging](issues/16-favorite-thumbnail-cancellation.md); [17: Cancel grid thumbnails and native-size backfill](issues/17-grid-read-cancellation.md) | required |
+| MA-011 / AC11 | [07: Preserve clipboard temporary-file errors](issues/07-clipboard-temp-errors.md) | required |
+| MA-012 / AC12 | [08: Decode Windows copied-file lists explicitly as UTF-8](issues/08-windows-file-list-encoding.md) | required |
+| MA-013 / AC13 | [09: Respect ordinary XDG Trash configuration](issues/09-trash-xdg-configuration.md) | required |
+| MA-014 / AC14 | [21: Move whole-image clipboard encoding off UI](issues/21-background-clipboard-encoding.md); [22: Load EXIF panel data without blocking UI](issues/22-background-exif-refresh.md); [23: Run original-file mutations in serialized background work](issues/23-background-original-file-mutations.md) | required |
+| MA-015 / AC15 | [19: Bound aggregate map requests and failure state](issues/19-bounded-map-lifetime.md) | required |
+| MA-016 / AC16 | [20: Make position-poller shutdown observable](issues/20-position-poller-completion.md) | required |
+| MA-017 / AC17 | [25: Execute omitted native and Store regression guards](issues/25-native-and-store-ci-guards.md); [26: Maintain and exercise production comparison GL smoke checks](issues/26-native-comparison-gl-smoke.md) | required |
+| MA-018 / AC18 | [10: Invalidate favorite previews on subsecond edits](issues/10-preview-subsecond-identity.md) | required |
+| MA-019 / AC19 | [11: Handle declining RSS in the optional HEIC check](issues/11-safe-rss-growth.md) | required |
+| MA-020 / AC20 | [27: Pin and validate reviewed packaging inputs](issues/27-reviewed-packaging-inputs.md) | required |
+| MA-021 / AC21 | [28: Measure foreground contention during favorite prewarming](issues/28-measure-preview-contention.md); [29: Protect foreground capacity if prewarm measurements justify it](issues/29-foreground-preview-capacity.md) | conditional |
+| MA-022 / AC22 | [30: Consolidate repeated command admission when routes are touched](issues/30-command-admission-policy.md) | conditional |
+| MA-023 / AC23 | [31: Reassess the HEIC fork at its next dependency update](issues/31-heic-fork-retirement-watch.md) | watch |
+| MA-024 / AC24 | [32: Measure verifier footprint at its next major upgrade](issues/32-verifier-footprint-watch.md) | watch |
 
 ## Draft validation
 
@@ -173,6 +173,6 @@ Production source, dependencies and verification inputs have no diff from the pr
 
 Drafting budget: one read-only call-path scout, lead-owned synthesis/review, no implementation delegation. The scout inspected independent cancellation/mutation call paths while the lead prepared the breakdown; reported symbols were checked by repository search. G1-G5 were satisfied for that bounded read-only task; no edit, spec decision or review was delegated.
 
-## Approval to publish
+## Publication
 
-Review ticket size and genuine blockers; identify any numbers to merge or split. Once this breakdown is approved, publish these prepared bodies to the local tracker with the stated scope and activation guards.
+Published on the user’s implementation instruction. Work the required frontier, starting with 01 and 02; conditional work and watches retain their separate activation rules.

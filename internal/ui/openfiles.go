@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"runtime"
+	"slices"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -13,88 +13,62 @@ import (
 	"github.com/frathe/picfetch/internal/filepicker"
 )
 
-// openFileDialog opens the current OS's own file browser so users who never
-// drag-and-drop can still load images - see internal/filepicker for the
-// per-OS dispatch. It always runs on its own goroutine since every backing
-// command blocks until the user closes the dialog.
+// openFileDialog admits an open request on UI, then runs its native panel
+// on a worker. Capture the native function here as part of this request.
 func (v *viewer) openFileDialog() {
-	if v.refuseOpenDuringComparison() {
+	if v.openChooserClosed || v.refuseOpenDuringComparison() {
 		return
 	}
-	// chooser is finished once this pick's goroutine has fully run, error
-	// toast included, so a test can wait for it rather than leave it
-	// running into the next one. That matters more than it looks:
-	// reportChooserError renders a toast, and under the fyne test driver
-	// this goroutine's fyne.Do runs inline here rather than on the UI
-	// goroutine, so an unwaited-for failure path measures text
-	// concurrently with whatever the test goroutine is laying out - which
-	// races inside Fyne's own global font-metrics cache (internal/cache's
-	// setAlive writes an expiry stamp unguarded).
+	token := v.openChooserLifecycle.begin()
+	choose := filepicker.Choose
 	done := v.chooser.Begin()
-
-	go func() {
+	v.openChooserWorkers.Go(func() {
 		defer done()
-
-		v.runFileChooser()
-	}()
+		v.runFileChooser(token, choose)
+	})
 }
 
-// runFileChooser is split out from openFileDialog so tests can call it
-// directly on the test goroutine instead of through a spawned one. It used
-// to dodge a real data race, too: handleDrop below would write
-// v.scanOp.done and v.load from a background goroutine with nothing
-// synchronizing those writes against a test goroutine reading them, the
-// same hazard documented on the zenity-specific tests this replaced. Both
-// are completion.Signal values now, internally synchronized by their own
-// mutex, so that race is gone - but the split stays useful: it keeps a
-// test on a single goroutine, and handleDrop still touches other viewer
-// fields (the welcome/dropzone widgets, v.state) that carry no
-// synchronization of their own, which a spawned goroutine racing the test
-// goroutine would still hit. Production always reaches runFileChooser
-// through the goroutine in openFileDialog above.
-func (v *viewer) runFileChooser() {
-	if v.refuseOpenDuringComparison() {
+// runFileChooser reads no UI mode state. Its tracked lifetime ends after
+// native work and queue submission; the queue owns result application.
+func (v *viewer) runFileChooser(token requestToken, choose func() ([]fyne.URI, error)) {
+	if !token.current() {
 		return
 	}
-	out, err := filepicker.Choose()
-	if err != nil {
-		v.reportChooserError(err, runtime.GOOS)
+	uris, err := choose()
+	if !token.current() || (err == nil && len(uris) == 0) {
 		return
 	}
-
-	uris := filepicker.ParseFileList(out)
-	if len(uris) == 0 {
-		return
-	}
-
-	fyne.Do(func() {
+	uris = slices.Clone(uris)
+	v.chooserUI.Do(func() {
+		if !token.current() || v.comparisonActive() {
+			return
+		}
+		if err != nil {
+			v.showChooserError(err)
+			return
+		}
 		v.handleDrop(uris)
 	})
 }
 
-// reportChooserError always logs a chooser failure - via fyne.LogError, so
-// it's visible in a terminal or Console.app even though nothing else prints
-// anything here - and, on macOS and Windows only, also shows it as a toast.
-// Those two platforms' own choosers already swallow a plain user cancel
-// internally (see internal/filepicker's darwin runModal-response check and
-// Windows ShowDialog-result check), so any error reaching here on them is a
-// genuine failure worth surfacing, not a normal cancel. zenity signals a
-// plain cancel and a real failure with the same non-zero exit code,
-// indistinguishable from here, so Linux stays log-only to avoid a toast on
-// every ordinary cancel. goos is threaded through as a parameter (rather
-// than reading runtime.GOOS directly in here) purely so tests can exercise
-// all three branches from a single machine.
-func (v *viewer) reportChooserError(err error, goos string) {
+// closeOpenChooser prevents new admission and invalidates held/queued results.
+// The native API itself is blocking: an open panel's worker remains tracked
+// until it returns, so shutdown must not wait for that external interaction.
+func (v *viewer) closeOpenChooser() {
+	v.openChooserClosed = true
+	v.openChooserLifecycle.invalidate()
+}
+
+// reportChooserError is used by other native panel workers (export). Open
+// delivery already runs on UI and calls showChooserError without another hop.
+func (v *viewer) reportChooserError(err error) {
+	fyne.Do(func() { v.showChooserError(err) })
+}
+
+func (v *viewer) showChooserError(err error) {
 	detail := chooserErrorDetail(err)
 	fyne.LogError("file chooser failed", errors.New(detail))
-
-	if goos != "darwin" && goos != "windows" {
-		return
-	}
-
-	fyne.Do(func() {
-		v.ShowToast(fmt.Sprintf(lang.L("could not open the file browser: %v"), detail))
-	})
+	v.ShowToast(fmt.Sprintf(lang.L("could not open the file browser: %v"), detail))
 }
 
 // chooserErrorDetail pulls the most useful message out of err: an
@@ -112,3 +86,14 @@ func chooserErrorDetail(err error) string {
 	}
 	return err.Error()
 }
+
+// chooserUIQueue owns result delivery for open requests. Native workers finish
+// before test code drains the queue; production delivery uses Fyne's UI loop.
+type chooserUIQueue interface {
+	Do(func())
+	Drain() bool
+}
+type fyneChooserQueue struct{}
+
+func (fyneChooserQueue) Do(f func()) { fyne.Do(f) }
+func (fyneChooserQueue) Drain() bool { return false }

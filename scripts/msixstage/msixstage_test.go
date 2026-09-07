@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -272,7 +273,7 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 		"warm-fyne-cross-windows:",
 		`-v "$(FYNE_CROSS_CACHE):/go"`,
 		"package-windows-store: warm-fyne-cross-windows",
-		"-cache $(FYNE_CROSS_CACHE)",
+		`-cache "$(FYNE_CROSS_CACHE)"`,
 		"-tags microsoftstore",
 		"$(BIN_NAME)-microsoft-store-$$arch.exe",
 	} {
@@ -303,7 +304,7 @@ func TestWindowsToolchainWarmupUsesPackagingUser(t *testing.T) {
 	dir := t.TempDir()
 	engine := filepath.Join(dir, "engine")
 	argsFile := filepath.Join(dir, "args")
-	if err := os.WriteFile(engine, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$PICFETCH_ENGINE_ARGS\"\n"), 0o700); err != nil {
+	if err := os.WriteFile(engine, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$PICFETCH_ENGINE_ARGS\"\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	cache := filepath.Join(dir, "cache with spaces")
@@ -335,16 +336,39 @@ func TestWindowsToolchainWarmupUsesPackagingUser(t *testing.T) {
 
 func TestPackagingToolsUseCurrentFyneCLI(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
-	for _, name := range []string{"Makefile", filepath.Join(".github", "workflows", "release.yml")} {
-		content, err := os.ReadFile(filepath.Join(root, name))
+	for _, tc := range []struct {
+		name     string
+		required []string
+	}{
+		{"Makefile", []string{"include packaging/tools.mk", "go install fyne.io/tools/cmd/fyne@$(FYNE_VERSION)", "go install github.com/fyne-io/fyne-cross@$(FYNE_CROSS_VERSION)", "package-mac: install-fyne", `"$(FYNE_BIN)" package`}},
+		{filepath.Join(".github", "workflows", "release.yml"), []string{"make install-fyne", "make install-fyne-cross"}},
+		{filepath.Join(".github", "workflows", "microsoft-store.yml"), []string{"make install-fyne-cross"}},
+	} {
+		content, err := os.ReadFile(filepath.Join(root, tc.name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Contains(content, []byte("fyne.io/fyne/v2/cmd/fyne")) {
-			t.Errorf("%s installs the deprecated Fyne CLI package", name)
+		if bytes.Contains(content, []byte("fyne.io/fyne/v2/cmd/fyne")) || regexp.MustCompile(`(?:fyne.io/tools/cmd/fyne|github.com/fyne-io/fyne-cross)@latest`).Match(content) {
+			t.Errorf("%s installs a deprecated or floating packaging CLI", tc.name)
 		}
-		if !bytes.Contains(content, []byte("fyne.io/tools/cmd/fyne")) {
-			t.Errorf("%s does not install the current Fyne CLI package", name)
+		for _, want := range tc.required {
+			if !bytes.Contains(content, []byte(want)) {
+				t.Errorf("%s omits shared packaging input %q", tc.name, want)
+			}
+		}
+	}
+	inputs, err := os.ReadFile(filepath.Join(root, "packaging", "tools.mk"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pattern := range []string{
+		`(?m)^FYNE_VERSION := v[0-9]+\.[0-9]+\.[0-9]+$`,
+		`(?m)^FYNE_CROSS_VERSION := v[0-9]+\.[0-9]+\.[0-9]+$`,
+		`(?m)^FYNE_CROSS_WINDOWS_IMAGE \?= fyneio/fyne-cross-images:windows@sha256:[0-9a-f]{64}$`,
+		`(?m)^FYNE_CROSS_LINUX_IMAGE \?= fyneio/fyne-cross-images:linux@sha256:[0-9a-f]{64}$`,
+	} {
+		if !regexp.MustCompile(pattern).Match(inputs) {
+			t.Errorf("packaging input is not versioned/pinned: %s", pattern)
 		}
 	}
 }
@@ -383,5 +407,151 @@ func writeTestIcon(t *testing.T, path string) {
 	}
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCrossPackagingUsesReviewedInputs(t *testing.T) {
+	if os.Getuid() < 0 {
+		t.Skip("packaging Make targets require a POSIX host")
+	}
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("requires make")
+	}
+	for _, route := range []struct {
+		target, platform, artifact, flags string
+	}{
+		{"package-linux", "linux", "picfetch-linux-", ""},
+		{"package-linux-debug", "linux", "picfetch-debug-linux-", "-no-strip-debug\n"},
+		{"package-windows", "windows", "picfetch-windows-", ""},
+		{"package-windows-store", "windows", "picfetch-microsoft-store-", "-tags\nmicrosoftstore\n"},
+		{"package-windows-debug", "windows", "picfetch-debug-windows-", "-console\n-no-strip-debug\n"},
+	} {
+		t.Run(route.target, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, name := range []string{"Makefile", "packaging/tools.mk"} {
+				data, err := os.ReadFile(filepath.Join("..", "..", name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(dir, name)
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			toolsDir := filepath.Join(dir, "tools")
+			if err := os.MkdirAll(toolsDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeTool := func(name, body string) string {
+				path := filepath.Join(toolsDir, name)
+				if err := os.WriteFile(path, []byte("#!/bin/sh\nset -eu\n"+body), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				return path
+			}
+			cross := writeTool("fyne-cross", `printf '%s\n' CROSS "$@" END >> "$PICFETCH_PACKAGING_LOG"
+if [ "${PICFETCH_PACKAGING_FAIL:-}" = cross ]; then exit 23; fi
+kind=$1
+shift
+arch=''
+name=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -arch=*) arch=${1#-arch=} ;;
+    -name) shift; name=$1 ;;
+  esac
+  shift
+done
+mkdir -p "fyne-cross/bin/$kind-$arch"
+if [ "$kind" = windows ]; then name="$name.exe"; fi
+printf '%s\n' "$kind $arch" > "fyne-cross/bin/$kind-$arch/$name"
+`)
+			engine := writeTool("engine", `printf '%s\n' ENGINE "$@" END >> "$PICFETCH_PACKAGING_LOG"
+if [ "${PICFETCH_PACKAGING_FAIL:-}" = engine ]; then exit 23; fi
+`)
+			writeTool("cp", `if [ "${PICFETCH_PACKAGING_FAIL:-}" = copy ]; then
+  case "$1" in *-amd64/*) exit 23 ;; esac
+fi
+exec /bin/cp "$@"
+`)
+			writeTool("go", `printf '%s\n' GO "$@" END >> "$PICFETCH_PACKAGING_LOG"
+`)
+			logPath := filepath.Join(dir, "commands")
+			cache := filepath.Join(dir, "cache with spaces")
+			cmd := exec.Command("make", "--no-print-directory", route.target, "FYNE_CROSS_ENGINE="+engine,
+				"FYNE_CROSS_BIN="+cross, "FYNE_CROSS_CACHE="+cache)
+			cmd.Dir = dir
+			cmd.Env = append(os.Environ(), "PATH="+toolsDir+string(os.PathListSeparator)+os.Getenv("PATH"), "PICFETCH_PACKAGING_LOG="+logPath)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("package route: %v\n%s", err, output)
+			}
+			data, err := os.ReadFile(logPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			log := string(data)
+			for _, call := range strings.Split(log, "ENGINE\n")[1:] {
+				if !strings.HasPrefix(call, "run\n") {
+					continue
+				}
+				args, _, _ := strings.Cut(call, "END\n")
+				if !strings.Contains(args, "--user\n"+strconv.Itoa(os.Getuid())+"\n") {
+					t.Errorf("container call omitted packaging UID:\n%s", args)
+				}
+			}
+			for _, want := range []string{
+				"-engine\n" + engine + "\n",
+				"-cache\n" + cache + "\n",
+				"-image\nfyneio/fyne-cross-images:" + route.platform + "@sha256:",
+				"GOTOOLCHAIN=auto\n",
+				"--user\n" + strconv.Itoa(os.Getuid()) + "\n",
+				"GO\nversion\n-m\n" + cross + "\n",
+				"ENGINE\nimage\ninspect\n",
+				"/usr/local/bin/fyne\nversion\n",
+			} {
+				if !strings.Contains(log, want) {
+					t.Errorf("packaging omitted %q\n%s", want, log)
+				}
+			}
+			if route.flags != "" && !strings.Contains(log, route.flags) {
+				t.Errorf("route omitted distribution/debug flags %q", route.flags)
+			}
+			if route.target != "package-windows-store" && strings.Contains(log, "microsoftstore") {
+				t.Error("ordinary route selected Store distribution")
+			}
+			for _, arch := range []string{"amd64", "arm64"} {
+				name := route.artifact + arch
+				if route.platform == "windows" {
+					name += ".exe"
+				}
+				artifact, err := os.ReadFile(filepath.Join(dir, "bin", name))
+				if err != nil || string(artifact) != route.platform+" "+arch+"\n" {
+					t.Errorf("%s artifact = %q, %v", arch, artifact, err)
+				}
+			}
+			for _, failure := range []string{"engine", "cross", "copy"} {
+				t.Run(failure+" failure", func(t *testing.T) {
+					if err := os.WriteFile(logPath, nil, 0o600); err != nil {
+						t.Fatal(err)
+					}
+					failed := exec.Command(cmd.Path, cmd.Args[1:]...)
+					failed.Dir = dir
+					failed.Env = append(cmd.Env, "PICFETCH_PACKAGING_FAIL="+failure)
+					if output, err := failed.CombinedOutput(); err == nil {
+						t.Errorf("packaging accepted %s failure:\n%s", failure, output)
+					}
+					data, err := os.ReadFile(logPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if bytes.Contains(data, []byte("-arch=arm64\n")) {
+						t.Error("packaging continued after the first architecture failed")
+					}
+				})
+			}
+		})
 	}
 }

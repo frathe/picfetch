@@ -28,8 +28,9 @@ const defaultRepeatCacheBytes = 64 << 20
 // Generator owns the generation dependencies for one caller. New returns the
 // production generator; the package-level Generate is the usual entry point.
 type Generator struct {
-	load       sourceLoader
-	cacheBytes int64
+	load          sourceLoader
+	cacheBytes    int64
+	beforePrepare func(preparationPlan) error
 }
 
 // New creates a mosaic generator backed by PicFetch's canonical image loader.
@@ -95,7 +96,7 @@ func (g *Generator) Generate(ctx context.Context, request Request) (Result, erro
 			destination = canvas
 		}
 
-		return renderPlacement(ctx, destination, source, placement)
+		return renderPlacementWithBudget(ctx, destination, source, placement, maxPreparationBytes, g.beforePrepare)
 	}
 
 	_, err := walkLayout(ctx, request.target, request.settings, request.seed, next, onPlacement)

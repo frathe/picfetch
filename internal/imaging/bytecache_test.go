@@ -17,6 +17,38 @@ func newTestByteCache(budget int64) *ByteCache[int64] {
 	return NewByteCache(budget, weighInt)
 }
 
+func TestByteCacheCapturedWritesRejectPrePurgeProducers(t *testing.T) {
+	c := newTestByteCache(10)
+	old := c.Capture()
+	c.Purge()
+	fresh := c.Capture()
+	if !fresh.Add("fresh", 7) {
+		t.Fatal("current displayed record was refused")
+	}
+	if old.Current() {
+		t.Error("pre-purge writer is still current")
+	}
+	if old.Add("old displayed", 20) {
+		t.Error("pre-purge displayed pixels repopulated the cache")
+	}
+	if old.AddIfFits("old preload", 9) {
+		t.Error("pre-purge speculative pixels repopulated the cache")
+	}
+	if got, ok := c.Get("fresh"); !ok || got != 7 || c.Len() != 1 {
+		t.Errorf("stale writes disturbed fresh data: value=%d, present=%v, entries=%d", got, ok, c.Len())
+	}
+	if fresh.AddIfFits("oversize preload", 20) {
+		t.Error("speculation admitted an oversized record")
+	}
+	if !fresh.Add("oversize displayed", 20) || !c.Contains("oversize displayed") {
+		t.Error("current display lost Add's oversized retention")
+	}
+	var zero CacheWriter[int64]
+	if zero.Current() || zero.Add("zero", 1) || zero.AddIfFits("zero", 1) {
+		t.Error("zero writer admitted a record")
+	}
+}
+
 // --- ByteCache eviction ------------------------------------------------------
 
 // TestByteCache_EvictsByWeightNotCount is the whole point of the type: three

@@ -88,6 +88,7 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 		return
 	}
 
+	v.openChooserLifecycle.invalidate()
 	v.deletion.Cancel()
 	v.grid.Close()
 

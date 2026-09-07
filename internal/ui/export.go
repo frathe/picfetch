@@ -6,15 +6,14 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/filepicker"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -24,7 +23,7 @@ import (
 // export to: the universally readable lossless one and the universally
 // readable lossy one. internal/imaging can encode four more (GIF, BMP,
 // TIFF, AVIF) and honors any of them if the user types that extension into
-// the save panel themselves - see exportDestination - but offering all six
+// the save panel themselves - see imaging.Export - but offering all six
 // as menu items would be a long list for a choice that is really only ever
 // these two.
 const (
@@ -66,7 +65,7 @@ const (
 func (v *viewer) canExport() bool {
 	_, _, ok := v.CurrentFile()
 
-	return ok && !v.loading.Load() && v.img.Image != nil
+	return !v.fileWork.closed && !v.fileWork.exportPending && ok && !v.loading.Load() && v.img.Image != nil
 }
 
 // promptExport is the File menu's "Export image" action (also Cmd/Ctrl+E,
@@ -132,67 +131,95 @@ func (v *viewer) exportAs(ext string) {
 	}
 
 	src, _, _ := v.CurrentFile()
-	img := v.img.Image
-	req := exportRequest{ext: ext, opts: v.exportOptions.Options()}
+	req := exportRequest{ext: ext, opts: v.exportOptions.Options(), source: src, pixels: v.img.Image, choose: filepicker.ChooseSave, write: v.fileWork.export}
 
 	// chooser is shared with openFileDialog's own goroutine rather than
 	// given a twin of its own: it means "the native file dialog
 	// goroutine", and these two are never in flight at once - both panels
 	// are app-modal, so neither can be reached while the other is up.
 	done := v.chooser.Begin()
+	token := v.fileWork.exportLifecycle.begin()
+	v.fileWork.exportPending = true
+	v.syncMenus()
 
-	go func() {
-		defer done()
-
-		v.runExport(src, img, req)
-	}()
+	v.fileWork.workers.Go(func() {
+		result := req.run(token.context())
+		if result.write.Committed {
+			v.imgCache.Purge()
+		}
+		if !token.current() && !result.write.Committed {
+			done()
+			return
+		}
+		v.fileWork.ui.Do(func() {
+			defer token.cancelContext()
+			defer v.afterFileWrite(result.write, true, true, done)
+			if !token.current() {
+				return
+			}
+			v.fileWork.exportPending = false
+			v.syncMenus()
+			switch {
+			case result.chooserFailure:
+				v.showChooserError(result.err)
+			case result.err != nil:
+				fyne.LogError("failed to export image", result.err)
+				v.ShowToast(fmt.Sprintf(lang.L("could not export %q: %v"), result.destination.Name(), result.err))
+			case result.destination != nil:
+				v.ShowToast(exportedToast(result.destination.Name(), result.edge, req.opts.OmitMetadata))
+			}
+		})
+	})
 }
 
-// exportRequest is everything the export runner needs about *how* to write
-// the file, as opposed to what it is writing: the format the prompt's button
-// named, and the options its rows carried. One value rather than a widening
-// argument list because both halves are decided in the same place at the
-// same moment - the prompt, on the UI goroutine - and neither is meaningful
-// to the runner without the other.
+// exportRequest captures pixels, source, options and external operations on UI.
+// Its worker never reads the changing viewer or export prompt.
 type exportRequest struct {
-	ext  string
-	opts imaging.ExportOptions
+	ext    string
+	opts   imaging.ExportOptions
+	source fyne.URI
+	pixels image.Image
+	choose func(string) (fyne.URI, error)
+	write  func(context.Context, fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) (imaging.WriteResult, error)
 }
 
-// runExport is split out from exportAs the way runFileChooser is from
-// openFileDialog, so tests can drive the whole panel-to-file path on a
-// single goroutine. src, img and req are passed in rather than read from
-// the viewer here, since this runs off the UI goroutine.
-func (v *viewer) runExport(src fyne.URI, img image.Image, req exportRequest) {
+type exportResult struct {
+	destination    fyne.URI
+	write          imaging.WriteResult
+	edge           int
+	err            error
+	chooserFailure bool
+}
+
+// run waits for the native destination and executes the captured transaction.
+// The caller owns result delivery and checks the request again on UI.
+func (req exportRequest) run(ctx context.Context) exportResult {
 	// The applied edge, not the requested one: a 2400 limit on an 1800px
 	// photo changes nothing, so it must not name the file or appear in the
 	// toast either. Everything below reports what was written rather than
 	// what was asked for.
-	edge := appliedExportEdge(img, req.opts.MaxEdge)
-
-	out, err := filepicker.ChooseSave(suggestedExportPath(src, req.ext, edge))
-	if err != nil {
-		v.reportChooserError(err, runtime.GOOS)
-		return
+	result := exportResult{edge: appliedExportEdge(req.pixels, req.opts.MaxEdge)}
+	if err := ctx.Err(); err != nil {
+		result.err = err
+		return result
 	}
 
-	picked := filepicker.ParseFileList(out)
-	if len(picked) == 0 {
-		return // cancelled
-	}
-	dest := exportDestination(picked[0], req.ext)
-
-	if err := imaging.Export(dest, img, src, req.opts); err != nil {
-		fyne.LogError("failed to export image", err)
-		fyne.Do(func() {
-			v.ShowToast(fmt.Sprintf(lang.L("could not export %q: %v"), dest.Name(), err))
-		})
-		return
+	result.destination, result.err = req.choose(suggestedExportPath(req.source, req.ext, result.edge))
+	if result.err != nil {
+		result.chooserFailure = true
+		return result
 	}
 
-	fyne.Do(func() {
-		v.ShowToast(exportedToast(dest.Name(), edge, req.opts.OmitMetadata))
-	})
+	if result.destination == nil {
+		return result // cancelled
+	}
+	req.opts.FallbackExt = req.ext
+	if err := ctx.Err(); err != nil {
+		result.err = err
+		return result
+	}
+	result.write, result.err = req.write(ctx, result.destination, req.pixels, req.source, req.opts)
+	return result
 }
 
 // appliedExportEdge is the size limit that actually changed img's pixels,
@@ -255,20 +282,4 @@ func suggestedExportPath(src fyne.URI, ext string, edge int) string {
 	}
 
 	return filepath.Join(filepath.Dir(src.Path()), base+ext)
-}
-
-// exportDestination decides what the file the user named in the save panel
-// is actually called. The rule is that a file's bytes must always match its
-// extension: if the name they typed already carries a format this module
-// can encode, that wins over the menu item they picked (typing "copy.jpg"
-// means they want JPEG, whichever "Export as…" item got them here);
-// otherwise the menu item's extension is appended, so "copy" becomes
-// "copy.png" and "copy.webp" - a format with no encoder here - becomes
-// "copy.webp.png" rather than a PNG masquerading as a WebP.
-func exportDestination(picked fyne.URI, ext string) fyne.URI {
-	if imaging.CanEncodeExt(picked.Extension()) {
-		return picked
-	}
-
-	return storage.NewFileURI(picked.Path() + ext)
 }

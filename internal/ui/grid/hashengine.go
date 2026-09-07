@@ -16,6 +16,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -38,7 +39,7 @@ const hideApplyMinInterval = 250 * time.Millisecond
 // on the overlay. What it needs from the grid it holds directly, so it
 // keeps no pointer back to the Overview; the part of a completion that
 // does have to touch the overlay comes back through Run's apply callback
-// instead (Overview.applyHashSnapshot).
+// instead (Overview.hashFactsReady).
 type hashEngine struct {
 	// host, pool, thumbs, model and ui are the Overview's own, shared
 	// rather than copied: the engine hashes onto the same decode pool the
@@ -47,9 +48,10 @@ type hashEngine struct {
 	// installs into the same duplicate model the badges and the filter
 	// read.
 	host   Host
-	pool   *decodepool.Pool[*fyne.Container, int]
+	pool   *decodepool.Pool[*fyne.Container, thumbClaim]
 	thumbs *imaging.ByteCache[image.Image]
 	model  *dupes.Model
+	facts  dupes.FactWriter
 
 	// ui is how a finished job's install reaches the UI goroutine - see
 	// uiqueue.go for why that is a field and not a direct fyne.Do.
@@ -72,6 +74,11 @@ type hashEngine struct {
 	// first mid-window apply.
 	hideApply   atomic.Bool
 	hideApplyAt atomic.Int64
+
+	// Workers number snapshots before computing/submitting them. The UI owns
+	// applied, so a delayed partial submission cannot replace a newer result.
+	nextApply atomic.Uint64
+	applied   uint64
 }
 
 // Run hashes every file that does not already have a dHash, and records
@@ -82,24 +89,14 @@ type hashEngine struct {
 // Claim so Settle still waits, and they do not Add to a full thumbnail
 // cache.
 //
-// DuplicateGroups runs on the worker before e.ui.Do. apply only installs
-// that snapshot and filters, unless the duplicate distance changed since
-// the snapshot (settings slider while hashing): then it recomputes so the
-// install cannot undo the live regroup. hideApply stays set until apply
-// returns so an idle UI cannot re-arm mid-apply. Mid-window applies are
-// also floored by hideApplyMinInterval; the last job always applies.
-// Browse still waits for the last job (finishBrowse) so a partial group
-// is never shown. e.ui.Do stays inside this Go body: Settle's barrier is
-// decodes.Wait, which only covers completions the pool spawned.
-//
-// apply is Overview.applyHashSnapshot - the half of a completion that has
-// to touch the overlay, and so has to run on the UI goroutine. It is
-// handed the snapshot the worker computed, how many jobs were still
-// outstanding when this one finished, and the generation this pass
-// started at.
-func (e *hashEngine) Run(apply func(snap dupes.Groups, remaining int32, gen uint64)) int {
+// The throttled notification reaches UI inside this pool body. Grouping has
+// its own cancellable admission; no hash completion regroups on UI.
+func (e *hashEngine) Run(ctx context.Context, apply func(remaining int32, gen uint64)) int {
+	if ctx.Err() != nil || !e.facts.Current() {
+		return 0
+	}
 	gen := e.host.Generation()
-	e.model.WipeIfStale()
+	writer := e.thumbs.Capture()
 
 	type hashJob struct {
 		file   fyne.URI
@@ -148,58 +145,80 @@ func (e *hashEngine) Run(apply func(snap dupes.Groups, remaining int32, gen uint
 	e.beginPass(n)
 	for _, j := range jobs {
 		file, key, cached, hashed, sized := j.file, j.key, j.thumb, j.hashed, j.sized
-		e.pool.Go(context.Background(), func(acquired bool) {
+		e.pool.Go(ctx, func(acquired bool) {
 			defer func() {
 				e.hashing.Delete(key)
 				remaining := e.hashJobs.Add(-1)
-				if !e.shouldScheduleHideApply(remaining) {
+				if ctx.Err() != nil || !e.facts.Current() || !e.shouldScheduleHideApply(remaining) {
 					return
 				}
-				snap := e.model.Compute()
+				sequence := e.nextApply.Add(1)
 				e.ui.Do(func() {
+					if ctx.Err() != nil || !e.facts.Current() || sequence <= e.applied {
+						return
+					}
+					e.applied = sequence
 					defer e.hideApply.Store(false)
-					apply(snap, remaining, gen)
+					apply(remaining, gen)
 				})
 			}()
-			if !acquired || gen != e.host.Generation() {
+			if !acquired || ctx.Err() != nil || !e.facts.Current() {
 				return
 			}
 			thumb := cached
 			var native image.Rectangle
+			var version string
 			haveNative := false
 			if thumb == nil {
 				var err error
-				thumb, native, err = imaging.LoadThumbnailAndBounds(file)
+				version, _ = favthumbs.EntryName(file)
+				thumb, native, err = imaging.LoadThumbnailAndBoundsContext(ctx, file)
+				if workCancelled(ctx, err) {
+					return
+				}
 				if err != nil || thumb == nil {
-					e.model.PutFailed(key)
+					e.facts.PutFailed(key)
 					return
 				}
 				haveNative = true
-				if !thumbCacheFull(e.thumbs) {
-					e.thumbs.AddIfFits(file.String(), thumb)
-				}
 			}
 			if !hashed {
 				// dHashed here, on the goroutine that already holds the
 				// decoded thumbnail, so the model is only ever handed the
 				// 8-byte result: it knows nothing about images.
-				e.model.PutHash(key, imaging.DifferenceHash(thumb))
+				hash := imaging.DifferenceHash(thumb)
+				if ctx.Err() != nil {
+					return
+				}
+				if !e.facts.PutHash(key, hash) {
+					return
+				}
 			}
 			if !sized {
 				// Rectangle to plain size at the call, because the model
 				// stores sizes rather than rectangles with an origin; it
 				// applies its own clamp for a negative edge.
 				if haveNative {
-					e.model.PutNativeSize(key, image.Pt(native.Dx(), native.Dy()))
+					if !e.facts.PutNativeSize(key, image.Pt(native.Dx(), native.Dy())) {
+						return
+					}
 				} else {
-					_, b, err := imaging.ReadAndProbe(context.Background(), file)
+					_, b, err := imaging.ReadAndProbe(ctx, file)
+					if workCancelled(ctx, err) {
+						return
+					}
 					if err != nil {
 						// Known-zero so hide/browse stop re-queueing an
 						// unprobeable file (same trade-off as hashFailed).
 						b = image.Rectangle{}
 					}
-					e.model.PutNativeSize(key, image.Pt(b.Dx(), b.Dy()))
+					if !e.facts.PutNativeSize(key, image.Pt(b.Dx(), b.Dy())) {
+						return
+					}
 				}
+			}
+			if haveNative && e.facts.Current() && !thumbCacheFull(e.thumbs) {
+				_ = writer.AddIfFits(key, &favthumbs.Preview{Image: thumb, SourceVersion: version})
 			}
 		})
 	}

@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
-	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -207,7 +206,10 @@ func installPairedGroups(g *Overview, n int) {
 		sizes[i] = 2
 		reps[i] = i &^ 1
 	}
-	g.dupes.Install(dupes.Groups{Sizes: sizes, Reps: reps, Dist: 10})
+	g.dupes.SetDistance(10)
+	snapshot := g.dupes.Compute()
+	snapshot.Sizes, snapshot.Reps = sizes, reps
+	g.dupes.Install(snapshot)
 }
 
 // TestApplyVisibleFilter_TakesOneVisibilityReadPerPass is the regression
@@ -253,11 +255,10 @@ func fixedGroupHost(t *testing.T) (*Overview, *fakeHost) {
 
 	host := hostWith(t, "sun-a.jpg", "sun-b.jpg", "moon.jpg", "star.jpg")
 	g := newOverview(t, host)
-	g.dupes.Install(dupes.Groups{
-		Sizes: []int{2, 2, 1, 1},
-		Reps:  []int{0, 0, 2, 3},
-		Dist:  10,
-	})
+	g.dupes.SetDistance(10)
+	snapshot := g.dupes.Compute()
+	snapshot.Sizes, snapshot.Reps = []int{2, 2, 1, 1}, []int{0, 0, 2, 3}
+	g.dupes.Install(snapshot)
 
 	return g, host
 }

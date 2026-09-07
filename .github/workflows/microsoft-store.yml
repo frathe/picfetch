@@ -27,7 +27,7 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Install fyne-cross CLI
-        run: go install github.com/fyne-io/fyne-cross@latest
+        run: make install-fyne-cross
 
       - name: Build Store-managed Windows executables
         run: make package-windows-store

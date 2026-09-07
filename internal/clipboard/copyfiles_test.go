@@ -153,7 +153,7 @@ func TestCopyFilesWindows_ReadsThePathListFromAFile(t *testing.T) {
 		t.Fatalf("copyFilesWindows() error = %v", err)
 	}
 
-	for _, want := range []string{"Set-Clipboard", "-LiteralPath", "$env:PICFETCH_CLIPBOARD_LIST", "catch", "exit 1"} {
+	for _, want := range []string{"Set-Clipboard", "-LiteralPath", "$env:PICFETCH_CLIPBOARD_LIST", "-Encoding UTF8", "$ErrorActionPreference = 'Stop'", "catch", "exit 1"} {
 		if !strings.Contains(gotScript, want) {
 			t.Errorf("script does not contain %q:\n%s", want, gotScript)
 		}

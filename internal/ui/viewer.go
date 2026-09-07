@@ -2,8 +2,8 @@ package ui
 
 import (
 	"fmt"
-	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -42,6 +42,9 @@ import (
 type viewer struct {
 	app fyne.App
 	win fyne.Window
+	// stopping retires title/menu updates before shutdown cancels features.
+	// Fyne may run OnStopped after the native event loop has drained.
+	stopping bool
 	// storeManaged is immutable in production and copied from the build-tag
 	// fact in internal/distribution. Tests can set the per-viewer value to
 	// exercise both delivery channels without mutable package-level seams.
@@ -145,8 +148,11 @@ type viewer struct {
 	// (favthumbs.go). Independent of every lifecycle above it: the pass
 	// belongs to a favorite rather than to whatever is on screen, so it
 	// outlives the navigation that started it and is superseded only by
-	// the next favorite opened or saved.
+	// the next favorite opened or saved, a preference disable, or shutdown.
+	// favThumbWorkers tracks every pass; favThumbClosed is owned by the UI.
 	favThumbLifecycle requestLifecycle
+	favThumbWorkers   sync.WaitGroup
+	favThumbClosed    bool
 
 	// baseTitle is the window title without the "[merge] " prefix applyTitle
 	// adds while merge mode is on, so toggling M can refresh the title
@@ -189,12 +195,12 @@ type viewer struct {
 	// about what the gesture is for.
 	spiralGesture func(clockwise bool)
 
-	// stopWinPosPoll stops startWindowPosPolling's background ticker
-	// goroutine; initialized to noPollerStop by buildViewer, replaced by
-	// Run after startup geometry is restored, and called from SetOnStopped
-	// just before the final preferences save (winPos keeps its last reading,
-	// so the save still has a value).
+	// stopWinPosPoll cancels position sampling without waiting on UI;
+	// waitWinPosPoll observes completion off UI. Both start as noPollerStop
+	// and are bound to the same poller after startup geometry is restored.
+	// SetOnStopped cancels before saving the tracker's retained last reading.
 	stopWinPosPoll func()
+	waitWinPosPoll func()
 
 	// scanOp is the folder-scan progress UI - see asyncop.go's asyncOpUI for
 	// the shape it shares with the background reorder (sortOp below).
@@ -247,6 +253,9 @@ type viewer struct {
 	// finished applying (or been discarded as stale), mirroring v.scanOp.done
 	// and v.load so tests can wait on it deterministically.
 	sortOp asyncOpUI
+	// sortModeBefore is the mode of the retained order while a new mode is
+	// pending. Superseding requests share this rollback point until one lands.
+	sortModeBefore *filesort.Mode
 
 	// animFrame counts every write to v.img.Image - attemptLoad's initial
 	// frame plus each one animate cycles to afterwards - and anim is
@@ -272,6 +281,9 @@ type viewer struct {
 	// Write-once: set at construction, and by a test only before its first
 	// drop (concurrency invariant).
 	frameAfter func(time.Duration) <-chan time.Time
+	// frameDo queues an animation frame on UI. Configure once before playback;
+	// held-queue tests replace it without changing Fyne's process-wide driver.
+	frameDo func(func())
 
 	// display owns what is on the canvas right now - the current image's
 	// decoded frames, which of them is up, the view-only rotation, and
@@ -416,18 +428,20 @@ type viewer struct {
 	// handleKeyEvent's G case and togglePictureFrameMode.
 	slides *slideshow.Controller
 
-	// clipboard is begun by copyImageToClipboard (clipboard.go),
-	// copyGridSelection (batch.go), and Copy Selection, and finished once
-	// that goroutine has
-	// fully run, error reporting included. chooser is the same for the
-	// native file dialog, shared by openFileDialog (openfiles.go) and
-	// exportAs (export.go) - they mean "the native dialog goroutine" and
-	// are never in flight at once, since both panels are app-modal.
-	// See internal/completion for the contract all of these keep.
-	//
-	// Value fields, never copied: each holds a mutex.
-	clipboard completion.Signal
-	chooser   completion.Signal
+	// clipboard tracks the active clipboard operation through result delivery;
+	// clipboardWork owns admission, cancellation, all workers and their queue.
+	// chooser retains the
+	// latest native open/export worker's completion. Open requests additionally
+	// track every worker and drain chooserUI before child scan/load assertions;
+	// native worker completion alone does not imply queued UI delivery.
+	clipboard            completion.Signal
+	clipboardWork        clipboardWork
+	fileWork             fileMutationWork
+	chooser              completion.Signal
+	chooserUI            chooserUIQueue
+	openChooserLifecycle requestLifecycle
+	openChooserWorkers   sync.WaitGroup
+	openChooserClosed    bool
 
 	// reveal is begun by revealCurrentFile (reveal.go) and finished once
 	// that goroutine has fully run, error toast included - the same
@@ -546,7 +560,7 @@ func (v *viewer) setTitle(base string) {
 // `(index/count) [WxH] /absolute/path`, so the bar is only position, size,
 // and path, with nothing else competing for room.
 func (v *viewer) applyTitle() {
-	if v.compare != nil && v.compare.Visible() {
+	if v.stopping || (v.compare != nil && v.compare.Visible()) {
 		return
 	}
 	title := v.baseTitle
@@ -728,6 +742,7 @@ func (v *viewer) showFileIfPresent(target fyne.URI) bool {
 // act as "start over" instead of quitting whenever there's something to
 // clear.
 func (v *viewer) reset() {
+	v.openChooserLifecycle.invalidate()
 	v.clearToDropzone()
 
 	// Also cleared here, not just inside clearToDropzone: every path back to
@@ -813,33 +828,26 @@ func (v *viewer) displayedFile() (fyne.URI, bool) {
 	return u, ok
 }
 
-// DisplayedFile is the file decoded and on screen, ok=false when the
-// drop zone is showing. Satisfies exifwin.Host; narrower than
-// CurrentFile, which still reports a selected index during a failed load.
+// DisplayedFile supplies EXIF only after the selected image has loaded.
+// During navigation, the retained outgoing pixels do not describe the newly
+// selected URI; the panel waits until finishLoad refreshes it.
 func (v *viewer) DisplayedFile() (fyne.URI, bool) {
+	if v.loading.Load() {
+		return nil, false
+	}
 	return v.displayedFile()
 }
 
 // AfterMetadataRemoved is exifwin.Host: the JPEG at u just lost its
 // identifying tags. Evict that file's decode-cache entry so a later visit
 // cannot revive HasEXIF. Overlay size / EXIF-link updates apply only when
-// u is still the file on screen, so a navigation while the confirmation
-// was up cannot hide a different photo's link.
-func (v *viewer) AfterMetadataRemoved(u fyne.URI) {
-	if u == nil {
-		return
+// the currently displayed path resolves to the committed target, so
+// navigation cannot hide a different photo's link.
+func (v *viewer) AfterMetadataRemoved(_ fyne.URI, result imaging.WriteResult) {
+	if result.Committed {
+		v.imgCache.Purge()
 	}
-	v.imgCache.Remove(u.String())
-	if shown, ok := v.displayedFile(); ok && shown.String() == u.String() {
-		info, err := os.Stat(u.Path())
-		var size int64
-		if err == nil {
-			size = info.Size()
-		}
-		v.info.AfterMetadataRemoved(size, err == nil)
-		v.syncInfoOverlayVisibility()
-		v.updateInfoOverlay()
-	}
+	v.afterFileWrite(result, false, false, func() {})
 	v.exif.Refresh()
 }
 
@@ -858,8 +866,8 @@ func (v *viewer) RemoveFile(i int) {
 	v.state.removeFile(i)
 }
 
-// RemoveFiles drops every named index in one pass - what internal/ui/deletion
-// calls once a batch of files has actually reached the Trash.
+// RemoveFiles drops every named index in one pass for an admitted ordinary
+// command. Completed Trash operations use ReconcileDeletedFiles instead.
 //
 // Descending, so an earlier removal can't shift a later index out from under
 // the same call, and sorted first because the caller's order is not something
@@ -876,6 +884,34 @@ func (v *viewer) RemoveFiles(indices []int) {
 	if v.comparisonActive() {
 		return
 	}
+	v.removeFiles(indices)
+}
+
+// ReconcileDeletedFiles applies completed OS moves by identity. A confirmation
+// may finish after ordering or mode changes; these are facts about files that
+// already reached the Trash, so ordinary command admission cannot discard them.
+func (v *viewer) ReconcileDeletedFiles(uris []fyne.URI) bool {
+	keys := make(map[string]struct{}, len(uris))
+	for _, uri := range uris {
+		keys[uri.String()] = struct{}{}
+	}
+	var indices []int
+	for i, uri := range v.state.files {
+		if _, moved := keys[uri.String()]; moved {
+			indices = append(indices, i)
+		}
+	}
+	if len(indices) == 0 {
+		return false
+	}
+	if v.comparisonActive() {
+		v.compare.Close()
+	}
+	v.removeFiles(indices)
+	return true
+}
+
+func (v *viewer) removeFiles(indices []int) {
 	prev := -1
 	for _, i := range slices.Backward(slices.Sorted(slices.Values(indices))) {
 		if i == prev || i < 0 || i >= len(v.state.files) {

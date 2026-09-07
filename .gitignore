@@ -9,3 +9,5 @@ internal/ui/testdata/failed/
 .superpowers
 node_modules/
 .env.local
+
+.tools/
