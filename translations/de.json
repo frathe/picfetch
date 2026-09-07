@@ -274,5 +274,6 @@
    "Could not inspect displays: %v": "Bildschirme konnten nicht ermittelt werden: %v",
    "Saving mosaic...": "Mosaik wird gespeichert...",
    "Could not save mosaic: %v": "Mosaik konnte nicht gespeichert werden: %v",
-   "Saved mosaic as %q": "Mosaik als %q gespeichert"
+   "Saved mosaic as %q": "Mosaik als %q gespeichert",
+   "Canvas coverage: %d%%": "Bildfläche gefüllt: %d%%"
 }

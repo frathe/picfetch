@@ -74,7 +74,7 @@ func renderPlacementWithBudget(ctx context.Context, destination *image.NRGBA, so
 	for top := bounds.Min.Y; top < bounds.Max.Y; top += preparationTileSize {
 		for left := bounds.Min.X; left < bounds.Max.X; left += preparationTileSize {
 			tile := image.Rect(left, top, min(left+preparationTileSize, bounds.Max.X), min(top+preparationTileSize, bounds.Max.Y))
-			if err := render(tile, plan.forTile(tile, transform, sourceSize)); err != nil {
+			if err := render(tile, plan.forTile(tile, transform, sourceSize, budget)); err != nil {
 				return err
 			}
 		}
@@ -160,6 +160,10 @@ func prepareSourceLayer(ctx context.Context, source image.Image, placement place
 	draw.Draw(layer, layer.Bounds(), image.NewUniform(backing), image.Point{}, draw.Src)
 	if !plan.tiled {
 		xdraw.CatmullRom.Scale(layer, interior, source, source.Bounds(), xdraw.Over, nil)
+	} else if plan.separable {
+		if err := scaleSourceRegion(ctx, layer, interior, source); err != nil {
+			return nil, f64.Aff3{}, err
+		}
 	} else {
 		sourceBounds := source.Bounds()
 		xScale := float64(plan.width) / float64(sourceBounds.Dx())

@@ -71,7 +71,7 @@ func cloneSnapshot(snapshot Snapshot) Snapshot {
 
 // Host is the narrow set of cross-feature effects owned by internal/ui.
 type Host interface {
-	GenerateMosaic(context.Context, mosaic.Request) (mosaic.Result, error)
+	GenerateMosaic(context.Context, mosaic.Request, func(mosaic.Progress)) (mosaic.Result, error)
 	InspectMosaicDisplays() (displays.Snapshot, error)
 	AfterFileExported(imaging.WriteResult)
 	// SetMosaicWallpaper takes a solo argument confirming the target is
@@ -116,7 +116,7 @@ type Window struct {
 	dropShadow                   *namedCheck
 	minimumValue, variationValue *widget.Label
 	overlapValue, rotationValue  *widget.Label
-	loading                      *widget.ProgressBarInfinite
+	loading                      *widget.ProgressBar
 	advancedButton               *actionButton
 	advancedControls             *fyne.Container
 	refreshButton                *actionButton
@@ -287,7 +287,11 @@ func (w *Window) build() fyne.CanvasObject {
 		container.NewStack(w.preview, container.NewVBox(w.previewStatus)),
 	)
 	w.previewPanel.Hide()
-	w.loading = widget.NewProgressBarInfinite()
+	w.loading = widget.NewProgressBar()
+	loading := w.loading
+	loading.TextFormatter = func() string {
+		return fmt.Sprintf(lang.L("Canvas coverage: %d%%"), int(loading.Value*100))
+	}
 	w.loading.Hide()
 	w.root = container.NewBorder(w.loading, nil, nil, nil, container.NewStack(w.config, w.previewPanel))
 	w.syncActions()
@@ -394,11 +398,13 @@ func (w *Window) startGeneration(supersede bool) {
 
 	ctx, revision := w.lifecycle.begin()
 	w.generationBusy = true
+	w.loading.SetValue(0)
 	w.loading.Show()
 	w.setStatus(lang.L("Generating mosaic..."))
 	w.syncActions()
+	report := w.progressReporter(ctx, revision)
 	w.workers.Go(func() {
-		result, generateErr := w.host.GenerateMosaic(ctx, request)
+		result, generateErr := w.host.GenerateMosaic(ctx, request, report)
 		if !w.lifecycle.current(revision) {
 			return
 		}
@@ -415,6 +421,7 @@ func (w *Window) startGeneration(supersede bool) {
 				return
 			}
 			w.result = result
+			w.loading.SetValue(1)
 			w.hasResult = true
 			w.preview.Image = result.Image()
 			w.preview.Refresh()

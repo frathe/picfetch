@@ -53,6 +53,13 @@ Flags can appear anywhere among the file paths. An unknown flag exits with an er
 that session only — your saved settings are untouched, so a scripted launch never overwrites how you normally have the
 app configured. Launching from Finder still works as before.
 
+##### **Mosaic generation progress**
+
+Image mosaics now show a progress bar with the percentage of canvas covered.
+Cancellation, regeneration and reopening the window discard obsolete updates.
+The memory-bounded renderer reuses horizontal filtering and source-row conversion
+while preserving Catmull-Rom quality, frames, shadows and output resolution.
+
 #### Bugfix
 
 - Hide Duplicates remains effective after sorting, including unchanged ordering.
@@ -88,6 +95,13 @@ in `ui-3` without an individual test failure in the compact log. The isolated
 Linux/amd64 race-shard retry passed with raw output preserved. The cause remains
 unknown; retain raw streams on the next concurrent run. See
 `finished_refactorings/2026-09-07-qodana-findings.md` for commands and evidence.
+
+Later concurrent runs on the unchanged PR head and the mosaic optimization both
+captured Docker OOM events for UI shard 3; a 1 GiB Go memory target did not prevent
+the latter. The same shard passes alone. Retain the original-run uncertainty,
+but investigate Docker's overall memory pressure for this reproduced failure.
+Latest evidence: `plans/2026-09-07-mosaic-speed-progress.md`.
+
 
 ### Address the 2026-09-06 maintainability audit
 

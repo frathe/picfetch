@@ -30,11 +30,15 @@ import (
 type fakeHost struct {
 	exported  []imaging.WriteResult
 	generate  func(context.Context, mosaic.Request) (mosaic.Result, error)
+	progress  func(context.Context, mosaic.Request, func(mosaic.Progress)) (mosaic.Result, error)
 	inspect   func() (displays.Snapshot, error)
 	wallpaper func(context.Context, mosaic.Result, displays.ID, bool) error
 }
 
-func (h *fakeHost) GenerateMosaic(ctx context.Context, request mosaic.Request) (mosaic.Result, error) {
+func (h *fakeHost) GenerateMosaic(ctx context.Context, request mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
+	if h.progress != nil {
+		return h.progress(ctx, request, report)
+	}
 	return h.generate(ctx, request)
 }
 
@@ -1300,4 +1304,123 @@ func sameURIs(a, b []fyne.URI) bool {
 
 func (h *fakeHost) AfterFileExported(result imaging.WriteResult) {
 	h.exported = append(h.exported, result)
+}
+
+func TestMosaicProgress_CoalescesUpdatesOnUI(t *testing.T) {
+	host := successfulHost(t)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	host.progress = func(ctx context.Context, request mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
+		for covered := 1; covered <= 75; covered++ {
+			report(mosaic.Progress{CoveredPixels: covered, TotalPixels: 100})
+		}
+		close(started)
+		select {
+		case <-release:
+			return mosaic.Generate(ctx, request)
+		case <-ctx.Done():
+			return mosaic.Result{}, ctx.Err()
+		}
+	}
+	queue := &uitest.UIQueue{}
+	w := New(test.NewApp(), host)
+	w.SetUIQueue(queue)
+	w.Show(mustSnapshot(t))
+	t.Cleanup(func() { w.Close(); settleWindow(t, w) })
+	w.Generate()
+	<-started
+	if !w.loading.Visible() || !containsMosaicObject(w.root, w.loading) {
+		t.Fatal("progress bar is missing from the window")
+	}
+	if w.loading.Value != 0 {
+		t.Fatal("worker changed progress before UI delivery")
+	}
+	if got := queue.Len(); got != 1 {
+		t.Fatalf("progress queued %d callbacks, want one coalesced update", got)
+	}
+	queue.Drain()
+	if w.loading.Value != 0.75 || w.loading.TextFormatter() != "Canvas coverage: 75%" {
+		t.Fatalf("progress = %g, text %q", w.loading.Value, w.loading.TextFormatter())
+	}
+	close(release)
+	settleWindow(t, w)
+	if w.Busy() || w.loading.Visible() || w.loading.Value != 1 {
+		t.Fatal("successful generation did not finish progress")
+	}
+}
+
+func TestMosaicProgress_RejectsRetiredGeneration(t *testing.T) {
+	for _, action := range []string{"cancel", "supersede", "reopen"} {
+		t.Run(action, func(t *testing.T) {
+			host := successfulHost(t)
+			var mu sync.Mutex
+			calls := 0
+			started := make(chan int, 2)
+			oldDone := make(chan struct{})
+			newProgress := make(chan struct{})
+			newReported := make(chan struct{})
+			releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
+			host.progress = func(ctx context.Context, request mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
+				mu.Lock()
+				index := calls
+				calls++
+				mu.Unlock()
+				if index == 0 {
+					report(mosaic.Progress{CoveredPixels: 70, TotalPixels: 100})
+					started <- index
+				} else {
+					started <- index
+					select {
+					case <-newProgress:
+					case <-ctx.Done():
+						return mosaic.Result{}, ctx.Err()
+					}
+					report(mosaic.Progress{CoveredPixels: 30, TotalPixels: 100})
+					close(newReported)
+				}
+				select {
+				case <-releases[index]:
+				case <-ctx.Done():
+				}
+				if index == 0 {
+					report(mosaic.Progress{CoveredPixels: 90, TotalPixels: 100})
+					close(oldDone)
+					return mosaic.Result{}, ctx.Err()
+				}
+				return mosaic.Generate(ctx, request)
+			}
+			queue := &uitest.UIQueue{}
+			w := New(test.NewApp(), host)
+			w.SetUIQueue(queue)
+			w.Show(mustSnapshot(t))
+			t.Cleanup(func() { w.Close(); settleWindow(t, w) })
+			w.Generate()
+			<-started
+			switch action {
+			case "cancel":
+				w.Cancel()
+				w.Generate()
+			case "supersede":
+				w.Regenerate()
+			case "reopen":
+				w.Close()
+				w.Show(mustSnapshot(t))
+				w.Generate()
+			}
+			<-started
+			<-oldDone
+			queue.Drain()
+			if w.loading.Value != 0 {
+				t.Fatalf("retired progress painted before the new generation reported: %g", w.loading.Value)
+			}
+			close(newProgress)
+			<-newReported
+			queue.Drain()
+			if !w.loading.Visible() || w.loading.Value != 0.3 {
+				t.Fatalf("retired generation changed current progress: %g", w.loading.Value)
+			}
+			close(releases[1])
+			settleWindow(t, w)
+		})
+	}
 }

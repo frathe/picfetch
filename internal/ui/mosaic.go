@@ -95,8 +95,8 @@ func (v *viewer) showMosaic() {
 	v.mosaicWin.Show(snapshot)
 }
 
-func (v *viewer) GenerateMosaic(ctx context.Context, request mosaiccore.Request) (mosaiccore.Result, error) {
-	return mosaiccore.Generate(ctx, request)
+func (v *viewer) GenerateMosaic(ctx context.Context, request mosaiccore.Request, report func(mosaiccore.Progress)) (mosaiccore.Result, error) {
+	return mosaiccore.GenerateWithProgress(ctx, request, report)
 }
 
 func (v *viewer) InspectMosaicDisplays() (displays.Snapshot, error) {

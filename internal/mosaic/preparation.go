@@ -23,6 +23,7 @@ type preparationPlan struct {
 	vectorSize    image.Point
 	bytes         uint64
 	tiled         bool
+	separable     bool
 }
 
 func planPreparation(source *loadedSource, placed placement, bounds image.Rectangle) (preparationPlan, error) {
@@ -74,7 +75,7 @@ func preparationBytes(bytes float64) uint64 {
 	return uint64(math.Ceil(bytes))
 }
 
-func (p preparationPlan) forTile(bounds image.Rectangle, transform f64.Aff3, sourceSize image.Point) preparationPlan {
+func (p preparationPlan) forTile(bounds image.Rectangle, transform f64.Aff3, sourceSize image.Point, budget uint64) preparationPlan {
 	p.tiled = true
 	p.vectorSize = boundedVectorSize(p.vectorSize)
 	if p.vectorSize.X > 0 {
@@ -108,6 +109,11 @@ func (p preparationPlan) forTile(bounds image.Rectangle, transform f64.Aff3, sou
 	weights := 8 * (2 + 2*math.Ceil(2*max(1, float64(sourceSize.X)/float64(p.width))) +
 		2*math.Ceil(2*max(1, float64(sourceSize.Y)/float64(p.height))))
 	p.bytes = preparationBytes(4*float64(p.layer.Dx())*float64(p.layer.Dy()) + weights + preparationOverhead(bounds, p.vectorSize, true))
+	separableBytes := preparationBytes(float64(p.bytes) + separableScratch(p.layer.Intersect(p.interior()).Size(), sourceSize, p.width))
+	if separableBytes <= budget {
+		p.separable = true
+		p.bytes = separableBytes
+	}
 	return p
 }
 
