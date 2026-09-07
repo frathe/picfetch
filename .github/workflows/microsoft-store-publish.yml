@@ -1,0 +1,195 @@
+name: Microsoft Store publisher
+
+on:
+  workflow_run:
+    workflows: [Microsoft Store package]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Store operation; every protected job requires approval
+        type: choice
+        options: [check, preview, reconcile, submit]
+        default: check
+      tag:
+        description: Optional stable tag; submit selects before approval, reconcile uses its receipt
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+# Approval and mutation share one claim. Pending runs may be coalesced by GitHub;
+# manual dispatch can prepare a waiting release later with its own approval.
+concurrency:
+  group: microsoft-store-publisher
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.repository == 'frathe/picfetch' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      mode: ${{ steps.selection.outputs.mode }}
+      tag: ${{ steps.selection.outputs.tag }}
+      sha256: ${{ steps.selection.outputs.sha256 }}
+      artifact_id: ${{ steps.record.outputs.artifact-id }}
+    steps:
+      - name: Check out trusted main at this workflow's fixed commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Check before referencing the environment so a missing environment cannot
+      # be implicitly created without the user's required reviewer protection.
+      - name: Verify existing approval and main-only environment policy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          endpoint='repos/frathe/picfetch/environments/microsoft-store'
+          gh api "$endpoint" > "$RUNNER_TEMP/store-environment.json"
+          gh api "$endpoint/deployment-branch-policies" > "$RUNNER_TEMP/store-branches.json"
+          gh api "$endpoint/deployment_protection_rules" > "$RUNNER_TEMP/store-rules.json"
+          if ! jq -e -s -f scripts/storepublish/environment-policy.jq "$RUNNER_TEMP/store-environment.json" "$RUNNER_TEMP/store-branches.json" "$RUNNER_TEMP/store-rules.json"; then
+            echo 'Expected main-only environment, required reviewer frathe, self-review allowed, and no bypass, timer or custom rules.' >&2
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Freeze release and notes for review
+        id: selection
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STORE_MODE: ${{ inputs.mode || 'submit' }}
+          STORE_TAG: ${{ inputs.tag || '' }}
+          STORE_RUN_ID: ${{ github.event.workflow_run.id || '0' }}
+        run: |
+          set -euo pipefail
+          case "$STORE_MODE" in
+            check|preview)
+              echo "mode=$STORE_MODE" >> "$GITHUB_OUTPUT"
+              echo "This is a read-only $STORE_MODE operation. Approval grants access to the protected Microsoft credentials; it authorizes no Store mutation." >> "$GITHUB_STEP_SUMMARY"
+              exit 0 ;;
+            submit|reconcile) ;;
+            *) echo 'Invalid Store operation.' >&2; exit 1 ;;
+          esac
+          go run ./scripts/storepublish prepare --mode "$STORE_MODE" --root . --tag "$STORE_TAG" --run-id "$STORE_RUN_ID" --out approval.json > store-preparation.json
+          {
+            echo 'Review this exact release, artifact, expected published base and frozen notes before approving the protected job.'
+            echo '```json'
+            jq . store-preparation.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -s approval.json ]; then
+            echo "mode=$STORE_MODE" >> "$GITHUB_OUTPUT"
+            echo "tag=$(jq -r .release.tag approval.json)" >> "$GITHUB_OUTPUT"
+            echo "sha256=$(sha256sum approval.json | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Retain exact approval record
+        id: record
+        if: steps.selection.outputs.sha256 != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: microsoft-store-approval-${{ github.run_id }}-${{ github.run_attempt }}
+          path: approval.json
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.mode != ''
+    name: ${{ needs.prepare.outputs.mode }} ${{ needs.prepare.outputs.tag }} (review prepared summary)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: microsoft-store
+      url: https://github.com/frathe/picfetch/actions/runs/${{ github.run_id }}
+    permissions:
+      contents: read
+      actions: read
+      deployments: write
+    steps:
+      - name: Check out the same trusted publisher commit used for preparation
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download the reviewed approval artifact by immutable ID
+        if: needs.prepare.outputs.artifact_id != ''
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          path: approval
+          merge-multiple: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run approved Store operation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+          PICFETCH_STORE_SERIALIZED: '1'
+          STORE_MODE: ${{ needs.prepare.outputs.mode }}
+          STORE_TAG: ${{ inputs.tag || '' }}
+          APPROVAL_SHA256: ${{ needs.prepare.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          case "$STORE_MODE" in
+            check|preview)
+              go run ./scripts/storepublish "$STORE_MODE" --root . --tag "$STORE_TAG" | tee store-result.json ;;
+            submit|reconcile)
+              go run ./scripts/storepublish "$STORE_MODE" --root . --approval approval/approval.json --approval-sha256 "$APPROVAL_SHA256" --state-dir "$RUNNER_TEMP" | tee store-result.json ;;
+            *) echo 'Invalid Store operation.' >&2; exit 1 ;;
+          esac
+
+      - name: Summarize Store outcome
+        if: always()
+        shell: bash
+        run: |
+          if [ -s store-result.json ]; then
+            {
+              echo '```json'
+              cat store-result.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Store operation did not complete. See the sanitized error in the operation step.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Retain diagnostic result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: microsoft-store-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: store-result.json
+          if-no-files-found: ignore
+          retention-days: 90

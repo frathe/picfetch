@@ -52,6 +52,24 @@ include:
 # `make sync-qodana-test-exclusions`; `make verify` checks it. See
 # finished_refactorings/2026-08-29-qodana-duplication-close.md.
 exclude:
+  # These explicit float64 products forbid fused multiply-add and preserve
+  # CatmullRom rounding, as specified by Go's Floating-point operators section.
+  - name: GoRedundantConversion
+    paths:
+      - "internal/mosaic/resample.go"
+  # Product names (Microsoft/Store/GitHub) keep their capitalization in CLI
+  # diagnostics; these files do not report sentence-capitalization defects.
+  - name: GoErrorStringFormat
+    paths:
+      - "scripts/storepublish/github.go"
+      - "scripts/storepublish/lifecycle.go"
+      - "scripts/storepublish/microsoft.go"
+      - "scripts/storepublish/release.go"
+  # drive rejects a nil receipt for reconcile before contacting Microsoft.
+  # TestStorePublishApproval pins that guard; mode is immutable.
+  - name: GoMaybeNil
+    paths:
+      - "scripts/storepublish/lifecycle.go"
   # WriteResult.Committed is meaningful even when the mutation returns an error.
   - name: GoDfaErrorMayBeNotNil
     paths:
@@ -289,6 +307,7 @@ exclude:
       - "scripts/plistdoctypes/main_test.go"
       - "scripts/releasenotes/main_test.go"
       - "scripts/releasenotes/notes_test.go"
+      - "scripts/storepublish/main_test.go"
       - "scripts/synctuf/main_test.go"
       - "scripts/testshards/main_test.go"
       - "scripts/wingettag/tag_test.go"

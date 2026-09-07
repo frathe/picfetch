@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -20,6 +21,26 @@ type WriteResult struct {
 // state, never replaced/configured by tests. A claim covers the complete
 // read-transform-write transaction, and unrelated paths have independent turns.
 var fileTransactions pathTransactions
+
+// WithFileMutation serializes an external mutation, such as moving an image to
+// Trash, with this process's Save, Strip and Export transactions. The callback
+// retains ownership of its path semantics: deleting a symlink must move the
+// link itself. Cancellation stops waiting admission; a started callback finishes.
+func WithFileMutation(ctx context.Context, path string, mutate func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	release, err := fileTransactions.acquire(ctx, abs)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return mutate()
+}
 
 type pathTransactions struct {
 	mu    sync.Mutex
@@ -37,6 +58,14 @@ func (p *pathTransactions) acquire(ctx context.Context, path string) (func(), er
 		p.paths = make(map[string]*pathTurn)
 	}
 	t := p.paths[path]
+	if t == nil {
+		for claimed, active := range p.paths {
+			if sameWriteTarget(path, claimed) {
+				path, t = claimed, active
+				break
+			}
+		}
+	}
 	if t == nil {
 		t = &pathTurn{turn: make(chan struct{}, 1)}
 		p.paths[path] = t
@@ -64,6 +93,24 @@ func (p *pathTransactions) acquire(ctx context.Context, path string) (func(), er
 		releaseRef()
 		return nil, ctx.Err()
 	}
+}
+
+// Compare live directory entries: atomic replacement changes inode identity,
+// while differently cased names can keep addressing the same destination.
+// Missing case aliases conservatively share a turn until the first create
+// establishes the filesystem's identity. Existing distinct files stay separate.
+func sameWriteTarget(a, b string) bool {
+	aInfo, aErr := os.Stat(a)
+	bInfo, bErr := os.Stat(b)
+	if aErr == nil && bErr == nil {
+		return os.SameFile(aInfo, bInfo)
+	}
+	if (aErr != nil && !os.IsNotExist(aErr)) || (bErr != nil && !os.IsNotExist(bErr)) || !strings.EqualFold(filepath.Base(a), filepath.Base(b)) {
+		return false
+	}
+	aDir, aErr := os.Stat(filepath.Dir(a))
+	bDir, bErr := os.Stat(filepath.Dir(b))
+	return aErr == nil && bErr == nil && os.SameFile(aDir, bDir)
 }
 
 func (p *pathTransactions) write(ctx context.Context, path string, create bool, write func(string) (bool, error)) (WriteResult, error) {

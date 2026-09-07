@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"image"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -95,7 +96,15 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 		if err == nil {
 			path, err = filepath.EvalSymlinks(path)
 		}
-		if err != nil || path != result.Path || ctx.Err() != nil {
+		if err == nil && path != result.Path {
+			current, currentErr := os.Stat(path)
+			written, writtenErr := os.Stat(result.Path)
+			if currentErr != nil || writtenErr != nil || !os.SameFile(current, written) {
+				done()
+				return
+			}
+		}
+		if err != nil || ctx.Err() != nil {
 			done()
 			return
 		}

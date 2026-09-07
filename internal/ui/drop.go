@@ -27,6 +27,7 @@ func (v *viewer) cancelScan() {
 	if !v.scanOp.cancel() {
 		return
 	}
+	v.pendingPictureFrame = false
 
 	if len(v.state.files) == 0 {
 		v.showWelcomeState()
@@ -86,6 +87,11 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 	// leaving it showing stale thumbnails.
 	if !v.yieldCopySelection() {
 		return
+	}
+	// A replacement request must not inherit --slideshow from the launch
+	// scan or its still-pending reorder.
+	if v.scanOp.active || v.sortOp.active {
+		v.pendingPictureFrame = false
 	}
 
 	v.openChooserLifecycle.invalidate()

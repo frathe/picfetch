@@ -121,6 +121,16 @@ jobs:
           & $appcert test -appxpackagepath $packagePath -reportoutputpath $reportPath
           if ($LASTEXITCODE -ne 0) { throw 'Windows App Certification Kit rejected the MSIX bundle.' }
 
+      - name: Record validated stable-release provenance
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -ne 'push' -or $env:GITHUB_REF -notmatch '^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$') {
+            Write-Host 'Build-only run: no Store submission record is created.'
+            exit 0
+          }
+          go run ./scripts/storepublish record --root . --bundle dist/picfetch-microsoft-store.msixbundle --wack dist/wack-report.xml --out dist/store-release.json
+          if ($LASTEXITCODE -ne 0) { throw 'Store release provenance could not be recorded.' }
+
       - name: Upload Microsoft Store bundle and certification report
         uses: actions/upload-artifact@v7
         with:
@@ -128,4 +138,6 @@ jobs:
           path: |
             dist/picfetch-microsoft-store.msixbundle
             dist/wack-report.xml
+            dist/store-release.json
+          retention-days: 90
           if-no-files-found: error

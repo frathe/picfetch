@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 216 entries, 326.750s baseline median-weight sum
-# ui-2: 225 entries, 327.070s median-weight sum
+# ui-1: 218 entries, 326.750s baseline median-weight sum
+# ui-2: 227 entries, 327.070s median-weight sum
 # ui-3: 230 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 104 tests assigned across the baseline shards
+# post-baseline additions: 108 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -128,6 +128,8 @@ TestInvalidateLoad_CancelsPriorLoadContext	ui-1
 TestKey0YieldsCopySelectionAndResetsRotation	ui-1
 TestLastUpdateCheckDay_ConcurrentWithCurrentPreferences	ui-1
 TestLaunchOptions_AppliesEverySetting	ui-1
+TestLaunchOptions_PictureFrameSpentWhenLaunchCancelled	ui-1
+TestLaunchOptions_PictureFrameSpentWhenResetBeforeScan	ui-1
 TestLaunchOptions_PictureFrameSpentWhenTheLaunchLoadsNothing	ui-1
 TestLaunchOptions_PictureFrameStartsAfterTheLaunchFilesLoad	ui-1
 TestManualUpdateCheck_CancelledRequestEmitsNoTerminalCallback	ui-1
@@ -311,6 +313,7 @@ TestExportAs_UsesSelectedEncoderForAnExtensionlessPath	ui-2
 TestExportBusyAndQueuedFailureAllowRetry	ui-2
 TestExportCancellationBeforeDestinationLeavesFilesUntouched	ui-2
 TestExportCommittedAliasRefreshesCurrentPixelsAfterDelivery	ui-2
+TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset	ui-2
 TestExportOptions_DefaultToOriginalSizeAndFullMetadata	ui-2
 TestExportOptions_MetadataRowStatesItsJPEGOnlyScope	ui-2
 TestExportOptions_OriginalLabelReportsARAWsPreviewSize	ui-2
@@ -396,6 +399,7 @@ TestSaveChangesLeavesQueuedUIResponsive	ui-2
 TestSaveChangesQueuedFailureCannotAffectNavigatedView	ui-2
 TestSaveItem_DisabledAfterCloseFiles	ui-2
 TestSaveItem_DisabledInitially	ui-2
+TestSaveRotation_ConfirmedTrashWaitsForSave	ui-2
 TestSaveRotation_PreservesJPEGExif	ui-2
 TestSelectAllShortcut_IgnoredOutsideTheGrid	ui-2
 TestSetAsWallpaper_DoesNothingWithoutAnImage	ui-2

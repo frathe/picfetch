@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"image"
 	"image/color"
@@ -288,6 +289,94 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 	}
 	if !bytes.Contains(ci, []byte("ci-${{ github.workflow }}-${{ github.ref }}")) {
 		t.Error("reusable CI concurrency does not distinguish the Release and Microsoft Store callers")
+	}
+}
+
+func TestStoreWorkflowPublishingContract(t *testing.T) {
+	t.Run("environment policy", testStoreEnvironmentPolicy)
+	root := filepath.Join("..", "..", ".github", "workflows")
+	producer, err := os.ReadFile(filepath.Join(root, "microsoft-store.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Index(producer, []byte("go run ./scripts/storepublish record")) <= bytes.Index(producer, []byte("appcert test")) {
+		t.Error("release evidence must be recorded after WACK succeeds")
+	}
+	for _, want := range []string{"dist/store-release.json", "retention-days: 90", "refs/tags/v[0-9]+"} {
+		if !bytes.Contains(producer, []byte(want)) {
+			t.Errorf("producer missing %q", want)
+		}
+	}
+	publisher, err := os.ReadFile(filepath.Join(root, "microsoft-store-publish.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"workflow_run:", "workflows: [Microsoft Store package]", "types: [completed]", "workflow_dispatch:",
+		"prepare:", "needs: prepare", "deployment-branch-policies", "deployment_protection_rules", "environment-policy.jq",
+		"github.repository == 'frathe/picfetch'", "github.ref == 'refs/heads/main'", "github.event.workflow_run.conclusion == 'success'", "github.event.workflow_run.event == 'push'", "github.event.workflow_run.head_repository.full_name == github.repository",
+		"group: microsoft-store-publisher", "cancel-in-progress: false", "name: microsoft-store", "contents: read", "actions: read", "deployments: write",
+		"ref: ${{ github.sha }}", "fetch-depth: 0", "persist-credentials: false", "PICFETCH_STORE_SERIALIZED: '1'", "timeout-minutes: 15",
+		"secrets.MSSTORE_TENANT_ID", "secrets.MSSTORE_CLIENT_ID", "secrets.MSSTORE_CLIENT_SECRET", "go run ./scripts/storepublish",
+		"GITHUB_STEP_SUMMARY", "store-result.json", "--state-dir", "--approval-sha256", "--approval approval/approval.json", "artifact-ids: ${{ needs.prepare.outputs.artifact_id }}", "needs.prepare.outputs.sha256", "--run-id", "github.event.workflow_run.id", "steps.record.outputs.artifact-id",
+	} {
+		if !bytes.Contains(publisher, []byte(want)) {
+			t.Errorf("publisher missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"schedule:", "cron:", "ref: main", "secrets: inherit", "contents: write", "pull_request_target:", "github.event.workflow_run.head_sha", "make package", "make release", "gh release", "release.yml", "inputs.tag }}"} {
+		if bytes.Contains(publisher, []byte(forbidden)) {
+			t.Errorf("publisher contains unsafe or coupled source %q", forbidden)
+		}
+	}
+	prepare := bytes.Split(publisher, []byte("\n  publish:"))[0]
+	for _, forbidden := range []string{"environment:", "secrets.MSSTORE_", "deployments: write"} {
+		if bytes.Contains(prepare, []byte(forbidden)) {
+			t.Errorf("unapproved preparation contains %q", forbidden)
+		}
+	}
+}
+
+func testStoreEnvironmentPolicy(t *testing.T) {
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Skip("jq is required to execute the GitHub environment policy")
+	}
+	const policy = `{"name":"microsoft-store","can_admins_bypass":false,"deployment_branch_policy":{"custom_branch_policies":true,"protected_branches":false},"protection_rules":[{"type":"branch_policy"},{"type":"required_reviewers","prevent_self_review":false,"reviewers":[{"type":"User","reviewer":{"login":"frathe"}}]}]}`
+	for _, change := range []string{"valid", "missing reviewer", "other reviewer", "bypass", "self review blocked", "timer", "tag", "extra branch", "custom rule"} {
+		t.Run(change, func(t *testing.T) {
+			environment := policy
+			branches := `{"total_count":1,"branch_policies":[{"name":"main","type":"branch"}]}`
+			custom := `{"total_count":0,"custom_deployment_protection_rules":[]}`
+			switch change {
+			case "missing reviewer":
+				environment = strings.ReplaceAll(environment, "required_reviewers", "disabled_reviewers")
+			case "other reviewer":
+				environment = strings.ReplaceAll(environment, "frathe", "someone-else")
+			case "bypass":
+				environment = strings.ReplaceAll(environment, `"can_admins_bypass":false`, `"can_admins_bypass":true`)
+			case "self review blocked":
+				environment = strings.ReplaceAll(environment, `"prevent_self_review":false`, `"prevent_self_review":true`)
+			case "timer":
+				environment = strings.ReplaceAll(environment, `{"type":"branch_policy"}`, `{"type":"branch_policy"},{"type":"wait_timer","wait_timer":15}`)
+			case "tag":
+				branches = strings.ReplaceAll(branches, `"type":"branch"`, `"type":"tag"`)
+			case "extra branch":
+				branches = `{"total_count":2,"branch_policies":[{"name":"main","type":"branch"},{"name":"*","type":"branch"}]}`
+			case "custom rule":
+				custom = `{"total_count":1,"custom_deployment_protection_rules":[{"enabled":true}]}`
+			}
+			for _, document := range []string{environment, branches, custom} {
+				if !json.Valid([]byte(document)) {
+					t.Fatal("invalid policy fixture")
+				}
+			}
+			cmd := exec.Command("jq", "-e", "-s", "-f", "../storepublish/environment-policy.jq")
+			cmd.Stdin = strings.NewReader(environment + "\n" + branches + "\n" + custom)
+			out, err := cmd.CombinedOutput()
+			if (err == nil) != (change == "valid") || (err != nil && string(out) != "false\n") {
+				t.Fatalf("policy %s: %s (%v)", change, out, err)
+			}
+		})
 	}
 }
 

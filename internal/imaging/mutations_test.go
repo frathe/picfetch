@@ -271,18 +271,92 @@ func TestFileTransactionClaimsAreReleasedAfterSuccessFailureAndCancellation(t *t
 	}
 }
 
+func TestFileTransactionAliasAdmissionUsesLiveEntries(t *testing.T) {
+	for _, scenario := range []string{"missing case alias", "replaced case alias", "distinct files", "distinct case files"} {
+		t.Run(scenario, func(t *testing.T) {
+			dir := t.TempDir()
+			first, second := filepath.Join(dir, "Photo.jpg"), filepath.Join(dir, "photo.jpg")
+			shared := scenario == "missing case alias" || scenario == "replaced case alias"
+			if scenario != "missing case alias" {
+				if err := os.WriteFile(first, []byte("first"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if scenario == "distinct files" {
+					second = filepath.Join(dir, "other.jpg")
+				}
+				if err := os.WriteFile(second, []byte("second"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				a, aErr := os.Stat(first)
+				b, bErr := os.Stat(second)
+				if aErr != nil || bErr != nil {
+					t.Fatalf("stat fixtures: %v, %v", aErr, bErr)
+				}
+				if os.SameFile(a, b) != shared {
+					t.Skip("requires the other filesystem case behavior")
+				}
+			}
+			synctest.Test(t, func(t *testing.T) {
+				var transactions pathTransactions
+				release, err := transactions.acquire(context.Background(), first)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if scenario == "replaced case alias" {
+					if err := writeFileContext(context.Background(), first, 0o600, func(w io.Writer) error {
+						_, err := io.WriteString(w, "new inode")
+						return err
+					}); err != nil {
+						release()
+						t.Fatal(err)
+					}
+				}
+				admitted := make(chan struct{}, 1)
+				done := make(chan error, 1)
+				go func() {
+					unlock, err := transactions.acquire(context.Background(), second)
+					if err == nil {
+						admitted <- struct{}{}
+						unlock()
+					}
+					done <- err
+				}()
+				synctest.Wait()
+				if early := len(admitted) != 0; early == shared {
+					t.Errorf("second path admitted early=%v, shared=%v", early, shared)
+				}
+				release()
+				if err := <-done; err != nil {
+					t.Fatal(err)
+				}
+				if len(transactions.paths) != 0 {
+					t.Fatal("completed alias claims were retained")
+				}
+			})
+		})
+	}
+}
+
 func (p *heldMutationPixels) At(x, y int) color.Color {
 	p.once.Do(func() { close(p.entered); <-p.release })
 	return p.Image.At(x, y)
 }
 
 func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
-	for _, alias := range []bool{false, true} {
+	for _, alias := range []string{"direct", "symlink", "case"} {
 		for _, next := range []string{"strip", "save", "export"} {
-			t.Run(fmt.Sprintf("alias=%v/next=%s", alias, next), func(t *testing.T) {
+			t.Run(fmt.Sprintf("alias=%s/next=%s", alias, next), func(t *testing.T) {
 				source := uitest.TempGPSJPEGURI(t, "source.jpg", 40, 20, 48.858222, 2.2945)
 				destination := source
-				if alias {
+				if alias == "case" {
+					destination = storage.NewFileURI(filepath.Join(filepath.Dir(source.Path()), "SOURCE.JPG"))
+					first, firstErr := os.Stat(source.Path())
+					second, secondErr := os.Stat(destination.Path())
+					if firstErr != nil || secondErr != nil || !os.SameFile(first, second) {
+						t.Skip("requires a case-insensitive filesystem")
+					}
+				}
+				if alias == "symlink" {
 					link := filepath.Join(t.TempDir(), "alias.jpg")
 					target := source.Path()
 					if next == "export" {
@@ -347,7 +421,7 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 					if next != "save" && !ReadMetadata(data).Empty() {
 						t.Error("later metadata removal was overwritten by the earlier save")
 					}
-					if alias {
+					if alias == "symlink" {
 						link := destination.Path()
 						if next == "export" {
 							link = filepath.Dir(link)

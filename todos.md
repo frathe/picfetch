@@ -12,41 +12,34 @@ Trane now turns his head toward the mouse on the welcome screen and returns to
 a neutral pose when the pointer leaves. He stays still between pointer movements.
 Pink fringe along the artwork's transparent outline has been cleaned up.
 
-### Publish PicFetch in Microsoft Store
+##### **PicFetch is now in Microsoft Store**
 
-Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX bundle, make the Store build defer updates to
-Microsoft Store, retain the portable GitHub/WinGet channel, validate on Windows with WACK, prepare the English/German
-listing and privacy policy, then submit it for certification. The user confirmed on 2026-09-07 that certification
-succeeded and version 1.0.2 is available in Microsoft Store. Completed implementation plan:
-`finished_refactorings/2026-09-03-microsoft-store-msix.md`.
+PicFetch 1.0.2 is now available in Microsoft Store for x64 and ARM64 Windows PCs. Store installations receive updates through Microsoft Store.
 
-##### **Export options (Cmd/Ctrl+E)**
+The portable version remains available through GitHub and WinGet.
 
-The export prompt now has two settings above the PNG/JPEG buttons, reachable with Up/Down:
+##### **More export options (Cmd/Ctrl+E)**
 
-- **Export size limit** — Original, 2400, 1600 or 1000 pixels on the longest edge. Aspect ratio is kept and pictures are
-  never enlarged; the Original setting shows the picture's own longest edge so you can see what you're comparing
-  against.
-- **Include camera metadata (JPEG only)** — uncheck it and the exported copy is written without the source's identifying
-  tags. The original file keeps all of them.
+You can now adjust two settings before exporting:
 
-Both reset every time you open the prompt, so nothing carries over from a previous export by accident. If a size limit
-actually changed the pixels, that shows in the suggested filename and in the message after the export. Export at the
-defaults and you get byte-for-byte the same file the app has always written.
+- **Export size limit** — Keep the original size, or limit the longest side to 2400, 1600 or 1000 pixels. Pictures keep their proportions and are never enlarged. The Original option shows your picture’s current size for comparison.
+- **Include camera metadata (JPEG only)** — Turn this off to leave camera metadata out of the exported copy. Your original file stays unchanged.
 
-##### **Exported JPEGs no longer claim the wrong dimensions**
+Use Up/Down to move between these settings. They return to their defaults each time you open the export prompt.
 
-When you export a resized or rotated JPEG with its camera metadata, the width and height tags now describe the picture
-you actually get. Previously those tags were dropped and a viewer had to fall back on reading the image itself.
+If an export is resized, the suggested filename and completion message indicate this. Using the default settings produces the same results as before.
 
-Tags that cannot be made correct are removed rather than left wrong: subject area and subject location point at a spot
-in the original frame, and no corrected size fixes them. MakerNote and DPI are kept.
+##### **Correct size information in exported JPEGs**
 
-##### **Command-line options**
+JPEGs exported with camera metadata now include the correct width and height after resizing or rotation. This helps other apps read the exported picture’s dimensions correctly.
 
-`picfetch` accepts startup flags, useful for scripts and for running it as a picture frame:
+Information about subject positions is removed when it no longer matches the picture. Camera-specific details and print resolution are preserved.
 
-```
+##### **Startup options for scripts and picture frames**
+
+You can now control how PicFetch starts from the command line, including slideshow playback, shuffle, slide timing and sorting:
+
+```text
 --slideshow
 --shuffle
 --interval=8s
@@ -56,47 +49,43 @@ in the original frame, and no corrected size fixes them. MakerNote and DPI are k
 --help
 ```
 
-Flags can appear anywhere among the file paths. An unknown flag exits with an error. Everything set this way applies to
-that session only — your saved settings are untouched, so a scripted launch never overwrites how you normally have the
-app configured. Launching from Finder still works as before.
+Options can appear before or after file paths. Use `--help` for usage information. Unrecognized options display an error and prevent the app from starting.
 
-##### **Mosaic generation progress**
+These options apply only to the current session and do not change your saved settings. Opening PicFetch from Finder works as before.
 
-Image mosaics now show a progress bar with the percentage of canvas covered.
-The live canvas fills as photos are added, with preview updates capped at four
-per second. Cancel and failed regeneration restore the last finished mosaic;
-Save Image and Set as Wallpaper use completed results only.
-Cancellation, regeneration and reopening the window discard obsolete updates.
-The memory-bounded renderer reuses horizontal filtering and source-row conversion
-while preserving Catmull-Rom quality, frames, shadows and output resolution.
+##### **Watch your mosaic take shape**
 
-#### Bugfix
+Mosaic generation now shows a live preview and a progress bar indicating how much of the canvas is covered.
 
-- Hide Duplicates remains effective after sorting, including unchanged ordering.
-  Groups adopt the new indices, retain known image facts and resume unfinished
-  hashes so arrows, Home/End and slideshow navigation keep skipping extra copies.
+If you cancel or generation fails, your last completed mosaic is restored. Saving an image or setting it as wallpaper always uses a completed mosaic.
 
-- Export rejects destination symlinks so a pre-existing link cannot redirect an
-  export onto an unrelated file. Symlinked parent directories remain supported.
+Mosaic generation is also more efficient while keeping the same image quality, frames, shadows and output resolution.
 
-- Rotating or resetting the view while Save Changes runs now keeps later edits
-  relative to the saved frame. Pressing `0` after saving returns to the image on
-  disk, and Save availability reflects only the remaining rotation.
+#### Bug Fixes
 
-#### Internal
+- **Saving and deleting the same image stay ordered.** Moving an image to Trash waits for its active write, preventing Save Changes from recreating a deleted file. Case aliases share the same write transaction, and exporting over the current image with different filename capitalization refreshes the view correctly.
+- **Picture-frame navigation stays predictable.** Manual navigation discards an already queued timed advance. Cancelling or replacing startup loading spends `--slideshow`, so a later unrelated drop does not enter picture-frame mode.
+- **Hide Duplicates keeps working after sorting.** Navigation and slideshows continue to skip extra copies, even when sorting leaves the order unchanged.
+- **Safer exports.** PicFetch now refuses to export directly to a symbolic link, preventing it from unexpectedly overwriting the file that link points to.
+- **Rotation stays consistent while saving.** If you rotate or reset the view during Save Changes, those later edits are tracked correctly. Pressing `0` returns to the saved image, and Save Changes is available only when there is still a rotation to save.
 
-- Copy Selection's sort-command test asserts immediate cancellation, then settles
-  sort/load completion in cleanup. The grouping test holds and waits for its
-  independent worker before checking queued installation. Result-notification
-  tests settle fake-host readers before changing the file set. Shared UI test
-  deadlines allow 30 seconds for concurrent emulated race
-  shards, avoiding premature teardown while valid completion work is still running.
+#### Maintenance
 
-- Resolved the reported Qodana production naming, receiver and redundant-conversion
-  findings; added inspection-specific exclusions for test naming, intentional
-  mutation error-result assertions and the clipboard helper's existing file cleanup.
+- Improved automated testing and resolved code quality issues.
+- Hardened Microsoft Store artifact staging against pre-existing files and symbolic links. Reviewed Qodana findings with targeted regressions and documented inspection exclusions, preserving image-resampler rounding.
 
 ## TODO
+
+### Validate release-review fixes in CI
+
+The 2026-09-08 release review fixed four runtime defects and hardened Store
+artifact staging. Changes remain uncommitted: automatic approval review enforced
+AGENTS.md line 10, and the coordinator confirmed there is no explicit user
+override. After approval to commit/push, obtain fresh CodeQL/Qodana and CI results
+for the actual new head. Existing checks on `d306654` do not validate these edits.
+See `finished_refactorings/2026-09-08-release-readiness/assessment.md`.
+The integrated working tree passed `make verify`, including all four concurrent
+Linux/amd64 race partitions. Fresh remote validation remains pending approval.
 
 ### Investigate the intermittent UI shard 3 package failure
 
@@ -144,21 +133,33 @@ ordinary/Store image rendering, comparison, clean quit and SDK/WACK evidence.
 Windows VM experiments are deferred; retain their failures as diagnostic
 results. Continue non-Windows validation independently.
 
-### Automate Microsoft Store updates after the initial publication
+### Activate and verify approved Microsoft Store updates
 
-Initial publication is complete: the user confirmed on 2026-09-07 that version 1.0.2 is available in Microsoft Store.
-The current workflow still ends after uploading the WACK-validated x64/ARM64 bundle as a GitHub Actions artifact.
+PicFetch 1.0.2 is published. The publisher now prepares exact validated artifacts
+and frozen notes automatically, then requires frathe's GitHub environment approval
+for each rollout. It preserves original artifact provenance, metadata, version
+checks, serialization and durable recovery. Cron was removed: manual approved
+`check`/`reconcile` observes certification, and a separate approved `submit` handles
+a waiting release. See `docs/microsoft-store.md` for the operational sequence.
 
-Automate generation of the Store change notes, upload of that exact validated bundle to existing product
-`9P0DM0KTH01K`, submission for certification, and publication after certification, without a human action for each
-update. This request supersedes the earlier proposed human deployment approval and package-only scope. Preserve
-existing CI, MakeAppx and WACK gates; protect automation credentials without introducing a per-update approval step.
+The existing main-only environment, frathe reviewer, disabled bypass/timer/custom
+rules and three secret names were verified through GitHub API metadata. The user
+confirmed the linked Developer application and rotated key. Credentials remain
+only in GitHub Secrets. No existing trusted main workflow supports the Microsoft
+read check. Landing this local workflow on main, approving its read-only check and
+observing the next ordinary approved release remain open. Read access will not
+prove submission permission. Keep the live 1.0.2 tag and artifact unchanged.
 
-Implementation spec (`ready-for-agent`): `.scratch/microsoft-store-updates/spec.md`.
-The spec marks synthesized policy defaults explicitly: stable-tag releases, notes derived from existing release
-notes, English text across existing listing languages, and the newest waiting version after an active submission.
-It includes command-boundary acceptance tests, metadata preservation, retry/reconciliation, and setup requirements.
-API credential availability and live Partner Center state remain to be checked. Implementation has not started.
+Focused tooling race tests, actionlint, formatting, TUF/Qodana checks, host vet/build,
+Windows publisher cross-build and Linux shard inventory pass for the approval
+amendment. Prior verification:
+the combined `make verify` recorded Docker OOM; isolated UI race shards and non-UI
+partitions passed. That combined invocation did not succeed. No repeat of the full
+race suite was performed for this tooling amendment; fresh check evidence is in
+the implementation plan. Nothing was committed, pushed or submitted to Microsoft.
+
+Spec and tickets: `.scratch/microsoft-store-updates/README.md`.
+Plan and evidence: `plans/2026-09-07-microsoft-store-updates.md`.
 
 ## LATER
 

@@ -486,7 +486,8 @@ type viewer struct {
 	// to exist: slideshow.Toggle no-ops at zero files, and options are
 	// applied before anything has been scanned. startPendingPictureFrame
 	// (launchoptions.go) spends it once the launch scan finishes, whether or
-	// not that scan found an image. Only ever touched on the UI goroutine.
+	// not that scan found an image. Cancellation, replacement and reset also
+	// spend it, so later drops cannot inherit it. Only touched on UI.
 	pendingPictureFrame bool
 
 	// launchOverride remembers what each launch flag replaced, so shutdown
@@ -636,6 +637,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // which art (welcomeArt or emptyStateArt) belongs in the box afterward and
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
+	v.pendingPictureFrame = false
 	// A full-screen dropzone would look broken, and there's nothing left to
 	// frame - safe to call even when picture-frame mode is already off.
 	v.slides.Exit()

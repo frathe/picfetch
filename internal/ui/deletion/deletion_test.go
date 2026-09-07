@@ -1,16 +1,20 @@
 package deletion
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/trash"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -311,6 +315,95 @@ func TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError(t *testing.T) {
 	}
 	if len(host.toasts) != 1 || !strings.Contains(host.toasts[0], "could not move") {
 		t.Errorf("toasts = %v, want one reporting the failure", host.toasts)
+	}
+}
+
+func TestClose_CancelsWaitingFileMutation(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		files := tempFiles(t, "a.jpg")
+		host := &fakeHost{files: files}
+		c := newConfirmer(t, host)
+		entered, release := make(chan struct{}), make(chan struct{})
+		finished := make(chan error, 1)
+		go func() {
+			finished <- imaging.WithFileMutation(context.Background(), files[0].Path(), func() error {
+				close(entered)
+				<-release
+				return nil
+			})
+		}()
+		<-entered
+		defer func() {
+			close(release)
+			if err := <-finished; err != nil {
+				t.Error(err)
+			}
+		}()
+		moved := make(chan struct{}, 1)
+		uitest.StubTrashMove(t, func(path string) error {
+			moved <- struct{}{}
+			return os.Remove(path)
+		})
+		c.Request()
+		c.setSelection(true)
+		c.confirmSelection()
+		synctest.Wait()
+		select {
+		case <-moved:
+			t.Error("Trash started while the source mutation was still active")
+		default:
+		}
+		c.Close()
+		c.Settle() // cancellation must finish without releasing the file writer
+		if _, err := os.Stat(files[0].Path()); err != nil {
+			t.Errorf("cancelled waiting deletion changed disk: %v", err)
+		}
+		if host.removeCalls != 0 || len(host.toasts) != 0 || len(host.emptied) != 0 {
+			t.Error("closed feature published a result")
+		}
+	})
+}
+
+func TestPerformDelete_MovesSymlinkWithoutFollowingIt(t *testing.T) {
+	for _, broken := range []bool{false, true} {
+		t.Run(fmt.Sprintf("broken=%v", broken), func(t *testing.T) {
+			files := tempFiles(t, "source.jpg")
+			source := files[0].Path()
+			link := filepath.Join(filepath.Dir(source), "alias.jpg")
+			if err := os.Symlink(source, link); err != nil {
+				t.Fatal(err)
+			}
+			if broken {
+				if err := os.Remove(source); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var movedPath string
+			uitest.StubTrashMove(t, func(path string) error {
+				movedPath = path
+				return os.Remove(path)
+			})
+			host := &fakeHost{files: []fyne.URI{storage.NewFileURI(link)}}
+			c := newConfirmer(t, host)
+			c.Request()
+			c.setSelection(true)
+			c.confirmSelection()
+			c.Settle()
+			if movedPath != link {
+				t.Errorf("Trash target = %q, want the symlink %q", movedPath, link)
+			}
+			if _, err := os.Lstat(link); !os.IsNotExist(err) {
+				t.Errorf("confirmed symlink survived: %v", err)
+			}
+			if !broken {
+				if _, err := os.Stat(source); err != nil {
+					t.Errorf("deleting the symlink changed its target: %v", err)
+				}
+			}
+			if len(host.files) != 0 {
+				t.Error("deleted symlink remains in the current file set")
+			}
+		})
 	}
 }
 

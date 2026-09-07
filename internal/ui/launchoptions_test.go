@@ -6,10 +6,14 @@
 package ui
 
 import (
+	"bytes"
 	"image/color"
+	"io"
+	"sync"
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
@@ -238,5 +242,102 @@ func TestLaunchOptions_PictureFrameSpentWhenTheLaunchLoadsNothing(t *testing.T) 
 
 	if v.slides.Active() {
 		t.Error("a later drop entered picture-frame mode; the failed launch should have spent the request")
+	}
+}
+
+func TestLaunchOptions_PictureFrameSpentWhenLaunchCancelled(t *testing.T) {
+	for _, phase := range []string{"scan", "capture sort"} {
+		for _, action := range []string{"Escape", "Close Files", "reset", "replacement drop", "change sort"} {
+			if phase == "scan" && action == "change sort" {
+				continue // Changing the desired order does not cancel a scan.
+			}
+			t.Run(phase+"/"+action, func(t *testing.T) {
+				v := newTestViewer(t)
+				t.Cleanup(func() { settleSlideshow(t, v) })
+				mode := preferences.SortByCaptureDate
+				v.applyLaunchOptions(launch.Options{PictureFrame: true, Sort: &mode})
+
+				var finish func()
+				if phase == "scan" {
+					// Hold delivery at the scan boundary, as if its worker's
+					// completion were queued behind the user's cancellation.
+					token, done := v.scanOp.begin()
+					defer done()
+					v.scanOp.show()
+					v.dropzone.Hide()
+					source := uitest.TempJPEGURI(t, "launch.jpg", 4, 4, color.White)
+					finish = func() {
+						v.applyScanResult(token, false, []fyne.URI{source}, []fyne.URI{source}, false, v.MaxScan(), done)
+					}
+				} else {
+					entered, release := make(chan struct{}), make(chan struct{})
+					var readOnce, releaseOnce sync.Once
+					unblock := func() { releaseOnce.Do(func() { close(release) }) }
+					defer unblock()
+					source := uitest.ReaderURI(uitest.FakeURI{FileName: "launch.jpg", Ext: ".jpg"}, func() (io.ReadCloser, error) {
+						data := bytes.NewReader(make([]byte, 4096))
+						return uitest.ReadCloser{
+							ReadFunc: func(p []byte) (int, error) {
+								readOnce.Do(func() { close(entered); <-release })
+								return data.Read(p)
+							},
+							CloseFunc: func() error { return nil },
+						}, nil
+					})
+					v.applyScannedFiles(false, []fyne.URI{source}, []fyne.URI{source})
+					done := v.sortOp.done.Current()
+					select {
+					case <-entered:
+					case <-time.After(testTimeout):
+						t.Fatal("launch capture sort never reached its source read")
+					}
+					finish = func() {
+						unblock()
+						waitHandle(t, "cancelled launch sort", done)
+					}
+				}
+
+				switch action {
+				case "Escape":
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				case "Close Files":
+					v.closeFiles()
+				case "reset":
+					v.reset()
+				case "replacement drop":
+					dropAndWait(t, v, uitest.TempJPEGURI(t, "replacement.jpg", 4, 4, color.White))
+				case "change sort":
+					v.SetSortMode(filesort.ByName)
+				}
+				finish()
+				if v.slides.Active() {
+					t.Fatal("cancelling or replacing the launch entered picture-frame mode")
+				}
+
+				dropAndWait(t, v, uitest.TempJPEGURI(t, "later.jpg", 4, 4, color.White))
+				if v.slides.Active() {
+					t.Error("an unrelated drop inherited picture-frame mode from the cancelled launch")
+				}
+			})
+		}
+	}
+}
+
+func TestLaunchOptions_PictureFrameSpentWhenResetBeforeScan(t *testing.T) {
+	for _, action := range []string{"reset", "Close Files"} {
+		t.Run(action, func(t *testing.T) {
+			v := newTestViewer(t)
+			t.Cleanup(func() { settleSlideshow(t, v) })
+			v.applyLaunchOptions(launch.Options{PictureFrame: true})
+			if action == "Close Files" {
+				v.closeFiles()
+			} else {
+				v.reset()
+			}
+			dropAndWait(t, v, uitest.TempJPEGURI(t, "later.jpg", 4, 4, color.White))
+			if v.slides.Active() {
+				t.Error("an unrelated drop inherited picture-frame mode after reset")
+			}
+		})
 	}
 }

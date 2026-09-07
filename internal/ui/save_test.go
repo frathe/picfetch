@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
@@ -158,6 +159,46 @@ func TestSaveRotation_WritesRotatedPixelsAndResetsState(t *testing.T) {
 	}
 
 	settleToast(t, v) // saveRotation shows a "Saved" toast
+}
+
+func TestSaveRotation_ConfirmedTrashWaitsForSave(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		v := newTestViewer(t)
+		source := uitest.TempJPEGURI(t, "a.jpg", 8, 16, color.White)
+		other := uitest.TempJPEGURI(t, "b.jpg", 8, 16, color.Black)
+		dropAndWait(t, v, source, other)
+		v.preloads.Wait()
+		v.rotateBy(1)
+		pixels := &heldSavePixels{Image: v.img.Image, entered: make(chan struct{}), release: make(chan struct{})}
+		v.img.Image = pixels
+		v.saveRotation()
+		<-pixels.entered
+		moved := make(chan struct{}, 1)
+		uitest.StubTrashMove(t, func(path string) error {
+			moved <- struct{}{}
+			return os.Remove(path)
+		})
+		v.requestDelete()
+		v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+		v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		synctest.Wait()
+		select {
+		case <-moved:
+			t.Error("Trash started before the captured Save Changes transaction finished")
+		default:
+		}
+		close(pixels.release)
+		waitForSave(t, v)
+		v.deletion.Settle()
+		waitUntilLoaded(t, v)
+		if _, err := os.Stat(source.Path()); !os.IsNotExist(err) {
+			t.Errorf("Save Changes recreated the successfully trashed source: %v", err)
+		}
+		if len(v.state.files) != 1 || v.state.files[0].String() != other.String() {
+			t.Errorf("files after Save and Trash = %v, want only %v", v.state.files, other)
+		}
+		settleToast(t, v)
+	})
 }
 
 // TestSaveRotation_PreservesJPEGExif is the viewer-path twin of imaging's

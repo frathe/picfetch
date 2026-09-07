@@ -1,8 +1,9 @@
-# Automatic Microsoft Store updates
+# Approved Microsoft Store updates
 
-Status: ready-for-agent
-Updated: 2026-09-07
-Implementation status: Not started; live Store access has not been checked.
+Status: implemented locally; activation and live publication evidence pending
+Updated: 2026-09-08
+Implementation status: approval amendment implemented locally; protected environment
+metadata verified, Microsoft read/submission access and live publication unverified.
 
 ## Problem Statement
 
@@ -18,42 +19,41 @@ available automatically after Microsoft certification.
 
 ## Solution
 
-Extend the existing release process with automatic Store submission and status
-tracking. An eligible release produces concise Store notes, uploads its validated
-bundle to product `9P0DM0KTH01K`, submits the update, and requests publication as
-soon as certification succeeds. Subsequent checks track the submission through
-publication or a reported failure and resume any waiting release automatically.
+Extend the existing release process with automatic build validation and release-note
+preparation, followed by **frathe's explicit GitHub Required reviewers approval for
+every rollout**. Approval covers a specific validated release/artifact and frozen
+notes. The approved operation submits only that selection to product `9P0DM0KTH01K`
+and requests immediate publication after certification. Recovery never selects a
+newer release under an older approval.
 
-The usual release action remains sufficient. There is no separate approval,
-Store-specific note-writing task, download, or Partner Center upload for each
-update. A read-only connectivity check and a preview of generated notes and
-intended changes support setup and diagnosis. Failures preserve the downloadable
-build artifact and enough evidence to retry safely.
+### Confirmed requirement amendment
 
-### Requirements and proposed defaults
+The final user instruction supersedes the earlier unattended-release requirement.
+Keep the existing `microsoft-store` environment: branch main only, required reviewer
+frathe, self-review permitted, no administrator bypass, timer or custom rules.
+Keep secrets there only. Do not weaken protection or copy secrets to avoid approval.
 
-The user explicitly requested automatic note generation and bundle submission,
-reported that 1.0.2 is live, and required no manual work for routine updates.
-That supersedes the older todo's per-update approval and package-only scope.
-
-The interview ended with a request to produce this spec before individual policy
-questions were answered. The following are proposed implementation defaults,
-not answers attributed to the user. They make the spec actionable without
-another interview; any departure should be recorded in the implementation plan.
-
-| Decision | Default for this spec |
+| Decision | Current contract |
 | --- | --- |
-| Release trigger | A stable version tag after that release passes existing CI, packaging and WACK gates. |
-| GitHub release dependency | Store submission proceeds independently of GitHub Release publication. |
-| Notes source | Existing release notes captured with the tagged release; no commit summarization service. |
-| Language | Generate English text for each existing listing, including German if present; preserve other localized fields. Automatic translation is a separate enhancement. |
-| Overlapping versions | Finish the active submission, then submit the newest eligible waiting version. Intermediate waiting versions may be skipped. |
-| Publication | Automatic publication after certification, without a scheduled hold or gradual rollout. |
-| Reporting | GitHub Actions summaries and durable submission status, using normal Actions failure notifications. |
+| Release trigger | Successful stable-tag CI, packaging and WACK prepare that producing run automatically. |
+| Approval | GitHub-only preparation freezes tag/commit/run/attempt/artifact/hash/notes/base/receipt identity before the protected job. That job downloads by immutable ID and verifies its hash. |
+| Trusted code | Both jobs check out the workflow run's fixed main SHA. No code from a release tag runs with Store credentials. |
+| GitHub release dependency | No dependency on GitHub Release publication. |
+| Notes | Tagged existing notes, English across existing locales, skipped-release range included; freeze before approval. |
+| Overlapping versions | An active receipt requires a manual approved reconcile first. Then a separate submit dispatch prepares the newest/requested waiting release for its own approval. |
+| Publication | Microsoft continues immediate publication after successful certification without a runner. |
+| Polling | No cron: protected secrets require approval even for reads. Manually dispatch and approve check/reconcile when needed. No automatic status/failure notification after the approved job exits. |
+| Role | Keep the user-selected Developer role. Role-table permission and the API setup guide's Manager instruction differ; read access is not submission proof. |
+
+Preparation needs no Microsoft secrets. It uses confirmed live 1.0.2 initially and
+published receipts thereafter as its expected base. The protected job revalidates
+the actual Store base before any mutation; stale state needs fresh preparation and
+approval. The live metadata snapshot is read and preserved after approval; the
+reviewable summary covers release/artifact/notes and intended update policy.
 
 ## User Stories
 
-1. As a maintainer, I want my normal stable release to initiate the Store update, so that I have no second release procedure.
+1. As a maintainer, I want my normal stable release to initiate the Store update, so that build and note preparation finish before I approve the rollout.
 2. As a maintainer, I want existing tests and WACK checks to remain prerequisites, so that automation preserves release quality.
 3. As a maintainer, I want to upload the exact bundle that passed validation, so that the tested and submitted builds agree.
 4. As a Windows user, I want the Store update to contain the appropriate x64 or ARM64 package, so that it runs on my device.
@@ -65,7 +65,7 @@ another interview; any departure should be recorded in the implementation plan.
 10. As a maintainer, I want existing listing text, images, pricing and declarations preserved, so that an update does not reset the product setup.
 11. As a Store customer, I want certified updates to become available automatically, so that publication does not wait for another maintainer action.
 12. As a maintainer, I want upload, certification and publication reported separately, so that I can tell whether the update is actually live.
-13. As a maintainer, I want a release arriving during certification to wait and resume automatically, so that overlapping releases do not conflict.
+13. As a maintainer, I want a release arriving during certification to wait for its own approval, so that overlapping releases do not conflict or share authorization.
 14. As a Store customer, I want notes to cover changes since the previous Store version when intermediate versions were skipped, so that the description remains complete in scope.
 15. As a maintainer, I want retries to recognize completed work, so that rerunning a workflow does not create duplicate submissions.
 16. As a maintainer, I want interrupted operations reconciled against Store state, so that recovery does not blindly repeat mutations.
@@ -100,7 +100,7 @@ existing packaging and release-note tooling; application UI behavior is unchange
 
 3. **Bind publication to build evidence.** Carry the producing run, commit,
    artifact identity and digest, contained package versions, and CI/WACK evidence
-   into submission. Verify those bindings on retry or scheduled resumption.
+   into submission. Verify those bindings on retry or approved recovery.
    Upload the original bundle bytes without rebuilding or re-signing. Missing,
    expired or mismatched artifacts prevent submission and produce an actionable
    failure; another artifact with the same filename is not a substitute.
@@ -135,7 +135,8 @@ existing packaging and release-note tooling; application UI behavior is unchange
 6. **Authenticate after initial setup.** Discover existing tenant/application
    configuration before creating credentials. Use a dedicated Partner Center
    application with Microsoft's required submission permissions and protected CI
-   credential storage, without required reviewers on every deployment. Select
+   credential storage with required reviewers for every protected operation. Keep the
+   chosen Developer role; do not silently elevate to Manager. Select
    authentication supported by the chosen client and account; OIDC support has
    not been established. Document expiry and renewal when using a secret or
    certificate. Keep tokens, credentials and upload SAS URLs out of logs,
@@ -153,9 +154,10 @@ existing packaging and release-note tooling; application UI behavior is unchange
 8. **Serialize and resume.** Allow one mutating operation for this product at a
    time; new releases must not cancel active uploads or submissions. Keep a
    durable association among release, artifact digest, note digest and submission
-   ID. Use bounded checks and scheduled reconciliation rather than keeping a
-   runner alive through certification. Discover the newest eligible waiting
-   release after the active submission reaches a terminal state. A workflow
+   ID. Use bounded checks and manually approved reconciliation without keeping a
+   runner alive through certification. Reconcile only the selected receipt. After
+   it reaches a terminal state, prepare the newest eligible waiting release in a
+   separate invocation that needs its own approval. A workflow
    concurrency group alone neither tracks Store certification nor guarantees
    durable waiting work. Storage and artifact retention must support delayed
    submissions and restarts.
@@ -173,7 +175,7 @@ existing packaging and release-note tooling; application UI behavior is unchange
    outside automatic recovery.
 
 10. **Expose useful operations and evidence.** Provide read-only connectivity,
-    preview, submit and reconcile operations. Connectivity verifies product and
+    preview, GitHub-only prepare, approved submit and approved reconcile operations. Connectivity verifies product and
     account access. Preview reports the selected release, generated notes and
     intended field changes without creating, uploading or committing anything.
     Summaries identify version, producing run, bundle digest, submission ID and
@@ -208,8 +210,7 @@ adding UI seams or requiring desktop integration.
 
 ### Acceptance criteria
 
-The test names below are required **future tests**, not claims that tests or a
-publisher command already exist. Preserve this command-level coverage if the
+The test names below define the command-level acceptance contract. Preserve this command-level coverage if the
 implementation plan selects a different module name.
 
 | ID | Observable acceptance condition | Verification command |
@@ -218,12 +219,13 @@ implementation plan selects a different module name.
 | AC2 | Notes use the captured Store release range, omit Internal and explicitly exclusive non-Windows entries, preserve mixed entries, fit the length limit, handle Unicode and empty/oversized entries, and produce reproducible text for existing English/German listing fixtures. | `go test ./scripts/storepublish -run '^TestStorePublishNotes$'` |
 | AC3 | The uploaded archive contains the exact validated bundle; the resulting submission has the expected package and notes, preserves unrelated metadata and selects automatic publication. | `go test ./scripts/storepublish -run '^TestStorePublishSubmission$'` |
 | AC4 | Retries and restarts resume known work, handle lost create/upload/commit responses, avoid duplicate publication and refuse conflicting identity or unowned drafts. | `go test ./scripts/storepublish -run '^TestStorePublishRecovery$'` |
-| AC5 | Competing candidates cannot mutate concurrently; after an active submission finishes, reconciliation submits the newest waiting candidate and covers skipped notes without requiring a new tag event. | `go test ./scripts/storepublish -run '^TestStorePublishReconcile$'` |
+| AC5 | Competing candidates cannot mutate concurrently; reconciliation never submits another release; a separate prepared and approved submission selects the newest waiting candidate and covers skipped notes without a new tag event. | `go test ./scripts/storepublish -run '^TestStorePublishReconcile$'` |
 | AC6 | Processing, certification, publication, timeout, token expiry, throttling, rejection and unknown states produce accurate results, bounded retries and redacted diagnostics. | `go test ./scripts/storepublish -run '^TestStorePublishStatus$'` |
-| AC7 | Connectivity check and preview issue no mutating Store/upload requests; preview exposes notes and intended changes, and missing access is reported clearly. | `go test ./scripts/storepublish -run '^TestStorePublishReadOnly$'` |
-| AC8 | Workflow guards verify trusted release admission, successful packaging/WACK prerequisites, artifact binding, credential scope, automatic reconciliation, retained artifacts on publishing failure and absence of a per-update approval requirement in repository configuration. | `go test ./scripts/msixstage -run '^TestStoreWorkflowPublishingContract$'` |
+| AC7 | Connectivity check and preview issue no mutating Store/upload requests; preview exposes notes and intended changes, and missing access is reported clearly. | `go test ./scripts/storepublish -run '^TestStorePublishReadOnly$'` and `go test ./scripts/storepublish -run '^TestStorePublishSubmission$'` |
+| AC8 | Workflow guards verify trusted release admission, successful packaging/WACK prerequisites, artifact binding, credential scope, required reviewer policy, immutable preapproval artifact selection, no scheduled secret-bearing runs, and retained artifacts on publishing failure. | `go test ./scripts/msixstage -run '^TestStoreWorkflowPublishingContract$'` |
 | AC9 | Existing packaging and release-note behavior remains covered alongside new tooling. | `go test ./scripts/releasenotes ./scripts/msixstage ./scripts/storepublish` |
 | AC10 | The implementation passes repository verification: formatting, TUF/Qodana checks, vet, build and Linux/amd64 Docker race tests. | `make verify` |
+| AC11 | Preparation reads GitHub only and freezes exact artifacts/notes before approval; mutations require that file/hash, reject changed state, and never rediscover a replacement release. | `go test ./scripts/storepublish -run '^TestStorePublishApproval$'` |
 
 For guards, deliberately violate the protected behavior, observe the expected
 failure, restore it, and rerun. Add new test files to Qodana's exact-path
@@ -232,8 +234,9 @@ No new UI tests or golden changes are expected.
 
 Local fixtures cannot prove remote environment settings or Microsoft acceptance.
 Before production enablement, inspect the actual GitHub environment to establish
-that routine releases will not wait for required reviewers, and run the future
-read-only command `go run ./scripts/storepublish check` with protected credentials.
+that routine releases require frathe approval, and after the workflow lands on main
+approve its read-only `check` job with protected credentials. A read-only success
+proves access to product data, not permission to upload or submit.
 Record product access and current published/pending submission state. The first
 subsequent normal stable release supplies live acceptance evidence: its artifact
 digest, package version, submission ID and eventually Store-reported Published
@@ -281,28 +284,42 @@ Microsoft sources checked during discovery:
 
 ### External prerequisites and honest limits
 
-The maintainer's report establishes initial publication. Live API access, current
-listing locales, pending drafts, credential expiry and GitHub environment rules
-have not been inspected. Discover these through available read-only tools during
-implementation; create a narrowly scoped setup task only for account
-administration the agent cannot perform.
+The maintainer's report establishes initial publication, the linked Developer
+application and key rotation. GitHub environment protection and secret names were
+verified directly. Live Microsoft API access, current listing locales, pending
+drafts and credential expiry were not inspected. The read-only CI check requires
+the trusted publisher on main and the user's environment approval. Keep actual
+submission permission and the next approved publication as separate live criteria.
 
 The language default is English across existing listings. It prevents stale
 version notes without adding a translation service, but does not provide localized
 German change notes. This and the other defaults were selected during synthesis
 and remain reviewable policy choices.
 
-Normal releases should be unattended after setup. Credential renewal,
+Normal releases require approval of the prepared artifact and notes. Credential renewal,
 certification rejection, unowned drafts and missing retained artifacts can still
 require maintenance. Passing local tests does not establish live certification
 or publication.
 
 ### Handoff
 
-This spec is published in the local Markdown issue tracker as `ready-for-agent`.
-Implementation starts with the repository's required SDD plan, command contract
-and failing acceptance tests. The status is a planning handoff; it does not claim
-that credentials, deployment configuration or a live release have been validated.
+This is the amended implementation contract. Changes remain uncommitted for review.
+No commit, push, tag, release, Store submission, workflow dispatch or live protection
+change is authorized by this local task. The first live check needs the trusted
+workflow on main and the user's approval; never resubmit already-live 1.0.2 as a test.
 
-This handoff changed documentation only. No release command, live Store mutation,
-code change, workflow change or git commit was performed.
+## Implementation record — 2026-09-08
+
+Implementation uses the direct MSIX REST API with client-secret authentication,
+a trusted-main publisher workflow and append-only GitHub deployment receipts.
+The initial accepted bundle has outer version `2026.905.1829.0`, distinct from
+inner app version `1.0.2.0`; the bootstrap mapping and subsequent receipt bindings
+preserve both. The command fails on an unmapped published version instead of
+silently concluding no update is available. This resolves a real-artifact finding
+without changing the user's public version or rebuilding the accepted release.
+
+Local command/race tests and workflow guards pass; The combined `make verify` run recorded a Docker OOM event; all UI race shards and all non-UI race-test packages passed across the isolated reruns. The original combined command did not exit successfully.
+Environment metadata and secret names were verified on 2026-09-08. The user
+confirmed the linked Developer application and replacement key. The publisher is
+not installed on main. CI credential validity/read access, actual submission
+permission and the next ordinary approved release's publication remain open. See the ticket index and implementation plan for evidence.

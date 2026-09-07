@@ -75,6 +75,9 @@ type Controller struct {
 	// (and a rapid off/on toggle) invalidates its queued callbacks. The stop
 	// channel separately wakes the worker while it waits.
 	gen atomic.Uint64
+	// countdown invalidates a queued timed advance as soon as UI calls Kick,
+	// independently of when the worker next receives the countdown reset.
+	countdown atomic.Uint64
 
 	// kick restarts the countdown in progress - see Kick. Per-session and
 	// captured by run, so a kick can never reach a goroutine other than
@@ -263,6 +266,7 @@ func (c *Controller) SetAnimDuration(d time.Duration) {
 // restart its wait anyway. A no-op before the first enter, when there is
 // no channel yet (a send on a nil channel takes the default branch).
 func (c *Controller) Kick() {
+	c.countdown.Add(1)
 	select {
 	case c.kick <- struct{}{}:
 	default:
@@ -314,6 +318,7 @@ func (c *Controller) advance(gen uint64) (stale bool) {
 // session that has already ended.
 func (c *Controller) run(gen uint64, kick, stop <-chan struct{}) {
 	for c.gen.Load() == gen {
+		countdown := c.countdown.Load()
 		wait := waitDuration(c.Interval(), c.AnimDuration())
 		select {
 		case <-stop:
@@ -325,6 +330,10 @@ func (c *Controller) run(gen uint64, kick, stop <-chan struct{}) {
 		applied := make(chan bool, 1)
 		discarded := make(chan struct{})
 		c.ui.Do(func() {
+			if c.countdown.Load() != countdown {
+				applied <- false
+				return
+			}
 			select {
 			case <-discarded:
 				applied <- true

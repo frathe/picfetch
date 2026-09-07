@@ -12,6 +12,8 @@ import (
 // A band retains premultiplied floating-point values between the two filter
 // passes. Quantizing or clamping that intermediate would change ringing and
 // translucent pixels. Coordinates and normalization match CatmullRom.Scale.
+// Explicit float64 products below preserve its rounding by preventing fused
+// multiply-add, even though their operands already produce float64 values.
 type sampleSpan struct {
 	first, last int
 	center      float64

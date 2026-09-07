@@ -41,6 +41,25 @@ digests consumed by Makefile and the release/Store workflows.
 `scripts/plistdoctypes` derives macOS file associations from supported formats;
 `scripts/msixstage` stages Store manifests/assets and guards packaging routes.
 
+### `scripts/storepublish`
+
+Microsoft Store release command: `record` binds the WACK-validated x64/ARM64
+bundle to its tag and producing run; `prepare` freezes a GitHub-only approval
+manifest; `preview` and `check` read release/Store data; `submit` and `reconcile`
+consume that exact manifest to drive one approved release lifecycle.
+`release.go` admits exact artifacts, `notes.go` generates bounded plain-text
+notes and preserves listing metadata, `github.go` discovers immutable build
+artifacts and journals receipts in deployment payloads, `microsoft.go` owns
+OAuth/submission/blob requests, and `lifecycle.go` resumes recorded operations.
+`approval.go` binds review to artifact/notes/base/receipt identity;
+`environment-policy.jq` checks the saved main-only required-reviewer policy.
+`main.go`/`contracts.go` provide command parsing and per-invocation dependencies;
+`main_test.go` exercises the command against persistent fake services.
+`.github/workflows/microsoft-store-publish.yml` pins trusted main across preparation
+and reviewer-gated jobs after Store builds or manual dispatch. Certification
+observation and recovery are manually dispatched; reconciliation never admits a new
+release. `docs/microsoft-store.md` covers setup and recovery.
+
 ### `scripts/nativeguards`
 
 Native Windows/macOS and explicit Microsoft Store validation. `main.go`
@@ -164,7 +183,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | `jpegseg.go` | Unexported JPEG header-segment walker (`walkJPEGSegments`) used by `exif.go` and `jpegexif.go`, plus `jpegFrameSize` reading the SOF frame size the file's own dimension tags describe. Stops at SOS; does not walk entropy-coded scans (`jpegLength` in `raw.go`) or copy/strip (`stripJPEGSegments` in `jpegexif.go`). |
 | `jpegexif.go` | Unexported JPEG segment copy/strip for `save.go`, plus the in-place TIFF patcher: orientation normalization, next-IFD unlinking, and the dimension-tag correction Save Changes and export apply across IFD0, the Exif SubIFD and the Interop IFD (reached through 0xA005) once the written frame stops matching them - `patchIFDDimension` rewrites what it can hold honestly, `removeIFDEntries` takes the rest plus the two coordinate tags no size can repair. Both refuse an IFD that does not wholly fit. |
 | `grouping.go` | Cancellable greedy complete-linkage grouping; equal hashes reuse their assignment, and narrow distances use verified 16-bit projection candidates. Membership/order remain unchanged; `internal/dupes` chooses native-pixel representatives. |
-| `mutations.go` | Resolved per-path write transactions shared by Save/Strip/Export, cancellable admission and I/O, and `WriteResult` commit identity. |
+| `mutations.go` | Live file-identity transactions shared by Save/Strip/Export and external `WithFileMutation` participants such as Trash; case aliases share admission across atomic replacements, with cancellable admission/I/O and `WriteResult` commit identity. |
 | `save.go` | `SaveRotated`, `Export` (+ `ExportOptions`: size limit, metadata omission and exact-path fallback encoder), `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. `dimensionTagsInvalidated` decides whether the source's dimension tags still describe what is being written, by comparing the written bounds against the source's own frame header - so a resize, a viewer rotation and an Orientation 5-8 source all correct them; Save Changes and export share that policy, retaining tags when geometry is unchanged or the source frame cannot be read (subject to export's resize fallback). |
 
 ### `internal/favstore`
@@ -548,6 +567,7 @@ see `AGENTS.md`.
 - "How are GitHub release notes written?" → `todos.md` `## Done` + `scripts/releasenotes` + `make release` + `.github/workflows/release.yml` `body_path`.
 - "How are Linux race-test shards measured and assigned?" → `scripts/testshards` + `.github/testshards/internal-ui.tsv` + the measured CI sharding plan.
 - "How is a WinGet publish gated after Release?" → `.github/workflows/winget.yml` + `scripts/wingettag` (vX.Y.Z allowlist; `workflow_run` must be `release.yml` on a published tag).
+- "How are Microsoft Store updates submitted and reconciled?" → `scripts/storepublish` + `.github/workflows/microsoft-store-publish.yml` + `docs/microsoft-store.md`.
 - "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
 - "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.

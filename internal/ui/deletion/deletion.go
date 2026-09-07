@@ -13,6 +13,7 @@
 package deletion
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/trash"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -71,6 +73,8 @@ type Confirmer struct {
 	host   Host
 	ui     UIQueue
 	closed atomic.Bool
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// targets is what confirming would move to the Trash: one file for the
 	// Shift+Delete on the image being viewed, or the grid's whole selection
@@ -100,7 +104,8 @@ type Confirmer struct {
 // that is everything Cancel/Escape have ever needed to do here, so there is
 // nothing left for SetOnCancel to add.
 func New(host Host) *Confirmer {
-	c := &Confirmer{host: host, ui: fyneQueue{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &Confirmer{host: host, ui: fyneQueue{}, ctx: ctx, cancel: cancel}
 
 	c.card = widgets.NewChoiceCard(host.ForceRepaint,
 		widgets.Choice{Label: lang.L("Cancel")},
@@ -192,6 +197,7 @@ func (c *Confirmer) Cancel() {
 // completion separately, so shutdown never waits on the UI event loop.
 func (c *Confirmer) Close() {
 	c.closed.Store(true)
+	c.cancel()
 	c.Cancel()
 }
 
@@ -249,7 +255,13 @@ func (c *Confirmer) performDelete() {
 			if c.closed.Load() {
 				return
 			}
-			if err := trash.Move(t.URI.Path()); err != nil {
+			// The claim includes Save/Strip/Export so their atomic replacement
+			// cannot recreate a source after its successful move to Trash.
+			// Pass the original path to Trash: a symlink is itself the target.
+			err := imaging.WithFileMutation(c.ctx, t.URI.Path(), func() error {
+				return trash.Move(t.URI.Path())
+			})
+			if err != nil {
 				if firstErr == nil {
 					firstErr, firstFailed = err, t.URI.Name()
 				}

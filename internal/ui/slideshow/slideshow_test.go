@@ -483,28 +483,49 @@ func TestQueuedAdvanceIsDiscardedAfterExitOrRestart(t *testing.T) {
 }
 
 func TestKickDiscardsAlreadyQueuedTimedAdvance(t *testing.T) {
-	c, host := newController(t, 3)
-	synctest.Test(t, func(t *testing.T) {
-		queue := &uitest.UIQueue{}
-		c.SetUIQueue(queue)
-		ticks := make(chan time.Time)
-		c.after = func(_ time.Duration) <-chan time.Time { return ticks }
-		c.Toggle()
-		defer c.Exit()
-		synctest.Wait()
-		ticks <- time.Time{}
-		synctest.Wait()
-		c.Kick()
-		synctest.Wait()
-		queue.Drain()
-		synctest.Wait()
-		if host.advances != 0 {
-			t.Fatal("timed callback advanced after manual navigation reset the countdown")
-		}
-		c.Exit()
-		synctest.Wait()
-		c.Settle()
-	})
+	for _, tc := range []struct {
+		name           string
+		holdSubmission bool
+	}{{"queued", false}, {"worker still submitting", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, host := newController(t, 3)
+			synctest.Test(t, func(t *testing.T) {
+				queue := &heldSubmissionQueue{release: make(chan struct{})}
+				if !tc.holdSubmission {
+					close(queue.release)
+				}
+				c.SetUIQueue(queue)
+				ticks := make(chan time.Time)
+				c.after = func(_ time.Duration) <-chan time.Time { return ticks }
+				c.Toggle()
+				defer c.Exit()
+				synctest.Wait()
+				ticks <- time.Time{}
+				synctest.Wait()
+				c.Kick()
+				// UI can process the next queued callback before the worker
+				// observes Kick, including while its queue submission is held.
+				queue.Drain()
+				if host.advances != 0 {
+					t.Error("timed callback advanced after manual navigation reset the countdown")
+				}
+				if tc.holdSubmission {
+					close(queue.release)
+				}
+				synctest.Wait()
+				ticks <- time.Time{}
+				synctest.Wait()
+				queue.Drain()
+				synctest.Wait()
+				if host.advances != 1 {
+					t.Errorf("advances after the restarted countdown = %d, want 1", host.advances)
+				}
+				c.Exit()
+				synctest.Wait()
+				c.Settle()
+			})
+		})
+	}
 }
 
 func TestCloseStopsQueuedWorkAndPreventsRestart(t *testing.T) {

@@ -133,6 +133,35 @@ func TestFileMutationReconciliationSurvivesUnrelatedCommit(t *testing.T) {
 	}
 }
 
+func TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset(t *testing.T) {
+	source := storage.NewFileURI(uitest.WriteTempFile(t, "Photo.png", uitest.EncodePNG(t, 8, 16, color.White)))
+	alias := storage.NewFileURI(filepath.Join(filepath.Dir(source.Path()), "photo.png"))
+	first, firstErr := os.Stat(source.Path())
+	second, secondErr := os.Stat(alias.Path())
+	if firstErr != nil || secondErr != nil || !os.SameFile(first, second) {
+		t.Skip("requires a case-insensitive filesystem")
+	}
+	v, _, _ := newTestUI(t)
+	dropAndWait(t, v, source)
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return alias, nil })
+	v.rotateBy(1)
+	v.exportAs(".png")
+	settleChooser(t, v)
+	waitUntilLoaded(t, v)
+	written, err := imaging.LoadImage(source, imaging.DefaultImgCacheBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := written.Frames[0].Bounds().Size(); got != image.Pt(16, 8) {
+		t.Fatalf("exported dimensions = %v, want 16x8", got)
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.Key0})
+	if got := v.img.Image.Bounds().Size(); got != image.Pt(16, 8) || v.display.Rotation() != 0 {
+		t.Errorf("reset after export revived old pixels: dimensions=%v rotation=%d", got, v.display.Rotation())
+	}
+	settleToast(t, v)
+}
+
 func TestExportBusyAndQueuedFailureAllowRetry(t *testing.T) {
 	v, _, _ := newTestUI(t)
 	source := uitest.TempJPEGURI(t, "a.jpg", 8, 16, color.White)

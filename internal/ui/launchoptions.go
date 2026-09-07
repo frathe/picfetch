@@ -99,6 +99,8 @@ func (v *viewer) applyLaunchOptions(opts launch.Options) {
 // startPendingPictureFrame honors --slideshow once the launch scan has
 // finished, and spends the request either way - a launch that loaded nothing
 // must not leave picture-frame mode armed for whatever the user drops next.
+// Cancelling or replacing its scan/reorder, or resetting the viewer, spends
+// the request at those entry points without starting picture-frame mode.
 //
 // It cannot run when the options are applied: picture-frame mode has nothing
 // to frame with zero files loaded, so slideshow.Toggle no-ops there (see

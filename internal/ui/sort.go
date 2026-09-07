@@ -70,6 +70,9 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 // cancelSort, RemoveFile, clearToDropzone). It returns the new revision for
 // tests and diagnostics.
 func (v *viewer) invalidateSort() uint64 {
+	if v.sortOp.active {
+		v.pendingPictureFrame = false
+	}
 	revision := v.sortOp.invalidate()
 	if v.sortModeBefore != nil {
 		v.state.SetSortMode(*v.sortModeBefore)
