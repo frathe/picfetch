@@ -72,7 +72,7 @@ func suiteFor(name, hostOS string) (suite, error) {
 	return s, nil
 }
 
-func (s suite) testArgs(flags ...string) []string {
+func (s *suite) testArgs(flags ...string) []string {
 	args := append([]string{"test", "-count=1"}, flags...)
 	if s.tags != "" {
 		args = append(args, "-tags="+s.tags)

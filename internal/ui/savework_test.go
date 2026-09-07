@@ -138,34 +138,66 @@ func TestSaveChangesCancellationKeepsCommittedDiskEffectsAndCurrentView(t *testi
 }
 
 func TestSaveChangesCapturesPixelsAndRetainsLaterRotation(t *testing.T) {
-	v, _, _ := newTestUI(t)
-	source := storage.NewFileURI(uitest.WriteTempFile(t, "save.png", uitest.EncodePNG(t, 8, 16, color.White)))
-	dropAndWait(t, v, source)
-	v.rotateBy(1)
-	wantSaved := v.img.Image.Bounds()
-	entered, release := make(chan struct{}), make(chan struct{})
-	v.fileWork.save = func(ctx context.Context, u fyne.URI, img image.Image) (imaging.WriteResult, error) {
-		close(entered)
-		<-release
-		return imaging.SaveRotatedContext(ctx, u, img)
+	for _, tc := range []struct {
+		name                  string
+		saved, later, pending int
+		reset                 bool
+	}{
+		{name: "clockwise", saved: 1, later: 1, pending: 1},
+		{name: "counterclockwise", saved: 1, later: -1, pending: 3},
+		{name: "wraparound", saved: 3, later: 1, pending: 1},
+		{name: "reset", saved: 1, reset: true, pending: 3},
+		{name: "full cycle", saved: 1, later: 4, pending: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v, _, _ := newTestUI(t)
+			source := storage.NewFileURI(uitest.WriteTempFile(t, "save.png", uitest.EncodePNG(t, 8, 16, color.White)))
+			dropAndWait(t, v, source)
+			v.rotateBy(tc.saved)
+			wantSaved := v.img.Image.Bounds()
+			entered, release := make(chan struct{}), make(chan struct{})
+			v.fileWork.save = func(ctx context.Context, u fyne.URI, img image.Image) (imaging.WriteResult, error) {
+				close(entered)
+				<-release
+				return imaging.SaveRotatedContext(ctx, u, img)
+			}
+			v.saveRotation()
+			<-entered
+			if tc.reset {
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.Key0})
+			} else {
+				v.rotateBy(tc.later)
+			}
+			wantShown := v.img.Image
+			close(release)
+			waitForSave(t, v)
+			loaded, err := imaging.LoadImage(source, imaging.DefaultImgCacheBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if loaded.Frames[0].Bounds() != wantSaved {
+				t.Errorf("saved bounds = %v, want captured %v", loaded.Frames[0].Bounds(), wantSaved)
+			}
+			if v.img.Image != wantShown {
+				t.Error("finishing the earlier save changed the displayed pixels")
+			}
+			if got := v.display.Rotation(); got != tc.pending {
+				t.Errorf("pending rotation = %d, want %d relative to the saved frame", got, tc.pending)
+			}
+			if v.canSaveRotation() != (tc.pending != 0) {
+				t.Error("Save availability does not reflect the remaining rotation")
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.Key0})
+			if got := v.img.Image.Bounds(); got != loaded.Frames[0].Bounds() {
+				t.Errorf("reset bounds = %v, want saved file bounds %v", got, loaded.Frames[0].Bounds())
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyR})
+			if got := v.img.Image.Bounds().Size(); got != image.Pt(8, 16) {
+				t.Errorf("rotation after reset = %v, want 8x16 relative to the saved frame", got)
+			}
+			settleToast(t, v)
+		})
 	}
-	v.saveRotation()
-	<-entered
-	v.rotateBy(1)
-	wantShown, rotation := v.img.Image, v.display.Rotation()
-	close(release)
-	waitForSave(t, v)
-	loaded, err := imaging.LoadImage(source, imaging.DefaultImgCacheBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loaded.Frames[0].Bounds() != wantSaved {
-		t.Errorf("saved bounds = %v, want captured %v", loaded.Frames[0].Bounds(), wantSaved)
-	}
-	if v.img.Image != wantShown || v.display.Rotation() != rotation || !v.canSaveRotation() {
-		t.Error("finishing the earlier save discarded a later rotation")
-	}
-	settleToast(t, v)
 }
 
 func TestSaveChangesBusyPreservesCompletionAndAllowsRetry(t *testing.T) {

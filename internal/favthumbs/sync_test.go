@@ -10,17 +10,84 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestSyncLeavesForegroundCapacityAndConverges(t *testing.T) {
+	for _, tc := range []struct{ procs, admitted int }{{1, 1}, {2, 1}, {3, 2}, {8, 4}} {
+		t.Run(fmt.Sprint(tc.procs), func(t *testing.T) {
+			previous := runtime.GOMAXPROCS(tc.procs)
+			defer runtime.GOMAXPROCS(previous)
+			dir, favDir := t.TempDir(), t.TempDir()
+			data := uitest.CaptureDateJPEG(t, 8, 6, "2020:01:01 00:00:00")
+			foreground := newSourceFile(t, dir, "foreground.jpg")
+			if err := os.WriteFile(foreground.Path(), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			files := make([]fyne.URI, 8)
+			for i := range files {
+				files[i] = newSourceFile(t, dir, fmt.Sprintf("%d.jpg", i))
+			}
+			synctest.Test(t, func(t *testing.T) {
+				release := make(chan struct{})
+				unblock := sync.OnceFunc(func() { close(release) })
+				defer unblock()
+				var reads atomic.Int32
+				for i, u := range files {
+					files[i] = uitest.ReaderURI(u, func() (io.ReadCloser, error) {
+						r := bytes.NewReader(data)
+						first := true
+						return uitest.ReadCloser{ReadFunc: func(p []byte) (int, error) {
+							if first {
+								first = false
+								reads.Add(1)
+								<-release
+							}
+							return r.Read(p)
+						}, CloseFunc: func() error { return nil }}, nil
+					})
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				done := make(chan error, 1)
+				go func() { done <- Sync(ctx, favDir, files, nil) }()
+				synctest.Wait()
+				if got := int(reads.Load()); got != tc.admitted {
+					t.Errorf("admitted source reads = %d, want %d with %d processors", got, tc.admitted, tc.procs)
+				}
+				thumb, err := imaging.LoadThumbnailContext(ctx, foreground)
+				if err != nil || thumb.Bounds() != image.Rect(0, 0, 8, 6) {
+					t.Errorf("independent foreground decode = %v, %v", thumb, err)
+				}
+				cancel()
+				unblock()
+				if err := <-done; !errors.Is(err, context.Canceled) {
+					t.Errorf("held pass = %v, want cancellation", err)
+				}
+				if err := Sync(context.Background(), favDir, files, nil); err != nil {
+					t.Fatal(err)
+				}
+				for _, u := range files {
+					if _, ok, err := ReadContext(context.Background(), favDir, u); err != nil || !ok {
+						t.Errorf("idle pass did not converge for %s: %v", u, err)
+					}
+				}
+			})
+		})
+	}
+}
 
 // TestMain registers the fyne test app so storage.NewFileURI's "file"
 // scheme is resolvable. Sync is the first thing in this package that reads
@@ -508,6 +575,7 @@ func TestSyncReplacesLegacyPreviewAfterCompletePass(t *testing.T) {
 }
 
 func TestSync_CancelsHeldReadsAndSlotWaiterWithoutPublishingOrSweeping(t *testing.T) {
+	workers := syncConcurrency()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	favDir, srcDir := t.TempDir(), t.TempDir()
@@ -517,13 +585,13 @@ func TestSync_CancelsHeldReadsAndSlotWaiterWithoutPublishingOrSweeping(t *testin
 	}
 	stalePath := previewPath(t, favDir, stale, ".jpg")
 	data := uitest.CaptureDateJPEG(t, 4, 4, "2020:01:01 00:00:00")
-	entered, release := make(chan struct{}, syncConcurrency), make(chan struct{})
+	entered, release := make(chan struct{}, workers), make(chan struct{})
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer unblock()
-	reads, closed := make([]int, syncConcurrency), make([]bool, syncConcurrency)
-	files := make([]fyne.URI, syncConcurrency+1)
-	for i := range syncConcurrency {
+	reads, closed := make([]int, workers), make([]bool, workers)
+	files := make([]fyne.URI, workers+1)
+	for i := range workers {
 		src := newSourceFile(t, srcDir, fmt.Sprintf("source-%d.jpg", i))
 		files[i] = uitest.ReaderURI(src, func() (io.ReadCloser, error) {
 			r := bytes.NewReader(data)
@@ -543,14 +611,14 @@ func TestSync_CancelsHeldReadsAndSlotWaiterWithoutPublishingOrSweeping(t *testin
 		})
 	}
 	var waiterOpens atomic.Int32
-	files[syncConcurrency] = uitest.ReaderURI(newSourceFile(t, srcDir, "waiter.jpg"), func() (io.ReadCloser, error) {
+	files[workers] = uitest.ReaderURI(newSourceFile(t, srcDir, "waiter.jpg"), func() (io.ReadCloser, error) {
 		waiterOpens.Add(1)
 		return io.NopCloser(bytes.NewReader(data)), nil
 	})
 	sink := newTestSink()
 	done := make(chan error, 1)
 	go func() { done <- Sync(ctx, favDir, files, sink) }()
-	for range syncConcurrency {
+	for range workers {
 		select {
 		case <-entered:
 		case <-time.After(5 * time.Second):
@@ -567,7 +635,7 @@ func TestSync_CancelsHeldReadsAndSlotWaiterWithoutPublishingOrSweeping(t *testin
 	case <-time.After(5 * time.Second):
 		t.Fatal("cancelled pass did not complete")
 	}
-	for i := range syncConcurrency {
+	for i := range workers {
 		if reads[i] != 1 || !closed[i] {
 			t.Errorf("source %d reads=%d closed=%v, want 1/true", i, reads[i], closed[i])
 		}

@@ -94,24 +94,26 @@ func (g *Overview) SelectAll() {
 	g.fireSelectionChanged()
 }
 
-// FilesChanged resyncs the grid with a file set that has shrunk under it -
-// what the app calls once a batch delete has actually removed the files.
+// FilesChanged resyncs the grid after files are removed or reordered.
 //
 // Everything the grid holds is an index into that set, so all of it has
-// moved: the selection is dropped rather than remapped (the files it named
-// are exactly the ones that just went to the Trash), and applyFilter
-// recomputes the filter's display→host mapping against what is left and
+// moved: the selection is dropped rather than remapped, and applyFilter
+// recomputes the filter's display→host mapping against the current set and
 // resets the highlight into range.
 //
-// Incremental shrink is not a new drop. adoptHashGen keeps URI-keyed
+// Incremental shrink or reorder is not a new drop. adoptHashGen keeps URI-keyed
 // hashes and native sizes so hide-duplicates grouping and inspect
 // retarget survive RemoveFiles. Orphan entries for deleted URIs linger
 // until the next full-set change, which is harmless. Groups are
 // rebuilt against the adopted hashes before inspect retarget, so the
-// inspect block sees post-delete groups.
+// inspect block sees groups for the current indices.
 func (g *Overview) FilesChanged() {
+	g.remapBrowseSource()
 	g.adoptHashGen()
 	g.restartWork()
+	if g.dupes.HideDuplicates() || g.BrowsingDuplicates() {
+		_ = g.hashRemaining()
+	}
 	hadSelection := g.sel.Len() > 0
 	g.sel.Clear()
 	g.grouping.retarget = true

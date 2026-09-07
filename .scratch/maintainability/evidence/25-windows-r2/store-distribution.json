@@ -1,7 +1,0 @@
-{"Time":"2026-09-07T12:13:52.3028315+02:00","Action":"start","Package":"github.com/frathe/picfetch/internal/distribution"}
-{"Time":"2026-09-07T12:13:52.3455836+02:00","Action":"run","Package":"github.com/frathe/picfetch/internal/distribution","Test":"TestStoreManaged_MicrosoftStoreBuildIsTrue"}
-{"Time":"2026-09-07T12:13:52.3482858+02:00","Action":"output","Package":"github.com/frathe/picfetch/internal/distribution","Test":"TestStoreManaged_MicrosoftStoreBuildIsTrue","Output":"=== RUN   TestStoreManaged_MicrosoftStoreBuildIsTrue\n","OutputType":"frame"}
-{"Time":"2026-09-07T12:13:52.3501513+02:00","Action":"output","Package":"github.com/frathe/picfetch/internal/distribution","Test":"TestStoreManaged_MicrosoftStoreBuildIsTrue","Output":"--- PASS: TestStoreManaged_MicrosoftStoreBuildIsTrue (0.00s)\n","OutputType":"frame"}
-{"Time":"2026-09-07T12:13:52.351405+02:00","Action":"pass","Package":"github.com/frathe/picfetch/internal/distribution","Test":"TestStoreManaged_MicrosoftStoreBuildIsTrue","Elapsed":0}
-{"Time":"2026-09-07T12:13:52.351405+02:00","Action":"output","Package":"github.com/frathe/picfetch/internal/distribution","Output":"PASS\n","OutputType":"frame"}
-{"Time":"2026-09-07T12:13:52.3520002+02:00","Action":"pass","Package":"github.com/frathe/picfetch/internal/distribution","Elapsed":0.049}

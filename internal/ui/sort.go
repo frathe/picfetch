@@ -56,6 +56,7 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 
 	v.startSort(m, unsorted, func(ordered []fyne.URI) {
 		v.state.reorder(ordered)
+		v.grid.FilesChanged()
 		v.ForceRepaint()
 		v.showFileIfPresent(current)
 	})

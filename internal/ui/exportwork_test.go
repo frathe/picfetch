@@ -79,7 +79,7 @@ func TestExportCommittedAliasRefreshesCurrentPixelsAfterDelivery(t *testing.T) {
 				<-release
 				return result, err
 			}
-			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return alias, nil })
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return source, nil })
 			v.rotateBy(1)
 			v.exportAs(".png")
 			<-entered

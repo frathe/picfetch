@@ -83,11 +83,11 @@ func (v *viewer) saveRotation() {
 				v.ShowToast(fmt.Sprintf(lang.L("could not save %q: %v"), u.Name(), err))
 				return
 			}
-			if result.Committed && loadRevision == v.loadLifecycle.currentRevision() && rotation == v.display.Rotation() {
-				// Fold exactly the saved pixels into the unchanged view. A later
-				// rotation remains a pending edit instead of being reset here.
+			if result.Committed && loadRevision == v.loadLifecycle.currentRevision() {
+				// Adopt the saved frame as the baseline without changing the
+				// visible orientation; only turns made since Save remain pending.
 				v.display.SetFrames([]image.Image{pixels})
-				v.display.ResetRotation()
+				v.display.RotateBy(-rotation)
 			}
 			v.ShowToast(lang.L("Saved"))
 		})

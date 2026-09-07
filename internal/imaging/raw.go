@@ -192,7 +192,7 @@ func sliceJPEG(data []byte, off, length uint32) []byte {
 		return nil
 	}
 
-	blob := data[uint64(off) : uint64(off)+uint64(length)]
+	blob := data[off : uint64(off)+uint64(length)]
 	if !isJPEG(blob) {
 		return nil
 	}
@@ -228,7 +228,7 @@ func concatStrips(data []byte, offs, lens []uint32) []byte {
 		if !haveRange(data, off, lens[i]) {
 			return nil
 		}
-		out = append(out, data[uint64(off):uint64(off)+uint64(lens[i])]...)
+		out = append(out, data[off:uint64(off)+uint64(lens[i])]...)
 	}
 	return out
 }

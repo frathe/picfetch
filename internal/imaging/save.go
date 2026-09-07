@@ -177,8 +177,8 @@ type ExportOptions struct {
 // zero value writes what this function has always written.
 //
 // The destination's supported extension takes precedence over FallbackExt.
-// Existing destination symlinks resolve to their target while the extension
-// the user confirmed still selects the format. An existing target is replaced
+// Symlink parent directories are resolved, but a symlink at the destination
+// itself is rejected. An existing regular destination is replaced
 // (keeping its own permission bits), atomically, by the same
 // temp-file-then-rename writeEncodedContext gives SaveRotated - so an export over
 // a previous copy cannot damage it if the encode fails partway.
@@ -188,7 +188,7 @@ func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) er
 }
 
 // ExportContext participates in the same resolved-destination transaction as
-// Save Changes and metadata removal, including when dest aliases the source.
+// Save Changes and metadata removal, including aliases through parent directories.
 func ExportContext(ctx context.Context, dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) (WriteResult, error) {
 	return fileTransactions.write(ctx, dest.Path(), true, func(path string) (bool, error) {
 		err := exportImage(ctx, path, dest.Extension(), img, src, opts)

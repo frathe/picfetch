@@ -3,11 +3,76 @@ package ui
 import (
 	"image/color"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestEscapeUnwindsModesBeforeReset(t *testing.T) {
+	v := loadBrowsePair(t)
+	pressEscape := func() {
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.grid.Settle()
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	waitUntilLoaded(t, v)
+	if !v.dupes.Inspecting() {
+		t.Fatal("premise: inspect did not start")
+	}
+	pressEscape()
+	if !v.grid.Visible() || !v.grid.BrowsingDuplicates() {
+		t.Fatal("inspect Escape must reopen variants")
+	}
+	v.grid.SelectAll()
+	fireCompareShortcut(v)
+	waitForCompare(t, v)
+	pressEscape()
+	if v.compare.Visible() || !v.grid.Visible() || len(v.grid.Selection()) != 2 {
+		t.Fatal("comparison Escape must preserve the covered grid selection")
+	}
+	pressEscape()
+	if len(v.grid.Selection()) != 0 || !v.grid.BrowsingDuplicates() {
+		t.Fatal("selection must clear before leaving variants")
+	}
+	pressEscape()
+	if v.grid.BrowsingDuplicates() || !v.dupes.HideDuplicates() || !v.grid.Visible() {
+		t.Fatal("variants must close before disabling hide-duplicates")
+	}
+	pressEscape()
+	if v.dupes.HideDuplicates() || !v.grid.Visible() {
+		t.Fatal("hide-duplicates must turn off before closing the grid")
+	}
+	pressEscape()
+	if v.grid.Visible() || v.FileCount() != 3 {
+		t.Fatal("grid must close before resetting the session")
+	}
+	v.rotateBy(1)
+	v.startRegionCopy()
+	if !v.regionCopy.State().Active {
+		t.Fatal("premise: Copy Selection did not start")
+	}
+	pressEscape()
+	if v.regionCopy.State().Active || v.FileCount() != 3 || v.display.Rotation() != 1 {
+		t.Fatal("Copy Selection must cancel without resetting the viewer")
+	}
+	v.slides.SetInterval(time.Hour)
+	t.Cleanup(func() { settleSlideshow(t, v) })
+	v.showWindowPictureFrame()
+	if !v.slides.Active() {
+		t.Fatal("premise: picture-frame did not start")
+	}
+	pressEscape()
+	if v.slides.Active() || v.FileCount() != 3 || v.display.Rotation() != 1 {
+		t.Fatal("picture-frame must exit without resetting the viewer")
+	}
+	pressEscape()
+	if v.FileCount() != 0 {
+		t.Fatal("final Escape did not reset the session")
+	}
+}
 
 // The dispatcher's per-feature handovers are tested beside the features they
 // hand over to (delete_test.go, export_test.go, grid_test.go). What stays

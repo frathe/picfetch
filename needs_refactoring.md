@@ -2,7 +2,7 @@
 
 Updated by the project-wide maintainability audit, 2026-09-06.
 
-Status: audit complete; MA-001, MA-002, MA-003, MA-004, MA-006, MA-007, MA-008, MA-009, MA-010, MA-011, MA-013, MA-014, MA-015, MA-016, MA-018, MA-019 are resolved with evidence below and other findings remain open. Implementation is tracked separately in [the phased plan](plans/2026-09-06-maintainability-plan.md). [Validation evidence and reproducible probes](plans/2026-09-06-maintainability-validation.md) accompany this report.
+Status: audit complete; MA-001 through MA-019 and MA-021/022 are resolved with ticket evidence. MA-020 retains user-deferred native x64 Windows package/WACK validation; MA-023/024 remain accepted watches. Implementation is tracked in [the phased plan](plans/2026-09-06-maintainability-plan.md) and [published tickets](.scratch/maintainability/ticket-breakdown.md). Historical audit evidence below is preserved.
 
 ## Baseline and scope
 
@@ -318,6 +318,16 @@ Locations: [.github/workflows/ci.yml:57-72](https://github.com/frathe/picfetch/b
 
 **Recommended direction.** Add focused native macOS/Windows and Store-tag checks, enumerate the tests selected, and establish a bounded GL smoke/fidelity procedure for comparison. Keep the deterministic Linux/reference renderer tests. A full golden suite on every OS is unnecessary; exercise the actual native boundary that each guard protects.
 
+**Resolution (2026-09-07).** Tickets 25 and 26 are complete. Named native
+Windows/macOS/Store guards execute and pass; the retained comparison procedure
+records actual Retina output plus user-operated Windows ARM64 pan/zoom/swipe
+and source detail at DPI 96 / 100% monitor scaling. Native close during held
+work cancels, and the discovered macOS shutdown menu-thread crash is fixed,
+negatively verified and common-gated. See [native guards](.scratch/maintainability/evidence/25-native-guards.md)
+and [renderer evidence](.scratch/maintainability/evidence/26-native-comparison-smoke.md).
+The separate x64 packaging-environment failure, Linux startup and WACK remain
+tracked under MA-020/ticket 27.
+
 <a id="ma-018"></a>
 
 ## MA-018 — Favorite-preview identity truncates available timestamp precision
@@ -364,6 +374,8 @@ Locations: [.github/workflows/release.yml:40](https://github.com/frathe/picfetch
 
 ## MA-021 — Favorite prewarming competes with interactive work
 
+**Resolved (2026-09-07).** Tickets 28/29 measured the contention and verified a CPU-aware background budget. P2 foreground p95 improves from 204.5 to 63.16 ms, with disk convergence increasing from 2.176 to 4.084 seconds. [Workload, limits and evidence](.scratch/maintainability/evidence/28-29-preview-contention.md).
+
 **P3 · Retained performance/design risk from old item 8. Confidence: high for scheduling policy; medium for user-visible contention.**
 
 Locations: [internal/favthumbs/sync.go:13-24](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/favthumbs/sync.go#L13-L24), [internal/ui/favthumbs.go:98-113](https://github.com/frathe/picfetch/blob/2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f/internal/ui/favthumbs.go#L98-L113).
@@ -375,6 +387,8 @@ Locations: [internal/favthumbs/sync.go:13-24](https://github.com/frathe/picfetch
 <a id="ma-022"></a>
 
 ## MA-022 — Mode precedence remains distributed across command routes
+
+**Resolved (2026-09-07).** Ticket 30 captures the mode matrix and tests route parity, explicit exceptions and Escape precedence. Existing wrappers remain because broader consolidation would obscure intentional differences. [Matrix and evidence](.scratch/maintainability/evidence/30-command-matrix.md).
 
 **P3 · Retained maintainability risk from old item 9. Confidence: high for distribution; medium for future defect likelihood.**
 

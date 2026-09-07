@@ -485,10 +485,10 @@ Ticket 22 lead review evidence: held metadata I/O blocked an unrelated queued Ri
 Owner: T0 inline; Deep for write transactions, Save/EXIF/export lifetimes and cache reconciliation.
 Depends: preserve 04/05 image/metadata policy and 21/22 request/completion contracts; source edits start only after the 21/22 common gate.
 Files: imaging write implementation plus a transaction module and tests; viewer save/export/mutation work and shutdown/harness; EXIF removal work/window tests; existing mosaic export binding where needed; cache/fact invalidation bindings and focused regressions; exact manifests/exclusions and architecture/concurrency docs.
-Contract A: retain existing SaveRotated, StripJPEGMetadata and Export signatures as compatibility wrappers. Add context-aware variants returning WriteResult{Path string, Committed bool}; Path identifies the resolved destination, and Committed records an accomplished atomic replacement even if presentation is later cancelled. A production-only per-path coordinator, shared by all imaging write routes, holds admission across resolution-bound read/transform/encode/temp-write/rename. Entries exist only while owned or awaited; waits are context-cancellable, and unrelated destinations can proceed independently. Existing destination symlinks are followed for Export as for Save/Strip, preserving the confirmed destination spelling and the link itself. New destinations resolve the parent directory. Keep permissions, same-directory replacement and JPEG dimension/metadata policy. Context checks bracket reads/parsing and encoder output and precede rename; an already-running read/encoder/native rename must return before completion. This coordinates this process's writers; it cannot serialize an external editor or revoke an already-accomplished rename.
+Contract A: retain existing SaveRotated, StripJPEGMetadata and Export signatures as compatibility wrappers. Add context-aware variants returning WriteResult{Path string, Committed bool}; Path identifies the resolved destination, and Committed records an accomplished atomic replacement even if presentation is later cancelled. A production-only per-path coordinator, shared by all imaging write routes, holds admission across resolution-bound read/transform/encode/temp-write/rename. Entries exist only while owned or awaited; waits are context-cancellable, and unrelated destinations can proceed independently. Save/Strip follow existing file symlinks. Export resolves parent directories and rejects destination symlink leaves, preserving the confirmed destination spelling without redirecting a write to an unconfirmed target (PR #17 security correction). Keep permissions, same-directory replacement and JPEG dimension/metadata policy. Context checks bracket reads/parsing and encoder output and precede rename; an already-running read/encoder/native rename must return before completion. This coordinates this process's writers; it cannot serialize an external editor or revoke an already-accomplished rename.
 Contract B: Save captures URI, immutable pixels, load revision and rotation on UI; EXIF confirmation captures its URI before admitting a panel-owned strip worker. Both use per-instance operation seams/queues, track every worker, stop admission on shutdown and cancel obsolete work on navigation/close. A repeated active Save/strip is not a second concurrent operation for that owner. Export's existing background route participates in the same transaction coordinator and gains owned cancellation/causal completion. Completion includes current UI delivery, with stale presentation discarded while committed disk/cache effects remain factual. Failed Save leaves the user's rotation intact; a successful result folds captured pixels into display only when the captured source/view still matches. Strip retains one successful-removal Host notification and one post-removal metadata refresh. All native chooser/OS tests remain stubbed.
 Contract C: a committed mutation invalidates source decode/thumbnail/fact records, including captured aliases, and prevents older in-flight reads from repopulating invalidated caches. Current source metadata/info refresh once; navigation to another source must retain that source's presentation. Use the existing cache, fact and feature ownership boundaries, not a universal task registry. Specify any needed cache admission identifier in this record before its implementation.
-Tests: gate real Save encoding and independently gate strip dispatch; unrelated queued input must run. Hold Save while Strip/Save/Export target the same path or a symlink: the later transaction must wait, then see the latest bytes (final dimensions/tags prove the read was also serialized). An unrelated file completes while the first is held. Cancel before output/rename leaves original bytes and no temp file; hold delivery after an actual commit, navigate/close, then verify committed bytes/cache invalidation and unchanged unrelated UI. Assert captured intended pixels, failed-save rotation, exact destination/permission/link behavior, alias export participation, current/stale error delivery and all-worker/causal completion. Add cache repopulation and once-only metadata/info regressions where the asynchronous binding exposes them.
+Tests: gate real Save encoding and independently gate strip dispatch; unrelated queued input must run. Hold Save while Strip/Save/Export target the same path or a supported alias (parent-directory alias for Export, file alias for Save/Strip): the later transaction must wait, then see the latest bytes (final dimensions/tags prove the read was also serialized). An unrelated file completes while the first is held. Cancel before output/rename leaves original bytes and no temp file; hold delivery after an actual commit, navigate/close, then verify committed bytes/cache invalidation and unchanged unrelated UI. Assert captured intended pixels, failed-save rotation, exact destination/permission/link behavior, alias export participation, current/stale error delivery and all-worker/causal completion. Add cache repopulation and once-only metadata/info regressions where the asynchronous binding exposes them.
 Verify: build-selected inventory; focused imaging and Save/strip/export/mosaic/cache race tests with negative overlays; full required imaging/UI/EXIF coverage via shared make verify once the complete ticket passes lead standards/spec review.
 Budget: completed read-only mutation inventory only; 0 implementation spawns, up to 2 lead review rounds, one common gate for the complete ticket. Current Phase 5 Scout returned CI/packaging facts only; its cited symbols were checked locally.
 
@@ -634,3 +634,211 @@ Windows rerun 20260907-121327: seven complete packages pass, including the fixed
 Native Windows follow-up complete: run 20260907-122203 passes the unchanged updater binary from local storage (99 top-level tests, 2.116s). Combined accepted runs cover all eight packages, 254 top-level test executions and no skips. Production suite/guard replay passes all 14 required guards (0.286s). The common gate passed with the established temporary GOGC=25 Docker wrapper, exact 665 UI tests (212/225/228), shard times 347.975s/333.033s/267.607s, all remaining race packages, native checks/vet/build and exit 0. Windows/amd64 cross-vet passes. Source freeze ended; tickets 06/08/25 and MA-005/012 are resolved. MA-017 retains ticket 26's native renderer gap. Lead reviewed/fixed inline; no new delegation.
 
 Refreshed all seven reviewed packages from the final verified source via make package-mac package-windows package-windows-store package-linux in the disposable checkout (exit 0). Architecture/Store tags/CGO and production identity/version inspection pass; fresh Mac build 450, root FyneApp.toml unchanged. The user launched Z:\smoke.cmd, which runs the four Windows variants in sequence with process-specific test profile/cache directories and hash-suffixed Desktop filenames. First Alpha window visibly renders all four landmarks; retained 27-windows-first-alpha.jpg. Process identity/exit/DPI logs return after the sequence finishes; no clean-quit or remaining-variant pass is claimed yet. The user owns keyboard/mouse input; the next requested action is Right to view Beta while leaving the first window open.
+
+
+### Windows graphical results and corrected attribution
+
+The user completed the four-attempt launcher. Returned process logs identify ordinary ARM64 PID 6672 and Store ARM64 PID 1900, both window DPI 96 and exit 0 with empty stdout/stderr. Ordinary ARM64 passed Alpha/Beta navigation and user-operated comparison linked/unlinked pan, divider drag, linked wheel zoom and unlinked full-source detail. Store ARM64 visibly rendered Alpha and quit cleanly. Both amd64 builds instead exited 2 before a visible window: WGL OpenGL context unavailable, followed by Fyne applying a Windows theme to a nil window. The previous visual-order interpretation was wrong: the empty drop area was in the still-running ordinary ARM64 process, not a new package failing image load. Evidence documents are corrected and raw process/transcript/stdout/stderr records retained in `evidence/27-windows-package-results/`; duplicate fixtures/cache files are omitted. All hashes match the refreshed inspected artifacts. `Z:\details.cmd` is a read-only DLL-architecture/driver/monitor-scale probe to determine the environment before a runtime or source change. Windows x64 startup, verified graphics/display context, Linux native startup and WACK remain open. Evidence-only changes need no repeated common gate. Lead retains diagnosis/review; no new delegation.
+
+The environment probe returned successfully: Windows 11 Pro ARM64, VirtIO GPU DOD driver 22.7.38.43, a 1728x1043 virtual monitor at 100% scale (API success), and four ARM64 Desktop GL libraries. Together with ordinary ARM64 process DPI 96, this completes ticket 26's standard-density/environment criterion; native user pan/divider/zoom/detail, prior Retina orientation/swipe/detail and held-work cancellation cover the remaining criteria. Ticket 26 and MA-017 are resolved with documented environment limits. Ticket 27's x64 runtime hypothesis will be tested by unchanged binaries beside an isolated amd64 Mesa llvmpipe 26.2.2 opengl32.dll; archive digest matches the release API, PE architecture/hash retained. Z:\x64.cmd is prepared; no existing Desktop libraries or system settings change.
+
+The first isolated x64 retry stopped before launch because WebDAV rejected reading the 58,609,152-byte runtime DLL. Raw failure/transcript retained. The same DLL now transfers as a 21,995,876-byte ZIP, with archive and extracted hashes checked; host ZIP round-trip verification passes. Z:\x64.cmd was updated to expand locally and return only JSON/text records, then the user was asked to rerun. No source change or system/share-limit setting change.
+
+Compressed x64 transfer run 20260907-134213 loaded the correct isolated OPENGL32.dll in both packages; each created a window at DPI 96 but exited 2 with illegal instruction 0xc000001d during initial glDrawArrays / Fyne rectangle painting. User confirms immediate window closure. Raw modules/crashes retained. Hypothesis order: generated CPU instruction unsupported by emulation; Mesa build/code-generation bug; app/Fyne-specific trigger. First probe changes only child GALLIUM_OVERRIDE_CPU_CAPS=sse2 with capability logging; Z:\x64-sse2.cmd prepared. No production source or system setting change; x64 acceptance remains open.
+
+User steering: stop Windows experiments, write a test todo, continue non-Windows validation. User will test later on native x64 systems. Checklist is `.scratch/maintainability/windows-test-todo.md`, linked from todos and ticket 27. SSE2 experiment remains unexecuted; no more Windows runs requested. Next: inspect the refreshed actual macOS package and complete available Linux graphical validation, retaining any native-environment limitation explicitly.
+
+Non-Windows verification complete: actual refreshed macOS build 450 rendered Alpha, Cmd+Q exited 0, log empty and original preferences/session restored. Both unchanged Linux packaged executables passed Alpha/Beta rendering and navigation, then native window close exited 0 with empty application logs. ARM64 also passed production comparison side-by-side/swipe and quit with comparison open. Isolated Debian 12 desktops used Mesa 22.3.6 llvmpipe / LLVM 15.0.6 and Xvfb 1280x960 at 96 DPI. ARM64 runs natively in Docker's Linux VM; amd64 uses CPU emulation on the ARM64 host. Retained `evidence/27-linux-packaged-smoke.md` documents exact hashes, runtime identities, setup, screenshots, initial environment corrections and terminal records. User Windows VM was not touched after deferral. Both disposable Linux containers and their browser tabs are cleaned up after completed app exits. Required outstanding work is the user's later native x64 Windows smoke and WACK checklist; conditional tickets 28–30 remain unselected. No production source changed, so no repeat common gate is warranted.
+
+
+## Phase 6 — Selected remaining conditional work, 2026-09-07
+
+User requests the remaining open tickets and owns the Windows checklist before
+merge. Continue 28 and 30; activate 29 only from measured contention. Tickets
+31/32 retain their separately selected dependency-upgrade triggers. Ticket 27
+stays deferred; do not perform more VM experiments. Baseline is 524fcf8, clean.
+Route: Standard slices within this existing Deep plan. T0 owns implementation,
+design, review, negative verification and final gate. One shared full make verify
+after the selected slices, with the established GOGC=25 Docker wrapper if needed.
+
+### Task 28 — Measure the existing prewarm boundary
+Owner: T0 inline. Files: internal/favthumbs benchmark test, qodana exact exclusion,
+evidence and tracker docs. Contract: BenchmarkPreviewForegroundContention calls
+public Sync against the real imaging thumbnail boundary used by foreground work;
+controlled source admission records actual overlap, latency, throughput,
+allocations and completed disk previews. No production scheduling change before
+measurement. Source set and cache conditions must be reproducible, and reader
+cancellation versus a running decoder distinguished. Verify: ticket 28 benchmark
+command (three samples), focused package tests, negative instrumentation check,
+then shared common gate. Budget: zero implementation spawns, one lead review;
+measurements may justify a separately recorded ticket 29 policy.
+
+### Task 30 — Capture and guard command admission
+Owner: T0 inline. Files: existing keys/shortcuts/comparison/Copy Selection tests,
+menus tests as needed, exact UI shard inventory, evidence matrix and tracker docs.
+Contract: exercise viewer actions, actual menu callbacks and registered canvas
+shortcuts in the existing UI harness; retain mode state in its owning features.
+Pin comparison, Copy Selection, grid, inspect and picture-frame decisions and
+Escape priority, including comparison Help and explicit Open refusal. Consolidate
+only a demonstrably repeated decision; a tested matrix is an accepted outcome.
+Verify: named non-skipped guard inventory, negative overlays, ticket 30 package
+command and the shared gate. Budget: one read-only Scout, lead review/fixes.
+
+Delegation gate for command inventory: G1 yes (one bounded inventory question);
+G2 yes (verify returned locators using rg -n against the named tests/routes);
+G3 yes (zero files changed); G4 yes (short question, no plan transfer);
+G5 yes (lead has only route names from shell searches, no matrix context).
+Rule S: the cross-file behavioral mapping needs reading, not text substitution.
+Rule W: no implementation prescribed or delegated. Scout returns locators only
+while T0 builds ticket 28. Harness mapping: T3 uses available gpt-5.6-luna,
+read-only, cold context. Phase 6 Scout budget 1; no peer review delegation.
+
+
+### User-reported regression — Progressive hide updates
+User confirms duplicate detection finishes correctly but the view now waits for
+the entire list; it previously updated successively. Prioritize this ticket 24
+follow-up before completing Phase 6. Existing focused hide/grouping and command
+tests pass (root UI 5.864s, grid 1.149s), so add a missing partial-pass guard.
+Owner T0, no delegation. Seam: Overview.SetHideDuplicates with controlled source
+read admission and the real UIQueue. Complete two matching sources while the
+rest remain blocked; draining ready UI work must hide one extra while preserving
+unhashed files. Verify the named regression first, then all grid/UI interactions
+and negative cancellation/staleness checks. Design decision follows the red.
+Existing Phase 6 make verify remains the final shared gate.
+
+
+Progressive hide red: TestHideDuplicatesPublishesWhileSourceReadsRemainPending
+fails with 8 visible instead of 7 (grid 0.442s). Two completed matches plus six
+held sources reproduce the user symptom. Ranked probes: grouping queued behind
+all hash reads; notification throttle; stale partial installation. First change
+only grouping admission to an independently tracked single worker. Keep strict
+snapshot freshness and coalescing unchanged. Grid Settle must wait both worker
+owners before draining UI and repeating; Close/Stop continue cancelling the
+shared session context. Update tests that waited only the old pool, architecture
+and the documented grid completion invariant. No public interface change.
+
+
+### Task 29 — Measured CPU-aware preview admission
+Ticket 28's corrected leaf-scoped GOMAXPROCS measurement demonstrates contention:
+on P2 median cold foreground p95 is 175.5 ms versus 56.91 ms alone; foreground
+throughput 6.834/s versus 17.82/s. All 64 disk previews converge, median 2220 ms.
+P18 remains bounded by four background workers and has much smaller contention.
+Activate 29 with the smallest policy: each Sync captures a background worker cap
+of min(4, max(1, GOMAXPROCS-1)), retaining a separate foreground pool and leaving
+one Go execution slot outside prewarm on multi-processor runs. This is a worker
+budget, not an OS CPU reservation; a single-processor runtime cannot reserve a
+second processor. No pause timer, global semaphore, new UI seam or API.
+Measured acceptance target: P2 median cold foreground p95 <= 1.5 times the paired
+alone case, foreground throughput >= 80% of alone, preview convergence <= twice
+the measured 2220 ms baseline. Use the identical 64+8 JPEG workload, three samples;
+retain all baseline and after metrics/allocations, including any missed target.
+Tests at public Sync: held reads expose actual admitted workers for P1/P2/P3/P8
+(expected 1/1/2/4), a foreground decode completes while background reads remain
+held, cancellation joins workers and the next idle pass converges. Existing
+cancel-without-sweep and full-memory-cache guards remain required.
+Files: internal/favthumbs/sync.go and existing sync_test.go, benchmark/evidence,
+architecture locator. T0 inline, zero spawns, one lead review plus negative
+mutation, focused package tests and the shared common gate. Rebuild test artifacts
+from the final source for the user's later Windows validation; no VM runs.
+
+
+Phase 6 pre-gate review: all eight deliberate overlays rejected; named benchmark
+and new guard inventory retained. Full favthumbs race suite passes (1.888s), grid
+race suite passes (2.811s), grouping/delivery selection passes (1.529s). Expanded
+command/hide selection passed UI 5.864s and grid 1.149s. Native full affected
+packages: favthumbs 0.741s, grid 0.933s and menus 0.524s pass; UI 49.098s fails
+only the previously recorded TestE2E_CopySelection macOS golden mismatch. No
+golden changed; canonical Linux gate must pass that case. Final corrected before
+benchmark passes 72.529s; after passes 97.615s. P2 cold median p95 204.5 -> 63.16
+ms, foreground throughput 6.637 -> 16.27/s, preview convergence 2176 -> 4084 ms;
+all measured policy targets pass. P18 retains four workers and comparable
+results. Retained evidence: 28-29-preview-contention.md, 24-progressive-hide.md,
+30-command-matrix.md and phase6-* records.
+
+Production source frozen for the shared make verify gate. Formatting/Qodana
+preflight and diff whitespace pass. Same temporary Docker GOGC=25 wrapper, full
+race inventory and package concurrency retained. Root UI inventory is 667
+(212/225/230); the Help test expanded existing subtests, two new top-level tests
+were assigned ui-3. No benchmark runs inside race CI. Reviewed Windows ordinary
+and Store amd64/arm64 artifacts rebuilt successfully in the disposable Phase 6
+copy; application source bytes match the reviewed files. All four binaries plus
+fixtures/SHA256SUMS are copied to ignored bin/maintainability-validation for the
+user's later native testing. Architecture/build tags/source hashes and packaging
+provenance are retained. No VM execution or SDK/trust changes.
+
+
+Phase 6 final gate: make verify PASS, process exit 0. Formatting, offline TUF,
+Qodana exclusions, vet/build, exact 667-test root UI inventory and all canonical
+Linux/amd64 race partitions pass. The Copy Selection golden passes in its
+canonical environment; the previously recorded macOS-only mismatch remains in
+the native output. Source freeze ends. Tickets 24 (progressive follow-up), 28,
+29 and 30 are resolved. Ticket 27 awaits user Windows testing; 31/32 remain
+unactivated accepted watches. No commits or Windows VM actions were made.
+
+Phase 6 cost ledger: one read-only T3 Scout (budget 1 / actual 1), zero delegated
+implementations/reviews/fixes. T0 completed review and the user-reported grouping
+fix inline. One shared full make verify gate; focused red/green and eight negative
+overlays are retained. Three-sample final before/after benchmarks met the measured
+policy targets. A preliminary incorrect parent-scoped CPU setup was rejected and
+corrected before accepting measurements.
+
+Terminal package results:
+
+```text
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/decodepool	action=pass	elapsed=1.068
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/distribution	action=pass	elapsed=1.072
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/clipboard	action=pass	elapsed=1.114
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/appearance	action=pass	elapsed=1.149
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/displays	action=pass	elapsed=1.149
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/assets	action=skip	elapsed=0.002
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/filemanager	action=pass	elapsed=1.154
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/completion	action=pass	elapsed=1.161
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/favstore	action=pass	elapsed=1.189
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/launch	action=pass	elapsed=1.197
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/filesort	action=pass	elapsed=1.214
+package	partition=non-ui	package=github.com/frathe/picfetch	action=pass	elapsed=1.230
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/filescan	action=pass	elapsed=1.237
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/dupes	action=pass	elapsed=1.267
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/filepicker	action=pass	elapsed=1.399
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/favthumbs	action=pass	elapsed=1.425
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/openwith	action=pass	elapsed=1.128
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/selection	action=pass	elapsed=1.053
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/preferences	action=pass	elapsed=1.132
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/session	action=pass	elapsed=1.120
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/trash	action=pass	elapsed=1.089
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/display	action=pass	elapsed=1.144
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/infoview	action=pass	elapsed=1.146
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/deletion	action=pass	elapsed=1.394
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/menus	action=pass	elapsed=1.180
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/autoupdate	action=pass	elapsed=1.484
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/slideshow	action=pass	elapsed=1.135
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/spiral	action=pass	elapsed=1.187
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/zoom	action=pass	elapsed=1.188
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/wincom	action=pass	elapsed=1.129
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/wallpaper	action=pass	elapsed=1.172
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/copyselection	action=pass	elapsed=2.647
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/grid	action=pass	elapsed=2.761
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/widgets	action=pass	elapsed=1.779
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/uitest	action=pass	elapsed=1.623
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/wingesture	action=pass	elapsed=1.087
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/winpos	action=pass	elapsed=1.200
+package	partition=non-ui	package=github.com/frathe/picfetch/scripts/nativeguards	action=pass	elapsed=1.100
+package	partition=non-ui	package=github.com/frathe/picfetch/scripts/plistdoctypes	action=pass	elapsed=1.128
+package	partition=non-ui	package=github.com/frathe/picfetch/scripts/releasenotes	action=pass	elapsed=1.114
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/settingswin	action=pass	elapsed=2.920
+package	partition=non-ui	package=github.com/frathe/picfetch/scripts/synctuf	action=pass	elapsed=1.179
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/favorites	action=pass	elapsed=4.510
+package	partition=non-ui	package=github.com/frathe/picfetch/scripts/wingettag	action=pass	elapsed=2.021
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/update	action=pass	elapsed=4.086
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/exifwin	action=pass	elapsed=6.098
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/mosaicwin	action=pass	elapsed=7.522
+package	partition=non-ui	package=github.com/frathe/picfetch/scripts/msixstage	action=pass	elapsed=6.993
+package	partition=non-ui	package=github.com/frathe/picfetch/scripts/testshards	action=pass	elapsed=13.855
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/compare	action=pass	elapsed=32.323
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/imaging	action=pass	elapsed=34.065
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/mosaic	action=pass	elapsed=39.231
+package	partition=non-ui	package=github.com/frathe/picfetch/internal/ui/help	action=pass	elapsed=49.341
+package	partition=ui-3	package=github.com/frathe/picfetch/internal/ui	action=pass	elapsed=299.333
+package	partition=ui-2	package=github.com/frathe/picfetch/internal/ui	action=pass	elapsed=302.810
+package	partition=ui-1	package=github.com/frathe/picfetch/internal/ui	action=pass	elapsed=324.193
+```

@@ -151,6 +151,28 @@ func (g *Overview) BrowseReady() bool {
 	return g.browseHost >= 0 && g.hashes.hashJobs.Load() == 0 && current && snapshot.Size(g.browseHost) >= 2
 }
 
+func (g *Overview) setBrowseSource(index int) {
+	g.browseHost, g.browseKey = -1, ""
+	if index >= 0 && index < g.host.FileCount() {
+		if source := g.host.FileAt(index); source != nil {
+			g.browseHost, g.browseKey = index, source.String()
+		}
+	}
+}
+
+func (g *Overview) remapBrowseSource() {
+	if g.browseHost < 0 {
+		return
+	}
+	for i := range g.host.FileCount() {
+		if source := g.host.FileAt(i); source != nil && source.String() == g.browseKey {
+			g.browseHost = i
+			return
+		}
+	}
+	g.setBrowseSource(-1)
+}
+
 // SetBrowsingDuplicates turns group-browsing on or off. Turning it on hashes
 // any files that have not been hashed yet and filters the grid to the source
 // file's duplicate group. A unique source is a silent no-op.
@@ -159,7 +181,7 @@ func (g *Overview) SetBrowsingDuplicates(on bool) {
 		if g.browseHost < 0 {
 			return
 		}
-		g.browseHost = -1
+		g.setBrowseSource(-1)
 		g.applyFilter()
 		g.fireDupeState()
 		return
@@ -173,7 +195,10 @@ func (g *Overview) SetBrowsingDuplicates(on bool) {
 		return
 	}
 	// Capture the browse source before admitting its background hash pass.
-	g.browseHost = src
+	g.setBrowseSource(src)
+	if g.browseHost < 0 {
+		return
+	}
 	pending := g.hashRemaining()
 	if pending > 0 {
 		g.host.ShowToast(lang.L("The images are currently being analyzed"))
@@ -203,7 +228,7 @@ func (g *Overview) finishBrowse() {
 		return
 	}
 	if g.dupes.GroupSize(g.browseHost) < 2 {
-		g.browseHost = -1
+		g.setBrowseSource(-1)
 		g.applyFilter()
 		g.fireDupeState()
 		return

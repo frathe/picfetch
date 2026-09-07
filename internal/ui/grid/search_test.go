@@ -245,7 +245,7 @@ func TestApplyVisibleFilter_TakesOneVisibilityReadPerPass(t *testing.T) {
 // pair's representative, host 1 its extra, hosts 2 and 3 are unrelated
 // uniques. Every parity test below shares this exact shape, so the
 // expected g.matches slices are easy to state and independent of dHash
-// behavior. Callers set g.searching/g.query/g.browseHost/hide themselves
+// behavior. Callers set search, browse source and hide state themselves
 // and call applyVisibleFilter directly, rather than going through
 // rebuildFilter/SetHideDuplicates/SetBrowsingDuplicates - those would call
 // rebuildGroups or hashRemaining and overwrite this fabricated snapshot
@@ -312,7 +312,7 @@ func TestApplyVisibleFilter_HideOnly(t *testing.T) {
 
 func TestApplyVisibleFilter_BrowseOnly(t *testing.T) {
 	g, _ := fixedGroupHost(t)
-	g.browseHost = 0
+	g.setBrowseSource(0)
 
 	g.applyVisibleFilter(true, -1)
 

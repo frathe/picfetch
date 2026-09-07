@@ -6,8 +6,8 @@
 # baseline-attempts: 1,2,3
 # ui-1: 212 entries, 326.750s baseline median-weight sum
 # ui-2: 225 entries, 327.070s median-weight sum
-# ui-3: 228 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 98 tests assigned across the baseline shards
+# ui-3: 230 entries, 326.740s baseline median-weight sum
+# post-baseline additions: 100 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -511,6 +511,7 @@ TestE2E_BadDropWithNothingLoadedShowsPlaceholder	ui-3
 TestE2E_EscapeQuitsWhenNothingLoaded	ui-3
 TestE2E_EscapeResetsAfterImagesLoaded	ui-3
 TestE2E_TappingDropzoneArtOpensFileDialog	ui-3
+TestEscapeUnwindsModesBeforeReset	ui-3
 TestExportAs_ExportsAFormatThatHasNoEncoderOfItsOwn	ui-3
 TestExportAs_HonorsAnEncodableExtensionTheUserTyped	ui-3
 TestExportAs_JPEGSourceKeepsGPSExif	ui-3
@@ -660,6 +661,7 @@ TestViewerModesApplyBeforeAndAfterLoadingFiles	ui-3
 TestViewerReset_ReshowsRestoreLinkWhenSessionUnconsumed	ui-3
 TestViewerShow_AllFilesBrokenFallsBackToEmptyState	ui-3
 TestViewerShow_DecodeErrorKeepsHint	ui-3
+TestWindowCommandAdmissionMatrix	ui-3
 TestWindowMenu_CloseFilesDisablesGridPictureFrameExifAndViewer	ui-3
 TestWindowMenu_FreshViewerDisablesSurfacesExceptHelp	ui-3
 TestWindowMenu_PictureFrameLeavesGridItemDisabled	ui-3

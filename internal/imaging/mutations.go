@@ -2,6 +2,7 @@ package imaging
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -88,22 +89,25 @@ func resolvedWritePath(path string, create bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err == nil || !create || !os.IsNotExist(err) {
-		return resolved, err
-	}
-	// Only a new leaf may be absent. A dangling leaf symlink must not be
-	// silently replaced as though the user had selected a new regular file.
-	if _, leafErr := os.Lstat(abs); leafErr == nil {
-		return "", err
-	} else if !os.IsNotExist(leafErr) {
-		return "", leafErr
+	if !create {
+		return filepath.EvalSymlinks(abs)
 	}
 	dir, err := filepath.EvalSymlinks(filepath.Dir(abs))
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, filepath.Base(abs)), nil
+	// Export confirms a destination name, not the target of a leaf symlink.
+	// Keep the leaf unresolved so a link introduced after this check is
+	// replaced by the atomic rename instead of redirecting the write.
+	resolved := filepath.Join(dir, filepath.Base(abs))
+	if info, err := os.Lstat(resolved); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", &os.PathError{Op: "export", Path: abs, Err: errors.New("destination is a symbolic link")}
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	return resolved, nil
 }
 
 func readFileContext(ctx context.Context, path string) ([]byte, error) {

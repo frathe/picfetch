@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"runtime"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -22,7 +23,12 @@ import (
 // budget would let a background pass over a large favorite starve the
 // thumbnails actually on screen, which is the exact opposite of what a
 // preview cache is for.
-const syncConcurrency = 4
+// Leave one Go execution slot outside prewarm when the runtime has more than
+// one. Four competing decodes otherwise delay foreground work on small CPU
+// budgets. A single-processor runtime still makes progress with one worker.
+func syncConcurrency() int {
+	return min(4, max(1, runtime.GOMAXPROCS(0)-1))
+}
 
 // Sink is the consumer-side view of the caller's in-memory thumbnail cache.
 //
@@ -77,7 +83,7 @@ func Sync(ctx context.Context, favDir string, files []fyne.URI, sink Sink) error
 	// sem bounds concurrent decodes; wg lets the sweep below wait for every
 	// worker to be completely done, which is what makes the sweep's view of
 	// the directory a settled one rather than a snapshot mid-pass.
-	sem := make(chan struct{}, syncConcurrency)
+	sem := make(chan struct{}, syncConcurrency())
 	var wg sync.WaitGroup
 
 	// Several workers can fail at once, so the shared first error needs a

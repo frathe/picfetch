@@ -251,6 +251,7 @@ type Overview struct {
 
 	// browseHost is the host index being browsed, or -1 when browse is
 	// off. Zero is a valid file index - New MUST set this to -1.
+	// browseKey pins the source URI; FilesChanged remaps its cached index.
 	//
 	// Browse is the grid's own mode, deliberately not the model's: it
 	// filters the overlay and every Close clears it, while the model's
@@ -259,6 +260,7 @@ type Overview struct {
 	// browse from) survives closeOverlay(false) - the Return/click
 	// commit - and ends only on Close()/G.
 	browseHost int
+	browseKey  string
 }
 
 // dupBadge is the group-size chip on a grid cell: white digits on a black

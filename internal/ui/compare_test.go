@@ -456,34 +456,45 @@ func TestCompareRestoration_EscapeRevealsTheUnchangedFilteredGrid(t *testing.T) 
 }
 
 func TestCompareHelp_F1OpensManualWithoutLeavingComparison(t *testing.T) {
-	originalTheme := testApp.Settings().Theme()
-	t.Cleanup(func() { testApp.Settings().SetTheme(originalTheme) })
-	testApp.Settings().SetTheme(theme.DefaultTheme())
+	for _, route := range []struct {
+		name string
+		open func(*viewer)
+	}{
+		{"keyboard", func(v *viewer) { v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyF1}) }},
+		{"menu", func(v *viewer) { v.menus.Window().Help().Action() }},
+		{"direct", (*viewer).showWindowHelp},
+	} {
+		t.Run(route.name, func(t *testing.T) {
+			originalTheme := testApp.Settings().Theme()
+			t.Cleanup(func() { testApp.Settings().SetTheme(originalTheme) })
+			testApp.Settings().SetTheme(theme.DefaultTheme())
 
-	v := openGridWith(t, "a.jpg", "b.jpg")
-	v.grid.SelectAll()
-	fireCompareShortcut(v)
-	waitForCompare(t, v)
+			v := openGridWith(t, "a.jpg", "b.jpg")
+			v.grid.SelectAll()
+			fireCompareShortcut(v)
+			waitForCompare(t, v)
 
-	windowsBefore := make(map[fyne.Window]struct{})
-	for _, window := range v.app.Driver().AllWindows() {
-		windowsBefore[window] = struct{}{}
-	}
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyF1})
+			windowsBefore := make(map[fyne.Window]struct{})
+			for _, window := range v.app.Driver().AllWindows() {
+				windowsBefore[window] = struct{}{}
+			}
+			route.open(v)
 
-	var manual fyne.Window
-	for _, window := range v.app.Driver().AllWindows() {
-		if _, existed := windowsBefore[window]; !existed {
-			manual = window
-			break
-		}
-	}
-	if manual == nil || !v.help.ManualOpen() {
-		t.Fatal("F1 did not open the manual while comparison was active")
-	}
-	t.Cleanup(manual.Close)
-	if !v.compare.Visible() {
-		t.Fatal("F1 closed or replaced the active comparison")
+			var manual fyne.Window
+			for _, window := range v.app.Driver().AllWindows() {
+				if _, existed := windowsBefore[window]; !existed {
+					manual = window
+					break
+				}
+			}
+			if manual == nil || !v.help.ManualOpen() {
+				t.Fatal("command did not open the manual while comparison was active")
+			}
+			t.Cleanup(manual.Close)
+			if !v.compare.Visible() {
+				t.Fatal("command closed or replaced the active comparison")
+			}
+		})
 	}
 }
 

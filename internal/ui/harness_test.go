@@ -310,7 +310,9 @@ func newTestViewer(t *testing.T) *viewer {
 // as its channel closes and never waits this long - so a single generous
 // value costs nothing and keeps the call sites free of a number that
 // suggested a tuning knob nobody was actually turning.
-const testTimeout = 5 * time.Second
+// Concurrent Linux/amd64 race shards under emulation can exceed five seconds
+// while painting a valid completion; allow that work to settle before teardown.
+const testTimeout = 30 * time.Second
 
 // waitFor blocks until s's current operation finishes, failing the test on
 // timeout. One helper for every completion.Signal on the viewer, so the

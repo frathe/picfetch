@@ -2,13 +2,15 @@ package grid
 
 import (
 	"context"
+	"sync"
 
 	"github.com/frathe/picfetch/internal/dupes"
 )
 
-// groupWork is UI-owned admission. One pool job runs at a time; changed
+// groupWork is UI-owned admission. One independent worker runs at a time; changed
 // requests cancel it and its completion admits only the latest inputs.
 type groupWork struct {
+	workers sync.WaitGroup
 	// compute is an instance override for held-worker tests; nil uses the model.
 	compute   func(context.Context) (dupes.Groups, error)
 	pending   bool
@@ -45,14 +47,11 @@ func (g *Overview) rebuildGroups() bool {
 	if compute == nil {
 		compute = g.dupes.ComputeContext
 	}
-	g.decodes.Go(ctx, func(acquired bool) {
-		var snapshot dupes.Groups
-		var err error
-		if acquired {
-			snapshot, err = compute(ctx)
-		}
-		// Submission belongs to the pool job, so Settle covers both this
-		// completion and a replacement it admits while draining.
+	g.grouping.workers.Go(func() {
+		snapshot, err := compute(ctx)
+		// A cold list can occupy every decode slot and queue thousands more.
+		// Grouping must run independently to publish partial progress. Settle
+		// waits this worker through submission before draining its callback.
 		g.ui.Do(func() {
 			defer cancel()
 			g.grouping.pending = false
@@ -60,7 +59,7 @@ func (g *Overview) rebuildGroups() bool {
 			if g.work.ctx.Err() != nil {
 				return
 			}
-			if acquired && err == nil && ctx.Err() == nil && revision == g.work.revision && g.dupes.Install(snapshot) {
+			if err == nil && ctx.Err() == nil && revision == g.work.revision && g.dupes.Install(snapshot) {
 				g.groupsReady(snapshot)
 			} else {
 				g.rebuildGroups()

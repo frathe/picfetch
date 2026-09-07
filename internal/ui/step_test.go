@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -228,12 +230,12 @@ func TestStepImage_SkipsHiddenExtras(t *testing.T) {
 
 func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
 	v := newTestViewer(t)
-	// ByName is the default; a/b/c keep drop order so index 0 is the
-	// smaller copy, 1 the larger, 2 the unique shot.
+	// ByName puts the smaller copy at 0, larger at 1 and unique at 2.
+	// Drop order is reversed so later sorts exercise changed indices too.
 	small := uitest.PatternedJPEGURISize(t, "a.jpg", 1, 64, 48)
 	large := uitest.PatternedJPEGURISize(t, "b.jpg", 1, 192, 144)
 	other := uitest.PatternedJPEGURI(t, "c.jpg", 99)
-	dropAndWait(t, v, small, large, other)
+	dropAndWait(t, v, other, large, small)
 	if err := v.grid.Warm(); err != nil {
 		t.Fatalf("Warm: %v", err)
 	}
@@ -262,6 +264,56 @@ func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
 	waitUntilLoaded(t, v)
 	if v.state.index != 1 {
 		t.Fatalf("after wrap index = %d, want 1", v.state.index)
+	}
+
+	for _, mode := range []filesort.Mode{filesort.ByName, filesort.ByDropOrder, filesort.ByName} {
+		v.SetSortMode(mode)
+		waitForSort(t, v)
+		v.grid.Settle()
+		waitUntilLoaded(t, v)
+		if got := v.state.files[v.state.index]; got.String() != large.String() {
+			t.Fatalf("sort %v changed current file to %s", mode, got.Name())
+		}
+		if size, ok := v.dupes.NativeSize(large.String()); !ok || size != image.Pt(192, 144) {
+			t.Errorf("sort %v lost native-size facts: %v, %v", mode, size, ok)
+		}
+		first, last := large, other
+		if mode == filesort.ByDropOrder {
+			first, last = other, large
+		}
+		for _, jump := range []struct {
+			key  fyne.KeyName
+			want fyne.URI
+		}{{fyne.KeyHome, first}, {fyne.KeyEnd, last}} {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: jump.key})
+			waitUntilLoaded(t, v)
+			if got := v.state.files[v.state.index]; got.String() != jump.want.String() {
+				t.Errorf("sort %v, %s landed on %s, want %s", mode, jump.key, got.Name(), jump.want.Name())
+			}
+		}
+		v.showFileIfPresent(large)
+		waitUntilLoaded(t, v)
+		v.StepImage(1)
+		waitUntilLoaded(t, v)
+		if got := v.state.files[v.state.index]; got.String() != other.String() {
+			t.Errorf("sort %v, arrow landed on %s, want unique image", mode, got.Name())
+		}
+		v.Advance()
+		waitUntilLoaded(t, v)
+		if got := v.state.files[v.state.index]; got.String() != large.String() {
+			t.Errorf("sort %v, slideshow landed on %s, want representative", mode, got.Name())
+		}
+		v.showFileIfPresent(large)
+		waitUntilLoaded(t, v)
+		v.slides.SetShuffle(true)
+		v.Advance()
+		waitUntilLoaded(t, v)
+		v.slides.SetShuffle(false)
+		if got := v.state.files[v.state.index]; got.String() != other.String() {
+			t.Errorf("sort %v, shuffle landed on %s, want unique image", mode, got.Name())
+		}
+		v.showFileIfPresent(large)
+		waitUntilLoaded(t, v)
 	}
 }
 

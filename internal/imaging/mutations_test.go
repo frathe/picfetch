@@ -152,7 +152,7 @@ func TestFileMutationResultsDistinguishCommitFromNoopAndFailure(t *testing.T) {
 	}
 }
 
-func TestExportPreservesSymlinkParentsAndRejectsDanglingLeaf(t *testing.T) {
+func TestExportPreservesSymlinkParentsAndRejectsSymlinkLeaves(t *testing.T) {
 	actual := t.TempDir()
 	alias := filepath.Join(t.TempDir(), "alias")
 	if err := os.Symlink(actual, alias); err != nil {
@@ -170,21 +170,69 @@ func TestExportPreservesSymlinkParentsAndRejectsDanglingLeaf(t *testing.T) {
 	if _, err := os.Stat(dest.Path() + ".png"); !os.IsNotExist(err) {
 		t.Errorf("export appended an unconfirmed extension: %v", err)
 	}
-	link := filepath.Join(actual, "dangling.png")
-	if err := os.Symlink(filepath.Join(actual, "missing.png"), link); err != nil {
-		t.Fatal(err)
+	for _, exists := range []bool{false, true} {
+		t.Run(fmt.Sprintf("target-exists=%v", exists), func(t *testing.T) {
+			target := filepath.Join(t.TempDir(), "unrelated.txt")
+			original := []byte("preserve the unrelated target")
+			if exists {
+				if err := os.WriteFile(target, original, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			link := filepath.Join(alias, fmt.Sprintf("leaf-%v.png", exists))
+			if err := os.Symlink(target, link); err != nil {
+				t.Fatal(err)
+			}
+			result, err := ExportContext(context.Background(), storage.NewFileURI(link), pixels, nil, ExportOptions{})
+			if err == nil || result.Committed {
+				t.Errorf("symlink leaf export = %+v, %v", result, err)
+			}
+			if got, err := os.Readlink(link); err != nil || got != target {
+				t.Errorf("failed export changed the link: %q, %v", got, err)
+			}
+			data, err := os.ReadFile(target)
+			if exists {
+				if err != nil || !bytes.Equal(data, original) {
+					t.Errorf("export changed the unrelated target: %v", err)
+				}
+			} else if !os.IsNotExist(err) {
+				t.Errorf("export created the dangling target: %v", err)
+			}
+		})
 	}
-	result, err = ExportContext(context.Background(), storage.NewFileURI(link), pixels, nil, ExportOptions{})
-	if err == nil || result.Committed {
-		t.Errorf("dangling leaf export = %+v, %v", result, err)
-	}
-	info, err := os.Lstat(link)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		t.Error("failed export replaced the dangling link")
-	}
+	t.Run("leaf introduced during encoding", func(t *testing.T) {
+		target := filepath.Join(t.TempDir(), "unrelated.txt")
+		original := []byte("preserve the unrelated target")
+		if err := os.WriteFile(target, original, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		leaf := filepath.Join(alias, "late.jpg")
+		pixels := &heldMutationPixels{Image: image.NewRGBA(image.Rect(0, 0, 13, 17)), entered: make(chan struct{}), release: make(chan struct{})}
+		var result WriteResult
+		var err error
+		done := make(chan struct{})
+		unpark := sync.OnceFunc(func() { close(pixels.release) })
+		t.Cleanup(func() { unpark(); <-done })
+		go func() {
+			defer close(done)
+			result, err = ExportContext(context.Background(), storage.NewFileURI(leaf), pixels, nil, ExportOptions{})
+		}()
+		<-pixels.entered
+		if err := os.Symlink(target, leaf); err != nil {
+			t.Fatal(err)
+		}
+		unpark()
+		<-done
+		if err != nil || !result.Committed {
+			t.Fatalf("export = %+v, %v", result, err)
+		}
+		if data, err := os.ReadFile(target); err != nil || !bytes.Equal(data, original) {
+			t.Errorf("export followed the late symlink: %v", err)
+		}
+		if info, err := os.Lstat(leaf); err != nil || !info.Mode().IsRegular() {
+			t.Fatalf("export did not replace the late symlink: %v", err)
+		}
+	})
 }
 
 func TestFileTransactionClaimsAreReleasedAfterSuccessFailureAndCancellation(t *testing.T) {
@@ -236,8 +284,15 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 				destination := source
 				if alias {
 					link := filepath.Join(t.TempDir(), "alias.jpg")
-					if err := os.Symlink(source.Path(), link); err != nil {
+					target := source.Path()
+					if next == "export" {
+						target = filepath.Dir(target)
+					}
+					if err := os.Symlink(target, link); err != nil {
 						t.Fatal(err)
+					}
+					if next == "export" {
+						link = filepath.Join(link, filepath.Base(source.Path()))
 					}
 					destination = storage.NewFileURI(link)
 				}
@@ -293,7 +348,11 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 						t.Error("later metadata removal was overwritten by the earlier save")
 					}
 					if alias {
-						info, err := os.Lstat(destination.Path())
+						link := destination.Path()
+						if next == "export" {
+							link = filepath.Dir(link)
+						}
+						info, err := os.Lstat(link)
 						if err != nil {
 							t.Fatal(err)
 						}

@@ -108,12 +108,12 @@ var runZenityCommand = func(cmd *exec.Cmd) ([]byte, error) { return cmd.Output()
 // chooseFilesLinux runs Zenity and validates its native path framing. Missing
 // tools and execution/transport failures remain distinct from cancellation.
 func chooseFilesLinux() ([]byte, error) {
-	path, err := lookupZenity("zenity")
+	zenityPath, err := lookupZenity("zenity")
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command(path, "--file-selection", "--multiple",
+	cmd := exec.Command(zenityPath, "--file-selection", "--multiple",
 		"--separator="+zenityPathSeparator, "--title="+lang.L("Open images"))
 	out, err := runZenityCommand(cmd)
 	return zenityResult(out, err, true)
@@ -124,12 +124,12 @@ func chooseFilesLinux() ([]byte, error) {
 // confirmation (older Zenity needs --confirm-overwrite). Multi-select is
 // meaningless here, so --multiple is deliberately absent.
 func chooseSaveLinux(suggestedPath string) ([]byte, error) {
-	path, err := lookupZenity("zenity")
+	zenityPath, err := lookupZenity("zenity")
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command(path, "--file-selection", "--save", "--confirm-overwrite",
+	cmd := exec.Command(zenityPath, "--file-selection", "--save", "--confirm-overwrite",
 		"--filename="+suggestedPath, "--title="+lang.L("Export image"))
 	out, err := runZenityCommand(cmd)
 	return zenityResult(out, err, false)

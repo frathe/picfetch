@@ -76,23 +76,14 @@ func (g *Overview) Warm() error {
 // app never needs this; tests do, to keep a decode goroutine from touching
 // widgets after the test that started it has moved on.
 //
-// A single Wait-then-Drain pass is only correct because every UIQueue Do
-// in this package - requestThumbnail's two below, and the hash engine's
-// notifications in hashengine.go and groupwork.go - runs from inside the decode-pool Go body it
-// belongs to (see the comment above those calls in requestThumbnail): by
-// the time Wait returns, every decode spawned so far has already reached
-// its Do, so that pass's Drain has everything there is to run.
-//
-// The loop is what keeps that promise for a deferring UIQueue (see
-// uiqueue.go): a drained completion can spawn further decodes -
-// requestThumbnail's own re-request does exactly that, and applyFilter
-// refreshes the wrap, which re-runs the cell-update callback - so waiting
-// once is not enough. It ends on the first pass that finds the pool empty
-// and nothing left to drain, which for the app's fyneQueue is always the
-// first pass, since its Drain is a constant false.
+// Decode and grouping workers both finish through the queue. Wait for both
+// owners before draining, then repeat because an applied result can start new
+// work. Grouping has its own single worker so a cold hash backlog cannot postpone
+// progressive filtering until every source has been read.
 func (g *Overview) Settle() {
 	for {
 		g.decodes.Wait()
+		g.grouping.workers.Wait()
 		if !g.ui.Drain() {
 			return
 		}

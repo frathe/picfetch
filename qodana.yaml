@@ -52,6 +52,22 @@ include:
 # `make sync-qodana-test-exclusions`; `make verify` checks it. See
 # finished_refactorings/2026-08-29-qodana-duplication-close.md.
 exclude:
+  # WriteResult.Committed is meaningful even when the mutation returns an error.
+  - name: GoDfaErrorMayBeNotNil
+    paths:
+      - "internal/imaging/mutations_test.go"
+  # Local fixture names are intentional in these tests.
+  - name: GoImportUsedAsName
+    paths:
+      - "internal/ui/favthumbs_test.go"
+  - name: GoReservedWordUsedAsName
+    paths:
+      - "internal/ui/exif_test.go"
+  # writeTempPNGFile takes ownership and closes the file on every path;
+  # the Darwin/Windows callers remove the returned filename after use.
+  - name: GoResourceLeak
+    paths:
+      - "internal/clipboard/clipboard.go"
   - name: DuplicatedCode
     paths:
       - "internal/appearance/appearance_test.go"
@@ -69,6 +85,7 @@ exclude:
       - "internal/dupes/snapshot_test.go"
       - "internal/dupes/visible_test.go"
       - "internal/favstore/favstore_test.go"
+      - "internal/favthumbs/contention_test.go"
       - "internal/favthumbs/name_test.go"
       - "internal/favthumbs/store_test.go"
       - "internal/favthumbs/sweep_test.go"

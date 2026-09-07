@@ -6,6 +6,7 @@ package ui
 
 import (
 	"image/color"
+	"slices"
 	"testing"
 	"time"
 
@@ -490,7 +491,14 @@ func TestActionsMenu_HideNoopsWithoutFiles(t *testing.T) {
 }
 
 func TestActionsMenu_ShowVariantsOpensGridOnPairAfterHide(t *testing.T) {
-	v := loadPatternedTriple(t)
+	v := newTestViewer(t)
+	a := uitest.PatternedJPEGURI(t, "a.jpg", 1)
+	b := uitest.PatternedJPEGURI(t, "b.jpg", 1)
+	c := uitest.PatternedJPEGURI(t, "c.jpg", 99)
+	dropAndWait(t, v, c, b, a)
+	if err := v.grid.Warm(); err != nil {
+		t.Fatal(err)
+	}
 	v.menus.Actions().Hide().Action()
 	v.grid.Settle()
 	if v.menus.Actions().ShowVariant().Disabled {
@@ -506,6 +514,25 @@ func TestActionsMenu_ShowVariantsOpensGridOnPairAfterHide(t *testing.T) {
 	}
 	if !v.menus.Actions().ShowVariant().Checked {
 		t.Fatal("Show variants should be checked while browsing")
+	}
+	for _, order := range []struct {
+		label string
+		want  []int
+	}{{"Drop order", []int{1, 2}}, {"Name", []int{0, 1}}} {
+		item := requireSortChild(t, v, order.label)
+		if item.Disabled {
+			t.Fatal("sort must remain available while browsing variants")
+		}
+		item.Action()
+		waitForSort(t, v)
+		v.grid.Settle()
+		waitUntilLoaded(t, v)
+		if !v.grid.BrowsingDuplicates() || !v.grid.Visible() {
+			t.Fatalf("sort %s closed variant browsing", order.label)
+		}
+		if got := v.grid.ResultIndexes(); !slices.Equal(got, order.want) {
+			t.Errorf("sort %s changed browsed group: %v, want %v", order.label, got, order.want)
+		}
 	}
 }
 

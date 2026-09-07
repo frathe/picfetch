@@ -1,25 +1,73 @@
 package grid
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestHideDuplicatesPublishesWhileSourceReadsRemainPending(t *testing.T) {
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg", "g.jpg", "h.jpg"}, []int{1, 1, 1, 1, 1, 1, 1, 1})
+	data, err := os.ReadFile(host.files[0].Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var permits chan struct{}
+	for i, u := range host.files {
+		host.files[i] = uitest.ReaderURI(u, func() (io.ReadCloser, error) {
+			r := bytes.NewReader(data)
+			first := true
+			return uitest.ReadCloser{ReadFunc: func(p []byte) (int, error) {
+				if first {
+					first = false
+					<-permits
+				}
+				return r.Read(p)
+			}, CloseFunc: func() error { return nil }}, nil
+		})
+	}
+	g := newOverview(t, host)
+	synctest.Test(t, func(t *testing.T) {
+		permits = make(chan struct{}, 2)
+		permits <- struct{}{}
+		permits <- struct{}{}
+		g.decodes = decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency)
+		g.hashes.pool = g.decodes
+		defer func() { close(permits); g.Stop(); g.Settle() }()
+		g.SetHideDuplicates(true)
+		for {
+			synctest.Wait()
+			if !g.ui.Drain() {
+				break
+			}
+		}
+		if pending := g.hashes.hashJobs.Load(); pending != 6 {
+			t.Fatalf("premise: pending sources = %d, want 6", pending)
+		}
+		if got := g.count(); got != 7 {
+			t.Fatalf("visible files = %d, want 7: hide the completed extra before the six remaining reads finish", got)
+		}
+	})
+}
 
 // serialUIQueue is fyne.Do on an idle UI goroutine: the callback runs
 // before Do returns to the worker, serialized with other callbacks, and
@@ -546,16 +594,28 @@ func TestHashRemaining_ComputesGroupsBeforeTheUIQueue(t *testing.T) {
 	g := newOverview(t, host)
 	g.hashRemaining()
 	g.decodes.Wait()
-	unpark := parkDecodes(t, g)
+	release := make(chan struct{})
+	unpark := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(func() { unpark(); g.Stop(); g.Settle() })
+	g.grouping.compute = func(ctx context.Context) (dupes.Groups, error) {
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return g.dupes.ComputeContext(ctx)
+	}
 	g.dupes.SetHideDuplicates(true)
 	g.ui.Drain()
 	if got := g.dupes.Computes(); got != 0 {
 		t.Fatalf("hash UI notice computed %d times", got)
 	}
 	unpark()
-	g.decodes.Wait()
+	g.grouping.workers.Wait()
 	if got := g.dupes.Computes(); got != 1 {
 		t.Fatalf("worker computations=%d, want 1", got)
+	}
+	if _, current := g.dupes.CurrentGroups(); current {
+		t.Fatal("group installation bypassed UI queue")
 	}
 	g.Settle()
 	if got := g.dupes.Computes(); got != 1 {
@@ -1728,13 +1788,77 @@ func TestFilesChanged_HideDuplicatesGroupingSurvivesDelete(t *testing.T) {
 	}
 }
 
+func TestFilesChanged_RequeuesUnfinishedHashesAfterReorder(t *testing.T) {
+	for _, browse := range []bool{false, true} {
+		t.Run(fmt.Sprintf("browse=%v", browse), func(t *testing.T) {
+			host := hostPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg"}, []int{1, 1, 99})
+			g := newOverview(t, host)
+			unpark := parkDecodes(t, g)
+			if browse {
+				g.SetBrowsingDuplicates(true)
+			} else {
+				g.SetHideDuplicates(true)
+			}
+			g.grouping.workers.Wait()
+			host.files[1], host.files[2] = host.files[2], host.files[1]
+			host.gen++
+			g.FilesChanged()
+			unpark()
+			g.Settle()
+			for _, uri := range host.files {
+				if _, ok := g.hashOf(uri); !ok {
+					t.Errorf("reorder abandoned hash for %s", uri.Name())
+				}
+			}
+			if g.BrowsingDuplicates() != browse || g.count() != 2 {
+				t.Errorf("reordered cold files lost visibility: browse=%v count=%d", g.BrowsingDuplicates(), g.count())
+			}
+			if !browse && !g.dupes.IsHiddenExtra(2) {
+				t.Error("reordered cold files did not hide the duplicate")
+			}
+		})
+	}
+}
+
+func TestFilesChanged_PreservesBrowsedSourceByIdentity(t *testing.T) {
+	g, host := openPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg"}, []int{1, 1, 99, 99})
+	g.SetBrowsingDuplicates(true)
+	g.Settle()
+	host.files[0], host.files[2] = host.files[2], host.files[0]
+	host.gen++
+	g.FilesChanged()
+	g.Settle()
+	if !g.BrowsingDuplicates() {
+		t.Fatal("reorder ended browsing the surviving source")
+	}
+	if got := g.ResultIndexes(); len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("reorder switched browsed group: %v, want [1 2]", got)
+	}
+	host.files = append(host.files[:2], host.files[3:]...)
+	host.gen++
+	g.FilesChanged()
+	g.Settle()
+	if g.BrowsingDuplicates() {
+		t.Fatal("removing the source must end browsing instead of choosing another group")
+	}
+}
+
 func TestGroupingRequestsLeaveUIAndReuseWarmSearch(t *testing.T) {
 	host := hostPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg"}, []int{1, 1, 99})
 	g := newOverview(t, host)
 	if err := g.Warm(); err != nil {
 		t.Fatal(err)
 	}
-	unpark := parkDecodes(t, g)
+	release := make(chan struct{})
+	unpark := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(func() { unpark(); g.Stop(); g.Settle() })
+	g.grouping.compute = func(ctx context.Context) (dupes.Groups, error) {
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return g.dupes.ComputeContext(ctx)
+	}
 	g.SetHideDuplicates(true)
 	g.HandleRune('/')
 	g.HandleRune('a')
@@ -1758,6 +1882,43 @@ func TestGroupingRequestsLeaveUIAndReuseWarmSearch(t *testing.T) {
 	}
 }
 
+func TestGroupingSettleIncludesWorkerAndDelivery(t *testing.T) {
+	g := newOverview(t, hostWith(t, "a.jpg", "b.jpg"))
+	for i := range g.host.FileCount() {
+		u := g.host.FileAt(i)
+		g.dupes.PutHash(u.String(), 7)
+		g.dupes.PutNativeSize(u.String(), image.Pt(10, 10))
+	}
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		g.grouping.compute = func(ctx context.Context) (dupes.Groups, error) {
+			<-release
+			return g.dupes.ComputeContext(ctx)
+		}
+		defer func() {
+			unblock()
+			g.Stop()
+			g.grouping.workers.Wait()
+			g.Settle()
+		}()
+		g.SetHideDuplicates(true)
+		done := make(chan struct{})
+		go func() { g.Settle(); close(done) }()
+		synctest.Wait()
+		select {
+		case <-done:
+			t.Error("Settle returned while grouping was still blocked")
+		default:
+		}
+		unblock()
+		<-done
+		if _, current := g.dupes.CurrentGroups(); !current || g.count() != 1 {
+			t.Error("Settle returned before grouping reached the view")
+		}
+	})
+}
+
 func TestGroupingQueuedResultCoalescesLatestInputs(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
 	g := newOverview(t, host)
@@ -1767,7 +1928,7 @@ func TestGroupingQueuedResultCoalescesLatestInputs(t *testing.T) {
 		facts.PutNativeSize(u.String(), image.Pt(10, 10))
 	}
 	g.SetHideDuplicates(true)
-	g.decodes.Wait() // old computation finished; its UI installation is held
+	g.grouping.workers.Wait() // old computation finished; its UI installation is held
 	if _, ok := g.dupes.CurrentGroups(); ok {
 		t.Fatal("group installation bypassed UI queue")
 	}
@@ -1796,7 +1957,7 @@ func TestGroupingQueuedCompletionCancelledByCloseOrStop(t *testing.T) {
 				facts.PutNativeSize(u.String(), image.Pt(10, 10))
 			}
 			g.SetHideDuplicates(true)
-			g.decodes.Wait()
+			g.grouping.workers.Wait()
 			if stop {
 				g.Stop()
 			} else {
@@ -1827,7 +1988,7 @@ func TestGroupingSourceReplacementRejectsQueuedOldIndices(t *testing.T) {
 		facts.PutNativeSize(u.String(), image.Pt(10, 10))
 	}
 	g.SetHideDuplicates(true)
-	g.decodes.Wait()
+	g.grouping.workers.Wait()
 	host.gen++
 	host.files = host.files[:2]
 	g.FilesChanged()

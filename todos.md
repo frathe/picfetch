@@ -55,9 +55,39 @@ app configured. Launching from Finder still works as before.
 
 #### Bugfix
 
+- Hide Duplicates remains effective after sorting, including unchanged ordering.
+  Groups adopt the new indices, retain known image facts and resume unfinished
+  hashes so arrows, Home/End and slideshow navigation keep skipping extra copies.
+
+- Export rejects destination symlinks so a pre-existing link cannot redirect an
+  export onto an unrelated file. Symlinked parent directories remain supported.
+
+- Rotating or resetting the view while Save Changes runs now keeps later edits
+  relative to the saved frame. Pressing `0` after saving returns to the image on
+  disk, and Save availability reflects only the remaining rotation.
+
 #### Internal
 
+- Copy Selection's sort-command test asserts immediate cancellation, then settles
+  sort/load completion in cleanup. The grouping test holds and waits for its
+  independent worker before checking queued installation. Result-notification
+  tests settle fake-host readers before changing the file set. Shared UI test
+  deadlines allow 30 seconds for concurrent emulated race
+  shards, avoiding premature teardown while valid completion work is still running.
+
+- Resolved the reported Qodana production naming, receiver and redundant-conversion
+  findings; added inspection-specific exclusions for test naming, intentional
+  mutation error-result assertions and the clipboard helper's existing file cleanup.
+
 ## TODO
+
+### Investigate the intermittent UI shard 3 package failure
+
+The 2026-09-07 Qodana cleanup's `make verify` run reported a package-level failure
+in `ui-3` without an individual test failure in the compact log. The isolated
+Linux/amd64 race-shard retry passed with raw output preserved. The cause remains
+unknown; retain raw streams on the next concurrent run. See
+`finished_refactorings/2026-09-07-qodana-findings.md` for commands and evidence.
 
 ### Address the 2026-09-06 maintainability audit
 
@@ -67,8 +97,24 @@ Track the reconciled findings in [needs_refactoring.md](needs_refactoring.md) an
 complete cache records and saved JPEG dimensions (MA-001/002/004/006/007) are complete;
 clipboard errors, Trash configuration, preview timestamps and RSS arithmetic
 (MA-011/013/018/019) are also complete. MA-005 chooser paths and MA-012 Windows
-list decoding now pass their actual Windows guards and are complete. Queued animation/picture-frame pacing and chooser lifecycle (MA-003, tickets 12–14), ancillary read cancellation and generation-safe duplicate facts (tickets 15–18) have passed their common gates. The ticket 15 manual-test correction, map lifetime and position-poller work (MA-015/016) pass the next common gate; native poller movement/close/shutdown also passed. Background clipboard encoding and EXIF reads (tickets 21–22) pass their shared common gate; serialized original-file mutations and committed-write/cache reconciliation (ticket 23, completing MA-014) pass their common gate. Duplicate-group reuse/cancellation (ticket 24, MA-008) passes its common gate and measured benchmarks. Native Windows/macOS/Store guards pass; the comparison shutdown crash is fixed and gated. Packaging inputs are pinned, all seven artifacts build with inspected metadata, and the actual macOS package renders/quits cleanly. All eight Windows package runs and 14 required native guards pass without skips; the follow-up common gate passes. Remaining comparison coverage, Windows/Linux graphical startup and WACK evidence stay open. Keep remaining correctness, lifecycle,
+list decoding now pass their actual Windows guards and are complete. Queued animation/picture-frame pacing and chooser lifecycle (MA-003, tickets 12–14), ancillary read cancellation and generation-safe duplicate facts (tickets 15–18) have passed their common gates. The ticket 15 manual-test correction, map lifetime and position-poller work (MA-015/016) pass the next common gate; native poller movement/close/shutdown also passed. Background clipboard encoding and EXIF reads (tickets 21–22) pass their shared common gate; serialized original-file mutations and committed-write/cache reconciliation (ticket 23, completing MA-014) pass their common gate. Duplicate-group reuse/cancellation (ticket 24, MA-008) passes its common gate and measured benchmarks. Native Windows/macOS/Store guards pass; the comparison shutdown crash is fixed and gated. Packaging inputs are pinned, all seven artifacts build with inspected metadata, and the actual macOS package renders/quits cleanly. All eight Windows test-package runs and 14 required native guards pass without skips; the follow-up common gate passes. Ordinary/Store Windows ARM64 graphical startup and clean quit pass; user-operated comparison pan/zoom/swipe/detail pass. MA-017 native/renderer coverage is complete with recorded Retina and Windows 100% scale/DPI 96 environments. Refreshed macOS and both Linux packages render and quit cleanly; Linux uses software GL and amd64 CPU emulation. Native x64 Windows startup and WACK remain deferred to the user’s later Windows testing. Keep remaining correctness, lifecycle,
 platform and accepted watch work linked to the stable MA identifiers and ticket evidence.
+
+Tickets 28–30 are complete: preview contention was measured and reduced on small
+CPU budgets, and command admission/Escape behavior has an explicit tested matrix.
+The user-reported progressive-hide regression is fixed with an independent,
+tracked grouping worker. [Phase 6 evidence](.scratch/maintainability/evidence/28-29-preview-contention.md)
+and the complete canonical Linux race/golden gate pass. The native macOS Copy
+Selection screenshot mismatch remains recorded in the validation evidence.
+HEIC/verifier tickets 31/32 retain their separate future-upgrade triggers.
+
+### Complete native x64 Windows packaging tests
+
+User will test later on native x64 systems. Follow the
+[Windows test checklist](.scratch/maintainability/windows-test-todo.md) for
+ordinary/Store image rendering, comparison, clean quit and SDK/WACK evidence.
+Windows VM experiments are deferred; retain their failures as diagnostic
+results. Continue non-Windows validation independently.
 
 ### Automate Microsoft Store updates after the initial publication
 
