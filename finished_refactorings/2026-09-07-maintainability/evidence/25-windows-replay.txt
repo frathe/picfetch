@@ -1,0 +1,24 @@
+=== RUN   TestReturnedOfflineWindowsEvidence
+=== RUN   TestReturnedOfflineWindowsEvidence/windows
+    main_test.go:194: PASS required: github.com/frathe/picfetch/internal/wallpaper TestSetWindows_TargetPreservesOpaqueIDAndUnicodePath
+        PASS required: github.com/frathe/picfetch/internal/wallpaper TestSetWindows_TargetValidationFailsBeforeMutation
+        PASS required: github.com/frathe/picfetch/internal/clipboard TestCopyFilesWindows_DecodesUTF8WithNonUTF8Default
+        PASS required: github.com/frathe/picfetch/internal/filepicker TestWindowsPickerTransport_EmitsUTF8PathArrays
+        PASS required: github.com/frathe/picfetch/internal/update TestApplyWindows_ReplacesDestAndKeepsOld
+        PASS required: github.com/frathe/picfetch/internal/update TestApplyWindows_MissingStagedBinaryRestoresDest
+        PASS required: github.com/frathe/picfetch/internal/update TestWindowsRelaunchCommand_PassesThePIDInTheInheritedEnvironment
+        PASS required: github.com/frathe/picfetch/internal/update TestClassifyApplyError_WindowsErrno
+        PASS required: github.com/frathe/picfetch/internal/update TestWaitMilliseconds_NeverConvertsToAnUnboundedWait
+        PASS required: github.com/frathe/picfetch/internal/ui/autoupdate TestUpdater_AutomaticAndManualShareCompleteTransaction
+        PASS required: github.com/frathe/picfetch/internal/ui/autoupdate TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform
+        PASS required: github.com/frathe/picfetch/internal/distribution TestStoreManaged_DefaultBuildIsFalse
+        
+=== RUN   TestReturnedOfflineWindowsEvidence/store
+    main_test.go:194: PASS required: github.com/frathe/picfetch/internal/distribution TestStoreManaged_MicrosoftStoreBuildIsTrue
+        PASS required: github.com/frathe/picfetch/internal/ui/autoupdate TestUpdater_AutomaticAndManualShareCompleteTransaction
+        
+--- PASS: TestReturnedOfflineWindowsEvidence (0.01s)
+    --- PASS: TestReturnedOfflineWindowsEvidence/windows (0.00s)
+    --- PASS: TestReturnedOfflineWindowsEvidence/store (0.00s)
+PASS
+ok  	github.com/frathe/picfetch/scripts/nativeguards	0.286s

@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "spriteVersionNumber": 2,
+  "run_dir": "/Users/ronin/Projects/picfetch/.scratch/trane-pet",
+  "spritesheet": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/final/spritesheet-extended.webp",
+  "validation": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/final/validation-extended.json",
+  "chroma_despill": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/chroma-despill-extended.json",
+  "contact_sheet": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/contact-sheet-extended.png",
+  "direction_sheet": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/look-directions.png",
+  "direction_semantics": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/direction-semantics.json",
+  "blind_direction_validation": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/direction-blind-validation.json",
+  "blind_review_resolution": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/blind-review-resolution.json",
+  "continuity": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/look-continuity.json",
+  "review": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/review.json",
+  "visual_review": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/qa/final-visual-review.json",
+  "package": "/Users/ronin/.codex/pets/trane",
+  "workspace_package": "/Users/ronin/Projects/picfetch/assets/trane/codex-pet",
+  "started_at": "2026-09-07T18:15:27Z",
+  "packaged_at": "2026-09-07T19:25:25Z",
+  "elapsed_minutes": 70,
+  "assigned_visual_jobs": 16,
+  "repair_summary": "Unsafe mirror replaced by generated left row; seated first stride repaired; two complete look-row10 repairs corrected scale then wrong-left orientation. One final despill pass; all final gates passed."
+}

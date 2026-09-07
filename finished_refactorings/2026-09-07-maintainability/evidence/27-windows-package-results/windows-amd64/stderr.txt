@@ -1,0 +1,42 @@
+﻿2026/09/07 12:31:07 Fyne error:  window creation error
+2026/09/07 12:31:07   Cause: APIUnavailable: WGL: The driver does not appear to support OpenGL
+2026/09/07 12:31:07   At: fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/driver.go:180
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal 0xc0000005 code=0x0 addr=0x0 pc=0x7ff6402d06f2]
+
+goroutine 1 [running, locked to thread]:
+github.com/go-gl/glfw/v3.4/glfw.(*Window).GetWin32Window.func1(...)
+	github.com/go-gl/glfw/v3.4/glfw@v0.1.0-pre.1.0.20260707082822-2a407d02d01a/native_windows.go:26
+github.com/go-gl/glfw/v3.4/glfw.(*Window).GetWin32Window(0x3b9fc8ecb40?)
+	github.com/go-gl/glfw/v3.4/glfw@v0.1.0-pre.1.0.20260707082822-2a407d02d01a/native_windows.go:26 +0x12
+fyne.io/fyne/v2/internal/driver/glfw.(*window).setDarkMode(0x3b9fcc881e0?)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/window_windows.go:17 +0x25
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).applyThemeToWindow(...)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/loop.go:100
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).runGL.func1.1({0x7ff641a92c80, 0x3b9fc7b4540})
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/loop.go:118 +0x37
+fyne.io/fyne/v2/internal/app.ApplySettingsWithCallback({0x7ff63fc16820?, 0x7ff6426bb810?}, {0x7ff641a92368?, 0x3b9fc94a180?}, 0x3b9fd5a3a60)
+	fyne.io/fyne/v2@v2.8.0/internal/app/theme.go:49 +0x145
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).runGL.func1({0x7ff641a8c2e8, 0x3b9fc950140})
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/loop.go:117 +0x108
+fyne.io/fyne/v2/app.(*settings).apply(0x3b9fc950140)
+	fyne.io/fyne/v2@v2.8.0/app/settings.go:121 +0xee
+fyne.io/fyne/v2/app.(*settings).applyTheme(...)
+	fyne.io/fyne/v2@v2.8.0/app/settings.go:91
+fyne.io/fyne/v2/app.(*settings).setupTheme(0x3b9fc950140)
+	fyne.io/fyne/v2@v2.8.0/app/settings.go:144 +0x138
+fyne.io/fyne/v2/app.(*settings).load(0x3b9fc950140)
+	fyne.io/fyne/v2@v2.8.0/app/settings_file.go:20 +0x9a
+fyne.io/fyne/v2/app.(*settings).fileChanged(0x3b9fc950140)
+	fyne.io/fyne/v2@v2.8.0/app/settings.go:126 +0x18
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).runGL(0x10?)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/loop.go:154 +0x1d3
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).Run(0x3b9fc96a000)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/driver.go:195 +0x85
+fyne.io/fyne/v2/app.(*fyneApp).Run(0x3b9fc94a180)
+	fyne.io/fyne/v2@v2.8.0/app/app.go:87 +0x118
+github.com/frathe/picfetch/internal/ui.Run({0x7ff641a92368, 0x3b9fc94a180}, {0x3b9fcb331e0, 0x2, 0x2}, {0x0, 0x0, 0x0, 0x0, 0x0, ...})
+	github.com/frathe/picfetch/internal/ui/run.go:79 +0x1a9
+main.main()
+	github.com/frathe/picfetch/main.go:142 +0x198
+

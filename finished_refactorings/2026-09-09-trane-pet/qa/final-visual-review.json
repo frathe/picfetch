@@ -1,0 +1,15 @@
+{
+  "visual_qa": "pass",
+  "reviewer": "independent final_qa",
+  "qa_note": "All nine standard rows have correct counts and readable semantics. Consistent identity, fur, face, red collar/tag, transparency, scale and grounding. No clipping, holes, shadows, props or detached effects. Despill and v2 validation pass.",
+  "preview_review_method": "GIF viewer exposed one decoded frame per file. Motion and timing assessed from all ordered contact-sheet frames, authored frame durations and continuity data.",
+  "review_warnings": [
+    "247.5 down pitch subtle but correct.",
+    "135->157.5 center warning accepted as natural head motion.",
+    "157.5->180 brisk head/yaw/silhouette transition; planted lower body, scale and registration stable.",
+    "Stable-slot warnings accepted: complete, unclipped and registered sequences.",
+    "Jump crouch/stretch retains physical size and shows actual vertical travel."
+  ],
+  "repair_rows": [],
+  "repair_notes": []
+}

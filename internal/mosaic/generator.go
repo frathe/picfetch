@@ -9,6 +9,7 @@ import (
 	"image/draw"
 	"math/rand/v2"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 
@@ -31,11 +32,12 @@ type Generator struct {
 	load          sourceLoader
 	cacheBytes    int64
 	beforePrepare func(preparationPlan) error
+	previewClock  func() time.Time
 }
 
 // New creates a mosaic generator backed by PicFetch's canonical image loader.
 func New() *Generator {
-	return &Generator{load: loadCanonicalSource, cacheBytes: defaultRepeatCacheBytes}
+	return &Generator{load: loadCanonicalSource, cacheBytes: defaultRepeatCacheBytes, previewClock: time.Now}
 }
 
 // Generate renders one validated request with a fresh production generator.
@@ -48,6 +50,10 @@ func Generate(ctx context.Context, request Request) (Result, error) {
 type Progress struct {
 	CoveredPixels int
 	TotalPixels   int
+	// Preview is an optional independent canvas snapshot, at most 960 pixels
+	// on its longest edge. The generator never mutates a published preview.
+	// Nil means keep the preceding preview. Final pixels belong to Result.
+	Preview image.Image
 }
 
 // GenerateWithProgress reports progress synchronously during generation.
@@ -84,12 +90,9 @@ func (g *Generator) GenerateWithProgress(ctx context.Context, request Request, r
 		return Result{}, err
 	}
 	total := request.target.X * request.target.Y
-	reportCoverage := func(covered int) {
-		if report != nil && covered < total && ctx.Err() == nil {
-			report(Progress{CoveredPixels: covered, TotalPixels: total})
-		}
+	if report != nil {
+		report(Progress{TotalPixels: total})
 	}
-	reportCoverage(0)
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
@@ -102,6 +105,16 @@ func (g *Generator) GenerateWithProgress(ctx context.Context, request Request, r
 	canvas := image.NewNRGBA(image.Rectangle{Max: request.target})
 	fillNRGBA(canvas, color.NRGBA{R: 28, G: 30, B: 34, A: 255})
 	primaryLayer := image.NewNRGBA(canvas.Bounds())
+	previews := previewSnapshots{clock: g.previewClock}
+	reportCoverage := func(covered int) {
+		if report == nil || covered >= total || ctx.Err() != nil {
+			return
+		}
+		preview := previews.next(canvas, primaryLayer)
+		if ctx.Err() == nil {
+			report(Progress{CoveredPixels: covered, TotalPixels: total, Preview: preview})
+		}
+	}
 
 	next := func() (candidate, error) {
 		entry, source, err := pool.next(ctx)

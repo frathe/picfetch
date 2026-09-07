@@ -1,0 +1,11 @@
+Get-FileHash : Die Datei "Z:\offline-windows\mesa-llvmpipe-x64-26.2.2\opengl32.dll" kann nicht gelesen werden: Die 
+Dateigröße überschreitet die maximal zulässige Größe und kann nicht gespeichert werden.
+.
+In Z:\offline-windows\smoke-x64.ps1:32 Zeichen:18
++ ...        if ((Get-FileHash -LiteralPath $library -Algorithm SHA256).Has ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ReadError: (Z:\offline-wind....2\opengl32.dll:PSObject) [Write-Error], WriteErrorExcepti 
+   on
+    + FullyQualifiedErrorId : FileReadError,Get-FileHash
+ 
+

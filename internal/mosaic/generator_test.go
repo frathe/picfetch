@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -1177,20 +1178,34 @@ func BenchmarkMosaicGeneration(b *testing.B) {
 		target image.Point
 	}{{"1080p", image.Pt(1920, 1080)}, {"4k", image.Pt(3840, 2160)}} {
 		b.Run(size.name, func(b *testing.B) {
-			g := New()
-			g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
-				return &loadedSource{pixels: pixels, bounds: pixels.Bounds()}, nil
-			}
-			request, err := NewRequest([]fyne.URI{storage.NewFileURI("fixture.png")}, size.target, DefaultSettings(), 42)
-			if err != nil {
-				b.Fatal(err)
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for b.Loop() {
-				if _, err := g.Generate(context.Background(), request); err != nil {
-					b.Fatal(err)
-				}
+			for _, preview := range []bool{false, true} {
+				b.Run(fmt.Sprintf("preview=%v", preview), func(b *testing.B) {
+					g := New()
+					g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+						return &loadedSource{pixels: pixels, bounds: pixels.Bounds()}, nil
+					}
+					request, err := NewRequest([]fyne.URI{storage.NewFileURI("fixture.png")}, size.target, DefaultSettings(), 42)
+					if err != nil {
+						b.Fatal(err)
+					}
+					previews := 0
+					var report func(Progress)
+					if preview {
+						report = func(p Progress) {
+							if p.Preview != nil {
+								previews++
+							}
+						}
+					}
+					b.ReportAllocs()
+					b.ResetTimer()
+					for b.Loop() {
+						if _, err := g.GenerateWithProgress(context.Background(), request, report); err != nil {
+							b.Fatal(err)
+						}
+					}
+					b.ReportMetric(float64(previews)/float64(b.N), "previews/op")
+				})
 			}
 		})
 	}
@@ -1239,6 +1254,67 @@ func TestGenerate_Progress(t *testing.T) {
 		if p.TotalPixels != total || p.CoveredPixels < 0 || p.CoveredPixels > total || i > 0 && p.CoveredPixels <= updates[i-1].CoveredPixels {
 			t.Fatalf("invalid progress update %d: %+v", i, p)
 		}
+	}
+}
+
+func TestGenerate_LivePreview(t *testing.T) {
+	uri := mosaicPNG(t, "preview.png", 12, 8, func(x, y int) color.NRGBA {
+		return color.NRGBA{R: uint8(x * 15), G: uint8(y * 20), B: 180, A: 255}
+	})
+	request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), DefaultSettings(), 987)
+	g := New()
+	want, err := g.Generate(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(100, 0)
+	g.previewClock = func() time.Time { now = now.Add(100 * time.Millisecond); return now }
+	copyPixels := func(source image.Image) []byte {
+		pixels := image.NewNRGBA(source.Bounds())
+		draw.Draw(pixels, pixels.Bounds(), source, source.Bounds().Min, draw.Src)
+		return pixels.Pix
+	}
+	var snapshots []image.Image
+	var saved [][]byte
+	var published time.Time
+	got, err := g.GenerateWithProgress(t.Context(), request, func(p Progress) {
+		if p.Preview == nil {
+			return
+		}
+		if p.CoveredPixels <= 0 || p.CoveredPixels >= p.TotalPixels {
+			t.Fatalf("preview did not arrive during generation: %+v", p)
+		}
+		if !published.IsZero() && now.Sub(published) < 250*time.Millisecond {
+			t.Fatalf("preview cadence too fast: %v", now.Sub(published))
+		}
+		published = now
+		pixels := p.Preview
+		if pixels.Bounds() != image.Rect(0, 0, 83, 47) {
+			t.Fatalf("preview bounds = %v", pixels.Bounds())
+		}
+		snapshots = append(snapshots, pixels)
+		saved = append(saved, copyPixels(pixels))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshots) < 2 {
+		t.Fatalf("got %d live snapshots, want progressive updates", len(snapshots))
+	}
+	if bytes.Equal(saved[0], saved[len(saved)-1]) {
+		t.Fatal("live canvas did not change as photos were added")
+	}
+	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+		t.Fatal("live preview changed final output")
+	}
+	for i, pixels := range snapshots {
+		if !bytes.Equal(copyPixels(pixels), saved[i]) {
+			t.Fatalf("published snapshot %d was mutated", i)
+		}
+	}
+	draw.Draw(snapshots[0].(draw.Image), snapshots[0].Bounds(), image.Transparent, image.Point{}, draw.Src)
+	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+		t.Fatal("preview aliases final pixels")
 	}
 }
 
@@ -1323,5 +1399,43 @@ func TestRenderPlacement_CancelsDuringBoundedSampling(t *testing.T) {
 	}
 	if sampled.samples > pixels.Rect.Dx() {
 		t.Fatalf("read %d samples after cancellation, want at most one source row", sampled.samples)
+	}
+}
+
+func TestPreviewComposite_LayersAndBoundedSize(t *testing.T) {
+	for _, size := range []struct{ source, want image.Point }{
+		{image.Pt(32, 18), image.Pt(32, 18)},
+		{image.Pt(1920, 1080), image.Pt(960, 540)},
+		{image.Pt(1080, 1920), image.Pt(540, 960)},
+		{image.Pt(1, 3000), image.Pt(1, 960)},
+	} {
+		t.Run(fmt.Sprint(size.source), func(t *testing.T) {
+			bounds := image.Rectangle{Min: image.Pt(7, 11), Max: image.Pt(7+size.source.X, 11+size.source.Y)}
+			background, primary := image.NewNRGBA(bounds), image.NewNRGBA(bounds)
+			fillNRGBA(background, color.NRGBA{B: 255, A: 255})
+			fillNRGBA(primary, color.NRGBA{R: 255, A: 128})
+			got := previewComposite(background, primary)
+			if got.Bounds() != (image.Rectangle{Max: size.want}) {
+				t.Fatalf("preview bounds = %v, want %v", got.Bounds(), size.want)
+			}
+			for y := range size.want.Y {
+				for x := range size.want.X {
+					if pixel := color.RGBAModel.Convert(got.At(x, y)); pixel != (color.RGBA{R: 128, B: 127, A: 255}) {
+						t.Fatalf("preview at %d,%d = %v: layers are out of order or missing", x, y, pixel)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestPreviewComposite_BoundedAllocations(t *testing.T) {
+	background := image.NewNRGBA(image.Rect(0, 0, 1200, 800))
+	primary := image.NewNRGBA(background.Bounds())
+	fillNRGBA(background, color.NRGBA{B: 255, A: 255})
+	fillNRGBA(primary, color.NRGBA{R: 255, A: 128})
+	allocs := testing.AllocsPerRun(2, func() { _ = previewComposite(background, primary) })
+	if allocs > 32 {
+		t.Fatalf("preview allocated %.0f objects; expected fixed snapshot storage, not per-pixel allocations", allocs)
 	}
 }

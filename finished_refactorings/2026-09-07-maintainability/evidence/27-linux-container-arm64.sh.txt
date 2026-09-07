@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+mkdir /results/arm64-r2
+export DISPLAY=:99 LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+export XDG_CONFIG_HOME=/results/arm64-r2/config XDG_CACHE_HOME=/results/arm64-r2/cache
+export XDG_RUNTIME_DIR=/tmp/picfetch-runtime-arm64-r2
+mkdir -m 700 "$XDG_RUNTIME_DIR"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+cd /results/arm64-r2
+set +e
+dbus-run-session -- /input/picfetch-linux-arm64 /fixtures/01-alpha.png /fixtures/02-beta.png > process.txt 2>&1
+status=$?
+printf '%s\n' "$status" > exit.txt
+exit "$status"

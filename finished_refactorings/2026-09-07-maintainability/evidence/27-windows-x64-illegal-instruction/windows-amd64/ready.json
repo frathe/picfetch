@@ -1,0 +1,8 @@
+﻿{
+    "Package":  "windows-amd64",
+    "ProcessID":  5976,
+    "WindowDPI":  96,
+    "SHA256":  "B3F9D1947E1A4A81FB2E49D482224E93BDE3652F956C81836E3D666DB3FB26D6",
+    "RuntimeSHA256":  "184b6f374d06a195c07ac458638697b42209ebf31d5a6f08cd269a7165f90d45",
+    "Runtime":  "llvmpipe (software OpenGL)"
+}

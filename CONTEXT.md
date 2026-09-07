@@ -68,3 +68,7 @@ _Avoid_: Strip, remove, sanitize, metadata removal
 The longest-edge ceiling applied to an exported copy. A photo already inside
 the ceiling is exported at its own size, never enlarged to meet it.
 _Avoid_: Resize, max dimension, scale, downsample
+
+**Microsoft Store edition**:
+The edition of PicFetch installed and updated through Microsoft Store.
+_Avoid_: Windows edition (PicFetch also has portable Windows downloads)

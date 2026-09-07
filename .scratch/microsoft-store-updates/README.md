@@ -1,0 +1,89 @@
+# Microsoft Store update tickets
+
+Source: [Automatic Microsoft Store updates](spec.md).
+Ticket status: ready-for-agent; all work and acceptance checks remain open.
+
+These are complete, verifiable slices of the Store release flow. The parent
+spec and its proposed defaults remain authoritative. No standalone prefactoring
+ticket is needed: the first code slice introduces the publishing command at the
+existing repository-tooling boundary.
+
+## Breakdown and dependencies
+
+| Ticket | Blocked by | What it delivers |
+| --- | --- | --- |
+| [01: Configure Store access and prove read-only connectivity](issues/01-configure-store-access.md) | None | Configured automation identity and a read-only product check from CI. |
+| [02: Preview a validated release with generated Store notes](issues/02-preview-validated-store-release.md) | None | Validated candidate, generated notes and metadata preview without Store mutation. |
+| [03: Submit one validated update and report its Store state](issues/03-submit-validated-update.md) | 02 | One complete authenticated upload and certification submission through the command. |
+| [04: Recover interrupted submissions without creating duplicates](issues/04-recover-interrupted-submissions.md) | 03 | Recovery across interruptions and reruns without duplicate or guessed mutations. |
+| [05: Track publication and advance the newest waiting release](issues/05-reconcile-publication-and-waiting-releases.md) | 04 | Publication tracking and automatic selection of the newest waiting release. |
+| [06: Enable unattended CI updates and verify the first publication](issues/06-enable-unattended-store-release-workflow.md) | 01, 05 | Unattended tag-to-Store CI flow, final verification and first live publication evidence. |
+
+**Starting frontier:** 01 and 02. The code path is 02 -> 03 -> 04 -> 05;
+06 needs both completed account setup (01) and completed reconciliation (05).
+Ticket 03 deliberately does not depend on live credentials: fake services make
+its complete command path testable. Account provisioning must not hold up the
+offline implementation.
+
+Dependency independence is not permission for conflicting edits. The lead records
+the command contract, client/authentication choices, receipt/snapshot shape and
+durable-storage/retention decisions in the required SDD plan before parallel
+implementation would rely on them. The lead owns architecture, review, fixes
+and the final gate under the repository's working agreement.
+
+## Scope and activation
+
+- Carry forward the spec's proposed stable-tag trigger, existing-note source,
+  English notes across current listing locales and newest-waiting-version policy.
+  Ticket creation does not turn those defaults into user-confirmed decisions.
+- Account setup is an operational slice; preview and submission are complete
+  command paths; recovery and reconciliation each add a demonstrated release
+  scenario. Tests and diagnostics are included with the behavior they establish.
+- Automatic production triggers are connected only in 06 after the complete
+  flow is implemented. This implementation sequence adds no per-release approval.
+- The next normal stable release supplies live publication evidence. No ticket
+  authorizes manufacturing a release or resubmitting already-live 1.0.2 to test.
+
+## Coverage
+
+| Spec criterion | Owning tickets |
+| --- | --- |
+| AC1: candidate admission | 02; workflow enforcement in 06 |
+| AC2: generated notes | 02; skipped-release integration in 05 |
+| AC3: bundle submission and metadata | 03 |
+| AC4: interrupted-run recovery | 04 |
+| AC5: competing and waiting releases | 05; production scheduling in 06 |
+| AC6: accurate states, failures and retries | 03, 04, 05 |
+| AC7: read-only preview and connectivity | 02, 03; actual account evidence in 01 and 06 |
+| AC8: workflow boundaries | 06 |
+| AC9: regression coverage | 02, 03 and final integration in 06 |
+| AC10: complete repository gate | 06 |
+| Live access and eventual Published state | 01 and 06 |
+
+User stories US1-US23 are mapped in each ticket. Later tickets extend the same
+command-level test groups rather than creating parallel testing seams.
+
+## Verification and completion
+
+Each acceptance criterion carries its verification command or live-evidence
+procedure. Placeholder run identifiers refer to actual future CI runs. Named
+publisher commands and tests are implementation requirements, not existing or
+already-passing checks. A command with no matching test scenarios does not prove
+acceptance; retain evidence that each required scenario executed.
+
+Use focused tests while implementing each slice, and negatively verify guards.
+Register new test files with Qodana and new packages in the architecture map.
+Run the complete `make verify` gate once after integration in 06. Remote
+environment rules, CI credential access and Store publication require actual
+remote evidence; fake-service tests do not establish those facts.
+
+Append progress and evidence under each ticket's Comments. Keep unresolved
+external setup or live-release criteria open and report the specific missing
+evidence. Do not close or change the parent spec as a side effect of ticket work.
+
+## Creation checks
+
+Ticket creation changes documentation only. Validate local links, dependency
+ordering and acyclicity, story/acceptance coverage, ticket status, unchecked
+criteria and unchanged parent-spec content. No application tests, live API
+calls, release command or git commit are required to publish these local tickets.

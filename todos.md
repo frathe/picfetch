@@ -10,8 +10,9 @@
 
 Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX bundle, make the Store build defer updates to
 Microsoft Store, retain the portable GitHub/WinGet channel, validate on Windows with WACK, prepare the English/German
-listing and privacy policy, then submit it for certification. Implementation plan:
-`plans/2026-09-03-microsoft-store-msix.md`.
+listing and privacy policy, then submit it for certification. The user confirmed on 2026-09-07 that certification
+succeeded and version 1.0.2 is available in Microsoft Store. Completed implementation plan:
+`finished_refactorings/2026-09-03-microsoft-store-msix.md`.
 
 ##### **Export options (Cmd/Ctrl+E)**
 
@@ -56,6 +57,9 @@ app configured. Launching from Finder still works as before.
 ##### **Mosaic generation progress**
 
 Image mosaics now show a progress bar with the percentage of canvas covered.
+The live canvas fills as photos are added, with preview updates capped at four
+per second. Cancel and failed regeneration restore the last finished mosaic;
+Save Image and Set as Wallpaper use completed results only.
 Cancellation, regeneration and reopening the window discard obsolete updates.
 The memory-bounded renderer reuses horizontal filtering and source-row conversion
 while preserving Catmull-Rom quality, frames, shadows and output resolution.
@@ -87,6 +91,12 @@ while preserving Catmull-Rom quality, frames, shadows and output resolution.
   mutation error-result assertions and the clipboard helper's existing file cleanup.
 
 ## TODO
+
+### Animate Trane on the welcome screen
+
+Replace the static welcome art with the existing Trane pet: gentle idle, a random
+action every ten seconds, and pointer gaze. Work and verification:
+`plans/2026-09-07-animated-trane.md`.
 
 ### Investigate the intermittent UI shard 3 package failure
 
@@ -132,58 +142,19 @@ results. Continue non-Windows validation independently.
 
 ### Automate Microsoft Store updates after the initial publication
 
-Do this only after the first PicFetch submission has passed certification and the product is published and live. The
-current `Microsoft Store package`
-workflow deliberately stops after building and validating the x64/ARM64 MSIX bundle and uploading it as a GitHub Actions
-artifact; downloading the artifact, uploading it to Partner Center, and submitting it for certification are still manual
-steps.
+Initial publication is complete: the user confirmed on 2026-09-07 that version 1.0.2 is available in Microsoft Store.
+The current workflow still ends after uploading the WACK-validated x64/ARM64 bundle as a GitHub Actions artifact.
 
-The intended end state is a protected GitHub Actions deployment that takes the already WACK-validated
-`picfetch-microsoft-store.msixbundle`, uploads it to the existing Partner Center product (`9P0DM0KTH01K`), submits the
-package update for certification, and reports the resulting submission status. Keep the existing Store listings and
-other metadata unchanged unless a release explicitly ships metadata changes. A tag must never bypass the existing CI,
-package validation, or WACK gates.
+Automate generation of the Store change notes, upload of that exact validated bundle to existing product
+`9P0DM0KTH01K`, submission for certification, and publication after certification, without a human action for each
+update. This request supersedes the earlier proposed human deployment approval and package-only scope. Preserve
+existing CI, MakeAppx and WACK gates; protect automation credentials without introducing a per-update approval step.
 
-Potential ticket split:
-
-1. **Provision least-privilege Partner Center automation credentials.**
-    - Confirm that the initial product is published, live, free, and eligible for Microsoft Store Developer CLI update
-      automation.
-    - Associate a Microsoft Entra tenant with Partner Center, register a dedicated automation application, add it to
-      Partner Center with the minimum role that can manage submissions, and record its tenant ID, client ID, seller ID,
-      and product ID.
-    - Decide whether Microsoft's current tooling supports short-lived/OIDC authentication. If it still requires a client
-      secret, store that secret only in a protected GitHub environment, document its expiry and rotation, and never
-      write it to repository files or workflow logs.
-2. **Add a read-only Store connectivity check.**
-    - Install the official `microsoft/microsoft-store-apppublisher` action and configure the `msstore` CLI from GitHub
-      secrets.
-    - Add a manually triggered diagnostic job that reads PicFetch's product or current submission status without
-      creating, changing, or publishing a submission. Give authentication failures actionable error messages.
-3. **Automate package-only update submission.**
-    - Extend `.github/workflows/microsoft-store.yml` after the package/WACK job, using the exact bundle produced and
-      validated by that run rather than a separately rebuilt or downloaded file.
-    - Upload the bundle to the existing product and create/submit an update while preserving the existing availability,
-      properties, age rating, listings, screenshots, and restricted-capability explanation.
-    - Poll Partner Center until it returns a stable accepted, failed, or certification-in-progress state; surface the
-      submission ID and Partner Center status in the Actions summary.
-4. **Protect and test the deployment boundary.**
-    - Put the mutating Store step behind a dedicated protected GitHub environment with required human approval. Tag
-      creation may build and validate automatically, but it must not upload or submit before that approval.
-    - Add workflow contract tests for job dependencies, product ID, artifact identity, secret names, and the approval
-      environment. Ensure pull requests, forks, prerelease tags, reruns of old commits, and ordinary branch pushes
-      cannot publish Store updates.
-    - Exercise one manual dry run/read-only check first, then submit the first automated update under supervision and
-      record rollback/retry instructions.
-5. **Document the release and recovery procedure.**
-    - Update `docs/microsoft-store.md` with the normal automated path, credential rotation, how to inspect certification
-      failures, how to retry the same release safely, and how to fall back to the current manual upload process.
-    - Keep Store metadata automation out of the first iteration. If automated listing or screenshot updates are later
-      needed, design them as a separate reviewed workflow using exported Partner Center metadata as the baseline.
-
-Acceptance should require that a release tag still produces a usable artifact when Store credentials or approval are
-unavailable, that no Store mutation can happen before approval, and that an approved run submits exactly one package
-version and exposes enough status to distinguish upload, validation, certification, and publication failures.
+Implementation spec (`ready-for-agent`): `.scratch/microsoft-store-updates/spec.md`.
+The spec marks synthesized policy defaults explicitly: stable-tag releases, notes derived from existing release
+notes, English text across existing listing languages, and the newest waiting version after an active submission.
+It includes command-boundary acceptance tests, metadata preservation, retry/reconciliation, and setup requirements.
+API credential availability and live Partner Center state remain to be checked. Implementation has not started.
 
 ## LATER
 

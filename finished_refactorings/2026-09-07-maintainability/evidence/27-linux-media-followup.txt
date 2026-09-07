@@ -1,0 +1,9 @@
+Refreshed Linux ARM64 smoke media, 2026-09-07
+Ubuntu was confirmed stopped before replacing its temporary smoke ISO.
+Mounted path: /private/tmp/picfetch-maintainability-linux.iso
+Previous temporary ISO retained at: /private/tmp/picfetch-maintainability-linux-before-xdg.iso
+ISO SHA256: f85f938d86839dbb5bf5a1eeb86147918f5ced63517bdcae09e2be1265a50431
+Executable SHA256: 8e268fe7ca23ef76b1b09d08805bb86e88e43e181f67f57164fd49fb81e9abe0
+Label: PICFETCH_SMOKE
+Launcher: sh /media/<guest-user>/PICFETCH_SMOKE/run.sh
+No native Linux launch performed yet.
