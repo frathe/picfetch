@@ -47,7 +47,7 @@ func (f fixedHeightLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 type dropzoneUI struct {
 	hint          *widget.Label
 	restoreLink   *widget.Hyperlink
-	welcomeArt    *canvas.Image
+	welcomeArt    *tranePet
 	emptyStateArt *canvas.Image
 	art           *widgets.TappableArea
 	root          *fyne.Container
@@ -75,16 +75,13 @@ func newDropzoneUI(onOpen, onRestore func()) dropzoneUI {
 	restoreLink.Hide()
 	restoreLink.OnTapped = onRestore
 
-	// welcomeArt greets the user on first launch; handleDrop hides it for
-	// good the moment the first drop happens. emptyStateArt is shown only
+	// welcomeArt greets the user on first launch; handleDrop hides it
+	// the moment the first drop happens. emptyStateArt is shown only
 	// once an error subsequently leaves the drop zone empty (see ShowToast
 	// call sites in drop.go/load.go). Both share one min size so they occupy
-	// the exact same box on the right of the drop zone, and ImageFillContain
-	// scales their (much larger) source art down to fit inside it.
-	welcomeArt := canvas.NewImageFromResource(fyne.NewStaticResource("welcome.webp", assets.WelcomeWebP))
-	welcomeArt.FillMode = canvas.ImageFillContain
-	welcomeArt.ScaleMode = canvas.ImageScaleSmooth
-	welcomeArt.SetMinSize(fyne.NewSize(widgets.WelcomeArtSize, widgets.WelcomeArtSize))
+	// the same box on the right of the drop zone; ImageFillContain scales
+	// the pet's individual cells and the error illustration into that box.
+	welcomeArt := newTranePet()
 
 	emptyStateArt := canvas.NewImageFromResource(fyne.NewStaticResource("placeholder.webp", assets.PlaceholderWebP))
 	emptyStateArt.FillMode = canvas.ImageFillContain
@@ -100,11 +97,13 @@ func newDropzoneUI(onOpen, onRestore func()) dropzoneUI {
 	art := widgets.NewTappableArea(container.NewBorder(nil, nil, nil,
 		container.NewStack(welcomeArt, emptyStateArt),
 		container.NewCenter(container.NewVBox(hint, restoreLink))), onOpen)
+	art.OnPointer = welcomeArt.lookAt
 	art.OnHover = func(hovering bool) {
 		if hovering {
 			border.StrokeColor = widgets.DropzoneHoverColor
 		} else {
 			border.StrokeColor = widgets.DropzoneBorderColor
+			welcomeArt.forgetPointer()
 		}
 		border.Refresh()
 	}

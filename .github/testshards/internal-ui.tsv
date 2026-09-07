@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 212 entries, 326.750s baseline median-weight sum
+# ui-1: 216 entries, 326.750s baseline median-weight sum
 # ui-2: 225 entries, 327.070s median-weight sum
 # ui-3: 230 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 100 tests assigned across the baseline shards
+# post-baseline additions: 104 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -197,6 +197,10 @@ TestSyncWindowToZoom_ZoomInGrowsWindow	ui-1
 TestThemeMode_RestoresAppliesLiveAndPersists	ui-1
 TestToggleInfoOverlay_HiddenUntilAnImageIsLoaded	ui-1
 TestTogglePictureFrameMode_ExitResetsFade	ui-1
+TestTraneCleansPinkFringe	ui-1
+TestTraneFollowsCursor	ui-1
+TestTraneOnlyMovesForPointer	ui-1
+TestTraneWelcomeUsesPet	ui-1
 TestTranslationsHaveNoUnicodeArrows	ui-1
 TestUpdateCheck_RestoredTodayDoesNotCheck	ui-1
 TestUpdateCheck_TurningOffInvalidatesInFlight	ui-1

@@ -283,6 +283,7 @@ func (v *viewer) presentLoadedImage() {
 	}
 	v.img.Show()
 	v.dropzone.Hide()
+	v.welcomeArt.Hide()
 	v.emptyStateArt.Hide()
 }
 

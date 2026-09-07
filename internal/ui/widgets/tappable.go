@@ -22,6 +22,10 @@ type TappableArea struct {
 	// easy to miss on a target this large, and doesn't exist at all on a
 	// touch or trackpad-only setup.
 	OnHover func(hovering bool)
+
+	// OnPointer receives window-content coordinates while the pointer is
+	// known. The caller can forget it when OnHover reports MouseOut.
+	OnPointer func(fyne.Position)
 }
 
 // NewTappableArea returns content wrapped so taps on it call onTapped.
@@ -48,13 +52,18 @@ func (t *TappableArea) Cursor() desktop.Cursor {
 
 // MouseIn implements desktop.Hoverable, as do MouseMoved and
 // MouseOut below.
-func (t *TappableArea) MouseIn(_ *desktop.MouseEvent) {
+func (t *TappableArea) MouseIn(event *desktop.MouseEvent) {
 	if t.OnHover != nil {
 		t.OnHover(true)
 	}
+	t.MouseMoved(event)
 }
 
-func (t *TappableArea) MouseMoved(_ *desktop.MouseEvent) {}
+func (t *TappableArea) MouseMoved(event *desktop.MouseEvent) {
+	if t.OnPointer != nil {
+		t.OnPointer(event.AbsolutePosition)
+	}
+}
 
 func (t *TappableArea) MouseOut() {
 	if t.OnHover != nil {

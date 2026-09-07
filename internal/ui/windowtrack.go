@@ -30,7 +30,7 @@ import (
 // deliberately leaves free for the e2e test suite's own close-tracking (see
 // newE2E in e2e_test.go) rather than claiming it here too.
 func windowSizeTracker(v *viewer, win fyne.Window) fyne.Layout {
-	return widgets.NewSizeTracker(win, &v.windowSize)
+	return welcomeLayout{base: widgets.NewSizeTracker(win, &v.windowSize), pet: v.welcomeArt}
 }
 
 // noPollerStop marks the construction-time state before Run starts runtime

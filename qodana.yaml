@@ -239,6 +239,7 @@ exclude:
       - "internal/ui/state_test.go"
       - "internal/ui/staticsize_test.go"
       - "internal/ui/step_test.go"
+      - "internal/ui/trane_test.go"
       - "internal/ui/translations_test.go"
       - "internal/ui/vector_test.go"
       - "internal/ui/visibility_test.go"

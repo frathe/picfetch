@@ -6,6 +6,12 @@
 
 #### New Features
 
+##### **Trane follows your cursor**
+
+Trane now turns his head toward the mouse on the welcome screen and returns to
+a neutral pose when the pointer leaves. He stays still between pointer movements.
+Pink fringe along the artwork's transparent outline has been cleaned up.
+
 ### Publish PicFetch in Microsoft Store
 
 Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX bundle, make the Store build defer updates to
@@ -92,12 +98,6 @@ while preserving Catmull-Rom quality, frames, shadows and output resolution.
 
 ## TODO
 
-### Animate Trane on the welcome screen
-
-Replace the static welcome art with the existing Trane pet: gentle idle, a random
-action every ten seconds, and pointer gaze. Work and verification:
-`plans/2026-09-07-animated-trane.md`.
-
 ### Investigate the intermittent UI shard 3 package failure
 
 The 2026-09-07 Qodana cleanup's `make verify` run reported a package-level failure
@@ -111,6 +111,10 @@ captured Docker OOM events for UI shard 3; a 1 GiB Go memory target did not prev
 the latter. The same shard passes alone. Retain the original-run uncertainty,
 but investigate Docker's overall memory pressure for this reproduced failure.
 Latest evidence: `plans/2026-09-07-mosaic-speed-progress.md`.
+
+The Trane verification on 2026-09-07 also captured a Docker OOM, this time killing
+`internal/ui/compare` while all three main-UI shards passed. Logs and the isolated
+retry are recorded in `finished_refactorings/2026-09-07-animated-trane.md`.
 
 
 ### Address the 2026-09-06 maintainability audit

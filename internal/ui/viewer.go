@@ -77,7 +77,7 @@ type viewer struct {
 	// emptyStateArt. handleDrop hides it on the first drop, so a later
 	// error shows emptyStateArt there instead; reset (Escape) brings it
 	// back, since that returns the viewer to its just-launched state.
-	welcomeArt *canvas.Image
+	welcomeArt *tranePet
 
 	// emptyStateArt is shown alongside the hint, on the right of the drop
 	// zone, only while an error has left it with no images to display.
