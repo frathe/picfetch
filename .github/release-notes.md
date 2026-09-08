@@ -2,34 +2,66 @@
 
 ### New Features
 
-- "Reveal in file manager" opens the current image's folder with the file
-  already selected, from Actions (`Cmd/Ctrl+R`), or from a link in the info
-  overlay (`I`). macOS uses `open -R`, Windows `explorer.exe /select,`, and
-  Linux the freedesktop `org.freedesktop.FileManager1.ShowItems` D-Bus call
-  that Nautilus, Dolphin, Nemo, Thunar and PCManFM answer, falling back to
-  `xdg-open` on the folder where nothing implements it. Always acts on the
-  file on screen, never on the grid selection.
+#### **Trane follows your cursor**
 
-### Bugfix
+Trane now turns his head to follow your mouse on the welcome screen and looks ahead again when you move away. His artwork also has a cleaner outline.
 
-- Windows packaging warms the Go toolchain as the same user as fyne-cross,
-  preventing root-owned module cache failures on fresh release runners.
+#### **PicFetch is now in Microsoft Store**
 
-- On Linux the mosaic functionality now can set the generated mosaic as wallpaper.
-  Tested on Ubuntu 24.04.4 LTS
+PicFetch 1.0.2 is now available in Microsoft Store for x64 and ARM64 Windows PCs, with updates delivered through the Store.
 
-### Internal
+The portable version is still available through GitHub and WinGet.
 
-- Pin `internal/update`'s two P0 recovery behaviors: `Apply` restores the
-  original binary and `Info.plist` when the plist backup fails after the
-  executable swap has completed, and `Client.Download` refuses release archives
-  carrying ZIP symlink, TAR symlink, or TAR hard link entries without leaving a
-  loadable stage or writing outside the stage directory.
-- Synchronize the EXIF tile callback test with callback completion, so it waits
-  on the `onChange` report itself instead of the pending counter that `release`
-  clears just before calling back.
-- Complete the full Linux race verification, including the Finis companion.
-- Recover v1.0.1 with all six platform archives and signed Windows builds,
-  preserving its tag, then restore the normal tag-triggered release workflow.
+#### **More control over exports (Cmd/Ctrl+E)**
 
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.1...v1.0.2
+Two new options let you choose what goes into your exported picture:
+
+- **Export size limit** — Keep the original size or reduce the longest side to 2400, 1600 or 1000 pixels. Pictures keep their proportions and are never enlarged. The Original option shows the picture’s current dimensions.
+- **Include camera metadata (JPEG only)** — Turn this off to export a copy without camera metadata. Your original file stays unchanged.
+
+Use Up/Down to move between the options. Each time you open the export dialog, it starts with the default settings.
+
+For resized exports, the suggested filename and confirmation message make it clear that you saved a smaller copy.
+
+#### **Exported JPEGs report the correct dimensions**
+
+JPEGs saved with camera metadata now report their correct size after resizing or rotation, helping other apps display accurate picture information.
+
+Subject-position information that no longer matches the picture is removed. Camera details and print resolution are preserved.
+
+#### **New startup options**
+
+You can now start PicFetch with a slideshow, shuffle, custom slide timing and other options from the command line—useful for scripts and picture-frame setups:
+
+```text
+--slideshow
+--shuffle
+--interval=8s
+--sort=name|date|modified|size|drop
+--merge
+--max-files=N
+--help
+```
+
+Place options before or after file paths, and use `--help` for details. Unrecognized options show an error and prevent startup.
+
+These options apply only to the current session. Your saved settings and the way you open PicFetch from Finder stay unchanged.
+
+#### **Watch your mosaic take shape**
+
+See your mosaic appear as it is generated, with a progress bar showing how much of the canvas is filled.
+
+If you cancel or something goes wrong, PicFetch restores your last completed mosaic. Saving or setting wallpaper always uses a completed result.
+
+Mosaic generation also runs more efficiently while preserving image quality, frames, shadows and output resolution.
+
+### Bug Fixes
+
+- **Deleted images stay deleted.** Moving an image to Trash now waits for any save in progress, so saving cannot accidentally bring the file back.
+- **Exports refresh correctly.** Overwriting the current image now updates the view even if the filename uses different capitalization.
+- **Slideshow navigation is more predictable.** Moving to another picture manually prevents a pending timed advance from immediately skipping ahead. Cancelling a slideshow started from the command line also prevents unrelated pictures opened later from starting one.
+- **Hide Duplicates stays reliable after sorting.** Navigation and slideshows continue to skip duplicate copies.
+- **Exports avoid unexpected overwrites.** PicFetch now blocks exporting directly to a symbolic link, protecting the file it points to.
+- **Rotation works correctly during saving.** Rotations made while a save is in progress are tracked correctly. Pressing `0` returns to the saved image, and Save Changes is available only when a rotation remains unsaved.
+
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.2...v1.0.3
