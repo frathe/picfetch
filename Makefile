@@ -16,6 +16,11 @@ GOIMPORTS_LOCAL := github.com/frathe/picfetch
 # go test's default 10m per-package timeout is no longer enough.
 TEST_TIMEOUT := 30m
 TEST_IMAGE := ubuntu:24.04
+# Public ubuntu-24.04 GitHub runners have 16 GiB RAM:
+# https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+# Keep RAM + swap at that same ceiling for a fixed container memory budget.
+# Docker Desktop needs more than this allocated to leave room for its VM.
+TEST_MEMORY_GIB := 16
 TEST_CONTAINER_LABEL := io.github.frathe.picfetch.test=true
 TEST_RACE :=
 TEST_RACE_FLAGS := -race -count=1 -timeout $(TEST_TIMEOUT)
@@ -129,8 +134,22 @@ check-qodana-test-exclusions: ## Fail if qodana.yaml does not exclude every *_te
 vet: ## Run go vet
 	go vet ./...
 
+.PHONY: check-test-memory
+check-test-memory: ## Require enough Docker VM memory for the CI-sized test container
+	@set -eu; \
+	required=$$(( $(TEST_MEMORY_GIB) * 1024 * 1024 * 1024 )); \
+	available=$$(docker info --format '{{.MemTotal}}'); \
+	if [ "$$available" -lt "$$required" ]; then \
+		printf 'Docker exposes %s bytes; tests require %s GiB (%s bytes).\n' "$$available" "$(TEST_MEMORY_GIB)" "$$required" >&2; \
+		echo 'Increase Docker Desktop Settings > Resources > Memory, leaving room for VM overhead, then retry.' >&2; \
+		exit 1; \
+	fi
+
+check-test-shards test coverage test-race golden: check-test-memory
+
 check-test-shards: ## Validate the UI shard manifest against the live Linux/amd64 test inventory
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -138,7 +157,7 @@ check-test-shards: ## Validate the UI shard manifest against the live Linux/amd6
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
 			make --no-print-directory check-test-shards-direct \
 		'
 
@@ -190,6 +209,7 @@ update-test-image: ## Pull the latest Linux/amd64 Ubuntu image used by Docker te
 
 test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (needs Docker)
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -198,7 +218,7 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
 			locale-gen en_US.UTF-8 >/dev/null; \
 			export LANG=en_US.UTF-8; \
 			status=0; \
@@ -210,6 +230,7 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 coverage: ## Generate HTML source-line coverage from the full unsharded Docker suite
 	mkdir -p "$(COVERAGE_DIR)"
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -218,7 +239,7 @@ coverage: ## Generate HTML source-line coverage from the full unsharded Docker s
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
 			locale-gen $(TEST_LOCALE) >/dev/null; \
 			export LANG=$(TEST_LOCALE); \
 			rm -f "$(COVERAGE_PROFILE)" "$(COVERAGE_HTML)"; \
@@ -273,6 +294,7 @@ test-native: ## Run tests directly on the current OS/architecture
 
 test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Docker container
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -281,7 +303,7 @@ test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Do
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
 			locale-gen $(TEST_LOCALE) >/dev/null; \
 			status=0; \
 			make --no-print-directory test-race-direct || status=$$?; \
@@ -304,12 +326,13 @@ golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64,
 	@# result is never machine-dependent. See CONTRIBUTING.md for the full
 	@# accept-a-new-master workflow.
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		-v "$(CURDIR):/work" -w /work \
 		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
 			go test -run TestE2E ./internal/ui/... -v || true; \
 			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi \
 		'

@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 218 entries, 326.750s baseline median-weight sum
+# ui-1: 221 entries, 326.750s baseline median-weight sum
 # ui-2: 227 entries, 327.070s median-weight sum
 # ui-3: 230 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 108 tests assigned across the baseline shards
+# post-baseline additions: 111 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -95,7 +95,10 @@ TestExportAs_SizeLimitCapsTheWrittenFile	ui-1
 TestExportAs_SuggestedNameCarriesTheAppliedSize	ui-1
 TestExportAs_ToastReportsASizeOnlyWhenOneApplied	ui-1
 TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking	ui-1
+TestExportUnrelatedDestinationPreservesDerivedState	ui-1
 TestFavoriteShortcutOpensStoredFilesThroughViewer	ui-1
+TestFileMutationInvalidatesNoncurrentLoadedAlias	ui-1
+TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery	ui-1
 TestFinishLoad_PreloadsBothNeighbors	ui-1
 TestGenerationTracksFileSetIdentityNotNavigation	ui-1
 TestGlobalFavoriteShortcutOpensStoredFilesThroughViewer	ui-1

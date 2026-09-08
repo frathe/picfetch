@@ -291,8 +291,13 @@ func (g *Overview) DuplicateDistanceChanged() {
 		return
 	}
 	g.resumeWork()
+	if g.dupes.HideDuplicates() || g.browseHost >= 0 {
+		_ = g.hashRemaining()
+	}
 	if g.browseHost >= 0 {
-		g.finishBrowse()
+		if g.hashes.hashJobs.Load() == 0 {
+			g.finishBrowse()
+		}
 	} else {
 		g.applyFilter()
 	}

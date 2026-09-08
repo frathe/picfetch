@@ -62,8 +62,8 @@ callers allocate fresh private staging directories; archive-controlled traversal
 was not demonstrated. Planted existing output files/symlinks did get overwritten
 at the helper boundary: six negative cases reproduced it. Extraction now writes
 only fixed trusted names and uses exclusive creation with checked write/close
-results. No alert suppression was added. Fresh CodeQL results must confirm the
-updated head; successful analyzer workflow execution alone is insufficient.
+results. No alert suppression was added. The follow-up read of alert 4 marks
+its PR instance fixed; see the exact-head remote evidence below.
 
 Qodana artifact 10035780612 from run 34171123071 names source head `d306654` in its
 SARIF provenance. Its post-suppression result set contains 37 findings:
@@ -105,11 +105,12 @@ Integrator checks before the final full gate:
   Neither overrides CodeQL or certifies later edits. The summary's older export
   symlink advisory refers to the already-fixed earlier finding, not alert 4.
 
-The final `make verify` completed successfully on the integrated working tree:
+The original review’s final `make verify` passed on its integrated working tree:
 format/TUF/Qodana guards, vet, build, exact 675-test UI shard inventory, and all
 four concurrent Linux/amd64 race partitions. UI package durations: ui-1 301.341s,
 ui-2 276.064s, ui-3 269.931s. This run required no isolated retry. The Windows
-publisher cross-build also passed. No production code changed afterward.
+publisher cross-build also passed. That gate preceded the user’s d7d2f8e commit;
+the follow-up diff below has separate validation.
 
 Raw local command logs are under `/tmp/picfetch-release-review`;
 `make-verify.log` includes every partition's final pass. The non-UI, ui-2 and
@@ -117,18 +118,82 @@ ui-3 raw JSON copies include final package passes. The ui-1 copy was taken befor
 its last events and is partial; the complete final pass is in the gate log.
 Historical OOM evidence remains distinct from this successful combined run.
 
-No commit or push occurred. Automatic approval review rejected `git commit`
-because `AGENTS.md:10` says "Do not run `git commit`." The coordinator confirmed
-its delegated commit/push instruction was inferred rather than an explicit user
-override. HEAD and the PR remain `d306654e49cec03432070d6219cc920cac9c2b72`.
-The existing CodeQL instance is still open on that old PR merge, and Qodana's
-37-result report still describes that old head. These uncommitted fixes need
-explicit commit/push approval before fresh remote CI/security validation.
+The user subsequently committed and pushed the original review fixes as
+`d7d2f8e68558460ef0a9859b8698b34491e17481`. Verified remote evidence for that head:
 
-A local Qodana run using the installed native image and a read-only project
-mount stopped before analysis because Qodana requires a Cloud token. No token
-was retrieved or supplied, and no report was uploaded. Inspection dispositions
-are supported by code/tests/specification; a fresh Qodana result is not claimed.
+- [CI run 34190902492](https://github.com/frathe/picfetch/actions/runs/34190902492)
+  passed validation, all four concurrent Linux race partitions, Windows tests
+  and macOS native guards; the final shard completed at 05:39:54 UTC on September 8.
+- [CodeQL run 34190903241](https://github.com/frathe/picfetch/actions/runs/34190903241)
+  passed Go and Actions analysis. The API now reports alert 4's
+  `refs/pull/17/merge` instance as `fixed`. The stored instance location still
+  names its original merge SHA `a134d006`; its state is no longer open.
+- [Qodana run 34190902510](https://github.com/frathe/picfetch/actions/runs/34190902510)
+  and check 101949215247 completed successfully on d7d2f8e. The check reports
+  “No new problems found by Qodana for Go,” with zero annotations. This was PR
+  mode over changed files; it does not claim a clean full-repository scan.
+- [Codex security review](https://github.com/frathe/picfetch/pull/17#issuecomment-5579970911)
+  explicitly reports no security issues on `d7d2f8e685`, completed at
+  05:51 UTC. The summary's lingering export-symlink advisory links the older,
+  already-fixed comment and is not a new finding on this head.
+
+The earlier local Qodana attempt stopped before analysis because its image
+requires a Cloud token; no token was retrieved or supplied. The remote check
+above supersedes the previous pending-CI note without turning that failed local
+attempt into evidence.
+
+## Follow-up findings on d7d2f8e
+
+Two new P2 code-review findings were reproduced and fixed locally:
+
+- [Unrelated exports invalidated loaded derived state](https://github.com/frathe/picfetch/pull/17#discussion_r3954798668).
+  An ordinary new destination cancelled favorite-preview admission, purged
+  thumbnails and cleared duplicate facts. File-work reconciliation now checks
+  the committed destination against the immutable loaded-file set on a tracked
+  worker before invalidating those features. Filesystem identity preserves
+  noncurrent symlink and case aliases. UI delivery retries if the loaded set
+  changed. The existing full-image cache writer barrier remains in place.
+- [Closed-grid sensitivity changes left missing hashes unfinished](https://github.com/frathe/picfetch/pull/17#discussion_r3954798657).
+  Close cancelled a held decode, then changing sensitivity regrouped only the
+  surviving facts. Active Hide Duplicates or browsing now admits missing hashes
+  through the existing cancellable session; browsing waits for that work before
+  its final group check. Terminal Stop still prevents fresh reads.
+
+Both reported regressions failed on the original behavior before the fixes.
+The alias and stale-loaded-set guards were also disabled individually: the
+noncurrent-alias test failed, and both add/remove-before-delivery cases failed.
+The existing unrelated-commit reconciliation test was advanced through the new
+queue stage and failed when its stale-writer retry was disabled. All guards were
+restored before the final checks. Three new root-UI tests are
+assigned to ui-1 (678 root-UI entries total); existing test-file exclusions apply.
+
+Follow-up native race checks passed: root UI export/Save/EXIF/mosaic paths in
+104.123s and grid hashing/sensitivity/cancellation paths in 2.345s. The adjusted
+reconciliation guard also passed under the native race detector in 3.994s. The
+first full `make verify` failed because Docker ran out of memory. The comparison
+package printed PASS, then `signal: killed`; its package result failed at
+55.717s. Docker recorded an OOM event for container `08662eacf55a` at
+07:39:12 UTC. All three UI shards passed in that combined run (ui-1 355.438s,
+ui-2 330.843s, ui-3 316.842s). No individual test failure was reported.
+
+The second full `make verify` passed with `GOFLAGS=-p=1` inside Docker,
+limiting package concurrency while retaining all four simultaneous race
+partitions and every test. Format/TUF/Qodana guards, vet, build and the exact
+678-test root-UI inventory passed. All 53 non-UI packages passed, including
+comparison (23.507s) and grid (2.393s). UI shard durations were ui-1 307.744s,
+ui-2 310.008s and ui-3 296.533s. The case-insensitive export test is the one
+root-UI skip on Linux; the native focused suite covers that path on APFS.
+No production or test code changed after this gate. Original raw JSON remains under the host-mounted
+`.scratch/release-review-followups/`; retry streams go in its `retry/` directory.
+The original resource failure remains distinct from the successful combined
+retry. Complete command logs are `followup-make-verify.log` and
+`followup-make-verify-retry.log` under `/tmp/picfetch-release-review`; the Docker
+OOM event is retained as `followup-docker-oom.jsonl`. All eight raw partition
+streams include their final package results.
+
+These local changes remain uncommitted as requested. Remote results on d7d2f8e cover the previously
+pushed fixes, not this follow-up diff. The user retains ownership of committing
+these edits; no agent commit or push was attempted during the follow-up.
 
 Read-only environment verification still shows `microsoft-store` allows only
 Branch `main`, requires `frathe`, permits self-review and forbids admin bypass;
@@ -153,4 +218,5 @@ Remaining verification boundaries:
   neither should be described as a successful combined gate.
 
 Standards: 2 findings, worst P2. Spec: 3 findings, worst P2. Four unique runtime
-defects were fixed; archive staging hardening is tracked separately.
+defects were fixed in that review; archive staging hardening is tracked
+separately. The subsequent d7d2f8e review added the two P2 fixes above.

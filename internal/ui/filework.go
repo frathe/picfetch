@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -70,10 +71,61 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 		done()
 		return
 	}
-	v.favThumbLifecycle.invalidate()
-	v.grid.InvalidateContent()
-	v.compare.Refresh()
-	v.refreshWrittenFile(result, reload, refreshEXIF, done)
+	files := v.state.snapshot()
+	ctx := v.fileWork.ctx
+	v.fileWork.workers.Go(func() {
+		affected := writtenFileLoaded(ctx, result.Path, files)
+		if ctx.Err() != nil {
+			done()
+			return
+		}
+		v.fileWork.ui.Do(func() {
+			if v.fileWork.closed {
+				done()
+				return
+			}
+			if files.Generation() != v.Generation() {
+				v.afterFileWrite(result, reload, refreshEXIF, done)
+				return
+			}
+			if !affected {
+				done()
+				return
+			}
+			v.favThumbLifecycle.invalidate()
+			v.grid.InvalidateContent()
+			v.compare.Refresh()
+			v.refreshWrittenFile(result, reload, refreshEXIF, done)
+		})
+	})
+}
+
+// Exporting a new copy leaves loaded sources unchanged. Resolve aliases on a
+// worker before discarding their derived state, including noncurrent sources.
+func writtenFileLoaded(ctx context.Context, path string, files dupes.Snapshot) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	if files.IndexOf(storage.NewFileURI(path).String()) >= 0 {
+		return true
+	}
+	written, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	for i := range files.Count() {
+		if ctx.Err() != nil {
+			return false
+		}
+		u, err := storage.ParseURI(files.KeyAt(i))
+		if err != nil || u.Scheme() != "file" {
+			continue
+		}
+		if source, err := os.Stat(u.Path()); err == nil && os.SameFile(source, written) {
+			return true
+		}
+	}
+	return false
 }
 
 // A separate commit may invalidate the cache while this decision is queued.

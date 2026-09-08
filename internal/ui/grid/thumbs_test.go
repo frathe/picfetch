@@ -638,6 +638,10 @@ func TestGridWork_StopPreventsFreshAdmission(t *testing.T) {
 	defer func() { held.unblock(); g.Settle() }()
 	held.unblock()
 	g.Stop()
+	g.SetHideDuplicates(true)
+	setDuplicateDistance(g, 0)
+	g.SetBrowsingDuplicates(true)
+	setDuplicateDistance(g, 1)
 	g.Toggle()
 	if g.visible {
 		t.Error("stopped grid reopened")
@@ -686,6 +690,39 @@ func TestGridWork_CloseDiscardsQueuedDelivery(t *testing.T) {
 }
 
 func TestToggle_ReopenResumesIncompleteHideAnalysis(t *testing.T) {
+	testResumeIncompleteHideAnalysis(t, (*Overview).Toggle)
+}
+
+func TestDuplicateDistanceResumesIncompleteClosedHideAnalysis(t *testing.T) {
+	testResumeIncompleteHideAnalysis(t, func(g *Overview) {
+		setDuplicateDistance(g, 0)
+		if g.visible {
+			t.Error("sensitivity change reopened the grid")
+		}
+	})
+}
+
+func TestDuplicateDistancePreservesPendingBrowse(t *testing.T) {
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg"}, []int{1, 1})
+	u, held := heldGridURI(t, host.files[0], nil)
+	host.files[0] = u
+	g := newOverview(t, host)
+	defer func() { held.unblock(); g.Stop(); g.Settle() }()
+	g.SetBrowsingDuplicates(true)
+	held.wait(t)
+	setDuplicateDistance(g, 0)
+	if !g.BrowsingDuplicates() || g.BrowseReady() {
+		t.Error("sensitivity change completed or cancelled browsing before its source was hashed")
+	}
+	held.unblock()
+	g.Settle()
+	if !g.BrowseReady() || g.SourceDuplicateGroupSize() != 2 {
+		t.Error("sensitivity change did not deliver the completed browse group")
+	}
+}
+
+func testResumeIncompleteHideAnalysis(t *testing.T, resume func(*Overview)) {
+	t.Helper()
 	// Uniform hashes are deliberately excluded from duplicate groups.
 	host := hostPatterned(t, []string{"a.jpg", "b.jpg"}, []int{1, 1})
 	base := host.files[0]
@@ -699,15 +736,24 @@ func TestToggle_ReopenResumesIncompleteHideAnalysis(t *testing.T) {
 	g.Close()
 	oldRead.unblock()
 	g.Settle()
+	if _, ok := g.hashOf(oldURI); ok {
+		t.Fatal("cancelled read published a hash")
+	}
 	host.files[0] = newURI
-	g.Toggle()
+	resume(g)
 	if g.hashes.hashJobs.Load() == 0 {
-		t.Error("reopening did not resume incomplete hide analysis")
+		t.Error("did not resume incomplete hide analysis")
 	}
 	newRead.unblock()
 	g.Settle()
 	if got := g.dupes.GroupSize(0); got != 2 {
-		t.Errorf("reopened duplicate group size=%d, want 2", got)
+		t.Errorf("resumed duplicate group size=%d, want 2", got)
+	}
+	if _, ok := g.pixelCountOf(newURI); !ok {
+		t.Error("resumed analysis did not publish native size")
+	}
+	if !g.dupes.IsHiddenExtra(1) {
+		t.Error("navigation still includes the duplicate extra")
 	}
 }
 

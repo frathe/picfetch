@@ -52,6 +52,103 @@ func TestExportCancellationBeforeDestinationLeavesFilesUntouched(t *testing.T) {
 	}
 }
 
+func TestExportUnrelatedDestinationPreservesDerivedState(t *testing.T) {
+	v, _, _ := newTestUI(t)
+	source := storage.NewFileURI(uitest.WriteTempFile(t, "source.png", uitest.EncodePNG(t, 8, 16, color.White)))
+	dest := storage.NewFileURI(filepath.Join(t.TempDir(), "export.png"))
+	dropAndWait(t, v, source)
+	v.preloads.Wait()
+	thumb := image.NewRGBA(image.Rect(0, 0, 8, 16))
+	v.grid.StoreThumb(source, thumb)
+	v.dupes.PutHash(source.String(), 42)
+	v.dupes.PutNativeSize(source.String(), image.Pt(8, 16))
+	preview := v.favThumbLifecycle.begin()
+	defer preview.cancel()
+	thumbs, facts := v.grid.CaptureThumbs(), v.dupes.CaptureFacts()
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return dest, nil })
+	v.exportAs(".png")
+	settleChooser(t, v)
+	if _, err := os.Stat(dest.Path()); err != nil {
+		t.Fatal(err)
+	}
+	if !preview.current() || !thumbs.Current() || !facts.Current() {
+		t.Error("unrelated export invalidated favorite previews, thumbnails or duplicate facts")
+	}
+	if got, ok := v.grid.CachedThumb(source); !ok || got != thumb {
+		t.Error("unrelated export discarded the source thumbnail")
+	}
+	if hash, ok := v.dupes.Hash(source.String()); !ok || hash != 42 {
+		t.Error("unrelated export discarded the source hash")
+	}
+	settleToast(t, v)
+}
+
+func TestFileMutationInvalidatesNoncurrentLoadedAlias(t *testing.T) {
+	v, _, _ := newTestUI(t)
+	source := storage.NewFileURI(uitest.WriteTempFile(t, "a.png", uitest.EncodePNG(t, 8, 16, color.White)))
+	target := storage.NewFileURI(uitest.WriteTempFile(t, "target.png", uitest.EncodePNG(t, 4, 4, color.Black)))
+	alias := storage.NewFileURI(filepath.Join(t.TempDir(), "z-alias.png"))
+	if err := os.Symlink(target.Path(), alias.Path()); err != nil {
+		t.Fatal(err)
+	}
+	dropAndWait(t, v, source, alias)
+	v.preloads.Wait()
+	if current, _, _ := v.CurrentFile(); current.String() != source.String() {
+		t.Fatal("setup did not select the unrelated source")
+	}
+	pixels := v.img.Image
+	v.grid.StoreThumb(alias, image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	v.dupes.PutNativeSize(alias.String(), image.Pt(4, 4))
+	preview := v.favThumbLifecycle.begin()
+	defer preview.cancel()
+	thumbs, facts := v.grid.CaptureThumbs(), v.dupes.CaptureFacts()
+	result, err := imaging.ExportContext(context.Background(), target, image.NewRGBA(image.Rect(0, 0, 16, 8)), nil, imaging.ExportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.AfterFileExported(result)
+	drainFileWork(t, v)
+	if preview.current() || thumbs.Current() || facts.Current() {
+		t.Error("write through a noncurrent loaded alias retained derived state")
+	}
+	if v.img.Image != pixels {
+		t.Error("write to a noncurrent source reloaded the current image")
+	}
+}
+
+func TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery(t *testing.T) {
+	for _, add := range []bool{false, true} {
+		t.Run(fmt.Sprintf("add=%v", add), func(t *testing.T) {
+			v, _, _ := newTestUI(t)
+			source := storage.NewFileURI(uitest.WriteTempFile(t, "a.png", uitest.EncodePNG(t, 8, 16, color.White)))
+			target := storage.NewFileURI(uitest.WriteTempFile(t, "z.png", uitest.EncodePNG(t, 4, 4, color.Black)))
+			dropAndWait(t, v, source)
+			v.preloads.Wait()
+			if !add {
+				v.state.setFiles([]fyne.URI{source, target}, []fyne.URI{source, target})
+			}
+			result, err := imaging.ExportContext(context.Background(), target, image.NewRGBA(image.Rect(0, 0, 16, 8)), nil, imaging.ExportOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			v.AfterFileExported(result)
+			v.fileWork.workers.Wait() // Hold the decision for the previous loaded set.
+			files := []fyne.URI{source}
+			if add {
+				files = append(files, target)
+			}
+			v.state.setFiles(files, files)
+			preview := v.favThumbLifecycle.begin()
+			defer preview.cancel()
+			thumbs := v.grid.CaptureThumbs()
+			drainFileWork(t, v)
+			if preview.current() == add || thumbs.Current() == add {
+				t.Errorf("invalidation used the obsolete loaded set: added=%v previewCurrent=%v thumbsCurrent=%v", add, preview.current(), thumbs.Current())
+			}
+		})
+	}
+}
+
 func TestExportCommittedAliasRefreshesCurrentPixelsAfterDelivery(t *testing.T) {
 	for _, navigate := range []bool{false, true} {
 		t.Run(fmt.Sprintf("navigate=%v", navigate), func(t *testing.T) {
@@ -120,6 +217,10 @@ func TestFileMutationReconciliationSurvivesUnrelatedCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	v.AfterFileExported(first)
+	v.fileWork.workers.Wait()
+	if !v.fileWork.ui.Drain() {
+		t.Fatal("loaded-file decision was not queued")
+	}
 	v.fileWork.workers.Wait() // The current-file decision is queued, not applied.
 	second, err := imaging.ExportContext(context.Background(), other, pixels, nil, imaging.ExportOptions{})
 	if err != nil {

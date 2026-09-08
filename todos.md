@@ -76,18 +76,28 @@ Mosaic generation is also more efficient while keeping the same image quality, f
 
 ## TODO
 
-### Validate release-review fixes in CI
+### Validate the two follow-up review fixes after the next push
 
-The 2026-09-08 release review fixed four runtime defects and hardened Store
-artifact staging. Changes remain uncommitted: automatic approval review enforced
-AGENTS.md line 10, and the coordinator confirmed there is no explicit user
-override. After approval to commit/push, obtain fresh CodeQL/Qodana and CI results
-for the actual new head. Existing checks on `d306654` do not validate these edits.
-See `finished_refactorings/2026-09-08-release-readiness/assessment.md`.
-The integrated working tree passed `make verify`, including all four concurrent
-Linux/amd64 race partitions. Fresh remote validation remains pending approval.
+The user pushed the original release-review fixes as `d7d2f8e`. That head passed
+CI, CodeQL and Qodana; CodeQL alert 4's PR instance is fixed, Qodana found no new
+problems in PR mode, and Codex's security review found no issues.
 
-### Investigate the intermittent UI shard 3 package failure
+Two later P2 findings are fixed locally: unrelated exports preserve loaded
+favorite-preview/grid/duplicate state, and changing duplicate sensitivity after
+closing an unfinished hash pass resumes missing work. These follow-up edits
+remain uncommitted as requested. Their focused and full local checks are
+recorded in `finished_refactorings/2026-09-08-release-readiness/assessment.md`;
+remote checks must be rerun on the user's next pushed head.
+
+### Investigate intermittent local race-gate failures
+
+The 2026-09-08 follow-up gate retained all four raw streams and recorded a
+Docker OOM event. This time comparison printed PASS before its process was
+killed; all three root-UI shards passed. A full `make verify` retry passed with
+`GOFLAGS=-p=1` inside Docker, preserving all four race partitions while limiting
+package concurrency. This resource limit was scoped to the verification run;
+the repository's default runner remains unchanged. The release assessment keeps
+the original failed run and the successful combined retry separate.
 
 The 2026-09-07 Qodana cleanup's `make verify` run reported a package-level failure
 in `ui-3` without an individual test failure in the compact log. The isolated
