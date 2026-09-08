@@ -10,7 +10,13 @@ package assets
 
 import _ "embed"
 
-// WelcomeWebP is the artwork shown beside the drop zone on first launch.
+// TraneWebP is the Codex v2 pet atlas, copied unchanged from
+// assets/trane/codex-pet/spritesheet.webp (8x11 cells, each 192x208).
+//
+//go:embed trane.webp
+var TraneWebP []byte
+
+// WelcomeWebP is the fallback if the welcome pet atlas cannot be decoded.
 //
 //go:embed welcome.webp
 var WelcomeWebP []byte

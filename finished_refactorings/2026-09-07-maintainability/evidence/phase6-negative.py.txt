@@ -1,0 +1,28 @@
+from pathlib import Path
+import json, subprocess
+root=Path('/Users/ronin/Projects/picfetch')
+base=Path('/private/tmp/picfetch-phase6-negative');base.mkdir(exist_ok=True)
+cases=[
+('grouping-behind-decodes','internal/ui/grid/groupwork.go','g.grouping.workers.Go(func() {','g.decodes.Go(ctx, func(_ bool) {','./internal/ui/grid','TestHideDuplicatesPublishesWhileSourceReadsRemainPending'),
+('settle-omits-grouping','internal/ui/grid/thumbs.go','\t\tg.grouping.workers.Wait()','', './internal/ui/grid','TestGroupingSettleIncludesWorkerAndDelivery'),
+('help-menu-blocked','internal/ui/menu.go','c.ShowHelp = v.yieldThenAllowedDuringComparison(c.ShowHelp)','c.ShowHelp = v.yieldThen(c.ShowHelp)','./internal/ui','TestCompareHelp_F1OpensManualWithoutLeavingComparison'),
+('inspect-admits-frame','internal/ui/windowmenu.go','if v.variantsSession() {','if false {','./internal/ui','TestWindowCommandAdmissionMatrix'),
+('escape-loses-selection','internal/ui/keys.go','\t\t\tv.compare.Close()','\t\t\tv.compare.Close()\n\t\t\tv.grid.ClearSelection()','./internal/ui','TestEscapeUnwindsModesBeforeReset'),
+('fixed-preview-cap','internal/favthumbs/sync.go','return min(4, max(1, runtime.GOMAXPROCS(0)-1))','return 4 + 0*runtime.GOMAXPROCS(0)','./internal/favthumbs','TestSyncLeavesForegroundCapacityAndConverges'),
+('benchmark-no-work','internal/favthumbs/contention_test.go','err := Sync(ctx, favDir, files, sink)','err := Sync(ctx, favDir, nil, sink)','./internal/favthumbs','BENCH'),
+('benchmark-missing-preview','internal/favthumbs/sync.go','err = writeEntryContext(ctx, favDir, name, thumb)','err = nil','./internal/favthumbs','BENCH'),
+]
+for name,rel,old,new,pkg,test in cases:
+    source=(root/rel).read_text()
+    assert source.count(old)==1,(name,source.count(old))
+    changed=base/(name+'.go');changed.write_text(source.replace(old,new))
+    overlay=base/(name+'.json');overlay.write_text(json.dumps({'Replace':{str(root/rel):str(changed)}}))
+    cmd=['go','test','-overlay='+str(overlay),pkg,'-count=1','-v']
+    if test=='BENCH': cmd += ['-run','^$','-bench','^BenchmarkPreviewForegroundContention$/^P2$/^cold$','-benchtime=1x']
+    else: cmd += ['-run','^'+test+'$']
+    result=subprocess.run(cmd,cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=120)
+    (base/(name+'.txt')).write_text(result.stdout)
+    expected=result.returncode!=0 and ('--- FAIL: '+('BenchmarkPreviewForegroundContention' if test=='BENCH' else test)) in result.stdout
+    print(name, 'REJECTED' if expected else 'INVALID OR SURVIVED', 'exit='+str(result.returncode),flush=True)
+    print('\n'.join(result.stdout.splitlines()[-7:]),flush=True)
+    if not expected: raise SystemExit(1)

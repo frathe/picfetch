@@ -87,19 +87,28 @@ func CanEncodeExt(ext string) bool {
 // frame, typically internal/ui's v.img.Image - back to u, re-encoded in the
 // target file's format, replacing the file's previous contents.
 // For JPEG, SaveRotated copies the original metadata segments onto the
-// re-encoded file with Exif Orientation reset to 1. Other formats still
-// do not carry metadata.
+// re-encoded file with Exif Orientation reset to 1. When its frame changes
+// shape, dimension tags are corrected and invalidated coordinates removed,
+// using the same policy as Export. Other formats still do not carry metadata.
 //
 // It resolves a symlink before writing, so saving an image opened through a
 // link updates the target instead of replacing the link itself, and the
-// replacement keeps the original file's permission bits. See writeEncoded
+// replacement keeps the original file's permission bits. See writeEncodedContext
 // for the atomic write both this and Export go through.
 func SaveRotated(u fyne.URI, img image.Image) error {
-	path, err := filepath.EvalSymlinks(u.Path())
-	if err != nil {
-		return err
-	}
+	_, err := SaveRotatedContext(context.Background(), u, img)
+	return err
+}
 
+// SaveRotatedContext holds the resolved file's transaction through replacement.
+func SaveRotatedContext(ctx context.Context, u fyne.URI, img image.Image) (WriteResult, error) {
+	return fileTransactions.write(ctx, u.Path(), false, func(path string) (bool, error) {
+		err := saveRotated(ctx, path, img)
+		return err == nil, err
+	})
+}
+
+func saveRotated(ctx context.Context, path string, img image.Image) error {
 	ext := filepath.Ext(path)
 	encode, ok := encoders[strings.ToLower(ext)]
 	if !ok {
@@ -107,16 +116,16 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 	}
 
 	if isJPEGExt(ext) {
-		orig, err := os.ReadFile(path)
+		orig, err := readFileContext(ctx, path)
 		if err != nil {
 			return err
 		}
 		encode = func(w io.Writer, img image.Image) error {
-			// The zero size, meaning "the dimension tags still describe
-			// this file": SaveRotated resizes nothing, so nothing in the
-			// source's metadata has been made false by the time it is
-			// spliced back on.
-			return encodeJPEGPreservingMetadata(w, img, orig, image.Point{})
+			var corrected image.Point
+			if dimensionTagsInvalidated(img.Bounds(), orig, false) {
+				corrected = img.Bounds().Size()
+			}
+			return encodeJPEGPreservingMetadata(w, img, orig, corrected)
 		}
 	}
 
@@ -125,12 +134,12 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 		return err
 	}
 
-	return writeEncoded(path, info.Mode().Perm(), encode, img)
+	return writeEncodedContext(ctx, path, info.Mode().Perm(), encode, img)
 }
 
 // defaultExportPerm is what a file Export creates from scratch gets, the
 // same 0644-before-umask a plain os.WriteFile would produce - os.CreateTemp
-// opens at 0600, so writeEncoded has to be told the mode either way.
+// opens at 0600, so writeEncodedContext has to be told the mode either way.
 const defaultExportPerm = 0o644
 
 // ExportOptions is what the user asked the export to do to the pixels and
@@ -140,6 +149,12 @@ const defaultExportPerm = 0o644
 // wallpaper and mosaic paths, which write generated pixels with no source
 // file at all) passes ExportOptions{} and gets exactly that.
 type ExportOptions struct {
+	// FallbackExt selects an encoder when the exact destination has no
+	// supported extension. Native save callers set this from the chosen format;
+	// the destination path is never changed after confirmation. Empty retains
+	// the default policy of rejecting unsupported destination extensions.
+	FallbackExt string
+
 	// MaxEdge is a ceiling on the exported copy's longest edge in pixels,
 	// aspect preserved, never enlarging: an image already inside the ceiling
 	// is written at its own size. 0 means no ceiling.
@@ -152,7 +167,8 @@ type ExportOptions struct {
 	OmitMetadata bool
 }
 
-// Export writes img to dest, encoded in dest's format. src is the file
+// Export writes img to the exact dest path, using its supported extension or
+// opts.FallbackExt to choose the encoder. src is the file
 // the pixels came from and may be nil. When dest is JPEG and src is a
 // readable JPEG, dest receives a normalized copy of src's metadata
 // segments (same rules as SaveRotated). A read failure on src does not
@@ -160,20 +176,34 @@ type ExportOptions struct {
 // written copy's longest edge and drop the source's identifying tags; its
 // zero value writes what this function has always written.
 //
-// The destination's extension alone picks the encoder: unlike SaveRotated,
-// no symlink is resolved first, since dest is a destination the user just
-// named rather than a file already open in the viewer, and the format they
-// typed is the format they asked for. An existing destination is replaced
+// The destination's supported extension takes precedence over FallbackExt.
+// Symlink parent directories are resolved, but a symlink at the destination
+// itself is rejected. An existing regular destination is replaced
 // (keeping its own permission bits), atomically, by the same
-// temp-file-then-rename writeEncoded gives SaveRotated - so an export over
+// temp-file-then-rename writeEncodedContext gives SaveRotated - so an export over
 // a previous copy cannot damage it if the encode fails partway.
 func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) error {
-	ext := dest.Extension()
+	_, err := ExportContext(context.Background(), dest, img, src, opts)
+	return err
+}
+
+// ExportContext participates in the same resolved-destination transaction as
+// Save Changes and metadata removal, including aliases through parent directories.
+func ExportContext(ctx context.Context, dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) (WriteResult, error) {
+	return fileTransactions.write(ctx, dest.Path(), true, func(path string) (bool, error) {
+		err := exportImage(ctx, path, dest.Extension(), img, src, opts)
+		return err == nil, err
+	})
+}
+
+func exportImage(ctx context.Context, path, ext string, img image.Image, src fyne.URI, opts ExportOptions) error {
+	if !CanEncodeExt(ext) && opts.FallbackExt != "" {
+		ext = opts.FallbackExt
+	}
 	encode, ok := encoders[strings.ToLower(ext)]
 	if !ok {
 		return &UnsupportedSaveFormatError{ext: ext}
 	}
-	path := dest.Path()
 	perm := os.FileMode(defaultExportPerm)
 	if info, err := os.Stat(path); err == nil {
 		perm = info.Mode().Perm()
@@ -182,10 +212,16 @@ func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) er
 	// The size limit is applied before the encoder is chosen so that
 	// everything downstream - the metadata splice below included - is
 	// looking at the pixels that will actually be written.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	out := ScaleForExport(img, opts.MaxEdge)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	if isJPEGExt(ext) && src != nil && src.Path() != "" {
-		if orig, err := jpegFileBytes(src.Path()); err == nil && orig != nil {
+		if orig, err := jpegFileBytesContext(ctx, src.Path()); err == nil && orig != nil {
 			// Answered here, once, while both frames are still in scope
 			// under their own names: out is what will be written, img is
 			// what arrived. Inside the closure below only one of them has a
@@ -218,7 +254,7 @@ func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) er
 		}
 	}
 
-	return writeEncoded(path, perm, encode, out)
+	return writeEncodedContext(ctx, path, perm, encode, out)
 }
 
 // dimensionTagsInvalidated reports whether written - the bounds of the
@@ -252,6 +288,13 @@ func dimensionTagsInvalidated(written image.Rectangle, orig []byte, fallback boo
 // that can't be opened or read returns the error; Export treats that the
 // same as (nil, nil), since an unreadable source must not fail the export.
 func jpegFileBytes(path string) ([]byte, error) {
+	return jpegFileBytesContext(context.Background(), path)
+}
+
+func jpegFileBytesContext(ctx context.Context, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -259,7 +302,7 @@ func jpegFileBytes(path string) ([]byte, error) {
 	defer func() { _ = f.Close() }()
 
 	magic := make([]byte, 2)
-	if _, err := io.ReadFull(f, magic); err != nil {
+	if _, err := io.ReadFull(contextRead{ctx: ctx, in: f}, magic); err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			return nil, nil
 		}
@@ -272,10 +315,10 @@ func jpegFileBytes(path string) ([]byte, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	return io.ReadAll(f)
+	return io.ReadAll(contextRead{ctx: ctx, in: f})
 }
 
-// writeEncoded encodes img into a temp file in path's own directory and
+// writeEncodedContext encodes img into a temp file in path's own directory and
 // renames it over path only once the encode has fully succeeded, so a
 // failed or interrupted encode can never leave the destination truncated or
 // corrupted - and, since the rename is within one directory, never leaves a
@@ -283,18 +326,21 @@ func jpegFileBytes(path string) ([]byte, error) {
 // by SaveRotated (overwriting the file on screen) and Export (writing a
 // copy elsewhere), which differ only in how they arrive at path, perm, and
 // encode.
-func writeEncoded(path string, perm os.FileMode, encode func(io.Writer, image.Image) error, img image.Image) error {
-	return writeFile(path, perm, func(w io.Writer) error { return encode(w, img) })
+func writeEncodedContext(ctx context.Context, path string, perm os.FileMode, encode func(io.Writer, image.Image) error, img image.Image) error {
+	return writeFileContext(ctx, path, perm, func(w io.Writer) error { return encode(w, img) })
 }
 
-// writeFile is writeEncoded's underlying atomic write, generalized to any
+// writeFileContext is writeEncodedContext's underlying atomic write, generalized to any
 // write func rather than an (encode, img) pair: temp file in path's own
 // directory, Chmod(perm), write, Sync, Close, Rename - so a failed or
 // interrupted write can never leave the destination truncated or
 // corrupted, and never leaves a half-written file behind either, since the
 // rename stays within one directory. StripJPEGMetadata uses this directly
 // (writing already-encoded bytes rather than encoding an image.Image).
-func writeFile(path string, perm os.FileMode, write func(io.Writer) error) error {
+func writeFileContext(ctx context.Context, path string, perm os.FileMode, write func(io.Writer) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".picfetch-save-*"+filepath.Ext(path))
 	if err != nil {
 		return err
@@ -309,7 +355,7 @@ func writeFile(path string, perm os.FileMode, write func(io.Writer) error) error
 		_ = tmp.Close()
 		return err
 	}
-	if err := write(tmp); err != nil {
+	if err := write(contextWrite{ctx: ctx, out: tmp}); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -318,6 +364,9 @@ func writeFile(path string, perm os.FileMode, write func(io.Writer) error) error
 		return err
 	}
 	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
@@ -341,48 +390,58 @@ func writeFile(path string, perm os.FileMode, write func(io.Writer) error) error
 // same temp-file-then-rename as SaveRotated, through a symlink to the
 // target, preserving permission bits.
 func StripJPEGMetadata(u fyne.URI) error {
-	path, err := filepath.EvalSymlinks(u.Path())
+	_, err := StripJPEGMetadataContext(context.Background(), u)
+	return err
+}
+
+// StripJPEGMetadataContext serializes the source read as well as its rewrite.
+func StripJPEGMetadataContext(ctx context.Context, u fyne.URI) (WriteResult, error) {
+	return fileTransactions.write(ctx, u.Path(), false, func(path string) (bool, error) {
+		return stripJPEGMetadata(ctx, path)
+	})
+}
+
+func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
+	data, err := readFileContext(ctx, path)
 	if err != nil {
-		return err
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
+		return false, err
 	}
 	if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
-		return errNotJPEG
+		return false, errNotJPEG
 	}
 	orient := jpegEXIFOrientation(data)
 	if !jpegHasRemovableMetadata(data) && orient == 1 {
-		return nil
+		return false, nil
 	}
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if orient == 1 {
 		stripped, err := stripJPEGSegments(data)
 		if err != nil {
-			return err
+			return false, err
 		}
-		return writeFile(path, info.Mode().Perm(), func(w io.Writer) error {
+		err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
 			_, err := w.Write(stripped)
 			return err
 		})
+		return err == nil, err
 	}
 
-	loaded, err := DecodeLoaded(context.Background(), data, 0)
+	loaded, err := DecodeLoaded(ctx, data, 0)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if len(loaded.Frames) == 0 {
-		return errNotJPEG
+		return false, errNotJPEG
 	}
-	return writeFile(path, info.Mode().Perm(), func(w io.Writer) error {
+	err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
 		return encodeJPEGKeepingICC(w, loaded.Frames[0], data)
 	})
+	return err == nil, err
 }
 
 // CanStripJPEGMetadata reports whether StripJPEGMetadata would rewrite

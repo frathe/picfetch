@@ -11,6 +11,7 @@ import (
 	"hash/crc32"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"math"
 	"os"
@@ -22,6 +23,8 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
+	xdraw "golang.org/x/image/draw"
+
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -29,6 +32,169 @@ import (
 func TestMain(m *testing.M) {
 	test.NewApp()
 	os.Exit(m.Run())
+}
+
+func TestGenerate_PreparationBudget(t *testing.T) {
+	stop := errors.New("observed preparation before allocation")
+	for _, size := range []image.Point{
+		{1, 1}, {10, 1}, {100, 1}, {1000, 1}, {10000, 1},
+		{1, 10}, {1, 100}, {1, 1000}, {1, 10000}, {10000, 10000},
+	} {
+		t.Run(fmt.Sprintf("%dx%d", size.X, size.Y), func(t *testing.T) {
+			g := New()
+			g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+				return &loadedSource{bounds: image.Rectangle{Max: size}}, nil
+			}
+			observed := false
+			g.beforePrepare = func(plan preparationPlan) error {
+				observed = true
+				if plan.bytes > maxPreparationBytes {
+					t.Errorf("preparation requests %d bytes, budget %d (layer %v)", plan.bytes, maxPreparationBytes, plan.layer)
+				}
+				return stop
+			}
+			request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), DefaultSettings(), 42)
+			if _, err := g.Generate(context.Background(), request); !errors.Is(err, stop) || !observed {
+				t.Fatalf("Generate = %v, observed = %v", err, observed)
+			}
+		})
+	}
+}
+
+func TestRenderPlacement_TiledMatchesFullPreparation(t *testing.T) {
+	for _, size := range []image.Point{{97, 61}, {1500, 800}} {
+		pixels := image.NewNRGBA(image.Rectangle{Min: image.Pt(7, 11), Max: image.Pt(7+size.X, 11+size.Y)})
+		for y := pixels.Rect.Min.Y; y < pixels.Rect.Max.Y; y++ {
+			for x := pixels.Rect.Min.X; x < pixels.Rect.Max.X; x++ {
+				pixels.SetNRGBA(x, y, color.NRGBA{R: uint8(x * 3), G: uint8(y * 4), B: uint8((x + y) * 2), A: uint8(120 + (x+y)%136)})
+			}
+		}
+		source := &loadedSource{pixels: pixels, bounds: pixels.Bounds()}
+		for _, angle := range []float64{0, 7, -12} {
+			t.Run(fmt.Sprintf("%dx%d/angle%g", size.X, size.Y, angle), func(t *testing.T) {
+				bounds := image.Rect(10, 20, 610, 520)
+				full, tiled := image.NewNRGBA(bounds), image.NewNRGBA(bounds)
+				placed := newPlacement(1, 300.25, 230.75, 540, 360, angle, FramePolaroid, true)
+				if err := renderPlacement(t.Context(), full, source, placed); err != nil {
+					t.Fatal(err)
+				}
+				const budget = 8 << 20
+				plans := 0
+				if err := renderPlacementWithBudget(t.Context(), tiled, source, placed, budget, func(plan preparationPlan) error {
+					plans++
+					if !plan.tiled || plan.bytes > budget {
+						t.Fatalf("expected bounded tiles, got %+v", plan)
+					}
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if plans < 2 {
+					t.Fatalf("only %d preparation plans", plans)
+				}
+				maxDifference := 0
+				totalDifference := 0.0
+				var worst image.Point
+				for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+					for x := bounds.Min.X; x < bounds.Max.X; x++ {
+						ar, ag, ab, aa := full.At(x, y).RGBA()
+						br, bg, bb, ba := tiled.At(x, y).RGBA()
+						for i, a := range []uint32{ar, ag, ab, aa} {
+							b := []uint32{br, bg, bb, ba}[i]
+							difference := math.Abs(float64(a)-float64(b)) / 257
+							totalDifference += difference
+							if delta := int(math.Ceil(difference)); delta > maxDifference {
+								maxDifference, worst = delta, image.Pt(x, y)
+							}
+						}
+					}
+				}
+				// Resampling normalization and rebased mask rasterization round
+				// separately. Bound both the worst edge and mean visible difference.
+				meanDifference := totalDifference / float64(len(full.Pix))
+				if maxDifference > 4 || meanDifference > 0.1 {
+					t.Fatalf("tiled/full premultiplied difference max=%d mean=%g at %v (full %v, tiled %v), want max <= 4 and mean <= 0.1", maxDifference, meanDifference, worst, full.At(worst.X, worst.Y), tiled.At(worst.X, worst.Y))
+				}
+			})
+		}
+	}
+}
+
+func TestRenderPlacement_PanoramasStayBounded(t *testing.T) {
+	for _, size := range []image.Point{{10000, 1}, {1, 10000}} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			pixels := image.NewNRGBA(image.Rectangle{Max: size})
+			solid := color.NRGBA{R: 25, G: 80, B: 180, A: 255}
+			fillNRGBA(pixels, solid)
+			source := &loadedSource{pixels: pixels, bounds: pixels.Bounds()}
+			destination := image.NewNRGBA(image.Rect(0, 0, 520, 340))
+			placed := newPlacement(1, 260, 170, float64(size.X)*600, float64(size.Y)*600, 7, FrameNone, false)
+			plans := 0
+			if err := renderPlacementWithBudget(t.Context(), destination, source, placed, maxPreparationBytes, func(plan preparationPlan) error {
+				plans++
+				if !plan.tiled || plan.bytes > maxPreparationBytes {
+					t.Fatalf("unbounded preparation: %+v", plan)
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if plans < 2 {
+				t.Fatal("panorama did not exercise tile boundaries")
+			}
+			for y := range 340 {
+				for x := range 520 {
+					if got := destination.NRGBAAt(x, y); got != solid {
+						t.Fatalf("pixel (%d,%d) = %v, want %v", x, y, got, solid)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGenerate_CancelBeforePreparation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	g := New()
+	g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+		// No pixels: any preparation after cancellation would return a
+		// missing-pixels error instead of the required cancellation.
+		return &loadedSource{bounds: image.Rect(0, 0, 10000, 1)}, nil
+	}
+	plans := 0
+	g.beforePrepare = func(_ preparationPlan) error {
+		plans++
+		cancel()
+		return nil
+	}
+	request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), DefaultSettings(), 42)
+	if _, err := g.Generate(ctx, request); !errors.Is(err, context.Canceled) || plans != 1 {
+		t.Fatalf("Generate = %v, preparations = %d", err, plans)
+	}
+}
+
+func TestGenerate_VectorPreparationBudget(t *testing.T) {
+	stop := errors.New("observed vector preparation")
+	for _, size := range []image.Point{{10000, 1}, {1, 10000}, {10000, 10000}} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			g := New()
+			uri := uitest.TempSVGURI(t, "source.svg", size.X, size.Y)
+			observed := false
+			g.beforePrepare = func(plan preparationPlan) error {
+				observed = true
+				if plan.bytes > maxPreparationBytes || plan.vectorSize.X <= 0 || plan.vectorSize.Y <= 0 ||
+					uint64(plan.vectorSize.X)*uint64(plan.vectorSize.Y)*12 > plan.bytes {
+					t.Fatalf("vector raster is missing from bounded preparation: %+v", plan)
+				}
+				return stop
+			}
+			request := mustRequest(t, []fyne.URI{uri}, image.Pt(1920, 1080), DefaultSettings(), 42)
+			if _, err := g.Generate(t.Context(), request); !errors.Is(err, stop) || !observed {
+				t.Fatalf("Generate = %v, observed = %v", err, observed)
+			}
+		})
+	}
 }
 
 func TestGenerate_DeterministicAndCoverage(t *testing.T) {
@@ -378,7 +544,9 @@ func TestRenderPlacement_StopsBetweenTransformBands(t *testing.T) {
 	source := &loadedSource{pixels: sourcePixels, bounds: sourcePixels.Bounds()}
 	destination := image.NewNRGBA(image.Rect(0, 0, 220, 220))
 	placed := newPlacement(1, 110, 110, 180, 180, 0, FrameNone, false)
-	ctx := &cancelAfterChecksContext{cancelAt: 3}
+	ctx := &cancelWhenContext{Context: t.Context(), when: func() bool {
+		return destination.NRGBAAt(110, 30).A != 0
+	}}
 
 	if err := renderPlacement(ctx, destination, source, placed); !errors.Is(err, context.Canceled) {
 		t.Fatalf("renderPlacement() = %v, want context.Canceled", err)
@@ -386,24 +554,22 @@ func TestRenderPlacement_StopsBetweenTransformBands(t *testing.T) {
 	if got := destination.NRGBAAt(110, 180).A; got != 0 {
 		t.Fatalf("pixel below first transform band has alpha %d after cancellation, want zero", got)
 	}
+	if got := destination.NRGBAAt(110, 30).A; got == 0 {
+		t.Fatal("cancellation occurred before any transform band was drawn")
+	}
 }
 
-type cancelAfterChecksContext struct {
-	checks   int
-	cancelAt int
+type cancelWhenContext struct {
+	context.Context
+	when func() bool
 }
 
-func (c *cancelAfterChecksContext) Deadline() (time.Time, bool) { return time.Time{}, false }
-func (*cancelAfterChecksContext) Done() <-chan struct{}         { return nil }
-func (c *cancelAfterChecksContext) Err() error {
-	c.checks++
-	if c.checks >= c.cancelAt {
+func (c *cancelWhenContext) Err() error {
+	if c.when() {
 		return context.Canceled
 	}
-
-	return nil
+	return c.Context.Err()
 }
-func (*cancelAfterChecksContext) Value(_ any) any { return nil }
 
 func TestGenerate_DropShadowCanBeDisabled(t *testing.T) {
 	source := mosaicPNG(t, "shadow-source.png", 12, 8, func(_, _ int) color.NRGBA {
@@ -961,4 +1127,315 @@ func mustRequest(t *testing.T, sources []fyne.URI, target image.Point, settings 
 	}
 
 	return request
+}
+
+// sampledMosaicImage observes source work without relying on machine timing.
+type sampledMosaicImage struct {
+	image.Image
+	samples  int
+	onSample func(int)
+}
+
+func (s *sampledMosaicImage) RGBA64At(x, y int) color.RGBA64 {
+	s.samples++
+	if s.onSample != nil {
+		s.onSample(s.samples)
+	}
+	return s.Image.(image.RGBA64Image).RGBA64At(x, y)
+}
+
+func TestRenderPlacement_BoundedResamplingReusesSourceRows(t *testing.T) {
+	pixels := image.NewNRGBA(image.Rect(0, 0, 2400, 1600))
+	fillNRGBA(pixels, color.NRGBA{R: 50, G: 100, B: 200, A: 255})
+	sampled := &sampledMosaicImage{Image: pixels}
+	source := &loadedSource{pixels: sampled, bounds: sampled.Bounds()}
+	placed := newPlacement(1, 110, 85, 160, 110, 7, FramePolaroid, true)
+	destination := image.NewNRGBA(image.Rect(0, 0, 220, 170))
+	if err := renderPlacementWithBudget(t.Context(), destination, source, placed, 8<<20, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Separable support-2 filtering visits roughly four source samples per
+	// source pixel. Allow band halos and edge padding, but reject repeated
+	// two-dimensional filtering (roughly sixteen visits per source pixel).
+	if limit := 8 * pixels.Rect.Dx() * pixels.Rect.Dy(); sampled.samples > limit {
+		t.Fatalf("bounded preparation read %d source samples, limit %d", sampled.samples, limit)
+	}
+	if got := destination.NRGBAAt(110, 85); got != (color.NRGBA{R: 50, G: 100, B: 200, A: 255}) {
+		t.Fatalf("center pixel = %v", got)
+	}
+}
+
+func BenchmarkMosaicGeneration(b *testing.B) {
+	pixels := image.NewNRGBA(image.Rect(0, 0, 6000, 4000))
+	for y := range 4000 {
+		row := pixels.Pix[y*pixels.Stride:]
+		for x := range 6000 {
+			row[x*4], row[x*4+1], row[x*4+2], row[x*4+3] = uint8(x*7+y), uint8(y*3+x), uint8(x+y*11), 255
+		}
+	}
+	for _, size := range []struct {
+		name   string
+		target image.Point
+	}{{"1080p", image.Pt(1920, 1080)}, {"4k", image.Pt(3840, 2160)}} {
+		b.Run(size.name, func(b *testing.B) {
+			for _, preview := range []bool{false, true} {
+				b.Run(fmt.Sprintf("preview=%v", preview), func(b *testing.B) {
+					g := New()
+					g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+						return &loadedSource{pixels: pixels, bounds: pixels.Bounds()}, nil
+					}
+					request, err := NewRequest([]fyne.URI{storage.NewFileURI("fixture.png")}, size.target, DefaultSettings(), 42)
+					if err != nil {
+						b.Fatal(err)
+					}
+					previews := 0
+					var report func(Progress)
+					if preview {
+						report = func(p Progress) {
+							if p.Preview != nil {
+								previews++
+							}
+						}
+					}
+					b.ReportAllocs()
+					b.ResetTimer()
+					for b.Loop() {
+						if _, err := g.GenerateWithProgress(context.Background(), request, report); err != nil {
+							b.Fatal(err)
+						}
+					}
+					b.ReportMetric(float64(previews)/float64(b.N), "previews/op")
+				})
+			}
+		})
+	}
+}
+
+func BenchmarkMosaicPlacement(b *testing.B) {
+	pixels := image.NewNRGBA(image.Rect(0, 0, 6000, 4000))
+	fillNRGBA(pixels, color.NRGBA{R: 50, G: 100, B: 200, A: 255})
+	source := &loadedSource{pixels: pixels, bounds: pixels.Bounds()}
+	placed := newPlacement(1, 200, 150, 320, 220, 7, FramePolaroid, true)
+	destination := image.NewNRGBA(image.Rect(0, 0, 480, 360))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := renderPlacement(b.Context(), destination, source, placed); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestGenerate_Progress(t *testing.T) {
+	uri := mosaicPNG(t, "progress.png", 12, 8, func(x, y int) color.NRGBA {
+		return color.NRGBA{R: uint8(x * 15), G: uint8(y * 20), B: 80, A: 255}
+	})
+	request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), DefaultSettings(), 987)
+	want, err := Generate(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updates []Progress
+	got, err := GenerateWithProgress(t.Context(), request, func(p Progress) { updates = append(updates, p) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+		t.Fatal("progress changed mosaic pixels")
+	}
+	total := 83 * 47
+	if len(updates) < 3 {
+		t.Fatalf("got %d progress updates, want initial, intermediate and complete", len(updates))
+	}
+	if updates[0] != (Progress{TotalPixels: total}) || updates[len(updates)-1] != (Progress{CoveredPixels: total, TotalPixels: total}) {
+		t.Fatalf("progress endpoints = %v, %v", updates[0], updates[len(updates)-1])
+	}
+	for i, p := range updates {
+		if p.TotalPixels != total || p.CoveredPixels < 0 || p.CoveredPixels > total || i > 0 && p.CoveredPixels <= updates[i-1].CoveredPixels {
+			t.Fatalf("invalid progress update %d: %+v", i, p)
+		}
+	}
+}
+
+func TestGenerate_LivePreview(t *testing.T) {
+	uri := mosaicPNG(t, "preview.png", 12, 8, func(x, y int) color.NRGBA {
+		return color.NRGBA{R: uint8(x * 15), G: uint8(y * 20), B: 180, A: 255}
+	})
+	request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), DefaultSettings(), 987)
+	g := New()
+	want, err := g.Generate(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(100, 0)
+	g.previewClock = func() time.Time { now = now.Add(100 * time.Millisecond); return now }
+	copyPixels := func(source image.Image) []byte {
+		pixels := image.NewNRGBA(source.Bounds())
+		draw.Draw(pixels, pixels.Bounds(), source, source.Bounds().Min, draw.Src)
+		return pixels.Pix
+	}
+	var snapshots []image.Image
+	var saved [][]byte
+	var published time.Time
+	got, err := g.GenerateWithProgress(t.Context(), request, func(p Progress) {
+		if p.Preview == nil {
+			return
+		}
+		if p.CoveredPixels <= 0 || p.CoveredPixels >= p.TotalPixels {
+			t.Fatalf("preview did not arrive during generation: %+v", p)
+		}
+		if !published.IsZero() && now.Sub(published) < 250*time.Millisecond {
+			t.Fatalf("preview cadence too fast: %v", now.Sub(published))
+		}
+		published = now
+		pixels := p.Preview
+		if pixels.Bounds() != image.Rect(0, 0, 83, 47) {
+			t.Fatalf("preview bounds = %v", pixels.Bounds())
+		}
+		snapshots = append(snapshots, pixels)
+		saved = append(saved, copyPixels(pixels))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshots) < 2 {
+		t.Fatalf("got %d live snapshots, want progressive updates", len(snapshots))
+	}
+	if bytes.Equal(saved[0], saved[len(saved)-1]) {
+		t.Fatal("live canvas did not change as photos were added")
+	}
+	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+		t.Fatal("live preview changed final output")
+	}
+	for i, pixels := range snapshots {
+		if !bytes.Equal(copyPixels(pixels), saved[i]) {
+			t.Fatalf("published snapshot %d was mutated", i)
+		}
+	}
+	draw.Draw(snapshots[0].(draw.Image), snapshots[0].Bounds(), image.Transparent, image.Point{}, draw.Src)
+	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+		t.Fatal("preview aliases final pixels")
+	}
+}
+
+func TestGenerate_ProgressCancellationAndFailure(t *testing.T) {
+	for _, partial := range []bool{false, true} {
+		t.Run(fmt.Sprintf("partial=%v", partial), func(t *testing.T) {
+			uri := uitest.TempJPEGURI(t, "source.jpg", 12, 8, color.White)
+			request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), DefaultSettings(), 987)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			var updates []Progress
+			_, err := GenerateWithProgress(ctx, request, func(p Progress) {
+				updates = append(updates, p)
+				if !partial || p.CoveredPixels > 0 {
+					cancel()
+				}
+			})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancelled generation = %v", err)
+			}
+			if len(updates) == 0 {
+				t.Fatal("no progress reported")
+			}
+			last := updates[len(updates)-1]
+			if last.CoveredPixels >= last.TotalPixels {
+				t.Fatal("cancelled generation reported completion")
+			}
+		})
+	}
+	t.Run("unreadable", func(t *testing.T) {
+		request := mustRequest(t, []fyne.URI{storage.NewFileURI(filepath.Join(t.TempDir(), "missing.png"))}, image.Pt(83, 47), DefaultSettings(), 987)
+		var updates []Progress
+		_, err := GenerateWithProgress(t.Context(), request, func(p Progress) { updates = append(updates, p) })
+		if err == nil || len(updates) != 1 || updates[0].CoveredPixels != 0 {
+			t.Fatalf("failed generation: %v, progress %v", err, updates)
+		}
+	})
+}
+
+func TestScaleSourceRegion_MatchesFullPrecisionCatmullRom(t *testing.T) {
+	for _, size := range []image.Point{{37, 23}, {1200, 800}} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			source := image.NewNRGBA64(image.Rectangle{Min: image.Pt(7, 11), Max: image.Pt(7+size.X, 11+size.Y)})
+			for y := source.Rect.Min.Y; y < source.Rect.Max.Y; y++ {
+				for x := source.Rect.Min.X; x < source.Rect.Max.X; x++ {
+					source.SetNRGBA64(x, y, color.NRGBA64{R: uint16(x * 731), G: uint16(y * 1421), B: uint16(x*11 + y*2143), A: uint16(16000 + (x*19+y*53)%49000)})
+				}
+			}
+			interior := image.Rect(4, 4, 84, 64)
+			for _, bounds := range []image.Rectangle{image.Rect(0, 0, 88, 68), image.Rect(17, 19, 69, 51)} {
+				want, got := image.NewNRGBA(bounds), image.NewNRGBA(bounds)
+				backing := image.NewUniform(color.NRGBA{R: 10, G: 40, B: 80, A: 127})
+				draw.Draw(want, bounds, backing, image.Point{}, draw.Src)
+				draw.Draw(got, bounds, backing, image.Point{}, draw.Src)
+				xdraw.CatmullRom.Scale(want, interior, source, source.Bounds(), xdraw.Over, nil)
+				if err := scaleSourceRegion(t.Context(), got, interior, source); err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(got.Pix, want.Pix) {
+					for i := range got.Pix {
+						if got.Pix[i] != want.Pix[i] {
+							t.Fatalf("size %v clipped %v byte %d = %d, full Catmull-Rom %d", size, bounds, i, got.Pix[i], want.Pix[i])
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRenderPlacement_CancelsDuringBoundedSampling(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	pixels := image.NewNRGBA(image.Rect(0, 0, 2400, 1600))
+	sampled := &sampledMosaicImage{Image: pixels, onSample: func(_ int) { cancel() }}
+	source := &loadedSource{pixels: sampled, bounds: sampled.Bounds()}
+	placed := newPlacement(1, 110, 85, 160, 110, 7, FramePolaroid, true)
+	destination := image.NewNRGBA(image.Rect(0, 0, 220, 170))
+	err := renderPlacementWithBudget(ctx, destination, source, placed, 8<<20, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("render after cancellation = %v", err)
+	}
+	if sampled.samples > pixels.Rect.Dx() {
+		t.Fatalf("read %d samples after cancellation, want at most one source row", sampled.samples)
+	}
+}
+
+func TestPreviewComposite_LayersAndBoundedSize(t *testing.T) {
+	for _, size := range []struct{ source, want image.Point }{
+		{image.Pt(32, 18), image.Pt(32, 18)},
+		{image.Pt(1920, 1080), image.Pt(960, 540)},
+		{image.Pt(1080, 1920), image.Pt(540, 960)},
+		{image.Pt(1, 3000), image.Pt(1, 960)},
+	} {
+		t.Run(fmt.Sprint(size.source), func(t *testing.T) {
+			bounds := image.Rectangle{Min: image.Pt(7, 11), Max: image.Pt(7+size.source.X, 11+size.source.Y)}
+			background, primary := image.NewNRGBA(bounds), image.NewNRGBA(bounds)
+			fillNRGBA(background, color.NRGBA{B: 255, A: 255})
+			fillNRGBA(primary, color.NRGBA{R: 255, A: 128})
+			got := previewComposite(background, primary)
+			if got.Bounds() != (image.Rectangle{Max: size.want}) {
+				t.Fatalf("preview bounds = %v, want %v", got.Bounds(), size.want)
+			}
+			for y := range size.want.Y {
+				for x := range size.want.X {
+					if pixel := color.RGBAModel.Convert(got.At(x, y)); pixel != (color.RGBA{R: 128, B: 127, A: 255}) {
+						t.Fatalf("preview at %d,%d = %v: layers are out of order or missing", x, y, pixel)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestPreviewComposite_BoundedAllocations(t *testing.T) {
+	background := image.NewNRGBA(image.Rect(0, 0, 1200, 800))
+	primary := image.NewNRGBA(background.Bounds())
+	fillNRGBA(background, color.NRGBA{B: 255, A: 255})
+	fillNRGBA(primary, color.NRGBA{R: 255, A: 128})
+	allocs := testing.AllocsPerRun(2, func() { _ = previewComposite(background, primary) })
+	if allocs > 32 {
+		t.Fatalf("preview allocated %.0f objects; expected fixed snapshot storage, not per-pixel allocations", allocs)
+	}
 }

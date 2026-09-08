@@ -1,15 +1,28 @@
 package grid
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
+	"io"
+	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 
+	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // --- thumbnails ------------------------------------------------------------
@@ -230,23 +243,23 @@ func TestClaimRelease(t *testing.T) {
 	g := newOverview(t, hostWith(t, "a.jpg"))
 	cell, _ := newCell()
 
-	if !g.decodes.Claim(cell, 0) {
+	if !g.decodes.Claim(cell, thumbClaim{id: 0, revision: g.work.revision}) {
 		t.Fatal("the first claim for a cell should allow a spawn")
 	}
-	if g.decodes.Claim(cell, 0) {
+	if g.decodes.Claim(cell, thumbClaim{id: 0, revision: g.work.revision}) {
 		t.Error("an identical claim while one is in flight must not spawn a second decode")
 	}
-	if !g.decodes.Claim(cell, 1) {
+	if !g.decodes.Claim(cell, thumbClaim{id: 1, revision: g.work.revision}) {
 		t.Error("a claim for a different id should supersede the old one - the cell scrolled on")
 	}
 
-	g.decodes.Release(cell, 0) // the superseded decode finishing late
-	if g.decodes.Claim(cell, 1) {
+	g.decodes.Release(cell, thumbClaim{id: 0, revision: g.work.revision}) // the superseded decode finishing late
+	if g.decodes.Claim(cell, thumbClaim{id: 1, revision: g.work.revision}) {
 		t.Error("a stale release must not drop the newer claim")
 	}
 
-	g.decodes.Release(cell, 1)
-	if !g.decodes.Claim(cell, 1) {
+	g.decodes.Release(cell, thumbClaim{id: 1, revision: g.work.revision})
+	if !g.decodes.Claim(cell, thumbClaim{id: 1, revision: g.work.revision}) {
 		t.Error("after its own release, a cell should be claimable again")
 	}
 }
@@ -274,7 +287,7 @@ func TestRequestThumbnail_RecycledBeforeDecodeBailsAndReleases(t *testing.T) {
 	if img.Image != nil {
 		t.Error("a decode whose cell scrolled away must not paint it")
 	}
-	if !g.decodes.Claim(cell, 0) {
+	if !g.decodes.Claim(cell, thumbClaim{id: 0, revision: g.work.revision}) {
 		t.Error("the bailed decode should have released its claim")
 	}
 }
@@ -334,5 +347,631 @@ func TestStillWanted(t *testing.T) {
 	other, _ := newCell()
 	if g.stillWanted(other, 3, 7, fgen) {
 		t.Error("a cell the grid has never tracked is stale")
+	}
+}
+
+// heldGridRead pauses the first read before returning a chunk. The test must
+// release that already-blocked call; context cancellation stops the next one.
+type heldGridRead struct {
+	entered     chan struct{}
+	release     chan struct{}
+	once        sync.Once
+	enteredOnce sync.Once
+	reads       atomic.Int32
+	opens       atomic.Int32
+	data        []byte
+	err         error
+}
+
+func heldGridURI(t *testing.T, src fyne.URI, readErr error) (fyne.URI, *heldGridRead) {
+	t.Helper()
+	data, err := os.ReadFile(src.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &heldGridRead{entered: make(chan struct{}), release: make(chan struct{}), data: data, err: readErr}
+	t.Cleanup(h.unblock)
+	return uitest.ReaderURI(src, func() (io.ReadCloser, error) {
+		h.opens.Add(1)
+		r := bytes.NewReader(h.data)
+		first := true
+		return uitest.ReadCloser{
+			ReadFunc: func(p []byte) (int, error) {
+				h.reads.Add(1)
+				if first {
+					first = false
+					h.enteredOnce.Do(func() { close(h.entered) })
+					<-h.release
+				}
+				if h.err != nil {
+					return 0, h.err
+				}
+				return r.Read(p)
+			},
+			CloseFunc: func() error { return nil },
+		}, nil
+	}), h
+}
+func (h *heldGridRead) unblock() { h.once.Do(func() { close(h.release) }) }
+func (h *heldGridRead) wait(t *testing.T) {
+	t.Helper()
+	select {
+	case <-h.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("grid read did not start")
+	}
+}
+
+func TestRequestThumbnail_CloseAndStopCancelHeldRead(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		stop func(*Overview)
+	}{
+		{"close", (*Overview).Close}, {"stop", (*Overview).Stop},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host := hostWith(t, "source.jpg")
+			u, held := heldGridURI(t, host.files[0], nil)
+			host.files[0] = u
+			g := newOverview(t, host)
+			defer func() { held.unblock(); g.Settle() }()
+			cell, img := newCell()
+			g.cellIDs.Store(cell, 0)
+			g.requestThumbnail(cell, img, 0, host.gen)
+			held.wait(t)
+			tc.stop(g)
+			held.unblock()
+			g.Settle()
+			if held.reads.Load() != 1 {
+				t.Errorf("cancelled source reads=%d, want 1", held.reads.Load())
+			}
+			if g.Cached(u) || img.Image != nil {
+				t.Error("cancelled thumbnail reached cache or cell")
+			}
+			if _, ok := g.hashOf(u); ok {
+				t.Error("cancelled thumbnail published a hash")
+			}
+			if _, ok := g.pixelCountOf(u); ok {
+				t.Error("cancelled thumbnail published native size")
+			}
+		})
+	}
+}
+
+func TestRequestThumbnail_CancelledSlotWaiterReleasesClaim(t *testing.T) {
+	host := hostWith(t, "source.jpg")
+	u, held := heldGridURI(t, host.files[0], nil)
+	host.files[0] = u
+	g := newOverview(t, host)
+	synctest.Test(t, func(t *testing.T) {
+		// Slot waits must belong to this bubble to be durably blocked.
+		g.decodes = decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency)
+		g.hashes.pool = g.decodes
+		unpark := parkDecodes(t, g)
+		cell, img := newCell()
+		g.cellIDs.Store(cell, 0)
+		g.requestThumbnail(cell, img, 0, host.gen)
+		synctest.Wait()
+		g.Close()
+		synctest.Wait()
+		if !g.decodes.Claim(cell, thumbClaim{id: 0, revision: g.work.revision}) {
+			t.Error("cancelled slot waiter retained its claim while all slots remained occupied")
+		}
+		g.decodes.Release(cell, thumbClaim{id: 0, revision: g.work.revision})
+		held.unblock()
+		unpark()
+		g.Settle()
+		if held.opens.Load() != 0 {
+			t.Errorf("cancelled slot waiter opened %d sources", held.opens.Load())
+		}
+	})
+}
+
+func TestHashRemaining_CloseCancelsReadAndNativeBackfill(t *testing.T) {
+	for _, kind := range []string{"decode", "failure", "native-backfill"} {
+		t.Run(kind, func(t *testing.T) {
+			host := hostWith(t, "source.jpg")
+			var readErr error
+			if kind == "failure" {
+				readErr = errors.New("broken source")
+			}
+			u, held := heldGridURI(t, host.files[0], readErr)
+			host.files[0] = u
+			g := newOverview(t, host)
+			defer func() { held.unblock(); g.Settle() }()
+			if kind == "native-backfill" {
+				g.dupes.PutHash(u.String(), 42)
+				g.StoreThumb(u, image.NewRGBA(image.Rect(0, 0, 4, 4)))
+			}
+			callbacks := 0
+			g.SetOnDupeStateChanged(func() { callbacks++ })
+			if n := g.hashRemaining(); n != 1 {
+				t.Fatalf("hash jobs=%d, want 1", n)
+			}
+			held.wait(t)
+			g.Close()
+			held.unblock()
+			g.Settle()
+			if held.reads.Load() != 1 {
+				t.Errorf("cancelled hash source reads=%d, want 1", held.reads.Load())
+			}
+			if g.dupes.Failed(u.String()) {
+				t.Error("cancelled hash read became a source failure")
+			}
+			if _, ok := g.pixelCountOf(u); ok {
+				t.Error("cancelled hash read published native size")
+			}
+			if kind != "native-backfill" {
+				if _, ok := g.hashOf(u); ok {
+					t.Error("cancelled hash read published a hash")
+				}
+				if g.Cached(u) {
+					t.Error("cancelled hash read cached its thumbnail")
+				}
+			}
+			if callbacks != 0 {
+				t.Errorf("cancelled hash work delivered %d callbacks", callbacks)
+			}
+		})
+	}
+}
+
+func TestRequestThumbnail_ReopenKeepsNewClaimWhileOldReadStops(t *testing.T) {
+	host := hostWith(t, "source.jpg")
+	base := host.files[0]
+	g := newOverview(t, host)
+	synctest.Test(t, func(t *testing.T) {
+		g.decodes = decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency)
+		g.hashes.pool = g.decodes
+		oldURI, oldRead := heldGridURI(t, base, nil)
+		newURI, newRead := heldGridURI(t, base, nil)
+		defer func() { oldRead.unblock(); newRead.unblock(); g.Stop(); g.Settle() }()
+		host.files[0] = oldURI
+		cell, img := newCell()
+		g.cellIDs.Store(cell, 0)
+		g.requestThumbnail(cell, img, 0, host.gen)
+		<-oldRead.entered
+		g.Close()
+		host.files[0] = newURI
+		g.Toggle() // Actual reopening starts a new session over the same file set.
+		g.requestThumbnail(cell, img, 0, host.gen)
+		synctest.Wait()
+		oldRead.unblock()
+		synctest.Wait()
+		claim := thumbClaim{id: 0, revision: g.work.revision}
+		if g.decodes.Claim(cell, claim) {
+			t.Error("old release erased the reopened cell's new claim")
+		}
+		newRead.unblock()
+		g.Settle()
+		if img.Image == nil {
+			t.Error("reopened cell did not receive its current thumbnail")
+		}
+		if oldRead.reads.Load() != 1 {
+			t.Errorf("old read continued for %d chunks", oldRead.reads.Load())
+		}
+	})
+}
+
+type notifiedGridQueue struct {
+	uitest.UIQueue
+	queued chan struct{}
+}
+
+func (q *notifiedGridQueue) Do(fn func()) { q.UIQueue.Do(fn); q.queued <- struct{}{} }
+
+func TestHashRemaining_ReopenFinishesNewPassBeforeOldReadReturns(t *testing.T) {
+	host := hostWith(t, "source.jpg")
+	base := host.files[0]
+	oldURI, oldRead := heldGridURI(t, base, nil)
+	newURI, newRead := heldGridURI(t, base, nil)
+	host.files[0] = oldURI
+	g := newOverview(t, host)
+	defer func() { oldRead.unblock(); newRead.unblock(); g.Stop(); g.Settle() }()
+	queue := &notifiedGridQueue{queued: make(chan struct{}, 8)}
+	g.SetUIQueue(queue)
+	callbacks := 0
+	g.SetOnDupeStateChanged(func() { callbacks++ })
+	if n := g.hashRemaining(); n != 1 {
+		t.Fatalf("old jobs=%d, want 1", n)
+	}
+	oldRead.wait(t)
+	g.Close()
+	host.files[0] = newURI
+	if n := g.hashRemaining(); n != 1 {
+		t.Fatalf("new jobs=%d, old URI claim suppressed the new pass", n)
+	}
+	newRead.wait(t)
+	newRead.unblock()
+	select {
+	case <-queue.queued:
+	case <-time.After(5 * time.Second):
+		t.Fatal("new pass did not finish while old read remained held")
+	}
+	queue.Drain()
+	if callbacks != 1 {
+		t.Errorf("new pass completion callbacks=%d, want 1", callbacks)
+	}
+	oldRead.unblock()
+	g.Settle()
+	if callbacks != 1 {
+		t.Errorf("old pass changed completion count to %d", callbacks)
+	}
+}
+
+func TestGridWork_SourceChangeCancelsOldReadAndAllowsRetry(t *testing.T) {
+	host := hostWith(t, "source.jpg")
+	base := host.files[0]
+	oldURI, oldRead := heldGridURI(t, base, errors.New("old source failure"))
+	newURI, newRead := heldGridURI(t, base, nil)
+	host.files[0] = oldURI
+	g := newOverview(t, host)
+	defer func() { oldRead.unblock(); newRead.unblock(); g.Stop(); g.Settle() }()
+	g.hashRemaining()
+	oldRead.wait(t)
+	host.gen++
+	host.files[0] = newURI
+	g.FilesChanged()
+	oldRead.unblock()
+	g.Settle()
+	if g.dupes.Failed(newURI.String()) {
+		t.Fatal("superseded read poisoned the replacement's retry")
+	}
+	newRead.unblock()
+	if n := g.hashRemaining(); n != 1 {
+		t.Fatalf("replacement jobs=%d, want 1", n)
+	}
+	g.Settle()
+	if _, ok := g.hashOf(newURI); !ok {
+		t.Error("replacement was not hashed")
+	}
+	if size, ok := g.pixelCountOf(newURI); !ok || size != 64 {
+		t.Errorf("replacement size=%d, %v; want 64/true", size, ok)
+	}
+}
+
+func TestGridWork_StopPreventsFreshAdmission(t *testing.T) {
+	host := hostWith(t, "source.jpg")
+	u, held := heldGridURI(t, host.files[0], nil)
+	host.files[0] = u
+	g := newOverview(t, host)
+	defer func() { held.unblock(); g.Settle() }()
+	held.unblock()
+	g.Stop()
+	g.SetHideDuplicates(true)
+	setDuplicateDistance(g, 0)
+	g.SetBrowsingDuplicates(true)
+	setDuplicateDistance(g, 1)
+	g.Toggle()
+	if g.visible {
+		t.Error("stopped grid reopened")
+	}
+	if n := g.hashRemaining(); n != 0 {
+		t.Errorf("stopped grid started %d hash jobs", n)
+	}
+	if err := g.Warm(); !errors.Is(err, context.Canceled) {
+		t.Errorf("stopped warm = %v", err)
+	}
+	cell, img := newCell()
+	g.cellIDs.Store(cell, 0)
+	g.requestThumbnail(cell, img, 0, host.gen)
+	held.unblock()
+	g.Settle()
+	if held.opens.Load() != 0 {
+		t.Errorf("stopped grid opened %d sources", held.opens.Load())
+	}
+}
+
+func TestGridWork_CloseDiscardsQueuedDelivery(t *testing.T) {
+	for _, kind := range []string{"cell", "hash"} {
+		t.Run(kind, func(t *testing.T) {
+			host := hostWith(t, "source.jpg")
+			g := newOverview(t, host)
+			cell, img := newCell()
+			callbacks := 0
+			g.SetOnDupeStateChanged(func() { callbacks++ })
+			if kind == "cell" {
+				g.cellIDs.Store(cell, 0)
+				g.requestThumbnail(cell, img, 0, host.gen)
+			} else {
+				g.hashRemaining()
+			}
+			g.decodes.Wait() // Submission is inside each owning worker.
+			if g.ui.(*uitest.UIQueue).Len() == 0 {
+				t.Fatal("worker did not enqueue its delivery")
+			}
+			g.Close()
+			g.Settle()
+			if img.Image != nil || callbacks != 0 {
+				t.Errorf("closed delivery painted=%v callbacks=%d", img.Image != nil, callbacks)
+			}
+		})
+	}
+}
+
+func TestToggle_ReopenResumesIncompleteHideAnalysis(t *testing.T) {
+	testResumeIncompleteHideAnalysis(t, (*Overview).Toggle)
+}
+
+func TestDuplicateDistanceResumesIncompleteClosedHideAnalysis(t *testing.T) {
+	testResumeIncompleteHideAnalysis(t, func(g *Overview) {
+		setDuplicateDistance(g, 0)
+		if g.visible {
+			t.Error("sensitivity change reopened the grid")
+		}
+	})
+}
+
+func TestDuplicateDistancePreservesPendingBrowse(t *testing.T) {
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg"}, []int{1, 1})
+	u, held := heldGridURI(t, host.files[0], nil)
+	host.files[0] = u
+	g := newOverview(t, host)
+	defer func() { held.unblock(); g.Stop(); g.Settle() }()
+	g.SetBrowsingDuplicates(true)
+	held.wait(t)
+	setDuplicateDistance(g, 0)
+	if !g.BrowsingDuplicates() || g.BrowseReady() {
+		t.Error("sensitivity change completed or cancelled browsing before its source was hashed")
+	}
+	held.unblock()
+	g.Settle()
+	if !g.BrowseReady() || g.SourceDuplicateGroupSize() != 2 {
+		t.Error("sensitivity change did not deliver the completed browse group")
+	}
+}
+
+func testResumeIncompleteHideAnalysis(t *testing.T, resume func(*Overview)) {
+	t.Helper()
+	// Uniform hashes are deliberately excluded from duplicate groups.
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg"}, []int{1, 1})
+	base := host.files[0]
+	oldURI, oldRead := heldGridURI(t, base, nil)
+	newURI, newRead := heldGridURI(t, base, nil)
+	host.files[0] = oldURI
+	g := newOverview(t, host)
+	defer func() { oldRead.unblock(); newRead.unblock(); g.Stop(); g.Settle() }()
+	g.SetHideDuplicates(true)
+	oldRead.wait(t)
+	g.Close()
+	oldRead.unblock()
+	g.Settle()
+	if _, ok := g.hashOf(oldURI); ok {
+		t.Fatal("cancelled read published a hash")
+	}
+	host.files[0] = newURI
+	resume(g)
+	if g.hashes.hashJobs.Load() == 0 {
+		t.Error("did not resume incomplete hide analysis")
+	}
+	newRead.unblock()
+	g.Settle()
+	if got := g.dupes.GroupSize(0); got != 2 {
+		t.Errorf("resumed duplicate group size=%d, want 2", got)
+	}
+	if _, ok := g.pixelCountOf(newURI); !ok {
+		t.Error("resumed analysis did not publish native size")
+	}
+	if !g.dupes.IsHiddenExtra(1) {
+		t.Error("navigation still includes the duplicate extra")
+	}
+}
+
+type heldFirstGridQueue struct {
+	uitest.UIQueue
+	calls        atomic.Int32
+	first        chan struct{}
+	releaseFirst chan struct{}
+	second       chan struct{}
+}
+
+func (q *heldFirstGridQueue) Do(fn func()) {
+	n := q.calls.Add(1)
+	if n == 1 {
+		close(q.first)
+		<-q.releaseFirst
+	}
+	q.UIQueue.Do(fn)
+	if n == 2 {
+		close(q.second)
+	}
+}
+
+func TestHashRemaining_LatePartialDeliveryCannotReplaceFinalGroups(t *testing.T) {
+	// Uniform hashes are deliberately excluded from duplicate groups.
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg"}, []int{1, 1})
+	u, held := heldGridURI(t, host.files[0], nil)
+	host.files[0] = u
+	g := newOverview(t, host)
+	queue := &heldFirstGridQueue{first: make(chan struct{}), releaseFirst: make(chan struct{}), second: make(chan struct{})}
+	var once sync.Once
+	releaseFirst := func() { once.Do(func() { close(queue.releaseFirst) }) }
+	defer func() { held.unblock(); releaseFirst(); g.Stop(); g.Settle() }()
+	g.SetUIQueue(queue)
+	g.SetHideDuplicates(true)
+	// B computes a partial snapshot while A is still reading, then is held
+	// immediately before enqueueing. A's final snapshot reaches the queue first.
+	select {
+	case <-queue.first:
+	case <-time.After(5 * time.Second):
+		t.Fatal("partial snapshot did not reach submission")
+	}
+	held.unblock()
+	select {
+	case <-queue.second:
+	case <-time.After(5 * time.Second):
+		t.Fatal("final snapshot did not enqueue")
+	}
+	releaseFirst()
+	g.Settle()
+	if got := g.dupes.GroupSize(0); got != 2 {
+		t.Errorf("late partial snapshot replaced final group: size=%d, want 2", got)
+	}
+}
+
+// Keep the work context alive: generation admission must protect facts even
+// when cancellation has not yet reached a worker finishing an old same-URI read.
+func TestGridFacts_RejectOldReadsAcrossReplacementAndReset(t *testing.T) {
+	for _, reset := range []bool{false, true} {
+		for _, path := range []string{"hash", "hash-failure", "cell", "cell-failure", "native", "native-failure"} {
+			name := fmt.Sprintf("reset=%v/%s", reset, path)
+			t.Run(name, func(t *testing.T) {
+				host := hostWith(t, "source.jpg")
+				var readErr error
+				if strings.HasSuffix(path, "failure") {
+					readErr = errors.New("old read failed")
+				}
+				u, held := heldGridURI(t, host.files[0], readErr)
+				host.files[0] = u
+				g := newOverview(t, host)
+				defer func() { held.unblock(); g.Stop(); g.Settle() }()
+				ctx := g.work.ctx
+				backfill := strings.HasPrefix(path, "native")
+				if backfill {
+					g.thumbs.Add(u.String(), image.NewNRGBA(image.Rect(0, 0, 2, 2)))
+					g.dupes.PutHash(u.String(), 7)
+				}
+				cell := container.NewStack()
+				img := canvas.NewImageFromImage(nil)
+				callbacks := 0
+				g.SetOnDupeStateChanged(func() { callbacks++ })
+				if strings.HasPrefix(path, "cell") {
+					g.cellIDs.Store(cell, 0)
+					g.requestThumbnail(cell, img, 0, host.gen)
+				} else {
+					g.hashRemaining()
+				}
+				held.wait(t)
+				if reset {
+					g.dupes.Clear()
+				} else {
+					host.gen++
+					g.dupes.WipeIfStale()
+				}
+				// These represent facts established by a replacement worker.
+				g.dupes.PutHash(u.String(), 99)
+				g.dupes.PutNativeSize(u.String(), image.Pt(100, 200))
+				held.unblock()
+				g.Settle()
+				if ctx.Err() != nil {
+					t.Fatal("fixture cancelled old work; admission was not exercised")
+				}
+				if h, ok := g.dupes.Hash(u.String()); !ok || h != 99 {
+					t.Errorf("old hash replaced current: %d/%v", h, ok)
+				}
+				if sz, ok := g.dupes.NativeSize(u.String()); !ok || sz != image.Pt(100, 200) {
+					t.Errorf("old native size replaced current: %v/%v", sz, ok)
+				}
+				if g.dupes.Failed(u.String()) {
+					t.Error("old failure poisoned current source")
+				}
+				if !backfill && g.Cached(u) {
+					t.Error("old pixels entered cache")
+				}
+				if img.Image != nil || callbacks != 0 {
+					t.Errorf("old delivery: image=%v callbacks=%d", img.Image != nil, callbacks)
+				}
+			})
+		}
+	}
+}
+
+func TestGridFacts_ResetDiscardsQueuedDeliveryAndAllowsRetry(t *testing.T) {
+	for _, cellPath := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cell=%v", cellPath), func(t *testing.T) {
+			host := hostWith(t, "source.jpg")
+			g := newOverview(t, host)
+			cell := container.NewStack()
+			img := canvas.NewImageFromImage(nil)
+			callbacks := 0
+			g.SetOnDupeStateChanged(func() { callbacks++ })
+			if cellPath {
+				g.cellIDs.Store(cell, 0)
+				g.requestThumbnail(cell, img, 0, host.gen)
+			} else {
+				g.hashRemaining()
+			}
+			g.decodes.Wait()
+			g.dupes.Clear()
+			g.Settle()
+			if callbacks != 0 || img.Image != nil {
+				t.Error("reset accepted already-queued delivery")
+			}
+			if n := g.hashRemaining(); n != 1 {
+				t.Fatalf("reset retry jobs=%d, want 1", n)
+			}
+			g.Settle()
+			if _, ok := g.hashOf(host.files[0]); !ok {
+				t.Error("reset prevented a new hash")
+			}
+			if size, ok := g.pixelCountOf(host.files[0]); !ok || size != 64 {
+				t.Errorf("retry native size=%d/%v", size, ok)
+			}
+		})
+	}
+}
+
+func TestGridFacts_OldFailureCannotSuppressReplacementRetry(t *testing.T) {
+	host := hostWith(t, "source.jpg")
+	base := host.files[0]
+	oldURI, old := heldGridURI(t, base, errors.New("obsolete failure"))
+	newURI, current := heldGridURI(t, base, nil)
+	host.files[0] = oldURI
+	g := newOverview(t, host)
+	defer func() { old.unblock(); current.unblock(); g.Stop(); g.Settle() }()
+	g.hashRemaining()
+	old.wait(t)
+	host.gen++
+	host.files[0] = newURI
+	g.dupes.WipeIfStale()
+	old.unblock()
+	g.Settle()
+	current.unblock()
+	if n := g.hashRemaining(); n != 1 {
+		t.Fatalf("replacement retry jobs=%d, want 1", n)
+	}
+	g.Settle()
+	if g.dupes.Failed(newURI.String()) {
+		t.Error("replacement retained old failure")
+	}
+	if _, ok := g.hashOf(newURI); !ok {
+		t.Error("replacement not hashed")
+	}
+}
+
+func TestInvalidateContentDropsPixelsAndFactsWithoutResettingSelection(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	unpark := parkDecodes(t, g)
+	defer unpark()
+	if err := g.Warm(); err != nil {
+		t.Fatal(err)
+	}
+	g.searching = true
+	g.SelectAll()
+	g.highlight = 1
+	g.dupes.SetHideDuplicates(true)
+	ctx, facts, writer := g.work.ctx, g.work.facts, g.CaptureThumbs()
+	g.InvalidateContent()
+	if ctx.Err() == nil {
+		t.Error("old readers were not cancelled")
+	}
+	if facts.PutHash(host.files[0].String(), 99) {
+		t.Error("old facts were still accepted")
+	}
+	old := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	if writer.AddIfFits(host.files[0].String(), old) {
+		t.Error("old preview writer repopulated invalidated pixels")
+	}
+	for _, u := range host.files {
+		if g.Cached(u) {
+			t.Error("cached pixels survived content invalidation")
+		}
+		if _, ok := g.dupes.Hash(u.String()); ok {
+			t.Error("derived hash survived content invalidation")
+		}
+	}
+	if g.SelectionCount() != 2 || g.fileIndex(g.highlight) != 1 || !g.Searching() || !g.dupes.HideDuplicates() {
+		t.Errorf("view reset: selection=%v highlight=%d search=%v hide=%v", g.Selection(), g.fileIndex(g.highlight), g.Searching(), g.dupes.HideDuplicates())
 	}
 }

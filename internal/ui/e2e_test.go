@@ -216,7 +216,7 @@ func TestE2E_TappingRestoreLinkRestoresNotFileDialog(t *testing.T) {
 	chooserCalled := false
 	orig := filepicker.Choose
 	t.Cleanup(func() { filepicker.Choose = orig })
-	filepicker.Choose = func() ([]byte, error) {
+	filepicker.Choose = func() ([]fyne.URI, error) {
 		chooserCalled = true
 		return nil, errors.New("stub: should not be reached")
 	}

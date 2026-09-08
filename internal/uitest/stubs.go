@@ -23,12 +23,12 @@ import (
 
 // StubChooser makes filepicker.Choose return out/err instead of opening the
 // OS file browser.
-func StubChooser(t *testing.T, out []byte, err error) {
+func StubChooser(t *testing.T, out []fyne.URI, err error) {
 	t.Helper()
 
 	orig := filepicker.Choose
 	t.Cleanup(func() { filepicker.Choose = orig })
-	filepicker.Choose = func() ([]byte, error) { return out, err }
+	filepicker.Choose = func() ([]fyne.URI, error) { return out, err }
 }
 
 // StubDisplays makes displays.Inspect use a deterministic topology without
@@ -45,7 +45,7 @@ func StubDisplays(t *testing.T, fn func(fyne.Window) (displays.Snapshot, error))
 // the OS save panel. It takes a function rather than a fixed result the way
 // StubChooser does, since a caller usually wants to assert on the suggested
 // path it was offered as well as control what comes back.
-func StubSaveChooser(t *testing.T, fn func(suggestedPath string) ([]byte, error)) {
+func StubSaveChooser(t *testing.T, fn func(suggestedPath string) (fyne.URI, error)) {
 	t.Helper()
 
 	orig := filepicker.ChooseSave

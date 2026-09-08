@@ -9,6 +9,7 @@ import (
 	"image/draw"
 	"math/rand/v2"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 
@@ -28,18 +29,37 @@ const defaultRepeatCacheBytes = 64 << 20
 // Generator owns the generation dependencies for one caller. New returns the
 // production generator; the package-level Generate is the usual entry point.
 type Generator struct {
-	load       sourceLoader
-	cacheBytes int64
+	load          sourceLoader
+	cacheBytes    int64
+	beforePrepare func(preparationPlan) error
+	previewClock  func() time.Time
 }
 
 // New creates a mosaic generator backed by PicFetch's canonical image loader.
 func New() *Generator {
-	return &Generator{load: loadCanonicalSource, cacheBytes: defaultRepeatCacheBytes}
+	return &Generator{load: loadCanonicalSource, cacheBytes: defaultRepeatCacheBytes, previewClock: time.Now}
 }
 
 // Generate renders one validated request with a fresh production generator.
 func Generate(ctx context.Context, request Request) (Result, error) {
 	return New().Generate(ctx, request)
+}
+
+// Progress measures canvas pixels covered by completed placements. It measures
+// image coverage, not elapsed time; completion is reported after composition.
+type Progress struct {
+	CoveredPixels int
+	TotalPixels   int
+	// Preview is an optional independent canvas snapshot, at most 960 pixels
+	// on its longest edge. The generator never mutates a published preview.
+	// Nil means keep the preceding preview. Final pixels belong to Result.
+	Preview image.Image
+}
+
+// GenerateWithProgress reports progress synchronously during generation.
+// The callback must return promptly and may cancel ctx. Nil disables reporting.
+func GenerateWithProgress(ctx context.Context, request Request, report func(Progress)) (Result, error) {
+	return New().GenerateWithProgress(ctx, request, report)
 }
 
 // NoReadableSourcesError reports the sources that failed before any usable
@@ -55,11 +75,26 @@ func (e *NoReadableSourcesError) Error() string {
 // Generate lazily loads sources in deterministic shuffled order and renders
 // placements as the covering layout requests them.
 func (g *Generator) Generate(ctx context.Context, request Request) (Result, error) {
+	return g.GenerateWithProgress(ctx, request, nil)
+}
+
+// GenerateWithProgress is Generate with a synchronous coverage callback.
+func (g *Generator) GenerateWithProgress(ctx context.Context, request Request, report func(Progress)) (Result, error) {
 	if err := validateStoredRequest(request); err != nil {
 		return Result{}, err
 	}
 	if g == nil || g.load == nil {
 		return Result{}, fmt.Errorf("mosaic generator has no source loader")
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	total := request.target.X * request.target.Y
+	if report != nil {
+		report(Progress{TotalPixels: total})
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
 	}
 
 	pool := newSourcePool(request.sources, request.seed, g.load)
@@ -70,6 +105,16 @@ func (g *Generator) Generate(ctx context.Context, request Request) (Result, erro
 	canvas := image.NewNRGBA(image.Rectangle{Max: request.target})
 	fillNRGBA(canvas, color.NRGBA{R: 28, G: 30, B: 34, A: 255})
 	primaryLayer := image.NewNRGBA(canvas.Bounds())
+	previews := previewSnapshots{clock: g.previewClock}
+	reportCoverage := func(covered int) {
+		if report == nil || covered >= total || ctx.Err() != nil {
+			return
+		}
+		preview := previews.next(canvas, primaryLayer)
+		if ctx.Err() == nil {
+			report(Progress{CoveredPixels: covered, TotalPixels: total, Preview: preview})
+		}
+	}
 
 	next := func() (candidate, error) {
 		entry, source, err := pool.next(ctx)
@@ -95,14 +140,23 @@ func (g *Generator) Generate(ctx context.Context, request Request) (Result, erro
 			destination = canvas
 		}
 
-		return renderPlacement(ctx, destination, source, placement)
+		return renderPlacementWithBudget(ctx, destination, source, placement, maxPreparationBytes, g.beforePrepare)
 	}
 
-	_, err := walkLayout(ctx, request.target, request.settings, request.seed, next, onPlacement)
+	_, err := walkLayout(ctx, request.target, request.settings, request.seed, next, onPlacement, reportCoverage)
 	if err != nil {
 		return Result{}, err
 	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
 	draw.Draw(canvas, canvas.Bounds(), primaryLayer, primaryLayer.Bounds().Min, draw.Over)
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	if report != nil {
+		report(Progress{CoveredPixels: total, TotalPixels: total})
+	}
 
 	// canvas was allocated for this result and was never shared with a caller,
 	// so ownership can transfer without a second target-sized copy.

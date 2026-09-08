@@ -834,7 +834,6 @@ func TestMakeCoverageRunsCompleteUnshardedSuiteAndBuildsHTML(t *testing.T) {
 	output := makeDryRun(t, "coverage")
 	for _, want := range []string{
 		"docker run --rm --platform linux/amd64",
-		"apt-get install -y -qq make",
 		"locale-gen en_US.UTF-8",
 		"go test -timeout 30m -coverprofile=\"coverage/coverage.out\" ./...",
 		"go tool cover -html=\"coverage/coverage.out\" -o \"coverage/coverage.html\"",
@@ -842,6 +841,9 @@ func TestMakeCoverageRunsCompleteUnshardedSuiteAndBuildsHTML(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("make coverage output is missing %q:\n%s", want, output)
 		}
+	}
+	if !regexp.MustCompile(`(?m)^\s*apt-get install -y -qq (?:\S+ )*make(?:\s|$)`).MatchString(output) {
+		t.Fatalf("make coverage must install make in the container:\n%s", output)
 	}
 	for _, forbidden := range []string{"testshards", "-race", "-run"} {
 		if strings.Contains(output, forbidden) {

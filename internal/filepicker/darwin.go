@@ -10,11 +10,35 @@ package filepicker
 #include <stdlib.h>
 #include <string.h>
 
+// Both panels and the native transport regression use this serializer.
+static char *serializePanelURLs(NSArray<NSURL *> *urls) {
+	NSMutableArray<NSString *> *paths = [NSMutableArray array];
+	for (NSURL *url in urls) {
+		if (!url.path) return NULL;
+		[paths addObject:url.path];
+	}
+	NSData *data = [NSJSONSerialization dataWithJSONObject:paths options:0 error:NULL];
+	if (!data) return NULL;
+	NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+	return json ? strdup(json.UTF8String) : NULL;
+}
+
+// Runs the real NSURL-to-JSON transport without creating a panel or a window.
+static char *roundTripPanelPaths(const char *input) {
+	@autoreleasepool {
+		NSData *data = [NSData dataWithBytes:input length:strlen(input)];
+		NSArray<NSString *> *paths = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+		NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+		for (NSString *path in paths) [urls addObject:[NSURL fileURLWithPath:path]];
+		return serializePanelURLs(urls);
+	}
+}
+
 // runOpenPanel shows an app-modal NSOpenPanel that allows files, folders,
 // and multi-select all at once - a combination none of AppleScript's
 // Standard Additions pickers offer. Must be called on the main thread (an
 // AppKit requirement); chooseFilesDarwin below guarantees that. Returns a
-// malloc'd, newline-joined POSIX path list; "" on cancel.
+// malloc'd JSON path array; JSON null on cancel, NULL on failure.
 static char *runOpenPanel(const char *message) {
 	NSOpenPanel *panel = [NSOpenPanel openPanel];
 	panel.message = [NSString stringWithUTF8String:message];
@@ -22,14 +46,10 @@ static char *runOpenPanel(const char *message) {
 	panel.canChooseDirectories = YES;
 	panel.allowsMultipleSelection = YES;
 
-	if ([panel runModal] != NSModalResponseOK) {
-		return strdup("");
-	}
-	NSMutableArray<NSString *> *paths = [NSMutableArray array];
-	for (NSURL *url in panel.URLs) {
-		[paths addObject:url.path];
-	}
-	return strdup([paths componentsJoinedByString:@"\n"].UTF8String);
+	NSModalResponse response = [panel runModal];
+	if (response == NSModalResponseCancel) return strdup("null");
+	if (response != NSModalResponseOK) return NULL;
+	return serializePanelURLs(panel.URLs);
 }
 
 // runSavePanel shows an app-modal NSSavePanel pre-filled with name, opened
@@ -37,7 +57,7 @@ static char *runOpenPanel(const char *message) {
 // chooseSaveDarwin guarantees it the same way. No allowedContentTypes is
 // set: the format is already decided by which "Export as…" item the user
 // picked, and constraining the panel would only stop them naming the file
-// whatever they want. Returns a malloc'd POSIX path; "" on cancel.
+// whatever they want. Returns the same JSON contract as runOpenPanel.
 static char *runSavePanel(const char *message, const char *dir, const char *name) {
 	NSSavePanel *panel = [NSSavePanel savePanel];
 	panel.message = [NSString stringWithUTF8String:message];
@@ -47,15 +67,16 @@ static char *runSavePanel(const char *message, const char *dir, const char *name
 		panel.directoryURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:dir] isDirectory:YES];
 	}
 
-	if ([panel runModal] != NSModalResponseOK) {
-		return strdup("");
-	}
-	return strdup(panel.URL.path.UTF8String);
+	NSModalResponse response = [panel runModal];
+	if (response == NSModalResponseCancel) return strdup("null");
+	if (response != NSModalResponseOK) return NULL;
+	return serializePanelURLs(panel.URL ? @[panel.URL] : @[]);
 }
 */
 import "C"
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"unsafe"
 
@@ -80,9 +101,8 @@ import (
 // the panel freezes for the duration, which is what app-modal means. That
 // also means this must never be called *from* the UI goroutine (DoAndWait
 // would deadlock) - production only reaches it via the viewer's
-// openFileDialog background goroutine. A cancel returns empty output and a
-// nil error, matching chooseFilesWindows; zenity's Linux cancel returns an
-// error instead, which the caller treats the same way (see chooseFilesLinux).
+// openFileDialog background goroutine. Cancellation emits JSON null; successful
+// paths use structured transport, while other modal responses are errors.
 func chooseFilesDarwin() ([]byte, error) {
 	cMsg := C.CString(lang.L("Open images"))
 	defer C.free(unsafe.Pointer(cMsg))
@@ -117,4 +137,18 @@ func chooseSaveDarwin(suggestedPath string) ([]byte, error) {
 		out = []byte(C.GoString(cOut))
 	})
 	return out, nil
+}
+
+// darwinPathTransport exercises the panel's actual Objective-C NSURL serializer
+// with temporary paths. It performs no desktop operation and changes no seams.
+func darwinPathTransport(paths []string) ([]byte, error) {
+	input, err := json.Marshal(paths)
+	if err != nil {
+		return nil, err
+	}
+	cInput := C.CString(string(input))
+	defer C.free(unsafe.Pointer(cInput))
+	cOut := C.roundTripPanelPaths(cInput)
+	defer C.free(unsafe.Pointer(cOut))
+	return []byte(C.GoString(cOut)), nil
 }

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -38,21 +39,25 @@ func writeTempPNG(data []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return writeTempPNGFile(f, data, os.Remove)
+}
 
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		err := os.Remove(f.Name())
-		if err != nil {
-			return "", err
-		}
-		return "", err
+type tempPNGFile interface {
+	Write([]byte) (int, error)
+	Close() error
+	Name() string
+}
+
+func writeTempPNGFile(f tempPNGFile, data []byte, remove func(string) error) (string, error) {
+	n, err := f.Write(data)
+	if err == nil && n != len(data) {
+		err = io.ErrShortWrite
+	}
+	if err != nil {
+		return "", errors.Join(err, f.Close(), remove(f.Name()))
 	}
 	if err := f.Close(); err != nil {
-		err := os.Remove(f.Name())
-		if err != nil {
-			return "", err
-		}
-		return "", err
+		return "", errors.Join(err, remove(f.Name()))
 	}
 	return f.Name(), nil
 }

@@ -1,0 +1,18 @@
+fyne-floating 1
+cross-floating 1
+windows-image 1
+linux-image 1
+engine-route 1
+cache-route 1
+image-route 1
+store-route 1
+debug-route 1
+host-provenance 1
+image-provenance 1
+cli-provenance 1
+warmup-user 1
+copy-failure 1
+mac-cli 1
+release-install 1
+store-install 1
+All 17 packaging mutations rejected.

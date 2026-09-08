@@ -1,0 +1,67 @@
+Linux f9cea6b1a7b6 6.12.76-linuxkit #1 SMP Thu Jun 25 13:45:40 UTC 2026 aarch64 GNU/Linux
+PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+NAME="Debian GNU/Linux"
+VERSION_ID="12"
+VERSION="12 (bookworm)"
+VERSION_CODENAME=bookworm
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+arm64
+  dimensions:    1280x960 pixels (339x254 millimeters)
+  resolution:    96x96 dots per inch
+name of display: :99
+display: :99  screen: 0
+direct rendering: Yes
+Extended renderer info (GLX_MESA_query_renderer):
+    Vendor: Mesa/X.org (0xffffffff)
+    Device: llvmpipe (LLVM 15.0.6, 128 bits) (0xffffffff)
+    Version: 22.3.6
+    Accelerated: no
+    Video memory: 7933MB
+    Unified memory: yes
+    Preferred profile: core (0x1)
+    Max core profile version: 4.5
+    Max compat profile version: 4.5
+    Max GLES1 profile version: 1.1
+    Max GLES[23] profile version: 3.2
+OpenGL vendor string: Mesa/X.org
+OpenGL renderer string: llvmpipe (LLVM 15.0.6, 128 bits)
+OpenGL core profile version string: 4.5 (Core Profile) Mesa 22.3.6
+OpenGL core profile shading language version string: 4.50
+OpenGL core profile context flags: (none)
+OpenGL core profile profile mask: core profile
+
+OpenGL version string: 4.5 (Compatibility Profile) Mesa 22.3.6
+OpenGL shading language version string: 4.50
+OpenGL context flags: (none)
+OpenGL profile mask: compatibility profile
+
+OpenGL ES profile version string: OpenGL ES 3.2 Mesa 22.3.6
+OpenGL ES profile shading language version string: OpenGL ES GLSL ES 3.20
+
+libgl1-mesa-dri:arm64	22.3.6-1+deb12u2
+novnc	1:1.3.0-1
+openbox	3.6.1-10
+x11vnc	0.9.16-9
+xvfb	2:21.1.7-3+deb12u13
+	linux-vdso.so.1 (0x0000ffff9914b000)
+	libwayland-client.so.0 => /lib/aarch64-linux-gnu/libwayland-client.so.0 (0x0000ffff990d0000)
+	libX11.so.6 => /lib/aarch64-linux-gnu/libX11.so.6 (0x0000ffff98f70000)
+	libGL.so.1 => /lib/aarch64-linux-gnu/libGL.so.1 (0x0000ffff98e70000)
+	libm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ffff98dc0000)
+	libc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ffff98c10000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffff99100000)
+	libffi.so.8 => /lib/aarch64-linux-gnu/libffi.so.8 (0x0000ffff98be0000)
+	libpthread.so.0 => /lib/aarch64-linux-gnu/libpthread.so.0 (0x0000ffff98bb0000)
+	libxcb.so.1 => /lib/aarch64-linux-gnu/libxcb.so.1 (0x0000ffff98b60000)
+	libGLdispatch.so.0 => /lib/aarch64-linux-gnu/libGLdispatch.so.0 (0x0000ffff989d0000)
+	libGLX.so.0 => /lib/aarch64-linux-gnu/libGLX.so.0 (0x0000ffff98970000)
+	libXau.so.6 => /lib/aarch64-linux-gnu/libXau.so.6 (0x0000ffff98950000)
+	libXdmcp.so.6 => /lib/aarch64-linux-gnu/libXdmcp.so.6 (0x0000ffff98930000)
+	libbsd.so.0 => /lib/aarch64-linux-gnu/libbsd.so.0 (0x0000ffff988f0000)
+	libmd.so.0 => /lib/aarch64-linux-gnu/libmd.so.0 (0x0000ffff988c0000)
+8e268fe7ca23ef76b1b09d08805bb86e88e43e181f67f57164fd49fb81e9abe0  /input/picfetch-linux-arm64
+7a15537d94c8567ac7bff312622a811994451c54f1166a02d7467c6f9f996257  /fixtures/01-alpha.png
+57c202a5840d9188f0296d1c7e4d6c5d877f0a25b43eafa256295211a9d173db  /fixtures/02-beta.png

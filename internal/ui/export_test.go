@@ -18,6 +18,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -117,7 +118,7 @@ func TestExportAs_WritesTheDisplayedFrameToThePickedPath(t *testing.T) {
 
 	v.rotateBy(1) // 4x2 -> 2x4; the export must carry the rotation on screen
 	dest := filepath.Join(t.TempDir(), "copy.png")
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 	v.exportAs(".png")
 	settleChooser(t, v)
@@ -155,7 +156,7 @@ func TestExportAs_ExportsAFormatThatHasNoEncoderOfItsOwn(t *testing.T) {
 	dropAndWait(t, v, storage.NewFileURI(path))
 
 	dest := filepath.Join(t.TempDir(), "copy.png")
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 	v.exportAs(".png")
 	settleChooser(t, v)
@@ -181,7 +182,7 @@ func TestExportAs_JPEGSourceKeepsGPSExif(t *testing.T) {
 
 	t.Run("jpeg dest", func(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "copy.jpg")
-		uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+		uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 		v.exportAs(".jpg")
 		settleChooser(t, v)
@@ -199,7 +200,7 @@ func TestExportAs_JPEGSourceKeepsGPSExif(t *testing.T) {
 
 	t.Run("png dest", func(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "copy.png")
-		uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+		uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 		v.exportAs(".png")
 		settleChooser(t, v)
@@ -225,7 +226,7 @@ func TestExportAs_SuggestsTheSourceNameWithTheNewExtensionInItsOwnFolder(t *test
 	dropAndWait(t, v, storage.NewFileURI(path))
 
 	var suggested string
-	uitest.StubSaveChooser(t, func(s string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(s string) (fyne.URI, error) {
 		suggested = s
 		return nil, nil // cancelled: this test only cares what the panel was offered
 	})
@@ -243,13 +244,13 @@ func TestExportAs_SuggestsTheSourceNameWithTheNewExtensionInItsOwnFolder(t *test
 // cancel mishandled as a valid empty pick could plausibly write. It covers
 // the empty-output cancel macOS and Windows produce; zenity's own cancel is
 // a non-zero exit indistinguishable from a real failure, and takes
-// reportChooserError's path instead - see TestReportChooserError_TogglesToastByOS.
+// reportChooserError's path instead - see TestReportChooserError_ToastsFailures.
 func TestExportAs_CancelWritesNothing(t *testing.T) {
 	v := newTestViewer(t)
 	path := uitest.WriteTempFile(t, "a.jpg", uitest.EncodeJPEG(t, 4, 4, color.White))
 	dropAndWait(t, v, storage.NewFileURI(path))
 
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return nil, nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return nil, nil })
 
 	v.exportAs(".png")
 	settleChooser(t, v)
@@ -266,18 +267,16 @@ func TestExportAs_CancelWritesNothing(t *testing.T) {
 	}
 }
 
-// TestExportAs_AppendsTheFormatExtensionWhenThePickedNameCannotBeEncoded
-// covers the rule that keeps a file's bytes matching its name: whatever the
-// user typed, the file ends up with an extension this module can actually
-// encode.
-func TestExportAs_AppendsTheFormatExtensionWhenThePickedNameCannotBeEncoded(t *testing.T) {
+// A supported typed extension chooses its encoder; other names use the
+// selected format without changing the destination confirmed in the panel.
+func TestExportAs_UsesSelectedEncoderWithoutChangingThePickedName(t *testing.T) {
 	tests := []struct {
 		name   string
 		picked string
 		want   string
 	}{
-		{"no extension at all", "copy", "copy.png"},
-		{"an extension with no encoder", "copy.webp", "copy.webp.png"},
+		{"no extension at all", "copy", "copy"},
+		{"an extension with no encoder", "copy.webp", "copy.webp"},
 	}
 
 	for _, tt := range tests {
@@ -286,8 +285,8 @@ func TestExportAs_AppendsTheFormatExtensionWhenThePickedNameCannotBeEncoded(t *t
 			dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 
 			dir := t.TempDir()
-			uitest.StubSaveChooser(t, func(string) ([]byte, error) {
-				return []byte(filepath.Join(dir, tt.picked) + "\n"), nil
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
+				return storage.NewFileURI(filepath.Join(dir, tt.picked)), nil
 			})
 
 			v.exportAs(".png")
@@ -303,20 +302,15 @@ func TestExportAs_AppendsTheFormatExtensionWhenThePickedNameCannotBeEncoded(t *t
 	}
 }
 
-// TestExportAs_AppendsTheExtensionOfTheFormatActuallyPicked pins the
-// appended extension to the menu item the user chose, which
-// TestExportAs_AppendsTheFormatExtensionWhenThePickedNameCannotBeEncoded
-// alone can't: it only ever exercises the PNG item, so a hardcoded ".png"
-// in exportDestination would satisfy it. Checking the magic bytes as well
-// as the name is what makes this about the format rather than the spelling.
-func TestExportAs_AppendsTheExtensionOfTheFormatActuallyPicked(t *testing.T) {
+// Extensionless destinations retain their exact name for either chosen encoder.
+func TestExportAs_UsesSelectedEncoderForAnExtensionlessPath(t *testing.T) {
 	tests := []struct {
 		ext   string
 		want  string
 		magic []byte
 	}{
-		{exportPNGExt, "copy.png", []byte("\x89PNG\r\n\x1a\n")},
-		{exportJPEGExt, "copy.jpg", []byte{0xFF, 0xD8, 0xFF}},
+		{exportPNGExt, "copy", []byte("\x89PNG\r\n\x1a\n")},
+		{exportJPEGExt, "copy", []byte{0xFF, 0xD8, 0xFF}},
 	}
 
 	for _, tt := range tests {
@@ -325,8 +319,8 @@ func TestExportAs_AppendsTheExtensionOfTheFormatActuallyPicked(t *testing.T) {
 			dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 
 			dir := t.TempDir()
-			uitest.StubSaveChooser(t, func(string) ([]byte, error) {
-				return []byte(filepath.Join(dir, "copy") + "\n"), nil // no extension typed
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
+				return storage.NewFileURI(filepath.Join(dir, "copy")), nil // no extension typed
 			})
 
 			v.exportAs(tt.ext)
@@ -355,7 +349,7 @@ func TestExportAs_HonorsAnEncodableExtensionTheUserTyped(t *testing.T) {
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 
 	dest := filepath.Join(t.TempDir(), "copy.jpg")
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 	v.exportAs(".png") // the PNG menu item, overridden by the typed .jpg
 	settleChooser(t, v)
@@ -378,7 +372,7 @@ func TestExportAs_ReportsAFailedWrite(t *testing.T) {
 	// A directory that does not exist, so imaging.Export's own temp-file
 	// creation fails - the same shape as any unwritable destination.
 	dest := filepath.Join(t.TempDir(), "no-such-dir", "copy.png")
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(dest + "\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
 
 	v.exportAs(".png")
 	settleChooser(t, v)
@@ -394,7 +388,7 @@ func TestExportAs_NoOpWithNothingLoaded(t *testing.T) {
 	v := newTestViewer(t)
 
 	called := false
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
 		called = true
 		return nil, nil
 	})
@@ -413,7 +407,7 @@ func TestExportAs_RunsSavePanelInBackground(t *testing.T) {
 	called := make(chan struct{})
 	orig := filepicker.ChooseSave
 	t.Cleanup(func() { filepicker.ChooseSave = orig })
-	filepicker.ChooseSave = func(string) ([]byte, error) {
+	filepicker.ChooseSave = func(_ string) (fyne.URI, error) {
 		close(called)
 		return nil, errors.New("stub: not exercising the success path here")
 	}
@@ -474,7 +468,7 @@ func TestPromptExport_EachChoiceExportsItsOwnFormat(t *testing.T) {
 			dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 
 			var suggested string
-			uitest.StubSaveChooser(t, func(s string) ([]byte, error) {
+			uitest.StubSaveChooser(t, func(s string) (fyne.URI, error) {
 				suggested = s
 				return nil, nil // cancelled: the suggested name is what names the format
 			})
@@ -793,9 +787,9 @@ func TestExportAs_RotationCorrectsDimensionTagsButNotFilenameOrToast(t *testing.
 
 	var suggested string
 	dest := filepath.Join(t.TempDir(), "copy.jpg")
-	uitest.StubSaveChooser(t, func(s string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(s string) (fyne.URI, error) {
 		suggested = s
-		return []byte(dest + "\n"), nil
+		return storage.NewFileURI(dest), nil
 	})
 
 	v.exportAs(".jpg")
@@ -834,4 +828,34 @@ func TestExportAs_RotationCorrectsDimensionTagsButNotFilenameOrToast(t *testing.
 	}
 
 	settleToast(t, v)
+}
+
+func TestExportAs_PreservesExactConfirmedPath(t *testing.T) {
+	names := []string{"chosen", "chosen.webp", "café 東京 😀.png", " chosen.png "}
+	if runtime.GOOS != "windows" {
+		names = append(names, "first\nsecond.png", "chosen.png\r", "chosen.png\n")
+	}
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			v := newTestViewer(t)
+			dropAndWait(t, v, uitest.TempJPEGURI(t, "source.jpg", 4, 2, color.White))
+			dir := t.TempDir()
+			destination := filepath.Join(dir, name)
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(destination), nil })
+			v.exportAs(".png")
+			settleChooser(t, v)
+			data, err := os.ReadFile(destination)
+			if err != nil {
+				t.Fatalf("confirmed destination was not written: %v", err)
+			}
+			if !bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")) {
+				t.Error("selected PNG encoder was not used")
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil || len(entries) != 1 || entries[0].Name() != name {
+				t.Errorf("export wrote unexpected paths: %v (%v)", entries, err)
+			}
+			settleToast(t, v)
+		})
+	}
 }

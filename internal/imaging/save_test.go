@@ -1265,26 +1265,75 @@ func TestExport_KeepsDimensionTagsWhenThePixelsDidNotChange(t *testing.T) {
 	}
 }
 
-// TestSaveRotated_LeavesDimensionTagsAlone guards the path this feature
-// must not touch: Save Changes resizes nothing, so its metadata
-// normalization has to keep behaving exactly as it did.
-func TestSaveRotated_LeavesDimensionTagsAlone(t *testing.T) {
-	path := writeTempFile(t, "camera.jpg", dimensionTagJPEG(t, 90, 60))
-
-	if err := SaveRotated(storage.NewFileURI(path), markedImage(60, 90)); err != nil {
-		t.Fatalf("SaveRotated: %v", err)
-	}
-
-	ifds := readIFDs(t, mustRead(t, path))
-	for _, tag := range []uint16{0x0100, 0x0101} {
-		if _, present := ifds[tiffIFD0][tag]; !present {
-			t.Errorf("a rotate-and-save dropped IFD0 tag %#04x", tag)
-		}
-	}
-	for _, tag := range []uint16{0xA002, 0xA003} {
-		if _, present := ifds[tiffExifIFD][tag]; !present {
-			t.Errorf("a rotate-and-save dropped Exif SubIFD tag %#04x", tag)
-		}
+// Save Changes shares export's dimension policy: normalize Orientation and
+// correct the tags whenever the encoded frame changes shape.
+func TestSaveRotated_CorrectsDimensionTags(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		orientation uint16
+		steps       int
+		changed     bool
+	}{
+		{"clockwise", 1, 1, true},
+		{"counterclockwise", 1, -1, true},
+		{"orientation5", 5, 0, true},
+		{"orientation6", 6, 0, true},
+		{"orientation7", 7, 0, true},
+		{"orientation8", 8, 0, true},
+		{"unchanged", 1, 0, false},
+		{"half-turn", 1, 2, false},
+		{"orientation3", 3, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			original := dimensionTagJPEGOriented(t, 90, 60, tc.orientation)
+			icc := wrapAPP2([]byte("ICC_PROFILE\x00\x01\x01test-profile"))
+			original, err := injectJPEGMetadata(original, [][]byte{icc})
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := writeTempFile(t, "camera.jpg", original)
+			u := storage.NewFileURI(path)
+			loaded, err := LoadImage(u, DefaultImgCacheBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			frame := RotateSteps(loaded.Frames[0], tc.steps)
+			if err := SaveRotated(u, frame); err != nil {
+				t.Fatal(err)
+			}
+			saved := mustRead(t, path)
+			config, err := jpeg.DecodeConfig(bytes.NewReader(saved))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if image.Pt(config.Width, config.Height) != frame.Bounds().Size() {
+				t.Fatalf("saved frame = %dx%d, want %v", config.Width, config.Height, frame.Bounds().Size())
+			}
+			ifds := readIFDs(t, saved)
+			if tc.changed {
+				assertDimensionTagsCorrected(t, ifds, config.Width, config.Height)
+			} else {
+				assertDimensionTagsSurvive(t, ifds)
+				for _, tag := range dimensionTagCases {
+					if !tag.coordinate {
+						want := config.Width
+						if tag.vertical {
+							want = config.Height
+						}
+						if got := tagValue(t, ifds[tag.ifd][tag.tag]); got != want {
+							t.Errorf("unchanged tag %#x = %d, want %d", tag.tag, got, want)
+						}
+					}
+				}
+			}
+			assertCameraMetadataSurvives(t, ifds)
+			if readEXIFOrientation(saved) != 1 {
+				t.Error("saved orientation was not normalized")
+			}
+			if profiles := jpegICCSegments(saved); len(profiles) != 1 || !bytes.Equal(profiles[0], icc) {
+				t.Error("saved ICC profile changed")
+			}
+		})
 	}
 }
 
@@ -1387,6 +1436,71 @@ func TestExport_FallsBackToTheSizeLimitAnswerWhenTheFrameHeaderCannotBeRead(t *t
 			}
 			if got := tagValue(t, val); got != tc.wantWidth {
 				t.Errorf("IFD0 ImageWidth reads %d, want %d", got, tc.wantWidth)
+			}
+		})
+	}
+}
+
+func TestSaveRotated_MalformedMetadataRemainsTolerant(t *testing.T) {
+	full := buildDimensionExifTIFF(t, dimensionExif{width: 90, height: 60, orientation: 1})
+	for _, data := range [][]byte{[]byte("not a TIFF"), full[:8], full[:20]} {
+		app1 := wrapAsAPP1(append([]byte("Exif\x00\x00"), data...))
+		original := spliceMetadataIntoJPEG(t, markedImage(90, 60), [][]byte{app1})
+		path := writeTempFile(t, "damaged.jpg", original)
+		if err := SaveRotated(storage.NewFileURI(path), markedImage(60, 90)); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(mustRead(t, path), app1) {
+			t.Error("malformed metadata was not preserved verbatim")
+		}
+	}
+	// With no readable source frame header, keep the existing tolerant
+	// fallback rather than inventing whether its coordinates were invalidated.
+	app1 := wrapAsAPP1(append([]byte("Exif\x00\x00"), full...))
+	path := writeTempFile(t, "no-frame.jpg", jpegWith(app1))
+	if err := SaveRotated(storage.NewFileURI(path), markedImage(60, 90)); err != nil {
+		t.Fatal(err)
+	}
+	ifds := readIFDs(t, mustRead(t, path))
+	assertDimensionTagsSurvive(t, ifds)
+	if got := tagValue(t, ifds[tiffIFD0][0x0100]); got != 90 {
+		t.Errorf("fallback changed source dimension to %d", got)
+	}
+}
+
+func TestExport_FallbackEncoderPreservesExactPath(t *testing.T) {
+	src := storage.NewFileURI(writeTempFile(t, "gps.jpg", uitest.GPSJPEG(t, 8, 4, 50.85, 4.35)))
+	for _, tc := range []struct {
+		name, fallback, format string
+		fails                  bool
+	}{
+		{"extensionless", ".jpg", "jpeg", false},
+		{"copy.webp", ".png", "png", false},
+		{"typed.jpg", ".png", "jpeg", false},
+		{"invalid.webp", ".invalid", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), tc.name)
+			err := Export(storage.NewFileURI(path), markedImage(4, 8), src, ExportOptions{FallbackExt: tc.fallback})
+			if tc.fails {
+				if err == nil {
+					t.Fatal("unsupported fallback succeeded")
+				}
+				if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("unsupported export created a destination")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			data := mustRead(t, path)
+			_, format, err := image.Decode(bytes.NewReader(data))
+			if err != nil || format != tc.format {
+				t.Fatalf("encoded format = %q (%v), want %q", format, err, tc.format)
+			}
+			if tc.format == "jpeg" && !ReadMetadata(data).HasGPS {
+				t.Fatal("fallback JPEG encoder lost source metadata")
 			}
 		})
 	}

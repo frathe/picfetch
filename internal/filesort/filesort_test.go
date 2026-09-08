@@ -1,8 +1,10 @@
 package filesort
 
 import (
+	"bytes"
 	"context"
 	"image/color"
+	"io"
 	"os"
 	"slices"
 	"testing"
@@ -234,5 +236,73 @@ func TestOrder_StopsEarlyWhenContextIsCancelled(t *testing.T) {
 	}
 	if want := []string{"b.jpg", "a.jpg"}; !slices.Equal(names, want) {
 		t.Errorf("Order() with an already-cancelled ctx = %v, want the input order %v untouched", names, want)
+	}
+}
+
+func TestOrder_CaptureDateCancellationStopsReading(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	data := bytes.NewReader(make([]byte, 4096))
+	reads, closed, stats := 0, false, 0
+	source := uitest.ReaderURI(statCountURI{URI: storage.NewFileURI("/capture.jpg"), calls: &stats}, func() (io.ReadCloser, error) {
+		return uitest.ReadCloser{
+			ReadFunc:  func(p []byte) (int, error) { reads++; n, err := data.Read(p); cancel(); return n, err },
+			CloseFunc: func() error { closed = true; return nil },
+		}, nil
+	})
+	untouched := uitest.ReaderURI(storage.NewFileURI("/untouched.jpg"), func() (io.ReadCloser, error) {
+		t.Error("cancelled sort opened its next file")
+		return io.NopCloser(bytes.NewReader(nil)), nil
+	})
+	raw := []fyne.URI{source, untouched}
+	got := Order(ctx, ByCaptureDate, raw)
+	if !slices.Equal(got, raw) {
+		t.Errorf("cancelled sort reordered files: %v", got)
+	}
+	if reads != 1 || !closed || stats != 0 {
+		t.Errorf("reads=%d closed=%v mtime stats=%d; want 1/true/0", reads, closed, stats)
+	}
+}
+
+type statCountURI struct {
+	fyne.URI
+	calls *int
+}
+
+func (u statCountURI) Path() string { *u.calls++; return u.URI.Path() }
+
+func TestOrder_CaptureDateReadErrorsPreserveFallbackExceptCancellation(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantStats int
+	}{
+		{"ordinary", io.ErrUnexpectedEOF, 1},
+		{"cancelled", context.Canceled, 0},
+		{"deadline", context.DeadlineExceeded, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			old := uitest.TempJPEGURI(t, "old.jpg", 4, 4, color.White)
+			newFile := uitest.TempJPEGURI(t, "new.jpg", 4, 4, color.White)
+			now := time.Now()
+			if err := os.Chtimes(newFile.Path(), now.Add(time.Hour), now.Add(time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			stats, laterReads := 0, 0
+			next := uitest.ReaderURI(old, func() (io.ReadCloser, error) { laterReads++; return os.Open(old.Path()) })
+			source := uitest.ReaderURI(statCountURI{URI: newFile, calls: &stats}, func() (io.ReadCloser, error) { return nil, tc.err })
+			raw := []fyne.URI{source, next}
+			got := Order(context.Background(), ByCaptureDate, raw)
+			want := raw
+			if tc.wantStats == 1 {
+				want = []fyne.URI{next, source}
+			}
+			if laterReads != tc.wantStats {
+				t.Errorf("later file reads=%d, want %d", laterReads, tc.wantStats)
+			}
+			if stats != tc.wantStats || !slices.Equal(got, want) {
+				t.Errorf("mtime stats=%d order=%v, want %d / %v", stats, got, tc.wantStats, want)
+			}
+		})
 	}
 }

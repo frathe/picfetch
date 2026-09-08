@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/favthumbs"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/grid"
 )
 
@@ -48,7 +49,7 @@ func (v *viewer) SetFavoritePreviewCache(on bool) {
 func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	// favDir is empty when favstore.Dir was handed a name it rejects, which
 	// leaves nothing to write previews into or sweep.
-	if !v.settings.favPreviewCache || favDir == "" {
+	if v.favThumbClosed || !v.settings.favPreviewCache || favDir == "" {
 		return
 	}
 
@@ -59,11 +60,13 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	token := v.favThumbLifecycle.begin()
 
 	done := v.favThumb.Begin()
+	sink := gridSink{grid: v.grid, writer: v.grid.CaptureThumbs()}
 
-	go func() {
+	v.favThumbWorkers.Go(func() {
 		defer done()
+		defer token.cancelContext()
 
-		if err := favthumbs.Sync(token.context(), favDir, files, gridSink{v.grid}); err != nil {
+		if err := favthumbs.Sync(token.context(), favDir, files, sink); err != nil {
 			// A superseded pass returns context.Canceled, which is this
 			// design working rather than anything failing.
 			if errors.Is(err, context.Canceled) {
@@ -71,7 +74,7 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 			}
 			fyne.LogError("failed to cache favorite previews", err)
 		}
-	}()
+	})
 }
 
 // gridSink adapts the grid overview to favthumbs.Sink, so a preview pass
@@ -87,10 +90,14 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 // no canvas, and no viewer field. Anything added here that does touch a
 // widget needs fyne.Do again.
 type gridSink struct {
-	grid *grid.Overview
+	grid   *grid.Overview
+	writer imaging.CacheWriter[image.Image]
 }
 
 func (s gridSink) Cached(src fyne.URI) (image.Image, bool) {
+	if !s.writer.Current() {
+		return nil, false
+	}
 	return s.grid.CachedThumb(src)
 }
 
@@ -109,5 +116,13 @@ func (s gridSink) Store(src fyne.URI, thumb image.Image) {
 		return
 	}
 
-	s.grid.StoreThumb(src, thumb)
+	_ = s.writer.AddIfFits(src.String(), thumb)
+}
+
+// closeFavoritePreviews stops admission and cancels the pass without waiting
+// on an already-blocked external read. favThumbWorkers tracks its eventual
+// completion, including older passes superseded by the latest Signal.
+func (v *viewer) closeFavoritePreviews() {
+	v.favThumbClosed = true
+	v.favThumbLifecycle.invalidate()
 }

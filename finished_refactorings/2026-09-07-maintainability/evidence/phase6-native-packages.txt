@@ -1,0 +1,111 @@
+# github.com/frathe/picfetch/internal/favthumbs.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+# github.com/frathe/picfetch/internal/ui/menus.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+# github.com/frathe/picfetch/internal/ui/grid.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+# github.com/frathe/picfetch/internal/ui.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+ok  	github.com/frathe/picfetch/internal/favthumbs	0.741s
+ok  	github.com/frathe/picfetch/internal/ui/grid	0.933s
+2026/09/07 12:39:00 Fyne error:  update verifier unavailable
+2026/09/07 12:39:00   Cause: verifier unavailable
+2026/09/07 12:39:00   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate.go:88
+2026/09/07 12:39:00 Fyne error:  update check failed
+2026/09/07 12:39:00   Cause: Get "http://127.0.0.1:62170/repos/frathe/picfetch/releases/latest": context canceled
+2026/09/07 12:39:00   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate/updater.go:430
+2026/09/07 12:39:00 Fyne error:  update verifier unavailable
+2026/09/07 12:39:00   Cause: verifier unavailable
+2026/09/07 12:39:00   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate/updater.go:430
+2026/09/07 12:39:00 Fyne error:  update verifier unavailable
+2026/09/07 12:39:00   Cause: manual verifier unavailable
+2026/09/07 12:39:00   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate/updater.go:430
+2026/09/07 12:39:00 Fyne error:  update check failed
+2026/09/07 12:39:00   Cause: Get "http://127.0.0.1:62180/repos/frathe/picfetch/releases/latest": context canceled
+2026/09/07 12:39:00   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate/updater.go:430
+2026/09/07 12:39:01 Fyne error:  update apply skipped: staged update is not verified or usable
+2026/09/07 12:39:01   Cause: update: staged update lacks verified provenance
+2026/09/07 12:39:01   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate/updater.go:523
+2026/09/07 12:39:01 Fyne error:  failed to apply update
+2026/09/07 12:39:01   Cause: relaunch failed
+2026/09/07 12:39:01   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate/updater.go:541
+2026/09/07 12:39:01 Fyne error:  update v0.2.6 was not installed (access-denied during "copy" at /Applications/PicFetch.app/Contents/MacOS/picfetch): update apply: copy /Applications/PicFetch.app/Contents/MacOS/picfetch: CreateFile: Access is denied.
+2026/09/07 12:39:01   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate.go:273
+2026/09/07 12:39:01 Fyne error:  update v9.9.9 was not installed (access-denied during "copy" at /Applications/PicFetch.app/Contents/MacOS/picfetch): update apply: copy /Applications/PicFetch.app/Contents/MacOS/picfetch: CreateFile: Access is denied.
+2026/09/07 12:39:01   At: /Users/ronin/Projects/picfetch/internal/ui/autoupdate.go:273
+2026/09/07 12:39:02 Fyne error:  clipboard file copy failed
+2026/09/07 12:39:02   Cause: no clipboard tool
+2026/09/07 12:39:02   At: /Users/ronin/Projects/picfetch/internal/ui/batch.go:144
+2026/09/07 12:39:02 Fyne error:  clipboard image copy failed
+2026/09/07 12:39:02   Cause: boom
+2026/09/07 12:39:02   At: /Users/ronin/Projects/picfetch/internal/ui/clipboard.go:73
+2026/09/07 12:39:02 Fyne error:  clipboard image copy failed
+2026/09/07 12:39:02   Cause: boom
+2026/09/07 12:39:02   At: /Users/ronin/Projects/picfetch/internal/ui/clipboard.go:73
+2000/01/01 01:00:00 Fyne error:  clipboard image copy failed
+2000/01/01 01:00:00   Cause: encode failure
+2000/01/01 01:00:00   At: /Users/ronin/Projects/picfetch/internal/ui/clipboard.go:73
+2000/01/01 01:00:00 Fyne error:  clipboard image copy failed
+2000/01/01 01:00:00   Cause: dispatch failure
+2000/01/01 01:00:00   At: /Users/ronin/Projects/picfetch/internal/ui/clipboard.go:73
+2026/09/07 12:39:13 Fyne error:  copy selected image failed
+2026/09/07 12:39:13   Cause: synthetic PNG failure
+2026/09/07 12:39:13   At: /Users/ronin/Projects/picfetch/internal/ui/copyselection.go:214
+2026/09/07 12:39:13 Fyne error:  copy selected image failed
+2026/09/07 12:39:13   Cause: synthetic clipboard failure
+2026/09/07 12:39:13   At: /Users/ronin/Projects/picfetch/internal/ui/copyselection.go:214
+--- FAIL: TestE2E_CopySelection (0.07s)
+    util_helper.go:61: 
+        	Error Trace:	/Users/ronin/go/pkg/mod/fyne.io/fyne/v2@v2.8.0/internal/test/util_helper.go:61
+        	            				/Users/ronin/go/pkg/mod/fyne.io/fyne/v2@v2.8.0/test/test_helper.go:78
+        	            				/Users/ronin/go/pkg/mod/fyne.io/fyne/v2@v2.8.0/test/test_helper.go:89
+        	            				/Users/ronin/Projects/picfetch/internal/ui/e2e_test.go:328
+        	Error:      	Images not equal.
+        	Test:       	TestE2E_CopySelection
+        	Messages:   	Image did not match master. Actual image written to file:///Users/ronin/Projects/picfetch/internal/ui/testdata/failed/copy_selection.png.
+2026/09/07 12:39:18 Fyne error:  failed to export image
+2026/09/07 12:39:18   Cause: lstat /private/var/folders/z6/ykxzk5zn4vj59vrrdx5bhqcr0000gp/T/TestExportAs_ReportsAFailedWrite3143038333/004/no-such-dir: no such file or directory
+2026/09/07 12:39:18   At: /Users/ronin/Projects/picfetch/internal/ui/export.go:166
+2026/09/07 12:39:18 Fyne error:  file chooser failed
+2026/09/07 12:39:18   Cause: stub: not exercising the success path here
+2026/09/07 12:39:18   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:28 Fyne error:  file chooser failed
+2026/09/07 12:39:28   Cause: stub: not exercising the success path here
+2026/09/07 12:39:28   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:30 Fyne error:  file chooser failed
+2026/09/07 12:39:30   Cause: boom
+2026/09/07 12:39:30   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:30 Fyne error:  file chooser failed
+2026/09/07 12:39:30   Cause: stub: not exercising the success path here
+2026/09/07 12:39:30   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:30 Fyne error:  file chooser failed
+2026/09/07 12:39:30   Cause: stub: not exercising the success path here
+2026/09/07 12:39:30   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:30 Fyne error:  file chooser failed
+2026/09/07 12:39:30   Cause: stub: not exercising the success path here
+2026/09/07 12:39:30   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:30 Fyne error:  file chooser failed
+2026/09/07 12:39:30   Cause: stub: not exercising the success path here
+2026/09/07 12:39:30   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:31 Fyne error:  file chooser failed
+2026/09/07 12:39:31   Cause: native chooser failed
+2026/09/07 12:39:31   At: /Users/ronin/Projects/picfetch/internal/ui/openfiles.go:70
+2026/09/07 12:39:33 Fyne error:  file manager reveal failed
+2026/09/07 12:39:33   Cause: boom
+2026/09/07 12:39:33   At: /Users/ronin/Projects/picfetch/internal/ui/reveal.go:54
+2026/09/07 12:39:34 Fyne error:  failed to save rotation
+2026/09/07 12:39:34   Cause: lstat /private/var/folders/z6/ykxzk5zn4vj59vrrdx5bhqcr0000gp/T/TestSaveRotation_FailedWriteLeavesRotationUnchanged511133389/003: no such file or directory
+2026/09/07 12:39:34   At: /Users/ronin/Projects/picfetch/internal/ui/save.go:82
+2026/09/07 12:39:35 Fyne error:  failed to save rotation
+2026/09/07 12:39:35   Cause: save failed
+2026/09/07 12:39:35   At: /Users/ronin/Projects/picfetch/internal/ui/save.go:82
+2026/09/07 12:39:42 Fyne error:  failed to set the wallpaper
+2026/09/07 12:39:42   Cause: set wallpaper for "a.jpg": no such schema
+2026/09/07 12:39:42   At: /Users/ronin/Projects/picfetch/internal/ui/wallpaper.go:202
+2026/09/07 12:39:42 Fyne error:  failed to set the wallpaper
+2026/09/07 12:39:42   Cause: another wallpaper change is already in progress
+2026/09/07 12:39:42   At: /Users/ronin/Projects/picfetch/internal/ui/wallpaper.go:202
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui	49.098s
+ok  	github.com/frathe/picfetch/internal/ui/menus	0.524s
+FAIL

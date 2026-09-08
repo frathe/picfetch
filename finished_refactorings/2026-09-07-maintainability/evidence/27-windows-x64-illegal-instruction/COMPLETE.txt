@@ -1,0 +1,1 @@
+Completed package launch attempts. Check process exit codes and retained visual observations.

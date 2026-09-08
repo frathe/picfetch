@@ -1,0 +1,8 @@
+# github.com/frathe/picfetch/internal/ui/grid.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestHideDuplicatesPublishesWhileSourceReadsRemainPending
+    dupes_test.go:67: visible files = 8, want 7: hide the completed extra before the six remaining reads finish
+--- FAIL: TestHideDuplicatesPublishesWhileSourceReadsRemainPending (0.00s)
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui/grid	0.442s
+FAIL

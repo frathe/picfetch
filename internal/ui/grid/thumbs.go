@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 
+	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -36,6 +37,12 @@ const thumbConcurrency = 4
 // cells - a race no amount of waiting afterwards can undo, only avoided by
 // having nothing to spawn.
 func (g *Overview) Warm() error {
+	ctx := g.resumeWork()
+	facts := g.work.facts
+	writer := g.thumbs.Capture()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	g.wipeHashesIfStale()
 	for i := 0; i < g.host.FileCount(); i++ {
 		u := g.host.FileAt(i)
@@ -43,18 +50,22 @@ func (g *Overview) Warm() error {
 			// A cache hit records the hash only; native size is
 			// hashRemaining's job (this path must not probe).
 			if _, hashed := g.hashOf(u); !hashed {
-				g.rememberHash(u, thumb)
+				rememberHash(facts, u, thumb)
 			}
 			continue
 		}
 
-		thumb, native, err := imaging.LoadThumbnailAndBounds(u)
+		version, _ := favthumbs.EntryName(u)
+		thumb, native, err := imaging.LoadThumbnailAndBoundsContext(ctx, u)
 		if err != nil {
 			return err
 		}
-		g.thumbs.Add(u.String(), thumb)
-		g.rememberHash(u, thumb)
-		g.rememberNative(u, native)
+		if !rememberHash(facts, u, thumb) || !rememberNative(facts, u, native) {
+			return context.Canceled
+		}
+		if !writer.Add(u.String(), &favthumbs.Preview{Image: thumb, SourceVersion: version}) {
+			return context.Canceled
+		}
 	}
 
 	return nil
@@ -65,23 +76,14 @@ func (g *Overview) Warm() error {
 // app never needs this; tests do, to keep a decode goroutine from touching
 // widgets after the test that started it has moved on.
 //
-// A single Wait-then-Drain pass is only correct because every UIQueue Do
-// in this package - requestThumbnail's two below, and the hash engine's
-// one in hashengine.go - runs from inside the decode-pool Go body it
-// belongs to (see the comment above those calls in requestThumbnail): by
-// the time Wait returns, every decode spawned so far has already reached
-// its Do, so that pass's Drain has everything there is to run.
-//
-// The loop is what keeps that promise for a deferring UIQueue (see
-// uiqueue.go): a drained completion can spawn further decodes -
-// requestThumbnail's own re-request does exactly that, and applyFilter
-// refreshes the wrap, which re-runs the cell-update callback - so waiting
-// once is not enough. It ends on the first pass that finds the pool empty
-// and nothing left to drain, which for the app's fyneQueue is always the
-// first pass, since its Drain is a constant false.
+// Decode and grouping workers both finish through the queue. Wait for both
+// owners before draining, then repeat because an applied result can start new
+// work. Grouping has its own single worker so a cold hash backlog cannot postpone
+// progressive filtering until every source has been read.
 func (g *Overview) Settle() {
 	for {
 		g.decodes.Wait()
+		g.grouping.workers.Wait()
 		if !g.ui.Drain() {
 			return
 		}
@@ -169,6 +171,13 @@ func (g *Overview) SetCacheBytes(n int64) {
 // a finer grain - the file set can still be current while this particular
 // cell has scrolled on to show a different id in the meantime.
 func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id int, gen uint64) {
+	ctx := g.workContext()
+	facts := g.work.facts
+	writer := g.thumbs.Capture()
+	if ctx.Err() != nil {
+		return
+	}
+	claim := thumbClaim{id: id, revision: g.work.revision}
 	i := g.fileIndex(id)
 	if i < 0 {
 		return
@@ -189,7 +198,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 		img.Image = thumb
 		img.Refresh()
 		if _, hashed := g.hashOf(u); !hashed {
-			g.rememberHash(u, thumb)
+			rememberHash(facts, u, thumb)
 		}
 
 		return
@@ -204,7 +213,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 		img.Refresh()
 	}
 
-	if !g.decodes.Claim(key, id) {
+	if !g.decodes.Claim(key, claim) {
 		return
 	}
 
@@ -216,10 +225,12 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 	// - a bare go func(), a time.AfterFunc, a requestLifecycle worker -
 	// would not be covered by that Wait, and could land on g.ui after
 	// Settle had already decided there was nothing left to drain,
-	// reintroducing the same race this queue exists to close. The grid
-	// has no cancellation context, so acquired is always true here and
-	// goes unread.
-	g.decodes.Go(context.Background(), func(bool) {
+	// reintroducing the same race this queue exists to close.
+	g.decodes.Go(ctx, func(acquired bool) {
+		if !acquired || ctx.Err() != nil {
+			g.decodes.Release(key, claim)
+			return
+		}
 		// Bail *before* decoding, not just after: during a fast scroll
 		// through a large set, most queued requests are for cells recycled
 		// long ago to other files, and this predicate is exactly what the
@@ -230,7 +241,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 		// scrolled-past cell while the cells actually on screen sit blank
 		// at the back of the queue.
 		if !g.stillWanted(key, id, gen, fgen) {
-			g.decodes.Release(key, id)
+			g.decodes.Release(key, claim)
 
 			// That check raced the UI goroutine's cell updates in one
 			// narrow window: the cell scrolled away and back to id between
@@ -239,7 +250,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 			// serialized, and re-request rather than leave the cell blank
 			// until something else happens to refresh it.
 			g.ui.Do(func() {
-				if g.stillWanted(key, id, gen, fgen) {
+				if ctx.Err() == nil && facts.Current() && g.stillWanted(key, id, gen, fgen) {
 					g.requestThumbnail(key, img, id, gen)
 				}
 			})
@@ -251,31 +262,42 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 		// indices, so a peer worker may have finished this exact file
 		// while this request sat behind the pool.
 		thumb, ok := g.thumbs.Get(cacheKey)
+		var version string
 		if !ok {
 			var err error
 			var native image.Rectangle
-			if thumb, native, err = imaging.LoadThumbnailAndBounds(u); err != nil {
+			version, _ = favthumbs.EntryName(u)
+			if thumb, native, err = imaging.LoadThumbnailAndBoundsContext(ctx, u); err != nil {
 				// No retry here: release lets the cell's next update pass
 				// claim and try again, and the normal viewing path is
 				// where the file's actual error surfaces to the user.
-				g.decodes.Release(key, id)
+				g.decodes.Release(key, claim)
 				return
 			}
 
-			// Cached unconditionally, not gated on stillWanted like the
-			// paint below: the thumbnail is keyed by URI, not index, so it
-			// stays valid however far the cell has scrolled on. Discarding
-			// it would mean decoding the same file again the moment the
-			// user scrolls back.
-			g.thumbs.Add(cacheKey, thumb)
-			g.rememberNative(u, native)
+			if !rememberNative(facts, u, native) {
+				g.decodes.Release(key, claim)
+				return
+			}
 		}
-		g.rememberHash(u, thumb)
+		hash := imaging.DifferenceHash(thumb)
+		if ctx.Err() != nil || !facts.PutHash(cacheKey, hash) {
+			g.decodes.Release(key, claim)
+			return
+		}
+		if !ok {
+			// Cell recycling does not invalidate URI pixels; source replacement
+			// and reset do. Admit facts before offering the decoded result.
+			if !writer.Add(cacheKey, &favthumbs.Preview{Image: thumb, SourceVersion: version}) {
+				g.decodes.Release(key, claim)
+				return
+			}
+		}
 
-		g.decodes.Release(key, id)
+		g.decodes.Release(key, claim)
 
 		g.ui.Do(func() {
-			if g.stillWanted(key, id, gen, fgen) {
+			if ctx.Err() == nil && facts.Current() && g.stillWanted(key, id, gen, fgen) {
 				img.Image = thumb
 				img.Refresh()
 			}
@@ -299,4 +321,22 @@ func (g *Overview) stillWanted(key *fyne.Container, id int, gen, fgen uint64) bo
 	current, ok := g.cellIDs.Load(key)
 
 	return ok && gen == g.host.Generation() && fgen == g.filterGen.Load() && current == id
+}
+
+// CaptureThumbs binds background preview writes to the current cache contents.
+func (g *Overview) CaptureThumbs() imaging.CacheWriter[image.Image] { return g.thumbs.Capture() }
+
+// InvalidateContent refreshes derived content after a file mutation.
+func (g *Overview) InvalidateContent() {
+	g.thumbs.Purge()
+	g.dupes.Clear()
+	g.restartWork()
+	if g.work.stopped {
+		return
+	}
+	g.rebuildFilter(false)
+	if g.dupes.HideDuplicates() || g.dupes.Inspecting() || g.browseHost >= 0 {
+		g.hashRemaining()
+	}
+	g.fireDupeState()
 }

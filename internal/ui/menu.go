@@ -55,7 +55,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.grid.SetOnSelectionChanged(view.syncMenus)
 	view.grid.SetOnResultChanged(view.syncMenus)
 	view.slides.SetOnActiveChanged(view.syncMenus)
-	view.grid.SetOnDupeStateChanged(view.syncMenus)
+	view.grid.SetOnDupeStateChanged(view.syncDuplicateState)
 	view.syncMenus()
 
 	return fyne.NewMainMenu(view.menus.FileMenu(), view.favorites.Menu(), view.menus.ActionsMenu(), view.menus.WindowMenu(), view.help.Menu())
@@ -220,7 +220,7 @@ func (v *viewer) menuState() menus.State {
 // already loaded; it costs nothing, because Add is constructed Disabled and
 // comparison is constructed inactive.
 func (v *viewer) syncMenus() {
-	if v.menus == nil {
+	if v.stopping || v.menus == nil {
 		return
 	}
 	if v.menus.Apply(v.menuState()) {

@@ -1,6 +1,9 @@
 package favthumbs
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/color"
 	"os"
@@ -10,6 +13,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // newOpaqueThumb returns a small, fully opaque, solid-color image.Image
@@ -397,5 +402,124 @@ func TestHasCurrentPreviewTracksSourceVersion(t *testing.T) {
 
 	if hasCurrentPreview(favDir, src) {
 		t.Error("hasCurrentPreview = true for a source whose mod time moved on")
+	}
+}
+
+func TestReadMissesSameSizeSubsecondEdit(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := newSourceFile(t, dir, "a.jpg")
+	before := time.Unix(1700000000, 100000000)
+	after := time.Unix(1700000000, 900000000)
+	if err := os.Chtimes(src.Path(), before, before); err != nil {
+		t.Fatal(err)
+	}
+	firstInfo, err := os.Stat(src.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(dir, src, newOpaqueThumb(2, 2, color.RGBA{R: 255, A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Read(dir, src); !ok {
+		t.Fatal("unchanged source missed its current preview")
+	}
+	first, _ := EntryName(src)
+	if err := os.WriteFile(src.Path(), []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(src.Path(), after, after); err != nil {
+		t.Fatal(err)
+	}
+	nextInfo, err := os.Stat(src.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstInfo.Size() != nextInfo.Size() {
+		t.Fatal("fixture changed size")
+	}
+	if firstInfo.ModTime().Equal(nextInfo.ModTime()) {
+		t.Log("filesystem does not expose the requested subsecond change; TestEntryNamePreservesSubsecondPrecision supplies deterministic key coverage")
+		return
+	}
+	if firstInfo.ModTime().Unix() != nextInfo.ModTime().Unix() {
+		t.Fatal("filesystem rounded the fixture across a second boundary")
+	}
+	t.Logf("filesystem preserved subsecond mtimes: %v, %v", firstInfo.ModTime(), nextInfo.ModTime())
+	next, _ := EntryName(src)
+	if first == next {
+		t.Error("same-size edited bytes retained old preview identity")
+	}
+	if _, ok := Read(dir, src); ok {
+		t.Error("same-size subsecond edit returned stale preview")
+	}
+}
+
+type cancelOnEncodeImage struct {
+	image.Image
+	cancel context.CancelFunc
+}
+
+func (_ cancelOnEncodeImage) Opaque() bool            { return true }
+func (i cancelOnEncodeImage) At(x, y int) color.Color { i.cancel(); return i.Image.At(x, y) }
+
+func TestWriteContext_CancelledEncodingPreservesExistingPreview(t *testing.T) {
+	dir := t.TempDir()
+	src := newSourceFile(t, t.TempDir(), "source.jpg")
+	if err := Write(dir, src, newOpaqueThumb(4, 4, color.RGBA{G: 255, A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	path := previewPath(t, dir, src, ".jpg")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	img := cancelOnEncodeImage{Image: newOpaqueThumb(4, 4, color.RGBA{R: 255, A: 255}), cancel: cancel}
+	if err := WriteContext(ctx, dir, src, img); !errors.Is(err, context.Canceled) {
+		t.Errorf("WriteContext = %v, want cancellation", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Error("cancelled encoding replaced the existing preview")
+	}
+	entries, err := os.ReadDir(Dir(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("cancelled encoding left temporary output: %v", entries)
+	}
+}
+
+func TestDecodePreview_RejectsCancellationDuringRead(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	data := bytes.NewReader(uitest.CaptureDateJPEG(t, 4, 4, "2020:01:01 00:00:00"))
+	reader := uitest.ReadCloser{
+		ReadFunc:  func(p []byte) (int, error) { n, err := data.Read(p); cancel(); return n, err },
+		CloseFunc: func() error { return nil },
+	}
+	img, err := decodePreview(ctx, reader)
+	if img != nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled cached decode = %T, %v", img, err)
+	}
+}
+
+func TestReadContext_CancelledBeforeCacheLookup(t *testing.T) {
+	dir := t.TempDir()
+	src := newSourceFile(t, t.TempDir(), "source.jpg")
+	if err := Write(dir, src, newOpaqueThumb(4, 4, color.RGBA{A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	img, ok, err := ReadContext(ctx, dir, src)
+	if img != nil || ok || !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled cache lookup = %T, %v, %v", img, ok, err)
 	}
 }

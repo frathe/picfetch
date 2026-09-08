@@ -159,6 +159,7 @@ func TestWireClipboardShortcuts_CopiesImageAndPath(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("expected Cmd/Ctrl+C to copy the image")
 	}
+	waitForClipboard(t, v) // OS entry precedes the operation's queued completion.
 
 	handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift})
 	if got := v.app.Clipboard().Content(); got != jpegURI.Path() {

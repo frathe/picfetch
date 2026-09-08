@@ -2,6 +2,7 @@ package exifwin
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,7 +25,7 @@ const (
 	// generic "Fyne-X Map Widget" would not.
 	userAgent = "PicFetch/1.0 (+https://github.com/frathe/picfetch)"
 
-	// tileBudget bounds the decoded-tile cache. An OSM tile is a PNG of
+	// tileBudget bounds the encoded-tile byte cache. An OSM tile is a PNG of
 	// roughly 10-50 KB, so this holds several hundred of them - far more
 	// than the handful of screens' worth a session's EXIF windows look at.
 	tileBudget = 16 << 20
@@ -34,13 +35,13 @@ const (
 	// unbounded before the budget above ever sees it.
 	maxTileBytes = 4 << 20
 
-	// tileTimeout bounds a single tile request; tileWorkers bounds how many
-	// of them a prefetch runs at once, both to stay a good citizen of a
-	// donated tile server and to keep a stalled request from pinning the
-	// whole prefetch - which is also how long the "loading" indicator can
-	// linger on a network that accepts connections and then says nothing.
-	tileTimeout = 10 * time.Second
-	tileWorkers = 4
+	// Foreground requests and every warm pass share these per-fetcher bounds.
+	// Workers keep their slots until a cancelled HTTP call has returned;
+	// queue pressure never creates a goroutine per rejected URL.
+	tileTimeout         = 10 * time.Second
+	tileWorkers         = 4
+	tileQueueCapacity   = 64
+	tileFailureCapacity = 256
 
 	// tileRetryAfter is how long a failed tile is left alone before it is
 	// tried again. Without it an offline session would re-request every
@@ -73,7 +74,7 @@ var errTilePending = errors.New("tile not downloaded yet")
 //
 // Suppressing it loses nothing: the widget only ever sees a cached tile or
 // errTilePending, because a real download failure is handled here (backed
-// off in claim, never passed on), so "tile fetch error" caused by
+// off at admission, never passed on), so "tile fetch error" caused by
 // errTilePending carries no information the log doesn't already have. A
 // "tile fetch error" from any other cause - a corrupt tile failing to
 // decode, say - still prints its cause and location.
@@ -141,11 +142,16 @@ type tileFetcher struct {
 	cache    *imaging.ByteCache[[]byte]
 
 	mu       sync.Mutex
-	inflight map[string]bool
+	inflight map[string]*tileJob
 	failed   map[string]time.Time
-	pending  int
-	warming  bool
 	onChange func(pending int)
+	ctx      context.Context
+	cancel   context.CancelFunc
+	stopped  bool
+	queue    []*tileJob
+	workers  int
+	work     sync.WaitGroup
+	changed  chan struct{}
 
 	// now is time.Now, replaced in tests that need the retry backoff to
 	// pass without sleeping.
@@ -165,13 +171,15 @@ func newTileFetcher(template string, base http.RoundTripper) *tileFetcher {
 	// quietPendingTiles.
 	quietPendingTiles()
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &tileFetcher{
 		template: template,
 		base:     base,
 		cache:    imaging.NewByteCache(int64(tileBudget), func(b []byte) int64 { return int64(len(b)) }),
-		inflight: make(map[string]bool),
-		failed:   make(map[string]time.Time),
-		now:      time.Now,
+		inflight: make(map[string]*tileJob),
+		ctx:      ctx, cancel: cancel, changed: make(chan struct{}),
+		failed: make(map[string]time.Time),
+		now:    time.Now,
 	}
 }
 
@@ -191,13 +199,14 @@ func (f *tileFetcher) SetOnChange(fn func(pending int)) {
 	f.onChange = fn
 }
 
-// Pending is how many tiles are being downloaded right now - what the
-// window's loading indicator follows.
+// Pending counts current queued and active jobs for the loading indicator.
+// Obsolete HTTP calls still occupy worker slots but cannot keep a new map
+// loading. This count is not a completion signal; Wait includes old workers.
 func (f *tileFetcher) Pending() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return f.pending
+	return f.currentPendingLocked()
 }
 
 // RoundTrip serves the map widget's tile requests from cache, and answers
@@ -210,9 +219,7 @@ func (f *tileFetcher) RoundTrip(req *http.Request) (*http.Response, error) {
 		return tileResponse(req, b), nil
 	}
 
-	if f.claim(url) {
-		go f.fetch(url)
-	}
+	_, _ = f.submit(f.session(), url, true)
 
 	return nil, errTilePending
 }
@@ -231,77 +238,8 @@ func tileResponse(req *http.Request, b []byte) *http.Response {
 	}
 }
 
-// claim reports whether the caller should download url, and counts it as
-// outstanding if so. It says no for a tile that is already cached, already
-// being downloaded, or that failed within the last tileRetryAfter.
-func (f *tileFetcher) claim(url string) bool {
-	if f.cache.Contains(url) {
-		return false
-	}
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.inflight[url] {
-		return false
-	}
-
-	if at, ok := f.failed[url]; ok && f.now().Sub(at) < tileRetryAfter {
-		return false
-	}
-
-	f.inflight[url] = true
-	f.pending++
-
-	return true
-}
-
-// release records a claimed tile's outcome - its bytes, or an error worth
-// backing off from - and reports the outstanding count to onChange.
-func (f *tileFetcher) release(url string, data []byte, err error) {
-	if err == nil {
-		f.cache.Add(url, data)
-	}
-
-	f.mu.Lock()
-
-	delete(f.inflight, url)
-	f.pending--
-
-	if err != nil {
-		f.failed[url] = f.now()
-	} else {
-		delete(f.failed, url)
-	}
-
-	pending, onChange := f.pending, f.onChange
-
-	// A prefetch reports its own completion once, when the whole block is
-	// in - one redraw for the batch instead of one per tile, and one
-	// goroutine touching the map instead of two racing to.
-	if f.warming {
-		onChange = nil
-	}
-
-	f.mu.Unlock()
-
-	if onChange != nil {
-		onChange(pending)
-	}
-}
-
-// fetch downloads one claimed tile. Errors are deliberately not reported
-// anywhere: a tile that doesn't arrive is a gap in the map, the widget has
-// already logged its own failure for that frame, and the backoff in claim
-// is what stops a dead network turning into a request storm.
-func (f *tileFetcher) fetch(url string) {
-	data, err := f.get(url)
-
-	f.release(url, data, err)
-}
-
-func (f *tileFetcher) get(url string) ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func (f *tileFetcher) get(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -326,47 +264,6 @@ func (f *tileFetcher) get(url string) ([]byte, error) {
 	}
 
 	return data, nil
-}
-
-// Warm downloads the block of tiles around lat/lon at zoom and returns
-// once they have all arrived (or failed), so the window can keep a
-// "loading" indicator up for exactly as long as the first view of the map
-// is still missing pieces. Tiles already cached, already in flight, or in
-// backoff are skipped, which is what makes re-expanding the section
-// instant.
-func (f *tileFetcher) Warm(lat, lon float64, zoom int) {
-	f.mu.Lock()
-	f.warming = true
-	f.mu.Unlock()
-
-	defer func() {
-		f.mu.Lock()
-		f.warming = false
-		f.mu.Unlock()
-	}()
-
-	urls := f.neighborhood(lat, lon, zoom)
-
-	sem := make(chan struct{}, tileWorkers)
-	var wg sync.WaitGroup
-
-	for _, url := range urls {
-		if !f.claim(url) {
-			continue
-		}
-
-		wg.Add(1)
-		sem <- struct{}{}
-
-		go func(url string) {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			f.fetch(url)
-		}(url)
-	}
-
-	wg.Wait()
 }
 
 // neighborhood is the tile URLs within prefetchRadius of the tile holding

@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -26,12 +29,17 @@ import (
 )
 
 type fakeHost struct {
+	exported  []imaging.WriteResult
 	generate  func(context.Context, mosaic.Request) (mosaic.Result, error)
+	progress  func(context.Context, mosaic.Request, func(mosaic.Progress)) (mosaic.Result, error)
 	inspect   func() (displays.Snapshot, error)
 	wallpaper func(context.Context, mosaic.Result, displays.ID, bool) error
 }
 
-func (h *fakeHost) GenerateMosaic(ctx context.Context, request mosaic.Request) (mosaic.Result, error) {
+func (h *fakeHost) GenerateMosaic(ctx context.Context, request mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
+	if h.progress != nil {
+		return h.progress(ctx, request, report)
+	}
 	return h.generate(ctx, request)
 }
 
@@ -327,9 +335,14 @@ func TestMosaicKeyboard_EnterAndSpaceReachEveryPreviewAction(t *testing.T) {
 		t.Fatalf("Enter on Set as Wallpaper calls=%d", wallpaperCalls)
 	}
 
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) { return []byte(t.TempDir() + "/mosaic.png\n"), nil })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
+		return storage.NewFileURI(filepath.Join(t.TempDir(), "mosaic.png")), nil
+	})
 	exports := 0
-	w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error { exports++; return nil })
+	w.SetExporter(func(_ context.Context, _ fyne.URI, _ image.Image, _ fyne.URI, _ imaging.ExportOptions) (imaging.WriteResult, error) {
+		exports++
+		return imaging.WriteResult{}, nil
+	})
 	w.Window().Canvas().Focus(w.saveButton)
 	w.saveButton.TypedKey(&fyne.KeyEvent{Name: fyne.KeySpace})
 	settleWindow(t, w)
@@ -852,7 +865,10 @@ func TestMosaicStartOver_IsDisabledDuringRegeneration(t *testing.T) {
 	w.Generate()
 	settleWindow(t, w)
 	exports := 0
-	w.SetExporter(func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error { exports++; return nil })
+	w.SetExporter(func(_ context.Context, _ fyne.URI, _ image.Image, _ fyne.URI, _ imaging.ExportOptions) (imaging.WriteResult, error) {
+		exports++
+		return imaging.WriteResult{}, nil
+	})
 
 	w.Regenerate()
 	<-started
@@ -871,7 +887,7 @@ func TestMosaicStartOver_IsDisabledDuringRegeneration(t *testing.T) {
 func TestMosaicStartOver_IsDisabledDuringExport(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
-	uitest.StubSaveChooser(t, func(string) ([]byte, error) {
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
 		close(started)
 		<-release
 		return nil, nil
@@ -1285,4 +1301,211 @@ func sameURIs(a, b []fyne.URI) bool {
 		}
 	}
 	return true
+}
+
+func (h *fakeHost) AfterFileExported(result imaging.WriteResult) {
+	h.exported = append(h.exported, result)
+}
+
+func TestMosaicProgress_CoalescesUpdatesOnUI(t *testing.T) {
+	host := successfulHost(t)
+	first := image.NewUniform(color.Black)
+	latest := image.NewUniform(color.White)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	host.progress = func(ctx context.Context, request mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
+		for covered := 1; covered <= 75; covered++ {
+			update := mosaic.Progress{CoveredPixels: covered, TotalPixels: 100}
+			if covered == 10 {
+				update.Preview = first
+			}
+			if covered == 50 {
+				update.Preview = latest
+			}
+			report(update)
+		}
+		close(started)
+		select {
+		case <-release:
+			return mosaic.Generate(ctx, request)
+		case <-ctx.Done():
+			return mosaic.Result{}, ctx.Err()
+		}
+	}
+	queue := &uitest.UIQueue{}
+	w := New(test.NewApp(), host)
+	w.SetUIQueue(queue)
+	w.Show(mustSnapshot(t))
+	t.Cleanup(func() { w.Close(); settleWindow(t, w) })
+	w.Generate()
+	<-started
+	if !w.loading.Visible() || !containsMosaicObject(w.root, w.loading) {
+		t.Fatal("progress bar is missing from the window")
+	}
+	if w.preview.Image != nil {
+		t.Fatal("worker painted preview before UI delivery")
+	}
+	if w.loading.Value != 0 {
+		t.Fatal("worker changed progress before UI delivery")
+	}
+	if got := queue.Len(); got != 1 {
+		t.Fatalf("progress queued %d callbacks, want one coalesced update", got)
+	}
+	queue.Drain()
+	if w.loading.Value != 0.75 || w.loading.TextFormatter() != "Canvas coverage: 75%" {
+		t.Fatalf("progress = %g, text %q", w.loading.Value, w.loading.TextFormatter())
+	}
+	if w.preview.Image != latest || !w.previewPanel.Visible() || w.config.Visible() || !containsMosaicObject(w.previewPanel, w.preview) {
+		t.Fatal("latest live preview is missing from the visible surface")
+	}
+	if _, ok := w.Result(); ok || w.PreviewActionsEnabled() || !w.saveButton.Disabled() || !w.wallpaperButton.Disabled() {
+		t.Fatal("partial preview enabled finished-result actions")
+	}
+	if w.loading.Size().Height <= 0 || w.previewCancelButton.Size().Width <= 0 || w.app.Driver().AbsolutePositionForObject(w.previewPanel).Y < w.loading.Size().Height {
+		t.Fatal("live preview controls overlap or have no layout space")
+	}
+	_, _ = mosaicActionByLabel(t, w.root, "Cancel")
+	close(release)
+	settleWindow(t, w)
+	if w.Busy() || w.loading.Visible() || w.loading.Value != 1 {
+		t.Fatal("successful generation did not finish progress")
+	}
+}
+
+func TestMosaicProgress_RejectsRetiredGeneration(t *testing.T) {
+	for _, action := range []string{"cancel", "supersede", "reopen"} {
+		t.Run(action, func(t *testing.T) {
+			host := successfulHost(t)
+			oldPreview := image.NewUniform(color.Black)
+			newPreview := image.NewUniform(color.White)
+			var mu sync.Mutex
+			calls := 0
+			started := make(chan int, 2)
+			oldDone := make(chan struct{})
+			newProgress := make(chan struct{})
+			newReported := make(chan struct{})
+			releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
+			host.progress = func(ctx context.Context, request mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
+				mu.Lock()
+				index := calls
+				calls++
+				mu.Unlock()
+				if index == 0 {
+					report(mosaic.Progress{CoveredPixels: 70, TotalPixels: 100, Preview: oldPreview})
+					started <- index
+				} else {
+					started <- index
+					select {
+					case <-newProgress:
+					case <-ctx.Done():
+						return mosaic.Result{}, ctx.Err()
+					}
+					report(mosaic.Progress{CoveredPixels: 30, TotalPixels: 100, Preview: newPreview})
+					close(newReported)
+				}
+				select {
+				case <-releases[index]:
+				case <-ctx.Done():
+				}
+				if index == 0 {
+					report(mosaic.Progress{CoveredPixels: 90, TotalPixels: 100, Preview: oldPreview})
+					close(oldDone)
+					return mosaic.Result{}, ctx.Err()
+				}
+				return mosaic.Generate(ctx, request)
+			}
+			queue := &uitest.UIQueue{}
+			w := New(test.NewApp(), host)
+			w.SetUIQueue(queue)
+			w.Show(mustSnapshot(t))
+			t.Cleanup(func() { w.Close(); settleWindow(t, w) })
+			w.Generate()
+			<-started
+			switch action {
+			case "cancel":
+				w.Cancel()
+				w.Generate()
+			case "supersede":
+				w.Regenerate()
+			case "reopen":
+				w.Close()
+				w.Show(mustSnapshot(t))
+				w.Generate()
+			}
+			<-started
+			<-oldDone
+			queue.Drain()
+			if w.loading.Value != 0 || w.preview.Image != nil {
+				t.Fatalf("retired progress painted before the new generation reported: %g", w.loading.Value)
+			}
+			close(newProgress)
+			<-newReported
+			queue.Drain()
+			if !w.loading.Visible() || w.loading.Value != 0.3 || w.preview.Image != newPreview {
+				t.Fatalf("retired generation changed current progress: %g", w.loading.Value)
+			}
+			close(releases[1])
+			settleWindow(t, w)
+		})
+	}
+}
+
+func TestMosaicLivePreview_RestoresAfterCancelOrFailure(t *testing.T) {
+	for _, finished := range []bool{false, true} {
+		for _, failure := range []bool{false, true} {
+			t.Run(fmt.Sprintf("finished=%v/failure=%v", finished, failure), func(t *testing.T) {
+				host := successfulHost(t)
+				queue := &uitest.UIQueue{}
+				w := New(test.NewApp(), host)
+				w.SetUIQueue(queue)
+				w.Show(mustSnapshot(t))
+				t.Cleanup(func() { w.Close(); settleWindow(t, w) })
+				if finished {
+					w.Generate()
+					settleWindow(t, w)
+				}
+				before, hadResult := w.Result()
+				beforeImage := w.preview.Image
+				partial := image.NewUniform(color.NRGBA{R: 240, A: 255})
+				started, release := make(chan struct{}), make(chan struct{})
+				host.progress = func(ctx context.Context, _ mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
+					report(mosaic.Progress{CoveredPixels: 40, TotalPixels: 100, Preview: partial})
+					close(started)
+					select {
+					case <-release:
+						return mosaic.Result{}, errors.New("preview render failed")
+					case <-ctx.Done():
+						return mosaic.Result{}, ctx.Err()
+					}
+				}
+				w.Generate()
+				<-started
+				queue.Drain()
+				if w.preview.Image != partial || !w.previewPanel.Visible() || w.config.Visible() {
+					t.Fatal("partial canvas was not displayed")
+				}
+				if w.PreviewActionsEnabled() || !w.saveButton.Disabled() || !w.wallpaperButton.Disabled() {
+					t.Fatal("partial canvas enabled export actions")
+				}
+				if failure {
+					close(release)
+					settleWindow(t, w)
+				} else {
+					_, cancel := mosaicActionByLabel(t, w.root, "Cancel")
+					cancel.Tapped(&fyne.PointEvent{})
+					settleWindow(t, w)
+				}
+				after, hasResult := w.Result()
+				if hasResult != hadResult || hadResult && !samePixels(before, after) {
+					t.Fatal("partial generation replaced finished result")
+				}
+				if w.preview.Image != beforeImage || w.previewPanel.Visible() != finished || w.config.Visible() == finished {
+					t.Fatal("cancel/failure did not restore the prior surface")
+				}
+				if w.Busy() || w.PreviewActionsEnabled() != finished || w.loading.Visible() {
+					t.Fatal("cancel/failure did not restore action state")
+				}
+			})
+		}
+	}
 }

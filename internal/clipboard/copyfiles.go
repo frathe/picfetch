@@ -128,8 +128,9 @@ func copyFilesWindows(paths []string) error {
 	defer func() { _ = os.Remove(list) }()
 
 	const listEnv = "PICFETCH_CLIPBOARD_LIST"
-	script := `try {
-	$paths = Get-Content -LiteralPath $env:` + listEnv + `
+	script := `$ErrorActionPreference = 'Stop'
+try {
+	$paths = Get-Content -Encoding UTF8 -LiteralPath $env:` + listEnv + `
 	Set-Clipboard -LiteralPath $paths
 } catch {
 	[Console]::Error.WriteLine($_.Exception.Message)

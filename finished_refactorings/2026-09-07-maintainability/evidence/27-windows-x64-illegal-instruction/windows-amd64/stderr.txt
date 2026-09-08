@@ -1,0 +1,354 @@
+﻿Exception 0xc000001d 0x0 0x0 0x1be210f039e
+PC=0x1be210f039e
+signal arrived during external code execution
+
+runtime.cgocall(0x7ff6ae4a5200, 0x3be5afd394a0)
+	runtime/cgocall.go:167 +0x3e fp=0x3be5afd39478 sp=0x3be5afd39418 pc=0x7ff6ad71535e
+github.com/go-gl/gl/v2.1/gl._Cfunc_glowDrawArrays(0x7ffbe329be50, 0x5, 0x0, 0x4)
+	_cgo_gotypes.go:13533 +0x48 fp=0x3be5afd394a0 sp=0x3be5afd39478 pc=0x7ff6add105a8
+github.com/go-gl/gl/v2.1/gl.DrawArrays(...)
+	github.com/go-gl/gl@v0.0.0-20260331235117-4566fea9a276/v2.1/gl/package.go:20893
+fyne.io/fyne/v2/internal/painter/gl.(*coreContext).DrawArrays(0x3be5b0a78480?, 0xaff16544?, 0x3be5b0a94210?, 0x3be5b0a94240?)
+	fyne.io/fyne/v2@v2.8.0/internal/painter/gl/gl_core.go:240 +0x2b fp=0x3be5afd394c8 sp=0x3be5afd394a0 pc=0x7ff6add4ee0b
+fyne.io/fyne/v2/internal/painter/gl.(*painter).drawOblong(0x3be5b0a78480, {0x7ff6af51c3a8, 0x3be5afec06c0}, {0x7ff6af5091d0, 0x7ff6ae5f5fc0}, {0x7ff6af5090d0, 0x3be5aff16544}, 0x40800000, 0x41600000, 0x41600000, ...)
+	fyne.io/fyne/v2@v2.8.0/internal/painter/gl/draw.go:635 +0xf36 fp=0x3be5afd39600 sp=0x3be5afd394c8 pc=0x7ff6add49c16
+fyne.io/fyne/v2/internal/painter/gl.(*painter).drawRectangle(0x0?, 0x0?, {0x0?, 0x0?}, {0xafd62000?, 0x3be5?})
+	fyne.io/fyne/v2@v2.8.0/internal/painter/gl/draw.go:542 +0x11c fp=0x3be5afd396c0 sp=0x3be5afd39600 pc=0x7ff6add48c7c
+fyne.io/fyne/v2/internal/painter/gl.(*painter).drawObject(0x3be5afd39738?, {0x7ff6af51c3a8?, 0x3be5afec06c0?}, {0xafd39750?, 0x3be5?}, {0xad9ce425?, 0x7ff6?}, 0x7ff6b00d3340?)
+	fyne.io/fyne/v2@v2.8.0/internal/painter/gl/draw.go:407 +0x18e fp=0x3be5afd39710 sp=0x3be5afd396c0 pc=0x7ff6add47d4e
+fyne.io/fyne/v2/internal/painter/gl.(*painter).Paint(0x3be5b0a78480, {0x7ff6af51c3a8, 0x3be5afec06c0}, {0xad71589a?, 0x7ff6?}, {0xad71589a?, 0x7ff6?}, 0x0)
+	fyne.io/fyne/v2@v2.8.0/internal/painter/gl/painter.go:113 +0xee fp=0x3be5afd39760 sp=0x3be5afd39710 pc=0x7ff6add5046e
+fyne.io/fyne/v2/internal/driver/glfw.(*glCanvas).paint.func1(0x7ff6af45e201?, {0xaf1e3f38?, 0x7ff6?})
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/canvas.go:256 +0x12e fp=0x3be5afd397d0 sp=0x3be5afd39760 pc=0x7ff6addaffee
+fyne.io/fyne/v2/internal/driver/common.(*Canvas).walkTree.func1({0x7ff6af51c3a8, 0x3be5afec06c0}, {0xaf51c288?, 0x7ff6?}, {0xb014a140?, 0x3be5?}, {0xe329a760?, 0x7ffb?})
+	fyne.io/fyne/v2@v2.8.0/internal/driver/common/canvas.go:443 +0x239 fp=0x3be5afd39828 sp=0x3be5afd397d0 pc=0x7ff6add56639
+fyne.io/fyne/v2/internal/driver.walkObjectTree({0x7ff6af51c3a8, 0x3be5afec06c0}, 0x0, {0x7ff6af51c288, 0x3be5b014a140}, {0x41d8a000?, 0x44020000?}, {0x0?, 0x0?}, {0x43aa0000?, ...}, ...)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/util.go:171 +0x21d fp=0x3be5afd398f8 sp=0x3be5afd39828 pc=0x7ff6ad9cdebd
+fyne.io/fyne/v2/internal/driver.walkObjectTree.func1(...)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/util.go:178
+fyne.io/fyne/v2/internal/driver.walkObjectTree({0x7ff6af51c288, 0x3be5b014a140}, 0x0, {0x7ff6af51c288, 0x3be5b00d9840}, {0xb0a7a120?, 0x3be5?}, {0xafd39a28?, 0x3be5?}, {0xadab5211?, ...}, ...)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/util.go:192 +0x325 fp=0x3be5afd399c8 sp=0x3be5afd398f8 pc=0x7ff6ad9cdfc5
+fyne.io/fyne/v2/internal/driver.walkObjectTree.func1(...)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/util.go:178
+fyne.io/fyne/v2/internal/driver.walkObjectTree({0x7ff6af51c288, 0x3be5b00d9840}, 0x0, {0x0, 0x0}, {0xafd62000?, 0x3be5?}, {0xad6f3a09?, 0x7ff6?}, {0xad6f3a09?, ...}, ...)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/util.go:192 +0x325 fp=0x3be5afd39a98 sp=0x3be5afd399c8 pc=0x7ff6ad9cdfc5
+fyne.io/fyne/v2/internal/driver.WalkVisibleObjectTree({0x7ff6af51c288?, 0x3be5b00d9840?}, 0x7ff6ae4a1b80?, 0x3be5afd39b98?)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/util.go:134 +0x46 fp=0x3be5afd39b00 sp=0x3be5afd39a98 pc=0x7ff6ad9cdc66
+fyne.io/fyne/v2/internal/driver/common.(*Canvas).walkTree(0x7ffbe329a4f0?, 0x3f81010100004100?, 0x3be5afd39bd0?, 0x7ff6add502ca?)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/common/canvas.go:464 +0xa6 fp=0x3be5afd39b98 sp=0x3be5afd39b00 pc=0x7ff6add55526
+fyne.io/fyne/v2/internal/driver/common.(*Canvas).WalkTrees(0x3be5afddcf00, 0x3be5afd39c18, 0x3be5afd39c00)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/common/canvas.go:364 +0x36 fp=0x3be5afd39be0 sp=0x3be5afd39b98 pc=0x7ff6add551b6
+fyne.io/fyne/v2/internal/driver/glfw.(*glCanvas).paint(0x3be5afddcf00, {0xafd39ca8?, 0x3be5?})
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/canvas.go:272 +0xb7 fp=0x3be5afd39c60 sp=0x3be5afd39be0 pc=0x7ff6adda2897
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).repaintWindow(0x1be5140c2d0?, 0x3be5afd04000)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/loop.go:223 +0x6e fp=0x3be5afd39c98 sp=0x3be5afd39c60 pc=0x7ff6adda5b2e
+fyne.io/fyne/v2/internal/driver/glfw.(*window).Show.func1.1()
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/window.go:178 +0x1b fp=0x3be5afd39cb8 sp=0x3be5afd39c98 pc=0x7ff6addb0afb
+fyne.io/fyne/v2/internal/driver/glfw.(*window).RunWithContext(0x3be5b0d82360?, 0x3be5afd39cf8)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/window.go:923 +0x36 fp=0x3be5afd39cd0 sp=0x3be5afd39cb8 pc=0x7ff6addac996
+fyne.io/fyne/v2/internal/driver/glfw.(*window).Show.func1()
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/window.go:177 +0x145 fp=0x3be5afd39d18 sp=0x3be5afd39cd0 pc=0x7ff6addb0aa5
+fyne.io/fyne/v2/internal/async.EnsureMain(0x10?)
+	fyne.io/fyne/v2@v2.8.0/internal/async/goroutine.go:48 +0x12 fp=0x3be5afd39d28 sp=0x3be5afd39d18 pc=0x7ff6ad9ca6f2
+fyne.io/fyne/v2/internal/driver/glfw.(*window).Show(0x3be5afd04000)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/window.go:138 +0x59 fp=0x3be5afd39d58 sp=0x3be5afd39d28 pc=0x7ff6adda86f9
+github.com/frathe/picfetch/internal/ui.Run({0x7ff6af522368, 0x3be5afdb2240}, {0x3be5b00ce7c0, 0x2, 0x2}, {0x0, 0x0, 0x0, 0x0, 0x0, ...})
+	github.com/frathe/picfetch/internal/ui/run.go:53 +0xcc fp=0x3be5afd39dc8 sp=0x3be5afd39d58 pc=0x7ff6ae40512c
+main.main()
+	github.com/frathe/picfetch/main.go:142 +0x198 fp=0x3be5afd39eb8 sp=0x3be5afd39dc8 pc=0x7ff6ae416578
+runtime.main()
+	runtime/proc.go:302 +0x3fb fp=0x3be5afd39fe0 sp=0x3be5afd39eb8 pc=0x7ff6ad6e389b
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd39fe8 sp=0x3be5afd39fe0 pc=0x7ff6ad71f2e1
+
+goroutine 2 gp=0x3be5afd62780 m=nil [force gc (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5afd65fa8 sp=0x3be5afd65f88 pc=0x7ff6ad71848a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.forcegchelper()
+	runtime/proc.go:387 +0xb8 fp=0x3be5afd65fe0 sp=0x3be5afd65fa8 pc=0x7ff6ad6e3b38
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd65fe8 sp=0x3be5afd65fe0 pc=0x7ff6ad71f2e1
+created by runtime.init.7 in goroutine 1
+	runtime/proc.go:375 +0x1a
+
+goroutine 18 gp=0x3be5afd881e0 m=nil [GC sweep wait]:
+runtime.gopark(0x7ff6af526001?, 0x7ff6b0147480?, 0x8?, 0x9?, 0x1?)
+	runtime/proc.go:474 +0xca fp=0x3be5afd93f88 sp=0x3be5afd93f68 pc=0x7ff6ad71848a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.bgsweep(0x3be5afd8a000)
+	runtime/mgcsweep.go:324 +0x151 fp=0x3be5afd93fc8 sp=0x3be5afd93f88 pc=0x7ff6ad6ccdb1
+runtime.gcenable.gowrap1()
+	runtime/mgc.go:214 +0x17 fp=0x3be5afd93fe0 sp=0x3be5afd93fc8 pc=0x7ff6ad70ed97
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd93fe8 sp=0x3be5afd93fe0 pc=0x7ff6ad71f2e1
+created by runtime.gcenable in goroutine 1
+	runtime/mgc.go:214 +0x66
+
+goroutine 19 gp=0x3be5afd883c0 m=nil [GC scavenge wait]:
+runtime.gopark(0x10000?, 0x7ff6ae5bf388?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5afd95f78 sp=0x3be5afd95f58 pc=0x7ff6ad71848a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.(*scavengerState).park(0x7ff6b0148fe0)
+	runtime/mgcscavenge.go:425 +0x49 fp=0x3be5afd95fa8 sp=0x3be5afd95f78 pc=0x7ff6ad6ca8a9
+runtime.bgscavenge(0x3be5afd8a000)
+	runtime/mgcscavenge.go:658 +0x59 fp=0x3be5afd95fc8 sp=0x3be5afd95fa8 pc=0x7ff6ad6cae19
+runtime.gcenable.gowrap2()
+	runtime/mgc.go:215 +0x17 fp=0x3be5afd95fe0 sp=0x3be5afd95fc8 pc=0x7ff6ad70ed57
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd95fe8 sp=0x3be5afd95fe0 pc=0x7ff6ad71f2e1
+created by runtime.gcenable in goroutine 1
+	runtime/mgc.go:215 +0xa5
+
+goroutine 3 gp=0x3be5afd62d20 m=nil [GOMAXPROCS updater (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5afd67f88 sp=0x3be5afd67f68 pc=0x7ff6ad71848a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.updateMaxProcsGoroutine()
+	runtime/proc.go:7146 +0xe7 fp=0x3be5afd67fe0 sp=0x3be5afd67f88 pc=0x7ff6ad6f06e7
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd67fe8 sp=0x3be5afd67fe0 pc=0x7ff6ad71f2e1
+created by runtime.defaultGOMAXPROCSUpdateEnable in goroutine 1
+	runtime/proc.go:7134 +0x37
+
+goroutine 20 gp=0x3be5afd885a0 m=nil [finalizer wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5afd8fe20 sp=0x3be5afd8fe00 pc=0x7ff6ad71848a
+runtime.runFinalizers()
+	runtime/mfinal.go:210 +0x107 fp=0x3be5afd8ffe0 sp=0x3be5afd8fe20 pc=0x7ff6ad6bdd87
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd8ffe8 sp=0x3be5afd8ffe0 pc=0x7ff6ad71f2e1
+created by runtime.createfing in goroutine 1
+	runtime/mfinal.go:172 +0x3d
+
+goroutine 21 gp=0x3be5afd892c0 m=nil [cleanup wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5afd91f68 sp=0x3be5afd91f48 pc=0x7ff6ad71848a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.(*cleanupQueue).dequeue(0x7ff6b01494a0)
+	runtime/mcleanup.go:522 +0xd3 fp=0x3be5afd91fa0 sp=0x3be5afd91f68 pc=0x7ff6ad6babb3
+runtime.runCleanups()
+	runtime/mcleanup.go:718 +0x45 fp=0x3be5afd91fe0 sp=0x3be5afd91fa0 pc=0x7ff6ad6bb225
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd91fe8 sp=0x3be5afd91fe0 pc=0x7ff6ad71f2e1
+created by runtime.(*cleanupQueue).createGs in goroutine 1
+	runtime/mcleanup.go:672 +0xa5
+
+goroutine 22 gp=0x3be5afd89c20 m=nil [GC worker (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b0161f40 sp=0x3be5b0161f20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5b0161fc8 sp=0x3be5b0161f40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5b0161fe0 sp=0x3be5b0161fc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0161fe8 sp=0x3be5b0161fe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 34 gp=0x3be5afe7b680 m=nil [GC worker (idle)]:
+runtime.gopark(0x3f5863ee6c4?, 0x3?, 0x40?, 0x46?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b015df40 sp=0x3be5b015df20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5b015dfc8 sp=0x3be5b015df40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5b015dfe0 sp=0x3be5b015dfc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b015dfe8 sp=0x3be5b015dfe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 4 gp=0x3be5afd634a0 m=nil [GC worker (idle)]:
+runtime.gopark(0x3f5863ee6c4?, 0x7ff6ad710700?, 0xde?, 0x9e?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5afd69f40 sp=0x3be5afd69f20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5afd69fc8 sp=0x3be5afd69f40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5afd69fe0 sp=0x3be5afd69fc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5afd69fe8 sp=0x3be5afd69fe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 23 gp=0x3be5b0164000 m=nil [GC worker (idle)]:
+runtime.gopark(0x3f5863ee6c4?, 0x1?, 0xcc?, 0x84?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b0163f40 sp=0x3be5b0163f20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5b0163fc8 sp=0x3be5b0163f40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5b0163fe0 sp=0x3be5b0163fc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0163fe8 sp=0x3be5b0163fe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 24 gp=0x3be5b01641e0 m=nil [GC worker (idle)]:
+runtime.gopark(0x3f58659a4dc?, 0x3?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b016bf40 sp=0x3be5b016bf20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5b016bfc8 sp=0x3be5b016bf40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5b016bfe0 sp=0x3be5b016bfc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b016bfe8 sp=0x3be5b016bfe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 25 gp=0x3be5b01643c0 m=nil [GC worker (idle)]:
+runtime.gopark(0x3f5863ee6c4?, 0x3?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b016df40 sp=0x3be5b016df20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5b016dfc8 sp=0x3be5b016df40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5b016dfe0 sp=0x3be5b016dfc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b016dfe8 sp=0x3be5b016dfe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 26 gp=0x3be5b01645a0 m=nil [GC worker (idle)]:
+runtime.gopark(0x3f5863ee6c4?, 0x1?, 0x40?, 0x46?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b0167f40 sp=0x3be5b0167f20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5b0167fc8 sp=0x3be5b0167f40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5b0167fe0 sp=0x3be5b0167fc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0167fe8 sp=0x3be5b0167fe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 27 gp=0x3be5b0164780 m=nil [GC worker (idle)]:
+runtime.gopark(0x3f58659a4dc?, 0x3?, 0x24?, 0x81?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b0169f40 sp=0x3be5b0169f20 pc=0x7ff6ad71848a
+runtime.gcBgMarkWorker(0x3be5afdb6bd0)
+	runtime/mgc.go:1807 +0xeb fp=0x3be5b0169fc8 sp=0x3be5b0169f40 pc=0x7ff6ad6c120b
+runtime.gcBgMarkStartWorkers.gowrap1()
+	runtime/mgc.go:1711 +0x17 fp=0x3be5b0169fe0 sp=0x3be5b0169fc8 pc=0x7ff6ad70f297
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0169fe8 sp=0x3be5b0169fe0 pc=0x7ff6ad71f2e1
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	runtime/mgc.go:1711 +0xfc
+
+goroutine 35 gp=0x3be5b02881e0 m=nil [select]:
+runtime.gopark(0x3be5b0107f60?, 0x2?, 0x85?, 0x9c?, 0x3be5b0107ee4?)
+	runtime/proc.go:474 +0xca fp=0x3be5b0107d50 sp=0x3be5b0107d30 pc=0x7ff6ad71848a
+runtime.selectgo(0x3be5b0107f60, 0x3be5b0107ee0, 0x0?, 0x0, 0x0?, 0x1)
+	runtime/select.go:351 +0xa97 fp=0x3be5b0107e90 sp=0x3be5b0107d50 pc=0x7ff6ad6f4877
+fyne.io/fyne/v2/internal/async.(*UnboundedChan[...]).processing(0x7ff6ae5db220)
+	fyne.io/fyne/v2@v2.8.0/internal/async/chan.go:43 +0xd9 fp=0x3be5b0107fc0 sp=0x3be5b0107e90 pc=0x7ff6addb2379
+fyne.io/fyne/v2/internal/async.NewUnboundedChan[...].gowrap1()
+	fyne.io/fyne/v2@v2.8.0/internal/async/chan.go:20 +0x1b fp=0x3be5b0107fe0 sp=0x3be5b0107fc0 pc=0x7ff6addb201b
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0107fe8 sp=0x3be5b0107fe0 pc=0x7ff6ad71f2e1
+created by fyne.io/fyne/v2/internal/async.NewUnboundedChan[...] in goroutine 1
+	fyne.io/fyne/v2@v2.8.0/internal/async/chan.go:20 +0x119
+
+goroutine 28 gp=0x3be5b02894a0 m=3 mp=0x3be5afd6d008 [syscall, locked to thread]:
+runtime.cgocall(0x7ff6ad6a6820, 0x3be5afd6d358)
+	runtime/cgocall.go:167 +0x3e fp=0x3be5b0105ae8 sp=0x3be5b0105a88 pc=0x7ff6ad71535e
+syscall.syscalln(0x0?, 0x0?, {0x3be5b0105b60?, 0x0?, 0x0?})
+	runtime/syscall_windows.go:427 +0x48 fp=0x3be5b0105b08 sp=0x3be5b0105ae8 pc=0x7ff6ad71bee8
+syscall.SyscallN(0x0?, {0x3be5b0105b60?, 0x0?, 0x0?})
+	syscall/dll_windows.go:99 +0x1e fp=0x3be5b0105b40 sp=0x3be5b0105b08 pc=0x7ff6ad73217e
+golang.org/x/sys/windows.GetQueuedCompletionStatus(0x3d0, 0x3be5afde4000?, 0x3be5b06c2010?, 0x0?, 0xffffffff)
+	golang.org/x/sys@v0.47.0/windows/zsyscall_windows.go:2657 +0xab fp=0x3be5b0105bb8 sp=0x3be5b0105b40 pc=0x7ff6ad9d27cb
+github.com/fsnotify/fsnotify.(*readDirChangesW).readEvents(0x3be5b00d8bc0)
+	github.com/fsnotify/fsnotify@v1.10.1/backend_windows.go:514 +0x7b fp=0x3be5b0105fc8 sp=0x3be5b0105bb8 pc=0x7ff6addc665b
+github.com/fsnotify/fsnotify.newBackend.gowrap1()
+	github.com/fsnotify/fsnotify@v1.10.1/backend_windows.go:59 +0x17 fp=0x3be5b0105fe0 sp=0x3be5b0105fc8 pc=0x7ff6addc85b7
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0105fe8 sp=0x3be5b0105fe0 pc=0x7ff6ad71f2e1
+created by github.com/fsnotify/fsnotify.newBackend in goroutine 1
+	github.com/fsnotify/fsnotify@v1.10.1/backend_windows.go:59 +0x1b6
+
+goroutine 29 gp=0x3be5b0289680 m=nil [chan receive]:
+runtime.gopark(0x3be5b0312000?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x3be5b015fe90 sp=0x3be5b015fe70 pc=0x7ff6ad71848a
+runtime.chanrecv(0x3be5b018b9d0, 0x3be5b015ffa0, 0x1)
+	runtime/chan.go:667 +0x4ae fp=0x3be5b015ff08 sp=0x3be5b015fe90 pc=0x7ff6ad6ab0ae
+runtime.chanrecv2(0x3be5b009ef70?, 0x0?)
+	runtime/chan.go:514 +0x12 fp=0x3be5b015ff30 sp=0x3be5b015ff08 pc=0x7ff6ad6aabf2
+fyne.io/fyne/v2/app.watchFile.func1()
+	fyne.io/fyne/v2@v2.8.0/app/settings_desktop.go:43 +0x77 fp=0x3be5b015ffe0 sp=0x3be5b015ff30 pc=0x7ff6addcdd97
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b015ffe8 sp=0x3be5b015ffe0 pc=0x7ff6ad71f2e1
+created by fyne.io/fyne/v2/app.watchFile in goroutine 1
+	fyne.io/fyne/v2@v2.8.0/app/settings_desktop.go:42 +0xfe
+
+goroutine 30 gp=0x3be5b0289860 m=nil [select]:
+runtime.gopark(0x3be5b0101f78?, 0x2?, 0x85?, 0x9c?, 0x3be5b0101efc?)
+	runtime/proc.go:474 +0xca fp=0x3be5b0101d68 sp=0x3be5b0101d48 pc=0x7ff6ad71848a
+runtime.selectgo(0x3be5b0101f78, 0x3be5b0101ef8, 0x0?, 0x0, 0x0?, 0x1)
+	runtime/select.go:351 +0xa97 fp=0x3be5b0101ea8 sp=0x3be5b0101d68 pc=0x7ff6ad6f4877
+fyne.io/fyne/v2/internal/async.(*UnboundedChan[...]).processing(0x7ff6ae5db180)
+	fyne.io/fyne/v2@v2.8.0/internal/async/chan.go:43 +0xdc fp=0x3be5b0101fc0 sp=0x3be5b0101ea8 pc=0x7ff6ad9d5a1c
+fyne.io/fyne/v2/internal/async.NewUnboundedChan[...].gowrap1()
+	fyne.io/fyne/v2@v2.8.0/internal/async/chan.go:20 +0x1b fp=0x3be5b0101fe0 sp=0x3be5b0101fc0 pc=0x7ff6ad9d591b
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0101fe8 sp=0x3be5b0101fe0 pc=0x7ff6ad71f2e1
+created by fyne.io/fyne/v2/internal/async.NewUnboundedChan[...] in goroutine 1
+	fyne.io/fyne/v2@v2.8.0/internal/async/chan.go:20 +0x119
+
+goroutine 31 gp=0x3be5b0289a40 m=nil [chan receive]:
+runtime.gopark(0x3be5b0d9c008?, 0x3be5b018a070?, 0x98?, 0xb0?, 0x3be5b0771e68?)
+	runtime/proc.go:474 +0xca fp=0x3be5b0771e18 sp=0x3be5b0771df8 pc=0x7ff6ad71848a
+runtime.chanrecv(0x3be5afd2c700, 0x0, 0x1)
+	runtime/chan.go:667 +0x4ae fp=0x3be5b0771e90 sp=0x3be5b0771e18 pc=0x7ff6ad6ab0ae
+runtime.chanrecv1(0x7ff6b00ed560?, 0x7ff6ae5cbb40?)
+	runtime/chan.go:509 +0x12 fp=0x3be5b0771eb8 sp=0x3be5b0771e90 pc=0x7ff6ad6aabd2
+fyne.io/fyne/v2/internal/driver/glfw.runOnMainWithWait(0x3be5afd8cef0, 0x1)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/loop.go:53 +0xfc fp=0x3be5b0771f20 sp=0x3be5b0771eb8 pc=0x7ff6adda519c
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).DoFromGoroutine.func1()
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/driver.go:103 +0x1c fp=0x3be5b0771f40 sp=0x3be5b0771f20 pc=0x7ff6addb005c
+fyne.io/fyne/v2/internal/async.EnsureNotMain(0x10?)
+	fyne.io/fyne/v2@v2.8.0/internal/async/goroutine.go:29 +0x12 fp=0x3be5b0771f50 sp=0x3be5b0771f40 pc=0x7ff6ad9ca6b2
+fyne.io/fyne/v2/internal/driver/glfw.(*gLDriver).DoFromGoroutine(0x1be587d3618?, 0x3be5afd8cef0, 0x8?)
+	fyne.io/fyne/v2@v2.8.0/internal/driver/glfw/driver.go:102 +0x5f fp=0x3be5b0771f80 sp=0x3be5b0771f50 pc=0x7ff6adda359f
+fyne.io/fyne/v2.DoAndWait(0x3be5afd8cef0)
+	fyne.io/fyne/v2@v2.8.0/thread.go:9 +0x3a fp=0x3be5b0771fa8 sp=0x3be5b0771f80 pc=0x7ff6ad9b4dfa
+fyne.io/fyne/v2/app.(*preferences).resetSavedRecently.func1()
+	fyne.io/fyne/v2@v2.8.0/app/preferences.go:54 +0x6b fp=0x3be5b0771fe0 sp=0x3be5b0771fa8 pc=0x7ff6addcd72b
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b0771fe8 sp=0x3be5b0771fe0 pc=0x7ff6ad71f2e1
+created by fyne.io/fyne/v2/app.(*preferences).resetSavedRecently in goroutine 1
+	fyne.io/fyne/v2@v2.8.0/app/preferences.go:50 +0x59
+
+goroutine 36 gp=0x3be5b01885a0 m=nil [select]:
+runtime.gopark(0x3be5b076df68?, 0x2?, 0x0?, 0x0?, 0x3be5b076df24?)
+	runtime/proc.go:474 +0xca fp=0x3be5b076dda8 sp=0x3be5b076dd88 pc=0x7ff6ad71848a
+runtime.selectgo(0x3be5b076df68, 0x3be5b076df20, 0xffffffffffffffff?, 0x0, 0xffffffffffffffff?, 0x1)
+	runtime/select.go:351 +0xa97 fp=0x3be5b076dee8 sp=0x3be5b076dda8 pc=0x7ff6ad6f4877
+github.com/frathe/picfetch/internal/winpos.startPoll.func1()
+	github.com/frathe/picfetch/internal/winpos/poll.go:140 +0x233 fp=0x3be5b076dfe0 sp=0x3be5b076dee8 pc=0x7ff6ae3777b3
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x3be5b076dfe8 sp=0x3be5b076dfe0 pc=0x7ff6ad71f2e1
+created by github.com/frathe/picfetch/internal/winpos.startPoll in goroutine 1
+	github.com/frathe/picfetch/internal/winpos/poll.go:110 +0x156
+rax     0x0
+rbx     0x30
+rcx     0x1be22dff030
+rdx     0x4
+rdi     0x1be22d91830
+rsi     0x1be5133fe08
+rbp     0x13d23ff170
+rsp     0x13d23fefc0
+r8      0x1be24bb0630
+r9      0x1be24bb0630
+r10     0x1be5133fe00
+r11     0x8
+r12     0x0
+r13     0x0
+r14     0x30
+r15     0x30
+rip     0x1be210f039e
+rflags  0x202
+cs      0x33
+fs      0x53
+gs      0x2b
+

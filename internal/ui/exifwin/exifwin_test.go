@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"image/color"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -116,7 +118,7 @@ func (s *stubHost) DisplayedFile() (fyne.URI, bool) {
 	}
 	return s.current()
 }
-func (s *stubHost) AfterMetadataRemoved(u fyne.URI) {
+func (s *stubHost) AfterMetadataRemoved(u fyne.URI, _ imaging.WriteResult) {
 	s.after++
 	s.afterU = u
 }
@@ -135,10 +137,19 @@ func testApp(t *testing.T) (fyne.App, *stubHost) {
 	return app, &stubHost{current: func() (fyne.URI, bool) { return u, true }}
 }
 
+func newTestWindow(t *testing.T, app fyne.App, host Host) *Window {
+	t.Helper()
+	w := New(app, host)
+	w.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(func() { w.Stop(); w.Settle() })
+	return w
+}
+
 func TestWindow_ArrowKeysStepImage(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	handler := w.Window().Canvas().OnTypedKey()
@@ -154,8 +165,9 @@ func TestWindow_ArrowKeysStepImage(t *testing.T) {
 
 func TestWindow_UpDownHomeEndDoNotStepImage(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	handler := w.Window().Canvas().OnTypedKey()
@@ -169,8 +181,9 @@ func TestWindow_UpDownHomeEndDoNotStepImage(t *testing.T) {
 
 func TestWindow_ShowLeavesCanvasUnfocused(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if got := w.Window().Canvas().Focused(); got != nil {
@@ -180,8 +193,9 @@ func TestWindow_ShowLeavesCanvasUnfocused(t *testing.T) {
 
 func TestWindow_ArrowKeysIgnoredWhileConfirming(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.showConfirm(confirmation{title: "Title", message: "Message", action: "Confirm"})
@@ -204,10 +218,11 @@ func TestWindow_ArrowKeysIgnoredWhileConfirming(t *testing.T) {
 
 func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.RestoreGeometry(widgets.Geometry{X: 310, Y: 320, PositionSet: true, Size: fyne.NewSize(520, 480)})
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if got, want := w.Window().Canvas().Size(), fyne.NewSize(520, 480); got != want {
@@ -222,10 +237,11 @@ func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
 
 func TestGeometry_TracksAResizeAndOutlivesTheWindow(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.RestoreGeometry(widgets.Geometry{})
 
 	w.Show()
+	settleMetadata(w)
 	w.Window().Resize(fyne.NewSize(560, 500))
 	w.Window().Close()
 
@@ -237,14 +253,15 @@ func TestGeometry_TracksAResizeAndOutlivesTheWindow(t *testing.T) {
 func TestStopTracking_IsSafeWithNoWindowOpen(t *testing.T) {
 	app, host := testApp(t)
 
-	New(app, host).StopTracking()
+	newTestWindow(t, app, host).StopTracking()
 }
 
 func TestShow_WithoutRestoreGeometryUsesTheBuiltInSize(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if got, want := w.Window().Canvas().Size(), fyne.NewSize(exifW, exifH); got != want {
@@ -264,9 +281,10 @@ func gpsApp(t *testing.T) (fyne.App, *stubHost) {
 
 func TestShow_LocationSectionIsShownCollapsedForAPhotoWithGPS(t *testing.T) {
 	app, host := gpsApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	loc := w.Location()
@@ -289,9 +307,10 @@ func TestShow_LocationSectionIsShownCollapsedForAPhotoWithGPS(t *testing.T) {
 
 func TestShow_LocationSectionIsHiddenWithoutGPS(t *testing.T) {
 	app, host := testApp(t) // a plain JPEG, no Exif at all
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if w.Location().Visible() {
@@ -306,9 +325,10 @@ func TestRefresh_LocationSectionFollowsTheCurrentImage(t *testing.T) {
 	without := uitest.TempJPEGURI(t, "plain.jpg", 8, 8, color.White)
 
 	shown := withGPS
-	w := New(app, &stubHost{current: func() (fyne.URI, bool) { return shown, true }})
+	w := newTestWindow(t, app, &stubHost{current: func() (fyne.URI, bool) { return shown, true }})
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if !w.Location().Visible() {
@@ -317,6 +337,7 @@ func TestRefresh_LocationSectionFollowsTheCurrentImage(t *testing.T) {
 
 	shown = without
 	w.Refresh()
+	settleMetadata(w)
 
 	if w.Location().Visible() {
 		t.Error("location section stayed visible after navigating to a photo with no GPS, want hidden")
@@ -324,6 +345,7 @@ func TestRefresh_LocationSectionFollowsTheCurrentImage(t *testing.T) {
 
 	shown = withGPS
 	w.Refresh()
+	settleMetadata(w)
 
 	if !w.Location().Visible() {
 		t.Error("location section stayed hidden after navigating back to the GPS photo, want shown")
@@ -336,13 +358,15 @@ func TestRefresh_LocationSectionIsHiddenForAnUnreadableFile(t *testing.T) {
 	missing := storage.NewFileURI(filepath.Join(t.TempDir(), "gone.jpg"))
 	shown := uitest.TempGPSJPEGURI(t, "gps.jpg", 8, 8, 48.858222, 2.2945)
 
-	w := New(app, &stubHost{current: func() (fyne.URI, bool) { return shown, true }})
+	w := newTestWindow(t, app, &stubHost{current: func() (fyne.URI, bool) { return shown, true }})
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	shown = missing
 	w.Refresh()
+	settleMetadata(w)
 
 	if w.Location().Visible() {
 		t.Error("location section stayed visible for an unreadable file, want hidden")
@@ -371,6 +395,7 @@ func waitForWarm(t *testing.T, w *Window) {
 	if err := w.warm.Wait(ctx); err != nil {
 		t.Fatal("timed out waiting for the map prefetch")
 	}
+	w.Settle()
 }
 
 // The tile server is held for every stretch in which the test's own
@@ -383,10 +408,11 @@ func TestToggleLocation_ShowsAndHidesTheMap(t *testing.T) {
 	server := newTileServer(t)
 	release := server.hold()
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.ToggleLocation()
@@ -410,9 +436,10 @@ func TestToggleLocation_ReleasesKeyboard(t *testing.T) {
 	server := newTileServer(t)
 	release := server.hold()
 	t.Cleanup(release)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if w.toggle == nil {
@@ -442,7 +469,7 @@ func TestToggleLocation_ReleasesKeyboard(t *testing.T) {
 
 func TestRefresh_IsANoOpWhileTheWindowIsClosed(t *testing.T) {
 	app, host := gpsApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 
 	w.Refresh() // must not panic on the nil label and nil map
 
@@ -458,10 +485,11 @@ func TestToggleLocation_ShowsTheLoadingIndicatorUntilTheTilesAreIn(t *testing.T)
 	release := server.hold()
 	t.Cleanup(release)
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if w.loading.Visible() {
@@ -496,13 +524,15 @@ func TestToggleLocation_FetchesNothingUntilTheSectionIsExpanded(t *testing.T) {
 	server := newTileServer(t)
 	release := server.hold()
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Refresh()
+	settleMetadata(w)
 
 	if got := server.count(); got != 0 {
 		t.Fatalf("server saw %d requests with the section collapsed, want none", got)
@@ -528,10 +558,11 @@ func TestRefresh_ExpandedSectionRefetchesForANewPosition(t *testing.T) {
 	release := server.hold()
 
 	shown := paris
-	w := New(app, &stubHost{current: func() (fyne.URI, bool) { return shown, true }})
+	w := newTestWindow(t, app, &stubHost{current: func() (fyne.URI, bool) { return shown, true }})
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.ToggleLocation()
@@ -544,6 +575,7 @@ func TestRefresh_ExpandedSectionRefetchesForANewPosition(t *testing.T) {
 
 	shown = sydney
 	w.Refresh()
+	settleMetadata(w)
 	release()
 	waitForWarm(t, w)
 
@@ -562,10 +594,11 @@ func TestClose_StopsTheFetcherFromTouchingDeadWidgets(t *testing.T) {
 	server := newTileServer(t)
 	release := server.hold()
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	w.ToggleLocation()
 	w.Window().Close()
 
@@ -585,10 +618,11 @@ func TestPaint_DoesNotBlockOnSlowTiles(t *testing.T) {
 
 	server := newTileServer(t)
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -624,10 +658,11 @@ func TestToggleLocation_ExpandedMapGetsRealSpace(t *testing.T) {
 
 	server := newTileServer(t)
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -647,10 +682,11 @@ func TestToggleLocation_MapGrowsWithTheWindow(t *testing.T) {
 
 	server := newTileServer(t)
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.tiles = fetcherFor(server)
 
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -671,8 +707,9 @@ func TestToggleLocation_MapGrowsWithTheWindow(t *testing.T) {
 
 func TestStripButton_HiddenForAJPEGWithNoMetadata(t *testing.T) {
 	app, host := testApp(t) // plain TempJPEGURI
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if w.StripButton() == nil || w.StripButton().Visible() {
@@ -682,8 +719,9 @@ func TestStripButton_HiddenForAJPEGWithNoMetadata(t *testing.T) {
 
 func TestStripButton_ShownForAGPSJPEG(t *testing.T) {
 	app, host := gpsApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if !w.StripButton().Visible() {
@@ -693,8 +731,9 @@ func TestStripButton_ShownForAGPSJPEG(t *testing.T) {
 
 func TestStripButton_DoesNotSpanTheWindow(t *testing.T) {
 	app, host := gpsApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -715,8 +754,9 @@ func TestStripButton_HiddenForAPNG(t *testing.T) {
 	app := test.NewApp()
 	u := storage.NewFileURI(uitest.WriteTempFile(t, "plain.png", uitest.EncodePNG(t, 8, 8, color.White)))
 	host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if w.StripButton() == nil || w.StripButton().Visible() {
@@ -732,8 +772,9 @@ func TestStripButton_HiddenWhenTheTagListIsEmpty(t *testing.T) {
 	data := append(uitest.EncodeJPEG(t, 8, 8, color.White), []byte("ftypmp42fake-video")...)
 	u := storage.NewFileURI(uitest.WriteTempFile(t, "trailer.jpg", data))
 	host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if got := w.Text().Text; got != lang.L("No EXIF metadata found in this file.") && got != "No EXIF metadata found in this file." {
@@ -753,8 +794,9 @@ func TestStripButton_HiddenBarTakesNoHeightAfterNavigate(t *testing.T) {
 	plain := uitest.TempJPEGURI(t, "plain.jpg", 8, 8, color.White)
 	shown := gps
 	host := &stubHost{current: func() (fyne.URI, bool) { return shown, true }}
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -768,6 +810,7 @@ func TestStripButton_HiddenBarTakesNoHeightAfterNavigate(t *testing.T) {
 
 	shown = plain
 	w.Refresh()
+	settleMetadata(w)
 
 	if w.StripButton().Visible() {
 		t.Fatal("want the button hidden after navigating to a JPEG with nothing removable")
@@ -786,8 +829,9 @@ func TestStripButton_GainsHeightAfterNavigateToGPS(t *testing.T) {
 	plain := uitest.TempJPEGURI(t, "plain.jpg", 8, 8, color.White)
 	shown := plain
 	host := &stubHost{current: func() (fyne.URI, bool) { return shown, true }}
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -801,6 +845,7 @@ func TestStripButton_GainsHeightAfterNavigateToGPS(t *testing.T) {
 
 	shown = gps
 	w.Refresh()
+	settleMetadata(w)
 
 	if !w.StripButton().Visible() {
 		t.Fatal("want the button shown after navigating to a GPS JPEG")
@@ -824,9 +869,10 @@ func TestStripButton_NorthRowFollowsVisibilityWithoutWindowResize(t *testing.T) 
 
 	shown := plainU
 	host := &stubHost{current: func() (fyne.URI, bool) { return shown, true }}
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.RestoreGeometry(widgets.Geometry{Size: fyne.NewSize(exifW, exifH)})
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -841,6 +887,7 @@ func TestStripButton_NorthRowFollowsVisibilityWithoutWindowResize(t *testing.T) 
 
 	shown = gpsU
 	w.Refresh()
+	settleMetadata(w)
 
 	if !w.StripButton().Visible() {
 		t.Fatal("want the button shown for a GPS JPEG")
@@ -854,6 +901,7 @@ func TestStripButton_NorthRowFollowsVisibilityWithoutWindowResize(t *testing.T) 
 
 	shown = plainU
 	w.Refresh()
+	settleMetadata(w)
 
 	if w.StripButton().Visible() {
 		t.Fatal("want the button hidden after navigating back to a clean JPEG")
@@ -871,8 +919,9 @@ func TestStripButton_NorthRowFollowsVisibilityWithoutWindowResize(t *testing.T) 
 
 func TestStripButton_SitsAboveTheMap(t *testing.T) {
 	app, host := gpsApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.Window().Resize(fyne.NewSize(exifW, exifH))
@@ -928,8 +977,9 @@ func absolutePos(root, target fyne.CanvasObject) (fyne.Position, bool) {
 
 func TestRequestStrip_CancelLeavesTheFileUnchanged(t *testing.T) {
 	app, host := gpsApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	u, ok := host.DisplayedFile()
@@ -959,14 +1009,17 @@ func TestRequestStrip_CancelLeavesTheFileUnchanged(t *testing.T) {
 
 func TestRequestStrip_ConfirmRemovesGPSAndCallsHost(t *testing.T) {
 	app, host := gpsApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.StripButton().OnTapped()
 	panel := w.Window().Canvas().Focused().(*widgets.ChoicePanel)
 	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	w.Settle()
+	settleMetadata(w)
 
 	u, ok := host.DisplayedFile()
 	if !ok {
@@ -1025,8 +1078,9 @@ func TestRequestStrip_ErrorToastsAndLeavesTheFile(t *testing.T) {
 
 	app := test.NewApp()
 	host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	if err := os.Chmod(locked, 0o500); err != nil {
@@ -1037,6 +1091,7 @@ func TestRequestStrip_ErrorToastsAndLeavesTheFile(t *testing.T) {
 	panel := w.Window().Canvas().Focused().(*widgets.ChoicePanel)
 	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	w.Settle()
 
 	if host.after != 0 {
 		t.Fatal("AfterMetadataRemoved must not run on a failed strip")
@@ -1064,8 +1119,9 @@ func TestRefresh_DismissesConfirmWhenTheFileChanges(t *testing.T) {
 	shown := gps
 	host := &stubHost{current: func() (fyne.URI, bool) { return shown, true }}
 
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	t.Cleanup(func() { w.Window().Close() })
 
 	w.StripButton().OnTapped()
@@ -1075,6 +1131,7 @@ func TestRefresh_DismissesConfirmWhenTheFileChanges(t *testing.T) {
 
 	shown = plain
 	w.Refresh()
+	settleMetadata(w)
 
 	if n := len(w.Window().Canvas().Overlays().List()); n != 0 {
 		t.Fatalf("overlay count = %d after navigating away, want the confirmation dismissed", n)
@@ -1083,7 +1140,7 @@ func TestRefresh_DismissesConfirmWhenTheFileChanges(t *testing.T) {
 
 func TestWindow_SetOnClosedFiresWhenThePanelCloses(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 
 	var closed int
 	w.SetOnClosed(func() {
@@ -1093,6 +1150,7 @@ func TestWindow_SetOnClosedFiresWhenThePanelCloses(t *testing.T) {
 		}
 	})
 	w.Show()
+	settleMetadata(w)
 	if !w.Open() {
 		t.Fatal("premises: panel should be open")
 	}
@@ -1110,8 +1168,9 @@ func TestWindow_SetOnClosedFiresWhenThePanelCloses(t *testing.T) {
 
 func TestWindow_SetOnClosedFiresWhenThePanelCloses_SetAfterShow(t *testing.T) {
 	app, host := testApp(t)
-	w := New(app, host)
+	w := newTestWindow(t, app, host)
 	w.Show()
+	settleMetadata(w)
 	if !w.Open() {
 		t.Fatal("premises: panel should be open")
 	}
@@ -1122,4 +1181,137 @@ func TestWindow_SetOnClosedFiresWhenThePanelCloses_SetAfterShow(t *testing.T) {
 	if closed != 1 {
 		t.Errorf("close hook calls = %d, want 1 (set after Show)", closed)
 	}
+}
+
+func TestWindow_CloseCancelsActiveTileReads(t *testing.T) {
+	app, host := gpsApp(t)
+	entered, cancelled := make(chan struct{}, tileWorkers), make(chan struct{}, tileWorkers)
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+		entered <- struct{}{}
+		select {
+		case <-req.Context().Done():
+			cancelled <- struct{}{}
+		case <-release:
+		}
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(release) })
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher(server.URL+"/%d/%d/%d.png", server.Client().Transport)
+	w.Show()
+	settleMetadata(w)
+	w.ToggleLocation()
+	for range tileWorkers {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("map read did not start")
+		}
+	}
+	w.Window().Close()
+	for range tileWorkers {
+		select {
+		case <-cancelled:
+		case <-time.After(2 * time.Second):
+			t.Error("closing map did not cancel active HTTP read")
+			w.tiles.Cancel()
+			return
+		}
+	}
+	w.tiles.Wait()
+}
+
+func TestWindow_MapTransitionsCancelCapturedSession(t *testing.T) {
+	for _, change := range []string{"collapse", "no-gps", "navigate", "stop"} {
+		t.Run(change, func(t *testing.T) {
+			app, host := gpsApp(t)
+			server := newTileServer(t)
+			unblock := server.hold()
+			t.Cleanup(unblock)
+			w := newTestWindow(t, app, host)
+			w.tiles = fetcherFor(server)
+			w.Show()
+			settleMetadata(w)
+			w.ToggleLocation()
+			old := w.tiles.session()
+			switch change {
+			case "collapse":
+				w.ToggleLocation()
+			case "no-gps":
+				w.showLocation(imaging.Metadata{})
+			case "navigate":
+				w.showLocation(imaging.Metadata{HasGPS: true, Latitude: -33.86, Longitude: 151.2})
+			case "stop":
+				w.Stop()
+			}
+			if old.Err() == nil {
+				t.Error("transition did not cancel captured tile session")
+			}
+			w.Stop()
+			w.Settle()
+			if w.tiles.Pending() != 0 {
+				t.Error("stopped tile workers remained pending")
+			}
+			w.Window().Close()
+		})
+	}
+}
+
+func TestWindow_OldWarmCannotRevealReopenedMap(t *testing.T) {
+	app, host := gpsApp(t)
+	server := newTileServer(t)
+	w := newTestWindow(t, app, host)
+	w.tiles = fetcherFor(server)
+	w.Show()
+	settleMetadata(w)
+	w.ToggleLocation()
+	w.warmWorkers.Wait()
+	w.tiles.Wait()
+	queue := w.ui.(*uitest.UIQueue)
+	if queue.Len() == 0 {
+		t.Fatal("warm completion was not queued")
+	}
+	w.Window().Close()
+	w.SetUIQueue(&uitest.UIQueue{}) // Hold old completions while the new metadata settles.
+	w.Show()
+	settleMetadata(w)
+	unblock := server.hold()
+	t.Cleanup(unblock)
+	w.showLocation(imaging.Metadata{HasGPS: true, Latitude: -33.86, Longitude: 151.2})
+	w.ToggleLocation()
+	queue.Drain()
+	if !w.warming || w.locationMap.Visible() {
+		t.Error("old warm completion revealed the new map before its tiles arrived")
+	}
+	unblock()
+	w.Settle()
+	if w.warming || !w.locationMap.Visible() {
+		t.Error("new warm completion was not applied")
+	}
+	w.Window().Close()
+}
+
+func TestWindow_OldTileNoticeCannotChangeReopenedWindow(t *testing.T) {
+	app, host := gpsApp(t)
+	w := newTestWindow(t, app, host)
+	w.Show()
+	settleMetadata(w)
+	w.tiles.mu.Lock()
+	oldNotice := w.tiles.onChange
+	w.tiles.mu.Unlock()
+	oldQueue := w.ui
+	oldNotice(0)
+	w.Window().Close()
+	w.SetUIQueue(&uitest.UIQueue{})
+	w.Show()
+	settleMetadata(w)
+	// A queued notice has no authority to change the replacement's widgets,
+	// including an indicator whose presentation the new window now owns.
+	w.loading.Show()
+	oldQueue.Drain()
+	if !w.loading.Visible() {
+		t.Error("old tile notice altered replacement widgets")
+	}
+	w.Window().Close()
 }

@@ -1,10 +1,9 @@
 package grid
 
 import (
+	"context"
 	"testing"
 	"time"
-
-	"github.com/frathe/picfetch/internal/dupes"
 )
 
 // A pass that starts with nothing in flight must clear the previous
@@ -50,7 +49,7 @@ func TestRun_SkipsNilURI(t *testing.T) {
 
 	g := newOverview(t, host)
 
-	n := g.hashes.Run(func(_ dupes.Groups, _ int32, _ uint64) {})
+	n := g.hashes.Run(context.Background(), func(_ int32, _ uint64) {})
 	// The two real files really do reach the decode pool, so this drains
 	// them before the harness closes the window under them - the same
 	// barrier every hashing test in dupes_test.go takes.

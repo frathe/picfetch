@@ -1,6 +1,7 @@
 package favthumbs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -151,5 +152,25 @@ func TestDirJoinsSubDirOntoFavoriteDirectory(t *testing.T) {
 	want := filepath.Join(favDir, SubDir)
 	if got := Dir(favDir); got != want {
 		t.Errorf("Dir(%q) = %q, want %q", favDir, got, want)
+	}
+}
+
+func TestEntryNamePreservesSubsecondPrecision(t *testing.T) {
+	t.Parallel()
+	for _, seconds := range []int64{-1, 0, 1700000000, 16725225600} {
+		t.Run(fmt.Sprint(seconds), func(t *testing.T) {
+			first := entryName("source", time.Unix(seconds, 100), 4)
+			next := entryName("source", time.Unix(seconds, 101), 4)
+			if first == next {
+				t.Error("distinct available nanoseconds share a preview identity")
+			}
+			for _, ns := range []int64{0, 100} {
+				key := entryName("source", time.Unix(seconds, ns), 4)
+				legacy := fmt.Sprintf("source-%d-4", seconds)
+				if key == legacy {
+					t.Errorf("new identity collides with legacy key %q", key)
+				}
+			}
+		})
 	}
 }

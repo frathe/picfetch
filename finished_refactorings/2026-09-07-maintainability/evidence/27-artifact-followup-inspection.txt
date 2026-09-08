@@ -1,0 +1,103 @@
+/private/tmp/picfetch-maintainability-27-package/bin/PicFetch.app/Contents/MacOS/picfetch: Mach-O 64-bit executable arm64
+SHA256 623e6819ba22577867e3f55ba0a20fe770fc39afa44a496c23b11c8b62c1bde1
+	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
+	dep	fyne.io/systray	v1.12.2	h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+	dep	fyne.io/x/fyne	v0.0.0-20260712112324-6989f2f174fb	h1:oa8Pqo2Xis8dWEB5sQRLL4hbwB8mLusOTXBP1xYvGwY=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=release,migrated_fynedo
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=arm64
+	build	GOOS=darwin
+	build	GOARM64=v8.0
+	build	vcs=git
+	build	vcs.revision=d608c17d31a4d92fcd241b63aa8170d83018c6f5
+	build	vcs.time=2026-09-06T15:06:06Z
+	build	vcs.modified=true
+
+/private/tmp/picfetch-maintainability-27-package/bin/picfetch-linux-amd64: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.0.0, Go BuildID=0wrE5m_ncTi2lI7heYws/H7O3xzCBo597JhdWegII/46RTKqdWlx80uMPQdbvA/qU1ojkbqOOxXZ_x2KKpO, stripped
+SHA256 efa8fd527289465f58fe841b44515e544994f74c7c0d27cedb18188728b25127
+	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
+	dep	fyne.io/systray	v1.12.2	h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+	dep	fyne.io/x/fyne	v0.0.0-20260712112324-6989f2f174fb	h1:oa8Pqo2Xis8dWEB5sQRLL4hbwB8mLusOTXBP1xYvGwY=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=release,migrated_fynedo
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=amd64
+	build	GOOS=linux
+	build	GOAMD64=v1
+
+/private/tmp/picfetch-maintainability-27-package/bin/picfetch-linux-arm64: ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, for GNU/Linux 2.0.0, Go BuildID=V_qteCNx8s2Ri6ekNtUD/k5YQrxkLwWZLaD0lXkRw/0jPNkHLrGg34k3nEC_Hi/jxkvLXgF17lVo8Y2K-Lh, stripped
+SHA256 8e268fe7ca23ef76b1b09d08805bb86e88e43e181f67f57164fd49fb81e9abe0
+	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
+	dep	fyne.io/systray	v1.12.2	h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+	dep	fyne.io/x/fyne	v0.0.0-20260712112324-6989f2f174fb	h1:oa8Pqo2Xis8dWEB5sQRLL4hbwB8mLusOTXBP1xYvGwY=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=release,migrated_fynedo
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=arm64
+	build	GOOS=linux
+	build	GOARM64=v8.0
+
+/private/tmp/picfetch-maintainability-27-package/bin/picfetch-microsoft-store-amd64.exe: PE32+ executable (GUI) x86-64, for MS Windows
+SHA256 ce3b5eae237fc06196938371a5e7ec78372dcbd1e57a0da0e9c0b031a06cff84
+	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
+	dep	fyne.io/systray	v1.12.2	h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+	dep	fyne.io/x/fyne	v0.0.0-20260712112324-6989f2f174fb	h1:oa8Pqo2Xis8dWEB5sQRLL4hbwB8mLusOTXBP1xYvGwY=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=microsoftstore,release,migrated_fynedo
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=amd64
+	build	GOOS=windows
+	build	GOAMD64=v1
+
+/private/tmp/picfetch-maintainability-27-package/bin/picfetch-microsoft-store-arm64.exe: PE32+ executable (GUI) Aarch64, for MS Windows
+SHA256 dd0c034af704116443218d1bdbd079cb3aacb35ecc9102ee392b2e79f2779643
+	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
+	dep	fyne.io/systray	v1.12.2	h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+	dep	fyne.io/x/fyne	v0.0.0-20260712112324-6989f2f174fb	h1:oa8Pqo2Xis8dWEB5sQRLL4hbwB8mLusOTXBP1xYvGwY=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=microsoftstore,release,migrated_fynedo
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=arm64
+	build	GOOS=windows
+	build	GOARM64=v8.0
+
+/private/tmp/picfetch-maintainability-27-package/bin/picfetch-windows-amd64.exe: PE32+ executable (GUI) x86-64, for MS Windows
+SHA256 b3f9d1947e1a4a81fb2e49d482224e93bde3652f956c81836e3d666db3fb26d6
+	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
+	dep	fyne.io/systray	v1.12.2	h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+	dep	fyne.io/x/fyne	v0.0.0-20260712112324-6989f2f174fb	h1:oa8Pqo2Xis8dWEB5sQRLL4hbwB8mLusOTXBP1xYvGwY=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=release,migrated_fynedo
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=amd64
+	build	GOOS=windows
+	build	GOAMD64=v1
+
+/private/tmp/picfetch-maintainability-27-package/bin/picfetch-windows-arm64.exe: PE32+ executable (GUI) Aarch64, for MS Windows
+SHA256 ca98bf4c66e4f0223130da3d90b3fcff4d704b5b33ec9c18a0dbcb6044e6b1ee
+	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
+	dep	fyne.io/systray	v1.12.2	h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+	dep	fyne.io/x/fyne	v0.0.0-20260712112324-6989f2f174fb	h1:oa8Pqo2Xis8dWEB5sQRLL4hbwB8mLusOTXBP1xYvGwY=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=release,migrated_fynedo
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=arm64
+	build	GOOS=windows
+	build	GOARM64=v8.0
+
+{'CFBundleIdentifier': 'io.github.frathe.picfetch', 'CFBundleShortVersionString': '1.0.2', 'CFBundleVersion': '450'}

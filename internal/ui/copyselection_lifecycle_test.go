@@ -336,6 +336,10 @@ func TestCopySelectionCancelsBeforeOtherCommands(t *testing.T) {
 					t.Fatalf("sort mode = %v, want BySize", v.SortMode())
 				}
 			},
+			cleanup: func(t *testing.T, v *viewer) {
+				waitForSort(t, v)
+				waitUntilLoaded(t, v)
+			},
 		},
 		{
 			name: "G key",

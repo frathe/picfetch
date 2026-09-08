@@ -1,22 +1,73 @@
 package grid
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/decodepool"
+	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestHideDuplicatesPublishesWhileSourceReadsRemainPending(t *testing.T) {
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg", "g.jpg", "h.jpg"}, []int{1, 1, 1, 1, 1, 1, 1, 1})
+	data, err := os.ReadFile(host.files[0].Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var permits chan struct{}
+	for i, u := range host.files {
+		host.files[i] = uitest.ReaderURI(u, func() (io.ReadCloser, error) {
+			r := bytes.NewReader(data)
+			first := true
+			return uitest.ReadCloser{ReadFunc: func(p []byte) (int, error) {
+				if first {
+					first = false
+					<-permits
+				}
+				return r.Read(p)
+			}, CloseFunc: func() error { return nil }}, nil
+		})
+	}
+	g := newOverview(t, host)
+	synctest.Test(t, func(t *testing.T) {
+		permits = make(chan struct{}, 2)
+		permits <- struct{}{}
+		permits <- struct{}{}
+		g.decodes = decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency)
+		g.hashes.pool = g.decodes
+		defer func() { close(permits); g.Stop(); g.Settle() }()
+		g.SetHideDuplicates(true)
+		for {
+			synctest.Wait()
+			if !g.ui.Drain() {
+				break
+			}
+		}
+		if pending := g.hashes.hashJobs.Load(); pending != 6 {
+			t.Fatalf("premise: pending sources = %d, want 6", pending)
+		}
+		if got := g.count(); got != 7 {
+			t.Fatalf("visible files = %d, want 7: hide the completed extra before the six remaining reads finish", got)
+		}
+	})
+}
 
 // serialUIQueue is fyne.Do on an idle UI goroutine: the callback runs
 // before Do returns to the worker, serialized with other callbacks, and
@@ -127,6 +178,7 @@ func TestSetHideDuplicates_HidesExtrasKeepsUniques(t *testing.T) {
 	g, _ := pairAndUnique(t)
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 
 	if !g.dupes.HideDuplicates() {
 		t.Fatal("HideDuplicates() = false after SetHideDuplicates(true)")
@@ -160,6 +212,7 @@ func TestSetHideDuplicates_HidesExtrasKeepsUniques(t *testing.T) {
 func TestSetHideDuplicates_IntersectsSearch(t *testing.T) {
 	g, _ := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 
 	typeQuery(g, "sun")
 
@@ -179,6 +232,7 @@ func TestSetHideDuplicates_JumpsToRepresentative(t *testing.T) {
 	host.index = 1
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 
 	if len(host.shown) == 0 || host.shown[len(host.shown)-1] != 0 {
 		t.Errorf("ShowImage calls = %v, want a jump to representative 0", host.shown)
@@ -189,11 +243,13 @@ func TestHandleKey_DTogglesHideDuplicates(t *testing.T) {
 	g, _ := pairAndUnique(t)
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	g.Settle()
 	if !g.dupes.HideDuplicates() || g.count() != 2 {
 		t.Fatalf("after D: hide=%v count=%d, want hide=true count=2", g.dupes.HideDuplicates(), g.count())
 	}
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	g.Settle()
 	if g.dupes.HideDuplicates() || g.count() != 3 {
 		t.Fatalf("after second D: hide=%v count=%d, want hide=false count=3", g.dupes.HideDuplicates(), g.count())
 	}
@@ -296,6 +352,7 @@ func TestApplyDupBadge_ShowsGroupSize(t *testing.T) {
 	}
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
 	if !badge.chip.Visible() || badge.label.Text != "2" {
 		t.Errorf("representative badge visible=%v text=%q, want visible text \"2\"", badge.chip.Visible(), badge.label.Text)
@@ -307,6 +364,7 @@ func TestApplyDupBadge_ShowsGroupSize(t *testing.T) {
 	}
 
 	g.SetHideDuplicates(false)
+	g.Settle()
 	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
 	if badge.chip.Visible() {
 		t.Error("turning hide off must hide the badge")
@@ -317,6 +375,7 @@ func TestApplyDupBadge_HiddenWhileBrowsingDuplicates(t *testing.T) {
 	g, _ := pairAndUnique(t)
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 	cell := newGridCell()
 	_, _, _, badge := unpackGridCell(cell)
 	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
@@ -325,12 +384,14 @@ func TestApplyDupBadge_HiddenWhileBrowsingDuplicates(t *testing.T) {
 	}
 
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
 	if badge.chip.Visible() {
 		t.Fatal("variants browse must hide the group-size chip")
 	}
 
 	g.SetBrowsingDuplicates(false)
+	g.Settle()
 	g.applyDupBadge(badge, 0, fyne.NewSize(cellSize, cellSize))
 	if !badge.chip.Visible() || badge.label.Text != "2" {
 		t.Errorf("after leaving browse, chip visible=%v text=%q, want visible \"2\"", badge.chip.Visible(), badge.label.Text)
@@ -340,6 +401,7 @@ func TestApplyDupBadge_HiddenWhileBrowsingDuplicates(t *testing.T) {
 func TestDupBadge_TopRightClearsTheHighlightRing(t *testing.T) {
 	g, _ := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 
 	cell := newGridCell()
 	_, _, ring, badge := unpackGridCell(cell)
@@ -402,8 +464,8 @@ func TestSetHideDuplicates_PendingShowsChromeAndLeavesUnhashedVisible(t *testing
 		[]int{1, 1, 99},
 	)
 	g := newOverview(t, host)
-	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
-	g.rememberNative(host.files[0], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
+	rememberHash(g.dupes.CaptureFacts(), host.files[0], mustThumb(t, host.files[0]))
+	rememberNative(g.dupes.CaptureFacts(), host.files[0], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
 
 	unpark := parkDecodes(t, g)
 	g.Toggle()
@@ -463,8 +525,8 @@ func TestHashRemaining_CoalescesHideAppliesOntoTheUIQueue(t *testing.T) {
 	unpark()
 	g.decodes.Wait()
 
-	if got := queuedCompletions(t, g); got > 2 {
-		t.Fatalf("queued UI completions = %d, want at most 2 (coalesced apply + last job)", got)
+	if got := queuedCompletions(t, g); got > 3 {
+		t.Fatalf("queued UI completions = %d, want at most 3 (two hash notices and one group result)", got)
 	}
 
 	g.Settle()
@@ -516,7 +578,7 @@ func TestHashRemaining_HideApplyStaysArmedUntilCallbackReturns(t *testing.T) {
 	q := &serialUIQueue{}
 	g.SetUIQueue(q)
 	unpark := parkDecodes(t, g)
-	g.SetHideDuplicates(true)
+	g.hashes.Run(g.work.ctx, func(_ int32, _ uint64) {})
 
 	unpark()
 	g.decodes.Wait()
@@ -526,34 +588,38 @@ func TestHashRemaining_HideApplyStaysArmedUntilCallbackReturns(t *testing.T) {
 	}
 }
 
-// TestHashRemaining_ComputesGroupsBeforeTheUIQueue pins the remaining
-// hitch: even one apply per coalesce window ran DuplicateGroups on the
-// UI goroutine, so a 13k-file folder spent the whole hashing window
-// inside O(n²) complete linkage and never saw input. Workers compute;
-// Drain only installs.
+// The queued hash notice may admit a group job, but never computes it inline.
 func TestHashRemaining_ComputesGroupsBeforeTheUIQueue(t *testing.T) {
-	host := hostPatterned(t,
-		[]string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg"},
-		[]int{1, 2, 3, 4, 5},
-	)
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg"}, []int{1, 1})
 	g := newOverview(t, host)
-	unpark := parkDecodes(t, g)
-	g.SetHideDuplicates(true)
-	if got := g.dupes.Computes(); got != 1 {
-		t.Fatalf("Computes() after SetHideDuplicates = %d, want 1 (chrome apply)", got)
-	}
-
-	unpark()
+	g.hashRemaining()
 	g.decodes.Wait()
-
-	got := g.dupes.Computes()
-	if got < 2 {
-		t.Fatalf("Computes() after Wait = %d, want ≥2 (workers compute before g.ui.Do)", got)
+	release := make(chan struct{})
+	unpark := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(func() { unpark(); g.Stop(); g.Settle() })
+	g.grouping.compute = func(ctx context.Context) (dupes.Groups, error) {
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return g.dupes.ComputeContext(ctx)
 	}
-
+	g.dupes.SetHideDuplicates(true)
+	g.ui.Drain()
+	if got := g.dupes.Computes(); got != 0 {
+		t.Fatalf("hash UI notice computed %d times", got)
+	}
+	unpark()
+	g.grouping.workers.Wait()
+	if got := g.dupes.Computes(); got != 1 {
+		t.Fatalf("worker computations=%d, want 1", got)
+	}
+	if _, current := g.dupes.CurrentGroups(); current {
+		t.Fatal("group installation bypassed UI queue")
+	}
 	g.Settle()
-	if still := g.dupes.Computes(); still != got {
-		t.Fatalf("Computes() after Drain = %d, want %d (UI must not DuplicateGroups again)", still, got)
+	if got := g.dupes.Computes(); got != 1 {
+		t.Fatalf("installation recomputed: %d", got)
 	}
 }
 
@@ -563,10 +629,10 @@ func TestSetHideDuplicates_OnePendingJobHidesExtraWithoutWaitingForAPeer(t *test
 		[]int{1, 1, 99},
 	)
 	g := newOverview(t, host)
-	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
-	g.rememberHash(host.files[2], mustThumb(t, host.files[2]))
-	g.rememberNative(host.files[0], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
-	g.rememberNative(host.files[2], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
+	rememberHash(g.dupes.CaptureFacts(), host.files[0], mustThumb(t, host.files[0]))
+	rememberHash(g.dupes.CaptureFacts(), host.files[2], mustThumb(t, host.files[2]))
+	rememberNative(g.dupes.CaptureFacts(), host.files[0], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
+	rememberNative(g.dupes.CaptureFacts(), host.files[2], image.Rect(0, 0, 64, 48)) // PatternedJPEGURI native
 
 	unpark := parkDecodes(t, g)
 	g.Toggle()
@@ -606,15 +672,17 @@ func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 	if d := imaging.Hamming(imaging.DifferenceHash(a), imaging.DifferenceHash(b)); d < 1 || d > imaging.DuplicateMaxDistance {
 		t.Fatalf("setup Hamming = %d, want in 1..%d", d, imaging.DuplicateMaxDistance)
 	}
-	g.rememberHash(host.files[0], a)
-	g.rememberHash(host.files[1], b)
+	rememberHash(g.dupes.CaptureFacts(), host.files[0], a)
+	rememberHash(g.dupes.CaptureFacts(), host.files[1], b)
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 	if g.count() != 1 {
 		t.Fatalf("count() = %d at default distance, want 1 (near hashes grouped)", g.count())
 	}
 
 	setDuplicateDistance(g, 0)
+	g.Settle()
 	if g.count() != 2 {
 		t.Fatalf("count() = %d at distance 0, want 2 (exact match only)", g.count())
 	}
@@ -623,6 +691,7 @@ func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 	}
 
 	setDuplicateDistance(g, imaging.DuplicateMaxDistance)
+	g.Settle()
 	if g.count() != 1 {
 		t.Fatalf("count() = %d after restoring default distance, want 1", g.count())
 	}
@@ -642,31 +711,24 @@ func TestSetDuplicateDistance_HashWorkerInstallKeepsCurrentDistance(t *testing.T
 	if d := imaging.Hamming(imaging.DifferenceHash(a), imaging.DifferenceHash(b)); d < 1 || d > imaging.DuplicateMaxDistance {
 		t.Fatalf("setup Hamming = %d, want in 1..%d", d, imaging.DuplicateMaxDistance)
 	}
-	g.rememberHash(host.files[0], a)
-	g.rememberHash(host.files[1], b)
+	rememberHash(g.dupes.CaptureFacts(), host.files[0], a)
+	rememberHash(g.dupes.CaptureFacts(), host.files[1], b)
 
 	g.SetHideDuplicates(true)
-	if g.count() != 1 {
-		t.Fatalf("count() = %d at default distance, want 1 (near hashes grouped)", g.count())
-	}
-
 	g.decodes.Wait()
-
 	setDuplicateDistance(g, 0)
-	if g.count() != 2 {
-		t.Fatalf("count() = %d at distance 0, want 2 (exact match only)", g.count())
-	}
-
 	g.Settle()
 	if g.count() != 2 {
-		t.Fatalf("count() = %d after hash-worker install, want 2 (must not revert to default-distance grouping)", g.count())
+		t.Fatalf("count() = %d after old group completion, want 2", g.count())
 	}
+
 }
 
 func TestSetBrowsingDuplicates_ShowsOnlyTheGroup(t *testing.T) {
 	g, host := pairAndUnique(t) // host 0,1 pair; host 2 unique
 
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 
 	if !g.BrowsingDuplicates() {
 		t.Fatal("BrowsingDuplicates() = false after SetBrowsingDuplicates(true)")
@@ -690,6 +752,7 @@ func TestSetBrowsingDuplicates_NoopOnUnique(t *testing.T) {
 	g.setHighlight(2) // moon.jpg
 
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 
 	if g.BrowsingDuplicates() {
 		t.Fatal("unique file must not enter browse")
@@ -705,6 +768,7 @@ func TestSetBrowsingDuplicates_NoopOnUnique(t *testing.T) {
 func TestSetBrowsingDuplicates_ShowsExtrasEvenWhenHideOn(t *testing.T) {
 	g, _ := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	if g.count() != 2 {
 		t.Fatalf("setup hide count() = %d, want 2", g.count())
 	}
@@ -712,6 +776,7 @@ func TestSetBrowsingDuplicates_ShowsExtrasEvenWhenHideOn(t *testing.T) {
 	g.setHighlight(0)
 
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 
 	if g.count() != 2 {
 		t.Fatalf("count() = %d, want 2 (both pair members, unique excluded)", g.count())
@@ -732,6 +797,7 @@ func TestSetBrowsingDuplicates_IntersectsSearch(t *testing.T) {
 		g.HandleRune(r)
 	}
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 	if g.count() != 2 {
 		t.Fatalf("count() = %d, want 2 (sunset pair)", g.count())
 	}
@@ -744,6 +810,7 @@ func TestSetBrowsingDuplicates_IntersectsSearch(t *testing.T) {
 func TestSyncTopBar_ShowingDuplicates(t *testing.T) {
 	g, _ := pairAndUnique(t)
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 	if got, want := g.searchLabel.Text, lang.L("Showing duplicates"); got != want {
 		t.Errorf("searchLabel = %q, want %q", got, want)
 	}
@@ -755,6 +822,7 @@ func TestSyncTopBar_ShowingDuplicates(t *testing.T) {
 func TestGroupMembers_Pair(t *testing.T) {
 	g, _ := pairAndUnique(t)
 	g.rebuildGroups()
+	g.Settle()
 	got := g.groupMembers(1)
 	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("groupMembers(1) = %v, want [0 1]", got)
@@ -769,11 +837,13 @@ func TestHandleKey_ShiftDTogglesBrowseDuplicates(t *testing.T) {
 	host.mods = fyne.KeyModifierShift
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	g.Settle()
 	if !g.BrowsingDuplicates() || g.count() != 2 {
 		t.Fatalf("after Shift+D: browse=%v count=%d, want browse=true count=2", g.BrowsingDuplicates(), g.count())
 	}
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+	g.Settle()
 	if g.BrowsingDuplicates() || g.count() != 3 {
 		t.Fatalf("second Shift+D: browse=%v count=%d, want browse=false count=3", g.BrowsingDuplicates(), g.count())
 	}
@@ -923,22 +993,23 @@ func TestSetDuplicateDistance_ExitsBrowseWhenGroupSplits(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
 	g := newOverview(t, host)
 	a, b := nearGrayPair()
-	g.rememberHash(host.files[0], a)
-	g.rememberHash(host.files[1], b)
-	// Parked before opening, and left parked: hostWith's JPEGs are solid
-	// white, so a decode that landed would rememberHash 0 over the
-	// near-gray pair injected above, leaving the two files exact duplicates
-	// at every distance - the split this test is named for could not
-	// happen. parkDecodes unparks and Settles on cleanup.
-	parkDecodes(t, g)
+	rememberHash(g.dupes.CaptureFacts(), host.files[0], a)
+	rememberHash(g.dupes.CaptureFacts(), host.files[1], b)
+	g.StoreThumb(host.files[0], a)
+	g.StoreThumb(host.files[1], b)
+	for _, u := range host.files {
+		rememberNative(g.dupes.CaptureFacts(), u, image.Rect(0, 0, 10, 10))
+	}
 	g.Toggle()
 
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 	if g.count() != 2 {
 		t.Fatalf("setup count() = %d, want 2", g.count())
 	}
 
 	setDuplicateDistance(g, 0)
+	g.Settle()
 	if g.BrowsingDuplicates() {
 		t.Fatal("distance 0 should exit browse when the pair splits")
 	}
@@ -966,8 +1037,10 @@ func TestSetHideDuplicates_ChainDoesNotHideUnrelated(t *testing.T) {
 	// linkage, so it pins the threshold it was written for rather than
 	// tracking the shipped default.
 	setDuplicateDistance(g, 10)
+	g.Settle()
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 
 	if g.count() != 2 {
 		t.Fatalf("count() = %d, want 2 (A visible, B hidden extra, C unique)", g.count())
@@ -980,8 +1053,10 @@ func TestSetBrowsingDuplicates_ChainDoesNotListUnrelated(t *testing.T) {
 	g := newOverview(t, host)
 	injectHashes(t, g, host, []uint64{1 << 63, 1<<63 | 0x3FF, 1<<63 | 0xFFFFF})
 	setDuplicateDistance(g, 10)
+	g.Settle()
 
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 
 	if !g.BrowsingDuplicates() {
 		t.Fatal("A has a duplicate (B); browse must turn on")
@@ -1002,8 +1077,10 @@ func TestSetBrowsingDuplicates_HubSpokesDoNotListUnrelated(t *testing.T) {
 	const hub uint64 = 0xFFFF000000000000
 	injectHashes(t, g, host, []uint64{hub, hub ^ 0x3FF, hub ^ (0x3FF << 10)})
 	setDuplicateDistance(g, 10)
+	g.Settle()
 
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 
 	if g.count() != 2 {
 		t.Fatalf("count() = %d, want 2 (hub + one spoke, not both)", g.count())
@@ -1089,8 +1166,8 @@ func TestRebuildFilter_KeepsHighlightedHostWhenAnExtraDisappears(t *testing.T) {
 		[]int{1, 1, 99},
 	)
 	g := newOverview(t, host)
-	g.rememberHash(host.files[0], mustThumb(t, host.files[0]))
-	g.rememberHash(host.files[2], mustThumb(t, host.files[2]))
+	rememberHash(g.dupes.CaptureFacts(), host.files[0], mustThumb(t, host.files[0]))
+	rememberHash(g.dupes.CaptureFacts(), host.files[2], mustThumb(t, host.files[2]))
 
 	unpark := parkDecodes(t, g)
 	g.Toggle()
@@ -1104,8 +1181,10 @@ func TestRebuildFilter_KeepsHighlightedHostWhenAnExtraDisappears(t *testing.T) {
 		t.Fatalf("setup highlight host = %d, want 2", g.fileIndex(g.Highlight()))
 	}
 
-	g.rememberHash(host.files[1], mustThumb(t, host.files[1]))
+	rememberHash(g.dupes.CaptureFacts(), host.files[1], mustThumb(t, host.files[1]))
 	g.rebuildFilter(false)
+	unpark()
+	g.Settle()
 
 	if g.count() != 2 {
 		t.Fatalf("count() = %d after extra hashes, want 2", g.count())
@@ -1132,6 +1211,7 @@ func TestSourceDuplicateGroupSize_UnknownUntilGroupsBuilt(t *testing.T) {
 	}
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 	if got := g.SourceDuplicateGroupSize(); got != 2 {
 		t.Fatalf("pair representative size = %d, want 2", got)
 	}
@@ -1152,6 +1232,7 @@ func TestSourceDuplicateGroupSize_UnknownUntilGroupsBuilt(t *testing.T) {
 func TestSourceDuplicateGroupSize_ClosedGridUsesCurrentIndex(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	g.Close()
 	host.index = 2
 	if g.Visible() {
@@ -1168,21 +1249,25 @@ func TestSetOnDupeStateChanged_HideAndBrowse(t *testing.T) {
 	g.SetOnDupeStateChanged(func() { n++ })
 
 	g.SetHideDuplicates(true)
-	if n != 1 {
-		t.Fatalf("after hide on: n=%d, want 1", n)
+	g.Settle()
+	if n != 2 {
+		t.Fatalf("after hide on: n=%d, want 2", n)
 	}
 	g.SetHideDuplicates(true)
-	if n != 1 {
+	g.Settle()
+	if n != 2 {
 		t.Fatalf("idempotent hide fired: n=%d", n)
 	}
 	g.SetHideDuplicates(false)
-	if n != 2 {
-		t.Fatalf("after hide off: n=%d, want 2", n)
+	g.Settle()
+	if n != 3 {
+		t.Fatalf("after hide off: n=%d, want 3", n)
 	}
 
 	n = 0
 	g.SetOnDupeStateChanged(func() { n++ }) // still read at fire time
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 	if !g.BrowsingDuplicates() {
 		t.Fatal("premises: pair should browse")
 	}
@@ -1192,6 +1277,7 @@ func TestSetOnDupeStateChanged_HideAndBrowse(t *testing.T) {
 
 	was := n
 	g.SetBrowsingDuplicates(false)
+	g.Settle()
 	if g.BrowsingDuplicates() {
 		t.Fatal("browse should be off")
 	}
@@ -1243,8 +1329,9 @@ func TestSetOnDupeStateChanged_SetDuplicateDistanceWhileIdleRebuilds(t *testing.
 	g.SetOnDupeStateChanged(func() { n++ })
 
 	setDuplicateDistance(g, 0)
-	if n != 1 {
-		t.Fatalf("idle distance change: n=%d, want 1", n)
+	g.Settle()
+	if n != 2 {
+		t.Fatalf("idle distance change: n=%d, want 2", n)
 	}
 	if got := g.SourceDuplicateGroupSize(); got != 2 {
 		t.Fatalf("idle rebuild pair size = %d, want 2", got)
@@ -1376,7 +1463,7 @@ func TestHashRemaining_BackfillsPixelsForAlreadyHashedFiles(t *testing.T) {
 	g := newOverview(t, host)
 	thumb := mustThumb(t, u)
 	g.thumbs.Add(u.String(), thumb)
-	g.rememberHash(u, thumb)
+	rememberHash(g.dupes.CaptureFacts(), u, thumb)
 	if _, ok := g.pixelCountOf(u); ok {
 		t.Fatal("setup: pixels should be missing")
 	}
@@ -1413,7 +1500,7 @@ func TestHashRemaining_FailedProbeRecordsZeroAndDoesNotRequeue(t *testing.T) {
 	g := newOverview(t, host)
 	thumb := mustThumb(t, u)
 	g.thumbs.Add(u.String(), thumb)
-	g.rememberHash(u, thumb)
+	rememberHash(g.dupes.CaptureFacts(), u, thumb)
 	if err := os.Remove(u.Path()); err != nil {
 		t.Fatal(err)
 	}
@@ -1444,6 +1531,7 @@ func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
 	g.dupes.PutNativeSize(host.files[1].String(), image.Pt(400, 1))
 	g.dupes.PutNativeSize(host.files[2].String(), image.Pt(9999, 1))
 	g.rebuildGroups()
+	g.Settle()
 
 	if g.dupes.RepresentativeOf(0) != 1 || g.dupes.RepresentativeOf(1) != 1 {
 		t.Errorf("rep of pair = %d/%d, want 1 (larger file)", g.dupes.RepresentativeOf(0), g.dupes.RepresentativeOf(1))
@@ -1453,6 +1541,7 @@ func TestComputeDuplicateGroups_PicksHighestPixelCount(t *testing.T) {
 	}
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 	if g.count() != 2 {
 		t.Fatalf("count() = %d, want 2", g.count())
 	}
@@ -1475,6 +1564,7 @@ func TestSetHideDuplicates_JumpsToHighestResolution(t *testing.T) {
 	host.index = 0
 
 	g.SetHideDuplicates(true)
+	g.Settle()
 
 	if len(host.shown) == 0 || host.shown[len(host.shown)-1] != 1 {
 		t.Errorf("ShowImage calls = %v, want a jump to representative 1", host.shown)
@@ -1484,6 +1574,7 @@ func TestSetHideDuplicates_JumpsToHighestResolution(t *testing.T) {
 func TestBeginInspect_ReportsMembersAndSkipsJump(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	host.index = 1 // extra; equal-size pair, representative is 0
 
 	if g.dupes.Inspecting() {
@@ -1508,6 +1599,7 @@ func TestBeginInspect_ReportsMembersAndSkipsJump(t *testing.T) {
 func TestJumpIfHiddenExtra_StillJumpsWhenNotInspecting(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	host.index = 1
 	host.shown = nil
 
@@ -1551,6 +1643,7 @@ func TestToggleOpen_ClearsInspect(t *testing.T) {
 func TestClearInspect_StopsSkippingJump(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	host.index = 1
 	g.BeginInspect(1)
 	g.ClearInspect()
@@ -1564,7 +1657,9 @@ func TestClearInspect_StopsSkippingJump(t *testing.T) {
 func TestHandleKey_ReturnFromBrowseCommitsExtra(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 	if g.displayIndexOfHost(1) < 0 {
 		t.Fatal("extra should be visible while browsing")
 	}
@@ -1573,6 +1668,7 @@ func TestHandleKey_ReturnFromBrowseCommitsExtra(t *testing.T) {
 	host.index = 1 // what the viewer would set after ShowImage; jump uses CurrentIndex
 
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	g.Settle()
 
 	if g.Visible() {
 		t.Fatal("Return should close the grid")
@@ -1596,7 +1692,9 @@ func TestHandleKey_ReturnFromBrowseCommitsExtra(t *testing.T) {
 func TestOnSelected_ClickFromBrowseCommitsExtra(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	g.SetBrowsingDuplicates(true)
+	g.Settle()
 	host.shown = nil
 	host.index = 1
 	d := g.displayIndexOfHost(1)
@@ -1640,11 +1738,13 @@ func TestHandleKey_DNoopWhileBrowsing(t *testing.T) {
 func TestFilesChanged_ClearsInspectWhenGroupDissolves(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	g.BeginInspect(1)
 	host.files = host.files[2:] // only moon.jpg left
 	host.index = 0
 	host.gen++
 	g.FilesChanged()
+	g.Settle()
 	if g.dupes.Inspecting() {
 		t.Fatal("inspect must end when the group no longer has two members")
 	}
@@ -1656,11 +1756,13 @@ func TestFilesChanged_RetargetsInspectWhenCurrentStillGrouped(t *testing.T) {
 		[]int{1, 1, 99, 99},
 	)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	g.BeginInspect(1)
 	host.files = host.files[2:]
 	host.index = 0
 	host.gen++
 	g.FilesChanged()
+	g.Settle()
 	if !g.dupes.Inspecting() {
 		t.Fatal("inspect should retarget onto the remaining group")
 	}
@@ -1673,13 +1775,310 @@ func TestFilesChanged_RetargetsInspectWhenCurrentStillGrouped(t *testing.T) {
 func TestFilesChanged_HideDuplicatesGroupingSurvivesDelete(t *testing.T) {
 	g, host := pairAndUnique(t)
 	g.SetHideDuplicates(true)
+	g.Settle()
 	host.files = host.files[:2]
 	host.gen++
 	g.FilesChanged()
+	g.Settle()
 	if !g.dupes.IsHiddenExtra(1) {
 		t.Fatal("the extra must stay hidden after deleting a unique")
 	}
 	if g.count() != 1 {
 		t.Fatalf("count() = %d, want 1", g.count())
+	}
+}
+
+func TestFilesChanged_RequeuesUnfinishedHashesAfterReorder(t *testing.T) {
+	for _, browse := range []bool{false, true} {
+		t.Run(fmt.Sprintf("browse=%v", browse), func(t *testing.T) {
+			host := hostPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg"}, []int{1, 1, 99})
+			g := newOverview(t, host)
+			unpark := parkDecodes(t, g)
+			if browse {
+				g.SetBrowsingDuplicates(true)
+			} else {
+				g.SetHideDuplicates(true)
+			}
+			g.grouping.workers.Wait()
+			host.files[1], host.files[2] = host.files[2], host.files[1]
+			host.gen++
+			g.FilesChanged()
+			unpark()
+			g.Settle()
+			for _, uri := range host.files {
+				if _, ok := g.hashOf(uri); !ok {
+					t.Errorf("reorder abandoned hash for %s", uri.Name())
+				}
+			}
+			if g.BrowsingDuplicates() != browse || g.count() != 2 {
+				t.Errorf("reordered cold files lost visibility: browse=%v count=%d", g.BrowsingDuplicates(), g.count())
+			}
+			if !browse && !g.dupes.IsHiddenExtra(2) {
+				t.Error("reordered cold files did not hide the duplicate")
+			}
+		})
+	}
+}
+
+func TestFilesChanged_PreservesBrowsedSourceByIdentity(t *testing.T) {
+	g, host := openPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg"}, []int{1, 1, 99, 99})
+	g.SetBrowsingDuplicates(true)
+	g.Settle()
+	host.files[0], host.files[2] = host.files[2], host.files[0]
+	host.gen++
+	g.FilesChanged()
+	g.Settle()
+	if !g.BrowsingDuplicates() {
+		t.Fatal("reorder ended browsing the surviving source")
+	}
+	if got := g.ResultIndexes(); len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("reorder switched browsed group: %v, want [1 2]", got)
+	}
+	host.files = append(host.files[:2], host.files[3:]...)
+	host.gen++
+	g.FilesChanged()
+	g.Settle()
+	if g.BrowsingDuplicates() {
+		t.Fatal("removing the source must end browsing instead of choosing another group")
+	}
+}
+
+func TestGroupingRequestsLeaveUIAndReuseWarmSearch(t *testing.T) {
+	host := hostPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg"}, []int{1, 1, 99})
+	g := newOverview(t, host)
+	if err := g.Warm(); err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	unpark := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(func() { unpark(); g.Stop(); g.Settle() })
+	g.grouping.compute = func(ctx context.Context) (dupes.Groups, error) {
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return g.dupes.ComputeContext(ctx)
+	}
+	g.SetHideDuplicates(true)
+	g.HandleRune('/')
+	g.HandleRune('a')
+	if got := g.dupes.Computes(); got != 0 {
+		t.Fatalf("UI handlers computed groups %d times", got)
+	}
+	unpark()
+	g.Settle()
+	if _, ok := g.dupes.CurrentGroups(); !ok {
+		t.Fatal("latest groups not installed")
+	}
+	if g.Query() != "a" || g.count() != 1 {
+		t.Fatal("queued grouping did not retain the current search")
+	}
+	before := g.dupes.Computes()
+	g.HandleRune('b')
+	g.clearSearch()
+	g.Settle()
+	if got := g.dupes.Computes(); got != before {
+		t.Fatalf("warm search recomputed: %d -> %d", before, got)
+	}
+}
+
+func TestGroupingSettleIncludesWorkerAndDelivery(t *testing.T) {
+	g := newOverview(t, hostWith(t, "a.jpg", "b.jpg"))
+	for i := range g.host.FileCount() {
+		u := g.host.FileAt(i)
+		g.dupes.PutHash(u.String(), 7)
+		g.dupes.PutNativeSize(u.String(), image.Pt(10, 10))
+	}
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		g.grouping.compute = func(ctx context.Context) (dupes.Groups, error) {
+			<-release
+			return g.dupes.ComputeContext(ctx)
+		}
+		defer func() {
+			unblock()
+			g.Stop()
+			g.grouping.workers.Wait()
+			g.Settle()
+		}()
+		g.SetHideDuplicates(true)
+		done := make(chan struct{})
+		go func() { g.Settle(); close(done) }()
+		synctest.Wait()
+		select {
+		case <-done:
+			t.Error("Settle returned while grouping was still blocked")
+		default:
+		}
+		unblock()
+		<-done
+		if _, current := g.dupes.CurrentGroups(); !current || g.count() != 1 {
+			t.Error("Settle returned before grouping reached the view")
+		}
+	})
+}
+
+func TestGroupingQueuedResultCoalescesLatestInputs(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	facts := g.dupes.CaptureFacts()
+	for _, u := range host.files {
+		facts.PutHash(u.String(), 7)
+		facts.PutNativeSize(u.String(), image.Pt(10, 10))
+	}
+	g.SetHideDuplicates(true)
+	g.grouping.workers.Wait() // old computation finished; its UI installation is held
+	if _, ok := g.dupes.CurrentGroups(); ok {
+		t.Fatal("group installation bypassed UI queue")
+	}
+	facts.PutHash(host.files[1].String(), ^uint64(7))
+	for _, distance := range []int{1, 4, 2, 0} {
+		g.dupes.SetDistance(distance)
+		g.DuplicateDistanceChanged()
+	}
+	g.Settle()
+	if g.dupes.GroupSize(0) != 1 || g.dupes.GroupSize(1) != 1 {
+		t.Fatal("obsolete pair installed")
+	}
+	if got := g.dupes.Computes(); got != 2 {
+		t.Fatalf("computations = %d, want old + latest", got)
+	}
+}
+
+func TestGroupingQueuedCompletionCancelledByCloseOrStop(t *testing.T) {
+	for _, stop := range []bool{false, true} {
+		t.Run(fmt.Sprint(stop), func(t *testing.T) {
+			host := hostWith(t, "a.jpg", "b.jpg")
+			g := newOverview(t, host)
+			facts := g.dupes.CaptureFacts()
+			for _, u := range host.files {
+				facts.PutHash(u.String(), 7)
+				facts.PutNativeSize(u.String(), image.Pt(10, 10))
+			}
+			g.SetHideDuplicates(true)
+			g.grouping.workers.Wait()
+			if stop {
+				g.Stop()
+			} else {
+				g.Close()
+			}
+			g.Settle()
+			if _, ok := g.dupes.CurrentGroups(); ok {
+				t.Fatal("cancelled queued groups installed")
+			}
+			if !stop {
+				g.SetHideDuplicates(false)
+				g.SetHideDuplicates(true)
+				g.Settle()
+				if _, ok := g.dupes.CurrentGroups(); !ok {
+					t.Fatal("reopened grouping did not resume")
+				}
+			}
+		})
+	}
+}
+
+func TestGroupingSourceReplacementRejectsQueuedOldIndices(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg", "c.jpg")
+	g := newOverview(t, host)
+	facts := g.dupes.CaptureFacts()
+	for _, u := range host.files {
+		facts.PutHash(u.String(), 7)
+		facts.PutNativeSize(u.String(), image.Pt(10, 10))
+	}
+	g.SetHideDuplicates(true)
+	g.grouping.workers.Wait()
+	host.gen++
+	host.files = host.files[:2]
+	g.FilesChanged()
+	facts = g.dupes.CaptureFacts()
+	facts.PutHash(host.files[1].String(), ^uint64(7))
+	g.Settle()
+	if g.count() != 2 || g.dupes.GroupSize(0) != 1 {
+		t.Fatal("old generation hid a current file")
+	}
+	if _, current := g.dupes.CurrentGroups(); !current {
+		t.Fatal("replacement groups not installed")
+	}
+}
+
+func TestGroupingFactsBetweenInstallAndNotificationCannotSuppressNextResult(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	facts := g.dupes.CaptureFacts()
+	for _, u := range host.files {
+		facts.PutHash(u.String(), 7)
+	}
+	g.dupes.SetHideDuplicates(true)
+	old := g.dupes.Compute()
+	g.dupes.Install(old)
+	facts.PutHash(host.files[1].String(), ^uint64(7))
+	g.groupsReady(old)
+	if g.count() != 1 {
+		t.Fatal("initial accepted pair not shown")
+	}
+	current := g.dupes.Compute()
+	g.dupes.Install(current)
+	g.groupsReady(current)
+	if g.count() != 2 {
+		t.Fatal("changed accepted groups suppressed by a newer live fact key")
+	}
+}
+
+func TestGroupingChangedRequestCancelsActiveComputation(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	for _, u := range host.files {
+		g.dupes.PutHash(u.String(), 7)
+		g.dupes.PutNativeSize(u.String(), image.Pt(10, 10))
+	}
+	started, stopped, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	g.grouping.compute = func(ctx context.Context) (dupes.Groups, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			select {
+			case <-ctx.Done():
+			case <-release:
+			}
+			close(stopped)
+			return dupes.Groups{}, ctx.Err()
+		}
+		return g.dupes.ComputeContext(ctx)
+	}
+	defer func() { close(release); g.Stop(); g.Settle() }()
+	g.SetHideDuplicates(true)
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("group computation never started")
+	}
+	g.dupes.SetDistance(0)
+	g.DuplicateDistanceChanged()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("changed inputs did not cancel active grouping")
+	}
+	if calls.Load() != 1 {
+		t.Fatal("replacement started before old completion was delivered")
+	}
+	g.Settle()
+	if calls.Load() != 2 {
+		t.Fatalf("computations=%d, want cancelled + latest", calls.Load())
+	}
+	if _, current := g.dupes.CurrentGroups(); !current {
+		t.Fatal("latest groups not accepted")
+	}
+}
+
+func TestGroupingEmptyDistanceChangeStartsNoBackgroundWork(t *testing.T) {
+	g := newOverview(t, hostWith(t))
+	g.dupes.SetDistance(0)
+	g.DuplicateDistanceChanged()
+	g.Settle()
+	if got := g.dupes.Computes(); got != 0 {
+		t.Fatalf("empty startup computed groups %d times", got)
 	}
 }

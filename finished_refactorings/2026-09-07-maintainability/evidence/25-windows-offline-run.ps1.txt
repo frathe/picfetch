@@ -1,0 +1,85 @@
+param([ValidateSet('all', 'update')][string]$OnlyPackage = 'all')
+$ErrorActionPreference = 'Stop'
+$source = Split-Path -Parent $PSScriptRoot
+$desktop = [Environment]::GetFolderPath('Desktop')
+$result = Join-Path $desktop ('PicFetch-smoke-results-' + (Get-Date -Format yyyyMMdd-HHmmss))
+New-Item -ItemType Directory -Path $result | Out-Null
+Start-Transcript -Path (Join-Path $result 'transcript.txt')
+try {
+    Write-Host 'Offline native Windows tests: precompiled Windows/arm64, Go 1.27.1, CGO_ENABLED=0.'
+    [Environment]::OSVersion.VersionString
+    Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture
+    Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion, CurrentHorizontalResolution, CurrentVerticalResolution
+    foreach ($item in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.exe') {
+        $destination = Join-Path $desktop $item.Name
+        if (Test-Path -LiteralPath $destination) {
+            if ((Get-FileHash -LiteralPath $destination).Hash -ne (Get-FileHash -LiteralPath $item.FullName).Hash) { throw "Existing different test binary: $destination" }
+        } else { Copy-Item -LiteralPath $item.FullName -Destination $destination }
+    }
+    foreach ($arch in @('amd64', 'arm64')) {
+        foreach ($kind in @('windows', 'microsoft-store')) {
+            $name = "picfetch-$kind-$arch.exe"
+            $destination = Join-Path $desktop ("picfetch-smoke-$kind-$arch.exe")
+            if (-not (Test-Path -LiteralPath $destination)) { Copy-Item -LiteralPath (Join-Path $source "bin\$name") -Destination $destination }
+        }
+    }
+    $manifest = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'suites.json') | ConvertFrom-Json
+    if ($OnlyPackage -eq 'update') { $manifest = @($manifest | Where-Object { $_.name -eq 'update' }) }
+    $converter = Join-Path $desktop 'picfetch-test2json.exe'
+    $packageFailures = @()
+    foreach ($suite in $manifest) {
+      try {
+        $exe = Join-Path $desktop $suite.binary
+        $working = Join-Path $source $suite.directory
+        if ($suite.name -eq 'update') {
+            # Go's directory-handle restoration is unavailable on the WebDAV share.
+            # This package generates its fixtures and needs no repository testdata.
+            $working = Join-Path $result 'update-work'
+            New-Item -ItemType Directory -Path $working | Out-Null
+        }
+        Push-Location $working
+        try {
+            $inventory = @(& $exe '-test.list=.')
+            if ($LASTEXITCODE -ne 0) { throw "Inventory failed: $($suite.binary)" }
+            $inventory | Set-Content -LiteralPath (Join-Path $result ($suite.name + '-inventory.txt'))
+            foreach ($guard in $suite.guards) { if ($inventory -notcontains $guard) { throw "Missing guard: $guard" } }
+            $eventsPath = Join-Path $result ($suite.name + '.json')
+            $stderrPath = Join-Path $result ($suite.name + '-stderr.txt')
+            $arguments = @('-t', '-p', $suite.package, ('"' + $exe + '"'), '-test.v=test2json', '-test.timeout=30m', '-test.count=1')
+            $process = Start-Process -FilePath $converter -ArgumentList $arguments -WorkingDirectory $working -NoNewWindow -Wait -PassThru -RedirectStandardOutput $eventsPath -RedirectStandardError $stderrPath
+            if ($process.ExitCode -ne 0) { throw "Test package failed ($($process.ExitCode)): $($suite.package); see $eventsPath" }
+            $events = @(Get-Content -LiteralPath $eventsPath | ForEach-Object { $_ | ConvertFrom-Json })
+            foreach ($guard in $suite.guards) {
+                $runs = @($events | Where-Object { $_.Test -eq $guard -and $_.Action -eq 'run' }).Count
+                $passes = @($events | Where-Object { $_.Test -eq $guard -and $_.Action -eq 'pass' }).Count
+                $rejected = @($events | Where-Object { ($_.Test -eq $guard -or $_.Test -like "$guard/*") -and ($_.Action -eq 'skip' -or $_.Action -eq 'fail') }).Count
+                if ($runs -ne 1 -or $passes -ne 1 -or $rejected -ne 0) { throw "Required guard did not run and pass without skips: $guard" }
+                Write-Host "PASS required: $($suite.name) $guard"
+            }
+            Write-Host "PASS package: $($suite.name)"
+        } finally { Pop-Location }
+      } catch {
+        $packageFailures += "$($suite.name): $_"
+        Write-Host "FAIL package: $($suite.name): $_"
+      }
+    }
+    if ($packageFailures.Count -gt 0) { throw ($packageFailures -join [Environment]::NewLine) }
+    Write-Host 'Windows SDK availability:'
+    $sdk = 'C:\Program Files (x86)\Windows Kits\10'
+    if (Test-Path -LiteralPath $sdk) {
+        Get-ChildItem -LiteralPath $sdk -Recurse -File | Where-Object { $_.Name -in @('makeappx.exe','signtool.exe','appcert.exe') } | Select-Object FullName
+    } else { Write-Host 'Windows SDK directory absent; MakeAppx and WACK remain open.' }
+    "PASS: selected packages ($OnlyPackage) and their required guards ran without skips." | Set-Content -LiteralPath (Join-Path $result 'SUCCESS.txt')
+    Write-Host "Results: $result"
+} catch {
+    $_ | Out-String | Set-Content -LiteralPath (Join-Path $result 'FAILURE.txt')
+    Write-Host "FAILED: $_"
+    Write-Host "Results: $result"
+} finally {
+    Stop-Transcript
+}
+try {
+    $shareResult = Join-Path $PSScriptRoot (Split-Path -Leaf $result)
+    Copy-Item -LiteralPath $result -Destination $shareResult -Recurse
+    Write-Host "Results copied back to share: $shareResult"
+} catch { Write-Host 'Share is read-only; results remain in the Desktop results folder.' }

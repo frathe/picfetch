@@ -8,11 +8,92 @@ package ui
 import (
 	"image/color"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+// Menu surface actions are idempotent; G/P are toggles. Grid keyboard ownership
+// also swallows P, while the menu can explicitly switch to picture-frame mode.
+func TestWindowCommandAdmissionMatrix(t *testing.T) {
+	type state struct{ grid, frame, inspect, copy bool }
+	for _, tc := range []struct {
+		name, initial, command string
+		key, action            state
+	}{
+		{"open grid", "viewer", "grid", state{grid: true}, state{grid: true}},
+		{"grid toggle versus show", "grid", "grid", state{}, state{grid: true}},
+		{"frame refuses grid", "frame", "grid", state{frame: true}, state{frame: true}},
+		{"inspect reopens variants", "inspect", "grid", state{grid: true}, state{grid: true}},
+		{"open frame", "viewer", "frame", state{frame: true}, state{frame: true}},
+		{"grid owns P key", "grid", "frame", state{grid: true}, state{frame: true}},
+		{"frame toggle versus show", "frame", "frame", state{}, state{frame: true}},
+		{"inspect refuses frame", "inspect", "frame", state{inspect: true}, state{inspect: true}},
+		{"viewer leaves grid", "grid", "viewer", state{}, state{}},
+		{"viewer leaves frame", "frame", "viewer", state{}, state{}},
+		{"viewer preserves inspect", "inspect", "viewer", state{inspect: true}, state{inspect: true}},
+		{"grid yields copy selection", "copy", "grid", state{grid: true}, state{grid: true}},
+	} {
+		for _, route := range []string{"key", "menu", "direct command"} {
+			t.Run(tc.name+"/"+route, func(t *testing.T) {
+				var v *viewer
+				if tc.initial == "inspect" {
+					v = loadBrowsePair(t)
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+					waitUntilLoaded(t, v)
+					if !v.dupes.Inspecting() {
+						t.Fatal("premise: inspect did not start")
+					}
+				} else {
+					v = newTestViewer(t)
+					dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 20, color.White))
+					warmThumbs(t, v)
+				}
+				v.slides.SetInterval(time.Hour)
+				t.Cleanup(func() { settleSlideshow(t, v) })
+				switch tc.initial {
+				case "grid":
+					v.showWindowGrid()
+				case "frame":
+					v.showWindowPictureFrame()
+				case "copy":
+					v.startRegionCopy()
+					if !v.regionCopy.State().Active {
+						t.Fatal("premise: Copy Selection did not start")
+					}
+				}
+				key, action, direct := fyne.KeyG, v.menus.Window().Grid().Action, v.showWindowGrid
+				switch tc.command {
+				case "frame":
+					key, action, direct = fyne.KeyP, v.menus.Window().PictureFrame().Action, v.showWindowPictureFrame
+				case "viewer":
+					key, action, direct = fyne.KeyV, v.menus.Window().Viewer().Action, v.showViewer
+				}
+				want := tc.action
+				switch route {
+				case "key":
+					want = tc.key
+					v.handleKeyEvent(&fyne.KeyEvent{Name: key})
+				case "menu":
+					action()
+				case "direct command":
+					v.RunCommand(direct)
+				}
+				v.grid.Settle()
+				got := state{v.grid.Visible(), v.slides.Active(), v.dupes.Inspecting(), v.regionCopy.State().Active}
+				if got != want {
+					t.Fatalf("grid/frame/inspect/copy = %+v, want %+v", got, want)
+				}
+				if tc.initial == "inspect" && tc.command == "grid" && !v.grid.BrowsingDuplicates() {
+					t.Fatal("inspect reopened the ordinary grid instead of variants")
+				}
+			})
+		}
+	}
+}
 
 func windowMenu(v *viewer) *fyne.Menu {
 	bar := v.win.MainMenu()

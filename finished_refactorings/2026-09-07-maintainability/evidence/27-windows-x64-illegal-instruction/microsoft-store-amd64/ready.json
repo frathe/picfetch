@@ -1,0 +1,8 @@
+﻿{
+    "Package":  "microsoft-store-amd64",
+    "ProcessID":  1280,
+    "WindowDPI":  96,
+    "SHA256":  "CE3B5EAE237FC06196938371A5E7EC78372DCBD1E57A0DA0E9C0B031A06CFF84",
+    "RuntimeSHA256":  "184b6f374d06a195c07ac458638697b42209ebf31d5a6f08cd269a7165f90d45",
+    "Runtime":  "llvmpipe (software OpenGL)"
+}

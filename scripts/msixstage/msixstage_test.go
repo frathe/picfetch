@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"encoding/xml"
 	"image"
 	"image/color"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -272,7 +274,7 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 		"warm-fyne-cross-windows:",
 		`-v "$(FYNE_CROSS_CACHE):/go"`,
 		"package-windows-store: warm-fyne-cross-windows",
-		"-cache $(FYNE_CROSS_CACHE)",
+		`-cache "$(FYNE_CROSS_CACHE)"`,
 		"-tags microsoftstore",
 		"$(BIN_NAME)-microsoft-store-$$arch.exe",
 	} {
@@ -290,6 +292,94 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 	}
 }
 
+func TestStoreWorkflowPublishingContract(t *testing.T) {
+	t.Run("environment policy", testStoreEnvironmentPolicy)
+	root := filepath.Join("..", "..", ".github", "workflows")
+	producer, err := os.ReadFile(filepath.Join(root, "microsoft-store.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Index(producer, []byte("go run ./scripts/storepublish record")) <= bytes.Index(producer, []byte("appcert test")) {
+		t.Error("release evidence must be recorded after WACK succeeds")
+	}
+	for _, want := range []string{"dist/store-release.json", "retention-days: 90", "refs/tags/v[0-9]+"} {
+		if !bytes.Contains(producer, []byte(want)) {
+			t.Errorf("producer missing %q", want)
+		}
+	}
+	publisher, err := os.ReadFile(filepath.Join(root, "microsoft-store-publish.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"workflow_run:", "workflows: [Microsoft Store package]", "types: [completed]", "workflow_dispatch:",
+		"prepare:", "needs: prepare", "deployment-branch-policies", "deployment_protection_rules", "environment-policy.jq",
+		"github.repository == 'frathe/picfetch'", "github.ref == 'refs/heads/main'", "github.event.workflow_run.conclusion == 'success'", "github.event.workflow_run.event == 'push'", "github.event.workflow_run.head_repository.full_name == github.repository",
+		"group: microsoft-store-publisher", "cancel-in-progress: false", "name: microsoft-store", "contents: read", "actions: read", "deployments: write",
+		"ref: ${{ github.sha }}", "fetch-depth: 0", "persist-credentials: false", "PICFETCH_STORE_SERIALIZED: '1'", "timeout-minutes: 15",
+		"secrets.MSSTORE_TENANT_ID", "secrets.MSSTORE_CLIENT_ID", "secrets.MSSTORE_CLIENT_SECRET", "go run ./scripts/storepublish",
+		"GITHUB_STEP_SUMMARY", "store-result.json", "--state-dir", "--approval-sha256", "--approval approval/approval.json", "artifact-ids: ${{ needs.prepare.outputs.artifact_id }}", "needs.prepare.outputs.sha256", "--run-id", "github.event.workflow_run.id", "steps.record.outputs.artifact-id",
+	} {
+		if !bytes.Contains(publisher, []byte(want)) {
+			t.Errorf("publisher missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"schedule:", "cron:", "ref: main", "secrets: inherit", "contents: write", "pull_request_target:", "github.event.workflow_run.head_sha", "make package", "make release", "gh release", "release.yml", "inputs.tag }}"} {
+		if bytes.Contains(publisher, []byte(forbidden)) {
+			t.Errorf("publisher contains unsafe or coupled source %q", forbidden)
+		}
+	}
+	prepare := bytes.Split(publisher, []byte("\n  publish:"))[0]
+	for _, forbidden := range []string{"environment:", "secrets.MSSTORE_", "deployments: write"} {
+		if bytes.Contains(prepare, []byte(forbidden)) {
+			t.Errorf("unapproved preparation contains %q", forbidden)
+		}
+	}
+}
+
+func testStoreEnvironmentPolicy(t *testing.T) {
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Skip("jq is required to execute the GitHub environment policy")
+	}
+	const policy = `{"name":"microsoft-store","can_admins_bypass":false,"deployment_branch_policy":{"custom_branch_policies":true,"protected_branches":false},"protection_rules":[{"type":"branch_policy"},{"type":"required_reviewers","prevent_self_review":false,"reviewers":[{"type":"User","reviewer":{"login":"frathe"}}]}]}`
+	for _, change := range []string{"valid", "missing reviewer", "other reviewer", "bypass", "self review blocked", "timer", "tag", "extra branch", "custom rule"} {
+		t.Run(change, func(t *testing.T) {
+			environment := policy
+			branches := `{"total_count":1,"branch_policies":[{"name":"main","type":"branch"}]}`
+			custom := `{"total_count":0,"custom_deployment_protection_rules":[]}`
+			switch change {
+			case "missing reviewer":
+				environment = strings.ReplaceAll(environment, "required_reviewers", "disabled_reviewers")
+			case "other reviewer":
+				environment = strings.ReplaceAll(environment, "frathe", "someone-else")
+			case "bypass":
+				environment = strings.ReplaceAll(environment, `"can_admins_bypass":false`, `"can_admins_bypass":true`)
+			case "self review blocked":
+				environment = strings.ReplaceAll(environment, `"prevent_self_review":false`, `"prevent_self_review":true`)
+			case "timer":
+				environment = strings.ReplaceAll(environment, `{"type":"branch_policy"}`, `{"type":"branch_policy"},{"type":"wait_timer","wait_timer":15}`)
+			case "tag":
+				branches = strings.ReplaceAll(branches, `"type":"branch"`, `"type":"tag"`)
+			case "extra branch":
+				branches = `{"total_count":2,"branch_policies":[{"name":"main","type":"branch"},{"name":"*","type":"branch"}]}`
+			case "custom rule":
+				custom = `{"total_count":1,"custom_deployment_protection_rules":[{"enabled":true}]}`
+			}
+			for _, document := range []string{environment, branches, custom} {
+				if !json.Valid([]byte(document)) {
+					t.Fatal("invalid policy fixture")
+				}
+			}
+			cmd := exec.Command("jq", "-e", "-s", "-f", "../storepublish/environment-policy.jq")
+			cmd.Stdin = strings.NewReader(environment + "\n" + branches + "\n" + custom)
+			out, err := cmd.CombinedOutput()
+			if (err == nil) != (change == "valid") || (err != nil && string(out) != "false\n") {
+				t.Fatalf("policy %s: %s (%v)", change, out, err)
+			}
+		})
+	}
+}
+
 func TestWindowsToolchainWarmupUsesPackagingUser(t *testing.T) {
 	if os.Getuid() < 0 {
 		t.Skip("requires POSIX user IDs")
@@ -303,7 +393,7 @@ func TestWindowsToolchainWarmupUsesPackagingUser(t *testing.T) {
 	dir := t.TempDir()
 	engine := filepath.Join(dir, "engine")
 	argsFile := filepath.Join(dir, "args")
-	if err := os.WriteFile(engine, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$PICFETCH_ENGINE_ARGS\"\n"), 0o700); err != nil {
+	if err := os.WriteFile(engine, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$PICFETCH_ENGINE_ARGS\"\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	cache := filepath.Join(dir, "cache with spaces")
@@ -335,16 +425,39 @@ func TestWindowsToolchainWarmupUsesPackagingUser(t *testing.T) {
 
 func TestPackagingToolsUseCurrentFyneCLI(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
-	for _, name := range []string{"Makefile", filepath.Join(".github", "workflows", "release.yml")} {
-		content, err := os.ReadFile(filepath.Join(root, name))
+	for _, tc := range []struct {
+		name     string
+		required []string
+	}{
+		{"Makefile", []string{"include packaging/tools.mk", "go install fyne.io/tools/cmd/fyne@$(FYNE_VERSION)", "go install github.com/fyne-io/fyne-cross@$(FYNE_CROSS_VERSION)", "package-mac: install-fyne", `"$(FYNE_BIN)" package`}},
+		{filepath.Join(".github", "workflows", "release.yml"), []string{"make install-fyne", "make install-fyne-cross"}},
+		{filepath.Join(".github", "workflows", "microsoft-store.yml"), []string{"make install-fyne-cross"}},
+	} {
+		content, err := os.ReadFile(filepath.Join(root, tc.name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Contains(content, []byte("fyne.io/fyne/v2/cmd/fyne")) {
-			t.Errorf("%s installs the deprecated Fyne CLI package", name)
+		if bytes.Contains(content, []byte("fyne.io/fyne/v2/cmd/fyne")) || regexp.MustCompile(`(?:fyne.io/tools/cmd/fyne|github.com/fyne-io/fyne-cross)@latest`).Match(content) {
+			t.Errorf("%s installs a deprecated or floating packaging CLI", tc.name)
 		}
-		if !bytes.Contains(content, []byte("fyne.io/tools/cmd/fyne")) {
-			t.Errorf("%s does not install the current Fyne CLI package", name)
+		for _, want := range tc.required {
+			if !bytes.Contains(content, []byte(want)) {
+				t.Errorf("%s omits shared packaging input %q", tc.name, want)
+			}
+		}
+	}
+	inputs, err := os.ReadFile(filepath.Join(root, "packaging", "tools.mk"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pattern := range []string{
+		`(?m)^FYNE_VERSION := v[0-9]+\.[0-9]+\.[0-9]+$`,
+		`(?m)^FYNE_CROSS_VERSION := v[0-9]+\.[0-9]+\.[0-9]+$`,
+		`(?m)^FYNE_CROSS_WINDOWS_IMAGE \?= fyneio/fyne-cross-images:windows@sha256:[0-9a-f]{64}$`,
+		`(?m)^FYNE_CROSS_LINUX_IMAGE \?= fyneio/fyne-cross-images:linux@sha256:[0-9a-f]{64}$`,
+	} {
+		if !regexp.MustCompile(pattern).Match(inputs) {
+			t.Errorf("packaging input is not versioned/pinned: %s", pattern)
 		}
 	}
 }
@@ -383,5 +496,151 @@ func writeTestIcon(t *testing.T, path string) {
 	}
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCrossPackagingUsesReviewedInputs(t *testing.T) {
+	if os.Getuid() < 0 {
+		t.Skip("packaging Make targets require a POSIX host")
+	}
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("requires make")
+	}
+	for _, route := range []struct {
+		target, platform, artifact, flags string
+	}{
+		{"package-linux", "linux", "picfetch-linux-", ""},
+		{"package-linux-debug", "linux", "picfetch-debug-linux-", "-no-strip-debug\n"},
+		{"package-windows", "windows", "picfetch-windows-", ""},
+		{"package-windows-store", "windows", "picfetch-microsoft-store-", "-tags\nmicrosoftstore\n"},
+		{"package-windows-debug", "windows", "picfetch-debug-windows-", "-console\n-no-strip-debug\n"},
+	} {
+		t.Run(route.target, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, name := range []string{"Makefile", "packaging/tools.mk"} {
+				data, err := os.ReadFile(filepath.Join("..", "..", name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(dir, name)
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			toolsDir := filepath.Join(dir, "tools")
+			if err := os.MkdirAll(toolsDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeTool := func(name, body string) string {
+				path := filepath.Join(toolsDir, name)
+				if err := os.WriteFile(path, []byte("#!/bin/sh\nset -eu\n"+body), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				return path
+			}
+			cross := writeTool("fyne-cross", `printf '%s\n' CROSS "$@" END >> "$PICFETCH_PACKAGING_LOG"
+if [ "${PICFETCH_PACKAGING_FAIL:-}" = cross ]; then exit 23; fi
+kind=$1
+shift
+arch=''
+name=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -arch=*) arch=${1#-arch=} ;;
+    -name) shift; name=$1 ;;
+  esac
+  shift
+done
+mkdir -p "fyne-cross/bin/$kind-$arch"
+if [ "$kind" = windows ]; then name="$name.exe"; fi
+printf '%s\n' "$kind $arch" > "fyne-cross/bin/$kind-$arch/$name"
+`)
+			engine := writeTool("engine", `printf '%s\n' ENGINE "$@" END >> "$PICFETCH_PACKAGING_LOG"
+if [ "${PICFETCH_PACKAGING_FAIL:-}" = engine ]; then exit 23; fi
+`)
+			writeTool("cp", `if [ "${PICFETCH_PACKAGING_FAIL:-}" = copy ]; then
+  case "$1" in *-amd64/*) exit 23 ;; esac
+fi
+exec /bin/cp "$@"
+`)
+			writeTool("go", `printf '%s\n' GO "$@" END >> "$PICFETCH_PACKAGING_LOG"
+`)
+			logPath := filepath.Join(dir, "commands")
+			cache := filepath.Join(dir, "cache with spaces")
+			cmd := exec.Command("make", "--no-print-directory", route.target, "FYNE_CROSS_ENGINE="+engine,
+				"FYNE_CROSS_BIN="+cross, "FYNE_CROSS_CACHE="+cache)
+			cmd.Dir = dir
+			cmd.Env = append(os.Environ(), "PATH="+toolsDir+string(os.PathListSeparator)+os.Getenv("PATH"), "PICFETCH_PACKAGING_LOG="+logPath)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("package route: %v\n%s", err, output)
+			}
+			data, err := os.ReadFile(logPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			log := string(data)
+			for _, call := range strings.Split(log, "ENGINE\n")[1:] {
+				if !strings.HasPrefix(call, "run\n") {
+					continue
+				}
+				args, _, _ := strings.Cut(call, "END\n")
+				if !strings.Contains(args, "--user\n"+strconv.Itoa(os.Getuid())+"\n") {
+					t.Errorf("container call omitted packaging UID:\n%s", args)
+				}
+			}
+			for _, want := range []string{
+				"-engine\n" + engine + "\n",
+				"-cache\n" + cache + "\n",
+				"-image\nfyneio/fyne-cross-images:" + route.platform + "@sha256:",
+				"GOTOOLCHAIN=auto\n",
+				"--user\n" + strconv.Itoa(os.Getuid()) + "\n",
+				"GO\nversion\n-m\n" + cross + "\n",
+				"ENGINE\nimage\ninspect\n",
+				"/usr/local/bin/fyne\nversion\n",
+			} {
+				if !strings.Contains(log, want) {
+					t.Errorf("packaging omitted %q\n%s", want, log)
+				}
+			}
+			if route.flags != "" && !strings.Contains(log, route.flags) {
+				t.Errorf("route omitted distribution/debug flags %q", route.flags)
+			}
+			if route.target != "package-windows-store" && strings.Contains(log, "microsoftstore") {
+				t.Error("ordinary route selected Store distribution")
+			}
+			for _, arch := range []string{"amd64", "arm64"} {
+				name := route.artifact + arch
+				if route.platform == "windows" {
+					name += ".exe"
+				}
+				artifact, err := os.ReadFile(filepath.Join(dir, "bin", name))
+				if err != nil || string(artifact) != route.platform+" "+arch+"\n" {
+					t.Errorf("%s artifact = %q, %v", arch, artifact, err)
+				}
+			}
+			for _, failure := range []string{"engine", "cross", "copy"} {
+				t.Run(failure+" failure", func(t *testing.T) {
+					if err := os.WriteFile(logPath, nil, 0o600); err != nil {
+						t.Fatal(err)
+					}
+					failed := exec.Command(cmd.Path, cmd.Args[1:]...)
+					failed.Dir = dir
+					failed.Env = append(cmd.Env, "PICFETCH_PACKAGING_FAIL="+failure)
+					if output, err := failed.CombinedOutput(); err == nil {
+						t.Errorf("packaging accepted %s failure:\n%s", failure, output)
+					}
+					data, err := os.ReadFile(logPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if bytes.Contains(data, []byte("-arch=arm64\n")) {
+						t.Error("packaging continued after the first architecture failed")
+					}
+				})
+			}
+		})
 	}
 }

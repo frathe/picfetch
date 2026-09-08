@@ -1,11 +1,13 @@
 package favthumbs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -30,28 +32,48 @@ const jpegQuality = 85
 // never observe a partially written preview, and a failed encode never
 // clobbers a good one that was there before.
 func Write(favDir string, src fyne.URI, thumb image.Image) error {
-	// Guarded rather than left to panic in hasAlpha below because Write's
-	// callers run it on a background goroutine, where a nil dereference
-	// takes the whole process down instead of costing one preview.
-	if thumb == nil {
-		return errors.New("favthumbs: nil thumbnail")
-	}
+	return WriteContext(context.Background(), favDir, src, thumb)
+}
 
+// WriteContext checks cancellation before encoding, at encoder writes, and
+// before committing the temporary file. In-flight sampling/filesystem calls
+// must return before a boundary can observe cancellation.
+func WriteContext(ctx context.Context, favDir string, src fyne.URI, thumb image.Image) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	name, ok := EntryName(src)
 	if !ok {
 		return fmt.Errorf("favthumbs: cannot determine entry name for %v", src)
 	}
+	return writeEntryContext(ctx, favDir, name, thumb)
+}
 
+// name is captured before producing pixels, so a later source replacement
+// cannot label those pixels as the new file version.
+func writeEntryContext(ctx context.Context, favDir, name string, thumb image.Image) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if thumb == nil {
+		return errors.New("favthumbs: nil thumbnail")
+	}
 	dir := Dir(favDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	ext := ".jpg"
 	if hasAlpha(thumb) {
 		ext = ".png"
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	tmp, err := os.CreateTemp(dir, ".favthumb-*"+ext)
 	if err != nil {
 		return err
@@ -69,15 +91,19 @@ func Write(favDir string, src fyne.URI, thumb image.Image) error {
 
 	var encErr error
 	if ext == ".png" {
-		encErr = png.Encode(tmp, thumb)
+		encErr = png.Encode(contextWriter{ctx: ctx, w: tmp}, thumb)
 	} else {
-		encErr = jpeg.Encode(tmp, thumb, &jpeg.Options{Quality: jpegQuality})
+		encErr = jpeg.Encode(contextWriter{ctx: ctx, w: tmp}, thumb, &jpeg.Options{Quality: jpegQuality})
 	}
 	if encErr != nil {
 		_ = tmp.Close()
 		return encErr
 	}
 
+	if err := ctx.Err(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
 		return err
@@ -86,6 +112,9 @@ func Write(favDir string, src fyne.URI, thumb image.Image) error {
 		return err
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := os.Rename(tmpPath, filepath.Join(dir, name+ext)); err != nil {
 		return err
 	}
@@ -142,19 +171,37 @@ func hasAlpha(img image.Image) bool {
 // false when there is no preview, when the stored preview is for an older
 // version of src, or when the stored preview cannot be decoded.
 func Read(favDir string, src fyne.URI) (image.Image, bool) {
-	name, ok := EntryName(src)
-	if !ok {
-		return nil, false
-	}
+	img, ok, _ := ReadContext(context.Background(), favDir, src)
+	return img, ok
+}
 
+// ReadContext retains Read's tolerant cache-miss policy while reporting
+// cancellation distinctly, so a stopped pass cannot decode the original next.
+func ReadContext(ctx context.Context, favDir string, src fyne.URI) (image.Image, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	name, ok := EntryName(src)
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	if !ok {
+		return nil, false, nil
+	}
 	dir := Dir(favDir)
 	for _, ext := range [...]string{".jpg", ".png"} {
-		img, ok := decodeFile(filepath.Join(dir, name+ext))
+		if err := ctx.Err(); err != nil {
+			return nil, false, err
+		}
+		img, ok := decodeFile(ctx, filepath.Join(dir, name+ext))
+		if err := ctx.Err(); err != nil {
+			return nil, false, err
+		}
 		if ok {
-			return img, true
+			return img, true, nil
 		}
 	}
-	return nil, false
+	return nil, false, nil
 }
 
 // hasCurrentPreview reports whether a current preview for src is already
@@ -183,16 +230,54 @@ func hasCurrentPreview(favDir string, src fyne.URI) bool {
 // for every call), or it exists but is not a decodable image (a previous
 // write that never completed, or on-disk corruption) - either way that is
 // a plain miss for Read, not an error.
-func decodeFile(path string) (image.Image, bool) {
+func decodeFile(ctx context.Context, path string) (image.Image, bool) {
+	if ctx.Err() != nil {
+		return nil, false
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, false
 	}
 	defer func() { _ = f.Close() }()
 
-	img, _, err := image.Decode(f)
+	img, err := decodePreview(ctx, f)
 	if err != nil {
 		return nil, false
 	}
 	return img, true
+}
+
+func decodePreview(ctx context.Context, r io.Reader) (image.Image, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	img, _, err := image.Decode(contextReader{ctx: ctx, r: r})
+	if cancelled := ctx.Err(); cancelled != nil {
+		return nil, cancelled
+	}
+	return img, err
+}
+
+type contextReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r contextReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.r.Read(p)
+}
+
+type contextWriter struct {
+	ctx context.Context
+	w   io.Writer
+}
+
+func (w contextWriter) Write(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return w.w.Write(p)
 }

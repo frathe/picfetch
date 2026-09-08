@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
-	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -207,7 +206,10 @@ func installPairedGroups(g *Overview, n int) {
 		sizes[i] = 2
 		reps[i] = i &^ 1
 	}
-	g.dupes.Install(dupes.Groups{Sizes: sizes, Reps: reps, Dist: 10})
+	g.dupes.SetDistance(10)
+	snapshot := g.dupes.Compute()
+	snapshot.Sizes, snapshot.Reps = sizes, reps
+	g.dupes.Install(snapshot)
 }
 
 // TestApplyVisibleFilter_TakesOneVisibilityReadPerPass is the regression
@@ -243,7 +245,7 @@ func TestApplyVisibleFilter_TakesOneVisibilityReadPerPass(t *testing.T) {
 // pair's representative, host 1 its extra, hosts 2 and 3 are unrelated
 // uniques. Every parity test below shares this exact shape, so the
 // expected g.matches slices are easy to state and independent of dHash
-// behavior. Callers set g.searching/g.query/g.browseHost/hide themselves
+// behavior. Callers set search, browse source and hide state themselves
 // and call applyVisibleFilter directly, rather than going through
 // rebuildFilter/SetHideDuplicates/SetBrowsingDuplicates - those would call
 // rebuildGroups or hashRemaining and overwrite this fabricated snapshot
@@ -253,11 +255,10 @@ func fixedGroupHost(t *testing.T) (*Overview, *fakeHost) {
 
 	host := hostWith(t, "sun-a.jpg", "sun-b.jpg", "moon.jpg", "star.jpg")
 	g := newOverview(t, host)
-	g.dupes.Install(dupes.Groups{
-		Sizes: []int{2, 2, 1, 1},
-		Reps:  []int{0, 0, 2, 3},
-		Dist:  10,
-	})
+	g.dupes.SetDistance(10)
+	snapshot := g.dupes.Compute()
+	snapshot.Sizes, snapshot.Reps = []int{2, 2, 1, 1}, []int{0, 0, 2, 3}
+	g.dupes.Install(snapshot)
 
 	return g, host
 }
@@ -311,7 +312,7 @@ func TestApplyVisibleFilter_HideOnly(t *testing.T) {
 
 func TestApplyVisibleFilter_BrowseOnly(t *testing.T) {
 	g, _ := fixedGroupHost(t)
-	g.browseHost = 0
+	g.setBrowseSource(0)
 
 	g.applyVisibleFilter(true, -1)
 

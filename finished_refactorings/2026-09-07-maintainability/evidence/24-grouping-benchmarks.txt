@@ -1,0 +1,42 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/frathe/picfetch/internal/dupes
+cpu: Apple M5 Max
+BenchmarkGrouping/unrelated/10000/cold-18         	     487	   2347831 ns/op	 4118335 B/op	      73 allocs/op
+BenchmarkGrouping/unrelated/10000/cold-18         	     519	   2301533 ns/op	 4118322 B/op	      73 allocs/op
+BenchmarkGrouping/unrelated/10000/cold-18         	     520	   2318837 ns/op	 4118323 B/op	      73 allocs/op
+BenchmarkGrouping/unrelated/10000/reuse-18        	150619374	         7.968 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/10000/reuse-18        	150398791	         7.977 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/10000/reuse-18        	150329432	         7.980 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/50000/cold-18         	      48	  23567027 ns/op	11698300 B/op	     267 allocs/op
+BenchmarkGrouping/unrelated/50000/cold-18         	      50	  23704124 ns/op	11697944 B/op	     267 allocs/op
+BenchmarkGrouping/unrelated/50000/cold-18         	      50	  24541740 ns/op	11697716 B/op	     267 allocs/op
+BenchmarkGrouping/unrelated/50000/reuse-18        	146515240	         8.126 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/50000/reuse-18        	150683167	         7.962 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/50000/reuse-18        	150015415	         7.999 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/200000/cold-18        	       4	 310854521 ns/op	40565680 B/op	    1037 allocs/op
+BenchmarkGrouping/unrelated/200000/cold-18        	       4	 310150344 ns/op	40565680 B/op	    1037 allocs/op
+BenchmarkGrouping/unrelated/200000/cold-18        	       4	 319934625 ns/op	40565680 B/op	    1037 allocs/op
+BenchmarkGrouping/unrelated/200000/reuse-18       	150424926	         7.982 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/200000/reuse-18       	150228573	         7.993 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/unrelated/200000/reuse-18       	149996374	         7.997 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/10000/cold-18             	    4328	    270301 ns/op	  822233 B/op	      39 allocs/op
+BenchmarkGrouping/dense/10000/cold-18             	    4370	    271152 ns/op	  822233 B/op	      39 allocs/op
+BenchmarkGrouping/dense/10000/cold-18             	    4418	    273085 ns/op	  822232 B/op	      39 allocs/op
+BenchmarkGrouping/dense/10000/reuse-18            	149030100	         8.040 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/10000/reuse-18            	149596051	         8.018 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/10000/reuse-18            	149457678	         8.026 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/50000/cold-18             	     840	   1442774 ns/op	 4064224 B/op	      45 allocs/op
+BenchmarkGrouping/dense/50000/cold-18             	     819	   1417642 ns/op	 4064217 B/op	      45 allocs/op
+BenchmarkGrouping/dense/50000/cold-18             	     819	   1417005 ns/op	 4064217 B/op	      45 allocs/op
+BenchmarkGrouping/dense/50000/reuse-18            	148608260	         8.063 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/50000/reuse-18            	148888946	         8.109 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/50000/reuse-18            	148095232	         8.084 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/200000/cold-18            	     171	   6972321 ns/op	16647128 B/op	      51 allocs/op
+BenchmarkGrouping/dense/200000/cold-18            	     172	   6896365 ns/op	16647129 B/op	      51 allocs/op
+BenchmarkGrouping/dense/200000/cold-18            	     171	   6985687 ns/op	16647163 B/op	      51 allocs/op
+BenchmarkGrouping/dense/200000/reuse-18           	147883638	         8.101 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/200000/reuse-18           	146567533	         8.162 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrouping/dense/200000/reuse-18           	145234082	         8.238 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/frathe/picfetch/internal/dupes	44.990s

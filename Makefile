@@ -5,9 +5,7 @@ ICON     := assets/appIcon.png
 BIN_DIR  := bin
 WIN_ARCHES := amd64 arm64
 LINUX_ARCHES := amd64 arm64
-FYNE_CROSS_ENGINE ?= docker
-FYNE_CROSS_WINDOWS_IMAGE ?= fyneio/fyne-cross-images:windows
-FYNE_CROSS_CACHE ?= $(dir $(shell go env GOCACHE))fyne-cross
+include packaging/tools.mk
 
 RELEASE_BRANCH := main
 
@@ -18,6 +16,11 @@ GOIMPORTS_LOCAL := github.com/frathe/picfetch
 # go test's default 10m per-package timeout is no longer enough.
 TEST_TIMEOUT := 30m
 TEST_IMAGE := ubuntu:24.04
+# Public ubuntu-24.04 GitHub runners have 16 GiB RAM:
+# https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+# Keep RAM + swap at that same ceiling for a fixed container memory budget.
+# Docker Desktop needs more than this allocated to leave room for its VM.
+TEST_MEMORY_GIB := 16
 TEST_CONTAINER_LABEL := io.github.frathe.picfetch.test=true
 TEST_RACE :=
 TEST_RACE_FLAGS := -race -count=1 -timeout $(TEST_TIMEOUT)
@@ -33,7 +36,7 @@ COVERAGE_DIR := coverage
 COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
-.PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
+.PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows warm-fyne-cross-linux package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-fyne install-fyne-cross install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 
 all: build
 
@@ -131,8 +134,22 @@ check-qodana-test-exclusions: ## Fail if qodana.yaml does not exclude every *_te
 vet: ## Run go vet
 	go vet ./...
 
+.PHONY: check-test-memory
+check-test-memory: ## Require enough Docker VM memory for the CI-sized test container
+	@set -eu; \
+	required=$$(( $(TEST_MEMORY_GIB) * 1024 * 1024 * 1024 )); \
+	available=$$(docker info --format '{{.MemTotal}}'); \
+	if [ "$$available" -lt "$$required" ]; then \
+		printf 'Docker exposes %s bytes; tests require %s GiB (%s bytes).\n' "$$available" "$(TEST_MEMORY_GIB)" "$$required" >&2; \
+		echo 'Increase Docker Desktop Settings > Resources > Memory, leaving room for VM overhead, then retry.' >&2; \
+		exit 1; \
+	fi
+
+check-test-shards test coverage test-race golden: check-test-memory
+
 check-test-shards: ## Validate the UI shard manifest against the live Linux/amd64 test inventory
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -140,7 +157,7 @@ check-test-shards: ## Validate the UI shard manifest against the live Linux/amd6
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
 			make --no-print-directory check-test-shards-direct \
 		'
 
@@ -192,6 +209,7 @@ update-test-image: ## Pull the latest Linux/amd64 Ubuntu image used by Docker te
 
 test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (needs Docker)
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -200,7 +218,7 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
 			locale-gen en_US.UTF-8 >/dev/null; \
 			export LANG=en_US.UTF-8; \
 			status=0; \
@@ -212,6 +230,7 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 coverage: ## Generate HTML source-line coverage from the full unsharded Docker suite
 	mkdir -p "$(COVERAGE_DIR)"
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -220,7 +239,7 @@ coverage: ## Generate HTML source-line coverage from the full unsharded Docker s
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales >/dev/null; \
 			locale-gen $(TEST_LOCALE) >/dev/null; \
 			export LANG=$(TEST_LOCALE); \
 			rm -f "$(COVERAGE_PROFILE)" "$(COVERAGE_HTML)"; \
@@ -275,6 +294,7 @@ test-native: ## Run tests directly on the current OS/architecture
 
 test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Docker container
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		--label "$(TEST_CONTAINER_LABEL)" \
 		-v "$(CURDIR):/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
@@ -283,7 +303,7 @@ test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Do
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
 			locale-gen $(TEST_LOCALE) >/dev/null; \
 			status=0; \
 			make --no-print-directory test-race-direct || status=$$?; \
@@ -306,12 +326,13 @@ golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64,
 	@# result is never machine-dependent. See CONTRIBUTING.md for the full
 	@# accept-a-new-master workflow.
 	docker run --rm --platform linux/amd64 \
+		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
 		-v "$(CURDIR):/work" -w /work \
 		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
 			go test -run TestE2E ./internal/ui/... -v || true; \
 			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi \
 		'
@@ -332,60 +353,76 @@ security: security-govulncheck security-github ## Run all security checks (govul
 clean: ## Remove all build artifacts
 	rm -rf $(BIN_DIR) fyne-cross "$(APP_NAME).app" "$(BIN_NAME).zip"
 
-package-mac: ## Package a macOS .app bundle (native, no Docker) into bin/
-	fyne package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
+package-mac: install-fyne ## Package a macOS .app bundle (native, no Docker) into bin/
+	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
 	go run ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
 	mkdir -p $(BIN_DIR)
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"
 	mv "$(APP_NAME).app" "$(BIN_DIR)/"
 
-warm-fyne-cross-windows: ## Cache the go.mod toolchain before Fyne parses Go command JSON
+warm-fyne-cross-windows: PACKAGING_IMAGE = $(FYNE_CROSS_WINDOWS_IMAGE)
+warm-fyne-cross-linux: PACKAGING_IMAGE = $(FYNE_CROSS_LINUX_IMAGE)
+warm-fyne-cross-windows warm-fyne-cross-linux: ## Cache the project toolchain and report the resolved container inputs
 	mkdir -p "$(FYNE_CROSS_CACHE)"
 	# Match fyne-cross's UID so warm-up does not leave a root-owned module cache.
-	$(FYNE_CROSS_ENGINE) run --rm --user $$(id -u) -e HOME=/tmp -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(FYNE_CROSS_WINDOWS_IMAGE)" go version >/dev/null
+	$(FYNE_CROSS_ENGINE) run --rm --user $$(id -u) -e HOME=/tmp -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(PACKAGING_IMAGE)" go version
+	$(FYNE_CROSS_ENGINE) image inspect --format '{{.Id}} {{.RepoDigests}} {{.Os}}/{{.Architecture}}' "$(PACKAGING_IMAGE)"
+	$(FYNE_CROSS_ENGINE) run --rm --user $$(id -u) -e HOME=/tmp -v "$(CURDIR):/app:ro" -v "$(FYNE_CROSS_CACHE):/go" -w /app -e GOTOOLCHAIN=auto "$(PACKAGING_IMAGE)" /usr/local/bin/fyne version
 
-package-windows: warm-fyne-cross-windows ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
+package-windows: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
-		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
+		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe || exit 1; \
 	done
 
-package-windows-store: warm-fyne-cross-windows ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
+package-windows-store: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
-		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-microsoft-store-$$arch.exe; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
+		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-microsoft-store-$$arch.exe || exit 1; \
 	done
 
-package-windows-debug: warm-fyne-cross-windows ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES
+package-windows-debug: warm-fyne-cross-windows install-fyne-cross ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		fyne-cross windows -engine $(FYNE_CROSS_ENGINE) -image $(FYNE_CROSS_WINDOWS_IMAGE) -cache $(FYNE_CROSS_CACHE) -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
-		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME)-debug.exe $(BIN_DIR)/$(BIN_NAME)-debug-windows-$$arch.exe; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
+		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME)-debug.exe $(BIN_DIR)/$(BIN_NAME)-debug-windows-$$arch.exe || exit 1; \
 	done
 
-package-linux: ## Cross-compile Linux binaries via fyne-cross (needs Docker) into bin/, one per arch in LINUX_ARCHES (stripped by default)
+package-linux: warm-fyne-cross-linux install-fyne-cross ## Cross-compile Linux binaries via fyne-cross (needs Docker) into bin/, one per arch in LINUX_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
 	for arch in $(LINUX_ARCHES); do \
-		fyne-cross linux -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
-		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-linux-$$arch; \
+		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
+		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-linux-$$arch || exit 1; \
 	done
 
-package-linux-debug: ## Cross-compile unstripped Linux binaries for diagnosing startup failures, one per arch in LINUX_ARCHES
+package-linux-debug: warm-fyne-cross-linux install-fyne-cross ## Cross-compile unstripped Linux binaries for diagnosing startup failures, one per arch in LINUX_ARCHES
 	mkdir -p $(BIN_DIR)
 	for arch in $(LINUX_ARCHES); do \
-		fyne-cross linux -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -no-strip-debug || exit 1; \
-		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-debug-linux-$$arch; \
+		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -no-strip-debug || exit 1; \
+		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-debug-linux-$$arch || exit 1; \
 	done
 
 build-linux-all: package-linux ## Alias for package-linux: cross-compile Linux binaries for all LINUX_ARCHES via fyne-cross (needs Docker)
 
 build-all: package-mac package-windows package-linux ## Build release artifacts for macOS, Windows, and Linux
 
-install-tools: ## Install the fyne and fyne-cross packaging tools
-	go install fyne.io/tools/cmd/fyne@latest
-	go install github.com/fyne-io/fyne-cross@latest
+$(FYNE_BIN):
+	mkdir -p "$(dir $(FYNE_BIN))"
+	GOBIN="$(abspath $(dir $(FYNE_BIN)))" go install fyne.io/tools/cmd/fyne@$(FYNE_VERSION)
+
+$(FYNE_CROSS_BIN):
+	mkdir -p "$(dir $(FYNE_CROSS_BIN))"
+	GOBIN="$(abspath $(dir $(FYNE_CROSS_BIN)))" go install github.com/fyne-io/fyne-cross@$(FYNE_CROSS_VERSION)
+
+install-fyne: $(FYNE_BIN) ## Install and report the reviewed native packaging CLI
+	go version -m "$(FYNE_BIN)"
+
+install-fyne-cross: $(FYNE_CROSS_BIN) ## Install and report the reviewed cross-packaging CLI
+	go version -m "$(FYNE_CROSS_BIN)"
+
+install-tools: install-fyne install-fyne-cross ## Install both reviewed packaging tools into .tools/
 
 install-linux-tools: ## Install apt dev headers needed to build natively on Linux (OpenGL, X11, Wayland; needs sudo)
 	sudo apt-get update
@@ -455,4 +492,4 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 	scripts/watch_release.sh "$$tag"
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"}; {printf "  %-16s %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"}; {printf "  %-16s %s\n", $$1, $$2}'

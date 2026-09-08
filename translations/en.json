@@ -274,5 +274,6 @@
    "Could not inspect displays: %v": "Could not inspect displays: %v",
    "Saving mosaic...": "Saving mosaic...",
    "Could not save mosaic: %v": "Could not save mosaic: %v",
-   "Saved mosaic as %q": "Saved mosaic as %q"
+   "Saved mosaic as %q": "Saved mosaic as %q",
+   "Canvas coverage: %d%%": "Canvas coverage: %d%%"
 }

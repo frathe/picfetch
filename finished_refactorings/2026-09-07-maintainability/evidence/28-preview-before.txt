@@ -1,0 +1,36 @@
+# github.com/frathe/picfetch/internal/favthumbs.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+goos: darwin
+goarch: arm64
+pkg: github.com/frathe/picfetch/internal/favthumbs
+cpu: Apple M5 Max
+BenchmarkPreviewForegroundContention
+    contention_test.go:55: darwin/arm64 go1.27.1: 64 preview + 8 foreground sources, JPEG 3072x2048 quality 85, 2092752 encoded bytes each
+BenchmarkPreviewForegroundContention/P2
+BenchmarkPreviewForegroundContention/P2/alone
+BenchmarkPreviewForegroundContention/P2/alone-18         	       3	 449079903 ns/op	        56.17 fg-p50-ms	        57.14 fg-p95-ms	        17.81 fg/s	         0 overlapping-fg/op	         0 preview-source-reads/op	         2.000 processors	114255957 B/op	     385 allocs/op
+BenchmarkPreviewForegroundContention/P2/alone-18         	       3	 441657916 ns/op	        55.21 fg-p50-ms	        55.81 fg-p95-ms	        18.11 fg/s	         0 overlapping-fg/op	         0 preview-source-reads/op	         2.000 processors	114255957 B/op	     385 allocs/op
+BenchmarkPreviewForegroundContention/P2/alone-18         	       3	 441947347 ns/op	        55.30 fg-p50-ms	        55.49 fg-p95-ms	        18.10 fg/s	         0 overlapping-fg/op	         0 preview-source-reads/op	         2.000 processors	114255957 B/op	     385 allocs/op
+BenchmarkPreviewForegroundContention/P2/cold
+BenchmarkPreviewForegroundContention/P2/cold-18          	       1	2232533708 ns/op	      2232 converged-ms/op	       131.2 fg-p50-ms	       226.8 fg-p95-ms	         6.769 fg/s	         8.000 overlapping-fg/op	        64.00 preview-source-reads/op	        28.67 previews/s	         2.000 processors	1029076600 B/op	    9313 allocs/op
+BenchmarkPreviewForegroundContention/P2/cold-18          	       1	2176483833 ns/op	      2176 converged-ms/op	       152.5 fg-p50-ms	       198.6 fg-p95-ms	         6.637 fg/s	         8.000 overlapping-fg/op	        64.00 preview-source-reads/op	        29.41 previews/s	         2.000 processors	1029072000 B/op	    9275 allocs/op
+BenchmarkPreviewForegroundContention/P2/cold-18          	       1	2170610042 ns/op	      2170 converged-ms/op	       159.6 fg-p50-ms	       204.5 fg-p95-ms	         6.083 fg/s	         8.000 overlapping-fg/op	        64.00 preview-source-reads/op	        29.48 previews/s	         2.000 processors	1029070968 B/op	    9268 allocs/op
+BenchmarkPreviewForegroundContention/P2/disk-warm
+BenchmarkPreviewForegroundContention/P2/disk-warm-18     	       3	 452071083 ns/op	        11.67 converged-ms/op	        55.79 fg-p50-ms	        62.91 fg-p95-ms	        17.70 fg/s	         1.000 overlapping-fg/op	         0 preview-source-reads/op	      5428 previews/s	         2.000 processors	118810317 B/op	    4391 allocs/op
+BenchmarkPreviewForegroundContention/P2/disk-warm-18     	       3	 455448570 ns/op	        16.00 converged-ms/op	        56.71 fg-p50-ms	        58.95 fg-p95-ms	        17.57 fg/s	         1.000 overlapping-fg/op	         0 preview-source-reads/op	      3935 previews/s	         2.000 processors	118810602 B/op	    4391 allocs/op
+BenchmarkPreviewForegroundContention/P2/disk-warm-18     	       3	 465924250 ns/op	        14.33 converged-ms/op	        58.07 fg-p50-ms	        60.78 fg-p95-ms	        17.17 fg/s	         1.000 overlapping-fg/op	         0 preview-source-reads/op	      4414 previews/s	         2.000 processors	118810461 B/op	    4392 allocs/op
+BenchmarkPreviewForegroundContention/P18
+BenchmarkPreviewForegroundContention/P18/alone
+BenchmarkPreviewForegroundContention/P18/alone-18        	       3	 458914764 ns/op	        57.15 fg-p50-ms	        59.70 fg-p95-ms	        17.43 fg/s	         0 overlapping-fg/op	         0 preview-source-reads/op	        18.00 processors	114256042 B/op	     386 allocs/op
+BenchmarkPreviewForegroundContention/P18/alone-18        	       3	 454767306 ns/op	        56.49 fg-p50-ms	        58.68 fg-p95-ms	        17.59 fg/s	         0 overlapping-fg/op	         0 preview-source-reads/op	        18.00 processors	114255994 B/op	     385 allocs/op
+BenchmarkPreviewForegroundContention/P18/alone-18        	       3	 470006472 ns/op	        58.73 fg-p50-ms	        61.58 fg-p95-ms	        17.02 fg/s	         0 overlapping-fg/op	         0 preview-source-reads/op	        18.00 processors	114255957 B/op	     385 allocs/op
+BenchmarkPreviewForegroundContention/P18/cold
+BenchmarkPreviewForegroundContention/P18/cold-18         	       1	1162621917 ns/op	      1162 converged-ms/op	        68.59 fg-p50-ms	        75.40 fg-p95-ms	        14.55 fg/s	         8.000 overlapping-fg/op	        64.00 preview-source-reads/op	        55.05 previews/s	        18.00 processors	1029164912 B/op	    9534 allocs/op
+BenchmarkPreviewForegroundContention/P18/cold-18         	       1	1148677666 ns/op	      1148 converged-ms/op	        68.12 fg-p50-ms	        70.60 fg-p95-ms	        14.94 fg/s	         8.000 overlapping-fg/op	        64.00 preview-source-reads/op	        55.72 previews/s	        18.00 processors	1029143280 B/op	    9476 allocs/op
+BenchmarkPreviewForegroundContention/P18/cold-18         	       1	1135378167 ns/op	      1135 converged-ms/op	        65.75 fg-p50-ms	        67.72 fg-p95-ms	        15.16 fg/s	         8.000 overlapping-fg/op	        64.00 preview-source-reads/op	        56.37 previews/s	        18.00 processors	1029145088 B/op	    9507 allocs/op
+BenchmarkPreviewForegroundContention/P18/disk-warm
+BenchmarkPreviewForegroundContention/P18/disk-warm-18    	       3	 476842417 ns/op	         5.333 converged-ms/op	        59.44 fg-p50-ms	        62.40 fg-p95-ms	        16.78 fg/s	         1.000 overlapping-fg/op	         0 preview-source-reads/op	     11486 previews/s	        18.00 processors	118816413 B/op	    4424 allocs/op
+BenchmarkPreviewForegroundContention/P18/disk-warm-18    	       3	 460416458 ns/op	         5.000 converged-ms/op	        57.17 fg-p50-ms	        59.27 fg-p95-ms	        17.38 fg/s	         1.000 overlapping-fg/op	         0 preview-source-reads/op	     12369 previews/s	        18.00 processors	118813824 B/op	    4422 allocs/op
+BenchmarkPreviewForegroundContention/P18/disk-warm-18    	       3	 469703931 ns/op	         5.333 converged-ms/op	        58.67 fg-p50-ms	        61.94 fg-p95-ms	        17.03 fg/s	         1.000 overlapping-fg/op	         0 preview-source-reads/op	     11897 previews/s	        18.00 processors	118814592 B/op	    4417 allocs/op
+PASS
+ok  	github.com/frathe/picfetch/internal/favthumbs	72.529s

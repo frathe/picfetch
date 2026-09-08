@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -60,50 +61,78 @@ func TestMoveLinux_FallsBackToTrashPut(t *testing.T) {
 	}
 }
 
-// TestMoveLinux_OverridesConfinedXDGDataHome guards against a real bug: a
-// snap-confined launcher (VS Code's own snap, notably - this app is
-// routinely built and run from its integrated terminal) sets XDG_DATA_HOME
-// to a private per-app directory without touching HOME. gio/trash-put
-// resolve the trash directory as $XDG_DATA_HOME/Trash, so inheriting that
-// override moves the file somewhere the desktop's file manager never shows
-// - indistinguishable from a silent permanent delete. moveLinux must force
-// XDG_DATA_HOME back to $HOME/.local/share for the child process regardless
-// of what the parent process's environment says.
-func TestMoveLinux_OverridesConfinedXDGDataHome(t *testing.T) {
-	origGio, origTrashPut, origRun := lookupGio, lookupTrashPut, runTrashCommand
-	t.Cleanup(func() { lookupGio, lookupTrashPut, runTrashCommand = origGio, origTrashPut, origRun })
-
-	t.Setenv("XDG_DATA_HOME", "/home/me/snap/code/257/.local/share")
+func TestMoveLinux_PreservesOrdinaryXDGAndNormalizesSnap(t *testing.T) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		t.Fatalf("os.UserHomeDir() error = %v", err)
+		t.Fatal(err)
 	}
-	wantDataHome := "XDG_DATA_HOME=" + filepath.Join(home, ".local", "share")
-
-	lookupGio = func() (string, error) { return "/usr/bin/gio", nil }
-	lookupTrashPut = func() (string, error) { return "", errors.New("not found") }
-
-	var gotEnv []string
-	runTrashCommand = func(cmd *exec.Cmd) ([]byte, error) {
-		gotEnv = cmd.Env
-		return nil, nil
-	}
-
-	if err := moveLinux("/tmp/photo.jpg"); err != nil {
-		t.Fatalf("moveLinux() error = %v", err)
-	}
-
-	found := false
-	for _, kv := range gotEnv {
-		if strings.HasPrefix(kv, "XDG_DATA_HOME=") {
-			if kv != wantDataHome {
-				t.Errorf("XDG_DATA_HOME = %q, want %q", kv, wantDataHome)
+	defaultDir := filepath.Join(home, ".local", "share")
+	for _, backend := range []string{"gio", "trash-put"} {
+		t.Run(backend, func(t *testing.T) {
+			for _, tc := range []struct {
+				name, value, want string
+				absent            bool
+			}{
+				{name: "absent", absent: true},
+				{name: "empty"},
+				{name: "default", value: defaultDir, want: defaultDir},
+				{name: "custom", value: "/mnt/data/desktop", want: "/mnt/data/desktop"},
+				{name: "custom snap component", value: "/mnt/snap/personal/data", want: "/mnt/snap/personal/data"},
+				{name: "another home", value: "/home/someone-else/snap/code/257/.local/share", want: "/home/someone-else/snap/code/257/.local/share"},
+				{name: "snap revision", value: filepath.Join(home, "snap/code/257/.local/share"), want: defaultDir},
+				{name: "snap current", value: filepath.Join(home, "snap/code/current/.local/share"), want: defaultDir},
+				{name: "snap common", value: filepath.Join(home, "snap/code/common/.local/share"), want: defaultDir},
+				{name: "non revision", value: filepath.Join(home, "snap/photos/originals/.local/share"), want: filepath.Join(home, "snap/photos/originals/.local/share")},
+				{name: "outside data home", value: filepath.Join(home, "snap/code/257/photos"), want: filepath.Join(home, "snap/code/257/photos")},
+				{name: "traversal", value: home + "/snap/code/257/../.local/share", want: home + "/snap/code/257/../.local/share"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					origGio, origTrashPut, origRun := lookupGio, lookupTrashPut, runTrashCommand
+					t.Cleanup(func() { lookupGio, lookupTrashPut, runTrashCommand = origGio, origTrashPut, origRun })
+					t.Setenv("XDG_DATA_HOME", tc.value)
+					if tc.absent {
+						if err := os.Unsetenv("XDG_DATA_HOME"); err != nil {
+							t.Fatal(err)
+						}
+					}
+					t.Setenv("PICFETCH_TRASH_ENV_FIXTURE", "untouched")
+					lookupGio = func() (string, error) {
+						if backend == "gio" {
+							return "/usr/bin/gio", nil
+						}
+						return "", errors.New("missing")
+					}
+					lookupTrashPut = func() (string, error) { return "/usr/bin/trash-put", nil }
+					var got []string
+					runTrashCommand = func(cmd *exec.Cmd) ([]byte, error) { got = cmd.Env; return nil, nil }
+					if err := moveLinux("/tmp/photo.jpg"); err != nil {
+						t.Fatal(err)
+					}
+					matches := 0
+					for _, kv := range got {
+						if key, value, _ := strings.Cut(kv, "="); key == "XDG_DATA_HOME" {
+							matches++
+							if value != tc.want {
+								t.Errorf("XDG_DATA_HOME = %q, want %q", value, tc.want)
+							}
+						}
+					}
+					wantMatches := 1
+					if tc.absent {
+						wantMatches = 0
+					}
+					if matches != wantMatches {
+						t.Errorf("XDG_DATA_HOME entries = %d, want %d", matches, wantMatches)
+					}
+					if !slices.Contains(got, "PICFETCH_TRASH_ENV_FIXTURE=untouched") {
+						t.Error("unrelated environment was lost")
+					}
+					if value, present := os.LookupEnv("XDG_DATA_HOME"); value != tc.value || present == tc.absent {
+						t.Error("parent environment changed")
+					}
+				})
 			}
-			found = true
-		}
-	}
-	if !found {
-		t.Error("cmd.Env has no XDG_DATA_HOME entry")
+		})
 	}
 }
 

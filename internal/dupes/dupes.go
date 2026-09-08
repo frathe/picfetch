@@ -62,8 +62,10 @@ type Model struct {
 	// generation. Callers must not retry them: mixed-format drops leave
 	// unreadable files, and retrying on every hash pass re-raises
 	// "analyzing" chrome with no CPU work left to do.
-	hashFailed map[string]struct{}
-	gen        uint64
+	hashFailed   map[string]struct{}
+	gen          uint64
+	reset        uint64
+	factRevision uint64
 
 	dist   int
 	groups Groups
@@ -131,18 +133,12 @@ func (m *Model) wipeIfStaleLocked(gen uint64) {
 
 // WipeIfStale ensures the stored facts belong to set's current
 // generation, wiping hashes, hashFailed, and native when they don't.
-// Every read path in this file calls it first.
+// Reads ignore mismatched facts without erasing them: the UI may still adopt
+// established facts after publishing an incremental file-set change.
 func (m *Model) WipeIfStale() {
-	m.wipeIfStale(m.set.Snapshot().Generation())
-}
-
-// wipeIfStale is WipeIfStale against a generation the caller already
-// holds, so a method that has taken a snapshot does not take a second
-// one just to re-read the same number.
-func (m *Model) wipeIfStale(gen uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.wipeIfStaleLocked(gen)
+	m.wipeIfStaleLocked(m.set.Snapshot().Generation())
 }
 
 // AdoptGeneration records set's current generation without dropping
@@ -152,61 +148,50 @@ func (m *Model) wipeIfStale(gen uint64) {
 // files linger until the next full-set change, which is harmless. Do
 // not call WipeIfStale here: that wipes on a mismatch.
 func (m *Model) AdoptGeneration() {
-	gen := m.set.Snapshot().Generation()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.gen = gen
+	m.gen = m.set.Snapshot().Generation()
 	m.ensureMapsLocked()
 }
 
-// Clear drops all stored facts regardless of generation.
+// Clear drops all stored facts and invalidates captured writers, even when
+// the file-set generation has not changed.
 func (m *Model) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.reset++
 	m.hashes = make(map[string]uint64)
 	m.hashFailed = make(map[string]struct{})
 	m.native = make(map[string]image.Point)
 }
 
-// PutHash records key's dHash, adopting set's current generation if it
-// has moved on, and clears any failure previously recorded for key.
+// PutHash records an immediately available fact in the current namespace.
+// Background producers must instead capture a FactWriter before starting work.
 func (m *Model) PutHash(key string, h uint64) {
-	gen := m.set.Snapshot().Generation()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.wipeIfStaleLocked(gen)
-	m.hashes[key] = h
-	delete(m.hashFailed, key)
+	m.CaptureFacts().PutHash(key, h)
 }
 
 // PutFailed marks key's thumbnail decode as having already failed this
-// generation.
+// generation. Background producers use a previously captured FactWriter.
 func (m *Model) PutFailed(key string) {
-	gen := m.set.Snapshot().Generation()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.wipeIfStaleLocked(gen)
-	m.hashFailed[key] = struct{}{}
+	m.CaptureFacts().PutFailed(key)
 }
 
 // PutNativeSize records key's native pixel size, clamping either edge to
 // 0 if it is negative. Callers with an image.Rectangle convert it to a
 // size (Dx, Dy) themselves - this package works with plain sizes, not
-// rectangles with an origin.
+// rectangles with an origin. Background producers use a captured FactWriter.
 func (m *Model) PutNativeSize(key string, sz image.Point) {
-	sz = image.Pt(max(sz.X, 0), max(sz.Y, 0))
-	gen := m.set.Snapshot().Generation()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.wipeIfStaleLocked(gen)
-	m.native[key] = sz
+	m.CaptureFacts().PutNativeSize(key, sz)
 }
 
 // Hash returns key's stored dHash.
 func (m *Model) Hash(key string) (uint64, bool) {
-	m.WipeIfStale()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.gen != m.set.Snapshot().Generation() {
+		return 0, false
+	}
 	h, ok := m.hashes[key]
 	return h, ok
 }
@@ -214,18 +199,22 @@ func (m *Model) Hash(key string) (uint64, bool) {
 // Failed reports whether key's thumbnail decode already failed this
 // generation.
 func (m *Model) Failed(key string) bool {
-	m.WipeIfStale()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.gen != m.set.Snapshot().Generation() {
+		return false
+	}
 	_, ok := m.hashFailed[key]
 	return ok
 }
 
 // NativeSize returns key's stored native pixel size.
 func (m *Model) NativeSize(key string) (image.Point, bool) {
-	m.WipeIfStale()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.gen != m.set.Snapshot().Generation() {
+		return image.Point{}, false
+	}
 	sz, ok := m.native[key]
 	return sz, ok
 }

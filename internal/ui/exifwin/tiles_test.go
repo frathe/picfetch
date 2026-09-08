@@ -3,6 +3,7 @@ package exifwin
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -11,7 +12,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -328,30 +331,27 @@ func TestOnChange_ReportsABackgroundBatchButNotAPrefetch(t *testing.T) {
 }
 
 func TestFetch_FailedTileIsRetriedOnlyAfterTheBackoff(t *testing.T) {
-	s := newTileServer(t)
-	s.breakIt()
-
-	f := fetcherFor(s)
-
+	server := newTileServer(t)
+	server.breakIt()
+	f := fetcherFor(server)
 	now := time.Now()
 	f.now = func() time.Time { return now }
-
-	url := s.URL + "/15/2/2.png"
-
-	if !f.claim(url) {
-		t.Fatal("claim() = false for a tile nobody has asked for, want true")
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/15/2/2.png", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	f.fetch(url)
-
-	if f.claim(url) {
-		t.Error("claim() = true straight after a failure, want the backoff to hold it off")
+	_, _ = f.RoundTrip(req)
+	f.Wait()
+	_, _ = f.RoundTrip(req)
+	f.Wait()
+	if server.count() != 1 {
+		t.Fatal("failed tile retried during backoff")
 	}
-
 	now = now.Add(tileRetryAfter + time.Second)
-
-	if !f.claim(url) {
-		t.Error("claim() = false after the backoff elapsed, want a retry")
+	_, _ = f.RoundTrip(req)
+	f.Wait()
+	if server.count() != 2 {
+		t.Fatal("failed tile did not retry after backoff")
 	}
 }
 
@@ -517,5 +517,336 @@ func TestNewTileFetcher_InstallsTheLogFilter(t *testing.T) {
 
 	if _, ok := log.Writer().(*tileLogFilter); !ok {
 		t.Errorf("log.Writer() is %T, want the tile log filter installed", log.Writer())
+	}
+}
+
+func TestTileFetcher_OverlappingWarmAndForegroundShareBounds(t *testing.T) {
+	body := tilePNG(t)
+	entered := make(chan struct{}, 200)
+	release := make(chan struct{})
+	var active, peak atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := active.Add(1)
+		defer active.Add(-1)
+		for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
+		}
+		entered <- struct{}{}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(server.Close)
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+	f := newTileFetcher(server.URL+"/%d/%d/%d.png", server.Client().Transport)
+	warmDone := make(chan struct{})
+	go func() { defer close(warmDone); f.Warm(48.858222, 2.2945, mapZoom) }()
+	t.Cleanup(func() { unblock(); <-warmDone })
+	for range tileWorkers {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("warm workers did not reach server")
+		}
+	}
+	finished := make(chan struct{}, 1)
+	f.SetOnChange(func(_ int) {
+		select {
+		case finished <- struct{}{}:
+		default:
+		}
+	})
+	for i := range 100 {
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/foreground/%d", server.URL, i), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.RoundTrip(req)
+		_, _ = f.RoundTrip(req) // a duplicate never consumes another slot
+	}
+	if n := f.Pending(); n > tileWorkers+64 {
+		t.Fatalf("admitted %d requests, want <=68 (4 active + 64 queued)", n)
+	}
+	f.mu.Lock()
+	queued := len(f.queue)
+	f.mu.Unlock()
+	if queued > tileQueueCapacity {
+		t.Errorf("queued requests=%d, want <=%d", queued, tileQueueCapacity)
+	}
+	unblock()
+	select {
+	case <-warmDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("warm did not finish")
+	}
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("foreground callback did not finish")
+	}
+	f.Wait()
+	if n := peak.Load(); n > tileWorkers {
+		t.Errorf("aggregate active requests=%d, want <=%d", n, tileWorkers)
+	}
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/foreground/99", nil)
+	if _, err := f.RoundTrip(req); !errors.Is(err, errTilePending) {
+		t.Fatalf("overflowed tile retry=%v", err)
+	}
+	f.Wait()
+	res, err := f.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("overflowed tile never retried: %v", err)
+	}
+	_ = res.Body.Close()
+}
+
+func TestTileFetcher_CancelReleasesQueueAndWarmCapacityWaiter(t *testing.T) {
+	server := newTileServer(t)
+	unblock := server.hold()
+	t.Cleanup(unblock)
+	f := fetcherFor(server)
+	defer func() { unblock(); f.Stop(); f.Wait() }()
+	for i := range 100 {
+		req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/held/%d", server.URL, i), nil)
+		_, _ = f.RoundTrip(req)
+	}
+	ctx := f.session()
+	warmDone := make(chan struct{})
+	go func() { defer close(warmDone); f.WarmContext(ctx, 48.858222, 2.2945, mapZoom) }()
+	f.Cancel()
+	select {
+	case <-warmDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("cancelled warm waiter did not stop")
+	}
+	f.Wait()
+	f.mu.Lock()
+	queued, claims, failures, pending := len(f.queue), len(f.inflight), len(f.failed), f.workers+len(f.queue)
+	f.mu.Unlock()
+	if queued != 0 || claims != 0 || failures != 0 || pending != 0 {
+		t.Errorf("cancel left queue=%d claims=%d failures=%d pending=%d", queued, claims, failures, pending)
+	}
+	if f.cache.Len() != 0 {
+		t.Error("cancelled work cached a response")
+	}
+	f.Stop()
+	if ctx := f.Restart(); ctx.Err() == nil {
+		t.Error("terminal stop allowed a restart")
+	}
+}
+
+func TestTileFetcher_FailureCapacityAndExpiry(t *testing.T) {
+	server := newTileServer(t)
+	server.breakIt()
+	f := fetcherFor(server)
+	defer func() { f.Stop(); f.Wait() }()
+	now := time.Now()
+	f.now = func() time.Time { return now }
+	for i := range tileFailureCapacity + 32 {
+		req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/failure/%d", server.URL, i), nil)
+		_, _ = f.RoundTrip(req)
+		f.Wait()
+	}
+	f.mu.Lock()
+	failures := len(f.failed)
+	f.mu.Unlock()
+	if failures != tileFailureCapacity {
+		t.Errorf("failure entries=%d, want %d", failures, tileFailureCapacity)
+	}
+	now = now.Add(tileRetryAfter + time.Second)
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/new-failure", nil)
+	_, _ = f.RoundTrip(req)
+	f.Wait()
+	f.mu.Lock()
+	failures = len(f.failed)
+	f.mu.Unlock()
+	if failures != 1 {
+		t.Errorf("expired failure entries retained: %d", failures)
+	}
+}
+
+type tileRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn tileRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return fn(req) }
+
+func TestTileFetcher_OldCompletionPreservesReplacementClaim(t *testing.T) {
+	for _, oldFailure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("old-failure=%v", oldFailure), func(t *testing.T) {
+			server := newTileServer(t)
+			entered := make(chan int32, 2)
+			releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
+			unblocks := []func(){sync.OnceFunc(func() { close(releases[0]) }), sync.OnceFunc(func() { close(releases[1]) })}
+			var calls atomic.Int32
+			base := http.DefaultTransport
+			f := newTileFetcher(server.URL+"/%d/%d/%d.png", tileRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				res, err := base.RoundTrip(req)
+				i := calls.Add(1) - 1
+				entered <- i
+				<-releases[i]
+				if i == 0 && oldFailure {
+					if res != nil {
+						_ = res.Body.Close()
+					}
+					return nil, errors.New("obsolete transport failure")
+				}
+				return res, err
+			}))
+			defer func() { unblocks[0](); unblocks[1](); f.Stop(); f.Wait() }()
+			url := server.URL + "/same-source"
+			old, _ := f.submit(f.session(), url, true)
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("old request not entered")
+			}
+			ctx := f.Restart()
+			current, _ := f.submit(ctx, url, true)
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("replacement request not entered")
+			}
+			unblocks[0]()
+			select {
+			case <-old.done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("old request did not complete")
+			}
+			f.mu.Lock()
+			claim, failed := f.inflight[url], len(f.failed)
+			f.mu.Unlock()
+			if claim != current || failed != 0 || f.cache.Contains(url) {
+				t.Error("old completion changed replacement claim/facts")
+			}
+			unblocks[1]()
+			select {
+			case <-current.done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("replacement did not complete")
+			}
+			if !f.cache.Contains(url) {
+				t.Error("replacement did not cache its response")
+			}
+		})
+	}
+}
+
+func TestTileFetcher_WaitIncludesActiveNotice(t *testing.T) {
+	body := tilePNG(t)
+	synctest.Test(t, func(t *testing.T) {
+		f := newTileFetcher("http://tiles.invalid/%d/%d/%d", tileRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return tileResponse(req, body), nil
+		}))
+		entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		f.SetOnChange(func(_ int) { close(entered); <-release })
+		job, _ := f.submit(f.session(), "http://tiles.invalid/one", true)
+		<-entered
+		if f.Pending() != 0 {
+			t.Fatal("fixture did not reach the notice after decrement")
+		}
+		go func() { f.Wait(); close(finished) }()
+		synctest.Wait()
+		select {
+		case <-finished:
+			t.Error("Wait ignored an active onChange callback")
+		default:
+		}
+		f.Cancel() // cancellation must return without waiting on the notice
+		select {
+		case <-job.done:
+			t.Error("job completed before its notice")
+		default:
+		}
+		close(release)
+		<-finished
+		<-job.done
+	})
+}
+
+func TestTileFetcher_CancelStopsBlockedWarmSubmission(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		entered := make(chan struct{}, tileWorkers)
+		f := newTileFetcher("http://tiles.invalid/%d/%d/%d", tileRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			entered <- struct{}{}
+			<-req.Context().Done()
+			return nil, req.Context().Err()
+		}))
+		ctx := f.session()
+		for i := range 100 {
+			_, _ = f.submit(ctx, fmt.Sprintf("http://tiles.invalid/foreground/%d", i), true)
+		}
+		for range tileWorkers {
+			<-entered
+		}
+		finished := make(chan struct{})
+		go func() { defer close(finished); f.WarmContext(ctx, 48.858222, 2.2945, mapZoom) }()
+		synctest.Wait()
+		select {
+		case <-finished:
+			t.Fatal("warm did not wait for the full queue")
+		default:
+		}
+		f.Cancel()
+		<-finished
+		f.Wait()
+		if f.Pending() != 0 {
+			t.Error("cancelled capacity waiter left admitted work")
+		}
+	})
+}
+
+func TestTileFetcher_ForegroundJoinsWarmJob(t *testing.T) {
+	server := newTileServer(t)
+	unblock := server.hold()
+	t.Cleanup(unblock)
+	f := fetcherFor(server)
+	defer func() { unblock(); f.Stop(); f.Wait() }()
+	url := server.URL + "/shared"
+	job, _ := f.submit(f.session(), url, false)
+	calls := 0
+	f.SetOnChange(func(_ int) { calls++ })
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	_, _ = f.RoundTrip(req)
+	_, _ = f.RoundTrip(req)
+	unblock()
+	<-job.done
+	f.Wait()
+	if calls != 1 || server.count() != 1 {
+		t.Errorf("joined warm job: notices=%d requests=%d, want 1 each", calls, server.count())
+	}
+}
+
+func TestTileFetcher_ObsoleteActiveRequestDoesNotKeepCurrentLoading(t *testing.T) {
+	server := newTileServer(t)
+	oldEntered, release := make(chan struct{}), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	base := http.DefaultTransport
+	f := newTileFetcher(server.URL+"/%d/%d/%d.png", tileRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		res, err := base.RoundTrip(req)
+		if req.URL.Path == "/old" {
+			close(oldEntered)
+			<-release
+		}
+		return res, err
+	}))
+	defer func() { unblock(); f.Stop(); f.Wait() }()
+	old, _ := f.submit(f.session(), server.URL+"/old", true)
+	<-oldEntered
+	ctx := f.Restart()
+	pending := -1
+	f.SetOnChange(func(n int) { pending = n })
+	current, _ := f.submit(ctx, server.URL+"/current", true)
+	<-current.done
+	if pending != 0 || f.Pending() != 0 {
+		t.Errorf("obsolete work kept current loading: notice=%d pending=%d", pending, f.Pending())
+	}
+	select {
+	case <-old.done:
+		t.Fatal("fixture did not retain the old active worker")
+	default:
 	}
 }

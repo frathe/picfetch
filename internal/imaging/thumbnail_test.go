@@ -1,11 +1,19 @@
 package imaging
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/color"
+	"io"
 	"testing"
+	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // --- scaleToFit -----------------------------------------------------------
@@ -329,5 +337,75 @@ func TestScaleForExport_DoesNotWriteTheThumbnailScalersPixels(t *testing.T) {
 	}
 	if same {
 		t.Error("the export path wrote the thumbnail path's pixels, want an export resampled for a photo rather than for a grid cell")
+	}
+}
+
+func TestLoadThumbnailContext_CancelsSourceRead(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		load func(context.Context, fyne.URI) (image.Image, error)
+	}{
+		{"thumbnail", LoadThumbnailContext},
+		{"bounds", func(ctx context.Context, u fyne.URI) (image.Image, error) {
+			img, _, err := LoadThumbnailAndBoundsContext(ctx, u)
+			return img, err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			data := bytes.NewReader(uitest.CaptureDateJPEG(t, 4, 4, "2020:01:01 00:00:00"))
+			reads, closed := 0, false
+			u := uitest.ReaderURI(storage.NewFileURI("/thumbnail.jpg"), func() (io.ReadCloser, error) {
+				return uitest.ReadCloser{
+					ReadFunc:  func(p []byte) (int, error) { reads++; n, err := data.Read(p); cancel(); return n, err },
+					CloseFunc: func() error { closed = true; return nil },
+				}, nil
+			})
+			img, err := tc.load(ctx, u)
+			if img != nil || !errors.Is(err, context.Canceled) {
+				t.Errorf("cancelled thumbnail = %T, %v", img, err)
+			}
+			if reads != 1 || !closed {
+				t.Errorf("reads=%d closed=%v, want 1/true", reads, closed)
+			}
+		})
+	}
+}
+
+func TestLoadThumbnailContext_DiscardsCancelledDecode(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	u := uitest.TempJPEGURI(t, "decode.jpg", 4, 4, color.White)
+	entered, release := make(chan struct{}), make(chan struct{})
+	type result struct {
+		img    image.Image
+		bounds image.Rectangle
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		img, bounds, err := loadThumbnailAndBounds(ctx, u, func(_ context.Context, _ []byte, _ image.Rectangle) (image.Image, error) {
+			close(entered)
+			<-release
+			return image.NewRGBA(image.Rect(0, 0, 4, 4)), nil
+		})
+		done <- result{img, bounds, err}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		close(release)
+		t.Fatal("decoder did not start")
+	}
+	cancel()
+	close(release)
+	select {
+	case got := <-done:
+		if got.img != nil || !got.bounds.Empty() || !errors.Is(got.err, context.Canceled) {
+			t.Errorf("cancelled decode accepted: %+v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("decoder worker did not complete")
 	}
 }

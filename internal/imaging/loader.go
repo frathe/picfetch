@@ -101,9 +101,9 @@ type LoadedImage struct {
 
 	// HasEXIF reports whether ReadMetadata found anything in the raw bytes
 	// this was decoded from - what the info overlay uses to decide whether
-	// offering its "Show EXIF data" link means anything. Filled in by the
-	// caller alongside FileSize rather than by DecodeLoaded itself, since
-	// the thumbnail path decodes through here too and has no use for it.
+	// offering its "Show EXIF data" link means anything. DecodeRecord fills
+	// this alongside FileSize; DecodeLoaded omits these full-image facts
+	// because thumbnail callers only need pixels.
 	HasEXIF bool
 
 	// AnimationTruncated reports that this was a multi-frame GIF whose
@@ -276,6 +276,12 @@ func readRawBytes(ctx context.Context, u fyne.URI) ([]byte, error) {
 		return nil, err
 	}
 
+	// A backend may return its last bytes with EOF while cancellation arrives.
+	// Do not accept that read just because ReadAll needs no further Read call.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	if int64(len(data)) > limit {
 		return nil, &InputTooLargeError{limit: limit}
 	}
@@ -283,25 +289,28 @@ func readRawBytes(ctx context.Context, u fyne.URI) ([]byte, error) {
 	return data, nil
 }
 
-// CaptureDate reads u's raw bytes and returns its Exif capture date (see
-// Metadata.DateTakenTime), without decoding pixels or building the rest of
-// Metadata - the one field internal/filesort's capture-date sort mode
-// actually needs. ok is false if u can't be read or carries no recognizable
-// capture date, mirroring ReadMetadata's tolerant-failure style; callers
-// are expected to fall back to the file's mtime in that case. Uses
-// context.Background() rather than taking a ctx of its own: filesort.Order
-// already checks its own ctx once per file before calling this (see its
-// own doc comment), which is the granularity that sort needs; the read
-// itself is small enough not to need a second, finer-grained cancellation
-// point on top of that.
+// CaptureDate is the compatibility form of CaptureDateContext. Unreadable or
+// absent metadata reports ok=false; cancellable callers use CaptureDateContext.
 func CaptureDate(u fyne.URI) (time.Time, bool) {
-	data, err := readRawBytes(context.Background(), u)
-	if err != nil {
-		return time.Time{}, false
-	}
+	date, ok, _ := CaptureDateContext(context.Background(), u)
+	return date, ok
+}
 
-	t := ReadMetadata(data).DateTakenTime
-	return t, !t.IsZero()
+// CaptureDateContext reads bounded source bytes and extracts the capture date
+// without decoding pixels. Missing metadata is a successful zero/false result;
+// read failures, including cancellation, remain errors for the caller's policy.
+// Context checks surround the non-interruptible metadata walk. A Read already
+// blocked in the storage backend must return before cancellation can stop I/O.
+func CaptureDateContext(ctx context.Context, u fyne.URI) (time.Time, bool, error) {
+	data, err := readRawBytes(ctx, u)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	date := ReadMetadata(data).DateTakenTime
+	if err := ctx.Err(); err != nil {
+		return time.Time{}, false, err
+	}
+	return date, !date.IsZero(), nil
 }
 
 // ReadAndProbe reads u's raw bytes and decodes just its header - via
@@ -410,6 +419,20 @@ func DecodeLoaded(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 		Frames:             []image.Image{ApplyOrientation(decoded, readEXIFOrientation(data))},
 		AnimationTruncated: truncated,
 	}, nil
+}
+
+// DecodeRecord constructs a complete full-image cache record from bytes
+// already validated by ReadAndProbe. It preserves DecodeLoaded's canonical
+// pixels, animation frames and preview markers, and adds the file facts needed
+// when any cache writer's result is later displayed through another path.
+func DecodeRecord(ctx context.Context, data []byte, maxAnimBytes int64) (*LoadedImage, error) {
+	loaded, err := DecodeLoaded(ctx, data, maxAnimBytes)
+	if err != nil {
+		return nil, err
+	}
+	loaded.FileSize = int64(len(data))
+	loaded.HasEXIF = !ReadMetadata(data).Empty()
+	return loaded, nil
 }
 
 // LoadImage reads and decodes an image file of any format registered with

@@ -53,8 +53,10 @@ type Host interface {
 // Controller is picture-frame mode: the state behind it and the goroutine
 // that drives it.
 type Controller struct {
-	host Host
-	win  fyne.Window
+	host  Host
+	ui    UIQueue
+	after func(time.Duration) <-chan time.Time
+	win   fyne.Window
 
 	// pos is where the window's manually-placed position is remembered
 	// across a full-screen round trip - see enter/Exit.
@@ -70,14 +72,19 @@ type Controller struct {
 
 	// gen identifies the current picture-frame session. run captures it at
 	// start and stops as soon as it no longer matches, which is how Exit
-	// (and a rapid off/on toggle) retires the previous goroutine without
-	// having to track it.
+	// (and a rapid off/on toggle) invalidates its queued callbacks. The stop
+	// channel separately wakes the worker while it waits.
 	gen atomic.Uint64
+	// countdown invalidates a queued timed advance as soon as UI calls Kick,
+	// independently of when the worker next receives the countdown reset.
+	countdown atomic.Uint64
 
 	// kick restarts the countdown in progress - see Kick. Per-session and
 	// captured by run, so a kick can never reach a goroutine other than
 	// the one it was meant for.
-	kick chan struct{}
+	kick   chan struct{}
+	stop   chan struct{}
+	closed bool
 
 	// running counts the live run goroutine, so Settle can wait it out.
 	// Only ever incremented on the UI goroutine, in enter.
@@ -114,13 +121,16 @@ type Controller struct {
 // pos is the shared window-position tracker the app also keeps current
 // with its own poller.
 func New(host Host, win fyne.Window, pos *winpos.Tracker) *Controller {
-	return &Controller{host: host, win: win, pos: pos}
+	return &Controller{host: host, win: win, pos: pos, ui: fyneQueue{}, after: time.After}
 }
 
 // Toggle flips picture-frame mode on or off. There's nothing to frame with
 // zero files loaded, so that case is a no-op rather than full-screening an
 // empty drop zone.
 func (c *Controller) Toggle() {
+	if c.closed {
+		return
+	}
 	if c.active.Load() {
 		c.Exit()
 
@@ -152,16 +162,17 @@ func (c *Controller) enter() {
 	gen := c.gen.Add(1)
 	kick := make(chan struct{}, 1)
 	c.kick = kick
+	stop := make(chan struct{})
+	c.stop = stop
 
 	c.running.Go(func() {
-		c.run(gen, kick)
+		c.run(gen, kick, stop)
 	})
 	c.fireActive()
 }
 
-// Exit leaves full-screen and stops the auto-advance goroutine by bumping
-// the generation and kicking it awake, so it notices right away instead of
-// lingering asleep for up to the current wait duration. Safe to call when
+// Exit leaves full-screen, invalidates queued advances and closes the session
+// stop channel, including while its worker waits for UI acknowledgement. Safe when
 // picture-frame mode is already off - the app calls it unconditionally
 // when clearing back to the drop zone, so a reset or a load error never
 // leaves a full-screen drop zone behind.
@@ -169,9 +180,7 @@ func (c *Controller) Exit() {
 	if !c.active.Load() {
 		return
 	}
-	c.active.Store(false)
-	c.gen.Add(1)
-	c.Kick()
+	c.stopSession()
 	c.win.SetFullScreen(false)
 
 	// Put the window back where the user manually left it rather than
@@ -257,19 +266,20 @@ func (c *Controller) SetAnimDuration(d time.Duration) {
 // restart its wait anyway. A no-op before the first enter, when there is
 // no channel yet (a send on a nil channel takes the default branch).
 func (c *Controller) Kick() {
+	c.countdown.Add(1)
 	select {
 	case c.kick <- struct{}{}:
 	default:
 	}
 }
 
-// Settle waits for the auto-advance goroutine to finish. Exit only asks it
-// to stop; this is how the app's test suite makes sure it is actually gone
-// before the test that started it ends - otherwise it sleeps out its
-// interval and then wakes to advance a slide, doing full UI work, in the
-// middle of whatever test is running by then.
+// Settle waits for workers after Exit/Close and drains stale test callbacks.
+// Cancellation releases acknowledgement waits before any drain is necessary;
+// production Fyne dispatch has nothing to drain here.
 func (c *Controller) Settle() {
 	c.running.Wait()
+	for c.ui.Drain() {
+	}
 }
 
 // waitDuration returns how long to wait before advancing: the longer of
@@ -306,29 +316,62 @@ func (c *Controller) advance(gen uint64) (stale bool) {
 // rather than read back off the controller, so this goroutine touches no
 // mutable state outside the atomics and never advances on behalf of a
 // session that has already ended.
-func (c *Controller) run(gen uint64, kick chan struct{}) {
-	for {
+func (c *Controller) run(gen uint64, kick, stop <-chan struct{}) {
+	for c.gen.Load() == gen {
+		countdown := c.countdown.Load()
 		wait := waitDuration(c.Interval(), c.AnimDuration())
-
 		select {
-		case <-time.After(wait):
-			// Timed out - fall through and advance below.
+		case <-stop:
+			return
 		case <-kick:
-			// A manual navigation or an interval change: restart the
-			// countdown with fresh values, but check staleness first so
-			// Exit's own kick makes this goroutine stop right away
-			// instead of looping once more.
-			if c.gen.Load() != gen {
+			continue
+		case <-c.after(wait):
+		}
+		applied := make(chan bool, 1)
+		discarded := make(chan struct{})
+		c.ui.Do(func() {
+			if c.countdown.Load() != countdown {
+				applied <- false
 				return
 			}
-
-			continue
-		}
-
-		stale := false
-		fyne.Do(func() { stale = c.advance(gen) })
-		if stale {
+			select {
+			case <-discarded:
+				applied <- true
+			default:
+				applied <- c.advance(gen)
+			}
+		})
+		select {
+		case <-stop:
+			close(discarded)
 			return
+		case <-kick:
+			// Manual navigation resets the timer, including a timed advance which
+			// has reached the UI queue but has not yet been applied.
+			close(discarded)
+		case stale := <-applied:
+			if stale {
+				return
+			}
 		}
 	}
+}
+
+func (c *Controller) stopSession() {
+	c.active.Store(false)
+	c.gen.Add(1)
+	if c.stop != nil {
+		close(c.stop)
+		c.stop = nil
+	}
+}
+
+// Close stops admission and workers at application shutdown. Unlike Exit it
+// does not restore fullscreen geometry or notify widgets which are closing.
+func (c *Controller) Close() {
+	if c.closed {
+		return
+	}
+	c.closed = true
+	c.stopSession()
 }

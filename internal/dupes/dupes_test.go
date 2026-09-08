@@ -333,3 +333,107 @@ func TestNotify_WithNoObserversIsANoOp(t *testing.T) {
 	m := New(newFakeSet(1, 1))
 	m.Notify() // must not panic
 }
+
+func TestFactWriter_ReplacementResetAndAdoption(t *testing.T) {
+	for _, change := range []string{"replacement", "reset", "adoption"} {
+		t.Run(change, func(t *testing.T) {
+			set := newFakeSet(2, 1)
+			m := New(set)
+			old := m.CaptureFacts()
+			if !old.PutHash("a", 7) || !old.PutFailed("b") || !old.PutNativeSize("a", image.Pt(10, 20)) {
+				t.Fatal("initial writer refused facts")
+			}
+			switch change {
+			case "replacement":
+				set.gen++
+				m.WipeIfStale()
+			case "reset":
+				m.Clear()
+			case "adoption":
+				set.gen++
+				set.keys[0], set.keys[1] = set.keys[1], set.keys[0]
+				// Background observations between publication and UI adoption
+				// must not erase established facts that adoption retains.
+				if _, ok := m.Hash("a"); ok {
+					t.Error("read exposed mismatched namespace")
+				}
+				if m.Failed("b") {
+					t.Error("read exposed old failure")
+				}
+				if _, ok := m.NativeSize("a"); ok {
+					t.Error("read exposed old size")
+				}
+				if g := m.Compute(); g.Size(1) != 0 {
+					t.Error("compute used old namespace")
+				}
+				m.AdoptGeneration()
+				if h, ok := m.Hash("a"); !ok || h != 7 {
+					t.Error("adoption lost established hash")
+				}
+				if !m.Failed("b") {
+					t.Error("adoption lost established failure")
+				}
+				if sz, ok := m.NativeSize("a"); !ok || sz != image.Pt(10, 20) {
+					t.Error("adoption lost established size")
+				}
+			}
+			current := m.CaptureFacts()
+			if old.Current() || !current.Current() {
+				t.Error("incorrect writer lifetime")
+			}
+			current.PutHash("a", 99)
+			current.PutNativeSize("a", image.Pt(100, 200))
+			if old.PutHash("a", 1) || old.PutFailed("a") || old.PutNativeSize("a", image.Point{}) {
+				t.Error("old writer admitted facts")
+			}
+			if h, _ := m.Hash("a"); h != 99 {
+				t.Errorf("current hash=%d", h)
+			}
+			if m.Failed("a") {
+				t.Error("old failure poisoned current source")
+			}
+			if sz, _ := m.NativeSize("a"); sz != image.Pt(100, 200) {
+				t.Errorf("current size=%v", sz)
+			}
+		})
+	}
+}
+
+// snapshotSet observes the actual FileSet read used for admission. Its hook is
+// instance-owned; no worker can silently check generation outside the lock.
+type snapshotSet func() Snapshot
+
+func (s snapshotSet) Snapshot() Snapshot { return s() }
+
+func TestFactWriter_AdmissionSharesMutationLock(t *testing.T) {
+	for _, kind := range []string{"hash", "failure", "native"} {
+		t.Run(kind, func(t *testing.T) {
+			set := newFakeSet(1, 1)
+			checking, observed := false, false
+			var m *Model
+			m = New(snapshotSet(func() Snapshot {
+				if checking {
+					observed = true
+					if m.mu.TryLock() {
+						m.mu.Unlock()
+						t.Error("generation was checked outside mutation lock")
+					}
+				}
+				return set.Snapshot()
+			}))
+			writer := m.CaptureFacts()
+			checking = true
+			switch kind {
+			case "hash":
+				writer.PutHash("a", 9)
+			case "failure":
+				writer.PutFailed("a")
+			case "native":
+				writer.PutNativeSize("a", image.Pt(2, 3))
+			}
+			if !observed {
+				t.Error("mutation did not check the file-set generation")
+			}
+		})
+	}
+}

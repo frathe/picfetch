@@ -1,0 +1,64 @@
+# github.com/frathe/picfetch/internal/ui/grid.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestHideDuplicatesPublishesWhileSourceReadsRemainPending
+--- PASS: TestHideDuplicatesPublishesWhileSourceReadsRemainPending (0.01s)
+=== RUN   TestGroupingRequestsLeaveUIAndReuseWarmSearch
+--- PASS: TestGroupingRequestsLeaveUIAndReuseWarmSearch (0.00s)
+=== RUN   TestGroupingQueuedResultCoalescesLatestInputs
+--- PASS: TestGroupingQueuedResultCoalescesLatestInputs (0.00s)
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop/false
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop/true
+--- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop (0.00s)
+    --- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop/false (0.00s)
+    --- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop/true (0.00s)
+=== RUN   TestGroupingSourceReplacementRejectsQueuedOldIndices
+--- PASS: TestGroupingSourceReplacementRejectsQueuedOldIndices (0.00s)
+=== RUN   TestGroupingFactsBetweenInstallAndNotificationCannotSuppressNextResult
+--- PASS: TestGroupingFactsBetweenInstallAndNotificationCannotSuppressNextResult (0.00s)
+=== RUN   TestGroupingChangedRequestCancelsActiveComputation
+--- PASS: TestGroupingChangedRequestCancelsActiveComputation (0.00s)
+=== RUN   TestGroupingEmptyDistanceChangeStartsNoBackgroundWork
+--- PASS: TestGroupingEmptyDistanceChangeStartsNoBackgroundWork (0.00s)
+=== RUN   TestHideDuplicatesPublishesWhileSourceReadsRemainPending
+--- PASS: TestHideDuplicatesPublishesWhileSourceReadsRemainPending (0.01s)
+=== RUN   TestGroupingRequestsLeaveUIAndReuseWarmSearch
+--- PASS: TestGroupingRequestsLeaveUIAndReuseWarmSearch (0.00s)
+=== RUN   TestGroupingQueuedResultCoalescesLatestInputs
+--- PASS: TestGroupingQueuedResultCoalescesLatestInputs (0.00s)
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop/false
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop/true
+--- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop (0.00s)
+    --- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop/false (0.00s)
+    --- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop/true (0.00s)
+=== RUN   TestGroupingSourceReplacementRejectsQueuedOldIndices
+--- PASS: TestGroupingSourceReplacementRejectsQueuedOldIndices (0.00s)
+=== RUN   TestGroupingFactsBetweenInstallAndNotificationCannotSuppressNextResult
+--- PASS: TestGroupingFactsBetweenInstallAndNotificationCannotSuppressNextResult (0.00s)
+=== RUN   TestGroupingChangedRequestCancelsActiveComputation
+--- PASS: TestGroupingChangedRequestCancelsActiveComputation (0.00s)
+=== RUN   TestGroupingEmptyDistanceChangeStartsNoBackgroundWork
+--- PASS: TestGroupingEmptyDistanceChangeStartsNoBackgroundWork (0.00s)
+=== RUN   TestHideDuplicatesPublishesWhileSourceReadsRemainPending
+--- PASS: TestHideDuplicatesPublishesWhileSourceReadsRemainPending (0.01s)
+=== RUN   TestGroupingRequestsLeaveUIAndReuseWarmSearch
+--- PASS: TestGroupingRequestsLeaveUIAndReuseWarmSearch (0.00s)
+=== RUN   TestGroupingQueuedResultCoalescesLatestInputs
+--- PASS: TestGroupingQueuedResultCoalescesLatestInputs (0.00s)
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop/false
+=== RUN   TestGroupingQueuedCompletionCancelledByCloseOrStop/true
+--- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop (0.00s)
+    --- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop/false (0.00s)
+    --- PASS: TestGroupingQueuedCompletionCancelledByCloseOrStop/true (0.00s)
+=== RUN   TestGroupingSourceReplacementRejectsQueuedOldIndices
+--- PASS: TestGroupingSourceReplacementRejectsQueuedOldIndices (0.00s)
+=== RUN   TestGroupingFactsBetweenInstallAndNotificationCannotSuppressNextResult
+--- PASS: TestGroupingFactsBetweenInstallAndNotificationCannotSuppressNextResult (0.00s)
+=== RUN   TestGroupingChangedRequestCancelsActiveComputation
+--- PASS: TestGroupingChangedRequestCancelsActiveComputation (0.00s)
+=== RUN   TestGroupingEmptyDistanceChangeStartsNoBackgroundWork
+--- PASS: TestGroupingEmptyDistanceChangeStartsNoBackgroundWork (0.00s)
+PASS
+ok  	github.com/frathe/picfetch/internal/ui/grid	1.559s

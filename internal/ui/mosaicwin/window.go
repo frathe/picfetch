@@ -71,8 +71,9 @@ func cloneSnapshot(snapshot Snapshot) Snapshot {
 
 // Host is the narrow set of cross-feature effects owned by internal/ui.
 type Host interface {
-	GenerateMosaic(context.Context, mosaic.Request) (mosaic.Result, error)
+	GenerateMosaic(context.Context, mosaic.Request, func(mosaic.Progress)) (mosaic.Result, error)
 	InspectMosaicDisplays() (displays.Snapshot, error)
+	AfterFileExported(imaging.WriteResult)
 	// SetMosaicWallpaper takes a solo argument confirming the target is
 	// currently the only attached display - see wallpaper.Request.Solo for why
 	// that lets a platform that can't truthfully address one display among
@@ -86,14 +87,15 @@ type Window struct {
 	host Host
 	win  widgets.Singleton
 
-	snapshot       Snapshot
-	settings       mosaic.Settings
-	target         displays.ID
-	result         mosaic.Result
-	hasResult      bool
-	generationBusy bool
-	actionBusy     bool
-	statusText     string
+	snapshot        Snapshot
+	settings        mosaic.Settings
+	target          displays.ID
+	result          mosaic.Result
+	finishedPreview image.Image
+	hasResult       bool
+	generationBusy  bool
+	actionBusy      bool
+	statusText      string
 
 	lifecycle       revisionLifecycle
 	actionLifecycle revisionLifecycle
@@ -103,7 +105,7 @@ type Window struct {
 	lastSeed        int64
 	exportFormat    ExportFormat
 	clock           func() time.Time
-	exporter        func(fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) error
+	exporter        func(context.Context, fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) (imaging.WriteResult, error)
 
 	root, config, previewPanel   *fyne.Container
 	sourceLabel, status          *widget.Label
@@ -115,11 +117,12 @@ type Window struct {
 	dropShadow                   *namedCheck
 	minimumValue, variationValue *widget.Label
 	overlapValue, rotationValue  *widget.Label
-	loading                      *widget.ProgressBarInfinite
+	loading                      *widget.ProgressBar
 	advancedButton               *actionButton
 	advancedControls             *fyne.Container
 	refreshButton                *actionButton
 	generateButton, cancelButton *actionButton
+	previewCancelButton          *actionButton
 	startOverButton, regenerateButton, wallpaperButton,
 	saveButton, closeButton *actionButton
 	preview *canvas.Image
@@ -137,7 +140,7 @@ func New(application fyne.App, host Host) *Window {
 		seed:          func() int64 { return time.Now().UnixNano() },
 		clock:         time.Now,
 		exportFormat:  ExportPNG,
-		exporter:      imaging.Export,
+		exporter:      imaging.ExportContext,
 		displayLabels: make(map[string]displays.ID),
 	}
 	w.win.SetEscape(w.handleEscape)
@@ -156,6 +159,7 @@ func (w *Window) Show(snapshot Snapshot) {
 	w.target = snapshot.Displays.Default
 	w.hasResult = false
 	w.result = mosaic.Result{}
+	w.finishedPreview = nil
 	w.generationBusy = false
 	w.actionBusy = false
 	w.statusText = ""
@@ -277,16 +281,22 @@ func (w *Window) build() fyne.CanvasObject {
 	w.wallpaperButton = newActionButton(lang.L("Set as Wallpaper"), w.SetWallpaper)
 	w.saveButton = newActionButton(lang.L("Save Image"), w.SaveImage)
 	w.closeButton = newActionButton(lang.L("Close"), w.Close)
-	w.previewPanel = container.NewBorder(container.NewHBox(w.startOverButton),
+	w.previewCancelButton = newActionButton(lang.L("Cancel"), w.Cancel)
+	w.previewPanel = container.NewBorder(container.NewHBox(w.startOverButton, w.previewCancelButton),
 		container.NewVBox(
+			w.previewStatus,
 			labelledControl(lang.L("Image format"), w.formatSelect),
 			container.NewHBox(w.regenerateButton, w.wallpaperButton, w.saveButton, w.closeButton),
 		),
 		nil, nil,
-		container.NewStack(w.preview, container.NewVBox(w.previewStatus)),
+		w.preview,
 	)
 	w.previewPanel.Hide()
-	w.loading = widget.NewProgressBarInfinite()
+	w.loading = widget.NewProgressBar()
+	loading := w.loading
+	loading.TextFormatter = func() string {
+		return fmt.Sprintf(lang.L("Canvas coverage: %d%%"), int(loading.Value*100))
+	}
 	w.loading.Hide()
 	w.root = container.NewBorder(w.loading, nil, nil, nil, container.NewStack(w.config, w.previewPanel))
 	w.syncActions()
@@ -393,11 +403,17 @@ func (w *Window) startGeneration(supersede bool) {
 
 	ctx, revision := w.lifecycle.begin()
 	w.generationBusy = true
+	w.loading.SetValue(0)
 	w.loading.Show()
 	w.setStatus(lang.L("Generating mosaic..."))
+	w.restoreFinishedPreview()
 	w.syncActions()
+	if w.hasResult {
+		w.win.Window().Canvas().Focus(w.previewCancelButton)
+	}
+	report := w.progressReporter(ctx, revision)
 	w.workers.Go(func() {
-		result, generateErr := w.host.GenerateMosaic(ctx, request)
+		result, generateErr := w.host.GenerateMosaic(ctx, request, report)
 		if !w.lifecycle.current(revision) {
 			return
 		}
@@ -410,15 +426,16 @@ func (w *Window) startGeneration(supersede bool) {
 			if generateErr != nil {
 				fyne.LogError("failed to generate mosaic", generateErr)
 				w.setStatus(fmt.Sprintf(lang.L("Mosaic generation failed: %v"), generateErr))
+				w.restoreFinishedPreview()
 				w.syncActions()
+				w.focusAfterGeneration()
 				return
 			}
 			w.result = result
+			w.loading.SetValue(1)
 			w.hasResult = true
-			w.preview.Image = result.Image()
-			w.preview.Refresh()
-			w.config.Hide()
-			w.previewPanel.Show()
+			w.finishedPreview = result.Image()
+			w.restoreFinishedPreview()
 			w.setStatus("")
 			w.syncActions()
 			w.win.Window().Canvas().Focus(w.startOverButton)
@@ -439,6 +456,7 @@ func (w *Window) StartOver() {
 	}
 	w.result = mosaic.Result{}
 	w.hasResult = false
+	w.finishedPreview = nil
 	w.preview.Image = nil
 	w.preview.Refresh()
 	w.previewPanel.Hide()
@@ -448,7 +466,8 @@ func (w *Window) StartOver() {
 	w.win.Window().Canvas().Focus(w.displaySelect)
 }
 
-// Cancel supersedes active work and returns to the configuration state.
+// Cancel supersedes active work and restores the finished preview, or returns
+// to configuration if this workflow has no finished result yet.
 func (w *Window) Cancel() {
 	if !w.generationBusy {
 		w.Close()
@@ -460,7 +479,9 @@ func (w *Window) Cancel() {
 		w.loading.Hide()
 	}
 	w.setStatus(lang.L("Mosaic generation cancelled"))
+	w.restoreFinishedPreview()
 	w.syncActions()
+	w.focusAfterGeneration()
 }
 
 func (w *Window) handleEscape() bool {
@@ -553,6 +574,19 @@ func (w *Window) syncActions() {
 	setEnabled(w.regenerateButton, canGenerate && w.hasResult)
 	setEnabled(w.wallpaperButton, w.hasResult && !w.Busy())
 	setEnabled(w.saveButton, w.hasResult && !w.Busy())
+	if w.formatSelect != nil {
+		setDisableableEnabled(w.formatSelect, !w.Busy())
+	}
+	if w.previewCancelButton != nil {
+		if w.generationBusy {
+			w.previewCancelButton.Show()
+		} else {
+			w.previewCancelButton.Hide()
+		}
+	}
+	if w.root != nil {
+		w.root.Refresh()
+	}
 }
 
 func setEnabled(button *actionButton, enabled bool) {
@@ -628,6 +662,7 @@ func (w *Window) closed() {
 	w.actionBusy = false
 	w.snapshot = Snapshot{}
 	w.result = mosaic.Result{}
+	w.finishedPreview = nil
 	w.hasResult = false
 	w.root, w.config, w.previewPanel = nil, nil, nil
 	w.sourceLabel, w.status, w.previewStatus = nil, nil, nil
@@ -640,6 +675,7 @@ func (w *Window) closed() {
 	w.advancedButton, w.advancedControls = nil, nil
 	w.refreshButton = nil
 	w.generateButton, w.cancelButton = nil, nil
+	w.previewCancelButton = nil
 	w.startOverButton, w.regenerateButton, w.wallpaperButton, w.saveButton, w.closeButton = nil, nil, nil, nil, nil
 	w.preview = nil
 }
@@ -739,3 +775,6 @@ func frameLabel(frame mosaic.FrameStyle) string {
 		return lang.L("None")
 	}
 }
+
+// WaitForTracking observes position polling after StopTracking, off UI.
+func (w *Window) WaitForTracking() { w.win.WaitForTracking() }

@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"image/color"
 	"os"
+	"reflect"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -14,6 +16,83 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestImageCacheWriters_PreserveCompleteRecords(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data []byte
+		exif bool
+	}{
+		{"plain.jpg", uitest.EncodeJPEG(t, 19, 13, color.White), false},
+		{"gps.jpg", uitest.GPSJPEG(t, 19, 13, 50.85, 4.35), true},
+		// Orientation alone has no fields to display in the EXIF window.
+		{"oriented.jpg", uitest.EncodeOrientedJPEG(t, 19, 13, 6), false},
+		{"preview.cr2", uitest.EncodeRAWPreview(t, uitest.RAWPreview{Width: 19, Height: 13, Orientation: 6, Make: "Camera"}), true},
+		{"animated.gif", uitest.EncodeAnimatedGIF(t, 19, 13, []color.Color{color.White, color.Black}, []int{100, 100}), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			u := storage.NewFileURI(uitest.WriteTempFile(t, tc.name, tc.data))
+			var foreground *imaging.LoadedImage
+			for _, path := range []string{"foreground", "preload", "comparison"} {
+				t.Run(path, func(t *testing.T) {
+					v := newTestViewer(t)
+					parkAnimate(v)
+					switch path {
+					case "foreground":
+						dropAndWait(t, v, u)
+					case "preload":
+						v.preloadOne(v.loadLifecycle.begin(), u)
+						v.preloads.Wait()
+					case "comparison":
+						if _, err := v.loadComparedImage(context.Background(), u); err != nil {
+							t.Fatal(err)
+						}
+					}
+					loaded, ok := v.imgCache.Get(u.String())
+					if !ok {
+						t.Fatal("image was not cached")
+					}
+					if loaded.FileSize != int64(len(tc.data)) || loaded.HasEXIF != tc.exif {
+						t.Errorf("cached size/EXIF = %d/%v, want %d/%v", loaded.FileSize, loaded.HasEXIF, len(tc.data), tc.exif)
+					}
+					if path == "foreground" {
+						foreground = loaded
+					} else if !reflect.DeepEqual(loaded, foreground) {
+						t.Error("cached frames, delays, preview markers or file facts differ from foreground")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestCompareFirstNavigation_ShowsCachedSizeAndEXIF(t *testing.T) {
+	v, win, _ := newTestUI(t)
+	a := uitest.TempJPEGURI(t, "a.jpg", 19, 13, color.White)
+	data := uitest.GPSJPEG(t, 19, 13, 50.85, 4.35)
+	b := storage.NewFileURI(uitest.WriteTempFile(t, "b.jpg", data))
+	v.state.setFiles([]fyne.URI{a, b}, []fyne.URI{a, b})
+	v.compare.Open([2]fyne.URI{a, b})
+	waitForCompare(t, v)
+	v.compare.Close()
+	// Prove navigation serves the comparison record, without a fresh decode
+	// repairing its facts as a side effect.
+	if err := os.Remove(b.Path()); err != nil {
+		t.Fatal(err)
+	}
+	v.ShowImage(1)
+	waitUntilLoaded(t, v)
+	v.toggleInfoOverlay()
+	want := fmt.Sprintf("b.jpg  (2/2)\n19 x 13\n%s\nZoom: %d%%", wantSizeText(int64(len(data))), v.zoom.Percent())
+	if got := v.info.Text().Text; got != want {
+		t.Errorf("info = %q, want %q", got, want)
+	}
+	for _, object := range []fyne.CanvasObject{v.info.Object(), v.info.Text(), v.info.ExifLink()} {
+		if !containsObject(win.Content(), object) || !object.Visible() {
+			t.Errorf("info object %T must be visible in the window content tree", object)
+		}
+	}
+}
 
 // This file covers the decoded-image cache and speculative neighbor
 // preloading, plus the behavior the byte budget produces. The two halves

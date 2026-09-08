@@ -394,8 +394,11 @@ func TestResultChanged_NotifiesOnlyAfterMembershipChanges(t *testing.T) {
 	g.HandleRune('/') // opening an empty search retains every result
 	g.HandleRune('s') // only sun remains
 	g.backspace()     // all results return
+	g.Settle()
 	host.files = host.files[:1]
+	host.gen++
 	g.FilesChanged() // shrinking the host changes the unfiltered result
+	g.Settle()
 
 	want := [][]int{{0}, {0, 1}, {0}}
 	if !slices.EqualFunc(seen, want, slices.Equal[[]int]) {

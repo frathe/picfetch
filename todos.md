@@ -6,35 +6,40 @@
 
 #### New Features
 
-#### New Features
+##### **Trane follows your cursor**
 
-##### **Export options (Cmd/Ctrl+E)**
+Trane now turns his head toward the mouse on the welcome screen and returns to
+a neutral pose when the pointer leaves. He stays still between pointer movements.
+Pink fringe along the artwork's transparent outline has been cleaned up.
 
-The export prompt now has two settings above the PNG/JPEG buttons, reachable with Up/Down:
+##### **PicFetch is now in Microsoft Store**
 
-- **Export size limit** — Original, 2400, 1600 or 1000 pixels on the longest edge. Aspect ratio is kept and pictures are
-  never enlarged; the Original setting shows the picture's own longest edge so you can see what you're comparing
-  against.
-- **Include camera metadata (JPEG only)** — uncheck it and the exported copy is written without the source's identifying
-  tags. The original file keeps all of them.
+PicFetch 1.0.2 is now available in Microsoft Store for x64 and ARM64 Windows PCs. Store installations receive updates through Microsoft Store.
 
-Both reset every time you open the prompt, so nothing carries over from a previous export by accident. If a size limit
-actually changed the pixels, that shows in the suggested filename and in the message after the export. Export at the
-defaults and you get byte-for-byte the same file the app has always written.
+The portable version remains available through GitHub and WinGet.
 
-##### **Exported JPEGs no longer claim the wrong dimensions**
+##### **More export options (Cmd/Ctrl+E)**
 
-When you export a resized or rotated JPEG with its camera metadata, the width and height tags now describe the picture
-you actually get. Previously those tags were dropped and a viewer had to fall back on reading the image itself.
+You can now adjust two settings before exporting:
 
-Tags that cannot be made correct are removed rather than left wrong: subject area and subject location point at a spot
-in the original frame, and no corrected size fixes them. MakerNote and DPI are kept.
+- **Export size limit** — Keep the original size, or limit the longest side to 2400, 1600 or 1000 pixels. Pictures keep their proportions and are never enlarged. The Original option shows your picture’s current size for comparison.
+- **Include camera metadata (JPEG only)** — Turn this off to leave camera metadata out of the exported copy. Your original file stays unchanged.
 
-##### **Command-line options**
+Use Up/Down to move between these settings. They return to their defaults each time you open the export prompt.
 
-`picfetch` accepts startup flags, useful for scripts and for running it as a picture frame:
+If an export is resized, the suggested filename and completion message indicate this. Using the default settings produces the same results as before.
 
-```
+##### **Correct size information in exported JPEGs**
+
+JPEGs exported with camera metadata now include the correct width and height after resizing or rotation. This helps other apps read the exported picture’s dimensions correctly.
+
+Information about subject positions is removed when it no longer matches the picture. Camera-specific details and print resolution are preserved.
+
+##### **Startup options for scripts and picture frames**
+
+You can now control how PicFetch starts from the command line, including slideshow playback, shuffle, slide timing and sorting:
+
+```text
 --slideshow
 --shuffle
 --interval=8s
@@ -44,77 +49,127 @@ in the original frame, and no corrected size fixes them. MakerNote and DPI are k
 --help
 ```
 
-Flags can appear anywhere among the file paths. An unknown flag exits with an error. Everything set this way applies to
-that session only — your saved settings are untouched, so a scripted launch never overwrites how you normally have the
-app configured. Launching from Finder still works as before.
+Options can appear before or after file paths. Use `--help` for usage information. Unrecognized options display an error and prevent the app from starting.
 
-#### Bugfix
+These options apply only to the current session and do not change your saved settings. Opening PicFetch from Finder works as before.
 
-#### Internal
+##### **Watch your mosaic take shape**
+
+Mosaic generation now shows a live preview and a progress bar indicating how much of the canvas is covered.
+
+If you cancel or generation fails, your last completed mosaic is restored. Saving an image or setting it as wallpaper always uses a completed mosaic.
+
+Mosaic generation is also more efficient while keeping the same image quality, frames, shadows and output resolution.
+
+#### Bug Fixes
+
+- **Saving and deleting the same image stay ordered.** Moving an image to Trash waits for its active write, preventing Save Changes from recreating a deleted file. Case aliases share the same write transaction, and exporting over the current image with different filename capitalization refreshes the view correctly.
+- **Picture-frame navigation stays predictable.** Manual navigation discards an already queued timed advance. Cancelling or replacing startup loading spends `--slideshow`, so a later unrelated drop does not enter picture-frame mode.
+- **Hide Duplicates keeps working after sorting.** Navigation and slideshows continue to skip extra copies, even when sorting leaves the order unchanged.
+- **Safer exports.** PicFetch now refuses to export directly to a symbolic link, preventing it from unexpectedly overwriting the file that link points to.
+- **Rotation stays consistent while saving.** If you rotate or reset the view during Save Changes, those later edits are tracked correctly. Pressing `0` returns to the saved image, and Save Changes is available only when there is still a rotation to save.
+
+#### Maintenance
+
+- Improved automated testing and resolved code quality issues.
+- Hardened Microsoft Store artifact staging against pre-existing files and symbolic links. Reviewed Qodana findings with targeted regressions and documented inspection exclusions, preserving image-resampler rounding.
 
 ## TODO
 
-### Publish PicFetch in Microsoft Store
+### Validate the two follow-up review fixes after the next push
 
-Build the Partner Center-reserved PicFetch product as one x64/ARM64 MSIX bundle, make the Store build defer updates to
-Microsoft Store, retain the portable GitHub/WinGet channel, validate on Windows with WACK, prepare the English/German
-listing and privacy policy, then submit it for certification. Implementation plan:
-`plans/2026-09-03-microsoft-store-msix.md`.
+The user pushed the original release-review fixes as `d7d2f8e`. That head passed
+CI, CodeQL and Qodana; CodeQL alert 4's PR instance is fixed, Qodana found no new
+problems in PR mode, and Codex's security review found no issues.
 
-### Automate Microsoft Store updates after the initial publication
+Two later P2 findings are fixed locally: unrelated exports preserve loaded
+favorite-preview/grid/duplicate state, and changing duplicate sensitivity after
+closing an unfinished hash pass resumes missing work. These follow-up edits
+remain uncommitted as requested. Their focused and full local checks are
+recorded in `finished_refactorings/2026-09-08-release-readiness/assessment.md`;
+remote checks must be rerun on the user's next pushed head.
 
-Do this only after the first PicFetch submission has passed certification and the product is published and live. The
-current `Microsoft Store package`
-workflow deliberately stops after building and validating the x64/ARM64 MSIX bundle and uploading it as a GitHub Actions
-artifact; downloading the artifact, uploading it to Partner Center, and submitting it for certification are still manual
-steps.
+### Investigate intermittent local race-gate failures
 
-The intended end state is a protected GitHub Actions deployment that takes the already WACK-validated
-`picfetch-microsoft-store.msixbundle`, uploads it to the existing Partner Center product (`9P0DM0KTH01K`), submits the
-package update for certification, and reports the resulting submission status. Keep the existing Store listings and
-other metadata unchanged unless a release explicitly ships metadata changes. A tag must never bypass the existing CI,
-package validation, or WACK gates.
+The 2026-09-08 follow-up gate retained all four raw streams and recorded a
+Docker OOM event. This time comparison printed PASS before its process was
+killed; all three root-UI shards passed. A full `make verify` retry passed with
+`GOFLAGS=-p=1` inside Docker, preserving all four race partitions while limiting
+package concurrency. This resource limit was scoped to the verification run;
+the repository's default runner remains unchanged. The release assessment keeps
+the original failed run and the successful combined retry separate.
 
-Potential ticket split:
+The 2026-09-07 Qodana cleanup's `make verify` run reported a package-level failure
+in `ui-3` without an individual test failure in the compact log. The isolated
+Linux/amd64 race-shard retry passed with raw output preserved. The cause remains
+unknown; retain raw streams on the next concurrent run. See
+`finished_refactorings/2026-09-07-qodana-findings.md` for commands and evidence.
 
-1. **Provision least-privilege Partner Center automation credentials.**
-    - Confirm that the initial product is published, live, free, and eligible for Microsoft Store Developer CLI update
-      automation.
-    - Associate a Microsoft Entra tenant with Partner Center, register a dedicated automation application, add it to
-      Partner Center with the minimum role that can manage submissions, and record its tenant ID, client ID, seller ID,
-      and product ID.
-    - Decide whether Microsoft's current tooling supports short-lived/OIDC authentication. If it still requires a client
-      secret, store that secret only in a protected GitHub environment, document its expiry and rotation, and never
-      write it to repository files or workflow logs.
-2. **Add a read-only Store connectivity check.**
-    - Install the official `microsoft/microsoft-store-apppublisher` action and configure the `msstore` CLI from GitHub
-      secrets.
-    - Add a manually triggered diagnostic job that reads PicFetch's product or current submission status without
-      creating, changing, or publishing a submission. Give authentication failures actionable error messages.
-3. **Automate package-only update submission.**
-    - Extend `.github/workflows/microsoft-store.yml` after the package/WACK job, using the exact bundle produced and
-      validated by that run rather than a separately rebuilt or downloaded file.
-    - Upload the bundle to the existing product and create/submit an update while preserving the existing availability,
-      properties, age rating, listings, screenshots, and restricted-capability explanation.
-    - Poll Partner Center until it returns a stable accepted, failed, or certification-in-progress state; surface the
-      submission ID and Partner Center status in the Actions summary.
-4. **Protect and test the deployment boundary.**
-    - Put the mutating Store step behind a dedicated protected GitHub environment with required human approval. Tag
-      creation may build and validate automatically, but it must not upload or submit before that approval.
-    - Add workflow contract tests for job dependencies, product ID, artifact identity, secret names, and the approval
-      environment. Ensure pull requests, forks, prerelease tags, reruns of old commits, and ordinary branch pushes
-      cannot publish Store updates.
-    - Exercise one manual dry run/read-only check first, then submit the first automated update under supervision and
-      record rollback/retry instructions.
-5. **Document the release and recovery procedure.**
-    - Update `docs/microsoft-store.md` with the normal automated path, credential rotation, how to inspect certification
-      failures, how to retry the same release safely, and how to fall back to the current manual upload process.
-    - Keep Store metadata automation out of the first iteration. If automated listing or screenshot updates are later
-      needed, design them as a separate reviewed workflow using exported Partner Center metadata as the baseline.
+Later concurrent runs on the unchanged PR head and the mosaic optimization both
+captured Docker OOM events for UI shard 3; a 1 GiB Go memory target did not prevent
+the latter. The same shard passes alone. Retain the original-run uncertainty,
+but investigate Docker's overall memory pressure for this reproduced failure.
+Latest evidence: `plans/2026-09-07-mosaic-speed-progress.md`.
 
-Acceptance should require that a release tag still produces a usable artifact when Store credentials or approval are
-unavailable, that no Store mutation can happen before approval, and that an approved run submits exactly one package
-version and exposes enough status to distinguish upload, validation, certification, and publication failures.
+The Trane verification on 2026-09-07 also captured a Docker OOM, this time killing
+`internal/ui/compare` while all three main-UI shards passed. Logs and the isolated
+retry are recorded in `finished_refactorings/2026-09-07-animated-trane.md`.
+
+
+### Address the 2026-09-06 maintainability audit
+
+Track the reconciled findings in [needs_refactoring.md](needs_refactoring.md) and execute the
+[phased implementation plan](plans/2026-09-06-maintainability-plan.md) against the
+[specification](.scratch/maintainability/spec.md) and [published tickets](.scratch/maintainability/ticket-breakdown.md). Implementation is in progress: checked TIFF spans, bounded mosaic preparation, deletion identity,
+complete cache records and saved JPEG dimensions (MA-001/002/004/006/007) are complete;
+clipboard errors, Trash configuration, preview timestamps and RSS arithmetic
+(MA-011/013/018/019) are also complete. MA-005 chooser paths and MA-012 Windows
+list decoding now pass their actual Windows guards and are complete. Queued animation/picture-frame pacing and chooser lifecycle (MA-003, tickets 12–14), ancillary read cancellation and generation-safe duplicate facts (tickets 15–18) have passed their common gates. The ticket 15 manual-test correction, map lifetime and position-poller work (MA-015/016) pass the next common gate; native poller movement/close/shutdown also passed. Background clipboard encoding and EXIF reads (tickets 21–22) pass their shared common gate; serialized original-file mutations and committed-write/cache reconciliation (ticket 23, completing MA-014) pass their common gate. Duplicate-group reuse/cancellation (ticket 24, MA-008) passes its common gate and measured benchmarks. Native Windows/macOS/Store guards pass; the comparison shutdown crash is fixed and gated. Packaging inputs are pinned, all seven artifacts build with inspected metadata, and the actual macOS package renders/quits cleanly. All eight Windows test-package runs and 14 required native guards pass without skips; the follow-up common gate passes. Ordinary/Store Windows ARM64 graphical startup and clean quit pass; user-operated comparison pan/zoom/swipe/detail pass. MA-017 native/renderer coverage is complete with recorded Retina and Windows 100% scale/DPI 96 environments. Refreshed macOS and both Linux packages render and quit cleanly; Linux uses software GL and amd64 CPU emulation. Native x64 Windows startup and WACK remain deferred to the user’s later Windows testing. Keep remaining correctness, lifecycle,
+platform and accepted watch work linked to the stable MA identifiers and ticket evidence.
+
+Tickets 28–30 are complete: preview contention was measured and reduced on small
+CPU budgets, and command admission/Escape behavior has an explicit tested matrix.
+The user-reported progressive-hide regression is fixed with an independent,
+tracked grouping worker. [Phase 6 evidence](.scratch/maintainability/evidence/28-29-preview-contention.md)
+and the complete canonical Linux race/golden gate pass. The native macOS Copy
+Selection screenshot mismatch remains recorded in the validation evidence.
+HEIC/verifier tickets 31/32 retain their separate future-upgrade triggers.
+
+### Complete native x64 Windows packaging tests
+
+User will test later on native x64 systems. Follow the
+[Windows test checklist](.scratch/maintainability/windows-test-todo.md) for
+ordinary/Store image rendering, comparison, clean quit and SDK/WACK evidence.
+Windows VM experiments are deferred; retain their failures as diagnostic
+results. Continue non-Windows validation independently.
+
+### Activate and verify approved Microsoft Store updates
+
+PicFetch 1.0.2 is published. The publisher now prepares exact validated artifacts
+and frozen notes automatically, then requires frathe's GitHub environment approval
+for each rollout. It preserves original artifact provenance, metadata, version
+checks, serialization and durable recovery. Cron was removed: manual approved
+`check`/`reconcile` observes certification, and a separate approved `submit` handles
+a waiting release. See `docs/microsoft-store.md` for the operational sequence.
+
+The existing main-only environment, frathe reviewer, disabled bypass/timer/custom
+rules and three secret names were verified through GitHub API metadata. The user
+confirmed the linked Developer application and rotated key. Credentials remain
+only in GitHub Secrets. No existing trusted main workflow supports the Microsoft
+read check. Landing this local workflow on main, approving its read-only check and
+observing the next ordinary approved release remain open. Read access will not
+prove submission permission. Keep the live 1.0.2 tag and artifact unchanged.
+
+Focused tooling race tests, actionlint, formatting, TUF/Qodana checks, host vet/build,
+Windows publisher cross-build and Linux shard inventory pass for the approval
+amendment. Prior verification:
+the combined `make verify` recorded Docker OOM; isolated UI race shards and non-UI
+partitions passed. That combined invocation did not succeed. No repeat of the full
+race suite was performed for this tooling amendment; fresh check evidence is in
+the implementation plan. Nothing was committed, pushed or submitted to Microsoft.
+
+Spec and tickets: `.scratch/microsoft-store-updates/README.md`.
+Plan and evidence: `plans/2026-09-07-microsoft-store-updates.md`.
 
 ## LATER
 
@@ -162,3 +217,5 @@ open — only the underlying serialisation defect itself is. See
 `finished_refactorings/2026-08-29-qodana-evidence.md` for the decoded byte offsets and anchoring detail, and
 `plans/2026-08-29-qodana-serialisation-bug-report.md`, Task 8's draft of the upstream report text — as of this writing
 not yet submitted to JetBrains; check that file for whether it has been sent since.
+
+- Follow up the pinned fyne.x map widget’s process-global decoded tile cache (`widget/mapcache.go`): PicFetch’s 16 MiB tile cache bounds encoded bytes only; the upstream decoded map has no eviction. Track separately from MA-015 request/failure bounds.

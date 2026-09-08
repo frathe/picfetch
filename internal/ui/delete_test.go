@@ -3,9 +3,12 @@ package ui
 import (
 	"image/color"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
+	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -37,6 +40,123 @@ func confirmDelete(t *testing.T, v *viewer) {
 	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	v.deletion.Settle()
+}
+
+type deletionCompletionQueue struct {
+	uitest.UIQueue
+	queued chan struct{}
+}
+
+func (q *deletionCompletionQueue) Do(f func()) {
+	q.UIQueue.Do(f)
+	q.queued <- struct{}{}
+}
+
+func TestDeletion_ShutdownDiscardsQueuedCompletion(t *testing.T) {
+	uitest.StubTrashMove(t, func(path string) error { return os.Remove(path) })
+	// Shutdown persists session/preferences, so it needs its own app/cache.
+	application := fynetest.NewApp()
+	v, win := buildStartupViewer(application)
+	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.compare.SetUIQueue(&uitest.UIQueue{})
+	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(win.Close)
+	t.Cleanup(func() { drain(t, v) })
+	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
+	dropAndWait(t, v, a, b)
+	v.preloads.Wait()
+	queue := &deletionCompletionQueue{queued: make(chan struct{}, 1)}
+	v.deletion.SetUIQueue(queue)
+	v.deletion.Request()
+	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	select {
+	case <-queue.queued:
+	case <-time.After(testTimeout):
+		t.Fatal("trash completion was not queued")
+	}
+	if _, err := os.Stat(a.Path()); !os.IsNotExist(err) {
+		t.Fatalf("confirmed file was not moved: %v", err)
+	}
+	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
+	if !ok {
+		t.Fatal("test app lifecycle does not expose its stopped hook")
+	}
+	original := lifecycle.OnStopped()
+	registerShutdown(application, v)
+	shutdown := lifecycle.OnStopped()
+	application.Lifecycle().SetOnStopped(original)
+	shutdown()
+	queue.Drain()
+	if len(v.state.files) != 2 || v.state.files[0].String() != a.String() {
+		t.Errorf("late deletion changed the stopped viewer: %v", v.state.files)
+	}
+	v.deletion.Request()
+	if v.deletion.Visible() {
+		t.Error("stopped deletion feature accepted another confirmation")
+	}
+	v.deletion.Settle()
+}
+
+func TestDeletion_ReorderBeforeConfirmationPreservesIdentity(t *testing.T) {
+	uitest.StubTrashMove(t, func(path string) error { return os.Remove(path) })
+	v := newTestViewer(t)
+	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
+	dropAndWait(t, v, a, b)
+	v.preloads.Wait()
+	v.deletion.Request()
+	v.state.reorder([]fyne.URI{b, a})
+	v.state.index = 1
+	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	v.deletion.Settle()
+	waitUntilLoaded(t, v)
+	if _, err := os.Stat(a.Path()); !os.IsNotExist(err) {
+		t.Errorf("confirmed file survived: %v", err)
+	}
+	if _, err := os.Stat(b.Path()); err != nil {
+		t.Errorf("unconfirmed file did not survive: %v", err)
+	}
+	if len(v.state.files) != 1 || v.state.files[0].String() != b.String() || v.imgCache.Contains(a.String()) {
+		t.Errorf("deleted identity remains in the model/cache: files=%v cached=%v", v.state.files, v.imgCache.Contains(a.String()))
+	}
+}
+
+func TestDeletion_ComparisonOpenedDuringMoveReturnsToReconciledFiles(t *testing.T) {
+	v := newTestViewer(t)
+	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
+	dropAndWait(t, v, a, b)
+	v.preloads.Wait()
+	entered, release := make(chan struct{}), make(chan struct{})
+	releaseWorker := sync.OnceFunc(func() { close(release) })
+	uitest.StubTrashMove(t, func(path string) error {
+		close(entered)
+		<-release
+		return os.Remove(path)
+	})
+	t.Cleanup(func() { releaseWorker(); v.deletion.Settle() })
+	v.deletion.Request()
+	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	select {
+	case <-entered:
+	case <-time.After(testTimeout):
+		t.Fatal("trash worker did not start")
+	}
+	v.compare.Open([2]fyne.URI{a, b})
+	waitForCompare(t, v)
+	releaseWorker()
+	v.deletion.Settle()
+	waitUntilLoaded(t, v)
+	if v.comparisonActive() || len(v.state.files) != 1 || v.state.files[0].String() != b.String() {
+		t.Errorf("completed deletion was suppressed by comparison: active=%v files=%v", v.comparisonActive(), v.state.files)
+	}
+	if _, err := os.Stat(a.Path()); !os.IsNotExist(err) {
+		t.Errorf("confirmed file survived: %v", err)
+	}
 }
 
 // TestHandleKeyEvent_DeleteConfirmSwallowsNavigationButRespondsToItsOwnKeys

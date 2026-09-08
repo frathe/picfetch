@@ -181,3 +181,78 @@ func TestWriteTempPNG_WritesAndCleansUp(t *testing.T) {
 		t.Errorf("file content = %q, want %q", data, "hello")
 	}
 }
+
+type faultyPNGFile struct {
+	*os.File
+	writeErr, closeErr error
+	short              bool
+	calls              *[]string
+}
+
+func (f *faultyPNGFile) Write(data []byte) (int, error) {
+	*f.calls = append(*f.calls, "write")
+	if f.writeErr != nil {
+		return 0, f.writeErr
+	}
+	if f.short {
+		return 0, nil
+	}
+	return f.File.Write(data)
+}
+func (f *faultyPNGFile) Close() error {
+	*f.calls = append(*f.calls, "close")
+	return errors.Join(f.File.Close(), f.closeErr)
+}
+
+func TestWriteTempPNGFile_PreservesPrimaryFailures(t *testing.T) {
+	writeErr := errors.New("write failed")
+	closeErr := errors.New("close failed")
+	cleanupErr := errors.New("cleanup failed")
+	for _, tc := range []struct {
+		name                  string
+		write, close, cleanup error
+		short                 bool
+		primary               error
+	}{
+		{"write", writeErr, nil, nil, false, writeErr},
+		{"write and cleanup", writeErr, nil, cleanupErr, false, writeErr},
+		{"close", nil, closeErr, nil, false, closeErr},
+		{"close and cleanup", nil, closeErr, cleanupErr, false, closeErr},
+		{"all failures", writeErr, closeErr, cleanupErr, false, writeErr},
+		{"short write", nil, nil, nil, true, io.ErrShortWrite},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file, err := os.CreateTemp(t.TempDir(), "image-*.png")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var calls []string
+			f := &faultyPNGFile{File: file, writeErr: tc.write, closeErr: tc.close, short: tc.short, calls: &calls}
+			remove := func(path string) error {
+				calls = append(calls, "remove")
+				if path != file.Name() {
+					t.Errorf("cleanup path = %q, want %q", path, file.Name())
+				}
+				if tc.cleanup != nil {
+					return tc.cleanup
+				}
+				return os.Remove(path)
+			}
+			path, err := writeTempPNGFile(f, []byte("PNG fixture"), remove)
+			if path != "" || !errors.Is(err, tc.primary) {
+				t.Errorf("result = %q, %v; want primary cause %v", path, err, tc.primary)
+			}
+			if tc.cleanup != nil && !errors.Is(err, tc.cleanup) {
+				t.Errorf("cleanup cause was lost: %v", err)
+			}
+			if got := strings.Join(calls, ","); got != "write,close,remove" {
+				t.Errorf("operations = %s", got)
+			}
+			if tc.cleanup == nil {
+				if _, err := os.Stat(file.Name()); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("temporary file survived cleanup: %v", err)
+				}
+			}
+		})
+	}
+}

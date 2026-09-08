@@ -171,7 +171,7 @@ func TestInspectMembers_NilWhenInspectOff(t *testing.T) {
 func TestInspectMembers_FullGroupWhenOn(t *testing.T) {
 	set := newFakeSet(3, 1) // keys: a, b, c
 	m := New(set)
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.BeginInspect(1)
 
 	want := []int{0, 1}
@@ -183,7 +183,7 @@ func TestInspectMembers_FullGroupWhenOn(t *testing.T) {
 func TestInspectMembers_NilWhenInspectedFileIsGone(t *testing.T) {
 	set := newFakeSet(3, 1)
 	m := New(set)
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.BeginInspect(1) // "b"
 
 	set.keys = []string{"a", "c"} // b removed
@@ -200,7 +200,7 @@ func TestInspectMembers_NilWhenInspectedFileIsGone(t *testing.T) {
 func TestInspectMembers_ReadsSnapshotWithoutRebuild(t *testing.T) {
 	set := newFakeSet(3, 1) // keys: a, b, c
 	m := New(set)
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.BeginInspect(1)
 
 	got := m.InspectMembers()
@@ -217,7 +217,7 @@ func TestInspectMembers_ReadsSnapshotWithoutRebuild(t *testing.T) {
 
 func TestIsHiddenExtra_FalseWhenHideOff(t *testing.T) {
 	m := New(newFakeSet(3, 1))
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	// hide stays off
 
 	if m.IsHiddenExtra(1) {
@@ -227,7 +227,7 @@ func TestIsHiddenExtra_FalseWhenHideOff(t *testing.T) {
 
 func TestIsHiddenExtra_FalseForRepresentative(t *testing.T) {
 	m := New(newFakeSet(3, 1))
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.SetHideDuplicates(true)
 
 	if m.IsHiddenExtra(0) {
@@ -237,7 +237,7 @@ func TestIsHiddenExtra_FalseForRepresentative(t *testing.T) {
 
 func TestIsHiddenExtra_TrueForNonRepresentativeMember(t *testing.T) {
 	m := New(newFakeSet(3, 1))
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.SetHideDuplicates(true)
 
 	if !m.IsHiddenExtra(1) {
@@ -247,7 +247,7 @@ func TestIsHiddenExtra_TrueForNonRepresentativeMember(t *testing.T) {
 
 func TestIsHiddenExtra_FalseForUnhashedFile(t *testing.T) {
 	m := New(newFakeSet(3, 1))
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.SetHideDuplicates(true)
 
 	if m.IsHiddenExtra(2) {
@@ -319,7 +319,7 @@ func TestIsHiddenExtra_HubSpokesDoNotHideUnrelated(t *testing.T) {
 
 func TestIsVisible_IsNegationOfIsHiddenExtra(t *testing.T) {
 	m := New(newFakeSet(3, 1))
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.SetHideDuplicates(true)
 
 	if !m.IsVisible(0) {
@@ -340,7 +340,7 @@ func TestVisibility_AgreesWithPerIndexAccessors(t *testing.T) {
 	m := New(set)
 	// 0: representative of a group of two. 1: that group's hidden extra.
 	// 2: hashed and unique. 3: unhashed (size 0).
-	m.Install(Groups{Sizes: []int{2, 2, 1, 0}, Reps: []int{0, 0, 2, 3}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 1, 0}, Reps: []int{0, 0, 2, 3}})
 	indexes := []int{-1, 0, 1, 2, 3, set.Snapshot().Count()}
 
 	for _, hide := range []bool{true, false} {
@@ -372,13 +372,13 @@ func TestVisibility_AgreesWithPerIndexAccessors(t *testing.T) {
 func TestVisibility_IsAFrozenRead(t *testing.T) {
 	set := newFakeSet(3, 1) // a, b, c
 	m := New(set)
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{0, 0, 2}})
 	m.SetHideDuplicates(true)
 
 	vis := m.Visibility()
 
 	m.SetHideDuplicates(false)
-	m.Install(Groups{Sizes: []int{0, 2, 2}, Reps: []int{0, 1, 1}})
+	installFixtureGroups(m, Groups{Sizes: []int{0, 2, 2}, Reps: []int{0, 1, 1}})
 
 	if !vis.Hide {
 		t.Error("vis.Hide = false after the model's hide flag flipped, want true (frozen at read time)")
@@ -433,7 +433,7 @@ func TestNextVisible_StepsWithinInspectMembersRing(t *testing.T) {
 	set := newFakeSet(5, 1) // a b c d e
 	m := New(set)
 	// Group {0, 2, 4} sharing representative 0; 1 and 3 belong elsewhere.
-	m.Install(Groups{
+	installFixtureGroups(m, Groups{
 		Sizes: []int{3, 0, 3, 0, 3},
 		Reps:  []int{0, 1, 0, 3, 0},
 	})
@@ -488,7 +488,7 @@ func TestNextVisible_SkipsHiddenExtras(t *testing.T) {
 	set := newFakeSet(4, 1) // a b c d
 	m := New(set)
 	// Group {0, 1}: rep 0, so 1 is a hidden extra. 2 and 3 are unhashed.
-	m.Install(Groups{Sizes: []int{2, 2, 0, 0}, Reps: []int{0, 0, 2, 3}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0, 0}, Reps: []int{0, 0, 2, 3}})
 	m.SetHideDuplicates(true)
 
 	if got := m.NextVisible(0, 1); got != 2 {
@@ -502,7 +502,7 @@ func TestNextVisible_SkipsHiddenExtrasBackward(t *testing.T) {
 	set := newFakeSet(4, 1) // a b c d
 	m := New(set)
 	// Group {2, 3}: rep 3, so 2 is a hidden extra. 0 and 1 are unhashed.
-	m.Install(Groups{Sizes: []int{0, 0, 2, 2}, Reps: []int{0, 1, 3, 3}})
+	installFixtureGroups(m, Groups{Sizes: []int{0, 0, 2, 2}, Reps: []int{0, 1, 3, 3}})
 	m.SetHideDuplicates(true)
 
 	if got := m.NextVisible(3, -1); got != 1 {
@@ -518,7 +518,7 @@ func TestNextVisible_SkipsHiddenExtrasBackward(t *testing.T) {
 func TestNextVisible_AllHiddenReturnsFrom(t *testing.T) {
 	set := newFakeSet(2, 1)
 	m := New(set)
-	m.Install(Groups{Sizes: []int{2, 2}, Reps: []int{5, 5}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2}, Reps: []int{5, 5}})
 	m.SetHideDuplicates(true)
 
 	if got := m.NextVisible(0, 1); got != 0 {
@@ -559,7 +559,7 @@ func TestNextVisible_TakesOneSnapshotWhileInspecting(t *testing.T) {
 	set := &countingSet{inner: newFakeSet(4, 1)}
 	m := New(set)
 	// Group {0, 2}: rep 0. 1 and 3 are unhashed.
-	m.Install(Groups{Sizes: []int{2, 0, 2, 0}, Reps: []int{0, 1, 0, 3}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 0, 2, 0}, Reps: []int{0, 1, 0, 3}})
 	m.BeginInspect(0)
 	set.snapshots = 0
 
@@ -575,7 +575,7 @@ func TestNextVisible_TakesOneSnapshotWhileSkippingHiddenExtras(t *testing.T) {
 	set := &countingSet{inner: newFakeSet(4, 1)}
 	m := New(set)
 	// Group {0, 2}: rep 0, so 2 is a hidden extra. 1 and 3 are unhashed.
-	m.Install(Groups{Sizes: []int{2, 0, 2, 0}, Reps: []int{0, 1, 0, 3}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 0, 2, 0}, Reps: []int{0, 1, 0, 3}})
 	m.SetHideDuplicates(true)
 	set.snapshots = 0
 
@@ -636,7 +636,7 @@ func TestFirstVisible_SkipsHiddenFirstFile(t *testing.T) {
 	set := newFakeSet(3, 1)
 	m := New(set)
 	// 0 is a hidden extra of the group represented by 1.
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{1, 1, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{1, 1, 2}})
 	m.SetHideDuplicates(true)
 
 	if got := m.FirstVisible(); got != 1 {
@@ -648,7 +648,7 @@ func TestLastVisible_SkipsHiddenLastFile(t *testing.T) {
 	set := newFakeSet(3, 1)
 	m := New(set)
 	// 2 is a hidden extra of the group represented by 1.
-	m.Install(Groups{Sizes: []int{0, 2, 2}, Reps: []int{0, 1, 1}})
+	installFixtureGroups(m, Groups{Sizes: []int{0, 2, 2}, Reps: []int{0, 1, 1}})
 	m.SetHideDuplicates(true)
 
 	if got := m.LastVisible(); got != 1 {
@@ -660,7 +660,7 @@ func TestFirstVisible_LastVisible_HideOffDoNotFilter(t *testing.T) {
 	set := newFakeSet(3, 1)
 	m := New(set)
 	// 0 and 2 would be extras if hide were on; it is not.
-	m.Install(Groups{Sizes: []int{2, 2, 0}, Reps: []int{1, 1, 2}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2, 0}, Reps: []int{1, 1, 2}})
 
 	if got := m.FirstVisible(); got != 0 {
 		t.Errorf("FirstVisible() = %d with hide off, want 0 (no filtering)", got)
@@ -676,7 +676,7 @@ func TestFirstVisible_LastVisible_HideOffDoNotFilter(t *testing.T) {
 func TestFirstVisible_LastVisible_FallBackToZeroWhenNothingVisible(t *testing.T) {
 	set := newFakeSet(2, 1)
 	m := New(set)
-	m.Install(Groups{Sizes: []int{2, 2}, Reps: []int{5, 5}})
+	installFixtureGroups(m, Groups{Sizes: []int{2, 2}, Reps: []int{5, 5}})
 	m.SetHideDuplicates(true)
 
 	if got := m.FirstVisible(); got != 0 {
@@ -691,7 +691,7 @@ func TestVisibleIndexesExcept_ExcludesCurrentAndHiddenExtras(t *testing.T) {
 	set := newFakeSet(5, 1)
 	m := New(set)
 	// Group {1, 3}: rep 1, so 3 is a hidden extra. 0, 2, 4 are unhashed.
-	m.Install(Groups{Sizes: []int{0, 2, 0, 2, 0}, Reps: []int{0, 1, 2, 1, 4}})
+	installFixtureGroups(m, Groups{Sizes: []int{0, 2, 0, 2, 0}, Reps: []int{0, 1, 2, 1, 4}})
 	m.SetHideDuplicates(true)
 
 	got := m.VisibleIndexesExcept(1)

@@ -47,6 +47,7 @@ type Singleton struct {
 	// whenever none is running. Called on close, and by StopTracking at
 	// shutdown for a window still open then.
 	stopPoll func()
+	tracking []positionPoller
 }
 
 // Geometry is where a Singleton window was last seen: its on-screen
@@ -207,7 +208,7 @@ func (s *Singleton) Show(app fyne.App, title string, size fyne.Size, build func(
 	// actually exists on screen. A no-op on backends with no native handle
 	// to read - the fyne test driver included, so no test carries a poller.
 	if s.remember {
-		s.stopPoll = winpos.Poll(win, &s.pos, nil)
+		s.rememberPoller(winpos.Poll(win, &s.pos, nil))
 	}
 }
 
@@ -221,4 +222,33 @@ func (s *Singleton) Window() fyne.Window {
 // Open reports whether the window is currently open.
 func (s *Singleton) Open() bool {
 	return s.win != nil
+}
+
+// positionPoller is the completion contract Singleton needs from its sampler.
+type positionPoller interface {
+	Stop()
+	Wait()
+	Done() <-chan struct{}
+}
+
+func (s *Singleton) rememberPoller(p positionPoller) {
+	live := s.tracking[:0]
+	for _, old := range s.tracking {
+		select {
+		case <-old.Done():
+		default:
+			live = append(live, old)
+		}
+	}
+	clear(s.tracking[len(live):])
+	s.tracking = append(live, p)
+	s.stopPoll = p.Stop
+}
+
+// WaitForTracking observes all unfinished samplers retained across close/reopen.
+// Call StopTracking first and wait off UI; an active native read needs UI to return.
+func (s *Singleton) WaitForTracking() {
+	for _, p := range s.tracking {
+		p.Wait()
+	}
 }

@@ -61,7 +61,7 @@ func planLayout(
 	seed int64,
 	next candidateFunc,
 ) (layoutPlan, error) {
-	return walkLayout(ctx, target, settings, seed, next, nil)
+	return walkLayout(ctx, target, settings, seed, next, nil, nil)
 }
 
 func walkLayout(
@@ -71,6 +71,7 @@ func walkLayout(
 	seed int64,
 	next candidateFunc,
 	onPlacement func(placement) error,
+	onCoverage func(int),
 ) (layoutPlan, error) {
 	plan := layoutPlan{
 		target:  target,
@@ -84,6 +85,7 @@ func walkLayout(
 		baseShort /= 1 - settings.SizeVariation
 	}
 	nextUncovered := 0
+	coveredPixels := 0
 	primaryOwner := make([]uint32, len(plan.covered))
 	primaryVisible := make([]int, 0)
 	primaryArea := make([]int, 0)
@@ -154,7 +156,10 @@ func walkLayout(
 		if !candidatePlacement.repair {
 			applyPrimaryPlacement(primaryOwner, primaryVisible, primaryArea, target, len(plan.placements)-1, candidatePlacement)
 		}
-		markCovered(plan.covered, target, candidatePlacement)
+		coveredPixels += markCovered(plan.covered, target, candidatePlacement)
+		if onCoverage != nil {
+			onCoverage(coveredPixels)
+		}
 	}
 
 	for nextUncovered < len(plan.covered) && plan.covered[nextUncovered] {
@@ -204,16 +209,19 @@ func frameInsets(frame FrameStyle, shorter float64) (border, footer float64) {
 	}
 }
 
-func markCovered(covered []bool, target image.Point, placement placement) {
+func markCovered(covered []bool, target image.Point, placement placement) int {
+	added := 0
 	bounds := placementPixelBounds(placement).Intersect(image.Rectangle{Max: target})
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			index := y*target.X + x
 			if !covered[index] && placementCovers(placement, float64(x)+0.5, float64(y)+0.5) {
 				covered[index] = true
+				added++
 			}
 		}
 	}
+	return added
 }
 
 func placementUncoveredFraction(covered []bool, target image.Point, placement placement) float64 {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"image/png"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -22,14 +21,17 @@ func (v *viewer) copyPathToClipboard() {
 	if len(v.state.files) == 0 {
 		return
 	}
+	if v.clipboardWork.closed || v.clipboardBusy() {
+		return
+	}
 	v.app.Clipboard().SetContent(v.state.files[v.state.index].Path())
 }
 
 // copyImageToClipboard puts the currently displayed frame onto the system
 // clipboard as real image data, via internal/clipboard's per-OS shell-out -
 // the same kind openfiles.go already established for the file/folder
-// dialog. Always runs on its own goroutine, mirroring openFileDialog: every
-// backing command blocks on external I/O.
+// dialog. The displayed image is immutable after publication; capture that
+// reference on UI, then encode and dispatch on the operation's worker.
 func (v *viewer) copyImageToClipboard() {
 	if v.comparisonActive() {
 		return
@@ -39,39 +41,36 @@ func (v *viewer) copyImageToClipboard() {
 		return
 	}
 
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		fyne.LogError("failed to encode current image for clipboard copy", err)
+	// Admission owns the completion signal until encoding/dispatch finishes
+	// and the current result reaches UI, or cancelled work returns.
+	token, done, ok := v.beginClipboardCopy(true)
+	if !ok {
 		return
 	}
-	data := buf.Bytes()
+	encode := v.clipboardWork.encode
 
-	// clipboard is finished once this copy's goroutine has fully run,
-	// error reporting included, so a test can wait for the whole
-	// operation instead of polling widget state the goroutine may still
-	// be writing.
-	done := v.clipboard.Begin()
-
-	go func() {
-		defer done()
-
-		if err := clipboard.CopyImage(data); err != nil {
-			v.reportClipboardError(err)
+	v.clipboardWork.workers.Go(func() {
+		if !token.current() {
+			done()
+			return
 		}
-	}()
+		var buf bytes.Buffer
+		err := encode(clipboardContextWriter{ctx: token.context(), out: &buf}, img)
+		if err == nil && token.current() {
+			err = clipboard.CopyImage(buf.Bytes())
+		}
+		v.completeClipboardCopy(token, done, func() {
+			if err != nil {
+				v.reportClipboardError(err)
+			}
+		})
+	})
 }
 
-// reportClipboardError always logs a clipboard-copy failure and shows it as
-// a toast, on every platform - unlike reportChooserError in openfiles.go,
-// which stays log-only on Linux because zenity signals a plain user cancel
-// and a real failure with the same exit code. There's no such ambiguity
-// here: an image-clipboard copy either succeeds or genuinely failed, on
-// every OS, so it's always worth surfacing.
+// reportClipboardError logs a failed clipboard copy and shows its toast on UI.
 func (v *viewer) reportClipboardError(err error) {
 	detail := chooserErrorDetail(err)
 	fyne.LogError("clipboard image copy failed", errors.New(detail))
 
-	fyne.Do(func() {
-		v.ShowToast(fmt.Sprintf(lang.L("could not copy the image: %v"), detail))
-	})
+	v.ShowToast(fmt.Sprintf(lang.L("could not copy the image: %v"), detail))
 }

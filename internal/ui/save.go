@@ -4,6 +4,7 @@ package ui
 
 import (
 	"fmt"
+	"image"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -34,7 +35,7 @@ func (v *viewer) canSaveRotation() bool {
 		return false
 	}
 
-	return v.display.Rotation() != 0 && !v.loading.Load() && v.display.Count() == 1 && imaging.CanEncode(u)
+	return !v.fileWork.closed && !v.fileWork.savePending && v.display.Rotation() != 0 && !v.loading.Load() && v.display.Count() == 1 && imaging.CanEncode(u)
 }
 
 // saveRotation is the File menu's "Save Changes" action (also Cmd/Ctrl+S,
@@ -52,29 +53,43 @@ func (v *viewer) saveRotation() {
 	}
 
 	u, _, _ := v.CurrentFile()
-
-	if err := imaging.SaveRotated(u, v.img.Image); err != nil {
-		fyne.LogError("failed to save rotation", err)
-		v.ShowToast(fmt.Sprintf(lang.L("could not save %q: %v"), u.Name(), err))
-		return
-	}
-
-	// The file on disk now holds exactly what v.img.Image already shows, so
-	// folding that into the display frames and zeroing rotation changes
-	// nothing on screen - it just makes "unrotated" mean the file's new
-	// orientation instead of the one it was decoded at. Without this, the
-	// next redraw (an animate tick, or the 0 key) would revert to the old
-	// in-memory pixels, which the file on disk no longer matches.
-	v.display.ReplaceCurrent(v.img.Image)
-	v.display.ResetRotation()
-
-	// Evicted rather than mutated in place: attemptLoad is the only writer
-	// of this exact key (preloadOne only ever adds neighbors), and it never
-	// runs concurrently with this call - canSaveRotation's !v.loading.Load()
-	// check rules that out - so a plain Remove is enough; the next visit to
-	// this file just costs one re-decode instead of a stale cache hit.
-	v.imgCache.Remove(u.String())
-
+	pixels, rotation := v.img.Image, v.display.Rotation()
+	loadRevision := v.loadLifecycle.currentRevision()
+	token := v.fileWork.saveLifecycle.begin()
+	done := v.fileWork.saveDone.Begin()
+	v.fileWork.savePending = true
 	v.syncMenus()
-	v.ShowToast(lang.L("Saved"))
+	save := v.fileWork.save
+	v.fileWork.workers.Go(func() {
+		result, err := save(token.context(), u, pixels)
+		if result.Committed {
+			v.imgCache.Purge()
+		}
+		if !token.current() && !result.Committed {
+			done()
+			return
+		}
+		v.fileWork.ui.Do(func() {
+			current := token.current()
+			defer token.cancelContext()
+			defer v.afterFileWrite(result, !current, true, done)
+			if !token.current() {
+				return
+			}
+			v.fileWork.savePending = false
+			defer v.syncMenus()
+			if err != nil {
+				fyne.LogError("failed to save rotation", err)
+				v.ShowToast(fmt.Sprintf(lang.L("could not save %q: %v"), u.Name(), err))
+				return
+			}
+			if result.Committed && loadRevision == v.loadLifecycle.currentRevision() {
+				// Adopt the saved frame as the baseline without changing the
+				// visible orientation; only turns made since Save remain pending.
+				v.display.SetFrames([]image.Image{pixels})
+				v.display.RotateBy(-rotation)
+			}
+			v.ShowToast(lang.L("Saved"))
+		})
+	})
 }

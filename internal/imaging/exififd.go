@@ -5,29 +5,39 @@ import (
 	"strings"
 )
 
+// tiffSpan checks a byte range without overflowing either addition or a
+// TIFF's 32-bit offsets. Callers widen offsets before computing positions.
+func tiffSpan(data []byte, offset, length uint64) ([]byte, bool) {
+	if offset > uint64(len(data)) || length > uint64(len(data))-offset {
+		return nil, false
+	}
+	return data[offset : offset+length], true
+}
+
 // walkIFD calls fn once per readable entry in the IFD at ifdOffset within
 // tiff. Entries with an unrecognized type, an implausible count, or a
 // value/offset that doesn't fit inside tiff are silently skipped rather
 // than reported - see ReadMetadata's comment on why that's the right
 // failure mode here.
 func walkIFD(tiff []byte, bo binary.ByteOrder, ifdOffset uint32, fn func(tag, typ uint16, val []byte)) {
-	if ifdOffset+2 > uint32(len(tiff)) {
+	header, ok := tiffSpan(tiff, uint64(ifdOffset), 2)
+	if !ok {
 		return
 	}
 
-	numEntries := bo.Uint16(tiff[ifdOffset : ifdOffset+2])
-	entriesStart := ifdOffset + 2
+	numEntries := bo.Uint16(header)
+	entriesStart := uint64(ifdOffset) + 2
 
-	for i := uint32(0); i < uint32(numEntries); i++ {
+	for i := uint64(0); i < uint64(numEntries); i++ {
 		entryOffset := entriesStart + i*12
-
-		if entryOffset+12 > uint32(len(tiff)) {
+		entry, ok := tiffSpan(tiff, entryOffset, 12)
+		if !ok {
 			break
 		}
 
-		tag := bo.Uint16(tiff[entryOffset : entryOffset+2])
-		typ := bo.Uint16(tiff[entryOffset+2 : entryOffset+4])
-		count := bo.Uint32(tiff[entryOffset+4 : entryOffset+8])
+		tag := bo.Uint16(entry[:2])
+		typ := bo.Uint16(entry[2:4])
+		count := bo.Uint32(entry[4:8])
 
 		size := tagComponentSize(typ)
 		// A count this large is either a corrupt file or a hostile one -
@@ -45,13 +55,13 @@ func walkIFD(tiff []byte, bo binary.ByteOrder, ifdOffset uint32, fn func(tag, ty
 
 		var val []byte
 		if total <= 4 {
-			val = tiff[entryOffset+8 : uint64(entryOffset)+8+total]
+			val = entry[8 : 8+total]
 		} else {
-			offset := bo.Uint32(tiff[entryOffset+8 : entryOffset+12])
-			if uint64(offset)+total > uint64(len(tiff)) {
+			offset := uint64(bo.Uint32(entry[8:12]))
+			val, ok = tiffSpan(tiff, offset, total)
+			if !ok {
 				continue
 			}
-			val = tiff[offset : uint64(offset)+total]
 		}
 
 		fn(tag, typ, val)

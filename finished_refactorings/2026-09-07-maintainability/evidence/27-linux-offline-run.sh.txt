@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+smoke_dir=$(mktemp -d /tmp/picfetch-package-smoke.XXXXXX)
+cp "$source_dir/picfetch" "$smoke_dir/picfetch"
+chmod +x "$smoke_dir/picfetch"
+export XDG_CONFIG_HOME="$smoke_dir/config" XDG_CACHE_HOME="$smoke_dir/cache"
+{
+  sha256sum "$smoke_dir/picfetch"
+  uname -a
+  cat /etc/os-release
+  printf 'Session: %s, display: %s\n' "${XDG_SESSION_TYPE:-}" "${DISPLAY:-}"
+  if command -v glxinfo >/dev/null; then glxinfo -B; fi
+  ldd "$smoke_dir/picfetch"
+} > "$smoke_dir/environment.txt" 2>&1
+printf 'Native Linux smoke logs: %s\n' "$smoke_dir"
+set +e
+"$smoke_dir/picfetch" "$source_dir/01-alpha.png" "$source_dir/02-beta.png" > "$smoke_dir/process.txt" 2>&1
+status=$?
+printf 'PicFetch process exit: %s\n' "$status" | tee "$smoke_dir/exit.txt"
+cat "$smoke_dir/process.txt"
+exit "$status"

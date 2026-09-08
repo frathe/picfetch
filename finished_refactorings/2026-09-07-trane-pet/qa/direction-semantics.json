@@ -1,0 +1,155 @@
+{
+  "ok": true,
+  "reviewer": "independent final_qa",
+  "directions": [
+    {
+      "label": "000",
+      "expected": "up",
+      "verdict": "pass",
+      "observed": "Centered/symmetric muzzle; Nose/chin unmistakably raised",
+      "reason": "Horizontal: Centered/symmetric muzzle. Vertical: Nose/chin unmistakably raised.",
+      "horizontal": "Centered/symmetric muzzle",
+      "vertical": "Nose/chin unmistakably raised"
+    },
+    {
+      "label": "022.5",
+      "expected": "up-right",
+      "verdict": "pass",
+      "observed": "Subtle screen-right yaw; Clear upward gaze",
+      "reason": "Horizontal: Subtle screen-right yaw. Vertical: Clear upward gaze.",
+      "horizontal": "Subtle screen-right yaw",
+      "vertical": "Clear upward gaze"
+    },
+    {
+      "label": "045",
+      "expected": "up-right",
+      "verdict": "pass",
+      "observed": "Muzzle projects screen-right; Clear upward gaze",
+      "reason": "Horizontal: Muzzle projects screen-right. Vertical: Clear upward gaze.",
+      "horizontal": "Muzzle projects screen-right",
+      "vertical": "Clear upward gaze"
+    },
+    {
+      "label": "067.5",
+      "expected": "up-right",
+      "verdict": "pass",
+      "observed": "Strong screen-right profile; Slight upward pitch",
+      "reason": "Horizontal: Strong screen-right profile. Vertical: Slight upward pitch.",
+      "horizontal": "Strong screen-right profile",
+      "vertical": "Slight upward pitch"
+    },
+    {
+      "label": "090",
+      "expected": "right",
+      "verdict": "pass",
+      "observed": "Unmistakable screen-right profile; Level",
+      "reason": "Horizontal: Unmistakable screen-right profile. Vertical: Level.",
+      "horizontal": "Unmistakable screen-right profile",
+      "vertical": "Level"
+    },
+    {
+      "label": "112.5",
+      "expected": "down-right",
+      "verdict": "pass",
+      "observed": "Clear screen-right muzzle; Clear downward pitch",
+      "reason": "Horizontal: Clear screen-right muzzle. Vertical: Clear downward pitch.",
+      "horizontal": "Clear screen-right muzzle",
+      "vertical": "Clear downward pitch"
+    },
+    {
+      "label": "135",
+      "expected": "down-right",
+      "verdict": "pass",
+      "observed": "Clear screen-right; Strong gaze toward paws",
+      "reason": "Horizontal: Clear screen-right. Vertical: Strong gaze toward paws.",
+      "horizontal": "Clear screen-right",
+      "vertical": "Strong gaze toward paws"
+    },
+    {
+      "label": "157.5",
+      "expected": "down-right",
+      "verdict": "pass",
+      "observed": "Retained screen-right head position; Strongest downward bow",
+      "reason": "Horizontal: Retained screen-right head position. Vertical: Strongest downward bow.",
+      "horizontal": "Retained screen-right head position",
+      "vertical": "Strongest downward bow"
+    },
+    {
+      "label": "180",
+      "expected": "down",
+      "verdict": "pass",
+      "observed": "Centered symmetric face; Lowered eyes/nose and exposed crown clearly read down",
+      "reason": "Horizontal: Centered symmetric face. Vertical: Lowered eyes/nose and exposed crown clearly read down.",
+      "horizontal": "Centered symmetric face",
+      "vertical": "Lowered eyes/nose and exposed crown clearly read down"
+    },
+    {
+      "label": "202.5",
+      "expected": "down-left",
+      "verdict": "pass",
+      "observed": "Muzzle left of skull center; Strong bowed-down pitch",
+      "reason": "Horizontal: Muzzle left of skull center. Vertical: Strong bowed-down pitch.",
+      "horizontal": "Muzzle left of skull center",
+      "vertical": "Strong bowed-down pitch"
+    },
+    {
+      "label": "225",
+      "expected": "down-left",
+      "verdict": "pass",
+      "observed": "Clear screen-left projection; Lowered diagonal gaze",
+      "reason": "Horizontal: Clear screen-left projection. Vertical: Lowered diagonal gaze.",
+      "horizontal": "Clear screen-left projection",
+      "vertical": "Lowered diagonal gaze"
+    },
+    {
+      "label": "247.5",
+      "expected": "down-left",
+      "verdict": "warning",
+      "observed": "Unmistakable screen-left nose; Downward pitch correct but subtle",
+      "reason": "Horizontal: Unmistakable screen-left nose. Vertical: Downward pitch correct but subtle.",
+      "horizontal": "Unmistakable screen-left nose",
+      "vertical": "Downward pitch correct but subtle"
+    },
+    {
+      "label": "270",
+      "expected": "left",
+      "verdict": "pass",
+      "observed": "Unmistakable screen-left profile; Level",
+      "reason": "Horizontal: Unmistakable screen-left profile. Vertical: Level.",
+      "horizontal": "Unmistakable screen-left profile",
+      "vertical": "Level"
+    },
+    {
+      "label": "292.5",
+      "expected": "up-left",
+      "verdict": "pass",
+      "observed": "Nose left of skull center; Raised muzzle/eyes",
+      "reason": "Horizontal: Nose left of skull center. Vertical: Raised muzzle/eyes.",
+      "horizontal": "Nose left of skull center",
+      "vertical": "Raised muzzle/eyes"
+    },
+    {
+      "label": "315",
+      "expected": "up-left",
+      "verdict": "pass",
+      "observed": "Clear screen-left; Strong upward pitch",
+      "reason": "Horizontal: Clear screen-left. Vertical: Strong upward pitch.",
+      "horizontal": "Clear screen-left",
+      "vertical": "Strong upward pitch"
+    },
+    {
+      "label": "337.5",
+      "expected": "up-left",
+      "verdict": "pass",
+      "observed": "Small screen-left offset; High nose and visible muzzle underside",
+      "reason": "Horizontal: Small screen-left offset. Vertical: High nose and visible muzzle underside.",
+      "horizontal": "Small screen-left offset",
+      "vertical": "High nose and visible muzzle underside"
+    }
+  ],
+  "warnings": [
+    "247.5 down pitch subtle but correct.",
+    "135->157.5 center warning accepted as natural head motion.",
+    "157.5->180 brisk head/yaw/silhouette transition; planted lower body, scale and registration stable."
+  ]
+}

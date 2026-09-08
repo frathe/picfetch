@@ -104,7 +104,7 @@ func TestCompareShortcut_PhysicalControlOpensComparison(t *testing.T) {
 	}
 }
 
-func TestShutdownClosesActiveComparisonBeforeEventLoopStops(t *testing.T) {
+func TestShutdownClosesComparisonWithoutRefreshingRetiredUI(t *testing.T) {
 	application := fynetest.NewApp()
 	v, win := buildStartupViewer(application)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
@@ -138,9 +138,27 @@ func TestShutdownClosesActiveComparisonBeforeEventLoopStops(t *testing.T) {
 		t.Fatal("registerShutdown did not install a stopped hook")
 	}
 
+	beforeTitle := win.Title()
+	openItem := win.MainMenu().Items[0].Items[0]
+	if !openItem.Disabled {
+		t.Fatal("comparison did not disable the Open menu item")
+	}
+	recorder := &mainMenuRecorder{Window: win, favorites: win.MainMenu().Items[0]}
+	v.win = recorder
 	shutdown()
 	if v.compare.Visible() {
 		t.Fatal("shutdown left comparison workers and surface active")
+	}
+	if win.Title() != beforeTitle {
+		t.Error("shutdown comparison callback changed the closing window title")
+	}
+	if !openItem.Disabled {
+		t.Error("shutdown comparison callback rebuilt the closing native menu")
+	}
+	v.RefreshMenus()
+	v.syncNativeMenuBar() // A fold queued before shutdown must also retire.
+	if len(recorder.published) != 0 {
+		t.Errorf("closing viewer read the native menu %d times", len(recorder.published))
 	}
 }
 
@@ -438,34 +456,45 @@ func TestCompareRestoration_EscapeRevealsTheUnchangedFilteredGrid(t *testing.T) 
 }
 
 func TestCompareHelp_F1OpensManualWithoutLeavingComparison(t *testing.T) {
-	originalTheme := testApp.Settings().Theme()
-	t.Cleanup(func() { testApp.Settings().SetTheme(originalTheme) })
-	testApp.Settings().SetTheme(theme.DefaultTheme())
+	for _, route := range []struct {
+		name string
+		open func(*viewer)
+	}{
+		{"keyboard", func(v *viewer) { v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyF1}) }},
+		{"menu", func(v *viewer) { v.menus.Window().Help().Action() }},
+		{"direct", (*viewer).showWindowHelp},
+	} {
+		t.Run(route.name, func(t *testing.T) {
+			originalTheme := testApp.Settings().Theme()
+			t.Cleanup(func() { testApp.Settings().SetTheme(originalTheme) })
+			testApp.Settings().SetTheme(theme.DefaultTheme())
 
-	v := openGridWith(t, "a.jpg", "b.jpg")
-	v.grid.SelectAll()
-	fireCompareShortcut(v)
-	waitForCompare(t, v)
+			v := openGridWith(t, "a.jpg", "b.jpg")
+			v.grid.SelectAll()
+			fireCompareShortcut(v)
+			waitForCompare(t, v)
 
-	windowsBefore := make(map[fyne.Window]struct{})
-	for _, window := range v.app.Driver().AllWindows() {
-		windowsBefore[window] = struct{}{}
-	}
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyF1})
+			windowsBefore := make(map[fyne.Window]struct{})
+			for _, window := range v.app.Driver().AllWindows() {
+				windowsBefore[window] = struct{}{}
+			}
+			route.open(v)
 
-	var manual fyne.Window
-	for _, window := range v.app.Driver().AllWindows() {
-		if _, existed := windowsBefore[window]; !existed {
-			manual = window
-			break
-		}
-	}
-	if manual == nil || !v.help.ManualOpen() {
-		t.Fatal("F1 did not open the manual while comparison was active")
-	}
-	t.Cleanup(manual.Close)
-	if !v.compare.Visible() {
-		t.Fatal("F1 closed or replaced the active comparison")
+			var manual fyne.Window
+			for _, window := range v.app.Driver().AllWindows() {
+				if _, existed := windowsBefore[window]; !existed {
+					manual = window
+					break
+				}
+			}
+			if manual == nil || !v.help.ManualOpen() {
+				t.Fatal("command did not open the manual while comparison was active")
+			}
+			t.Cleanup(manual.Close)
+			if !v.compare.Visible() {
+				t.Fatal("command closed or replaced the active comparison")
+			}
+		})
 	}
 }
 

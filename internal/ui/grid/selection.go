@@ -94,36 +94,32 @@ func (g *Overview) SelectAll() {
 	g.fireSelectionChanged()
 }
 
-// FilesChanged resyncs the grid with a file set that has shrunk under it -
-// what the app calls once a batch delete has actually removed the files.
+// FilesChanged resyncs the grid after files are removed or reordered.
 //
 // Everything the grid holds is an index into that set, so all of it has
-// moved: the selection is dropped rather than remapped (the files it named
-// are exactly the ones that just went to the Trash), and applyFilter
-// recomputes the filter's display→host mapping against what is left and
+// moved: the selection is dropped rather than remapped, and applyFilter
+// recomputes the filter's display→host mapping against the current set and
 // resets the highlight into range.
 //
-// Incremental shrink is not a new drop. adoptHashGen keeps URI-keyed
+// Incremental shrink or reorder is not a new drop. adoptHashGen keeps URI-keyed
 // hashes and native sizes so hide-duplicates grouping and inspect
 // retarget survive RemoveFiles. Orphan entries for deleted URIs linger
 // until the next full-set change, which is harmless. Groups are
 // rebuilt against the adopted hashes before inspect retarget, so the
-// inspect block sees post-delete groups.
+// inspect block sees groups for the current indices.
 func (g *Overview) FilesChanged() {
+	g.remapBrowseSource()
+	g.adoptHashGen()
+	g.restartWork()
+	if g.dupes.HideDuplicates() || g.BrowsingDuplicates() {
+		_ = g.hashRemaining()
+	}
 	hadSelection := g.sel.Len() > 0
 	g.sel.Clear()
-	g.adoptHashGen()
-	g.rebuildGroups()
-	if g.dupes.Inspecting() {
-		src := g.inspectSource()
-		if src < 0 || len(g.groupMembers(src)) < 2 {
-			cur := g.host.CurrentIndex()
-			if len(g.groupMembers(cur)) >= 2 {
-				g.BeginInspect(cur)
-			} else {
-				g.ClearInspect()
-			}
-		}
+	g.grouping.retarget = true
+	if g.rebuildGroups() {
+		g.grouping.retarget = false
+		g.retargetInspect()
 	}
 	g.applyFilter()
 	if hadSelection {
@@ -252,4 +248,18 @@ func setCellSelected(tint *canvas.Rectangle, selected bool) {
 // range over cells the user never pointed at).
 func pickModifier(mods fyne.KeyModifier) (toggle, extend bool) {
 	return mods&fyne.KeyModifierShortcutDefault != 0, mods&fyne.KeyModifierShift != 0
+}
+
+func (g *Overview) retargetInspect() {
+	if g.dupes.Inspecting() {
+		src := g.inspectSource()
+		if src < 0 || len(g.groupMembers(src)) < 2 {
+			cur := g.host.CurrentIndex()
+			if len(g.groupMembers(cur)) >= 2 {
+				g.BeginInspect(cur)
+			} else {
+				g.ClearInspect()
+			}
+		}
+	}
 }

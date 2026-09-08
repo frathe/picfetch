@@ -13,13 +13,16 @@
 package deletion
 
 import (
+	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/trash"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -31,11 +34,10 @@ type Host interface {
 	// nothing is loaded.
 	CurrentFile() (u fyne.URI, index int, ok bool)
 
-	// RemoveFiles drops every named index from the app's file set, in one
-	// call. One call rather than one per file on purpose: removing them
-	// one at a time would shift every later index out from under the list
-	// already captured here.
-	RemoveFiles(indices []int)
+	// ReconcileDeletedFiles removes successful URI identities from the current
+	// file set, even if it was reordered or replaced during the OS move.
+	// It returns whether the current set contained any of those identities.
+	ReconcileDeletedFiles(uris []fyne.URI) bool
 
 	// ShowImage displays the file at index i, wrapping at both ends.
 	ShowImage(i int)
@@ -49,21 +51,12 @@ type Host interface {
 
 	// ForceRepaint redraws the window after a visibility change.
 	ForceRepaint()
-
-	// Generation is the app's current load generation - see performDelete:
-	// it's how a trash.Move that finishes after the file set has moved on
-	// (a fresh drop, a reset, another navigation) notices and skips acting
-	// on a now-stale index.
-	Generation() uint64
 }
 
-// Target is one file a pending confirmation would move to the Trash: the
-// URI to move, and the index to drop from the app's file set afterwards.
-// Both are captured when the card opens - see performDelete on why the index
-// can't simply be looked up again once the move returns.
+// Target names one file a pending confirmation would move to the Trash.
+// Its URI identity remains valid when the viewer reorders the file list.
 type Target struct {
-	URI   fyne.URI
-	Index int
+	URI fyne.URI
 }
 
 // cancelChoice and dangerChoice are the card's two button indices - Cancel
@@ -77,7 +70,11 @@ const (
 
 // Confirmer is the confirmation card and the state behind it.
 type Confirmer struct {
-	host Host
+	host   Host
+	ui     UIQueue
+	closed atomic.Bool
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// targets is what confirming would move to the Trash: one file for the
 	// Shift+Delete on the image being viewed, or the grid's whole selection
@@ -86,11 +83,8 @@ type Confirmer struct {
 	// about exactly the files it named.
 	targets []Target
 
-	// pending tracks the background goroutine performDelete starts for its
-	// trash.Move call - see performDelete's doc comment for why that call
-	// can't run on the UI goroutine. Settle waits on it, the same way
-	// slideshow.Controller's own pending WaitGroup lets tests wait out its
-	// background goroutine before asserting on state it's still touching.
+	// Every completion is queued inside its owning worker, so waiting for
+	// pending also guarantees that a test queue can drain all its effects.
 	pending sync.WaitGroup
 
 	// card is the prompt itself: scrim, message, the two buttons and their
@@ -110,7 +104,8 @@ type Confirmer struct {
 // that is everything Cancel/Escape have ever needed to do here, so there is
 // nothing left for SetOnCancel to add.
 func New(host Host) *Confirmer {
-	c := &Confirmer{host: host}
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &Confirmer{host: host, ui: fyneQueue{}, ctx: ctx, cancel: cancel}
 
 	c.card = widgets.NewChoiceCard(host.ForceRepaint,
 		widgets.Choice{Label: lang.L("Cancel")},
@@ -138,12 +133,12 @@ func (c *Confirmer) Visible() bool {
 // Request opens the confirmation card for the file currently on screen - the
 // plain Shift+Delete on the image being viewed. A no-op with nothing loaded.
 func (c *Confirmer) Request() {
-	u, i, ok := c.host.CurrentFile()
+	u, _, ok := c.host.CurrentFile()
 	if !ok {
 		return
 	}
 
-	c.RequestFiles([]Target{{URI: u, Index: i}})
+	c.RequestFiles([]Target{{URI: u}})
 }
 
 // RequestFiles opens the confirmation card for a whole set of files - the
@@ -156,11 +151,21 @@ func (c *Confirmer) Request() {
 // naming the file; anything more names the count instead, since a card
 // listing forty file names would be unreadable and unbounded in height.
 func (c *Confirmer) RequestFiles(targets []Target) {
-	if len(targets) == 0 || c.card.Visible() {
+	if len(targets) == 0 || c.card.Visible() || c.closed.Load() {
 		return
 	}
 
-	c.targets = targets
+	c.targets = make([]Target, 0, len(targets))
+	seen := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		key := target.URI.String()
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		c.targets = append(c.targets, target)
+	}
+	targets = c.targets
 
 	var msg string
 	if len(targets) == 1 {
@@ -179,11 +184,21 @@ func (c *Confirmer) RequestFiles(targets []Target) {
 // the card isn't showing, so callers that call it defensively (the app, on
 // every drop) don't need to check Visible themselves first.
 func (c *Confirmer) Cancel() {
+	c.targets = nil
 	if !c.card.Visible() {
 		return
 	}
 
 	c.card.Hide()
+}
+
+// Close stops admission, unstarted batch moves and late UI publication.
+// An OS move already submitted cannot be interrupted. Settle observes its
+// completion separately, so shutdown never waits on the UI event loop.
+func (c *Confirmer) Close() {
+	c.closed.Store(true)
+	c.cancel()
+	c.Cancel()
 }
 
 // HandleKey handles a key press while the card is up: Left/Right move the
@@ -211,16 +226,10 @@ func (c *Confirmer) HandleKey(ev *fyne.KeyEvent) {
 // goroutine (confirmed against a real NSWorkspace call, not just reasoned
 // about) keeps the UI goroutine free the whole time.
 //
-// The targets and the generation are captured up front, before the goroutine
-// starts: something else (a fresh drop, a reset, another navigation) can
-// change the app's file set while trash.Move is in flight, which would
-// make the captured indices stale by the time it returns. The generation
-// check below catches that - if it no longer matches, the moves to Trash
-// still happened (nothing is lost), but Host.RemoveFiles/ShowImage aren't
-// called against indices that may no longer mean what they did; the
-// now-missing entries, if they're even still in the set, fail to decode the
-// ordinary way the next time they're navigated to, the same fallback a
-// duplicate merge-mode path already relies on.
+// Each confirmation owns its captured targets and results. Successful moves
+// are reconciled by URI on the UI goroutine: reordering, another deletion, or
+// a fresh drop can change indices while the OS works, but cannot retarget
+// either the operation or its bookkeeping.
 //
 // The moves run one after another on that single goroutine rather than in
 // parallel: trash.Move's darwin implementation already blocks on a
@@ -231,41 +240,51 @@ func (c *Confirmer) HandleKey(ev *fyne.KeyEvent) {
 // on disk is also still in the app.
 func (c *Confirmer) performDelete() {
 	targets := c.targets
-	if len(targets) == 0 {
+	c.targets = nil
+	if len(targets) == 0 || c.closed.Load() {
 		return
 	}
-	gen := c.host.Generation()
 
 	c.pending.Go(func() {
 
-		moved := make([]int, 0, len(targets))
+		moved := make([]fyne.URI, 0, len(targets))
 		var firstErr error
 		var firstFailed string
 
 		for _, t := range targets {
-			if err := trash.Move(t.URI.Path()); err != nil {
+			if c.closed.Load() {
+				return
+			}
+			// The claim includes Save/Strip/Export so their atomic replacement
+			// cannot recreate a source after its successful move to Trash.
+			// Pass the original path to Trash: a symlink is itself the target.
+			err := imaging.WithFileMutation(c.ctx, t.URI.Path(), func() error {
+				return trash.Move(t.URI.Path())
+			})
+			if err != nil {
 				if firstErr == nil {
 					firstErr, firstFailed = err, t.URI.Name()
 				}
 
 				continue
 			}
-			moved = append(moved, t.Index)
+			moved = append(moved, t.URI)
 		}
 
-		fyne.Do(func() {
+		c.ui.Do(func() {
+			if c.closed.Load() {
+				return
+			}
 			if len(moved) == 0 {
 				c.host.ShowToast(fmt.Sprintf(lang.L("could not move %q to the Trash: %v"), firstFailed, firstErr))
 				return
 			}
 
-			if c.host.Generation() != gen {
+			msg := c.movedMessage(targets, moved, firstFailed, firstErr)
+			if !c.host.ReconcileDeletedFiles(moved) {
+				c.host.ShowToast(msg)
 				return
 			}
-
-			c.host.RemoveFiles(moved)
-
-			msg := c.movedMessage(targets, moved, firstFailed, firstErr)
 
 			if _, i, stillLoaded := c.host.CurrentFile(); stillLoaded {
 				c.host.ShowToast(msg)
@@ -282,7 +301,7 @@ func (c *Confirmer) performDelete() {
 // count when more were, and a count of both when some of them failed - a
 // batch that silently reported success for files still sitting on disk would
 // be the worst of the three.
-func (c *Confirmer) movedMessage(targets []Target, moved []int, failedName string, failedErr error) string {
+func (c *Confirmer) movedMessage(targets []Target, moved []fyne.URI, failedName string, failedErr error) string {
 	switch {
 	case len(moved) < len(targets):
 		return fmt.Sprintf(lang.L("moved %d of %d files to the Trash; %q failed: %v"),
@@ -294,12 +313,16 @@ func (c *Confirmer) movedMessage(targets []Target, moved []int, failedName strin
 	}
 }
 
-// Settle waits for any in-flight trash-move goroutine performDelete started
-// to finish. Mirrors slideshow.Controller's Settle: the app's test suite
-// uses this so a test doesn't end - or assert on Host state - while that
-// goroutine's fyne.Do callback is still about to run.
+// Settle waits for all submitted OS moves and drains a configured test queue.
+// Production Fyne queues drain themselves; this never waits on the UI thread
+// from a worker or promises that the native event loop has applied a callback.
 func (c *Confirmer) Settle() {
-	c.pending.Wait()
+	for {
+		c.pending.Wait()
+		if !c.ui.Drain() {
+			return
+		}
+	}
 }
 
 // ShortcutHandler is registered against &fyne.ShortcutCut{} rather than a

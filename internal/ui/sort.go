@@ -24,6 +24,7 @@ func (v *viewer) toggleSort() {
 // site, which is gated behind handleKeyEvent's len(v.state.files)<2 guard.
 func (v *viewer) SetSortMode(m filesort.Mode) {
 	if len(v.state.files) == 0 {
+		v.invalidateSort()
 		v.state.SetSortMode(m)
 		v.applyTitle()
 		v.syncMenus()
@@ -45,12 +46,17 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 	// The title's sort-mode prefix updates immediately, even before the
 	// reorder itself finishes - there's no reason to make the user wait for
 	// a large sort just to see that their choice registered.
+	if v.sortModeBefore == nil {
+		previous := v.state.SortMode()
+		v.sortModeBefore = &previous
+	}
 	v.state.SetSortMode(m)
 	v.applyTitle()
 	v.syncMenus()
 
 	v.startSort(m, unsorted, func(ordered []fyne.URI) {
 		v.state.reorder(ordered)
+		v.grid.FilesChanged()
 		v.ForceRepaint()
 		v.showFileIfPresent(current)
 	})
@@ -64,7 +70,17 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 // cancelSort, RemoveFile, clearToDropzone). It returns the new revision for
 // tests and diagnostics.
 func (v *viewer) invalidateSort() uint64 {
-	return v.sortOp.invalidate()
+	if v.sortOp.active {
+		v.pendingPictureFrame = false
+	}
+	revision := v.sortOp.invalidate()
+	if v.sortModeBefore != nil {
+		v.state.SetSortMode(*v.sortModeBefore)
+		v.sortModeBefore = nil
+		v.applyTitle()
+		v.syncMenus()
+	}
+	return revision
 }
 
 // startSort reorders unsorted under mode in the background, showing the sort
@@ -128,6 +144,7 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 	// (appState.publish), so it happens inside onDone rather than ahead of
 	// it - a worker can no longer see the new generation over the old list.
 	v.sortOp.finish()
+	v.sortModeBefore = nil
 
 	onDone(ordered)
 }
@@ -138,7 +155,7 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 // per-file stat/Exif loop notice and stop promptly instead of running to
 // completion in the background for a result nobody will see.
 //
-// Unlike cancelScan, there's nothing to put back: v.state.files/v.state.unsortedFiles
+// The pending mode is restored by invalidateSort. v.state.files/v.state.unsortedFiles
 // are never touched until a reorder's own onDone callback runs (see
 // applyScannedFiles's and SetSortMode's own comments on why the pairing is
 // atomic), so cancelling before that lands leaves them exactly as they
@@ -146,9 +163,10 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 // screen, if there was one; nothing, still showing the dropzone, for a
 // first-ever drop's cancelled reorder.
 func (v *viewer) cancelSort() {
-	if !v.sortOp.cancel() {
+	if !v.sortOp.active {
 		return
 	}
+	v.invalidateSort()
 
 	if len(v.state.files) == 0 {
 		v.showWelcomeState()

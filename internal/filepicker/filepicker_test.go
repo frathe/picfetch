@@ -1,49 +1,87 @@
 package filepicker
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
 	"os/exec"
 	"slices"
 	"strings"
 	"testing"
 )
 
-func TestParseFileList(t *testing.T) {
-	tests := []struct {
-		name string
-		out  string
-		want int
-	}{
-		{"single path", "/tmp/a.jpg\n", 1},
-		{"multiple paths", "/tmp/a.jpg\n/tmp/b.png\n", 2},
-		{"no trailing newline", "/tmp/a.jpg", 1},
-		{"blank lines skipped", "/tmp/a.jpg\n\n/tmp/b.png\n", 2},
-		{"empty output", "", 0},
-		{"only a newline", "\n", 0},
-		{"CRLF line endings (PowerShell)", "/tmp/a.jpg\r\n/tmp/b.png\r\n", 2},
+func TestDecodePickedPaths_PreservesBoundaries(t *testing.T) {
+	paths := []string{"/tmp/first\nsecond.jpg", "/tmp/tail\r", "/tmp/tail\n", "/tmp/ spaces ", "/tmp/café 東京 😀.png"}
+	encoded, err := json.Marshal(paths)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			uris := ParseFileList([]byte(tt.out))
-			if len(uris) != tt.want {
-				t.Errorf("len(uris) = %d, want %d", len(uris), tt.want)
-			}
-		})
+	uris, err := decodePickedPaths(encoded, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(uris) != len(paths) {
+		t.Fatalf("paths = %v", uris)
+	}
+	for i, uri := range uris {
+		if uri.Path() != paths[i] {
+			t.Errorf("path %d = %q, want %q", i, uri.Path(), paths[i])
+		}
 	}
 }
 
-func TestParseFileList_PreservesOrderAndStripsCR(t *testing.T) {
-	uris := ParseFileList([]byte("/tmp/a.jpg\r\n/tmp/b.png\r\n"))
+func TestDecodePickedPaths_DistinguishesCancellationAndErrors(t *testing.T) {
+	failure := errors.New("native picker failed")
+	if _, err := decodePickedPaths(nil, failure); !errors.Is(err, failure) {
+		t.Fatal("lost native error")
+	}
+	if paths, err := decodePickedPaths([]byte("null"), nil); paths != nil || err != nil {
+		t.Fatalf("cancel = %v, %v", paths, err)
+	}
+	for _, out := range []string{"", "[]", `[""]`, `["relative.jpg"]`, `["/tmp/a\u0000b"]`, `"/tmp/a"`, "[", string([]byte{0xff})} {
+		if paths, err := decodePickedPaths([]byte(out), nil); err == nil || paths != nil {
+			t.Errorf("accepted malformed/empty result %q: %v", out, paths)
+		}
+	}
+}
 
-	if len(uris) != 2 {
-		t.Fatalf("len(uris) = %d, want 2", len(uris))
+func TestZenityResult_PreservesExactPaths(t *testing.T) {
+	paths := []string{"/tmp/line\nnext.jpg", "/tmp/tail\r", "/tmp/tail\n", "/tmp/ spaced ", "/tmp/café 東京 😀.png"}
+	for _, multiple := range []bool{false, true} {
+		groups := [][]string{paths}
+		if !multiple {
+			groups = nil
+			for _, p := range paths {
+				groups = append(groups, []string{p})
+			}
+		}
+		for _, group := range groups {
+			out, err := zenityResult([]byte(strings.Join(group, zenityPathSeparator)+"\n"), nil, multiple)
+			uris, err := decodePickedPaths(out, err)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(uris) != len(group) {
+				t.Fatalf("paths = %v", uris)
+			}
+			for i, uri := range uris {
+				if uri.Path() != group[i] {
+					t.Errorf("path = %q, want %q", uri.Path(), group[i])
+				}
+			}
+		}
 	}
-	if uris[0].Path() != "/tmp/a.jpg" {
-		t.Errorf("uris[0].Path() = %q, want /tmp/a.jpg", uris[0].Path())
+}
+
+func TestZenityResult_RejectsUnsupportedFraming(t *testing.T) {
+	for _, out := range []string{"", "\n", "/tmp/a", "/tmp/a/../b\n", "/tmp/a//b\n", "/tmp/a\x00b\n", "/tmp/a" + zenityPathSeparator + "relative\n"} {
+		if _, err := zenityResult([]byte(out), nil, true); err == nil {
+			t.Errorf("accepted unsupported transport %q", out)
+		}
 	}
-	if uris[1].Path() != "/tmp/b.png" {
-		t.Errorf("uris[1].Path() = %q, want /tmp/b.png", uris[1].Path())
+	failure := errors.New("zenity unavailable")
+	if _, err := zenityResult(nil, failure, true); !errors.Is(err, failure) {
+		t.Fatal("lost execution error")
 	}
 }
 
@@ -62,14 +100,7 @@ func TestPowerShellEscape(t *testing.T) {
 	}
 }
 
-// The darwin chooser (darwin.go) deliberately has no unit test: it is an
-// in-process cgo/AppKit modal panel, so exercising it means opening a real
-// dialog and clicking it - the package compiling on darwin is the only
-// automatic check it gets. Its two subprocess-based predecessors both
-// passed every non-interactive check (osacompile syntax pinning, a
-// self-cancelling NSTimer modal-loop smoke test) and still failed in
-// users' hands, which is exactly why it became in-process cgo - see
-// darwin.go's chooseFilesDarwin comment for the two failed generations.
+// Native protocol tests exercise the real serializers without opening a panel.
 func TestBuildPowerShellCmd(t *testing.T) {
 	cmd := buildPowerShellCmd()
 
@@ -109,10 +140,6 @@ func TestBuildPowerShellCmd(t *testing.T) {
 	}
 }
 
-// The save panel gets the same treatment as the open chooser above: its
-// darwin implementation is an in-process cgo/AppKit modal with no
-// non-interactive test, and the other two are covered by asserting on the
-// command each builds rather than by running it.
 func TestBuildPowerShellSaveCmd(t *testing.T) {
 	cmd := buildPowerShellSaveCmd(`C:\photos\holiday.png`)
 
@@ -171,7 +198,7 @@ func TestChooseSaveLinux_RunsZenityInSaveModeWithTheSuggestedPath(t *testing.T) 
 	if err != nil {
 		t.Fatalf("chooseSaveLinux() error = %v", err)
 	}
-	if string(out) != "/photos/holiday.png\n" {
+	if string(out) != `["/photos/holiday.png"]` {
 		t.Errorf("out = %q, want the stubbed zenity output", out)
 	}
 
@@ -216,7 +243,7 @@ func TestChooseFilesLinux_RunsZenityWithMultiSelect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("chooseFilesLinux() error = %v", err)
 	}
-	if string(out) != "/tmp/a.jpg\n" {
+	if string(out) != `["/tmp/a.jpg"]` {
 		t.Errorf("out = %q, want the stubbed zenity output", out)
 	}
 
@@ -228,5 +255,45 @@ func TestChooseFilesLinux_RunsZenityWithMultiSelect(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("zenity args = %v, want --multiple present", gotArgs)
+	}
+}
+
+func TestDecodePickedDestination_RequiresExactlyOnePath(t *testing.T) {
+	for _, out := range []string{`["/tmp/a.png", "/tmp/b.png"]`, `[]`, ``, `[""]`} {
+		if destination, err := decodePickedDestination([]byte(out), nil); destination != nil || err == nil {
+			t.Errorf("accepted save result %q: %v (%v)", out, destination, err)
+		}
+	}
+	if destination, err := decodePickedDestination([]byte("null"), nil); destination != nil || err != nil {
+		t.Fatalf("cancel = %v (%v)", destination, err)
+	}
+	destination, err := decodePickedDestination([]byte(`["/tmp/line\nnext\r"]`), nil)
+	if err != nil || destination.Path() != "/tmp/line\nnext\r" {
+		t.Fatalf("exact destination = %v (%v)", destination, err)
+	}
+}
+
+func TestZenityResult_DistinguishesCancelAndFailure(t *testing.T) {
+	switch os.Getenv("PICFETCH_ZENITY_EXIT_FIXTURE") {
+	case "cancel":
+		os.Exit(1)
+	case "failure":
+		os.Exit(2)
+	}
+	for _, fixture := range []string{"cancel", "failure"} {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestZenityResult_DistinguishesCancelAndFailure$")
+		cmd.Env = append(os.Environ(), "PICFETCH_ZENITY_EXIT_FIXTURE="+fixture)
+		out, processErr := cmd.Output()
+		if processErr == nil {
+			t.Fatal("fixture did not fail")
+		}
+		out, err := zenityResult(out, processErr, true)
+		if fixture == "cancel" {
+			if err != nil || string(out) != "null" {
+				t.Fatalf("cancel = %q, %v", out, err)
+			}
+		} else if !errors.Is(err, processErr) {
+			t.Fatal("execution failure was lost")
+		}
 	}
 }

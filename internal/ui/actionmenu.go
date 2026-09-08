@@ -28,9 +28,6 @@ func (v *viewer) browseCurrentDuplicates() {
 		return
 	}
 	v.grid.ToggleBrowseDuplicates()
-	if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
-		v.grid.Toggle()
-	}
 }
 
 func (v *viewer) reopenVariantGrid() {
@@ -39,13 +36,18 @@ func (v *viewer) reopenVariantGrid() {
 	}
 	v.dupes.ClearInspect()
 	v.grid.SetBrowsingDuplicates(true)
-	if v.grid.BrowsingDuplicates() && !v.grid.Visible() {
-		v.grid.Toggle()
-	}
 	// Not redundant with the grid observers: the model's ClearInspect
 	// fires nothing, and SetBrowsingDuplicates can no-op without firing
 	// when it finds no source file - this call is what resyncs the menus
 	// on that path, for every door in (Escape, G, Window -> Grid View).
+	v.syncMenus()
+}
+
+// Opening waits for the accepted group so a unique source remains a no-op.
+func (v *viewer) syncDuplicateState() {
+	if v.grid.BrowseReady() && !v.grid.Visible() {
+		v.grid.Toggle()
+	}
 	v.syncMenus()
 }
 

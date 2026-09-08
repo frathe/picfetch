@@ -156,9 +156,10 @@ func hostSchemaEnv(env []string) []string {
 }
 
 // hostDataDirs keeps only the entries of an XDG_DATA_DIRS list that belong to
-// the host rather than to a snap mounted into it.
+// the host rather than to a snap mounted into it. XDG lists use colons even
+// when this Linux adapter is exercised from another platform.
 func hostDataDirs(list string) string {
-	entries := strings.Split(list, string(os.PathListSeparator))
+	entries := strings.Split(list, ":")
 	host := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		if entry == "" || isSandboxPath(entry) {
@@ -167,7 +168,7 @@ func hostDataDirs(list string) string {
 		host = append(host, entry)
 	}
 
-	return strings.Join(host, string(os.PathListSeparator))
+	return strings.Join(host, ":")
 }
 
 // isSandboxPath reports whether path lives inside a snap tree, covering both
