@@ -12,20 +12,6 @@
 
 ## TODO
 
-### Validate shared dog gaze after the next push
-
-The release-review follow-ups are merged and current main `a5b4c31` passed CI,
-CodeQL and Qodana. Unrelated exports preserve loaded derived state, and changing
-duplicate sensitivity after closing an unfinished hash pass resumes the work.
-Main's only remaining Qodana result is the duplicated Trane/Finis atlas mapping.
-
-The shared gaze extraction is tracked in
-`finished_refactorings/2026-09-08-shared-dog-gaze.md`. Its changes remain local until the user
-commits and pushes them; rerun remote checks on that commit before release.
-The local full gate also exposed an uncontrolled scan-cancellation test; the
-test now holds its directory read across replacement explicitly and checks
-that cancelled work stops. The plan retains the failed run and retry evidence.
-
 ### Investigate intermittent local race-gate failures
 
 The 2026-09-08 follow-up gate retained all four raw streams and recorded a
@@ -53,7 +39,6 @@ The Trane verification on 2026-09-07 also captured a Docker OOM, this time killi
 `internal/ui/compare` while all three main-UI shards passed. Logs and the isolated
 retry are recorded in `finished_refactorings/2026-09-07-animated-trane.md`.
 
-
 ### Address the 2026-09-06 maintainability audit
 
 Track the reconciled findings in [needs_refactoring.md](needs_refactoring.md) and execute the
@@ -72,14 +57,6 @@ tracked grouping worker. [Phase 6 evidence](.scratch/maintainability/evidence/28
 and the complete canonical Linux race/golden gate pass. The native macOS Copy
 Selection screenshot mismatch remains recorded in the validation evidence.
 HEIC/verifier tickets 31/32 retain their separate future-upgrade triggers.
-
-### Complete native x64 Windows packaging tests
-
-User will test later on native x64 systems. Follow the
-[Windows test checklist](.scratch/maintainability/windows-test-todo.md) for
-ordinary/Store image rendering, comparison, clean quit and SDK/WACK evidence.
-Windows VM experiments are deferred; retain their failures as diagnostic
-results. Continue non-Windows validation independently.
 
 ### Activate and verify approved Microsoft Store updates
 
@@ -119,17 +96,22 @@ broken. The diagnostic change is committed as `91bad9e`. Approved check run
 `/pricing/isAdvancedPricingModel`. Microsoft documents it as a read-only account
 capability flag. Packages and the prepared base match the receipt.
 
-The local fix accepts only this flag's optional boolean representations while
+The fix accepts only this flag's optional boolean representations while
 keeping recorded metadata hashes unchanged and preserving all editable pricing,
 listing, note and package checks. Command tests cover new submissions, recovery
 from the existing `created` phase and interrupted upload, plus protected drift.
 Publisher race tests and full `make verify` pass; temporary compiler overlays
 confirmed regression detection for the flag comparison, editable metadata/package
 guards, original receipt hash format, input ownership and avoiding a repeated PUT.
-Land the fix and dispatch a fresh approved `reconcile` on main with tag blank
-(the receipt selects v1.0.3). This resumes draft 1152921505701835817 and its original
-artifact. Successful live upload and certification remain open. See
-`plans/2026-09-08-store-draft-mismatch.md`. Keep the live 1.0.2 tag and artifact unchanged.
+The user committed the fix as `5533991`. Approved reconcile run 34228812095
+succeeded, uploaded the original v1.0.3 artifact, and received `CommitStarted` at
+2026-09-08 12:57 UTC for submission 1152921505701835817. Receipt 6328101033 is in
+phase `observing`, with the original metadata hash unchanged. After refreshing
+Partner Center at 13:02 UTC, the page showed "Update in certification": Submission
+complete, Pre-processing active (step 2 of 4), automatic publishing after passing
+certification. The CI publishing failure is resolved; final certification and live
+availability remain to be observed. See
+`finished_refactorings/2026-09-08-store-draft-mismatch.md`.
 
 Focused tooling race tests, actionlint, formatting, TUF/Qodana checks, host vet/build,
 Windows publisher cross-build and Linux shard inventory pass for the approval
@@ -137,7 +119,8 @@ amendment. Prior verification:
 the combined `make verify` recorded Docker OOM; isolated UI race shards and non-UI
 partitions passed. That combined invocation did not succeed. No repeat of the full
 race suite was performed for this tooling amendment; fresh check evidence is in
-the implementation plan. Nothing was committed, pushed or submitted to Microsoft.
+the implementation plan. That tooling verification preceded the approved live
+runs recorded above.
 
 Spec and tickets: `.scratch/microsoft-store-updates/README.md`.
 Plan and evidence: `plans/2026-09-07-microsoft-store-updates.md`.
