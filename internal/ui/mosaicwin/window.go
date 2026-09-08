@@ -198,7 +198,7 @@ func (w *Window) build() fyne.CanvasObject {
 		settings.Overlap = value
 		w.acceptSettings(settings)
 	})
-	w.rotation = newNamedSlider(lang.L("Maximum rotation"), 0, 12, 1, w.settings.MaximumRotation, degreeValue, func(value float64) {
+	w.rotation = newNamedSlider(lang.L("Maximum rotation"), 0, 90, 1, w.settings.MaximumRotation, degreeValue, func(value float64) {
 		settings := w.settings
 		settings.MaximumRotation = value
 		w.acceptSettings(settings)

@@ -107,6 +107,43 @@ func TestMosaicControls_RejectInvalidSettings(t *testing.T) {
 	w.Close()
 }
 
+func TestMosaicControlsRotationAndOverlap(t *testing.T) {
+	for _, overlap := range []float64{0, 0.08, 0.20} {
+		t.Run(fmt.Sprint(overlap), func(t *testing.T) {
+			host := successfulHost(t)
+			var captured mosaic.Request
+			host.generate = func(ctx context.Context, request mosaic.Request) (mosaic.Result, error) {
+				captured = request
+				return mosaic.Generate(ctx, request)
+			}
+			w := New(test.NewApp(), host)
+			w.SetUIQueue(&uitest.UIQueue{})
+			w.Show(mustSnapshot(t))
+			t.Cleanup(func() { w.Close(); settleWindow(t, w) })
+			w.advancedButton.OnTapped()
+			if !containsMosaicObject(w.root, w.rotation) || !containsMosaicObject(w.root, w.overlap) {
+				t.Fatal("rotation or overlap control missing from window")
+			}
+			w.rotation.SetValue(89)
+			w.rotation.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+			w.overlap.SetValue(overlap)
+			if w.rotation.Value != 90 || w.rotation.Step != 1 || w.rotationValue.Text != "90 degrees" {
+				t.Fatalf("rotation control = %g, step %g, label %q", w.rotation.Value, w.rotation.Step, w.rotationValue.Text)
+			}
+			if w.overlapValue.Text != fmt.Sprintf("%.0f%%", overlap*100) {
+				t.Fatalf("overlap label = %q", w.overlapValue.Text)
+			}
+			w.generateButton.OnTapped()
+			settleWindow(t, w)
+			want := mosaic.DefaultSettings()
+			want.MaximumRotation, want.Overlap = 90, overlap
+			if captured.Settings() != want {
+				t.Fatalf("generated settings = %+v, want %+v", captured.Settings(), want)
+			}
+		})
+	}
+}
+
 func TestMosaicConfiguration_OpensEnabledAndRespondsToPointerInput(t *testing.T) {
 	inspections := 0
 	host := successfulHost(t)

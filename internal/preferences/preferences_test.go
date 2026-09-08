@@ -1,6 +1,7 @@
 package preferences
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"testing"
@@ -12,6 +13,27 @@ import (
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/mosaic"
 )
+
+func TestMosaicPreferencesRotationRange(t *testing.T) {
+	app := test.NewApp()
+	if got := Load(app).MosaicSettings.MaximumRotation; got != 7 {
+		t.Fatalf("fresh rotation = %g, want 7", got)
+	}
+	for _, rotation := range []float64{0, 45, 90, -1, 91, math.Inf(1), math.NaN()} {
+		t.Run(fmt.Sprint(rotation), func(t *testing.T) {
+			want := mosaic.DefaultSettings()
+			want.MaximumRotation, want.Overlap = rotation, 0.20
+			want.Frame, want.DropShadow = mosaic.FramePolaroid, false
+			Save(app, State{MosaicSettings: want})
+			if rotation < 0 || rotation > 90 || math.IsNaN(rotation) {
+				want.MaximumRotation = 7
+			}
+			if got := Load(app).MosaicSettings; got != want {
+				t.Fatalf("round trip = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
 
 func TestMosaicPreferences_DefaultsAndRoundTrip(t *testing.T) {
 	app := test.NewApp()

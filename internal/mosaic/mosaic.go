@@ -83,7 +83,7 @@ func (s Settings) Validate() error {
 		{field: "minimum_short_edge", value: s.MinimumShortEdge, minimum: 0.10, maximum: 0.30},
 		{field: "size_variation", value: s.SizeVariation, minimum: 0, maximum: 0.25},
 		{field: "overlap", value: s.Overlap, minimum: 0, maximum: 0.20},
-		{field: "maximum_rotation", value: s.MaximumRotation, minimum: 0, maximum: 12},
+		{field: "maximum_rotation", value: s.MaximumRotation, minimum: 0, maximum: 90},
 	}
 	for _, check := range checks {
 		if math.IsNaN(check.value) || math.IsInf(check.value, 0) || check.value < check.minimum || check.value > check.maximum {
@@ -111,7 +111,7 @@ func (s Settings) Normalized() Settings {
 	if invalidRatio(s.Overlap, 0, 0.20) {
 		s.Overlap = defaults.Overlap
 	}
-	if invalidRatio(s.MaximumRotation, 0, 12) {
+	if invalidRatio(s.MaximumRotation, 0, 90) {
 		s.MaximumRotation = defaults.MaximumRotation
 	}
 	s.Frame = FrameStyleFromPreference(string(s.Frame))

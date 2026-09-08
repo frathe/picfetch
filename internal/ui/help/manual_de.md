@@ -632,6 +632,15 @@ ohne laufende Arbeit schließt `Esc` es direkt. Alle Bedienelemente und Aktionen
 sind mit `Tab` und `Shift+Tab` erreichbar; `Enter` oder die Leertaste aktiviert
 eine fokussierte Schaltfläche.
 
+**Maximale Drehung** erlaubt 0 bis 90 Grad in Ein-Grad-Schritten; der
+Standardwert ist 7 Grad.
+Jedes Foto kann sich aus seiner korrekt ausgerichteten Quellorientierung in beide
+Richtungen drehen. **Überlappung** (0-20%, Standardwert 8%) beschreibt den ungefähren
+Einzug relativ zur kürzeren ungedrehten Fotokante. Höhere Werte erzeugen mehr
+Überlagerung; dies ist keine Obergrenze für die verdeckte Fläche, und 0% verhindert
+keine Überschneidungen gedrehter Fotos.
+Beschnitt am äußeren Bildrand bleibt erlaubt.
+
 Nach der Erstellung kehren Sie mit **Neu beginnen** zur Konfiguration zurück,
 verwerfen die aktuelle Vorschau und Statusmeldung und behalten Quellen,
 ausgewählten Bildschirm, visuelle Einstellungen und Exportformat bei, damit

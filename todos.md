@@ -12,6 +12,23 @@
 
 ## TODO
 
+### Improve mosaic rotation and visible overlap
+
+Raise the maximum rotation limit to 90 degrees, make Overlap visibly affect the
+finished arrangement, and prevent mostly concealed photos, including gap-filling
+cards. The [ready-for-agent specification](.scratch/mosaic-rotation-overlap/spec.md)
+preserves existing defaults and inset semantics, and defines final-pixel visibility
+and paired-setting acceptance checks. The [two implementation tickets](.scratch/mosaic-rotation-overlap/README.md)
+run in order: 90-degree rotation, then overlap response and photo visibility.
+The 90-degree control, validation, persistence, rendering and cancellation checks
+are implemented locally. The overlap and concealment symptoms are reproduced in
+two intentionally failing regression groups. Placement experiments within the
+existing size range did not complete coverage. A retained prototype succeeds on
+one fixture by enlarging some photos beyond that range; the size-range decision
+is pending. See the [implementation plan](plans/2026-09-08-mosaic-rotation-overlap.md)
+and [evidence](.scratch/mosaic-rotation-overlap/evidence/README.md). The full race
+gate and integrated acceptance remain pending; the overlap fix has not landed.
+
 ### Investigate intermittent local race-gate failures
 
 The 2026-09-08 follow-up gate retained all four raw streams and recorded a

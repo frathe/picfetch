@@ -2,6 +2,7 @@ package mosaic
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -10,6 +11,40 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 )
+
+func TestSettingsRotationRange(t *testing.T) {
+	for _, rotation := range []float64{0, 7, 12, 45, 89, 90, -1, 90.01, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		t.Run(fmt.Sprint(rotation), func(t *testing.T) {
+			settings := DefaultSettings()
+			settings.Overlap = 0.20
+			settings.Frame = FramePolaroid
+			settings.DropShadow = false
+			settings.MaximumRotation = rotation
+			valid := !math.IsNaN(rotation) && rotation >= 0 && rotation <= 90
+			request, err := NewRequest([]fyne.URI{storage.NewFileURI("photo.png")}, image.Pt(320, 180), settings, 7)
+			if valid {
+				if err != nil {
+					t.Fatalf("valid rotation rejected: %v", err)
+				}
+				if request.Settings() != settings {
+					t.Fatal("request changed valid settings")
+				}
+			} else {
+				var validation *ValidationError
+				if !errors.As(err, &validation) || validation.Field != "maximum_rotation" {
+					t.Fatalf("invalid rotation: %v", err)
+				}
+			}
+			want := settings
+			if !valid {
+				want.MaximumRotation = 7
+			}
+			if got := settings.Normalized(); got != want {
+				t.Fatalf("normalized = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
 
 func TestSettingsDefaultsAndRanges(t *testing.T) {
 	want := Settings{

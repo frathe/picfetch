@@ -1439,3 +1439,60 @@ func TestPreviewComposite_BoundedAllocations(t *testing.T) {
 		t.Fatalf("preview allocated %.0f objects; expected fixed snapshot storage, not per-pixel allocations", allocs)
 	}
 }
+
+func TestRenderPlacement_RightAngles(t *testing.T) {
+	pixels := image.NewNRGBA(image.Rect(0, 0, 30, 20))
+	for y := range 20 {
+		for x := range 30 {
+			c := color.NRGBA{B: 255, A: 255}
+			if x < 15 {
+				c = color.NRGBA{R: 255, A: 255}
+			}
+			pixels.SetNRGBA(x, y, c)
+		}
+	}
+	source := &loadedSource{pixels: pixels, bounds: pixels.Bounds()}
+	for _, angle := range []float64{-90, -89.999, 89.999, 90} {
+		for _, centerX := range []float64{20, 300.25} {
+			t.Run(fmt.Sprintf("angle%g/x%g", angle, centerX), func(t *testing.T) {
+				p := newPlacement(0, centerX, 250.75, 540, 360, angle, FramePolaroid, true)
+				bounds := image.Rect(0, 0, 600, 500)
+				full, tiled := image.NewNRGBA(bounds), image.NewNRGBA(bounds)
+				if err := renderPlacement(t.Context(), full, source, p); err != nil {
+					t.Fatal(err)
+				}
+				plans := 0
+				if err := renderPlacementWithBudget(t.Context(), tiled, source, p, 6<<20, func(plan preparationPlan) error {
+					plans++
+					if !plan.tiled || plan.bytes > 6<<20 {
+						t.Fatalf("unbounded preparation: %+v", plan)
+					}
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if plans == 0 {
+					t.Fatal("no bounded rendering")
+				}
+				total, worst := 0, 0
+				for i, value := range full.Pix {
+					d := absInt(int(value) - int(tiled.Pix[i]))
+					total += d
+					worst = max(worst, d)
+				}
+				mean := float64(total) / float64(len(full.Pix))
+				if worst > 4 || mean > .1 {
+					t.Fatalf("bounded/full difference max=%d mean=%g", worst, mean)
+				}
+				top, bottom := full.NRGBAAt(int(centerX), 150), full.NRGBAAt(int(centerX), 350)
+				red, blue := top, bottom
+				if angle < 0 {
+					red, blue = bottom, top
+				}
+				if red.R < 250 || red.B > 5 || blue.B < 250 || blue.R > 5 {
+					t.Fatalf("quarter-turn source orientation: top=%v bottom=%v", top, bottom)
+				}
+			})
+		}
+	}
+}

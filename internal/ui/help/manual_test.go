@@ -174,6 +174,19 @@ func TestManualDocumentsMosaicStartOver(t *testing.T) {
 	}
 }
 
+func TestManualDocumentsMosaicRotationAndOverlap(t *testing.T) {
+	for name, phrases := range map[string][]string{
+		"manual.md":    {"0 to 90 degrees", "default is 7 degrees", "0-20%", "default 8%", "shorter unrotated photo edge", "not a covered-area limit"},
+		"manual_de.md": {"0 bis 90 Grad", "Standardwert ist 7 Grad", "0-20%", "Standardwert 8%", "kürzeren ungedrehten Fotokante", "keine Obergrenze für die verdeckte Fläche"},
+	} {
+		for _, phrase := range phrases {
+			if !strings.Contains(manuals[name], phrase) {
+				t.Errorf("%s missing mosaic explanation %q", name, phrase)
+			}
+		}
+	}
+}
+
 func TestManualDocumentsComparisonIdentityAndSwap(t *testing.T) {
 	for _, phrase := range []string{
 		"bottom-corner badges",

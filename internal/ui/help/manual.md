@@ -555,6 +555,14 @@ and a second `Esc` closes the window; when idle, `Esc` closes it directly. All
 controls and actions are reachable with `Tab` and `Shift+Tab`, and `Enter` or
 `Space` activates a focused button.
 
+**Maximum rotation** accepts 0 to 90 degrees in one-degree steps; the
+default is 7 degrees.
+Each photo can turn in either direction from its correctly oriented source.
+**Overlap** (0-20%, default 8%) requests an approximate inset relative to the
+shorter unrotated photo edge. Higher values request more layering; this is
+not a covered-area limit, and 0% does not prevent rotated photos from intersecting.
+Clipping at the outer canvas edge remains allowed.
+
 After generation, **Start Over** returns to configuration, discards the current
 preview and status, and keeps the sources, selected display, visual settings,
 and export format so you can choose another display and generate its wallpaper.
