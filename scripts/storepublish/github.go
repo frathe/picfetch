@@ -383,7 +383,11 @@ func (g githubAPI) verifyArtifact(ctx context.Context, root, dir string, data []
 		return r, fmt.Errorf("tagged application version disagrees with Store artifact")
 	}
 	notes, err := g.rt.Git(ctx, root, "show", sha+":.github/release-notes.md")
-	if err != nil || len(notes) > 1<<20 || string(notes) != r.Notes {
+	// Windows checkouts can record CRLF where the Git blob uses LF. Ignore only
+	// that conversion; all other note content must still match the tagged source.
+	taggedNotes := strings.ReplaceAll(string(notes), "\r\n", "\n")
+	recordedNotes := strings.ReplaceAll(r.Notes, "\r\n", "\n")
+	if err != nil || len(notes) > 1<<20 || taggedNotes != recordedNotes {
 		return r, fmt.Errorf("tagged release notes disagree with Store artifact")
 	}
 	r.ArtifactID = artifactID

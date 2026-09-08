@@ -523,6 +523,88 @@ func TestStorePublishApproval(t *testing.T) {
 		}
 	})
 }
+func TestStorePublishNoteProvenance(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		recordCRLF bool
+		taggedCRLF bool
+		change     string
+	}{
+		{name: "LF notes"},
+		{name: "Windows artifact", recordCRLF: true},
+		{name: "CRLF Git blob", taggedCRLF: true},
+		{name: "CRLF on both sides", recordCRLF: true, taggedCRLF: true},
+		{name: "changed content", recordCRLF: true, change: "content"},
+		{name: "changed whitespace", recordCRLF: true, change: "space"},
+		{name: "bare carriage return", recordCRLF: true, change: "carriage return"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newStoreHarness(t)
+			rec, err := loadRelease(filepath.Join(h.dir, "store-release.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			taggedNotes := rec.Notes
+			if tc.taggedCRLF {
+				taggedNotes = strings.ReplaceAll(taggedNotes, "\n", "\r\n")
+			}
+			if tc.recordCRLF {
+				rec.Notes = strings.ReplaceAll(rec.Notes, "\n", "\r\n")
+			}
+			switch tc.change {
+			case "content":
+				rec.Notes = strings.ReplaceAll(rec.Notes, "two photos", "other photos")
+			case "space":
+				rec.Notes = strings.ReplaceAll(rec.Notes, "together.", "together. ")
+			case "carriage return":
+				rec.Notes += "\r"
+			}
+			wack, err := os.ReadFile(filepath.Join(h.dir, "wack-report.xml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.artifact = testZIP(t, map[string][]byte{bundleName: h.bundle, "wack-report.xml": wack, "store-release.json": mustJSON(t, rec)})
+			oldGit := h.rt.Git
+			h.rt.Git = func(ctx context.Context, root string, args ...string) ([]byte, error) {
+				if args[0] == "show" && strings.HasSuffix(args[1], ":.github/release-notes.md") {
+					return []byte(taggedNotes), nil
+				}
+				return oldGit(ctx, root, args...)
+			}
+			path := filepath.Join(h.dir, "approval.json")
+			err = run(context.Background(), []string{"prepare", "--run-id", "123", "--out", path}, h.rt)
+			if h.tokens+h.creates+h.updates+h.uploads+h.commits+len(h.journal) != 0 {
+				t.Fatal("preparation accessed Microsoft or mutated services")
+			}
+			if tc.change != "" {
+				if err == nil || !strings.Contains(err.Error(), "tagged release notes disagree with Store artifact") {
+					t.Fatalf("changed notes were not rejected by provenance check: %v", err)
+				}
+				if _, err = os.Stat(path); !os.IsNotExist(err) {
+					t.Fatal("changed notes produced an approval")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(b, []byte("Open two photos together.")) {
+				t.Fatal("approval omitted the release note")
+			}
+			if err = run(context.Background(), []string{"submit", "--approval", path, "--approval-sha256", digest(b), "--state-dir", h.dir}, h.rt); err != nil {
+				t.Fatal(err)
+			}
+			if h.creates != 1 || h.commits != 1 {
+				t.Fatal("approved artifact was not submitted")
+			}
+		})
+	}
+}
+
 func (h *storeHarness) invoke(command, tag string) error {
 	h.mu.Lock()
 	h.out.Reset()

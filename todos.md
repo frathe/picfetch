@@ -93,10 +93,18 @@ a waiting release. See `docs/microsoft-store.md` for the operational sequence.
 The existing main-only environment, frathe reviewer, disabled bypass/timer/custom
 rules and three secret names were verified through GitHub API metadata. The user
 confirmed the linked Developer application and rotated key. Credentials remain
-only in GitHub Secrets. No existing trusted main workflow supports the Microsoft
-read check. Landing this local workflow on main, approving its read-only check and
-observing the next ordinary approved release remain open. Read access will not
-prove submission permission. Keep the live 1.0.2 tag and artifact unchanged.
+only in GitHub Secrets. The workflow is now on main. Its first automatic `v1.0.3`
+publisher run (34220437267) failed in preparation because the Windows artifact
+recorded CRLF release notes while the tagged Git blob used LF. The local fix
+compares notes after CRLF-to-LF conversion only; changed content, whitespace and
+bare carriage returns still fail provenance checks. Read-only preparation now
+passes against the original producer run 34218808203 and artifact 10053491693;
+no replacement build or Store submission was needed. Publisher race tests pass,
+including preparation and approved submission with simulated Windows notes.
+Land this fix on main, then manually dispatch `submit` for `v1.0.3` and review
+the frozen approval. Observing the approved Store release remains open. Read
+access alone does not prove submission permission. Keep the live 1.0.2 tag and
+artifact unchanged.
 
 Focused tooling race tests, actionlint, formatting, TUF/Qodana checks, host vet/build,
 Windows publisher cross-build and Linux shard inventory pass for the approval
