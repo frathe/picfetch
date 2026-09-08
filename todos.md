@@ -6,28 +6,17 @@
 
 #### New Features
 
+### Improve mosaic rotation and visible overlap
+
+Raise the maximum rotation limit to 90 degrees, make Overlap visibly affect the
+finished arrangement, and prevent mostly concealed photos, including gap-filling
+cards.
+
 #### Bugfix
 
 #### Internal
 
 ## TODO
-
-### Improve mosaic rotation and visible overlap
-
-Raise the maximum rotation limit to 90 degrees, make Overlap visibly affect the
-finished arrangement, and prevent mostly concealed photos, including gap-filling
-cards. The [ready-for-agent specification](.scratch/mosaic-rotation-overlap/spec.md)
-preserves existing defaults and inset semantics, and defines final-pixel visibility
-and paired-setting acceptance checks. The [two implementation tickets](.scratch/mosaic-rotation-overlap/README.md)
-run in order: 90-degree rotation, then overlap response and photo visibility.
-The 90-degree control, validation, persistence, rendering and cancellation checks
-are implemented locally. The overlap and concealment symptoms are reproduced in
-two intentionally failing regression groups. Placement experiments within the
-existing size range did not complete coverage. A retained prototype succeeds on
-one fixture by enlarging some photos beyond that range; the size-range decision
-is pending. See the [implementation plan](plans/2026-09-08-mosaic-rotation-overlap.md)
-and [evidence](.scratch/mosaic-rotation-overlap/evidence/README.md). The full race
-gate and integrated acceptance remain pending; the overlap fix has not landed.
 
 ### Investigate intermittent local race-gate failures
 
@@ -74,73 +63,6 @@ tracked grouping worker. [Phase 6 evidence](.scratch/maintainability/evidence/28
 and the complete canonical Linux race/golden gate pass. The native macOS Copy
 Selection screenshot mismatch remains recorded in the validation evidence.
 HEIC/verifier tickets 31/32 retain their separate future-upgrade triggers.
-
-### Activate and verify approved Microsoft Store updates
-
-PicFetch 1.0.2 is published. The publisher now prepares exact validated artifacts
-and frozen notes automatically, then requires frathe's GitHub environment approval
-for each rollout. It preserves original artifact provenance, metadata, version
-checks, serialization and durable recovery. Cron was removed: manual approved
-`check`/`reconcile` observes certification, and a separate approved `submit` handles
-a waiting release. See `docs/microsoft-store.md` for the operational sequence.
-
-The existing main-only environment, frathe reviewer, disabled bypass/timer/custom
-rules and three secret names were verified through GitHub API metadata. The user
-confirmed the linked Developer application and rotated key. Credentials remain
-only in GitHub Secrets. The workflow is now on main. Its first automatic `v1.0.3`
-publisher run (34220437267) failed in preparation because the Windows artifact
-recorded CRLF release notes while the tagged Git blob used LF. The publisher fix
-compares notes after CRLF-to-LF conversion only; changed content, whitespace and
-bare carriage returns still fail provenance checks. Read-only preparation now
-passes against the original producer run 34218808203 and artifact 10053491693;
-no replacement build or Store submission was needed. `make verify` and focused
-publisher race tests pass, including preparation and approved submission with
-simulated Windows notes. Disabling the comparison in a temporary compiler overlay
-made all three content/whitespace rejection cases fail as expected.
-The line-ending fix is committed as `16abd99`. The next approved publisher run
-(34222625099) passed preparation and created draft 1152921505701835817, then stopped
-with `pending submission has changes outside the recorded update`. Receipt
-6326959682 remains in phase `created`. The later API check confirms that the PUT
-already saved the new notes and package; the earlier browser view of unchanged
-listings was insufficient evidence of the API draft's contents.
-
-The local `check` enhancement reports bounded differing field paths and validation
-booleans without metadata values or Store/receipt writes. Its publisher race tests
-and full `make verify` pass; temporary compiler overlays confirmed the redaction,
-size, receipt/base/state selection, missing/null and read-only guards fail when
-broken. The diagnostic change is committed as `91bad9e`. Approved check run
-34226413927 found exactly one difference from the prepared update:
-`/pricing/isAdvancedPricingModel`. Microsoft documents it as a read-only account
-capability flag. Packages and the prepared base match the receipt.
-
-The fix accepts only this flag's optional boolean representations while
-keeping recorded metadata hashes unchanged and preserving all editable pricing,
-listing, note and package checks. Command tests cover new submissions, recovery
-from the existing `created` phase and interrupted upload, plus protected drift.
-Publisher race tests and full `make verify` pass; temporary compiler overlays
-confirmed regression detection for the flag comparison, editable metadata/package
-guards, original receipt hash format, input ownership and avoiding a repeated PUT.
-The user committed the fix as `5533991`. Approved reconcile run 34228812095
-succeeded, uploaded the original v1.0.3 artifact, and received `CommitStarted` at
-2026-09-08 12:57 UTC for submission 1152921505701835817. Receipt 6328101033 is in
-phase `observing`, with the original metadata hash unchanged. After refreshing
-Partner Center at 13:02 UTC, the page showed "Update in certification": Submission
-complete, Pre-processing active (step 2 of 4), automatic publishing after passing
-certification. The CI publishing failure is resolved; final certification and live
-availability remain to be observed. See
-`finished_refactorings/2026-09-08-store-draft-mismatch.md`.
-
-Focused tooling race tests, actionlint, formatting, TUF/Qodana checks, host vet/build,
-Windows publisher cross-build and Linux shard inventory pass for the approval
-amendment. Prior verification:
-the combined `make verify` recorded Docker OOM; isolated UI race shards and non-UI
-partitions passed. That combined invocation did not succeed. No repeat of the full
-race suite was performed for this tooling amendment; fresh check evidence is in
-the implementation plan. That tooling verification preceded the approved live
-runs recorded above.
-
-Spec and tickets: `.scratch/microsoft-store-updates/README.md`.
-Plan and evidence: `plans/2026-09-07-microsoft-store-updates.md`.
 
 ## LATER
 

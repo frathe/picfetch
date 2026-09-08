@@ -1,6 +1,6 @@
 # Mosaic rotation and visible overlap
 
-Status: rotation implemented locally; overlap design decision pending.
+Status: rotation complete with focused verification; overlap design decision pending.
 Route: Standard, following the existing ready-for-agent specification despite
 its supporting control, persistence and manual checks spanning four packages.
 
@@ -32,6 +32,7 @@ Contract: existing Settings, Request, Generate, renderer and Save/Load interface
 Test: AC1, AC2 rotation, AC5 and manual range/inset guard, one vertical slice at a time.
 Verify: parent AC1, AC2, AC5, AC6, AC7 documentation commands.
 Budget: 0 implementation spawns; 1 review round; no full suite.
+Status: complete; ticket 01's focused acceptance checks pass.
 
 ### S — Existing final-pixel test instrumentation
 Owner: read-only Scout.
@@ -92,7 +93,7 @@ Budget: 0 spawns; 1 final full suite, repeated only for failures or new changes.
 | Task | Spawns budget/actual | Review rounds | Full suite | Evidence |
 |------|----------------------|---------------|------------|----------|
 | S | 1/1 | 0 | no | Existing occurrence/pixel helpers located and checked inline |
-| T1 | 0/0 | 1 | no | AC1, AC2, AC5 and manual/root checks pass; preference and angle-clamp guards observed red |
+| T1 | 0/0 | 1 | no | Ticket 01 complete; AC1, AC2, AC5 and manual/root checks pass; preference and angle-clamp guards observed red |
 | T2 | 0/0 | 1 | no | Reproductions fail; bounded placement/reflow experiments retained outside production |
 | T3 | 0/0 | 1 | no | Prototype and baseline inspected; final visual evidence pending |
 | gate | 0/0 | 0 | pending | verify-build and shard checks pass; full race gate awaits integrated implementation |
@@ -100,10 +101,11 @@ Budget: 0 spawns; 1 final full suite, repeated only for failures or new changes.
 ## Current evidence and decision
 
 See [the evidence record](../.scratch/mosaic-rotation-overlap/evidence/README.md)
-for commands, measured failures, artifacts and limits. The baseline generator
-and layout are unchanged. Only rotation validation/normalization and the slider
-range have production changes. The two new overlap test groups intentionally
-remain red; no integrated or full-suite success is claimed.
+for commands, measured failures, artifacts and limits. Ticket 01 is complete:
+rotation validation/normalization, the control range, large-angle rendering,
+persistence, and cancellation all pass focused verification. The two new overlap
+test groups intentionally remain red; no integrated or full-suite success is
+claimed.
 
 Search that protects all retained photos cannot simply substitute for unrestricted
 repairs: representative fixtures leave gaps. Bounded backtracking and enlargement
