@@ -37,6 +37,7 @@ COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
 .PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows warm-fyne-cross-linux package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-fyne install-fyne-cross install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
+.PHONY: verify-build --skip-local-tests
 
 all: build
 
@@ -311,9 +312,11 @@ test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Do
 			exit $$status \
 		'
 
-verify: fmt-check check-tuf-root check-qodana-test-exclusions ## Run the same checks CI does (format, TUF root, Qodana exclusions, vet, build, race tests)
+verify-build: fmt-check check-tuf-root check-qodana-test-exclusions ## Run local verification without the test suite (format, TUF root, Qodana exclusions, vet, build)
 	go vet ./...
 	go build ./...
+
+verify: verify-build ## Run the same checks CI does (format, TUF root, Qodana exclusions, vet, build, race tests)
 	$(MAKE) test-race
 
 golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64, matching CI exactly - needs Docker)
@@ -432,7 +435,17 @@ bump-version: ## Bump FyneApp.toml's Version/Build only (PART=major|minor|patch,
 	@scripts/bump_version.sh $${PART:-patch} >/dev/null
 	@echo "FyneApp.toml was updated but NOT committed. Use 'make release' for the full flow."
 
-release: ## Full release: verify, bump version, commit, tag, push (PART=major|minor|patch, default patch; YES=1 skips the prompt)
+# Make consumes options itself; pass this release flag after its -- separator.
+ifneq ($(filter --skip-local-tests,$(MAKECMDGOALS)),)
+ifeq ($(filter release,$(MAKECMDGOALS)),)
+$(error --skip-local-tests requires release: make release -- --skip-local-tests)
+endif
+endif
+
+--skip-local-tests:
+	@:
+
+release: ## Full release: verify, bump version, commit, tag, push (PART=major|minor|patch, default patch; YES=1 skips the prompt; -- --skip-local-tests skips local tests)
 	@# The tag must contain its own version bump, so this target commits the
 	@# FyneApp.toml edit before tagging - the one place the Makefile writes to
 	@# git history. Publishing happens in .github/workflows/release.yml, which
@@ -476,7 +489,12 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 		read answer; \
 		case $$answer in y|Y|yes|YES) ;; *) echo "Aborted."; exit 1 ;; esac; \
 	fi; \
-	$(MAKE) verify; \
+	if [ -n "$(filter --skip-local-tests,$(MAKECMDGOALS))" ]; then \
+		echo "Skipping local tests (--skip-local-tests); release CI still runs the full suite."; \
+		$(MAKE) verify-build; \
+	else \
+		$(MAKE) verify; \
+	fi; \
 	if [ -n "$$tuf_changed" ]; then \
 		git add "$$tuf_root"; \
 		git commit -m "Update GitHub TUF root"; \

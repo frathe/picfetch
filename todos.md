@@ -8,36 +8,34 @@
 
 ##### **Trane follows your cursor**
 
-Trane now turns his head toward the mouse on the welcome screen and returns to
-a neutral pose when the pointer leaves. He stays still between pointer movements.
-Pink fringe along the artwork's transparent outline has been cleaned up.
+Trane now turns his head to follow your mouse on the welcome screen and looks ahead again when you move away. His artwork also has a cleaner outline.
 
 ##### **PicFetch is now in Microsoft Store**
 
-PicFetch 1.0.2 is now available in Microsoft Store for x64 and ARM64 Windows PCs. Store installations receive updates through Microsoft Store.
+PicFetch 1.0.2 is now available in Microsoft Store for x64 and ARM64 Windows PCs, with updates delivered through the Store.
 
-The portable version remains available through GitHub and WinGet.
+The portable version is still available through GitHub and WinGet.
 
-##### **More export options (Cmd/Ctrl+E)**
+##### **More control over exports (Cmd/Ctrl+E)**
 
-You can now adjust two settings before exporting:
+Two new options let you choose what goes into your exported picture:
 
-- **Export size limit** — Keep the original size, or limit the longest side to 2400, 1600 or 1000 pixels. Pictures keep their proportions and are never enlarged. The Original option shows your picture’s current size for comparison.
-- **Include camera metadata (JPEG only)** — Turn this off to leave camera metadata out of the exported copy. Your original file stays unchanged.
+- **Export size limit** — Keep the original size or reduce the longest side to 2400, 1600 or 1000 pixels. Pictures keep their proportions and are never enlarged. The Original option shows the picture’s current dimensions.
+- **Include camera metadata (JPEG only)** — Turn this off to export a copy without camera metadata. Your original file stays unchanged.
 
-Use Up/Down to move between these settings. They return to their defaults each time you open the export prompt.
+Use Up/Down to move between the options. Each time you open the export dialog, it starts with the default settings.
 
-If an export is resized, the suggested filename and completion message indicate this. Using the default settings produces the same results as before.
+For resized exports, the suggested filename and confirmation message make it clear that you saved a smaller copy.
 
-##### **Correct size information in exported JPEGs**
+##### **Exported JPEGs report the correct dimensions**
 
-JPEGs exported with camera metadata now include the correct width and height after resizing or rotation. This helps other apps read the exported picture’s dimensions correctly.
+JPEGs saved with camera metadata now report their correct size after resizing or rotation, helping other apps display accurate picture information.
 
-Information about subject positions is removed when it no longer matches the picture. Camera-specific details and print resolution are preserved.
+Subject-position information that no longer matches the picture is removed. Camera details and print resolution are preserved.
 
-##### **Startup options for scripts and picture frames**
+##### **New startup options**
 
-You can now control how PicFetch starts from the command line, including slideshow playback, shuffle, slide timing and sorting:
+You can now start PicFetch with a slideshow, shuffle, custom slide timing and other options from the command line—useful for scripts and picture-frame setups:
 
 ```text
 --slideshow
@@ -49,30 +47,26 @@ You can now control how PicFetch starts from the command line, including slidesh
 --help
 ```
 
-Options can appear before or after file paths. Use `--help` for usage information. Unrecognized options display an error and prevent the app from starting.
+Place options before or after file paths, and use `--help` for details. Unrecognized options show an error and prevent startup.
 
-These options apply only to the current session and do not change your saved settings. Opening PicFetch from Finder works as before.
+These options apply only to the current session. Your saved settings and the way you open PicFetch from Finder stay unchanged.
 
 ##### **Watch your mosaic take shape**
 
-Mosaic generation now shows a live preview and a progress bar indicating how much of the canvas is covered.
+See your mosaic appear as it is generated, with a progress bar showing how much of the canvas is filled.
 
-If you cancel or generation fails, your last completed mosaic is restored. Saving an image or setting it as wallpaper always uses a completed mosaic.
+If you cancel or something goes wrong, PicFetch restores your last completed mosaic. Saving or setting wallpaper always uses a completed result.
 
-Mosaic generation is also more efficient while keeping the same image quality, frames, shadows and output resolution.
+Mosaic generation also runs more efficiently while preserving image quality, frames, shadows and output resolution.
 
 #### Bug Fixes
 
-- **Saving and deleting the same image stay ordered.** Moving an image to Trash waits for its active write, preventing Save Changes from recreating a deleted file. Case aliases share the same write transaction, and exporting over the current image with different filename capitalization refreshes the view correctly.
-- **Picture-frame navigation stays predictable.** Manual navigation discards an already queued timed advance. Cancelling or replacing startup loading spends `--slideshow`, so a later unrelated drop does not enter picture-frame mode.
-- **Hide Duplicates keeps working after sorting.** Navigation and slideshows continue to skip extra copies, even when sorting leaves the order unchanged.
-- **Safer exports.** PicFetch now refuses to export directly to a symbolic link, preventing it from unexpectedly overwriting the file that link points to.
-- **Rotation stays consistent while saving.** If you rotate or reset the view during Save Changes, those later edits are tracked correctly. Pressing `0` returns to the saved image, and Save Changes is available only when there is still a rotation to save.
-
-#### Maintenance
-
-- Improved automated testing and resolved code quality issues.
-- Hardened Microsoft Store artifact staging against pre-existing files and symbolic links. Reviewed Qodana findings with targeted regressions and documented inspection exclusions, preserving image-resampler rounding.
+- **Deleted images stay deleted.** Moving an image to Trash now waits for any save in progress, so saving cannot accidentally bring the file back.
+- **Exports refresh correctly.** Overwriting the current image now updates the view even if the filename uses different capitalization.
+- **Slideshow navigation is more predictable.** Moving to another picture manually prevents a pending timed advance from immediately skipping ahead. Cancelling a slideshow started from the command line also prevents unrelated pictures opened later from starting one.
+- **Hide Duplicates stays reliable after sorting.** Navigation and slideshows continue to skip duplicate copies.
+- **Exports avoid unexpected overwrites.** PicFetch now blocks exporting directly to a symbolic link, protecting the file it points to.
+- **Rotation works correctly during saving.** Rotations made while a save is in progress are tracked correctly. Pressing `0` returns to the saved image, and Save Changes is available only when a rotation remains unsaved.
 
 ## TODO
 

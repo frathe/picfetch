@@ -281,6 +281,7 @@ in [go.mod](go.mod), so its first run may download that pinned module.
 ```sh
 make release              # patch bump, e.g. 0.1.7 -> 0.1.8
 make release PART=minor   # or PART=major
+make release -- --skip-local-tests  # omit the local test suite
 ```
 
 `make release` is the whole flow. It refuses to start unless you're on `main`
@@ -297,6 +298,11 @@ notes first; a Done section with no list items aborts. If the GitHub CLI (`gh`) 
 installed it then finds the Release workflow run for that tag (without
 prompting you to pick among the simultaneous CI run on `main`) and
 follows it until the artifacts are published.
+
+Pass `-- --skip-local-tests` to run `make verify-build` instead of `make verify`:
+formatting, TUF root, Qodana exclusions, vet, and build still run locally, while
+the test suite runs in release CI. The first `--` ends Make's own options so it
+can accept the custom flag. This also works with `PART=minor` and `YES=1`.
 
 Pushing the tag is what publishes: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 re-runs the full CI suite as a gate, then packages macOS, Windows, and Linux
