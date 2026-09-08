@@ -83,6 +83,8 @@ func TestFinisGazeDirectionsAndRest(t *testing.T) {
 	}
 	test.MoveMouse(window.Canvas(), origin.Add(fyne.NewPos(10, 10)))
 	assertFinisPose(t, window, 6, 0)
+	test.MoveMouse(window.Canvas(), origin.Add(fyne.NewPos(20, 0)))
+	assertFinisPose(t, window, 6, 0)
 	test.MoveMouse(window.Canvas(), origin.Add(fyne.NewPos(120, 0)))
 	assertFinisPose(t, window, 4, 9)
 	test.MoveMouse(window.Canvas(), fyne.NewPos(-10, -10))

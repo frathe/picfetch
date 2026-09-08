@@ -1,50 +1,20 @@
 package ui
 
 import (
-	"bytes"
-	"fmt"
 	"image"
-	"image/draw"
-	"math"
 	"sync"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
-	"golang.org/x/image/webp"
 
 	"github.com/frathe/picfetch/internal/ui/assets"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
-const (
-	traneWidth   = 192
-	traneHeight  = 208
-	traneNeutral = 16
-)
-
 // Share immutable decoded cells between viewers; neither animation nor cursor
 // motion decodes artwork or changes source pixels.
-var traneFrames = sync.OnceValues(func() ([17]image.Image, error) {
-	var frames [17]image.Image
-	atlas, err := webp.Decode(bytes.NewReader(assets.TraneWebP))
-	if err != nil {
-		return frames, err
-	}
-	if atlas.Bounds() != image.Rect(0, 0, 8*traneWidth, 11*traneHeight) {
-		return frames, fmt.Errorf("unexpected Trane atlas bounds: %v", atlas.Bounds())
-	}
-	for index := range frames {
-		column, row := index%8, 9+index/8
-		if index == traneNeutral {
-			column, row = 6, 0
-		}
-		frame := image.NewNRGBA(image.Rect(0, 0, traneWidth, traneHeight))
-		draw.Draw(frame, frame.Bounds(), atlas, image.Pt(column*traneWidth, row*traneHeight), draw.Src)
-		removeTraneSpill(frame)
-		frames[index] = frame
-	}
-	return frames, nil
+var traneFrames = sync.OnceValues(func() (widgets.GazeFrames, error) {
+	return widgets.DecodeGazeAtlas(assets.TraneWebP, removeTraneSpill)
 })
 
 // Correct magenta spill only within five source pixels of transparency.
@@ -94,29 +64,25 @@ func removeTraneSpill(frame *image.NRGBA) {
 // choose a pose, on Fyne's UI thread.
 type tranePet struct {
 	widget.BaseWidget
-	portrait *canvas.Image
-	frames   [17]image.Image
-	pointer  fyne.Position
-	known    bool
+	gaze    *widgets.Gaze
+	pointer fyne.Position
+	known   bool
 }
 
 func newTranePet() *tranePet {
 	frames, err := traneFrames()
-	portrait := canvas.NewImageFromImage(frames[traneNeutral])
+	gaze := widgets.NewGaze(frames, fyne.NewSize(widgets.WelcomeArtSize, widgets.WelcomeArtSize))
 	if err != nil {
 		fyne.LogError("Could not load Trane pet", err)
-		portrait = canvas.NewImageFromResource(fyne.NewStaticResource("welcome.webp", assets.WelcomeWebP))
+		gaze.Portrait().Resource = fyne.NewStaticResource("welcome.webp", assets.WelcomeWebP)
 	}
-	portrait.FillMode = canvas.ImageFillContain
-	portrait.ScaleMode = canvas.ImageScaleSmooth
-	portrait.SetMinSize(fyne.NewSize(widgets.WelcomeArtSize, widgets.WelcomeArtSize))
-	pet := &tranePet{portrait: portrait, frames: frames}
+	pet := &tranePet{gaze: gaze}
 	pet.ExtendBaseWidget(pet)
 	return pet
 }
 
 func (p *tranePet) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(p.portrait)
+	return widget.NewSimpleRenderer(p.gaze.Portrait())
 }
 
 func (p *tranePet) Hide() {
@@ -157,22 +123,16 @@ func (l welcomeLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 }
 
 func (p *tranePet) renderFrame() {
-	frame := p.frames[traneNeutral]
-	if p.known {
-		// ImageFillContain centers the cell inside the portrait. Aim from
-		// the face, accounting for both letterboxing and window resizing.
-		size := p.portrait.Size()
-		scale := min(size.Width/traneWidth, size.Height/traneHeight)
-		origin := fyne.CurrentApp().Driver().AbsolutePositionForObject(p.portrait)
-		dx := float64(p.pointer.X - origin.X - size.Width/2)
-		dy := float64(p.pointer.Y - origin.Y - (size.Height-traneHeight*scale)/2 - 64*scale)
-		if math.Hypot(dx, dy) >= float64(18*scale) {
-			sector := (int(math.Round(math.Atan2(dx, -dy)/(math.Pi/8))) + 16) % 16
-			frame = p.frames[sector]
-		}
+	if !p.known {
+		p.gaze.Rest()
+		return
 	}
-	if frame != nil && p.portrait.Image != frame {
-		p.portrait.Image = frame
-		p.portrait.Refresh()
-	}
+	// ImageFillContain centers the cell inside the portrait. Aim from
+	// the face, accounting for both letterboxing and window resizing.
+	portrait := p.gaze.Portrait()
+	size := portrait.Size()
+	scale := min(size.Width/widgets.GazeWidth, size.Height/widgets.GazeHeight)
+	origin := fyne.CurrentApp().Driver().AbsolutePositionForObject(portrait)
+	p.gaze.LookAt(fyne.NewPos(p.pointer.X-origin.X-size.Width/2,
+		p.pointer.Y-origin.Y-(size.Height-widgets.GazeHeight*scale)/2-64*scale), 18*scale)
 }

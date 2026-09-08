@@ -12,32 +12,59 @@ import (
 // the instance-owned factory. The immutable adapter is registered during init,
 // before any workers run: Fyne's repository registry is not synchronized.
 func ReaderURI(u fyne.URI, open func() (io.ReadCloser, error)) fyne.URI {
-	return &readerURI{URI: u, open: open}
+	return &storageURI{URI: u, open: open}
 }
 
-type readerURI struct {
+// DirectoryURI preserves a directory's path while serving listings from an
+// instance-owned callback, so tests can control an in-flight directory read.
+func DirectoryURI(u fyne.URI, list func() ([]fyne.URI, error)) fyne.URI {
+	return &storageURI{URI: u, list: list}
+}
+
+type storageURI struct {
 	fyne.URI
 	open func() (io.ReadCloser, error)
+	list func() ([]fyne.URI, error)
 }
 
-func (_ *readerURI) Scheme() string { return "picfetch-test-reader" }
-func (u *readerURI) String() string {
+func (_ *storageURI) Scheme() string { return "picfetch-test-storage" }
+func (u *storageURI) String() string {
 	return u.Scheme() + strings.TrimPrefix(u.URI.String(), u.URI.Scheme())
 }
 
-type readerRepository struct{}
+type storageRepository struct{}
 
-func init() { repository.Register("picfetch-test-reader", readerRepository{}) }
+func init() { repository.Register("picfetch-test-storage", storageRepository{}) }
 
-func (readerRepository) Exists(_ fyne.URI) (bool, error)  { return true, nil }
-func (readerRepository) CanRead(_ fyne.URI) (bool, error) { return true, nil }
-func (readerRepository) Destroy(_ string)                 {}
-func (readerRepository) Reader(u fyne.URI) (fyne.URIReadCloser, error) {
-	r, err := u.(*readerURI).open()
+func (storageRepository) Exists(_ fyne.URI) (bool, error) { return true, nil }
+func (storageRepository) Destroy(_ string)                {}
+func (storageRepository) CanRead(u fyne.URI) (bool, error) {
+	return u.(*storageURI).open != nil, nil
+}
+func (storageRepository) Reader(u fyne.URI) (fyne.URIReadCloser, error) {
+	open := u.(*storageURI).open
+	if open == nil {
+		return nil, repository.ErrOperationNotSupported
+	}
+	r, err := open()
 	if err != nil {
 		return nil, err
 	}
 	return uriReader{ReadCloser: r, u: u}, nil
+}
+
+func (storageRepository) CanList(u fyne.URI) (bool, error) {
+	return u.(*storageURI).list != nil, nil
+}
+func (storageRepository) List(u fyne.URI) ([]fyne.URI, error) {
+	list := u.(*storageURI).list
+	if list == nil {
+		return nil, repository.ErrOperationNotSupported
+	}
+	return list()
+}
+func (storageRepository) CreateListable(_ fyne.URI) error {
+	return repository.ErrOperationNotSupported
 }
 
 type uriReader struct {

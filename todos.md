@@ -76,18 +76,19 @@ Mosaic generation is also more efficient while keeping the same image quality, f
 
 ## TODO
 
-### Validate the two follow-up review fixes after the next push
+### Validate shared dog gaze after the next push
 
-The user pushed the original release-review fixes as `d7d2f8e`. That head passed
-CI, CodeQL and Qodana; CodeQL alert 4's PR instance is fixed, Qodana found no new
-problems in PR mode, and Codex's security review found no issues.
+The release-review follow-ups are merged and current main `a5b4c31` passed CI,
+CodeQL and Qodana. Unrelated exports preserve loaded derived state, and changing
+duplicate sensitivity after closing an unfinished hash pass resumes the work.
+Main's only remaining Qodana result is the duplicated Trane/Finis atlas mapping.
 
-Two later P2 findings are fixed locally: unrelated exports preserve loaded
-favorite-preview/grid/duplicate state, and changing duplicate sensitivity after
-closing an unfinished hash pass resumes missing work. These follow-up edits
-remain uncommitted as requested. Their focused and full local checks are
-recorded in `finished_refactorings/2026-09-08-release-readiness/assessment.md`;
-remote checks must be rerun on the user's next pushed head.
+The shared gaze extraction is tracked in
+`finished_refactorings/2026-09-08-shared-dog-gaze.md`. Its changes remain local until the user
+commits and pushes them; rerun remote checks on that commit before release.
+The local full gate also exposed an uncontrolled scan-cancellation test; the
+test now holds its directory read across replacement explicitly and checks
+that cancelled work stops. The plan retains the failed run and retry evidence.
 
 ### Investigate intermittent local race-gate failures
 
@@ -96,7 +97,8 @@ Docker OOM event. This time comparison printed PASS before its process was
 killed; all three root-UI shards passed. A full `make verify` retry passed with
 `GOFLAGS=-p=1` inside Docker, preserving all four race partitions while limiting
 package concurrency. This resource limit was scoped to the verification run;
-the repository's default runner remains unchanged. The release assessment keeps
+the default runner now applies a 16 GiB container memory budget matching CI.
+The release assessment keeps
 the original failed run and the successful combined retry separate.
 
 The 2026-09-07 Qodana cleanup's `make verify` run reported a package-level failure

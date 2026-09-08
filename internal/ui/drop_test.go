@@ -6,11 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -499,39 +501,41 @@ func TestClearToDropzone_FinishesInFlightScan(t *testing.T) {
 	}
 }
 
-// TestHandleDrop_SupersededScanGoroutineExits drops a folder large enough to
-// force several storage.List round trips, then immediately drops a second,
-// unrelated file before the first scan can finish. gen is bumped
-// synchronously by the second handleDrop call, on this same goroutine,
-// before the first scan's background goroutine has any chance to run -
-// so by the time that goroutine makes its first post-bump gen check
-// (whichever of the several in handleDrop it reaches first), it's
-// already stale. This exercises the gen check inside the directory-walk
-// loop (added so a superseded scan stops touching the filesystem instead
-// of racing a large tree to completion for a discarded result) without
-// depending on real-time scheduling to land the cancellation mid-scan.
+// Hold the first directory listing across the replacement drop, so the test
+// exercises cancellation during real scan work without relying on scheduling.
+// Fyne's test driver runs fyne.Do inline: an uncontrolled first scan could
+// otherwise update progress widgets while the test starts the second drop.
 func TestHandleDrop_SupersededScanGoroutineExits(t *testing.T) {
 	v := newTestViewer(t)
-
 	rootA := t.TempDir()
-	for i := range 20 {
-		sub := filepath.Join(rootA, fmt.Sprintf("d%d", i))
-		if err := os.MkdirAll(sub, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(sub, "photo.jpg"), uitest.EncodeJPEG(t, 4, 4, color.White), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	v.handleDrop([]fyne.URI{storage.NewFileURI(rootA)})
-	scanA := v.scanOp.done.Current()
-
 	jpegB := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
-	dropAndWait(t, v, jpegB)
+	var listing completion.Signal
+	entered := listing.Begin()
+	release := make(chan struct{})
+	releaseListing := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(releaseListing)
 
+	visitedChild := false
+	child := uitest.DirectoryURI(storage.NewFileURI(filepath.Join(rootA, "child")), func() ([]fyne.URI, error) {
+		visitedChild = true
+		return nil, nil
+	})
+	root := uitest.DirectoryURI(storage.NewFileURI(rootA), func() ([]fyne.URI, error) {
+		entered()
+		<-release
+		return []fyne.URI{child}, nil
+	})
+	v.handleDrop([]fyne.URI{root})
+	scanA := v.scanOp.done.Current()
+	waitFor(t, "the first directory listing to start", &listing)
+
+	dropAndWait(t, v, jpegB)
+	releaseListing()
 	waitHandle(t, "the superseded scan's goroutine to exit", scanA)
 
+	if visitedChild {
+		t.Error("superseded scan continued listing child directories")
+	}
 	if len(v.state.files) != 1 || v.state.files[0].String() != jpegB.String() {
 		t.Errorf("files = %v, want only the second drop's file applied", v.state.files)
 	}

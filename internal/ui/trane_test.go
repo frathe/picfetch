@@ -89,14 +89,16 @@ func TestTraneFollowsCursor(t *testing.T) {
 		for sector := range 16 {
 			angle := float64(sector) * math.Pi / 8
 			pointer := origin.Add(fyne.NewPos(float32(math.Sin(angle)*60), float32(-math.Cos(angle)*60)))
-			v.dropzoneArt.MouseMoved(&desktop.MouseEvent{PointEvent: fyne.PointEvent{AbsolutePosition: pointer}})
+			v.dropzoneArt.MouseMoved(&desktop.MouseEvent{AbsolutePosition: pointer})
 			assertTraneFrame(t, picture, sector%8, 9+sector/8)
 		}
 		// The face itself has a neutral dead zone instead of flickering
 		// between opposing sectors for tiny pointer movements.
-		v.dropzoneArt.MouseMoved(&desktop.MouseEvent{PointEvent: fyne.PointEvent{AbsolutePosition: origin}})
+		v.dropzoneArt.MouseMoved(&desktop.MouseEvent{AbsolutePosition: origin})
 		assertTraneFrame(t, picture, 6, 0)
-		v.dropzoneArt.MouseIn(&desktop.MouseEvent{PointEvent: fyne.PointEvent{AbsolutePosition: origin.Add(fyne.NewPos(60, 0))}})
+		v.dropzoneArt.MouseMoved(&desktop.MouseEvent{AbsolutePosition: origin.Add(fyne.NewPos(20*scale, 0))})
+		assertTraneFrame(t, picture, 4, 9)
+		v.dropzoneArt.MouseIn(&desktop.MouseEvent{AbsolutePosition: origin.Add(fyne.NewPos(60, 0))})
 		assertTraneFrame(t, picture, 4, 9)
 		if size.Width == 520 {
 			// A stationary pointer still guides the pet when layout changes.
@@ -136,7 +138,7 @@ func TestTraneCleansPinkFringe(t *testing.T) {
 	picture := traneSurfaceImage(win.Content(), v.welcomeArt, false)
 	origin := v.app.Driver().AbsolutePositionForObject(picture).Add(fyne.NewPos(
 		picture.Size().Width/2, picture.Size().Height/2-(104-64)*picture.Size().Width/192))
-	v.dropzoneArt.MouseMoved(&desktop.MouseEvent{PointEvent: fyne.PointEvent{AbsolutePosition: origin.Add(fyne.NewPos(-60, 0))}})
+	v.dropzoneArt.MouseMoved(&desktop.MouseEvent{AbsolutePosition: origin.Add(fyne.NewPos(-60, 0))})
 	assertTraneFrame(t, picture, 4, 10)
 	// This opaque magenta contamination is in the supplied left-facing
 	// frame's paw edge. The tongue and collar are not at this location.
