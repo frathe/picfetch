@@ -36,28 +36,32 @@ func TestMain(m *testing.M) {
 
 func TestGenerate_PreparationBudget(t *testing.T) {
 	stop := errors.New("observed preparation before allocation")
-	for _, size := range []image.Point{
-		{1, 1}, {10, 1}, {100, 1}, {1000, 1}, {10000, 1},
-		{1, 10}, {1, 100}, {1, 1000}, {1, 10000}, {10000, 10000},
-	} {
-		t.Run(fmt.Sprintf("%dx%d", size.X, size.Y), func(t *testing.T) {
-			g := New()
-			g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
-				return &loadedSource{bounds: image.Rectangle{Max: size}}, nil
-			}
-			observed := false
-			g.beforePrepare = func(plan preparationPlan) error {
-				observed = true
-				if plan.bytes > maxPreparationBytes {
-					t.Errorf("preparation requests %d bytes, budget %d (layer %v)", plan.bytes, maxPreparationBytes, plan.layer)
+	for _, layout := range []LayoutMode{LayoutRandom, LayoutShelf} {
+		for _, size := range []image.Point{
+			{1, 1}, {10, 1}, {100, 1}, {1000, 1}, {10000, 1},
+			{1, 10}, {1, 100}, {1, 1000}, {1, 10000}, {10000, 10000},
+		} {
+			t.Run(fmt.Sprintf("%s/%dx%d", layout, size.X, size.Y), func(t *testing.T) {
+				g := New()
+				g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+					return &loadedSource{bounds: image.Rectangle{Max: size}}, nil
 				}
-				return stop
-			}
-			request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), DefaultSettings(), 42)
-			if _, err := g.Generate(context.Background(), request); !errors.Is(err, stop) || !observed {
-				t.Fatalf("Generate = %v, observed = %v", err, observed)
-			}
-		})
+				observed := false
+				g.beforePrepare = func(plan preparationPlan) error {
+					observed = true
+					if plan.bytes > maxPreparationBytes {
+						t.Errorf("preparation requests %d bytes, budget %d (layer %v)", plan.bytes, maxPreparationBytes, plan.layer)
+					}
+					return stop
+				}
+				settings := DefaultSettings()
+				settings.Layout = layout
+				request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), settings, 42)
+				if _, err := g.Generate(context.Background(), request); !errors.Is(err, stop) || !observed {
+					t.Fatalf("Generate = %v, observed = %v", err, observed)
+				}
+			})
+		}
 	}
 }
 
@@ -154,46 +158,56 @@ func TestRenderPlacement_PanoramasStayBounded(t *testing.T) {
 }
 
 func TestGenerate_CancelBeforePreparation(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	g := New()
-	g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
-		// No pixels: any preparation after cancellation would return a
-		// missing-pixels error instead of the required cancellation.
-		return &loadedSource{bounds: image.Rect(0, 0, 10000, 1)}, nil
-	}
-	plans := 0
-	g.beforePrepare = func(_ preparationPlan) error {
-		plans++
-		cancel()
-		return nil
-	}
-	request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), DefaultSettings(), 42)
-	if _, err := g.Generate(ctx, request); !errors.Is(err, context.Canceled) || plans != 1 {
-		t.Fatalf("Generate = %v, preparations = %d", err, plans)
+	for _, layout := range []LayoutMode{LayoutRandom, LayoutShelf} {
+		t.Run(string(layout), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			g := New()
+			g.load = func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+				// No pixels: any preparation after cancellation would return a
+				// missing-pixels error instead of the required cancellation.
+				return &loadedSource{bounds: image.Rect(0, 0, 10000, 1)}, nil
+			}
+			plans := 0
+			g.beforePrepare = func(_ preparationPlan) error {
+				plans++
+				cancel()
+				return nil
+			}
+			settings := DefaultSettings()
+			settings.Layout = layout
+			request := mustRequest(t, []fyne.URI{storage.NewFileURI("synthetic.png")}, image.Pt(1920, 1080), settings, 42)
+			if _, err := g.Generate(ctx, request); !errors.Is(err, context.Canceled) || plans != 1 {
+				t.Fatalf("Generate = %v, preparations = %d", err, plans)
+			}
+		})
 	}
 }
 
 func TestGenerate_VectorPreparationBudget(t *testing.T) {
 	stop := errors.New("observed vector preparation")
-	for _, size := range []image.Point{{10000, 1}, {1, 10000}, {10000, 10000}} {
-		t.Run(fmt.Sprint(size), func(t *testing.T) {
-			g := New()
-			uri := uitest.TempSVGURI(t, "source.svg", size.X, size.Y)
-			observed := false
-			g.beforePrepare = func(plan preparationPlan) error {
-				observed = true
-				if plan.bytes > maxPreparationBytes || plan.vectorSize.X <= 0 || plan.vectorSize.Y <= 0 ||
-					uint64(plan.vectorSize.X)*uint64(plan.vectorSize.Y)*12 > plan.bytes {
-					t.Fatalf("vector raster is missing from bounded preparation: %+v", plan)
+	for _, layout := range []LayoutMode{LayoutRandom, LayoutShelf} {
+		for _, size := range []image.Point{{10000, 1}, {1, 10000}, {10000, 10000}} {
+			t.Run(fmt.Sprintf("%s/%s", layout, size), func(t *testing.T) {
+				g := New()
+				uri := uitest.TempSVGURI(t, "source.svg", size.X, size.Y)
+				observed := false
+				g.beforePrepare = func(plan preparationPlan) error {
+					observed = true
+					if plan.bytes > maxPreparationBytes || plan.vectorSize.X <= 0 || plan.vectorSize.Y <= 0 ||
+						uint64(plan.vectorSize.X)*uint64(plan.vectorSize.Y)*12 > plan.bytes {
+						t.Fatalf("vector raster is missing from bounded preparation: %+v", plan)
+					}
+					return stop
 				}
-				return stop
-			}
-			request := mustRequest(t, []fyne.URI{uri}, image.Pt(1920, 1080), DefaultSettings(), 42)
-			if _, err := g.Generate(t.Context(), request); !errors.Is(err, stop) || !observed {
-				t.Fatalf("Generate = %v, observed = %v", err, observed)
-			}
-		})
+				settings := DefaultSettings()
+				settings.Layout = layout
+				request := mustRequest(t, []fyne.URI{uri}, image.Pt(1920, 1080), settings, 42)
+				if _, err := g.Generate(t.Context(), request); !errors.Is(err, stop) || !observed {
+					t.Fatalf("Generate = %v, observed = %v", err, observed)
+				}
+			})
+		}
 	}
 }
 
@@ -934,6 +948,27 @@ func TestGenerate_LazyPool(t *testing.T) {
 	}
 }
 
+func TestSourcePool_LayoutCandidatesReuseMeasuredBounds(t *testing.T) {
+	uri := storage.NewFileURI("/virtual/oversized.svg")
+	loads := 0
+	pool := newSourcePool([]fyne.URI{uri}, 7, func(_ context.Context, _ fyne.URI) (*loadedSource, error) {
+		loads++
+		return &loadedSource{bounds: image.Rect(0, 0, 10000, 10000)}, nil
+	})
+	for range 12 {
+		candidate, err := pool.nextCandidate(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if candidate.id != 0 || candidate.aspect != 1 {
+			t.Fatalf("layout candidate = %+v, want source 0 with square aspect", candidate)
+		}
+	}
+	if loads != 1 {
+		t.Fatalf("layout loaded an already measured source %d times, want 1", loads)
+	}
+}
+
 func TestGenerate_UsesDistinctSourceURIsBeforeReuse(t *testing.T) {
 	const distinctSources = 128
 	unique := make([]fyne.URI, distinctSources)
@@ -1230,30 +1265,36 @@ func TestGenerate_Progress(t *testing.T) {
 	uri := mosaicPNG(t, "progress.png", 12, 8, func(x, y int) color.NRGBA {
 		return color.NRGBA{R: uint8(x * 15), G: uint8(y * 20), B: 80, A: 255}
 	})
-	request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), DefaultSettings(), 987)
-	want, err := Generate(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var updates []Progress
-	got, err := GenerateWithProgress(t.Context(), request, func(p Progress) { updates = append(updates, p) })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
-		t.Fatal("progress changed mosaic pixels")
-	}
-	total := 83 * 47
-	if len(updates) < 3 {
-		t.Fatalf("got %d progress updates, want initial, intermediate and complete", len(updates))
-	}
-	if updates[0] != (Progress{TotalPixels: total}) || updates[len(updates)-1] != (Progress{CoveredPixels: total, TotalPixels: total}) {
-		t.Fatalf("progress endpoints = %v, %v", updates[0], updates[len(updates)-1])
-	}
-	for i, p := range updates {
-		if p.TotalPixels != total || p.CoveredPixels < 0 || p.CoveredPixels > total || i > 0 && p.CoveredPixels <= updates[i-1].CoveredPixels {
-			t.Fatalf("invalid progress update %d: %+v", i, p)
-		}
+	for _, layout := range []LayoutMode{LayoutRandom, LayoutShelf} {
+		t.Run(string(layout), func(t *testing.T) {
+			settings := DefaultSettings()
+			settings.Layout = layout
+			request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), settings, 987)
+			want, err := Generate(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var updates []Progress
+			got, err := GenerateWithProgress(t.Context(), request, func(p Progress) { updates = append(updates, p) })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+				t.Fatal("progress changed mosaic pixels")
+			}
+			total := 83 * 47
+			if len(updates) < 3 {
+				t.Fatalf("got %d progress updates, want initial, intermediate and complete", len(updates))
+			}
+			if updates[0] != (Progress{TotalPixels: total}) || updates[len(updates)-1] != (Progress{CoveredPixels: total, TotalPixels: total}) {
+				t.Fatalf("progress endpoints = %v, %v", updates[0], updates[len(updates)-1])
+			}
+			for i, p := range updates {
+				if p.TotalPixels != total || p.CoveredPixels < 0 || p.CoveredPixels > total || i > 0 && p.CoveredPixels <= updates[i-1].CoveredPixels {
+					t.Fatalf("invalid progress update %d: %+v", i, p)
+				}
+			}
+		})
 	}
 }
 
@@ -1261,60 +1302,66 @@ func TestGenerate_LivePreview(t *testing.T) {
 	uri := mosaicPNG(t, "preview.png", 12, 8, func(x, y int) color.NRGBA {
 		return color.NRGBA{R: uint8(x * 15), G: uint8(y * 20), B: 180, A: 255}
 	})
-	request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), DefaultSettings(), 987)
-	g := New()
-	want, err := g.Generate(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Unix(100, 0)
-	g.previewClock = func() time.Time { now = now.Add(100 * time.Millisecond); return now }
-	copyPixels := func(source image.Image) []byte {
-		pixels := image.NewNRGBA(source.Bounds())
-		draw.Draw(pixels, pixels.Bounds(), source, source.Bounds().Min, draw.Src)
-		return pixels.Pix
-	}
-	var snapshots []image.Image
-	var saved [][]byte
-	var published time.Time
-	got, err := g.GenerateWithProgress(t.Context(), request, func(p Progress) {
-		if p.Preview == nil {
-			return
-		}
-		if p.CoveredPixels <= 0 || p.CoveredPixels >= p.TotalPixels {
-			t.Fatalf("preview did not arrive during generation: %+v", p)
-		}
-		if !published.IsZero() && now.Sub(published) < 250*time.Millisecond {
-			t.Fatalf("preview cadence too fast: %v", now.Sub(published))
-		}
-		published = now
-		pixels := p.Preview
-		if pixels.Bounds() != image.Rect(0, 0, 83, 47) {
-			t.Fatalf("preview bounds = %v", pixels.Bounds())
-		}
-		snapshots = append(snapshots, pixels)
-		saved = append(saved, copyPixels(pixels))
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(snapshots) < 2 {
-		t.Fatalf("got %d live snapshots, want progressive updates", len(snapshots))
-	}
-	if bytes.Equal(saved[0], saved[len(saved)-1]) {
-		t.Fatal("live canvas did not change as photos were added")
-	}
-	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
-		t.Fatal("live preview changed final output")
-	}
-	for i, pixels := range snapshots {
-		if !bytes.Equal(copyPixels(pixels), saved[i]) {
-			t.Fatalf("published snapshot %d was mutated", i)
-		}
-	}
-	draw.Draw(snapshots[0].(draw.Image), snapshots[0].Bounds(), image.Transparent, image.Point{}, draw.Src)
-	if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
-		t.Fatal("preview aliases final pixels")
+	for _, layout := range []LayoutMode{LayoutRandom, LayoutShelf} {
+		t.Run(string(layout), func(t *testing.T) {
+			settings := DefaultSettings()
+			settings.Layout = layout
+			request := mustRequest(t, []fyne.URI{uri}, image.Pt(83, 47), settings, 987)
+			g := New()
+			want, err := g.Generate(t.Context(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Unix(100, 0)
+			g.previewClock = func() time.Time { now = now.Add(100 * time.Millisecond); return now }
+			copyPixels := func(source image.Image) []byte {
+				pixels := image.NewNRGBA(source.Bounds())
+				draw.Draw(pixels, pixels.Bounds(), source, source.Bounds().Min, draw.Src)
+				return pixels.Pix
+			}
+			var snapshots []image.Image
+			var saved [][]byte
+			var published time.Time
+			got, err := g.GenerateWithProgress(t.Context(), request, func(p Progress) {
+				if p.Preview == nil {
+					return
+				}
+				if p.CoveredPixels <= 0 || p.CoveredPixels >= p.TotalPixels {
+					t.Fatalf("preview did not arrive during generation: %+v", p)
+				}
+				if !published.IsZero() && now.Sub(published) < 250*time.Millisecond {
+					t.Fatalf("preview cadence too fast: %v", now.Sub(published))
+				}
+				published = now
+				pixels := p.Preview
+				if pixels.Bounds() != image.Rect(0, 0, 83, 47) {
+					t.Fatalf("preview bounds = %v", pixels.Bounds())
+				}
+				snapshots = append(snapshots, pixels)
+				saved = append(saved, copyPixels(pixels))
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(snapshots) < 2 {
+				t.Fatalf("got %d live snapshots, want progressive updates", len(snapshots))
+			}
+			if bytes.Equal(saved[0], saved[len(saved)-1]) {
+				t.Fatal("live canvas did not change as photos were added")
+			}
+			if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+				t.Fatal("live preview changed final output")
+			}
+			for i, pixels := range snapshots {
+				if !bytes.Equal(copyPixels(pixels), saved[i]) {
+					t.Fatalf("published snapshot %d was mutated", i)
+				}
+			}
+			draw.Draw(snapshots[0].(draw.Image), snapshots[0].Bounds(), image.Transparent, image.Point{}, draw.Src)
+			if !bytes.Equal(got.pixels.Pix, want.pixels.Pix) {
+				t.Fatal("preview aliases final pixels")
+			}
+		})
 	}
 }
 

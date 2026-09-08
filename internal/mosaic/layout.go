@@ -61,6 +61,10 @@ func planLayout(
 	seed int64,
 	next candidateFunc,
 ) (layoutPlan, error) {
+	if settings.Layout == LayoutShelf {
+		return planShelfLayout(ctx, target, settings, seed, next)
+	}
+
 	return walkLayout(ctx, target, settings, seed, next, nil, nil)
 }
 

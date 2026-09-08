@@ -51,6 +51,7 @@ const (
 	keyMosaicSizeVariation    = "mosaicSizeVariation"
 	keyMosaicOverlap          = "mosaicOverlap"
 	keyMosaicMaximumRotation  = "mosaicMaximumRotation"
+	keyMosaicLayout           = "mosaicLayout"
 	keyMosaicFrame            = "mosaicFrame"
 	keyMosaicDropShadow       = "mosaicDropShadow"
 )
@@ -269,6 +270,7 @@ func Save(app fyne.App, s State) {
 		p.SetFloat(keyMosaicSizeVariation, settings.SizeVariation)
 		p.SetFloat(keyMosaicOverlap, settings.Overlap)
 		p.SetFloat(keyMosaicMaximumRotation, settings.MaximumRotation)
+		p.SetString(keyMosaicLayout, string(settings.Layout))
 		p.SetString(keyMosaicFrame, string(settings.Frame))
 		p.SetBool(keyMosaicDropShadow, settings.DropShadow)
 	}
@@ -325,6 +327,7 @@ func Load(app fyne.App) State {
 		SizeVariation:    p.FloatWithFallback(keyMosaicSizeVariation, defaults.SizeVariation),
 		Overlap:          p.FloatWithFallback(keyMosaicOverlap, defaults.Overlap),
 		MaximumRotation:  p.FloatWithFallback(keyMosaicMaximumRotation, defaults.MaximumRotation),
+		Layout:           mosaic.LayoutModeFromPreference(p.StringWithFallback(keyMosaicLayout, string(defaults.Layout))),
 		Frame:            mosaic.FrameStyleFromPreference(p.StringWithFallback(keyMosaicFrame, string(defaults.Frame))),
 		DropShadow:       p.BoolWithFallback(keyMosaicDropShadow, defaults.DropShadow),
 	}.Normalized()

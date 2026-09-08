@@ -1,123 +1,91 @@
-# Mosaic rotation and visible overlap
+# Mosaic layouts, rotation, and visible overlap
 
-Status: rotation complete with focused verification; overlap design decision pending.
-Route: Standard, following the existing ready-for-agent specification despite
-its supporting control, persistence and manual checks spanning four packages.
+Status: two-mode implementation selected; focused checks and final repository
+verification are tracked below.
+Route: Standard.
 
-Deliverable: complete both [mosaic tickets](../.scratch/mosaic-rotation-overlap/README.md),
-extending rotation to 90 degrees and making overlap visibly affect a completely
-covered composition in which every retained photo occurrence remains visible.
+Deliverable: retain PicFetch's original varied Random mosaic as the default,
+offer an ordered axis-aligned Shelf mode, and retain the 0 to 90 degree
+rotation path in Random.
 
-## Contract and scope
+## Selected contract
 
-The parent [specification](../.scratch/mosaic-rotation-overlap/spec.md) supplies
-AC1–AC8, their exact commands, decisions and non-goals. Those remain authoritative.
-Use its pre-agreed generator-to-result, renderer, control-to-request and
-preference save/load seams. Keep defaults, approximate-inset semantics and
-existing interfaces. No public attribution API, dependencies or commits.
-Outer clipping remains allowed; visibility does not guarantee subject visibility.
-The user's existing `todos.md` change supplies the implementation target.
+- **Random** remains the original seeded free-form arrangement and is the
+  default for a new or existing installation. It is the only mode with
+  **Maximum rotation**, from 0 to 90 degrees.
+- **Shelf** is a selectable ordered, horizontal-shelf arrangement. It uses the
+  same source snapshot and the same frame, size, overlap, and shadow settings
+  as Random. It is deliberately axis-aligned, so its rotation control is
+  hidden while Overlap remains available. On an extremely thin output, its
+  calculated short edge floors at one physical pixel so every card can make
+  useful raster progress.
+- The saved value is locale-independent. Missing, empty, or unknown values map
+  to Random so existing preferences retain the original behaviour.
+- Both modes preserve source aspect ratios, output coverage, cancellation, and
+  the existing request/result API.
 
-## Tasks and graph
+## Validation scope
 
-T1 -> T2 -> T3 -> gate. Scout S runs alongside T1 and informs T2 test helpers.
+Shelf owns the new strict final-image checks: every retained occurrence must be
+visible, the least-visible occurrence must retain at least 45 percent of its
+in-canvas photo area, and Overlap must produce a measured response. The matrix
+covers frame styles, shadows, small and large source pools, and axis-aligned
+Shelf scenes. Random separately retains its 0 to 90 degree rotation checks.
 
-### T1 — Full rotation path
-Owner: T0 inline.
-Files: internal/mosaic/{mosaic.go,mosaic_test.go,generator_test.go,quality_test.go},
-internal/ui/mosaicwin/{window.go,mosaicwin_test.go},
-internal/preferences/preferences_test.go, internal/ui/help/{manual.md,manual_de.md,manual_test.go}.
-Depends: none.
-Contract: existing Settings, Request, Generate, renderer and Save/Load interfaces.
-Test: AC1, AC2 rotation, AC5 and manual range/inset guard, one vertical slice at a time.
-Verify: parent AC1, AC2, AC5, AC6, AC7 documentation commands.
-Budget: 0 implementation spawns; 1 review round; no full suite.
-Status: complete; ticket 01's focused acceptance checks pass.
+Random retains its established primary-card visibility guard and its varied
+seeded placement. The strict every-occurrence Shelf condition is deliberately
+not imposed on Random, because the original algorithm puts gap-repair cards
+below primary cards. Treating that as a universal contract would replace the
+product's preferred default layout rather than repair a regression.
 
-### S — Existing final-pixel test instrumentation
-Owner: read-only Scout.
-Files: read internal/mosaic/{generator_test.go,layout_test.go,render.go,preparation.go,generator.go} only.
-Depends: none.
-Contract: return existing helpers and source/cache/placement observation points
-with file:line; no design decisions, changes or review.
-Test: reconnaissance only.
-Verify: lead checks returned identifiers with rg and targeted reads.
-Budget: 1 spawn; no full suite.
-Delegation gate: G1 bounded question; G2 file/identifier lookup verifies findings;
-G3 no writes; G4 only relevant test machinery; G5 lead has not read those tests.
-Rule S: comprehension across rendering and cache tests, not a text transform.
-Rule W: no implementation prescribed. The configured harness has no Explore or
-Sonnet/Haiku model, so this is one inherited-model read-only scout; no review
-or implementation is delegated.
+## Remaining limitation
 
-### T2 — Reproduce and fix overlap and visibility together
-Owner: T0 inline.
-Files: internal/mosaic/{layout.go,generator.go,generator_test.go,layout_test.go},
-internal/ui/mosaicwin/mosaicwin_test.go; a separate registered mosaic test file if needed.
-Depends: T1; S informs fixture reuse only.
-Contract: existing request/result and internal layout/render lifecycle.
-Test: AC3 and AC4 final-pixel fixtures, repeat occurrence accounting and calibrated
-edge tolerance; observable cancellation and coverage remain mandatory.
-Verify: parent AC3, AC4 and AC6 commands, then AC5 joint regression.
-Budget: 0 spawns; 2 review rounds; no full suite.
+Random gap-repair cards can be completely covered by later cards. This is an
+explicit limitation of the preserved varied mode, not a guarantee provided by
+its quality checks. A future Random-specific search can address it only if it
+keeps the varied appearance and is evaluated independently from Shelf.
 
-### T3 — Visual evidence and documentation
-Owner: T0 inline.
-Files: existing manuals/tests as needed, evidence under .scratch/mosaic-rotation-overlap,
-tickets, todos.md, this plan, ARCHITECTURE.md if the package map changes.
-Depends: T2.
-Contract: retained paired artifacts report settings, seed, metrics and full/preview inspection.
-Test: AC7, negative visibility/rotation guards and exact wallpaper delivery.
-Verify: parent AC7 and ticket 02 wallpaper command.
-Budget: 0 spawns; 1 review round; no full suite.
+## Work and verification
 
-### Gate — Lead review and repository verification
-Owner: T0 inline.
-Files: all changed files and verification evidence.
-Depends: T3.
-Contract: match spec against observed commands, close findings inline, no commit.
-Test: all acceptance commands execute real scenarios; make verify runs once.
-Verify: make verify.
-Budget: 0 spawns; 1 final full suite, repeated only for failures or new changes.
+- [x] Preserve the original Random planner and render path.
+- [x] Add a Shelf planner and Shelf render path without changing the source
+  snapshot or visual-setting contract.
+- [x] Add layout selection, locale strings, preference persistence, and safe
+  fallback to Random.
+- [x] Keep the 0 to 90 degree rotation control and checks in Random while
+  hiding it for axis-aligned Shelf.
+- [x] Restrict strict final-pixel visibility and overlap-response checks to
+  Shelf; retain the Random primary-card guard.
+- [x] Inspect paired Random and Shelf renders generated from the same sources.
+- [x] Run focused package checks.
+- [x] Run the required Makefile verification against the final implementation.
 
-## Checklist and evidence
+## Verification commands
 
-- [x] Frame and source specification identified.
-- [x] Existing test boundaries and commands recorded.
-- [x] Reconnaissance and task ownership recorded.
-- [x] Rotation red/green slices and focused regression checks.
-- [ ] Final-image symptom reproduction and overlap/visibility red/green slices.
-- [ ] Lead review, negative guards and visual inspection.
-- [ ] Full verification and open-work updates.
+- `go test ./internal/mosaic -count=1`
+- `go test ./internal/preferences ./internal/ui/mosaicwin -count=1`
+- `go test . ./internal/ui ./internal/ui/help -run '^(TestTranslations_EveryLocaleCoversEnglish|TestTranslations_EnglishMapsEachKeyToItself|TestTranslations_NoArrowFollowedByASpace|TestTranslationsHaveNoUnicodeArrows|TestManualDocumentsMosaicLayoutRotationAndOverlap|TestManualHasNoUnicodeArrows)$' -count=1`
+- `make verify`
 
-| Task | Spawns budget/actual | Review rounds | Full suite | Evidence |
-|------|----------------------|---------------|------------|----------|
-| S | 1/1 | 0 | no | Existing occurrence/pixel helpers located and checked inline |
-| T1 | 0/0 | 1 | no | Ticket 01 complete; AC1, AC2, AC5 and manual/root checks pass; preference and angle-clamp guards observed red |
-| T2 | 0/0 | 1 | no | Reproductions fail; bounded placement/reflow experiments retained outside production |
-| T3 | 0/0 | 1 | no | Prototype and baseline inspected; final visual evidence pending |
-| gate | 0/0 | 0 | pending | verify-build and shard checks pass; full race gate awaits integrated implementation |
+## Evidence to retain
 
-## Current evidence and decision
+The original Random arrangement deterministically fails the new
+every-occurrence condition because some repair cards are hidden underneath
+primary cards. The final-pixel oracle independently matches rendered pixels;
+the failure is evidence for the mode boundary above, not a reason to make the
+default layout uniform. Paired artifacts must identify their source set, seed,
+settings, and output path so the visual comparison remains reproducible.
 
-See [the evidence record](../.scratch/mosaic-rotation-overlap/evidence/README.md)
-for commands, measured failures, artifacts and limits. Ticket 01 is complete:
-rotation validation/normalization, the control range, large-angle rendering,
-persistence, and cancellation all pass focused verification. The two new overlap
-test groups intentionally remain red; no integrated or full-suite success is
-claimed.
+The user approved the current visual result. Earlier apparent gap-filling or
+maze-like output is historical behavior, not a new regression from this work.
 
-Search that protects all retained photos cannot simply substitute for unrestricted
-repairs: representative fixtures leave gaps. Bounded backtracking and enlargement
-within the old size envelope also exhausted their search bounds. A prototype
-allowing growth up to three times the ordinary upper short-edge bound completed
-one fixture with 43 occurrences and a sampled minimum visible fraction of 47.2%.
-This is evidence about these algorithms, not proof that the original constraints
-are mathematically impossible. The prototype changes the size contract and
-defers rendering until planning finishes, so its source-cache/lifecycle effects
-also need review before any integration.
+Paired visual evidence uses the same six bundled sources, seed `2468`, and a
+1600 by 900 target: `/private/tmp/picfetch-mosaic-mode-comparison-20260908/README.md`.
+The Random and Shelf images confirm the intended distinct appearances;
+`shelf-overlap-0.png` and `shelf-overlap-20.png` confirm that Overlap has a
+visible Shelf effect and should remain exposed.
 
-The user has been asked whether gap repair may enlarge photos beyond the existing
-size range. The question remains pending; elapsed time is not approval. No such
-enlargement has been applied to production. Work can resume from the retained
-experiments after the decision, or continue searching within the original range.
+Shelf also has a regression test for 1 by 1000 and 1000 by 1 targets. The
+one-pixel short-edge floor avoids the confirmed subpixel-card explosion while
+leaving normal-size output unchanged; post-plan coverage validation observes
+cancellation during both marking and validation.

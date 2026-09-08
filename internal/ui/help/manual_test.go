@@ -174,10 +174,40 @@ func TestManualDocumentsMosaicStartOver(t *testing.T) {
 	}
 }
 
-func TestManualDocumentsMosaicRotationAndOverlap(t *testing.T) {
+func TestManualDocumentsMosaicLayoutRotationAndOverlap(t *testing.T) {
 	for name, phrases := range map[string][]string{
-		"manual.md":    {"0 to 90 degrees", "default is 7 degrees", "0-20%", "default 8%", "shorter unrotated photo edge", "not a covered-area limit"},
-		"manual_de.md": {"0 bis 90 Grad", "Standardwert ist 7 Grad", "0-20%", "Standardwert 8%", "kürzeren ungedrehten Fotokante", "keine Obergrenze für die verdeckte Fläche"},
+		"manual.md": {
+			"**Advanced** reveals layout",
+			"In **Random**, it also reveals **Maximum rotation**",
+			"**Shelf** stays deliberately",
+			"axis-aligned and hides that control",
+			"default that keeps PicFetch's original varied",
+			"an ordered arrangement in horizontal shelves",
+			"same source pool and frame settings",
+			"Shelf is deliberately axis-aligned",
+			"For **Random**, **Maximum rotation** accepts 0 to 90 degrees",
+			"Each Random photo can turn",
+			"Higher values request more layering in both",
+			"layouts, including Shelf",
+			"default is 7 degrees", "0-20%", "default 8%", "shorter unrotated photo edge", "not a covered-area limit",
+		},
+		"manual_de.md": {
+			"**Erweitert** blendet Anordnung",
+			"Bei **Zufällig** erscheint",
+			"**Maximale Drehung**; **Reihen** bleibt bewusst achsenparallel",
+			"blendet dieses Bedienelement aus",
+			"Standard, der PicFetchs ursprüngliche",
+			"abwechslungsreiche Anordnung beibehält",
+			"Anordnung in horizontalen Reihen",
+			"denselben Quellenvorrat sowie",
+			"dieselben Rahmeneinstellungen",
+			"**Reihen** bleibt bewusst achsenparallel",
+			"Für **Zufällig** erlaubt **Maximale Drehung** 0 bis 90 Grad",
+			"Jedes Foto in **Zufällig** kann sich",
+			"in beiden Anordnungen, auch bei",
+			"**Reihen**, mehr Überlagerung",
+			"Standardwert ist 7 Grad", "0-20%", "Standardwert 8%", "relativ zur kürzeren", "ungedrehten Fotokante", "dies ist keine Obergrenze für die verdeckte", "Fläche, und 0%",
+		},
 	} {
 		for _, phrase := range phrases {
 			if !strings.Contains(manuals[name], phrase) {

@@ -547,20 +547,26 @@ an already-open mosaic window, and generation never modifies a source file.
 
 Choose the target display by its name, native pixel resolution, and aspect
 ratio. **Refresh Displays** updates that list; if the chosen display has been
-removed, PicFetch requires a new selection. **Advanced** reveals minimum image
-size, frame, size variation, overlap, maximum rotation, and the drop-shadow
-option; the target display is the only visual setting shown while Advanced is
-collapsed. Generate runs in the background. `Esc` cancels an active generation
-and a second `Esc` closes the window; when idle, `Esc` closes it directly. All
-controls and actions are reachable with `Tab` and `Shift+Tab`, and `Enter` or
-`Space` activates a focused button.
+removed, PicFetch requires a new selection. **Advanced** reveals layout,
+minimum image size, frame, size variation, overlap, and the drop-shadow option.
+In **Random**, it also reveals **Maximum rotation**; **Shelf** stays deliberately
+axis-aligned and hides that control. The target display is the only visual
+setting shown while Advanced is collapsed. Generate runs in the background.
+`Esc` cancels an active generation and a second `Esc` closes the window; when
+idle, `Esc` closes it directly. All controls and actions are reachable with
+`Tab` and `Shift+Tab`, and `Enter` or `Space` activates a focused button.
 
-**Maximum rotation** accepts 0 to 90 degrees in one-degree steps; the
-default is 7 degrees.
-Each photo can turn in either direction from its correctly oriented source.
+**Layout** selects **Random**, the default that keeps PicFetch's original varied
+arrangement, or **Shelf**, an ordered arrangement in horizontal shelves. Both
+use the same source pool and frame settings. Shelf is deliberately axis-aligned.
+
+For **Random**, **Maximum rotation** accepts 0 to 90 degrees in one-degree
+steps; the default is 7 degrees.
+Each Random photo can turn in either direction from its correctly oriented source.
 **Overlap** (0-20%, default 8%) requests an approximate inset relative to the
-shorter unrotated photo edge. Higher values request more layering; this is
-not a covered-area limit, and 0% does not prevent rotated photos from intersecting.
+shorter unrotated photo edge. Higher values request more layering in both
+layouts, including Shelf; this is not a covered-area limit, and 0% does not
+prevent rotated Random photos from intersecting.
 Clipping at the outer canvas edge remains allowed.
 
 After generation, **Start Over** returns to configuration, discards the current

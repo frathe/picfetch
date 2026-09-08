@@ -144,6 +144,183 @@ func TestMosaicControlsRotationAndOverlap(t *testing.T) {
 	}
 }
 
+func TestMosaicControlsLayout(t *testing.T) {
+	tests := []struct {
+		name        string
+		optionIndex int
+		want        mosaic.LayoutMode
+	}{
+		{name: "random", optionIndex: 0, want: mosaic.LayoutRandom},
+		{name: "shelf", optionIndex: 1, want: mosaic.LayoutShelf},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			host := successfulHost(t)
+			var captured mosaic.Request
+			host.generate = func(ctx context.Context, request mosaic.Request) (mosaic.Result, error) {
+				captured = request
+				return mosaic.Generate(ctx, request)
+			}
+			w := New(test.NewApp(), host)
+			w.SetUIQueue(&uitest.UIQueue{})
+			w.Show(mustSnapshot(t))
+			t.Cleanup(func() { w.Close(); settleWindow(t, w) })
+			if got := w.Settings().Layout; got != mosaic.LayoutRandom {
+				t.Fatalf("default layout = %q, want %q", got, mosaic.LayoutRandom)
+			}
+
+			w.advancedButton.OnTapped()
+			if !containsMosaicObject(w.root, w.layoutSelect) {
+				t.Fatal("layout control missing from window")
+			}
+			w.layoutSelect.SetSelected(w.layoutSelect.Options[tt.optionIndex])
+			if got := w.Settings().Layout; got != tt.want {
+				t.Fatalf("selected layout = %q, want %q", got, tt.want)
+			}
+
+			w.generateButton.OnTapped()
+			settleWindow(t, w)
+			if got := captured.Settings().Layout; got != tt.want {
+				t.Fatalf("generated layout = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMosaicControlsShelfHidesRotationAndRestoresRandom(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	host := successfulHost(t)
+	host.generate = func(ctx context.Context, request mosaic.Request) (mosaic.Result, error) {
+		close(started)
+		<-release
+		return mosaic.Generate(ctx, request)
+	}
+	w := New(test.NewApp(), host)
+	w.SetUIQueue(&uitest.UIQueue{})
+	w.Show(mustSnapshot(t))
+	t.Cleanup(func() {
+		releaseOnce.Do(func() { close(release) })
+		w.Close()
+		settleWindow(t, w)
+	})
+	w.advancedButton.OnTapped()
+	w.root.Refresh()
+	_ = w.Window().Canvas().Capture()
+	if !containsMosaicObject(w.root, w.rotation) {
+		t.Fatal("Random rotation control is missing from the window surface")
+	}
+	randomHeight := w.advancedControls.MinSize().Height
+	randomShadowY := w.dropShadow.Position().Y
+	w.rotation.SetValue(47)
+	w.Window().Canvas().Focus(w.rotation)
+
+	w.layoutSelect.SetSelected(w.layoutSelect.Options[1])
+	w.root.Refresh()
+	_ = w.Window().Canvas().Capture()
+	if containsMosaicObject(w.root, w.rotation) || containsMosaicObject(w.advancedControls, w.rotationRow) {
+		t.Fatal("Shelf left the rotation row in the rendered control tree")
+	}
+	if !containsMosaicObject(w.root, w.layoutSelect) {
+		t.Fatal("Shelf removed the layout selector from the window surface")
+	}
+	if got := w.advancedControls.MinSize().Height; got >= randomHeight {
+		t.Fatalf("Shelf advanced minimum height = %g, want less than Random height %g", got, randomHeight)
+	}
+	if got := w.dropShadow.Position().Y; got >= randomShadowY {
+		t.Fatalf("Shelf Drop shadow y = %g, want less than Random y %g", got, randomShadowY)
+	}
+	if got := w.Settings().MaximumRotation; got != 47 {
+		t.Fatalf("Shelf changed retained rotation to %g, want 47", got)
+	}
+	if focused := w.Window().Canvas().Focused(); focused != w.layoutSelect {
+		t.Fatalf("focus after hiding rotation = %T, want layout selector", focused)
+	}
+	assertFocusCycle(t, w.Window().Canvas(), []fyne.Focusable{
+		w.displaySelect, w.refreshButton, w.advancedButton, w.layoutSelect, w.minimum, w.frameSelect,
+		w.variation, w.overlap, w.dropShadow, w.generateButton, w.cancelButton,
+	})
+
+	w.Generate()
+	<-started
+	if !w.layoutSelect.Disabled() || !w.rotation.Disabled() {
+		t.Fatal("Shelf controls stayed enabled during generation")
+	}
+	if containsMosaicObject(w.root, w.rotation) {
+		t.Fatal("generation restored the hidden Shelf rotation control")
+	}
+	randomWhileBusy := w.Settings()
+	randomWhileBusy.Layout = mosaic.LayoutRandom
+	w.RestoreSettings(randomWhileBusy)
+	if !containsMosaicObject(w.root, w.rotation) || !w.rotation.Disabled() {
+		t.Fatal("Random did not restore a disabled rotation control during generation")
+	}
+	shelfWhileBusy := randomWhileBusy
+	shelfWhileBusy.Layout = mosaic.LayoutShelf
+	w.RestoreSettings(shelfWhileBusy)
+	if containsMosaicObject(w.root, w.rotation) {
+		t.Fatal("Shelf did not remove rotation again during generation")
+	}
+	releaseOnce.Do(func() { close(release) })
+	settleWindow(t, w)
+	if w.layoutSelect.Disabled() || w.rotation.Disabled() {
+		t.Fatal("Shelf controls stayed disabled after generation")
+	}
+
+	w.StartOver()
+	if !w.config.Visible() || !w.advancedControls.Visible() {
+		t.Fatal("Start Over did not restore the expanded configuration")
+	}
+	randomSettings := w.Settings()
+	randomSettings.Layout = mosaic.LayoutRandom
+	w.RestoreSettings(randomSettings)
+	w.root.Refresh()
+	_ = w.Window().Canvas().Capture()
+	if !containsMosaicObject(w.root, w.rotation) || !containsMosaicObject(w.advancedControls, w.rotationRow) {
+		t.Fatal("switching back to Random did not restore the rotation row to the window surface")
+	}
+	if got := w.rotation.Value; got != 47 {
+		t.Fatalf("restored rotation value = %g, want 47", got)
+	}
+	if w.rotation.Disabled() {
+		t.Fatal("restored Random rotation control is disabled")
+	}
+	assertFocusCycle(t, w.Window().Canvas(), []fyne.Focusable{
+		w.displaySelect, w.refreshButton, w.advancedButton, w.layoutSelect, w.minimum, w.frameSelect,
+		w.variation, w.overlap, w.rotation, w.dropShadow, w.generateButton, w.cancelButton,
+	})
+}
+
+func TestMosaicControlsDirectSettingsSyncShelfRotation(t *testing.T) {
+	w := New(test.NewApp(), successfulHost(t))
+	w.Show(mustSnapshot(t))
+	t.Cleanup(w.Close)
+	w.advancedButton.OnTapped()
+
+	shelf := w.Settings()
+	shelf.Layout = mosaic.LayoutShelf
+	if err := w.SetSettings(shelf); err != nil {
+		t.Fatal(err)
+	}
+	if w.layoutSelect.Selected != w.layoutSelect.Options[1] {
+		t.Fatalf("SetSettings layout selector = %q, want %q", w.layoutSelect.Selected, w.layoutSelect.Options[1])
+	}
+	if containsMosaicObject(w.root, w.rotation) {
+		t.Fatal("SetSettings left the Shelf rotation control on the window surface")
+	}
+
+	random := shelf
+	random.Layout = mosaic.LayoutRandom
+	w.RestoreSettings(random)
+	if w.layoutSelect.Selected != w.layoutSelect.Options[0] {
+		t.Fatalf("RestoreSettings layout selector = %q, want %q", w.layoutSelect.Selected, w.layoutSelect.Options[0])
+	}
+	if !containsMosaicObject(w.root, w.rotation) {
+		t.Fatal("RestoreSettings did not restore the Random rotation control to the window surface")
+	}
+}
+
 func TestMosaicConfiguration_OpensEnabledAndRespondsToPointerInput(t *testing.T) {
 	inspections := 0
 	host := successfulHost(t)
@@ -161,6 +338,7 @@ func TestMosaicConfiguration_OpensEnabledAndRespondsToPointerInput(t *testing.T)
 	}{
 		{name: "target display", control: w.displaySelect},
 		{name: "refresh displays", control: w.refreshButton},
+		{name: "layout", control: w.layoutSelect},
 		{name: "minimum image size", control: w.minimum},
 		{name: "frame", control: w.frameSelect},
 		{name: "drop shadow", control: w.dropShadow},
@@ -216,7 +394,7 @@ func TestMosaicConfiguration_AdvancedOwnsAllVisualSettings(t *testing.T) {
 	w.Show(mustSnapshot(t))
 
 	visualControls := []fyne.CanvasObject{
-		w.minimum, w.frameSelect, w.variation, w.overlap, w.rotation, w.dropShadow,
+		w.layoutSelect, w.minimum, w.frameSelect, w.variation, w.overlap, w.rotation, w.dropShadow,
 	}
 	for _, control := range visualControls {
 		if !containsMosaicObject(w.advancedControls, control) {
@@ -297,7 +475,7 @@ func TestMosaicAccessibility_InteractiveControlsHaveMeaningfulNames(t *testing.T
 	w := New(test.NewApp(), successfulHost(t))
 	w.Show(mustSnapshot(t))
 	controls := []fyne.CanvasObject{
-		w.displaySelect, w.refreshButton, w.minimum, w.frameSelect, w.advancedButton,
+		w.displaySelect, w.refreshButton, w.layoutSelect, w.minimum, w.frameSelect, w.advancedButton,
 		w.variation, w.overlap, w.rotation, w.dropShadow, w.generateButton, w.cancelButton,
 		w.startOverButton, w.formatSelect, w.regenerateButton, w.wallpaperButton, w.saveButton, w.closeButton,
 	}
@@ -326,7 +504,7 @@ func TestMosaicKeyboard_ConfigAdvancedAndPreviewOrder(t *testing.T) {
 
 	w.advancedButton.OnTapped()
 	assertFocusCycle(t, canvas, []fyne.Focusable{
-		w.displaySelect, w.refreshButton, w.advancedButton, w.minimum, w.frameSelect,
+		w.displaySelect, w.refreshButton, w.advancedButton, w.layoutSelect, w.minimum, w.frameSelect,
 		w.variation, w.overlap, w.rotation, w.dropShadow, w.generateButton, w.cancelButton,
 	})
 
@@ -657,7 +835,7 @@ func TestMosaicTarget_CannotRetargetOrRefreshWhileGenerationIsBusy(t *testing.T)
 	if inspections != 1 || w.Target() != "one" {
 		t.Fatalf("busy refresh inspections=%d target=%q, want only Generate revalidation and target one", inspections, w.Target())
 	}
-	if !w.displaySelect.Disabled() || !w.minimum.Disabled() || !w.frameSelect.Disabled() || !w.advancedButton.Disabled() || !w.dropShadow.Disabled() {
+	if !w.displaySelect.Disabled() || !w.layoutSelect.Disabled() || !w.minimum.Disabled() || !w.frameSelect.Disabled() || !w.advancedButton.Disabled() || !w.dropShadow.Disabled() {
 		t.Fatal("configuration controls stayed enabled during generation")
 	}
 

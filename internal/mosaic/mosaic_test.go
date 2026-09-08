@@ -52,6 +52,7 @@ func TestSettingsDefaultsAndRanges(t *testing.T) {
 		SizeVariation:    0.12,
 		Overlap:          0.08,
 		MaximumRotation:  7,
+		Layout:           LayoutRandom,
 		Frame:            FrameNone,
 		DropShadow:       true,
 	}
@@ -60,8 +61,8 @@ func TestSettingsDefaultsAndRanges(t *testing.T) {
 	}
 
 	valid := []Settings{
-		{MinimumShortEdge: 0.10, SizeVariation: 0, Overlap: 0, MaximumRotation: 0, Frame: FrameNone, DropShadow: false},
-		{MinimumShortEdge: 0.30, SizeVariation: 0.25, Overlap: 0.20, MaximumRotation: 12, Frame: FramePolaroid, DropShadow: true},
+		{MinimumShortEdge: 0.10, SizeVariation: 0, Overlap: 0, MaximumRotation: 0, Layout: LayoutRandom, Frame: FrameNone, DropShadow: false},
+		{MinimumShortEdge: 0.30, SizeVariation: 0.25, Overlap: 0.20, MaximumRotation: 12, Layout: LayoutShelf, Frame: FramePolaroid, DropShadow: true},
 	}
 	for _, settings := range valid {
 		if err := settings.Validate(); err != nil {
@@ -116,6 +117,32 @@ func TestFrameStylePreferenceValuesAndNormalization(t *testing.T) {
 		if got := FrameStyleFromPreference(tt.value); got != tt.want {
 			t.Errorf("FrameStyleFromPreference(%q) = %q, want %q", tt.value, got, tt.want)
 		}
+	}
+}
+
+func TestLayoutModePreferenceValuesAndNormalization(t *testing.T) {
+	for _, tt := range []struct {
+		value string
+		want  LayoutMode
+	}{
+		{value: "random", want: LayoutRandom},
+		{value: "shelf", want: LayoutShelf},
+		{value: "future-layout", want: LayoutRandom},
+		{value: "", want: LayoutRandom},
+	} {
+		if got := LayoutModeFromPreference(tt.value); got != tt.want {
+			t.Errorf("LayoutModeFromPreference(%q) = %q, want %q", tt.value, got, tt.want)
+		}
+	}
+
+	settings := DefaultSettings()
+	settings.Layout = LayoutMode("future-layout")
+	request, err := NewRequest([]fyne.URI{storage.NewFileURI("photo.png")}, image.Pt(320, 180), settings, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := request.Settings().Layout; got != LayoutRandom {
+		t.Fatalf("unknown request layout = %q, want %q", got, LayoutRandom)
 	}
 }
 

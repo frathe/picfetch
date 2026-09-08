@@ -205,6 +205,7 @@ func TestMosaicPreferences_RestoreAndCurrentSnapshot(t *testing.T) {
 		SizeVariation:    0,
 		Overlap:          0.14,
 		MaximumRotation:  0,
+		Layout:           mosaic.LayoutShelf,
 		Frame:            mosaic.FramePolaroid,
 		DropShadow:       false,
 	}

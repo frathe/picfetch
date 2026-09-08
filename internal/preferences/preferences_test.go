@@ -41,18 +41,21 @@ func TestMosaicPreferences_DefaultsAndRoundTrip(t *testing.T) {
 		t.Fatalf("fresh MosaicSettings = %+v, want %+v", got, mosaic.DefaultSettings())
 	}
 
-	for _, frame := range []mosaic.FrameStyle{mosaic.FrameNone, mosaic.FrameThinLight, mosaic.FrameThinDark, mosaic.FramePolaroid} {
-		want := mosaic.Settings{
-			MinimumShortEdge: 0.10,
-			SizeVariation:    0,
-			Overlap:          0,
-			MaximumRotation:  0,
-			Frame:            frame,
-			DropShadow:       false,
-		}
-		Save(app, State{MosaicSettings: want})
-		if got := Load(app).MosaicSettings; got != want {
-			t.Errorf("MosaicSettings(%s) = %+v, want %+v", frame, got, want)
+	for _, layout := range []mosaic.LayoutMode{mosaic.LayoutRandom, mosaic.LayoutShelf} {
+		for _, frame := range []mosaic.FrameStyle{mosaic.FrameNone, mosaic.FrameThinLight, mosaic.FrameThinDark, mosaic.FramePolaroid} {
+			want := mosaic.Settings{
+				MinimumShortEdge: 0.10,
+				SizeVariation:    0,
+				Overlap:          0,
+				MaximumRotation:  0,
+				Layout:           layout,
+				Frame:            frame,
+				DropShadow:       false,
+			}
+			Save(app, State{MosaicSettings: want})
+			if got := Load(app).MosaicSettings; got != want {
+				t.Errorf("MosaicSettings(%s, %s) = %+v, want %+v", layout, frame, got, want)
+			}
 		}
 	}
 }
@@ -95,6 +98,7 @@ func TestMosaicPreferences_NormalizesEachInvalidFieldIndependently(t *testing.T)
 	p.SetFloat(keyMosaicSizeVariation, 0.20)
 	p.SetFloat(keyMosaicOverlap, math.Inf(1))
 	p.SetFloat(keyMosaicMaximumRotation, 3)
+	p.SetString(keyMosaicLayout, "future-layout")
 	p.SetString(keyMosaicFrame, "future-frame")
 
 	got := Load(app).MosaicSettings

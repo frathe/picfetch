@@ -10,19 +10,161 @@ import (
 )
 
 func TestLayout_Deterministic(t *testing.T) {
+	candidates := []candidate{{id: 1, aspect: 1.5}, {id: 2, aspect: 0.75}, {id: 3, aspect: 2}}
+	for _, layout := range []LayoutMode{LayoutRandom, LayoutShelf} {
+		t.Run(string(layout), func(t *testing.T) {
+			settings := DefaultSettings()
+			settings.Layout = layout
+			first, err := planLayout(context.Background(), image.Pt(160, 90), settings, 1234, cyclingCandidates(candidates))
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := planLayout(context.Background(), image.Pt(160, 90), settings, 1234, cyclingCandidates(candidates))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(first.placements, second.placements) {
+				t.Fatal("fixed layout inputs produced different placements")
+			}
+		})
+	}
+}
+
+func TestLayout_ModeSelectionChangesArrangement(t *testing.T) {
 	settings := DefaultSettings()
+	settings.MaximumRotation = 45
 	candidates := []candidate{{id: 1, aspect: 1.5}, {id: 2, aspect: 0.75}, {id: 3, aspect: 2}}
 
-	first, err := planLayout(context.Background(), image.Pt(160, 90), settings, 1234, cyclingCandidates(candidates))
+	randomSettings := settings
+	randomSettings.Layout = LayoutRandom
+	randomPlan, err := planLayout(context.Background(), image.Pt(160, 90), randomSettings, 1234, cyclingCandidates(candidates))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := planLayout(context.Background(), image.Pt(160, 90), settings, 1234, cyclingCandidates(candidates))
+	shelfSettings := settings
+	shelfSettings.Layout = LayoutShelf
+	shelfPlan, err := planLayout(context.Background(), image.Pt(160, 90), shelfSettings, 1234, cyclingCandidates(candidates))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(first.placements, second.placements) {
-		t.Fatal("fixed layout inputs produced different placements")
+	if reflect.DeepEqual(randomPlan.placements, shelfPlan.placements) {
+		t.Fatal("Random and Shelf produced the same arrangement")
+	}
+	for _, tt := range []struct {
+		name string
+		plan layoutPlan
+	}{
+		{name: "Random", plan: randomPlan},
+		{name: "Shelf", plan: shelfPlan},
+	} {
+		for index, covered := range tt.plan.covered {
+			if !covered {
+				t.Fatalf("%s layout left pixel %d uncovered", tt.name, index)
+			}
+		}
+	}
+}
+
+func TestLayout_ShelfIsAxisAlignedAndIgnoresStoredRotation(t *testing.T) {
+	candidates := []candidate{{id: 1, aspect: 1.5}, {id: 2, aspect: 0.75}, {id: 3, aspect: 2}}
+	withoutRotation := DefaultSettings()
+	withoutRotation.Layout = LayoutShelf
+	withoutRotation.MaximumRotation = 0
+	withStoredRotation := withoutRotation
+	withStoredRotation.MaximumRotation = 90
+
+	baseline, err := planLayout(context.Background(), image.Pt(320, 180), withoutRotation, 1234, cyclingCandidates(candidates))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := planLayout(context.Background(), image.Pt(320, 180), withStoredRotation, 1234, cyclingCandidates(candidates))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(baseline.placements, stored.placements) {
+		t.Fatal("Shelf arrangement changed when only stored rotation changed")
+	}
+	for _, placement := range stored.placements {
+		if placement.angle != 0 {
+			t.Fatalf("Shelf placement angle = %g, want axis-aligned", placement.angle)
+		}
+	}
+}
+
+func TestLayout_ShelfFloorsShorterEdgeAtPhysicalPixel(t *testing.T) {
+	for _, target := range []image.Point{image.Pt(1, 1000), image.Pt(1000, 1)} {
+		t.Run(target.String(), func(t *testing.T) {
+			settings := DefaultSettings()
+			settings.Layout = LayoutShelf
+			settings.SizeVariation = 0
+			settings.Overlap = 0
+			settings.Frame = FrameNone
+			settings.DropShadow = false
+			plan, err := planShelfLayout(t.Context(), target, settings, 7,
+				cyclingCandidates([]candidate{{id: 1, aspect: 1}}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := len(plan.placements), target.X*target.Y; got != want {
+				t.Fatalf("placements = %d, want one one-pixel card per target pixel (%d)", got, want)
+			}
+			for _, placed := range plan.placements {
+				if shorter := math.Min(placed.imageRect.width, placed.imageRect.height); shorter < 1 {
+					t.Fatalf("shorter edge = %g, want at least one physical pixel", shorter)
+				}
+			}
+		})
+	}
+}
+
+type errAfterContext struct {
+	context.Context
+	after, calls int
+}
+
+func (c *errAfterContext) Err() error {
+	if err := c.Context.Err(); err != nil {
+		return err
+	}
+	c.calls++
+	if c.calls >= c.after {
+		return context.Canceled
+	}
+
+	return nil
+}
+
+func TestLayout_ShelfCoverageChecksCancellation(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Layout = LayoutShelf
+	settings.SizeVariation = 0
+	settings.Overlap = 0
+	settings.Frame = FrameNone
+	settings.DropShadow = false
+	// This two-row plan checks its context six times while placing cards. The
+	// seventh check occurs before marking coverage; the ninth occurs while
+	// validating the covered-pixel map.
+	for _, tt := range []struct {
+		name  string
+		after int
+	}{
+		{name: "before coverage marking", after: 7},
+		{name: "while coverage validation scans pixels", after: 9},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := &errAfterContext{Context: t.Context(), after: tt.after}
+			calls := 0
+			_, err := planShelfLayout(ctx, image.Pt(1, 2), settings, 7, func() (candidate, error) {
+				calls++
+				return candidate{id: calls, aspect: 1}, nil
+			})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("planShelfLayout() = %v, want context cancellation", err)
+			}
+			if calls != 2 {
+				t.Fatalf("candidate calls = %d, want the completed two-card plan before cancellation", calls)
+			}
+		})
 	}
 }
 
@@ -83,21 +225,25 @@ func TestLayout_Coverage(t *testing.T) {
 		image.Pt(7, 5),
 		image.Pt(101, 67),
 	}
-	for _, size := range sizes {
-		t.Run(size.String(), func(t *testing.T) {
-			plan, err := planLayout(context.Background(), size, DefaultSettings(), 77,
-				cyclingCandidates([]candidate{{id: 1, aspect: 1.6}, {id: 2, aspect: 0.7}}))
-			if err != nil {
-				t.Fatal(err)
-			}
-			for y := range size.Y {
-				for x := range size.X {
-					if !plan.covered[y*size.X+x] {
-						t.Fatalf("target pixel (%d,%d) is uncovered", x, y)
+	for _, layout := range []LayoutMode{LayoutRandom, LayoutShelf} {
+		for _, size := range sizes {
+			t.Run(string(layout)+"/"+size.String(), func(t *testing.T) {
+				settings := DefaultSettings()
+				settings.Layout = layout
+				plan, err := planLayout(context.Background(), size, settings, 77,
+					cyclingCandidates([]candidate{{id: 1, aspect: 1.6}, {id: 2, aspect: 0.7}}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				for y := range size.Y {
+					for x := range size.X {
+						if !plan.covered[y*size.X+x] {
+							t.Fatalf("target pixel (%d,%d) is uncovered", x, y)
+						}
 					}
 				}
-			}
-		})
+			})
+		}
 	}
 }
 

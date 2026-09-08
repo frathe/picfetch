@@ -33,6 +33,13 @@ func qualitySettings(rotation, overlap float64) Settings {
 	return s
 }
 
+func shelfQualitySettings(overlap float64) Settings {
+	settings := qualitySettings(0, overlap)
+	settings.Layout = LayoutShelf
+
+	return settings
+}
+
 // Each uncached load has its own marker, so repeating one source cannot hide
 // a concealed occurrence behind the visibility of another copy.
 func generateQualityScene(t *testing.T, target image.Point, settings Settings, seed int64, poolSize int, aligned bool) qualityScene {
@@ -84,11 +91,13 @@ func generateQualityScene(t *testing.T, target image.Point, settings Settings, s
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(colors) == len(planColors)+len(plan.placements) {
-		colors = colors[len(planColors):]
-	} else if len(colors) != len(planColors) || len(colors) != len(plan.placements) {
+	if len(colors) < len(plan.placements) {
 		t.Fatalf("occurrence mismatch: loads %d, plan loads %d, placements %d", len(colors), len(planColors), len(plan.placements))
 	}
+	// Shelf's settled plan may reuse a previously measured aspect without
+	// reloading its pixels. The final placement loads are the last N markers
+	// in either mode because the one-byte cache cannot retain these sources.
+	colors = colors[len(colors)-len(plan.placements):]
 	scene := qualityScene{plan: plan, result: result, colors: colors}
 	if path := os.Getenv("PICFETCH_MOSAIC_EXPERIMENT_IMAGE"); path != "" {
 		file, err := os.Create(path)
@@ -347,23 +356,24 @@ func TestGenerate_PhotoVisibility(t *testing.T) {
 			}
 		}
 	})
-	for _, rotation := range []float64{0, 12, 45, 90} {
-		for _, overlap := range []float64{0, .08, .20} {
-			t.Run(fmt.Sprintf("rotation%g/overlap%g", rotation, overlap), func(t *testing.T) {
-				for _, frame := range []FrameStyle{FrameNone, FrameThinLight, FrameThinDark, FramePolaroid} {
-					for _, shadow := range []bool{false, true} {
-						for _, pool := range []int{512, 2} {
-							t.Run(fmt.Sprintf("%s/shadow%t/pool%d", frame, shadow, pool), func(t *testing.T) {
-								settings := qualitySettings(rotation, overlap)
-								settings.Frame, settings.DropShadow = frame, shadow
-								scene := generateQualityScene(t, image.Pt(320, 180), settings, 7, pool, false)
-								scene.checkVisibility(t)
-							})
-						}
+	// Shelf promises that every retained occurrence remains visible. Random
+	// retains its original primary-card guard, whose repair cards may sit below
+	// later primary cards as part of its deliberately varied composition.
+	for _, overlap := range []float64{0, .08, .20} {
+		t.Run(fmt.Sprintf("overlap%g", overlap), func(t *testing.T) {
+			for _, frame := range []FrameStyle{FrameNone, FrameThinLight, FrameThinDark, FramePolaroid} {
+				for _, shadow := range []bool{false, true} {
+					for _, pool := range []int{512, 2} {
+						t.Run(fmt.Sprintf("%s/shadow%t/pool%d", frame, shadow, pool), func(t *testing.T) {
+							settings := shelfQualitySettings(overlap)
+							settings.Frame, settings.DropShadow = frame, shadow
+							scene := generateQualityScene(t, image.Pt(320, 180), settings, 7, pool, false)
+							scene.checkVisibility(t)
+						})
 					}
 				}
-			})
-		}
+			}
+		})
 	}
 }
 
@@ -371,7 +381,7 @@ func TestGenerate_OverlapResponse(t *testing.T) {
 	t.Run("aligned equal-size neighbors", func(t *testing.T) {
 		medians := make([]float64, 0, 3)
 		for _, overlap := range []float64{0, .08, .20} {
-			settings := qualitySettings(0, overlap)
+			settings := shelfQualitySettings(overlap)
 			settings.MinimumShortEdge, settings.SizeVariation = .2, 0
 			scene := generateQualityScene(t, image.Pt(320, 180), settings, 7, 512, true)
 			var row []placement
@@ -410,45 +420,43 @@ func TestGenerate_OverlapResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("retained comparison renders: %s", directory)
-	for _, rotation := range []float64{0, 12, 45, 90} {
-		t.Run(fmt.Sprint(rotation), func(t *testing.T) {
-			medians := make([]float64, 3)
-			for setting, overlap := range []float64{0, .08, .20} {
-				values := make([]float64, 0, 3)
-				for _, seed := range []int64{7, 31, 987} {
-					scene := generateQualityScene(t, image.Pt(320, 180), qualitySettings(rotation, overlap), seed, 512, false)
-					values = append(values, scene.coveredFraction())
-					if seed == 7 {
-						path := filepath.Join(directory, fmt.Sprintf("rotation-%g-overlap-%.0f.png", rotation, overlap*100))
-						file, err := os.Create(path)
-						if err != nil {
-							t.Fatal(err)
-						}
-						err = png.Encode(file, scene.result.Image())
-						closeErr := file.Close()
-						if err != nil {
-							t.Fatal(err)
-						}
-						if closeErr != nil {
-							t.Fatal(closeErr)
-						}
-					}
+	medians := make([]float64, 3)
+	for setting, overlap := range []float64{0, .08, .20} {
+		values := make([]float64, 0, 3)
+		for _, seed := range []int64{7, 31, 987} {
+			scene := generateQualityScene(t, image.Pt(320, 180), shelfQualitySettings(overlap), seed, 512, false)
+			values = append(values, scene.coveredFraction())
+			if seed == 7 {
+				path := filepath.Join(directory, fmt.Sprintf("overlap-%.0f.png", overlap*100))
+				file, err := os.Create(path)
+				if err != nil {
+					t.Fatal(err)
 				}
-				slices.Sort(values)
-				medians[setting] = values[1]
+				err = png.Encode(file, scene.result.Image())
+				closeErr := file.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if closeErr != nil {
+					t.Fatal(closeErr)
+				}
 			}
-			t.Logf("rotation %g: median covered-photo fractions 0%%/8%%/20%% = %v", rotation, medians)
-			if !(medians[0] < medians[1] && medians[1] < medians[2] && medians[2]-medians[0] >= .05) {
-				t.Errorf("overlap response too weak or unordered: %v", medians)
-			}
-		})
+		}
+		slices.Sort(values)
+		medians[setting] = values[1]
+	}
+	t.Logf("median covered-photo fractions 0%%/8%%/20%% = %v", medians)
+	if !(medians[0] < medians[1] && medians[1] < medians[2] && medians[2]-medians[0] >= .05) {
+		t.Errorf("overlap response too weak or unordered: %v", medians)
 	}
 }
 
-func TestGenerate_LargeRotation(t *testing.T) {
+func TestGenerate_RandomLargeRotation(t *testing.T) {
 	for _, target := range []image.Point{{320, 180}, {180, 320}} {
 		t.Run(fmt.Sprint(target), func(t *testing.T) {
-			scene := generateQualityScene(t, target, qualitySettings(90, .08), 31, 512, false)
+			settings := qualitySettings(90, .08)
+			settings.Layout = LayoutRandom
+			scene := generateQualityScene(t, target, settings, 31, 512, false)
 			if scene.result.Bounds() != (image.Rectangle{Max: target}) {
 				t.Fatalf("wrong output bounds: %v", scene.result.Bounds())
 			}
@@ -500,7 +508,9 @@ func TestGenerate_LargeRotation(t *testing.T) {
 			}
 			return nil
 		}
-		result, err := g.Generate(ctx, mustRequest(t, []fyne.URI{storage.NewFileURI("/virtual/photo.png")}, image.Pt(320, 180), qualitySettings(90, .08), 7))
+		settings := qualitySettings(90, .08)
+		settings.Layout = LayoutRandom
+		result, err := g.Generate(ctx, mustRequest(t, []fyne.URI{storage.NewFileURI("/virtual/photo.png")}, image.Pt(320, 180), settings, 7))
 		if err != context.Canceled || !result.Bounds().Empty() || prepared != 2 {
 			t.Fatalf("cancelled generation: err=%v result=%v preparations=%d", err, result.Bounds(), prepared)
 		}

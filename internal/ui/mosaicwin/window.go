@@ -107,22 +107,23 @@ type Window struct {
 	clock           func() time.Time
 	exporter        func(context.Context, fyne.URI, image.Image, fyne.URI, imaging.ExportOptions) (imaging.WriteResult, error)
 
-	root, config, previewPanel   *fyne.Container
-	sourceLabel, status          *widget.Label
-	previewStatus                *widget.Label
-	displaySelect, frameSelect   *namedSelect
-	formatSelect                 *namedSelect
-	minimum, variation           *namedSlider
-	overlap, rotation            *namedSlider
-	dropShadow                   *namedCheck
-	minimumValue, variationValue *widget.Label
-	overlapValue, rotationValue  *widget.Label
-	loading                      *widget.ProgressBar
-	advancedButton               *actionButton
-	advancedControls             *fyne.Container
-	refreshButton                *actionButton
-	generateButton, cancelButton *actionButton
-	previewCancelButton          *actionButton
+	root, config, previewPanel               *fyne.Container
+	sourceLabel, status                      *widget.Label
+	previewStatus                            *widget.Label
+	displaySelect, layoutSelect, frameSelect *namedSelect
+	formatSelect                             *namedSelect
+	minimum, variation                       *namedSlider
+	overlap, rotation                        *namedSlider
+	dropShadow                               *namedCheck
+	minimumValue, variationValue             *widget.Label
+	overlapValue, rotationValue              *widget.Label
+	loading                                  *widget.ProgressBar
+	advancedButton                           *actionButton
+	advancedControls                         *fyne.Container
+	rotationRow                              *fyne.Container
+	refreshButton                            *actionButton
+	generateButton, cancelButton             *actionButton
+	previewCancelButton                      *actionButton
 	startOverButton, regenerateButton, wallpaperButton,
 	saveButton, closeButton *actionButton
 	preview *canvas.Image
@@ -204,6 +205,17 @@ func (w *Window) build() fyne.CanvasObject {
 		w.acceptSettings(settings)
 	})
 
+	w.layoutSelect = newNamedSelect(lang.L("Layout"), []string{lang.L("Random"), lang.L("Shelf")}, func(label string) {
+		settings := w.settings
+		if label == lang.L("Shelf") {
+			settings.Layout = mosaic.LayoutShelf
+		} else {
+			settings.Layout = mosaic.LayoutRandom
+		}
+		w.acceptSettings(settings)
+	})
+	w.layoutSelect.SetSelected(layoutLabel(w.settings.Layout))
+
 	frames := []string{lang.L("None"), lang.L("Thin light"), lang.L("Thin dark"), lang.L("Polaroid")}
 	w.frameSelect = newNamedSelect(lang.L("Frame"), frames, func(label string) {
 		settings := w.settings
@@ -230,14 +242,17 @@ func (w *Window) build() fyne.CanvasObject {
 	w.variationValue = w.variation.valueLabel
 	w.overlapValue = w.overlap.valueLabel
 	w.rotationValue = w.rotation.valueLabel
+	w.rotationRow = labelledSlider(lang.L("Maximum rotation"), w.rotation)
 	w.advancedControls = container.NewVBox(
+		labelledControl(lang.L("Layout"), w.layoutSelect),
 		labelledSlider(lang.L("Minimum image size"), w.minimum),
 		labelledControl(lang.L("Frame"), w.frameSelect),
 		labelledSlider(lang.L("Size variation"), w.variation),
 		labelledSlider(lang.L("Overlap"), w.overlap),
-		labelledSlider(lang.L("Maximum rotation"), w.rotation),
+		w.rotationRow,
 		w.dropShadow,
 	)
+	w.syncLayoutControls()
 	w.advancedControls.Hide()
 	w.advancedButton = newActionButton(lang.L("Advanced"), func() {
 		if w.advancedControls.Visible() {
@@ -327,7 +342,7 @@ func labelledControl(label string, control fyne.CanvasObject) fyne.CanvasObject 
 	return container.NewBorder(nil, nil, widget.NewLabel(label), nil, control)
 }
 
-func labelledSlider(label string, slider *namedSlider) fyne.CanvasObject {
+func labelledSlider(label string, slider *namedSlider) *fyne.Container {
 	return container.NewBorder(nil, nil, widget.NewLabel(label), slider.valueLabel, slider)
 }
 
@@ -377,8 +392,59 @@ func (w *Window) syncDisplayOptions() {
 
 func (w *Window) acceptSettings(settings mosaic.Settings) {
 	if settings.Validate() == nil {
-		w.settings = settings
+		w.settings = settings.Normalized()
+		w.syncLayoutSetting()
 	}
+}
+
+func (w *Window) syncLayoutSetting() {
+	if w.layoutSelect != nil {
+		label := layoutLabel(w.settings.Layout)
+		if w.layoutSelect.Selected != label {
+			w.layoutSelect.Selected = label
+			w.layoutSelect.Refresh()
+		}
+	}
+	w.syncLayoutControls()
+	w.syncActions()
+}
+
+// syncLayoutControls keeps Shelf's structured layout free of the rotation
+// slider, whose value remains available when the user switches back to Random.
+func (w *Window) syncLayoutControls() {
+	if w.advancedControls == nil || w.rotationRow == nil {
+		return
+	}
+	if w.settings.Layout == mosaic.LayoutShelf {
+		if containsCanvasObject(w.advancedControls.Objects, w.rotationRow) {
+			w.advancedControls.Remove(w.rotationRow)
+			w.rotationRow.Hide()
+			w.advancedControls.Refresh()
+		}
+		if window := w.win.Window(); window != nil && window.Canvas().Focused() == w.rotation {
+			window.Canvas().Focus(w.layoutSelect)
+		}
+		return
+	}
+	if containsCanvasObject(w.advancedControls.Objects, w.rotationRow) {
+		return
+	}
+	index := len(w.advancedControls.Objects)
+	for current, object := range w.advancedControls.Objects {
+		if object == w.dropShadow {
+			index = current
+			break
+		}
+	}
+	w.advancedControls.Objects = append(w.advancedControls.Objects, nil)
+	copy(w.advancedControls.Objects[index+1:], w.advancedControls.Objects[index:])
+	w.advancedControls.Objects[index] = w.rotationRow
+	w.rotationRow.Show()
+	w.advancedControls.Refresh()
+}
+
+func containsCanvasObject(objects []fyne.CanvasObject, target fyne.CanvasObject) bool {
+	return slices.Contains(objects, target)
 }
 
 // Generate starts a generation from the current validated UI snapshot.
@@ -557,6 +623,9 @@ func (w *Window) syncActions() {
 	if w.frameSelect != nil {
 		setDisableableEnabled(w.frameSelect, configurationEnabled)
 	}
+	if w.layoutSelect != nil {
+		setDisableableEnabled(w.layoutSelect, configurationEnabled)
+	}
 	if w.advancedButton != nil {
 		setDisableableEnabled(w.advancedButton, configurationEnabled)
 	}
@@ -666,13 +735,13 @@ func (w *Window) closed() {
 	w.hasResult = false
 	w.root, w.config, w.previewPanel = nil, nil, nil
 	w.sourceLabel, w.status, w.previewStatus = nil, nil, nil
-	w.displaySelect, w.frameSelect = nil, nil
+	w.displaySelect, w.layoutSelect, w.frameSelect = nil, nil, nil
 	w.formatSelect = nil
 	w.minimum, w.variation, w.overlap, w.rotation = nil, nil, nil, nil
 	w.dropShadow = nil
 	w.minimumValue, w.variationValue, w.overlapValue, w.rotationValue = nil, nil, nil, nil
 	w.loading = nil
-	w.advancedButton, w.advancedControls = nil, nil
+	w.advancedButton, w.advancedControls, w.rotationRow = nil, nil, nil
 	w.refreshButton = nil
 	w.generateButton, w.cancelButton = nil, nil
 	w.previewCancelButton = nil
@@ -724,13 +793,17 @@ func (w *Window) SetSettings(settings mosaic.Settings) error {
 	if err := settings.Validate(); err != nil {
 		return err
 	}
-	w.settings = settings
+	w.settings = settings.Normalized()
+	w.syncLayoutSetting()
 
 	return nil
 }
 
-func (w *Window) Settings() mosaic.Settings                { return w.settings }
-func (w *Window) RestoreSettings(settings mosaic.Settings) { w.settings = settings.Normalized() }
+func (w *Window) Settings() mosaic.Settings { return w.settings }
+func (w *Window) RestoreSettings(settings mosaic.Settings) {
+	w.settings = settings.Normalized()
+	w.syncLayoutSetting()
+}
 func (w *Window) SetSeedSource(source func() int64) {
 	if source == nil {
 		w.seed = func() int64 { return time.Now().UnixNano() }
@@ -774,6 +847,14 @@ func frameLabel(frame mosaic.FrameStyle) string {
 	default:
 		return lang.L("None")
 	}
+}
+
+func layoutLabel(layout mosaic.LayoutMode) string {
+	if layout == mosaic.LayoutShelf {
+		return lang.L("Shelf")
+	}
+
+	return lang.L("Random")
 }
 
 // WaitForTracking observes position polling after StopTracking, off UI.

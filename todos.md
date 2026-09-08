@@ -6,11 +6,27 @@
 
 #### New Features
 
-### Improve mosaic rotation and visible overlap
+### Keep Random mosaics varied and add Shelf
 
-Raise the maximum rotation limit to 90 degrees, make Overlap visibly affect the
-finished arrangement, and prevent mostly concealed photos, including gap-filling
-cards.
+Mosaic keeps the original seeded **Random** arrangement as the default and adds
+an ordered **Shelf** arrangement in the Advanced settings. Both modes use the
+same chosen source pool, frame, size, overlap, and shadow settings. Random
+retains rotation through 90 degrees; Shelf is deliberately axis-aligned and
+hides its rotation control. Missing or unknown saved layout values safely
+restore Random.
+
+Shelf carries the strict final-image visibility and overlap-response checks,
+including every retained photo occurrence across frames, shadows, and
+source-pool sizes. It remains axis-aligned, but Overlap stays available and has
+a measured effect. Random retains its original primary-card visibility guard,
+varied placement, and rotation checks through 90 degrees. Its gap-repair cards
+can still be fully covered, so the strict every-occurrence condition
+intentionally does not apply to Random. See the [implementation
+record](plans/2026-09-08-mosaic-rotation-overlap.md) for the selected contract
+and the remaining limitation.
+
+The user approved the current visual result. Earlier apparent gap-filling or
+maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 

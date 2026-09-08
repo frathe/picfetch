@@ -34,6 +34,28 @@ func FrameStyleFromPreference(value string) FrameStyle {
 	}
 }
 
+// LayoutMode selects the arrangement strategy for a mosaic.
+type LayoutMode string
+
+const (
+	// LayoutRandom keeps the original free-form, seeded arrangement.
+	LayoutRandom LayoutMode = "random"
+	// LayoutShelf arranges photos in covering shelves with controlled layering.
+	LayoutShelf LayoutMode = "shelf"
+)
+
+// LayoutModeFromPreference restores a persisted layout value. Missing or
+// unknown values retain the original random arrangement for existing users.
+func LayoutModeFromPreference(value string) LayoutMode {
+	mode := LayoutMode(value)
+	switch mode {
+	case LayoutRandom, LayoutShelf:
+		return mode
+	default:
+		return LayoutRandom
+	}
+}
+
 // Settings contains the visual controls for one mosaic generation. Ratios are
 // expressed as fractions and rotation is expressed in degrees.
 type Settings struct {
@@ -41,6 +63,7 @@ type Settings struct {
 	SizeVariation    float64
 	Overlap          float64
 	MaximumRotation  float64
+	Layout           LayoutMode
 	Frame            FrameStyle
 	DropShadow       bool
 }
@@ -52,6 +75,7 @@ func DefaultSettings() Settings {
 		SizeVariation:    0.12,
 		Overlap:          0.08,
 		MaximumRotation:  7,
+		Layout:           LayoutRandom,
 		Frame:            FrameNone,
 		DropShadow:       true,
 	}
@@ -115,6 +139,7 @@ func (s Settings) Normalized() Settings {
 		s.MaximumRotation = defaults.MaximumRotation
 	}
 	s.Frame = FrameStyleFromPreference(string(s.Frame))
+	s.Layout = LayoutModeFromPreference(string(s.Layout))
 
 	return s
 }
@@ -154,6 +179,7 @@ func NewRequest(sources []fyne.URI, target image.Point, settings Settings, seed 
 		return Request{}, err
 	}
 	settings.Frame = FrameStyleFromPreference(string(settings.Frame))
+	settings.Layout = LayoutModeFromPreference(string(settings.Layout))
 
 	return Request{
 		sources:  slices.Clone(sources),

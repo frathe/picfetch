@@ -623,22 +623,30 @@ Quelldatei.
 Wählen Sie den Zielbildschirm anhand von Name, nativer Pixelauflösung und
 Seitenverhältnis. **Bildschirme aktualisieren** aktualisiert diese Liste; wurde
 der gewählte Bildschirm entfernt, verlangt PicFetch eine neue Auswahl.
-**Erweitert** blendet minimale Bildgröße, Rahmen, Größenvariation,
-Überlappung, maximale Drehung und die Schlagschattenoption ein; bei
-eingeklappten erweiterten Einstellungen ist der Zielbildschirm die einzige
-sichtbare Gestaltungseinstellung. Die Erstellung läuft im Hintergrund. `Esc`
-bricht eine laufende Erstellung ab, ein zweites `Esc` schließt das Fenster;
-ohne laufende Arbeit schließt `Esc` es direkt. Alle Bedienelemente und Aktionen
-sind mit `Tab` und `Shift+Tab` erreichbar; `Enter` oder die Leertaste aktiviert
-eine fokussierte Schaltfläche.
+**Erweitert** blendet Anordnung, minimale Bildgröße, Rahmen, Größenvariation,
+Überlappung und die Schlagschattenoption ein. Bei **Zufällig** erscheint
+zusätzlich **Maximale Drehung**; **Reihen** bleibt bewusst achsenparallel und
+blendet dieses Bedienelement aus. Bei eingeklappten erweiterten Einstellungen
+ist der Zielbildschirm die einzige sichtbare Gestaltungseinstellung. Die
+Erstellung läuft im Hintergrund. `Esc` bricht eine laufende Erstellung ab, ein
+zweites `Esc` schließt das Fenster; ohne laufende Arbeit schließt `Esc` es
+direkt. Alle Bedienelemente und Aktionen sind mit `Tab` und `Shift+Tab`
+erreichbar; `Enter` oder die Leertaste aktiviert eine fokussierte Schaltfläche.
 
-**Maximale Drehung** erlaubt 0 bis 90 Grad in Ein-Grad-Schritten; der
-Standardwert ist 7 Grad.
-Jedes Foto kann sich aus seiner korrekt ausgerichteten Quellorientierung in beide
-Richtungen drehen. **Überlappung** (0-20%, Standardwert 8%) beschreibt den ungefähren
-Einzug relativ zur kürzeren ungedrehten Fotokante. Höhere Werte erzeugen mehr
-Überlagerung; dies ist keine Obergrenze für die verdeckte Fläche, und 0% verhindert
-keine Überschneidungen gedrehter Fotos.
+**Anordnung** wählt **Zufällig**, den Standard, der PicFetchs ursprüngliche
+abwechslungsreiche Anordnung beibehält, oder **Reihen**, eine geordnete
+Anordnung in horizontalen Reihen. Beide verwenden denselben Quellenvorrat sowie
+dieselben Rahmeneinstellungen. **Reihen** bleibt bewusst achsenparallel.
+
+Für **Zufällig** erlaubt **Maximale Drehung** 0 bis 90 Grad in
+Ein-Grad-Schritten; der Standardwert ist 7 Grad.
+Jedes Foto in **Zufällig** kann sich aus seiner korrekt ausgerichteten
+Quellorientierung in beide Richtungen drehen. **Überlappung**
+(0-20%, Standardwert 8%) beschreibt den ungefähren Einzug relativ zur kürzeren
+ungedrehten Fotokante. Höhere Werte erzeugen in beiden Anordnungen, auch bei
+**Reihen**, mehr Überlagerung; dies ist keine Obergrenze für die verdeckte
+Fläche, und 0% verhindert keine Überschneidungen gedrehter Fotos in
+**Zufällig**.
 Beschnitt am äußeren Bildrand bleibt erlaubt.
 
 Nach der Erstellung kehren Sie mit **Neu beginnen** zur Konfiguration zurück,
