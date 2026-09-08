@@ -98,7 +98,7 @@ From Actions -> Microsoft Store publisher -> Run workflow on `main`:
 
 | Mode | Effect |
 | --- | --- |
-| `check` | Approved credential access; reads published/pending state, no Store or receipt writes. |
+| `check` | Approved credential access; reads published/pending state and diagnoses a recorded pending draft, no Store or receipt writes. |
 | `preview` | Approved credential access; validates a release and prints live metadata/notes, no writes. It does not authorize a later submission. |
 | `submit` | Automatically prepares a release before approval, then submits only that exact release. |
 | `reconcile` | Prepares the current receipt before approval, then resumes/observes only that receipt. |
@@ -108,6 +108,15 @@ newest eligible release during preparation. Empty `reconcile` selects the durabl
 receipt; an explicit different tag is rejected. Results appear in the summary and
 90-day diagnostic artifacts. A successful read-only check proves read access only;
 it does not prove upload/submission permission or that a pending release is live.
+
+When a draft is still `PendingCommit` and matches the saved receipt, `check` adds
+`pending_validation`. This compares the draft with the receipt's original published
+base and with the update prepared from that base and the frozen release notes.
+`changes_from_base` and `changes_from_prepared` contain field paths only, with a
+32-difference limit; metadata values and upload URLs are omitted. The accompanying
+booleans report whether metadata and packages match the receipt and whether the
+original base still produces its recorded metadata hash. Use this report to
+investigate a metadata mismatch before changing validation or resuming the draft.
 
 The durable receipt journal uses GitHub deployments with task
 `picfetch-store-receipt`, environment `microsoft-store`, ref `main` and

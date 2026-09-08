@@ -95,16 +95,31 @@ rules and three secret names were verified through GitHub API metadata. The user
 confirmed the linked Developer application and rotated key. Credentials remain
 only in GitHub Secrets. The workflow is now on main. Its first automatic `v1.0.3`
 publisher run (34220437267) failed in preparation because the Windows artifact
-recorded CRLF release notes while the tagged Git blob used LF. The local fix
+recorded CRLF release notes while the tagged Git blob used LF. The publisher fix
 compares notes after CRLF-to-LF conversion only; changed content, whitespace and
 bare carriage returns still fail provenance checks. Read-only preparation now
 passes against the original producer run 34218808203 and artifact 10053491693;
-no replacement build or Store submission was needed. Publisher race tests pass,
-including preparation and approved submission with simulated Windows notes.
-Land this fix on main, then manually dispatch `submit` for `v1.0.3` and review
-the frozen approval. Observing the approved Store release remains open. Read
-access alone does not prove submission permission. Keep the live 1.0.2 tag and
-artifact unchanged.
+no replacement build or Store submission was needed. `make verify` and focused
+publisher race tests pass, including preparation and approved submission with
+simulated Windows notes. Disabling the comparison in a temporary compiler overlay
+made all three content/whitespace rejection cases fail as expected.
+The line-ending fix is committed as `16abd99`. The next approved publisher run
+(34222625099) passed preparation and created draft 1152921505701835817, then stopped
+with `pending submission has changes outside the recorded update`. Receipt
+6326959682 remains in phase `created`; Partner Center shows the draft's original
+notes and unchanged listings/packages. Read access and draft creation are now
+confirmed. Preserve this draft and receipt while diagnosing the exact API mismatch.
+
+The local `check` enhancement reports bounded differing field paths and validation
+booleans without metadata values or Store/receipt writes. Its publisher race tests
+and full `make verify` pass; temporary compiler overlays confirmed the redaction,
+size, receipt/base/state selection, missing/null and read-only guards fail when
+broken. Land that diagnostic
+change and approve a fresh `check` run on main (no tag needed), then use its
+`pending_validation` report to finish the fix. Recovery of this existing draft will
+use a fresh approved `reconcile`, not a new `submit`. The actual metadata discrepancy
+and successful upload/certification remain open. See
+`plans/2026-09-08-store-draft-mismatch.md`. Keep the live 1.0.2 tag and artifact unchanged.
 
 Focused tooling race tests, actionlint, formatting, TUF/Qodana checks, host vet/build,
 Windows publisher cross-build and Linux shard inventory pass for the approval

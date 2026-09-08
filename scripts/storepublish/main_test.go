@@ -168,12 +168,14 @@ type storeHarness struct {
 	out                                        bytes.Buffer
 	server                                     *httptest.Server
 	published, draft                           object
+	pastPublished                              object
 	journal                                    []object
 	artifact, bundle                           []byte
 	state, fail, pending, tag                  string
 	creates, updates, uploads, commits, tokens int
 	waits                                      []time.Duration
 	drift                                      bool
+	createdChange                              func(object)
 }
 
 func newStoreHarness(t *testing.T) *storeHarness {
@@ -289,6 +291,12 @@ func (h *storeHarness) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		write(app)
 	case r.URL.Path == base+"/submissions/published-102":
+		if h.pastPublished != nil {
+			write(h.pastPublished)
+		} else {
+			write(h.published)
+		}
+	case r.URL.Path == base+"/submissions/published-104":
 		write(h.published)
 	case r.URL.Path == base+"/submissions" && r.Method == http.MethodPost:
 		h.creates++
@@ -299,6 +307,9 @@ func (h *storeHarness) serve(w http.ResponseWriter, r *http.Request) {
 		h.draft["id"] = "submission-103"
 		h.draft["fileUploadUrl"] = h.server.URL + "/blob?sig=private-sas"
 		h.pending = "submission-103"
+		if h.createdChange != nil {
+			h.createdChange(h.draft)
+		}
 		if h.fail == "create" {
 			w.WriteHeader(503)
 			return
@@ -742,6 +753,140 @@ func TestStorePublishRecovery(t *testing.T) {
 		}
 	})
 }
+func TestStorePublishPendingDiagnostics(t *testing.T) {
+	h := newStoreHarness(t)
+	h.published["targetPublishDate"] = "2026-09-06T00:00:00Z"
+	h.published["notesForCertification"] = "private-certification-note"
+	listing := asObject(asObject(asObject(h.published["listings"])["de-de"])["baseListing"])
+	listing["images"] = []any{object{"id": "published-image", "fileName": "screenshot.png", "fileStatus": "Uploaded"}}
+	h.createdChange = func(draft object) {
+		draft["targetPublishDate"] = "1601-01-01T00:00:00Z"
+		listing := asObject(asObject(asObject(draft["listings"])["de-de"])["baseListing"])
+		listing["description"] = "private-modified-description"
+		asObject(listing["images"].([]any)[0])["id"] = "private-image-id"
+	}
+	err := h.command("submit")
+	if err == nil || !strings.Contains(err.Error(), "pending submission has changes outside the recorded update") {
+		t.Fatalf("fixture did not reproduce a rejected created draft: %v", err)
+	}
+	before := h.creates + h.updates + h.uploads + h.commits + len(h.journal)
+	if err = h.command("check"); err != nil {
+		t.Fatal(err)
+	}
+	result, err := parseObject(h.out.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	validation := asObject(result["pending_validation"])
+	if validation == nil {
+		t.Fatal("check omitted the recorded pending draft's diagnostic report")
+	}
+	for key, want := range map[string]bool{"metadata_matches_recorded": false, "packages_match_recorded": false, "prepared_base_matches_recorded": true} {
+		if validation[key] != want {
+			t.Fatalf("%s = %v, want %v", key, validation[key], want)
+		}
+	}
+	if stringField(validation, "receipt_phase") != "created" || stringField(validation, "base_submission_id") != "published-102" {
+		t.Fatal("diagnostics lost the original receipt identity")
+	}
+	if got := fmt.Sprint(validation["changes_from_base"]); got != "[/listings/de-de/baseListing/description /listings/de-de/baseListing/images/0/id /targetPublishDate]" {
+		t.Fatalf("unexpected base differences: %s", got)
+	}
+	for _, field := range []string{"/listings/de-de/baseListing/description", "/listings/de-de/baseListing/releaseNotes", "/listings/en-us/baseListing/releaseNotes", "/targetPublishDate", "/targetPublishMode"} {
+		if !strings.Contains(fmt.Sprint(validation["changes_from_prepared"]), field) {
+			t.Fatalf("prepared differences omit %s", field)
+		}
+	}
+	for _, private := range []string{"private-token", "private-sas", "private-certification-note", "private-modified-description", "private-image-id", "fileUploadUrl"} {
+		if strings.Contains(h.out.String(), private) {
+			t.Fatalf("diagnostics exposed %s", private)
+		}
+	}
+	if h.creates+h.updates+h.uploads+h.commits+len(h.journal) != before {
+		t.Fatal("check mutated the Store or its receipt")
+	}
+}
+
+func TestStorePublishPendingDiagnosticBounds(t *testing.T) {
+	for _, mode := range []string{"matching", "bounded", "unsafe field name", "missing versus null", "processing", "different receipt", "original base"} {
+		t.Run(mode, func(t *testing.T) {
+			h := newStoreHarness(t)
+			h.fail = "update"
+			if err := h.command("submit"); err == nil {
+				t.Fatal("fixture did not interrupt the metadata update")
+			}
+			h.fail = ""
+			switch mode {
+			case "bounded":
+				for i := range 100 {
+					h.draft[fmt.Sprintf("field%03d", i)] = "private-value"
+				}
+			case "unsafe field name":
+				h.draft["private/key\nvalue"] = "private-value"
+			case "missing versus null":
+				h.draft["futureOption"] = nil
+			case "processing":
+				h.state = "Certification"
+			case "different receipt":
+				asObject(h.journal[len(h.journal)-1]["payload"])["submission_id"] = "other-draft"
+			case "original base":
+				h.pastPublished = h.published
+				h.published, _ = parseObject(mustJSON(t, h.published))
+				h.published["id"] = "published-104"
+				h.published["notesForCertification"] = "private-value"
+			}
+			before := h.creates + h.updates + h.uploads + h.commits + len(h.journal)
+			if err := h.command("check"); err != nil {
+				t.Fatal(err)
+			}
+			result, err := parseObject(h.out.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			validation := asObject(result["pending_validation"])
+			if mode == "processing" || mode == "different receipt" {
+				if validation != nil {
+					t.Fatal("diagnosed a draft outside the recorded pending update")
+				}
+			} else {
+				paths, ok := validation["changes_from_prepared"].([]any)
+				if !ok {
+					t.Fatal("diagnostic paths are missing")
+				}
+				switch mode {
+				case "matching", "original base":
+					if len(paths) != 0 || validation["metadata_matches_recorded"] != true || validation["packages_match_recorded"] != true || validation["prepared_base_matches_recorded"] != true {
+						t.Fatal("matching prepared draft was reported as changed")
+					}
+					if stringField(validation, "base_submission_id") != "published-102" {
+						t.Fatal("diagnostics did not use the receipt's original published base")
+					}
+				case "bounded":
+					if len(paths) != 33 || paths[0] != "/field000" || paths[32] != "[difference limit reached]" {
+						t.Fatal("diagnostic output is not bounded and deterministic")
+					}
+				case "unsafe field name":
+					if fmt.Sprint(paths) != "[/[unrecognized-field]]" {
+						t.Fatal("unsafe field name was not redacted")
+					}
+				case "missing versus null":
+					if fmt.Sprint(paths) != "[/futureOption]" {
+						t.Fatal("missing field was treated as an explicit null")
+					}
+				}
+			}
+			for _, private := range []string{"private-value", "private/key", "private-token", "private-sas", "fileUploadUrl"} {
+				if strings.Contains(h.out.String(), private) {
+					t.Fatalf("diagnostics exposed %s", private)
+				}
+			}
+			if h.creates+h.updates+h.uploads+h.commits+len(h.journal) != before {
+				t.Fatal("check mutated the Store or its receipt")
+			}
+		})
+	}
+}
+
 func TestStorePublishStatus(t *testing.T) {
 	t.Run("retries", testStorePublishRetries)
 	for _, state := range []string{"Certification", "Release", "Publishing", "CertificationFailed", "PublishFailed", "PendingPublication", "UnrecognizedFutureState", "PendingCommit"} {

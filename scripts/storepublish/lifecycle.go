@@ -171,9 +171,51 @@ func checkStore(ctx context.Context, rt runtime) error {
 		}
 		result["pending_submission_id"] = pending
 		result["pending_state"] = stringField(status, "status")
+		if saved != nil && pending == saved.SubmissionID && statusKind(stringField(status, "status")) == "pending" {
+			report, err := pendingDiagnostics(ctx, &s, saved, published)
+			if err != nil {
+				return err
+			}
+			result["pending_validation"] = report
+		}
 	}
 	return emit(rt, result)
 }
+
+func pendingDiagnostics(ctx context.Context, s *storeClient, saved *receipt, base object) (object, error) {
+	current, err := s.submission(ctx, saved.SubmissionID)
+	if err != nil {
+		return nil, err
+	}
+	if stringField(base, "id") != saved.BaseSubmission {
+		base, err = s.submission(ctx, saved.BaseSubmission)
+		if err != nil {
+			return nil, err
+		}
+	}
+	prepared, err := prepareSubmission(base, saved.Notes)
+	if err != nil {
+		return nil, err
+	}
+	currentSHA, err := metadataDigest(current)
+	if err != nil {
+		return nil, err
+	}
+	preparedSHA, err := metadataDigest(prepared)
+	if err != nil {
+		return nil, err
+	}
+	return object{
+		"receipt_phase":                  saved.Phase,
+		"base_submission_id":             saved.BaseSubmission,
+		"metadata_matches_recorded":      currentSHA == saved.MetadataSHA,
+		"packages_match_recorded":        pendingPackagesMatch(current),
+		"prepared_base_matches_recorded": preparedSHA == saved.MetadataSHA,
+		"changes_from_base":              metadataDifferences(base, current),
+		"changes_from_prepared":          metadataDifferences(prepared, current),
+	}, nil
+}
+
 func validReceipt(r *receipt) error {
 	if r == nil {
 		return nil

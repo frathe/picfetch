@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -264,7 +265,7 @@ func prepareSubmission(source object, notes string) (object, error) {
 	}
 	return out, nil
 }
-func metadataDigest(o object) (string, error) {
+func metadataFields(o object) object {
 	// Provider-generated status, package ingestion fields and upload URLs change
 	// independently of the listing and product metadata we preserve.
 	stable := object{}
@@ -275,6 +276,69 @@ func metadataDigest(o object) (string, error) {
 		}
 		stable[k] = v
 	}
-	b, err := json.Marshal(stable)
+	return stable
+}
+func metadataDigest(o object) (string, error) {
+	b, err := json.Marshal(metadataFields(o))
 	return digest(b), err
+}
+
+// metadataDifferences reports field paths only. Submission values and upload
+// URLs must never reach the diagnostic output, including through unusual keys.
+func metadataDifferences(left, right object) []string {
+	const limit = 32
+	safeKey := regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+	differences := []string{}
+	var visit func(string, any, any, int)
+	visit = func(path string, a, b any, depth int) {
+		if len(differences) >= limit || reflect.DeepEqual(a, b) {
+			return
+		}
+		if am, bm := asObject(a), asObject(b); am != nil && bm != nil && depth < 16 {
+			keys := map[string]bool{}
+			for key := range am {
+				keys[key] = true
+			}
+			for key := range bm {
+				keys[key] = true
+			}
+			ordered := make([]string, 0, len(keys))
+			for key := range keys {
+				ordered = append(ordered, key)
+			}
+			sort.Strings(ordered)
+			for _, key := range ordered {
+				if len(differences) >= limit {
+					break
+				}
+				label := key
+				if !safeKey.MatchString(key) {
+					label = "[unrecognized-field]"
+				}
+				next := path + "/" + label
+				av, aok := am[key]
+				bv, bok := bm[key]
+				if !aok || !bok {
+					differences = append(differences, next)
+				} else {
+					visit(next, av, bv, depth+1)
+				}
+			}
+			return
+		}
+		aa, aok := a.([]any)
+		ba, bok := b.([]any)
+		if aok && bok && len(aa) == len(ba) && depth < 16 {
+			for i := range aa {
+				visit(fmt.Sprintf("%s/%d", path, i), aa[i], ba[i], depth+1)
+			}
+			return
+		}
+		differences = append(differences, path)
+	}
+	visit("", metadataFields(left), metadataFields(right), 0)
+	if len(differences) == limit {
+		differences = append(differences, "[difference limit reached]")
+	}
+	return differences
 }
