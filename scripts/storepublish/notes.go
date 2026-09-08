@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
 	"sort"
@@ -281,6 +282,34 @@ func metadataFields(o object) object {
 func metadataDigest(o object) (string, error) {
 	b, err := json.Marshal(metadataFields(o))
 	return digest(b), err
+}
+
+func metadataMatches(o object, want string) (bool, error) {
+	got, err := metadataDigest(o)
+	if err != nil || got == want {
+		return got == want, err
+	}
+	stable := metadataFields(o)
+	pricing := asObject(stable["pricing"])
+	if pricing == nil {
+		return false, nil
+	}
+	pricing = maps.Clone(pricing)
+	stable["pricing"] = pricing
+	// Microsoft owns this read-only account capability flag. Try its optional
+	// boolean representations against the original hash so existing receipts keep
+	// their identity, while every other pricing and metadata field still matches.
+	for _, flag := range []any{nil, false, true} {
+		delete(pricing, "isAdvancedPricingModel")
+		if flag != nil {
+			pricing["isAdvancedPricingModel"] = flag
+		}
+		got, err = metadataDigest(stable)
+		if err != nil || got == want {
+			return got == want, err
+		}
+	}
+	return false, nil
 }
 
 // metadataDifferences reports field paths only. Submission values and upload

@@ -197,20 +197,20 @@ func pendingDiagnostics(ctx context.Context, s *storeClient, saved *receipt, bas
 	if err != nil {
 		return nil, err
 	}
-	currentSHA, err := metadataDigest(current)
+	currentMatches, err := metadataMatches(current, saved.MetadataSHA)
 	if err != nil {
 		return nil, err
 	}
-	preparedSHA, err := metadataDigest(prepared)
+	preparedMatches, err := metadataMatches(prepared, saved.MetadataSHA)
 	if err != nil {
 		return nil, err
 	}
 	return object{
 		"receipt_phase":                  saved.Phase,
 		"base_submission_id":             saved.BaseSubmission,
-		"metadata_matches_recorded":      currentSHA == saved.MetadataSHA,
+		"metadata_matches_recorded":      currentMatches,
 		"packages_match_recorded":        pendingPackagesMatch(current),
-		"prepared_base_matches_recorded": preparedSHA == saved.MetadataSHA,
+		"prepared_base_matches_recorded": preparedMatches,
 		"changes_from_base":              metadataDifferences(base, current),
 		"changes_from_prepared":          metadataDifferences(prepared, current),
 	}, nil
@@ -498,7 +498,7 @@ func pendingPackagesMatch(current object) bool {
 	return newCount == 1
 }
 func finishPending(ctx context.Context, rt runtime, s *storeClient, g *githubAPI, r *receipt, current object) error {
-	currentSHA, err := metadataDigest(current)
+	currentMatches, err := metadataMatches(current, r.MetadataSHA)
 	if err != nil {
 		return err
 	}
@@ -511,28 +511,32 @@ func finishPending(ctx context.Context, rt runtime, s *storeClient, g *githubAPI
 		if err != nil {
 			return err
 		}
-		if currentSHA == baseSHA {
+		matchesBase, err := metadataMatches(current, baseSHA)
+		if err != nil {
+			return err
+		}
+		if matchesBase {
 			prepared, err := prepareSubmission(current, r.Notes)
 			if err != nil {
 				return err
 			}
-			wanted, err := metadataDigest(prepared)
+			matchesPrepared, err := metadataMatches(prepared, r.MetadataSHA)
 			if err != nil {
 				return err
 			}
-			if wanted != r.MetadataSHA {
+			if !matchesPrepared {
 				return fmt.Errorf("submission metadata changed from preview")
 			}
 			current, err = s.request(ctx, http.MethodPut, "/submissions/"+r.SubmissionID, prepared)
 			if err != nil {
 				return err
 			}
-			currentSHA, err = metadataDigest(current)
+			currentMatches, err = metadataMatches(current, r.MetadataSHA)
 			if err != nil {
 				return err
 			}
 		}
-		if currentSHA != r.MetadataSHA || !pendingPackagesMatch(current) {
+		if !currentMatches || !pendingPackagesMatch(current) {
 			return fmt.Errorf("pending submission has changes outside the recorded update")
 		}
 		r.Phase = "updated"
@@ -540,7 +544,7 @@ func finishPending(ctx context.Context, rt runtime, s *storeClient, g *githubAPI
 			return err
 		}
 	}
-	if currentSHA != r.MetadataSHA || !pendingPackagesMatch(current) {
+	if !currentMatches || !pendingPackagesMatch(current) {
 		return fmt.Errorf("pending submission no longer matches the recorded update")
 	}
 	if r.Phase == "updated" {
@@ -549,8 +553,8 @@ func finishPending(ctx context.Context, rt runtime, s *storeClient, g *githubAPI
 		if err != nil {
 			return err
 		}
-		currentSHA, err = metadataDigest(current)
-		if err != nil || currentSHA != r.MetadataSHA || !pendingPackagesMatch(current) {
+		currentMatches, err = metadataMatches(current, r.MetadataSHA)
+		if err != nil || !currentMatches || !pendingPackagesMatch(current) {
 			return fmt.Errorf("pending submission changed before upload; inspect Partner Center")
 		}
 		if err = s.upload(ctx, stringField(current, "fileUploadUrl"), r.Release.Directory); err != nil {
@@ -568,8 +572,8 @@ func finishPending(ctx context.Context, rt runtime, s *storeClient, g *githubAPI
 	if err != nil {
 		return err
 	}
-	currentSHA, err = metadataDigest(current)
-	if err != nil || currentSHA != r.MetadataSHA || !pendingPackagesMatch(current) {
+	currentMatches, err = metadataMatches(current, r.MetadataSHA)
+	if err != nil || !currentMatches || !pendingPackagesMatch(current) {
 		return fmt.Errorf("pending submission changed before commit; inspect Partner Center")
 	}
 	r.Phase = "committing"

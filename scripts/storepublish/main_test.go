@@ -176,6 +176,7 @@ type storeHarness struct {
 	waits                                      []time.Duration
 	drift                                      bool
 	createdChange                              func(object)
+	updatedChange                              func(object)
 }
 
 func newStoreHarness(t *testing.T) *storeHarness {
@@ -318,6 +319,9 @@ func (h *storeHarness) serve(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == base+"/submissions/submission-103" && r.Method == http.MethodPut:
 		h.updates++
 		h.draft = decode()
+		if h.updatedChange != nil {
+			h.updatedChange(h.draft)
+		}
 		if h.fail == "update" {
 			w.WriteHeader(503)
 			return
@@ -753,6 +757,134 @@ func TestStorePublishRecovery(t *testing.T) {
 		}
 	})
 }
+func TestStorePublishReadOnlyPricing(t *testing.T) {
+	for _, stage := range []string{"create", "update", "recover created", "recover updated"} {
+		t.Run(stage, func(t *testing.T) {
+			h := newStoreHarness(t)
+			asObject(h.published["pricing"])["isAdvancedPricingModel"] = false
+			change := func(draft object) { asObject(draft["pricing"])["isAdvancedPricingModel"] = true }
+			if stage == "create" {
+				h.createdChange = change
+			} else {
+				h.updatedChange = change
+			}
+			switch stage {
+			case "recover created":
+				h.fail = "update"
+			case "recover updated":
+				h.updatedChange = nil
+				h.fail = "upload"
+			}
+			err := h.command("submit")
+			if h.fail == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err == nil {
+					t.Fatal("fixture did not interrupt the submission")
+				}
+				change(h.draft)
+				saved := asObject(h.journal[len(h.journal)-1]["payload"])
+				// Recorded by the pre-fix publisher with the flag set to false.
+				if stringField(saved, "metadata_sha256") != "ac3b3743fe3b0927c4120582eb91fcf9f2e600145e054c7f75991494a236897f" {
+					t.Fatal("fixture no longer uses the original receipt hash format")
+				}
+				h.fail = ""
+				if err = h.command("check"); err != nil {
+					t.Fatal(err)
+				}
+				result, err := parseObject(h.out.Bytes())
+				if err != nil {
+					t.Fatal(err)
+				}
+				validation := asObject(result["pending_validation"])
+				if validation["metadata_matches_recorded"] != true || validation["packages_match_recorded"] != true || fmt.Sprint(validation["changes_from_prepared"]) != "[/pricing/isAdvancedPricingModel]" {
+					t.Fatalf("read-only pricing change blocked the recorded update: %v", validation)
+				}
+				if err = h.command("reconcile"); err != nil {
+					t.Fatal(err)
+				}
+				latest := asObject(h.journal[len(h.journal)-1]["payload"])
+				if latest["metadata_sha256"] != saved["metadata_sha256"] {
+					t.Fatal("recovery rewrote the recorded metadata hash")
+				}
+			}
+			if h.creates != 1 || h.updates != 1 || h.commits != 1 || h.uploads == 0 {
+				t.Fatalf("incorrect recovery counts: create=%d update=%d upload=%d commit=%d", h.creates, h.updates, h.uploads, h.commits)
+			}
+			if stringField(asObject(h.draft["pricing"]), "priceId") != "Free" || asObject(h.draft["pricing"])["isAdvancedPricingModel"] != true {
+				t.Fatal("submission overwrote Store pricing metadata")
+			}
+		})
+	}
+}
+
+func TestStorePublishPricingFlagStates(t *testing.T) {
+	for _, from := range []any{nil, false, true} {
+		for _, to := range []any{nil, false, true} {
+			t.Run(fmt.Sprintf("%v to %v", from, to), func(t *testing.T) {
+				h := newStoreHarness(t)
+				if from != nil {
+					asObject(h.published["pricing"])["isAdvancedPricingModel"] = from
+				}
+				h.updatedChange = func(draft object) {
+					pricing := asObject(draft["pricing"])
+					delete(pricing, "isAdvancedPricingModel")
+					if to != nil {
+						pricing["isAdvancedPricingModel"] = to
+					}
+				}
+				if err := h.command("submit"); err != nil {
+					t.Fatal(err)
+				}
+				if h.commits != 1 || asObject(h.draft["pricing"])["isAdvancedPricingModel"] != to || asObject(h.published["pricing"])["isAdvancedPricingModel"] != from {
+					t.Fatal("read-only flag comparison mutated pricing or prevented submission")
+				}
+			})
+		}
+	}
+}
+
+func TestStorePublishPricingDrift(t *testing.T) {
+	for _, field := range []string{"priceId", "trialPeriod", "marketSpecificPricings", "sales", "unknown", "same key elsewhere", "listing", "notes", "packages"} {
+		t.Run(field, func(t *testing.T) {
+			h := newStoreHarness(t)
+			asObject(h.published["pricing"])["isAdvancedPricingModel"] = false
+			h.fail = "update"
+			if err := h.command("submit"); err == nil {
+				t.Fatal("fixture did not interrupt the update")
+			}
+			h.fail = ""
+			pricing := asObject(h.draft["pricing"])
+			pricing["isAdvancedPricingModel"] = true
+			switch field {
+			case "marketSpecificPricings":
+				pricing[field] = object{"DE": "Tier2"}
+			case "sales":
+				pricing[field] = []any{object{"basePriceId": "Tier2"}}
+			case "same key elsewhere":
+				h.draft["isAdvancedPricingModel"] = true
+			case "listing":
+				asObject(asObject(asObject(h.draft["listings"])["en-us"])["baseListing"])["description"] = "Changed description"
+			case "notes":
+				asObject(asObject(asObject(h.draft["listings"])["en-us"])["baseListing"])["releaseNotes"] = "Changed notes"
+			case "packages":
+				h.draft["applicationPackages"] = []any{object{"fileName": "other.msixbundle", "fileStatus": "PendingUpload"}}
+			default:
+				pricing[field] = "Changed pricing"
+			}
+			before := len(h.journal)
+			if err := h.command("reconcile"); err == nil || !strings.Contains(err.Error(), "outside the recorded update") {
+				t.Fatalf("protected change was not rejected: %v", err)
+			}
+			if h.updates != 1 || h.uploads+h.commits != 0 || len(h.journal) != before {
+				t.Fatal("recovery mutated a draft with protected changes")
+			}
+		})
+	}
+}
+
 func TestStorePublishPendingDiagnostics(t *testing.T) {
 	h := newStoreHarness(t)
 	h.published["targetPublishDate"] = "2026-09-06T00:00:00Z"

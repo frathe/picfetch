@@ -106,19 +106,29 @@ made all three content/whitespace rejection cases fail as expected.
 The line-ending fix is committed as `16abd99`. The next approved publisher run
 (34222625099) passed preparation and created draft 1152921505701835817, then stopped
 with `pending submission has changes outside the recorded update`. Receipt
-6326959682 remains in phase `created`; Partner Center shows the draft's original
-notes and unchanged listings/packages. Read access and draft creation are now
-confirmed. Preserve this draft and receipt while diagnosing the exact API mismatch.
+6326959682 remains in phase `created`. The later API check confirms that the PUT
+already saved the new notes and package; the earlier browser view of unchanged
+listings was insufficient evidence of the API draft's contents.
 
 The local `check` enhancement reports bounded differing field paths and validation
 booleans without metadata values or Store/receipt writes. Its publisher race tests
 and full `make verify` pass; temporary compiler overlays confirmed the redaction,
 size, receipt/base/state selection, missing/null and read-only guards fail when
-broken. Land that diagnostic
-change and approve a fresh `check` run on main (no tag needed), then use its
-`pending_validation` report to finish the fix. Recovery of this existing draft will
-use a fresh approved `reconcile`, not a new `submit`. The actual metadata discrepancy
-and successful upload/certification remain open. See
+broken. The diagnostic change is committed as `91bad9e`. Approved check run
+34226413927 found exactly one difference from the prepared update:
+`/pricing/isAdvancedPricingModel`. Microsoft documents it as a read-only account
+capability flag. Packages and the prepared base match the receipt.
+
+The local fix accepts only this flag's optional boolean representations while
+keeping recorded metadata hashes unchanged and preserving all editable pricing,
+listing, note and package checks. Command tests cover new submissions, recovery
+from the existing `created` phase and interrupted upload, plus protected drift.
+Publisher race tests and full `make verify` pass; temporary compiler overlays
+confirmed regression detection for the flag comparison, editable metadata/package
+guards, original receipt hash format, input ownership and avoiding a repeated PUT.
+Land the fix and dispatch a fresh approved `reconcile` on main with tag blank
+(the receipt selects v1.0.3). This resumes draft 1152921505701835817 and its original
+artifact. Successful live upload and certification remain open. See
 `plans/2026-09-08-store-draft-mismatch.md`. Keep the live 1.0.2 tag and artifact unchanged.
 
 Focused tooling race tests, actionlint, formatting, TUF/Qodana checks, host vet/build,

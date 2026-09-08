@@ -118,6 +118,15 @@ booleans report whether metadata and packages match the receipt and whether the
 original base still produces its recorded metadata hash. Use this report to
 investigate a metadata mismatch before changing validation or resuming the draft.
 
+The match booleans and mutation guards allow differences only in the read-only
+`pricing.isAdvancedPricingModel` account capability flag, in addition to the
+existing provider-generated status/upload fields. Microsoft may change this flag
+in an update response. Its optional boolean representations are compared against
+the original recorded hash, preserving existing receipts without a hash migration.
+All editable pricing and listing fields remain protected. Diagnostic paths still
+show this raw difference even when it is accepted. See Microsoft's
+[pricing resource](https://learn.microsoft.com/en-us/windows/uwp/monetize/manage-app-submissions#pricing-resource).
+
 The durable receipt journal uses GitHub deployments with task
 `picfetch-store-receipt`, environment `microsoft-store`, ref `main` and
 `auto_merge: false`. It binds tag/commit, run/attempt, artifact ID, hashes, frozen
