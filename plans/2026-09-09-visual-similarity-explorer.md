@@ -1,7 +1,7 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: native completed-map increment verified and open for local trial; later increments remain active
+Status: semantic tag overlay implemented and verified; native library-quality trial and later slices remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
@@ -587,3 +587,103 @@ resource lifetime (one per independent question). No implementation/review
 subagents; one final full verify for this increment. Focused repeated tests were
 limited to new behavior, fixture corrections, negative guards and the subsequent
 user-reported memory retention.
+
+## Semantic tags — resumed implementation, 2026-09-09
+
+Deliver the next ready backlog slice: local semantic labels and a checkbox
+overlay filtering existing cohorts. Route: Deep (engine/UI integration).
+Existing accepted provider/UI and actual offline-engine test seams apply.
+The user has been offered an optional vocabulary preference; common subjects
+and scenes are the default. Saved presets, custom trait discovery, source
+recovery ticket 06 and full-library qualification remain separate work.
+
+### Tag task 1 — Cohort filtering through the viewer
+Owner: T0 inline
+Files: internal/similarity/similarity.go; internal/ui/explorer/{map,tags}.go;
+internal/ui/explorer_test.go; translations/{en,de}.json
+Depends: accepted overlay interaction
+Contract: Item.Tags carries stable semantic IDs. Rows count unique successful
+mapped source paths across the whole map. OR filters show a cohort when any
+member has an active tag; Untagged includes members with no recognized label.
+Unassigned is a cohort for filtering and retains its complete captured members.
+All controls start checked; All tags/Clear tags avoid toggling 31 rows to
+isolate one subject. Filtering preserves memberships, pile placement,
+camera, and counts. Publications preserve choices (even temporarily absent
+tags), default new tags on; full exit resets choices. All-off shows no cohorts.
+Test: ordinary checkbox/pile/Grid/back interactions and progressive provider
+delivery verify counts, overlapping labels, membership, camera, and reset.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^tags' -count=1 -v`
+Budget: 0 implementation spawns; 1 lead review; focused suite only
+
+### Tag task 2 — Real offline labels
+Owner: T0 inline; T3 read-only asset-contract scout
+Files: internal/similarity label implementation and generation assets/tooling;
+internal/ui/explorer_local_test.go; scripts/explorereval evaluation integration
+Depends: verified pinned text/vision model compatibility and task 1 contract
+Contract: label each successful fresh or reused representation locally. Multiple
+labels may qualify; low-confidence/unrecognized inputs remain untagged. Cache
+stores image representations, with labels recomputed against the current label
+catalogue. No image uploads or additional per-image model execution.
+Test: actual offline worker processes known-content fixtures and blank input;
+reused representations get identical labels without rereading pixels.
+Verify: `make explorer-ui-test` and `make explorer-test`
+Budget: 1/1 scout; 1 lead review; focused actual-engine suite
+
+### Tag task 3 — Handoff
+Owner: T0 inline
+Files: ARCHITECTURE.md; manuals; todos.md; local tag spec/evidence; this plan
+Depends: tasks 1 and 2
+Test: localization, native/synthetic visible layout, existing Explorer regressions
+Verify: `make verify`; `make build`; `git diff --check`
+Budget: no spawns; one final full race gate
+
+Graph: contract scout in parallel with UI recon; 1 -> 2 -> 3.
+Scout gate: G1 bounded text-asset question; G2 source locations/metadata commands;
+G3 no writes; G4 cold inference tooling context; G5 lead owns separate UI recon.
+S/W: source/API investigation, no mechanical transform or implementation supplied.
+Literal T3 Explore unavailable: inherited model read-only, as earlier increments.
+Lead owns all product decisions, implementation, review and fixes.
+
+### Semantic tag implementation and final evidence
+
+- Completed 31 local subject/scene tags, localized checkbox panel, unique-image
+  counts, OR filtering, Untagged, All tags/Clear tags, unchanged cohort members
+  and camera, preserved choices across publications/visits, and fresh-session
+  reset. New controls release focus; background publication preserves Grid focus.
+- Existing image vectors feed fixed embedded text prototypes, regenerated from
+  the matching pinned SigLIP 2 text tower. Runtime needs no extra model or Python.
+  Favorite representations remain reusable; derived labels are recomputed.
+- Initial absolute cutoffs were rejected by coverage and expanded known-content
+  tests. Final policy compares normalized catalogue score shares: strongest
+  share >= 0.35 and raw score >= 0.00001; every share >= 0.15 qualifies.
+  Cat, Person+Portrait and Food positives, three blank negatives, actual offline
+  operation, cached pixels without read permission and visible UI delivery pass.
+  Existing smoke vectors produce 377 tagged, 69 untagged and 171 multi-tag images
+  out of 446. These counts establish coverage, not semantic accuracy.
+- TDD REDs: missing rows; missing clear action; captured checkbox focus; missing
+  labels; rejected known portrait. Corresponding GREENs recorded. Deliberate
+  mutations broke choice preservation, cached labeling and ambiguity rejection;
+  all failed for the intended reason and were restored.
+- Vector regeneration is byte-identical: 95,232 bytes, SHA256
+  `3fa76594e8e59d21ae534343f802953aa51efbb1cb0746748aac7460e8c712ec`.
+- Synthetic UI capture inspected. Isolated native app with public cat verified
+  filtering, Unassigned/Grid return, reset and physical Escape after controls;
+  it was closed normally. Production app identity/settings were untouched.
+- `make explorer-test`: PASS. Final `make explorer-ui-test`: PASS, 20.053s,
+  no skips. `make verify`: PASS, exit 0; all Linux/amd64 race partitions passed
+  in `.scratch/race-runs/20260909T162132Z-URO0Wg`. While that race gate ran,
+  known-content evidence refined only the worker's label selection policy and
+  its native-tagged tests. The complete native suite, `make verify-build` and
+  `make build` were rerun on the final policy and passed; UI filtering code
+  remained unchanged. No second full race run was needed for this worker-only,
+  non-concurrent scoring change. Updated executable: `bin/picfetch`.
+- Existing test files/subtests retained their Qodana exclusions and shard rows.
+  Documentation and catalogue/UI-ID checks pass. No commits; pre-existing
+  `:memory:.ses` files remain untouched. The broad plan stays active for trial,
+  saved presets and tickets 06-07.
+
+Full [tag evidence](../.scratch/visual-similarity-explorer/evidence/tag-overlay/README.md).
+Cost: one read-only scout (budget 1/actual 1); all implementation and review
+inline. Review extended to a second pass because native focus and aggregate
+coverage exposed concrete defects. One full race gate; focused/native repeats
+were limited to those findings and negative verification.

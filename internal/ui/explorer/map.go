@@ -27,22 +27,26 @@ type Host interface {
 	LeaveSimilarityMap()
 	UpdateSimilarityMap()
 	SetSimilarityAutoUpdate(bool)
+	Unfocus()
 	Modifiers() fyne.KeyModifier
 }
 
 // Map is a pannable, zoomable collection of cohort piles.
 type Map struct {
 	widget.BaseWidget
-	host       Host
-	overlay    *fyne.Container
-	status     *widget.Label
-	unassigned *widget.Button
-	update     *widget.Button
-	automatic  *widget.Check
-	scene      *fyne.Container
-	piles      []*Pile
-	center     fyne.Position
-	zoom       float32
+	host           Host
+	overlay        *fyne.Container
+	status         *widget.Label
+	unassigned     *widget.Button
+	update         *widget.Button
+	automatic      *widget.Check
+	scene          *fyne.Container
+	piles          []*Pile
+	center         fyne.Position
+	zoom           float32
+	tagRows        *fyne.Container
+	tagChoices     map[string]bool
+	unassignedTags []string
 }
 
 func New(host Host) *Map {
@@ -58,7 +62,14 @@ func New(host Host) *Map {
 	m.update.Disable()
 	m.automatic = widget.NewCheck(lang.L("Auto-update every 30 images"), host.SetSimilarityAutoUpdate)
 	toolbar = container.NewVBox(toolbar, container.NewHBox(m.update, m.automatic))
-	m.overlay = container.NewStack(canvas.NewRectangle(theme.BackgroundColor()), container.NewBorder(toolbar, nil, nil, nil, m))
+	m.tagRows = container.NewVBox()
+	tagScroll := container.NewVScroll(m.tagRows)
+	tagScroll.SetMinSize(fyne.NewSize(160, 200))
+	tagHeading := container.NewVBox(widget.NewLabel(lang.L("Tags")), container.NewHBox(
+		widget.NewButton(lang.L("All tags"), func() { m.setAllTags(true) }),
+		widget.NewButton(lang.L("Clear tags"), func() { m.setAllTags(false) })))
+	tags := container.NewBorder(tagHeading, nil, nil, nil, tagScroll)
+	m.overlay = container.NewStack(canvas.NewRectangle(theme.BackgroundColor()), container.NewBorder(toolbar, nil, tags, nil, m))
 	m.overlay.Hide()
 	return m
 }
@@ -88,14 +99,19 @@ func (m *Map) UpdateState(available, busy bool) {
 
 // SetResult replaces cohort membership without moving the user's camera.
 func (m *Map) SetResult(items []similarity.Item) {
+	if items == nil {
+		m.tagChoices = nil
+	}
 	groups := map[string][]similarity.Item{}
 	var unassigned []string
+	m.unassignedTags = nil
 	for _, item := range items {
 		if item.Error != "" {
 			continue
 		}
 		if item.Cohort == "unassigned" {
 			unassigned = append(unassigned, item.Path)
+			m.unassignedTags = append(m.unassignedTags, itemTags(item)...)
 			continue
 		}
 		if item.Cohort != "" {
@@ -127,6 +143,8 @@ func (m *Map) SetResult(items []similarity.Item) {
 	orientPiles(m.piles, m.Size())
 	m.normalizeSpacing()
 	anchorPiles(m.piles, previous)
+	m.setTags(items)
+	m.filterTags()
 	// Fyne can retain removed widgets in its renderer caches. Release their
 	// encoded/decoded pixels explicitly and invalidate each image texture.
 	for _, pile := range previous {
@@ -135,6 +153,7 @@ func (m *Map) SetResult(items []similarity.Item) {
 			picture.Refresh()
 		}
 		pile.members, pile.pictures, pile.aspects = nil, nil, nil
+		pile.tags = nil
 	}
 	m.Refresh()
 }
@@ -235,6 +254,7 @@ type Pile struct {
 	aspects  []float32
 	world    fyne.Position
 	label    *canvas.Text
+	tags     []string
 }
 
 func newPile(m *Map, items []similarity.Item) *Pile {
@@ -242,6 +262,7 @@ func newPile(m *Map, items []similarity.Item) *Pile {
 	p.ExtendBaseWidget(p)
 	for _, item := range items {
 		p.members = append(p.members, item.Path)
+		p.tags = append(p.tags, itemTags(item)...)
 		if len(item.Position) == 2 {
 			p.world.X += item.Position[0]
 			p.world.Y += item.Position[1]

@@ -11,6 +11,7 @@ type Item struct {
 	SHA256     string
 	Error      string    `json:",omitempty"`
 	Embedding  []float32 `json:",omitempty"`
+	Tags       []string  `json:",omitempty"`
 	Cohort     string    `json:",omitempty"`
 	Position   []float32 `json:",omitempty"`
 	Thumbnail  string    `json:",omitempty"`

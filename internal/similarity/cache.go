@@ -136,6 +136,7 @@ func (c analysisCache) read(source Item) (Item, bool) {
 			continue
 		}
 		item.Cohort, item.Position, item.Thumbnail = "", nil, ""
+		item.Tags = nil
 		return item, true
 	}
 	return Item{}, false
@@ -167,6 +168,7 @@ func (f *favoriteAnalysis) write(ctx context.Context, item Item) error {
 	}
 	defer func() { _ = f.root.Remove(name) }()
 	item.Cohort, item.Position, item.Thumbnail = "", nil, ""
+	item.Tags = nil
 	err = json.NewEncoder(file).Encode(cachedRepresentation{Version: representationVersion, Item: item})
 	closeErr := file.Close()
 	if err != nil {

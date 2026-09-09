@@ -6,6 +6,14 @@
 
 #### New Features
 
+- **Filter similarity maps by semantic tags.** A local 31-tag catalogue labels
+  subjects and scenes from fresh or saved image representations. The tag panel
+  starts fully selected, includes Untagged, and provides All tags/Clear tags.
+  Counts show unique images across the complete map; OR filtering preserves
+  cohort membership, camera, and choices across updates and Grid View visits.
+  No additional model download is needed to use tags. Label quality remains
+  provisional pending library trial; saved grouping presets remain separate.
+
 ### Keep Random mosaics varied and add Shelf
 
 Mosaic keeps the original seeded **Random** arrangement as the default and adds
@@ -129,15 +137,18 @@ executable: `bin/picfetch`; the running old trial bundle has not been replaced.
 
 ### Similarity tag overlay and filtering
 
-User clarified the interaction: an overlay lists semantic tags and unique image
-counts, e.g. Bird (22), Dog (12). Checkboxes select active tags; show cohorts
-associated with any active tag. Initially all tags are active, with an Untagged
-option so mixed/unknown content remains reachable. Counts cover the full map
-and remain stable while filtering. This supersedes the suggestion to give each
-cohort a single logical name. Add a local labeling step, support multiple tags,
-and coordinate user-defined tags with saved grouping presets. Current local
-assets contain only the vision encoder, so tag generation needs its own design
-and verification slice.
+Implemented; updated native library-quality verdict remains open. The
+[tag contract](.scratch/visual-similarity-explorer/tag-overlay.md) and
+[evidence](.scratch/visual-similarity-explorer/evidence/tag-overlay/README.md)
+record the provider/UI and real offline-engine coverage. All tags start active;
+counts remain stable while filtering, unknown content stays accessible, and
+open cohorts retain their complete membership. Labeling uses small embedded
+SigLIP 2 text prototypes against existing image representations. It uses no
+per-image text inference or new runtime assets. Broad/mixed content can be
+missed or mislabeled; 31 tags and a provisional score threshold do not establish
+full-library semantic accuracy. Custom traits and saved presets remain separate.
+Final real offline/native suites, `make verify`, refreshed build checks and
+`make build` pass. The updated executable is `bin/picfetch`.
 
 ### Saved similarity group presets
 

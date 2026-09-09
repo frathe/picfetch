@@ -24,6 +24,10 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 	if err := VerifyAssets(ctx, req.Assets); err != nil {
 		return err
 	}
+	tagger, err := NewTagger()
+	if err != nil {
+		return err
+	}
 	_ = RegisterLocalFiles()
 	var encoder *Encoder
 	defer func() {
@@ -138,6 +142,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			item.Preview = nil
 			event.Failed++
 		} else {
+			item.Tags = tagger.Tags(item.Embedding)
 			event.Successful++
 			if reused {
 				event.Reused++

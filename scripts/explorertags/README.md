@@ -1,0 +1,66 @@
+# Regenerate local semantic tag vectors
+
+The application embeds 31 fixed subject/scene text vectors (95,232 bytes),
+not the text model. Every fresh or reused image representation is compared
+locally with all vectors. Sigmoid scores are normalized to shares of the fixed
+catalogue's total score. A strongest share below 0.35, or strongest raw score
+below 0.00001, leaves the source Untagged. Otherwise every share of at least
+0.15 qualifies. This preserves multiple substantial matches without forcing a
+label onto an ambiguous score distribution. These are trial heuristics, not
+calibrated confidence; changing the catalogue requires reevaluation. Model output
+does not add labels outside this catalogue or infer traits for saved presets.
+
+`internal/similarity/tag-catalog.json` owns the prompt order, model revision,
+threshold, scoring constants and vector digest. `tag-vectors.bin` contains
+31 consecutive L2-normalized vectors, each 768 little-endian float32 values.
+`internal/ui/explorer/tags.go` owns localized labels; update both translations
+when changing the catalogue. Image caches retain representations, not labels.
+
+## Reproduce on Apple Silicon macOS
+
+Run `make explorer-setup` for the existing vision/runtime assets first.
+Python and the text model are development dependencies only. The fixed
+catalogue contains no user images, filenames or text.
+
+```sh
+set -e
+tag_work=.scratch/visual-similarity-explorer/tag-generation
+mkdir -p "$tag_work"
+python3 -m venv "$tag_work/venv"
+"$tag_work/venv/bin/pip" install sentencepiece==0.2.1
+model_base=https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/ba1f3b0843f24bc5417d38e19c37b287d719b2f4
+curl -fL "$model_base/onnx/text_model.onnx" -o "$tag_work/text_model.onnx"
+curl -fL "$model_base/tokenizer.model" -o "$tag_work/tokenizer.model"
+"$tag_work/venv/bin/python" scripts/explorertags/prepare_tokens.py \
+  "$tag_work/tokenizer.model" internal/similarity/tag-catalog.json > "$tag_work/tokens.json"
+go run ./scripts/explorertags \
+  -model "$tag_work/text_model.onnx" \
+  -runtime .scratch/visual-similarity-explorer/assets/onnxruntime-osx-arm64-1.29.0/lib/libonnxruntime.1.29.0.dylib \
+  -tokens "$tag_work/tokens.json" -out "$tag_work/tag-vectors.bin"
+cmp "$tag_work/tag-vectors.bin" internal/similarity/tag-vectors.bin
+```
+
+Both tools verify their pinned model/tokenizer checksums before processing.
+When intentionally changing prompts, copy the newly generated vectors into
+`internal/similarity`, update `vectorsSHA256` and the catalogue version, and run
+`make explorer-ui-test`, `make explorer-test`, then `make verify`.
+
+## Primary provenance
+
+- [Pinned ONNX export](https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/tree/ba1f3b0843f24bc5417d38e19c37b287d719b2f4): text tower SHA256
+  `baf12d941beabafafb14f7b4adb38dc15be18681b964a84410ec53d9d65e6293`,
+  tokenizer SHA256 `61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2`.
+- [SigLIP2 preprocessing and scoring](https://huggingface.co/docs/transformers/model_doc/siglip2#text-embeddings-and-retrieval): lowercase prompts and a fixed 64-token input.
+- [Pinned Gemma settings](https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/ba1f3b0843f24bc5417d38e19c37b287d719b2f4/tokenizer_config.json): no BOS, one EOS (1), right PAD (0). The SentencePiece model performs identity normalization without adding a prefix space.
+- [Tokenizer source](https://github.com/huggingface/transformers/blob/v4.50.0/src/transformers/models/gemma/tokenization_gemma.py): SentencePiece encoding and EOS handling.
+- The pinned combined `onnx/model.onnx` contains `exp(logit_scale)` =
+  `112.66889953613281`, bias = `-16.771724700927734`. These were verified from
+  bytes 1501100918–1501100972: initializer float32 bytes `7a56e142` and `7e2c86c1`.
+  Scores are `sigmoid(scale * cosine + bias)`. The standalone text tower omits
+  these constants; it returns a projected `pooler_output` of shape `[1,768]`.
+
+The export is distributed under Apache-2.0; these generated vectors derive from
+that model. The CC0 cat fixture has separate attribution in
+`internal/ui/testdata/explorer/README.md`. Known cat, portrait, coffee and three
+blank cases guard specific labels, overlapping labels, ambiguity and cache
+reuse. They do not qualify library-wide semantic accuracy.

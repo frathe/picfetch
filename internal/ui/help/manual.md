@@ -600,6 +600,20 @@ pauses scanning while grouping and arranging it.
 Cohorts appear as piles with up to fifteen sampled members; **Unassigned**
 contains images that do not belong to a cohort.
 
+The **Tags** panel lists common subjects and scenes with unique-image counts.
+All tags, including **Untagged**, start checked. Clear checkboxes to hide cohorts
+that have no member matching an active tag. A cohort stays visible if any member
+matches any checked tag; opening it still shows all its members. **Unassigned**
+follows the same rule. Counts cover the complete current map and do not shrink
+when filtering. **Clear tags** hides all cohorts so you can select just the
+tags you want; **All tags** restores them. **Untagged** keeps
+images without a recognized label reachable. Tags are local model suggestions
+and can miss or misidentify content.
+
+Filtering preserves the map position and zoom. New map results retain your
+choices for known tags and check newly discovered tags. Returning from Grid View
+preserves the filter; leaving the Explorer resets it for the next session.
+
 Drag or hold **Shift** while scrolling to pan. Scroll or use `+`/`-` to zoom,
 and choose **Fit map** to reset the view. By default, new map results zoom out
 when needed to keep new stacks visible; they never automatically zoom in. Click a pile to open its complete
@@ -622,7 +636,8 @@ captured members; reopening uses the latest grouping.
 `analysis` subfolder beside the favorite’s file list and `thumbs` folder. Future
 scans reuse unchanged images with a matching model and preprocessing version;
 changed or invalid entries are scanned again. Grouping and positions are rebuilt
-for the current input. Cache settings apply when a scan starts. Images outside
+for the current input; tags are recalculated from the saved representations.
+Cache settings apply when a scan starts. Images outside
 favorites are not saved. Full-library qualification is still in progress.
 
 ---

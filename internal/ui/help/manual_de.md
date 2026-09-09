@@ -671,6 +671,23 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ### Visueller Ähnlichkeits-Explorer (lokaler Mac-Test)
 
+Der Bereich **Schlagwörter** zeigt häufige Motive und Szenen mit der Anzahl
+eindeutiger Bilder. Anfangs sind alle Kästchen aktiviert, auch **Ohne Schlagwort**.
+Eine Gruppe bleibt sichtbar, sobald mindestens ein Mitglied zu einem aktiven
+Schlagwort passt. Beim Öffnen zeigt sie weiterhin alle Mitglieder. Das gilt auch
+für **Nicht zugeordnet**. Die Zahlen beziehen sich auf die gesamte aktuelle Karte
+und bleiben beim Filtern gleich. **Auswahl leeren** blendet alle Gruppen aus,
+damit einzelne Begriffe leicht gewählt werden können; **Alle Schlagwörter**
+stellt die vollständige Auswahl wieder her. **Ohne Schlagwort** hält Bilder ohne erkannten Begriff
+erreichbar. Die lokalen Modellvorschläge können Motive übersehen oder verwechseln.
+
+Der Filter verändert weder Position noch Zoom der Karte. Neue Ergebnisse
+behalten die Auswahl bekannter Schlagwörter bei und aktivieren neue Begriffe.
+Auch die Rückkehr aus der Rasteransicht behält den Filter bei. Nach dem Verlassen
+des Explorers beginnt die nächste Sitzung wieder mit allen Kästchen aktiviert.
+Bei wiederverwendeter Favoritenanalyse werden die Schlagwörter aus den
+gespeicherten Bildrepräsentationen neu berechnet.
+
 Bei geöffneten Bildern **Fenster -> Visueller Ähnlichkeits-Explorer** wählen.
 Alle geöffneten Bilder werden analysiert, einschließlich zusammengeführter
 Listen und Favoriten. Suche und Auswahl in der Rasteransicht schränken die

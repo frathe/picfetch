@@ -87,6 +87,10 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 		return err
 	}
 	defer e.Close()
+	tagger, err := similarity.NewTagger()
+	if err != nil {
+		return err
+	}
 	result.SetupSeconds = time.Since(start).Seconds()
 	var initial []item
 	successful := 0
@@ -113,6 +117,7 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 					entry.Embedding, err = e.Encode(ctx, loaded.Frames[0])
 					result.EncodeSeconds += time.Since(encodeStart).Seconds()
 					if err == nil {
+						entry.Tags = tagger.Tags(entry.Embedding)
 						entry.Thumbnail = fmt.Sprintf("images/%04d.jpg", i)
 						f, writeErr := os.OpenFile(filepath.Join(config.Out, entry.Thumbnail), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 						if writeErr != nil {

@@ -48,6 +48,8 @@ on manual request, optionally every 30 sources, and at completion.
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
 `encoder.go` owns the pinned native SigLIP 2 session;
+`tags.go` applies the embedded `tag-catalog.json`/`tag-vectors.bin` text
+prototypes to fresh and reused image vectors, without a text runtime;
 `grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
 cohort identities; repeated source paths share one assignment. The encoder and
 grouping entry points are worker-only: the
@@ -68,6 +70,14 @@ measurement and evidence files; `files.go` selects the bounded smoke corpus.
 Real-model tests require assets and OS denial under the `explorertrial` tag.
 `make explorer-ui-test` additionally exercises the production worker and
 completed-map/Grid View round trip through the UI harness.
+
+### `scripts/explorertags`
+
+Development-only regeneration of the embedded semantic tag vectors.
+`prepare_tokens.py` uses the pinned Gemma tokenizer for fixed catalogue prompts;
+`main.go` verifies the pinned text tower and runs it with the existing native
+ONNX Runtime, producing normalized float32 vectors. The viewer requires neither
+this text model nor Python. See `README.md` for reproducible commands/provenance.
 
 ### Packaging tooling
 
@@ -107,6 +117,10 @@ and uploads its event files. `main_test.go` covers admission, selection, event
 validation, process failures and workflow wiring through a per-call runner.
 
 ### `internal/ui/explorer`
+
+`tags.go` owns the localized checkbox catalogue, unique-source counts, and
+OR filtering of intact piles/Unassigned. Choices survive map publications and
+cohort visits; full exit clears them. Filtering starts no background work.
 
 `Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
 stable samples of up to fifteen distinct members per `Pile`, fitted thin frames

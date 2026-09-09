@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -29,6 +30,98 @@ import (
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("semantic_tags", func(t *testing.T) {
+		v := openGridWith(t, "a-cat.png", "b-blank.jpg", "c-portrait.png", "d-coffee.png", "e-black.jpg", "f-gray.jpg")
+		cat, err := os.ReadFile("testdata/explorer/chelsea.png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths := make([]string, v.FileCount())
+		files := make([]fyne.URI, v.FileCount())
+		for i := range paths {
+			files[i] = v.FileAt(i)
+			paths[i] = files[i].Path()
+		}
+		if err := os.WriteFile(paths[0], cat, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(paths[1], uitest.EncodeJPEG(t, 128, 128, color.White), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for i, name := range []string{"astronaut.png", "coffee.png"} {
+			data, err := os.ReadFile("testdata/explorer/" + name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(paths[i+2], data, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for i, c := range []color.Color{color.Black, color.Gray{Y: 128}} {
+			if err := os.WriteFile(paths[i+4], uitest.EncodeJPEG(t, 128, 128, c), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		favorites := t.TempDir()
+		if err := favstore.Save(favorites, "Tags", files); err != nil {
+			t.Fatal(err)
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := similarity.Client{Assets: assets, FavoritesDir: favorites}
+		run := func(reused int) {
+			t.Helper()
+			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+			defer cancel()
+			var final similarity.Event
+			if err := client.Analyze(ctx, paths, nil, func(e similarity.Event) {
+				if e.Complete {
+					final = e
+				}
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if !final.OfflineVerified || final.Successful != 6 || final.Failed != 0 || final.Reused != reused {
+				t.Fatalf("offline labeled analysis: %+v", final)
+			}
+			if tags := final.Items[0].Tags; !slices.Contains(tags, "cat") || slices.Contains(tags, "dog") {
+				t.Fatalf("known cat must have Cat, without Dog: %v", tags)
+			}
+			if tags := final.Items[2].Tags; !slices.Contains(tags, "person") || !slices.Contains(tags, "portrait") {
+				t.Fatalf("known portrait must have Person and Portrait: %v", tags)
+			}
+			if tags := final.Items[3].Tags; !slices.Contains(tags, "food") {
+				t.Fatalf("known coffee must have Food: %v", tags)
+			}
+			for _, i := range []int{1, 4, 5} {
+				if tags := final.Items[i].Tags; len(tags) != 0 {
+					t.Fatalf("blank input %d must remain untagged: %v", i, tags)
+				}
+			}
+		}
+		run(0)
+		if err := os.Chmod(paths[0], 0); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chmod(paths[0], 0600) }()
+		run(6)
+		v.explorerAnalyze = client.Analyze
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		catVisible, untaggedVisible := false, false
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if c, ok := o.(*widget.Check); ok && c.Checked {
+				catVisible = catVisible || c.Text == fmt.Sprintf(lang.L("%s (%d)"), lang.L("Cat"), 1)
+				untaggedVisible = untaggedVisible || c.Text == fmt.Sprintf(lang.L("%s (%d)"), lang.L("Untagged"), 3)
+			}
+		})
+		if !catVisible || !untaggedVisible {
+			t.Fatal("real offline tags did not reach the viewer overlay")
+		}
+	})
+
 	t.Run("favorite_cache", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "ordinary.jpg")
 		root := t.TempDir()
