@@ -261,6 +261,10 @@ type Overview struct {
 	// commit - and ends only on Close()/G.
 	browseHost int
 	browseKey  string
+	// browseGroup retains accepted member identities while a replacement groups
+	// snapshot is pending, including across a file-list reorder. nil denotes a
+	// request made before a group was known; that request still waits for hashing.
+	browseGroup map[string]struct{}
 }
 
 // dupBadge is the group-size chip on a grid cell: white digits on a black

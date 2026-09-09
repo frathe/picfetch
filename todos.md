@@ -35,6 +35,13 @@ trackpad, and live duplicate merges preserve the viewport. Explicit selection
 and the displayed image stay unchanged. Native scrollbar movement keeps its
 existing behavior; the next duplicate reflow reconciles the ring.
 
+Shift+D now opens the highlighted shot's known duplicate group immediately
+while analysis continues, including hidden copies. Live updates follow that
+same source, and pending updates preserve the group. Navigation, opening a
+copy, exits, reordering, and sensitivity changes have regression coverage.
+Both manuals are updated; all SDD/TDD acceptance checks and `make verify` pass.
+See the [implementation record](finished_refactorings/2026-09-09-grid-duplicate-browse-during-scan.md).
+
 #### Internal
 
 ## TODO

@@ -119,25 +119,24 @@ func (g *Overview) rebuildFilter(resetView bool) {
 func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	g.matches = nil
 
-	// One mutex acquisition for the whole pass: vis is read once here and
-	// every per-index test below (and the three pre-loop reads) come off
-	// this frozen value instead of re-locking the model per file or, worse,
-	// twice per file.
+	// One model read for the whole pass: every per-index hide check uses this
+	// frozen snapshot. Browse membership uses the retained accepted identities.
 	vis := g.dupes.Visibility()
 	browsing := g.browseHost >= 0
-	browseFilter := browsing && g.hashes.hashJobs.Load() == 0 && vis.Size(g.browseHost) >= 2
+	browseFilter := g.BrowseReady()
 	nameFilter := g.searching && g.query != ""
 	hide := vis.Hide && !browsing
 	if nameFilter || hide || browseFilter {
 		needle := strings.ToLower(g.query)
-		hostRep := vis.RepresentativeOf(g.browseHost)
 		g.matches = make([]int, 0, g.host.FileCount())
 		for i := range g.host.FileCount() {
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
 				continue
 			}
-			if browseFilter && vis.RepresentativeOf(i) != hostRep {
-				continue
+			if browseFilter {
+				if _, member := g.browseGroup[g.host.FileAt(i).String()]; !member {
+					continue
+				}
 			}
 			if hide && vis.HiddenExtra(i) {
 				continue

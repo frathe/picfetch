@@ -441,7 +441,11 @@ einzeln durchzublättern.
 - Drücken Sie **`Shift+D`**, um **Duplikate dieser Aufnahme anzuzeigen** —
   alle Kopien der **hervorgehobenen** Aufnahme (im Raster) bzw. der
   **aktuellen** Aufnahme (in der Einzelbildansicht). Das Raster listet nur
-  diese Gruppe, einschließlich Extra-Kopien, die `D` ausblenden würde.
+  diese Gruppe, einschließlich Extra-Kopien, die `D` ausblenden würde. Eine
+  bereits bekannte Gruppe öffnet sich sofort, auch während andere Bilder
+  noch analysiert werden. Die Analyse läuft weiter; bestätigte Treffer
+  aktualisieren die Gruppe derselben Aufnahme. Während eine Aktualisierung
+  aussteht, bleibt die bisherige Gruppe sichtbar.
 - In der Variantenansicht sind die Zähl-Badges ausgeblendet.
 - Die Fenstertitelzeile zeigt die hervorgehobene Miniaturansicht als
   `(Position) [BreitexHöhe] vollständiger-Pfad`, z. B.
@@ -450,10 +454,10 @@ einzeln durchzublättern.
   und Zeigen mit der Maus bewegen die Hervorhebung und damit den Titel.
   Verlassen der Variantenansicht stellt den Dateinamen-Titel und jene Präfixe
   wieder her.
-- Wenn Miniaturansichten noch gehasht werden, erscheint ein Info-Hinweis
-  **Die Bilder werden gerade analysiert**; die Gruppe erscheint, sobald das
-  Hashen abgeschlossen ist. Eine einzigartige Aufnahme (bereits gehasht,
-  keine Kopien) bewirkt nichts.
+- Ist noch keine Gruppe bekannt und müssen Miniaturansichten noch gehasht
+  werden, erscheint der Info-Hinweis **Die Bilder werden gerade analysiert**;
+  die Anfrage wartet, bis das Hashen abgeschlossen ist. Eine Aufnahme ohne
+  Kopien bewirkt nach Abschluss der Analyse nichts.
 - **`Esc`** beendet die Duplikat-Anzeige, bevor das Ausblenden
   ausgeschaltet wird. **`G`**/Schließen lassen das Ausblenden an,
   **beenden** aber die Duplikat-Anzeige.

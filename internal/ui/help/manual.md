@@ -398,7 +398,10 @@ instead of arrowing through them one at a time.
   open, `d`/`D` is a letter in the query, not the hide toggle.
 - Press **`Shift+D`** to show every copy of the **highlighted** shot (in the
   grid) or the **current** shot (in image view). The grid lists only that
-  group, including extras `D` would hide.
+  group, including extras `D` would hide. An already known group opens
+  immediately, even while other images are still being analyzed. Analysis
+  continues, and accepted matches update the same shot's group. The existing
+  group stays visible while an update is pending.
 - While that variants grid is showing, the duplicate-count badges are hidden
   (every cell is already a member of the same group).
 - The window title names the highlighted thumbnail as
@@ -408,9 +411,9 @@ instead of arrowing through them one at a time.
   and hovering the pointer over a thumbnail both move the highlight, so both
   update the title. Leaving variants restores the usual file-name title and
   those prefixes.
-- If thumbnails are still being hashed, an info toast says **The images are
-  currently being analyzed**; the group appears when hashing finishes. A
-  unique shot (already hashed, no copies) does nothing.
+- If no group is known yet and thumbnails still need hashing, an info toast
+  says **The images are currently being analyzed**; the request waits until
+  hashing finishes. A unique shot after analysis does nothing.
 - **`Esc`** leaves browse before it turns hide off. **`G`**/Close leave hide
   on but **end** browse.
 - Committing a variant (`Return` or a click) shows **that** file, even when

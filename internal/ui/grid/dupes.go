@@ -145,17 +145,28 @@ func (g *Overview) BrowsingDuplicates() bool {
 	return g.browseHost >= 0
 }
 
-// BrowseReady reports a completed group that can be presented by the host.
+// BrowseReady reports an accepted group that can be presented by the host.
 func (g *Overview) BrowseReady() bool {
-	snapshot, current := g.dupes.CurrentGroups()
-	return g.browseHost >= 0 && g.hashes.hashJobs.Load() == 0 && current && snapshot.Size(g.browseHost) >= 2
+	return g.browseHost >= 0 && len(g.browseGroup) >= 2
 }
 
 func (g *Overview) setBrowseSource(index int) {
 	g.browseHost, g.browseKey = -1, ""
+	g.browseGroup = nil
 	if index >= 0 && index < g.host.FileCount() {
 		if source := g.host.FileAt(index); source != nil {
 			g.browseHost, g.browseKey = index, source.String()
+			g.captureBrowseGroup()
+		}
+	}
+}
+
+func (g *Overview) captureBrowseGroup() {
+	g.browseGroup = nil
+	if members := g.groupMembers(g.browseHost); len(members) >= 2 {
+		g.browseGroup = make(map[string]struct{}, len(members))
+		for _, i := range members {
+			g.browseGroup[g.host.FileAt(i).String()] = struct{}{}
 		}
 	}
 }
@@ -200,6 +211,10 @@ func (g *Overview) SetBrowsingDuplicates(on bool) {
 		return
 	}
 	pending := g.hashRemaining()
+	if g.BrowseReady() {
+		g.showBrowseGroup()
+		return
+	}
 	if pending > 0 {
 		g.host.ShowToast(lang.L("The images are currently being analyzed"))
 		g.fireDupeState()
@@ -215,8 +230,8 @@ func (g *Overview) ToggleBrowseDuplicates() {
 	g.SetBrowsingDuplicates(!g.BrowsingDuplicates())
 }
 
-// finishBrowse applies the group filter once hashes are ready. A unique
-// source leaves browse off with no toast.
+// finishBrowse applies an accepted update to an established group, or resolves
+// an initially unknown source after hashing finishes. A unique source exits.
 func (g *Overview) finishBrowse() {
 	if g.browseHost < 0 {
 		return
@@ -233,6 +248,18 @@ func (g *Overview) finishBrowse() {
 		g.fireDupeState()
 		return
 	}
+	keepHost := g.fileIndex(g.highlight)
+	wasReady := g.BrowseReady()
+	g.captureBrowseGroup()
+	if wasReady {
+		g.applyVisibleFilter(false, keepHost)
+		g.fireDupeState()
+	} else {
+		g.showBrowseGroup()
+	}
+}
+
+func (g *Overview) showBrowseGroup() {
 	g.applyFilter()
 	if g.visible {
 		id := 0
@@ -295,7 +322,7 @@ func (g *Overview) DuplicateDistanceChanged() {
 		_ = g.hashRemaining()
 	}
 	if g.browseHost >= 0 {
-		if g.hashes.hashJobs.Load() == 0 {
+		if g.BrowseReady() || g.hashes.hashJobs.Load() == 0 {
 			g.finishBrowse()
 		}
 	} else {
@@ -325,7 +352,7 @@ func (g *Overview) hashFactsReady(remaining int32, gen uint64) {
 		}
 		return
 	}
-	if g.browseHost >= 0 && remaining != 0 {
+	if g.browseHost >= 0 && !g.BrowseReady() && remaining != 0 {
 		return
 	}
 	if g.rebuildGroups() {

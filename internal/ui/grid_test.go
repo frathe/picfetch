@@ -1,18 +1,407 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"image/color"
+	"image/png"
+	"io"
+	"os"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+// The viewer and its pools must be created inside the synctest bubble. Three
+// held hash reads leave a decode slot for the known groups before opening Grid.
+type gridAnalysisFixture struct {
+	v       *viewer
+	queue   *uitest.UIQueue
+	files   []fyne.URI
+	release map[int]func()
+}
+
+func newGridAnalysisFixture(t *testing.T, hide bool) *gridAnalysisFixture {
+	t.Helper()
+	return newGridAnalysisFixtureWithPair(t, hide, nil)
+}
+
+func newGridAnalysisFixtureWithPair(t *testing.T, hide bool, pair []fyne.URI) *gridAnalysisFixture {
+	t.Helper()
+	v := newTestViewer(t)
+	f := &gridAnalysisFixture{v: v, queue: &uitest.UIQueue{}, release: make(map[int]func())}
+	v.grid.SetUIQueue(f.queue)
+	seeds := []int{1, 1, 99, 99, 99, 777, 888, 44}
+	for i, name := range []string{"a.jpg", "b.jpg", "c-source.jpg", "d-extra.jpg", "e-new.jpg", "f-unrelated.jpg", "g-held.jpg", "h-unique.jpg"} {
+		w, h := 64, 48
+		if i == 4 {
+			w, h = 192, 144 // A later matching member becomes representative.
+		}
+		u := uitest.PatternedJPEGURISize(t, name, seeds[i], w, h)
+		if pair != nil && (i == 2 || i == 3) {
+			u = pair[i-2]
+		}
+		if i >= 4 && i <= 6 {
+			data, err := os.ReadFile(u.Path())
+			if err != nil {
+				t.Fatal(err)
+			}
+			release := make(chan struct{})
+			var once sync.Once
+			f.release[i] = func() { once.Do(func() { close(release) }) }
+			u = uitest.ReaderURI(u, func() (io.ReadCloser, error) {
+				reader, first := bytes.NewReader(data), true
+				return uitest.ReadCloser{ReadFunc: func(p []byte) (int, error) {
+					if first {
+						first = false
+						<-release
+					}
+					return reader.Read(p)
+				}, CloseFunc: func() error { return nil }}, nil
+			})
+		}
+		f.files = append(f.files, u)
+	}
+	// Registered after newTestViewer: even Fatal releases reads before its drain.
+	t.Cleanup(func() {
+		for _, release := range f.release {
+			release()
+		}
+		v.grid.Stop()
+		v.grid.Settle()
+	})
+	dropAndWait(t, v, f.files...)
+	v.grid.SetHideDuplicates(true)
+	f.deliver()
+	if v.dupes.GroupSize(0) != 2 || v.dupes.GroupSize(2) != 2 || v.dupes.GroupSize(7) != 1 {
+		t.Fatal("fixture must publish two distinct pairs and a unique image")
+	}
+	for _, i := range []int{4, 5, 6} {
+		if _, known := v.dupes.Hash(f.files[i].String()); known {
+			t.Fatal("fixture published a held source before release")
+		}
+	}
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+	v.grid.SetHideDuplicates(hide)
+	f.deliver()
+	stubKeyModifiers(t, v, fyne.KeyModifierShift)
+	return f
+}
+
+func (f *gridAnalysisFixture) deliver() {
+	for {
+		synctest.Wait()
+		if !f.queue.Drain() {
+			return
+		}
+	}
+}
+
+func (f *gridAnalysisFixture) releaseNext(i int) {
+	// Advance synctest's fake clock past the hash notification throttle. This
+	// models elapsed analysis time; Wait/Drain, not this timer, observes delivery.
+	time.Sleep(time.Second)
+	f.release[i]()
+	synctest.Wait()
+}
+
+func (f *gridAnalysisFixture) browse(t *testing.T) {
+	t.Helper()
+	for display, host := range f.v.grid.ResultIndexes() {
+		if f.v.FileAt(host).String() == f.files[2].String() {
+			f.v.grid.SimulateHover(display)
+			f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+			return
+		}
+	}
+	t.Fatal("source is absent from ordinary grid")
+}
+
+func (f *gridAnalysisFixture) assertResult(t *testing.T, indexes ...int) {
+	t.Helper()
+	var got, want []string
+	for _, i := range f.v.grid.ResultIndexes() {
+		got = append(got, f.v.FileAt(i).String())
+	}
+	for _, i := range indexes {
+		want = append(want, f.files[i].String())
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("grid result = %v, want source group %v", got, want)
+	}
+}
+
+func TestGridBrowseDuringAnalysis(t *testing.T) {
+	t.Run("known_group", func(t *testing.T) {
+		for _, hide := range []bool{false, true} {
+			t.Run(fmt.Sprintf("hide_%t", hide), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					f := newGridAnalysisFixture(t, hide)
+					f.browse(t)
+					f.assertResult(t, 2, 3)
+					if f.v.FileAt(f.v.CurrentIndex()).String() != f.files[0].String() {
+						t.Fatal("browsing changed the image underneath the grid")
+					}
+				})
+			})
+		}
+	})
+	t.Run("group_updates", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := newGridAnalysisFixture(t, true)
+			f.browse(t)
+			f.assertResult(t, 2, 3)
+			f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+			f.releaseNext(4)
+			if !f.queue.Drain() {
+				t.Fatal("matching input produced no UI notification")
+			}
+			synctest.Wait()
+			if f.queue.Len() == 0 {
+				t.Fatal("matching input did not queue a grouping result")
+			}
+			f.assertResult(t, 2, 3)
+			// A normal filter refresh during held group delivery must retain the pair.
+			f.v.handleTypedRune('/')
+			f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			f.assertResult(t, 2, 3)
+			f.deliver()
+			f.assertResult(t, 2, 3, 4)
+			if f.v.dupes.RepresentativeOf(2) != 4 {
+				t.Fatal("larger accepted variant did not become representative")
+			}
+			f.releaseNext(5)
+			f.deliver()
+			f.assertResult(t, 2, 3, 4)
+			if _, known := f.v.dupes.Hash(f.files[6].String()); known {
+				t.Fatal("analysis finished before the partial-update assertion")
+			}
+			f.release[6]()
+			f.v.grid.Settle()
+			f.assertResult(t, 2, 3, 4)
+		})
+	})
+	t.Run("exit", func(t *testing.T) {
+		for _, hide := range []bool{false, true} {
+			for _, exit := range []string{"escape", "shift_d", "g", "close"} {
+				t.Run(fmt.Sprintf("%s/hide_%t", exit, hide), func(t *testing.T) {
+					synctest.Test(t, func(t *testing.T) {
+						f := newGridAnalysisFixture(t, hide)
+						f.browse(t)
+						f.assertResult(t, 2, 3)
+						if exit == "escape" {
+							f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeySpace})
+							f.v.handleTypedRune('/')
+							f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+							if f.v.grid.SelectionCount() != 0 || !f.v.grid.Searching() || !f.v.grid.BrowsingDuplicates() {
+								t.Fatal("first Escape must clear selection before search and browse")
+							}
+							f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+							if f.v.grid.Searching() || !f.v.grid.BrowsingDuplicates() {
+								t.Fatal("second Escape must clear search before browse")
+							}
+						}
+						f.releaseNext(4)
+						if !f.queue.Drain() {
+							t.Fatal("no partial completion to hold across exit")
+						}
+						synctest.Wait()
+						switch exit {
+						case "escape":
+							f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+						case "shift_d":
+							f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+						case "g":
+							f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+						case "close":
+							f.v.grid.Close()
+						}
+						for _, release := range f.release {
+							release()
+						}
+						f.v.grid.Settle()
+						if f.v.grid.BrowsingDuplicates() || f.v.dupes.HideDuplicates() != hide {
+							t.Fatal("late delivery restored browse or changed hide")
+						}
+						closed := exit == "g" || exit == "close"
+						if f.v.grid.Visible() == closed {
+							t.Fatal("late delivery changed grid visibility")
+						}
+						if closed {
+							f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+							f.v.grid.Settle()
+						}
+						if hide {
+							// f-unrelated joins the other pair, so hide keeps a.jpg.
+							f.assertResult(t, 0, 4, 6, 7)
+						} else {
+							f.assertResult(t, 0, 1, 2, 3, 4, 5, 6, 7)
+						}
+					})
+				})
+			}
+		}
+	})
+	t.Run("source_identity", func(t *testing.T) {
+		t.Run("reorder_remove", func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := newGridAnalysisFixture(t, true)
+				f.browse(t)
+				f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+				f.releaseNext(4)
+				if !f.queue.Drain() {
+					t.Fatal("no completion to hold across reorder")
+				}
+				synctest.Wait()
+				ordered := slices.Clone(f.v.state.files)
+				slices.Reverse(ordered)
+				f.v.state.reorder(ordered)
+				f.v.grid.FilesChanged()
+				f.assertResult(t, 3, 2)
+				f.deliver()
+				f.assertResult(t, 4, 3, 2)
+				// Remove the original source, not the moved ring or new representative.
+				f.v.RemoveFiles([]int{5})
+				if f.v.grid.BrowsingDuplicates() {
+					t.Fatal("removing the original source did not end browse")
+				}
+				for _, release := range f.release {
+					release()
+				}
+				f.v.grid.Settle()
+				if f.v.grid.BrowsingDuplicates() {
+					t.Fatal("stale delivery restored a removed source")
+				}
+				// The reordered f-unrelated is now the other group's first member.
+				f.assertResult(t, 7, 6, 5, 4)
+			})
+		})
+		t.Run("sensitivity", func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var pair []fyne.URI
+				for i, name := range []string{"c-source.png", "d-extra.png"} {
+					pixels := image.NewGray(image.Rect(0, 0, 9, 8))
+					for y := range 8 {
+						for x := range 9 {
+							pixels.SetGray(x, y, color.Gray{Y: uint8(x * 28)})
+						}
+					}
+					if i == 1 {
+						pixels.SetGray(1, 0, color.Gray{})
+					}
+					var data bytes.Buffer
+					if err := png.Encode(&data, pixels); err != nil {
+						t.Fatal(err)
+					}
+					pair = append(pair, storage.NewFileURI(uitest.WriteTempFile(t, name, data.Bytes())))
+				}
+				f := newGridAnalysisFixtureWithPair(t, true, pair)
+				f.browse(t)
+				f.assertResult(t, 2, 3)
+				f.v.SetDuplicateDistance(0)
+				synctest.Wait()
+				f.assertResult(t, 2, 3) // Established pair survives pending delivery.
+				f.deliver()
+				if f.v.grid.BrowsingDuplicates() {
+					t.Fatal("accepted sensitivity change did not dissolve partial browse")
+				}
+				f.assertResult(t, 0, 2, 3, 4, 5, 6, 7)
+				for _, release := range f.release {
+					release()
+				}
+				f.v.grid.Settle()
+				if f.v.grid.BrowsingDuplicates() {
+					t.Fatal("late analysis restored the dissolved group")
+				}
+			})
+		})
+	})
+	t.Run("open_variant", func(t *testing.T) {
+		for _, via := range []string{"return", "click"} {
+			t.Run(via, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					f := newGridAnalysisFixture(t, true)
+					// Visiting the source preloads its known copy through the normal
+					// viewer path. The test driver's inline load completion must not
+					// race GridWrap's deferred unselect after Return/click.
+					f.v.ShowImage(2)
+					waitUntilLoaded(t, f.v)
+					f.v.ShowImage(0)
+					waitUntilLoaded(t, f.v)
+					wrap := comparisonGridWrap(t, f.v.grid.Overlay())
+					if !gridAnalysisHasText(wrap, "2") {
+						t.Fatal("fixture has no rendered duplicate badge before browse")
+					}
+					f.browse(t)
+					f.assertResult(t, 2, 3)
+					stubKeyModifiers(t, f.v, 0)
+					f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+					wantTitle := fmt.Sprintf("(4/8) [64x48] %s", f.files[3].Path())
+					if got := f.v.win.Title(); got != wantTitle {
+						t.Fatalf("variant title = %q, want %q", got, wantTitle)
+					}
+					if gridAnalysisHasText(wrap, "2") || !gridAnalysisHasText(f.v.grid.Overlay(), "2 of 8") {
+						t.Fatal("variants must hide badges and report the displayed pair's count")
+					}
+					if via == "return" {
+						f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+					} else {
+						wrap.Select(f.v.grid.Highlight())
+					}
+					// Full waitUntilLoaded includes the deliberately held neighbor preload.
+					waitFor(t, "chosen variant", &f.v.load)
+					synctest.Wait()
+					if f.v.grid.Visible() || !f.v.dupes.Inspecting() || f.v.FileAt(f.v.CurrentIndex()).String() != f.files[3].String() {
+						t.Fatal("opening a hidden extra did not keep the chosen file in inspect")
+					}
+					f.v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+					f.deliver()
+					f.assertResult(t, 2, 3)
+					if !f.v.grid.Visible() || f.v.dupes.Inspecting() {
+						t.Fatal("Escape did not return from inspect to the partial variants grid")
+					}
+				})
+			})
+		}
+	})
+}
+
+// Follow the rendered tree and its ancestors' visibility; a detached or hidden
+// badge's own text object alone is not evidence of an on-screen badge.
+func gridAnalysisHasText(root fyne.CanvasObject, want string) bool {
+	if !root.Visible() {
+		return false
+	}
+	if text, ok := root.(*canvas.Text); ok && text.Text == want {
+		return true
+	}
+	var children []fyne.CanvasObject
+	switch root := root.(type) {
+	case *fyne.Container:
+		children = root.Objects
+	case fyne.Widget:
+		children = test.WidgetRenderer(root).Objects()
+	}
+	for _, child := range children {
+		if gridAnalysisHasText(child, want) {
+			return true
+		}
+	}
+	return false
+}
 
 // The overview's own behaviour - opening, closing, the highlight, key
 // handling, and the thumbnail cache - is covered in internal/ui/grid

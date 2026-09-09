@@ -80,7 +80,7 @@ func (g *Overview) groupsReady(snapshot dupes.Groups) {
 		g.grouping.retarget = false
 		g.retargetInspect()
 	}
-	if g.browseHost >= 0 && g.hashes.hashJobs.Load() == 0 {
+	if g.browseHost >= 0 && (g.BrowseReady() || idle) {
 		g.finishBrowse()
 		return
 	}
