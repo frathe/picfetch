@@ -91,7 +91,10 @@ dependencies and a conditional cache slice. Implementation was requested on
 2026-09-09; the tickets are published and preparation is active in the
 [execution plan](plans/2026-09-09-visual-similarity-explorer.md). Ticket 01
 awaits Q7-Q12 answers, test-boundary confirmation and the local trial-library
-path. No application feature or real-engine evaluation is implemented yet.
+path. Draft [decision rows](.scratch/visual-similarity-explorer/decisions.md)
+and an [evaluation protocol](.scratch/visual-similarity-explorer/evaluation-protocol.md)
+now make those choices and the offline smoke/full-library trial reviewable.
+No application feature or real-engine evaluation is implemented yet.
 
 ## LATER
 

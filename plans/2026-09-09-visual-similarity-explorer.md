@@ -38,8 +38,8 @@ slice at a time, observing the intended red failure before green.
 ## Task 01 — Resolve and record the trial contract
 
 Owner: T0 inline; one read-only scout for local runtime inventory
-Files: published issues, ticket-breakdown.md, this plan, todos.md; create
-decisions.md and evaluation-protocol.md once the relevant answers arrive
+Files: published issues, ticket-breakdown.md, this plan, todos.md; draft
+decisions.md and evaluation-protocol.md, finalize after the relevant answers
 Depends: Q7-Q12 product answers, test boundaries and trial-library location
 Contract: preserve Q1-Q6; record product provenance separately from lead-owned
 technical decisions; no production interface is fixed during preparation
@@ -118,3 +118,48 @@ Lead-verified local prerequisites:
 | Final gate | 0 / 0 | pending | pending | No application implementation yet |
 
 Keep this plan active until accepted completion. No git commit is authorized.
+
+## Resumed preparation
+
+The repeated implementation request resumes ticket 01. The six recorded
+recommendations, proposed test boundaries and trial-library path have been
+presented together. Their answers remain pending until actually received.
+
+Prepare reviewable `decisions.md` and `evaluation-protocol.md` drafts without
+claiming acceptance or processing images. One additional read-only scout may
+trace existing grid subset/return behavior while the lead writes the protocol.
+This is new integration reconnaissance, not a repeat of the runtime inventory.
+
+Delegation gate: G1 is a bounded grid-flow question; G2 is verification of
+returned symbols with `rg -n` and targeted reads; G3 is zero writes; G4 is an
+independent code sweep while the lead prepares evaluation requirements; G5
+holds because the lead has not traced these flows. S/W: cross-file control
+flow needs comprehension, and no implementation is specified. Budget: one
+additional scout, one lead review, no full suite for documentary preparation.
+Production contracts remain ticket 02's output after real evaluation.
+
+Drafts now exist and distinguish pending product answers from lead-owned
+technical proposals. The protocol defines a proposed bounded 512-image smoke
+run, effective offline enforcement, real output checks, local semantic
+inspection, process-scope memory measurements and the full-library trial.
+Input paths and runtime assets remain unresolved; no evaluation command is
+claimed to exist or pass.
+
+Lead-verified reconnaissance: `grid/search.go:119` has only search/duplicate
+filters; `grid/selection.go:35` returns results but cannot supply a subset;
+`grid/grid.go:404` resolves an activated index before closing, and `:621`
+clears transient grid state; `grid/nav.go:176` defines Escape precedence.
+Comparison keeps the grid open (`internal/ui/compare.go:35`). These are
+integration constraints for ticket 03, not new production contracts.
+
+| Task | Spawns budget/actual | Review rounds | Full suite | Evidence |
+| --- | --- | --- | --- | --- |
+| Resumed preparation | 1 / 1 additional | 1 | no | Draft contract/protocol; grid-flow facts verified by lead reads |
+
+No tests were written, dependencies installed or library files processed.
+The implementation remains at ticket 01 pending the requested answers.
+Document verification passed: 13 documents, 48 local links, no trailing
+whitespace, exactly twelve pending/draft decision rows and seven `needs-info`
+tickets. `git diff --check` passed. The tracked diff contains this plan and
+`todos.md`; the new protocol/decision records remain in the ignored local
+tracker. Application verification is deferred until application changes exist.
