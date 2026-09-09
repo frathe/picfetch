@@ -22,7 +22,7 @@ a measured effect. Random retains its original primary-card visibility guard,
 varied placement, and rotation checks through 90 degrees. Its gap-repair cards
 can still be fully covered, so the strict every-occurrence condition
 intentionally does not apply to Random. See the [implementation
-record](plans/2026-09-08-mosaic-rotation-overlap.md) for the selected contract
+record](finished_refactorings/2026-09-08-mosaic-rotation-overlap.md) for the selected contract
 and the remaining limitation.
 
 The user approved the current visual result. Earlier apparent gap-filling or
@@ -76,7 +76,7 @@ canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ### Visual similarity explorer proof of concept
 
-Continue the design for a local, offline content-similarity map to trial with
+Implement a local, offline content-similarity map to trial with
 roughly 50,000 library images, with sampled cohort piles opening in Grid View.
 The [specification](.scratch/visual-similarity-explorer/spec.md) captures the
 settled behavior and proposed verification, including the accepted first
@@ -85,11 +85,13 @@ cohorts, and fixed membership while browsing. SigLIP 2, HDBSCAN, and UMAP are
 evaluation candidates. The spec remains `needs-info` for the remaining design
 choices and real-engine evaluation criteria.
 The [complete design notes](docs/2026-09-09-visual-similarity-explorer-design.md)
-retain the interview and code findings. A [seven-ticket draft
+retain the interview and code findings. The [seven-ticket
 breakdown](.scratch/visual-similarity-explorer/ticket-breakdown.md) records
-dependencies and a conditional cache slice; it awaits breakdown approval.
-This remains open work, with no approved implementation plan or implemented
-feature.
+dependencies and a conditional cache slice. Implementation was requested on
+2026-09-09; the tickets are published and preparation is active in the
+[execution plan](plans/2026-09-09-visual-similarity-explorer.md). Ticket 01
+awaits Q7-Q12 answers, test-boundary confirmation and the local trial-library
+path. No application feature or real-engine evaluation is implemented yet.
 
 ## LATER
 
