@@ -293,5 +293,12 @@
    "-": "-",
    "Showing similarity cohort": "Ähnlichkeitsgruppe anzeigen",
    "Back to map": "Zurück zur Karte",
-   "1 image": "1 Bild"
+   "1 image": "1 Bild",
+   "Update map": "Karte aktualisieren",
+   "Updating map...": "Karte wird aktualisiert...",
+   "Auto-update every 30 images": "Alle 30 Bilder automatisch aktualisieren",
+   "Checking duplicate groups...": "Duplikatgruppen werden geprüft...",
+   "Save analysis for favorites": "Analysen für Favoriten speichern",
+   "Fit new stacks into view": "Neue Stapel im Sichtbereich halten",
+   "%d reused": "%d wiederverwendet"
 }

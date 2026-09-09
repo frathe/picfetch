@@ -588,23 +588,42 @@ any desktop change; **Save Image** remains available.
 ### Visual similarity explorer (local Mac trial)
 
 With images open, choose **Window -> Visual Similarity Explorer**. It analyzes
-all opened images, including merged sets and Favorites. Grid search and
+the opened images, including merged sets and Favorites. When duplicate filtering
+is enabled, only the highest-resolution image in each duplicate group is
+analyzed; preparation waits for duplicate checks to finish. Grid search and
 selection do not narrow this input. Progress separates successful and failed
 images from grouping and layout work. Entering the explorer maximizes the
-window. The completed map displays cohorts as
-piles with up to fifteen sampled members; **Unassigned** contains images that
-do not belong to a cohort.
+window. Use **Update map** to build a map from the data collected so far.
+Automatic updates every 30 images are optional and off by default. One final
+map is built when scanning finishes. Updating reuses collected data and briefly
+pauses scanning while grouping and arranging it.
+Cohorts appear as piles with up to fifteen sampled members; **Unassigned**
+contains images that do not belong to a cohort.
 
-Drag to pan, scroll or use `+`/`-` to zoom, and choose **Fit map** to reset the
-view. Click a pile to open its complete cohort in Grid View. Open any member
-normally; navigation remains within that cohort. `Escape` returns from an
+Drag or hold **Shift** while scrolling to pan. Scroll or use `+`/`-` to zoom,
+and choose **Fit map** to reset the view. By default, new map results zoom out
+when needed to keep new stacks visible; they never automatically zoom in. Click a pile to open its complete
+cohort in Grid View. Open any member normally; navigation remains within that
+cohort. `Escape` returns from an
 image to the cohort grid, then another `Escape` or **Back to map** returns to
 the same map view. Grid search and selection keep their usual Escape stages.
-**Back to Viewer** leaves the map and cancels unfinished analysis.
+**Back to Viewer** leaves the map, cancels unfinished analysis, and releases its
+image resources. Opening the explorer again rebuilds the map, reusing saved
+favorite analysis when available.
 
 This first trial requires local model assets on an Apple Silicon Mac. Analysis
-runs locally with network access denied. Progressive discovery, persistent
-analysis reuse and full-library qualification are still being developed.
+runs locally with network access denied. Piles stay separated and continuing
+groups keep their positions as results arrive. Open cohorts retain their
+captured members; reopening uses the latest grouping.
+
+**Settings -> General -> Visual Similarity Explorer** provides three options:
+**Save analysis for favorites** (on), **Auto-update every 30 images** (off), and
+**Fit new stacks into view** (on). Successful favorite analysis is saved in an
+`analysis` subfolder beside the favorite’s file list and `thumbs` folder. Future
+scans reuse unchanged images with a matching model and preprocessing version;
+changed or invalid entries are scanned again. Grouping and positions are rebuilt
+for the current input. Cache settings apply when a scan starts. Images outside
+favorites are not saved. Full-library qualification is still in progress.
 
 ---
 

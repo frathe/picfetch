@@ -81,8 +81,9 @@ roughly 50,000 library images, with sampled cohort piles opening in Grid View.
 The [specification](.scratch/visual-similarity-explorer/spec.md) captures the
 settled behavior and proposed verification, including the accepted first
 round: real grouping on this Mac, opened-file-set inputs, non-overlapping
-cohorts, and fixed membership while browsing. SigLIP 2, HDBSCAN, and UMAP are
-evaluation candidates. The user accepted the remaining defaults and test boundaries and supplied
+cohorts, and fixed membership while browsing. The Mac trial uses SigLIP 2
+representations, HDBSCAN grouping and UMAP projections. The user accepted the
+remaining defaults and test boundaries and supplied
 `.scratch/visual-similarity-explorer/demo` (446 images). Ticket 01 is complete;
 [ticket 02](.scratch/visual-similarity-explorer/issues/02-evaluate-local-pipeline.md)
 now contains a measured real Go/native experiment under OS network denial.
@@ -100,12 +101,52 @@ cohort navigation, cancellation, staleness, command isolation and real worker
 network denial. Entry maximizes the window, including uncached cohort image
 navigation. Native synthetic QA, actual offline tests, build/vet and all Linux
 race partitions pass (the affected shard was rerun after a test-driver fix).
-The refreshed trial is open with the supplied demo. Progressive delivery,
-representation persistence, extended recovery and full-library qualification
-remain tickets 04-07.
+Progressive delivery now publishes every 30 processed images. Continuing piles
+retain their positions, open cohorts remain frozen, and Shift-scroll pans.
+Stack spacing, preview scattering and fitted borders address the native feedback.
+The same 446-image benchmark completed in 101.088 seconds (first map: 9.840s),
+with 46 cohorts and 55 unassigned after the density adjustment, versus 90 before.
+The final `make verify` and real offline `make explorer-ui-test` pass. Counts
+depend on input order and do not establish semantic accuracy. Favorite representation persistence has been implemented; extended recovery and
+full-library qualification remain tickets 06-07.
 The supplied demo does not qualify the intended roughly 50,000-image trial.
 The current batch HDBSCAN/UMAP experiment has cancellation and scaling limits;
 these must be resolved before selecting the full-library engine.
+
+The user has now started a 50,655-file run and requested live KPI monitoring.
+[Resource status](.scratch/visual-similarity-explorer/evidence/full-library-live-20260909T150213Z/status.md)
+contains 167 samples at 15-second intervals. Aggregation has stopped with the
+worker; the user reported approximately 6,200 scanned images. No successful
+full-library qualification is claimed. Focused native tests resumed for the subsequent requests;
+`development-intervals.log` records their timing and annotation gaps. The running
+app is not replaced. Manual map updates (optional periodic updates), automatic
+zoom-out, duplicate representative preparation, favorite representation reuse,
+three persisted settings, and explicit release of map image resources now pass
+focused UI/real-engine boundaries.
+The complete Explorer native suite (18.559s), adjacent package tests, `make verify`
+(including Linux race tests) and `make build` pass for this increment. Updated
+executable: `bin/picfetch`; the running old trial bundle has not been replaced.
+
+### Similarity tag overlay and filtering
+
+User clarified the interaction: an overlay lists semantic tags and unique image
+counts, e.g. Bird (22), Dog (12). Checkboxes select active tags; show cohorts
+associated with any active tag. Initially all tags are active, with an Untagged
+option so mixed/unknown content remains reachable. Counts cover the full map
+and remain stable while filtering. This supersedes the suggestion to give each
+cohort a single logical name. Add a local labeling step, support multiple tags,
+and coordinate user-defined tags with saved grouping presets. Current local
+assets contain only the vision encoder, so tag generation needs its own design
+and verification slice.
+
+### Saved similarity group presets
+
+Requested during the native explorer trial: select several Unassigned images,
+use Link to inspect shared traits, select the desired traits, name the group,
+and add it to the map. Retain named presets for future maps and provide a compact
+preset browser instead of a nested menu tree. Trait scope (visual/metadata) and
+future-map application behavior are being clarified with the user; preserve
+current non-overlapping cohorts and the active map refinement work.
 
 ## LATER
 

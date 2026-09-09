@@ -15,13 +15,371 @@ import (
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
+	"encoding/json"
+	"image/color"
+	"strings"
+
+	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // The real worker enforces outbound denial before it reads image pixels. This
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("favorite_cache", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "ordinary.jpg")
+		root := t.TempDir()
+		if err := favstore.Save(root, "Trip", []fyne.URI{v.FileAt(0), v.FileAt(1)}); err != nil {
+			t.Fatal(err)
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := similarity.Client{Assets: assets, FavoritesDir: root}
+		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
+		run := func(reused int) similarity.Event {
+			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+			defer cancel()
+			var final similarity.Event
+			if err := client.Analyze(ctx, paths, nil, func(e similarity.Event) {
+				if e.Complete {
+					final = e
+				}
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if final.Successful != 3 || final.Failed != 0 || final.Reused != reused {
+				t.Fatalf("ready=%d failed=%d reused=%d, want 3/0/%d", final.Successful, final.Failed, final.Reused, reused)
+			}
+			return final
+		}
+		first := run(0)
+		// Cached content remains usable without pixel-read permission. A stat
+		// still validates source version; the ordinary source must be scanned.
+		if err := os.Chmod(paths[0], 0); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chmod(paths[0], 0600) }()
+		second := run(2)
+		if second.Items[0].SHA256 != first.Items[0].SHA256 {
+			t.Fatal("cache changed source identity")
+		}
+		if err := os.Chmod(paths[0], 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(paths[1], uitest.EncodeJPEG(t, 96, 80, color.Black), 0600); err != nil {
+			t.Fatal(err)
+		}
+		changed := run(1)
+		if changed.Items[1].SHA256 == first.Items[1].SHA256 {
+			t.Fatal("changed source reused stale analysis")
+		}
+		entries, err := os.ReadDir(filepath.Join(root, "Trip", "analysis"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 2 {
+			t.Fatalf("analysis cache includes non-members or obsolete versions: %d entries", len(entries))
+		}
+		for _, entry := range entries {
+			if err := os.WriteFile(filepath.Join(root, "Trip", "analysis", entry.Name()), []byte("corrupt"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run(0)
+		if err := favstore.Save(root, "Trip", []fyne.URI{v.FileAt(0)}); err != nil {
+			t.Fatal(err)
+		}
+		run(1)
+		client.FavoritesDir = ""
+		run(0)
+	})
+	t.Run("favorite_cache_lifecycle", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg", "g.jpg", "h.jpg")
+		paths := make([]string, v.FileCount())
+		files := make([]fyne.URI, v.FileCount())
+		for i := range paths {
+			files[i] = v.FileAt(i)
+			paths[i] = files[i].Path()
+		}
+		root := t.TempDir()
+		if err := favstore.Save(root, "Trip", files); err != nil {
+			t.Fatal(err)
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := similarity.Client{Assets: assets, FavoritesDir: root}
+		ctx, cancel := context.WithCancel(context.Background())
+		err = client.Analyze(ctx, paths, nil, func(e similarity.Event) {
+			if e.Successful >= 2 {
+				cancel()
+			}
+		})
+		cancel()
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancellation: %v", err)
+		}
+		var final similarity.Event
+		renamed := false
+		err = client.Analyze(context.Background(), paths, nil, func(e similarity.Event) {
+			if !renamed && e.Successful >= 2 {
+				renamed = true
+				if err := os.Rename(filepath.Join(root, "Trip"), filepath.Join(root, "Moved")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if e.Complete {
+				final = e
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if final.Reused < 2 || final.Successful != 8 {
+			t.Fatal("cancellation discarded completed favorite representations")
+		}
+		if _, err := os.Stat(filepath.Join(root, "Trip")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("analysis recreated a moved favorite")
+		}
+		entries, err := os.ReadDir(filepath.Join(root, "Moved", "analysis"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 8 {
+			t.Fatal("incremental persistence lost representations during favorite move")
+		}
+		for _, entry := range entries {
+			path := filepath.Join(root, "Moved", "analysis", entry.Name())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var record map[string]any
+			decoder := json.NewDecoder(strings.NewReader(string(data)))
+			decoder.UseNumber()
+			if err := decoder.Decode(&record); err != nil {
+				t.Fatal(err)
+			}
+			record["Version"] = "different-model-or-preprocessing"
+			data, err = json.Marshal(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		err = client.Analyze(context.Background(), paths, nil, func(e similarity.Event) {
+			if e.Complete {
+				final = e
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if final.Reused != 0 || final.Successful != 8 {
+			t.Fatal("incompatible model cache was reused")
+		}
+	})
+	t.Run("favorite_cache_ui", func(t *testing.T) {
+		before := preferences.Load(testApp)
+		t.Cleanup(func() { preferences.Save(testApp, before) })
+		testApp.Preferences().SetBool("similarityFavoriteCache", true)
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PICFETCH_SIMILARITY_ASSETS", assets)
+		v := openGridWith(t, "a.jpg", "b.jpg")
+		root := t.TempDir()
+		if err := favstore.Save(root, "Trip", []fyne.URI{v.FileAt(0), v.FileAt(1)}); err != nil {
+			t.Fatal(err)
+		}
+		v.favorites.SetDir(root)
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		v.LeaveSimilarityMap()
+		v.favorites.Menu().Items[2].Action()
+		waitForScan(t, v)
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		reused := false
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if label, ok := o.(*widget.Label); ok && strings.Contains(label.Text, fmt.Sprintf(lang.L("%d reused"), 2)) {
+				reused = true
+			}
+		})
+		if !reused {
+			t.Fatal("opening a favorite did not reuse and report its saved analysis")
+		}
+	})
+	t.Run("manual_updates", func(t *testing.T) {
+		names := make([]string, 80)
+		for i := range names {
+			names[i] = fmt.Sprintf("%02d.jpg", i)
+		}
+		v := openGridWith(t, names...)
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths := make([]string, v.FileCount())
+		for i := range paths {
+			paths[i] = v.FileAt(i).Path()
+		}
+		controls := make(chan similarity.Control, 1)
+		var first, final similarity.Event
+		requested := false
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+		err = (similarity.Client{Assets: assets}).Analyze(ctx, paths, controls, func(e similarity.Event) {
+			if e.Successful == 35 && !requested {
+				requested = true
+				if err := os.Remove(paths[0]); err != nil {
+					t.Fatal(err)
+				}
+				controls <- similarity.Control{Update: true}
+			}
+			if len(e.Items) > 0 && !e.Complete && len(first.Items) == 0 {
+				first = e
+			}
+			if e.Complete {
+				final = e
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(first.Items) < 35 || first.Successful >= 80 {
+			t.Fatalf("manual mode rebuilt without a request or failed to rebuild during scanning: %d items", len(first.Items))
+		}
+		if first.Items[0].Path != paths[0] || first.Items[0].Error != "" || len(first.Items[0].Embedding) != 768 {
+			t.Fatal("manual update did not reuse the already represented source")
+		}
+		if final.Successful != 80 || final.Failed != 0 || len(final.Items) != 80 {
+			t.Fatal("manual update restarted scanning or lost final accounting")
+		}
+	})
+	t.Run("repeated_source_cohorts", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg", "g.jpg", "h.jpg")
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var paths []string
+		for range 5 {
+			for i := range v.FileCount() {
+				paths = append(paths, v.FileAt(i).Path())
+			}
+		}
+		var final similarity.Event
+		err = (similarity.Client{Assets: assets}).Analyze(context.Background(), paths, nil, func(e similarity.Event) {
+			if e.Complete {
+				final = e
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assignments := map[string]string{}
+		for _, item := range final.Items {
+			if group, exists := assignments[item.Path]; exists && group != item.Cohort {
+				t.Fatal("a repeated opened source belongs to different current cohorts")
+			}
+			assignments[item.Path] = item.Cohort
+		}
+		if len(final.Items) != 40 || len(assignments) != 8 {
+			t.Fatal("grouping lost source accounting")
+		}
+		one := v.FileAt(0).Path()
+		err = (similarity.Client{Assets: assets}).Analyze(context.Background(), []string{one, one, one, one}, nil, func(e similarity.Event) {
+			if e.Complete {
+				final = e
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range final.Items {
+			if item.Cohort != "unassigned" {
+				t.Fatal("merging one image repeatedly manufactured a density cohort")
+			}
+		}
+	})
+	t.Run("small_cohort", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		v.explorerAnalyze = (similarity.Client{Assets: assets}).Analyze
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		piles := explorerPiles(v)
+		if len(piles) != 1 {
+			t.Fatalf("four matching images should form a useful small cohort; got %d piles", len(piles))
+		}
+		fynetest.Tap(piles[0])
+		if len(explorerGridPaths(v)) != 4 {
+			t.Fatal("small real cohort lost its members")
+		}
+	})
+	t.Run("partial_map", func(t *testing.T) {
+		names := make([]string, 80)
+		for i := range names {
+			names[i] = fmt.Sprintf("%02d.jpg", i)
+		}
+		v := openGridWith(t, names...)
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths := make([]string, v.FileCount())
+		for i := range paths {
+			paths[i] = v.FileAt(i).Path()
+		}
+		controls := make(chan similarity.Control, 1)
+		controls <- similarity.Control{Automatic: true}
+		var partial, final similarity.Event
+		partials := 0
+		err = (similarity.Client{Assets: assets}).Analyze(context.Background(), paths, controls, func(e similarity.Event) {
+			if len(e.Items) > 0 && !e.Complete {
+				partials++
+				if len(partial.Items) == 0 {
+					partial = e
+					controls <- similarity.Control{Automatic: false}
+				}
+			}
+			if e.Complete {
+				final = e
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if partials != 1 {
+			t.Fatalf("turning off automatic updates allowed %d partial maps", partials)
+		}
+		if partial.Successful != 30 || len(partial.Items) != 30 || !partial.OfflineVerified {
+			t.Fatalf("no real partial map after 30 images: ready=%d items=%d", partial.Successful, len(partial.Items))
+		}
+		if !final.Complete || final.Successful != 80 || len(final.Items) != 80 {
+			t.Fatal("partial publication lost final source accounting")
+		}
+		for _, item := range partial.Items {
+			if item.Cohort == "" || len(item.Position) != 2 || len(item.Embedding) != 768 {
+				t.Fatal("partial map lacks actual representations/grouping/layout")
+			}
+		}
+	})
 	t.Run("offline", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
 		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
@@ -30,8 +388,8 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		client := similarity.Client{Assets: assets}
 		var result similarity.Event
-		v.explorerAnalyze = func(ctx context.Context, paths []string, emit func(similarity.Event)) error {
-			return client.Analyze(ctx, paths, func(event similarity.Event) {
+		v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			return client.Analyze(ctx, paths, nil, func(event similarity.Event) {
 				if event.Complete {
 					result = event
 				}
@@ -79,7 +437,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 		var result similarity.Event
-		err = (similarity.Client{Assets: assets}).Analyze(context.Background(), []string{v.FileAt(0).Path(), missing}, func(e similarity.Event) {
+		err = (similarity.Client{Assets: assets}).Analyze(context.Background(), []string{v.FileAt(0).Path(), missing}, nil, func(e similarity.Event) {
 			if e.Complete {
 				result = e
 			}
@@ -105,7 +463,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		completed := false
 		progress := false
-		err = (similarity.Client{Assets: assets}).Analyze(ctx, paths, func(e similarity.Event) {
+		err = (similarity.Client{Assets: assets}).Analyze(ctx, paths, nil, func(e similarity.Event) {
 			completed = completed || e.Complete
 			if e.Successful > 0 {
 				progress = true

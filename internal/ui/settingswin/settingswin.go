@@ -344,10 +344,17 @@ func (w *Window) build() fyne.CanvasObject {
 	})
 	w.staticSizeCheck.Checked = w.prefs.StaticWindowSize
 
+	saveAnalysis := widget.NewCheck(lang.L("Save analysis for favorites"), func(on bool) { w.apply(func(s *preferences.State) { s.SimilarityFavoriteCache = on }) })
+	saveAnalysis.Checked = w.prefs.SimilarityFavoriteCache
+	autoUpdate := widget.NewCheck(lang.L("Auto-update every 30 images"), func(on bool) { w.apply(func(s *preferences.State) { s.SimilarityAutoUpdate = on }) })
+	autoUpdate.Checked = w.prefs.SimilarityAutoUpdate
+	autoFit := widget.NewCheck(lang.L("Fit new stacks into view"), func(on bool) { w.apply(func(s *preferences.State) { s.SimilarityAutoFit = on }) })
+	autoFit.Checked = w.prefs.SimilarityAutoFit
+
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
-	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck)
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Visual Similarity Explorer")), saveAnalysis, autoUpdate, autoFit)
 	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
 	updates := container.NewVBox(w.updateVersion)
 	if w.updatesManagedByStore {

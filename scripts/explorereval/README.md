@@ -77,14 +77,18 @@ Primary sources: [SigLIP 2 export](https://huggingface.co/onnx-community/siglip2
 
 The accepted engine is shared with PicFetch in `internal/similarity`.
 After `make explorer-setup`, run `make run`, open the demo directory, then choose
-**Window -> Visual Similarity Explorer**. The map analyzes every opened image;
+**Window -> Visual Similarity Explorer**. The map analyzes opened images, taking only the highest-resolution representative
+of each duplicate group when duplicate filtering is active;
 Grid search and selection do not narrow its input. Entering the explorer
-maximizes the window. Drag to pan, scroll or use
+maximizes the window. Drag or Shift-scroll to pan, scroll or use
 `+`/`-` to zoom, and use **Fit map** to reset the view. A pile opens its complete
 cohort in Grid View. Open an image normally; `Escape` returns to the cohort,
 then `Escape` or **Back to map** returns to the preserved map camera.
 **Unassigned** opens the noise collection. **Back to Viewer** leaves the map;
 leaving unfinished analysis cancels and waits for the isolated worker at shutdown.
+Leaving releases map image resources; reopening rebuilds from saved favorite
+representations where available. Replaced map revisions release their old image
+sources immediately instead of waiting for Fyne renderer-cache expiry.
 
 `make explorer-ui-test` requires the pinned assets on this Apple Silicon Mac.
 It runs the ordinary UI acceptance scenarios plus real worker inference, denied
@@ -94,6 +98,19 @@ under the working directory; `PICFETCH_SIMILARITY_ASSETS` overrides that path.
 No assets or images are downloaded during analysis. The model is still a
 separate local setup asset, not included in ordinary release packaging.
 
-The completed-map slice does not yet deliver progressive maps or persistent
-representation reuse. Those remain tickets 04 and 05; recovery and full-library
-qualification remain tickets 06 and 07. Batch HDBSCAN is not qualified at 50k.
+**Update map** builds a map from currently retained representations. Optional
+automatic updates every 30 sources default off; completion always builds a final
+map. Continuing piles retain their positions and the camera expands when needed
+to include newly discovered groups. Settings can disable this automatic fit. An open cohort keeps its captured
+members until it is reopened. Piles have a minimum gap and thin fitted frames.
+
+The 446-image progressive benchmark completed in 101.088 seconds, with its first
+map at 9.840 seconds, 46 cohorts and 55 unassigned images. The prior 5/3 density
+settings left 90 unassigned in the same input order; the new settings are 4/2.
+UMAP is sensitive to input order, so these counts are benchmark evidence, not
+a guaranteed count or semantic accuracy score. Favorite representations now persist
+in each favorite’s `analysis` directory and are reused while source size/mtime
+and model/preprocessing version match. Settings can disable persistence for
+subsequent scans. Non-favorite images remain transient. Extended recovery and
+full-library qualification remain tickets 06-07. Batch
+HDBSCAN is not qualified at 50k.

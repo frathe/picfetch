@@ -22,9 +22,18 @@ type Event struct {
 	OfflineVerified           bool
 	Items                     []Item
 	Total, Successful, Failed int
+	Reused                    int
+	CacheWarning              string `json:",omitempty"`
 	Stage                     string
 	Complete                  bool
 }
 
+// Control carries the latest automatic-update setting and an optional rebuild
+// request. Rebuilds use the representations already retained by the worker.
+type Control struct {
+	Automatic bool
+	Update    bool
+}
+
 // Provider runs off the UI goroutine; callbacks are serialized on that worker.
-type Provider func(context.Context, []string, func(Event)) error
+type Provider func(context.Context, []string, <-chan Control, func(Event)) error

@@ -19,8 +19,13 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) erro
 	}
 	var vectors [][]float32
 	var indexes []int
+	byPath := map[string]int{}
 	for i, entry := range items {
 		if entry.Error == "" {
+			if _, exists := byPath[entry.Path]; exists {
+				continue
+			}
+			byPath[entry.Path] = len(vectors)
 			vectors = append(vectors, entry.Embedding)
 			indexes = append(indexes, i)
 		}
@@ -42,7 +47,7 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) erro
 		return err
 	}
 	start = time.Now()
-	groups := projection.Cluster(reduced, projection.HDBSCANConfig{MinClusterSize: 5, MinSamples: 3})
+	groups := projection.Cluster(reduced, projection.HDBSCANConfig{MinClusterSize: 4, MinSamples: 2})
 	durations["hdbscan_seconds"] = time.Since(start).Seconds()
 	if len(groups.Labels) != len(vectors) {
 		return fmt.Errorf("clustering lost input identities")
@@ -72,7 +77,11 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) erro
 		sort.Strings(paths)
 		ids[label] = fmt.Sprintf("cohort-%x", sha256.Sum256([]byte(strings.Join(paths, "\n"))))[:19]
 	}
-	for i, index := range indexes {
+	for index, entry := range items {
+		if entry.Error != "" {
+			continue
+		}
+		i := byPath[entry.Path]
 		items[index].Cohort = ids[groups.Labels[i]]
 		items[index].Position = positions[i]
 	}

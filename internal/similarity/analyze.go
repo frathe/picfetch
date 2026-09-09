@@ -14,7 +14,7 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-func analyzeLocal(ctx context.Context, req request, emit func(Event) error) error {
+func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emit func(Event) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -25,13 +25,58 @@ func analyzeLocal(ctx context.Context, req request, emit func(Event) error) erro
 		return err
 	}
 	_ = RegisterLocalFiles()
-	encoder, err := NewEncoder(req.Assets, "cpu")
-	if err != nil {
+	var encoder *Encoder
+	defer func() {
+		if encoder != nil {
+			encoder.Close()
+		}
+	}()
+	event := Event{Total: len(req.Paths), OfflineVerified: true, Stage: "encoding"}
+	cache, cacheErr := openAnalysisCache(ctx, req.FavoritesDir)
+	defer cache.close()
+	if cacheErr != nil {
+		event.CacheWarning = cacheErr.Error()
+	}
+	items := make([]Item, 0, len(req.Paths))
+	automatic, requested := false, false
+	readControls := func() {
+		for controls != nil {
+			select {
+			case control, ok := <-controls:
+				if !ok {
+					controls = nil
+					return
+				}
+				automatic = control.Automatic
+				requested = requested || control.Update
+			default:
+				return
+			}
+		}
+	}
+	publishMap := func(complete bool) error {
+		event.Stage = "layout"
+		if err := emit(event); err != nil {
+			return err
+		}
+		if event.Successful > 0 {
+			if err := Group(ctx, items, map[string]float64{}); err != nil {
+				return err
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		event.Items = append([]Item(nil), items...)
+		event.Complete = complete
+		event.Stage = "encoding"
+		if complete {
+			event.Stage = "complete"
+		}
+		err := emit(event)
+		event.Items = nil
 		return err
 	}
-	defer encoder.Close()
-	event := Event{Total: len(req.Paths), OfflineVerified: true, Stage: "encoding"}
-	items := make([]Item, 0, len(req.Paths))
 	for _, path := range req.Paths {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -45,8 +90,21 @@ func analyzeLocal(ctx context.Context, req request, emit func(Event) error) erro
 		if sourceErr == nil {
 			before, sourceErr = os.Stat(path)
 		}
+		reused := false
 		if sourceErr == nil {
 			item.Size, item.ModifiedNS = before.Size(), before.ModTime().UnixNano()
+			if cached, ok := cache.read(item); ok {
+				item, reused = cached, true
+			}
+		}
+		if sourceErr == nil && !reused {
+			if encoder == nil {
+				var err error
+				encoder, err = NewEncoder(req.Assets, "cpu")
+				if err != nil {
+					return err
+				}
+			}
 			data, _, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
 			sourceErr = readErr
 			if sourceErr == nil {
@@ -81,26 +139,23 @@ func analyzeLocal(ctx context.Context, req request, emit func(Event) error) erro
 			event.Failed++
 		} else {
 			event.Successful++
+			if reused {
+				event.Reused++
+			} else if err := cache.write(ctx, item); err != nil && event.CacheWarning == "" {
+				event.CacheWarning = err.Error()
+			}
 		}
 		items = append(items, item)
 		if err := emit(event); err != nil {
 			return err
 		}
-	}
-	event.Stage = "layout"
-	if err := emit(event); err != nil {
-		return err
-	}
-	if event.Successful > 0 {
-		if err := Group(ctx, items, map[string]float64{}); err != nil {
-			return err
+		readControls()
+		if (requested || automatic && len(items)%30 == 0) && len(items) < len(req.Paths) && event.Successful > 0 {
+			if err := publishMap(false); err != nil {
+				return err
+			}
+			requested = false
 		}
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	event.Items = items
-	event.Stage = "complete"
-	event.Complete = true
-	return emit(event)
+	return publishMap(true)
 }

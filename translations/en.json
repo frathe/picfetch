@@ -293,5 +293,12 @@
    "-": "-",
    "Showing similarity cohort": "Showing similarity cohort",
    "Back to map": "Back to map",
-   "1 image": "1 image"
+   "1 image": "1 image",
+   "Update map": "Update map",
+   "Updating map...": "Updating map...",
+   "Auto-update every 30 images": "Auto-update every 30 images",
+   "Checking duplicate groups...": "Checking duplicate groups...",
+   "Save analysis for favorites": "Save analysis for favorites",
+   "Fit new stacks into view": "Fit new stacks into view",
+   "%d reused": "%d reused"
 }

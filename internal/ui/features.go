@@ -9,7 +9,6 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
-	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/assets"
 	compareui "github.com/frathe/picfetch/internal/ui/compare"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
@@ -109,7 +108,9 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.grid = grid.New(view, window, view.dupes)
 	view.explorer.surface = explorerui.New(view)
 	view.explorer.ui = explorerQueue{}
-	view.explorerAnalyze = (similarity.Client{}).Analyze
+	view.explorer.cacheFavorites = prefs.SimilarityFavoriteCache
+	view.explorer.autoFit = prefs.SimilarityAutoFit
+	view.SetSimilarityAutoUpdate(prefs.SimilarityAutoUpdate)
 	view.compare = compareui.New(
 		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 			return view.compareLoad(ctx, uri)

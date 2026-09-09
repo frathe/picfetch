@@ -3,9 +3,11 @@
 package explorer
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"image/color"
+	"image/jpeg"
 	"math"
 	"sort"
 
@@ -23,6 +25,9 @@ import (
 type Host interface {
 	OpenSimilarityCohort([]string)
 	LeaveSimilarityMap()
+	UpdateSimilarityMap()
+	SetSimilarityAutoUpdate(bool)
+	Modifiers() fyne.KeyModifier
 }
 
 // Map is a pannable, zoomable collection of cohort piles.
@@ -32,6 +37,8 @@ type Map struct {
 	overlay    *fyne.Container
 	status     *widget.Label
 	unassigned *widget.Button
+	update     *widget.Button
+	automatic  *widget.Check
 	scene      *fyne.Container
 	piles      []*Pile
 	center     fyne.Position
@@ -47,6 +54,10 @@ func New(host Host) *Map {
 	m.unassigned.Hide()
 	toolbar := container.NewBorder(nil, nil, widget.NewButton(lang.L("Back to Viewer"), host.LeaveSimilarityMap), container.NewHBox(
 		m.unassigned, widget.NewButton(lang.L("-"), func() { m.scale(1/1.2, fyne.NewPos(m.Size().Width/2, m.Size().Height/2)) }), widget.NewButton(lang.L("+"), func() { m.scale(1.2, fyne.NewPos(m.Size().Width/2, m.Size().Height/2)) }), widget.NewButton(lang.L("Fit map"), m.Fit)), m.status)
+	m.update = widget.NewButton(lang.L("Update map"), host.UpdateSimilarityMap)
+	m.update.Disable()
+	m.automatic = widget.NewCheck(lang.L("Auto-update every 30 images"), host.SetSimilarityAutoUpdate)
+	toolbar = container.NewVBox(toolbar, container.NewHBox(m.update, m.automatic))
 	m.overlay = container.NewStack(canvas.NewRectangle(theme.BackgroundColor()), container.NewBorder(toolbar, nil, nil, nil, m))
 	m.overlay.Hide()
 	return m
@@ -57,6 +68,23 @@ func (m *Map) Show()                      { m.overlay.Show() }
 func (m *Map) Hide()                      { m.overlay.Hide() }
 func (m *Map) Visible() bool              { return m.overlay.Visible() }
 func (m *Map) Status(text string)         { m.status.SetText(text) }
+
+// SetAutomatic synchronizes the toolbar without emitting a setting change.
+func (m *Map) SetAutomatic(on bool) { m.automatic.Checked = on; m.automatic.Refresh() }
+
+// UpdateState reflects whether new representations can be added to the map.
+func (m *Map) UpdateState(available, busy bool) {
+	text := lang.L("Update map")
+	if busy {
+		text = lang.L("Updating map...")
+	}
+	m.update.SetText(text)
+	if available && !busy {
+		m.update.Enable()
+	} else {
+		m.update.Disable()
+	}
+}
 
 // SetResult replaces cohort membership without moving the user's camera.
 func (m *Map) SetResult(items []similarity.Item) {
@@ -86,6 +114,7 @@ func (m *Map) SetResult(items []similarity.Item) {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
+	previous := m.piles
 	m.piles = nil
 	m.scene.RemoveAll()
 	for _, key := range keys {
@@ -95,7 +124,18 @@ func (m *Map) SetResult(items []similarity.Item) {
 		m.piles = append(m.piles, p)
 		m.scene.Add(p)
 	}
+	orientPiles(m.piles, m.Size())
 	m.normalizeSpacing()
+	anchorPiles(m.piles, previous)
+	// Fyne can retain removed widgets in its renderer caches. Release their
+	// encoded/decoded pixels explicitly and invalidate each image texture.
+	for _, pile := range previous {
+		for _, picture := range pile.pictures {
+			picture.File, picture.Resource, picture.Image = "", nil, nil
+			picture.Refresh()
+		}
+		pile.members, pile.pictures, pile.aspects = nil, nil, nil
+	}
 	m.Refresh()
 }
 
@@ -111,8 +151,27 @@ func (m *Map) Fit() {
 			hi.Y = max(hi.Y, p.world.Y)
 		}
 		m.center = fyne.NewPos((lo.X+hi.X)/2, (lo.Y+hi.Y)/2)
-		m.zoom = max(.03, min(m.Size().Width/(hi.X-lo.X+260), m.Size().Height/(hi.Y-lo.Y+220)))
+		m.zoom = max(.03, min(m.Size().Width/(hi.X-lo.X+pileWidth+20), m.Size().Height/(hi.Y-lo.Y+pileHeight+30)))
 	}
+	m.Refresh()
+}
+
+// ExpandToFit retains the current visible area and adds room for discovered
+// piles. Publications never zoom back in when a later grouping is smaller.
+func (m *Map) ExpandToFit() {
+	size := m.Size()
+	half := fyne.NewPos(size.Width/(2*m.zoom), size.Height/(2*m.zoom))
+	lo, hi := m.center.Subtract(half), m.center.Add(half)
+	beforeLo, beforeHi := lo, hi
+	for _, p := range m.piles {
+		lo.X, lo.Y = min(lo.X, p.world.X-pileWidth/2-10), min(lo.Y, p.world.Y-pileHeight/2-15)
+		hi.X, hi.Y = max(hi.X, p.world.X+pileWidth/2+10), max(hi.Y, p.world.Y+pileHeight/2+15)
+	}
+	if lo == beforeLo && hi == beforeHi {
+		return
+	}
+	m.zoom = min(m.zoom, size.Width/(hi.X-lo.X), size.Height/(hi.Y-lo.Y))
+	m.center = fyne.NewPos((lo.X+hi.X)/2, (lo.Y+hi.Y)/2)
 	m.Refresh()
 }
 
@@ -123,6 +182,12 @@ func (m *Map) Dragged(e *fyne.DragEvent) {
 }
 func (m *Map) DragEnd() {}
 func (m *Map) Scrolled(e *fyne.ScrollEvent) {
+	if m.host.Modifiers()&fyne.KeyModifierShift != 0 {
+		m.center.X -= e.Scrolled.DX / m.zoom
+		m.center.Y -= e.Scrolled.DY / m.zoom
+		m.Refresh()
+		return
+	}
 	m.scale(float32(math.Exp(float64(e.Scrolled.DY)/180)), e.Position)
 }
 func (m *Map) scale(factor float32, at fyne.Position) {
@@ -147,8 +212,8 @@ func (r *mapRenderer) Layout(size fyne.Size) {
 	r.bg.Resize(size)
 	r.clip.Resize(size)
 	for _, p := range r.m.piles {
-		p.Resize(fyne.NewSize(240*r.m.zoom, 190*r.m.zoom))
-		p.Move(fyne.NewPos(size.Width/2+(p.world.X-r.m.center.X-120)*r.m.zoom, size.Height/2+(p.world.Y-r.m.center.Y-95)*r.m.zoom))
+		p.Resize(fyne.NewSize(pileWidth*r.m.zoom, pileHeight*r.m.zoom))
+		p.Move(fyne.NewPos(size.Width/2+(p.world.X-r.m.center.X-pileWidth/2)*r.m.zoom, size.Height/2+(p.world.Y-r.m.center.Y-pileHeight/2)*r.m.zoom))
 	}
 }
 func (r *mapRenderer) MinSize() fyne.Size { return fyne.NewSize(400, 300) }
@@ -167,6 +232,7 @@ type Pile struct {
 	owner    *Map
 	members  []string
 	pictures []*canvas.Image
+	aspects  []float32
 	world    fyne.Position
 	label    *canvas.Text
 }
@@ -200,6 +266,11 @@ func newPile(m *Map, items []similarity.Item) *Pile {
 		img := canvas.NewImageFromResource(fyne.NewStaticResource(item.Path, item.Preview))
 		img.FillMode = canvas.ImageFillContain
 		p.pictures = append(p.pictures, img)
+		aspect := float32(1)
+		if config, err := jpeg.DecodeConfig(bytes.NewReader(item.Preview)); err == nil && config.Height > 0 {
+			aspect = float32(config.Width) / float32(config.Height)
+		}
+		p.aspects = append(p.aspects, aspect)
 		if len(p.pictures) == 15 {
 			break
 		}
@@ -237,23 +308,29 @@ type pileRenderer struct {
 }
 
 func (r *pileRenderer) Layout(size fyne.Size) {
-	scale := size.Width / 240
+	scale := size.Width / pileWidth
 	for i, img := range r.p.pictures {
-		hash := sha256.Sum256([]byte(img.Resource.Name()))
-		x := float32(hash[0] % 110)
-		y := float32(hash[1] % 76)
-		pos := fyne.NewPos(x*scale, y*scale)
-		sz := fyne.NewSize(124*scale, 90*scale)
-		r.objects[i*2].Move(pos)
-		r.objects[i*2].Resize(sz)
-		img.Move(pos.Add(fyne.NewPos(3*scale, 3*scale)))
-		img.Resize(sz.Subtract(fyne.NewSize(6*scale, 6*scale)))
+		// A sunflower pattern spreads samples without a rigid thumbnail grid.
+		// Membership supplies the stable sample order, so panning never reshuffles.
+		angle := float64(i) * 2.399963229728653
+		radius := math.Sqrt((float64(i) + .5) / float64(len(r.p.pictures)))
+		x := pileWidth/2 + float32(math.Cos(angle)*radius)*130
+		y := float32(136) + float32(math.Sin(angle)*radius)*86
+		w := min(float32(110), 90*r.p.aspects[i])
+		h := w / r.p.aspects[i]
+		pos := fyne.NewPos((x-w/2)*scale, (y-h/2)*scale)
+		sz := fyne.NewSize(w*scale, h*scale)
+		frame := scale
+		r.objects[i*2].Move(pos.Subtract(fyne.NewPos(frame, frame)))
+		r.objects[i*2].Resize(sz.Add(fyne.NewSize(2*frame, 2*frame)))
+		img.Move(pos)
+		img.Resize(sz)
 	}
 	for _, o := range r.objects[len(r.objects)-2:] {
-		o.Move(fyne.NewPos(30*scale, 165*scale))
-		o.Resize(fyne.NewSize(180*scale, 24*scale))
+		o.Move(fyne.NewPos(40*scale, 278*scale))
+		o.Resize(fyne.NewSize(300*scale, 24*scale))
 	}
-	r.p.label.TextSize = max(9, 14*scale)
+	r.p.label.TextSize = 16 * scale
 }
 func (r *pileRenderer) MinSize() fyne.Size { return fyne.NewSize(24, 19) }
 func (r *pileRenderer) Refresh() {
@@ -280,7 +357,7 @@ func (m *Map) normalizeSpacing() {
 		hi.Y = max(hi.Y, p.world.Y)
 	}
 	span := max(hi.X-lo.X, hi.Y-lo.Y)
-	extent := float32(math.Sqrt(float64(len(m.piles)))) * 280
+	extent := float32(math.Sqrt(float64(len(m.piles)))) * (pileWidth + pileGap)
 	for _, p := range m.piles {
 		if span == 0 {
 			p.world = fyne.Position{}

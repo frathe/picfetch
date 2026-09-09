@@ -119,6 +119,9 @@ func (f *Feature) Menu() *fyne.Menu {
 	return f.menu
 }
 
+// Dir returns the configured favorites storage root.
+func (f *Feature) Dir() string { return f.dir }
+
 // SetDir selects the storage directory and populates the menu from it.
 func (f *Feature) SetDir(dir string) {
 	f.dir = dir

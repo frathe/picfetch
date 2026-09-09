@@ -674,23 +674,43 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 Bei geöffneten Bildern **Fenster -> Visueller Ähnlichkeits-Explorer** wählen.
 Alle geöffneten Bilder werden analysiert, einschließlich zusammengeführter
 Listen und Favoriten. Suche und Auswahl in der Rasteransicht schränken die
-Analyse nicht ein. Beim Öffnen des Explorers wird das Fenster maximiert.
+Analyse nicht ein. Bei aktivem Duplikatfilter wird pro Gruppe nur das Bild mit
+der höchsten Auflösung analysiert; zuvor werden die Duplikatprüfungen beendet.
+Beim Öffnen des Explorers wird das Fenster maximiert. **Karte aktualisieren**
+erstellt die Karte aus den bisher gesammelten Daten. Automatische Aktualisierungen
+alle 30 Bilder sind optional und standardmäßig ausgeschaltet. Zum Abschluss
+wird eine letzte Karte erstellt. Die Aktualisierung verwendet vorhandene Daten
+und pausiert die Bildanalyse kurz für Gruppierung und Anordnung.
 Der Fortschritt unterscheidet erfolgreiche und fehlgeschlagene
-Bilder von der Gruppierung und Anordnung. Die fertige Karte zeigt Gruppen als
+Bilder von der Gruppierung und Anordnung. Die Karte zeigt Gruppen als
 Stapel mit bis zu fünfzehn Beispielbildern; **Nicht zugeordnet** enthält Bilder
 ohne Gruppenzuordnung.
 
-Zum Verschieben ziehen, zum Zoomen scrollen oder `+`/`-` verwenden.
-**Karte einpassen** setzt die Ansicht zurück. Ein Klick auf einen Stapel öffnet
+Zum Verschieben ziehen oder beim Scrollen **Shift** gedrückt halten.
+Zum Zoomen ohne Shift scrollen oder `+`/`-` verwenden.
+**Karte einpassen** setzt die Ansicht zurück. Neue Ergebnisse zoomen bei Bedarf
+automatisch heraus, damit neue Stapel sichtbar bleiben, jedoch nie hinein. Ein Klick auf einen Stapel öffnet
 seine gesamte Gruppe in der Rasteransicht. Ein Bild wie gewohnt öffnen;
 die Navigation bleibt innerhalb der Gruppe. `Escape` führt zum Gruppenraster
 zurück, anschließend ein weiteres `Escape` oder **Zurück zur Karte** zur
 vorherigen Kartenansicht. Suche und Auswahl behalten ihre üblichen Escape-Stufen.
-**Zurück zur Bildansicht** verlässt die Karte und bricht laufende Analysen ab.
+**Zurück zur Bildansicht** verlässt die Karte, bricht laufende Analysen ab und
+gibt ihre Bilddaten frei. Erneutes Öffnen erstellt die Karte neu und verwendet
+gespeicherte Favoritenanalysen, sofern vorhanden.
 
 Dieser erste Test benötigt lokale Modelldaten auf einem Mac mit Apple Silicon.
-Die Analyse läuft lokal mit gesperrtem Netzwerkzugriff. Schrittweiser Aufbau,
-dauerhafte Wiederverwendung und die Prüfung großer Bibliotheken folgen später.
+Die Analyse läuft lokal mit gesperrtem Netzwerkzugriff. Stapel halten Abstand;
+bestehende Gruppen behalten bei neuen Ergebnissen ihre Position. Eine geöffnete
+Gruppe behält ihre Mitglieder; erneutes Öffnen verwendet die aktuelle Gruppierung.
+Unter **Einstellungen -> Allgemein -> Visueller Ähnlichkeits-Explorer** stehen
+**Analysen für Favoriten speichern** (ein), **Alle 30 Bilder automatisch
+aktualisieren** (aus) und **Neue Stapel im Sichtbereich halten** (ein). Analysen
+werden im Unterordner `analysis` neben der Dateiliste und `thumbs` gespeichert.
+Unveränderte Favoritenbilder mit passender Modell- und Vorverarbeitungsversion
+werden wiederverwendet; geänderte oder ungültige Einträge erneut analysiert.
+Gruppen und Positionen werden für die aktuelle Auswahl neu berechnet. Die
+Cache-Einstellung gilt ab dem nächsten Analysestart. Bilder außerhalb der
+Favoriten werden nicht gespeichert. Die Prüfung großer Bibliotheken läuft noch.
 
 ---
 

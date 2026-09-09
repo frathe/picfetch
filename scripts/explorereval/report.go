@@ -125,7 +125,7 @@ Model, processor and runtime hashes are pinned in internal/similarity/assets.sha
 
 Grouping: nozzle/umap f6085fb2514d, 15 dimensions, cosine metric, 15 neighbors,
 300 epochs, random initialization, seed 42, one worker, other defaults.
-HDBSCAN: alDuncanson/latent v0.1.4, minimum cohort 5, minimum samples 3, Euclidean
+HDBSCAN: alDuncanson/latent v0.1.4, minimum cohort 4, minimum samples 2, Euclidean
 on the 15D representation. Map: a separate fresh 2D UMAP fit on the original
 768D representations with the same remaining parameters. Every publication
 refits all admitted inputs; it does not use the broken Transform API.

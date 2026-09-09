@@ -38,13 +38,19 @@ the raw events outside the repository; the generated assignment lives at
 ### `internal/similarity`
 
 Local content analysis shared by the viewer and its reproducible experiment.
-`client.go` owns `Client.Analyze` (exact opened paths, immutable `Event` callbacks),
+`client.go` owns `Client.Analyze` (selected source paths, control channel, immutable `Event` callbacks),
 asset discovery, the cancellable offline subprocess, and private `WorkerMain`
 dispatch. `analyze.go` accounts for every input, captures source versions,
-reuses canonical full oriented decoding, makes previews, and publishes completion
-only after grouping/layout. `encoder.go` owns the pinned native SigLIP 2 session;
+reuses canonical full oriented decoding, makes previews, and publishes a map
+on manual request, optionally every 30 sources, and at completion.
+`control_darwin.go`/`control_other.go` own the pollable worker input descriptor.
+`cache.go` persists successful favorite representations in `analysis` beside
+`file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
+directory handles plus file-list identity to avoid recreating removed favorites.
+`encoder.go` owns the pinned native SigLIP 2 session;
 `grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
-cohort identities. The encoder and grouping entry points are worker-only: the
+cohort identities; repeated source paths share one assignment. The encoder and
+grouping entry points are worker-only: the
 native runtime is process-global and batch algorithms cannot be interrupted
 in place. `assets.go`/`assets.sha256` verify pinned local assets; `offline.go`
 verifies actual TCP/UDP OS denial; `files.go` registers the driverless read-only
@@ -103,11 +109,20 @@ validation, process failures and workflow wiring through a per-call runner.
 ### `internal/ui/explorer`
 
 `Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
-stable samples of up to fifteen distinct members per `Pile`. Its two-method
-`Host` opens the full captured cohort or leaves the map. It starts no workers;
-`internal/ui/explorer.go` supplies results and maximizes the native window at entry and preserves its camera while Grid
-View or the ordinary image view is active. `internal/ui/grid/subset.go` filters
+stable samples of up to fifteen distinct members per `Pile`, fitted thin frames
+and Shift-scroll panning. `layout.go` matches continuing cohorts by shared
+sources, orients the initial projection to the window, and places new piles
+with a minimum gap. Its narrow `Host` opens the
+full captured cohort, leaves the map, sends manual/automatic update controls, and
+supplies current input modifiers.
+It starts no workers; `internal/ui/explorer.go` delivers partial/final results,
+maximizes the native window at entry, optionally expands the camera for new stacks,
+and preserves the camera and frozen cohort
+while Grid View or the ordinary image view is active. `internal/ui/grid/subset.go` filters
 cohorts by source path while retaining root indexes for existing operations.
+Replaced pile images have their sources cleared and refreshed to release Fyne
+renderer/texture references. Leaving Explorer clears the map; cohort round trips
+retain it.
 
 ### `internal/ui`
 
@@ -130,7 +145,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with the supplied Codex atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `internal/ui/assets/trane.webp` is copied unchanged from `assets/trane/codex-pet/spritesheet.webp`. |
-| `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, exact opened-file snapshot, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
+| `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
 | `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, similarity map, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action shortcut wiring (open, favorites, clipboard, copy selection, comparison, delete, select-all, save, export, wallpaper). Comparison registers the native `Cmd/Ctrl+D` plus physical `Ctrl+D` when those differ. `yieldingShortcuts` blocks ordinary commands during comparison and otherwise yields Copy Selection; Open is admitted only far enough to show comparison's refusal. Copy Selection and clipboard bindings also defend their own direct entries. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
@@ -613,7 +628,7 @@ see `AGENTS.md`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.settingsState` / `ApplySettings` + `viewer.closeFiles`.
-- "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, static window size, window size/position, favorite-preview-cache toggle, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
+- "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, static window size, window size/position, favorite-preview-cache toggle, similarity cache/automatic update/fit settings, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
 - "How does Light/Dark/System appearance work?" → `internal/appearance` + `internal/ui/theme.go` + `settingswin`.
 - "How do the Settings and EXIF windows come back where I left them?" → `widgets.Singleton.Remember` / `Geometry` / `StopTracking` + `winpos.Poll` + `preferences.WindowGeometry`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.

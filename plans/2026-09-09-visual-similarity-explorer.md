@@ -309,3 +309,281 @@ and cold-load issues, the user's maximize request, and the test-driver race
 exposed by the added boundary scenario. Tickets 04-07 and the full plan remain
 open; no progressive/persistence/full-library result is claimed. No commit was
 made, and both unrelated `:memory:.ses` files remain untouched.
+
+
+## Task 04 — Native feedback and progressive map
+
+The user accepted the general native feel and requested separated piles,
+thinner image borders, wider scattering, partial results every 10-30 images,
+fewer unassigned images when meaningful, and Shift-to-pan.
+Owner: T0 inline; one read-only scout for grouping parameters and aggregate
+nearest-neighbor evidence from existing representations (no source pixels).
+Files: internal/ui/explorer/{map,layout}.go; internal/ui/explorer.go;
+internal/similarity/{analyze,grouping}.go and experiment adapters as required;
+root explorer UI/native tests, manuals/translations, architecture and tracker.
+Contract: immutable partial snapshots at a default 30-image cadence and final
+completion; frozen open cohorts; preserved camera and continuing pile positions;
+minimum pile separation; stable wider-scattered samples with thin fitted frames;
+Shift-scroll pans via the existing instance-owned modifier seam. Adjust grouping
+only against measured vector evidence; retain a meaningful Unassigned collection.
+Tests: production-aligned surface geometry/input/frozen-cohort/progress scenarios;
+actual offline engine publishes before completion and accounts for all sources.
+Verify: focused explorer tests; make explorer-ui-test; existing-representation
+comparison and real smoke timings; synthetic native QA; final make verify.
+Budget: one scout, two lead review rounds, one full final suite.
+Delegation gate: G1 bounded API/statistical question; G2 pinned source references
+and reproducible aggregate script output; G3 no repo writes; G4 independent of
+map/progress implementation; G5 lead has not inspected density implementation or
+nearest-neighbor distributions. S/W: adaptive source investigation with computed
+numbers, not a scripted repository transform. Review and fixes stay with lead.
+
+### Task 04 lead review and evidence
+
+The controlled UI and actual offline engine boundaries pass on the restored
+production code (`make explorer-ui-test`, ui package 8.633s). Observed failures
+before implementation pin pile spacing, fitted preview aspect/scattering,
+Shift-scroll pan, partial delivery, continuing positions, and a useful
+four-image real cohort. Repeated-source density was negatively verified at
+the actual engine boundary. Deliberate violations also fail frozen-cohort,
+current non-overlap and window-fit guards. No new test files or top-level
+runnables were added; the existing Qodana paths and ui-1 assignment still cover
+all added subtests. All 64 checked local documentation links resolve.
+
+Native synthetic inspection confirmed the final separated stacks and thin
+portrait/landscape frames. A four-member pile opened four Grid View members,
+Enter opened an image, and two Escapes restored the fitted map and maximized
+window. A deliberately held synthetic source explained the user's apparent
+30-image stop; release resumed that fixture. A subsequent all-regular-source
+run completed 60/60 without failures. The updated build then reopened the demo.
+
+The production offline worker published 14 partial maps and a final map for
+446 sources: first map 9.840s, completion 101.088s, 0 failures, 46 cohorts,
+55 unassigned. All source hashes match the earlier smoke run. This is the same
+seeded input order that previously had 90 unassigned. A lexical-order check
+produced 89 versus 72, so input-order sensitivity remains an explicit limit;
+counts do not establish semantic accuracy. The lead independently reran the
+scout's vector-only sweep. No source pixels were viewed or transmitted.
+
+Native fit inspection added an orientation guard. Its first absolute 250px
+cutoff was too prescriptive about packing; review adopted a one-fifth-window
+minimum for six cohorts, retained nearest-position packing, and verified that
+removing orientation still fails. It now measures 234.6px in a 1100px window,
+versus 141.9px before. More complex lattice placement was not retained.
+
+Full evidence and the reproducible measurement script are linked from
+[progressive-exploration.md](../.scratch/visual-similarity-explorer/evidence/progressive-exploration.md).
+The user's saved grouping preset idea is recorded separately with its two
+pending design choices. Persistence, extended recovery and the intended
+50,000-image qualification remain later tickets; this work makes no claim
+that those are complete.
+
+The final `make verify` passed with exit 0, including formatting/TUF/Qodana
+exclusions, vet, build, exact shard validation and the full Linux/amd64 race
+suite. Race evidence: `.scratch/race-runs/20260909T144231Z-hbc3Ej` (container
+exit 0, no OOM). All three UI partitions passed (223, 226 and 230 top-level
+tests), as did the non-UI partition (1,864 top-level tests). The explorer's
+complete controlled UI scenario passed under Linux race detection in 37.100s.
+The separate real offline UI/engine suite passed in 8.633s. The demo worker
+has exited; its updated native map remains open for the user.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Evidence |
+| --- | --- | --- | --- | --- |
+| 04 | 1 / 1 | 2 | one successful invocation | Real partial publications, native synthetic inspection, negative guards, full CI gate |
+
+Only tracker/plan closeout changed after the gate. No commit was made; both
+unrelated `:memory:.ses` files remain untouched. Ticket 04 awaits the user's
+updated visual verdict; the full implementation plan stays active for the
+remaining persistence, recovery and qualification tickets.
+
+### Task 04 follow-up — growing viewport and duplicate representatives
+
+The user accepted the improved spacing and now requests automatic zoom-out as
+new stacks arrive, plus scanning only the highest-quality member of duplicate
+groups when Grid View duplicate filtering is active. This supersedes the earlier
+fixed-camera rule during publication; cohort round trips still preserve the
+resulting camera. The two dog piles prompted a separate question about desired
+grouping granularity; no new subject-label behavior is assumed.
+
+Owner: T0 inline; one read-only duplicate-path scout.
+Files: explorer map/root integration, existing grid consumer seam if needed,
+existing root explorer UI tests and manuals/tracker/architecture.
+Contract: publication includes every pile in the viewport, zooming out only
+when necessary and never zooming back in automatically. Use Grid's existing
+quality representative when hide-duplicates is enabled; ordinary search and
+selection still do not narrow analysis. Capture source identities before Grid
+close retires its session. Pending duplicate work must not silently analyze
+redundant sources or lose sources.
+Tests: held partial results, camera expansion/no automatic zoom-in and preserved
+cohort return; production Grid duplicate filtering and provider input identities,
+quality election and pending work through existing UI inputs/queues.
+Verify: focused explorer UI boundary, real offline boundary if engine inputs
+change, native synthetic QA, final make verify after implementation and review.
+Budget: one scout, two lead review rounds, one new final suite because this is
+new requested behavior after the preceding successful gate.
+Scout gate: G1 bounded duplicate API/lifecycle question; G2 exact source/test
+references verified by lead; G3 read-only; G4 separate Grid duplicate subsystem;
+G5 lead has not built this context. S/W: lifecycle investigation across files,
+not a mechanical transformation. All design/review/fixes remain lead-owned.
+
+#### Live trial interruption — 2026-09-09 15:01 UTC
+
+The user started 50,655 files in the already running native build and requested
+KPI monitoring. Builds/tests are paused to avoid competing with this run.
+Read-only 15-second resource capture is running for viewer PID 27312 and worker
+PID 31913; evidence and a continuously updated status file are under
+`.scratch/visual-similarity-explorer/evidence/full-library-live-20260909T150213Z`.
+It stops when the worker exits. Physical footprint, CPU, elapsed time, I/O,
+memory-free percentage and shared-system swap are recorded. No library pixels
+were inspected. Fyne exposes no toolbar counts to accessibility, so the user
+was asked for ready/failed counts before throughput/ETA can be estimated.
+
+Implementation state at this interruption: `discovery_expands_view` was observed
+failing for offscreen piles, then passed with ExpandToFit plus navigation,
+cohort-return and progressive-exploration checks. Camera publication now expands
+the existing visible area and never zooms back in automatically. The new
+`duplicate_representatives` boundary test is intentionally RED: the current
+implementation still supplies all three fixture sources instead of the larger
+duplicate representative and unique image. Do not claim this current tree
+passes the full suite or deploy it as a completed follow-up yet.
+
+The duplicate scout found existing `dupes.Visibility` filtering and native-pixel
+quality election. Missing hashes remain visible, so pending work must finish
+before snapshotting input; Grid.Close currently cancels that work. The planned
+lead-owned continuation is a small Grid preparation/readiness API using its
+existing tracked hash/group workers and duplicate-state callback, joined to
+the explorer lifecycle while its waiting map remains cancelable. Root input
+selection will retain full-set order and ignore ordinary search/selection.
+Add pending/cancel/source-replacement boundary cases after the warm quality
+slice passes, then update manuals and run the new final gate once the live
+trial has ended. No duplicate preparation code has been implemented yet.
+
+#### Manual rebuild control — updated request, 2026-09-09
+
+The user now requests manual map rebuilds by default, with automatic updates
+every 30 images retained as an opt-in. This replaces mandatory 30-image
+publications. The Update map button rebuilds from already represented data;
+it must not restart scanning or reread/encode earlier images. One final map
+remains automatic when scanning completes. Existing maps remain browsable
+while a requested rebuild is pending. Repeated requests are coalesced, and
+switching automatic updates off suppresses subsequent periodic rebuilds.
+
+The same accepted provider/actual-engine test seams apply. The provider gains
+a receive-only channel of `similarity.Control` (latest Automatic flag plus
+an Update request); the private offline worker receives controls through its
+existing input pipe. Its scan loop owns retained items and consumes controls
+at safe image boundaries. UI controls show pending rebuild state, with manual
+updates disabled until there are new successful representations. Worker/client
+control readers and writers must terminate observably with the analysis session.
+
+Tests: actual manual default and explicit/automatic control, cancellation of
+both directions, no rereading represented inputs; visible update button and
+checkbox driven through ordinary UI interactions; frozen cohort and viewport
+expansion remain required. Commands: focused TestVisualSimilarityExplorer and
+TestVisualSimilarityExplorerLocal cases, then make explorer-ui-test and the
+final make verify. No new test seam or broad subject-label decision is assumed.
+
+Focused tests resume to implement this explicit request. Their intervals are
+recorded in the live KPI evidence so measurements can distinguish development
+load. The running 50k app is not rebuilt or restarted. Final build deployment
+will wait until the user ends that run; its resource observer remains active.
+
+#### Favorite analysis reuse and settings — accepted 2026-09-09
+
+Persist successful per-source representations for existing favorite members in
+<favorite>/analysis beside file-list.json and thumbs. Reuse on future analysis
+only when source identity/version and model/preprocessing version match. Keep
+cohort membership/layout out of the cache because both depend on the current
+input set. Invalid, missing or corrupt entries fall back to analysis. Persist
+incrementally so cancellation retains completed work; never recreate a removed
+favorite. Ordinary non-favorite inputs remain transient. Existing favorite
+replacement/removal owns membership and folder lifetime.
+
+Settings agreed by user: save analysis for favorites ON; automatic updates every
+30 images OFF; fit newly discovered stacks into view ON. All three persist through
+existing preferences. Map checkbox and Settings must agree. Cache toggle applies
+to newly started scans; current scan settings are captured at admission.
+
+Lead owns implementation/review. Scout favorite_cache_routes was read-only and
+independent of active controls work (G1 bounded provenance/storage/settings
+question, G2 references verified by lead shell, G3 no writes, G4 separate storage
+subsystem, G5 cold context; no mechanical transform). Budget 1/1 scout; no further
+implementation delegation. Existing provider UI and real offline engine seams
+cover defaults/controls/persistence, cache reuse/freshness/corruption, favorite
+membership and cancellation. Verify focused Explorer subtests, full local engine
+suite and final make verify. Settings controls also checked in rendered tree.
+
+#### Implementation evidence, manual controls / favorites / settings
+
+- Manual control real-engine RED: old automatic publication at 30; GREEN 4.290s
+  after fixing pollable worker-input shutdown. UI controls RED missing button;
+  GREEN with navigation 1.351s.
+- Duplicate boundary fixture corrected to actual D key events (typed runes are
+  search input); representative test GREEN 0.933s. Cold preparation, cancellation
+  and source replacement GREEN 1.048s. Negative mutation bypassing preparation
+  and visibility made all these guards fail for the expected input/start reasons.
+- Settings UI missing-controls RED, defaults/persistence GREEN 0.953s. Auto-fit-off
+  guard rejects an unconditional camera expansion.
+- Favorite actual-engine RED: unreadable cached source failed and reused=0;
+  GREEN 3.434s across hit/change/corruption/membership/off. Cancellation/moved
+  favorite/model-version/UI-wiring suite GREEN 5.664s before negative review.
+  Negative review found the model-version fixture rounded mtime through float64;
+  changed it to json.Decoder.UseNumber so only Version is altered.
+- All-tag-active initial state is explicitly accepted for the forthcoming tag
+  overlay. It replaces suggested single cohort naming, not similarity grouping.
+
+No native bundle replacement while the live 50k scan runs. No commits created.
+Full verification and final visual checks follow the focused boundary gate.
+
+#### Release map resources on exit — user-reported retention
+
+The user stopped the large scan at roughly 6.2k images, then reported memory
+remaining high after leaving the Explorer. A single read-only observation found
+viewer RSS 16,122,208 KiB after aggregation had stopped. No background KPI
+collection was restarted. New acceptance: exiting Explorer releases its map
+resources and cancels unfinished analysis; cohort/image/back-to-map transitions
+retain the active map. Favorite analysis stays on disk. Verify via the existing
+production UI/provider seam with an observed heap-allocation delta for large
+synthetic map resources, plus existing cohort return/cancellation scenarios.
+A read-only scout is locating Fyne renderer/resource lifetimes while the lead
+constructs the reproduction. This is an independent cold dependency search;
+lead owns diagnosis, fixes and final verification. Full gate postponed until
+this newly requested fix is checked.
+
+Memory diagnosis evidence: initial boundary baseline 21.0 MiB / map 69.0 MiB /
+exit 69.0 MiB. Clearing scene/pile lists alone still retained 69.1 MiB after
+exit. Two consecutive publications retained 117.1 MiB against 21.0 MiB baseline.
+Fyne 2.8 renderer caches retain removed widgets; parent refresh deliberately
+skips image textures. Clearing each old canvas.Image source and explicitly
+refreshing it releases pixels/texture references. `SetResult` now does that after
+anchoring against the previous map. Full exit invokes closeExplorer and clears
+result/completion state; cohort/image transitions still only hide/preserve it.
+Focused memory, cohort-return, progress, cancellation and replacement tests pass
+(1.419s). This proves Go heap ownership; OS RSS can lag garbage collection.
+No global caches were purged and no forced production GC was introduced.
+
+#### Final gate — manual controls, favorites, settings and memory release
+
+- `make explorer-ui-test`: PASS 18.559s, no skips. Heap reproduction: 37.2 MiB
+  baseline, 85.2 MiB current map after two publications, 37.2 MiB after exit.
+- Adjacent preferences/settings/Grid/Favorites/help package suites: PASS.
+- `make verify`: PASS, exit 0. Formatting/TUF/Qodana checks, vet, native build,
+  shard manifest and every Linux/amd64 Docker race partition passed. Artifacts:
+  `.scratch/race-runs/20260909T155214Z-fb0HxS`; Explorer race test 39.650s.
+- `make build`: PASS; updated executable `bin/picfetch`. Running old trial app
+  untouched. Synthetic map screenshot inspected: toolbar readable, manual update
+  and unchecked automatic option visible; spaced thin-framed piles preserved.
+- `git diff --check` and 28 local documentation links: clean.
+- Preserved user staging of layout.go and unrelated :memory:.ses files. No commit.
+
+Evidence bundle: `.scratch/visual-similarity-explorer/evidence/manual-cache-release-20260909`.
+KPI aggregation stopped; 167 samples and the user's roughly 6.2k scanned count
+are retained. No completed 50k qualification or new-build RSS measurement is
+claimed. The tag overlay and saved grouping presets remain separate next slices;
+all tag checkboxes starting active is an explicit accepted requirement.
+
+Cost ledger for these follow-ups: lead-owned design, implementation and fixes;
+read-only scouts for duplicate inputs, favorite persistence routing and Fyne
+resource lifetime (one per independent question). No implementation/review
+subagents; one final full verify for this increment. Focused repeated tests were
+limited to new behavior, fixture corrections, negative guards and the subsequent
+user-reported memory retention.
