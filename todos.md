@@ -95,6 +95,9 @@ path. Draft [decision rows](.scratch/visual-similarity-explorer/decisions.md)
 and an [evaluation protocol](.scratch/visual-similarity-explorer/evaluation-protocol.md)
 now make those choices and the offline smoke/full-library trial reviewable.
 No application feature or real-engine evaluation is implemented yet.
+The [candidate research](docs/2026-09-09-visual-similarity-explorer-candidates.md#go-runtime-investigation)
+now records Go with native inference as the lead's preferred evaluation route
+following the user's Python-helper question; no runtime dependency is selected.
 
 ## LATER
 

@@ -163,3 +163,27 @@ whitespace, exactly twelve pending/draft decision rows and seven `needs-info`
 tickets. `git diff --check` passed. The tracked diff contains this plan and
 `todos.md`; the new protocol/decision records remain in the ignored local
 tracker. Application verification is deferred until application changes exist.
+
+## Runtime question: Go feasibility
+
+The user asked why Python was proposed and whether Go can implement the
+feature. Investigate this as Q8 clarification; the question itself does not
+accept the earlier Python recommendation or resolve the other trial inputs.
+The [candidate notes](../docs/2026-09-09-visual-similarity-explorer-candidates.md)
+record a Go/native-inference route and the remaining measurement requirements.
+The lead now recommends evaluating that route before a Python helper.
+
+One bounded research scout checks Go clustering/projection libraries against
+primary sources while the lead checks model inference. Its sole writable
+file is `.scratch/visual-similarity-explorer/go-clustering-research.md`.
+G1: one bounded question; G2: source-linked findings verified by lead reads;
+G3: one disjoint note; G4: independent algorithm research; G5: no prior lead
+context on those Go libraries. S/W: adaptive source investigation, no supplied
+implementation. No spec decision or review is delegated. Budget: one scout,
+one lead review, documentation checks only; no installs or image processing.
+
+Actual: one scout, one lead review. The lead verified the Go ONNX binding,
+published vision exports, CoreML requirements, and concrete limitations in
+the inspected Go HDBSCAN/UMAP documentation. No application tests or trial
+benchmarks ran. This answers feasibility at source level and leaves measured
+pipeline acceptance outstanding.

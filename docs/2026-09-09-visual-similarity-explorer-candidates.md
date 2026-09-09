@@ -36,3 +36,46 @@ These are inferences and trial questions, not architecture decisions:
 - Freezing an opened cohort's member list is a separate product responsibility. Algorithmic refits can change both membership and labels; neither raw cluster numbers nor shared map coordinates establish durable cohort identity.
 - Measure the unassigned fraction and inspect those images. Preserve access to them while evaluating singleton piles, a visible unassigned collection, or another assignment policy; none is selected here. Do not interpret the accepted single-membership rule as permission to hide noise images.
 - Evaluate embedding quality, preprocessing effects, peak memory, cold/warm processing time, cancellation and map responsiveness on representative data before extrapolating to 50,000 images. No models, packages or library images were downloaded or processed for this note.
+
+## Go runtime investigation
+
+On 2026-09-09 the user asked why the trial proposed a Python helper and
+whether the feature could be implemented in Go. Python was an experiment
+convenience: the documented Transformers, HDBSCAN and UMAP entry points above
+share that ecosystem. It is not a model requirement or an accepted dependency.
+
+**A Go inference route exists.** `yalue/onnxruntime_go` loads and executes
+ONNX networks from Go and exposes CoreML execution support. It requires cgo
+and a compatible native ONNX Runtime shared library for the target platform.
+This removes the need for a Python process but retains a native runtime
+dependency. [Binding documentation](https://github.com/yalue/onnxruntime_go#requirements)
+
+The ONNX Community publishes separate SigLIP 2 image-encoder exports,
+including full-precision, float16 and quantized variants. These are community
+conversions, not evidence that any variant has been validated for PicFetch.
+[Published artifacts](https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/tree/main/onnx)
+
+ONNX Runtime's CoreML provider can use Apple CPU, GPU and Neural Engine
+hardware. Operator restrictions mean that provider availability does not
+establish full-model acceleration or throughput.
+[Provider documentation](https://onnxruntime.ai/docs/execution-providers/CoreML-ExecutionProvider.html)
+
+**Clustering and layout need a separate evaluation.** Go implementations exist,
+but existence does not establish suitability for the intended library.
+For example, `NunoSempere/hdbscan` explicitly lists duplicate point indexes
+and correctness comparisons as unresolved work.
+[Maintainer's notes](https://github.com/NunoSempere/hdbscan#contributing)
+`nozzle/umap` exposes fitting and configurable output dimensions, but labels
+its transform as simplified nearest-neighbor lookup; its inspected API docs
+are for revision `f6085fb2514d`, not a verified latest revision.
+[API documentation](https://pkg.go.dev/github.com/nozzle/umap)
+Neither option was run or benchmarked in this investigation. Detailed bounded
+findings are in the [local research note](../.scratch/visual-similarity-explorer/go-clustering-research.md).
+
+The lead recommends evaluating Go application code with native inference
+before introducing a Python helper. The evaluation must establish exact
+preprocessing, embedding correctness, compatible pinned assets/runtime,
+effective offline execution, resource use and useful clustering/layout.
+An entirely Go inference implementation would be a different candidate;
+this investigation has not validated one. No dependency or runtime policy
+is accepted merely by recording this recommendation.
