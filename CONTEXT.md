@@ -79,3 +79,9 @@ or styles.
 
 **Image cohort**:
 A group of images related under the map's chosen grouping criterion.
+
+**Cohort pile**:
+The loose arrangement of sampled images that represents an image cohort on
+the explorer map. The sample represents the cohort's contents, not its full
+membership.
+_Avoid_: Image cohort (the group itself), mosaic

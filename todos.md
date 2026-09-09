@@ -78,10 +78,15 @@ canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 Continue the design for a local, offline content-similarity map to trial with
 roughly 50,000 library images, with sampled cohort piles opening in Grid View.
+The [specification](.scratch/visual-similarity-explorer/spec.md) captures the
+settled behavior and proposed verification, including the accepted first
+round: real grouping on this Mac, opened-file-set inputs, non-overlapping
+cohorts, and fixed membership while browsing. SigLIP 2, HDBSCAN, and UMAP are
+evaluation candidates. The spec remains `needs-info` for the remaining design
+choices and real-engine evaluation criteria.
 The [complete design notes](docs/2026-09-09-visual-similarity-explorer-design.md)
-record the settled choices, deferred capabilities, code findings, and open
-questions. The interview is paused; this remains open work, with no approved
-implementation plan or implemented feature.
+retain the interview and code findings. This remains open work, with no
+approved implementation plan or implemented feature.
 
 ## LATER
 
