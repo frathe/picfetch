@@ -625,6 +625,13 @@ the same map view. Grid search and selection keep their usual Escape stages.
 image resources. Opening the explorer again rebuilds the map, reusing saved
 favorite analysis when available.
 
+If analysis fails, open **Window -> Visual Similarity Explorer** again to retry.
+Saving over an opened source, removing a file, or encountering a missing file
+retires the current map and stops its analysis. The surviving members of an
+open cohort remain browsable. Reopen the explorer to build a fresh map; unchanged
+favorite analysis is reused. Exporting a new copy elsewhere preserves the map.
+External file changes are detected when files are read, not watched continuously.
+
 This first trial requires local model assets on an Apple Silicon Mac. Analysis
 runs locally with network access denied. Piles stay separated and continuing
 groups keep their positions as results arrive. Open cohorts retain their

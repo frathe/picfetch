@@ -487,6 +487,16 @@ func (v *viewer) retryAfterLoadFailure(token requestToken, msg string, i int, do
 	}
 
 	v.ShowToast(msg)
+	if cohort := v.cohortIndexes(); len(cohort) > 0 {
+		next := cohort[0]
+		for _, index := range cohort {
+			if index >= i {
+				next = index
+				break
+			}
+		}
+		i = next
+	}
 	v.attemptLoad(token, i, done)
 }
 

@@ -870,7 +870,11 @@ func (v *viewer) AfterMetadataRemoved(_ fyne.URI, result imaging.WriteResult) {
 func (v *viewer) RemoveFile(i int) {
 	v.invalidateSort() // cancel a sort still in flight - see sortOp's field comment
 
-	v.state.removeFile(i)
+	removed := v.state.removeFile(i)
+	v.explorerSourcesChanged()
+	if v.state.snapshot().IndexOf(removed.String()) < 0 {
+		v.explorer.cohort = slices.DeleteFunc(v.explorer.cohort, func(path string) bool { return path == removed.Path() })
+	}
 }
 
 // RemoveFiles drops every named index in one pass for an admitted ordinary

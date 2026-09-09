@@ -154,7 +154,11 @@ func (v *viewer) beginExplorerAnalysis() {
 			}
 			v.explorer.controls = nil
 			v.explorer.surface.UpdateState(false, false)
+			if err == nil && !v.explorer.complete {
+				err = errors.New("analysis ended without a completed map")
+			}
 			if err != nil {
+				v.explorer.complete = false
 				fyne.LogError("visual similarity analysis failed", err)
 				v.explorer.surface.Status(lang.L("Analysis failed. Open the explorer to retry."))
 			}
@@ -205,6 +209,14 @@ func (v *viewer) LeaveSimilarityMap() {
 	v.syncMenus()
 }
 func (v *viewer) closeExplorer() {
+	v.retireExplorerAnalysis()
+	v.explorer.surface.Hide()
+	v.explorer.cohort = nil
+}
+
+// retireExplorerAnalysis drops source-derived state without disturbing a cohort
+// currently being browsed. Committed file effects may arrive after navigation.
+func (v *viewer) retireExplorerAnalysis() {
 	if v.explorer.prepare != nil {
 		v.explorer.prepare = nil
 		v.grid.Close()
@@ -213,11 +225,17 @@ func (v *viewer) closeExplorer() {
 	v.explorer.lifecycle.invalidate()
 	v.explorer.surface.SetResult(nil)
 	v.explorer.surface.UpdateState(false, false)
-	v.explorer.surface.Hide()
 	v.explorer.sources = nil
-	v.explorer.cohort = nil
 	v.explorer.complete = false
 	v.explorer.hasMap = false
+}
+
+func (v *viewer) explorerSourcesChanged() {
+	if len(v.explorer.sources) == 0 && v.explorer.prepare == nil {
+		return
+	}
+	v.retireExplorerAnalysis()
+	v.explorer.surface.Status(lang.L("Source files changed. Open the explorer to analyze again."))
 }
 func (v *viewer) settleExplorer() {
 	for {

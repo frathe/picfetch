@@ -335,5 +335,6 @@
    "Screenshot": "Bildschirmfoto",
    "Artwork": "Kunstwerk",
    "All tags": "Alle Schlagwörter",
-   "Clear tags": "Auswahl leeren"
+   "Clear tags": "Auswahl leeren",
+   "Source files changed. Open the explorer to analyze again.": "Quelldateien wurden geändert. Öffne den Explorer, um sie erneut zu analysieren."
 }

@@ -30,6 +30,38 @@ import (
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("recovery", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg")
+		v.explorerAnalyze = (similarity.Client{Assets: t.TempDir()}).Analyze
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		failed := false
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Analysis failed. Open the explorer to retry.") {
+				failed = true
+			}
+		})
+		if !failed || len(explorerPiles(v)) != 0 {
+			t.Fatal("missing native assets did not produce a recoverable visible failure")
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		v.explorerAnalyze = (similarity.Client{Assets: assets}).Analyze
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		if piles := explorerPiles(v); len(piles) > 0 {
+			fynetest.Tap(piles[0])
+		} else {
+			fynetest.Tap(explorerButton(t, v, fmt.Sprintf(lang.L("Unassigned (%d)"), 2)))
+		}
+		want := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}
+		if !v.grid.Visible() || !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatal("native retry did not expose the complete fresh cohort")
+		}
+	})
+
 	t.Run("semantic_tags", func(t *testing.T) {
 		v := openGridWith(t, "a-cat.png", "b-blank.jpg", "c-portrait.png", "d-coffee.png", "e-black.jpg", "f-gray.jpg")
 		cat, err := os.ReadFile("testdata/explorer/chelsea.png")
@@ -565,6 +597,15 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		})
 		if !progress || completed || !errors.Is(err, context.Canceled) {
 			t.Fatalf("real worker did not stop after progress: progress=%v complete=%v err=%v", progress, completed, err)
+		}
+		var retried similarity.Event
+		err = (similarity.Client{Assets: assets}).Analyze(context.Background(), []string{v.FileAt(1).Path(), v.FileAt(2).Path()}, nil, func(e similarity.Event) {
+			if e.Complete {
+				retried = e
+			}
+		})
+		if err != nil || !retried.OfflineVerified || retried.Successful != 2 || retried.Failed != 0 || len(retried.Items) != 2 {
+			t.Fatalf("native restart after canceled worker: ready=%d failed=%d items=%d err=%v", retried.Successful, retried.Failed, len(retried.Items), err)
 		}
 	})
 }

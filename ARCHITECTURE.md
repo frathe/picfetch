@@ -138,6 +138,10 @@ Replaced pile images have their sources cleared and refreshed to release Fyne
 renderer/texture references. Leaving Explorer clears the map; cohort round trips
 retain it.
 
+Committed writes through `filework.go` and removals through `viewer.RemoveFile`
+retire the analysis/map while preserving surviving cohort identities;
+`load.go` keeps missing-file retries within the remaining cohort.
+
 ### `internal/ui`
 
 The application. Unexported `appState` is the file-set model (scan/drop

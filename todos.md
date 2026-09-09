@@ -38,6 +38,11 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+- **Recover similarity exploration after file changes or analysis failures.**
+  Failed and incomplete runs can be retried. Source writes and removals retire
+  stale maps while preserving surviving cohort members; missing-file navigation
+  stays within that cohort. Late results cannot overwrite a restarted map.
+
 Grid View now keeps the ring visible while scrolling with the mouse wheel or
 trackpad, and live duplicate merges preserve the viewport. Explicit selection
 and the displayed image stay unchanged. Native scrollbar movement keeps its
@@ -115,8 +120,8 @@ Stack spacing, preview scattering and fitted borders address the native feedback
 The same 446-image benchmark completed in 101.088 seconds (first map: 9.840s),
 with 46 cohorts and 55 unassigned after the density adjustment, versus 90 before.
 The final `make verify` and real offline `make explorer-ui-test` pass. Counts
-depend on input order and do not establish semantic accuracy. Favorite representation persistence has been implemented; extended recovery and
-full-library qualification remain tickets 06-07.
+depend on input order and do not establish semantic accuracy. Favorite representation persistence and source/failure recovery have been implemented;
+full-library qualification remains ticket 07.
 The supplied demo does not qualify the intended roughly 50,000-image trial.
 The current batch HDBSCAN/UMAP experiment has cancellation and scaling limits;
 these must be resolved before selecting the full-library engine.
@@ -149,6 +154,14 @@ missed or mislabeled; 31 tags and a provisional score threshold do not establish
 full-library semantic accuracy. Custom traits and saved presets remain separate.
 Final real offline/native suites, `make verify`, refreshed build checks and
 `make build` pass. The updated executable is `bin/picfetch`.
+
+### Similarity explorer recovery
+
+Source/failure recovery (ticket 06) is implemented and verified: focused/native
+suites, the 446-image smoke run, `make verify` and `make build` passed.
+[Recovery evidence](.scratch/visual-similarity-explorer/evidence/recovery.md)
+records the source-change policy and regression coverage. Full-library
+qualification and the saved-preset choices below remain open.
 
 ### Saved similarity group presets
 

@@ -715,6 +715,15 @@ vorherigen Kartenansicht. Suche und Auswahl behalten ihre üblichen Escape-Stufe
 gibt ihre Bilddaten frei. Erneutes Öffnen erstellt die Karte neu und verwendet
 gespeicherte Favoritenanalysen, sofern vorhanden.
 
+Wenn die Analyse fehlschlägt, startet **Fenster -> Visueller Ähnlichkeits-Explorer**
+einen neuen Versuch. Wird eine geöffnete Quelldatei überschrieben, entfernt oder
+beim Lesen als fehlend erkannt, wird die aktuelle Karte verworfen und ihre
+Analyse beendet. Die übrigen Mitglieder einer geöffneten Gruppe bleiben
+durchsuchbar. Erneutes Öffnen erstellt eine frische Karte und verwendet
+unveränderte Favoritenanalysen wieder. Der Export einer neuen Kopie an einen
+anderen Ort erhält die Karte. Externe Dateiänderungen werden beim Lesen erkannt,
+nicht fortlaufend überwacht.
+
 Dieser erste Test benötigt lokale Modelldaten auf einem Mac mit Apple Silicon.
 Die Analyse läuft lokal mit gesperrtem Netzwerkzugriff. Stapel halten Abstand;
 bestehende Gruppen behalten bei neuen Ergebnissen ihre Position. Eine geöffnete

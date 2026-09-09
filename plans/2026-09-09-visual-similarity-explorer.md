@@ -1,7 +1,7 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tag overlay implemented and verified; native library-quality trial and later slices remain open
+Status: semantic tags and ticket 06 recovery implemented and verified; saved presets and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
@@ -687,3 +687,109 @@ Cost: one read-only scout (budget 1/actual 1); all implementation and review
 inline. Review extended to a second pass because native focus and aggregate
 coverage exposed concrete defects. One full race gate; focused/native repeats
 were limited to those findings and negative verification.
+
+## Recovery — resumed implementation, 2026-09-09
+
+Deliver ticket 06: coherent exit/restart, source mutation and failure recovery
+through the existing viewer and offline engine. Route: Deep. Accepted D2/D5
+and the confirmed UI/provider and actual-engine seams apply. Preset product
+choices and full-library qualification remain outside this slice. External
+file watching is not introduced; reconciliation follows ordinary viewer actions
+and engine source-version checks.
+
+### Recovery task 1 — Lifetime and retry
+Owner: T0 inline
+Files: internal/ui/explorer.go; internal/ui/explorer_test.go
+Depends: accepted D5
+Contract: exit/shutdown invalidate queued delivery; shutdown refuses admission;
+retry starts fresh; failed or incomplete analysis cannot be retained as complete.
+Test: outstanding publication and termination callbacks across exit, shutdown,
+restart; setup/analysis failure with normal input focus and a successful retry.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^(lifecycle|recovery)$' -count=1 -v`
+Budget: 0 spawns; up to 2 lead reviews; focused suite only
+
+### Recovery task 2 — Source identities and committed effects
+Owner: T0 inline; read-only scout for existing mutation/reconciliation routes
+Files: internal/ui/explorer.go; filework.go; viewer removal glue as identified;
+internal/ui/load.go; internal/ui/explorer_test.go; internal/ui/explorer_local_test.go
+Depends: accepted D2; task 1 lifetime contract
+Contract: reorder preserves identity; removal reconciles actionable cohort
+members; writes invalidate affected analysis even when the initiating request
+is stale. New exports outside the input set leave analysis intact. Rejected
+late results cannot restore invalidated content. Existing file-work workers
+resolve aliases; no filesystem reads on UI and no new worker family.
+Test: actual UI sort/delete/write/navigation paths plus actual offline worker
+missing-source, cancellation/restart and source-version rejection.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^source_changes$' -count=1 -v`; `make explorer-ui-test`
+Budget: 1 scout; up to 2 lead reviews; focused suite only
+
+### Recovery task 3 — Verify and record
+Owner: T0 inline
+Files: ticket 06, evidence/recovery.md, todos.md, this plan, manuals/architecture
+only where behavior or locators change
+Depends: tasks 1 and 2
+Contract: observed red/green and negative guards; exact native/smoke results;
+honest remaining limits and canonical gate evidence.
+Verify: `make explorer-test`; `make explorer-evaluate TRIAL=smoke`; `make verify`; `make build`; `git diff --check`
+Budget: 0 spawns; one final full race gate
+
+Graph: source-route scout alongside task 1; 1 -> 2 -> 3.
+Scout gate: G1 bounded mutation-route question; G2 source locations verified by
+lead shell; G3 no writes; G4 separate cross-feature routing context; G5 lead has
+read only explorer and filework, not mutation callers/tests. S/W: adaptive
+call tracing, no mechanical transform. Literal Explore unavailable; inherited
+model in read-only role. Lead owns all design, review and fixes.
+
+### Recovery implementation evidence
+
+Observed RED -> GREEN: final publication followed by worker failure prevented
+retry; an incomplete successful return showed no failure; stale committed source
+exports (including a loaded symlink) retained old map content; removal followed
+by late publication restored old content; a missing cohort member sent image
+navigation into an unrelated cohort. Each behavior now passes its boundary test.
+The initial alias fixture exported *over* a symlink (replacing the link), which
+correctly did not change the source; it was corrected to a loaded symlink whose
+actual target is overwritten. No production alias behavior was changed.
+
+Deliberately removing the queued-publication token check made the lifecycle
+restart test fail with the old source replacing the fresh cohort. Source was
+restored. The test delays the old queue until the new map has been delivered.
+Shutdown and exit use the same accepted UI/provider seam and observe worker exit.
+
+Chosen source-change behavior: retire the entire grouping snapshot and cancel
+its worker, retaining the remaining frozen cohort identities for browsing.
+Retry explicitly rebuilds grouping and reuses valid favorite representations.
+This avoids silently continuing a grouping whose input changed; incremental
+per-source regrouping and external filesystem watching are not introduced.
+An unrelated exported copy leaves the map intact. Missing-file load retries
+stay within a surviving cohort; ordinary viewer behavior applies if none remain.
+
+`make explorer-ui-test`: PASS, 22.215s, no skips. Actual native failure/retry,
+cancel/restart, missing-source and favorite freshness cases ran under verified
+network denial. `make explorer-test`: PASS. Initial attempts within the agent
+sandbox could not install macOS network denial; the authorized tests were rerun
+outside that sandbox, retaining the worker's own outbound denial. Focused race,
+446-image smoke and final canonical gate evidence follow below.
+
+### Recovery final gate and handoff
+
+- Focused Explorer race suite: PASS, 58.687s. All native/actual-engine tests
+  passed without required skips. Synthetic source-change render inspected at
+  1280 x 800; message fully readable, stale piles cleared, Update map disabled.
+- `make explorer-evaluate TRIAL=smoke`: PASS; all 446 images represented,
+  zero failed, 93.189s processing, 1,106.1 MiB worker peak RSS. Run overlapped
+  verification load; not a controlled timing comparison or 50k qualification.
+- `make verify`: PASS, exit 0. Formatting/TUF/Qodana checks, vet, host build,
+  exact shard inventory and all four Linux/amd64 Docker race partitions passed.
+  Explorer itself passed in 74.280s under Linux race detection. Retained run:
+  `.scratch/race-runs/20260909T165106Z-Mz79ox`.
+- `make build`: PASS; refreshed `bin/picfetch`. No app bundle replacement,
+  running-app restart, or commit. Pre-existing untracked files are untouched.
+- Evidence: [recovery.md](../.scratch/visual-similarity-explorer/evidence/recovery.md).
+  Ticket 06 is ready for human trial; the broader plan remains active.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Recovery 1 | 0 / 0 | 1 | no | Failed/incomplete retry and queued lifecycle delivery |
+| Recovery 2 | 1 / 1 | 2 | no | Read-only route scout; source writes/removals and missing-load regression |
+| Recovery 3 | 0 / 0 | 1 | one, passed | Native suites, smoke, synthetic render, canonical gate and build |

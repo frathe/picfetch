@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
 	"image/color"
 	"image/png"
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sync"
@@ -25,8 +27,11 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 )
@@ -115,6 +120,20 @@ func explorerGridPaths(v *viewer) []string {
 	return paths
 }
 
+func explorerButton(t *testing.T, v *viewer, label string) *widget.Button {
+	t.Helper()
+	var found *widget.Button
+	explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+		if button, ok := o.(*widget.Button); ok && button.Text == lang.L(label) {
+			found = button
+		}
+	})
+	if found == nil {
+		t.Fatalf("missing visible button %q", label)
+	}
+	return found
+}
+
 // A publication is observed only after its provider callback has queued it and
 // the owning UI queue has delivered it. The worker remains held between maps.
 func streamingExplorer(t *testing.T) (*viewer, func([]string, bool)) {
@@ -163,6 +182,258 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
+
+	t.Run("source_changes", func(t *testing.T) {
+		t.Run("missing_cohort_member", func(t *testing.T) {
+			v := explorerFixture(t)
+			fynetest.Tap(explorerPiles(v)[0])
+			members := explorerGridPaths(v)
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitUntilLoaded(t, v)
+			v.preloads.Wait()
+			if err := os.Remove(members[len(members)-1]); err != nil {
+				t.Fatal(err)
+			}
+			v.imgCache.Purge()
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+			waitUntilLoaded(t, v)
+			remaining := members[:len(members)-1]
+			if current, _, _ := v.CurrentFile(); !slices.Contains(remaining, current.Path()) {
+				t.Fatalf("missing member sent navigation outside its cohort: %s", current.Path())
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			if !v.grid.Visible() || !slices.Equal(explorerGridPaths(v), remaining) {
+				t.Fatal("missing file remained actionable in the frozen cohort")
+			}
+		})
+
+		t.Run("remove_after_reorder", func(t *testing.T) {
+			v := openGridWith(t, "c.jpg", "a.jpg", "b.jpg")
+			preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+			queued, release := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			t.Cleanup(unblock)
+			v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				items := []similarity.Item{
+					{Path: paths[0], Cohort: "a", Preview: preview},
+					{Path: paths[1], Cohort: "a", Preview: preview},
+					{Path: paths[2], Cohort: "b", Preview: preview},
+				}
+				emit(similarity.Event{Items: items, Successful: 3, Total: 3})
+				close(queued)
+				<-release
+				emit(similarity.Event{Items: items, Successful: 3, Total: 3, Complete: true})
+				return nil
+			}
+			explorerMenu(t, v).Action()
+			<-queued
+			v.explorer.ui.Drain()
+			fynetest.Tap(explorerPiles(v)[0])
+			members := explorerGridPaths(v)
+			moving, moveRelease := make(chan struct{}), make(chan struct{})
+			finishMove := sync.OnceFunc(func() { close(moveRelease) })
+			t.Cleanup(finishMove)
+			uitest.StubTrashMove(t, func(path string) error {
+				close(moving)
+				<-moveRelease
+				return os.Remove(path)
+			})
+			v.requestDelete()
+			v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+			v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			<-moving
+			v.menus.Actions().Sort()[filesort.ByDropOrder].Action()
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			if got := explorerGridPaths(v); !slices.Equal(got, members) {
+				t.Fatalf("reorder changed cohort identities: %v", got)
+			}
+			finishMove()
+			v.deletion.Settle()
+			if got := explorerGridPaths(v); !slices.Equal(got, members[1:]) {
+				t.Fatalf("deletion after reorder targeted the wrong member: %v", got)
+			}
+			unblock()
+			v.settleExplorer()
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitUntilLoaded(t, v)
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+			waitUntilLoaded(t, v)
+			if current, _, _ := v.CurrentFile(); current.Path() != members[1] {
+				t.Fatal("navigation escaped the surviving frozen cohort")
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			fynetest.Tap(explorerButton(t, v, "Back to map"))
+			if len(explorerPiles(v)) != 0 {
+				t.Fatal("removed source survived in the map through a late publication")
+			}
+		})
+
+		for _, destination := range []string{"source", "alias", "unrelated"} {
+			t.Run(destination, func(t *testing.T) {
+				v := explorerFixture(t)
+				fynetest.Tap(explorerPiles(v)[0])
+				members := explorerGridPaths(v)
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+				waitUntilLoaded(t, v)
+				source, _, _ := v.CurrentFile()
+				dest := source
+				if destination != "source" {
+					dest = storage.NewFileURI(filepath.Join(t.TempDir(), "export.png"))
+				}
+				if destination == "alias" {
+					if err := os.Rename(source.Path(), dest.Path()); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(dest.Path(), source.Path()); err != nil {
+						t.Fatal(err)
+					}
+				}
+				entered, release := make(chan struct{}), make(chan struct{})
+				unblock := sync.OnceFunc(func() { close(release) })
+				t.Cleanup(unblock)
+				v.fileWork.export = func(ctx context.Context, dest fyne.URI, pixels image.Image, src fyne.URI, opts imaging.ExportOptions) (imaging.WriteResult, error) {
+					result, err := imaging.ExportContext(ctx, dest, pixels, src, opts)
+					close(entered)
+					<-release
+					return result, err
+				}
+				uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return dest, nil })
+				v.rotateBy(1)
+				v.exportAs(".png")
+				<-entered
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+				waitUntilLoaded(t, v)
+				current, _, _ := v.CurrentFile()
+				unblock()
+				settleChooser(t, v)
+				if got, _, _ := v.CurrentFile(); got.String() != current.String() {
+					t.Fatal("stale export changed the currently viewed file")
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				if !v.grid.Visible() || !slices.Equal(explorerGridPaths(v), members) {
+					t.Fatal("committed export changed the frozen browsing cohort")
+				}
+				fynetest.Tap(explorerButton(t, v, "Back to map"))
+				if destination == "unrelated" {
+					if len(explorerPiles(v)) != 2 {
+						t.Fatal("unrelated export invalidated source analysis")
+					}
+				} else if len(explorerPiles(v)) != 0 {
+					t.Fatal("committed source write retained stale map results")
+				}
+			})
+		}
+	})
+
+	t.Run("lifecycle", func(t *testing.T) {
+		for _, action := range []string{"exit", "restart", "shutdown"} {
+			t.Run(action, func(t *testing.T) {
+				v := openGridWith(t, "a.jpg", "b.jpg")
+				preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+				queued := make(chan struct{})
+				v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					emit(similarity.Event{Complete: true, Successful: 1, Total: 2, Items: []similarity.Item{
+						{Path: paths[0], Cohort: "old", Preview: preview},
+					}})
+					close(queued)
+					<-ctx.Done()
+					return ctx.Err()
+				}
+				explorerMenu(t, v).Action()
+				<-queued
+				oldQueue := v.explorer.ui
+				if action == "shutdown" {
+					lifecycle, ok := testApp.Lifecycle().(interface{ OnStopped() func() })
+					if !ok {
+						t.Fatal("test app has no stopped hook")
+					}
+					previous := lifecycle.OnStopped()
+					registerShutdown(testApp, v)
+					shutdown := lifecycle.OnStopped()
+					testApp.Lifecycle().SetOnStopped(previous)
+					shutdown()
+				} else {
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				}
+				v.explorer.workers.Wait()
+				v.explorer.ui = &uitest.UIQueue{}
+				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					emit(similarity.Event{Complete: true, Successful: 1, Total: 2, Items: []similarity.Item{
+						{Path: paths[1], Cohort: "new", Preview: preview},
+					}})
+					return nil
+				}
+				if action != "exit" {
+					explorerMenu(t, v).Action()
+				}
+				v.settleExplorer()
+				oldQueue.Drain()
+				piles := explorerPiles(v)
+				if action != "restart" {
+					if len(piles) != 0 || v.explorer.surface.Visible() || v.FileCount() != 2 {
+						t.Fatal("retired analysis mutated or reopened the viewer")
+					}
+					return
+				}
+				if len(piles) != 1 {
+					t.Fatalf("restarted map has %d piles", len(piles))
+				}
+				fynetest.Tap(piles[0])
+				if got := explorerGridPaths(v); !slices.Equal(got, []string{v.FileAt(1).Path()}) {
+					t.Fatalf("old queued result replaced the new cohort: %v", got)
+				}
+			})
+		}
+	})
+
+	t.Run("recovery", func(t *testing.T) {
+		for _, failure := range []string{"setup", "after_partial", "after_final", "incomplete"} {
+			t.Run(failure, func(t *testing.T) {
+				v := openGridWith(t, "a.jpg", "b.jpg")
+				preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					if failure != "setup" {
+						emit(similarity.Event{Complete: failure == "after_final", Successful: 1, Total: 2, Items: []similarity.Item{
+							{Path: paths[0], Cohort: "failed", Preview: preview},
+						}})
+					}
+					if failure == "incomplete" {
+						return nil
+					}
+					return io.ErrUnexpectedEOF
+				}
+				explorerMenu(t, v).Action()
+				v.settleExplorer()
+				failed := false
+				explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+					if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Analysis failed. Open the explorer to retry.") {
+						failed = true
+					}
+				})
+				if !failed {
+					t.Fatal("analysis failure has no visible recovery feedback")
+				}
+				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					emit(similarity.Event{Complete: true, Successful: 1, Failed: 1, Total: 2, Items: []similarity.Item{
+						{Path: paths[1], Cohort: "retried", Preview: preview},
+						{Path: paths[0], Error: "unreadable"},
+					}})
+					return nil
+				}
+				explorerMenu(t, v).Action()
+				v.settleExplorer()
+				piles := explorerPiles(v)
+				if len(piles) != 1 {
+					t.Fatalf("retry produced %d piles, want one readable cohort", len(piles))
+				}
+				fynetest.Tap(piles[0])
+				if got := explorerGridPaths(v); !slices.Equal(got, []string{v.FileAt(1).Path()}) {
+					t.Fatalf("retry retained failed analysis: %v", got)
+				}
+			})
+		}
+	})
 
 	t.Run("tags_filter", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg")
