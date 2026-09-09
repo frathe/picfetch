@@ -44,6 +44,12 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+- **Keep large similarity maps at a usable zoom.** Maps above 100 cohort piles
+  stop at 50% zoom, including manual and automatic fitting. Every sampled
+  thumbnail remains, smaller maps retain their zoom range, and new discoveries
+  stop moving the camera at the floor. Pan or use direction keys to browse
+  beyond the viewport.
+
 - **Reduce large similarity-map update overhead.** Display messages omit the
   inference vectors retained by the worker/cache, and stack placement checks
   nearby cells and ring perimeters. The local 1,600-stack packing replay fell
@@ -99,15 +105,13 @@ canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ## TODO
 
-### Next session — 2026-09-10
+### Similarity-map zoom trial
 
-Start with the active plan's [resume section](plans/2026-09-09-visual-similarity-explorer.md#resume-on-2026-09-10).
-Priority: trial the new controls on a smaller collection, establish profiling
-with retained symbols, then use SDD/TDD to make zoomed-out overview navigation
-responsive. Validate progressively before repeating the 50k stress run. Scan
-throughput and saved group presets follow that milestone. The original client,
-worker and observers have ended; the resume section records the evidence,
-known limits and attachment precautions.
+The current increment enforces a 50% zoom floor only above 100 cohort piles,
+including Fit map and automatic discovery, while keeping every sampled
+thumbnail. Smaller maps retain the existing zoom range. The active plan records
+SDD/TDD and verification evidence. Trial the cutoff on normal and large maps;
+scan throughput and saved group presets remain later work.
 
 ### Visual similarity explorer proof of concept
 
@@ -211,9 +215,11 @@ zoomed in. The live capture recorded a 9.532 GiB viewer peak during publication,
 settling near 5 GiB, plus main-thread CPU bursts and repeated texture uploads
 during interaction. Map layout visits every pile; distant piles retain all
 sampled thumbnails, and smooth image rescaling recreates textures on zoom.
-Evaluate reduced detail at overview zoom and texture reuse before expanding
-the renderer. Treat this as the observed extreme-case limit, with no measured
-FPS guarantee. Exact source accounting and semantic qualification remain open.
+The user chose a minimum zoom for large maps and rejected reducing thumbnail
+counts. The current increment preserves all samples, clamps maps above 100 piles
+to 50% zoom, and keeps the camera stable when automatic expansion reaches that
+floor. Native replay results are recorded in the active plan. Full-library
+source accounting, semantic qualification and scan throughput remain open.
 See [render-transition evidence](.scratch/visual-similarity-explorer/evidence/render-transition-20260909/README.md).
 
 ## LATER

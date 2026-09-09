@@ -50,6 +50,40 @@ func explorerMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func explorerFixture(t *testing.T) *viewer { return explorerFixtureScale(t, 1) }
+
+func explorerLargeFixture(t *testing.T) (*viewer, func(int, bool)) {
+	t.Helper()
+	names := make([]string, 144)
+	for i := range names {
+		names[i] = fmt.Sprintf("%03d.jpg", i)
+	}
+	v, publish := streamingExplorerEvents(t, names...)
+	v.win.Resize(fyne.NewSize(1100, 700))
+	preview := uitest.EncodeJPEG(t, 128, 96, color.White)
+	return v, func(count int, complete bool) {
+		items := make([]similarity.Item, count)
+		var merges []similarity.CohortMerge
+		for i := range items {
+			group := max(0, i-15)
+			items[i] = similarity.Item{Path: v.FileAt(i).Path(), Cohort: fmt.Sprintf("%03d", group), Position: []float32{float32(group % 12), float32(group / 12)}, Preview: preview}
+			if group > 0 {
+				merges = append(merges, similarity.CohortMerge{Left: "000", Right: items[i].Cohort})
+			}
+		}
+		publish(similarity.Event{Total: v.FileCount(), Successful: count, Complete: complete, Items: items, Merges: merges})
+	}
+}
+
+func explorerSamples(pile *explorerui.Pile) []string {
+	var names []string
+	explorerWalk(pile, func(o fyne.CanvasObject) {
+		if img, ok := o.(*canvas.Image); ok && img.Resource != nil {
+			names = append(names, img.Resource.Name())
+		}
+	})
+	return names
+}
+
 func explorerFixtureScale(t *testing.T, factor float32) *viewer {
 	t.Helper()
 	names := make([]string, 18)
@@ -178,9 +212,12 @@ func streamingExplorer(t *testing.T) (*viewer, func([]string, bool)) {
 	}
 }
 
-func streamingExplorerEvents(t *testing.T) (*viewer, func(similarity.Event)) {
+func streamingExplorerEvents(t *testing.T, names ...string) (*viewer, func(similarity.Event)) {
 	t.Helper()
-	v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg", "g.jpg", "h.jpg")
+	if len(names) == 0 {
+		names = []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg", "g.jpg", "h.jpg"}
+	}
+	v := openGridWith(t, names...)
 	events := make(chan similarity.Event)
 	published := make(chan struct{})
 	v.explorerAnalyze = func(ctx context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
@@ -1092,6 +1129,134 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("disabling duplicate filtering did not restore all analysis inputs")
 		}
 	})
+	t.Run("minimum_zoom_inputs", func(t *testing.T) {
+		v, publish := explorerLargeFixture(t)
+		publish(144, true)
+		v.settleExplorer()
+		pile := explorerPiles(v)[0]
+		samples := explorerSamples(pile)
+		if len(samples) != 15 {
+			t.Fatalf("large map must retain all 15 sampled thumbnails, got %d", len(samples))
+		}
+		for range 12 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
+		}
+		for range 40 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
+		}
+		if got := pile.Size().Width; math.Abs(float64(got-190)) > .01 {
+			t.Fatalf("large-map zoom-out must stop at a 190px pile, got %.2fpx", got)
+		}
+		pos, size := pile.Position(), pile.Size()
+		fynetest.Tap(explorerButton(t, v, "-"))
+		v.explorer.surface.Scrolled(&fyne.ScrollEvent{Position: fyne.NewPos(81, 93), Scrolled: fyne.Delta{DY: -1000}})
+		if pile.Position() != pos || pile.Size() != size || !slices.Equal(explorerSamples(pile), samples) {
+			t.Fatal("zoom-out at the floor changed the camera or sampled thumbnails")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
+		if pile.Size().Width <= size.Width {
+			t.Fatal("zoom-in stopped working at the floor")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
+		// Bring the sampled cohort onto the screen using the ordinary pan input.
+		viewport := v.explorer.surface.Size()
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2}})
+		pos, size = pile.Position(), pile.Size()
+		fynetest.Tap(pile)
+		if len(explorerGridPaths(v)) != 16 {
+			t.Fatal("large-map pile did not open its complete cohort")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if pile.Position() != pos || pile.Size() != size || !slices.Equal(explorerSamples(pile), samples) {
+			t.Fatal("cohort return lost the camera or full sample set")
+		}
+
+		small := explorerFixture(t)
+		for range 40 {
+			small.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
+		}
+		if got := explorerPiles(small)[0].Size().Width; math.Abs(float64(got-11.4)) > .01 {
+			t.Fatalf("small map lost its original 0.03x zoom floor: pile %.2fpx", got)
+		}
+	})
+
+	t.Run("minimum_zoom_fit", func(t *testing.T) {
+		v, publish := explorerLargeFixture(t)
+		publish(120, false)
+		if got := explorerPiles(v)[0].Size().Width; math.Abs(float64(got-190)) > .01 {
+			t.Fatalf("initial large-map fit bypassed the floor: %.2fpx", got)
+		}
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 23, DY: -17}})
+		before := explorerPiles(v)[0].Position()
+		publish(144, false)
+		pile := explorerPiles(v)[0]
+		if math.Abs(float64(pile.Size().Width-190)) > .01 || pile.Position() != before {
+			t.Fatalf("discovery at the floor moved the camera: %v -> %v, width %.2f", before, pile.Position(), pile.Size().Width)
+		}
+		fynetest.Tap(explorerButton(t, v, "Fit map"))
+		if got := pile.Size().Width; math.Abs(float64(got-190)) > .01 {
+			t.Fatalf("manual large-map fit bypassed the floor: %.2fpx", got)
+		}
+		// Keyboard navigation must still bring distant piles into view.
+		for range 20 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+		}
+		var selected *explorerui.Pile
+		for _, p := range explorerPiles(v) {
+			explorerWalk(p, func(o fyne.CanvasObject) {
+				if frame, ok := o.(*canvas.Rectangle); ok && frame.StrokeWidth >= 2 {
+					selected = p
+				}
+			})
+		}
+		if selected == nil {
+			t.Fatal("large-map navigation lost selection")
+		}
+		pos, size, viewport := selected.Position(), selected.Size(), v.explorer.surface.Size()
+		if pos.X < 0 || pos.Y < 0 || pos.X+size.Width > viewport.Width || pos.Y+size.Height > viewport.Height {
+			t.Fatal("keyboard navigation left the selected large-map pile off screen")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		if !v.grid.Visible() || len(explorerGridPaths(v)) == 0 {
+			t.Fatal("keyboard could not open the distant cohort")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+
+		var slider *widget.Slider
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if s, ok := o.(*widget.Slider); ok {
+				slider = s
+			}
+		})
+		if slider == nil {
+			t.Fatal("missing granularity control")
+		}
+		slider.SetValue(0)
+		for range 40 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
+		}
+		if got := explorerPiles(v)[0].Size().Width; math.Abs(float64(got-11.4)) > .01 {
+			t.Fatal("reducing a large map to one pile did not release its zoom limit")
+		}
+		slider.SetValue(100)
+		if got := explorerPiles(v)[0].Size().Width; math.Abs(float64(got-190)) > .01 {
+			t.Fatal("restoring a large map retained the small-map zoom")
+		}
+		v.win.Resize(fyne.NewSize(700, 400))
+		v.ForceRepaint()
+		if explorerPiles(v)[0].Size().Width < 190 {
+			t.Fatal("window resize bypassed the large-map zoom floor")
+		}
+		publish(115, true) // Exactly 100 cohorts, including the 16-image pile.
+		v.settleExplorer()
+		for range 40 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
+		}
+		if got := explorerPiles(v)[0].Size().Width; math.Abs(float64(got-11.4)) > .01 {
+			t.Fatalf("100-pile map incorrectly received the large-map zoom floor: %.2fpx", got)
+		}
+	})
+
 	t.Run("auto_fit_off", func(t *testing.T) {
 		v, publish := streamingExplorer(t)
 		v.win.Resize(fyne.NewSize(1100, 700))

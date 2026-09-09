@@ -198,6 +198,7 @@ func (m *Map) rebuild() {
 	orientPiles(m.piles, m.Size())
 	m.normalizeSpacing()
 	anchorPiles(m.piles, previous)
+	m.zoom = max(m.minimumZoom(), m.zoom)
 	m.setTags(m.items)
 	m.filterTags()
 	// Fyne can retain removed widgets in its renderer caches. Release their
@@ -225,13 +226,22 @@ func (m *Map) Fit() {
 			hi.Y = max(hi.Y, p.world.Y)
 		}
 		m.center = fyne.NewPos((lo.X+hi.X)/2, (lo.Y+hi.Y)/2)
-		m.zoom = max(.03, min(m.Size().Width/(hi.X-lo.X+pileWidth+20), m.Size().Height/(hi.Y-lo.Y+pileHeight+30)))
+		m.zoom = max(m.minimumZoom(), min(m.Size().Width/(hi.X-lo.X+pileWidth+20), m.Size().Height/(hi.Y-lo.Y+pileHeight+30)))
 	}
 	m.Refresh()
 }
 
-// ExpandToFit retains the current visible area and adds room for discovered
-// piles. Publications never zoom back in when a later grouping is smaller.
+// Maps with more than 100 cohort piles need a tighter zoom floor.
+// Small maps retain their original zoom range; every pile keeps all its samples.
+func (m *Map) minimumZoom() float32 {
+	if len(m.piles) > 100 {
+		return .5
+	}
+	return .03
+}
+
+// ExpandToFit adds room for discovered piles down to the map's zoom floor.
+// At that floor, discovery preserves the camera instead of chasing new piles.
 func (m *Map) ExpandToFit() {
 	size := m.Size()
 	half := fyne.NewPos(size.Width/(2*m.zoom), size.Height/(2*m.zoom))
@@ -244,7 +254,11 @@ func (m *Map) ExpandToFit() {
 	if lo == beforeLo && hi == beforeHi {
 		return
 	}
-	m.zoom = min(m.zoom, size.Width/(hi.X-lo.X), size.Height/(hi.Y-lo.Y))
+	next := max(m.minimumZoom(), min(m.zoom, size.Width/(hi.X-lo.X), size.Height/(hi.Y-lo.Y)))
+	if next == m.zoom {
+		return
+	}
+	m.zoom = next
 	m.center = fyne.NewPos((lo.X+hi.X)/2, (lo.Y+hi.Y)/2)
 	m.Refresh()
 }
@@ -265,7 +279,10 @@ func (m *Map) Scrolled(e *fyne.ScrollEvent) {
 	m.scale(float32(math.Exp(float64(e.Scrolled.DY)/180)), e.Position)
 }
 func (m *Map) scale(factor float32, at fyne.Position) {
-	next := max(.03, min(8, m.zoom*factor))
+	next := max(m.minimumZoom(), min(8, m.zoom*factor))
+	if next == m.zoom {
+		return
+	}
 	delta := at.Subtract(fyne.NewPos(m.Size().Width/2, m.Size().Height/2))
 	m.center.X += delta.X * (1/m.zoom - 1/next)
 	m.center.Y += delta.Y * (1/m.zoom - 1/next)

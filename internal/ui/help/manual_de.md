@@ -722,7 +722,13 @@ Zum Zoomen ohne Shift scrollen oder `+`/`-` verwenden.
 Der aktive Stapel wird umrandet und im sichtbaren Bereich gehalten;
 `Enter` öffnet sein Raster.
 **Karte einpassen** setzt die Ansicht zurück. Neue Ergebnisse zoomen bei Bedarf
-automatisch heraus, damit neue Stapel sichtbar bleiben, jedoch nie hinein. Ein Klick auf einen Stapel öffnet
+automatisch heraus, damit neue Stapel sichtbar werden. Bei mehr als 100 Stapeln
+gilt ein Mindestzoom von 50 %, auch für **Karte einpassen** und das automatische
+Einpassen. Beim Überschreiten dieser Grenze wird bei Bedarf hineingezoomt;
+kleinere Karten behalten ihren normalen Zoombereich. Jeder Stapel behält alle
+seine Vorschaubilder. Verschieben oder Richtungstasten erreichen Stapel außerhalb
+des Fensters. Am Mindestzoom verändern neue Ergebnisse die Kameraposition nicht.
+Ein Klick auf einen Stapel öffnet
 seine gesamte Gruppe in der Rasteransicht. Ein Bild wie gewohnt öffnen;
 die Navigation bleibt innerhalb der Gruppe. `Escape` führt zum Gruppenraster
 zurück, anschließend ein weiteres `Escape` oder **Zurück zur Karte** zur

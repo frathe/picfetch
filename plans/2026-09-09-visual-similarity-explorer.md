@@ -1,12 +1,12 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tags, recovery and trial controls implemented and verified; saved presets and full-library qualification remain open
+Status: semantic tags, recovery, trial controls and conditional large-map zoom implemented and verified; saved presets and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Next session: [Resume on 2026-09-10](#resume-on-2026-09-10) — trial the current controls, then improve overview responsiveness.
+Current increment: [Minimum map zoom](#minimum-map-zoom--2026-09-09-resumed) — preserve every sampled thumbnail and limit zoom only for large maps.
 
 ## Deliverable and accepted contract
 
@@ -1016,3 +1016,103 @@ overview, rather than adopting an unmeasured universal frame-rate target.
 Keep the broad plan active until its remaining trial and product decisions
 are resolved. Record actual results and the next unresolved step here at the
 end of the next session.
+
+## Minimum map zoom — 2026-09-09 resumed
+
+Deliverable: enforce a readable minimum zoom on large maps while keeping every
+sampled thumbnail. The user explicitly rejected reducing thumbnail detail and
+chose a minimum zoom factor instead. This supersedes the earlier overview-detail
+candidates. Standard increment inside the active Deep plan; confirmed UI/provider
+seams remain in force. The provisional cutoff is more than 100 cohort piles,
+with a 0.5x floor (190px-wide piles). Maps of 100 piles or fewer keep 0.03x,
+even in a small window. The user clarified "but only when the map gets too big";
+the numeric cutoff was offered as an optional preference and is lead-assumed
+pending a different choice.
+No inference, grouping, sample-count, renderer, persistence or preset changes.
+
+### Acceptance criteria
+
+- AC1: wheel/trackpad, keyboard and toolbar zoom-out stop at the large-map floor without camera
+  drift; all fifteen samples remain, zoom-in works, and cohort/Grid return keeps
+  the camera and exact full membership.
+  `go test ./internal/ui -run '^TestVisualSimilarityExplorer/minimum_zoom_inputs$' -count=1`
+- AC2: initial/manual Fit map and automatic expansion respect the same conditional floor.
+  Automatic discovery at the floor preserves the user's camera; keyboard and
+  pan can reach off-screen piles. Smaller maps continue to fit and zoom out normally; growing and shrinking maps
+  re-evaluate whether the floor applies; resizing does not bypass it.
+  `go test ./internal/ui -run '^TestVisualSimilarityExplorer/minimum_zoom_fit$' -count=1`
+- AC3: existing controls, deterministic samples, selection, granularity,
+  source accounting and map/Grid return remain intact.
+  `go test ./internal/ui -run '^TestVisualSimilarityExplorer$' -count=1`
+- AC4: retain matching native replay source, unstripped binaries, symbol/build
+  identity, phase and repeatable interaction timings before/after, using only
+  synthetic pixels. Run small and medium cases, then a 50k-source render replay.
+  Commands and measured limits will be recorded in the evidence README.
+- AC5: `make explorer-test`, `make explorer-ui-test`, `make verify`, and
+  `make build` pass. Native render QA covers the actual GL painter; the full
+  library's semantic quality and encoding throughput remain unqualified.
+
+### Tasks and ownership
+
+1. Baseline (T0): existing UI controls tests; retained local native replay
+   harness and before measurements. One read-only T3 scout finds reusable
+   native/profiling artifacts; all interpretations and review stay with T0.
+2. Input floor (T0): `internal/ui/explorer/map.go`, existing `explorer_test.go`;
+   AC1 red/green. One private conditional zoom-floor helper; no interface changes.
+3. Fit floor (T0): same files; AC2 red/green, then AC3. Preserve existing small-map fitting assertions.
+4. Gate (T0): native replay/QA, guard mutations, AC5, manuals/todos and evidence.
+
+Graph: baseline -> input floor -> fit floor -> gate. Budget: one scout, two lead
+review rounds, one complete final race suite; record necessary overruns.
+Scout G1: bounded artifact search; G2: verify returned paths/commands; G3: no
+writes; G4: separate historical harness context; G5: not previously inspected
+by lead. S/W: adaptive search, not a scripted transform or supplied code.
+Literal Explore is unavailable, so the inherited agent is read-only. The
+available TDD and diagnosing-bugs skills cover the referenced unavailable
+superpowers workflows. No review or fix is delegated.
+
+Honest limit: the zoom floor deliberately prevents fitting every pile of a
+large map on screen at once. A synthetic render replay isolates rendering and
+does not qualify the private 50k library's inference or semantic result.
+
+### Minimum-zoom implementation evidence
+
+- Observed TDD red: large-map input zoom reached 11.40px and initial Fit reached
+  41.18px. Both now stop at 190px. All ordinary explorer UI tests pass (5.244s),
+  including the existing small-map fitting/controls tests. New subtests keep
+  the same top-level runnable and existing Qodana exclusion.
+- Six isolated negative mutations each failed the intended guard: input, Fit,
+  map growth, at-floor camera stability, small-map exemption, and exactly 100
+  piles. Production source was unchanged by the overlay-based negative checks.
+- `make explorer-test explorer-ui-test`: PASS, exit 0; required actual-model
+  tests ran under OS outbound denial and the viewer suite passed in 23.914s.
+  `make build`: PASS; `bin/picfetch` refreshed without launching a library scan.
+- Retained native replay: 30 synthetic sources / 2 piles behaved similarly
+  before/after. For 12,000 sources / 800 piles, observed overview-pan median
+  changed from 66.43ms to 16.47ms; first map from 8.958s to 4.439s. The changed
+  overview scale is intentional, and frame observations include readback.
+- The 50,000-source / 3,334-pile replay completed all 43 input/frame steps and
+  exited 0: first map 18.429s, overview pan median 34.25ms. Sampled Go heap still
+  reached 7.433 GB; no memory ceiling or construction fix is claimed. All
+  samples remain, including in the inspected synthetic native screenshots.
+- Evidence, reproduction commands, source, unstripped binaries, build identity,
+  symbol lists, negative checks and timings:
+  [minimum-zoom evidence](../.scratch/visual-similarity-explorer/evidence/overview-20260909/README.md).
+- The first preflight found Docker stopped; the CLI started it. A host-only
+  shard check included a Darwin-only runnable outside the Linux manifest;
+  canonical inventory verification passed inside Docker. `make verify`: PASS,
+  exit 0. Formatting/TUF/Qodana checks, vet, build, all 680 Linux UI runnable
+  assignments and all four race partitions passed. Explorer passed in 83.740s
+  under race detection; final ui-1 package completed in 385.200s. Evidence:
+  `.scratch/race-runs/20260909T210256Z-7ZGVuz` and the retained `verify.log`.
+  Only documentation closeout followed the successful gate.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Baseline | 1 / 1 | 1 | no | Read-only artifact scout; native harness built by lead |
+| Input and fitting | 0 / 0 | 2 | no | User-chosen direction; all samples retained; red/green and negative guards |
+| Final gate | 0 / 0 | 1 | one, passed | Native suites, build and canonical Linux gate passed |
+
+The wider explorer plan remains active for the user's cutoff/usability trial,
+full-library qualification, construction/memory costs, scan throughput and saved
+presets. No commit was made; unrelated `:memory:.ses` files remain untouched.
