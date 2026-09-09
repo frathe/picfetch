@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -880,12 +882,19 @@ func TestMakeCoverageRunsCompleteUnshardedSuiteAndBuildsHTML(t *testing.T) {
 
 func TestMakeRaceRunsCanonicalConcurrentContractInOneContainer(t *testing.T) {
 	public := makeDryRun(t, "test-race")
-	if count := strings.Count(public, "docker run --rm --platform linux/amd64"); count != 1 {
-		t.Fatalf("make test-race starts %d Linux/amd64 containers, want 1:\n%s", count, public)
+	if !strings.Contains(public, "bash scripts/testshards/docker-race.sh") {
+		t.Fatalf("make test-race must use the artifact-preserving runner:\n%s", public)
 	}
-	for _, want := range []string{"locale-gen en_US.UTF-8", "make --no-print-directory test-race-direct"} {
-		if !strings.Contains(public, want) {
-			t.Fatalf("make test-race output is missing %q:\n%s", want, public)
+	runner, err := os.ReadFile("docker-race.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count := strings.Count(string(runner), "docker create --platform linux/amd64"); count != 1 {
+		t.Fatalf("race runner creates %d Linux/amd64 containers, want 1", count)
+	}
+	for _, want := range []string{`locale-gen "$locale"`, "make --no-print-directory test-race-direct"} {
+		if !strings.Contains(string(runner), want) {
+			t.Fatalf("race runner is missing %q", want)
 		}
 	}
 
@@ -905,6 +914,277 @@ func TestMakeRaceRunsCanonicalConcurrentContractInOneContainer(t *testing.T) {
 		if !strings.Contains(direct, want) {
 			t.Fatalf("concurrent race contract is missing %q:\n%s", want, direct)
 		}
+	}
+}
+
+func TestMakeRaceArtifactsInterrupted(t *testing.T) {
+	dir := t.TempDir()
+	installRaceDockerFixture(t, dir)
+	t.Setenv("RACE_RUN_EXIT", "143")
+	t.Setenv("RACE_BLOCK", "1")
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	artifacts := filepath.Join(dir, "artifacts")
+	command := exec.CommandContext(ctx, "bash", filepath.Join(root, "scripts/testshards/docker-race.sh"), root, "ubuntu:24.04", "16", "fixture=true", "en_US.UTF-8", artifacts)
+	command.WaitDelay = time.Second
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	var runErr error
+	go func() {
+		runErr = command.Wait()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		writeTestFile(t, filepath.Join(dir, "release"), "")
+		cancel()
+		<-done
+	})
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "started")); err == nil {
+			break
+		}
+		select {
+		case <-done:
+			t.Fatalf("runner exited before attachment: %v\n%s", runErr, output.String())
+		case <-ctx.Done():
+			t.Fatal("runner never attached")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	if err := command.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	<-done
+	if runErr == nil {
+		t.Fatalf("interrupted run succeeded:\n%s", output.String())
+	}
+	runs, err := os.ReadDir(artifacts)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("missing interrupted-run artifacts: %v\n%s", err, output.String())
+	}
+	runDir := filepath.Join(artifacts, runs[0].Name())
+	assertRaceArtifact(t, runDir, "exit-code.txt", "143\n")
+	assertRaceArtifact(t, runDir, "console.log", "fixture test output\n")
+	if _, err := os.Stat(filepath.Join(dir, "removed")); err != nil {
+		t.Fatalf("interrupted container was not stopped and removed: %v", err)
+	}
+}
+
+func TestRaceContainerEvidence(t *testing.T) {
+	for _, version := range []string{"v2", "v1", "unavailable"} {
+		t.Run(version, func(t *testing.T) {
+			dir := t.TempDir()
+			capture := filepath.Join(dir, "capture")
+			cgroup := filepath.Join(dir, "cgroup")
+			counter := "memory.events"
+			counterPath := filepath.Join(cgroup, counter)
+			if version == "v1" {
+				counter = "memory.oom_control"
+				counterPath = filepath.Join(cgroup, "memory", counter)
+			}
+			if version != "unavailable" {
+				writeTestFile(t, counterPath, "oom_kill 0\n")
+			}
+			for _, name := range []string{"apt-get", "locale-gen", "chown"} {
+				writeRaceCommandFixture(t, dir, name, "#!/bin/sh\nexit 0\n")
+			}
+			writeRaceCommandFixture(t, dir, "make", `#!/bin/sh
+set -eu
+test "$*" = '--no-print-directory test-race-direct'
+if [ -f "$RACE_COUNTER" ]; then printf 'oom_kill 1\n' > "$RACE_COUNTER"; fi
+exit 7
+`)
+			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("RACE_COUNTER", counterPath)
+			t.Setenv("HOST_UID", "1234")
+			t.Setenv("HOST_GID", "1234")
+			command := exec.Command("bash", "docker-race.sh", "--container", "en_US.UTF-8", capture, cgroup)
+			output, err := command.CombinedOutput()
+			if err == nil {
+				t.Fatalf("container discarded test failure:\n%s", output)
+			}
+			assertRaceArtifact(t, capture, "container-exit-code.txt", "7\n")
+			if version != "unavailable" {
+				assertRaceArtifact(t, filepath.Join(capture, "memory-before"), counter, "oom_kill 0\n")
+				assertRaceArtifact(t, filepath.Join(capture, "memory-after"), counter, "oom_kill 1\n")
+			} else {
+				missing, err := os.ReadFile(filepath.Join(capture, "memory-after", "unavailable.txt"))
+				if err != nil || !strings.Contains(string(missing), "memory.oom_control unavailable") {
+					t.Fatalf("unavailable counters were not identified: %v, %s", err, missing)
+				}
+			}
+		})
+	}
+}
+
+func TestMakeRaceArtifacts(t *testing.T) {
+	for _, runExit := range []string{"0", "7", "137"} {
+		t.Run("exit_"+runExit, func(t *testing.T) {
+			dir := t.TempDir()
+			artifacts := filepath.Join(dir, "race evidence")
+			installRaceDockerFixture(t, dir)
+			t.Setenv("RACE_RUN_EXIT", runExit)
+			for attempt := range 2 {
+				command := exec.Command("make", "--no-print-directory", "test-race", "TEST_ARTIFACTS_DIR="+artifacts)
+				command.Dir = filepath.Join("..", "..")
+				output, err := command.CombinedOutput()
+				if (err == nil) != (runExit == "0") {
+					t.Fatalf("run exit %s: %v\n%s", runExit, err, output)
+				}
+				runs, err := os.ReadDir(artifacts)
+				if err != nil || len(runs) != attempt+1 {
+					t.Fatalf("each attempt must retain its own host directory: %v, entries=%d\n%s", err, len(runs), output)
+				}
+				for _, entry := range runs {
+					runDir := filepath.Join(artifacts, entry.Name())
+					for _, partition := range []string{"non-ui", "ui-1", "ui-2", "ui-3"} {
+						assertRaceArtifact(t, runDir, partition+".json", `{"Action":"pass","Package":"fixture/`+partition+`"}`+"\n")
+					}
+					assertRaceArtifact(t, runDir, "console.log", "fixture test output\n")
+					assertRaceArtifact(t, runDir, "exit-code.txt", runExit+"\n")
+					oom := runExit == "137"
+					assertRaceArtifact(t, runDir, "container-state.json", fmt.Sprintf("{\"ExitCode\":%s,\"OOMKilled\":%t}\n", runExit, oom))
+					events := ""
+					if oom {
+						events = "{\"Action\":\"oom\",\"id\":\"fixture-id\"}\n"
+					}
+					assertRaceArtifact(t, runDir, "oom-events.jsonl", events)
+					assertRaceArtifact(t, runDir, "docker-memory-bytes.txt", "33598169088\n")
+				}
+				if _, err := os.Stat(filepath.Join(dir, "removed")); err != nil {
+					t.Fatalf("container was not cleaned up: %v\n%s", err, output)
+				}
+			}
+		})
+	}
+}
+
+func TestMakeRaceArtifactsCollectionFailures(t *testing.T) {
+	for _, failedCommand := range []string{"create", "inspect", "events", "rm"} {
+		t.Run(failedCommand, func(t *testing.T) {
+			dir := t.TempDir()
+			installRaceDockerFixture(t, dir)
+			t.Setenv("RACE_RUN_EXIT", "7")
+			t.Setenv("RACE_DIAGNOSTIC_FAIL", failedCommand)
+			artifacts := filepath.Join(dir, "artifacts")
+			command := exec.Command("make", "--no-print-directory", "test-race", "TEST_ARTIFACTS_DIR="+artifacts)
+			command.Dir = filepath.Join("..", "..")
+			output, err := command.CombinedOutput()
+			if err == nil {
+				t.Fatalf("failed run became successful:\n%s", output)
+			}
+			runs, err := os.ReadDir(artifacts)
+			if err != nil || len(runs) != 1 {
+				t.Fatalf("missing failure evidence: %v\n%s", err, output)
+			}
+			runDir := filepath.Join(artifacts, runs[0].Name())
+			if failedCommand == "create" {
+				assertRaceArtifact(t, runDir, "exit-code.txt", "91\n")
+				assertRaceArtifact(t, runDir, "create.log", "fixture create unavailable\n")
+				return
+			}
+			assertRaceArtifact(t, runDir, "exit-code.txt", "7\n")
+			assertRaceArtifact(t, runDir, "ui-3.json", "{\"Action\":\"pass\",\"Package\":\"fixture/ui-3\"}\n")
+			failures, err := os.ReadFile(filepath.Join(runDir, "diagnostics-errors.log"))
+			if err != nil || !strings.Contains(string(failures), failedCommand) || !strings.Contains(string(output), "incomplete") {
+				t.Fatalf("unavailable diagnostic must be explicit: %v, %s\n%s", err, failures, output)
+			}
+		})
+	}
+}
+
+func installRaceDockerFixture(t *testing.T, dir string) {
+	t.Helper()
+	writeRaceCommandFixture(t, dir, "docker", `#!/bin/bash
+set -eu
+command=$1
+shift
+if [ "${RACE_DIAGNOSTIC_FAIL-}" = "$command" ]; then
+    printf 'fixture %s unavailable\n' "$command" >&2
+    exit 91
+fi
+case "$command" in
+info) printf '33598169088\n' ;;
+create)
+    capture=
+    cidfile=
+    capture_env=
+    memory=
+    swap=
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+        --cidfile) cidfile=$2; shift ;;
+        --memory) memory=$2; shift ;;
+        --memory-swap) swap=$2; shift ;;
+        -e) case "$2" in TEST_CAPTURE=*) capture_env=$2 ;; esac; shift ;;
+        -v) case "$2" in *:/capture) capture=${2%:/capture} ;; esac; shift ;;
+        esac
+        shift
+    done
+    test "$memory" = 16g
+    test "$swap" = 16g
+    test "$capture_env" = 'TEST_CAPTURE=/capture/$(TEST_PARTITION).json'
+    rm -f "$RACE_FIXTURE_DIR/removed"
+    if [ -n "$cidfile" ]; then printf 'fixture-id\n' > "$cidfile"; fi
+    printf '%s\n' "$capture" > "$RACE_FIXTURE_DIR/capture"
+    ;;
+start)
+    capture=$(cat "$RACE_FIXTURE_DIR/capture")
+    if [ -n "$capture" ]; then
+        printf '%s\n' "$RACE_RUN_EXIT" > "$capture/container-exit-code.txt"
+        for partition in non-ui ui-1 ui-2 ui-3; do
+            printf '{"Action":"pass","Package":"fixture/%s"}\n' "$partition" > "$capture/$partition.json"
+        done
+    fi
+    printf 'fixture test output\n'
+    touch "$RACE_FIXTURE_DIR/started"
+    if [ "${RACE_BLOCK-}" = 1 ]; then
+        while [ ! -f "$RACE_FIXTURE_DIR/release" ]; do sleep 0.01; done
+    fi
+    exit "$RACE_RUN_EXIT"
+    ;;
+inspect)
+    test ! -f "$RACE_FIXTURE_DIR/removed"
+    oom=false
+    if [ "$RACE_RUN_EXIT" = 137 ]; then oom=true; fi
+    printf '{"ExitCode":%s,"OOMKilled":%s}\n' "$RACE_RUN_EXIT" "$oom"
+    ;;
+events)
+    test ! -f "$RACE_FIXTURE_DIR/removed"
+    if [ "$RACE_RUN_EXIT" = 137 ]; then printf '{"Action":"oom","id":"fixture-id"}\n'; fi
+    ;;
+stop) touch "$RACE_FIXTURE_DIR/release" ;;
+rm) touch "$RACE_FIXTURE_DIR/removed" ;;
+*) printf 'unexpected docker command: %s\n' "$command" >&2; exit 90 ;;
+esac
+`)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("RACE_FIXTURE_DIR", dir)
+}
+
+func writeRaceCommandFixture(t *testing.T, dir, name, body string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	writeTestFile(t, path, body)
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertRaceArtifact(t *testing.T, dir, name, want string) {
+	t.Helper()
+	got, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil || string(got) != want {
+		t.Fatalf("artifact %s: %v, got %q, want %q", name, err, got, want)
 	}
 }
 

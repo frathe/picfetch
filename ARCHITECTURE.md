@@ -31,6 +31,7 @@ the raw events outside the repository; the generated assignment lives at
 | File | Responsibility |
 |------|----------------|
 | `main.go` | `summarize`, `plan`, `check`, `regex`, `partition`, and `capture` command paths: complete event-stream validation, deterministic assignment, live build-selected inventory and parallel-call checks, exact anchored filters, exact-package subtraction, concise diagnostics, and raw preservation. |
+| `docker-race.sh` | Public Make runner: unique host artifact directory, attached Docker lifecycle, raw streams and console retention, exit/memory/OOM diagnostics before cleanup. |
 | `main_test.go` | Command-boundary fixtures for event streams and capture, deterministic planning, every manifest rejection, build-selected runnable forms, parallel-call refusal, exact filter generation, package partitioning, and Make contract expansion. |
 
 ### Packaging tooling

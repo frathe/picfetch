@@ -29,6 +29,7 @@ TEST_SHARD_MANIFEST := .github/testshards/internal-ui.tsv
 TEST_SHARD_PACKAGE := ./internal/ui
 TEST_PARTITION :=
 TEST_CAPTURE ?= /tmp/picfetch-test-$(TEST_PARTITION).json
+TEST_ARTIFACTS_DIR ?= .scratch/race-runs
 CI_RUN ?=
 CI_WORKFLOW ?= CI
 CI_BRANCH ?= $(shell git branch --show-current)
@@ -294,23 +295,8 @@ test-native: ## Run tests directly on the current OS/architecture
 	go test -timeout $(TEST_TIMEOUT) ./...
 
 test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Docker container
-	docker run --rm --platform linux/amd64 \
-		--memory $(TEST_MEMORY_GIB)g --memory-swap $(TEST_MEMORY_GIB)g \
-		--label "$(TEST_CONTAINER_LABEL)" \
-		-v "$(CURDIR):/work" -w /work \
-		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
-		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
-		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
-		$(TEST_IMAGE) bash -c '\
-			set -e; \
-			apt-get update -qq; \
-			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates locales procps htop >/dev/null; \
-			locale-gen $(TEST_LOCALE) >/dev/null; \
-			status=0; \
-			make --no-print-directory test-race-direct || status=$$?; \
-			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi; \
-			exit $$status \
-		'
+	@bash scripts/testshards/docker-race.sh "$(CURDIR)" "$(TEST_IMAGE)" \
+		"$(TEST_MEMORY_GIB)" "$(TEST_CONTAINER_LABEL)" "$(TEST_LOCALE)" "$(TEST_ARTIFACTS_DIR)"
 
 verify-build: fmt-check check-tuf-root check-qodana-test-exclusions ## Run local verification without the test suite (format, TUF root, Qodana exclusions, vet, build)
 	go vet ./...

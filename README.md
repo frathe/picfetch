@@ -262,7 +262,7 @@ packaged build.
 | `make update-test-image`    | Pull the latest Linux/amd64 Ubuntu image used by Docker tests       |
 | `make test`                 | Run `go test -timeout 30m ./...` in Linux/amd64 Docker, matching CI and golden rendering |
 | `make test-native`          | Run the same suite directly on the host (goldens can differ outside Linux/amd64) |
-| `make verify`               | The same gate CI runs; its race-test step uses the `make test` Linux/amd64 container |
+| `make verify`               | Host checks plus four concurrent Linux/amd64 race partitions with retained diagnostics |
 | `make tidy`                 | `go mod tidy` — tidy go.mod / go.sum                                |
 | `make security`             | Run all security checks (govulncheck + GitHub Dependabot alerts)    |
 | `make security-govulncheck` | Scan dependencies with the repository-pinned `govulncheck`          |
@@ -327,6 +327,24 @@ refresh the cached Ubuntu image from its upstream tag before testing.
 behavior is the point, but its golden pixels can differ outside Linux/amd64.
 Shared test fixtures — synthetic images in every supported format, temp files,
 and stubs for the OS-level seams — live in `internal/uitest`.
+
+`make verify` includes four concurrent Linux/amd64 race partitions in one
+container with a 16 GiB memory ceiling. Docker must expose at least that much
+memory; leave additional room for its VM. Each invocation prints a unique host
+artifact directory under `.scratch/race-runs/`. Change the parent with
+`make verify TEST_ARTIFACTS_DIR=/path/to/race-runs`. Attempts never overwrite
+each other. The directories are retained until you remove them.
+
+Each race directory preserves `non-ui.json`, `ui-1.json`, `ui-2.json`, and
+`ui-3.json` as the partitions produce them, plus `console.log`, `exit-code.txt`,
+Docker state/OOM events, and available memory counters before and after the
+run. Collection failures are reported in `diagnostics-errors.log` and missing
+counters in `memory-*/unavailable.txt`. A hard kill may prevent the final
+memory snapshot; Docker retains only its latest 256 events, so an empty OOM
+event file does not establish that no OOM occurred. The container is removed
+after diagnostic collection, and failed runs keep their failing status.
+Direct partition targets still accept `TEST_CAPTURE` for CI/prepared runners;
+use `TEST_ARTIFACTS_DIR` for the public Docker targets `test-race` and `verify`.
 
 ### End-to-end suite (`internal/ui/e2e_test.go`)
 

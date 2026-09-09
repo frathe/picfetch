@@ -44,34 +44,17 @@ See the [implementation record](finished_refactorings/2026-09-09-grid-duplicate-
 
 #### Internal
 
+Local race verification now keeps each attempt's four raw streams, console,
+exit status, and available Docker/cgroup memory diagnostics in a unique host
+directory under `.scratch/race-runs/`. Failed and interrupted runs retain their
+evidence and failure status; diagnostic collection precedes container cleanup.
+The existing 16 GiB mitigation and subsequent passing gates close the memory
+investigation. The original September 7 package-only failure remains unexplained
+in the [implementation and evidence record](finished_refactorings/2026-09-09-local-race-evidence.md).
+Focused race tests, deliberate regression checks, and one default `make verify`
+pass; its four complete streams and final memory counters survive cleanup.
+
 ## TODO
-
-### Investigate intermittent local race-gate failures
-
-The 2026-09-08 follow-up gate retained all four raw streams and recorded a
-Docker OOM event. This time comparison printed PASS before its process was
-killed; all three root-UI shards passed. A full `make verify` retry passed with
-`GOFLAGS=-p=1` inside Docker, preserving all four race partitions while limiting
-package concurrency. This resource limit was scoped to the verification run;
-the default runner now applies a 16 GiB container memory budget matching CI.
-The release assessment keeps
-the original failed run and the successful combined retry separate.
-
-The 2026-09-07 Qodana cleanup's `make verify` run reported a package-level failure
-in `ui-3` without an individual test failure in the compact log. The isolated
-Linux/amd64 race-shard retry passed with raw output preserved. The cause remains
-unknown; retain raw streams on the next concurrent run. See
-`finished_refactorings/2026-09-07-qodana-findings.md` for commands and evidence.
-
-Later concurrent runs on the unchanged PR head and the mosaic optimization both
-captured Docker OOM events for UI shard 3; a 1 GiB Go memory target did not prevent
-the latter. The same shard passes alone. Retain the original-run uncertainty,
-but investigate Docker's overall memory pressure for this reproduced failure.
-Latest evidence: `plans/2026-09-07-mosaic-speed-progress.md`.
-
-The Trane verification on 2026-09-07 also captured a Docker OOM, this time killing
-`internal/ui/compare` while all three main-UI shards passed. Logs and the isolated
-retry are recorded in `finished_refactorings/2026-09-07-animated-trane.md`.
 
 ### Address the 2026-09-06 maintainability audit
 
