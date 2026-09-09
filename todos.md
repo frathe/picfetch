@@ -30,6 +30,11 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+Grid View now keeps the ring visible while scrolling with the mouse wheel or
+trackpad, and live duplicate merges preserve the viewport. Explicit selection
+and the displayed image stay unchanged. Native scrollbar movement keeps its
+existing behavior; the next duplicate reflow reconciles the ring.
+
 #### Internal
 
 ## TODO

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1160,47 +1161,113 @@ func TestSetBrowsingDuplicates_FailedDecodeDoesNotRetoast(t *testing.T) {
 	}
 }
 
-func TestRebuildFilter_KeepsHighlightedHostWhenAnExtraDisappears(t *testing.T) {
-	host := hostPatterned(t,
-		[]string{"sunset-a.jpg", "sunset-b.jpg", "moon.jpg"},
-		[]int{1, 1, 99},
-	)
-	g := newOverview(t, host)
-	rememberHash(g.dupes.CaptureFacts(), host.files[0], mustThumb(t, host.files[0]))
-	rememberHash(g.dupes.CaptureFacts(), host.files[2], mustThumb(t, host.files[2]))
-
-	unpark := parkDecodes(t, g)
-	g.Toggle()
+func TestRebuildFilter_PreservesViewportWhenExtrasDisappearBeforeRing(t *testing.T) {
+	g, host := scrollOverview(t, 90)
+	facts := g.dupes.CaptureFacts()
+	for i, u := range host.files {
+		facts.PutHash(u.String(), uint64(i+1))
+	}
+	setDuplicateDistance(g, 0)
 	g.SetHideDuplicates(true)
-
-	if g.count() != 3 {
-		t.Fatalf("setup count() = %d, want 3 (extra still unhashed)", g.count())
-	}
-	g.setHighlight(2)
-	if g.fileIndex(g.Highlight()) != 2 {
-		t.Fatalf("setup highlight host = %d, want 2", g.fileIndex(g.Highlight()))
-	}
-
-	rememberHash(g.dupes.CaptureFacts(), host.files[1], mustThumb(t, host.files[1]))
-	g.rebuildFilter(false)
-	unpark()
 	g.Settle()
+	if g.count() != 90 {
+		t.Fatalf("setup count=%d, want 90 distinct files", g.count())
+	}
+	click(g, host, 45, fyne.KeyModifierShortcutDefault)
+	mountScrollOverview(t, g, 244)
+	g.wrap.Highlight(31)
+	g.wrap.ScrollToOffset(1240)
+	selection := g.Selection()
 
-	if g.count() != 2 {
-		t.Fatalf("count() = %d after extra hashes, want 2", g.count())
+	// Thirty extras above row ten disappear through the normal grouping
+	// worker and its queued completion. Host 31 moves to display cell 1.
+	for _, u := range host.files[1:31] {
+		facts.PutHash(u.String(), 1)
 	}
-	if !g.dupes.IsHiddenExtra(1) {
-		t.Fatal("index 1 should now be a hidden extra")
-	}
-	if g.fileIndex(g.Highlight()) != 2 {
-		t.Fatalf("Highlight host = %d, want 2 (moon.jpg stayed under the ring; display index may have moved)", g.fileIndex(g.Highlight()))
-	}
-	if g.Highlight() != 1 {
-		t.Fatalf("Highlight() = %d, want 1 (host 2 is now display index 1)", g.Highlight())
-	}
-
-	unpark()
+	g.rebuildGroups()
 	g.Settle()
+	if g.count() != 60 || !g.dupes.IsHiddenExtra(30) {
+		t.Fatalf("group completion did not hide extras: count=%d", g.count())
+	}
+	if got := g.ScrollOffset(); got != 1240 {
+		t.Errorf("viewport offset=%v, want 1240 after live duplicate reflow", got)
+	}
+	if g.Highlight() != 31 || host.last() != 61 {
+		t.Errorf("ring=%d host notification=%d, want visible cell 31 / host 61", g.Highlight(), host.last())
+	}
+	if !slices.Equal(g.Selection(), selection) || len(host.shown) != 0 || host.index != 0 {
+		t.Errorf("reflow changed selection/image: selection=%v shown=%v current=%d", g.Selection(), host.shown, host.index)
+	}
+}
+
+func TestRebuildFilter_ReconcilesRingWithinViewport(t *testing.T) {
+	for _, tt := range []struct {
+		name                             string
+		ring, extras, wantRing, wantHost int
+		offset, wantOffset               float32
+	}{
+		{"retain remapped visible host", 34, 1, 33, 34, 1240, 1240},
+		{"native scrollbar leaves ring above", 1, 1, 30, 31, 1240, 1240},
+		{"native scrollbar leaves ring below", 70, 1, 33, 34, 1240, 1240},
+		{"content shrink clamps bottom", 85, 60, 25, 85, 3472, 992},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g, host := scrollOverview(t, 90)
+			facts := g.dupes.CaptureFacts()
+			for i, u := range host.files {
+				facts.PutHash(u.String(), uint64(i+1))
+			}
+			setDuplicateDistance(g, 0)
+			g.SetHideDuplicates(true)
+			g.Settle()
+			mountScrollOverview(t, g, 244)
+			g.wrap.Highlight(tt.ring)
+			// Public offset changes model native scrollbar movement, which
+			// deliberately has no immediate ring callback.
+			g.wrap.ScrollToOffset(tt.offset)
+			for _, u := range host.files[1 : tt.extras+1] {
+				facts.PutHash(u.String(), 1)
+			}
+			g.rebuildGroups()
+			g.Settle()
+			if g.ScrollOffset() != tt.wantOffset || g.Highlight() != tt.wantRing || host.last() != tt.wantHost {
+				t.Errorf("offset=%v ring=%d host=%d, want %v/%d/%d", g.ScrollOffset(), g.Highlight(), host.last(), tt.wantOffset, tt.wantRing, tt.wantHost)
+			}
+			if g.SelectionCount() != 0 || len(host.shown) != 0 || host.index != 0 {
+				t.Errorf("reflow changed selection/image: selection=%v shown=%v current=%d", g.Selection(), host.shown, host.index)
+			}
+		})
+	}
+}
+
+func TestRebuildFilter_ExplicitFiltersResetViewport(t *testing.T) {
+	for _, operation := range []string{"open search", "change query", "toggle duplicates", "clear filters", "change distance"} {
+		t.Run(operation, func(t *testing.T) {
+			g, _ := scrollOverview(t, 60)
+			if operation == "change query" || operation == "clear filters" {
+				g.HandleRune('/')
+			}
+			mountScrollOverview(t, g, 244)
+			g.wrap.Highlight(31)
+			g.wrap.ScrollToOffset(1240)
+			switch operation {
+			case "open search":
+				g.HandleRune('/')
+			case "change query":
+				g.HandleRune('s')
+			case "toggle duplicates":
+				g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyD})
+			case "clear filters":
+				g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			case "change distance":
+				setDuplicateDistance(g, 0)
+			}
+			g.Settle()
+			if g.ScrollOffset() != 0 || g.Highlight() != 0 {
+				t.Errorf("explicit filter offset=%v ring=%d, want top and cell zero", g.ScrollOffset(), g.Highlight())
+			}
+		})
+	}
 }
 
 func TestSourceDuplicateGroupSize_UnknownUntilGroupsBuilt(t *testing.T) {

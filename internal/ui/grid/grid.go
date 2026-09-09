@@ -456,9 +456,10 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 
 	// Body stack order is load-bearing. Walk is back-to-front and the last
 	// match wins: the catcher is Draggable but not Tappable, Hoverable, or
-	// Scrollable, so cell taps, hover, wheel, and the scrollbar still land
+	// Scrollable, so cell taps, hover, and the scrollbar still land
 	// on GridWrap, while a drag on a cell or gutter hits the catcher. The
-	// rectangle sits on top in a WithoutLayout layer so Stack cannot
+	// scroll-only follower above GridWrap moves the ring with the viewport.
+	// The rectangle sits on top in a WithoutLayout layer so Stack cannot
 	// stretch it to the overlay.
 	g.catcher = newMarqueeCatcher(g)
 	g.marqueeRect = widgets.NewMarqueeRect()
@@ -467,6 +468,7 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	body := container.NewStack(
 		g.catcher,
 		container.NewPadded(g.wrap),
+		newScrollFollower(g),
 		container.NewCenter(g.empty),
 		g.marqueeBox,
 	)

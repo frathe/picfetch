@@ -100,8 +100,8 @@ func (g *Overview) applyFilter() {
 // rebuildFilter is applyFilter with a choice of viewport. resetView true
 // (search, D, Escape, distance, selection resync) jumps the ring to cell 0
 // and scrolls there. resetView false is for a hash landing while hide is
-// already on: keep the same host file under the ring so a long cold-folder
-// hash does not yank the user to the top on every completion. The host
+// already on: keep the viewport and retain the host under the ring only
+// while its remapped cell remains fully visible. The host
 // index is captured before matches is rebuilt - fileIndex after a hide
 // shrinks the grid would read a shifted or out-of-range display index.
 func (g *Overview) rebuildFilter(resetView bool) {
@@ -206,7 +206,7 @@ func (g *Overview) restoreHighlight(host int) {
 	if id >= g.count() {
 		id = g.count() - 1
 	}
-	g.setHighlight(id)
+	g.setHighlight(g.viewportHighlight(id, 0))
 }
 
 // syncTopBar redraws the bar from the current query, match count and
