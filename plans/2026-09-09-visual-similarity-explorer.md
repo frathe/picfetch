@@ -913,3 +913,32 @@ Inherited model used read-only because this harness has no literal T3 Explore.
 | Controls 3 | 0 / 0 | 2 | no | Actual hierarchy plus local granularity cuts |
 | Controls 4 | 1 / 1 | 2 | no | Read-only scout; lead replayed and verified optimizations |
 | Controls 5 | 0 / 0 | 1 | one, passed | Native suites, synthetic renders, canonical gate and build |
+
+## Original 50k trial: render transition and interaction observation
+
+The user requested profiling as the original client approached completion,
+reporting approximately 48k indexed images. The lead attached native stack
+sampling and one-second resource observation to the exact existing viewer and
+worker PIDs, with no app relaunch or GUI lookup. Two read-only scouts traced
+existing phase signals and bounded symbolization options; the lead retained
+interpretation and the evidence record. No application code changed and no
+application test/build run was needed for this observational step.
+
+The user confirmed the map appeared, remained running without a reported crash,
+and lagged badly zoomed out while behaving relatively fluently zoomed in. The
+worker exited; native samples captured the subsequent main-thread construction
+and OpenGL texture uploads. Viewer footprint peaked at 9.532 GiB and settled
+near 5 GiB. The user then closed the client; its PID disappeared at 20:51:10 CEST.
+
+Both old and current map code visit all piles on camera changes and preserve
+all sampled image objects at distant zoom. Fyne retains decoded image pixels
+on resize but invalidates textures; its smooth painter performs software
+rescaling. Reduced overview detail and texture reuse are recorded as follow-up
+candidates in todos.md. No per-frame latency or exact per-image success counts
+were exposed, and raw Go stacks could not be authenticated against the replaced
+binary. This establishes an observed interaction limit, not full-library semantic
+acceptance or an end-to-end speedup. The user called the load an extreme case.
+
+Evidence and reproducible resource aggregation:
+[render-transition-20260909](../.scratch/visual-similarity-explorer/evidence/render-transition-20260909/README.md).
+The capture is complete; the observers and original app processes have ended.

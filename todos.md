@@ -193,6 +193,19 @@ encoding rate has not been isolated. Record stage/count throughput during the
 next native trial and qualify batch UMAP/HDBSCAN before claiming 50k scaling.
 See the active plan's controls/performance evidence.
 
+### Large similarity-map interaction
+
+The original roughly 50k-image trial reached a visible map without a reported
+crash, but the user observed severe lag zoomed out and much smoother interaction
+zoomed in. The live capture recorded a 9.532 GiB viewer peak during publication,
+settling near 5 GiB, plus main-thread CPU bursts and repeated texture uploads
+during interaction. Map layout visits every pile; distant piles retain all
+sampled thumbnails, and smooth image rescaling recreates textures on zoom.
+Evaluate reduced detail at overview zoom and texture reuse before expanding
+the renderer. Treat this as the observed extreme-case limit, with no measured
+FPS guarantee. Exact source accounting and semantic qualification remain open.
+See [render-transition evidence](.scratch/visual-similarity-explorer/evidence/render-transition-20260909/README.md).
+
 ## LATER
 
 ### Revisit HEIC and verifier dependencies at their next upgrades
