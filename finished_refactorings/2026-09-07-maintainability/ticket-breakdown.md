@@ -1,19 +1,20 @@
 # Maintainability ticket breakdown
 
-Status: published — implementation in progress
+Status: tickets 01–30 complete; 31/32 remain accepted dependency watches
 Date: 2026-09-06
 
-Prepared from the [specification](spec.md) and its [phased plan](../../plans/2026-09-06-maintainability-plan.md).
+Prepared from the [specification](spec.md) and its [phased plan](../2026-09-06-maintainability-plan.md).
 There are **32 published tickets: 27 required, 3 conditional, and 2 accepted-watch reminders**.
 All 24 MA items are accounted for. The parent specification and historical audit evidence are preserved.
 
-The user requested `/implement sdd tdd` on the parent specification. The prepared bodies are published in `issues/` with their activation conditions preserved. Tickets 01–26 are resolved with evidence in their issue files, including the ticket 15 manual-test correction and the completed Windows/Store native guards. Ticket 26 has macOS Retina and user-operated Windows ARM64 renderer evidence, with independently recorded 100% monitor scaling and DPI 96. Ticket 27 has reviewed inputs, all required artifact builds, native macOS, both Windows ARM64 and both Linux package evidence (Linux amd64 emulated); both x64 attempts remain failed: a matching runtime resolves context creation but crashes during drawing in the ARM64 VM. Native x64 Windows startup and WACK are deferred to the user’s later native x64 testing; see the [checklist](windows-test-todo.md). Unchecked required tickets and remaining MA findings stay open.
+The user requested `/implement sdd tdd` on the parent specification. The prepared bodies are published in `issues/` with their activation conditions preserved. Tickets 01–26 are resolved with evidence in their issue files, including the ticket 15 manual-test correction and the completed Windows/Store native guards. Ticket 26 has macOS Retina and user-operated Windows ARM64 renderer evidence, with independently recorded 100% monitor scaling and DPI 96. Ticket 27 has reviewed inputs, all required artifact builds, native macOS, both Windows ARM64 and both Linux package evidence (Linux amd64 emulated); both x64 attempts remain failed: a matching runtime resolves context creation but crashes during drawing in the ARM64 VM. On 2026-09-09 the user reported successful Windows 11 ARM and x64 testing and accepted the remaining detailed checks as edge cases. Ticket 27 / MA-020 is closed by that acceptance, with remaining Windows SDK/WACK evidence waived for this audit; no WACK pass is claimed. See the [acceptance record](windows-test-todo.md). The failed VM attempts remain historical evidence.
 
 Tickets 28–30 are now resolved with measured preview capacity and the tested
 command matrix. Ticket 24's user-reported loss of progressive updates is fixed
 and reverified. The shared Phase 6 common gate passes all 667 root UI tests and
-the complete race suite. Ticket 27 remains for the user's Windows checklist;
+the complete race suite. Ticket 27 is closed under the acceptance above;
 31/32 remain accepted watches awaiting their explicit dependency-upgrade triggers.
+The separate MA-025 decoded-map retention follow-up remains in the open backlog.
 
 ## Published breakdown
 

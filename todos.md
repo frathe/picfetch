@@ -54,28 +54,43 @@ in the [implementation and evidence record](finished_refactorings/2026-09-09-loc
 Focused race tests, deliberate regression checks, and one default `make verify`
 pass; its four complete streams and final memory counters survive cleanup.
 
+### Complete the September 6 maintainability audit
+
+The audit's required and selected conditional work (tickets 01–30) is complete.
+The retained implementation records cover input safety, file identity, cache
+consistency, background lifetimes, duplicate grouping, preview contention,
+command admission and native/package validation, with their common gates.
+On September 9 the user reported successful Windows 11 ARM and x64 testing
+and accepted the remaining detailed Windows checks as edge cases, closing
+MA-020. WACK certification is waived for this audit closeout; no new WACK pass
+is claimed. The export-window checkbox also has user-reported x64 validation.
+
+See the [implementation record](finished_refactorings/2026-09-06-maintainability-plan.md),
+[specification](finished_refactorings/2026-09-07-maintainability/spec.md),
+[tickets](finished_refactorings/2026-09-07-maintainability/ticket-breakdown.md),
+and [Windows acceptance](finished_refactorings/2026-09-07-maintainability/windows-test-todo.md).
+The native macOS Copy Selection golden mismatch remains documented; the
+canonical Linux golden gate passed. MA-025 is a separate follow-up below.
+
 ## TODO
 
-### Address the 2026-09-06 maintainability audit
+### Bound retained decoded map tiles (MA-025)
 
-Track the reconciled findings in [needs_refactoring.md](needs_refactoring.md) and execute the
-[phased implementation plan](plans/2026-09-06-maintainability-plan.md) against the
-[specification](.scratch/maintainability/spec.md) and [published tickets](.scratch/maintainability/ticket-breakdown.md). Implementation is in progress: checked TIFF spans, bounded mosaic preparation, deletion identity,
-complete cache records and saved JPEG dimensions (MA-001/002/004/006/007) are complete;
-clipboard errors, Trash configuration, preview timestamps and RSS arithmetic
-(MA-011/013/018/019) are also complete. MA-005 chooser paths and MA-012 Windows
-list decoding now pass their actual Windows guards and are complete. Queued animation/picture-frame pacing and chooser lifecycle (MA-003, tickets 12–14), ancillary read cancellation and generation-safe duplicate facts (tickets 15–18) have passed their common gates. The ticket 15 manual-test correction, map lifetime and position-poller work (MA-015/016) pass the next common gate; native poller movement/close/shutdown also passed. Background clipboard encoding and EXIF reads (tickets 21–22) pass their shared common gate; serialized original-file mutations and committed-write/cache reconciliation (ticket 23, completing MA-014) pass their common gate. Duplicate-group reuse/cancellation (ticket 24, MA-008) passes its common gate and measured benchmarks. Native Windows/macOS/Store guards pass; the comparison shutdown crash is fixed and gated. Packaging inputs are pinned, all seven artifacts build with inspected metadata, and the actual macOS package renders/quits cleanly. All eight Windows test-package runs and 14 required native guards pass without skips; the follow-up common gate passes. Ordinary/Store Windows ARM64 graphical startup and clean quit pass; user-operated comparison pan/zoom/swipe/detail pass. MA-017 native/renderer coverage is complete with recorded Retina and Windows 100% scale/DPI 96 environments. Refreshed macOS and both Linux packages render and quit cleanly; Linux uses software GL and amd64 CPU emulation. Native x64 Windows startup and WACK remain deferred to the user’s later Windows testing. Keep remaining correctness, lifecycle,
-platform and accepted watch work linked to the stable MA identifiers and ticket evidence.
-
-Tickets 28–30 are complete: preview contention was measured and reduced on small
-CPU budgets, and command admission/Escape behavior has an explicit tested matrix.
-The user-reported progressive-hide regression is fixed with an independent,
-tracked grouping worker. [Phase 6 evidence](.scratch/maintainability/evidence/28-29-preview-contention.md)
-and the complete canonical Linux race/golden gate pass. The native macOS Copy
-Selection screenshot mismatch remains recorded in the validation evidence.
-HEIC/verifier tickets 31/32 retain their separate future-upgrade triggers.
+The pinned map widget retains decoded tiles globally without eviction, across
+EXIF window close/reopen. PicFetch's 16 MiB encoded-tile cache does not bound
+these decoded images. Measure retention with local fixtures, establish a
+supported decoded-memory bound, and verify redraw and lifecycle behavior.
+The long-session impact remains unmeasured. See
+[MA-025](needs_refactoring.md#ma-025) for the contract.
 
 ## LATER
+
+### Revisit HEIC and verifier dependencies at their next upgrades
+
+[MA-023](needs_refactoring.md#ma-023) tracks retiring the HEIC fork when an
+approved official release includes its leak fix. [MA-024](needs_refactoring.md#ma-024)
+tracks measuring verifier dependency cost at its next major upgrade. Both
+retain their separate upgrade triggers; neither starts immediate work.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 
@@ -121,5 +136,3 @@ open — only the underlying serialisation defect itself is. See
 `finished_refactorings/2026-08-29-qodana-evidence.md` for the decoded byte offsets and anchoring detail, and
 `plans/2026-08-29-qodana-serialisation-bug-report.md`, Task 8's draft of the upstream report text — as of this writing
 not yet submitted to JetBrains; check that file for whether it has been sent since.
-
-- Follow up the pinned fyne.x map widget’s process-global decoded tile cache (`widget/mapcache.go`): PicFetch’s 16 MiB tile cache bounds encoded bytes only; the upstream decoded map has no eviction. Track separately from MA-015 request/failure bounds.

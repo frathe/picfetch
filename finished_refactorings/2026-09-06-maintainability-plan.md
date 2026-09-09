@@ -1,6 +1,32 @@
 # PicFetch maintainability implementation plan — 2026-09-06
 
-Status: implementation in progress, authorized by the user's `/implement sdd tdd` request. Canonical findings and severity are in [needs_refactoring.md](../needs_refactoring.md). This plan references its stable MA IDs and does not maintain a competing findings list. [Audit validation](2026-09-06-maintainability-validation.md) records the baseline and probes. [Published tickets](../.scratch/maintainability/ticket-breakdown.md) track execution; no finding closes without its required evidence.
+Status: required and selected conditional work complete; Windows acceptance closed by the user on 2026-09-09. Canonical remaining work and dependency watches are in [needs_refactoring.md](../needs_refactoring.md). [Audit validation](2026-09-06-maintainability-validation.md) records the baseline and probes. [Published tickets](2026-09-07-maintainability/ticket-breakdown.md) track execution and accepted completion boundaries.
+
+## September 9 closeout
+
+The user reported successful Windows 11 ARM and x64 testing and directed that
+the remaining detailed checks be considered done as edge cases. Ticket 27 /
+MA-020 closes on that acceptance; remaining Windows SDK/WACK evidence is waived
+for this audit. No WACK pass or specific later artifact coverage is inferred.
+The [Windows acceptance record](2026-09-07-maintainability/windows-test-todo.md)
+captures the report and supersedes the earlier deferrals below. Existing
+execution logs remain historical evidence, including failed VM attempts.
+
+Tickets 01–30 are complete. Tickets 31/32 remain unactivated dependency watches;
+MA-025 is a separate decoded-map retention follow-up. The related local race
+investigation is also [closed](2026-09-09-local-race-evidence.md), with its
+original September 7 failure still unexplained.
+
+Route: Standard documentation reconciliation. The lead owns the six tracked
+status documents and discussion notes; no code, interface or runtime policy
+changes. Two read-only scouts (budget 2 / actual 2) gathered source/evidence
+facts during the interview; no implementation delegation. Verify the final
+diff, changed local links and status consistency; no repeat application suite
+is needed for this documentation-only closeout.
+
+Closeout verification: the lead reviewed the final diff and status consistency;
+all 19 added/changed local links resolve. One review round; no application
+tests or native runs repeated. The documentation whitespace check is clean.
 
 ## Current execution record
 

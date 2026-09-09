@@ -1,70 +1,26 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-07 against branch head `9f12593`.
+Updated 2026-09-09 following user acceptance of the Windows validation closeout.
 
 This file contains remaining work and accepted dependency watches. Completed
 findings have been removed; their history remains in Git and the
-[maintainability implementation plan](plans/2026-09-06-maintainability-plan.md).
+[maintainability implementation plan](finished_refactorings/2026-09-06-maintainability-plan.md).
 Existing MA identifiers are preserved. MA-025 carries forward the separate
 decoded map-cache follow-up previously recorded under MA-015 and in
 [todos.md](todos.md).
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-020](#ma-020) | P3 | Reconcile native Windows package and WACK acceptance | Verification record unresolved |
 | [MA-023](#ma-023) | P3 | Retire the HEIC fork when an official release contains its fix | Accepted dependency watch |
 | [MA-024](#ma-024) | P3 | Measure updater verification dependency cost at its next major upgrade | Accepted dependency watch |
 | [MA-025](#ma-025) | P3 | Bound the upstream map widget's retained decoded tiles | Open follow-up; workload impact unmeasured |
 
 <a id="ma-020"></a>
 
-## MA-020 — Reconcile native Windows package acceptance
-
-**Remaining issue.** Packaging tools and container images are already pinned in
-[packaging/tools.mk](packaging/tools.mk), and local/release/Store routes share
-those inputs. The outstanding question is whether native x64 graphical startup
-and Windows SDK/WACK acceptance have been completed for the identified artifacts.
-
-The local `.scratch/maintainability/windows-test-todo.md` has every box checked,
-but its introduction, ticket 27 and the tracked implementation plan still say
-these checks are deferred. The checklist refers to Phase 6 executables, so it
-also cannot establish validation of later branch-head binaries. `.scratch/` is
-ignored and its checklist/evidence is unavailable in a fresh clone. Treat this
-as an unresolved evidence record, rather than inferring either a pass or an
-unperformed test from the checkboxes alone.
-
-**Work to finish:**
-
-- Recover the results behind the checked boxes. Record the source revision,
-  executable SHA256 hashes, test date, Windows version, CPU/GPU, graphics driver
-  and display scaling in a tracked completion record. Distinguish reported
-  manual observations from retained logs and screenshots.
-- If native x64 evidence is missing, test both ordinary and Store-tagged x64
-  executables on native x64 Windows with a working matching graphics driver.
-  Check Alpha/Beta fixture rendering and navigation, Grid, comparison pan/zoom,
-  swipe/divider and full-source detail, progressive duplicate hiding and
-  navigation during favorite prewarming. Retain clean-exit results and failures
-  against the exact artifact hashes.
-- If Store acceptance evidence is missing, refresh x64/ARM64 staging from the
-  identified executables and run MakeAppx pack/bundle, temporary SignTool signing
-  and verification, and WACK using the
-  [Store workflow](.github/workflows/microsoft-store.yml). Retain package
-  identity/architecture metadata, command results and the certification report;
-  clean up only package/certificate/trust entries created for that test.
-- Reconcile the completion status with the tracked implementation plan. Preserve
-  the artifact scope of existing results; rerun only checks whose evidence is
-  missing or whose relevant inputs changed.
-
-The earlier x64 attempts in an ARM64 VM failed graphics initialization or drawing
-and do not establish native x64 acceptance. Further VM experiments were deferred
-by the user. Existing macOS/Linux package and Windows ARM64 results need not be
-repeated merely to reconcile this record. Follow the maintained
-[packaging procedure](docs/packaging-inputs.md) for any missing checks.
-
-**Done when:** a consistent tracked record identifies successful native x64
-ordinary/Store smoke results and Windows SDK/WACK results for the tested
-artifacts. Any remaining failure keeps this entry open. Release or Store
-submission is not required.
+MA-020 closed on 2026-09-09: the user reported successful Windows 11 ARM and
+x64 testing and accepted the remaining detailed checks as edge cases. See the
+[Windows acceptance record](finished_refactorings/2026-09-07-maintainability/windows-test-todo.md).
+This records user acceptance and waived checks, without claiming a WACK pass.
 
 <a id="ma-023"></a>
 
@@ -173,14 +129,10 @@ upstream decoded images. This is separate from the completed MA-015 work.
 and window lifetimes, with correct redraw and lifecycle behavior. Document
 encoded and decoded cache budgets separately.
 
-## Related open verification work
+## Related verification record
 
-[Investigate the intermittent UI shard 3 failure](todos.md#investigate-the-intermittent-ui-shard-3-package-failure)
-remains open. Later concurrent Docker verification runs recorded OOM events,
-while the same shard passed alone; a 1 GiB Go memory target did not prevent one
-failure. The original Qodana run's cause remains unknown. Capture raw test and
-Docker memory/event evidence, determine whether shard scheduling or the test
-memory budget needs adjustment, and verify the concurrent gate under the chosen
-configuration. See the latest
-[live-preview verification record](plans/2026-09-07-mosaic-live-preview.md).
-This infrastructure follow-up does not reopen completed application refactors.
+The local race-test investigation is closed under the accepted memory
+mitigation and evidence-retention contract. See the
+[September 9 completion record](finished_refactorings/2026-09-09-local-race-evidence.md).
+The original September 7 package-only failure remains unexplained; later OOM
+observations do not establish its cause. It is no longer open audit work.

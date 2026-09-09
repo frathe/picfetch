@@ -4,12 +4,26 @@
 
 **Blocked by:** None (can start after publication and any activation condition is satisfied).
 
-Status: claimed
+Status: resolved by user acceptance on 2026-09-09
 Scope: required
 Source: [Maintainability specification](../spec.md), AC20 / MA-020; plan work package S.
 Owner: lead for contract decisions, review and final gate; implementation routing follows the current project working agreement.
 
-## Acceptance criteria
+## Accepted closeout
+
+The user reported successful Windows 11 ARM and x64 testing and explicitly
+accepted the remaining detailed checks as edge cases. This closes ticket 27 /
+MA-020. Remaining per-artifact evidence and Windows SDK/WACK checks are waived
+for this audit; a WACK pass is not claimed. The later manual report does not
+identify particular hashes, editions or per-step coverage. See the
+[Windows acceptance record](../windows-test-todo.md). The prior common gates
+remain recorded below; no new tests or packaging runs were performed.
+
+The original criteria below preserve which evidence was retained. Unchecked
+criteria are superseded by the accepted closeout, rather than newly claimed
+as executed. Historical open-status comments below precede this decision.
+
+## Original acceptance criteria
 
 - [x] Centralize reviewed tool versions and image references across packaging routes, replacing floating tool selection and recording versioned/pinned image resolution.
 - [x] Build logs identify actual tool versions and resolved images; deliberate upgrades have maintained packaging contract coverage.
