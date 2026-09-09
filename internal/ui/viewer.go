@@ -17,6 +17,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	compareui "github.com/frathe/picfetch/internal/ui/compare"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
@@ -411,7 +412,9 @@ type viewer struct {
 	// worker pool and reaches back through the Host interface this viewer
 	// satisfies. handleKeyEvent checks its Visible() before its own
 	// dispatch, the same way it does for the delete confirmation.
-	grid *grid.Overview
+	grid            *grid.Overview
+	explorerAnalyze similarity.Provider
+	explorer        explorerWork
 
 	// compare is the opaque two-image surface stacked above the still-open
 	// grid. The feature owns its widgets and workers; this viewer owns only
@@ -637,6 +640,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // which art (welcomeArt or emptyStateArt) belongs in the box afterward and
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
+	v.closeExplorer()
 	v.pendingPictureFrame = false
 	// A full-screen dropzone would look broken, and there's nothing left to
 	// frame - safe to call even when picture-frame mode is already off.
@@ -697,9 +701,10 @@ func (v *viewer) clearToDropzone() {
 // un-maximize placement rarely lands back where the window was before the
 // grid took over.
 func (v *viewer) undoGridMaximize() {
-	if !v.grid.ConsumeMaximized() {
+	if !v.grid.ConsumeMaximized() && !v.explorer.maximized {
 		return
 	}
+	v.explorer.maximized = false
 	winpos.Unmaximize(v.win)
 	v.winPos.Restore(v.win)
 }

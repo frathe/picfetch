@@ -1,4 +1,4 @@
-package main
+package similarity
 
 import (
 	"context"
@@ -12,21 +12,21 @@ import (
 	"golang.org/x/image/draw"
 )
 
-type encoder struct {
+type Encoder struct {
 	session *ort.AdvancedSession
 	input   *ort.Tensor[float32]
 	output  *ort.Tensor[float32]
 }
 
-func newEncoder(config configuration) (_ *encoder, err error) {
-	ort.SetSharedLibraryPath(filepath.Join(config.Assets, runtimeLibrary))
+func NewEncoder(assets, provider string) (_ *Encoder, err error) {
+	ort.SetSharedLibraryPath(filepath.Join(assets, runtimeLibrary))
 	if err := ort.InitializeEnvironment(); err != nil {
 		return nil, err
 	}
-	e := &encoder{}
+	e := &Encoder{}
 	defer func() {
 		if err != nil {
-			e.close()
+			e.Close()
 		}
 	}()
 	options, err := ort.NewSessionOptions()
@@ -37,7 +37,7 @@ func newEncoder(config configuration) (_ *encoder, err error) {
 	if err = options.SetIntraOpNumThreads(6); err != nil {
 		return nil, err
 	}
-	if config.Provider == "coreml" {
+	if provider == "coreml" {
 		err = options.AppendExecutionProviderCoreMLV2(map[string]string{"ModelFormat": "MLProgram", "MLComputeUnits": "ALL", "RequireStaticInputShapes": "1"})
 		if err != nil {
 			return nil, err
@@ -51,7 +51,7 @@ func newEncoder(config configuration) (_ *encoder, err error) {
 	if err != nil {
 		return nil, err
 	}
-	e.session, err = ort.NewAdvancedSession(filepath.Join(config.Assets, "vision_model.onnx"),
+	e.session, err = ort.NewAdvancedSession(filepath.Join(assets, "vision_model.onnx"),
 		[]string{"pixel_values"}, []string{"pooler_output"}, []ort.Value{e.input}, []ort.Value{e.output}, options)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func newEncoder(config configuration) (_ *encoder, err error) {
 	return e, nil
 }
 
-func (e *encoder) close() {
+func (e *Encoder) Close() {
 	if e.session != nil {
 		_ = e.session.Destroy()
 	}
@@ -72,7 +72,7 @@ func (e *encoder) close() {
 	_ = ort.DestroyEnvironment()
 }
 
-func (e *encoder) encode(ctx context.Context, source image.Image) ([]float32, error) {
+func (e *Encoder) Encode(ctx context.Context, source image.Image) ([]float32, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -213,6 +213,8 @@ exclude:
       - "internal/ui/grid/uiqueue_test.go"
       - "internal/ui/grid_test.go"
       - "internal/ui/harness_test.go"
+      - "internal/ui/explorer_test.go"
+      - "internal/ui/explorer_local_test.go"
       - "internal/ui/help/about_test.go"
       - "internal/ui/help/easteregg_test.go"
       - "internal/ui/help/finis_test.go"

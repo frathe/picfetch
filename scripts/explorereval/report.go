@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/frathe/picfetch/internal/similarity"
+
 	"fyne.io/fyne/v2/storage"
 )
 
@@ -119,7 +121,7 @@ Full oriented first-frame RGB pixels, white alpha background, Go bilinear resize
 to 224x224, rescale/normalize to [-1,1], L2-normalize 768 outputs.
 The pinned processor specifies bilinear interpolation; byte-for-byte parity
 with Pillow preprocessing has not been established.
-Model, processor and runtime hashes are pinned in scripts/explorereval/assets.sha256.
+Model, processor and runtime hashes are pinned in internal/similarity/assets.sha256.
 
 Grouping: nozzle/umap f6085fb2514d, 15 dimensions, cosine metric, 15 neighbors,
 300 epochs, random initialization, seed 42, one worker, other defaults.
@@ -145,7 +147,7 @@ progressive visual continuity, cache reuse and interaction latency remain pendin
 Inspect the initial/final JSON and cohort report, identify useful and misleading
 groups, and provide a quality verdict before ticket 03 is marked ready.
 `, result.Available, view.Total, view.Represented, view.Failed, len(groups)-boolInt(view.Unassigned > 0), view.Unassigned, 100*float64(view.Unassigned)/float64(view.Represented),
-		result.FirstMapSeconds, result.ElapsedSeconds, result.SetupSeconds, result.DecodeSeconds, result.EncodeSeconds, result.PeakRSSBytes, float64(result.PeakRSSBytes)/(1<<20), result.MemoryScope, result.InitialStages, result.FinalStages, len(initial), metrics.Jaccard, metrics.Common, metrics.Movement, result.ManifestSHA256, result.Config.Provider, modelRevision)
+		result.FirstMapSeconds, result.ElapsedSeconds, result.SetupSeconds, result.DecodeSeconds, result.EncodeSeconds, result.PeakRSSBytes, float64(result.PeakRSSBytes)/(1<<20), result.MemoryScope, result.InitialStages, result.FinalStages, len(initial), metrics.Jaccard, metrics.Common, metrics.Movement, result.ManifestSHA256, result.Config.Provider, similarity.ModelRevision)
 	return os.WriteFile(filepath.Join(result.Config.Out, "pipeline-evaluation.md"), []byte(report), 0o600)
 }
 

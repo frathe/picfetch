@@ -22,6 +22,7 @@ import (
 	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui"
 	"github.com/frathe/picfetch/internal/update"
 )
@@ -102,6 +103,10 @@ func main() {
 	paths, opts, exit := launchArgs(os.Args[1:], os.Stdout, os.Stderr)
 	if exit >= 0 {
 		os.Exit(exit)
+	}
+
+	if similarity.WorkerMain() {
+		return
 	}
 
 	// First statement in the process, before the fyne.App exists.

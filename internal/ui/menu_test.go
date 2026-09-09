@@ -146,10 +146,10 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 	if window.Label != "Window" {
 		t.Errorf("fourth menu label = %q, want %q", window.Label, "Window")
 	}
-	if len(window.Items) != 5 {
-		t.Fatalf("Window menu items = %d, want 5 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help)", len(window.Items))
+	if len(window.Items) != 6 {
+		t.Fatalf("Window menu items = %d, want 6 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help, Visual Similarity Explorer)", len(window.Items))
 	}
-	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help"}
+	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help", "Visual Similarity Explorer"}
 	for i, want := range wantWindowLabels {
 		got := window.Items[i]
 		if got.Label != want {
@@ -178,8 +178,8 @@ func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
 	v := newTestViewer(t)
 	window := buildMainMenu(v).Items[3]
 
-	if len(window.Items) != 5 {
-		t.Fatalf("Window menu items = %d, want 5", len(window.Items))
+	if len(window.Items) != 6 {
+		t.Fatalf("Window menu items = %d, want 6", len(window.Items))
 	}
 
 	want := []struct {

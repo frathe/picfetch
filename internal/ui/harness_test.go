@@ -12,6 +12,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/openwith"
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -43,6 +44,9 @@ import (
 var testApp fyne.App
 
 func TestMain(m *testing.M) {
+	if similarity.WorkerMain() {
+		return
+	}
 	testApp = test.NewApp()
 
 	// No global tweaks needed here anymore: the toast auto-hide duration,
@@ -89,6 +93,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 
 	v, win = buildStartupViewer(testApp)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.explorer.ui = &uitest.UIQueue{}
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
 	v.deletion.SetUIQueue(&uitest.UIQueue{})
@@ -174,6 +179,8 @@ func drain(t *testing.T, v *viewer) {
 	// this test has already closed. Clearing it first also means nothing
 	// can start a fresh scan behind the waits below.
 	openwith.SetHandler(nil)
+	v.closeExplorer()
+	v.settleExplorer()
 	v.closeFileWork()
 	v.closeClipboardWork()
 	v.closeOpenChooser()

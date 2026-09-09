@@ -125,11 +125,14 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	browsing := g.browseHost >= 0
 	browseFilter := g.BrowseReady()
 	nameFilter := g.searching && g.query != ""
-	hide := vis.Hide && !browsing
-	if nameFilter || hide || browseFilter {
+	hide := vis.Hide && !browsing && g.subset == nil
+	if nameFilter || hide || browseFilter || g.subset != nil {
 		needle := strings.ToLower(g.query)
 		g.matches = make([]int, 0, g.host.FileCount())
 		for i := range g.host.FileCount() {
+			if g.subset != nil && !g.subset[g.host.FileAt(i).Path()] {
+				continue
+			}
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
 				continue
 			}
@@ -213,9 +216,21 @@ func (g *Overview) restoreHighlight(host int) {
 // active, and each half appears on its own: a selection built without ever
 // opening the search shows only its count, and vice versa.
 func (g *Overview) syncTopBar() {
+	if g.subsetBack != nil {
+		if g.subset != nil {
+			g.subsetBack.Show()
+		} else {
+			g.subsetBack.Hide()
+		}
+	}
 	switch {
 	case g.searching:
 		g.searchLabel.SetText(fmt.Sprintf(lang.L("Search: %s"), g.query))
+		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
+		g.searchLabel.Show()
+		g.countLabel.Show()
+	case g.subset != nil:
+		g.searchLabel.SetText(lang.L("Showing similarity cohort"))
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
 		g.countLabel.Show()
@@ -241,7 +256,7 @@ func (g *Overview) syncTopBar() {
 		g.selLabel.Hide()
 	}
 
-	if !g.searching && g.sel.Len() == 0 && !g.dupes.HideDuplicates() && g.browseHost < 0 {
+	if !g.searching && g.sel.Len() == 0 && !g.dupes.HideDuplicates() && g.browseHost < 0 && g.subset == nil {
 		g.searchBar.Hide()
 		g.empty.Hide()
 

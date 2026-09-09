@@ -278,5 +278,20 @@
    "Saving mosaic...": "Mosaik wird gespeichert...",
    "Could not save mosaic: %v": "Mosaik konnte nicht gespeichert werden: %v",
    "Saved mosaic as %q": "Mosaik als %q gespeichert",
-   "Canvas coverage: %d%%": "Bildfläche gefüllt: %d%%"
+   "Canvas coverage: %d%%": "Bildfläche gefüllt: %d%%",
+   "Visual Similarity Explorer": "Visueller Ähnlichkeits-Explorer",
+   "Back to Viewer": "Zurück zur Bildansicht",
+   "Unassigned": "Nicht zugeordnet",
+   "Unassigned (%d)": "Nicht zugeordnet (%d)",
+   "Fit map": "Karte einpassen",
+   "%d images": "%d Bilder",
+   "Analyzing images...": "Bilder werden analysiert...",
+   "%d ready, %d failed, %d total": "%d bereit, %d fehlgeschlagen, %d insgesamt",
+   "Grouping and arranging %d images...": "%d Bilder werden gruppiert und angeordnet...",
+   "Analysis failed. Open the explorer to retry.": "Analyse fehlgeschlagen. Zum Wiederholen den Explorer öffnen.",
+   "+": "+",
+   "-": "-",
+   "Showing similarity cohort": "Ähnlichkeitsgruppe anzeigen",
+   "Back to map": "Zurück zur Karte",
+   "1 image": "1 Bild"
 }

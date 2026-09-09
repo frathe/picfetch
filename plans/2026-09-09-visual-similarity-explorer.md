@@ -1,7 +1,7 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: real smoke experiment implemented; semantic review pending; repository verification passed
+Status: native completed-map increment verified and open for local trial; later increments remain active
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
@@ -11,8 +11,8 @@ Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-brea
 
 Deliver the real local content-similarity explorer through the seven-ticket
 sequence. Ticket 01 is complete. Ticket 02 now has a measured real pipeline and
-local cohort report. Its semantic quality verdict is pending; production
-integration is not complete or marked ready merely because inference ran.
+local cohort report. The user accepted its quality (“it looks promising. yes
+continue”), authorizing the completed-map native integration now implemented.
 
 The user explicitly accepted the proposed defaults and test boundaries and
 supplied `/Users/ronin/Projects/picfetch/.scratch/visual-similarity-explorer/demo`.
@@ -81,7 +81,7 @@ Verify: `go test ./scripts/explorereval -count=1`; `make explorer-test`;
 `make explorer-evaluate TRIAL=smoke`; explicit denied/undenied probe checks;
 `make verify`; separate user semantic verdict on the generated review.
 Budget: at most one scout, two lead review rounds, one complete final race suite
-Status: technical experiment complete; semantic acceptance pending; final gate passed
+Status: complete; user accepted the real report; experiment verification passed
 
 ## Task graph and later planning
 
@@ -145,7 +145,7 @@ The [local report](../.scratch/visual-similarity-explorer/evidence/smoke-TZppbI/
 and [measurement record](../.scratch/visual-similarity-explorer/evidence/smoke-TZppbI/result/pipeline-evaluation.md)
 are concrete review artifacts. No content-similarity quality, native viewer
 integration, stable progressive layout, persistence reuse, or 50k result is
-claimed. The user's semantic question remains pending after verification.
+claimed. The user accepted the semantic result in the following turn.
 
 ## Cost ledger and handoff
 
@@ -174,5 +174,138 @@ Final closeout: affected-package race tests passed after the termination fix,
 and `make explorer-setup` reverified local assets without downloading.
 Hardware evidence confirms Apple M5 Max, 18 CPUs, 48 GiB, macOS 26.6.2 and
 Go 1.27.1. All 55 local links across 16 documents and whitespace checks passed.
-The required remaining input is the user's semantic verdict on the concrete
-cohort report. No application explorer completion is claimed.
+The semantic verdict was received in the following turn. Native integration
+and its own evidence are recorded below.
+
+## Native integration acceptance and task 03
+
+The user reviewed the real corpus report and replied “it looks promising. yes
+continue”. Semantic quality is accepted for the small native integration; the
+446-image result does not qualify 50k behavior. Earlier pending-verdict text is
+historical and superseded by this acceptance.
+
+Owner: T0 inline. One read-only T3 scout traces existing grid/viewer return paths
+while the lead fixes the engine interface. Files: internal/similarity (reusable
+local engine/process protocol), internal/ui/explorer (map surface), root UI
+composition/input/navigation, grid cohort filtering, menus/translations/manuals,
+main worker dispatch, experiment adapters, tests/manifests and architecture.
+Contract: analysis accepts the exact opened source identities and emits immutable
+progress/results; a cancellable child process contains native inference and
+non-cancellable batch algorithms. Map UI owns its camera, sampled pile previews
+and completion delivery; root UI owns map/grid/image transitions. Cohort grids
+filter by source identity without replacing the opened file set.
+Test: ticket 03 completed map, full cohort membership, camera return and opened
+inputs at the approved UI seam; actual local engine under OS network denial.
+Verify: focused TestVisualSimilarityExplorer subtests; explicit native offline
+trial; make verify. Budget: one scout, two lead reviews, one final race suite.
+
+Scout gate: G1 bounded trace of grid/image return and navigation; G2 source
+locations verified with rg/sed; G3 zero writes; G4 isolated cross-file input flow;
+G5 lead has only read grid filtering and activation. S/W: adaptive call tracing,
+no mechanical transform. Literal Explore is unavailable; inherited model is
+read-only. Review and fixes remain with the lead.
+
+### Task 03 implementation and verification record
+
+Public engine contract: `similarity.Client{Assets}.Analyze(context.Context,
+[]string, func(similarity.Event)) error`; every callback is immutable and serial,
+and return observes child exit. `WorkerMain` runs before app startup and verifies
+TCP/UDP denial plus pinned assets before reading sources. The bounded experiment
+uses the same encoder/grouping implementation. No new public launch flag.
+
+Map contract: `explorer.Map` has a two-method Host for opening captured source
+identities and leaving the map. It owns no goroutines. Root `explorerWork` owns
+requestLifecycle, tracked workers and a drainable UI queue. Grid `OpenSubset`
+preserves host indexes; image navigation wraps within frozen cohort identities.
+
+Observed red/green: missing menu; End escaped the cohort; actual canvas drag
+missed a zero-sized map; real native provider was disconnected; leaving the map
+did not cancel analysis; covered image actions remained enabled. All corrected
+and focused tests passed. Negative verification additionally narrowed inputs,
+removed staleness guards, removed the sample cap, and reset the return camera: all
+four targeted guards failed as intended, then source was restored.
+
+`make explorer-test` passed all six shared-engine command/native guards. The
+three real UI-worker scenarios passed: offline map/cohort/image return, a missing
+source separately accounted, and worker exit after cancellation on actual
+progress. Focused UI race checks passed. Synthetic rendered QA exposed a
+transparent toolbar; an opaque backdrop fixed it and the next render was
+inspected. User images have not been viewed by the agent or transmitted.
+
+Native QA found very large projection units could produce tiny piles. A new
+projection_scale UI guard failed at a 7.2px pile width, then normalized display
+spacing passed. The user additionally requested default maximization; entering
+the explorer now uses the same native work-area maximize as Grid View. Cohort
+navigation retains that size; later ordinary-image resizing clears the native
+maximized state. The native screenshot before the change showed the 520px window.
+
+Verification budget update: the first complete gate found an existing menu
+inventory assertion missing the added item. Native QA and the user's maximize
+request also changed the final UI. Fixes remain lead-owned; the final gate will
+be rerun after native QA.
+
+
+Native interaction evidence (synthetic pixels only): the refreshed application
+enters a 1226 x 768 work-area window and displays two readable 12-image piles
+from 24 actual local model results. A pile opens its 12 Grid View members;
+Enter opens an image, End reaches that cohort's last image, and Right wraps
+to its first. Escape returns to the cohort grid; Back to map restores the
+map. Native drag and zoom visibly alter the camera, and a subsequent
+cohort/grid return preserves that geometry. No library pixels were inspected.
+
+Final boundary review found two gaps and closed them with observed red/green:
+merging a repeated path produced four samples from three distinct sources;
+preview selection now deduplicates sources while Grid View retains every
+opened occurrence. An uncached cohort navigation shrank the window from
+1100 x 700 to 520 x 340 at the early header probe; that probe now honors the
+same explorer sizing rule as final image delivery. Removing its guard made
+the adjusted cold-navigation test fail again, then restoration passed.
+
+The initial cold-load test activated an uncached cell inside Fyne's selection
+callback. Fyne's inline test driver allowed load completion to race its deferred
+UnselectAll; the native driver serializes those callbacks. The boundary test
+now opens the initial cached member, then performs uncached End navigation,
+which exercises the sizing bug without overlapping that selection callback.
+Focused explorer/grid sizing race tests pass after this adjustment.
+
+Verification bookkeeping: the second complete gate compiled that earlier
+cold-load test and reported its race. A final run of the affected ui-1 shard
+uses the corrected test; unaffected completed partitions are retained from
+that gate. Formatting, vet, build and focused native race checks were rerun
+after the final source fixes. This exceeds the planned two review rounds
+because native inspection, user-requested sizing and boundary tests exposed
+additional concrete findings; no fixes or reviews were delegated.
+
+
+### Task 03 closeout
+
+- `make verify-build` passed after the final production fixes; `make build`
+  refreshed the trial binary. Formatting and the exact 680-runnable shard
+  inventory passed after both additional subtests were added.
+- All Linux race partitions pass using the retained second-gate non-ui,
+  ui-2 and ui-3 outputs plus the corrected ui-1 rerun. The literal second
+  `make verify` exited 2 on the earlier test-driver race; it is not reported
+  as a successful invocation. The affected shard was rerun with the same
+  Makefile target and Linux/amd64 environment, and exited 0 with 223 top-level
+  passes. Evidence: `.scratch/race-runs/20260909T133105Z-HBMsUI` and
+  `.scratch/race-runs/explorer-ui-1-final`.
+- `make explorer-ui-test` passed again on the final code: offline real-engine
+  round trip, missing-source accounting and canceled-worker exit, plus every
+  controlled UI scenario. No required native tests skipped.
+- Focused native race tests covered all explorer cases and both existing grid
+  maximization cases. Both new regression guards were observed failing before
+  their fixes. All 58 local documentation links and whitespace checks pass.
+- The refreshed trial app is open with the supplied 446-image demo; its local
+  analysis child has exited. Only synthetic pixels were inspected by the lead.
+  Native behavior evidence is in
+  [native-completed-map.md](../.scratch/visual-similarity-explorer/evidence/native-completed-map.md).
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Evidence |
+| --- | --- | --- | --- | --- |
+| 03 | 1 / 1 | 4 (budget 2) | two attempts; affected shard rerun | Native QA, real offline tests, negative guards, all race partitions green |
+
+The extra review rounds and verification were caused by observed native scale
+and cold-load issues, the user's maximize request, and the test-driver race
+exposed by the added boundary scenario. Tickets 04-07 and the full plan remain
+open; no progressive/persistence/full-library result is claimed. No commit was
+made, and both unrelated `:memory:.ses` files remain untouched.

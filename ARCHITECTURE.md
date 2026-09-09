@@ -10,7 +10,8 @@ Standing rules (data flow, concurrency, conventions, build) live in
 ### `github.com/frathe/picfetch` (package main)
 
 Entry point only. `main.go` parses the command line (`launchArgs`, see
-`internal/launch`) before any side effect, calls `openwith.Install` (first
+`internal/launch`) before any side effect, dispatches the private `similarity.WorkerMain`
+subprocess mode before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
 cleanup for Store-managed builds, builds the `fyne.App`, loads embedded
 `translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
@@ -34,20 +35,33 @@ the raw events outside the repository; the generated assignment lives at
 | `docker-race.sh` | Public Make runner: unique host artifact directory, attached Docker lifecycle, raw streams and console retention, exit/memory/OOM diagnostics before cleanup. |
 | `main_test.go` | Command-boundary fixtures for event streams and capture, deterministic planning, every manifest rejection, build-selected runnable forms, parallel-call refusal, exact filter generation, package partitioning, and Make contract expansion. |
 
+### `internal/similarity`
+
+Local content analysis shared by the viewer and its reproducible experiment.
+`client.go` owns `Client.Analyze` (exact opened paths, immutable `Event` callbacks),
+asset discovery, the cancellable offline subprocess, and private `WorkerMain`
+dispatch. `analyze.go` accounts for every input, captures source versions,
+reuses canonical full oriented decoding, makes previews, and publishes completion
+only after grouping/layout. `encoder.go` owns the pinned native SigLIP 2 session;
+`grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
+cohort identities. The encoder and grouping entry points are worker-only: the
+native runtime is process-global and batch algorithms cannot be interrupted
+in place. `assets.go`/`assets.sha256` verify pinned local assets; `offline.go`
+verifies actual TCP/UDP OS denial; `files.go` registers the driverless read-only
+file repository. This first native trial supports Apple Silicon macOS.
+
 ### `scripts/explorereval`
 
-Bounded, local Mac experiment for the visual similarity explorer, reached through
-`make explorer-setup`, `make explorer-test` and `make explorer-evaluate`. It is
-not linked into the viewer. `main.go` owns the cancellable process and enforced
-offline launch; `offline.go` verifies actual TCP/UDP denial; `assets.go` and
-`setup.sh` verify pinned assets. `files.go` provides the driverless read-only
-file repository and smoke selection so `evaluate.go` reuses canonical scanning
-and decoding. `encoder.go` runs the local SigLIP 2 ONNX vision encoder;
-`grouping.go` runs independent 15D grouping and 2D projection fits. `report.go`
-and `review.html` produce local cohort/measurement artifacts; `memory_*.go`
-measures native worker RSS. `evaluate.sh` retains each run and its exit status.
-Real-model tests use the `explorertrial` tag and require local assets plus OS
-network denial; ordinary command guards run in the default suite.
+Bounded local experiment reached through `make explorer-setup`,
+`make explorer-test` and `make explorer-evaluate`. `main.go` owns the experiment
+CLI/offline launch; `setup.sh` uses `internal/similarity/assets.sha256`.
+`evaluate.go` uses the shared native encoder/grouping and adds per-stage
+measurement and evidence files; `files.go` selects the bounded smoke corpus.
+`report.go` and `review.html` produce local cohort/measurement artifacts;
+`memory_*.go` measures native RSS; `evaluate.sh` retains each run/exit status.
+Real-model tests require assets and OS denial under the `explorertrial` tag.
+`make explorer-ui-test` additionally exercises the production worker and
+completed-map/Grid View round trip through the UI harness.
 
 ### Packaging tooling
 
@@ -86,6 +100,15 @@ native Unicode transport, wallpaper and updater guards. CI invokes this command
 and uploads its event files. `main_test.go` covers admission, selection, event
 validation, process failures and workflow wiring through a per-call runner.
 
+### `internal/ui/explorer`
+
+`Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
+stable samples of up to fifteen distinct members per `Pile`. Its two-method
+`Host` opens the full captured cohort or leaves the map. It starts no workers;
+`internal/ui/explorer.go` supplies results and maximizes the native window at entry and preserves its camera while Grid
+View or the ordinary image view is active. `internal/ui/grid/subset.go` filters
+cohorts by source path while retaining root indexes for existing operations.
+
 ### `internal/ui`
 
 The application. Unexported `appState` is the file-set model (scan/drop
@@ -103,11 +126,12 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | File(s) | Responsibility |
 |---------|----------------|
 | `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. |
-| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
+| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with the supplied Codex atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `internal/ui/assets/trane.webp` is copied unchanged from `assets/trane/codex-pet/spritesheet.webp`. |
-| `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
+| `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, exact opened-file snapshot, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
+| `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, similarity map, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action shortcut wiring (open, favorites, clipboard, copy selection, comparison, delete, select-all, save, export, wallpaper). Comparison registers the native `Cmd/Ctrl+D` plus physical `Ctrl+D` when those differ. `yieldingShortcuts` blocks ordinary commands during comparison and otherwise yields Copy Selection; Open is admitted only far enough to show comparison's refusal. Copy Selection and clipboard bindings also defend their own direct entries. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
 | `windowtrack.go` | Main-window size tracker and position poller; `widgetGeometry` / `prefGeometry` translate `preferences.WindowGeometry` ↔ `widgets.Geometry`. |

@@ -171,7 +171,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	// by it) and the toast that reports what the batch did.
 	window.SetContent(container.New(windowSizeTracker(view, window),
 		view.zoom.Widget(), dz.root, scanContainer, sortContainer, overlay, infoOverlay,
-		view.regionCopy.Overlay(), view.grid.Overlay(), view.compare.Overlay(),
+		view.regionCopy.Overlay(), view.explorer.surface.Overlay(), view.grid.Overlay(), view.compare.Overlay(),
 		view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
 	window.SetMainMenu(buildMainMenu(view))
 	// Fyne's Darwin driver inserts our Window menu next to GLFW's system

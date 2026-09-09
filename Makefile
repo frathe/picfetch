@@ -55,7 +55,7 @@ EXPLORER_EVIDENCE ?= .scratch/visual-similarity-explorer/evidence
 EXPLORER_PROVIDER ?= cpu
 TRIAL ?= smoke
 
-.PHONY: explorer-setup explorer-evaluate explorer-test
+.PHONY: explorer-setup explorer-evaluate explorer-test explorer-ui-test
 explorer-setup: ## Download and verify pinned public assets for the local Mac explorer experiment
 	bash scripts/explorereval/setup.sh "$(EXPLORER_ASSETS)"
 
@@ -68,6 +68,10 @@ explorer-test: ## Run real-model acceptance tests under explicit macOS network d
 	@mkdir -p $(BIN_DIR)
 	go test -c -tags explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
 	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.v -test.count=1
+
+explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on this Mac
+	go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v
+
 
 fmt: ## Format all Go source files (gofmt + import groups via goimports -local)
 	go tool goimports -local $(GOIMPORTS_LOCAL) -w .

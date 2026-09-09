@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 222 entries, 326.750s baseline median-weight sum
+# ui-1: 223 entries, 326.750s baseline median-weight sum
 # ui-2: 227 entries, 327.070s median-weight sum
 # ui-3: 230 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 112 tests assigned across the baseline shards
+# post-baseline additions: 113 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -217,6 +217,7 @@ TestViewerShow_AnimatesGIF	ui-1
 TestViewerShow_AutoAdvancesPastBrokenFileDuringNavigation	ui-1
 TestViewerShow_AutoAdvancesPastBrokenFirstFile	ui-1
 TestViewerShow_LoadsAndNavigates	ui-1
+TestVisualSimilarityExplorer	ui-1
 TestWhatsNewCache_RoundTripAndClear	ui-1
 TestWindowMenu_AfterOneJPEGDropEnablesExifGridAndPictureFrame	ui-1
 TestWindowMenu_GridActionNoopsDuringPictureFrame	ui-1

@@ -123,6 +123,9 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 			g.Close()
 		}
 	case fyne.KeyD:
+		if g.subset != nil {
+			return
+		}
 		if g.host.Modifiers()&fyne.KeyModifierShift != 0 {
 			g.ToggleBrowseDuplicates()
 		} else if !g.BrowsingDuplicates() {

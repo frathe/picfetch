@@ -669,6 +669,31 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ---
 
+### Visueller Ähnlichkeits-Explorer (lokaler Mac-Test)
+
+Bei geöffneten Bildern **Fenster -> Visueller Ähnlichkeits-Explorer** wählen.
+Alle geöffneten Bilder werden analysiert, einschließlich zusammengeführter
+Listen und Favoriten. Suche und Auswahl in der Rasteransicht schränken die
+Analyse nicht ein. Beim Öffnen des Explorers wird das Fenster maximiert.
+Der Fortschritt unterscheidet erfolgreiche und fehlgeschlagene
+Bilder von der Gruppierung und Anordnung. Die fertige Karte zeigt Gruppen als
+Stapel mit bis zu fünfzehn Beispielbildern; **Nicht zugeordnet** enthält Bilder
+ohne Gruppenzuordnung.
+
+Zum Verschieben ziehen, zum Zoomen scrollen oder `+`/`-` verwenden.
+**Karte einpassen** setzt die Ansicht zurück. Ein Klick auf einen Stapel öffnet
+seine gesamte Gruppe in der Rasteransicht. Ein Bild wie gewohnt öffnen;
+die Navigation bleibt innerhalb der Gruppe. `Escape` führt zum Gruppenraster
+zurück, anschließend ein weiteres `Escape` oder **Zurück zur Karte** zur
+vorherigen Kartenansicht. Suche und Auswahl behalten ihre üblichen Escape-Stufen.
+**Zurück zur Bildansicht** verlässt die Karte und bricht laufende Analysen ab.
+
+Dieser erste Test benötigt lokale Modelldaten auf einem Mac mit Apple Silicon.
+Die Analyse läuft lokal mit gesperrtem Netzwerkzugriff. Schrittweiser Aufbau,
+dauerhafte Wiederverwendung und die Prüfung großer Bibliotheken folgen später.
+
+---
+
 ## 9. Diaschau-Modus
 
 Drücken Sie **`P`**, um die aktuelle Bildauswahl in eine Vollbild-Diaschau zu

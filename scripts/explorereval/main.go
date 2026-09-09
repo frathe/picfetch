@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+
+	"github.com/frathe/picfetch/internal/similarity"
 )
 
 func main() {
@@ -45,7 +47,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return fmt.Errorf("unexpected positional arguments")
 	}
 	if *probe {
-		return verifyOffline(ctx)
+		return similarity.VerifyOffline(ctx)
 	}
 	if *trial != "smoke" {
 		return fmt.Errorf("only TRIAL=smoke is qualified by this bounded evaluator; full-library integration remains pending")
@@ -53,7 +55,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if *provider != "cpu" && *provider != "coreml" {
 		return fmt.Errorf("provider must be cpu or coreml")
 	}
-	if err := verifyAssets(ctx, *assets); err != nil {
+	if err := similarity.VerifyAssets(ctx, *assets); err != nil {
 		return err
 	}
 	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {

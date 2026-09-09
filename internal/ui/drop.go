@@ -94,6 +94,7 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 		v.pendingPictureFrame = false
 	}
 
+	v.closeExplorer()
 	v.openChooserLifecycle.invalidate()
 	v.deletion.Cancel()
 	v.grid.Close()

@@ -585,6 +585,29 @@ any desktop change; **Save Image** remains available.
 
 ---
 
+### Visual similarity explorer (local Mac trial)
+
+With images open, choose **Window -> Visual Similarity Explorer**. It analyzes
+all opened images, including merged sets and Favorites. Grid search and
+selection do not narrow this input. Progress separates successful and failed
+images from grouping and layout work. Entering the explorer maximizes the
+window. The completed map displays cohorts as
+piles with up to fifteen sampled members; **Unassigned** contains images that
+do not belong to a cohort.
+
+Drag to pan, scroll or use `+`/`-` to zoom, and choose **Fit map** to reset the
+view. Click a pile to open its complete cohort in Grid View. Open any member
+normally; navigation remains within that cohort. `Escape` returns from an
+image to the cohort grid, then another `Escape` or **Back to map** returns to
+the same map view. Grid search and selection keep their usual Escape stages.
+**Back to Viewer** leaves the map and cancels unfinished analysis.
+
+This first trial requires local model assets on an Apple Silicon Mac. Analysis
+runs locally with network access denied. Progressive discovery, persistent
+analysis reuse and full-library qualification are still being developed.
+
+---
+
 ## 9. Picture-frame mode
 
 Press **`P`** to turn the current image set into a full-screen slideshow —

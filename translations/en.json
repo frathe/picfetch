@@ -278,5 +278,20 @@
    "Saving mosaic...": "Saving mosaic...",
    "Could not save mosaic: %v": "Could not save mosaic: %v",
    "Saved mosaic as %q": "Saved mosaic as %q",
-   "Canvas coverage: %d%%": "Canvas coverage: %d%%"
+   "Canvas coverage: %d%%": "Canvas coverage: %d%%",
+   "Visual Similarity Explorer": "Visual Similarity Explorer",
+   "Back to Viewer": "Back to Viewer",
+   "Unassigned": "Unassigned",
+   "Unassigned (%d)": "Unassigned (%d)",
+   "Fit map": "Fit map",
+   "%d images": "%d images",
+   "Analyzing images...": "Analyzing images...",
+   "%d ready, %d failed, %d total": "%d ready, %d failed, %d total",
+   "Grouping and arranging %d images...": "Grouping and arranging %d images...",
+   "Analysis failed. Open the explorer to retry.": "Analysis failed. Open the explorer to retry.",
+   "+": "+",
+   "-": "-",
+   "Showing similarity cohort": "Showing similarity cohort",
+   "Back to map": "Back to map",
+   "1 image": "1 image"
 }

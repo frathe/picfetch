@@ -1,4 +1,4 @@
-package main
+package similarity
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 // No image, path, or payload is sent by this probe. A timeout, refused port,
 // offline network, or environment flag cannot substitute for OS denial.
-func verifyOffline(ctx context.Context) error {
+func VerifyOffline(ctx context.Context) error {
 	for _, network := range []string{"tcp4", "udp4"} {
 		dialer := net.Dialer{Timeout: time.Second}
 		connection, err := dialer.DialContext(ctx, network, "192.0.2.1:443")

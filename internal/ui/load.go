@@ -36,6 +36,7 @@ func (v *viewer) ShowImage(i int) {
 	if !v.yieldCopySelection() {
 		return
 	}
+	v.explorerImageOpened()
 	v.cancelImageClipboard()
 	v.cancelSave()
 	v.cancelExport()
@@ -138,10 +139,9 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 				// fills the whole window, so sizing that window to one
 				// image means nothing while it's up - and undoGridMaximize
 				// would actively shrink it back out from under the open
-				// grid. Only reachable since the grid's batch delete, which
-				// re-shows whatever takes a deleted file's place without
-				// closing the grid first.
-				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() {
+				// grid. The explorer and its cohort browsing retain that
+				// size through both this probe and the final load.
+				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() && len(v.explorer.cohort) == 0 && !v.explorer.surface.Visible() {
 					v.undoGridMaximize()
 					v.autoResizeToImage(bounds)
 				}
@@ -309,7 +309,7 @@ func (v *viewer) syncLoadedFileInfo(loaded *imaging.LoadedImage) {
 func (v *viewer) fitWindowToLoadedImage(loaded *imaging.LoadedImage) {
 	v.zoom.ResetToFit()
 
-	if !v.slides.Active() && !v.grid.Visible() {
+	if !v.slides.Active() && !v.grid.Visible() && len(v.explorer.cohort) == 0 && !v.explorer.surface.Visible() {
 		b := loaded.Frames[0].Bounds()
 		v.undoGridMaximize()
 		v.autoResizeToImage(b)

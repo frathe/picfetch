@@ -89,13 +89,20 @@ now contains a measured real Go/native experiment under OS network denial.
 All 446 demo images processed successfully in 90.638 seconds, producing
 36 cohorts and 90 unassigned images. Real-model tests and `make verify` pass.
 The [local report](.scratch/visual-similarity-explorer/evidence/smoke-TZppbI/result/review.html)
-is awaiting the user’s semantic quality verdict. The
+was accepted by the user (“it looks promising. yes continue”). The
 [execution plan](plans/2026-09-09-visual-similarity-explorer.md) records TDD
 slices and measured evidence. The [trial contract](.scratch/visual-similarity-explorer/decisions.md)
 and [protocol](.scratch/visual-similarity-explorer/evaluation-protocol.md) retain
 accepted choices. Persistent analysis is included in the later ticket sequence.
 
-Production map/Grid integration depends on reviewing actual engine output.
+The native completed-map/Grid View/return path is implemented, with tested
+cohort navigation, cancellation, staleness, command isolation and real worker
+network denial. Entry maximizes the window, including uncached cohort image
+navigation. Native synthetic QA, actual offline tests, build/vet and all Linux
+race partitions pass (the affected shard was rerun after a test-driver fix).
+The refreshed trial is open with the supplied demo. Progressive delivery,
+representation persistence, extended recovery and full-library qualification
+remain tickets 04-07.
 The supplied demo does not qualify the intended roughly 50,000-image trial.
 The current batch HDBSCAN/UMAP experiment has cancellation and scaling limits;
 these must be resolved before selecting the full-library engine.

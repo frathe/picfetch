@@ -11,7 +11,7 @@ mkdir -p "${1:?pass the local asset directory}"
 asset_dir=$(cd "$1" && pwd)
 cd "$asset_dir"
 
-if shasum -a 256 -c "$source_dir/assets.sha256" >/dev/null 2>&1; then
+if shasum -a 256 -c "$source_dir/../../internal/similarity/assets.sha256" >/dev/null 2>&1; then
     echo 'Pinned explorer assets already verified.'
     exit 0
 fi
@@ -25,4 +25,4 @@ curl -fL --retry 3 'https://github.com/microsoft/onnxruntime/releases/download/v
 printf '%s\n' 'd0706fc34f315d8c88639d0a8c81f2e09e815f282cabed3493c06a054352cf92  onnxruntime.tgz.part' | shasum -a 256 -c -
 tar -xzf onnxruntime.tgz.part
 rm onnxruntime.tgz.part
-shasum -a 256 -c "$source_dir/assets.sha256"
+shasum -a 256 -c "$source_dir/../../internal/similarity/assets.sha256"

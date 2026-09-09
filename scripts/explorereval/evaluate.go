@@ -13,9 +13,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/frathe/picfetch/internal/similarity"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/storage/repository"
 
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -23,17 +24,7 @@ import (
 
 type configuration struct{ Assets, Library, Out, Provider string }
 
-type item struct {
-	Path       string
-	Size       int64
-	ModifiedNS int64
-	SHA256     string
-	Error      string    `json:",omitempty"`
-	Embedding  []float32 `json:",omitempty"`
-	Cohort     string    `json:",omitempty"`
-	Position   []float32 `json:",omitempty"`
-	Thumbnail  string    `json:",omitempty"`
-}
+type item = similarity.Item
 
 type evaluation struct {
 	OfflineVerified bool
@@ -55,7 +46,7 @@ type evaluation struct {
 
 func evaluate(ctx context.Context, config configuration, output io.Writer) error {
 	start := time.Now()
-	if err := verifyOffline(ctx); err != nil {
+	if err := similarity.VerifyOffline(ctx); err != nil {
 		return err
 	}
 	info, err := os.Stat(config.Library)
@@ -65,13 +56,12 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 	if !info.IsDir() {
 		return fmt.Errorf("library must be a directory")
 	}
-	local := &localFiles{}
-	repository.Register("file", local)
+	scanError := similarity.RegisterLocalFiles()
 	files, truncated := filescan.Images(ctx, []fyne.URI{storage.NewFileURI(config.Library)}, filescan.DefaultMax, nil)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if err := errors.Join(local.scanErrors...); err != nil {
+	if err := scanError(); err != nil {
 		return fmt.Errorf("incomplete input scan: %w", err)
 	}
 	if truncated {
@@ -81,7 +71,7 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 		return fmt.Errorf("library contains no supported images")
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].String() < files[j].String() })
-	result := evaluation{OfflineVerified: true, Config: config, ModelRevision: modelRevision, Available: len(files)}
+	result := evaluation{OfflineVerified: true, Config: config, ModelRevision: similarity.ModelRevision, Available: len(files)}
 	files = smokeSample(files)
 	if err := os.MkdirAll(filepath.Dir(config.Out), 0o700); err != nil {
 		return err
@@ -92,11 +82,11 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 	if err := os.Mkdir(filepath.Join(config.Out, "images"), 0o700); err != nil {
 		return err
 	}
-	e, err := newEncoder(config)
+	e, err := similarity.NewEncoder(config.Assets, config.Provider)
 	if err != nil {
 		return err
 	}
-	defer e.close()
+	defer e.Close()
 	result.SetupSeconds = time.Since(start).Seconds()
 	var initial []item
 	successful := 0
@@ -120,7 +110,7 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 				result.DecodeSeconds += time.Since(decodeStart).Seconds()
 				if err == nil {
 					encodeStart := time.Now()
-					entry.Embedding, err = e.encode(ctx, loaded.Frames[0])
+					entry.Embedding, err = e.Encode(ctx, loaded.Frames[0])
 					result.EncodeSeconds += time.Since(encodeStart).Seconds()
 					if err == nil {
 						entry.Thumbnail = fmt.Sprintf("images/%04d.jpg", i)
@@ -165,7 +155,7 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 		if initial == nil && len(result.Items) >= max(1, len(files)/2) && successful > 0 {
 			initial = append([]item(nil), result.Items...)
 			result.InitialStages = map[string]float64{}
-			if err := groupAndProject(ctx, initial, result.InitialStages); err != nil {
+			if err := similarity.Group(ctx, initial, result.InitialStages); err != nil {
 				return err
 			}
 			result.FirstMapSeconds = time.Since(start).Seconds()
@@ -178,7 +168,7 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 		}
 	}
 	result.FinalStages = map[string]float64{}
-	if err := groupAndProject(ctx, result.Items, result.FinalStages); err != nil {
+	if err := similarity.Group(ctx, result.Items, result.FinalStages); err != nil {
 		var failures []error
 		for _, entry := range result.Items {
 			if entry.Error != "" {

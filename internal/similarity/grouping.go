@@ -1,4 +1,4 @@
-package main
+package similarity
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/nozzle/umap"
 )
 
-func groupAndProject(ctx context.Context, items []item, durations map[string]float64) error {
+func Group(ctx context.Context, items []Item, durations map[string]float64) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

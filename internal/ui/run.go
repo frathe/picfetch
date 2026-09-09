@@ -77,6 +77,9 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) {
 		view.openInitialFiles()
 	})
 	application.Run()
+	// Shutdown has canceled admission; join the native process after the UI loop
+	// retires so the application cannot leave an analysis worker behind.
+	view.explorer.workers.Wait()
 }
 
 // Runtime side effects start only after feature construction and geometry
@@ -110,6 +113,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
 		view.stopping = true
+		view.closeExplorer()
 		view.closeFileWork()
 		view.closeClipboardWork()
 		view.closeOpenChooser()

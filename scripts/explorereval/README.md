@@ -18,7 +18,7 @@ configuration, and the approximately 42 MB ONNX Runtime archive. Published
 model/archive SHA-256 values are checked before use/extraction; extracted
 runtime and processor hashes are checked too. Nothing is installed globally.
 The assets are pinned to the revision and checksums in `setup.sh` and
-`assets.sha256`. Upstream native runtime license files remain in the extracted archive.
+`internal/similarity/assets.sha256`. Upstream native runtime license files remain in the extracted archive.
 
 Defaults:
 
@@ -62,12 +62,38 @@ and fails if assets or required observations are missing.
 The generated `review.html` is a local artifact with a restrictive content
 policy and no external resources. Use it to judge depicted-content grouping,
 including any cross-media examples. A technically successful command leaves
-the semantic verdict pending. HDBSCAN's quadratic implementation, unstable
-batch layouts, reference-algorithm parity and the native UI trial remain open
-before this experiment can become a full-library implementation.
+full-library qualification pending. HDBSCAN's quadratic implementation, batch
+layout continuity and reference-algorithm parity remain open before this
+experiment can become a full-library implementation. The native completed-map
+trial is described below.
 
 Primary sources: [SigLIP 2 export](https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/tree/ba1f3b0843f24bc5417d38e19c37b287d719b2f4),
 [Go ONNX binding](https://github.com/yalue/onnxruntime_go/tree/v1.36.0),
 [ONNX Runtime](https://github.com/microsoft/onnxruntime/releases/tag/v1.29.0),
 [Go UMAP](https://github.com/nozzle/umap/tree/f6085fb2514d623b8a7ebb2c478396238502aef6),
 [Go HDBSCAN](https://github.com/alDuncanson/latent/tree/v0.1.4/projection).
+
+## Native viewer trial
+
+The accepted engine is shared with PicFetch in `internal/similarity`.
+After `make explorer-setup`, run `make run`, open the demo directory, then choose
+**Window -> Visual Similarity Explorer**. The map analyzes every opened image;
+Grid search and selection do not narrow its input. Entering the explorer
+maximizes the window. Drag to pan, scroll or use
+`+`/`-` to zoom, and use **Fit map** to reset the view. A pile opens its complete
+cohort in Grid View. Open an image normally; `Escape` returns to the cohort,
+then `Escape` or **Back to map** returns to the preserved map camera.
+**Unassigned** opens the noise collection. **Back to Viewer** leaves the map;
+leaving unfinished analysis cancels and waits for the isolated worker at shutdown.
+
+`make explorer-ui-test` requires the pinned assets on this Apple Silicon Mac.
+It runs the ordinary UI acceptance scenarios plus real worker inference, denied
+network access, missing-source accounting, and cancellation. Default assets
+are `similarity-assets` beside the executable or the developer scratch assets
+under the working directory; `PICFETCH_SIMILARITY_ASSETS` overrides that path.
+No assets or images are downloaded during analysis. The model is still a
+separate local setup asset, not included in ordinary release packaging.
+
+The completed-map slice does not yet deliver progressive maps or persistent
+representation reuse. Those remain tickets 04 and 05; recovery and full-library
+qualification remain tickets 06 and 07. Batch HDBSCAN is not qualified at 50k.

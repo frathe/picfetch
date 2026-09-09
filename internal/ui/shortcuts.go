@@ -93,7 +93,7 @@ type yieldingShortcuts struct {
 
 func (y yieldingShortcuts) AddShortcut(shortcut fyne.Shortcut, handler func(fyne.Shortcut)) {
 	y.inner.AddShortcut(shortcut, func(s fyne.Shortcut) {
-		if y.view.comparisonActive() && !y.comparisonAllowed {
+		if (y.view.comparisonActive() || y.view.explorerMapActive()) && !y.comparisonAllowed {
 			return
 		}
 		if !y.view.yieldCopySelection() {

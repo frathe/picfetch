@@ -1,4 +1,4 @@
-package main
+package similarity
 
 import (
 	"context"
@@ -14,10 +14,10 @@ import (
 //go:embed assets.sha256
 var assetChecksums string
 
-const modelRevision = "ba1f3b0843f24bc5417d38e19c37b287d719b2f4"
+const ModelRevision = "ba1f3b0843f24bc5417d38e19c37b287d719b2f4"
 const runtimeLibrary = "onnxruntime-osx-arm64-1.29.0/lib/libonnxruntime.1.29.0.dylib"
 
-func verifyAssets(ctx context.Context, root string) error {
+func VerifyAssets(ctx context.Context, root string) error {
 	for line := range strings.SplitSeq(strings.TrimSpace(assetChecksums), "\n") {
 		if err := ctx.Err(); err != nil {
 			return err

@@ -92,8 +92,11 @@ type Host interface {
 
 // Overview is the grid overlay and the state behind it.
 type Overview struct {
-	host Host
-	win  fyne.Window
+	subsetBack   *widget.Button
+	onSubsetBack func()
+	subset       map[string]bool
+	host         Host
+	win          fyne.Window
 
 	visible      bool
 	onVisibility func()
@@ -445,7 +448,15 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	g.searchLabel = widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	g.countLabel = widget.NewLabel("")
 	g.selLabel = widget.NewLabelWithStyle("", fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
-	g.searchBar = container.NewBorder(nil, nil, nil,
+	g.subsetBack = widget.NewButton(lang.L("Back to map"), func() {
+		back := g.onSubsetBack
+		g.Close()
+		if back != nil {
+			back()
+		}
+	})
+	g.subsetBack.Hide()
+	g.searchBar = container.NewBorder(nil, nil, g.subsetBack,
 		container.NewHBox(g.selLabel, g.countLabel), g.searchLabel)
 	g.searchBar.Hide()
 
@@ -620,6 +631,11 @@ func (g *Overview) Close() {
 // screen.
 func (g *Overview) closeOverlay(clearInspect bool) {
 	g.work.cancel()
+	if g.subset != nil {
+		g.subset = nil
+		g.onSubsetBack = nil
+		g.applyFilter()
+	}
 	if clearInspect {
 		g.ClearInspect()
 	}
