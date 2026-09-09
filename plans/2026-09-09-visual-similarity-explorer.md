@@ -6,6 +6,7 @@ Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
+Next session: [Resume on 2026-09-10](#resume-on-2026-09-10) — trial the current controls, then improve overview responsiveness.
 
 ## Deliverable and accepted contract
 
@@ -942,3 +943,76 @@ acceptance or an end-to-end speedup. The user called the load an extreme case.
 Evidence and reproducible resource aggregation:
 [render-transition-20260909](../.scratch/visual-similarity-explorer/evidence/render-transition-20260909/README.md).
 The capture is complete; the observers and original app processes have ended.
+
+## Resume on 2026-09-10
+
+The user asked to preserve the following next steps for tomorrow. The next
+milestone is **smooth overview navigation with the existing grouping and
+browsing features**. The user considers the roughly 50k-image run an extreme
+use case: prioritize excellent normal-sized browsing and a usable large-map
+overview, rather than adopting an unmeasured universal frame-rate target.
+
+### Start here
+
+- Read this resume section, ARCHITECTURE.md, and the working agreement in
+  `.agents/skills/improved_sdd_tdd_cycle.md` before implementation. Continue
+  SDD/TDD using the confirmed production UI/provider and actual-engine seams
+  recorded near the top of this plan.
+- The collapsible tags, clickable tag-count grids, granularity slider,
+  keyboard navigation, leaner display messages and faster stack placement
+  are implemented and verified. Their final gate is recorded above. The
+  user's 50k window ran the older executable, so it did not test those new
+  controls or establish their effect on the stress case.
+- The user confirmed a visible, working map with severe lag zoomed out,
+  relatively fluent interaction zoomed in, and no observed crash. Viewer
+  footprint peaked at 9.532 GiB, then settled near 5 GiB. Counts, semantic
+  quality and frame latency were not fully instrumented.
+- Read the [profile findings](../.scratch/visual-similarity-explorer/evidence/render-transition-20260909/README.md)
+  and its `timeline.csv`/`summary.json`. Fyne already retains decoded image
+  pixels on resize; repeated JPEG decoding is not the established cause.
+  Full-detail piles, smooth software rescaling and texture invalidation are
+  the concrete rendering paths to investigate.
+- The user closed the original client; its worker and all observers ended.
+  Historical PIDs are evidence, not reusable targets. Inspect current state
+  before starting or attaching to a client. App-name GUI lookup previously
+  opened the installed app instead of attaching to the trial executable;
+  avoid repeating that. Keep library images local and do not commit changes.
+
+### Priority order
+
+1. **Briefly trial the current build on a smaller collection.** Check tag
+   collapse, exact tag-count grid membership and return, granularity behavior,
+   keyboard highlighting/navigation, and overall map usability. Reuse the
+   existing demo or a user-selected modest collection; another 50k scan is
+   unnecessary for this first check.
+2. **Establish a repeatable profiling baseline before changing rendering.**
+   Retain the exact executable and matching symbols. Record phase durations,
+   completed/failed counts, map construction, first paint, and interaction
+   timing. Use consistent zoom/pan gestures and collection sizes so the
+   before/after comparison is meaningful. Keep instrumentation local and
+   record metadata rather than image contents.
+3. **Implement the smallest supported overview optimization with SDD/TDD.**
+   Candidates: compact representative/count displays at distant zoom,
+   progressive thumbnail detail as the user zooms in, texture reuse across
+   camera changes, and less off-screen layout work. First turn the chosen
+   change into acceptance criteria with executable checks. Preserve cohort
+   membership, deterministic samples, selection, tag filtering, camera
+   anchoring and the existing grid-return behavior. Rendering changes must
+   not trigger image inference or regrouping.
+4. **Validate progressively.** Iterate with small and medium collections and
+   focused tests, then exercise the real native UI and ordinary controls.
+   Repeat the 50k stress case once the change is ready and profiling is in
+   place. Compare latency, allocation/texture work, memory peaks and visible
+   behavior; distinguish user observations from measured guarantees. Finish
+   application changes with the relevant native suites, `make verify` and
+   `make build`; retain the usual localization/shard/Qodana checks when their
+   scope changes.
+5. **After responsiveness, revisit scan throughput and saved presets.** Use
+   stage/count measurements to separate encoding from batch UMAP/HDBSCAN
+   cost, and reuse valid saved representations where available. Saved group
+   presets remain a later feature with unresolved trait/future-map choices;
+   they should not displace the responsiveness milestone.
+
+Keep the broad plan active until its remaining trial and product decisions
+are resolved. Record actual results and the next unresolved step here at the
+end of the next session.

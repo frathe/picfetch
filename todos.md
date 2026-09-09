@@ -99,6 +99,16 @@ canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ## TODO
 
+### Next session — 2026-09-10
+
+Start with the active plan's [resume section](plans/2026-09-09-visual-similarity-explorer.md#resume-on-2026-09-10).
+Priority: trial the new controls on a smaller collection, establish profiling
+with retained symbols, then use SDD/TDD to make zoomed-out overview navigation
+responsive. Validate progressively before repeating the 50k stress run. Scan
+throughput and saved group presets follow that milestone. The original client,
+worker and observers have ended; the resume section records the evidence,
+known limits and attachment precautions.
+
 ### Visual similarity explorer proof of concept
 
 Implement a local, offline content-similarity map to trial with
