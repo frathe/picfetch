@@ -72,3 +72,10 @@ _Avoid_: Resize, max dimension, scale, downsample
 **Microsoft Store edition**:
 The edition of PicFetch installed and updated through Microsoft Store.
 _Avoid_: Windows edition (PicFetch also has portable Windows downloads)
+
+**Content similarity**:
+Relatedness in what images depict, including across different visual media
+or styles.
+
+**Image cohort**:
+A group of images related under the map's chosen grouping criterion.

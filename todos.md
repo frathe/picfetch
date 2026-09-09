@@ -74,7 +74,14 @@ canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ## TODO
 
-No active items.
+### Visual similarity explorer proof of concept
+
+Continue the design for a local, offline content-similarity map to trial with
+roughly 50,000 library images, with sampled cohort piles opening in Grid View.
+The [complete design notes](docs/2026-09-09-visual-similarity-explorer-design.md)
+record the settled choices, deferred capabilities, code findings, and open
+questions. The interview is paused; this remains open work, with no approved
+implementation plan or implemented feature.
 
 ## LATER
 
