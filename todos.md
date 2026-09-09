@@ -85,8 +85,11 @@ cohorts, and fixed membership while browsing. SigLIP 2, HDBSCAN, and UMAP are
 evaluation candidates. The spec remains `needs-info` for the remaining design
 choices and real-engine evaluation criteria.
 The [complete design notes](docs/2026-09-09-visual-similarity-explorer-design.md)
-retain the interview and code findings. This remains open work, with no
-approved implementation plan or implemented feature.
+retain the interview and code findings. A [seven-ticket draft
+breakdown](.scratch/visual-similarity-explorer/ticket-breakdown.md) records
+dependencies and a conditional cache slice; it awaits breakdown approval.
+This remains open work, with no approved implementation plan or implemented
+feature.
 
 ## LATER
 

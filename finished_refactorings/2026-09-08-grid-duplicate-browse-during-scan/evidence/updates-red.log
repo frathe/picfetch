@@ -1,0 +1,10 @@
+# github.com/frathe/picfetch/internal/ui.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestGridBrowseDuringAnalysis
+=== RUN   TestGridBrowseDuringAnalysis/group_updates
+    grid_test.go:167: grid result = [file:///var/folders/z6/ykxzk5zn4vj59vrrdx5bhqcr0000gp/T/TestGridBrowseDuringAnalysisgroup_updates3978690901/005/c-source.jpg file:///var/folders/z6/ykxzk5zn4vj59vrrdx5bhqcr0000gp/T/TestGridBrowseDuringAnalysisgroup_updates3978690901/006/d-extra.jpg], want source group [file:///var/folders/z6/ykxzk5zn4vj59vrrdx5bhqcr0000gp/T/TestGridBrowseDuringAnalysisgroup_updates3978690901/005/c-source.jpg file:///var/folders/z6/ykxzk5zn4vj59vrrdx5bhqcr0000gp/T/TestGridBrowseDuringAnalysisgroup_updates3978690901/006/d-extra.jpg picfetch-test-storage:///var/folders/z6/ykxzk5zn4vj59vrrdx5bhqcr0000gp/T/TestGridBrowseDuringAnalysisgroup_updates3978690901/007/e-new.jpg]
+--- FAIL: TestGridBrowseDuringAnalysis (0.17s)
+    --- FAIL: TestGridBrowseDuringAnalysis/group_updates (0.17s)
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui	0.820s
+FAIL
