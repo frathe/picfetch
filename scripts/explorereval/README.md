@@ -114,3 +114,18 @@ and model/preprocessing version match. Settings can disable persistence for
 subsequent scans. Non-favorite images remain transient. Extended recovery and
 full-library qualification remain tickets 06-07. Batch
 HDBSCAN is not qualified at 50k.
+
+**Hide tags**/**Show tags** collapse and restore the sidebar without changing
+its choices. Each tag's count opens only its matching images in Grid View,
+including matching Unassigned images. **Granularity** at the top right joins
+related cohorts toward **Broader** or restores original cohorts toward **Finer**.
+The worker supplies a centroid hierarchy in the 15D grouping space; changing
+the slider cuts it locally without rescanning. Unassigned stays separate, and
+open grids retain their captured membership. Arrow keys highlight a directional
+neighbor and reveal it; Enter opens the active stack, and +/- zoom.
+
+Display events omit inference vectors while the worker and favorite cache keep
+them. The bounded evaluator still writes vectors for engine-quality evidence.
+Stack packing uses nearby-cell lookups and perimeter searches. These reduce
+measured map-publication overhead; they do not qualify full-library throughput
+or remove the batch UMAP/HDBSCAN scaling limit.

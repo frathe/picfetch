@@ -22,11 +22,18 @@ type Item struct {
 type Event struct {
 	OfflineVerified           bool
 	Items                     []Item
+	Merges                    []CohortMerge `json:",omitempty"`
 	Total, Successful, Failed int
 	Reused                    int
 	CacheWarning              string `json:",omitempty"`
 	Stage                     string
 	Complete                  bool
+}
+
+// CohortMerge joins base cohorts in increasing content distance. Cutting a
+// prefix of this hierarchy produces nested broader groups without reanalysis.
+type CohortMerge struct {
+	Left, Right string
 }
 
 // Control carries the latest automatic-update setting and an optional rebuild

@@ -62,7 +62,7 @@ func (v *viewer) showExplorer() {
 		if !v.grid.PrepareDuplicateGroups() {
 			v.explorer.complete = false
 			v.explorer.hasMap = false
-			v.explorer.surface.SetResult(nil)
+			v.explorer.surface.SetResult(nil, nil)
 			v.explorer.surface.Status(lang.L("Checking duplicate groups..."))
 			v.explorer.surface.UpdateState(false, false)
 			return
@@ -87,7 +87,7 @@ func (v *viewer) beginExplorerAnalysis() {
 	v.explorer.complete = false
 	v.explorer.hasMap = false
 	token := v.explorer.lifecycle.begin()
-	v.explorer.surface.SetResult(nil)
+	v.explorer.surface.SetResult(nil, nil)
 	v.explorer.surface.Status(lang.L("Analyzing images..."))
 	v.explorer.available, v.explorer.mapped = 0, 0
 	v.explorer.building = false
@@ -133,7 +133,7 @@ func (v *viewer) beginExplorerAnalysis() {
 				if event.Items != nil {
 					v.explorer.mapped = event.Successful
 					v.explorer.building = false
-					v.explorer.surface.SetResult(event.Items)
+					v.explorer.surface.SetResult(event.Items, event.Merges)
 					v.ForceRepaint()
 					if !v.explorer.hasMap {
 						v.explorer.surface.Fit()
@@ -223,7 +223,7 @@ func (v *viewer) retireExplorerAnalysis() {
 	}
 	v.explorer.controls = nil
 	v.explorer.lifecycle.invalidate()
-	v.explorer.surface.SetResult(nil)
+	v.explorer.surface.SetResult(nil, nil)
 	v.explorer.surface.UpdateState(false, false)
 	v.explorer.sources = nil
 	v.explorer.complete = false
@@ -262,6 +262,8 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 			v.LeaveSimilarityMap()
 		case fyne.KeyF1:
 			v.help.ShowManual()
+		default:
+			v.explorer.surface.HandleKey(key)
 		}
 		return true
 	}

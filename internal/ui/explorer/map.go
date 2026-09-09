@@ -45,8 +45,13 @@ type Map struct {
 	center         fyne.Position
 	zoom           float32
 	tagRows        *fyne.Container
+	tagChecks      []*widget.Check
 	tagChoices     map[string]bool
 	unassignedTags []string
+	selectedSource string
+	granularity    *widget.Slider
+	items          []similarity.Item
+	merges         []similarity.CohortMerge
 }
 
 func New(host Host) *Map {
@@ -61,7 +66,6 @@ func New(host Host) *Map {
 	m.update = widget.NewButton(lang.L("Update map"), host.UpdateSimilarityMap)
 	m.update.Disable()
 	m.automatic = widget.NewCheck(lang.L("Auto-update every 30 images"), host.SetSimilarityAutoUpdate)
-	toolbar = container.NewVBox(toolbar, container.NewHBox(m.update, m.automatic))
 	m.tagRows = container.NewVBox()
 	tagScroll := container.NewVScroll(m.tagRows)
 	tagScroll.SetMinSize(fyne.NewSize(160, 200))
@@ -69,6 +73,30 @@ func New(host Host) *Map {
 		widget.NewButton(lang.L("All tags"), func() { m.setAllTags(true) }),
 		widget.NewButton(lang.L("Clear tags"), func() { m.setAllTags(false) })))
 	tags := container.NewBorder(tagHeading, nil, nil, nil, tagScroll)
+	var toggleTags *widget.Button
+	toggleTags = widget.NewButton(lang.L("Hide tags"), func() {
+		if tags.Visible() {
+			tags.Hide()
+			toggleTags.SetText(lang.L("Show tags"))
+		} else {
+			tags.Show()
+			toggleTags.SetText(lang.L("Hide tags"))
+		}
+		m.host.Unfocus()
+		m.overlay.Refresh()
+	})
+	toolbar = container.NewVBox(toolbar, container.NewHBox(toggleTags, m.update, m.automatic))
+	m.granularity = widget.NewSlider(0, 100)
+	m.granularity.Step = 1
+	m.granularity.Value = 100
+	m.granularity.OnChanged = func(_ float64) {
+		m.host.Unfocus()
+		m.rebuild()
+	}
+	granularity := container.NewVBox(widget.NewLabel(lang.L("Granularity")), container.NewBorder(nil, nil,
+		widget.NewLabel(lang.L("Broader")), widget.NewLabel(lang.L("Finer")),
+		container.NewGridWrap(fyne.NewSize(160, m.granularity.MinSize().Height), m.granularity)))
+	toolbar = container.NewBorder(nil, nil, nil, granularity, toolbar)
 	m.overlay = container.NewStack(canvas.NewRectangle(theme.BackgroundColor()), container.NewBorder(toolbar, nil, tags, nil, m))
 	m.overlay.Hide()
 	return m
@@ -98,14 +126,40 @@ func (m *Map) UpdateState(available, busy bool) {
 }
 
 // SetResult replaces cohort membership without moving the user's camera.
-func (m *Map) SetResult(items []similarity.Item) {
+func (m *Map) SetResult(items []similarity.Item, merges []similarity.CohortMerge) {
 	if items == nil {
 		m.tagChoices = nil
+		m.selectedSource = ""
+		m.granularity.Value = 100
+		m.granularity.Refresh()
+	}
+	m.items, m.merges = items, merges
+	m.rebuild()
+}
+
+func (m *Map) rebuild() {
+	roots := map[string]string{}
+	var root func(string) string
+	root = func(key string) string {
+		parent, ok := roots[key]
+		if !ok || parent == key {
+			return key
+		}
+		roots[key] = root(parent)
+		return roots[key]
+	}
+	limit := int(float64(len(m.merges)) * (100 - m.granularity.Value) / 100)
+	for _, merge := range m.merges[:limit] {
+		left, right := root(merge.Left), root(merge.Right)
+		if right < left {
+			left, right = right, left
+		}
+		roots[right] = left
 	}
 	groups := map[string][]similarity.Item{}
 	var unassigned []string
 	m.unassignedTags = nil
-	for _, item := range items {
+	for _, item := range m.items {
 		if item.Error != "" {
 			continue
 		}
@@ -115,7 +169,8 @@ func (m *Map) SetResult(items []similarity.Item) {
 			continue
 		}
 		if item.Cohort != "" {
-			groups[item.Cohort] = append(groups[item.Cohort], item)
+			key := root(item.Cohort)
+			groups[key] = append(groups[key], item)
 		}
 	}
 	m.unassigned.SetText(fmt.Sprintf(lang.L("Unassigned (%d)"), len(unassigned)))
@@ -143,7 +198,7 @@ func (m *Map) SetResult(items []similarity.Item) {
 	orientPiles(m.piles, m.Size())
 	m.normalizeSpacing()
 	anchorPiles(m.piles, previous)
-	m.setTags(items)
+	m.setTags(m.items)
 	m.filterTags()
 	// Fyne can retain removed widgets in its renderer caches. Release their
 	// encoded/decoded pixels explicitly and invalidate each image texture.
@@ -255,6 +310,7 @@ type Pile struct {
 	world    fyne.Position
 	label    *canvas.Text
 	tags     []string
+	selected bool
 }
 
 func newPile(m *Map, items []similarity.Item) *Pile {
@@ -305,6 +361,10 @@ func newPile(m *Map, items []similarity.Item) *Pile {
 	return p
 }
 func (p *Pile) Tapped(_ *fyne.PointEvent) {
+	if !p.selected {
+		p.owner.selectedSource = p.members[0]
+		p.owner.syncSelection()
+	}
 	p.owner.host.OpenSimilarityCohort(append([]string(nil), p.members...))
 }
 func (p *Pile) Dragged(e *fyne.DragEvent) { p.owner.Dragged(e) }
@@ -320,15 +380,26 @@ func (p *Pile) CreateRenderer() fyne.WidgetRenderer {
 		objects = append(objects, canvas.NewRectangle(color.NRGBA{R: 230, G: 232, B: 237, A: 255}), img)
 	}
 	objects = append(objects, canvas.NewRectangle(color.NRGBA{R: 35, G: 39, B: 48, A: 240}), p.label)
-	return &pileRenderer{p: p, objects: objects}
+	highlight := canvas.NewRectangle(color.Transparent)
+	highlight.StrokeWidth = 3
+	highlight.StrokeColor = theme.Color(theme.ColorNamePrimary)
+	return &pileRenderer{p: p, objects: objects, highlight: highlight}
 }
 
 type pileRenderer struct {
-	p       *Pile
-	objects []fyne.CanvasObject
+	p         *Pile
+	objects   []fyne.CanvasObject
+	highlight *canvas.Rectangle
 }
 
 func (r *pileRenderer) Layout(size fyne.Size) {
+	r.highlight.Move(fyne.NewPos(2, 2))
+	r.highlight.Resize(fyne.NewSize(max(0, size.Width-4), max(0, size.Height-4)))
+	if r.p.selected {
+		r.highlight.Show()
+	} else {
+		r.highlight.Hide()
+	}
 	scale := size.Width / pileWidth
 	for i, img := range r.p.pictures {
 		// A sunflower pattern spreads samples without a rigid thumbnail grid.
@@ -355,12 +426,14 @@ func (r *pileRenderer) Layout(size fyne.Size) {
 }
 func (r *pileRenderer) MinSize() fyne.Size { return fyne.NewSize(24, 19) }
 func (r *pileRenderer) Refresh() {
+	r.highlight.StrokeColor = theme.Color(theme.ColorNamePrimary)
 	r.Layout(r.p.Size())
+	r.highlight.Refresh()
 	for _, o := range r.objects {
 		o.Refresh()
 	}
 }
-func (r *pileRenderer) Objects() []fyne.CanvasObject { return r.objects }
+func (r *pileRenderer) Objects() []fyne.CanvasObject { return append(r.objects, r.highlight) }
 func (r *pileRenderer) Destroy()                     {}
 
 // Projection coordinates have no fixed scale. Normalize cohort centers before

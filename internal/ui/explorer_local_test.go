@@ -30,6 +30,64 @@ import (
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("granularity", func(t *testing.T) {
+		root := t.TempDir()
+		var paths []string
+		for _, name := range []string{"chelsea.png", "astronaut.png", "coffee.png"} {
+			data, err := os.ReadFile(filepath.Join("testdata", "explorer", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range 8 {
+				path := filepath.Join(root, fmt.Sprintf("%s-%d.png", name, i))
+				if err := os.WriteFile(path, data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				paths = append(paths, path)
+			}
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var final similarity.Event
+		ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+		defer cancel()
+		if err := (similarity.Client{Assets: assets}).Analyze(ctx, paths, nil, func(e similarity.Event) {
+			if e.Complete {
+				final = e
+			}
+		}); err != nil {
+			t.Fatal(err)
+		}
+		groups := map[string]bool{}
+		for _, item := range final.Items {
+			if item.Cohort != "unassigned" {
+				groups[item.Cohort] = true
+			}
+		}
+		if !final.OfflineVerified || final.Successful != len(paths) || len(groups) < 2 {
+			t.Fatalf("known-content corpus did not produce multiple complete real cohorts: ready=%d groups=%d", final.Successful, len(groups))
+		}
+		if len(final.Merges) != len(groups)-1 {
+			t.Fatalf("actual worker delivered %d hierarchy edges for %d groups", len(final.Merges), len(groups))
+		}
+		parents := map[string]string{}
+		var find func(string) string
+		find = func(s string) string {
+			if p, ok := parents[s]; ok {
+				return find(p)
+			}
+			return s
+		}
+		for _, edge := range final.Merges {
+			if !groups[edge.Left] || !groups[edge.Right] || find(edge.Left) == find(edge.Right) {
+				t.Fatal("real hierarchy has an unknown, noise or redundant merge")
+			}
+			parents[find(edge.Right)] = find(edge.Left)
+		}
+	})
+
 	t.Run("recovery", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg")
 		v.explorerAnalyze = (similarity.Client{Assets: t.TempDir()}).Analyze
@@ -142,16 +200,8 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.explorerAnalyze = client.Analyze
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
-		catVisible, untaggedVisible := false, false
-		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
-			if c, ok := o.(*widget.Check); ok && c.Checked {
-				catVisible = catVisible || c.Text == fmt.Sprintf(lang.L("%s (%d)"), lang.L("Cat"), 1)
-				untaggedVisible = untaggedVisible || c.Text == fmt.Sprintf(lang.L("%s (%d)"), lang.L("Untagged"), 3)
-			}
-		})
-		if !catVisible || !untaggedVisible {
-			t.Fatal("real offline tags did not reach the viewer overlay")
-		}
+		explorerTag(t, v, "Cat", 1)
+		explorerTag(t, v, "Untagged", 3)
 	})
 
 	t.Run("favorite_cache", func(t *testing.T) {
@@ -386,7 +436,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if len(first.Items) < 35 || first.Successful >= 80 {
 			t.Fatalf("manual mode rebuilt without a request or failed to rebuild during scanning: %d items", len(first.Items))
 		}
-		if first.Items[0].Path != paths[0] || first.Items[0].Error != "" || len(first.Items[0].Embedding) != 768 {
+		if first.Items[0].Path != paths[0] || first.Items[0].Error != "" || len(first.Items[0].Embedding) != 0 {
 			t.Fatal("manual update did not reuse the already represented source")
 		}
 		if final.Successful != 80 || final.Failed != 0 || len(final.Items) != 80 {
@@ -500,8 +550,8 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatal("partial publication lost final source accounting")
 		}
 		for _, item := range partial.Items {
-			if item.Cohort == "" || len(item.Position) != 2 || len(item.Embedding) != 768 {
-				t.Fatal("partial map lacks actual representations/grouping/layout")
+			if item.Cohort == "" || len(item.Position) != 2 || len(item.Embedding) != 0 {
+				t.Fatal("partial display map must omit vectors and retain grouping/layout")
 			}
 		}
 	})
@@ -527,8 +577,8 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatalf("real offline engine did not deliver all six inputs: complete=%v denied=%v ready=%d", result.Complete, result.OfflineVerified, result.Successful)
 		}
 		for _, item := range result.Items {
-			if len(item.Embedding) != 768 || len(item.Position) != 2 || item.Cohort == "" {
-				t.Fatal("real result has no representation or map assignment")
+			if len(item.Embedding) != 0 || len(item.Position) != 2 || item.Cohort == "" {
+				t.Fatal("real display result must omit inference vectors and retain map assignments")
 			}
 		}
 		piles := explorerPiles(v)

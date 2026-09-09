@@ -51,7 +51,10 @@ directory handles plus file-list identity to avoid recreating removed favorites.
 `tags.go` applies the embedded `tag-catalog.json`/`tag-vectors.bin` text
 prototypes to fresh and reused image vectors, without a text runtime;
 `grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
-cohort identities; repeated source paths share one assignment. The encoder and
+cohort identities; `hierarchy.go` orders a centroid spanning tree in grouping
+space for local granularity cuts. Repeated source paths share one assignment.
+Display events retain this compact hierarchy and omit inference vectors, which
+remain in the worker and favorite cache. The encoder and
 grouping entry points are worker-only: the
 native runtime is process-global and batch algorithms cannot be interrupted
 in place. `assets.go`/`assets.sha256` verify pinned local assets; `offline.go`
@@ -118,15 +121,20 @@ validation, process failures and workflow wiring through a per-call runner.
 
 ### `internal/ui/explorer`
 
-`tags.go` owns the localized checkbox catalogue, unique-source counts, and
-OR filtering of intact piles/Unassigned. Choices survive map publications and
+`tags.go` owns the localized checkbox catalogue, clickable unique-source counts
+opening captured tag-only grids, and OR filtering of intact piles/Unassigned.
+The toolbar collapses/restores the sidebar. Choices survive map publications and
 cohort visits; full exit clears them. Filtering starts no background work.
 
 `Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
-stable samples of up to fifteen distinct members per `Pile`, fitted thin frames
-and Shift-scroll panning. `layout.go` matches continuing cohorts by shared
+stable samples of up to fifteen distinct members per `Pile`, fitted thin frames,
+Shift-scroll panning and a granularity slider cutting the supplied hierarchy.
+`keys.go` owns keyboard zoom, directional stack selection, source-bound selection
+restoration and camera reveal; Enter opens the highlighted stack.
+`layout.go` matches continuing cohorts by shared
 sources, orients the initial projection to the window, and places new piles
-with a minimum gap. Its narrow `Host` opens the
+with a minimum gap using nearby-cell collision queries and perimeter searches.
+Its narrow `Host` opens the
 full captured cohort, leaves the map, sends manual/automatic update controls, and
 supplies current input modifiers.
 It starts no workers; `internal/ui/explorer.go` delivers partial/final results,

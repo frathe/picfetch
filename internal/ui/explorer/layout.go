@@ -95,33 +95,58 @@ func anchorPiles(piles, previous []*Pile) {
 // placePiles keeps the requested position when free, otherwise chooses a nearby
 // free position. Earlier piles remain anchored; every resulting pair has a gap.
 func placePiles(piles []*Pile) {
-	var placed []*Pile
+	type cell struct{ x, y int }
+	const width, height = pileWidth + pileGap, pileHeight + pileGap
+	cellAt := func(at fyne.Position) cell {
+		return cell{int(math.Floor(float64(at.X) / float64(width))), int(math.Floor(float64(at.Y) / float64(height)))}
+	}
+	placed := map[cell][]*Pile{}
 	for _, p := range piles {
 		origin := p.world
 		free := func(at fyne.Position) bool {
-			for _, other := range placed {
-				if abs(at.X-other.world.X) < pileWidth+pileGap && abs(at.Y-other.world.Y) < pileHeight+pileGap {
+			near := cellAt(at)
+			for _, other := range placed[near] {
+				if abs(at.X-other.world.X) < width && abs(at.Y-other.world.Y) < height {
 					return false
+				}
+			}
+			for x := near.x - 1; x <= near.x+1; x++ {
+				for y := near.y - 1; y <= near.y+1; y++ {
+					if x == near.x && y == near.y {
+						continue
+					}
+					for _, other := range placed[cell{x, y}] {
+						if abs(at.X-other.world.X) < width && abs(at.Y-other.world.Y) < height {
+							return false
+						}
+					}
 				}
 			}
 			return true
 		}
 		for ring := 1; !free(p.world); ring++ {
 			best := float32(math.Inf(1))
+			consider := func(x, y int) {
+				dx, dy := float32(x)*width, float32(y)*height
+				at := origin.Add(fyne.NewPos(dx, dy))
+				if score := dx*dx + dy*dy; score < best && free(at) {
+					p.world, best = at, score
+				}
+			}
+			// Visit just the perimeter, preserving the original candidate order.
 			for x := -ring; x <= ring; x++ {
-				for y := -ring; y <= ring; y++ {
-					if x != -ring && x != ring && y != -ring && y != ring {
-						continue
+				if x == -ring || x == ring {
+					for y := -ring; y <= ring; y++ {
+						consider(x, y)
 					}
-					dx, dy := float32(x)*(pileWidth+pileGap), float32(y)*(pileHeight+pileGap)
-					at := origin.Add(fyne.NewPos(dx, dy))
-					if score := dx*dx + dy*dy; score < best && free(at) {
-						p.world, best = at, score
-					}
+				} else {
+					consider(x, -ring)
+					consider(x, ring)
 				}
 			}
 		}
-		placed = append(placed, p)
+		key := cellAt(p.world)
+		placed[key] = append(placed[key], p)
 	}
 }
 

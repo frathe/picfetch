@@ -6,6 +6,12 @@
 
 #### New Features
 
+- **Refine similarity maps without rescanning.** Collapse the tag sidebar,
+  click a tag's count to browse only matching images, and use the top-right
+  Granularity slider to combine related stacks or restore the original groups.
+  Arrow keys highlight stacks in the chosen direction; Enter opens the active
+  stack and +/- zoom. Open grids keep their captured members during updates.
+
 - **Filter similarity maps by semantic tags.** A local 31-tag catalogue labels
   subjects and scenes from fresh or saved image representations. The tag panel
   starts fully selected, includes Untagged, and provides All tags/Clear tags.
@@ -37,6 +43,12 @@ The user approved the current visual result. Earlier apparent gap-filling or
 maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
+
+- **Reduce large similarity-map update overhead.** Display messages omit the
+  inference vectors retained by the worker/cache, and stack placement checks
+  nearby cells and ring perimeters. The local 1,600-stack packing replay fell
+  from roughly 241 ms to 30 ms. This measures publication overhead, not the
+  full-library encoding rate; batch regrouping still grows with library size.
 
 - **Recover similarity exploration after file changes or analysis failures.**
   Failed and incomplete runs can be retried. Source writes and removals retire
@@ -171,6 +183,15 @@ and add it to the map. Retain named presets for future maps and provide a compac
 preset browser instead of a nested menu tree. Trait scope (visual/metadata) and
 future-map application behavior are being clarified with the user; preserve
 current non-overlapping cohorts and the active map refinement work.
+
+### Full-library similarity throughput
+
+The controls increment removes measured display-transfer and stack-packing
+costs. The live process sample was inside ONNX encoding; the current observer
+does not expose per-stage completed-image counts, so a decreasing per-image
+encoding rate has not been isolated. Record stage/count throughput during the
+next native trial and qualify batch UMAP/HDBSCAN before claiming 50k scaling.
+See the active plan's controls/performance evidence.
 
 ## LATER
 

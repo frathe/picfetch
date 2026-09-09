@@ -160,7 +160,7 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 		if initial == nil && len(result.Items) >= max(1, len(files)/2) && successful > 0 {
 			initial = append([]item(nil), result.Items...)
 			result.InitialStages = map[string]float64{}
-			if err := similarity.Group(ctx, initial, result.InitialStages); err != nil {
+			if _, err := similarity.Group(ctx, initial, result.InitialStages); err != nil {
 				return err
 			}
 			result.FirstMapSeconds = time.Since(start).Seconds()
@@ -173,7 +173,7 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 		}
 	}
 	result.FinalStages = map[string]float64{}
-	if err := similarity.Group(ctx, result.Items, result.FinalStages); err != nil {
+	if _, err := similarity.Group(ctx, result.Items, result.FinalStages); err != nil {
 		var failures []error
 		for _, entry := range result.Items {
 			if entry.Error != "" {

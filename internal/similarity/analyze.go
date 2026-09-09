@@ -64,7 +64,9 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			return err
 		}
 		if event.Successful > 0 {
-			if err := Group(ctx, items, map[string]float64{}); err != nil {
+			var err error
+			event.Merges, err = Group(ctx, items, map[string]float64{})
+			if err != nil {
 				return err
 			}
 		}
@@ -72,6 +74,11 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			return err
 		}
 		event.Items = append([]Item(nil), items...)
+		for i := range event.Items {
+			// Inference vectors remain in the worker/cache. The viewer needs only
+			// assignments, the compact hierarchy, labels and sampled previews.
+			event.Items[i].Embedding = nil
+		}
 		event.Complete = complete
 		event.Stage = "encoding"
 		if complete {
@@ -79,6 +86,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		}
 		err := emit(event)
 		event.Items = nil
+		event.Merges = nil
 		return err
 	}
 	for _, path := range req.Paths {

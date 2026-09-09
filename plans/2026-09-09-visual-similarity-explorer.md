@@ -1,7 +1,7 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tags and ticket 06 recovery implemented and verified; saved presets and full-library qualification remain open
+Status: semantic tags, recovery and trial controls implemented and verified; saved presets and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
@@ -793,3 +793,123 @@ outside that sandbox, retaining the worker's own outbound denial. Focused race,
 | Recovery 1 | 0 / 0 | 1 | no | Failed/incomplete retry and queued lifecycle delivery |
 | Recovery 2 | 1 / 1 | 2 | no | Read-only route scout; source writes/removals and missing-load regression |
 | Recovery 3 | 0 / 0 | 1 | one, passed | Native suites, smoke, synthetic render, canonical gate and build |
+
+## Explorer controls and large-drop performance — 2026-09-09
+
+Deliver the five requested trial refinements: collapsible tags, tag-only grids,
+adjustable grouping granularity, highlighted keyboard stack navigation, and a
+measured reduction in growing analysis/publication cost. Route: Deep. Existing
+accepted production UI/provider and actual-engine input/output seams apply.
+The user's running client/worker stay intact; local resource observation continues.
+Saved presets and full-library semantic acceptance remain separate.
+
+### Decisions and acceptance criteria
+
+- AC1: Tags start expanded; a toolbar toggle collapses the entire sidebar and
+  restores it without changing filters, camera or browsing state.
+  Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^tags_collapse$' -count=1 -v`.
+- AC2: A separate clickable count opens the distinct images with that tag across
+  all cohorts, including Unassigned. Counts ignore current checkbox filters.
+  The grid freezes membership until reopened; return preserves map/filter state.
+  Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^tags' -count=1 -v`.
+- AC3: Top-right Granularity slider defaults to the existing finest cohorts.
+  Broader settings merge related cohorts using a worker-computed hierarchy;
+  finer settings restore them. No source decoding/inference or full grouping
+  runs when the slider moves. Unassigned remains separate; counts, source
+  identities and open grid membership remain correct across publications.
+  Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^granularity$' -count=1 -v`; `make explorer-ui-test`.
+- AC4: +/= and - zoom. Arrow keys select a visible stack in that direction,
+  with visible highlighting and camera reveal; Enter opens it. Selection is
+  retained across a grid visit and reconciled after filters/publications.
+  Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^keyboard$' -count=1 -v`.
+- AC5: Establish a growing-work replay/profile before changing performance
+  behavior. Record baseline, hypotheses, focused red/green regression and
+  the same post-change measurement. Preserve exact source accounting and
+  cancellation. No unmeasured end-to-end speedup or 50k qualification claim.
+  Verify: measured reproduction command recorded below; focused regression,
+  `make explorer-test`, and `make explorer-ui-test`.
+
+### Tasks and graph
+
+1. Tags (T0): `internal/ui/explorer/{map,tags}.go`, existing UI/native tests,
+   translations. Contract: existing OpenSimilarityCohort receives captured
+   tag-member paths. Tests AC1/AC2. Budget: 0 spawns, 2 reviews, no full suite.
+2. Keyboard (T0): new `internal/ui/explorer/keys.go`, map renderer and root
+   explorer dispatcher, existing UI tests. Contract: `Map.HandleKey(fyne.KeyName)`.
+   Test AC4. Budget: 0 spawns, 2 reviews, no full suite.
+3. Granularity (T0): similarity grouping/protocol, map/root delivery, existing
+   UI/native tests. Contract: immutable `Event.Merges []CohortMerge` from the
+   actual grouping representation; slider cuts that hierarchy locally. Test
+   AC3. Budget: 0 spawns, 2 reviews, no full suite.
+4. Performance (T0; read-only scout): files fixed after the reproduction.
+   Test/command AC5. Budget: 1 scout, 2 reviews, no full suite.
+5. Handoff (T0): architecture, English/German manuals/catalogues, todos, this
+   plan and local evidence. Verify: `make verify`, `make build`, diff checks,
+   synthetic rendered QA. Budget: 0 spawns, 1 final complete race gate.
+
+Graph: performance scout alongside 1; 1 -> 2 -> 3; 4 follows measured evidence;
+all -> 5. All implementation, review and fixes stay with the lead. Scout gate:
+G1 bounded growing-cost question; G2 executable reproduction and source locations;
+G3 no repository writes; G4 cold performance replay context; G5 lead owns UI
+controls. S/W: adaptive profiling, no mechanical transformation or supplied fix.
+Inherited model used read-only because this harness has no literal T3 Explore.
+
+### Controls implementation and measured evidence
+
+- All five criteria have passing focused evidence. Tags collapse without
+  losing choices; separate counts open exact distinct members, including
+  Unassigned, independently of active filters. Open grids retain their frozen
+  identities while later publications arrive.
+- The top-right slider cuts a deterministic centroid spanning tree from the
+  existing grouping representation. Finest restores base cohorts; broadest
+  joins assigned cohorts and retains Unassigned separately. Slider changes
+  require no source reads, inference, or UMAP/HDBSCAN run. The hierarchy uses
+  quadratic time in base cohort count and linear storage.
+- Arrow navigation selects and visibly outlines a directional neighbor,
+  revealing it with the existing camera. +/= and - zoom; Enter opens the
+  selected stack. Selection follows source identity across map publications,
+  filters, and grid return.
+- Observed RED -> GREEN: absent collapse button, absent count links, missing
+  keyboard zoom, missing slider, missing hierarchy from actual grouping, and
+  redundant embeddings in display events. Deliberate mutations to tag paths,
+  hierarchy delivery, selection outline, and adjacent-cell collision checks
+  each failed their guard; all changes were restored.
+- Before/after replay of 1,600 stacks: local packing budget failed at
+  240.789ms, then passed at 30.018ms after nearby-cell collision lookup and
+  perimeter-only placement search. Approximately 8x for this case; the 50ms
+  target is a local optimization probe, not a CI or full-library threshold.
+  Behavioral geometry guards cover coincident piles and cell boundaries.
+- For 10,000 items with previews omitted on both sides, removing unused
+  embeddings reduced display JSON from 97,436,643 to 1,217,090 bytes. Encoding
+  fell from 0.292726s to 0.002500s; decoding from 0.595924s to 0.005401s.
+  Only worker-to-display snapshots omit vectors; cache and evaluator retain
+  them. Native publication, exact accounting and reuse regressions pass.
+- Tag scoring and growing cache-directory probes showed no clear per-item
+  slowdown within their measured bounds. One live sample showed ONNX MatMul
+  active; it cannot explain the whole scan. Full-prefix batch grouping and
+  full-library encoding throughput remain unqualified. The original client
+  and worker continue with read-only resource observation, which exposes no
+  completed-image counts. No end-to-end scan speedup is claimed.
+- `make explorer-test`: PASS; all required actual-model tests ran under OS
+  network denial. `make explorer-ui-test`: PASS, 25.300s; actual engine 20.01s
+  and ordinary UI 4.67s, no required skips. Existing test files and root test
+  names preserve their Qodana exclusions and exact 680-test shard assignment.
+- English and German offscreen renders inspected with synthetic pixels only.
+  Manuals, catalogues, architecture and todos are updated. `make build`:
+  PASS; refreshed `bin/picfetch` without restarting the existing window.
+- Full control/performance evidence and replay command:
+  [controls-20260909](../.scratch/visual-similarity-explorer/evidence/controls-20260909/README.md).
+- `make verify`: PASS, exit 0. Formatting/TUF/Qodana checks, vet, host build,
+  exact shard inventory and all four Linux/amd64 Docker race partitions passed.
+  Explorer passed under race detection in 84.520s. Retained final run:
+  `.scratch/race-runs/20260909T181231Z-lsYLza`. No source changes followed
+  this gate; only this evidence record was completed. No commit or restart.
+  The broader plan remains active for saved presets and full-library trial.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Controls 1 | 0 / 0 | 1 | no | Collapse, independent counts and frozen grids |
+| Controls 2 | 0 / 0 | 2 | no | Directional selection, outline, camera and focus |
+| Controls 3 | 0 / 0 | 2 | no | Actual hierarchy plus local granularity cuts |
+| Controls 4 | 1 / 1 | 2 | no | Read-only scout; lead replayed and verified optimizations |
+| Controls 5 | 0 / 0 | 1 | one, passed | Native suites, synthetic renders, canonical gate and build |

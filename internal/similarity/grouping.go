@@ -13,9 +13,9 @@ import (
 	"github.com/nozzle/umap"
 )
 
-func Group(ctx context.Context, items []Item, durations map[string]float64) error {
+func Group(ctx context.Context, items []Item, durations map[string]float64) ([]CohortMerge, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	var vectors [][]float32
 	var indexes []int
@@ -31,7 +31,7 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) erro
 		}
 	}
 	if len(vectors) == 0 {
-		return fmt.Errorf("no images were represented successfully")
+		return nil, fmt.Errorf("no images were represented successfully")
 	}
 	config := umap.DefaultConfig()
 	config.Metric, config.Init, config.Seed, config.NumWorkers = "cosine", "random", 42, 1
@@ -41,29 +41,29 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) erro
 	reduced := umap.New(config).FitTransform(vectors)
 	durations["reduction_seconds"] = time.Since(start).Seconds()
 	if err := validateCoordinates(reduced, len(vectors), 15); err != nil {
-		return err
+		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	start = time.Now()
 	groups := projection.Cluster(reduced, projection.HDBSCANConfig{MinClusterSize: 4, MinSamples: 2})
 	durations["hdbscan_seconds"] = time.Since(start).Seconds()
 	if len(groups.Labels) != len(vectors) {
-		return fmt.Errorf("clustering lost input identities")
+		return nil, fmt.Errorf("clustering lost input identities")
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	config.NComponents = 2
 	start = time.Now()
 	positions := umap.New(config).FitTransform(vectors)
 	durations["projection_seconds"] = time.Since(start).Seconds()
 	if err := validateCoordinates(positions, len(vectors), 2); err != nil {
-		return err
+		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	members := map[int][]string{}
 	for i, label := range groups.Labels {
@@ -85,7 +85,23 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) erro
 		items[index].Cohort = ids[groups.Labels[i]]
 		items[index].Position = positions[i]
 	}
-	return nil
+	centroids := map[string][]float64{}
+	for i, label := range groups.Labels {
+		if label == -1 {
+			continue
+		}
+		key := ids[label]
+		if centroids[key] == nil {
+			centroids[key] = make([]float64, 15)
+		}
+		for axis, value := range reduced[i] {
+			centroids[key][axis] += float64(value) / float64(len(members[label]))
+		}
+	}
+	start = time.Now()
+	merges, err := cohortHierarchy(ctx, centroids)
+	durations["hierarchy_seconds"] = time.Since(start).Seconds()
+	return merges, err
 }
 
 func validateCoordinates(points [][]float32, count, dimensions int) error {

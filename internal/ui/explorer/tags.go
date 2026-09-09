@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
@@ -115,17 +116,31 @@ func (m *Map) setTags(items []similarity.Item) {
 	}
 	sort.Slice(keys, func(i, j int) bool { return tagLabel(keys[i]) < tagLabel(keys[j]) })
 	m.tagRows.RemoveAll()
+	m.tagChecks = nil
 	for _, key := range keys {
 		if _, known := m.tagChoices[key]; !known {
 			m.tagChoices[key] = true
 		}
-		check := widget.NewCheck(fmt.Sprintf(lang.L("%s (%d)"), tagLabel(key), len(counts[key])), func(on bool) {
+		check := widget.NewCheck(tagLabel(key), func(on bool) {
 			m.tagChoices[key] = on
 			m.filterTags()
 			m.host.Unfocus()
 		})
 		check.Checked = m.tagChoices[key]
-		m.tagRows.Add(check)
+		paths := make([]string, 0, len(counts[key]))
+		for path := range counts[key] {
+			paths = append(paths, path)
+		}
+		sort.Strings(paths)
+		count := widget.NewHyperlink(fmt.Sprintf(lang.L("(%d)"), len(paths)), nil)
+		count.OnTapped = func() {
+			m.host.Unfocus()
+			if len(paths) > 0 {
+				m.host.OpenSimilarityCohort(append([]string(nil), paths...))
+			}
+		}
+		m.tagChecks = append(m.tagChecks, check)
+		m.tagRows.Add(container.NewBorder(nil, nil, nil, count, check))
 	}
 }
 
@@ -150,6 +165,7 @@ func (m *Map) filterTags() {
 	} else {
 		m.unassigned.Hide()
 	}
+	m.syncSelection()
 }
 
 func (m *Map) setAllTags(on bool) {
@@ -157,8 +173,7 @@ func (m *Map) setAllTags(on bool) {
 	for key := range m.tagChoices {
 		m.tagChoices[key] = on
 	}
-	for _, object := range m.tagRows.Objects {
-		check := object.(*widget.Check)
+	for _, check := range m.tagChecks {
 		check.Checked = on
 		check.Refresh()
 	}

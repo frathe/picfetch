@@ -336,5 +336,11 @@
    "Artwork": "Kunstwerk",
    "All tags": "Alle Schlagwörter",
    "Clear tags": "Auswahl leeren",
-   "Source files changed. Open the explorer to analyze again.": "Quelldateien wurden geändert. Öffne den Explorer, um sie erneut zu analysieren."
+   "Source files changed. Open the explorer to analyze again.": "Quelldateien wurden geändert. Öffne den Explorer, um sie erneut zu analysieren.",
+   "Hide tags": "Schlagwörter ausblenden",
+   "Show tags": "Schlagwörter einblenden",
+   "(%d)": "(%d)",
+   "Granularity": "Granularität",
+   "Broader": "Gröber",
+   "Finer": "Feiner"
 }

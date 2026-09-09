@@ -134,6 +134,35 @@ func explorerButton(t *testing.T, v *viewer, label string) *widget.Button {
 	return found
 }
 
+func explorerTag(t *testing.T, v *viewer, label string, count int) (*widget.Check, *widget.Hyperlink) {
+	t.Helper()
+	var found *widget.Check
+	var number *widget.Hyperlink
+	explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+		row, ok := o.(*fyne.Container)
+		if !ok {
+			return
+		}
+		var check *widget.Check
+		var link *widget.Hyperlink
+		for _, child := range row.Objects {
+			switch child := child.(type) {
+			case *widget.Check:
+				check = child
+			case *widget.Hyperlink:
+				link = child
+			}
+		}
+		if check != nil && check.Text == lang.L(label) && link != nil && link.Text == fmt.Sprintf("(%d)", count) {
+			found, number = check, link
+		}
+	})
+	if found == nil {
+		t.Fatalf("missing visible tag %q with clickable count %d", label, count)
+	}
+	return found, number
+}
+
 // A publication is observed only after its provider callback has queued it and
 // the owning UI queue has delivered it. The worker remains held between maps.
 func streamingExplorer(t *testing.T) (*viewer, func([]string, bool)) {
@@ -435,6 +464,189 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 	})
 
+	t.Run("granularity", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t)
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		var items []similarity.Item
+		for i, group := range []string{"a", "a", "b", "b", "c", "unassigned"} {
+			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: group, Tags: []string{"bird"}, Preview: preview, Position: []float32{float32(i), 0}})
+		}
+		merges := []similarity.CohortMerge{{Left: "a", Right: "b"}, {Left: "b", Right: "c"}}
+		publish(similarity.Event{Items: items, Merges: merges, Successful: 6, Total: 8})
+		var slider *widget.Slider
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if s, ok := o.(*widget.Slider); ok {
+				slider = s
+			}
+		})
+		if slider == nil {
+			t.Fatal("map is missing its granularity slider")
+		}
+		if len(explorerPiles(v)) != 3 {
+			t.Fatal("default granularity changed the original cohorts")
+		}
+		slider.SetValue(50)
+		if len(explorerPiles(v)) != 2 || v.win.Canvas().Focused() != nil {
+			t.Fatal("broader granularity did not combine the nearest cohorts or release focus")
+		}
+		fynetest.Tap(explorerPiles(v)[0])
+		want := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path(), v.FileAt(3).Path()}
+		if !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatalf("broader cohort membership: %v", explorerGridPaths(v))
+		}
+		items = append(items, similarity.Item{Path: v.FileAt(6).Path(), Cohort: "a", Tags: []string{"bird"}, Preview: preview})
+		publish(similarity.Event{Items: items, Merges: merges, Successful: 7, Total: 8, Complete: true})
+		if !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatal("new hierarchy changed the open grid")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if len(explorerPiles(v)) != 2 || slider.Value != 50 {
+			t.Fatal("publication or grid return reset granularity")
+		}
+		explorerTag(t, v, "Bird", 7)
+		slider.SetValue(0)
+		if len(explorerPiles(v)) != 1 {
+			t.Fatal("broadest granularity did not join the assigned groups")
+		}
+		fynetest.Tap(explorerButton(t, v, "Unassigned (1)"))
+		if !slices.Equal(explorerGridPaths(v), []string{v.FileAt(5).Path()}) {
+			t.Fatal("granularity moved unassigned images into a cohort")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		slider.SetValue(100)
+		if len(explorerPiles(v)) != 3 {
+			t.Fatal("fine granularity did not restore the original groups")
+		}
+	})
+
+	t.Run("keyboard", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t)
+		v.win.Resize(fyne.NewSize(1100, 700))
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		var items []similarity.Item
+		for i, position := range [][]float32{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
+			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: fmt.Sprint(i), Position: position, Tags: []string{"bird"}, Preview: preview})
+		}
+		publish(similarity.Event{Items: items, Successful: 4, Total: 8})
+		piles := explorerPiles(v)
+		for _, label := range []string{"+", "-", "Fit map"} {
+			fynetest.Tap(explorerButton(t, v, label))
+			if v.win.Canvas().Focused() != nil {
+				t.Fatalf("%s captured keyboard focus instead of returning it to the map", label)
+			}
+		}
+		width := piles[0].Size().Width
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
+		if piles[0].Size().Width <= width {
+			t.Fatal("keyboard + did not zoom the map")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
+		if math.Abs(float64(piles[0].Size().Width-width)) > .01 {
+			t.Fatal("keyboard - did not undo zoom")
+		}
+		highlight := func(want *explorerui.Pile) {
+			t.Helper()
+			for _, pile := range explorerPiles(v) {
+				visible := false
+				explorerWalk(pile, func(o fyne.CanvasObject) {
+					if frame, ok := o.(*canvas.Rectangle); ok && frame.StrokeWidth >= 2 && frame.Size().Width > 0 {
+						visible = true
+					}
+				})
+				if visible != (pile == want) {
+					t.Fatal("arrow navigation did not visibly highlight exactly the active stack")
+				}
+			}
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+		highlight(piles[0])
+		for _, step := range []struct {
+			key   fyne.KeyName
+			index int
+		}{{fyne.KeyRight, 1}, {fyne.KeyDown, 3}, {fyne.KeyLeft, 2}, {fyne.KeyUp, 0}} {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: step.key})
+			highlight(piles[step.index])
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		if !v.grid.Visible() || !slices.Equal(explorerGridPaths(v), []string{v.FileAt(0).Path()}) {
+			t.Fatal("Enter did not open the highlighted stack")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		highlight(piles[0])
+		items[0].Cohort = "renamed"
+		publish(similarity.Event{Items: items, Successful: 4, Total: 8, Complete: true})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		if !slices.Equal(explorerGridPaths(v), []string{v.FileAt(0).Path()}) {
+			t.Fatal("publication lost the selected source identity")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		fynetest.Tap(explorerButton(t, v, "Clear tags"))
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		if v.grid.Visible() {
+			t.Fatal("keyboard opened a filtered-out stack")
+		}
+	})
+
+	t.Run("tags_collapse", func(t *testing.T) {
+		v := explorerFixture(t)
+		v.win.Resize(fyne.NewSize(1100, 700))
+		v.ForceRepaint()
+		before := v.explorer.surface.Size()
+		piles := explorerPiles(v)
+		fynetest.Tap(explorerButton(t, v, "Hide tags"))
+		v.ForceRepaint()
+		if v.explorer.surface.Size().Width <= before.Width {
+			t.Fatal("collapsing tags did not give their width back to the map")
+		}
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if b, ok := o.(*widget.Button); ok && b.Text == lang.L("Clear tags") {
+				t.Fatal("collapsed tags still expose sidebar controls")
+			}
+		})
+		fynetest.Tap(explorerButton(t, v, "Show tags"))
+		v.ForceRepaint()
+		if v.explorer.surface.Size() != before || !slices.Equal(explorerPiles(v), piles) || v.win.Canvas().Focused() != nil {
+			t.Fatal("restoring tags changed map contents, geometry or input focus")
+		}
+	})
+
+	t.Run("tags_browse", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t)
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		items := []similarity.Item{
+			{Path: v.FileAt(0).Path(), Cohort: "a", Tags: []string{"bird", "bird"}, Preview: preview},
+			{Path: v.FileAt(1).Path(), Cohort: "a", Tags: []string{"dog"}, Preview: preview},
+			{Path: v.FileAt(2).Path(), Cohort: "b", Tags: []string{"bird"}, Preview: preview},
+			{Path: v.FileAt(3).Path(), Cohort: "unassigned", Tags: []string{"bird"}, Preview: preview},
+		}
+		items = append(items, items[0])
+		publish(similarity.Event{Items: items, Successful: 4, Total: 8})
+		check, number := explorerTag(t, v, "Bird", 3)
+		fynetest.Tap(check)
+		before := explorerPiles(v)[0].Position()
+		fynetest.TapAt(number, fyne.NewPos(number.MinSize().Width/2, number.MinSize().Height/2))
+		want := []string{v.FileAt(0).Path(), v.FileAt(2).Path(), v.FileAt(3).Path()}
+		if !v.grid.Visible() || !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatalf("tag link did not open exactly the matching distinct images: %v", explorerGridPaths(v))
+		}
+		items = append(items, similarity.Item{Path: v.FileAt(4).Path(), Cohort: "b", Tags: []string{"bird"}, Preview: preview})
+		publish(similarity.Event{Items: items, Successful: 5, Total: 8, Complete: true})
+		if !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatal("publication changed the tag grid being browsed")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		check, number = explorerTag(t, v, "Bird", 4)
+		if check.Checked || explorerPiles(v)[0].Position() != before {
+			t.Fatal("tag grid return lost filtering or map position")
+		}
+		fynetest.TapAt(number, fyne.NewPos(number.MinSize().Width/2, number.MinSize().Height/2))
+		want = append(want, v.FileAt(4).Path())
+		if !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatal("reopened tag grid did not include new matches")
+		}
+	})
+
 	t.Run("tags_filter", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg")
 		paths := make([]string, v.FileCount())
@@ -462,17 +674,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.settleExplorer()
 		check := func(label string, count int) *widget.Check {
 			t.Helper()
-			var found *widget.Check
-			text := fmt.Sprintf("%s (%d)", lang.L(label), count)
-			explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
-				if c, ok := o.(*widget.Check); ok && c.Text == text {
-					found = c
-				}
-			})
-			if found == nil {
-				t.Fatalf("tag checkbox %q is missing from the visible surface", text)
-			}
-			return found
+			check, _ := explorerTag(t, v, label, count)
+			return check
 		}
 		bird, dog, untagged := check("Bird", 3), check("Dog", 2), check("Untagged", 1)
 		if !bird.Checked || !dog.Checked || !untagged.Checked || len(explorerPiles(v)) != 3 {
@@ -568,16 +771,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		check := func(label string) *widget.Check {
 			t.Helper()
-			var found *widget.Check
-			explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
-				if c, ok := o.(*widget.Check); ok && c.Text == fmt.Sprintf("%s (1)", lang.L(label)) {
-					found = c
-				}
-			})
-			if found == nil {
-				t.Fatalf("missing visible tag %q with unique count 1", label)
-			}
-			return found
+			check, _ := explorerTag(t, v, label, 1)
+			return check
 		}
 		publish(similarity.Event{Items: []similarity.Item{item(0, "a", "bird"), item(1, "b", "dog"), item(2, "c")}, Successful: 3, Total: 8})
 		fynetest.Tap(check("Bird"))
@@ -984,30 +1179,37 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 	})
 	t.Run("pile_spacing", func(t *testing.T) {
-		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
-		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for i, path := range paths {
-				items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Position: []float32{0, 0}, Preview: preview})
-			}
-			emit(similarity.Event{Complete: true, Items: items})
-			return nil
-		}
-		explorerMenu(t, v).Action()
-		v.settleExplorer()
-		piles := explorerPiles(v)
-		if len(piles) != 6 {
-			t.Fatal("missing close/coincident cohorts")
-		}
-		for i, a := range piles {
-			for _, b := range piles[i+1:] {
-				dx := float32(math.Abs(float64(a.Position().X-b.Position().X))) - a.Size().Width
-				dy := float32(math.Abs(float64(a.Position().Y-b.Position().Y))) - a.Size().Height
-				if max(dx, dy) < a.Size().Width*.08 {
-					t.Fatalf("piles overlap or lack breathing room: horizontal gap %.1f, vertical gap %.1f", dx, dy)
+		for name, positions := range map[string][][]float32{
+			"coincident":      {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+			"cell_boundaries": {{-1, -1}, {-.99, 1}, {.5, -.1}, {1, 1}, {-.5, -1}, {.7, .75}},
+		} {
+			t.Run(name, func(t *testing.T) {
+				v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
+				preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					var items []similarity.Item
+					for i, path := range paths {
+						items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Position: positions[i], Preview: preview})
+					}
+					emit(similarity.Event{Complete: true, Items: items})
+					return nil
 				}
-			}
+				explorerMenu(t, v).Action()
+				v.settleExplorer()
+				piles := explorerPiles(v)
+				if len(piles) != 6 {
+					t.Fatal("missing close/coincident cohorts")
+				}
+				for i, a := range piles {
+					for _, b := range piles[i+1:] {
+						dx := float32(math.Abs(float64(a.Position().X-b.Position().X))) - a.Size().Width
+						dy := float32(math.Abs(float64(a.Position().Y-b.Position().Y))) - a.Size().Height
+						if max(dx, dy) < a.Size().Width*.08 {
+							t.Fatalf("piles overlap or lack breathing room: horizontal gap %.1f, vertical gap %.1f", dx, dy)
+						}
+					}
+				}
+			})
 		}
 	})
 	t.Run("navigation", func(t *testing.T) {

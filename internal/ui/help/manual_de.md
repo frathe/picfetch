@@ -681,6 +681,19 @@ damit einzelne Begriffe leicht gewählt werden können; **Alle Schlagwörter**
 stellt die vollständige Auswahl wieder her. **Ohne Schlagwort** hält Bilder ohne erkannten Begriff
 erreichbar. Die lokalen Modellvorschläge können Motive übersehen oder verwechseln.
 
+**Schlagwörter ausblenden** klappt die Seitenleiste ein; **Schlagwörter einblenden**
+stellt sie mit unveränderter Auswahl wieder her. Ein Klick auf die Zahl neben
+einem Schlagwort öffnet ein Raster nur mit den passenden Bildern, einschließlich
+Treffern aus **Nicht zugeordnet**. Während der Analyse bleibt dieses Raster
+unverändert; erneutes Öffnen der Zahl verwendet die neuesten Treffer.
+
+Der Regler **Granularität** oben rechts fasst verwandte Stapel in Richtung
+**Gröber** zusammen und stellt in Richtung **Feiner** kleinere Gruppen wieder her.
+Er beginnt bei der feinsten Gruppierung. Die Änderung verwendet vorhandene
+Analysedaten ohne erneutes Einlesen der Bilder. Am gröbsten Ende werden alle
+zugeordneten Gruppen verbunden; **Nicht zugeordnet** bleibt separat. Ein bereits
+geöffnetes Raster behält seine Mitglieder.
+
 Der Filter verändert weder Position noch Zoom der Karte. Neue Ergebnisse
 behalten die Auswahl bekannter Schlagwörter bei und aktivieren neue Begriffe.
 Auch die Rückkehr aus der Rasteransicht behält den Filter bei. Nach dem Verlassen
@@ -705,6 +718,9 @@ ohne Gruppenzuordnung.
 
 Zum Verschieben ziehen oder beim Scrollen **Shift** gedrückt halten.
 Zum Zoomen ohne Shift scrollen oder `+`/`-` verwenden.
+`Left`, `Right`, `Up` und `Down` wählen einen Stapel in der jeweiligen Richtung.
+Der aktive Stapel wird umrandet und im sichtbaren Bereich gehalten;
+`Enter` öffnet sein Raster.
 **Karte einpassen** setzt die Ansicht zurück. Neue Ergebnisse zoomen bei Bedarf
 automatisch heraus, damit neue Stapel sichtbar bleiben, jedoch nie hinein. Ein Klick auf einen Stapel öffnet
 seine gesamte Gruppe in der Rasteransicht. Ein Bild wie gewohnt öffnen;

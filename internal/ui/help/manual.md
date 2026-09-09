@@ -610,12 +610,26 @@ tags you want; **All tags** restores them. **Untagged** keeps
 images without a recognized label reachable. Tags are local model suggestions
 and can miss or misidentify content.
 
+**Hide tags** collapses the sidebar; **Show tags** restores it with the same
+checkbox choices. Click the number beside a tag to open a grid containing only
+that tag's images, including matches from **Unassigned**. The grid keeps its
+captured membership while analysis continues; reopening the count uses the
+latest matches. Returning restores your map view.
+
+The **Granularity** slider at the top right combines related stacks toward
+**Broader**, and restores smaller groups toward **Finer**. It starts at the
+finest grouping. Changes use the existing analysis immediately; they do not
+rescan images. The broadest end joins all assigned groups, while **Unassigned**
+stays separate. An already open grid keeps its captured members.
+
 Filtering preserves the map position and zoom. New map results retain your
 choices for known tags and check newly discovered tags. Returning from Grid View
 preserves the filter; leaving the Explorer resets it for the next session.
 
 Drag or hold **Shift** while scrolling to pan. Scroll or use `+`/`-` to zoom,
-and choose **Fit map** to reset the view. By default, new map results zoom out
+and choose **Fit map** to reset the view. `Left`, `Right`, `Up` and `Down` select
+a stack in that direction; the active stack is outlined and kept in view.
+`Enter` opens its grid. By default, new map results zoom out
 when needed to keep new stacks visible; they never automatically zoom in. Click a pile to open its complete
 cohort in Grid View. Open any member normally; navigation remains within that
 cohort. `Escape` returns from an
