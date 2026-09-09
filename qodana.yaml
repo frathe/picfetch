@@ -302,6 +302,8 @@ exclude:
       - "internal/winpos/winpos_test.go"
       - "main_darwin_test.go"
       - "main_test.go"
+      - "scripts/explorereval/main_test.go"
+      - "scripts/explorereval/trial_test.go"
       - "scripts/msixstage/msixstage_test.go"
       - "scripts/nativeguards/main_test.go"
       - "scripts/plistdoctypes/doctypes_test.go"

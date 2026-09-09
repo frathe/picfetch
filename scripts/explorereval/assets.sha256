@@ -1,0 +1,3 @@
+c0573e3f4140c3a7c4e9cc5912bd6b26a033b46a6a8e8af26cbea262b163bcad  vision_model.onnx
+9b36b57ebaf20f09bf4c22100ccc21877ea6bfe5aead0c00c59f8af8ccefacfc  preprocessor_config.json
+68f6e54e695583adc371aef610ec4abb1ffaa3df656582922de7690f7e2000eb  onnxruntime-osx-arm64-1.29.0/lib/libonnxruntime.1.29.0.dylib

@@ -5,14 +5,17 @@ go 1.27.1
 require (
 	fyne.io/fyne/v2 v2.8.0
 	fyne.io/x/fyne v0.0.0-20260712112324-6989f2f174fb
+	github.com/alDuncanson/latent v0.1.4
 	github.com/fyne-io/image v0.1.1
 	github.com/fyne-io/oksvg v0.2.0
 	github.com/gen2brain/avif v0.6.0
 	github.com/gen2brain/heic v0.7.1
+	github.com/nozzle/umap v0.0.0-20260130174432-f6085fb2514d
 	github.com/sigstore/sigstore v1.10.9
 	github.com/sigstore/sigstore-go v1.3.0
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/theupdateframework/go-tuf/v2 v2.4.2
+	github.com/yalue/onnxruntime_go v1.36.0
 	golang.org/x/image v0.45.0
 	golang.org/x/mod v0.40.0
 )
@@ -107,6 +110,7 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	golang.org/x/vuln v1.7.0 // indirect
+	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260727163830-6c54dddc4772 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260720155508-bb71a54f79dc // indirect
 	google.golang.org/grpc v1.83.2 // indirect

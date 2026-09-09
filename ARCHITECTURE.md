@@ -34,6 +34,21 @@ the raw events outside the repository; the generated assignment lives at
 | `docker-race.sh` | Public Make runner: unique host artifact directory, attached Docker lifecycle, raw streams and console retention, exit/memory/OOM diagnostics before cleanup. |
 | `main_test.go` | Command-boundary fixtures for event streams and capture, deterministic planning, every manifest rejection, build-selected runnable forms, parallel-call refusal, exact filter generation, package partitioning, and Make contract expansion. |
 
+### `scripts/explorereval`
+
+Bounded, local Mac experiment for the visual similarity explorer, reached through
+`make explorer-setup`, `make explorer-test` and `make explorer-evaluate`. It is
+not linked into the viewer. `main.go` owns the cancellable process and enforced
+offline launch; `offline.go` verifies actual TCP/UDP denial; `assets.go` and
+`setup.sh` verify pinned assets. `files.go` provides the driverless read-only
+file repository and smoke selection so `evaluate.go` reuses canonical scanning
+and decoding. `encoder.go` runs the local SigLIP 2 ONNX vision encoder;
+`grouping.go` runs independent 15D grouping and 2D projection fits. `report.go`
+and `review.html` produce local cohort/measurement artifacts; `memory_*.go`
+measures native worker RSS. `evaluate.sh` retains each run and its exit status.
+Real-model tests use the `explorertrial` tag and require local assets plus OS
+network denial; ordinary command guards run in the default suite.
+
 ### Packaging tooling
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image

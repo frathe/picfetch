@@ -82,25 +82,23 @@ The [specification](.scratch/visual-similarity-explorer/spec.md) captures the
 settled behavior and proposed verification, including the accepted first
 round: real grouping on this Mac, opened-file-set inputs, non-overlapping
 cohorts, and fixed membership while browsing. SigLIP 2, HDBSCAN, and UMAP are
-evaluation candidates. The spec remains `needs-info` for the remaining design
-choices and real-engine evaluation criteria.
-The [complete design notes](docs/2026-09-09-visual-similarity-explorer-design.md)
-retain the interview and code findings. The [seven-ticket
-breakdown](.scratch/visual-similarity-explorer/ticket-breakdown.md) records
-dependencies and a conditional cache slice. Implementation was requested on
-2026-09-09; the tickets are published and preparation is active in the
-[execution plan](plans/2026-09-09-visual-similarity-explorer.md). Ticket 01
-awaits Q7-Q12 answers, test-boundary confirmation and the local trial-library
-path. Draft [decision rows](.scratch/visual-similarity-explorer/decisions.md)
-and an [evaluation protocol](.scratch/visual-similarity-explorer/evaluation-protocol.md)
-now make those choices and the offline smoke/full-library trial reviewable.
-No application feature or real-engine evaluation is implemented yet.
-The [candidate research](docs/2026-09-09-visual-similarity-explorer-candidates.md#go-runtime-investigation)
-now records Go with native inference as the lead's preferred evaluation route
-following the user's Python-helper question; no runtime dependency is selected.
-The draft choices now match that Go recommendation, and the trial protocol
-records existing scan/decode limits. Product/test-boundary answers and the
-trial-library path remain pending; no application tests have been written.
+evaluation candidates. The user accepted the remaining defaults and test boundaries and supplied
+`.scratch/visual-similarity-explorer/demo` (446 images). Ticket 01 is complete;
+[ticket 02](.scratch/visual-similarity-explorer/issues/02-evaluate-local-pipeline.md)
+now contains a measured real Go/native experiment under OS network denial.
+All 446 demo images processed successfully in 90.638 seconds, producing
+36 cohorts and 90 unassigned images. Real-model tests and `make verify` pass.
+The [local report](.scratch/visual-similarity-explorer/evidence/smoke-TZppbI/result/review.html)
+is awaiting the user’s semantic quality verdict. The
+[execution plan](plans/2026-09-09-visual-similarity-explorer.md) records TDD
+slices and measured evidence. The [trial contract](.scratch/visual-similarity-explorer/decisions.md)
+and [protocol](.scratch/visual-similarity-explorer/evaluation-protocol.md) retain
+accepted choices. Persistent analysis is included in the later ticket sequence.
+
+Production map/Grid integration depends on reviewing actual engine output.
+The supplied demo does not qualify the intended roughly 50,000-image trial.
+The current batch HDBSCAN/UMAP experiment has cancellation and scaling limits;
+these must be resolved before selecting the full-library engine.
 
 ## LATER
 

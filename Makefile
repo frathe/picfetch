@@ -49,6 +49,26 @@ build: ## Build a native binary for the current OS/arch into bin/ (stripped, no 
 run: ## Run the app directly (go run .)
 	go run .
 
+EXPLORER_ASSETS ?= .scratch/visual-similarity-explorer/assets
+EXPLORER_LIBRARY ?= .scratch/visual-similarity-explorer/demo
+EXPLORER_EVIDENCE ?= .scratch/visual-similarity-explorer/evidence
+EXPLORER_PROVIDER ?= cpu
+TRIAL ?= smoke
+
+.PHONY: explorer-setup explorer-evaluate explorer-test
+explorer-setup: ## Download and verify pinned public assets for the local Mac explorer experiment
+	bash scripts/explorereval/setup.sh "$(EXPLORER_ASSETS)"
+
+explorer-evaluate: ## Run the real bounded explorer experiment under OS network denial (TRIAL=smoke)
+	@mkdir -p $(BIN_DIR)
+	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
+	bash scripts/explorereval/evaluate.sh "$(BIN_DIR)/explorereval" "$(EXPLORER_ASSETS)" "$(EXPLORER_LIBRARY)" "$(EXPLORER_EVIDENCE)" "$(TRIAL)" "$(EXPLORER_PROVIDER)"
+
+explorer-test: ## Run real-model acceptance tests under explicit macOS network denial (local assets required)
+	@mkdir -p $(BIN_DIR)
+	go test -c -tags explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
+	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.v -test.count=1
+
 fmt: ## Format all Go source files (gofmt + import groups via goimports -local)
 	go tool goimports -local $(GOIMPORTS_LOCAL) -w .
 
