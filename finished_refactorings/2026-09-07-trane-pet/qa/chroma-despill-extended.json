@@ -1,7 +1,7 @@
 {
   "ok": true,
-  "input": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/final/spritesheet-extended.png",
-  "output": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/final/spritesheet-extended.png",
+  "input": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/final/spritesheet-extended.png",
+  "output": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/final/spritesheet-extended.png",
   "chroma_key": "#FF00FF",
   "algorithm": "edge-local-chroma-spill-suppression",
   "strength": 1,

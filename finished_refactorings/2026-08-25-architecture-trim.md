@@ -10,7 +10,7 @@
 
 **Tech Stack:** Markdown. `AGENTS.md` gains two concurrency sentences (named wait helpers vs `drain`). No other Go or doc changes. Verification is coverage, verbatim index keys, source-comment anchors, and per-cell lean-ness — not `go test` and not a byte/line cap.
 
-**Lean-ness review:** [Opus](f25ef88e-b9c0-4eca-a3c4-5b3a6b51a8a9) reviewed this plan against “as lean as possible, still an agent index.” Replacement text below already applies that review.
+**Lean-ness review:** [Opus](00000000-0000-0000-0000-000000000000) reviewed this plan against “as lean as possible, still an agent index.” Replacement text below already applies that review.
 
 ## Status of `todos.md` (this todo is old)
 

@@ -4,7 +4,7 @@ base=Path('/private/tmp/picfetch-maintainability-27-mac-state')
 base.mkdir(exist_ok=False)
 # The packaged binary keeps its production ID. Temporarily isolate only its
 # preferences/session directories and restore them after its process exits.
-paths=[Path('/Users/ronin/Library/Preferences/fyne/io.github.frathe.picfetch'),Path('/Users/ronin/Library/Caches/fyne/io.github.frathe.picfetch')]
+paths=[Path('/Users/REDACTED_USER/Library/Preferences/fyne/io.github.frathe.picfetch'),Path('/Users/REDACTED_USER/Library/Caches/fyne/io.github.frathe.picfetch')]
 existing=subprocess.run(['pgrep','-ix','picfetch'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 if existing.returncode not in (1,): raise RuntimeError('Cannot establish that the production application is stopped')
 moved=[];child=None

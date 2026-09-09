@@ -25,7 +25,7 @@ duplication" — is disproved below; this plan supersedes its Chunks 3–7.
 
 ## Global Constraints
 
-- Repository root: `/Users/ronin/Projects/picfetch`. Branch: `main`, currently in sync
+- Repository root: `/Users/REDACTED_USER/Projects/picfetch`. Branch: `main`, currently in sync
   with `origin/main` at `210fee5`.
 - Verification before any handoff, from the repository root, exactly as CI runs it:
   `make fmt-check`, `go vet ./...`, `go build ./...`, `go test -timeout 20m -race ./...`.
@@ -39,7 +39,7 @@ duplication" — is disproved below; this plan supersedes its Chunks 3–7.
 - Do not refactor any source or test file merely to make a duplication count fall.
 - Reference artifact, already downloaded, do not re-download unless it is missing:
   `$SCRATCH/qodana/x/`, where
-  `SCRATCH=/private/tmp/claude-502/-Users-ronin-Projects-picfetch/5155ce10-0033-47c4-a2cd-52cd5a3bcf6f/scratchpad`.
+  `SCRATCH=/private/tmp/claude-502/-Users-REDACTED_USER-Projects-picfetch/00000000-0000-0000-0000-000000000000/scratchpad`.
   Re-fetch command if absent:
   `gh run download 33270269940 -n qodana-report -D "$SCRATCH/qodana" && unzip -o -q "$SCRATCH/qodana/qodana-report.zip" -d "$SCRATCH/qodana/x"`
 
@@ -155,7 +155,7 @@ is wrong itself, and only then dispatches the next.
 - [ ] **Step 1: Confirm the artifact is present, or fetch it**
 
 ```bash
-SCRATCH=/private/tmp/claude-502/-Users-ronin-Projects-picfetch/5155ce10-0033-47c4-a2cd-52cd5a3bcf6f/scratchpad
+SCRATCH=/private/tmp/claude-502/-Users-REDACTED_USER-Projects-picfetch/00000000-0000-0000-0000-000000000000/scratchpad
 test -f "$SCRATCH/qodana/x/qodana.sarif.json" || {
   gh run download 33270269940 -n qodana-report -D "$SCRATCH/qodana"
   unzip -o -q "$SCRATCH/qodana/qodana-report.zip" -d "$SCRATCH/qodana/x"
@@ -289,12 +289,12 @@ dirty, stop and escalate — a dirty tree invalidates the comparison.
 
 Call `mcp__goland__get_project_modules` and `mcp__goland__get_repositories`.
 Expected: the picfetch module and this repository. If the server is not connected, stop
-and report that Task 2 is blocked on GoLand being open on `/Users/ronin/Projects/picfetch`.
+and report that Task 2 is blocked on GoLand being open on `/Users/REDACTED_USER/Projects/picfetch`.
 
 - [ ] **Step 3: Enumerate the Go files to inspect**
 
 ```bash
-cd /Users/ronin/Projects/picfetch && git ls-files '*.go' | wc -l
+cd /Users/REDACTED_USER/Projects/picfetch && git ls-files '*.go' | wc -l
 git ls-files '*.go' | grep -c '_test\.go$'
 ```
 
@@ -369,14 +369,14 @@ error). A bare type assertion misses a wrapped `*exec.ExitError`; `errors.As` un
 - [ ] **Step 1: Read the current code**
 
 ```bash
-sed -n '50,58p' /Users/ronin/Projects/picfetch/scripts/wingettag/tag_test.go
+sed -n '50,58p' /Users/REDACTED_USER/Projects/picfetch/scripts/wingettag/tag_test.go
 ```
 
 Expected to contain `if _, ok := err.(*exec.ExitError); !ok {`.
 
 - [ ] **Step 2: Verify the test passes before the change**
 
-Run: `cd /Users/ronin/Projects/picfetch && go test ./scripts/wingettag/...`
+Run: `cd /Users/REDACTED_USER/Projects/picfetch && go test ./scripts/wingettag/...`
 Expected: `ok`. This is the behaviour the change must preserve.
 
 - [ ] **Step 3: Apply the fix**
@@ -422,7 +422,7 @@ import (
 
 - [ ] **Step 4: Verify the test still passes**
 
-Run: `cd /Users/ronin/Projects/picfetch && go test ./scripts/wingettag/... -run TestPatternMatchesBashERE -v`
+Run: `cd /Users/REDACTED_USER/Projects/picfetch && go test ./scripts/wingettag/... -run TestPatternMatchesBashERE -v`
 Expected: `PASS`.
 
 - [ ] **Step 5: Prove the new branch is reachable**
@@ -435,7 +435,7 @@ outputs. This is the mutation check that the `errors.As` branch still guards the
 - [ ] **Step 6: Verify formatting and the wider build**
 
 ```bash
-cd /Users/ronin/Projects/picfetch && make fmt-check && go vet ./... && go build ./...
+cd /Users/REDACTED_USER/Projects/picfetch && make fmt-check && go vet ./... && go build ./...
 ```
 
 Expected: all three succeed with no output about `tag_test.go`.
@@ -485,7 +485,7 @@ local claim.
 - [ ] **Step 1: Read the current file end**
 
 ```bash
-tail -5 /Users/ronin/Projects/picfetch/qodana.yaml
+tail -5 /Users/REDACTED_USER/Projects/picfetch/qodana.yaml
 ```
 
 Expected: the `linter:` line followed by the two-line `include:` block.
@@ -508,7 +508,7 @@ exclude:
 - [ ] **Step 3: Check the file is still valid YAML**
 
 ```bash
-cd /Users/ronin/Projects/picfetch && python3 -c "import sys,yaml;d=yaml.safe_load(open('qodana.yaml'));print(d['include'],d['exclude'])"
+cd /Users/REDACTED_USER/Projects/picfetch && python3 -c "import sys,yaml;d=yaml.safe_load(open('qodana.yaml'));print(d['include'],d['exclude'])"
 ```
 
 Expected: `[{'name': 'DuplicatedCode'}] [{'name': 'DuplicatedCode', 'paths': ['**/*_test.go']}]`.
@@ -541,7 +541,7 @@ list explicitly, giving 30 files, and say why it is not in the `jq` output.
 - [ ] **Step 5: Confirm nothing else changed**
 
 ```bash
-cd /Users/ronin/Projects/picfetch && git diff --stat
+cd /Users/REDACTED_USER/Projects/picfetch && git diff --stat
 ```
 
 Expected: `qodana.yaml` and `plans/2026-08-29-qodana-evidence.md` only (plus Task 3's
@@ -625,7 +625,7 @@ scan)", and the framing that CI "under-reports duplication".
 - [ ] **Step 1: Read the target register**
 
 ```bash
-sed -n '1,40p' /Users/ronin/Projects/picfetch/todos.md
+sed -n '1,40p' /Users/REDACTED_USER/Projects/picfetch/todos.md
 ```
 
 - [ ] **Step 2: Write the false-positive entry**
@@ -734,7 +734,7 @@ Change nothing else in that file.
 - [ ] **Step 7: Archive this plan and its evidence**
 
 ```bash
-cd /Users/ronin/Projects/picfetch
+cd /Users/REDACTED_USER/Projects/picfetch
 mv plans/2026-08-29-qodana-duplication-close.md finished_refactorings/
 mv plans/2026-08-29-qodana-evidence.md finished_refactorings/
 rmdir plans 2>/dev/null || true
@@ -746,7 +746,7 @@ and `git mv` would fail. The user commits them from `finished_refactorings/` at 
 - [ ] **Step 8: Check every internal path reference still resolves**
 
 ```bash
-cd /Users/ronin/Projects/picfetch
+cd /Users/REDACTED_USER/Projects/picfetch
 grep -rhoE '(plans|finished_refactorings|internal|scripts)/[A-Za-z0-9._/-]+\.(md|go|yaml)' todos.md AGENTS.md finished_refactorings/2026-08-29-qodana-*.md | sort -u | while read -r p; do test -e "$p" || echo "MISSING: $p"; done
 ```
 
@@ -780,7 +780,7 @@ Confirm Step 8 printed nothing.
 - [ ] **Step 1: Full verification suite**
 
 ```bash
-cd /Users/ronin/Projects/picfetch && make fmt-check && go vet ./... && go build ./... && go test -timeout 20m -race ./...
+cd /Users/REDACTED_USER/Projects/picfetch && make fmt-check && go vet ./... && go build ./... && go test -timeout 20m -race ./...
 ```
 
 Expected: all pass. Quote the final `ok`/`FAIL` summary line count, not the whole log.
@@ -788,7 +788,7 @@ Expected: all pass. Quote the final `ok`/`FAIL` summary line count, not the whol
 - [ ] **Step 2: Confirm the scope of the change**
 
 ```bash
-cd /Users/ronin/Projects/picfetch && git diff --stat 210fee5..HEAD
+cd /Users/REDACTED_USER/Projects/picfetch && git diff --stat 210fee5..HEAD
 ```
 
 Expected files only: `scripts/wingettag/tag_test.go`, `qodana.yaml`, `todos.md`,
@@ -798,7 +798,7 @@ Expected files only: `scripts/wingettag/tag_test.go`, `qodana.yaml`, `todos.md`,
 - [ ] **Step 3: Confirm no behavioural surface moved**
 
 ```bash
-cd /Users/ronin/Projects/picfetch && git diff 210fee5..HEAD -- go.mod go.sum translations assets FyneApp.toml Makefile .github | wc -l
+cd /Users/REDACTED_USER/Projects/picfetch && git diff 210fee5..HEAD -- go.mod go.sum translations assets FyneApp.toml Makefile .github | wc -l
 ```
 
 Expected: `0`.
@@ -849,7 +849,7 @@ unexplained internal file references. It must stand alone.
 - [ ] **Step 1: Re-read the evidence**
 
 ```bash
-cd /Users/ronin/Projects/picfetch
+cd /Users/REDACTED_USER/Projects/picfetch
 sed -n '/^## GoLand comparison at 210fee5/,/^## Reproduction of the GoLand comparison/p' finished_refactorings/2026-08-29-qodana-evidence.md
 ```
 

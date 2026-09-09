@@ -1,10 +1,10 @@
 ﻿**********************
 nStart der Windows PowerShell-Aufzeichnung
 Startzeit: 20260907134213
-Benutzername: WIN-J4IU1CE0C7M\Finis Ronin
-RunAs-Benutzer: WIN-J4IU1CE0C7M\Finis Ronin
+Benutzername: REDACTED_HOST\REDACTED_USER
+RunAs-Benutzer: REDACTED_HOST\REDACTED_USER
 Konfigurationsname: 
-Computer: WIN-J4IU1CE0C7M (Microsoft Windows NT 10.0.26100.0)
+Computer: REDACTED_HOST (Microsoft Windows NT 10.0.26100.0)
 Hostanwendung: powershell.exe -NoProfile -ExecutionPolicy Bypass -File Z:\offline-windows\smoke-x64.ps1
 Prozess-ID: 5812
 PSVersion: 5.1.26100.9168
@@ -16,7 +16,7 @@ WSManStackVersion: 3.0
 PSRemotingProtocolVersion: 2.3
 SerializationVersion: 1.1.0.1
 **********************
-Die Aufzeichnung wurde gestartet. Die Ausgabedatei ist "C:\Users\Finis Ronin\Desktop\PicFetch-x64-package-results-20260907-134213\transcript.txt".
+Die Aufzeichnung wurde gestartet. Die Ausgabedatei ist "C:\Users\REDACTED_USER\Desktop\PicFetch-x64-package-results-20260907-134213\transcript.txt".
 Two x64 package windows will open in sequence. Close each window when its visual check is finished.
 Each window opens two generated test images. Right switches from Alpha to Beta.
 The application keeps its production identity; each process receives separate test preferences and cache folders.

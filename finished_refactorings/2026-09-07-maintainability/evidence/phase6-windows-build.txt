@@ -1,10 +1,10 @@
-mkdir -p "/Users/ronin/Library/Caches/fyne-cross"
+mkdir -p "/Users/REDACTED_USER/Library/Caches/fyne-cross"
 # Match fyne-cross's UID so warm-up does not leave a root-owned module cache.
-docker run --rm --user $(id -u) -e HOME=/tmp -v "/private/tmp/picfetch-maintainability-phase6-package:/app:ro" -v "/Users/ronin/Library/Caches/fyne-cross:/go" -w /app -e GOTOOLCHAIN=auto "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" go version
+docker run --rm --user $(id -u) -e HOME=/tmp -v "/private/tmp/picfetch-maintainability-phase6-package:/app:ro" -v "/Users/REDACTED_USER/Library/Caches/fyne-cross:/go" -w /app -e GOTOOLCHAIN=auto "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" go version
 go version go1.27.1 linux/arm64
 docker image inspect --format '{{.Id}} {{.RepoDigests}} {{.Os}}/{{.Architecture}}' "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36"
 sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36 [fyneio/fyne-cross-images@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36] linux/arm64
-docker run --rm --user $(id -u) -e HOME=/tmp -v "/private/tmp/picfetch-maintainability-phase6-package:/app:ro" -v "/Users/ronin/Library/Caches/fyne-cross:/go" -w /app -e GOTOOLCHAIN=auto "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" /usr/local/bin/fyne version
+docker run --rm --user $(id -u) -e HOME=/tmp -v "/private/tmp/picfetch-maintainability-phase6-package:/app:ro" -v "/Users/REDACTED_USER/Library/Caches/fyne-cross:/go" -w /app -e GOTOOLCHAIN=auto "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" /usr/local/bin/fyne version
 fyne cli version: v1.7.2
 fyne library version: v2.8.0
 go version -m ".tools/fyne-cross-v1.6.3/fyne-cross"
@@ -28,7 +28,7 @@ go version -m ".tools/fyne-cross-v1.6.3/fyne-cross"
 	build	GOARM64=v8.0
 mkdir -p bin
 for arch in amd64 arm64; do \
-		".tools/fyne-cross-v1.6.3/fyne-cross" windows -engine "docker" -image "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" -cache "/Users/ronin/Library/Caches/fyne-cross" -arch=$arch -icon assets/appIcon.png -name picfetch -app-id io.github.frathe.picfetch -env GOTOOLCHAIN=auto || exit 1; \
+                ".tools/fyne-cross-v1.6.3/fyne-cross" windows -engine "docker" -image "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" -cache "/Users/REDACTED_USER/Library/Caches/fyne-cross" -arch=$arch -icon assets/appIcon.png -name picfetch -app-id io.github.frathe.picfetch -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$arch/picfetch.exe bin/picfetch-windows-$arch.exe || exit 1; \
 	done
 [i] Target: windows/amd64
@@ -53,7 +53,7 @@ for arch in amd64 arm64; do \
 [✓] Package: "/private/tmp/picfetch-maintainability-phase6-package/fyne-cross/dist/windows-arm64/picfetch.zip"
 mkdir -p bin
 for arch in amd64 arm64; do \
-		".tools/fyne-cross-v1.6.3/fyne-cross" windows -engine "docker" -image "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" -cache "/Users/ronin/Library/Caches/fyne-cross" -arch=$arch -icon assets/appIcon.png -name picfetch -app-id io.github.frathe.picfetch -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
+                ".tools/fyne-cross-v1.6.3/fyne-cross" windows -engine "docker" -image "fyneio/fyne-cross-images:windows@sha256:5663afcd79d447e56c57226c3a06cc895fd83a4aa99d2d1974cf0338e9d08f36" -cache "/Users/REDACTED_USER/Library/Caches/fyne-cross" -arch=$arch -icon assets/appIcon.png -name picfetch -app-id io.github.frathe.picfetch -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$arch/picfetch.exe bin/picfetch-microsoft-store-$arch.exe || exit 1; \
 	done
 [i] Target: windows/amd64

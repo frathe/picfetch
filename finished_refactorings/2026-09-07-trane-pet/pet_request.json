@@ -248,31 +248,31 @@
   ],
   "references": [
     {
-      "path": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/references/reference-01.webp",
+      "path": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/references/reference-01.webp",
       "width": 1142,
       "height": 1377,
       "mode": "RGBA",
       "format": "WEBP",
-      "source_path": "/Users/ronin/Projects/picfetch/assets/trane/trane_wags.webp",
-      "copied_path": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/references/reference-01.webp"
+      "source_path": "/Users/REDACTED_USER/Projects/picfetch/assets/trane/trane_wags.webp",
+      "copied_path": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/references/reference-01.webp"
     },
     {
-      "path": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/references/reference-02.png",
+      "path": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/references/reference-02.png",
       "width": 1536,
       "height": 1024,
       "mode": "RGBA",
       "format": "PNG",
-      "source_path": "/Users/ronin/Projects/picfetch/assets/trane/sorting_images.png",
-      "copied_path": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/references/reference-02.png"
+      "source_path": "/Users/REDACTED_USER/Projects/picfetch/assets/trane/sorting_images.png",
+      "copied_path": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/references/reference-02.png"
     },
     {
-      "path": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/references/reference-03.webp",
+      "path": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/references/reference-03.webp",
       "width": 1244,
       "height": 870,
       "mode": "RGBA",
       "format": "WEBP",
-      "source_path": "/Users/ronin/Projects/picfetch/assets/trane/TaneWithFrame.webp",
-      "copied_path": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/references/reference-03.webp"
+      "source_path": "/Users/REDACTED_USER/Projects/picfetch/assets/trane/TaneWithFrame.webp",
+      "copied_path": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/references/reference-03.webp"
     }
   ],
   "chroma_key": {

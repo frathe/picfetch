@@ -1,5 +1,5 @@
 import json,pathlib,subprocess,tempfile
-root=pathlib.Path('/Users/ronin/Projects/picfetch')
+root=pathlib.Path('/Users/REDACTED_USER/Projects/picfetch')
 test='scripts/msixstage/msixstage_test.go'
 cases=[
  ('fyne-floating','packaging/tools.mk','FYNE_VERSION := v1.7.2','FYNE_VERSION := latest'),

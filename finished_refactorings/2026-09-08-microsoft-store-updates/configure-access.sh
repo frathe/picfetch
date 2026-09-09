@@ -200,7 +200,7 @@ STORE_BRANCHES=$(command gh api "$STORE_ENV_ENDPOINT/deployment-branch-policies"
 STORE_RULES=$(command gh api "$STORE_ENV_ENDPOINT/deployment_protection_rules")
 if ! printf '%s\n' "$STORE_POLICY" "$STORE_BRANCHES" "$STORE_RULES" |
   jq -e -s -f scripts/storepublish/environment-policy.jq >/dev/null; then
-  echo 'Expected main-only environment, required reviewer frathe, self-review allowed, and no bypass, timer or custom rules.' >&2
+  echo 'Expected main-only environment, required reviewer REDACTED_REVIEWER, self-review allowed, and no bypass, timer or custom rules.' >&2
   exit 1
 fi
 unset STORE_POLICY STORE_BRANCHES STORE_RULES
@@ -231,7 +231,7 @@ unset STORE_NAMES
 stage "Approve a read-only CI check"
 open_url "https://github.com/frathe/picfetch/actions"
 step 'After the reviewed publisher workflow is on main, select Microsoft Store publisher -> Run workflow -> main -> check.'
-step 'Review the read-only operation summary, then approve the microsoft-store job as frathe.'
+step 'Review the read-only operation summary, then approve the microsoft-store job as REDACTED_REVIEWER.'
 step 'Confirm product 9P0DM0KTH01K and published/pending state in the sanitized result. This proves read access only.'
 note 'The next ordinary release needs its own approval of its exact artifact and frozen notes. Never retag or resubmit live 1.0.2 as a test.'
 note 'Certification checks/recovery are manual approved operations; no scheduled job prompts every 15 minutes.'

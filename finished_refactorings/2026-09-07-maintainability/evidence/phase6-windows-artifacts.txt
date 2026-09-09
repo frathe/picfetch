@@ -10,8 +10,8 @@ f0726c8cdd68846b9635e0b54e2da025833464179bb428a54275a7a0013a2e3a  picfetch-micro
 cbae58455b8c6bf7263d7682744769a53f3351bca6f56c08024b7739a6913c6c  picfetch-windows-amd64.exe
 a344dcf85a7f13ba06fa83039db7b061060553b4e74461c9343121b1159bc87b  picfetch-windows-arm64.exe
 
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-amd64.exe: PE32+ executable (GUI) x86-64, for MS Windows
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-amd64.exe: go1.27.1
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-amd64.exe: PE32+ executable (GUI) x86-64, for MS Windows
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-amd64.exe: go1.27.1
 	path	github.com/frathe/picfetch
 	mod	github.com/frathe/picfetch	(devel)	
 	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
@@ -120,8 +120,8 @@ a344dcf85a7f13ba06fa83039db7b061060553b4e74461c9343121b1159bc87b  picfetch-windo
 	build	GOOS=windows
 	build	GOAMD64=v1
 
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-arm64.exe: PE32+ executable (GUI) Aarch64, for MS Windows
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-arm64.exe: go1.27.1
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-arm64.exe: PE32+ executable (GUI) Aarch64, for MS Windows
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-microsoft-store-arm64.exe: go1.27.1
 	path	github.com/frathe/picfetch
 	mod	github.com/frathe/picfetch	(devel)	
 	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
@@ -230,8 +230,8 @@ a344dcf85a7f13ba06fa83039db7b061060553b4e74461c9343121b1159bc87b  picfetch-windo
 	build	GOOS=windows
 	build	GOARM64=v8.0
 
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-windows-amd64.exe: PE32+ executable (GUI) x86-64, for MS Windows
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-windows-amd64.exe: go1.27.1
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-windows-amd64.exe: PE32+ executable (GUI) x86-64, for MS Windows
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-windows-amd64.exe: go1.27.1
 	path	github.com/frathe/picfetch
 	mod	github.com/frathe/picfetch	(devel)	
 	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=
@@ -340,8 +340,8 @@ a344dcf85a7f13ba06fa83039db7b061060553b4e74461c9343121b1159bc87b  picfetch-windo
 	build	GOOS=windows
 	build	GOAMD64=v1
 
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-windows-arm64.exe: PE32+ executable (GUI) Aarch64, for MS Windows
-/Users/ronin/Projects/picfetch/bin/maintainability-validation/picfetch-windows-arm64.exe: go1.27.1
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-windows-arm64.exe: PE32+ executable (GUI) Aarch64, for MS Windows
+/Users/REDACTED_USER/Projects/picfetch/bin/maintainability-validation/picfetch-windows-arm64.exe: go1.27.1
 	path	github.com/frathe/picfetch
 	mod	github.com/frathe/picfetch	(devel)	
 	dep	fyne.io/fyne/v2	v2.8.0	h1:KNUdIk1eKsXSPy/wU6MdiR1hppAPvyzbjPbtJ8h6EUQ=

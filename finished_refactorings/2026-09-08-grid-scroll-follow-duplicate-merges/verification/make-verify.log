@@ -7,7 +7,7 @@ ld: warning: ignoring duplicate libraries: '-lobjc'
 docker run --rm --platform linux/amd64 \
 		--memory 16g --memory-swap 16g \
 		--label "io.github.frathe.picfetch.test=true" \
-		-v "/Users/ronin/Projects/picfetch:/work" -w /work \
+                -v "/Users/REDACTED_USER/Projects/picfetch:/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
 		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
 		-e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \

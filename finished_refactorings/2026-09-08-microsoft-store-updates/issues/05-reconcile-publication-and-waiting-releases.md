@@ -28,7 +28,7 @@
 
 This ticket supplies a complete reconcile command and durable waiting-work discovery; ticket 06 supplies manual approved operations. There is no periodic polling with protected secrets. A GitHub concurrency group alone is not durable Store state. Store ownership and crash recovery come from ticket 04. Record the selected persistence and retention mechanism in the implementation plan, including how it survives ephemeral runners.
 
-The final user amendment requires frathe approval of each specific validated release.
+The final user amendment requires REDACTED_REVIEWER approval of each specific validated release.
 Use the command boundary and fake-service testing strategy from the spec.
 Verification commands define the existing command/fake-service acceptance seam.
 
@@ -45,7 +45,7 @@ submission was made. Account setup and live publication belong to 01/06.
 
 2026-09-08 approval amendment (supersedes earlier unattended/setup comments):
 The final user requirement is approval of every specific release via GitHub Required
-reviewers. GitHub metadata now verifies main-only, frathe reviewer, self-review
+reviewers. GitHub metadata now verifies main-only, REDACTED_REVIEWER reviewer, self-review
 allowed, no bypass/timer/custom rules, and all three secret names. The user confirmed
 the linked Developer application and replacement key. Credentials remain exclusively
 in GitHub Secrets. The publisher is not yet on main, so the approved CI read check,
