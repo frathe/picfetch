@@ -1,19 +1,19 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-09 following user acceptance of the Windows validation closeout.
+Updated 2026-09-09 following user acceptance of the Windows validation closeout
+and MA-025 as an edge case.
 
-This file contains remaining work and accepted dependency watches. Completed
+This file contains accepted dependency watches and closeout records. Completed
 findings have been removed; their history remains in Git and the
 [maintainability implementation plan](finished_refactorings/2026-09-06-maintainability-plan.md).
-Existing MA identifiers are preserved. MA-025 carries forward the separate
-decoded map-cache follow-up previously recorded under MA-015 and in
-[todos.md](todos.md).
+Existing MA identifiers are preserved. MA-025 records acceptance of the
+decoded map-cache limitation previously recorded under MA-015 and in
+[todos.md](todos.md); no active refactoring work remains.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
 | [MA-023](#ma-023) | P3 | Retire the HEIC fork when an official release contains its fix | Accepted dependency watch |
 | [MA-024](#ma-024) | P3 | Measure updater verification dependency cost at its next major upgrade | Accepted dependency watch |
-| [MA-025](#ma-025) | P3 | Bound the upstream map widget's retained decoded tiles | Open follow-up; workload impact unmeasured |
 
 <a id="ma-020"></a>
 
@@ -94,9 +94,14 @@ existing verifier is a valid outcome.
 
 <a id="ma-025"></a>
 
-## MA-025 — Bound retained decoded map tiles
+## MA-025 — Retained decoded map tiles (accepted edge case)
 
-**Open follow-up.** The pinned `fyne.io/x/fyne` module
+**Closed as wontfix by user decision on 2026-09-09.** The map loads only when
+the user opens it, and checking the geolocation of thousands of images is
+outside expected use. The user accepted the retention and declined further
+measurement or implementation work.
+
+The pinned `fyne.io/x/fyne` module
 `v0.0.0-20260712112324-6989f2f174fb` keeps decoded tiles in a process-global
 `map[string]image.Image` in `widget/mapcache.go`, with no eviction. Visiting new
 map locations can retain more decoded images across EXIF window close/reopen.
@@ -109,25 +114,8 @@ PicFetch constructs that widget in
 16 MiB and already bounds request/failure state. Those limits do not bound the
 upstream decoded images. This is separate from the completed MA-015 work.
 
-**Work to finish:**
-
-- Measure decoded retention while visiting many unique tiles and closing and
-  reopening the map. Use local tile fixtures/fake responses so the experiment
-  does not generate load on public map servers.
-- Select a supported upstream eviction/ownership fix or a narrowly maintained
-  integration that imposes an explicit decoded-byte budget. Clearing PicFetch's
-  encoded cache alone cannot solve this retention.
-- Preserve nonblocking UI updates, request deduplication and warm passes,
-  cancellation, eventual redraw and rejection of stale completions. Reassess
-  the existing process-global log-filter workaround if tile ownership changes.
-- Add a regression that observes bounded decoded retention and correct redraw
-  after eviction and reopen. Run the EXIF window race suite and the required
-  common gate for the resulting implementation. Use RSS observations as
-  supporting evidence, alongside deterministic cache ownership/accounting.
-
-**Done when:** decoded retention has a demonstrated bound across long navigation
-and window lifetimes, with correct redraw and lifecycle behavior. Document
-encoded and decoded cache budgets separately.
+The limitation remains unchanged. Closure records acceptance, with no memory
+measurement, cache fix or new regression coverage claimed.
 
 ## Related verification record
 

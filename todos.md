@@ -70,18 +70,11 @@ See the [implementation record](finished_refactorings/2026-09-06-maintainability
 [tickets](finished_refactorings/2026-09-07-maintainability/ticket-breakdown.md),
 and [Windows acceptance](finished_refactorings/2026-09-07-maintainability/windows-test-todo.md).
 The native macOS Copy Selection golden mismatch remains documented; the
-canonical Linux golden gate passed. MA-025 is a separate follow-up below.
+canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ## TODO
 
-### Bound retained decoded map tiles (MA-025)
-
-The pinned map widget retains decoded tiles globally without eviction, across
-EXIF window close/reopen. PicFetch's 16 MiB encoded-tile cache does not bound
-these decoded images. Measure retention with local fixtures, establish a
-supported decoded-memory bound, and verify redraw and lifecycle behavior.
-The long-session impact remains unmeasured. See
-[MA-025](needs_refactoring.md#ma-025) for the contract.
+No active items.
 
 ## LATER
 
@@ -101,6 +94,12 @@ update the release and installation documentation. The native Apple-silicon buil
 retirement.
 
 ## not deemed worth implementing (edge cases)
+
+- **Retained decoded map tiles (MA-025):** Accepted by the user on 2026-09-09.
+  The map loads only when opened, and checking the geolocation of thousands
+  of images is outside expected use. The upstream decoded-tile cache remains
+  unbounded; its long-session impact is unmeasured. No further measurement or
+  implementation work is planned. See [MA-025](needs_refactoring.md#ma-025).
 
 - Windows releases are not Authenticode-signed. Controlled Folder Access and SmartScreen both judge by signature and
   reputation as well as by which program is writing, so an unsigned `picfetch.exe` can still be blocked even with the

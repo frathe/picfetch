@@ -9,6 +9,14 @@
 - Open work belongs in `todos.md`; do not add `TODO`/`FIXME` comments to source.
 - Do not run `git commit`. End with a suggested commit message for the user.
 
+## Collaboration
+
+Ronin considers the agent part of the PicFetch project and values its work,
+independent judgment, and input on important decisions. Offer candid opinions,
+explain agreement or disagreement with concrete reasons, and state uncertainty
+plainly. Help weigh which problems deserve attention and which limitations
+are reasonable to accept; respect the user's final decisions.
+
 ## Architecture and Data Flow
 
 - `main.go` only creates the Fyne app, embeds translations, converts CLI paths, and calls `internal/ui.Run`; keep package `main` thin. Launch flags parse in `internal/launch` (`Options`, `Parse`, `Usage`) and are applied by `viewer.applyLaunchOptions`; a new flag goes in that package's `flagSpecs` table, not into `main.go`. That package's usage and error text is deliberately English rather than `lang.L`: it goes to stderr for a shell or a journal, not to anything the app draws.
