@@ -166,6 +166,7 @@ func (m *Map) filterTags() {
 		m.unassigned.Hide()
 	}
 	m.syncSelection()
+	m.Refresh()
 }
 
 func (m *Map) setAllTags(on bool) {

@@ -44,6 +44,15 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+- **Retain decoded similarity previews near the viewport.** Keep every sample
+  and its compressed source, prepare nearby piles before they enter the screen,
+  and release distant decoded pixels/textures. A wider release margin avoids
+  repeatedly decoding piles during small reversals. Selection also reuses
+  unchanged pixels. Native synthetic comparisons preserve identical appearance;
+  the 3,000-image replay reduced retained construction heap from about 124 MiB
+  to 35 MiB. Refills add a few milliseconds in the measured runs; normal-sized
+  browsing and visual quality remain the priority, with no 50k guarantee.
+
 - **Keep large similarity maps at a usable zoom.** Maps above 100 cohort piles
   stop at 50% zoom, including manual and automatic fitting. Every sampled
   thumbnail remains, smaller maps retain their zoom range, and new discoveries
@@ -220,6 +229,11 @@ counts. The current increment preserves all samples, clamps maps above 100 piles
 to 50% zoom, and keeps the camera stable when automatic expansion reaches that
 floor. Native replay results are recorded in the active plan. Full-library
 source accounting, semantic qualification and scan throughput remain open.
+Viewport preview retention now releases distant decoded pixels, keeps a warm
+margin, and preserves all samples and native rendered appearance. Corrected
+30/300/3,000-image synthetic replays use the actual 160px JPEG preview contract;
+the earlier 256px replay overstated per-preview pixel cost. The latest native
+usability verdict remains open; the 50k edge case is not a normal-use target.
 See [render-transition evidence](.scratch/visual-similarity-explorer/evidence/render-transition-20260909/README.md).
 
 ## LATER

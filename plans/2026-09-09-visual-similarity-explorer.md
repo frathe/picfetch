@@ -1,12 +1,12 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tags, recovery, trial controls and conditional large-map zoom implemented and verified; saved presets and full-library qualification remain open
+Status: semantic tags, recovery, trial controls, conditional large-map zoom and viewport preview retention implemented and verified; saved presets and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Minimum map zoom](#minimum-map-zoom--2026-09-09-resumed) — preserve every sampled thumbnail and limit zoom only for large maps.
+Current increment: [Map construction and memory](#map-construction-and-memory--resumed) — complete and verified; decoded previews stay near the viewport, preserving every sampled thumbnail and appearance.
 
 ## Deliverable and accepted contract
 
@@ -1116,3 +1116,153 @@ does not qualify the private 50k library's inference or semantic result.
 The wider explorer plan remains active for the user's cutoff/usability trial,
 full-library qualification, construction/memory costs, scan throughput and saved
 presets. No commit was made; unrelated `:memory:.ses` files remain untouched.
+
+## Map construction and memory — resumed
+
+Status: implemented and verified. The user identified this active plan for
+`/implement use tdd and sdd`; the zoom increment is complete, not the wider plan.
+Deliverable: reproduce the remaining construction/preview memory cost and make
+the smallest measured improvement without reducing sampled thumbnails.
+Standard investigation/implementation increment inside this Deep plan. Keep the
+confirmed production UI/provider seam; native synthetic replay covers GL costs.
+No preset decisions, private-library semantic verdict, inference/grouping changes,
+new zoom policy, or full-library qualification are assumed by this increment.
+
+### Acceptance and task sequence
+
+1. T0 baseline: retain a reproducible synthetic replay and allocation/heap
+   profiles, executable identity, input counts, and construction/interaction
+   measurements. Start with the existing overview replay; record the exact
+   adapted command in the new evidence README before any production change.
+   One T3 read-only scout traces engine preview dimensions/ownership while T0
+   builds the reproduction. No implementation hypothesis is accepted without
+   a measured probe. Budget: one scout, one review, no full suite.
+2. T0 red/green: turn the measured finding into an explicit behavioral/resource
+   criterion at the confirmed UI/provider seam before implementation. Preserve
+   complete sampled membership, camera, tags, granularity and grid return.
+   Files: existing `internal/ui/explorer_test.go`, and the smallest affected
+   explorer production file set established by the profile. Command:
+   `go test ./internal/ui -run '^TestVisualSimilarityExplorer$' -count=1`.
+   Budget: zero spawns, two reviews, no full suite.
+3. T0 verification: repeat the same synthetic measurements and native visual QA;
+   negatively verify the new guard, run `make explorer-test`,
+   `make explorer-ui-test`, `make verify`, and `make build`. Record actual limits
+   and update todos/this plan. Budget: zero spawns, one final full race gate.
+
+Graph: baseline -> measured criterion -> red/green -> verification.
+Scout gate: G1 bounded preview lifecycle search; G2 lead checks returned source
+locations and reported dimensions; G3 read-only, no shared writes; G4 independent
+engine/cache context; G5 lead has only renderer/replay context. S/W: adaptive
+cross-file ownership tracing, not a mechanical transformation or supplied fix.
+Literal T3 Explore is unavailable; inherited model is used strictly read-only.
+All spec, design, review and fixes stay with the lead.
+
+### Scope clarification and first measured slice
+
+The user clarified that 50k images is an edge case and optimization must not
+decrease usability or looks. Normal-sized maps are the priority; keep all
+samples, rendering quality and controls. No viewport culling or reduced detail
+is selected. The old replay used 256x192 Q85 previews, whereas the engine makes
+JPEG Q80 previews at a maximum edge of 160. The new baseline uses 160x120 Q80
+previews with independently owned encoded buffers. The old heap figure is not
+a production-equivalent budget.
+
+The initial retained native profile (3,000 sources) attributes 92% of live heap
+to decoded JPEG buffers. Investigate separately: unchanged-preview decodes on
+selection; temporary construction allocations; complete pile reconstruction
+on publications. The first candidate is ordinary two-pile keyboard navigation.
+
+- AC1: forty alternating selections on a completed 30-image/two-pile map
+  allocate under 8 MiB after warmup, preserving all 15 samples per pile and
+  the rendered image when selection returns to its starting state. This is
+  a broad allocation regression bound, not a frame-rate requirement.
+  `go test ./internal/ui -run '^TestVisualSimilarityExplorer/navigation_preview_reuse$' -count=1 -v`
+- AC2: unchanged controls, samples, source replacement, tags, granularity,
+  highlighting, exit resource release and grid return pass the complete
+  `TestVisualSimilarityExplorer` suite. Native before/after screenshots must
+  match for identical states; compare small and medium maps using the corrected
+  replay, and retain real allocation/timing evidence without extrapolating to 50k.
+- Baseline replay command (before production edits):
+  `.scratch/visual-similarity-explorer/evidence/map-memory-20260909/before-production-previews -items 30 -out .scratch/visual-similarity-explorer/evidence/map-memory-20260909/before-small`
+
+The user subsequently invited viewport-only memory retention if it is elegant
+and does not visibly stutter. This supersedes the earlier exclusion of viewport
+culling for this investigation. The candidate keeps every compressed preview
+and sample identity, admits decoded pixels one pile-width beyond the viewport,
+and releases them beyond two pile-widths to avoid boundary churn. It adds no
+background worker or placeholder state: newly exposed samples must be ready
+before the corresponding frame is drawn. Implement only if native replay keeps
+appearance identical and supports smooth ordinary boundary crossings.
+
+- AC3: panning away from a normal 300-image map releases at least 4 MiB of
+  decoded pixels; returning restores every sample immediately with identical
+  rendered output and complete Grid View membership. Zoom, resize, selection
+  and tag controls must still reveal complete previews. Test through existing
+  provider/input/canvas boundaries:
+  `go test ./internal/ui -run '^TestVisualSimilarityExplorer/viewport_previews$' -count=1 -v`
+- The minimum-zoom input guard will first pan its target pile into view before
+  asserting its 15 drawn thumbnails; offscreen render-tree residency is no
+  longer the feature contract. Sampling and the conditional zoom floor remain
+  unchanged. All production changes stay within explorer/map.go and tags.go;
+  existing root UI subtests retain the same shard and Qodana assignments.
+
+### Implementation and evidence
+
+- RED: 40 selections on a normal two-pile map allocated 79.91 MiB for unchanged
+  previews; GREEN: under 0.01 MiB. Pile selection redraws no longer call the
+  source-decoding `canvas.Image.Refresh` for unchanged images.
+- RED: panning away from a 300-image map retained all decoded pixels (31.63 MiB
+  before and after). GREEN: the full focused suite measured 56.43 -> 47.02 MiB,
+  releasing 9.41 MiB. Returning restores every sample synchronously, with an
+  identical captured map and complete cohort browsing.
+- The renderer retains encoded sources and complete sample identities, admits
+  pixels one pile-width outside the viewport, and evicts beyond two pile-widths.
+  Distant renderers expose no children, so Fyne's native minimum-size traversal
+  cannot decode them again. This adds one per-pile state bit and no workers,
+  queues, placeholder state, resampling, quality reduction, or source I/O.
+- Four overlay mutations failed their intended guards: redundant selection
+  decode, disabled pixel eviction, disabled same-size pixel restoration, and
+  removal of the wider release margin (15.84 MiB of churn during tiny reversals).
+  Production files were not modified by negative checks.
+- Native replays use 160x120 Q80 previews with independent encoded buffers,
+  matching the production preview contract. Across 30/300/3,000 sources, all
+  90 before/after PNG comparisons matched exactly; each of six runs completed
+  all 109 input/frame measurements. Synthetic screenshots were inspected.
+- The 3,000-source construction frame changed from 603.42 to 215.07 ms, and
+  sampled retained construction heap from 123.55 to 34.98 MiB. Pixel refills
+  add UI work: boundary-crossing maximum 4.68 ms at 300 sources and 3.69 ms at
+  3,000. Observed frame timings include readback and scheduling, not pure FPS.
+  Normal 30/300-image construction stayed roughly comparable; no universal
+  speedup or stutter-free guarantee is claimed. The user prioritizes normal
+  usability; a new 50k trial is not required for this increment.
+- Evidence, replay source, matching unstripped binaries/overlays, hashes, heap
+  profiles, frame comparisons, negative checks and limits:
+  [map-memory evidence](../.scratch/visual-similarity-explorer/evidence/map-memory-20260909/README.md).
+
+All ordinary explorer subtests pass (6.083s). Required native suites and the
+canonical gate passed as recorded below. No new root test name,
+test file, user-visible string, interface or package was added; existing shard,
+Qodana and locale assignments remain applicable.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Baseline | 1 / 1 | 1 | no | Scout preview contract verified; corrected old synthetic assumptions |
+| Red/green | 0 / 0 | 2 | no | Normal selection plus user-authorized viewport retention; all fixes inline |
+| Verification | 0 / 0 | 1 | one, passed | Native visual/performance replay, four negative mutations, final gate |
+
+Final gate: `make explorer-test explorer-ui-test` passed (23.986s UI suite),
+with all required real-model tests under OS outbound denial. `make verify`
+passed, exit 0: formatting/TUF/Qodana checks, vet, build, exact 680-runnable
+Linux shard inventory and all four Docker race partitions. Explorer passed
+under race detection in 99.690s; the final UI partition completed in 405.835s.
+The raw race stream explicitly records passing `navigation_preview_reuse`,
+`viewport_previews`, and `viewport_margin` subtests. Retained gate evidence:
+`.scratch/race-runs/20260909T213521Z-znXD0M`. `make build` passed and refreshed
+`bin/picfetch`. Only documentation changed after these successful gates.
+
+This increment is complete. Keep the broader plan active for the user's native
+usability/cutoff verdict, scan-throughput measurement, full-library qualification,
+and saved presets with their unresolved product choices. Further construction
+or rendering work should follow a measured ordinary-use problem; the 50k case
+alone does not justify reduced quality or more complicated browsing behavior.
+No commit was made. Unrelated `:memory:.ses` files remain untouched.

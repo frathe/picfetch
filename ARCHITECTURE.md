@@ -144,7 +144,11 @@ while Grid View or the ordinary image view is active. `internal/ui/grid/subset.g
 cohorts by source path while retaining root indexes for existing operations.
 Replaced pile images have their sources cleared and refreshed to release Fyne
 renderer/texture references. Leaving Explorer clears the map; cohort round trips
-retain it.
+retain it. `map.go` retains compressed sample sources for the complete map,
+decodes piles within one pile-width beyond the viewport, and releases decoded
+pixels/textures beyond two pile-widths. Distant pile renderers expose no child
+objects, preventing Fyne's minimum-size walk from decoding them. Returning piles
+restore their pixels before paint; selection redraws reuse unchanged previews.
 
 Committed writes through `filework.go` and removals through `viewer.RemoveFile`
 retire the analysis/map while preserving surviving cohort identities;

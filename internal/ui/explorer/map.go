@@ -303,8 +303,30 @@ func (r *mapRenderer) Layout(size fyne.Size) {
 	r.bg.Resize(size)
 	r.clip.Resize(size)
 	for _, p := range r.m.piles {
-		p.Resize(fyne.NewSize(pileWidth*r.m.zoom, pileHeight*r.m.zoom))
-		p.Move(fyne.NewPos(size.Width/2+(p.world.X-r.m.center.X-pileWidth/2)*r.m.zoom, size.Height/2+(p.world.Y-r.m.center.Y-pileHeight/2)*r.m.zoom))
+		pileSize := fyne.NewSize(pileWidth*r.m.zoom, pileHeight*r.m.zoom)
+		pos := fyne.NewPos(size.Width/2+(p.world.X-r.m.center.X-pileWidth/2)*r.m.zoom, size.Height/2+(p.world.Y-r.m.center.Y-pileHeight/2)*r.m.zoom)
+		// Decode just beyond the viewport; retain a wider margin so small
+		// back-and-forth pans do not repeatedly discard and decode the edge.
+		margin := pileSize.Width
+		if p.nearViewport {
+			margin *= 2
+		}
+		near := p.Visible() && pos.X+pileSize.Width >= -margin && pos.Y+pileSize.Height >= -margin && pos.X <= size.Width+margin && pos.Y <= size.Height+margin
+		changed := p.nearViewport != near
+		p.nearViewport = near
+		if changed && !near {
+			for _, picture := range p.pictures {
+				// Keep the encoded source and its identity, but release decoded
+				// pixels and invalidate any texture without re-reading the JPEG.
+				picture.Image = nil
+				canvas.Refresh(picture)
+			}
+		}
+		p.Move(pos)
+		p.Resize(pileSize)
+		if changed {
+			p.Refresh()
+		}
 	}
 }
 func (r *mapRenderer) MinSize() fyne.Size { return fyne.NewSize(400, 300) }
@@ -320,14 +342,15 @@ func (r *mapRenderer) Destroy()                     {}
 // Pile is a tappable sample of a cohort. Its full membership is opened on tap.
 type Pile struct {
 	widget.BaseWidget
-	owner    *Map
-	members  []string
-	pictures []*canvas.Image
-	aspects  []float32
-	world    fyne.Position
-	label    *canvas.Text
-	tags     []string
-	selected bool
+	owner        *Map
+	members      []string
+	pictures     []*canvas.Image
+	aspects      []float32
+	world        fyne.Position
+	label        *canvas.Text
+	tags         []string
+	selected     bool
+	nearViewport bool
 }
 
 func newPile(m *Map, items []similarity.Item) *Pile {
@@ -410,6 +433,9 @@ type pileRenderer struct {
 }
 
 func (r *pileRenderer) Layout(size fyne.Size) {
+	if !r.p.nearViewport {
+		return
+	}
 	r.highlight.Move(fyne.NewPos(2, 2))
 	r.highlight.Resize(fyne.NewSize(max(0, size.Width-4), max(0, size.Height-4)))
 	if r.p.selected {
@@ -434,6 +460,9 @@ func (r *pileRenderer) Layout(size fyne.Size) {
 		r.objects[i*2].Resize(sz.Add(fyne.NewSize(2*frame, 2*frame)))
 		img.Move(pos)
 		img.Resize(sz)
+		if img.Image == nil {
+			img.Refresh()
+		}
 	}
 	for _, o := range r.objects[len(r.objects)-2:] {
 		o.Move(fyne.NewPos(40*scale, 278*scale))
@@ -443,15 +472,26 @@ func (r *pileRenderer) Layout(size fyne.Size) {
 }
 func (r *pileRenderer) MinSize() fyne.Size { return fyne.NewSize(24, 19) }
 func (r *pileRenderer) Refresh() {
+	if !r.p.nearViewport {
+		canvas.Refresh(r.p)
+		return
+	}
 	r.highlight.StrokeColor = theme.Color(theme.ColorNamePrimary)
 	r.Layout(r.p.Size())
 	r.highlight.Refresh()
 	for _, o := range r.objects {
-		o.Refresh()
+		// Selection and theme refreshes do not change preview sources. Redraw
+		// their existing pixels without asking canvas.Image to decode again.
+		canvas.Refresh(o)
 	}
 }
-func (r *pileRenderer) Objects() []fyne.CanvasObject { return append(r.objects, r.highlight) }
-func (r *pileRenderer) Destroy()                     {}
+func (r *pileRenderer) Objects() []fyne.CanvasObject {
+	if !r.p.nearViewport {
+		return nil
+	}
+	return append(r.objects, r.highlight)
+}
+func (r *pileRenderer) Destroy() {}
 
 // Projection coordinates have no fixed scale. Normalize cohort centers before
 // applying the camera so one fitted map cannot shrink its piles to a few pixels

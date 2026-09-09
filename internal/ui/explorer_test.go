@@ -625,6 +625,139 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 	})
 
+	t.Run("navigation_preview_reuse", func(t *testing.T) {
+		names := make([]string, 30)
+		for i := range names {
+			names[i] = fmt.Sprintf("%02d.jpg", i)
+		}
+		v, publish := streamingExplorerEvents(t, names...)
+		v.win.Resize(fyne.NewSize(1100, 700))
+		items := make([]similarity.Item, len(names))
+		for i := range items {
+			items[i] = similarity.Item{
+				Path: v.FileAt(i).Path(), Cohort: fmt.Sprint(i / 15), Position: []float32{float32(i / 15), 0},
+				Preview: uitest.EncodeJPEG(t, 160, 120, color.NRGBA{R: uint8(40 + i*6), G: 120, B: 180, A: 255}),
+			}
+		}
+		publish(similarity.Event{Items: items, Successful: len(items), Total: len(items), Complete: true})
+		v.settleExplorer()
+		for _, key := range []fyne.KeyName{fyne.KeyRight, fyne.KeyRight, fyne.KeyLeft} {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: key})
+		}
+		piles := explorerPiles(v)
+		if len(piles) != 2 || len(explorerSamples(piles[0])) != 15 || len(explorerSamples(piles[1])) != 15 {
+			t.Fatal("navigation fixture must display two complete 15-sample piles")
+		}
+		snapshot := func() []byte {
+			var b bytes.Buffer
+			if err := png.Encode(&b, v.win.Canvas().Capture()); err != nil {
+				t.Fatal(err)
+			}
+			return b.Bytes()
+		}
+		before := snapshot()
+		var start, end runtime.MemStats
+		runtime.ReadMemStats(&start)
+		for range 20 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
+		}
+		runtime.ReadMemStats(&end)
+		allocated := end.TotalAlloc - start.TotalAlloc
+		t.Logf("40 selections allocated %.2f MiB", float64(allocated)/(1<<20))
+		if allocated > 8<<20 {
+			t.Errorf("selection allocated %.2f MiB for unchanged previews; want under 8 MiB", float64(allocated)/(1<<20))
+		}
+		if !bytes.Equal(before, snapshot()) {
+			t.Fatal("returning selection to its starting pile changed the rendered map")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		if len(explorerGridPaths(v)) != 15 {
+			t.Fatal("keyboard selection lost the complete cohort")
+		}
+	})
+
+	t.Run("viewport_previews", func(t *testing.T) {
+		names := make([]string, 300)
+		for i := range names {
+			names[i] = fmt.Sprintf("%03d.jpg", i)
+		}
+		v, publish := streamingExplorerEvents(t, names...)
+		v.win.Resize(fyne.NewSize(1100, 700))
+		items := make([]similarity.Item, len(names))
+		for i := range items {
+			group := i / 15
+			items[i] = similarity.Item{
+				Path: v.FileAt(i).Path(), Cohort: fmt.Sprintf("%02d", group), Position: []float32{float32(group % 5), float32(group / 5)},
+				Preview: uitest.EncodeJPEG(t, 160, 120, color.NRGBA{R: uint8(i), G: 120, B: 180, A: 255}),
+			}
+		}
+		publish(similarity.Event{Items: items, Successful: len(items), Total: len(items), Complete: true})
+		v.settleExplorer()
+		snapshot := func() []byte {
+			var b bytes.Buffer
+			if err := png.Encode(&b, v.win.Canvas().Capture()); err != nil {
+				t.Fatal(err)
+			}
+			return b.Bytes()
+		}
+		before := snapshot()
+		allocated := func() uint64 {
+			runtime.GC()
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			return m.HeapAlloc
+		}
+		loaded := allocated()
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 10000, DY: 10000}})
+		after := allocated()
+		t.Logf("loaded heap %.2f MiB; away %.2f MiB", float64(loaded)/(1<<20), float64(after)/(1<<20))
+		if after+4<<20 > loaded {
+			t.Errorf("panning away did not release at least 4 MiB of decoded previews")
+		}
+		fynetest.Tap(explorerButton(t, v, "Fit map"))
+		piles := explorerPiles(v)
+		if len(piles) != 20 {
+			t.Fatalf("viewport eviction lost cohorts: got %d", len(piles))
+		}
+		for _, pile := range piles {
+			if len(explorerSamples(pile)) != 15 {
+				t.Fatal("returning to the map did not restore every sample")
+			}
+			explorerWalk(pile, func(o fyne.CanvasObject) {
+				if img, ok := o.(*canvas.Image); ok && img.Image == nil {
+					t.Fatal("returning to the viewport left a preview waiting for pixels")
+				}
+			})
+		}
+		if !bytes.Equal(before, snapshot()) {
+			t.Fatal("viewport round trip changed the map's rendered appearance")
+		}
+		fynetest.Tap(piles[0])
+		if len(explorerGridPaths(v)) != 15 {
+			t.Fatal("viewport eviction lost full cohort membership")
+		}
+	})
+
+	t.Run("viewport_margin", func(t *testing.T) {
+		v := explorerFixture(t)
+		pile := explorerPiles(v)[0]
+		// Start with a decoded pile one pile-width beyond the left viewport
+		// edge, then cross that preparation boundary repeatedly.
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: -2*pile.Size().Width - pile.Position().X}})
+		var start, end runtime.MemStats
+		runtime.ReadMemStats(&start)
+		for range 20 {
+			v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: -1}})
+			v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 1}})
+		}
+		runtime.ReadMemStats(&end)
+		allocated := end.TotalAlloc - start.TotalAlloc
+		if allocated > 1<<20 {
+			t.Fatalf("small reversals at the viewport margin churned %.2f MiB of previews", float64(allocated)/(1<<20))
+		}
+	})
+
 	t.Run("tags_collapse", func(t *testing.T) {
 		v := explorerFixture(t)
 		v.win.Resize(fyne.NewSize(1100, 700))
@@ -1134,6 +1267,10 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		publish(144, true)
 		v.settleExplorer()
 		pile := explorerPiles(v)[0]
+		// Sampling is observed when the target is on screen; distant piles
+		// may release their decoded pixels while retaining their identities.
+		viewport := v.explorer.surface.Size()
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2}})
 		samples := explorerSamples(pile)
 		if len(samples) != 15 {
 			t.Fatalf("large map must retain all 15 sampled thumbnails, got %d", len(samples))
@@ -1159,7 +1296,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
 		// Bring the sampled cohort onto the screen using the ordinary pan input.
-		viewport := v.explorer.surface.Size()
+		viewport = v.explorer.surface.Size()
 		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2}})
 		pos, size = pile.Position(), pile.Size()
 		fynetest.Tap(pile)
