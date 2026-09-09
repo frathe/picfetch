@@ -98,6 +98,9 @@ No application feature or real-engine evaluation is implemented yet.
 The [candidate research](docs/2026-09-09-visual-similarity-explorer-candidates.md#go-runtime-investigation)
 now records Go with native inference as the lead's preferred evaluation route
 following the user's Python-helper question; no runtime dependency is selected.
+The draft choices now match that Go recommendation, and the trial protocol
+records existing scan/decode limits. Product/test-boundary answers and the
+trial-library path remain pending; no application tests have been written.
 
 ## LATER
 

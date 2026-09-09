@@ -187,3 +187,26 @@ published vision exports, CoreML requirements, and concrete limitations in
 the inspected Go HDBSCAN/UMAP documentation. No application tests or trial
 benchmarks ran. This answers feasibility at source level and leaves measured
 pipeline acceptance outstanding.
+
+The latest implementation request resumes this sequence with Go/native
+inference as the proposed runtime. The product defaults and both test
+boundaries are presented as one confirmation, alongside the library-path
+question. The older Python recommendation is superseded, not accepted.
+
+While answers are pending, one read-only scout may identify the existing
+scan/decode input boundary for the real experiment. G1: one bounded code-flow
+question; G2: lead checks the returned symbols and behavior against source;
+G3: zero writes; G4: independent of correcting the stale runtime proposals;
+G5: the scan/decode entry points have not been traced for the experiment.
+S/W: cancellation, source limits and orientation require a code-flow read;
+no implementation is supplied. Budget: one scout, one lead review, no suite
+for documentation-only changes. No production API is fixed by this work.
+
+Actual: one scout and one lead review. Lead source reads confirmed that
+`filescan.Images` returns partial results on cancellation; `ReadAndProbe`
+validates input before `DecodeLoaded`, whose cancellation check is only at
+entry; and existing thumbnail loading caps the longest edge at 200 pixels.
+The experiment must account for these constraints when selecting model
+preprocessing and accepting results. No image analysis or tests ran.
+The seven-document check passed all 26 local links and whitespace checks;
+`git diff --check` passed. Ticket 01 remains pending the requested answers.

@@ -184,7 +184,7 @@ Q7-Q12 are pending proposals, not part of the accepted first-round defaults.
 | Question | Decision requested | Recommendation |
 |----------|--------------------|----------------|
 | Q7 | Where should the map and cohort grid appear? | Use the main window; opening a pile covers the map with Grid View. Return restores the map, with existing grid Escape precedence respected. |
-| Q8 | Is a separate local analysis runtime acceptable for this proof of concept? | Allow a local Python environment/helper for the trial while PicFetch remains the Go/Fyne app. Packaging for broader distribution remains separate. |
+| Q8 | Is Go with a native local inference runtime acceptable for this proof of concept? | Evaluate Go with native inference first, following the user's Go-feasibility question and the candidate research. Packaging for broader distribution remains separate. |
 | Q9 | How should images without a confident cluster be presented? | A clearly marked Unassigned collection that opens in Grid View, so no images disappear and no similarity is implied. |
 | Q10 | Should analysis results survive application restarts? | Cache image representations locally, reuse unchanged images with the same model/preprocessing, and recompute changed/new inputs. Exact storage and limits remain planning work. |
 | Q11 | What pile sample size and stability should the trial use? | Up to fifteen distinct images, showing all when fewer exist; keep the sample stable while cohort membership is unchanged. |
