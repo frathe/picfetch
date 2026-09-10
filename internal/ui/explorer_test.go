@@ -2446,6 +2446,84 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("reopening the released explorer did not rebuild a map")
 		}
 	})
+	t.Run("close_files_memory", func(t *testing.T) {
+		v, _, closed := newTestUI(t)
+		v.win.Resize(fyne.NewSize(1100, 700))
+		uris := make([]fyne.URI, 512)
+		jpeg := uitest.EncodeJPEG(t, 256, 256, color.White)
+		for i := range uris {
+			uris[i] = storage.NewFileURI(uitest.WriteTempFile(t, fmt.Sprintf("%03d.jpg", i), jpeg))
+		}
+		allocated := func() uint64 {
+			runtime.GC()
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			return m.HeapAlloc
+		}
+		baseline := allocated()
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			items := make([]similarity.Item, len(paths))
+			for i, path := range paths {
+				preview := make([]byte, 128<<10)
+				copy(preview, jpeg)
+				items[i] = similarity.Item{Path: path, Cohort: "all", Preview: preview}
+			}
+			emit(similarity.Event{Total: len(items), Successful: len(items), Complete: true, Items: items})
+			return nil
+		}
+		dropAndWait(t, v, uris...)
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerPiles(v)[0])
+		warmThumbs(t, v)
+		v.grid.Settle()
+		if len(explorerGridPaths(v)) != len(uris) {
+			t.Fatal("cohort did not expose the complete file set")
+		}
+		for v.grid.Highlight() < v.FileCount()-1 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPageDown})
+			v.grid.Settle()
+			// Long browsing sessions collect recycled grid cells too.
+			runtime.GC()
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+		waitUntilLoaded(t, v)
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.settleExplorer()
+		if len(explorerPiles(v)) != 1 {
+			t.Fatal("browsing did not return to the map")
+		}
+		loaded := allocated()
+		if loaded < baseline+48<<20 {
+			t.Fatal("fixture did not retain its map and browsed thumbnails")
+		}
+		buildMainMenu(v).Items[0].Items[3].Action()
+		v.settleExplorer()
+		v.preloads.Wait()
+		after := allocated()
+		t.Logf("heap baseline %.1f MiB, browsed %.1f MiB, closed %.1f MiB", float64(baseline)/(1<<20), float64(loaded)/(1<<20), float64(after)/(1<<20))
+		if after > baseline+8<<20 {
+			t.Errorf("Close Files retained source-derived memory after browsing")
+		}
+		if closed() || v.FileCount() != 0 || !v.dropzone.Visible() || v.grid.Visible() {
+			t.Fatal("Close Files did not leave the running app at its empty dropzone")
+		}
+		dropAndWait(t, v, uris[:2]...)
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerPiles(v)[0])
+		if len(explorerGridPaths(v)) != 2 {
+			t.Fatal("reopening after Close Files did not admit the new cohort")
+		}
+		buildMainMenu(v).Items[0].Items[3].Action()
+		v.settleExplorer()
+		if closed() || v.FileCount() != 0 || !v.dropzone.Visible() || v.grid.Visible() {
+			t.Fatal("Close Files from the cohort left the grid over the empty dropzone")
+		}
+	})
 	t.Run("settings", func(t *testing.T) {
 		before := preferences.Load(testApp)
 		t.Cleanup(func() { preferences.Save(testApp, before) })

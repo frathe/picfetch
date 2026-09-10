@@ -1,5 +1,123 @@
 # Visual similarity explorer implementation
 
+## Post-close memory qualification — resumed 2026-09-10
+
+Status: complete and verified. Resumed the outstanding controlled open/browse/close memory
+check from ticket 07. Existing viewer/provider test boundaries remain approved.
+Deliver a measured distinction between live source-derived objects and reusable
+allocator pages, fix demonstrated retention, and retain a regression guard.
+Use generated/public fixtures; this increment cannot supply a new human verdict
+or repeat the private 50,655-source trial's exact memory observation.
+
+### Task M1 — Reproduce and bound list-close retention
+Owner: T0 inline
+Files: existing `internal/ui/explorer_test.go`; affected close lifecycle files
+only if a failing behavioral guard establishes retention
+Depends: existing completed Explorer and cohort browsing
+Contract: ordinary Close Files releases source-derived map, grid and image
+resources after tracked work settles, leaves the app usable, and admits a new list
+Test: viewer/provider integration drives map -> cohort -> image -> map -> Close
+Files; measured live heap distinguishes closed resources from mapped resources
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^close_files_memory$' -count=1 -v`
+Budget: one read-only scout, zero implementation delegates, two lead review rounds
+
+### Task M2 — Profile and handoff
+Owner: T0 inline
+Files: local evidence, this plan, ticket 07, `todos.md`; architecture if needed
+Depends: M1
+Contract: retained profiles/measurements state fixture, process and allocator
+scope; milestone remains open for representative native qualification
+Test: negative verification of the M1 guard; controlled native replay if reusable
+tooling permits it; no RSS-only claim of a leak or complete reclamation
+Verify: M1 command; `make explorer-ui-test`; `make verify`; `git diff --check`
+Budget: two lead review rounds, canonical full suite once at final gate
+
+Graph: M1 -> M2. Read-only scout runs alongside M1 source/test work.
+Scout G1-G5: bounded existing memory-tool/evidence lookup; source pointers
+verified by shell; no writes; independent evidence breadth; lead has not read
+the replay tooling. S/W: adaptive lookup, no deterministic edit or supplied
+implementation. Lead owns specification, tests, review, fixes and final gate.
+
+### Memory implementation and bounded evidence
+
+The first viewer red retained 59.0 MiB after closing a 256-source map/grid/image
+visit (18.0 MiB baseline). Heap profiles attributed the excess to thumbnails.
+The existing grid invalidation path released the cache, reaching 20.7 MiB.
+A second red closed directly from the reopened cohort and exposed the still-open
+grid overlay; dismissing the grid in `clearToDropzone` fixed it.
+
+Native scrolling then exposed retained images in recycled cells even with an
+empty thumbnail cache. The viewer guard was strengthened to 512 sources with
+page navigation and intervening GC, and failed at 33.0 MiB closed versus a
+20.5 MiB baseline. `grid.InvalidateContent` now clears tracked cell image sources,
+refreshes textures and clears cell identities after canceling/invalidation.
+The guard passes at 21.4 MiB closed (167.9 MiB browsed). Deliberately removing
+each of cache invalidation, grid dismissal and cell release failed the intended
+guard; all mutations were isolated in temporary overlays.
+
+The matched native replay uses generated 256px JPEGs and independent 160x120
+Q80 previews, actual source decodes, native Fyne/GL and page navigation. After
+two browse/close cycles, live heap is 23.0/23.9 MiB against 21.1 MiB baseline,
+versus 103.3/103.9 MiB before the fix. All 512 cached source entries disappear;
+the final sampled profile has no live thumbnail allocation samples. The
+native process footprint remains above startup even after forced scavenging;
+this is not proof of complete native/GPU reclamation or the original 50k result.
+The unforced close samples also show that Go collection is deferred; production
+adds neither explicit GC nor forced OS reclamation.
+
+The synthetic provider deliberately fails real-worker trial collection: each
+completed replay prints its completion marker, then exits 1 when the recorder
+refuses a map without verified real-worker exit evidence. These are bounded
+memory observations, not successful actual-engine/native qualification runs.
+The actual engine is checked separately by `make explorer-ui-test`. Two earlier
+replay attempts failed before measurements completed (pixel-coordinate conversion,
+then trial auto-entry bypassing the expected initial image); both are retained.
+The outer sandbox's initial denial-profile refusal and compiler-cache refusals
+were retried through approved host execution. Shutdown Fyne thread warnings
+are retained separately from the completed replay measurements.
+
+Focused grid invalidation/cancellation and viewer memory/close race checks pass.
+No new test file or root top-level test was added; Qodana/shard entries stay valid.
+Evidence and reproduction: [list-close memory](../.scratch/visual-similarity-explorer/evidence/list-close-memory-20260910/README.md).
+Budget variance: M1 needed a third review for native-only recycled-cell retention;
+M2 needed an additional replay correction round for startup. One read-only scout,
+zero implementation/review delegates.
+
+The first canonical gate found an existing clipboard/synctest guard failure:
+empty-list invalidation unnecessarily started a grouping worker whose waitgroup
+became associated with the inner test lifetime. A focused race run reproduced it.
+Empty invalidation now cancels work and refreshes the empty filter without
+grouping. All six clipboard cases and both memory guards pass under race
+(17.159s); affected grid tests pass (1.948s), and the complete real-engine UI
+suite passes again (29.980s). The native replay was rebuilt and repeated after
+this final fix. The failed canonical run was stopped with evidence retained;
+a second full gate was run. This is an explicit budget variance for a
+demonstrated final-gate failure, not a repeated clean suite.
+
+### Memory final verification and handoff
+
+The final `make verify` exited 0: formatting/TUF/exclusions, vet/build, exact
+680-runnable shard inventory and the complete Linux/amd64 Docker race suite.
+UI shards passed in 471.120s, 295.597s and 285.357s. The full Explorer scenario
+passed in 169.490s; its new memory guard passed in 13.040s with 88.7 MiB baseline,
+235.6 MiB browsed and 89.1 MiB closed. Raw artifacts:
+`.scratch/race-runs/20260910T133456Z-Zx31T3`. The final real-engine UI suite
+passed (29.980s), `make build` produced `bin/picfetch`, and `git diff --check`
+passed. No commit was made; unrelated `:memory:.ses` files were left in place.
+
+| Task | Spawns (budget/actual) | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| M1 | 1 / 1 read-only scout | 4 | no | Cache, grid dismissal, recycled cells and empty-list lifetime; fixes inline |
+| M2 | 0 / 0 | 3 | no | Retained native/test profiles, two replay corrections and final-source replay |
+| gate | 0 / 0 | 2 attempts | one complete, one interrupted | First attempt exposed the clipboard/reset guard; final gate passed |
+
+Current increment is complete. Keep the broader plan active for tickets 04–07:
+full-library progressive/frozen browsing and >100-pile zoom-floor coverage;
+Favorite cache reuse/invalidation at scale; interruption/source-change recovery
+at scale; representative input/paint timing, full-library post-close resource
+retest and final integrated acceptance. Preserve already accepted completed-map
+responsiveness and semantic/cohort quality.
+
 ## Native progressive-browsing evidence — resumed 2026-09-10
 
 Status: implemented and verified. Ticket 07's bounded native evidence increment
@@ -216,7 +334,7 @@ Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Native progressive-browsing evidence](#native-progressive-browsing-evidence--resumed-2026-09-10). The broader milestone remains active.
+Current increment: [Post-close memory qualification](#post-close-memory-qualification--resumed-2026-09-10). The broader milestone remains active.
 
 ## Deliverable and accepted contract
 

@@ -641,6 +641,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
 	v.closeExplorer()
+	v.grid.Close()
 	v.explorer.favoriteDir = ""
 	v.pendingPictureFrame = false
 	v.explorer.pendingLaunch = false
@@ -660,6 +661,7 @@ func (v *viewer) clearToDropzone() {
 	// cache holds is of something unreachable, so keeping them just spends
 	// the byte budget on nothing until the next drop happens to refill it.
 	v.imgCache.Purge()
+	v.grid.InvalidateContent()
 
 	v.img.Image = nil
 	v.img.Hide()

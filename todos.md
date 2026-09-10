@@ -61,6 +61,11 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+- **Release browsed images on Close Files.** Clear thumbnail-cache and recycled
+  grid-cell image references, dismiss an open cohort grid, and keep reopening
+  usable. Covered by measured viewer regressions and a generated-source native
+  replay; the original full-library resource retest remains open.
+
 - **Reduce EXIF correction overhead during similarity analysis.** Direct pixel
   access removes per-pixel color allocations while preserving the exact oriented
   image. On the 446-image demo, cold analysis fell from 88.7s to 82.2s; source
@@ -256,7 +261,7 @@ qualification. See [current evidence](.scratch/visual-similarity-explorer/eviden
 Still open in the current milestone: live progressive/frozen browsing and
 recovery/cache trials at library scale; explicit coverage of the 50% zoom floor
 above 100 piles; representative event-to-visible paint measurements; final
-post-close memory reclamation and the remaining
+full-library verification of post-close memory reclamation and the remaining
 integrated qualification. Ronin has
 accepted completed-map responsiveness on the 50,655-input run. The direct
 desktop-control bridge failed, so precise physical-input timing remains
@@ -291,11 +296,15 @@ peak after browsing was 2.474 GiB, 74.0% below the baseline. See
 The user then closed the list while keeping the app running. Five cohort/grid
 round trips were recorded, including a 16,389-member cohort. No worker remains;
 at 13:05 UTC the app retained 1.634 GiB physical footprint (2.779 GiB resident).
-The later sampled viewer peak was 2.474 GiB. **Post-close memory check remains
-open:** distinguish retained Explorer/cache objects from reusable allocator
-memory with a controlled open/close heap profile before calling this a leak or
-claiming full reclamation. The user subsequently quit the app normally; its
-process memory was reclaimed, while the in-app list-close question stays open.
+The later sampled viewer peak was 2.474 GiB. The controlled post-close check
+now identifies and fixes retained thumbnail-cache pixels and recycled grid-cell
+images; Close Files also dismisses an open cohort grid. A 512-source native
+replay returns live Go heap to 23.0–23.9 MiB after two browse/close cycles
+(21.1 MiB baseline), with zero cached source thumbnails. Native process footprint
+remains above startup, and the original full-library observation has not been
+repeated. Keep that scale/resource qualification open. The user previously quit
+the original app normally; process exit did not prove its in-app close released
+live objects. See [controlled memory evidence](.scratch/visual-similarity-explorer/evidence/list-close-memory-20260910/README.md).
 
 ### Full-library similarity throughput
 
@@ -325,9 +334,9 @@ production measurements and verification are recorded in the
 [preview resampling evidence](.scratch/visual-similarity-explorer/evidence/preview-resampling-20260910/README.md).
 
 This bounded command does not measure native paint/interaction or qualify 50k.
-Record stage/count throughput during the next large native trial and qualify
-batch UMAP/HDBSCAN before claiming scaling. A declining per-image encoding rate
-has not been established; mixed source sizes/formats make simple windows
+The later 50,655-input native run supplies completed-map stage/count timings;
+progressive and cached full-library timings still need qualification. A declining
+per-image encoding rate has not been established; mixed source sizes/formats make simple windows
 insufficient evidence of an order-dependent slowdown.
 
 ### Large similarity-map interaction
@@ -341,13 +350,15 @@ sampled thumbnails, and smooth image rescaling recreates textures on zoom.
 The user chose a minimum zoom for large maps and rejected reducing thumbnail
 counts. The current increment preserves all samples, clamps maps above 100 piles
 to 50% zoom, and keeps the camera stable when automatic expansion reaches that
-floor. Native replay results are recorded in the active plan. Full-library
-source accounting, semantic qualification and scan throughput remain open.
+floor. Native replay results are recorded in the active plan. The later
+50,655-input run supplies source accounting/stage timings and accepted
+completed-map responsiveness; progressive/cache/recovery qualification stays open.
 Viewport preview retention now releases distant decoded pixels, keeps a warm
 margin, and preserves all samples and native rendered appearance. Corrected
 30/300/3,000-image synthetic replays use the actual 160px JPEG preview contract;
-the earlier 256px replay overstated per-preview pixel cost. The latest native
-usability verdict remains open; the 50k edge case is not a normal-use target.
+the earlier 256px replay overstated per-preview pixel cost. Completed-map
+usability is accepted; progressive interaction at scale and explicit coverage
+above 100 piles remain open. The 50k edge case is not a normal-use target.
 See [render-transition evidence](.scratch/visual-similarity-explorer/evidence/render-transition-20260909/README.md).
 
 ## LATER
