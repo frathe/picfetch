@@ -305,6 +305,8 @@ exclude:
       - "main_darwin_test.go"
       - "main_test.go"
       - "scripts/explorereval/main_test.go"
+      - "scripts/explorereval/assets_install_test.go"
+      - "scripts/explorereval/assets_install_real_test.go"
       - "scripts/explorereval/trial_test.go"
       - "scripts/msixstage/msixstage_test.go"
       - "scripts/nativeguards/main_test.go"

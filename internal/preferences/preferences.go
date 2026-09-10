@@ -41,6 +41,7 @@ const (
 	keySimilarityFavoriteCache = "similarityFavoriteCache"
 	keySimilarityAutoUpdate    = "similarityAutoUpdate"
 	keySimilarityAutoFit       = "similarityAutoFit"
+	keySimilarityIntroSeen     = "similarityIntroSeen"
 
 	keyCheckForUpdates    = "checkForUpdates"
 	keyLastUpdateCheckDay = "lastUpdateCheckDay"
@@ -161,6 +162,7 @@ type State struct {
 	FavoritePreviewCache bool
 	// SimilarityFavoriteCache and SimilarityAutoFit default on; automatic map updates default off.
 	SimilarityFavoriteCache, SimilarityAutoUpdate, SimilarityAutoFit bool
+	SimilarityIntroSeen                                              bool
 
 	// CheckForUpdates is the settings window's opt-in for looking for a newer
 	// release on startup. Defaults to false (plain p.Bool) so a fresh install
@@ -231,6 +233,7 @@ func Save(app fyne.App, s State) {
 	p.SetBool(keySimilarityFavoriteCache, s.SimilarityFavoriteCache)
 	p.SetBool(keySimilarityAutoUpdate, s.SimilarityAutoUpdate)
 	p.SetBool(keySimilarityAutoFit, s.SimilarityAutoFit)
+	p.SetBool(keySimilarityIntroSeen, s.SimilarityIntroSeen)
 	p.SetBool(keyCheckForUpdates, s.CheckForUpdates)
 	p.SetBool(keyStaticWindowSize, s.StaticWindowSize)
 
@@ -372,6 +375,7 @@ func Load(app fyne.App) State {
 		SimilarityFavoriteCache: p.BoolWithFallback(keySimilarityFavoriteCache, true),
 		SimilarityAutoUpdate:    p.Bool(keySimilarityAutoUpdate),
 		SimilarityAutoFit:       p.BoolWithFallback(keySimilarityAutoFit, true),
+		SimilarityIntroSeen:     p.Bool(keySimilarityIntroSeen),
 		CheckForUpdates:         p.Bool(keyCheckForUpdates),
 		LastUpdateCheckDay:      p.String(keyLastUpdateCheckDay),
 		StaticWindowSize:        p.Bool(keyStaticWindowSize),

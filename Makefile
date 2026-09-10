@@ -55,7 +55,10 @@ EXPLORER_EVIDENCE ?= .scratch/visual-similarity-explorer/evidence
 EXPLORER_PROVIDER ?= cpu
 TRIAL ?= smoke
 
-.PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test
+.PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test
+explorer-install-test: ## Download pinned public assets to a temporary directory and qualify installation/offline use on this Mac
+	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
+
 explorer-setup: ## Download and verify pinned public assets for the local Mac explorer experiment
 	bash scripts/explorereval/setup.sh "$(EXPLORER_ASSETS)"
 

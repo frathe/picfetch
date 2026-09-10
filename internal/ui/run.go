@@ -227,6 +227,7 @@ func (v *viewer) currentPreferences() preferences.State {
 		SimilarityFavoriteCache: v.explorer.cacheFavorites,
 		SimilarityAutoUpdate:    v.explorer.automatic,
 		SimilarityAutoFit:       v.explorer.autoFit,
+		SimilarityIntroSeen:     v.explorer.introSeen,
 		CheckForUpdates:         v.settings.checkForUpdates,
 		LastUpdateCheckDay:      v.LastUpdateCheckDay(),
 		StaticWindowSize:        v.settings.staticWindowSize,

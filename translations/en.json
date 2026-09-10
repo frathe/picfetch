@@ -438,5 +438,21 @@
    "Skiing": "Skiing",
    "Drink": "Drink",
    "Fruit": "Fruit",
-   "Dessert": "Dessert"
+   "Dessert": "Dessert",
+   "GitHub Discussions": "GitHub Discussions",
+   "Find pictures that belong together. Explore similar images, filter by subjects, and organize your own cohorts.": "Find pictures that belong together. Explore similar images, filter by subjects, and organize your own cohorts.",
+   "Your pictures stay on your computer. Analysis runs locally, without uploads or analytics.": "Your pictures stay on your computer. Analysis runs locally, without uploads or analytics.",
+   "First-time setup downloads about 413 MB from Hugging Face and Microsoft GitHub. After setup, analysis works offline.": "First-time setup downloads about 413 MB from Hugging Face and Microsoft GitHub. After setup, analysis works offline.",
+   "Checking local model...": "Checking local model...",
+   "Continue": "Continue",
+   "Download": "Download",
+   "Retry": "Retry",
+   "Privacy policy": "Privacy policy",
+   "Visual Similarity Explorer currently requires an Apple Silicon Mac.": "Visual Similarity Explorer currently requires an Apple Silicon Mac.",
+   "Download the local model to get started.": "Download the local model to get started.",
+   "The local model is ready. No download is needed.": "The local model is ready. No download is needed.",
+   "Downloading local model...": "Downloading local model...",
+   "Downloading: %.1f of %.1f MB": "Downloading: %.1f of %.1f MB",
+   "Verifying local model...": "Verifying local model...",
+   "Setup could not finish. Check your connection and available disk space, then retry.": "Setup could not finish. Check your connection and available disk space, then retry."
 }

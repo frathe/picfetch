@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -22,6 +23,8 @@ const workerEnvironment = "PICFETCH_SIMILARITY_WORKER"
 // Assets may override the installed assets directory for a local trial.
 type Client struct {
 	Assets string
+	// HTTPClient configures asset downloads; analysis never uses it.
+	HTTPClient *http.Client
 	// FavoritesDir enables per-favorite representation reuse. Empty disables disk caching.
 	FavoritesDir string
 }
@@ -141,6 +144,12 @@ func defaultAssets(executable string) string {
 	if path := os.Getenv("PICFETCH_SIMILARITY_ASSETS"); path != "" {
 		return path
 	}
+	userAssets, userErr := userAssetDirectory()
+	if userErr == nil {
+		if info, err := os.Stat(userAssets); err == nil && info.IsDir() {
+			return userAssets
+		}
+	}
 	installed := filepath.Join(filepath.Dir(executable), "similarity-assets")
 	if info, err := os.Stat(installed); err == nil && info.IsDir() {
 		return installed
@@ -150,7 +159,14 @@ func defaultAssets(executable string) string {
 	if err != nil {
 		return installed
 	}
-	return filepath.Join(root, ".scratch", "visual-similarity-explorer", "assets")
+	trialAssets := filepath.Join(root, ".scratch", "visual-similarity-explorer", "assets")
+	if info, err := os.Stat(trialAssets); err == nil && info.IsDir() {
+		return trialAssets
+	}
+	if userErr == nil {
+		return userAssets
+	}
+	return installed
 }
 
 // WorkerMain handles the private subprocess mode before any desktop startup.

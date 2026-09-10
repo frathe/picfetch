@@ -35,8 +35,10 @@ func (h *Help) ShowAbout() {
 
 		manualLink := widget.NewHyperlink(lang.L("Open the manual"), nil)
 		manualLink.OnTapped = h.ShowManual
+		discussionsLink := widget.NewHyperlink(lang.L("GitHub Discussions"), nil)
+		discussionsLink.OnTapped = h.ShowDiscussions
 
-		left := container.NewPadded(container.NewVBox(title, version, manualLink))
+		left := container.NewPadded(container.NewVBox(title, version, manualLink, discussionsLink))
 
 		return container.NewBorder(nil, nil, nil, art, left)
 	}, nil)

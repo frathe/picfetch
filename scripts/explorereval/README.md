@@ -139,6 +139,12 @@ native RSS, full-library scaling and the user's semantic verdict remain separate
 
 ## Native viewer trial
 
+Regular installs offer the model/runtime download on first Explorer use.
+`make explorer-install-test` explicitly downloads the actual pinned public files
+to a temporary directory, verifies progress and integrity, checks reuse without
+HTTP, retains runtime notices, and runs synthetic-image inference under OS
+network denial. This network qualification is separate from the offline suite.
+
 The accepted engine is shared with PicFetch in `internal/similarity`.
 After `make explorer-setup`, run `make run`, open the demo directory, then choose
 **Window -> Visual Similarity Explorer**. The map analyzes opened images, taking only the highest-resolution representative

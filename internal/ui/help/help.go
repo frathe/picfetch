@@ -20,6 +20,8 @@
 package help
 
 import (
+	"net/url"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/lang"
@@ -27,6 +29,8 @@ import (
 	"github.com/frathe/picfetch/internal/ui/spiral"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
+
+const DiscussionsURL = "https://github.com/frathe/picfetch/discussions"
 
 // Help owns the documentation windows (manual, About, What's New). Each is
 // a widgets.Singleton, so a second request raises the window that's already
@@ -90,6 +94,14 @@ func (h *Help) SetOnManualClosed(f func()) { h.onManualClosed = f }
 // menu, About link, F1), not only the ones that already wrap ShowManual.
 func (h *Help) SetOnManualOpened(f func()) { h.onManualOpened = f }
 
+// ShowDiscussions opens the public community page without attaching app data.
+func (h *Help) ShowDiscussions() {
+	target, _ := url.Parse(DiscussionsURL)
+	if err := h.app.OpenURL(target); err != nil {
+		fyne.LogError("open GitHub Discussions", err)
+	}
+}
+
 // Menu is the app's Help menu: the manual, and an About screen below a
 // separator (the usual place for it in a Help menu). Returns the *fyne.Menu
 // itself rather than a whole *fyne.MainMenu, so internal/ui can combine it
@@ -103,6 +115,7 @@ func (h *Help) Menu() *fyne.Menu {
 	// same menu-hint pattern File uses for Open/Save/Export.
 	manual.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyF1}
 	about := fyne.NewMenuItem(lang.L("About"), h.ShowAbout)
+	discussions := fyne.NewMenuItem(lang.L("GitHub Discussions"), h.ShowDiscussions)
 
-	return fyne.NewMenu(lang.L("Help"), manual, fyne.NewMenuItemSeparator(), about)
+	return fyne.NewMenu(lang.L("Help"), manual, discussions, fyne.NewMenuItemSeparator(), about)
 }

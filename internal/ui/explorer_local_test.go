@@ -33,6 +33,45 @@ import (
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("setup_recovers_missing_model", func(t *testing.T) {
+		v := openGridWith(t, "fixture.jpg")
+		// A model previously checked in this session can disappear from the cache.
+		v.explorer.client.Assets = t.TempDir()
+		v.showExplorer()
+		v.settleExplorer()
+		if v.explorer.complete {
+			t.Fatal("missing model completed analysis")
+		}
+		v.showExplorer()
+		v.settleExplorer()
+		if explorerDialogButton(t, v, "Download").Disabled() {
+			t.Fatal("retry did not offer to restore the missing local model")
+		}
+	})
+	t.Run("setup_installed_model", func(t *testing.T) {
+		before := preferences.Load(testApp)
+		t.Cleanup(func() { preferences.Save(testApp, before) })
+		v := openGridWith(t, "fixture.jpg")
+		v.explorer.introSeen, v.explorer.assetsReady = false, false
+		v.explorer.client.Assets = "../../.scratch/visual-similarity-explorer/assets"
+		v.showExplorer()
+		v.settleExplorer()
+		if v.explorerMapActive() {
+			t.Fatal("installed model bypassed first-use explanation")
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Continue"))
+		v.settleExplorer()
+		if !v.explorer.complete || !v.explorerMapActive() || v.explorer.available != 1 {
+			t.Fatal("first-use Continue did not complete analysis with the verified installed model")
+		}
+		v.closeExplorer()
+		v.settleExplorer()
+		v.showExplorer()
+		v.settleExplorer()
+		if v.explorer.setup != nil || !v.explorer.complete {
+			t.Fatal("reopening a prepared Explorer repeated setup")
+		}
+	})
 	t.Run("presets_cache_backfill", func(t *testing.T) {
 		root := t.TempDir()
 		path := filepath.Join(root, "square.JPEG")

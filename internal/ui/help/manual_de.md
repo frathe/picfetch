@@ -669,7 +669,22 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ---
 
-### Visueller Ähnlichkeits-Explorer (lokaler Mac-Test)
+### Visueller Ähnlichkeits-Explorer (Mac mit Apple Silicon)
+
+Beim ersten Öffnen stellt Trane den Explorer vor. **Herunterladen** installiert
+etwa 413 MB an Modell- und Laufzeitdateien von Hugging Face und Microsoft GitHub.
+Die Seite zeigt den Fortschritt und bietet **Abbrechen**. Falls die Einrichtung
+fehlschlägt, prüfe Verbindung und freien Speicherplatz und wähle **Erneut versuchen**.
+Sind die Dateien bereits installiert und geprüft, wähle **Weiter**. Der Download
+beginnt erst nach deiner Auswahl. Bei Abbruch bleibt der Bildbetrachter nutzbar.
+
+Deine Bilder bleiben auf deinem Computer. Nach der Einrichtung funktioniert
+die Analyse offline, ohne Uploads, Nutzungsanalyse oder Nutzungsberichte.
+Die Seite verlinkt die **Datenschutzerklärung** und **GitHub-Diskussionen**.
+Die Diskussionen sind auch im Hilfe-Menü und im Infofenster erreichbar. Der
+Link öffnet die öffentliche Community-Seite im Browser, ohne Bilder oder
+App-Daten anzuhängen. Die Analyse benötigt derzeit einen Mac mit Apple Silicon;
+die Unterstützung für Linux und Windows ist noch in Vorbereitung.
 
 Der Bereich **Schlagwörter** bietet 75 Motive und Szenen mit der Anzahl
 eindeutiger Bilder, darunter Kostüm, Tracht, Zug, Burg, Wasserfall, Konzert,

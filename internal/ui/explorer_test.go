@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -309,6 +310,131 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
+	t.Run("setup_first_use", func(t *testing.T) {
+		v := openGridWith(t, "first.jpg")
+		v.explorer.introSeen = false
+		v.explorer.assetsReady = true
+		analyzed := false
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			analyzed = true
+			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true})
+			return nil
+		}
+		v.showExplorer()
+		v.settleExplorer()
+		if analyzed || v.explorerMapActive() {
+			t.Fatal("first use started analysis before the explanation was accepted")
+		}
+		art := false
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if img, ok := o.(*canvas.Image); ok && img.Resource != nil && img.Resource.Name() == "explorer-intro.png" {
+				art = true
+			}
+		})
+		if !art {
+			t.Fatal("first-use page does not contain Trane's illustration")
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Continue"))
+		v.settleExplorer()
+		if !analyzed || !v.explorerMapActive() || !preferences.Load(testApp).SimilarityIntroSeen {
+			t.Fatal("Continue did not persist acknowledgment and start Explorer")
+		}
+	})
+	t.Run("setup_download_retry_cancel", func(t *testing.T) {
+		v := openGridWith(t, "first.jpg")
+		v.explorer.introSeen, v.explorer.assetsReady = false, false
+		v.explorer.supported = true
+		requests := 0
+		started := make(chan struct{})
+		v.explorer.client = similarity.Client{Assets: filepath.Join(t.TempDir(), "assets"), HTTPClient: &http.Client{Transport: explorerAssetTransport(func(r *http.Request) (*http.Response, error) {
+			requests++
+			if requests == 1 {
+				return nil, fmt.Errorf("connection unavailable")
+			}
+			close(started)
+			<-r.Context().Done()
+			return nil, r.Context().Err()
+		})}}
+		v.showExplorer()
+		v.settleExplorer()
+		if requests != 0 {
+			t.Fatal("reading the explanation made a network request")
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Download"))
+		v.settleExplorer()
+		if requests != 1 || v.explorerMapActive() {
+			t.Fatal("failed setup did not remain on the setup page")
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Retry"))
+		<-started
+		fynetest.Tap(explorerDialogButton(t, v, "Cancel"))
+		v.settleExplorer()
+		if v.explorer.setup != nil || v.explorer.introSeen || v.explorerMapActive() {
+			t.Fatal("cancelled setup continued into analysis or left its page open")
+		}
+		entries, err := os.ReadDir(filepath.Dir(v.explorer.client.Assets))
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("cancelled download left staged assets: %v, %v", entries, err)
+		}
+	})
+	t.Run("setup_source_change", func(t *testing.T) {
+		v := openGridWith(t, "first.jpg")
+		v.explorer.introSeen, v.explorer.assetsReady = false, false
+		v.explorer.supported = true
+		v.explorer.client.Assets = filepath.Join(t.TempDir(), "assets")
+		v.showExplorer()
+		// Replacement invalidates even an asset check whose UI delivery is pending.
+		dropAndWait(t, v, uitest.TempJPEGURI(t, "replacement.jpg", 4, 4, color.White))
+		v.settleExplorer()
+		if v.explorer.setup != nil || v.win.Canvas().Overlays().Top() != nil || v.explorer.introSeen {
+			t.Fatal("source replacement left first-use setup active")
+		}
+	})
+	t.Run("setup_window_size", func(t *testing.T) {
+		v := openGridWith(t, "small.jpg")
+		v.win.Resize(fyne.NewSize(520, 360))
+		v.explorer.introSeen = false
+		v.showExplorer()
+		v.settleExplorer()
+		if size := v.win.Canvas().Size(); size.Width < 700 || size.Height < 620 {
+			t.Fatalf("first-use page stayed constrained by the small image window: %v", size)
+		}
+		for _, size := range []fyne.Size{fyne.NewSize(720, 660), fyne.NewSize(960, 800)} {
+			v.win.Resize(size)
+			var title *widget.Label
+			explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+				if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Visual Similarity Explorer") {
+					title = label
+				}
+			})
+			if title == nil {
+				t.Fatal("setup page title is missing")
+			}
+			if position := testApp.Driver().AbsolutePositionForObject(title); position.X > 16 || position.Y > 16 {
+				t.Fatalf("setup remains inset behind a dark frame at %v: title at %v", size, position)
+			}
+		}
+		v.win.Resize(fyne.NewSize(720, 660))
+		capture := func(name string) {
+			if directory := os.Getenv("PICFETCH_EXPLORER_SETUP_QA"); directory != "" {
+				var output bytes.Buffer
+				if err := png.Encode(&output, v.win.Canvas().Capture()); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(directory, name), output.Bytes(), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		capture("setup.png")
+		v.win.Resize(fyne.NewSize(520, 400))
+		button := explorerDialogButton(t, v, "Continue")
+		position := testApp.Driver().AbsolutePositionForObject(button)
+		if position.Y < 0 || position.Y+button.Size().Height > v.win.Canvas().Size().Height {
+			t.Fatalf("resizing hides the action button: position=%v size=%v canvas=%v", position, button.Size(), v.win.Canvas().Size())
+		}
+		capture("setup-small.png")
+	})
 
 	t.Run("keyboard_entry", func(t *testing.T) {
 		for _, gridVisible := range []bool{false, true} {
@@ -3873,3 +3999,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	})
 
 }
+
+type explorerAssetTransport func(*http.Request) (*http.Response, error)
+
+func (f explorerAssetTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

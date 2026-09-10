@@ -6,6 +6,13 @@
 
 #### New Features
 
+- **First-use Explorer setup.** Trane introduces local similarity analysis.
+  An explicit Download action installs and verifies the model/runtime, with
+  progress, cancellation and retry. Pictures stay local; there is no analytics
+  or feedback collection. Help, About and setup link to GitHub Discussions,
+  and the privacy policy explains the public asset downloads. Explorer currently
+  supports Apple Silicon Macs.
+
 - **Explorer and Mosaic access.** Shift+S opens the Visual Similarity Explorer;
   Shift+M opens Mosaic from the loaded collection, or the current selection/
   filtered result in Grid View. Generate Image Mosaic now lives in Window.
@@ -175,6 +182,25 @@ The native macOS Copy Selection golden mismatch remains documented; the
 canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ## TODO
+
+### Transparent Explorer introduction artwork
+
+The first-use page is implemented and fills the window, but Trane's current PNG
+has an opaque white background. Replace it with a verified alpha cutout, inspect
+the result on the app background, and rebuild the embedded asset. Local
+background removal is awaiting Ronin's choice after the generator returned
+opaque results. See the [release setup plan](plans/2026-09-10-explorer-release-setup.md).
+
+### Explorer on Linux and Windows
+
+Regular-release preparation adds first-use setup on the qualified Apple Silicon
+Mac path. Other platforms still need pinned native runtime packages and notices,
+OS network-denial launchers, cancellable worker-control readers, and native
+inference/lifecycle qualification on their supported architectures. The common
+model, grouping, map and cache code is shared; passing a cross-build alone does
+not qualify native Explorer execution. The no-cgo fallback restores the existing
+Windows package-build checks. See the
+[release setup plan](plans/2026-09-10-explorer-release-setup.md).
 
 ### Similarity-map zoom trial
 

@@ -1,6 +1,7 @@
 package help
 
 import (
+	"net/url"
 	"path"
 	"reflect"
 	"regexp"
@@ -393,14 +394,15 @@ func TestCurrentManual_OtherLocaleFallsBackToEnglish(t *testing.T) {
 }
 
 func TestHelpMenu(t *testing.T) {
-	help := New(nil, "PicFetch", nil).Menu()
+	application := &discussionLinkApp{}
+	help := New(application, "PicFetch", nil).Menu()
 
 	if help.Label != "Help" {
 		t.Errorf("expected menu label %q, got %q", "Help", help.Label)
 	}
 
-	if got := len(help.Items); got != 3 {
-		t.Fatalf("expected 3 help items, got %d", got)
+	if got := len(help.Items); got != 4 {
+		t.Fatalf("expected 4 help items, got %d", got)
 	}
 
 	manual := help.Items[0]
@@ -421,11 +423,22 @@ func TestHelpMenu(t *testing.T) {
 		t.Errorf("Manual accelerator = %+v, want {KeyF1, 0}", shortcut)
 	}
 
-	if !help.Items[1].IsSeparator {
-		t.Error("expected a separator between Manual and About")
+	discussions := help.Items[1]
+	if discussions.Label != "GitHub Discussions" || discussions.Action == nil {
+		t.Fatal("Help does not offer a GitHub Discussions link")
+	}
+	if application.opened != nil {
+		t.Fatal("building Help opened the browser without a user action")
+	}
+	discussions.Action()
+	if application.opened == nil || application.opened.String() != "https://github.com/frathe/picfetch/discussions" {
+		t.Fatalf("Discussions opened %v; want the public project page without attached user data", application.opened)
+	}
+	if !help.Items[2].IsSeparator {
+		t.Error("expected a separator before About")
 	}
 
-	about := help.Items[2]
+	about := help.Items[3]
 
 	if about.Label != "About" {
 		t.Errorf("expected item label %q, got %q", "About", about.Label)
@@ -434,6 +447,16 @@ func TestHelpMenu(t *testing.T) {
 	if about.Action == nil {
 		t.Error("about menu item has no action")
 	}
+}
+
+type discussionLinkApp struct {
+	fyne.App
+	opened *url.URL
+}
+
+func (a *discussionLinkApp) OpenURL(target *url.URL) error {
+	a.opened = target
+	return nil
 }
 
 func firstLine(s string) string {

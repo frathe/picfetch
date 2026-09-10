@@ -22,6 +22,10 @@ import (
 )
 
 type explorerWork struct {
+	introSeen, assetsReady  bool
+	setup                   *explorerSetup
+	client                  similarity.Client
+	supported               bool
 	trial                   *explorertrial.Session
 	trialRun                int
 	trialEvent              int
@@ -58,6 +62,10 @@ func (explorerQueue) Drain() bool { return false }
 
 func (v *viewer) showExplorer() {
 	if v.stopping || v.comparisonActive() || v.FileCount() == 0 || !v.yieldCopySelection() {
+		return
+	}
+	if !v.explorer.introSeen || !v.explorer.assetsReady && v.explorerAnalyze == nil {
+		v.prepareExplorer()
 		return
 	}
 	if v.slides.Active() {
@@ -118,7 +126,7 @@ func (v *viewer) beginExplorerAnalysis() {
 	controls := v.explorer.controls
 	analyze := v.explorerAnalyze
 	if analyze == nil {
-		client := similarity.Client{}
+		client := v.explorer.client
 		if v.explorer.cacheFavorites {
 			client.FavoritesDir = v.favorites.Dir()
 		}
@@ -219,6 +227,7 @@ func (v *viewer) beginExplorerAnalysis() {
 			}
 			if displayErr != nil {
 				v.explorer.complete = false
+				v.explorer.assetsReady = false
 				fyne.LogError("visual similarity analysis failed", displayErr)
 				v.explorer.surface.Status(lang.L("Analysis failed. Open the explorer to retry."))
 			}
@@ -297,6 +306,7 @@ func (v *viewer) closeExplorer() {
 // retireExplorerAnalysis drops source-derived state without disturbing a cohort
 // currently being browsed. Committed file effects may arrive after navigation.
 func (v *viewer) retireExplorerAnalysis() {
+	v.closeExplorerSetup()
 	if len(v.explorer.sources) > 0 {
 		v.explorer.trial.Action(v.explorer.trialRun, "explorer-exit", len(v.explorer.sources))
 	}
@@ -320,7 +330,7 @@ func (v *viewer) retireExplorerAnalysis() {
 }
 
 func (v *viewer) explorerSourcesChanged() {
-	if len(v.explorer.sources) == 0 && v.explorer.prepare == nil {
+	if len(v.explorer.sources) == 0 && v.explorer.prepare == nil && v.explorer.setup == nil {
 		return
 	}
 	v.retireExplorerAnalysis()

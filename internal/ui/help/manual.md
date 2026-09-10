@@ -586,7 +586,21 @@ any desktop change; **Save Image** remains available.
 
 ---
 
-### Visual similarity explorer (local Mac trial)
+### Visual similarity explorer (Apple Silicon Mac)
+
+On first use, Trane introduces the Explorer. Choose **Download** to install
+about 413 MB of model and runtime files from Hugging Face and Microsoft GitHub.
+The page shows progress and offers **Cancel**; if setup fails, check your
+connection and free disk space and choose **Retry**. If the files are already
+installed and verified, choose **Continue**. Downloading is optional and only
+begins after your choice. The rest of the viewer stays available if you cancel.
+
+Your pictures stay on your computer. After setup, analysis works offline,
+without uploads, analytics, or usage reports. The page links to the
+**Privacy policy** and **GitHub Discussions**. Discussions also appears in the
+Help menu and About window; it opens the public community page in your browser
+without attaching images or app data. Explorer analysis currently requires an
+Apple Silicon Mac; Linux and Windows support is still being prepared.
 
 With images open, press **`Shift+S`** or choose **Window -> Visual Similarity Explorer**. It analyzes
 the opened images, including merged sets and Favorites. When duplicate filtering

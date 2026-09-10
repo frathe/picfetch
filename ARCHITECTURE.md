@@ -54,8 +54,10 @@ and publication counts as immutable values; grouping includes its named sub-stag
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
-`encoder.go` disables native runtime telemetry before library loading and owns
+`encoder.go` (cgo) disables native runtime telemetry before library loading and owns
 the pinned native SigLIP 2 session;
+`encoder_nocgo.go` keeps cross-platform package builds available and reports that
+inference requires cgo.
 `tags.go` decodes the readable embedded `tag-vectors.json`, validates its canonical
 float32 digest against `tag-catalog.json`, and applies those text prototypes to
 fresh and reused image vectors against 75 fixed subjects, without a text runtime
@@ -67,7 +69,11 @@ Display events retain this compact hierarchy and omit inference vectors, which
 remain in the worker and favorite cache. The encoder and
 grouping entry points are worker-only: the
 native runtime is process-global and batch algorithms cannot be interrupted
-in place. `assets.go`/`assets.sha256` verify pinned local assets; `offline.go`
+in place. `assets.go`/`assets.sha256` verify pinned local assets;
+`assets_install.go` checks local availability and performs explicit, cancellable
+HTTPS installation into a per-user cache. It bounds and hashes downloads,
+extracts only named runtime/license files and publishes verified files; analysis
+never starts a download. `offline.go`
 verifies actual TCP/UDP OS denial; `files.go` registers the driverless read-only
 file repository. This first native trial supports Apple Silicon macOS.
 
@@ -233,6 +239,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with the supplied Codex atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `internal/ui/assets/trane.webp` is copied unchanged from `assets/trane/codex-pet/spritesheet.webp`. |
 | `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, favorite cohort loading on the tracked worker/queue, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
+| `explorersetup.go` | First-use Trane explanation, local asset check, explicit download/progress/retry and persisted acknowledgment. Setup owns a cancellable lifecycle and joins Explorer's worker/queue drain; source replacement and shutdown dismiss it. Includes plain privacy and Discussions links. |
 | `explorercohorts.go` | Composes Unassigned grid selection with the shared-trait review, optional matching sources and named-cohort creation. The dialog owns captured targets and rejects stale sessions; tracked favorite saves finish before returning to the map, and failures roll back the proposed group. Explorer retirement dismisses it. Analyze can seed the reusable preset editor, including metadata-only rules. |
 | `explorerpresets.go`, `explorerpresetrules.go` | Global preset browser/editor, metadata/tag fields, frozen match preview, linked-group updates and definition deletion. Preset I/O/matching uses a separate tracked worker group and the Explorer UI queue; Favorite-save failures restore prior memberships. |
 | `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, similarity map, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
@@ -300,7 +307,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
 | `internal/ui/display/` | What's currently on the canvas: the decoded frames, which one is up, the view-only rotation (composing `imaging.RotateSteps` itself, in `Rotated`), and the picture-frame crossfade. | No Host: a value `State` field on `viewer`, mutated through its own methods, never copied. |
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` owns Codex atlas frame extraction and the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. | Leaf aside from `internal/winpos`. |
-| `internal/ui/assets/` | `WelcomeWebP` / `PlaceholderWebP`. | Leaf. |
+| `internal/ui/assets/` | Embedded viewer artwork, including `ExplorerIntroPNG` for first use. | Leaf. |
 
 ### `internal/imaging`
 
