@@ -38,7 +38,7 @@ func TestRealAssetInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if directory != client.Assets || received != total || received != 413387010 {
+	if directory != client.Assets || received != total || received != similarity.AssetDownloadBytes() {
 		t.Fatalf("installation incomplete: directory=%q, received=%d, total=%d", directory, received, total)
 	}
 	client.HTTPClient = &http.Client{Transport: assetTransport(func(_ *http.Request) (*http.Response, error) {
@@ -49,12 +49,34 @@ func TestRealAssetInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"LICENSE", "ThirdPartyNotices.txt"} {
-		data, err := os.ReadFile(filepath.Join(directory, "onnxruntime-osx-arm64-1.29.0", name))
+		matches, err := filepath.Glob(filepath.Join(directory, "onnxruntime-*", name))
+		if err != nil || len(matches) != 1 {
+			t.Fatalf("runtime notice %s: %v, %v", name, matches, err)
+		}
+		data, err := os.ReadFile(matches[0])
 		if err != nil || len(data) == 0 {
 			t.Fatalf("runtime notice missing: %s, %v", name, err)
 		}
 	}
-	path := filepath.Join(root, "synthetic.png")
+	qualifyInstalledAnalysis(t, ctx, client)
+	t.Log("verified installation reused without HTTP; installed runtime analyzed the synthetic image under OS network denial")
+}
+
+// Allows the installed assets and the same test binary to be qualified in
+// another distro, with network access disabled and the assets mounted read-only.
+func TestInstalledAssetAnalysis(t *testing.T) {
+	assets := os.Getenv("PICFETCH_SIMILARITY_ASSETS")
+	if assets == "" {
+		t.Skip("set PICFETCH_SIMILARITY_ASSETS to qualify an existing installation")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	qualifyInstalledAnalysis(t, ctx, similarity.Client{Assets: assets})
+}
+
+func qualifyInstalledAnalysis(t *testing.T, ctx context.Context, client similarity.Client) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "synthetic.png")
 	if err := os.WriteFile(path, uitest.EncodePNG(t, 96, 64, color.White), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -69,5 +91,4 @@ func TestRealAssetInstall(t *testing.T) {
 	if !result.OfflineVerified || result.Successful != 1 || result.Failed != 0 || len(result.Items) != 1 {
 		t.Fatalf("installed model did not complete offline analysis: %+v", result)
 	}
-	t.Log("verified installation reused without HTTP; installed runtime analyzed the synthetic image under OS network denial")
 }

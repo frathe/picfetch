@@ -156,6 +156,8 @@ exclude:
       - "internal/preferences/preferences_test.go"
       - "internal/selection/selection_test.go"
       - "internal/session/session_test.go"
+      - "internal/similarity/assets_test.go"
+      - "internal/similarity/worker_linux_amd64_test.go"
       - "internal/trash/trash_test.go"
       - "internal/ui/actionmenu_test.go"
       - "internal/ui/animate_test.go"

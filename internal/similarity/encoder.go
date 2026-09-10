@@ -27,7 +27,11 @@ func NewEncoder(assets, provider string) (_ *Encoder, err error) {
 	if err := os.Setenv("ORT_DISABLE_TELEMETRY", "1"); err != nil {
 		return nil, fmt.Errorf("disable runtime telemetry: %w", err)
 	}
-	ort.SetSharedLibraryPath(filepath.Join(assets, runtimeLibrary))
+	asset, err := currentRuntime()
+	if err != nil {
+		return nil, err
+	}
+	ort.SetSharedLibraryPath(filepath.Join(assets, asset.directory, asset.library))
 	if err := ort.InitializeEnvironment(); err != nil {
 		return nil, err
 	}

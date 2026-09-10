@@ -38,7 +38,7 @@ func (v *viewer) prepareExplorer() {
 	explanation.Wrapping = fyne.TextWrapWord
 	privacy := widget.NewLabel(lang.L("Your pictures stay on your computer. Analysis runs locally, without uploads or analytics."))
 	privacy.Wrapping = fyne.TextWrapWord
-	download := widget.NewLabel(lang.L("First-time setup downloads about 413 MB from Hugging Face and Microsoft GitHub. After setup, analysis works offline."))
+	download := widget.NewLabel(fmt.Sprintf(lang.L("First-time setup downloads about %.0f MB from Hugging Face and Microsoft GitHub. After setup, analysis works offline."), float64(similarity.AssetDownloadBytes())/1e6))
 	download.Wrapping = fyne.TextWrapWord
 	s.status = widget.NewLabel(lang.L("Checking local model..."))
 	s.status.Wrapping = fyne.TextWrapWord
@@ -75,7 +75,7 @@ func (v *viewer) prepareExplorer() {
 		return
 	}
 	if !v.explorer.supported {
-		s.status.SetText(lang.L("Visual Similarity Explorer currently requires an Apple Silicon Mac."))
+		s.status.SetText(lang.L("Visual Similarity Explorer requires an Apple Silicon Mac or 64-bit x86 Linux."))
 		s.primary.Hide()
 		return
 	}

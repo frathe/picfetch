@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frathe/picfetch/internal/similarity"
 )
@@ -20,6 +22,25 @@ func (f assetTransport) RoundTrip(request *http.Request) (*http.Response, error)
 }
 
 func TestAssetInstall(t *testing.T) {
+	t.Run("ubuntu_supported", func(t *testing.T) {
+		if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
+			t.Skip("Ubuntu amd64 support")
+		}
+		if !similarity.SupportedPlatform() {
+			t.Fatal("Linux amd64 cannot install or run Explorer")
+		}
+	})
+	t.Run("worker_reaches_asset_check_and_exits", func(t *testing.T) {
+		if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
+			t.Skip("Linux worker qualification")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err := (similarity.Client{Assets: t.TempDir()}).Analyze(ctx, nil, nil, func(_ similarity.Event) {})
+		if err == nil || !strings.Contains(err.Error(), "assets:") {
+			t.Fatalf("worker must enforce offline mode, reject missing assets and exit with open controls: %v", err)
+		}
+	})
 	t.Run("cancelled_before_start", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -31,6 +52,9 @@ func TestAssetInstall(t *testing.T) {
 			t.Fatalf("cancelled setup: %v", err)
 		}
 	})
+	if !similarity.SupportedPlatform() {
+		t.Skip("downloads require a supported native runtime")
+	}
 	t.Run("rejects_untrusted_redirect", func(t *testing.T) {
 		requests := 0
 		directory := filepath.Join(t.TempDir(), "assets")

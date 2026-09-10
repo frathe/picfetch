@@ -50,7 +50,9 @@ backfill these facts without inference. `tags.go` exposes catalogue identity for
 rule compatibility.
 `Event.Measurements` carries cumulative worker stage times, inference attempts
 and publication counts as immutable values; grouping includes its named sub-stages.
-`control_darwin.go`/`control_other.go` own the pollable worker input descriptor.
+`control_unix.go`/`control_other.go` own the pollable worker input descriptor.
+`worker_linux_amd64.go` installs worker-only seccomp denial synchronized across all
+threads before reading requests; `worker_other.go` retains the macOS sandbox launcher.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
@@ -75,7 +77,8 @@ HTTPS installation into a per-user cache. It bounds and hashes downloads,
 extracts only named runtime/license files and publishes verified files; analysis
 never starts a download. `offline.go`
 verifies actual TCP/UDP OS denial; `files.go` registers the driverless read-only
-file repository. This first native trial supports Apple Silicon macOS.
+file repository. Production setup/analysis supports Apple Silicon macOS and glibc
+Linux amd64; native library evidence collection remains macOS-only.
 
 ### `internal/explorerpresets`
 
@@ -103,7 +106,10 @@ The module starts no goroutines.
 
 Bounded local experiment reached through `make explorer-setup`,
 `make explorer-test` and `make explorer-evaluate`. `main.go` owns the experiment
-CLI/offline launch; `setup.sh` uses `internal/similarity/assets.sha256`.
+CLI/offline launch and the explicit `-install` entry point; `setup.sh` delegates
+to the same verified `Client.InstallAssets` used by the viewer. Platform runtime
+archives are selected in `internal/similarity/assets.go` and extracted library
+hashes remain in `internal/similarity/assets.sha256`.
 `evaluate.go` uses the shared native encoder/grouping and adds per-stage
 measurement and evidence files; `files.go` selects the bounded smoke corpus.
 `report.go` and `review.html` produce local cohort/measurement artifacts;

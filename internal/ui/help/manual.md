@@ -586,10 +586,11 @@ any desktop change; **Save Image** remains available.
 
 ---
 
-### Visual similarity explorer (Apple Silicon Mac)
+### Visual similarity explorer (Apple Silicon Mac and x86-64 Linux)
 
 On first use, Trane introduces the Explorer. Choose **Download** to install
-about 413 MB of model and runtime files from Hugging Face and Microsoft GitHub.
+model and runtime files from Hugging Face and Microsoft GitHub (about 383 MB
+on Linux or 413 MB on macOS).
 The page shows progress and offers **Cancel**; if setup fails, check your
 connection and free disk space and choose **Retry**. If the files are already
 installed and verified, choose **Continue**. Downloading is optional and only
@@ -600,7 +601,8 @@ without uploads, analytics, or usage reports. The page links to the
 **Privacy policy** and **GitHub Discussions**. Discussions also appears in the
 Help menu and About window; it opens the public community page in your browser
 without attaching images or app data. Explorer analysis currently requires an
-Apple Silicon Mac; Linux and Windows support is still being prepared.
+Apple Silicon Mac or x86-64 Linux with glibc and seccomp support.
+Windows and Linux ARM support is still being prepared.
 
 With images open, press **`Shift+S`** or choose **Window -> Visual Similarity Explorer**. It analyzes
 the opened images, including merged sets and Favorites. When duplicate filtering

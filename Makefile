@@ -56,10 +56,10 @@ EXPLORER_PROVIDER ?= cpu
 TRIAL ?= smoke
 
 .PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test
-explorer-install-test: ## Download pinned public assets to a temporary directory and qualify installation/offline use on this Mac
+explorer-install-test: ## Download pinned public assets to a temporary directory and qualify installation/offline use on supported macOS/Linux
 	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
 
-explorer-setup: ## Download and verify pinned public assets for the local Mac explorer experiment
+explorer-setup: ## Download and verify pinned public assets for the local explorer on supported macOS/Linux
 	bash scripts/explorereval/setup.sh "$(EXPLORER_ASSETS)"
 
 explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, throughput, or library)
@@ -86,7 +86,7 @@ explorer-test: ## Run real-model acceptance tests under explicit macOS network d
 	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.run '^(TestEvaluation|TestReal)' -test.v -test.count=1
 	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^(TestProductionProfile|TestNativeLibraryRunner)' -test.v -test.count=1
 
-explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on this Mac
+explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on supported macOS/Linux
 	go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v
 
 

@@ -11,12 +11,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
-
-const AssetDownloadBytes int64 = 371807752 + 394 + 41578864
 
 // DownloadProgress reports aggregate transfer bytes, without source-image data.
 type DownloadProgress struct {
@@ -27,8 +24,6 @@ type assetDownload struct {
 	name, address, digest string
 	size                  int64
 }
-
-func SupportedPlatform() bool { return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" }
 
 // CheckAssets reads and verifies local assets without making network requests.
 func (c Client) CheckAssets(ctx context.Context) error {
@@ -65,6 +60,10 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	assetRuntime, err := currentRuntime()
+	if err != nil {
+		return "", err
+	}
 	if err := c.CheckAssets(ctx); err == nil {
 		return c.assetDirectory()
 	}
@@ -95,7 +94,7 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 	downloads := []assetDownload{
 		{"vision_model.onnx", model + "/onnx/vision_model.onnx", "c0573e3f4140c3a7c4e9cc5912bd6b26a033b46a6a8e8af26cbea262b163bcad", 371807752},
 		{"preprocessor_config.json", model + "/preprocessor_config.json", "9b36b57ebaf20f09bf4c22100ccc21877ea6bfe5aead0c00c59f8af8ccefacfc", 394},
-		{"runtime.tgz", "https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/onnxruntime-osx-arm64-1.29.0.tgz", "d0706fc34f315d8c88639d0a8c81f2e09e815f282cabed3493c06a054352cf92", 41578864},
+		{"runtime.tgz", "https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/" + assetRuntime.directory + ".tgz", assetRuntime.digest, assetRuntime.size},
 	}
 	client := http.Client{Timeout: 30 * time.Minute}
 	if c.HTTPClient != nil {
@@ -113,7 +112,7 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 		if err := downloadAsset(ctx, &client, staging, asset, func(n int) {
 			received += int64(n)
 			if progress != nil {
-				progress(DownloadProgress{Received: received, Total: AssetDownloadBytes})
+				progress(DownloadProgress{Received: received, Total: AssetDownloadBytes()})
 			}
 		}); err != nil {
 			return "", err
@@ -221,8 +220,12 @@ func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
 	}
 	defer func() { _ = compressed.Close() }()
 	reader := tar.NewReader(&assetReader{ctx: ctx, source: io.LimitReader(compressed, 1<<30)})
-	const prefix = "onnxruntime-osx-arm64-1.29.0/"
-	expected := [...]string{runtimeLibrary, prefix + "LICENSE", prefix + "ThirdPartyNotices.txt"}
+	asset, err := currentRuntime()
+	if err != nil {
+		return nil, err
+	}
+	prefix := asset.directory + "/"
+	expected := [...]string{prefix + asset.library, prefix + "LICENSE", prefix + "ThirdPartyNotices.txt"}
 	seen := make(map[string]bool, len(expected))
 	var files []string
 	for {

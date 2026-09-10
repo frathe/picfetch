@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/frathe/picfetch/internal/similarity"
 )
@@ -39,6 +40,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	assets := flags.String("assets", ".scratch/visual-similarity-explorer/assets", "directory of pinned local model/runtime assets")
 	library := flags.String("library", ".scratch/visual-similarity-explorer/demo", "local input folder")
 	out := flags.String("out", ".scratch/visual-similarity-explorer/evidence/run", "new local evidence directory (must not exist)")
+	install := flags.Bool("install", false, "download and verify native Explorer assets (no analysis)")
 	worker := flags.Bool("worker", false, "internal: process within the offline sandbox")
 	trial := flags.String("trial", "smoke", "smoke, throughput, or native library trial")
 	automatic := flags.Bool("automatic", false, "throughput: publish a map every 30 processed sources")
@@ -50,6 +52,19 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments")
+	}
+	if *install {
+		last := time.Time{}
+		directory, err := (similarity.Client{Assets: *assets}).InstallAssets(ctx, func(p similarity.DownloadProgress) {
+			if time.Since(last) >= time.Second || p.Received == p.Total {
+				_, _ = fmt.Fprintf(output, "Downloaded %.1f of %.1f MB\n", float64(p.Received)/1e6, float64(p.Total)/1e6)
+				last = time.Now()
+			}
+		})
+		if err == nil {
+			_, _ = fmt.Fprintf(output, "Pinned Explorer assets verified: %s\n", directory)
+		}
+		return err
 	}
 	if *probe {
 		return similarity.VerifyOffline(ctx)

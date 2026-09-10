@@ -9,10 +9,8 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 )
@@ -41,8 +39,8 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
-		return fmt.Errorf("local similarity currently requires Apple Silicon macOS")
+	if _, err := currentRuntime(); err != nil {
+		return err
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -52,7 +50,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if assets == "" {
 		assets = defaultAssets(executable)
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/sandbox-exec", "-p", "(version 1) (allow default) (deny network*)", executable)
+	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	input, err := cmd.StdinPipe()
 	if err != nil {
@@ -176,6 +174,10 @@ func WorkerMain() bool {
 		return false
 	}
 	_ = os.Unsetenv(workerEnvironment)
+	if err := isolateWorker(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var req request

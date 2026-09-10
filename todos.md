@@ -6,12 +6,20 @@
 
 #### New Features
 
+- **Explorer setup on Linux.** The shared installer now selects a pinned Linux
+  x86-64 runtime, reports the correct 383 MB download, and retains its licenses.
+  Worker-only seccomp denial needs no root privileges or distro helper. Real
+  installation, offline inference and UI lifecycle tests pass on Ubuntu;
+  offline inference also passes on Debian 12 as an unprivileged user without
+  networking. A Debian-built executable has a GLIBC_2.34 baseline. See the
+  [implementation record](finished_refactorings/2026-09-10-explorer-ubuntu-setup.md).
+
 - **First-use Explorer setup.** Trane introduces local similarity analysis.
   An explicit Download action installs and verifies the model/runtime, with
   progress, cancellation and retry. Pictures stay local; there is no analytics
   or feedback collection. Help, About and setup link to GitHub Discussions,
   and the privacy policy explains the public asset downloads. Explorer currently
-  supports Apple Silicon Macs. The introduction fills the window and uses
+  supports Apple Silicon Macs and x86-64 Linux. The introduction fills the window and uses
   verified transparent Trane artwork. Setup, offline inference, packaging and
   the canonical verification gate pass; see the
   [completed release setup plan](finished_refactorings/2026-09-10-explorer-release-setup.md).
@@ -194,10 +202,18 @@ canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ## TODO
 
-### Explorer on Linux and Windows
+### Comparison test deadline under build contention
 
-Regular-release preparation adds first-use setup on the qualified Apple Silicon
-Mac path. Other platforms still need pinned native runtime packages and notices,
+The Ubuntu full race run on 2026-09-10 timed out in
+`TestCompareSettle_DrainsVectorReplacementBeforeWaitingForObsoleteTiles`
+while another distro build ran. Its one-second Settle deadline expired; an
+isolated native and exact Ubuntu Docker race reruns passed. Review the fixture's deadline/load sensitivity;
+the Explorer change does not modify comparison code.
+
+### Explorer on Linux ARM and Windows
+
+First-use setup and offline inference now support Apple Silicon macOS and
+glibc-based x86-64 Linux. Linux ARM and Windows still need pinned runtime packages and notices,
 OS network-denial launchers, cancellable worker-control readers, and native
 inference/lifecycle qualification on their supported architectures. The common
 model, grouping, map and cache code is shared; passing a cross-build alone does

@@ -1,6 +1,8 @@
 # Local explorer engine experiment
 
-These commands evaluate the shared local engine on Apple Silicon macOS.
+Setup and production worker/UI qualification support Apple Silicon macOS and
+x86-64 Linux. The original smoke and full-library evidence commands below remain
+macOS-only.
 Smoke mode processes a bounded corpus; library mode opens the native viewer
 for the complete supplied collection. Technical collection alone does not qualify
 the intended 50,000-image trial. The source images, thumbnails, vectors, manifests and
@@ -15,11 +17,34 @@ make explorer-evaluate TRIAL=smoke
 ```
 
 Setup downloads a public 372 MB float32 SigLIP 2 vision model, its processor
-configuration, and the approximately 42 MB ONNX Runtime archive. Published
+configuration, and the ONNX Runtime archive (11 MB on Linux, 42 MB on macOS). Published
 model/archive SHA-256 values are checked before use/extraction; extracted
 runtime and processor hashes are checked too. Nothing is installed globally.
-The assets are pinned to the revision and checksums in `setup.sh` and
-`internal/similarity/assets.sha256`. Upstream native runtime license files remain in the extracted archive.
+The shared installer selects pinned platform archives in `internal/similarity/assets.go`;
+extracted files are checked against `internal/similarity/assets.sha256`. Upstream native runtime license files remain in the extracted archive.
+
+On x86-64 Linux:
+
+```sh
+make explorer-setup
+make explorer-install-test
+make explorer-ui-test
+make build
+```
+
+The native runtime needs glibc 2.28+ and libstdc++ providing GLIBCXX_3.4.22;
+the kernel must allow seccomp filters. This is independent of distro/package
+manager and honors the normal XDG user cache directory for in-app installation.
+Alpine/musl and Linux ARM are not qualified. A binary built with `make build`
+uses the host's C library baseline; for older distros, build through the Makefile
+in a container with an older glibc and inspect the binary's required GLIBC symbols.
+The pinned fyne-cross packaging image has its own, potentially newer, baseline.
+Runtime requirements do not replace the viewer's OpenGL/window-system requirements.
+The 2026-09-10 qualification used Ubuntu 24.04 and Debian 12, including an
+unprivileged Debian worker with networking disabled and read-only assets. The
+Debian-built `bin/linux-portable/picfetch` requires GLIBC_2.34 (the native Ubuntu
+build requires GLIBC_2.38). Build details and retained local evidence are in
+[the implementation record](../../finished_refactorings/2026-09-10-explorer-ubuntu-setup.md).
 
 Defaults:
 
@@ -36,7 +61,10 @@ the isolated native viewer and processes the complete supplied folder; see
 "Isolated native collection" below.
 
 The native runtime's full telemetry opt-out is set before its library is loaded.
-The worker uses `sandbox-exec` with `(deny network*)`. It verifies OS permission
+The macOS worker uses `sandbox-exec` with `(deny network*)`; the Linux worker
+installs a seccomp filter on all threads, denying sockets and io_uring before
+reading requests. No root access, package manager, or namespace helper is needed.
+It verifies OS permission
 denial of TCP connection and empty UDP send attempts to a documentation address
 before reading library contents. Network outages, timeouts and offline flags do
 not satisfy the check. The Go build and public-asset setup happen separately
@@ -160,7 +188,7 @@ Leaving releases map image resources; reopening rebuilds from saved favorite
 representations where available. Replaced map revisions release their old image
 sources immediately instead of waiting for Fyne renderer-cache expiry.
 
-`make explorer-ui-test` requires the pinned assets on this Apple Silicon Mac.
+`make explorer-ui-test` requires the pinned assets on a supported Mac or Linux host.
 It runs the ordinary UI acceptance scenarios plus real worker inference, denied
 network access, missing-source accounting, and cancellation. Default assets
 are `similarity-assets` beside the executable or the developer scratch assets
