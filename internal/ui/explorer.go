@@ -61,9 +61,10 @@ func (explorerQueue) Do(f func()) { fyne.Do(f) }
 func (explorerQueue) Drain() bool { return false }
 
 func (v *viewer) showExplorer() {
-	if v.stopping || v.comparisonActive() || v.FileCount() == 0 || !v.yieldCopySelection() {
+	if v.stopping || v.comparisonActive() || v.explorerMapActive() && !v.explorerCanRetry() || v.FileCount() == 0 || !v.yieldCopySelection() {
 		return
 	}
+	defer v.syncMenus()
 	if !v.explorer.introSeen || !v.explorer.assetsReady && v.explorerAnalyze == nil {
 		v.prepareExplorer()
 		return
@@ -78,7 +79,6 @@ func (v *viewer) showExplorer() {
 	v.explorer.maximized = true
 	v.explorer.surface.Show()
 	v.ForceRepaint()
-	v.syncMenus()
 	if v.dupes.HideDuplicates() {
 		v.explorer.controls = nil
 		token := v.explorer.lifecycle.begin()
@@ -124,6 +124,7 @@ func (v *viewer) beginExplorerAnalysis() {
 	v.sendSimilarityControl(false)
 	v.explorer.surface.UpdateState(false, false)
 	controls := v.explorer.controls
+	v.syncMenus()
 	analyze := v.explorerAnalyze
 	if analyze == nil {
 		client := v.explorer.client
@@ -231,6 +232,7 @@ func (v *viewer) beginExplorerAnalysis() {
 				fyne.LogError("visual similarity analysis failed", displayErr)
 				v.explorer.surface.Status(lang.L("Analysis failed. Open the explorer to retry."))
 			}
+			v.syncMenus()
 		})
 	})
 }
@@ -296,6 +298,9 @@ func (v *viewer) LeaveSimilarityMap() {
 	v.closeExplorer()
 	v.grid.Close()
 	v.syncMenus()
+	if v.FileCount() > 0 && v.img.Image == nil {
+		v.ShowImage(v.state.index)
+	}
 }
 func (v *viewer) closeExplorer() {
 	v.retireExplorerAnalysis()
@@ -347,6 +352,9 @@ func (v *viewer) settleExplorer() {
 	}
 }
 func (v *viewer) explorerGridChanged() { v.syncMenus() }
+func (v *viewer) explorerCanRetry() bool {
+	return !v.explorer.complete && v.explorer.controls == nil && v.explorer.prepare == nil && v.explorer.setup == nil
+}
 func (v *viewer) explorerMapActive() bool {
 	return v.explorer.surface != nil && v.explorer.surface.Visible() && !v.grid.Visible()
 }

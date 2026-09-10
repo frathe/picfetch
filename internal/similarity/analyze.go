@@ -68,43 +68,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		}
 	}
 	publishMap := func(complete bool) error {
-		event.Stage = "layout"
-		if err := send(event); err != nil {
-			return err
-		}
-		if event.Successful > 0 {
-			var err error
-			stages := map[string]float64{}
-			groupStart := time.Now()
-			event.Merges, err = Group(ctx, items, stages)
-			event.Measurements.GroupingSeconds += time.Since(groupStart).Seconds()
-			event.Measurements.ReductionSeconds += stages["reduction_seconds"]
-			event.Measurements.HDBSCANSeconds += stages["hdbscan_seconds"]
-			event.Measurements.ProjectionSeconds += stages["projection_seconds"]
-			event.Measurements.HierarchySeconds += stages["hierarchy_seconds"]
-			if err != nil {
-				return err
-			}
-		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		event.Items = append([]Item(nil), items...)
-		for i := range event.Items {
-			// Inference vectors remain in the worker/cache. The viewer needs only
-			// assignments, the compact hierarchy, labels and sampled previews.
-			event.Items[i].Embedding = nil
-		}
-		event.Complete = complete
-		event.Stage = "encoding"
-		if complete {
-			event.Stage = "complete"
-		}
-		event.Measurements.Publications++
-		err := send(event)
-		event.Items = nil
-		event.Merges = nil
-		return err
+		return publishAnalysisMap(ctx, &event, items, complete, send)
 	}
 	for _, path := range req.Paths {
 		if err := ctx.Err(); err != nil {
@@ -223,4 +187,42 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		}
 	}
 	return publishMap(true)
+}
+
+func publishAnalysisMap(ctx context.Context, event *Event, items []Item, complete bool, send func(Event) error) error {
+	event.Stage = "layout"
+	if err := send(*event); err != nil {
+		return err
+	}
+	var err error
+	stages := map[string]float64{}
+	groupStart := time.Now()
+	event.Merges, err = Group(ctx, items, stages)
+	event.Measurements.GroupingSeconds += time.Since(groupStart).Seconds()
+	event.Measurements.ReductionSeconds += stages["reduction_seconds"]
+	event.Measurements.HDBSCANSeconds += stages["hdbscan_seconds"]
+	event.Measurements.ProjectionSeconds += stages["projection_seconds"]
+	event.Measurements.HierarchySeconds += stages["hierarchy_seconds"]
+	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	event.Items = append([]Item(nil), items...)
+	for i := range event.Items {
+		// Inference vectors remain in the worker/cache. The viewer needs only
+		// assignments, the compact hierarchy, labels and sampled previews.
+		event.Items[i].Embedding = nil
+	}
+	event.Complete = complete
+	event.Stage = "encoding"
+	if complete {
+		event.Stage = "complete"
+	}
+	event.Measurements.Publications++
+	err = send(*event)
+	event.Items = nil
+	event.Merges = nil
+	return err
 }

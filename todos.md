@@ -1,3 +1,13 @@
+## PR 18 review follow-up (2026-09-11)
+
+- [ ] Validate and resolve Codex findings, including older unresolved threads.
+  Regression fixes cover map exit/retry, Favorites membership and cancellation,
+  cohort Escape, shortcut parity, asset cancellation and all-failed analyses,
+  Linux throughput admission, and startup/queue ownership. Qodana's unchecked
+  runtime value is included. Run changed tests locally, push, and inspect renewed Codex,
+  Qodana, CodeQL and CI reports until the current commit has no actionable findings.
+  See [review cycle](plans/2026-09-11-pr18-review-cycle.md).
+
 # PicFetch — TODOs
 
 ## Done

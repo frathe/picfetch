@@ -191,6 +191,7 @@ func (v *viewer) menuState() menus.State {
 		CanMosaic:          v.canMosaic(),
 		ComparisonActive:   v.comparisonActive(),
 		ExplorerActive:     v.explorerMapActive(),
+		ExplorerCanRetry:   v.explorerCanRetry(),
 		CohortActive:       len(v.explorer.cohort) > 0,
 	}
 }

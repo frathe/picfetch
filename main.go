@@ -15,8 +15,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/frathe/picfetch/internal/explorertrial"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/lang"
@@ -141,13 +139,10 @@ func main() {
 		update.CleanupPredecessor()
 	}
 
-	identity := appID
-	if opts.ExplorerTrial != "" {
-		if err := similarity.VerifyOffline(context.Background()); err != nil {
-			_, _ = fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		identity = explorertrial.Identity(opts.ExplorerTrial)
+	identity, err := opts.ApplicationID(context.Background(), appID)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 	application := app.NewWithID(identity)
 

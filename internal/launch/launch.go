@@ -15,6 +15,7 @@
 package launch
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -22,7 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/similarity"
 )
 
 // ErrHelp is returned by Parse when the arguments asked for the usage text
@@ -53,6 +56,18 @@ type Options struct {
 	// because it also bounds the non-recursive sibling expansion of a single
 	// opened image (filescan.Siblings).
 	MaxFiles *int
+}
+
+// ApplicationID validates trial isolation before Fyne can open preferences or
+// session storage. Ordinary launches retain the supplied stable application ID.
+func (o Options) ApplicationID(ctx context.Context, normal string) (string, error) {
+	if o.ExplorerTrial == "" {
+		return normal, nil
+	}
+	if err := similarity.VerifyOffline(ctx); err != nil {
+		return "", err
+	}
+	return explorertrial.Identity(o.ExplorerTrial), nil
 }
 
 // sortModes is every value --sort accepts, in the order the usage text lists

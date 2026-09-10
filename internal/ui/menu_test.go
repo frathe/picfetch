@@ -6,6 +6,8 @@ package ui
 import (
 	"errors"
 	"image/color"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -338,6 +340,9 @@ func TestFavoritesMenuItemOpensStoredFilesThroughViewer(t *testing.T) {
 	v := newTestViewer(t)
 	dir := t.TempDir()
 	image := uitest.TempJPEGURI(t, "favorite.jpg", 4, 4, color.White)
+	if err := os.WriteFile(filepath.Join(filepath.Dir(image.Path()), "unrelated.jpg"), uitest.EncodeJPEG(t, 4, 4, color.Black), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := favstore.Save(dir, "Trip", []fyne.URI{image}); err != nil {
 		t.Fatalf("favstore.Save: %v", err)
 	}
@@ -350,6 +355,9 @@ func TestFavoritesMenuItemOpensStoredFilesThroughViewer(t *testing.T) {
 
 	if len(v.state.files) != 1 || v.state.files[0].Path() != image.Path() {
 		t.Errorf("files = %v, want favorite image %q", v.state.files, image.Path())
+	}
+	if v.explorer.favoriteDir != filepath.Join(dir, "Trip") {
+		t.Fatal("successful favorite open did not commit its collection identity")
 	}
 }
 

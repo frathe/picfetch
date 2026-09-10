@@ -55,7 +55,10 @@ func AssetDownloadBytes() int64 {
 
 func VerifyAssets(ctx context.Context, root string) error {
 	asset, platformErr := currentRuntime()
-	library := asset.directory + "/" + asset.library
+	library := ""
+	if platformErr == nil {
+		library = asset.directory + "/" + asset.library
+	}
 	for line := range strings.SplitSeq(strings.TrimSpace(assetChecksums), "\n") {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -69,7 +72,7 @@ func VerifyAssets(ctx context.Context, root string) error {
 			return fmt.Errorf("assets: %w; run make explorer-setup", err)
 		}
 		hash := sha256.New()
-		_, err = io.Copy(hash, f)
+		_, err = io.Copy(hash, &assetReader{ctx: ctx, source: f})
 		closeErr := f.Close()
 		if err != nil {
 			return err

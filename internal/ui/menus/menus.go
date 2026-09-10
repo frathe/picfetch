@@ -66,8 +66,9 @@ type Callbacks struct {
 // A Host interface for this would need a dozen methods and would leave
 // the coupling implicit; a value makes it explicit and testable.
 type State struct {
-	ExplorerActive bool
-	CohortActive   bool
+	ExplorerActive   bool
+	ExplorerCanRetry bool
+	CohortActive     bool
 	// SortMode is the mode whose entry in the Sort order submenu is checked.
 	SortMode filesort.Mode
 	// VariantGroupSize is the duplicate-group size of the file a variant
@@ -511,7 +512,7 @@ func (m *Menus) applyComparisonIsolation(active bool) {
 
 // applyWindow greys out whichever surface is already showing.
 func (m *Menus) applyWindow(s State) {
-	m.window.explorer.Disabled = s.NoFiles || s.ComparisonActive
+	m.window.explorer.Disabled = s.NoFiles || s.ComparisonActive || s.ExplorerActive && !s.ExplorerCanRetry
 	m.window.mosaic.Disabled = !s.CanMosaic
 	m.window.viewer.Disabled = !s.GridUp && !s.SlidesActive
 	m.window.exif.Disabled = s.ExifOpen || !s.Displayed

@@ -101,7 +101,6 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	}
 
 	v.closeExplorer()
-	v.explorer.favoriteDir = favoriteDir
 	v.openChooserLifecycle.invalidate()
 	v.deletion.Cancel()
 	v.grid.Close()
@@ -112,6 +111,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	// drop gets applied.
 	merging := v.state.MergeMode() && len(v.state.files) > 0
 
+	v.invalidateSort()
 	v.invalidateLoad()
 	token, scanDone := v.scanOp.begin()
 
@@ -138,7 +138,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		}
 	}
 
-	expandSiblings := !merging && !hasDirs && len(uris) == 1 && imaging.IsSupportedImage(uris[0])
+	expandSiblings := favoriteDir == "" && !merging && !hasDirs && len(uris) == 1 && imaging.IsSupportedImage(uris[0])
 
 	scan := func(progress func(int)) (images []fyne.URI, truncated bool) {
 		if expandSiblings {
@@ -156,7 +156,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		// below, same as a folder drop.
 		images, truncated := scan(nil)
 		fyne.Do(func() {
-			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone)
+			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir)
 		})
 		return
 	}
@@ -178,7 +178,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		})
 
 		fyne.Do(func() {
-			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone)
+			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir)
 		})
 	}()
 }
@@ -192,7 +192,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 // actually ran under (handleDrop's snapshot), so the truncation toast below
 // reports it accurately even if the settings window has since changed
 // v.settings.maxScan.
-func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images []fyne.URI, truncated bool, maxScan int, scanDone func()) {
+func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images []fyne.URI, truncated bool, maxScan int, scanDone func(), favoriteDir string) {
 	defer scanDone()
 	defer token.cancelContext()
 
@@ -248,7 +248,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 	// nothing here may touch the UI once it starts. The truncation toast
 	// above raced exactly that way before this ordering was fixed. Under the
 	// real driver the fyne.Do queue serializes both orders identically.
-	v.applyScannedFiles(merging, images, uris)
+	v.applyScannedFiles(merging, images, uris, favoriteDir)
 }
 
 // applyScannedFiles merges or replaces the file set with images, then
@@ -278,7 +278,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 // onDone callback means that can't happen: whichever reorder's generation is
 // current when it finishes is the one and only writer of both fields for
 // that landing.
-func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI) {
+func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, favoriteDir string) {
 	var unsorted []fyne.URI
 	if merging {
 		// Copied rather than appended onto v.state.unsortedFiles directly - same
@@ -293,6 +293,9 @@ func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI) {
 	}
 
 	v.startSort(v.state.SortMode(), unsorted, func(ordered []fyne.URI) {
+		// Collection identity belongs to the committed file set, including
+		// when a replacement scan or its reorder is cancelled.
+		v.explorer.favoriteDir = favoriteDir
 		if !merging {
 			v.state.replaceFiles(unsorted, ordered)
 		} else {

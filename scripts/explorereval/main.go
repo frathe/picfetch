@@ -87,8 +87,8 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if err := similarity.VerifyAssets(ctx, *assets); err != nil {
 		return err
 	}
-	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
-		return fmt.Errorf("this experiment requires an Apple Silicon Mac")
+	if err := checkTrialPlatform(*trial); err != nil {
+		return err
 	}
 	config := configuration{Assets: *assets, Library: *library, Out: *out, Provider: *provider}
 	for _, path := range []*string{&config.Assets, &config.Library, &config.Out} {
@@ -119,4 +119,14 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return ctx.Err()
 	}
 	return err
+}
+
+func checkTrialPlatform(trial string) error {
+	if trial == "throughput" && similarity.SupportedPlatform() {
+		return nil
+	}
+	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
+		return fmt.Errorf("this experiment requires an Apple Silicon Mac")
+	}
+	return nil
 }

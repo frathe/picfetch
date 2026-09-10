@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -270,4 +271,17 @@ func equalStrings(got, want []string) bool {
 		}
 	}
 	return true
+}
+
+func TestApplicationID(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	identity, err := (Options{}).ApplicationID(ctx, "normal-app")
+	if err != nil || identity != "normal-app" {
+		t.Fatalf("ordinary identity=%q err=%v", identity, err)
+	}
+	identity, err = (Options{ExplorerTrial: t.TempDir()}).ApplicationID(ctx, "normal-app")
+	if err == nil || identity != "" {
+		t.Fatalf("unverified trial identity=%q err=%v", identity, err)
+	}
 }

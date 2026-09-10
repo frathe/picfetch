@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,5 +105,36 @@ func TestUnpackRuntime(t *testing.T) {
 				t.Fatalf("archive escaped staging: %v", err)
 			}
 		})
+	}
+}
+
+// Cancel after the initial admission check, when the file checksum is read.
+type checksumCancelContext struct {
+	context.Context
+	cancel context.CancelFunc
+	checks int
+}
+
+func (c *checksumCancelContext) Err() error {
+	c.checks++
+	if c.checks == 2 {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestVerifyAssetsCancellationDuringChecksum(t *testing.T) {
+	if !SupportedPlatform() {
+		t.Skip("requires supported runtime")
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "vision_model.onnx"), make([]byte, 128*1024), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	checking := &checksumCancelContext{Context: ctx, cancel: cancel}
+	if err := VerifyAssets(checking, root); !errors.Is(err, context.Canceled) {
+		t.Fatalf("checksum did not observe in-file cancellation: %v", err)
 	}
 }

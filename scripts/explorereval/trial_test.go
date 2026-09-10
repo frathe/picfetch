@@ -119,23 +119,32 @@ func TestProductionProfile(t *testing.T) {
 			}
 		}
 		bounded := filepath.Join(t.TempDir(), "bounded")
-		if err := run(ctx, []string{"-trial", "throughput", "-assets", assets, "-library", large, "-out", bounded}, io.Discard); err != nil {
-			t.Fatal(err)
+		err := run(ctx, []string{"-trial", "throughput", "-assets", assets, "-library", large, "-out", bounded}, io.Discard)
+		if err == nil || !strings.Contains(err.Error(), "no images were represented successfully") {
+			t.Fatalf("all-failed profile: %v", err)
 		}
-		data, err := os.ReadFile(filepath.Join(bounded, "profile.json"))
+		if _, err := os.Stat(filepath.Join(bounded, "profile.json")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("all-failed profile retained a success summary: %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(bounded, "events.jsonl"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := json.Unmarshal(data, &report); err != nil {
+		scanner := bufio.NewScanner(bytes.NewReader(data))
+		var last profileEvent
+		for scanner.Scan() {
+			if err := json.Unmarshal(scanner.Bytes(), &last); err != nil {
+				t.Fatal(err)
+			}
+			if last.Complete {
+				t.Fatal("all-failed profile reported completion")
+			}
+		}
+		if err := scanner.Err(); err != nil {
 			t.Fatal(err)
 		}
-		if report.Available != 513 || report.Sampled != 512 || len(report.Passes) != 2 {
-			t.Fatal("bounded profile silently admitted the full oversized collection")
-		}
-		for _, pass := range report.Passes {
-			if pass.Successful != 0 || pass.Failed != 512 || pass.Reused != 0 || pass.Measurements.InferenceAttempts != 0 {
-				t.Fatal("failed-source profile fabricated inference or lost sampled sources")
-			}
+		if last.Total != 512 || last.Successful != 0 || last.Failed != 512 || last.Measurements.InferenceAttempts != 0 {
+			t.Fatalf("failed-source profile lost its sample bound/accounting: %+v", last)
 		}
 	})
 }

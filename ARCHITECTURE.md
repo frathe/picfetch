@@ -13,8 +13,8 @@ Entry point only. `main.go` parses the command line (`launchArgs`, see
 `internal/launch`) before any side effect, dispatches the private `similarity.WorkerMain`
 subprocess mode before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
-cleanup for Store-managed builds and explicit Explorer trials, verifies OS denial
-and derives an isolated app identity for `--explorer-trial`, builds the `fyne.App`, loads embedded
+cleanup for Store-managed builds and explicit Explorer trials, asks `launch.Options.ApplicationID` to validate and select the app identity before
+building the `fyne.App`, loads embedded
 `translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
 `ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
@@ -592,13 +592,15 @@ when the user opened a single file.
 ### `internal/launch`
 
 Command-line flag parsing into the `Options` value `ui.Run` applies at startup.
+`Options.ApplicationID` owns pre-app Explorer trial offline validation and
+isolated identity selection; the ordinary app ID passes through unchanged.
 Hand-rolled rather than `flag`, so flags may appear anywhere among the paths;
 rejects an unknown flag, ignores macOS's `-psn_*`, and validates `--sort`
 against the `preferences.SortBy*` vocabulary. No Fyne import.
 
 | File | Responsibility |
 |------|----------------|
-| `launch.go` | `Options`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
+| `launch.go` | `Options`, `Options.ApplicationID`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
 
 ### `internal/filesort`
 

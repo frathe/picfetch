@@ -23,6 +23,7 @@ import (
 
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
@@ -481,6 +482,108 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			})
 		}
 	})
+	t.Run("active_menu", func(t *testing.T) {
+		v, _ := streamingExplorerEvents(t)
+		if !explorerMenu(t, v).Disabled {
+			t.Fatal("Explorer menu remains enabled during analysis")
+		}
+		revision := v.explorer.token
+		v.showExplorer()
+		if !revision.current() {
+			t.Fatal("opening the active map restarted analysis")
+		}
+	})
+	t.Run("cohort_escape_preserves_hide", func(t *testing.T) {
+		v := explorerFixture(t)
+		v.dupes.SetHideDuplicates(true)
+		v.OpenSimilarityCohort([]string{v.FileAt(0).Path(), v.FileAt(1).Path()})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if v.grid.Visible() || !v.explorerMapActive() || !v.dupes.HideDuplicates() {
+			t.Fatal("cohort Escape must return to the map and preserve duplicate hiding")
+		}
+	})
+	t.Run("favorite_shortcuts", func(t *testing.T) {
+		for _, action := range []string{"open", "manage", "add"} {
+			t.Run(action, func(t *testing.T) {
+				v := explorerFixture(t)
+				dir := t.TempDir()
+				file := uitest.TempJPEGURI(t, "favorite.jpg", 4, 4, color.White)
+				if err := favstore.Save(dir, "Trip", []fyne.URI{file}); err != nil {
+					t.Fatal(err)
+				}
+				v.favorites.SetDir(dir)
+				handler := &fyne.ShortcutHandler{}
+				wireGlobalShortcuts(handler, v)
+				key, modifier := fyne.Key1, fyne.KeyModifierShortcutDefault
+				if action == "manage" {
+					key, modifier = fyne.KeyF, fyne.KeyModifierShortcutDefault|fyne.KeyModifierShift
+				}
+				if action == "add" {
+					key, modifier = fyne.KeyF, fyne.KeyModifierAlt|fyne.KeyModifierShift
+				}
+				handler.TypedShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: modifier})
+				if action == "open" {
+					waitForScan(t, v)
+					waitForSort(t, v)
+					waitUntilLoaded(t, v)
+					if v.FileCount() != 1 || v.FileAt(0).Path() != file.Path() {
+						t.Fatal("favorite shortcut did not replace the map collection")
+					}
+				} else if v.win.Canvas().Overlays().Top() == nil {
+					t.Fatal("enabled Favorites shortcut did not open its dialog")
+				}
+			})
+		}
+	})
+	t.Run("favorite_identity_cancel", func(t *testing.T) {
+		for _, stage := range []string{"scan", "sort"} {
+			t.Run(stage, func(t *testing.T) {
+				v := openGridWith(t, "current.jpg")
+				current := v.FileAt(0)
+				v.explorer.favoriteDir = "original-favorite"
+				entered, release := make(chan struct{}), make(chan struct{})
+				var once sync.Once
+				unblock := func() { once.Do(func() { close(release) }) }
+				defer unblock()
+				var files []fyne.URI
+				if stage == "scan" {
+					files = []fyne.URI{uitest.DirectoryURI(uitest.FakeURI{FileName: "folder"}, func() ([]fyne.URI, error) {
+						close(entered)
+						<-release
+						return []fyne.URI{current}, nil
+					})}
+				} else {
+					v.state.SetSortMode(filesort.ByCaptureDate)
+					held := uitest.ReaderURI(uitest.FakeURI{FileName: "replacement.jpg", Ext: ".jpg"}, func() (io.ReadCloser, error) {
+						close(entered)
+						<-release
+						return io.NopCloser(bytes.NewReader(nil)), nil
+					})
+					files = []fyne.URI{held, current}
+				}
+				v.OpenFavorite("replacement-favorite", files)
+				select {
+				case <-entered:
+				case <-time.After(testTimeout):
+					t.Fatal("replacement did not reach held work")
+				}
+				if stage == "scan" {
+					v.cancelScan()
+				} else {
+					v.cancelSort()
+				}
+				unblock()
+				waitForScan(t, v)
+				if stage == "sort" {
+					waitForSort(t, v)
+				}
+				if v.explorer.favoriteDir != "original-favorite" || v.FileCount() != 1 || v.FileAt(0) != current {
+					t.Fatal("cancelled replacement changed the existing collection identity or files")
+				}
+			})
+		}
+	})
+
 	t.Run("trial_launch", func(t *testing.T) {
 		v := newTestViewer(t)
 		root := filepath.Join(t.TempDir(), "trial")
@@ -521,6 +624,10 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		v.LeaveSimilarityMap()
 		v.settleExplorer()
+		waitUntilLoaded(t, v)
+		if v.img.Image == nil || v.dropzone.Visible() || v.welcomeArt.Visible() {
+			t.Fatal("leaving trial map did not display the current image")
+		}
 		if err := session.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -2174,6 +2281,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 						failed = true
 					}
 				})
+				if explorerMenu(t, v).Disabled {
+					t.Fatal("failed analysis cannot be retried from its menu")
+				}
 				if !failed {
 					t.Fatal("analysis failure has no visible recovery feedback")
 				}
