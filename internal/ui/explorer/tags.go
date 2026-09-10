@@ -3,6 +3,7 @@ package explorer
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
@@ -75,10 +76,134 @@ func tagLabel(id string) string {
 		return lang.L("Screenshot")
 	case "artwork":
 		return lang.L("Artwork")
+	case "costume":
+		return lang.L("Costume")
+	case "traditional_clothing":
+		return lang.L("Traditional dress")
+	case "clothing":
+		return lang.L("Clothing")
+	case "jewelry":
+		return lang.L("Jewelry")
+	case "train":
+		return lang.L("Train")
+	case "bus":
+		return lang.L("Bus")
+	case "truck":
+		return lang.L("Truck")
+	case "tram":
+		return lang.L("Tram")
+	case "fish":
+		return lang.L("Fish")
+	case "reptile":
+		return lang.L("Reptile")
+	case "castle":
+		return lang.L("Castle")
+	case "church":
+		return lang.L("Church")
+	case "temple":
+		return lang.L("Temple")
+	case "tower":
+		return lang.L("Tower")
+	case "ruins":
+		return lang.L("Ruins")
+	case "street":
+		return lang.L("Street")
+	case "park":
+		return lang.L("Park")
+	case "garden":
+		return lang.L("Garden")
+	case "waterfall":
+		return lang.L("Waterfall")
+	case "desert":
+		return lang.L("Desert")
+	case "countryside":
+		return lang.L("Countryside")
+	case "cave":
+		return lang.L("Cave")
+	case "furniture":
+		return lang.L("Furniture")
+	case "musical_instrument":
+		return lang.L("Musical instrument")
+	case "toy":
+		return lang.L("Toy")
+	case "sculpture":
+		return lang.L("Sculpture")
+	case "painting":
+		return lang.L("Painting")
+	case "drawing":
+		return lang.L("Drawing")
+	case "camera":
+		return lang.L("Camera")
+	case "book":
+		return lang.L("Book")
+	case "sign":
+		return lang.L("Sign")
+	case "computer":
+		return lang.L("Computer")
+	case "sports":
+		return lang.L("Sports")
+	case "concert":
+		return lang.L("Concert")
+	case "festival":
+		return lang.L("Festival")
+	case "wedding":
+		return lang.L("Wedding")
+	case "dance":
+		return lang.L("Dance")
+	case "hiking":
+		return lang.L("Hiking")
+	case "camping":
+		return lang.L("Camping")
+	case "swimming":
+		return lang.L("Swimming")
+	case "skiing":
+		return lang.L("Skiing")
+	case "drink":
+		return lang.L("Drink")
+	case "fruit":
+		return lang.L("Fruit")
+	case "dessert":
+		return lang.L("Dessert")
 	case "":
 		return lang.L("Untagged")
 	}
 	return ""
+}
+
+// subjectTitle describes common content using existing tags, without another
+// inference pass. A tag must cover at least half of the distinct sources.
+func subjectTitle(items []similarity.Item) string {
+	sources := map[string]bool{}
+	counts := map[string]map[string]bool{}
+	for _, item := range items {
+		sources[item.Path] = true
+		for _, tag := range item.Tags {
+			if tag == "" || tagLabel(tag) == "" {
+				continue
+			}
+			if counts[tag] == nil {
+				counts[tag] = map[string]bool{}
+			}
+			counts[tag][item.Path] = true
+		}
+	}
+	var common []string
+	for tag, members := range counts {
+		if len(members)*2 >= len(sources) {
+			common = append(common, tag)
+		}
+	}
+	sort.Slice(common, func(i, j int) bool {
+		if left, right := len(counts[common[i]]), len(counts[common[j]]); left != right {
+			return left > right
+		}
+		return tagLabel(common[i]) < tagLabel(common[j])
+	})
+	labels := make([]string, 0, min(2, len(common)))
+	for _, tag := range common[:min(2, len(common))] {
+		labels = append(labels, tagLabel(tag))
+	}
+	return strings.Join(labels, " / ")
 }
 
 func itemTags(item similarity.Item) []string {

@@ -2155,6 +2155,70 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 	})
 
+	t.Run("granularity_rearranges", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t)
+		v.win.Resize(fyne.NewSize(1100, 700))
+		previous := v.settingsState()
+		next := previous
+		next.SimilarityAutoFit = false
+		v.ApplySettings(previous, next)
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		var items []similarity.Item
+		for i, position := range [][]float32{{-2, 0}, {-1, 1}, {1, -1}, {2, 0}} {
+			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: fmt.Sprint(i), Position: position, Preview: preview})
+		}
+		event := similarity.Event{Items: items, Successful: 4, Total: 8, Merges: []similarity.CohortMerge{
+			{Left: "0", Right: "1"}, {Left: "1", Right: "2"}, {Left: "2", Right: "3"},
+		}}
+		publish(event)
+		var slider *widget.Slider
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if s, ok := o.(*widget.Slider); ok {
+				slider = s
+			}
+		})
+		if slider == nil {
+			t.Fatal("missing granularity control")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 75, DY: -35}})
+		piles := explorerPiles(v)
+		width := piles[0].Size().Width
+		offsets := make([]fyne.Position, len(piles))
+		for i, pile := range piles {
+			offsets[i] = pile.Position().Subtract(piles[0].Position())
+		}
+		slider.SetValue(0)
+		piles = explorerPiles(v)
+		if len(piles) != 1 || piles[0].Size().Width != width {
+			t.Fatal("coarsening must retain the zoom and merge the four groups")
+		}
+		center := piles[0].Position().Add(fyne.NewPos(piles[0].Size().Width/2, piles[0].Size().Height/2))
+		viewport := v.explorer.surface.Size()
+		if math.Abs(float64(center.X-viewport.Width/2)) > .01 || math.Abs(float64(center.Y-viewport.Height/2)) > .01 {
+			t.Fatalf("single merged cohort retained an old corner instead of centering: %v", center)
+		}
+		slider.SetValue(100)
+		piles = explorerPiles(v)
+		if len(piles) != len(offsets) || piles[0].Size().Width != width {
+			t.Fatal("refining must restore all groups at the user's zoom")
+		}
+		positions := make([]fyne.Position, len(piles))
+		for i, pile := range piles {
+			positions[i] = pile.Position()
+			got := positions[i].Subtract(piles[0].Position())
+			if math.Abs(float64(got.X-offsets[i].X)) > .01 || math.Abs(float64(got.Y-offsets[i].Y)) > .01 {
+				t.Fatal("restored fine layout depends on the intervening merged layout")
+			}
+		}
+		publish(event)
+		for i, pile := range explorerPiles(v) {
+			if pile.Position() != positions[i] || pile.Size().Width != width {
+				t.Fatal("background publication rearranged the freshly chosen layout")
+			}
+		}
+	})
+
 	t.Run("keyboard", func(t *testing.T) {
 		v, publish := streamingExplorerEvents(t)
 		v.win.Resize(fyne.NewSize(1100, 700))
@@ -2377,6 +2441,120 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.ForceRepaint()
 		if v.explorer.surface.Size() != before || !slices.Equal(explorerPiles(v), piles) || v.win.Canvas().Focused() != nil {
 			t.Fatal("restoring tags changed map contents, geometry or input focus")
+		}
+	})
+
+	t.Run("expanded_tag_catalogue", func(t *testing.T) {
+		tags := []struct{ id, label string }{
+			{"costume", "Costume"},
+			{"traditional_clothing", "Traditional dress"},
+			{"clothing", "Clothing"},
+			{"jewelry", "Jewelry"},
+			{"train", "Train"},
+			{"bus", "Bus"},
+			{"truck", "Truck"},
+			{"tram", "Tram"},
+			{"fish", "Fish"},
+			{"reptile", "Reptile"},
+			{"castle", "Castle"},
+			{"church", "Church"},
+			{"temple", "Temple"},
+			{"tower", "Tower"},
+			{"ruins", "Ruins"},
+			{"street", "Street"},
+			{"park", "Park"},
+			{"garden", "Garden"},
+			{"waterfall", "Waterfall"},
+			{"desert", "Desert"},
+			{"countryside", "Countryside"},
+			{"cave", "Cave"},
+			{"furniture", "Furniture"},
+			{"musical_instrument", "Musical instrument"},
+			{"toy", "Toy"},
+			{"sculpture", "Sculpture"},
+			{"painting", "Painting"},
+			{"drawing", "Drawing"},
+			{"camera", "Camera"},
+			{"book", "Book"},
+			{"sign", "Sign"},
+			{"computer", "Computer"},
+			{"sports", "Sports"},
+			{"concert", "Concert"},
+			{"festival", "Festival"},
+			{"wedding", "Wedding"},
+			{"dance", "Dance"},
+			{"hiking", "Hiking"},
+			{"camping", "Camping"},
+			{"swimming", "Swimming"},
+			{"skiing", "Skiing"},
+			{"drink", "Drink"},
+			{"fruit", "Fruit"},
+			{"dessert", "Dessert"},
+		}
+		names := make([]string, len(tags))
+		for i := range names {
+			names[i] = fmt.Sprintf("%02d.jpg", i)
+		}
+		v, publish := streamingExplorerEvents(t, names...)
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		items := make([]similarity.Item, len(tags))
+		for i, tag := range tags {
+			items[i] = similarity.Item{Path: v.FileAt(i).Path(), Cohort: "subjects", Tags: []string{tag.id}, Preview: preview}
+		}
+		publish(similarity.Event{Items: items, Total: len(items), Successful: len(items), Complete: true})
+		for i, tag := range tags {
+			if !slices.Contains(similarity.TagIDs(), tag.id) {
+				t.Fatalf("new subject %q is missing from the model catalogue", tag.id)
+			}
+			check, number := explorerTag(t, v, tag.label, 1)
+			if !check.Checked {
+				t.Fatalf("new subject %q starts excluded", tag.label)
+			}
+			fynetest.TapAt(number, fyne.NewPos(number.MinSize().Width/2, number.MinSize().Height/2))
+			if got := explorerGridPaths(v); !slices.Equal(got, []string{v.FileAt(i).Path()}) {
+				t.Fatalf("subject %q opened the wrong sources", tag.label)
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		}
+	})
+
+	t.Run("cohort_subject_titles", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t)
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		tags := [][]string{{"forest", "mountain"}, {"forest", "mountain"}, {"forest", "cat"}, {"bird", "bird", "bird"}, nil, nil, {"unknown"}, {"forest", "mountain"}}
+		var items []similarity.Item
+		for i, group := range []string{"a", "a", "a", "b", "b", "b", "c", "d"} {
+			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: group, Tags: tags[i], Preview: preview})
+		}
+		publish(similarity.Event{Items: items, Successful: 8, Total: 8, Merges: []similarity.CohortMerge{
+			{Left: "a", Right: "b"}, {Left: "b", Right: "c"}, {Left: "c", Right: "d"},
+		}})
+		title := func(pile *explorerui.Pile) string {
+			var text string
+			explorerWalk(pile, func(o fyne.CanvasObject) {
+				if label, ok := o.(*canvas.Text); ok {
+					text = label.Text
+				}
+			})
+			return text
+		}
+		for i, want := range []string{"Forest / Mountain (3)", "3 images", "1 image", "Forest / Mountain (1)"} {
+			if got := title(explorerPiles(v)[i]); got != want {
+				t.Fatalf("cohort %d title = %q, want %q", i, got, want)
+			}
+		}
+		fynetest.Tap(explorerPiles(v)[0])
+		if got := explorerGridPaths(v); !slices.Equal(got, []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}) {
+			t.Fatal("subject title changed the cohort's membership")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if slider, ok := o.(*widget.Slider); ok {
+				slider.SetValue(0)
+			}
+		})
+		if piles := explorerPiles(v); len(piles) != 1 || title(piles[0]) != "Forest (8)" {
+			t.Fatal("merged cohort title did not reflect its new shared subjects")
 		}
 	})
 

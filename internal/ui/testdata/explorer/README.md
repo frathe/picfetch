@@ -23,3 +23,22 @@ The real offline worker must identify Cat (without Dog), Person plus Portrait,
 and Food, while leaving synthetic white/gray/black images Untagged. Fresh and
 cached representations must agree. This covers known positives, overlapping
 labels and ambiguity, not library-wide accuracy.
+
+`costume.jpg`: Carnival Costume in Trinidad, photograph by
+Jean-Marc /Jo BeLo/Jhon-John, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/).
+Downloaded unchanged; used only as a local semantic test fixture.
+
+- Source: https://upload.wikimedia.org/wikipedia/commons/6/67/Carnival_Costume_in_Trinidad.jpg
+- Attribution: https://commons.wikimedia.org/wiki/File:Carnival_Costume_in_Trinidad.jpg
+- SHA256: `36ee66a01dd0b53987fceeb3bf96d9bf750a26257aa27ad469649d3b539dcddc`
+
+`train.jpg`: Steam locomotive, photograph by Leon Brooks, released by the author
+into the public domain. Downloaded unchanged.
+
+- Source: https://upload.wikimedia.org/wikipedia/commons/0/02/Steam_locomotive_%281%29.jpg
+- Attribution: https://commons.wikimedia.org/wiki/File:Steam_locomotive_(1).jpg
+- SHA256: `b69ad9de037667004abaf26bc440e13e535fe86962b806376033d577b282b38f`
+
+The added real-model positives require Costume and Train on these two subjects
+in both fresh and cached passes. Public fixture downloads are separate from the
+network-denied image analysis; no private library content is uploaded.

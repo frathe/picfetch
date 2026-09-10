@@ -671,8 +671,9 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ### Visueller Ähnlichkeits-Explorer (lokaler Mac-Test)
 
-Der Bereich **Schlagwörter** zeigt häufige Motive und Szenen mit der Anzahl
-eindeutiger Bilder. Anfangs sind alle Kästchen aktiviert, auch **Ohne Schlagwort**.
+Der Bereich **Schlagwörter** bietet 75 Motive und Szenen mit der Anzahl
+eindeutiger Bilder, darunter Kostüm, Tracht, Zug, Burg, Wasserfall, Konzert,
+Wandern und Getränk. Angezeigt werden die in der aktuellen Karte gefundenen Begriffe. Anfangs sind alle Kästchen aktiviert, auch **Ohne Schlagwort**.
 Eine Gruppe bleibt sichtbar, sobald mindestens ein Mitglied zu einem aktiven
 Schlagwort passt. Beim Öffnen zeigt sie weiterhin alle Mitglieder. Das gilt auch
 für **Nicht zugeordnet**. Die Zahlen beziehen sich auf die gesamte aktuelle Karte
@@ -689,7 +690,12 @@ unverändert; erneutes Öffnen der Zahl verwendet die neuesten Treffer.
 
 Der Regler **Granularität** oben rechts fasst verwandte Stapel in Richtung
 **Gröber** zusammen und stellt in Richtung **Feiner** kleinere Gruppen wieder her.
-Er beginnt bei der feinsten Gruppierung. Die Änderung verwendet vorhandene
+Er beginnt bei der feinsten Gruppierung. Beim Ziehen wird die Änderung erst
+beim Loslassen angewendet; Klicks und Tastatureingaben wirken sofort. Jede
+Änderung ordnet die Stapel neu an und zentriert die ausgewählte Gruppe, oder
+die gesamte Anordnung, wenn keine Gruppe ausgewählt ist. Der Zoom bleibt
+erhalten, unter Beachtung des Mindestzooms großer Karten. Aktualisierungen
+im Hintergrund behalten bestehende Positionen weiterhin bei. Die Änderung verwendet vorhandene
 Analysedaten ohne erneutes Einlesen der Bilder. Am gröbsten Ende werden alle
 automatisch zugeordneten Gruppen verbunden; selbst erstellte Gruppen und
 **Nicht zugeordnet** bleiben separat. Ein bereits
@@ -715,7 +721,11 @@ und pausiert die Bildanalyse kurz für Gruppierung und Anordnung.
 Der Fortschritt unterscheidet erfolgreiche und fehlgeschlagene
 Bilder von der Gruppierung und Anordnung. Die Karte zeigt Gruppen als
 Stapel mit bis zu fünfzehn Beispielbildern; **Nicht zugeordnet** enthält Bilder
-ohne Gruppenzuordnung.
+ohne Gruppenzuordnung. Automatische Titel zeigen bis zu zwei erkannte Motive,
+die jeweils in mindestens der Hälfte der unterschiedlichen Bilder vorkommen.
+Sie beschreiben gemeinsame Inhalte, erklären aber nicht jeden visuellen Treffer.
+Ohne gemeinsames Schlagwort erscheint nur die Bildanzahl; selbst gewählte Namen
+haben Vorrang.
 
 Zum Erstellen einer Gruppe **Nicht zugeordnet** öffnen, mindestens zwei Bilder
 auswählen und **Analysieren** anklicken. Die Vorschau zeigt die gemeinsamen

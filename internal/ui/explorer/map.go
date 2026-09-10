@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"math"
+	"slices"
 	"sort"
 
 	"fyne.io/fyne/v2"
@@ -116,7 +117,7 @@ func New(host Host) *Map {
 			return
 		}
 		m.appliedGranularity = value
-		m.rebuild()
+		m.rebuildLayout(false)
 	}
 	granularity := container.NewVBox(widget.NewLabel(lang.L("Granularity")), container.NewBorder(nil, nil,
 		widget.NewLabel(lang.L("Broader")), widget.NewLabel(lang.L("Finer")),
@@ -165,7 +166,9 @@ func (m *Map) SetResult(items []similarity.Item, merges []similarity.CohortMerge
 	m.rebuild()
 }
 
-func (m *Map) rebuild() {
+func (m *Map) rebuild() { m.rebuildLayout(true) }
+
+func (m *Map) rebuildLayout(preservePositions bool) {
 	roots := map[string]string{}
 	var root func(string) string
 	root = func(key string) string {
@@ -230,7 +233,11 @@ func (m *Map) rebuild() {
 		members := groups[key]
 		sort.Slice(members, func(i, j int) bool { return members[i].Path < members[j].Path })
 		p := newPile(m, members)
-		if name := m.cohortNames[key]; name != "" {
+		name := m.cohortNames[key]
+		if name == "" {
+			name = subjectTitle(members)
+		}
+		if name != "" {
 			label := fmt.Sprintf(lang.L("%s (%d)"), name, len(members))
 			runes := []rune(name)
 			for len(runes) > 1 && fyne.MeasureText(label, 16, fyne.TextStyle{}).Width > 280 {
@@ -244,7 +251,12 @@ func (m *Map) rebuild() {
 	}
 	orientPiles(m.piles, m.Size())
 	m.normalizeSpacing()
-	anchorPiles(m.piles, previous)
+	if preservePositions {
+		anchorPiles(m.piles, previous)
+	} else {
+		placePiles(m.piles)
+		m.centerLayout()
+	}
 	m.zoom = max(m.minimumZoom(), m.zoom)
 	m.setTags(m.items)
 	m.filterTags()
@@ -259,6 +271,25 @@ func (m *Map) rebuild() {
 		pile.tags = nil
 	}
 	m.Refresh()
+}
+
+// Explicit granularity changes start a fresh arrangement at the current zoom.
+// Keep the selected source's group in view, or center the new arrangement.
+func (m *Map) centerLayout() {
+	m.center = fyne.Position{}
+	if len(m.piles) == 0 {
+		return
+	}
+	lo, hi := m.piles[0].world, m.piles[0].world
+	for _, pile := range m.piles {
+		if m.selectedSource != "" && slices.Contains(pile.members, m.selectedSource) {
+			m.center = pile.world
+			return
+		}
+		lo.X, lo.Y = min(lo.X, pile.world.X), min(lo.Y, pile.world.Y)
+		hi.X, hi.Y = max(hi.X, pile.world.X), max(hi.Y, pile.world.Y)
+	}
+	m.center = fyne.NewPos((lo.X+hi.X)/2, (lo.Y+hi.Y)/2)
 }
 
 func (m *Map) Fit() {

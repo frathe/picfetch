@@ -11,8 +11,8 @@
   filtered result in Grid View. Generate Image Mosaic now lives in Window.
   Plain M/S retain merge/sort, and search/dialogs keep keyboard ownership.
   Explorer Presets is beside Unassigned on the right. Native public-fixture
-  captures verify the toolbar and loaded-source Mosaic window; the full-library
-  qualification remains ticket 07. Final `make verify`, real offline UI tests,
+  captures verify the toolbar and loaded-source Mosaic window; full-library
+  qualification is complete. Final `make verify`, real offline UI tests,
   native evidence checks and `make build` pass. See [continuation evidence](.scratch/visual-similarity-explorer/evidence/task07-finalization-20260910/README.md).
 
 - **Reusable similarity presets.** Global local tag/metadata rules, explicit
@@ -29,7 +29,7 @@
   reopening; ordinary/mixed collections keep them for the current map.
   Automatic updates and granularity preserve user-defined groups. Verified with
   `make verify`, `make build`, offline integration tests and native restart QA;
-  see the [implementation record](plans/2026-09-09-visual-similarity-explorer.md#create-cohorts-from-unassigned--2026-09-10).
+  see the [implementation record](finished_refactorings/2026-09-09-visual-similarity-explorer.md#create-cohorts-from-unassigned--2026-09-10).
 
 - **Refine similarity maps without rescanning.** Collapse the tag sidebar,
   click a tag's count to browse only matching images, and use the top-right
@@ -37,7 +37,14 @@
   Arrow keys highlight stacks in the chosen direction; Enter opens the active
   stack and +/- zoom. Open grids keep their captured members during updates.
 
-- **Filter similarity maps by semantic tags.** A local 31-tag catalogue labels
+- **More useful map refinements.** Completed granularity changes rearrange
+  cohorts while preserving zoom; background publications retain their anchors.
+  Cohort titles summarize up to two subjects shared by at least half the images,
+  with explicit names taking precedence. The expanded 75-tag catalogue includes
+  Costume, Train, festivals, activities, landmarks, objects and food/drink.
+  Actual-model cold/warm tests and the canonical verification gate pass.
+
+- **Filter similarity maps by semantic tags.** A local 75-tag catalogue labels
   subjects and scenes from fresh or saved image representations. The tag panel
   starts fully selected, includes Untagged, and provides All tags/Clear tags.
   Counts show unique images across the complete map; OR filtering preserves
@@ -179,6 +186,12 @@ full-library scan throughput remains later work.
 
 ### Visual similarity explorer proof of concept
 
+**Complete: tickets 01–07.** The final 50,655-source trial, fully cached reopen,
+recovery, memory and human acceptance checks pass. No open tasks remain in this
+milestone. See the [final qualification report](.scratch/visual-similarity-explorer/evidence/full-library-qualification-20260910/completion.md).
+The development observations below are historical; this status supersedes their
+then-pending qualification work.
+
 Implement a local, offline content-similarity map to trial with
 roughly 50,000 library images, with sampled cohort piles opening in Grid View.
 The [specification](.scratch/visual-similarity-explorer/spec.md) captures the
@@ -194,7 +207,7 @@ All 446 demo images processed successfully in 90.638 seconds, producing
 36 cohorts and 90 unassigned images. Real-model tests and `make verify` pass.
 The [local report](.scratch/visual-similarity-explorer/evidence/smoke-TZppbI/result/review.html)
 was accepted by the user (“it looks promising. yes continue”). The
-[execution plan](plans/2026-09-09-visual-similarity-explorer.md) records TDD
+[execution plan](finished_refactorings/2026-09-09-visual-similarity-explorer.md) records TDD
 slices and measured evidence. The [trial contract](.scratch/visual-similarity-explorer/decisions.md)
 and [protocol](.scratch/visual-similarity-explorer/evaluation-protocol.md) retain
 accepted choices. Persistent analysis is included in the later ticket sequence.
@@ -319,62 +332,24 @@ These measurements overlapped verification. Final `make explorer-ui-test`,
 Ronin confirmed his native testing and explicitly authorized closure on
 2026-09-10; task 05 is complete.
 
-Tickets 01-06 are complete. The only open milestone ticket is 07's integrated
-full-library qualification. It includes
-live progressive/frozen browsing and
-recovery/cache trials at library scale; representative usability of the 50% zoom
-floor above 100 piles; representative event-to-visible paint measurements; final
-full-library verification of post-close memory reclamation and the remaining
-integrated qualification. Ronin has
-accepted completed-map responsiveness on the 50,655-input run. The direct
-desktop-control bridge failed, so precise physical-input timing remains
-unmeasured. Public-fixture replay evidence remains distinct from his trial.
-Ronin accepted tag matching and cohort quality in his tested experience on
-September 10; this acceptance remains recorded.
+Ticket 07 is now complete. The actual final build accounts for 50,655 sources,
+with 50,569 successes and 86 failures. Unchanged Favorite reopen reuses every
+successful representation with zero inference; the warm pass takes 322.015s,
+including 302.144s grouping. Cached five-member grid/image/map return preserves
+membership and camera. Progressive/frozen browsing, large-map zoom-floor use,
+granularity rearrangement, invalid-cache repair, cancellation and source-change
+recovery all have representative native evidence and recorded human acceptance.
 
-The September 10 finalization request revalidated the retained 50,655-input
-evidence and completed the requested shortcut/toolbar/Mosaic-menu amendments.
-The full-library root or another manual drop is still needed for a fresh scale
-trial; the current source-free records do not contain that location. Individual
-fixture tools cannot substitute for the outstanding integrated trial. No new
-full-library acceptance is inferred from the public-fixture run.
-
-The subsequent [native progressive replay](.scratch/visual-similarity-explorer/evidence/progressive-native-20260910/README.md)
-processed 600 public fixture copies with zero failures and observed all 20
-publications. A ten-image partial grid retained its exact source digest across
-a later publication; image/grid/map return preserved the camera. The first
-partial map was observed at 2.244s and visible publications at median 41.794ms
-after receipt, including capture/readback/polling overhead. Callback pan/zoom
-and these repeated-image results provide a bounded baseline; direct input and
-representative full-library qualification remain open.
-
-This increment passed `make explorer-ui-test`, `make verify` (complete Docker
-race suite), `make build` and the native trial-runner subprocess test. Ronin
-authorized another same-library comparison; the isolated profiling client and
-numeric resource observer completed successfully. His manual drop admitted
-50,655 inputs: 50,569 succeeded, 86 failed, none reused. The worker completed
-in 73m 24.702s; grouping/layout took 297.784s and UI construction 425.429ms.
-Ronin reported the rendered view was “very responsive.” Observed viewer peak
-physical footprint through 13:00:39 UTC was 2.013 GiB versus the baseline's
-9.532 GiB (78.9% lower). This supplies exact stage/count/resource evidence;
-the remaining scale trials stay open. Normal app exit subsequently passed,
-with collected evidence, exit code 0 and no worker left behind. Ronin confirmed
-the view looks much better than before. The final observed viewer footprint
-peak after browsing was 2.474 GiB, 74.0% below the baseline. See
-[full-library report](.scratch/visual-similarity-explorer/evidence/full-library-trial.md).
-
-The user then closed the list while keeping the app running. Five cohort/grid
-round trips were recorded, including a 16,389-member cohort. No worker remains;
-at 13:05 UTC the app retained 1.634 GiB physical footprint (2.779 GiB resident).
-The later sampled viewer peak was 2.474 GiB. The controlled post-close check
-now identifies and fixes retained thumbnail-cache pixels and recycled grid-cell
-images; Close Files also dismisses an open cohort grid. A 512-source native
-replay returns live Go heap to 23.0–23.9 MiB after two browse/close cycles
-(21.1 MiB baseline), with zero cached source thumbnails. Native process footprint
-remains above startup, and the original full-library observation has not been
-repeated. Keep that scale/resource qualification open. The user previously quit
-the original app normally; process exit did not prove its in-app close released
-live objects. See [controlled memory evidence](.scratch/visual-similarity-explorer/evidence/list-close-memory-20260910/README.md).
+Live Go heap falls from 1,008.14 MiB on the loaded/browsed map to 45.84 MiB after
+list closure and scavenging, against 21.12 MiB startup. Residual widget/metadata
+and native memory remain documented; RSS alone is not treated as live retention.
+The original Favorite's 50,569 valid analysis records occupy 790.30 MiB logically.
+The app and observer exit normally with complete collection and no forced stop.
+Real-engine UI/evaluator tests, the canonical `make verify` race gate and normal
+`make build` pass. The [final report](.scratch/visual-similarity-explorer/evidence/full-library-qualification-20260910/completion.md)
+retains timings, exact settings, resource/storage accounting, privacy boundaries,
+replay checks and platform/measurement limits. **Milestone tasks 01–07 are done;
+open tasks: none.** The implementation plan is archived; no commit was created.
 
 ### Full-library similarity throughput
 

@@ -278,7 +278,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 	})
 
 	t.Run("semantic_tags", func(t *testing.T) {
-		v := openGridWith(t, "a-cat.png", "b-blank.jpg", "c-portrait.png", "d-coffee.png", "e-black.jpg", "f-gray.jpg")
+		v := openGridWith(t, "a-cat.png", "b-blank.jpg", "c-portrait.png", "d-coffee.png", "e-black.jpg", "f-gray.jpg", "g-costume.jpg", "h-train.jpg")
 		cat, err := os.ReadFile("testdata/explorer/chelsea.png")
 		if err != nil {
 			t.Fatal(err)
@@ -309,6 +309,15 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		for i, name := range []string{"costume.jpg", "train.jpg"} {
+			data, err := os.ReadFile("testdata/explorer/" + name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(paths[i+6], data, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
 		favorites := t.TempDir()
 		if err := favstore.Save(favorites, "Tags", files); err != nil {
 			t.Fatal(err)
@@ -330,11 +339,11 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			if !final.OfflineVerified || final.Successful != 6 || final.Failed != 0 || final.Reused != reused {
+			if !final.OfflineVerified || final.Successful != len(paths) || final.Failed != 0 || final.Reused != reused {
 				t.Fatalf("offline labeled analysis: %+v", final)
 			}
 			m := final.Measurements
-			if m.InferenceAttempts != 6-reused || m.Publications != 1 || m.ElapsedSeconds <= 0 || m.SetupSeconds <= 0 || m.CacheSeconds <= 0 || m.TagSeconds <= 0 || m.GroupingSeconds <= 0 {
+			if m.InferenceAttempts != len(paths)-reused || m.Publications != 1 || m.ElapsedSeconds <= 0 || m.SetupSeconds <= 0 || m.CacheSeconds <= 0 || m.TagSeconds <= 0 || m.GroupingSeconds <= 0 {
 				t.Fatalf("production throughput omitted actual work (reused=%d): %+v", reused, m)
 			}
 			if reused == 0 {
@@ -356,8 +365,13 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			if tags := final.Items[2].Tags; !slices.Contains(tags, "person") || !slices.Contains(tags, "portrait") {
 				t.Fatalf("known portrait must have Person and Portrait: %v", tags)
 			}
-			if tags := final.Items[3].Tags; !slices.Contains(tags, "food") {
-				t.Fatalf("known coffee must have Food: %v", tags)
+			if tags := final.Items[3].Tags; !slices.Contains(tags, "food") || !slices.Contains(tags, "drink") {
+				t.Fatalf("known coffee must have Food and Drink: %v", tags)
+			}
+			for i, wanted := range []string{"costume", "train"} {
+				if tags := final.Items[i+6].Tags; !slices.Contains(tags, wanted) {
+					t.Fatalf("known %s must have its subject tag: %v", wanted, tags)
+				}
 			}
 			for _, i := range []int{1, 4, 5} {
 				if tags := final.Items[i].Tags; len(tags) != 0 {
@@ -370,12 +384,16 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() { _ = os.Chmod(paths[0], 0600) }()
-		run(6)
+		run(len(paths))
 		v.explorerAnalyze = client.Analyze
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		explorerTag(t, v, "Cat", 1)
 		explorerTag(t, v, "Untagged", 3)
+		explorerTag(t, v, "Costume", 1)
+		explorerTag(t, v, "Train", 1)
+		explorerTag(t, v, "Food", 1)
+		explorerTag(t, v, "Drink", 1)
 	})
 
 	t.Run("favorite_cache", func(t *testing.T) {

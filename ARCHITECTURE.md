@@ -58,7 +58,8 @@ directory handles plus file-list identity to avoid recreating removed favorites.
 the pinned native SigLIP 2 session;
 `tags.go` decodes the readable embedded `tag-vectors.json`, validates its canonical
 float32 digest against `tag-catalog.json`, and applies those text prototypes to
-fresh and reused image vectors, without a text runtime or build-time generator;
+fresh and reused image vectors against 75 fixed subjects, without a text runtime
+or build-time generator;
 `grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
 cohort identities; `hierarchy.go` orders a centroid spanning tree in grouping
 space for local granularity cuts. Repeated source paths share one assignment.
@@ -173,13 +174,17 @@ members across partial analyses. Creation reveals the new cohort and rejects
 stale/non-Unassigned sources.
 
 `tags.go` owns the localized checkbox catalogue, clickable unique-source counts
-opening captured tag-only grids, and OR filtering of intact piles/Unassigned.
+opening captured tag-only grids, OR filtering of intact piles/Unassigned, and
+cohort subject titles from up to two tags covering at least half the distinct
+sources; explicit cohort names take priority.
 The toolbar collapses/restores the sidebar. Choices survive map publications and
 cohort visits; full exit clears them. Filtering starts no background work.
 
 `Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
 stable samples of up to fifteen distinct members per `Pile`, fitted thin frames,
 Shift-scroll panning and a granularity slider cutting the supplied hierarchy.
+Slider release rearranges piles and centers the selected source or arrangement
+at the current zoom; background publications retain shared-source anchors.
 `Map.View` captures source-free camera geometry on UI for explicit trial recording.
 `keys.go` owns keyboard zoom, directional stack selection, source-bound selection
 restoration and camera reveal; Enter opens the highlighted stack.

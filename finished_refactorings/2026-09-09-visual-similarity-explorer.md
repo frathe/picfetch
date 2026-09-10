@@ -1,5 +1,124 @@
 # Visual similarity explorer implementation
 
+Status: complete and accepted — 2026-09-10. Tickets 01–07 are done.
+
+## Final full-library qualification
+
+The final retained build completed all 50,655 admitted identities (50,569
+successes, 86 failures), then reused all successful representations with zero
+inference on unchanged reopen. The cached pass took 322.015s, including 302.144s
+grouping. Progressive/frozen browsing, >100-pile floor, fresh granularity layout,
+cache repair, cancellation and source-change/replacement recovery pass. Ronin
+accepted semantic quality and final-code responsiveness. After list closure,
+live Go heap falls from 1,008.14 MiB to 45.84 MiB versus 21.12 MiB startup; the
+report retains residual widget/metadata and native-memory limits. Final native
+collection and observer exit normally, and all canonical gates pass.
+
+[Final evidence and replay commands](../.scratch/visual-similarity-explorer/evidence/full-library-qualification-20260910/completion.md).
+This closeout supersedes historical pending-work notes below. Broad platform
+runtime support and preview distribution are future release preparation, outside
+the completed trial milestone. No commit or release was published.
+
+
+## Trial feedback amendments — 2026-09-10
+
+Ronin accepted the current progressive appearance/responsiveness, suggested a
+fresh arrangement when granularity changes, then requested more useful tags
+including costume and train. Continue the running cold cache build while applying
+these amendments; qualify the final build from the retained local representations.
+
+### Q4 — Rearrange on completed granularity changes
+Owner: T0 inline. Files: `internal/ui/explorer/map.go`, existing root Explorer
+scenario, manuals/report as needed. Contract: a released slider or completed
+keyboard change recomputes pile positions from current grouping; preserve zoom
+(subject to the existing floor) and keep a useful camera focus. Ongoing slider
+drags remain deferred, and background publications remain anchored. Test at the
+accepted production viewer seam: changed grouping gets a fresh arrangement,
+subsequent identical publication preserves it, returning to a granularity is
+not dependent on intermediate grouping history, and cohort membership/zoom
+remain valid. Verify: focused `TestVisualSimilarityExplorer/granularity`, existing
+progressive and large-map cases, final canonical gate and native warm replay.
+Budget: no implementation delegates; two lead reviews.
+
+### Q5 — Broader useful semantic tags
+Owner: T0 inline. Files: existing tag catalogue/vectors/generator, localized UI
+labels, existing engine/viewer scenarios, manuals and evidence. Contract: retain
+all existing stable IDs; add costume/train and a balanced set of useful subjects.
+Generate real pinned-model text vectors, preserve conservative multi-label
+filtering and untagged behavior, and re-tag retained image representations with
+the new catalogue. Test the accepted actual-engine/evaluator and production
+viewer boundaries. Verify: focused semantic/filter/preset tests, vector checksum,
+public-fixture actual-engine regression, final canonical gate and native warm
+full-library replay. One bounded read-only scout locates regeneration assets and
+existing semantic evaluation commands while lead handles Q4. G1: file:line and
+asset/command pointers; G2: targeted shell verification; G3: zero writes; G4/G5:
+independent generation-tool breadth, not implementation/review. S/W: semantic
+lookup, not a transform. Lead owns label choices, tests, review and fixes.
+Budget: one scout (second for this continuation), two lead reviews.
+
+### Q6 — Subject hints in cohort titles
+Owner: T0 inline. Files: existing map/tag UI, root Explorer scenario, manuals.
+Ronin requested this only if inexpensive. Derive at most two recognized tags
+shared by at least half of a cohort's distinct sources; order by coverage and
+localized label. Preserve explicit custom/preset names, fall back to image count
+when subjects are unclear, and recompute names after regrouping. Titles describe
+shared content without claiming the model's exact matching explanation. No new
+inference, workers or persistence. Verify production-visible title/membership,
+ambiguous/duplicate-tag guards, existing custom-name cases and native warm UI.
+Budget: zero delegates; two lead reviews; shared final canonical gate.
+
+Q4, Q5 and Q6 feed the existing Q3 closeout gate. The cold
+trial retains its exact original binary identity; final-code warm evidence is
+reported separately. After the final gate, cancel the interim build cleanly and
+reopen the same Favorite in the updated retained client. Successful cached
+representations survive; the deliberate incomplete interim exit is cancellation
+evidence, and final collection still requires a completed full-library map. This
+operational amendment avoids repeating cold work while qualifying the final UI.
+
+### Amendment review and verification
+
+Q4's behavioral red/green guards and native 30,426-image map check pass: 2,717
+piles combine into one centered pile and expand again at the retained 0.5 zoom.
+Q5's catalogue and actual-model guards pass; the first expanded candidate's Food
+regression was fixed before the final gate. Q6's visible-title, ambiguity and
+membership guards pass, alongside the existing explicit-name scenarios.
+
+`make explorer-ui-test` passed (39.844s; 111 recorded RUN/PASS entries, no skips),
+`make explorer-test` passed (19 RUN/PASS entries, no skips), `make build` passed,
+and `make verify` exited 0. Canonical artifacts: `20260910T165748Z-0vQMNT`.
+Ronin accepted the updated native map's responsiveness: “smooth as butter!”
+Full-input recovery, cached partial cancellation, invalid-record repair, source
+save during regrouping and source replacement all pass the retained checker.
+The final completed map, fully cached unchanged run and final heap samples now
+pass the qualification checker. Normal app/observer exit completes milestone
+closure; exact measurements and retained limitations are in the final report.
+
+| Current continuation | Spawns (budget/actual) | Lead review rounds | Full suite |
+| --- | --- | --- | --- |
+| Cache/source-entry reconnaissance | 1 / 1 read-only | 1 | no |
+| Tag-generation reconnaissance | 1 / 1 read-only | 1 | no |
+| Q4/Q5/Q6 implementation and fixes | 0 / 0 | 2 | shared gate |
+| Final canonical gate | 0 / 0 | 1 | one passing run |
+| Final native qualification and closeout | 0 / 0 | 2 | reused passing gate; evidence/docs only |
+
+## Task 07 manual-drop qualification — 2026-09-10
+
+Ronin explicitly authorized opening the isolated client and will supply the files
+by drop. This resolves the earlier source-location blocker. Keep the actual
+provider and isolated, network-denied runtime. Retain an instrumented binary
+for numeric camera/publication and heap diagnostics, with no source pixels or
+paths in observations. Use current production callbacks for any replay actions.
+Human browsing/quality remains Ronin's verdict; originals must not be mutated.
+
+One bounded read-only scout may locate the current Favorite persistence and
+safe source-recovery entry points while the lead prepares the client. G1: return
+file:line entry points and risks; G2: verify with targeted source reads; G3: no
+writes; G4/G5: independent lookup avoids delaying launch and is not a review.
+S/W: semantic lookup across current entry points, no mechanical transform.
+Lead owns all implementation and review. Accepted test seams remain unchanged.
+Verification: retained metadata checker, exact process exit/resource records,
+existing final canonical gate unless production behavior changes.
+
 ## Task 07 finalization — resumed 2026-09-10
 
 Status: active; retain earlier completed-map and semantic acceptance.

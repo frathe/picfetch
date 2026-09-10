@@ -599,7 +599,10 @@ Automatic updates every 30 images are optional and off by default. One final
 map is built when scanning finishes. Updating reuses collected data and briefly
 pauses scanning while grouping and arranging it.
 Cohorts appear as piles with up to fifteen sampled members; **Unassigned**
-contains images that do not belong to a cohort.
+contains images that do not belong to a cohort. Automatic titles show up to two
+recognized subjects, each present in at least half the group's distinct images.
+They suggest common content rather than explain every visual match. Groups
+without a common tag show only their image count; names you choose take priority.
 
 To create a cohort, open **Unassigned**, select at least two images, and click
 **Analyze**. The review shows the visual tags shared by your selection. Choose
@@ -646,7 +649,9 @@ groups. Older incompatible definitions remain readable and require review and
 saving before application. A library-save or Favorite-save failure is shown;
 failed membership saves restore the prior group.
 
-The **Tags** panel lists common subjects and scenes with unique-image counts.
+The **Tags** panel offers 75 subjects and scenes with unique-image counts,
+including Costume, Traditional dress, Train, Castle, Waterfall, Concert, Hiking
+and Drink. Only tags found in the current map appear.
 All tags, including **Untagged**, start checked. Clear checkboxes to hide cohorts
 that have no member matching an active tag. A cohort stays visible if any member
 matches any checked tag; opening it still shows all its members. **Unassigned**
@@ -665,7 +670,10 @@ latest matches. Returning restores your map view.
 The **Granularity** slider at the top right combines related stacks toward
 **Broader**, and restores smaller groups toward **Finer**. It starts at the
 finest grouping. While dragging, the map updates when you release the slider;
-clicks and keyboard adjustments apply immediately. Changes use the existing
+clicks and keyboard adjustments apply immediately. Each change rearranges the
+stacks and centers the selected group, or the whole arrangement if none is
+selected. It retains your zoom, subject to the minimum zoom for large maps.
+Background map updates continue to preserve existing positions. Changes use the existing
 analysis without rescanning images. The broadest end joins the automatically
 formed groups; user-created cohorts and **Unassigned** stay separate. An already
 open grid keeps its captured members.

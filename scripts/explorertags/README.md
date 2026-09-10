@@ -1,12 +1,12 @@
 # Regenerate local semantic tag vectors
 
-The application embeds 31 fixed subject/scene text vectors as readable JSON
-(about 412 KiB of text, representing 95,232 bytes of float32 values).
+The application embeds 75 fixed subject/scene text vectors as readable JSON
+(about 997 KiB of text, representing 230,400 bytes of float32 values).
 The text model is only used for regeneration. Every fresh or reused image
 representation is compared locally with all vectors. Sigmoid scores are normalized to shares of the fixed
 catalogue's total score. A strongest share below 0.35, or strongest raw score
 below 0.00001, leaves the source Untagged. Otherwise every share of at least
-0.15 qualifies. This preserves multiple substantial matches without forcing a
+0.10 qualifies. This preserves multiple substantial matches without forcing a
 label onto an ambiguous score distribution. These are trial heuristics, not
 calibrated confidence; changing the catalogue requires reevaluation. Model output
 does not add labels outside this catalogue or infer traits for saved presets.
@@ -19,7 +19,15 @@ embedded JSON directly; ordinary builds need no generator or binary asset.
 The digest identifies the numeric values encoded as little-endian float32 in
 catalogue order, so whitespace and JSON key order do not change vector identity.
 `internal/ui/explorer/tags.go` owns localized labels; update both translations
-when changing the catalogue. Image caches retain representations, not labels.
+when changing the catalogue. Image caches retain representations, not labels, so catalogue changes reuse
+image analysis and recompute tags. Preset catalogue identity changes require
+the existing review-and-save compatibility flow before applying old definitions.
+
+The expanded catalogue includes clothing, transport, landmarks, nature, objects
+and activities. Food uses a food-or-beverages prompt so it retains coffee
+alongside the more specific Drink tag. The 0.10 secondary-share threshold
+retains overlapping subjects such as Costume and Festival; the strongest-share
+threshold remains 0.35. Neither threshold is a calibrated probability.
 
 ## Reproduce on Apple Silicon macOS
 
@@ -67,7 +75,7 @@ numeric digest and the catalogue version, and run
   these constants; it returns a projected `pooler_output` of shape `[1,768]`.
 
 The export is distributed under Apache-2.0; these generated vectors derive from
-that model. The CC0 cat fixture has separate attribution in
-`internal/ui/testdata/explorer/README.md`. Known cat, portrait, coffee and three
-blank cases guard specific labels, overlapping labels, ambiguity and cache
-reuse. They do not qualify library-wide semantic accuracy.
+that model. Public fixtures have separate attribution in
+`internal/ui/testdata/explorer/README.md`. Known cat, portrait, coffee, carnival
+costume, train and three blank cases guard specific labels, overlapping labels,
+ambiguity and cache reuse. They do not qualify library-wide semantic accuracy.
