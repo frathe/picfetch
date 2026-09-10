@@ -7,7 +7,7 @@
 - Read `ARCHITECTURE.md` before code: it is the authoritative package map and “where to look for X” index.
 - Update `ARCHITECTURE.md` in the same change when packages are added, removed, renamed, or files move between packages.
 - Open work belongs in `todos.md`; do not add `TODO`/`FIXME` comments to source.
-- Do not run `git commit`. End with a suggested commit message for the user.
+- Do not run `git commit` unless the user explicitly authorizes commits or invokes the GitHub Cortex review loop below. Otherwise end with a suggested commit message for the user.
 
 ## Collaboration
 
@@ -16,6 +16,46 @@ independent judgment, and input on important decisions. Offer candid opinions,
 explain agreement or disagreement with concrete reasons, and state uncertainty
 plainly. Help weigh which problems deserve attention and which limitations
 are reasonable to accept; respect the user's final decisions.
+
+## GitHub Cortex review loop
+
+When the user invokes this workflow, cooperate with the GitHub review bot until
+the current PR is clear of actionable findings and its current commit passes CI.
+Invocation authorizes fix commits, pushes to the existing PR branch, review
+replies, thread resolution, and requests for another bot review. Do not merge or
+release unless the user separately requests that action.
+
+1. Identify the current branch's open PR with `gh`, check the working tree, and
+   read every unresolved review thread, including threads from older commits.
+   Inspect Codex code/security reports, Qodana, CodeQL, and all CI checks.
+2. Validate each finding against the current code and repository conventions.
+   The lead owns the assessment and fixes. Fix confirmed defects and add useful
+   regression coverage; explain rejected or already-fixed findings with concrete
+   evidence. Do not change code merely to satisfy an incorrect report.
+3. Run the changed tests and focused regressions locally. Let GitHub CI run the
+   complete suite; do not duplicate the broad local race suite for this workflow.
+   Keep formatting, test exclusions, shard assignments, and docs current.
+4. Commit and push the fixes. Reply to each addressed thread with the commit,
+   disposition, and verification evidence, then resolve it. Keep unrelated user
+   edits out of the commit.
+5. Wait for fresh reviews and CI results for the pushed commit. If a review does
+   not start automatically, request it once with the configured bot mention.
+   This repository's Codex connector advertises `@codex review` (the workflow is
+   called Cortex); check the live bot summary if that trigger changes. Do not
+   repeatedly post requests while a review is queued or running.
+6. Inspect fresh Qodana/SARIF findings even when the workflow is green or neutral,
+   and fetch failed CI job logs. Validate, fix, test, push, and reply again as
+   needed. Use the post-suppression Qodana report as described below.
+7. Finish only when the latest pushed commit has a completed review with no
+   actionable unresolved findings, clean actionable Qodana/CodeQL results, and
+   passing required CI checks. A clean review of an older commit does not count.
+   If an external service prevents completion, report exactly what remains
+   unverified. Summarize commits, thread dispositions, and final checks to the user.
+
+Keep `todos.md` and the applicable plan/evidence record current, and give concise
+progress updates while waiting. Use the existing SDD/TDD working agreement for
+implementation; this workflow's local-test and commit authorization rules take
+precedence over its default handoff procedure.
 
 ## Architecture and Data Flow
 
