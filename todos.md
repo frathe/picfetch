@@ -217,6 +217,14 @@ qualification and the saved-preset choices below remain open.
 
 ### Saved similarity group presets
 
+Current-build [native readiness checks](.scratch/visual-similarity-explorer/evidence/native-qualification-20260910/README.md)
+pass: real offline/viewer suites and all 43 synthetic native replay phases.
+Live native checks with 60/600 public fixture copies also covered tag grids,
+image navigation, granularity clicks, camera return and a visible partial map;
+all 600 completed without failures. Native drag remains unverified. This does
+not close library qualification. The two preset choices below and the user's
+latest native usability verdict remain unanswered.
+
 Requested during the native explorer trial: select several Unassigned images,
 use Link to inspect shared traits, select the desired traits, name the group,
 and add it to the map. Retain named presets for future maps and provide a compact

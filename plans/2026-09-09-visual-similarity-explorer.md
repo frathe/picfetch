@@ -6,7 +6,7 @@ Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Full-quality preview resampling](#full-quality-preview-resampling--2026-09-10) and [readable tag-vector source](#readable-tag-vector-source--user-steering-during-verification) — complete and verified.
+Current increment: [Native qualification readiness](#native-qualification-readiness--2026-09-10) — current-build checks and outstanding user decisions.
 
 ## Deliverable and accepted contract
 
@@ -1690,3 +1690,65 @@ No production/test source changed after this final gate started.
 The wider plan remains active: native/library qualification and saved-preset
 trait/application choices remain open. No git commit was made and the two
 pre-existing unrelated `:memory:.ses` files remain untouched.
+
+## Native qualification readiness — 2026-09-10
+
+Resumed with `/implement use tdd and sdd`. All preceding implementation slices
+are complete at commit `2e38e31`; the remaining product work is saved presets
+and native/library qualification. Preset trait scope and future-map application
+were requested asynchronously again; elapsed time does not resolve them.
+The native trial verdict/current collection was requested alongside them.
+
+Deliverable: current-build native rendering and integration evidence, followed
+by the next accepted feature slice when its recorded choices are answered.
+Use the existing confirmed viewer/provider and actual-engine boundaries. No
+new behavior is specified merely to create another implementation increment.
+The existing synthetic native replay avoids private-pixel inspection and does
+not qualify real-library semantics or complete ticket 07.
+
+Tasks (T0): (1) inspect current processes and retain a current replay executable;
+(2) run the existing 300-source/20-pile native replay and current native viewer
+suite; (3) record actual outputs and the next unresolved decision. Verify with
+the replay's complete phase JSONL/exit status and `make explorer-ui-test`.
+No production edit or new test is planned for already implemented behavior;
+any observed regression gets its own red/green slice before a fix.
+
+Budget: one read-only scout, one lead review, no repeat full race suite unless
+production/test code changes. Scout G1-G5: bounded existing instrumentation
+search; source locations and commands as oracle; zero writes; evidence-script
+context independent of the lead's command/preset trace; context not previously
+held. S/W: adaptive reconnaissance rather than a deterministic transform.
+Review and fixes stay with T0. A newly started PicFetch process was found and
+is left untouched; historical monitor PIDs are not reused.
+
+### Qualification readiness evidence
+
+`make explorer-ui-test` passed in 28.303s with both required suites and no
+skips. The initial outer-sandbox attempt failed its native `sandbox_apply`
+prerequisite; the successful retry preserved the worker's explicit outbound
+denial. The retained native replay exited 0 with all 43 expected phases for
+300 synthetic images/20 piles. Its construction screenshot was inspected;
+no private images were inspected. Median observed pans were about 17 ms;
+overview zoom was 192 ms, including capture/readback and polling overhead.
+These measurements do not qualify real-load latency or library semantics.
+
+[Evidence and limits](../.scratch/visual-similarity-explorer/evidence/native-qualification-20260910/README.md)
+include commands, executable digest, raw logs and aggregate timings. One scout
+and one lead review were used. No production/test edit, new TDD cycle or repeat
+full race run was needed. The plan remains active: saved presets need the two
+recorded user choices, and ticket 07 still needs the native trial/evidence flow,
+the selected full collection and the user's native quality verdict. No answer
+was inferred from the asynchronous questions. No commit was made.
+
+After Ronin handed over the desktop, the current source was exercised in an
+isolated, network-denied native app with public fixture copies. The 60-source
+run verified sidebar collapse, exact 20-image tag grids, bounded image navigation,
+map return, granularity clicks and keyboard selection/zoom restoration. A
+600-source run showed a real partial map and completed 600/600 without failures;
+its final Cat grid showed 200 matches. Native drag automation did not move either
+slider or map and remains unverified. The grid opened after completion, so native
+frozen browsing during updates is still unqualified. The repeated-image fixture
+produced 480 Unassigned and provides no semantic quality verdict. The owned app
+and worker exited; public screenshots and precise limits are in the evidence.
+Only documentation changed. Saved-preset choices and real-library acceptance
+remain pending; desktop availability did not answer those product questions.

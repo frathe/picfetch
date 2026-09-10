@@ -172,8 +172,10 @@ UMAP is sensitive to input order, so these counts are benchmark evidence, not
 a guaranteed count or semantic accuracy score. Favorite representations now persist
 in each favorite’s `analysis` directory and are reused while source size/mtime
 and model/preprocessing version match. Settings can disable persistence for
-subsequent scans. Non-favorite images remain transient. Extended recovery and
-full-library qualification remain tickets 06-07. Batch
+subsequent scans. Non-favorite images remain transient. Interruption, retry and
+source-change recovery are implemented and covered by the native integration
+suite. The user's native trial verdict and full-library qualification remain
+open in tickets 06-07. Batch
 HDBSCAN is not qualified at 50k.
 
 **Hide tags**/**Show tags** collapse and restore the sidebar without changing
