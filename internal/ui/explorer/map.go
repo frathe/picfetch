@@ -123,7 +123,7 @@ func New(host Host) *Map {
 		widget.NewLabel(lang.L("Broader")), widget.NewLabel(lang.L("Finer")),
 		container.NewGridWrap(fyne.NewSize(160, m.granularity.MinSize().Height), m.granularity)))
 	toolbar = container.NewBorder(nil, nil, nil, granularity, toolbar)
-	m.overlay = container.NewStack(canvas.NewRectangle(theme.BackgroundColor()), container.NewBorder(toolbar, nil, tags, nil, m))
+	m.overlay = container.NewStack(canvas.NewRectangle(theme.Color(theme.ColorNameBackground)), container.NewBorder(toolbar, nil, tags, nil, m))
 	m.overlay.Hide()
 	return m
 }
@@ -368,7 +368,7 @@ func (m *Map) scale(factor float32, at fyne.Position) {
 	m.Refresh()
 }
 func (m *Map) CreateRenderer() fyne.WidgetRenderer {
-	return &mapRenderer{m: m, bg: canvas.NewRectangle(theme.BackgroundColor()), clip: container.NewClip(m.scene)}
+	return &mapRenderer{m: m, bg: canvas.NewRectangle(theme.Color(theme.ColorNameBackground)), clip: container.NewClip(m.scene)}
 }
 
 type mapRenderer struct {
@@ -409,7 +409,7 @@ func (r *mapRenderer) Layout(size fyne.Size) {
 }
 func (r *mapRenderer) MinSize() fyne.Size { return fyne.NewSize(400, 300) }
 func (r *mapRenderer) Refresh() {
-	r.bg.FillColor = theme.BackgroundColor()
+	r.bg.FillColor = theme.Color(theme.ColorNameBackground)
 	r.bg.Refresh()
 	r.Layout(r.m.Size())
 	canvas.Refresh(r.m)
@@ -488,9 +488,9 @@ func (p *Pile) Tapped(_ *fyne.PointEvent) {
 func (p *Pile) Dragged(e *fyne.DragEvent) { p.owner.Dragged(e) }
 func (p *Pile) DragEnd()                  {}
 func (p *Pile) Scrolled(e *fyne.ScrollEvent) {
-	copy := *e
-	copy.Position = copy.Position.Add(p.Position())
-	p.owner.Scrolled(&copy)
+	scroll := *e
+	scroll.Position = scroll.Position.Add(p.Position())
+	p.owner.Scrolled(&scroll)
 }
 func (p *Pile) CreateRenderer() fyne.WidgetRenderer {
 	objects := make([]fyne.CanvasObject, 0, 2*len(p.pictures)+2)

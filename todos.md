@@ -150,6 +150,14 @@ See the [implementation record](finished_refactorings/2026-09-09-grid-duplicate-
 
 #### Internal
 
+- **PR #18 inspection cleanup.** Correct exported comments, a redundant slice bound,
+  a shadowed builtin name and error capitalization. Scope exclusions to test
+  conversions and the intentional JPEG rounding/fallback and partial-cache
+  contracts; retain the underlying behavior. Runtime extraction selects fixed
+  trusted output names to remove CodeQL's archive-path data flow. Focused tests,
+  real model installation/offline analysis and `make verify` pass. See the
+  [inspection cleanup record](finished_refactorings/2026-09-10-pr18-qodana.md).
+
 Native Explorer trial records now link worker receipts and map application by
 event identity, record foreground map/grid/image/comparison state, and retain
 only hashes/counts of the actual grid results. Both keyboard and button map

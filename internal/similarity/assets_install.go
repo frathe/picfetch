@@ -221,8 +221,9 @@ func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
 	}
 	defer func() { _ = compressed.Close() }()
 	reader := tar.NewReader(&assetReader{ctx: ctx, source: io.LimitReader(compressed, 1<<30)})
-	prefix := "onnxruntime-osx-arm64-1.29.0/"
-	expected := map[string]bool{runtimeLibrary: false, prefix + "LICENSE": false, prefix + "ThirdPartyNotices.txt": false}
+	const prefix = "onnxruntime-osx-arm64-1.29.0/"
+	expected := [...]string{runtimeLibrary, prefix + "LICENSE", prefix + "ThirdPartyNotices.txt"}
+	seen := make(map[string]bool, len(expected))
 	var files []string
 	for {
 		header, err := reader.Next()
@@ -233,14 +234,21 @@ func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
 			return nil, err
 		}
 		// The vendor tarball prefixes its relative names with "./".
-		name := strings.TrimPrefix(header.Name, "./")
-		found, needed := expected[name]
-		if !needed {
+		member := strings.TrimPrefix(header.Name, "./")
+		name := ""
+		for _, trusted := range expected {
+			if member == trusted {
+				name = trusted
+				break
+			}
+		}
+		if name == "" {
 			continue
 		}
-		if found || header.Typeflag != tar.TypeReg || header.Size < 0 || header.Size > 100<<20 {
+		if seen[name] || header.Typeflag != tar.TypeReg || header.Size < 0 || header.Size > 100<<20 {
 			return nil, fmt.Errorf("invalid runtime archive member")
 		}
+		// Only a fixed trusted name can reach a filesystem operation.
 		target := filepath.Join(directory, name)
 		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
 			return nil, err
@@ -257,11 +265,11 @@ func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
 		if closeErr != nil {
 			return nil, closeErr
 		}
-		expected[name] = true
+		seen[name] = true
 		files = append(files, name)
 	}
-	for _, found := range expected {
-		if !found {
+	for _, name := range expected {
+		if !seen[name] {
 			return nil, fmt.Errorf("runtime archive is missing required files")
 		}
 	}

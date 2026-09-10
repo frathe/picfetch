@@ -43,7 +43,7 @@ func jpegSpans(destination, source int) []jpegSpan {
 			weights = append(weights, jpegContribution{coordinate, weight})
 			total += weight
 		}
-		spans[x] = jpegSpan{contributions: weights[start:len(weights)], inverse: 1 / total}
+		spans[x] = jpegSpan{contributions: weights[start:], inverse: 1 / total}
 	}
 	return spans
 }

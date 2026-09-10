@@ -56,7 +56,17 @@ exclude:
   # CatmullRom rounding, as specified by Go's Floating-point operators section.
   - name: GoRedundantConversion
     paths:
+      - "internal/imaging/resample.go"
       - "internal/mosaic/resample.go"
+      # Explicit types in fixtures are intentional test scaffolding.
+      - "internal/imaging/orientation_test.go"
+      - "internal/ui/mosaic_test.go"
+  # The JPEG fast path handles four subsampling ratios; other ratios use the
+  # generic scaler below. TestScaleForExport_PreservesJPEGFilterPixels covers
+  # all six ratios and verifies exact CatmullRom output.
+  - name: GoSwitchMissingCasesForIotaConsts
+    paths:
+      - "internal/imaging/thumbnail.go"
   # Product names (Microsoft/Store/GitHub) keep their capitalization in CLI
   # diagnostics; these files do not report sentence-capitalization defects.
   - name: GoErrorStringFormat
@@ -74,6 +84,9 @@ exclude:
   - name: GoDfaErrorMayBeNotNil
     paths:
       - "internal/imaging/mutations_test.go"
+      # openAnalysisCache always returns an initialized, possibly partial map.
+      # Analysis reports its advisory error and still uses/closes that cache.
+      - "internal/similarity/analyze.go"
   # Local fixture names are intentional in these tests.
   - name: GoImportUsedAsName
     paths:

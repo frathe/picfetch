@@ -146,7 +146,7 @@ func (s *CohortStore) Save(ctx context.Context, state CohortState) error {
 		}
 	}
 	if !s.Contains(state.Unassigned) {
-		return errors.New("Unassigned images are outside the favorite")
+		return errors.New("unassigned images are outside the favorite")
 	}
 	name := ".cohorts-" + rand.Text() + ".tmp"
 	file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)

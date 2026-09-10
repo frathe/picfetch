@@ -18,7 +18,8 @@ import (
 	"github.com/frathe/picfetch/internal/favstore"
 )
 
-// Change this when the representation or oriented pixel preprocessing changes.
+// RepresentationVersion identifies the cached representation format. Change it
+// when the representation or oriented pixel preprocessing changes.
 const RepresentationVersion = ModelRevision + "/oriented-bilinear-224-v1"
 
 type cachedRepresentation struct {
