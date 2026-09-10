@@ -721,6 +721,11 @@ Zum Zoomen ohne Shift scrollen oder `+`/`-` verwenden.
 `Left`, `Right`, `Up` und `Down` wählen einen Stapel in der jeweiligen Richtung.
 Der aktive Stapel wird umrandet und im sichtbaren Bereich gehalten;
 `Enter` öffnet sein Raster.
+Der Regler **Granularität** oben rechts verbindet verwandte Gruppen in Richtung
+**Gröber** und stellt kleinere Gruppen in Richtung **Feiner** wieder her.
+Beim Ziehen wird die Karte erst nach dem Loslassen aktualisiert; Klicks und
+Tastaturänderungen gelten sofort. Die vorhandene Analyse wird weiterverwendet,
+ohne Bilder erneut einzulesen. **Nicht zugeordnet** bleibt getrennt.
 **Karte einpassen** setzt die Ansicht zurück. Neue Ergebnisse zoomen bei Bedarf
 automatisch heraus, damit neue Stapel sichtbar werden. Bei mehr als 100 Stapeln
 gilt ein Mindestzoom von 50 %, auch für **Karte einpassen** und das automatische

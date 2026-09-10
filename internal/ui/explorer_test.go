@@ -522,7 +522,20 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if len(explorerPiles(v)) != 3 {
 			t.Fatal("default granularity changed the original cohorts")
 		}
-		slider.SetValue(50)
+		for _, x := range []float32{0, slider.Size().Width, slider.Size().Width / 2} {
+			slider.Dragged(&fyne.DragEvent{Position: fyne.NewPos(x, slider.Size().Height/2)})
+			if len(explorerPiles(v)) != 3 {
+				t.Fatal("dragging granularity rebuilt the map before release")
+			}
+		}
+		if slider.Value != 50 {
+			t.Fatal("granularity thumb did not follow the drag")
+		}
+		publish(similarity.Event{Items: items, Merges: merges, Successful: 6, Total: 8})
+		if len(explorerPiles(v)) != 3 || slider.Value != 50 {
+			t.Fatal("analysis publication applied unfinished granularity or moved the thumb")
+		}
+		slider.DragEnd()
 		if len(explorerPiles(v)) != 2 || v.win.Canvas().Focused() != nil {
 			t.Fatal("broader granularity did not combine the nearest cohorts or release focus")
 		}
@@ -541,7 +554,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("publication or grid return reset granularity")
 		}
 		explorerTag(t, v, "Bird", 7)
-		slider.SetValue(0)
+		fynetest.TapAt(slider, fyne.NewPos(0, slider.Size().Height/2))
 		if len(explorerPiles(v)) != 1 {
 			t.Fatal("broadest granularity did not join the assigned groups")
 		}
@@ -550,9 +563,24 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("granularity moved unassigned images into a cohort")
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
-		slider.SetValue(100)
+		slider.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+		if len(explorerPiles(v)) != 2 {
+			t.Fatal("keyboard granularity did not apply its completed change")
+		}
+		fynetest.TapAt(slider, fyne.NewPos(slider.Size().Width, slider.Size().Height/2))
 		if len(explorerPiles(v)) != 3 {
 			t.Fatal("fine granularity did not restore the original groups")
+		}
+		fynetest.TapAt(slider, fyne.NewPos(0, slider.Size().Height/2))
+		v.LeaveSimilarityMap()
+		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			emit(similarity.Event{Items: items, Merges: merges, Successful: 7, Total: 8, Complete: true})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		if len(explorerPiles(v)) != 3 || slider.Value != 100 {
+			t.Fatal("reopening the explorer retained the previous applied granularity")
 		}
 	})
 

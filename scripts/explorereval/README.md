@@ -181,7 +181,9 @@ its choices. Each tag's count opens only its matching images in Grid View,
 including matching Unassigned images. **Granularity** at the top right joins
 related cohorts toward **Broader** or restores original cohorts toward **Finer**.
 The worker supplies a centroid hierarchy in the 15D grouping space; changing
-the slider cuts it locally without rescanning. Unassigned stays separate, and
+the slider cuts it locally without rescanning. Dragging applies the cut when
+the slider is released; clicks and keyboard adjustments apply immediately.
+New analysis results use the last released value during a drag. Unassigned stays separate, and
 open grids retain their captured membership. Arrow keys highlight a directional
 neighbor and reveal it; Enter opens the active stack, and +/- zoom.
 

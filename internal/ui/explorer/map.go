@@ -34,24 +34,25 @@ type Host interface {
 // Map is a pannable, zoomable collection of cohort piles.
 type Map struct {
 	widget.BaseWidget
-	host           Host
-	overlay        *fyne.Container
-	status         *widget.Label
-	unassigned     *widget.Button
-	update         *widget.Button
-	automatic      *widget.Check
-	scene          *fyne.Container
-	piles          []*Pile
-	center         fyne.Position
-	zoom           float32
-	tagRows        *fyne.Container
-	tagChecks      []*widget.Check
-	tagChoices     map[string]bool
-	unassignedTags []string
-	selectedSource string
-	granularity    *widget.Slider
-	items          []similarity.Item
-	merges         []similarity.CohortMerge
+	host               Host
+	overlay            *fyne.Container
+	status             *widget.Label
+	unassigned         *widget.Button
+	update             *widget.Button
+	automatic          *widget.Check
+	scene              *fyne.Container
+	piles              []*Pile
+	center             fyne.Position
+	zoom               float32
+	tagRows            *fyne.Container
+	tagChecks          []*widget.Check
+	tagChoices         map[string]bool
+	unassignedTags     []string
+	selectedSource     string
+	granularity        *widget.Slider
+	appliedGranularity float64
+	items              []similarity.Item
+	merges             []similarity.CohortMerge
 }
 
 func New(host Host) *Map {
@@ -88,9 +89,13 @@ func New(host Host) *Map {
 	toolbar = container.NewVBox(toolbar, container.NewHBox(toggleTags, m.update, m.automatic))
 	m.granularity = widget.NewSlider(0, 100)
 	m.granularity.Step = 1
-	m.granularity.Value = 100
-	m.granularity.OnChanged = func(_ float64) {
+	m.granularity.Value, m.appliedGranularity = 100, 100
+	m.granularity.OnChangeEnded = func(value float64) {
 		m.host.Unfocus()
+		if value == m.appliedGranularity {
+			return
+		}
+		m.appliedGranularity = value
 		m.rebuild()
 	}
 	granularity := container.NewVBox(widget.NewLabel(lang.L("Granularity")), container.NewBorder(nil, nil,
@@ -130,7 +135,7 @@ func (m *Map) SetResult(items []similarity.Item, merges []similarity.CohortMerge
 	if items == nil {
 		m.tagChoices = nil
 		m.selectedSource = ""
-		m.granularity.Value = 100
+		m.granularity.Value, m.appliedGranularity = 100, 100
 		m.granularity.Refresh()
 	}
 	m.items, m.merges = items, merges
@@ -148,7 +153,7 @@ func (m *Map) rebuild() {
 		roots[key] = root(parent)
 		return roots[key]
 	}
-	limit := int(float64(len(m.merges)) * (100 - m.granularity.Value) / 100)
+	limit := int(float64(len(m.merges)) * (100 - m.appliedGranularity) / 100)
 	for _, merge := range m.merges[:limit] {
 		left, right := root(merge.Left), root(merge.Right)
 		if right < left {

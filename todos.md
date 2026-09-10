@@ -44,6 +44,11 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+- **Apply map Granularity when the slider is released.** Dragging moves the
+  thumb without repeatedly rebuilding the map. Incoming results retain the
+  last applied grouping until release; clicks and keyboard adjustments still
+  apply immediately.
+
 - **Retain decoded similarity previews near the viewport.** Keep every sample
   and its compressed source, prepare nearby piles before they enter the screen,
   and release distant decoded pixels/textures. A wider release margin avoids

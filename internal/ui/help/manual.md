@@ -618,8 +618,9 @@ latest matches. Returning restores your map view.
 
 The **Granularity** slider at the top right combines related stacks toward
 **Broader**, and restores smaller groups toward **Finer**. It starts at the
-finest grouping. Changes use the existing analysis immediately; they do not
-rescan images. The broadest end joins all assigned groups, while **Unassigned**
+finest grouping. While dragging, the map updates when you release the slider;
+clicks and keyboard adjustments apply immediately. Changes use the existing
+analysis without rescanning images. The broadest end joins all assigned groups, while **Unassigned**
 stays separate. An already open grid keeps its captured members.
 
 Filtering preserves the map position and zoom. New map results retain your

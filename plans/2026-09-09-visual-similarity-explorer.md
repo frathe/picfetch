@@ -6,7 +6,7 @@ Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Production throughput measurement](#production-throughput-measurement--resumed) — complete and verified; real worker stage/count instrumentation, bounded cold/warm command and 446-image evidence retained.
+Current increment: [Granularity release](#granularity-release--2026-09-10) — complete and verified; dragging applies on release, with stable progressive updates and preserved click/keyboard behavior.
 
 ## Deliverable and accepted contract
 
@@ -1384,3 +1384,53 @@ candidate is a measured investigation of source decoding and preview generation
 with identical quality, followed by the existing native usability/large-library
 qualification work. Saved presets still need the two explicitly pending product
 choices. No git commit was made. Both unrelated `:memory:.ses` files are untouched.
+
+## Granularity release — 2026-09-10
+
+Status: complete and verified.
+Request: only rebuild the map when the Granularity slider is released, or debounce.
+Route: Standard increment (two code/test files plus existing manuals and tracking).
+Owner: T0 inline; no spawns, one lead review, one final race gate.
+Seam: previously accepted viewer/provider boundary, real Slider drag/release,
+click and keyboard input, map/cohort contents and progressive event delivery.
+
+Acceptance: dragging changes the thumb without changing map grouping; release
+applies the chosen grouping once. Publications during the gesture retain the
+last applied grouping. Clicks/keyboard still apply, Unassigned stays separate,
+open cohorts keep their captured members, and reopening resets to finest.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$' -count=1 -v`;
+`make explorer-ui-test`; `make verify`; `make build`.
+Files: internal/ui/explorer/map.go; existing explorer_test.go; English/German
+manuals; command README; this plan; todos.md. No new test file/root runnable,
+translation key, worker, timer, package or public interface.
+
+RED: `dragging granularity rebuilt the map before release` (0.18s). The cause
+was the synchronous OnChanged rebuild. The pinned Fyne slider's OnChangeEnded
+fires on release, taps, SetValue and keyboard input, so debounce is unnecessary.
+The focused guard passed after changing the callback (0.22s).
+
+Second RED: `analysis publication applied unfinished granularity or moved the
+thumb` (0.20s). Retain the applied granularity separately from the live thumb
+and use it for every map rebuild; commit it at change end and reset it on exit.
+The focused scenario passed (0.23s), including click/keyboard and cohort return.
+The feedback loop directly reproduced the requested behavior; broad hypothesis
+fan-out, instrumentation and bisection were unnecessary for this callback fault.
+
+`make explorer-ui-test` passed on the final code (24.049s), including the
+release/publication/click/keyboard/reopen scenario and both existing minimum-zoom
+scenarios. A Go overlay deliberately omitted the applied-value reset; the same
+scenario failed with `reopening the explorer retained the previous applied
+granularity`. The overlay did not modify production files. Native build passed
+and refreshed `bin/picfetch`. `make verify` exited 0: formatting/TUF/Qodana,
+vet/build, exact 680-runnable inventory and all four Linux Docker race partitions
+passed. The full explorer scenario passed under race detection in 103.400s.
+Raw artifacts: `.scratch/race-runs/20260910T052304Z-2HepFT`.
+
+Native/gate/build logs, source digests and the negative overlay are retained in
+`.scratch/visual-similarity-explorer/evidence/granularity-release/`.
+All 38 local documentation links and whitespace checks passed. Lead review
+found no outstanding findings. Cost: zero spawns, one lead review, one full race
+gate. No manual native GUI trial is claimed; the agreed production UI/provider
+seam exercises actual slider input methods and rendered cohort membership.
+Only plan/evidence closeout changed after verification. No git commit was made;
+the unrelated `:memory:.ses` files remain untouched.
