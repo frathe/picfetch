@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"os"
 	"path/filepath"
 
 	ort "github.com/yalue/onnxruntime_go"
@@ -19,6 +20,11 @@ type Encoder struct {
 }
 
 func NewEncoder(assets, provider string) (_ *Encoder, err error) {
+	// The API opt-out is too late for initialization telemetry in official
+	// native builds. Disable the uploader before loading the runtime library.
+	if err := os.Setenv("ORT_DISABLE_TELEMETRY", "1"); err != nil {
+		return nil, fmt.Errorf("disable runtime telemetry: %w", err)
+	}
 	ort.SetSharedLibraryPath(filepath.Join(assets, runtimeLibrary))
 	if err := ort.InitializeEnvironment(); err != nil {
 		return nil, err

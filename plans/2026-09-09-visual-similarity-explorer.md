@@ -1,5 +1,117 @@
 # Visual similarity explorer implementation
 
+## Task 04 finalization — resumed 2026-09-10
+
+Status: complete and verified; native usability accepted by Ronin on 2026-09-10.
+Standard increment at the already confirmed viewer/provider
+and actual offline-engine boundaries. Deliver progressive browsing with the
+departure camera preserved when automatic fitting is enabled, current grouping
+on reopen, and refreshed task-04 acceptance evidence. Ronin supplied the native
+usability verdict and authorized closure: “Okay it looks good you can mark it
+as done.” Full-library qualification remains owned by ticket 07.
+
+### Task P1 — Preserve the camera behind a browsed cohort
+Owner: T0 inline
+Files: existing `internal/ui/explorer_test.go`, `internal/ui/explorer.go`
+Depends: implemented task 04
+Contract: partial/final publications may update the covered map but automatic
+fitting must not move its camera during grid/image browsing. Existing minimum
+zoom policy still applies; foreground discovery retains automatic fitting.
+Test: with automatic fitting enabled, browse a partial cohort in grid and image
+views while further piles arrive; return at the departure camera with frozen
+members, then reopen using current membership.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^(progressive_browse_camera|navigation|open_cohort|progressive_exploration|non_overlapping_cohorts|discovery_expands_view|auto_fit_off)$' -count=1 -v`
+Budget: one read-only scout; two lead review rounds; no full suite while iterating
+
+### Task P2 — Native evidence and closeout
+Owner: T0 inline
+Files: retained evidence, this plan, ticket 04, ticket breakdown, `todos.md`,
+English/German manuals (automatic fitting during cohort browsing)
+Depends: P1
+Contract: evidence distinguishes native smoke behavior, Ronin's verdict, and
+remaining full-library qualification. No inferred human acceptance.
+Test: negatively verify P1; actual offline-engine/UI suite; refreshed native
+replay with automatic fitting enabled and browsing before completion.
+Verify: focused P1 command; `make explorer-ui-test`; native evidence checker;
+`make verify`; `make build`; `git diff --check`
+Budget: two lead review rounds; one complete canonical race suite
+
+Graph: P1 -> P2; read-only tooling scout alongside P1. Scout G1-G5: bounded
+replay/tool lookup; shell-verifiable source pointers; no writes; independent
+tooling breadth; source not already read by lead. S/W: adaptive lookup, no
+scripted transformation or implementation supplied. Lead owns tests, changes,
+review, fixes and final gate.
+
+### P3 — Disable native telemetry (Ronin's explicit steering)
+Owner: T0 inline
+Files: `internal/similarity/encoder.go`, `scripts/explorertags/main.go`, existing
+`scripts/explorereval/trial_test.go`, evidence and handoff records
+Contract: set ONNX Runtime's full process opt-out before loading/initializing
+the native library, even when the inherited environment enables telemetry.
+Preserve the existing OS network denial. The tag generator follows the same
+initialization policy; no model, representation or grouping changes.
+Test: the real runtime's first native environment lookup must observe the
+opt-out. A local C environment observer terminates a noncompliant subprocess
+before uploader creation; generated pixels and inherited OS denial only.
+Verify: `make explorer-test`; `make explorer-ui-test`; negative overlay;
+refreshed native replay; final `make verify` and `make build`.
+Budget amendment: one additional read-only dependency scout; lead owns fixes.
+The first canonical gate was deliberately interrupted at shard validation when
+this newly reported privacy gap became actionable. Its evidence remains at
+`.scratch/race-runs/20260910T141937Z-4DSkGd`; it is not a passed gate. The complete
+gate follows P3. Route promoted to Deep for this cross-package privacy increment.
+
+### Finalization implementation evidence
+
+P1 observed both grid/image camera failures before the one-condition fix.
+Restoring the old automatic-fit condition through an isolated overlay fails
+both guards. The focused acceptance set passes (1.759s), including foreground
+fitting, frozen membership, current reopen and final publication.
+
+P3's real native environment observer failed with `enabled`, then passed after
+both runtime initializers adopted the full pre-load opt-out. A negative overlay
+that opts out only after initialization still fails. The tag generator was
+independently observed reading `disabled` and reproduced all 31 embedded tag
+vectors byte-for-byte. It uses only existing local model assets. The initial
+full engine-suite attempt exposed a relative-executable fixture error; the
+fixture now resolves `os.Executable()` before changing its directory. The
+complete `make explorer-test` passes, including the new native guard (0.70s).
+The final `make explorer-ui-test` passes (30.373s), without skips.
+
+The refreshed native replay processes 600 public fixture copies with zero
+failures and observes all 20 publications. One arrives behind a frozen ten-member
+grid and another behind its image. The departure camera is preserved with
+automatic fitting enabled, and map return occurs before completion. First
+partial-map observation: 2.436s; complete map: 30.886s. These are callback/frame
+marker observations on repeated public fixtures, not representative input
+latency or a human verdict. Worker/app exits and technical collection pass.
+Ronin subsequently accepted native during-analysis usability and authorized
+closing task 04. Full-library qualification still belongs to 07.
+
+Evidence: [task 04 finalization](../.scratch/visual-similarity-explorer/evidence/task04-finalization-20260910/README.md).
+`make build` refreshed `bin/picfetch`. The final `make verify` exited 0:
+formatting/TUF/exclusions, vet/build, exact shard inventory and all Linux/amd64
+Docker race partitions. UI partitions passed in 477.865s, 298.780s and 288.662s;
+the complete Explorer scenario passed in 176.810s, including both new camera
+cases (4.140s combined). Raw artifacts:
+`.scratch/race-runs/20260910T142655Z-VqOoLd`.
+No new test file or root-UI runnable was added; Qodana/shard entries remain valid.
+All local links in the updated plan/ticket/breakdown/todos resolve.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| P1 | 1 / 1 read-only scout | 2 | no | Grid/image red, minimal fix, partial/final/current-reopen guard |
+| P2 | 0 / 0 | 3 | no | Rebuilt replay hook; real native replay repeated after telemetry steering |
+| P3 | 1 / 0 new spawns | 2 | no | Existing scout reused for dependency lookup; actual native opt-out guard and late-opt-out negative |
+| gate | 0 / 0 | 2 attempts | one interrupted, one complete/passed | User-reported telemetry gap superseded the first gate |
+
+P2's third review is an explicit variance for replay startup-hook corrections
+and the final-source run. All implementation and review remained with the lead.
+Task 04 is complete; the wider plan remains active for tickets 05–07.
+This acceptance closeout changes documentation only; the recorded passing
+implementation gates remain applicable. No commit was made.
+Both pre-existing untracked `:memory:.ses` files remain untouched.
+
 ## Large-map qualification trace — resumed 2026-09-10
 
 Status: complete and verified. The preceding memory increment is complete. Continued the

@@ -676,7 +676,9 @@ Drag or hold **Shift** while scrolling to pan. Scroll or use `+`/`-` to zoom,
 and choose **Fit map** to reset the view. `Left`, `Right`, `Up` and `Down` select
 a stack in that direction; the active stack is outlined and kept in view.
 `Enter` opens its grid. By default, new map results zoom out
-when needed to include new stacks. Maps with more than 100 piles have a minimum
+when needed to include new stacks while you are on the map. Automatic fitting
+pauses while you browse a cohort or image, preserving the view for your return.
+Maps with more than 100 piles have a minimum
 zoom of 50%, including **Fit map** and automatic fitting. Crossing that limit
 raises the zoom if needed; smaller maps keep their normal zoom range. Every
 pile retains all its sampled thumbnails. Pan or use the direction keys to reach

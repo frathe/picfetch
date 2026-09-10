@@ -54,7 +54,8 @@ and publication counts as immutable values; grouping includes its named sub-stag
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
-`encoder.go` owns the pinned native SigLIP 2 session;
+`encoder.go` disables native runtime telemetry before library loading and owns
+the pinned native SigLIP 2 session;
 `tags.go` decodes the readable embedded `tag-vectors.json`, validates its canonical
 float32 digest against `tag-catalog.json`, and applies those text prototypes to
 fresh and reused image vectors, without a text runtime or build-time generator;

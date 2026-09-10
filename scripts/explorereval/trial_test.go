@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -207,6 +208,84 @@ func TestRealEvaluationPreviewWorkspace(t *testing.T) {
 		t.Fatalf("source analysis allocated %d bytes; want at most 64 MiB with bounded preview workspace", allocated)
 	}
 	t.Logf("complete source analysis: %d allocated bytes", allocated)
+}
+
+func TestRealTelemetryDisabledBeforeInitialization(t *testing.T) {
+	if err := similarity.VerifyOffline(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	source := filepath.Join(dir, "observe.c")
+	// Observe the real native environment boundary. Exit on a missing opt-out
+	// before ONNX Runtime can create its uploader or persistent identifier.
+	probe := `#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+static char *observe_getenv(const char *name) {
+    char *value = getenv(name);
+    if (strcmp(name, "ORT_DISABLE_TELEMETRY") == 0) {
+        int disabled = value && strcmp(value, "1") == 0;
+        int fd = open(getenv("PICFETCH_TELEMETRY_PROBE"), O_WRONLY | O_CREAT | O_APPEND, 0600);
+        if (fd < 0) _exit(87);
+        const char *record = disabled ? "disabled\n" : "enabled\n";
+        if (write(fd, record, strlen(record)) < 0 || close(fd) != 0) _exit(87);
+        if (!disabled) _exit(86);
+    }
+    return value;
+}
+__attribute__((used)) static struct { const void *replacement; const void *original; }
+interpose __attribute__((section("__DATA,__interpose"))) = { (const void *)observe_getenv, (const void *)getenv };
+`
+	if err := os.WriteFile(source, []byte(probe), 0600); err != nil {
+		t.Fatal(err)
+	}
+	library := filepath.Join(dir, "observe.dylib")
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	if output, err := exec.CommandContext(ctx, "clang", "-dynamiclib", "-o", library, source).CombinedOutput(); err != nil {
+		t.Fatalf("build native environment observer: %v\n%s", err, output)
+	}
+	inputs := filepath.Join(dir, "inputs")
+	if err := os.Mkdir(inputs, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(inputs, "image.jpg"), uitest.EncodeJPEG(t, 32, 24, color.White), 0600); err != nil {
+		t.Fatal(err)
+	}
+	assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := filepath.Join(dir, "native-opt-out.txt")
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(ctx, executable, "-worker", "-assets", assets, "-library", inputs, "-out", filepath.Join(dir, "result"))
+	command.Dir = dir
+	command.Env = append(os.Environ(), "PICFETCH_EXPLORER_TEST_PROCESS=1", "DYLD_INSERT_LIBRARIES="+library, "PICFETCH_TELEMETRY_PROBE="+trace, "ORT_DISABLE_TELEMETRY=0")
+	// Prevent an inherited CI/test flag from masking a missing product opt-out.
+	for _, key := range []string{"CI", "TF_BUILD", "GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI", "TRAVIS", "JENKINS_URL", "CODEBUILD_BUILD_ID", "BUILDKITE", "TEAMCITY_VERSION", "APPVEYOR", "BITBUCKET_BUILD_NUMBER", "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI", "ORT_RUNNING_UNIT_TESTS"} {
+		command.Env = append(command.Env, key+"=0")
+	}
+	output, runErr := command.CombinedOutput()
+	observed, err := os.ReadFile(trace)
+	if err != nil {
+		t.Fatalf("native telemetry check was not observed: %v, process %v\n%s", err, runErr, output)
+	}
+	checks := strings.Fields(string(observed))
+	if len(checks) == 0 {
+		t.Fatal("native telemetry opt-out was never checked")
+	}
+	for _, check := range checks {
+		if check != "disabled" {
+			t.Fatalf("native runtime initialized with telemetry enabled: %q", observed)
+		}
+	}
+	if runErr != nil {
+		t.Fatalf("offline inference failed after native telemetry opt-out: %v\n%s", runErr, output)
+	}
 }
 
 func TestRealEvaluation(t *testing.T) {

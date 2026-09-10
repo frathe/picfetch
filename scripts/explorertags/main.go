@@ -74,6 +74,10 @@ func run() error {
 		}
 		seen[tag.ID] = true
 	}
+	// Suppress initialization telemetry before loading the native library.
+	if err := os.Setenv("ORT_DISABLE_TELEMETRY", "1"); err != nil {
+		return fmt.Errorf("disable runtime telemetry: %w", err)
+	}
 	ort.SetSharedLibraryPath(*runtime)
 	if err := ort.InitializeEnvironment(); err != nil {
 		return err

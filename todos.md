@@ -61,6 +61,13 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+- **Keep the similarity-map view during browsing.** New analysis results keep
+  the departure camera while a cohort or image is open, even with automatic
+  fitting enabled. Returning and reopening still uses current grouping.
+- **Disable native model telemetry.** Image analysis and tag generation opt out
+  before ONNX Runtime loads, preventing its telemetry initialization. Existing
+  OS network denial remains in place.
+
 - **Release browsed images on Close Files.** Clear thumbnail-cache and recycled
   grid-cell image references, dismiss an open cohort grid, and keep reopening
   usable. Covered by measured viewer regressions and a generated-source native
@@ -266,7 +273,27 @@ bounded geometry-evidence gap; representative usability remains to be tried.
 `make explorer-ui-test`, the full `make verify` gate and `make build` pass.
 See [large-map trace evidence](.scratch/visual-similarity-explorer/evidence/large-map-trace-20260910/README.md).
 
-Still open in the current milestone: live progressive/frozen browsing and
+Task 04 finalization fixed automatic fitting moving the map camera while a
+cohort or image was open. A new TDD guard covers partial/final publications,
+frozen membership and current grouping on reopen. The real native replay
+passes with fitting enabled: 600 inputs, zero failures, 20 observed publications
+and a preserved departure camera. Ronin accepted native during-analysis
+usability on 2026-09-10 and authorized closure; task 04 is done.
+See [finalization evidence](.scratch/visual-similarity-explorer/evidence/task04-finalization-20260910/README.md).
+Final `make explorer-test`, `make explorer-ui-test`, `make verify` and
+`make build` pass, including both new camera cases under Linux race detection.
+
+Ronin's telemetry report identified the pinned ONNX Runtime's default-enabled
+Microsoft collector. Image analysis and the tag-generation tool now set the
+full opt-out before native library loading, in addition to existing OS network
+denial. A real native environment observer guards initialization order; the
+tag tool reproduces identical vectors. The exact reported process and whether
+its connection succeeded remain unestablished.
+
+Open milestone tickets: 05's Favorite reuse/invalidation trial;
+06's interruption/source-change recovery
+trial; and 07's integrated full-library qualification. The latter includes
+live progressive/frozen browsing and
 recovery/cache trials at library scale; representative usability of the 50% zoom
 floor above 100 piles; representative event-to-visible paint measurements; final
 full-library verification of post-close memory reclamation and the remaining

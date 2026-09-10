@@ -192,7 +192,7 @@ func (v *viewer) beginExplorerAnalysis() {
 					v.ForceRepaint()
 					if !v.explorer.hasMap {
 						v.explorer.surface.Fit()
-					} else if v.explorer.autoFit {
+					} else if v.explorer.autoFit && v.explorerMapActive() {
 						v.explorer.surface.ExpandToFit()
 					}
 					v.explorer.hasMap = true

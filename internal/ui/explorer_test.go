@@ -3053,6 +3053,61 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		v.settleExplorer()
 	})
+	t.Run("progressive_browse_camera", func(t *testing.T) {
+		for _, surface := range []string{"grid", "image"} {
+			t.Run(surface, func(t *testing.T) {
+				v, publish := streamingExplorer(t)
+				v.win.Resize(fyne.NewSize(1100, 700))
+				prev := v.settingsState()
+				next := prev
+				next.SimilarityAutoFit = true
+				v.ApplySettings(prev, next)
+				publish([]string{"a", "a", "a", "a"}, false)
+				center := fyne.NewPos(v.win.Canvas().Size().Width/2, v.win.Canvas().Size().Height/2)
+				fynetest.Drag(v.win.Canvas(), center, 50, 35)
+				fynetest.Scroll(v.win.Canvas(), center, 0, 80)
+				departure := v.explorer.surface.View()
+				fynetest.Tap(explorerPiles(v)[0])
+				frozen := explorerGridPaths(v)
+				if surface == "image" {
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+					waitUntilLoaded(t, v)
+				}
+				publish([]string{"a", "a", "b", "c", "d", "e", "f", "g"}, false)
+				if surface == "image" {
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
+					waitUntilLoaded(t, v)
+					current, _, _ := v.CurrentFile()
+					if current.Path() != frozen[len(frozen)-1] {
+						t.Fatal("progressive discovery changed frozen image navigation")
+					}
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				}
+				if !slices.Equal(explorerGridPaths(v), frozen) {
+					t.Fatal("progressive discovery changed the open cohort")
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				returned := v.explorer.surface.View()
+				if returned.Center != departure.Center || returned.Zoom != departure.Zoom {
+					t.Fatalf("automatic fitting moved the browsing camera: departure=%+v return=%+v", departure, returned)
+				}
+				if len(explorerPiles(v)) != 7 {
+					t.Fatal("camera preservation discarded the new map revision")
+				}
+				fynetest.Tap(explorerPiles(v)[0])
+				if !slices.Equal(explorerGridPaths(v), frozen[:2]) {
+					t.Fatal("reopening did not use current cohort membership")
+				}
+				publish([]string{"a", "b", "c", "d", "e", "f", "g", "h"}, true)
+				v.settleExplorer()
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				completed := v.explorer.surface.View()
+				if completed.Center != departure.Center || completed.Zoom != departure.Zoom || completed.Piles != 8 {
+					t.Fatalf("completion did not preserve the browsing camera and latest map: %+v", completed)
+				}
+			})
+		}
+	})
 	t.Run("progressive_exploration", func(t *testing.T) {
 		v, publish := streamingExplorer(t)
 		publish([]string{"a", "a", "a", "a"}, false)

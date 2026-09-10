@@ -33,6 +33,7 @@ switch; CoreML availability does not prove model acceleration. The native
 test target uses the default pinned asset directory. `TRIAL=library` is
 deliberately refused until full-library integration is ready.
 
+The native runtime's full telemetry opt-out is set before its library is loaded.
 The worker uses `sandbox-exec` with `(deny network*)`. It verifies OS permission
 denial of TCP connection and empty UDP send attempts to a documentation address
 before reading library contents. Network outages, timeouts and offline flags do

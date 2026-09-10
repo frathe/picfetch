@@ -780,7 +780,9 @@ Tastaturänderungen gelten sofort. Die vorhandene Analyse wird weiterverwendet,
 ohne Bilder erneut einzulesen. Selbst erstellte Gruppen und **Nicht zugeordnet**
 bleiben getrennt.
 **Karte einpassen** setzt die Ansicht zurück. Neue Ergebnisse zoomen bei Bedarf
-automatisch heraus, damit neue Stapel sichtbar werden. Bei mehr als 100 Stapeln
+automatisch heraus, damit neue Stapel sichtbar werden, solange Sie die Karte
+betrachten. Während Sie eine Gruppe oder ein Bild durchsehen, pausiert das
+automatische Einpassen und erhält die Ansicht für Ihre Rückkehr. Bei mehr als 100 Stapeln
 gilt ein Mindestzoom von 50 %, auch für **Karte einpassen** und das automatische
 Einpassen. Beim Überschreiten dieser Grenze wird bei Bedarf hineingezoomt;
 kleinere Karten behalten ihren normalen Zoombereich. Jeder Stapel behält alle
