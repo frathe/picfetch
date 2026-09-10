@@ -93,6 +93,8 @@ type Host interface {
 // Overview is the grid overlay and the state behind it.
 type Overview struct {
 	subsetBack   *widget.Button
+	analyze      *widget.Button
+	onAnalyze    func()
 	onSubsetBack func()
 	subset       map[string]bool
 	host         Host
@@ -456,7 +458,14 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 		}
 	})
 	g.subsetBack.Hide()
-	g.searchBar = container.NewBorder(nil, nil, g.subsetBack,
+	g.analyze = widget.NewButton(lang.L("Analyze"), func() {
+		g.host.Unfocus()
+		if g.visible && g.subset != nil && g.sel.Len() > 1 && g.onAnalyze != nil {
+			g.onAnalyze()
+		}
+	})
+	g.analyze.Hide()
+	g.searchBar = container.NewBorder(nil, nil, container.NewHBox(g.subsetBack, g.analyze),
 		container.NewHBox(g.selLabel, g.countLabel), g.searchLabel)
 	g.searchBar.Hide()
 
@@ -631,6 +640,7 @@ func (g *Overview) Close() {
 // screen.
 func (g *Overview) closeOverlay(clearInspect bool) {
 	g.work.cancel()
+	g.onAnalyze = nil
 	if g.subset != nil {
 		g.subset = nil
 		g.onSubsetBack = nil

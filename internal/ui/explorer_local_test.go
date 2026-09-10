@@ -30,6 +30,62 @@ import (
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("create_cohort", func(t *testing.T) {
+		v := openGridWith(t, "cat-a.png", "cat-b.png")
+		pixels, err := os.ReadFile("testdata/explorer/chelsea.png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range v.FileCount() {
+			if err := os.WriteFile(v.FileAt(i).Path(), pixels, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		v.explorerAnalyze = (similarity.Client{Assets: assets}).Analyze
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
+		v.grid.SelectAll()
+		fynetest.Tap(explorerButton(t, v, "Analyze"))
+		top := v.win.Canvas().Overlays().Top()
+		if top == nil {
+			t.Fatal("actual local tags did not produce a cohort review")
+		}
+		var create *widget.Button
+		foundCat := false
+		explorerWalk(top, func(o fyne.CanvasObject) {
+			switch control := o.(type) {
+			case *widget.Entry:
+				control.SetText("Local cats")
+			case *widget.Check:
+				if control.Text == lang.L("Cat") {
+					foundCat = control.Checked
+				}
+			case *widget.Button:
+				if control.Text == lang.L("Create cohort") {
+					create = control
+				}
+			}
+		})
+		if !foundCat || create == nil || create.Disabled() {
+			t.Fatal("real offline Cat tags were not available for cohort creation")
+		}
+		fynetest.Tap(create)
+		piles := explorerPiles(v)
+		if len(piles) != 1 {
+			t.Fatalf("actual Unassigned sources did not form one user cohort: %d piles", len(piles))
+		}
+		fynetest.Tap(piles[0])
+		want := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}
+		if !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatal("created native cohort lost an actual source")
+		}
+	})
+
 	t.Run("granularity", func(t *testing.T) {
 		root := t.TempDir()
 		var paths []string

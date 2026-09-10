@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -248,6 +249,405 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
+
+	t.Run("create_cohort_favorite", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		files := slices.Clone(v.state.files)
+		dir := t.TempDir()
+		for _, name := range []string{"Cats", "Other"} {
+			if err := favstore.Save(dir, name, files); err != nil {
+				t.Fatal(err)
+			}
+		}
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		configure := func(v *viewer, group string) {
+			v.explorer.cacheFavorites = false
+			v.favorites.SetDir(dir)
+			v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for _, path := range paths {
+					items = append(items, similarity.Item{Path: path, Cohort: group, Tags: []string{"cat"}, Preview: preview})
+				}
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+				return nil
+			}
+		}
+		open := func(v *viewer, index int) {
+			v.favorites.Open(index)
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			explorerMenu(t, v).Action()
+			v.settleExplorer()
+		}
+		configure(v, "unassigned")
+		open(v, 0)
+		fynetest.Tap(explorerButton(t, v, "Unassigned (3)"))
+		v.grid.SelectAll()
+		fynetest.Tap(explorerButton(t, v, "Analyze"))
+		var create *widget.Button
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if name, ok := o.(*widget.Entry); ok {
+				name.SetText("My saved cats")
+			}
+			if button, ok := o.(*widget.Button); ok && button.Text == lang.L("Create cohort") {
+				create = button
+			}
+		})
+		if create == nil {
+			t.Fatal("missing creation action")
+		}
+		fynetest.Tap(create)
+		v.settleExplorer()
+		v.LeaveSimilarityMap()
+
+		// A new viewer proves persistence rather than reuse of the old map.
+		reopened, _, _ := newTestUI(t)
+		configure(reopened, "automatic")
+		open(reopened, 0)
+		var saved *explorerui.Pile
+		for _, pile := range explorerPiles(reopened) {
+			explorerWalk(pile, func(o fyne.CanvasObject) {
+				if label, ok := o.(*canvas.Text); ok && strings.Contains(label.Text, "My saved cats") {
+					saved = pile
+				}
+			})
+		}
+		if saved == nil {
+			t.Fatal("reopening the favorite lost its named cohort")
+		}
+		fynetest.Tap(saved)
+		want := []string{files[0].Path(), files[1].Path(), files[2].Path()}
+		slices.Sort(want)
+		if !slices.Equal(explorerGridPaths(reopened), want) {
+			t.Fatal("restored cohort lost its reviewed source membership")
+		}
+		open(reopened, 1)
+		for _, pile := range explorerPiles(reopened) {
+			explorerWalk(pile, func(o fyne.CanvasObject) {
+				if label, ok := o.(*canvas.Text); ok && strings.Contains(label.Text, "My saved cats") {
+					t.Fatal("cohort leaked to another favorite with identical files")
+				}
+			})
+		}
+		configure(reopened, "unassigned")
+		open(reopened, 1)
+		fynetest.Tap(explorerButton(t, reopened, "Unassigned (3)"))
+		reopened.grid.SelectAll()
+		fynetest.Tap(explorerButton(t, reopened, "Analyze"))
+		var cancel *widget.Button
+		explorerWalk(reopened.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if name, ok := o.(*widget.Entry); ok {
+				name.SetText("Unsaved cats")
+			}
+			if button, ok := o.(*widget.Button); ok {
+				switch button.Text {
+				case lang.L("Create cohort"):
+					create = button
+				case lang.L("Cancel"):
+					cancel = button
+				}
+			}
+		})
+		if err := os.RemoveAll(favstore.Dir(dir, "Other")); err != nil {
+			t.Fatal(err)
+		}
+		fynetest.Tap(create)
+		reopened.settleExplorer()
+		if !reopened.grid.Visible() || reopened.win.Canvas().Overlays().Top() == nil || len(explorerPiles(reopened)) != 0 {
+			t.Fatal("failed favorite save appeared to create a cohort")
+		}
+		explained := false
+		explorerWalk(reopened.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Could not save the cohort. Reopen the favorite and try again.") {
+				explained = true
+			}
+		})
+		if !explained || cancel == nil {
+			t.Fatal("failed favorite save lacks a visible explanation and cancel action")
+		}
+		fynetest.Tap(cancel)
+		fynetest.Tap(explorerButton(t, reopened, "Back to map"))
+		_ = explorerButton(t, reopened, "Unassigned (3)")
+	})
+
+	t.Run("create_cohort_selection", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t, "a.jpg", "b.jpg", "c.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		var items []similarity.Item
+		for i := range v.FileCount() {
+			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview})
+		}
+		publish(similarity.Event{Total: 3, Successful: 3, Complete: true, Items: items})
+		fynetest.Tap(explorerButton(t, v, "Unassigned (3)"))
+		analyze := explorerButton(t, v, "Analyze")
+		if !analyze.Disabled() {
+			t.Fatal("Analyze enabled without an explicit selection")
+		}
+		var wrap *widget.GridWrap
+		explorerWalk(v.grid.Overlay(), func(o fyne.CanvasObject) {
+			if w, ok := o.(*widget.GridWrap); ok {
+				wrap = w
+			}
+		})
+		if wrap == nil {
+			t.Fatal("missing visible Unassigned grid")
+		}
+		v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierShortcutDefault }
+		wrap.Select(0)
+		if !analyze.Disabled() {
+			t.Fatal("Analyze enabled for a single selected image")
+		}
+		wrap.Select(1)
+		if analyze.Disabled() {
+			t.Fatal("Analyze disabled with two selected images")
+		}
+		v.grid.ClearSelection()
+		if !analyze.Disabled() {
+			t.Fatal("Analyze stayed enabled after clearing selection")
+		}
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		_, tag := explorerTag(t, v, "Cat", 3)
+		fynetest.Tap(tag)
+		explorerWalk(v.grid.Overlay(), func(o fyne.CanvasObject) {
+			if button, ok := o.(*widget.Button); ok && button.Text == lang.L("Analyze") {
+				t.Fatal("Analyze leaked into a tag cohort grid")
+			}
+		})
+	})
+
+	t.Run("create_cohort_review", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t, "a.jpg", "b.jpg", "c.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		items := []similarity.Item{
+			{Path: v.FileAt(0).Path(), Cohort: "unassigned", Tags: []string{"cat", "animal"}, Preview: preview},
+			{Path: v.FileAt(1).Path(), Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview},
+			{Path: v.FileAt(2).Path(), Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview},
+		}
+		publish(similarity.Event{Total: 3, Successful: 3, Complete: true, Items: items})
+		fynetest.Tap(explorerButton(t, v, "Unassigned (3)"))
+		wrap := comparisonGridWrap(t, v.grid.Overlay())
+		v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierShortcutDefault }
+		wrap.Select(0)
+		wrap.Select(1)
+		v.keyModifiers = func() fyne.KeyModifier { return 0 }
+		fynetest.Tap(explorerButton(t, v, "Analyze"))
+		top := v.win.Canvas().Overlays().Top()
+		if top == nil {
+			t.Fatal("Analyze did not open the shared-trait review")
+		}
+		var name *widget.Entry
+		var cat *widget.Check
+		var create, cancel *widget.Button
+		explorerWalk(top, func(o fyne.CanvasObject) {
+			switch c := o.(type) {
+			case *widget.Entry:
+				name = c
+			case *widget.Check:
+				if c.Text == lang.L("Include other matching Unassigned images") {
+					return
+				}
+				if c.Text != lang.L("Cat") {
+					t.Fatalf("review offered a trait not shared by the selection: %s", c.Text)
+				}
+				cat = c
+			case *widget.Button:
+				if c.Text == lang.L("Create cohort") {
+					create = c
+				}
+				if c.Text == lang.L("Cancel") {
+					cancel = c
+				}
+			}
+		})
+		if name == nil || cat == nil || create == nil || cancel == nil {
+			t.Fatal("review lacks shared traits, name or actions")
+		}
+		if !cat.Checked || !create.Disabled() {
+			t.Fatal("review did not select the common trait and require a name")
+		}
+		name.SetText("My cats")
+		if create.Disabled() {
+			t.Fatal("named shared-trait cohort cannot be created")
+		}
+		fynetest.Tap(cat)
+		if !create.Disabled() {
+			t.Fatal("cohort creation enabled without any shared trait")
+		}
+		fynetest.Tap(cancel)
+		if v.win.Canvas().Overlays().Top() != nil || len(explorerGridPaths(v)) != 3 {
+			t.Fatal("cancel changed the Unassigned cohort or left the review open")
+		}
+	})
+
+	t.Run("create_cohort_membership", func(t *testing.T) {
+		for _, selectedOnly := range []bool{false, true} {
+			t.Run(fmt.Sprintf("selected_only_%t", selectedOnly), func(t *testing.T) {
+				v, publish := streamingExplorerEvents(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg")
+				preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+				var items []similarity.Item
+				for i, tag := range []string{"cat", "cat", "cat", "dog", "cat"} {
+					cohort := "unassigned"
+					if i == 4 {
+						cohort = "existing"
+					}
+					items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: cohort, Tags: []string{tag}, Preview: preview, Position: []float32{float32(i), 0}})
+				}
+				publish(similarity.Event{Total: 5, Successful: 5, Items: items})
+				catFilter, _ := explorerTag(t, v, "Cat", 4)
+				fynetest.Tap(catFilter)
+				fynetest.Tap(explorerButton(t, v, "Unassigned (4)"))
+				wrap := comparisonGridWrap(t, v.grid.Overlay())
+				v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierShortcutDefault }
+				wrap.Select(0)
+				wrap.Select(1)
+				v.keyModifiers = func() fyne.KeyModifier { return 0 }
+				fynetest.Tap(explorerButton(t, v, "Analyze"))
+				top := v.win.Canvas().Overlays().Top()
+				if top == nil {
+					t.Fatal("missing review")
+				}
+				var name *widget.Entry
+				var create *widget.Button
+				var include *widget.Check
+				explorerWalk(top, func(o fyne.CanvasObject) {
+					switch c := o.(type) {
+					case *widget.Entry:
+						name = c
+					case *widget.Button:
+						if c.Text == lang.L("Create cohort") {
+							create = c
+						}
+					case *widget.Check:
+						if c.Text == lang.L("Include other matching Unassigned images") {
+							include = c
+						}
+					}
+				})
+				if name == nil || create == nil || include == nil || !include.Checked {
+					t.Fatal("review does not offer all matching Unassigned images")
+				}
+				if selectedOnly {
+					fynetest.Tap(include)
+				}
+				name.SetText("My cats")
+				fynetest.Tap(create)
+				if v.win.Canvas().Overlays().Top() != nil || v.grid.Visible() {
+					t.Fatal("creation did not return to the map")
+				}
+				if len(explorerPiles(v)) != 2 {
+					t.Fatal("creation lost the existing cohort or failed to add a new one")
+				}
+				remaining := []string{v.FileAt(3).Path()}
+				if selectedOnly {
+					remaining = []string{v.FileAt(2).Path(), v.FileAt(3).Path()}
+				}
+				unassignedLabel := fmt.Sprintf("Unassigned (%d)", len(remaining))
+				fynetest.Tap(explorerButton(t, v, unassignedLabel))
+				if !slices.Equal(explorerGridPaths(v), remaining) {
+					t.Fatal("creation moved unrelated Unassigned images")
+				}
+				fynetest.Tap(explorerButton(t, v, "Back to map"))
+				var created *explorerui.Pile
+				for _, pile := range explorerPiles(v) {
+					explorerWalk(pile, func(o fyne.CanvasObject) {
+						if label, ok := o.(*canvas.Text); ok && strings.Contains(label.Text, "My cats") {
+							created = pile
+						}
+					})
+				}
+				if created == nil {
+					t.Fatal("named cohort is not present on the map")
+				}
+				fynetest.Tap(created)
+				want := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
+				if selectedOnly {
+					want = want[:2]
+				}
+				if !slices.Equal(explorerGridPaths(v), want) {
+					t.Fatal("created cohort did not capture exactly the reviewed matching Unassigned images")
+				}
+				publish(similarity.Event{Total: 5, Successful: 5, Complete: true, Items: items})
+				if !slices.Equal(explorerGridPaths(v), want) {
+					t.Fatal("later analysis changed the opened custom cohort")
+				}
+				fynetest.Tap(explorerButton(t, v, "Back to map"))
+				if len(explorerPiles(v)) != 2 {
+					t.Fatal("final publication discarded the user-created cohort")
+				}
+				_ = explorerButton(t, v, unassignedLabel)
+			})
+		}
+	})
+
+	t.Run("create_cohort_no_shared", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t, "cat.jpg", "dog.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		publish(similarity.Event{Total: 2, Successful: 2, Complete: true, Items: []similarity.Item{
+			{Path: v.FileAt(0).Path(), Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview},
+			{Path: v.FileAt(1).Path(), Cohort: "unassigned", Tags: []string{"dog"}, Preview: preview},
+		}})
+		fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
+		v.grid.SelectAll()
+		fynetest.Tap(explorerButton(t, v, "Analyze"))
+		top := v.win.Canvas().Overlays().Top()
+		if top == nil {
+			t.Fatal("missing no-shared-traits explanation")
+		}
+		found := false
+		explorerWalk(top, func(o fyne.CanvasObject) {
+			if _, ok := o.(*widget.Entry); ok {
+				t.Fatal("no-shared-traits review asks for an unusable cohort name")
+			}
+			if label, ok := o.(*widget.Label); ok && label.Text == lang.L("No shared visual tags found. Select different images.") {
+				found = true
+			}
+			if button, ok := o.(*widget.Button); ok && button.Text == lang.L("Create cohort") && !button.Disabled() {
+				t.Fatal("unrelated images can create a shared-trait cohort")
+			}
+		})
+		if !found {
+			t.Fatal("no-shared-traits explanation is absent from the dialog")
+		}
+	})
+
+	t.Run("create_cohort_stale", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t, "a.jpg", "b.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		event := similarity.Event{Total: 2, Successful: 2, Complete: true, Items: []similarity.Item{
+			{Path: v.FileAt(0).Path(), Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview},
+			{Path: v.FileAt(1).Path(), Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview},
+		}}
+		publish(event)
+		fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
+		v.grid.SelectAll()
+		fynetest.Tap(explorerButton(t, v, "Analyze"))
+		var create *widget.Button
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if name, ok := o.(*widget.Entry); ok {
+				name.SetText("Old proposal")
+			}
+			if b, ok := o.(*widget.Button); ok && b.Text == lang.L("Create cohort") {
+				create = b
+			}
+		})
+		if create == nil {
+			t.Fatal("missing creation action")
+		}
+		v.LeaveSimilarityMap()
+		if v.win.Canvas().Overlays().Top() != nil {
+			t.Fatal("leaving Explorer retained its cohort review")
+		}
+		explorerMenu(t, v).Action()
+		publish(event)
+		fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
+		create.OnTapped()
+		if !v.grid.Visible() || len(explorerPiles(v)) != 0 {
+			t.Fatal("stale creation changed a reopened map")
+		}
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		_ = explorerButton(t, v, "Unassigned (2)")
+	})
 
 	t.Run("source_changes", func(t *testing.T) {
 		t.Run("missing_cohort_member", func(t *testing.T) {

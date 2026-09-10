@@ -7,8 +7,10 @@ import (
 	"sync"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/similarity"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/ui/grid"
@@ -19,11 +21,18 @@ type explorerWork struct {
 	cacheFavorites, autoFit bool
 	prepare                 func()
 	lifecycle               requestLifecycle
+	token                   requestToken
 	workers                 sync.WaitGroup
 	ui                      grid.UIQueue
 	surface                 *explorerui.Map
 	sources                 []string
 	cohort                  []string
+	unassignedCohort        bool
+	cohortDialog            dialog.Dialog
+	favoriteDir             string
+	cohortStore             *favstore.CohortStore
+	cohortLoadErr           error
+	cohortSaving            bool
 	complete                bool
 	hasMap                  bool
 	maximized               bool
@@ -87,6 +96,7 @@ func (v *viewer) beginExplorerAnalysis() {
 	v.explorer.complete = false
 	v.explorer.hasMap = false
 	token := v.explorer.lifecycle.begin()
+	v.explorer.token = token
 	v.explorer.surface.SetResult(nil, nil)
 	v.explorer.surface.Status(lang.L("Analyzing images..."))
 	v.explorer.available, v.explorer.mapped = 0, 0
@@ -104,7 +114,32 @@ func (v *viewer) beginExplorerAnalysis() {
 		analyze = client.Analyze
 	}
 	cacheWarningReported := false
+	favoriteDir := v.explorer.favoriteDir
+	v.explorer.cohortStore, v.explorer.cohortLoadErr = nil, nil
+	v.explorer.cohortSaving = false
 	v.explorer.workers.Go(func() {
+		if favoriteDir != "" {
+			store, groups, err := favstore.OpenCohorts(token.context(), favoriteDir)
+			if err == nil && !store.Contains(paths) {
+				// Merge mode can combine a favorite with unrelated open files.
+				store, groups = nil, nil
+			}
+			if !token.current() {
+				return
+			}
+			v.explorer.ui.Do(func() {
+				if !token.current() {
+					return
+				}
+				v.explorer.cohortStore, v.explorer.cohortLoadErr = store, err
+				if err != nil {
+					fyne.LogError("load favorite cohorts", err)
+					v.ShowToast(lang.L("Could not load saved cohorts for this favorite."))
+					return
+				}
+				v.explorer.surface.RestoreCohorts(groups)
+			})
+		}
 		err := analyze(token.context(), paths, controls, func(event similarity.Event) {
 			if !token.current() {
 				return
@@ -196,13 +231,31 @@ func (v *viewer) sendSimilarityControl(update bool) {
 // OpenSimilarityCohort captures membership at activation, so returning from an
 // image reopens the same cohort even if a later map revision has arrived.
 func (v *viewer) OpenSimilarityCohort(paths []string) {
+	v.openSimilarityCohort(paths, false)
+}
+
+func (v *viewer) OpenSimilarityUnassigned(paths []string) {
+	v.openSimilarityCohort(paths, true)
+}
+
+func (v *viewer) openSimilarityCohort(paths []string, unassigned bool) {
 	if len(paths) == 0 {
 		return
 	}
 	v.explorer.cohort = append([]string(nil), paths...)
-	v.grid.OpenSubset(paths, v.backToSimilarityMap)
+	v.explorer.unassignedCohort = unassigned
+	v.openExplorerGrid()
 	v.syncMenus()
 }
+
+func (v *viewer) openExplorerGrid() {
+	if v.explorer.unassignedCohort {
+		v.grid.OpenUnassigned(v.explorer.cohort, v.backToSimilarityMap, v.analyzeSimilaritySelection)
+	} else {
+		v.grid.OpenSubset(v.explorer.cohort, v.backToSimilarityMap)
+	}
+}
+
 func (v *viewer) LeaveSimilarityMap() {
 	v.closeExplorer()
 	v.grid.Close()
@@ -217,12 +270,17 @@ func (v *viewer) closeExplorer() {
 // retireExplorerAnalysis drops source-derived state without disturbing a cohort
 // currently being browsed. Committed file effects may arrive after navigation.
 func (v *viewer) retireExplorerAnalysis() {
+	if v.explorer.cohortDialog != nil {
+		v.explorer.cohortDialog.Hide()
+	}
 	if v.explorer.prepare != nil {
 		v.explorer.prepare = nil
 		v.grid.Close()
 	}
 	v.explorer.controls = nil
 	v.explorer.lifecycle.invalidate()
+	v.explorer.cohortStore, v.explorer.cohortLoadErr = nil, nil
+	v.explorer.cohortSaving = false
 	v.explorer.surface.SetResult(nil, nil)
 	v.explorer.surface.UpdateState(false, false)
 	v.explorer.sources = nil
@@ -268,7 +326,7 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 		return true
 	}
 	if len(v.explorer.cohort) > 0 && (key == fyne.KeyEscape || key == fyne.KeyG) {
-		v.grid.OpenSubset(v.explorer.cohort, v.backToSimilarityMap)
+		v.openExplorerGrid()
 		v.explorer.surface.Show()
 		v.ForceRepaint()
 		return true

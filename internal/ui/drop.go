@@ -69,6 +69,10 @@ func (v *viewer) SetMaxScan(n int) {
 // (toggled by M) the newly scanned images are merged into it instead,
 // keeping the sort order applied and jumping to the first image just added.
 func (v *viewer) handleDrop(uris []fyne.URI) {
+	v.handleCollectionDrop(uris, "")
+}
+
+func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	if len(uris) == 0 {
 		return
 	}
@@ -95,6 +99,7 @@ func (v *viewer) handleDrop(uris []fyne.URI) {
 	}
 
 	v.closeExplorer()
+	v.explorer.favoriteDir = favoriteDir
 	v.openChooserLifecycle.invalidate()
 	v.deletion.Cancel()
 	v.grid.Close()

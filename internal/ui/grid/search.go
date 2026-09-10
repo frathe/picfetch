@@ -216,6 +216,18 @@ func (g *Overview) restoreHighlight(host int) {
 // active, and each half appears on its own: a selection built without ever
 // opening the search shows only its count, and vice versa.
 func (g *Overview) syncTopBar() {
+	if g.analyze != nil {
+		if g.onAnalyze != nil && g.subset != nil {
+			g.analyze.Show()
+			if g.sel.Len() > 1 {
+				g.analyze.Enable()
+			} else {
+				g.analyze.Disable()
+			}
+		} else {
+			g.analyze.Hide()
+		}
+	}
 	if g.subsetBack != nil {
 		if g.subset != nil {
 			g.subsetBack.Show()
@@ -230,7 +242,11 @@ func (g *Overview) syncTopBar() {
 		g.searchLabel.Show()
 		g.countLabel.Show()
 	case g.subset != nil:
-		g.searchLabel.SetText(lang.L("Showing similarity cohort"))
+		if g.onAnalyze != nil {
+			g.searchLabel.SetText(lang.L("Showing Unassigned"))
+		} else {
+			g.searchLabel.SetText(lang.L("Showing similarity cohort"))
+		}
 		g.countLabel.SetText(fmt.Sprintf(lang.L("%d of %d"), g.count(), g.host.FileCount()))
 		g.searchLabel.Show()
 		g.countLabel.Show()

@@ -641,6 +641,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
 	v.closeExplorer()
+	v.explorer.favoriteDir = ""
 	v.pendingPictureFrame = false
 	// A full-screen dropzone would look broken, and there's nothing left to
 	// frame - safe to call even when picture-frame mode is already off.
@@ -972,6 +973,11 @@ func (v *viewer) FileAt(i int) fyne.URI {
 // path as a drag-and-drop or the native file chooser.
 func (v *viewer) OpenFiles(files []fyne.URI) {
 	v.handleDrop(files)
+}
+
+// OpenFavorite keeps collection identity through the common open pipeline.
+func (v *viewer) OpenFavorite(dir string, files []fyne.URI) {
+	v.handleCollectionDrop(files, dir)
 }
 
 // CurrentIndex is the index of the file on screen.

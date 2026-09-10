@@ -342,5 +342,19 @@
    "(%d)": "(%d)",
    "Granularity": "Granularity",
    "Broader": "Broader",
-   "Finer": "Finer"
+   "Finer": "Finer",
+   "Analyze": "Analyze",
+   "Showing Unassigned": "Showing Unassigned",
+   "Cohort name": "Cohort name",
+   "Create cohort": "Create cohort",
+   "Create cohort from Unassigned": "Create cohort from Unassigned",
+   "Include other matching Unassigned images": "Include other matching Unassigned images",
+   "Shared visual tags in %d selected images": "Shared visual tags in %d selected images",
+   "%d images will move from Unassigned": "%d images will move from Unassigned",
+   "No shared visual tags found. Select different images.": "No shared visual tags found. Select different images.",
+   "The images or cohort name changed. Analyze the selection again.": "The images or cohort name changed. Analyze the selection again.",
+   "Enter a unique cohort name (1-80 characters).": "Enter a unique cohort name (1-80 characters).",
+   "%s - %s": "%s - %s",
+   "Could not load saved cohorts for this favorite.": "Could not load saved cohorts for this favorite.",
+   "Could not save the cohort. Reopen the favorite and try again.": "Could not save the cohort. Reopen the favorite and try again."
 }

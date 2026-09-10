@@ -24,7 +24,7 @@ type fakeHost struct {
 	toasts []string
 
 	// syncedDirs/syncedFiles record every SyncFavoritePreviews call, and
-	// calls records the order OpenFiles and SyncFavoritePreviews arrived
+	// calls records the order OpenFavorite and SyncFavoritePreviews arrived
 	// in - the open path deliberately reports the new list before handing
 	// it over, so the background pass starts against the scan rather than
 	// after it.
@@ -42,7 +42,7 @@ type fakeHost struct {
 
 func (h *fakeHost) FileCount() int        { return len(h.files) }
 func (h *fakeHost) FileAt(i int) fyne.URI { return h.files[i] }
-func (h *fakeHost) OpenFiles(files []fyne.URI) {
+func (h *fakeHost) OpenFavorite(_ string, files []fyne.URI) {
 	h.opened = slices.Clone(files)
 	h.calls = append(h.calls, "open")
 }
@@ -620,7 +620,7 @@ func TestOpenFavoriteLoadsStoredList(t *testing.T) {
 // TestOpenFavoriteSyncsPreviewsForLoadedList pins the open half of the
 // preview-cache trigger: the feature itself knows nothing about previews,
 // it only reports which directory now holds which files, and internal/ui
-// decides what that means. The report has to precede OpenFiles so the
+// decides what that means. The report has to precede OpenFavorite so the
 // background pass gets a head start on the scan the open kicks off.
 func TestOpenFavoriteSyncsPreviewsForLoadedList(t *testing.T) {
 	host := &fakeHost{}

@@ -1,12 +1,12 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tags, recovery, trial controls, conditional large-map zoom, viewport preview retention, production throughput profiling, EXIF allocation reduction, preview resampling and readable tag-vector assets implemented and verified; saved presets and full-library qualification remain open
+Status: Unassigned cohort creation and favorite-owned persistence implemented and verified, alongside semantic tags, recovery, trial controls, map refinement and throughput work; reusable preset rules and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Native qualification readiness](#native-qualification-readiness--2026-09-10) — current-build checks and outstanding user decisions.
+Current increment: [Create cohorts from Unassigned](#create-cohorts-from-unassigned--2026-09-10).
 
 ## Deliverable and accepted contract
 
@@ -1788,3 +1788,213 @@ were presented together and remain unanswered. No preset choice or native
 acceptance is inferred. Actual cost: one read-only scout, one lead recon check,
 zero implementation delegates and zero full-suite repetitions. Documentation
 validation: `git diff --check`. Keep this plan active.
+
+## Native trial recording — 2026-09-10
+
+Deliver an opt-in native trial launch with isolated storage and metadata-only
+evidence from the production viewer. This implements independently actionable
+ticket 07 infrastructure. It does not choose saved-preset behavior or infer
+the user's library/semantic verdict. Existing viewer/provider and command
+boundaries remain the confirmed test seams. Route: Deep.
+
+Decisions: `--explorer-trial DIR` is an explicit development launch option;
+DIR must be new. Trial launches require actual OS network denial before opening
+sources, use a unique Fyne app ID, isolate Favorites/update paths, and disable
+update checks. Ordinary launches retain their standing behavior. Records omit
+paths, pixels, previews and embeddings. Worker receipt, UI application and
+worker exit are separate facts; UI application duration is not paint latency.
+Human observations and full-library acceptance remain separate from collection.
+
+### Task NT1 — Record a production viewer session
+Owner: T0 inline
+Files: internal/explorertrial/session.go; internal/ui/{explorer.go,explorer_test.go}
+Contract: per-session recorder, numbered analysis runs, serialized metadata
+events; Begin/Received/Applied/Exited plus cohort-open/map-return/exit records;
+Close waits on no UI work and rejects incomplete/error evidence.
+Test: viewer inputs and controlled provider deliveries produce ordered map,
+frozen-cohort and exit evidence without retaining source content; cancellation
+cannot become successful completion. One red/green behavior at a time.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^trial_recording' -count=1 -v`
+Budget: 0 spawns; 2 lead reviews; full suite at final gate only.
+
+### Task NT2 — Isolate and launch the native trial
+Owner: T0 inline
+Files: internal/launch/{launch.go,launch_test.go}; main.go;
+internal/ui/{run.go,launchoptions.go,explorer_test.go};
+scripts/explorereval/{main.go,main_test.go,library.go,evaluate.sh,README.md}; Makefile
+Depends: NT1
+Contract: `make explorer-evaluate TRIAL=library` launches a retained native
+executable under network denial, retains console/exit/session evidence and
+reports collection separately from qualification. Cancellation terminates and
+joins the owned app/analysis tree. Trial storage never uses standing Favorites
+or update directories. Existing evidence is never overwritten.
+Test: command rejects absent native executable and invalid/existing output;
+viewer trial configuration isolates runtime directories; native fixture launch
+records a completed map and observed worker exit. Canceled runs stay incomplete.
+Verify: targeted launch/evaluator tests; `make explorer-ui-test`; actual denied
+native fixture run with retained logs and process-exit evidence.
+Budget: 0 implementation spawns; 2 lead reviews; full suite at final gate only.
+
+### Task NT3 — Verify and document
+Owner: T0 inline
+Files: ARCHITECTURE.md, todos.md, this plan; shard/Qodana manifests if needed
+Depends: NT1, NT2
+Test/verify: negative guards, focused native suites, `make verify`, `make build`;
+record limits and leave the broader plan open for human qualification/presets.
+Budget: 0 spawns; 1 lead review; one full suite.
+
+Graph: NT1 -> NT2 -> NT3. No implementation delegation: contracts and runtime
+wiring are cross-package lead work. One independent read-only command-lifecycle
+scout is permitted while T0 writes NT1. G1: bounded process ownership question;
+G2: source locations/commands; G3: zero writes; G4/G5: shell lifecycle breadth
+independent of session-recorder implementation; S/W: adaptive search, no transform.
+
+### User quality verdict
+
+Ronin reports: "I am quite happy with the quality of matching tags to images
+and the forming of cohorts also looks good!" This accepts tag matching and
+cohort quality in his tested experience. It supersedes the unanswered semantic
+verdict for that experience; it does not establish a collection size, measured
+latency or the saved-preset trait/application choices.
+
+### Native recorder deferred by user steering
+
+Ronin explicitly prioritized creating cohorts from selected Unassigned images.
+The recorder's receipt/application/exit and cancellation tests reached green;
+the next cohort-visit record test was red when work switched. In-progress
+recorder source and its viewer patch are retained under
+`.scratch/visual-similarity-explorer/deferred-native-recorder/` and were removed
+from the active application diff. No incomplete recorder is being shipped.
+
+## Create cohorts from Unassigned — 2026-09-10
+
+User contract: an Analyze button in the Unassigned Grid View, enabled only
+when more than one image is selected; show similarities between those images
+and offer to create a cohort. This is the priority implementation increment.
+Use existing local semantic tags as named visual similarities. No new inference
+or metadata discovery is needed. The concrete flow creates current-map groups and persists explicit memberships
+for favorite-based collections (see UC4). Reusable rules for unrelated future
+maps remain the separately documented follow-up.
+The existing production UI/provider seam is accepted; no new seam is requested.
+
+### Task UC1 — Contextual selection action
+Owner: T0 inline
+Files: internal/ui/{explorer.go,explorer_test.go}, internal/ui/grid/{grid.go,subset.go,search.go}, internal/ui/explorer/map.go
+Contract: explicit Unassigned activation distinct from normal/tag cohorts;
+grid-owned Analyze action enabled for at least two explicit selected sources.
+Test: button is in the Unassigned surface, disabled for zero/one, enabled for
+two; absent from ordinary and cohort grids; image/map return preserves context.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^create_cohort' -count=1 -v`
+Budget: 0 spawns; 2 lead reviews; no full suite.
+
+### Task UC2 — Review shared traits and create a named cohort
+Owner: T0 inline
+Files: internal/ui/explorer/cohorts.go, internal/ui/explorer/map.go,
+internal/ui/explorercohorts.go, internal/ui/explorer_test.go, translations/{en,de}.json
+Depends: UC1
+Contract: show common recognized visual tags, chosen trait matches and a name;
+creation updates the current map without overlap or new analysis. User-created
+membership survives incoming publications; already opened cohorts remain frozen.
+No shared traits, invalid name and stale source selections cannot create a cohort.
+The review offers an explicit inclusion checkbox, initially on: include other
+matching Unassigned sources, or restrict creation to the selected sources.
+Test: real viewer selection/dialog/create path, exact resulting membership,
+Unassigned reduction, cancellation/stale publication and preservation of existing
+cohorts. Use controlled analysis only at the agreed provider boundary.
+Verify: focused create-cohort suite plus real `make explorer-ui-test`.
+Budget: 0 spawns; 2 lead reviews; full suite at final gate only.
+
+### Task UC3 — Handoff and verification
+Owner: T0 inline
+Files: ARCHITECTURE.md, todos.md, this plan, manuals, catalogue/shard/Qodana guards
+Depends: UC2
+Verify: `make verify`, `make build`, native UI review of public fixtures.
+Budget: 0 spawns; 1 lead review; one canonical full suite.
+Graph: UC1 -> UC2 -> UC3. Cross-feature composition, user strings and all review
+stay with the lead; no implementation delegation.
+
+### Favorite persistence amendment
+
+Ronin requires user-defined cohorts to be saved for favorite-based collections.
+Persist each favorite's named groups and exact reviewed source membership beside
+its file list. Restore them on reopening that favorite, including a fresh viewer;
+manual membership takes precedence over fresh automatic grouping. This is saved
+collection state, independent of the optional analysis cache. Ordinary file sets
+and mixed merge-mode collections remain temporary; favorites with identical
+files keep separate groups. Replacing/removing a favorite invalidates pending
+writes. Surviving members only appear in the current analyzed source set.
+
+UC4 (T0): favorite-owned atomic cohort storage, explicit favorite open identity,
+tracked load/save on existing Explorer worker/queue, persistence failure feedback.
+Red/green command: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^create_cohort_favorite' -count=1 -v`.
+Storage guard command: `go test ./internal/favstore -run '^TestCohorts' -count=1 -v`.
+No new worker pool or test seam. Final UC3 gate follows UC4. One additional
+read-only scout checks Host/reset call-site breadth while the lead owns design
+and implementation; zero implementation delegates, two lead review rounds.
+
+### UC implementation and lead review
+
+UC1/UC2 followed red-green slices: missing contextual Analyze, absent trait
+review, missing inclusion choice, map-filter reveal, stale dialog and empty
+state all failed for their specified UI behavior before their fixes. The
+real-model native suite created a cohort from shared Cat tags without new
+inference. Native screenshots from public Chelsea fixtures show the dialog,
+“Public cats (2)” on the map and its exact two-image grid; the owned app exited.
+
+UC4's first production UI test failed with “reopening the favorite lost its
+named cohort.” It now reopens a new viewer, restores the exact named members
+over fresh automatic grouping with analysis caching disabled, and keeps a
+second identical favorite independent. A removed favorite produces a visible
+save error and rolls back the proposed group. Favorite identity enters through
+OpenFavorite and the common drop pipeline; mixed outside sources do not gain
+favorite persistence. Storage binds writes to the observed file-list version,
+checks cancellation before atomic replacement, and never recreates a removed
+favorite. Existing Explorer workers and UI queue own all load/save completion.
+
+The read-only favorite-contract scout reported call-site/reset breadth; the
+lead verified these locations before changing the Host and common open path.
+No implementation or review was delegated. New tests are subtests of the
+existing Explorer suite or additions to the existing favstore test file, so
+there is no new Qodana test-file exclusion or root UI shard assignment.
+The final verification below covers the favorite persistence amendment; earlier
+passing runs were not used as its final gate.
+
+Native favorite amendment check: the final isolated build saved a public two-cat
+favorite through its menu, created “Saved cats (2)”, fully exited and restarted,
+and restored that exact named cohort and two-member grid after reopening the
+favorite. Screenshots are retained in the [cohort creation evidence](../.scratch/visual-similarity-explorer/evidence/create-cohorts-20260910/README.md).
+The native app was quit and its exact executable path had no remaining process.
+
+### UC final verification and ledger
+
+All final commands exited zero on September 10:
+
+- `make explorer-ui-test`: `ok github.com/frathe/picfetch/internal/ui 26.249s`;
+  real offline model/worker tests and the production UI suite.
+- `make verify`: format, offline TUF root, exact Qodana exclusions, vet and build;
+  canonical Linux/amd64 Docker race partitions all passed. UI partitions took
+  428.401s, 298.714s and 290.968s. `TestVisualSimilarityExplorer` passed under
+  race detection in 119.890s. Race artifacts: `.scratch/race-runs/20260910T092637Z-UWjA4H`.
+- `make build`: produced `bin/picfetch` with the Makefile release flags.
+- Native visual creation plus favorite reopen after a complete process restart:
+  named groups and exact grid membership observed in the final isolated build.
+- `git diff --check`: clean. No golden images were regenerated.
+
+Six deliberate negative mutations produced the expected behavioral failures
+and were restored: selection threshold, existing-cohort protection, incoming
+publication retention, favorite restoration, favorite replacement and canceled
+writes. Error-path UI coverage also confirms failed saves leave no proposed
+cohort and present a visible explanation. The final gate ran once after all
+implementation changes; no verification failures required another full run.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+|---|---|---|---|---|
+| UC1 | 0 / 0 | 1 | no | Contextual selection path |
+| UC2 | 0 / 0 | 3 | no | Third review justified by native empty-state/filename observations |
+| UC4 | 1 scout / 1 scout | 2 | no | Explicit favorite identity, atomic storage, failure rollback |
+| UC3 | 0 / 0 | 1 | once | Final offline/native/CI gates and documentation |
+
+The requested creation/persistence increment is complete. Keep the broader
+plan active: reusable rules/preset browser and full-library qualification still
+have outstanding scope. No git commit was made. Suggested commit message:
+`Add cohort creation and favorite persistence`.

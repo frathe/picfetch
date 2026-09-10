@@ -342,5 +342,19 @@
    "(%d)": "(%d)",
    "Granularity": "Granularität",
    "Broader": "Gröber",
-   "Finer": "Feiner"
+   "Finer": "Feiner",
+   "Analyze": "Analysieren",
+   "Showing Unassigned": "Nicht zugeordnete Bilder",
+   "Cohort name": "Gruppenname",
+   "Create cohort": "Gruppe erstellen",
+   "Create cohort from Unassigned": "Gruppe aus nicht zugeordneten Bildern erstellen",
+   "Include other matching Unassigned images": "Weitere passende nicht zugeordnete Bilder einbeziehen",
+   "Shared visual tags in %d selected images": "Gemeinsame visuelle Tags in %d ausgewählten Bildern",
+   "%d images will move from Unassigned": "%d nicht zugeordnete Bilder werden in die Gruppe verschoben",
+   "No shared visual tags found. Select different images.": "Keine gemeinsamen visuellen Tags gefunden. Wählen Sie andere Bilder aus.",
+   "The images or cohort name changed. Analyze the selection again.": "Die Bilder oder der Gruppenname haben sich geändert. Analysieren Sie die Auswahl erneut.",
+   "Enter a unique cohort name (1-80 characters).": "Geben Sie einen eindeutigen Gruppennamen ein (1-80 Zeichen).",
+   "%s - %s": "%s - %s",
+   "Could not load saved cohorts for this favorite.": "Die gespeicherten Gruppen dieses Favoriten konnten nicht geladen werden.",
+   "Could not save the cohort. Reopen the favorite and try again.": "Die Gruppe konnte nicht gespeichert werden. Öffnen Sie den Favoriten erneut und versuchen Sie es noch einmal."
 }

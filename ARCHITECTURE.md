@@ -129,6 +129,13 @@ validation, process failures and workflow wiring through a per-call runner.
 
 ### `internal/ui/explorer`
 
+`cohorts.go` finds shared recognized tags in selected Unassigned sources,
+matches chosen traits, and captures named current-map cohorts by source identity.
+Manual assignments overlay immutable analysis results, survive publications and
+stay separate from granularity cuts. Snapshot/restore preserves explicit favorite
+members across partial analyses. Creation reveals the new cohort and rejects
+stale/non-Unassigned sources.
+
 `tags.go` owns the localized checkbox catalogue, clickable unique-source counts
 opening captured tag-only grids, and OR filtering of intact piles/Unassigned.
 The toolbar collapses/restores the sidebar. Choices survive map publications and
@@ -183,7 +190,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with the supplied Codex atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `internal/ui/assets/trane.webp` is copied unchanged from `assets/trane/codex-pet/spritesheet.webp`. |
-| `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
+| `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, favorite cohort loading on the tracked worker/queue, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
+| `explorercohorts.go` | Composes Unassigned grid selection with the shared-trait review, optional matching sources and named-cohort creation. The dialog owns captured targets and rejects stale sessions; tracked favorite saves finish before returning to the map, and failures roll back the proposed group. Explorer retirement dismisses it. |
 | `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, similarity map, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action shortcut wiring (open, favorites, clipboard, copy selection, comparison, delete, select-all, save, export, wallpaper). Comparison registers the native `Cmd/Ctrl+D` plus physical `Ctrl+D` when those differ. `yieldingShortcuts` blocks ordinary commands during comparison and otherwise yields Copy Selection; Open is admitted only far enough to show comparison's refusal. Copy Selection and clipboard bindings also defend their own direct entries. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
@@ -288,6 +296,7 @@ Named file lists under a caller-supplied config directory. No UI.
 | File | Responsibility |
 |------|----------------|
 | `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
+| `cohorts.go` | Favorite-owned named source memberships in `cohorts.json`; cancellable atomic writes bound to the observed file-list identity, with removed members filtered on load. |
 
 ### `internal/favthumbs`
 
@@ -664,7 +673,7 @@ see `AGENTS.md`.
 - "How are Microsoft Store updates submitted and reconciled?" → `scripts/storepublish` + `.github/workflows/microsoft-store-publish.yml` + `docs/microsoft-store.md`.
 - "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
 - "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
-- "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
+- "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFavorite`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.settingsState` / `ApplySettings` + `viewer.closeFiles`.
 - "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, static window size, window size/position, favorite-preview-cache toggle, similarity cache/automatic update/fit settings, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.

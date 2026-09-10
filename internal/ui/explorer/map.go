@@ -24,6 +24,7 @@ import (
 // Host owns transitions while Map retains its view across those transitions.
 type Host interface {
 	OpenSimilarityCohort([]string)
+	OpenSimilarityUnassigned([]string)
 	LeaveSimilarityMap()
 	UpdateSimilarityMap()
 	SetSimilarityAutoUpdate(bool)
@@ -53,6 +54,8 @@ type Map struct {
 	appliedGranularity float64
 	items              []similarity.Item
 	merges             []similarity.CohortMerge
+	assignments        map[string]string
+	cohortNames        map[string]string
 }
 
 func New(host Host) *Map {
@@ -133,6 +136,7 @@ func (m *Map) UpdateState(available, busy bool) {
 // SetResult replaces cohort membership without moving the user's camera.
 func (m *Map) SetResult(items []similarity.Item, merges []similarity.CohortMerge) {
 	if items == nil {
+		m.assignments, m.cohortNames = nil, nil
 		m.tagChoices = nil
 		m.selectedSource = ""
 		m.granularity.Value, m.appliedGranularity = 100, 100
@@ -163,10 +167,18 @@ func (m *Map) rebuild() {
 	}
 	groups := map[string][]similarity.Item{}
 	var unassigned []string
+	assignedSeen := map[string]bool{}
 	m.unassignedTags = nil
 	for _, item := range m.items {
 		if item.Error != "" {
 			continue
+		}
+		if key := m.assignments[item.Path]; key != "" {
+			if assignedSeen[item.Path] {
+				continue
+			}
+			assignedSeen[item.Path] = true
+			item.Cohort = key
 		}
 		if item.Cohort == "unassigned" {
 			unassigned = append(unassigned, item.Path)
@@ -179,7 +191,7 @@ func (m *Map) rebuild() {
 		}
 	}
 	m.unassigned.SetText(fmt.Sprintf(lang.L("Unassigned (%d)"), len(unassigned)))
-	m.unassigned.OnTapped = func() { m.host.OpenSimilarityCohort(unassigned) }
+	m.unassigned.OnTapped = func() { m.host.OpenSimilarityUnassigned(unassigned) }
 	if len(unassigned) > 0 {
 		m.unassigned.Show()
 	} else {
@@ -197,6 +209,15 @@ func (m *Map) rebuild() {
 		members := groups[key]
 		sort.Slice(members, func(i, j int) bool { return members[i].Path < members[j].Path })
 		p := newPile(m, members)
+		if name := m.cohortNames[key]; name != "" {
+			label := fmt.Sprintf(lang.L("%s (%d)"), name, len(members))
+			runes := []rune(name)
+			for len(runes) > 1 && fyne.MeasureText(label, 16, fyne.TextStyle{}).Width > 280 {
+				runes = runes[:len(runes)-1]
+				label = fmt.Sprintf(lang.L("%s (%d)"), string(runes)+"...", len(members))
+			}
+			p.label.Text = label
+		}
 		m.piles = append(m.piles, p)
 		m.scene.Add(p)
 	}

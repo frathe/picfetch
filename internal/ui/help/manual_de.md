@@ -691,7 +691,8 @@ Der Regler **Granularität** oben rechts fasst verwandte Stapel in Richtung
 **Gröber** zusammen und stellt in Richtung **Feiner** kleinere Gruppen wieder her.
 Er beginnt bei der feinsten Gruppierung. Die Änderung verwendet vorhandene
 Analysedaten ohne erneutes Einlesen der Bilder. Am gröbsten Ende werden alle
-zugeordneten Gruppen verbunden; **Nicht zugeordnet** bleibt separat. Ein bereits
+automatisch zugeordneten Gruppen verbunden; selbst erstellte Gruppen und
+**Nicht zugeordnet** bleiben separat. Ein bereits
 geöffnetes Raster behält seine Mitglieder.
 
 Der Filter verändert weder Position noch Zoom der Karte. Neue Ergebnisse
@@ -716,6 +717,32 @@ Bilder von der Gruppierung und Anordnung. Die Karte zeigt Gruppen als
 Stapel mit bis zu fünfzehn Beispielbildern; **Nicht zugeordnet** enthält Bilder
 ohne Gruppenzuordnung.
 
+Zum Erstellen einer Gruppe **Nicht zugeordnet** öffnen, mindestens zwei Bilder
+auswählen und **Analysieren** anklicken. Die Vorschau zeigt die gemeinsamen
+visuellen Tags. Wählen Sie die gewünschten Tags, prüfen Sie die passenden
+Dateinamen und geben Sie einen eindeutigen Gruppennamen ein (bis zu 80 Zeichen).
+**Weitere passende nicht zugeordnete Bilder einbeziehen** ist anfangs aktiviert;
+deaktivieren Sie es, um nur die ausgewählten Bilder zu verwenden. Jedes Bild
+muss zu allen gewählten Tags passen. Bilder aus bestehenden Gruppen werden
+nicht einbezogen. Ohne gemeinsame Tags wählen Sie andere Bilder aus.
+
+**Gruppe erstellen** kehrt zur Karte zurück und zeigt die benannte Gruppe.
+Ihre Mitglieder bleiben bei späteren Kartenaktualisierungen erhalten; auch der
+Granularitätsregler verbindet sie nicht mit anderen Gruppen. Die Erstellung
+verwendet die vorhandene Analyse.
+
+Bei einer aus den Favoriten geöffneten Sammlung werden die benannten Gruppen
+und ihre Mitglieder mit diesem Favoriten gespeichert. Sie werden beim erneuten
+Öffnen wiederhergestellt, auch nach einem Neustart von PicFetch und bei
+deaktivierter Option **Analysen für Favoriten speichern**. Neue automatische
+Gruppierungen ersetzen Ihre gespeicherten Gruppen nicht. Entfernte Bilder
+werden ausgelassen; neue Bilder werden nicht automatisch hinzugefügt.
+
+Bei gewöhnlichen Dateisammlungen oder einem mit fremden Bildern zusammengeführten
+Favoriten gelten diese Ergänzungen nur für die aktuelle Karte. Beim Verlassen
+des Explorers oder Ändern seiner Quelldateien werden sie verworfen.
+Wiederverwendbare Regeln für andere Sammlungen sind noch nicht verfügbar.
+
 Zum Verschieben ziehen oder beim Scrollen **Shift** gedrückt halten.
 Zum Zoomen ohne Shift scrollen oder `+`/`-` verwenden.
 `Left`, `Right`, `Up` und `Down` wählen einen Stapel in der jeweiligen Richtung.
@@ -725,7 +752,8 @@ Der Regler **Granularität** oben rechts verbindet verwandte Gruppen in Richtung
 **Gröber** und stellt kleinere Gruppen in Richtung **Feiner** wieder her.
 Beim Ziehen wird die Karte erst nach dem Loslassen aktualisiert; Klicks und
 Tastaturänderungen gelten sofort. Die vorhandene Analyse wird weiterverwendet,
-ohne Bilder erneut einzulesen. **Nicht zugeordnet** bleibt getrennt.
+ohne Bilder erneut einzulesen. Selbst erstellte Gruppen und **Nicht zugeordnet**
+bleiben getrennt.
 **Karte einpassen** setzt die Ansicht zurück. Neue Ergebnisse zoomen bei Bedarf
 automatisch heraus, damit neue Stapel sichtbar werden. Bei mehr als 100 Stapeln
 gilt ein Mindestzoom von 50 %, auch für **Karte einpassen** und das automatische

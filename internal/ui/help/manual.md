@@ -600,6 +600,28 @@ pauses scanning while grouping and arranging it.
 Cohorts appear as piles with up to fifteen sampled members; **Unassigned**
 contains images that do not belong to a cohort.
 
+To create a cohort, open **Unassigned**, select at least two images, and click
+**Analyze**. The review shows the visual tags shared by your selection. Choose
+the tags to use, review the matching filenames, and enter a unique cohort name
+(up to 80 characters). **Include other matching Unassigned images** starts on;
+turn it off to use only your selected images. Every candidate must match all
+chosen tags. Images in existing cohorts are excluded. If no shared tags are
+found, choose a different selection.
+
+**Create cohort** returns to the map and reveals your named group. Its captured
+membership survives later map updates and remains separate when changing
+granularity. Creation uses the current analysis without rescanning images.
+For a collection opened from Favorites, the named cohorts and their exact
+members are saved with that favorite and restored when it is reopened, including
+after restarting PicFetch. This works even with **Save analysis for favorites**
+disabled. Fresh automatic grouping does not replace your saved groups. Removed
+images are omitted; new images are not automatically added to a saved cohort.
+
+For ordinary file collections, or a favorite merged with outside images, these
+additions last only for the current map. Leaving the Explorer or changing its
+source files clears them. Reusable rules for unrelated collections are not yet
+available.
+
 The **Tags** panel lists common subjects and scenes with unique-image counts.
 All tags, including **Untagged**, start checked. Clear checkboxes to hide cohorts
 that have no member matching an active tag. A cohort stays visible if any member
@@ -620,8 +642,9 @@ The **Granularity** slider at the top right combines related stacks toward
 **Broader**, and restores smaller groups toward **Finer**. It starts at the
 finest grouping. While dragging, the map updates when you release the slider;
 clicks and keyboard adjustments apply immediately. Changes use the existing
-analysis without rescanning images. The broadest end joins all assigned groups, while **Unassigned**
-stays separate. An already open grid keeps its captured members.
+analysis without rescanning images. The broadest end joins the automatically
+formed groups; user-created cohorts and **Unassigned** stay separate. An already
+open grid keeps its captured members.
 
 Filtering preserves the map position and zoom. New map results retain your
 choices for known tags and check newly discovered tags. Returning from Grid View

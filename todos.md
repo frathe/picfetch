@@ -6,6 +6,15 @@
 
 #### New Features
 
+- **Create cohorts from Unassigned images.** Select at least two images and use
+  Analyze to review their shared visual tags, matching filenames and a group
+  name. Include other matching Unassigned images or keep only the selection.
+  Favorite-based collections save their named cohorts and exact members for
+  reopening; ordinary/mixed collections keep them for the current map.
+  Automatic updates and granularity preserve user-defined groups. Verified with
+  `make verify`, `make build`, offline integration tests and native restart QA;
+  see the [implementation record](plans/2026-09-09-visual-similarity-explorer.md#create-cohorts-from-unassigned--2026-09-10).
+
 - **Refine similarity maps without rescanning.** Collapse the tag sidebar,
   click a tag's count to browse only matching images, and use the top-right
   Granularity slider to combine related stacks or restore the original groups.
@@ -17,8 +26,9 @@
   starts fully selected, includes Untagged, and provides All tags/Clear tags.
   Counts show unique images across the complete map; OR filtering preserves
   cohort membership, camera, and choices across updates and Grid View visits.
-  No additional model download is needed to use tags. Label quality remains
-  provisional pending library trial; saved grouping presets remain separate.
+  No additional model download is needed to use tags. Ronin accepted the tag
+  and cohort quality in his tested experience on September 10. Full-library
+  measurements and reusable grouping rules remain separate.
 
 ### Keep Random mosaics varied and add Shelf
 
@@ -222,15 +232,14 @@ pass: real offline/viewer suites and all 43 synthetic native replay phases.
 Live native checks with 60/600 public fixture copies also covered tag grids,
 image navigation, granularity clicks, camera return and a visible partial map;
 all 600 completed without failures. Native drag remains unverified. This does
-not close library qualification. The two preset choices below and the user's
-latest native usability verdict remain unanswered.
+not close library qualification. Ronin accepted tag matching and cohort quality
+in his tested experience on September 10.
 
-Requested during the native explorer trial: select several Unassigned images,
-use Link to inspect shared traits, select the desired traits, name the group,
-and add it to the map. Retain named presets for future maps and provide a compact
-preset browser instead of a nested menu tree. Trait scope (visual/metadata) and
-future-map application behavior are being clarified with the user; preserve
-current non-overlapping cohorts and the active map refinement work.
+Creating named cohorts from selected Unassigned images is implemented through
+Analyze. Favorite-based collections persist exact memberships independently of
+the analysis cache. The remaining follow-up is reusable, source-independent
+rules and a compact preset browser. Trait scope beyond the existing visual tags
+and automatic application to future maps remain open choices.
 
 ### Full-library similarity throughput
 
