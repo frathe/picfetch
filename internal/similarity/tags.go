@@ -15,6 +15,22 @@ var tagCatalog []byte
 //go:embed tag-vectors.json
 var tagVectors []byte
 
+// TagCatalogueVersion binds preset rules to the prompt vectors and thresholds.
+func TagCatalogueVersion() string { return fmt.Sprintf("%x", sha256.Sum256(tagCatalog)) }
+
+// TagIDs returns a fresh list of the fixed catalogue's source-independent IDs.
+func TagIDs() []string {
+	var catalog struct{ Tags []struct{ ID string } }
+	if err := json.Unmarshal(tagCatalog, &catalog); err != nil {
+		return nil
+	}
+	ids := make([]string, 0, len(catalog.Tags))
+	for _, tag := range catalog.Tags {
+		ids = append(ids, tag.ID)
+	}
+	return ids
+}
+
 // Tagger applies the pinned, fixed prompt catalogue to image representations.
 // It owns only small immutable text vectors; it never opens images or a runtime.
 type Tagger struct {

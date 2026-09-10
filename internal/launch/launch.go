@@ -38,6 +38,9 @@ type Options struct {
 	// setting: there is no saved value to override and nothing to restore.
 	PictureFrame bool
 
+	// ExplorerTrial requests an isolated native collection in a new directory.
+	ExplorerTrial string
+
 	// Sort is one of the preferences.SortBy* constants, validated by Parse.
 	Sort *string
 
@@ -75,6 +78,18 @@ type spec struct {
 }
 
 var flagSpecs = []spec{
+	{
+		name: "explorer-trial",
+		arg:  "DIR",
+		help: "collect an isolated native Explorer trial in a new directory (requires OS network denial)",
+		set: func(o *Options, raw string) error {
+			if strings.TrimSpace(raw) == "" {
+				return errors.New("trial directory is empty")
+			}
+			o.ExplorerTrial = raw
+			return nil
+		},
+	},
 	{
 		name: "slideshow",
 		help: "start in picture-frame mode once the files have loaded",

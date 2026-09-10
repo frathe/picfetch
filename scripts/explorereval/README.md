@@ -194,3 +194,47 @@ them. The bounded evaluator still writes vectors for engine-quality evidence.
 Stack packing uses nearby-cell lookups and perimeter searches. These reduce
 measured map-publication overhead; they do not qualify full-library throughput
 or remove the batch UMAP/HDBSCAN scaling limit.
+
+
+## Isolated native collection (`TRIAL=library`)
+
+```sh
+make explorer-evaluate TRIAL=library EXPLORER_LIBRARY=/absolute/local/folder
+```
+
+This builds and retains a native app bundle, runs it under effective OS network
+denial, and opens the folder through PicFetch's normal scan/sort/Explorer path.
+It processes all discovered inputs, without the 512-source smoke sampler.
+An explicitly capped/truncated scan cannot produce a collected session.
+Only run a private library when its owner has authorized that trial.
+
+The new evidence directory contains the retained executable, `native.log`,
+`exit-status.txt`, `runner.json`, and one-second process-group RSS samples in
+`memory.jsonl`. The samples include the app and its analysis child, exclude
+zombies, and are a sampled sum rather than an exact peak or private-memory metric.
+Closing PicFetch finalizes `session/events.jsonl` and `session/session.json`.
+The launcher forwards interruption to the app, observes its exit, and escalates
+only its owned process group if graceful termination fails after ten seconds.
+
+The public launch flag `--explorer-trial DIR` requires a new directory and actual
+TCP/UDP OS denial before source reads. It supplies a unique Fyne identity and
+separate Favorites, presets and updater directories; all update paths are disabled.
+Ordinary application preferences, Favorites and preset definitions are untouched.
+Preset/Favorite files may contain their normal user data; structured trial records
+contain no source paths, pixels, embeddings or image metadata. Native diagnostic
+logs are local and can contain errors with paths. Keep the evidence local unless
+its contents have been reviewed for sharing.
+
+Numbered records distinguish analysis start, received worker events, UI-applied
+maps, worker exit, cohort opening, map return and Explorer exit. Queue/apply times
+measure those boundaries, **not visible paint latency**. A final map must account
+for the exact input identity digest and every source, with effective offline
+verification and an observed worker exit. Failed/canceled runs retain their logs.
+`Collected` means technical collection succeeded; `Qualified` remains false.
+Human quality, large-map usability and full-library performance verdicts are
+recorded separately. Tests and public-fixture runs cannot close ticket 07.
+
+The ordinary Explorer's **Presets** library supports AND rules over existing
+visual tags and image facts, explicit matching previews, and reviewed Unassigned
+membership. Favorite memberships persist independently of reusable definitions.
+See the app manual for editing, pending members and compatibility recovery.

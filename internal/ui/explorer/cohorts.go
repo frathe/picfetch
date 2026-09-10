@@ -9,17 +9,30 @@ import (
 	"unicode/utf8"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/similarity"
 )
 
 // Trait is a recognized, localized visual tag shared by selected sources.
 type Trait struct{ ID, Label string }
 
+// Traits exposes the same recognized, localized catalogue as the map sidebar.
+func Traits() []Trait {
+	var traits []Trait
+	for _, id := range similarity.TagIDs() {
+		if label := tagLabel(id); label != "" {
+			traits = append(traits, Trait{ID: id, Label: label})
+		}
+	}
+	sort.Slice(traits, func(i, j int) bool { return traits[i].Label < traits[j].Label })
+	return traits
+}
+
 // Cohorts returns an independent snapshot, including members not yet present
 // in a partial analysis. Saving another group must retain those members.
-func (m *Map) Cohorts() []favstore.Cohort {
+func (m *Map) Cohorts() favstore.CohortState {
 	groups := make([]favstore.Cohort, 0, len(m.cohortNames))
 	for key, name := range m.cohortNames {
-		group := favstore.Cohort{Name: name}
+		group := favstore.Cohort{Name: name, PresetID: m.presetIDs[key]}
 		for path, assigned := range m.assignments {
 			if assigned == key {
 				group.Paths = append(group.Paths, path)
@@ -29,23 +42,43 @@ func (m *Map) Cohorts() []favstore.Cohort {
 		groups = append(groups, group)
 	}
 	sort.Slice(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
-	return groups
+	var released []string
+	for path := range m.unassignedSources {
+		if m.assignments[path] == "" {
+			released = append(released, path)
+		}
+	}
+	sort.Strings(released)
+	return favstore.CohortState{Groups: groups, Unassigned: released}
 }
 
 // RestoreCohorts overlays saved explicit membership before analysis delivery.
 // Invalid names and overlapping members in edited metadata are ignored.
-func (m *Map) RestoreCohorts(groups []favstore.Cohort) {
+func (m *Map) RestoreCohorts(state favstore.CohortState) {
 	m.assignments, m.cohortNames = map[string]string{}, map[string]string{}
-	for _, group := range groups {
+	m.presetIDs, m.unassignedSources = map[string]string{}, map[string]bool{}
+	for _, group := range state.Groups {
 		if !m.CohortNameAvailable(group.Name) || len(group.Paths) == 0 {
 			continue
 		}
 		key := cohortKey(group.Name)
+		if group.PresetID != "" {
+			if m.HasPreset(group.PresetID) {
+				continue
+			}
+			key = "preset-" + group.PresetID
+			m.presetIDs[key] = group.PresetID
+		}
 		for _, path := range group.Paths {
 			if path != "" && m.assignments[path] == "" {
 				m.assignments[path] = key
 				m.cohortNames[key] = group.Name
 			}
+		}
+	}
+	for _, path := range state.Unassigned {
+		if path != "" && m.assignments[path] == "" {
+			m.unassignedSources[path] = true
 		}
 	}
 	m.rebuild()
@@ -71,7 +104,7 @@ func (m *Map) SharedTraits(paths []string) []Trait {
 		if !selected[item.Path] || seen[item.Path] {
 			continue
 		}
-		if item.Error != "" || item.Cohort != "unassigned" || m.assignments[item.Path] != "" {
+		if item.Error != "" || !m.isUnassigned(item) {
 			return nil
 		}
 		seen[item.Path] = true
@@ -109,7 +142,7 @@ func (m *Map) MatchUnassigned(tags []string) []string {
 	var paths []string
 	seen := map[string]bool{}
 	for _, item := range m.items {
-		if item.Error != "" || item.Cohort != "unassigned" || m.assignments[item.Path] != "" || seen[item.Path] {
+		if item.Error != "" || !m.isUnassigned(item) || seen[item.Path] {
 			continue
 		}
 		matches := true

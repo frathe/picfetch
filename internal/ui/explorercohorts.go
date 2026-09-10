@@ -13,6 +13,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/frathe/picfetch/internal/explorerpresets"
 )
 
 func (v *viewer) analyzeSimilaritySelection() {
@@ -168,6 +170,12 @@ func (v *viewer) analyzeSimilaritySelection() {
 	}
 	refresh()
 	cancel := widget.NewButton(lang.L("Cancel"), func() { review.Hide() })
+	savePreset := widget.NewButton(lang.L("Save as preset"), func() {
+		if pending || v.stopping || revision != v.explorer.lifecycle.currentRevision() {
+			return
+		}
+		v.editSimilarityPreset(explorerpresets.Preset{Name: name.Text, Rule: explorerpresets.Rule{Tags: slices.Clone(tags)}})
+	})
 	matchList := container.NewGridWrap(fyne.NewSize(520, 150), list)
 	if len(traits) == 0 {
 		include.Hide()
@@ -178,7 +186,7 @@ func (v *viewer) analyzeSimilaritySelection() {
 	}
 	body := container.NewVBox(widget.NewLabel(fmt.Sprintf(lang.L("Shared visual tags in %d selected images"), len(paths))), checks, include, count,
 		matchList, name, errorLabel,
-		container.NewHBox(cancel, create))
+		container.NewHBox(cancel, create, savePreset))
 	width := canvas.NewRectangle(color.Transparent)
 	width.SetMinSize(fyne.NewSize(440, 0))
 	review = dialog.NewCustomWithoutButtons(lang.L("Create cohort from Unassigned"), container.NewStack(width, body), v.win)

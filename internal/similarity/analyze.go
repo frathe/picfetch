@@ -119,7 +119,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		if sourceErr == nil {
 			before, sourceErr = os.Stat(path)
 		}
-		reused := false
+		reused, backfilled := false, false
 		if sourceErr == nil {
 			item.Size, item.ModifiedNS = before.Size(), before.ModTime().UnixNano()
 			cacheStart := time.Now()
@@ -127,6 +127,19 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				item, reused = cached, true
 			}
 			event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
+		}
+		if sourceErr == nil && reused && (item.Facts.Version != FactsVersion || item.Facts.Width <= 0 || item.Facts.Height <= 0) {
+			factsStart := time.Now()
+			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+			sourceErr = readErr
+			if sourceErr == nil && fmt.Sprintf("%x", sha256.Sum256(data)) != item.SHA256 {
+				sourceErr = fmt.Errorf("source changed since cached representation")
+			}
+			if sourceErr == nil {
+				item.Facts = imageFacts(path, data, bounds)
+				backfilled = true
+			}
+			event.Measurements.DecodeSeconds += time.Since(factsStart).Seconds()
 		}
 		if sourceErr == nil && !reused {
 			if encoder == nil {
@@ -139,9 +152,10 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				}
 			}
 			decodeStart := time.Now()
-			data, _, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
 			sourceErr = readErr
 			if sourceErr == nil {
+				item.Facts = imageFacts(path, data, bounds)
 				item.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
 				loaded, decodeErr := imaging.DecodeLoaded(ctx, data, 1)
 				event.Measurements.DecodeSeconds += time.Since(decodeStart).Seconds()
@@ -186,7 +200,8 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			event.Successful++
 			if reused {
 				event.Reused++
-			} else {
+			}
+			if !reused || backfilled {
 				cacheStart := time.Now()
 				err := cache.write(ctx, item)
 				event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()

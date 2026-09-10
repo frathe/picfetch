@@ -6,6 +6,13 @@
 
 #### New Features
 
+- **Reusable similarity presets.** Global local tag/metadata rules, explicit
+  previews, linked cohort edits, persistent Unassigned returns and Favorite
+  membership links, independent of the analysis cache.
+- **Isolated native Explorer collection.** `TRIAL=library` retains the app,
+  records receipt/application/exit boundaries and process-group RSS, and keeps
+  technical collection separate from full-library qualification.
+
 - **Create cohorts from Unassigned images.** Select at least two images and use
   Analyze to review their shared visual tags, matching filenames and a group
   name. Include other matching Unassigned images or keep only the selection.
@@ -141,7 +148,7 @@ The current increment enforces a 50% zoom floor only above 100 cohort piles,
 including Fit map and automatic discovery, while keeping every sampled
 thumbnail. Smaller maps retain the existing zoom range. The active plan records
 SDD/TDD and verification evidence. Trial the cutoff on normal and large maps;
-scan throughput and saved group presets remain later work.
+full-library scan throughput remains later work.
 
 ### Visual similarity explorer proof of concept
 
@@ -207,7 +214,7 @@ open cohorts retain their complete membership. Labeling uses small embedded
 SigLIP 2 text prototypes against existing image representations. It uses no
 per-image text inference or new runtime assets. Broad/mixed content can be
 missed or mislabeled; 31 tags and a provisional score threshold do not establish
-full-library semantic accuracy. Custom traits and saved presets remain separate.
+full-library semantic accuracy. Custom traits remain separate; reusable presets are implemented below.
 Final real offline/native suites, `make verify`, refreshed build checks and
 `make build` pass. The updated executable is `bin/picfetch`.
 
@@ -223,23 +230,32 @@ Source/failure recovery (ticket 06) is implemented and verified: focused/native
 suites, the 446-image smoke run, `make verify` and `make build` passed.
 [Recovery evidence](.scratch/visual-similarity-explorer/evidence/recovery.md)
 records the source-change policy and regression coverage. Full-library
-qualification and the saved-preset choices below remain open.
+qualification remains open.
 
-### Saved similarity group presets
+### Native Explorer qualification after reusable presets
 
-Current-build [native readiness checks](.scratch/visual-similarity-explorer/evidence/native-qualification-20260910/README.md)
-pass: real offline/viewer suites and all 43 synthetic native replay phases.
-Live native checks with 60/600 public fixture copies also covered tag grids,
-image navigation, granularity clicks, camera return and a visible partial map;
-all 600 completed without failures. Native drag remains unverified. This does
-not close library qualification. Ronin accepted tag matching and cohort quality
-in his tested experience on September 10.
+Reusable presets are implemented: a global local searchable library, AND rules
+for existing visual tags, file type, oriented dimensions/orientation, camera
+make/model and EXIF calendar dates; metadata-only rules are supported. Explicit
+previews protect existing cohorts and freeze reviewed candidates. Linked edits
+return removed members to persistent Unassigned, preserve pending members, and
+keep other Favorites unchanged. Deleting a definition keeps its cohort. Favorite
+memberships and rule definitions persist separately, including legacy migration.
 
-Creating named cohorts from selected Unassigned images is implemented through
-Analyze. Favorite-based collections persist exact memberships independently of
-the analysis cache. The remaining follow-up is reusable, source-independent
-rules and a compact preset browser. Trait scope beyond the existing visual tags
-and automatic application to future maps remain open choices.
+`make explorer-evaluate TRIAL=library` now collects isolated native evidence with
+network denial before source reads, a retained executable, numbered causal events,
+observed process exits and sampled process-group RSS. Collection is separate from
+qualification. See [current evidence](.scratch/visual-similarity-explorer/evidence/presets-native-20260910/README.md).
+
+Still open in the current milestone: full-library counts/timings/resource and
+UMAP/HDBSCAN scaling evidence; large-map pan/zoom and the 50% floor above 100
+piles; live progressive/frozen browsing and recovery/cache trials at that scale;
+event-to-visible paint measurements; Ronin's verdict on the remaining native
+usability questions. The direct desktop-control bridge failed in the current
+session, so direct native dragging remains unverified. Prior public-fixture trials
+and current scripted rendering evidence are distinct from that human trial.
+Ronin accepted tag matching and cohort quality in his tested experience on
+September 10; this acceptance remains recorded.
 
 ### Full-library similarity throughput
 

@@ -606,7 +606,7 @@ the tags to use, review the matching filenames, and enter a unique cohort name
 (up to 80 characters). **Include other matching Unassigned images** starts on;
 turn it off to use only your selected images. Every candidate must match all
 chosen tags. Images in existing cohorts are excluded. If no shared tags are
-found, choose a different selection.
+found, choose a different selection or use **Save as preset** for metadata rules.
 
 **Create cohort** returns to the map and reveals your named group. Its captured
 membership survives later map updates and remains separate when changing
@@ -619,8 +619,30 @@ images are omitted; new images are not automatically added to a saved cohort.
 
 For ordinary file collections, or a favorite merged with outside images, these
 additions last only for the current map. Leaving the Explorer or changing its
-source files clears them. Reusable rules for unrelated collections are not yet
-available.
+source files clears them.
+
+**Presets** opens a searchable local library of reusable rules. **New preset**
+or **Save as preset** in Analyze opens the editor. Give the rule a unique name
+and select at least one condition. Every selected visual tag and metadata
+condition must match. Metadata rules can use file type, oriented width/height,
+portrait/landscape/square orientation, camera make/model, and inclusive EXIF
+capture dates (YYYY-MM-DD). Missing metadata does not match an enabled condition;
+file modification dates are not used as capture dates. Metadata-only rules work.
+
+Save the definition, then use **Preview preset** to review matches before
+**Apply preset**. A new cohort needs at least two matching Unassigned images.
+Existing cohorts are protected. Editing a preset also reviews its linked group
+in the current map: removed members return to Unassigned, and pending members
+stay saved until they can be analyzed. A later map update does not silently add
+new arrivals. An open grid retains its captured membership.
+
+Preset definitions are global on this computer and independent of Favorites
+and the analysis cache. Favorite memberships, links and explicit returns to
+Unassigned persist separately. Other Favorites keep their reviewed memberships
+until you explicitly apply the rule there. Deleting a preset keeps its existing
+groups. Older incompatible definitions remain readable and require review and
+saving before application. A library-save or Favorite-save failure is shown;
+failed membership saves restore the prior group.
 
 The **Tags** panel lists common subjects and scenes with unique-image counts.
 All tags, including **Untagged**, start checked. Clear checkboxes to hide cohorts

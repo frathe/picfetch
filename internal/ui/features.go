@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/assets"
@@ -106,6 +107,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// The thumbnail-cache setter reaches into the grid, so the grid must be
 	// registered before saved cache limits are applied.
 	view.grid = grid.New(view, window, view.dupes)
+	view.explorer.presets = &explorerpresets.Store{Dir: explorerpresets.DefaultDir()}
 	view.explorer.surface = explorerui.New(view)
 	view.explorer.ui = explorerQueue{}
 	view.explorer.cacheFavorites = prefs.SimilarityFavoriteCache

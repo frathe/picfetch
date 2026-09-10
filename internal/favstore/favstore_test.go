@@ -16,6 +16,30 @@ import (
 )
 
 func TestCohorts(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) {
+		dir := t.TempDir()
+		files := []fyne.URI{storage.NewFileURI("/images/one.jpg"), storage.NewFileURI("/images/two.jpg")}
+		if err := Save(dir, "Legacy", files); err != nil {
+			t.Fatal(err)
+		}
+		data := []byte(`[{"name":"Old group","paths":["/images/one.jpg"]}]`)
+		if err := os.WriteFile(filepath.Join(Dir(dir, "Legacy"), "cohorts.json"), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		store, state, err := OpenCohorts(context.Background(), Dir(dir, "Legacy"))
+		if err != nil || len(state.Groups) != 1 || state.Groups[0].Name != "Old group" {
+			t.Fatalf("legacy membership: %+v %v", state, err)
+		}
+		state.Groups[0].PresetID = "stable-rule"
+		state.Unassigned = []string{"/images/two.jpg"}
+		if err := store.Save(context.Background(), state); err != nil {
+			t.Fatal(err)
+		}
+		_, got, err := OpenCohorts(context.Background(), Dir(dir, "Legacy"))
+		if err != nil || len(got.Groups) != 1 || got.Groups[0].PresetID != "stable-rule" || !slices.Equal(got.Unassigned, state.Unassigned) {
+			t.Fatalf("migrated favorite state: %+v %v", got, err)
+		}
+	})
 	dir := t.TempDir()
 	files := []fyne.URI{storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/b.jpg")}
 	if err := Save(dir, "Trip", files); err != nil {
@@ -23,21 +47,21 @@ func TestCohorts(t *testing.T) {
 	}
 	ctx := context.Background()
 	store, groups, err := OpenCohorts(ctx, Dir(dir, "Trip"))
-	if err != nil || len(groups) != 0 {
+	if err != nil || len(groups.Groups) != 0 {
 		t.Fatalf("new favorite cohorts = %v, %v", groups, err)
 	}
 	want := []Cohort{{Name: "My cats", Paths: []string{files[0].Path(), files[1].Path()}}}
-	if err := store.Save(ctx, want); err != nil {
+	if err := store.Save(ctx, CohortState{Groups: want}); err != nil {
 		t.Fatal(err)
 	}
 	_, got, err := OpenCohorts(ctx, Dir(dir, "Trip"))
-	if err != nil || len(got) != 1 || got[0].Name != want[0].Name || !slices.Equal(got[0].Paths, want[0].Paths) {
+	if err != nil || len(got.Groups) != 1 || got.Groups[0].Name != want[0].Name || !slices.Equal(got.Groups[0].Paths, want[0].Paths) {
 		t.Fatalf("saved cohorts = %v, %v", got, err)
 	}
 	t.Run("cancel", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
-		if err := store.Save(ctx, nil); !errors.Is(err, context.Canceled) {
+		if err := store.Save(ctx, CohortState{}); !errors.Is(err, context.Canceled) {
 			t.Fatalf("canceled save = %v", err)
 		}
 	})
@@ -45,11 +69,11 @@ func TestCohorts(t *testing.T) {
 		if err := Save(dir, "Trip", files[:1]); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Save(ctx, nil); err == nil {
+		if err := store.Save(ctx, CohortState{}); err == nil {
 			t.Fatal("stale map overwrote a replaced favorite")
 		}
 		_, restored, err := OpenCohorts(ctx, Dir(dir, "Trip"))
-		if err != nil || len(restored) != 1 || !slices.Equal(restored[0].Paths, []string{files[0].Path()}) {
+		if err != nil || len(restored.Groups) != 1 || !slices.Equal(restored.Groups[0].Paths, []string{files[0].Path()}) {
 			t.Fatalf("replacement did not retain only surviving members: %v, %v", restored, err)
 		}
 	})
@@ -58,7 +82,7 @@ func TestCohorts(t *testing.T) {
 		if err := os.Rename(path, filepath.Join(dir, "Removed")); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Save(ctx, want); err == nil {
+		if err := store.Save(ctx, CohortState{Groups: want}); err == nil {
 			t.Fatal("removed favorite accepted a save")
 		}
 		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {

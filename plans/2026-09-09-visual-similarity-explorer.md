@@ -1,12 +1,110 @@
 # Visual similarity explorer implementation
 
+## Approved continuation — reusable presets and native trial tooling, 2026-09-10
+
+Status: approved continuation implemented and verified. Ronin approved both increments, presets first,
+using the existing UI/provider and actual offline-engine test seams.
+
+Decisions: global local preset library; existing visual tags plus file type,
+oriented dimensions/orientation, camera make/model and capture-date ranges;
+AND matching, including metadata-only rules. Explicit preview/application to
+Unassigned only. Editing reviews the linked current cohort too; removed members
+return to persistent Unassigned. Deleting a rule preserves and detaches its cohort.
+New arrivals require another explicit review; pending saved members survive.
+Other favorites retain reviewed memberships until explicit application.
+
+Tasks (T0 inline, sequential; two review rounds each, extras recorded):
+
+| Task | Contract/files | Acceptance command |
+|---|---|---|
+| P1 | similarity Item facts and cache backfill; real local UI suite | `go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorerLocal$/^presets' -count=1 -v` |
+| P2 | explorerpresets rule/store; explorer UI browser/editor and root composition | `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^presets' -count=1 -v` |
+| P3 | favorite cohort links/Unassigned overrides, legacy migration and failures | P2 plus `go test ./internal/favstore -run '^TestCohorts' -count=1 -v` |
+| N1 | explorertrial operational recorder; UI receipt/application/exit/visits | `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^trial_recording' -count=1 -v` |
+| N2 | launch flag, isolated native library runner and process ownership | `go test ./internal/launch ./scripts/explorereval -count=1` |
+| Gate | docs/locales/manifests, negative guards, native public-fixture trial | `make explorer-test`; `make explorer-ui-test`; `make verify`; `make build` |
+
+Graph: P1 -> P2 -> P3 -> N1 -> N2 -> gate. One behavior red/green at a
+time. No implementation delegates; all reviews/fixes remain lead-owned.
+Canonical full suite once after both increments. Native trial storage includes
+isolated presets as well as app identity, Favorites and updates. OS denial
+precedes source reads. Collection is separate from qualification; no private
+library run is authorized by this increment. Structured traces omit image
+metadata as well as paths/pixels/vectors. UI application timing is not paint.
+
+Handoff must list open tasks in this milestone, reflecting actual evidence.
+Keep the broad plan active for library/resource/native usability qualification.
+Do not commit. Existing unrelated `:memory:.ses` files remain untouched.
+
+### Continuation implementation evidence (in progress)
+
+P1 real offline red: facts were absent. Green: oriented RAW dimensions, camera
+and calendar date. Legacy-cache red: reused representation had no facts; green
+backfilled facts with zero inference attempts. The outer tool sandbox initially
+refused sandbox-exec; focused native tests ran with approved host execution and
+the worker's actual network denial intact.
+
+P2/P3 UI reds: missing Presets, image-property/model fields, linked-edit review,
+Favorite restoration, Delete preset and Analyze's Save as preset. Each passed
+after its corresponding implementation. Current presets use a virtual match
+list and a separately tracked preset waitgroup on the same Explorer UI queue,
+so they remain operable during a live analysis.
+
+Focused preset race suite passed (8 scenarios, 15.49s test time). It covers
+frozen preview arrivals, protected cohorts, stale targets, linked removals and
+restart persistence. Existing create-cohort regression scenarios also passed.
+Legacy Favorite array migration and cancellation/replacement/removal storage
+guards passed. One incorrectly constructed combined test regex matched no root
+UI tests; this was identified and rerun with correct anchored filters. It was
+not counted as evidence.
+
+P2/P3 review added explicit incompatible-rule guidance, preserved unsupported
+conditions until review, validated known file types and absent dimensions, and
+covered pending Favorite members plus failed membership writes. Negative guards
+were observed failing with rollback/pending preservation removed, restored, and
+passed in the complete focused race filter (`internal/ui` 43.153s,
+`internal/favstore` 1.502s).
+
+N1 recorder reds/greens distinguish receipt from UI application, observe canceled
+worker exit and reject completed events with mismatched source identities.
+N2 parser/startup reds/greens cover isolated storage, disabled updates, automatic
+ordinary scan-to-map entry and truncation refusal. Direct native launch without
+OS denial exited 1 before creating evidence or reading source files. The native subprocess runner
+passed retention/no-overwrite/cancellation tests under race (4.035s).
+
+Native validation: the unmodified retained app completed 3 and 600 public sources
+with zero failures; both recorded application/worker exit and finalized collection
+with exit 0 and Qualified=false. No private source library was opened. Computer
+Use transport failed before app connection, including after a Node reset. A
+retained native Fyne/GL replay overlay captured six frames after a visible paint
+marker; editor, three-match preview, named pile and exact cohort grid were
+visually inspected. Direct desktop dragging and production paint latency remain
+unverified. See [evidence](../.scratch/visual-similarity-explorer/evidence/presets-native-20260910/README.md).
+
+`make explorer-test` and `make explorer-ui-test` passed (the latter 28.074s).
+`make verify` completed with exit 0, including formatting/TUF/exclusions,
+vet/build, exact shard checks and the complete Linux/amd64 Docker race suite.
+UI shards passed in 468.156s, 298.360s and 286.199s; the full Explorer scenario
+passed in 157.120s. Artifacts: `.scratch/race-runs/20260910T104425Z-ZK5ltM`.
+The final `make build` also passed. Both native library runs and the replay
+exited 0; direct unprotected trial launch was correctly refused with exit 1. Manuals, locale parity, architecture and local tracker
+were updated. No new test files or top-level root UI tests were added, so exact
+Qodana exclusions and shard assignments remain unchanged.
+
+Ledger: one read-only scout reused for bundle/bridge reconnaissance; zero
+implementation/review delegates. T0 kept all implementation and review fixes.
+P1/N1 used two review rounds; P2/P3/N2 used three (the extra rounds closed
+compatibility, independent-save and native process/evidence findings). One full
+canonical suite, at the final gate; focused suites during the slices.
+
+
 Date: 2026-09-09
-Status: Unassigned cohort creation and favorite-owned persistence implemented and verified, alongside semantic tags, recovery, trial controls, map refinement and throughput work; reusable preset rules and full-library qualification remain open
+Status: reusable presets and isolated native collection tooling implemented and verified, alongside cohort persistence, semantic tags, recovery, map refinement and throughput work; full-library/native qualification remains open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Create cohorts from Unassigned](#create-cohorts-from-unassigned--2026-09-10).
+Current increment: [Reusable presets and native trial tooling](#approved-continuation--reusable-presets-and-native-trial-tooling-2026-09-10), complete. The broader milestone remains active.
 
 ## Deliverable and accepted contract
 

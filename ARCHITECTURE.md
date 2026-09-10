@@ -13,7 +13,8 @@ Entry point only. `main.go` parses the command line (`launchArgs`, see
 `internal/launch`) before any side effect, dispatches the private `similarity.WorkerMain`
 subprocess mode before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
-cleanup for Store-managed builds, builds the `fyne.App`, loads embedded
+cleanup for Store-managed builds and explicit Explorer trials, verifies OS denial
+and derives an isolated app identity for `--explorer-trial`, builds the `fyne.App`, loads embedded
 `translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
 `ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
@@ -43,6 +44,10 @@ asset discovery, the cancellable offline subprocess, and private `WorkerMain`
 dispatch. `analyze.go` accounts for every input, captures source versions,
 reuses canonical full oriented decoding, makes previews, and publishes a map
 on manual request, optionally every 30 sources, and at completion.
+`facts.go` captures versioned oriented dimensions, normalized extension and optional
+EXIF camera/calendar-date facts from already-read sources; old cached representations
+backfill these facts without inference. `tags.go` exposes catalogue identity for
+rule compatibility.
 `Event.Measurements` carries cumulative worker stage times, inference attempts
 and publication counts as immutable values; grouping includes its named sub-stages.
 `control_darwin.go`/`control_other.go` own the pollable worker input descriptor.
@@ -64,6 +69,23 @@ in place. `assets.go`/`assets.sha256` verify pinned local assets; `offline.go`
 verifies actual TCP/UDP OS denial; `files.go` registers the driverless read-only
 file repository. This first native trial supports Apple Silicon macOS.
 
+### `internal/explorerpresets`
+
+Reusable local preset definitions, stable identities and versioned rule matching
+over immutable similarity facts. `presets.go` owns the rule contract and atomic,
+cancellable global library storage; the viewer supplies its directory and runs
+I/O on the separately tracked Explorer preset workers, sharing its UI queue.
+
+### `internal/explorertrial`
+
+`session.go` owns an explicit native trial's exclusive evidence directory,
+source-free causal records and final collection summary. Numbered analyses bind
+input digests to received events, actual UI application and observed worker exit.
+It also records cohort/map visits, rejected truncated scans, and shutdown.
+`Identity` gives trial launches separate Fyne preferences/session storage.
+Collection has no implicit human quality verdict; UI application is not paint.
+The module starts no goroutines.
+
 ### `scripts/explorereval`
 
 Bounded local experiment reached through `make explorer-setup`,
@@ -81,6 +103,13 @@ through the actual `similarity.Client` with a temporary favorite cache, retains
 aggregate event timings and a source-identity digest, then removes that cache.
 Its completed summary observes both worker exits; no previews or source paths
 are written to the profiling report.
+`native_darwin.go`/`native_other.go` implement `TRIAL=library`: retain a native app
+bundle and executable digest, launch under OS denial with its own process group,
+forward cancellation for graceful shutdown then escalate only that group, observe
+child/descendant exit, and sample aggregate process-group RSS once per second.
+The normal app scans the supplied library without the smoke sampler. Launcher
+logs, exit status and collection/qualification fields remain separate from the
+app's numbered analysis records. It never scans source files outside denial.
 
 ### `scripts/explorertags`
 
@@ -129,7 +158,8 @@ validation, process failures and workflow wiring through a per-call runner.
 
 ### `internal/ui/explorer`
 
-`cohorts.go` finds shared recognized tags in selected Unassigned sources,
+`presets.go` captures frozen candidate facts and applies reviewed preset membership,
+protecting other groups and pending members. `cohorts.go` finds shared recognized tags in selected Unassigned sources,
 matches chosen traits, and captures named current-map cohorts by source identity.
 Manual assignments overlay immutable analysis results, survive publications and
 stay separate from granularity cuts. Snapshot/restore preserves explicit favorite
@@ -185,13 +215,14 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 
 | File(s) | Responsibility |
 |---------|----------------|
-| `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. |
+| `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. Explicit trial startup reserves new evidence, isolates Favorites/presets/updates, disables update activity, auto-opens Explorer after the ordinary scan, and joins its signal watcher and workers before finalizing evidence. |
 | `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with the supplied Codex atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `internal/ui/assets/trane.webp` is copied unchanged from `assets/trane/codex-pet/spritesheet.webp`. |
 | `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, favorite cohort loading on the tracked worker/queue, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
-| `explorercohorts.go` | Composes Unassigned grid selection with the shared-trait review, optional matching sources and named-cohort creation. The dialog owns captured targets and rejects stale sessions; tracked favorite saves finish before returning to the map, and failures roll back the proposed group. Explorer retirement dismisses it. |
+| `explorercohorts.go` | Composes Unassigned grid selection with the shared-trait review, optional matching sources and named-cohort creation. The dialog owns captured targets and rejects stale sessions; tracked favorite saves finish before returning to the map, and failures roll back the proposed group. Explorer retirement dismisses it. Analyze can seed the reusable preset editor, including metadata-only rules. |
+| `explorerpresets.go`, `explorerpresetrules.go` | Global preset browser/editor, metadata/tag fields, frozen match preview, linked-group updates and definition deletion. Preset I/O/matching uses a separate tracked worker group and the Explorer UI queue; Favorite-save failures restore prior memberships. |
 | `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, similarity map, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action shortcut wiring (open, favorites, clipboard, copy selection, comparison, delete, select-all, save, export, wallpaper). Comparison registers the native `Cmd/Ctrl+D` plus physical `Ctrl+D` when those differ. `yieldingShortcuts` blocks ordinary commands during comparison and otherwise yields Copy Selection; Open is admitted only far enough to show comparison's refusal. Copy Selection and clipboard bindings also defend their own direct entries. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
@@ -296,7 +327,7 @@ Named file lists under a caller-supplied config directory. No UI.
 | File | Responsibility |
 |------|----------------|
 | `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
-| `cohorts.go` | Favorite-owned named source memberships in `cohorts.json`; cancellable atomic writes bound to the observed file-list identity, with removed members filtered on load. |
+| `cohorts.go` | Favorite-owned named source memberships, preset links and explicit Unassigned overrides in version-2 `cohorts.json`; legacy arrays migrate on the next save; cancellable atomic writes bound to the observed file-list identity, with removed members filtered on load. |
 
 ### `internal/favthumbs`
 

@@ -4,7 +4,14 @@
 package ui
 
 import (
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/explorertrial"
 
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/launch"
@@ -31,15 +38,27 @@ const (
 // the caller); empty for a plain launch. opts carries that launch's flags,
 // already parsed and validated by internal/launch; the zero value is a
 // plain launch that overrides nothing.
-func Run(application fyne.App, initial []fyne.URI, opts launch.Options) {
+func Run(application fyne.App, initial []fyne.URI, opts launch.Options) error {
+	var trial *explorertrial.Session
+	var err error
+	favoritesDir := favstore.DefaultDir()
+	if opts.ExplorerTrial != "" {
+		trial, err = explorertrial.New(opts.ExplorerTrial)
+		if err != nil {
+			return err
+		}
+		favoritesDir = filepath.Join(opts.ExplorerTrial, "favorites")
+	}
 	view, window := buildStartupViewer(application)
+
+	view.explorer.trial = trial
 
 	// After construction, so the flags override what saved preferences just
 	// seeded, and before Show, so the window comes up already in the state
 	// the command line asked for.
 	view.applyLaunchOptions(opts)
 
-	startViewerRuntime(view, window, favstore.DefaultDir())
+	startViewerRuntime(view, window, favoritesDir)
 	registerShutdown(application, view)
 
 	// Show() (not ShowAndRun) so we can fold Darwin's Window menus after
@@ -59,7 +78,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) {
 		// report ordered after the sweep: reporting clears the record, and a
 		// cleared record reads as a clean install, so a reporter that ran
 		// first would let the sweep take the last working binary.
-		if !view.storeManaged {
+		if !view.storeManaged && trial == nil {
 			failure := view.sweepUpdateBackup()
 			view.maybeShowWhatsNew()
 			view.maybeShowUpdateFailure(failure)
@@ -76,10 +95,33 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) {
 		view.installOpenWithHandler()
 		view.openInitialFiles()
 	})
+	stopSignals := func() {}
+	if trial != nil {
+		notices := make(chan os.Signal, 1)
+		signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
+		stop, done := make(chan struct{}), make(chan struct{})
+		go func() {
+			defer close(done)
+			select {
+			case <-notices:
+				fyne.Do(func() {
+					if !view.stopping {
+						trial.Action(view.explorer.trialRun, "stop-requested", 0)
+						application.Quit()
+					}
+				})
+			case <-stop:
+			}
+		}()
+		stopSignals = func() { signal.Stop(notices); close(stop); <-done }
+	}
 	application.Run()
+	stopSignals()
 	// Shutdown has canceled admission; join the native process after the UI loop
 	// retires so the application cannot leave an analysis worker behind.
 	view.explorer.workers.Wait()
+	view.explorer.presetWorkers.Wait()
+	return trial.Close()
 }
 
 // Runtime side effects start only after feature construction and geometry
@@ -148,7 +190,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 		session.Save(application, view.state.unsortedFiles)
 		preferences.Save(application, view.currentPreferences())
-		if !view.storeManaged {
+		if !view.storeManaged && view.explorer.trial == nil {
 			view.updater.ApplyStagedUpdate()
 		}
 	})

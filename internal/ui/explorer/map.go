@@ -28,6 +28,7 @@ type Host interface {
 	LeaveSimilarityMap()
 	UpdateSimilarityMap()
 	SetSimilarityAutoUpdate(bool)
+	ShowSimilarityPresets()
 	Unfocus()
 	Modifiers() fyne.KeyModifier
 }
@@ -56,6 +57,8 @@ type Map struct {
 	merges             []similarity.CohortMerge
 	assignments        map[string]string
 	cohortNames        map[string]string
+	presetIDs          map[string]string
+	unassignedSources  map[string]bool
 }
 
 func New(host Host) *Map {
@@ -89,7 +92,7 @@ func New(host Host) *Map {
 		m.host.Unfocus()
 		m.overlay.Refresh()
 	})
-	toolbar = container.NewVBox(toolbar, container.NewHBox(toggleTags, m.update, m.automatic))
+	toolbar = container.NewVBox(toolbar, container.NewHBox(toggleTags, m.update, m.automatic, widget.NewButton(lang.L("Presets"), host.ShowSimilarityPresets)))
 	m.granularity = widget.NewSlider(0, 100)
 	m.granularity.Step = 1
 	m.granularity.Value, m.appliedGranularity = 100, 100
@@ -137,6 +140,8 @@ func (m *Map) UpdateState(available, busy bool) {
 func (m *Map) SetResult(items []similarity.Item, merges []similarity.CohortMerge) {
 	if items == nil {
 		m.assignments, m.cohortNames = nil, nil
+		m.presetIDs = nil
+		m.unassignedSources = nil
 		m.tagChoices = nil
 		m.selectedSource = ""
 		m.granularity.Value, m.appliedGranularity = 100, 100
@@ -179,6 +184,8 @@ func (m *Map) rebuild() {
 			}
 			assignedSeen[item.Path] = true
 			item.Cohort = key
+		} else if m.unassignedSources[item.Path] {
+			item.Cohort = "unassigned"
 		}
 		if item.Cohort == "unassigned" {
 			unassigned = append(unassigned, item.Path)

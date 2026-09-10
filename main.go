@@ -7,12 +7,15 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/frathe/picfetch/internal/explorertrial"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -134,15 +137,26 @@ func main() {
 	// Qodana analyzes the default build, where StoreManaged is a constant false;
 	// the microsoftstore build tag replaces it with the true variant.
 	//goland:noinspection GoBoolExpressions
-	if !distribution.StoreManaged {
+	if !distribution.StoreManaged && opts.ExplorerTrial == "" {
 		update.CleanupPredecessor()
 	}
 
-	application := app.NewWithID(appID)
+	identity := appID
+	if opts.ExplorerTrial != "" {
+		if err := similarity.VerifyOffline(context.Background()); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		identity = explorertrial.Identity(opts.ExplorerTrial)
+	}
+	application := app.NewWithID(identity)
 
 	if err := lang.AddTranslationsFS(translationsFS, "translations"); err != nil {
 		fyne.LogError("failed to load translations", err)
 	}
 
-	ui.Run(application, argsToURIs(paths), opts)
+	if err := ui.Run(application, argsToURIs(paths), opts); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

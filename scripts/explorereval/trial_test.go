@@ -394,3 +394,101 @@ func TestRealCommandHandlesTermination(t *testing.T) {
 		t.Fatalf("terminated worker published completion: %v", err)
 	}
 }
+
+func TestNativeLibraryRunner(t *testing.T) {
+	t.Setenv("PICFETCH_NATIVE_FIXTURE", "1")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "trial")
+	err = run(context.Background(), []string{"-trial", "library", "-assets", assets, "-library", t.TempDir(), "-native", exe, "-out", out}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"session/session.json", "native.log", "runner.json", "memory.jsonl", "exit-status.txt", "PicFetch Explorer Trial.app/Contents/MacOS/picfetch"} {
+		if _, err := os.Stat(filepath.Join(out, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(out, "runner.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Collected, Qualified, Exited bool
+		ExecutableSHA256, RSSScope   string
+		RSSIntervalSeconds           float64
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if !report.Collected || !report.Exited || report.Qualified || len(report.ExecutableSHA256) != 64 || report.RSSIntervalSeconds != 1 || report.RSSScope == "" {
+		t.Fatalf("runner lost collection provenance: %s", data)
+	}
+	original := bytes.Clone(data)
+	err = run(context.Background(), []string{"-trial", "library", "-assets", assets, "-library", t.TempDir(), "-native", exe, "-out", out}, io.Discard)
+	if err == nil {
+		t.Fatal("native runner overwrote evidence")
+	}
+	current, err := os.ReadFile(filepath.Join(out, "runner.json"))
+	if err != nil || !bytes.Equal(current, original) {
+		t.Fatal("refused rerun changed evidence")
+	}
+	t.Setenv("PICFETCH_NATIVE_FIXTURE", "cancel")
+	canceledOut := filepath.Join(t.TempDir(), "cancel")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err = run(ctx, []string{"-trial", "library", "-assets", assets, "-library", t.TempDir(), "-native", exe, "-out", canceledOut}, cancelNativeOnStart{dir: canceledOut, cancel: cancel})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("native cancellation: %v", err)
+	}
+	data, err = os.ReadFile(filepath.Join(canceledOut, "runner.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Collected || !report.Exited {
+		t.Fatalf("canceled run claimed collection or lost exit: %s", data)
+	}
+	data, err = os.ReadFile(filepath.Join(canceledOut, "session", "events.jsonl"))
+	if err != nil || !bytes.Contains(data, []byte("canceled")) {
+		t.Fatalf("graceful stop lost canceled worker evidence: %s %v", data, err)
+	}
+
+}
+
+// Synchronize cancellation to the subprocess's recorded start, not elapsed time.
+type cancelNativeOnStart struct {
+	dir    string
+	cancel context.CancelFunc
+}
+
+func (w cancelNativeOnStart) Write(p []byte) (int, error) {
+	if !bytes.Contains(p, []byte("Native trial running")) {
+		return len(p), nil
+	}
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+	poll := time.NewTicker(10 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		data, err := os.ReadFile(filepath.Join(w.dir, "session", "events.jsonl"))
+		if err == nil && bytes.Contains(data, []byte("analysis-started")) {
+			w.cancel()
+			return len(p), nil
+		}
+		select {
+		case <-deadline.C:
+			w.cancel()
+			return 0, fmt.Errorf("native fixture did not start")
+		case <-poll.C:
+		}
+	}
+}

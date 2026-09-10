@@ -1,15 +1,19 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/explorerpresets"
+	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/similarity"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
@@ -18,11 +22,15 @@ import (
 )
 
 type explorerWork struct {
+	trial                   *explorertrial.Session
+	trialRun                int
+	pendingLaunch           bool
 	cacheFavorites, autoFit bool
 	prepare                 func()
 	lifecycle               requestLifecycle
 	token                   requestToken
 	workers                 sync.WaitGroup
+	presetWorkers           sync.WaitGroup
 	ui                      grid.UIQueue
 	surface                 *explorerui.Map
 	sources                 []string
@@ -33,6 +41,8 @@ type explorerWork struct {
 	cohortStore             *favstore.CohortStore
 	cohortLoadErr           error
 	cohortSaving            bool
+	presets                 *explorerpresets.Store
+	presetOp                requestLifecycle
 	complete                bool
 	hasMap                  bool
 	maximized               bool
@@ -115,14 +125,19 @@ func (v *viewer) beginExplorerAnalysis() {
 	}
 	cacheWarningReported := false
 	favoriteDir := v.explorer.favoriteDir
+	trial := v.explorer.trial
+	run := trial.Begin(paths)
+	v.explorer.trialRun = run
 	v.explorer.cohortStore, v.explorer.cohortLoadErr = nil, nil
 	v.explorer.cohortSaving = false
 	v.explorer.workers.Go(func() {
+		workerErr := context.Canceled
+		defer func() { trial.Exited(run, workerErr) }()
 		if favoriteDir != "" {
 			store, groups, err := favstore.OpenCohorts(token.context(), favoriteDir)
 			if err == nil && !store.Contains(paths) {
 				// Merge mode can combine a favorite with unrelated open files.
-				store, groups = nil, nil
+				store, groups = nil, favstore.CohortState{}
 			}
 			if !token.current() {
 				return
@@ -141,6 +156,8 @@ func (v *viewer) beginExplorerAnalysis() {
 			})
 		}
 		err := analyze(token.context(), paths, controls, func(event similarity.Event) {
+			received := time.Now()
+			trial.Received(run, event)
 			if !token.current() {
 				return
 			}
@@ -148,6 +165,7 @@ func (v *viewer) beginExplorerAnalysis() {
 				if !token.current() {
 					return
 				}
+				started := time.Now()
 				if event.CacheWarning != "" && !cacheWarningReported {
 					cacheWarningReported = true
 					fyne.LogError("favorite analysis cache", errors.New(event.CacheWarning))
@@ -176,10 +194,12 @@ func (v *viewer) beginExplorerAnalysis() {
 						v.explorer.surface.ExpandToFit()
 					}
 					v.explorer.hasMap = true
+					trial.Applied(run, event, received, started)
 				}
 				v.explorer.surface.UpdateState(!v.explorer.complete && v.explorer.available > v.explorer.mapped, v.explorer.building)
 			})
 		})
+		workerErr = err
 		if !token.current() {
 			return
 		}
@@ -189,12 +209,13 @@ func (v *viewer) beginExplorerAnalysis() {
 			}
 			v.explorer.controls = nil
 			v.explorer.surface.UpdateState(false, false)
-			if err == nil && !v.explorer.complete {
-				err = errors.New("analysis ended without a completed map")
+			displayErr := err
+			if displayErr == nil && !v.explorer.complete {
+				displayErr = errors.New("analysis ended without a completed map")
 			}
-			if err != nil {
+			if displayErr != nil {
 				v.explorer.complete = false
-				fyne.LogError("visual similarity analysis failed", err)
+				fyne.LogError("visual similarity analysis failed", displayErr)
 				v.explorer.surface.Status(lang.L("Analysis failed. Open the explorer to retry."))
 			}
 		})
@@ -246,6 +267,7 @@ func (v *viewer) openSimilarityCohort(paths []string, unassigned bool) {
 	v.explorer.unassignedCohort = unassigned
 	v.openExplorerGrid()
 	v.syncMenus()
+	v.explorer.trial.Action(v.explorer.trialRun, "cohort-open", len(paths))
 }
 
 func (v *viewer) openExplorerGrid() {
@@ -270,6 +292,10 @@ func (v *viewer) closeExplorer() {
 // retireExplorerAnalysis drops source-derived state without disturbing a cohort
 // currently being browsed. Committed file effects may arrive after navigation.
 func (v *viewer) retireExplorerAnalysis() {
+	if len(v.explorer.sources) > 0 {
+		v.explorer.trial.Action(v.explorer.trialRun, "explorer-exit", len(v.explorer.sources))
+	}
+	v.explorer.presetOp.invalidate()
 	if v.explorer.cohortDialog != nil {
 		v.explorer.cohortDialog.Hide()
 	}
@@ -299,6 +325,7 @@ func (v *viewer) settleExplorer() {
 	for {
 		v.grid.Settle()
 		v.explorer.workers.Wait()
+		v.explorer.presetWorkers.Wait()
 		if !v.explorer.ui.Drain() {
 			return
 		}
@@ -351,4 +378,9 @@ func (v *viewer) cohortIndexes() []int {
 	return indexes
 }
 
-func (v *viewer) backToSimilarityMap() { v.explorer.surface.Show(); v.ForceRepaint(); v.syncMenus() }
+func (v *viewer) backToSimilarityMap() {
+	v.explorer.surface.Show()
+	v.ForceRepaint()
+	v.syncMenus()
+	v.explorer.trial.Action(v.explorer.trialRun, "map-return", len(v.explorer.cohort))
+}

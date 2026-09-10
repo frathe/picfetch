@@ -59,10 +59,11 @@ TRIAL ?= smoke
 explorer-setup: ## Download and verify pinned public assets for the local Mac explorer experiment
 	bash scripts/explorereval/setup.sh "$(EXPLORER_ASSETS)"
 
-explorer-evaluate: ## Run the real bounded explorer experiment under OS network denial (TRIAL=smoke)
+explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, throughput, or library)
 	@mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
-	bash scripts/explorereval/evaluate.sh "$(BIN_DIR)/explorereval" "$(EXPLORER_ASSETS)" "$(EXPLORER_LIBRARY)" "$(EXPLORER_EVIDENCE)" "$(TRIAL)" "$(EXPLORER_PROVIDER)"
+	@if [ "$(TRIAL)" = library ]; then go build -o $(BIN_DIR)/picfetch-trial .; fi
+	bash scripts/explorereval/evaluate.sh "$(BIN_DIR)/explorereval" "$(EXPLORER_ASSETS)" "$(EXPLORER_LIBRARY)" "$(EXPLORER_EVIDENCE)" "$(TRIAL)" "$(EXPLORER_PROVIDER)" "$(BIN_DIR)/picfetch-trial"
 
 explorer-profile: ## Measure bounded production cold/warm throughput with an isolated temporary favorite cache
 	@mkdir -p $(BIN_DIR) "$(EXPLORER_EVIDENCE)"
@@ -80,7 +81,7 @@ explorer-test: ## Run real-model acceptance tests under explicit macOS network d
 	@mkdir -p $(BIN_DIR)
 	go test -c -tags explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
 	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.run '^(TestEvaluation|TestReal)' -test.v -test.count=1
-	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^TestProductionProfile' -test.v -test.count=1
+	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^(TestProductionProfile|TestNativeLibraryRunner)' -test.v -test.count=1
 
 explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on this Mac
 	go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v

@@ -14,6 +14,15 @@ import (
 // argument, which would make "picfetch ~/photos --slideshow" open a file
 // named "--slideshow" rather than start picture-frame mode.
 func TestParse_FlagsAnywhereAmongPaths(t *testing.T) {
+	t.Run("isolated explorer trial", func(t *testing.T) {
+		paths, _, err := Parse([]string{"--explorer-trial", "/new trial", "/photos"})
+		if err != nil || !equalStrings(paths, []string{"/photos"}) {
+			t.Fatalf("trial flag: paths=%v err=%v", paths, err)
+		}
+		if _, _, err := Parse([]string{"--explorer-trial="}); err == nil {
+			t.Fatal("empty trial directory accepted")
+		}
+	})
 	paths, opts, err := Parse([]string{"/a.jpg", "--slideshow", "/b", "--interval=8s"})
 	if err != nil {
 		t.Fatalf("Parse: %v", err)

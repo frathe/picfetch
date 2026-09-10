@@ -643,6 +643,7 @@ func (v *viewer) clearToDropzone() {
 	v.closeExplorer()
 	v.explorer.favoriteDir = ""
 	v.pendingPictureFrame = false
+	v.explorer.pendingLaunch = false
 	// A full-screen dropzone would look broken, and there's nothing left to
 	// frame - safe to call even when picture-frame mode is already off.
 	v.slides.Exit()

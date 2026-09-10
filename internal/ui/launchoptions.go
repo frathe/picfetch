@@ -6,6 +6,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"time"
 
 	"github.com/frathe/picfetch/internal/filesort"
@@ -94,6 +95,13 @@ func (v *viewer) applyLaunchOptions(opts launch.Options) {
 	}
 
 	v.pendingPictureFrame = opts.PictureFrame
+	if opts.ExplorerTrial != "" {
+		v.explorer.pendingLaunch = true
+		v.explorer.presets.Dir = filepath.Join(opts.ExplorerTrial, "presets")
+		v.favorites.SetDir(filepath.Join(opts.ExplorerTrial, "favorites"))
+		v.updater.SetDir(filepath.Join(opts.ExplorerTrial, "updates"))
+		v.settings.checkForUpdates = false
+	}
 }
 
 // startPendingPictureFrame honors --slideshow once the launch scan has

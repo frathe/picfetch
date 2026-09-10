@@ -13,6 +13,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/storage"
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
@@ -30,6 +31,104 @@ import (
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("presets_cache_backfill", func(t *testing.T) {
+		root := t.TempDir()
+		path := filepath.Join(root, "square.JPEG")
+		if err := os.WriteFile(path, uitest.EncodeJPEG(t, 64, 64, color.White), 0600); err != nil {
+			t.Fatal(err)
+		}
+		favorites := filepath.Join(root, "favorites")
+		if err := favstore.Save(favorites, "Fixture", []fyne.URI{storage.NewFileURI(path)}); err != nil {
+			t.Fatal(err)
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		analyze := func() similarity.Event {
+			var final similarity.Event
+			if err := (similarity.Client{Assets: assets, FavoritesDir: favorites}).Analyze(context.Background(), []string{path}, nil, func(e similarity.Event) {
+				if e.Complete {
+					final = e
+				}
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return final
+		}
+		cold := analyze()
+		if cold.Successful != 1 || cold.Items[0].Facts.Make != "" || cold.Items[0].Facts.CaptureDate != "" {
+			t.Fatal("missing EXIF was invented")
+		}
+		entries, err := filepath.Glob(filepath.Join(favorites, "Fixture", "analysis", "*.json"))
+		if err != nil || len(entries) != 1 {
+			t.Fatalf("cache fixture: %v %v", entries, err)
+		}
+		data, err := os.ReadFile(entries[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var legacy map[string]json.RawMessage
+		if err := json.Unmarshal(data, &legacy); err != nil {
+			t.Fatal(err)
+		}
+		var item map[string]json.RawMessage
+		if err := json.Unmarshal(legacy["Item"], &item); err != nil {
+			t.Fatal(err)
+		}
+		delete(item, "Facts")
+		legacy["Item"], err = json.Marshal(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err = json.Marshal(legacy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(entries[0], data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		warm := analyze()
+		if warm.Reused != 1 || warm.Measurements.InferenceAttempts != 0 || len(warm.Items) != 1 || warm.Items[0].Facts != cold.Items[0].Facts {
+			t.Fatalf("legacy representation did not gain facts without inference: reused=%d attempts=%d items=%+v", warm.Reused, warm.Measurements.InferenceAttempts, warm.Items)
+		}
+	})
+	t.Run("presets_facts", func(t *testing.T) {
+		root := t.TempDir()
+		path := filepath.Join(root, "portrait.cr2")
+		pixels := uitest.EncodeRAWPreview(t, uitest.RAWPreview{Width: 120, Height: 80, Orientation: 6, Make: "Canon", Model: "EOS Test", DateTime: "2026:09:09 14:15:16"})
+		if err := os.WriteFile(path, pixels, 0600); err != nil {
+			t.Fatal(err)
+		}
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var final similarity.Event
+		if err := (similarity.Client{Assets: assets}).Analyze(context.Background(), []string{path}, nil, func(e similarity.Event) {
+			if e.Complete {
+				final = e
+			}
+		}); err != nil {
+			t.Fatal(err)
+		}
+		data, err := json.Marshal(final.Items)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []struct {
+			Facts struct {
+				Version, Width, Height           int
+				Format, Make, Model, CaptureDate string
+			}
+		}
+		if err := json.Unmarshal(data, &got); err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].Facts.Version != 1 || got[0].Facts.Width != 80 || got[0].Facts.Height != 120 || got[0].Facts.Format != "cr2" || got[0].Facts.Make != "Canon" || got[0].Facts.Model != "EOS Test" || got[0].Facts.CaptureDate != "2026-09-09" {
+			t.Fatalf("actual local analysis omitted oriented camera/date facts: %+v", got)
+		}
+	})
 	t.Run("create_cohort", func(t *testing.T) {
 		v := openGridWith(t, "cat-a.png", "cat-b.png")
 		pixels, err := os.ReadFile("testdata/explorer/chelsea.png")

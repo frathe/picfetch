@@ -9,6 +9,7 @@ type Item struct {
 	Size       int64
 	ModifiedNS int64
 	SHA256     string
+	Facts      ImageFacts
 	Error      string    `json:",omitempty"`
 	Embedding  []float32 `json:",omitempty"`
 	Tags       []string  `json:",omitempty"`
@@ -17,6 +18,16 @@ type Item struct {
 	Thumbnail  string    `json:",omitempty"`
 	Preview    []byte    `json:",omitempty"`
 }
+
+// ImageFacts describes the oriented image and optional source EXIF values.
+// CaptureDate is an EXIF calendar date, never a filesystem timestamp.
+type ImageFacts struct {
+	Version                          int
+	Width, Height                    int
+	Format, Make, Model, CaptureDate string
+}
+
+const FactsVersion = 1
 
 // Event is an immutable analysis snapshot. Complete includes layout delivery.
 type Event struct {

@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
@@ -94,6 +95,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v, win = buildStartupViewer(testApp)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.explorer.ui = &uitest.UIQueue{}
+	v.explorer.presets = &explorerpresets.Store{Dir: t.TempDir()}
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
 	v.deletion.SetUIQueue(&uitest.UIQueue{})

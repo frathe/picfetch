@@ -724,7 +724,8 @@ Dateinamen und geben Sie einen eindeutigen Gruppennamen ein (bis zu 80 Zeichen).
 **Weitere passende nicht zugeordnete Bilder einbeziehen** ist anfangs aktiviert;
 deaktivieren Sie es, um nur die ausgewählten Bilder zu verwenden. Jedes Bild
 muss zu allen gewählten Tags passen. Bilder aus bestehenden Gruppen werden
-nicht einbezogen. Ohne gemeinsame Tags wählen Sie andere Bilder aus.
+nicht einbezogen. Ohne gemeinsame Tags wählen Sie andere Bilder aus oder nutzen
+**Als Vorlage speichern** für Metadatenregeln.
 
 **Gruppe erstellen** kehrt zur Karte zurück und zeigt die benannte Gruppe.
 Ihre Mitglieder bleiben bei späteren Kartenaktualisierungen erhalten; auch der
@@ -741,7 +742,31 @@ werden ausgelassen; neue Bilder werden nicht automatisch hinzugefügt.
 Bei gewöhnlichen Dateisammlungen oder einem mit fremden Bildern zusammengeführten
 Favoriten gelten diese Ergänzungen nur für die aktuelle Karte. Beim Verlassen
 des Explorers oder Ändern seiner Quelldateien werden sie verworfen.
-Wiederverwendbare Regeln für andere Sammlungen sind noch nicht verfügbar.
+**Gruppenvorlagen** öffnet eine durchsuchbare lokale Sammlung wiederverwendbarer Regeln.
+**Neue Gruppenvorlage** oder **Als Vorlage speichern** in der Analyse öffnet den Editor.
+Vergeben Sie einen eindeutigen Namen und mindestens eine Bedingung. Alle gewählten
+Tags und Metadatenbedingungen müssen passen. Regeln können Dateityp, ausgerichtete
+Breite/Höhe, Hoch-/Quer-/Quadratformat, Kamerahersteller/-modell und inklusive
+EXIF-Aufnahmedaten (JJJJ-MM-TT) verwenden. Fehlende Metadaten erfüllen keine aktive
+Bedingung; Änderungsdaten ersetzen kein Aufnahmedatum. Reine Metadatenregeln sind
+möglich.
+
+Nach dem Speichern zeigt **Vorlage prüfen** die betroffenen Bilder vor
+**Vorlage anwenden**. Eine neue Gruppe benötigt mindestens zwei passende nicht
+zugeordnete Bilder. Bestehende Gruppen sind geschützt. Beim Bearbeiten wird auch
+die verknüpfte Gruppe der aktuellen Karte geprüft: entfernte Mitglieder werden
+nicht zugeordnet; noch nicht analysierte Mitglieder bleiben gespeichert. Neue
+Analyseergebnisse erweitern die Gruppe nicht automatisch. Ein geöffnetes Raster
+behält seine erfassten Mitglieder.
+
+Vorlagen gelten auf diesem Computer unabhängig von Favoriten und Analysecache.
+Gruppenmitglieder, Verknüpfungen und ausdrücklich entfernte Zuordnungen werden
+separat mit dem Favoriten gespeichert. Andere Favoriten behalten ihre geprüften
+Mitglieder bis zur ausdrücklichen Anwendung dort. Das Löschen einer Vorlage
+behält bestehende Gruppen. Ältere inkompatible Regeln bleiben lesbar und müssen
+vor der Anwendung geprüft und gespeichert werden. Speicherfehler werden
+angezeigt; bei fehlgeschlagener Gruppenspeicherung bleibt die vorige Gruppe
+bestehen.
 
 Zum Verschieben ziehen oder beim Scrollen **Shift** gedrückt halten.
 Zum Zoomen ohne Shift scrollen oder `+`/`-` verwenden.

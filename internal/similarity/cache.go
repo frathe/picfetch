@@ -19,7 +19,7 @@ import (
 )
 
 // Change this when the representation or oriented pixel preprocessing changes.
-const representationVersion = ModelRevision + "/oriented-bilinear-224-v1"
+const RepresentationVersion = ModelRevision + "/oriented-bilinear-224-v1"
 
 type cachedRepresentation struct {
 	Version string
@@ -117,7 +117,7 @@ func (c analysisCache) read(source Item) (Item, bool) {
 		err = json.NewDecoder(io.LimitReader(file, 1<<20)).Decode(&entry)
 		_ = file.Close()
 		item := entry.Item
-		if err != nil || entry.Version != representationVersion || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS || item.Error != "" || len(item.Embedding) != 768 {
+		if err != nil || entry.Version != RepresentationVersion || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS || item.Error != "" || len(item.Embedding) != 768 {
 			continue
 		}
 		hash, err := hex.DecodeString(item.SHA256)
@@ -169,7 +169,7 @@ func (f *favoriteAnalysis) write(ctx context.Context, item Item) error {
 	defer func() { _ = f.root.Remove(name) }()
 	item.Cohort, item.Position, item.Thumbnail = "", nil, ""
 	item.Tags = nil
-	err = json.NewEncoder(file).Encode(cachedRepresentation{Version: representationVersion, Item: item})
+	err = json.NewEncoder(file).Encode(cachedRepresentation{Version: RepresentationVersion, Item: item})
 	closeErr := file.Close()
 	if err != nil {
 		return err

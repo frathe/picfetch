@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -30,9 +31,12 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/explorerpresets"
+	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 )
@@ -169,6 +173,61 @@ func explorerButton(t *testing.T, v *viewer, label string) *widget.Button {
 	return found
 }
 
+func explorerDialogButton(t *testing.T, v *viewer, label string) *widget.Button {
+	t.Helper()
+	var found *widget.Button
+	if top := v.win.Canvas().Overlays().Top(); top != nil {
+		explorerWalk(top, func(o fyne.CanvasObject) {
+			if b, ok := o.(*widget.Button); ok && b.Text == lang.L(label) {
+				found = b
+			}
+		})
+	}
+	if found == nil {
+		t.Fatalf("missing dialog button %q", label)
+	}
+	return found
+}
+
+func explorerDialogEntry(t *testing.T, v *viewer, placeholder, value string) {
+	t.Helper()
+	var found *widget.Entry
+	if top := v.win.Canvas().Overlays().Top(); top != nil {
+		explorerWalk(top, func(o fyne.CanvasObject) {
+			if e, ok := o.(*widget.Entry); ok && e.PlaceHolder == lang.L(placeholder) {
+				found = e
+			}
+		})
+	}
+	if found == nil {
+		t.Fatalf("missing dialog field %q", placeholder)
+	}
+	found.SetText(value)
+}
+
+func explorerDialogSelect(t *testing.T, v *viewer, placeholder, value string) {
+	t.Helper()
+	var found *widget.Select
+	explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+		if s, ok := o.(*widget.Select); ok && s.PlaceHolder == lang.L(placeholder) {
+			found = s
+		}
+	})
+	if found == nil {
+		t.Fatalf("missing dialog choice %q", placeholder)
+	}
+	found.SetSelected(lang.L(value))
+}
+
+func settlePresetUI(v *viewer) {
+	for {
+		v.explorer.presetWorkers.Wait()
+		if !v.explorer.ui.Drain() {
+			return
+		}
+	}
+}
+
 func explorerTag(t *testing.T, v *viewer, label string, count int) (*widget.Check, *widget.Hyperlink) {
 	t.Helper()
 	var found *widget.Check
@@ -249,6 +308,838 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
+
+	t.Run("trial_launch", func(t *testing.T) {
+		v := newTestViewer(t)
+		root := filepath.Join(t.TempDir(), "trial")
+		session, err := explorertrial.New(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v.explorer.trial = session
+		defer func() { _ = session.Close() }()
+		v.applyLaunchOptions(launch.Options{ExplorerTrial: root})
+		v.SetCheckForUpdates(true)
+		if v.CheckForUpdates() || v.updater.Dir() != filepath.Join(root, "updates") || v.explorer.presets.Dir != filepath.Join(root, "presets") {
+			t.Fatal("trial did not isolate storage and disable updates")
+		}
+
+		library := t.TempDir()
+		pixels := uitest.EncodeJPEG(t, 16, 16, color.White)
+		for _, name := range []string{"one.jpg", "two.jpg"} {
+			if err := os.WriteFile(filepath.Join(library, name), pixels, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for _, path := range paths {
+				items = append(items, similarity.Item{Path: path, Cohort: "a", Preview: pixels})
+			}
+			emit(similarity.Event{OfflineVerified: true, Complete: true, Total: len(paths), Successful: len(paths), Items: items})
+			return nil
+		}
+		v.pendingInitial = []fyne.URI{storage.NewFileURI(library)}
+		v.openFilesFromOS(nil)
+		waitForScan(t, v)
+		waitForSort(t, v)
+		v.settleExplorer()
+		if !v.explorerMapActive() || len(explorerPiles(v)) != 1 {
+			t.Fatal("native trial launch did not reach the map through normal scanning")
+		}
+		v.LeaveSimilarityMap()
+		v.settleExplorer()
+		if err := session.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("trial_truncated", func(t *testing.T) {
+		v := newTestViewer(t)
+		root := filepath.Join(t.TempDir(), "trial")
+		session, err := explorertrial.New(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v.explorer.trial = session
+		defer func() { _ = session.Close() }()
+		limit := 1
+		v.applyLaunchOptions(launch.Options{ExplorerTrial: root, MaxFiles: &limit})
+		library := t.TempDir()
+		pixels := uitest.EncodeJPEG(t, 16, 16, color.White)
+		for _, name := range []string{"one.jpg", "two.jpg"} {
+			if err := os.WriteFile(filepath.Join(library, name), pixels, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var called atomic.Bool
+		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, _ func(similarity.Event)) error {
+			called.Store(true)
+			return nil
+		}
+		v.handleDrop([]fyne.URI{storage.NewFileURI(library)})
+		waitForScan(t, v)
+		waitFor(t, "sort", &v.sortOp.done)
+		v.settleExplorer()
+		if called.Load() {
+			t.Fatal("truncated scan entered native analysis")
+		}
+		data, err := os.ReadFile(filepath.Join(root, "events.jsonl"))
+		if err != nil || !bytes.Contains(data, []byte("scan-truncated")) {
+			t.Fatalf("truncation missing from evidence: %s %v", data, err)
+		}
+	})
+	t.Run("trial_recording", func(t *testing.T) {
+		v := openGridWith(t, "private-cat.jpg", "private-dog.jpg")
+		out := filepath.Join(t.TempDir(), "trial")
+		var err error
+		v.explorer.trial, err = explorertrial.New(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			emit(similarity.Event{OfflineVerified: true, Total: 2, Successful: 2, Complete: true,
+				Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview, Facts: similarity.ImageFacts{Make: "Private Camera"}}, {Path: paths[1], Cohort: "a", Preview: preview}}})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerPiles(v)[0])
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.LeaveSimilarityMap()
+		if err := v.explorer.trial.Close(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var kinds []string
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		for decoder.More() {
+			var event struct {
+				Kind                      string
+				Total, Successful, Failed int
+				Complete, OfflineVerified bool
+			}
+			if err := decoder.Decode(&event); err != nil {
+				t.Fatal(err)
+			}
+			kinds = append(kinds, event.Kind)
+			if event.Kind == "map-applied" && (event.Total != 2 || event.Successful != 2 || event.Failed != 0 || !event.Complete || !event.OfflineVerified) {
+				t.Fatalf("applied map accounting: %+v", event)
+			}
+		}
+		for _, want := range []string{"analysis-started", "worker-event", "map-applied", "worker-exited", "cohort-open", "map-return", "explorer-exit", "session-closed"} {
+			if !slices.Contains(kinds, want) {
+				t.Fatalf("trial missing %s", want)
+			}
+		}
+		for _, forbidden := range []string{"private-cat", "private-dog", "Private Camera", v.FileAt(0).Path(), `"Preview"`, `"Embedding"`, `"Items"`, `"Facts"`} {
+			if bytes.Contains(data, []byte(forbidden)) {
+				t.Fatalf("trial retained source content %q", forbidden)
+			}
+		}
+	})
+
+	t.Run("trial_recording_cancellation", func(t *testing.T) {
+		v := openGridWith(t, "private.jpg")
+		out := filepath.Join(t.TempDir(), "trial")
+		var err error
+		v.explorer.trial, err = explorertrial.New(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		published := make(chan struct{})
+		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
+		v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			emit(similarity.Event{OfflineVerified: true, Complete: true, Total: 1, Successful: 1, Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview}}})
+			close(published)
+			<-ctx.Done()
+			return ctx.Err()
+		}
+		explorerMenu(t, v).Action()
+		<-published
+		before, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(before, []byte("worker-event")) || bytes.Contains(before, []byte("map-applied")) {
+			t.Fatal("worker receipt was confused with UI application")
+		}
+		v.LeaveSimilarityMap()
+		v.settleExplorer()
+		if err := v.explorer.trial.Close(); err == nil {
+			t.Fatal("canceled trial reported successful collection")
+		}
+		after, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(after, []byte("map-applied")) || !bytes.Contains(after, []byte(`"Outcome":"canceled"`)) {
+			t.Fatal("stale map applied or worker cancellation was lost")
+		}
+	})
+
+	t.Run("trial_recording_wrong_sources", func(t *testing.T) {
+		v := openGridWith(t, "expected.jpg")
+		var err error
+		v.explorer.trial, err = explorertrial.New(filepath.Join(t.TempDir(), "trial"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
+		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			emit(similarity.Event{OfflineVerified: true, Complete: true, Total: 1, Successful: 1, Items: []similarity.Item{{Path: "/wrong-input.jpg", Cohort: "a", Preview: preview}}})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		if err := v.explorer.trial.Close(); err == nil {
+			t.Fatal("a different source set was reported as complete collection")
+		}
+	})
+
+	t.Run("presets_create_apply", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "protected.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for i, path := range paths {
+				makeName, cohort := "Canon", "unassigned"
+				if i == 2 {
+					makeName = "Nikon"
+				}
+				if i == 3 {
+					cohort = "protected"
+				}
+				items = append(items, similarity.Item{Path: path, Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg", Make: makeName}})
+			}
+			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "Canon portraits")
+		explorerDialogEntry(t, v, "Camera make", "canon")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Canon portraits"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		v.settleExplorer()
+		if got := len(explorerPiles(v)); got != 1 {
+			t.Fatalf("preview changed current grouping: %d piles", got)
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		v.settleExplorer()
+		piles := explorerPiles(v)
+		if len(piles) != 2 {
+			t.Fatalf("preset did not create a cohort: %d", len(piles))
+		}
+		var named *explorerui.Pile
+		for _, pile := range piles {
+			explorerWalk(pile, func(o fyne.CanvasObject) {
+				if label, ok := o.(*canvas.Text); ok && label.Text == "Canon portraits (2)" {
+					named = pile
+				}
+			})
+		}
+		if named == nil {
+			t.Fatal("named preset cohort missing from surface")
+		}
+		fynetest.Tap(named)
+		if got, want := explorerGridPaths(v), []string{v.FileAt(0).Path(), v.FileAt(1).Path()}; !slices.Equal(got, want) {
+			t.Fatalf("preset moved wrong sources: %v", got)
+		}
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Canon portraits"))
+		fynetest.Tap(explorerDialogButton(t, v, "Delete preset"))
+		fynetest.Tap(explorerDialogButton(t, v, "Delete preset"))
+		v.settleExplorer()
+		found := false
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if b, ok := o.(*widget.Button); ok && b.Text == "Canon portraits" {
+				found = true
+			}
+		})
+		if found {
+			t.Fatal("deleted rule remains in the browser")
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Close"))
+		if len(explorerPiles(v)) != 2 {
+			t.Fatal("deleting a preset removed its existing cohort")
+		}
+	})
+
+	t.Run("presets_image_properties", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "wide.jpg", "small.jpg", "portrait.png")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for i, path := range paths {
+				facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg"}
+				if i == 2 {
+					facts.Width, facts.Height = 120, 80
+				}
+				if i == 3 {
+					facts.Width = 79
+				}
+				if i == 4 {
+					facts.Format = "png"
+				}
+				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: facts})
+			}
+			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "Exact portraits")
+		explorerDialogSelect(t, v, "File type", "jpg")
+		explorerDialogSelect(t, v, "Image orientation", "Portrait")
+		for _, field := range []struct{ name, value string }{{"Minimum width", "80"}, {"Maximum width", "80"}, {"Minimum height", "120"}, {"Maximum height", "120"}} {
+			explorerDialogEntry(t, v, field.name, field.value)
+		}
+		if explorerDialogButton(t, v, "Save preset").Disabled() {
+			t.Fatal("valid property-only rule cannot be saved")
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Exact portraits"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		v.settleExplorer()
+		piles := explorerPiles(v)
+		if len(piles) != 1 {
+			t.Fatalf("property-only cohort missing: %d", len(piles))
+		}
+		fynetest.Tap(piles[0])
+		if got, want := explorerGridPaths(v), []string{v.FileAt(0).Path(), v.FileAt(1).Path()}; !slices.Equal(got, want) {
+			t.Fatalf("property boundaries selected wrong sources: %v", got)
+		}
+	})
+
+	t.Run("presets_camera_dates_tags", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for i, path := range paths {
+				facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Model: "EOS Test", CaptureDate: "2026-09-09"}
+				tags := []string{"cat", "animal"}
+				if i == 1 {
+					facts.CaptureDate = "2026-09-10"
+				}
+				if i == 2 {
+					facts.CaptureDate = "2026-09-08"
+				}
+				if i == 3 {
+					facts.CaptureDate = ""
+				}
+				if i == 4 {
+					facts.Model = "Other"
+				}
+				if i == 5 {
+					tags = []string{"dog"}
+				}
+				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: facts, Tags: tags})
+			}
+			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "Trip cats")
+		explorerDialogEntry(t, v, "Camera model", "eos test")
+		explorerDialogEntry(t, v, "Capture date from (YYYY-MM-DD)", "2026-09-09")
+		explorerDialogEntry(t, v, "Capture date through (YYYY-MM-DD)", "2026-09-10")
+		var cat *widget.Check
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if c, ok := o.(*widget.Check); ok && c.Text == lang.L("Cat") {
+				cat = c
+			}
+		})
+		if cat == nil {
+			t.Fatal("visual tag rule unavailable")
+		}
+		cat.SetChecked(true)
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Trip cats"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		v.settleExplorer()
+		piles := explorerPiles(v)
+		if len(piles) != 1 {
+			t.Fatalf("combined rule cohort missing: %d", len(piles))
+		}
+		fynetest.Tap(piles[0])
+		if got, want := explorerGridPaths(v), []string{v.FileAt(0).Path(), v.FileAt(1).Path()}; !slices.Equal(got, want) {
+			t.Fatalf("camera/date/tag conjunction selected wrong sources: %v", got)
+		}
+	})
+
+	t.Run("presets_edit_link", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for i, path := range paths {
+				model := "EOS2"
+				if i == 0 {
+					model = "EOS1"
+				}
+				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
+			}
+			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "My cameras")
+		explorerDialogEntry(t, v, "Camera make", "Canon")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "My cameras"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "My cameras"))
+		explorerDialogEntry(t, v, "Preset name", "My second camera")
+		explorerDialogEntry(t, v, "Camera model", "EOS2")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		apply := explorerDialogButton(t, v, "Apply preset")
+		if apply.Disabled() {
+			t.Fatal("linked cohort edit was not offered for review")
+		}
+		fynetest.Tap(apply)
+		v.settleExplorer()
+		piles := explorerPiles(v)
+		if len(piles) != 1 {
+			t.Fatalf("edit duplicated the linked cohort: %d", len(piles))
+		}
+		fynetest.Tap(piles[0])
+		if got, want := explorerGridPaths(v), []string{v.FileAt(1).Path(), v.FileAt(2).Path()}; !slices.Equal(got, want) {
+			t.Fatalf("linked edit retained wrong members: %v", got)
+		}
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		fynetest.Tap(explorerButton(t, v, "Unassigned (1)"))
+		if got := explorerGridPaths(v); len(got) != 1 || got[0] != v.FileAt(0).Path() {
+			t.Fatalf("removed member did not return to Unassigned: %v", got)
+		}
+	})
+
+	t.Run("presets_analyze_metadata", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for _, path := range paths {
+				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+			}
+			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+			return nil
+		}
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
+		v.grid.SelectAll()
+		fynetest.Tap(explorerButton(t, v, "Analyze"))
+		fynetest.Tap(explorerDialogButton(t, v, "Save as preset"))
+		explorerDialogEntry(t, v, "Preset name", "Metadata group")
+		explorerDialogEntry(t, v, "Camera make", "Canon")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Metadata group"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		v.settleExplorer()
+		if v.grid.Visible() || len(explorerPiles(v)) != 1 {
+			t.Fatal("metadata-only Analyze flow did not return to its created map cohort")
+		}
+	})
+
+	t.Run("presets_streaming", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		event := func(n int, cohort string, complete bool) similarity.Event {
+			var items []similarity.Item
+			for i := range n {
+				model := "EOS2"
+				if i == 0 || i == 3 {
+					model = "EOS1"
+				}
+				items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
+			}
+			return similarity.Event{Total: 4, Successful: n, Items: items, Complete: complete}
+		}
+		publish(event(3, "unassigned", false))
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "Streaming cameras")
+		explorerDialogEntry(t, v, "Camera make", "Canon")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Streaming cameras"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		settlePresetUI(v)
+		publish(event(4, "unassigned", false))
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		settlePresetUI(v)
+		_ = explorerButton(t, v, "Unassigned (1)")
+		fynetest.Tap(explorerPiles(v)[0])
+		want := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
+		publish(event(4, "automatic", false))
+		if got := explorerGridPaths(v); !slices.Equal(got, want) {
+			t.Fatalf("publication changed frozen reviewed cohort: %v", got)
+		}
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Streaming cameras"))
+		explorerDialogEntry(t, v, "Camera model", "EOS2")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		settlePresetUI(v)
+		publish(event(4, "automatic", true))
+		fynetest.Tap(explorerButton(t, v, "Unassigned (1)"))
+		if got := explorerGridPaths(v); len(got) != 1 || got[0] != v.FileAt(0).Path() {
+			t.Fatalf("regrouping undid reviewed removal: %v", got)
+		}
+	})
+
+	t.Run("presets_stale_preview", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t, "a.jpg", "b.jpg", "c.jpg")
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		var items []similarity.Item
+		for i := range 3 {
+			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+		}
+		publish(similarity.Event{Total: 3, Successful: 3, Items: slices.Clone(items)})
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "Stale cameras")
+		explorerDialogEntry(t, v, "Camera make", "Canon")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Stale cameras"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		settlePresetUI(v)
+		items[1].Cohort = "automatic"
+		publish(similarity.Event{Total: 3, Successful: 3, Items: items, Complete: true})
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		settlePresetUI(v)
+		found := false
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if l, ok := o.(*widget.Label); ok && l.Text == lang.L("The images or cohort name changed. Preview the preset again.") {
+				found = true
+			}
+		})
+		if !found || len(explorerPiles(v)) != 1 {
+			t.Fatal("stale preview changed current cohorts")
+		}
+	})
+
+	t.Run("presets_pending_members", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		files := slices.Clone(v.state.files)
+		dir := t.TempDir()
+		if err := favstore.Save(dir, "Pending", files); err != nil {
+			t.Fatal(err)
+		}
+		p, err := v.explorer.presets.Save(context.Background(), explorerpresets.Preset{Name: "Pending cameras", Rule: explorerpresets.Rule{Make: "Canon"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		store, _, err := favstore.OpenCohorts(context.Background(), favstore.Dir(dir, "Pending"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		members := []string{files[0].Path(), files[1].Path(), files[2].Path()}
+		if err := store.Save(context.Background(), favstore.CohortState{Groups: []favstore.Cohort{{Name: p.Name, PresetID: p.ID, Paths: members}}}); err != nil {
+			t.Fatal(err)
+		}
+		first, release := make(chan struct{}), make(chan struct{})
+		pixels := uitest.EncodeJPEG(t, 16, 16, color.White)
+		v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for _, path := range paths {
+				items = append(items, similarity.Item{Path: path, Cohort: "automatic", Preview: pixels, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+			}
+			emit(similarity.Event{Total: 3, Successful: 1, Items: items[:1]})
+			close(first)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-release:
+			}
+			emit(similarity.Event{Total: 3, Successful: 3, Complete: true, Items: items})
+			return nil
+		}
+		v.favorites.SetDir(dir)
+		v.favorites.Open(0)
+		waitForScan(t, v)
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		explorerMenu(t, v).Action()
+		<-first
+		v.explorer.ui.Drain()
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Pending cameras"))
+		explorerDialogEntry(t, v, "Camera make", "Nikon")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		settlePresetUI(v)
+		_, saved, err := favstore.OpenCohorts(context.Background(), favstore.Dir(dir, "Pending"))
+		if err != nil || len(saved.Groups) != 1 || !slices.Equal(saved.Groups[0].Paths, members[1:]) {
+			t.Fatalf("pending members lost on partial review: %+v %v", saved, err)
+		}
+		close(release)
+		v.settleExplorer()
+		fynetest.Tap(explorerPiles(v)[0])
+		if got := explorerGridPaths(v); !slices.Equal(got, members[1:]) {
+			t.Fatalf("late results undid saved pending membership: %v", got)
+		}
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Pending cameras"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		settlePresetUI(v)
+		if len(explorerPiles(v)) != 0 {
+			t.Fatal("empty linked cohort was not dissolved")
+		}
+		_ = explorerButton(t, v, "Unassigned (3)")
+	})
+	t.Run("presets_incompatible", func(t *testing.T) {
+		v := explorerFixture(t)
+		p := explorerpresets.Preset{ID: "older", Name: "Older rule", Rule: explorerpresets.Rule{Make: "Canon", Tags: []string{"retired-tag"}}, Versions: explorerpresets.CurrentVersions()}
+		p.Versions.Model = "older"
+		data, err := json.Marshal(struct {
+			Version int
+			Presets []explorerpresets.Preset
+		}{1, []explorerpresets.Preset{p}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(v.explorer.presets.Dir, "presets.json"), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Older rule"))
+		var retired *widget.Check
+		warning := false
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if l, ok := o.(*widget.Label); ok && l.Text == lang.L("This preset uses an older analysis version. Review its rules and save it before applying.") {
+				warning = true
+			}
+			if c, ok := o.(*widget.Check); ok && c.Text == fmt.Sprintf(lang.L("Unavailable tag: %s"), "retired-tag") {
+				retired = c
+			}
+		})
+		if !warning || retired == nil || !retired.Checked || !explorerDialogButton(t, v, "Preview preset").Disabled() {
+			t.Fatal("incompatible definition was not readable with review guidance")
+		}
+		explorerDialogEntry(t, v, "Preset name", "Reviewed rule")
+		if !explorerDialogButton(t, v, "Save preset").Disabled() {
+			t.Fatal("edit silently discarded an unsupported condition")
+		}
+		fynetest.Tap(retired)
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "Reviewed rule"))
+		if explorerDialogButton(t, v, "Preview preset").Disabled() {
+			t.Fatal("explicitly reviewed rule did not become compatible")
+		}
+	})
+	t.Run("presets_invalid_rules", func(t *testing.T) {
+		v := explorerFixture(t)
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "Validation")
+		if !explorerDialogButton(t, v, "Save preset").Disabled() {
+			t.Fatal("empty rule accepted")
+		}
+		explorerDialogEntry(t, v, "Minimum width", "100")
+		explorerDialogEntry(t, v, "Maximum width", "99")
+		if !explorerDialogButton(t, v, "Save preset").Disabled() {
+			t.Fatal("inverted range accepted")
+		}
+		explorerDialogEntry(t, v, "Maximum width", "100")
+		if explorerDialogButton(t, v, "Save preset").Disabled() {
+			t.Fatal("inclusive single-size range rejected")
+		}
+		explorerDialogEntry(t, v, "Capture date from (YYYY-MM-DD)", "2026-02-29")
+		if !explorerDialogButton(t, v, "Save preset").Disabled() {
+			t.Fatal("invalid date accepted")
+		}
+		explorerDialogEntry(t, v, "Capture date from (YYYY-MM-DD)", "2026-09-10")
+		explorerDialogEntry(t, v, "Capture date through (YYYY-MM-DD)", "2026-09-09")
+		if !explorerDialogButton(t, v, "Save preset").Disabled() {
+			t.Fatal("inverted capture dates accepted")
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Cancel"))
+		if err := os.WriteFile(filepath.Join(v.explorer.presets.Dir, "presets.json"), []byte("broken"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		settlePresetUI(v)
+		found := false
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if l, ok := o.(*widget.Label); ok && l.Text == lang.L("Could not load presets. The saved library was left unchanged.") {
+				found = true
+			}
+		})
+		if !found {
+			t.Fatal("corrupt library did not produce visible recovery guidance")
+		}
+	})
+
+	t.Run("presets_favorite", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		dir := t.TempDir()
+		if err := favstore.Save(dir, "Cameras", slices.Clone(v.state.files)); err != nil {
+			t.Fatal(err)
+		}
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		provider := func(group string) similarity.Provider {
+			return func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for i, path := range paths {
+					model := "EOS2"
+					if i == 0 {
+						model = "EOS1"
+					}
+					items = append(items, similarity.Item{Path: path, Cohort: group, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
+				}
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+				return nil
+			}
+		}
+		open := func(v *viewer, group string) {
+			v.explorer.cacheFavorites = false
+			v.explorerAnalyze = provider(group)
+			v.favorites.SetDir(dir)
+			v.favorites.Open(0)
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			explorerMenu(t, v).Action()
+			v.settleExplorer()
+		}
+		open(v, "unassigned")
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+		explorerDialogEntry(t, v, "Preset name", "Saved cameras")
+		explorerDialogEntry(t, v, "Camera make", "Canon")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Saved cameras"))
+		fynetest.Tap(explorerDialogButton(t, v, "Preview preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerButton(t, v, "Presets"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Saved cameras"))
+		explorerDialogEntry(t, v, "Camera model", "EOS2")
+		fynetest.Tap(explorerDialogButton(t, v, "Save preset"))
+		v.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, v, "Apply preset"))
+		v.settleExplorer()
+		v.LeaveSimilarityMap()
+		v.settleExplorer()
+		reopened := newTestViewer(t)
+		reopened.explorer.presets = &explorerpresets.Store{Dir: v.explorer.presets.Dir}
+		open(reopened, "automatic")
+		piles := explorerPiles(reopened)
+		var named *explorerui.Pile
+		for _, pile := range piles {
+			explorerWalk(pile, func(o fyne.CanvasObject) {
+				if label, ok := o.(*canvas.Text); ok && label.Text == "Saved cameras (2)" {
+					named = pile
+				}
+			})
+		}
+		if named == nil {
+			t.Fatal("favorite reopen lost the preset cohort and reviewed membership")
+		}
+		fynetest.Tap(named)
+		if got, want := explorerGridPaths(reopened), []string{v.FileAt(1).Path(), v.FileAt(2).Path()}; !slices.Equal(got, want) {
+			t.Fatalf("restored preset membership: %v", got)
+		}
+		fynetest.Tap(explorerButton(t, reopened, "Back to map"))
+		fynetest.Tap(explorerButton(t, reopened, "Unassigned (1)"))
+		if got := explorerGridPaths(reopened); len(got) != 1 || got[0] != v.FileAt(0).Path() {
+			t.Fatal("removed member was reassigned automatically on reopen")
+		}
+		fynetest.Tap(explorerButton(t, reopened, "Back to map"))
+		fynetest.Tap(explorerButton(t, reopened, "Presets"))
+		reopened.settleExplorer()
+		fynetest.Tap(explorerDialogButton(t, reopened, "Saved cameras"))
+		explorerDialogEntry(t, reopened, "Camera model", "")
+		fynetest.Tap(explorerDialogButton(t, reopened, "Save preset"))
+		reopened.settleExplorer()
+		if explorerDialogButton(t, reopened, "Apply preset").Disabled() {
+			t.Fatal("reopened preset lost its stable cohort link")
+		}
+
+		if err := os.RemoveAll(favstore.Dir(dir, "Cameras")); err != nil {
+			t.Fatal(err)
+		}
+		fynetest.Tap(explorerDialogButton(t, reopened, "Apply preset"))
+		settlePresetUI(reopened)
+		found := false
+		explorerWalk(reopened.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if l, ok := o.(*widget.Label); ok && l.Text == lang.L("Could not save the cohort. Reopen the favorite and try again.") {
+				found = true
+			}
+		})
+		if !found {
+			t.Fatal("failed preset membership save did not show recovery guidance")
+		}
+		fynetest.Tap(explorerDialogButton(t, reopened, "Cancel"))
+		_ = explorerButton(t, reopened, "Unassigned (1)")
+		fynetest.Tap(explorerPiles(reopened)[0])
+		if got := explorerGridPaths(reopened); len(got) != 2 {
+			t.Fatalf("failed preset save did not restore prior membership: %v", got)
+		}
+		stored, err := reopened.explorer.presets.Load(context.Background())
+		if err != nil || len(stored) != 1 || stored[0].Rule.Model != "" {
+			t.Fatal("cohort failure rolled back the independent global rule")
+		}
+	})
 
 	t.Run("create_cohort_favorite", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
