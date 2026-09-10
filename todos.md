@@ -258,9 +258,17 @@ network denial before source reads, a retained executable, numbered causal event
 observed process exits and sampled process-group RSS. Collection is separate from
 qualification. See [current evidence](.scratch/visual-similarity-explorer/evidence/presets-native-20260910/README.md).
 
+Native trial records now include source-free foreground map geometry and a
+camera snapshot before cohort departure. A generated-source native replay
+crosses 100/101 piles, verifies the 50% zoom floor and retains a 16-member grid
+across growth to 129 piles with an unchanged return camera. This closes the
+bounded geometry-evidence gap; representative usability remains to be tried.
+`make explorer-ui-test`, the full `make verify` gate and `make build` pass.
+See [large-map trace evidence](.scratch/visual-similarity-explorer/evidence/large-map-trace-20260910/README.md).
+
 Still open in the current milestone: live progressive/frozen browsing and
-recovery/cache trials at library scale; explicit coverage of the 50% zoom floor
-above 100 piles; representative event-to-visible paint measurements; final
+recovery/cache trials at library scale; representative usability of the 50% zoom
+floor above 100 piles; representative event-to-visible paint measurements; final
 full-library verification of post-close memory reclamation and the remaining
 integrated qualification. Ronin has
 accepted completed-map responsiveness on the 50,655-input run. The direct

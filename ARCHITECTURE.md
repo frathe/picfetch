@@ -83,7 +83,9 @@ source-free causal records and final collection summary. Numbered analyses bind
 input digests to received events, actual UI application and observed worker exit.
 Session-unique event IDs link receipt to application and foreground-surface
 observations; grid-result/current-image digests distinguish frozen browsing from
-the updating map without retaining paths. It also records cohort/map visits,
+the updating map without retaining paths. Foreground `MapView` records pile count,
+zoom/floor, camera center and viewport; map departure/return binds the camera to
+its applied revision even when grouping changes behind a cohort. It also records cohort/map visits,
 rejected truncated scans, and shutdown.
 `Identity` gives trial launches separate Fyne preferences/session storage.
 Collection has no implicit human quality verdict; UI application is not paint.
@@ -177,6 +179,7 @@ cohort visits; full exit clears them. Filtering starts no background work.
 `Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
 stable samples of up to fifteen distinct members per `Pile`, fitted thin frames,
 Shift-scroll panning and a granularity slider cutting the supplied hierarchy.
+`Map.View` captures source-free camera geometry on UI for explicit trial recording.
 `keys.go` owns keyboard zoom, directional stack selection, source-bound selection
 restoration and camera reveal; Enter opens the highlighted stack.
 `layout.go` matches continuing cohorts by shared

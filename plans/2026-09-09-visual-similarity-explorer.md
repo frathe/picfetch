@@ -1,5 +1,86 @@
 # Visual similarity explorer implementation
 
+## Large-map qualification trace — resumed 2026-09-10
+
+Status: complete and verified. The preceding memory increment is complete. Continued the
+remaining >100-pile qualification by recording source-free map geometry in
+native trials. Existing viewer/provider and actual-engine boundaries remain
+approved. Route: Deep increment across three packages.
+
+Deliverable: native evidence can distinguish a 100-pile map from a larger map,
+observe the actual zoom and its floor, and compare camera geometry across a
+cohort round trip. Covered maps must not be reported as foreground maps.
+No grouping, zoom-policy, sample-count or private-library changes are planned.
+
+1. Q1 (T0): existing `internal/ui/explorer_test.go`, `internal/ui/explorer/map.go`,
+   `internal/ui/explorer.go`, `internal/explorertrial/session.go`. Add immutable
+   map view geometry and optional source-free trial `Map` measurements. Test
+   ordinary publication and cohort return at the approved viewer boundary,
+   including the exact 100/101-pile threshold and covered-map omission.
+   Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^trial_recording' -count=1 -v`.
+2. Q2 (T0): retained native overlay/evidence, architecture, plan, ticket 07 and
+   `todos.md`. Replay >100 piles through native Fit/zoom/pan/grid/map return,
+   negatively verify the recorder guard, and retain exact fixture/engine limits.
+   Verify: retained replay/checker commands; `make explorer-ui-test`;
+   `make verify`; `make build`; `git diff --check`.
+
+Graph: Q1 -> Q2. Budget: one read-only scout, two lead review rounds per task,
+one complete final canonical race suite. G1-G5: bounded native-tool lookup;
+returned paths/diffs checked by shell; no writes; independent historical
+tooling breadth; not previously read by the lead. S/W: adaptive lookup, no
+scriptable transform or supplied implementation. No review or fix delegated.
+Honest limit: synthetic native geometry is not representative library inference
+or a new human verdict. Full-library progressive/cache/recovery/resource and
+integrated acceptance remain open unless new evidence supplies them.
+
+### Large-map implementation and evidence
+
+Q1 observed a missing-geometry red, then a missing-departure red. Both reached
+green at the existing viewer/provider boundary. Immutable `Map.View` geometry
+feeds optional foreground trial measurements; `map-departure` records the
+camera before Grid View covers it. The guard crosses 100/101 piles, measures
+the actual pan delta/viewport, retains 15 samples and the frozen 16-member cohort,
+then checks the same camera on return to a 129-pile revision. Existing recorder
+scenarios cover comparison, filtered grid and image foregrounds.
+
+Three isolated overlays deliberately report zero camera coordinates, the wrong
+zoom floor and covered-map geometry. All fail their intended guards. The
+initial camera command's compiler-cache denial is separately retained from
+its successful host retry and behavioral red. No new top-level runnable or
+test file was added; existing shard and Qodana entries remain valid.
+
+Q2's native replay uses 144 generated JPEG sources with controlled synthetic
+cohorts and actual source decoding/GL rendering. All 11 framebuffer observations
+completed: 100 piles reach 0.03x; 101 piles stop at 0.5x; Fit/input/pan/zoom and
+camera-preserving return from the frozen grid pass while the map grows to 129
+piles. The five selected callback/marker observations have median 22.857ms,
+including scheduling/readback/polling. Screenshots were inspected. This is not
+physical-input timing or representative library performance.
+
+The replay completes then exits 1 because its synthetic provider is correctly
+refused actual-engine collection (`Collected=false`); retained shutdown-thread
+warnings follow the replay's completion marker. The checker passes this bounded
+evidence without treating it as engine qualification. `make explorer-ui-test`
+passes separately with all actual offline-engine cases (29.209s). `make build`
+refreshes `bin/picfetch`. Canonical `make verify` passed with exit 0: formatting,
+TUF/exclusion checks, vet/build, exact shard inventory and all Linux/amd64 Docker
+race partitions. UI shards passed in 473.431s, 298.690s and 287.193s; the full
+Explorer scenario passed in 170.910s. Raw artifacts:
+`.scratch/race-runs/20260910T140029Z-CpBzsu`. `git diff --check` is clean.
+Evidence and reproduction: [large-map trace](../.scratch/visual-similarity-explorer/evidence/large-map-trace-20260910/README.md).
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Q1 | 1 / 1 read-only scout | 2 | no | Two behavioral reds; three isolated negative overlays; no implementation/review delegation |
+| Q2 | 0 / 0 | 2 | no | First native replay completed; expected synthetic-collection refusal retained |
+| gate | 0 / 0 | 1 | one, passed | Actual-engine/UI suite, native build and complete canonical race gate |
+
+This increment is complete. Keep the wider plan active for representative
+progressive/frozen browsing, Favorite cache reuse/invalidation, interruption
+and source-change recovery, >100-pile zoom-floor usability, input/paint timing,
+full-library post-close resource retest and final integrated acceptance.
+No commit was made; unrelated `:memory:.ses` files remain untouched.
+
 ## Post-close memory qualification — resumed 2026-09-10
 
 Status: complete and verified. Resumed the outstanding controlled open/browse/close memory
@@ -334,7 +415,7 @@ Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Post-close memory qualification](#post-close-memory-qualification--resumed-2026-09-10). The broader milestone remains active.
+Current increment: [Large-map qualification trace](#large-map-qualification-trace--resumed-2026-09-10). The broader milestone remains active.
 
 ## Deliverable and accepted contract
 

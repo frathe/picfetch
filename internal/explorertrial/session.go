@@ -29,10 +29,18 @@ type Record struct {
 	Measurements                      similarity.Measurements
 	InputSHA256                       string `json:",omitempty"`
 	QueueSeconds, ApplySeconds        float64
-	Outcome                           string `json:",omitempty"`
-	Surface                           string `json:",omitempty"`
-	VisibleTotal                      int    `json:",omitempty"`
-	VisibleSHA256                     string `json:",omitempty"`
+	Outcome                           string   `json:",omitempty"`
+	Surface                           string   `json:",omitempty"`
+	VisibleTotal                      int      `json:",omitempty"`
+	VisibleSHA256                     string   `json:",omitempty"`
+	Map                               *MapView `json:",omitempty"`
+}
+
+// MapView measures the foreground map in Fyne logical units, not physical
+// pixels or paint latency. Piles includes cohorts hidden by tag filters.
+type MapView struct {
+	Piles                                              int
+	Zoom, MinimumZoom, CenterX, CenterY, Width, Height float32
 }
 
 // Analysis distinguishes a delivered map from an observed worker exit.
@@ -185,13 +193,16 @@ func (s *Session) Action(run int, kind string, count int) {
 // Paths describe the actual grid results or current image target, not a saved
 // cohort. Only their count and unordered identity digest enter the trace.
 // This observes UI state, not framebuffer paint or image-load completion.
-func (s *Session) Presented(run, event int, kind, surface string, paths []string) {
+func (s *Session) Presented(run, event int, kind, surface string, paths []string, view *MapView) {
 	if s == nil || run <= 0 {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := Record{Kind: kind, Run: run, Event: event, Surface: surface, VisibleTotal: len(paths)}
+	if surface == "map" {
+		r.Map = view
+	}
 	if len(paths) > 0 {
 		r.VisibleSHA256 = sourceDigest(paths)
 	}

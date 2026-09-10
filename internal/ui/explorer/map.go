@@ -61,6 +61,20 @@ type Map struct {
 	unassignedSources  map[string]bool
 }
 
+// View is source-free camera geometry. Piles counts all current cohort piles,
+// including those hidden by tag filters; that count determines the zoom floor.
+type View struct {
+	Piles             int
+	Zoom, MinimumZoom float32
+	Center            fyne.Position
+	Size              fyne.Size
+}
+
+// View captures the map on UI, without retaining its images or memberships.
+func (m *Map) View() View {
+	return View{Piles: len(m.piles), Zoom: m.zoom, MinimumZoom: m.minimumZoom(), Center: m.center, Size: m.Size()}
+}
+
 func New(host Host) *Map {
 	m := &Map{host: host, zoom: 1, scene: container.NewWithoutLayout()}
 	m.ExtendBaseWidget(m)

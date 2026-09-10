@@ -423,11 +423,23 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				Event                     int
 				Total, Successful, Failed int
 				Complete, OfflineVerified bool
+				Map                       *struct {
+					Piles                                              int
+					Zoom, MinimumZoom, CenterX, CenterY, Width, Height float32
+				}
 			}
 			if err := decoder.Decode(&event); err != nil {
 				t.Fatal(err)
 			}
 			kinds = append(kinds, event.Kind)
+			if event.Kind == "view-observed" || event.Kind == "map-return" {
+				if event.Map == nil || event.Map.Piles != 1 || event.Map.MinimumZoom != .03 || event.Map.Zoom <= 0 || event.Map.Width <= 0 || event.Map.Height <= 0 {
+					t.Fatalf("trial lacks the displayed map's pile count, zoom and viewport: %+v", event.Map)
+				}
+			}
+			if event.Kind == "cohort-open" && event.Map != nil {
+				t.Fatal("trial claimed the covered map was presented")
+			}
 			if event.Kind == "worker-event" {
 				receivedEvent = event.Event
 			}
@@ -503,6 +515,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		var views []struct {
 			Kind, Surface, VisibleSHA256 string
 			Event, VisibleTotal          int
+			Map                          *explorertrial.MapView
 		}
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		applied := 0
@@ -510,6 +523,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			var record struct {
 				Kind, Surface, VisibleSHA256 string
 				Event, VisibleTotal          int
+				Map                          *explorertrial.MapView
 			}
 			if err := decoder.Decode(&record); err != nil {
 				t.Fatal(err)
@@ -534,6 +548,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			if views[i].Surface != surface {
 				t.Fatalf("observation %d: surface=%q, want %q", i, views[i].Surface, surface)
 			}
+			if (views[i].Map != nil) != (surface == "map") {
+				t.Fatalf("observation %d confused foreground and covered map geometry", i)
+			}
 		}
 		if views[1].VisibleTotal != 2 || views[1].VisibleSHA256 == "" || views[1].VisibleSHA256 != views[2].VisibleSHA256 || views[2].VisibleTotal != 2 {
 			t.Fatalf("frozen grid identity missing from evidence: %+v", views)
@@ -552,6 +569,82 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		if bytes.Contains(data, []byte("private-")) {
 			t.Fatal("view evidence retained source names")
+		}
+	})
+
+	t.Run("trial_recording_large_camera", func(t *testing.T) {
+		v, publish := explorerLargeFixture(t)
+		v.LeaveSimilarityMap()
+		v.settleExplorer()
+		out := filepath.Join(t.TempDir(), "trial")
+		var err error
+		v.explorer.trial, err = explorertrial.New(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		explorerMenu(t, v).Action()
+		publish(115, false) // 100 piles: one has 16 members.
+		publish(116, false) // 101 piles must raise the floor.
+		pile := explorerPiles(v)[0]
+		viewport := v.explorer.surface.Size()
+		pan := fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2 + 21, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2 - 17}
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: pan})
+		for range 40 {
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
+		}
+		position, size := pile.Position(), pile.Size()
+		fynetest.Tap(pile)
+		frozen := explorerGridPaths(v)
+		publish(144, false)
+		if len(frozen) != 16 || !slices.Equal(frozen, explorerGridPaths(v)) {
+			t.Fatal("large-map publication changed the frozen cohort")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		pile = explorerPiles(v)[0]
+		if pile.Position() != position || pile.Size() != size || size.Width != 190 || len(explorerSamples(pile)) != 15 {
+			t.Fatal("large-map return lost the camera, floor or full sample set")
+		}
+		v.LeaveSimilarityMap()
+		v.settleExplorer()
+		if err := v.explorer.trial.Close(); err == nil {
+			t.Fatal("synthetic canceled provider must not qualify as a complete offline trial")
+		}
+		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var maps []explorertrial.Record
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		for decoder.More() {
+			var record explorertrial.Record
+			if err := decoder.Decode(&record); err != nil {
+				t.Fatal(err)
+			}
+			if record.Surface == "map" {
+				maps = append(maps, record)
+			} else if record.Map != nil {
+				t.Fatalf("covered map claimed foreground geometry: %+v", record)
+			}
+		}
+		if len(maps) != 4 || maps[2].Kind != "map-departure" || maps[3].Kind != "map-return" {
+			t.Fatalf("missing publication/departure/return geometry: %+v", maps)
+		}
+		for i, count := range []int{100, 101, 101, 129} {
+			floor := float32(.5)
+			if i == 0 {
+				floor = .03
+			}
+			if maps[i].Map == nil || maps[i].Map.Piles != count || maps[i].Map.MinimumZoom != floor || (i > 0 && maps[i].Map.Zoom != .5) {
+				t.Fatalf("map %d has incorrect pile count or zoom geometry: %+v", i, maps[i].Map)
+			}
+		}
+		departure, returned := *maps[2].Map, *maps[3].Map
+		if math.Abs(float64(departure.CenterX-(maps[1].Map.CenterX-pan.DX/.5))) > .01 || math.Abs(float64(departure.CenterY-(maps[1].Map.CenterY-pan.DY/.5))) > .01 || departure.Width != viewport.Width || departure.Height != viewport.Height {
+			t.Fatal("trial geometry did not measure the actual pan and viewport")
+		}
+		departure.Piles = returned.Piles // The live map grew behind the frozen grid.
+		if departure != returned || maps[2].Event == maps[3].Event {
+			t.Fatal("trace lost the camera across distinct map revisions")
 		}
 	})
 

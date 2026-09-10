@@ -267,6 +267,7 @@ func (v *viewer) openSimilarityCohort(paths []string, unassigned bool) {
 	if len(paths) == 0 {
 		return
 	}
+	v.recordExplorerView("map-departure")
 	v.explorer.cohort = append([]string(nil), paths...)
 	v.explorer.unassignedCohort = unassigned
 	v.openExplorerGrid()
@@ -411,5 +412,11 @@ func (v *viewer) recordExplorerView(kind string) {
 			paths = append(paths, uri.Path())
 		}
 	}
-	v.explorer.trial.Presented(v.explorer.trialRun, v.explorer.trialEvent, kind, surface, paths)
+	var view *explorertrial.MapView
+	if surface == "map" {
+		camera := v.explorer.surface.View()
+		view = &explorertrial.MapView{Piles: camera.Piles, Zoom: camera.Zoom, MinimumZoom: camera.MinimumZoom,
+			CenterX: camera.Center.X, CenterY: camera.Center.Y, Width: camera.Size.Width, Height: camera.Size.Height}
+	}
+	v.explorer.trial.Presented(v.explorer.trialRun, v.explorer.trialEvent, kind, surface, paths, view)
 }
