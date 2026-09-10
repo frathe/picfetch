@@ -11,7 +11,10 @@
   progress, cancellation and retry. Pictures stay local; there is no analytics
   or feedback collection. Help, About and setup link to GitHub Discussions,
   and the privacy policy explains the public asset downloads. Explorer currently
-  supports Apple Silicon Macs.
+  supports Apple Silicon Macs. The introduction fills the window and uses
+  verified transparent Trane artwork. Setup, offline inference, packaging and
+  the canonical verification gate pass; see the
+  [completed release setup plan](finished_refactorings/2026-09-10-explorer-release-setup.md).
 
 - **Explorer and Mosaic access.** Shift+S opens the Visual Similarity Explorer;
   Shift+M opens Mosaic from the loaded collection, or the current selection/
@@ -183,14 +186,6 @@ canonical Linux golden gate passed. MA-025 is an accepted edge case below.
 
 ## TODO
 
-### Transparent Explorer introduction artwork
-
-The first-use page is implemented and fills the window, but Trane's current PNG
-has an opaque white background. Replace it with a verified alpha cutout, inspect
-the result on the app background, and rebuild the embedded asset. Local
-background removal is awaiting Ronin's choice after the generator returned
-opaque results. See the [release setup plan](plans/2026-09-10-explorer-release-setup.md).
-
 ### Explorer on Linux and Windows
 
 Regular-release preparation adds first-use setup on the qualified Apple Silicon
@@ -200,7 +195,7 @@ inference/lifecycle qualification on their supported architectures. The common
 model, grouping, map and cache code is shared; passing a cross-build alone does
 not qualify native Explorer execution. The no-cgo fallback restores the existing
 Windows package-build checks. See the
-[release setup plan](plans/2026-09-10-explorer-release-setup.md).
+[release setup plan](finished_refactorings/2026-09-10-explorer-release-setup.md).
 
 ### Similarity-map zoom trial
 

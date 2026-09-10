@@ -1,6 +1,6 @@
 # Explorer regular-release setup
 
-Status: active. Route: Deep (runtime download, native worker lifecycle and release
+Status: complete (2026-09-10). Route: Deep (runtime download, native worker lifecycle and release
 integration). Lead owns design, implementation, review, fixes and the final gate.
 
 ## Accepted scope
@@ -84,8 +84,9 @@ inspect transparency and native layout, and record the prompt/tool provenance.
 The scout confirmed Mac-only admission, launcher/OS denial, pollable stdin and
 runtime manifest. Model/grouping/cache code is shared. Existing bindings contain
 Unix and Windows loaders, but native behavior on Linux/Windows is unverified.
-Regular-release platform scope was asked asynchronously; setup/privacy/artwork
-work is independent and continues. Lead is reproducing the cross-cgo CI risk.
+The release setup qualifies the Apple Silicon Mac path. Linux/Windows native
+support remains explicit follow-up work in `todos.md`; the shared Windows
+no-cgo build regression was reproduced and fixed.
 
 ## Implementation evidence
 
@@ -115,6 +116,15 @@ work is independent and continues. Lead is reproducing the cross-cgo CI risk.
   and the real-worker retry returns to Download. The full verification is rerun
   after this final code change.
 - Ronin requested actual transparent artwork after seeing the white fallback.
-  Local background removal was asked explicitly because image-editing tool
-  instructions require that request before switching methods. Awaiting answer;
-  opaque artwork must not be presented as a transparent final asset.
+  Ronin explicitly authorized local background removal. The final 1448 x 1086
+  PNG has verified zero/partial/full alpha, preserves all photo stacks/prints,
+  and was inspected on dark backgrounds and both setup-page captures.
+  The original opaque PNG failed the corner-alpha check; the final asset passes.
+- Final `make verify`: PASS, exit 0, including all Linux race partitions.
+  Artifacts: `.scratch/race-runs/20260910T190212Z-EDTNgK`. The final bitmap
+  edit was separately checked with the setup-window regression (PASS, 1.053 s),
+  visual captures, and native build/packaging. No application code changed after
+  the gate began.
+- Release preparation is complete; no version bump, tag or release publication
+  was performed. Ronin committed the setup implementation as `c258386`; the
+  transparent artwork and closeout documents remain reviewable changes.
