@@ -1,8 +1,8 @@
-# PR 18 review cycle
+# PR 18 review fixes
 
-Deliverable: validate Codex's findings, fix confirmed defects, explain each
-disposition in its review thread, push verified commits, and repeat until a
-review of the current commit has no actionable findings.
+Deliverable: fix the initial Codex/Qodana findings with regression evidence and
+document the reusable GitHub Cortex review loop. The implementation is complete;
+subsequent review/CI outcomes are recorded in the [PR conversation](https://github.com/frathe/picfetch/pull/18).
 
 Route: Deep for this batch across the viewer, worker, and platform tooling.
 Existing architecture and behavior remain the contract. No merge or release.
@@ -89,4 +89,22 @@ Regression evidence:
 | Fixes | 0 / 0 | 1 | no | All fixes and regression design stayed with root |
 | Gate | 0 / 0 | 1 | CI | Local broad run stopped on user request; inspect GitHub CI |
 
-Subsequent external review rounds remain explicitly authorized by the user.
+## External follow-up
+
+- `4ab72aa` contains the initial fixes. All 11 original Codex threads received
+  individual commit-linked explanations and were resolved.
+- `55dbf16` documents the reusable GitHub Cortex review loop in `AGENTS.md`,
+  including its explicit commit/push/comment authorization and focused local tests.
+- Codex code and security reviews completed on `55dbf16` with no new findings.
+  Validation, Windows, macOS, and non-UI race checks passed; UI race jobs were
+  still running when the Qodana follow-up was prepared.
+- The full Qodana report for run `34537395806` confirmed the original unchecked
+  runtime warning was gone. It reported one new `GoImportUsedAsName` warning:
+  local `favorites` shadowed the import. Renamed it to `favoriteBindings` and
+  reran `TestVisualSimilarityExplorer/favorite_shortcuts` successfully (0.466s).
+- The user requested that this workflow remain repeatable in `AGENTS.md`.
+  Current-commit CI, Qodana, CodeQL and Codex results remain the external exit
+  gate; the agent continues monitoring and correcting them in the PR loop.
+
+The additional report fetch reused the same read-only Scout; root assessed and
+fixed its finding. No implementation or review was delegated.

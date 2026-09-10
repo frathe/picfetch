@@ -1,12 +1,13 @@
-## PR 18 review follow-up (2026-09-11)
+## PR 18 review fixes (2026-09-11)
 
-- [ ] Validate and resolve Codex findings, including older unresolved threads.
-  Regression fixes cover map exit/retry, Favorites membership and cancellation,
-  cohort Escape, shortcut parity, asset cancellation and all-failed analyses,
-  Linux throughput admission, and startup/queue ownership. Qodana's unchecked
-  runtime value is included. Run changed tests locally, push, and inspect renewed Codex,
-  Qodana, CodeQL and CI reports until the current commit has no actionable findings.
-  See [review cycle](plans/2026-09-11-pr18-review-cycle.md).
+- [x] Address the initial 11 Codex findings and Qodana warnings with regression
+  tests and commit-linked thread replies. Fixes cover map exit/retry, Favorites
+  membership and cancellation, cohort Escape, shortcut parity, asset cancellation,
+  all-failed analyses, Linux throughput, and startup/queue ownership.
+  The reusable **GitHub Cortex review loop** is documented in `AGENTS.md`.
+  Changed tests run locally; full CI and successive reports are checked on
+  [PR 18](https://github.com/frathe/picfetch/pull/18).
+  See [implementation evidence](finished_refactorings/2026-09-11-pr18-review-cycle.md).
 
 # PicFetch — TODOs
 

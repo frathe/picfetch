@@ -33,10 +33,10 @@ type shortcutAdder interface {
 func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	yielding := yieldingShortcuts{inner: c, view: view}
 	wireOpenShortcuts(yieldingShortcuts{inner: c, view: view, comparisonAllowed: true, explorerAllowed: true}, view)
-	favorites := yieldingShortcuts{inner: c, view: view, explorerAllowed: true}
-	wireFavoriteShortcuts(favorites, view.favorites.Open)
-	wireManageFavoritesShortcut(favorites, view)
-	wireAddFavoritesShortcut(favorites, view)
+	favoriteBindings := yieldingShortcuts{inner: c, view: view, explorerAllowed: true}
+	wireFavoriteShortcuts(favoriteBindings, view.favorites.Open)
+	wireManageFavoritesShortcut(favoriteBindings, view)
+	wireAddFavoritesShortcut(favoriteBindings, view)
 	wireClipboardShortcuts(c, view)
 	wireCopySelectionShortcut(c, view)
 	wireCompareShortcut(yielding, view)
