@@ -51,7 +51,7 @@ func TestNew_InitialDisabledMatchesTheBarAsBuilt(t *testing.T) {
 		{"actions.hide", m.Actions().Hide(), true},
 		{"actions.showVariant", m.Actions().ShowVariant(), true},
 		{"actions.compare", m.Actions().Compare(), true},
-		{"actions.mosaic", m.Actions().Mosaic(), true},
+		{"window.mosaic", m.Window().Mosaic(), true},
 		{"actions.rotate", m.Actions().Rotate(), true},
 		{"actions.zoomIn", m.Actions().ZoomIn(), true},
 		{"actions.zoomOut", m.Actions().ZoomOut(), true},
@@ -91,10 +91,12 @@ func TestNew_LabelsAndAccelerators(t *testing.T) {
 		{"window.grid", m.Window().Grid(), lang.L("Grid View"), fyne.KeyG, 0},
 		{"window.pictureFrame", m.Window().PictureFrame(), lang.L("Picture-frame mode"), fyne.KeyP, 0},
 		{"window.help", m.Window().Help(), lang.L("Help"), fyne.KeyF1, 0},
+		{"window.explorer", m.window.explorer, lang.L("Visual Similarity Explorer"), fyne.KeyS, fyne.KeyModifierShift},
 		{"sortParent", m.sortParent, lang.L("Sort order"), fyne.KeyS, 0},
 		{"actions.hide", m.Actions().Hide(), lang.L("Show/Hide duplicates"), fyne.KeyD, 0},
 		{"actions.showVariant", m.Actions().ShowVariant(), lang.L("Show variants"), fyne.KeyD, fyne.KeyModifierShift},
 		{"actions.compare", m.Actions().Compare(), lang.L("Compare selected images"), fyne.KeyD, mod},
+		{"window.mosaic", m.Window().Mosaic(), lang.L("Generate Image Mosaic..."), fyne.KeyM, fyne.KeyModifierShift},
 		{"actions.rotate", m.Actions().Rotate(), lang.L("Rotate image (CW)"), fyne.KeyR, 0},
 		{"actions.zoomIn", m.Actions().ZoomIn(), lang.L("Zoom in"), fyne.KeyPlus, 0},
 		{"actions.zoomOut", m.Actions().ZoomOut(), lang.L("Zoom out"), fyne.KeyMinus, 0},
@@ -179,7 +181,7 @@ func TestActionsMenu_Composition(t *testing.T) {
 	}
 	a := m.Actions()
 	want := []*fyne.MenuItem{
-		m.sortParent, a.Hide(), a.ShowVariant(), a.Compare(), a.Mosaic(),
+		m.sortParent, a.Hide(), a.ShowVariant(), a.Compare(),
 		nil,
 		a.Rotate(), a.ZoomIn(), a.ZoomOut(),
 		nil,
@@ -193,7 +195,7 @@ func TestActionsMenu_Composition(t *testing.T) {
 func TestApply_MosaicFollowsCanMosaicAndComparisonIsolation(t *testing.T) {
 	fired := false
 	m := New(Callbacks{Mosaic: func() { fired = true }}, filesort.ByName)
-	item := m.Actions().Mosaic()
+	item := m.Window().Mosaic()
 	if item.Label != lang.L("Generate Image Mosaic...") || !item.Disabled {
 		t.Fatalf("initial Mosaic item = {label:%q disabled:%v}", item.Label, item.Disabled)
 	}
@@ -298,7 +300,7 @@ func TestWindowMenu_Composition(t *testing.T) {
 		t.Errorf("Window menu Label = %q, want %q", menu.Label, lang.L("Window"))
 	}
 	w := m.Window()
-	want := []*fyne.MenuItem{w.Viewer(), w.Exif(), w.Grid(), w.PictureFrame(), w.Help(), m.window.explorer}
+	want := []*fyne.MenuItem{w.Viewer(), w.Exif(), w.Grid(), w.PictureFrame(), w.Help(), m.window.explorer, w.Mosaic()}
 	assertItems(t, "Window", menu.Items, want)
 }
 
@@ -805,7 +807,7 @@ func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 		m.Window().Viewer(), m.Window().Exif(), m.Window().Grid(),
 		m.Window().PictureFrame(), m.Window().Help(), m.window.explorer,
 		m.sortParent,
-		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.Actions().Mosaic(), m.Actions().Rotate(),
+		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.Window().Mosaic(), m.Actions().Rotate(),
 		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),
 		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopySelection(), m.Actions().CopyPath(),
 		m.Actions().Reveal(), m.Actions().Wallpaper(), m.Actions().Trash(),
@@ -918,7 +920,7 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		{m.Actions().Hide(), "ToggleHideDuplicates"},
 		{m.Actions().ShowVariant(), "ShowVariant"},
 		{m.Actions().Compare(), "Compare"},
-		{m.Actions().Mosaic(), "Mosaic"},
+		{m.Window().Mosaic(), "Mosaic"},
 		{m.Actions().Rotate(), "Rotate"},
 		{m.Actions().ZoomIn(), "ZoomIn"},
 		{m.Actions().ZoomOut(), "ZoomOut"},

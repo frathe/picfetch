@@ -6,6 +6,15 @@
 
 #### New Features
 
+- **Explorer and Mosaic access.** Shift+S opens the Visual Similarity Explorer;
+  Shift+M opens Mosaic from the loaded collection, or the current selection/
+  filtered result in Grid View. Generate Image Mosaic now lives in Window.
+  Plain M/S retain merge/sort, and search/dialogs keep keyboard ownership.
+  Explorer Presets is beside Unassigned on the right. Native public-fixture
+  captures verify the toolbar and loaded-source Mosaic window; the full-library
+  qualification remains ticket 07. Final `make verify`, real offline UI tests,
+  native evidence checks and `make build` pass. See [continuation evidence](.scratch/visual-similarity-explorer/evidence/task07-finalization-20260910/README.md).
+
 - **Reusable similarity presets.** Global local tag/metadata rules, explicit
   previews, linked cohort edits, persistent Unassigned returns and Favorite
   membership links, independent of the analysis cache.
@@ -322,6 +331,13 @@ desktop-control bridge failed, so precise physical-input timing remains
 unmeasured. Public-fixture replay evidence remains distinct from his trial.
 Ronin accepted tag matching and cohort quality in his tested experience on
 September 10; this acceptance remains recorded.
+
+The September 10 finalization request revalidated the retained 50,655-input
+evidence and completed the requested shortcut/toolbar/Mosaic-menu amendments.
+The full-library root or another manual drop is still needed for a fresh scale
+trial; the current source-free records do not contain that location. Individual
+fixture tools cannot substitute for the outstanding integrated trial. No new
+full-library acceptance is inferred from the public-fixture run.
 
 The subsequent [native progressive replay](.scratch/visual-similarity-explorer/evidence/progressive-native-20260910/README.md)
 processed 600 public fixture copies with zero failures and observed all 20

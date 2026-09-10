@@ -1,8 +1,9 @@
 # Local explorer engine experiment
 
-This command implements ticket 02's bounded real-pipeline evaluation on Apple
-Silicon macOS. It does not add an explorer to the viewer or qualify the intended
-50,000-image library. The source images, thumbnails, vectors, manifests and
+These commands evaluate the shared local engine on Apple Silicon macOS.
+Smoke mode processes a bounded corpus; library mode opens the native viewer
+for the complete supplied collection. Technical collection alone does not qualify
+the intended 50,000-image trial. The source images, thumbnails, vectors, manifests and
 reports stay local under the ignored `.scratch/visual-similarity-explorer/` tree.
 
 From the repository root:
@@ -30,8 +31,9 @@ Defaults:
 Override the three directories with `EXPLORER_LIBRARY`, `EXPLORER_ASSETS`, and
 `EXPLORER_EVIDENCE`. `EXPLORER_PROVIDER=coreml` is an experimental comparison
 switch; CoreML availability does not prove model acceleration. The native
-test target uses the default pinned asset directory. `TRIAL=library` is
-deliberately refused until full-library integration is ready.
+test target uses the default pinned asset directory. `TRIAL=library` launches
+the isolated native viewer and processes the complete supplied folder; see
+"Isolated native collection" below.
 
 The native runtime's full telemetry opt-out is set before its library is loaded.
 The worker uses `sandbox-exec` with `(deny network*)`. It verifies OS permission
@@ -175,9 +177,10 @@ in each favorite’s `analysis` directory and are reused while source size/mtime
 and model/preprocessing version match. Settings can disable persistence for
 subsequent scans. Non-favorite images remain transient. Interruption, retry and
 source-change recovery are implemented and covered by the native integration
-suite. The user's native trial verdict and full-library qualification remain
-open in tickets 06-07. Batch
-HDBSCAN is not qualified at 50k.
+suite. Ronin accepted native reuse and recovery in tickets 05-06. The
+50,655-input completed-map trial records actual pipeline timings and accepted
+responsiveness; integrated progressive/cache/recovery qualification at that
+scale remains open in ticket 07.
 
 **Hide tags**/**Show tags** collapse and restore the sidebar without changing
 its choices. Each tag's count opens only its matching images in Grid View,

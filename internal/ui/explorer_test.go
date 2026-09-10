@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/dialog"
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
@@ -309,6 +310,51 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		testApp.Preferences().RemoveValue(key)
 	}
 
+	t.Run("keyboard_entry", func(t *testing.T) {
+		for _, gridVisible := range []bool{false, true} {
+			t.Run(fmt.Sprintf("grid_%t", gridVisible), func(t *testing.T) {
+				v := explorerFixture(t)
+				v.LeaveSimilarityMap()
+				v.settleExplorer()
+				if gridVisible {
+					v.grid.Toggle()
+				}
+				beforeSort := v.state.SortMode()
+				stubKeyModifiers(t, v, fyne.KeyModifierShift)
+				if gridVisible {
+					v.grid.HandleRune('/')
+					v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
+					if v.explorerMapActive() || !v.grid.Searching() {
+						t.Fatal("Shift+S interrupted Grid search")
+					}
+					v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				}
+				modal := dialog.NewInformation("Test", "Keyboard belongs to this dialog", v.win)
+				modal.Show()
+				v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
+				if v.explorerMapActive() {
+					t.Fatal("Shift+S opened Explorer behind a dialog")
+				}
+				modal.Hide()
+				v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
+				v.settleExplorer()
+				if !v.explorerMapActive() || len(explorerPiles(v)) != 2 {
+					t.Fatal("Shift+S did not open the Visual Similarity Explorer")
+				}
+				if v.state.SortMode() != beforeSort {
+					t.Fatal("Shift+S changed the ordinary sort order")
+				}
+				v.LeaveSimilarityMap()
+				v.settleExplorer()
+				stubKeyModifiers(t, v, 0)
+				v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
+				waitForSort(t, v)
+				if v.state.SortMode() == beforeSort || v.explorerMapActive() {
+					t.Fatal("plain S no longer cycles sort order")
+				}
+			})
+		}
+	})
 	t.Run("trial_launch", func(t *testing.T) {
 		v := newTestViewer(t)
 		root := filepath.Join(t.TempDir(), "trial")

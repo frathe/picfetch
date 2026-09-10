@@ -616,10 +616,10 @@ einzeln durchzublättern.
 
 ### Bildmosaike
 
-Wählen Sie bei geöffnetem Raster **Aktionen -> Bildmosaik erstellen...**. Wenn
-Sie Miniaturansichten ausdrücklich ausgewählt haben, bilden nur diese Dateien
-den Quellenvorrat; andernfalls verwendet PicFetch eine Momentaufnahme aller
-Bilder im aktuellen gefilterten Rasterergebnis. Spätere Auswahl-, Filter-,
+Drücken Sie bei geladenen Bildern **`Shift+M`** oder wählen Sie **Fenster -> Bildmosaik erstellen...**.
+In der Bildansicht oder Explorer-Karte bildet die geladene Sammlung den
+Quellenvorrat. Im Raster gelten ausdrücklich ausgewählte Dateien; ohne Auswahl
+verwendet PicFetch alle Bilder im aktuellen gefilterten Rasterergebnis. Spätere Auswahl-, Filter-,
 Navigations-, Umbenennungs- oder Löschvorgänge ändern das Ziel eines bereits
 geöffneten Mosaikfensters nicht, und die Erstellung verändert niemals eine
 Quelldatei.
@@ -702,7 +702,7 @@ des Explorers beginnt die nächste Sitzung wieder mit allen Kästchen aktiviert.
 Bei wiederverwendeter Favoritenanalyse werden die Schlagwörter aus den
 gespeicherten Bildrepräsentationen neu berechnet.
 
-Bei geöffneten Bildern **Fenster -> Visueller Ähnlichkeits-Explorer** wählen.
+Bei geöffneten Bildern **`Shift+S`** drücken oder **Fenster -> Visueller Ähnlichkeits-Explorer** wählen.
 Alle geöffneten Bilder werden analysiert, einschließlich zusammengeführter
 Listen und Favoriten. Suche und Auswahl in der Rasteransicht schränken die
 Analyse nicht ein. Bei aktivem Duplikatfilter wird pro Gruppe nur das Bild mit
@@ -742,7 +742,8 @@ werden ausgelassen; neue Bilder werden nicht automatisch hinzugefügt.
 Bei gewöhnlichen Dateisammlungen oder einem mit fremden Bildern zusammengeführten
 Favoriten gelten diese Ergänzungen nur für die aktuelle Karte. Beim Verlassen
 des Explorers oder Ändern seiner Quelldateien werden sie verworfen.
-**Gruppenvorlagen** öffnet eine durchsuchbare lokale Sammlung wiederverwendbarer Regeln.
+**Gruppenvorlagen** rechts in der Werkzeugleiste neben **Nicht zugeordnet** öffnet
+eine durchsuchbare lokale Sammlung wiederverwendbarer Regeln.
 **Neue Gruppenvorlage** oder **Als Vorlage speichern** in der Analyse öffnet den Editor.
 Vergeben Sie einen eindeutigen Namen und mindestens eine Bedingung. Alle gewählten
 Tags und Metadatenbedingungen müssen passen. Regeln können Dateityp, ausgerichtete
@@ -940,6 +941,10 @@ tatsächlich verschoben wurden.
 - **`M`** — Zusammenführen-Modus ein-/ausschalten (neues Ablegen ergänzt die
   Auswahl, statt sie zu ersetzen); wird in der Titelzeile mit dem Präfix
   **`[Zusammenführen]`** angezeigt
+- **`Shift+M`** — den Mosaikgenerator für die geladenen Bilder oder die aktuelle
+  Auswahl beziehungsweise das gefilterte Ergebnis im Raster öffnen
+- **`Shift+S`** — den visuellen Ähnlichkeits-Explorer für die geöffneten Dateien
+  öffnen. Bei aktiver Rastersuche tippen beide Tastenkürzel ihre Buchstaben
 - **`G`** — Rasteransicht ein-/ausschalten (siehe oben); Pfeiltasten bewegen
   die Hervorhebung, `Page Up`/`Page Down` gleich um eine ganze Seite,
   `Return` oder ein Klick öffnet sie, `G`/`Esc` bricht ab. `G` schaltet das
@@ -1223,11 +1228,6 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   zwei ausgewählten Dateien geöffnet. In der Vergleichs-Werkzeugleiste
   vertauscht **Tauschen** die bezeichneten Seiten, sobald beide bereit sind.
   **Zurück zur Rasteransicht** oder `Esc` kehrt zum unveränderten Raster zurück
-- **Aktionen -> Bildmosaik erstellen...** — öffnet den Mosaikablauf für die
-  ausdrückliche Rasterauswahl oder, wenn nichts ausgewählt ist, für jedes Bild
-  im aktuellen Rasterergebnis. Außerhalb eines nicht leeren Rasterergebnisses
-  ausgegraut. Bedienelemente, Export und der Hintergrundbildumfang je Plattform
-  sind oben unter „Bildmosaike“ beschrieben
 - **Aktionen -> Bild drehen (im Uhrzeigersinn)** (`R`) — 90° im
   Uhrzeigersinn, nur Ansicht, dasselbe wie `R`. Ausgegraut ohne geladenes
   Bild oder solange das Raster offen ist. `Shift+R` bleibt nur über die
@@ -1292,6 +1292,12 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   `Esc`
 - **Fenster -> Hilfe** (`F1`) — öffnet dieses Handbuch, genau wie
   Hilfe -> Handbuch. Ausgegraut, solange das Handbuchfenster bereits offen ist
+- **Fenster -> Bildmosaik erstellen...** — öffnet den Mosaikablauf für die
+  ausdrückliche Rasterauswahl oder, wenn nichts ausgewählt ist, für jedes Bild
+  im aktuellen Rasterergebnis. Außerhalb des Rasters wird die geladene Sammlung
+  verwendet. Ohne Bilder, bei leerem Rasterergebnis oder während eines Vergleichs
+  ausgegraut. Bedienelemente, Export und der Hintergrundbildumfang je Plattform
+  sind oben unter „Bildmosaike“ beschrieben
 - **Hilfe -> Handbuch** — öffnet dieses Handbuch, genau wie `F1`
 
 ---

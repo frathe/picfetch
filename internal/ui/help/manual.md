@@ -542,9 +542,10 @@ instead of arrowing through them one at a time.
 
 ### Image mosaics
 
-While the Grid is open, choose **Actions -> Generate Image Mosaic...**. If
-you explicitly selected thumbnails, only those files become the source pool;
-otherwise PicFetch snapshots every image in the current filtered Grid result.
+With images loaded, press **`Shift+M`** or choose **Window -> Generate Image Mosaic...**.
+In the viewer or Explorer map, the loaded collection becomes the source pool.
+In Grid View, explicit selection supplies only those files; otherwise PicFetch
+snapshots every image in the current filtered Grid result.
 Later selection, filtering, navigation, renaming, or deletion does not retarget
 an already-open mosaic window, and generation never modifies a source file.
 
@@ -587,7 +588,7 @@ any desktop change; **Save Image** remains available.
 
 ### Visual similarity explorer (local Mac trial)
 
-With images open, choose **Window -> Visual Similarity Explorer**. It analyzes
+With images open, press **`Shift+S`** or choose **Window -> Visual Similarity Explorer**. It analyzes
 the opened images, including merged sets and Favorites. When duplicate filtering
 is enabled, only the highest-resolution image in each duplicate group is
 analyzed; preparation waits for duplicate checks to finish. Grid search and
@@ -621,7 +622,8 @@ For ordinary file collections, or a favorite merged with outside images, these
 additions last only for the current map. Leaving the Explorer or changing its
 source files clears them.
 
-**Presets** opens a searchable local library of reusable rules. **New preset**
+**Presets**, beside **Unassigned** on the right of the toolbar, opens a searchable
+local library of reusable rules. **New preset**
 or **Save as preset** in Analyze opens the editor. Give the rule a unique name
 and select at least one condition. Every selected visual tag and metadata
 condition must match. Metadata rules can use file type, oriented width/height,
@@ -818,6 +820,10 @@ many of them actually went.
   unsorted -> back to name
 - **`M`** — toggle merge mode (next drop adds to the set instead of
   replacing it); shown in the title bar as a **`[merge]`** prefix
+- **`Shift+M`** — open the mosaic generator for the loaded images, or the
+  current selection/filtered result in Grid View
+- **`Shift+S`** — open the Visual Similarity Explorer for the opened files.
+  While a Grid search is active, both shortcuts type their letters instead
 - **`G`** — toggle the grid overview (see above); arrow keys move the
   highlight and `Page Up`/`Page Down` move it a page at a time, `Return` or
   a click opens it, `G`/`Esc` backs out. `G` does not turn hide-duplicates
@@ -1068,10 +1074,6 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   unless the grid is open with exactly two selections. The comparison toolbar
   can **Swap** the identified sides once both are ready. **Back to Grid** or
   `Esc` returns to the untouched grid
-- **Actions -> Generate Image Mosaic...** — opens the mosaic workflow for the
-  explicit Grid selection, or for every current Grid result when nothing is
-  selected. Greyed out outside a non-empty Grid result. See "Image mosaics"
-  above for controls, export, and per-platform wallpaper scope
 - **Actions -> Rotate image (CW)** (`R`) — 90° clockwise, view-only, same as
   `R`. Greyed out with no image loaded or while the grid is up.
   `Shift+R` stays keyboard-only
@@ -1123,6 +1125,11 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   are loaded. Leaving is Viewer / `V`, `P`, or `Esc`
 - **Window -> Help** (`F1`) — opens this manual, same as Help -> Manual.
   Greyed out while the manual window is already open
+- **Window -> Generate Image Mosaic...** — opens the mosaic workflow for the
+  explicit Grid selection, or for every current Grid result when nothing is
+  selected. Outside Grid View it uses the loaded collection. Greyed out with
+  no images, an empty Grid result, or during comparison. See "Image mosaics"
+  above for controls, export, and per-platform wallpaper scope
 - **Help -> Manual** — opens this manual, same as `F1`
 
 ---

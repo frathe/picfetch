@@ -262,6 +262,7 @@
    "Save Image": "Bild speichern",
    "Image format": "Bildformat",
    "Using %d selected images": "%d ausgewählte Bilder werden verwendet",
+   "Using %d loaded images": "%d geladene Bilder werden verwendet",
    "Using %d images from the current Grid result": "%d Bilder aus dem aktuellen Rasterergebnis werden verwendet",
    "%s - %d x %d (%.2f:1)": "%s - %d x %d (%.2f:1)",
    "Generating mosaic...": "Mosaik wird erstellt...",

@@ -1,5 +1,135 @@
 # Visual similarity explorer implementation
 
+## Task 07 finalization — resumed 2026-09-10
+
+Status: active; retain earlier completed-map and semantic acceptance.
+Route: Deep qualification, using the accepted production viewer/provider,
+actual offline-engine and evaluation-command test boundaries.
+Deliver the remaining integrated full-library evidence and accurate closeout.
+Missing: progressive/frozen browsing, cache/recovery at scale, representative
+>100-pile interaction, event-to-visible timing and post-close memory reclamation.
+The prior collection was manually dropped and its source-free records do not
+identify a reusable library root; the current location was requested. Do not
+substitute the 446-source demo for this qualification or infer a human verdict.
+
+### Task Q1 — Prepare and execute the remaining qualification
+Owner: T0 inline
+Files: isolated evidence tooling/report; existing tests only for uncovered behavior
+Contract: preserve OS denial, local-only sources, owned process shutdown,
+receipt/application/observation distinctions and explicit human acceptance.
+Test: actual viewer callbacks and offline worker; a discovered regression gets
+one behavioral red/green slice before its fix at the existing accepted seams.
+Verify: retained trial checker; `make explorer-ui-test`; ticket 07 AC commands.
+Budget: one read-only tooling scout; two lead review rounds; no full suite while iterating.
+
+### Task Q2 — User-requested keyboard bindings
+Owner: T0 inline
+Files: `internal/ui/{keys.go,menu.go,mosaic.go,menu_test.go,mosaic_test.go,explorer_test.go}`;
+`internal/ui/menus/{menus.go,menus_test.go}`; `internal/ui/explorer/map.go`;
+`internal/ui/mosaicwin/window.go`; both manuals and translation bundles;
+existing shard manifest and architecture locator
+Contract: M already toggles merge mode and S cycles sorting. Use Shift+M/Shift+S;
+Ronin confirmed Shift+S works as intended. He then required Mosaic whenever
+images are loaded and moved its menu item into Window. Outside Grid View use
+the complete loaded collection; in Grid View retain selection/filtered-result
+semantics. Label the loaded source pool distinctly. Preserve comparison,
+dialog and search ownership, and ordinary M/S behavior.
+Test: production canvas dispatch opens the intended existing feature, preserves
+ordinary M/S and respects overlays/search/modal feature ownership.
+Verify: `go test ./internal/ui -run '^(TestMosaic|TestBuildMainMenu)' -count=1`;
+`go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^keyboard_entry$' -count=1`;
+`go test ./internal/ui/menus ./internal/ui/mosaicwin ./internal/ui/help`;
+native `check-final.py` and `check-ui.py` in the retained evidence directory.
+Budget: zero delegates; two lead reviews; final gate shared with Q3.
+
+### Task Q3 — Final gate and milestone status
+Owner: T0 inline
+Files: report, this plan, ticket 07, ticket breakdown, `todos.md`; manifests if needed
+Depends: Q1, Q2
+Verify: `make verify`; `make build`; `git diff --check`; evidence checker.
+Contract: close only measured/accepted criteria; list every remaining milestone
+task in the handoff. Archive the plan only when the milestone is accepted.
+Budget: one final canonical suite after code/test changes; no repeated suite for docs alone.
+
+Graph: Q1 and Q2 are independent; both -> Q3. Read-only scout alongside lead
+keyboard work: G1 bounded current native tooling lookup; G2 source/command
+pointers checked by shell; G3 zero writes; G4/G5 historical tooling breadth
+independent of lead keyboard context. S/W: adaptive lookup, no transform.
+The harness has no literal T3 model; use its inherited model in a read-only
+scout role. All design, implementation, review and fixes stay with the lead.
+
+### Q1/Q2 results and user steering
+
+The initial missing-work list was given before implementation. The source-free
+50,655-input evidence checker passes again. Its original manual drop has no
+retained library root; the current path/drop choice remains unanswered. No
+new private-library trial or full-library acceptance is claimed. The scout
+located reusable actual-engine progressive/cache/recovery tools, but confirmed
+that the >100-pile/Go-heap replays are synthetic and that existing recovery
+scripts modify disposable sources. They cannot be pointed unchanged at originals.
+The full-library report now correctly assigns remaining scale checks to 07;
+01-06 remain complete. Obsolete runner documentation was corrected.
+
+Keyboard entry and menu accelerators each failed before implementation. Ronin's
+Shift+M report was narrowed to the existing Grid-only restriction; he explicitly
+expanded access to loaded images. The viewer-entry, menu-enable and map-menu
+guards failed before their fixes. Map-menu coverage also exposed the existing
+callback isolation wrapper, which now permits the Mosaic secondary window.
+The Window-menu relocation failed its actual menu-tree test before the move.
+Both search guards were deliberately bypassed in isolated overlays and failed.
+One mistaken sort-field name and sandbox/cache failures were setup errors, not
+behavioral reds. The new root keyboard test is assigned to ui-1; the renamed
+empty-source guard retains its shard. Existing test files need no new exclusions.
+
+Presets is beside Unassigned in the right toolbar group. Both manuals describe
+the shortcuts, loaded/Grid source choice, source label and Window-menu entry.
+The native public-fixture run inspected the new toolbar, then the final replay
+opened Mosaic from the map menu and viewer Shift+M callback, using all 600
+loaded images. Its actual offline worker completed 600/600 with zero failures,
+20 publications, frozen ten-member browsing and unchanged return camera; app
+and worker exited normally. The new source label was visually inspected.
+This remains public-fixture/callback evidence; no physical-input timing or
+representative library-scale qualification is inferred. Native shutdown thread
+warnings remain in the logs, separately from successful technical collection.
+
+Evidence: [task 07 continuation](../.scratch/visual-similarity-explorer/evidence/task07-finalization-20260910/README.md).
+`make explorer-ui-test` passes on final code in 37.185s, with no skips;
+focused Mosaic/menu/manual suites and `make build` pass. The first canonical
+gate was intentionally stopped after Ronin expanded Mosaic entry; its exit 143
+is not a pass. The next complete run found one stale menu-structure expectation
+for Mosaic in Actions. The test now verifies the new menu structure and checks
+enabled state by item label rather than outdated positions; all main-menu tests
+pass. The final canonical retry exited 0 against that test correction.
+One read-only scout and zero implementation delegates were used. Q2 grew beyond
+its initial file budget for the explicit source-kind/localization and Window-menu
+amendments; review/fixes stayed with the lead.
+
+### Q3 final gate and milestone handoff
+
+`make verify` exited 0: formatting, TUF roots, exact test exclusions, vet/build,
+shard inventory and all canonical Linux/amd64 Docker race partitions. The UI
+partitions passed in 485.533s, 297.287s and 270.030s; the Explorer scenario passed
+in 179.840s and Mosaic keyboard in 2.190s. Raw artifacts:
+`.scratch/race-runs/20260910T160649Z-PNSZrO`; console: `verify-complete.log` in
+the continuation evidence. The native suite, native evidence checkers, normal
+`make build`, local links and `git diff --check` also pass. No golden files were
+regenerated. The test-only structure correction did not alter the executable
+used by the final native replay or the refreshed normal binary.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Result |
+| --- | --- | --- | --- | --- |
+| Q1 | 1 / 1 scout | 1 | no | Historical evidence checked; current full-library source location still needed |
+| Q2 | 0 / 0 | 3 plus gate correction | no | Keyboard, toolbar, loaded-source Mosaic and Window-menu amendments complete |
+| Q3 | 0 / 0 | 2 | one interrupted; one failed; one passed | Stale menu expectations corrected; final canonical gate passed |
+
+Only milestone ticket 07 remains open: integrated full-library progressive/
+frozen browsing, cache/recovery, >100-pile usability, visible-update timing,
+post-close memory and final qualification. User quality and completed-map
+acceptance remain in force. The current library root/drop choice is missing;
+do not replace that input with the smoke corpus or archive the parent plan.
+No commit was made. Suggested commit:
+`feat: add Explorer shortcuts and broaden Mosaic access`.
+
 ## Task 06 finalization — resumed 2026-09-10
 
 Status: complete and verified; native recovery accepted by Ronin on 2026-09-10.

@@ -83,7 +83,7 @@ func New(host Host) *Map {
 	m.unassigned = widget.NewButton(lang.L("Unassigned"), nil)
 	m.unassigned.Hide()
 	toolbar := container.NewBorder(nil, nil, widget.NewButton(lang.L("Back to Viewer"), host.LeaveSimilarityMap), container.NewHBox(
-		m.unassigned, widget.NewButton(lang.L("-"), func() { m.scale(1/1.2, fyne.NewPos(m.Size().Width/2, m.Size().Height/2)) }), widget.NewButton(lang.L("+"), func() { m.scale(1.2, fyne.NewPos(m.Size().Width/2, m.Size().Height/2)) }), widget.NewButton(lang.L("Fit map"), m.Fit)), m.status)
+		widget.NewButton(lang.L("Presets"), host.ShowSimilarityPresets), m.unassigned, widget.NewButton(lang.L("-"), func() { m.scale(1/1.2, fyne.NewPos(m.Size().Width/2, m.Size().Height/2)) }), widget.NewButton(lang.L("+"), func() { m.scale(1.2, fyne.NewPos(m.Size().Width/2, m.Size().Height/2)) }), widget.NewButton(lang.L("Fit map"), m.Fit)), m.status)
 	m.update = widget.NewButton(lang.L("Update map"), host.UpdateSimilarityMap)
 	m.update.Disable()
 	m.automatic = widget.NewCheck(lang.L("Auto-update every 30 images"), host.SetSimilarityAutoUpdate)
@@ -106,7 +106,7 @@ func New(host Host) *Map {
 		m.host.Unfocus()
 		m.overlay.Refresh()
 	})
-	toolbar = container.NewVBox(toolbar, container.NewHBox(toggleTags, m.update, m.automatic, widget.NewButton(lang.L("Presets"), host.ShowSimilarityPresets)))
+	toolbar = container.NewVBox(toolbar, container.NewHBox(toggleTags, m.update, m.automatic))
 	m.granularity = widget.NewSlider(0, 100)
 	m.granularity.Step = 1
 	m.granularity.Value, m.appliedGranularity = 100, 100

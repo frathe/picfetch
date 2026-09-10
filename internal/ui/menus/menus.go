@@ -118,6 +118,7 @@ type Menus struct {
 type WindowItems struct {
 	viewer       *fyne.MenuItem
 	explorer     *fyne.MenuItem
+	mosaic       *fyne.MenuItem
 	exif         *fyne.MenuItem
 	grid         *fyne.MenuItem
 	pictureFrame *fyne.MenuItem
@@ -131,7 +132,6 @@ type ActionItems struct {
 	hide          *fyne.MenuItem
 	showVariant   *fyne.MenuItem
 	compare       *fyne.MenuItem
-	mosaic        *fyne.MenuItem
 	rotate        *fyne.MenuItem
 	zoomIn        *fyne.MenuItem
 	zoomOut       *fyne.MenuItem
@@ -181,6 +181,10 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	m.settings = fyne.NewMenuItem(lang.L("Settings…"), c.ShowSettings)
 
 	m.window.explorer = fyne.NewMenuItem(lang.L("Visual Similarity Explorer"), c.ShowExplorer)
+	m.window.explorer.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierShift}
+	m.window.mosaic = fyne.NewMenuItem(lang.L("Generate Image Mosaic..."), c.Mosaic)
+	m.window.mosaic.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyM, Modifier: fyne.KeyModifierShift}
+	m.window.mosaic.Disabled = true
 	m.window.viewer = fyne.NewMenuItem(lang.L("Viewer"), c.ShowViewer)
 	m.window.viewer.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyV}
 	m.window.viewer.Disabled = true
@@ -232,8 +236,6 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 		Modifier: fyne.KeyModifierShortcutDefault,
 	}
 	m.actions.compare.Disabled = true
-	m.actions.mosaic = fyne.NewMenuItem(lang.L("Generate Image Mosaic..."), c.Mosaic)
-	m.actions.mosaic.Disabled = true
 
 	m.actions.rotate = fyne.NewMenuItem(lang.L("Rotate image (CW)"), c.Rotate)
 	m.actions.rotate.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyR}
@@ -328,7 +330,7 @@ func (m *Menus) FileMenu() *fyne.Menu {
 // what can be done with the current file.
 func (m *Menus) ActionsMenu() *fyne.Menu {
 	return fyne.NewMenu(lang.L("Actions"),
-		m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic,
+		m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare,
 		fyne.NewMenuItemSeparator(),
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		fyne.NewMenuItemSeparator(),
@@ -342,7 +344,7 @@ func (m *Menus) ActionsMenu() *fyne.Menu {
 // WindowMenu is the Window menu: one item per surface the app can show.
 func (m *Menus) WindowMenu() *fyne.Menu {
 	return fyne.NewMenu(lang.L("Window"),
-		m.window.viewer, m.window.exif, m.window.grid, m.window.pictureFrame, m.window.help, m.window.explorer)
+		m.window.viewer, m.window.exif, m.window.grid, m.window.pictureFrame, m.window.help, m.window.explorer, m.window.mosaic)
 }
 
 // Save is the File menu's "Save Changes" item.
@@ -389,8 +391,8 @@ func (a ActionItems) ShowVariant() *fyne.MenuItem { return a.showVariant }
 // Compare is the Actions menu's "Compare selected images" item.
 func (a ActionItems) Compare() *fyne.MenuItem { return a.compare }
 
-// Mosaic is the Actions menu's "Generate Image Mosaic..." item.
-func (a ActionItems) Mosaic() *fyne.MenuItem { return a.mosaic }
+// Mosaic is the Window menu's "Generate Image Mosaic..." item.
+func (w WindowItems) Mosaic() *fyne.MenuItem { return w.mosaic }
 
 // Rotate is the Actions menu's "Rotate image (CW)" item.
 func (a ActionItems) Rotate() *fyne.MenuItem { return a.rotate }
@@ -440,7 +442,7 @@ func (m *Menus) Apply(s State) (changed bool) {
 	m.applyActions(s)
 	m.applyComparisonIsolation(s.ComparisonActive)
 	if s.ExplorerActive {
-		for _, item := range []*fyne.MenuItem{m.save, m.export, m.window.exif, m.window.grid, m.window.pictureFrame, m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic, m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info, m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal, m.actions.wallpaper, m.actions.trash} {
+		for _, item := range []*fyne.MenuItem{m.save, m.export, m.window.exif, m.window.grid, m.window.pictureFrame, m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info, m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal, m.actions.wallpaper, m.actions.trash} {
 			item.Disabled = true
 		}
 		for _, item := range m.actions.sort {
@@ -497,7 +499,7 @@ func (m *Menus) applyComparisonIsolation(active bool) {
 		item.Disabled = true
 	}
 	for _, item := range []*fyne.MenuItem{
-		m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic,
+		m.actions.hide, m.actions.showVariant, m.actions.compare, m.window.mosaic,
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		m.actions.merge, m.actions.info, m.actions.copy,
 		m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
@@ -510,6 +512,7 @@ func (m *Menus) applyComparisonIsolation(active bool) {
 // applyWindow greys out whichever surface is already showing.
 func (m *Menus) applyWindow(s State) {
 	m.window.explorer.Disabled = s.NoFiles || s.ComparisonActive
+	m.window.mosaic.Disabled = !s.CanMosaic
 	m.window.viewer.Disabled = !s.GridUp && !s.SlidesActive
 	m.window.exif.Disabled = s.ExifOpen || !s.Displayed
 	m.window.grid.Disabled = s.GridUp || s.NoFiles || s.SlidesActive
@@ -538,7 +541,6 @@ func (m *Menus) applyActions(s State) {
 	canShowVariants := s.HideDuplicates && s.VariantGroupSize >= 2
 	m.actions.showVariant.Disabled = noFiles || s.SlidesActive || !(canShowVariants || s.BrowsingDuplicates)
 	m.actions.compare.Disabled = !s.CanCompare
-	m.actions.mosaic.Disabled = !s.CanMosaic
 
 	rotZoomOff := noImage || gridUp
 	m.actions.rotate.Disabled = rotZoomOff
@@ -574,7 +576,7 @@ func (m *Menus) pairs() []pair {
 		m.window.pictureFrame, m.window.help)
 	items = append(items, m.sortParent)
 	items = append(items, m.actions.sort...)
-	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.mosaic, m.actions.rotate,
+	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.window.mosaic, m.actions.rotate,
 		m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info,
 		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
 		m.actions.wallpaper, m.actions.trash)

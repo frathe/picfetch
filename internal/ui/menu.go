@@ -73,7 +73,7 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 	c.OpenFiles = v.yieldThenAllowedDuringComparison(c.OpenFiles)
 	c.ShowHelp = v.yieldThenAllowedDuringComparison(c.ShowHelp)
 	c.SetSort = v.yieldThenMode(c.SetSort)
-	for _, callback := range []*func(){&c.ShowViewer, &c.ShowExplorer, &c.CloseFiles, &c.ShowSettings} {
+	for _, callback := range []*func(){&c.ShowViewer, &c.ShowExplorer, &c.Mosaic, &c.CloseFiles, &c.ShowSettings} {
 		*callback = v.yieldThenMapAllowed(*callback)
 	}
 
@@ -86,7 +86,6 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 		&c.ToggleHideDuplicates,
 		&c.ShowVariant,
 		&c.Compare,
-		&c.Mosaic,
 		&c.Rotate,
 		&c.ToggleMergeMode,
 		&c.ToggleInfoOverlay,
@@ -189,7 +188,7 @@ func (v *viewer) menuState() menus.State {
 		CanWallpaper:       v.canSetWallpaper(),
 		CanCopySelection:   v.regionCopyAvailable(),
 		CanCompare:         v.grid.Visible() && v.grid.SelectionCount() == 2,
-		CanMosaic:          v.grid.Visible() && len(v.grid.ResultIndexes()) > 0,
+		CanMosaic:          v.canMosaic(),
 		ComparisonActive:   v.comparisonActive(),
 		ExplorerActive:     v.explorerMapActive(),
 		CohortActive:       len(v.explorer.cohort) > 0,

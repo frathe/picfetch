@@ -33,6 +33,7 @@ type SourceKind string
 const (
 	SourceSelection SourceKind = "selection"
 	SourceResult    SourceKind = "result"
+	SourceFiles     SourceKind = "files"
 )
 
 // Snapshot freezes the source pool and attached displays at command entry.
@@ -52,7 +53,7 @@ func NewSnapshot(sources []fyne.URI, kind SourceKind, topology displays.Snapshot
 			return Snapshot{}, fmt.Errorf("mosaic source %d is nil", index)
 		}
 	}
-	if kind != SourceSelection && kind != SourceResult {
+	if kind != SourceSelection && kind != SourceResult && kind != SourceFiles {
 		return Snapshot{}, fmt.Errorf("unknown mosaic source kind %q", kind)
 	}
 	if len(topology.Displays) == 0 || topology.Default == "" {
@@ -353,6 +354,9 @@ func degreeValue(value float64) string { return fmt.Sprintf(lang.L("%.0f degrees
 func (w *Window) sourceDescription() string {
 	if w.snapshot.Kind == SourceSelection {
 		return fmt.Sprintf(lang.L("Using %d selected images"), len(w.snapshot.Sources))
+	}
+	if w.snapshot.Kind == SourceFiles {
+		return fmt.Sprintf(lang.L("Using %d loaded images"), len(w.snapshot.Sources))
 	}
 
 	return fmt.Sprintf(lang.L("Using %d images from the current Grid result"), len(w.snapshot.Sources))

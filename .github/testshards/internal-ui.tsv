@@ -4,10 +4,10 @@
 # baseline-sha: fcd11103969ac8d1b5a1a220270c0730cb5e1913
 # baseline-run: 33734286005
 # baseline-attempts: 1,2,3
-# ui-1: 223 entries, 326.750s baseline median-weight sum
+# ui-1: 224 entries, 326.750s baseline median-weight sum
 # ui-2: 227 entries, 327.070s median-weight sum
 # ui-3: 230 entries, 326.740s baseline median-weight sum
-# post-baseline additions: 113 tests assigned across the baseline shards
+# post-baseline additions: 114 tests assigned across the baseline shards
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_GridToggleDisablesRotateZoomInfo	ui-1
@@ -142,11 +142,12 @@ TestMaxWindowSizeGetterSetter	ui-1
 TestMaybeShowWhatsNew_ShowsAndClearsCache	ui-1
 TestMemoryLimitSetters_FloorAtOne	ui-1
 TestMicrosoftStoreUpdateActionsAreRefused	ui-1
+TestMosaicKeyboard	ui-1
 TestMosaicMenu_FollowsGridResultImmediately	ui-1
 TestMosaicSnapshot_DoesNotRetargetAfterGridMutation	ui-1
 TestMosaicSources_HiddenDuplicatesUseHighestResolution	ui-1
 TestMosaicWallpaper_CleanupIsScopedPerTarget	ui-1
-TestMosaicWindow_DirectInvocationGuardsClosedOrEmptyGrid	ui-1
+TestMosaicWindow_DirectInvocationGuardsEmptySources	ui-1
 TestOpenChooser_AdmissionRunsBeforeNativeWork	ui-1
 TestOpenChooser_CurrentErrorWaitsForUIDelivery	ui-1
 TestOpenChooser_InterveningInputDiscardsHeldResult	ui-1

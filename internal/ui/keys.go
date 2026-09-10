@@ -166,6 +166,23 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		return
 	}
 
+	// Feature entry keys precede Grid dispatch, which owns ordinary letters.
+	// Search retains shifted letters as text; plain M/S keep merge/sort.
+	if v.keyModifiers() == fyne.KeyModifierShift {
+		switch ev.Name {
+		case fyne.KeyM:
+			if !(v.grid.Visible() && v.grid.Searching()) {
+				v.showMosaic()
+			}
+			return
+		case fyne.KeyS:
+			if !v.explorerMapActive() && !(v.grid.Visible() && v.grid.Searching()) {
+				v.showExplorer()
+			}
+			return
+		}
+	}
+
 	// The grid overview (G key, see internal/ui/grid) takes over the
 	// keyboard the same way the delete confirmation does above: arrow keys
 	// move the highlighted cell, Return opens whichever cell is
