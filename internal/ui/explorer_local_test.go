@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -843,6 +844,60 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatal("missing source was not accounted separately")
 		}
 	})
+	t.Run("cancel_ui", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := similarity.Client{Assets: assets}
+		want := make([]string, v.FileCount())
+		for i := range want {
+			want[i] = v.FileAt(i).Path()
+		}
+		progress, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		var interrupted error
+		ended := make(chan struct{})
+		v.explorerAnalyze = func(ctx context.Context, paths []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
+			pause := sync.OnceFunc(func() { close(progress); <-release })
+			interrupted = client.Analyze(ctx, paths, controls, func(event similarity.Event) {
+				emit(event)
+				if event.Successful > 0 {
+					pause()
+				}
+			})
+			close(ended)
+			return interrupted
+		}
+		explorerMenu(t, v).Action()
+		select {
+		case <-progress:
+		case <-ended:
+			t.Fatalf("actual worker exited before cancellable UI progress: %v", interrupted)
+		case <-time.After(testTimeout):
+			t.Fatal("actual worker did not reach cancellable UI progress")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		unblock()
+		v.settleExplorer()
+		if !errors.Is(interrupted, context.Canceled) || v.explorer.surface.Visible() || len(explorerPiles(v)) != 0 || v.FileCount() != len(want) {
+			t.Fatalf("UI exit failed to cancel the actual worker and preserve opened files: %v", interrupted)
+		}
+		v.explorerAnalyze = client.Analyze
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		piles := explorerPiles(v)
+		if len(piles) != 1 {
+			t.Fatalf("actual UI restart did not produce a fresh complete cohort: %d piles", len(piles))
+		}
+		fynetest.Tap(piles[0])
+		if !slices.Equal(explorerGridPaths(v), want) {
+			t.Fatal("actual UI restart lost original source identities")
+		}
+	})
+
 	t.Run("cancel_worker", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
 		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")

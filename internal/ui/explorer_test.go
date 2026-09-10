@@ -1772,6 +1772,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 
 		t.Run("remove_after_reorder", func(t *testing.T) {
 			v := openGridWith(t, "c.jpg", "a.jpg", "b.jpg")
+			want := []string{v.FileAt(2).Path(), v.FileAt(1).Path()}
 			preview := uitest.EncodeJPEG(t, 32, 24, color.White)
 			queued, release := make(chan struct{}), make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })
@@ -1829,6 +1830,33 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			fynetest.Tap(explorerButton(t, v, "Back to map"))
 			if len(explorerPiles(v)) != 0 {
 				t.Fatal("removed source survived in the map through a late publication")
+			}
+			changed := false
+			explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+				if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Source files changed. Open the explorer to analyze again.") {
+					changed = true
+				}
+			})
+			if !changed || !explorerButton(t, v, "Update map").Disabled() {
+				t.Fatal("retired source analysis left misleading feedback or an active update control")
+			}
+			v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				items := make([]similarity.Item, len(paths))
+				for i, path := range paths {
+					items[i] = similarity.Item{Path: path, Cohort: "fresh", Preview: preview}
+				}
+				emit(similarity.Event{Items: items, Successful: len(paths), Total: len(paths), Complete: true})
+				return nil
+			}
+			explorerMenu(t, v).Action()
+			v.settleExplorer()
+			piles := explorerPiles(v)
+			if len(piles) != 1 {
+				t.Fatalf("explicit source-change retry produced %d piles", len(piles))
+			}
+			fynetest.Tap(piles[0])
+			if got := explorerGridPaths(v); !slices.Equal(got, want) {
+				t.Fatalf("source-change retry did not rebuild surviving original identities: got %v, want %v", got, want)
 			}
 		})
 

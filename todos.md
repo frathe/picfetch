@@ -244,11 +244,18 @@ builds require no vector-generation step. See
 
 ### Similarity explorer recovery
 
-Source/failure recovery (ticket 06) is implemented and verified: focused/native
-suites, the 446-image smoke run, `make verify` and `make build` passed.
-[Recovery evidence](.scratch/visual-similarity-explorer/evidence/recovery.md)
-records the source-change policy and regression coverage. Full-library
-qualification remains open.
+Ronin accepted native interruption/source-change recovery on 2026-09-10:
+“Hey Pico, the recovery behavior is fine.” Refreshed evidence covers native
+failure/retry, cancellation/restart, committed source-save recovery with frozen
+cohort identities and in-flight file-set replacement. Six worker exits, ten
+framebuffer observations and normal app exit are retained. Strengthened feedback
+and actual-worker UI cancellation guards were negatively verified; production
+recovery code is unchanged. Real-engine/viewer suites, focused native race and
+`make build` pass. Refreshed `make verify` exited 0 with all Docker race
+partitions passing; ticket 06 is complete.
+[Task 06 evidence](.scratch/visual-similarity-explorer/evidence/task06-finalization-20260910/README.md)
+records the trial and preserves the distinction from ticket 07's full-library
+recovery qualification.
 
 ### Native Explorer qualification after reusable presets
 
@@ -303,8 +310,8 @@ These measurements overlapped verification. Final `make explorer-ui-test`,
 Ronin confirmed his native testing and explicitly authorized closure on
 2026-09-10; task 05 is complete.
 
-Open milestone tickets: 06's interruption/source-change recovery trial and
-07's integrated full-library qualification. The latter includes
+Tickets 01-06 are complete. The only open milestone ticket is 07's integrated
+full-library qualification. It includes
 live progressive/frozen browsing and
 recovery/cache trials at library scale; representative usability of the 50% zoom
 floor above 100 piles; representative event-to-visible paint measurements; final

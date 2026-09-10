@@ -1,5 +1,87 @@
 # Visual similarity explorer implementation
 
+## Task 06 finalization — resumed 2026-09-10
+
+Status: complete and verified; native recovery accepted by Ronin on 2026-09-10.
+Standard verification increment at the already accepted
+viewer/provider and actual offline-engine boundaries. Deliver refreshed native
+interruption, failure and source-change recovery evidence and ticket closeout.
+Existing D2/D5 source-lifetime and retry behavior remains authoritative.
+Full-library recovery qualification belongs to 07; no watcher or resume feature.
+Ronin accepted native recovery on 2026-09-10: “Hey Pico, the recovery behavior
+is fine.” Human acceptance remains separate from technical collection.
+
+### Task R1 — Recovery guards
+Owner: T0 inline
+Files: existing `internal/ui/explorer_test.go`, `internal/ui/explorer_local_test.go`
+Contract: source removal retires stale results and controls, preserves remaining
+cohort identities and allows explicit fresh analysis; ordinary UI exit cancels
+an actual offline worker and allows a fresh successful map with original files.
+Test: strengthen existing source-change scenario, then add actual-worker UI
+cancel/restart coverage, one slice at a time. Existing behavior is negatively
+verified with isolated deliberate regressions before final green.
+Verify: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^(source_changes|lifecycle|recovery|replacement_discards_late_map)$' -count=1 -v`;
+`go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorerLocal$/^(recovery|cancel_ui|cancel_worker|failed_source)$' -count=1 -v`.
+Budget: one read-only native-tool scout; two lead review rounds; focused tests.
+
+### Task R2 — Native evidence and closeout
+Owner: T0 inline
+Files: isolated evidence, this plan, ticket 06, ticket breakdown, `todos.md`
+Depends: R1
+Contract: real offline engine and production native callbacks on disposable
+public fixtures; causal cancellation/restart, setup failure/retry and committed
+source mutation observations, with worker exits and visible recovery retained.
+Verify: retained native evidence checker; `make explorer-ui-test`;
+`make explorer-test`; `make verify`; `make build`; `git diff --check`.
+Budget: two lead review rounds; one complete canonical race suite.
+
+Graph: R1 -> R2; read-only native-tool scout alongside R1.
+Scout G1-G5: bounded tooling lookup; shell-verifiable commands/source pointers;
+zero writes; independent historical tooling context; not already read by lead.
+S/W: adaptive lookup, no scriptable transform or implementation supplied.
+Lead owns all tests, changes, review, fixes and final gate.
+
+### R1/R2 evidence and review
+
+R1 strengthens source-change feedback/control and explicit rebuild checks at the
+existing removal-after-reorder boundary, and adds a real-worker UI Escape/restart
+scenario. Isolated overlays fail the new feedback and cancellation assertions;
+production recovery code is unchanged and passes. The initial source-order
+fixture error and nested-sandbox denial are distinguished from behavioral reds.
+`make explorer-ui-test` passes (33.970s, no skips); `make explorer-test` passes.
+The new native cancellation guard also passes with race detection (6.573s).
+
+R2's real offline native replay uses 120 disposable public fixture copies. It
+observes missing-assets failure/retry, two in-progress cancellations, restart,
+a committed rotation save with unchanged frozen cohort identities, map
+retirement/rebuild, and replacement with six original files. All six worker
+exits and normal app exit are retained. Ten framebuffer observations completed;
+source-change/failure feedback and the surviving cohort were visually inspected.
+The checker passes technical collection. Ronin separately accepted the recovery
+behavior. This does not qualify recovery at full-library scale.
+
+Evidence: [task 06 finalization](../.scratch/visual-similarity-explorer/evidence/task06-finalization-20260910/README.md).
+`make build` refreshes `bin/picfetch`. Final `make verify` exited 0: formatting,
+TUF/exclusion checks, vet/build, exact shard inventory and all Linux/amd64 Docker
+race partitions. UI partitions passed in 533.664s, 326.143s and 316.906s;
+the complete Explorer scenario passed in 196.030s. Raw artifacts:
+`.scratch/race-runs/20260910T152020Z-nqN2fk`. Local documentation links and
+`git diff --check` pass. No new production behavior,
+package, test file or root-UI runnable is introduced, so existing architecture,
+manuals, shard assignments and Qodana exclusions remain applicable.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| R1 | 1 / 1 read-only scout | 2 | no | Two isolated negative guards; complete real-engine/UI suite and focused native race |
+| R2 | 0 / 0 | 2 | one complete, passed | Six native analyses, ten captures, user acceptance, final gate |
+
+Ticket 06 is complete. Tickets 01-06 are now done; only 07 remains open for
+full-library progressive/frozen browsing, cache/recovery at scale, representative
+>100-pile zoom usability, event-to-visible paint timing, post-close memory
+reclamation and final integrated qualification. Keep the wider plan
+active. No commit was made; suggested commit:
+`test: finalize explorer interruption and source-change recovery`.
+
 ## Task 05 finalization — resumed 2026-09-10
 
 Status: complete and verified; native use accepted by Ronin on 2026-09-10.
