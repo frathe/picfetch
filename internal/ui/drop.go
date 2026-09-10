@@ -235,7 +235,13 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 		v.ShowToast(fmt.Sprintf(lang.L("stopped scanning after %d images - the dropped folder tree is very large"), maxScan))
 		if v.explorer.trial != nil {
 			v.explorer.pendingLaunch = false
+			v.pendingPictureFrame = false
 			v.explorer.trial.Reject("scan-truncated", len(images))
+			if v.FileCount() == 0 {
+				v.showWelcomeState()
+				v.dropzone.Show()
+				v.ForceRepaint()
+			}
 			return
 		}
 	}

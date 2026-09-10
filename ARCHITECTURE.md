@@ -41,7 +41,8 @@ the raw events outside the repository; the generated assignment lives at
 Local content analysis shared by the viewer and its reproducible experiment.
 `client.go` owns `Client.Analyze` (selected source paths, control channel, immutable `Event` callbacks),
 asset discovery, the cancellable offline subprocess, and private `WorkerMain`
-dispatch. `analyze.go` accounts for every input, captures source versions,
+dispatch. Each request captures the caller's encoded-file size limit; the worker
+installs it before source reads. `analyze.go` accounts for every input, captures source versions,
 reuses canonical full oriented decoding, makes previews, and publishes a map
 on manual request, optionally every 30 sources, and at completion.
 `facts.go` captures versioned oriented dimensions, normalized extension and optional

@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -33,6 +34,47 @@ import (
 // explicit suite fails on absent local assets; it never silently substitutes a
 // provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
+	t.Run("configured_file_size_limit", func(t *testing.T) {
+		before := imaging.MaxEncodedBytes()
+		t.Cleanup(func() { imaging.SetMaxEncodedBytes(before) })
+		v := newTestViewer(t)
+		v.SetMaxFileSizeMB(1)
+		root := t.TempDir()
+		small := filepath.Join(root, "a-small.jpg")
+		large := filepath.Join(root, "b-large.jpg")
+		pixels := uitest.EncodeJPEG(t, 16, 16, color.White)
+		if err := os.WriteFile(small, pixels, 0600); err != nil {
+			t.Fatal(err)
+		}
+		// A valid JPEG with padding makes the encoded limit independent of pixels.
+		if err := os.WriteFile(large, append(pixels, make([]byte, 2<<20)...), 0600); err != nil {
+			t.Fatal(err)
+		}
+		dropAndWait(t, v, storage.NewFileURI(small), storage.NewFileURI(large))
+		client := similarity.Client{Assets: "../../.scratch/visual-similarity-explorer/assets"}
+		var result similarity.Event
+		v.explorerAnalyze = func(ctx context.Context, paths []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
+			return client.Analyze(ctx, paths, controls, func(event similarity.Event) {
+				if event.Complete {
+					result = event
+				}
+				emit(event)
+			})
+		}
+		v.showExplorer()
+		v.settleExplorer()
+		if !result.Complete || result.Successful != 1 || result.Failed != 1 || len(result.Items) != 2 || !strings.Contains(result.Items[1].Error, "1048576-byte input limit") || result.Measurements.InferenceAttempts != 1 {
+			t.Fatalf("worker ignored configured file-size limit: complete=%v successful=%d failed=%d items=%d attempts=%d", result.Complete, result.Successful, result.Failed, len(result.Items), result.Measurements.InferenceAttempts)
+		}
+		v.closeExplorer()
+		v.settleExplorer()
+		v.SetMaxFileSizeMB(3)
+		v.showExplorer()
+		v.settleExplorer()
+		if !result.Complete || result.Successful != 2 || result.Failed != 0 || result.Measurements.InferenceAttempts != 2 {
+			t.Fatal("new analysis did not capture the updated file-size limit")
+		}
+	})
 	t.Run("setup_recovers_missing_model", func(t *testing.T) {
 		v := openGridWith(t, "fixture.jpg")
 		// A model previously checked in this session can disappear from the cache.

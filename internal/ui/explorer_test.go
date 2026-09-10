@@ -642,7 +642,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.explorer.trial = session
 		defer func() { _ = session.Close() }()
 		limit := 1
-		v.applyLaunchOptions(launch.Options{ExplorerTrial: root, MaxFiles: &limit})
+		v.applyLaunchOptions(launch.Options{ExplorerTrial: root, MaxFiles: &limit, PictureFrame: true})
 		library := t.TempDir()
 		pixels := uitest.EncodeJPEG(t, 16, 16, color.White)
 		for _, name := range []string{"one.jpg", "two.jpg"} {
@@ -661,6 +661,18 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.settleExplorer()
 		if called.Load() {
 			t.Fatal("truncated scan entered native analysis")
+		}
+		welcome, dropzone := false, false
+		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+			if o == v.welcomeArt {
+				welcome = o.Visible()
+			}
+			if o == v.dropzone {
+				dropzone = o.Visible()
+			}
+		})
+		if !welcome || !dropzone || v.FileCount() != 0 || v.pendingPictureFrame {
+			t.Fatal("rejected trial must restore the empty viewer and discard launch actions")
 		}
 		data, err := os.ReadFile(filepath.Join(root, "events.jsonl"))
 		if err != nil || !bytes.Contains(data, []byte("scan-truncated")) {

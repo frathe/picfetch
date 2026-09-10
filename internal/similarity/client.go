@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/frathe/picfetch/internal/imaging"
 )
 
 const workerEnvironment = "PICFETCH_SIMILARITY_WORKER"
@@ -28,9 +30,10 @@ type Client struct {
 }
 
 type request struct {
-	Assets       string
-	FavoritesDir string
-	Paths        []string
+	Assets          string
+	FavoritesDir    string
+	Paths           []string
+	MaxEncodedBytes int64
 }
 
 // Analyze streams serialized immutable snapshots and waits for worker exit.
@@ -50,6 +53,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if assets == "" {
 		assets = defaultAssets(executable)
 	}
+	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes()}
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	input, err := cmd.StdinPipe()
@@ -73,7 +77,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 		defer close(writerDone)
 		defer func() { _ = input.Close() }()
 		encoder := json.NewEncoder(input)
-		if err := encoder.Encode(request{Assets: assets, FavoritesDir: c.FavoritesDir, Paths: paths}); err != nil {
+		if err := encoder.Encode(req); err != nil {
 			return
 		}
 		for {
@@ -190,6 +194,7 @@ func WorkerMain() bool {
 	decoder := json.NewDecoder(io.LimitReader(input, 64<<20))
 	err = decoder.Decode(&req)
 	if err == nil {
+		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
 		readCtx, cancelRead := context.WithCancel(ctx)
 		controls := make(chan Control, 1)
 		readDone := make(chan struct{})

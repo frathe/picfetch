@@ -1,5 +1,9 @@
 ## PR 18 review fixes (2026-09-11)
 
+- [x] Follow-up review: restore the viewer after rejecting a truncated trial,
+  and carry the configured encoded-file limit into each analysis subprocess.
+  See [follow-up evidence](finished_refactorings/2026-09-11-pr18-scan-worker-limits.md).
+
 - [x] Address the initial 11 Codex findings and Qodana warnings with regression
   tests and commit-linked thread replies. Fixes cover map exit/retry, Favorites
   membership and cancellation, cohort Escape, shortcut parity, asset cancellation,
