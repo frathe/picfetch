@@ -290,9 +290,21 @@ denial. A real native environment observer guards initialization order; the
 tag tool reproduces identical vectors. The exact reported process and whether
 its connection succeeded remain unestablished.
 
-Open milestone tickets: 05's Favorite reuse/invalidation trial;
-06's interruption/source-change recovery
-trial; and 07's integrated full-library qualification. The latter includes
+Task 05's refreshed automated native trial passes: 36/36 reused on warm reopen
+and full app restart with zero inference; one changed/corrupt/incompatible entry
+reanalyzes once; cache-off reanalyzes all sources. The isolated representation
+cache is 630.8 KiB. Fresh-viewer and nanosecond-invalidation guards were negatively
+verified. [Task 05 evidence](.scratch/visual-similarity-explorer/evidence/task05-finalization-20260910/README.md)
+keeps public-fixture observations separate from library-scale qualification.
+The supplied 446-image demo also reused all records without warm inference
+(79.072s cold, 1.412s warm; 7.31 MiB temporary cache, subsequently removed).
+These measurements overlapped verification. Final `make explorer-ui-test`,
+`make verify` and `make build` all pass; production cache code is unchanged.
+Ronin confirmed his native testing and explicitly authorized closure on
+2026-09-10; task 05 is complete.
+
+Open milestone tickets: 06's interruption/source-change recovery trial and
+07's integrated full-library qualification. The latter includes
 live progressive/frozen browsing and
 recovery/cache trials at library scale; representative usability of the 50% zoom
 floor above 100 piles; representative event-to-visible paint measurements; final

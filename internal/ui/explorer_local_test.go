@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -402,6 +403,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			if final.Successful != 3 || final.Failed != 0 || final.Reused != reused {
 				t.Fatalf("ready=%d failed=%d reused=%d, want 3/0/%d", final.Successful, final.Failed, final.Reused, reused)
 			}
+			if final.Measurements.InferenceAttempts != 3-reused || final.CacheWarning != "" {
+				t.Fatalf("inference=%d warning=%q, want %d and no warning", final.Measurements.InferenceAttempts, final.CacheWarning, 3-reused)
+			}
 			return final
 		}
 		first := run(0)
@@ -415,6 +419,18 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if second.Items[0].SHA256 != first.Items[0].SHA256 {
 			t.Fatal("cache changed source identity")
 		}
+		// A timestamp change within the same second must invalidate a
+		// representation even when the source size and pixels are unchanged.
+		stamp := time.Unix(1_700_000_000, 123_456_789)
+		if err := os.Chtimes(paths[1], stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		run(1)
+		stamp = stamp.Add(time.Nanosecond)
+		if err := os.Chtimes(paths[1], stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+		run(1)
 		if err := os.Chmod(paths[0], 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -544,6 +560,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		t.Setenv("PICFETCH_SIMILARITY_ASSETS", assets)
 		v := openGridWith(t, "a.jpg", "b.jpg")
+		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}
 		root := t.TempDir()
 		if err := favstore.Save(root, "Trip", []fyne.URI{v.FileAt(0), v.FileAt(1)}); err != nil {
 			t.Fatal(err)
@@ -552,21 +569,48 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		v.LeaveSimilarityMap()
+		// A new viewer has no prior map or in-memory analysis to fall back on.
+		v = newTestViewer(t)
+		v.favorites.SetDir(root)
 		v.favorites.Menu().Items[2].Action()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
-		explorerMenu(t, v).Action()
-		v.settleExplorer()
-		reused := false
-		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
-			if label, ok := o.(*widget.Label); ok && strings.Contains(label.Text, fmt.Sprintf(lang.L("%d reused"), 2)) {
-				reused = true
+		run := func(want int) {
+			t.Helper()
+			explorerMenu(t, v).Action()
+			v.settleExplorer()
+			if !v.explorer.complete {
+				t.Fatal("favorite analysis did not complete")
 			}
-		})
-		if !reused {
-			t.Fatal("opening a favorite did not reuse and report its saved analysis")
+			status := fmt.Sprintf(lang.L("%d ready, %d failed, %d total"), 2, 0, 2)
+			if want > 0 {
+				status += " | " + fmt.Sprintf(lang.L("%d reused"), want)
+			}
+			found := false
+			explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
+				if label, ok := o.(*widget.Label); ok && label.Text == status {
+					found = true
+				}
+			})
+			if !found {
+				t.Fatalf("favorite analysis did not display %q", status)
+			}
+			fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
+			if !slices.Equal(explorerGridPaths(v), paths) {
+				t.Fatal("cached map lost original source identities in Grid View")
+			}
+			fynetest.Tap(explorerButton(t, v, "Back to map"))
+			v.LeaveSimilarityMap()
 		}
+		run(2)
+		previous := v.settingsState()
+		next := previous
+		next.SimilarityFavoriteCache = false
+		v.ApplySettings(previous, next)
+		run(0)
+		v.ApplySettings(next, previous)
+		run(2)
 	})
 	t.Run("manual_updates", func(t *testing.T) {
 		names := make([]string, 80)

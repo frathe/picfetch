@@ -1,5 +1,106 @@
 # Visual similarity explorer implementation
 
+## Task 05 finalization — resumed 2026-09-10
+
+Status: complete and verified; native use accepted by Ronin on 2026-09-10.
+Standard verification increment at the confirmed production
+viewer and real offline-engine boundaries. Deliver refreshed Favorite reuse and
+invalidation evidence, including a fresh process, and close the technical trial.
+Existing implementation remains authoritative; no cache redesign is planned.
+Full-library scaling and integrated recovery belong to 07 and 06 respectively.
+Ronin confirmed prior native testing and explicitly authorized closure:
+“yes I tested that already mark it as complete.”
+
+### Task F1 — Strengthen retained-behavior guards
+Owner: T0 inline
+Files: existing `internal/ui/explorer_local_test.go`
+Contract: unchanged Favorite sources reuse without inference; nanosecond mtime
+changes invalidate even with unchanged size; a fresh viewer restores cached
+results; the cache setting applies to subsequent analyses through production UI.
+Test: extend the existing real-engine and viewer scenarios one slice at a time.
+Since these behaviors already exist, observe red using isolated deliberate
+regressions, then green with unmodified production code.
+Verify: `go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorerLocal$/^favorite_cache' -count=1 -v`
+Budget: one read-only scout; two lead review rounds; no full suite while iterating.
+
+### Task F2 — Native trial and closeout
+Owner: T0 inline
+Files: isolated evidence scripts/logs/captures, this plan, ticket 05,
+`ticket-breakdown.md`, `todos.md`
+Depends: F1
+Contract: native production callbacks plus actual offline engine; isolated
+Favorite/source copies only. Retain cold/warm timing and storage, changed/corrupt/
+version-incompatible/cache-off results, restart reuse and observed process exits.
+Human usability and full-library performance are separate claims.
+Verify: evidence checker; `make explorer-ui-test`; `make verify`; `make build`;
+`git diff --check`.
+Budget: two lead reviews; one complete canonical race suite.
+
+Graph: F1 -> F2. Independent read-only native-tool scout alongside F1.
+G1-G5: bounded tooling question; verifiable source pointers; zero writes;
+independent native-tool breadth; context not held by lead. S/W: adaptive search,
+no mechanical transform or supplied implementation. Lead owns all changes,
+review, fixes and final verification.
+
+### F1/F2 implementation and native evidence
+
+F1 preserves production behavior and adds tests. Rounding cache timestamps to
+seconds fails the new nanosecond case: an obsolete cached timestamp is admitted
+and then rejected by source validation. Production exact-nanosecond comparison
+passes. Ignoring the cache setting fails the fresh-viewer UI test's exact
+uncached status. Both overlays remain isolated evidence; no production mutation
+was applied. Grid paths are checked against captured original inputs.
+
+The refreshed native trial runs eight analyses on 36 disposable copies of three
+public fixtures. All have zero failures. Cold/cache-off infer all 36; warm,
+cache-on and full-process restart reuse all 36 with zero inference. Source
+change, record corruption and incompatible version each reanalyze exactly one.
+The cache contains 645,936 representation bytes. Warm Grid View opens twelve
+original cohort members and returns to the map. Both app processes and all
+workers exit normally. A source-generated diagnostic overlay drives native UI
+callbacks but leaves the production provider intact and maintains OS denial.
+
+[Task 05 evidence](../.scratch/visual-similarity-explorer/evidence/task05-finalization-20260910/README.md)
+retains causal session records, framebuffer captures, scripts, negative guards
+and results. The checker passes all eight analyses. Cold/warm map application
+was 2.002s/0.378s; framebuffer observations were 2.658s/1.036s. These are bounded
+single observations on repeated public fixtures. Fyne shutdown thread warnings
+are retained in the native logs; cache processing and technical collection pass.
+
+`make explorer-ui-test` passes on final source (32.639s, no skips), and
+`make build` refreshes `bin/picfetch`. The canonical `make verify` passed; its
+result is recorded below. The actual-engine cold/warm pass over
+the previously supplied 446-image demo also completed: 79.072s cold, 1.412s warm,
+446/446 reused with zero warm inference, zero failures and both worker exits.
+Temporary Favorite storage occupied 7,667,676 bytes and was removed before the
+report was finalized. The content-free report is separate from native fixture
+evidence; concurrent Docker verification prevents a controlled benchmark claim.
+Ronin subsequently confirmed his native testing and accepted task 05.
+
+### F2 final verification and ledger
+
+`make verify` exited 0: formatting/TUF/exclusions, vet/build, exact shard
+inventory, all canonical Linux/amd64 Docker race partitions. The UI partitions
+passed in 482.889s, 298.471s and 281.016s. Raw artifacts:
+`.scratch/race-runs/20260910T145220Z-AHeH2v`. The final gate ran once after the
+test changes. `make build`, the native checker, profile assertions, local links
+and `git diff --check` pass. No new test file, shard assignment, package or
+production behavior was introduced; no architecture/manual update is needed.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| F1 | 1 / 1 read-only scout | 2 | no | Two isolated negative guards; stronger viewer status/source assertions |
+| F2 | 0 / 0 | 2 | one complete, passed | Eight native passes, full app restart, 446-source demo, final gate |
+
+Task 05 is complete, including Ronin's explicit native-use acceptance. This
+acceptance closeout changes documentation only; the recorded verification
+remains applicable. Open milestone items: 06's interruption/source-change
+recovery trial and 07's integrated full-library
+qualification including cache/recovery at scale, representative >100-pile zoom,
+event-to-visible paint timing and post-close memory reclamation. Do not move the
+broader plan to finished_refactorings. No commit was made; suggested commit:
+`test: validate Favorite cache reuse and invalidation`.
+
 ## Task 04 finalization — resumed 2026-09-10
 
 Status: complete and verified; native usability accepted by Ronin on 2026-09-10.
@@ -527,7 +628,7 @@ Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Large-map qualification trace](#large-map-qualification-trace--resumed-2026-09-10). The broader milestone remains active.
+Current increment: [Task 05 finalization](#task-05-finalization--resumed-2026-09-10). The broader milestone remains active.
 
 ## Deliverable and accepted contract
 
