@@ -1,5 +1,117 @@
 # Visual similarity explorer implementation
 
+## Native progressive-browsing evidence — resumed 2026-09-10
+
+Status: implemented and verified. Ticket 07's bounded native evidence increment
+is complete; the newly authorized full-library comparison also completed
+technical collection. Integrated qualification remains open. Existing
+viewer/provider and real-engine seams remain approved.
+The replay used existing public fixtures.
+
+Deliverable: source-free publication and visible-cohort identity records, plus
+a native GL replay of frozen browsing during real progressive analysis.
+Record framebuffer-observation timings separately from UI application; neither
+is physical input latency. The native desktop bridge again failed before app
+connection (`Sky Computer Use native pipe startup failed`). Direct dragging
+and the user's native verdict remain open.
+
+| Task | Owner/files | Acceptance and verification |
+|---|---|---|
+| E1 | T0; `internal/explorertrial/session.go`, `internal/ui/{explorer,keys}.go`, existing `explorer_test.go`, evaluator `main_test.go` fixture | A received event and its applied map share an ID; records identify foreground visibility and the actual displayed cohort's source digest without paths. Red/green: `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/^trial_recording' -count=1 -v`; `go test ./scripts/explorereval -count=1`. |
+| E2 | T0; retained native overlay/evidence | Real partial map opens a cohort, later publication preserves its exact displayed members, image/grid/map return restores the camera. Marker captures and timed publications retain explicit visibility and observation overhead. Native replay exits zero and a summary checker verifies these facts. |
+| Gate | T0; this plan, tracker, architecture, `todos.md` | Negative guard, `make explorer-ui-test`, `make verify`, `make build`, `git diff --check`. Keep full-library/native-human qualification open. |
+
+Graph: E1 -> E2 -> gate. Budget: one read-only scout, zero implementation
+delegates, two lead review rounds per task and one final canonical race suite.
+Scout gate G1-G5: bounded existing-tool/fixture lookup; source pointers checked
+with shell; no writes; independent native-tool breadth; lead had not read the
+replay hooks. S/W: adaptive source lookup, no deterministic transform or supplied
+implementation. All specification, review and fixes stay with the lead.
+
+### Progressive evidence implementation record
+
+Observed reds covered missing receipt/application identity, missing foreground
+and frozen-grid evidence, keyboard return's separate old recorder path, and a
+comparison covering the grid. Each reached green. The expanded UI scenario
+also checks filtered grid results and the loaded-image target. Deliberately
+recording the saved cohort instead of the actual filtered grid failed its
+guard; the mutation was restored. No new test files or root top-level tests
+were added, so Qodana exclusions and shard assignments remain unchanged.
+
+The native GL replay used the real offline worker and 600 existing public
+fixture copies (three unique image contents, independently hashed). Final
+collection: 600 successful, zero failed, 20 applied/observed publications,
+ten frozen grid members unchanged through a later publication, image/grid/map
+return and camera preservation. The first partial map was observed at 2.244s;
+visible publication receipt-to-frame observations had median 41.794ms. These
+include scheduling/readback/10ms polling and bypass physical input. The desktop
+bridge remained unavailable. No private library was opened. The first replay
+failed to observe its marker because its fixed sample missed window padding;
+the corrected replay uses the marker's absolute pixel position. Failed and
+superseded attempts remain separately retained.
+
+The focused recorder suite passed, including the new comparison branch.
+`make explorer-ui-test` passed (28.953s) with the actual offline engine and all
+UI cases. The first final gate stopped at vet on an evaluator test-fixture
+caller of the changed recorder signature; it never began the race suite.
+The caller was updated inline and `go test ./scripts/explorereval -count=1`
+passed (0.638s). The restarted `make verify` passed with exit 0, including
+formatting/TUF/exclusions, vet/build, exact shard checks and the complete
+Linux/amd64 Docker race suite. UI shards passed in 464.010s, 300.223s and
+287.164s; artifacts: `.scratch/race-runs/20260910T112518Z-Nw1Pyu`.
+`make build` and the native runner subprocess test also passed. Evidence and reproduction:
+[native progressive record](../.scratch/visual-similarity-explorer/evidence/progressive-native-20260910/README.md).
+
+Budget variance: E1 used a third review for native-return/foreground coverage
+and the missed fixture caller; E2 used two replay correction rounds. One
+read-only scout, zero implementation/review delegates. Only one full race
+suite was run; the earlier gate stopped during vet.
+
+### User-authorized follow-on full-library client
+
+During the final gate, Ronin offered to drop the same roughly 50,000 images
+into a profiling client for comparison. This authorizes the next native trial;
+the sources will be selected by his drop. Prepare an unmodified current app
+with retained symbols and isolated trial storage. A local evaluation-runner
+overlay omits its initial library argument and publishes the owned app PID;
+the app's ordinary drop path then auto-enters Explorer. Reuse the baseline's
+libproc resident-size and physical-footprint counters in a metadata-only
+observer. Launch after Docker verification releases the machine.
+
+The later original-client baseline has a 9.531685 GiB viewer physical-footprint
+peak and 4.934700 GiB final footprint. These are distinct from RSS. Its exact
+successful/failed counts and complete stage durations were never captured, so
+the new trial can compare resources and establish timings, not prove an exact
+end-to-end speedup. Existing tag/cohort quality acceptance remains settled.
+The isolated client and one-second metadata observer were launched after the
+canonical suite passed, at approximately 11:44 UTC. The app started with no
+sources; Ronin then dropped the collection and confirmed the scan was running.
+Run 1 admitted exactly 50,655 inputs. Its complete map accounted for 50,569
+successes and 86 failures, with no reuse and a normally exited worker. Pipeline
+time was 4,404.702s; grouping/layout 297.784s; UI construction 425.429ms.
+Ronin reported “rendered the view UI is very responsive.” Completed-map
+responsiveness is accepted. The observed viewer footprint peak through
+13:00:39 UTC was 2.013 GiB versus 9.532 GiB in the baseline. Precise input/paint
+latency is unmeasured; this is not an end-to-end speedup comparison.
+Progressive/cache/recovery trials at scale remain open. Normal app exit later
+passed (code 0, no forced stop or remaining worker); the observer ended normally
+at 13:06:43 UTC. Final viewer footprint peak after browsing was 2.474 GiB,
+74.0% below the baseline. Ronin confirmed the view looks much better than before.
+The [full-library report](../.scratch/visual-similarity-explorer/evidence/full-library-trial.md)
+records stages, resources, storage and this bounded acceptance.
+Five completed-map cohort/grid round trips followed, including 16,389 members.
+Ronin then closed the list while leaving the app running. The worker remains
+absent; footprint settled to 1.634 GiB at 13:05 UTC (later sampled browsing peak
+2.474 GiB). A read-only VM summary separates some empty allocator regions but
+cannot establish heap reachability. Add a post-close memory-reclamation check
+to the remaining qualification; do not infer a leak. The client was preserved
+until Ronin closed it himself. App exit reclaims its process memory but does
+not prove the earlier list-close path released all live objects.
+Executable/hardware identities and observer source are retained
+under [full-library comparison](../.scratch/visual-similarity-explorer/evidence/full-library-current-20260910/README.md).
+One existing read-only scout was reused for baseline and isolated-storage lookup; no additional
+implementation/review delegate or production source change was introduced.
+
 ## Approved continuation — reusable presets and native trial tooling, 2026-09-10
 
 Status: approved continuation implemented and verified. Ronin approved both increments, presets first,
@@ -104,7 +216,7 @@ Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Reusable presets and native trial tooling](#approved-continuation--reusable-presets-and-native-trial-tooling-2026-09-10), complete. The broader milestone remains active.
+Current increment: [Native progressive-browsing evidence](#native-progressive-browsing-evidence--resumed-2026-09-10). The broader milestone remains active.
 
 ## Deliverable and accepted contract
 

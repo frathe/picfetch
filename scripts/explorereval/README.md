@@ -234,6 +234,18 @@ verification and an observed worker exit. Failed/canceled runs retain their logs
 Human quality, large-map usability and full-library performance verdicts are
 recorded separately. Tests and public-fixture runs cannot close ticket 07.
 
+Each received worker event has a session-unique `Event` number, retained by its
+`map-applied` record. `view-observed`, `cohort-open` and `map-return` carry that
+map's event number plus `Surface` (`map`, `grid`, `image`, `comparison` or
+`overlay`). Grid observations record the actual filtered results'
+`VisibleTotal`/`VisibleSHA256`; image observations identify the current navigation
+target. Map, comparison, overlay and empty observations omit the digest. Equal
+grid digests across later publications establish unchanged source membership.
+These are UI-state observations, not
+proof of completed image loading or framebuffer paint. An update behind Grid
+View therefore remains a grid observation even though the map widget is shown
+underneath it.
+
 The ordinary Explorer's **Presets** library supports AND rules over existing
 visual tags and image facts, explicit matching previews, and reviewed Unassigned
 membership. Favorite memberships persist independently of reusable definitions.

@@ -41,8 +41,8 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 		event := similarity.Event{Total: 1, Successful: 1, OfflineVerified: true, Complete: true, Items: []similarity.Item{{Path: "fixture"}}}
-		s.Received(n, event)
-		s.Applied(n, event, time.Now(), time.Now())
+		eventID := s.Received(n, event)
+		s.Applied(n, eventID, event, time.Now(), time.Now())
 		s.Exited(n, nil)
 		if err := s.Close(); err != nil {
 			os.Exit(4)

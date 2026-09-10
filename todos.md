@@ -112,6 +112,12 @@ See the [implementation record](finished_refactorings/2026-09-09-grid-duplicate-
 
 #### Internal
 
+Native Explorer trial records now link worker receipts and map application by
+event identity, record foreground map/grid/image/comparison state, and retain
+only hashes/counts of the actual grid results. Both keyboard and button map
+returns use the same evidence path. This allows a frozen cohort to be checked
+across live publications without retaining filenames or image content.
+
 Local race verification now keeps each attempt's four raw streams, console,
 exit status, and available Docker/cgroup memory diagnostics in a unique host
 directory under `.scratch/race-runs/`. Failed and interrupted runs retain their
@@ -247,15 +253,49 @@ network denial before source reads, a retained executable, numbered causal event
 observed process exits and sampled process-group RSS. Collection is separate from
 qualification. See [current evidence](.scratch/visual-similarity-explorer/evidence/presets-native-20260910/README.md).
 
-Still open in the current milestone: full-library counts/timings/resource and
-UMAP/HDBSCAN scaling evidence; large-map pan/zoom and the 50% floor above 100
-piles; live progressive/frozen browsing and recovery/cache trials at that scale;
-event-to-visible paint measurements; Ronin's verdict on the remaining native
-usability questions. The direct desktop-control bridge failed in the current
-session, so direct native dragging remains unverified. Prior public-fixture trials
-and current scripted rendering evidence are distinct from that human trial.
+Still open in the current milestone: live progressive/frozen browsing and
+recovery/cache trials at library scale; explicit coverage of the 50% zoom floor
+above 100 piles; representative event-to-visible paint measurements; final
+post-close memory reclamation and the remaining
+integrated qualification. Ronin has
+accepted completed-map responsiveness on the 50,655-input run. The direct
+desktop-control bridge failed, so precise physical-input timing remains
+unmeasured. Public-fixture replay evidence remains distinct from his trial.
 Ronin accepted tag matching and cohort quality in his tested experience on
 September 10; this acceptance remains recorded.
+
+The subsequent [native progressive replay](.scratch/visual-similarity-explorer/evidence/progressive-native-20260910/README.md)
+processed 600 public fixture copies with zero failures and observed all 20
+publications. A ten-image partial grid retained its exact source digest across
+a later publication; image/grid/map return preserved the camera. The first
+partial map was observed at 2.244s and visible publications at median 41.794ms
+after receipt, including capture/readback/polling overhead. Callback pan/zoom
+and these repeated-image results provide a bounded baseline; direct input and
+representative full-library qualification remain open.
+
+This increment passed `make explorer-ui-test`, `make verify` (complete Docker
+race suite), `make build` and the native trial-runner subprocess test. Ronin
+authorized another same-library comparison; the isolated profiling client and
+numeric resource observer completed successfully. His manual drop admitted
+50,655 inputs: 50,569 succeeded, 86 failed, none reused. The worker completed
+in 73m 24.702s; grouping/layout took 297.784s and UI construction 425.429ms.
+Ronin reported the rendered view was “very responsive.” Observed viewer peak
+physical footprint through 13:00:39 UTC was 2.013 GiB versus the baseline's
+9.532 GiB (78.9% lower). This supplies exact stage/count/resource evidence;
+the remaining scale trials stay open. Normal app exit subsequently passed,
+with collected evidence, exit code 0 and no worker left behind. Ronin confirmed
+the view looks much better than before. The final observed viewer footprint
+peak after browsing was 2.474 GiB, 74.0% below the baseline. See
+[full-library report](.scratch/visual-similarity-explorer/evidence/full-library-trial.md).
+
+The user then closed the list while keeping the app running. Five cohort/grid
+round trips were recorded, including a 16,389-member cohort. No worker remains;
+at 13:05 UTC the app retained 1.634 GiB physical footprint (2.779 GiB resident).
+The later sampled viewer peak was 2.474 GiB. **Post-close memory check remains
+open:** distinguish retained Explorer/cache objects from reusable allocator
+memory with a controlled open/close heap profile before calling this a leak or
+claiming full reclamation. The user subsequently quit the app normally; its
+process memory was reclaimed, while the in-app list-close question stays open.
 
 ### Full-library similarity throughput
 

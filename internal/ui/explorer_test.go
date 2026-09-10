@@ -415,10 +415,12 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal(err)
 		}
 		var kinds []string
+		var receivedEvent int
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		for decoder.More() {
 			var event struct {
 				Kind                      string
+				Event                     int
 				Total, Successful, Failed int
 				Complete, OfflineVerified bool
 			}
@@ -426,6 +428,12 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				t.Fatal(err)
 			}
 			kinds = append(kinds, event.Kind)
+			if event.Kind == "worker-event" {
+				receivedEvent = event.Event
+			}
+			if event.Kind == "map-applied" && (event.Event == 0 || event.Event != receivedEvent) {
+				t.Fatalf("map application is not linked to its received event: received=%d applied=%d", receivedEvent, event.Event)
+			}
 			if event.Kind == "map-applied" && (event.Total != 2 || event.Successful != 2 || event.Failed != 0 || !event.Complete || !event.OfflineVerified) {
 				t.Fatalf("applied map accounting: %+v", event)
 			}
@@ -439,6 +447,111 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			if bytes.Contains(data, []byte(forbidden)) {
 				t.Fatalf("trial retained source content %q", forbidden)
 			}
+		}
+	})
+
+	t.Run("trial_recording_frozen_browse", func(t *testing.T) {
+		v, publish := streamingExplorerEvents(t, "private-a.jpg", "private-b.jpg", "private-c.jpg", "private-d.jpg")
+		v.LeaveSimilarityMap()
+		v.settleExplorer()
+		out := filepath.Join(t.TempDir(), "trial")
+		var err error
+		v.explorer.trial, err = explorertrial.New(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		explorerMenu(t, v).Action()
+		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
+		emit := func(n int, complete bool) {
+			var items []similarity.Item
+			for i := range n {
+				items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: "a", Preview: preview})
+			}
+			publish(similarity.Event{Total: 4, Successful: n, Complete: complete, OfflineVerified: true, Items: items})
+		}
+		emit(2, false)
+		fynetest.Tap(explorerPiles(v)[0])
+		frozen := explorerGridPaths(v)
+		emit(3, false)
+		if !slices.Equal(explorerGridPaths(v), frozen) {
+			t.Fatal("publication changed the browsed grid")
+		}
+		v.grid.SelectAll()
+		fireCompareShortcut(v)
+		waitForCompare(t, v)
+		emit(3, false)
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		for _, r := range "/private-a" {
+			v.handleTypedRune(r)
+		}
+		emit(3, false)
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		emit(4, true)
+		v.settleExplorer()
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.LeaveSimilarityMap()
+		if err := v.explorer.trial.Close(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var views []struct {
+			Kind, Surface, VisibleSHA256 string
+			Event, VisibleTotal          int
+		}
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		applied := 0
+		for decoder.More() {
+			var record struct {
+				Kind, Surface, VisibleSHA256 string
+				Event, VisibleTotal          int
+			}
+			if err := decoder.Decode(&record); err != nil {
+				t.Fatal(err)
+			}
+			if record.Kind == "map-applied" {
+				if record.Event <= applied {
+					t.Fatal("publications lack distinct event identities")
+				}
+				applied = record.Event
+			}
+			if record.Kind == "view-observed" || record.Kind == "cohort-open" || record.Kind == "map-return" {
+				if record.Event != applied {
+					t.Fatal("view observation is not linked to the applied map")
+				}
+				views = append(views, record)
+			}
+		}
+		if len(views) != 7 {
+			t.Fatalf("expected map/grid/update/comparison/filter/image/return evidence, got %+v", views)
+		}
+		for i, surface := range []string{"map", "grid", "grid", "comparison", "grid", "image", "map"} {
+			if views[i].Surface != surface {
+				t.Fatalf("observation %d: surface=%q, want %q", i, views[i].Surface, surface)
+			}
+		}
+		if views[1].VisibleTotal != 2 || views[1].VisibleSHA256 == "" || views[1].VisibleSHA256 != views[2].VisibleSHA256 || views[2].VisibleTotal != 2 {
+			t.Fatalf("frozen grid identity missing from evidence: %+v", views)
+		}
+		if views[3].VisibleTotal != 0 || views[3].VisibleSHA256 != "" {
+			t.Fatal("comparison observation claimed its covered grid was visible")
+		}
+		if views[4].VisibleTotal != 1 || views[4].VisibleSHA256 == "" || views[4].VisibleSHA256 == views[1].VisibleSHA256 {
+			t.Fatal("evidence recorded the saved cohort instead of the filtered grid")
+		}
+		if views[5].VisibleTotal != 1 || views[5].VisibleSHA256 == "" || views[5].VisibleSHA256 == views[1].VisibleSHA256 {
+			t.Fatal("image identity was confused with the whole cohort")
+		}
+		if views[0].VisibleTotal != 0 || views[6].VisibleSHA256 != "" {
+			t.Fatal("map observation claimed a visible grid")
+		}
+		if bytes.Contains(data, []byte("private-")) {
+			t.Fatal("view evidence retained source names")
 		}
 	})
 

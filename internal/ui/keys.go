@@ -179,7 +179,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		}
 		v.grid.HandleKey(ev)
 		if !v.grid.Visible() && v.explorerMapActive() {
-			v.explorer.trial.Action(v.explorer.trialRun, "map-return", len(v.explorer.cohort))
+			v.recordExplorerView("map-return")
 		}
 		return
 	}

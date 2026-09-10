@@ -24,6 +24,7 @@ import (
 type explorerWork struct {
 	trial                   *explorertrial.Session
 	trialRun                int
+	trialEvent              int
 	pendingLaunch           bool
 	cacheFavorites, autoFit bool
 	prepare                 func()
@@ -128,6 +129,7 @@ func (v *viewer) beginExplorerAnalysis() {
 	trial := v.explorer.trial
 	run := trial.Begin(paths)
 	v.explorer.trialRun = run
+	v.explorer.trialEvent = 0
 	v.explorer.cohortStore, v.explorer.cohortLoadErr = nil, nil
 	v.explorer.cohortSaving = false
 	v.explorer.workers.Go(func() {
@@ -157,7 +159,7 @@ func (v *viewer) beginExplorerAnalysis() {
 		}
 		err := analyze(token.context(), paths, controls, func(event similarity.Event) {
 			received := time.Now()
-			trial.Received(run, event)
+			eventID := trial.Received(run, event)
 			if !token.current() {
 				return
 			}
@@ -194,7 +196,9 @@ func (v *viewer) beginExplorerAnalysis() {
 						v.explorer.surface.ExpandToFit()
 					}
 					v.explorer.hasMap = true
-					trial.Applied(run, event, received, started)
+					v.explorer.trialEvent = eventID
+					trial.Applied(run, eventID, event, received, started)
+					v.recordExplorerView("view-observed")
 				}
 				v.explorer.surface.UpdateState(!v.explorer.complete && v.explorer.available > v.explorer.mapped, v.explorer.building)
 			})
@@ -267,7 +271,7 @@ func (v *viewer) openSimilarityCohort(paths []string, unassigned bool) {
 	v.explorer.unassignedCohort = unassigned
 	v.openExplorerGrid()
 	v.syncMenus()
-	v.explorer.trial.Action(v.explorer.trialRun, "cohort-open", len(paths))
+	v.recordExplorerView("cohort-open")
 }
 
 func (v *viewer) openExplorerGrid() {
@@ -382,5 +386,30 @@ func (v *viewer) backToSimilarityMap() {
 	v.explorer.surface.Show()
 	v.ForceRepaint()
 	v.syncMenus()
-	v.explorer.trial.Action(v.explorer.trialRun, "map-return", len(v.explorer.cohort))
+	v.recordExplorerView("map-return")
+}
+
+func (v *viewer) recordExplorerView(kind string) {
+	if v.explorer.trial == nil {
+		return
+	}
+	var paths []string
+	surface := "map"
+	switch {
+	case v.win.Canvas().Overlays().Top() != nil:
+		surface = "overlay"
+	case v.comparisonActive():
+		surface = "comparison"
+	case v.grid.Visible():
+		surface = "grid"
+		for _, i := range v.grid.ResultIndexes() {
+			paths = append(paths, v.FileAt(i).Path())
+		}
+	case !v.explorer.surface.Visible():
+		surface = "image"
+		if uri, _, ok := v.CurrentFile(); ok {
+			paths = append(paths, uri.Path())
+		}
+	}
+	v.explorer.trial.Presented(v.explorer.trialRun, v.explorer.trialEvent, kind, surface, paths)
 }

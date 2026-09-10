@@ -21,6 +21,7 @@ import (
 type Record struct {
 	Kind                              string
 	Run                               int
+	Event                             int
 	Seconds                           float64
 	Total, Successful, Failed, Reused int
 	Stage                             string
@@ -29,6 +30,9 @@ type Record struct {
 	InputSHA256                       string `json:",omitempty"`
 	QueueSeconds, ApplySeconds        float64
 	Outcome                           string `json:",omitempty"`
+	Surface                           string `json:",omitempty"`
+	VisibleTotal                      int    `json:",omitempty"`
+	VisibleSHA256                     string `json:",omitempty"`
 }
 
 // Analysis distinguishes a delivered map from an observed worker exit.
@@ -55,6 +59,7 @@ type Session struct {
 	encoder  *json.Encoder
 	start    time.Time
 	run      int
+	event    int
 	err      error
 	closed   bool
 	dir      string
@@ -102,24 +107,30 @@ func eventRecord(kind string, run int, e similarity.Event) Record {
 		OfflineVerified: e.OfflineVerified, Measurements: e.Measurements}
 }
 
-// Received records worker delivery, before admission to the UI queue.
-func (s *Session) Received(run int, e similarity.Event) {
+// Received records worker delivery, before admission to the UI queue, and
+// returns its session-unique identity for subsequent application records.
+func (s *Session) Received(run int, e similarity.Event) int {
 	if s == nil {
-		return
+		return 0
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.write(eventRecord("worker-event", run, e))
+	s.event++
+	r := eventRecord("worker-event", run, e)
+	r.Event = s.event
+	s.write(r)
+	return r.Event
 }
 
 // Applied records actual map construction on UI, separately from paint.
-func (s *Session) Applied(run int, e similarity.Event, received, started time.Time) {
+func (s *Session) Applied(run, event int, e similarity.Event, received, started time.Time) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := eventRecord("map-applied", run, e)
+	r.Event = event
 	r.QueueSeconds, r.ApplySeconds = started.Sub(received).Seconds(), time.Since(started).Seconds()
 	a := &s.analyses[run-1]
 	r.InputSHA256, r.Outcome = a.InputSHA256, a.Outcome
@@ -168,6 +179,23 @@ func (s *Session) Action(run int, kind string, count int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.write(Record{Kind: kind, Run: run, Total: count})
+}
+
+// Presented records the foreground browsing surface after UI state changes.
+// Paths describe the actual grid results or current image target, not a saved
+// cohort. Only their count and unordered identity digest enter the trace.
+// This observes UI state, not framebuffer paint or image-load completion.
+func (s *Session) Presented(run, event int, kind, surface string, paths []string) {
+	if s == nil || run <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := Record{Kind: kind, Run: run, Event: event, Surface: surface, VisibleTotal: len(paths)}
+	if len(paths) > 0 {
+		r.VisibleSHA256 = sourceDigest(paths)
+	}
+	s.write(r)
 }
 
 func (s *Session) write(r Record) {

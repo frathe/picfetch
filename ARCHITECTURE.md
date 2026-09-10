@@ -81,7 +81,10 @@ I/O on the separately tracked Explorer preset workers, sharing its UI queue.
 `session.go` owns an explicit native trial's exclusive evidence directory,
 source-free causal records and final collection summary. Numbered analyses bind
 input digests to received events, actual UI application and observed worker exit.
-It also records cohort/map visits, rejected truncated scans, and shutdown.
+Session-unique event IDs link receipt to application and foreground-surface
+observations; grid-result/current-image digests distinguish frozen browsing from
+the updating map without retaining paths. It also records cohort/map visits,
+rejected truncated scans, and shutdown.
 `Identity` gives trial launches separate Fyne preferences/session storage.
 Collection has no implicit human quality verdict; UI application is not paint.
 The module starts no goroutines.
