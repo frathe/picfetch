@@ -720,15 +720,16 @@ favorite analysis when available.
 
 If analysis fails, open **Window -> Visual Similarity Explorer** again to retry.
 Saving over an opened source, removing a file, or encountering a missing file
-retires the current map and stops its analysis. The surviving members of an
+retires the current map and stops its analysis. Changing duplicate match distance
+while hide-duplicates is enabled also retires the map. The surviving members of an
 open cohort remain browsable. Reopen the explorer to build a fresh map; unchanged
 favorite analysis is reused. Exporting a new copy elsewhere preserves the map.
 External file changes are detected when files are read, not watched continuously.
 
-This first trial requires local model assets on an Apple Silicon Mac. Analysis
-runs locally with network access denied. Piles stay separated and continuing
-groups keep their positions as results arrive. Open cohorts retain their
-captured members; reopening uses the latest grouping.
+The Explorer requires local model assets on an Apple Silicon Mac or x86-64 Linux
+with glibc and seccomp support. Analysis runs locally with network access denied.
+Piles stay separated and continuing groups keep their positions as results arrive.
+Open cohorts retain their captured members; reopening uses the latest grouping.
 
 **Settings -> General -> Visual Similarity Explorer** provides three options:
 **Save analysis for favorites** (on), **Auto-update every 30 images** (off), and

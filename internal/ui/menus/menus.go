@@ -452,6 +452,7 @@ func (m *Menus) Apply(s State) (changed bool) {
 		m.window.viewer.Disabled = false
 	}
 	if s.CohortActive {
+		m.window.viewer.Disabled = s.ComparisonActive
 		m.actions.hide.Disabled = true
 		m.actions.showVariant.Disabled = true
 		m.window.pictureFrame.Disabled = true

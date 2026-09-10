@@ -570,6 +570,8 @@ func TestApply_WindowViewer(t *testing.T) {
 		want  bool
 	}{
 		{"already in the viewer", State{}, true},
+		{"cohort image", State{CohortActive: true}, false},
+		{"comparison inside cohort", State{CohortActive: true, ComparisonActive: true}, true},
 		{"grid up", State{GridUp: true}, false},
 		{"slides active", State{SlidesActive: true}, false},
 		{"both", State{GridUp: true, SlidesActive: true}, false},

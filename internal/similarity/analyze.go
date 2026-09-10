@@ -51,6 +51,11 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		event.CacheWarning = cacheErr.Error()
 	}
 	items := make([]Item, 0, len(req.Paths))
+	type representedSource struct {
+		info os.FileInfo
+		item Item
+	}
+	represented := make(map[string]representedSource)
 	automatic, requested := false, false
 	readControls := func() {
 		for controls != nil {
@@ -87,7 +92,10 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		if sourceErr == nil {
 			item.Size, item.ModifiedNS = before.Size(), before.ModTime().UnixNano()
 			cacheStart := time.Now()
-			if cached, ok := cache.read(item); ok {
+			previous, ok := represented[path]
+			if ok && os.SameFile(previous.info, before) && previous.item.Size == item.Size && previous.item.ModifiedNS == item.ModifiedNS {
+				item, reused = previous.item, true
+			} else if cached, ok := cache.read(item); ok {
 				item, reused = cached, true
 			}
 			event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
@@ -165,6 +173,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			if reused {
 				event.Reused++
 			}
+			represented[path] = representedSource{info: before, item: item}
 			if !reused || backfilled {
 				cacheStart := time.Now()
 				err := cache.write(ctx, item)

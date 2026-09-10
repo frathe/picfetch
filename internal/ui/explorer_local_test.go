@@ -790,6 +790,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if len(final.Items) != 40 || len(assignments) != 8 {
 			t.Fatal("grouping lost source accounting")
 		}
+		if final.Successful != 40 || final.Failed != 0 || final.Reused != 32 || final.Measurements.InferenceAttempts != 8 {
+			t.Fatalf("repeated paths were encoded again: successful=%d failed=%d reused=%d attempts=%d", final.Successful, final.Failed, final.Reused, final.Measurements.InferenceAttempts)
+		}
 		one := v.FileAt(0).Path()
 		err = (similarity.Client{Assets: assets}).Analyze(context.Background(), []string{one, one, one, one}, nil, func(e similarity.Event) {
 			if e.Complete {
@@ -803,6 +806,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			if item.Cohort != "unassigned" {
 				t.Fatal("merging one image repeatedly manufactured a density cohort")
 			}
+		}
+		if len(final.Items) != 4 || final.Successful != 4 || final.Reused != 3 || final.Measurements.InferenceAttempts != 1 {
+			t.Fatal("one repeated source did not reuse its representation")
 		}
 	})
 	t.Run("small_cohort", func(t *testing.T) {

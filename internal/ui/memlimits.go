@@ -195,6 +195,9 @@ func (v *viewer) pushDuplicateDistance(n int) {
 	if !v.dupes.SetDistance(n) {
 		return
 	}
+	if v.dupes.HideDuplicates() {
+		v.explorerSourcesChanged()
+	}
 	v.grid.DuplicateDistanceChanged()
 }
 

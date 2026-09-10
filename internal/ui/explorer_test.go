@@ -493,6 +493,80 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("opening the active map restarted analysis")
 		}
 	})
+	t.Run("cohort_viewer_menu", func(t *testing.T) {
+		v := explorerFixture(t)
+		v.OpenSimilarityCohort([]string{v.FileAt(0).Path(), v.FileAt(1).Path()})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		if v.grid.Visible() || v.explorerMapActive() || len(v.explorer.cohort) != 2 {
+			t.Fatal("premise: cohort image did not open")
+		}
+		if v.menus.Window().Viewer().Disabled {
+			t.Fatal("Window -> Viewer is disabled inside a cohort image")
+		}
+		v.menus.Window().Viewer().Action()
+		v.settleExplorer()
+		if len(v.explorer.cohort) != 0 || v.explorerMapActive() || v.grid.Visible() {
+			t.Fatal("Window -> Viewer retained the cohort session")
+		}
+	})
+	t.Run("duplicate_distance_changes", func(t *testing.T) {
+		for _, hide := range []bool{false, true} {
+			for _, complete := range []bool{false, true} {
+				t.Run(fmt.Sprintf("hide_%v/complete_%v", hide, complete), func(t *testing.T) {
+					v := openGridWith(t, "a.jpg", "b.jpg")
+					if hide {
+						v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+						v.grid.Settle()
+						waitUntilLoaded(t, v)
+					}
+					started := make(chan struct{})
+					v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						close(started)
+						if !complete {
+							<-ctx.Done()
+						}
+						emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+						return ctx.Err()
+					}
+					v.showExplorer()
+					<-started
+					if complete {
+						v.settleExplorer()
+					}
+					token := v.explorer.token
+					v.SetDuplicateDistance(v.DuplicateDistance())
+					if !token.current() {
+						t.Fatal("unchanged duplicate distance retired analysis")
+					}
+					prev := v.settingsState()
+					next := prev
+					next.DuplicateDistance = 0
+					v.ApplySettings(prev, next)
+					if token.current() == hide {
+						t.Fatalf("duplicate distance invalidation: hide=%v token current=%v", hide, token.current())
+					}
+					if hide {
+						v.settleExplorer()
+						if v.explorer.complete || v.explorer.hasMap || len(v.explorer.sources) != 0 || explorerMenu(t, v).Disabled {
+							t.Fatal("retired analysis accepted stale completion or prevented retry")
+						}
+						v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+							emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+							return nil
+						}
+						v.showExplorer()
+						v.settleExplorer()
+						if !v.explorer.complete || !v.explorer.token.current() || len(v.explorer.sources) == 0 {
+							t.Fatal("new duplicate threshold did not admit fresh analysis")
+						}
+					}
+					v.closeExplorer()
+					v.settleExplorer()
+				})
+			}
+		}
+	})
 	t.Run("cohort_escape_preserves_hide", func(t *testing.T) {
 		v := explorerFixture(t)
 		v.dupes.SetHideDuplicates(true)

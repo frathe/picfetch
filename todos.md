@@ -1,5 +1,9 @@
 ## PR 18 review fixes (2026-09-11)
 
+- [x] Follow-up review: cohort Viewer access, duplicate-distance invalidation,
+  repeated-source reuse, and consistent Linux requirements in both manuals.
+  See [follow-up evidence](finished_refactorings/2026-09-11-pr18-cohort-settings-reuse.md).
+
 - [x] Follow-up review: restore the viewer after rejecting a truncated trial,
   and carry the configured encoded-file limit into each analysis subprocess.
   See [follow-up evidence](finished_refactorings/2026-09-11-pr18-scan-worker-limits.md).
