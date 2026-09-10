@@ -1,12 +1,12 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tags, recovery, trial controls, conditional large-map zoom and viewport preview retention implemented and verified; saved presets and full-library qualification remain open
+Status: semantic tags, recovery, trial controls, conditional large-map zoom, viewport preview retention and production throughput profiling implemented and verified; saved presets and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Map construction and memory](#map-construction-and-memory--resumed) — complete and verified; decoded previews stay near the viewport, preserving every sampled thumbnail and appearance.
+Current increment: [Production throughput measurement](#production-throughput-measurement--resumed) — complete and verified; real worker stage/count instrumentation, bounded cold/warm command and 446-image evidence retained.
 
 ## Deliverable and accepted contract
 
@@ -1266,3 +1266,121 @@ and saved presets with their unresolved product choices. Further construction
 or rendering work should follow a measured ordinary-use problem; the 50k case
 alone does not justify reduced quality or more complicated browsing behavior.
 No commit was made. Unrelated `:memory:.ses` files remain untouched.
+
+## Production throughput measurement — resumed
+
+Status: complete and verified. Resumed the next independently actionable item after the
+completed viewport increment: measure production scan stages on the supplied
+modest demo. This increment does not reopen rendering or preset decisions and
+cannot qualify the private 50k library or infer the user's native verdict.
+Route: Standard increment within the Deep plan. The accepted actual-engine
+command seam remains the test boundary; no additional test seam is introduced.
+
+### Tasks and acceptance criteria
+
+1. T0: expose immutable cumulative measurements on production worker events:
+   elapsed/setup, source read/decode, inference, previews, cache I/O and grouping
+   stages, with attempted-inference and completed-map counts. Snapshot counts
+   distinguish successfully encoded, reused and failed sources. Test through
+   the real subprocess using pinned assets and explicit network denial.
+   Files: internal/similarity/{similarity,analyze}.go and existing native tests.
+   Verify: `make explorer-ui-test`. Budget: zero implementation spawns, two
+   lead review rounds, no full suite during iteration.
+2. T0: add a bounded production profiling command to scripts/explorereval,
+   retaining metadata-only JSONL events and a completed summary in a fresh
+   evidence directory. Report timing definitions and exact source accounting;
+   separate source analysis from every UMAP/HDBSCAN/layout publication. Exercise
+   cold and repeated analysis with an isolated favorite cache through the same
+   production client. Missing prerequisites, cancellation or incomplete runs
+   must not yield a completed summary. Files: command main/profile and existing
+   command/native tests, Makefile, README, ARCHITECTURE.md.
+   Verify: `make explorer-test`; `make explorer-profile` on the supplied demo.
+   Budget: one read-only scout, two lead reviews, no full suite during iteration.
+3. T0: inspect actual aggregate evidence, negatively verify guards, run the
+   canonical `make verify` once and `make build`, update this plan and todos.
+   Keep full-library qualification and unresolved product choices open.
+
+Graph: event measurements -> production profiler -> measured demo and final gate.
+Scout gate: G1 bounded cache/trial-fixture search; G2 returned file:line facts
+verified by the lead; G3 read-only; G4 independent cache fixture context;
+G5 lead has read only timing flow and event contract. S/W: cross-file tracing,
+not a mechanical transformation or supplied implementation. Literal Explore
+is unavailable, so the inherited model serves only as a read-only scout.
+All design, review and fixes stay with the lead; no git commit.
+
+### Throughput implementation and evidence — 2026-09-10
+
+- RED: the real six-image cold/cache test received zero stage/count measurements.
+  GREEN: cold processing reports actual setup/decode/inference/preview/cache/tag/
+  grouping time; fully cached processing reports zero model/decode/inference/
+  preview time. Existing semantic and cache-identity assertions still pass.
+- RED: the production profiling command refused `-trial throughput`. GREEN:
+  it runs the actual Client/WorkerMain, serializes aggregate event snapshots,
+  observes cold and warm worker exits and removes its isolated favorite cache
+  before atomically publishing a completed summary. Existing evidence is never
+  overwritten. Source changes, cache warnings, output failure and cancellation
+  refuse completion. Events/report exclude paths, images, previews and vectors.
+- A real 513-file command scenario processes exactly 512; broken sources remain
+  failures with zero inference attempts. Cancellation after actual progress
+  preserves its trace without a completed summary. Profiling tests run outside
+  the older evaluator's parent sandbox because the production client creates
+  its own explicit outbound-denied child. All native prerequisites are required.
+- Negative Go overlays reset publication counts, inserted a synthetic source
+  name into the trace, and raised the sample cap to 513. Each targeted guard
+  failed for the intended reason; production files were not mutated. The cold
+  measurements guard was already observed failing before instrumentation.
+- `make explorer-test explorer-ui-test` passed on final code: profiling command
+  2.32s (including its bounded scenario), ordinary command/native evaluator
+  guards, and every controlled/real viewer scenario (UI package 24.058s).
+- `make explorer-profile` processed all 446 supplied demo inputs: cold 89.484s,
+  warm 1.317s; zero failures, 446 warm reuses, 46 cohorts and 55 Unassigned in
+  each pass. Cold stage times: decode 33.768s, inference 27.320s, previews
+  26.810s, grouping 1.073s. Temporary cache occupied 7,613,236 bytes.
+  Both passes used CPU and final-only publication. All 896 event rows had
+  monotonic elapsed/cumulative work and exact counts; the retained binary's
+  digest matches its report. The trace's 100-image inference windows range
+  from 13.65 to 18.36 images per encode-second; this mixed-size/format sample
+  does not establish an order-dependent slowdown.
+- Evidence: [production throughput](../.scratch/visual-similarity-explorer/evidence/throughput-gSB1MB/README.md).
+  The exact executable and report are retained. The final mechanical scan
+  consolidation is covered by native tests; it changes no measured inference,
+  preview, grouping or sampling behavior. Existing evaluation/profiling commands
+  now share directory validation/scanning rather than duplicate it. The shell
+  evaluator recognizes throughput artifacts when passed that trial explicitly.
+
+No renderer/UI flow, source sampling limit, algorithm, quality, model asset or
+platform support changed. This supplies the missing modest-corpus stage/count
+evidence; native responsiveness, per-stage RSS, 50k scaling and semantic/user
+acceptance remain unqualified. Decode and full-quality preview generation are
+measured targets for a future improvement; do not assume inference is the sole
+cost. Preset scope/application choices were presented again asynchronously;
+no answer is assumed, and no preset implementation starts without resolution.
+
+No new test file or top-level root UI test was introduced, so existing exact
+Qodana exclusions and shard rows apply. ARCHITECTURE.md and the command README
+locate the new production profiler and define nested versus additive timings.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Worker measurements | 0 / 0 | 1 | no | Real cold/warm plus cumulative-publication guards |
+| Production command | 1 / 1 | 2 | no | Read-only cache scout; bounded/failed/canceled command evidence |
+| Final gate | 0 / 0 | 1 | one, passed | Native suites, make verify and make build all passed |
+
+Final gate: `make verify` exited 0, including formatting/TUF/Qodana checks,
+vet/build, the exact 680-runnable Linux shard inventory and all four race
+partitions. The explorer scenario passed under race detection in 99.350s;
+the final UI partition completed in 398.947s. Raw artifacts:
+`.scratch/race-runs/20260909T220239Z-N9Wixf`. `make build` passed and refreshed
+`bin/picfetch`. Native logs, the three failing mutation outputs, source digests
+and final build/gate logs are retained in
+`.scratch/visual-similarity-explorer/evidence/throughput-checks/`.
+All 38 local links across the edited plan/todos/command README and whitespace
+checks pass. Lead standards/spec review found no outstanding findings; shared
+scan consolidation and all fixes were performed inline. Only documentation
+changed after these verification commands.
+
+This increment is complete; the broader plan stays active. The next technical
+candidate is a measured investigation of source decoding and preview generation
+with identical quality, followed by the existing native usability/large-library
+qualification work. Saved presets still need the two explicitly pending product
+choices. No git commit was made. Both unrelated `:memory:.ses` files are untouched.

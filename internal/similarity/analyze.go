@@ -8,6 +8,7 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"time"
 
 	"fyne.io/fyne/v2/storage"
 
@@ -15,6 +16,7 @@ import (
 )
 
 func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emit func(Event) error) error {
+	start := time.Now()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -36,7 +38,14 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		}
 	}()
 	event := Event{Total: len(req.Paths), OfflineVerified: true, Stage: "encoding"}
+	event.Measurements.SetupSeconds = time.Since(start).Seconds()
+	send := func(snapshot Event) error {
+		snapshot.Measurements.ElapsedSeconds = time.Since(start).Seconds()
+		return emit(snapshot)
+	}
+	cacheStart := time.Now()
 	cache, cacheErr := openAnalysisCache(ctx, req.FavoritesDir)
+	event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
 	defer cache.close()
 	if cacheErr != nil {
 		event.CacheWarning = cacheErr.Error()
@@ -60,12 +69,19 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 	}
 	publishMap := func(complete bool) error {
 		event.Stage = "layout"
-		if err := emit(event); err != nil {
+		if err := send(event); err != nil {
 			return err
 		}
 		if event.Successful > 0 {
 			var err error
-			event.Merges, err = Group(ctx, items, map[string]float64{})
+			stages := map[string]float64{}
+			groupStart := time.Now()
+			event.Merges, err = Group(ctx, items, stages)
+			event.Measurements.GroupingSeconds += time.Since(groupStart).Seconds()
+			event.Measurements.ReductionSeconds += stages["reduction_seconds"]
+			event.Measurements.HDBSCANSeconds += stages["hdbscan_seconds"]
+			event.Measurements.ProjectionSeconds += stages["projection_seconds"]
+			event.Measurements.HierarchySeconds += stages["hierarchy_seconds"]
 			if err != nil {
 				return err
 			}
@@ -84,7 +100,8 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		if complete {
 			event.Stage = "complete"
 		}
-		err := emit(event)
+		event.Measurements.Publications++
+		err := send(event)
 		event.Items = nil
 		event.Merges = nil
 		return err
@@ -105,32 +122,45 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		reused := false
 		if sourceErr == nil {
 			item.Size, item.ModifiedNS = before.Size(), before.ModTime().UnixNano()
+			cacheStart := time.Now()
 			if cached, ok := cache.read(item); ok {
 				item, reused = cached, true
 			}
+			event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
 		}
 		if sourceErr == nil && !reused {
 			if encoder == nil {
 				var err error
+				modelStart := time.Now()
 				encoder, err = NewEncoder(req.Assets, "cpu")
+				event.Measurements.ModelSeconds += time.Since(modelStart).Seconds()
 				if err != nil {
 					return err
 				}
 			}
+			decodeStart := time.Now()
 			data, _, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
 			sourceErr = readErr
 			if sourceErr == nil {
 				item.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
 				loaded, decodeErr := imaging.DecodeLoaded(ctx, data, 1)
+				event.Measurements.DecodeSeconds += time.Since(decodeStart).Seconds()
 				sourceErr = decodeErr
 				if sourceErr == nil {
+					encodeStart := time.Now()
+					event.Measurements.InferenceAttempts++
 					item.Embedding, sourceErr = encoder.Encode(ctx, loaded.Frames[0])
+					event.Measurements.EncodeSeconds += time.Since(encodeStart).Seconds()
 					if sourceErr == nil {
+						previewStart := time.Now()
 						var preview bytes.Buffer
 						sourceErr = jpeg.Encode(&preview, imaging.ScaleForExport(loaded.Frames[0], 160), &jpeg.Options{Quality: 80})
 						item.Preview = preview.Bytes()
+						event.Measurements.PreviewSeconds += time.Since(previewStart).Seconds()
 					}
 				}
+			} else {
+				event.Measurements.DecodeSeconds += time.Since(decodeStart).Seconds()
 			}
 		}
 		if ctx.Err() != nil {
@@ -150,16 +180,23 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			item.Preview = nil
 			event.Failed++
 		} else {
+			tagStart := time.Now()
 			item.Tags = tagger.Tags(item.Embedding)
+			event.Measurements.TagSeconds += time.Since(tagStart).Seconds()
 			event.Successful++
 			if reused {
 				event.Reused++
-			} else if err := cache.write(ctx, item); err != nil && event.CacheWarning == "" {
-				event.CacheWarning = err.Error()
+			} else {
+				cacheStart := time.Now()
+				err := cache.write(ctx, item)
+				event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
+				if err != nil && event.CacheWarning == "" {
+					event.CacheWarning = err.Error()
+				}
 			}
 		}
 		items = append(items, item)
-		if err := emit(event); err != nil {
+		if err := send(event); err != nil {
 			return err
 		}
 		readControls()

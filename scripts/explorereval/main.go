@@ -18,6 +18,9 @@ import (
 )
 
 func main() {
+	if similarity.WorkerMain() {
+		return
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	err := run(ctx, os.Args[1:], os.Stdout)
 	stop()
@@ -37,7 +40,8 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	library := flags.String("library", ".scratch/visual-similarity-explorer/demo", "local input folder")
 	out := flags.String("out", ".scratch/visual-similarity-explorer/evidence/run", "new local evidence directory (must not exist)")
 	worker := flags.Bool("worker", false, "internal: process within the offline sandbox")
-	trial := flags.String("trial", "smoke", "bounded smoke trial")
+	trial := flags.String("trial", "smoke", "bounded smoke or production throughput trial")
+	automatic := flags.Bool("automatic", false, "throughput: publish a map every 30 processed sources")
 	provider := flags.String("provider", "cpu", "cpu or coreml execution provider")
 	probe := flags.Bool("probe", false, "verify actual TCP/UDP denial, without reading images")
 	if err := flags.Parse(args); err != nil {
@@ -49,8 +53,14 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if *probe {
 		return similarity.VerifyOffline(ctx)
 	}
-	if *trial != "smoke" {
-		return fmt.Errorf("only TRIAL=smoke is qualified by this bounded evaluator; full-library integration remains pending")
+	if *trial != "smoke" && *trial != "throughput" {
+		return fmt.Errorf("only smoke and throughput trials are supported; full-library qualification remains pending")
+	}
+	if *trial == "throughput" && (*provider != "cpu" || *worker) {
+		return fmt.Errorf("throughput uses the production CPU client and its own offline worker")
+	}
+	if *automatic && *trial != "throughput" {
+		return fmt.Errorf("automatic publication is only configurable for throughput")
 	}
 	if *provider != "cpu" && *provider != "coreml" {
 		return fmt.Errorf("provider must be cpu or coreml")
@@ -68,6 +78,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 			return err
 		}
 		*path = absolute
+	}
+	if *trial == "throughput" {
+		return profile(ctx, config, *automatic, output)
 	}
 	if *worker {
 		return evaluate(ctx, config, output)

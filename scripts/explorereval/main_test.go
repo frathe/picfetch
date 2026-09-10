@@ -8,9 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/frathe/picfetch/internal/similarity"
 )
 
 func TestMain(m *testing.M) {
+	if similarity.WorkerMain() {
+		return
+	}
 	if os.Getenv("PICFETCH_EXPLORER_TEST_PROCESS") == "1" {
 		main()
 		os.Exit(0)

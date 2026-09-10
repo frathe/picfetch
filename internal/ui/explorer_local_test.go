@@ -176,6 +176,23 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			if !final.OfflineVerified || final.Successful != 6 || final.Failed != 0 || final.Reused != reused {
 				t.Fatalf("offline labeled analysis: %+v", final)
 			}
+			m := final.Measurements
+			if m.InferenceAttempts != 6-reused || m.Publications != 1 || m.ElapsedSeconds <= 0 || m.SetupSeconds <= 0 || m.CacheSeconds <= 0 || m.TagSeconds <= 0 || m.GroupingSeconds <= 0 {
+				t.Fatalf("production throughput omitted actual work (reused=%d): %+v", reused, m)
+			}
+			if reused == 0 {
+				if m.ModelSeconds <= 0 || m.DecodeSeconds <= 0 || m.EncodeSeconds <= 0 || m.PreviewSeconds <= 0 {
+					t.Fatalf("cold analysis omitted source/inference stages: %+v", m)
+				}
+			} else if m.ModelSeconds != 0 || m.DecodeSeconds != 0 || m.EncodeSeconds != 0 || m.PreviewSeconds != 0 {
+				t.Fatalf("warm analysis attributed skipped work to inference: %+v", m)
+			}
+			if m.ReductionSeconds <= 0 || m.HDBSCANSeconds <= 0 || m.ProjectionSeconds <= 0 || m.HierarchySeconds <= 0 || m.GroupingSeconds < m.ReductionSeconds+m.HDBSCANSeconds+m.ProjectionSeconds+m.HierarchySeconds {
+				t.Fatalf("map publication omitted or double-counted grouping stages: %+v", m)
+			}
+			if m.ElapsedSeconds < m.SetupSeconds+m.ModelSeconds+m.DecodeSeconds+m.EncodeSeconds+m.PreviewSeconds+m.CacheSeconds+m.TagSeconds+m.GroupingSeconds {
+				t.Fatalf("stage measurements exceed worker elapsed time: %+v", m)
+			}
 			if tags := final.Items[0].Tags; !slices.Contains(tags, "cat") || slices.Contains(tags, "dog") {
 				t.Fatalf("known cat must have Cat, without Dog: %v", tags)
 			}
@@ -548,6 +565,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		if !final.Complete || final.Successful != 80 || len(final.Items) != 80 {
 			t.Fatal("partial publication lost final source accounting")
+		}
+		if partial.Measurements.Publications != 1 || final.Measurements.Publications != 2 || partial.Measurements.InferenceAttempts != 30 || final.Measurements.InferenceAttempts != 80 || final.Measurements.GroupingSeconds <= partial.Measurements.GroupingSeconds || final.Measurements.EncodeSeconds <= partial.Measurements.EncodeSeconds {
+			t.Fatalf("progressive throughput lost cumulative work: partial=%+v final=%+v", partial.Measurements, final.Measurements)
 		}
 		for _, item := range partial.Items {
 			if item.Cohort == "" || len(item.Position) != 2 || len(item.Embedding) != 0 {

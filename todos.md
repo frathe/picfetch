@@ -209,12 +209,20 @@ current non-overlapping cohorts and the active map refinement work.
 
 ### Full-library similarity throughput
 
-The controls increment removes measured display-transfer and stack-packing
-costs. The live process sample was inside ONNX encoding; the current observer
-does not expose per-stage completed-image counts, so a decreasing per-image
-encoding rate has not been isolated. Record stage/count throughput during the
-next native trial and qualify batch UMAP/HDBSCAN before claiming 50k scaling.
-See the active plan's controls/performance evidence.
+`make explorer-profile` now measures the production worker on up to 512 sources,
+using an isolated temporary favorite for cold and cached passes. Its metadata-only
+trace records completed/failed/reused counts, inference attempts, publications,
+decode/inference/preview/cache/tag time and UMAP/HDBSCAN/hierarchy stages. The
+446-image demo completed in 89.484s cold and 1.317s cached, with zero failures
+and complete reuse. Decode (33.768s) and preview generation (26.810s) are material
+alongside inference (27.320s); grouping was 1.073s. Preserve image quality when
+investigating those costs. See the [measurement record](.scratch/visual-similarity-explorer/evidence/throughput-gSB1MB/README.md).
+
+This bounded command does not measure native paint/interaction or qualify 50k.
+Record stage/count throughput during the next large native trial and qualify
+batch UMAP/HDBSCAN before claiming scaling. A declining per-image encoding rate
+has not been established; mixed source sizes/formats make simple windows
+insufficient evidence of an order-dependent slowdown.
 
 ### Large similarity-map interaction
 

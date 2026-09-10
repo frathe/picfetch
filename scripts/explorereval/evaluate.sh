@@ -18,6 +18,12 @@ if [[ $status -ne 0 ]]; then
     printf 'Trial failed (%s); evidence retained at %s\n' "$status" "$run_dir" >&2
     exit "$status"
 fi
+if [[ $trial == throughput ]]; then
+    test -s "$run_dir/result/profile.json"
+    test -s "$run_dir/result/events.jsonl"
+    printf '\nProduction throughput profile: %s/result/profile.json\n' "$run_dir"
+    exit 0
+fi
 for output in result.json initial.json manifest.json review.html pipeline-evaluation.md; do
     test -s "$run_dir/result/$output"
 done

@@ -28,6 +28,20 @@ type Event struct {
 	CacheWarning              string `json:",omitempty"`
 	Stage                     string
 	Complete                  bool
+	Measurements              Measurements
+}
+
+// Measurements are cumulative worker wall times in seconds, copied per event.
+// Elapsed includes previous event delivery, but excludes delivery of this event
+// and process startup/shutdown. Grouping includes the four named sub-stages;
+// those sub-stages must not be added to it when totaling work.
+type Measurements struct {
+	ElapsedSeconds, SetupSeconds, ModelSeconds          float64
+	DecodeSeconds, EncodeSeconds, PreviewSeconds        float64
+	CacheSeconds, TagSeconds, GroupingSeconds           float64
+	ReductionSeconds, HDBSCANSeconds, ProjectionSeconds float64
+	HierarchySeconds                                    float64
+	InferenceAttempts, Publications                     int
 }
 
 // CohortMerge joins base cohorts in increasing content distance. Cutting a

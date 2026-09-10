@@ -10,15 +10,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/frathe/picfetch/internal/similarity"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
-
-	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -49,28 +44,10 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 	if err := similarity.VerifyOffline(ctx); err != nil {
 		return err
 	}
-	info, err := os.Stat(config.Library)
+	files, err := scanLibrary(ctx, config.Library)
 	if err != nil {
 		return err
 	}
-	if !info.IsDir() {
-		return fmt.Errorf("library must be a directory")
-	}
-	scanError := similarity.RegisterLocalFiles()
-	files, truncated := filescan.Images(ctx, []fyne.URI{storage.NewFileURI(config.Library)}, filescan.DefaultMax, nil)
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	if err := scanError(); err != nil {
-		return fmt.Errorf("incomplete input scan: %w", err)
-	}
-	if truncated {
-		return fmt.Errorf("input scan truncated; refusing an incomplete manifest")
-	}
-	if len(files) == 0 {
-		return fmt.Errorf("library contains no supported images")
-	}
-	sort.Slice(files, func(i, j int) bool { return files[i].String() < files[j].String() })
 	result := evaluation{OfflineVerified: true, Config: config, ModelRevision: similarity.ModelRevision, Available: len(files)}
 	files = smokeSample(files)
 	if err := os.MkdirAll(filepath.Dir(config.Out), 0o700); err != nil {

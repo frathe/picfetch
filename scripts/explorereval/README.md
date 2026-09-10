@@ -73,6 +73,67 @@ Primary sources: [SigLIP 2 export](https://huggingface.co/onnx-community/siglip2
 [Go UMAP](https://github.com/nozzle/umap/tree/f6085fb2514d623b8a7ebb2c478396238502aef6),
 [Go HDBSCAN](https://github.com/alDuncanson/latent/tree/v0.1.4/projection).
 
+## Production throughput profiling
+
+`make explorer-profile` measures the production worker used by the viewer, on
+up to 512 images selected by the same deterministic folder/format sampling as
+the smoke experiment. Override `EXPLORER_LIBRARY`, `EXPLORER_ASSETS` and
+`EXPLORER_EVIDENCE` as above. It retains the exact unstripped executable,
+console, exit status, `result/events.jsonl` and `result/profile.json` in a fresh
+`throughput-*` evidence directory. It does not launch the UI or qualify 50k.
+
+The command uses an isolated temporary favorite for two passes: cold analysis,
+then reuse of every unchanged successful representation. Failed sources are
+retried and counted separately. Neither pass touches standing Favorites. The
+temporary cache contains normal local representations during the run and is
+removed before a completed summary is written. A changed input, incomplete
+worker, cache warning, failed output write or cancellation refuses completion;
+partial event evidence remains. Cancel with Ctrl+C. The report contains only
+aggregate metadata, including a digest of source identities and content hashes,
+executable digest, runtime/model/provider settings and temporary cache size.
+It contains no paths, source images, previews or vectors.
+
+Each worker enforces TCP/UDP OS network denial before reading images. The
+parent scans local directory metadata and records progress. Both use the
+production CPU configuration (six native inference threads). The default
+publishes only the completed map, matching the viewer's manual update default.
+To include automatic map publications every 30 sources, use the retained binary:
+
+```sh
+bin/explorereval -trial throughput -automatic -out /tmp/picfetch-throughput-new
+```
+
+The output directory must be new. Each JSONL row includes pass, received time,
+completed success/failure/reuse counts, stage and cumulative worker measurements.
+Subtract successive rows to measure a source window. Inference throughput is
+the change in `InferenceAttempts` divided by the change in `EncodeSeconds`;
+it excludes decoding, cache work and grouping. Reused sources never count as
+new inference. Failed decode attempts accrue decode time but no inference.
+
+Timing definitions (seconds of wall time, not CPU time):
+
+- `SetupSeconds`: worker offline/asset verification, tag setup and local file
+  registration. `ModelSeconds`: lazy native inference initialization.
+- `DecodeSeconds`: source read/probe, content hash and full oriented decode.
+  `EncodeSeconds`: image preprocessing plus native inference and normalization.
+  `PreviewSeconds`: scaling and JPEG encoding; `TagSeconds`: semantic labeling.
+- `CacheSeconds`: favorite-cache opening, lookups, validation and writes.
+- `GroupingSeconds`: all map grouping work. Its four named sub-stages are
+  `ReductionSeconds`, `HDBSCANSeconds`, `ProjectionSeconds`, `HierarchySeconds`;
+  they are already included in grouping and must not be added to it again.
+- `ElapsedSeconds`: worker time before the current event is serialized; includes
+  earlier delivery, source stat checks and unclassified bookkeeping. It excludes
+  process startup/shutdown and the current event's transport.
+- `FirstMapSeconds`: first map received by the profiling client;
+  `WorkerExitedSeconds`: client wall time through observed child exit, including
+  transport. These measure command delivery, not native map construction or paint.
+
+`make explorer-test` runs profiling acceptance outside the outer sandbox used
+by the old evaluator tests, because the production client creates its own
+denied-network worker. Native tests fail for missing assets, rather than skip.
+This command supplies stage/count evidence for a modest corpus; UI latency,
+native RSS, full-library scaling and the user's semantic verdict remain separate.
+
 ## Native viewer trial
 
 The accepted engine is shared with PicFetch in `internal/similarity`.

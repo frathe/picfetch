@@ -55,7 +55,7 @@ EXPLORER_EVIDENCE ?= .scratch/visual-similarity-explorer/evidence
 EXPLORER_PROVIDER ?= cpu
 TRIAL ?= smoke
 
-.PHONY: explorer-setup explorer-evaluate explorer-test explorer-ui-test
+.PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test
 explorer-setup: ## Download and verify pinned public assets for the local Mac explorer experiment
 	bash scripts/explorereval/setup.sh "$(EXPLORER_ASSETS)"
 
@@ -64,10 +64,23 @@ explorer-evaluate: ## Run the real bounded explorer experiment under OS network 
 	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
 	bash scripts/explorereval/evaluate.sh "$(BIN_DIR)/explorereval" "$(EXPLORER_ASSETS)" "$(EXPLORER_LIBRARY)" "$(EXPLORER_EVIDENCE)" "$(TRIAL)" "$(EXPLORER_PROVIDER)"
 
+explorer-profile: ## Measure bounded production cold/warm throughput with an isolated temporary favorite cache
+	@mkdir -p $(BIN_DIR) "$(EXPLORER_EVIDENCE)"
+	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
+	@set -eu; run_dir=$$(mktemp -d "$(EXPLORER_EVIDENCE)/throughput-XXXXXX"); \
+		cp "$(BIN_DIR)/explorereval" "$$run_dir/explorereval"; \
+		set +e; \
+		"$$run_dir/explorereval" -trial throughput -assets "$(EXPLORER_ASSETS)" -library "$(EXPLORER_LIBRARY)" -out "$$run_dir/result" > "$$run_dir/console.log" 2>&1; \
+		status=$$?; set -e; printf '%s\n' "$$status" > "$$run_dir/exit-status.txt"; \
+		printf 'Production throughput evidence: %s (exit %s)\n' "$$run_dir" "$$status"; \
+		if [ "$$status" -ne 0 ]; then cat "$$run_dir/console.log"; fi; \
+		exit "$$status"
+
 explorer-test: ## Run real-model acceptance tests under explicit macOS network denial (local assets required)
 	@mkdir -p $(BIN_DIR)
 	go test -c -tags explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
-	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.v -test.count=1
+	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.run '^(TestEvaluation|TestReal)' -test.v -test.count=1
+	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^TestProductionProfile' -test.v -test.count=1
 
 explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on this Mac
 	go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v

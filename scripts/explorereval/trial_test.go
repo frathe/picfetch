@@ -23,6 +23,121 @@ import (
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
+// The command itself starts the production worker inside OS network denial.
+// Run this test outside the outer sandbox used by the older evaluator tests.
+func TestProductionProfile(t *testing.T) {
+	library := t.TempDir()
+	for name, pixels := range map[string][]byte{
+		"red.jpg":    uitest.EncodeJPEG(t, 300, 180, color.NRGBA{R: 255, A: 255}),
+		"blue.jpg":   uitest.EncodeJPEG(t, 300, 180, color.NRGBA{B: 255, A: 255}),
+		"broken.jpg": []byte("broken JPEG"),
+	} {
+		if err := os.WriteFile(filepath.Join(library, name), pixels, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "profile")
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	if err := run(ctx, []string{"-trial", "throughput", "-assets", assets, "-library", library, "-out", out}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(out, "profile.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Available, Sampled            int
+		ExecutableSHA256, InputSHA256 string
+		Passes                        []struct {
+			Successful, Failed, Reused           int
+			OfflineVerified                      bool
+			WorkerExitedSeconds, FirstMapSeconds float64
+			Measurements                         struct {
+				InferenceAttempts, Publications                int
+				ElapsedSeconds, EncodeSeconds, GroupingSeconds float64
+			}
+		}
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Available != 3 || report.Sampled != 3 || len(report.Passes) != 2 || len(report.ExecutableSHA256) != 64 || len(report.InputSHA256) != 64 {
+		t.Fatalf("profile lost its corpus, executable identity or cold/warm passes: %s", data)
+	}
+	for i, pass := range report.Passes {
+		if pass.Successful != 2 || pass.Failed != 1 || pass.Reused != i*2 || !pass.OfflineVerified || pass.Measurements.InferenceAttempts != (1-i)*2 || pass.Measurements.Publications != 1 || pass.Measurements.GroupingSeconds <= 0 || pass.FirstMapSeconds <= 0 || pass.WorkerExitedSeconds < pass.FirstMapSeconds || pass.WorkerExitedSeconds < pass.Measurements.ElapsedSeconds {
+			t.Fatalf("pass %d lost failed-source, reuse, timing or exit evidence: %+v", i, pass)
+		}
+	}
+	if report.Passes[0].Measurements.EncodeSeconds <= 0 || report.Passes[1].Measurements.EncodeSeconds != 0 {
+		t.Fatal("profile attributed cache reuse to inference throughput")
+	}
+	events, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, contents := range [][]byte{data, events} {
+		for _, forbidden := range []string{library, "red.jpg", "blue.jpg", "broken.jpg", `"Embedding":`, `"Preview":`, `"Items":`} {
+			if bytes.Contains(contents, []byte(forbidden)) {
+				t.Fatalf("metadata-only profile contains %q", forbidden)
+			}
+		}
+	}
+	if err := run(ctx, []string{"-trial", "throughput", "-assets", assets, "-library", library, "-out", out}, io.Discard); err == nil {
+		t.Fatal("profile overwrote existing evidence")
+	}
+	retained, err := os.ReadFile(filepath.Join(out, "profile.json"))
+	if err != nil || !bytes.Equal(data, retained) {
+		t.Fatal("refused rerun altered completed evidence")
+	}
+	canceledOut := filepath.Join(t.TempDir(), "canceled")
+	cancelCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+	err = run(cancelCtx, []string{"-trial", "throughput", "-assets", assets, "-library", library, "-out", canceledOut}, cancelOnProgress{cancel: cancelRun})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("profiling cancellation after actual progress returned %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(canceledOut, "profile.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("canceled profiling retained a completed summary: %v", err)
+	}
+	partial, err := os.ReadFile(filepath.Join(canceledOut, "events.jsonl"))
+	if err != nil || len(partial) == 0 {
+		t.Fatal("canceled profiling lost its completed progress evidence")
+	}
+	t.Run("bounded", func(t *testing.T) {
+		large := t.TempDir()
+		for i := range 513 {
+			if err := os.WriteFile(filepath.Join(large, fmt.Sprintf("%04d.jpg", i)), []byte("broken JPEG"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		bounded := filepath.Join(t.TempDir(), "bounded")
+		if err := run(ctx, []string{"-trial", "throughput", "-assets", assets, "-library", large, "-out", bounded}, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(bounded, "profile.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(data, &report); err != nil {
+			t.Fatal(err)
+		}
+		if report.Available != 513 || report.Sampled != 512 || len(report.Passes) != 2 {
+			t.Fatal("bounded profile silently admitted the full oversized collection")
+		}
+		for _, pass := range report.Passes {
+			if pass.Successful != 0 || pass.Failed != 512 || pass.Reused != 0 || pass.Measurements.InferenceAttempts != 0 {
+				t.Fatal("failed-source profile fabricated inference or lost sampled sources")
+			}
+		}
+	})
+}
+
 // This test must be run inside the same denied-network boundary as the trial.
 // It requires the real pinned assets; missing assets fail instead of skipping.
 func TestRealEvaluation(t *testing.T) {

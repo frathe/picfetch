@@ -43,6 +43,8 @@ asset discovery, the cancellable offline subprocess, and private `WorkerMain`
 dispatch. `analyze.go` accounts for every input, captures source versions,
 reuses canonical full oriented decoding, makes previews, and publishes a map
 on manual request, optionally every 30 sources, and at completion.
+`Event.Measurements` carries cumulative worker stage times, inference attempts
+and publication counts as immutable values; grouping includes its named sub-stages.
 `control_darwin.go`/`control_other.go` own the pollable worker input descriptor.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
@@ -73,6 +75,11 @@ measurement and evidence files; `files.go` selects the bounded smoke corpus.
 Real-model tests require assets and OS denial under the `explorertrial` tag.
 `make explorer-ui-test` additionally exercises the production worker and
 completed-map/Grid View round trip through the UI harness.
+`profile.go`, reached with `make explorer-profile`, runs bounded cold/warm passes
+through the actual `similarity.Client` with a temporary favorite cache, retains
+aggregate event timings and a source-identity digest, then removes that cache.
+Its completed summary observes both worker exits; no previews or source paths
+are written to the profiling report.
 
 ### `scripts/explorertags`
 
