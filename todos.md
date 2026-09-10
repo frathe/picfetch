@@ -44,6 +44,12 @@ maze-like output is historical behavior, not a regression introduced here.
 
 #### Bugfix
 
+- **Reduce EXIF correction overhead during similarity analysis.** Direct pixel
+  access removes per-pixel color allocations while preserving the exact oriented
+  image. On the 446-image demo, cold analysis fell from 88.7s to 82.2s; source
+  decoding/correction fell from 32.6s to 24.9s. Representations, tags, previews
+  and grouping matched exactly before/after. These are bounded local timings.
+
 - **Apply map Granularity when the slider is released.** Dragging moves the
   thumb without repeatedly rebuilding the map. Incoming results retain the
   last applied grouping until release; clicks and keyboard adjustments still
@@ -222,6 +228,14 @@ decode/inference/preview/cache/tag time and UMAP/HDBSCAN/hierarchy stages. The
 and complete reuse. Decode (33.768s) and preview generation (26.810s) are material
 alongside inference (27.320s); grouping was 1.073s. Preserve image quality when
 investigating those costs. See the [measurement record](.scratch/visual-similarity-explorer/evidence/throughput-gSB1MB/README.md).
+
+The subsequent [source-throughput increment](.scratch/visual-similarity-explorer/evidence/source-throughput-20260910/README.md)
+removed color-interface allocations from canonical EXIF correction. Its matched
+before/after demo runs completed in 88.727s and 82.153s (7.4% less total time),
+with the decode stage falling from 32.556s to 24.863s (23.6% less time). All
+representations/tags, previews and groups/positions matched across cold and
+warm runs. Preview resampling remains a measured target; replacing its kernel
+or preconverting YCbCr to 8-bit RGBA would change quality and was not adopted.
 
 This bounded command does not measure native paint/interaction or qualify 50k.
 Record stage/count throughput during the next large native trial and qualify

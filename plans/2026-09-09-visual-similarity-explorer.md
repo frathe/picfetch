@@ -1,12 +1,12 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tags, recovery, trial controls, conditional large-map zoom, viewport preview retention and production throughput profiling implemented and verified; saved presets and full-library qualification remain open
+Status: semantic tags, recovery, trial controls, conditional large-map zoom, viewport preview retention, production throughput profiling and EXIF allocation reduction implemented and verified; saved presets and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Granularity release](#granularity-release--2026-09-10) — complete and verified; dragging applies on release, with stable progressive updates and preserved click/keyboard behavior.
+Current increment: [Source throughput investigation](#source-throughput-investigation--resumed-2026-09-10) — complete and verified; fewer EXIF allocations with identical demo output and measured throughput improvement.
 
 ## Deliverable and accepted contract
 
@@ -1434,3 +1434,126 @@ gate. No manual native GUI trial is claimed; the agreed production UI/provider
 seam exercises actual slider input methods and rendered cohort membership.
 Only plan/evidence closeout changed after verification. No git commit was made;
 the unrelated `:memory:.ses` files remain untouched.
+
+
+## Source throughput investigation — resumed 2026-09-10
+
+Status: complete and verified. Profiled source decoding and preview generation,
+then removed per-pixel color allocations from canonical EXIF correction while
+preserving source pixels and all demo outputs. Route: Standard
+increment within the Deep plan. Existing accepted engine/command and UI
+boundaries apply; all design, review and fixes stay with T0.
+Saved presets still await trait/application answers (presented asynchronously);
+full-library/native semantic qualification requires the user's trial verdict.
+
+### Acceptance and task sequence
+
+1. T0 recon: capture CPU profiles from the real outbound-denied production
+   worker on the unchanged 446-source demo, retaining binary, overlay and
+   aggregate stage/count output. Identify a measured hot path before editing.
+   Verify: inspect `go tool pprof -top` and completed `profile.json`.
+2. T0 red/green: add an executable resource-regression criterion at the already
+   accepted actual-engine command seam for the selected bottleneck. Preserve
+   canonical oriented source pixels, model/preprocessing, preview kernel/size/
+   quality, source accounting and cache validity. Derive concrete criteria
+   from the profile before writing the test. Verify: focused native command
+   tests, actual failure output followed by green, and independent pixel parity.
+3. T0 gate: compare the same demo using the production profiler, run affected
+   native suites and canonical `make verify`, refresh `make build`; record
+   actual improvements and honest limits here and in todos.md.
+
+Graph: profile -> bounded resource guard -> minimal optimization -> parity,
+production measurement and final gate. Budget: one read-only scout (actual 1),
+two lead review rounds, one complete race suite after iteration.
+Scout gate G1-G5: bounded canonical resampling/orientation trace; source-line
+and local command evidence; zero writes; isolated imaging/dependency context;
+lead had only traced worker stage accounting. S/W: adaptive source tracing,
+no deterministic edit or supplied implementation. Literal Explore is absent;
+the inherited model serves read-only. No review is delegated.
+
+
+### Selected slice and executable criteria
+
+CPU evidence: canonical ApplyOrientation accounts for 4.74 sampled CPU seconds,
+with 2.88 seconds under color-interface boxing; rotate90CW contributes 4.44s.
+Resampling is larger (35.79s combined kernel work) but changing its kernel or
+8-bit-preconverting YCbCr would change output precision. Optimize the existing
+orientation loop's color access first; leave full-quality resampling intact.
+
+AC1: complete real offline evaluation of a 1024x768 orientation-6 JPEG uses at
+most 100,000 Go allocations, leaving room for inference/layout while excluding
+one or more boxed objects per pixel. Test: TestRealEvaluationOrientationAllocations
+in existing scripts/explorereval/trial_test.go; verify with `make explorer-test`.
+AC2: all eight orientations preserve canonical RGBA pixels, nonzero bounds,
+alpha, source immutability and generic image compatibility. Verify existing
+public imaging orientation/decode/export guards, plus independent pre-change
+versus post-change fixtures and actual-engine source outputs.
+AC3: unchanged demo input/output and cold/warm accounting; compare production
+profiles and retained result fingerprints. Verify `make explorer-profile` and
+`make explorer-ui-test`; finish with `make verify` and `make build`.
+Files: internal/imaging/orientation.go; existing native command test; plan/todos.
+No new package, model/version, background work, UI string or feature interface.
+
+
+### Implementation and observed TDD evidence
+
+The real offline command first failed at 1,574,859 allocations for one 1024x768
+orientation-6 JPEG; after direct premultiplied RGBA64 access it passed at 1,994.
+Expanding the same command criterion to orientations 2-8 failed for each unfixed
+transform (1.57-2.36 million allocations); after the corresponding loop changes
+all passed at 1,362-1,999 allocations. No pixel-coordinate formula changed.
+Standard images avoid color.Color boxing; uncommon image.Image implementations
+retain compatibility through a local adapter with the same channel truncation.
+
+The existing public imaging regression boundary additionally covers eight
+pixel formats, all eight orientations, nonzero subimage bounds/stride, fractional
+alpha, 16-bit channels and generic-only access. Literal source-position tables
+provide the mapping oracle. This broadens shared-path regression coverage in
+existing orientation_test.go; no new file or feature seam was introduced.
+A negative Go overlay forcing opaque alpha failed the new pixel guard for the
+RGBA, NRGBA, RGBA64, NRGBA64 and paletted cases. Production files were unchanged
+by the mutation; the final native/race gates use the restored source.
+
+
+### Source-throughput final evidence and handoff
+
+- Matched retained production runs on all 446 demo sources: 88.727s before,
+  82.153s after (7.4% less total time); decode/read/hash/orientation 32.556s to
+  24.863s (23.6% less). Warm exits were 1.354s and 1.383s, with all 446 reused.
+  Both cold/warm passes in both versions produced the same representation/tag,
+  preview-byte and cohort/position fingerprints. All completed with zero failures,
+  46 cohorts and 55 Unassigned. This is one local observation; brief native test
+  work overlapped the before pass, so it is not a statistical speed guarantee.
+- `make explorer-test explorer-ui-test` exited 0. The actual engine allocation
+  guard ran all seven non-identity EXIF cases; the real worker/cache/cancellation
+  and controlled viewer scenarios passed, with no required skips. UI: 24.967s.
+- `make explorer-profile` on final source without either measurement overlay
+  exited 0 and verified the same 446-source identity, zero failures and complete
+  warm reuse. That command overlapped race verification; its timings are not
+  used for the before/after comparison.
+- `make verify` exited 0: formatting, TUF/Qodana checks, vet/build, exact
+  680-runnable UI inventory, and all four Linux race partitions passed.
+  Imaging: 35.014s; explorer scenario: 101.430s; final ui-1 partition: 410.653s.
+  Raw artifacts: `.scratch/race-runs/20260910T071503Z-tyi366`.
+- `make build` exited 0 and refreshed `bin/picfetch`. No production/test code
+  changed after verification. Existing exact Qodana exclusions still apply;
+  no root UI runnable, package, user-visible string or model version was added.
+  Lead standards/spec review found no outstanding findings. All source fixes
+  were performed inline. Documentation links and whitespace checks passed.
+
+[Detailed source-throughput evidence](../.scratch/visual-similarity-explorer/evidence/source-throughput-20260910/README.md)
+retains binaries, CPU/negative overlays, failing and passing commands, fingerprints,
+stage/count reports and final logs. The source library was processed locally
+under outbound denial; its pixels were not viewed or uploaded. No native GUI
+trial, peak-RSS reduction, 50k scaling or semantic acceptance is inferred.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Profile and EXIF allocation reduction | 1 / 1 | 2 | no | Read-only scout; two observed red/green slices; exact pixel/output parity |
+| Final gate | 0 / 0 | 1 | one, passed | Native suites, normal profiling command, make verify and make build |
+
+This increment is complete. The wider plan stays active for native usability
+and full-library qualification, and for saved presets whose trait/application
+choices remain unanswered. Further source work should target the measured
+full-quality resampling cost only with pixel-equivalent evidence. No commit was
+made; both unrelated `:memory:.ses` files were left untouched.

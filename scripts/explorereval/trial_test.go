@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -140,6 +141,37 @@ func TestProductionProfile(t *testing.T) {
 
 // This test must be run inside the same denied-network boundary as the trial.
 // It requires the real pinned assets; missing assets fail instead of skipping.
+func TestRealEvaluationOrientationAllocations(t *testing.T) {
+	for orientation := uint16(2); orientation <= 8; orientation++ {
+		t.Run(fmt.Sprintf("orientation_%d", orientation), func(t *testing.T) {
+			library := t.TempDir()
+			if err := os.WriteFile(filepath.Join(library, "oriented.jpg"), uitest.EncodeOrientedJPEG(t, 1024, 768, orientation), 0600); err != nil {
+				t.Fatal(err)
+			}
+			assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := filepath.Join(t.TempDir(), "run")
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			err = run(context.Background(), []string{"-worker", "-assets", assets, "-library", library, "-out", out}, io.Discard)
+			runtime.ReadMemStats(&after)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// This bounds the complete real command, including inference and layout.
+			// The allowance leaves ample room for those stages, but no per-pixel
+			// object allocation when correcting an ordinary camera JPEG's orientation.
+			allocations := after.Mallocs - before.Mallocs
+			if allocations > 100_000 {
+				t.Fatalf("oriented source analysis allocated %d objects; want at most 100000 without per-pixel boxing", allocations)
+			}
+			t.Logf("complete oriented-source analysis: %d allocations", allocations)
+		})
+	}
+}
+
 func TestRealEvaluation(t *testing.T) {
 	library := t.TempDir()
 	red := uitest.EncodeJPEG(t, 300, 180, color.NRGBA{R: 255, A: 255})
