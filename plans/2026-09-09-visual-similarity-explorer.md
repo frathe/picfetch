@@ -1752,3 +1752,39 @@ produced 480 Unassigned and provides no semantic quality verdict. The owned app
 and worker exited; public screenshots and precise limits are in the evidence.
 Only documentation changed. Saved-preset choices and real-library acceptance
 remain pending; desktop availability did not answer those product questions.
+
+## Qualification runner continuation — 2026-09-10
+
+Resumed by `/implement use tdd and sdd`. Inspect the missing ticket 07 native
+launch/evidence path while awaiting the recorded preset choices and current
+collection/verdict. Existing test boundaries remain accepted. All design,
+implementation, review and fixes stay with T0.
+
+Recon budget: one read-only scout, zero implementation delegates. G1: locate
+existing native launch and measurement hooks; G2: verify returned source
+locations and commands; G3: no writes; G4: native measurement script breadth
+is independent of the lead's evaluator/launch trace; G5: that script context
+has not been read by the lead. S/W: adaptive source search, no mechanical
+transform or supplied implementation. The literal T3 model is unavailable;
+use the harness's inherited model in a read-only scout role.
+
+Recon findings: `scripts/explorereval/main.go` still rejects `TRIAL=library`.
+The production profiler records worker receipts and observed child exit;
+`internal/ui/explorer.go` has no native map-delivery or input/paint recorder.
+The existing synthetic replay's no-op Host cannot qualify live Grid return
+while analysis continues. A complete native runner therefore remains real
+implementation work, not another invocation of an existing acceptance command.
+
+Isolation detail for that runner: the earlier overlay changed the Fyne app ID,
+which isolates preferences/session only. `favstore.DefaultDir()` and
+`autoupdate.DefaultDir()` use independent `picfetch/favorites` and
+`picfetch/updates` directories; the runner must explicitly isolate those too.
+The lead verified these source definitions and the profiler's final accounting
+checks. No native app, library scan, production edit or new test ran in this
+reconnaissance. Existing passing test records were not presented as fresh runs.
+
+The preset trait/application questions and current trial collection/verdict
+were presented together and remain unanswered. No preset choice or native
+acceptance is inferred. Actual cost: one read-only scout, one lead recon check,
+zero implementation delegates and zero full-suite repetitions. Documentation
+validation: `git diff --check`. Keep this plan active.
