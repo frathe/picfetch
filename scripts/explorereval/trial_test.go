@@ -172,6 +172,43 @@ func TestRealEvaluationOrientationAllocations(t *testing.T) {
 	}
 }
 
+func TestRealEvaluationPreviewWorkspace(t *testing.T) {
+	library := t.TempDir()
+	if err := os.WriteFile(filepath.Join(library, "portrait.jpg"), uitest.EncodeJPEG(t, 3072, 4096, color.NRGBA{R: 173, G: 81, B: 29, A: 255}), 0600); err != nil {
+		t.Fatal(err)
+	}
+	assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "run")
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	err = run(context.Background(), []string{"-worker", "-assets", assets, "-library", library, "-out", out}, io.Discard)
+	runtime.ReadMemStats(&after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(out, "result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result evaluation
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 1 || result.Items[0].Error != "" || len(result.Items[0].Embedding) != 768 || result.Items[0].Thumbnail == "" {
+		t.Fatal("workspace measurement did not complete source inference and preview delivery")
+	}
+	// Includes full JPEG decoding, real inference and final report delivery.
+	// A preview must not add another source-height floating-point image.
+	allocated := after.TotalAlloc - before.TotalAlloc
+	if allocated > 64<<20 {
+		t.Fatalf("source analysis allocated %d bytes; want at most 64 MiB with bounded preview workspace", allocated)
+	}
+	t.Logf("complete source analysis: %d allocated bytes", allocated)
+}
+
 func TestRealEvaluation(t *testing.T) {
 	library := t.TempDir()
 	red := uitest.EncodeJPEG(t, 300, 180, color.NRGBA{R: 255, A: 255})

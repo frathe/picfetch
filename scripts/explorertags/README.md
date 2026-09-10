@@ -1,8 +1,9 @@
 # Regenerate local semantic tag vectors
 
-The application embeds 31 fixed subject/scene text vectors (95,232 bytes),
-not the text model. Every fresh or reused image representation is compared
-locally with all vectors. Sigmoid scores are normalized to shares of the fixed
+The application embeds 31 fixed subject/scene text vectors as readable JSON
+(about 412 KiB of text, representing 95,232 bytes of float32 values).
+The text model is only used for regeneration. Every fresh or reused image
+representation is compared locally with all vectors. Sigmoid scores are normalized to shares of the fixed
 catalogue's total score. A strongest share below 0.35, or strongest raw score
 below 0.00001, leaves the source Untagged. Otherwise every share of at least
 0.15 qualifies. This preserves multiple substantial matches without forcing a
@@ -11,8 +12,12 @@ calibrated confidence; changing the catalogue requires reevaluation. Model outpu
 does not add labels outside this catalogue or infer traits for saved presets.
 
 `internal/similarity/tag-catalog.json` owns the prompt order, model revision,
-threshold, scoring constants and vector digest. `tag-vectors.bin` contains
-31 consecutive L2-normalized vectors, each 768 little-endian float32 values.
+threshold, scoring constants and vector digest. `tag-vectors.json` maps each
+tag ID to its L2-normalized array of 768 decimal float32 values. The decimal
+values round-trip to the exact original float32 bits. `NewTagger` decodes the
+embedded JSON directly; ordinary builds need no generator or binary asset.
+The digest identifies the numeric values encoded as little-endian float32 in
+catalogue order, so whitespace and JSON key order do not change vector identity.
 `internal/ui/explorer/tags.go` owns localized labels; update both translations
 when changing the catalogue. Image caches retain representations, not labels.
 
@@ -36,13 +41,15 @@ curl -fL "$model_base/tokenizer.model" -o "$tag_work/tokenizer.model"
 go run ./scripts/explorertags \
   -model "$tag_work/text_model.onnx" \
   -runtime .scratch/visual-similarity-explorer/assets/onnxruntime-osx-arm64-1.29.0/lib/libonnxruntime.1.29.0.dylib \
-  -tokens "$tag_work/tokens.json" -out "$tag_work/tag-vectors.bin"
-cmp "$tag_work/tag-vectors.bin" internal/similarity/tag-vectors.bin
+  -tokens "$tag_work/tokens.json" \
+  -catalog internal/similarity/tag-catalog.json -out "$tag_work/tag-vectors.json"
+cmp "$tag_work/tag-vectors.json" internal/similarity/tag-vectors.json
 ```
 
 Both tools verify their pinned model/tokenizer checksums before processing.
 When intentionally changing prompts, copy the newly generated vectors into
-`internal/similarity`, update `vectorsSHA256` and the catalogue version, and run
+`internal/similarity`, update `vectorsSHA256` using the generator's reported
+numeric digest and the catalogue version, and run
 `make explorer-ui-test`, `make explorer-test`, then `make verify`.
 
 ## Primary provenance

@@ -12,7 +12,7 @@ import (
 //go:embed tag-catalog.json
 var tagCatalog []byte
 
-//go:embed tag-vectors.bin
+//go:embed tag-vectors.json
 var tagVectors []byte
 
 // Tagger applies the pinned, fixed prompt catalogue to image representations.
@@ -38,28 +38,40 @@ func NewTagger() (*Tagger, error) {
 	if err := json.Unmarshal(tagCatalog, &catalog); err != nil {
 		return nil, err
 	}
-	if catalog.Model != ModelRevision || len(catalog.Tags) == 0 || len(tagVectors) != len(catalog.Tags)*768*4 || fmt.Sprintf("%x", sha256.Sum256(tagVectors)) != catalog.VectorsSHA256 || catalog.Scale <= 0 || catalog.MinimumScore <= 0 || catalog.MinimumScore >= 1 || catalog.MinimumShare <= 0 || catalog.MinimumBestShare < catalog.MinimumShare || catalog.MinimumBestShare >= 1 {
+	var vectors map[string][]float32
+	if err := json.Unmarshal(tagVectors, &vectors); err != nil {
+		return nil, err
+	}
+	if catalog.Model != ModelRevision || len(catalog.Tags) == 0 || len(vectors) != len(catalog.Tags) || catalog.Scale <= 0 || catalog.MinimumScore <= 0 || catalog.MinimumScore >= 1 || catalog.MinimumShare <= 0 || catalog.MinimumBestShare < catalog.MinimumShare || catalog.MinimumBestShare >= 1 {
 		return nil, fmt.Errorf("invalid semantic tag assets")
 	}
 	tagger := &Tagger{scale: catalog.Scale, bias: catalog.Bias, minimumScore: catalog.MinimumScore,
 		minimumShare: catalog.MinimumShare, bestShare: catalog.MinimumBestShare}
 	seen := map[string]bool{}
-	for i, tag := range catalog.Tags {
+	// Hash canonical float32 bits in catalogue order, independently of JSON
+	// whitespace/key order. This keeps the original vector identity unchanged.
+	canonical := make([]byte, 0, len(catalog.Tags)*768*4)
+	for _, tag := range catalog.Tags {
 		if tag.ID == "" || seen[tag.ID] {
 			return nil, fmt.Errorf("invalid semantic tag identity")
 		}
 		seen[tag.ID] = true
-		prototype := tagPrototype{id: tag.ID, vector: make([]float32, 768)}
+		prototype := tagPrototype{id: tag.ID, vector: vectors[tag.ID]}
+		if len(prototype.vector) != 768 {
+			return nil, fmt.Errorf("invalid semantic tag vector dimensions")
+		}
 		var norm float64
-		for j := range prototype.vector {
-			value := math.Float32frombits(binary.LittleEndian.Uint32(tagVectors[(i*768+j)*4:]))
-			prototype.vector[j] = value
+		for _, value := range prototype.vector {
+			canonical = binary.LittleEndian.AppendUint32(canonical, math.Float32bits(value))
 			norm += float64(value) * float64(value)
 		}
 		if math.IsNaN(norm) || math.Abs(norm-1) > .0001 {
 			return nil, fmt.Errorf("invalid semantic tag vector")
 		}
 		tagger.prototypes = append(tagger.prototypes, prototype)
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(canonical)) != catalog.VectorsSHA256 {
+		return nil, fmt.Errorf("semantic tag vector checksum mismatch")
 	}
 	return tagger, nil
 }

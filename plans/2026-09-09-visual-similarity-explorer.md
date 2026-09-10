@@ -1,12 +1,12 @@
 # Visual similarity explorer implementation
 
 Date: 2026-09-09
-Status: semantic tags, recovery, trial controls, conditional large-map zoom, viewport preview retention, production throughput profiling and EXIF allocation reduction implemented and verified; saved presets and full-library qualification remain open
+Status: semantic tags, recovery, trial controls, conditional large-map zoom, viewport preview retention, production throughput profiling, EXIF allocation reduction, preview resampling and readable tag-vector assets implemented and verified; saved presets and full-library qualification remain open
 Route: Deep — new local analysis subsystem and cross-feature UI behavior
 Request: `/implement use tdd and sdd`
 Spec: [Visual similarity explorer](../.scratch/visual-similarity-explorer/spec.md)
 Tickets: [Execution sequence](../.scratch/visual-similarity-explorer/ticket-breakdown.md)
-Current increment: [Source throughput investigation](#source-throughput-investigation--resumed-2026-09-10) — complete and verified; fewer EXIF allocations with identical demo output and measured throughput improvement.
+Current increment: [Full-quality preview resampling](#full-quality-preview-resampling--2026-09-10) and [readable tag-vector source](#readable-tag-vector-source--user-steering-during-verification) — complete and verified.
 
 ## Deliverable and accepted contract
 
@@ -1557,3 +1557,136 @@ and full-library qualification, and for saved presets whose trait/application
 choices remain unanswered. Further source work should target the measured
 full-quality resampling cost only with pixel-equivalent evidence. No commit was
 made; both unrelated `:memory:.ses` files were left untouched.
+
+## Full-quality preview resampling — 2026-09-10
+
+Status: complete and verified. Standard increment within the accepted Deep plan. Deliver
+lower-workspace, faster JPEG previews with identical CatmullRom output. Existing
+actual-engine command and canonical imaging regression boundaries apply. The
+shared export path must preserve its size, pixel, source-immutability and format
+contracts. Inference preprocessing, native UI behavior and saved presets are
+outside this measured slice; preset choices have been asked asynchronously.
+
+Evidence selecting the slice: the retained production CPU profile attributes
+29.57 sampled CPU seconds to YCbCr 420/422 horizontal filtering. The pinned
+scaler converts source colors for every filter contribution and retains
+32 * destination width * source height bytes of intermediate pixels.
+
+AC1: the real offline evaluation of one 3072x4096 ordinary JPEG allocates at
+most 64 MiB of Go memory, including decode, inference, preview and grouping.
+Verify: `make explorer-test`, including TestRealEvaluationPreviewWorkspace.
+AC2: public ScaleForExport returns byte-identical pixels to the pinned
+CatmullRom scaler for JPEG subsampling modes, nonzero bounds, thin images and
+different downscale ratios, and leaves input unchanged. Other formats keep
+their current path. Verify: focused TestScaleForExport tests and a deliberate
+precision-loss mutation that the parity guard rejects.
+AC3: all 446 demo representations/tags, preview bytes and cohort positions
+remain identical in matched production cold/warm runs; every source is
+accounted for and warm reuse is complete. Retain timings and exact executables.
+Verify: production profiling command with metadata-only fingerprint overlay.
+AC4: `make explorer-test explorer-ui-test`, `make verify`, `make build` pass.
+
+Tasks: (1) T0 baseline and AC1 red; (2) T0 minimal row-based CatmullRom path,
+AC1 green and AC2 parity; (3) T0 production comparison, negative guard, review
+and final gate. Files: internal/imaging/thumbnail.go and a private resampling
+file, existing thumbnail_test.go and scripts/explorereval/trial_test.go,
+ARCHITECTURE.md, this plan and todos.md. No new dependency or background work.
+Graph: baseline -> red -> green -> parity -> production comparison -> gate.
+Budget: one read-only scout, two lead review rounds, one full race suite.
+Scout G1-G5: bounded pinned scaler trace; source locations/commands as oracle;
+zero writes; dependency implementation isolated from lead's production/test
+context; no previously held dependency context. S/W: adaptive source reading,
+not a scripted edit. Literal Explore is unavailable; inherited model is read-only.
+All design, tests, implementation, review and fixes remain with T0.
+
+### Preview resampling implementation evidence
+
+- Frame/spec/recon/plan/delegation gate complete: one Standard performance
+  increment, existing accepted boundaries, one read-only scaler scout.
+- AC1 red: 74,622,424 allocated bytes in the full real offline command;
+  green: 51,364,280 bytes. The final guard requires a successful 768-value
+  representation and preview delivery as well as the 64 MiB resource limit.
+  Restoring the old call site through a Go overlay still fails the final guard
+  at 74,621,240 bytes. These are Go allocations, not a peak-RSS measurement.
+- AC2: the retained public scaler comparison covers six YCbCr subsampling
+  modes, varied reduction ratios, thin dimensions and strided subimages with
+  zero, positive and negative origins. Every output byte matches the pinned
+  CatmullRom implementation and sources remain unchanged. An early mismatch
+  exposed reused rows skipped by zero-weight taps; explicit row identities
+  fixed it. Removing low color bits via overlay fails the guard in every
+  optimized mode. Uncommon 411/410 layouts retain the original generic path.
+- The first production comparison completed every one of 446 sources, with
+  zero failures and complete warm reuse. All four cold/warm representation/tag,
+  preview and group/position fingerprints match. Final reviewed source is
+  measured separately because its uncommon-layout fallback was added in review.
+- `make explorer-test explorer-ui-test` passed, including the final resource
+  guard at 51,313,160 bytes and native UI scenarios in 25.741s. Focused imaging
+  and evaluation packages passed in 2.526s and 0.850s. Formatting passed.
+- Lead review closed its source-format and skipped-work findings inline.
+  No new test file, root UI runnable, dependency, interface or goroutine was
+  introduced; existing exact Qodana exclusions and UI shard counts apply.
+
+Final production measurements, canonical race gate and build are recorded below.
+[Detailed evidence](../.scratch/visual-similarity-explorer/evidence/preview-resampling-20260910/README.md)
+retains executables, source overlays, failures, successes and aggregate results.
+
+### Readable tag-vector source — user steering during verification
+
+The user requested a human-readable checked-in representation of
+`tag-vectors.bin` that is converted for use. Store a JSON object keyed by tag
+identity, with decimal float32 arrays, and decode at tagger startup. No generated
+binary or additional contributor build prerequisite is needed. Preserve exact
+float32 bits and the existing canonical little-endian numeric checksum, so no
+tag/model/cache version changes. Update the regeneration command and its docs.
+
+Owner: T0 inline; no delegation (lead holds the complete small loader/generator
+context). Files: internal/similarity/{tags.go,tag-vectors.json}, remove the old
+binary after exact conversion, scripts/explorertags/{main.go,README.md},
+ARCHITECTURE.md, this plan, todos.md. Test boundary remains the real offline
+engine command and production UI/provider path; existing tag/ambiguity/reuse
+tests provide behavior coverage. Red: embed the converted JSON while the loader
+still expects binary; the real command must fail invalid semantic assets.
+Green: decode/validate keyed float32 vectors and keep canonical checksum and
+normalization validation. Verify exact old/new numeric bits, real offline tests,
+generator reproduction where local assets exist, then the single combined
+`make verify` and `make build` gate. No new test seam or test file is needed for
+this representation-preserving change. Budget: zero spawns, one lead review,
+reuse the pending final full suite for both changes.
+
+### Combined verification record
+
+The reviewed resampler's 446-source run completed in 74.608s, versus 82.113s
+before (9.1% less time); previews took 20.750s versus 27.053s (23.3% less).
+Warm completion was 1.366s with all 446 representations reused. All six
+before/candidate/final cold/warm representation/tag, preview and group/position
+fingerprints match, with zero failures. These are local observations; the
+baseline briefly overlapped focused compilation and one resource test.
+
+Readable-vector TDD: embedding JSON before updating the loader caused the real
+command to fail with `invalid semantic tag assets`. After decoding keyed
+float32 arrays, `make explorer-test explorer-ui-test` passed (UI 24.588s).
+All 23,808 values are bit-identical to the old binary; the existing numeric
+digest is unchanged. The updated generator ran the pinned local text model
+under outbound denial and reproduced the checked-in JSON byte-for-byte.
+A one-bit canonical encoding mutation failed the same real command with
+`semantic tag vector checksum mismatch`. The old binary is removed; JSON is
+421,820 bytes and requires no build-time conversion or generator dependency.
+
+`make build` refreshed bin/picfetch successfully. Formatting, TUF/Qodana checks,
+vet/build and shard admission passed. `make verify` exited 0; all four Linux
+race partitions passed, including TestVisualSimilarityExplorer in 99.040s and
+the last UI partition in 399.042s. Raw race artifacts are retained at
+`.scratch/race-runs/20260910T074825Z-4hZNNa`.
+[Readable-vector evidence](../.scratch/visual-similarity-explorer/evidence/readable-tags-20260910/README.md)
+holds reproduction, failures, native success, source hashes and gate logs.
+No production/test source changed after this final gate started.
+
+| Task | Spawns budget/actual | Lead review rounds | Full suite | Notes |
+| --- | --- | --- | --- | --- |
+| Preview resampling | 1 / 1 | 2 | no | Read-only source scout; real allocation red/green; exact pixel and production parity |
+| Readable tag vectors | 0 / 0 | 1 | no | Real-command format red/green; exact numeric identity and pinned regeneration |
+| Combined final gate | 0 / 0 | 1 | one, passed | Native suites, canonical race partitions and refreshed build all passed |
+
+The wider plan remains active: native/library qualification and saved-preset
+trait/application choices remain open. No git commit was made and the two
+pre-existing unrelated `:memory:.ses` files remain untouched.

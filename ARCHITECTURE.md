@@ -50,8 +50,9 @@ and publication counts as immutable values; grouping includes its named sub-stag
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
 `encoder.go` owns the pinned native SigLIP 2 session;
-`tags.go` applies the embedded `tag-catalog.json`/`tag-vectors.bin` text
-prototypes to fresh and reused image vectors, without a text runtime;
+`tags.go` decodes the readable embedded `tag-vectors.json`, validates its canonical
+float32 digest against `tag-catalog.json`, and applies those text prototypes to
+fresh and reused image vectors, without a text runtime or build-time generator;
 `grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
 cohort identities; `hierarchy.go` orders a centroid spanning tree in grouping
 space for local granularity cuts. Repeated source paths share one assignment.
@@ -86,7 +87,7 @@ are written to the profiling report.
 Development-only regeneration of the embedded semantic tag vectors.
 `prepare_tokens.py` uses the pinned Gemma tokenizer for fixed catalogue prompts;
 `main.go` verifies the pinned text tower and runs it with the existing native
-ONNX Runtime, producing normalized float32 vectors. The viewer requires neither
+ONNX Runtime, producing readable normalized float32 JSON keyed by tag identity. The viewer requires neither
 this text model nor Python. See `README.md` for reproducible commands/provenance.
 
 ### Packaging tooling
@@ -269,6 +270,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | `exififd.go` | Unexported IFD walker (`walkIFD`) and tag value helpers used by `exif.go` and `raw.go`. |
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
+| `resample.go` | Rolling-row CatmullRom downscaling for YCbCr sources in `ScaleForExport`; retains sixteen-bit source colors and float64 intermediates with bounded row storage. |
 | `gif.go` | Animated GIF compositing, `probeGIF`, and logical-canvas restoration for a frozen partial first frame without decoding later frames. |
 | `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` and their context-bearing forms / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. Also `FitEdge` (the shared longest-edge rule) and `ScaleForExport` (CatmullRom, for exports) beside the unexported ApproxBiLinear `scaleToFit` thumbnails use. |
 | `dhash.go` | `DifferenceHash` / `Hamming` for grid hide-duplicates. |

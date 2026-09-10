@@ -201,6 +201,12 @@ full-library semantic accuracy. Custom traits and saved presets remain separate.
 Final real offline/native suites, `make verify`, refreshed build checks and
 `make build` pass. The updated executable is `bin/picfetch`.
 
+Semantic tag vectors are now stored as readable, tag-keyed JSON and decoded
+when the tagger starts. Every float32 bit and the original numeric digest are
+preserved; the generator reproduces the JSON exactly. Ordinary contributor
+builds require no vector-generation step. See
+[regeneration instructions](scripts/explorertags/README.md).
+
 ### Similarity explorer recovery
 
 Source/failure recovery (ticket 06) is implemented and verified: focused/native
@@ -234,8 +240,16 @@ removed color-interface allocations from canonical EXIF correction. Its matched
 before/after demo runs completed in 88.727s and 82.153s (7.4% less total time),
 with the decode stage falling from 32.556s to 24.863s (23.6% less time). All
 representations/tags, previews and groups/positions matched across cold and
-warm runs. Preview resampling remains a measured target; replacing its kernel
-or preconverting YCbCr to 8-bit RGBA would change quality and was not adopted.
+warm runs. The follow-up preview resampling increment retains the CatmullRom
+kernel and sixteen-bit YCbCr colors, converts each source row once, and keeps
+only the filtered rows needed by the current output row. The real-engine
+3072x4096 JPEG guard fell from 74.6 MB to 51.4 MB of allocated Go memory.
+Exact pixel comparisons and matched 446-source fingerprints pass. The demo
+completed in 74.608s versus 82.113s before (9.1% less time); preview generation
+took 20.750s versus 27.053s (23.3% less). These are single local observations.
+Native suites, the combined `make verify` race gate and `make build` passed;
+production measurements and verification are recorded in the
+[preview resampling evidence](.scratch/visual-similarity-explorer/evidence/preview-resampling-20260910/README.md).
 
 This bounded command does not measure native paint/interaction or qualify 50k.
 Record stage/count throughput during the next large native trial and qualify

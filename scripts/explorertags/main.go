@@ -26,7 +26,8 @@ func run() error {
 	model := flag.String("model", "", "pinned text_model.onnx")
 	runtime := flag.String("runtime", "", "local ONNX Runtime library")
 	tokens := flag.String("tokens", "", "prepare_tokens.py output")
-	out := flag.String("out", "", "output little-endian float32 vectors")
+	catalogPath := flag.String("catalog", "internal/similarity/tag-catalog.json", "prompt catalogue with tag identities")
+	out := flag.String("out", "", "output JSON float32 vectors keyed by tag identity")
 	flag.Parse()
 	file, err := os.Open(*model)
 	if err != nil {
@@ -54,6 +55,24 @@ func run() error {
 	}
 	if len(prompts) == 0 {
 		return fmt.Errorf("no prompts")
+	}
+	data, err = os.ReadFile(*catalogPath)
+	if err != nil {
+		return err
+	}
+	var catalog struct{ Tags []struct{ ID string } }
+	if err := json.Unmarshal(data, &catalog); err != nil {
+		return err
+	}
+	if len(catalog.Tags) != len(prompts) {
+		return fmt.Errorf("tag catalogue and token counts differ")
+	}
+	seen := map[string]bool{}
+	for _, tag := range catalog.Tags {
+		if tag.ID == "" || seen[tag.ID] {
+			return fmt.Errorf("invalid tag identity")
+		}
+		seen[tag.ID] = true
 	}
 	ort.SetSharedLibraryPath(*runtime)
 	if err := ort.InitializeEnvironment(); err != nil {
@@ -83,8 +102,9 @@ func run() error {
 		return err
 	}
 	defer func() { _ = session.Destroy() }()
-	var vectors []byte
-	for _, prompt := range prompts {
+	vectors := make(map[string][]float32, len(prompts))
+	var canonical []byte
+	for i, prompt := range prompts {
 		if len(prompt) != 64 {
 			return fmt.Errorf("prompt must contain 64 token IDs")
 		}
@@ -99,13 +119,20 @@ func run() error {
 		if norm == 0 || math.IsNaN(norm) || math.IsInf(norm, 0) {
 			return fmt.Errorf("invalid text vector")
 		}
-		for _, value := range output.GetData() {
-			vectors = binary.LittleEndian.AppendUint32(vectors, math.Float32bits(value/float32(math.Sqrt(norm))))
+		vector := make([]float32, len(output.GetData()))
+		for j, value := range output.GetData() {
+			vector[j] = value / float32(math.Sqrt(norm))
+			canonical = binary.LittleEndian.AppendUint32(canonical, math.Float32bits(vector[j]))
 		}
+		vectors[catalog.Tags[i].ID] = vector
 	}
-	if err := os.WriteFile(*out, vectors, 0644); err != nil {
+	data, err = json.MarshalIndent(vectors, "", "  ")
+	if err != nil {
 		return err
 	}
-	_, _ = fmt.Printf("%x  %s\n", sha256.Sum256(vectors), *out)
+	if err := os.WriteFile(*out, append(data, '\n'), 0644); err != nil {
+		return err
+	}
+	_, _ = fmt.Printf("vectorsSHA256: %x\nwrote %s\n", sha256.Sum256(canonical), *out)
 	return nil
 }
