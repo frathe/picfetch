@@ -67,14 +67,16 @@ type state struct {
 	centerOffsetXBits atomic.Uint64
 	centerOffsetYBits atomic.Uint64
 
-	arms          float64
-	twist         float64
-	density       float64
-	imageSpeed    float64
-	imageGap      float64
-	randomness    float64
-	randomOrder   bool
-	turnDirection float64 // Last nonzero direction, retained while paused.
+	arms              float64
+	twist             float64
+	density           float64
+	imageSpeed        float64
+	imageSize         float64
+	imageGap          float64
+	randomness        float64
+	imageTransparency float64 // Percentage-point shift of the transparency range.
+	randomOrder       bool
+	turnDirection     float64 // Last nonzero direction, retained while paused.
 }
 
 // newState builds a state seeded with the same defaults the donor demo
@@ -85,6 +87,7 @@ func newState() *state {
 		twist:         defaultTwistBase,
 		density:       defaultDensity,
 		imageSpeed:    1,
+		imageSize:     1,
 		imageGap:      2.5,
 		randomness:    35,
 		turnDirection: 1,
@@ -92,6 +95,14 @@ func newState() *state {
 	s.speedBits.Store(math.Float64bits(defaultSpeed))
 	s.hueSpeedBits.Store(math.Float64bits(defaultHueSpeed))
 	return s
+}
+
+// imageOpacityRange shifts both ends together, keeping every image faintly
+// visible and preserving the ceiling through overlaps. Zero keeps the original
+// 15–85 percent visibility. Positive shifts make the images more transparent.
+func (s *state) imageOpacityRange() (float64, float64) {
+	shift := s.imageTransparency / 100
+	return clampFloat(.15-shift, .01, .85), clampFloat(.85-shift, .01, .85)
 }
 
 func (s *state) speed() float64 {

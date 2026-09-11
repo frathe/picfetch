@@ -304,7 +304,7 @@ func TestOverlayToggleKeys(t *testing.T) {
 	}{
 		{"P toggles the FPS overlay", fyne.KeyP, s.fps, false},
 		{"R toggles the status overlay", fyne.KeyR, s.status, false},
-		{"F1 toggles the help overlay", fyne.KeyF1, s.help, true},
+		{"H toggles the help overlay", fyne.KeyH, s.help, true},
 	}
 
 	for _, tc := range cases {

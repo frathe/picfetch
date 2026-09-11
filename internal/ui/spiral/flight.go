@@ -5,8 +5,8 @@ import "math"
 // flight is immutable after admission. Geometry is also used for retirement
 // and route admission; the shader evaluates the same flight on every paint.
 type flight struct {
-	source                                       int
-	born, duration, angle, curve, margin, aspect float64
+	source                                             int
+	born, duration, angle, curve, margin, aspect, size float64
 }
 
 type tunnelFrame struct{ width, height, cx, cy float64 }
@@ -42,14 +42,14 @@ func (f tunnelFrame) rayExit(angle, halfW, halfH float64) float64 {
 }
 
 func (f flight) pose(now float64, frame tunnelFrame) flightPose {
-	if !frame.valid() || f.duration <= 0 || f.aspect <= 0 {
+	if !frame.valid() || f.duration <= 0 || f.aspect <= 0 || f.size <= 0 {
 		return flightPose{}
 	}
 	unit := math.Min(frame.width, frame.height)
 	p := clampFloat((now-f.born)/f.duration, 0, 1)
 	depth := 0.2*p + 0.8*p*p
-	w0, h0 := photoSize(f.aspect, 0.10*unit)
-	w1, h1 := photoSize(f.aspect, 0.25*unit)
+	w0, h0 := photoSize(f.aspect, 0.10*unit*f.size)
+	w1, h1 := photoSize(f.aspect, 0.25*unit*f.size)
 	start := 0.086*unit + math.Hypot(w0, h0)/2
 	end := math.Max(frame.rayExit(f.angle+f.curve, w1/2, h1/2)+0.035*unit*f.margin,
 		0.10*unit+math.Hypot(w1, h1)/2)
@@ -57,7 +57,7 @@ func (f flight) pose(now float64, frame tunnelFrame) flightPose {
 	radius := start + (end-start)*depth
 	edge := frame.rayExit(angle, 0, 0)
 	opacity := 0.15 + 0.70*clampFloat((radius-start)/math.Max(edge-start, 0.001*unit), 0, 1)
-	w, h := photoSize(f.aspect, (0.10+0.15*depth)*unit)
+	w, h := photoSize(f.aspect, (0.10+0.15*depth)*unit*f.size)
 	return flightPose{frame.cx + radius*math.Cos(angle), frame.cy + radius*math.Sin(angle), w, h, opacity, depth}
 }
 

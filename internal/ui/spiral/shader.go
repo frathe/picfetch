@@ -32,6 +32,8 @@ uniform float centerOffsetY;
 uniform float density;
 uniform float preset;
 uniform float tunnelTime;
+uniform float imageOpacityMin;
+uniform float imageOpacityMax;
 uniform sampler2D traveller0;
 uniform float traveller0Active;
 uniform float traveller0Born;
@@ -40,6 +42,7 @@ uniform float traveller0Angle;
 uniform float traveller0Curve;
 uniform float traveller0Margin;
 uniform float traveller0Aspect;
+uniform float traveller0Size;
 uniform sampler2D traveller1;
 uniform float traveller1Active;
 uniform float traveller1Born;
@@ -48,6 +51,7 @@ uniform float traveller1Angle;
 uniform float traveller1Curve;
 uniform float traveller1Margin;
 uniform float traveller1Aspect;
+uniform float traveller1Size;
 uniform sampler2D traveller2;
 uniform float traveller2Active;
 uniform float traveller2Born;
@@ -56,6 +60,7 @@ uniform float traveller2Angle;
 uniform float traveller2Curve;
 uniform float traveller2Margin;
 uniform float traveller2Aspect;
+uniform float traveller2Size;
 
 const float TAU = 6.28318530718;
 const int NUM_LAYERS = 4;
@@ -134,23 +139,23 @@ float travelDepth(float born, float duration) {
 }
 
 vec4 traveller(sampler2D photo, float active, float born, float duration,
-               float angle, float curve, float margin, float aspect, vec2 center) {
+               float angle, float curve, float margin, float aspect, float sizeScale, vec2 center) {
     if (active < 0.5 || aspect <= 0.0 || tunnelTime < born || tunnelTime >= born + duration) return vec4(0.0);
     float unit = min(frame.x, frame.y);
     float depth = travelDepth(born, duration);
-    vec2 initial = photoSize(aspect, 0.10 * unit);
-    vec2 finalSize = photoSize(aspect, 0.25 * unit);
+    vec2 initial = photoSize(aspect, 0.10 * unit * sizeScale);
+    vec2 finalSize = photoSize(aspect, 0.25 * unit * sizeScale);
     float start = 0.086 * unit + length(initial) * 0.5;
     float finish = max(rayExit(center, angle + curve, finalSize * 0.5) + 0.035 * unit * margin,
                        0.10 * unit + length(finalSize) * 0.5);
     float bearing = angle + curve * depth;
     float radius = mix(start, finish, depth);
     vec2 position = center + radius * vec2(cos(bearing), sin(bearing));
-    vec2 size = photoSize(aspect, (0.10 + 0.15 * depth) * unit);
+    vec2 size = photoSize(aspect, (0.10 + 0.15 * depth) * unit * sizeScale);
     vec2 local = (gl_FragCoord.xy - position) / size + vec2(0.5);
     if (local.x < 0.0 || local.y < 0.0 || local.x > 1.0 || local.y > 1.0) return vec4(0.0);
     float edge = rayExit(center, bearing, vec2(0.0));
-    float alpha = mix(0.15, 0.85, clamp((radius-start) / max(edge-start, 0.001*unit), 0.0, 1.0));
+    float alpha = mix(imageOpacityMin, imageOpacityMax, clamp((radius-start) / max(edge-start, 0.001*unit), 0.0, 1.0));
     vec2 border = min(local, vec2(1.0)-local) * size;
     float feather = smoothstep(0.0, 0.04 * min(size.x, size.y), min(border.x, border.y));
     // Fyne uploads premultiplied pixels; retain their source alpha and detail.
@@ -169,15 +174,15 @@ void depthOrder(inout vec4 a, inout float da, inout float ba,
 
 vec4 tunnelImages(vec2 center) {
     vec4 c0 = traveller(traveller0, traveller0Active, traveller0Born, traveller0Duration,
-        traveller0Angle, traveller0Curve, traveller0Margin, traveller0Aspect, center);
+        traveller0Angle, traveller0Curve, traveller0Margin, traveller0Aspect, traveller0Size, center);
     float d0 = travelDepth(traveller0Born, traveller0Duration);
     float b0 = traveller0Born;
     vec4 c1 = traveller(traveller1, traveller1Active, traveller1Born, traveller1Duration,
-        traveller1Angle, traveller1Curve, traveller1Margin, traveller1Aspect, center);
+        traveller1Angle, traveller1Curve, traveller1Margin, traveller1Aspect, traveller1Size, center);
     float d1 = travelDepth(traveller1Born, traveller1Duration);
     float b1 = traveller1Born;
     vec4 c2 = traveller(traveller2, traveller2Active, traveller2Born, traveller2Duration,
-        traveller2Angle, traveller2Curve, traveller2Margin, traveller2Aspect, center);
+        traveller2Angle, traveller2Curve, traveller2Margin, traveller2Aspect, traveller2Size, center);
     float d2 = travelDepth(traveller2Born, traveller2Duration);
     float b2 = traveller2Born;
     depthOrder(c0, d0, b0, c1, d1, b1);
@@ -185,7 +190,7 @@ vec4 tunnelImages(vec2 center) {
     depthOrder(c0, d0, b0, c1, d1, b1);
     vec4 result = c1 + c0 * (1.0-c1.a);
     result = c2 + result * (1.0-c2.a);
-    if (result.a > 0.85) result *= 0.85 / result.a;
+    if (result.a > imageOpacityMax) result *= imageOpacityMax / result.a;
     return result;
 }
 
@@ -223,20 +228,23 @@ func newShader(st *state) *canvas.Shader {
 	sh := canvas.NewShader("hypno-spiral-tunnel-v1", []byte(shaderSourceDesktop), []byte(shaderSourceES))
 
 	centerOffsetX, centerOffsetY := st.centerOffset()
+	opacityMin, opacityMax := st.imageOpacityRange()
 	preset := float32(0)
 	if st.preset() {
 		preset = 1
 	}
 
 	sh.Uniforms = map[string]float32{
-		"arms":          float32(st.arms),
-		"twistBase":     float32(st.twist),
-		"speed":         float32(st.speed()),
-		"hueSpeed":      float32(st.hueSpeed()),
-		"centerOffsetX": float32(centerOffsetX),
-		"centerOffsetY": float32(centerOffsetY),
-		"density":       float32(st.density),
-		"preset":        preset,
+		"arms":            float32(st.arms),
+		"twistBase":       float32(st.twist),
+		"speed":           float32(st.speed()),
+		"hueSpeed":        float32(st.hueSpeed()),
+		"centerOffsetX":   float32(centerOffsetX),
+		"centerOffsetY":   float32(centerOffsetY),
+		"density":         float32(st.density),
+		"preset":          preset,
+		"imageOpacityMin": float32(opacityMin),
+		"imageOpacityMax": float32(opacityMax),
 	}
 
 	sh.Textures = make(map[string]image.Image, 3)
@@ -245,7 +253,7 @@ func newShader(st *state) *canvas.Shader {
 	for i := range 3 {
 		name := fmt.Sprintf("traveller%d", i)
 		sh.Textures[name] = placeholder
-		for _, key := range []string{"Active", "Born", "Duration", "Angle", "Curve", "Margin", "Aspect"} {
+		for _, key := range []string{"Active", "Born", "Duration", "Angle", "Curve", "Margin", "Aspect", "Size"} {
 			sh.Uniforms[name+key] = 0
 		}
 	}

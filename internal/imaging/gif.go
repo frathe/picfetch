@@ -2,6 +2,7 @@ package imaging
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/color"
 	"image/draw"
@@ -73,15 +74,24 @@ func decodeAnimatedGIF(data []byte, budget int64) ([]image.Image, []time.Duratio
 		return nil, nil, true
 	}
 
+	frames, delays, _ := compositeGIFFrames(context.Background(), g, 0)
+	return frames, delays, false
+}
+
+// compositeGIFFrames is shared by full-size viewing and bounded previews.
+// Composite on the logical canvas before scaling so offsets, transparency and
+// disposal retain the same meaning at every preview size.
+func compositeGIFFrames(ctx context.Context, g *gif.GIF, maxEdge int) ([]image.Image, []time.Duration, error) {
 	bounds := image.Rect(0, 0, g.Config.Width, g.Config.Height)
 	canvasImg := image.NewRGBA(bounds)
 
 	frames := make([]image.Image, 0, len(g.Image))
 	delays := make([]time.Duration, 0, len(g.Image))
 
-	var beforeFrame *image.RGBA
-
 	for i, frame := range g.Image {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		disposal := byte(gif.DisposalNone)
 		if i < len(g.Disposal) {
 			disposal = g.Disposal[i]
@@ -89,22 +99,17 @@ func decodeAnimatedGIF(data []byte, budget int64) ([]image.Image, []time.Duratio
 
 		// DisposalPrevious means "after this frame, restore the canvas to
 		// how it looked before this frame was drawn", so snapshot now.
-		//
-		// Both GoMaybeNil suppressions below are for one false positive: the
-		// analyser sees `canvasImg = beforeFrame` at the tail of the loop,
-		// notes that beforeFrame starts nil, and concludes canvasImg may be
-		// nil here. That assignment only runs under DisposalPrevious, and
-		// this branch - the same condition, earlier in the same iteration -
-		// has always assigned beforeFrame before it can. copyRGBA never
-		// returns nil.
+		beforeFrame := canvasImg
 		if disposal == gif.DisposalPrevious {
-			//goland:noinspection GoMaybeNil
 			beforeFrame = copyRGBA(canvasImg)
 		}
 
 		draw.Draw(canvasImg, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
-		//goland:noinspection GoMaybeNil
-		frames = append(frames, copyRGBA(canvasImg))
+		snapshot := scaleToFit(canvasImg, maxEdge)
+		if snapshot == canvasImg {
+			snapshot = copyRGBA(canvasImg)
+		}
+		frames = append(frames, snapshot)
 
 		delay := time.Duration(g.Delay[i]) * 10 * time.Millisecond
 		if delay <= 0 {
@@ -120,7 +125,7 @@ func decodeAnimatedGIF(data []byte, budget int64) ([]image.Image, []time.Duratio
 		}
 	}
 
-	return frames, delays, false
+	return frames, delays, nil
 }
 
 // compositeGIFCanvas restores the logical canvas around a partial first

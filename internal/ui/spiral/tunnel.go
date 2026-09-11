@@ -14,11 +14,7 @@ import (
 )
 
 const tunnelPreviewEdge = 512
-
-type tunnelPreview struct {
-	source int
-	pixels image.Image
-}
+const tunnelAnimationBytes int64 = 16 << 20
 
 // tunnelSession belongs to one opening. The decoder's busy flag and waitgroup
 // belong to Spiral, so an uninterruptible old read cannot multiply on reopen.
@@ -27,6 +23,7 @@ type tunnelSession struct {
 	cancel                             context.CancelFunc
 	start                              time.Time
 	slots                              [3]*flight
+	playbacks                          [3]tunnelPlayback
 	ready                              *tunnelPreview
 	next                               int
 	admissions                         uint64
@@ -68,7 +65,8 @@ func (s *Spiral) advanceTunnel() {
 		return
 	}
 	s.resetTunnelOrder()
-	now := s.now().Sub(t.start).Seconds()
+	elapsed := s.now().Sub(t.start)
+	now := elapsed.Seconds()
 	// Only tunnel time rebases. The background's established animation keeps
 	// its phase; birth times use the same epoch as this small shader clock.
 	epoch := math.Floor(now/60) * 60
@@ -83,9 +81,14 @@ func (s *Spiral) advanceTunnel() {
 		}
 		if now >= f.born+f.duration || f.pose(now, frame).outside(frame) {
 			t.slots[i] = nil
+			t.playbacks[i] = tunnelPlayback{}
 			s.clearTraveller(i)
 		} else {
 			s.shader.Uniforms[fmt.Sprintf("traveller%dBorn", i)] = float32(f.born - epoch)
+			if pixels, changed := t.playbacks[i].advance(elapsed); changed {
+				s.shader.Textures[fmt.Sprintf("traveller%d", i)] = pixels
+				s.shader.Refresh()
+			}
 		}
 	}
 	slot := -1
@@ -106,12 +109,14 @@ func (s *Spiral) advanceTunnel() {
 	due := t.admissions == 0 || now-t.lastAdmission >= s.st.imageGap*t.gapFactor
 	if t.ready != nil && slot >= 0 && due && !repeated {
 		t.nextProfile(s.st.randomness)
-		b := t.ready.pixels.Bounds()
+		pixels := t.ready.frames[0]
+		b := pixels.Bounds()
 		f, valid := t.chooseRoute(flight{source: t.ready.source, born: now, duration: 9 / (s.st.imageSpeed * t.profile.speed),
-			curve: t.profile.curve * s.st.turnDirection, margin: t.profile.margin, aspect: float64(b.Dx()) / float64(b.Dy())}, frame)
+			curve: t.profile.curve * s.st.turnDirection, margin: t.profile.margin, aspect: float64(b.Dx()) / float64(b.Dy()), size: s.st.imageSize}, frame)
 		if valid {
 			t.slots[slot] = &f
-			s.installTraveller(slot, f, t.ready.pixels, epoch)
+			t.playbacks[slot] = tunnelPlayback{preview: t.ready, born: elapsed}
+			s.installTraveller(slot, f, pixels, epoch)
 			t.ready = nil
 			t.admissions++
 			t.lastAdmission = now
@@ -149,9 +154,10 @@ func (s *Spiral) loadTunnelPreview(t *tunnelSession, index int) {
 	queue := s.ui
 	s.previewWorkers.Go(func() {
 		defer cancel()
-		pixels, err := imaging.LoadThumbnailAtEdgeContext(ctx, u, tunnelPreviewEdge)
-		if ctx.Err() != nil {
-			pixels = nil
+		loaded, err := imaging.LoadAnimatedPreviewContext(ctx, u, tunnelPreviewEdge, tunnelAnimationBytes)
+		var preview *tunnelPreview
+		if err == nil && ctx.Err() == nil {
+			preview = newTunnelPreview(index, loaded)
 		}
 		queue.Do(func() {
 			s.previewBusy = false
@@ -166,7 +172,7 @@ func (s *Spiral) loadTunnelPreview(t *tunnelSession, index int) {
 					t.failed[index] = false
 					t.usable[u.String()] = true
 					t.cycleSuccess++
-					t.ready = &tunnelPreview{index, pixels}
+					t.ready = preview
 				}
 			}
 			s.advanceTunnel()
@@ -178,7 +184,7 @@ func (s *Spiral) installTraveller(i int, f flight, pixels image.Image, epoch flo
 	name := fmt.Sprintf("traveller%d", i)
 	s.shader.Textures[name] = pixels
 	for key, value := range map[string]float64{"Active": 1, "Born": f.born - epoch,
-		"Duration": f.duration, "Angle": f.angle, "Curve": f.curve, "Margin": f.margin, "Aspect": f.aspect} {
+		"Duration": f.duration, "Angle": f.angle, "Curve": f.curve, "Margin": f.margin, "Aspect": f.aspect, "Size": f.size} {
 		s.shader.Uniforms[name+key] = float32(value)
 	}
 	s.shader.Refresh()

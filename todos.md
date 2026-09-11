@@ -6,7 +6,16 @@
 
 #### New Features
 
+- Spiral tunnel pictures now play bounded GIF previews with independent timing.
+  A live image-transparency slider shifts the range, preserves the 85% visibility
+  ceiling, and retains its setting across reopening in the current process.
+  Image size is adjustable from 0.5x to 2x for new arrivals, with centre clearance
+  preserved. Ronin confirmed all sliders work as intended in the native trial.
+  See the [follow-up evidence](plans/2026-09-12-spiral-help-and-gif-playback.md).
+
 #### Bugfix
+
+- H toggles Spiral's local help overlay; F1 retains the main manual binding.
 
 #### Internal
 
@@ -20,10 +29,11 @@
 
 Implement the accepted infinite image-tunnel enhancement for the Hypno Spiral
 easter egg: a frozen duplicate-aware source snapshot, bounded three-texture GPU
-renderer, main/random cyclic ordering, static GIF previews, controls, and
+renderer, main/random cyclic ordering, animated GIF previews, controls, and
 lifecycle coverage. Refined motion calls for gentle acceleration, soft edges,
 subtle batch variation, translucent depth overlap, and native visual tuning.
-Implementation is in the working tree; focused race checks and GoLand inspections
+The original implementation is in c725cae; the help/GIF/control follow-up is in
+the working tree. Focused race checks and GoLand inspections
 pass, and Ronin found the native defaults very calming. Final qualification
 remains open: all UI partitions passed, while the full gate failed only on the two existing
 local amd64 seccomp cases;

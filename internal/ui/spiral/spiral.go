@@ -13,7 +13,7 @@
 // port, and TestEscapeClosesHelpThenWindow is its guard.
 //
 // The rest of the keys are handled entirely inside this window (see
-// handleKey): F1 for the help overlay, F for follow mode, N for the spiral
+// handleKey): H for the help overlay, F for follow mode, N for the spiral
 // pattern, P and R for the FPS and resolution overlays, and the arrow keys
 // for turn and colour speed.
 //
@@ -295,6 +295,8 @@ func (s *Spiral) stop() {
 	s.gen.Add(1)
 	if s.tunnel != nil {
 		s.tunnel.cancel()
+		s.tunnel.playbacks = [3]tunnelPlayback{}
+		s.tunnel.ready = nil
 		s.tunnel = nil
 		for i := range 3 {
 			s.clearTraveller(i)
@@ -402,7 +404,7 @@ func (s *Spiral) handleKey(ev *fyne.KeyEvent) {
 			return
 		}
 		s.Close()
-	case fyne.KeyF1:
+	case fyne.KeyH:
 		toggleOverlay(s.help)
 	case fyne.KeyF:
 		// Follow mode: the centre chases the cursor. Leaving it does not

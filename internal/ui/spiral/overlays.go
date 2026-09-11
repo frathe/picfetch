@@ -208,7 +208,7 @@ func updateHelpText(o *fyne.Container) {
 		lang.L("Keyboard Commands:"),
 		"-------------------",
 		lang.L("ESC: Close help / Close window"),
-		lang.L("F1:  Open help overlay"),
+		lang.L("H:  Toggle help overlay"),
 		lang.L("F:   Toggle follow mode"),
 		lang.L("N:   Switch spiral pattern"),
 		lang.L("P:   Toggle FPS counter"),

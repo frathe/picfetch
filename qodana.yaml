@@ -143,6 +143,7 @@ exclude:
       - "internal/imaging/mutations_test.go"
       - "internal/imaging/orientation_benchmark_test.go"
       - "internal/imaging/orientation_test.go"
+      - "internal/imaging/preview_test.go"
       - "internal/imaging/raw_test.go"
       - "internal/imaging/save_test.go"
       - "internal/imaging/svg_test.go"

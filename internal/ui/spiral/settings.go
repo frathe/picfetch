@@ -18,7 +18,7 @@ import (
 // the right edge of the window (see panelAnchor).
 const (
 	settingsPanelWidth  = 520
-	settingsPanelHeight = 310
+	settingsPanelHeight = 370
 	settingsPanelMargin = 10
 
 	// settingsPanelIdleTimeout is how long the panel stays visible after
@@ -156,6 +156,8 @@ func newSettingsPanel(st *state, shader *canvas.Shader) *settingsPanel {
 	p.addImageSlider(0, lang.L("Image speed: %.2fx"), .35, 2, .05, &st.imageSpeed)
 	p.addImageSlider(1, lang.L("Image gap: %.2f s"), .75, 6, .05, &st.imageGap)
 	p.addImageSlider(2, lang.L("Randomness: %.0f%%"), 0, 100, 1, &st.randomness)
+	p.addTransparencySlider(st, shader)
+	p.addImageSlider(4, lang.L("Image size: %.2fx"), .5, 2, .05, &st.imageSize)
 	orderLabel := widget.NewLabel(lang.L("Image order"))
 	orderLabel.Move(fyne.NewPos(sliderX, 230))
 	order := widget.NewSelect([]string{lang.L("Main order"), lang.L("Random")}, func(value string) {
@@ -218,6 +220,27 @@ func (p *settingsPanel) addImageSlider(row int, format string, minimum, maximum,
 		label.SetText(fmt.Sprintf(format, value))
 		p.markActivity()
 	}
+	p.content.Add(label)
+	p.content.Add(slider)
+}
+
+func (p *settingsPanel) addTransparencySlider(st *state, shader *canvas.Shader) {
+	x, y := float32(sliderX+260), float32(sliderRowsTop+3*sliderRowHeight)
+	label := widget.NewLabel("")
+	label.Move(fyne.NewPos(x, y+sliderLabelYOffset))
+	slider := widget.NewSlider(-70, 84)
+	slider.Step, slider.Value = 1, st.imageTransparency
+	slider.Move(fyne.NewPos(x, y+sliderTrackYOffset))
+	slider.Resize(fyne.NewSize(sliderControlWidth, sliderControlHeight))
+	slider.OnChanged = func(value float64) {
+		st.imageTransparency = value
+		low, high := st.imageOpacityRange()
+		shader.Uniforms["imageOpacityMin"], shader.Uniforms["imageOpacityMax"] = float32(low), float32(high)
+		label.SetText(fmt.Sprintf(lang.L("Image transparency: %.0f-%.0f%%"), (1-high)*100, (1-low)*100))
+		shader.Refresh()
+		p.markActivity()
+	}
+	slider.OnChanged(slider.Value)
 	p.content.Add(label)
 	p.content.Add(slider)
 }

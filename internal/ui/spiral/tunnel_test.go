@@ -49,6 +49,56 @@ func TestTunnelSession(t *testing.T) {
 	})
 }
 
+func TestTunnelGIFPlayback(t *testing.T) {
+	s := newTestSpiral(t)
+	start := time.Unix(1000, 0)
+	now := start
+	s.now = func() time.Time { return now }
+	s.st.randomness, s.st.imageSpeed = 0, .35
+	path := t.TempDir() + "/animated.gif"
+	if err := os.WriteFile(path, uitest.EncodeAnimatedGIF(t, 80, 40, []color.Color{color.RGBA{R: 255, A: 255}, color.RGBA{B: 255, A: 255}}, []int{10, 30}), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.Show([]fyne.URI{storage.NewFileURI(path)})
+	s.win.Resize(fyne.NewSize(800, 600))
+	settleTunnelPreviews(s)
+	check := func(slot int, blue bool) {
+		t.Helper()
+		r, _, b, _ := s.shader.Textures[fmt.Sprintf("traveller%d", slot)].At(10, 10).RGBA()
+		if (b > r) != blue || r+b == 0 {
+			t.Fatalf("slot %d at %v: r=%d b=%d; blue=%v", slot, now.Sub(start), r, b, blue)
+		}
+	}
+	for _, tc := range []struct {
+		ms   int
+		blue bool
+	}{{0, false}, {99, false}, {100, true}, {399, true}, {400, false}, {1700, true}} {
+		now = start.Add(time.Duration(tc.ms) * time.Millisecond)
+		s.frame(0)
+		check(0, tc.blue)
+	}
+	// Changing order must not restart the animation already in flight.
+	s.st.randomOrder = true
+	s.frame(0)
+	settleTunnelPreviews(s)
+	check(0, true)
+	now = start.Add(2500 * time.Millisecond)
+	s.frame(0)
+	settleTunnelPreviews(s)
+	check(0, true)
+	check(1, false) // Second admission has its own frame-zero origin.
+	now = start.Add(2600 * time.Millisecond)
+	s.frame(0)
+	check(1, true)
+	s.Close()
+	s.Settle()
+	for i := range 3 {
+		if s.shader.Textures[fmt.Sprintf("traveller%d", i)] != s.placeholder {
+			t.Fatal("close retained GIF texture")
+		}
+	}
+}
+
 func settleTunnelPreviews(s *Spiral) {
 	for {
 		s.previewWorkers.Wait()
@@ -318,25 +368,27 @@ func TestTunnelClockAndResize(t *testing.T) {
 }
 
 func TestTunnelFlight(t *testing.T) {
-	for _, aspect := range []float64{0.15, 0.5, 1, 2, 8} {
-		for _, frame := range []tunnelFrame{{800, 600, 400, 300}, {600, 900, 300, 450}} {
-			for _, angle := range []float64{0, 0.7, 2, 4, 5.5} {
-				f := flight{born: 0, duration: 9, angle: angle, curve: .35, margin: .7, aspect: aspect}
-				unit := math.Min(frame.width, frame.height)
-				entry := f.pose(0, frame)
-				if math.Abs(entry.opacity-.15) > 1e-6 || math.Max(entry.width, entry.height) > .100001*unit {
-					t.Fatalf("bad entry: %+v", entry)
-				}
-				for step := range 101 {
-					p := f.pose(float64(step)*.09, frame)
-					dx := math.Max(math.Abs(p.x-frame.cx)-p.width/2, 0)
-					dy := math.Max(math.Abs(p.y-frame.cy)-p.height/2, 0)
-					if math.Hypot(dx, dy) < .08*unit || p.opacity > .850001 || p.opacity < .149999 {
-						t.Fatalf("unsafe flight at step %d: %+v", step, p)
+	for _, size := range []float64{.5, 1, 2} {
+		for _, aspect := range []float64{0.15, 0.5, 1, 2, 8} {
+			for _, frame := range []tunnelFrame{{800, 600, 400, 300}, {600, 900, 300, 450}} {
+				for _, angle := range []float64{0, 0.7, 2, 4, 5.5} {
+					f := flight{born: 0, duration: 9, angle: angle, curve: .35, margin: .7, aspect: aspect, size: size}
+					unit := math.Min(frame.width, frame.height)
+					entry := f.pose(0, frame)
+					if math.Abs(entry.opacity-.15) > 1e-6 || math.Max(entry.width, entry.height) > .100001*unit*size {
+						t.Fatalf("bad entry: %+v", entry)
 					}
-				}
-				if !f.pose(9, frame).outside(frame) {
-					t.Fatal("flight ends on screen")
+					for step := range 101 {
+						p := f.pose(float64(step)*.09, frame)
+						dx := math.Max(math.Abs(p.x-frame.cx)-p.width/2, 0)
+						dy := math.Max(math.Abs(p.y-frame.cy)-p.height/2, 0)
+						if math.Hypot(dx, dy) < .08*unit || p.opacity > .850001 || p.opacity < .149999 {
+							t.Fatalf("unsafe flight at step %d: %+v", step, p)
+						}
+					}
+					if !f.pose(9, frame).outside(frame) {
+						t.Fatal("flight ends on screen")
+					}
 				}
 			}
 		}
