@@ -26,11 +26,11 @@ set with the keyboard.
 
 ## Features
 
-- Visual Similarity Explorer on Apple Silicon Macs, x86-64 Linux with
+- Visual Similarity Explorer on Apple Silicon Macs, x64/ARM64 Linux with
   glibc/seccomp, and Windows 11 x64/ARM64: press `Shift+S` to explore similar pictures as stacks, filter by
   75 subjects, and save named cohorts and reusable presets. First use offers a
-  model/runtime download of roughly 383 MB on Linux, 413 MB on macOS, or 451 MB
-  on Windows x64, or 453 MB on Windows ARM64. Microsoft Store includes the
+  model/runtime download of roughly 383 MB on Linux x64, 382 MB on Linux ARM64,
+  413 MB on macOS, 451 MB on Windows x64, or 453 MB on Windows ARM64. Microsoft Store includes the
   runtime and downloads only about 372 MB of model data. Telemetry is disabled on all platforms; macOS/Linux additionally
   enforce network isolation. Windows explains its different policy before use.
   All image analysis then runs locally. Images are never uploaded. See the

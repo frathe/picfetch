@@ -1,6 +1,6 @@
 # Local explorer engine experiment
 
-Asset setup supports Apple Silicon macOS, x86-64 Linux, and x64/ARM64 Windows.
+Asset setup supports Apple Silicon macOS and x64/ARM64 Linux and Windows.
 Production worker/UI tests support those platforms. The original smoke
 and full-library evidence commands below remain
 macOS-only.
@@ -18,7 +18,7 @@ make explorer-evaluate TRIAL=smoke
 ```
 
 Setup downloads a public 372 MB float32 SigLIP 2 vision model, its processor
-configuration, and the ONNX Runtime archive (11 MB on Linux, 42 MB on macOS,
+configuration, and the ONNX Runtime archive (11 MB on Linux x64, 10 MB on Linux ARM64, 42 MB on macOS,
 80 MB on Windows x64, 82 MB on Windows ARM64). Published
 model/archive SHA-256 values are checked before use/extraction; extracted
 runtime and processor hashes are checked too. Nothing is installed globally.
@@ -48,7 +48,7 @@ Windows events retain `OfflineVerified: false`; this field specifically records
 OS enforcement, not whether processing is local or can run without internet.
 The viewer explains this policy before first use. macOS/Linux isolation remains.
 
-On x86-64 Linux:
+On x64/ARM64 Linux:
 
 ```sh
 make explorer-setup
@@ -60,7 +60,9 @@ make build
 The native runtime needs glibc 2.28+ and libstdc++ providing GLIBCXX_3.4.22;
 the kernel must allow seccomp filters. This is independent of distro/package
 manager and honors the normal XDG user cache directory for in-app installation.
-Alpine/musl and Linux ARM are not qualified. A binary built with `make build`
+Alpine/musl is not qualified. ARM64 setup and worker support are implemented;
+native ARM64 inference, kernel enforcement and GUI acceptance still require
+hardware testing. A binary built with `make build`
 uses the host's C library baseline; for older distros, build through the Makefile
 in a container with an older glibc and inspect the binary's required GLIBC symbols.
 The pinned fyne-cross packaging image has its own, potentially newer, baseline.

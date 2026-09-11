@@ -62,7 +62,7 @@ explorer-download-test: ## Qualify pinned asset downloads and reuse without laun
 explorer-install-test: ## Download pinned public assets and qualify local analysis with the platform's network policy
 	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
 
-explorer-setup: ## Download and verify pinned public Explorer assets (macOS arm64, Linux x64, Windows x64/arm64)
+explorer-setup: ## Download and verify pinned public Explorer assets (macOS arm64, Linux/Windows x64/arm64)
 	go run ./scripts/explorereval -install -assets "$(EXPLORER_ASSETS)"
 
 explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, throughput, or library)
@@ -389,6 +389,7 @@ clean: ## Remove all build artifacts
 package-mac: install-fyne ## Package a macOS .app bundle (native, no Docker) into bin/
 	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
 	go run ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
+	cp LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md "$(APP_NAME).app/Contents/Resources/"
 	mkdir -p $(BIN_DIR)
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"
 	mv "$(APP_NAME).app" "$(BIN_DIR)/"

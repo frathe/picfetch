@@ -586,11 +586,11 @@ any desktop change; **Save Image** remains available.
 
 ---
 
-### Visual similarity explorer (Apple Silicon Mac, x86-64 Linux and Windows)
+### Visual similarity explorer (Apple Silicon Mac, Linux and Windows)
 
 On first use, Trane introduces the Explorer. Choose **Download** to install
 model and runtime files from Hugging Face and Microsoft GitHub (about 383 MB
-on Linux, 413 MB on macOS, 451 MB on Windows x64 or 453 MB on Windows ARM64).
+on Linux x64, 382 MB on Linux ARM64, 413 MB on macOS, 451 MB on Windows x64 or 453 MB on Windows ARM64).
 The Microsoft Store version includes the runtime and downloads only about
 372 MB of model data from Hugging Face; runtime updates come through the Store.
 The page shows progress and offers **Cancel**; if setup fails, check your
@@ -603,10 +603,11 @@ without uploads, analytics, or usage reports. The page links to the
 **Privacy policy** and **GitHub Discussions**. Discussions also appears in the
 Help menu and About window; it opens the public community page in your browser
 without attaching images or app data. Explorer analysis currently requires an
-Apple Silicon Mac, x86-64 Linux with glibc and seccomp support, or Windows 11
+Apple Silicon Mac, x64/ARM64 Linux with glibc and seccomp support, or Windows 11
 x64/ARM64. Direct Windows downloads require the Microsoft Visual C++ v14
 Redistributable for their architecture; Microsoft Store manages that dependency
-for its version. Linux ARM support is still being prepared.
+for its version. Linux requires glibc 2.28 or newer for the model runtime;
+the viewer build may require a newer system library version.
 
 **Windows:** ONNX Runtime telemetry is disabled before analysis. The worker
 communicates with PicFetch through local pipes and opens no network port.

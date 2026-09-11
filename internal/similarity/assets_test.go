@@ -126,9 +126,12 @@ func TestRuntimePlatforms(t *testing.T) {
 	}{
 		{"linux", "amd64", "lib/libonnxruntime.so.1.29.0"},
 		{"darwin", "arm64", "lib/libonnxruntime.1.29.0.dylib"},
-		{"linux", "arm64", ""},
+		{"linux", "arm64", "lib/libonnxruntime.so.1.29.0"},
 		{"windows", "amd64", "lib/onnxruntime.dll"},
 		{"windows", "arm64", "lib/onnxruntime.dll"},
+		{"linux", "arm", ""},
+		{"darwin", "amd64", ""},
+		{"windows", "386", ""},
 	} {
 		asset, supported := platformRuntime(tc.os, tc.arch)
 		if supported != (tc.library != "") || asset.library != tc.library {
@@ -155,7 +158,19 @@ func TestRuntimePlatforms(t *testing.T) {
 }
 
 func TestUnpackRuntime(t *testing.T) {
-	asset, _ := platformRuntime("linux", "amd64")
+	for _, arch := range []string{"amd64", "arm64"} {
+		t.Run(arch, func(t *testing.T) {
+			asset, supported := platformRuntime("linux", arch)
+			if !supported {
+				t.Fatal("missing Linux runtime")
+			}
+			testUnpackRuntime(t, asset)
+		})
+	}
+}
+
+func testUnpackRuntime(t *testing.T, asset runtimeAsset) {
+	t.Helper()
 	for _, mode := range []string{"valid", "missing", "duplicate", "symlink", "cancelled"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()

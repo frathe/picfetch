@@ -449,7 +449,7 @@
    "Download": "Herunterladen",
    "Retry": "Erneut versuchen",
    "Privacy policy": "Datenschutzerklärung",
-   "Visual Similarity Explorer requires an Apple Silicon Mac, 64-bit x86 Linux or Windows 11 x64/ARM64.": "Der Explorer für visuelle Ähnlichkeit benötigt einen Mac mit Apple Silicon, 64-Bit-x86-Linux oder Windows 11 x64/ARM64.",
+   "Visual Similarity Explorer requires an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64.": "Der Explorer für visuelle Ähnlichkeit benötigt einen Mac mit Apple Silicon, Linux x64/ARM64 oder Windows 11 x64/ARM64.",
    "First-time setup downloads about %.0f MB of model data from Hugging Face. The runtime is included and updated through Microsoft Store. After setup, analysis works offline.": "Die erste Einrichtung lädt etwa %.0f MB Modelldaten von Hugging Face herunter. Die Laufzeit ist enthalten und wird über den Microsoft Store aktualisiert. Danach funktioniert die Analyse offline.",
    "Windows: Analysis runs locally with ONNX Runtime telemetry disabled. No network port is opened. Windows does not block the analysis process from accessing the network.": "Windows: Die Analyse läuft lokal mit deaktivierter ONNX-Runtime-Telemetrie. Es wird kein Netzwerkport geöffnet. Windows sperrt den Netzwerkzugriff des Analyseprozesses nicht.",
    "Download the local model to get started.": "Lade das lokale Modell herunter, um loszulegen.",

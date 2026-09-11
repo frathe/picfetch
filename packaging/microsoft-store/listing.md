@@ -10,8 +10,7 @@ Store ID `9P0DM0KTH01K`. Do not paste this introductory text into the listing.
 - Privacy policy: https://github.com/frathe/picfetch/blob/main/PRIVACY.md
 - License: https://github.com/frathe/picfetch/blob/main/LICENSE
 - License terms: PicFetch source is MIT; bundled components have their own
-  terms in `THIRD-PARTY-NOTICES.md`. Resolve the existing GPL clustering
-  dependency before finalizing the release's license declaration.
+  terms in `THIRD-PARTY-NOTICES.md`.
 - Pricing: Free
 - Advertising: None
 - Accounts or sign-in: None

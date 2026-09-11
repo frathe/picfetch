@@ -34,6 +34,8 @@ func platformRuntime(goos, goarch string) (runtimeAsset, bool) {
 		return runtimeAsset{directory: "onnxruntime-osx-arm64-1.29.0", library: "lib/libonnxruntime.1.29.0.dylib", digest: "d0706fc34f315d8c88639d0a8c81f2e09e815f282cabed3493c06a054352cf92", size: 41578864, archiveExtension: "tgz"}, true
 	case goos == "linux" && goarch == "amd64":
 		return runtimeAsset{directory: "onnxruntime-linux-x64-1.29.0", library: "lib/libonnxruntime.so.1.29.0", digest: "c3fddc4f139a045b0c4902c57410f0694f1c2fdf9b6939fbe38b1aeae7cd14ba", size: 11082880, archiveExtension: "tgz"}, true
+	case goos == "linux" && goarch == "arm64":
+		return runtimeAsset{directory: "onnxruntime-linux-aarch64-1.29.0", library: "lib/libonnxruntime.so.1.29.0", digest: "e1799098ebc054b370f6176a450f158720f297818c613e5dc99b92e2ec82346f", size: 10027600, archiveExtension: "tgz"}, true
 	case goos == "windows" && goarch == "amd64":
 		return runtimeAsset{directory: "onnxruntime-win-x64-1.29.0", library: "lib/onnxruntime.dll", digest: "c9b4b7086b529ad814f428c1bad028e20a25d7dc0699836775faace4ab5b78b2", size: 79645520, archiveExtension: "zip", supportLibraries: []string{"lib/onnxruntime_providers_shared.dll"}}, true
 	case goos == "windows" && goarch == "arm64":
@@ -57,7 +59,7 @@ func AssetPlatformSupported() bool {
 func currentRuntime() (runtimeAsset, error) {
 	asset, ok := platformRuntime(runtime.GOOS, runtime.GOARCH)
 	if !ok {
-		return runtimeAsset{}, fmt.Errorf("local similarity assets require Apple Silicon macOS, Linux amd64 or Windows amd64/arm64")
+		return runtimeAsset{}, fmt.Errorf("local similarity assets require Apple Silicon macOS or Linux/Windows amd64/arm64")
 	}
 	return asset, nil
 }

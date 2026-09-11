@@ -1,3 +1,5 @@
+//go:build linux && (amd64 || arm64)
+
 package similarity
 
 import (
@@ -23,24 +25,20 @@ func isolateWorker() error {
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("offline worker no_new_privs: %w", err)
 	}
-	filter := []unix.SockFilter{
-		// Reject other syscall ABIs, including x32, rather than allowing their
-		// different syscall numbers to bypass the socket denial.
-		{Code: unix.BPF_LD | unix.BPF_W | unix.BPF_ABS, K: 4},
-		{Code: unix.BPF_JMP | unix.BPF_JEQ | unix.BPF_K, K: unix.AUDIT_ARCH_X86_64, Jt: 1},
-		{Code: unix.BPF_RET | unix.BPF_K, K: unix.SECCOMP_RET_ERRNO | uint32(unix.EPERM)},
-		{Code: unix.BPF_LD | unix.BPF_W | unix.BPF_ABS, K: 0},
-		{Code: unix.BPF_JMP | unix.BPF_JGE | unix.BPF_K, K: 0x40000000, Jf: 1},
-		{Code: unix.BPF_RET | unix.BPF_K, K: unix.SECCOMP_RET_ERRNO | uint32(unix.EPERM)},
+	architecture := uint32(unix.AUDIT_ARCH_X86_64)
+	if runtime.GOARCH == "arm64" {
+		architecture = unix.AUDIT_ARCH_AARCH64
 	}
 	// The worker inherits only standard pipes, never network descriptors.
 	// Denying io_uring also closes its alternative socket creation path.
-	for _, call := range []uint32{unix.SYS_SOCKET, unix.SYS_SOCKETPAIR, unix.SYS_IO_URING_SETUP} {
-		filter = append(filter,
-			unix.SockFilter{Code: unix.BPF_JMP | unix.BPF_JEQ | unix.BPF_K, K: call, Jf: 1},
-			unix.SockFilter{Code: unix.BPF_RET | unix.BPF_K, K: unix.SECCOMP_RET_ERRNO | uint32(unix.EPERM)})
+	raw, err := linuxNetworkFilter(architecture, unix.SYS_SOCKET, unix.SYS_SOCKETPAIR, unix.SYS_IO_URING_SETUP)
+	if err != nil {
+		return fmt.Errorf("offline worker filter: %w", err)
 	}
-	filter = append(filter, unix.SockFilter{Code: unix.BPF_RET | unix.BPF_K, K: unix.SECCOMP_RET_ALLOW})
+	filter := make([]unix.SockFilter, len(raw))
+	for i, instruction := range raw {
+		filter[i] = unix.SockFilter{Code: instruction.Op, Jt: instruction.Jt, Jf: instruction.Jf, K: instruction.K}
+	}
 	program := unix.SockFprog{Len: uint16(len(filter)), Filter: &filter[0]}
 	result, _, errno := unix.Syscall(unix.SYS_SECCOMP, unix.SECCOMP_SET_MODE_FILTER, unix.SECCOMP_FILTER_FLAG_TSYNC, uintptr(unsafe.Pointer(&program)))
 	runtime.KeepAlive(filter)

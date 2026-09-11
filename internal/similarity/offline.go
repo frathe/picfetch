@@ -8,7 +8,33 @@ import (
 	"runtime"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/bpf"
 )
+
+// Build the Linux seccomp program independently of kernel installation, so its
+// decisions can be checked on every development host. Values are supplied from
+// the target architecture's unix constants by the Linux worker.
+func linuxNetworkFilter(architecture uint32, socketCalls ...uint32) ([]bpf.RawInstruction, error) {
+	const deny = 0x00050001  // Linux SECCOMP_RET_ERRNO | EPERM
+	const allow = 0x7fff0000 // Linux SECCOMP_RET_ALLOW
+	instructions := []bpf.Instruction{
+		bpf.LoadAbsolute{Off: 4, Size: 4},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: architecture, SkipTrue: 1},
+		bpf.RetConstant{Val: deny},
+		bpf.LoadAbsolute{Off: 0, Size: 4},
+		// Reject alternate syscall numbering, including the x32 ABI.
+		bpf.JumpIf{Cond: bpf.JumpGreaterOrEqual, Val: 0x40000000, SkipFalse: 1},
+		bpf.RetConstant{Val: deny},
+	}
+	for _, call := range socketCalls {
+		instructions = append(instructions,
+			bpf.JumpIf{Cond: bpf.JumpEqual, Val: call, SkipFalse: 1},
+			bpf.RetConstant{Val: deny})
+	}
+	instructions = append(instructions, bpf.RetConstant{Val: allow})
+	return bpf.Assemble(instructions)
+}
 
 // EnforcesNetworkIsolation describes the worker policy. Windows uses a normal
 // local subprocess; its events must never claim verified OS network denial.

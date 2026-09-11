@@ -52,11 +52,12 @@ rule compatibility.
 `Event.Measurements` carries cumulative worker stage times, inference attempts
 and publication counts as immutable values; grouping includes its named sub-stages.
 `control_unix.go`/`control_other.go` own the pollable worker input descriptor.
-`worker_linux_amd64.go` installs worker-only seccomp denial synchronized across all
+`worker_linux.go` installs worker-only seccomp denial on x64/ARM64 synchronized across all
 threads before reading requests; `worker_other.go` retains the macOS sandbox launcher.
 `worker_windows.go` launches a hidden ordinary subprocess with closeable control
 pipes; Windows does not install OS network denial and events keep `OfflineVerified`
-false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`.
+false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`
+and assembles the Linux filter for host-independent BPF decision tests.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
@@ -89,7 +90,18 @@ Asset availability is separate from analysis admission; analysis
 never starts a download. `offline.go`
 verifies actual TCP/UDP OS denial on macOS/Linux; `files.go` registers the driverless read-only
 file repository. Production setup/analysis supports Apple Silicon macOS, glibc
-Linux amd64 and Windows x64/ARM64; native library evidence collection remains macOS-only.
+Linux x64/ARM64 and Windows x64/ARM64; native library evidence collection remains macOS-only.
+
+### `internal/hdbscan`
+
+The independently MIT-licensed HDBSCAN subset from PhotoPrism, pinned with its
+copyright/license and source provenance in `LICENSE` and `README.md`. It uses
+only the standard library. `hdbscan.go` builds and condenses the mutual-reachability
+hierarchy; `labels.go` owns core distances and worker iteration; `union_find.go`
+tracks merge ancestry; `common.go` retains only required validation, distance and
+error declarations. Similarity grouping calls it synchronously with one worker,
+minimum cluster size four and minPts three (self plus two other neighbors).
+Its adapter retains a single root cohort when no smaller cluster qualifies.
 
 ### `internal/explorerpresets`
 

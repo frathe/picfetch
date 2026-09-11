@@ -5,7 +5,6 @@ go 1.27.1
 require (
 	fyne.io/fyne/v2 v2.8.0
 	fyne.io/x/fyne v0.0.0-20260712112324-6989f2f174fb
-	github.com/alDuncanson/latent v0.1.4
 	github.com/fyne-io/image v0.1.1
 	github.com/fyne-io/oksvg v0.2.0
 	github.com/gen2brain/avif v0.6.0
@@ -18,6 +17,7 @@ require (
 	github.com/yalue/onnxruntime_go v1.36.0
 	golang.org/x/image v0.45.0
 	golang.org/x/mod v0.40.0
+	golang.org/x/net v0.58.0
 )
 
 replace github.com/gen2brain/heic => github.com/frathe/heic v0.0.0-20260820164529-0ac0a39f8206
@@ -102,7 +102,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect

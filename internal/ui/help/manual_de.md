@@ -669,10 +669,10 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ---
 
-### Visueller Ähnlichkeits-Explorer (Mac mit Apple Silicon, x86-64-Linux und Windows)
+### Visueller Ähnlichkeits-Explorer (Mac mit Apple Silicon, Linux und Windows)
 
 Beim ersten Öffnen stellt Trane den Explorer vor. **Herunterladen** installiert
-etwa 383 MB unter Linux, 413 MB unter macOS, 451 MB unter Windows x64 oder 453 MB
+etwa 383 MB unter Linux x64, 382 MB unter Linux ARM64, 413 MB unter macOS, 451 MB unter Windows x64 oder 453 MB
 unter Windows ARM64 an Modell- und Laufzeitdateien von Hugging Face und Microsoft GitHub.
 Die Microsoft-Store-Version enthält die Laufzeit und lädt nur etwa 372 MB
 Modelldaten von Hugging Face herunter. Laufzeit-Updates kommen über den Store.
@@ -687,10 +687,11 @@ Die Seite verlinkt die **Datenschutzerklärung** und **GitHub-Diskussionen**.
 Die Diskussionen sind auch im Hilfe-Menü und im Infofenster erreichbar. Der
 Link öffnet die öffentliche Community-Seite im Browser, ohne Bilder oder
 App-Daten anzuhängen. Die Analyse benötigt einen Mac mit Apple Silicon,
-x86-64-Linux mit glibc und Seccomp-Unterstützung oder Windows 11 x64/ARM64.
+x64/ARM64-Linux mit glibc und Seccomp-Unterstützung oder Windows 11 x64/ARM64.
 Direkte Windows-Downloads benötigen das Microsoft Visual C++ v14 Redistributable
 für ihre Architektur; bei der Store-Version verwaltet Microsoft Store diese
-Abhängigkeit. Die Unterstützung für Linux auf ARM ist noch in Vorbereitung.
+Abhängigkeit. Die Modell-Laufzeit unter Linux benötigt glibc 2.28 oder neuer;
+der Bildbetrachter kann je nach Build eine neuere Systembibliothek voraussetzen.
 
 **Windows:** Die ONNX-Runtime-Telemetrie wird vor der Analyse deaktiviert.
 Der Analyseprozess kommuniziert über lokale Pipes mit PicFetch und öffnet

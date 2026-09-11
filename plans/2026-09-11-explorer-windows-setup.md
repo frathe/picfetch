@@ -272,3 +272,33 @@ preservation, and modified-download rejection (0.09s). The Store similarity and
 packaging packages passed with cgo (2.422s/1.881s). Evidence:
 `.scratch/windows-explorer/store-install-fixtures.log`. Both staged packages'
 PicFetch license/privacy/third-party documents match the final source hashes.
+
+### Release-status clarification
+
+The ordinary release matrix builds macOS, Linux and Windows for ARM64 and x64;
+Explorer's current runtime matrix is narrower: macOS ARM64, Linux x64, and
+Windows x64/ARM64. Intel macOS and Linux ARM64 Explorer are not implemented.
+
+A follow-up release-status inspection found a notice-delivery gap outside Store
+packaging: `.github/workflows/release.yml` archives only the Windows/Linux
+executables, and the Windows signing step repacks only the executable. Track
+shipping license/notice documents and source-access information in all standalone
+artifacts (including inspection of the macOS bundle) before release. No workflow
+or license decision was changed during this status answer.
+
+The scoped license recheck confirmed latent is directly used by production
+grouping and GPLv3, rather than LGPL. ONNX Runtime also retains Eigen's MPL-2.0
+notice; the root notice already describes golang-lru's MPL-2.0 obligations.
+Unchanged code still carries distribution obligations. This check is not a full
+transitive legal audit, and the GPL combined-work decision remains open.
+
+### Subsequent authorized remediation
+
+The user subsequently requested Linux ARM64 support and replacement of the GPL
+clustering dependency. Both are implemented in the working branch; see
+[Linux ARM64](2026-09-11-explorer-linux-arm64.md) and
+[permissive clustering](2026-09-11-permissive-clustering.md) for current evidence.
+The MIT-licensed HDBSCAN subset replaces latent, and standalone notice delivery
+is fixed, including signing repacks and macOS Resources. Earlier artifact hashes
+above describe the preceding Windows increment; replacement binaries and current
+hardware/CI limitations are recorded in the follow-up plans.

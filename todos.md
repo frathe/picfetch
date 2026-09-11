@@ -31,12 +31,16 @@
   the verified portable LLVM-MinGW toolchain, without Docker or system changes.
 - [ ] User to test Explorer on ARM64 hardware. Cross-compilation and archive/DLL
   integrity checks do not qualify native ARM64 execution. MSIX/WACK stays in CI.
-- [ ] Before distribution, resolve the existing GPLv3-only
-  `github.com/alDuncanson/latent/projection` dependency. Its full license is now
-  included in the third-party notice; adding the notice alone does not settle
-  compatibility with the current MIT-only distribution description. A permissive
-  replacement is recommended; no algorithm change or relicensing was authorized
-  by the DLL/ARM request. See the active plan for the candidate and evidence.
+- [x] Replace the GPL clustering dependency as explicitly authorized: the pinned,
+  independently MIT-licensed HDBSCAN subset now lives in `internal/hdbscan`, with
+  its license/provenance and synthetic tests. Preserve the two-other-neighbor
+  density setting and four-point minimum. Automatic group membership can change;
+  source-versioned embedding caches and explicit saved cohorts remain usable.
+  See [replacement evidence](plans/2026-09-11-permissive-clustering.md).
+- [x] Include license/third-party notices and source-access information in
+  standalone release packaging, retain them through Windows signing/repacking,
+  and copy them into the macOS bundle. Store staging already includes them.
+  Actual release archives and certification remain CI verification.
 
 ## PR 18 review fixes (2026-09-11)
 
@@ -274,16 +278,17 @@ while another distro build ran. Its one-second Settle deadline expired; an
 isolated native and exact Ubuntu Docker race reruns passed. Review the fixture's deadline/load sensitivity;
 the Explorer change does not modify comparison code.
 
-### Explorer on Linux ARM
+### Explorer on Linux ARM64
 
-First-use setup and local inference now support Apple Silicon macOS,
-glibc-based x86-64 Linux and Windows x64/ARM64. Windows qualification is tracked
-above. Linux ARM still needs a pinned runtime package and notices, an OS
-network-denial launcher, and native inference/lifecycle qualification. The common
-model, grouping, map and cache code is shared; passing a cross-build alone does
-not qualify native Explorer execution. The no-cgo fallback restores the existing
-package-build checks. See the
-[release setup plan](finished_refactorings/2026-09-10-explorer-release-setup.md).
+Linux ARM64 now has the pinned native runtime, shared Linux seccomp worker,
+pollable controls and setup support. The runtime requires glibc 2.28+; the local
+test viewer is built against Debian 12 with required symbols up to GLIBC_2.34.
+`bin/picfetch-linux-arm64.tar.gz` includes the executable and notices.
+The user will qualify native analysis,
+kernel enforcement and GUI behavior on ARM64 hardware. Pure BPF decisions and
+cross-compilation do not claim that hardware qualification. See the
+[Linux ARM64 plan](plans/2026-09-11-explorer-linux-arm64.md). Intel macOS Explorer
+and 32-bit ARM remain unsupported; Windows ARM64 testing is separate above.
 
 ### Similarity-map zoom trial
 

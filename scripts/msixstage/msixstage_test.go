@@ -285,6 +285,31 @@ func TestStoreListingAssets(t *testing.T) {
 	}
 }
 
+func TestStandaloneArchivesRetainNotices(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", ".."))
+	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"picfetch.exe" ../LICENSE ../THIRD-PARTY-NOTICES.md ../PRIVACY.md -j`,
+		`-C .. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md`,
+		`@('LICENSE', 'THIRD-PARTY-NOTICES.md', 'PRIVACY.md')`,
+		`Compress-Archive -Path $packageFiles`,
+	} {
+		if !bytes.Contains(workflow, []byte(want)) {
+			t.Errorf("standalone release loses notices: missing %q", want)
+		}
+	}
+	makefile, err := os.ReadFile(filepath.Join(root, "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(makefile, []byte(`cp LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md "$(APP_NAME).app/Contents/Resources/"`)) {
+		t.Fatal("macOS bundle omits license documents")
+	}
+}
+
 func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
 	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "microsoft-store.yml"))

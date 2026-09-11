@@ -37,9 +37,9 @@ go run ./scripts/msixstage -arch arm64 -exe bin/picfetch-microsoft-store-arm64.e
 
 The workflow fetches those archives at packaging time; no model weights enter
 the MSIX. Native ARM64 inference and signed MSIX/WACK acceptance remain separate
-from cross-compilation and archive validation. The GPL-3.0 clustering dependency
-identified by the notice audit is tracked in todos.md for a distribution decision
-before public release; DLL bundling alone does not resolve that license issue.
+from cross-compilation and archive validation. Clustering uses the independently
+MIT-licensed HDBSCAN subset in `internal/hdbscan`; its copyright/license and
+upstream provenance are included in the third-party notice.
 ## Build the bundle
 
 The `Microsoft Store package` workflow runs automatically for every `v*` tag

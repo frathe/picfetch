@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alDuncanson/latent/projection"
 	"github.com/nozzle/umap"
+
+	"github.com/frathe/picfetch/internal/hdbscan"
 )
 
 func Group(ctx context.Context, items []Item, durations map[string]float64) ([]CohortMerge, error) {
@@ -47,9 +48,12 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) ([]C
 		return nil, err
 	}
 	start = time.Now()
-	groups := projection.Cluster(reduced, projection.HDBSCANConfig{MinClusterSize: 4, MinSamples: 2})
+	groups, err := clusterCoordinates(ctx, reduced)
 	durations["hdbscan_seconds"] = time.Since(start).Seconds()
-	if len(groups.Labels) != len(vectors) {
+	if err != nil {
+		return nil, err
+	}
+	if len(groups) != len(vectors) {
 		return nil, fmt.Errorf("clustering lost input identities")
 	}
 	if err := ctx.Err(); err != nil {
@@ -66,7 +70,7 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) ([]C
 		return nil, err
 	}
 	members := map[int][]string{}
-	for i, label := range groups.Labels {
+	for i, label := range groups {
 		members[label] = append(members[label], items[indexes[i]].Path)
 	}
 	ids := map[int]string{-1: "unassigned"}
@@ -82,11 +86,11 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) ([]C
 			continue
 		}
 		i := byPath[entry.Path]
-		items[index].Cohort = ids[groups.Labels[i]]
+		items[index].Cohort = ids[groups[i]]
 		items[index].Position = positions[i]
 	}
 	centroids := map[string][]float64{}
-	for i, label := range groups.Labels {
+	for i, label := range groups {
 		if label == -1 {
 			continue
 		}
@@ -102,6 +106,47 @@ func Group(ctx context.Context, items []Item, durations map[string]float64) ([]C
 	merges, err := cohortHierarchy(ctx, centroids)
 	durations["hierarchy_seconds"] = time.Since(start).Seconds()
 	return merges, err
+}
+
+func clusterCoordinates(ctx context.Context, points [][]float32) ([]int, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(points) == 0 {
+		return nil, fmt.Errorf("clustering requires reduced coordinates")
+	}
+	if err := validateCoordinates(points, len(points), 15); err != nil {
+		return nil, err
+	}
+	precise := make([][]float64, len(points))
+	for i, point := range points {
+		precise[i] = make([]float64, len(point))
+		for d, value := range point {
+			precise[i][d] = float64(value)
+		}
+	}
+	// Density uses two other neighbors. This implementation counts the point
+	// itself, so minPts=3 preserves that setting. Four points form a cohort.
+	// One worker keeps ordering deterministic; the owning subprocess provides
+	// cancellation while the synchronous clustering pass is running.
+	const minimumCohortSize = 4
+	hierarchy, err := hdbscan.HDBSCAN(precise, 3, minimumCohortSize, 1, hdbscan.EuclideanDist)
+	if err != nil {
+		return nil, fmt.Errorf("cluster reduced coordinates: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	labels := hierarchy.Labels()
+	// Upstream excludes the root cluster. Preserve Explorer's single-cohort
+	// behavior when no smaller cluster qualifies and the root is large enough.
+	// Keep noise assignments when the hierarchy does select smaller clusters.
+	if labels.Count() == 0 && len(labels) >= minimumCohortSize {
+		for i := range labels {
+			labels[i] = 1
+		}
+	}
+	return labels, nil
 }
 
 func validateCoordinates(points [][]float32, count, dimensions int) error {

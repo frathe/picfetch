@@ -35,11 +35,11 @@ func TestAssetInstall(t *testing.T) {
 		}
 	})
 	t.Run("ubuntu_supported", func(t *testing.T) {
-		if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-			t.Skip("Ubuntu amd64 support")
+		if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+			t.Skip("Linux amd64/arm64 support")
 		}
 		if !similarity.SupportedPlatform() {
-			t.Fatal("Linux amd64 cannot install or run Explorer")
+			t.Fatal("Linux amd64/arm64 cannot install or run Explorer")
 		}
 	})
 	t.Run("worker_reaches_asset_check_and_exits", func(t *testing.T) {
