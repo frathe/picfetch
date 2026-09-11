@@ -42,8 +42,8 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := currentRuntime(); err != nil {
-		return err
+	if !SupportedPlatform() {
+		return fmt.Errorf("local similarity analysis requires Apple Silicon macOS, Linux amd64 or Windows amd64/arm64")
 	}
 	executable, err := os.Executable()
 	if err != nil {

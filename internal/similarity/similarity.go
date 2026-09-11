@@ -1,4 +1,4 @@
-// Package similarity analyzes local images in an isolated native worker.
+// Package similarity analyzes local images in a separate native worker.
 package similarity
 
 import "context"
@@ -31,6 +31,8 @@ const FactsVersion = 1
 
 // Event is an immutable analysis snapshot. Complete includes layout delivery.
 type Event struct {
+	// OfflineVerified means OS network denial was verified, not just that the
+	// computation is local. Windows workers leave it false.
 	OfflineVerified           bool
 	Items                     []Item
 	Merges                    []CohortMerge `json:",omitempty"`

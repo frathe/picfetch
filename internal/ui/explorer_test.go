@@ -34,6 +34,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/favstore"
@@ -311,6 +312,47 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
+	t.Run("setup_network_notice", func(t *testing.T) {
+		for _, isolated := range []bool{false, true} {
+			t.Run(fmt.Sprintf("isolated_%v", isolated), func(t *testing.T) {
+				v := openGridWith(t, "first.jpg")
+				v.explorer.introSeen, v.explorer.assetsReady = false, true
+				v.explorer.networkIsolation = isolated
+				analyzed := false
+				v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					analyzed = true
+					emit(similarity.Event{Complete: true})
+					return nil
+				}
+				v.showExplorer()
+				v.settleExplorer()
+				found, foundDownload := false, false
+				downloadText := "First-time setup downloads about %.0f MB from Hugging Face and Microsoft GitHub. After setup, analysis works offline."
+				if distribution.StoreManaged {
+					downloadText = "First-time setup downloads about %.0f MB of model data from Hugging Face. The runtime is included and updated through Microsoft Store. After setup, analysis works offline."
+				}
+				explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+					if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Windows: Analysis runs locally with ONNX Runtime telemetry disabled. No network port is opened. Windows does not block the analysis process from accessing the network.") {
+						found = true
+					}
+					if label, ok := o.(*widget.Label); ok && label.Text == fmt.Sprintf(lang.L(downloadText), float64(similarity.AssetDownloadBytes())/1e6) {
+						foundDownload = true
+					}
+				})
+				if !foundDownload {
+					t.Fatal("setup omitted the distribution's download disclosure")
+				}
+				if found == isolated || analyzed {
+					t.Fatalf("first-use notice: isolated=%v found=%v analyzed=%v", isolated, found, analyzed)
+				}
+				fynetest.Tap(explorerDialogButton(t, v, "Continue"))
+				v.settleExplorer()
+				if !analyzed || !v.explorer.introSeen {
+					t.Fatal("Continue did not acknowledge the notice and admit analysis")
+				}
+			})
+		}
+	})
 	t.Run("setup_first_use", func(t *testing.T) {
 		v := openGridWith(t, "first.jpg")
 		v.explorer.introSeen = false
@@ -363,6 +405,21 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		fynetest.Tap(explorerDialogButton(t, v, "Download"))
 		v.settleExplorer()
+		if distribution.StoreManaged && requests == 0 {
+			// Ordinary Go test executables have no packaged DLLs. A missing
+			// Store runtime must remain a repair error without starting HTTP.
+			if v.explorer.setup == nil || v.explorer.setup.status.Text != lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry.") || v.explorerMapActive() {
+				t.Fatal("missing bundled runtime did not show the Store repair error")
+			}
+			fynetest.Tap(explorerDialogButton(t, v, "Retry"))
+			v.settleExplorer()
+			fynetest.Tap(explorerDialogButton(t, v, "Cancel"))
+			v.settleExplorer()
+			if requests != 0 || v.explorer.setup != nil || v.explorer.introSeen || v.explorerMapActive() {
+				t.Fatal("Store repair retry/cancel admitted a download or analysis")
+			}
+			return
+		}
 		if requests != 1 || v.explorerMapActive() {
 			t.Fatal("failed setup did not remain on the setup page")
 		}

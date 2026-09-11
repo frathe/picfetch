@@ -1,6 +1,6 @@
 # PicFetch privacy policy
 
-Effective date: September 10, 2026
+Effective date: September 11, 2026
 
 PicFetch is a free and open-source desktop image viewer. It has no accounts,
 advertising, analytics, or telemetry. The PicFetch developer does not collect,
@@ -15,6 +15,11 @@ PicFetch service.
 Visual Similarity Explorer analysis also runs locally. Image representations,
 suggested tags, previews, saved cohorts, and optional Favorite analysis caches
 stay on the device. They are not sent to a model provider or feedback service.
+
+Explorer communicates with the viewer through local process pipes. It does not
+open a localhost server or expose a model API on a network port. PicFetch
+disables ONNX Runtime telemetry before creating an analysis session; if the
+telemetry opt-out fails, analysis does not start.
 
 PicFetch can display GPS coordinates already embedded in an image. The Location
 map is collapsed by default, and no map request is made merely by opening the
@@ -35,9 +40,11 @@ avoided entirely by leaving the Location section collapsed.
 ## Visual Similarity Explorer downloads
 
 On first use, the Explorer explains its local analysis and offers to download
-the required model and runtime. Downloads begin only when the user chooses
-Download. PicFetch obtains the pinned SigLIP 2 model from Hugging Face and the
-ONNX Runtime package from Microsoft's ONNX Runtime releases on GitHub. These
+the required model data. Standalone builds also download the runtime; the
+Microsoft Store version includes it, as described below. Downloads begin only
+when the user chooses Download. PicFetch obtains the pinned SigLIP 2 model from
+Hugging Face and, in standalone builds, the ONNX Runtime package from Microsoft's
+ONNX Runtime releases on GitHub. These
 services may redirect downloads through their content-delivery providers.
 
 As with other internet downloads, the services receive the device's IP address,
@@ -50,9 +57,24 @@ Hugging Face and GitHub handle download requests under their own
 [Hugging Face privacy policy](https://huggingface.co/privacy) and
 [GitHub privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
 PicFetch verifies the downloaded files against pinned checksums and stores them
-locally. Once the required files are installed, image analysis works offline;
-the analysis worker has network access disabled. Declining the download leaves
-the rest of the image viewer available.
+locally. Once the required files are installed, image analysis works without
+an internet connection. Declining the download leaves the rest of the image
+viewer available.
+
+The Microsoft Store version includes the ONNX Runtime DLLs and their notices
+in its x64/ARM64 package. Microsoft Store installs and updates those DLLs and
+the required Microsoft C++ runtime framework. Explorer setup in that version
+downloads only the model and processor configuration from Hugging Face (about
+372 MB); it does not download executable code from GitHub or place runtime DLLs
+in the model cache.
+
+On supported macOS and Linux systems, the operating system blocks the analysis
+worker's network access. On Windows 11, analysis runs in a normal local worker
+process with ONNX Runtime telemetry disabled. PicFetch does not configure an
+operating-system network block for that Windows process. Its lack of a listening
+port does not prevent it from making outgoing connections; local processing and
+the telemetry opt-out are not a guarantee of network isolation. The Windows
+setup page explains this difference before analysis starts.
 
 ## Voluntary community discussions
 

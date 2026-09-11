@@ -26,10 +26,13 @@ set with the keyboard.
 
 ## Features
 
-- Visual Similarity Explorer on Apple Silicon Macs and x86-64 Linux with
-  glibc/seccomp: press `Shift+S` to explore similar pictures as stacks, filter by
+- Visual Similarity Explorer on Apple Silicon Macs, x86-64 Linux with
+  glibc/seccomp, and Windows 11 x64/ARM64: press `Shift+S` to explore similar pictures as stacks, filter by
   75 subjects, and save named cohorts and reusable presets. First use offers a
-  model/runtime download of roughly 383 MB on Linux or 413 MB on macOS.
+  model/runtime download of roughly 383 MB on Linux, 413 MB on macOS, or 451 MB
+  on Windows x64, or 453 MB on Windows ARM64. Microsoft Store includes the
+  runtime and downloads only about 372 MB of model data. Telemetry is disabled on all platforms; macOS/Linux additionally
+  enforce network isolation. Windows explains its different policy before use.
   All image analysis then runs locally. Images are never uploaded. See the
   [privacy policy](PRIVACY.md) and share feedback through
   [GitHub Discussions](https://github.com/frathe/picfetch/discussions).

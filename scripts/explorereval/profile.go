@@ -187,8 +187,8 @@ func profileAnalysis(ctx context.Context, client similarity.Client, paths []stri
 	if err != nil {
 		return pass, "", err
 	}
-	if !final.Complete || !final.OfflineVerified || final.Total != len(paths) || len(final.Items) != len(paths) || final.Successful+final.Failed != len(paths) || final.CacheWarning != "" || final.Measurements.Publications == 0 {
-		return pass, "", fmt.Errorf("production profile lacks complete offline source/cache/publication accounting")
+	if !final.Complete || final.OfflineVerified != similarity.EnforcesNetworkIsolation() || final.Total != len(paths) || len(final.Items) != len(paths) || final.Successful+final.Failed != len(paths) || final.CacheWarning != "" || final.Measurements.Publications == 0 {
+		return pass, "", fmt.Errorf("production profile lacks complete source/cache/publication or network-policy accounting")
 	}
 	digest := sha256.New()
 	identities := json.NewEncoder(digest)

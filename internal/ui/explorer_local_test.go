@@ -30,9 +30,9 @@ import (
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
-// The real worker enforces outbound denial before it reads image pixels. This
-// explicit suite fails on absent local assets; it never silently substitutes a
-// provider or skips the native integration.
+// The real worker uses the platform's network policy: OS denial on macOS/Linux,
+// a normal local process on Windows. This explicit suite fails on absent local
+// assets; it never substitutes a provider or skips the native integration.
 func TestVisualSimilarityExplorerLocal(t *testing.T) {
 	t.Run("configured_file_size_limit", func(t *testing.T) {
 		before := imaging.MaxEncodedBytes()
@@ -304,7 +304,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 				groups[item.Cohort] = true
 			}
 		}
-		if !final.OfflineVerified || final.Successful != len(paths) || len(groups) < 2 {
+		if final.OfflineVerified != similarity.EnforcesNetworkIsolation() || final.Successful != len(paths) || len(groups) < 2 {
 			t.Fatalf("known-content corpus did not produce multiple complete real cohorts: ready=%d groups=%d", final.Successful, len(groups))
 		}
 		if len(final.Merges) != len(groups)-1 {
@@ -420,7 +420,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			if !final.OfflineVerified || final.Successful != len(paths) || final.Failed != 0 || final.Reused != reused {
+			if final.OfflineVerified != similarity.EnforcesNetworkIsolation() || final.Successful != len(paths) || final.Failed != 0 || final.Reused != reused {
 				t.Fatalf("offline labeled analysis: %+v", final)
 			}
 			m := final.Measurements
@@ -865,7 +865,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if partials != 1 {
 			t.Fatalf("turning off automatic updates allowed %d partial maps", partials)
 		}
-		if partial.Successful != 30 || len(partial.Items) != 30 || !partial.OfflineVerified {
+		if partial.Successful != 30 || len(partial.Items) != 30 || partial.OfflineVerified != similarity.EnforcesNetworkIsolation() {
 			t.Fatalf("no real partial map after 30 images: ready=%d items=%d", partial.Successful, len(partial.Items))
 		}
 		if !final.Complete || final.Successful != 80 || len(final.Items) != 80 {
@@ -898,7 +898,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
-		if !result.Complete || !result.OfflineVerified || result.Successful != 6 || len(result.Items) != 6 {
+		if !result.Complete || result.OfflineVerified != similarity.EnforcesNetworkIsolation() || result.Successful != 6 || len(result.Items) != 6 {
 			t.Fatalf("real offline engine did not deliver all six inputs: complete=%v denied=%v ready=%d", result.Complete, result.OfflineVerified, result.Successful)
 		}
 		for _, item := range result.Items {
@@ -1033,7 +1033,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 				retried = e
 			}
 		})
-		if err != nil || !retried.OfflineVerified || retried.Successful != 2 || retried.Failed != 0 || len(retried.Items) != 2 {
+		if err != nil || retried.OfflineVerified != similarity.EnforcesNetworkIsolation() || retried.Successful != 2 || retried.Failed != 0 || len(retried.Items) != 2 {
 			t.Fatalf("native restart after canceled worker: ready=%d failed=%d items=%d err=%v", retried.Successful, retried.Failed, len(retried.Items), err)
 		}
 	})

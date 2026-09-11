@@ -1,7 +1,8 @@
 # Local explorer engine experiment
 
-Setup and production worker/UI qualification support Apple Silicon macOS and
-x86-64 Linux. The original smoke and full-library evidence commands below remain
+Asset setup supports Apple Silicon macOS, x86-64 Linux, and x64/ARM64 Windows.
+Production worker/UI tests support those platforms. The original smoke
+and full-library evidence commands below remain
 macOS-only.
 Smoke mode processes a bounded corpus; library mode opens the native viewer
 for the complete supplied collection. Technical collection alone does not qualify
@@ -17,11 +18,35 @@ make explorer-evaluate TRIAL=smoke
 ```
 
 Setup downloads a public 372 MB float32 SigLIP 2 vision model, its processor
-configuration, and the ONNX Runtime archive (11 MB on Linux, 42 MB on macOS). Published
+configuration, and the ONNX Runtime archive (11 MB on Linux, 42 MB on macOS,
+80 MB on Windows x64, 82 MB on Windows ARM64). Published
 model/archive SHA-256 values are checked before use/extraction; extracted
 runtime and processor hashes are checked too. Nothing is installed globally.
 The shared installer selects pinned platform archives in `internal/similarity/assets.go`;
 extracted files are checked against `internal/similarity/assets.sha256`. Upstream native runtime license files remain in the extracted archive.
+
+On Windows 11 x64/ARM64, install the assets from PowerShell without Bash or Make:
+
+```powershell
+go run ./scripts/explorereval -install -assets .scratch/visual-similarity-explorer/assets
+```
+
+`make explorer-setup` uses the same command. The download is about 451 MB on x64 or 453 MB on ARM64;
+only the required DLLs and license notices are extracted from the Windows ZIP,
+excluding its large debug symbols. Repeating setup verifies and reuses the local
+files without another HTTP request. `make explorer-download-test` qualifies this
+path without loading native code or launching an analysis worker.
+
+Windows inference requires the [Microsoft Visual C++ v14 Redistributable for its architecture](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+The asset installer does not install system components or change firewall,
+AppContainer, or filesystem permissions. The ARM64 runtime and executable can be cross-built; run inference on an ARM64 Windows device to qualify them.
+
+The Windows worker is a normal hidden subprocess using local pipes, with no
+listening port and no OS-enforced network block. ONNX Runtime telemetry is
+disabled through its API before session creation, and failure stops analysis.
+Windows events retain `OfflineVerified: false`; this field specifically records
+OS enforcement, not whether processing is local or can run without internet.
+The viewer explains this policy before first use. macOS/Linux isolation remains.
 
 On x86-64 Linux:
 
@@ -60,7 +85,8 @@ test target uses the default pinned asset directory. `TRIAL=library` launches
 the isolated native viewer and processes the complete supplied folder; see
 "Isolated native collection" below.
 
-The native runtime's full telemetry opt-out is set before its library is loaded.
+The telemetry environment opt-out is set before loading the library, and the
+runtime API disables telemetry before session creation.
 The macOS worker uses `sandbox-exec` with `(deny network*)`; the Linux worker
 installs a seccomp filter on all threads, denying sockets and io_uring before
 reading requests. No root access, package manager, or namespace helper is needed.
@@ -124,7 +150,8 @@ aggregate metadata, including a digest of source identities and content hashes,
 executable digest, runtime/model/provider settings and temporary cache size.
 It contains no paths, source images, previews or vectors.
 
-Each worker enforces TCP/UDP OS network denial before reading images. The
+macOS/Linux workers enforce TCP/UDP OS network denial before reading images;
+Windows reports that this protection is absent. The
 parent scans local directory metadata and records progress. Both use the
 production CPU configuration (six native inference threads). The default
 publishes only the completed map, matching the viewer's manual update default.
@@ -161,17 +188,20 @@ Timing definitions (seconds of wall time, not CPU time):
 
 `make explorer-test` runs profiling acceptance outside the outer sandbox used
 by the old evaluator tests, because the production client creates its own
-denied-network worker. Native tests fail for missing assets, rather than skip.
+worker with OS network denial on macOS/Linux and ordinary local process pipes
+on Windows. Native tests fail for missing assets, rather than skip.
 This command supplies stage/count evidence for a modest corpus; UI latency,
 native RSS, full-library scaling and the user's semantic verdict remain separate.
 
 ## Native viewer trial
 
-Regular installs offer the model/runtime download on first Explorer use.
+Standalone installs offer the model/runtime download on first Explorer use;
+Store installs download only the model data and include the runtime.
 `make explorer-install-test` explicitly downloads the actual pinned public files
 to a temporary directory, verifies progress and integrity, checks reuse without
-HTTP, retains runtime notices, and runs synthetic-image inference under OS
-network denial. This network qualification is separate from the offline suite.
+HTTP, retains runtime notices, and runs synthetic-image inference with the
+platform's network policy. This download qualification is separate from the
+offline suite.
 
 The accepted engine is shared with PicFetch in `internal/similarity`.
 After `make explorer-setup`, run `make run`, open the demo directory, then choose
@@ -183,14 +213,14 @@ maximizes the window. Drag or Shift-scroll to pan, scroll or use
 cohort in Grid View. Open an image normally; `Escape` returns to the cohort,
 then `Escape` or **Back to map** returns to the preserved map camera.
 **Unassigned** opens the noise collection. **Back to Viewer** leaves the map;
-leaving unfinished analysis cancels and waits for the isolated worker at shutdown.
+leaving unfinished analysis cancels and waits for the worker at shutdown.
 Leaving releases map image resources; reopening rebuilds from saved favorite
 representations where available. Replaced map revisions release their old image
 sources immediately instead of waiting for Fyne renderer-cache expiry.
 
-`make explorer-ui-test` requires the pinned assets on a supported Mac or Linux host.
-It runs the ordinary UI acceptance scenarios plus real worker inference, denied
-network access, missing-source accounting, and cancellation. Default assets
+`make explorer-ui-test` requires the pinned assets on a supported Mac, Linux, or
+Windows x64/ARM64 host. It runs the ordinary UI acceptance scenarios plus real worker
+inference, the platform's network policy, missing-source accounting, and cancellation. Default assets
 are `similarity-assets` beside the executable or the developer scratch assets
 under the working directory; `PICFETCH_SIMILARITY_ASSETS` overrides that path.
 No assets or images are downloaded during analysis. The model is still a
@@ -288,3 +318,21 @@ The ordinary Explorer's **Presets** library supports AND rules over existing
 visual tags and image facts, explicit matching previews, and reviewed Unassigned
 membership. Favorite memberships persist independently of reusable definitions.
 See the app manual for editing, pending members and compatibility recovery.
+
+## Microsoft Store assets
+
+Build with the `microsoftstore` tag and stage using `scripts/msixstage` with the
+architecture-matched `-runtime-archive`. The executable loads only the packaged
+runtime; cache/environment overrides select model data only. Its installer
+transfers about 372 MB from Hugging Face and never downloads runtime code.
+The MSIX includes upstream runtime/license/privacy notices and declares the
+Microsoft Desktop C++ framework dependency. See `docs/microsoft-store.md`.
+
+To qualify model-only downloads and inference, compile the explicit installer
+test executable with `-tags "microsoftstore explorerinstall"`, stage it with its
+matching runtime archive, and run the staged executable with
+`'-test.run=^(TestAssetInstall|TestRealAssetInstall)$' '-test.v=true'`. This runs
+the HTTP failure fixtures and checks that cached DLL copies
+cannot override the bundled runtime. An ordinary `go test` temporary executable
+has no bundled runtime and intentionally fails Store installation admission;
+the HTTP fixtures skip there and run in the staged test executable instead.

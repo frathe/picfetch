@@ -1,4 +1,4 @@
-//go:build !linux || !amd64
+//go:build !windows && (!linux || !amd64)
 
 package similarity
 

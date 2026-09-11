@@ -22,8 +22,8 @@ type Encoder struct {
 }
 
 func NewEncoder(assets, provider string) (_ *Encoder, err error) {
-	// The API opt-out is too late for initialization telemetry in official
-	// native builds. Disable the uploader before loading the runtime library.
+	// Non-Windows runtimes read this before initialization; Windows also needs
+	// the API opt-out below. Set it before loading the native library.
 	if err := os.Setenv("ORT_DISABLE_TELEMETRY", "1"); err != nil {
 		return nil, fmt.Errorf("disable runtime telemetry: %w", err)
 	}
@@ -31,7 +31,11 @@ func NewEncoder(assets, provider string) (_ *Encoder, err error) {
 	if err != nil {
 		return nil, err
 	}
-	ort.SetSharedLibraryPath(filepath.Join(assets, asset.directory, asset.library))
+	nativeRoot, err := runtimeDirectory(assets)
+	if err != nil {
+		return nil, err
+	}
+	ort.SetSharedLibraryPath(filepath.Join(nativeRoot, asset.directory, asset.library))
 	if err := ort.InitializeEnvironment(); err != nil {
 		return nil, err
 	}
@@ -41,6 +45,11 @@ func NewEncoder(assets, provider string) (_ *Encoder, err error) {
 			e.Close()
 		}
 	}()
+	// Disable runtime telemetry before creating a session or analyzing images.
+	// An opt-out failure must stop initialization and release the environment.
+	if err = ort.DisableTelemetry(); err != nil {
+		return nil, fmt.Errorf("disable runtime telemetry: %w", err)
+	}
 	options, err := ort.NewSessionOptions()
 	if err != nil {
 		return nil, err

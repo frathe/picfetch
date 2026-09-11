@@ -72,7 +72,7 @@ func TestProductionProfile(t *testing.T) {
 		t.Fatalf("profile lost its corpus, executable identity or cold/warm passes: %s", data)
 	}
 	for i, pass := range report.Passes {
-		if pass.Successful != 2 || pass.Failed != 1 || pass.Reused != i*2 || !pass.OfflineVerified || pass.Measurements.InferenceAttempts != (1-i)*2 || pass.Measurements.Publications != 1 || pass.Measurements.GroupingSeconds <= 0 || pass.FirstMapSeconds <= 0 || pass.WorkerExitedSeconds < pass.FirstMapSeconds || pass.WorkerExitedSeconds < pass.Measurements.ElapsedSeconds {
+		if pass.Successful != 2 || pass.Failed != 1 || pass.Reused != i*2 || pass.OfflineVerified != similarity.EnforcesNetworkIsolation() || pass.Measurements.InferenceAttempts != (1-i)*2 || pass.Measurements.Publications != 1 || pass.Measurements.GroupingSeconds <= 0 || pass.FirstMapSeconds <= 0 || pass.WorkerExitedSeconds < pass.FirstMapSeconds || pass.WorkerExitedSeconds < pass.Measurements.ElapsedSeconds {
 			t.Fatalf("pass %d lost failed-source, reuse, timing or exit evidence: %+v", i, pass)
 		}
 	}

@@ -9,7 +9,9 @@ Store ID `9P0DM0KTH01K`. Do not paste this introductory text into the listing.
 - Support: https://github.com/frathe/picfetch/issues
 - Privacy policy: https://github.com/frathe/picfetch/blob/main/PRIVACY.md
 - License: https://github.com/frathe/picfetch/blob/main/LICENSE
-- License terms: MIT License
+- License terms: PicFetch source is MIT; bundled components have their own
+  terms in `THIRD-PARTY-NOTICES.md`. Resolve the existing GPL clustering
+  dependency before finalizing the release's license declaration.
 - Pricing: Free
 - Advertising: None
 - Accounts or sign-in: None
@@ -18,6 +20,9 @@ Store ID `9P0DM0KTH01K`. Do not paste this introductory text into the listing.
   transmits the corresponding map-tile coordinates and the device IP address to
   OpenStreetMap only after the user explicitly expands the Location map. Images,
   filenames, and other EXIF fields are not transmitted.
+  Optional Explorer setup downloads about 372 MB of public model data from
+  Hugging Face. That service and its download providers receive the device IP
+  address and ordinary request information, without image data or local paths.
 
 ## Restricted-capability explanation
 
@@ -32,7 +37,17 @@ app exits.
 
 PicFetch requires no account or sign-in. Open an image with File -> Open, by
 dragging an image or folder onto the window, or through a registered image-file
-association. The app can then be exercised entirely with local files.
+association. Image viewing works with local files without model setup.
+
+Visual Similarity Explorer is available on Windows 11 x64 and ARM64. First use
+explains local processing and offers an optional 372 MB Hugging Face model-data
+download. It performs no executable-code download. Both ONNX Runtime DLLs and
+their upstream license, notices and privacy document are bundled in each
+architecture's MSIX. Microsoft Store installs/updates the runtime and the
+declared Microsoft.VCLibs.140.00.UWPDesktop framework dependency. Analysis works
+offline after setup, with ONNX Runtime telemetry disabled before session
+creation. Its worker uses private process pipes and opens no listening port;
+Windows does not impose an OS network block on that process.
 
 The EXIF Location map is collapsed by default. Network requests to
 `tile.openstreetmap.org` begin only when the user expands Location for a photo
@@ -65,11 +80,18 @@ Images are decoded and processed on your device. PicFetch contains no ads,
 analytics, or telemetry. The optional EXIF Location map is collapsed by default
 and contacts OpenStreetMap only when you explicitly open it.
 
+The optional Visual Similarity Explorer groups related pictures locally. Its
+first-use setup offers a model-data download of about 372 MB from Hugging Face.
+The runtime is included and updated through Microsoft Store. After setup,
+analysis works offline on Windows 11 x64 and ARM64.
+
 ### Features
 
 Fast browsing of individual images, file selections, and recursively scanned folders
 
 Thumbnail grid with search, multi-selection, favorites, and duplicate handling
+
+Local Visual Similarity Explorer with subject filters and saved image cohorts
 
 Side-by-side and swipe comparison with linked or independent zoom and pan
 
@@ -126,15 +148,23 @@ skalierbare SVG-Grafiken, animierte GIFs und eingebettete Vorschauen vieler
 Kamera-RAW-Formate.
 
 Bilder werden ausschließlich auf Ihrem Gerät dekodiert und verarbeitet.
-PicFetch enthält keine Werbung, Analysefunktionen oder Telemetrie. Die
+PicFetch enthält keine Werbung, Nutzungsanalyse oder Telemetrie. Die
 optionale Standortkarte für EXIF-Daten ist standardmäßig eingeklappt und
 kontaktiert OpenStreetMap nur, wenn Sie sie ausdrücklich öffnen.
+
+Der optionale Visual Similarity Explorer gruppiert ähnliche Bilder lokal.
+Die erste Einrichtung bietet einen Download von etwa 372 MB Modelldaten von
+Hugging Face an. Die Laufzeit ist enthalten und wird über den Microsoft Store
+aktualisiert. Nach der Einrichtung funktioniert die Analyse unter Windows 11
+x64 und ARM64 offline.
 
 ### Features
 
 Schnelles Blättern durch einzelne Bilder, Dateiauswahlen und rekursiv gelesene Ordner
 
 Miniaturansicht mit Suche, Mehrfachauswahl, Favoriten und Duplikatverwaltung
+
+Lokaler Visual Similarity Explorer mit Motivfiltern und gespeicherten Bildgruppen
 
 Vergleich nebeneinander oder per Schieberegler mit gemeinsamem oder unabhängigem Zoom und Verschieben
 
@@ -146,7 +176,7 @@ EXIF-Daten, Orientierungskorrektur und optionale Standortkarte von OpenStreetMap
 
 Zoom, Verschieben, Drehen, Diashow, Hintergrundbild, Zwischenablage, Export und Entfernen von Metadaten
 
-Kein Konto, keine Werbung, keine Analysefunktionen und keine Telemetrie
+Kein Konto, keine Werbung, keine Nutzungsanalyse und keine Telemetrie
 
 Deutsche und englische Benutzeroberfläche
 

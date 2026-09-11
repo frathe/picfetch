@@ -40,7 +40,7 @@ the raw events outside the repository; the generated assignment lives at
 
 Local content analysis shared by the viewer and its reproducible experiment.
 `client.go` owns `Client.Analyze` (selected source paths, control channel, immutable `Event` callbacks),
-asset discovery, the cancellable offline subprocess, and private `WorkerMain`
+asset discovery, the cancellable analysis subprocess, and private `WorkerMain`
 dispatch. Each request captures the caller's encoded-file size limit; the worker
 installs it before source reads. `analyze.go` accounts for every input, captures source versions,
 reuses canonical full oriented decoding, makes previews, and publishes a map
@@ -54,10 +54,14 @@ and publication counts as immutable values; grouping includes its named sub-stag
 `control_unix.go`/`control_other.go` own the pollable worker input descriptor.
 `worker_linux_amd64.go` installs worker-only seccomp denial synchronized across all
 threads before reading requests; `worker_other.go` retains the macOS sandbox launcher.
+`worker_windows.go` launches a hidden ordinary subprocess with closeable control
+pipes; Windows does not install OS network denial and events keep `OfflineVerified`
+false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
-`encoder.go` (cgo) disables native runtime telemetry before library loading and owns
+`encoder.go` (cgo) sets the non-Windows telemetry opt-out before library loading,
+disables telemetry through the runtime API before session creation, and owns
 the pinned native SigLIP 2 session;
 `encoder_nocgo.go` keeps cross-platform package builds available and reports that
 inference requires cgo.
@@ -75,11 +79,17 @@ native runtime is process-global and batch algorithms cannot be interrupted
 in place. `assets.go`/`assets.sha256` verify pinned local assets;
 `assets_install.go` checks local availability and performs explicit, cancellable
 HTTPS installation into a per-user cache. It bounds and hashes downloads,
-extracts only named runtime/license files and publishes verified files; analysis
+extracts only named runtime/license files from tarballs or Windows x64/ARM64 ZIPs
+and publishes verified files; Windows ZIPs include both pinned runtime DLLs and
+skip debug symbols. Store builds verify/load DLLs beside the executable, ignore
+model-cache runtime overrides, and download only model data. `assets_package.go`
+verifies architecture-specific archives for MSIX staging and extracts both DLLs
+and the upstream license, third-party notices and privacy document.
+Asset availability is separate from analysis admission; analysis
 never starts a download. `offline.go`
-verifies actual TCP/UDP OS denial; `files.go` registers the driverless read-only
-file repository. Production setup/analysis supports Apple Silicon macOS and glibc
-Linux amd64; native library evidence collection remains macOS-only.
+verifies actual TCP/UDP OS denial on macOS/Linux; `files.go` registers the driverless read-only
+file repository. Production setup/analysis supports Apple Silicon macOS, glibc
+Linux amd64 and Windows x64/ARM64; native library evidence collection remains macOS-only.
 
 ### `internal/explorerpresets`
 
@@ -107,15 +117,19 @@ The module starts no goroutines.
 
 Bounded local experiment reached through `make explorer-setup`,
 `make explorer-test` and `make explorer-evaluate`. `main.go` owns the experiment
-CLI/offline launch and the explicit `-install` entry point; `setup.sh` delegates
-to the same verified `Client.InstallAssets` used by the viewer. Platform runtime
+CLI/offline launch and the explicit `-install` entry point; `make explorer-setup`
+calls it directly without requiring Bash, and `setup.sh` remains a compatibility
+wrapper for the same verified `Client.InstallAssets` used by the viewer.
+`make explorer-download-test` qualifies download/reuse without loading native code.
+Platform runtime
 archives are selected in `internal/similarity/assets.go` and extracted library
 hashes remain in `internal/similarity/assets.sha256`.
 `evaluate.go` uses the shared native encoder/grouping and adds per-stage
 measurement and evidence files; `files.go` selects the bounded smoke corpus.
 `report.go` and `review.html` produce local cohort/measurement artifacts;
 `memory_*.go` measures native RSS; `evaluate.sh` retains each run/exit status.
-Real-model tests require assets and OS denial under the `explorertrial` tag.
+Real-model tests require assets under the `explorertrial` tag and check the
+platform's actual network policy; Windows must not claim OS denial.
 `make explorer-ui-test` additionally exercises the production worker and
 completed-map/Grid View round trip through the UI harness.
 `profile.go`, reached with `make explorer-profile`, runs bounded cold/warm passes

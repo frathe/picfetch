@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -19,10 +22,30 @@ import (
 // This explicit network qualification downloads the actual pinned public files.
 // It is separate from both the ordinary suite and the offline model suite.
 func TestRealAssetInstall(t *testing.T) {
+	client := qualifyAssetDownload(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	qualifyInstalledAnalysis(t, ctx, client)
+	t.Logf("installed runtime analyzed the synthetic image; OS network denial=%v", similarity.EnforcesNetworkIsolation())
+}
+
+// Download qualification never loads a DLL or starts an analysis subprocess.
+func TestRealAssetDownload(t *testing.T) {
+	_ = qualifyAssetDownload(t)
+}
+
+func qualifyAssetDownload(t *testing.T) similarity.Client {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 	root := t.TempDir()
 	client := similarity.Client{Assets: filepath.Join(root, "assets")}
+	client.HTTPClient = &http.Client{Transport: assetTransport(func(request *http.Request) (*http.Response, error) {
+		if distribution.StoreManaged && strings.Contains(request.URL.Host, "github") {
+			return nil, fmt.Errorf("Store setup attempted a runtime download: %s", request.URL)
+		}
+		return http.DefaultTransport.RoundTrip(request)
+	})}
 	var received, total int64
 	last := time.Time{}
 	directory, err := client.InstallAssets(ctx, func(p similarity.DownloadProgress) {
@@ -48,8 +71,51 @@ func TestRealAssetInstall(t *testing.T) {
 	if _, err := client.InstallAssets(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"LICENSE", "ThirdPartyNotices.txt"} {
-		matches, err := filepath.Glob(filepath.Join(directory, "onnxruntime-*", name))
+	runtimeRoot := directory
+	if distribution.StoreManaged {
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtimeRoot = filepath.Dir(executable)
+		entries, err := os.ReadDir(directory)
+		if err != nil || len(entries) != 2 {
+			t.Fatalf("Store must install only the model and processor: %v, %v", entries, err)
+		}
+		for _, entry := range entries {
+			if entry.Name() != "vision_model.onnx" && entry.Name() != "preprocessor_config.json" {
+				t.Fatalf("unexpected Store download: %s", entry.Name())
+			}
+		}
+		// A cached runtime with the same file names must not override the
+		// bundled DLLs when the completed model is verified or analyzed.
+		libraries, err := filepath.Glob(filepath.Join(runtimeRoot, "onnxruntime-*", "lib", "*.dll"))
+		if err != nil || len(libraries) != 2 {
+			t.Fatalf("missing packaged runtime: %v, %v", libraries, err)
+		}
+		for _, library := range libraries {
+			relative, err := filepath.Rel(runtimeRoot, library)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fake := filepath.Join(directory, relative)
+			if err := os.MkdirAll(filepath.Dir(fake), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(fake, []byte("untrusted cached DLL"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := client.CheckAssets(ctx); err != nil {
+			t.Fatalf("cached DLLs overrode the Store runtime: %v", err)
+		}
+	}
+	notices := []string{"LICENSE", "ThirdPartyNotices.txt"}
+	if runtime.GOOS == "windows" {
+		notices = append(notices, "Privacy.md")
+	}
+	for _, name := range notices {
+		matches, err := filepath.Glob(filepath.Join(runtimeRoot, "onnxruntime-*", name))
 		if err != nil || len(matches) != 1 {
 			t.Fatalf("runtime notice %s: %v, %v", name, matches, err)
 		}
@@ -58,8 +124,8 @@ func TestRealAssetInstall(t *testing.T) {
 			t.Fatalf("runtime notice missing: %s, %v", name, err)
 		}
 	}
-	qualifyInstalledAnalysis(t, ctx, client)
-	t.Log("verified installation reused without HTTP; installed runtime analyzed the synthetic image under OS network denial")
+	t.Log("verified installation reused without HTTP; runtime notices retained")
+	return client
 }
 
 // Allows the installed assets and the same test binary to be qualified in
@@ -88,7 +154,7 @@ func qualifyInstalledAnalysis(t *testing.T, ctx context.Context, client similari
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !result.OfflineVerified || result.Successful != 1 || result.Failed != 0 || len(result.Items) != 1 {
+	if result.OfflineVerified != similarity.EnforcesNetworkIsolation() || result.Successful != 1 || result.Failed != 0 || len(result.Items) != 1 {
 		t.Fatalf("installed model did not complete offline analysis: %+v", result)
 	}
 }

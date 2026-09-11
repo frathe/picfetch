@@ -20,8 +20,11 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := VerifyOffline(ctx); err != nil {
-		return err
+	offline := EnforcesNetworkIsolation()
+	if offline {
+		if err := VerifyOffline(ctx); err != nil {
+			return err
+		}
 	}
 	if err := VerifyAssets(ctx, req.Assets); err != nil {
 		return err
@@ -37,7 +40,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			encoder.Close()
 		}
 	}()
-	event := Event{Total: len(req.Paths), OfflineVerified: true, Stage: "encoding"}
+	event := Event{Total: len(req.Paths), OfflineVerified: offline, Stage: "encoding"}
 	event.Measurements.SetupSeconds = time.Since(start).Seconds()
 	send := func(snapshot Event) error {
 		snapshot.Measurements.ElapsedSeconds = time.Since(start).Seconds()

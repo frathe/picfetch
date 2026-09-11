@@ -669,10 +669,13 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ---
 
-### Visueller Ähnlichkeits-Explorer (Mac mit Apple Silicon und x86-64-Linux)
+### Visueller Ähnlichkeits-Explorer (Mac mit Apple Silicon, x86-64-Linux und Windows)
 
 Beim ersten Öffnen stellt Trane den Explorer vor. **Herunterladen** installiert
-etwa 383 MB unter Linux oder 413 MB unter macOS an Modell- und Laufzeitdateien von Hugging Face und Microsoft GitHub.
+etwa 383 MB unter Linux, 413 MB unter macOS, 451 MB unter Windows x64 oder 453 MB
+unter Windows ARM64 an Modell- und Laufzeitdateien von Hugging Face und Microsoft GitHub.
+Die Microsoft-Store-Version enthält die Laufzeit und lädt nur etwa 372 MB
+Modelldaten von Hugging Face herunter. Laufzeit-Updates kommen über den Store.
 Die Seite zeigt den Fortschritt und bietet **Abbrechen**. Falls die Einrichtung
 fehlschlägt, prüfe Verbindung und freien Speicherplatz und wähle **Erneut versuchen**.
 Sind die Dateien bereits installiert und geprüft, wähle **Weiter**. Der Download
@@ -683,9 +686,17 @@ die Analyse offline, ohne Uploads, Nutzungsanalyse oder Nutzungsberichte.
 Die Seite verlinkt die **Datenschutzerklärung** und **GitHub-Diskussionen**.
 Die Diskussionen sind auch im Hilfe-Menü und im Infofenster erreichbar. Der
 Link öffnet die öffentliche Community-Seite im Browser, ohne Bilder oder
-App-Daten anzuhängen. Die Analyse benötigt einen Mac mit Apple Silicon oder
-x86-64-Linux mit glibc und Seccomp-Unterstützung.
-Die Unterstützung für Windows und Linux auf ARM ist noch in Vorbereitung.
+App-Daten anzuhängen. Die Analyse benötigt einen Mac mit Apple Silicon,
+x86-64-Linux mit glibc und Seccomp-Unterstützung oder Windows 11 x64/ARM64.
+Direkte Windows-Downloads benötigen das Microsoft Visual C++ v14 Redistributable
+für ihre Architektur; bei der Store-Version verwaltet Microsoft Store diese
+Abhängigkeit. Die Unterstützung für Linux auf ARM ist noch in Vorbereitung.
+
+**Windows:** Die ONNX-Runtime-Telemetrie wird vor der Analyse deaktiviert.
+Der Analyseprozess kommuniziert über lokale Pipes mit PicFetch und öffnet
+keinen Netzwerkport. Windows sperrt den Netzwerkzugriff dieses Prozesses nicht.
+Darauf weist die Einrichtung vor der ersten Analyse hin. Unter macOS und Linux
+bleibt die Netzwerksperre durch das Betriebssystem bestehen.
 
 Der Bereich **Schlagwörter** bietet 75 Motive und Szenen mit der Anzahl
 eindeutiger Bilder, darunter Kostüm, Tracht, Zug, Burg, Wasserfall, Konzert,
@@ -834,9 +845,9 @@ unveränderte Favoritenanalysen wieder. Der Export einer neuen Kopie an einen
 anderen Ort erhält die Karte. Externe Dateiänderungen werden beim Lesen erkannt,
 nicht fortlaufend überwacht.
 
-Der Explorer benötigt lokale Modelldaten auf einem Mac mit Apple Silicon oder
-x86-64-Linux mit glibc und Seccomp-Unterstützung.
-Die Analyse läuft lokal mit gesperrtem Netzwerkzugriff. Stapel halten Abstand;
+Der Explorer benötigt lokale Modelldaten. Die Analyse läuft lokal mit
+deaktivierter Telemetrie; macOS und Linux sperren zusätzlich den Netzwerkzugriff
+des Analyseprozesses durch das Betriebssystem. Stapel halten Abstand;
 bestehende Gruppen behalten bei neuen Ergebnissen ihre Position. Eine geöffnete
 Gruppe behält ihre Mitglieder; erneutes Öffnen verwendet die aktuelle Gruppierung.
 Unter **Einstellungen -> Allgemein -> Visueller Ähnlichkeits-Explorer** stehen

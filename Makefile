@@ -55,12 +55,15 @@ EXPLORER_EVIDENCE ?= .scratch/visual-similarity-explorer/evidence
 EXPLORER_PROVIDER ?= cpu
 TRIAL ?= smoke
 
-.PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test
-explorer-install-test: ## Download pinned public assets to a temporary directory and qualify installation/offline use on supported macOS/Linux
+.PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test explorer-download-test
+explorer-download-test: ## Qualify pinned asset downloads and reuse without launching native analysis
+	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetDownload$$' -count=1 -v -timeout 25m
+
+explorer-install-test: ## Download pinned public assets and qualify local analysis with the platform's network policy
 	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
 
-explorer-setup: ## Download and verify pinned public assets for the local explorer on supported macOS/Linux
-	bash scripts/explorereval/setup.sh "$(EXPLORER_ASSETS)"
+explorer-setup: ## Download and verify pinned public Explorer assets (macOS arm64, Linux x64, Windows x64/arm64)
+	go run ./scripts/explorereval -install -assets "$(EXPLORER_ASSETS)"
 
 explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, throughput, or library)
 	@mkdir -p $(BIN_DIR)
@@ -86,7 +89,7 @@ explorer-test: ## Run real-model acceptance tests under explicit macOS network d
 	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.run '^(TestEvaluation|TestReal)' -test.v -test.count=1
 	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^(TestProductionProfile|TestNativeLibraryRunner)' -test.v -test.count=1
 
-explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on supported macOS/Linux
+explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on supported macOS/Linux/Windows
 	go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v
 
 

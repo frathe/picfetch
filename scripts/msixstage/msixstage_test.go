@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -35,6 +37,7 @@ func TestRenderManifest_UsesStoreIdentityVersionAndArchitecture(t *testing.T) {
 		`uap10:RuntimeBehavior="packagedClassicApp"`,
 		`uap10:TrustLevel="mediumIL"`,
 		`<rescap:Capability Name="runFullTrust" />`,
+		`<PackageDependency Name="Microsoft.VCLibs.140.00.UWPDesktop" MinVersion="14.0.33728.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />`,
 	} {
 		if !strings.Contains(manifest, want) {
 			t.Errorf("manifest missing %q", want)
@@ -137,6 +140,11 @@ func TestStage_CopiesExecutableAndRendersAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestIcon(t, filepath.Join(root, "assets", "appIcon.png"))
+	for _, name := range []string{"LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("test "+name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	exe := filepath.Join(root, "input.exe")
 	wantExe := []byte("test executable")
@@ -145,8 +153,49 @@ func TestStage_CopiesExecutableAndRendersAssets(t *testing.T) {
 	}
 
 	out := filepath.Join(root, "stage")
-	if err := stage(stageOptions{Root: root, Arch: "amd64", Executable: exe, Out: out}); err != nil {
+	for _, arch := range []string{"amd64", "arm64"} {
+		t.Run(arch+"_requires_runtime", func(t *testing.T) {
+			if err := stage(stageOptions{Root: root, Arch: arch, Executable: exe, Out: filepath.Join(root, "missing-runtime")}); err == nil {
+				t.Fatal("Store staging accepted an absent bundled runtime")
+			}
+		})
+	}
+	options := stageOptions{Root: root, Arch: "arm64", Executable: exe, Out: out, RuntimeArchive: filepath.Join(root, "runtime.zip")}
+	t.Run("runtime_failure_stops_packaging", func(t *testing.T) {
+		wantErr := errors.New("runtime checksum mismatch")
+		if err := stageWithRuntime(options, func(_ context.Context, _, _, _ string) error { return wantErr }); !errors.Is(err, wantErr) {
+			t.Fatalf("runtime failure was lost: %v", err)
+		}
+		if _, err := os.Stat(out); !os.IsNotExist(err) {
+			t.Fatalf("failed runtime produced a package: %v", err)
+		}
+	})
+	runtimeStaged := false
+	if err := stageWithRuntime(options, func(_ context.Context, arch, archive, destination string) error {
+		if arch != options.Arch || archive != options.RuntimeArchive || destination != out {
+			t.Fatal("runtime staging lost its architecture, pinned input or destination")
+		}
+		runtimeStaged = true
+		return nil
+	}); err != nil {
 		t.Fatal(err)
+	}
+	if !runtimeStaged {
+		t.Fatal("Store package omitted runtime staging")
+	}
+	t.Run("rejects_stale_package", func(t *testing.T) {
+		if err := stageWithRuntime(options, func(_ context.Context, _, _, _ string) error {
+			t.Fatal("attempted runtime extraction into a stale package")
+			return nil
+		}); err == nil || !strings.Contains(err.Error(), "must be empty") {
+			t.Fatalf("stale package accepted: %v", err)
+		}
+	})
+	for _, name := range []string{"LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md"} {
+		got, err := os.ReadFile(filepath.Join(out, name))
+		if err != nil || string(got) != "test "+name {
+			t.Fatalf("staged notice %s: %q, %v", name, got, err)
+		}
 	}
 
 	gotExe, err := os.ReadFile(filepath.Join(out, "picfetch.exe"))
@@ -248,6 +297,8 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 		"make package-windows-store",
 		"-arch amd64",
 		"-arch arm64",
+		"-runtime-archive dist/onnxruntime-win-x64.zip",
+		"-runtime-archive dist/onnxruntime-win-arm64.zip",
 		"MakeAppx.exe",
 		"/h SHA256",
 		"SignTool.exe",
@@ -450,6 +501,7 @@ func TestPackagingToolsUseCurrentFyneCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	inputs = bytes.ReplaceAll(inputs, []byte("\r\n"), []byte("\n"))
 	for _, pattern := range []string{
 		`(?m)^FYNE_VERSION := v[0-9]+\.[0-9]+\.[0-9]+$`,
 		`(?m)^FYNE_CROSS_VERSION := v[0-9]+\.[0-9]+\.[0-9]+$`,

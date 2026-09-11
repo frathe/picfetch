@@ -1,3 +1,43 @@
+## Windows Explorer setup (2026-09-11)
+
+- [x] Add the pinned Windows x64 runtime ZIP, bounded extraction of required
+  DLLs/notices, native setup command, and download-only qualification. Actual
+  451.5 MB download and reuse without HTTP pass on Windows 11.
+- [x] Add ONNX Runtime's explicit telemetry API opt-out before session creation,
+  with initialization cleanup on failure. Clarify in the privacy policy that
+  Explorer uses local process pipes and opens no localhost/model-server port.
+  Native Windows synthetic-image inference passed with the explicit opt-out.
+- [x] Enable the normal Windows worker following the user's choice of telemetry
+  opt-out without firewall/AppContainer isolation, clarified after the local-port
+  misunderstanding. Add the Windows first-use notice and privacy/manual updates;
+  preserve macOS/Linux isolation and honest `OfflineVerified` evidence.
+  Do not repeat the AppContainer/BFS probes after the reported host crashes.
+  See [the active plan](plans/2026-09-11-explorer-windows-setup.md).
+- [x] Qualify native inference, first-use setup, configured file-size limits,
+  cancellation, and worker/UI restart with small serial Windows tests. Inspect
+  the setup notice and action button at a small window size.
+- [x] Build `bin/picfetch.exe` (Windows x64 GUI, 53.6 MB) for local testing;
+  verify one synthetic image through that exact EXE and clean worker exit.
+  Native vet/build, translations/manual guards, formatting and exclusions pass.
+- [x] User accepted the local Windows x64 EXE on 2026-09-11: all tested behavior
+  worked well.
+- [ ] CI's complete Linux/race gate remains outstanding. The earlier host crash cause is unresolved; do not
+  repeat the isolation probes or broad Docker/race run on this host.
+- [x] Bundle architecture-pinned ONNX Runtime DLLs and upstream notices in Store
+  packages; download only 372 MB model data. Verify that cache overrides cannot
+  replace bundled DLLs. Declare the Store-managed C++ framework dependency and
+  update privacy, notices, manuals and Store listing/certification notes.
+- [x] Implement native Windows ARM64 runtime setup and cross-build support using
+  the verified portable LLVM-MinGW toolchain, without Docker or system changes.
+- [ ] User to test Explorer on ARM64 hardware. Cross-compilation and archive/DLL
+  integrity checks do not qualify native ARM64 execution. MSIX/WACK stays in CI.
+- [ ] Before distribution, resolve the existing GPLv3-only
+  `github.com/alDuncanson/latent/projection` dependency. Its full license is now
+  included in the third-party notice; adding the notice alone does not settle
+  compatibility with the current MIT-only distribution description. A permissive
+  replacement is recommended; no algorithm change or relicensing was authorized
+  by the DLL/ARM request. See the active plan for the candidate and evidence.
+
 ## PR 18 review fixes (2026-09-11)
 
 - [x] Follow-up review: preserve Unassigned Analyze on Window-menu grid return,
@@ -234,15 +274,15 @@ while another distro build ran. Its one-second Settle deadline expired; an
 isolated native and exact Ubuntu Docker race reruns passed. Review the fixture's deadline/load sensitivity;
 the Explorer change does not modify comparison code.
 
-### Explorer on Linux ARM and Windows
+### Explorer on Linux ARM
 
-First-use setup and offline inference now support Apple Silicon macOS and
-glibc-based x86-64 Linux. Linux ARM and Windows still need pinned runtime packages and notices,
-OS network-denial launchers, cancellable worker-control readers, and native
-inference/lifecycle qualification on their supported architectures. The common
+First-use setup and local inference now support Apple Silicon macOS,
+glibc-based x86-64 Linux and Windows x64/ARM64. Windows qualification is tracked
+above. Linux ARM still needs a pinned runtime package and notices, an OS
+network-denial launcher, and native inference/lifecycle qualification. The common
 model, grouping, map and cache code is shared; passing a cross-build alone does
 not qualify native Explorer execution. The no-cgo fallback restores the existing
-Windows package-build checks. See the
+package-build checks. See the
 [release setup plan](finished_refactorings/2026-09-10-explorer-release-setup.md).
 
 ### Similarity-map zoom trial

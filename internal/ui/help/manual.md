@@ -586,11 +586,13 @@ any desktop change; **Save Image** remains available.
 
 ---
 
-### Visual similarity explorer (Apple Silicon Mac and x86-64 Linux)
+### Visual similarity explorer (Apple Silicon Mac, x86-64 Linux and Windows)
 
 On first use, Trane introduces the Explorer. Choose **Download** to install
 model and runtime files from Hugging Face and Microsoft GitHub (about 383 MB
-on Linux or 413 MB on macOS).
+on Linux, 413 MB on macOS, 451 MB on Windows x64 or 453 MB on Windows ARM64).
+The Microsoft Store version includes the runtime and downloads only about
+372 MB of model data from Hugging Face; runtime updates come through the Store.
 The page shows progress and offers **Cancel**; if setup fails, check your
 connection and free disk space and choose **Retry**. If the files are already
 installed and verified, choose **Continue**. Downloading is optional and only
@@ -601,8 +603,15 @@ without uploads, analytics, or usage reports. The page links to the
 **Privacy policy** and **GitHub Discussions**. Discussions also appears in the
 Help menu and About window; it opens the public community page in your browser
 without attaching images or app data. Explorer analysis currently requires an
-Apple Silicon Mac or x86-64 Linux with glibc and seccomp support.
-Windows and Linux ARM support is still being prepared.
+Apple Silicon Mac, x86-64 Linux with glibc and seccomp support, or Windows 11
+x64/ARM64. Direct Windows downloads require the Microsoft Visual C++ v14
+Redistributable for their architecture; Microsoft Store manages that dependency
+for its version. Linux ARM support is still being prepared.
+
+**Windows:** ONNX Runtime telemetry is disabled before analysis. The worker
+communicates with PicFetch through local pipes and opens no network port.
+Windows does not block that worker's network access. The first-use notice
+explains this difference; macOS and Linux retain OS-enforced network isolation.
 
 With images open, press **`Shift+S`** or choose **Window -> Visual Similarity Explorer**. It analyzes
 the opened images, including merged sets and Favorites. When duplicate filtering
@@ -726,8 +735,8 @@ open cohort remain browsable. Reopen the explorer to build a fresh map; unchange
 favorite analysis is reused. Exporting a new copy elsewhere preserves the map.
 External file changes are detected when files are read, not watched continuously.
 
-The Explorer requires local model assets on an Apple Silicon Mac or x86-64 Linux
-with glibc and seccomp support. Analysis runs locally with network access denied.
+The Explorer requires local model assets. Analysis runs locally with telemetry
+disabled; macOS and Linux also block the worker's network access at OS level.
 Piles stay separated and continuing groups keep their positions as results arrive.
 Open cohorts retain their captured members; reopening uses the latest grouping.
 

@@ -2,9 +2,11 @@ package similarity
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/frathe/picfetch/internal/distribution"
 )
 
 // DownloadProgress reports aggregate transfer bytes, without source-image data.
@@ -20,9 +24,28 @@ type DownloadProgress struct {
 	Received, Total int64
 }
 
+// ErrBundledRuntimeUnavailable requires package repair, never a code download.
+var ErrBundledRuntimeUnavailable = errors.New("bundled runtime is unavailable; repair or update PicFetch through Microsoft Store")
+
 type assetDownload struct {
 	name, address, digest string
 	size                  int64
+}
+
+func assetDownloads(asset runtimeAsset, bundled bool) []assetDownload {
+	model := "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/" + ModelRevision
+	downloads := []assetDownload{
+		{"vision_model.onnx", model + "/onnx/vision_model.onnx", "c0573e3f4140c3a7c4e9cc5912bd6b26a033b46a6a8e8af26cbea262b163bcad", 371807752},
+		{"preprocessor_config.json", model + "/preprocessor_config.json", "9b36b57ebaf20f09bf4c22100ccc21877ea6bfe5aead0c00c59f8af8ccefacfc", 394},
+	}
+	if !bundled {
+		downloads = append(downloads, asset.download())
+	}
+	return downloads
+}
+
+func (a runtimeAsset) download() assetDownload {
+	return assetDownload{"runtime." + a.archiveExtension, "https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/" + a.directory + "." + a.archiveExtension, a.digest, a.size}
 }
 
 // CheckAssets reads and verifies local assets without making network requests.
@@ -64,6 +87,15 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 	if err != nil {
 		return "", err
 	}
+	if distribution.StoreManaged {
+		nativeRoot, err := runtimeDirectory("")
+		if err != nil {
+			return "", err
+		}
+		if err := verifyRuntime(ctx, nativeRoot, assetRuntime); err != nil {
+			return "", fmt.Errorf("%w: %w", ErrBundledRuntimeUnavailable, err)
+		}
+	}
 	if err := c.CheckAssets(ctx); err == nil {
 		return c.assetDirectory()
 	}
@@ -90,12 +122,7 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 	}
 	defer func() { _ = os.RemoveAll(staging) }()
 
-	model := "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/" + ModelRevision
-	downloads := []assetDownload{
-		{"vision_model.onnx", model + "/onnx/vision_model.onnx", "c0573e3f4140c3a7c4e9cc5912bd6b26a033b46a6a8e8af26cbea262b163bcad", 371807752},
-		{"preprocessor_config.json", model + "/preprocessor_config.json", "9b36b57ebaf20f09bf4c22100ccc21877ea6bfe5aead0c00c59f8af8ccefacfc", 394},
-		{"runtime.tgz", "https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/" + assetRuntime.directory + ".tgz", assetRuntime.digest, assetRuntime.size},
-	}
+	downloads := assetDownloads(assetRuntime, distribution.StoreManaged)
 	client := http.Client{Timeout: 30 * time.Minute}
 	if c.HTTPClient != nil {
 		client = *c.HTTPClient
@@ -118,9 +145,12 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 			return "", err
 		}
 	}
-	files, err := unpackRuntime(ctx, staging)
-	if err != nil {
-		return "", err
+	var files []string
+	if !distribution.StoreManaged {
+		files, err = unpackRuntime(ctx, staging)
+		if err != nil {
+			return "", err
+		}
 	}
 	if err := VerifyAssets(ctx, staging); err != nil {
 		return "", err
@@ -209,6 +239,20 @@ func (r *assetReader) Read(buffer []byte) (int, error) {
 }
 
 func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
+	asset, err := currentRuntime()
+	if err != nil {
+		return nil, err
+	}
+	return unpackRuntimeAsset(ctx, directory, asset)
+}
+
+func unpackRuntimeAsset(ctx context.Context, directory string, asset runtimeAsset) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if asset.archiveExtension == "zip" {
+		return unpackRuntimeZIP(ctx, directory, asset)
+	}
 	archive, err := os.Open(filepath.Join(directory, "runtime.tgz"))
 	if err != nil {
 		return nil, err
@@ -220,12 +264,7 @@ func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
 	}
 	defer func() { _ = compressed.Close() }()
 	reader := tar.NewReader(&assetReader{ctx: ctx, source: io.LimitReader(compressed, 1<<30)})
-	asset, err := currentRuntime()
-	if err != nil {
-		return nil, err
-	}
-	prefix := asset.directory + "/"
-	expected := [...]string{prefix + asset.library, prefix + "LICENSE", prefix + "ThirdPartyNotices.txt"}
+	expected := asset.files()
 	seen := make(map[string]bool, len(expected))
 	var files []string
 	for {
@@ -251,22 +290,8 @@ func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
 		if seen[name] || header.Typeflag != tar.TypeReg || header.Size < 0 || header.Size > 100<<20 {
 			return nil, fmt.Errorf("invalid runtime archive member")
 		}
-		// Only a fixed trusted name can reach a filesystem operation.
-		target := filepath.Join(directory, name)
-		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+		if err := writeRuntimeFile(ctx, directory, name, reader, header.Size); err != nil {
 			return nil, err
-		}
-		file, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if err != nil {
-			return nil, err
-		}
-		_, copyErr := io.Copy(file, reader)
-		closeErr := file.Close()
-		if copyErr != nil {
-			return nil, copyErr
-		}
-		if closeErr != nil {
-			return nil, closeErr
 		}
 		seen[name] = true
 		files = append(files, name)
@@ -277,4 +302,77 @@ func unpackRuntime(ctx context.Context, directory string) ([]string, error) {
 		}
 	}
 	return files, ctx.Err()
+}
+
+func unpackRuntimeZIP(ctx context.Context, directory string, asset runtimeAsset) ([]string, error) {
+	return unpackRuntimeZIPFile(ctx, directory, asset, filepath.Join(directory, "runtime.zip"))
+}
+
+func unpackRuntimeZIPFile(ctx context.Context, directory string, asset runtimeAsset, archivePath string) ([]string, error) {
+	archive, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = archive.Close() }()
+	expected := make(map[string]bool)
+	for _, name := range asset.files() {
+		expected[name] = true
+	}
+	seen := make(map[string]bool)
+	var files []string
+	for _, entry := range archive.File {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		// Skip unlisted entries without decompressing them, including the large
+		// PDB. Never normalize a ZIP name into the trusted allowlist.
+		if !expected[entry.Name] {
+			continue
+		}
+		if seen[entry.Name] || !entry.Mode().IsRegular() || entry.UncompressedSize64 > 100<<20 {
+			return nil, fmt.Errorf("invalid runtime archive member")
+		}
+		reader, err := entry.Open()
+		if err != nil {
+			return nil, err
+		}
+		copyErr := writeRuntimeFile(ctx, directory, entry.Name, reader, int64(entry.UncompressedSize64))
+		closeErr := reader.Close()
+		if copyErr != nil {
+			return nil, copyErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		seen[entry.Name] = true
+		files = append(files, entry.Name)
+	}
+	if len(seen) != len(expected) {
+		return nil, fmt.Errorf("runtime archive is missing required files")
+	}
+	return files, ctx.Err()
+}
+
+// name is a fixed allowlisted runtime path, never an arbitrary archive member.
+func writeRuntimeFile(ctx context.Context, directory, name string, reader io.Reader, size int64) error {
+	target := filepath.Join(directory, name)
+	if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	n, copyErr := io.Copy(file, &assetReader{ctx: ctx, source: io.LimitReader(reader, size+1)})
+	closeErr := file.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if n != size {
+		return fmt.Errorf("invalid runtime archive member size")
+	}
+	return ctx.Err()
 }

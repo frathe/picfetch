@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/similarity"
 )
 
@@ -22,6 +23,17 @@ func (f assetTransport) RoundTrip(request *http.Request) (*http.Response, error)
 }
 
 func TestAssetInstall(t *testing.T) {
+	t.Run("windows_policy", func(t *testing.T) {
+		if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+			t.Skip("Windows x64/ARM64 policy")
+		}
+		if !similarity.SupportedPlatform() || similarity.EnforcesNetworkIsolation() {
+			t.Fatal("Windows must support local analysis without claiming OS network isolation")
+		}
+		if err := similarity.VerifyOffline(context.Background()); err == nil || !strings.Contains(err.Error(), "does not enforce") {
+			t.Fatalf("Windows must explicitly reject an OS-isolation qualification: %v", err)
+		}
+	})
 	t.Run("ubuntu_supported", func(t *testing.T) {
 		if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 			t.Skip("Ubuntu amd64 support")
@@ -31,14 +43,14 @@ func TestAssetInstall(t *testing.T) {
 		}
 	})
 	t.Run("worker_reaches_asset_check_and_exits", func(t *testing.T) {
-		if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-			t.Skip("Linux worker qualification")
+		if !similarity.SupportedPlatform() || runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+			t.Skip("requires a supported Linux/Windows analysis worker")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		err := (similarity.Client{Assets: t.TempDir()}).Analyze(ctx, nil, nil, func(_ similarity.Event) {})
 		if err == nil || !strings.Contains(err.Error(), "assets:") {
-			t.Fatalf("worker must enforce offline mode, reject missing assets and exit with open controls: %v", err)
+			t.Fatalf("worker must reject missing assets and exit with open controls: %v", err)
 		}
 	})
 	t.Run("cancelled_before_start", func(t *testing.T) {
@@ -52,8 +64,21 @@ func TestAssetInstall(t *testing.T) {
 			t.Fatalf("cancelled setup: %v", err)
 		}
 	})
-	if !similarity.SupportedPlatform() {
+	if !similarity.AssetPlatformSupported() {
 		t.Skip("downloads require a supported native runtime")
+	}
+	if distribution.StoreManaged {
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		libraries, err := filepath.Glob(filepath.Join(filepath.Dir(executable), "onnxruntime-*", "lib", "onnxruntime.dll"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(libraries) == 0 {
+			t.Skip("Store HTTP fixtures require a test EXE staged with scripts/msixstage; missing-runtime rejection is covered by similarity.TestStoreDownloadPolicy")
+		}
 	}
 	t.Run("rejects_untrusted_redirect", func(t *testing.T) {
 		requests := 0
