@@ -1,67 +1,85 @@
 ## What's Changed
 
-### New Features
+## New Features
 
-#### **Trane follows your cursor**
+- **Find pictures that look alike.** The new Similarity Explorer groups visually similar pictures on an
+  interactive map. Open it with **Shift+S**.
 
-Trane now turns his head to follow your mouse on the welcome screen and looks ahead again when you move away. His artwork also has a cleaner outline.
+- **Simple, private setup.** Explorer guides you through downloading the files it needs, with progress, cancellation,
+  and retry options. After setup, analysis works offline. Your pictures stay on your computer, and Explorer collects no
+  analytics or feedback. Available on **Macs with Apple M-series chips** and **64-bit Intel/AMD Linux computers**. The
+  Linux download is approximately **383 MB**.
 
-#### **PicFetch is now in Microsoft Store**
+- **Filter pictures by subject.** Browse using 75 subject and scene tags, including trains, landmarks, and food. Select
+  several tags to show pictures matching any of them, or choose **Untagged** to find pictures without a label. No extra
+  download is needed.
 
-PicFetch 1.0.2 is now available in Microsoft Store for x64 and ARM64 Windows PCs, with updates delivered through the Store.
+- **Create your own groups.** Select at least two pictures under **Unassigned**, then choose **Analyze** to review what
+  they have in common and name the group. Keep your selection or include other matching pictures. Groups in
+  Favorite-based collections are saved for reopening; groups in other collections last for the current map.
 
-The portable version is still available through GitHub and WinGet.
+- **Save reusable grouping rules.** Create presets based on tags and picture details, preview their matches, and reuse
+  them across collections.
 
-#### **More control over exports (Cmd/Ctrl+E)**
+- **Adjust and navigate the map.** Use the **Granularity** slider to combine related groups or return to more detailed
+  grouping without rescanning. Use the arrow keys to move between groups, **Enter** to open one, and **+ / -** to zoom.
+  Hide the tag sidebar when you need more space.
 
-Two new options let you choose what goes into your exported picture:
+- **Choose a new mosaic layout.** The new **Shelf** option in Advanced settings arranges pictures neatly without
+  rotation, while still allowing overlap. **Random** remains the default, with varied placement and rotation.
 
-- **Export size limit** — Keep the original size or reduce the longest side to 2400, 1600 or 1000 pixels. Pictures keep their proportions and are never enlarged. The Original option shows the picture’s current dimensions.
-- **Include camera metadata (JPEG only)** — Turn this off to export a copy without camera metadata. Your original file stays unchanged.
+- **Open Mosaic directly.** Press **Shift+M** to create a mosaic from your loaded collection, your Grid View selection,
+  or your filtered results. **Generate Image Mosaic** is now in the **Window** menu. The existing **M** and **S**
+  shortcuts still control merge and sort.
 
-Use Up/Down to move between the options. Each time you open the export dialog, it starts with the default settings.
+## Bugfix
 
-For resized exports, the suggested filename and confirmation message make it clear that you saved a smaller copy.
+- **Render groups containing SVG pictures.** Explorer no longer closes when drawing their map previews. The fix was
+  confirmed on the affected Windows ARM64 VM.
 
-#### **Exported JPEGs report the correct dimensions**
+- **Clearer Similarity Explorer setup.** The introduction names the SigLIP 2 AI model and explains that it finds and
+  groups similar pictures. Technical privacy details remain in the linked privacy policy.
 
-JPEGs saved with camera metadata now report their correct size after resizing or rotation, helping other apps display accurate picture information.
+- **Keep your place while browsing.** Explorer preserves your map position and zoom while you open pictures or groups
+  and new analysis results arrive. A group you already have open keeps the same pictures while the map updates.
 
-Subject-position information that no longer matches the picture is removed. Camera details and print resolution are preserved.
+- **Smoother grouping adjustments.** Dragging the **Granularity** slider now updates the map when you release it,
+  avoiding repeated rearrangements while you drag. Clicks and keyboard adjustments still apply immediately.
 
-#### **New startup options**
+- **Faster analysis and lower memory use.** Image orientation is handled more efficiently during analysis. Large
+  similarity maps also use less memory and update faster.
 
-You can now start PicFetch with a slideshow, shuffle, custom slide timing and other options from the command line—useful for scripts and picture-frame setups:
+- **Keep large maps readable.** Maps with more than 100 groups stop zooming out at 50%, keeping thumbnails large enough
+  to recognize. Pan or use the arrow keys to explore the rest.
 
-```text
---slideshow
---shuffle
---interval=8s
---sort=name|date|modified|size|drop
---merge
---max-files=N
---help
-```
+- **Recover from interrupted analysis and file changes.** Failed or incomplete analysis can be retried. Explorer retires
+  outdated maps when files change or disappear, preserves surviving group members, and prevents old results from
+  replacing a restarted analysis.
 
-Place options before or after file paths, and use `--help` for details. Unrecognized options show an error and prevent startup.
+- **Browse duplicates before analysis finishes.** **Shift+D** opens the highlighted picture’s detected duplicates
+  immediately, including hidden copies. The group updates as more duplicates are found.
 
-These options apply only to the current session. Your saved settings and the way you open PicFetch from Finder stay unchanged.
+- **Steadier scrolling in Grid View.** The navigation highlight stays visible when scrolling with a mouse wheel or
+  trackpad. Duplicate-group updates preserve your scroll position without changing your selection or displayed picture.
 
-#### **Watch your mosaic take shape**
+- **Closing files frees more memory.** **Close Files** now clears cached thumbnails and closes any open Explorer group
+  grid.
 
-See your mosaic appear as it is generated, with a progress bar showing how much of the canvas is filled.
+- **Disable analysis-engine telemetry.** Explorer now explicitly turns off the analysis engine’s telemetry before it
+  starts, alongside its existing network restrictions.
 
-If you cancel or something goes wrong, PicFetch restores your last completed mosaic. Saving or setting wallpaper always uses a completed result.
+## Internal
 
-Mosaic generation also runs more efficiently while preserving image quality, frames, shadows and output resolution.
+- **Release preparation.** Resolved seven code-inspection findings in mosaic generation, its tests, and Store release
+  tooling while preserving preview behavior and diagnostic output.
 
-### Bug Fixes
+- **Code quality and security cleanup.** Addressed findings from automated inspections and tightened how the Explorer
+  installer extracts downloaded files.
 
-- **Deleted images stay deleted.** Moving an image to Trash now waits for any save in progress, so saving cannot accidentally bring the file back.
-- **Exports refresh correctly.** Overwriting the current image now updates the view even if the filename uses different capitalization.
-- **Slideshow navigation is more predictable.** Moving to another picture manually prevents a pending timed advance from immediately skipping ahead. Cancelling a slideshow started from the command line also prevents unrelated pictures opened later from starting one.
-- **Hide Duplicates stays reliable after sorting.** Navigation and slideshows continue to skip duplicate copies.
-- **Exports avoid unexpected overwrites.** PicFetch now blocks exporting directly to a symbolic link, protecting the file it points to.
-- **Rotation works correctly during saving.** Rotations made while a save is in progress are tracked correctly. Pressing `0` returns to the saved image, and Save Changes is available only when a rotation remains unsaved.
+- **Better testing and diagnostics.** Improved automated checks and failure reports to make problems easier to
+  investigate. Explorer test records use image counts and hashes rather than retaining filenames or picture contents.
 
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.2...v1.0.3
+- **Completed a broad maintenance review.** Reviewed and improved file handling, caching, background tasks, duplicate
+  grouping, and platform integration. The work also included successful user testing on Windows 11 ARM and x64.
+
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.3...v1.1.0
