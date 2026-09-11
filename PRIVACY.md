@@ -12,7 +12,7 @@ Images and their metadata are opened and processed on the user's device.
 PicFetch does not upload images or their EXIF metadata to the developer or to a
 PicFetch service.
 
-Visual Similarity Explorer analysis also runs locally. Image representations,
+Similarity Explorer analysis also runs locally. Image representations,
 suggested tags, previews, saved cohorts, and optional Favorite analysis caches
 stay on the device. They are not sent to a model provider or feedback service.
 
@@ -37,7 +37,7 @@ The OpenStreetMap Foundation processes those requests under its own
 [privacy policy](https://osmfoundation.org/wiki/Privacy_Policy). The map can be
 avoided entirely by leaving the Location section collapsed.
 
-## Visual Similarity Explorer downloads
+## Similarity Explorer downloads
 
 On first use, the Explorer explains its local analysis and offers to download
 the required model data. Standalone builds also download the runtime; the

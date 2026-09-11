@@ -115,7 +115,6 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.explorer.autoFit = prefs.SimilarityAutoFit
 	view.explorer.introSeen = prefs.SimilarityIntroSeen
 	view.explorer.supported = similarity.SupportedPlatform()
-	view.explorer.networkIsolation = similarity.EnforcesNetworkIsolation()
 	view.SetSimilarityAutoUpdate(prefs.SimilarityAutoUpdate)
 	view.compare = compareui.New(
 		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {

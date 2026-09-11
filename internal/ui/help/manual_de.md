@@ -669,9 +669,10 @@ abgelehnt. **Bild speichern** bleibt verfügbar.
 
 ---
 
-### Visueller Ähnlichkeits-Explorer (Intel-Mac/Apple Silicon, Linux und Windows)
+### Ähnlichkeits-Explorer (Intel-Mac/Apple Silicon, Linux und Windows)
 
-Beim ersten Öffnen stellt Trane den Explorer vor. **Herunterladen** installiert
+Beim ersten Öffnen stellt Trane den Explorer und das KI-Modell SigLIP 2 zum
+Finden und Gruppieren ähnlicher Bilder vor. **Herunterladen** installiert
 etwa 383 MB unter Linux x64, 382 MB unter Linux ARM64, 383 MB auf Intel-Macs,
 413 MB auf Macs mit Apple Silicon, 451 MB unter Windows x64 oder 453 MB
 unter Windows ARM64 an Modell- und Laufzeitdateien von Hugging Face und Microsoft GitHub.
@@ -699,7 +700,7 @@ Microsofts letzte offizielle Intel-Laufzeit. Andere Plattformen verwenden ONNX R
 **Windows:** Die ONNX-Runtime-Telemetrie wird vor der Analyse deaktiviert.
 Der Analyseprozess kommuniziert über lokale Pipes mit PicFetch und öffnet
 keinen Netzwerkport. Windows sperrt den Netzwerkzugriff dieses Prozesses nicht.
-Darauf weist die Einrichtung vor der ersten Analyse hin. Unter macOS und Linux
+Die **Datenschutzerklärung** erklärt diesen Unterschied. Unter macOS und Linux
 bleibt die Netzwerksperre durch das Betriebssystem bestehen.
 
 Der Bereich **Schlagwörter** bietet 75 Motive und Szenen mit der Anzahl
@@ -739,7 +740,7 @@ des Explorers beginnt die nächste Sitzung wieder mit allen Kästchen aktiviert.
 Bei wiederverwendeter Favoritenanalyse werden die Schlagwörter aus den
 gespeicherten Bildrepräsentationen neu berechnet.
 
-Bei geöffneten Bildern **`Shift+S`** drücken oder **Fenster -> Visueller Ähnlichkeits-Explorer** wählen.
+Bei geöffneten Bildern **`Shift+S`** drücken oder **Fenster -> Ähnlichkeits-Explorer** wählen.
 Alle geöffneten Bilder werden analysiert, einschließlich zusammengeführter
 Listen und Favoriten. Suche und Auswahl in der Rasteransicht schränken die
 Analyse nicht ein. Bei aktivem Duplikatfilter wird pro Gruppe nur das Bild mit
@@ -839,7 +840,7 @@ vorherigen Kartenansicht. Suche und Auswahl behalten ihre üblichen Escape-Stufe
 gibt ihre Bilddaten frei. Erneutes Öffnen erstellt die Karte neu und verwendet
 gespeicherte Favoritenanalysen, sofern vorhanden.
 
-Wenn die Analyse fehlschlägt, startet **Fenster -> Visueller Ähnlichkeits-Explorer**
+Wenn die Analyse fehlschlägt, startet **Fenster -> Ähnlichkeits-Explorer**
 einen neuen Versuch. Wird eine geöffnete Quelldatei überschrieben, entfernt oder
 beim Lesen als fehlend erkannt, wird die aktuelle Karte verworfen und ihre
 Analyse beendet. Eine Änderung des Duplikat-Abstands bei ausgeblendeten
@@ -854,7 +855,7 @@ deaktivierter Telemetrie; macOS und Linux sperren zusätzlich den Netzwerkzugrif
 des Analyseprozesses durch das Betriebssystem. Stapel halten Abstand;
 bestehende Gruppen behalten bei neuen Ergebnissen ihre Position. Eine geöffnete
 Gruppe behält ihre Mitglieder; erneutes Öffnen verwendet die aktuelle Gruppierung.
-Unter **Einstellungen -> Allgemein -> Visueller Ähnlichkeits-Explorer** stehen
+Unter **Einstellungen -> Allgemein -> Ähnlichkeits-Explorer** stehen
 **Analysen für Favoriten speichern** (ein), **Alle 30 Bilder automatisch
 aktualisieren** (aus) und **Neue Stapel im Sichtbereich halten** (ein). Analysen
 werden im Unterordner `analysis` neben der Dateiliste und `thumbs` gespeichert.
@@ -986,7 +987,7 @@ tatsächlich verschoben wurden.
   **`[Zusammenführen]`** angezeigt
 - **`Shift+M`** — den Mosaikgenerator für die geladenen Bilder oder die aktuelle
   Auswahl beziehungsweise das gefilterte Ergebnis im Raster öffnen
-- **`Shift+S`** — den visuellen Ähnlichkeits-Explorer für die geöffneten Dateien
+- **`Shift+S`** — den Ähnlichkeits-Explorer für die geöffneten Dateien
   öffnen. Bei aktiver Rastersuche tippen beide Tastenkürzel ihre Buchstaben
 - **`G`** — Rasteransicht ein-/ausschalten (siehe oben); Pfeiltasten bewegen
   die Hervorhebung, `Page Up`/`Page Down` gleich um eine ganze Seite,

@@ -13,7 +13,6 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/assets"
@@ -36,16 +35,11 @@ func (v *viewer) prepareExplorer() {
 	art := canvas.NewImageFromResource(fyne.NewStaticResource("explorer-intro.png", assets.ExplorerIntroPNG))
 	art.FillMode = canvas.ImageFillContain
 	art.SetMinSize(fyne.NewSize(320, 240))
-	explanation := widget.NewLabel(lang.L("Find pictures that belong together. Explore similar images, filter by subjects, and organize your own cohorts."))
+	explanation := widget.NewLabel(lang.L("Find and group similar pictures with the SigLIP 2 AI model."))
 	explanation.Wrapping = fyne.TextWrapWord
-	privacy := widget.NewLabel(lang.L("Your pictures stay on your computer. Analysis runs locally, without uploads or analytics."))
-	privacy.Wrapping = fyne.TextWrapWord
-	download := widget.NewLabel(fmt.Sprintf(lang.L("First-time setup downloads about %.0f MB from Hugging Face and Microsoft GitHub. After setup, analysis works offline."), float64(similarity.AssetDownloadBytes())/1e6))
-	if distribution.StoreManaged {
-		download.SetText(fmt.Sprintf(lang.L("First-time setup downloads about %.0f MB of model data from Hugging Face. The runtime is included and updated through Microsoft Store. After setup, analysis works offline."), float64(similarity.AssetDownloadBytes())/1e6))
-	}
+	download := widget.NewLabel(fmt.Sprintf(lang.L("One-time download: about %.0f MB. After that, everything works offline."), float64(similarity.AssetDownloadBytes())/1e6))
 	download.Wrapping = fyne.TextWrapWord
-	s.status = widget.NewLabel(lang.L("Checking local model..."))
+	s.status = widget.NewLabel(lang.L("Checking AI model..."))
 	s.status.Wrapping = fyne.TextWrapWord
 	s.progress = widget.NewProgressBar()
 	s.progress.Hide()
@@ -65,23 +59,18 @@ func (v *viewer) prepareExplorer() {
 			fyne.LogError("open privacy policy", err)
 		}
 	}
-	reading := container.NewVScroll(container.NewVBox(art, explanation, privacy, download))
+	reading := container.NewVScroll(container.NewVBox(art, explanation, download))
 	reading.SetMinSize(fyne.NewSize(320, 160))
 	footer := container.NewVBox(s.status, s.progress,
 		container.NewHBox(discussions, policy),
 		container.NewHBox(layout.NewSpacer(), cancel, s.primary))
-	if !v.explorer.networkIsolation {
-		notice := widget.NewLabel(lang.L("Windows: Analysis runs locally with ONNX Runtime telemetry disabled. No network port is opened. Windows does not block the analysis process from accessing the network."))
-		notice.Wrapping = fyne.TextWrapWord
-		footer.Objects = append([]fyne.CanvasObject{notice}, footer.Objects...)
-	}
-	title := widget.NewLabelWithStyle(lang.L("Visual Similarity Explorer"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	title := widget.NewLabelWithStyle(lang.L("Similarity Explorer"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	body := container.NewPadded(container.NewBorder(title, footer, nil, nil, reading))
 	s.panel = widget.NewModalPopUp(container.New(explorerSetupLayout{v.win.Canvas()}, body), v.win.Canvas())
 	v.win.Resize(v.win.Canvas().Size().Max(fyne.NewSize(720, 660)))
 	s.panel.Show()
 	if !v.explorer.supported {
-		s.status.SetText(lang.L("Visual Similarity Explorer requires an Intel Mac with macOS 13.4 or newer, an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
+		s.status.SetText(lang.L("Similarity Explorer requires an Intel Mac with macOS 13.4 or newer, an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
 		s.primary.Hide()
 		return
 	}
@@ -102,7 +91,7 @@ func (v *viewer) prepareExplorer() {
 				v.explorerSetupReady(s)
 				return
 			}
-			s.status.SetText(lang.L("Download the local model to get started."))
+			s.status.SetText(lang.L("Download the AI model to get started."))
 			s.primary.SetText(lang.L("Download"))
 			s.primary.OnTapped = func() { v.downloadExplorerAssets(s) }
 			s.primary.Enable()
@@ -115,7 +104,7 @@ func (v *viewer) explorerSetupReady(s *explorerSetup) {
 		v.finishExplorerSetup(s)
 		return
 	}
-	s.status.SetText(lang.L("The local model is ready. No download is needed."))
+	s.status.SetText(lang.L("The AI model is ready. No download is needed."))
 	s.primary.Enable()
 }
 
@@ -152,7 +141,7 @@ func (v *viewer) downloadExplorerAssets(s *explorerSetup) {
 	}
 	token := s.op.begin()
 	s.primary.Disable()
-	s.status.SetText(lang.L("Downloading local model..."))
+	s.status.SetText(lang.L("Downloading AI model..."))
 	s.progress.SetValue(0)
 	s.progress.Show()
 	client := v.explorer.client
@@ -170,7 +159,7 @@ func (v *viewer) downloadExplorerAssets(s *explorerSetup) {
 				s.progress.SetValue(float64(p.Received) / float64(p.Total))
 				s.status.SetText(fmt.Sprintf(lang.L("Downloading: %.1f of %.1f MB"), float64(p.Received)/1e6, float64(p.Total)/1e6))
 				if p.Received == p.Total {
-					s.status.SetText(lang.L("Verifying local model..."))
+					s.status.SetText(lang.L("Verifying AI model..."))
 				}
 			})
 		})

@@ -354,7 +354,7 @@ func (w *Window) build() fyne.CanvasObject {
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
-	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Visual Similarity Explorer")), saveAnalysis, autoUpdate, autoFit)
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit)
 	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
 	updates := container.NewVBox(w.updateVersion)
 	if w.updatesManagedByStore {

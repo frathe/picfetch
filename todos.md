@@ -6,7 +6,7 @@
 
 ### New Features
 
-- **Find pictures that look alike.** The new Visual Similarity Explorer groups visually similar pictures on an
+- **Find pictures that look alike.** The new Similarity Explorer groups visually similar pictures on an
   interactive map. Open it with **Shift+S**.
 
 - **Simple, private setup.** Explorer guides you through downloading the files it needs, with progress, cancellation,
@@ -37,6 +37,12 @@
   shortcuts still control merge and sort.
 
 ### Bugfix
+
+- **Render groups containing SVG pictures.** Explorer no longer closes when drawing their map previews. The fix was
+  confirmed on the affected Windows ARM64 VM.
+
+- **Clearer Similarity Explorer setup.** The introduction names the SigLIP 2 AI model and explains that it finds and
+  groups similar pictures. Technical privacy details remain in the linked privacy policy.
 
 - **Keep your place while browsing.** Explorer preserves your map position and zoom while you open pictures or groups
   and new analysis results arrive. A group you already have open keeps the same pictures while the map updates.
@@ -79,6 +85,17 @@
 
 ## TODO
 
+### Linux worker isolation in the local amd64 test container
+
+The September 11 `make verify` run on the Apple Silicon host reports
+`offline worker seccomp: invalid argument` in `TestLinuxWorkerIsolation` and
+`TestAssetInstall/worker_reaches_asset_check_and_exits`. Both checks pass with
+the race detector in a native Linux ARM64 container. Investigate the local amd64
+execution environment before claiming a clean complete local gate; retain
+native Linux amd64 CI coverage of sandbox enforcement. This is separate from
+the confirmed Windows map fix. See the
+[verification record](plans/2026-09-11-explorer-windows-setup.md).
+
 ### Antivirus verdicts on unreleased builds
 
 The September 11 local builds have likely false positives: Microsoft flags both
@@ -105,7 +122,8 @@ runtime requires glibc 2.28+; the local test viewer is built against Debian 12 w
 enforcement and GUI behavior on ARM64 hardware. Pure BPF decisions and cross-compilation do not claim that hardware
 qualification. See the
 [Linux ARM64 plan](plans/2026-09-11-explorer-linux-arm64.md). Intel macOS Explorer and 32-bit ARM remain unsupported;
-Windows ARM64 testing is separate above.
+Windows ARM64 map rendering was confirmed in the
+[Windows setup plan](plans/2026-09-11-explorer-windows-setup.md).
 
 ### Similarity-map zoom trial
 
@@ -113,7 +131,7 @@ The current increment enforces a 50% zoom floor only above 100 cohort piles, inc
 while keeping every sampled thumbnail. Smaller maps retain the existing zoom range. The active plan records SDD/TDD and
 verification evidence. Trial the cutoff on normal and large maps; full-library scan throughput remains later work.
 
-### Visual similarity explorer proof of concept
+### Similarity Explorer proof of concept
 
 **Complete: tickets 01–07.** The final 50,655-source trial, fully cached reopen, recovery, memory and human acceptance
 checks pass. No open tasks remain in this milestone. See

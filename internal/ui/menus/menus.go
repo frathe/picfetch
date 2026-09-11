@@ -181,7 +181,7 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	m.closeFiles.Disabled = true // Apply enables it once State.NoFiles is false, i.e. a file is loaded
 	m.settings = fyne.NewMenuItem(lang.L("Settings…"), c.ShowSettings)
 
-	m.window.explorer = fyne.NewMenuItem(lang.L("Visual Similarity Explorer"), c.ShowExplorer)
+	m.window.explorer = fyne.NewMenuItem(lang.L("Similarity Explorer"), c.ShowExplorer)
 	m.window.explorer.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierShift}
 	m.window.mosaic = fyne.NewMenuItem(lang.L("Generate Image Mosaic..."), c.Mosaic)
 	m.window.mosaic.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyM, Modifier: fyne.KeyModifierShift}

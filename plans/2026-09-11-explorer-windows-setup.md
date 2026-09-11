@@ -311,3 +311,231 @@ broad-CI verification above. ARM64 hardware/app acceptance and actual MSIX/WACK
 qualification remain separate; no release or Store submission is implied.
 See [review evidence](../finished_refactorings/2026-09-11-pr18-review-limits-evidence.md)
 and [CI run 34610468241](https://github.com/frathe/picfetch/actions/runs/34610468241).
+
+## Windows ARM64 map crash investigation (2026-09-11)
+
+Ronin reports that indexing finishes and the viewer closes as cohort rendering
+begins; he explicitly identified Windows ARM64. Device, image count, reproduction
+on a small folder and crash output are pending. No cause or production fix is
+established. Native Windows ARM64 rendering remains an open acceptance gate.
+
+Before the platform clarification, the current Apple Silicon host passed
+`go test ./internal/ui -run '^TestVisualSimilarityExplorer$' -count=1 -timeout 3m`
+(18.327s) and the real-model `granularity`, `small_cohort` and `partial_map`
+subtests (6.741s). The latter required running outside the agent sandbox so
+PicFetch could install its own macOS sandbox. Native synthetic replays with 300
+and 3,000 sources each exited 0 after 109 observed paint/interaction steps.
+These checks do not reproduce or qualify the reported Windows failure.
+
+`make package-windows-debug WIN_ARCHES=arm64` passes with the existing pinned
+cross-toolchain. PE inspection verifies AA64 and retained DWARF sections. The
+packaging CLI still sets subsystem 2 (GUI), despite fyne-cross's `-console` flag:
+fyne-cross v1.6.3 parses that flag but never uses it; Fyne tools v1.7.2 adds
+`-H=windowsgui`. Correcting that debug-target promise is separate work. The
+diagnostic CMD launcher supplies the persistent console and redirected logs.
+The packaging-only FyneApp.toml build increment was restored.
+
+Local handoff: `bin/picfetch-windows-arm64-diagnostics.zip`, 37,104,598 bytes,
+contains the debug EXE, CMD launcher, instructions, build identity and existing
+license/privacy/third-party notices. The EXE is 82,466,304 bytes, SHA-256
+`d64f9fbbe1f4d065d11863d3eea56d8a617379b7d34741d0ba31c61822486571`.
+ZIP CRC and every unpacked entry were compared with their source bytes.
+The launcher records application output, exit code, Windows/CPU/GPU versions
+and recent matching Application Error/WER records; dragging the original EXE
+onto it captures that build instead. Nothing is uploaded automatically.
+Windows execution of the executable/launcher remains unverified on this host.
+Retained harnesses and build log: `.scratch/arm-map-crash-20260911/`.
+
+Next gate: run the launcher on the affected machine and obtain the report;
+establish a failing reproduction before selecting a production change. No broad
+verification suite was run for this diagnostic/docs-only handoff. Lead owns the
+diagnosis, all changes and review. One read-only scout performed two bounded
+evidence tasks (old replay provenance and documented Windows capture commands);
+no implementation or review was delegated, and no commits were made.
+
+### First Windows report and direct-file capture v2
+
+The user supplied the matching diagnostic EXE hash and a run from 17:59:35 to
+17:59:43 on Windows 11 Pro build 26100, 64-bit ARM, approximately 8 GiB RAM,
+CPU `virt-10.0`, and VirtIO GPU DOD 22.7.38.43. Exit code was 2; application
+output was empty and the Windows event query found no records. This does not
+identify a fault or prove that this particular run reached the original map
+handoff. A clarification about startup versus post-indexing exit is pending.
+
+The local UTM Windows 11 VM is running, but `utmctl exec` reports no guest agent.
+The desktop matches prior test records with app-local ARM64 GL/EGL/GLES DLLs.
+Computer-use keyboard/mouse injection did not reliably drive its guest; no
+calibration command or application launch was completed by that route. Input
+capture was restored to off. One new read-only scout found the prior guest-access
+and graphics-runtime evidence; implementation and review remain lead-owned.
+
+V2 uses temporary Go overlays for direct `log`/stderr output and
+`runtime/debug.SetCrashOutput`, plus map grouping/application/fit markers. Worker
+stdout remains untouched. A deliberate capture self-test on the host exited 2
+and preserved both startup marker and panic stack with stdout/stderr discarded.
+This tests file capture, not Windows graphics or the original defect.
+
+The first direct cross-build attempt failed because its default cache resolved
+under `/.cache`; the successful rerun specified writable Go/Zig caches. It uses
+the same pinned Windows container, an explicit console linker subsystem and
+retained symbols. Read-back PE verification requires AA64 and subsystem 3.
+`bin/picfetch-diagnostic-v2-windows-arm64.exe`: 80,671,232 bytes, SHA-256
+`cbcd359d4cb84b0e6b39c976b1fabe9fddd8ead9a685c3c8f931c7157d0c207d`.
+`bin/picfetch-windows-arm64-diagnostics-v2.zip`: 35,490,944 bytes, seven flat
+entries, CRC and every entry verified against source bytes. It includes the
+launcher, instructions, identity and existing license/privacy/notices.
+
+The v2 launcher runs its deliberate-panic calibration separately, checks that
+its direct file contains the expected stack marker, then starts the real app.
+The `app` directory and `app-console.txt` contain the actual attempted
+reproduction. In this VM the EXE/CMD belong beside the existing Desktop GL DLLs;
+no DLLs or system settings are changed. Native v2 execution remains pending.
+Normal application source is unchanged; all instrumentation is retained under
+`.scratch/arm-map-crash-20260911/v2/` and must never enter a release build.
+
+### Confirmed SVG-source map crash and fix
+
+The returned `picfetch-diagnostics-v2-21585-19087` report now captures the actual
+failure: the worker published 113 items, 112 successful, and four hierarchy
+merges. Map fitting panics through `pileRenderer.Layout -> canvas.Image.Resize
+-> renderSVG -> svg.Decoder.Draw/Config`. Repeated XML-parser errors precede it.
+The user's original report directory is preserved untouched and untracked.
+
+Route for the implementation: Standard, a two-file portable bug fix. The
+producer always encodes `Item.Preview` as JPEG, while pile construction gave its
+resource the original source path. A `.svg` name forces Fyne v2.8.0 to parse
+those JPEG bytes as SVG; the failed decoder is nil when Fit resizes the pile.
+Resource names now append `.preview.jpg`; cohort membership retains the exact
+original paths. No dependency or native-runtime changes are involved.
+
+| Task | Owner/files | Acceptance command | Budget |
+|---|---|---|---|
+| Regression and fix | Lead; map.go and existing explorer_test.go | `go test ./internal/ui -run '^TestVisualSimilarityExplorer$/svg_source_previews$' -count=1` | 0 implementation spawns; one review |
+| Adjacent naming sweep | One read-only scout, no edits | `rg 'NewStaticResource|NewImageFromResource' internal` plus byte provenance | 1 scout; no review delegation |
+| Regressions and final gate | Lead | complete Explorer test, `make verify` | one full suite |
+| Windows handoff | Lead; existing Make packaging and local artifact/notice assembly | ARM64 PE/header/hash/archive inspection plus user reproduction | native acceptance required |
+
+Task graph: local regression -> minimal naming fix -> focused regressions ->
+Windows package -> full gate; the read-only adjacent sweep runs independently.
+The scout task is standalone, has an exact call-site/provenance oracle, changes
+no files and does not duplicate lead work. No other generated preview/resource
+name mismatch was found. Lead retains all code, review and fixes.
+
+RED observed: the new `svg_source_previews` subtest fails in 0.19s (package
+0.933s) with the same nil decoder stack at `map.go:540`. The fixture uses valid
+SVG sources and known JPEG previews, excluding corrupt original SVGs or a
+Windows-only graphics requirement. The test also checks uppercase `.SVG`, a
+JPEG source whose name contains `.svg`, decoded dimensions, viewport release
+and restoration, and original cohort navigation identities. It is a subtest
+of the already-sharded/excluded Explorer test; no manifest entries are added.
+Evidence: `.scratch/arm-map-crash-20260911/svg-source-red.log`.
+
+GREEN: the crash regression passes (0.997s). The first whole-Explorer run exposed
+an old test assumption that resource names equal source paths; its membership
+assertion now strips the preview suffix. The complete Explorer suite then passes
+(17.244s). Native Fyne/GL replay with 30 synthetic `.svg` source paths completed
+all 109 paint markers and exited 0; the constructed cohort screenshot was
+visually inspected. This directly exercises the corrected preview naming with
+the native renderer, but is not Windows qualification.
+
+`make package-windows WIN_ARCHES=arm64 BIN_NAME=picfetch-mapfix` passes. The
+packaging-only build-number increment was restored. Read-back verifies AA64,
+normal release packaging flags and no `[DEBUG-armmap]` instrumentation.
+`bin/picfetch-mapfix-windows-arm64.exe`: 51,394,560 bytes, SHA-256
+`817c1c1928fedbc25cdad62e718008ef82480b91b982ada96fa41d04f89707a0`.
+`bin/picfetch-windows-arm64-mapfix.zip`: 27,387,374 bytes, six flat entries,
+including instructions, identity and existing notices; CRC and every entry
+were compared to their source bytes. Ronin has the corrected artifact for the
+same VM/image-set test. Existing executables and GL DLLs are preserved.
+
+The first `make verify` stopped at formatting the three temporary diagnostic
+harnesses; those files were formatted with the repository's goimports options.
+The corrected gate subsequently reached the race suite; its results are below.
+The initial formatting failure did not reach or repeat the broad race suite.
+
+Ronin tested the corrected artifact on the affected Windows ARM64 VM and
+confirmed, "this version works." This closes the original post-indexing map
+crash reproduction. It does not establish MSIX/WACK or Store qualification.
+
+The full local gate passed formatting, TUF/exclusion checks, vet, build and shard
+validation, then reported two Linux worker failures: `TestLinuxWorkerIsolation`
+and `TestAssetInstall/worker_reaches_asset_check_and_exits`, both with
+`offline worker seccomp: invalid argument`. This run uses Linux/amd64 emulation
+on Apple Silicon. The same focused tests pass with `-race -count=1` in a native
+Linux ARM64 container: similarity 2.022s, explorereval 1.035s. The first native
+attempt required enabling the repository's Go 1.27.1 toolchain; the next passed
+isolation but lacked X11 headers for the evaluator. Installing those headers
+inside the disposable container completed the focused check. No sandbox policy
+or test was weakened. All three GUI race partitions pass: ui-1 623.384s,
+ui-2 330.853s, ui-3 318.096s (680 top-level passes and one skip). The complete
+Explorer test passes in 291.820s, including the new SVG-preview regression in
+2.440s. The full `make verify` exits 2 because of the two isolated non-UI failures;
+it is not a clean complete gate. Their follow-up remains in `todos.md`.
+
+Evidence: `.scratch/arm-map-crash-20260911/verify.log`,
+`.scratch/race-runs/20260911T161936Z-sP2Uoy/`, and
+`.scratch/arm-map-crash-20260911/native-linux-isolation-prepared.log`.
+The separate Windows static check
+`GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet ./internal/...` also passes.
+
+### User-requested setup wording (2026-09-11)
+
+Ronin accepted the map fix, then requested a simpler English/German first-use
+page: call the feature Similarity Explorer (German: Ähnlichkeits-Explorer), name
+the SigLIP 2 AI model, and explain its use. Remove the technical Windows notice;
+the privacy policy retains the detailed explanation. This supersedes the earlier
+requirement to show that notice during setup. Keep the total download size and
+offline availability, explicit download/Continue actions and privacy-policy link.
+
+Lead owns all edits and review: setup and its obsolete UI-only isolation flag,
+menu/settings names, both translation bundles, existing affected assertions and
+current manuals/README/privacy headings. Historical plans and internal identifiers
+retain their existing names. No inference or network-policy behavior changes.
+One read-only scout maps terminology locations and the pinned model name; its
+oracle is the bounded `rg` sweep of current UI/docs and asset definitions. It
+changes no files and runs independently of the lead's setup work.
+
+Verify existing Explorer setup/menu tests, locale/manual guards, formatting,
+vet/build, and inspect English/German setup captures at ordinary and small sizes.
+The already-running full race suite covers the map fix; focused checks cover this
+subsequent presentation change. Refresh a separate Windows ARM64 package so the
+already-tested map-fix artifact remains available. No commit is authorized.
+
+The setup text now reads "Find and group similar pictures with the SigLIP 2 AI
+model." plus the one-time total download size and offline availability. The
+German version uses "Finde und gruppiere ähnliche Bilder mit dem KI-Modell
+SigLIP 2." The Windows technical paragraph and duplicate privacy explanation
+are removed; the privacy-policy link remains. Menu/settings/manual names match,
+and the obsolete UI-only isolation flag is removed. The actual worker isolation
+and telemetry settings are unchanged.
+
+Focused setup/translation tests pass (ui 1.675s), as do the root package (0.629s),
+menus (0.938s), settings (1.811s) and manuals (3.420s). The exact viewer main-menu
+tests also pass. English and German setup captures at 720x660 and 520x400 were
+visually inspected: ordinary-size copy is readable; at small size the reading
+area scrolls while the title, privacy link and actions remain visible. A temporary
+Go test overlay loads each catalog and simulates missing model files in the
+isolated viewer; no QA hooks are included in production. These host captures
+show the host's download size; Windows uses its own total from the same helper.
+
+`make verify-build` passes after packaging finishes. Its first attempt overlapped
+Fyne's temporary generated metadata and executable cleanup and stopped at the
+format gate; the sequential retry is clean. Evidence is under
+`.scratch/arm-map-crash-20260911/`: `setup-copy-tests.log`, `copy-guards.log`,
+`copy-root-menu-tests.log`, `copy-verify-build.log` and `setup-copy-qa/`.
+
+`make package-windows WIN_ARCHES=arm64 BIN_NAME=picfetch-similarity` passes;
+the packaging-only build-number increment is restored. Read-back verifies AA64,
+the GUI subsystem, release flags, Go 1.27.1 and no diagnostic instrumentation.
+`bin/picfetch-similarity-windows-arm64.exe`: 51,390,976 bytes, SHA-256
+`75822da8ab0a6d0d5bde60320161a64b89e58e4f173bfec8075496738dca8e22`.
+`bin/picfetch-windows-arm64-similarity.zip`: 27,318,250 bytes, six flat entries
+including instructions, identity and current notices. CRC and every entry were
+compared against source bytes. This refreshed package's wording has host visual
+verification; Ronin's Windows acceptance applies to the preceding map-fix build.
+
+Lead completed final diff review, all edits and verification. The map-fix phase
+used one resource-naming scout; the wording follow-up reused it for one bounded
+terminology sweep. No implementation/review was delegated. One full race run,
+focused follow-ups only, and no commits or publishing were performed. The parent
+Windows plan remains active for its separate outstanding acceptance work.

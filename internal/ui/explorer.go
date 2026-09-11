@@ -26,7 +26,6 @@ type explorerWork struct {
 	setup                   *explorerSetup
 	client                  similarity.Client
 	supported               bool
-	networkIsolation        bool
 	trial                   *explorertrial.Session
 	trialRun                int
 	trialEvent              int

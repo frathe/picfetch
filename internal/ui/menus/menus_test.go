@@ -91,7 +91,7 @@ func TestNew_LabelsAndAccelerators(t *testing.T) {
 		{"window.grid", m.Window().Grid(), lang.L("Grid View"), fyne.KeyG, 0},
 		{"window.pictureFrame", m.Window().PictureFrame(), lang.L("Picture-frame mode"), fyne.KeyP, 0},
 		{"window.help", m.Window().Help(), lang.L("Help"), fyne.KeyF1, 0},
-		{"window.explorer", m.window.explorer, lang.L("Visual Similarity Explorer"), fyne.KeyS, fyne.KeyModifierShift},
+		{"window.explorer", m.window.explorer, lang.L("Similarity Explorer"), fyne.KeyS, fyne.KeyModifierShift},
 		{"sortParent", m.sortParent, lang.L("Sort order"), fyne.KeyS, 0},
 		{"actions.hide", m.Actions().Hide(), lang.L("Show/Hide duplicates"), fyne.KeyD, 0},
 		{"actions.showVariant", m.Actions().ShowVariant(), lang.L("Show variants"), fyne.KeyD, fyne.KeyModifierShift},

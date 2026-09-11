@@ -458,7 +458,9 @@ func newPile(m *Map, items []similarity.Item) *Pile {
 			continue
 		}
 		seen[item.Path] = true
-		img := canvas.NewImageFromResource(fyne.NewStaticResource(item.Path, item.Preview))
+		// Previews are JPEG even for SVG sources. Fyne also uses the resource
+		// name to select its decoder, so it must describe the preview's format.
+		img := canvas.NewImageFromResource(fyne.NewStaticResource(item.Path+".preview.jpg", item.Preview))
 		img.FillMode = canvas.ImageFillContain
 		p.pictures = append(p.pictures, img)
 		aspect := float32(1)

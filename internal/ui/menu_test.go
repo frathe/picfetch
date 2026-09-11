@@ -148,9 +148,9 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 		t.Errorf("fourth menu label = %q, want %q", window.Label, "Window")
 	}
 	if len(window.Items) != 7 {
-		t.Fatalf("Window menu items = %d, want 7 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help, Visual Similarity Explorer, Generate Image Mosaic...)", len(window.Items))
+		t.Fatalf("Window menu items = %d, want 7 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help, Similarity Explorer, Generate Image Mosaic...)", len(window.Items))
 	}
-	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help", "Visual Similarity Explorer", "Generate Image Mosaic..."}
+	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help", "Similarity Explorer", "Generate Image Mosaic..."}
 	for i, want := range wantWindowLabels {
 		got := window.Items[i]
 		if got.Label != want {
@@ -193,7 +193,7 @@ func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
 		{"Grid View", fyne.KeyG, 0},
 		{"Picture-frame mode", fyne.KeyP, 0},
 		{"Help", fyne.KeyF1, 0},
-		{"Visual Similarity Explorer", fyne.KeyS, fyne.KeyModifierShift},
+		{"Similarity Explorer", fyne.KeyS, fyne.KeyModifierShift},
 		{"Generate Image Mosaic...", fyne.KeyM, fyne.KeyModifierShift},
 	}
 	for i, tc := range want {

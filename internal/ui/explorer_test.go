@@ -50,12 +50,12 @@ func explorerMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 	t.Helper()
 	for _, menu := range v.win.MainMenu().Items {
 		for _, item := range menu.Items {
-			if item.Label == lang.L("Visual Similarity Explorer") {
+			if item.Label == lang.L("Similarity Explorer") {
 				return item
 			}
 		}
 	}
-	t.Fatal("Visual Similarity Explorer is missing from the main menu")
+	t.Fatal("Similarity Explorer is missing from the main menu")
 	return nil
 }
 
@@ -313,45 +313,31 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
-	t.Run("setup_network_notice", func(t *testing.T) {
-		for _, isolated := range []bool{false, true} {
-			t.Run(fmt.Sprintf("isolated_%v", isolated), func(t *testing.T) {
-				v := openGridWith(t, "first.jpg")
-				v.explorer.introSeen, v.explorer.assetsReady = false, true
-				v.explorer.networkIsolation = isolated
-				analyzed := false
-				v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					analyzed = true
-					emit(similarity.Event{Complete: true})
-					return nil
-				}
-				v.showExplorer()
-				v.settleExplorer()
-				found, foundDownload := false, false
-				downloadText := "First-time setup downloads about %.0f MB from Hugging Face and Microsoft GitHub. After setup, analysis works offline."
-				if distribution.StoreManaged {
-					downloadText = "First-time setup downloads about %.0f MB of model data from Hugging Face. The runtime is included and updated through Microsoft Store. After setup, analysis works offline."
-				}
-				explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
-					if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Windows: Analysis runs locally with ONNX Runtime telemetry disabled. No network port is opened. Windows does not block the analysis process from accessing the network.") {
-						found = true
-					}
-					if label, ok := o.(*widget.Label); ok && label.Text == fmt.Sprintf(lang.L(downloadText), float64(similarity.AssetDownloadBytes())/1e6) {
-						foundDownload = true
-					}
-				})
-				if !foundDownload {
-					t.Fatal("setup omitted the distribution's download disclosure")
-				}
-				if found == isolated || analyzed {
-					t.Fatalf("first-use notice: isolated=%v found=%v analyzed=%v", isolated, found, analyzed)
-				}
-				fynetest.Tap(explorerDialogButton(t, v, "Continue"))
-				v.settleExplorer()
-				if !analyzed || !v.explorer.introSeen {
-					t.Fatal("Continue did not acknowledge the notice and admit analysis")
-				}
-			})
+	t.Run("setup_intro", func(t *testing.T) {
+		v := openGridWith(t, "first.jpg")
+		v.explorer.introSeen, v.explorer.assetsReady = false, true
+		analyzed := false
+		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			analyzed = true
+			emit(similarity.Event{Complete: true})
+			return nil
+		}
+		v.showExplorer()
+		v.settleExplorer()
+		foundDownload := false
+		downloadText := fmt.Sprintf(lang.L("One-time download: about %.0f MB. After that, everything works offline."), float64(similarity.AssetDownloadBytes())/1e6)
+		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+			if label, ok := o.(*widget.Label); ok && label.Text == downloadText {
+				foundDownload = true
+			}
+		})
+		if !foundDownload || analyzed {
+			t.Fatalf("first-use setup: download information=%v analyzed=%v", foundDownload, analyzed)
+		}
+		fynetest.Tap(explorerDialogButton(t, v, "Continue"))
+		v.settleExplorer()
+		if !analyzed || !v.explorer.introSeen {
+			t.Fatal("Continue did not finish setup and admit analysis")
 		}
 	})
 	t.Run("setup_unsupported", func(t *testing.T) {
@@ -479,7 +465,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			v.win.Resize(size)
 			var title *widget.Label
 			explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
-				if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Visual Similarity Explorer") {
+				if label, ok := o.(*widget.Label); ok && label.Text == lang.L("Similarity Explorer") {
 					title = label
 				}
 			})
@@ -541,7 +527,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
 				v.settleExplorer()
 				if !v.explorerMapActive() || len(explorerPiles(v)) != 2 {
-					t.Fatal("Shift+S did not open the Visual Similarity Explorer")
+					t.Fatal("Shift+S did not open the Similarity Explorer")
 				}
 				if v.state.SortMode() != beforeSort {
 					t.Fatal("Shift+S changed the ordinary sort order")
@@ -4216,7 +4202,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				t.Fatalf("opening pile has %d members; want %d including unsampled", len(members), expected)
 			}
 			for sample := range samples {
-				if !slices.Contains(members, sample) {
+				if !slices.Contains(members, strings.TrimSuffix(sample, ".preview.jpg")) {
 					t.Fatal("pile sample is outside cohort")
 				}
 			}
@@ -4313,6 +4299,59 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		for _, pile := range piles {
 			if pile.Size().Width < 100 {
 				t.Fatalf("projection units made a pile unreadable: %v", pile.Size())
+			}
+		}
+	})
+	t.Run("svg_source_previews", func(t *testing.T) {
+		v := newTestViewer(t)
+		uris := []fyne.URI{
+			uitest.TempSVGURI(t, "drawing.svg", 48, 32),
+			uitest.TempSVGURI(t, "drawing.SVG", 32, 48),
+			uitest.TempJPEGURI(t, "drawing.svg.jpg", 48, 32, color.White),
+		}
+		dropAndWait(t, v, uris...)
+		preview := uitest.EncodeJPEG(t, 120, 80, color.NRGBA{R: 40, G: 120, B: 200, A: 255})
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			items := make([]similarity.Item, len(paths))
+			for i, path := range paths {
+				items[i] = similarity.Item{Path: path, Cohort: "art", Position: []float32{0, 0}, Preview: preview}
+			}
+			emit(similarity.Event{Items: items, Successful: len(items), Total: len(items), Complete: true})
+			return nil
+		}
+		v.win.Resize(fyne.NewSize(1100, 700))
+		v.showExplorer()
+		v.settleExplorer()
+		assertPreviews := func() *explorerui.Pile {
+			t.Helper()
+			piles := explorerPiles(v)
+			if len(piles) != 1 {
+				t.Fatalf("expected one visible cohort, got %d", len(piles))
+			}
+			pictures := 0
+			explorerWalk(piles[0], func(o fyne.CanvasObject) {
+				if img, ok := o.(*canvas.Image); ok {
+					pictures++
+					if img.Image == nil || img.Image.Bounds().Dx() != 120 || img.Image.Bounds().Dy() != 80 {
+						t.Fatal("SVG source's JPEG preview was not decoded as a raster")
+					}
+				}
+			})
+			if pictures != len(uris) {
+				t.Fatalf("expected all %d preview samples, got %d", len(uris), pictures)
+			}
+			return piles[0]
+		}
+		assertPreviews()
+		v.win.Canvas().Capture()
+		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 10000, DY: 10000}})
+		v.explorer.surface.Fit()
+		pile := assertPreviews()
+		fynetest.Tap(pile)
+		got := explorerGridPaths(v)
+		for _, uri := range uris {
+			if !slices.Contains(got, uri.Path()) {
+				t.Fatalf("cohort lost original source identity %q", uri.Path())
 			}
 		}
 	})

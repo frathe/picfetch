@@ -586,9 +586,10 @@ any desktop change; **Save Image** remains available.
 
 ---
 
-### Visual similarity explorer (Intel/Apple Silicon Mac, Linux and Windows)
+### Similarity Explorer (Intel/Apple Silicon Mac, Linux and Windows)
 
-On first use, Trane introduces the Explorer. Choose **Download** to install
+On first use, Trane introduces the Explorer and its SigLIP 2 AI model for finding
+and grouping similar pictures. Choose **Download** to install
 model and runtime files from Hugging Face and Microsoft GitHub (about 383 MB
 on Linux x64, 382 MB on Linux ARM64, 383 MB on Intel macOS, 413 MB on Apple Silicon
 macOS, 451 MB on Windows x64 or 453 MB on Windows ARM64).
@@ -614,10 +615,10 @@ last official Intel runtime. Other platforms use ONNX Runtime 1.29.0.
 
 **Windows:** ONNX Runtime telemetry is disabled before analysis. The worker
 communicates with PicFetch through local pipes and opens no network port.
-Windows does not block that worker's network access. The first-use notice
+Windows does not block that worker's network access. The **Privacy policy**
 explains this difference; macOS and Linux retain OS-enforced network isolation.
 
-With images open, press **`Shift+S`** or choose **Window -> Visual Similarity Explorer**. It analyzes
+With images open, press **`Shift+S`** or choose **Window -> Similarity Explorer**. It analyzes
 the opened images, including merged sets and Favorites. When duplicate filtering
 is enabled, only the highest-resolution image in each duplicate group is
 analyzed; preparation waits for duplicate checks to finish. Grid search and
@@ -731,7 +732,7 @@ the same map view. Grid search and selection keep their usual Escape stages.
 image resources. Opening the explorer again rebuilds the map, reusing saved
 favorite analysis when available.
 
-If analysis fails, open **Window -> Visual Similarity Explorer** again to retry.
+If analysis fails, open **Window -> Similarity Explorer** again to retry.
 Saving over an opened source, removing a file, or encountering a missing file
 retires the current map and stops its analysis. Changing duplicate match distance
 while hide-duplicates is enabled also retires the map. The surviving members of an
@@ -744,7 +745,7 @@ disabled; macOS and Linux also block the worker's network access at OS level.
 Piles stay separated and continuing groups keep their positions as results arrive.
 Open cohorts retain their captured members; reopening uses the latest grouping.
 
-**Settings -> General -> Visual Similarity Explorer** provides three options:
+**Settings -> General -> Similarity Explorer** provides three options:
 **Save analysis for favorites** (on), **Auto-update every 30 images** (off), and
 **Fit new stacks into view** (on). Successful favorite analysis is saved in an
 `analysis` subfolder beside the favorite’s file list and `thumbs` folder. Future
@@ -860,7 +861,7 @@ many of them actually went.
   replacing it); shown in the title bar as a **`[merge]`** prefix
 - **`Shift+M`** — open the mosaic generator for the loaded images, or the
   current selection/filtered result in Grid View
-- **`Shift+S`** — open the Visual Similarity Explorer for the opened files.
+- **`Shift+S`** — open the Similarity Explorer for the opened files.
   While a Grid search is active, both shortcuts type their letters instead
 - **`G`** — toggle the grid overview (see above); arrow keys move the
   highlight and `Page Up`/`Page Down` move it a page at a time, `Return` or
