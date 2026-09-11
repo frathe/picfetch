@@ -20,7 +20,7 @@ are reasonable to accept; respect the user's final decisions.
 ## GitHub Cortex review loop
 
 When the user invokes this workflow, cooperate with the GitHub review bot until
-the current PR is clear of actionable findings and its current commit passes CI.
+a fresh Codex review reports no findings on the latest PR commit and its CI passes.
 Invocation authorizes fix commits, pushes to the existing PR branch, review
 replies, thread resolution, and requests for another bot review. Do not merge or
 release unless the user separately requests that action.
@@ -38,19 +38,27 @@ release unless the user separately requests that action.
 4. Commit and push the fixes. Reply to each addressed thread with the commit,
    disposition, and verification evidence, then resolve it. Keep unrelated user
    edits out of the commit.
-5. Wait for fresh reviews and CI results for the pushed commit. If a review does
-   not start automatically, request it once with the configured bot mention.
+5. After fixing, rejecting, or resolving any finding, continue with another fresh
+   Codex code review. Resolving a false positive also requires another review,
+   even when no code changed. Wait for fresh reviews and CI results for the latest
+   commit; if no review starts automatically, request it once with the configured
+   bot mention after posting the finding's disposition.
    This repository's Codex connector advertises `@codex review` (the workflow is
    called Cortex); check the live bot summary if that trigger changes. Do not
    repeatedly post requests while a review is queued or running.
 6. Inspect fresh Qodana/SARIF findings even when the workflow is green or neutral,
    and fetch failed CI job logs. Validate, fix, test, push, and reply again as
    needed. Use the post-suppression Qodana report as described below.
-7. Finish only when the latest pushed commit has a completed review with no
-   actionable unresolved findings, clean actionable Qodana/CodeQL results, and
-   passing required CI checks. A clean review of an older commit does not count.
-   If an external service prevents completion, report exactly what remains
-   unverified. Summarize commits, thread dispositions, and final checks to the user.
+7. Finish only after a fresh Codex code review reports no findings on the latest
+   pushed commit, the security review has completed without actionable findings,
+   Qodana/CodeQL results are clear of actionable findings, and required CI passes.
+   A review containing findings is not a clean final round merely because the
+   lead later fixes or dismisses them: complete another review after those
+   dispositions. A clean review of an older commit does not count. If the user
+   explicitly requests continuous review until told to stop, keep cycling even
+   after a clean round. If an external service prevents completion, report exactly
+   what remains unverified. Summarize commits, thread dispositions, and final checks
+   to the user.
 
 Keep `todos.md` and the applicable plan/evidence record current, and give concise
 progress updates while waiting. Use the existing SDD/TDD working agreement for
