@@ -92,7 +92,7 @@ func publishedVersion(o object, r *receipt) (string, error) {
 	return "", fmt.Errorf("published package version %s.0 is not bound to a release receipt; inspect the published submission", actual)
 }
 func plainText(s string) string {
-	s = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`).ReplaceAllString(s, "$1")
+	s = regexp.MustCompile(`!?\[([^]]*)]\([^)]*\)`).ReplaceAllString(s, "$1")
 	s = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(s, "")
 	s = strings.NewReplacer("**", "", "__", "", "`", "", "*", "", "\\", "").Replace(s)
 	return strings.Join(strings.Fields(s), " ")
@@ -158,7 +158,7 @@ func platformOnly(s string) bool {
 	if regexp.MustCompile(`\bwindows\b|\bcross.platform\b|\ball platforms\b`).MatchString(lower) {
 		return false
 	}
-	return regexp.MustCompile(`^(?:on\s+)?\[?(?:linux|macos|mac os|mac)(?:\]|:|\s|$)`).MatchString(lower)
+	return regexp.MustCompile(`^(?:on\s+)?\[?(?:linux|macos|mac os|mac)(?:]|:|\s|$)`).MatchString(lower)
 }
 func generateNotes(base, target string, items []noteRelease) (string, error) {
 	if _, err := versionParts(base); err != nil {
@@ -317,7 +317,8 @@ func metadataMatches(o object, want string) (bool, error) {
 func metadataDifferences(left, right object) []string {
 	const limit = 32
 	safeKey := regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
-	differences := []string{}
+	// Keep empty differences as [] in the diagnostic JSON.
+	differences := make([]string, 0, limit+1)
 	var visit func(string, any, any, int)
 	visit = func(path string, a, b any, depth int) {
 		if len(differences) >= limit || reflect.DeepEqual(a, b) {

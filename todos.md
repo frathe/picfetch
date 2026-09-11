@@ -74,6 +74,9 @@
 
 ### Internal
 
+- **Release preparation.** Resolved seven code-inspection findings in mosaic generation, its tests, and Store release
+  tooling while preserving preview behavior and diagnostic output.
+
 - **Code quality and security cleanup.** Addressed findings from automated inspections and tightened how the Explorer
   installer extracts downloaded files.
 

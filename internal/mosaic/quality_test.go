@@ -2,6 +2,7 @@ package mosaic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -287,7 +288,7 @@ func qualityClipEdge(polygon []testCoveragePoint, a, b testCoveragePoint, keepIn
 	return output
 }
 
-func (s qualityScene) coveredFraction() float64 {
+func (s *qualityScene) coveredFraction() float64 {
 	area, visible := 0.0, 0.0
 	for i := range s.area {
 		area += s.area[i]
@@ -296,7 +297,7 @@ func (s qualityScene) coveredFraction() float64 {
 	return 1 - visible/area
 }
 
-func (s qualityScene) checkVisibility(t *testing.T) {
+func (s *qualityScene) checkVisibility(t *testing.T) {
 	t.Helper()
 	worst, index := 1.0, -1
 	concealed := 0
@@ -511,7 +512,7 @@ func TestGenerate_RandomLargeRotation(t *testing.T) {
 		settings := qualitySettings(90, .08)
 		settings.Layout = LayoutRandom
 		result, err := g.Generate(ctx, mustRequest(t, []fyne.URI{storage.NewFileURI("/virtual/photo.png")}, image.Pt(320, 180), settings, 7))
-		if err != context.Canceled || !result.Bounds().Empty() || prepared != 2 {
+		if !errors.Is(err, context.Canceled) || !result.Bounds().Empty() || prepared != 2 {
 			t.Fatalf("cancelled generation: err=%v result=%v preparations=%d", err, result.Bounds(), prepared)
 		}
 	})

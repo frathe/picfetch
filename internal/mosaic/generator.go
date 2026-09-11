@@ -105,19 +105,7 @@ func (g *Generator) GenerateWithProgress(ctx context.Context, request Request, r
 		pool.cache.SetBudget(g.cacheBytes)
 	}
 	active := make(map[int]*loadedSource)
-	canvas := image.NewNRGBA(image.Rectangle{Max: request.target})
-	fillNRGBA(canvas, color.NRGBA{R: 28, G: 30, B: 34, A: 255})
-	primaryLayer := image.NewNRGBA(canvas.Bounds())
-	previews := previewSnapshots{clock: g.previewClock}
-	reportCoverage := func(covered int) {
-		if report == nil || covered >= total || ctx.Err() != nil {
-			return
-		}
-		preview := previews.next(canvas, primaryLayer)
-		if ctx.Err() == nil {
-			report(Progress{CoveredPixels: covered, TotalPixels: total, Preview: preview})
-		}
-	}
+	canvas, primaryLayer, reportCoverage := g.newCanvasWithProgress(ctx, request.target, report)
 
 	next := func() (candidate, error) {
 		entry, source, err := pool.next(ctx)
@@ -150,20 +138,7 @@ func (g *Generator) GenerateWithProgress(ctx context.Context, request Request, r
 	if err != nil {
 		return Result{}, err
 	}
-	if err := ctx.Err(); err != nil {
-		return Result{}, err
-	}
-	draw.Draw(canvas, canvas.Bounds(), primaryLayer, primaryLayer.Bounds().Min, draw.Over)
-	if err := ctx.Err(); err != nil {
-		return Result{}, err
-	}
-	if report != nil {
-		report(Progress{CoveredPixels: total, TotalPixels: total})
-	}
-
-	// canvas was allocated for this result and was never shared with a caller,
-	// so ownership can transfer without a second target-sized copy.
-	return Result{pixels: canvas}, nil
+	return finishCanvas(ctx, canvas, primaryLayer, report)
 }
 
 // generateShelfWithProgress renders a settled Shelf-mode plan. Its repair
@@ -186,19 +161,7 @@ func (g *Generator) generateShelfWithProgress(ctx context.Context, request Reque
 		return Result{}, err
 	}
 
-	canvas := image.NewNRGBA(image.Rectangle{Max: request.target})
-	fillNRGBA(canvas, color.NRGBA{R: 28, G: 30, B: 34, A: 255})
-	primaryLayer := image.NewNRGBA(canvas.Bounds())
-	previews := previewSnapshots{clock: g.previewClock}
-	reportCoverage := func(covered int) {
-		if report == nil || covered >= total || ctx.Err() != nil {
-			return
-		}
-		preview := previews.next(canvas, primaryLayer)
-		if ctx.Err() == nil {
-			report(Progress{CoveredPixels: covered, TotalPixels: total, Preview: preview})
-		}
-	}
+	canvas, primaryLayer, reportCoverage := g.newCanvasWithProgress(ctx, request.target, report)
 
 	renderedCovered := make([]bool, total)
 	covered := 0
@@ -219,6 +182,29 @@ func (g *Generator) generateShelfWithProgress(ctx context.Context, request Reque
 			reportCoverage(covered)
 		}
 	}
+	return finishCanvas(ctx, canvas, primaryLayer, report)
+}
+
+// newCanvasWithProgress keeps both layouts on the same layers and snapshot cadence.
+func (g *Generator) newCanvasWithProgress(ctx context.Context, target image.Point, report func(Progress)) (*image.NRGBA, *image.NRGBA, func(int)) {
+	total := target.X * target.Y
+	canvas := image.NewNRGBA(image.Rectangle{Max: target})
+	fillNRGBA(canvas, color.NRGBA{R: 28, G: 30, B: 34, A: 255})
+	primaryLayer := image.NewNRGBA(canvas.Bounds())
+	previews := previewSnapshots{clock: g.previewClock}
+	reportCoverage := func(covered int) {
+		if report == nil || covered >= total || ctx.Err() != nil {
+			return
+		}
+		preview := previews.next(canvas, primaryLayer)
+		if ctx.Err() == nil {
+			report(Progress{CoveredPixels: covered, TotalPixels: total, Preview: preview})
+		}
+	}
+	return canvas, primaryLayer, reportCoverage
+}
+
+func finishCanvas(ctx context.Context, canvas, primaryLayer *image.NRGBA, report func(Progress)) (Result, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
@@ -227,9 +213,12 @@ func (g *Generator) generateShelfWithProgress(ctx context.Context, request Reque
 		return Result{}, err
 	}
 	if report != nil {
+		total := canvas.Bounds().Dx() * canvas.Bounds().Dy()
 		report(Progress{CoveredPixels: total, TotalPixels: total})
 	}
 
+	// The canvas was never shared with a caller, so ownership can transfer
+	// without a second target-sized copy.
 	return Result{pixels: canvas}, nil
 }
 

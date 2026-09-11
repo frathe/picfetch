@@ -136,7 +136,7 @@ func TestLayoutModePreferenceValuesAndNormalization(t *testing.T) {
 	}
 
 	settings := DefaultSettings()
-	settings.Layout = LayoutMode("future-layout")
+	settings.Layout = "future-layout"
 	request, err := NewRequest([]fyne.URI{storage.NewFileURI("photo.png")}, image.Pt(320, 180), settings, 7)
 	if err != nil {
 		t.Fatal(err)
