@@ -141,3 +141,23 @@ Lead final diff assessment: all implementation changes map to the ten confirmed
 Codex findings and scanner dispositions. One Scout supplied only harness locations;
 all specifications, review and fixes stayed with the Lead. No broad local race run.
 Fresh remote review and CI evidence will be linked on PR 18 after this push.
+
+## First pushed round: 724a221
+
+All ten Codex threads received commit-linked replies and were resolved; the
+CodeQL thread also received a full false-positive disposition. New reviews
+started automatically. CodeQL now passes with zero open PR alerts. Validation,
+Windows and both macOS CI jobs pass, including Intel installer/offline inference
+through the new native sysctl admission check. The full Linux race partitions
+and fresh code/security reviews remain in progress at this record's update.
+
+Fresh Qodana run 34609889640 has one post-suppression result, GoResourceLeak at
+cache.go's os.OpenRoot. This is a false positive across ownership transfer:
+rejected or empty favorites close immediately, admitted handles are retained in
+favoriteAnalysis and closed by analysisCache.close. The new
+TestAnalysisCacheClosesRoots admits two favorites shared across two source keys
+and observes both roots closed. It passes, fails with "cache shutdown left a
+directory root open" when the actual Close call is temporarily removed, and
+passes after restoration. A narrow GoResourceLeak suppression documents that
+ownership; production resource behavior is unchanged. Fresh SARIF is required
+after this disposition, along with the fresh code/security/CI acceptance.

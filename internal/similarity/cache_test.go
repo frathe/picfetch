@@ -1,6 +1,8 @@
 package similarity
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +12,37 @@ import (
 
 	"github.com/frathe/picfetch/internal/favstore"
 )
+
+func TestAnalysisCacheClosesRoots(t *testing.T) {
+	dir := t.TempDir()
+	shared := storage.NewFileURI(filepath.Join(dir, "shared.jpg"))
+	other := storage.NewFileURI(filepath.Join(dir, "other.jpg"))
+	for _, name := range []string{"First", "Second"} {
+		if err := favstore.Save(dir, name, []fyne.URI{shared, other}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cache, err := openAnalysisCache(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cache.close()
+	roots := make(map[*os.Root]bool)
+	for _, favorites := range cache {
+		for _, favorite := range favorites {
+			roots[favorite.root] = true
+		}
+	}
+	if len(roots) != 2 {
+		t.Fatalf("premise: cache retained %d directory roots, want 2", len(roots))
+	}
+	cache.close()
+	for root := range roots {
+		if _, err := root.Stat("file-list.json"); !errors.Is(err, os.ErrClosed) {
+			t.Fatalf("cache shutdown left a directory root open: %v", err)
+		}
+	}
+}
 
 func TestFavoriteAnalysisFollowsOpenedDirectory(t *testing.T) {
 	for _, replacement := range []bool{false, true} {

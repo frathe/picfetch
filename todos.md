@@ -6,8 +6,10 @@
 - [x] Inspect all ten post-suppression Qodana findings. Correct three mechanical
   issues; narrowly suppress seven build-tag/proper-name false positives.
   CodeQL ZIP alert 6 is dismissed with exact allowlist/test evidence.
-- [ ] Push fixes, reply to and resolve each addressed thread, then obtain fresh
-  clean code/security reviews and passing CI on the latest commit.
+- [x] Push 724a221 and reply to all ten Codex findings; no unresolved threads.
+  Follow-up Qodana ownership warning is disproved by a negatively verified
+  directory-handle closure guard and narrowly suppressed.
+- [ ] Obtain fresh clean code/security reviews and passing CI on the latest commit.
   See [the SDD/TDD record](plans/2026-09-11-pr18-review-limits-evidence.md).
 
 ## Intel macOS Explorer (2026-09-11)

@@ -51,6 +51,9 @@ func openAnalysisCache(ctx context.Context, dir string) (analysisCache, error) {
 		if err := ctx.Err(); err != nil {
 			return cache, err
 		}
+		// Rejected/empty favorites close below; admitted roots transfer to
+		// favoriteAnalysis and are closed once by analysisCache.close.
+		//goland:noinspection GoResourceLeak
 		root, err := os.OpenRoot(favstore.Dir(dir, name))
 		if err != nil {
 			continue
