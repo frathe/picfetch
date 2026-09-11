@@ -79,6 +79,17 @@
 
 ## TODO
 
+### Antivirus verdicts on unreleased builds
+
+The September 11 local builds have likely false positives: Microsoft flags both
+Linux architectures as `Trojan:Script/Wacatac.C!ml`; Trapmine alone flags Windows
+AMD64 as `Malicious.high.ml.score`. Microsoft reports both Windows builds as
+undetected. Windows ARM64 is 0/67, but Trapmine cannot process that file type.
+All 99 distinct cached dependency directories and archives match the build
+metadata and `go.sum`. Vendor review remains pending; no samples have been
+submitted by the agent. Record final vendor determinations and rescan the final
+release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
+
 ### Comparison test deadline under build contention
 
 The Ubuntu full race run on 2026-09-10 timed out in
