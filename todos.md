@@ -16,6 +16,17 @@
 
 ## TODO
 
+### Hypno Spiral tunnel image stream
+
+Implement the accepted infinite image-tunnel enhancement for the Hypno Spiral
+easter egg: a frozen duplicate-aware source snapshot, bounded three-texture GPU
+renderer, main/random cyclic ordering, static GIF previews, controls, and
+lifecycle coverage. Refined motion calls for gentle acceleration, soft edges,
+subtle batch variation, translucent depth overlap, and native visual tuning.
+Start with the first of the [five ready tickets](.scratch/hypno-spiral-tunnel/issues/README.md).
+See the [specification](.scratch/hypno-spiral-tunnel/spec.md) and
+[implementation plan](plans/2026-09-11-hypno-spiral-tunnel.md).
+
 ### Confirm UI shard balance in CI
 
 Run CI after the September 11 manifest rebalance and compare the three raw test
