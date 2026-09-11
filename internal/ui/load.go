@@ -36,6 +36,7 @@ func (v *viewer) ShowImage(i int) {
 	if !v.yieldCopySelection() {
 		return
 	}
+	v.explorerImageOpened()
 	v.cancelImageClipboard()
 	v.cancelSave()
 	v.cancelExport()
@@ -138,10 +139,9 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 				// fills the whole window, so sizing that window to one
 				// image means nothing while it's up - and undoGridMaximize
 				// would actively shrink it back out from under the open
-				// grid. Only reachable since the grid's batch delete, which
-				// re-shows whatever takes a deleted file's place without
-				// closing the grid first.
-				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() {
+				// grid. The explorer and its cohort browsing retain that
+				// size through both this probe and the final load.
+				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() && len(v.explorer.cohort) == 0 && !v.explorer.surface.Visible() {
 					v.undoGridMaximize()
 					v.autoResizeToImage(bounds)
 				}
@@ -226,6 +226,9 @@ func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.Load
 	v.clearLoadingChrome()
 	v.exif.Refresh()
 	v.startLoadedAnimation(token, loaded)
+	if len(v.explorer.cohort) > 0 {
+		v.recordExplorerView("image-loaded")
+	}
 	// Must run - and finish reading v.state.files/v.state.index - before the
 	// load signal finishes below: that finish is what a waiter (a test's
 	// waitUntilLoaded, or a future navigation) synchronizes on to know
@@ -309,7 +312,7 @@ func (v *viewer) syncLoadedFileInfo(loaded *imaging.LoadedImage) {
 func (v *viewer) fitWindowToLoadedImage(loaded *imaging.LoadedImage) {
 	v.zoom.ResetToFit()
 
-	if !v.slides.Active() && !v.grid.Visible() {
+	if !v.slides.Active() && !v.grid.Visible() && len(v.explorer.cohort) == 0 && !v.explorer.surface.Visible() {
 		b := loaded.Frames[0].Bounds()
 		v.undoGridMaximize()
 		v.autoResizeToImage(b)
@@ -487,6 +490,16 @@ func (v *viewer) retryAfterLoadFailure(token requestToken, msg string, i int, do
 	}
 
 	v.ShowToast(msg)
+	if cohort := v.cohortIndexes(); len(cohort) > 0 {
+		next := cohort[0]
+		for _, index := range cohort {
+			if index >= i {
+				next = index
+				break
+			}
+		}
+		i = next
+	}
 	v.attemptLoad(token, i, done)
 }
 

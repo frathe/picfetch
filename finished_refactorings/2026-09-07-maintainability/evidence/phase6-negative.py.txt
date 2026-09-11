@@ -1,6 +1,6 @@
 from pathlib import Path
 import json, subprocess
-root=Path('/Users/ronin/Projects/picfetch')
+root=Path('/Users/REDACTED_USER/Projects/picfetch')
 base=Path('/private/tmp/picfetch-phase6-negative');base.mkdir(exist_ok=True)
 cases=[
 ('grouping-behind-decodes','internal/ui/grid/groupwork.go','g.grouping.workers.Go(func() {','g.decodes.Go(ctx, func(_ bool) {','./internal/ui/grid','TestHideDuplicatesPublishesWhileSourceReadsRemainPending'),

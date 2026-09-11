@@ -1,0 +1,12 @@
+# github.com/frathe/picfetch/internal/ui.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestGridBrowseDuringAnalysis
+=== RUN   TestGridBrowseDuringAnalysis/source_identity
+=== RUN   TestGridBrowseDuringAnalysis/source_identity/sensitivity
+    grid_test.go:319: accepted sensitivity change did not dissolve partial browse
+--- FAIL: TestGridBrowseDuringAnalysis (0.17s)
+    --- FAIL: TestGridBrowseDuringAnalysis/source_identity (0.17s)
+        --- FAIL: TestGridBrowseDuringAnalysis/source_identity/sensitivity (0.17s)
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui	0.738s
+FAIL

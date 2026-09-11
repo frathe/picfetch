@@ -25,6 +25,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		ShowSettings: func() { view.settingsWin.Show(view.settingsState(), view.storeManaged) },
 
 		ShowViewer:       view.showViewer,
+		ShowExplorer:     view.showExplorer,
 		ShowExif:         view.showWindowExif,
 		ShowGrid:         view.showWindowGrid,
 		ShowPictureFrame: view.showWindowPictureFrame,
@@ -51,7 +52,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.help.SetOnManualClosed(view.syncMenus)
 	view.help.SetOnManualOpened(view.syncMenus)
 	view.exif.SetOnClosed(view.syncMenus)
-	view.grid.SetOnVisibilityChanged(view.syncMenus)
+	view.grid.SetOnVisibilityChanged(view.explorerGridChanged)
 	view.grid.SetOnSelectionChanged(view.syncMenus)
 	view.grid.SetOnResultChanged(view.syncMenus)
 	view.slides.SetOnActiveChanged(view.syncMenus)
@@ -72,20 +73,19 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 	c.OpenFiles = v.yieldThenAllowedDuringComparison(c.OpenFiles)
 	c.ShowHelp = v.yieldThenAllowedDuringComparison(c.ShowHelp)
 	c.SetSort = v.yieldThenMode(c.SetSort)
+	for _, callback := range []*func(){&c.ShowViewer, &c.ShowExplorer, &c.Mosaic, &c.CloseFiles, &c.ShowSettings} {
+		*callback = v.yieldThenMapAllowed(*callback)
+	}
 
 	for _, callback := range []*func(){
 		&c.SaveRotation,
 		&c.PromptExport,
-		&c.CloseFiles,
-		&c.ShowSettings,
-		&c.ShowViewer,
 		&c.ShowExif,
 		&c.ShowGrid,
 		&c.ShowPictureFrame,
 		&c.ToggleHideDuplicates,
 		&c.ShowVariant,
 		&c.Compare,
-		&c.Mosaic,
 		&c.Rotate,
 		&c.ToggleMergeMode,
 		&c.ToggleInfoOverlay,
@@ -100,17 +100,20 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 }
 
 func (v *viewer) yieldThen(fn func()) func() {
+	return v.yieldThenMapAllowed(func() {
+		if !v.explorerMapActive() && fn != nil {
+			fn()
+		}
+	})
+}
+func (v *viewer) yieldThenMapAllowed(fn func()) func() {
 	if fn == nil {
 		return nil
 	}
 	return func() {
-		if v.comparisonActive() {
-			return
+		if !v.comparisonActive() && v.yieldCopySelection() {
+			fn()
 		}
-		if !v.yieldCopySelection() {
-			return
-		}
-		fn()
 	}
 }
 
@@ -131,7 +134,7 @@ func (v *viewer) yieldThenMode(fn func(filesort.Mode)) func(filesort.Mode) {
 		return nil
 	}
 	return func(m filesort.Mode) {
-		if v.comparisonActive() {
+		if v.comparisonActive() || v.explorerMapActive() {
 			return
 		}
 		if !v.yieldCopySelection() {
@@ -185,8 +188,11 @@ func (v *viewer) menuState() menus.State {
 		CanWallpaper:       v.canSetWallpaper(),
 		CanCopySelection:   v.regionCopyAvailable(),
 		CanCompare:         v.grid.Visible() && v.grid.SelectionCount() == 2,
-		CanMosaic:          v.grid.Visible() && len(v.grid.ResultIndexes()) > 0,
+		CanMosaic:          v.canMosaic(),
 		ComparisonActive:   v.comparisonActive(),
+		ExplorerActive:     v.explorerMapActive(),
+		ExplorerCanRetry:   v.explorerCanRetry(),
+		CohortActive:       len(v.explorer.cohort) > 0,
 	}
 }
 

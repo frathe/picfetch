@@ -15,7 +15,7 @@ import (
 // text clipboard. No shell-out needed here, unlike copyImageToClipboard
 // below - fyne.Clipboard already handles text on every platform.
 func (v *viewer) copyPathToClipboard() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if len(v.state.files) == 0 {
@@ -33,7 +33,7 @@ func (v *viewer) copyPathToClipboard() {
 // dialog. The displayed image is immutable after publication; capture that
 // reference on UI, then encode and dispatch on the operation's worker.
 func (v *viewer) copyImageToClipboard() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	img := v.img.Image

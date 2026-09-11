@@ -1,0 +1,10 @@
+# github.com/frathe/picfetch/internal/ui.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestGridBrowseDuringAnalysis
+=== RUN   TestGridBrowseDuringAnalysis/group_updates
+    grid_test.go:174: matching input did not queue a grouping result
+--- FAIL: TestGridBrowseDuringAnalysis (0.17s)
+    --- FAIL: TestGridBrowseDuringAnalysis/group_updates (0.17s)
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui	0.896s
+FAIL

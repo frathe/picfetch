@@ -49,6 +49,50 @@ build: ## Build a native binary for the current OS/arch into bin/ (stripped, no 
 run: ## Run the app directly (go run .)
 	go run .
 
+EXPLORER_ASSETS ?= .scratch/visual-similarity-explorer/assets
+EXPLORER_LIBRARY ?= .scratch/visual-similarity-explorer/demo
+EXPLORER_EVIDENCE ?= .scratch/visual-similarity-explorer/evidence
+EXPLORER_PROVIDER ?= cpu
+TRIAL ?= smoke
+
+.PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test explorer-download-test
+explorer-download-test: ## Qualify pinned asset downloads and reuse without launching native analysis
+	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetDownload$$' -count=1 -v -timeout 25m
+
+explorer-install-test: ## Download pinned public assets and qualify local analysis with the platform's network policy
+	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
+
+explorer-setup: ## Download and verify pinned public Explorer assets (macOS/Linux/Windows x64/arm64)
+	go run ./scripts/explorereval -install -assets "$(EXPLORER_ASSETS)"
+
+explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, throughput, or library)
+	@mkdir -p $(BIN_DIR)
+	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
+	@if [ "$(TRIAL)" = library ]; then go build -o $(BIN_DIR)/picfetch-trial .; fi
+	bash scripts/explorereval/evaluate.sh "$(BIN_DIR)/explorereval" "$(EXPLORER_ASSETS)" "$(EXPLORER_LIBRARY)" "$(EXPLORER_EVIDENCE)" "$(TRIAL)" "$(EXPLORER_PROVIDER)" "$(BIN_DIR)/picfetch-trial"
+
+explorer-profile: ## Measure bounded production cold/warm throughput with an isolated temporary favorite cache
+	@mkdir -p $(BIN_DIR) "$(EXPLORER_EVIDENCE)"
+	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
+	@set -eu; run_dir=$$(mktemp -d "$(EXPLORER_EVIDENCE)/throughput-XXXXXX"); \
+		cp "$(BIN_DIR)/explorereval" "$$run_dir/explorereval"; \
+		set +e; \
+		"$$run_dir/explorereval" -trial throughput -assets "$(EXPLORER_ASSETS)" -library "$(EXPLORER_LIBRARY)" -out "$$run_dir/result" > "$$run_dir/console.log" 2>&1; \
+		status=$$?; set -e; printf '%s\n' "$$status" > "$$run_dir/exit-status.txt"; \
+		printf 'Production throughput evidence: %s (exit %s)\n' "$$run_dir" "$$status"; \
+		if [ "$$status" -ne 0 ]; then cat "$$run_dir/console.log"; fi; \
+		exit "$$status"
+
+explorer-test: ## Run real-model acceptance tests under explicit macOS network denial (local assets required)
+	@mkdir -p $(BIN_DIR)
+	go test -c -tags explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
+	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.run '^(TestEvaluation|TestReal)' -test.v -test.count=1
+	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^(TestProductionProfile|TestNativeLibraryRunner)' -test.v -test.count=1
+
+explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on supported macOS/Linux/Windows
+	go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v
+
+
 fmt: ## Format all Go source files (gofmt + import groups via goimports -local)
 	go tool goimports -local $(GOIMPORTS_LOCAL) -w .
 
@@ -345,6 +389,7 @@ clean: ## Remove all build artifacts
 package-mac: install-fyne ## Package a macOS .app bundle (native, no Docker) into bin/
 	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
 	go run ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
+	cp LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md "$(APP_NAME).app/Contents/Resources/"
 	mkdir -p $(BIN_DIR)
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"
 	mv "$(APP_NAME).app" "$(BIN_DIR)/"

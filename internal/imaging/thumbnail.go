@@ -178,6 +178,14 @@ func scaleWith(kernel draw.Interpolator, src image.Image, maxEdge int) image.Ima
 	}
 
 	dst := image.NewRGBA(image.Rect(0, 0, dw, dh))
+	if source, ok := src.(*image.YCbCr); ok && kernel == draw.CatmullRom {
+		switch source.SubsampleRatio {
+		case image.YCbCrSubsampleRatio444, image.YCbCrSubsampleRatio422,
+			image.YCbCrSubsampleRatio420, image.YCbCrSubsampleRatio440:
+			scaleJPEG(dst, source)
+			return dst
+		}
+	}
 	kernel.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)
 	return dst
 }

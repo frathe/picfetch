@@ -1,4 +1,4 @@
-Linux 1d26c4a0d8fd 6.12.76-linuxkit #1 SMP Thu Jun 25 13:45:40 UTC 2026 x86_64 GNU/Linux
+Linux REDACTED_CONTAINER 6.12.76-linuxkit #1 SMP Thu Jun 25 13:45:40 UTC 2026 x86_64 GNU/Linux
 PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
 NAME="Debian GNU/Linux"
 VERSION_ID="12"

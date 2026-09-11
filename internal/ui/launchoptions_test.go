@@ -267,7 +267,7 @@ func TestLaunchOptions_PictureFrameSpentWhenLaunchCancelled(t *testing.T) {
 					v.dropzone.Hide()
 					source := uitest.TempJPEGURI(t, "launch.jpg", 4, 4, color.White)
 					finish = func() {
-						v.applyScanResult(token, false, []fyne.URI{source}, []fyne.URI{source}, false, v.MaxScan(), done)
+						v.applyScanResult(token, false, []fyne.URI{source}, []fyne.URI{source}, false, v.MaxScan(), done, "")
 					}
 				} else {
 					entered, release := make(chan struct{}), make(chan struct{})
@@ -284,7 +284,7 @@ func TestLaunchOptions_PictureFrameSpentWhenLaunchCancelled(t *testing.T) {
 							CloseFunc: func() error { return nil },
 						}, nil
 					})
-					v.applyScannedFiles(false, []fyne.URI{source}, []fyne.URI{source})
+					v.applyScannedFiles(false, []fyne.URI{source}, []fyne.URI{source}, "")
 					done := v.sortOp.done.Current()
 					select {
 					case <-entered:

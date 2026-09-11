@@ -1,8 +1,8 @@
 # Third-Party Notices
 
-PicFetch is licensed under the MIT License (see `LICENSE`). It links
+PicFetch's own source is licensed under the MIT License (see `LICENSE`). It links
 against the third-party Go modules listed below, each under its own license.
-This file was generated from `go.mod`/`go.sum` with
+The original module inventory was generated from `go.mod`/`go.sum` with
 [`go-licenses`](https://github.com/google/go-licenses) and reproduces the
 license text of every module reachable from the built binary (test-only
 dependencies are not included, since they never ship).
@@ -19,7 +19,7 @@ under its own heading below.
 
 ## fyne.io/fyne/v2
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/fyne-io/fyne/blob/v2.8.0/LICENSE
 
 ```
@@ -56,7 +56,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## fyne.io/systray
 
-License: Apache-2.0  
+License: Apache-2.0
 Source: https://github.com/fyne-io/systray/blob/v1.12.2/LICENSE
 
 ```
@@ -267,7 +267,7 @@ Apache License
 
 ## fyne.io/x/fyne
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/fyne-io/fyne-x/blob/master/LICENSE
 
 Used for the `Map` widget behind the EXIF window's location view. The map
@@ -310,7 +310,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/anthonynsimon/bild
 
-License: MIT  
+License: MIT
 Source: https://github.com/anthonynsimon/bild/blob/v0.14.0/LICENSE
 
 ```
@@ -341,7 +341,7 @@ SOFTWARE.
 
 ## github.com/BurntSushi/toml
 
-License: MIT  
+License: MIT
 Source: https://github.com/BurntSushi/toml/blob/v1.6.0/COPYING
 
 ```
@@ -372,7 +372,7 @@ THE SOFTWARE.
 
 ## github.com/clipperhouse/uax29/v2
 
-License: MIT  
+License: MIT
 Source: https://github.com/clipperhouse/uax29/blob/v2.2.0/LICENSE
 
 ```
@@ -403,7 +403,7 @@ SOFTWARE.
 
 ## github.com/ebitengine/purego
 
-License: Apache-2.0  
+License: Apache-2.0
 Source: https://github.com/ebitengine/purego/blob/v0.10.1/LICENSE
 
 ```
@@ -614,7 +614,7 @@ Apache License
 
 ## github.com/fredbi/uri
 
-License: MIT  
+License: MIT
 Source: https://github.com/fredbi/uri/blob/v1.1.1/LICENSE.md
 
 ```
@@ -646,7 +646,7 @@ SOFTWARE.
 
 ## github.com/fsnotify/fsnotify
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE
 
 ```
@@ -681,7 +681,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/fyne-io/image/ico
 
-License: Apache-2.0  
+License: Apache-2.0
 Source: https://github.com/fyne-io/image/blob/v0.1.1/ico/LICENSE-reader
 
 ```
@@ -892,7 +892,7 @@ Apache License
 
 ## github.com/fyne-io/image/xpm
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/fyne-io/image/blob/v0.1.1/LICENSE
 
 ```
@@ -931,7 +931,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/fyne-io/oksvg
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/fyne-io/oksvg/blob/v0.2.0/LICENSE
 
 ```
@@ -970,7 +970,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/gen2brain/avif
 
-License: MIT  
+License: MIT
 Source: https://github.com/gen2brain/avif/blob/v0.6.0/LICENSE
 
 ```
@@ -1001,7 +1001,7 @@ SOFTWARE.
 
 ## github.com/gen2brain/heic
 
-License: MIT  
+License: MIT
 Source: https://github.com/gen2brain/heic/blob/v0.7.1/LICENSE
 
 ```
@@ -1032,7 +1032,7 @@ SOFTWARE.
 
 ## github.com/godbus/dbus/v5
 
-License: BSD-2-Clause  
+License: BSD-2-Clause
 Source: https://github.com/godbus/dbus/blob/v5.2.2/LICENSE
 
 ```
@@ -1067,7 +1067,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/go-gl/glfw/v3.4/glfw
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/go-gl/glfw/blob/2a407d02d01a/v3.4/glfw/LICENSE
 
 ```
@@ -1104,7 +1104,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/go-gl/gl/v2.1/gl
 
-License: MIT  
+License: MIT
 Source: https://github.com/go-gl/gl/blob/4566fea9a276/LICENSE
 
 ```
@@ -1135,7 +1135,7 @@ SOFTWARE.
 
 ## github.com/go-text/render
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/go-text/render/blob/v0.2.1/LICENSE
 
 ```
@@ -1200,7 +1200,7 @@ For more information, please refer to <https://unlicense.org/>
 
 ## github.com/go-text/typesetting/harfbuzz
 
-License: MIT  
+License: MIT
 Source: https://github.com/go-text/typesetting/blob/v0.3.4/harfbuzz/LICENSE
 
 ```
@@ -1244,7 +1244,7 @@ SOFTWARE.
 
 ## github.com/go-text/typesetting
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/go-text/typesetting/blob/v0.3.4/LICENSE
 
 ```
@@ -1309,7 +1309,7 @@ For more information, please refer to <https://unlicense.org/>
 
 ## github.com/hashicorp/golang-lru/v2
 
-License: MPL-2.0  
+License: MPL-2.0
 Source: https://github.com/hashicorp/golang-lru/blob/v2.0.7/LICENSE
 
 ```
@@ -1683,7 +1683,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 ## github.com/hashicorp/golang-lru/v2/simplelru
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/hashicorp/golang-lru/blob/v2.0.7/simplelru/LICENSE_list
 
 ```
@@ -1722,7 +1722,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/jeandeaual/go-locale
 
-License: MIT  
+License: MIT
 Source: https://github.com/jeandeaual/go-locale/blob/0ef82f21eade/LICENSE
 
 ```
@@ -1753,7 +1753,7 @@ SOFTWARE.
 
 ## github.com/jsummers/gobmp
 
-License: MIT  
+License: MIT
 Source: https://github.com/jsummers/gobmp/blob/a9de23ed2e25/COPYING.txt
 
 ```
@@ -1782,7 +1782,7 @@ THE SOFTWARE.
 
 ## github.com/mattn/go-runewidth
 
-License: MIT  
+License: MIT
 Source: https://github.com/mattn/go-runewidth/blob/v0.0.24/LICENSE
 
 ```
@@ -1813,7 +1813,7 @@ SOFTWARE.
 
 ## github.com/nfnt/resize
 
-License: ISC  
+License: ISC
 Source: https://github.com/nfnt/resize/blob/83c6a9932646/LICENSE
 
 ```
@@ -1836,7 +1836,7 @@ THIS SOFTWARE.
 
 ## github.com/nicksnyder/go-i18n/v2
 
-License: MIT  
+License: MIT
 Source: https://github.com/nicksnyder/go-i18n/blob/v2.5.1/LICENSE
 
 ```
@@ -1865,7 +1865,7 @@ THE SOFTWARE.
 
 ## github.com/rymdport/portal
 
-License: Apache-2.0  
+License: Apache-2.0
 Source: https://github.com/rymdport/portal/blob/v0.4.2/LICENSE
 
 ```
@@ -2076,7 +2076,7 @@ Apache License
 
 ## github.com/srwiley/oksvg
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/srwiley/oksvg/blob/be6e8873101c/LICENSE
 
 ```
@@ -2115,7 +2115,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/srwiley/rasterx
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://github.com/srwiley/rasterx/blob/2ab79fcdd4ef/LICENSE
 
 ```
@@ -2154,7 +2154,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## github.com/tetratelabs/wazero
 
-License: Apache-2.0  
+License: Apache-2.0
 Source: https://github.com/tetratelabs/wazero/blob/v1.12.0/LICENSE
 
 ```
@@ -2365,7 +2365,7 @@ Apache License
 
 ## github.com/yuin/goldmark
 
-License: MIT  
+License: MIT
 Source: https://github.com/yuin/goldmark/blob/v1.8.2/LICENSE
 
 ```
@@ -2396,7 +2396,7 @@ SOFTWARE.
 
 ## golang.org/x/image
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://cs.opensource.google/go/x/image/+/v0.45.0:LICENSE
 
 ```
@@ -2433,7 +2433,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## golang.org/x/net/html
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://cs.opensource.google/go/x/net/+/v0.58.0:LICENSE
 
 ```
@@ -2470,7 +2470,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## golang.org/x/sys
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://cs.opensource.google/go/x/sys/+/v0.47.0:LICENSE
 
 ```
@@ -2507,7 +2507,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## golang.org/x/text
 
-License: BSD-3-Clause  
+License: BSD-3-Clause
 Source: https://cs.opensource.google/go/x/text/+/v0.41.0:LICENSE
 
 ```
@@ -2542,3 +2542,299 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
+
+---
+
+## Visual Similarity Explorer additions
+
+The following entries supplement the generated inventory above. Third-party
+license terms apply to the included code; PicFetch's MIT source license does
+not replace them. The HDBSCAN clustering implementation has an independent
+MIT license, reproduced below with its source provenance.
+
+ONNX Runtime 1.29.0 is bundled in the Microsoft Store x64 and ARM64 packages.
+The direct-download builds obtain the corresponding runtime during optional
+Explorer setup, except Intel macOS, which obtains ONNX Runtime 1.23.2,
+Microsoft's last official Intel binary. Microsoft Store setup downloads only the model and its processor
+configuration; runtime DLL installation and updates belong to the Store package.
+
+Intel macOS setup retains the complete upstream `LICENSE`,
+`ThirdPartyNotices.txt` and `Privacy.md` beside
+`onnxruntime-osx-x86_64-1.23.2/lib/libonnxruntime.1.23.2.dylib`.
+The corresponding runtime source is
+https://github.com/microsoft/onnxruntime/tree/a83fc4d58cb48eb68890dd689f94f28288cf2278.
+Its native notice includes Eigen under MPL-2.0; the unmodified corresponding
+Eigen source is https://gitlab.com/libeigen/eigen/-/tree/1d8b82b0740839c0de7f1242a3585e3390ff5f33.
+Preserve these notices and source pointers with the runtime. Apple frameworks
+and system libraries used by the Intel dylib are supplied by macOS, not bundled.
+
+Each bundled native runtime retains the complete, unmodified upstream
+`LICENSE`, `ThirdPartyNotices.txt`, and `Privacy.md` inside its versioned
+`onnxruntime-win-x64-1.29.0` or `onnxruntime-win-arm64-1.29.0` directory.
+The runtime's third-party notice file includes additional component licenses
+and must remain with the DLLs. `Privacy.md` describes the runtime's telemetry
+behavior, including initialization events that can precede the API opt-out.
+
+The optional model is the ONNX Community conversion of Google's SigLIP 2
+base-patch16-224 vision model, at revision
+`ba1f3b0843f24bc5417d38e19c37b287d719b2f4`:
+https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/tree/ba1f3b0843f24bc5417d38e19c37b287d719b2f4
+Base-model information: https://huggingface.co/google/siglip2-base-patch16-224
+Google's base-model card declares Apache-2.0:
+https://huggingface.co/google/siglip2-base-patch16-224/raw/main/README.md
+License text: https://www.apache.org/licenses/LICENSE-2.0
+The model weights are not included in the MSIX or the standalone executable.
+
+---
+
+## ONNX Runtime 1.29.0 and 1.23.2
+
+License: MIT (additional runtime components have their own notices)
+Source: https://github.com/microsoft/onnxruntime/blob/v1.29.0/LICENSE
+Intel macOS source: https://github.com/microsoft/onnxruntime/blob/v1.23.2/LICENSE
+
+```
+MIT License
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+
+---
+
+## github.com/yalue/onnxruntime_go v1.36.0 and v1.25.0
+
+License: MIT
+Source: https://github.com/yalue/onnxruntime_go/blob/v1.36.0/LICENSE
+Intel macOS source: https://github.com/yalue/onnxruntime_go/blob/v1.25.0/LICENSE
+
+Intel macOS selects the unmodified v1.25.0/API 23 binding through the explicit
+`github.com/frathe/picfetch/internal/ortlegacy` module replacement. Other targets
+use v1.36.0/API 29. Both versions have the identical MIT license reproduced here.
+
+```
+Copyright (c) 2023 Nathan Otterness
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+
+---
+
+## HDBSCAN implementation (internal/hdbscan)
+
+License: MIT
+Source: https://github.com/photoprism/photoprism/tree/c48d23f6b03c25fc19d376d789fac56c32a26fdb/pkg/vector/alg
+
+PicFetch includes the independently MIT-licensed HDBSCAN subset from this
+pinned directory. Package naming and the helper set are adapted; provenance
+and the exact copied files are documented in internal/hdbscan/README.md.
+
+```
+MIT License
+
+Copyright (c) 2017 Marcin Praski <https://github.com/mpraski>
+Copyright (c) 2019 okhowang <https://github.com/okhowang>
+Copyright (c) 2021 PhotoPrism UG <hello@photoprism.app>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## github.com/nozzle/umap f6085fb2514d
+
+License: BSD-3-Clause
+Source: https://github.com/nozzle/umap/blob/f6085fb2514d623b8a7ebb2c478396238502aef6/LICENSE
+
+```
+BSD 3-Clause License
+
+Copyright (c) 2024, Nozzle
+Copyright (c) 2017, Leland McInnes (original Python implementation)
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+
+---
+
+## gonum.org/v1/gonum v0.17.0
+
+License: BSD-3-Clause
+Source: https://github.com/gonum/gonum/blob/v0.17.0/LICENSE
+
+```
+Copyright ©2013 The Gonum Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    * Neither the name of the Gonum project nor the names of its authors and
+      contributors may be used to endorse or promote products derived from this
+      software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+
+---
+
+## Go-derived code in Gonum
+
+License: BSD-3-Clause
+Source: https://github.com/gonum/gonum/blob/v0.17.0/THIRD_PARTY_LICENSES/Go-LICENSE
+
+```
+Copyright (c) 2009 The Go Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+
+---
+
+## Cephes-derived code in Gonum
+
+License: Cephes notice
+Source: https://github.com/gonum/gonum/blob/v0.17.0/THIRD_PARTY_LICENSES/Cephes-LICENSE
+
+```
+Copyright (c) 1984, 1987, 1989, 1992, 2000 Stephen L. Moshier
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Stephen L. Moshier nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```

@@ -84,11 +84,11 @@ jobs:
           # before Windows gained a second architecture.
           for arch in amd64 arm64; do
             cp "picfetch-windows-$arch.exe" "picfetch.exe"
-            zip "picfetch-windows-$arch.zip" "picfetch.exe"
+            zip "picfetch-windows-$arch.zip" "picfetch.exe" ../LICENSE ../THIRD-PARTY-NOTICES.md ../PRIVACY.md -j
             rm "picfetch.exe"
           done
           for arch in amd64 arm64; do
-            tar -czf "picfetch-linux-$arch.tar.gz" "picfetch-linux-$arch"
+            tar -czf "picfetch-linux-$arch.tar.gz" "picfetch-linux-$arch" -C .. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md
           done
 
       - name: Upload unsigned Windows artifacts for signing
@@ -183,7 +183,15 @@ jobs:
               throw "Signature verification failed for $($archive.Name)."
             }
 
-            Compress-Archive -Path $executable -DestinationPath (Join-Path dist/windows-signed $archive.Name) -Force
+            $packageFiles = @($executable)
+            foreach ($name in @('LICENSE', 'THIRD-PARTY-NOTICES.md', 'PRIVACY.md')) {
+              $notice = Join-Path $unpacked $name
+              if (-not (Test-Path -LiteralPath $notice -PathType Leaf)) {
+                throw "Required notice $name is missing from $($archive.Name)."
+              }
+              $packageFiles += $notice
+            }
+            Compress-Archive -Path $packageFiles -DestinationPath (Join-Path dist/windows-signed $archive.Name) -Force
           }
 
       - name: Upload verified signed Windows artifacts

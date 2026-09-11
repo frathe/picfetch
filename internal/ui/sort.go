@@ -72,6 +72,7 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 func (v *viewer) invalidateSort() uint64 {
 	if v.sortOp.active {
 		v.pendingPictureFrame = false
+		v.explorer.pendingLaunch = false
 	}
 	revision := v.sortOp.invalidate()
 	if v.sortModeBefore != nil {

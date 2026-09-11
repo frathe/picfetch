@@ -32,10 +32,11 @@ type shortcutAdder interface {
 // registration moved out of the top-level assembly.
 func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	yielding := yieldingShortcuts{inner: c, view: view}
-	wireOpenShortcuts(yieldingShortcuts{inner: c, view: view, comparisonAllowed: true}, view)
-	wireFavoriteShortcuts(yielding, view.favorites.Open)
-	wireManageFavoritesShortcut(yielding, view)
-	wireAddFavoritesShortcut(yielding, view)
+	wireOpenShortcuts(yieldingShortcuts{inner: c, view: view, comparisonAllowed: true, explorerAllowed: true}, view)
+	favoriteBindings := yieldingShortcuts{inner: c, view: view, explorerAllowed: true}
+	wireFavoriteShortcuts(favoriteBindings, view.favorites.Open)
+	wireManageFavoritesShortcut(favoriteBindings, view)
+	wireAddFavoritesShortcut(favoriteBindings, view)
 	wireClipboardShortcuts(c, view)
 	wireCopySelectionShortcut(c, view)
 	wireCompareShortcut(yielding, view)
@@ -89,11 +90,15 @@ type yieldingShortcuts struct {
 	inner             shortcutAdder
 	view              *viewer
 	comparisonAllowed bool
+	explorerAllowed   bool
 }
 
 func (y yieldingShortcuts) AddShortcut(shortcut fyne.Shortcut, handler func(fyne.Shortcut)) {
 	y.inner.AddShortcut(shortcut, func(s fyne.Shortcut) {
-		if y.view.comparisonActive() && !y.comparisonAllowed {
+		if y.view.win.Canvas().Overlays().Top() != nil {
+			return
+		}
+		if y.view.comparisonActive() && !y.comparisonAllowed || y.view.explorerMapActive() && !y.explorerAllowed {
 			return
 		}
 		if !y.view.yieldCopySelection() {

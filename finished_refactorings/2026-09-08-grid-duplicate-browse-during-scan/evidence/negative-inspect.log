@@ -1,0 +1,15 @@
+# github.com/frathe/picfetch/internal/ui.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestGridBrowseDuringAnalysis
+=== RUN   TestGridBrowseDuringAnalysis/open_variant
+=== RUN   TestGridBrowseDuringAnalysis/open_variant/return
+    grid_test.go:368: opening a hidden extra did not keep the chosen file in inspect
+=== RUN   TestGridBrowseDuringAnalysis/open_variant/click
+    grid_test.go:368: opening a hidden extra did not keep the chosen file in inspect
+--- FAIL: TestGridBrowseDuringAnalysis (0.30s)
+    --- FAIL: TestGridBrowseDuringAnalysis/open_variant (0.30s)
+        --- FAIL: TestGridBrowseDuringAnalysis/open_variant/return (0.21s)
+        --- FAIL: TestGridBrowseDuringAnalysis/open_variant/click (0.09s)
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui	0.975s
+FAIL

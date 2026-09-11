@@ -616,10 +616,10 @@ einzeln durchzublättern.
 
 ### Bildmosaike
 
-Wählen Sie bei geöffnetem Raster **Aktionen -> Bildmosaik erstellen...**. Wenn
-Sie Miniaturansichten ausdrücklich ausgewählt haben, bilden nur diese Dateien
-den Quellenvorrat; andernfalls verwendet PicFetch eine Momentaufnahme aller
-Bilder im aktuellen gefilterten Rasterergebnis. Spätere Auswahl-, Filter-,
+Drücken Sie bei geladenen Bildern **`Shift+M`** oder wählen Sie **Fenster -> Bildmosaik erstellen...**.
+In der Bildansicht oder Explorer-Karte bildet die geladene Sammlung den
+Quellenvorrat. Im Raster gelten ausdrücklich ausgewählte Dateien; ohne Auswahl
+verwendet PicFetch alle Bilder im aktuellen gefilterten Rasterergebnis. Spätere Auswahl-, Filter-,
 Navigations-, Umbenennungs- oder Löschvorgänge ändern das Ziel eines bereits
 geöffneten Mosaikfensters nicht, und die Erstellung verändert niemals eine
 Quelldatei.
@@ -666,6 +666,203 @@ Hintergrundbildbefehl im Hauptfenster global bzw. für alle Bildschirme gilt.
 Die verfügbaren GNOME-/KDE-Integrationen unter Linux arbeiten nur global;
 deshalb wird ein zielgerichtetes Mosaik vor jeder Änderung des Desktops
 abgelehnt. **Bild speichern** bleibt verfügbar.
+
+---
+
+### Visueller Ähnlichkeits-Explorer (Intel-Mac/Apple Silicon, Linux und Windows)
+
+Beim ersten Öffnen stellt Trane den Explorer vor. **Herunterladen** installiert
+etwa 383 MB unter Linux x64, 382 MB unter Linux ARM64, 383 MB auf Intel-Macs,
+413 MB auf Macs mit Apple Silicon, 451 MB unter Windows x64 oder 453 MB
+unter Windows ARM64 an Modell- und Laufzeitdateien von Hugging Face und Microsoft GitHub.
+Die Microsoft-Store-Version enthält die Laufzeit und lädt nur etwa 372 MB
+Modelldaten von Hugging Face herunter. Laufzeit-Updates kommen über den Store.
+Die Seite zeigt den Fortschritt und bietet **Abbrechen**. Falls die Einrichtung
+fehlschlägt, prüfe Verbindung und freien Speicherplatz und wähle **Erneut versuchen**.
+Sind die Dateien bereits installiert und geprüft, wähle **Weiter**. Der Download
+beginnt erst nach deiner Auswahl. Bei Abbruch bleibt der Bildbetrachter nutzbar.
+
+Deine Bilder bleiben auf deinem Computer. Nach der Einrichtung funktioniert
+die Analyse offline, ohne Uploads, Nutzungsanalyse oder Nutzungsberichte.
+Die Seite verlinkt die **Datenschutzerklärung** und **GitHub-Diskussionen**.
+Die Diskussionen sind auch im Hilfe-Menü und im Infofenster erreichbar. Der
+Link öffnet die öffentliche Community-Seite im Browser, ohne Bilder oder
+App-Daten anzuhängen. Die Analyse benötigt einen Mac mit Intel-Prozessor oder Apple Silicon,
+x64/ARM64-Linux mit glibc und Seccomp-Unterstützung oder Windows 11 x64/ARM64.
+Direkte Windows-Downloads benötigen das Microsoft Visual C++ v14 Redistributable
+für ihre Architektur; bei der Store-Version verwaltet Microsoft Store diese
+Abhängigkeit. Die Modell-Laufzeit unter Linux benötigt glibc 2.28 oder neuer;
+der Bildbetrachter kann je nach Build eine neuere Systembibliothek voraussetzen.
+Intel-Macs benötigen macOS 13.4 oder neuer und verwenden ONNX Runtime 1.23.2,
+Microsofts letzte offizielle Intel-Laufzeit. Andere Plattformen verwenden ONNX Runtime 1.29.0.
+
+**Windows:** Die ONNX-Runtime-Telemetrie wird vor der Analyse deaktiviert.
+Der Analyseprozess kommuniziert über lokale Pipes mit PicFetch und öffnet
+keinen Netzwerkport. Windows sperrt den Netzwerkzugriff dieses Prozesses nicht.
+Darauf weist die Einrichtung vor der ersten Analyse hin. Unter macOS und Linux
+bleibt die Netzwerksperre durch das Betriebssystem bestehen.
+
+Der Bereich **Schlagwörter** bietet 75 Motive und Szenen mit der Anzahl
+eindeutiger Bilder, darunter Kostüm, Tracht, Zug, Burg, Wasserfall, Konzert,
+Wandern und Getränk. Angezeigt werden die in der aktuellen Karte gefundenen Begriffe. Anfangs sind alle Kästchen aktiviert, auch **Ohne Schlagwort**.
+Eine Gruppe bleibt sichtbar, sobald mindestens ein Mitglied zu einem aktiven
+Schlagwort passt. Beim Öffnen zeigt sie weiterhin alle Mitglieder. Das gilt auch
+für **Nicht zugeordnet**. Die Zahlen beziehen sich auf die gesamte aktuelle Karte
+und bleiben beim Filtern gleich. **Auswahl leeren** blendet alle Gruppen aus,
+damit einzelne Begriffe leicht gewählt werden können; **Alle Schlagwörter**
+stellt die vollständige Auswahl wieder her. **Ohne Schlagwort** hält Bilder ohne erkannten Begriff
+erreichbar. Die lokalen Modellvorschläge können Motive übersehen oder verwechseln.
+
+**Schlagwörter ausblenden** klappt die Seitenleiste ein; **Schlagwörter einblenden**
+stellt sie mit unveränderter Auswahl wieder her. Ein Klick auf die Zahl neben
+einem Schlagwort öffnet ein Raster nur mit den passenden Bildern, einschließlich
+Treffern aus **Nicht zugeordnet**. Während der Analyse bleibt dieses Raster
+unverändert; erneutes Öffnen der Zahl verwendet die neuesten Treffer.
+
+Der Regler **Granularität** oben rechts fasst verwandte Stapel in Richtung
+**Gröber** zusammen und stellt in Richtung **Feiner** kleinere Gruppen wieder her.
+Er beginnt bei der feinsten Gruppierung. Beim Ziehen wird die Änderung erst
+beim Loslassen angewendet; Klicks und Tastatureingaben wirken sofort. Jede
+Änderung ordnet die Stapel neu an und zentriert die ausgewählte Gruppe, oder
+die gesamte Anordnung, wenn keine Gruppe ausgewählt ist. Der Zoom bleibt
+erhalten, unter Beachtung des Mindestzooms großer Karten. Aktualisierungen
+im Hintergrund behalten bestehende Positionen weiterhin bei. Die Änderung verwendet vorhandene
+Analysedaten ohne erneutes Einlesen der Bilder. Am gröbsten Ende werden alle
+automatisch zugeordneten Gruppen verbunden; selbst erstellte Gruppen und
+**Nicht zugeordnet** bleiben separat. Ein bereits
+geöffnetes Raster behält seine Mitglieder.
+
+Der Filter verändert weder Position noch Zoom der Karte. Neue Ergebnisse
+behalten die Auswahl bekannter Schlagwörter bei und aktivieren neue Begriffe.
+Auch die Rückkehr aus der Rasteransicht behält den Filter bei. Nach dem Verlassen
+des Explorers beginnt die nächste Sitzung wieder mit allen Kästchen aktiviert.
+Bei wiederverwendeter Favoritenanalyse werden die Schlagwörter aus den
+gespeicherten Bildrepräsentationen neu berechnet.
+
+Bei geöffneten Bildern **`Shift+S`** drücken oder **Fenster -> Visueller Ähnlichkeits-Explorer** wählen.
+Alle geöffneten Bilder werden analysiert, einschließlich zusammengeführter
+Listen und Favoriten. Suche und Auswahl in der Rasteransicht schränken die
+Analyse nicht ein. Bei aktivem Duplikatfilter wird pro Gruppe nur das Bild mit
+der höchsten Auflösung analysiert; zuvor werden die Duplikatprüfungen beendet.
+Beim Öffnen des Explorers wird das Fenster maximiert. **Karte aktualisieren**
+erstellt die Karte aus den bisher gesammelten Daten. Automatische Aktualisierungen
+alle 30 Bilder sind optional und standardmäßig ausgeschaltet. Zum Abschluss
+wird eine letzte Karte erstellt. Die Aktualisierung verwendet vorhandene Daten
+und pausiert die Bildanalyse kurz für Gruppierung und Anordnung.
+Der Fortschritt unterscheidet erfolgreiche und fehlgeschlagene
+Bilder von der Gruppierung und Anordnung. Die Karte zeigt Gruppen als
+Stapel mit bis zu fünfzehn Beispielbildern; **Nicht zugeordnet** enthält Bilder
+ohne Gruppenzuordnung. Automatische Titel zeigen bis zu zwei erkannte Motive,
+die jeweils in mindestens der Hälfte der unterschiedlichen Bilder vorkommen.
+Sie beschreiben gemeinsame Inhalte, erklären aber nicht jeden visuellen Treffer.
+Ohne gemeinsames Schlagwort erscheint nur die Bildanzahl; selbst gewählte Namen
+haben Vorrang.
+
+Zum Erstellen einer Gruppe **Nicht zugeordnet** öffnen, mindestens zwei Bilder
+auswählen und **Analysieren** anklicken. Die Vorschau zeigt die gemeinsamen
+visuellen Tags. Wählen Sie die gewünschten Tags, prüfen Sie die passenden
+Dateinamen und geben Sie einen eindeutigen Gruppennamen ein (bis zu 80 Zeichen).
+**Weitere passende nicht zugeordnete Bilder einbeziehen** ist anfangs aktiviert;
+deaktivieren Sie es, um nur die ausgewählten Bilder zu verwenden. Jedes Bild
+muss zu allen gewählten Tags passen. Bilder aus bestehenden Gruppen werden
+nicht einbezogen. Ohne gemeinsame Tags wählen Sie andere Bilder aus oder nutzen
+**Als Vorlage speichern** für Metadatenregeln.
+
+**Gruppe erstellen** kehrt zur Karte zurück und zeigt die benannte Gruppe.
+Ihre Mitglieder bleiben bei späteren Kartenaktualisierungen erhalten; auch der
+Granularitätsregler verbindet sie nicht mit anderen Gruppen. Die Erstellung
+verwendet die vorhandene Analyse.
+
+Bei einer aus den Favoriten geöffneten Sammlung werden die benannten Gruppen
+und ihre Mitglieder mit diesem Favoriten gespeichert. Sie werden beim erneuten
+Öffnen wiederhergestellt, auch nach einem Neustart von PicFetch und bei
+deaktivierter Option **Analysen für Favoriten speichern**. Neue automatische
+Gruppierungen ersetzen Ihre gespeicherten Gruppen nicht. Entfernte Bilder
+werden ausgelassen; neue Bilder werden nicht automatisch hinzugefügt.
+
+Bei gewöhnlichen Dateisammlungen oder einem mit fremden Bildern zusammengeführten
+Favoriten gelten diese Ergänzungen nur für die aktuelle Karte. Beim Verlassen
+des Explorers oder Ändern seiner Quelldateien werden sie verworfen.
+**Gruppenvorlagen** rechts in der Werkzeugleiste neben **Nicht zugeordnet** öffnet
+eine durchsuchbare lokale Sammlung wiederverwendbarer Regeln.
+**Neue Gruppenvorlage** oder **Als Vorlage speichern** in der Analyse öffnet den Editor.
+Vergeben Sie einen eindeutigen Namen und mindestens eine Bedingung. Alle gewählten
+Tags und Metadatenbedingungen müssen passen. Regeln können Dateityp, ausgerichtete
+Breite/Höhe, Hoch-/Quer-/Quadratformat, Kamerahersteller/-modell und inklusive
+EXIF-Aufnahmedaten (JJJJ-MM-TT) verwenden. Fehlende Metadaten erfüllen keine aktive
+Bedingung; Änderungsdaten ersetzen kein Aufnahmedatum. Reine Metadatenregeln sind
+möglich.
+
+Nach dem Speichern zeigt **Vorlage prüfen** die betroffenen Bilder vor
+**Vorlage anwenden**. Eine neue Gruppe benötigt mindestens zwei passende nicht
+zugeordnete Bilder. Bestehende Gruppen sind geschützt. Beim Bearbeiten wird auch
+die verknüpfte Gruppe der aktuellen Karte geprüft: entfernte Mitglieder werden
+nicht zugeordnet; noch nicht analysierte Mitglieder bleiben gespeichert. Neue
+Analyseergebnisse erweitern die Gruppe nicht automatisch. Ein geöffnetes Raster
+behält seine erfassten Mitglieder.
+
+Vorlagen gelten auf diesem Computer unabhängig von Favoriten und Analysecache.
+Gruppenmitglieder, Verknüpfungen und ausdrücklich entfernte Zuordnungen werden
+separat mit dem Favoriten gespeichert. Andere Favoriten behalten ihre geprüften
+Mitglieder bis zur ausdrücklichen Anwendung dort. Das Löschen einer Vorlage
+behält bestehende Gruppen. Ältere inkompatible Regeln bleiben lesbar und müssen
+vor der Anwendung geprüft und gespeichert werden. Speicherfehler werden
+angezeigt; bei fehlgeschlagener Gruppenspeicherung bleibt die vorige Gruppe
+bestehen.
+
+Zum Verschieben ziehen oder beim Scrollen **Shift** gedrückt halten.
+Zum Zoomen ohne Shift scrollen oder `+`/`-` verwenden.
+`Left`, `Right`, `Up` und `Down` wählen einen Stapel in der jeweiligen Richtung.
+Der aktive Stapel wird umrandet und im sichtbaren Bereich gehalten;
+`Enter` öffnet sein Raster.
+Der Regler **Granularität** oben rechts verbindet verwandte Gruppen in Richtung
+**Gröber** und stellt kleinere Gruppen in Richtung **Feiner** wieder her.
+Beim Ziehen wird die Karte erst nach dem Loslassen aktualisiert; Klicks und
+Tastaturänderungen gelten sofort. Die vorhandene Analyse wird weiterverwendet,
+ohne Bilder erneut einzulesen. Selbst erstellte Gruppen und **Nicht zugeordnet**
+bleiben getrennt.
+**Karte einpassen** setzt die Ansicht zurück. Neue Ergebnisse zoomen bei Bedarf
+automatisch heraus, damit neue Stapel sichtbar werden, solange Sie die Karte
+betrachten. Während Sie eine Gruppe oder ein Bild durchsehen, pausiert das
+automatische Einpassen und erhält die Ansicht für Ihre Rückkehr. Bei mehr als 100 Stapeln
+gilt ein Mindestzoom von 50 %, auch für **Karte einpassen** und das automatische
+Einpassen. Beim Überschreiten dieser Grenze wird bei Bedarf hineingezoomt;
+kleinere Karten behalten ihren normalen Zoombereich. Jeder Stapel behält alle
+seine Vorschaubilder. Verschieben oder Richtungstasten erreichen Stapel außerhalb
+des Fensters. Am Mindestzoom verändern neue Ergebnisse die Kameraposition nicht.
+Ein Klick auf einen Stapel öffnet
+seine gesamte Gruppe in der Rasteransicht. Ein Bild wie gewohnt öffnen;
+die Navigation bleibt innerhalb der Gruppe. `Escape` führt zum Gruppenraster
+zurück, anschließend ein weiteres `Escape` oder **Zurück zur Karte** zur
+vorherigen Kartenansicht. Suche und Auswahl behalten ihre üblichen Escape-Stufen.
+**Zurück zur Bildansicht** verlässt die Karte, bricht laufende Analysen ab und
+gibt ihre Bilddaten frei. Erneutes Öffnen erstellt die Karte neu und verwendet
+gespeicherte Favoritenanalysen, sofern vorhanden.
+
+Wenn die Analyse fehlschlägt, startet **Fenster -> Visueller Ähnlichkeits-Explorer**
+einen neuen Versuch. Wird eine geöffnete Quelldatei überschrieben, entfernt oder
+beim Lesen als fehlend erkannt, wird die aktuelle Karte verworfen und ihre
+Analyse beendet. Eine Änderung des Duplikat-Abstands bei ausgeblendeten
+Duplikaten verwirft die Karte ebenfalls. Die übrigen Mitglieder einer geöffneten
+Gruppe bleiben durchsuchbar. Erneutes Öffnen erstellt eine frische Karte und verwendet
+unveränderte Favoritenanalysen wieder. Der Export einer neuen Kopie an einen
+anderen Ort erhält die Karte. Externe Dateiänderungen werden beim Lesen erkannt,
+nicht fortlaufend überwacht.
+
+Der Explorer benötigt lokale Modelldaten. Die Analyse läuft lokal mit
+deaktivierter Telemetrie; macOS und Linux sperren zusätzlich den Netzwerkzugriff
+des Analyseprozesses durch das Betriebssystem. Stapel halten Abstand;
+bestehende Gruppen behalten bei neuen Ergebnissen ihre Position. Eine geöffnete
+Gruppe behält ihre Mitglieder; erneutes Öffnen verwendet die aktuelle Gruppierung.
+Unter **Einstellungen -> Allgemein -> Visueller Ähnlichkeits-Explorer** stehen
+**Analysen für Favoriten speichern** (ein), **Alle 30 Bilder automatisch
+aktualisieren** (aus) und **Neue Stapel im Sichtbereich halten** (ein). Analysen
+werden im Unterordner `analysis` neben der Dateiliste und `thumbs` gespeichert.
+Unveränderte Favoritenbilder mit passender Modell- und Vorverarbeitungsversion
+werden wiederverwendet; geänderte oder ungültige Einträge erneut analysiert.
+Gruppen und Positionen werden für die aktuelle Auswahl neu berechnet. Die
+Cache-Einstellung gilt ab dem nächsten Analysestart. Bilder außerhalb der
+Favoriten werden nicht gespeichert. Die Prüfung großer Bibliotheken läuft noch.
 
 ---
 
@@ -787,6 +984,10 @@ tatsächlich verschoben wurden.
 - **`M`** — Zusammenführen-Modus ein-/ausschalten (neues Ablegen ergänzt die
   Auswahl, statt sie zu ersetzen); wird in der Titelzeile mit dem Präfix
   **`[Zusammenführen]`** angezeigt
+- **`Shift+M`** — den Mosaikgenerator für die geladenen Bilder oder die aktuelle
+  Auswahl beziehungsweise das gefilterte Ergebnis im Raster öffnen
+- **`Shift+S`** — den visuellen Ähnlichkeits-Explorer für die geöffneten Dateien
+  öffnen. Bei aktiver Rastersuche tippen beide Tastenkürzel ihre Buchstaben
 - **`G`** — Rasteransicht ein-/ausschalten (siehe oben); Pfeiltasten bewegen
   die Hervorhebung, `Page Up`/`Page Down` gleich um eine ganze Seite,
   `Return` oder ein Klick öffnet sie, `G`/`Esc` bricht ab. `G` schaltet das
@@ -1070,11 +1271,6 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   zwei ausgewählten Dateien geöffnet. In der Vergleichs-Werkzeugleiste
   vertauscht **Tauschen** die bezeichneten Seiten, sobald beide bereit sind.
   **Zurück zur Rasteransicht** oder `Esc` kehrt zum unveränderten Raster zurück
-- **Aktionen -> Bildmosaik erstellen...** — öffnet den Mosaikablauf für die
-  ausdrückliche Rasterauswahl oder, wenn nichts ausgewählt ist, für jedes Bild
-  im aktuellen Rasterergebnis. Außerhalb eines nicht leeren Rasterergebnisses
-  ausgegraut. Bedienelemente, Export und der Hintergrundbildumfang je Plattform
-  sind oben unter „Bildmosaike“ beschrieben
 - **Aktionen -> Bild drehen (im Uhrzeigersinn)** (`R`) — 90° im
   Uhrzeigersinn, nur Ansicht, dasselbe wie `R`. Ausgegraut ohne geladenes
   Bild oder solange das Raster offen ist. `Shift+R` bleibt nur über die
@@ -1139,6 +1335,12 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   `Esc`
 - **Fenster -> Hilfe** (`F1`) — öffnet dieses Handbuch, genau wie
   Hilfe -> Handbuch. Ausgegraut, solange das Handbuchfenster bereits offen ist
+- **Fenster -> Bildmosaik erstellen...** — öffnet den Mosaikablauf für die
+  ausdrückliche Rasterauswahl oder, wenn nichts ausgewählt ist, für jedes Bild
+  im aktuellen Rasterergebnis. Außerhalb des Rasters wird die geladene Sammlung
+  verwendet. Ohne Bilder, bei leerem Rasterergebnis oder während eines Vergleichs
+  ausgegraut. Bedienelemente, Export und der Hintergrundbildumfang je Plattform
+  sind oben unter „Bildmosaike“ beschrieben
 - **Hilfe -> Handbuch** — öffnet dieses Handbuch, genau wie `F1`
 
 ---

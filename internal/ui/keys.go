@@ -166,6 +166,23 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		return
 	}
 
+	// Feature entry keys precede Grid dispatch, which owns ordinary letters.
+	// Search retains shifted letters as text; plain M/S keep merge/sort.
+	if v.keyModifiers() == fyne.KeyModifierShift {
+		switch ev.Name {
+		case fyne.KeyM:
+			if !(v.grid.Visible() && v.grid.Searching()) {
+				v.showMosaic()
+			}
+			return
+		case fyne.KeyS:
+			if (!v.explorerMapActive() || v.explorerCanRetry()) && !(v.grid.Visible() && v.grid.Searching()) {
+				v.showExplorer()
+			}
+			return
+		}
+	}
+
 	// The grid overview (G key, see internal/ui/grid) takes over the
 	// keyboard the same way the delete confirmation does above: arrow keys
 	// move the highlighted cell, Return opens whichever cell is
@@ -173,7 +190,18 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// still closes while a selection is pending (it is "go to the image
 	// view", not a toggle). Every other key does nothing.
 	if v.grid.Visible() {
+		if len(v.explorer.cohort) > 0 && ev.Name == fyne.KeyV && !v.grid.Searching() {
+			v.LeaveSimilarityMap()
+			return
+		}
 		v.grid.HandleKey(ev)
+		if !v.grid.Visible() && v.explorerMapActive() {
+			v.recordExplorerView("map-return")
+		}
+		return
+	}
+
+	if v.explorerKey(ev.Name) {
 		return
 	}
 
@@ -253,7 +281,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
 			v.toggleSlideshowShuffle()
 		} else {
-			if v.dupes.Inspecting() {
+			if v.dupes.Inspecting() || len(v.explorer.cohort) > 0 {
 				return
 			}
 			v.togglePictureFrameMode()
@@ -280,6 +308,9 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		v.grid.Toggle()
 		return
 	case fyne.KeyD:
+		if len(v.explorer.cohort) > 0 {
+			return
+		}
 		// Same place as G: hide-dupes is useful with one file (no-op) or
 		// while a decode is in flight, and must not wait for the
 		// navigation-length guard below.

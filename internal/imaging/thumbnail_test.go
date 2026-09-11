@@ -7,11 +7,13 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"math/rand"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+	"golang.org/x/image/draw"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -256,6 +258,47 @@ func TestLoadThumbnail_WrapsLoadThumbnailAndBounds(t *testing.T) {
 }
 
 // --- ScaleForExport --------------------------------------------------------
+
+func TestScaleForExport_PreservesJPEGFilterPixels(t *testing.T) {
+	random := rand.New(rand.NewSource(73))
+	for _, ratio := range []image.YCbCrSubsampleRatio{
+		image.YCbCrSubsampleRatio444, image.YCbCrSubsampleRatio422,
+		image.YCbCrSubsampleRatio420, image.YCbCrSubsampleRatio440,
+		image.YCbCrSubsampleRatio411, image.YCbCrSubsampleRatio410,
+	} {
+		t.Run(ratio.String(), func(t *testing.T) {
+			for _, size := range []image.Point{{63, 47}, {64, 48}, {129, 257}, {300, 180}, {1, 67}, {67, 1}} {
+				for _, origin := range []image.Point{{0, 0}, {7, 11}, {-9, -13}} {
+					bounds := image.Rectangle{Min: origin, Max: origin.Add(size)}
+					parent := image.NewYCbCr(bounds.Inset(-3), ratio)
+					_, _ = random.Read(parent.Y)
+					_, _ = random.Read(parent.Cb)
+					_, _ = random.Read(parent.Cr)
+					source := parent.SubImage(bounds).(*image.YCbCr)
+					y, cb, cr := bytes.Clone(parent.Y), bytes.Clone(parent.Cb), bytes.Clone(parent.Cr)
+					for _, edge := range []int{1, 7, 31, 64, 128} {
+						got := ScaleForExport(source, edge)
+						if got == image.Image(source) {
+							if max(size.X, size.Y) > edge {
+								t.Fatal("required JPEG downscale was skipped")
+							}
+							continue
+						}
+						want := image.NewRGBA(got.Bounds())
+						draw.CatmullRom.Scale(want, want.Bounds(), source, source.Bounds(), draw.Src, nil)
+						actual := got.(*image.RGBA)
+						if !bytes.Equal(actual.Pix, want.Pix) {
+							t.Fatalf("CatmullRom pixel mismatch: bounds=%v edge=%d", bounds, edge)
+						}
+					}
+					if !bytes.Equal(parent.Y, y) || !bytes.Equal(parent.Cb, cb) || !bytes.Equal(parent.Cr, cr) {
+						t.Fatal("scaling modified the JPEG source")
+					}
+				}
+			}
+		})
+	}
+}
 
 // TestScaleForExport_AppliesTheCeilingToTheLongestEdge covers the rule the
 // export size limit is: the longest edge lands exactly on the ceiling, the

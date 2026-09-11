@@ -13,6 +13,7 @@ package ui
 
 import (
 	"math/rand/v2"
+	"slices"
 
 	"github.com/frathe/picfetch/internal/dupes"
 )
@@ -50,7 +51,7 @@ func (s dupeFileSet) Snapshot() dupes.Snapshot { return s.v.state.snapshot() }
 // sit on an extra - the file committed out of the variants grid - so it
 // is left alone.
 func (v *viewer) jumpIfHiddenExtra() {
-	if v.dupes.Inspecting() {
+	if v.dupes.Inspecting() || len(v.explorer.cohort) > 0 {
 		return
 	}
 	vis := v.dupes.Visibility()
@@ -89,17 +90,31 @@ func (v *viewer) pushHideDuplicates(on bool) {
 // back from+delta as it is, and ShowImage is what folds it into range.
 // Do not add a bounds check on this path.
 func (v *viewer) nextVisibleIndex(from, delta int) int {
+	if indexes := v.cohortIndexes(); len(indexes) > 0 {
+		pos := slices.Index(indexes, from)
+		if pos < 0 {
+			pos = 0
+			delta = 0
+		}
+		return indexes[((pos+delta)%len(indexes)+len(indexes))%len(indexes)]
+	}
 	return v.dupes.NextVisible(from, delta)
 }
 
 // firstVisibleIndex is where Home lands: the first file that is not a
 // hidden duplicate extra, or 0 when nothing qualifies.
 func (v *viewer) firstVisibleIndex() int {
+	if indexes := v.cohortIndexes(); len(indexes) > 0 {
+		return indexes[0]
+	}
 	return v.dupes.FirstVisible()
 }
 
 // lastVisibleIndex is End's counterpart to firstVisibleIndex.
 func (v *viewer) lastVisibleIndex() int {
+	if indexes := v.cohortIndexes(); len(indexes) > 0 {
+		return indexes[len(indexes)-1]
+	}
 	return v.dupes.LastVisible()
 }
 
@@ -111,6 +126,9 @@ func (v *viewer) lastVisibleIndex() int {
 // but current qualifies - so it keeps going through randomOtherIndex
 // (load.go), the same draw the shuffle has always used.
 func (v *viewer) randomVisibleOther(current int) int {
+	if indexes := v.cohortIndexes(); len(indexes) > 0 {
+		return indexes[rand.IntN(len(indexes))]
+	}
 	if !v.dupes.HideDuplicates() {
 		return randomOtherIndex(len(v.state.files), current)
 	}

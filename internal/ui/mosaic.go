@@ -13,12 +13,19 @@ import (
 	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 )
 
-// mosaicSources resolves the current Grid subject on the UI goroutine and
-// immediately snapshots its URIs. Explicit selection is exclusive except
+// mosaicSources snapshots the loaded collection, or the current Grid subject
+// when Grid View is open. Explicit selection is exclusive except
 // that a selected duplicate currently hidden by the Grid resolves to the
 // group's highest-resolution representative. Without a selection, every
 // member of the filtered Grid result is used.
 func (v *viewer) mosaicSources() ([]fyne.URI, error) {
+	if !v.grid.Visible() {
+		sources := make([]fyne.URI, v.FileCount())
+		for i := range sources {
+			sources[i] = v.FileAt(i)
+		}
+		return sources, nil
+	}
 	indices := v.grid.Selection()
 	if len(indices) == 0 {
 		indices = v.grid.ResultIndexes()
@@ -59,15 +66,28 @@ func (v *viewer) mosaicSources() ([]fyne.URI, error) {
 	return sources, nil
 }
 
-// showMosaic is the guarded Actions-menu entry. An already-open window is
+func (v *viewer) canMosaic() bool {
+	if v.comparisonActive() {
+		return false
+	}
+	if v.grid.Visible() {
+		return len(v.grid.ResultIndexes()) > 0
+	}
+	return v.FileCount() > 0
+}
+
+// showMosaic is the guarded Window-menu and keyboard entry. An already-open window is
 // raised before resolving anything so its original command-entry snapshot can
 // never be silently retargeted.
 func (v *viewer) showMosaic() {
+	if v.comparisonActive() || !v.yieldCopySelection() {
+		return
+	}
 	if v.mosaicWin.Opened() {
 		v.mosaicWin.Show(mosaicwin.Snapshot{})
 		return
 	}
-	if !v.grid.Visible() || len(v.grid.ResultIndexes()) == 0 {
+	if !v.canMosaic() {
 		return
 	}
 	sources, err := v.mosaicSources()
@@ -82,9 +102,12 @@ func (v *viewer) showMosaic() {
 		v.ShowToast(fmt.Sprintf(lang.L("Could not inspect displays: %v"), err))
 		return
 	}
-	kind := mosaicwin.SourceResult
-	if v.grid.SelectionCount() > 0 {
-		kind = mosaicwin.SourceSelection
+	kind := mosaicwin.SourceFiles
+	if v.grid.Visible() {
+		kind = mosaicwin.SourceResult
+		if v.grid.SelectionCount() > 0 {
+			kind = mosaicwin.SourceSelection
+		}
 	}
 	snapshot, err := mosaicwin.NewSnapshot(sources, kind, topology)
 	if err != nil {

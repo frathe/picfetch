@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "strip": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/decoded/look-cardinals.png",
+  "strip": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/decoded/look-cardinals.png",
   "directions": [
     "000",
     "090",
@@ -19,7 +19,7 @@
       ],
       "used_pixels": 169617,
       "edge_pixels": 0,
-      "output": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/000.png"
+      "output": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/000.png"
     },
     {
       "direction": "090",
@@ -31,7 +31,7 @@
       ],
       "used_pixels": 167511,
       "edge_pixels": 0,
-      "output": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/090.png"
+      "output": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/090.png"
     },
     {
       "direction": "180",
@@ -43,7 +43,7 @@
       ],
       "used_pixels": 156761,
       "edge_pixels": 0,
-      "output": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/180.png"
+      "output": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/180.png"
     },
     {
       "direction": "270",
@@ -55,7 +55,7 @@
       ],
       "used_pixels": 166412,
       "edge_pixels": 0,
-      "output": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/270.png"
+      "output": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/decoded/look-anchors/270.png"
     }
   ]
 }

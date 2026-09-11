@@ -1,0 +1,12 @@
+# github.com/frathe/picfetch/internal/ui.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestGridBrowseDuringAnalysis
+=== RUN   TestGridBrowseDuringAnalysis/source_identity
+=== RUN   TestGridBrowseDuringAnalysis/source_identity/reorder_remove
+    grid_test.go:275: grid result = [file:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/010/h-unique.jpg picfetch-test-storage:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/009/g-held.jpg picfetch-test-storage:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/008/f-unrelated.jpg picfetch-test-storage:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/007/e-new.jpg file:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/004/b.jpg], want source group [picfetch-test-storage:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/007/e-new.jpg file:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/006/d-extra.jpg file:///var/folders/REDACTED/REDACTED/T/TestGridBrowseDuringAnalysissource_identityreorder_remove1446009750/005/c-source.jpg]
+--- FAIL: TestGridBrowseDuringAnalysis (0.17s)
+    --- FAIL: TestGridBrowseDuringAnalysis/source_identity (0.17s)
+        --- FAIL: TestGridBrowseDuringAnalysis/source_identity/reorder_remove (0.17s)
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui	0.738s
+FAIL

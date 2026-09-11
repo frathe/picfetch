@@ -20,7 +20,7 @@ available automatically after Microsoft certification.
 ## Solution
 
 Extend the existing release process with automatic build validation and release-note
-preparation, followed by **frathe's explicit GitHub Required reviewers approval for
+preparation, followed by **REDACTED_REVIEWER's explicit GitHub Required reviewers approval for
 every rollout**. Approval covers a specific validated release/artifact and frozen
 notes. The approved operation submits only that selection to product `9P0DM0KTH01K`
 and requests immediate publication after certification. Recovery never selects a
@@ -30,7 +30,7 @@ newer release under an older approval.
 
 The final user instruction supersedes the earlier unattended-release requirement.
 Keep the existing `microsoft-store` environment: branch main only, required reviewer
-frathe, self-review permitted, no administrator bypass, timer or custom rules.
+REDACTED_REVIEWER, self-review permitted, no administrator bypass, timer or custom rules.
 Keep secrets there only. Do not weaken protection or copy secrets to avoid approval.
 
 | Decision | Current contract |
@@ -234,7 +234,7 @@ No new UI tests or golden changes are expected.
 
 Local fixtures cannot prove remote environment settings or Microsoft acceptance.
 Before production enablement, inspect the actual GitHub environment to establish
-that routine releases require frathe approval, and after the workflow lands on main
+that routine releases require REDACTED_REVIEWER approval, and after the workflow lands on main
 approve its read-only `check` job with protected credentials. A read-only success
 proves access to product data, not permission to upload or submit.
 Record product access and current published/pending submission state. The first

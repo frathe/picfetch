@@ -4,7 +4,7 @@ This document freezes what the CI Qodana artifact for GitHub Actions run
 `33270269940` actually contains. Every number below was produced by running the
 command shown for it against the downloaded artifact at
 `$SCRATCH/qodana/x/` (SCRATCH =
-`/private/tmp/claude-502/-Users-ronin-Projects-picfetch/5155ce10-0033-47c4-a2cd-52cd5a3bcf6f/scratchpad`).
+`/private/tmp/claude-502/-Users-REDACTED_USER-Projects-picfetch/00000000-0000-0000-0000-000000000000/scratchpad`).
 No number here is inferred or remembered; each is the direct output of a command
 in the `## Reproduction` section.
 
@@ -203,12 +203,12 @@ be textually identical.
 ## Reproduction
 
 Every command below was run against the artifact for run `33270269940` at
-SCRATCH = `/private/tmp/claude-502/-Users-ronin-Projects-picfetch/5155ce10-0033-47c4-a2cd-52cd5a3bcf6f/scratchpad`.
+SCRATCH = `/private/tmp/claude-502/-Users-REDACTED_USER-Projects-picfetch/00000000-0000-0000-0000-000000000000/scratchpad`.
 
 Step 1 — confirm the artifact is present, or fetch it:
 
 ```bash
-SCRATCH=/private/tmp/claude-502/-Users-ronin-Projects-picfetch/5155ce10-0033-47c4-a2cd-52cd5a3bcf6f/scratchpad
+SCRATCH=/private/tmp/claude-502/-Users-REDACTED_USER-Projects-picfetch/00000000-0000-0000-0000-000000000000/scratchpad
 test -f "$SCRATCH/qodana/x/qodana.sarif.json" || {
   gh run download 33270269940 -n qodana-report -D "$SCRATCH/qodana"
   unzip -o -q "$SCRATCH/qodana/qodana-report.zip" -d "$SCRATCH/qodana/x"
@@ -435,7 +435,7 @@ profile:
 Cross-check against the repository's `qodana.yaml`:
 
 ```bash
-cat /Users/ronin/Projects/picfetch/qodana.yaml
+cat /Users/REDACTED_USER/Projects/picfetch/qodana.yaml
 ```
 
 Relevant lines observed: the `profile:` / `name: qodana.starter` block, and,
@@ -509,7 +509,7 @@ more: 55 fragments appear once and 8 appear twice, and 55 × 1 + 8 × 2 = 71.
 
 This section compares the CI numbers above against a GoLand run over the same
 commit. It was produced on 2026-08-29 through the `goland` MCP server against
-the open project at `/Users/ronin/Projects/picfetch`.
+the open project at `/Users/REDACTED_USER/Projects/picfetch`.
 
 ### What was compared, and on what tree
 
@@ -732,7 +732,7 @@ To reproduce the IDE side:
 
 ```
 mcp__goland__lint_files(
-  projectPath = "/Users/ronin/Projects/picfetch",
+  projectPath = "/Users/REDACTED_USER/Projects/picfetch",
   files       = ["internal/imaging/loader_test.go", "internal/update/tufroot_test.go"],
   min_severity= "warning")
 ```
@@ -810,7 +810,7 @@ observed and not reconciled.
 Step 4 — the IDE run, in 9 batches:
 
 ```
-mcp__goland__lint_files(projectPath="/Users/ronin/Projects/picfetch",
+mcp__goland__lint_files(projectPath="/Users/REDACTED_USER/Projects/picfetch",
                         files=<40 paths from `git ls-files '*.go' | sort`>,
                         min_severity="warning", timeout=300000)
 ```
@@ -1020,7 +1020,7 @@ jq -r '.runs[].results[] | select(.ruleId=="DuplicatedCode")
 
 Run against the SARIF captured earlier in this file
 (`$SCRATCH/qodana/x/qodana.sarif.json`, i.e.
-`/private/tmp/claude-502/-Users-ronin-Projects-picfetch/5155ce10-0033-47c4-a2cd-52cd5a3bcf6f/scratchpad/qodana/x/qodana.sarif.json`)
+`/private/tmp/claude-502/-Users-REDACTED_USER-Projects-picfetch/00000000-0000-0000-0000-000000000000/scratchpad/qodana/x/qodana.sarif.json`)
 this is a **measured observation, not something applied**: it returns 10
 distinct directories, not the 22 the brief named (that figure was invented,
 not measured, and is withdrawn):
@@ -1159,7 +1159,7 @@ Run `33274422606` at commit `ed3d4e6` (full SHA
 completed with `conclusion: success` and returned **0** SARIF results:
 
 ```bash
-SP=/private/tmp/claude-502/-Users-ronin-Projects-picfetch/5155ce10-0033-47c4-a2cd-52cd5a3bcf6f/scratchpad
+SP=/private/tmp/claude-502/-Users-REDACTED_USER-Projects-picfetch/00000000-0000-0000-0000-000000000000/scratchpad
 jq '[.runs[].results[]]|length' "$SP/q4/x/qodana.sarif.json"
 ```
 

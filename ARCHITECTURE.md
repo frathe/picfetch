@@ -10,9 +10,11 @@ Standing rules (data flow, concurrency, conventions, build) live in
 ### `github.com/frathe/picfetch` (package main)
 
 Entry point only. `main.go` parses the command line (`launchArgs`, see
-`internal/launch`) before any side effect, calls `openwith.Install` (first
+`internal/launch`) before any side effect, dispatches the private `similarity.WorkerMain`
+subprocess mode before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
-cleanup for Store-managed builds, builds the `fyne.App`, loads embedded
+cleanup for Store-managed builds and explicit Explorer trials, asks `launch.Options.ApplicationID` to validate and select the app identity before
+building the `fyne.App`, loads embedded
 `translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
 `ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
@@ -33,6 +35,149 @@ the raw events outside the repository; the generated assignment lives at
 | `main.go` | `summarize`, `plan`, `check`, `regex`, `partition`, and `capture` command paths: complete event-stream validation, deterministic assignment, live build-selected inventory and parallel-call checks, exact anchored filters, exact-package subtraction, concise diagnostics, and raw preservation. |
 | `docker-race.sh` | Public Make runner: unique host artifact directory, attached Docker lifecycle, raw streams and console retention, exit/memory/OOM diagnostics before cleanup. |
 | `main_test.go` | Command-boundary fixtures for event streams and capture, deterministic planning, every manifest rejection, build-selected runnable forms, parallel-call refusal, exact filter generation, package partitioning, and Make contract expansion. |
+
+### `internal/similarity`
+
+Local content analysis shared by the viewer and its reproducible experiment.
+`client.go` owns `Client.Analyze` (selected source paths, control channel, immutable `Event` callbacks),
+asset discovery, the cancellable analysis subprocess, and private `WorkerMain`
+dispatch. Each request captures the caller's encoded-file size limit; the worker
+installs it before source reads. `analyze.go` accounts for every input, captures source versions,
+reuses canonical full oriented decoding, makes previews, and publishes a map
+on manual request, optionally every 30 sources, and at completion.
+`facts.go` captures versioned oriented dimensions, normalized extension and optional
+EXIF camera/calendar-date facts from already-read sources; old cached representations
+backfill these facts without inference. `tags.go` exposes catalogue identity for
+rule compatibility.
+`Event.Measurements` carries cumulative worker stage times, inference attempts
+and publication counts as immutable values; grouping includes its named sub-stages.
+`control_unix.go`/`control_other.go` own the pollable worker input descriptor.
+`worker_linux.go` installs worker-only seccomp denial on x64/ARM64 synchronized across all
+threads before reading requests; `worker_other.go` retains the macOS sandbox launcher.
+`worker_windows.go` launches a hidden ordinary subprocess with closeable control
+pipes; Windows does not install OS network denial and events keep `OfflineVerified`
+false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`
+and assembles the Linux filter for host-independent BPF decision tests.
+`cache.go` persists successful favorite representations in `analysis` beside
+`file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
+directory handles plus file-list identity to avoid recreating removed favorites.
+`encoder.go` (cgo) sets the non-Windows telemetry opt-out before library loading,
+disables telemetry through the runtime API before session creation, and owns
+the pinned native SigLIP 2 session;
+`encoder_nocgo.go` keeps cross-platform package builds available and reports that
+inference requires cgo.
+`tags.go` decodes the readable embedded `tag-vectors.json`, validates its canonical
+float32 digest against `tag-catalog.json`, and applies those text prototypes to
+fresh and reused image vectors against 75 fixed subjects, without a text runtime
+or build-time generator;
+`grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
+cohort identities; `hierarchy.go` orders a centroid spanning tree in grouping
+space for local granularity cuts. Repeated source paths share one assignment.
+Display events retain this compact hierarchy and omit inference vectors, which
+remain in the worker and favorite cache. The encoder and
+grouping entry points are worker-only: the
+native runtime is process-global and batch algorithms cannot be interrupted
+in place. `assets.go`/`assets.sha256` verify pinned local assets;
+`assets_install.go` checks local availability and performs explicit, cancellable
+HTTPS installation into a per-user cache. It bounds and hashes downloads,
+extracts only named runtime/license files from tarballs or Windows x64/ARM64 ZIPs
+and publishes verified files; Windows ZIPs include both pinned runtime DLLs and
+skip debug symbols. Store builds verify/load DLLs beside the executable, ignore
+model-cache runtime overrides, and download only model data. `assets_package.go`
+verifies architecture-specific archives for MSIX staging and extracts both DLLs
+and the upstream license, third-party notices and privacy document.
+Asset availability is separate from analysis admission; analysis
+never starts a download. `offline.go`
+verifies actual TCP/UDP OS denial on macOS/Linux; `files.go` registers the driverless read-only
+file repository. Production setup/analysis supports Intel/Apple Silicon macOS, glibc
+Linux x64/ARM64 and Windows x64/ARM64; native library evidence collection remains macOS-only.
+`platform_darwin_amd64.go` checks the native macOS product version before Intel
+analysis/setup admission (13.4 minimum); `platform_other.go` leaves the other
+platforms' existing admission unchanged. Unknown Intel OS versions fail closed.
+
+### `internal/ort`
+
+Narrow build-time selection of the ONNX Runtime Go binding used by similarity's
+encoder and `scripts/explorertags`. `binding.go` uses upstream v1.36.0/API 29;
+`binding_darwin_amd64.go` uses unmodified v1.25.0/API 23 through the explicit
+`internal/ortlegacy` module alias in go.mod. Intel macOS pins Microsoft's last
+official runtime 1.23.2 (macOS 13.4+); other platforms retain 1.29.0. Exactly one
+binding may enter each binary because both wrappers define the same C symbols.
+`binding_test.go` guards all six platform/architecture selections. Both files
+require cgo; similarity retains its existing no-cgo encoder.
+
+### `internal/hdbscan`
+
+The independently MIT-licensed HDBSCAN subset from PhotoPrism, pinned with its
+copyright/license and source provenance in `LICENSE` and `README.md`. It uses
+only the standard library. `hdbscan.go` builds and condenses the mutual-reachability
+hierarchy; `labels.go` owns core distances and worker iteration; `union_find.go`
+tracks merge ancestry; `common.go` retains only required validation, distance and
+error declarations. Similarity grouping calls it synchronously with one worker,
+minimum cluster size four and minPts three (self plus two other neighbors).
+Its adapter retains a single root cohort when no smaller cluster qualifies.
+
+### `internal/explorerpresets`
+
+Reusable local preset definitions, stable identities and versioned rule matching
+over immutable similarity facts. `presets.go` owns the rule contract and atomic,
+cancellable global library storage; the viewer supplies its directory and runs
+I/O on the separately tracked Explorer preset workers, sharing its UI queue.
+
+### `internal/explorertrial`
+
+`session.go` owns an explicit native trial's exclusive evidence directory,
+source-free causal records and final collection summary. Numbered analyses bind
+input digests to received events, actual UI application and observed worker exit.
+Session-unique event IDs link receipt to application and foreground-surface
+observations; grid-result/current-image digests distinguish frozen browsing from
+the updating map without retaining paths. Foreground `MapView` records pile count,
+zoom/floor, camera center and viewport; map departure/return binds the camera to
+its applied revision even when grouping changes behind a cohort. It also records cohort/map visits,
+rejected truncated scans, and shutdown.
+`Identity` gives trial launches separate Fyne preferences/session storage.
+Collection has no implicit human quality verdict; UI application is not paint.
+The module starts no goroutines.
+
+### `scripts/explorereval`
+
+Bounded local experiment reached through `make explorer-setup`,
+`make explorer-test` and `make explorer-evaluate`. `main.go` owns the experiment
+CLI/offline launch and the explicit `-install` entry point; `make explorer-setup`
+calls it directly without requiring Bash, and `setup.sh` remains a compatibility
+wrapper for the same verified `Client.InstallAssets` used by the viewer.
+`make explorer-download-test` qualifies download/reuse without loading native code.
+Platform runtime
+archives are selected in `internal/similarity/assets.go` and extracted library
+hashes remain in `internal/similarity/assets.sha256`.
+`evaluate.go` uses the shared native encoder/grouping and adds per-stage
+measurement and evidence files; `files.go` selects the bounded smoke corpus.
+`report.go` and `review.html` produce local cohort/measurement artifacts;
+`memory_*.go` measures native RSS; `evaluate.sh` retains each run/exit status.
+Real-model tests require assets under the `explorertrial` tag and check the
+platform's actual network policy; Windows must not claim OS denial.
+`make explorer-ui-test` additionally exercises the production worker and
+completed-map/Grid View round trip through the UI harness.
+`profile.go`, reached with `make explorer-profile`, runs bounded cold/warm passes
+through the actual `similarity.Client` with a temporary favorite cache, retains
+aggregate event timings and a source-identity digest, then removes that cache.
+Its completed summary observes both worker exits; no previews or source paths
+are written to the profiling report.
+`native_darwin.go`/`native_other.go` implement `TRIAL=library`: retain a native app
+bundle and executable digest, launch under OS denial with its own process group,
+forward cancellation for graceful shutdown then escalate only that group, observe
+child/descendant exit, and sample aggregate process-group RSS once per second.
+The normal app scans the supplied library without the smoke sampler. Launcher
+logs, exit status and collection/qualification fields remain separate from the
+app's numbered analysis records. It never scans source files outside denial.
+
+### `scripts/explorertags`
+
+Development-only regeneration of the embedded semantic tag vectors.
+`prepare_tokens.py` uses the pinned Gemma tokenizer for fixed catalogue prompts;
+`main.go` verifies the pinned text tower and runs it with the existing native
+ONNX Runtime, producing readable normalized float32 JSON keyed by tag identity. The viewer requires neither
+this text model nor Python. See `README.md` for reproducible commands/provenance.
 
 ### Packaging tooling
 
@@ -71,6 +216,54 @@ native Unicode transport, wallpaper and updater guards. CI invokes this command
 and uploads its event files. `main_test.go` covers admission, selection, event
 validation, process failures and workflow wiring through a per-call runner.
 
+### `internal/ui/explorer`
+
+`presets.go` captures frozen candidate facts and applies reviewed preset membership,
+protecting other groups and pending members. `cohorts.go` finds shared recognized tags in selected Unassigned sources,
+matches chosen traits, and captures named current-map cohorts by source identity.
+Manual assignments overlay immutable analysis results, survive publications and
+stay separate from granularity cuts. Snapshot/restore preserves explicit favorite
+members across partial analyses. Creation reveals the new cohort and rejects
+stale/non-Unassigned sources.
+
+`tags.go` owns the localized checkbox catalogue, clickable unique-source counts
+opening captured tag-only grids, OR filtering of intact piles/Unassigned, and
+cohort subject titles from up to two tags covering at least half the distinct
+sources; explicit cohort names take priority.
+The toolbar collapses/restores the sidebar. Choices survive map publications and
+cohort visits; full exit clears them. Filtering starts no background work.
+
+`Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
+stable samples of up to fifteen distinct members per `Pile`, fitted thin frames,
+Shift-scroll panning and a granularity slider cutting the supplied hierarchy.
+Slider release rearranges piles and centers the selected source or arrangement
+at the current zoom; background publications retain shared-source anchors.
+`Map.View` captures source-free camera geometry on UI for explicit trial recording.
+`keys.go` owns keyboard zoom, directional stack selection, source-bound selection
+restoration and camera reveal; Enter opens the highlighted stack.
+`layout.go` matches continuing cohorts by shared
+sources, orients the initial projection to the window, and places new piles
+with a minimum gap using nearby-cell collision queries and perimeter searches.
+Its narrow `Host` opens the
+full captured cohort, leaves the map, sends manual/automatic update controls, and
+supplies current input modifiers.
+It starts no workers; `internal/ui/explorer.go` delivers partial/final results,
+maximizes the native window at entry, optionally expands the camera for new stacks,
+and preserves the camera and frozen cohort
+while Grid View or the ordinary image view is active. `internal/ui/grid/subset.go` filters
+cohorts by source path while retaining root indexes for existing operations.
+Replaced pile images have their sources cleared and refreshed to release Fyne
+renderer/texture references. Leaving Explorer clears the map; cohort round trips
+retain it. `map.go` retains compressed sample sources for the complete map,
+decodes piles within one pile-width beyond the viewport, and releases decoded
+pixels/textures beyond two pile-widths. Distant pile renderers expose no child
+objects, preventing Fyne's minimum-size walk from decoding them. Returning piles
+restore their pixels before paint; selection redraws reuse unchanged previews.
+
+Committed writes through `filework.go` and removals through `viewer.RemoveFile`
+retire the analysis/map while preserving surviving cohort identities;
+`load.go` keeps missing-file retries within the remaining cohort.
+
 ### `internal/ui`
 
 The application. Unexported `appState` is the file-set model (scan/drop
@@ -87,12 +280,16 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 
 | File(s) | Responsibility |
 |---------|----------------|
-| `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. |
-| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
+| `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. Explicit trial startup reserves new evidence, isolates Favorites/presets/updates, disables update activity, auto-opens Explorer after the ordinary scan, and joins its signal watcher and workers before finalizing evidence. |
+| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with the supplied Codex atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `internal/ui/assets/trane.webp` is copied unchanged from `assets/trane/codex-pet/spritesheet.webp`. |
-| `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
+| `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, favorite cohort loading on the tracked worker/queue, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
+| `explorersetup.go` | First-use Trane explanation, local asset check, explicit download/progress/retry and persisted acknowledgment. Setup owns a cancellable lifecycle and joins Explorer's worker/queue drain; source replacement and shutdown dismiss it. Includes plain privacy and Discussions links. |
+| `explorercohorts.go` | Composes Unassigned grid selection with the shared-trait review, optional matching sources and named-cohort creation. The dialog owns captured targets and rejects stale sessions; tracked favorite saves finish before returning to the map, and failures roll back the proposed group. Explorer retirement dismisses it. Analyze can seed the reusable preset editor, including metadata-only rules. |
+| `explorerpresets.go`, `explorerpresetrules.go` | Global preset browser/editor, metadata/tag fields, frozen match preview, linked-group updates and definition deletion. Preset I/O/matching uses a separate tracked worker group and the Explorer UI queue; Favorite-save failures restore prior memberships. |
+| `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, similarity map, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action shortcut wiring (open, favorites, clipboard, copy selection, comparison, delete, select-all, save, export, wallpaper). Comparison registers the native `Cmd/Ctrl+D` plus physical `Ctrl+D` when those differ. `yieldingShortcuts` blocks ordinary commands during comparison and otherwise yields Copy Selection; Open is admitted only far enough to show comparison's refusal. Copy Selection and clipboard bindings also defend their own direct entries. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls `help.OpenSpiral`. |
 | `windowtrack.go` | Main-window size tracker and position poller; `widgetGeometry` / `prefGeometry` translate `preferences.WindowGeometry` ↔ `widgets.Geometry`. |
@@ -102,7 +299,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken`. Load, scan, sort, vector, and copy-selection encode each own an instance. |
-| `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close, merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
+| `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
 | `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet` by forwarding `appState`'s published `dupes.Snapshot`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
 | `keys.go` | `handleKeyEvent` / `handleTypedRune`, plus a chained desktop key-down hook that requests the ready-gated comparison link toggle on exact physical `Ctrl+L` without key-repeat flapping. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). Comparison owns all main-window typing: Escape closes it, F1 opens Help, `0` / `1` / `+` / `-` reach its shared camera or hovered photo pose, swipe-mode `Left` / `Right` / `Home` / `End` reach its divider, and every other key/rune stops before the still-open grid. Copy Selection: `HandleKey` consumes Escape/copy/navigation; unowned keys `yieldCopySelection` except modifier-only and zoom keys. |
 | `menu.go` | `buildMainMenu` builds `internal/ui/menus.Menus` and assembles the bar: File, Favorites, Actions, Window, Help. `yieldingMenuCallbacks` enforces comparison isolation and Copy Selection yielding at callback entry. `menuState()` is the one function that builds the `menus.State` snapshot; `syncMenus()` applies it, pushes comparison/file availability into Favorites, and refreshes the native bar only when something actually changed. |
@@ -122,7 +319,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `save.go`, `filework.go` | File > Save Changes captures pixels and source, owns cancellable workers and causal UI delivery, then reconciles the current resolved source. Committed stale Save/Export/Strip/mosaic writes invalidate cache revisions, thumbnails and duplicate facts; tracked background identity/info reads preserve unrelated views and retry after intervening commits. |
 | `export.go` | File > Export image (`promptExport` / `exportAs` / `runExport`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. Carries an `exportRequest` (format plus `imaging.ExportOptions`) and reports the applied size limit in the suggested name and the toast. |
 | `exportoptions.go` | The export prompt's extra rows (`exportOptions`, a `widgets.ExtraRows`): the export size limit rungs and the "Include camera metadata" `widget.Check`, reset to defaults on every open. Both Fyne controls grab canvas focus on tap; the checkbox hands it back from its own `OnChanged` (every effective tap toggles it), while the rungs are tappable labels because a radio item focuses without firing `OnChanged` when the value doesn't change. |
-| `mosaic.go` | Cross-feature mosaic composition: snapshot explicit Grid selection or the complete filtered result, inspect displays, open the singleton workflow, and adapt generation/display refresh into its narrow Host. |
+| `mosaic.go` | Cross-feature mosaic composition: snapshot the loaded collection, or explicit Grid selection/complete filtered result while Grid View is open; inspect displays, open the singleton workflow, and adapt generation/display refresh into its narrow Host. |
 | `wallpaper.go` | Shared ordinary/mosaic wallpaper lifecycle: serialize work, export captured pixels to a global or hashed-target cache scope, call `wallpaper.Set(Request)`, and sweep only copies no longer backing another scope. |
 | `autoupdate.go` | Viewer-side update glue: `maybeStartUpdateCheck` gates the opt-in daily check; `CheckForUpdatesNow` adapts manual worker callbacks through `fyne.Do` with an inner staleness check; `PerformUpdate` records relaunch intent and requests quit; `maybeShowWhatsNew` opens cached release notes. Every update entry point refuses a Store-managed viewer. Policy, staging, and cache live in `internal/ui/autoupdate`. |
 | `slideshow.go` | `togglePictureFrameMode` (closes grid first) plus shuffle/interval bindings. |
@@ -157,7 +354,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
 | `internal/ui/display/` | What's currently on the canvas: the decoded frames, which one is up, the view-only rotation (composing `imaging.RotateSteps` itself, in `Rotated`), and the picture-frame crossfade. | No Host: a value `State` field on `viewer`, mutated through its own methods, never copied. |
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` owns Codex atlas frame extraction and the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. | Leaf aside from `internal/winpos`. |
-| `internal/ui/assets/` | `WelcomeWebP` / `PlaceholderWebP`. | Leaf. |
+| `internal/ui/assets/` | Embedded viewer artwork, including `ExplorerIntroPNG` for first use. | Leaf. |
 
 ### `internal/imaging`
 
@@ -178,6 +375,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | `exififd.go` | Unexported IFD walker (`walkIFD`) and tag value helpers used by `exif.go` and `raw.go`. |
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
+| `resample.go` | Rolling-row CatmullRom downscaling for YCbCr sources in `ScaleForExport`; retains sixteen-bit source colors and float64 intermediates with bounded row storage. |
 | `gif.go` | Animated GIF compositing, `probeGIF`, and logical-canvas restoration for a frozen partial first frame without decoding later frames. |
 | `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` and their context-bearing forms / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. Also `FitEdge` (the shared longest-edge rule) and `ScaleForExport` (CatmullRom, for exports) beside the unexported ApproxBiLinear `scaleToFit` thumbnails use. |
 | `dhash.go` | `DifferenceHash` / `Hamming` for grid hide-duplicates. |
@@ -195,6 +393,7 @@ Named file lists under a caller-supplied config directory. No UI.
 | File | Responsibility |
 |------|----------------|
 | `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
+| `cohorts.go` | Favorite-owned named source memberships, preset links and explicit Unassigned overrides in version-2 `cohorts.json`; legacy arrays migrate on the next save; cancellable atomic writes bound to the observed file-list identity, with removed members filtered on load. |
 
 ### `internal/favthumbs`
 
@@ -434,13 +633,15 @@ when the user opened a single file.
 ### `internal/launch`
 
 Command-line flag parsing into the `Options` value `ui.Run` applies at startup.
+`Options.ApplicationID` owns pre-app Explorer trial offline validation and
+isolated identity selection; the ordinary app ID passes through unchanged.
 Hand-rolled rather than `flag`, so flags may appear anywhere among the paths;
 rejects an unknown flag, ignores macOS's `-psn_*`, and validates `--sort`
 against the `preferences.SortBy*` vocabulary. No Fyne import.
 
 | File | Responsibility |
 |------|----------------|
-| `launch.go` | `Options`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
+| `launch.go` | `Options`, `Options.ApplicationID`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
 
 ### `internal/filesort`
 
@@ -571,10 +772,10 @@ see `AGENTS.md`.
 - "How are Microsoft Store updates submitted and reconciled?" → `scripts/storepublish` + `.github/workflows/microsoft-store-publish.yml` + `docs/microsoft-store.md`.
 - "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
 - "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
-- "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFiles`.
+- "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFavorite`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.settingsState` / `ApplySettings` + `viewer.closeFiles`.
-- "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, static window size, window size/position, favorite-preview-cache toggle, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
+- "How are preferences (sort order, appearance, merge mode, slideshow interval/shuffle, folder-scan cap, window-size cap, static window size, window size/position, favorite-preview-cache toggle, similarity cache/automatic update/fit settings, check-for-updates checkbox) persisted?" → `internal/preferences` + `startup.go` + `features.go` + `windowtrack.go` + `run.go` `currentPreferences`.
 - "How does Light/Dark/System appearance work?" → `internal/appearance` + `internal/ui/theme.go` + `settingswin`.
 - "How do the Settings and EXIF windows come back where I left them?" → `widgets.Singleton.Remember` / `Geometry` / `StopTracking` + `winpos.Poll` + `preferences.WindowGeometry`.
 - "How is the window's on-screen position read back, since Fyne has no getter for it?" → `internal/winpos` + `windowtrack.go` `startWindowPosPolling`.

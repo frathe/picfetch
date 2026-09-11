@@ -26,7 +26,7 @@
 |------|-------|
 | Current pin | `github.com/gen2brain/heic v0.7.1` (`go.mod:11`) |
 | Latest upstream tag | `v0.7.1` @ `10ce79e` — no newer release |
-| Upstream PR | [gen2brain/heic#16](https://github.com/gen2brain/heic/pull/16) — **open**, authored by frathe |
+| Upstream PR | [gen2brain/heic#16](https://github.com/gen2brain/heic/pull/16) — **open**, authored by REDACTED_REVIEWER |
 | Fix commit | `0ac0a39f8206d395737a3118d7784ee6fc3bf0ba` on `frathe/heic:fix-decode-image-leak` |
 | Diff | One line: `defer heifImageRelease(heifImg)` in `decode_dynamic.go` |
 | Commits above v0.7.1 | 2 (`6e6457f` README tweak on upstream main, then the fix) |

@@ -15,10 +15,10 @@
 - [x] Connect the completed publisher to successful trusted stable-tag builds after existing CI, packaging and WACK. Bind the original artifact/run/commit and contained package versions. Keep branch/manual build-only, fork and prerelease routes unable to publish. A manual retry names an eligible release and passes the same admission. GitHub Release publication is not a dependency.
   Verification: `go test ./scripts/msixstage -run '^TestStoreWorkflowPublishingContract$'`.
 
-- [x] Wire manual approved reconciliation, product-wide mutation serialization without canceling active work, protected credential delivery, durable receipts and artifact retention. Publishing or credential failure leaves the validated bundle/report downloadable and other distribution workflows functional. Repository settings require frathe approval of each protected operation; no cron creates periodic requests.
+- [x] Wire manual approved reconciliation, product-wide mutation serialization without canceling active work, protected credential delivery, durable receipts and artifact retention. Publishing or credential failure leaves the validated bundle/report downloadable and other distribution workflows functional. Repository settings require REDACTED_REVIEWER approval of each protected operation; no cron creates periodic requests.
   Verification: `go test ./scripts/msixstage -run '^TestStoreWorkflowPublishingContract$'` and `go test ./scripts/storepublish -run '^TestStorePublishReconcile$'`.
 
-- [ ] Integrate the exact identity/environment from ticket 01. Inspect remote protection rules and run the finished publisher's check from CI, proving that configured credentials can read the intended live product and eligible runs require the configured frathe reviewer. Do not infer remote settings solely from workflow YAML.
+- [ ] Integrate the exact identity/environment from ticket 01. Inspect remote protection rules and run the finished publisher's check from CI, proving that configured credentials can read the intended live product and eligible runs require the configured REDACTED_REVIEWER reviewer. Do not infer remote settings solely from workflow YAML.
   Verification: `go run ./scripts/storepublish check` in the protected CI context; inspect `gh api repos/frathe/picfetch/environments/microsoft-store --jq '{name, protection_rules, deployment_branch_policy}'` and retain the corresponding diagnostic run result.
 
 - [ ] Finish release/recovery documentation with generated-note policy, submission status meanings, credential renewal, safe retries, certification failure inspection and manual fallback. Run focused regression tests, negatively verify release guards, and complete the full repository gate once after integration. Include architecture and Qodana registration changes introduced by preceding tickets.
@@ -31,7 +31,7 @@
 
 The lead owns integration review, the final gate and evaluation of live evidence. Do not manufacture a release or resubmit already-live 1.0.2 for acceptance. Observe the next normal release with the required approval of its prepared artifact and notes. A missing release event, certification delay or rejected submission must remain an explicit incomplete live criterion, not a claim that publication passed. Account setup and offline implementation can proceed in parallel, but this ticket needs both.
 
-The final user amendment requires frathe approval of each specific validated release.
+The final user amendment requires REDACTED_REVIEWER approval of each specific validated release.
 Use the command boundary and fake-service testing strategy from the spec.
 Verification commands define the existing command/fake-service acceptance seam.
 
@@ -56,7 +56,7 @@ checkbox stays open for that exact command, alongside the live activation checks
 
 2026-09-08 approval amendment (supersedes earlier unattended/setup comments):
 The final user requirement is approval of every specific release via GitHub Required
-reviewers. GitHub metadata now verifies main-only, frathe reviewer, self-review
+reviewers. GitHub metadata now verifies main-only, REDACTED_REVIEWER reviewer, self-review
 allowed, no bypass/timer/custom rules, and all three secret names. The user confirmed
 the linked Developer application and replacement key. Credentials remain exclusively
 in GitHub Secrets. The publisher is not yet on main, so the approved CI read check,

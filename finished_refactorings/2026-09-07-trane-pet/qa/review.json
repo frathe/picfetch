@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "frames_root": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames",
+  "frames_root": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames",
   "states": [
     "idle",
     "running-right",
@@ -38,7 +38,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/idle/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/idle/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15946,
@@ -53,7 +53,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/idle/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/idle/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16110,
@@ -68,7 +68,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/idle/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/idle/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16387,
@@ -83,7 +83,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/idle/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/idle/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16150,
@@ -98,7 +98,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/idle/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/idle/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16473,
@@ -113,7 +113,7 @@
         },
         {
           "index": 5,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/idle/05.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/idle/05.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16057,
@@ -141,7 +141,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 13532,
@@ -156,7 +156,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 13419,
@@ -171,7 +171,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 12538,
@@ -186,7 +186,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 12770,
@@ -201,7 +201,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 13701,
@@ -216,7 +216,7 @@
         },
         {
           "index": 5,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/05.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/05.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 12666,
@@ -231,7 +231,7 @@
         },
         {
           "index": 6,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/06.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/06.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 11876,
@@ -246,7 +246,7 @@
         },
         {
           "index": 7,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-right/07.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-right/07.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 12104,
@@ -274,7 +274,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14231,
@@ -289,7 +289,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 13920,
@@ -304,7 +304,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14067,
@@ -319,7 +319,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14422,
@@ -334,7 +334,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14079,
@@ -349,7 +349,7 @@
         },
         {
           "index": 5,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/05.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/05.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14504,
@@ -364,7 +364,7 @@
         },
         {
           "index": 6,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/06.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/06.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 12680,
@@ -379,7 +379,7 @@
         },
         {
           "index": 7,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running-left/07.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running-left/07.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 13765,
@@ -407,7 +407,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waving/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waving/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 17304,
@@ -422,7 +422,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waving/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waving/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 17727,
@@ -437,7 +437,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waving/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waving/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 18824,
@@ -452,7 +452,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waving/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waving/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 17137,
@@ -480,7 +480,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/jumping/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/jumping/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 8055,
@@ -495,7 +495,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/jumping/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/jumping/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 9618,
@@ -510,7 +510,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/jumping/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/jumping/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 9042,
@@ -525,7 +525,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/jumping/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/jumping/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 9097,
@@ -540,7 +540,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/jumping/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/jumping/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 8029,
@@ -568,7 +568,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16987,
@@ -583,7 +583,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15148,
@@ -598,7 +598,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14255,
@@ -613,7 +613,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14068,
@@ -628,7 +628,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 13152,
@@ -643,7 +643,7 @@
         },
         {
           "index": 5,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/05.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/05.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 12978,
@@ -658,7 +658,7 @@
         },
         {
           "index": 6,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/06.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/06.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14059,
@@ -673,7 +673,7 @@
         },
         {
           "index": 7,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/failed/07.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/failed/07.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14724,
@@ -701,7 +701,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waiting/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waiting/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15640,
@@ -716,7 +716,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waiting/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waiting/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15809,
@@ -731,7 +731,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waiting/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waiting/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15202,
@@ -746,7 +746,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waiting/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waiting/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15465,
@@ -761,7 +761,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waiting/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waiting/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15428,
@@ -776,7 +776,7 @@
         },
         {
           "index": 5,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/waiting/05.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/waiting/05.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15338,
@@ -804,7 +804,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16749,
@@ -819,7 +819,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16673,
@@ -834,7 +834,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16616,
@@ -849,7 +849,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16510,
@@ -864,7 +864,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16326,
@@ -879,7 +879,7 @@
         },
         {
           "index": 5,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/running/05.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/running/05.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16431,
@@ -907,7 +907,7 @@
       "frames": [
         {
           "index": 0,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/review/00.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/review/00.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16387,
@@ -922,7 +922,7 @@
         },
         {
           "index": 1,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/review/01.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/review/01.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16810,
@@ -937,7 +937,7 @@
         },
         {
           "index": 2,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/review/02.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/review/02.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15847,
@@ -952,7 +952,7 @@
         },
         {
           "index": 3,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/review/03.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/review/03.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 16053,
@@ -967,7 +967,7 @@
         },
         {
           "index": 4,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/review/04.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/review/04.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 14740,
@@ -982,7 +982,7 @@
         },
         {
           "index": 5,
-          "file": "/Users/ronin/Projects/picfetch/.scratch/trane-pet/frames/review/05.png",
+          "file": "/Users/REDACTED_USER/Projects/picfetch/.scratch/trane-pet/frames/review/05.png",
           "width": 192,
           "height": 208,
           "nontransparent_pixels": 15627,

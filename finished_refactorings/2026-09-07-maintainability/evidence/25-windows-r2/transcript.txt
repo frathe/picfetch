@@ -1,10 +1,10 @@
 ﻿**********************
 nStart der Windows PowerShell-Aufzeichnung
 Startzeit: 20260907121327
-Benutzername: WIN-J4IU1CE0C7M\Finis Ronin
-RunAs-Benutzer: WIN-J4IU1CE0C7M\Finis Ronin
+Benutzername: REDACTED_HOST\REDACTED_USER
+RunAs-Benutzer: REDACTED_HOST\REDACTED_USER
 Konfigurationsname: 
-Computer: WIN-J4IU1CE0C7M (Microsoft Windows NT 10.0.26100.0)
+Computer: REDACTED_HOST (Microsoft Windows NT 10.0.26100.0)
 Hostanwendung: powershell -NoProfile -ExecutionPolicy Bypass -File Z:\offline-windows\run.ps1
 Prozess-ID: 8964
 PSVersion: 5.1.26100.9168
@@ -16,7 +16,7 @@ WSManStackVersion: 3.0
 PSRemotingProtocolVersion: 2.3
 SerializationVersion: 1.1.0.1
 **********************
-Die Aufzeichnung wurde gestartet. Die Ausgabedatei ist "C:\Users\Finis Ronin\Desktop\PicFetch-smoke-results-20260907-121327\transcript.txt".
+Die Aufzeichnung wurde gestartet. Die Ausgabedatei ist "C:\Users\REDACTED_USER\Desktop\PicFetch-smoke-results-20260907-121327\transcript.txt".
 Offline native Windows tests: precompiled Windows/arm64, Go 1.27.1, CGO_ENABLED=0.
 Microsoft Windows NT 10.0.26100.0
 
@@ -27,7 +27,7 @@ PASS required: clipboard TestCopyFilesWindows_DecodesUTF8WithNonUTF8Default
 PASS package: clipboard
 PASS required: filepicker TestWindowsPickerTransport_EmitsUTF8PathArrays
 PASS package: filepicker
-FAIL package: update: Test package failed (1): github.com/frathe/picfetch/internal/update; see C:\Users\Finis Ronin\Desktop\PicFetch-smoke-results-20260907-121327\update.json
+FAIL package: update: Test package failed (1): github.com/frathe/picfetch/internal/update; see C:\Users\REDACTED_USER\Desktop\PicFetch-smoke-results-20260907-121327\update.json
 PASS required: ui-autoupdate TestUpdater_AutomaticAndManualShareCompleteTransaction
 PASS required: ui-autoupdate TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform
 PASS package: ui-autoupdate
@@ -37,8 +37,8 @@ PASS required: store-distribution TestStoreManaged_MicrosoftStoreBuildIsTrue
 PASS package: store-distribution
 PASS required: store-ui-autoupdate TestUpdater_AutomaticAndManualShareCompleteTransaction
 PASS package: store-ui-autoupdate
-FAILED: update: Test package failed (1): github.com/frathe/picfetch/internal/update; see C:\Users\Finis Ronin\Desktop\PicFetch-smoke-results-20260907-121327\update.json
-Results: C:\Users\Finis Ronin\Desktop\PicFetch-smoke-results-20260907-121327
+FAILED: update: Test package failed (1): github.com/frathe/picfetch/internal/update; see C:\Users\REDACTED_USER\Desktop\PicFetch-smoke-results-20260907-121327\update.json
+Results: C:\Users\REDACTED_USER\Desktop\PicFetch-smoke-results-20260907-121327
 **********************
 Ende der Windows PowerShell-Aufzeichnung
 Endzeit: 20260907121355

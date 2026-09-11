@@ -36,3 +36,8 @@ var DiggingWebP []byte
 //
 //go:embed comparingImages.webp
 var ComparingWebP []byte
+
+// ExplorerIntroPNG shows Trane sorting pictures into similar stacks.
+//
+//go:embed explorer-intro.png
+var ExplorerIntroPNG []byte

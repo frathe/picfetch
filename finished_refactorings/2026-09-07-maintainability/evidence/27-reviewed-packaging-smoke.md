@@ -83,7 +83,7 @@ administrator access. Its [script](27-offline-wack.ps1.txt) refuses a pre-existi
 PicFetch Store installation, retains output, and cleans its test certificate,
 trust entry and test package. The user executed `Z:\pack.cmd`; its prerequisite check failed because the required
 SDK/MakeAppx/SignTool/WACK tool set is unavailable. No package or certificate trust
-changes were made: [observed failure](27-windows-sdk-unavailable.jpg).
+changes were made: [observed failure](27-windows-sdk-unavailable.redacted.md).
 The official SDK 10.0.26100.9169 offline ISO was downloaded from Microsoft into the
 shared checkout for preparation; no SDK installation has run.
 The [installer inspection](27-sdk-installer-inspection.txt) records its source,
@@ -138,16 +138,16 @@ processes have empty stdout/stderr. This validates the Store-tagged ARM64
 executable, not MSIX installation or WACK.
 
 The first visible window belonged to **ordinary ARM64**. It rendered
-[Alpha](27-windows-first-alpha.jpg), then [Beta](27-windows-first-beta.jpg) after
+[Alpha](27-windows-first-alpha.redacted.md), then [Beta](27-windows-first-beta.redacted.md) after
 the user's Right-key navigation, preserving all four landmarks, Beta's magenta
 marker and the 8192x6144, 2/2 title. The user then exercised
 [comparison pan, zoom, swipe and detail](26-native-comparison-smoke.md#windows-continuation-with-user-operated-input).
-The later [empty drop area](27-windows-second-empty.jpg) was in this same
+The later [empty drop area](27-windows-second-empty.redacted.md) was in this same
 process. The earlier visual-order attribution of that image to a new package
 was incorrect: the launcher had already skipped failed amd64 startup before
 any visible image window. The empty frame does not demonstrate an ARM64
 startup or fixture-loading defect. After that process closed, the next visible
-window was **Store ARM64**, rendering [Alpha](27-windows-third-alpha.jpg) with
+window was **Store ARM64**, rendering [Alpha](27-windows-third-alpha.redacted.md) with
 all four corner markers and its 8192x6144, 1/2 title.
 
 The ordinary amd64 [failure log](27-windows-package-results/windows-amd64/stderr.txt)

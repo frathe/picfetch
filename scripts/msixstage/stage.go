@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/png"
@@ -15,6 +16,7 @@ import (
 	"golang.org/x/image/draw"
 
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/similarity"
 )
 
 const (
@@ -28,10 +30,11 @@ type appMetadata struct {
 }
 
 type stageOptions struct {
-	Root       string
-	Arch       string
-	Executable string
-	Out        string
+	Root           string
+	Arch           string
+	Executable     string
+	Out            string
+	RuntimeArchive string
 }
 
 type assetSpec struct {
@@ -55,8 +58,22 @@ var packageAssets = []assetSpec{
 }
 
 func stage(opts stageOptions) error {
+	return stageWithRuntime(opts, similarity.StageWindowsRuntime)
+}
+
+func stageWithRuntime(opts stageOptions, stageRuntime func(context.Context, string, string, string) error) error {
 	if opts.Root == "" || opts.Arch == "" || opts.Executable == "" || opts.Out == "" {
 		return fmt.Errorf("root, arch, exe, and out are required")
+	}
+	if opts.RuntimeArchive == "" {
+		return fmt.Errorf("store packages require the pinned ONNX Runtime archive for their architecture")
+	}
+	if entries, err := os.ReadDir(opts.Out); err == nil {
+		if len(entries) != 0 {
+			return fmt.Errorf("package staging directory must be empty")
+		}
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 
 	metaFile, err := os.Open(filepath.Join(opts.Root, "FyneApp.toml"))
@@ -95,6 +112,16 @@ func stage(opts stageOptions) error {
 	if icon.Bounds().Dx() != icon.Bounds().Dy() {
 		return fmt.Errorf("app icon is %dx%d, want square", icon.Bounds().Dx(), icon.Bounds().Dy())
 	}
+	notices := make(map[string][]byte)
+	for _, name := range []string{"LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md"} {
+		notices[name], err = os.ReadFile(filepath.Join(opts.Root, name))
+		if err != nil {
+			return err
+		}
+	}
+	if err := stageRuntime(context.Background(), opts.Arch, opts.RuntimeArchive, opts.Out); err != nil {
+		return fmt.Errorf("stage bundled ONNX Runtime: %w", err)
+	}
 
 	assetsDir := filepath.Join(opts.Out, "Assets")
 	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
@@ -105,6 +132,11 @@ func stage(opts stageOptions) error {
 	}
 	if err := os.WriteFile(filepath.Join(opts.Out, "picfetch.exe"), exe, 0o755); err != nil {
 		return err
+	}
+	for name, contents := range notices {
+		if err := os.WriteFile(filepath.Join(opts.Out, name), contents, 0o644); err != nil {
+			return err
+		}
 	}
 
 	return renderAssets(icon, assetsDir)
@@ -198,6 +230,7 @@ func renderManifest(meta appMetadata, arch string) (string, error) {
   </Resources>
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+    <PackageDependency Name="Microsoft.VCLibs.140.00.UWPDesktop" MinVersion="14.0.33728.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
   </Dependencies>
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />

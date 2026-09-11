@@ -61,8 +61,34 @@ jobs:
       - name: Stage x64 and ARM64 packages
         shell: pwsh
         run: |
-          go run ./scripts/msixstage -arch amd64 -exe dist/executables/picfetch-microsoft-store-amd64.exe -out dist/stage-x64
-          go run ./scripts/msixstage -arch arm64 -exe dist/executables/picfetch-microsoft-store-arm64.exe -out dist/stage-arm64
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri 'https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/onnxruntime-win-x64-1.29.0.zip' -OutFile dist/onnxruntime-win-x64.zip
+          Invoke-WebRequest -Uri 'https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/onnxruntime-win-arm64-1.29.0.zip' -OutFile dist/onnxruntime-win-arm64.zip
+          go run ./scripts/msixstage -arch amd64 -exe dist/executables/picfetch-microsoft-store-amd64.exe -runtime-archive dist/onnxruntime-win-x64.zip -out dist/stage-x64
+          if ($LASTEXITCODE -ne 0) { throw 'Staging the x64 package or pinned runtime failed.' }
+          go run ./scripts/msixstage -arch arm64 -exe dist/executables/picfetch-microsoft-store-arm64.exe -runtime-archive dist/onnxruntime-win-arm64.zip -out dist/stage-arm64
+          if ($LASTEXITCODE -ne 0) { throw 'Staging the ARM64 package failed.' }
+
+      - name: Ensure Desktop C++ framework for local certification
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $framework = Get-AppxPackage -Name Microsoft.VCLibs.140.00.UWPDesktop |
+            Where-Object { $_.Architecture.ToString() -eq 'X64' -and [version]$_.Version -ge [version]'14.0.33728.0' }
+          if ($framework) { exit 0 }
+          $sdk = 'C:\Program Files (x86)\Microsoft SDKs\Windows Kits\10\ExtensionSDKs\Microsoft.VCLibs.Desktop\14.0'
+          $dependency = Get-ChildItem -LiteralPath $sdk -Filter '*x64*.appx' -Recurse |
+            Where-Object { $_.FullName -match '\\Retail\\' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if ($null -eq $dependency) {
+            throw 'Install the Visual Studio C++ Universal Windows Tools component on the certification runner.'
+          }
+          Add-AppxPackage -Path $dependency.FullName
+          $framework = Get-AppxPackage -Name Microsoft.VCLibs.140.00.UWPDesktop |
+            Where-Object { $_.Architecture.ToString() -eq 'X64' -and [version]$_.Version -ge [version]'14.0.33728.0' }
+          if (-not $framework) { throw 'Desktop C++ framework 14.0.33728.0 or newer is required.' }
 
       - name: Pack and bundle with the Windows SDK
         shell: pwsh

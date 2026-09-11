@@ -123,6 +123,9 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 			g.Close()
 		}
 	case fyne.KeyD:
+		if g.subset != nil {
+			return
+		}
 		if g.host.Modifiers()&fyne.KeyModifierShift != 0 {
 			g.ToggleBrowseDuplicates()
 		} else if !g.BrowsingDuplicates() {
@@ -168,9 +171,9 @@ func (g *Overview) movePage(direction int) {
 }
 
 // escape undoes one layer per press, smallest first: an in-progress marquee,
-// then the selection, then the search, then browse-duplicates, then
-// hide-duplicates, then the grid itself. Each of those took the user effort
-// to build, so a single keystroke never throws away more than the one thing
+// then the selection, then the search, then the cohort visit (if any), then
+// browse-duplicates, hide-duplicates, and the ordinary grid itself. Each layer
+// took the user effort to build, so a single keystroke never throws away more than the one thing
 // they were most likely aiming at. Close does not clear hide: the viewer
 // still skips extras after the grid is dismissed.
 func (g *Overview) escape() {
@@ -181,6 +184,8 @@ func (g *Overview) escape() {
 		g.ClearSelection()
 	case g.searching:
 		g.clearSearch()
+	case g.subset != nil:
+		g.Close()
 	case g.browseHost >= 0:
 		g.SetBrowsingDuplicates(false)
 	case g.dupes.HideDuplicates():

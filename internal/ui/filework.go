@@ -93,6 +93,7 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 				return
 			}
 			v.favThumbLifecycle.invalidate()
+			v.explorerSourcesChanged()
 			v.grid.InvalidateContent()
 			v.compare.Refresh()
 			v.refreshWrittenFile(result, reload, refreshEXIF, done)

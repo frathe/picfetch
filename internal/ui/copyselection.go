@@ -18,6 +18,9 @@ import (
 // direct activation, the menu snapshot, and the shortcut action. A decoded
 // image must be settled in the normal viewer with no modal surface.
 func (v *viewer) regionCopyAvailable() bool {
+	if v.explorerMapActive() {
+		return false
+	}
 	if v.display.Count() == 0 || v.img.Image == nil || v.loading.Load() {
 		return false
 	}

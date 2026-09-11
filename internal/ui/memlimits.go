@@ -154,8 +154,12 @@ func (v *viewer) SetMaxFileSizeMB(n int) {
 		n = 1
 	}
 
+	changed := v.settings.maxFileMB != n
 	v.settings.maxFileMB = n
 	imaging.SetMaxEncodedBytes(int64(n) * bytesPerMB)
+	if changed {
+		v.explorerSourcesChanged()
+	}
 }
 
 // DuplicateDistance is the Hamming threshold hide-duplicates uses.
@@ -195,6 +199,9 @@ func (v *viewer) pushDuplicateDistance(n int) {
 	if !v.dupes.SetDistance(n) {
 		return
 	}
+	if v.dupes.HideDuplicates() {
+		v.explorerSourcesChanged()
+	}
 	v.grid.DuplicateDistanceChanged()
 }
 
@@ -207,22 +214,25 @@ func (v *viewer) pushDuplicateDistance(n int) {
 // them.
 func (v *viewer) settingsState() preferences.State {
 	return preferences.State{
-		SortMode:             v.SortMode().PrefValue(),
-		MergeMode:            v.MergeMode(),
-		ThemeMode:            v.ThemeMode(),
-		SlideInterval:        v.SlideInterval(),
-		SlideShuffle:         v.SlideShuffle(),
-		MaxScanFiles:         v.MaxScan(),
-		MaxWindowWidth:       v.MaxWindowWidth(),
-		MaxWindowHeight:      v.MaxWindowHeight(),
-		MaxImageCacheMB:      v.MaxImageCacheMB(),
-		MaxThumbCacheMB:      v.MaxThumbCacheMB(),
-		MaxFileSizeMB:        v.MaxFileSizeMB(),
-		FavoritePreviewCache: v.FavoritePreviewCache(),
-		CheckForUpdates:      v.CheckForUpdates(),
-		StaticWindowSize:     v.StaticWindowSize(),
-		DuplicateDistance:    v.DuplicateDistance(),
-		DuplicateDistanceSet: v.settings.dupeDistSet,
+		SortMode:                v.SortMode().PrefValue(),
+		MergeMode:               v.MergeMode(),
+		ThemeMode:               v.ThemeMode(),
+		SlideInterval:           v.SlideInterval(),
+		SlideShuffle:            v.SlideShuffle(),
+		MaxScanFiles:            v.MaxScan(),
+		MaxWindowWidth:          v.MaxWindowWidth(),
+		MaxWindowHeight:         v.MaxWindowHeight(),
+		MaxImageCacheMB:         v.MaxImageCacheMB(),
+		MaxThumbCacheMB:         v.MaxThumbCacheMB(),
+		MaxFileSizeMB:           v.MaxFileSizeMB(),
+		FavoritePreviewCache:    v.FavoritePreviewCache(),
+		SimilarityFavoriteCache: v.explorer.cacheFavorites,
+		SimilarityAutoUpdate:    v.explorer.automatic,
+		SimilarityAutoFit:       v.explorer.autoFit,
+		CheckForUpdates:         v.CheckForUpdates(),
+		StaticWindowSize:        v.StaticWindowSize(),
+		DuplicateDistance:       v.DuplicateDistance(),
+		DuplicateDistanceSet:    v.settings.dupeDistSet,
 	}
 }
 
@@ -249,6 +259,9 @@ func (v *viewer) applyLimitSettings(prev, next preferences.State) {
 }
 
 func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {
+	applySettingChange(prev.SimilarityFavoriteCache, next.SimilarityFavoriteCache, func(on bool) { v.explorer.cacheFavorites = on })
+	applySettingChange(prev.SimilarityAutoFit, next.SimilarityAutoFit, func(on bool) { v.explorer.autoFit = on })
+	applySettingChange(prev.SimilarityAutoUpdate, next.SimilarityAutoUpdate, v.SetSimilarityAutoUpdate)
 	applySettingChange(prev.FavoritePreviewCache, next.FavoritePreviewCache, v.SetFavoritePreviewCache)
 	applySettingChange(prev.CheckForUpdates, next.CheckForUpdates, v.SetCheckForUpdates)
 }

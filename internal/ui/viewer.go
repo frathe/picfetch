@@ -17,6 +17,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	compareui "github.com/frathe/picfetch/internal/ui/compare"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
@@ -411,7 +412,9 @@ type viewer struct {
 	// worker pool and reaches back through the Host interface this viewer
 	// satisfies. handleKeyEvent checks its Visible() before its own
 	// dispatch, the same way it does for the delete confirmation.
-	grid *grid.Overview
+	grid            *grid.Overview
+	explorerAnalyze similarity.Provider
+	explorer        explorerWork
 
 	// compare is the opaque two-image surface stacked above the still-open
 	// grid. The feature owns its widgets and workers; this viewer owns only
@@ -637,7 +640,11 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // which art (welcomeArt or emptyStateArt) belongs in the box afterward and
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
+	v.closeExplorer()
+	v.grid.Close()
+	v.explorer.favoriteDir = ""
 	v.pendingPictureFrame = false
+	v.explorer.pendingLaunch = false
 	// A full-screen dropzone would look broken, and there's nothing left to
 	// frame - safe to call even when picture-frame mode is already off.
 	v.slides.Exit()
@@ -654,6 +661,7 @@ func (v *viewer) clearToDropzone() {
 	// cache holds is of something unreachable, so keeping them just spends
 	// the byte budget on nothing until the next drop happens to refill it.
 	v.imgCache.Purge()
+	v.grid.InvalidateContent()
 
 	v.img.Image = nil
 	v.img.Hide()
@@ -697,9 +705,10 @@ func (v *viewer) clearToDropzone() {
 // un-maximize placement rarely lands back where the window was before the
 // grid took over.
 func (v *viewer) undoGridMaximize() {
-	if !v.grid.ConsumeMaximized() {
+	if !v.grid.ConsumeMaximized() && !v.explorer.maximized {
 		return
 	}
+	v.explorer.maximized = false
 	winpos.Unmaximize(v.win)
 	v.winPos.Restore(v.win)
 }
@@ -865,7 +874,11 @@ func (v *viewer) AfterMetadataRemoved(_ fyne.URI, result imaging.WriteResult) {
 func (v *viewer) RemoveFile(i int) {
 	v.invalidateSort() // cancel a sort still in flight - see sortOp's field comment
 
-	v.state.removeFile(i)
+	removed := v.state.removeFile(i)
+	v.explorerSourcesChanged()
+	if v.state.snapshot().IndexOf(removed.String()) < 0 {
+		v.explorer.cohort = slices.DeleteFunc(v.explorer.cohort, func(path string) bool { return path == removed.Path() })
+	}
 }
 
 // RemoveFiles drops every named index in one pass for an admitted ordinary
@@ -963,6 +976,11 @@ func (v *viewer) FileAt(i int) fyne.URI {
 // path as a drag-and-drop or the native file chooser.
 func (v *viewer) OpenFiles(files []fyne.URI) {
 	v.handleDrop(files)
+}
+
+// OpenFavorite keeps collection identity through the common open pipeline.
+func (v *viewer) OpenFavorite(dir string, files []fyne.URI) {
+	v.handleCollectionDrop(files, dir)
 }
 
 // CurrentIndex is the index of the file on screen.

@@ -7,6 +7,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui"
 	"github.com/frathe/picfetch/internal/update"
 )
@@ -104,6 +106,10 @@ func main() {
 		os.Exit(exit)
 	}
 
+	if similarity.WorkerMain() {
+		return
+	}
+
 	// First statement in the process, before the fyne.App exists.
 	// openwith.Install grafts the "Open With" methods onto GLFW's
 	// application delegate class, and -[NSApplication setDelegate:] caches
@@ -129,15 +135,23 @@ func main() {
 	// Qodana analyzes the default build, where StoreManaged is a constant false;
 	// the microsoftstore build tag replaces it with the true variant.
 	//goland:noinspection GoBoolExpressions
-	if !distribution.StoreManaged {
+	if !distribution.StoreManaged && opts.ExplorerTrial == "" {
 		update.CleanupPredecessor()
 	}
 
-	application := app.NewWithID(appID)
+	identity, err := opts.ApplicationID(context.Background(), appID)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	application := app.NewWithID(identity)
 
 	if err := lang.AddTranslationsFS(translationsFS, "translations"); err != nil {
 		fyne.LogError("failed to load translations", err)
 	}
 
-	ui.Run(application, argsToURIs(paths), opts)
+	if err := ui.Run(application, argsToURIs(paths), opts); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

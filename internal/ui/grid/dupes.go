@@ -361,3 +361,18 @@ func (g *Overview) hashFactsReady(remaining int32, gen uint64) {
 		}
 	}
 }
+
+// PrepareDuplicateGroups finishes missing source facts before a consumer selects
+// representatives. It uses the same tracked workers as Grid View.
+func (g *Overview) PrepareDuplicateGroups() bool {
+	g.hashRemaining()
+	g.rebuildGroups()
+	return g.DuplicateGroupsReady()
+}
+
+// DuplicateGroupsReady requires completed hashing and an installed current
+// group snapshot; an intermediate progressive snapshot is not sufficient.
+func (g *Overview) DuplicateGroupsReady() bool {
+	_, current := g.dupes.CurrentGroups()
+	return g.work.ctx.Err() == nil && g.hashes.hashJobs.Load() == 0 && current
+}

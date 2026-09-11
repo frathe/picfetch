@@ -15,6 +15,7 @@
 package launch
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -22,7 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/similarity"
 )
 
 // ErrHelp is returned by Parse when the arguments asked for the usage text
@@ -38,6 +41,9 @@ type Options struct {
 	// setting: there is no saved value to override and nothing to restore.
 	PictureFrame bool
 
+	// ExplorerTrial requests an isolated native collection in a new directory.
+	ExplorerTrial string
+
 	// Sort is one of the preferences.SortBy* constants, validated by Parse.
 	Sort *string
 
@@ -50,6 +56,18 @@ type Options struct {
 	// because it also bounds the non-recursive sibling expansion of a single
 	// opened image (filescan.Siblings).
 	MaxFiles *int
+}
+
+// ApplicationID validates trial isolation before Fyne can open preferences or
+// session storage. Ordinary launches retain the supplied stable application ID.
+func (o Options) ApplicationID(ctx context.Context, normal string) (string, error) {
+	if o.ExplorerTrial == "" {
+		return normal, nil
+	}
+	if err := similarity.VerifyOffline(ctx); err != nil {
+		return "", err
+	}
+	return explorertrial.Identity(o.ExplorerTrial), nil
 }
 
 // sortModes is every value --sort accepts, in the order the usage text lists
@@ -75,6 +93,18 @@ type spec struct {
 }
 
 var flagSpecs = []spec{
+	{
+		name: "explorer-trial",
+		arg:  "DIR",
+		help: "collect an isolated native Explorer trial in a new directory (requires OS network denial)",
+		set: func(o *Options, raw string) error {
+			if strings.TrimSpace(raw) == "" {
+				return errors.New("trial directory is empty")
+			}
+			o.ExplorerTrial = raw
+			return nil
+		},
+	},
 	{
 		name: "slideshow",
 		help: "start in picture-frame mode once the files have loaded",

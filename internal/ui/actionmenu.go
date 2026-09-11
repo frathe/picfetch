@@ -10,7 +10,7 @@ import (
 )
 
 func (v *viewer) setActionsSort(m filesort.Mode) {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.SortMode() == m {
@@ -45,6 +45,11 @@ func (v *viewer) reopenVariantGrid() {
 
 // Opening waits for the accepted group so a unique source remains a no-op.
 func (v *viewer) syncDuplicateState() {
+	if v.explorer.prepare != nil && v.grid.DuplicateGroupsReady() {
+		ready := v.explorer.prepare
+		v.explorer.prepare = nil
+		ready()
+	}
 	if v.grid.BrowseReady() && !v.grid.Visible() {
 		v.grid.Toggle()
 	}
@@ -56,7 +61,7 @@ func (v *viewer) variantsSession() bool {
 }
 
 func (v *viewer) toggleActionsHideDuplicates() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.FileCount() == 0 || v.variantsSession() {
@@ -66,7 +71,7 @@ func (v *viewer) toggleActionsHideDuplicates() {
 }
 
 func (v *viewer) showActionsVariant() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.FileCount() == 0 || v.slides.Active() {
@@ -83,7 +88,7 @@ func (v *viewer) showActionsVariant() {
 }
 
 func (v *viewer) rotateActionsImage() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.display.Count() == 0 || v.grid.Visible() {
@@ -93,7 +98,7 @@ func (v *viewer) rotateActionsImage() {
 }
 
 func (v *viewer) zoomActionsIn() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.display.Count() == 0 || v.grid.Visible() {
@@ -103,7 +108,7 @@ func (v *viewer) zoomActionsIn() {
 }
 
 func (v *viewer) zoomActionsOut() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.display.Count() == 0 || v.grid.Visible() {
@@ -113,14 +118,14 @@ func (v *viewer) zoomActionsOut() {
 }
 
 func (v *viewer) toggleActionsMergeMode() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	v.toggleMergeMode()
 }
 
 func (v *viewer) toggleActionsInfoOverlay() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.grid.Visible() {
@@ -130,7 +135,7 @@ func (v *viewer) toggleActionsInfoOverlay() {
 }
 
 func (v *viewer) copyActionsImage() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.FileCount() == 0 {
@@ -140,7 +145,7 @@ func (v *viewer) copyActionsImage() {
 }
 
 func (v *viewer) copyActionsSelection() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if !v.regionCopyAvailable() {
@@ -150,28 +155,28 @@ func (v *viewer) copyActionsSelection() {
 }
 
 func (v *viewer) copyActionsPath() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	v.copyPathToClipboard()
 }
 
 func (v *viewer) revealActionsFile() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	v.revealCurrentFile()
 }
 
 func (v *viewer) wallpaperActionsImage() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	v.setAsWallpaper()
 }
 
 func (v *viewer) trashActionsImage() {
-	if v.comparisonActive() {
+	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
 	if v.FileCount() == 0 {

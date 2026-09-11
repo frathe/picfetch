@@ -109,7 +109,7 @@ side by side, Alpha left and Beta right, the magenta marker only on Beta,
 correct title/badges, and the linked-state Unlink control. No spinner remains.
 The user then dragged the middle of the left image right and down and confirmed
 that both images moved together. The
-[retained pan position](26-windows-linked-pan-occluded.jpg) shows Beta shifted
+[retained pan position](26-windows-linked-pan-occluded.redacted.md) shows Beta shifted
 right/down and both images' visible upper edges aligned; Windows Start obscures
 most of the left pane, so the full linked-motion observation is the user's
 confirmation.

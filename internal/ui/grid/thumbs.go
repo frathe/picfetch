@@ -326,12 +326,30 @@ func (g *Overview) stillWanted(key *fyne.Container, id int, gen, fgen uint64) bo
 // CaptureThumbs binds background preview writes to the current cache contents.
 func (g *Overview) CaptureThumbs() imaging.CacheWriter[image.Image] { return g.thumbs.Capture() }
 
-// InvalidateContent refreshes derived content after a file mutation.
+// InvalidateContent releases derived content after a file mutation or list close.
 func (g *Overview) InvalidateContent() {
 	g.thumbs.Purge()
 	g.dupes.Clear()
 	g.restartWork()
+	// Recycled cells can outlive GridWrap's pool in Fyne's renderer caches.
+	// Release their pixels as well as the thumbnail cache's references.
+	g.cellIDs.Range(func(key, _ any) bool {
+		for _, object := range key.(*fyne.Container).Objects {
+			if img, ok := object.(*canvas.Image); ok {
+				img.File, img.Resource, img.Image = "", nil, nil
+				img.Refresh()
+			}
+		}
+		return true
+	})
+	g.cellIDs.Clear()
 	if g.work.stopped {
+		return
+	}
+	if g.host.FileCount() == 0 {
+		g.work.cancel()
+		g.applyVisibleFilter(false, -1)
+		g.fireDupeState()
 		return
 	}
 	g.rebuildFilter(false)

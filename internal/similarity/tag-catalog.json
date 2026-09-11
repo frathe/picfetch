@@ -1,0 +1,312 @@
+{
+  "version": "siglip2-common-tags-v2",
+  "model": "ba1f3b0843f24bc5417d38e19c37b287d719b2f4",
+  "scale": 112.66889953613281,
+  "bias": -16.771724700927734,
+  "minimumScore": 1e-05,
+  "vectorsSHA256": "a805e2d7b5f51afe13ef9cd3fc05a9a5dc911fc34a344c900dc79270e10fc107",
+  "tags": [
+    {
+      "id": "animal",
+      "prompt": "this is a photo of an animal."
+    },
+    {
+      "id": "bird",
+      "prompt": "this is a photo of a bird."
+    },
+    {
+      "id": "cat",
+      "prompt": "this is a photo of a cat."
+    },
+    {
+      "id": "dog",
+      "prompt": "this is a photo of a dog."
+    },
+    {
+      "id": "horse",
+      "prompt": "this is a photo of a horse."
+    },
+    {
+      "id": "insect",
+      "prompt": "this is a photo of an insect."
+    },
+    {
+      "id": "person",
+      "prompt": "this is a photo of a person."
+    },
+    {
+      "id": "portrait",
+      "prompt": "this is a photo of a portrait."
+    },
+    {
+      "id": "flower",
+      "prompt": "this is a photo of a flower."
+    },
+    {
+      "id": "tree",
+      "prompt": "this is a photo of a tree."
+    },
+    {
+      "id": "forest",
+      "prompt": "this is a photo of a forest."
+    },
+    {
+      "id": "mountain",
+      "prompt": "this is a photo of a mountain."
+    },
+    {
+      "id": "beach",
+      "prompt": "this is a photo of a beach."
+    },
+    {
+      "id": "ocean",
+      "prompt": "this is a photo of the ocean."
+    },
+    {
+      "id": "lake",
+      "prompt": "this is a photo of a lake."
+    },
+    {
+      "id": "river",
+      "prompt": "this is a photo of a river."
+    },
+    {
+      "id": "snow",
+      "prompt": "this is a photo of snow."
+    },
+    {
+      "id": "sunset",
+      "prompt": "this is a photo of a sunset."
+    },
+    {
+      "id": "building",
+      "prompt": "this is a photo of a building."
+    },
+    {
+      "id": "city",
+      "prompt": "this is a photo of a city."
+    },
+    {
+      "id": "bridge",
+      "prompt": "this is a photo of a bridge."
+    },
+    {
+      "id": "car",
+      "prompt": "this is a photo of a car."
+    },
+    {
+      "id": "bicycle",
+      "prompt": "this is a photo of a bicycle."
+    },
+    {
+      "id": "motorcycle",
+      "prompt": "this is a photo of a motorcycle."
+    },
+    {
+      "id": "boat",
+      "prompt": "this is a photo of a boat."
+    },
+    {
+      "id": "aircraft",
+      "prompt": "this is a photo of an aircraft."
+    },
+    {
+      "id": "food",
+      "prompt": "this is a photo of food or beverages."
+    },
+    {
+      "id": "indoor",
+      "prompt": "this is a photo of an indoor scene."
+    },
+    {
+      "id": "document",
+      "prompt": "this is a photo of a document."
+    },
+    {
+      "id": "screenshot",
+      "prompt": "this is a photo of a screenshot."
+    },
+    {
+      "id": "artwork",
+      "prompt": "this is a photo of an artwork."
+    },
+    {
+      "id": "costume",
+      "prompt": "this is a photo of a costume."
+    },
+    {
+      "id": "traditional_clothing",
+      "prompt": "this is a photo of traditional clothing."
+    },
+    {
+      "id": "clothing",
+      "prompt": "this is a photo of clothing."
+    },
+    {
+      "id": "jewelry",
+      "prompt": "this is a photo of jewelry."
+    },
+    {
+      "id": "train",
+      "prompt": "this is a photo of a train."
+    },
+    {
+      "id": "bus",
+      "prompt": "this is a photo of a bus."
+    },
+    {
+      "id": "truck",
+      "prompt": "this is a photo of a truck."
+    },
+    {
+      "id": "tram",
+      "prompt": "this is a photo of a tram."
+    },
+    {
+      "id": "fish",
+      "prompt": "this is a photo of a fish."
+    },
+    {
+      "id": "reptile",
+      "prompt": "this is a photo of a reptile."
+    },
+    {
+      "id": "castle",
+      "prompt": "this is a photo of a castle."
+    },
+    {
+      "id": "church",
+      "prompt": "this is a photo of a church."
+    },
+    {
+      "id": "temple",
+      "prompt": "this is a photo of a temple."
+    },
+    {
+      "id": "tower",
+      "prompt": "this is a photo of a tower."
+    },
+    {
+      "id": "ruins",
+      "prompt": "this is a photo of ruins."
+    },
+    {
+      "id": "street",
+      "prompt": "this is a photo of a street."
+    },
+    {
+      "id": "park",
+      "prompt": "this is a photo of a park."
+    },
+    {
+      "id": "garden",
+      "prompt": "this is a photo of a garden."
+    },
+    {
+      "id": "waterfall",
+      "prompt": "this is a photo of a waterfall."
+    },
+    {
+      "id": "desert",
+      "prompt": "this is a photo of a desert."
+    },
+    {
+      "id": "countryside",
+      "prompt": "this is a photo of the countryside."
+    },
+    {
+      "id": "cave",
+      "prompt": "this is a photo of a cave."
+    },
+    {
+      "id": "furniture",
+      "prompt": "this is a photo of furniture."
+    },
+    {
+      "id": "musical_instrument",
+      "prompt": "this is a photo of a musical instrument."
+    },
+    {
+      "id": "toy",
+      "prompt": "this is a photo of a toy."
+    },
+    {
+      "id": "sculpture",
+      "prompt": "this is a photo of a sculpture."
+    },
+    {
+      "id": "painting",
+      "prompt": "this is a photo of a painting."
+    },
+    {
+      "id": "drawing",
+      "prompt": "this is a photo of a drawing."
+    },
+    {
+      "id": "camera",
+      "prompt": "this is a photo of a camera."
+    },
+    {
+      "id": "book",
+      "prompt": "this is a photo of a book."
+    },
+    {
+      "id": "sign",
+      "prompt": "this is a photo of a sign."
+    },
+    {
+      "id": "computer",
+      "prompt": "this is a photo of a computer."
+    },
+    {
+      "id": "sports",
+      "prompt": "this is a photo of people playing sports."
+    },
+    {
+      "id": "concert",
+      "prompt": "this is a photo of a concert."
+    },
+    {
+      "id": "festival",
+      "prompt": "this is a photo of a festival."
+    },
+    {
+      "id": "wedding",
+      "prompt": "this is a photo of a wedding."
+    },
+    {
+      "id": "dance",
+      "prompt": "this is a photo of people dancing."
+    },
+    {
+      "id": "hiking",
+      "prompt": "this is a photo of people hiking."
+    },
+    {
+      "id": "camping",
+      "prompt": "this is a photo of a campsite with tents."
+    },
+    {
+      "id": "swimming",
+      "prompt": "this is a photo of people swimming."
+    },
+    {
+      "id": "skiing",
+      "prompt": "this is a photo of people skiing."
+    },
+    {
+      "id": "drink",
+      "prompt": "this is a photo of a drink."
+    },
+    {
+      "id": "fruit",
+      "prompt": "this is a photo of fruit."
+    },
+    {
+      "id": "dessert",
+      "prompt": "this is a photo of a dessert."
+    }
+  ],
+  "minimumShare": 0.1,
+  "minimumBestShare": 0.35
+}

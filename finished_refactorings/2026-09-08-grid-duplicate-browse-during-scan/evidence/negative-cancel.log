@@ -1,0 +1,33 @@
+# github.com/frathe/picfetch/internal/ui.test
+ld: warning: ignoring duplicate libraries: '-lobjc'
+=== RUN   TestGridBrowseDuringAnalysis
+=== RUN   TestGridBrowseDuringAnalysis/exit
+=== RUN   TestGridBrowseDuringAnalysis/exit/escape/hide_false
+    grid_test.go:237: late delivery restored browse or changed hide
+=== RUN   TestGridBrowseDuringAnalysis/exit/shift_d/hide_false
+    grid_test.go:237: late delivery restored browse or changed hide
+=== RUN   TestGridBrowseDuringAnalysis/exit/g/hide_false
+    grid_test.go:237: late delivery restored browse or changed hide
+=== RUN   TestGridBrowseDuringAnalysis/exit/close/hide_false
+    grid_test.go:237: late delivery restored browse or changed hide
+=== RUN   TestGridBrowseDuringAnalysis/exit/escape/hide_true
+    grid_test.go:237: late delivery restored browse or changed hide
+=== RUN   TestGridBrowseDuringAnalysis/exit/shift_d/hide_true
+    grid_test.go:237: late delivery restored browse or changed hide
+=== RUN   TestGridBrowseDuringAnalysis/exit/g/hide_true
+    grid_test.go:237: late delivery restored browse or changed hide
+=== RUN   TestGridBrowseDuringAnalysis/exit/close/hide_true
+    grid_test.go:237: late delivery restored browse or changed hide
+--- FAIL: TestGridBrowseDuringAnalysis (0.56s)
+    --- FAIL: TestGridBrowseDuringAnalysis/exit (0.56s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/escape/hide_false (0.18s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/shift_d/hide_false (0.05s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/g/hide_false (0.06s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/close/hide_false (0.06s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/escape/hide_true (0.06s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/shift_d/hide_true (0.05s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/g/hide_true (0.05s)
+        --- FAIL: TestGridBrowseDuringAnalysis/exit/close/hide_true (0.05s)
+FAIL
+FAIL	github.com/frathe/picfetch/internal/ui	1.166s
+FAIL

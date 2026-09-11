@@ -196,7 +196,7 @@ pushed fixes, not this follow-up diff. The user retains ownership of committing
 these edits; no agent commit or push was attempted during the follow-up.
 
 Read-only environment verification still shows `microsoft-store` allows only
-Branch `main`, requires `frathe`, permits self-review and forbids admin bypass;
+Branch `main`, requires `REDACTED_REVIEWER`, permits self-review and forbids admin bypass;
 no timer/custom rule is installed. Only the three expected environment secret
 names/settings were inspected. No secret values were read. Partner Center's
 Developer role remains intentional. No merge, tag, release, live Store mutation

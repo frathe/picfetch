@@ -542,9 +542,10 @@ instead of arrowing through them one at a time.
 
 ### Image mosaics
 
-While the Grid is open, choose **Actions -> Generate Image Mosaic...**. If
-you explicitly selected thumbnails, only those files become the source pool;
-otherwise PicFetch snapshots every image in the current filtered Grid result.
+With images loaded, press **`Shift+M`** or choose **Window -> Generate Image Mosaic...**.
+In the viewer or Explorer map, the loaded collection becomes the source pool.
+In Grid View, explicit selection supplies only those files; otherwise PicFetch
+snapshots every image in the current filtered Grid result.
 Later selection, filtering, navigation, renaming, or deletion does not retarget
 an already-open mosaic window, and generation never modifies a source file.
 
@@ -582,6 +583,176 @@ macOS it changes only the chosen display, while the ordinary main-window
 wallpaper command remains global/all-screen. Linux's available GNOME/KDE
 integrations are global-only, so a targeted mosaic request is refused before
 any desktop change; **Save Image** remains available.
+
+---
+
+### Visual similarity explorer (Intel/Apple Silicon Mac, Linux and Windows)
+
+On first use, Trane introduces the Explorer. Choose **Download** to install
+model and runtime files from Hugging Face and Microsoft GitHub (about 383 MB
+on Linux x64, 382 MB on Linux ARM64, 383 MB on Intel macOS, 413 MB on Apple Silicon
+macOS, 451 MB on Windows x64 or 453 MB on Windows ARM64).
+The Microsoft Store version includes the runtime and downloads only about
+372 MB of model data from Hugging Face; runtime updates come through the Store.
+The page shows progress and offers **Cancel**; if setup fails, check your
+connection and free disk space and choose **Retry**. If the files are already
+installed and verified, choose **Continue**. Downloading is optional and only
+begins after your choice. The rest of the viewer stays available if you cancel.
+
+Your pictures stay on your computer. After setup, analysis works offline,
+without uploads, analytics, or usage reports. The page links to the
+**Privacy policy** and **GitHub Discussions**. Discussions also appears in the
+Help menu and About window; it opens the public community page in your browser
+without attaching images or app data. Explorer analysis currently requires an
+Intel or Apple Silicon Mac, x64/ARM64 Linux with glibc and seccomp support, or Windows 11
+x64/ARM64. Direct Windows downloads require the Microsoft Visual C++ v14
+Redistributable for their architecture; Microsoft Store manages that dependency
+for its version. Linux requires glibc 2.28 or newer for the model runtime;
+the viewer build may require a newer system library version.
+Intel Macs require macOS 13.4 or newer and use ONNX Runtime 1.23.2, Microsoft's
+last official Intel runtime. Other platforms use ONNX Runtime 1.29.0.
+
+**Windows:** ONNX Runtime telemetry is disabled before analysis. The worker
+communicates with PicFetch through local pipes and opens no network port.
+Windows does not block that worker's network access. The first-use notice
+explains this difference; macOS and Linux retain OS-enforced network isolation.
+
+With images open, press **`Shift+S`** or choose **Window -> Visual Similarity Explorer**. It analyzes
+the opened images, including merged sets and Favorites. When duplicate filtering
+is enabled, only the highest-resolution image in each duplicate group is
+analyzed; preparation waits for duplicate checks to finish. Grid search and
+selection do not narrow this input. Progress separates successful and failed
+images from grouping and layout work. Entering the explorer maximizes the
+window. Use **Update map** to build a map from the data collected so far.
+Automatic updates every 30 images are optional and off by default. One final
+map is built when scanning finishes. Updating reuses collected data and briefly
+pauses scanning while grouping and arranging it.
+Cohorts appear as piles with up to fifteen sampled members; **Unassigned**
+contains images that do not belong to a cohort. Automatic titles show up to two
+recognized subjects, each present in at least half the group's distinct images.
+They suggest common content rather than explain every visual match. Groups
+without a common tag show only their image count; names you choose take priority.
+
+To create a cohort, open **Unassigned**, select at least two images, and click
+**Analyze**. The review shows the visual tags shared by your selection. Choose
+the tags to use, review the matching filenames, and enter a unique cohort name
+(up to 80 characters). **Include other matching Unassigned images** starts on;
+turn it off to use only your selected images. Every candidate must match all
+chosen tags. Images in existing cohorts are excluded. If no shared tags are
+found, choose a different selection or use **Save as preset** for metadata rules.
+
+**Create cohort** returns to the map and reveals your named group. Its captured
+membership survives later map updates and remains separate when changing
+granularity. Creation uses the current analysis without rescanning images.
+For a collection opened from Favorites, the named cohorts and their exact
+members are saved with that favorite and restored when it is reopened, including
+after restarting PicFetch. This works even with **Save analysis for favorites**
+disabled. Fresh automatic grouping does not replace your saved groups. Removed
+images are omitted; new images are not automatically added to a saved cohort.
+
+For ordinary file collections, or a favorite merged with outside images, these
+additions last only for the current map. Leaving the Explorer or changing its
+source files clears them.
+
+**Presets**, beside **Unassigned** on the right of the toolbar, opens a searchable
+local library of reusable rules. **New preset**
+or **Save as preset** in Analyze opens the editor. Give the rule a unique name
+and select at least one condition. Every selected visual tag and metadata
+condition must match. Metadata rules can use file type, oriented width/height,
+portrait/landscape/square orientation, camera make/model, and inclusive EXIF
+capture dates (YYYY-MM-DD). Missing metadata does not match an enabled condition;
+file modification dates are not used as capture dates. Metadata-only rules work.
+
+Save the definition, then use **Preview preset** to review matches before
+**Apply preset**. A new cohort needs at least two matching Unassigned images.
+Existing cohorts are protected. Editing a preset also reviews its linked group
+in the current map: removed members return to Unassigned, and pending members
+stay saved until they can be analyzed. A later map update does not silently add
+new arrivals. An open grid retains its captured membership.
+
+Preset definitions are global on this computer and independent of Favorites
+and the analysis cache. Favorite memberships, links and explicit returns to
+Unassigned persist separately. Other Favorites keep their reviewed memberships
+until you explicitly apply the rule there. Deleting a preset keeps its existing
+groups. Older incompatible definitions remain readable and require review and
+saving before application. A library-save or Favorite-save failure is shown;
+failed membership saves restore the prior group.
+
+The **Tags** panel offers 75 subjects and scenes with unique-image counts,
+including Costume, Traditional dress, Train, Castle, Waterfall, Concert, Hiking
+and Drink. Only tags found in the current map appear.
+All tags, including **Untagged**, start checked. Clear checkboxes to hide cohorts
+that have no member matching an active tag. A cohort stays visible if any member
+matches any checked tag; opening it still shows all its members. **Unassigned**
+follows the same rule. Counts cover the complete current map and do not shrink
+when filtering. **Clear tags** hides all cohorts so you can select just the
+tags you want; **All tags** restores them. **Untagged** keeps
+images without a recognized label reachable. Tags are local model suggestions
+and can miss or misidentify content.
+
+**Hide tags** collapses the sidebar; **Show tags** restores it with the same
+checkbox choices. Click the number beside a tag to open a grid containing only
+that tag's images, including matches from **Unassigned**. The grid keeps its
+captured membership while analysis continues; reopening the count uses the
+latest matches. Returning restores your map view.
+
+The **Granularity** slider at the top right combines related stacks toward
+**Broader**, and restores smaller groups toward **Finer**. It starts at the
+finest grouping. While dragging, the map updates when you release the slider;
+clicks and keyboard adjustments apply immediately. Each change rearranges the
+stacks and centers the selected group, or the whole arrangement if none is
+selected. It retains your zoom, subject to the minimum zoom for large maps.
+Background map updates continue to preserve existing positions. Changes use the existing
+analysis without rescanning images. The broadest end joins the automatically
+formed groups; user-created cohorts and **Unassigned** stay separate. An already
+open grid keeps its captured members.
+
+Filtering preserves the map position and zoom. New map results retain your
+choices for known tags and check newly discovered tags. Returning from Grid View
+preserves the filter; leaving the Explorer resets it for the next session.
+
+Drag or hold **Shift** while scrolling to pan. Scroll or use `+`/`-` to zoom,
+and choose **Fit map** to reset the view. `Left`, `Right`, `Up` and `Down` select
+a stack in that direction; the active stack is outlined and kept in view.
+`Enter` opens its grid. By default, new map results zoom out
+when needed to include new stacks while you are on the map. Automatic fitting
+pauses while you browse a cohort or image, preserving the view for your return.
+Maps with more than 100 piles have a minimum
+zoom of 50%, including **Fit map** and automatic fitting. Crossing that limit
+raises the zoom if needed; smaller maps keep their normal zoom range. Every
+pile retains all its sampled thumbnails. Pan or use the direction keys to reach
+piles beyond the window; new results preserve your camera once the minimum zoom
+is reached. Click a pile to open its complete
+cohort in Grid View. Open any member normally; navigation remains within that
+cohort. `Escape` returns from an
+image to the cohort grid, then another `Escape` or **Back to map** returns to
+the same map view. Grid search and selection keep their usual Escape stages.
+**Back to Viewer** leaves the map, cancels unfinished analysis, and releases its
+image resources. Opening the explorer again rebuilds the map, reusing saved
+favorite analysis when available.
+
+If analysis fails, open **Window -> Visual Similarity Explorer** again to retry.
+Saving over an opened source, removing a file, or encountering a missing file
+retires the current map and stops its analysis. Changing duplicate match distance
+while hide-duplicates is enabled also retires the map. The surviving members of an
+open cohort remain browsable. Reopen the explorer to build a fresh map; unchanged
+favorite analysis is reused. Exporting a new copy elsewhere preserves the map.
+External file changes are detected when files are read, not watched continuously.
+
+The Explorer requires local model assets. Analysis runs locally with telemetry
+disabled; macOS and Linux also block the worker's network access at OS level.
+Piles stay separated and continuing groups keep their positions as results arrive.
+Open cohorts retain their captured members; reopening uses the latest grouping.
+
+**Settings -> General -> Visual Similarity Explorer** provides three options:
+**Save analysis for favorites** (on), **Auto-update every 30 images** (off), and
+**Fit new stacks into view** (on). Successful favorite analysis is saved in an
+`analysis` subfolder beside the favorite’s file list and `thumbs` folder. Future
+scans reuse unchanged images with a matching model and preprocessing version;
+changed or invalid entries are scanned again. Grouping and positions are rebuilt
+for the current input; tags are recalculated from the saved representations.
+Cache settings apply when a scan starts. Images outside
+favorites are not saved. Full-library qualification is still in progress.
 
 ---
 
@@ -687,6 +858,10 @@ many of them actually went.
   unsorted -> back to name
 - **`M`** — toggle merge mode (next drop adds to the set instead of
   replacing it); shown in the title bar as a **`[merge]`** prefix
+- **`Shift+M`** — open the mosaic generator for the loaded images, or the
+  current selection/filtered result in Grid View
+- **`Shift+S`** — open the Visual Similarity Explorer for the opened files.
+  While a Grid search is active, both shortcuts type their letters instead
 - **`G`** — toggle the grid overview (see above); arrow keys move the
   highlight and `Page Up`/`Page Down` move it a page at a time, `Return` or
   a click opens it, `G`/`Esc` backs out. `G` does not turn hide-duplicates
@@ -937,10 +1112,6 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   unless the grid is open with exactly two selections. The comparison toolbar
   can **Swap** the identified sides once both are ready. **Back to Grid** or
   `Esc` returns to the untouched grid
-- **Actions -> Generate Image Mosaic...** — opens the mosaic workflow for the
-  explicit Grid selection, or for every current Grid result when nothing is
-  selected. Greyed out outside a non-empty Grid result. See "Image mosaics"
-  above for controls, export, and per-platform wallpaper scope
 - **Actions -> Rotate image (CW)** (`R`) — 90° clockwise, view-only, same as
   `R`. Greyed out with no image loaded or while the grid is up.
   `Shift+R` stays keyboard-only
@@ -992,6 +1163,11 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   are loaded. Leaving is Viewer / `V`, `P`, or `Esc`
 - **Window -> Help** (`F1`) — opens this manual, same as Help -> Manual.
   Greyed out while the manual window is already open
+- **Window -> Generate Image Mosaic...** — opens the mosaic workflow for the
+  explicit Grid selection, or for every current Grid result when nothing is
+  selected. Outside Grid View it uses the loaded collection. Greyed out with
+  no images, an empty Grid result, or during comparison. See "Image mosaics"
+  above for controls, export, and per-platform wallpaper scope
 - **Help -> Manual** — opens this manual, same as `F1`
 
 ---

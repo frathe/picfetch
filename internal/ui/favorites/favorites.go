@@ -35,7 +35,7 @@ var shortcutKeys = [...]fyne.KeyName{
 type Host interface {
 	FileCount() int
 	FileAt(i int) fyne.URI
-	OpenFiles(files []fyne.URI)
+	OpenFavorite(dir string, files []fyne.URI)
 	ShowToast(msg string)
 
 	// SyncFavoritePreviews brings the previews stored under favDir in line
@@ -118,6 +118,9 @@ func New(host Host, win fyne.Window) *Feature {
 func (f *Feature) Menu() *fyne.Menu {
 	return f.menu
 }
+
+// Dir returns the configured favorites storage root.
+func (f *Feature) Dir() string { return f.dir }
 
 // SetDir selects the storage directory and populates the menu from it.
 func (f *Feature) SetDir(dir string) {
@@ -302,7 +305,7 @@ func (f *Feature) openFavorite(name string) {
 	// with the list in the background starts alongside the scan this open
 	// triggers rather than behind it.
 	f.host.SyncFavoritePreviews(favstore.Dir(f.dir, name), files)
-	f.host.OpenFiles(files)
+	f.host.OpenFavorite(favstore.Dir(f.dir, name), files)
 }
 
 func (f *Feature) reportError(format string, args ...any) {

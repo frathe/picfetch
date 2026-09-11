@@ -3,8 +3,84 @@ package imaging
 import (
 	"image"
 	"image/color"
+	"image/draw"
 	"testing"
 )
+
+func TestApplyOrientationPreservesPixelFormats(t *testing.T) {
+	// A subimage exercises both a nonzero origin and a stride wider than its
+	// pixels. Fractional alpha and 16-bit colors detect conversion/rounding loss.
+	bounds := image.Rect(4, 7, 9, 11)
+	region := image.Rect(5, 8, 8, 10)
+	ycbcr := image.NewYCbCr(bounds, image.YCbCrSubsampleRatio420)
+	for i := range ycbcr.Y {
+		ycbcr.Y[i] = uint8(17 * i)
+	}
+	for i := range ycbcr.Cb {
+		ycbcr.Cb[i], ycbcr.Cr[i] = uint8(31*i), uint8(255-23*i)
+	}
+	colors := []color.Color{
+		color.NRGBA64{R: 0xf123, G: 0x8234, B: 0x3567, A: 0x8001},
+		color.NRGBA64{R: 0x1234, G: 0xdef0, B: 0x4567, A: 0xffff},
+		color.NRGBA64{R: 0xffff, G: 0xffff, A: 0},
+		color.NRGBA64{R: 0x2345, G: 0x9876, B: 0xabcd, A: 0x0101},
+		color.NRGBA64{R: 0x3456, G: 0x789a, B: 0xfedc, A: 0xff00},
+		color.NRGBA64{R: 0xabcd, G: 0x7654, B: 0x3210, A: 0x7fff},
+	}
+	sources := map[string]image.Image{
+		"rgba":     image.NewRGBA(bounds).SubImage(region),
+		"nrgba":    image.NewNRGBA(bounds).SubImage(region),
+		"rgba64":   image.NewRGBA64(bounds).SubImage(region),
+		"nrgba64":  image.NewNRGBA64(bounds).SubImage(region),
+		"gray16":   image.NewGray16(bounds).SubImage(region),
+		"cmyk":     image.NewCMYK(bounds).SubImage(region),
+		"paletted": image.NewPaletted(bounds, color.Palette(colors)).SubImage(region),
+		"ycbcr":    ycbcr.SubImage(region),
+	}
+	orders := [8][6]int{
+		{0, 1, 2, 3, 4, 5}, {2, 1, 0, 5, 4, 3},
+		{5, 4, 3, 2, 1, 0}, {3, 4, 5, 0, 1, 2},
+		{0, 3, 1, 4, 2, 5}, {3, 0, 4, 1, 5, 2},
+		{5, 2, 4, 1, 3, 0}, {2, 5, 1, 4, 0, 3},
+	}
+	for name, source := range sources {
+		t.Run(name, func(t *testing.T) {
+			if writable, ok := source.(draw.Image); ok {
+				for i, c := range colors {
+					writable.Set(region.Min.X+i%3, region.Min.Y+i/3, c)
+				}
+			}
+			var original [6]color.RGBA
+			for i := range original {
+				original[i] = color.RGBAModel.Convert(source.At(region.Min.X+i%3, region.Min.Y+i/3)).(color.RGBA)
+			}
+			// Hiding optional accessors retains the image.Image compatibility path.
+			for _, input := range []image.Image{source, struct{ image.Image }{source}} {
+				for index, order := range orders {
+					got := ApplyOrientation(input, index+1)
+					wantBounds := image.Rect(0, 0, 3, 2)
+					if index == 0 {
+						wantBounds = region
+					} else if index >= 4 {
+						wantBounds = image.Rect(0, 0, 2, 3)
+					}
+					if got.Bounds() != wantBounds {
+						t.Fatalf("orientation %d: bounds %v, want %v", index+1, got.Bounds(), wantBounds)
+					}
+					for i, from := range order {
+						pixel := got.At(wantBounds.Min.X+i%wantBounds.Dx(), wantBounds.Min.Y+i/wantBounds.Dx())
+						if color.RGBAModel.Convert(pixel) != original[from] {
+							t.Fatalf("orientation %d: pixel %d = %v, want %v", index+1, i, pixel, original[from])
+						}
+						if pixel := source.At(region.Min.X+i%3, region.Min.Y+i/3); color.RGBAModel.Convert(pixel) != original[i] {
+							t.Fatalf("orientation %d changed source pixel %d", index+1, i)
+						}
+					}
+				}
+			}
+		})
+	}
+}
 
 // markedImage builds a w x h RGBA image where each pixel's color encodes its
 // own coordinates, so transforms can be checked by looking up where a given

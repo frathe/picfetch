@@ -41,7 +41,7 @@ and the final gate under the repository's working agreement.
   command paths; recovery and reconciliation each add a demonstrated release
   scenario. Tests and diagnostics are included with the behavior they establish.
 - Automatic production triggers are connected only in 06 after the complete
-  flow is implemented. Each rollout requires frathe approval of its exact artifact and frozen notes.
+  flow is implemented. Each rollout requires REDACTED_REVIEWER approval of its exact artifact and frozen notes.
 - The next normal stable release supplies live publication evidence. No ticket
   authorizes manufacturing a release or resubmitting already-live 1.0.2 to test.
 
@@ -100,7 +100,7 @@ calls, release command or git commit are required to publish these local tickets
   its outer timestamp version is recorded separately from inner app versions.
 - [Setup wizard](configure-access.sh), [record of the approved environment settings](environment.json),
   [main-only branch rule](main-branch.json). The wizard does not create environments.
-- Current environment metadata is verified: main only, frathe reviewer, self-review
+- Current environment metadata is verified: main only, REDACTED_REVIEWER reviewer, self-review
   allowed, bypass/timer/custom rules disabled; all three secret names exist. The
   user confirmed the linked Developer application and rotated key.
 - The new approval workflow is not on main. Microsoft read access and submission

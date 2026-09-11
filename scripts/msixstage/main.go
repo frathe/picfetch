@@ -16,6 +16,7 @@ func main() {
 	flag.StringVar(&opts.Arch, "arch", "", "Go architecture: amd64 or arm64")
 	flag.StringVar(&opts.Executable, "exe", "", "Windows executable to stage")
 	flag.StringVar(&opts.Out, "out", "", "output staging directory")
+	flag.StringVar(&opts.RuntimeArchive, "runtime-archive", "", "pinned ONNX Runtime ZIP matching the package architecture")
 	flag.Parse()
 
 	if err := stage(opts); err != nil {

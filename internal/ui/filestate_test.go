@@ -137,7 +137,7 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 	staleScanToken := v.scanOp.lifecycle.begin()
 	v.scanOp.lifecycle.begin()
 	var scanSignal completion.Signal
-	v.applyScanResult(staleScanToken, false, stale, stale, false, filescan.DefaultMax, scanSignal.Begin())
+	v.applyScanResult(staleScanToken, false, stale, stale, false, filescan.DefaultMax, scanSignal.Begin(), "")
 	waitFor(t, "the stale scan completion", &scanSignal)
 	assertEquivalentFileSlices(t, v)
 	if got := namesOfURIs(v.state.files); !slices.Equal(got, []string{"current.jpg"}) {

@@ -18,7 +18,7 @@ GitHub self-updater must not offer or apply an update there.
 
 | Decision | Choice |
 |---|---|
-| Store identity | `OpenSourceDeveloperFloria.PicFetch` / `CN=D9654E56-586C-4C1E-ABC8-71CCDC33B78F` / `Open Source Developer Florian Rathe`, copied from Partner Center. |
+| Store identity | `OpenSourceDeveloperFloria.PicFetch` / `CN=00000000-0000-0000-0000-000000000000` / `REDACTED_PUBLISHER`, copied from Partner Center. |
 | Package shape | One unsigned `.msixbundle` containing x64 and ARM64 application packages; Microsoft signs it after certification. |
 | Store version | Starting with the first Store release at PicFetch `1.0.0`, append the Store-reserved fourth component to the public semantic version: `<Major>.<Minor>.<Patch>.0`. `FyneApp.toml` remains the single version source for GitHub and Microsoft Store; its separate `Build` counter is internal packaging metadata. |
 | Device family | `Windows.Desktop`, minimum Windows 10 build 19041, x64 and ARM64 only. |

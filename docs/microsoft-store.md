@@ -5,6 +5,41 @@ PicFetch uses the MSIX submission reserved in Partner Center under Store ID
 Microsoft signs the MSIX bundle after certification, installs it under the
 protected package location, and owns its updates.
 
+## Bundled Explorer runtime
+
+The x64 and ARM64 Store packages contain their matching pinned ONNX Runtime
+1.29.0 DLLs. The staging command verifies the complete official ZIP and both
+extracted DLL hashes, extracts only the required libraries and upstream notices,
+and rejects an archive for another architecture. Staging requires an empty
+output directory and includes PicFetch's LICENSE, THIRD-PARTY-NOTICES.md and
+PRIVACY.md plus ONNX Runtime's LICENSE, ThirdPartyNotices.txt and Privacy.md.
+
+The Store build resolves runtime libraries beside its own executable in the
+installed package. Model cache paths and PICFETCH_SIMILARITY_ASSETS cannot
+select another DLL. First-use setup downloads only the pinned model and processor
+configuration from Hugging Face (371,808,146 bytes, about 372 MB). Missing packaged
+DLLs require repair/update through Microsoft Store, rather than an in-app runtime
+download. The standalone x64/ARM64 installers retain their verified runtime
+ZIP downloads.
+
+Both manifests declare Microsoft.VCLibs.140.00.UWPDesktop version 14.0.33728.0 or
+newer. Microsoft Store supplies the matching architecture's C++ framework; local
+certification checks/install it from the Visual Studio SDK when needed. The
+inspected x64 framework exports every named VC symbol imported by the pinned
+ONNX DLLs. See [Microsoft's Desktop Bridge runtime guidance](https://learn.microsoft.com/en-us/troubleshoot/developer/visualstudio/cpp/libraries/c-runtime-packages-desktop-bridge).
+
+Stage with the official archive for each architecture:
+
+```powershell
+go run ./scripts/msixstage -arch amd64 -exe bin/picfetch-microsoft-store-amd64.exe -runtime-archive .scratch/windows-explorer/runtime-x64.zip -out .scratch/store-stage-x64
+go run ./scripts/msixstage -arch arm64 -exe bin/picfetch-microsoft-store-arm64.exe -runtime-archive .scratch/windows-explorer/runtime-arm64.zip -out .scratch/store-stage-arm64
+```
+
+The workflow fetches those archives at packaging time; no model weights enter
+the MSIX. Native ARM64 inference and signed MSIX/WACK acceptance remain separate
+from cross-compilation and archive validation. Clustering uses the independently
+MIT-licensed HDBSCAN subset in `internal/hdbscan`; its copyright/license and
+upstream provenance are included in the third-party notice.
 ## Build the bundle
 
 The `Microsoft Store package` workflow runs automatically for every `v*` tag

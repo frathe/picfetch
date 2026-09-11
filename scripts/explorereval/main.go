@@ -1,0 +1,132 @@
+// Command explorereval evaluates a local content-similarity pipeline before
+// its integration into PicFetch. See README.md for setup and evidence.
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"runtime"
+	"syscall"
+	"time"
+
+	"github.com/frathe/picfetch/internal/similarity"
+)
+
+func main() {
+	if similarity.WorkerMain() {
+		return
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	err := run(ctx, os.Args[1:], os.Stdout)
+	stop()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, args []string, output io.Writer) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	flags := flag.NewFlagSet("explorereval", flag.ContinueOnError)
+	flags.SetOutput(output)
+	assets := flags.String("assets", ".scratch/visual-similarity-explorer/assets", "directory of pinned local model/runtime assets")
+	library := flags.String("library", ".scratch/visual-similarity-explorer/demo", "local input folder")
+	out := flags.String("out", ".scratch/visual-similarity-explorer/evidence/run", "new local evidence directory (must not exist)")
+	install := flags.Bool("install", false, "download and verify native Explorer assets (no analysis)")
+	worker := flags.Bool("worker", false, "internal: process within the offline sandbox")
+	trial := flags.String("trial", "smoke", "smoke, throughput, or native library trial")
+	automatic := flags.Bool("automatic", false, "throughput: publish a map every 30 processed sources")
+	native := flags.String("native", "", "library: native PicFetch executable to retain and launch")
+	provider := flags.String("provider", "cpu", "cpu or coreml execution provider")
+	probe := flags.Bool("probe", false, "verify actual TCP/UDP denial, without reading images")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("unexpected positional arguments")
+	}
+	if *install {
+		last := time.Time{}
+		directory, err := (similarity.Client{Assets: *assets}).InstallAssets(ctx, func(p similarity.DownloadProgress) {
+			if time.Since(last) >= time.Second || p.Received == p.Total {
+				_, _ = fmt.Fprintf(output, "Downloaded %.1f of %.1f MB\n", float64(p.Received)/1e6, float64(p.Total)/1e6)
+				last = time.Now()
+			}
+		})
+		if err == nil {
+			_, _ = fmt.Fprintf(output, "Pinned Explorer assets verified: %s\n", directory)
+		}
+		return err
+	}
+	if *probe {
+		return similarity.VerifyOffline(ctx)
+	}
+	if *trial == "library" && *native == "" {
+		return fmt.Errorf("library trial requires a native executable (-native)")
+	}
+	if *trial != "smoke" && *trial != "throughput" && *trial != "library" {
+		return fmt.Errorf("trial must be smoke, throughput, or library")
+	}
+	if (*trial == "throughput" || *trial == "library") && (*provider != "cpu" || *worker) {
+		return fmt.Errorf("throughput uses the production CPU client and its own offline worker")
+	}
+	if *automatic && *trial != "throughput" {
+		return fmt.Errorf("automatic publication is only configurable for throughput")
+	}
+	if *provider != "cpu" && *provider != "coreml" {
+		return fmt.Errorf("provider must be cpu or coreml")
+	}
+	if err := similarity.VerifyAssets(ctx, *assets); err != nil {
+		return err
+	}
+	if err := checkTrialPlatform(*trial); err != nil {
+		return err
+	}
+	config := configuration{Assets: *assets, Library: *library, Out: *out, Provider: *provider}
+	for _, path := range []*string{&config.Assets, &config.Library, &config.Out} {
+		absolute, err := filepath.Abs(*path)
+		if err != nil {
+			return err
+		}
+		*path = absolute
+	}
+	if *trial == "library" {
+		return nativeTrial(ctx, config, *native, output)
+	}
+	if *trial == "throughput" {
+		return profile(ctx, config, *automatic, output)
+	}
+	if *worker {
+		return evaluate(ctx, config, output)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, "/usr/bin/sandbox-exec", "-p", "(version 1) (allow default) (deny network*)", executable,
+		"-worker", "-assets", config.Assets, "-library", config.Library, "-out", config.Out, "-provider", config.Provider)
+	cmd.Stdout, cmd.Stderr = output, output
+	err = cmd.Run()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
+}
+
+func checkTrialPlatform(trial string) error {
+	if trial == "throughput" && similarity.SupportedPlatform() {
+		return nil
+	}
+	if runtime.GOOS != "darwin" || !similarity.SupportedPlatform() {
+		return fmt.Errorf("this experiment requires an Intel or Apple Silicon Mac")
+	}
+	return nil
+}

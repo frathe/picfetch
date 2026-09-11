@@ -6,7 +6,7 @@ ld: warning: ignoring duplicate libraries: '-lobjc'
 /Library/Developer/CommandLineTools/usr/bin/make test-race
 docker run --rm --platform linux/amd64 \
 		--label "io.github.frathe.picfetch.test=true" \
-		-v "/Users/ronin/Projects/picfetch:/work" -w /work \
+                -v "/Users/REDACTED_USER/Projects/picfetch:/work" -w /work \
 		-v picfetch-go-build-linux-amd64:/root/.cache/go-build \
 		-v picfetch-go-mod-linux-amd64:/root/go/pkg/mod \
 		-e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \

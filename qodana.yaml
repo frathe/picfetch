@@ -56,7 +56,17 @@ exclude:
   # CatmullRom rounding, as specified by Go's Floating-point operators section.
   - name: GoRedundantConversion
     paths:
+      - "internal/imaging/resample.go"
       - "internal/mosaic/resample.go"
+      # Explicit types in fixtures are intentional test scaffolding.
+      - "internal/imaging/orientation_test.go"
+      - "internal/ui/mosaic_test.go"
+  # The JPEG fast path handles four subsampling ratios; other ratios use the
+  # generic scaler below. TestScaleForExport_PreservesJPEGFilterPixels covers
+  # all six ratios and verifies exact CatmullRom output.
+  - name: GoSwitchMissingCasesForIotaConsts
+    paths:
+      - "internal/imaging/thumbnail.go"
   # Product names (Microsoft/Store/GitHub) keep their capitalization in CLI
   # diagnostics; these files do not report sentence-capitalization defects.
   - name: GoErrorStringFormat
@@ -74,6 +84,9 @@ exclude:
   - name: GoDfaErrorMayBeNotNil
     paths:
       - "internal/imaging/mutations_test.go"
+      # openAnalysisCache always returns an initialized, possibly partial map.
+      # Analysis reports its advisory error and still uses/closes that cache.
+      - "internal/similarity/analyze.go"
   # Local fixture names are intentional in these tests.
   - name: GoImportUsedAsName
     paths:
@@ -114,6 +127,9 @@ exclude:
       - "internal/filepicker/windows_test.go"
       - "internal/filescan/filescan_test.go"
       - "internal/filesort/filesort_test.go"
+      - "internal/hdbscan/hdbscan_test.go"
+      - "internal/hdbscan/labels_test.go"
+      - "internal/hdbscan/sets_test.go"
       - "internal/imaging/bytecache_test.go"
       - "internal/imaging/dhash_test.go"
       - "internal/imaging/exif_test.go"
@@ -124,6 +140,7 @@ exclude:
       - "internal/imaging/jpegexif_test.go"
       - "internal/imaging/jpegseg_test.go"
       - "internal/imaging/loader_test.go"
+      - "internal/imaging/mutations_test.go"
       - "internal/imaging/orientation_benchmark_test.go"
       - "internal/imaging/orientation_test.go"
       - "internal/imaging/raw_test.go"
@@ -131,7 +148,6 @@ exclude:
       - "internal/imaging/svg_test.go"
       - "internal/imaging/thumbnail_test.go"
       - "internal/imaging/tiffbounds_test.go"
-      - "internal/imaging/mutations_test.go"
       - "internal/imaging/vector_test.go"
       - "internal/launch/launch_test.go"
       - "internal/mosaic/generator_test.go"
@@ -140,9 +156,16 @@ exclude:
       - "internal/mosaic/quality_test.go"
       - "internal/openwith/openwith_darwin_test.go"
       - "internal/openwith/openwith_test.go"
+      - "internal/ort/binding_test.go"
       - "internal/preferences/preferences_test.go"
       - "internal/selection/selection_test.go"
       - "internal/session/session_test.go"
+      - "internal/similarity/analyze_test.go"
+      - "internal/similarity/assets_test.go"
+      - "internal/similarity/cache_test.go"
+      - "internal/similarity/grouping_test.go"
+      - "internal/similarity/offline_test.go"
+      - "internal/similarity/worker_linux_test.go"
       - "internal/trash/trash_test.go"
       - "internal/ui/actionmenu_test.go"
       - "internal/ui/animate_test.go"
@@ -152,8 +175,6 @@ exclude:
       - "internal/ui/batch_test.go"
       - "internal/ui/clipboard_test.go"
       - "internal/ui/clipboardwork_test.go"
-      - "internal/ui/savework_test.go"
-      - "internal/ui/exportwork_test.go"
       - "internal/ui/compare/async_tile_test.go"
       - "internal/ui/compare/compare_test.go"
       - "internal/ui/compare/renderer_test.go"
@@ -191,8 +212,11 @@ exclude:
       - "internal/ui/exifwin/metadata_test.go"
       - "internal/ui/exifwin/stripwork_test.go"
       - "internal/ui/exifwin/tiles_test.go"
+      - "internal/ui/explorer_local_test.go"
+      - "internal/ui/explorer_test.go"
       - "internal/ui/export_test.go"
       - "internal/ui/exportoptions_test.go"
+      - "internal/ui/exportwork_test.go"
       - "internal/ui/favorites/add_test.go"
       - "internal/ui/favorites/confirm_test.go"
       - "internal/ui/favorites/favorites_test.go"
@@ -242,6 +266,7 @@ exclude:
       - "internal/ui/reveal_test.go"
       - "internal/ui/rotate_test.go"
       - "internal/ui/save_test.go"
+      - "internal/ui/savework_test.go"
       - "internal/ui/session_test.go"
       - "internal/ui/settings_apply_test.go"
       - "internal/ui/settingswin/settingswin_test.go"
@@ -302,6 +327,10 @@ exclude:
       - "internal/winpos/winpos_test.go"
       - "main_darwin_test.go"
       - "main_test.go"
+      - "scripts/explorereval/assets_install_real_test.go"
+      - "scripts/explorereval/assets_install_test.go"
+      - "scripts/explorereval/main_test.go"
+      - "scripts/explorereval/trial_test.go"
       - "scripts/msixstage/msixstage_test.go"
       - "scripts/nativeguards/main_test.go"
       - "scripts/plistdoctypes/doctypes_test.go"

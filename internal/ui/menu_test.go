@@ -6,6 +6,8 @@ package ui
 import (
 	"errors"
 	"image/color"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -69,11 +71,11 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 	if actions.Label != "Actions" {
 		t.Errorf("third menu label = %q, want %q", actions.Label, "Actions")
 	}
-	if len(actions.Items) != 19 {
-		t.Fatalf("Actions menu items = %d, want 19", len(actions.Items))
+	if len(actions.Items) != 18 {
+		t.Fatalf("Actions menu items = %d, want 18", len(actions.Items))
 	}
 	wantActionsLabels := []string{
-		"Sort order", "Show/Hide duplicates", "Show variants", "Compare selected images", "Generate Image Mosaic...", "",
+		"Sort order", "Show/Hide duplicates", "Show variants", "Compare selected images", "",
 		"Rotate image (CW)", "Zoom in", "Zoom out", "",
 		"Toggle merge mode", "Show/Hide info overlay", "",
 		"Copy image", "Copy selection", "Copy image path", "Reveal in file manager",
@@ -119,37 +121,36 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 			t.Errorf("sort child %d (%q) should not start checked", i, sortParent.ChildMenu.Items[i].Label)
 		}
 	}
-	for _, idx := range []int{1, 2, 3, 4, 6, 7, 8, 13, 14, 15, 16} {
-		if !actions.Items[idx].Disabled {
-			t.Errorf("Actions menu item %d (%q) should start disabled", idx, actions.Items[idx].Label)
+	for _, label := range []string{"Show/Hide duplicates", "Show variants", "Compare selected images", "Rotate image (CW)", "Zoom in", "Zoom out", "Copy image", "Copy selection", "Copy image path", "Reveal in file manager", "Set as Wallpaper", "Move image to Trash"} {
+		item := actionsItem(actions, label)
+		if !item.Disabled {
+			t.Errorf("Actions menu item %q should start disabled", label)
 		}
-		if actions.Items[idx].Action == nil {
-			t.Errorf("Actions menu item %d (%q) has no action", idx, actions.Items[idx].Label)
-		}
-	}
-	for _, idx := range []int{10, 11} {
-		if actions.Items[idx].Disabled {
-			t.Errorf("Actions menu item %d (%q) should start enabled", idx, actions.Items[idx].Label)
-		}
-		if actions.Items[idx].Action == nil {
-			t.Errorf("Actions menu item %d (%q) has no action", idx, actions.Items[idx].Label)
+		if item.Action == nil {
+			t.Errorf("Actions menu item %q has no action", label)
 		}
 	}
-	if actions.Items[10].Checked {
-		t.Error("Toggle merge mode should start unchecked")
-	}
-	if actions.Items[11].Checked {
-		t.Error("Show/Hide info overlay should start unchecked")
+	for _, label := range []string{"Toggle merge mode", "Show/Hide info overlay"} {
+		item := actionsItem(actions, label)
+		if item.Disabled {
+			t.Errorf("Actions menu item %q should start enabled", label)
+		}
+		if item.Action == nil {
+			t.Errorf("Actions menu item %q has no action", label)
+		}
+		if item.Checked {
+			t.Errorf("Actions menu item %q should start unchecked", label)
+		}
 	}
 
 	window := menu.Items[3]
 	if window.Label != "Window" {
 		t.Errorf("fourth menu label = %q, want %q", window.Label, "Window")
 	}
-	if len(window.Items) != 5 {
-		t.Fatalf("Window menu items = %d, want 5 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help)", len(window.Items))
+	if len(window.Items) != 7 {
+		t.Fatalf("Window menu items = %d, want 7 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help, Visual Similarity Explorer, Generate Image Mosaic...)", len(window.Items))
 	}
-	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help"}
+	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help", "Visual Similarity Explorer", "Generate Image Mosaic..."}
 	for i, want := range wantWindowLabels {
 		got := window.Items[i]
 		if got.Label != want {
@@ -162,8 +163,8 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 			t.Errorf("Window menu item %d (%q) is a separator, want a normal item", i, want)
 		}
 	}
-	if !window.Items[0].Disabled || !window.Items[1].Disabled || !window.Items[2].Disabled || !window.Items[3].Disabled {
-		t.Error("Viewer, EXIF Data, Grid View, and Picture-frame mode should start disabled with no files")
+	if !window.Items[0].Disabled || !window.Items[1].Disabled || !window.Items[2].Disabled || !window.Items[3].Disabled || !window.Items[5].Disabled || !window.Items[6].Disabled {
+		t.Error("Image windows should start disabled with no files")
 	}
 	if window.Items[4].Disabled {
 		t.Error("Help should start enabled")
@@ -178,19 +179,22 @@ func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
 	v := newTestViewer(t)
 	window := buildMainMenu(v).Items[3]
 
-	if len(window.Items) != 5 {
-		t.Fatalf("Window menu items = %d, want 5", len(window.Items))
+	if len(window.Items) != 7 {
+		t.Fatalf("Window menu items = %d, want 7", len(window.Items))
 	}
 
 	want := []struct {
-		label string
-		key   fyne.KeyName
+		label    string
+		key      fyne.KeyName
+		modifier fyne.KeyModifier
 	}{
-		{"Viewer", fyne.KeyV},
-		{"EXIF Data", fyne.KeyE},
-		{"Grid View", fyne.KeyG},
-		{"Picture-frame mode", fyne.KeyP},
-		{"Help", fyne.KeyF1},
+		{"Viewer", fyne.KeyV, 0},
+		{"EXIF Data", fyne.KeyE, 0},
+		{"Grid View", fyne.KeyG, 0},
+		{"Picture-frame mode", fyne.KeyP, 0},
+		{"Help", fyne.KeyF1, 0},
+		{"Visual Similarity Explorer", fyne.KeyS, fyne.KeyModifierShift},
+		{"Generate Image Mosaic...", fyne.KeyM, fyne.KeyModifierShift},
 	}
 	for i, tc := range want {
 		got := window.Items[i]
@@ -201,9 +205,12 @@ func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
 		if !ok {
 			t.Fatalf("Window menu item %q Shortcut = %#v, want a *desktop.CustomShortcut", tc.label, got.Shortcut)
 		}
-		if shortcut.KeyName != tc.key || shortcut.Modifier != 0 {
-			t.Errorf("Window menu item %q accelerator = %+v, want {%v, 0}", tc.label, shortcut, tc.key)
+		if shortcut.KeyName != tc.key || shortcut.Modifier != tc.modifier {
+			t.Errorf("Window menu item %q accelerator = %+v, want {%v, %v}", tc.label, shortcut, tc.key, tc.modifier)
 		}
+	}
+	if actionsItem(actionsMenu(v), "Generate Image Mosaic...") != nil {
+		t.Fatal("Mosaic remains in Actions after moving to Window")
 	}
 }
 
@@ -333,6 +340,9 @@ func TestFavoritesMenuItemOpensStoredFilesThroughViewer(t *testing.T) {
 	v := newTestViewer(t)
 	dir := t.TempDir()
 	image := uitest.TempJPEGURI(t, "favorite.jpg", 4, 4, color.White)
+	if err := os.WriteFile(filepath.Join(filepath.Dir(image.Path()), "unrelated.jpg"), uitest.EncodeJPEG(t, 4, 4, color.Black), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := favstore.Save(dir, "Trip", []fyne.URI{image}); err != nil {
 		t.Fatalf("favstore.Save: %v", err)
 	}
@@ -345,6 +355,9 @@ func TestFavoritesMenuItemOpensStoredFilesThroughViewer(t *testing.T) {
 
 	if len(v.state.files) != 1 || v.state.files[0].Path() != image.Path() {
 		t.Errorf("files = %v, want favorite image %q", v.state.files, image.Path())
+	}
+	if v.explorer.favoriteDir != filepath.Join(dir, "Trip") {
+		t.Fatal("successful favorite open did not commit its collection identity")
 	}
 }
 

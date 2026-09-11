@@ -3,7 +3,7 @@
 Route: Deep. Status: implemented locally; live activation pending. No git commit or new release is part of this run.
 
 Current policy: the final user amendment at the end of this plan supersedes the
-original unattended design and setup status below. Required reviewer frathe approves
+original unattended design and setup status below. Required reviewer REDACTED_REVIEWER approves
 every prepared release. Environment metadata is now verified; live access is pending.
 
 ## Original implementation history (before final approval requirement)
@@ -201,7 +201,7 @@ and workflow contract tests are the accepted seams; no new testing seam is neede
   the same protected secrets are needed; no periodic approval requests or copied
   credentials. Reconcile, then dispatch submit for a waiting release, with a fresh
   approval. Result collection is deliberately manual after the job exits.
-- Live metadata verified: required reviewer frathe, main-only branch rule, self
+- Live metadata verified: required reviewer REDACTED_REVIEWER, main-only branch rule, self
   review allowed, bypass/timer/custom rules disabled, all three secret names exist.
   User confirmed the linked application uses Developer and rotated its key.
   Existing main has no publisher workflow; no Microsoft credential test is possible

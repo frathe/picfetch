@@ -88,7 +88,7 @@ Do not use `claude-opus-5-thinking-high` unless a task is blocked on Sigstore AP
 
 ```go
 const (
-    RepoOwner             = "frathe"
+    RepoOwner             = "REDACTED_REVIEWER"
     RepoName              = "picfetch"
     APIHost               = "https://api.github.com" // Client.BaseURL in tests
     ReleaseAttestationSAN = "https://dotcom.releases.github.com"
@@ -405,7 +405,7 @@ import (
 )
 
 const (
-    RepoOwner     = "frathe"
+    RepoOwner     = "REDACTED_REVIEWER"
     RepoName      = "picfetch"
     ChecksumsName = "SHA256SUMS"
 )
