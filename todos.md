@@ -10,7 +10,20 @@
 
 #### Internal
 
+- Rebalanced Linux UI race shards using Release v1.1.0 test timings: 27 whole-test
+  moves preserve all 681 assignments and project a 37.9% lower maximum test load.
+  See [evidence and validation](plans/2026-09-11-ui-shard-rebalance.md).
+
 ## TODO
+
+### Confirm UI shard balance in CI
+
+Run CI after the September 11 manifest rebalance and compare the three raw test
+artifacts. Projected test sums are 470.520s / 470.530s / 504.870s, based on one
+completed release attempt; runner/setup variance and the realized improvement
+remain unmeasured. All three local UI race shards pass; the full local gate still
+has the separate seccomp failures below. See the
+[rebalance record](plans/2026-09-11-ui-shard-rebalance.md).
 
 ### Linux worker isolation in the local amd64 test container
 
