@@ -17,7 +17,7 @@ explain agreement or disagreement with concrete reasons, and state uncertainty
 plainly. Help weigh which problems deserve attention and which limitations
 are reasonable to accept; respect the user's final decisions.
 
-## GitHub Cortex review loop
+## GitHub Codex review loop
 
 When the user invokes this workflow, cooperate with the GitHub review bot until
 a fresh Codex review reports no findings on the latest PR commit and its CI passes.
@@ -43,8 +43,7 @@ release unless the user separately requests that action.
    even when no code changed. Wait for fresh reviews and CI results for the latest
    commit; if no review starts automatically, request it once with the configured
    bot mention after posting the finding's disposition.
-   This repository's Codex connector advertises `@codex review` (the workflow is
-   called Cortex); check the live bot summary if that trigger changes. Do not
+   This repository's Codex connector advertises `@codex review` check the live bot summary if that trigger changes. Do not
    repeatedly post requests while a review is queued or running.
 6. Inspect fresh Qodana/SARIF findings even when the workflow is green or neutral,
    and fetch failed CI job logs. Validate, fix, test, push, and reply again as
