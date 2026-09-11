@@ -178,7 +178,7 @@ func (v *manualView) scrollTo(loc *widget.TextSegment) {
 // duplicate (see widgets.Singleton).
 func (h *Help) ShowManual() {
 	h.manualWin.Show(h.app, lang.L("PicFetch Manual"), fyne.NewSize(manualW, manualH), func() fyne.CanvasObject {
-		h.manual = newManualView(currentManual(), h.spiral.Show)
+		h.manual = newManualView(currentManual(), h.openSpiral)
 		h.manual.onFinis = h.showFinis
 
 		return h.manual.content()

@@ -1,6 +1,7 @@
 package spiral
 
 import (
+	"fmt"
 	"image/color"
 	"sync/atomic"
 	"time"
@@ -16,8 +17,8 @@ import (
 // settings panel, used both to lay it out internally and to anchor it to
 // the right edge of the window (see panelAnchor).
 const (
-	settingsPanelWidth  = 260
-	settingsPanelHeight = 250
+	settingsPanelWidth  = 520
+	settingsPanelHeight = 310
 	settingsPanelMargin = 10
 
 	// settingsPanelIdleTimeout is how long the panel stays visible after
@@ -60,13 +61,15 @@ type settingsPanel struct {
 
 	// box is the small visible panel (background + title + sliders). This
 	// is what tick Hides()/Shows()/Moves() as the mouse comes and goes.
-	box *fyne.Container
+	box     *fyne.Container
+	content *fyne.Container
 
 	// lastMove is the Unix millisecond timestamp of the last detected
 	// activity, updated via markActivity by the mouse tracker and by every
 	// slider's OnChanged (see addSliderRow). It exists solely to drive the
 	// panel's auto-hide timer.
-	lastMove atomic.Int64
+	lastMove       atomic.Int64
+	onOrderChanged func()
 }
 
 // markActivity records that user activity happened just now.
@@ -101,8 +104,8 @@ func (p *settingsPanel) addSliderRow(row int, label string, min, max, initial, s
 		p.markActivity()
 	}
 
-	p.box.Add(l)
-	p.box.Add(s)
+	p.content.Add(l)
+	p.content.Add(s)
 }
 
 // newSettingsPanel builds the settings overlay for st and shader. The
@@ -118,7 +121,7 @@ func (p *settingsPanel) addSliderRow(row int, label string, min, max, initial, s
 func newSettingsPanel(st *state, shader *canvas.Shader) *settingsPanel {
 	p := &settingsPanel{
 		overlay: container.NewWithoutLayout(),
-		box:     container.NewWithoutLayout(),
+		content: container.NewWithoutLayout(),
 	}
 
 	p.overlay.Add(newMouseTracker(st, p.markActivity))
@@ -146,12 +149,36 @@ func newSettingsPanel(st *state, shader *canvas.Shader) *settingsPanel {
 	title.TextSize = panelTitleSize
 	title.Move(fyne.NewPos(sliderX, panelTitleY))
 
-	p.box.Add(bg)
-	p.box.Add(title)
+	p.content.Add(title)
 	p.addSliderRow(0, lang.L("Arms"), 1, 16, st.arms, 1, "arms", &st.arms, shader)
 	p.addSliderRow(1, lang.L("Twists"), 5, 100, st.twist, 1, "twistBase", &st.twist, shader)
 	p.addSliderRow(2, lang.L("Pixel Density"), 0.25, 1.0, st.density, 0.01, "density", &st.density, shader)
+	p.addImageSlider(0, lang.L("Image speed: %.2fx"), .35, 2, .05, &st.imageSpeed)
+	p.addImageSlider(1, lang.L("Image gap: %.2f s"), .75, 6, .05, &st.imageGap)
+	p.addImageSlider(2, lang.L("Randomness: %.0f%%"), 0, 100, 1, &st.randomness)
+	orderLabel := widget.NewLabel(lang.L("Image order"))
+	orderLabel.Move(fyne.NewPos(sliderX, 230))
+	order := widget.NewSelect([]string{lang.L("Main order"), lang.L("Random")}, func(value string) {
+		st.randomOrder = value == lang.L("Random")
+		p.markActivity()
+		if p.onOrderChanged != nil {
+			p.onOrderChanged()
+		}
+	})
+	order.Selected = lang.L("Main order")
+	if st.randomOrder {
+		order.Selected = lang.L("Random")
+	}
+	order.Move(fyne.NewPos(sliderX, 260))
+	order.Resize(fyne.NewSize(sliderControlWidth, 35))
+	p.content.Add(orderLabel)
+	p.content.Add(order)
 
+	// The fixed control surface scrolls inside a viewport on small windows.
+	surface := container.NewGridWrap(fyne.NewSize(settingsPanelWidth, settingsPanelHeight), p.content)
+	viewport := container.NewScroll(surface)
+	viewport.OnScrolled = func(_ fyne.Position) { p.markActivity() }
+	p.box = container.NewStack(bg, viewport)
 	p.box.Resize(fyne.NewSize(settingsPanelWidth, settingsPanelHeight))
 	// Initial position; repositioned to the right edge once the window's
 	// real size is known (see tick).
@@ -174,7 +201,25 @@ func panelVisible(lastMove, now time.Time, timeout time.Duration) bool {
 
 // panelAnchor is where the panel sits: pinned to the window's right edge.
 func panelAnchor(canvasSize fyne.Size) fyne.Position {
-	return fyne.NewPos(canvasSize.Width-settingsPanelWidth-settingsPanelMargin, settingsPanelMargin)
+	return fyne.NewPos(max(settingsPanelMargin, canvasSize.Width-settingsPanelWidth-settingsPanelMargin), settingsPanelMargin)
+}
+
+func (p *settingsPanel) addImageSlider(row int, format string, minimum, maximum, step float64, target *float64) {
+	y := sliderRowsTop + float32(row)*sliderRowHeight
+	x := float32(sliderX + 260)
+	label := widget.NewLabel(fmt.Sprintf(format, *target))
+	label.Move(fyne.NewPos(x, y+sliderLabelYOffset))
+	slider := widget.NewSlider(minimum, maximum)
+	slider.Step, slider.Value = step, *target
+	slider.Move(fyne.NewPos(x, y+sliderTrackYOffset))
+	slider.Resize(fyne.NewSize(sliderControlWidth, sliderControlHeight))
+	slider.OnChanged = func(value float64) {
+		*target = value
+		label.SetText(fmt.Sprintf(format, value))
+		p.markActivity()
+	}
+	p.content.Add(label)
+	p.content.Add(slider)
 }
 
 // tick auto-hides/shows p's box based on activity and keeps it anchored to
@@ -202,7 +247,8 @@ func (p *settingsPanel) tick(w fyne.Window) {
 	// Anchor the panel to the right edge of the window, recomputed
 	// continuously so it stays correct across resizes/monitor changes.
 	canvasSize := w.Canvas().Size()
-	if canvasSize.Width > 0 {
+	if canvasSize.Width > 0 && canvasSize.Height > 0 {
+		p.box.Resize(fyne.NewSize(min(settingsPanelWidth, max(1, canvasSize.Width-2*settingsPanelMargin)), min(settingsPanelHeight, max(1, canvasSize.Height-2*settingsPanelMargin))))
 		if target := panelAnchor(canvasSize); p.box.Position() != target {
 			p.box.Move(target)
 		}

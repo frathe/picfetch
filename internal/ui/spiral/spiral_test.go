@@ -7,6 +7,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // settleTimeout bounds how long a test waits for the frame goroutine to be
@@ -32,6 +34,7 @@ func newTestSpiral(t *testing.T) *Spiral {
 
 	a := test.NewApp()
 	s := New(a)
+	s.SetUIQueue(&uitest.UIQueue{})
 	s.frameInterval = time.Minute
 
 	t.Cleanup(func() {
@@ -96,7 +99,7 @@ func assertUniform(t *testing.T, s *Spiral, name string, want float32) {
 func TestShowOpensFullScreenShaderWindow(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 
 	if !s.Open() {
 		t.Fatal("Open() = false after Show(); want true")
@@ -123,10 +126,10 @@ func TestShowOpensFullScreenShaderWindow(t *testing.T) {
 func TestShowTwiceRaisesTheSameWindow(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 	first := s.win
 
-	s.Show()
+	s.Show(nil)
 
 	if s.win != first {
 		t.Error("second Show() replaced the window; want the already-open one raised instead")
@@ -141,7 +144,7 @@ func TestShowTwiceRaisesTheSameWindow(t *testing.T) {
 func TestEscapeClosesHelpThenWindow(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 	first := s.win
 
 	if !s.help.Visible() {
@@ -164,7 +167,7 @@ func TestEscapeClosesHelpThenWindow(t *testing.T) {
 	}
 	waitSettled(t, s)
 
-	s.Show()
+	s.Show(nil)
 
 	if !s.Open() {
 		t.Fatal("Open() = false after re-Show(); want a fresh window")
@@ -182,7 +185,7 @@ func TestEscapeClosesHelpThenWindow(t *testing.T) {
 func TestSettingsOverlayIsTopmost(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 
 	overlays := s.win.Canvas().Overlays()
 	if top := overlays.Top(); top != fyne.CanvasObject(s.panel.overlay) {
@@ -204,7 +207,7 @@ func TestSettingsOverlayIsTopmost(t *testing.T) {
 func TestKeyNTogglesPresetUniform(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 
 	assertUniform(t, s, "preset", 0)
 
@@ -226,7 +229,7 @@ func TestKeyNTogglesPresetUniform(t *testing.T) {
 func TestLeftRightAdjustAndClampSpeedUniform(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 
 	assertUniform(t, s, "speed", float32(defaultSpeed))
 
@@ -260,7 +263,7 @@ func TestLeftRightAdjustAndClampSpeedUniform(t *testing.T) {
 func TestUpDownAdjustAndClampHueSpeedUniform(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 
 	assertUniform(t, s, "hueSpeed", float32(defaultHueSpeed))
 
@@ -291,7 +294,7 @@ func TestUpDownAdjustAndClampHueSpeedUniform(t *testing.T) {
 func TestOverlayToggleKeys(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 
 	cases := []struct {
 		name          string
@@ -326,7 +329,7 @@ func TestOverlayToggleKeys(t *testing.T) {
 func TestKeyFTogglesFollowMode(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 
 	if s.st.follow() {
 		t.Fatal("follow() = true on a fresh spiral; want false")
@@ -350,7 +353,7 @@ func TestKeyFTogglesFollowMode(t *testing.T) {
 func TestFrameFollowModeTracksMouse(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 	s.win.Resize(fyne.NewSize(800, 600))
 
 	size := s.win.Canvas().Size()
@@ -408,7 +411,7 @@ func TestFrameFollowModeTracksMouse(t *testing.T) {
 func TestShowThenCloseStopsTheFrameGoroutine(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.Show()
+	s.Show(nil)
 	if !s.Open() {
 		t.Fatal("Open() = false after Show(); want true")
 	}
@@ -471,7 +474,7 @@ func TestRunReturnsOnStaleGeneration(t *testing.T) {
 func TestShowForGestureClockwiseOpensTheNautilus(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.ShowForGesture(true)
+	s.ShowForGesture(true, nil)
 
 	if !s.st.preset() {
 		t.Error("preset() = false; a clockwise gesture should select the Nautilus")
@@ -482,7 +485,7 @@ func TestShowForGestureClockwiseOpensTheNautilus(t *testing.T) {
 func TestShowForGestureCounterClockwiseOpensTheRipple(t *testing.T) {
 	s := newTestSpiral(t)
 
-	s.ShowForGesture(false)
+	s.ShowForGesture(false, nil)
 
 	if s.st.preset() {
 		t.Error("preset() = true; a counter-clockwise gesture should select the Ripple")
@@ -495,9 +498,9 @@ func TestShowForGestureCounterClockwiseOpensTheRipple(t *testing.T) {
 // built, so a second Show alone would raise the old window unchanged.
 func TestShowForGestureOnAnOpenWindowSwitchesPatternInPlace(t *testing.T) {
 	s := newTestSpiral(t)
-	s.ShowForGesture(true)
+	s.ShowForGesture(true, nil)
 
-	s.ShowForGesture(false)
+	s.ShowForGesture(false, nil)
 
 	assertUniform(t, s, "preset", 0)
 	if !s.Open() {
@@ -511,11 +514,11 @@ func TestShowForGestureOnAnOpenWindowSwitchesPatternInPlace(t *testing.T) {
 // covers its default on a fresh spiral).
 func TestShowAfterAGestureKeepsThatPattern(t *testing.T) {
 	s := newTestSpiral(t)
-	s.ShowForGesture(true)
+	s.ShowForGesture(true, nil)
 	s.Close()
 	waitSettled(t, s)
 
-	s.Show()
+	s.Show(nil)
 
 	assertUniform(t, s, "preset", 1)
 }

@@ -1,4 +1,10 @@
 {
+   "Image order": "Image order",
+   "Main order": "Main order",
+   "Random": "Random",
+   "Randomness: %.0f%%": "Randomness: %.0f%%",
+   "Image speed: %.2fx": "Image speed: %.2fx",
+   "Image gap: %.2f s": "Image gap: %.2f s",
   "The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry.": "The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry.",
    "Finis": "Finis",
    "Drop images here": "Drop images here",

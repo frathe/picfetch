@@ -91,64 +91,35 @@ func TestManualView_OrdinaryQueryDoesNotFireSecretAndStillHighlights(t *testing.
 func TestHelp_SecretPhraseInManualOpensSpiral(t *testing.T) {
 	a := test.NewApp()
 	t.Cleanup(a.Quit)
-
 	h := New(a, "PicFetch", nil)
-	orig := currentManual
-	t.Cleanup(func() { currentManual = orig })
+	original := currentManual
 	currentManual = func() string { return "just words" }
-
+	t.Cleanup(func() { currentManual = original })
 	h.ShowManual()
-	t.Cleanup(func() {
-		h.spiral.Close()
-		h.spiral.Settle()
-	})
-
-	h.manual.entry.SetText(secretPhrase)
-	h.manual.submit(h.manual.entry.Text)
-
-	if !h.spiral.Open() {
-		t.Fatal("submitting the secret phrase did not open the spiral window")
+	calls := 0
+	h.SetOnSpiral(func() { calls++ })
+	h.manual.entry.OnSubmitted(secretPhrase)
+	if calls != 1 {
+		t.Fatalf("secret callback calls = %d, want 1", calls)
 	}
 }
 
-// OpenSpiral is the second door into the easter egg: internal/ui calls it
-// when the user swirls the main window in a spiral (internal/wingesture).
-// It goes through the Help-owned *spiral.Spiral rather than building a
-// second one, so both doors raise the same window.
-func TestHelp_OpenSpiralOpensTheSpiralWindow(t *testing.T) {
+func TestHelp_SecretCallbackCanChangeAfterOpening(t *testing.T) {
 	a := test.NewApp()
 	t.Cleanup(a.Quit)
-
 	h := New(a, "PicFetch", nil)
-	t.Cleanup(func() {
-		h.spiral.Close()
-		h.spiral.Settle()
-	})
-
-	h.OpenSpiral(true)
-
-	if !h.spiral.Open() {
-		t.Fatal("OpenSpiral did not open the spiral window")
-	}
-}
-
-func TestHelp_OpenSpiralTwiceKeepsOneWindow(t *testing.T) {
-	a := test.NewApp()
-	t.Cleanup(a.Quit)
-
-	h := New(a, "PicFetch", nil)
-	t.Cleanup(func() {
-		h.spiral.Close()
-		h.spiral.Settle()
-	})
-
-	h.OpenSpiral(true)
-	first := h.spiral
-
-	h.OpenSpiral(false)
-
-	if h.spiral != first || !h.spiral.Open() {
-		t.Error("a second gesture should re-aim the open spiral, not replace it")
+	original := currentManual
+	currentManual = func() string { return "just words" }
+	t.Cleanup(func() { currentManual = original })
+	h.ShowManual()
+	h.manual.entry.OnSubmitted(secretPhrase) // Missing callback is harmless.
+	calls := 0
+	h.SetOnSpiral(func() { calls++ })
+	h.manual.entry.OnSubmitted(secretPhrase)
+	h.SetOnSpiral(func() { calls += 10 })
+	h.manual.entry.OnSubmitted(secretPhrase)
+	if calls != 11 {
+		t.Fatalf("callbacks produced %d, want 11", calls)
 	}
 }
 

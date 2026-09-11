@@ -117,6 +117,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) error {
 	}
 	application.Run()
 	stopSignals()
+	view.spiral.Settle()
 	// Shutdown has canceled admission; join the native process after the UI loop
 	// retires so the application cannot leave an analysis worker behind.
 	view.explorer.workers.Wait()
@@ -155,6 +156,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
 		view.stopping = true
+		view.spiral.Close()
 		view.closeExplorer()
 		view.closeFileWork()
 		view.closeClipboardWork()

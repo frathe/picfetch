@@ -80,6 +80,53 @@ func TestNewThumbCache_IsEmptyAndUsable(t *testing.T) {
 
 // --- LoadThumbnail ----------------------------------------------------------
 
+func TestTunnelPreview(t *testing.T) {
+	t.Run("oriented_without_upscale", func(t *testing.T) {
+		u := storage.NewFileURI(writeTempFile(t, "rotated.jpg", halfRedHalfBlueJPEG(t, 20, 10, 6)))
+		p, err := LoadThumbnailAtEdgeContext(context.Background(), u, 512)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Bounds().Size() != image.Pt(10, 20) {
+			t.Fatalf("orientation/upscale: %v", p.Bounds())
+		}
+	})
+	t.Run("static_logical_GIF_canvas", func(t *testing.T) {
+		u := storage.NewFileURI(writeTempFile(t, "animated.gif", uitest.EncodePartialFrameGIF(t)))
+		p, err := LoadThumbnailAtEdgeContext(context.Background(), u, 512)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Bounds().Size() != image.Pt(80, 40) {
+			t.Fatalf("cropped animation canvas: %v", p.Bounds())
+		}
+		r, _, b, a := p.At(35, 15).RGBA()
+		if r == 0 || b != 0 || a == 0 {
+			t.Fatal("preview did not retain frame zero")
+		}
+		_, _, _, a = p.At(0, 0).RGBA()
+		if a != 0 {
+			t.Fatal("GIF transparency was lost")
+		}
+	})
+	path := writeTempFile(t, "tunnel.jpg", encodeJPEG(t, 1024, 512, color.RGBA{R: 200, A: 255}))
+	u := storage.NewFileURI(path)
+	preview, err := LoadThumbnailAtEdgeContext(context.Background(), u, 512)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := preview.Bounds().Size(); got != image.Pt(512, 256) {
+		t.Fatalf("tunnel preview size = %v, want 512x256", got)
+	}
+	grid, err := LoadThumbnail(u)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := grid.Bounds().Size(); got != image.Pt(200, 100) {
+		t.Fatalf("grid preview size = %v, want 200x100", got)
+	}
+}
+
 func TestLoadThumbnail_DecodesAndDownsamples(t *testing.T) {
 	path := writeTempFile(t, "photo.jpg", encodeJPEG(t, 800, 400, color.RGBA{R: 200, G: 20, B: 20, A: 255}))
 
@@ -389,6 +436,9 @@ func TestLoadThumbnailContext_CancelsSourceRead(t *testing.T) {
 		load func(context.Context, fyne.URI) (image.Image, error)
 	}{
 		{"thumbnail", LoadThumbnailContext},
+		{"tunnel", func(ctx context.Context, u fyne.URI) (image.Image, error) {
+			return LoadThumbnailAtEdgeContext(ctx, u, 512)
+		}},
 		{"bounds", func(ctx context.Context, u fyne.URI) (image.Image, error) {
 			img, _, err := LoadThumbnailAndBoundsContext(ctx, u)
 			return img, err

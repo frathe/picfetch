@@ -1,22 +1,5 @@
-// Package help is the app's documentation UI: the embedded end-user
-// manual, the About box, and the Help menu that opens either.
-//
-// It's the one feature package that needs nothing from the viewer - no
-// host interface, no callbacks back into the app. Everything it draws
-// comes from its constructor arguments (the app, for windows and metadata;
-// the app title; the artwork), which is why it was the first extraction of
-// the per-feature split. It also dissolves a mutual dependency that used
-// to exist between the About window and the manual window, since the About
-// box links to the manual: both are methods on one type here.
-//
-// Help also owns Finis, the cursor-following companion in finis.go, and
-// the Hypno Spiral easter egg (internal/ui/spiral), reached
-// only by typing a secret phrase into the manual's search box (see
-// manual.go's secretPhrase and manualView.submit). That doesn't cost this
-// package the "needs nothing from the viewer" property above: the spiral
-// only needs the fyne.App this package already holds, not a callback back
-// into the app. So don't be surprised to find a full-screen shader window
-// living in the help package - the manual is the only door to it.
+// Package help owns the documentation windows and the Finis companion.
+// The manual's secret phrase emits a callback; the viewer owns the Spiral.
 package help
 
 import (
@@ -26,7 +9,6 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/lang"
 
-	"github.com/frathe/picfetch/internal/ui/spiral"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
@@ -54,30 +36,23 @@ type Help struct {
 	onManualClosed func()
 	onManualOpened func()
 
-	// spiral is the Hypno Spiral easter egg, reached only from the manual's
-	// search box (see manual.go's secretPhrase). Built unconditionally here
-	// since spiral.New is cheap - it opens no window until Show is called.
-	spiral *spiral.Spiral
+	onSpiral func()
 }
 
 // New returns the help UI for application, showing title as the app's name
 // and art as the About box's illustration.
 func New(application fyne.App, title string, art []byte) *Help {
-	return &Help{app: application, title: title, art: art, spiral: spiral.New(application)}
+	return &Help{app: application, title: title, art: art}
 }
 
-// OpenSpiral opens the Hypno Spiral on the pattern the given gesture
-// direction selects - the easter egg's second door, for the user who swirls
-// the main window in a spiral rather than typing the manual's secret phrase
-// (the gesture itself lives in internal/wingesture, wired up in
-// internal/ui/gesture.go). Which direction picks which pattern is
-// internal/ui/spiral's own business; this only passes the direction on.
-//
-// It exists so that internal/ui can reach the easter egg without reaching
-// past this package to the *spiral.Spiral it owns: both doors then raise
-// the same window rather than each building one.
-func (h *Help) OpenSpiral(clockwise bool) {
-	h.spiral.ShowForGesture(clockwise)
+// SetOnSpiral registers the manual secret callback. It is read at invocation,
+// so replacing it while the manual is open takes effect immediately.
+func (h *Help) SetOnSpiral(f func()) { h.onSpiral = f }
+
+func (h *Help) openSpiral() {
+	if h.onSpiral != nil {
+		h.onSpiral()
+	}
 }
 
 // ManualOpen reports whether the end-user manual window is currently showing.

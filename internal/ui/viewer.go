@@ -32,6 +32,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
+	"github.com/frathe/picfetch/internal/ui/spiral"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/ui/zoom"
 	"github.com/frathe/picfetch/internal/wingesture"
@@ -89,9 +90,10 @@ type viewer struct {
 	// lifecycle.
 	toast *toast
 
-	// help owns the manual and About windows and the Help menu - see
-	// internal/ui/help, which needs nothing from the viewer at all.
-	help *help.Help
+	// Help emits the secret phrase callback; the viewer supplies the frozen
+	// source snapshot to its Spiral and owns the window's shutdown.
+	help   *help.Help
+	spiral *spiral.Spiral
 
 	// favorites owns the Favorites menu and its add/open/remove dialogs.
 	favorites *favorites.Feature
@@ -190,7 +192,7 @@ type viewer struct {
 
 	// spiralGesture is what a recognised spiral does, taking whether it was
 	// drawn clockwise - which selects the pattern the easter egg opens on.
-	// registerFeatures points it at help.OpenSpiral; it is
+	// registerFeatures points it at openSpiralForGesture; it is
 	// a field so tests can watch the gesture fire without opening a real
 	// full-screen shader window, and so this file needs to know nothing
 	// about what the gesture is for.

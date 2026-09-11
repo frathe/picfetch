@@ -67,18 +67,27 @@ type state struct {
 	centerOffsetXBits atomic.Uint64
 	centerOffsetYBits atomic.Uint64
 
-	arms    float64
-	twist   float64
-	density float64
+	arms          float64
+	twist         float64
+	density       float64
+	imageSpeed    float64
+	imageGap      float64
+	randomness    float64
+	randomOrder   bool
+	turnDirection float64 // Last nonzero direction, retained while paused.
 }
 
 // newState builds a state seeded with the same defaults the donor demo
 // initialised its package-level vars with.
 func newState() *state {
 	s := &state{
-		arms:    defaultArms,
-		twist:   defaultTwistBase,
-		density: defaultDensity,
+		arms:          defaultArms,
+		twist:         defaultTwistBase,
+		density:       defaultDensity,
+		imageSpeed:    1,
+		imageGap:      2.5,
+		randomness:    35,
+		turnDirection: 1,
 	}
 	s.speedBits.Store(math.Float64bits(defaultSpeed))
 	s.hueSpeedBits.Store(math.Float64bits(defaultHueSpeed))
@@ -93,6 +102,12 @@ func (s *state) speed() float64 {
 // [-maxSpeed, maxSpeed]. Negative values reverse the spiral's direction.
 func (s *state) adjustSpeed(delta float64) {
 	v := clampFloat(s.speed()+delta, -maxSpeed, maxSpeed)
+	if math.Abs(v) < 1e-8 {
+		v = 0
+	}
+	if v != 0 {
+		s.turnDirection = math.Copysign(1, v)
+	}
 	s.speedBits.Store(math.Float64bits(v))
 }
 

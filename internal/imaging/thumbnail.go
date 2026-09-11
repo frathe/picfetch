@@ -2,6 +2,7 @@ package imaging
 
 import (
 	"context"
+	"fmt"
 	"image"
 
 	"golang.org/x/image/draw"
@@ -65,6 +66,10 @@ func loadThumbnailAndBounds(ctx context.Context, u fyne.URI, decode func(context
 }
 
 func decodeThumbnail(ctx context.Context, data []byte, bounds image.Rectangle) (image.Image, error) {
+	return decodeThumbnailAtEdge(ctx, data, bounds, ThumbnailSize)
+}
+
+func decodeThumbnailAtEdge(ctx context.Context, data []byte, bounds image.Rectangle, maxEdge int) (image.Image, error) {
 	// An SVG has no fixed pixels, so rather than rasterizing at full
 	// logical size only for scaleToFit to discard nearly all of it,
 	// rasterize straight at the thumbnail's own size - bounds is the
@@ -79,7 +84,7 @@ func decodeThumbnail(ctx context.Context, data []byte, bounds image.Rectangle) (
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		w, h := fitEdge(bounds.Dx(), bounds.Dy(), ThumbnailSize)
+		w, h := fitEdge(bounds.Dx(), bounds.Dy(), maxEdge)
 		thumb, err := vec.RasterAt(w, h)
 		if err != nil {
 			return nil, err
@@ -94,7 +99,20 @@ func decodeThumbnail(ctx context.Context, data []byte, bounds image.Rectangle) (
 	if err != nil {
 		return nil, err
 	}
-	return scaleToFit(loaded.Frames[0], ThumbnailSize), nil
+	return scaleToFit(loaded.Frames[0], maxEdge), nil
+}
+
+// LoadThumbnailAtEdgeContext decodes a static, oriented preview with the given
+// longest-edge ceiling. It never upscales or retains animation frames. Source
+// reads and decode limits are the same as ordinary grid thumbnails.
+func LoadThumbnailAtEdgeContext(ctx context.Context, u fyne.URI, maxEdge int) (image.Image, error) {
+	if maxEdge <= 0 {
+		return nil, fmt.Errorf("thumbnail edge must be positive: %d", maxEdge)
+	}
+	thumb, _, err := loadThumbnailAndBounds(ctx, u, func(ctx context.Context, data []byte, bounds image.Rectangle) (image.Image, error) {
+		return decodeThumbnailAtEdge(ctx, data, bounds, maxEdge)
+	})
+	return thumb, err
 }
 
 // LoadThumbnail reads and decodes u exactly like LoadImage - full EXIF
@@ -184,6 +202,8 @@ func scaleWith(kernel draw.Interpolator, src image.Image, maxEdge int) image.Ima
 			image.YCbCrSubsampleRatio420, image.YCbCrSubsampleRatio440:
 			scaleJPEG(dst, source)
 			return dst
+		default:
+			// Other subsampling ratios use the generic interpolator below.
 		}
 	}
 	kernel.Scale(dst, dst.Bounds(), src, b, draw.Src, nil)

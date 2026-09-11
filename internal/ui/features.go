@@ -23,6 +23,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
+	"github.com/frathe/picfetch/internal/ui/spiral"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/ui/zoom"
 	"github.com/frathe/picfetch/internal/wingesture"
@@ -36,12 +37,13 @@ var _ mosaicwin.Host = (*viewer)(nil)
 // widgets compose, and menu.go still decides how their menus compose.
 func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State) {
 	view.help = help.New(application, appTitle, assets.ComparingWebP)
+	view.spiral = spiral.New(application)
+	view.help.SetOnSpiral(view.openSpiral)
 
 	// The window-drag easter egg (gesture.go): the detector is fed by the
-	// position poller, and a recognised spiral goes to the same Help that
-	// owns the manual's secret-phrase door, so both raise one window.
+	// position poller; both doors reach the viewer-owned Spiral.
 	view.spiralDrag = wingesture.New(wingesture.Config{})
-	view.spiralGesture = view.help.OpenSpiral
+	view.spiralGesture = view.openSpiralForGesture
 	view.exif = exifwin.New(application, view)
 
 	// Resolve these callbacks against the viewer at call time so tests can

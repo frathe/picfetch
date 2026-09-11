@@ -1,8 +1,8 @@
 # Hypno Spiral tunnel image stream
 
 **Route:** Deep. **Status:** accepted five-ticket plan, refined 2026-09-12;
-implementation has not started. **Owner:** Pico / lead.
-No commit or production implementation is authorized by this documentation pass.
+implementation started on Ronin's `/implement` request. **Owner:** Pico / lead.
+Implementation with SDD/TDD is authorized; commits remain unrequested.
 
 The [specification](../.scratch/hypno-spiral-tunnel/spec.md) owns behavior and
 tuning defaults. The [ticket index](../.scratch/hypno-spiral-tunnel/issues/README.md)
@@ -271,7 +271,124 @@ its links at that time.
 | Earlier source/duplicate/shader feasibility reconnaissance | Bounded read-only scouts | Findings recorded in the existing research and original plan. |
 | Current motion facts: winding, Follow, clock and frame dispatch | One bounded read-only scout | Confirmed against current Spiral source; facts incorporated above. |
 | Current spec/ticket/plan refinement | Lead | Same approved 01 -> 02 -> {03,04} -> 05 graph; personal visual direction and contradictions resolved. |
-| Implementation, review, fixes and visual qualification | Lead | Pending; shared package context and judgment keep ownership inline. |
+| Implementation, review, fixes and visual qualification | Lead | Implementation and focused review complete; full gate completed with known environment failures; remaining native evidence below. One implementation-phase read-only scout; zero implementation/review delegates. |
 
-This pass changes planning documents only. Runtime test names and native
-qualification above describe required future implementation evidence.
+## Implementation evidence
+
+Implementation started with the approved seams: canonical preview decoding,
+viewer trigger/snapshot integration, and the real Spiral session/renderer.
+One read-only scout locates current trigger and shutdown wiring while the lead
+implements. Each slice's RED/GREEN and native evidence is recorded below.
+
+
+### Delivered implementation and RED/GREEN evidence (2026-09-12)
+
+- **01:** Viewer owns Spiral and captures one canonical duplicate visibility
+  over the main-order list. Help emits a callback. RED: missing callback and
+  bounded-preview API; GREEN: real manual/gesture integration, highest native
+  resolution, unknown groups, frozen membership, oriented/static GIF previews.
+- **02:** Three fixed sampler slots, serial 512px previews, continuous Main order,
+  live speed/gap controls, whole-card retirement and premultiplied depth layering.
+  RED: stream stopped after its first source; GREEN: cyclic stream, capacity,
+  immediate overdue admission without catch-up, live gap deadline and all-failed
+  backoff/recovery. Existing grid preview size remains 200px.
+- **03:** Shuffled cycles, order revisions, batch profiles lasting 3–7 successful
+  admissions, bounded adjacent drift, varied launch bearings and order/randomness
+  controls. RED: missing profile state/control; GREEN: six full shuffled cycles,
+  preserved live flights on order change, profile ranges and batch lengths.
+- **04:** Session/order checks at delivery, one frame acknowledgement at a time,
+  one decode lane across reopen, responsive cancellation and scrollable controls.
+  RED: reverse-then-pause lost the last direction; small panel overflowed.
+  GREEN: both corrected, queued old frames/held reads discarded, texture references
+  cleared on close, long elapsed time and resized flight age retained.
+- Deliberately bypassed duplicate visibility, centre clearance and queued-frame
+  generation checks. All three corresponding guards failed for the intended
+  reasons, then source was restored. Output: `.scratch/hypno-spiral-tunnel/guard-red.txt`.
+- The first race run exposed an overconstrained test: Follow can legitimately
+  move a live card entirely out of view and retire it. The age-preservation
+  fixture now keeps the card in view. No production change was needed.
+
+Focused command:
+`go test -race ./internal/ui/spiral ./internal/ui/help ./internal/imaging ./internal/ui -run 'Test(Tunnel|HypnoTunnel|Help_Secret|LoadThumbnailContext_CancelsSourceRead)' -count=1`
+
+GREEN package results: Spiral 2.580s, Help 1.895s, Imaging 2.336s, UI 11.721s.
+The complete Spiral package also passed before the final added lifecycle guards.
+Locale parity and both no-Unicode-arrow guards passed. Shard validation reports
+682 runnable UI tests across three shards; TestHypnoTunnel is in ui-1. Qodana's
+exact new-file exclusions are synchronized. `make build` produced `bin/picfetch`.
+
+### Review and implementation clarifications
+
+Lead reviewed the working changes against HEAD, AGENTS.md and all five tickets;
+no review was delegated. GoLand inspected all 22 changed Go files including tests
+with `errorsOnly:false`. Fixed three potential nil dereferences in test failure
+paths, and made the existing generic YCbCr fallback explicit to resolve the
+missing-switch-cases warning. Reinspection reports no findings in these files.
+
+The tunnel uses one monotonic elapsed clock for admissions, retirement and GPU
+flight age. It rebases only its own uniform every 60 seconds, rewriting live
+birth offsets in the same UI frame. The established background shader animation
+continues independently, preserving its existing phase/behavior. This is the
+concrete implementation of the spec's permitted rebase.
+
+No dependencies, native libraries, or shipped assets were added. `go.mod` and
+`go.sum` are unchanged. The existing renderer is fyne.io/fyne/v2 v2.8.0 and the
+existing scaler is golang.org/x/image v0.45.0. Their source/license entries are
+in THIRD-PARTY-NOTICES.md (BSD-3-Clause); macOS packaging copies that file and
+LICENSE into the app Resources (Makefile package-mac). Existing decoder/native
+runtime obligations remain those recorded in the same notices; no new runtime
+or model download is introduced by this feature.
+
+### Native trial and tuning
+
+Used an isolated application ID `io.github.frathe.picfetch.tunneltrial`, leaving
+normal PicFetch preferences/session storage separate. The scratch launcher uses
+production ui.Run and five repository assets: header.jpg, TaneWithFrame.webp,
+draganddrop.png, trane_digging.webp, and picfetch_functionality.gif. Desktop macOS
+OpenGL rendered the actual shader on the current Retina display. A native
+screenshot is retained at `.scratch/hypno-spiral-tunnel/native/defaults-native.jpg`.
+
+The default session opened through the real manual secret around 00:39 local
+and remained running until Ronin's close around 00:52. Intermittent native checks
+showed cycling upright photos, translucent detail, soft edges and a clear centre.
+This elapsed run was not continuously watched or instrumented for retained RSS.
+Ronin independently watched it and reported: **“it looks very calming”**. Keep
+speed 1.00x, gap 2.50s, randomness 35%, base duration 9s, bend 0.35 radians,
+long-edge growth 0.10 to 0.25 of the shorter screen dimension, core radius 0.08,
+and radial base opacity 0.15 to 0.85. No tuning change followed that verdict.
+
+Native recording through QuickTime/Screenshot did not yield a usable video;
+SystemUIServer inspection timed out. A 30–60 second moving artifact, measured
+retained-memory plateau, exhaustive native extremes, and other GL/GLES backends
+remain unverified. Screenshots and automated geometry checks do not close those
+qualification items. No release or commit is claimed.
+
+### Final repository gate
+
+`make verify` completed with exit 2; output: `.scratch/hypno-spiral-tunnel/verify.log`.
+Format, TUF, exclusion parity, vet and build passed. Docker race artifacts:
+`.scratch/race-runs/20260911T225133Z-dxnltk/`. The known local Linux/amd64 seccomp
+errors recurred in similarity.TestLinuxWorkerIsolation and
+scripts/explorereval.TestAssetInstall. These are the only failed packages.
+All three UI partitions passed: ui-1 386.531s, ui-2 402.445s, ui-3 415.794s;
+TestHypnoTunnel passed in Docker (11.150s). Imaging passed in 42.789s and
+Help in 49.839s. No clean full-gate result is claimed.
+This plan stays active until the outstanding qualification evidence is closed.
+
+
+Final review addendum: an actual Scroll event in the compact panel failed to
+refresh the idle timer. Added viewport.OnScrolled activity tracking after
+observing that RED; the complete Spiral race suite is GREEN (2.786s), both
+changed control files have clean GoLand reinspection, and make verify-build
+plus make build pass again. The full Docker run started before this last
+control-only change; its Spiral package passed (2.300s). Final-control coverage
+is the subsequent complete native Spiral race suite. No other production code
+changed during that gate.
+
+The rebuilt native trial also displayed the new panel correctly. An attempted
+automated extremes sweep did not reliably move controls to the requested values;
+it is not counted as an extremes pass. The successful user-observed default
+trial remains the native visual evidence.
+
+Temporary trial cleanup was confirmed through the native app list: PicFetch
+Tunnel Trial and Screenshot are no longer running. No files were committed.

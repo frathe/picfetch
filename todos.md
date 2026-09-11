@@ -23,7 +23,12 @@ easter egg: a frozen duplicate-aware source snapshot, bounded three-texture GPU
 renderer, main/random cyclic ordering, static GIF previews, controls, and
 lifecycle coverage. Refined motion calls for gentle acceleration, soft edges,
 subtle batch variation, translucent depth overlap, and native visual tuning.
-Start with the first of the [five ready tickets](.scratch/hypno-spiral-tunnel/issues/README.md).
+Implementation is in the working tree; focused race checks and GoLand inspections
+pass, and Ronin found the native defaults very calming. Final qualification
+remains open: all UI partitions passed, while the full gate failed only on the two existing
+local amd64 seccomp cases;
+a native moving capture and measured resource plateau are still unverified.
+See the [ticket evidence](.scratch/hypno-spiral-tunnel/issues/README.md).
 See the [specification](.scratch/hypno-spiral-tunnel/spec.md) and
 [implementation plan](plans/2026-09-11-hypno-spiral-tunnel.md).
 
