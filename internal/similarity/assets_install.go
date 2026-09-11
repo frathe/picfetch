@@ -150,6 +150,8 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 		}
 	}
 	var files []string
+	// Store builds use bundled runtime files; this constant changes with build tags.
+	//goland:noinspection GoBoolExpressions
 	if !distribution.StoreManaged {
 		files, err = unpackRuntime(ctx, staging)
 		if err != nil {

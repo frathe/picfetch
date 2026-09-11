@@ -139,7 +139,12 @@ Primary sources: [SigLIP 2 export](https://huggingface.co/onnx-community/siglip2
 [Go ONNX binding](https://github.com/yalue/onnxruntime_go/tree/v1.36.0),
 [ONNX Runtime](https://github.com/microsoft/onnxruntime/releases/tag/v1.29.0),
 [Go UMAP](https://github.com/nozzle/umap/tree/f6085fb2514d623b8a7ebb2c478396238502aef6),
-[Go HDBSCAN](https://github.com/alDuncanson/latent/tree/v0.1.4/projection).
+[PhotoPrism HDBSCAN](https://github.com/photoprism/photoprism/tree/c48d23f6b03c25fc19d376d789fac56c32a26fdb/pkg/vector/alg).
+The independently MIT-licensed subset is retained in `internal/hdbscan`, with
+its [license and adaptation record](../../internal/hdbscan/README.md). It uses
+minimum cohort 4, `minPts=3` (self plus two neighbors), Euclidean distance and
+one worker; the adapter retains the root if no smaller cluster qualifies and
+at least four distinct sources remain.
 
 ## Production throughput profiling
 

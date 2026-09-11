@@ -176,7 +176,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			}
 			return
 		case fyne.KeyS:
-			if !v.explorerMapActive() && !(v.grid.Visible() && v.grid.Searching()) {
+			if (!v.explorerMapActive() || v.explorerCanRetry()) && !(v.grid.Visible() && v.grid.Searching()) {
 				v.showExplorer()
 			}
 			return

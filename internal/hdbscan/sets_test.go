@@ -157,34 +157,6 @@ func impurity(labels Labels, truth []int) int {
 
 // sameClustering reports whether two assignments group the points identically, ignoring the
 // numbers the clusters happen to carry.
-func sameClustering(a, b Labels) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	forward, backward := make(map[int]int), make(map[int]int)
-
-	for i := range a {
-		if a[i] < 1 || b[i] < 1 {
-			if a[i] < 1 != (b[i] < 1) {
-				return false
-			}
-
-			continue
-		}
-
-		if v, ok := forward[a[i]]; ok && v != b[i] {
-			return false
-		} else if v, ok = backward[b[i]]; ok && v != a[i] {
-			return false
-		}
-
-		forward[a[i]], backward[b[i]] = b[i], a[i]
-	}
-
-	return true
-}
-
 // finite reports whether every value is a real number, which the scores derived from the density
 // levels have to be even where a distance was zero.
 func finite(values []float64) bool {

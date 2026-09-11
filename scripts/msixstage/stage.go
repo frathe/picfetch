@@ -66,7 +66,7 @@ func stageWithRuntime(opts stageOptions, stageRuntime func(context.Context, stri
 		return fmt.Errorf("root, arch, exe, and out are required")
 	}
 	if opts.RuntimeArchive == "" {
-		return fmt.Errorf("Store packages require the pinned ONNX Runtime archive for their architecture")
+		return fmt.Errorf("store packages require the pinned ONNX Runtime archive for their architecture")
 	}
 	if entries, err := os.ReadDir(opts.Out); err == nil {
 		if len(entries) != 0 {

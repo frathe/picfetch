@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 
 	"github.com/frathe/picfetch/internal/similarity"
@@ -33,6 +34,7 @@ type reviewData struct {
 }
 
 func writeReview(result evaluation, initial []item) error {
+	bindingVersion, nativeVersion := reportRuntimeVersions(runtime.GOOS, runtime.GOARCH)
 	view := reviewData{Total: len(result.Items), Seconds: fmt.Sprintf("%.2f", result.ElapsedSeconds), FirstMap: fmt.Sprintf("%.2f", result.FirstMapSeconds), MemoryMiB: fmt.Sprintf("%.1f", float64(result.PeakRSSBytes)/(1<<20))}
 	groups := map[string]*reviewCohort{}
 	for _, entry := range result.Items {
@@ -113,7 +115,7 @@ Open [the local cohort report](review.html). No source image was inspected by a 
 
 ## Reproducibility
 
-Go ONNX Runtime binding v1.36.0; native ONNX Runtime 1.29.0; requested provider %s.
+Go ONNX Runtime binding %s; native ONNX Runtime %s; requested provider %s.
 CPU uses six intra-op threads. CoreML, if selected, may fall back per operator;
 the requested provider is not evidence of GPU/ANE execution.
 SigLIP 2 base patch16 224 vision export revision %s, float32 pooler_output.
@@ -125,8 +127,12 @@ Model, processor and runtime hashes are pinned in internal/similarity/assets.sha
 
 Grouping: nozzle/umap f6085fb2514d, 15 dimensions, cosine metric, 15 neighbors,
 300 epochs, random initialization, seed 42, one worker, other defaults.
-HDBSCAN: alDuncanson/latent v0.1.4, minimum cohort 4, minimum samples 2, Euclidean
-on the 15D representation. Map: a separate fresh 2D UMAP fit on the original
+HDBSCAN: the MIT-licensed PhotoPrism pkg/vector/alg subset at commit
+c48d23f6b03c25fc19d376d789fac56c32a26fdb, retained in internal/hdbscan,
+minimum cohort 4, minPts=3 (self plus two neighbors), one worker, Euclidean
+on the 15D representation. The adapter retains the root as one cohort when no
+smaller cluster qualifies and at least four distinct sources remain.
+Map: a separate fresh 2D UMAP fit on the original
 768D representations with the same remaining parameters. Every publication
 refits all admitted inputs; it does not use the broken Transform API.
 Membership-derived cohort identifiers remove arbitrary numeric label changes.
@@ -147,8 +153,15 @@ progressive visual continuity, cache reuse and interaction latency remain pendin
 Inspect the initial/final JSON and cohort report, identify useful and misleading
 groups, and provide a quality verdict before ticket 03 is marked ready.
 `, result.Available, view.Total, view.Represented, view.Failed, len(groups)-boolInt(view.Unassigned > 0), view.Unassigned, 100*float64(view.Unassigned)/float64(view.Represented),
-		result.FirstMapSeconds, result.ElapsedSeconds, result.SetupSeconds, result.DecodeSeconds, result.EncodeSeconds, result.PeakRSSBytes, float64(result.PeakRSSBytes)/(1<<20), result.MemoryScope, result.InitialStages, result.FinalStages, len(initial), metrics.Jaccard, metrics.Common, metrics.Movement, result.ManifestSHA256, result.Config.Provider, similarity.ModelRevision)
+		result.FirstMapSeconds, result.ElapsedSeconds, result.SetupSeconds, result.DecodeSeconds, result.EncodeSeconds, result.PeakRSSBytes, float64(result.PeakRSSBytes)/(1<<20), result.MemoryScope, result.InitialStages, result.FinalStages, len(initial), metrics.Jaccard, metrics.Common, metrics.Movement, result.ManifestSHA256, bindingVersion, nativeVersion, result.Config.Provider, similarity.ModelRevision)
 	return os.WriteFile(filepath.Join(result.Config.Out, "pipeline-evaluation.md"), []byte(report), 0o600)
+}
+
+func reportRuntimeVersions(goos, goarch string) (string, string) {
+	if goos == "darwin" && goarch == "amd64" {
+		return "v1.25.0", "1.23.2"
+	}
+	return "v1.36.0", "1.29.0"
 }
 
 func boolInt(b bool) int {

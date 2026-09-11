@@ -50,6 +50,8 @@ func VerifyOffline(ctx context.Context) error {
 		return err
 	}
 	if !EnforcesNetworkIsolation() {
+		// Windows is a proper name.
+		//goland:noinspection GoErrorStringFormat
 		return fmt.Errorf("Windows analysis does not enforce OS network isolation")
 	}
 	for _, network := range []string{"tcp4", "udp4"} {

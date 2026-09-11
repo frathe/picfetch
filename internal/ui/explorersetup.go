@@ -80,13 +80,13 @@ func (v *viewer) prepareExplorer() {
 	s.panel = widget.NewModalPopUp(container.New(explorerSetupLayout{v.win.Canvas()}, body), v.win.Canvas())
 	v.win.Resize(v.win.Canvas().Size().Max(fyne.NewSize(720, 660)))
 	s.panel.Show()
-	if v.explorer.assetsReady {
-		v.explorerSetupReady(s)
+	if !v.explorer.supported {
+		s.status.SetText(lang.L("Visual Similarity Explorer requires an Intel Mac with macOS 13.4 or newer, an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
+		s.primary.Hide()
 		return
 	}
-	if !v.explorer.supported {
-		s.status.SetText(lang.L("Visual Similarity Explorer requires an Intel or Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
-		s.primary.Hide()
+	if v.explorer.assetsReady {
+		v.explorerSetupReady(s)
 		return
 	}
 	token := s.op.begin()

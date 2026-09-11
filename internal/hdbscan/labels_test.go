@@ -31,7 +31,7 @@ func TestLabels(t *testing.T) {
 
 func TestInsertSorted(t *testing.T) {
 	t.Run("KeepsSmallest", func(t *testing.T) {
-		s := []float64{}
+		var s []float64
 		for _, v := range []float64{5, 1, 4, 2, 3} {
 			s = insertSorted(s, v, 3)
 		}

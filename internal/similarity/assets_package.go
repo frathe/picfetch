@@ -30,6 +30,8 @@ func StageWindowsRuntime(ctx context.Context, arch, archivePath, root string) er
 		return err
 	}
 	if !info.Mode().IsRegular() || info.Size() != asset.size {
+		// Windows is a proper name.
+		//goland:noinspection GoErrorStringFormat
 		return fmt.Errorf("Windows runtime archive has an unexpected size or type")
 	}
 	staging, err := os.MkdirTemp("", "picfetch-package-runtime-")
@@ -52,6 +54,8 @@ func StageWindowsRuntime(ctx context.Context, arch, archivePath, root string) er
 		return closeErr
 	}
 	if n != asset.size || fmt.Sprintf("%x", hash.Sum(nil)) != asset.digest {
+		// Windows is a proper name.
+		//goland:noinspection GoErrorStringFormat
 		return fmt.Errorf("Windows runtime archive checksum mismatch")
 	}
 	if _, err := unpackRuntimeZIPFile(ctx, root, asset, verifiedPath); err != nil {

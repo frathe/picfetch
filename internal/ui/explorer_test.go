@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -353,6 +354,21 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			})
 		}
 	})
+	t.Run("setup_unsupported", func(t *testing.T) {
+		for _, ready := range []bool{false, true} {
+			t.Run(fmt.Sprintf("assets_ready_%v", ready), func(t *testing.T) {
+				v := openGridWith(t, "first.jpg")
+				v.explorer.introSeen = false
+				v.explorer.assetsReady = ready
+				v.explorer.supported = false
+				v.showExplorer()
+				v.settleExplorer()
+				if v.explorer.setup == nil || v.explorer.setup.primary.Visible() || v.explorerMapActive() {
+					t.Fatal("unsupported platform offered setup or analysis")
+				}
+			})
+		}
+	})
 	t.Run("setup_first_use", func(t *testing.T) {
 		v := openGridWith(t, "first.jpg")
 		v.explorer.introSeen = false
@@ -405,6 +421,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		fynetest.Tap(explorerDialogButton(t, v, "Download"))
 		v.settleExplorer()
+		// The Store-tagged suite expects bundled runtimes instead of a download.
+		//goland:noinspection GoBoolExpressions
 		if distribution.StoreManaged && requests == 0 {
 			// Ordinary Go test executables have no packaged DLLs. A missing
 			// Store runtime must remain a repair error without starting HTTP.
@@ -654,8 +672,58 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		revision := v.explorer.token
 		v.showExplorer()
+		stubKeyModifiers(t, v, fyne.KeyModifierShift)
+		v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
 		if !revision.current() {
 			t.Fatal("opening the active map restarted analysis")
+		}
+	})
+	t.Run("file_size_changes", func(t *testing.T) {
+		before := imaging.MaxEncodedBytes()
+		t.Cleanup(func() { imaging.SetMaxEncodedBytes(before) })
+		for _, complete := range []bool{false, true} {
+			t.Run(fmt.Sprintf("complete_%v", complete), func(t *testing.T) {
+				v := openGridWith(t, "a.jpg", "b.jpg")
+				started := make(chan struct{})
+				v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					close(started)
+					if !complete {
+						<-ctx.Done()
+					}
+					emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+					return ctx.Err()
+				}
+				v.showExplorer()
+				<-started
+				if complete {
+					v.settleExplorer()
+				}
+				token := v.explorer.token
+				v.SetMaxFileSizeMB(v.MaxFileSizeMB())
+				if !token.current() {
+					t.Fatal("unchanged file-size limit retired analysis")
+				}
+				prev := v.settingsState()
+				next := prev
+				next.MaxFileSizeMB = 1
+				v.ApplySettings(prev, next)
+				if token.current() {
+					t.Fatal("changed file-size limit retained the old analysis")
+				}
+				v.settleExplorer()
+				if v.explorer.complete || v.explorer.hasMap || len(v.explorer.sources) != 0 || explorerMenu(t, v).Disabled {
+					t.Fatal("retired analysis accepted stale completion or prevented retry")
+				}
+				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+					return nil
+				}
+				v.showExplorer()
+				v.settleExplorer()
+				if !v.explorer.complete || !v.explorer.token.current() {
+					t.Fatal("new file-size limit did not admit fresh analysis")
+				}
+			})
 		}
 	})
 	t.Run("cohort_viewer_menu", func(t *testing.T) {
@@ -770,6 +838,44 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					}
 				} else if v.win.Canvas().Overlays().Top() == nil {
 					t.Fatal("enabled Favorites shortcut did not open its dialog")
+				}
+			})
+		}
+	})
+	t.Run("modal_shortcuts", func(t *testing.T) {
+		for _, action := range []string{"favorite", "manage", "add", "chooser"} {
+			t.Run(action, func(t *testing.T) {
+				v := explorerFixture(t)
+				dir := t.TempDir()
+				file := uitest.TempJPEGURI(t, "favorite.jpg", 4, 4, color.White)
+				if err := favstore.Save(dir, "Trip", []fyne.URI{file}); err != nil {
+					t.Fatal(err)
+				}
+				v.favorites.SetDir(dir)
+				uitest.StubChooser(t, []fyne.URI{file}, nil)
+				fynetest.Tap(explorerButton(t, v, "Presets"))
+				settlePresetUI(v)
+				fynetest.Tap(explorerDialogButton(t, v, "New preset"))
+				explorerDialogEntry(t, v, "Preset name", "Unsaved draft")
+				overlay := v.win.Canvas().Overlays().Top()
+				token := v.explorer.token
+				files := slices.Clone(v.state.files)
+				handler := &fyne.ShortcutHandler{}
+				wireGlobalShortcuts(handler, v)
+				key, modifier := fyne.Key1, fyne.KeyModifierShortcutDefault
+				switch action {
+				case "manage":
+					key, modifier = fyne.KeyF, fyne.KeyModifierShortcutDefault|fyne.KeyModifierShift
+				case "add":
+					key, modifier = fyne.KeyF, fyne.KeyModifierAlt|fyne.KeyModifierShift
+				case "chooser":
+					key = fyne.KeyO
+				}
+				handler.TypedShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: modifier})
+				v.openChooserWorkers.Wait()
+				v.chooserUI.Drain()
+				if v.win.Canvas().Overlays().Top() != overlay || !token.current() || !slices.Equal(v.state.files, files) || v.scanOp.active {
+					t.Fatal("application shortcut discarded the Explorer modal or changed its collection")
 				}
 			})
 		}
@@ -992,6 +1098,66 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 	})
 
+	t.Run("trial_recording_completed_image", func(t *testing.T) {
+		v := openGridWith(t, "private-a.jpg", "private-b.jpg")
+		out := filepath.Join(t.TempDir(), "trial")
+		var err error
+		v.explorer.trial, err = explorertrial.New(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
+		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			emit(similarity.Event{OfflineVerified: true, Total: 2, Successful: 2, Complete: true,
+				Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview}, {Path: paths[1], Cohort: "a", Preview: preview}}})
+			return nil
+		}
+		v.showExplorer()
+		v.settleExplorer()
+		fynetest.Tap(explorerPiles(v)[0])
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		first, _, _ := v.CurrentFile()
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+		waitUntilLoaded(t, v)
+		second, _, _ := v.CurrentFile()
+		if first.Path() == second.Path() {
+			t.Fatal("premise: cohort navigation did not change the image")
+		}
+		v.LeaveSimilarityMap()
+		if err := v.explorer.trial.Close(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		var images []string
+		for decoder.More() {
+			var record explorertrial.Record
+			if err := decoder.Decode(&record); err != nil {
+				t.Fatal(err)
+			}
+			if record.Surface == "image" {
+				if record.VisibleTotal != 1 || record.Event == 0 || record.Map != nil {
+					t.Fatalf("image observation lacks applied-map identity: %+v", record)
+				}
+				images = append(images, record.VisibleSHA256)
+			}
+		}
+		var want []string
+		for _, file := range []fyne.URI{first, second} {
+			encoded, err := json.Marshal([]string{file.Path()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want = append(want, fmt.Sprintf("%x", sha256.Sum256(append(encoded, '\n'))))
+		}
+		if !slices.Equal(images, want) {
+			t.Fatalf("completed map image observations = %v, want %v", images, want)
+		}
+	})
 	t.Run("trial_recording_frozen_browse", func(t *testing.T) {
 		v, publish := streamingExplorerEvents(t, "private-a.jpg", "private-b.jpg", "private-c.jpg", "private-d.jpg")
 		v.LeaveSimilarityMap()
@@ -2545,7 +2711,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					}})
 					return nil
 				}
-				explorerMenu(t, v).Action()
+				stubKeyModifiers(t, v, fyne.KeyModifierShift)
+				v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
 				v.settleExplorer()
 				piles := explorerPiles(v)
 				if len(piles) != 1 {

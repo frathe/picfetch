@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"fyne.io/fyne/v2"
+
 	"github.com/frathe/picfetch/internal/similarity"
 
 	"github.com/frathe/picfetch/internal/imaging"
@@ -81,33 +83,26 @@ func evaluate(ctx context.Context, config configuration, output io.Writer) error
 			entry.Size, entry.ModifiedNS = before.Size(), before.ModTime().UnixNano()
 		}
 		if err == nil {
-			decodeStart := time.Now()
-			var data []byte
-			data, _, err = imaging.ReadAndProbe(ctx, file)
+			var loaded *imaging.LoadedImage
+			loaded, err = result.decode(ctx, file, &entry)
 			if err == nil {
-				entry.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
-				var loaded *imaging.LoadedImage
-				loaded, err = imaging.DecodeLoaded(ctx, data, 1)
-				result.DecodeSeconds += time.Since(decodeStart).Seconds()
+				encodeStart := time.Now()
+				entry.Embedding, err = e.Encode(ctx, loaded.Frames[0])
+				result.EncodeSeconds += time.Since(encodeStart).Seconds()
 				if err == nil {
-					encodeStart := time.Now()
-					entry.Embedding, err = e.Encode(ctx, loaded.Frames[0])
-					result.EncodeSeconds += time.Since(encodeStart).Seconds()
-					if err == nil {
-						entry.Tags = tagger.Tags(entry.Embedding)
-						entry.Thumbnail = fmt.Sprintf("images/%04d.jpg", i)
-						f, writeErr := os.OpenFile(filepath.Join(config.Out, entry.Thumbnail), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-						if writeErr != nil {
-							return writeErr
-						}
-						writeErr = jpeg.Encode(f, imaging.ScaleForExport(loaded.Frames[0], 240), &jpeg.Options{Quality: 85})
-						closeErr := f.Close()
-						if writeErr != nil {
-							return writeErr
-						}
-						if closeErr != nil {
-							return closeErr
-						}
+					entry.Tags = tagger.Tags(entry.Embedding)
+					entry.Thumbnail = fmt.Sprintf("images/%04d.jpg", i)
+					f, writeErr := os.OpenFile(filepath.Join(config.Out, entry.Thumbnail), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+					if writeErr != nil {
+						return writeErr
+					}
+					writeErr = jpeg.Encode(f, imaging.ScaleForExport(loaded.Frames[0], 240), &jpeg.Options{Quality: 85})
+					closeErr := f.Close()
+					if writeErr != nil {
+						return writeErr
+					}
+					if closeErr != nil {
+						return closeErr
 					}
 				}
 			}
@@ -196,4 +191,16 @@ func writeJSON(path string, value any) error {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o600)
+}
+
+// decode accounts for source reads and decoding separately from inference.
+func (r *evaluation) decode(ctx context.Context, file fyne.URI, entry *item) (*imaging.LoadedImage, error) {
+	start := time.Now()
+	defer func() { r.DecodeSeconds += time.Since(start).Seconds() }()
+	data, _, err := imaging.ReadAndProbe(ctx, file)
+	if err != nil {
+		return nil, err
+	}
+	entry.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
+	return imaging.DecodeLoaded(ctx, data, 1)
 }

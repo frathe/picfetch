@@ -154,8 +154,12 @@ func (v *viewer) SetMaxFileSizeMB(n int) {
 		n = 1
 	}
 
+	changed := v.settings.maxFileMB != n
 	v.settings.maxFileMB = n
 	imaging.SetMaxEncodedBytes(int64(n) * bytesPerMB)
+	if changed {
+		v.explorerSourcesChanged()
+	}
 }
 
 // DuplicateDistance is the Hamming threshold hide-duplicates uses.

@@ -345,6 +345,7 @@ func (v *viewer) explorerSourcesChanged() {
 	}
 	v.retireExplorerAnalysis()
 	v.explorer.surface.Status(lang.L("Source files changed. Open the explorer to analyze again."))
+	v.syncMenus()
 }
 func (v *viewer) settleExplorer() {
 	for {

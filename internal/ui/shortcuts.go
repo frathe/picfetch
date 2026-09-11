@@ -95,6 +95,9 @@ type yieldingShortcuts struct {
 
 func (y yieldingShortcuts) AddShortcut(shortcut fyne.Shortcut, handler func(fyne.Shortcut)) {
 	y.inner.AddShortcut(shortcut, func(s fyne.Shortcut) {
+		if y.view.win.Canvas().Overlays().Top() != nil {
+			return
+		}
 		if y.view.comparisonActive() && !y.comparisonAllowed || y.view.explorerMapActive() && !y.explorerAllowed {
 			return
 		}

@@ -1,3 +1,15 @@
+## PR 18 active review loop (2026-09-11)
+
+- [x] Validate and fix cached/live file-size limits, keyboard retry, Favorite
+  directory identity, completed-map image evidence, evaluator timing/provenance,
+  modal shortcuts and Intel macOS version admission using red/green regressions.
+- [x] Inspect all ten post-suppression Qodana findings. Correct three mechanical
+  issues; narrowly suppress seven build-tag/proper-name false positives.
+  CodeQL ZIP alert 6 is dismissed with exact allowlist/test evidence.
+- [ ] Push fixes, reply to and resolve each addressed thread, then obtain fresh
+  clean code/security reviews and passing CI on the latest commit.
+  See [the SDD/TDD record](plans/2026-09-11-pr18-review-limits-evidence.md).
+
 ## Intel macOS Explorer (2026-09-11)
 
 - [x] Add Microsoft's pinned Intel ONNX Runtime 1.23.2, with its compatible

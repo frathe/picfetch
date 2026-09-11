@@ -226,6 +226,9 @@ func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.Load
 	v.clearLoadingChrome()
 	v.exif.Refresh()
 	v.startLoadedAnimation(token, loaded)
+	if len(v.explorer.cohort) > 0 {
+		v.recordExplorerView("image-loaded")
+	}
 	// Must run - and finish reading v.state.files/v.state.index - before the
 	// load signal finishes below: that finish is what a waiter (a test's
 	// waitUntilLoaded, or a future navigation) synchronizes on to know

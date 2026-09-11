@@ -14,7 +14,9 @@ The package is renamed from `alg` to `hdbscan`; Go formatting is normalized.
 
 Copied synthetic tests: `hdbscan_test.go`, `labels_test.go`, `sets_test.go`.
 The DBSCAN comparison test and `dbscanLabels` helper are omitted because they
-require the unrelated DBSCAN implementation. Other HDBSCAN tests are retained.
+require the unrelated DBSCAN implementation. The unused `sameClustering` helper
+is omitted; the empty-slice declaration uses idiomatic nil initialization. Other
+HDBSCAN tests are retained.
 
 `minPts` includes the point itself. Clusters are numbered from 1; `Noise` is -1.
 The upstream algorithm excludes the root cluster. PicFetch's adapter retains

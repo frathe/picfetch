@@ -17,6 +17,10 @@ import (
 
 func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emit func(Event) error) error {
 	start := time.Now()
+	encodedLimit := req.MaxEncodedBytes
+	if encodedLimit <= 0 {
+		encodedLimit = imaging.DefaultMaxEncodedBytes
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -91,9 +95,14 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		if sourceErr == nil {
 			before, sourceErr = os.Stat(path)
 		}
-		reused, backfilled := false, false
 		if sourceErr == nil {
 			item.Size, item.ModifiedNS = before.Size(), before.ModTime().UnixNano()
+		}
+		if sourceErr == nil && before.Size() > encodedLimit {
+			sourceErr = fmt.Errorf("file exceeds the %d-byte input limit", encodedLimit)
+		}
+		reused, backfilled := false, false
+		if sourceErr == nil {
 			cacheStart := time.Now()
 			previous, ok := represented[path]
 			if ok && os.SameFile(previous.info, before) && previous.item.Size == item.Size && previous.item.ModifiedNS == item.ModifiedNS {

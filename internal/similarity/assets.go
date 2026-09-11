@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/frathe/picfetch/internal/distribution"
@@ -50,7 +51,23 @@ func platformRuntime(goos, goarch string) (runtimeAsset, bool) {
 }
 
 func SupportedPlatform() bool {
-	return AssetPlatformSupported()
+	return AssetPlatformSupported() && runtimeVersionSupported()
+}
+
+func supportsIntelMacOS(version string) bool {
+	parts := strings.Split(version, ".")
+	if len(parts) < 2 || len(parts) > 3 {
+		return false
+	}
+	numbers := make([]int, len(parts))
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return false
+		}
+		numbers[i] = n
+	}
+	return numbers[0] > 13 || numbers[0] == 13 && numbers[1] >= 4
 }
 
 // AssetPlatformSupported reports whether pinned downloads exist for this host.
@@ -104,6 +121,8 @@ func VerifyAssets(ctx context.Context, root string) error {
 // Store native code is installed beside the executable. Model/cache overrides
 // must never select another runtime or cause it to be copied into the cache.
 func runtimeDirectory(modelRoot string) (string, error) {
+	// The Store build tag selects the other branch.
+	//goland:noinspection GoBoolExpressions
 	if !distribution.StoreManaged {
 		return modelRoot, nil
 	}

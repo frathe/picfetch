@@ -91,6 +91,9 @@ never starts a download. `offline.go`
 verifies actual TCP/UDP OS denial on macOS/Linux; `files.go` registers the driverless read-only
 file repository. Production setup/analysis supports Intel/Apple Silicon macOS, glibc
 Linux x64/ARM64 and Windows x64/ARM64; native library evidence collection remains macOS-only.
+`platform_darwin_amd64.go` checks the native macOS product version before Intel
+analysis/setup admission (13.4 minimum); `platform_other.go` leaves the other
+platforms' existing admission unchanged. Unknown Intel OS versions fail closed.
 
 ### `internal/ort`
 

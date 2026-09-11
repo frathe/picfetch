@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/frathe/picfetch/internal/favstore"
 )
@@ -54,30 +55,50 @@ func openAnalysisCache(ctx context.Context, dir string) (analysisCache, error) {
 		if err != nil {
 			continue
 		}
-		before, err := root.Stat("file-list.json")
+		favorite, err := loadFavoriteAnalysis(root)
 		if err != nil {
 			_ = root.Close()
 			continue
 		}
-		files, err := favstore.Load(dir, name)
-		after, statErr := root.Stat("file-list.json")
-		if err != nil || statErr != nil || !sameVersion(before, after) {
-			_ = root.Close()
-			continue
-		}
-		favorite := &favoriteAnalysis{root: root, list: before, members: map[string]bool{}}
-		for _, file := range files {
-			path := filepath.Clean(file.Path())
-			if !favorite.members[path] {
-				favorite.members[path] = true
-				cache[path] = append(cache[path], favorite)
-			}
+		for path := range favorite.members {
+			cache[path] = append(cache[path], favorite)
 		}
 		if len(favorite.members) == 0 {
 			_ = root.Close()
 		}
 	}
 	return cache, nil
+}
+
+func loadFavoriteAnalysis(root *os.Root) (*favoriteAnalysis, error) {
+	before, err := root.Stat("file-list.json")
+	if err != nil {
+		return nil, err
+	}
+	data, err := root.ReadFile("file-list.json")
+	if err != nil {
+		return nil, err
+	}
+	var files map[string]string
+	if err := json.Unmarshal(data, &files); err != nil {
+		return nil, err
+	}
+	after, err := root.Stat("file-list.json")
+	if err != nil {
+		return nil, err
+	}
+	if !sameVersion(before, after) {
+		return nil, fmt.Errorf("favorite membership changed during cache admission")
+	}
+	favorite := &favoriteAnalysis{root: root, list: before, members: map[string]bool{}}
+	for key, path := range files {
+		index, err := strconv.Atoi(key)
+		if err != nil || index < 0 {
+			return nil, fmt.Errorf("invalid file index %q", key)
+		}
+		favorite.members[filepath.Clean(path)] = true
+	}
+	return favorite, nil
 }
 
 func (c analysisCache) close() {

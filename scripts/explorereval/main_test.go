@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -14,9 +15,12 @@ import (
 
 	"time"
 
+	"fyne.io/fyne/v2/storage"
+
 	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 func TestMain(m *testing.M) {
@@ -59,6 +63,61 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+func TestEvaluationFailedProbeTiming(t *testing.T) {
+	read := false
+	file := uitest.ReaderURI(storage.NewFileURI(filepath.Join(t.TempDir(), "broken.jpg")), func() (io.ReadCloser, error) {
+		read = true
+		return nil, io.ErrUnexpectedEOF
+	})
+	var result evaluation
+	var entry item
+	loaded, err := result.decode(context.Background(), file, &entry)
+	if err == nil || !read || loaded != nil {
+		t.Fatalf("premise: failed probe was not exercised: read=%v err=%v", read, err)
+	}
+	if result.DecodeSeconds <= 0 || result.EncodeSeconds != 0 {
+		t.Fatalf("failed probe timing: decode=%v encode=%v", result.DecodeSeconds, result.EncodeSeconds)
+	}
+}
+
+func TestEvaluationReportClusteringProvenance(t *testing.T) {
+	for _, tc := range []struct{ goos, arch, binding, native string }{
+		{"darwin", "amd64", "v1.25.0", "1.23.2"},
+		{"darwin", "arm64", "v1.36.0", "1.29.0"},
+		{"linux", "amd64", "v1.36.0", "1.29.0"},
+		{"windows", "arm64", "v1.36.0", "1.29.0"},
+	} {
+		binding, native := reportRuntimeVersions(tc.goos, tc.arch)
+		if binding != tc.binding || native != tc.native {
+			t.Errorf("%s/%s reports %s/%s, want %s/%s", tc.goos, tc.arch, binding, native, tc.binding, tc.native)
+		}
+	}
+	out := t.TempDir()
+	result := evaluation{Config: configuration{Out: out}, Items: []item{{Path: filepath.Join(out, "a.jpg"), Cohort: "a", Position: []float32{0, 0}}}}
+	if err := writeReview(result, result.Items); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(out, "pipeline-evaluation.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"PhotoPrism", "c48d23f6b03c25fc19d376d789fac56c32a26fdb", "minPts=3", "minimum cohort 4"} {
+		if !bytes.Contains(data, []byte(want)) {
+			t.Errorf("report missing active clustering provenance %q", want)
+		}
+	}
+	if bytes.Contains(data, []byte("alDuncanson/latent")) {
+		t.Fatal("report identifies the removed clustering dependency")
+	}
+	binding, native := "v1.36.0", "1.29.0"
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		binding, native = "v1.25.0", "1.23.2"
+	}
+	if !bytes.Contains(data, []byte("binding "+binding+"; native ONNX Runtime "+native)) {
+		t.Fatal("emitted report lacks the build-selected runtime versions")
+	}
 }
 
 func TestEvaluationCanceledBeforeStart(t *testing.T) {

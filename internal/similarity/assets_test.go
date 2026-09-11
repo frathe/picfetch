@@ -17,7 +17,26 @@ import (
 	"github.com/frathe/picfetch/internal/distribution"
 )
 
+func TestIntelMacOSVersionAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		version string
+		want    bool
+	}{
+		{"10.15.7", false}, {"12.7.6", false}, {"13.3.1", false},
+		{"13.4", true}, {"13.4.1", true}, {"14.0", true}, {"26.1", true},
+		{"", false}, {"unknown", false}, {"13", false}, {"13.x", false}, {"13.4.bad", false},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			if got := supportsIntelMacOS(tc.version); got != tc.want {
+				t.Fatalf("Intel macOS %q supported=%v, want %v", tc.version, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStoreDownloadPolicy(t *testing.T) {
+	// This guard executes in the Store-tagged test suite.
+	//goland:noinspection GoBoolExpressions
 	if !distribution.StoreManaged {
 		t.Skip("Store build policy")
 	}

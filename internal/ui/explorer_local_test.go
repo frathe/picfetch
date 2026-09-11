@@ -51,7 +51,11 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 		dropAndWait(t, v, storage.NewFileURI(small), storage.NewFileURI(large))
-		client := similarity.Client{Assets: "../../.scratch/visual-similarity-explorer/assets"}
+		favorites := t.TempDir()
+		if err := favstore.Save(favorites, "Limit", []fyne.URI{storage.NewFileURI(small), storage.NewFileURI(large)}); err != nil {
+			t.Fatal(err)
+		}
+		client := similarity.Client{Assets: "../../.scratch/visual-similarity-explorer/assets", FavoritesDir: favorites}
 		var result similarity.Event
 		v.explorerAnalyze = func(ctx context.Context, paths []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
 			return client.Analyze(ctx, paths, controls, func(event similarity.Event) {
@@ -71,8 +75,16 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.SetMaxFileSizeMB(3)
 		v.showExplorer()
 		v.settleExplorer()
-		if !result.Complete || result.Successful != 2 || result.Failed != 0 || result.Measurements.InferenceAttempts != 2 {
+		if !result.Complete || result.Successful != 2 || result.Failed != 0 || result.Measurements.InferenceAttempts != 1 || result.Reused != 1 {
 			t.Fatal("new analysis did not capture the updated file-size limit")
+		}
+		v.closeExplorer()
+		v.settleExplorer()
+		v.SetMaxFileSizeMB(1)
+		v.showExplorer()
+		v.settleExplorer()
+		if !result.Complete || result.Successful != 1 || result.Failed != 1 || result.Reused != 1 || result.Measurements.InferenceAttempts != 0 || !strings.Contains(result.Items[1].Error, "1048576-byte input limit") {
+			t.Fatalf("cached source bypassed lowered limit: successful=%d failed=%d reused=%d inference=%d", result.Successful, result.Failed, result.Reused, result.Measurements.InferenceAttempts)
 		}
 	})
 	t.Run("setup_recovers_missing_model", func(t *testing.T) {
