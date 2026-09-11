@@ -26,10 +26,11 @@ set with the keyboard.
 
 ## Features
 
-- Visual Similarity Explorer on Apple Silicon Macs: press `Shift+S` to explore
-  similar pictures as stacks, filter by 75 subjects, and save named cohorts and
-  reusable presets. First use offers a roughly 413 MB model/runtime download;
-  all image analysis then runs locally. Images are never uploaded. See the
+- Visual Similarity Explorer on Apple Silicon Macs and x86-64 Linux with
+  glibc/seccomp: press `Shift+S` to explore similar pictures as stacks, filter by
+  75 subjects, and save named cohorts and reusable presets. First use offers a
+  model/runtime download of roughly 383 MB on Linux or 413 MB on macOS.
+  All image analysis then runs locally. Images are never uploaded. See the
   [privacy policy](PRIVACY.md) and share feedback through
   [GitHub Discussions](https://github.com/frathe/picfetch/discussions).
 - Drag-and-drop viewing of JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, HEIC,

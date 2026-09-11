@@ -61,6 +61,10 @@ func (explorerQueue) Do(f func()) { fyne.Do(f) }
 func (explorerQueue) Drain() bool { return false }
 
 func (v *viewer) showExplorer() {
+	// The previous collection stays installed until replacement sorting commits.
+	if v.scanOp.active || v.sortOp.active {
+		return
+	}
 	if v.stopping || v.comparisonActive() || v.explorerMapActive() && !v.explorerCanRetry() || v.FileCount() == 0 || !v.yieldCopySelection() {
 		return
 	}

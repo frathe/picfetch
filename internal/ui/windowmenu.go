@@ -87,7 +87,7 @@ func (v *viewer) showWindowGrid() {
 		return
 	}
 	if len(v.explorer.cohort) > 0 {
-		v.grid.OpenSubset(v.explorer.cohort, v.backToSimilarityMap)
+		v.openExplorerGrid()
 		v.explorer.surface.Show()
 		v.ForceRepaint()
 		return

@@ -1,5 +1,10 @@
 ## PR 18 review fixes (2026-09-11)
 
+- [x] Follow-up review: preserve Unassigned Analyze on Window-menu grid return,
+  refuse Explorer admission during replacement scan/sort, and document Linux
+  support in the README. See [implementation evidence](finished_refactorings/2026-09-11-pr18-explorer-admission.md).
+  Fresh reviews and full CI results are recorded on PR 18.
+
 - [x] Follow-up review: cohort Viewer access, duplicate-distance invalidation,
   repeated-source reuse, and consistent Linux requirements in both manuals.
   See [follow-up evidence](finished_refactorings/2026-09-11-pr18-cohort-settings-reuse.md).

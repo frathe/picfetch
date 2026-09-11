@@ -482,6 +482,114 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			})
 		}
 	})
+	t.Run("replacement_admission", func(t *testing.T) {
+		for _, stage := range []string{"scan", "sort"} {
+			for _, route := range []string{"menu", "keyboard", "direct"} {
+				t.Run(stage+"/"+route, func(t *testing.T) {
+					v := openGridWith(t, "current.jpg")
+					current := v.FileAt(0)
+					first := uitest.TempJPEGURI(t, "new-a.jpg", 4, 4, color.White)
+					second := uitest.TempJPEGURI(t, "new-b.jpg", 4, 4, color.White)
+					entered, release := make(chan struct{}), make(chan struct{})
+					var enterOnce, releaseOnce sync.Once
+					unblock := func() { releaseOnce.Do(func() { close(release) }) }
+					defer unblock()
+					hold := func() {
+						enterOnce.Do(func() { close(entered) })
+						<-release
+					}
+					var files []fyne.URI
+					if stage == "scan" {
+						files = []fyne.URI{uitest.DirectoryURI(uitest.FakeURI{FileName: "folder"}, func() ([]fyne.URI, error) {
+							hold()
+							return []fyne.URI{first, second}, nil
+						})}
+					} else {
+						v.state.SetSortMode(filesort.ByCaptureDate)
+						held := uitest.ReaderURI(first, func() (io.ReadCloser, error) {
+							hold()
+							return os.Open(first.Path())
+						})
+						files = []fyne.URI{held, second}
+					}
+					var calls atomic.Int32
+					v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						calls.Add(1)
+						emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+						return nil
+					}
+					v.handleDrop(files)
+					select {
+					case <-entered:
+					case <-time.After(testTimeout):
+						t.Fatal("replacement did not reach held work")
+					}
+					if v.FileCount() != 1 || v.FileAt(0) != current || stage == "scan" && !v.scanOp.active || stage == "sort" && !v.sortOp.active {
+						t.Fatal("premise: replacement is not pending over the old collection")
+					}
+					open := v.showExplorer
+					switch route {
+					case "menu":
+						open = explorerMenu(t, v).Action
+					case "keyboard":
+						stubKeyModifiers(t, v, fyne.KeyModifierShift)
+						open = func() { v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS}) }
+					}
+					open()
+					v.settleExplorer()
+					if calls.Load() != 0 || v.explorer.surface.Visible() || v.explorer.setup != nil || len(v.explorer.sources) != 0 {
+						t.Fatal("Explorer admitted the old collection during replacement")
+					}
+					unblock()
+					waitForScan(t, v)
+					waitForSort(t, v)
+					waitUntilLoaded(t, v)
+					open()
+					v.settleExplorer()
+					want := []string{first.Path(), second.Path()}
+					slices.Sort(want)
+					got := slices.Clone(v.explorer.sources)
+					slices.Sort(got)
+					if calls.Load() != 1 || !v.explorer.complete || !slices.Equal(got, want) {
+						t.Fatalf("replacement analysis calls=%d sources=%v, want one call for %v", calls.Load(), got, want)
+					}
+				})
+			}
+		}
+	})
+	t.Run("unassigned_grid_return", func(t *testing.T) {
+		for _, route := range []string{"menu", "keyboard"} {
+			t.Run(route, func(t *testing.T) {
+				v, publish := streamingExplorer(t)
+				publish([]string{"unassigned", "unassigned", "unassigned"}, true)
+				fynetest.Tap(explorerButton(t, v, "Unassigned (3)"))
+				want := explorerGridPaths(v)
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+				waitUntilLoaded(t, v)
+				if v.grid.Visible() || v.explorerMapActive() {
+					t.Fatal("premise: Unassigned image did not open")
+				}
+				if route == "menu" {
+					v.menus.Window().Grid().Action()
+				} else {
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+				}
+				v.grid.Settle()
+				if !slices.Equal(explorerGridPaths(v), want) {
+					t.Fatal("grid return changed captured Unassigned membership")
+				}
+				analyze := explorerButton(t, v, "Analyze")
+				v.grid.SelectAll()
+				if analyze.Disabled() {
+					t.Fatal("Analyze disabled after selecting reopened Unassigned images")
+				}
+				fynetest.Tap(analyze)
+				if v.explorer.cohortDialog == nil || v.win.Canvas().Overlays().Top() == nil {
+					t.Fatal("reopened Analyze did not open the cohort review")
+				}
+			})
+		}
+	})
 	t.Run("active_menu", func(t *testing.T) {
 		v, _ := streamingExplorerEvents(t)
 		if !explorerMenu(t, v).Disabled {
