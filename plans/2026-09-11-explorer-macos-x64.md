@@ -113,3 +113,14 @@ Actual cost: one read-only provenance scout, one lead review plus inline fixes,
 no delegated implementation/review. The complete Linux race gate remains CI work
 under the recorded host constraint. Keep this plan active until Intel native
 inference, sandbox/cancellation, UI and packaged-app acceptance are observed.
+
+## PR 18 CI follow-up (2026-09-11)
+
+The accepted review round at `408951f` passes native guards on both Mac
+architectures, runtime selection/worker-exit tests, Intel real asset installation
+and offline inference, and the complete Linux race gate. Intel admission now
+checks the native product version before setup and requires macOS 13.4 or newer;
+the new boundary tests and both translated setup messages are included.
+Interactive Intel Explorer/app packaging acceptance remains separate.
+See [review evidence](../finished_refactorings/2026-09-11-pr18-review-limits-evidence.md)
+and [CI run 34610468241](https://github.com/frathe/picfetch/actions/runs/34610468241).

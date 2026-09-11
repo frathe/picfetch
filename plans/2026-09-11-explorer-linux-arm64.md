@@ -95,3 +95,12 @@ The toolchain scout also located exact runtime attribution. No implementation
 or review was delegated. Compilers ran serially with GOMAXPROCS=2 and -p=1.
 User hardware testing and CI acceptance keep this plan active. No commit or
 publication was performed.
+
+## PR 18 CI follow-up (2026-09-11)
+
+The accepted review round at `408951f` passes the complete Linux/amd64 race
+suite and canonical shard validation, closing the deferred CI gate above.
+That result does not qualify native Linux ARM64 hardware; its user acceptance
+remains open and keeps this plan active.
+See [review evidence](../finished_refactorings/2026-09-11-pr18-review-limits-evidence.md)
+and [CI run 34610468241](https://github.com/frathe/picfetch/actions/runs/34610468241).

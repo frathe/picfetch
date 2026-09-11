@@ -1,4 +1,4 @@
-## PR 18 active review loop (2026-09-11)
+## PR 18 review fixes and evidence (2026-09-11)
 
 - [x] Validate and fix cached/live file-size limits, keyboard retry, Favorite
   directory identity, completed-map image evidence, evaluator timing/provenance,
@@ -9,8 +9,11 @@
 - [x] Push 724a221 and reply to all ten Codex findings; no unresolved threads.
   Follow-up Qodana ownership warning is disproved by a negatively verified
   directory-handle closure guard and narrowly suppressed.
-- [ ] Obtain fresh clean code/security reviews and passing CI on the latest commit.
-  See [the SDD/TDD record](plans/2026-09-11-pr18-review-limits-evidence.md).
+- [x] Obtain fresh clean code/security reviews and passing CI on `408951f`;
+  Qodana's full post-suppression SARIF has zero results, and CodeQL has no open
+  PR alerts. See [the archived SDD/TDD record](finished_refactorings/2026-09-11-pr18-review-limits-evidence.md).
+  Subsequent documentation-head checks and the final loop summary are recorded
+  on [PR 18](https://github.com/frathe/picfetch/pull/18).
 
 ## Intel macOS Explorer (2026-09-11)
 
@@ -20,7 +23,9 @@
   Intel Explorer requires macOS 13.4+. See [the implementation plan](plans/2026-09-11-explorer-macos-x64.md).
 - [x] Add Intel macOS CI coverage for native guards, worker exit and actual
   asset installation/offline inference.
-- [ ] Observe Intel CI and hardware acceptance: model inference, cancellation,
+- [x] Observe Intel CI: native guards, runtime selection, worker exit and real
+  installation/offline inference pass in PR 18's accepted `408951f` round.
+- [ ] Observe Intel hardware/app acceptance: model inference, cancellation,
   sandbox enforcement, Explorer UI and packaged app. Cross-compilation alone
   does not qualify native behavior; the legacy Intel runtime has no current
   upstream binary updates.
@@ -48,7 +53,7 @@
   Native vet/build, translations/manual guards, formatting and exclusions pass.
 - [x] User accepted the local Windows x64 EXE on 2026-09-11: all tested behavior
   worked well.
-- [ ] CI's complete Linux/race gate remains outstanding. The earlier host crash cause is unresolved; do not
+- [x] CI's complete Linux/race gate passes on `408951f`. The earlier host crash cause is unresolved; do not
   repeat the isolation probes or broad Docker/race run on this host.
 - [x] Bundle architecture-pinned ONNX Runtime DLLs and upstream notices in Store
   packages; download only 372 MB model data. Verify that cache overrides cannot

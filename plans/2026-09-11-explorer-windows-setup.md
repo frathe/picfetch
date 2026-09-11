@@ -302,3 +302,12 @@ The MIT-licensed HDBSCAN subset replaces latent, and standalone notice delivery
 is fixed, including signing repacks and macOS Resources. Earlier artifact hashes
 above describe the preceding Windows increment; replacement binaries and current
 hardware/CI limitations are recorded in the follow-up plans.
+
+## PR 18 CI follow-up (2026-09-11)
+
+The accepted review round at `408951f` passes the complete Linux race suite,
+canonical shard validation, and Windows native guards. This closes the deferred
+broad-CI verification above. ARM64 hardware/app acceptance and actual MSIX/WACK
+qualification remain separate; no release or Store submission is implied.
+See [review evidence](../finished_refactorings/2026-09-11-pr18-review-limits-evidence.md)
+and [CI run 34610468241](https://github.com/frathe/picfetch/actions/runs/34610468241).

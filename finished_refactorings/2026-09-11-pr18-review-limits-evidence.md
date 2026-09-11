@@ -161,3 +161,34 @@ directory root open" when the actual Close call is temporarily removed, and
 passes after restoration. A narrow GoResourceLeak suppression documents that
 ownership; production resource behavior is unchanged. Fresh SARIF is required
 after this disposition, along with the fresh code/security/CI acceptance.
+
+## Accepted implementation round
+
+Head `408951fcc430821933df15ed54fb086fa272334f` meets every remote gate:
+
+- [CI run 34610468241](https://github.com/frathe/picfetch/actions/runs/34610468241):
+  all eight jobs pass, including four Linux race partitions, Windows, both macOS
+  architectures and validation.
+- [Qodana run 34610468165](https://github.com/frathe/picfetch/actions/runs/34610468165):
+  downloaded complete post-suppression `qodana.sarif.json` contains zero results.
+- [CodeQL run 34610468149](https://github.com/frathe/picfetch/actions/runs/34610468149):
+  action/Go analyses and the result check pass; code-scanning API returns no
+  open alerts for `refs/pull/18/merge`.
+- [Fresh review summary](https://github.com/frathe/picfetch/pull/18#issuecomment-5624487413):
+  code review completed at 14:39:18 UTC, security at 14:39:13 UTC on September 11,
+  both on this head; the bot posted its no-findings thumbs-up at 14:39:21 UTC.
+  GraphQL confirms zero unresolved threads, including older commits.
+- Commits: `724a221` fixes the ten Codex findings and initial scanner results;
+  `408951f` verifies and documents the remaining resource-ownership false positive.
+  All eleven addressed threads have commit-linked dispositions.
+
+The accepted implementation record is archived here. Subsequent documentation
+commit acceptance is recorded in [PR 18's checks and final loop summary](https://github.com/frathe/picfetch/pull/18).
+The PR remains open; no merge, release or hardware/UI acceptance is inferred.
+The user's pre-existing AGENTS.md edit is preserved outside these commits.
+
+Final ledger: one read-only Scout (budget one), zero delegated reviews/fixes,
+two implementation/disposition commits, focused local tests and race guards,
+zero local broad race suites. CI owns the complete suite. The first remote round
+found one ownership false positive; the second completed clean. A documentation
+round verifies this archival commit under the same latest-head rule.
