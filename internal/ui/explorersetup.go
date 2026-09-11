@@ -85,7 +85,7 @@ func (v *viewer) prepareExplorer() {
 		return
 	}
 	if !v.explorer.supported {
-		s.status.SetText(lang.L("Visual Similarity Explorer requires an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
+		s.status.SetText(lang.L("Visual Similarity Explorer requires an Intel or Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
 		s.primary.Hide()
 		return
 	}

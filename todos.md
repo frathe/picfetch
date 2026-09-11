@@ -1,3 +1,16 @@
+## Intel macOS Explorer (2026-09-11)
+
+- [x] Add Microsoft's pinned Intel ONNX Runtime 1.23.2, with its compatible
+  API 23 Go binding isolated to darwin/amd64; retain 1.29.0 elsewhere.
+  Extend verified downloads, worker control, native evaluation and documentation.
+  Intel Explorer requires macOS 13.4+. See [the implementation plan](plans/2026-09-11-explorer-macos-x64.md).
+- [x] Add Intel macOS CI coverage for native guards, worker exit and actual
+  asset installation/offline inference.
+- [ ] Observe Intel CI and hardware acceptance: model inference, cancellation,
+  sandbox enforcement, Explorer UI and packaged app. Cross-compilation alone
+  does not qualify native behavior; the legacy Intel runtime has no current
+  upstream binary updates.
+
 ## Windows Explorer setup (2026-09-11)
 
 - [x] Add the pinned Windows x64 runtime ZIP, bounded extraction of required

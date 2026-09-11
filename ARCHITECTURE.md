@@ -89,8 +89,19 @@ and the upstream license, third-party notices and privacy document.
 Asset availability is separate from analysis admission; analysis
 never starts a download. `offline.go`
 verifies actual TCP/UDP OS denial on macOS/Linux; `files.go` registers the driverless read-only
-file repository. Production setup/analysis supports Apple Silicon macOS, glibc
+file repository. Production setup/analysis supports Intel/Apple Silicon macOS, glibc
 Linux x64/ARM64 and Windows x64/ARM64; native library evidence collection remains macOS-only.
+
+### `internal/ort`
+
+Narrow build-time selection of the ONNX Runtime Go binding used by similarity's
+encoder and `scripts/explorertags`. `binding.go` uses upstream v1.36.0/API 29;
+`binding_darwin_amd64.go` uses unmodified v1.25.0/API 23 through the explicit
+`internal/ortlegacy` module alias in go.mod. Intel macOS pins Microsoft's last
+official runtime 1.23.2 (macOS 13.4+); other platforms retain 1.29.0. Exactly one
+binding may enter each binary because both wrappers define the same C symbols.
+`binding_test.go` guards all six platform/architecture selections. Both files
+require cgo; similarity retains its existing no-cgo encoder.
 
 ### `internal/hdbscan`
 

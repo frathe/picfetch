@@ -111,7 +111,7 @@ func qualifyAssetDownload(t *testing.T) similarity.Client {
 		}
 	}
 	notices := []string{"LICENSE", "ThirdPartyNotices.txt"}
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
 		notices = append(notices, "Privacy.md")
 	}
 	for _, name := range notices {

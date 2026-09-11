@@ -1,6 +1,6 @@
 # Local explorer engine experiment
 
-Asset setup supports Apple Silicon macOS and x64/ARM64 Linux and Windows.
+Asset setup supports Intel/Apple Silicon macOS and x64/ARM64 Linux and Windows.
 Production worker/UI tests support those platforms. The original smoke
 and full-library evidence commands below remain
 macOS-only.
@@ -18,12 +18,21 @@ make explorer-evaluate TRIAL=smoke
 ```
 
 Setup downloads a public 372 MB float32 SigLIP 2 vision model, its processor
-configuration, and the ONNX Runtime archive (11 MB on Linux x64, 10 MB on Linux ARM64, 42 MB on macOS,
+configuration, and the ONNX Runtime archive (11 MB on Linux x64, 10 MB on Linux ARM64,
+12 MB on Intel macOS, 42 MB on Apple Silicon macOS,
 80 MB on Windows x64, 82 MB on Windows ARM64). Published
 model/archive SHA-256 values are checked before use/extraction; extracted
 runtime and processor hashes are checked too. Nothing is installed globally.
 The shared installer selects pinned platform archives in `internal/similarity/assets.go`;
 extracted files are checked against `internal/similarity/assets.sha256`. Upstream native runtime license files remain in the extracted archive.
+
+Intel Macs require macOS 13.4 or newer and use ONNX Runtime 1.23.2, Microsoft's
+last official Intel binary. Its compatible API 23 Go binding is selected only
+on darwin/amd64; the other platforms keep runtime 1.29.0 and API 29. Total Intel
+setup download is about 383 MB. The same CPU analysis, telemetry opt-out and
+macOS sandbox apply. Native Intel download/inference qualification is wired into
+CI; local Windows cross-compilation does not qualify macOS execution. Verify on
+an Intel Mac with `make explorer-install-test` and `make explorer-ui-test`.
 
 On Windows 11 x64/ARM64, install the assets from PowerShell without Bash or Make:
 

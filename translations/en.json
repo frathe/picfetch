@@ -450,7 +450,7 @@
    "Download": "Download",
    "Retry": "Retry",
    "Privacy policy": "Privacy policy",
-   "Visual Similarity Explorer requires an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64.": "Visual Similarity Explorer requires an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64.",
+   "Visual Similarity Explorer requires an Intel or Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64.": "Visual Similarity Explorer requires an Intel or Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64.",
    "Windows: Analysis runs locally with ONNX Runtime telemetry disabled. No network port is opened. Windows does not block the analysis process from accessing the network.": "Windows: Analysis runs locally with ONNX Runtime telemetry disabled. No network port is opened. Windows does not block the analysis process from accessing the network.",
    "Download the local model to get started.": "Download the local model to get started.",
    "The local model is ready. No download is needed.": "The local model is ready. No download is needed.",

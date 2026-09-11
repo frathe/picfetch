@@ -1,5 +1,10 @@
 # Regenerate local semantic tag vectors
 
+Use the runtime installed for the host architecture. The example below uses
+Apple Silicon; on Intel macOS the runtime path ends in
+`onnxruntime-osx-x86_64-1.23.2/lib/libonnxruntime.1.23.2.dylib`.
+The tool selects the matching API binding through `internal/ort`.
+
 The application embeds 75 fixed subject/scene text vectors as readable JSON
 (about 997 KiB of text, representing 230,400 bytes of float32 values).
 The text model is only used for regeneration. Every fresh or reused image

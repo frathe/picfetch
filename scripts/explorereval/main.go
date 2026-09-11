@@ -125,8 +125,8 @@ func checkTrialPlatform(trial string) error {
 	if trial == "throughput" && similarity.SupportedPlatform() {
 		return nil
 	}
-	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
-		return fmt.Errorf("this experiment requires an Apple Silicon Mac")
+	if runtime.GOOS != "darwin" || !similarity.SupportedPlatform() {
+		return fmt.Errorf("this experiment requires an Intel or Apple Silicon Mac")
 	}
 	return nil
 }

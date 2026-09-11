@@ -23,13 +23,17 @@ const ModelRevision = "ba1f3b0843f24bc5417d38e19c37b287d719b2f4"
 // Each runtime is pinned independently; model files are shared across platforms.
 type runtimeAsset struct {
 	directory, library, digest string
+	version                    string
 	size                       int64
 	archiveExtension           string
 	supportLibraries           []string
+	privacyNotice              bool
 }
 
 func platformRuntime(goos, goarch string) (runtimeAsset, bool) {
 	switch {
+	case goos == "darwin" && goarch == "amd64":
+		return runtimeAsset{directory: "onnxruntime-osx-x86_64-1.23.2", library: "lib/libonnxruntime.1.23.2.dylib", version: "1.23.2", digest: "d10359e16347b57d9959f7e80a225a5b4a66ed7d7e007274a15cae86836485a6", size: 11676322, archiveExtension: "tgz", privacyNotice: true}, true
 	case goos == "darwin" && goarch == "arm64":
 		return runtimeAsset{directory: "onnxruntime-osx-arm64-1.29.0", library: "lib/libonnxruntime.1.29.0.dylib", digest: "d0706fc34f315d8c88639d0a8c81f2e09e815f282cabed3493c06a054352cf92", size: 41578864, archiveExtension: "tgz"}, true
 	case goos == "linux" && goarch == "amd64":
@@ -59,14 +63,14 @@ func AssetPlatformSupported() bool {
 func currentRuntime() (runtimeAsset, error) {
 	asset, ok := platformRuntime(runtime.GOOS, runtime.GOARCH)
 	if !ok {
-		return runtimeAsset{}, fmt.Errorf("local similarity assets require Apple Silicon macOS or Linux/Windows amd64/arm64")
+		return runtimeAsset{}, fmt.Errorf("local similarity assets require macOS/Linux/Windows amd64/arm64")
 	}
 	return asset, nil
 }
 
 func (a runtimeAsset) files() []string {
 	names := append([]string{a.library, "LICENSE", "ThirdPartyNotices.txt"}, a.supportLibraries...)
-	if a.archiveExtension == "zip" {
+	if a.archiveExtension == "zip" || a.privacyNotice {
 		names = append(names, "Privacy.md")
 	}
 	for i := range names {

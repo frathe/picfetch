@@ -153,6 +153,7 @@ exclude:
       - "internal/mosaic/quality_test.go"
       - "internal/openwith/openwith_darwin_test.go"
       - "internal/openwith/openwith_test.go"
+      - "internal/ort/binding_test.go"
       - "internal/preferences/preferences_test.go"
       - "internal/selection/selection_test.go"
       - "internal/session/session_test.go"

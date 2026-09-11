@@ -2554,8 +2554,19 @@ MIT license, reproduced below with its source provenance.
 
 ONNX Runtime 1.29.0 is bundled in the Microsoft Store x64 and ARM64 packages.
 The direct-download builds obtain the corresponding runtime during optional
-Explorer setup. Microsoft Store setup downloads only the model and its processor
+Explorer setup, except Intel macOS, which obtains ONNX Runtime 1.23.2,
+Microsoft's last official Intel binary. Microsoft Store setup downloads only the model and its processor
 configuration; runtime DLL installation and updates belong to the Store package.
+
+Intel macOS setup retains the complete upstream `LICENSE`,
+`ThirdPartyNotices.txt` and `Privacy.md` beside
+`onnxruntime-osx-x86_64-1.23.2/lib/libonnxruntime.1.23.2.dylib`.
+The corresponding runtime source is
+https://github.com/microsoft/onnxruntime/tree/a83fc4d58cb48eb68890dd689f94f28288cf2278.
+Its native notice includes Eigen under MPL-2.0; the unmodified corresponding
+Eigen source is https://gitlab.com/libeigen/eigen/-/tree/1d8b82b0740839c0de7f1242a3585e3390ff5f33.
+Preserve these notices and source pointers with the runtime. Apple frameworks
+and system libraries used by the Intel dylib are supplied by macOS, not bundled.
 
 Each bundled native runtime retains the complete, unmodified upstream
 `LICENSE`, `ThirdPartyNotices.txt`, and `Privacy.md` inside its versioned
@@ -2576,10 +2587,11 @@ The model weights are not included in the MSIX or the standalone executable.
 
 ---
 
-## ONNX Runtime 1.29.0
+## ONNX Runtime 1.29.0 and 1.23.2
 
 License: MIT (additional runtime components have their own notices)
 Source: https://github.com/microsoft/onnxruntime/blob/v1.29.0/LICENSE
+Intel macOS source: https://github.com/microsoft/onnxruntime/blob/v1.23.2/LICENSE
 
 ```
 MIT License
@@ -2608,10 +2620,15 @@ SOFTWARE.
 
 ---
 
-## github.com/yalue/onnxruntime_go v1.36.0
+## github.com/yalue/onnxruntime_go v1.36.0 and v1.25.0
 
 License: MIT
 Source: https://github.com/yalue/onnxruntime_go/blob/v1.36.0/LICENSE
+Intel macOS source: https://github.com/yalue/onnxruntime_go/blob/v1.25.0/LICENSE
+
+Intel macOS selects the unmodified v1.25.0/API 23 binding through the explicit
+`github.com/frathe/picfetch/internal/ortlegacy` module replacement. Other targets
+use v1.36.0/API 29. Both versions have the identical MIT license reproduced here.
 
 ```
 Copyright (c) 2023 Nathan Otterness

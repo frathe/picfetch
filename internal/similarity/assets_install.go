@@ -45,7 +45,11 @@ func assetDownloads(asset runtimeAsset, bundled bool) []assetDownload {
 }
 
 func (a runtimeAsset) download() assetDownload {
-	return assetDownload{"runtime." + a.archiveExtension, "https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/" + a.directory + "." + a.archiveExtension, a.digest, a.size}
+	version := a.version
+	if version == "" {
+		version = "1.29.0"
+	}
+	return assetDownload{"runtime." + a.archiveExtension, "https://github.com/microsoft/onnxruntime/releases/download/v" + version + "/" + a.directory + "." + a.archiveExtension, a.digest, a.size}
 }
 
 // CheckAssets reads and verifies local assets without making network requests.

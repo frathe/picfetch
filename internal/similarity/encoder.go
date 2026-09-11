@@ -11,8 +11,9 @@ import (
 	"os"
 	"path/filepath"
 
-	ort "github.com/yalue/onnxruntime_go"
 	"golang.org/x/image/draw"
+
+	"github.com/frathe/picfetch/internal/ort"
 )
 
 type Encoder struct {

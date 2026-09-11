@@ -5,6 +5,7 @@ go 1.27.1
 require (
 	fyne.io/fyne/v2 v2.8.0
 	fyne.io/x/fyne v0.0.0-20260712112324-6989f2f174fb
+	github.com/frathe/picfetch/internal/ortlegacy v0.0.0
 	github.com/fyne-io/image v0.1.1
 	github.com/fyne-io/oksvg v0.2.0
 	github.com/gen2brain/avif v0.6.0
@@ -13,14 +14,20 @@ require (
 	github.com/sigstore/sigstore v1.10.9
 	github.com/sigstore/sigstore-go v1.3.0
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
+	github.com/stretchr/testify v1.12.1
 	github.com/theupdateframework/go-tuf/v2 v2.4.2
 	github.com/yalue/onnxruntime_go v1.36.0
 	golang.org/x/image v0.45.0
 	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
+	golang.org/x/sys v0.47.0
 )
 
 replace github.com/gen2brain/heic => github.com/frathe/heic v0.0.0-20260820164529-0ac0a39f8206
+
+// Intel macOS's last official native runtime is 1.23.2. Keep its API 23 binding
+// isolated behind internal/ort; all other platforms retain the current binding.
+replace github.com/frathe/picfetch/internal/ortlegacy => github.com/yalue/onnxruntime_go v1.25.0
 
 require (
 	fyne.io/systray v1.12.2 // indirect
@@ -90,7 +97,6 @@ require (
 	github.com/sigstore/rekor-tiles/v2 v2.3.0 // indirect
 	github.com/sigstore/timestamp-authority/v2 v2.1.3 // indirect
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect
-	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect
 	github.com/transparency-dev/formats v0.1.1 // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
@@ -103,7 +109,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect

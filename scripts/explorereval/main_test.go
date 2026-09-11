@@ -98,7 +98,7 @@ func TestNativeTrialRequiresExecutable(t *testing.T) {
 func TestTrialPlatformAdmission(t *testing.T) {
 	for _, trial := range []string{"throughput", "smoke", "library"} {
 		t.Run(trial, func(t *testing.T) {
-			want := runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" || trial == "throughput" && similarity.SupportedPlatform()
+			want := (runtime.GOOS == "darwin" || trial == "throughput") && similarity.SupportedPlatform()
 			if err := checkTrialPlatform(trial); (err == nil) != want {
 				t.Fatalf("%s on %s/%s: %v; admitted=%v", trial, runtime.GOOS, runtime.GOARCH, err, want)
 			}

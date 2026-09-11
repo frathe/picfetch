@@ -43,8 +43,8 @@ func TestAssetInstall(t *testing.T) {
 		}
 	})
 	t.Run("worker_reaches_asset_check_and_exits", func(t *testing.T) {
-		if !similarity.SupportedPlatform() || runtime.GOOS != "linux" && runtime.GOOS != "windows" {
-			t.Skip("requires a supported Linux/Windows analysis worker")
+		if !similarity.SupportedPlatform() {
+			t.Skip("requires a supported analysis worker")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

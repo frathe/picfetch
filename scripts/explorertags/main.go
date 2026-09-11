@@ -12,7 +12,7 @@ import (
 	"math"
 	"os"
 
-	ort "github.com/yalue/onnxruntime_go"
+	"github.com/frathe/picfetch/internal/ort"
 )
 
 func main() {

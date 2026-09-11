@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -50,6 +51,23 @@ func (f similarityAssetTransport) RoundTrip(request *http.Request) (*http.Respon
 }
 
 func TestRuntimeDownloadSelection(t *testing.T) {
+	for _, tc := range []struct{ arch, version, directory string }{
+		{"amd64", "1.23.2", "onnxruntime-osx-x86_64-1.23.2"},
+		{"arm64", "1.29.0", "onnxruntime-osx-arm64-1.29.0"},
+	} {
+		asset, supported := platformRuntime("darwin", tc.arch)
+		if !supported {
+			t.Fatalf("missing macOS runtime: %s", tc.arch)
+		}
+		download := asset.download()
+		want := "https://github.com/microsoft/onnxruntime/releases/download/v" + tc.version + "/" + tc.directory + ".tgz"
+		if download.address != want || download.name != "runtime.tgz" {
+			t.Fatalf("macOS %s download: %+v; want %s", tc.arch, download, want)
+		}
+		if tc.arch == "amd64" && !slices.Contains(asset.files(), tc.directory+"/Privacy.md") {
+			t.Fatal("Intel macOS setup must retain the upstream privacy notice")
+		}
+	}
 	for _, arch := range []string{"amd64", "arm64"} {
 		asset, ok := platformRuntime("windows", arch)
 		if !ok {
@@ -126,11 +144,12 @@ func TestRuntimePlatforms(t *testing.T) {
 	}{
 		{"linux", "amd64", "lib/libonnxruntime.so.1.29.0"},
 		{"darwin", "arm64", "lib/libonnxruntime.1.29.0.dylib"},
+		{"darwin", "amd64", "lib/libonnxruntime.1.23.2.dylib"},
 		{"linux", "arm64", "lib/libonnxruntime.so.1.29.0"},
 		{"windows", "amd64", "lib/onnxruntime.dll"},
 		{"windows", "arm64", "lib/onnxruntime.dll"},
 		{"linux", "arm", ""},
-		{"darwin", "amd64", ""},
+		{"darwin", "386", ""},
 		{"windows", "386", ""},
 	} {
 		asset, supported := platformRuntime(tc.os, tc.arch)
@@ -158,14 +177,16 @@ func TestRuntimePlatforms(t *testing.T) {
 }
 
 func TestUnpackRuntime(t *testing.T) {
-	for _, arch := range []string{"amd64", "arm64"} {
-		t.Run(arch, func(t *testing.T) {
-			asset, supported := platformRuntime("linux", arch)
-			if !supported {
-				t.Fatal("missing Linux runtime")
-			}
-			testUnpackRuntime(t, asset)
-		})
+	for _, goos := range []string{"darwin", "linux"} {
+		for _, arch := range []string{"amd64", "arm64"} {
+			t.Run(goos+"/"+arch, func(t *testing.T) {
+				asset, supported := platformRuntime(goos, arch)
+				if !supported {
+					t.Fatal("missing runtime")
+				}
+				testUnpackRuntime(t, asset)
+			})
+		}
 	}
 }
 
@@ -180,7 +201,7 @@ func testUnpackRuntime(t *testing.T, asset runtimeAsset) {
 			}
 			compressed := gzip.NewWriter(archive)
 			writer := tar.NewWriter(compressed)
-			names := []string{asset.directory + "/" + asset.library, asset.directory + "/LICENSE", asset.directory + "/ThirdPartyNotices.txt"}
+			names := asset.files()
 			if mode == "missing" {
 				names = names[:2]
 			}
@@ -220,7 +241,7 @@ func testUnpackRuntime(t *testing.T, asset runtimeAsset) {
 				}
 				return
 			}
-			if err != nil || len(files) != 3 {
+			if err != nil || len(files) != len(asset.files()) {
 				t.Fatalf("files=%v, err=%v", files, err)
 			}
 			for _, name := range files {
