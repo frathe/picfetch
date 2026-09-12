@@ -84,10 +84,12 @@ func TestCompareSettle_DrainsVectorReplacementBeforeWaitingForObsoleteTiles(t *t
 	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 
-	vector, err := imaging.DecodeLoaded(context.Background(), uitest.SVGBytes(4096, 2048), imaging.DefaultImgCacheBytes)
-	if err != nil {
-		t.Fatalf("decode SVG fixture: %v", err)
-	}
+	// Both sizes exceed the overview limit so replacement cancels live detail
+	// work. Pixels are synthetic because this regression checks worker ordering.
+	initialSize := image.Pt(1280, 640)
+	replacementSize := image.Pt(1152, 576)
+	vector := loadedVector(t, 40, 20)
+	vector.Frames[0] = image.NewRGBA(image.Rectangle{Max: initialSize})
 	feature := newFeature(func(_ context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 		if uri.Name() == "left.svg" {
 			return vector, nil
@@ -95,7 +97,9 @@ func TestCompareSettle_DrainsVectorReplacementBeforeWaitingForObsoleteTiles(t *t
 		return &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 40, 20))}}, nil
 	}, Callbacks{}, newShaderPaneRenderer)
 	feature.vectorDebounce = 0
-	feature.vectorPixels = func(fyne.CanvasObject, fyne.Size) (int, int) { return 2048, 1024 }
+	feature.vectorPixels = func(_ fyne.CanvasObject, _ fyne.Size) (int, int) {
+		return replacementSize.X, replacementSize.Y
+	}
 	queue := &uitest.UIQueue{}
 	feature.SetUIQueue(queue)
 
@@ -103,18 +107,20 @@ func TestCompareSettle_DrainsVectorReplacementBeforeWaitingForObsoleteTiles(t *t
 	oldTileStarted := make(chan struct{})
 	var started sync.Once
 	left.generateTile = func(ctx context.Context, source *renderSource, key tileKey) (*renderTile, error) {
-		if source.frame.Bounds().Dx() == 4096 {
+		if source.frame.Bounds().Size() == initialSize {
 			started.Do(func() { close(oldTileStarted) })
 			<-ctx.Done()
 			return nil, ctx.Err()
 		}
 		return generateRenderTile(ctx, source, key)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
+	defer cancel()
 	feature.vectorRasterize = func(_ *imaging.Vector, width, height int) (image.Image, error) {
 		select {
 		case <-oldTileStarted:
-		case <-time.After(time.Second):
-			t.Fatal("obsolete tile worker did not start before vector replacement")
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 		return image.NewRGBA(image.Rect(0, 0, width, height)), nil
 	}
@@ -126,18 +132,18 @@ func TestCompareSettle_DrainsVectorReplacementBeforeWaitingForObsoleteTiles(t *t
 	})
 	t.Cleanup(func() {
 		feature.Close()
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 		defer cancel()
-		_ = feature.Settle(cleanupCtx)
+		if err := feature.Settle(cleanupCtx); err != nil {
+			t.Errorf("Settle after Close: %v", err)
+		}
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
 	if err := feature.Settle(ctx); err != nil {
 		t.Fatalf("Settle waited for an obsolete tile before applying its queued vector replacement: %v", err)
 	}
-	if got := feature.rendered[0].Bounds().Size(); got != image.Pt(2048, 1024) {
-		t.Fatalf("settled vector raster = %v, want 2048x1024 replacement", got)
+	if got := feature.rendered[0].Bounds().Size(); got != replacementSize {
+		t.Fatalf("settled vector raster = %v, want %v replacement", got, replacementSize)
 	}
 }
 

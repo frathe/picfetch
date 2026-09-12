@@ -61,6 +61,29 @@
   5% balance target was a projection, with runner variation still visible.
   See [evidence and validation](finished_refactorings/2026-09-11-ui-shard-rebalance.md#hosted-ci-confirmation--september-12-2026).
 
+### Comparison test deadline under build contention
+
+Completed on September 12: the regression now uses smaller synthetic frames,
+the existing five-second comparison wait budget, cancellable worker waits and
+reported cleanup failures. Both frames still require detail tiles, preserving
+the cancellation dependency. The original fixture failed all three race runs
+with four CPU contenders sharing one core; the final fixture passed all five
+Ubuntu contention runs (2.9–3.8s). All three Settle regressions pass five Ubuntu
+race repetitions each, and an overlay restoring the obsolete-tile deadlock
+still fails the test as expected. Evidence: `/tmp/picfetch-compare-deadline/`.
+
+Final `make verify` passes on this Ubuntu host: formatting, TUF, Qodana exclusions,
+vet, build and all four Docker race partitions. The complete streams contain
+2,605 top-level passes and five existing skips; all 682 UI assignments ran exactly once.
+The changed regression also passes during the full suite (2.32s).
+Raw gate evidence: `.scratch/race-runs/20260912T185421Z-jHjXwb/`.
+GoLand inspection of `internal/ui/compare/vector_test.go` is complete, including
+weak warnings. Its only findings are intentional duplicate setup in the unchanged
+queued-completion and cancellation tests; the existing exact-file
+`DuplicatedCode` exclusion in `qodana.yaml` covers both. No actionable findings
+remain. A fresh native `go test -race -count=5 -timeout 2m -run
+'^TestCompareSettle_' ./internal/ui/compare` also passes (10.338s).
+
 ## TODO
 
 ### WinGet package identifier migration
@@ -99,13 +122,6 @@ All 99 distinct cached dependency directories and archives match the build
 metadata and `go.sum`. Vendor review remains pending; no samples have been
 submitted by the agent. Record final vendor determinations and rescan the final
 release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
-
-### Comparison test deadline under build contention
-
-The Ubuntu full race run on 2026-09-10 timed out in
-`TestCompareSettle_DrainsVectorReplacementBeforeWaitingForObsoleteTiles`
-while another distro build ran. Its one-second Settle deadline expired; an isolated native and exact Ubuntu Docker race
-reruns passed. Review the fixture's deadline/load sensitivity; the Explorer change does not modify comparison code.
 
 ### Similarity Explorer proof of concept
 
