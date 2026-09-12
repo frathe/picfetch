@@ -194,3 +194,81 @@ measurement and other GL/GLES backends were not qualified here; existing
 behavior tests retain their narrower coverage. No release-ready or clean
 complete local-gate claim is made. All work stayed with the lead; no commit
 was created.
+
+## Live-window and soft-entry follow-up
+
+Ronin requested live-window observation with the FPS overlay during the next
+continuation, then requested fully transparent image entrances and launches
+closer to the centre. The implementation and current verification are tracked
+in [the soft-entry plan](../plans/2026-09-12-spiral-soft-entry.md).
+
+The new entrance multiplies the normal, live-configured opacity by a
+0.75-second smoothstep fade. Travel and GIF playback keep their existing
+admission clock. The protected disc is now 3% of the shorter physical
+viewport dimension, down from 8%; the default square card's launch radius in
+an 800x600 viewport decreases from 94.026 to 64.026 pixels. Whole-card
+clearance and full exits remain covered across the existing size/aspect
+matrix. These values supersede the earlier entrance defaults in this record.
+
+The pre-change native trial used e6416ff and retained its separate binary,
+source harness, per-second samples and live-window observations under
+`.scratch/hypno-spiral-tunnel/motion-qualification-20260912/`. Its normal
+exit was observed after 992.121 seconds. The 24 window snapshots span
+55.267 seconds between capture midpoints; median spacing is 1.767 seconds,
+with a 19.966-second gap between observation batches. They show upright
+photos, a clear centre, translucent image layers and edge departures. This
+is sampled visual evidence, not continuous high-frame-rate recording.
+
+The FPS overlay was read directly from retained native screenshots:
+
+| Observation | FPS readings |
+|---|---|
+| Initial Ripple | 63, 62, 63, 60, 62, 63 |
+| Nautilus after switching | 15, 10, 66, 30, 30, 30 |
+| Later Nautilus | 12, 60, 15, 30, 15, 60 |
+| Return to Ripple | 30, 60, 59, 32, 12, 29 |
+| Ripple with five-second sampling pauses | 8, 58, 7, 12, 62 |
+
+Both presets showed variable later readings. There is no established
+preset-specific, decode-related or snapshot-related cause. `updateFPS`
+displays the reciprocal interval of the acknowledged UI-update loop, while
+the shader animation uses Fyne's separate render clock. These readings must
+not be described as GPU presentation measurements or as a sustained 60 FPS
+pass. The trial's warm live heap remained bounded; expanding preloading has
+no demonstrated performance benefit here.
+
+The rebuilt soft-entry trial uses the same seven fixtures and a new isolated
+app identity, `io.github.frathe.picfetch.spiralsoftentry20260912`. Its
+artifacts are under `.scratch/hypno-spiral-tunnel/soft-entry-20260912/`.
+The live window at 3840x1600 shows the closer launches with the centre still
+clear; initial FPS readings were 63, 63, 63, 63, 60, 63. This run overlaps
+Docker verification and is not a controlled before/after performance test.
+The screenshot cadence does not establish the exact 0.75-second rendered
+alpha curve. The deterministic flight regression covers that clock/opacity
+behavior; native inspection verifies that the revised GLSL compiles and
+renders, with no observed new layout defect.
+The trial exits normally after 571.844 seconds. Its 571 telemetry samples
+retain at most three texture slots; live heap after the first minute ranges
+from 21.45 to 37.95 MiB (median 32.57 MiB). The final direct overlay reading
+is 63 FPS. `native-summary.json` records these measurements and the rebuilt
+binary hash beside the retained screenshots and raw samples.
+
+The guards independently failed for immediate 15% opacity and the old
+94.026-pixel radius, then passed after their respective changes. Focused
+flight/clock/resize checks pass, the complete native Spiral race package
+passes in 2.749 seconds, and individual GoLand inspections of all three
+changed code files report no errors or warnings. `make build` passes and
+refreshes `bin/picfetch`. The final `make verify` exits 2 with only the same
+two local amd64 seccomp cases described above. Formatting, metadata checks,
+vet/build and all three UI race partitions pass (390.438s / 397.205s /
+405.428s). Raw race events are in
+`.scratch/race-runs/20260912T140914Z-sNvm4r/`; the extracted package/test
+results are in the soft-entry artifact directory's `gate-results.json`.
+`git diff --check` passes. The requested entrance changes are implemented;
+the broader motion/backend qualification limits remain open. No commit was
+created.
+
+One prepared preview and three active slots remain. Preparing three previews
+instead would increase the retained animated-preview budget from four to six
+16 MiB previews, without addressing shader/UI rendering delays. No decoder
+starvation was established in this trial, so that change was not made.

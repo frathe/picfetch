@@ -370,7 +370,7 @@ func TestTunnelClockAndResize(t *testing.T) {
 	s.win.Resize(fyne.NewSize(800, 600))
 	settleTunnelPreviews(s)
 	// Rebase after days, then straddle a minute boundary with a live flight.
-	now = now.Add(48*time.Hour + 59*time.Second)
+	now = now.Add(48*time.Hour + 59750*time.Millisecond)
 	s.frame(1)
 	settleTunnelPreviews(s)
 	current := newestTraveller(s)
@@ -378,7 +378,7 @@ func TestTunnelClockAndResize(t *testing.T) {
 		t.Fatal("no flight admitted after the long interval")
 	}
 	f := *current
-	now = now.Add(1500 * time.Millisecond)
+	now = now.Add(500 * time.Millisecond)
 	s.win.Resize(fyne.NewSize(500, 900))
 	s.st.setMouse(250, 450)
 	s.st.toggleFollow()
@@ -386,7 +386,7 @@ func TestTunnelClockAndResize(t *testing.T) {
 	if current := newestTraveller(s); current == nil || current.born != f.born || current.duration != f.duration {
 		t.Fatal("resize/Follow restarted the live flight")
 	}
-	if got := s.shader.Uniforms["tunnelTime"]; got != .5 {
+	if got := s.shader.Uniforms["tunnelTime"]; got != .25 {
 		t.Fatalf("shader clock did not rebase: %g", got)
 	}
 	for i, active := range s.tunnel.slots {
@@ -394,7 +394,7 @@ func TestTunnelClockAndResize(t *testing.T) {
 			continue
 		}
 		birth := s.shader.Uniforms[fmt.Sprintf("traveller%dBorn", i)]
-		if math.Abs(float64(s.shader.Uniforms["tunnelTime"]-birth)-1.5) > 1e-6 {
+		if math.Abs(float64(s.shader.Uniforms["tunnelTime"]-birth)-.5) > 1e-6 {
 			t.Fatal("GPU and scheduler clocks disagree")
 		}
 	}
@@ -439,6 +439,32 @@ func TestTunnelResizeRecovery(t *testing.T) {
 }
 
 func TestTunnelFlight(t *testing.T) {
+	t.Run("soft entrance", func(t *testing.T) {
+		frame := tunnelFrame{800, 600, 400, 300}
+		f := flight{born: 60, duration: 9, angle: 0, curve: .35, margin: 1, aspect: 1, size: 1}
+		entry := f.pose(f.born, frame)
+		if entry.opacity != 0 {
+			t.Fatalf("new image appears immediately at opacity %g; want fully transparent", entry.opacity)
+		}
+		if distance := math.Hypot(entry.x-frame.cx, entry.y-frame.cy); distance >= 70 {
+			t.Fatalf("image starts %g pixels from the core; want the closer launch within 70 pixels", distance)
+		}
+		previous := entry.opacity
+		for step := 1; step <= 75; step++ {
+			p := f.pose(f.born+float64(step)/100, frame)
+			if p.opacity <= previous {
+				t.Fatalf("entrance does not fade in monotonically at %d ms: %g after %g", step*10, p.opacity, previous)
+			}
+			previous = p.opacity
+		}
+		if p := f.pose(f.born+.375, frame); p.opacity < .075 || p.opacity >= .15 {
+			t.Fatalf("halfway through fade opacity=%g; want a partially faded image", p.opacity)
+		}
+		if p := f.pose(f.born+.75, frame); p.opacity < .15 || p.opacity > .2 {
+			t.Fatalf("completed entrance opacity=%g; want the initial outward opacity", p.opacity)
+		}
+	})
+
 	for _, size := range []float64{.5, 1, 2} {
 		for _, aspect := range []float64{0.15, 0.5, 1, 2, 8} {
 			for _, frame := range []tunnelFrame{{800, 600, 400, 300}, {600, 900, 300, 450}} {
@@ -446,14 +472,14 @@ func TestTunnelFlight(t *testing.T) {
 					f := flight{born: 0, duration: 9, angle: angle, curve: .35, margin: .7, aspect: aspect, size: size}
 					unit := math.Min(frame.width, frame.height)
 					entry := f.pose(0, frame)
-					if math.Abs(entry.opacity-.15) > 1e-6 || math.Max(entry.width, entry.height) > .100001*unit*size {
+					if entry.opacity != 0 || math.Max(entry.width, entry.height) > .100001*unit*size {
 						t.Fatalf("bad entry: %+v", entry)
 					}
 					for step := range 101 {
 						p := f.pose(float64(step)*.09, frame)
 						dx := math.Max(math.Abs(p.x-frame.cx)-p.width/2, 0)
 						dy := math.Max(math.Abs(p.y-frame.cy)-p.height/2, 0)
-						if math.Hypot(dx, dy) < .08*unit || p.opacity > .850001 || p.opacity < .149999 {
+						if math.Hypot(dx, dy) < .03*unit || p.opacity > .850001 || p.opacity < 0 {
 							t.Fatalf("unsafe flight at step %d: %+v", step, p)
 						}
 					}

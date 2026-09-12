@@ -145,7 +145,7 @@ vec4 traveller(sampler2D photo, float active, float born, float duration,
     float depth = travelDepth(born, duration);
     vec2 initial = photoSize(aspect, 0.10 * unit * sizeScale);
     vec2 finalSize = photoSize(aspect, 0.25 * unit * sizeScale);
-    float start = 0.086 * unit + length(initial) * 0.5;
+    float start = 0.036 * unit + length(initial) * 0.5;
     float finish = max(rayExit(center, angle + curve, finalSize * 0.5) + 0.035 * unit * margin,
                        0.10 * unit + length(finalSize) * 0.5);
     float bearing = angle + curve * depth;
@@ -156,6 +156,7 @@ vec4 traveller(sampler2D photo, float active, float born, float duration,
     if (local.x < 0.0 || local.y < 0.0 || local.x > 1.0 || local.y > 1.0) return vec4(0.0);
     float edge = rayExit(center, bearing, vec2(0.0));
     float alpha = mix(imageOpacityMin, imageOpacityMax, clamp((radius-start) / max(edge-start, 0.001*unit), 0.0, 1.0));
+    alpha *= smoothstep(0.0, 0.75, tunnelTime - born);
     vec2 border = min(local, vec2(1.0)-local) * size;
     float feather = smoothstep(0.0, 0.04 * min(size.x, size.y), min(border.x, border.y));
     // Fyne uploads premultiplied pixels; retain their source alpha and detail.

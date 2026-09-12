@@ -6,6 +6,11 @@
 
 #### New Features
 
+- Spiral pictures now fade in from fully transparent over 0.75 seconds and
+  can launch closer to the centre, with a 3% protected disc instead of 8%.
+  Focused and full UI race checks, GoLand inspections and native rendering
+  pass; the full gate retains only the known local amd64 seccomp failures.
+  See the [soft-entry evidence](plans/2026-09-12-spiral-soft-entry.md).
 - Spiral tunnel pictures now play bounded GIF previews with independent timing.
   A live image-transparency slider shifts the range, preserves the 85% visibility
   ceiling, and retains its setting across reopening in the current process.
@@ -57,6 +62,10 @@ the two existing local amd64 seccomp failures; all three UI race partitions
 pass. The fixed executable completes a second ten-minute
 native run on the larger display with bounded live heap, successful resize,
 retained controls on reopen and normal shutdown.
+The soft-entry follow-up adds live-window observations and direct FPS-overlay
+readings; later baseline readings vary in both presets, without an established
+cause. The existing one-image lookahead remains because no decode bottleneck
+has established a need for three prepared previews.
 See the [ticket evidence](.scratch/hypno-spiral-tunnel/issues/README.md).
 See the [specification](.scratch/hypno-spiral-tunnel/spec.md) and
 [implementation plan](plans/2026-09-11-hypno-spiral-tunnel.md).
