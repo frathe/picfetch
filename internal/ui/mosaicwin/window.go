@@ -75,7 +75,8 @@ type Host interface {
 	GenerateMosaic(context.Context, mosaic.Request, func(mosaic.Progress)) (mosaic.Result, error)
 	InspectMosaicDisplays() (displays.Snapshot, error)
 	AfterFileExported(imaging.WriteResult)
-	// SetMosaicWallpaper takes a solo argument confirming the target is
+	// SetMosaicWallpaper accepts an empty target for an explicit all-displays
+	// action. A solo argument confirms a nonempty target is
 	// currently the only attached display - see wallpaper.Request.Solo for why
 	// that lets a platform that can't truthfully address one display among
 	// several honor it anyway.
@@ -88,15 +89,16 @@ type Window struct {
 	host Host
 	win  widgets.Singleton
 
-	snapshot        Snapshot
-	settings        mosaic.Settings
-	target          displays.ID
-	result          mosaic.Result
-	finishedPreview image.Image
-	hasResult       bool
-	generationBusy  bool
-	actionBusy      bool
-	statusText      string
+	snapshot             Snapshot
+	settings             mosaic.Settings
+	target               displays.ID
+	result               mosaic.Result
+	finishedPreview      image.Image
+	hasResult            bool
+	generationBusy       bool
+	actionBusy           bool
+	wallpaperAllDisplays bool
+	statusText           string
 
 	lifecycle       revisionLifecycle
 	actionLifecycle revisionLifecycle
@@ -176,6 +178,7 @@ func (w *Window) build() fyne.CanvasObject {
 	w.sourceLabel = widget.NewLabel(w.sourceDescription())
 	w.status = widget.NewLabel(w.statusText)
 	w.previewStatus = widget.NewLabel(w.statusText)
+	w.previewStatus.Wrapping = fyne.TextWrapWord
 	w.displaySelect = newNamedSelect(lang.L("Target display"), nil, func(label string) {
 		if id, ok := w.displayLabels[label]; ok {
 			w.target = id
@@ -645,7 +648,14 @@ func (w *Window) syncActions() {
 	setEnabled(w.refreshButton, w.Opened() && !w.Busy())
 	setEnabled(w.startOverButton, w.hasResult && !w.Busy())
 	setEnabled(w.regenerateButton, canGenerate && w.hasResult)
-	setEnabled(w.wallpaperButton, w.hasResult && !w.Busy())
+	setEnabled(w.wallpaperButton, w.hasResult && !w.Busy() && (w.target != "" || w.wallpaperAllDisplays))
+	if w.wallpaperButton != nil {
+		label := lang.L("Set as Wallpaper")
+		if w.wallpaperAllDisplays {
+			label = lang.L("Set on All Displays")
+		}
+		w.wallpaperButton.SetText(label)
+	}
 	setEnabled(w.saveButton, w.hasResult && !w.Busy())
 	if w.formatSelect != nil {
 		setDisableableEnabled(w.formatSelect, !w.Busy())
@@ -691,14 +701,18 @@ func (w *Window) setStatus(text string) {
 	}
 }
 
-// SetWallpaper starts the host's target-aware wallpaper effect from a captured
-// immutable result. The full behavior is completed by the wallpaper ticket.
+// SetWallpaper applies captured immutable pixels to the selected display.
+// If the desktop rejects targeting, a relabelled button offers an explicit
+// all-displays action on the next click; it never retries globally on its own.
 func (w *Window) SetWallpaper() {
-	if !w.PreviewActionsEnabled() || w.host == nil {
+	if !w.PreviewActionsEnabled() || w.host == nil || (w.target == "" && !w.wallpaperAllDisplays) {
 		return
 	}
 	result, target := w.result, w.target
 	solo := len(w.snapshot.Displays.Displays) == 1
+	if w.wallpaperAllDisplays {
+		target, solo = "", false
+	}
 	ctx, revision := w.actionLifecycle.begin()
 	w.actionBusy = true
 	w.syncActions()
@@ -715,8 +729,9 @@ func (w *Window) SetWallpaper() {
 				fyne.LogError("failed to set mosaic wallpaper", err)
 				var unsupported *wallpaper.TargetUnsupportedError
 				switch {
-				case errors.As(err, &unsupported):
-					w.setStatus(lang.L("This desktop cannot set wallpaper for one display. Save Image remains available."))
+				case target != "" && errors.As(err, &unsupported):
+					w.wallpaperAllDisplays = true
+					w.setStatus(lang.L("This desktop only supports wallpaper on all displays. Choose Set on All Displays or Save Image."))
 				case errors.Is(err, wallpaper.ErrBusy):
 					w.setStatus(lang.L("Another wallpaper change is already in progress."))
 				default:
@@ -733,6 +748,7 @@ func (w *Window) closed() {
 	w.actionLifecycle.invalidate()
 	w.generationBusy = false
 	w.actionBusy = false
+	w.wallpaperAllDisplays = false
 	w.snapshot = Snapshot{}
 	w.result = mosaic.Result{}
 	w.finishedPreview = nil

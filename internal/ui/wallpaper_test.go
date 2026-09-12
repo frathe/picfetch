@@ -212,30 +212,33 @@ func TestSetAsWallpaper_DoesNothingWithoutAnImage(t *testing.T) {
 }
 
 func TestMosaicWallpaper_PassesExactResultAndOpaqueTarget(t *testing.T) {
-	v := newTestViewer(t)
-	result := testMosaicResult(t, color.NRGBA{R: 230, G: 40, B: 20, A: 255})
-	var got wallpaper.Request
-	uitest.StubWallpaperSet(t, func(request wallpaper.Request) error {
-		got = request
-		return nil
-	})
-	const target displays.ID = "opaque/display\\path"
+	for name, target := range map[string]displays.ID{"selected display": "opaque/display\\path", "all displays": ""} {
+		t.Run(name, func(t *testing.T) {
+			v := newTestViewer(t)
+			result := testMosaicResult(t, color.NRGBA{R: 230, G: 40, B: 20, A: 255})
+			var got wallpaper.Request
+			uitest.StubWallpaperSet(t, func(request wallpaper.Request) error {
+				got = request
+				return nil
+			})
 
-	if err := v.SetMosaicWallpaper(context.Background(), result, target, false); err != nil {
-		t.Fatal(err)
-	}
-	if got.Target != target {
-		t.Fatalf("wallpaper target = %q, want the opaque selected ID", got.Target)
-	}
-	written, err := loadExported(t, got.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !imagesMatch(written, result.Image()) {
-		t.Fatal("wallpaper copy differs from the latest mosaic result")
-	}
-	if strings.Contains(filepath.Base(got.Path), string(got.Target)) {
-		t.Fatalf("wallpaper filename %q exposes the raw display ID", filepath.Base(got.Path))
+			if err := v.SetMosaicWallpaper(context.Background(), result, target, false); err != nil {
+				t.Fatal(err)
+			}
+			if got.Target != target || got.Solo {
+				t.Fatalf("wallpaper target=%q solo=%v, want target=%q solo=false", got.Target, got.Solo, target)
+			}
+			written, err := loadExported(t, got.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !imagesMatch(written, result.Image()) {
+				t.Fatal("wallpaper copy differs from the latest mosaic result")
+			}
+			if target != "" && strings.Contains(filepath.Base(got.Path), string(got.Target)) {
+				t.Fatalf("wallpaper filename %q exposes the raw display ID", filepath.Base(got.Path))
+			}
+		})
 	}
 }
 

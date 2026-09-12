@@ -27,6 +27,11 @@
 
 #### Bugfix
 
+- Mosaic wallpaper on Linux with multiple displays now offers an explicit
+  **Set on All Displays** action when the desktop rejects a selected-display
+  change. Single-display behavior is preserved. Ronin's Ubuntu ARM64 machine
+  has two displays; the working x64 machine has one, which explains the reported
+  difference. See the [fix and verification record](plans/2026-09-12-mosaic-global-wallpaper.md).
 - Leaving Spiral fullscreen now restores a usable 960x600 window instead of
   collapsing to a 1x1 canvas. Regression, native resize and qualification
   evidence are in the [September 12 record](docs/spiral-qualification-2026-09-12.md).
@@ -52,6 +57,12 @@
   See [evidence and validation](plans/2026-09-11-ui-shard-rebalance.md).
 
 ## TODO
+
+### Ubuntu mosaic wallpaper native confirmation
+
+Retest the global mosaic wallpaper action on Ronin's Ubuntu 24.04 machine with
+two displays. Automated coverage replaces desktop effects; the native outcome
+remains unverified. See the [fix record](plans/2026-09-12-mosaic-global-wallpaper.md).
 
 ### WinGet package identifier migration
 

@@ -1306,10 +1306,23 @@ func TestMosaicWallpaper_PassesLatestResultAndTarget(t *testing.T) {
 	w.Close()
 }
 
-func TestMosaicWallpaper_TargetUnsupportedKeepsPreviewAndExplainsSave(t *testing.T) {
+func TestMosaicWallpaper_TargetUnsupportedOffersExplicitGlobalAction(t *testing.T) {
 	host := successfulHost(t)
-	host.wallpaper = func(context.Context, mosaic.Result, displays.ID, bool) error {
-		return &wallpaper.TargetUnsupportedError{Platform: "Linux"}
+	topology := testTopology("one", 80, 50)
+	topology.Displays = append(topology.Displays, testTopology("two", 80, 50).Displays...)
+	host.inspect = func() (displays.Snapshot, error) { return topology, nil }
+	var targets []displays.ID
+	var applied mosaic.Result
+	host.wallpaper = func(_ context.Context, result mosaic.Result, target displays.ID, solo bool) error {
+		targets = append(targets, target)
+		if solo {
+			return errors.New("two displays must not be reported as solo")
+		}
+		if target != "" {
+			return fmt.Errorf("set wallpaper: %w", &wallpaper.TargetUnsupportedError{Platform: "Linux"})
+		}
+		applied = result
+		return nil
 	}
 	w := New(test.NewApp(), host)
 	w.SetUIQueue(&uitest.UIQueue{})
@@ -1334,7 +1347,97 @@ func TestMosaicWallpaper_TargetUnsupportedKeepsPreviewAndExplainsSave(t *testing
 	if status := w.Status(); !strings.Contains(status, "Save Image") {
 		t.Fatalf("unsupported status = %q, want a Save Image alternative", status)
 	}
+	if len(targets) != 1 || targets[0] != "one" {
+		t.Fatalf("initial wallpaper requests = %v, want only the selected display", targets)
+	}
+	if w.wallpaperButton.Text != "Set on All Displays" || !strings.Contains(w.Status(), "all displays") {
+		t.Fatalf("unsupported target has no explicit global action: button=%q status=%q", w.wallpaperButton.Text, w.Status())
+	}
+	test.Tap(w.wallpaperButton)
+	settleWindow(t, w)
+	if len(targets) != 2 || targets[1] != "" || !samePixels(applied, before) {
+		t.Fatalf("global action requests = %v; pixels must match the retained preview", targets)
+	}
+	if w.Status() != "Mosaic set as wallpaper." || !w.PreviewActionsEnabled() {
+		t.Fatalf("global completion status=%q enabled=%v", w.Status(), w.PreviewActionsEnabled())
+	}
 	w.Close()
+	w.Show(mustSnapshot(t))
+	if w.wallpaperButton.Text != "Set as Wallpaper" {
+		t.Fatalf("reopened window kept the global wallpaper action: %q", w.wallpaperButton.Text)
+	}
+	w.Close()
+}
+
+func TestMosaicWallpaper_OtherFailuresKeepSelectedTarget(t *testing.T) {
+	for _, failure := range []error{wallpaper.ErrBusy, errors.New("desktop command failed")} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			host := successfulHost(t)
+			var targets []displays.ID
+			host.wallpaper = func(_ context.Context, _ mosaic.Result, target displays.ID, _ bool) error {
+				targets = append(targets, target)
+				return failure
+			}
+			w := New(test.NewApp(), host)
+			w.SetUIQueue(&uitest.UIQueue{})
+			w.Show(mustSnapshot(t))
+			t.Cleanup(w.Close)
+			w.Generate()
+			settleWindow(t, w)
+			for range 2 {
+				test.Tap(w.wallpaperButton)
+				settleWindow(t, w)
+			}
+			if len(targets) != 2 || targets[0] != "one" || targets[1] != "one" || w.wallpaperButton.Text != "Set as Wallpaper" {
+				t.Fatalf("ordinary error offered global wallpaper: targets=%v button=%q", targets, w.wallpaperButton.Text)
+			}
+		})
+	}
+}
+
+func TestMosaicWallpaper_MissingTargetDoesNotApplyGlobally(t *testing.T) {
+	host := successfulHost(t)
+	calls := 0
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID, _ bool) error {
+		calls++
+		return nil
+	}
+	w := New(test.NewApp(), host)
+	w.SetUIQueue(&uitest.UIQueue{})
+	w.Show(mustSnapshot(t))
+	t.Cleanup(w.Close)
+	w.Generate()
+	settleWindow(t, w)
+	host.inspect = func() (displays.Snapshot, error) { return testTopology("two", 80, 50), nil }
+	w.RefreshTargets()
+	w.SetWallpaper()
+	settleWindow(t, w)
+	if calls != 0 || !w.wallpaperButton.Disabled() || w.saveButton.Disabled() {
+		t.Fatalf("missing target wallpaper calls=%d disabled=%v save disabled=%v", calls, w.wallpaperButton.Disabled(), w.saveButton.Disabled())
+	}
+}
+
+func TestMosaicWallpaper_LateUnsupportedDoesNotChangeReopenedWindow(t *testing.T) {
+	host := successfulHost(t)
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID, _ bool) error {
+		return &wallpaper.TargetUnsupportedError{Platform: "Linux"}
+	}
+	w := New(test.NewApp(), host)
+	w.SetUIQueue(&uitest.UIQueue{})
+	w.Show(mustSnapshot(t))
+	t.Cleanup(w.Close)
+	w.Generate()
+	settleWindow(t, w)
+	w.SetWallpaper()
+	if err := w.workers.wait(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	w.Show(mustSnapshot(t))
+	settleWindow(t, w)
+	if w.wallpaperButton.Text != "Set as Wallpaper" || w.Status() != "" {
+		t.Fatalf("stale failure changed reopened window: button=%q status=%q", w.wallpaperButton.Text, w.Status())
+	}
 }
 
 func TestMosaicClose_CancelsAndSettlesWithoutLateMutation(t *testing.T) {

@@ -174,14 +174,12 @@ func wallpaperScope(target displays.ID) string {
 	return fmt.Sprintf("target-%x", digest[:8])
 }
 
-// SetMosaicWallpaper applies the immutable latest result to exactly the
-// selected display. It deliberately never reads the main viewer image. solo
-// is the caller's confirmation that target is currently the only attached
+// SetMosaicWallpaper applies the immutable latest result to the selected
+// display, or all displays when target is explicitly empty. It deliberately
+// never reads the main viewer image. solo is the caller's confirmation that
+// target is currently the only attached
 // display - see wallpaper.Request.Solo for why that matters to Linux.
 func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID, solo bool) error {
-	if target == "" {
-		return errors.New("mosaic wallpaper requires a target display")
-	}
 	pixels := result.Image()
 	if pixels == nil {
 		return errors.New("mosaic wallpaper has no generated pixels")

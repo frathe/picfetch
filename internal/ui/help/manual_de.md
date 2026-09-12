@@ -663,9 +663,12 @@ Ergebnis in voller Auflösung als PNG oder JPEG. **Als Hintergrundbild
 festlegen** verwendet eine dauerhafte PicFetch-eigene Kopie: Unter Windows und
 macOS wird nur der gewählte Bildschirm geändert, während der gewöhnliche
 Hintergrundbildbefehl im Hauptfenster global bzw. für alle Bildschirme gilt.
-Die verfügbaren GNOME-/KDE-Integrationen unter Linux arbeiten nur global;
-deshalb wird ein zielgerichtetes Mosaik vor jeder Änderung des Desktops
-abgelehnt. **Bild speichern** bleibt verfügbar.
+Die verfügbaren GNOME-/KDE-Integrationen unter Linux ändern das Hintergrundbild
+für alle Bildschirme. Bei einem Bildschirm wird das Mosaik direkt angewendet.
+Bei mehreren Bildschirmen erklärt PicFetch diese Einschränkung und bietet
+**Auf allen Bildschirmen festlegen** an. Klicken Sie darauf, um die Vorschau auf
+allen Bildschirmen anzuwenden; **Bild speichern** bleibt ebenfalls verfügbar.
+Das Bild behält die Abmessungen des bei der Erstellung gewählten Bildschirms.
 
 ---
 

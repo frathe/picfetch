@@ -581,8 +581,11 @@ arrangement. **Save Image** exports the exact full-resolution result as PNG or
 JPEG. **Set as Wallpaper** uses a PicFetch-owned persistent copy: on Windows and
 macOS it changes only the chosen display, while the ordinary main-window
 wallpaper command remains global/all-screen. Linux's available GNOME/KDE
-integrations are global-only, so a targeted mosaic request is refused before
-any desktop change; **Save Image** remains available.
+integrations apply wallpaper to all displays. With one display, the mosaic is
+applied directly. With multiple displays, PicFetch explains this limitation and
+offers **Set on All Displays**. Click that button to apply the preview to all
+displays; **Save Image** also remains available. The image keeps the dimensions
+of the display selected when it was generated.
 
 ---
 
