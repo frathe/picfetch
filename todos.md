@@ -53,6 +53,14 @@
 
 ## TODO
 
+### WinGet package identifier migration
+
+The local publishing workflow and README now use `frathe.picfetch`. Move the
+existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkgs` to the
+new identifier before the next WinGet publication; the new manifest directory
+is not present upstream yet. See the
+[maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
+
 ### Fyne upgrade deferred
 
 Keep Fyne at v2.8.0 in [PR #19](https://github.com/frathe/picfetch/pull/19).
