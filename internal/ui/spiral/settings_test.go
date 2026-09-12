@@ -74,7 +74,7 @@ func TestPanelVisible(t *testing.T) {
 }
 
 func TestPanelAnchor(t *testing.T) {
-	got := panelAnchor(fyne.NewSize(800, 600))
+	got := panelAnchor(fyne.NewSize(800, 600), fyne.NewSize(settingsPanelWidth, settingsPanelHeight))
 	want := fyne.NewPos(800-settingsPanelWidth-settingsPanelMargin, settingsPanelMargin)
 	if got != want {
 		t.Errorf("panelAnchor(800x600) = %v; want %v", got, want)
@@ -83,7 +83,8 @@ func TestPanelAnchor(t *testing.T) {
 
 func TestTunnelControls(t *testing.T) {
 	s := newTestSpiral(t)
-	s.Show(nil)
+	sources := uitest.TempDirJPEGURIs(t, "controls.jpg")
+	s.Show(sources)
 	sliders := sliderRowSliders(s.panel.content)
 	if len(sliders) != 8 {
 		t.Fatalf("got %d sliders, want existing three plus speed/gap/randomness/transparency/size", len(sliders))
@@ -99,7 +100,7 @@ func TestTunnelControls(t *testing.T) {
 	gap.SetValue(3)
 	s.Close()
 	s.Settle()
-	s.Show(nil)
+	s.Show(sources)
 	sliders = sliderRowSliders(s.panel.content)
 	if math.Abs(sliders[3].Value-1.5) > 1e-6 || math.Abs(sliders[4].Value-3) > 1e-6 {
 		t.Fatalf("reopened speed=%g gap=%g", sliders[3].Value, sliders[4].Value)
@@ -122,11 +123,71 @@ func TestTunnelControls(t *testing.T) {
 	}
 }
 
+func TestSettingsPanelEmptySources(t *testing.T) {
+	s := newTestSpiral(t)
+	sources := uitest.TempDirJPEGURIs(t, "controls.jpg")
+	for _, files := range [][]fyne.URI{nil, sources, {}, sources, nil} {
+		s.Show(files)
+		s.win.Resize(fyne.NewSize(800, 600))
+		s.frame(0)
+
+		var labels []string
+		var sliders, orders int
+		var viewport *container.Scroll
+		var walk func(fyne.CanvasObject)
+		walk = func(object fyne.CanvasObject) {
+			if !object.Visible() {
+				return
+			}
+			switch object := object.(type) {
+			case *fyne.Container:
+				for _, child := range object.Objects {
+					walk(child)
+				}
+			case *container.Scroll:
+				viewport = object
+				walk(object.Content)
+			case *widget.Label:
+				labels = append(labels, object.Text)
+			case *widget.Slider:
+				sliders++
+			case *widget.Select:
+				orders++
+			}
+		}
+		walk(s.win.Canvas().Overlays().Top())
+		wantSize := fyne.NewSize(520, 370)
+		wantSliders, wantOrders := 8, 1
+		if len(files) == 0 {
+			wantSize = fyne.NewSize(260, 250)
+			wantSliders, wantOrders = 3, 0
+			if !slices.Equal(labels, []string{"Arms", "Twists", "Pixel Density"}) {
+				t.Errorf("empty-list panel labels = %v; want only spiral controls", labels)
+			}
+		}
+		if sliders != wantSliders || orders != wantOrders {
+			t.Errorf("%d sources: live panel has %d sliders and %d order controls; want %d and %d", len(files), sliders, orders, wantSliders, wantOrders)
+		}
+		if got := s.panel.box.Size(); got != wantSize {
+			t.Errorf("%d sources: panel size = %v; want %v", len(files), got, wantSize)
+		}
+		if viewport == nil || viewport.Content.MinSize() != wantSize {
+			t.Errorf("%d sources: scrollable surface does not match panel size %v", len(files), wantSize)
+		}
+		if got := s.panel.box.Position(); got != fyne.NewPos(800-wantSize.Width-settingsPanelMargin, settingsPanelMargin) {
+			t.Errorf("%d sources: panel is not anchored to the right edge: %v", len(files), got)
+		}
+		s.Close()
+		s.Settle()
+	}
+}
+
 func TestTunnelTransparency(t *testing.T) {
 	s := newTestSpiral(t)
 	s.st.randomness = 0
 	s.now = func() time.Time { return time.Unix(1000, 0) }
-	s.Show(uitest.TempDirJPEGURIs(t, "opacity.jpg"))
+	sources := uitest.TempDirJPEGURIs(t, "opacity.jpg")
+	s.Show(sources)
 	s.win.Resize(fyne.NewSize(800, 600))
 	settleTunnelPreviews(s)
 	active := s.tunnel.slots
@@ -177,7 +238,7 @@ func TestTunnelTransparency(t *testing.T) {
 	control.SetValue(10)
 	s.Close()
 	s.Settle()
-	s.Show(nil)
+	s.Show(sources)
 	sliders = sliderRowSliders(s.panel.content)
 	if sliders[6].Value != 10 || math.Abs(float64(s.shader.Uniforms["imageOpacityMax"])-.75) > 1e-6 {
 		t.Fatal("reopen lost transparency range")
@@ -198,7 +259,8 @@ func TestTunnelImageSize(t *testing.T) {
 	now := time.Unix(1000, 0)
 	s.now = func() time.Time { return now }
 	s.st.randomness, s.st.imageSpeed, s.st.imageGap = 0, .35, .75
-	s.Show(uitest.TempDirJPEGURIs(t, "size.jpg"))
+	sources := uitest.TempDirJPEGURIs(t, "size.jpg")
+	s.Show(sources)
 	s.win.Resize(fyne.NewSize(800, 600))
 	settleTunnelPreviews(s)
 	sliders := sliderRowSliders(s.panel.content)
@@ -236,7 +298,7 @@ func TestTunnelImageSize(t *testing.T) {
 	}
 	s.Close()
 	s.Settle()
-	s.Show(nil)
+	s.Show(sources)
 	if sliderRowSliders(s.panel.content)[7].Value != .5 {
 		t.Fatal("reopen lost image size")
 	}
@@ -244,7 +306,7 @@ func TestTunnelImageSize(t *testing.T) {
 
 func TestTunnelSmallControls(t *testing.T) {
 	s := newTestSpiral(t)
-	s.Show(nil)
+	s.Show(uitest.TempDirJPEGURIs(t, "controls.jpg"))
 	s.win.Resize(fyne.NewSize(320, 240))
 	s.frame(0)
 	box, size := s.panel.box, s.win.Canvas().Size()
@@ -279,7 +341,7 @@ func TestNewSettingsPanelOverlayHoldsTrackerAndBoxAsSeparateChildren(t *testing.
 	test.NewApp()
 	st := newState()
 	shader := newShader(st)
-	p := newSettingsPanel(st, shader)
+	p := newSettingsPanel(st, shader, true)
 
 	if len(p.overlay.Objects) != 2 {
 		t.Fatalf("overlay has %d children; want 2 (the mouse tracker and the box)", len(p.overlay.Objects))
@@ -305,7 +367,7 @@ func TestNewSettingsPanelStartsVisibleAndTickHidesAfterIdleTimeout(t *testing.T)
 
 	st := newState()
 	shader := newShader(st)
-	p := newSettingsPanel(st, shader)
+	p := newSettingsPanel(st, shader, true)
 
 	if !p.box.Visible() {
 		t.Fatal("box.Visible() = false immediately after newSettingsPanel; want true - a freshly built panel must start visible")
@@ -331,11 +393,11 @@ func TestTickAnchorsBoxToWindowRightEdge(t *testing.T) {
 
 	st := newState()
 	shader := newShader(st)
-	p := newSettingsPanel(st, shader)
+	p := newSettingsPanel(st, shader, true)
 
 	p.tick(w)
 
-	want := panelAnchor(w.Canvas().Size())
+	want := panelAnchor(w.Canvas().Size(), p.surfaceSize)
 	if got := p.box.Position(); got != want {
 		t.Errorf("box.Position() after tick() = %v; want %v (panelAnchor of the window's canvas size)", got, want)
 	}
@@ -350,7 +412,7 @@ func TestAddSliderRowStepSmallerThanRange(t *testing.T) {
 	test.NewApp()
 	st := newState()
 	shader := newShader(st)
-	p := newSettingsPanel(st, shader)
+	p := newSettingsPanel(st, shader, true)
 
 	sliders := sliderRowSliders(p.content)
 	if len(sliders) < 3 {

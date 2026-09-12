@@ -190,7 +190,7 @@ func (s *Spiral) Show(sources []fyne.URI) {
 	s.help = newHelpOverlay()
 	updateHelpText(s.help)
 	s.fps = newFPSOverlay()
-	s.panel = newSettingsPanel(s.st, s.shader)
+	s.panel = newSettingsPanel(s.st, s.shader, len(s.sources) > 0)
 	s.panel.onOrderChanged = s.resetTunnelOrder
 
 	win := s.app.NewWindow(lang.L("Hypno Spiral"))

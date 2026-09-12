@@ -118,24 +118,6 @@ metadata and `go.sum`. Vendor review remains pending; no samples have been
 submitted by the agent. Record final vendor determinations and rescan the final
 release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
 
-### Similarity tag overlay and filtering
-
-Implemented; updated native library-quality verdict remains open. The
-[tag contract](.scratch/visual-similarity-explorer/tag-overlay.md) and
-[evidence](.scratch/visual-similarity-explorer/evidence/tag-overlay/README.md)
-record the provider/UI and real offline-engine coverage. All tags start active; counts remain stable while filtering,
-unknown content stays accessible, and open cohorts retain their complete membership. Labeling uses small embedded SigLIP
-2 text prototypes against existing image representations. It uses no per-image text inference or new runtime assets.
-Broad/mixed content can be missed or mislabeled; 31 tags and a provisional score threshold do not establish full-library
-semantic accuracy. Custom traits remain separate; reusable presets are implemented below. Final real offline/native
-suites, `make verify`, refreshed build checks and
-`make build` pass. The updated executable is `bin/picfetch`.
-
-Semantic tag vectors are now stored as readable, tag-keyed JSON and decoded when the tagger starts. Every float32 bit
-and the original numeric digest are preserved; the generator reproduces the JSON exactly. Ordinary contributor builds
-require no vector-generation step. See
-[regeneration instructions](scripts/explorertags/README.md).
-
 ## LATER
 
 ### Revisit HEIC and verifier dependencies at their next upgrades

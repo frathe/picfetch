@@ -13,12 +13,13 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// settingsPanelWidth / settingsPanelHeight are the fixed dimensions of the
-// settings panel, used both to lay it out internally and to anchor it to
-// the right edge of the window (see panelAnchor).
+// Panel dimensions include only the controls available for the session.
+// The empty-list panel needs one column and three slider rows.
 const (
 	settingsPanelWidth  = 520
 	settingsPanelHeight = 370
+	spiralPanelWidth    = 260
+	spiralPanelHeight   = 250
 	settingsPanelMargin = 10
 
 	// settingsPanelIdleTimeout is how long the panel stays visible after
@@ -61,8 +62,9 @@ type settingsPanel struct {
 
 	// box is the small visible panel (background + title + sliders). This
 	// is what tick Hides()/Shows()/Moves() as the mouse comes and goes.
-	box     *fyne.Container
-	content *fyne.Container
+	box         *fyne.Container
+	content     *fyne.Container
+	surfaceSize fyne.Size
 
 	// lastMove is the Unix millisecond timestamp of the last detected
 	// activity, updated via markActivity by the mouse tracker and by every
@@ -118,10 +120,14 @@ func (p *settingsPanel) addSliderRow(row int, label string, min, max, initial, s
 // requireVisible check). If the full-window mouse tracker lived inside box,
 // hiding box would silence the tracker along with it, and nothing would be
 // left listening for mouse movement to bring the panel back.
-func newSettingsPanel(st *state, shader *canvas.Shader) *settingsPanel {
+func newSettingsPanel(st *state, shader *canvas.Shader, hasImages bool) *settingsPanel {
 	p := &settingsPanel{
-		overlay: container.NewWithoutLayout(),
-		content: container.NewWithoutLayout(),
+		overlay:     container.NewWithoutLayout(),
+		content:     container.NewWithoutLayout(),
+		surfaceSize: fyne.NewSize(spiralPanelWidth, spiralPanelHeight),
+	}
+	if hasImages {
+		p.surfaceSize = fyne.NewSize(settingsPanelWidth, settingsPanelHeight)
 	}
 
 	p.overlay.Add(newMouseTracker(st, p.markActivity))
@@ -141,7 +147,7 @@ func newSettingsPanel(st *state, shader *canvas.Shader) *settingsPanel {
 	// already catches hover anywhere a slider doesn't claim first (see
 	// newMouseTracker's MouseMoved).
 	bg := canvas.NewRectangle(contentOverlayBackdropColor)
-	bg.Resize(fyne.NewSize(settingsPanelWidth, settingsPanelHeight))
+	bg.Resize(p.surfaceSize)
 	bg.Move(fyne.NewPos(0, 0))
 
 	title := canvas.NewText(lang.L("Spiral Controls"), color.White)
@@ -153,35 +159,37 @@ func newSettingsPanel(st *state, shader *canvas.Shader) *settingsPanel {
 	p.addSliderRow(0, lang.L("Arms"), 1, 16, st.arms, 1, "arms", &st.arms, shader)
 	p.addSliderRow(1, lang.L("Twists"), 5, 100, st.twist, 1, "twistBase", &st.twist, shader)
 	p.addSliderRow(2, lang.L("Pixel Density"), 0.25, 1.0, st.density, 0.01, "density", &st.density, shader)
-	p.addImageSlider(0, lang.L("Image speed: %.2fx"), .35, 2, .05, &st.imageSpeed)
-	p.addImageSlider(1, lang.L("Image gap: %.2f s"), .75, 6, .05, &st.imageGap)
-	p.addImageSlider(2, lang.L("Randomness: %.0f%%"), 0, 100, 1, &st.randomness)
-	p.addTransparencySlider(st, shader)
-	p.addImageSlider(4, lang.L("Image size: %.2fx"), .5, 2, .05, &st.imageSize)
-	orderLabel := widget.NewLabel(lang.L("Image order"))
-	orderLabel.Move(fyne.NewPos(sliderX, 230))
-	order := widget.NewSelect([]string{lang.L("Main order"), lang.L("Random")}, func(value string) {
-		st.randomOrder = value == lang.L("Random")
-		p.markActivity()
-		if p.onOrderChanged != nil {
-			p.onOrderChanged()
+	if hasImages {
+		p.addImageSlider(0, lang.L("Image speed: %.2fx"), .35, 2, .05, &st.imageSpeed)
+		p.addImageSlider(1, lang.L("Image gap: %.2f s"), .75, 6, .05, &st.imageGap)
+		p.addImageSlider(2, lang.L("Randomness: %.0f%%"), 0, 100, 1, &st.randomness)
+		p.addTransparencySlider(st, shader)
+		p.addImageSlider(4, lang.L("Image size: %.2fx"), .5, 2, .05, &st.imageSize)
+		orderLabel := widget.NewLabel(lang.L("Image order"))
+		orderLabel.Move(fyne.NewPos(sliderX, 230))
+		order := widget.NewSelect([]string{lang.L("Main order"), lang.L("Random")}, func(value string) {
+			st.randomOrder = value == lang.L("Random")
+			p.markActivity()
+			if p.onOrderChanged != nil {
+				p.onOrderChanged()
+			}
+		})
+		order.Selected = lang.L("Main order")
+		if st.randomOrder {
+			order.Selected = lang.L("Random")
 		}
-	})
-	order.Selected = lang.L("Main order")
-	if st.randomOrder {
-		order.Selected = lang.L("Random")
+		order.Move(fyne.NewPos(sliderX, 260))
+		order.Resize(fyne.NewSize(sliderControlWidth, 35))
+		p.content.Add(orderLabel)
+		p.content.Add(order)
 	}
-	order.Move(fyne.NewPos(sliderX, 260))
-	order.Resize(fyne.NewSize(sliderControlWidth, 35))
-	p.content.Add(orderLabel)
-	p.content.Add(order)
 
 	// The fixed control surface scrolls inside a viewport on small windows.
-	surface := container.NewGridWrap(fyne.NewSize(settingsPanelWidth, settingsPanelHeight), p.content)
+	surface := container.NewGridWrap(p.surfaceSize, p.content)
 	viewport := container.NewScroll(surface)
 	viewport.OnScrolled = func(_ fyne.Position) { p.markActivity() }
 	p.box = container.NewStack(bg, viewport)
-	p.box.Resize(fyne.NewSize(settingsPanelWidth, settingsPanelHeight))
+	p.box.Resize(p.surfaceSize)
 	// Initial position; repositioned to the right edge once the window's
 	// real size is known (see tick).
 	p.box.Move(fyne.NewPos(settingsPanelMargin, settingsPanelMargin))
@@ -202,8 +210,8 @@ func panelVisible(lastMove, now time.Time, timeout time.Duration) bool {
 }
 
 // panelAnchor is where the panel sits: pinned to the window's right edge.
-func panelAnchor(canvasSize fyne.Size) fyne.Position {
-	return fyne.NewPos(max(settingsPanelMargin, canvasSize.Width-settingsPanelWidth-settingsPanelMargin), settingsPanelMargin)
+func panelAnchor(canvasSize, panelSize fyne.Size) fyne.Position {
+	return fyne.NewPos(max(settingsPanelMargin, canvasSize.Width-panelSize.Width-settingsPanelMargin), settingsPanelMargin)
 }
 
 func (p *settingsPanel) addImageSlider(row int, format string, minimum, maximum, step float64, target *float64) {
@@ -271,8 +279,8 @@ func (p *settingsPanel) tick(w fyne.Window) {
 	// continuously so it stays correct across resizes/monitor changes.
 	canvasSize := w.Canvas().Size()
 	if canvasSize.Width > 0 && canvasSize.Height > 0 {
-		p.box.Resize(fyne.NewSize(min(settingsPanelWidth, max(1, canvasSize.Width-2*settingsPanelMargin)), min(settingsPanelHeight, max(1, canvasSize.Height-2*settingsPanelMargin))))
-		if target := panelAnchor(canvasSize); p.box.Position() != target {
+		p.box.Resize(fyne.NewSize(min(p.surfaceSize.Width, max(1, canvasSize.Width-2*settingsPanelMargin)), min(p.surfaceSize.Height, max(1, canvasSize.Height-2*settingsPanelMargin))))
+		if target := panelAnchor(canvasSize, p.surfaceSize); p.box.Position() != target {
 			p.box.Move(target)
 		}
 	}
