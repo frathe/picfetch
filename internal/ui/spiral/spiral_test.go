@@ -121,6 +121,13 @@ func TestShowOpensFullScreenShaderWindow(t *testing.T) {
 	if !s.help.Visible() {
 		t.Error("help overlay hidden on open; want it shown so the key list is the first thing seen")
 	}
+
+	// The shader's minimum size is one pixel. Fullscreen startup must still
+	// establish a usable windowed size for the native Exit Full Screen action.
+	s.win.SetFullScreen(false)
+	if size := s.win.Canvas().Size(); size.Width < 640 || size.Height < 480 {
+		t.Errorf("leaving fullscreen restores an unusable canvas: %v; want at least 640x480", size)
+	}
 }
 
 func TestShowTwiceRaisesTheSameWindow(t *testing.T) {

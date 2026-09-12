@@ -235,6 +235,57 @@ one final full gate, repeat only when changes/failures justify it.
 
 ## Verification and evidence rules
 
+### Ticket 05 resumed, 2026-09-12
+
+Ronin requested `/implement next todo`; the first open TODO is this final
+qualification. Baseline: `324cec5`, clean working tree. Pico owns the native
+trial, assessment, any fixes and verification inline; zero delegates. Reuse
+05-A through 05-F and the existing task budget. Production feature code is
+already implemented, including the later animated-GIF and control changes.
+
+Work: retain an isolated native harness and public repository fixtures under
+`.scratch/hypno-spiral-tunnel/qualification-20260912/`; sample actual shader
+uniforms/textures, Go heap and process RSS through at least ten minutes at
+defaults; collect a timestamped 30-60-second native screenshot sequence as a
+moving record; exercise native controls and teardown; run the focused
+acceptance commands, GoLand inspections and one canonical `make verify`.
+Document sampling/capture limitations and exact failures. No new shipped
+dependency, asset, package or benchmark API is planned. The scene uses the
+existing CC0/public-domain Explorer fixtures, PicFetch's icon and demo GIF,
+plus the existing synthetic two-frame GIF.
+
+Observations, raw commands and artifact locations will be reconciled below
+before marking acceptance criteria complete. Native evidence is macOS OpenGL
+only; the known local amd64 seccomp error must be verified, not assumed away.
+
+Native resize found a concrete defect: choosing Window > Exit Full Screen
+restores a 1x1 canvas. The shader has a one-pixel minimum and startup never
+requests a windowed size. Extend the existing `TestShowOpensFullScreenShaderWindow`
+at the accepted Spiral/window boundary to require a usable restored canvas
+(at least 640x480); verify its RED result, initialize a 960x600 window before
+fullscreen, and repeat the real native transition. Files: `spiral.go` and
+existing `spiral_test.go`; owner: lead; no new dependencies, strings, test
+files or UI shard entries. Verify with the named test, complete Spiral race
+tests, GoLand and native exit/resize/reopen. The first canonical gate was
+deliberately interrupted after this finding; one fresh full gate will cover
+the fix. This is the reason for exceeding the original single-gate budget.
+
+Fullscreen regression RED: the existing test reported `{1 1}` instead of a
+usable restored canvas. GREEN: the complete Spiral race package passes in
+2.860s. Native repeat restores 960x600, resizes to 644x420, and returns to
+3840x1600 fullscreen. Both changed files have complete, empty GoLand
+inspections including warnings. `make build` and Windows/amd64 internal vet
+pass. The preserved baseline ran for 609 default seconds with stable warm
+RSS; a second sustained run uses the fixed executable. Exact measurements,
+capture limits and the final gate are retained in
+[the qualification report](../docs/spiral-qualification-2026-09-12.md).
+
+Cost ledger for this continuation: zero spawns; all diagnosis, implementation,
+review and fixes lead-owned. One gate was interrupted for the native defect;
+one replacement full gate covers the final source. The new guard was observed
+RED before the two-line production fix; native reenactment confirms the
+software driver's initialization check reaches the real failure mode.
+
 The ticket AC identifiers are the acceptance matrix. Their test names are
 proposed, not existing proof. Observe an intended RED failure for important
 guards, then record focused GREEN results. Add the top-level TestHypnoTunnel

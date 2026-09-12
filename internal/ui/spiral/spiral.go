@@ -194,6 +194,8 @@ func (s *Spiral) Show(sources []fyne.URI) {
 	s.panel.onOrderChanged = s.resetTunnelOrder
 
 	win := s.app.NewWindow(lang.L("Hypno Spiral"))
+	// Keep Exit Full Screen usable: a shader alone has a one-pixel minimum.
+	win.Resize(fyne.NewSize(960, 600))
 	win.SetFullScreen(true)
 	win.SetPadded(false)
 

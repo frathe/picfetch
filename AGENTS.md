@@ -98,6 +98,7 @@ precedence over its default handoff procedure.
 
 ## Project Conventions
 
+- Prefer code that makes its intent clear to human readers over terse shorthand where possible. For example, write byte sizes as `256 * 1024 * 1024` (or `256 * MiB` with a named unit) instead of `256 << 20`.
 - Check the license and shipped dependency closure before selecting or upgrading a dependency, including native runtimes and model assets. Record the exact source/version, distribution obligations, and notice delivery in the implementation plan before calling the feature release-ready; unchanged dependencies still carry obligations.
 - Every user-visible string is `lang.L("English text")`; add that exact key to every `translations/*.json` bundle. English is an identity map and `main_test.go` enforces locale parity.
 - No Unicode arrows in anything the app draws — not in `lang.L` keys or catalogue values, not in the manuals, not even inside backticks. The theme font (NotoSans) has no arrow glyphs, the shaper falls back to a 23-glyph symbol subset with no space, `/` or `-`, and the character *after* the arrow is painted as `�`. Write menu paths and cycles as ASCII `->` and keys as `Left` / `Right` / `Up` / `Down`. Guarded by `TestManualHasNoUnicodeArrows` and `TestTranslationsHaveNoUnicodeArrows`.

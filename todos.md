@@ -15,6 +15,9 @@
 
 #### Bugfix
 
+- Leaving Spiral fullscreen now restores a usable 960x600 window instead of
+  collapsing to a 1x1 canvas. Regression, native resize and qualification
+  evidence are in the [September 12 record](docs/spiral-qualification-2026-09-12.md).
 - H toggles Spiral's local help overlay; F1 retains the main manual binding.
 - PR #20 fixes route F1 from the Spiral canvas to the manual, keep blocked
   preview reads from delaying process exit, restore arrivals after shrinking
@@ -32,7 +35,7 @@
 
 ### Hypno Spiral tunnel image stream
 
-Implement the accepted infinite image-tunnel enhancement for the Hypno Spiral
+Qualify the implemented infinite image-tunnel enhancement for the Hypno Spiral
 easter egg: a frozen duplicate-aware source snapshot, bounded three-texture GPU
 renderer, main/random cyclic ordering, animated GIF previews, controls, and
 lifecycle coverage. Refined motion calls for gentle acceleration, soft edges,
@@ -41,11 +44,19 @@ The original implementation is in c725cae; the help/GIF/control follow-up is in
 24dd11f. The [PR #20 review loop](https://github.com/frathe/picfetch/pull/20)
 tracks current-commit Codex code/security reviews, Qodana, CodeQL and CI;
 its evidence is in the [follow-up plan](plans/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
-Focused race checks and GoLand inspections
-pass, and Ronin found the native defaults very calming. Final qualification
-remains open: all UI partitions passed, while the full gate failed only on the two existing
-local amd64 seccomp cases;
-a native moving capture and measured resource plateau are still unverified.
+Focused race checks and GoLand inspections pass, and Ronin found the native
+defaults very calming. September 12 qualification measured 209 arrivals over
+609 seconds, with warm process RSS steady at 221.5–223.3 MiB and at most three
+active texture slots. Native resize exposed and fixed the fullscreen-exit
+collapse. The [qualification record](docs/spiral-qualification-2026-09-12.md)
+records the rebuilt trial and final gate. Final motion qualification remains
+open: the retained native frame sequence is too slow to establish smoothness
+or rule out brief stalls/popping. GPU allocation counts and other rendering
+backends are also unmeasured. The refreshed `make verify` finishes with only
+the two existing local amd64 seccomp failures; all three UI race partitions
+pass. The fixed executable completes a second ten-minute
+native run on the larger display with bounded live heap, successful resize,
+retained controls on reopen and normal shutdown.
 See the [ticket evidence](.scratch/hypno-spiral-tunnel/issues/README.md).
 See the [specification](.scratch/hypno-spiral-tunnel/spec.md) and
 [implementation plan](plans/2026-09-11-hypno-spiral-tunnel.md).
