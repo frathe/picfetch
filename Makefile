@@ -56,7 +56,7 @@ generate-app-assets: ## Derive compact atlases and display-sized artwork from re
 check-app-assets: ## Check embedded artwork dimensions and decoded pixels against retained originals
 	go run ./scripts/appassets -check
 
-build run explorer-evaluate package-mac package-windows package-windows-store package-windows-debug package-linux package-linux-debug: generate-tag-vectors
+build run package-mac package-windows package-windows-store package-windows-debug package-linux package-linux-debug: generate-tag-vectors
 
 build: ## Build a native binary for the current OS/arch into bin/ (stripped, no debug symbols)
 	mkdir -p $(BIN_DIR)
@@ -83,6 +83,8 @@ EXPLORER_PROVIDER ?= cpu
 TRIAL ?= smoke
 
 .PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test explorer-download-test
+explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test explorer-download-test: generate-tag-vectors
+
 explorer-download-test: ## Qualify pinned asset downloads and reuse without launching native analysis
 	go test -tags $(APP_TAGS),explorerinstall ./scripts/explorereval -run '^TestRealAssetDownload$$' -count=1 -v -timeout 25m
 

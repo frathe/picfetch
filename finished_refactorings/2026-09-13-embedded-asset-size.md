@@ -250,3 +250,47 @@ Validation of the fix:
   The local checker fix still needs a fresh hosted validation run after push.
 
 The user’s additional image edits were preserved. No commit or push was made.
+
+### PR #21 Codex review loop — 2026-09-13
+
+Ronin invoked the GitHub Codex review loop, authorizing fix commits, pushes and
+review-thread dispositions. The earlier no-commit statements describe their
+original sessions. The artwork fix on `cbf106d` now passes
+[hosted validation](https://github.com/frathe/picfetch/actions/runs/34726451266/job/103641292187).
+
+Route: Standard follow-up within this accepted Deep plan. Lead owns assessment,
+the Makefile fix, regression and final review. The confirmed P2 finding omitted
+vector generation from Explorer profiling and acceptance targets. The same gap
+also affected the real-asset install test, which runs production analysis.
+All seven Explorer targets now depend on generation, so setup/download builds
+also share the same current embedded data.
+
+Files: Makefile, the existing `scripts/tagvectors/main_test.go`, this record and
+`todos.md`. No new test files, UI tests, dependencies or package moves.
+Acceptance: every Explorer target's Make dry run generates vectors before its
+Go build/run/test command. Verify with `go test ./scripts/tagvectors -run
+'^TestMakeGeneratesVectorsBeforeExplorerBuilds$' -count=1`.
+The regression failed before the fix on all six previously omitted targets;
+the existing `explorer-evaluate` path passed.
+
+Verification after the fix:
+
+- `go test -tags no_emoji -race ./scripts/tagvectors ./scripts/appassets -count=1`
+  passes (1.582s and 4.543s respectively).
+- `go vet ./scripts/tagvectors ./scripts/appassets`, the pinned formatter for
+  the changed Go file, and `git diff --check` pass.
+- `make check-tag-vectors check-app-assets check-qodana-test-exclusions
+  check-tuf-root` passes.
+- GoLand inspections of the changed Go file and Makefile complete with no
+  findings, including weak warnings.
+- Full race and native platform suites run in GitHub CI under this workflow's
+  explicit local-test exception. The final commit's code/security review and
+  CI results are retained in [PR #21](https://github.com/frathe/picfetch/pull/21).
+
+Delegation: one read-only Scout collects Qodana artifacts and CodeQL alert
+metadata while the Lead fixes the prerequisite. G1 bounded report collection;
+G2 retained API JSON and actual SARIF; G3 zero repository edits; G4 artifact
+collection is independent of the fix; G5 Lead has not loaded the report details.
+Rule S scripts JSON extraction; the Scout follows report locations and run
+identity. No assessment or fix is delegated. Budget/actual: 1/1 Scout; local
+full suites 0; fresh GitHub review rounds continue until the latest head is clean.

@@ -27,11 +27,17 @@
 
 #### Bugfix
 
+- PR #21's Codex finding is fixed: every Explorer Make target regenerates
+  embedded tag vectors before compilation, including profiling, real-model
+  acceptance, UI acceptance and asset-install qualification. The seven-target
+  order regression, focused race checks and GoLand inspections pass. See the
+  [review record](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-codex-review-loop--2026-09-13).
 - Generated-artwork validation now accepts ImageOptim's RGB changes beneath
   fully transparent pixels in ordinary illustrations. Visible RGB and all
   alpha values remain exact; gaze atlases still require every pixel byte to
   match. Focused race tests, Linux/amd64 asset validation and GoLand inspections
-  pass. See the [CI fix](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-lossless-optimization-check--2026-09-13).
+  pass. Hosted validation also passes on `cbf106d` in PR #21. See the
+  [CI fix](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-lossless-optimization-check--2026-09-13).
 - Mosaic wallpaper on Linux with multiple displays now offers an explicit
   **Set on All Displays** action when the desktop rejects a selected-display
   change. Single-display behavior is preserved. Ronin's Ubuntu ARM64 machine
@@ -105,14 +111,6 @@ remain. A fresh native `go test -race -count=5 -timeout 2m -run
 '^TestCompareSettle_' ./internal/ui/compare` also passes (10.338s).
 
 ## TODO
-
-### Confirm the artwork validation fix in hosted CI
-
-PR #21's original run passed all native Linux/amd64 race partitions and the
-Windows/macOS guards. Its validation job failed on ImageOptim's invisible RGB
-changes; the checker fix and focused checks pass locally. After committing
-and pushing the fix, confirm fresh hosted CI. See the
-[implementation record](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-lossless-optimization-check--2026-09-13).
 
 ### Complete updater dependency notices before the next release
 

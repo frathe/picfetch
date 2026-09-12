@@ -8,9 +8,41 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestMakeGeneratesVectorsBeforeExplorerBuilds(t *testing.T) {
+	for _, target := range []struct {
+		name    string
+		compile string
+	}{
+		{"explorer-setup", "go run ./scripts/explorereval"},
+		{"explorer-evaluate", "go build "},
+		{"explorer-profile", "go build "},
+		{"explorer-test", "go test -c "},
+		{"explorer-ui-test", "go test -tags "},
+		{"explorer-install-test", "go test -tags "},
+		{"explorer-download-test", "go test -tags "},
+	} {
+		t.Run(target.name, func(t *testing.T) {
+			command := exec.Command("make", "--no-print-directory", "-n", target.name)
+			command.Dir = filepath.Join("..", "..")
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("make dry run: %v\n%s", err, output)
+			}
+			commands := string(output)
+			generate := strings.Index(commands, "go run ./scripts/tagvectors\n")
+			compile := strings.Index(commands, target.compile)
+			if generate < 0 || compile < 0 || generate >= compile {
+				t.Fatalf("target must generate vectors before compiling Explorer:\n%s", commands)
+			}
+		})
+	}
+}
 
 func vectorFixture(t *testing.T) ([]byte, map[string][]float32, []byte) {
 	t.Helper()
