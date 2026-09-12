@@ -32,6 +32,14 @@
 
 #### Internal
 
+- Added `make movie` to render the current committed Git history with Gource
+  and FFmpeg in Docker, including dynamic counters, captions, a growth chart
+  and original soundtrack. `MOVIE_SECONDS` sets the duration and `MOVIE_DIR`
+  sets the output parent. Seven replay tests and full 180/30-second movie
+  checks pass; all 681 UI race tests pass, with only the existing local
+  amd64 seccomp failures remaining in `make verify`.
+  See `scripts/historymovie/README.md` and the
+  [implementation evidence](plans/2026-09-12-history-movie.md).
 - Rebalanced Linux UI race shards using Release v1.1.0 test timings: 27 whole-test
   moves preserve all 681 assignments and project a 37.9% lower maximum test load.
   See [evidence and validation](plans/2026-09-11-ui-shard-rebalance.md).

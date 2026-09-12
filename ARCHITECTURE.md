@@ -19,6 +19,17 @@ building the `fyne.App`, loads embedded
 `ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
 
+### `scripts/historymovie`
+
+Development-only Git history films, reached through `make movie` and
+`make movie-test`. `run.sh` captures one HEAD and its NUL-delimited log/tree
+snapshots, builds the Docker tool image, and owns container cleanup. `movie.py`
+replays ancestor changes with merge-tree reconciliation, checks the final file
+set, and generates the Gource animation, titles, live counters/chart, original
+score and verified MP4. The renderer receives exported history and an output
+directory, with networking disabled; it does not mount the repository.
+`Dockerfile` defines the tools and `test_movie.py` guards replay and timing.
+
 ### `scripts/testshards`
 
 Repository tooling for measured Linux race-test sharding. It parses complete
