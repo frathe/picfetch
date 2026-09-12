@@ -1,5 +1,36 @@
 # Spiral native qualification, September 12, 2026
 
+## Accepted result
+
+Status: complete, accepted by Ronin on September 12, 2026.
+
+After testing the updated Spiral for an hour, Ronin reported stable,
+relatively smooth operation, FPS staying around 60, and smooth GIF playback.
+He explicitly counted the result as a pass for a fun Easter egg. This is
+Ronin's direct observation; Pico did not instrument or record that hour.
+
+This acceptance, together with the existing automated and native checks below,
+closes ticket 05 and the Hypno Spiral tunnel image stream TODO. It supersedes
+the earlier requirement for an additional high-frame-rate capture and the
+remaining qualification language in the historical sections below. The final
+defaults retain the 0.75-second entrance fade, 3% protected centre disc and
+one prepared preview. No preload expansion or further tuning is required.
+
+The evidence limits remain explicit: the hour-long report does not establish
+every native edge case, exact GPU timing/allocation, or other GL/GLES backends.
+Real viewer-trigger/duplicate behavior and one/two/unreadable-source recovery
+retain their automated coverage; no additional native demonstrations are
+claimed. The earlier overlay variability was not diagnosed, but Ronin's
+sustained run establishes an acceptable experience for this feature. The two
+known local amd64 seccomp failures remain in their separate TODO.
+
+Closure changes only work records and archives the accepted plans. Existing
+test/build/GoLand results remain the verification evidence; no production code
+changed and no broad test rerun was needed. Documentation links and
+`git diff --check` were checked at closure. No commit was created by Pico.
+
+## Qualification history
+
 Pico resumed the first open TODO, ticket 05 of the Hypno Spiral tunnel, from
 `324cec5`. Native QA found and fixed a fullscreen-restoration defect: Exit
 Full Screen collapsed the canvas to 1x1. Spiral now establishes a 960x600
@@ -200,7 +231,7 @@ was created.
 Ronin requested live-window observation with the FPS overlay during the next
 continuation, then requested fully transparent image entrances and launches
 closer to the centre. The implementation and current verification are tracked
-in [the soft-entry plan](../plans/2026-09-12-spiral-soft-entry.md).
+in [the soft-entry plan](../finished_refactorings/2026-09-12-spiral-soft-entry.md).
 
 The new entrance multiplies the normal, live-configured opacity by a
 0.75-second smoothstep fade. Travel and GIF playback keep their existing

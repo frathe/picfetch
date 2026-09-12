@@ -1,5 +1,12 @@
 # Spiral soft image entrances
 
+Status: complete, accepted by Ronin on 2026-09-12 after an hour of stable,
+relatively smooth native operation around 60 FPS, including smooth GIFs.
+The [final acceptance](../docs/spiral-qualification-2026-09-12.md#accepted-result)
+closes the earlier visual-qualification limits as feature completion blockers;
+their measurement scope remains documented. The 0.75-second fade and 3% disc
+are the accepted final defaults.
+
 Route: Standard follow-up within the accepted Spiral qualification work.
 Owner: Pico, lead inline. Baseline: e6416ff; initially clean working tree.
 Ronin requested fully transparent entrances and launches closer to the centre

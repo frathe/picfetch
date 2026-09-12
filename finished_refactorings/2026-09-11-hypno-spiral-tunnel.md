@@ -1,8 +1,13 @@
 # Hypno Spiral tunnel image stream
 
-**Route:** Deep. **Status:** accepted five-ticket plan, refined 2026-09-12;
-implementation started on Ronin's `/implement` request. **Owner:** Pico / lead.
-Implementation with SDD/TDD is authorized; commits remain unrequested.
+**Route:** Deep. **Status:** complete, accepted by Ronin on 2026-09-12.
+**Owner:** Pico / lead. Ronin's hour-long run was stable and relatively smooth,
+stayed around 60 FPS, and played GIFs smoothly. His acceptance closes ticket 05;
+the [final qualification record](../docs/spiral-qualification-2026-09-12.md#accepted-result)
+states the evidence and retained limits. The implementation/review notes below
+are historical; later GIF/control and soft-entry plans supersede their original
+static-preview and entrance defaults. Closure is documentation-only and does
+not authorize a new commit.
 
 The [specification](../.scratch/hypno-spiral-tunnel/spec.md) owns behavior and
 tuning defaults. The [ticket index](../.scratch/hypno-spiral-tunnel/issues/README.md)

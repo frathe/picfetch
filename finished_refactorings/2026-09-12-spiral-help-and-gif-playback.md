@@ -1,5 +1,11 @@
 # Spiral help, GIF playback and image controls
 
+Status: complete, accepted by Ronin on 2026-09-12. His hour-long native run
+confirmed stable, relatively smooth operation around 60 FPS and smooth GIF
+playback. See the [final acceptance](../docs/spiral-qualification-2026-09-12.md#accepted-result).
+Earlier implementation and PR-review evidence below remains historical;
+archiving this feature plan makes no new claim about current remote PR checks.
+
 Second scope addition: Ronin requested an image-size slider. Default 1x;
 0.5x–2x in 0.05 steps. Scale the original start/end footprint together for
 new admissions; in-flight geometry remains immutable. Route admission,

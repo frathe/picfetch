@@ -6,17 +6,24 @@
 
 #### New Features
 
+- Hypno Spiral tunnel image stream is complete. Ronin tested it for an hour
+  and accepted stable, relatively smooth operation around 60 FPS, including
+  smooth GIF playback. Frozen duplicate-aware sources, Main/Random order,
+  image controls, soft entrances and lifecycle handling are implemented.
+  Existing native resource runs, automated checks and GoLand inspections
+  support the result; the known local amd64 seccomp failures remain separate.
+  See the [final acceptance](docs/spiral-qualification-2026-09-12.md#accepted-result).
 - Spiral pictures now fade in from fully transparent over 0.75 seconds and
   can launch closer to the centre, with a 3% protected disc instead of 8%.
   Focused and full UI race checks, GoLand inspections and native rendering
   pass; the full gate retains only the known local amd64 seccomp failures.
-  See the [soft-entry evidence](plans/2026-09-12-spiral-soft-entry.md).
+  See the [soft-entry evidence](finished_refactorings/2026-09-12-spiral-soft-entry.md).
 - Spiral tunnel pictures now play bounded GIF previews with independent timing.
   A live image-transparency slider shifts the range, preserves the 85% visibility
   ceiling, and retains its setting across reopening in the current process.
   Image size is adjustable from 0.5x to 2x for new arrivals, with centre clearance
   preserved. Ronin confirmed all sliders work as intended in the native trial.
-  See the [follow-up evidence](plans/2026-09-12-spiral-help-and-gif-playback.md).
+  See the [follow-up evidence](finished_refactorings/2026-09-12-spiral-help-and-gif-playback.md).
 
 #### Bugfix
 
@@ -28,7 +35,7 @@
   preview reads from delaying process exit, restore arrivals after shrinking
   an off-screen centre, and prevent random-cycle boundary repeats when a URI
   occurs more than once. Regression evidence is in the
-  [review record](plans/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
+  [review record](finished_refactorings/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
 
 #### Internal
 
@@ -45,38 +52,6 @@
   See [evidence and validation](plans/2026-09-11-ui-shard-rebalance.md).
 
 ## TODO
-
-### Hypno Spiral tunnel image stream
-
-Qualify the implemented infinite image-tunnel enhancement for the Hypno Spiral
-easter egg: a frozen duplicate-aware source snapshot, bounded three-texture GPU
-renderer, main/random cyclic ordering, animated GIF previews, controls, and
-lifecycle coverage. Refined motion calls for gentle acceleration, soft edges,
-subtle batch variation, translucent depth overlap, and native visual tuning.
-The original implementation is in c725cae; the help/GIF/control follow-up is in
-24dd11f. The [PR #20 review loop](https://github.com/frathe/picfetch/pull/20)
-tracks current-commit Codex code/security reviews, Qodana, CodeQL and CI;
-its evidence is in the [follow-up plan](plans/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
-Focused race checks and GoLand inspections pass, and Ronin found the native
-defaults very calming. September 12 qualification measured 209 arrivals over
-609 seconds, with warm process RSS steady at 221.5–223.3 MiB and at most three
-active texture slots. Native resize exposed and fixed the fullscreen-exit
-collapse. The [qualification record](docs/spiral-qualification-2026-09-12.md)
-records the rebuilt trial and final gate. Final motion qualification remains
-open: the retained native frame sequence is too slow to establish smoothness
-or rule out brief stalls/popping. GPU allocation counts and other rendering
-backends are also unmeasured. The refreshed `make verify` finishes with only
-the two existing local amd64 seccomp failures; all three UI race partitions
-pass. The fixed executable completes a second ten-minute
-native run on the larger display with bounded live heap, successful resize,
-retained controls on reopen and normal shutdown.
-The soft-entry follow-up adds live-window observations and direct FPS-overlay
-readings; later baseline readings vary in both presets, without an established
-cause. The existing one-image lookahead remains because no decode bottleneck
-has established a need for three prepared previews.
-See the [ticket evidence](.scratch/hypno-spiral-tunnel/issues/README.md).
-See the [specification](.scratch/hypno-spiral-tunnel/spec.md) and
-[implementation plan](plans/2026-09-11-hypno-spiral-tunnel.md).
 
 ### Fyne upgrade deferred
 
