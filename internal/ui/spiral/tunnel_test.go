@@ -177,6 +177,39 @@ func TestTunnelOrder(t *testing.T) {
 	}
 }
 
+func TestTunnelRepeatedIdentity(t *testing.T) {
+	s := newTestSpiral(t)
+	now := time.Unix(1000, 0)
+	s.now = func() time.Time { return now }
+	s.st.randomness = 0
+	uris := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+	s.Show([]fyne.URI{uris[0], uris[0], uris[1]})
+	s.win.Resize(fyne.NewSize(800, 600))
+	s.tunnel.rng = rand.New(rand.NewPCG(2, 3))
+	s.st.randomOrder = true
+	s.resetTunnelOrder()
+	previous := ""
+	seen := map[int]bool{}
+	for i := range 90 {
+		settleTunnelPreviews(s)
+		f := newestTraveller(s)
+		if f == nil || seen[f.source] {
+			t.Fatalf("cycle lost or repeated a source index at %d: %+v", i, f)
+		}
+		identity := s.sources[f.source].String()
+		if i%3 == 0 && identity == previous {
+			t.Fatalf("cycle %d repeated the previous URI despite another available source", i/3)
+		}
+		seen[f.source] = true
+		previous = identity
+		if i%3 == 2 {
+			clear(seen)
+		}
+		now = now.Add(10 * time.Second)
+		s.frame(10)
+	}
+}
+
 func TestTunnelBackpressure(t *testing.T) {
 	s := newTestSpiral(t)
 	now := time.Unix(1000, 0)
@@ -364,6 +397,44 @@ func TestTunnelClockAndResize(t *testing.T) {
 		if math.Abs(float64(s.shader.Uniforms["tunnelTime"]-birth)-1.5) > 1e-6 {
 			t.Fatal("GPU and scheduler clocks disagree")
 		}
+	}
+}
+
+func TestTunnelResizeRecovery(t *testing.T) {
+	for _, follow := range []bool{false, true} {
+		t.Run(fmt.Sprintf("follow=%v", follow), func(t *testing.T) {
+			s := newTestSpiral(t)
+			now := time.Unix(1000, 0)
+			s.now = func() time.Time { return now }
+			s.st.randomness = 0
+			s.Show(uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg"))
+			s.win.Resize(fyne.NewSize(1600, 1200))
+			s.st.toggleFollow()
+			s.st.setMouse(1520, 1140)
+			s.frame(0)
+			settleTunnelPreviews(s)
+			if f := newestTraveller(s); f == nil || f.source != 0 {
+				t.Fatal("first source was not admitted before resize")
+			}
+			if !follow {
+				s.st.toggleFollow()
+			}
+			s.win.Resize(fyne.NewSize(400, 300))
+			now = now.Add(10 * time.Second)
+			s.frame(10)
+			settleTunnelPreviews(s)
+			f := newestTraveller(s)
+			if f == nil || f.source != 1 || f.born != 10 {
+				t.Fatalf("resize stalled the next source: %+v", f)
+			}
+			frame := s.tunnelFrame()
+			if !f.pose(f.born, frame).inside(frame) {
+				t.Fatal("recovered arrival starts outside the resized viewport")
+			}
+			x, y := s.st.centerOffset()
+			assertUniform(t, s, "centerOffsetX", float32(x))
+			assertUniform(t, s, "centerOffsetY", float32(y))
+		})
 	}
 }
 

@@ -13,9 +13,9 @@
 // port, and TestEscapeClosesHelpThenWindow is its guard.
 //
 // The rest of the keys are handled entirely inside this window (see
-// handleKey): H for the help overlay, F for follow mode, N for the spiral
-// pattern, P and R for the FPS and resolution overlays, and the arrow keys
-// for turn and colour speed.
+// handleKey): H for the help overlay, F1 for the viewer manual, F for follow
+// mode, N for the spiral pattern, P and R for the FPS and resolution overlays,
+// and the arrow keys for turn and colour speed.
 //
 // The package splits up as: this file owns the window, the key bindings,
 // and the per-frame goroutine; state.go carries the demo's package-level
@@ -71,8 +71,9 @@ type Spiral struct {
 	// comes back at the speed, pattern, and slider values it was left at
 	// rather than snapping back to defaults - see newShader, which seeds
 	// its uniforms from st rather than from the package constants.
-	st      *state
-	sources []fyne.URI
+	st       *state
+	sources  []fyne.URI
+	onManual func()
 
 	// Everything below is rebuilt per window by Show and is only ever
 	// touched on the UI goroutine. They are fields rather than closure
@@ -137,6 +138,9 @@ func New(app fyne.App) *Spiral {
 func (s *Spiral) Open() bool {
 	return s.win != nil
 }
+
+// SetOnManual connects F1 in this window to the application's manual.
+func (s *Spiral) SetOnManual(f func()) { s.onManual = f }
 
 // ShowForGesture opens the spiral on the pattern the user's gesture asked
 // for, and is the window-drag gesture's way in (internal/wingesture, wired
@@ -268,10 +272,8 @@ func (s *Spiral) Close() {
 }
 
 // Settle joins frame/preview workers and drains test delivery after Close.
-// Close only asks them to
-// stop; this is how a test - or the app's own shutdown - makes sure it is
-// actually gone rather than about to wake up and do UI work in the middle
-// of whatever is running by then.
+// Tests release held sources before settling. Production shutdown only closes
+// the session because cancellation cannot interrupt blocked external reads.
 func (s *Spiral) Settle() {
 	s.running.Wait()
 	for {
@@ -406,6 +408,10 @@ func (s *Spiral) handleKey(ev *fyne.KeyEvent) {
 		s.Close()
 	case fyne.KeyH:
 		toggleOverlay(s.help)
+	case fyne.KeyF1:
+		if s.onManual != nil {
+			s.onManual()
+		}
 	case fyne.KeyF:
 		// Follow mode: the centre chases the cursor. Leaving it does not
 		// recentre the spiral - see toggleFollow.
@@ -465,25 +471,19 @@ func toggleOverlay(o *fyne.Container) {
 }
 
 // updateFollowMode moves the shader's centre offset toward the mouse cursor
-// while follow mode is on. With it off it does nothing, leaving the offset
-// wherever it last was so the spiral keeps its position instead of
-// recentring.
+// while follow mode is on. With it off the centre stays where it was, except
+// that a smaller viewport clamps an off-screen centre to its nearest edge.
+// The background and tunnel always share this same visible centre.
 //
 // Unlike the donor demo's version this wraps nothing in fyne.Do: it runs
 // from frame, which run has already marshalled onto the UI goroutine, so
 // the mutations below are on the right goroutine as they stand and a nested
 // hop would only be a way to smear one frame's work across two of them.
 func updateFollowMode(w fyne.Window, st *state, shader *canvas.Shader) {
-	if !st.follow() {
-		return
-	}
-
 	size := w.Canvas().Size()
 	if size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-
-	mx, my := st.mouse()
 
 	// PixelCoordinateForPosition converts logical points into the same
 	// physical pixel space the shader's `frame` uniform is expressed in.
@@ -491,16 +491,22 @@ func updateFollowMode(w fyne.Window, st *state, shader *canvas.Shader) {
 	// Retina/HiDPI scaling is folded into a private texture-scale factor
 	// instead, so multiplying by Scale() directly undershoots the offset on
 	// HiDPI displays and the spiral centre lags behind the cursor.
-	px, py := w.Canvas().PixelCoordinateForPosition(fyne.NewPos(float32(mx), float32(my)))
 	frameW, frameH := w.Canvas().PixelCoordinateForPosition(fyne.NewPos(size.Width, size.Height))
-
-	// Y is inverted: Fyne's mouse coordinates have their origin top-left
-	// (y grows down), while gl_FragCoord in the shader has its origin
-	// bottom-left (y grows up).
-	wantX := float64(px) - float64(frameW)/2
-	wantY := float64(frameH)/2 - float64(py)
-
 	haveX, haveY := st.centerOffset()
+	wantX, wantY := haveX, haveY
+	if st.follow() {
+		mx, my := st.mouse()
+		px, py := w.Canvas().PixelCoordinateForPosition(fyne.NewPos(float32(mx), float32(my)))
+
+		// Fyne's Y grows down; the shader's Y grows up.
+		wantX = float64(px) - float64(frameW)/2
+		wantY = float64(frameH)/2 - float64(py)
+	}
+	// A retained offset or old pointer position may be outside after a resize
+	// or display-scale change. Keep admission possible without a mouse event.
+	wantX = clampFloat(wantX, -float64(frameW)/2, float64(frameW)/2)
+	wantY = clampFloat(wantY, -float64(frameH)/2, float64(frameH)/2)
+
 	if math.Abs(wantX-haveX) <= followEpsilon && math.Abs(wantY-haveY) <= followEpsilon {
 		return
 	}

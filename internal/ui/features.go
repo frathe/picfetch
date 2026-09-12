@@ -38,6 +38,7 @@ var _ mosaicwin.Host = (*viewer)(nil)
 func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State) {
 	view.help = help.New(application, appTitle, assets.ComparingWebP)
 	view.spiral = spiral.New(application)
+	view.spiral.SetOnManual(view.help.ShowManual)
 	view.help.SetOnSpiral(view.openSpiral)
 
 	// The window-drag easter egg (gesture.go): the detector is fed by the

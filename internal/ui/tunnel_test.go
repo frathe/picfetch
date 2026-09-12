@@ -1,8 +1,14 @@
 package ui
 
 import (
+	"bytes"
+	"image/color"
+	"io"
+	"os"
 	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
@@ -45,6 +51,59 @@ func TestHypnoTunnel(t *testing.T) {
 			t.Fatal("shutdown admitted a new spiral window")
 		}
 	})
+	t.Run("shutdown_blocked_preview", func(t *testing.T) {
+		v := newTestViewer(t)
+		u := uitest.TempJPEGURI(t, "held.jpg", 8, 4, color.White)
+		data, err := os.ReadFile(u.Path())
+		if err != nil {
+			t.Fatal(err)
+		}
+		started, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		unblock := func() { once.Do(func() { close(release) }) }
+		defer unblock()
+		held := uitest.ReaderURI(u, func() (io.ReadCloser, error) {
+			reader := bytes.NewReader(data)
+			return uitest.ReadCloser{
+				ReadFunc: func(p []byte) (int, error) {
+					close(started)
+					<-release
+					return reader.Read(p)
+				},
+				CloseFunc: func() error { return nil },
+			}, nil
+		})
+		v.state.setFiles([]fyne.URI{held}, []fyne.URI{held})
+		v.openSpiral()
+		select {
+		case <-started:
+		case <-time.After(testTimeout):
+			t.Fatal("preview read did not start")
+		}
+		lifecycle := testApp.Lifecycle().(interface{ OnStopped() func() })
+		original := lifecycle.OnStopped()
+		registerShutdown(testApp, v)
+		shutdown := lifecycle.OnStopped()
+		testApp.Lifecycle().SetOnStopped(original)
+		shutdown()
+		done := make(chan struct{})
+		go func() {
+			v.waitForShutdown()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(testTimeout):
+			unblock()
+			<-done
+			t.Fatal("post-event-loop shutdown waited for blocked preview I/O")
+		}
+		if v.spiral.Open() {
+			t.Fatal("shutdown left Spiral open")
+		}
+		unblock()
+		v.spiral.Settle()
+	})
 	t.Run("entry", func(t *testing.T) {
 		v := newTestViewer(t)
 		previousTheme := testApp.Settings().Theme()
@@ -72,7 +131,7 @@ func TestHypnoTunnel(t *testing.T) {
 			}
 		}
 		for _, w := range testApp.Driver().AllWindows() {
-			if w.Title() == "PicFetch Manual" {
+			if w != nil && w.Title() == "PicFetch Manual" {
 				visit(w.Content())
 			}
 		}
@@ -82,6 +141,22 @@ func TestHypnoTunnel(t *testing.T) {
 		entry.OnSubmitted("please hypnotize me")
 		if !v.spiral.Open() {
 			t.Fatal("manual did not open viewer's Spiral")
+		}
+		for _, w := range testApp.Driver().AllWindows() {
+			if w != nil && w.Title() == "PicFetch Manual" {
+				w.Close()
+			}
+		}
+		if v.help.ManualOpen() {
+			t.Fatal("manual did not close before testing Spiral's F1 binding")
+		}
+		for _, w := range testApp.Driver().AllWindows() {
+			if w != nil && w.Title() == "Hypno Spiral" {
+				w.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyF1})
+			}
+		}
+		if !v.help.ManualOpen() {
+			t.Fatal("F1 in Spiral did not open the viewer's manual")
 		}
 		reads := v.dupes.VisibilityReads()
 		v.spiralGesture(true)

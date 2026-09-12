@@ -16,6 +16,11 @@
 #### Bugfix
 
 - H toggles Spiral's local help overlay; F1 retains the main manual binding.
+- PR #20 fixes route F1 from the Spiral canvas to the manual, keep blocked
+  preview reads from delaying process exit, restore arrivals after shrinking
+  an off-screen centre, and prevent random-cycle boundary repeats when a URI
+  occurs more than once. Regression evidence is in the
+  [review record](plans/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
 
 #### Internal
 
@@ -33,7 +38,10 @@ renderer, main/random cyclic ordering, animated GIF previews, controls, and
 lifecycle coverage. Refined motion calls for gentle acceleration, soft edges,
 subtle batch variation, translucent depth overlap, and native visual tuning.
 The original implementation is in c725cae; the help/GIF/control follow-up is in
-the working tree. Focused race checks and GoLand inspections
+24dd11f. The [PR #20 review loop](https://github.com/frathe/picfetch/pull/20)
+tracks current-commit Codex code/security reviews, Qodana, CodeQL and CI;
+its evidence is in the [follow-up plan](plans/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
+Focused race checks and GoLand inspections
 pass, and Ronin found the native defaults very calming. Final qualification
 remains open: all UI partitions passed, while the full gate failed only on the two existing
 local amd64 seccomp cases;

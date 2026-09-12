@@ -189,3 +189,95 @@ exits 2; this is not a claim of a clean full gate. No commits were made.
 
 `GOOS=windows GOARCH=amd64 go vet ./internal/...` also completed successfully.
 Windows runtime rendering was not exercised; native visual evidence is macOS.
+
+## PR #20 review loop
+
+Ronin invoked the repository's GitHub Codex review loop on September 12, with
+high review effort. The starting head is `24dd11f`, on `feature/tunnelview`.
+The existing local `FyneApp.toml` build-number change belongs to the user and
+is excluded from review commits. Review acceptance requires clean Codex code
+and security reviews, no actionable Qodana/CodeQL findings, and passing CI on
+the latest pushed commit. The [PR conversation](https://github.com/frathe/picfetch/pull/20)
+retains the subsequent commit-specific external results.
+
+All review assessment and fixes remain lead-owned. One read-only evidence
+Scout summarized the two existing tunnel plans and `todos.md` while the lead
+inspected the PR and source. Delegation gate: a bounded three-file question,
+file/line-verifiable facts, no writes, unfamiliar historical evidence, and no
+delegated review. Budget/actual: one Scout; no implementation agents; full
+race-suite verification stays in GitHub CI under this workflow.
+
+Local verification of `24dd11f`:
+
+```sh
+go test -race ./internal/imaging ./internal/ui/spiral ./internal/ui/help ./internal/ui -run 'Test(Tunnel|HypnoTunnel|AnimatedPreview|DecodeAnimatedGIF|Help_Secret|LoadThumbnailContext_CancelsSourceRead|OverlayToggleKeys|ImageTransparency|ImageSize)' -count=1
+```
+
+All selected regressions passed: imaging 2.610s, Spiral 2.725s, Help 1.963s,
+and UI 11.133s. GoLand inspected all 27 Go files changed by the PR with
+`errorsOnly:false`, including tests; every result was empty and complete.
+
+Qodana run `34690423093` passed. Its downloaded `qodana-report.zip`, retained
+under `.scratch/pr20-review/qodana-24dd11f/`, contains zero results in the
+post-suppression `/qodana.sarif.json` (also zero in the end/report copies).
+The initial PR had no review threads or open code-scanning alerts. Security
+review completed without findings at 11:17 UTC. Validation, Windows tests,
+both macOS native guard jobs and the non-UI Linux race suite passed. Code
+review, Go CodeQL and the UI race jobs were still running when this record
+was prepared; final results must be checked against the latest pushed head.
+
+This review loop does not close the native moving-capture, rendered-alpha,
+memory/GPU plateau, or other-platform rendering qualification items above.
+
+### Review-fix tasks
+
+The first code review reported four P2 findings; the initial head's complete
+CI suite passed. The follow-up uses the existing plan and harnesses, with all
+implementation and review owned by the lead and no further delegation.
+
+| Task | Files | Acceptance / focused verification |
+|---|---|---|
+| F1 from Spiral | `ui/features.go`, `spiral/spiral.go`, existing `ui/tunnel_test.go` | The real Spiral canvas opens the viewer manual; H retains local help. `go test ./internal/ui -run '^TestHypnoTunnel/entry$'` |
+| Shutdown with blocked preview I/O | `ui/run.go`, existing `ui/tunnel_test.go` | Post-event-loop cleanup returns while an external preview read is held; harness settlement still joins it after release. `go test ./internal/ui -run '^TestHypnoTunnel/shutdown_blocked_preview$'` |
+| Resize recovery | `spiral/spiral.go`, existing `spiral/tunnel_test.go` | A shrink after Follow admits the next source with Follow on or off. `go test ./internal/ui/spiral -run '^TestTunnelResizeRecovery$'` |
+| Repeated URI identities | `spiral/flow.go`, existing `spiral/tunnel_test.go` | Random cycle boundaries choose another available URI even when the previous URI occurs twice. `go test ./internal/ui/spiral -run '^TestTunnelRepeatedIdentity$'` |
+
+Each regression must fail for its reported behavior before its fix. Changed
+files receive GoLand inspections; focused race checks run locally, and the
+latest pushed commit receives fresh Codex code/security reviews and full CI.
+
+All four findings were confirmed. Regression evidence:
+
+- F1: the viewer integration test failed with `F1 in Spiral did not open the
+  viewer's manual`, then passed after wiring `SetOnManual` to `ShowManual`.
+- Shutdown: the held-read test reached its 30-second failure deadline in
+  post-loop cleanup. Removing the preview join made cleanup return before
+  releasing the reader; explicit harness settlement still finishes afterward.
+- Resize: both Follow-on and Follow-off cases failed with no next flight
+  after shrinking from 1600x1200 to 400x300. Clamping only an off-screen shared
+  centre restores arrivals. This refines the earlier no-camera-motion rule:
+  visible centres retain their position, and the background and photos always
+  use the same centre. Existing age/clock/Follow regressions also pass.
+- Repeated identities: a fixed-seed stream with `[A, A, B]` failed at the
+  second random-cycle boundary. Partitioning every occurrence of the previous
+  URI behind other candidates preserves every source index and passes 30
+  consecutive cycles. Ordinary order and failed-source regressions pass.
+
+Final focused race checks passed:
+
+```sh
+go test -race ./internal/ui/spiral -count=1
+go test -race ./internal/ui ./internal/ui/help -run '^Test(HypnoTunnel|Help_Secret|Shutdown)' -count=1
+```
+
+Spiral: 2.737s; UI: 17.045s; Help: 2.412s. All six changed Go files were
+reinspected in GoLand with `errorsOnly:false`; no findings or incomplete
+results. Tests extend existing files and the existing `TestHypnoTunnel`
+top-level test, so no exclusion or UI shard assignment changes are needed.
+
+`make verify-build` passed formatting, TUF root/exclusion checks, vet and build.
+Its first attempt found one extra blank line in the existing ignored native
+trial source; formatting that file resolved the gate without a tracked source
+change. `git diff --check` passed. The initial evidence-only signing attempt
+was cancelled while waiting for Secretive so the four fixes and their evidence
+could be committed together.

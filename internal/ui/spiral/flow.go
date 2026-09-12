@@ -77,13 +77,19 @@ func (s *Spiral) makeTunnelOrder() {
 		return
 	}
 	t.rng.Shuffle(len(t.order), func(i, j int) { t.order[i], t.order[j] = t.order[j], t.order[i] })
-	// Leave the previous successful source until the other candidates have
-	// had a chance. This also avoids boundary repeats after decode failures.
-	for i, index := range t.order {
-		if s.sources[index].String() == t.lastSource {
-			copy(t.order[i:], t.order[i+1:])
-			t.order[len(t.order)-1] = index
-			break
+	// Leave every occurrence of the previous URI until other candidates have
+	// had a chance. Merge mode can include the same identity at several indexes.
+	next := 0
+	for _, index := range t.order {
+		if s.sources[index].String() != t.lastSource {
+			t.order[next] = index
+			next++
+		}
+	}
+	for index, source := range s.sources {
+		if source.String() == t.lastSource {
+			t.order[next] = index
+			next++
 		}
 	}
 }
