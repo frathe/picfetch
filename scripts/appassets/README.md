@@ -15,11 +15,15 @@ go run ./scripts/appassets
 go run ./scripts/appassets -check
 ```
 
-Checking requires no `cwebp`: it compares dimensions and every decoded RGBA
-pixel against the retained source transformation. Encoder byte differences do
-not invalidate equivalent pixels. Regeneration requires `cwebp` on PATH. The
-generated files are checked in; ordinary application builds do not re-encode
-artwork. Vector generation is a separate offline Go-only build step.
+Checking requires no `cwebp`: it compares dimensions, every alpha value, and
+exact RGB values wherever alpha is nonzero against the retained source
+transformation. Ordinary illustrations may differ in RGB beneath fully
+transparent pixels, which lossless optimizers such as ImageOptim can rewrite
+without changing their appearance. Gaze atlases still require every decoded
+RGBA byte to match, including RGB beneath transparent pixels. Encoder byte
+differences do not invalidate equivalent pixels. Regeneration requires `cwebp`
+on PATH. The generated files are checked in; ordinary application builds do
+not re-encode artwork. Vector generation is a separate offline Go-only build step.
 
 The atlas cells are pixel-identical to the originals. Resized illustrations are
 also encoded losslessly after resampling to avoid another lossy encoding pass.

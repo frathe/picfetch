@@ -1,8 +1,0 @@
-Refreshed actual macOS package smoke, 2026-09-07
-Executable SHA256: 623e6819ba22577867e3f55ba0a20fe770fc39afa44a496c23b11c8b62c1bde1
-Production ID io.github.frathe.picfetch; version 1.0.2, build 450
-PID 35232
-Observed Alpha 8192x6144 with all four labeled corners and expected checkerboard geometry.
-Cmd+Q through Computer Use: exit 0.
-Process log empty.
-Launcher confirmed original preferences/session restoration.

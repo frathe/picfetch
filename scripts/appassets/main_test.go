@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -88,5 +89,80 @@ func TestResizePreservesTransparencyAndSolidInterior(t *testing.T) {
 	}
 	if got.Bounds() != image.Rect(0, 0, 50, 50) || got.NRGBAAt(0, 0).A != 0 || got.NRGBAAt(25, 25) != source.NRGBAAt(50, 50) {
 		t.Fatal("resizing changed dimensions, background alpha, or solid interior color")
+	}
+}
+
+func TestAssetCheckAfterLosslessOptimization(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		x, y     int
+		change   func(color.NRGBA) color.NRGBA
+		wantPass bool
+	}{
+		{"transparent RGB", 0, 0, func(c color.NRGBA) color.NRGBA { c.R ^= 255; return c }, true},
+		{"opaque RGB", 2, 2, func(c color.NRGBA) color.NRGBA { c.R ^= 1; return c }, false},
+		{"low-alpha RGB", 1, 1, func(c color.NRGBA) color.NRGBA { c.R ^= 1; return c }, false},
+		{"transparent to visible", 0, 0, func(c color.NRGBA) color.NRGBA { c.A = 1; return c }, false},
+		{"visible to transparent", 1, 1, func(c color.NRGBA) color.NRGBA { c.A = 0; return c }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			spec := asset{source: "source.png", output: "output.png", width: 4, height: 4}
+			source := image.NewNRGBA(image.Rect(0, 0, 4, 4))
+			source.SetNRGBA(1, 1, color.NRGBA{R: 50, G: 80, B: 100, A: 1})
+			source.SetNRGBA(2, 2, color.NRGBA{R: 150, G: 80, B: 100, A: 255})
+			writeAssetTestPNG(t, filepath.Join(root, spec.source), source)
+			if err := process(root, spec, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := process(root, spec, true); err != nil {
+				t.Fatal(err)
+			}
+			output, err := readImage(filepath.Join(root, spec.output))
+			if err != nil {
+				t.Fatal(err)
+			}
+			optimized := image.NewNRGBA(output.Bounds())
+			draw.Draw(optimized, optimized.Bounds(), output, output.Bounds().Min, draw.Src)
+			optimized.SetNRGBA(tc.x, tc.y, tc.change(optimized.NRGBAAt(tc.x, tc.y)))
+			writeAssetTestPNG(t, filepath.Join(root, spec.output), optimized)
+			if err := process(root, spec, true); (err == nil) != tc.wantPass {
+				t.Fatalf("check error = %v, want pass = %v", err, tc.wantPass)
+			}
+		})
+	}
+}
+
+func TestGazeAssetCheckRejectsTransparentRGBChanges(t *testing.T) {
+	root := t.TempDir()
+	spec := asset{source: "source.png", output: "output.png", width: 17 * 192, height: 208, gaze: true}
+	writeAssetTestPNG(t, filepath.Join(root, spec.source), image.NewNRGBA(image.Rect(0, 0, 8*192, 11*208)))
+	if err := process(root, spec, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := process(root, spec, true); err != nil {
+		t.Fatal(err)
+	}
+	changed := image.NewNRGBA(image.Rect(0, 0, spec.width, spec.height))
+	changed.SetNRGBA(0, 0, color.NRGBA{R: 255})
+	writeAssetTestPNG(t, filepath.Join(root, spec.output), changed)
+	if err := process(root, spec, true); err == nil {
+		t.Fatal("gaze check accepted changed RGB beneath a fully transparent pixel")
+	}
+}
+
+func writeAssetTestPNG(t *testing.T, path string, picture image.Image) {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodeErr := png.Encode(file, picture)
+	closeErr := file.Close()
+	if encodeErr != nil {
+		t.Fatal(encodeErr)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
 	}
 }

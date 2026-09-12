@@ -1,8 +1,8 @@
 # Smaller embedded application assets
 
 Status: complete, accepted by Ronin on 2026-09-13. Owner: Pico.
-The native Linux/amd64 full race gate remains a separate follow-up in
-[todos.md](../todos.md#run-the-embedded-asset-final-gate-on-native-linuxamd64).
+The native Linux/amd64 race suites subsequently passed in PR #21 CI; see the
+[CI follow-up](#pr-21-lossless-optimization-check--2026-09-13).
 Route: Deep, because the
 change spans UI packages, generated data and every platform's packaging route.
 
@@ -211,3 +211,42 @@ push, signing configuration change, or release publication was performed.
 | T2 | 2/2 read-only passes | 1 plus inline encoder fix | no |
 | T3 | 0/0 | 1 | no |
 | T4 | 0/0 | 1 | attempted; native amd64 CI pending |
+
+### PR #21 lossless optimization check — 2026-09-13
+
+On `34ab671`, the [validation job](https://github.com/frathe/picfetch/actions/runs/34725724787/job/103639378598?pr=21)
+failed at `make check-app-assets`: the Explorer PNG differed from its source
+transformation after ImageOptim processing. A comparison of the committed
+source/output isolated 140,048 output pixels with different RGB beneath alpha
+zero. There were no visible RGB or alpha differences. The current locally
+optimized source gives the same result.
+
+The checker now clears RGB beneath alpha zero in its temporary comparison
+buffers for ordinary illustrations. Dimensions, every alpha value, and RGB
+where alpha is nonzero must still match exactly. Gaze atlases retain the
+original exact-byte comparison, including hidden RGB. Generation, runtime
+decoding, artwork files, dependencies, and signing are unchanged by this fix.
+
+Regression tests reproduce the optimizer mismatch before the fix and pass
+afterward. They also reject one-channel changes at opaque and alpha-one
+pixels, alpha changes in either direction, and hidden RGB changes in gaze
+atlases. No ImageOptim installation is needed to run these tests.
+
+Validation of the fix:
+
+- `make check-app-assets` passes on the existing optimized assets.
+- The Linux/amd64 build of the checker passes in the existing Docker image,
+  with a read-only repository mount and networking disabled. This focused
+  image check does not exercise or bypass worker isolation.
+- `go test -tags no_emoji -race ./scripts/appassets -count=1` and
+  `go vet ./scripts/appassets` pass.
+- Both changed Go files pass the pinned formatter and GoLand inspections,
+  including weak warnings. The IDE build reports success with limited build
+  diagnostics; the explicit Go build and vet commands provide the build evidence.
+- Tag-vector freshness, Qodana test exclusions, and TUF expiry checks pass.
+- The original hosted run already passed all four Linux race partitions,
+  Windows tests, and macOS arm64/amd64 native guards. This closes the earlier
+  native amd64 race follow-up for the asset implementation at `34ab671`.
+  The local checker fix still needs a fresh hosted validation run after push.
+
+The user’s additional image edits were preserved. No commit or push was made.

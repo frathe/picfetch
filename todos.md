@@ -27,6 +27,11 @@
 
 #### Bugfix
 
+- Generated-artwork validation now accepts ImageOptim's RGB changes beneath
+  fully transparent pixels in ordinary illustrations. Visible RGB and all
+  alpha values remain exact; gaze atlases still require every pixel byte to
+  match. Focused race tests, Linux/amd64 asset validation and GoLand inspections
+  pass. See the [CI fix](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-lossless-optimization-check--2026-09-13).
 - Mosaic wallpaper on Linux with multiple displays now offers an explicit
   **Set on All Displays** action when the desktop rejects a selected-display
   change. Single-display behavior is preserved. Ronin's Ubuntu ARM64 machine
@@ -101,14 +106,13 @@ remain. A fresh native `go test -race -count=5 -timeout 2m -run
 
 ## TODO
 
-### Run the embedded-asset final gate on native Linux/amd64
+### Confirm the artwork validation fix in hosted CI
 
-The asset-size plan is complete and accepted. This verification follow-up
-remains open: `make verify` correctly stops on the local ARM64 Docker daemon;
-run the complete race gate in native amd64 CI before release. The existing unrelated scratch
-file `.scratch/mosaic-wallpaper/capture_test.go` also prevents a repository-wide
-local format gate; all changed Go files pass formatting. See the
-[implementation record](finished_refactorings/2026-09-13-embedded-asset-size.md).
+PR #21's original run passed all native Linux/amd64 race partitions and the
+Windows/macOS guards. Its validation job failed on ImageOptim's invisible RGB
+changes; the checker fix and focused checks pass locally. After committing
+and pushing the fix, confirm fresh hosted CI. See the
+[implementation record](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-lossless-optimization-check--2026-09-13).
 
 ### Complete updater dependency notices before the next release
 

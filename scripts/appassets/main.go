@@ -70,6 +70,12 @@ func process(root string, spec asset, check bool) error {
 		}
 		pixels := image.NewNRGBA(got.Bounds())
 		draw.Draw(pixels, pixels.Bounds(), got, got.Bounds().Min, draw.Src)
+		if !spec.gaze {
+			// Lossless optimizers can rewrite RGB beneath fully transparent pixels.
+			// Gaze atlases retain their stricter original-pixel contract.
+			clearTransparentRGB(pixels)
+			clearTransparentRGB(want)
+		}
 		if !bytes.Equal(pixels.Pix, want.Pix) {
 			return fmt.Errorf("decoded pixels differ from source; run make generate-app-assets")
 		}
@@ -92,6 +98,14 @@ func process(root string, spec asset, check bool) error {
 	}
 	_, _ = fmt.Printf("%s: %dx%d, %d bytes\n", spec.output, spec.width, spec.height, len(data))
 	return nil
+}
+
+func clearTransparentRGB(pixels *image.NRGBA) {
+	for offset := 0; offset < len(pixels.Pix); offset += 4 {
+		if pixels.Pix[offset+3] == 0 {
+			clear(pixels.Pix[offset : offset+3])
+		}
+	}
 }
 
 func encodeWebP(data []byte) ([]byte, error) {
