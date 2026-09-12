@@ -106,23 +106,6 @@ The Ubuntu full race run on 2026-09-10 timed out in
 while another distro build ran. Its one-second Settle deadline expired; an isolated native and exact Ubuntu Docker race
 reruns passed. Review the fixture's deadline/load sensitivity; the Explorer change does not modify comparison code.
 
-### Explorer on Linux ARM64
-
-Linux ARM64 now has the pinned native runtime, shared Linux seccomp worker, pollable controls and setup support. The
-runtime requires glibc 2.28+; the local test viewer is built against Debian 12 with required symbols up to GLIBC_2.34.
-`bin/picfetch-linux-arm64.tar.gz` includes the executable and notices. The user will qualify native analysis, kernel
-enforcement and GUI behavior on ARM64 hardware. Pure BPF decisions and cross-compilation do not claim that hardware
-qualification. See the
-[Linux ARM64 plan](plans/2026-09-11-explorer-linux-arm64.md). Intel macOS Explorer and 32-bit ARM remain unsupported;
-Windows ARM64 map rendering was confirmed in the
-[Windows setup plan](plans/2026-09-11-explorer-windows-setup.md).
-
-### Similarity-map zoom trial
-
-The current increment enforces a 50% zoom floor only above 100 cohort piles, including Fit map and automatic discovery,
-while keeping every sampled thumbnail. Smaller maps retain the existing zoom range. The active plan records SDD/TDD and
-verification evidence. Trial the cutoff on normal and large maps; full-library scan throughput remains later work.
-
 ### Similarity Explorer proof of concept
 
 **Complete: tickets 01–07.** The final 50,655-source trial, fully cached reopen, recovery, memory and human acceptance
