@@ -351,7 +351,7 @@ func TestMicrosoftStoreWorkflowAndBuildTarget(t *testing.T) {
 		`-v "$(FYNE_CROSS_CACHE):/go"`,
 		"package-windows-store: warm-fyne-cross-windows",
 		`-cache "$(FYNE_CROSS_CACHE)"`,
-		"-tags microsoftstore",
+		`-tags "$(APP_TAGS),microsoftstore"`,
 		"$(BIN_NAME)-microsoft-store-$$arch.exe",
 	} {
 		if !bytes.Contains(makefile, []byte(want)) {
@@ -589,7 +589,7 @@ func TestCrossPackagingUsesReviewedInputs(t *testing.T) {
 		{"package-linux", "linux", "picfetch-linux-", ""},
 		{"package-linux-debug", "linux", "picfetch-debug-linux-", "-no-strip-debug\n"},
 		{"package-windows", "windows", "picfetch-windows-", ""},
-		{"package-windows-store", "windows", "picfetch-microsoft-store-", "-tags\nmicrosoftstore\n"},
+		{"package-windows-store", "windows", "picfetch-microsoft-store-", "-tags\nno_emoji,microsoftstore\n"},
 		{"package-windows-debug", "windows", "picfetch-debug-windows-", "-console\n-no-strip-debug\n"},
 	} {
 		t.Run(route.target, func(t *testing.T) {
@@ -669,6 +669,7 @@ exec /bin/cp "$@"
 				}
 			}
 			for _, want := range []string{
+				"GO\nrun\n./scripts/tagvectors\n",
 				"-engine\n" + engine + "\n",
 				"-cache\n" + cache + "\n",
 				"-image\nfyneio/fyne-cross-images:" + route.platform + "@sha256:",
@@ -684,6 +685,12 @@ exec /bin/cp "$@"
 			}
 			if route.flags != "" && !strings.Contains(log, route.flags) {
 				t.Errorf("route omitted distribution/debug flags %q", route.flags)
+			}
+			for _, call := range strings.Split(log, "CROSS\n")[1:] {
+				args, _, _ := strings.Cut(call, "END\n")
+				if !strings.Contains(args, "-tags\nno_emoji") {
+					t.Errorf("packaged app includes the unused emoji font:\n%s", args)
+				}
 			}
 			if route.target != "package-windows-store" && strings.Contains(log, "microsoftstore") {
 				t.Error("ordinary route selected Store distribution")

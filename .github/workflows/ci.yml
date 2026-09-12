@@ -20,6 +20,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  GOFLAGS: -tags=no_emoji
+
 jobs:
   validation:
     name: Validation (attempt ${{ github.run_attempt }})
@@ -36,6 +39,12 @@ jobs:
 
       - name: Check formatting
         run: make fmt-check
+
+      - name: Check generated tag vectors
+        run: make check-tag-vectors
+
+      - name: Check generated artwork
+        run: make check-app-assets
 
       - name: Check GitHub TUF root expiry
         run: make check-tuf-root

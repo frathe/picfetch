@@ -5,6 +5,7 @@ ICON     := assets/appIcon.png
 BIN_DIR  := bin
 WIN_ARCHES := amd64 arm64
 LINUX_ARCHES := amd64 arm64
+APP_TAGS := no_emoji
 include packaging/tools.mk
 
 RELEASE_BRANCH := main
@@ -42,12 +43,27 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
 all: build
 
+.PHONY: generate-tag-vectors check-tag-vectors generate-app-assets check-app-assets
+generate-tag-vectors: ## Generate exact embedded float32 vectors from the authoritative JSON (offline)
+	go run ./scripts/tagvectors
+
+check-tag-vectors: ## Fail if the embedded binary vectors differ from their JSON source
+	go run ./scripts/tagvectors -check
+
+generate-app-assets: ## Derive compact atlases and display-sized artwork from retained originals (needs cwebp)
+	go run ./scripts/appassets
+
+check-app-assets: ## Check embedded artwork dimensions and decoded pixels against retained originals
+	go run ./scripts/appassets -check
+
+build run explorer-evaluate package-mac package-windows package-windows-store package-windows-debug package-linux package-linux-debug: generate-tag-vectors
+
 build: ## Build a native binary for the current OS/arch into bin/ (stripped, no debug symbols)
 	mkdir -p $(BIN_DIR)
-	go build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/$(BIN_NAME) .
+	go build -tags "$(APP_TAGS)" -trimpath -ldflags="-s -w" -o $(BIN_DIR)/$(BIN_NAME) .
 
 run: ## Run the app directly (go run .)
-	go run .
+	go run -tags "$(APP_TAGS)" .
 
 MOVIE_SECONDS ?= 180
 MOVIE_DIR ?= .scratch/history-movies
@@ -68,23 +84,23 @@ TRIAL ?= smoke
 
 .PHONY: explorer-setup explorer-evaluate explorer-profile explorer-test explorer-ui-test explorer-install-test explorer-download-test
 explorer-download-test: ## Qualify pinned asset downloads and reuse without launching native analysis
-	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetDownload$$' -count=1 -v -timeout 25m
+	go test -tags $(APP_TAGS),explorerinstall ./scripts/explorereval -run '^TestRealAssetDownload$$' -count=1 -v -timeout 25m
 
 explorer-install-test: ## Download pinned public assets and qualify local analysis with the platform's network policy
-	go test -tags explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
+	go test -tags $(APP_TAGS),explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
 
 explorer-setup: ## Download and verify pinned public Explorer assets (macOS/Linux/Windows x64/arm64)
 	go run ./scripts/explorereval -install -assets "$(EXPLORER_ASSETS)"
 
 explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, throughput, or library)
 	@mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
-	@if [ "$(TRIAL)" = library ]; then go build -o $(BIN_DIR)/picfetch-trial .; fi
+	go build -tags "$(APP_TAGS)" -o $(BIN_DIR)/explorereval ./scripts/explorereval
+	@if [ "$(TRIAL)" = library ]; then go build -tags "$(APP_TAGS)" -o $(BIN_DIR)/picfetch-trial .; fi
 	bash scripts/explorereval/evaluate.sh "$(BIN_DIR)/explorereval" "$(EXPLORER_ASSETS)" "$(EXPLORER_LIBRARY)" "$(EXPLORER_EVIDENCE)" "$(TRIAL)" "$(EXPLORER_PROVIDER)" "$(BIN_DIR)/picfetch-trial"
 
 explorer-profile: ## Measure bounded production cold/warm throughput with an isolated temporary favorite cache
 	@mkdir -p $(BIN_DIR) "$(EXPLORER_EVIDENCE)"
-	go build -o $(BIN_DIR)/explorereval ./scripts/explorereval
+	go build -tags "$(APP_TAGS)" -o $(BIN_DIR)/explorereval ./scripts/explorereval
 	@set -eu; run_dir=$$(mktemp -d "$(EXPLORER_EVIDENCE)/throughput-XXXXXX"); \
 		cp "$(BIN_DIR)/explorereval" "$$run_dir/explorereval"; \
 		set +e; \
@@ -96,12 +112,12 @@ explorer-profile: ## Measure bounded production cold/warm throughput with an iso
 
 explorer-test: ## Run real-model acceptance tests under explicit macOS network denial (local assets required)
 	@mkdir -p $(BIN_DIR)
-	go test -c -tags explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
+	go test -c -tags $(APP_TAGS),explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
 	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.run '^(TestEvaluation|TestReal)' -test.v -test.count=1
 	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^(TestProductionProfile|TestNativeLibraryRunner)' -test.v -test.count=1
 
 explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on supported macOS/Linux/Windows
-	go test -tags explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v
+	go test -tags $(APP_TAGS),explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v
 
 
 fmt: ## Format all Go source files (gofmt + import groups via goimports -local)
@@ -189,7 +205,7 @@ check-qodana-test-exclusions: ## Fail if qodana.yaml does not exclude every *_te
 	fi
 
 vet: ## Run go vet
-	go vet ./...
+	go vet -tags "$(APP_TAGS)" ./...
 
 .PHONY: check-test-platform check-test-memory
 check-test-platform: ## Require a native Linux/amd64 Docker daemon for complete test suites
@@ -261,7 +277,7 @@ test-race-non-ui-direct:
 	bash -c '\
 		set -eu -o pipefail; \
 		packages="$$(go run ./scripts/testshards partition -package "$(TEST_SHARD_PACKAGE)")"; \
-		LANG="$(TEST_LOCALE)" go test $(TEST_RACE_FLAGS) -json $$packages | \
+		LANG="$(TEST_LOCALE)" go test -tags "$(APP_TAGS)" $(TEST_RACE_FLAGS) -json $$packages | \
 			go run ./scripts/testshards capture -out "$(TEST_CAPTURE)" -partition "$(TEST_PARTITION)" \
 	'
 
@@ -271,7 +287,7 @@ test-race-ui-direct:
 		set -eu -o pipefail; \
 		case "$(TEST_SHARD)" in ui-1|ui-2|ui-3) ;; *) echo "TEST_SHARD must be one of ui-1, ui-2, or ui-3" >&2; exit 2;; esac; \
 		filter="$$(go run ./scripts/testshards regex -manifest "$(TEST_SHARD_MANIFEST)" -shard "$(TEST_SHARD)")"; \
-		LANG="$(TEST_LOCALE)" go test $(TEST_RACE_FLAGS) -json -run "$$filter" $(TEST_SHARD_PACKAGE) | \
+		LANG="$(TEST_LOCALE)" go test -tags "$(APP_TAGS)" $(TEST_RACE_FLAGS) -json -run "$$filter" $(TEST_SHARD_PACKAGE) | \
 			go run ./scripts/testshards capture -out "$(TEST_CAPTURE)" -partition "$(TEST_PARTITION)" \
 	'
 
@@ -293,7 +309,7 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 			locale-gen en_US.UTF-8 >/dev/null; \
 			export LANG=en_US.UTF-8; \
 			status=0; \
-			go test -timeout $(TEST_TIMEOUT) $(TEST_RACE) ./... || status=$$?; \
+			go test -tags "$(APP_TAGS)" -timeout $(TEST_TIMEOUT) $(TEST_RACE) ./... || status=$$?; \
 			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi; \
 			exit $$status \
 		'
@@ -315,7 +331,7 @@ coverage: ## Generate HTML source-line coverage from the full unsharded Docker s
 			export LANG=$(TEST_LOCALE); \
 			rm -f "$(COVERAGE_PROFILE)" "$(COVERAGE_HTML)"; \
 			status=0; \
-			go test -timeout $(TEST_TIMEOUT) -coverprofile="$(COVERAGE_PROFILE)" ./... || status=$$?; \
+			go test -tags "$(APP_TAGS)" -timeout $(TEST_TIMEOUT) -coverprofile="$(COVERAGE_PROFILE)" ./... || status=$$?; \
 			if [ "$$status" -eq 0 ]; then go tool cover -html="$(COVERAGE_PROFILE)" -o "$(COVERAGE_HTML)" || status=$$?; fi; \
 			chown -R "$$HOST_UID:$$HOST_GID" "$(COVERAGE_DIR)"; \
 			exit "$$status" \
@@ -361,15 +377,15 @@ enter-test-container: ## Open Bash in the running test container (htop/top avail
 	'
 
 test-native: ## Run tests directly on the current OS/architecture
-	go test -timeout $(TEST_TIMEOUT) ./...
+	go test -tags "$(APP_TAGS)" -timeout $(TEST_TIMEOUT) ./...
 
 test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Docker container
 	@bash scripts/testshards/docker-race.sh "$(CURDIR)" "$(TEST_IMAGE)" \
 		"$(TEST_MEMORY_GIB)" "$(TEST_CONTAINER_LABEL)" "$(TEST_LOCALE)" "$(TEST_ARTIFACTS_DIR)"
 
-verify-build: fmt-check check-tuf-root check-qodana-test-exclusions ## Run local verification without the test suite (format, TUF root, Qodana exclusions, vet, build)
-	go vet ./...
-	go build ./...
+verify-build: fmt-check check-tuf-root check-qodana-test-exclusions check-tag-vectors check-app-assets ## Run local verification without the test suite (format, TUF root, generated assets, Qodana exclusions, vet, build)
+	go vet -tags "$(APP_TAGS)" ./...
+	go build -tags "$(APP_TAGS)" ./...
 
 verify: check-test-platform verify-build ## Run the same checks CI does (format, TUF root, Qodana exclusions, vet, build, race tests)
 	$(MAKE) test-race
@@ -391,7 +407,7 @@ golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64,
 			set -e; \
 			apt-get update -qq; \
 			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev golang-go ca-certificates >/dev/null; \
-			go test -run TestE2E ./internal/ui/... -v || true; \
+			go test -tags "$(APP_TAGS)" -run TestE2E ./internal/ui/... -v || true; \
 			if [ -d internal/ui/testdata/failed ]; then chown -R "$$HOST_UID:$$HOST_GID" internal/ui/testdata/failed; fi \
 		'
 	@echo "Inspect internal/ui/testdata/failed/*.png (if any), and if they look right, copy the ones you want over the matching internal/ui/testdata/*.png to accept them as the new baseline."
@@ -412,7 +428,7 @@ clean: ## Remove all build artifacts
 	rm -rf $(BIN_DIR) fyne-cross "$(APP_NAME).app" "$(BIN_NAME).zip"
 
 package-mac: install-fyne ## Package a macOS .app bundle (native, no Docker) into bin/
-	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -release
+	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -tags "$(APP_TAGS)" -release
 	go run ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
 	cp LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md "$(APP_NAME).app/Contents/Resources/"
 	mkdir -p $(BIN_DIR)
@@ -431,35 +447,35 @@ warm-fyne-cross-windows warm-fyne-cross-linux: ## Cache the project toolchain an
 package-windows: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Windows .exe files via fyne-cross (needs Docker) into bin/, one per arch in WIN_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe || exit 1; \
 	done
 
 package-windows-store: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags microsoftstore -env GOTOOLCHAIN=auto || exit 1; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags "$(APP_TAGS),microsoftstore" -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-microsoft-store-$$arch.exe || exit 1; \
 	done
 
 package-windows-debug: warm-fyne-cross-windows install-fyne-cross ## Cross-compile console-subsystem, unstripped Windows .exe files for diagnosing startup failures, one per arch in WIN_ARCHES
 	mkdir -p $(BIN_DIR)
 	for arch in $(WIN_ARCHES); do \
-		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
+		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto -console -no-strip-debug || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME)-debug.exe $(BIN_DIR)/$(BIN_NAME)-debug-windows-$$arch.exe || exit 1; \
 	done
 
 package-linux: warm-fyne-cross-linux install-fyne-cross ## Cross-compile Linux binaries via fyne-cross (needs Docker) into bin/, one per arch in LINUX_ARCHES (stripped by default)
 	mkdir -p $(BIN_DIR)
 	for arch in $(LINUX_ARCHES); do \
-		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto || exit 1; \
+		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-linux-$$arch || exit 1; \
 	done
 
 package-linux-debug: warm-fyne-cross-linux install-fyne-cross ## Cross-compile unstripped Linux binaries for diagnosing startup failures, one per arch in LINUX_ARCHES
 	mkdir -p $(BIN_DIR)
 	for arch in $(LINUX_ARCHES); do \
-		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -env GOTOOLCHAIN=auto -no-strip-debug || exit 1; \
+		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto -no-strip-debug || exit 1; \
 		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-debug-linux-$$arch || exit 1; \
 	done
 

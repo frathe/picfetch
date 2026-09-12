@@ -46,6 +46,15 @@
 
 #### Internal
 
+- Embedded artwork and font/data inputs reduce the measured native macOS
+  binary from 50.63 MB to 40.84 MB (19.3%). Trane and Finis retain only their
+  17 used poses with identical original pixels; viewer and manual illustrations
+  target 2x display sizes. Make builds omit the emoji font and generate exact
+  binary tag vectors from retained JSON. Focused race checks, Linux goldens,
+  GoLand inspections, native build/signature checks and Windows internal-package
+  cross-checks pass. Ronin accepted the completed plan on September 13, 2026.
+  See the [evidence](finished_refactorings/2026-09-13-embedded-asset-size.md).
+
 - Complete local Docker suites now check for a native Linux/amd64 daemon before
   setup, with a clear explanation of the worker seccomp limitation under ARM
   emulation. Worker enforcement tests and native amd64 CI remain unchanged;
@@ -91,6 +100,15 @@ remain. A fresh native `go test -race -count=5 -timeout 2m -run
 '^TestCompareSettle_' ./internal/ui/compare` also passes (10.338s).
 
 ## TODO
+
+### Run the embedded-asset final gate on native Linux/amd64
+
+The asset-size plan is complete and accepted. This verification follow-up
+remains open: `make verify` correctly stops on the local ARM64 Docker daemon;
+run the complete race gate in native amd64 CI before release. The existing unrelated scratch
+file `.scratch/mosaic-wallpaper/capture_test.go` also prevents a repository-wide
+local format gate; all changed Go files pass formatting. See the
+[implementation record](finished_refactorings/2026-09-13-embedded-asset-size.md).
 
 ### Complete updater dependency notices before the next release
 

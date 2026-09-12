@@ -12,9 +12,9 @@ import (
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
-// finisAtlas is the user's Finis character, supplied as a Codex v2 atlas.
-// Rows 9 and 10 contain 16 gaze directions clockwise from up; (6, 0) is
-// neutral. Decode only when summoned; mouse movement reuses cropped frames.
+// finisAtlas contains the 17 gaze cells of the user's original Finis atlas.
+// The single row holds 16 gaze directions clockwise from up, then neutral.
+// Decode only when summoned; mouse movement reuses cropped frames.
 //
 //go:embed finis.webp
 var finisAtlas []byte

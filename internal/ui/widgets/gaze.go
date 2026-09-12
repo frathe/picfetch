@@ -22,7 +22,7 @@ const (
 // by the neutral pose. Decoded frames are immutable and may be shared.
 type GazeFrames [17]image.Image
 
-// DecodeGazeAtlas extracts the gaze rows and neutral cell of a Codex v2 atlas.
+// DecodeGazeAtlas extracts 17 original-sized cells from the app's single-row atlas.
 // prepare optionally adjusts each owned frame before it becomes immutable.
 func DecodeGazeAtlas(data []byte, prepare func(*image.NRGBA)) (GazeFrames, error) {
 	var frames GazeFrames
@@ -30,16 +30,12 @@ func DecodeGazeAtlas(data []byte, prepare func(*image.NRGBA)) (GazeFrames, error
 	if err != nil {
 		return frames, err
 	}
-	if atlas.Bounds() != image.Rect(0, 0, 8*GazeWidth, 11*GazeHeight) {
+	if atlas.Bounds() != image.Rect(0, 0, len(frames)*GazeWidth, GazeHeight) {
 		return frames, fmt.Errorf("unexpected gaze atlas bounds: %v", atlas.Bounds())
 	}
 	for index := range frames {
-		column, row := index%8, 9+index/8
-		if index == gazeNeutral {
-			column, row = 6, 0
-		}
 		frame := image.NewNRGBA(image.Rect(0, 0, GazeWidth, GazeHeight))
-		draw.Draw(frame, frame.Bounds(), atlas, image.Pt(column*GazeWidth, row*GazeHeight), draw.Src)
+		draw.Draw(frame, frame.Bounds(), atlas, image.Pt(index*GazeWidth, 0), draw.Src)
 		if prepare != nil {
 			prepare(frame)
 		}
