@@ -50,6 +50,13 @@ See the [ticket evidence](.scratch/hypno-spiral-tunnel/issues/README.md).
 See the [specification](.scratch/hypno-spiral-tunnel/spec.md) and
 [implementation plan](plans/2026-09-11-hypno-spiral-tunnel.md).
 
+### Fyne upgrade deferred
+
+Keep Fyne at v2.8.0 in [PR #19](https://github.com/frathe/picfetch/pull/19).
+Ronin reports an upstream library regression with v2.8.1. Revisit the upgrade
+after an upstream fix is available and the affected behavior is verified.
+The four grouped `golang.org/x/*` updates remain in the PR.
+
 ### Confirm UI shard balance in CI
 
 Run CI after the September 11 manifest rebalance and compare the three raw test
