@@ -71,10 +71,8 @@ func createTextOverlay(o *fyne.Container, text string, x, y float32, lineHeight 
 
 // setOverlayTextWithBackdrop rebuilds o's text lines via createTextOverlay
 // (which resets o.Objects) and re-prepends bg so it stays the container's
-// first, bottommost object. Shared by every overlay that draws text over a
-// backdrop rectangle - content overlays (via setOverlayContentText below)
-// and the performance overlay (updateFPS), which keeps its own dynamic
-// FPS-colored bg but rebuilds its text the same way.
+// first, bottommost object. Content overlays share this through
+// setOverlayContentText below.
 func setOverlayTextWithBackdrop(o *fyne.Container, bg fyne.CanvasObject, text string, x, y, lineHeight, textSize float32) {
 	createTextOverlay(o, text, x, y, lineHeight, textSize)
 	o.Objects = append([]fyne.CanvasObject{bg}, o.Objects...)
@@ -164,7 +162,7 @@ var (
 	fpsBadColor  = color.NRGBA{R: 150, G: 0, B: 0, A: 180}   // Red
 )
 
-// updateFPS rebuilds the performance overlay from a per-frame delta time,
+// updateFPS updates the performance overlay from a per-frame delta time,
 // coloring its backdrop green/yellow/red as a quick visual read of frame
 // health without needing to read the number. dt == 0 (the very first frame,
 // or a stalled clock) reports 0 fps rather than dividing by zero.
@@ -189,11 +187,26 @@ func updateFPS(w fyne.Window, o *fyne.Container, dt float64) {
 	x := size.Width - 100
 	y := float32(20)
 
-	bg := canvas.NewRectangle(bgColor)
-	bg.Resize(fyne.NewSize(70, 22))
+	if len(o.Objects) == 0 {
+		bg := canvas.NewRectangle(bgColor)
+		bg.Resize(fyne.NewSize(70, 22))
+		label := canvas.NewText(text, image.White)
+		label.TextSize = 14
+		o.Objects = []fyne.CanvasObject{bg, label}
+		o.Refresh()
+	}
+	bg := o.Objects[0].(*canvas.Rectangle)
+	label := o.Objects[1].(*canvas.Text)
+	if bg.FillColor != bgColor {
+		bg.FillColor = bgColor
+		bg.Refresh()
+	}
+	if label.Text != text {
+		label.Text = text
+		label.Refresh()
+	}
 	bg.Move(fyne.NewPos(x-10, y-2))
-
-	setOverlayTextWithBackdrop(o, bg, text, x, y, 20, 14)
+	label.Move(fyne.NewPos(x, y))
 }
 
 // updateHelpText rebuilds the help overlay's key list, one lang.L call per

@@ -379,9 +379,7 @@ func (s *Spiral) frame(dt float64) {
 	updateFollowMode(win, s.st, s.shader)
 	s.advanceTunnel()
 
-	// Skipped while hidden: rebuilding the readout's text and backdrop
-	// every frame for an overlay nobody is looking at is the one piece of
-	// per-frame work here that is worth avoiding.
+	// Skip formatting and updating the readout while the overlay is hidden.
 	if s.fps.Visible() {
 		updateFPS(win, s.fps, dt)
 	}

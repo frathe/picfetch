@@ -84,9 +84,11 @@ func (s *Spiral) advanceTunnel() {
 			t.playbacks[i] = tunnelPlayback{}
 			s.clearTraveller(i)
 		} else {
-			s.shader.Uniforms[fmt.Sprintf("traveller%dBorn", i)] = float32(f.born - epoch)
+			birthUniform := [...]string{"traveller0Born", "traveller1Born", "traveller2Born"}[i]
+			s.shader.Uniforms[birthUniform] = float32(f.born - epoch)
 			if pixels, changed := t.playbacks[i].advance(elapsed); changed {
-				s.shader.Textures[fmt.Sprintf("traveller%d", i)] = pixels
+				textureName := [...]string{"traveller0", "traveller1", "traveller2"}[i]
+				s.shader.Textures[textureName] = pixels
 				s.shader.Refresh()
 			}
 		}

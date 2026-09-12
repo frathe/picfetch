@@ -3,6 +3,7 @@ package spiral
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"image/color"
 	"io"
 	"math"
@@ -13,9 +14,33 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func BenchmarkAdvanceTunnel(b *testing.B) {
+	a := test.NewApp()
+	s := New(a)
+	s.win = a.NewWindow("")
+	defer s.win.Close()
+	s.win.Resize(fyne.NewSize(800, 600))
+	s.shader = newShader(s.st)
+	s.win.SetContent(s.shader)
+	start := time.Unix(1000, 0)
+	s.now = func() time.Time { return start.Add(time.Second) }
+	s.tunnel = &tunnelSession{start: start}
+	for i := range s.tunnel.slots {
+		f := flight{duration: 9, aspect: 1, size: 1, angle: float64(i) * 2}
+		s.tunnel.slots[i] = &f
+		s.installTraveller(i, f, image.NewRGBA(image.Rect(0, 0, 32, 32)), 0)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		s.advanceTunnel()
+	}
+}
 
 func TestTunnelSession(t *testing.T) {
 	t.Run("first_preview_and_frozen_sources", func(t *testing.T) {
