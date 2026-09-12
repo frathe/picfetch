@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 235 entries, 470.520s projected weight sum
+# ui-1: 236 entries, 470.520s projected weight sum
 # ui-2: 241 entries, 470.530s projected weight sum
 # ui-3: 205 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -136,6 +136,7 @@ TestHandleKeyEvent_UpDownNavigateOutsidePictureFrameMode	ui-1
 TestHandleKeyEvent_VNoopsInImageView	ui-1
 TestHandleTypedRune_GridVisible_SwallowedByExportPrompt	ui-1
 TestHandleTypedRune_IgnoredWhileAFyneDialogIsUp	ui-1
+TestHypnoTunnel	ui-1
 TestImageCacheWriters_PreserveCompleteRecords	ui-1
 TestInfoOverlayReportsLogicalSizeNotLiveRaster	ui-1
 TestInstallOpenWithHandler_FlushesADeliveryThatArrivedBeforeInstall	ui-1

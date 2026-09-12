@@ -94,6 +94,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 
 	v, win = buildStartupViewer(testApp)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.spiral.SetUIQueue(&uitest.UIQueue{})
 	v.explorer.ui = &uitest.UIQueue{}
 	// Ordinary Explorer fixtures begin after first-use setup; setup cases reset these.
 	v.explorer.introSeen, v.explorer.assetsReady = true, true
@@ -212,6 +213,7 @@ func drain(t *testing.T, v *viewer) {
 	v.updateOp.invalidate()
 	v.slides.Exit()
 	v.compare.Close()
+	v.spiral.Close()
 	v.mosaicWin.Close()
 	v.deletion.Close()
 	v.deletion.Settle()
@@ -292,6 +294,7 @@ func drain(t *testing.T, v *viewer) {
 		v.preloads.Wait()
 		v.grid.Settle()
 		v.slides.Settle()
+		v.spiral.Settle()
 		v.exif.Settle()
 		close(settled)
 	}()

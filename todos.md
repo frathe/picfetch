@@ -6,10 +6,47 @@
 
 #### New Features
 
+- Hypno Spiral tunnel image stream is complete. Ronin tested it for an hour
+  and accepted stable, relatively smooth operation around 60 FPS, including
+  smooth GIF playback. Frozen duplicate-aware sources, Main/Random order,
+  image controls, soft entrances and lifecycle handling are implemented.
+  Existing native resource runs, automated checks and GoLand inspections
+  support the result; the known local amd64 seccomp failures remain separate.
+  See the [final acceptance](docs/spiral-qualification-2026-09-12.md#accepted-result).
+- Spiral pictures now fade in from fully transparent over 0.75 seconds and
+  can launch closer to the centre, with a 3% protected disc instead of 8%.
+  Focused and full UI race checks, GoLand inspections and native rendering
+  pass; the full gate retains only the known local amd64 seccomp failures.
+  See the [soft-entry evidence](finished_refactorings/2026-09-12-spiral-soft-entry.md).
+- Spiral tunnel pictures now play bounded GIF previews with independent timing.
+  A live image-transparency slider shifts the range, preserves the 85% visibility
+  ceiling, and retains its setting across reopening in the current process.
+  Image size is adjustable from 0.5x to 2x for new arrivals, with centre clearance
+  preserved. Ronin confirmed all sliders work as intended in the native trial.
+  See the [follow-up evidence](finished_refactorings/2026-09-12-spiral-help-and-gif-playback.md).
+
 #### Bugfix
+
+- Leaving Spiral fullscreen now restores a usable 960x600 window instead of
+  collapsing to a 1x1 canvas. Regression, native resize and qualification
+  evidence are in the [September 12 record](docs/spiral-qualification-2026-09-12.md).
+- H toggles Spiral's local help overlay; F1 retains the main manual binding.
+- PR #20 fixes route F1 from the Spiral canvas to the manual, keep blocked
+  preview reads from delaying process exit, restore arrivals after shrinking
+  an off-screen centre, and prevent random-cycle boundary repeats when a URI
+  occurs more than once. Regression evidence is in the
+  [review record](finished_refactorings/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
 
 #### Internal
 
+- Added `make movie` to render the current committed Git history with Gource
+  and FFmpeg in Docker, including dynamic counters, captions, a growth chart
+  and original soundtrack. `MOVIE_SECONDS` sets the duration and `MOVIE_DIR`
+  sets the output parent. Seven replay tests and full 180/30-second movie
+  checks pass; all 681 UI race tests pass, with only the existing local
+  amd64 seccomp failures remaining in `make verify`.
+  See `scripts/historymovie/README.md` and the
+  [implementation evidence](plans/2026-09-12-history-movie.md).
 - Rebalanced Linux UI race shards using Release v1.1.0 test timings: 27 whole-test
   moves preserve all 681 assignments and project a 37.9% lower maximum test load.
   See [evidence and validation](plans/2026-09-11-ui-shard-rebalance.md).

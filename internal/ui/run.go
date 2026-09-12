@@ -117,11 +117,18 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) error {
 	}
 	application.Run()
 	stopSignals()
+	view.waitForShutdown()
+	return trial.Close()
+}
+
+func (v *viewer) waitForShutdown() {
+	// Preview cancellation cannot interrupt a source already blocked in native
+	// I/O. Close retires its UI delivery; only the test harness joins those reads
+	// through Spiral.Settle after releasing any held source.
 	// Shutdown has canceled admission; join the native process after the UI loop
 	// retires so the application cannot leave an analysis worker behind.
-	view.explorer.workers.Wait()
-	view.explorer.presetWorkers.Wait()
-	return trial.Close()
+	v.explorer.workers.Wait()
+	v.explorer.presetWorkers.Wait()
 }
 
 // Runtime side effects start only after feature construction and geometry
@@ -155,6 +162,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
 		view.stopping = true
+		view.spiral.Close()
 		view.closeExplorer()
 		view.closeFileWork()
 		view.closeClipboardWork()

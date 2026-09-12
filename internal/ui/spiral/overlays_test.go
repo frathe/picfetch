@@ -2,6 +2,7 @@ package spiral
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"strconv"
 	"strings"
@@ -87,14 +88,18 @@ func TestUpdateFPSBackdropColorThresholds(t *testing.T) {
 		want color.NRGBA
 	}{
 		{"above 60fps is dark green", 1.0 / 61.0, fpsGoodColor},
+		{"rounded 60fps above threshold stays green", 1.0 / 60.1, fpsGoodColor},
+		{"rounded 60fps below threshold becomes yellow", 1.0 / 59.9, fpsWarnColor},
 		{"between 40 and 60fps is dark yellow", 1.0 / 50.0, fpsWarnColor},
 		{"below 40fps is red", 1.0 / 20.0, fpsBadColor},
 		{"zero dt guards against divide by zero, reporting 0fps (red)", 0, fpsBadColor},
 	}
 
+	o := newFPSOverlay()
+	w.Canvas().Overlays().Add(o)
+	o.Show()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			o := newFPSOverlay()
 			updateFPS(w, o, tt.dt)
 
 			bg, ok := o.Objects[0].(*canvas.Rectangle)
@@ -107,6 +112,51 @@ func TestUpdateFPSBackdropColorThresholds(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("dt=%f: FillColor = %+v; want %+v", tt.dt, got, tt.want)
+			}
+		})
+	}
+	t.Run("resize preserves appearance", func(t *testing.T) {
+		w.Resize(fyne.NewSize(800, 600))
+		updateFPS(w, o, 1.0/60)
+		bg := o.Objects[0].(*canvas.Rectangle)
+		label := o.Objects[1].(*canvas.Text)
+		if bg.Position() != fyne.NewPos(690, 18) || bg.Size() != fyne.NewSize(70, 22) ||
+			label.Position() != fyne.NewPos(700, 20) || label.Text != "FPS: 60" ||
+			label.TextSize != 14 || label.Color != image.White {
+			t.Fatalf("FPS appearance changed after resize: backdrop=%+v, label=%+v", bg, label)
+		}
+	})
+	t.Run("bounded update allocations", func(t *testing.T) {
+		frame := 0
+		allocations := testing.AllocsPerRun(100, func() {
+			updateFPS(w, o, 1/float64(60+frame%3))
+			frame++
+		})
+		if allocations > 9 {
+			t.Fatalf("FPS update allocates %.0f objects per frame; want at most 9", allocations)
+		}
+	})
+}
+
+func BenchmarkUpdateFPS(b *testing.B) {
+	for _, changing := range []bool{false, true} {
+		b.Run(fmt.Sprintf("changing=%t", changing), func(b *testing.B) {
+			a := test.NewApp()
+			w := a.NewWindow("")
+			defer w.Close()
+			w.Resize(fyne.NewSize(640, 480))
+			o := newFPSOverlay()
+			w.Canvas().Overlays().Add(o)
+			o.Show()
+			updateFPS(w, o, 1.0/60)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				fps := 60.0
+				if changing {
+					fps += float64(i % 3)
+				}
+				updateFPS(w, o, 1/fps)
 			}
 		})
 	}

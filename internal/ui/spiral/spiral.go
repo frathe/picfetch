@@ -2,11 +2,9 @@
 // spiral in a window of its own, ported from a standalone Fyne demo into
 // picfetch's package layout.
 //
-// Nothing in the app's menus, shortcuts, or settings leads here. The only
-// way in is the manual's search box (internal/ui/help): typing the magic
-// word there opens it, which is the whole point of an easter egg - you have
-// to already know it is there. That also means this package is reached from
-// exactly one call site, and nothing else in the app depends on it.
+// The viewer opens one session through the manual's secret phrase or the
+// window gesture. It supplies a frozen source list with duplicate visibility
+// already applied. This package owns preview decoding, motion and controls.
 //
 // Escape closes this window and only this window. The donor demo called
 // app.Quit() on Escape because it was a standalone binary; doing the same
@@ -15,9 +13,9 @@
 // port, and TestEscapeClosesHelpThenWindow is its guard.
 //
 // The rest of the keys are handled entirely inside this window (see
-// handleKey): F1 for the help overlay, F for follow mode, N for the spiral
-// pattern, P and R for the FPS and resolution overlays, and the arrow keys
-// for turn and colour speed.
+// handleKey): H for the help overlay, F1 for the viewer manual, F for follow
+// mode, N for the spiral pattern, P and R for the FPS and resolution overlays,
+// and the arrow keys for turn and colour speed.
 //
 // The package splits up as: this file owns the window, the key bindings,
 // and the per-frame goroutine; state.go carries the demo's package-level
@@ -25,12 +23,15 @@
 // package-level state; shader.go holds the two GLSL sources and the uniform
 // seeding; overlays.go the status/help/FPS text panels; settings.go the
 // auto-hiding slider panel; mouse.go the full-window hover tracker follow
-// mode reads; and monitor.go the small helpers that describe the monitor a
-// window is showing on.
+// mode reads; and monitor.go describes the display. tunnel.go owns the
+// session and serial decoder; flight.go evaluates geometry; flow.go controls
+// ordering and batch variation; uiqueue.go makes worker delivery testable.
 package spiral
 
 import (
+	"image"
 	"math"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,7 +43,7 @@ import (
 
 // defaultFrameInterval is how often the frame goroutine does a round of
 // per-frame UI work - roughly 60 fps, the donor demo's 16ms. It only paces
-// follow mode, the FPS readout, and the settings panel's auto-hide; the
+// tunnel motion, follow mode, the FPS readout and panel auto-hide; the
 // spiral's own motion comes from canvas.NewShaderAnimation, which Fyne
 // drives on its own render clock.
 const defaultFrameInterval = 16 * time.Millisecond
@@ -70,7 +71,9 @@ type Spiral struct {
 	// comes back at the speed, pattern, and slider values it was left at
 	// rather than snapping back to defaults - see newShader, which seeds
 	// its uniforms from st rather than from the package constants.
-	st *state
+	st       *state
+	sources  []fyne.URI
+	onManual func()
 
 	// Everything below is rebuilt per window by Show and is only ever
 	// touched on the UI goroutine. They are fields rather than closure
@@ -108,7 +111,13 @@ type Spiral struct {
 
 	// running counts the live frame goroutine so Settle can wait it out.
 	// Only ever incremented on the UI goroutine, in Show.
-	running sync.WaitGroup
+	running        sync.WaitGroup
+	ui             UIQueue
+	now            func() time.Time
+	tunnel         *tunnelSession
+	previewBusy    bool
+	previewWorkers sync.WaitGroup
+	placeholder    image.Image
 }
 
 // New builds the easter egg without opening anything. Cheap enough to
@@ -119,6 +128,9 @@ func New(app fyne.App) *Spiral {
 		app:           app,
 		st:            newState(),
 		frameInterval: defaultFrameInterval,
+		ui:            fyneQueue{},
+		now:           time.Now,
+		placeholder:   image.NewRGBA(image.Rect(0, 0, 1, 1)),
 	}
 }
 
@@ -126,6 +138,9 @@ func New(app fyne.App) *Spiral {
 func (s *Spiral) Open() bool {
 	return s.win != nil
 }
+
+// SetOnManual connects F1 in this window to the application's manual.
+func (s *Spiral) SetOnManual(f func()) { s.onManual = f }
 
 // ShowForGesture opens the spiral on the pattern the user's gesture asked
 // for, and is the window-drag gesture's way in (internal/wingesture, wired
@@ -142,7 +157,7 @@ func (s *Spiral) Open() bool {
 // already open: newShader seeds the uniforms from the state once, when the
 // shader is built, so on an already-open spiral Show alone would raise the
 // old window and change nothing.
-func (s *Spiral) ShowForGesture(clockwise bool) {
+func (s *Spiral) ShowForGesture(clockwise bool, sources []fyne.URI) {
 	s.st.setPreset(clockwise)
 
 	if s.win != nil {
@@ -153,14 +168,15 @@ func (s *Spiral) ShowForGesture(clockwise bool) {
 		s.setUniform(s.win, "preset", preset)
 	}
 
-	s.Show()
+	s.Show(sources)
 }
 
-// Show raises the window if it is already open, or builds and shows a fresh
+// Show copies sources for a fresh session; an open session keeps its snapshot.
+// It raises the window if it is already open, or builds and shows a fresh
 // full-screen one. Mirrors widgets.Singleton.Show's raise behaviour - the
 // easter egg is a single window, and finding it a second time should bring
 // the one already up to the front rather than stack another on top of it.
-func (s *Spiral) Show() {
+func (s *Spiral) Show(sources []fyne.URI) {
 	if s.win != nil {
 		s.win.Show()
 		s.win.RequestFocus()
@@ -168,14 +184,18 @@ func (s *Spiral) Show() {
 		return
 	}
 
+	s.sources = slices.Clone(sources)
 	s.shader = newShader(s.st)
 	s.status = newStatusOverlay()
 	s.help = newHelpOverlay()
 	updateHelpText(s.help)
 	s.fps = newFPSOverlay()
 	s.panel = newSettingsPanel(s.st, s.shader)
+	s.panel.onOrderChanged = s.resetTunnelOrder
 
 	win := s.app.NewWindow(lang.L("Hypno Spiral"))
+	// Keep Exit Full Screen usable: a shader alone has a one-pixel minimum.
+	win.Resize(fyne.NewSize(960, 600))
 	win.SetFullScreen(true)
 	win.SetPadded(false)
 
@@ -232,6 +252,7 @@ func (s *Spiral) Show() {
 	gen := s.gen.Add(1)
 	cancel := make(chan struct{})
 	s.cancel = cancel
+	s.startTunnel()
 	s.running.Go(func() {
 		s.run(gen, cancel)
 	})
@@ -252,12 +273,17 @@ func (s *Spiral) Close() {
 	win.Close()
 }
 
-// Settle waits for the frame goroutine to finish. Close only asks it to
-// stop; this is how a test - or the app's own shutdown - makes sure it is
-// actually gone rather than about to wake up and do UI work in the middle
-// of whatever is running by then.
+// Settle joins frame/preview workers and drains test delivery after Close.
+// Tests release held sources before settling. Production shutdown only closes
+// the session because cancellation cannot interrupt blocked external reads.
 func (s *Spiral) Settle() {
 	s.running.Wait()
+	for {
+		s.previewWorkers.Wait()
+		if !s.ui.Drain() {
+			return
+		}
+	}
 }
 
 // stop retires the current session: it invalidates the frame goroutine's
@@ -271,6 +297,15 @@ func (s *Spiral) stop() {
 	}
 
 	s.gen.Add(1)
+	if s.tunnel != nil {
+		s.tunnel.cancel()
+		s.tunnel.playbacks = [3]tunnelPlayback{}
+		s.tunnel.ready = nil
+		s.tunnel = nil
+		for i := range 3 {
+			s.clearTraveller(i)
+		}
+	}
 	if s.cancel != nil {
 		close(s.cancel)
 		s.cancel = nil
@@ -279,6 +314,7 @@ func (s *Spiral) stop() {
 		s.anim.Stop()
 		s.anim = nil
 	}
+	s.sources = nil
 	s.win = nil
 }
 
@@ -306,7 +342,18 @@ func (s *Spiral) run(gen uint64, cancel chan struct{}) {
 			// One hop per tick, wrapping the whole frame: everything frame
 			// touches is a Fyne object, and splitting it across several
 			// fyne.Do calls would let a close land between them.
-			fyne.Do(func() { s.frame(dt) })
+			ack := make(chan struct{}, 1)
+			s.ui.Do(func() {
+				if s.gen.Load() == gen {
+					s.frame(dt)
+				}
+				ack <- struct{}{}
+			})
+			select {
+			case <-ack:
+			case <-cancel:
+				return
+			}
 		case <-cancel:
 			return
 		}
@@ -330,10 +377,9 @@ func (s *Spiral) frame(dt float64) {
 	}
 
 	updateFollowMode(win, s.st, s.shader)
+	s.advanceTunnel()
 
-	// Skipped while hidden: rebuilding the readout's text and backdrop
-	// every frame for an overlay nobody is looking at is the one piece of
-	// per-frame work here that is worth avoiding.
+	// Skip formatting and updating the readout while the overlay is hidden.
 	if s.fps.Visible() {
 		updateFPS(win, s.fps, dt)
 	}
@@ -360,8 +406,12 @@ func (s *Spiral) handleKey(ev *fyne.KeyEvent) {
 			return
 		}
 		s.Close()
-	case fyne.KeyF1:
+	case fyne.KeyH:
 		toggleOverlay(s.help)
+	case fyne.KeyF1:
+		if s.onManual != nil {
+			s.onManual()
+		}
 	case fyne.KeyF:
 		// Follow mode: the centre chases the cursor. Leaving it does not
 		// recentre the spiral - see toggleFollow.
@@ -421,25 +471,19 @@ func toggleOverlay(o *fyne.Container) {
 }
 
 // updateFollowMode moves the shader's centre offset toward the mouse cursor
-// while follow mode is on. With it off it does nothing, leaving the offset
-// wherever it last was so the spiral keeps its position instead of
-// recentring.
+// while follow mode is on. With it off the centre stays where it was, except
+// that a smaller viewport clamps an off-screen centre to its nearest edge.
+// The background and tunnel always share this same visible centre.
 //
 // Unlike the donor demo's version this wraps nothing in fyne.Do: it runs
 // from frame, which run has already marshalled onto the UI goroutine, so
 // the mutations below are on the right goroutine as they stand and a nested
 // hop would only be a way to smear one frame's work across two of them.
 func updateFollowMode(w fyne.Window, st *state, shader *canvas.Shader) {
-	if !st.follow() {
-		return
-	}
-
 	size := w.Canvas().Size()
 	if size.Width <= 0 || size.Height <= 0 {
 		return
 	}
-
-	mx, my := st.mouse()
 
 	// PixelCoordinateForPosition converts logical points into the same
 	// physical pixel space the shader's `frame` uniform is expressed in.
@@ -447,16 +491,22 @@ func updateFollowMode(w fyne.Window, st *state, shader *canvas.Shader) {
 	// Retina/HiDPI scaling is folded into a private texture-scale factor
 	// instead, so multiplying by Scale() directly undershoots the offset on
 	// HiDPI displays and the spiral centre lags behind the cursor.
-	px, py := w.Canvas().PixelCoordinateForPosition(fyne.NewPos(float32(mx), float32(my)))
 	frameW, frameH := w.Canvas().PixelCoordinateForPosition(fyne.NewPos(size.Width, size.Height))
-
-	// Y is inverted: Fyne's mouse coordinates have their origin top-left
-	// (y grows down), while gl_FragCoord in the shader has its origin
-	// bottom-left (y grows up).
-	wantX := float64(px) - float64(frameW)/2
-	wantY := float64(frameH)/2 - float64(py)
-
 	haveX, haveY := st.centerOffset()
+	wantX, wantY := haveX, haveY
+	if st.follow() {
+		mx, my := st.mouse()
+		px, py := w.Canvas().PixelCoordinateForPosition(fyne.NewPos(float32(mx), float32(my)))
+
+		// Fyne's Y grows down; the shader's Y grows up.
+		wantX = float64(px) - float64(frameW)/2
+		wantY = float64(frameH)/2 - float64(py)
+	}
+	// A retained offset or old pointer position may be outside after a resize
+	// or display-scale change. Keep admission possible without a mouse event.
+	wantX = clampFloat(wantX, -float64(frameW)/2, float64(frameW)/2)
+	wantY = clampFloat(wantY, -float64(frameH)/2, float64(frameH)/2)
+
 	if math.Abs(wantX-haveX) <= followEpsilon && math.Abs(wantY-haveY) <= followEpsilon {
 		return
 	}

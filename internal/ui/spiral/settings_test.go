@@ -1,6 +1,9 @@
 package spiral
 
 import (
+	"fmt"
+	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -8,6 +11,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // sliderRowSliders returns the *widget.Slider objects found directly in
@@ -32,11 +37,11 @@ func TestAddSliderRowOnChangedUpdatesTargetShaderUniformAndActivity(t *testing.T
 	st := newState()
 	shader := newShader(st)
 
-	p := &settingsPanel{box: container.NewWithoutLayout()}
+	p := &settingsPanel{content: container.NewWithoutLayout()}
 	target := 0.0
 	p.addSliderRow(0, "Test", 0, 10, 3, 1, "arms", &target, shader)
 
-	sliders := sliderRowSliders(p.box)
+	sliders := sliderRowSliders(p.content)
 	if len(sliders) != 1 {
 		t.Fatalf("box has %d sliders after one addSliderRow call; want 1", len(sliders))
 	}
@@ -73,6 +78,192 @@ func TestPanelAnchor(t *testing.T) {
 	want := fyne.NewPos(800-settingsPanelWidth-settingsPanelMargin, settingsPanelMargin)
 	if got != want {
 		t.Errorf("panelAnchor(800x600) = %v; want %v", got, want)
+	}
+}
+
+func TestTunnelControls(t *testing.T) {
+	s := newTestSpiral(t)
+	s.Show(nil)
+	sliders := sliderRowSliders(s.panel.content)
+	if len(sliders) != 8 {
+		t.Fatalf("got %d sliders, want existing three plus speed/gap/randomness/transparency/size", len(sliders))
+	}
+	speed, gap := sliders[3], sliders[4]
+	if speed.Min != .35 || speed.Max != 2 || speed.Step != .05 || speed.Value != 1 {
+		t.Fatalf("image speed range/default = %+v", speed)
+	}
+	if gap.Min != .75 || gap.Max != 6 || gap.Step != .05 || gap.Value != 2.5 {
+		t.Fatalf("image gap range/default = %+v", gap)
+	}
+	speed.SetValue(1.5)
+	gap.SetValue(3)
+	s.Close()
+	s.Settle()
+	s.Show(nil)
+	sliders = sliderRowSliders(s.panel.content)
+	if math.Abs(sliders[3].Value-1.5) > 1e-6 || math.Abs(sliders[4].Value-3) > 1e-6 {
+		t.Fatalf("reopened speed=%g gap=%g", sliders[3].Value, sliders[4].Value)
+	}
+	if sliders[5].Min != 0 || sliders[5].Max != 100 || sliders[5].Step != 1 || sliders[5].Value != 35 {
+		t.Fatal("randomness range/default")
+	}
+	var order *widget.Select
+	for _, o := range s.panel.content.Objects {
+		if selectBox, ok := o.(*widget.Select); ok {
+			order = selectBox
+		}
+	}
+	if order == nil || order.Selected != "Main order" {
+		t.Fatal("order control absent from panel")
+	}
+	order.SetSelected("Random")
+	if !s.st.randomOrder {
+		t.Fatal("order control did not change mode")
+	}
+}
+
+func TestTunnelTransparency(t *testing.T) {
+	s := newTestSpiral(t)
+	s.st.randomness = 0
+	s.now = func() time.Time { return time.Unix(1000, 0) }
+	s.Show(uitest.TempDirJPEGURIs(t, "opacity.jpg"))
+	s.win.Resize(fyne.NewSize(800, 600))
+	settleTunnelPreviews(s)
+	active := s.tunnel.slots
+	if active[0] == nil {
+		t.Fatal("no in-flight picture for the live transparency check")
+	}
+	sliders := sliderRowSliders(s.panel.content)
+	if len(sliders) != 8 {
+		t.Fatalf("transparency control missing: %d sliders", len(sliders))
+	}
+	control := sliders[6]
+	var contains func(fyne.CanvasObject) bool
+	contains = func(o fyne.CanvasObject) bool {
+		if o == control {
+			return true
+		}
+		switch c := o.(type) {
+		case *fyne.Container:
+			if slices.ContainsFunc(c.Objects, contains) {
+				return true
+			}
+		case *container.Scroll:
+			return contains(c.Content)
+		}
+		return false
+	}
+	if !contains(s.win.Canvas().Overlays().Top()) {
+		t.Fatal("transparency slider is absent from the live surface")
+	}
+	if control.Min != -70 || control.Max != 84 || control.Step != 1 || control.Value != 0 {
+		t.Fatal("transparency range/default")
+	}
+	for _, tc := range []struct{ shift, lo, hi float64 }{{0, .15, .85}, {10, .05, .75}, {-10, .25, .85}, {84, .01, .01}, {-70, .85, .85}} {
+		s.panel.lastMove.Store(0)
+		control.SetValue(tc.shift)
+		if s.tunnel.slots != active {
+			t.Fatal("transparency change restarted an active flight")
+		}
+		for key, want := range map[string]float64{"imageOpacityMin": tc.lo, "imageOpacityMax": tc.hi} {
+			if got := float64(s.shader.Uniforms[key]); math.Abs(got-want) > 1e-6 {
+				t.Fatalf("shift %g: %s=%g want %g", tc.shift, key, got, want)
+			}
+		}
+		if tc.shift != 0 && s.panel.lastMove.Load() == 0 {
+			t.Fatal("transparency change did not keep controls visible")
+		}
+	}
+	control.SetValue(10)
+	s.Close()
+	s.Settle()
+	s.Show(nil)
+	sliders = sliderRowSliders(s.panel.content)
+	if sliders[6].Value != 10 || math.Abs(float64(s.shader.Uniforms["imageOpacityMax"])-.75) > 1e-6 {
+		t.Fatal("reopen lost transparency range")
+	}
+	var label *widget.Label
+	for _, o := range s.panel.content.Objects {
+		if l, ok := o.(*widget.Label); ok && l.Text == "Image transparency: 25-95%" {
+			label = l
+		}
+	}
+	if label == nil {
+		t.Fatal("transparency control does not display its resulting range")
+	}
+}
+
+func TestTunnelImageSize(t *testing.T) {
+	s := newTestSpiral(t)
+	now := time.Unix(1000, 0)
+	s.now = func() time.Time { return now }
+	s.st.randomness, s.st.imageSpeed, s.st.imageGap = 0, .35, .75
+	s.Show(uitest.TempDirJPEGURIs(t, "size.jpg"))
+	s.win.Resize(fyne.NewSize(800, 600))
+	settleTunnelPreviews(s)
+	sliders := sliderRowSliders(s.panel.content)
+	if len(sliders) != 8 {
+		t.Fatalf("image-size control missing: %d sliders", len(sliders))
+	}
+	size := sliders[7]
+	if size.Min != .5 || size.Max != 2 || size.Step != .05 || size.Value != 1 {
+		t.Fatal("image-size range/default")
+	}
+	first := *s.tunnel.slots[0]
+	size.SetValue(2)
+	if *s.tunnel.slots[0] != first {
+		t.Fatal("size change moved an in-flight image")
+	}
+	now = now.Add(time.Second)
+	s.frame(1)
+	settleTunnelPreviews(s)
+	size.SetValue(.5)
+	now = now.Add(time.Second)
+	s.frame(1)
+	settleTunnelPreviews(s)
+	for i, want := range []float64{1, 2, .5} {
+		if got := s.shader.Uniforms[fmt.Sprintf("traveller%dSize", i)]; got != float32(want) {
+			t.Fatalf("slot %d size=%g want %g", i, got, want)
+		}
+		f := s.tunnel.slots[i]
+		if f == nil {
+			t.Fatalf("slot %d not admitted", i)
+		}
+		pose := f.pose(f.born, s.tunnelFrame())
+		if math.Abs(math.Max(pose.width, pose.height)-.1*600*want) > 1e-6 {
+			t.Fatalf("slot %d: CPU footprint %gx%g disagrees with selected size", i, pose.width, pose.height)
+		}
+	}
+	s.Close()
+	s.Settle()
+	s.Show(nil)
+	if sliderRowSliders(s.panel.content)[7].Value != .5 {
+		t.Fatal("reopen lost image size")
+	}
+}
+
+func TestTunnelSmallControls(t *testing.T) {
+	s := newTestSpiral(t)
+	s.Show(nil)
+	s.win.Resize(fyne.NewSize(320, 240))
+	s.frame(0)
+	box, size := s.panel.box, s.win.Canvas().Size()
+	if box.Position().X+box.Size().Width > size.Width || box.Position().Y+box.Size().Height > size.Height {
+		t.Fatal("controls extend beyond the resized window")
+	}
+	var scroll *container.Scroll
+	for _, object := range box.Objects {
+		if viewport, ok := object.(*container.Scroll); ok {
+			scroll = viewport
+		}
+	}
+	if scroll == nil {
+		t.Fatal("small-window controls have no scrollable viewport")
+	}
+	s.panel.lastMove.Store(0)
+	scroll.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.Delta{DY: -100}})
+	if s.panel.lastMove.Load() == 0 {
+		t.Fatal("scrolling the controls did not refresh the idle timer")
 	}
 }
 
@@ -161,9 +352,9 @@ func TestAddSliderRowStepSmallerThanRange(t *testing.T) {
 	shader := newShader(st)
 	p := newSettingsPanel(st, shader)
 
-	sliders := sliderRowSliders(p.box)
-	if len(sliders) != 3 {
-		t.Fatalf("box has %d sliders; want 3 (Arms, Twists, Pixel Density)", len(sliders))
+	sliders := sliderRowSliders(p.content)
+	if len(sliders) < 3 {
+		t.Fatalf("box has %d sliders; want at least Arms, Twists, Pixel Density", len(sliders))
 	}
 	for i, s := range sliders {
 		if rng := s.Max - s.Min; s.Step >= rng {

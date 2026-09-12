@@ -49,6 +49,17 @@ build: ## Build a native binary for the current OS/arch into bin/ (stripped, no 
 run: ## Run the app directly (go run .)
 	go run .
 
+MOVIE_SECONDS ?= 180
+MOVIE_DIR ?= .scratch/history-movies
+export MOVIE_SECONDS MOVIE_DIR
+
+.PHONY: movie movie-test
+movie: ## Generate a 1080p60 Git history movie in Docker (MOVIE_SECONDS=180, MOVIE_DIR=.scratch/history-movies)
+	bash scripts/historymovie/run.sh
+
+movie-test: ## Test the history movie's Git replay and timing in Docker
+	bash scripts/historymovie/run.sh test
+
 EXPLORER_ASSETS ?= .scratch/visual-similarity-explorer/assets
 EXPLORER_LIBRARY ?= .scratch/visual-similarity-explorer/demo
 EXPLORER_EVIDENCE ?= .scratch/visual-similarity-explorer/evidence
