@@ -39,8 +39,9 @@ Acceptance commands:
 4. Locale parity: `go test . -run TestTranslations -count=1`.
 5. Final gate: GoLand inspections of all changed Go files, then `make verify`.
 
-Native wallpaper application on Ronin's two-display Ubuntu desktop remains a
+Native wallpaper application on Ronin's two-display Ubuntu desktop requires a
 manual check; tests replace OS effects and cannot establish that outcome.
+Ronin confirmed that native outcome on September 12, 2026 (see acceptance below).
 
 ## Tasks and routing
 
@@ -94,8 +95,16 @@ transform (S); lead retains all design, implementation and review (W).
   both reporting `offline worker seccomp: invalid argument`.
   `make verify` therefore exits 2; a clean complete gate is not claimed.
   Raw evidence: `.scratch/race-runs/20260912T180206Z-tmKJNs/`.
-- Final diff and whitespace review complete. No native desktop effect, commit,
-  push or release was performed. The Ubuntu native retest remains in `todos.md`.
+- Final implementation diff and whitespace review complete. The agent performed
+  no native desktop effect, commit, push or release during implementation.
+
+## Native acceptance — September 12, 2026
+
+Ronin confirmed the global mosaic wallpaper action on native Ubuntu 24.04
+hardware with two displays. This closes the outstanding native confirmation
+item in `todos.md`; the accepted plan is archived in `finished_refactorings/`.
+The previously recorded automated verification results and local seccomp
+failures remain unchanged.
 
 ## Ledger
 
