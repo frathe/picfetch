@@ -92,6 +92,15 @@ remain. A fresh native `go test -race -count=5 -timeout 2m -run
 
 ## TODO
 
+### Complete updater dependency notices before the next release
+
+The September 12 dependency inventory found that `THIRD-PARTY-NOTICES.md`
+omits the pinned Sigstore/TUF core module entries. Reconcile actual shipped
+source/file licenses across supported targets, include applicable license and
+NOTICE text (including go-tuf's NOTICE), and inspect delivery in the final
+archives/MSIX. This applies to the dependencies already shipped and is
+independent of the declined verifier refactoring.
+
 ### WinGet package identifier migration
 
 The local publishing workflow and README now use `frathe.picfetch`. Move the
@@ -120,12 +129,11 @@ release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
 
 ## LATER
 
-### Revisit HEIC and verifier dependencies at their next upgrades
+### Revisit HEIC at its next dependency upgrade
 
-[MA-023](needs_refactoring.md#ma-023) tracks retiring the HEIC fork when an approved official release includes its leak
-fix. [MA-024](needs_refactoring.md#ma-024)
-tracks measuring verifier dependency cost at its next major upgrade. Both retain their separate upgrade triggers;
-neither starts immediate work.
+[MA-023](needs_refactoring.md#ma-023) tracks retiring the HEIC fork when an
+approved official release includes its leak fix. Its separate upgrade trigger
+remains unchanged.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 
@@ -136,6 +144,11 @@ update the release and installation documentation. The native Apple-silicon buil
 retirement.
 
 ## not deemed worth implementing (edge cases)
+
+- **Verifier size refactoring (MA-024):** Declined by Ronin on 2026-09-13.
+  Keep upstream Sigstore/TUF verification. Potential savings of a few megabytes
+  do not justify the security risk and maintenance burden of a custom or
+  trimmed verifier. The refactoring plan and upgrade watch have been removed.
 
 - **Retained decoded map tiles (MA-025):** Accepted by the user on 2026-09-09. The map loads only when opened, and
   checking the geolocation of thousands of images is outside expected use. The upstream decoded-tile cache remains
