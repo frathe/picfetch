@@ -338,6 +338,26 @@ the downloaded toolchain and dependencies. Run `make update-test-image` to
 refresh the cached Ubuntu image from its upstream tag before testing.
 `make test-native` is the direct host equivalent when platform-specific
 behavior is the point, but its golden pixels can differ outside Linux/amd64.
+
+Complete Docker suites (`make test`, `make coverage`, `make test-race`, and
+`make verify`) require a native Linux/amd64 Docker daemon. They check the selected
+daemon before container setup; `make check-test-platform` runs that check alone.
+Inspect it with `docker info --format '{{.OSType}}/{{.Architecture}}'`.
+An ARM Docker VM running amd64 containers through emulation can reject the
+Explorer worker's seccomp filter with `offline worker seccomp: invalid argument`.
+Run the complete gate from a checkout on native Linux amd64, or use the existing
+native amd64 CI jobs. The worker policy and isolation tests remain mandatory.
+`make golden` and `make check-test-shards` remain available under emulation.
+A focused native Linux ARM64 check can provide supplementary isolation evidence:
+
+```sh
+go test -race -count=1 -run '^(TestLinuxWorkerIsolation|TestAssetInstall)$' ./internal/similarity ./scripts/explorereval
+```
+
+Run that command in a prepared native Linux environment with the usual GUI build
+dependencies. ARM64 results do not replace the complete amd64 gate. See the
+[investigation and verification record](finished_refactorings/2026-09-12-linux-worker-test-container.md).
+
 Shared test fixtures — synthetic images in every supported format, temp files,
 and stubs for the OS-level seams — live in `internal/uitest`.
 

@@ -191,7 +191,20 @@ check-qodana-test-exclusions: ## Fail if qodana.yaml does not exclude every *_te
 vet: ## Run go vet
 	go vet ./...
 
-.PHONY: check-test-memory
+.PHONY: check-test-platform check-test-memory
+check-test-platform: ## Require a native Linux/amd64 Docker daemon for complete test suites
+	@set -eu; \
+	platform=$$(docker info --format '{{.OSType}}/{{.Architecture}}'); \
+	case "$$platform" in \
+		linux/x86_64|linux/amd64) ;; \
+		*) \
+			printf 'Complete tests require a native Linux/amd64 Docker daemon; selected daemon reports "%s".\n' "$$platform" >&2; \
+			echo 'Linux/amd64 emulation on ARM can reject the worker seccomp filter (invalid argument).' >&2; \
+			echo 'Run the full gate from a checkout on native Linux amd64, or use the native amd64 CI jobs.' >&2; \
+			echo 'Golden rendering and shard inventory remain available under emulation; worker isolation tests are not skipped.' >&2; \
+			exit 1 ;; \
+	esac
+
 check-test-memory: ## Require enough Docker VM memory for the CI-sized test container
 	@set -eu; \
 	required=$$(( $(TEST_MEMORY_GIB) * 1024 * 1024 * 1024 )); \
@@ -202,6 +215,7 @@ check-test-memory: ## Require enough Docker VM memory for the CI-sized test cont
 		exit 1; \
 	fi
 
+test coverage test-race: check-test-platform
 check-test-shards test coverage test-race golden: check-test-memory
 
 check-test-shards: ## Validate the UI shard manifest against the live Linux/amd64 test inventory
@@ -357,7 +371,7 @@ verify-build: fmt-check check-tuf-root check-qodana-test-exclusions ## Run local
 	go vet ./...
 	go build ./...
 
-verify: verify-build ## Run the same checks CI does (format, TUF root, Qodana exclusions, vet, build, race tests)
+verify: check-test-platform verify-build ## Run the same checks CI does (format, TUF root, Qodana exclusions, vet, build, race tests)
 	$(MAKE) test-race
 
 golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64, matching CI exactly - needs Docker)

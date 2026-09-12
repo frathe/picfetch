@@ -818,6 +818,72 @@ func TestPackagePartition_RejectsEmptyOrInconsistentPartition(t *testing.T) {
 	})
 }
 
+func TestMakeTestPlatform(t *testing.T) {
+	for _, platform := range []string{"linux/x86_64", "linux/amd64", "linux/aarch64", "linux/arm64", "linux/unknown", "windows/amd64", "", "query-error"} {
+		t.Run(platform, func(t *testing.T) {
+			dir := t.TempDir()
+			writeRaceCommandFixture(t, dir, "docker", `#!/bin/sh
+set -eu
+test "$1" = info || { echo 'container setup must not start' >&2; exit 90; }
+case "$3" in
+    '{{.MemTotal}}') printf '33598169088\n' ;;
+    '{{.OSType}}/{{.Architecture}}')
+        if [ "$PLATFORM_FIXTURE" = query-error ]; then
+            echo 'fixture daemon unavailable' >&2
+            exit 7
+        fi
+        printf '%s\n' "$PLATFORM_FIXTURE"
+        ;;
+    *) echo 'unexpected Docker query' >&2; exit 91 ;;
+esac
+`)
+			// Admission follows the daemon even when the client reports ARM64.
+			writeRaceCommandFixture(t, dir, "uname", "#!/bin/sh\nprintf 'arm64\\n'\n")
+			writeRaceCommandFixture(t, dir, "go", "#!/bin/sh\necho 'host verification must not start' >&2\nexit 92\n")
+			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("PLATFORM_FIXTURE", platform)
+			accepted := platform == "linux/x86_64" || platform == "linux/amd64"
+			targets := []string{"check-test-platform"}
+			if !accepted {
+				targets = append(targets, "test", "coverage", "test-race", "verify")
+			}
+			for _, target := range targets {
+				command := exec.Command("make", "--no-print-directory", target)
+				command.Dir = filepath.Join("..", "..")
+				output, err := command.CombinedOutput()
+				if accepted {
+					if err != nil {
+						t.Fatalf("%s rejected %q: %v\n%s", target, platform, err, output)
+					}
+					continue
+				}
+				want := "native Linux/amd64 Docker daemon"
+				if platform == "query-error" {
+					want = "fixture daemon unavailable"
+				}
+				if err == nil || !strings.Contains(string(output), want) || strings.Contains(string(output), "must not start") {
+					t.Fatalf("%s must reject %q before setup with %q: %v\n%s", target, platform, want, err, output)
+				}
+			}
+		})
+	}
+	t.Run("target wiring", func(t *testing.T) {
+		for _, target := range []string{"test", "coverage", "test-race", "verify", "golden", "check-test-shards"} {
+			output := makeDryRun(t, target)
+			guard := strings.Index(output, "{{.OSType}}/{{.Architecture}}")
+			if target == "golden" || target == "check-test-shards" {
+				if guard >= 0 {
+					t.Fatalf("%s unnecessarily requires native amd64:\n%s", target, output)
+				}
+				continue
+			}
+			if guard < 0 {
+				t.Fatalf("%s omits daemon architecture admission:\n%s", target, output)
+			}
+		}
+	})
+}
+
 func TestMakeTestRemainsCompleteAndUnsharded(t *testing.T) {
 	output := makeDryRun(t, "test")
 	for _, want := range []string{"docker run --rm --platform linux/amd64", "go test -timeout 30m", "./..."} {
@@ -1113,7 +1179,13 @@ if [ "${RACE_DIAGNOSTIC_FAIL-}" = "$command" ]; then
     exit 91
 fi
 case "$command" in
-info) printf '33598169088\n' ;;
+info)
+    case "$2" in
+        '{{.MemTotal}}') printf '33598169088\n' ;;
+        '{{.OSType}}/{{.Architecture}}') printf 'linux/x86_64\n' ;;
+        *) exit 90 ;;
+    esac
+    ;;
 create)
     capture=
     cidfile=

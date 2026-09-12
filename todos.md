@@ -46,6 +46,12 @@
 
 #### Internal
 
+- Complete local Docker suites now check for a native Linux/amd64 daemon before
+  setup, with a clear explanation of the worker seccomp limitation under ARM
+  emulation. Worker enforcement tests and native amd64 CI remain unchanged;
+  golden rendering and shard inventory remain available under emulation.
+  Native Linux amd64 `make verify` passes, including both worker regressions.
+  See the [investigation and verification record](finished_refactorings/2026-09-12-linux-worker-test-container.md).
 - Added `make movie` to render the current committed Git history with Gource
   and FFmpeg in Docker, including dynamic counters, captions, a growth chart
   and original soundtrack. `MOVIE_SECONDS` sets the duration and `MOVIE_DIR`
@@ -100,17 +106,6 @@ Keep Fyne at v2.8.0 in [PR #19](https://github.com/frathe/picfetch/pull/19).
 Ronin reports an upstream library regression with v2.8.1. Revisit the upgrade
 after an upstream fix is available and the affected behavior is verified.
 The four grouped `golang.org/x/*` updates remain in the PR.
-
-### Linux worker isolation in the local amd64 test container
-
-The September 11 `make verify` run on the Apple Silicon host reports
-`offline worker seccomp: invalid argument` in `TestLinuxWorkerIsolation` and
-`TestAssetInstall/worker_reaches_asset_check_and_exits`. Both checks pass with
-the race detector in a native Linux ARM64 container. Investigate the local amd64
-execution environment before claiming a clean complete local gate; retain
-native Linux amd64 CI coverage of sandbox enforcement. This is separate from
-the confirmed Windows map fix. See the
-[verification record](plans/2026-09-11-explorer-windows-setup.md).
 
 ### Antivirus verdicts on unreleased builds
 
