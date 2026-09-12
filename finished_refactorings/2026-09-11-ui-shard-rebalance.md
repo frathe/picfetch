@@ -1,8 +1,9 @@
 # Timing-informed UI shard rebalance
 
-Status: Ready for review. All UI race shards and selection checks pass; the full
-local gate retains the two pre-existing amd64-container seccomp failures below.
-Fresh CI timings remain pending.
+Status: Complete. Hosted CI confirms the improvement on the rebalance commit
+and a September 12 follow-up, with every assigned test accounted for. Measured
+balance and runner overhead are recorded below. The historical full local gate
+retains the two pre-existing amd64-container seccomp failures.
 Route: Standard, confined to the manifest and its evidence.
 
 ## Problem and measured evidence
@@ -82,15 +83,19 @@ Each artifact is `linux-race-ui-N-34627413846-attempt-1`, containing
 | ui-2 | 10275376040 | `778e32b9511374c49de95b30704c08c83ff09aed860586845db04fd985dc89f7` |
 | ui-3 | 10274907129 | `821be497725db38319abdc6a60b39e09a28364dcb073cfe061293f915b551344` |
 
-Recompute coverage and projections from the raw streams and current manifest:
+Recompute coverage and projections from the raw streams and rebalance manifest:
 
 ```sh
 python3 - <<'PY'
 import json
+import subprocess
 from pathlib import Path
 
 root = Path('/private/tmp/picfetch-shard-34627413846')
-rows = [s.split() for s in Path('.github/testshards/internal-ui.tsv').read_text().splitlines()
+manifest = subprocess.check_output(
+    ['git', 'show', '7fa25009fc8bec2faa47552178026daa1c131b40:.github/testshards/internal-ui.tsv'],
+    text=True)
+rows = [s.split() for s in manifest.splitlines()
         if s and not s.startswith('#')]
 assignment = dict(rows)
 assert len(rows) == len(assignment)
@@ -183,3 +188,96 @@ Lead review and `git diff --check` passed. Scope is exactly the manifest, this
 record, and `todos.md`; no code files, test bodies, workflows, or dependencies
 changed. No GoLand code inspections apply to this documentation/configuration
 change. Actual budget: one read-only Scout, one lead review, one full local gate.
+
+## Hosted CI confirmation — September 12, 2026
+
+The outstanding CI confirmation is complete. Two successful attempt-1 runs
+were audited against the original Release baseline:
+
+- [Rebalance CI 34632011148](https://github.com/frathe/picfetch/actions/runs/34632011148),
+  at `7fa25009fc8bec2faa47552178026daa1c131b40`. Only the manifest and two
+  documentation files differ from the baseline, so this is the direct
+  implementation comparison with the same 681 tests and unchanged test code.
+- [Mosaic CI 34710982261](https://github.com/frathe/picfetch/actions/runs/34710982261),
+  at `371a44c9796e5bd4a375beb0d621113b9383b8e9`. This follow-up includes subsequent
+  feature and dependency changes and one added root test, `TestHypnoTunnel`,
+  on ui-1. All 681 existing assignments are unchanged. It confirms continued
+  improvement with 682 tests, rather than isolating the rebalance's effect.
+
+| Run | Shard | Tests | Job wall time | Race step | UI package elapsed | Top-level test sum |
+|---|---|---:|---:|---:|---:|---:|
+| Rebalance | ui-1 | 235 | 9m18s | 8m46s | 516.516s | 515.250s |
+| Rebalance | ui-2 | 241 | 9m21s | 8m41s | 512.983s | 511.710s |
+| Rebalance | ui-3 | 205 | 10m55s | 10m19s | 612.286s | 611.050s |
+| Mosaic | ui-1 | 236 | 8m36s | 7m48s | 418.239s | 417.000s |
+| Mosaic | ui-2 | 241 | 10m42s | 9m48s | 520.285s | 519.010s |
+| Mosaic | ui-3 | 205 | 9m44s | 8m57s | 483.428s | 482.320s |
+
+The maximum UI job wall time falls from the baseline's 14m18s to 10m55s
+(23.7% shorter) in the direct comparison, then 10m42s (25.2% shorter) in the
+follow-up. Maximum test-body time falls from 813.360s to 611.050s (24.9%) and
+519.010s (36.2%), respectively. These are observed UI job and test durations,
+not overall workflow or release durations.
+
+The maximum test sum is 11.9% above the three-shard mean on the rebalance
+commit and 9.8% above it in the follow-up, versus 68.8% in the baseline.
+Thus the original projected within-5% balance is not an observed guarantee.
+The slowest shard changes from ui-3 to ui-2 between the two new samples.
+Job setup and other steps add 32–54 seconds beyond the race step in these
+runs; the race step also includes work outside the reported package duration.
+Runner and setup variation remain visible. The evidence supports closing the
+confirmation item and retaining the assignments; two observations do not
+establish long-term medians or justify chasing the changing slowest runner.
+
+### Artifact provenance and verification
+
+All nine raw UI streams, including the original baseline, passed the repository's
+`testshards summarize` validation. An independent raw-event audit matched each
+stream's top-level terminal events to its run commit's manifest, rejected
+duplicates and failures, and verified that the three shards cover the manifest
+exactly once. The rebalance run has 680 passes and one existing skip; the mosaic
+run has 681 passes and the same skip,
+`TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset`, on ui-2. Every UI
+package and all four Linux race jobs pass in both hosted runs; overall CI also
+passes. The original baseline JSON hashes match the provenance table above.
+
+| Run | Shard | Artifact ID | SHA-256 of extracted JSON |
+|---|---|---:|---|
+| 34632011148 | ui-1 | 10277795138 | `093cba88c2b8d84b9d7152aa8954d286f86e30d0b5c2927306c695d985816257` |
+| 34632011148 | ui-2 | 10276662220 | `cec79c4e6d69e0502b86abae9d22a8691c60bc4fdd8af76f23b9f1a6f1cf4653` |
+| 34632011148 | ui-3 | 10277815403 | `64b9446adfb75646e46156c8c01470479f686d79ffce0194d6fd5fcd953e2a07` |
+| 34710982261 | ui-1 | 10303685616 | `b4fdbe0c8946280df350b5ad3225ac3a92417c66ed6b201de3c8ca119c24d68c` |
+| 34710982261 | ui-2 | 10303622100 | `5093d6f4695a4b011e74b5787d02b8874f650d0bd7a876b72ba1f0ed2ac7f9d2` |
+| 34710982261 | ui-3 | 10303083254 | `40bbc90febdb23566037272abdf0ed6720e0411a67dd575d2d52bfeaf1341ec1` |
+
+Downloaded evidence is in `/tmp/picfetch-shard-ci-confirmation/`. Replay downloads
+while the workflow's 14-day artifact retention permits:
+
+```sh
+root=/tmp/picfetch-shard-ci-replay
+mkdir -p "$root"
+for run in 34627413846 34632011148 34710982261; do
+    gh run download "$run" --repo frathe/picfetch --pattern 'linux-race-ui-*' --dir "$root/$run"
+    gh run view "$run" --repo frathe/picfetch --json jobs,headSha,status,conclusion,url > "$root/run-$run.json"
+    gh api "repos/frathe/picfetch/actions/runs/$run/jobs" --paginate > "$root/jobs-$run.json"
+done
+for stream in "$root"/*/linux-race-ui-*/*.json; do
+    go run ./scripts/testshards summarize -json "$stream" > "$stream.summary.tsv"
+done
+```
+
+Use each run's `headSha` with `git show SHA:.github/testshards/internal-ui.tsv`
+for its historical assignment inventory. Sum `Elapsed` for terminal `pass` or
+`skip` events with a nonempty `Test` containing no `/`; require each assigned
+test exactly once in its shard. Package `pass` events have no `Test`. Job and
+race-step durations come from `completed_at - started_at` in the jobs API.
+The original projection replay above now pins the rebalance manifest so later
+test additions cannot invalidate its historical 681-test comparison.
+
+This confirmation changes only documentation and the manifest's evidence link.
+No CI run was dispatched, no assignments changed, and no tests were rerun.
+The installed Go snap launcher cannot run inside the sandbox; its underlying
+Go 1.27.1 binary built the existing standard-library-only summarizer with a
+temporary build cache, and all nine stream validations passed. Link, manifest
+preservation, and whitespace checks passed. No changed Go files require GoLand
+inspection. Confirmation budget: zero delegates, one lead review, no full suite.

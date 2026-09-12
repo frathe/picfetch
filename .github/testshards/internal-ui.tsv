@@ -9,7 +9,7 @@
 # ui-2: 241 entries, 470.530s projected weight sum
 # ui-3: 205 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
-# evidence: plans/2026-09-11-ui-shard-rebalance.md
+# evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
 TestActionsMenu_CopyImageUsesStub	ui-1
 TestActionsMenu_FreshViewer	ui-1

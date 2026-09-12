@@ -54,9 +54,12 @@
   amd64 seccomp failures remaining in `make verify`.
   See `scripts/historymovie/README.md` and the
   [implementation evidence](plans/2026-09-12-history-movie.md).
-- Rebalanced Linux UI race shards using Release v1.1.0 test timings: 27 whole-test
-  moves preserve all 681 assignments and project a 37.9% lower maximum test load.
-  See [evidence and validation](plans/2026-09-11-ui-shard-rebalance.md).
+- Confirmed the UI shard rebalance in hosted CI: the slowest UI job fell from
+  14m18s to 10m55s on the rebalance commit (23.7%), and to 10m42s in the
+  September 12 mosaic run (25.2%). All assigned tests are accounted for.
+  Measured maximum test loads were 11.9% and 9.8% above the mean; the original
+  5% balance target was a projection, with runner variation still visible.
+  See [evidence and validation](finished_refactorings/2026-09-11-ui-shard-rebalance.md#hosted-ci-confirmation--september-12-2026).
 
 ## TODO
 
@@ -74,15 +77,6 @@ Keep Fyne at v2.8.0 in [PR #19](https://github.com/frathe/picfetch/pull/19).
 Ronin reports an upstream library regression with v2.8.1. Revisit the upgrade
 after an upstream fix is available and the affected behavior is verified.
 The four grouped `golang.org/x/*` updates remain in the PR.
-
-### Confirm UI shard balance in CI
-
-Run CI after the September 11 manifest rebalance and compare the three raw test
-artifacts. Projected test sums are 470.520s / 470.530s / 504.870s, based on one
-completed release attempt; runner/setup variance and the realized improvement
-remain unmeasured. All three local UI race shards pass; the full local gate still
-has the separate seccomp failures below. See the
-[rebalance record](plans/2026-09-11-ui-shard-rebalance.md).
 
 ### Linux worker isolation in the local amd64 test container
 
