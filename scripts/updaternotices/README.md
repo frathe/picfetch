@@ -16,6 +16,11 @@ It excludes tests and build tools. The reviewed manifest pins both module versio
 and the union of selected package paths: an existing module's newly imported
 package can introduce a different file license. Replacements require a fresh
 source review rather than silently inheriting the original module's notices.
+Each module's `source` must be its exact `https://proxy.golang.org` ZIP URL for
+the resolved module path and version, using Go's uppercase-letter escaping.
+Changing a version requires updating that source URL even when its license
+files are byte-identical. Historical `files[].source` supplements retain their
+separately reviewed upstream URLs.
 
 After a dependency or import change, review the selected source files and every
 applicable root/nested license, NOTICE, copyright file and embedded license

@@ -37,7 +37,7 @@ func TestNoticesRejectUnreviewedChanges(t *testing.T) {
 	license := []byte("Copyright Example\nLicense conditions\n")
 	writeTestFile(t, filepath.Join(dir, "LICENSE"), license)
 	entry := noticeModule{
-		Module: "example.org/module", Version: "v1.0.0", Source: "https://example.org/source", License: "MIT", Packages: []string{"example.org/module"},
+		Module: "example.org/Module", Version: "v1.0.0-RC1", Source: "https://proxy.golang.org/example.org/!module/@v/v1.0.0-!r!c1.zip", License: "MIT", Packages: []string{"example.org/Module"},
 		Files: []noticeFile{{Path: "LICENSE", SHA256: fmt.Sprintf("%x", sha256.Sum256(license))}},
 	}
 	modules := map[string]goModule{entry.Module: {Version: entry.Version, Dir: dir, packages: entry.Packages}}
@@ -45,7 +45,7 @@ func TestNoticesRejectUnreviewedChanges(t *testing.T) {
 	if err != nil || !bytes.Contains(good, license) {
 		t.Fatalf("complete original notice missing: %v", err)
 	}
-	for _, change := range []string{"version", "missing module", "new module", "new package", "duplicate module", "license bytes", "missing license", "bad range"} {
+	for _, change := range []string{"version", "missing module", "new module", "new package", "duplicate module", "license bytes", "missing license", "bad range", "stale source", "wrong source module", "unversioned source", "unescaped source"} {
 		t.Run(change, func(t *testing.T) {
 			candidate := entry
 			candidate.Files = slices.Clone(entry.Files)
@@ -68,6 +68,14 @@ func TestNoticesRejectUnreviewedChanges(t *testing.T) {
 			case "bad range":
 				inventory[0].Files[0].Start = 5
 				inventory[0].Files[0].End = 2
+			case "stale source":
+				inventory[0].Source = "https://proxy.golang.org/example.org/!module/@v/v0.9.0.zip"
+			case "wrong source module":
+				inventory[0].Source = "https://proxy.golang.org/example.org/other/@v/v1.0.0-!r!c1.zip"
+			case "unversioned source":
+				inventory[0].Source = "https://example.org/Module"
+			case "unescaped source":
+				inventory[0].Source = "https://proxy.golang.org/example.org/Module/@v/v1.0.0-RC1.zip"
 			}
 			if _, err := renderNotices(dir, inventory, modules); err == nil {
 				t.Fatalf("accepted %s without a new license review", change)

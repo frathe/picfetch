@@ -176,7 +176,11 @@ func renderNotices(root string, inventory []noticeModule, modules map[string]goM
 			return nil, fmt.Errorf("module %s@%s is duplicated or differs from the production closure; review licenses", entry.Module, entry.Version)
 		}
 		seen[entry.Module] = true
-		if entry.Source == "" || entry.License == "" || len(entry.Files) == 0 {
+		expectedSource := moduleArchiveURL(entry.Module, module.Version)
+		if entry.Source != expectedSource {
+			return nil, fmt.Errorf("module %s source must identify its resolved version: want %s", entry.Module, expectedSource)
+		}
+		if entry.License == "" || len(entry.Files) == 0 {
 			return nil, fmt.Errorf("module %s lacks source/license files", entry.Module)
 		}
 		_, _ = fmt.Fprintf(&out, "### %s %s\n\nLicense: %s\n\nSource: %s\n\n", entry.Module, entry.Version, entry.License, entry.Source)
@@ -237,6 +241,22 @@ func renderNotices(root string, inventory []noticeModule, modules map[string]goM
 	}
 	out.WriteString(sectionEnd + "\n")
 	return out.Bytes(), nil
+}
+
+func moduleArchiveURL(modulePath, version string) string {
+	var source strings.Builder
+	source.WriteString("https://proxy.golang.org/")
+	// The Go module proxy escapes each uppercase ASCII letter as !lowercase
+	// in both module paths and versions. go list already validates these inputs.
+	for _, c := range modulePath + "/@v/" + version {
+		if c >= 'A' && c <= 'Z' {
+			source.WriteByte('!')
+			c += 'a' - 'A'
+		}
+		source.WriteRune(c)
+	}
+	source.WriteString(".zip")
+	return source.String()
 }
 
 func replaceSection(existing, generated []byte) ([]byte, error) {

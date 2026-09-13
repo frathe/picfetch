@@ -48,7 +48,8 @@
 - Updated the third-party license notices included with the updater across
   all six supported desktop builds. All six standalone packages have been
   checked; signed releases and the final Windows MSIX package still need
-  verification.
+  verification. The license check also rejects source links for the wrong
+  dependency version.
 
 - Reduced the measured macOS application binary from **50.63 MB to 40.84 MB**,
   a **19.3% reduction**, by optimizing bundled artwork, fonts and data.

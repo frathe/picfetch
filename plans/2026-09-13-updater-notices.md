@@ -234,3 +234,37 @@ The existing read-only Scout collected fresh Qodana/CodeQL artifacts for
 `0c3bf8c`; both contain zero results, with no open PR scanning alerts. Reuse
 the same bounded evidence task for the follow-up head. Final review and CI
 evidence remains on PR #22 as described above; release qualification is unchanged.
+
+### Source-provenance finding on `dd8229a`
+
+Codex [reported](https://github.com/frathe/picfetch/pull/22#discussion_r3999654631)
+that changing a reviewed dependency version while retaining an old source URL
+could pass the notice check when license bytes were unchanged. Lead confirmed
+the defect: source validation only required a nonempty string. The existing
+reviewed-inventory seam reproduced it deterministically, so separate hypothesis
+fan-out and instrumentation were unnecessary.
+
+Route: Standard follow-up in this plan. Lead owns the check, regression and
+review; no fix is delegated. Files: existing `main.go`, `main_test.go` and README
+under `scripts/updaternotices`, this record and `todos.md`. Acceptance: the source
+URL must identify the resolved module and version through the canonical Go proxy
+ZIP path, including its uppercase-letter escaping. Verify with
+`go test ./scripts/updaternotices -run '^TestNoticesRejectUnreviewedChanges$'
+-count=1` and `make check-updater-notices`. The package still uses only the
+standard library; no dependencies, shipped license bytes or inventory entries
+change. Historical per-file supplements keep their separately reviewed URLs.
+
+Red: the four source cases (stale version, wrong module, unversioned URL and
+unescaped uppercase letters) all failed because invalid sources were accepted.
+Green: those cases pass after the check; the accepted fixture exercises escaped
+uppercase letters in both module path and prerelease version. The complete
+66-module source inventory also passes unchanged.
+
+Focused race tests pass for updaternotices (3.270s) and msixstage (5.337s).
+Focused vet, `make fmt-check check-qodana-test-exclusions` and the fix's
+`git diff --check` also pass.
+GoLand inspected both changed Go files, including weak warnings, with no
+findings. An initial race attempt hit a sandbox denial on Go's build cache;
+the permitted rerun passed. No new test files or top-level UI tests were added.
+The same read-only evidence Scout is reused for subsequent head reports;
+full race verification remains in native GitHub CI.
