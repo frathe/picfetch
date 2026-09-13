@@ -163,3 +163,49 @@ remains unknown and is not presented as resolved.
 
 Plan remains in `plans/` until user acceptance. Concurrent WinGet edits to README,
 its workflow, its new documentation and its todo entry were preserved.
+
+## PR #22 Codex review loop — 2026-09-13
+
+Ronin invoked the GitHub Codex review loop, authorizing commits and pushes on
+this PR branch and review-thread replies/resolution. Earlier no-commit statements
+describe the original implementation session. No merge or release is authorized.
+
+The initial head is `a3b0b6029f4af2bb125fee62c5d03954d314a687`. There are no
+review threads, including unresolved older threads. Codex's code and security
+reviews both completed on this head, followed by the connector's clean thumbs-up
+reaction. The [review summary](https://github.com/frathe/picfetch/pull/22#issuecomment-5653103344)
+records both completed reviews. Lead assessment of the tooling, archive checks,
+workflow integration and deferred WinGet scope found no confirmed defect.
+
+The [hosted CI run](https://github.com/frathe/picfetch/actions/runs/34755687251)
+passes validation, all four Linux race partitions, Windows tests and both macOS
+native-guard jobs. This closes the implementation session's native Linux/amd64
+verification gap. The signed release archives and native MSIX bundle checks
+still need their release/Store runs; PR CI does not produce those artifacts.
+Their qualification remains in `todos.md`.
+
+Local follow-up verification:
+
+- `go test -tags no_emoji -race ./scripts/updaternotices ./scripts/msixstage
+  ./scripts/wingettag -count=1` passes: 3.427s, 5.726s and 1.706s respectively.
+- `go vet ./scripts/updaternotices ./scripts/msixstage ./scripts/wingettag`
+  and `git diff --check` pass.
+- GoLand inspections of `main.go`, `artifacts.go` and `main_test.go` in
+  `scripts/updaternotices` complete without findings, including weak warnings.
+- The full suite stays in native GitHub CI under the review-loop exception;
+  no broad local race suite is duplicated.
+
+Route: Thin documentation follow-up, updating this evidence record and
+`todos.md`. No code change or new test is needed. Final checks and any later
+review dispositions are recorded on [PR #22](https://github.com/frathe/picfetch/pull/22)
+so its latest pushed commit can complete a fresh review without another
+evidence-only commit restarting the checks.
+
+Delegation: one read-only Scout collects Qodana and CodeQL artifacts while the
+Lead checks threads and implementation. G1 bounded report collection; G2 retained
+API JSON and post-suppression SARIF; G3 zero repository edits; G4 independent
+report discovery; G5 Lead has not loaded the artifact details. Rule S scripts
+extraction; the Scout follows run associations and artifact locations. Assessment
+and fixes remain with Lead. The single Scout exceeds Thin's default zero-spawn
+budget to collect independent external evidence concurrently. Actual: one spawn,
+zero code fixes, zero local full-suite runs; final GitHub checks remain required.

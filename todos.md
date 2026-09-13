@@ -66,8 +66,9 @@
   file-level license exceptions. Generated notices retain original source bytes;
   CI checks the inventory and final archive/MSIX delivery. All six rebuilt
   standalone archives pass notice inspection. Focused race tests, static checks
-  and GoLand inspections pass; native CI and final MSIX qualification remain
-  below. See the [implementation evidence](plans/2026-09-13-updater-notices.md).
+  and GoLand inspections pass. PR #22's native Linux race suite and Windows/macOS
+  guards pass; signed release and final MSIX qualification remain below. See the
+  [implementation evidence](plans/2026-09-13-updater-notices.md).
 
 - Embedded artwork and font/data inputs reduce the measured native macOS
   binary from 50.63 MB to 40.84 MB (19.3%). Trane and Finis retain only their
@@ -126,10 +127,11 @@ remain. A fresh native `go test -race -count=5 -timeout 2m -run
 
 ### Qualify updater notices in native release CI
 
-Notice reconciliation and delivery guards are implemented. Before release,
-observe the native Linux/amd64 full CI gate and the new inspection of final
-signed Windows archives and both native MSIX bundle payloads. Local Docker is
-ARM, and this host has no Windows SDK; local unsigned archives for all six
+Notice reconciliation and delivery guards are implemented. PR #22's
+[native Linux/amd64 full CI gate](https://github.com/frathe/picfetch/actions/runs/34755687251)
+passes, along with its Windows and macOS native guards. Before release, observe
+the new inspection of final signed Windows archives and both native MSIX bundle
+payloads. This host has no Windows SDK; local unsigned archives for all six
 targets pass. The audit preserves inferred MPL matcher attribution for
 `go-pathspec`; its historical `fnmatch.translate()` source does not identify an
 exact CPython version, so the retained Python license is explicitly an ancestry
