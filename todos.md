@@ -6,8 +6,9 @@
   conditionally submit the frozen current release under one approval, retaining
   standalone `reconcile` and `submit`. CI and documentation are consolidated onto
   the Spiral bugfix branch. Windows tooling tests/vet, native Linux/amd64 tooling
-  race checks and the repository vet/build gate pass; the full race suite and an
-  approved live run remain. See the
+  race checks and the repository vet/build gate pass. PR #23 CI also passes the
+  full Linux race suite, Windows tests and both macOS native guards on `3011ea5`;
+  an approved live Store run remains. See the
   [implementation plan](plans/2026-09-13-store-combined-release.md).
 
 ## Done
@@ -30,13 +31,14 @@
 
 ### Finish Windows Spiral verification
 
-The Intel shader compatibility fix is local. The corrected Windows executable
+The Intel shader compatibility fix is in PR #23. The corrected Windows executable
 is at `.scratch/spiral-windows-20260913/windows-build/picfetch-fixed.exe`; its
 native `--help` smoke passes. Confirm its Spiral window before releasing it.
 NVIDIA rendering remains untested.
 Docker now runs and its build checks plus the complete Spiral race package pass.
-The full repository race gate still needs at least 16 GiB of Docker VM memory;
-this daemon exposes 15.45 GiB. The Windows host also has a Git Bash fork failure.
+PR #23 CI passes the full repository race gate on `3011ea5`. The local Docker
+gate still needs at least 16 GiB of VM memory; this daemon exposes 15.45 GiB.
+The Windows host also has a Git Bash fork failure.
 The native Spiral suite reproduces an existing FPS
 allocation-test failure on unchanged v1.1.1 (16 allocations versus 9, alongside
 German translation-fallback logs); investigate the fixture's locale setup.
