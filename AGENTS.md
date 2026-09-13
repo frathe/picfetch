@@ -130,6 +130,16 @@ precedence over its default handoff procedure.
 
 ## Agent skills
 
+### Transparent PNG generation
+
+When creating or editing a PNG that needs a transparent background, including
+Trane art, read [the generation workflow](docs/transparent-png-generation.md)
+before the first call. Use its concise built-in request and inspect the untouched
+file's actual alpha before optimization. Allow at most one justified retry;
+a repeated alpha failure ends that route. Follow current authorization for any
+API/model switch or local cleanup, and distinguish live tool controls from API
+capabilities.
+
 ### Issue tracker
 
 Issues and specs live as local Markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
