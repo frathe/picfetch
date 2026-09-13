@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -230,7 +231,9 @@ func renderNotices(root string, inventory []noticeModule, modules map[string]goM
 		ids = append(ids, id)
 	}
 	slices.Sort(ids)
+	anchors := make(map[string]bool, len(ids))
 	for _, id := range ids {
+		anchors["#updater-text-"+id[:12]] = true
 		_, _ = fmt.Fprintf(&out, "### Updater text %s\n\n````text\n", id[:12])
 		out.Write(texts[id])
 		if !bytes.HasSuffix(texts[id], []byte("\n")) {
@@ -239,6 +242,13 @@ func renderNotices(root string, inventory []noticeModule, modules map[string]goM
 		out.WriteString("````\n\n")
 	}
 	out.WriteString(sectionEnd + "\n")
+	// Manifest notes can refer to license text shared with another module.
+	// Validate those references against the headings emitted in this render.
+	for _, link := range regexp.MustCompile(`]\((#updater-text-[^)]*)\)`).FindAllSubmatch(out.Bytes(), -1) {
+		if !anchors[string(link[1])] {
+			return nil, fmt.Errorf("updater notice links to missing license text %s; review manifest notes", link[1])
+		}
+	}
 	return out.Bytes(), nil
 }
 

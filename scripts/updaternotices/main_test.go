@@ -52,7 +52,7 @@ func TestNoticesRejectUnreviewedChanges(t *testing.T) {
 			t.Fatalf("generated license link %s has no matching text heading", link[0])
 		}
 	}
-	for _, change := range []string{"version", "missing module", "new module", "new package", "duplicate module", "license bytes", "missing license", "bad range", "stale source", "wrong source module", "unversioned source", "unescaped source"} {
+	for _, change := range []string{"version", "missing module", "new module", "new package", "duplicate module", "license bytes", "missing license", "bad range", "stale source", "wrong source module", "unversioned source", "unescaped source", "missing linked text"} {
 		t.Run(change, func(t *testing.T) {
 			candidate := entry
 			candidate.Files = slices.Clone(entry.Files)
@@ -83,6 +83,8 @@ func TestNoticesRejectUnreviewedChanges(t *testing.T) {
 				inventory[0].Source = "https://example.org/Module"
 			case "unescaped source":
 				inventory[0].Source = "https://proxy.golang.org/example.org/Module/@v/v1.0.0-RC1.zip"
+			case "missing linked text":
+				inventory[0].Notes = "See the [shared Go BSD license](#updater-text-911f8f578293)."
 			}
 			if _, err := renderNotices(dir, inventory, modules); err == nil {
 				t.Fatalf("accepted %s without a new license review", change)

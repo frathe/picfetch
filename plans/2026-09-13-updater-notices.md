@@ -292,3 +292,26 @@ Both changed Go files have clean GoLand inspections, including weak warnings.
 The source check initially encountered the known sandbox build-cache denial;
 the permitted verification rerun passes. Subsequent thread disposition and
 fresh-head reviews/CI remain in PR #22, with the existing evidence Scout reused.
+
+### Shared-license reference finding on `7d37609`
+
+Codex [identified](https://github.com/frathe/picfetch/pull/22#discussion_r3999712298)
+six manifest notes that retain a shared Go BSD text hash. The prior synthetic
+link invariant did not make the production checker reject a lost shared target.
+Lead reproduced that gap by adding the real BSD reference to an inventory that
+does not emit that text; the regression failed because rendering accepted it.
+
+The renderer now validates every inline updater-license link in its generated
+section against the headings it actually emits, including links from manifest
+notes. Both check and write modes use that renderer, so a missing shared target
+fails before a document is accepted or written. This retains the current valid
+shared references while requiring review if their source text changes or vanishes.
+
+Route remains Standard: existing generator/test/README, `todos.md` and this
+record; Lead owns implementation and review. The new negative regression passes,
+as does the real 66-module inventory with all six BSD references. Focused race
+tests pass for updaternotices (3.239s) and msixstage (6.194s); inventory validation,
+vet, formatting, Qodana exclusions and diff checks pass. GoLand reports no findings
+in either changed Go file, including weak warnings. No dependency, manifest,
+generated notice bytes, test files or package boundaries change. The existing
+Scout continues collecting fresh-head analysis evidence; full CI stays hosted.

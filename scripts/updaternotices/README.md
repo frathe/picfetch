@@ -31,6 +31,10 @@ covered by the same header. `repository: true` denotes a retained historical
 license with its own exact `source` URL, rather than a file in the module cache.
 Then regenerate and review the Markdown diff. The generator shares byte-identical
 texts and preserves all content outside its two updater markers.
+Inline `#updater-text-...` links in the generated section, including manifest
+notes, must target a license heading emitted from the current inventory. Both
+checking and regeneration reject missing targets, so a shared-license link
+must be reviewed when its last matching source text changes or is removed.
 
 The artifact check compares `LICENSE`, `THIRD-PARTY-NOTICES.md` and `PRIVACY.md`
 byte for byte with the checkout. macOS release ZIPs use
