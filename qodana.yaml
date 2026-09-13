@@ -347,5 +347,6 @@ exclude:
       - "scripts/synctuf/main_test.go"
       - "scripts/tagvectors/main_test.go"
       - "scripts/testshards/main_test.go"
+      - "scripts/updaternotices/main_test.go"
       - "scripts/wingettag/tag_test.go"
       - "scripts/wingettag/workflow_test.go"

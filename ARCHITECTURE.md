@@ -207,6 +207,12 @@ Generation uses local `cwebp`; the application keeps its existing image decoders
 
 ### Packaging tooling
 
+`scripts/updaternotices` reconciles the six-target production updater dependency
+union with its reviewed `manifest.json`, checks source-file hashes and generates
+the bounded updater section of `THIRD-PARTY-NOTICES.md`. `artifacts.go` verifies
+byte-identical license/privacy/notices inside finished ZIP/tar.gz archives and
+both MSIX bundle payloads; CI runs this before release publication/Store upload.
+
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.
 `docs/packaging-inputs.md` describes provenance and native artifact validation.

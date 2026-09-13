@@ -147,6 +147,12 @@ jobs:
           & $appcert test -appxpackagepath $packagePath -reportoutputpath $reportPath
           if ($LASTEXITCODE -ne 0) { throw 'Windows App Certification Kit rejected the MSIX bundle.' }
 
+      - name: Inspect notices in both final MSIX payloads
+        shell: pwsh
+        run: |
+          go run ./scripts/updaternotices -artifact dist/picfetch-microsoft-store.msixbundle
+          if ($LASTEXITCODE -ne 0) { throw 'Final MSIX bundle notice inspection failed.' }
+
       - name: Record validated stable-release provenance
         shell: pwsh
         run: |

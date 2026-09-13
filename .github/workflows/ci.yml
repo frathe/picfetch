@@ -49,6 +49,9 @@ jobs:
       - name: Check GitHub TUF root expiry
         run: make check-tuf-root
 
+      - name: Check updater dependency notices
+        run: make check-updater-notices
+
       - name: Install Linux GUI build dependencies
         run: |
           sudo apt-get update

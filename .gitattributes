@@ -1,0 +1,3 @@
+# Preserve upstream license bytes, including any original CRLF sequences.
+THIRD-PARTY-NOTICES.md -text
+scripts/updaternotices/licenses/* -text

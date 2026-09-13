@@ -61,6 +61,14 @@
 
 #### Internal
 
+- Updater notices now cover 66 pinned modules and their 322 selected production
+  packages across all six desktop targets, including go-tuf's NOTICE and
+  file-level license exceptions. Generated notices retain original source bytes;
+  CI checks the inventory and final archive/MSIX delivery. All six rebuilt
+  standalone archives pass notice inspection. Focused race tests, static checks
+  and GoLand inspections pass; native CI and final MSIX qualification remain
+  below. See the [implementation evidence](plans/2026-09-13-updater-notices.md).
+
 - Embedded artwork and font/data inputs reduce the measured native macOS
   binary from 50.63 MB to 40.84 MB (19.3%). Trane and Finis retain only their
   17 used poses with identical original pixels; viewer and manual illustrations
@@ -116,22 +124,16 @@ remain. A fresh native `go test -race -count=5 -timeout 2m -run
 
 ## TODO
 
-### Complete updater dependency notices before the next release
+### Qualify updater notices in native release CI
 
-The September 12 dependency inventory found that `THIRD-PARTY-NOTICES.md`
-omits the pinned Sigstore/TUF core module entries. Reconcile actual shipped
-source/file licenses across supported targets, include applicable license and
-NOTICE text (including go-tuf's NOTICE), and inspect delivery in the final
-archives/MSIX. This applies to the dependencies already shipped and is
-independent of the declined verifier refactoring.
-
-### WinGet package identifier migration
-
-The local publishing workflow and README now use `frathe.picfetch`. Move the
-existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkgs` to the
-new identifier before the next WinGet publication; the new manifest directory
-is not present upstream yet. See the
-[maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
+Notice reconciliation and delivery guards are implemented. Before release,
+observe the native Linux/amd64 full CI gate and the new inspection of final
+signed Windows archives and both native MSIX bundle payloads. Local Docker is
+ARM, and this host has no Windows SDK; local unsigned archives for all six
+targets pass. The audit preserves inferred MPL matcher attribution for
+`go-pathspec`; its historical `fnmatch.translate()` source does not identify an
+exact CPython version, so the retained Python license is explicitly an ancestry
+reference. See the [evidence and limits](plans/2026-09-13-updater-notices.md).
 
 ### Fyne upgrade deferred
 
@@ -152,6 +154,13 @@ submitted by the agent. Record final vendor determinations and rescan the final
 release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
 
 ## LATER
+
+### WinGet package identifier migration
+
+Move the existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkgs` to the
+new identifier `frathe.picfetch` before the next WinGet publication; See the
+[maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
+
 
 ### Revisit HEIC at its next dependency upgrade
 

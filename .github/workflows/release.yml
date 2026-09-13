@@ -232,6 +232,18 @@ jobs:
           name: picfetch-windows-signed
           path: dist
 
+      - name: Set up Go for final notice inspection
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Inspect notices in every final release archive
+        run: |
+          go run ./scripts/updaternotices -artifact dist/picfetch-macos-arm64.zip -artifact dist/picfetch-macos-x86_64.zip
+          go run ./scripts/updaternotices -artifact dist/picfetch-windows-amd64.zip -artifact dist/picfetch-windows-arm64.zip
+          go run ./scripts/updaternotices -artifact dist/picfetch-linux-amd64.tar.gz -artifact dist/picfetch-linux-arm64.tar.gz
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
