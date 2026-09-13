@@ -12,6 +12,24 @@
 
 ## TODO
 
+### Find more like this
+
+Use one displayed or Grid-selected image as a reference to explore up to 30
+ranked matches from the loaded collection. Reuse the existing local image model,
+let a result become the next reference, and retain a short Back history. Keep
+normal viewing/comparison actions and allow the selected matches or complete
+result to be saved as a Favorite.
+
+Start with a ranking-quality experiment, then implement a worker-owned search
+session, ranked Grid visits, and an isolated UI feature. The Explorer extraction
+([MA-026](needs_refactoring.md#ma-026)) precedes shared setup and UI integration.
+Positive/negative examples are a separately deferred extension.
+
+The [feature plan](docs/find-more-like-this/plan.md) defines scope, decisions,
+interfaces, and acceptance criteria. The [ticket index](docs/find-more-like-this/tickets/README.md)
+contains eight ordered MVP tickets and one deferred extension ticket. This is
+planned work; implementation and ranking-quality validation have not started.
+
 ### Finish Windows Spiral verification
 
 The Intel shader compatibility fix is in PR #23. The corrected Windows executable
