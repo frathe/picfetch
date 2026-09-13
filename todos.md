@@ -6,67 +6,9 @@
 
 #### New Features
 
-- Optimized the static assets bundled with PicFetch, reducing
-  the macOS application binary by **19.3%** (from 50.63 MB to 40.84 MB).
-
-<img src="https://raw.githubusercontent.com/frathe/picfetch/0c3bf8cddb83a53d34072ca9b54edc32d9fc39bb/assets/trane/trane_shrink_ray.png" alt="Trane using a shrink ray to illustrate smaller PicFetch downloads.">
-
-- **Hidden easter egg:** enjoy a moving tunnel of pictures with smooth
-  transitions and animated GIF playback. It ran stably at around 60 FPS
-  during an hour of hands-on testing. Use your current image order or shuffle
-  the pictures, with duplicate filtering respected.
-- Pictures now fade into the Spiral over 0.75 seconds and can appear closer
-  to the centre, creating a softer, fuller effect.
-- Animated GIFs play independently inside the Spiral. Adjust picture
-  transparency while it runs, or set newly arriving pictures to between
-  half and twice their normal size. Pictures remain partly transparent,
-  and your transparency setting is remembered until you quit PicFetch.
-
 #### Bugfix
 
-- Fixed the reference screenshot used to check **Copy Selection**, without
-  changing its appearance, and repaired links to earlier development records.
-- Fixed several Explorer build commands so they correctly prepare the required
-  tag data before building the app.
-- Fixed artwork checks that incorrectly rejected optimized images because of
-  color changes in completely transparent areas. Visible colors and transparency
-  remain unchanged.
-- On Linux systems with multiple monitors, Mosaic wallpaper now offers
-  **Set on All Displays** when the desktop cannot change just the selected
-  monitor. This was confirmed working on Ubuntu 24.04 with two displays.
-- Leaving Spiral fullscreen now restores a usable 960 × 600 window instead
-  of shrinking it to a tiny, unusable size.
-- Press **H** to show or hide Spiral's help overlay. **F1** opens the main manual.
-- Fixed several Spiral issues: **F1** now works when the Spiral canvas has
-  focus, stalled image loading no longer delays quitting, pictures resume
-  appearing after reducing the centre size when it is off-screen, and shuffle
-  avoids repeating the same picture at the end of one cycle and the start
-  of the next, even when the source list contains repeated entries.
-
 #### Internal
-
-- Updated the third-party license notices included with the updater across
-  all six supported desktop builds. All six standalone packages have been
-  checked; signed releases and the final Windows MSIX package still need
-  verification. The license check also rejects source links for the wrong
-  dependency version. Missing shared-license targets also fail the check.
-
-- Reduced the measured macOS application binary from **50.63 MB to 40.84 MB**,
-  a **19.3% reduction**, by optimizing bundled artwork, fonts and data.
-  Trane and Finis keep all their used poses with their original pixels.
-
-- Full Docker test runs now check that the computer running them supports
-  the required Linux security features. Unsupported ARM emulation produces
-  a clear explanation. The full checks pass on native Linux x64.
-
-- Added a developer command, `make movie`, that creates an animated video
-  of PicFetch's development history, including captions, project statistics,
-  a growth chart and original music. Video length and output location
-  are configurable.
-
-- Redistributed automated interface tests so they finish sooner. The slowest
-  test group completed about **24–25% faster** in measured runs, with every
-  test still included.
 
 ## TODO
 

@@ -1,85 +1,67 @@
 ## What's Changed
 
-## New Features
+### New Features
 
-- **Find pictures that look alike.** The new Similarity Explorer groups visually similar pictures on an
-  interactive map. Open it with **Shift+S**.
+- Optimized the static assets bundled with PicFetch, reducing
+  the macOS application binary by **19.3%** (from 50.63 MB to 40.84 MB).
 
-- **Simple, private setup.** Explorer guides you through downloading the files it needs, with progress, cancellation,
-  and retry options. After setup, analysis works offline. Your pictures stay on your computer, and Explorer collects no
-  analytics or feedback. Available on **Macs with Apple M-series chips** and **64-bit Intel/AMD Linux computers**. The
-  Linux download is approximately **383 MB**.
+<img src="https://raw.githubusercontent.com/frathe/picfetch/0c3bf8cddb83a53d34072ca9b54edc32d9fc39bb/assets/trane/trane_shrink_ray.png" alt="Trane using a shrink ray to illustrate smaller PicFetch downloads.">
 
-- **Filter pictures by subject.** Browse using 75 subject and scene tags, including trains, landmarks, and food. Select
-  several tags to show pictures matching any of them, or choose **Untagged** to find pictures without a label. No extra
-  download is needed.
+- **Hidden easter egg:** enjoy a moving tunnel of pictures with smooth
+  transitions and animated GIF playback. It ran stably at around 60 FPS
+  during an hour of hands-on testing. Use your current image order or shuffle
+  the pictures, with duplicate filtering respected.
+- Pictures now fade into the Spiral over 0.75 seconds and can appear closer
+  to the centre, creating a softer, fuller effect.
+- Animated GIFs play independently inside the Spiral. Adjust picture
+  transparency while it runs, or set newly arriving pictures to between
+  half and twice their normal size. Pictures remain partly transparent,
+  and your transparency setting is remembered until you quit PicFetch.
 
-- **Create your own groups.** Select at least two pictures under **Unassigned**, then choose **Analyze** to review what
-  they have in common and name the group. Keep your selection or include other matching pictures. Groups in
-  Favorite-based collections are saved for reopening; groups in other collections last for the current map.
+### Bugfix
 
-- **Save reusable grouping rules.** Create presets based on tags and picture details, preview their matches, and reuse
-  them across collections.
+- Fixed the reference screenshot used to check **Copy Selection**, without
+  changing its appearance, and repaired links to earlier development records.
+- Fixed several Explorer build commands so they correctly prepare the required
+  tag data before building the app.
+- Fixed artwork checks that incorrectly rejected optimized images because of
+  color changes in completely transparent areas. Visible colors and transparency
+  remain unchanged.
+- On Linux systems with multiple monitors, Mosaic wallpaper now offers
+  **Set on All Displays** when the desktop cannot change just the selected
+  monitor. This was confirmed working on Ubuntu 24.04 with two displays.
+- Leaving Spiral fullscreen now restores a usable 960 × 600 window instead
+  of shrinking it to a tiny, unusable size.
+- Press **H** to show or hide Spiral's help overlay. **F1** opens the main manual.
+- Fixed several Spiral issues: **F1** now works when the Spiral canvas has
+  focus, stalled image loading no longer delays quitting, pictures resume
+  appearing after reducing the centre size when it is off-screen, and shuffle
+  avoids repeating the same picture at the end of one cycle and the start
+  of the next, even when the source list contains repeated entries.
 
-- **Adjust and navigate the map.** Use the **Granularity** slider to combine related groups or return to more detailed
-  grouping without rescanning. Use the arrow keys to move between groups, **Enter** to open one, and **+ / -** to zoom.
-  Hide the tag sidebar when you need more space.
+### Internal
 
-- **Choose a new mosaic layout.** The new **Shelf** option in Advanced settings arranges pictures neatly without
-  rotation, while still allowing overlap. **Random** remains the default, with varied placement and rotation.
+- Updated the third-party license notices included with the updater across
+  all six supported desktop builds. All six standalone packages have been
+  checked; signed releases and the final Windows MSIX package still need
+  verification. The license check also rejects source links for the wrong
+  dependency version. Missing shared-license targets also fail the check.
 
-- **Open Mosaic directly.** Press **Shift+M** to create a mosaic from your loaded collection, your Grid View selection,
-  or your filtered results. **Generate Image Mosaic** is now in the **Window** menu. The existing **M** and **S**
-  shortcuts still control merge and sort.
+- Reduced the measured macOS application binary from **50.63 MB to 40.84 MB**,
+  a **19.3% reduction**, by optimizing bundled artwork, fonts and data.
+  Trane and Finis keep all their used poses with their original pixels.
 
-## Bugfix
+- Full Docker test runs now check that the computer running them supports
+  the required Linux security features. Unsupported ARM emulation produces
+  a clear explanation. The full checks pass on native Linux x64.
 
-- **Render groups containing SVG pictures.** Explorer no longer closes when drawing their map previews. The fix was
-  confirmed on the affected Windows ARM64 VM.
+- Added a developer command, `make movie`, that creates an animated video
+  of PicFetch's development history, including captions, project statistics,
+  a growth chart and original music. Video length and output location
+  are configurable.
 
-- **Clearer Similarity Explorer setup.** The introduction names the SigLIP 2 AI model and explains that it finds and
-  groups similar pictures. Technical privacy details remain in the linked privacy policy.
+- Redistributed automated interface tests so they finish sooner. The slowest
+  test group completed about **24–25% faster** in measured runs, with every
+  test still included.
 
-- **Keep your place while browsing.** Explorer preserves your map position and zoom while you open pictures or groups
-  and new analysis results arrive. A group you already have open keeps the same pictures while the map updates.
-
-- **Smoother grouping adjustments.** Dragging the **Granularity** slider now updates the map when you release it,
-  avoiding repeated rearrangements while you drag. Clicks and keyboard adjustments still apply immediately.
-
-- **Faster analysis and lower memory use.** Image orientation is handled more efficiently during analysis. Large
-  similarity maps also use less memory and update faster.
-
-- **Keep large maps readable.** Maps with more than 100 groups stop zooming out at 50%, keeping thumbnails large enough
-  to recognize. Pan or use the arrow keys to explore the rest.
-
-- **Recover from interrupted analysis and file changes.** Failed or incomplete analysis can be retried. Explorer retires
-  outdated maps when files change or disappear, preserves surviving group members, and prevents old results from
-  replacing a restarted analysis.
-
-- **Browse duplicates before analysis finishes.** **Shift+D** opens the highlighted picture’s detected duplicates
-  immediately, including hidden copies. The group updates as more duplicates are found.
-
-- **Steadier scrolling in Grid View.** The navigation highlight stays visible when scrolling with a mouse wheel or
-  trackpad. Duplicate-group updates preserve your scroll position without changing your selection or displayed picture.
-
-- **Closing files frees more memory.** **Close Files** now clears cached thumbnails and closes any open Explorer group
-  grid.
-
-- **Disable analysis-engine telemetry.** Explorer now explicitly turns off the analysis engine’s telemetry before it
-  starts, alongside its existing network restrictions.
-
-## Internal
-
-- **Release preparation.** Resolved seven code-inspection findings in mosaic generation, its tests, and Store release
-  tooling while preserving preview behavior and diagnostic output.
-
-- **Code quality and security cleanup.** Addressed findings from automated inspections and tightened how the Explorer
-  installer extracts downloaded files.
-
-- **Better testing and diagnostics.** Improved automated checks and failure reports to make problems easier to
-  investigate. Explorer test records use image counts and hashes rather than retaining filenames or picture contents.
-
-- **Completed a broad maintenance review.** Reviewed and improved file handling, caching, background tasks, duplicate
-  grouping, and platform integration. The work also included successful user testing on Windows 11 ARM and x64.
-
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.3...v1.1.0
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.1.0...v1.1.1
