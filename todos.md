@@ -6,90 +6,69 @@
 
 #### New Features
 
-- Hypno Spiral tunnel image stream is complete. Ronin tested it for an hour
-  and accepted stable, relatively smooth operation around 60 FPS, including
-  smooth GIF playback. Frozen duplicate-aware sources, Main/Random order,
-  image controls, soft entrances and lifecycle handling are implemented.
-  Existing native resource runs, automated checks and GoLand inspections
-  support the result; the known local amd64 seccomp failures remain separate.
-  See the [final acceptance](docs/spiral-qualification-2026-09-12.md#accepted-result).
-- Spiral pictures now fade in from fully transparent over 0.75 seconds and
-  can launch closer to the centre, with a 3% protected disc instead of 8%.
-  Focused and full UI race checks, GoLand inspections and native rendering
-  pass; the full gate retains only the known local amd64 seccomp failures.
-  See the [soft-entry evidence](finished_refactorings/2026-09-12-spiral-soft-entry.md).
-- Spiral tunnel pictures now play bounded GIF previews with independent timing.
-  A live image-transparency slider shifts the range, preserves the 85% visibility
-  ceiling, and retains its setting across reopening in the current process.
-  Image size is adjustable from 0.5x to 2x for new arrivals, with centre clearance
-  preserved. Ronin confirmed all sliders work as intended in the native trial.
-  See the [follow-up evidence](finished_refactorings/2026-09-12-spiral-help-and-gif-playback.md).
+- Optimized the static assets bundled with PicFetch, reducing
+  the macOS application binary by **19.3%** (from 50.63 MB to 40.84 MB).
+
+<img src="https://raw.githubusercontent.com/frathe/picfetch/0c3bf8cddb83a53d34072ca9b54edc32d9fc39bb/assets/trane/trane_shrink_ray.png" alt="Trane using a shrink ray to illustrate smaller PicFetch downloads.">
+
+- **Hidden easter egg:** enjoy a moving tunnel of pictures with smooth
+  transitions and animated GIF playback. It ran stably at around 60 FPS
+  during an hour of hands-on testing. Use your current image order or shuffle
+  the pictures, with duplicate filtering respected.
+- Pictures now fade into the Spiral over 0.75 seconds and can appear closer
+  to the centre, creating a softer, fuller effect.
+- Animated GIFs play independently inside the Spiral. Adjust picture
+  transparency while it runs, or set newly arriving pictures to between
+  half and twice their normal size. Pictures remain partly transparent,
+  and your transparency setting is remembered until you quit PicFetch.
 
 #### Bugfix
 
-- PR #21 restores the Copy Selection golden to Fyne's supported true-color
-  PNG format, with all decoded pixels preserved, and pins five archived
-  evidence references to their preserved Git revision. See the
-  [review follow-up](finished_refactorings/2026-09-13-embedded-asset-size.md#follow-up-on-533744a).
-- PR #21's Codex finding is fixed: every Explorer Make target regenerates
-  embedded tag vectors before compilation, including profiling, real-model
-  acceptance, UI acceptance and asset-install qualification. The seven-target
-  order regression, focused race checks and GoLand inspections pass. See the
-  [review record](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-codex-review-loop--2026-09-13).
-- Generated-artwork validation now accepts ImageOptim's RGB changes beneath
-  fully transparent pixels in ordinary illustrations. Visible RGB and all
-  alpha values remain exact; gaze atlases still require every pixel byte to
-  match. Focused race tests, Linux/amd64 asset validation and GoLand inspections
-  pass. Hosted validation also passes on `cbf106d` in PR #21. See the
-  [CI fix](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-lossless-optimization-check--2026-09-13).
-- Mosaic wallpaper on Linux with multiple displays now offers an explicit
-  **Set on All Displays** action when the desktop rejects a selected-display
-  change. Single-display behavior is preserved. Ronin's Ubuntu ARM64 machine
-  has two displays; the working x64 machine has one, which explains the reported
-  difference. Ronin confirmed the global mosaic wallpaper action on native
-  Ubuntu 24.04 hardware with two displays on September 12, 2026.
-  See the [fix and verification record](finished_refactorings/2026-09-12-mosaic-global-wallpaper.md).
-- Leaving Spiral fullscreen now restores a usable 960x600 window instead of
-  collapsing to a 1x1 canvas. Regression, native resize and qualification
-  evidence are in the [September 12 record](docs/spiral-qualification-2026-09-12.md).
-- H toggles Spiral's local help overlay; F1 retains the main manual binding.
-- PR #20 fixes route F1 from the Spiral canvas to the manual, keep blocked
-  preview reads from delaying process exit, restore arrivals after shrinking
-  an off-screen centre, and prevent random-cycle boundary repeats when a URI
-  occurs more than once. Regression evidence is in the
-  [review record](finished_refactorings/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
+- Fixed the reference screenshot used to check **Copy Selection**, without
+  changing its appearance, and repaired links to earlier development records.
+- Fixed several Explorer build commands so they correctly prepare the required
+  tag data before building the app.
+- Fixed artwork checks that incorrectly rejected optimized images because of
+  color changes in completely transparent areas. Visible colors and transparency
+  remain unchanged.
+- On Linux systems with multiple monitors, Mosaic wallpaper now offers
+  **Set on All Displays** when the desktop cannot change just the selected
+  monitor. This was confirmed working on Ubuntu 24.04 with two displays.
+- Leaving Spiral fullscreen now restores a usable 960 × 600 window instead
+  of shrinking it to a tiny, unusable size.
+- Press **H** to show or hide Spiral's help overlay. **F1** opens the main manual.
+- Fixed several Spiral issues: **F1** now works when the Spiral canvas has
+  focus, stalled image loading no longer delays quitting, pictures resume
+  appearing after reducing the centre size when it is off-screen, and shuffle
+  avoids repeating the same picture at the end of one cycle and the start
+  of the next, even when the source list contains repeated entries.
 
 #### Internal
 
-- Embedded artwork and font/data inputs reduce the measured native macOS
-  binary from 50.63 MB to 40.84 MB (19.3%). Trane and Finis retain only their
-  17 used poses with identical original pixels; viewer and manual illustrations
-  target 2x display sizes. Make builds omit the emoji font and generate exact
-  binary tag vectors from retained JSON. Focused race checks, Linux goldens,
-  GoLand inspections, native build/signature checks and Windows internal-package
-  cross-checks pass. Ronin accepted the completed plan on September 13, 2026.
-  See the [evidence](finished_refactorings/2026-09-13-embedded-asset-size.md).
+- Updated the third-party license notices included with the updater across
+  all six supported desktop builds. All six standalone packages have been
+  checked; signed releases and the final Windows MSIX package still need
+  verification. The license check also rejects source links for the wrong
+  dependency version. Missing shared-license targets also fail the check.
 
-- Complete local Docker suites now check for a native Linux/amd64 daemon before
-  setup, with a clear explanation of the worker seccomp limitation under ARM
-  emulation. Worker enforcement tests and native amd64 CI remain unchanged;
-  golden rendering and shard inventory remain available under emulation.
-  Native Linux amd64 `make verify` passes, including both worker regressions.
-  See the [investigation and verification record](finished_refactorings/2026-09-12-linux-worker-test-container.md).
-- Added `make movie` to render the current committed Git history with Gource
-  and FFmpeg in Docker, including dynamic counters, captions, a growth chart
-  and original soundtrack. `MOVIE_SECONDS` sets the duration and `MOVIE_DIR`
-  sets the output parent. Seven replay tests and full 180/30-second movie
-  checks pass; all 681 UI race tests pass, with only the existing local
-  amd64 seccomp failures remaining in `make verify`.
-  See `scripts/historymovie/README.md` and the
-  [implementation evidence](plans/2026-09-12-history-movie.md).
-- Confirmed the UI shard rebalance in hosted CI: the slowest UI job fell from
-  14m18s to 10m55s on the rebalance commit (23.7%), and to 10m42s in the
-  September 12 mosaic run (25.2%). All assigned tests are accounted for.
-  Measured maximum test loads were 11.9% and 9.8% above the mean; the original
-  5% balance target was a projection, with runner variation still visible.
-  See [evidence and validation](finished_refactorings/2026-09-11-ui-shard-rebalance.md#hosted-ci-confirmation--september-12-2026).
+- Reduced the measured macOS application binary from **50.63 MB to 40.84 MB**,
+  a **19.3% reduction**, by optimizing bundled artwork, fonts and data.
+  Trane and Finis keep all their used poses with their original pixels.
+
+- Full Docker test runs now check that the computer running them supports
+  the required Linux security features. Unsupported ARM emulation produces
+  a clear explanation. The full checks pass on native Linux x64.
+
+- Added a developer command, `make movie`, that creates an animated video
+  of PicFetch's development history, including captions, project statistics,
+  a growth chart and original music. Video length and output location
+  are configurable.
+
+- Redistributed automated interface tests so they finish sooner. The slowest
+  test group completed about **24–25% faster** in measured runs, with every
+  test still included.
+
+## TODO
 
 ### Comparison test deadline under build contention
 
@@ -114,24 +93,17 @@ queued-completion and cancellation tests; the existing exact-file
 remain. A fresh native `go test -race -count=5 -timeout 2m -run
 '^TestCompareSettle_' ./internal/ui/compare` also passes (10.338s).
 
-## TODO
+### Qualify updater notices in native release CI
 
-### Complete updater dependency notices before the next release
-
-The September 12 dependency inventory found that `THIRD-PARTY-NOTICES.md`
-omits the pinned Sigstore/TUF core module entries. Reconcile actual shipped
-source/file licenses across supported targets, include applicable license and
-NOTICE text (including go-tuf's NOTICE), and inspect delivery in the final
-archives/MSIX. This applies to the dependencies already shipped and is
-independent of the declined verifier refactoring.
-
-### WinGet package identifier migration
-
-The local publishing workflow and README now use `frathe.picfetch`. Move the
-existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkgs` to the
-new identifier before the next WinGet publication; the new manifest directory
-is not present upstream yet. See the
-[maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
+Notice reconciliation and delivery guards are implemented. PR #22's
+[native Linux/amd64 full CI gate](https://github.com/frathe/picfetch/actions/runs/34755687251)
+passes, along with its Windows and macOS native guards. Before release, observe
+the new inspection of final signed Windows archives and both native MSIX bundle
+payloads. This host has no Windows SDK; local unsigned archives for all six
+targets pass. The audit preserves inferred MPL matcher attribution for
+`go-pathspec`; its historical `fnmatch.translate()` source does not identify an
+exact CPython version, so the retained Python license is explicitly an ancestry
+reference. See the [evidence and limits](plans/2026-09-13-updater-notices.md).
 
 ### Fyne upgrade deferred
 
@@ -152,6 +124,13 @@ submitted by the agent. Record final vendor determinations and rescan the final
 release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
 
 ## LATER
+
+### WinGet package identifier migration
+
+Move the existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkgs` to the
+new identifier `frathe.picfetch` before the next WinGet publication; See the
+[maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
+
 
 ### Revisit HEIC at its next dependency upgrade
 
@@ -177,7 +156,6 @@ retirement.
 - **Retained decoded map tiles (MA-025):** Accepted by the user on 2026-09-09. The map loads only when opened, and
   checking the geolocation of thousands of images is outside expected use. The upstream decoded-tile cache remains
   unbounded; its long-session impact is unmeasured. No further measurement or implementation work is planned.
-  See [MA-025](needs_refactoring.md#ma-025).
 
 - Windows releases are not Authenticode-signed. Controlled Folder Access and SmartScreen both judge by signature and
   reputation as well as by which program is writing, so an unsigned `picfetch.exe` can still be blocked even with the

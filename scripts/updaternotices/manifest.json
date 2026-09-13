@@ -1,0 +1,1468 @@
+[
+  {
+    "module": "github.com/asaskevich/govalidator",
+    "version": "v0.0.0-20230301143203-a9d515a09cc2",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "e1a36eac3f3109d06869f57127cc32683f70a170dcefe5f143ee378ff313ddfe"
+      }
+    ],
+    "license": "MIT",
+    "source": "https://proxy.golang.org/github.com/asaskevich/govalidator/@v/v0.0.0-20230301143203-a9d515a09cc2.zip",
+    "packages": [
+      "github.com/asaskevich/govalidator"
+    ]
+  },
+  {
+    "module": "github.com/cenkalti/backoff/v5",
+    "version": "v5.0.3",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "5c0476add4c38b55d0ed5ac11b85e00c38f26e1caee20dfe3ab58190103d1fbc"
+      }
+    ],
+    "license": "MIT",
+    "source": "https://proxy.golang.org/github.com/cenkalti/backoff/v5/@v/v5.0.3.zip",
+    "packages": [
+      "github.com/cenkalti/backoff/v5"
+    ]
+  },
+  {
+    "module": "github.com/cespare/xxhash/v2",
+    "version": "v2.3.0",
+    "files": [
+      {
+        "path": "LICENSE.txt",
+        "sha256": "f566a9f97bacdaf00d9f21dd991e81dc11201c4e016c86b470799429a1c9a79c"
+      }
+    ],
+    "license": "MIT",
+    "source": "https://proxy.golang.org/github.com/cespare/xxhash/v2/@v/v2.3.0.zip",
+    "packages": [
+      "github.com/cespare/xxhash/v2"
+    ]
+  },
+  {
+    "module": "github.com/cyberphone/json-canonicalization",
+    "version": "v0.0.0-20241213102144-19d51d7fe467",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "6821faaddedf2d78c95bb6d98b127e9e616097afd2f6bcc34389f000d13ab12d"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/cyberphone/json-canonicalization/@v/v0.0.0-20241213102144-19d51d7fe467.zip",
+    "packages": [
+      "github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
+    ]
+  },
+  {
+    "module": "github.com/digitorus/pkcs7",
+    "version": "v0.0.0-20230818184609-3a137a874352",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "d01c6d371866b3c7a1a7e20994d88d2ce83f22974ec6d3596a6125b44495813d"
+      }
+    ],
+    "license": "MIT",
+    "source": "https://proxy.golang.org/github.com/digitorus/pkcs7/@v/v0.0.0-20230818184609-3a137a874352.zip",
+    "packages": [
+      "github.com/digitorus/pkcs7"
+    ]
+  },
+  {
+    "module": "github.com/digitorus/timestamp",
+    "version": "v0.0.0-20231217203849-220c5c2851b7",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "431c937429b055c82e915716bd6be955b5b01d25d7932f219ec89e3af228bade"
+      },
+      {
+        "path": "timestamp.go",
+        "sha256": "6e476a9d9a5f761033a2246853fa1cd0ff5e477e81247a19a2367b2191131fe6",
+        "start": 670,
+        "end": 672
+      }
+    ],
+    "license": "BSD-2-Clause; BSD-3-Clause for Go-derived source",
+    "source": "https://proxy.golang.org/github.com/digitorus/timestamp/@v/v0.0.0-20231217203849-220c5c2851b7.zip",
+    "notes": "The identified Go standard-library adaptations also retain the [Go BSD license](#updater-text-911f8f578293).",
+    "packages": [
+      "github.com/digitorus/timestamp"
+    ]
+  },
+  {
+    "module": "github.com/go-logr/logr",
+    "version": "v1.4.4",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-logr/logr/@v/v1.4.4.zip",
+    "packages": [
+      "github.com/go-logr/logr",
+      "github.com/go-logr/logr/funcr"
+    ]
+  },
+  {
+    "module": "github.com/go-logr/stdr",
+    "version": "v1.2.2",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-logr/stdr/@v/v1.2.2.zip",
+    "packages": [
+      "github.com/go-logr/stdr"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/analysis",
+    "version": "v0.26.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/analysis/@v/v0.26.0.zip",
+    "packages": [
+      "github.com/go-openapi/analysis",
+      "github.com/go-openapi/analysis/internal/debug",
+      "github.com/go-openapi/analysis/internal/flatten/normalize",
+      "github.com/go-openapi/analysis/internal/flatten/operations",
+      "github.com/go-openapi/analysis/internal/flatten/replace",
+      "github.com/go-openapi/analysis/internal/flatten/schutils",
+      "github.com/go-openapi/analysis/internal/flatten/sortref"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/errors",
+    "version": "v0.22.8",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/errors/@v/v0.22.8.zip",
+    "packages": [
+      "github.com/go-openapi/errors"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/jsonpointer",
+    "version": "v1.0.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      },
+      {
+        "path": "NOTICE",
+        "sha256": "05b8a1ce6ce54812980d27a99019687af7e40d6ad2e1ea70c1d537d682a90188"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/jsonpointer/@v/v1.0.0.zip",
+    "packages": [
+      "github.com/go-openapi/jsonpointer",
+      "github.com/go-openapi/jsonpointer/jsonname"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/jsonreference",
+    "version": "v1.0.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "path": "NOTICE",
+        "sha256": "9d5bd59fec685963e813e1f055ea35f27beff3a371199883cb0f71be3ee21f6a"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/jsonreference/@v/v1.0.0.zip",
+    "packages": [
+      "github.com/go-openapi/jsonreference",
+      "github.com/go-openapi/jsonreference/internal"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/loads",
+    "version": "v0.25.1",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/loads/@v/v0.25.1.zip",
+    "packages": [
+      "github.com/go-openapi/loads"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/runtime",
+    "version": "v0.33.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "path": "NOTICE",
+        "sha256": "718322e018bd31b7b96b1780292bd88869c4afe58d4d19417c8a934dc0511b8f"
+      },
+      {
+        "path": "middleware/denco/LICENSE",
+        "sha256": "12641e5dfd397ae2acdd28dbda45f8e559afd721d5a223f3ad820ca07affd777"
+      }
+    ],
+    "license": "Apache-2.0; MIT for middleware/denco",
+    "source": "https://proxy.golang.org/github.com/go-openapi/runtime/@v/v0.33.0.zip",
+    "packages": [
+      "github.com/go-openapi/runtime",
+      "github.com/go-openapi/runtime/client",
+      "github.com/go-openapi/runtime/client/internal/request",
+      "github.com/go-openapi/runtime/logger",
+      "github.com/go-openapi/runtime/middleware",
+      "github.com/go-openapi/runtime/middleware/denco",
+      "github.com/go-openapi/runtime/middleware/untyped",
+      "github.com/go-openapi/runtime/security",
+      "github.com/go-openapi/runtime/yamlpc"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/runtime/server-middleware",
+    "version": "v0.30.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "path": "negotiate/header/header.go",
+        "sha256": "b7340e9c3cac57dc83cd14bdeb5d21f176ef7bc02af726cad1e979008616846b",
+        "start": 1,
+        "end": 8
+      }
+    ],
+    "license": "Apache-2.0; BSD-3-Clause for derived source (see the shared Go BSD text below)",
+    "source": "https://proxy.golang.org/github.com/go-openapi/runtime/server-middleware/@v/v0.30.0.zip",
+    "notes": "The Go-derived source headers below also use the complete [Go BSD license](#updater-text-911f8f578293).",
+    "packages": [
+      "github.com/go-openapi/runtime/server-middleware/docui",
+      "github.com/go-openapi/runtime/server-middleware/mediatype",
+      "github.com/go-openapi/runtime/server-middleware/negotiate",
+      "github.com/go-openapi/runtime/server-middleware/negotiate/header"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/spec",
+    "version": "v0.22.9",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/spec/@v/v0.22.9.zip",
+    "packages": [
+      "github.com/go-openapi/spec"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/strfmt",
+    "version": "v0.27.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/strfmt/@v/v0.27.0.zip",
+    "packages": [
+      "github.com/go-openapi/strfmt",
+      "github.com/go-openapi/strfmt/internal/bsonlite",
+      "github.com/go-openapi/strfmt/internal/countries"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/conv",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/conv/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/conv"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/fileutils",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/fileutils/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/fileutils"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/jsonutils",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/jsonutils/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/jsonutils",
+      "github.com/go-openapi/swag/jsonutils/adapters",
+      "github.com/go-openapi/swag/jsonutils/adapters/ifaces",
+      "github.com/go-openapi/swag/jsonutils/adapters/stdlib/json"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/loading",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/loading/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/loading"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/mangling",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/mangling/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/mangling"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/pools",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/pools/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/pools"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/stringutils",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/stringutils/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/stringutils"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/typeutils",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/typeutils/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/typeutils"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/swag/yamlutils",
+    "version": "v0.28.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/swag/yamlutils/@v/v0.28.0.zip",
+    "packages": [
+      "github.com/go-openapi/swag/yamlutils"
+    ]
+  },
+  {
+    "module": "github.com/go-openapi/validate",
+    "version": "v0.26.3",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/go-openapi/validate/@v/v0.26.3.zip",
+    "packages": [
+      "github.com/go-openapi/validate"
+    ]
+  },
+  {
+    "module": "github.com/go-viper/mapstructure/v2",
+    "version": "v2.5.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "22adc4abdece712a737573672f082fd61ac2b21df878efb87ffcff4354a07f26"
+      }
+    ],
+    "license": "MIT",
+    "source": "https://proxy.golang.org/github.com/go-viper/mapstructure/v2/@v/v2.5.0.zip",
+    "packages": [
+      "github.com/go-viper/mapstructure/v2",
+      "github.com/go-viper/mapstructure/v2/internal/errors"
+    ]
+  },
+  {
+    "module": "github.com/google/certificate-transparency-go",
+    "version": "v1.3.3",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "path": "asn1/asn1.go",
+        "sha256": "e2110d2e0f8957d377e0462ae7560129f10d96190fbe4fcad8bdedc291ec9cab",
+        "applies_to": [
+          "asn1/asn1.go",
+          "asn1/common.go",
+          "asn1/marshal.go",
+          "x509/names.go",
+          "x509/x509.go"
+        ],
+        "start": 1,
+        "end": 3
+      },
+      {
+        "path": "x509/cert_pool.go",
+        "sha256": "81f9906123aaac9e819db050a329dc6d74e4e62f35185b94ca8e04c8823aeafa",
+        "applies_to": [
+          "x509/cert_pool.go",
+          "x509/pkcs1.go",
+          "x509/pkcs8.go",
+          "x509/pkix/pkix.go",
+          "x509/root_cgo_darwin.go",
+          "x509/root_unix.go",
+          "x509/verify.go"
+        ],
+        "start": 1,
+        "end": 3
+      },
+      {
+        "path": "x509/curves.go",
+        "sha256": "cc25014987bcecf2b227ca60a49750b459653730ee425c61dcc34beaa68d3799",
+        "applies_to": [
+          "x509/curves.go",
+          "x509/ptr_sysptr_windows.go",
+          "x509/rpki.go"
+        ],
+        "start": 1,
+        "end": 3
+      },
+      {
+        "path": "x509/pem_decrypt.go",
+        "sha256": "fe7a39ea0c9e5622a5afbdcc1854b85e3250ac8083c8b6ab8cd9c2c98ffeacd8",
+        "applies_to": [
+          "x509/pem_decrypt.go",
+          "x509/root.go",
+          "x509/root_windows.go",
+          "x509/sec1.go"
+        ],
+        "start": 1,
+        "end": 3
+      },
+      {
+        "path": "x509/root_darwin.go",
+        "sha256": "ee88dc36238e73ad4cbbf155a4b69d18dacc37a1b059dc94686ff4adfff9c95c",
+        "applies_to": [
+          "x509/root_darwin.go"
+        ],
+        "start": 1,
+        "end": 3
+      },
+      {
+        "path": "x509/root_darwin_armx.go",
+        "sha256": "8ca168ddc664b35e737dae51da6aec6300e69864ce33f5e286c090381a63e598",
+        "applies_to": [
+          "x509/root_darwin_armx.go",
+          "x509/root_linux.go"
+        ],
+        "start": 3,
+        "end": 5
+      }
+    ],
+    "license": "Apache-2.0; BSD-3-Clause for derived source (see the shared Go BSD text below)",
+    "source": "https://proxy.golang.org/github.com/google/certificate-transparency-go/@v/v1.3.3.zip",
+    "notes": "The Go-derived source headers below also use the complete [Go BSD license](#updater-text-911f8f578293).",
+    "packages": [
+      "github.com/google/certificate-transparency-go",
+      "github.com/google/certificate-transparency-go/asn1",
+      "github.com/google/certificate-transparency-go/client",
+      "github.com/google/certificate-transparency-go/client/configpb",
+      "github.com/google/certificate-transparency-go/ctutil",
+      "github.com/google/certificate-transparency-go/gossip/minimal/x509ext",
+      "github.com/google/certificate-transparency-go/jsonclient",
+      "github.com/google/certificate-transparency-go/loglist3",
+      "github.com/google/certificate-transparency-go/tls",
+      "github.com/google/certificate-transparency-go/x509",
+      "github.com/google/certificate-transparency-go/x509/pkix",
+      "github.com/google/certificate-transparency-go/x509util"
+    ]
+  },
+  {
+    "module": "github.com/google/go-containerregistry",
+    "version": "v0.21.7",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/google/go-containerregistry/@v/v0.21.7.zip",
+    "packages": [
+      "github.com/google/go-containerregistry/pkg/name"
+    ]
+  },
+  {
+    "module": "github.com/google/uuid",
+    "version": "v1.6.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "0a8d61ed3cbfd5312326e8126c31ce9c627a283adc99131b56896d29ada04b2d"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/github.com/google/uuid/@v/v1.6.0.zip",
+    "packages": [
+      "github.com/google/uuid"
+    ]
+  },
+  {
+    "module": "github.com/grpc-ecosystem/grpc-gateway/v2",
+    "version": "v2.29.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "a15b1d1b168954c92ff7fb1620382418f7c72f4f4d251ee791d1098ad68ab0c4"
+      },
+      {
+        "path": "runtime/pattern.go",
+        "sha256": "babf890951c6cf8bcfdfc1e74b7797bad0de3fdbfd4c3ecb3410934e86252ac2",
+        "start": 266,
+        "end": 273
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/github.com/grpc-ecosystem/grpc-gateway/v2/@v/v2.29.0.zip",
+    "packages": [
+      "github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule",
+      "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options",
+      "github.com/grpc-ecosystem/grpc-gateway/v2/runtime",
+      "github.com/grpc-ecosystem/grpc-gateway/v2/utilities"
+    ]
+  },
+  {
+    "module": "github.com/in-toto/attestation",
+    "version": "v1.2.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "b3a6ac899861c2c28a1abd5c7ea8733fefaed6938d730e099c42671386032aeb"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/in-toto/attestation/@v/v1.2.0.zip",
+    "packages": [
+      "github.com/in-toto/attestation/go/v1"
+    ]
+  },
+  {
+    "module": "github.com/in-toto/in-toto-golang",
+    "version": "v0.11.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "b5c26c8a2ad6dd7cac6646e470a32ee42d23c36124caac4e66c989b6545b2a44"
+      },
+      {
+        "path": "in_toto/match.go",
+        "sha256": "85e3fa712d2238ebea3e0f7585a54f1d0d02289dc213b280fc6ac7d188be0a2c",
+        "start": 1,
+        "end": 3
+      }
+    ],
+    "license": "Apache-2.0; BSD-3-Clause for derived source (see the shared Go BSD text below)",
+    "source": "https://proxy.golang.org/github.com/in-toto/in-toto-golang/@v/v0.11.0.zip",
+    "notes": "The Go-derived source headers below also use the complete [Go BSD license](#updater-text-911f8f578293).",
+    "packages": [
+      "github.com/in-toto/in-toto-golang/in_toto",
+      "github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/common",
+      "github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v0.1",
+      "github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v0.2",
+      "github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v1"
+    ]
+  },
+  {
+    "module": "github.com/oklog/ulid/v2",
+    "version": "v2.1.1",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      },
+      {
+        "path": "ulid.go",
+        "sha256": "220cfbb39d1cba40c5a587a9fc8c52688cb02bd49645ef8b044c17db455b9b80",
+        "start": 635,
+        "end": 637
+      }
+    ],
+    "license": "Apache-2.0; BSD-3-Clause for Go-derived source",
+    "source": "https://proxy.golang.org/github.com/oklog/ulid/v2/@v/v2.1.1.zip",
+    "notes": "The identified Go standard-library adaptations also retain the [Go BSD license](#updater-text-911f8f578293).",
+    "packages": [
+      "github.com/oklog/ulid/v2"
+    ]
+  },
+  {
+    "module": "github.com/opencontainers/go-digest",
+    "version": "v1.0.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "aceb55133c41c50c2e170c5918e301fe74f592d0f28724bf2f7a7bfdcff1fc5f"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/opencontainers/go-digest/@v/v1.0.0.zip",
+    "packages": [
+      "github.com/opencontainers/go-digest"
+    ]
+  },
+  {
+    "module": "github.com/pkg/errors",
+    "version": "v0.9.1",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "8d427fd87bc9579ea368fde3d49f9ca22eac857f91a9dec7e3004bdfab7dee86"
+      }
+    ],
+    "license": "BSD-2-Clause",
+    "source": "https://proxy.golang.org/github.com/pkg/errors/@v/v0.9.1.zip",
+    "packages": [
+      "github.com/pkg/errors"
+    ]
+  },
+  {
+    "module": "github.com/secure-systems-lab/go-securesystemslib",
+    "version": "v0.11.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cb64503e4772676abf9c5f67398c14426f7b1346a4d7aa851ad64ff49fbf41e4"
+      }
+    ],
+    "license": "MIT",
+    "source": "https://proxy.golang.org/github.com/secure-systems-lab/go-securesystemslib/@v/v0.11.0.zip",
+    "packages": [
+      "github.com/secure-systems-lab/go-securesystemslib/cjson",
+      "github.com/secure-systems-lab/go-securesystemslib/dsse",
+      "github.com/secure-systems-lab/go-securesystemslib/encrypted",
+      "github.com/secure-systems-lab/go-securesystemslib/signerverifier"
+    ]
+  },
+  {
+    "module": "github.com/shibumi/go-pathspec",
+    "version": "v1.3.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "a8ad31b1c3f40dca5a84119351b8fa8ddc868edd77fad8a8ebf6d8f2d16fa4ae"
+      },
+      {
+        "path": "scripts/updaternotices/licenses/python-pathspec-LICENSE",
+        "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+        "repository": true,
+        "source": "https://github.com/cpburnz/python-pathspec/blob/5e891d818a94f43c79dc8962a6f4e474f3c16988/LICENSE"
+      },
+      {
+        "path": "scripts/updaternotices/licenses/cpython-LICENSE",
+        "sha256": "be4ab04487306fe817abdd569a7a64e3a727d4e176114c956dca25df71bb7fec",
+        "repository": true,
+        "source": "https://github.com/python/cpython/blob/v2.7.6/LICENSE"
+      }
+    ],
+    "license": "Apache-2.0 (module); MPL-2.0 matcher provenance; Python ancestry notice",
+    "source": "https://proxy.golang.org/github.com/shibumi/go-pathspec/@v/v1.3.0.zip",
+    "notes": "The matcher in `gitignore.go` closely matches Python pathspec 0.2.2 at revision `5e891d818a94f43c79dc8962a6f4e474f3c16988` (Copyright © 2013 Caleb P. Burns), whose license is MPL-2.0. Derivation is inferred from matching source, not an upstream relicensing statement. We preserve that license and attribution. The distributed Go source is available unmodified in the exact module archive linked above; the matcher source is available under MPL-2.0. This is file-level coverage and does not relicense PicFetch as a whole. The inherited `fnmatch.translate()` attribution does not identify a CPython revision; the complete contemporaneous Python 2.7.6 license is retained below as an ancestry notice, without claiming that exact release was consumed. The adaptation translates matching into Go and adds Git-ignore path semantics. No Python runtime is shipped.",
+    "packages": [
+      "github.com/shibumi/go-pathspec"
+    ]
+  },
+  {
+    "module": "github.com/sigstore/protobuf-specs",
+    "version": "v0.5.1",
+    "files": [
+      {
+        "path": "COPYRIGHT.txt",
+        "sha256": "193753bc913f7c55b3d762214e5cbb63eb7ec5de44f3987f84f3822f7bdea64e"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/sigstore/protobuf-specs/@v/v0.5.1.zip",
+    "packages": [
+      "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1",
+      "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1",
+      "github.com/sigstore/protobuf-specs/gen/pb-go/dsse",
+      "github.com/sigstore/protobuf-specs/gen/pb-go/rekor/v1",
+      "github.com/sigstore/protobuf-specs/gen/pb-go/trustroot/v1"
+    ]
+  },
+  {
+    "module": "github.com/sigstore/rekor",
+    "version": "v1.5.4",
+    "files": [
+      {
+        "path": "COPYRIGHT.txt",
+        "sha256": "6622d1d495e7d3a0e574c65e872f823cecbe585e25708d2223a28db016229119"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/sigstore/rekor/@v/v1.5.4.zip",
+    "packages": [
+      "github.com/sigstore/rekor/pkg/generated/client",
+      "github.com/sigstore/rekor/pkg/generated/client/entries",
+      "github.com/sigstore/rekor/pkg/generated/client/index",
+      "github.com/sigstore/rekor/pkg/generated/client/pubkey",
+      "github.com/sigstore/rekor/pkg/generated/client/tlog",
+      "github.com/sigstore/rekor/pkg/generated/models",
+      "github.com/sigstore/rekor/pkg/internal/log",
+      "github.com/sigstore/rekor/pkg/pki/identity",
+      "github.com/sigstore/rekor/pkg/pki/pkitypes",
+      "github.com/sigstore/rekor/pkg/pki/x509",
+      "github.com/sigstore/rekor/pkg/types",
+      "github.com/sigstore/rekor/pkg/types/dsse",
+      "github.com/sigstore/rekor/pkg/types/dsse/v0.0.1",
+      "github.com/sigstore/rekor/pkg/types/hashedrekord",
+      "github.com/sigstore/rekor/pkg/types/hashedrekord/v0.0.1",
+      "github.com/sigstore/rekor/pkg/types/intoto",
+      "github.com/sigstore/rekor/pkg/types/intoto/v0.0.2",
+      "github.com/sigstore/rekor/pkg/util",
+      "github.com/sigstore/rekor/pkg/verify"
+    ]
+  },
+  {
+    "module": "github.com/sigstore/rekor-tiles/v2",
+    "version": "v2.3.0",
+    "files": [
+      {
+        "path": "COPYRIGHT.txt",
+        "sha256": "9daa76e002ba9a3f377ee19ce3cb0cc8c378a83495036d13c3b04f9d65b93a6b"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/sigstore/rekor-tiles/v2/@v/v2.3.0.zip",
+    "packages": [
+      "github.com/sigstore/rekor-tiles/v2/internal/algorithmregistry",
+      "github.com/sigstore/rekor-tiles/v2/internal/safeint",
+      "github.com/sigstore/rekor-tiles/v2/pkg/generated/protobuf",
+      "github.com/sigstore/rekor-tiles/v2/pkg/note",
+      "github.com/sigstore/rekor-tiles/v2/pkg/types/hashedrekord",
+      "github.com/sigstore/rekor-tiles/v2/pkg/types/verifier",
+      "github.com/sigstore/rekor-tiles/v2/pkg/verifier",
+      "github.com/sigstore/rekor-tiles/v2/pkg/verifier/certificate",
+      "github.com/sigstore/rekor-tiles/v2/pkg/verifier/identity",
+      "github.com/sigstore/rekor-tiles/v2/pkg/verifier/publickey",
+      "github.com/sigstore/rekor-tiles/v2/pkg/verify"
+    ]
+  },
+  {
+    "module": "github.com/sigstore/sigstore",
+    "version": "v1.10.9",
+    "files": [
+      {
+        "path": "COPYRIGHT.txt",
+        "sha256": "6622d1d495e7d3a0e574c65e872f823cecbe585e25708d2223a28db016229119"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.10.9.zip",
+    "packages": [
+      "github.com/sigstore/sigstore/pkg/cryptoutils",
+      "github.com/sigstore/sigstore/pkg/signature",
+      "github.com/sigstore/sigstore/pkg/signature/dsse",
+      "github.com/sigstore/sigstore/pkg/signature/options",
+      "github.com/sigstore/sigstore/pkg/signature/payload"
+    ]
+  },
+  {
+    "module": "github.com/sigstore/sigstore-go",
+    "version": "v1.3.0",
+    "files": [
+      {
+        "path": "COPYRIGHT.txt",
+        "sha256": "f84abba9ca72acd172bf17b234cb0eff6f0601cd0bf2d9a35364881e778916d3"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/sigstore/sigstore-go/@v/v1.3.0.zip",
+    "packages": [
+      "github.com/sigstore/sigstore-go/internal/certificate",
+      "github.com/sigstore/sigstore-go/internal/limits",
+      "github.com/sigstore/sigstore-go/pkg/bundle",
+      "github.com/sigstore/sigstore-go/pkg/fulcio/certificate",
+      "github.com/sigstore/sigstore-go/pkg/root",
+      "github.com/sigstore/sigstore-go/pkg/tlog",
+      "github.com/sigstore/sigstore-go/pkg/tuf",
+      "github.com/sigstore/sigstore-go/pkg/util",
+      "github.com/sigstore/sigstore-go/pkg/verify"
+    ]
+  },
+  {
+    "module": "github.com/sigstore/timestamp-authority/v2",
+    "version": "v2.1.3",
+    "files": [
+      {
+        "path": "COPYRIGHT.txt",
+        "sha256": "0e486357a67e9e49da7200e773fb0a8474f055ad73422d07e6a7769a949af8a2"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/sigstore/timestamp-authority/v2/@v/v2.1.3.zip",
+    "packages": [
+      "github.com/sigstore/timestamp-authority/v2/pkg/verification"
+    ]
+  },
+  {
+    "module": "github.com/theupdateframework/go-tuf/v2",
+    "version": "v2.4.2",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "e0122c8780558ada7b4ce0e1aa8596b3d95fda640cef42fca283991bf20306cf"
+      },
+      {
+        "path": "NOTICE",
+        "sha256": "86ce5e2bb72f603a8849e085524022bdac6668df4f0baca507033610237365f3"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/theupdateframework/go-tuf/v2/@v/v2.4.2.zip",
+    "packages": [
+      "github.com/theupdateframework/go-tuf/v2/metadata",
+      "github.com/theupdateframework/go-tuf/v2/metadata/config",
+      "github.com/theupdateframework/go-tuf/v2/metadata/fetcher",
+      "github.com/theupdateframework/go-tuf/v2/metadata/trustedmetadata",
+      "github.com/theupdateframework/go-tuf/v2/metadata/updater"
+    ]
+  },
+  {
+    "module": "github.com/transparency-dev/formats",
+    "version": "v0.1.1",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/transparency-dev/formats/@v/v0.1.1.zip",
+    "packages": [
+      "github.com/transparency-dev/formats/log"
+    ]
+  },
+  {
+    "module": "github.com/transparency-dev/merkle",
+    "version": "v0.0.2",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/github.com/transparency-dev/merkle/@v/v0.0.2.zip",
+    "packages": [
+      "github.com/transparency-dev/merkle",
+      "github.com/transparency-dev/merkle/compact",
+      "github.com/transparency-dev/merkle/proof",
+      "github.com/transparency-dev/merkle/rfc6962"
+    ]
+  },
+  {
+    "module": "github.com/youmark/pkcs8",
+    "version": "v0.0.0-20240726163527-a2c0da244d78",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "6d13d89b6c33df37f92553cc95cec278d8770ddc78c9de84620cc16dfb48cef6"
+      }
+    ],
+    "license": "MIT",
+    "source": "https://proxy.golang.org/github.com/youmark/pkcs8/@v/v0.0.0-20240726163527-a2c0da244d78.zip",
+    "packages": [
+      "github.com/youmark/pkcs8"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/auto/sdk",
+    "version": "v1.2.1",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/go.opentelemetry.io/auto/sdk/@v/v1.2.1.zip",
+    "packages": [
+      "go.opentelemetry.io/auto/sdk",
+      "go.opentelemetry.io/auto/sdk/internal/telemetry"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/otel",
+    "version": "v1.44.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
+      },
+      {
+        "path": "attribute/value.go",
+        "sha256": "fe7cd0e2476abc86cfcec45aa83d92b13ce67c726474adbd208d80d6116c3a95",
+        "start": 904,
+        "end": 913
+      },
+      {
+        "path": "attribute/value.go",
+        "sha256": "fe7cd0e2476abc86cfcec45aa83d92b13ce67c726474adbd208d80d6116c3a95",
+        "start": 989,
+        "end": 994
+      }
+    ],
+    "license": "Apache-2.0; BSD-3-Clause for Go-derived source",
+    "source": "https://proxy.golang.org/go.opentelemetry.io/otel/@v/v1.44.0.zip",
+    "notes": "The identified Go standard-library adaptations also retain the [Go BSD license](#updater-text-911f8f578293).",
+    "packages": [
+      "go.opentelemetry.io/otel",
+      "go.opentelemetry.io/otel/attribute",
+      "go.opentelemetry.io/otel/attribute/internal",
+      "go.opentelemetry.io/otel/attribute/internal/xxhash",
+      "go.opentelemetry.io/otel/baggage",
+      "go.opentelemetry.io/otel/codes",
+      "go.opentelemetry.io/otel/internal/baggage",
+      "go.opentelemetry.io/otel/internal/errorhandler",
+      "go.opentelemetry.io/otel/internal/global",
+      "go.opentelemetry.io/otel/propagation",
+      "go.opentelemetry.io/otel/semconv/v1.37.0",
+      "go.opentelemetry.io/otel/semconv/v1.41.0"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/otel/metric",
+    "version": "v1.44.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/go.opentelemetry.io/otel/metric/@v/v1.44.0.zip",
+    "packages": [
+      "go.opentelemetry.io/otel/metric",
+      "go.opentelemetry.io/otel/metric/embedded"
+    ]
+  },
+  {
+    "module": "go.opentelemetry.io/otel/trace",
+    "version": "v1.44.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/go.opentelemetry.io/otel/trace/@v/v1.44.0.zip",
+    "packages": [
+      "go.opentelemetry.io/otel/trace",
+      "go.opentelemetry.io/otel/trace/embedded",
+      "go.opentelemetry.io/otel/trace/internal/telemetry",
+      "go.opentelemetry.io/otel/trace/noop"
+    ]
+  },
+  {
+    "module": "go.yaml.in/yaml/v3",
+    "version": "v3.0.5",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b"
+      },
+      {
+        "path": "NOTICE",
+        "sha256": "f6c2dd3a67b576eafb89b80200b8b1627230bf3821a0c14cb99a22ac19107d00"
+      },
+      {
+        "path": "apic.go",
+        "sha256": "0ba66e8a481340e9b9e1719efef7a2026736b53b07d369d6b140328f1d8f4b07",
+        "applies_to": [
+          "apic.go",
+          "emitterc.go",
+          "parserc.go",
+          "readerc.go",
+          "scannerc.go",
+          "writerc.go",
+          "yamlh.go",
+          "yamlprivateh.go"
+        ],
+        "start": 1,
+        "end": 21
+      }
+    ],
+    "license": "MIT and Apache-2.0",
+    "source": "https://proxy.golang.org/go.yaml.in/yaml/v3/@v/v3.0.5.zip",
+    "packages": [
+      "go.yaml.in/yaml/v3"
+    ]
+  },
+  {
+    "module": "golang.org/x/crypto",
+    "version": "v0.57.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/golang.org/x/crypto/@v/v0.57.0.zip",
+    "packages": [
+      "golang.org/x/crypto/blowfish",
+      "golang.org/x/crypto/chacha20",
+      "golang.org/x/crypto/cryptobyte",
+      "golang.org/x/crypto/cryptobyte/asn1",
+      "golang.org/x/crypto/curve25519",
+      "golang.org/x/crypto/ed25519",
+      "golang.org/x/crypto/internal/alias",
+      "golang.org/x/crypto/internal/poly1305",
+      "golang.org/x/crypto/nacl/secretbox",
+      "golang.org/x/crypto/pbkdf2",
+      "golang.org/x/crypto/salsa20/salsa",
+      "golang.org/x/crypto/scrypt",
+      "golang.org/x/crypto/ssh",
+      "golang.org/x/crypto/ssh/internal/bcrypt_pbkdf"
+    ]
+  },
+  {
+    "module": "golang.org/x/mod",
+    "version": "v0.41.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/golang.org/x/mod/@v/v0.41.0.zip",
+    "packages": [
+      "golang.org/x/mod/semver",
+      "golang.org/x/mod/sumdb/note"
+    ]
+  },
+  {
+    "module": "golang.org/x/net",
+    "version": "v0.59.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/golang.org/x/net/@v/v0.59.0.zip",
+    "packages": [
+      "golang.org/x/net/http/httpguts",
+      "golang.org/x/net/http2",
+      "golang.org/x/net/http2/hpack",
+      "golang.org/x/net/idna",
+      "golang.org/x/net/internal/httpcommon",
+      "golang.org/x/net/internal/httpsfv",
+      "golang.org/x/net/internal/timeseries",
+      "golang.org/x/net/trace"
+    ]
+  },
+  {
+    "module": "golang.org/x/sync",
+    "version": "v0.23.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/golang.org/x/sync/@v/v0.23.0.zip",
+    "packages": [
+      "golang.org/x/sync/errgroup"
+    ]
+  },
+  {
+    "module": "golang.org/x/sys",
+    "version": "v0.48.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/golang.org/x/sys/@v/v0.48.0.zip",
+    "packages": [
+      "golang.org/x/sys/unix",
+      "golang.org/x/sys/windows"
+    ]
+  },
+  {
+    "module": "golang.org/x/term",
+    "version": "v0.46.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/golang.org/x/term/@v/v0.46.0.zip",
+    "packages": [
+      "golang.org/x/term"
+    ]
+  },
+  {
+    "module": "golang.org/x/text",
+    "version": "v0.42.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/golang.org/x/text/@v/v0.42.0.zip",
+    "packages": [
+      "golang.org/x/text/currency",
+      "golang.org/x/text/internal/format",
+      "golang.org/x/text/internal/language",
+      "golang.org/x/text/internal/language/compact",
+      "golang.org/x/text/internal/number",
+      "golang.org/x/text/internal/stringset",
+      "golang.org/x/text/internal/tag",
+      "golang.org/x/text/language",
+      "golang.org/x/text/secure/bidirule",
+      "golang.org/x/text/transform",
+      "golang.org/x/text/unicode/bidi",
+      "golang.org/x/text/unicode/norm"
+    ]
+  },
+  {
+    "module": "google.golang.org/genproto/googleapis/api",
+    "version": "v0.0.0-20260727163830-6c54dddc4772",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/google.golang.org/genproto/googleapis/api/@v/v0.0.0-20260727163830-6c54dddc4772.zip",
+    "packages": [
+      "google.golang.org/genproto/googleapis/api",
+      "google.golang.org/genproto/googleapis/api/annotations",
+      "google.golang.org/genproto/googleapis/api/httpbody"
+    ]
+  },
+  {
+    "module": "google.golang.org/genproto/googleapis/rpc",
+    "version": "v0.0.0-20260720155508-bb71a54f79dc",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/google.golang.org/genproto/googleapis/rpc/@v/v0.0.0-20260720155508-bb71a54f79dc.zip",
+    "packages": [
+      "google.golang.org/genproto/googleapis/rpc/status"
+    ]
+  },
+  {
+    "module": "google.golang.org/grpc",
+    "version": "v1.83.2",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "path": "NOTICE.txt",
+        "sha256": "693ff28ec216d5112ac1bbfe64ef539005867d1c7bd427b57d579683293b947f"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/google.golang.org/grpc/@v/v1.83.2.zip",
+    "packages": [
+      "google.golang.org/grpc",
+      "google.golang.org/grpc/attributes",
+      "google.golang.org/grpc/backoff",
+      "google.golang.org/grpc/balancer",
+      "google.golang.org/grpc/balancer/base",
+      "google.golang.org/grpc/balancer/endpointsharding",
+      "google.golang.org/grpc/balancer/grpclb/state",
+      "google.golang.org/grpc/balancer/pickfirst",
+      "google.golang.org/grpc/balancer/pickfirst/internal",
+      "google.golang.org/grpc/balancer/roundrobin",
+      "google.golang.org/grpc/binarylog/grpc_binarylog_v1",
+      "google.golang.org/grpc/channelz",
+      "google.golang.org/grpc/codes",
+      "google.golang.org/grpc/connectivity",
+      "google.golang.org/grpc/credentials",
+      "google.golang.org/grpc/credentials/insecure",
+      "google.golang.org/grpc/encoding",
+      "google.golang.org/grpc/encoding/internal",
+      "google.golang.org/grpc/encoding/proto",
+      "google.golang.org/grpc/experimental/balancer/weight",
+      "google.golang.org/grpc/experimental/stats",
+      "google.golang.org/grpc/grpclog",
+      "google.golang.org/grpc/grpclog/internal",
+      "google.golang.org/grpc/health/grpc_health_v1",
+      "google.golang.org/grpc/internal",
+      "google.golang.org/grpc/internal/backoff",
+      "google.golang.org/grpc/internal/balancer/gracefulswitch",
+      "google.golang.org/grpc/internal/balancerload",
+      "google.golang.org/grpc/internal/binarylog",
+      "google.golang.org/grpc/internal/buffer",
+      "google.golang.org/grpc/internal/channelz",
+      "google.golang.org/grpc/internal/credentials",
+      "google.golang.org/grpc/internal/envconfig",
+      "google.golang.org/grpc/internal/grpclog",
+      "google.golang.org/grpc/internal/grpcsync",
+      "google.golang.org/grpc/internal/grpcutil",
+      "google.golang.org/grpc/internal/idle",
+      "google.golang.org/grpc/internal/mem",
+      "google.golang.org/grpc/internal/metadata",
+      "google.golang.org/grpc/internal/pretty",
+      "google.golang.org/grpc/internal/proxyattributes",
+      "google.golang.org/grpc/internal/resolver",
+      "google.golang.org/grpc/internal/resolver/delegatingresolver",
+      "google.golang.org/grpc/internal/resolver/dns",
+      "google.golang.org/grpc/internal/resolver/dns/internal",
+      "google.golang.org/grpc/internal/resolver/passthrough",
+      "google.golang.org/grpc/internal/resolver/unix",
+      "google.golang.org/grpc/internal/serviceconfig",
+      "google.golang.org/grpc/internal/stats",
+      "google.golang.org/grpc/internal/status",
+      "google.golang.org/grpc/internal/syscall",
+      "google.golang.org/grpc/internal/transport",
+      "google.golang.org/grpc/internal/transport/internal",
+      "google.golang.org/grpc/internal/transport/networktype",
+      "google.golang.org/grpc/internal/transport/readyreader",
+      "google.golang.org/grpc/keepalive",
+      "google.golang.org/grpc/mem",
+      "google.golang.org/grpc/metadata",
+      "google.golang.org/grpc/peer",
+      "google.golang.org/grpc/resolver",
+      "google.golang.org/grpc/resolver/dns",
+      "google.golang.org/grpc/serviceconfig",
+      "google.golang.org/grpc/stats",
+      "google.golang.org/grpc/status",
+      "google.golang.org/grpc/tap"
+    ]
+  },
+  {
+    "module": "google.golang.org/protobuf",
+    "version": "v1.36.12",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "4835612df0098ca95f8e7d9e3bffcb02358d435dbb38057c844c99d7f725eb20"
+      },
+      {
+        "path": "types/known/anypb/any.pb.go",
+        "sha256": "0e45ec8af43084d6dd09d4a300d10d3a51a2790535721585f6531cafae922200",
+        "applies_to": [
+          "types/known/anypb/any.pb.go",
+          "types/known/durationpb/duration.pb.go",
+          "types/known/emptypb/empty.pb.go",
+          "types/known/fieldmaskpb/field_mask.pb.go",
+          "types/known/structpb/struct.pb.go",
+          "types/known/timestamppb/timestamp.pb.go",
+          "types/known/wrapperspb/wrappers.pb.go"
+        ],
+        "start": 1,
+        "end": 29
+      },
+      {
+        "path": "types/descriptorpb/descriptor.pb.go",
+        "sha256": "2ed9fc25e31903630d3562007d78b416165598e4df4115d332cade90001932a2",
+        "start": 1,
+        "end": 6
+      }
+    ],
+    "license": "BSD-3-Clause",
+    "source": "https://proxy.golang.org/google.golang.org/protobuf/@v/v1.36.12.zip",
+    "packages": [
+      "google.golang.org/protobuf/encoding/protojson",
+      "google.golang.org/protobuf/encoding/prototext",
+      "google.golang.org/protobuf/encoding/protowire",
+      "google.golang.org/protobuf/internal/descfmt",
+      "google.golang.org/protobuf/internal/descopts",
+      "google.golang.org/protobuf/internal/detrand",
+      "google.golang.org/protobuf/internal/editiondefaults",
+      "google.golang.org/protobuf/internal/encoding/defval",
+      "google.golang.org/protobuf/internal/encoding/json",
+      "google.golang.org/protobuf/internal/encoding/messageset",
+      "google.golang.org/protobuf/internal/encoding/tag",
+      "google.golang.org/protobuf/internal/encoding/text",
+      "google.golang.org/protobuf/internal/errors",
+      "google.golang.org/protobuf/internal/filedesc",
+      "google.golang.org/protobuf/internal/filetype",
+      "google.golang.org/protobuf/internal/flags",
+      "google.golang.org/protobuf/internal/genid",
+      "google.golang.org/protobuf/internal/impl",
+      "google.golang.org/protobuf/internal/order",
+      "google.golang.org/protobuf/internal/pragma",
+      "google.golang.org/protobuf/internal/protolazy",
+      "google.golang.org/protobuf/internal/set",
+      "google.golang.org/protobuf/internal/strs",
+      "google.golang.org/protobuf/internal/version",
+      "google.golang.org/protobuf/proto",
+      "google.golang.org/protobuf/protoadapt",
+      "google.golang.org/protobuf/reflect/protoreflect",
+      "google.golang.org/protobuf/reflect/protoregistry",
+      "google.golang.org/protobuf/runtime/protoiface",
+      "google.golang.org/protobuf/runtime/protoimpl",
+      "google.golang.org/protobuf/types/descriptorpb",
+      "google.golang.org/protobuf/types/known/anypb",
+      "google.golang.org/protobuf/types/known/durationpb",
+      "google.golang.org/protobuf/types/known/emptypb",
+      "google.golang.org/protobuf/types/known/fieldmaskpb",
+      "google.golang.org/protobuf/types/known/structpb",
+      "google.golang.org/protobuf/types/known/timestamppb",
+      "google.golang.org/protobuf/types/known/wrapperspb"
+    ]
+  },
+  {
+    "module": "k8s.io/klog/v2",
+    "version": "v2.140.0",
+    "files": [
+      {
+        "path": "LICENSE",
+        "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68"
+      }
+    ],
+    "license": "Apache-2.0",
+    "source": "https://proxy.golang.org/k8s.io/klog/v2/@v/v2.140.0.zip",
+    "packages": [
+      "k8s.io/klog/v2",
+      "k8s.io/klog/v2/internal/buffer",
+      "k8s.io/klog/v2/internal/clock",
+      "k8s.io/klog/v2/internal/dbg",
+      "k8s.io/klog/v2/internal/serialize",
+      "k8s.io/klog/v2/internal/severity",
+      "k8s.io/klog/v2/internal/sloghandler"
+    ]
+  }
+]

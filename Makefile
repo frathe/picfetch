@@ -40,8 +40,15 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 
 .PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows warm-fyne-cross-linux package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-fyne install-fyne-cross install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 .PHONY: verify-build --skip-local-tests
+.PHONY: generate-updater-notices check-updater-notices
 
 all: build
+
+generate-updater-notices: ## Regenerate updater notices from the reviewed source/license manifest
+	go run ./scripts/updaternotices -write
+
+check-updater-notices: ## Check all six updater dependency targets and exact license/NOTICE text
+	go run ./scripts/updaternotices
 
 .PHONY: generate-tag-vectors check-tag-vectors generate-app-assets check-app-assets
 generate-tag-vectors: ## Generate exact embedded float32 vectors from the authoritative JSON (offline)
@@ -385,7 +392,7 @@ test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Do
 	@bash scripts/testshards/docker-race.sh "$(CURDIR)" "$(TEST_IMAGE)" \
 		"$(TEST_MEMORY_GIB)" "$(TEST_CONTAINER_LABEL)" "$(TEST_LOCALE)" "$(TEST_ARTIFACTS_DIR)"
 
-verify-build: fmt-check check-tuf-root check-qodana-test-exclusions check-tag-vectors check-app-assets ## Run local verification without the test suite (format, TUF root, generated assets, Qodana exclusions, vet, build)
+verify-build: fmt-check check-tuf-root check-qodana-test-exclusions check-tag-vectors check-app-assets check-updater-notices ## Run local verification without the test suite (format, TUF root, generated assets, notices, Qodana exclusions, vet, build)
 	go vet -tags "$(APP_TAGS)" ./...
 	go build -tags "$(APP_TAGS)" ./...
 
