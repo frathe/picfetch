@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -44,6 +45,12 @@ func TestNoticesRejectUnreviewedChanges(t *testing.T) {
 	good, err := renderNotices(dir, []noticeModule{entry}, modules)
 	if err != nil || !bytes.Contains(good, license) {
 		t.Fatalf("complete original notice missing: %v", err)
+	}
+	for _, link := range regexp.MustCompile(`]\(#updater-text-([a-f0-9]+)\)`).FindAllSubmatch(good, -1) {
+		heading := []byte("### Updater text " + string(link[1]) + "\n")
+		if !bytes.Contains(good, heading) {
+			t.Fatalf("generated license link %s has no matching text heading", link[0])
+		}
 	}
 	for _, change := range []string{"version", "missing module", "new module", "new package", "duplicate module", "license bytes", "missing license", "bad range", "stale source", "wrong source module", "unversioned source", "unescaped source"} {
 		t.Run(change, func(t *testing.T) {

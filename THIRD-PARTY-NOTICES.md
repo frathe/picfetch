@@ -2852,8 +2852,6 @@ and Windows (amd64 and arm64). Versions and source files are recorded in
 copy below; each module lists every applicable text. Source comments are
 retained verbatim where a file carries its own license.
 
-Sources that reference Apache-2.0 use the complete [Apache license text](#updater-text-cfc7749b96f6) below.
-
 ### github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 
 License: MIT

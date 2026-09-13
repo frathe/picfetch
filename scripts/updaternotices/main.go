@@ -167,7 +167,6 @@ func renderNotices(root string, inventory []noticeModule, modules map[string]goM
 	var out bytes.Buffer
 	out.WriteString(sectionStart + "\n\n## Updater dependency licenses and notices\n\n")
 	out.WriteString("This section covers the production updater dependency union for macOS, Linux\nand Windows (amd64 and arm64). Versions and source files are recorded in\n`scripts/updaternotices/manifest.json`. Identical source texts share a single\ncopy below; each module lists every applicable text. Source comments are\nretained verbatim where a file carries its own license.\n\n")
-	out.WriteString("Sources that reference Apache-2.0 use the complete [Apache license text](#updater-text-cfc7749b96f6) below.\n\n")
 	texts := make(map[string][]byte)
 	seen := make(map[string]bool)
 	for _, entry := range inventory {
