@@ -209,3 +209,28 @@ extraction; the Scout follows run associations and artifact locations. Assessmen
 and fixes remain with Lead. The single Scout exceeds Thin's default zero-spawn
 budget to collect independent external evidence concurrently. Actual: one spawn,
 zero code fixes, zero local full-suite runs; final GitHub checks remain required.
+
+### Release-note follow-up on `0c3bf8c`
+
+Ronin restarted the loop after adding release copy and the Trane shrink-ray
+illustration. The Lead confirmed that `scripts/releasenotes` preserves the
+relative image path, including when writing `.github/release-notes.md` and
+publishing its body on GitHub. The image now uses an absolute URL pinned to
+the commit that added it. An HTML image retains descriptive alternative text
+for GitHub while the existing Store plain-text conversion omits the illustration.
+The incomplete optimization sentence, "Hissen" typo and trailing whitespace
+are also corrected. The image bytes and release tooling remain unchanged.
+
+Route: Thin, `todos.md` plus this record. Verification: generated release-note
+preview preserves the pinned URL and corrected wording and excludes open work;
+GitHub's Markdown API retains the image; downloading the raw URL and `cmp`
+confirms identical bytes. `go test -tags no_emoji ./scripts/releasenotes
+./scripts/storepublish -count=1` passes (0.237s and 1.065s), as does
+`git diff --check`. The initial Store test attempt could not bind its local
+HTTP server inside the sandbox; the rerun with loopback access passes. No Go
+files changed, so the earlier GoLand inspection evidence still applies.
+
+The existing read-only Scout collected fresh Qodana/CodeQL artifacts for
+`0c3bf8c`; both contain zero results, with no open PR scanning alerts. Reuse
+the same bounded evidence task for the follow-up head. Final review and CI
+evidence remains on PR #22 as described above; release qualification is unchanged.

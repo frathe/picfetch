@@ -5,12 +5,13 @@
 ### What's Changed
 
 #### New Features
-- optimized all static assets that are bundled with PicFetch,
+
+- Optimized the static assets bundled with PicFetch, reducing
   the macOS application binary by **19.3%** (from 50.63 MB to 40.84 MB).
 
-![trane_shrink_ray.png](assets/trane/trane_shrink_ray.png)
+<img src="https://raw.githubusercontent.com/frathe/picfetch/0c3bf8cddb83a53d34072ca9b54edc32d9fc39bb/assets/trane/trane_shrink_ray.png" alt="Trane using a shrink ray to illustrate smaller PicFetch downloads.">
 
-- **Hissen easter egg** enjoy a moving tunnel of pictures with smooth
+- **Hidden easter egg:** enjoy a moving tunnel of pictures with smooth
   transitions and animated GIF playback. It ran stably at around 60 FPS
   during an hour of hands-on testing. Use your current image order or shuffle
   the pictures, with duplicate filtering respected.
@@ -154,7 +155,7 @@ retirement.
 - **Retained decoded map tiles (MA-025):** Accepted by the user on 2026-09-09. The map loads only when opened, and
   checking the geolocation of thousands of images is outside expected use. The upstream decoded-tile cache remains
   unbounded; its long-session impact is unmeasured. No further measurement or implementation work is planned.
-  
+
 - Windows releases are not Authenticode-signed. Controlled Folder Access and SmartScreen both judge by signature and
   reputation as well as by which program is writing, so an unsigned `picfetch.exe` can still be blocked even with the
   in-process swap (see Done → Bugfix above, where the block would now name `picfetch.exe` instead of `cmd.exe`). The
