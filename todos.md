@@ -8,9 +8,29 @@
 
 #### Bugfix
 
+- Spiral: avoid an identifier rejected by Intel's Windows GLSL compiler.
+  v1.1.0 compiles, v1.1.1 fails on `active`, and the corrected shader compiles
+  on the same Iris Xe driver. Shader tests, Docker build checks/full vet and
+  the complete Linux Spiral race package pass. See
+  [the diagnosis and verification limits](docs/spiral-windows-2026-09-13.md).
+
 #### Internal
 
 ## TODO
+
+### Finish Windows Spiral verification
+
+The Intel shader compatibility fix is local. The corrected Windows executable
+is at `.scratch/spiral-windows-20260913/windows-build/picfetch-fixed.exe`; its
+native `--help` smoke passes. Confirm its Spiral window before releasing it.
+NVIDIA rendering remains untested.
+Docker now runs and its build checks plus the complete Spiral race package pass.
+The full repository race gate still needs at least 16 GiB of Docker VM memory;
+this daemon exposes 15.45 GiB. The Windows host also has a Git Bash fork failure.
+The native Spiral suite reproduces an existing FPS
+allocation-test failure on unchanged v1.1.1 (16 allocations versus 9, alongside
+German translation-fallback logs); investigate the fixture's locale setup.
+See [the evidence](docs/spiral-windows-2026-09-13.md).
 
 ### Comparison test deadline under build contention
 

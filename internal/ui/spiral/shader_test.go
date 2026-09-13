@@ -3,9 +3,32 @@ package spiral
 import (
 	"strings"
 	"testing"
+	"text/scanner"
 
 	"fyne.io/fyne/v2/test"
 )
+
+// Intel's Windows driver rejects "active" even with #version 110. Avoid
+// this group of newer GLSL reservations in both shader variants.
+// See GLSL 1.40 section 3.6 and docs/spiral-windows-2026-09-13.md.
+func TestShaderAvoidsNewerReservedIdentifiers(t *testing.T) {
+	for name, source := range map[string]string{"desktop": shaderSourceDesktop, "ES": shaderSourceES} {
+		t.Run(name, func(t *testing.T) {
+			var tokens scanner.Scanner
+			tokens.Init(strings.NewReader(source))
+			tokens.Mode = scanner.ScanIdents | scanner.ScanComments | scanner.SkipComments
+			for token := tokens.Scan(); token != scanner.EOF; token = tokens.Scan() {
+				if token != scanner.Ident {
+					continue
+				}
+				switch tokens.TokenText() {
+				case "common", "partition", "active":
+					t.Errorf("line %d uses driver-reserved identifier %q", tokens.Position.Line, tokens.TokenText())
+				}
+			}
+		})
+	}
+}
 
 // TestShaderUniformsDeclaredInBothSources guards the real hazard of a
 // hand-maintained two-variant shader: a uniform key that's typo'd or
