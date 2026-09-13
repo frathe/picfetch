@@ -138,9 +138,9 @@ float travelDepth(float born, float duration) {
     return 0.2 * progress + 0.8 * progress * progress;
 }
 
-vec4 traveller(sampler2D photo, float active, float born, float duration,
+vec4 traveller(sampler2D photo, float enabled, float born, float duration,
                float angle, float curve, float margin, float aspect, float sizeScale, vec2 center) {
-    if (active < 0.5 || aspect <= 0.0 || tunnelTime < born || tunnelTime >= born + duration) return vec4(0.0);
+    if (enabled < 0.5 || aspect <= 0.0 || tunnelTime < born || tunnelTime >= born + duration) return vec4(0.0);
     float unit = min(frame.x, frame.y);
     float depth = travelDepth(born, duration);
     vec2 initial = photoSize(aspect, 0.10 * unit * sizeScale);

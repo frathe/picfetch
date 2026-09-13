@@ -8,9 +8,39 @@
 
 #### Bugfix
 
+- Spiral: avoid an identifier rejected by Intel's Windows GLSL compiler.
+  v1.1.0 compiles, v1.1.1 fails on `active`, and the corrected shader compiles
+  on the same Iris Xe driver. Shader tests, Docker build checks/full vet and
+  the complete Linux Spiral race package pass. See
+  [the diagnosis and verification limits](docs/spiral-windows-2026-09-13.md).
+
 #### Internal
 
+- Microsoft Store `release` mode is implemented: reconcile the prior release and
+  conditionally submit the frozen current release under one approval, retaining
+  standalone `reconcile` and `submit`. CI and documentation are consolidated onto
+  the Spiral bugfix branch. Windows tooling tests/vet, native Linux/amd64 tooling
+  race checks and the repository vet/build gate pass. PR #23 CI also passes the
+  full Linux race suite, Windows tests and both macOS native guards on `3011ea5`;
+  an approved live Store run remains. See the
+  [implementation plan](plans/2026-09-13-store-combined-release.md).
+
 ## TODO
+
+### Finish Windows Spiral verification
+
+The Intel shader compatibility fix is in PR #23. The corrected Windows executable
+is at `.scratch/spiral-windows-20260913/windows-build/picfetch-fixed.exe`; its
+native `--help` smoke passes. Confirm its Spiral window before releasing it.
+NVIDIA rendering remains untested.
+Docker now runs and its build checks plus the complete Spiral race package pass.
+PR #23 CI passes the full repository race gate on `3011ea5`. The local Docker
+gate still needs at least 16 GiB of VM memory; this daemon exposes 15.45 GiB.
+The Windows host also has a Git Bash fork failure.
+The native Spiral suite reproduces an existing FPS
+allocation-test failure on unchanged v1.1.1 (16 allocations versus 9, alongside
+German translation-fallback logs); investigate the fixture's locale setup.
+See [the evidence](docs/spiral-windows-2026-09-13.md).
 
 ### Comparison test deadline under build contention
 

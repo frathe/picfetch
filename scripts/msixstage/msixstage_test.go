@@ -389,6 +389,7 @@ func TestStoreWorkflowPublishingContract(t *testing.T) {
 	}
 	for _, want := range []string{
 		"workflow_run:", "workflows: [Microsoft Store package]", "types: [completed]", "workflow_dispatch:",
+		"options: [release, check, preview, reconcile, submit]", "inputs.mode || 'release'", "submit|reconcile|release)",
 		"prepare:", "needs: prepare", "deployment-branch-policies", "deployment_protection_rules", "environment-policy.jq",
 		"github.repository == 'frathe/picfetch'", "github.ref == 'refs/heads/main'", "github.event.workflow_run.conclusion == 'success'", "github.event.workflow_run.event == 'push'", "github.event.workflow_run.head_repository.full_name == github.repository",
 		"group: microsoft-store-publisher", "cancel-in-progress: false", "name: microsoft-store", "contents: read", "actions: read", "deployments: write",
@@ -399,6 +400,9 @@ func TestStoreWorkflowPublishingContract(t *testing.T) {
 		if !bytes.Contains(publisher, []byte(want)) {
 			t.Errorf("publisher missing %q", want)
 		}
+	}
+	if bytes.Count(publisher, []byte("\n    environment:")) != 1 {
+		t.Error("combined release must retain one protected approval job")
 	}
 	for _, forbidden := range []string{"schedule:", "cron:", "ref: main", "secrets: inherit", "contents: write", "pull_request_target:", "github.event.workflow_run.head_sha", "make package", "make release", "gh release", "release.yml", "inputs.tag }}"} {
 		if bytes.Contains(publisher, []byte(forbidden)) {

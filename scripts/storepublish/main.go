@@ -41,7 +41,7 @@ func main() {
 
 func run(ctx context.Context, args []string, rt runtime) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: storepublish record|prepare|preview|check|submit|reconcile")
+		return fmt.Errorf("usage: storepublish record|prepare|preview|check|submit|reconcile|release")
 	}
 	if rt.Out == nil {
 		rt.Out = io.Discard
@@ -95,7 +95,7 @@ func run(ctx context.Context, args []string, rt runtime) error {
 		return previewRelease(ctx, rt, o)
 	case "check":
 		return checkStore(ctx, rt)
-	case "submit", "reconcile":
+	case "submit", "reconcile", "release":
 		p, err := loadApproval(*approvalFile, *approvalSHA, args[0])
 		if err != nil {
 			return err

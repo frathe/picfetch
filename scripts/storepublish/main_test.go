@@ -1168,6 +1168,273 @@ func TestStorePublishBundleVersions(t *testing.T) {
 	})
 }
 
+func (h *storeHarness) stageNextRelease() {
+	h.t.Helper()
+	z, err := zip.NewReader(bytes.NewReader(h.bundle), int64(len(h.bundle)))
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	entries := map[string][]byte{}
+	for _, f := range z.File {
+		b, err := zipEntry(z, f.Name, maxBundleBytes)
+		if err != nil {
+			h.t.Fatal(err)
+		}
+		if strings.HasSuffix(f.Name, ".msix") {
+			inner, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+			if err != nil {
+				h.t.Fatal(err)
+			}
+			manifest, err := zipEntry(inner, "AppxManifest.xml", 1<<20)
+			if err != nil {
+				h.t.Fatal(err)
+			}
+			b = testZIP(h.t, map[string][]byte{"AppxManifest.xml": bytes.ReplaceAll(manifest, []byte("1.0.3.0"), []byte("1.0.4.0"))})
+		} else {
+			b = bytes.ReplaceAll(b, []byte("1.0.3.0"), []byte("1.0.4.0"))
+		}
+		entries[f.Name] = b
+	}
+	h.bundle = testZIP(h.t, entries)
+	r, err := loadRelease(filepath.Join(h.dir, "store-release.json"))
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	r.Version, r.BundleVersion, r.Tag, r.Ref = "1.0.4", "1.0.4.0", "v1.0.4", "refs/tags/v1.0.4"
+	r.Notes = "### Fixes\n\n- Improve current release.\n\n**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.0.3...v1.0.4\n"
+	r.BundleSHA = digest(h.bundle)
+	wack, err := os.ReadFile(filepath.Join(h.dir, "wack-report.xml"))
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	h.artifact = testZIP(h.t, map[string][]byte{bundleName: h.bundle, "wack-report.xml": wack, "store-release.json": mustJSON(h.t, r)})
+	h.tag = r.Tag
+	oldGit := h.rt.Git
+	h.rt.Git = func(ctx context.Context, root string, args ...string) ([]byte, error) {
+		joined := strings.Join(args, " ")
+		switch {
+		case args[0] == "for-each-ref":
+			return []byte("v1.0.2\nv1.0.3\nv1.0.4\n"), nil
+		case strings.Contains(joined, "FyneApp.toml"):
+			return []byte("Version = \"1.0.4\"\n"), nil
+		case strings.Contains(joined, "release-notes.md"):
+			return []byte(r.Notes), nil
+		default:
+			return oldGit(ctx, root, args...)
+		}
+	}
+}
+
+func TestStorePublishCombinedRelease(t *testing.T) {
+	t.Run("freeze both releases without Microsoft access", func(t *testing.T) {
+		h := newStoreHarness(t)
+		if err := h.command("submit"); err != nil {
+			t.Fatal(err)
+		}
+		h.stageNextRelease()
+		before := h.tokens + h.creates + h.updates + h.uploads + h.commits + len(h.journal)
+		path := filepath.Join(h.dir, "combined.json")
+		if err := run(context.Background(), []string{"prepare", "--mode", "release", "--tag", "v1.0.4", "--run-id", "123", "--root", h.dir, "--out", path}, h.rt); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := parseObject(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		previous := asObject(p["reconcile"])
+		if stringField(p, "mode") != "release" || stringField(p, "base_version") != "1.0.3" || stringField(asObject(p["release"]), "tag") != "v1.0.4" || stringField(asObject(previous["release"]), "tag") != "v1.0.3" || stringField(previous, "submission_id") != "submission-103" || stringField(previous, "receipt_phase") != "observing" {
+			t.Fatalf("approval did not identify both operations and conditional base: %s", b)
+		}
+		if !strings.Contains(stringField(p, "notes"), "Improve current release.") || stringField(previous, "previous_receipt_sha256") == stringField(p, "previous_receipt_sha256") {
+			t.Fatal("approval omitted frozen notes or expected publication transition")
+		}
+		if h.tokens+h.creates+h.updates+h.uploads+h.commits+len(h.journal) != before {
+			t.Fatal("combined preparation accessed Microsoft or wrote state")
+		}
+	})
+	t.Run("one frozen approval reconciles then submits", func(t *testing.T) {
+		h := newStoreHarness(t)
+		if err := h.command("submit"); err != nil {
+			t.Fatal(err)
+		}
+		h.stageNextRelease()
+		args := h.prepareCombinedRelease()
+		h.state, h.pending = "Published", ""
+		h.draft["applicationPackages"] = []any{object{"version": "1.0.3.0", "fileStatus": "Uploaded"}}
+		h.published = h.draft
+		oldGit := h.rt.Git
+		h.rt.Git = func(ctx context.Context, root string, args ...string) ([]byte, error) {
+			if args[0] == "for-each-ref" {
+				return nil, fmt.Errorf("rediscovered releases after combined approval")
+			}
+			return oldGit(ctx, root, args...)
+		}
+		if err := run(context.Background(), args, h.rt); err != nil {
+			t.Fatal(err)
+		}
+		if h.creates != 2 || h.commits != 2 || !strings.Contains(h.out.String(), `"version":"1.0.4"`) {
+			t.Fatalf("combined approval did not submit its current release: %s", h.out.String())
+		}
+		var result object
+		if err := json.Unmarshal(h.out.Bytes(), &result); err != nil {
+			t.Fatalf("combined operation must emit one result: %v", err)
+		}
+		before := h.creates + h.updates + h.uploads + h.commits + len(h.journal)
+		if err := run(context.Background(), args, h.rt); err == nil {
+			t.Fatal("old combined approval was reused after the receipt advanced")
+		}
+		if h.creates+h.updates+h.uploads+h.commits+len(h.journal) != before {
+			t.Fatal("reused combined approval mutated services")
+		}
+	})
+	for _, tc := range []struct {
+		state     string
+		wantError bool
+	}{
+		{"Certification", false}, {"Publishing", false}, {"CommitStarted", false},
+		{"CertificationFailed", true}, {"PendingCommit", true}, {"Unknown", true},
+	} {
+		t.Run("previous "+tc.state, func(t *testing.T) {
+			h := newStoreHarness(t)
+			if err := h.command("submit"); err != nil {
+				t.Fatal(err)
+			}
+			h.stageNextRelease()
+			args := h.prepareCombinedRelease()
+			h.state = tc.state
+			err := run(context.Background(), args, h.rt)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("state %s returned %v", tc.state, err)
+			}
+			if h.creates != 1 || h.commits != 1 || h.uploads != 1 || h.updates != 1 {
+				t.Fatal("unfinished or failed predecessor caused another submission")
+			}
+			if !tc.wantError && (!strings.Contains(h.out.String(), `"state":"waiting_for_previous"`) || !strings.Contains(h.out.String(), `"tag":"v1.0.4"`)) {
+				t.Fatalf("processing did not explain the waiting release: %s", h.out.String())
+			}
+		})
+	}
+	for _, change := range []string{"digest", "receipt", "nested mode", "conditional base", "projected receipt", "current tag", "current artifact"} {
+		t.Run("reject changed "+change, func(t *testing.T) {
+			h := newStoreHarness(t)
+			if err := h.command("submit"); err != nil {
+				t.Fatal(err)
+			}
+			h.stageNextRelease()
+			args := h.prepareCombinedRelease()
+			path := filepath.Join(h.dir, "combined.json")
+			b, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var p approval
+			if err = json.Unmarshal(b, &p); err != nil {
+				t.Fatal(err)
+			}
+			switch change {
+			case "digest":
+				writeTestFile(t, path, append(b, ' '))
+			case "receipt":
+				h.state = "Published"
+				h.draft["applicationPackages"] = []any{object{"version": "1.0.3.0", "fileStatus": "Uploaded"}}
+				h.published, h.pending = h.draft, ""
+				if err = h.command("reconcile"); err != nil {
+					t.Fatal(err)
+				}
+			case "nested mode", "conditional base", "projected receipt":
+				if change == "nested mode" {
+					p.Reconcile.Mode = "submit"
+				} else if change == "conditional base" {
+					p.Base = "1.0.2"
+				} else {
+					p.ReceiptSHA = strings.Repeat("0", 64)
+				}
+				b = mustJSON(t, p)
+				writeTestFile(t, path, b)
+				args[6] = digest(b)
+			case "current tag":
+				oldGit := h.rt.Git
+				h.rt.Git = func(ctx context.Context, root string, args ...string) ([]byte, error) {
+					if args[0] == "rev-parse" && strings.Contains(args[2], "v1.0.4") {
+						return []byte(strings.Repeat("b", 40)), nil
+					}
+					return oldGit(ctx, root, args...)
+				}
+			case "current artifact":
+				h.artifact = testZIP(t, map[string][]byte{bundleName: []byte("changed bundle")})
+			}
+			h.state, h.pending = "Published", ""
+			h.draft["applicationPackages"] = []any{object{"version": "1.0.3.0", "fileStatus": "Uploaded"}}
+			h.published = h.draft
+			if err = run(context.Background(), args, h.rt); err == nil {
+				t.Fatalf("changed %s accepted", change)
+			}
+			if h.creates != 1 || h.commits != 1 {
+				t.Fatal("invalid combined approval created the next submission")
+			}
+		})
+	}
+	t.Run("no prior receipt submits directly", func(t *testing.T) {
+		h := newStoreHarness(t)
+		args := h.prepareCombinedRelease()
+		if err := run(context.Background(), args, h.rt); err != nil {
+			t.Fatal(err)
+		}
+		if h.creates != 1 || h.commits != 1 {
+			t.Fatal("first combined release was not submitted")
+		}
+	})
+	t.Run("different producer cannot approve or claim prior publication", func(t *testing.T) {
+		h := newStoreHarness(t)
+		if err := h.command("submit"); err != nil {
+			t.Fatal(err)
+		}
+		h.stageNextRelease()
+		h.out.Reset()
+		path := filepath.Join(h.dir, "missing.json")
+		if err := run(context.Background(), []string{"prepare", "--mode", "release", "--run-id", "999", "--root", h.dir, "--out", path}, h.rt); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatal("another producer supplied a combined approval")
+		}
+		if strings.Contains(h.out.String(), `"published_version"`) || !strings.Contains(h.out.String(), `"state":"no_update"`) {
+			t.Fatalf("unconfirmed predecessor reported as published: %s", h.out.String())
+		}
+	})
+	t.Run("standalone submit still rejects an active receipt", func(t *testing.T) {
+		h := newStoreHarness(t)
+		if err := h.command("submit"); err != nil {
+			t.Fatal(err)
+		}
+		h.stageNextRelease()
+		if err := h.invoke("submit", h.tag); err == nil || !strings.Contains(err.Error(), "receipt is active") {
+			t.Fatalf("standalone submit changed scope: %v", err)
+		}
+		if h.creates != 1 {
+			t.Fatal("standalone submit displaced the previous release")
+		}
+	})
+}
+
+func (h *storeHarness) prepareCombinedRelease() []string {
+	h.t.Helper()
+	path := filepath.Join(h.dir, "combined.json")
+	if err := run(context.Background(), []string{"prepare", "--mode", "release", "--tag", h.tag, "--root", h.dir, "--out", path}, h.rt); err != nil {
+		h.t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	h.out.Reset()
+	return []string{"release", "--root", h.dir, "--approval", path, "--approval-sha256", digest(b), "--state-dir", h.dir}
+}
+
 func TestStorePublishReconcile(t *testing.T) {
 	h := newStoreHarness(t)
 	if err := h.command("submit"); err != nil {

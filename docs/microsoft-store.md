@@ -62,9 +62,9 @@ this bundle as an ordinary GitHub download.
 
 ## Approve each rollout
 
-The separate `Microsoft Store publisher` workflow runs after successful Store tag
-builds and through manual operational commands. The build, validation and note
-preparation remain automatic. **Every rollout requires frathe's approval through
+The separate `Microsoft Store publisher` workflow runs `release` after successful
+Store tag builds and also offers manual operational commands. The build, validation
+and note preparation remain automatic. **Every rollout requires frathe's approval through
 GitHub Required reviewers** on the existing `microsoft-store` environment.
 
 The preparation job uses GitHub data only. It checks the saved environment policy,
@@ -72,14 +72,19 @@ validates the triggering producer run (or selects a requested/newest stable rele
 for manual submission), and freezes an `approval.json` artifact. The summary shows
 the tag, commit, producing run/attempt, artifact ID, bundle/WACK hashes, expected
 published base and exact generated notes. Recovery summaries also identify the
-recorded submission and phase. Review that summary before approving the protected
-job. No Microsoft credentials are available during preparation.
+recorded submission and phase. In combined `release` mode, an active previous
+receipt is included as a `reconcile` operation in the same approval. The current
+release's base, notes and expected receipt hash assume that exact predecessor is
+confirmed published. The summary identifies both releases before the single
+protected job is approved. No Microsoft credentials are available during preparation.
 
 The protected job downloads that exact approval artifact by immutable ID and
 checks its SHA-256 from the preparation job. Both jobs use the workflow run's fixed
 `main` commit. After approval, the publisher restores the original validated build
 by run/attempt/artifact ID, verifies tags, versions and hashes again, and compares
-the live Store version and current receipt against the prepared base. It never
+the live Store version and current receipt against the prepared base. Combined
+execution reconciles the frozen predecessor first, then validates the exact
+expected published receipt before submitting the frozen current release. It never
 selects a newer build or regenerates the approved notes. Changed state fails and
 requires fresh preparation and approval. Approval is authorization for this job's
 specific operation; the JSON file alone is not an authorization credential.
@@ -87,7 +92,8 @@ specific operation; the JSON file alone is not an authorization credential.
 One workflow concurrency group covers preparation, approval and mutation, with
 cancellation disabled. GitHub may replace an older pending run with a newer one;
 retained producer artifacts remain discoverable for manual dispatch. An approval
-for one release cannot authorize another release. Branch/PR/manual producer builds
+for a standalone operation cannot authorize another release; combined approval
+explicitly names both operations. Branch/PR/manual producer builds
 are ineligible. Store publishing is independent of GitHub Release/signing/WinGet.
 
 The publisher copies current published metadata, changes package references,
@@ -121,26 +127,40 @@ manually dispatch `check`/`reconcile` when status is needed, then approve that j
 There are no automatic post-job status updates or certification-failure notices
 from this workflow. A manual observation reports failures and unexpected holds.
 
-`reconcile` is limited to its prepared receipt: it may resume an interrupted upload
-or commit, observe processing, or record completion/failure. It always stops after
-that release. If another build completed during certification, reconcile the active
-receipt first, then dispatch `submit` to prepare the requested/newest waiting
-release and approve its new summary. An active receipt blocks preparing a different
-submission, even if Microsoft has finished but completion has not yet been recorded.
+`release` automates the previous-release reconciliation and current-release
+submission under one approval. It freezes the requested release (or the exact
+triggering producer run) before accessing Microsoft, plus the previous active
+receipt when present. If that previous release is now `Published`, it records
+completion and submits the already approved current artifact and notes. If the
+previous release is still processing, it returns `waiting_for_previous` without
+submitting the next version. Failures, unknown states and ambiguous outcomes stop
+the sequence for inspection. There is no waiting loop: dispatch a fresh `release`
+with the intended tag later and approve its new summary. No eligible next artifact
+means no combined approval is produced; use standalone `reconcile` to observe an
+existing release without selecting a successor.
+
+Standalone `reconcile` remains limited to its prepared receipt: it may resume an
+interrupted upload or commit, observe processing, or record completion/failure.
+It always stops after that release. Standalone `submit` still rejects an active
+receipt. To operate separately, reconcile the active receipt first, then dispatch
+`submit` and approve its new summary. Neither mode implicitly becomes combined.
 No extra tag or rebuild is needed while the original artifact remains available.
 
 From Actions -> Microsoft Store publisher -> Run workflow on `main`:
 
 | Mode | Effect |
 | --- | --- |
+| `release` | One approval covers the frozen previous reconciliation, when needed, and current submission; submits only after the previous version is confirmed published. Used automatically after Store tag builds. |
 | `check` | Approved credential access; reads published/pending state and diagnoses a recorded pending draft, no Store or receipt writes. |
 | `preview` | Approved credential access; validates a release and prints live metadata/notes, no writes. It does not authorize a later submission. |
 | `submit` | Automatically prepares a release before approval, then submits only that exact release. |
 | `reconcile` | Prepares the current receipt before approval, then resumes/observes only that receipt. |
 
-The optional tag must be canonical `vMAJOR.MINOR.PATCH`. Empty `submit` selects the
-newest eligible release during preparation. Empty `reconcile` selects the durable
-receipt; an explicit different tag is rejected. Results appear in the summary and
+The optional tag must be canonical `vMAJOR.MINOR.PATCH`. Empty manual `release` or
+`submit` selects the newest eligible release during preparation. In combined mode,
+the tag selects the current release; the previous one comes from its durable
+receipt. Empty `reconcile` selects the durable receipt; an explicit different tag
+is rejected. Results appear in the summary and
 90-day diagnostic artifacts. A successful read-only check proves read access only;
 it does not prove upload/submission permission or that a pending release is live.
 
@@ -185,7 +205,8 @@ cannot be submitted repeatedly; corrected higher versions need a new approval.
 GET/transient upload retries are bounded, respect `Retry-After`, and support
 cancellation. Tokens refresh on expiry or authorization failure. The command has
 a 12-minute deadline inside a 15-minute job. If interrupted, dispatch a fresh
-`reconcile` operation and approve its frozen recovery summary. Rerunning only the
+`reconcile` operation and approve its frozen recovery summary, or prepare a fresh
+combined `release` when a newer release should follow. Rerunning only the
 old protected job retains its old manifest: if the receipt changed, it fails closed
 and requires fresh preparation. No new candidate is selected by a rerun.
 
