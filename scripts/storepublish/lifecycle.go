@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -272,7 +273,7 @@ func receiptResult(r *receipt, status string) object {
 }
 func drive(ctx context.Context, rt runtime, o options, approved approval) error {
 	if rt.Env("PICFETCH_STORE_SERIALIZED") != "1" {
-		return fmt.Errorf("submit/reconcile must run in the serialized Microsoft Store publisher workflow")
+		return fmt.Errorf("submit/reconcile/release must run in the serialized Microsoft Store publisher workflow")
 	}
 	if o.candidate != "" || o.snapshot != "" {
 		return fmt.Errorf("submission must discover its original artifact from GitHub")
@@ -285,6 +286,40 @@ func drive(ctx context.Context, rt runtime, o options, approved approval) error 
 		return fmt.Errorf("another Store publisher owns the local claim; check its completion before removing a stale claim")
 	}
 	defer func() { _ = os.Remove(lock) }()
+	if approved.Mode == "release" {
+		if approved.Reconcile != nil {
+			previousOptions := o
+			previousOptions.tag = approved.Reconcile.Release.Tag
+			previousRuntime := rt
+			previousRuntime.Out = io.Discard
+			if err := driveApproved(ctx, previousRuntime, previousOptions, *approved.Reconcile); err != nil {
+				return err
+			}
+			saved, err := (githubAPI{rt: rt}).loadReceipt(ctx)
+			if err != nil {
+				return err
+			}
+			if err = validReceipt(saved); err != nil {
+				return err
+			}
+			if saved == nil {
+				return fmt.Errorf("reconciled Store receipt is missing")
+			}
+			if saved.Phase != "published" {
+				return emit(rt, object{"state": "waiting_for_previous", "tag": approved.Release.Tag,
+					"previous_tag": approved.Reconcile.Release.Tag, "previous_submission_id": saved.SubmissionID,
+					"next_step": "Run release again with a fresh approval after the previous version is published."})
+			}
+		}
+		approved.Mode, approved.Reconcile = "submit", nil
+	}
+	return driveApproved(ctx, rt, o, approved)
+}
+
+// driveApproved runs one frozen operation under drive's shared local claim.
+// Store and Microsoft Store are product names in these operational errors.
+// noinspection GoErrorStringFormat
+func driveApproved(ctx context.Context, rt runtime, o options, approved approval) error {
 	g := githubAPI{rt: rt}
 	saved, err := g.loadReceipt(ctx)
 	if err != nil {
@@ -371,6 +406,8 @@ func drive(ctx context.Context, rt runtime, o options, approved approval) error 
 		}
 	}
 	if approved.Mode == "reconcile" {
+		// The earlier reconcile guard rejects nil before any Microsoft access.
+		//noinspection GoMaybeNil
 		if saved.Phase == "failed" {
 			_ = emit(rt, receiptResult(saved, "failed"))
 			return fmt.Errorf("recorded Store submission failed; inspect certification in Partner Center")

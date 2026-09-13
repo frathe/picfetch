@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Store operation; every protected job requires approval
+        description: release reconciles then submits under one approval; separate operations remain available
         type: choice
-        options: [check, preview, reconcile, submit]
+        options: [release, check, preview, reconcile, submit]
         default: check
       tag:
-        description: Optional stable tag; submit selects before approval, reconcile uses its receipt
+        description: Optional current release tag; release/submit freeze it before approval, reconcile uses its receipt
         type: string
         default: ''
 
@@ -79,7 +79,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          STORE_MODE: ${{ inputs.mode || 'submit' }}
+          STORE_MODE: ${{ inputs.mode || 'release' }}
           STORE_TAG: ${{ inputs.tag || '' }}
           STORE_RUN_ID: ${{ github.event.workflow_run.id || '0' }}
         run: |
@@ -89,12 +89,15 @@ jobs:
               echo "mode=$STORE_MODE" >> "$GITHUB_OUTPUT"
               echo "This is a read-only $STORE_MODE operation. Approval grants access to the protected Microsoft credentials; it authorizes no Store mutation." >> "$GITHUB_STEP_SUMMARY"
               exit 0 ;;
-            submit|reconcile) ;;
+            submit|reconcile|release) ;;
             *) echo 'Invalid Store operation.' >&2; exit 1 ;;
           esac
           go run ./scripts/storepublish prepare --mode "$STORE_MODE" --root . --tag "$STORE_TAG" --run-id "$STORE_RUN_ID" --out approval.json > store-preparation.json
           {
             echo 'Review this exact release, artifact, expected published base and frozen notes before approving the protected job.'
+            if jq -e '.reconcile != null' store-preparation.json >/dev/null; then
+              echo 'This single approval also covers the recorded previous release below. The new release will be submitted only after that exact previous release is confirmed Published; processing stops with a waiting result.'
+            fi
             echo '```json'
             jq . store-preparation.json
             echo '```'
@@ -166,7 +169,7 @@ jobs:
           case "$STORE_MODE" in
             check|preview)
               go run ./scripts/storepublish "$STORE_MODE" --root . --tag "$STORE_TAG" | tee store-result.json ;;
-            submit|reconcile)
+            submit|reconcile|release)
               go run ./scripts/storepublish "$STORE_MODE" --root . --approval approval/approval.json --approval-sha256 "$APPROVAL_SHA256" --state-dir "$RUNNER_TEMP" | tee store-result.json ;;
             *) echo 'Invalid Store operation.' >&2; exit 1 ;;
           esac

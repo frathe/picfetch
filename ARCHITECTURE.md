@@ -224,7 +224,10 @@ digests consumed by Makefile and the release/Store workflows.
 Microsoft Store release command: `record` binds the WACK-validated x64/ARM64
 bundle to its tag and producing run; `prepare` freezes a GitHub-only approval
 manifest; `preview` and `check` read release/Store data; `submit` and `reconcile`
-consume that exact manifest to drive one approved release lifecycle.
+consume that exact manifest to drive one approved release lifecycle. `release`
+freezes the prior reconciliation and current submission under one approval,
+advancing only after the exact prior receipt is confirmed published; standalone
+operations keep their existing scope.
 `release.go` admits exact artifacts, `notes.go` generates bounded plain-text
 notes and preserves listing metadata, `github.go` discovers immutable build
 artifacts and journals receipts in deployment payloads, `microsoft.go` owns

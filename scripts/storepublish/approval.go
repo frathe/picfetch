@@ -11,15 +11,16 @@ import (
 // Actions artifact. Its file digest is passed between jobs, never rediscovered.
 // GitHub Required reviewers authorizes the job consuming that exact artifact.
 type approval struct {
-	Schema       int     `json:"schema"`
-	Mode         string  `json:"mode"`
-	Release      release `json:"release"`
-	Notes        string  `json:"notes"`
-	NotesSHA     string  `json:"notes_sha256"`
-	Base         string  `json:"base_version"`
-	ReceiptSHA   string  `json:"previous_receipt_sha256"`
-	SubmissionID string  `json:"submission_id,omitempty"`
-	Phase        string  `json:"receipt_phase,omitempty"`
+	Schema       int       `json:"schema"`
+	Mode         string    `json:"mode"`
+	Release      release   `json:"release"`
+	Notes        string    `json:"notes"`
+	NotesSHA     string    `json:"notes_sha256"`
+	Base         string    `json:"base_version"`
+	ReceiptSHA   string    `json:"previous_receipt_sha256"`
+	SubmissionID string    `json:"submission_id,omitempty"`
+	Phase        string    `json:"receipt_phase,omitempty"`
+	Reconcile    *approval `json:"reconcile,omitempty"`
 }
 
 func receiptDigest(r *receipt) string {
@@ -33,8 +34,8 @@ func receiptDigest(r *receipt) string {
 }
 
 func prepareApproval(ctx context.Context, rt runtime, o options, mode, out string) error {
-	if (mode != "submit" && mode != "reconcile") || out == "" {
-		return fmt.Errorf("prepare needs --mode submit|reconcile and --out")
+	if (mode != "submit" && mode != "reconcile" && mode != "release") || out == "" {
+		return fmt.Errorf("prepare needs --mode submit|reconcile|release and --out")
 	}
 	g := githubAPI{rt: rt}
 	saved, err := g.loadReceipt(ctx)
@@ -62,7 +63,23 @@ func prepareApproval(ctx context.Context, rt runtime, o options, mode, out strin
 			case "failed":
 				p.Base = saved.BaseVersion
 			default:
-				return fmt.Errorf("a Store receipt is active; dispatch reconcile and approve that release before preparing another")
+				if mode != "release" {
+					return fmt.Errorf("a Store receipt is active; dispatch reconcile and approve that release before preparing another")
+				}
+				p.Reconcile = &approval{
+					Schema: 1, Mode: "reconcile", Release: saved.Release,
+					Notes: saved.Notes, NotesSHA: saved.NotesSHA, Base: saved.BaseVersion,
+					ReceiptSHA: receiptDigest(saved), SubmissionID: saved.SubmissionID, Phase: saved.Phase,
+				}
+				p.Reconcile.Release.Directory, p.Reconcile.Release.Notes = "", ""
+				if err = verifyReceiptTag(ctx, rt, o.root, saved.Release); err != nil {
+					return err
+				}
+				// The next operation is approved only against this exact receipt's
+				// publication, never against a newly selected or failed predecessor.
+				published := *saved
+				published.Phase = "published"
+				p.Base, p.ReceiptSHA = saved.Release.Version, receiptDigest(&published)
 			}
 		}
 		candidates, err := g.candidatesForRun(ctx, o.root, o.tag, p.Base, o.runID)
@@ -70,6 +87,11 @@ func prepareApproval(ctx context.Context, rt runtime, o options, mode, out strin
 			return err
 		}
 		if len(candidates) == 0 {
+			if p.Reconcile != nil {
+				return emit(rt, object{"state": "no_update", "expected_published_base": p.Base,
+					"previous_tag": p.Reconcile.Release.Tag,
+					"next_step":    "No eligible current release; use reconcile to observe the previous release."})
+			}
 			return emit(rt, object{"state": "no_update", "published_version": p.Base})
 		}
 		p.Release = candidates[0]
@@ -100,20 +122,35 @@ func prepareApproval(ctx context.Context, rt runtime, o options, mode, out strin
 func loadApproval(path, sha, mode string) (approval, error) {
 	var p approval
 	if path == "" || sha == "" {
-		return p, fmt.Errorf("submit/reconcile requires the frozen approval file and --approval-sha256")
+		return p, fmt.Errorf("submit/reconcile/release requires the frozen approval file and --approval-sha256")
 	}
 	b, err := readLimited(path, 4<<20)
 	if err != nil || digest(b) != sha {
 		return p, fmt.Errorf("approval file is unavailable or its digest changed")
 	}
-	if err = json.Unmarshal(b, &p); err != nil || p.Schema != 1 || p.Mode != mode || p.NotesSHA != digest([]byte(p.Notes)) || p.Release.ArtifactID <= 0 || p.ReceiptSHA == "" {
+	if err = json.Unmarshal(b, &p); err != nil {
 		return p, fmt.Errorf("invalid frozen approval")
 	}
-	if err = validReleaseProvenance(p.Release); err != nil {
-		return p, err
+	return p, validateApproval(p, mode)
+}
+
+func validateApproval(p approval, mode string) error {
+	if p.Schema != 1 || p.Mode != mode || p.NotesSHA != digest([]byte(p.Notes)) || p.Release.ArtifactID <= 0 || p.ReceiptSHA == "" {
+		return fmt.Errorf("invalid frozen approval")
 	}
-	if _, err = versionParts(p.Base); err != nil {
-		return p, err
+	if err := validReleaseProvenance(p.Release); err != nil {
+		return err
 	}
-	return p, nil
+	if _, err := versionParts(p.Base); err != nil {
+		return err
+	}
+	if p.Reconcile != nil {
+		if mode != "release" || p.Base != p.Reconcile.Release.Version || p.ReceiptSHA == p.Reconcile.ReceiptSHA {
+			return fmt.Errorf("invalid combined reconciliation approval")
+		}
+		if err := validateApproval(*p.Reconcile, "reconcile"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
