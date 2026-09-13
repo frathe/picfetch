@@ -5,8 +5,9 @@ Apple Silicon; on Intel macOS the runtime path ends in
 `onnxruntime-osx-x86_64-1.23.2/lib/libonnxruntime.1.23.2.dylib`.
 The tool selects the matching API binding through `internal/ort`.
 
-The application embeds 75 fixed subject/scene text vectors as readable JSON
-(about 997 KiB of text, representing 230,400 bytes of float32 values).
+The repository keeps 75 fixed subject/scene text vectors as readable JSON
+(about 997 KiB of text). The application embeds their exact 230,400 bytes of
+float32 values, generated offline by `scripts/tagvectors` during Make builds.
 The text model is only used for regeneration. Every fresh or reused image
 representation is compared locally with all vectors. Sigmoid scores are normalized to shares of the fixed
 catalogue's total score. A strongest share below 0.35, or strongest raw score
@@ -20,7 +21,11 @@ does not add labels outside this catalogue or infer traits for saved presets.
 threshold, scoring constants and vector digest. `tag-vectors.json` maps each
 tag ID to its L2-normalized array of 768 decimal float32 values. The decimal
 values round-trip to the exact original float32 bits. `NewTagger` decodes the
-embedded JSON directly; ordinary builds need no generator or binary asset.
+generated binary and retains identity, dimension, norm and checksum validation.
+Run `make generate-tag-vectors` after editing JSON, or
+`go generate ./internal/similarity`. The generated binary is checked in so
+direct Go builds work without regeneration; `make check-tag-vectors` and CI
+reject missing or stale output. Neither command needs Python or a text model.
 The digest identifies the numeric values encoded as little-endian float32 in
 catalogue order, so whitespace and JSON key order do not change vector identity.
 `internal/ui/explorer/tags.go` owns localized labels; update both translations
@@ -63,7 +68,8 @@ Both tools verify their pinned model/tokenizer checksums before processing.
 When intentionally changing prompts, copy the newly generated vectors into
 `internal/similarity`, update `vectorsSHA256` using the generator's reported
 numeric digest and the catalogue version, and run
-`make explorer-ui-test`, `make explorer-test`, then `make verify`.
+`make generate-tag-vectors`, `make explorer-ui-test`, `make explorer-test`,
+then `make verify`.
 
 ## Primary provenance
 

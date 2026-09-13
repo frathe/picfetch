@@ -1,9 +1,0 @@
-2026/09/07 07:27:32 *** This application has not been migrated to the fyne.Do threading model ***
-2026/09/07 07:27:32 *** The next major Fyne release will remove this safety! ***
-2026/09/07 07:27:32 *** Read more at https://docs.fyne.io/started/goroutines ***
-[DEBUG-26-drag] shield down=&{PointEvent:{AbsolutePosition:{X:423 Y:532} Position:{X:419 Y:528}} Button:1 Modifier:0}
-[DEBUG-26-drag] shield up=&{PointEvent:{AbsolutePosition:{X:423 Y:532} Position:{X:419 Y:528}} Button:1 Modifier:0}
-[DEBUG-26-drag] pane moved=&{PointEvent:{AbsolutePosition:{X:394 Y:461} Position:{X:390 Y:457}} Button:0 Modifier:0}
-[DEBUG-26-drag] shield down=&{PointEvent:{AbsolutePosition:{X:394 Y:461} Position:{X:390 Y:457}} Button:1 Modifier:0}
-[DEBUG-26-drag] shield up=&{PointEvent:{AbsolutePosition:{X:394 Y:461} Position:{X:390 Y:457}} Button:1 Modifier:0}
-[DEBUG-26-drag] pane moved=&{PointEvent:{AbsolutePosition:{X:620 Y:673} Position:{X:616 Y:669}} Button:0 Modifier:0}

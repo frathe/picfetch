@@ -77,10 +77,10 @@ disables telemetry through the runtime API before session creation, and owns
 the pinned native SigLIP 2 session;
 `encoder_nocgo.go` keeps cross-platform package builds available and reports that
 inference requires cgo.
-`tags.go` decodes the readable embedded `tag-vectors.json`, validates its canonical
+`tags.go` decodes the generated embedded `tag-vectors.bin`, validates its canonical
 float32 digest against `tag-catalog.json`, and applies those text prototypes to
-fresh and reused image vectors against 75 fixed subjects, without a text runtime
-or build-time generator;
+fresh and reused image vectors against 75 fixed subjects, without a text runtime;
+`scripts/tagvectors` converts the retained JSON source before Make builds;
 `grouping.go` owns independent 15D grouping and 2D layout fits plus canonical
 cohort identities; `hierarchy.go` orders a centroid spanning tree in grouping
 space for local granularity cuts. Repeated source paths share one assignment.
@@ -190,6 +190,21 @@ Development-only regeneration of the embedded semantic tag vectors.
 ONNX Runtime, producing readable normalized float32 JSON keyed by tag identity. The viewer requires neither
 this text model nor Python. See `README.md` for reproducible commands/provenance.
 
+### `scripts/tagvectors`
+
+Offline build-time conversion of authoritative tag-vector JSON into exact
+little-endian float32 data. `main.go` validates identities, dimensions, norms
+and the catalogue digest; `-check` guards generated-file freshness. Make builds
+regenerate `internal/similarity/tag-vectors.bin`, which `NewTagger` embeds and
+validates. The JSON and generated binary are both retained in the repository.
+
+### `scripts/appassets`
+
+Development-only derivation of embedded illustrations and compact gaze atlases
+from retained originals. `main.go` owns source/output paths and display pixel
+targets; `-check` compares dimensions and decoded pixels without an encoder.
+Generation uses local `cwebp`; the application keeps its existing image decoders.
+
 ### Packaging tooling
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
@@ -295,7 +310,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
-| `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with the supplied Codex atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `internal/ui/assets/trane.webp` is copied unchanged from `assets/trane/codex-pet/spritesheet.webp`. |
+| `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with a compact 17-cell atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `scripts/appassets` retains the used pixels from `assets/trane/codex-pet/spritesheet.webp`. |
 | `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, favorite cohort loading on the tracked worker/queue, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
 | `explorersetup.go` | First-use Trane explanation, local asset check, explicit download/progress/retry and persisted acknowledgment. Setup owns a cancellable lifecycle and joins Explorer's worker/queue drain; source replacement and shutdown dismiss it. Includes plain privacy and Discussions links. |
 | `explorercohorts.go` | Composes Unassigned grid selection with the shared-trait review, optional matching sources and named-cohort creation. The dialog owns captured targets and rejects stale sessions; tracked favorite saves finish before returning to the map, and failures roll back the proposed group. Explorer retirement dismisses it. Analyze can seed the reusable preset editor, including metadata-only rules. |
@@ -365,7 +380,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Both caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
 | `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
 | `internal/ui/display/` | What's currently on the canvas: the decoded frames, which one is up, the view-only rotation (composing `imaging.RotateSteps` itself, in `Rotated`), and the picture-frame crossfade. | No Host: a value `State` field on `viewer`, mutated through its own methods, never copied. |
-| `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` owns Codex atlas frame extraction and the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. | Leaf aside from `internal/winpos`. |
+| `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` extracts the compact single-row atlas and owns the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | Embedded viewer artwork, including `ExplorerIntroPNG` for first use. | Leaf. |
 
 ### `internal/imaging`

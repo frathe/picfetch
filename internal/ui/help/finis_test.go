@@ -39,7 +39,7 @@ func assertFinisPose(t *testing.T, window fyne.Window, column, row int) {
 	if picture == nil || picture.Image == nil {
 		t.Fatal("companion has no character image")
 	}
-	data, err := os.ReadFile("finis.webp")
+	data, err := os.ReadFile("../../../assets/finis/spritesheet.webp")
 	if err != nil {
 		t.Fatal(err)
 	}

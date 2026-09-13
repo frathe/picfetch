@@ -27,6 +27,21 @@
 
 #### Bugfix
 
+- PR #21 restores the Copy Selection golden to Fyne's supported true-color
+  PNG format, with all decoded pixels preserved, and pins five archived
+  evidence references to their preserved Git revision. See the
+  [review follow-up](finished_refactorings/2026-09-13-embedded-asset-size.md#follow-up-on-533744a).
+- PR #21's Codex finding is fixed: every Explorer Make target regenerates
+  embedded tag vectors before compilation, including profiling, real-model
+  acceptance, UI acceptance and asset-install qualification. The seven-target
+  order regression, focused race checks and GoLand inspections pass. See the
+  [review record](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-codex-review-loop--2026-09-13).
+- Generated-artwork validation now accepts ImageOptim's RGB changes beneath
+  fully transparent pixels in ordinary illustrations. Visible RGB and all
+  alpha values remain exact; gaze atlases still require every pixel byte to
+  match. Focused race tests, Linux/amd64 asset validation and GoLand inspections
+  pass. Hosted validation also passes on `cbf106d` in PR #21. See the
+  [CI fix](finished_refactorings/2026-09-13-embedded-asset-size.md#pr-21-lossless-optimization-check--2026-09-13).
 - Mosaic wallpaper on Linux with multiple displays now offers an explicit
   **Set on All Displays** action when the desktop rejects a selected-display
   change. Single-display behavior is preserved. Ronin's Ubuntu ARM64 machine
@@ -45,6 +60,15 @@
   [review record](finished_refactorings/2026-09-12-spiral-help-and-gif-playback.md#pr-20-review-loop).
 
 #### Internal
+
+- Embedded artwork and font/data inputs reduce the measured native macOS
+  binary from 50.63 MB to 40.84 MB (19.3%). Trane and Finis retain only their
+  17 used poses with identical original pixels; viewer and manual illustrations
+  target 2x display sizes. Make builds omit the emoji font and generate exact
+  binary tag vectors from retained JSON. Focused race checks, Linux goldens,
+  GoLand inspections, native build/signature checks and Windows internal-package
+  cross-checks pass. Ronin accepted the completed plan on September 13, 2026.
+  See the [evidence](finished_refactorings/2026-09-13-embedded-asset-size.md).
 
 - Complete local Docker suites now check for a native Linux/amd64 daemon before
   setup, with a clear explanation of the worker seccomp limitation under ARM
@@ -92,6 +116,15 @@ remain. A fresh native `go test -race -count=5 -timeout 2m -run
 
 ## TODO
 
+### Complete updater dependency notices before the next release
+
+The September 12 dependency inventory found that `THIRD-PARTY-NOTICES.md`
+omits the pinned Sigstore/TUF core module entries. Reconcile actual shipped
+source/file licenses across supported targets, include applicable license and
+NOTICE text (including go-tuf's NOTICE), and inspect delivery in the final
+archives/MSIX. This applies to the dependencies already shipped and is
+independent of the declined verifier refactoring.
+
 ### WinGet package identifier migration
 
 The local publishing workflow and README now use `frathe.picfetch`. Move the
@@ -120,12 +153,11 @@ release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
 
 ## LATER
 
-### Revisit HEIC and verifier dependencies at their next upgrades
+### Revisit HEIC at its next dependency upgrade
 
-[MA-023](needs_refactoring.md#ma-023) tracks retiring the HEIC fork when an approved official release includes its leak
-fix. [MA-024](needs_refactoring.md#ma-024)
-tracks measuring verifier dependency cost at its next major upgrade. Both retain their separate upgrade triggers;
-neither starts immediate work.
+[MA-023](needs_refactoring.md#ma-023) tracks retiring the HEIC fork when an
+approved official release includes its leak fix. Its separate upgrade trigger
+remains unchanged.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 
@@ -136,6 +168,11 @@ update the release and installation documentation. The native Apple-silicon buil
 retirement.
 
 ## not deemed worth implementing (edge cases)
+
+- **Verifier size refactoring (MA-024):** Declined by Ronin on 2026-09-13.
+  Keep upstream Sigstore/TUF verification. Potential savings of a few megabytes
+  do not justify the security risk and maintenance burden of a custom or
+  trimmed verifier. The refactoring plan and upgrade watch have been removed.
 
 - **Retained decoded map tiles (MA-025):** Accepted by the user on 2026-09-09. The map loads only when opened, and
   checking the geolocation of thousands of images is outside expected use. The upstream decoded-tile cache remains

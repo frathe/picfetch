@@ -870,14 +870,14 @@ esac
 	t.Run("target wiring", func(t *testing.T) {
 		for _, target := range []string{"test", "coverage", "test-race", "verify", "golden", "check-test-shards"} {
 			output := makeDryRun(t, target)
-			guard := strings.Index(output, "{{.OSType}}/{{.Architecture}}")
+			found := strings.Contains(output, "{{.OSType}}/{{.Architecture}}")
 			if target == "golden" || target == "check-test-shards" {
-				if guard >= 0 {
+				if found {
 					t.Fatalf("%s unnecessarily requires native amd64:\n%s", target, output)
 				}
 				continue
 			}
-			if guard < 0 {
+			if !found {
 				t.Fatalf("%s omits daemon architecture admission:\n%s", target, output)
 			}
 		}
@@ -886,7 +886,7 @@ esac
 
 func TestMakeTestRemainsCompleteAndUnsharded(t *testing.T) {
 	output := makeDryRun(t, "test")
-	for _, want := range []string{"docker run --rm --platform linux/amd64", "go test -timeout 30m", "./..."} {
+	for _, want := range []string{"docker run --rm --platform linux/amd64", "go test -tags \"no_emoji\" -timeout 30m", "./..."} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("make test output is missing %q:\n%s", want, output)
 		}
@@ -903,7 +903,7 @@ func TestMakeCoverageRunsCompleteUnshardedSuiteAndBuildsHTML(t *testing.T) {
 	for _, want := range []string{
 		"docker run --rm --platform linux/amd64",
 		"locale-gen en_US.UTF-8",
-		"go test -timeout 30m -coverprofile=\"coverage/coverage.out\" ./...",
+		"go test -tags \"no_emoji\" -timeout 30m -coverprofile=\"coverage/coverage.out\" ./...",
 		"go tool cover -html=\"coverage/coverage.out\" -o \"coverage/coverage.html\"",
 	} {
 		if !strings.Contains(output, want) {
@@ -1316,7 +1316,7 @@ func TestMakeDirectRacePartitionsShareFlagsLocaleAndCapture(t *testing.T) {
 			output := makeDryRun(t, test.args...)
 			shared := []string{
 				"set -eu -o pipefail",
-				"LANG=\"en_US.UTF-8\" go test -race -count=1 -timeout 30m -json",
+				"LANG=\"en_US.UTF-8\" go test -tags \"no_emoji\" -race -count=1 -timeout 30m -json",
 				"testshards capture -out",
 			}
 			for _, want := range append(shared, test.want...) {
@@ -1342,7 +1342,7 @@ func TestMakeDirectUIRaceRejectsInvalidShardAndPrintsTheContract(t *testing.T) {
 	}
 	for _, want := range []string{
 		"TEST_SHARD must be one of ui-1, ui-2, or ui-3",
-		"LANG=\"en_US.UTF-8\" go test -race -count=1 -timeout 30m -json",
+		"LANG=\"en_US.UTF-8\" go test -tags \"no_emoji\" -race -count=1 -timeout 30m -json",
 	} {
 		if !strings.Contains(string(output), want) {
 			t.Fatalf("invalid-shard output is missing %q:\n%s", want, output)

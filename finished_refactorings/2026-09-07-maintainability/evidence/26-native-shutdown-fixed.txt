@@ -1,3 +1,0 @@
-2026/09/07 07:20:36 *** This application has not been migrated to the fyne.Do threading model ***
-2026/09/07 07:20:36 *** The next major Fyne release will remove this safety! ***
-2026/09/07 07:20:36 *** Read more at https://docs.fyne.io/started/goroutines ***

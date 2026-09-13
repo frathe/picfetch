@@ -28,12 +28,12 @@ hard-to-reverse architectural trade-off; no glossary entry or ADR is needed.
 - The September 7 Qodana gate's package-only ui-3 failure remains unexplained;
   its isolated retry passed. See [the original record](../finished_refactorings/2026-09-07-qodana-findings.md).
 - Later runs established Docker memory exhaustion independently. A retained
-  [packaging record](../finished_refactorings/2026-09-07-maintainability/evidence/27-reviewed-packaging-smoke.md)
+  [packaging record](https://github.com/frathe/picfetch/blob/34ab671230217996d76784916c2c20d606a4aa29/finished_refactorings/2026-09-07-maintainability/evidence/27-reviewed-packaging-smoke.md)
   records `oom_kill=1`, peak 7,931,346,944 bytes and VM memory 8,319,213,568
   bytes, followed by a successful `GOGC=25` retry. The [release follow-up](../finished_refactorings/2026-09-08-release-review-followups.md)
   separately records an OOM run and its successful `GOFLAGS=-p=1` retry.
 - Commit `6c35f38` added the 16 GiB limit and VM preflight on September 8.
-  The September 9 [grid-scroll gate](../finished_refactorings/2026-09-08-grid-scroll-follow-duplicate-merges/verification/make-verify.log)
+  The September 9 [grid-scroll gate](https://github.com/frathe/picfetch/blob/34ab671230217996d76784916c2c20d606a4aa29/finished_refactorings/2026-09-08-grid-scroll-follow-duplicate-merges/verification/make-verify.log)
   has four retained raw streams: 53 non-UI package passes, one package skip,
   and three UI package passes, with no failure event. The later [grid-browse
   console](../.scratch/grid-duplicate-browse-during-scan/evidence/verify.log)

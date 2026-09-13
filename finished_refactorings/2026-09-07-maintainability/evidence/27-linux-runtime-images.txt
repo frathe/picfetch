@@ -1,6 +1,0 @@
-Docker host: linux/aarch64
-Native ARM64 runtime: sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 (cached golang:1.27-bookworm image)
-AMD64 runtime: debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
-AMD64 executes through Docker CPU emulation on the ARM64 host; this is not a physical x64 hardware claim.
-Both: Debian 12, Xvfb 1280x960, 96 DPI, Openbox, Mesa llvmpipe 22.3.6 / LLVM 15.0.6, software rendering.
-Actual production executables run unchanged; no Go test driver or renderer adapter is used.

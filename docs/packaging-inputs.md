@@ -6,6 +6,13 @@ Make targets, the release workflow and the Store workflow use these same inputs.
 Tools install into version-specific, ignored `.tools/` directories; a globally
 installed CLI does not select the version used by these targets.
 
+App build/run and packaging targets pass Fyne's supported `no_emoji` build tag;
+Store packages also retain `microsoftstore`. The bundled emoji font is omitted
+by project choice. Direct Go app builds should likewise pass `-tags no_emoji`.
+Before compilation, Make regenerates exact binary tag vectors from the retained
+JSON source; CI checks freshness with `make check-tag-vectors`. Neither step
+changes the signing order or adds a runtime dependency.
+
 The image digests name multiarchitecture indexes, supporting amd64 and arm64
 build hosts. An image upgrade must retain both host architectures. The container
 contains its own Fyne CLI: pinning the host CLI alone does not pin cross-packaging.

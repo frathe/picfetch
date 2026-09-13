@@ -10,8 +10,8 @@ package assets
 
 import _ "embed"
 
-// TraneWebP is the Codex v2 pet atlas, copied unchanged from
-// assets/trane/codex-pet/spritesheet.webp (8x11 cells, each 192x208).
+// TraneWebP contains only the 17 gaze cells from the original Codex v2 atlas.
+// scripts/appassets retains their 192x208 pixels in a single row.
 //
 //go:embed trane.webp
 var TraneWebP []byte

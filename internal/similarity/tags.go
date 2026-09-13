@@ -12,7 +12,8 @@ import (
 //go:embed tag-catalog.json
 var tagCatalog []byte
 
-//go:embed tag-vectors.json
+//go:generate go run ../../scripts/tagvectors -catalog tag-catalog.json -source tag-vectors.json -out tag-vectors.bin
+//go:embed tag-vectors.bin
 var tagVectors []byte
 
 // TagCatalogueVersion binds preset rules to the prompt vectors and thresholds.
@@ -45,49 +46,47 @@ type tagPrototype struct {
 }
 
 func NewTagger() (*Tagger, error) {
+	return newTagger(tagCatalog, tagVectors)
+}
+
+func newTagger(catalogData, vectorData []byte) (*Tagger, error) {
 	var catalog struct {
 		Model, VectorsSHA256           string
 		Scale, Bias, MinimumScore      float64
 		MinimumShare, MinimumBestShare float64
 		Tags                           []struct{ ID string }
 	}
-	if err := json.Unmarshal(tagCatalog, &catalog); err != nil {
+	if err := json.Unmarshal(catalogData, &catalog); err != nil {
 		return nil, err
 	}
-	var vectors map[string][]float32
-	if err := json.Unmarshal(tagVectors, &vectors); err != nil {
-		return nil, err
-	}
-	if catalog.Model != ModelRevision || len(catalog.Tags) == 0 || len(vectors) != len(catalog.Tags) || catalog.Scale <= 0 || catalog.MinimumScore <= 0 || catalog.MinimumScore >= 1 || catalog.MinimumShare <= 0 || catalog.MinimumBestShare < catalog.MinimumShare || catalog.MinimumBestShare >= 1 {
+	if catalog.Model != ModelRevision || len(catalog.Tags) == 0 || len(vectorData) != len(catalog.Tags)*768*4 || catalog.Scale <= 0 || catalog.MinimumScore <= 0 || catalog.MinimumScore >= 1 || catalog.MinimumShare <= 0 || catalog.MinimumBestShare < catalog.MinimumShare || catalog.MinimumBestShare >= 1 {
 		return nil, fmt.Errorf("invalid semantic tag assets")
+	}
+	// The generator stores canonical float32 bits in catalogue order. The
+	// digest therefore identifies exactly the same values as the source JSON.
+	if fmt.Sprintf("%x", sha256.Sum256(vectorData)) != catalog.VectorsSHA256 {
+		return nil, fmt.Errorf("semantic tag vector checksum mismatch")
 	}
 	tagger := &Tagger{scale: catalog.Scale, bias: catalog.Bias, minimumScore: catalog.MinimumScore,
 		minimumShare: catalog.MinimumShare, bestShare: catalog.MinimumBestShare}
 	seen := map[string]bool{}
-	// Hash canonical float32 bits in catalogue order, independently of JSON
-	// whitespace/key order. This keeps the original vector identity unchanged.
-	canonical := make([]byte, 0, len(catalog.Tags)*768*4)
-	for _, tag := range catalog.Tags {
+	for i, tag := range catalog.Tags {
 		if tag.ID == "" || seen[tag.ID] {
 			return nil, fmt.Errorf("invalid semantic tag identity")
 		}
 		seen[tag.ID] = true
-		prototype := tagPrototype{id: tag.ID, vector: vectors[tag.ID]}
-		if len(prototype.vector) != 768 {
-			return nil, fmt.Errorf("invalid semantic tag vector dimensions")
-		}
+		prototype := tagPrototype{id: tag.ID, vector: make([]float32, 768)}
 		var norm float64
-		for _, value := range prototype.vector {
-			canonical = binary.LittleEndian.AppendUint32(canonical, math.Float32bits(value))
+		for j := range prototype.vector {
+			offset := (i*768 + j) * 4
+			value := math.Float32frombits(binary.LittleEndian.Uint32(vectorData[offset:]))
+			prototype.vector[j] = value
 			norm += float64(value) * float64(value)
 		}
 		if math.IsNaN(norm) || math.Abs(norm-1) > .0001 {
 			return nil, fmt.Errorf("invalid semantic tag vector")
 		}
 		tagger.prototypes = append(tagger.prototypes, prototype)
-	}
-	if fmt.Sprintf("%x", sha256.Sum256(canonical)) != catalog.VectorsSHA256 {
-		return nil, fmt.Errorf("semantic tag vector checksum mismatch")
 	}
 	return tagger, nil
 }

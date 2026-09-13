@@ -1,6 +1,6 @@
 # PicFetch maintainability implementation plan — 2026-09-06
 
-Status: required and selected conditional work complete; Windows acceptance closed by the user on 2026-09-09. Canonical remaining work and dependency watches are in [needs_refactoring.md](../needs_refactoring.md). [Audit validation](2026-09-06-maintainability-validation.md) records the baseline and probes. [Published tickets](2026-09-07-maintainability/ticket-breakdown.md) track execution and accepted completion boundaries.
+Status: required and selected conditional work complete; Windows acceptance closed by the user on 2026-09-09. Canonical remaining work and dependency watches are in [needs_refactoring.md](../needs_refactoring.md). [Audit validation](2026-09-06-maintainability-validation.md) records the baseline and probes. [Published tickets](https://github.com/frathe/picfetch/blob/34ab671230217996d76784916c2c20d606a4aa29/finished_refactorings/2026-09-07-maintainability/ticket-breakdown.md) track execution and accepted completion boundaries.
 
 ## September 9 closeout
 
@@ -8,7 +8,7 @@ The user reported successful Windows 11 ARM and x64 testing and directed that
 the remaining detailed checks be considered done as edge cases. Ticket 27 /
 MA-020 closes on that acceptance; remaining Windows SDK/WACK evidence is waived
 for this audit. No WACK pass or specific later artifact coverage is inferred.
-The [Windows acceptance record](2026-09-07-maintainability/windows-test-todo.md)
+The [Windows acceptance record](https://github.com/frathe/picfetch/blob/34ab671230217996d76784916c2c20d606a4aa29/finished_refactorings/2026-09-07-maintainability/windows-test-todo.md)
 captures the report and supersedes the earlier deferrals below. Existing
 execution logs remain historical evidence, including failed VM attempts.
 
