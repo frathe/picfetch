@@ -27,6 +27,10 @@
 
 #### Bugfix
 
+- PR #21 restores the Copy Selection golden to Fyne's supported true-color
+  PNG format, with all decoded pixels preserved, and pins five archived
+  evidence references to their preserved Git revision. See the
+  [review follow-up](finished_refactorings/2026-09-13-embedded-asset-size.md#follow-up-on-533744a).
 - PR #21's Codex finding is fixed: every Explorer Make target regenerates
   embedded tag vectors before compilation, including profiling, real-model
   acceptance, UI acceptance and asset-install qualification. The seven-target

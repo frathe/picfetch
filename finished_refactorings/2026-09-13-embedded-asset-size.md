@@ -294,3 +294,40 @@ collection is independent of the fix; G5 Lead has not loaded the report details.
 Rule S scripts JSON extraction; the Scout follows report locations and run
 identity. No assessment or fix is delegated. Budget/actual: 1/1 Scout; local
 full suites 0; fresh GitHub review rounds continue until the latest head is clean.
+
+#### Follow-up on `533744a`
+
+The hosted Linux ui-1 shard failed `TestE2E_CopySelection`: ImageOptim had
+converted its golden to a palette PNG in `cbf106d`. Fyne 2.8.0's comparator
+only accepts decoded RGBA/NRGBA images and reported "Master image is unsupported
+type". All other hosted jobs passed. Security review completed without findings;
+the actual post-suppression Qodana report contained zero results, and CodeQL
+had no open alerts. Its existing dismissed ZIP-path finding still stops at the
+fixed archive-member allowlist and retains traversal regression coverage.
+
+`make golden TEST_IMAGE=picfetch-mosaic-verify:local` reproduced the sole failing
+E2E test under Linux/amd64. The inspected replacement is a true-color PNG;
+all 176,800 decoded pixels exactly match the optimized palette original.
+Accepted only this generated master. Its SHA-256 is
+`e186f09012be3c2eaa2da49c4539d13a852ed95eac023ab54ba5c757a5e4ac69`.
+No runtime or test assertion changes. A native macOS rerun differs in rendering,
+so the required Linux/amd64 rerun is the acceptance gate. Failed renders remain
+untracked. Red/green logs and the pixel-comparison helper are in
+`/tmp/picfetch-pr21/533744a/` and `/tmp/picfetch-pr21/compare-golden.go`.
+The second `make golden TEST_IMAGE=picfetch-mosaic-verify:local` passes every
+E2E test, including Copy Selection (0.07s); `internal/ui` passes in 1.416s.
+
+The fresh code review also found dangling archive references. Five retained
+references across the September 6 maintainability plan, September 8 release
+readiness record and September 9 local-race record now link to the exact
+pre-cleanup revision `34ab671230217996d76784916c2c20d606a4aa29` on GitHub.
+`git cat-file -e <revision>:<path>` verifies each of the five targets. This
+preserves access to accepted evidence while retaining the archive cleanup.
+A scan of tracked Markdown links and inline paths finds zero remaining direct
+references to deleted files. `git diff --check` also passes.
+
+The same read-only Scout was reused to locate other affected references while
+the Lead handled the golden failure. Additional task gate: bounded tracked
+Markdown scan, locator TSV plus Git-object existence as oracle, no repository
+edits, independent of golden rendering, and no assessment delegated. Actual
+spawns remain one; two collection tasks follow the original report collection.

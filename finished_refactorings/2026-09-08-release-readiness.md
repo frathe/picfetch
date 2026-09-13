@@ -64,4 +64,4 @@ Actual budget: three agents, reused for four bounded fixes; one independent
 review per axis and one integrator pass over each fix. One final full gate.
 The wider three-agent concurrency and delegated fixes are explicitly requested
 by the user; source ownership remained disjoint. Coverage and Qodana rationale
-live in `finished_refactorings/2026-09-08-release-readiness/assessment.md`.
+live in the [archived assessment](https://github.com/frathe/picfetch/blob/34ab671230217996d76784916c2c20d606a4aa29/finished_refactorings/2026-09-08-release-readiness/assessment.md).
