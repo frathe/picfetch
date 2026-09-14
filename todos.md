@@ -47,9 +47,19 @@ led to shared Favorite inventory/store routing, explicit maintenance intents and
 transaction outcomes, and shared browsing restrictions/order with complete deferred
 restoration. Local race/build/inspection and real-model reuse checks pass. The
 [implementation record](finished_refactorings/2026-09-15-search-ownership.md)
-tracks the fresh PR review and CI gates, including the three new findings on
-active Favorite saves and excessive progress delivery. Their fixes and regression
-coverage are implemented; a fresh review round remains required.
+tracks the fresh PR review and CI gates, including fixes for active Favorite
+saves, excessive progress delivery, saves during cache inspection, captured
+cache limits and retirement before maintenance inspection, pre-publication Grid
+anchors, external source reconciliation,
+bounded ranked updates, and origin restoration after batch removals, Grid
+reconciliation and comparison closure.
+The cache follow-up also reports Favorite promotion failures while retaining
+usable hits and reclaims managed temporary files before reusable LRU records.
+The review follow-up preserves image occurrence positions on origin return
+and retains completed search vectors through automatic cache eviction while
+joining unfinished preparation and pending Favorite writes.
+Their fixes and regression coverage are implemented. Final review
+and CI status are recorded on [PR #25](https://github.com/frathe/picfetch/pull/25).
 
 ### Comparison test deadline under build contention
 

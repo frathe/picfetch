@@ -41,10 +41,10 @@ func TestAnalysisCachePolicyProducerScope(t *testing.T) {
 						t.Fatal(err)
 					}
 					t.Cleanup(store.close)
-					if _, hit := store.read(context.Background(), retained); hit != looseEnabled {
+					if _, hit := cacheTestRead(t, store, context.Background(), retained); hit != looseEnabled {
 						t.Fatalf("producer read scope changed: hit=%t", hit)
 					}
-					if _, hit := store.read(context.Background(), member); hit != (favoriteEnabled && looseEnabled) {
+					if _, hit := cacheTestRead(t, store, context.Background(), member); hit != (favoriteEnabled && looseEnabled) {
 						t.Fatalf("Favorite promotion/opt-out: hit=%t", hit)
 					}
 					for _, item := range []Item{member, fresh} {
@@ -114,7 +114,7 @@ func TestAnalysisCachePolicyExplicitFavoriteSaveReusesPreparedItems(t *testing.T
 	}
 	reopened := cacheTestStore(t, policy)
 	for _, item := range []Item{prepared, later, cached} {
-		if _, hit := reopened.read(context.Background(), item); !hit {
+		if _, hit := cacheTestRead(t, reopened, context.Background(), item); !hit {
 			t.Fatalf("new Favorite missed %s", item.Path)
 		}
 	}
@@ -134,7 +134,7 @@ func TestAnalysisCachePolicyWriteBudget(t *testing.T) {
 		if err := store.write(context.Background(), item); err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := store.read(context.Background(), item); ok {
+		if _, ok := cacheTestRead(t, store, context.Background(), item); ok {
 			t.Fatal("record larger than the whole budget was persisted")
 		}
 	})
@@ -158,7 +158,7 @@ func TestAnalysisCachePolicyWriteBudget(t *testing.T) {
 		if err := store.write(context.Background(), other); !errors.As(err, &pressure) {
 			t.Fatalf("over-budget new record did not report pressure: %v", err)
 		}
-		if _, ok := store.read(context.Background(), item); !ok {
+		if _, ok := cacheTestRead(t, store, context.Background(), item); !ok {
 			t.Fatal("writer silently evicted an existing record under pressure")
 		}
 	})
@@ -189,13 +189,13 @@ func TestAnalysisCachePolicyFavoriteFirstAndPromotion(t *testing.T) {
 				}
 				want = favorite.Embedding
 			}
-			got, ok := store.read(context.Background(), item)
+			got, ok := cacheTestRead(t, store, context.Background(), item)
 			if !ok || !slices.Equal(got.Embedding, want) {
 				t.Fatal("Favorite priority or general fallback returned the wrong representation")
 			}
 			policy.LooseEnabled = false
 			onlyFavorite := cacheTestStore(t, policy)
-			got, ok = onlyFavorite.read(context.Background(), item)
+			got, ok = cacheTestRead(t, onlyFavorite, context.Background(), item)
 			if !ok || !slices.Equal(got.Embedding, want) {
 				t.Fatal("Favorite-only reopen could not reuse its existing or promoted representation")
 			}
@@ -204,6 +204,49 @@ func TestAnalysisCachePolicyFavoriteFirstAndPromotion(t *testing.T) {
 				t.Fatalf("promotion/priority inventory: %+v, %v", usage, err)
 			}
 		})
+	}
+}
+
+func TestAnalysisCachePolicyPromotionWarnings(t *testing.T) {
+	for _, scope := range []cacheWriteScope{writeEnabledStores, writeFavoritesOnly} {
+		for _, failure := range []string{"none", "blocked_directory", "retired_lease"} {
+			t.Run(fmt.Sprintf("scope_%d/%s", scope, failure), func(t *testing.T) {
+				ctx := context.Background()
+				policy := cacheTestPolicy(t)
+				item := cacheFixtureItem(t, "source.jpg")
+				seed := cacheTestStore(t, policy)
+				if err := seed.write(ctx, item); err != nil {
+					t.Fatal(err)
+				}
+				cacheTestFavorite(t, policy.Roots, item)
+				store, err := openRepresentationStore(ctx, policy, scope)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(store.close)
+				switch failure {
+				case "blocked_directory":
+					if err := os.WriteFile(filepath.Join(favstore.Dir(policy.Roots.FavoritesDir, "Trip"), "analysis"), []byte("blocked"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				case "retired_lease":
+					if _, err := (CacheManager{}).Clean(ctx, CacheCleanRequest{Roots: CacheRoots{FavoritesDir: policy.Roots.FavoritesDir}, Mode: ClearAll}, nil); err != nil {
+						t.Fatal(err)
+					}
+				}
+				preparer := searchPreparer{cache: store, versions: map[string]os.FileInfo{}}
+				got, reused, err := preparer.prepare(ctx, item.Path)
+				if err != nil || !reused || !slices.Equal(got.Embedding, item.Embedding) || preparer.encoder != nil {
+					t.Fatalf("promotion failure lost usable analysis or repeated inference: reused=%t, err=%v", reused, err)
+				}
+				if (preparer.warning != "") != (failure != "none") {
+					t.Fatalf("promotion warning: %q, failure=%s", preparer.warning, failure)
+				}
+				if _, hit := store.favorites.read(item); hit != (failure == "none") {
+					t.Fatalf("unexpected Favorite persistence: hit=%t, failure=%s", hit, failure)
+				}
+			})
+		}
 	}
 }
 
@@ -231,10 +274,10 @@ func TestAnalysisCachePolicyDisabledStores(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if _, ok := store.read(context.Background(), member); ok != favoriteEnabled {
+				if _, ok := cacheTestRead(t, store, context.Background(), member); ok != favoriteEnabled {
 					t.Fatalf("Favorite cache preference ignored: hit=%v", ok)
 				}
-				if _, ok := store.read(context.Background(), loose); ok != looseEnabled {
+				if _, ok := cacheTestRead(t, store, context.Background(), loose); ok != looseEnabled {
 					t.Fatalf("loose cache preference ignored: hit=%v", ok)
 				}
 				if _, err := os.Stat(cacheTestGeneralPath(policy.Roots, member)); !errors.Is(err, os.ErrNotExist) {
@@ -244,7 +287,7 @@ func TestAnalysisCachePolicyDisabledStores(t *testing.T) {
 				policy.FavoriteEnabled, policy.LooseEnabled = false, false
 				disabled := cacheTestStore(t, policy)
 				for _, item := range []Item{member, loose} {
-					if _, ok := disabled.read(context.Background(), item); ok {
+					if _, ok := cacheTestRead(t, disabled, context.Background(), item); ok {
 						t.Fatal("disabled store reused a retained record")
 					}
 				}
@@ -273,7 +316,7 @@ func TestAnalysisCachePolicyFavoriteOptOutRejectsRetainedGeneralRecord(t *testin
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if _, hit := store.read(context.Background(), item); hit {
+		if _, hit := cacheTestRead(t, store, context.Background(), item); hit {
 			t.Fatal("refreshed Favorite opt-out reused a general record")
 		}
 		if err := store.write(context.Background(), item); err != nil {
@@ -293,7 +336,7 @@ func TestAnalysisCachePolicyFavoriteOptOutRejectsRetainedGeneralRecord(t *testin
 	cacheTestFavorite(t, policy.Roots, item)
 	policy.FavoriteEnabled = false
 	disabled := cacheTestStore(t, policy)
-	if _, ok := disabled.read(context.Background(), item); ok {
+	if _, ok := cacheTestRead(t, disabled, context.Background(), item); ok {
 		t.Fatal("Favorite opt-out was bypassed through its retained general record")
 	}
 	if err := disabled.write(context.Background(), item); err != nil {
@@ -305,7 +348,7 @@ func TestAnalysisCachePolicyFavoriteOptOutRejectsRetainedGeneralRecord(t *testin
 	}
 	policy.FavoriteEnabled = true
 	enabled := cacheTestStore(t, policy)
-	if _, ok := enabled.read(context.Background(), item); !ok {
+	if _, ok := cacheTestRead(t, enabled, context.Background(), item); !ok {
 		t.Fatal("re-enabled Favorite could not reuse the retained general record")
 	}
 }
@@ -334,7 +377,7 @@ func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *tes
 		if err == nil || store == nil {
 			t.Fatal("broken lease did not report partial admission")
 		}
-		if _, hit := store.read(context.Background(), item); !hit {
+		if _, hit := cacheTestRead(t, store, context.Background(), item); !hit {
 			t.Fatal("lease failure discarded readable Favorite")
 		}
 		item.Embedding = make([]float32, 768)
@@ -342,7 +385,7 @@ func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *tes
 		if err := store.write(context.Background(), item); !errors.Is(err, ErrCacheRetired) {
 			t.Fatalf("write without a lease: %v", err)
 		}
-		got, hit := store.read(context.Background(), item)
+		got, hit := cacheTestRead(t, store, context.Background(), item)
 		if !hit || got.Embedding[1] != 0 {
 			t.Fatal("unleased producer changed the record")
 		}
@@ -383,10 +426,10 @@ func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *tes
 			if err == nil || partial == nil {
 				t.Fatalf("incomplete membership was not reported: %v", err)
 			}
-			if _, ok := partial.read(context.Background(), healthy); !ok {
+			if _, ok := cacheTestRead(t, partial, context.Background(), healthy); !ok {
 				t.Fatal("unreadable Favorite prevented healthy Favorite reuse")
 			}
-			if _, ok := partial.read(context.Background(), unknown); ok {
+			if _, ok := cacheTestRead(t, partial, context.Background(), unknown); ok {
 				t.Fatal("incomplete membership admitted unknown general reuse")
 			}
 			for _, item := range []Item{healthy, cacheFixtureItem(t, "new-unknown.jpg")} {
@@ -450,11 +493,11 @@ func TestAnalysisCachePolicyRejectsInvalidRecords(t *testing.T) {
 						data = append(data, []byte("{}")...)
 					}
 					cacheTestWriteFile(t, path, data)
-					if _, ok := store.read(context.Background(), item); ok {
+					if _, ok := cacheTestRead(t, store, context.Background(), item); ok {
 						t.Fatal("invalid record was reused")
 					}
 					cacheTestWriteFile(t, path, cacheTestPayload(t, item))
-					if _, ok := store.read(context.Background(), item); !ok {
+					if _, ok := cacheTestRead(t, store, context.Background(), item); !ok {
 						t.Fatal("valid record was not reusable after the invalid record was replaced")
 					}
 				})
@@ -490,7 +533,7 @@ func TestAnalysisCacheLimitRetuneUsesGeneralLRU(t *testing.T) {
 			secondBytes = uint64(info.Size())
 		}
 	}
-	if _, ok := store.read(context.Background(), items[0]); !ok {
+	if _, ok := cacheTestRead(t, store, context.Background(), items[0]); !ok {
 		t.Fatal("could not touch the oldest entry through a cache read")
 	}
 	quiesced := 0
@@ -510,13 +553,66 @@ func TestAnalysisCacheLimitRetuneUsesGeneralLRU(t *testing.T) {
 	}
 	fresh := cacheTestStore(t, policy)
 	for i, item := range items {
-		if _, ok := fresh.read(context.Background(), item); ok != (i != 1) {
+		if _, ok := cacheTestRead(t, fresh, context.Background(), item); ok != (i != 1) {
 			t.Fatalf("LRU retained wrong item %d: hit=%v", i, ok)
 		}
 	}
-	if _, ok := fresh.read(context.Background(), favorite); !ok {
+	if _, ok := cacheTestRead(t, fresh, context.Background(), favorite); !ok {
 		t.Fatal("general retune evicted Favorite analysis")
 	}
+}
+
+func TestAnalysisCacheLimitRetuneReclaimsTemporariesFirst(t *testing.T) {
+	for _, evictRecord := range []bool{false, true} {
+		t.Run(fmt.Sprintf("evict_record_%t", evictRecord), func(t *testing.T) {
+			ctx := context.Background()
+			policy := cacheTestPolicy(t)
+			store := cacheTestStore(t, policy)
+			items := []Item{cacheFixtureItem(t, "older.jpg"), cacheFixtureItem(t, "newer.jpg")}
+			var bytes uint64
+			for i, item := range items {
+				if err := store.write(ctx, item); err != nil {
+					t.Fatal(err)
+				}
+				bytes += uint64(len(cacheTestPayload(t, item)))
+				when := time.Date(2020, 1, 1, 0, 0, i, 0, time.UTC)
+				if err := os.Chtimes(cacheTestGeneralPath(policy.Roots, item), when, when); err != nil {
+					t.Fatal(err)
+				}
+			}
+			orphan := filepath.Join(policy.Roots.GeneralDir, "v1", "."+strings.Repeat("x", 20)+".tmp")
+			if err := os.WriteFile(orphan, []byte("unfinished record"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			limit, removedRecords := bytes, 0
+			if evictRecord {
+				limit -= uint64(len(cacheTestPayload(t, items[0])))
+				removedRecords = 1
+			}
+			report, err := (CacheManager{}).Retune(ctx, CacheRetuneRequest{Roots: policy.Roots, LimitBytes: limit}, nil)
+			if err != nil || report.AppliedLimit != limit || report.Remaining.General.Bytes != limit || report.Remaining.General.Records != 2-removedRecords || report.RemovedRecords != removedRecords || report.RemovedBytes != bytes+uint64(len("unfinished record"))-limit {
+				t.Fatalf("temporary-first retune: %+v, %v", report, err)
+			}
+			if _, err := os.Stat(orphan); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("unusable temporary survived eviction: %v", err)
+			}
+			fresh := cacheTestStore(t, policy)
+			for i, item := range items {
+				if _, hit := cacheTestRead(t, fresh, ctx, item); hit != (!evictRecord || i == 1) {
+					t.Fatalf("temporary displaced reusable record %d: hit=%t", i, hit)
+				}
+			}
+		})
+	}
+}
+
+func cacheTestRead(t *testing.T, store *representationStore, ctx context.Context, source Item) (Item, bool) {
+	t.Helper()
+	item, hit, err := store.read(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return item, hit
 }
 
 func cacheTestPayload(t *testing.T, item Item) []byte {

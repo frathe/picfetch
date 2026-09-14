@@ -3,6 +3,7 @@ package analysiscache_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,7 +69,7 @@ type cacheHost struct {
 	onQuiesce func()
 }
 
-func (h *cacheHost) Quiesce() []<-chan struct{} {
+func (h *cacheHost) Quiesce(_ bool) []<-chan struct{} {
 	h.quiesced++
 	if h.onQuiesce != nil {
 		h.onQuiesce()
@@ -223,6 +224,98 @@ func TestAnalysisCacheManagementLimitValidatesAndPersistsOnlySuccessfulRetune(t 
 	}
 }
 
+func TestAnalysisCacheManagementLimitJoinsProducersBeforeInspection(t *testing.T) {
+	for _, tc := range []struct {
+		limit            int
+		cancel           bool
+		cancelBeforeScan bool
+	}{{1024, false, false}, {2048, false, false}, {4096, false, false}, {4096, true, false}, {4096, true, true}} {
+		t.Run(fmt.Sprintf("limit=%d/cancel=%v/beforeScan=%v", tc.limit, tc.cancel, tc.cancelBeforeScan), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				first, second, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				started := make(chan similarity.CacheRetuneRequest, 1)
+				h := &cacheHost{barriers: []<-chan struct{}{first, second}}
+				provider := maintenance{retune: func(ctx context.Context, request similarity.CacheRetuneRequest, _ func(similarity.CacheProgress)) (similarity.CacheReport, error) {
+					started <- request
+					select {
+					case <-release:
+						return similarity.CacheReport{AppliedLimit: request.LimitBytes}, nil
+					case <-ctx.Done():
+						return similarity.CacheReport{}, ctx.Err()
+					}
+				}}
+				f := analysiscache.New(h, analysiscache.Options{Provider: provider, Queue: &uitest.UIQueue{}})
+				t.Cleanup(func() {
+					for _, done := range []chan struct{}{first, second, release} {
+						select {
+						case <-done:
+						default:
+							close(done)
+						}
+					}
+					f.Stop()
+					f.Settle()
+				})
+				f.Content(true, 2048)
+				f.Settle()
+				f.Retune(tc.limit)
+				changed := tc.limit != 2048
+				wantRetirements := 0
+				if changed {
+					wantRetirements = 1
+				}
+				if h.quiesced != wantRetirements {
+					t.Fatalf("limit change did not retire captured producers before inspection: quiesced=%d", h.quiesced)
+				}
+				if tc.cancelBeforeScan {
+					f.Close()
+				}
+				if changed {
+					for _, done := range []chan struct{}{first, second} {
+						synctest.Wait()
+						if !f.Busy() {
+							t.Fatal("maintenance stopped tracking producer retirement")
+						}
+						select {
+						case <-started:
+							t.Fatal("maintenance inspected before both producers stopped")
+						default:
+						}
+						close(done)
+					}
+				}
+				if tc.cancelBeforeScan {
+					f.Settle()
+					if f.Busy() || len(started) != 0 || len(h.policies) != 0 {
+						t.Fatal("canceled retirement inspected or applied an unaccepted limit")
+					}
+					return
+				}
+				request := <-started
+				if request.RetireWriters != (tc.limit < 2048) || len(h.policies) != 0 {
+					t.Fatal("local retirement changed shared lease policy or committed an uninspected limit")
+				}
+				if tc.cancel {
+					f.Close()
+				} else {
+					close(release)
+				}
+				f.Settle()
+				wantPolicies := 1
+				if tc.cancel {
+					wantPolicies = 0
+				}
+				if f.Busy() || len(h.policies) != wantPolicies {
+					t.Fatalf("retune completion lost policy/cancellation ownership: %+v", h.policies)
+				}
+				if !tc.cancel && h.policies[0] != (policy{true, tc.limit}) {
+					t.Fatalf("accepted wrong policy: %+v", h.policies)
+				}
+			})
+		})
+	}
+}
+
 func TestAnalysisCacheManagementOptOutSurvivesInspectionFailureAndClose(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		first, second := make(chan struct{}), make(chan struct{})
@@ -347,10 +440,10 @@ func TestAnalysisCacheManagementWritersSettleDrainsQuiescenceAndWaitsBothWriters
 	t.Cleanup(func() { f.Stop(); f.Settle() })
 	f.Content(true, 2048)
 	f.Settle()
-	f.Retune(4096)
+	f.Retune(2048)
 	f.Settle()
 	if h.quiesced != 0 {
-		t.Fatal("inspection or budget increase retired a producer")
+		t.Fatal("inspection or unchanged budget retired a producer")
 	}
 	checks := make(chan error, 1)
 	go func() {

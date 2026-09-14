@@ -113,7 +113,11 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			if ok && os.SameFile(previous.info, before) && previous.item.Size == item.Size && previous.item.ModifiedNS == item.ModifiedNS {
 				item, reused = previous.item, true
 			} else if cache != nil {
-				if cached, ok := cache.read(ctx, item); ok {
+				cached, hit, cacheErr := cache.read(ctx, item)
+				if cacheErr != nil && event.CacheWarning == "" {
+					event.CacheWarning = cacheErr.Error()
+				}
+				if hit {
 					item, reused = cached, true
 				}
 			}

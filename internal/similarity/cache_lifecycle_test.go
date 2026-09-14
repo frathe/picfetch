@@ -38,13 +38,13 @@ func TestAnalysisCacheClearRetiresOpenWriters(t *testing.T) {
 				t.Fatalf("old writer was not retired: %v", err)
 			}
 			fresh := cacheTestStore(t, policy)
-			if _, ok := fresh.read(context.Background(), item); ok {
+			if _, ok := cacheTestRead(t, fresh, context.Background(), item); ok {
 				t.Fatal("old writer repopulated the cleared cache")
 			}
 			if err := fresh.write(context.Background(), item); err != nil {
 				t.Fatalf("new writer was not admitted: %v", err)
 			}
-			if _, ok := fresh.read(context.Background(), item); !ok {
+			if _, ok := cacheTestRead(t, fresh, context.Background(), item); !ok {
 				t.Fatal("fresh writer did not persist a reusable record")
 			}
 		})
@@ -252,7 +252,7 @@ func TestAnalysisCacheMaintenanceCancellationReportsRemaining(t *testing.T) {
 		if !errors.Is(result.err, context.Canceled) || !result.report.Canceled || !result.report.Remaining.Incomplete || result.report.RemovedRecords != 0 || result.report.Remaining.General.Records != 1 {
 			t.Fatalf("cancelled admission: %+v, %v", result.report, result.err)
 		}
-		if _, ok := store.read(context.Background(), item); !ok {
+		if _, ok := cacheTestRead(t, store, context.Background(), item); !ok {
 			t.Fatal("cancelled lock admission invalidated the active writer")
 		}
 	})

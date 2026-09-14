@@ -160,6 +160,11 @@ Rescan after exclusion before reporting removals, release admission on every exi
 and preserve browsing if eviction retires a currently preparing producer. Pure
 inspection and no-eviction retuning do not call Quiesce. Automatic LRU uses this
 same path; there is no second uncoordinated deletion implementation.
+For automatic eviction only, quiescence may retain a completed search producer
+with no pending Favorite persistence. Its old lease stays revoked, while later
+reference queries rank the retained vectors. Preparing producers and pending
+Favorite writes still cancel/join. Explicit cleanup and policy changes retain
+their full producer-retirement contract.
 
 ```go
 (*Feature).TabContent() fyne.CanvasObject
@@ -286,8 +291,9 @@ tests, settingswin content tests, preferences serialization/validation and root
 ApplySettings/startup/shutdown tests. No root-owned worker group is added.
 Contract: Inspect/Retune through the injected provider, exact measured file bytes,
 partial results, overflow-safe positive limits and existing live patch semantics.
-Test/verify: [V11](#v11), including no-retirement inspection/increase and observed
-off-UI eviction when a lowered limit requires removal.
+Test/verify: [V11](#v11), including uninterrupted inspection, shared leases
+preserved on increases without eviction, local producer retirement before inventory and
+observed off-UI eviction when a lowered limit requires removal.
 
 <a id="fml-012"></a>
 ### FML-012 — Full cleanup
@@ -469,13 +475,20 @@ go test -race ./internal/ui/... -run '^(TestFindMoreLikeThisPersistentCache|Test
 
 Check actual tab membership, measured separate/combined MB (including temps and
 disabled stores), partial inspection, initial 2048 MB, invalid/overflow edits,
-preference round trip, live shrink/LRU, no-retirement inspect/increase and observed
-close/reopen/shutdown. Use scaled byte budgets; do not write 2 GB for a unit test.
+preference round trip, live shrink/LRU, uninterrupted inspection and observed
+close/reopen/shutdown. Increases without eviction preserve shared leases. A valid
+changed limit retires and joins local producers before the initial inventory,
+preserving browsing until the next explicit query captures the accepted policy.
+Failed/canceled maintenance keeps the prior limit without restarting producers.
+Unchanged policy keeps the worker alive. Use scaled byte budgets; do not write
+2 GB for a unit test.
 
 ```sh
 go test -race ./internal/similarity -run '^TestAnalysisCache(Usage|Limit|Maintenance)' -count=1
 go test -race ./internal/preferences -run '^TestAnalysisCachePreferences' -count=1
 go test -race ./internal/ui/... -run '^TestAnalysisCacheManagement(Usage|Limit|Lifecycle)' -count=1
+go test -race ./internal/ui -run '^TestFindMoreLikeThisInitialAdmission$/limit-increase-before-inspection' -count=1
+go test -race ./internal/ui/visualsearch -run '^TestVisualSearchCacheLimitChangesRetireCapturedPolicy$' -count=1
 ```
 
 <a id="v12"></a>

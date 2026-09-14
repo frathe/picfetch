@@ -2,9 +2,11 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"image"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -21,6 +23,7 @@ type fileMutationWork struct {
 	saveLifecycle   requestLifecycle
 	saveDone        completion.Signal
 	exportLifecycle requestLifecycle
+	searchLifecycle requestLifecycle
 	savePending     bool
 	exportPending   bool
 	closed          bool
@@ -55,6 +58,7 @@ func (v *viewer) cancelSave() {
 func (v *viewer) closeFileWork() {
 	v.fileWork.closed = true
 	v.fileWork.cancel()
+	v.fileWork.searchLifecycle.invalidate()
 	v.cancelSave()
 	v.cancelExport()
 }
@@ -62,6 +66,56 @@ func (v *viewer) closeFileWork() {
 func (v *viewer) cancelExport() {
 	v.fileWork.exportLifecycle.invalidate()
 	v.fileWork.exportPending = false
+}
+
+// A terminal worker error can follow an external source mutation. Revalidate
+// the captured collection before restoring it, without parsing worker errors.
+// The existing file-work lane owns cancellation, completion and UI delivery.
+func (v *viewer) reconcileSearchOrigin() {
+	if v.fileWork.closed || !v.searchActive() {
+		return
+	}
+	sessionID, generation := v.visualsearch.State().SessionID, v.Generation()
+	files := slices.Clone(v.state.files)
+	after := v.visualsearch.Suspend()
+	token := v.fileWork.searchLifecycle.begin()
+	ctx, queue := token.context(), v.fileWork.ui
+	v.fileWork.workers.Go(func() {
+		select {
+		case <-after:
+		case <-ctx.Done():
+			return
+		}
+		var missing []int
+		for i, source := range files {
+			if ctx.Err() != nil {
+				return
+			}
+			if source == nil || source.Scheme() != "file" {
+				continue
+			}
+			if _, err := os.Stat(source.Path()); errors.Is(err, os.ErrNotExist) {
+				missing = append(missing, i)
+			}
+		}
+		queue.Do(func() {
+			defer token.cancelContext()
+			if !token.current() || v.fileWork.closed || generation != v.Generation() || !v.searchActive() || sessionID != v.visualsearch.State().SessionID {
+				return
+			}
+			if v.comparisonActive() {
+				v.compare.Close()
+			}
+			v.favThumbLifecycle.invalidate()
+			v.imgCache.Purge()
+			v.grid.InvalidateContent()
+			v.removeFiles(missing)
+			v.explorerSourcesChanged()
+			if v.grid.Visible() && v.FileCount() > 0 {
+				v.ShowImage(v.state.index)
+			}
+		})
+	})
 }
 
 // afterFileWrite runs on UI even for obsolete requests that committed. The

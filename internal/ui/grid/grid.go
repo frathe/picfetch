@@ -93,6 +93,7 @@ type Host interface {
 // Overview is the grid overlay and the state behind it.
 type Overview struct {
 	ranked, pendingRanked *RankedVisit
+	rankSources           *rankedSourceIndex
 	rankedBar             *fyne.Container
 	rankProgress          *widget.ProgressBar
 	rankStatus            *widget.Label
@@ -669,6 +670,9 @@ func (g *Overview) Close() {
 // screen.
 func (g *Overview) closeOverlay(clearInspect bool) {
 	g.work.cancel()
+	if g.host.FileCount() == 0 {
+		g.rankSources = nil
+	}
 	g.onAnalyze = nil
 	g.ranked, g.pendingRanked = nil, nil
 	if g.rankedBar != nil {

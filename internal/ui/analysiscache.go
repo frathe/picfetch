@@ -39,11 +39,15 @@ func (v *viewer) registerAnalysisCache(prefs preferences.State) {
 
 type analysisCacheHost struct{ v *viewer }
 
-func (h analysisCacheHost) Quiesce() []<-chan struct{} {
+func (h analysisCacheHost) Quiesce(preservePrepared bool) []<-chan struct{} {
 	v := h.v
 	v.explorerInput.prepareOp.invalidate()
 	v.explorerInput.prepare = nil
-	return []<-chan struct{}{v.explorer.Suspend(), v.visualsearch.Suspend()}
+	barriers := []<-chan struct{}{v.explorer.Suspend()}
+	if preservePrepared {
+		return append(barriers, v.visualsearch.SuspendWriters())
+	}
+	return append(barriers, v.visualsearch.Suspend())
 }
 
 func (h analysisCacheHost) ApplyPolicy(enabled bool, limitMiB int) {
@@ -58,7 +62,7 @@ func (v *viewer) analysisMaintenanceBusy() bool {
 }
 
 func (v *viewer) favoriteSaved() {
-	if !v.analysisMaintenanceBusy() && v.visualsearch != nil {
+	if v.visualsearch != nil {
 		v.visualsearch.FavoriteSaved()
 	}
 }

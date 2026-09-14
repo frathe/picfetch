@@ -782,10 +782,14 @@ func (v *viewer) AfterMetadataRemoved(_ fyne.URI, result imaging.WriteResult) {
 // imgCache is appState's job rather than this method's - see its onRemove
 // hook (state.go), which fires for every removal however it is reached.
 func (v *viewer) RemoveFile(i int) {
+	v.removeFile(i)
+	v.explorerSourcesChanged()
+}
+
+func (v *viewer) removeFile(i int) {
 	v.invalidateSort() // cancel a sort still in flight - see sortOp's field comment
 
 	removed := v.state.removeFile(i)
-	v.explorerSourcesChanged()
 	if v.state.snapshot().IndexOf(removed.String()) < 0 {
 		v.explorer.RemoveCohortSource(removed.Path())
 	}
@@ -844,12 +848,17 @@ func (v *viewer) removeFiles(indices []int) {
 		}
 		prev = i
 
-		v.RemoveFile(i)
+		v.removeFile(i)
 	}
 
 	v.grid.FilesChanged()
 	if len(v.state.files) == 0 {
 		v.grid.Close()
+	}
+	// Search restoration can start a load or restore Grid interaction. Admit
+	// it after the collection, cohort and Grid have completed reconciliation.
+	if prev >= 0 {
+		v.explorerSourcesChanged()
 	}
 }
 

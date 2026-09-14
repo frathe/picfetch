@@ -56,6 +56,11 @@ func (f *Feature) submit(op operation) {
 			return
 		}
 		op.retire = op.limitMiB < f.limitMiB
+		if op.limitMiB != f.limitMiB {
+			// Retune inventories before acquiring any maintenance lease.
+			// Join local producers before they can report the captured old cap.
+			barriers = f.host.Quiesce(false)
+		}
 	case evictRecords:
 		if !f.enabled {
 			return
@@ -72,7 +77,7 @@ func (f *Feature) submit(op operation) {
 		}
 		f.enabled = op.enabled
 		f.pendingRoom, f.pendingInspect, f.pendingReserve = false, false, 0
-		barriers = f.host.Quiesce()
+		barriers = f.host.Quiesce(false)
 		f.host.ApplyPolicy(f.enabled, f.limitMiB)
 	}
 	op.roots = f.options.Roots

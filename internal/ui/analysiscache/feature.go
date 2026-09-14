@@ -16,7 +16,8 @@ import (
 )
 
 type Host interface {
-	Quiesce() []<-chan struct{}
+	// Quiesce may retain fully prepared producers with no pending writes during automatic eviction.
+	Quiesce(preservePrepared bool) []<-chan struct{}
 	ApplyPolicy(bool, int)
 }
 

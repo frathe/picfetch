@@ -25,11 +25,12 @@ func (e SessionError) Error() string { return e.Err.Error() }
 func (e SessionError) Unwrap() error { return e.Err }
 
 type producer struct {
-	id      uint64
-	cancel  context.CancelFunc
-	queries chan similarity.SearchQuery
-	done    chan struct{}
-	notice  chan struct{}
+	id               uint64
+	cancel           context.CancelFunc
+	queries          chan similarity.SearchQuery
+	done             chan struct{}
+	notice           chan struct{}
+	pressureReported bool
 }
 
 func (f *Feature) beginProducer(after <-chan struct{}) {
@@ -116,7 +117,12 @@ func (f *Feature) apply(s *producer, event similarity.SearchEvent) {
 	switch event.Kind {
 	case similarity.SearchPartial, similarity.SearchFinal:
 		if f.pending {
-			f.history = append(f.history, Visit{ReferencePath: f.reference, Grid: grid.Visit{Ranked: true, Visible: true}})
+			visit := Visit{ReferencePath: f.reference, Grid: grid.Visit{Ranked: true, Visible: true}}
+			if f.initialGrid != nil {
+				visit.Grid = cloneGrid(*f.initialGrid)
+				f.initialGrid = nil
+			}
+			f.history = append(f.history, visit)
 			if len(f.history) > 20 {
 				f.history = slices.Clone(f.history[len(f.history)-20:])
 			}
@@ -140,8 +146,11 @@ func (f *Feature) apply(s *producer, event similarity.SearchEvent) {
 		f.preparing = false
 		f.host.Failed(SessionError{Err: errors.New(event.Error)})
 	}
-	if event.CachePressureBytes > 0 {
-		f.Suspend()
+	if event.CachePressureBytes > 0 && !s.pressureReported {
+		s.pressureReported = true
+		if f.preparing {
+			f.Suspend()
+		}
 		f.host.Failed(similarity.CachePressureError{NeedBytes: event.CachePressureBytes})
 	}
 	f.host.Changed()
@@ -198,6 +207,18 @@ func (f *Feature) Suspend() <-chan struct{} {
 	f.preparing = false
 	f.host.Changed()
 	return done
+}
+
+// SuspendWriters preserves an idle prepared producer for ranking after automatic
+// eviction. The maintenance lease has already revoked its old write admission;
+// pending preparation or explicitly admitted Favorite persistence must join.
+func (f *Feature) SuspendWriters() <-chan struct{} {
+	if f.producer != nil && !f.preparing && !f.cachePending {
+		done := make(chan struct{})
+		close(done)
+		return done
+	}
+	return f.Suspend()
 }
 
 // Close permits later Start and returns immediately without joining workers.
