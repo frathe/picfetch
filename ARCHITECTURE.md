@@ -132,8 +132,8 @@ Its adapter retains a single root cohort when no smaller cluster qualifies.
 
 Reusable local preset definitions, stable identities and versioned rule matching
 over immutable similarity facts. `presets.go` owns the rule contract and atomic,
-cancellable global library storage; the viewer supplies its directory and runs
-I/O on the separately tracked Explorer preset workers, sharing its UI queue.
+cancellable global library storage; root composition supplies its directory.
+The Explorer feature runs I/O on its separate preset workers and shared UI queue.
 
 ### `internal/explorertrial`
 
@@ -165,6 +165,14 @@ hashes remain in `internal/similarity/assets.sha256`.
 measurement and evidence files; `files.go` selects the bounded smoke corpus.
 `report.go` and `review.html` produce local cohort/measurement artifacts;
 `memory_*.go` measures native RSS; `evaluate.sh` retains each run/exit status.
+`TRIAL=search` adds a local exact-cosine relevance experiment. `search.go`
+validates the bounded reference/judgment manifest; `search_evaluate.go` owns
+canonical decoding, version-checked preparation, ranking and measurements.
+`search_report.go`/`search_review.html` retain a local interactive relevance
+report with judgment export; `search_cache.go` runs a separate production
+Favorite cold/warm baseline against the captured corpus. These experimental
+rankings and timings do not establish a human usefulness verdict or production
+search UI behavior.
 Real-model tests require assets under the `explorertrial` tag and check the
 platform's actual network policy; Windows must not claim OS denial.
 `make explorer-ui-test` additionally exercises the production worker and
@@ -253,6 +261,31 @@ validation, process failures and workflow wiring through a per-call runner.
 
 ### `internal/ui/explorer`
 
+`Feature` owns the analysis/setup/editing workflow around the existing Map.
+`feature.go` defines its injected runtime options, value observations, settings,
+cohort snapshots, trial observations and close/stop/wait/settle contract.
+`workflow.go` captures prepared source paths and Favorite/cache ownership,
+controls native analysis, loads Favorite cohorts and rejects stale UI delivery.
+`lifecycle.go` owns feature-local request tokens. `setup.go` owns first-use
+acceptance, local asset checks and explicit cancellable download/retry.
+`cohort_workflow.go` owns captured Unassigned-selection review and rollback;
+`preset_workflow.go`/`preset_fields.go` own preset dialogs, matching and saves.
+Analysis/setup/cohort I/O and preset work have separate tracked worker groups
+and one drainable UI queue. `Settle` joins/drains/repeats and reports delivery
+so root can repeat any resulting Grid work; `SettlePresets` observes preset
+completion while analysis streams. `Close` cancels without joining on UI;
+`Stop` ends admission and `Wait` joins workers off UI.
+
+The consumer-side `WorkflowHost` carries window/input access, separate menu
+and repaint notifications, cohort/exit/return transitions and presentation
+facts for trial recording. Repaint is distinct from menu notification because
+source reconciliation may still be updating Grid indexes when analysis retires.
+Root's `explorerInput` retains duplicate preparation, selected Favorite identity,
+trial launch admission and maximize consumption. No worker or workflow field
+is exposed to the viewer. `feature_test.go`, `setup_test.go` and
+`cohort_workflow_test.go` exercise the module without the full viewer harness;
+root tests retain cross-feature transitions and native trial integration.
+
 `presets.go` captures frozen candidate facts and applies reviewed preset membership,
 protecting other groups and pending members. `cohorts.go` finds shared recognized tags in selected Unassigned sources,
 matches chosen traits, and captures named current-map cohorts by source identity.
@@ -282,10 +315,10 @@ with a minimum gap using nearby-cell collision queries and perimeter searches.
 Its narrow `Host` opens the
 full captured cohort, leaves the map, sends manual/automatic update controls, and
 supplies current input modifiers.
-It starts no workers; `internal/ui/explorer.go` delivers partial/final results,
-maximizes the native window at entry, optionally expands the camera for new stacks,
-and preserves the camera and frozen cohort
-while Grid View or the ordinary image view is active. `internal/ui/grid/subset.go` filters
+The Map itself starts no workers; Feature delivers partial/final results and
+optionally expands the camera for new stacks. Root maximizes the native window
+at entry and coordinates Grid/image transitions; Feature retains the camera
+and frozen cohort across them. `internal/ui/grid/subset.go` filters
 cohorts by source path while retaining root indexes for existing operations.
 Replaced pile images have their sources cleared and refreshed to release Fyne
 renderer/texture references. Leaving Explorer clears the map; cohort round trips
@@ -320,10 +353,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with a compact 17-cell atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position. No timers or background workers. `scripts/appassets` retains the used pixels from `assets/trane/codex-pet/spritesheet.webp`. |
-| `explorer.go` | Owns the analysis request lifecycle, worker/queue delivery, duplicate-prepared representative snapshot, controls/settings, favorite-cache admission, favorite cohort loading on the tracked worker/queue, map/grid/image transitions and fixed cohort navigation identities. Shutdown cancels on UI and joins the subprocess after the app loop. |
-| `explorersetup.go` | First-use Trane explanation, local asset check, explicit download/progress/retry and persisted acknowledgment. Setup owns a cancellable lifecycle and joins Explorer's worker/queue drain; source replacement and shutdown dismiss it. Includes plain privacy and Discussions links. |
-| `explorercohorts.go` | Composes Unassigned grid selection with the shared-trait review, optional matching sources and named-cohort creation. The dialog owns captured targets and rejects stale sessions; tracked favorite saves finish before returning to the map, and failures roll back the proposed group. Explorer retirement dismisses it. Analyze can seed the reusable preset editor, including metadata-only rules. |
-| `explorerpresets.go`, `explorerpresetrules.go` | Global preset browser/editor, metadata/tag fields, frozen match preview, linked-group updates and definition deletion. Preset I/O/matching uses a separate tracked worker group and the Explorer UI queue; Favorite-save failures restore prior memberships. |
+| `explorer.go` | Root adapter for Explorer: captures duplicate-prepared sources, composes setup acknowledgment with preferences, maps frozen cohort identities to collection indexes, and coordinates map/Grid/image transitions. The feature owns workflow, dialogs, workers and delivery. `explorerInput` retains collection/launch/window policy only. |
 | `features.go` | `registerFeatures` assigns help, EXIF, zoom, copy selection, grid, similarity map, comparison, mosaic window, deletion, slideshow, settings, then favorites. |
 | `shortcuts.go` | `wireGlobalShortcuts` plus per-action shortcut wiring (open, favorites, clipboard, copy selection, comparison, delete, select-all, save, export, wallpaper). Comparison registers the native `Cmd/Ctrl+D` plus physical `Ctrl+D` when those differ. `yieldingShortcuts` blocks ordinary commands during comparison and otherwise yields Copy Selection; Open is admitted only far enough to show comparison's refusal. Copy Selection and clipboard bindings also defend their own direct entries. |
 | `gesture.go` | Position-poller callback fans samples to `winPos` and `spiralDrag`; a recognised spiral calls the viewer's `openSpiralForGesture`. |

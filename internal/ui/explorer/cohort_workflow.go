@@ -1,4 +1,4 @@
-package ui
+package explorer
 
 import (
 	"errors"
@@ -17,25 +17,20 @@ import (
 	"github.com/frathe/picfetch/internal/explorerpresets"
 )
 
-func (v *viewer) analyzeSimilaritySelection() {
-	if v.comparisonActive() || v.explorer.cohortSaving || !v.grid.Visible() || !v.explorer.unassignedCohort || v.grid.SelectionCount() < 2 {
+func (f *Feature) AnalyzeSelection(selected []string) {
+	if f.host.Presentation().ComparisonActive || f.cohortSaving || !f.host.Presentation().GridVisible || !f.unassignedCohort || len(selected) < 2 {
 		return
 	}
-	if v.explorer.cohortDialog != nil {
-		v.explorer.cohortDialog.Hide()
+	if f.cohortDialog != nil {
+		f.cohortDialog.Hide()
 	}
-	revision := v.explorer.lifecycle.currentRevision()
-	var paths []string
-	for _, i := range v.grid.Selection() {
-		if i >= 0 && i < v.FileCount() {
-			paths = append(paths, v.FileAt(i).Path())
-		}
-	}
-	traits := v.explorer.surface.SharedTraits(paths)
+	revision := f.lifecycle.currentRevision()
+	paths := slices.Clone(selected)
+	traits := f.surface.SharedTraits(paths)
 	name := widget.NewEntry()
 	name.SetPlaceHolder(lang.L("Cohort name"))
 	name.Validator = func(value string) error {
-		if !v.explorer.surface.CohortNameAvailable(value) {
+		if !f.surface.CohortNameAvailable(value) {
 			return errors.New(lang.L("Enter a unique cohort name (1-80 characters)."))
 		}
 		return nil
@@ -46,7 +41,7 @@ func (v *viewer) analyzeSimilaritySelection() {
 	include.Checked = true
 	var matches, tags []string
 	selectionCurrent := func() bool {
-		current := v.explorer.surface.SharedTraits(paths)
+		current := f.surface.SharedTraits(paths)
 		if len(current) == 0 || len(tags) == 0 {
 			return false
 		}
@@ -79,55 +74,55 @@ func (v *viewer) analyzeSimilaritySelection() {
 		if pending {
 			return
 		}
-		if v.stopping || v.comparisonActive() || revision != v.explorer.lifecycle.currentRevision() || v.explorer.cohortDialog != review || !v.grid.Visible() || !v.explorer.unassignedCohort || !selectionCurrent() {
+		if f.stopping || f.host.Presentation().ComparisonActive || revision != f.lifecycle.currentRevision() || f.cohortDialog != review || !f.host.Presentation().GridVisible || !f.unassignedCohort || !selectionCurrent() {
 			errorLabel.SetText(lang.L("The images or cohort name changed. Analyze the selection again."))
 			return
 		}
-		if v.explorer.cohortLoadErr != nil {
+		if f.cohortLoadErr != nil {
 			errorLabel.SetText(lang.L("Could not save the cohort. Reopen the favorite and try again."))
 			return
 		}
-		before := v.explorer.surface.Cohorts()
-		if !v.explorer.surface.CreateCohort(name.Text, matches, tags) {
+		before := f.surface.Cohorts()
+		if !f.surface.CreateCohort(name.Text, matches, tags) {
 			errorLabel.SetText(lang.L("The images or cohort name changed. Analyze the selection again."))
 			return
 		}
 		finish := func() {
 			review.Hide()
-			v.grid.Close()
-			v.explorer.cohort = nil
-			v.explorer.unassignedCohort = false
-			v.backToSimilarityMap()
+
+			f.cohort = nil
+			f.unassignedCohort = false
+			f.ReturnToMap()
 		}
-		store := v.explorer.cohortStore
+		store := f.cohortStore
 		if store == nil {
 			finish()
 			return
 		}
-		groups := v.explorer.surface.Cohorts()
-		ctx := v.explorer.token.context()
+		groups := f.surface.Cohorts()
+		ctx := f.token.context()
 		pending = true
-		v.explorer.cohortSaving = true
+		f.cohortSaving = true
 		create.Disable()
-		v.explorer.workers.Go(func() {
+		f.workers.Go(func() {
 			err := store.Save(ctx, groups)
-			v.explorer.ui.Do(func() {
-				if revision != v.explorer.lifecycle.currentRevision() || v.stopping {
+			f.ui.Do(func() {
+				if revision != f.lifecycle.currentRevision() || f.stopping {
 					return
 				}
 				pending = false
-				v.explorer.cohortSaving = false
+				f.cohortSaving = false
 				if err != nil {
 					fyne.LogError("save favorite cohort", err)
-					v.explorer.surface.RestoreCohorts(before)
+					f.surface.RestoreCohorts(before)
 					errorLabel.SetText(lang.L("Could not save the cohort. Reopen the favorite and try again."))
-					if v.explorer.cohortDialog != review {
-						v.ShowToast(lang.L("Could not save the cohort. Reopen the favorite and try again."))
+					if f.cohortDialog != review {
+						f.host.ShowToast(lang.L("Could not save the cohort. Reopen the favorite and try again."))
 					}
 					create.Enable()
 					return
 				}
-				if v.explorer.cohortDialog == review {
+				if f.cohortDialog == review {
 					finish()
 				}
 			})
@@ -140,7 +135,7 @@ func (v *viewer) analyzeSimilaritySelection() {
 				tags = append(tags, traits[i].ID)
 			}
 		}
-		matches = v.explorer.surface.MatchUnassigned(tags)
+		matches = f.surface.MatchUnassigned(tags)
 		if !include.Checked {
 			matches = slices.DeleteFunc(matches, func(path string) bool { return !slices.Contains(paths, path) })
 		}
@@ -171,10 +166,10 @@ func (v *viewer) analyzeSimilaritySelection() {
 	refresh()
 	cancel := widget.NewButton(lang.L("Cancel"), func() { review.Hide() })
 	savePreset := widget.NewButton(lang.L("Save as preset"), func() {
-		if pending || v.stopping || revision != v.explorer.lifecycle.currentRevision() {
+		if pending || f.stopping || revision != f.lifecycle.currentRevision() {
 			return
 		}
-		v.editSimilarityPreset(explorerpresets.Preset{Name: name.Text, Rule: explorerpresets.Rule{Tags: slices.Clone(tags)}})
+		f.editSimilarityPreset(explorerpresets.Preset{Name: name.Text, Rule: explorerpresets.Rule{Tags: slices.Clone(tags)}})
 	})
 	matchList := container.NewGridWrap(fyne.NewSize(520, 150), list)
 	if len(traits) == 0 {
@@ -189,18 +184,18 @@ func (v *viewer) analyzeSimilaritySelection() {
 		container.NewHBox(cancel, create, savePreset))
 	width := canvas.NewRectangle(color.Transparent)
 	width.SetMinSize(fyne.NewSize(440, 0))
-	review = dialog.NewCustomWithoutButtons(lang.L("Create cohort from Unassigned"), container.NewStack(width, body), v.win)
+	review = dialog.NewCustomWithoutButtons(lang.L("Create cohort from Unassigned"), container.NewStack(width, body), f.win)
 	review.SetOnClosed(func() {
-		if v.explorer.cohortDialog == review {
-			v.explorer.cohortDialog = nil
+		if f.cohortDialog == review {
+			f.cohortDialog = nil
 		}
-		v.win.Canvas().Unfocus()
+		f.win.Canvas().Unfocus()
 	})
-	v.explorer.cohortDialog = review
+	f.cohortDialog = review
 	review.Show()
 	if len(traits) > 0 {
-		v.win.Canvas().Focus(name)
+		f.win.Canvas().Focus(name)
 	} else {
-		v.win.Canvas().Focus(cancel)
+		f.win.Canvas().Focus(cancel)
 	}
 }

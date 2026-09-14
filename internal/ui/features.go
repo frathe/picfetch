@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/dupes"
-	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
@@ -111,14 +110,10 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// The thumbnail-cache setter reaches into the grid, so the grid must be
 	// registered before saved cache limits are applied.
 	view.grid = grid.New(view, window, view.dupes)
-	view.explorer.presets = &explorerpresets.Store{Dir: explorerpresets.DefaultDir()}
-	view.explorer.surface = explorerui.New(view)
-	view.explorer.ui = explorerQueue{}
-	view.explorer.cacheFavorites = prefs.SimilarityFavoriteCache
-	view.explorer.autoFit = prefs.SimilarityAutoFit
-	view.explorer.introSeen = prefs.SimilarityIntroSeen
-	view.explorer.supported = similarity.SupportedPlatform()
-	view.SetSimilarityAutoUpdate(prefs.SimilarityAutoUpdate)
+	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
+		App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
+		Settings: explorerui.Settings{CacheFavorites: prefs.SimilarityFavoriteCache, AutoFit: prefs.SimilarityAutoFit, Automatic: prefs.SimilarityAutoUpdate, IntroSeen: prefs.SimilarityIntroSeen},
+	})
 	view.compare = compareui.New(
 		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 			return view.compareLoad(ctx, uri)

@@ -77,6 +77,26 @@ _Avoid_: Windows edition (PicFetch also has portable Windows downloads)
 Relatedness in what images depict, including across different visual media
 or styles.
 
+**Search result**:
+The ordered matching images that form the active list for browsing and file
+actions during Find more like this exploration.
+_Avoid_: Search origin, search scope
+
+**Search origin**:
+The initial image list and browsing visit retained for return when search
+results replace the active list during exploration.
+_Avoid_: Search result, oldest result
+
+**Search scope**:
+The original collection of images against which every reference in one
+exploration is compared, regardless of the active search result.
+_Avoid_: Search result, Grid result
+
+**Analysis cache**:
+Reusable per-image analysis retained on disk for later content-similarity
+exploration, owned by a Favorite or the general cache for loose image lists.
+_Avoid_: Search history, saved search result, thumbnail cache
+
 **Image cohort**:
 A group of images related under the map's chosen grouping criterion.
 
@@ -85,3 +105,21 @@ The loose arrangement of sampled images that represents an image cohort on
 the explorer map. The sample represents the cohort's contents, not its full
 membership.
 _Avoid_: Image cohort (the group itself), mosaic
+
+**Trane**:
+PicFetch's dog mascot, including the character on the welcome screen.
+
+**Finis**:
+The hidden dog companion shown in a separate window, whose gaze follows the
+pointer.
+_Avoid_: Trane
+
+**Hypno Spiral**:
+PicFetch's hidden animated spiral scene, which can carry images from the
+loaded collection.
+_Avoid_: Picture-frame mode, Finis
+
+**Mascot-circle gesture**:
+A sequence of pointer revolutions around Trane's or Finis's head, forming
+one step in discovering Finis or the Hypno Spiral clue.
+_Avoid_: Spiral window gesture (which moves the application window)

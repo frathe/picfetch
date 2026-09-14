@@ -1,65 +1,25 @@
-# FML-001 — Evaluate ranking quality and resource costs
+# 01: Evaluate real-image search quality
 
-Status: planned.
-Type: prototype/research.
-Owner: T0 lead.
-Depends on: none.
-Acceptance: AC-01 in the [plan](../plan.md).
-Budget: zero spawns; at most two lead review rounds; focused checks only.
+Ticket: FML-001
+Status: claimed
+Progress: evaluator implemented and technically verified; [real measurements](../evaluation.md) recorded; relevance judgments and proceed/revise decision pending.
+Approval: /implement use tdd and sdd, 2026-09-14. Dependencies still gate admission.
+Owner: T0 lead; design, review and fixes remain lead-owned.
+Budget: zero spawns; at most two lead review rounds; focused checks.
 
-## Files
+**What to build:** Produce a reproducible local report showing whether the existing image model finds useful content matches, with cold/warm timings and resource costs, before building the full interface.
 
-- Add `scripts/explorereval/search.go` and `search_test.go`; extend its `main.go`
-  and `README.md` with a development-only `-search-evaluate` entry.
-- Add real-model search evaluation coverage under the existing `explorertrial`
-  build tag. Add exact test paths to `qodana.yaml`.
-- Record aggregate findings in `docs/find-more-like-this/evaluation.md` when run;
-  keep the reproducible corpus/manifest, labeled judgments, and image report in
-  the selected local evidence directory.
+**Blocked by:** None; real corpus/assets and relevance judgments are required to complete the evaluation gate.
 
-## Contract and work
+**Specification:** AC-01 in the [canonical specification](../spec.md#acceptance-criteria-and-verification).
 
-Reuse the pinned encoder, asset verification, oriented decoding, and existing
-offline experiment launcher. Use at least 20 reference images across multiple
-subjects, compositions, lighting conditions, and folders. Supply a manifest
-with reference IDs, human-labeled relevant candidate IDs, and intent labels
-such as subject or visual appearance. Store that manifest as
-`search-corpus.json` in the directory supplied by `-library`; source entries use
-stable IDs and relative image paths. Include duplicates and hard negatives.
+## Acceptance criteria
 
-Emit exact cosine top-30 results, per-query precision at 10, median precision,
-separate intent summaries, skipped sources, corpus/model/preprocessing identity,
-cold preparation time, warm query p50/p95, and retained-vector/native RSS
-measurements with machine details. Record first-index and warm behavior
-separately; report larger synthetic-vector rank timings at 10,000 candidates.
+- [ ] At least 20 varied, labeled content references produce exact cosine top-30 reports, including duplicates, hard negatives, unreadable inputs, weak matches and small collections. Missing result slots count as non-relevant in precision at 10. ([V01](../ticket-execution.md#v01))
+- [ ] Record model/preprocessing and corpus identities, reproducible judgments, median content precision, and separate appearance results. Compare with the initial 0.6 median precision target; record a proceed/revise decision before FML-002. ([V01](../ticket-execution.md#v01))
+- [x] Record cold preparation, first partial, complete preparation, warm query p50/p95, Favorite reuse, retained vectors and native RSS with machine details. Compare the initial 30-second usability and 200-ms warm p95/10,000-vector targets without promising universal performance. ([V01](../ticket-execution.md#v01))
+- [ ] Use the existing pinned assets, decoding and isolation policy. Synthetic fixture tests prove report correctness; real images and recorded judgments prove usefulness. General-cache and final production-session measurements remain explicitly pending until FML-008. Technical checks passed; real usefulness judgments remain open. ([V01](../ticket-execution.md#v01))
 
-Initial usefulness target: median precision at 10 of at least 0.6 over the
-labeled queries, with missing result slots counted as non-relevant. Initial
-warm-ranking target: p95 under 200 ms for 10,000
-prepared vectors on the recorded development machine. These are evaluation
-targets, not shipping claims for every computer or every visual intent.
-Record a proceed/revise decision and the human assessment; do not count a
-subject match as proof of reliable style/composition matching. An unmet target
-requires a documented scope/algorithm decision before FML-002, not a new model
-or dependency selected implicitly.
+**Demo / completion evidence:** A report can be regenerated from the same corpus and identifies both useful matches and measured limitations.
 
-## Acceptance and verification
-
-- Fixture tests reject self-matches, malformed manifests, mislabeled result
-  counts, and incomplete reports; repeated runs retain deterministic IDs/order.
-- Real evidence covers all 20 references and includes judgments, timing/RSS,
-  model identity, and an explicit proceed/revise decision.
-- No native/model result is inferred from synthetic fixtures.
-
-```sh
-go test ./scripts/explorereval -run '^TestSearchEvaluation' -count=1
-```
-
-Real run, with the three variables pointing to prepared local directories:
-
-```sh
-go run ./scripts/explorereval -search-evaluate -library "$PICFETCH_SEARCH_CORPUS" -assets "$PICFETCH_SEARCH_ASSETS" -out "$PICFETCH_SEARCH_EVIDENCE"
-```
-
-Done when the report is reproducible, its human-quality decision is recorded,
-and its measured limitations are reflected in the plan.
+**Execution:** [FML-001 file map, contracts and verification](../ticket-execution.md#fml-001).

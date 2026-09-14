@@ -1,4 +1,4 @@
-package ui
+package explorer
 
 import (
 	"errors"
@@ -13,12 +13,12 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/assets"
 )
 
 type explorerSetup struct {
+	ready    func()
 	panel    *widget.PopUp
 	op       requestLifecycle
 	status   *widget.Label
@@ -26,12 +26,12 @@ type explorerSetup struct {
 	primary  *widget.Button
 }
 
-func (v *viewer) prepareExplorer() {
-	if v.explorer.setup != nil {
+func (f *Feature) prepareExplorer(ready func()) {
+	if f.setup != nil {
 		return
 	}
-	s := &explorerSetup{}
-	v.explorer.setup = s
+	s := &explorerSetup{ready: ready}
+	f.setup = s
 	art := canvas.NewImageFromResource(fyne.NewStaticResource("explorer-intro.png", assets.ExplorerIntroPNG))
 	art.FillMode = canvas.ImageFillContain
 	art.SetMinSize(fyne.NewSize(320, 240))
@@ -43,17 +43,17 @@ func (v *viewer) prepareExplorer() {
 	s.status.Wrapping = fyne.TextWrapWord
 	s.progress = widget.NewProgressBar()
 	s.progress.Hide()
-	s.primary = widget.NewButton(lang.L("Continue"), func() { v.finishExplorerSetup(s) })
+	s.primary = widget.NewButton(lang.L("Continue"), func() { f.finishExplorerSetup(s) })
 	s.primary.Importance = widget.HighImportance
 	s.primary.Disable()
-	cancel := widget.NewButton(lang.L("Cancel"), v.closeExplorerSetup)
+	cancel := widget.NewButton(lang.L("Cancel"), f.closeExplorerSetup)
 	discussions := widget.NewHyperlink(lang.L("GitHub Discussions"), nil)
-	discussions.OnTapped = v.help.ShowDiscussions
+	discussions.OnTapped = f.discussions
 	policy := widget.NewHyperlink(lang.L("Privacy policy"), nil)
 	policy.OnTapped = func() {
 		address, err := url.Parse("https://github.com/frathe/picfetch/blob/main/PRIVACY.md")
 		if err == nil {
-			err = v.app.OpenURL(address)
+			err = f.app.OpenURL(address)
 		}
 		if err != nil {
 			fyne.LogError("open privacy policy", err)
@@ -66,63 +66,64 @@ func (v *viewer) prepareExplorer() {
 		container.NewHBox(layout.NewSpacer(), cancel, s.primary))
 	title := widget.NewLabelWithStyle(lang.L("Similarity Explorer"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	body := container.NewPadded(container.NewBorder(title, footer, nil, nil, reading))
-	s.panel = widget.NewModalPopUp(container.New(explorerSetupLayout{v.win.Canvas()}, body), v.win.Canvas())
-	v.win.Resize(v.win.Canvas().Size().Max(fyne.NewSize(720, 660)))
+	s.panel = widget.NewModalPopUp(container.New(explorerSetupLayout{f.win.Canvas()}, body), f.win.Canvas())
+	f.win.Resize(f.win.Canvas().Size().Max(fyne.NewSize(720, 660)))
 	s.panel.Show()
-	if !v.explorer.supported {
+	if !f.supported {
 		s.status.SetText(lang.L("Similarity Explorer requires an Intel Mac with macOS 13.4 or newer, an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
 		s.primary.Hide()
 		return
 	}
-	if v.explorer.assetsReady {
-		v.explorerSetupReady(s)
+	if f.assetsReady {
+		f.explorerSetupReady(s)
 		return
 	}
 	token := s.op.begin()
-	client := v.explorer.client
-	v.explorer.workers.Go(func() {
+	client := f.client
+	f.workers.Go(func() {
 		err := client.CheckAssets(token.context())
-		v.explorer.ui.Do(func() {
+		f.ui.Do(func() {
 			if !token.current() {
 				return
 			}
 			if err == nil {
-				v.explorer.assetsReady = true
-				v.explorerSetupReady(s)
+				f.assetsReady = true
+				f.explorerSetupReady(s)
 				return
 			}
 			s.status.SetText(lang.L("Download the AI model to get started."))
 			s.primary.SetText(lang.L("Download"))
-			s.primary.OnTapped = func() { v.downloadExplorerAssets(s) }
+			s.primary.OnTapped = func() { f.downloadExplorerAssets(s) }
 			s.primary.Enable()
 		})
 	})
 }
 
-func (v *viewer) explorerSetupReady(s *explorerSetup) {
-	if v.explorer.introSeen {
-		v.finishExplorerSetup(s)
+func (f *Feature) explorerSetupReady(s *explorerSetup) {
+	if f.introSeen {
+		f.finishExplorerSetup(s)
 		return
 	}
 	s.status.SetText(lang.L("The AI model is ready. No download is needed."))
 	s.primary.Enable()
 }
 
-func (v *viewer) finishExplorerSetup(s *explorerSetup) {
-	if v.explorer.setup != s || !v.explorer.assetsReady || v.stopping {
+func (f *Feature) finishExplorerSetup(s *explorerSetup) {
+	if f.setup != s || !f.assetsReady || f.stopping {
 		return
 	}
-	v.explorer.introSeen = true
-	preferences.Save(v.app, v.currentPreferences())
-	v.closeExplorerSetup()
-	v.showExplorer()
+	f.introSeen = true
+	f.closeExplorerSetup()
+	if s.ready != nil {
+		s.ready()
+	}
 }
 
-func (v *viewer) closeExplorerSetup() {
-	if s := v.explorer.setup; s != nil {
+func (f *Feature) closeExplorerSetup() {
+	if s := f.setup; s != nil {
 		s.op.invalidate()
 		s.panel.Hide()
-		v.explorer.setup = nil
+		f.setup = nil
 	}
 }
 
@@ -135,8 +136,8 @@ func (_ explorerSetupLayout) Layout(objects []fyne.CanvasObject, size fyne.Size)
 	layout.NewStackLayout().Layout(objects, size)
 }
 
-func (v *viewer) downloadExplorerAssets(s *explorerSetup) {
-	if v.explorer.setup != s || v.stopping {
+func (f *Feature) downloadExplorerAssets(s *explorerSetup) {
+	if f.setup != s || f.stopping {
 		return
 	}
 	token := s.op.begin()
@@ -144,15 +145,15 @@ func (v *viewer) downloadExplorerAssets(s *explorerSetup) {
 	s.status.SetText(lang.L("Downloading AI model..."))
 	s.progress.SetValue(0)
 	s.progress.Show()
-	client := v.explorer.client
-	v.explorer.workers.Go(func() {
+	client := f.client
+	f.workers.Go(func() {
 		last := time.Time{}
 		directory, err := client.InstallAssets(token.context(), func(p similarity.DownloadProgress) {
 			if !token.current() || time.Since(last) < 100*time.Millisecond && p.Received < p.Total {
 				return
 			}
 			last = time.Now()
-			v.explorer.ui.Do(func() {
+			f.ui.Do(func() {
 				if !token.current() {
 					return
 				}
@@ -163,7 +164,7 @@ func (v *viewer) downloadExplorerAssets(s *explorerSetup) {
 				}
 			})
 		})
-		v.explorer.ui.Do(func() {
+		f.ui.Do(func() {
 			if !token.current() {
 				return
 			}
@@ -177,9 +178,21 @@ func (v *viewer) downloadExplorerAssets(s *explorerSetup) {
 				s.primary.Enable()
 				return
 			}
-			v.explorer.client.Assets = directory
-			v.explorer.assetsReady = true
-			v.finishExplorerSetup(s)
+			f.client.Assets = directory
+			f.assetsReady = true
+			f.finishExplorerSetup(s)
 		})
 	})
+}
+
+// EnsureReady presents setup only when needed. A retired setup cannot invoke ready.
+func (f *Feature) EnsureReady(ready func()) bool {
+	if f.stopping {
+		return false
+	}
+	if f.introSeen && (f.assetsReady || f.analyze != nil) {
+		return true
+	}
+	f.prepareExplorer(ready)
+	return false
 }

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'">
+<title>PicFetch search review</title>
+<style>
+:root{font:16px system-ui;color:#e8edf3;background:#151a21;color-scheme:dark}body{max-width:1400px;margin:auto;padding:28px}h1{font-size:30px}p{line-height:1.5}a{color:#9dcbff}.stats{display:flex;flex-wrap:wrap;gap:12px}.stats span,button{padding:12px;background:#243243;border:1px solid #405570;border-radius:6px}button{color:inherit;cursor:pointer;font:inherit}header{margin-bottom:26px}section{margin:28px 0;padding:20px;border:1px solid #405570;border-radius:8px}.reference{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.reference img{width:190px;height:160px;object-fit:contain}.matches{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;margin-top:16px}.match{background:#202a36;padding:10px;border:1px solid #35475b;border-radius:6px}.match img{width:100%;height:125px;object-fit:contain}.match span{display:block;font-size:12px;overflow-wrap:anywhere;margin-top:5px}.match input{width:19px;height:19px}.reviewed{display:block;margin:14px 0}.muted{color:#b8c5d5}.sticky{position:sticky;top:0;background:#151a21;padding:14px 0;z-index:1;border-bottom:1px solid #405570}
+</style></head><body>
+<header><h1>Find more like this: local review</h1>
+<p>Judge whether each match depicts related content. Appearance is a separate intent. Check relevant matches, then mark the reference reviewed. P@10 counts relevant files in the first ten positions; missing positions count as non-relevant. It is a relevance measurement, not model confidence.</p>
+<div class="stats"><span>{{.Successful}} represented / {{.Failed}} failed</span><span>First result {{printf "%.3f" .FirstPartialSeconds}} s</span><span>Preparation {{printf "%.3f" .PreparationSeconds}} s</span><span>10,000-vector p95 {{printf "%.6f" .Benchmark.P95Seconds}} s</span></div>
+<!-- Generated evidence files live beside this report. -->
+<p><!--suppress HtmlUnknownTarget --><a href="search-evaluation.md">Measurements and limits</a> · <!--suppress HtmlUnknownTarget --><a href="search-result.json">Retained evidence</a> · <!--suppress HtmlUnknownTarget --><a href="favorite-profile.json">Separate Favorite reuse baseline</a></p>
+</header>
+<div class="sticky"><button id="download" type="button">Download reviewed corpus</button> <output id="review-status" aria-live="polite"></output></div>
+{{range $i, $query := .Queries}}
+<section data-query="{{$i}}" data-intent="{{.Intent}}"><h2>{{.ReferenceID}} · {{.Intent}}</h2>
+{{if .Error}}<p>{{.Error}}. No precision is measured for this reference.</p>{{else}}
+<!-- Preview paths are generated with the report. -->
+<div class="reference"><!--suppress HtmlUnknownTarget --><img src="{{.Thumbnail}}" alt="Reference {{.ReferenceID}}"><div><p>P@10: <strong data-precision>{{precision .PrecisionAt10}}</strong></p><label class="reviewed"><input type="checkbox" data-reviewed data-initial="{{judged .PrecisionAt10}}"> Mark this reference reviewed</label><p class="muted">Cosine order is fixed. Select related images using your judgment.</p></div></div>
+<div class="matches">{{range $rank, $match := .Matches}}<label class="match"><!--suppress HtmlUnknownTarget --><img src="{{.Thumbnail}}" alt="{{.ID}}" loading="lazy"><span>{{.ID}} · cosine {{printf "%.4f" .Score}}</span><span><input type="checkbox" value="{{.ID}}" data-rank="{{$rank}}" data-initial="{{.Relevant}}"> Relevant</span></label>{{end}}</div>
+{{end}}</section>{{end}}
+<div id="corpus" hidden>{{.CorpusJSON}}</div>
+<script>
+const corpus=JSON.parse(document.getElementById('corpus').textContent);
+for(const input of document.querySelectorAll('input[data-initial]'))input.checked=input.dataset.initial==='true';
+const sections=Array.from(document.querySelectorAll('[data-query]'));
+const precision=section=>Array.from(section.querySelectorAll('input[data-rank]')).filter(input=>Number(input.dataset.rank)<10&&input.checked).length/10;
+const median=values=>{if(!values.length)return 'unreviewed';const sorted=values.slice().sort((a,b)=>a-b),middle=Math.floor(sorted.length/2);return (sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2).toFixed(3)};
+function update(){const values={content:[],appearance:[]};for(const section of sections){const reviewed=section.querySelector('[data-reviewed]'),label=section.querySelector('[data-precision]');if(!reviewed)continue;const score=precision(section);label.textContent=reviewed.checked?score.toFixed(3):'unreviewed';if(reviewed.checked)values[section.dataset.intent].push(score)}document.getElementById('review-status').textContent=`Content: ${values.content.length} reviewed, median P@10 ${median(values.content)}. Appearance: ${values.appearance.length} reviewed, median ${median(values.appearance)}. At least 20 content judgments and a human proceed/revise decision are required.`}
+document.addEventListener('change',update);update();
+document.getElementById('download').addEventListener('click',()=>{
+    const reviewed=JSON.parse(JSON.stringify(corpus));
+    for(const section of sections){
+        const control=section.querySelector('[data-reviewed]');
+        if(!control)continue;
+        const query=reviewed.queries[Number(section.dataset.query)];
+        const inputs=Array.from(section.querySelectorAll('input[data-rank]'));
+        const displayed=new Set(inputs.map(input=>input.value));
+        const retained=(query.relevant_ids??[]).filter(id=>!displayed.has(id));
+        query.relevant_ids=control.checked
+            ? retained.concat(inputs.filter(input=>input.checked).map(input=>input.value))
+            : null;
+    }
+    const blob=new Blob([JSON.stringify(reviewed,null,2)+'\n'],{type:'application/json'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;
+    link.download='search-corpus-reviewed.json';
+    link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+</script></body></html>

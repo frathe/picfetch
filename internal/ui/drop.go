@@ -28,7 +28,7 @@ func (v *viewer) cancelScan() {
 		return
 	}
 	v.pendingPictureFrame = false
-	v.explorer.pendingLaunch = false
+	v.explorerInput.pendingLaunch = false
 
 	if len(v.state.files) == 0 {
 		v.showWelcomeState()
@@ -97,7 +97,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	// scan or its still-pending reorder.
 	if v.scanOp.active || v.sortOp.active {
 		v.pendingPictureFrame = false
-		v.explorer.pendingLaunch = false
+		v.explorerInput.pendingLaunch = false
 	}
 
 	v.closeExplorer()
@@ -202,7 +202,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 	v.scanOp.finish()
 
 	if len(images) == 0 {
-		v.explorer.pendingLaunch = false
+		v.explorerInput.pendingLaunch = false
 		msg := fmt.Sprintf(lang.L("none of the %d dropped files is a supported image"), len(uris))
 		if len(uris) == 1 {
 			msg = fmt.Sprintf(lang.L("%q is not a supported image file"), uris[0].Name())
@@ -233,10 +233,10 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 
 	if truncated {
 		v.ShowToast(fmt.Sprintf(lang.L("stopped scanning after %d images - the dropped folder tree is very large"), maxScan))
-		if v.explorer.trial != nil {
-			v.explorer.pendingLaunch = false
+		if v.explorer.Trial() != nil {
+			v.explorerInput.pendingLaunch = false
 			v.pendingPictureFrame = false
-			v.explorer.trial.Reject("scan-truncated", len(images))
+			v.explorer.Trial().Reject("scan-truncated", len(images))
 			if v.FileCount() == 0 {
 				v.showWelcomeState()
 				v.dropzone.Show()
@@ -301,7 +301,7 @@ func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, fav
 	v.startSort(v.state.SortMode(), unsorted, func(ordered []fyne.URI) {
 		// Collection identity belongs to the committed file set, including
 		// when a replacement scan or its reorder is cancelled.
-		v.explorer.favoriteDir = favoriteDir
+		v.explorerInput.favoriteDir = favoriteDir
 		if !merging {
 			v.state.replaceFiles(unsorted, ordered)
 		} else {
@@ -314,8 +314,8 @@ func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, fav
 		// picture-frame mode no-ops at zero files. Before the ShowImage
 		// calls below, so entering full-screen and showing the first image
 		// are one repaint rather than two.
-		if v.explorer.pendingLaunch {
-			v.explorer.pendingLaunch = false
+		if v.explorerInput.pendingLaunch {
+			v.explorerInput.pendingLaunch = false
 			v.pendingPictureFrame = false
 			v.showExplorer()
 			return

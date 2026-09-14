@@ -101,7 +101,7 @@ explorer-install-test: ## Download pinned public assets and qualify local analys
 explorer-setup: ## Download and verify pinned public Explorer assets (macOS/Linux/Windows x64/arm64)
 	go run ./scripts/explorereval -install -assets "$(EXPLORER_ASSETS)"
 
-explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, throughput, or library)
+explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, search, throughput, or library)
 	@mkdir -p $(BIN_DIR)
 	go build -tags "$(APP_TAGS)" -o $(BIN_DIR)/explorereval ./scripts/explorereval
 	@if [ "$(TRIAL)" = library ]; then go build -tags "$(APP_TAGS)" -o $(BIN_DIR)/picfetch-trial .; fi
@@ -123,7 +123,7 @@ explorer-test: ## Run real-model acceptance tests under explicit macOS network d
 	@mkdir -p $(BIN_DIR)
 	go test -c -tags $(APP_TAGS),explorertrial -o $(BIN_DIR)/explorereval.test ./scripts/explorereval
 	cd scripts/explorereval && /usr/bin/sandbox-exec -p '(version 1) (allow default) (deny network*)' ../../$(BIN_DIR)/explorereval.test -test.run '^(TestEvaluation|TestReal)' -test.v -test.count=1
-	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^(TestProductionProfile|TestNativeLibraryRunner)' -test.v -test.count=1
+	cd scripts/explorereval && ../../$(BIN_DIR)/explorereval.test -test.run '^(TestProductionProfile|TestProductionSearchEvaluation|TestNativeLibraryRunner)' -test.v -test.count=1
 
 explorer-ui-test: ## Run production explorer worker and viewer acceptance tests on supported macOS/Linux/Windows
 	go test -tags $(APP_TAGS),explorertrial ./internal/ui -run '^TestVisualSimilarityExplorer(Local)?$$' -count=1 -v

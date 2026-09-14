@@ -47,11 +47,20 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	native := flags.String("native", "", "library: native PicFetch executable to retain and launch")
 	provider := flags.String("provider", "cpu", "cpu or coreml execution provider")
 	probe := flags.Bool("probe", false, "verify actual TCP/UDP denial, without reading images")
+	search := flags.Bool("search-evaluate", false, "evaluate reference-image ranking from search-corpus.json")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments")
+	}
+	if *search {
+		if *install || *probe || *trial != "smoke" || *automatic || *provider != "cpu" || *native != "" {
+			return fmt.Errorf("search evaluation cannot combine with install, probe, another trial, automatic maps, CoreML or native viewer launch")
+		}
+		if _, err := readSearchCorpus(*library); err != nil {
+			return err
+		}
 	}
 	if *install {
 		last := time.Time{}
@@ -105,18 +114,32 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return profile(ctx, config, *automatic, output)
 	}
 	if *worker {
+		if *search {
+			return evaluateSearch(ctx, config, output, searchRuntime{
+				NewEncoder:    func() (searchEncoder, error) { return similarity.NewEncoder(config.Assets, config.Provider) },
+				VerifyOffline: similarity.VerifyOffline,
+				PeakRSS:       peakRSS,
+			})
+		}
 		return evaluate(ctx, config, output)
 	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/sandbox-exec", "-p", "(version 1) (allow default) (deny network*)", executable,
-		"-worker", "-assets", config.Assets, "-library", config.Library, "-out", config.Out, "-provider", config.Provider)
+	workerArgs := []string{"-p", "(version 1) (allow default) (deny network*)", executable,
+		"-worker", "-assets", config.Assets, "-library", config.Library, "-out", config.Out, "-provider", config.Provider}
+	if *search {
+		workerArgs = append(workerArgs, "-search-evaluate")
+	}
+	cmd := exec.CommandContext(ctx, "/usr/bin/sandbox-exec", workerArgs...)
 	cmd.Stdout, cmd.Stderr = output, output
 	err = cmd.Run()
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	if err == nil && *search {
+		return profileSearchFavorites(ctx, config, output)
 	}
 	return err
 }

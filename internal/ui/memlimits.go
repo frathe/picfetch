@@ -29,7 +29,10 @@ import (
 // the unit the user types into the settings window and the unit
 // internal/preferences round-trips; the conversion to the byte budgets
 // internal/imaging actually enforces happens in the setters, which stay
-// where their consumers are.
+// where their consumers are. Keep the fields grouped by purpose: this single
+// settings value per viewer does not benefit from saving 16 bytes of padding.
+//
+//goland:noinspection GoStructLayout
 type settings struct {
 	// themeMode is the Settings window's application-wide appearance choice.
 	// theme.go applies it through internal/appearance, build.go restores it,
@@ -226,9 +229,9 @@ func (v *viewer) settingsState() preferences.State {
 		MaxThumbCacheMB:         v.MaxThumbCacheMB(),
 		MaxFileSizeMB:           v.MaxFileSizeMB(),
 		FavoritePreviewCache:    v.FavoritePreviewCache(),
-		SimilarityFavoriteCache: v.explorer.cacheFavorites,
-		SimilarityAutoUpdate:    v.explorer.automatic,
-		SimilarityAutoFit:       v.explorer.autoFit,
+		SimilarityFavoriteCache: v.explorer.Settings().CacheFavorites,
+		SimilarityAutoUpdate:    v.explorer.Settings().Automatic,
+		SimilarityAutoFit:       v.explorer.Settings().AutoFit,
 		CheckForUpdates:         v.CheckForUpdates(),
 		StaticWindowSize:        v.StaticWindowSize(),
 		DuplicateDistance:       v.DuplicateDistance(),
@@ -259,8 +262,16 @@ func (v *viewer) applyLimitSettings(prev, next preferences.State) {
 }
 
 func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {
-	applySettingChange(prev.SimilarityFavoriteCache, next.SimilarityFavoriteCache, func(on bool) { v.explorer.cacheFavorites = on })
-	applySettingChange(prev.SimilarityAutoFit, next.SimilarityAutoFit, func(on bool) { v.explorer.autoFit = on })
+	applySettingChange(prev.SimilarityFavoriteCache, next.SimilarityFavoriteCache, func(on bool) {
+		settings := v.explorer.Settings()
+		settings.CacheFavorites = on
+		v.explorer.ApplySettings(settings)
+	})
+	applySettingChange(prev.SimilarityAutoFit, next.SimilarityAutoFit, func(on bool) {
+		settings := v.explorer.Settings()
+		settings.AutoFit = on
+		v.explorer.ApplySettings(settings)
+	})
 	applySettingChange(prev.SimilarityAutoUpdate, next.SimilarityAutoUpdate, v.SetSimilarityAutoUpdate)
 	applySettingChange(prev.FavoritePreviewCache, next.FavoritePreviewCache, v.SetFavoritePreviewCache)
 	applySettingChange(prev.CheckForUpdates, next.CheckForUpdates, v.SetCheckForUpdates)

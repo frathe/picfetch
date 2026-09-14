@@ -1,4 +1,4 @@
-package ui
+package explorer
 
 import (
 	"fmt"
@@ -15,41 +15,40 @@ import (
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/similarity"
-	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 )
 
-func (v *viewer) showPresetDialog(title string, body fyne.CanvasObject) dialog.Dialog {
-	if v.explorer.cohortDialog != nil {
-		v.explorer.cohortDialog.Hide()
+func (f *Feature) showPresetDialog(title string, body fyne.CanvasObject) dialog.Dialog {
+	if f.cohortDialog != nil {
+		f.cohortDialog.Hide()
 	}
-	d := dialog.NewCustomWithoutButtons(title, body, v.win)
+	d := dialog.NewCustomWithoutButtons(title, body, f.win)
 	d.SetOnClosed(func() {
-		if v.explorer.cohortDialog == d {
-			v.explorer.presetOp.invalidate()
-			v.explorer.cohortDialog = nil
+		if f.cohortDialog == d {
+			f.presetOp.invalidate()
+			f.cohortDialog = nil
 		}
-		v.win.Canvas().Unfocus()
+		f.win.Canvas().Unfocus()
 	})
-	v.explorer.cohortDialog = d
+	f.cohortDialog = d
 	d.Show()
 	return d
 }
 
 // ShowSimilarityPresets opens the one local library without starting analysis.
-func (v *viewer) ShowSimilarityPresets() {
-	if v.stopping || v.comparisonActive() || len(v.explorer.sources) == 0 || v.explorer.cohortSaving {
+func (f *Feature) ShowSimilarityPresets() {
+	if f.stopping || f.host.Presentation().ComparisonActive || len(f.sources) == 0 || f.cohortSaving {
 		return
 	}
 	status := widget.NewLabel(lang.L("Loading presets..."))
 	var d dialog.Dialog
 	body := container.NewVBox(status, widget.NewButton(lang.L("Close"), func() { d.Hide() }))
-	d = v.showPresetDialog(lang.L("Presets"), body)
-	token := v.explorer.presetOp.begin()
-	store := v.explorer.presets
-	v.explorer.presetWorkers.Go(func() {
+	d = f.showPresetDialog(lang.L("Presets"), body)
+	token := f.presetOp.begin()
+	store := f.presets
+	f.presetWorkers.Go(func() {
 		all, err := store.Load(token.context())
-		v.explorer.ui.Do(func() {
-			if !token.current() || v.stopping {
+		f.ui.Do(func() {
+			if !token.current() || f.stopping {
 				return
 			}
 			if err != nil {
@@ -57,12 +56,12 @@ func (v *viewer) ShowSimilarityPresets() {
 				status.SetText(lang.L("Could not load presets. The saved library was left unchanged."))
 				return
 			}
-			v.buildPresetBrowser(all)
+			f.buildPresetBrowser(all)
 		})
 	})
 }
 
-func (v *viewer) buildPresetBrowser(all []explorerpresets.Preset) {
+func (f *Feature) buildPresetBrowser(all []explorerpresets.Preset) {
 	slices.SortFunc(all, func(a, b explorerpresets.Preset) int {
 		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 	})
@@ -73,7 +72,7 @@ func (v *viewer) buildPresetBrowser(all []explorerpresets.Preset) {
 		p := filtered[i]
 		b := o.(*widget.Button)
 		b.SetText(p.Name)
-		b.OnTapped = func() { v.editSimilarityPreset(p) }
+		b.OnTapped = func() { f.editSimilarityPreset(p) }
 	})
 	search.OnChanged = func(query string) {
 		filtered = nil
@@ -86,12 +85,12 @@ func (v *viewer) buildPresetBrowser(all []explorerpresets.Preset) {
 	}
 	var d dialog.Dialog
 	body := container.NewVBox(search, container.NewGridWrap(fyne.NewSize(560, 280), list), container.NewHBox(
-		widget.NewButton(lang.L("New preset"), func() { v.editSimilarityPreset(explorerpresets.Preset{}) }),
+		widget.NewButton(lang.L("New preset"), func() { f.editSimilarityPreset(explorerpresets.Preset{}) }),
 		widget.NewButton(lang.L("Close"), func() { d.Hide() })))
-	d = v.showPresetDialog(lang.L("Presets"), body)
+	d = f.showPresetDialog(lang.L("Presets"), body)
 }
 
-func (v *viewer) editSimilarityPreset(p explorerpresets.Preset) {
+func (f *Feature) editSimilarityPreset(p explorerpresets.Preset) {
 	name := widget.NewEntry()
 	name.SetPlaceHolder(lang.L("Preset name"))
 	name.SetText(p.Name)
@@ -110,14 +109,14 @@ func (v *viewer) editSimilarityPreset(p explorerpresets.Preset) {
 	var save, preview *widget.Button
 	save = widget.NewButton(lang.L("Save preset"), func() {
 		q := draft()
-		token := v.explorer.presetOp.begin()
+		token := f.presetOp.begin()
 		save.Disable()
 		preview.Disable()
-		store := v.explorer.presets
-		v.explorer.presetWorkers.Go(func() {
+		store := f.presets
+		f.presetWorkers.Go(func() {
 			saved, err := store.Save(token.context(), q)
-			v.explorer.ui.Do(func() {
-				if !token.current() || v.stopping {
+			f.ui.Do(func() {
+				if !token.current() || f.stopping {
 					return
 				}
 				if err != nil {
@@ -126,15 +125,15 @@ func (v *viewer) editSimilarityPreset(p explorerpresets.Preset) {
 					save.Enable()
 					return
 				}
-				if v.explorer.surface.HasPreset(saved.ID) {
-					v.previewSimilarityPreset(saved)
+				if f.surface.HasPreset(saved.ID) {
+					f.previewSimilarityPreset(saved)
 				} else {
-					v.ShowSimilarityPresets()
+					f.ShowSimilarityPresets()
 				}
 			})
 		})
 	})
-	preview = widget.NewButton(lang.L("Preview preset"), func() { v.previewSimilarityPreset(p) })
+	preview = widget.NewButton(lang.L("Preview preset"), func() { f.previewSimilarityPreset(p) })
 	if p.ID == "" || !p.Compatible() {
 		preview.Disable()
 	}
@@ -152,31 +151,31 @@ func (v *viewer) editSimilarityPreset(p explorerpresets.Preset) {
 		save.Disable()
 	}
 	var d dialog.Dialog
-	remove := widget.NewButton(lang.L("Delete preset"), func() { v.deleteSimilarityPreset(p) })
+	remove := widget.NewButton(lang.L("Delete preset"), func() { f.deleteSimilarityPreset(p) })
 	if p.ID == "" {
 		remove.Disable()
 	}
 	body := container.NewVBox(widget.NewForm(widget.NewFormItem(lang.L("Preset name"), name)), container.NewGridWrap(fyne.NewSize(560, 380), container.NewVScroll(rules)), status,
 		container.NewHBox(widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), save, preview, remove))
-	d = v.showPresetDialog(lang.L("Edit preset"), body)
+	d = f.showPresetDialog(lang.L("Edit preset"), body)
 }
 
-func (v *viewer) deleteSimilarityPreset(p explorerpresets.Preset) {
+func (f *Feature) deleteSimilarityPreset(p explorerpresets.Preset) {
 	status := widget.NewLabel(lang.L("Delete this preset? Existing cohort members will be kept."))
 	status.Wrapping = fyne.TextWrapWord
 	var d dialog.Dialog
 	var remove *widget.Button
 	remove = widget.NewButton(lang.L("Delete preset"), func() {
-		if v.explorer.cohortSaving {
+		if f.cohortSaving {
 			return
 		}
-		token := v.explorer.presetOp.begin()
+		token := f.presetOp.begin()
 		remove.Disable()
-		store := v.explorer.presets
-		v.explorer.presetWorkers.Go(func() {
+		store := f.presets
+		f.presetWorkers.Go(func() {
 			err := store.Delete(token.context(), p.ID)
-			v.explorer.ui.Do(func() {
-				if !token.current() || v.stopping {
+			f.ui.Do(func() {
+				if !token.current() || f.stopping {
 					return
 				}
 				if err != nil {
@@ -185,16 +184,16 @@ func (v *viewer) deleteSimilarityPreset(p explorerpresets.Preset) {
 					remove.Enable()
 					return
 				}
-				before := v.explorer.surface.Cohorts()
-				v.explorer.surface.DetachPreset(p.ID)
-				v.savePresetCohorts(before, d, status, v.ShowSimilarityPresets)
+				before := f.surface.Cohorts()
+				f.surface.DetachPreset(p.ID)
+				f.savePresetCohorts(before, d, status, f.ShowSimilarityPresets)
 			})
 		})
 	})
-	d = v.showPresetDialog(lang.L("Delete preset"), container.NewVBox(status, container.NewHBox(widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), remove)))
+	d = f.showPresetDialog(lang.L("Delete preset"), container.NewVBox(status, container.NewHBox(widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), remove)))
 }
 
-func (v *viewer) previewSimilarityPreset(p explorerpresets.Preset) {
+func (f *Feature) previewSimilarityPreset(p explorerpresets.Preset) {
 	status := widget.NewLabel(lang.L("Finding matching images..."))
 	var rows []string
 	list := widget.NewList(func() int { return len(rows) }, func() fyne.CanvasObject {
@@ -202,35 +201,35 @@ func (v *viewer) previewSimilarityPreset(p explorerpresets.Preset) {
 		label.Truncation = fyne.TextTruncateEllipsis
 		return label
 	}, func(i widget.ListItemID, o fyne.CanvasObject) { o.(*widget.Label).SetText(rows[i]) })
-	var reviewed explorerui.PresetReview
+	var reviewed PresetReview
 	var d dialog.Dialog
 	apply := widget.NewButton(lang.L("Apply preset"), func() {
-		if v.explorer.cohortSaving {
+		if f.cohortSaving {
 			return
 		}
-		if v.explorer.cohortLoadErr != nil {
+		if f.cohortLoadErr != nil {
 			status.SetText(lang.L("Could not save the cohort. Reopen the favorite and try again."))
 			return
 		}
-		before := v.explorer.surface.Cohorts()
-		if !v.explorer.surface.ApplyPreset(reviewed) {
+		before := f.surface.Cohorts()
+		if !f.surface.ApplyPreset(reviewed) {
 			status.SetText(lang.L("The images or cohort name changed. Preview the preset again."))
 			return
 		}
-		v.savePresetCohorts(before, d, status, func() {
+		f.savePresetCohorts(before, d, status, func() {
 			d.Hide()
-			v.grid.Close()
-			v.explorer.cohort = nil
-			v.explorer.unassignedCohort = false
-			v.backToSimilarityMap()
+
+			f.cohort = nil
+			f.unassignedCohort = false
+			f.ReturnToMap()
 		})
 	})
 	apply.Disable()
 	body := container.NewVBox(status, container.NewGridWrap(fyne.NewSize(560, 250), list), container.NewHBox(widget.NewButton(lang.L("Cancel"), func() { d.Hide() }), apply))
-	d = v.showPresetDialog(lang.L("Preview preset"), body)
-	token := v.explorer.presetOp.begin()
-	review := v.explorer.surface.PreparePreset(p)
-	v.explorer.presetWorkers.Go(func() {
+	d = f.showPresetDialog(lang.L("Preview preset"), body)
+	token := f.presetOp.begin()
+	review := f.surface.PreparePreset(p)
+	f.presetWorkers.Go(func() {
 		var matches []similarity.Item
 		for _, item := range review.Candidates {
 			if !token.current() {
@@ -240,8 +239,8 @@ func (v *viewer) previewSimilarityPreset(p explorerpresets.Preset) {
 				matches = append(matches, item)
 			}
 		}
-		v.explorer.ui.Do(func() {
-			if !token.current() || v.stopping {
+		f.ui.Do(func() {
+			if !token.current() || f.stopping {
 				return
 			}
 			review.Matches = matches
@@ -280,33 +279,33 @@ func (v *viewer) previewSimilarityPreset(p explorerpresets.Preset) {
 	})
 }
 
-func (v *viewer) savePresetCohorts(before favstore.CohortState, d dialog.Dialog, status *widget.Label, finish func()) {
-	store := v.explorer.cohortStore
+func (f *Feature) savePresetCohorts(before favstore.CohortState, d dialog.Dialog, status *widget.Label, finish func()) {
+	store := f.cohortStore
 	if store == nil {
 		finish()
 		return
 	}
-	groups := v.explorer.surface.Cohorts()
-	token := v.explorer.token
-	v.explorer.cohortSaving = true
-	v.explorer.presetWorkers.Go(func() {
+	groups := f.surface.Cohorts()
+	token := f.token
+	f.cohortSaving = true
+	f.presetWorkers.Go(func() {
 		err := store.Save(token.context(), groups)
-		v.explorer.ui.Do(func() {
-			if !token.current() || v.stopping {
+		f.ui.Do(func() {
+			if !token.current() || f.stopping {
 				return
 			}
-			v.explorer.cohortSaving = false
+			f.cohortSaving = false
 			if err != nil {
 				fyne.LogError("save preset cohort", err)
-				v.explorer.surface.RestoreCohorts(before)
+				f.surface.RestoreCohorts(before)
 				message := lang.L("Could not save the cohort. Reopen the favorite and try again.")
 				status.SetText(message)
-				if v.explorer.cohortDialog != d {
-					v.ShowToast(message)
+				if f.cohortDialog != d {
+					f.host.ShowToast(message)
 				}
 				return
 			}
-			if v.explorer.cohortDialog == d {
+			if f.cohortDialog == d {
 				finish()
 			}
 		})
