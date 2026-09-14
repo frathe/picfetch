@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 )
@@ -136,6 +137,61 @@ func TestShowManual_OpensSearchBarAndFocusesIt(t *testing.T) {
 	}
 
 	win.Close()
+}
+
+func TestShowManual_EscapeClosesFromSearch(t *testing.T) {
+	for _, query := range []string{"", "alpha"} {
+		t.Run(query, func(t *testing.T) {
+			a := test.NewApp()
+			t.Cleanup(a.Quit)
+			h := New(a, "PicFetch", nil)
+			original := currentManual
+			currentManual = func() string { return searchFixture }
+			t.Cleanup(func() { currentManual = original })
+			h.ShowFinis()
+			companion := h.finisWin.Window()
+			t.Cleanup(companion.Close)
+			t.Cleanup(func() {
+				if h.ManualOpen() {
+					h.manualWin.Window().Close()
+				}
+			})
+			closed := 0
+			h.SetOnManualClosed(func() { closed++ })
+			for opening := 1; opening <= 2; opening++ {
+				h.ShowManual()
+				window := h.manualWin.Window()
+				h.ShowManual() // Raising also leaves Escape available in search.
+				if opening == 2 {
+					window.Canvas().Unfocus()
+					click := &desktop.MouseEvent{Button: desktop.MouseButtonPrimary}
+					h.manual.entry.MouseDown(click)
+					h.manual.entry.MouseUp(click)
+				}
+				focused := window.Canvas().Focused()
+				if focused != h.manual.entry {
+					t.Fatal("manual search did not receive focus")
+				}
+				test.Type(focused, query)
+				if query != "" {
+					focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+					if len(hitTexts(h.manual.text.Segments)) != 2 {
+						t.Fatal("typing and Return did not perform the ordinary search")
+					}
+					focused.(fyne.Shortcutable).TypedShortcut(&fyne.ShortcutSelectAll{})
+				}
+				// Native Fyne delivers keys to the focused widget instead of
+				// the canvas callback. Exercise that same public boundary.
+				focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				if h.ManualOpen() || closed != opening {
+					t.Fatal("Escape in the focused search did not close the manual exactly once")
+				}
+				if h.finisWin.Window() != companion {
+					t.Fatal("closing the manual affected Finis")
+				}
+			}
+		})
+	}
 }
 
 func TestShowManual_DoesNotUseFullManualInThisTest(t *testing.T) {
