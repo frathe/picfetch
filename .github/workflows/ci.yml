@@ -40,6 +40,11 @@ jobs:
       - name: Check formatting
         run: make fmt-check
 
+      - name: Check search review controls
+        run: |
+          node --version
+          node --test scripts/explorereval/search_review_test.mjs
+
       - name: Check generated tag vectors
         run: make check-tag-vectors
 

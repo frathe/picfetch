@@ -17,6 +17,12 @@ make explorer-test
 make explorer-evaluate TRIAL=smoke
 ```
 
+The search report's browser controls have a standalone regression test:
+`node --test scripts/explorereval/search_review_test.mjs`. It executes the
+shipped inline script against synthetic browser objects, including retention
+of existing relevance labels outside the displayed top 30. CI validation runs
+it with the runner's Node runtime; it adds no application runtime dependency.
+
 Setup downloads a public 372 MB float32 SigLIP 2 vision model, its processor
 configuration, and the ONNX Runtime archive (11 MB on Linux x64, 10 MB on Linux ARM64,
 12 MB on Intel macOS, 42 MB on Apple Silicon macOS,
@@ -145,6 +151,64 @@ its [license and adaptation record](../../internal/hdbscan/README.md). It uses
 minimum cohort 4, `minPts=3` (self plus two neighbors), Euclidean distance and
 one worker; the adapter retains the root if no smaller cluster qualifies and
 at least four distinct sources remain.
+
+## Search ranking evaluation
+
+On macOS, use the installed assets and an explicit `search-corpus.json` in the
+input directory:
+
+```sh
+make explorer-evaluate TRIAL=search EXPLORER_LIBRARY=/absolute/local/corpus EXPLORER_EVIDENCE=.scratch/find-more-like-this/evidence
+```
+
+The version-1 manifest contains `sources` with unique `id` and relative `path`
+strings, and `queries` with `reference_id`, `intent` (`content` or `appearance`)
+and `relevant_ids`. Supply at least 20 distinct content references. A query such
+as `{"reference_id":"beach-01","intent":"content","relevant_ids":null}`
+is unreviewed; an empty array means reviewed with no relevant candidates.
+Unknown fields, repeated identities/paths, escaping paths and invalid judgments
+are rejected before asset setup. The manifest is bounded to 16 MiB and its
+source count to the 256 MiB retained-vector budget.
+
+The command prepares the first reference first, then the corpus in its captured
+order using canonical full oriented decoding and the pinned CPU SigLIP 2 model.
+It excludes failed or changed sources, the reference itself, and invalid
+representations. Exact cosine in 768 dimensions supplies up to 30 results,
+descending by score and then ascending path. Distinct copies can match; no
+score cutoff is applied. This experiment uses a full sort; the production
+search interface will use bounded top-k selection.
+
+Open the printed `search-review.html` locally. Mark relevant candidates and each
+reviewed reference, then **Download reviewed corpus** to retain judgments
+without more inference. Content and appearance precision are separate; missing
+top-ten slots count as non-relevant. A failed reference has no measured score.
+The page has no network connections. Reports, source identities, vectors and
+previews are private local artifacts, not release assets.
+
+`search-result.json` records exact ranks, source/model/corpus identities, first
+partial and complete preparation, warm p50/p95, native worker RSS, retained
+vector bytes and a separate deterministic 10,000-vector timing benchmark.
+`search-initial.json` captures the first publication at 100 processed sources
+(or completion for a smaller corpus). `search-evaluation.md` explains the
+measurement boundaries. The synthetic timing benchmark does not prove real
+image relevance or Grid interaction performance.
+
+After the search worker exits, separate production Explorer workers measure a
+temporary Favorite cold/warm baseline in `favorite-profile.json` and
+`favorite-events.jsonl`. They use the captured manifest, remove their temporary
+cache, and require complete warm reuse with no inference. Their timings include
+map generation and are not search latency. A canceled/failed command retains
+partial evidence and refuses to overwrite it on retry; a successful command
+with both reports is required for complete technical evidence.
+
+Record the machine's CPU/RAM/OS and a human proceed/revise verdict alongside the
+reviewed corpus. The initial evaluation targets are median content P@10 of 0.6,
+first result within 30 seconds, and warm 10,000-vector p95 below 200 ms. These
+are local criteria, not universal promises. General-cache reuse and final
+production-session measurements remain for the feature qualification ticket.
+The local experiment retains macOS OS-enforced network denial and does not
+qualify other platforms. Fixture tests run normally; `make explorer-test`
+includes the native search command and Favorite reuse regression.
 
 ## Production throughput profiling
 

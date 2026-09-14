@@ -190,7 +190,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// still closes while a selection is pending (it is "go to the image
 	// view", not a toggle). Every other key does nothing.
 	if v.grid.Visible() {
-		if len(v.explorer.cohort) > 0 && ev.Name == fyne.KeyV && !v.grid.Searching() {
+		if v.explorer.HasCohort() && ev.Name == fyne.KeyV && !v.grid.Searching() {
 			v.LeaveSimilarityMap()
 			return
 		}
@@ -281,7 +281,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
 			v.toggleSlideshowShuffle()
 		} else {
-			if v.dupes.Inspecting() || len(v.explorer.cohort) > 0 {
+			if v.dupes.Inspecting() || v.explorer.HasCohort() {
 				return
 			}
 			v.togglePictureFrameMode()
@@ -308,7 +308,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		v.grid.Toggle()
 		return
 	case fyne.KeyD:
-		if len(v.explorer.cohort) > 0 {
+		if v.explorer.HasCohort() {
 			return
 		}
 		// Same place as G: hide-dupes is useful with one file (no-op) or

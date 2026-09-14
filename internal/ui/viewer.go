@@ -17,13 +17,13 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
-	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	compareui "github.com/frathe/picfetch/internal/ui/compare"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
 	"github.com/frathe/picfetch/internal/ui/deletion"
 	"github.com/frathe/picfetch/internal/ui/display"
 	"github.com/frathe/picfetch/internal/ui/exifwin"
+	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/help"
@@ -414,9 +414,9 @@ type viewer struct {
 	// worker pool and reaches back through the Host interface this viewer
 	// satisfies. handleKeyEvent checks its Visible() before its own
 	// dispatch, the same way it does for the delete confirmation.
-	grid            *grid.Overview
-	explorerAnalyze similarity.Provider
-	explorer        explorerWork
+	grid          *grid.Overview
+	explorer      *explorerui.Feature
+	explorerInput explorerInput
 
 	// compare is the opaque two-image surface stacked above the still-open
 	// grid. The feature owns its widgets and workers; this viewer owns only
@@ -644,9 +644,9 @@ func (v *viewer) gridHighlightTitle(i int) string {
 func (v *viewer) clearToDropzone() {
 	v.closeExplorer()
 	v.grid.Close()
-	v.explorer.favoriteDir = ""
+	v.explorerInput.favoriteDir = ""
 	v.pendingPictureFrame = false
-	v.explorer.pendingLaunch = false
+	v.explorerInput.pendingLaunch = false
 	// A full-screen dropzone would look broken, and there's nothing left to
 	// frame - safe to call even when picture-frame mode is already off.
 	v.slides.Exit()
@@ -707,10 +707,10 @@ func (v *viewer) clearToDropzone() {
 // un-maximize placement rarely lands back where the window was before the
 // grid took over.
 func (v *viewer) undoGridMaximize() {
-	if !v.grid.ConsumeMaximized() && !v.explorer.maximized {
+	if !v.grid.ConsumeMaximized() && !v.explorerInput.maximized {
 		return
 	}
-	v.explorer.maximized = false
+	v.explorerInput.maximized = false
 	winpos.Unmaximize(v.win)
 	v.winPos.Restore(v.win)
 }
@@ -879,7 +879,7 @@ func (v *viewer) RemoveFile(i int) {
 	removed := v.state.removeFile(i)
 	v.explorerSourcesChanged()
 	if v.state.snapshot().IndexOf(removed.String()) < 0 {
-		v.explorer.cohort = slices.DeleteFunc(v.explorer.cohort, func(path string) bool { return path == removed.Path() })
+		v.explorer.RemoveCohortSource(removed.Path())
 	}
 }
 

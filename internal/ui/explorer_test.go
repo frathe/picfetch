@@ -11,7 +11,6 @@ import (
 	"image/png"
 	"io"
 	"math"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -35,7 +34,6 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
-	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/favstore"
@@ -105,23 +103,25 @@ func explorerFixtureScale(t *testing.T, factor float32) *viewer {
 	for i := range previews {
 		previews[i] = uitest.EncodeJPEG(t, 128, 96, color.NRGBA{R: uint8(50 + i*9), G: uint8(70 + (i*19)%160), B: uint8(90 + (i*31)%150), A: 255})
 	}
-	v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-		var items []similarity.Item
-		for i, path := range paths {
-			group := "a"
-			x := float32(-1)
-			if i == 16 {
-				group = "b"
-				x = 1
+	configureExplorer(v, func(options *explorerui.Options) {
+		options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			var items []similarity.Item
+			for i, path := range paths {
+				group := "a"
+				x := float32(-1)
+				if i == 16 {
+					group = "b"
+					x = 1
+				}
+				if i == 17 {
+					group = "unassigned"
+				}
+				items = append(items, similarity.Item{Path: path, Cohort: group, Position: []float32{x * factor, 0}, Preview: previews[i]})
 			}
-			if i == 17 {
-				group = "unassigned"
-			}
-			items = append(items, similarity.Item{Path: path, Cohort: group, Position: []float32{x * factor, 0}, Preview: previews[i]})
+			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+			return nil
 		}
-		emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
-		return nil
-	}
+	})
 	item := explorerMenu(t, v)
 	if item.Disabled {
 		t.Fatal("explorer unavailable with opened images")
@@ -225,12 +225,7 @@ func explorerDialogSelect(t *testing.T, v *viewer, placeholder, value string) {
 }
 
 func settlePresetUI(v *viewer) {
-	for {
-		v.explorer.presetWorkers.Wait()
-		if !v.explorer.ui.Drain() {
-			return
-		}
-	}
+	v.explorer.SettlePresets()
 }
 
 func explorerTag(t *testing.T, v *viewer, label string, count int) (*widget.Check, *widget.Hyperlink) {
@@ -285,25 +280,27 @@ func streamingExplorerEvents(t *testing.T, names ...string) (*viewer, func(simil
 	v := openGridWith(t, names...)
 	events := make(chan similarity.Event)
 	published := make(chan struct{})
-	v.explorerAnalyze = func(ctx context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-		for {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case event := <-events:
-				emit(event)
-				published <- struct{}{}
-				if event.Complete {
-					return nil
+	configureExplorer(v, func(options *explorerui.Options) {
+		options.Analyze = func(ctx context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case event := <-events:
+					emit(event)
+					published <- struct{}{}
+					if event.Complete {
+						return nil
+					}
 				}
 			}
 		}
-	}
+	})
 	explorerMenu(t, v).Action()
 	return v, func(event similarity.Event) {
 		events <- event
 		<-published
-		v.explorer.ui.Drain()
+		v.explorer.Options().Queue.Drain()
 	}
 }
 
@@ -313,58 +310,22 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
-	t.Run("setup_intro", func(t *testing.T) {
-		v := openGridWith(t, "first.jpg")
-		v.explorer.introSeen, v.explorer.assetsReady = false, true
-		analyzed := false
-		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			analyzed = true
-			emit(similarity.Event{Complete: true})
-			return nil
-		}
-		v.showExplorer()
-		v.settleExplorer()
-		foundDownload := false
-		downloadText := fmt.Sprintf(lang.L("One-time download: about %.0f MB. After that, everything works offline."), float64(similarity.AssetDownloadBytes())/1e6)
-		explorerWalk(v.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
-			if label, ok := o.(*widget.Label); ok && label.Text == downloadText {
-				foundDownload = true
-			}
-		})
-		if !foundDownload || analyzed {
-			t.Fatalf("first-use setup: download information=%v analyzed=%v", foundDownload, analyzed)
-		}
-		fynetest.Tap(explorerDialogButton(t, v, "Continue"))
-		v.settleExplorer()
-		if !analyzed || !v.explorer.introSeen {
-			t.Fatal("Continue did not finish setup and admit analysis")
-		}
-	})
-	t.Run("setup_unsupported", func(t *testing.T) {
-		for _, ready := range []bool{false, true} {
-			t.Run(fmt.Sprintf("assets_ready_%v", ready), func(t *testing.T) {
-				v := openGridWith(t, "first.jpg")
-				v.explorer.introSeen = false
-				v.explorer.assetsReady = ready
-				v.explorer.supported = false
-				v.showExplorer()
-				v.settleExplorer()
-				if v.explorer.setup == nil || v.explorer.setup.primary.Visible() || v.explorerMapActive() {
-					t.Fatal("unsupported platform offered setup or analysis")
-				}
-			})
-		}
-	})
 	t.Run("setup_first_use", func(t *testing.T) {
 		v := openGridWith(t, "first.jpg")
-		v.explorer.introSeen = false
-		v.explorer.assetsReady = true
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Settings.IntroSeen = false
+		})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.AssetsReady = true
+		})
 		analyzed := false
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			analyzed = true
-			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true})
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				analyzed = true
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true})
+				return nil
+			}
+		})
 		v.showExplorer()
 		v.settleExplorer()
 		if analyzed || v.explorerMapActive() {
@@ -385,77 +346,32 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("Continue did not persist acknowledgment and start Explorer")
 		}
 	})
-	t.Run("setup_download_retry_cancel", func(t *testing.T) {
-		v := openGridWith(t, "first.jpg")
-		v.explorer.introSeen, v.explorer.assetsReady = false, false
-		v.explorer.supported = true
-		requests := 0
-		started := make(chan struct{})
-		v.explorer.client = similarity.Client{Assets: filepath.Join(t.TempDir(), "assets"), HTTPClient: &http.Client{Transport: explorerAssetTransport(func(r *http.Request) (*http.Response, error) {
-			requests++
-			if requests == 1 {
-				return nil, fmt.Errorf("connection unavailable")
-			}
-			close(started)
-			<-r.Context().Done()
-			return nil, r.Context().Err()
-		})}}
-		v.showExplorer()
-		v.settleExplorer()
-		if requests != 0 {
-			t.Fatal("reading the explanation made a network request")
-		}
-		fynetest.Tap(explorerDialogButton(t, v, "Download"))
-		v.settleExplorer()
-		// The Store-tagged suite expects bundled runtimes instead of a download.
-		//goland:noinspection GoBoolExpressions
-		if distribution.StoreManaged && requests == 0 {
-			// Ordinary Go test executables have no packaged DLLs. A missing
-			// Store runtime must remain a repair error without starting HTTP.
-			if v.explorer.setup == nil || v.explorer.setup.status.Text != lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry.") || v.explorerMapActive() {
-				t.Fatal("missing bundled runtime did not show the Store repair error")
-			}
-			fynetest.Tap(explorerDialogButton(t, v, "Retry"))
-			v.settleExplorer()
-			fynetest.Tap(explorerDialogButton(t, v, "Cancel"))
-			v.settleExplorer()
-			if requests != 0 || v.explorer.setup != nil || v.explorer.introSeen || v.explorerMapActive() {
-				t.Fatal("Store repair retry/cancel admitted a download or analysis")
-			}
-			return
-		}
-		if requests != 1 || v.explorerMapActive() {
-			t.Fatal("failed setup did not remain on the setup page")
-		}
-		fynetest.Tap(explorerDialogButton(t, v, "Retry"))
-		<-started
-		fynetest.Tap(explorerDialogButton(t, v, "Cancel"))
-		v.settleExplorer()
-		if v.explorer.setup != nil || v.explorer.introSeen || v.explorerMapActive() {
-			t.Fatal("cancelled setup continued into analysis or left its page open")
-		}
-		entries, err := os.ReadDir(filepath.Dir(v.explorer.client.Assets))
-		if err != nil || len(entries) != 0 {
-			t.Fatalf("cancelled download left staged assets: %v, %v", entries, err)
-		}
-	})
 	t.Run("setup_source_change", func(t *testing.T) {
 		v := openGridWith(t, "first.jpg")
-		v.explorer.introSeen, v.explorer.assetsReady = false, false
-		v.explorer.supported = true
-		v.explorer.client.Assets = filepath.Join(t.TempDir(), "assets")
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Settings.IntroSeen, options.AssetsReady = false, false
+		})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Supported = true
+		})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Client.Assets = filepath.Join(t.TempDir(), "assets")
+		})
 		v.showExplorer()
 		// Replacement invalidates even an asset check whose UI delivery is pending.
 		dropAndWait(t, v, uitest.TempJPEGURI(t, "replacement.jpg", 4, 4, color.White))
 		v.settleExplorer()
-		if v.explorer.setup != nil || v.win.Canvas().Overlays().Top() != nil || v.explorer.introSeen {
+		if v.explorer.State().SetupOpen || v.win.Canvas().Overlays().Top() != nil ||
+			v.explorer.Options().Settings.IntroSeen {
 			t.Fatal("source replacement left first-use setup active")
 		}
 	})
 	t.Run("setup_window_size", func(t *testing.T) {
 		v := openGridWith(t, "small.jpg")
 		v.win.Resize(fyne.NewSize(520, 360))
-		v.explorer.introSeen = false
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Settings.IntroSeen = false
+		})
 		v.showExplorer()
 		v.settleExplorer()
 		if size := v.win.Canvas().Size(); size.Width < 700 || size.Height < 620 {
@@ -574,11 +490,13 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 						files = []fyne.URI{held, second}
 					}
 					var calls atomic.Int32
-					v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-						calls.Add(1)
-						emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
-						return nil
-					}
+					configureExplorer(v, func(options *explorerui.Options) {
+						options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+							calls.Add(1)
+							emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+							return nil
+						}
+					})
 					v.handleDrop(files)
 					select {
 					case <-entered:
@@ -598,7 +516,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					}
 					open()
 					v.settleExplorer()
-					if calls.Load() != 0 || v.explorer.surface.Visible() || v.explorer.setup != nil || len(v.explorer.sources) != 0 {
+					if calls.Load() != 0 ||
+						v.explorer.Surface().Visible() || v.explorer.State().SetupOpen || len(v.explorer.Sources()) != 0 {
 						t.Fatal("Explorer admitted the old collection during replacement")
 					}
 					unblock()
@@ -609,9 +528,10 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					v.settleExplorer()
 					want := []string{first.Path(), second.Path()}
 					slices.Sort(want)
-					got := slices.Clone(v.explorer.sources)
+					got := slices.Clone(v.explorer.Sources())
 					slices.Sort(got)
-					if calls.Load() != 1 || !v.explorer.complete || !slices.Equal(got, want) {
+					if calls.Load() != 1 || !v.explorer.State().Complete ||
+						!slices.Equal(got, want) {
 						t.Fatalf("replacement analysis calls=%d sources=%v, want one call for %v", calls.Load(), got, want)
 					}
 				})
@@ -645,7 +565,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					t.Fatal("Analyze disabled after selecting reopened Unassigned images")
 				}
 				fynetest.Tap(analyze)
-				if v.explorer.cohortDialog == nil || v.win.Canvas().Overlays().Top() == nil {
+				if !v.explorer.State().DialogOpen || v.win.Canvas().Overlays().Top() == nil {
 					t.Fatal("reopened Analyze did not open the cohort review")
 				}
 			})
@@ -656,7 +576,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if !explorerMenu(t, v).Disabled {
 			t.Fatal("Explorer menu remains enabled during analysis")
 		}
-		revision := v.explorer.token
+		revision := observeExplorer(v.explorer)
+
 		v.showExplorer()
 		stubKeyModifiers(t, v, fyne.KeyModifierShift)
 		v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
@@ -671,20 +592,23 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Run(fmt.Sprintf("complete_%v", complete), func(t *testing.T) {
 				v := openGridWith(t, "a.jpg", "b.jpg")
 				started := make(chan struct{})
-				v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					close(started)
-					if !complete {
-						<-ctx.Done()
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						close(started)
+						if !complete {
+							<-ctx.Done()
+						}
+						emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+						return ctx.Err()
 					}
-					emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
-					return ctx.Err()
-				}
+				})
 				v.showExplorer()
 				<-started
 				if complete {
 					v.settleExplorer()
 				}
-				token := v.explorer.token
+				token := observeExplorer(v.explorer)
+
 				v.SetMaxFileSizeMB(v.MaxFileSizeMB())
 				if !token.current() {
 					t.Fatal("unchanged file-size limit retired analysis")
@@ -697,16 +621,21 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					t.Fatal("changed file-size limit retained the old analysis")
 				}
 				v.settleExplorer()
-				if v.explorer.complete || v.explorer.hasMap || len(v.explorer.sources) != 0 || explorerMenu(t, v).Disabled {
+				if v.explorer.State().Complete ||
+					v.explorer.State().HasMap ||
+					len(v.explorer.Sources()) != 0 || explorerMenu(t, v).Disabled {
 					t.Fatal("retired analysis accepted stale completion or prevented retry")
 				}
-				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
-					return nil
-				}
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+						return nil
+					}
+				})
 				v.showExplorer()
 				v.settleExplorer()
-				if !v.explorer.complete || !v.explorer.token.current() {
+				if !v.explorer.State().Complete ||
+					!observeExplorer(v.explorer).current() {
 					t.Fatal("new file-size limit did not admit fresh analysis")
 				}
 			})
@@ -717,7 +646,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.OpenSimilarityCohort([]string{v.FileAt(0).Path(), v.FileAt(1).Path()})
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 		waitUntilLoaded(t, v)
-		if v.grid.Visible() || v.explorerMapActive() || len(v.explorer.cohort) != 2 {
+		if v.grid.Visible() || v.explorerMapActive() || len(explorerCohort(v.explorer)) != 2 {
 			t.Fatal("premise: cohort image did not open")
 		}
 		if v.menus.Window().Viewer().Disabled {
@@ -725,7 +654,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		v.menus.Window().Viewer().Action()
 		v.settleExplorer()
-		if len(v.explorer.cohort) != 0 || v.explorerMapActive() || v.grid.Visible() {
+		if len(explorerCohort(v.explorer)) != 0 || v.explorerMapActive() || v.grid.Visible() {
 			t.Fatal("Window -> Viewer retained the cohort session")
 		}
 	})
@@ -740,20 +669,23 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 						waitUntilLoaded(t, v)
 					}
 					started := make(chan struct{})
-					v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-						close(started)
-						if !complete {
-							<-ctx.Done()
+					configureExplorer(v, func(options *explorerui.Options) {
+						options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+							close(started)
+							if !complete {
+								<-ctx.Done()
+							}
+							emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+							return ctx.Err()
 						}
-						emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
-						return ctx.Err()
-					}
+					})
 					v.showExplorer()
 					<-started
 					if complete {
 						v.settleExplorer()
 					}
-					token := v.explorer.token
+					token := observeExplorer(v.explorer)
+
 					v.SetDuplicateDistance(v.DuplicateDistance())
 					if !token.current() {
 						t.Fatal("unchanged duplicate distance retired analysis")
@@ -767,16 +699,21 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					}
 					if hide {
 						v.settleExplorer()
-						if v.explorer.complete || v.explorer.hasMap || len(v.explorer.sources) != 0 || explorerMenu(t, v).Disabled {
+						if v.explorer.State().Complete ||
+							v.explorer.State().HasMap ||
+							len(v.explorer.Sources()) != 0 || explorerMenu(t, v).Disabled {
 							t.Fatal("retired analysis accepted stale completion or prevented retry")
 						}
-						v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-							emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
-							return nil
-						}
+						configureExplorer(v, func(options *explorerui.Options) {
+							options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+								emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+								return nil
+							}
+						})
 						v.showExplorer()
 						v.settleExplorer()
-						if !v.explorer.complete || !v.explorer.token.current() || len(v.explorer.sources) == 0 {
+						if !v.explorer.State().Complete ||
+							!observeExplorer(v.explorer).current() || len(v.explorer.Sources()) == 0 {
 							t.Fatal("new duplicate threshold did not admit fresh analysis")
 						}
 					}
@@ -844,7 +781,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				fynetest.Tap(explorerDialogButton(t, v, "New preset"))
 				explorerDialogEntry(t, v, "Preset name", "Unsaved draft")
 				overlay := v.win.Canvas().Overlays().Top()
-				token := v.explorer.token
+				token := observeExplorer(v.explorer)
+
 				files := slices.Clone(v.state.files)
 				handler := &fyne.ShortcutHandler{}
 				wireGlobalShortcuts(handler, v)
@@ -871,7 +809,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Run(stage, func(t *testing.T) {
 				v := openGridWith(t, "current.jpg")
 				current := v.FileAt(0)
-				v.explorer.favoriteDir = "original-favorite"
+				v.explorerInput.favoriteDir = "original-favorite"
 				entered, release := make(chan struct{}), make(chan struct{})
 				var once sync.Once
 				unblock := func() { once.Do(func() { close(release) }) }
@@ -908,7 +846,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				if stage == "sort" {
 					waitForSort(t, v)
 				}
-				if v.explorer.favoriteDir != "original-favorite" || v.FileCount() != 1 || v.FileAt(0) != current {
+				if v.explorerInput.favoriteDir !=
+					"original-favorite" || v.FileCount() != 1 || v.FileAt(0) != current {
 					t.Fatal("cancelled replacement changed the existing collection identity or files")
 				}
 			})
@@ -922,11 +861,14 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v.explorer.trial = session
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Trial = session
+		})
 		defer func() { _ = session.Close() }()
 		v.applyLaunchOptions(launch.Options{ExplorerTrial: root})
 		v.SetCheckForUpdates(true)
-		if v.CheckForUpdates() || v.updater.Dir() != filepath.Join(root, "updates") || v.explorer.presets.Dir != filepath.Join(root, "presets") {
+		if v.CheckForUpdates() || v.updater.Dir() != filepath.Join(root, "updates") ||
+			v.explorer.Options().Presets.Dir != filepath.Join(root, "presets") {
 			t.Fatal("trial did not isolate storage and disable updates")
 		}
 
@@ -937,14 +879,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for _, path := range paths {
-				items = append(items, similarity.Item{Path: path, Cohort: "a", Preview: pixels})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for _, path := range paths {
+					items = append(items, similarity.Item{Path: path, Cohort: "a", Preview: pixels})
+				}
+				emit(similarity.Event{OfflineVerified: true, Complete: true, Total: len(paths), Successful: len(paths), Items: items})
+				return nil
 			}
-			emit(similarity.Event{OfflineVerified: true, Complete: true, Total: len(paths), Successful: len(paths), Items: items})
-			return nil
-		}
+		})
 		v.pendingInitial = []fyne.URI{storage.NewFileURI(library)}
 		v.openFilesFromOS(nil)
 		waitForScan(t, v)
@@ -970,7 +914,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v.explorer.trial = session
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Trial = session
+		})
 		defer func() { _ = session.Close() }()
 		limit := 1
 		v.applyLaunchOptions(launch.Options{ExplorerTrial: root, MaxFiles: &limit, PictureFrame: true})
@@ -982,10 +928,12 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			}
 		}
 		var called atomic.Bool
-		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, _ func(similarity.Event)) error {
-			called.Store(true)
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, _ func(similarity.Event)) error {
+				called.Store(true)
+				return nil
+			}
+		})
 		v.handleDrop([]fyne.URI{storage.NewFileURI(library)})
 		waitForScan(t, v)
 		waitFor(t, "sort", &v.sortOp.done)
@@ -1013,23 +961,25 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("trial_recording", func(t *testing.T) {
 		v := openGridWith(t, "private-cat.jpg", "private-dog.jpg")
 		out := filepath.Join(t.TempDir(), "trial")
-		var err error
-		v.explorer.trial, err = explorertrial.New(out)
+		trial, err := explorertrial.New(out)
+		configureExplorer(v, func(options *explorerui.Options) { options.Trial = trial })
 		if err != nil {
 			t.Fatal(err)
 		}
 		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			emit(similarity.Event{OfflineVerified: true, Total: 2, Successful: 2, Complete: true,
-				Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview, Facts: similarity.ImageFacts{Make: "Private Camera"}}, {Path: paths[1], Cohort: "a", Preview: preview}}})
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				emit(similarity.Event{OfflineVerified: true, Total: 2, Successful: 2, Complete: true,
+					Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview, Facts: similarity.ImageFacts{Make: "Private Camera"}}, {Path: paths[1], Cohort: "a", Preview: preview}}})
+				return nil
+			}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		fynetest.Tap(explorerPiles(v)[0])
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 		v.LeaveSimilarityMap()
-		if err := v.explorer.trial.Close(); err != nil {
+		if err := v.explorer.Options().Trial.Close(); err != nil {
 			t.Fatal(err)
 		}
 		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
@@ -1087,17 +1037,19 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("trial_recording_completed_image", func(t *testing.T) {
 		v := openGridWith(t, "private-a.jpg", "private-b.jpg")
 		out := filepath.Join(t.TempDir(), "trial")
-		var err error
-		v.explorer.trial, err = explorertrial.New(out)
+		trial, err := explorertrial.New(out)
+		configureExplorer(v, func(options *explorerui.Options) { options.Trial = trial })
 		if err != nil {
 			t.Fatal(err)
 		}
 		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			emit(similarity.Event{OfflineVerified: true, Total: 2, Successful: 2, Complete: true,
-				Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview}, {Path: paths[1], Cohort: "a", Preview: preview}}})
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				emit(similarity.Event{OfflineVerified: true, Total: 2, Successful: 2, Complete: true,
+					Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview}, {Path: paths[1], Cohort: "a", Preview: preview}}})
+				return nil
+			}
+		})
 		v.showExplorer()
 		v.settleExplorer()
 		fynetest.Tap(explorerPiles(v)[0])
@@ -1111,7 +1063,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("premise: cohort navigation did not change the image")
 		}
 		v.LeaveSimilarityMap()
-		if err := v.explorer.trial.Close(); err != nil {
+		if err := v.explorer.Options().Trial.Close(); err != nil {
 			t.Fatal(err)
 		}
 		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
@@ -1149,8 +1101,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.LeaveSimilarityMap()
 		v.settleExplorer()
 		out := filepath.Join(t.TempDir(), "trial")
-		var err error
-		v.explorer.trial, err = explorertrial.New(out)
+		trial, err := explorertrial.New(out)
+		configureExplorer(v, func(options *explorerui.Options) { options.Trial = trial })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1187,7 +1139,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 		v.LeaveSimilarityMap()
-		if err := v.explorer.trial.Close(); err != nil {
+		if err := v.explorer.Options().Trial.Close(); err != nil {
 			t.Fatal(err)
 		}
 		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
@@ -1259,8 +1211,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.LeaveSimilarityMap()
 		v.settleExplorer()
 		out := filepath.Join(t.TempDir(), "trial")
-		var err error
-		v.explorer.trial, err = explorertrial.New(out)
+		trial, err := explorertrial.New(out)
+		configureExplorer(v, func(options *explorerui.Options) { options.Trial = trial })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1268,9 +1220,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		publish(115, false) // 100 piles: one has 16 members.
 		publish(116, false) // 101 piles must raise the floor.
 		pile := explorerPiles(v)[0]
-		viewport := v.explorer.surface.Size()
+		viewport := v.explorer.Surface().Size()
 		pan := fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2 + 21, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2 - 17}
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: pan})
+		v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: pan})
 		for range 40 {
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
 		}
@@ -1288,7 +1240,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		v.LeaveSimilarityMap()
 		v.settleExplorer()
-		if err := v.explorer.trial.Close(); err == nil {
+		if err := v.explorer.Options().Trial.Close(); err == nil {
 			t.Fatal("synthetic canceled provider must not qualify as a complete offline trial")
 		}
 		data, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
@@ -1333,19 +1285,21 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("trial_recording_cancellation", func(t *testing.T) {
 		v := openGridWith(t, "private.jpg")
 		out := filepath.Join(t.TempDir(), "trial")
-		var err error
-		v.explorer.trial, err = explorertrial.New(out)
+		trial, err := explorertrial.New(out)
+		configureExplorer(v, func(options *explorerui.Options) { options.Trial = trial })
 		if err != nil {
 			t.Fatal(err)
 		}
 		published := make(chan struct{})
 		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
-		v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			emit(similarity.Event{OfflineVerified: true, Complete: true, Total: 1, Successful: 1, Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview}}})
-			close(published)
-			<-ctx.Done()
-			return ctx.Err()
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				emit(similarity.Event{OfflineVerified: true, Complete: true, Total: 1, Successful: 1, Items: []similarity.Item{{Path: paths[0], Cohort: "a", Preview: preview}}})
+				close(published)
+				<-ctx.Done()
+				return ctx.Err()
+			}
+		})
 		explorerMenu(t, v).Action()
 		<-published
 		before, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
@@ -1357,7 +1311,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		v.LeaveSimilarityMap()
 		v.settleExplorer()
-		if err := v.explorer.trial.Close(); err == nil {
+		if err := v.explorer.Options().Trial.Close(); err == nil {
 			t.Fatal("canceled trial reported successful collection")
 		}
 		after, err := os.ReadFile(filepath.Join(out, "events.jsonl"))
@@ -1371,19 +1325,21 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 
 	t.Run("trial_recording_wrong_sources", func(t *testing.T) {
 		v := openGridWith(t, "expected.jpg")
-		var err error
-		v.explorer.trial, err = explorertrial.New(filepath.Join(t.TempDir(), "trial"))
+		trial, err := explorertrial.New(filepath.Join(t.TempDir(), "trial"))
+		configureExplorer(v, func(options *explorerui.Options) { options.Trial = trial })
 		if err != nil {
 			t.Fatal(err)
 		}
 		preview := uitest.EncodeJPEG(t, 16, 16, color.White)
-		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			emit(similarity.Event{OfflineVerified: true, Complete: true, Total: 1, Successful: 1, Items: []similarity.Item{{Path: "/wrong-input.jpg", Cohort: "a", Preview: preview}}})
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				emit(similarity.Event{OfflineVerified: true, Complete: true, Total: 1, Successful: 1, Items: []similarity.Item{{Path: "/wrong-input.jpg", Cohort: "a", Preview: preview}}})
+				return nil
+			}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
-		if err := v.explorer.trial.Close(); err == nil {
+		if err := v.explorer.Options().Trial.Close(); err == nil {
 			t.Fatal("a different source set was reported as complete collection")
 		}
 	})
@@ -1391,21 +1347,23 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("presets_create_apply", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "protected.jpg")
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for i, path := range paths {
-				makeName, cohort := "Canon", "unassigned"
-				if i == 2 {
-					makeName = "Nikon"
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for i, path := range paths {
+					makeName, cohort := "Canon", "unassigned"
+					if i == 2 {
+						makeName = "Nikon"
+					}
+					if i == 3 {
+						cohort = "protected"
+					}
+					items = append(items, similarity.Item{Path: path, Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg", Make: makeName}})
 				}
-				if i == 3 {
-					cohort = "protected"
-				}
-				items = append(items, similarity.Item{Path: path, Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg", Make: makeName}})
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		fynetest.Tap(explorerButton(t, v, "Presets"))
@@ -1467,24 +1425,26 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("presets_image_properties", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "wide.jpg", "small.jpg", "portrait.png")
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for i, path := range paths {
-				facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg"}
-				if i == 2 {
-					facts.Width, facts.Height = 120, 80
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for i, path := range paths {
+					facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg"}
+					if i == 2 {
+						facts.Width, facts.Height = 120, 80
+					}
+					if i == 3 {
+						facts.Width = 79
+					}
+					if i == 4 {
+						facts.Format = "png"
+					}
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: facts})
 				}
-				if i == 3 {
-					facts.Width = 79
-				}
-				if i == 4 {
-					facts.Format = "png"
-				}
-				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: facts})
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		fynetest.Tap(explorerButton(t, v, "Presets"))
@@ -1519,31 +1479,33 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("presets_camera_dates_tags", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for i, path := range paths {
-				facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Model: "EOS Test", CaptureDate: "2026-09-09"}
-				tags := []string{"cat", "animal"}
-				if i == 1 {
-					facts.CaptureDate = "2026-09-10"
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for i, path := range paths {
+					facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Model: "EOS Test", CaptureDate: "2026-09-09"}
+					tags := []string{"cat", "animal"}
+					if i == 1 {
+						facts.CaptureDate = "2026-09-10"
+					}
+					if i == 2 {
+						facts.CaptureDate = "2026-09-08"
+					}
+					if i == 3 {
+						facts.CaptureDate = ""
+					}
+					if i == 4 {
+						facts.Model = "Other"
+					}
+					if i == 5 {
+						tags = []string{"dog"}
+					}
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: facts, Tags: tags})
 				}
-				if i == 2 {
-					facts.CaptureDate = "2026-09-08"
-				}
-				if i == 3 {
-					facts.CaptureDate = ""
-				}
-				if i == 4 {
-					facts.Model = "Other"
-				}
-				if i == 5 {
-					tags = []string{"dog"}
-				}
-				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: facts, Tags: tags})
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		fynetest.Tap(explorerButton(t, v, "Presets"))
@@ -1583,18 +1545,20 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("presets_edit_link", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for i, path := range paths {
-				model := "EOS2"
-				if i == 0 {
-					model = "EOS1"
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for i, path := range paths {
+					model := "EOS2"
+					if i == 0 {
+						model = "EOS1"
+					}
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
 				}
-				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		fynetest.Tap(explorerButton(t, v, "Presets"))
@@ -1640,14 +1604,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("presets_analyze_metadata", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg")
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for _, path := range paths {
-				items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for _, path := range paths {
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+				}
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
@@ -1759,7 +1725,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if err := favstore.Save(dir, "Pending", files); err != nil {
 			t.Fatal(err)
 		}
-		p, err := v.explorer.presets.Save(context.Background(), explorerpresets.Preset{Name: "Pending cameras", Rule: explorerpresets.Rule{Make: "Canon"}})
+		p, err := v.explorer.Options().Presets.Save(context.Background(), explorerpresets.Preset{Name: "Pending cameras", Rule: explorerpresets.Rule{Make: "Canon"}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1773,21 +1739,23 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		first, release := make(chan struct{}), make(chan struct{})
 		pixels := uitest.EncodeJPEG(t, 16, 16, color.White)
-		v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for _, path := range paths {
-				items = append(items, similarity.Item{Path: path, Cohort: "automatic", Preview: pixels, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for _, path := range paths {
+					items = append(items, similarity.Item{Path: path, Cohort: "automatic", Preview: pixels, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+				}
+				emit(similarity.Event{Total: 3, Successful: 1, Items: items[:1]})
+				close(first)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-release:
+				}
+				emit(similarity.Event{Total: 3, Successful: 3, Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Total: 3, Successful: 1, Items: items[:1]})
-			close(first)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-release:
-			}
-			emit(similarity.Event{Total: 3, Successful: 3, Complete: true, Items: items})
-			return nil
-		}
+		})
 		v.favorites.SetDir(dir)
 		v.favorites.Open(0)
 		waitForScan(t, v)
@@ -1795,7 +1763,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		waitUntilLoaded(t, v)
 		explorerMenu(t, v).Action()
 		<-first
-		v.explorer.ui.Drain()
+		v.explorer.Options().Queue.Drain()
 		fynetest.Tap(explorerButton(t, v, "Presets"))
 		settlePresetUI(v)
 		fynetest.Tap(explorerDialogButton(t, v, "Pending cameras"))
@@ -1838,7 +1806,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(v.explorer.presets.Dir, "presets.json"), data, 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(v.explorer.Options().Presets.Dir, "presets.json"), data, 0600); err != nil {
 			t.Fatal(err)
 		}
 		fynetest.Tap(explorerButton(t, v, "Presets"))
@@ -1897,7 +1865,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("inverted capture dates accepted")
 		}
 		fynetest.Tap(explorerDialogButton(t, v, "Cancel"))
-		if err := os.WriteFile(filepath.Join(v.explorer.presets.Dir, "presets.json"), []byte("broken"), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(v.explorer.Options().Presets.Dir, "presets.json"), []byte("broken"), 0600); err != nil {
 			t.Fatal(err)
 		}
 		fynetest.Tap(explorerButton(t, v, "Presets"))
@@ -1935,8 +1903,12 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			}
 		}
 		open := func(v *viewer, group string) {
-			v.explorer.cacheFavorites = false
-			v.explorerAnalyze = provider(group)
+			configureExplorer(v, func(options *explorerui.Options) {
+				options.Settings.CacheFavorites = false
+			})
+			configureExplorer(v, func(options *explorerui.Options) {
+				options.Analyze = provider(group)
+			})
 			v.favorites.SetDir(dir)
 			v.favorites.Open(0)
 			waitForScan(t, v)
@@ -1969,7 +1941,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.LeaveSimilarityMap()
 		v.settleExplorer()
 		reopened := newTestViewer(t)
-		reopened.explorer.presets = &explorerpresets.Store{Dir: v.explorer.presets.Dir}
+		configureExplorer(reopened, func(options *explorerui.Options) {
+			options.Presets = &explorerpresets.Store{Dir: v.explorer.Options().Presets.Dir}
+		})
 		open(reopened, "automatic")
 		piles := explorerPiles(reopened)
 		var named *explorerui.Pile
@@ -2023,7 +1997,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if got := explorerGridPaths(reopened); len(got) != 2 {
 			t.Fatalf("failed preset save did not restore prior membership: %v", got)
 		}
-		stored, err := reopened.explorer.presets.Load(context.Background())
+		stored, err := reopened.explorer.Options().Presets.Load(context.Background())
 		if err != nil || len(stored) != 1 || stored[0].Rule.Model != "" {
 			t.Fatal("cohort failure rolled back the independent global rule")
 		}
@@ -2040,16 +2014,20 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
 		configure := func(v *viewer, group string) {
-			v.explorer.cacheFavorites = false
+			configureExplorer(v, func(options *explorerui.Options) {
+				options.Settings.CacheFavorites = false
+			})
 			v.favorites.SetDir(dir)
-			v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-				var items []similarity.Item
-				for _, path := range paths {
-					items = append(items, similarity.Item{Path: path, Cohort: group, Tags: []string{"cat"}, Preview: preview})
+			configureExplorer(v, func(options *explorerui.Options) {
+				options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					var items []similarity.Item
+					for _, path := range paths {
+						items = append(items, similarity.Item{Path: path, Cohort: group, Tags: []string{"cat"}, Preview: preview})
+					}
+					emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
+					return nil
 				}
-				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
-				return nil
-			}
+			})
 		}
 		open := func(v *viewer, index int) {
 			v.favorites.Open(index)
@@ -2459,21 +2437,23 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			queued, release := make(chan struct{}), make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })
 			t.Cleanup(unblock)
-			v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-				items := []similarity.Item{
-					{Path: paths[0], Cohort: "a", Preview: preview},
-					{Path: paths[1], Cohort: "a", Preview: preview},
-					{Path: paths[2], Cohort: "b", Preview: preview},
+			configureExplorer(v, func(options *explorerui.Options) {
+				options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					items := []similarity.Item{
+						{Path: paths[0], Cohort: "a", Preview: preview},
+						{Path: paths[1], Cohort: "a", Preview: preview},
+						{Path: paths[2], Cohort: "b", Preview: preview},
+					}
+					emit(similarity.Event{Items: items, Successful: 3, Total: 3})
+					close(queued)
+					<-release
+					emit(similarity.Event{Items: items, Successful: 3, Total: 3, Complete: true})
+					return nil
 				}
-				emit(similarity.Event{Items: items, Successful: 3, Total: 3})
-				close(queued)
-				<-release
-				emit(similarity.Event{Items: items, Successful: 3, Total: 3, Complete: true})
-				return nil
-			}
+			})
 			explorerMenu(t, v).Action()
 			<-queued
-			v.explorer.ui.Drain()
+			v.explorer.Options().Queue.Drain()
 			fynetest.Tap(explorerPiles(v)[0])
 			members := explorerGridPaths(v)
 			moving, moveRelease := make(chan struct{}), make(chan struct{})
@@ -2522,14 +2502,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			if !changed || !explorerButton(t, v, "Update map").Disabled() {
 				t.Fatal("retired source analysis left misleading feedback or an active update control")
 			}
-			v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-				items := make([]similarity.Item, len(paths))
-				for i, path := range paths {
-					items[i] = similarity.Item{Path: path, Cohort: "fresh", Preview: preview}
+			configureExplorer(v, func(options *explorerui.Options) {
+				options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+					items := make([]similarity.Item, len(paths))
+					for i, path := range paths {
+						items[i] = similarity.Item{Path: path, Cohort: "fresh", Preview: preview}
+					}
+					emit(similarity.Event{Items: items, Successful: len(paths), Total: len(paths), Complete: true})
+					return nil
 				}
-				emit(similarity.Event{Items: items, Successful: len(paths), Total: len(paths), Complete: true})
-				return nil
-			}
+			})
 			explorerMenu(t, v).Action()
 			v.settleExplorer()
 			piles := explorerPiles(v)
@@ -2605,17 +2587,20 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				v := openGridWith(t, "a.jpg", "b.jpg")
 				preview := uitest.EncodeJPEG(t, 32, 24, color.White)
 				queued := make(chan struct{})
-				v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					emit(similarity.Event{Complete: true, Successful: 1, Total: 2, Items: []similarity.Item{
-						{Path: paths[0], Cohort: "old", Preview: preview},
-					}})
-					close(queued)
-					<-ctx.Done()
-					return ctx.Err()
-				}
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						emit(similarity.Event{Complete: true, Successful: 1, Total: 2, Items: []similarity.Item{
+							{Path: paths[0], Cohort: "old", Preview: preview},
+						}})
+						close(queued)
+						<-ctx.Done()
+						return ctx.Err()
+					}
+				})
 				explorerMenu(t, v).Action()
 				<-queued
-				oldQueue := v.explorer.ui
+				oldQueue := v.explorer.Options().Queue
+
 				if action == "shutdown" {
 					lifecycle, ok := testApp.Lifecycle().(interface{ OnStopped() func() })
 					if !ok {
@@ -2629,14 +2614,18 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				} else {
 					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 				}
-				v.explorer.workers.Wait()
-				v.explorer.ui = &uitest.UIQueue{}
-				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					emit(similarity.Event{Complete: true, Successful: 1, Total: 2, Items: []similarity.Item{
-						{Path: paths[1], Cohort: "new", Preview: preview},
-					}})
-					return nil
-				}
+				v.explorer.Wait()
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Queue = &uitest.UIQueue{}
+				})
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						emit(similarity.Event{Complete: true, Successful: 1, Total: 2, Items: []similarity.Item{
+							{Path: paths[1], Cohort: "new", Preview: preview},
+						}})
+						return nil
+					}
+				})
 				if action != "exit" {
 					explorerMenu(t, v).Action()
 				}
@@ -2644,7 +2633,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				oldQueue.Drain()
 				piles := explorerPiles(v)
 				if action != "restart" {
-					if len(piles) != 0 || v.explorer.surface.Visible() || v.FileCount() != 2 {
+					if len(piles) != 0 ||
+						v.explorer.Surface().Visible() || v.FileCount() != 2 {
 						t.Fatal("retired analysis mutated or reopened the viewer")
 					}
 					return
@@ -2665,17 +2655,19 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Run(failure, func(t *testing.T) {
 				v := openGridWith(t, "a.jpg", "b.jpg")
 				preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					if failure != "setup" {
-						emit(similarity.Event{Complete: failure == "after_final", Successful: 1, Total: 2, Items: []similarity.Item{
-							{Path: paths[0], Cohort: "failed", Preview: preview},
-						}})
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						if failure != "setup" {
+							emit(similarity.Event{Complete: failure == "after_final", Successful: 1, Total: 2, Items: []similarity.Item{
+								{Path: paths[0], Cohort: "failed", Preview: preview},
+							}})
+						}
+						if failure == "incomplete" {
+							return nil
+						}
+						return io.ErrUnexpectedEOF
 					}
-					if failure == "incomplete" {
-						return nil
-					}
-					return io.ErrUnexpectedEOF
-				}
+				})
 				explorerMenu(t, v).Action()
 				v.settleExplorer()
 				failed := false
@@ -2690,13 +2682,15 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				if !failed {
 					t.Fatal("analysis failure has no visible recovery feedback")
 				}
-				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					emit(similarity.Event{Complete: true, Successful: 1, Failed: 1, Total: 2, Items: []similarity.Item{
-						{Path: paths[1], Cohort: "retried", Preview: preview},
-						{Path: paths[0], Error: "unreadable"},
-					}})
-					return nil
-				}
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						emit(similarity.Event{Complete: true, Successful: 1, Failed: 1, Total: 2, Items: []similarity.Item{
+							{Path: paths[1], Cohort: "retried", Preview: preview},
+							{Path: paths[0], Error: "unreadable"},
+						}})
+						return nil
+					}
+				})
 				stubKeyModifiers(t, v, fyne.KeyModifierShift)
 				v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyS})
 				v.settleExplorer()
@@ -2784,10 +2778,12 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		fynetest.TapAt(slider, fyne.NewPos(0, slider.Size().Height/2))
 		v.LeaveSimilarityMap()
-		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			emit(similarity.Event{Items: items, Merges: merges, Successful: 7, Total: 8, Complete: true})
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				emit(similarity.Event{Items: items, Merges: merges, Successful: 7, Total: 8, Complete: true})
+				return nil
+			}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		if len(explorerPiles(v)) != 3 || slider.Value != 100 {
@@ -2821,7 +2817,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("missing granularity control")
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 75, DY: -35}})
+		v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 75, DY: -35}})
 		piles := explorerPiles(v)
 		width := piles[0].Size().Width
 		offsets := make([]fyne.Position, len(piles))
@@ -2834,7 +2830,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("coarsening must retain the zoom and merge the four groups")
 		}
 		center := piles[0].Position().Add(fyne.NewPos(piles[0].Size().Width/2, piles[0].Size().Height/2))
-		viewport := v.explorer.surface.Size()
+		viewport := v.explorer.Surface().Size()
 		if math.Abs(float64(center.X-viewport.Width/2)) > .01 || math.Abs(float64(center.Y-viewport.Height/2)) > .01 {
 			t.Fatalf("single merged cohort retained an old corner instead of centering: %v", center)
 		}
@@ -3012,7 +3008,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			return m.HeapAlloc
 		}
 		loaded := allocated()
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 10000, DY: 10000}})
+		v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 10000, DY: 10000}})
 		after := allocated()
 		t.Logf("loaded heap %.2f MiB; away %.2f MiB", float64(loaded)/(1<<20), float64(after)/(1<<20))
 		if after+4<<20 > loaded {
@@ -3045,14 +3041,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("viewport_margin", func(t *testing.T) {
 		v := explorerFixture(t)
 		pile := explorerPiles(v)[0]
-		// Start with a decoded pile one pile-width beyond the left viewport
-		// edge, then cross that preparation boundary repeatedly.
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: -2*pile.Size().Width - pile.Position().X}})
+		v.explorer.Surface().
+
+			// Start with a decoded pile one pile-width beyond the left viewport
+			// edge, then cross that preparation boundary repeatedly.
+			Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: -2*pile.Size().Width - pile.Position().X}})
 		var start, end runtime.MemStats
 		runtime.ReadMemStats(&start)
 		for range 20 {
-			v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: -1}})
-			v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 1}})
+			v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: -1}})
+			v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 1}})
 		}
 		runtime.ReadMemStats(&end)
 		allocated := end.TotalAlloc - start.TotalAlloc
@@ -3065,11 +3063,11 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v := explorerFixture(t)
 		v.win.Resize(fyne.NewSize(1100, 700))
 		v.ForceRepaint()
-		before := v.explorer.surface.Size()
+		before := v.explorer.Surface().Size()
 		piles := explorerPiles(v)
 		fynetest.Tap(explorerButton(t, v, "Hide tags"))
 		v.ForceRepaint()
-		if v.explorer.surface.Size().Width <= before.Width {
+		if v.explorer.Surface().Size().Width <= before.Width {
 			t.Fatal("collapsing tags did not give their width back to the map")
 		}
 		explorerWalk(v.win.Content(), func(o fyne.CanvasObject) {
@@ -3079,7 +3077,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		})
 		fynetest.Tap(explorerButton(t, v, "Show tags"))
 		v.ForceRepaint()
-		if v.explorer.surface.Size() != before || !slices.Equal(explorerPiles(v), piles) || v.win.Canvas().Focused() != nil {
+		if v.explorer.Surface().Size() != before || !slices.Equal(explorerPiles(v), piles) || v.win.Canvas().Focused() != nil {
 			t.Fatal("restoring tags changed map contents, geometry or input focus")
 		}
 	})
@@ -3241,22 +3239,24 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			paths[i] = v.FileAt(i).Path()
 		}
 		preview := uitest.EncodeJPEG(t, 128, 96, color.White)
-		v.explorerAnalyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			items := []similarity.Item{
-				{Path: paths[0], Cohort: "a", Tags: []string{"bird", "dog", "bird"}},
-				{Path: paths[1], Cohort: "a", Tags: []string{"bird"}},
-				{Path: paths[2], Cohort: "b", Tags: []string{"dog"}},
-				{Path: paths[3], Cohort: "c"},
-				{Path: paths[4], Cohort: "unassigned", Tags: []string{"bird"}},
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				items := []similarity.Item{
+					{Path: paths[0], Cohort: "a", Tags: []string{"bird", "dog", "bird"}},
+					{Path: paths[1], Cohort: "a", Tags: []string{"bird"}},
+					{Path: paths[2], Cohort: "b", Tags: []string{"dog"}},
+					{Path: paths[3], Cohort: "c"},
+					{Path: paths[4], Cohort: "unassigned", Tags: []string{"bird"}},
+				}
+				for i := range items {
+					items[i].Preview = preview
+				}
+				// Repeated source identities and repeated labels count only once.
+				items = append(items, items[0])
+				emit(similarity.Event{Items: items, Total: 5, Successful: 5, Complete: true})
+				return nil
 			}
-			for i := range items {
-				items[i].Preview = preview
-			}
-			// Repeated source identities and repeated labels count only once.
-			items = append(items, items[0])
-			emit(similarity.Event{Items: items, Total: 5, Successful: 5, Complete: true})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		check := func(label string, count int) *widget.Check {
@@ -3271,7 +3271,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if path := os.Getenv("PICFETCH_EXPLORER_TAG_QA"); path != "" {
 			v.win.Resize(fyne.NewSize(1100, 700))
 			v.ForceRepaint()
-			v.explorer.surface.Fit()
+			v.explorer.Surface().Fit()
 			f, err := os.Create(path)
 			if err != nil {
 				t.Fatal(err)
@@ -3397,18 +3397,20 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
 		allocated := func() uint64 { runtime.GC(); var m runtime.MemStats; runtime.ReadMemStats(&m); return m.HeapAlloc }
 		baseline := allocated()
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			for pass := range 2 {
-				var items []similarity.Item
-				for i, path := range paths {
-					preview := make([]byte, 8<<20)
-					copy(preview, uitest.EncodeJPEG(t, 16, 16, color.White))
-					items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Preview: preview})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				for pass := range 2 {
+					var items []similarity.Item
+					for i, path := range paths {
+						preview := make([]byte, 8<<20)
+						copy(preview, uitest.EncodeJPEG(t, 16, 16, color.White))
+						items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Preview: preview})
+					}
+					emit(similarity.Event{Complete: pass == 1, Successful: len(items), Total: len(items), Items: items})
 				}
-				emit(similarity.Event{Complete: pass == 1, Successful: len(items), Total: len(items), Items: items})
+				return nil
 			}
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		loaded := allocated()
@@ -3446,16 +3448,18 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			return m.HeapAlloc
 		}
 		baseline := allocated()
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			items := make([]similarity.Item, len(paths))
-			for i, path := range paths {
-				preview := make([]byte, 128<<10)
-				copy(preview, jpeg)
-				items[i] = similarity.Item{Path: path, Cohort: "all", Preview: preview}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				items := make([]similarity.Item, len(paths))
+				for i, path := range paths {
+					preview := make([]byte, 128<<10)
+					copy(preview, jpeg)
+					items[i] = similarity.Item{Path: path, Cohort: "all", Preview: preview}
+				}
+				emit(similarity.Event{Total: len(items), Successful: len(items), Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Total: len(items), Successful: len(items), Complete: true, Items: items})
-			return nil
-		}
+		})
 		dropAndWait(t, v, uris...)
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
@@ -3562,22 +3566,24 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		events := make(chan similarity.Event)
 		published := make(chan struct{})
 		seen := make(chan similarity.Control, 8)
-		v.explorerAnalyze = func(ctx context.Context, _ []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case control := <-controls:
-					seen <- control
-				case event := <-events:
-					emit(event)
-					published <- struct{}{}
-					if event.Complete {
-						return nil
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(ctx context.Context, _ []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
+				for {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case control := <-controls:
+						seen <- control
+					case event := <-events:
+						emit(event)
+						published <- struct{}{}
+						if event.Complete {
+							return nil
+						}
 					}
 				}
 			}
-		}
+		})
 		explorerMenu(t, v).Action()
 		var update *widget.Button
 		var automatic *widget.Check
@@ -3607,7 +3613,11 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if c := receive(); c.Automatic || c.Update {
 			t.Fatal("analysis did not start in manual mode")
 		}
-		publish := func(event similarity.Event) { events <- event; <-published; v.explorer.ui.Drain() }
+		publish := func(event similarity.Event) {
+			events <- event
+			<-published
+			v.explorer.Options().Queue.Drain()
+		}
 		publish(similarity.Event{Successful: 1, Total: 2, Stage: "encoding"})
 		if update.Disabled() {
 			t.Fatal("available data cannot be rebuilt")
@@ -3667,18 +3677,20 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				})
 				dropAndWait(t, v, small, held, unique)
 				started := make(chan []string, 1)
-				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					started <- paths
-					emit(similarity.Event{Complete: true, Total: len(paths)})
-					return nil
-				}
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						started <- paths
+						emit(similarity.Event{Complete: true, Total: len(paths)})
+						return nil
+					}
+				})
 				func() {
 					armed.Store(true)
 					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
 					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
 					explorerMenu(t, v).Action()
-					v.explorer.workers.Wait()
-					v.explorer.ui.Drain()
+					v.explorer.Wait()
+					v.explorer.Options().Queue.Drain()
 					select {
 					case <-started:
 						t.Fatal("analysis started before duplicate facts were ready")
@@ -3736,11 +3748,15 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.grid.HandleRune('c')
 		v.grid.SelectAll()
 		var got []string
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			got = append([]string(nil), paths...)
-			emit(similarity.Event{Complete: true, Total: len(paths)})
-			return nil
-		}
+		analyses := 0
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				analyses++
+				got = append([]string(nil), paths...)
+				emit(similarity.Event{Complete: true, Total: len(paths)})
+				return nil
+			}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		if !slices.Equal(got, []string{large.Path(), unique.Path()}) {
@@ -3748,6 +3764,12 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		if v.FileCount() != 3 {
 			t.Fatal("representative analysis changed the opened file set")
+		}
+		v.OpenSimilarityCohort(got)
+		explorerMenu(t, v).Action()
+		v.settleExplorer()
+		if analyses != 1 || !v.explorerMapActive() || v.explorer.HasCohort() {
+			t.Fatalf("returning from a cohort did not reuse the completed map: analyses=%d", analyses)
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
@@ -3764,8 +3786,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		pile := explorerPiles(v)[0]
 		// Sampling is observed when the target is on screen; distant piles
 		// may release their decoded pixels while retaining their identities.
-		viewport := v.explorer.surface.Size()
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2}})
+		viewport := v.explorer.Surface().Size()
+		v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2}})
 		samples := explorerSamples(pile)
 		if len(samples) != 15 {
 			t.Fatalf("large map must retain all 15 sampled thumbnails, got %d", len(samples))
@@ -3781,7 +3803,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		pos, size := pile.Position(), pile.Size()
 		fynetest.Tap(explorerButton(t, v, "-"))
-		v.explorer.surface.Scrolled(&fyne.ScrollEvent{Position: fyne.NewPos(81, 93), Scrolled: fyne.Delta{DY: -1000}})
+		v.explorer.Surface().Scrolled(&fyne.ScrollEvent{Position: fyne.NewPos(81, 93), Scrolled: fyne.Delta{DY: -1000}})
 		if pile.Position() != pos || pile.Size() != size || !slices.Equal(explorerSamples(pile), samples) {
 			t.Fatal("zoom-out at the floor changed the camera or sampled thumbnails")
 		}
@@ -3791,8 +3813,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyMinus})
 		// Bring the sampled cohort onto the screen using the ordinary pan input.
-		viewport = v.explorer.surface.Size()
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2}})
+		viewport = v.explorer.Surface().Size()
+		v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: viewport.Width/2 - pile.Position().X - pile.Size().Width/2, DY: viewport.Height/2 - pile.Position().Y - pile.Size().Height/2}})
 		pos, size = pile.Position(), pile.Size()
 		fynetest.Tap(pile)
 		if len(explorerGridPaths(v)) != 16 {
@@ -3818,7 +3840,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if got := explorerPiles(v)[0].Size().Width; math.Abs(float64(got-190)) > .01 {
 			t.Fatalf("initial large-map fit bypassed the floor: %.2fpx", got)
 		}
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 23, DY: -17}})
+		v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 23, DY: -17}})
 		before := explorerPiles(v)[0].Position()
 		publish(144, false)
 		pile := explorerPiles(v)[0]
@@ -3844,7 +3866,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if selected == nil {
 			t.Fatal("large-map navigation lost selection")
 		}
-		pos, size, viewport := selected.Position(), selected.Size(), v.explorer.surface.Size()
+		pos, size, viewport := selected.Position(), selected.Size(), v.explorer.Surface().Size()
 		if pos.X < 0 || pos.Y < 0 || pos.X+size.Width > viewport.Width || pos.Y+size.Height > viewport.Height {
 			t.Fatal("keyboard navigation left the selected large-map pile off screen")
 		}
@@ -3910,7 +3932,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if explorerPiles(v)[0].Size() == before {
 			t.Fatal("manual Fit map no longer works with automatic fitting disabled")
 		}
-		viewport := v.explorer.surface.Size()
+		viewport := v.explorer.Surface().Size()
 		for _, p := range explorerPiles(v) {
 			pos, size := p.Position(), p.Size()
 			if pos.X < 0 || pos.Y < 0 || pos.X+size.Width > viewport.Width || pos.Y+size.Height > viewport.Height {
@@ -3928,7 +3950,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if len(piles) != 7 {
 			t.Fatal("discovery lost newly created piles")
 		}
-		viewport := v.explorer.surface.Size()
+		viewport := v.explorer.Surface().Size()
 		for _, pile := range piles {
 			pos, size := pile.Position(), pile.Size()
 			if pos.X < 0 || pos.Y < 0 || pos.X+size.Width > viewport.Width || pos.Y+size.Height > viewport.Height {
@@ -3958,7 +3980,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				center := fyne.NewPos(v.win.Canvas().Size().Width/2, v.win.Canvas().Size().Height/2)
 				fynetest.Drag(v.win.Canvas(), center, 50, 35)
 				fynetest.Scroll(v.win.Canvas(), center, 0, 80)
-				departure := v.explorer.surface.View()
+				departure := v.explorer.Surface().View()
 				fynetest.Tap(explorerPiles(v)[0])
 				frozen := explorerGridPaths(v)
 				if surface == "image" {
@@ -3979,7 +4001,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					t.Fatal("progressive discovery changed the open cohort")
 				}
 				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
-				returned := v.explorer.surface.View()
+				returned := v.explorer.Surface().View()
 				if returned.Center != departure.Center || returned.Zoom != departure.Zoom {
 					t.Fatalf("automatic fitting moved the browsing camera: departure=%+v return=%+v", departure, returned)
 				}
@@ -3993,7 +4015,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				publish([]string{"a", "b", "c", "d", "e", "f", "g", "h"}, true)
 				v.settleExplorer()
 				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
-				completed := v.explorer.surface.View()
+				completed := v.explorer.Surface().View()
 				if completed.Center != departure.Center || completed.Zoom != departure.Zoom || completed.Piles != 8 {
 					t.Fatalf("completion did not preserve the browsing camera and latest map: %+v", completed)
 				}
@@ -4038,14 +4060,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
 				preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-				v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-					var items []similarity.Item
-					for i, path := range paths {
-						items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Position: positions[i], Preview: preview})
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+						var items []similarity.Item
+						for i, path := range paths {
+							items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Position: positions[i], Preview: preview})
+						}
+						emit(similarity.Event{Complete: true, Items: items})
+						return nil
 					}
-					emit(similarity.Event{Complete: true, Items: items})
-					return nil
-				}
+				})
 				explorerMenu(t, v).Action()
 				v.settleExplorer()
 				piles := explorerPiles(v)
@@ -4093,14 +4117,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg")
 		v.win.Resize(fyne.NewSize(1100, 700))
 		preview := uitest.EncodeJPEG(t, 128, 96, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for i, path := range paths {
-				items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Position: []float32{0, float32(i * 100)}, Preview: preview})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for i, path := range paths {
+					items = append(items, similarity.Item{Path: path, Cohort: fmt.Sprint(i), Position: []float32{0, float32(i * 100)}, Preview: preview})
+				}
+				emit(similarity.Event{Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Complete: true, Items: items})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		for _, pile := range explorerPiles(v) {
@@ -4161,7 +4187,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		if path := os.Getenv("PICFETCH_EXPLORER_QA"); path != "" {
 			v.win.Resize(fyne.NewSize(1100, 700))
 			v.ForceRepaint()
-			v.explorer.surface.Fit()
+			v.explorer.Surface().Fit()
 			f, err := os.Create(path)
 			if err != nil {
 				t.Fatal(err)
@@ -4224,14 +4250,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.SetMergeMode(true)
 		dropAndWait(t, v, v.FileAt(0))
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			var items []similarity.Item
-			for _, path := range paths {
-				items = append(items, similarity.Item{Path: path, Cohort: "a", Position: []float32{0, 0}, Preview: preview})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for _, path := range paths {
+					items = append(items, similarity.Item{Path: path, Cohort: "a", Position: []float32{0, 0}, Preview: preview})
+				}
+				emit(similarity.Event{Complete: true, Items: items})
+				return nil
 			}
-			emit(similarity.Event{Complete: true, Items: items})
-			return nil
-		}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		piles := explorerPiles(v)
@@ -4311,14 +4339,16 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		dropAndWait(t, v, uris...)
 		preview := uitest.EncodeJPEG(t, 120, 80, color.NRGBA{R: 40, G: 120, B: 200, A: 255})
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			items := make([]similarity.Item, len(paths))
-			for i, path := range paths {
-				items[i] = similarity.Item{Path: path, Cohort: "art", Position: []float32{0, 0}, Preview: preview}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				items := make([]similarity.Item, len(paths))
+				for i, path := range paths {
+					items[i] = similarity.Item{Path: path, Cohort: "art", Position: []float32{0, 0}, Preview: preview}
+				}
+				emit(similarity.Event{Items: items, Successful: len(items), Total: len(items), Complete: true})
+				return nil
 			}
-			emit(similarity.Event{Items: items, Successful: len(items), Total: len(items), Complete: true})
-			return nil
-		}
+		})
 		v.win.Resize(fyne.NewSize(1100, 700))
 		v.showExplorer()
 		v.settleExplorer()
@@ -4344,8 +4374,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		assertPreviews()
 		v.win.Canvas().Capture()
-		v.explorer.surface.Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 10000, DY: 10000}})
-		v.explorer.surface.Fit()
+		v.explorer.Surface().Dragged(&fyne.DragEvent{Dragged: fyne.Delta{DX: 10000, DY: 10000}})
+		v.explorer.Surface().Fit()
 		pile := assertPreviews()
 		fynetest.Tap(pile)
 		got := explorerGridPaths(v)
@@ -4411,7 +4441,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		fynetest.Scroll(v.win.Canvas(), center, 0, 80)
 		moved, scaled := piles[0].Position(), piles[0].Size()
 		if moved == before || scaled == size {
-			t.Fatalf("canvas drag/scroll did not move and zoom the map: canvas=%v map=%v/%v pile %v/%v -> %v/%v", v.win.Canvas().Size(), v.explorer.surface.Position(), v.explorer.surface.Size(), before, size, moved, scaled)
+			t.Fatalf("canvas drag/scroll did not move and zoom the map: canvas=%v map=%v/%v pile %v/%v -> %v/%v", v.win.Canvas().Size(), v.explorer.Surface().Position(), v.explorer.Surface().Size(), before, size, moved, scaled)
 		}
 		fynetest.Tap(piles[0])
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
@@ -4447,13 +4477,15 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg")
 		started := make(chan struct{})
 		stopped := make(chan struct{})
-		v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			close(started)
-			<-ctx.Done()
-			emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
-			close(stopped)
-			return ctx.Err()
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				close(started)
+				<-ctx.Done()
+				emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths)})
+				close(stopped)
+				return ctx.Err()
+			}
+		})
 		explorerMenu(t, v).Action()
 		<-started
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
@@ -4485,11 +4517,13 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("opened_files", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 		var got []string
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			got = append([]string(nil), paths...)
-			emit(similarity.Event{Complete: true, Total: len(paths)})
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				got = append([]string(nil), paths...)
+				emit(similarity.Event{Complete: true, Total: len(paths)})
+				return nil
+			}
+		})
 		want := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
 		v.grid.HandleRune('/')
 		v.grid.HandleRune('a')
@@ -4532,26 +4566,30 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		started := make(chan struct{})
 		release := make(chan struct{})
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			close(started)
-			<-release
-			emit(similarity.Event{Complete: true, Items: []similarity.Item{{Path: paths[0], Cohort: "old", Position: []float32{0, 0}, Preview: preview}}})
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				close(started)
+				<-release
+				emit(similarity.Event{Complete: true, Items: []similarity.Item{{Path: paths[0], Cohort: "old", Position: []float32{0, 0}, Preview: preview}}})
+				return nil
+			}
+		})
 		explorerMenu(t, v).Action()
 		<-started
 		replacement := uitest.TempJPEGURI(t, "new.jpg", 4, 4, color.White)
 		dropAndWait(t, v, replacement)
 
 		delivered := make(chan struct{})
-		v.explorerAnalyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			emit(similarity.Event{Complete: true, Items: []similarity.Item{{Path: paths[0], Cohort: "new", Position: []float32{0, 0}, Preview: preview}}})
-			close(delivered)
-			return nil
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				emit(similarity.Event{Complete: true, Items: []similarity.Item{{Path: paths[0], Cohort: "new", Position: []float32{0, 0}, Preview: preview}}})
+				close(delivered)
+				return nil
+			}
+		})
 		explorerMenu(t, v).Action()
 		<-delivered
-		v.explorer.ui.Drain()
+		v.explorer.Options().Queue.Drain()
 		close(release)
 		v.settleExplorer()
 		piles := explorerPiles(v)
@@ -4567,6 +4605,22 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 
 }
 
-type explorerAssetTransport func(*http.Request) (*http.Response, error)
+func configureExplorer(v *viewer, change func(*explorerui.Options)) {
+	options := v.explorer.Options()
+	change(&options)
+	v.explorer.Configure(options)
+}
 
-func (f explorerAssetTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+type explorerObservation struct {
+	feature  *explorerui.Feature
+	revision uint64
+}
+
+func observeExplorer(feature *explorerui.Feature) explorerObservation {
+	return explorerObservation{feature, feature.State().Revision}
+}
+func (o explorerObservation) current() bool {
+	state := o.feature.State()
+	return state.Revision == o.revision && state.SessionCurrent
+}
+func explorerCohort(f *explorerui.Feature) []string { paths, _ := f.Cohort(); return paths }

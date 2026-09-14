@@ -51,7 +51,7 @@ func (s dupeFileSet) Snapshot() dupes.Snapshot { return s.v.state.snapshot() }
 // sit on an extra - the file committed out of the variants grid - so it
 // is left alone.
 func (v *viewer) jumpIfHiddenExtra() {
-	if v.dupes.Inspecting() || len(v.explorer.cohort) > 0 {
+	if v.dupes.Inspecting() || v.explorer.HasCohort() {
 		return
 	}
 	vis := v.dupes.Visibility()

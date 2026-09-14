@@ -9,42 +9,6 @@
 #### Bugfix
 
 #### Internal
-
-## TODO
-
-### Find more like this
-
-Use one displayed or Grid-selected image as a reference to explore up to 30
-ranked matches from the loaded collection. Reuse the existing local image model,
-let a result become the next reference, and retain a short Back history. Keep
-normal viewing/comparison actions and allow the selected matches or complete
-result to be saved as a Favorite.
-
-Start with a ranking-quality experiment, then implement a worker-owned search
-session, ranked Grid visits, and an isolated UI feature. The Explorer extraction
-([MA-026](needs_refactoring.md#ma-026)) precedes shared setup and UI integration.
-Positive/negative examples are a separately deferred extension.
-
-The [feature plan](docs/find-more-like-this/plan.md) defines scope, decisions,
-interfaces, and acceptance criteria. The [ticket index](docs/find-more-like-this/tickets/README.md)
-contains eight ordered MVP tickets and one deferred extension ticket. This is
-planned work; implementation and ranking-quality validation have not started.
-
-### Finish Windows Spiral verification
-
-The Intel shader compatibility fix is in PR #23. The corrected Windows executable
-is at `.scratch/spiral-windows-20260913/windows-build/picfetch-fixed.exe`; its
-native `--help` smoke passes. Confirm its Spiral window before releasing it.
-NVIDIA rendering remains untested.
-Docker now runs and its build checks plus the complete Spiral race package pass.
-PR #23 CI passes the full repository race gate on `3011ea5`. The local Docker
-gate still needs at least 16 GiB of VM memory; this daemon exposes 15.45 GiB.
-The Windows host also has a Git Bash fork failure.
-The native Spiral suite reproduces an existing FPS
-allocation-test failure on unchanged v1.1.1 (16 allocations versus 9, alongside
-German translation-fallback logs); investigate the fixture's locale setup.
-See [the evidence](docs/spiral-windows-2026-09-13.md).
-
 ### Comparison test deadline under build contention
 
 Completed on September 12: the regression now uses smaller synthetic frames,
@@ -80,6 +44,58 @@ targets pass. The audit preserves inferred MPL matcher attribution for
 exact CPython version, so the retained Python license is explicitly an ancestry
 reference. See the [evidence and limits](plans/2026-09-13-updater-notices.md).
 
+## TODO
+
+### Mascot-circle hint for the Hypno Spiral
+
+Design accepted September 14: ten consistent-direction mouse circles around
+welcome-screen Trane's head within twenty seconds open or raise Finis. Any Finis
+accepts a fresh ten-circle/twenty-second attempt anywhere within his window to
+reveal a lasting speech bubble. Clicking it opens an empty manual search; the
+secret phrase stays English and its parenthetical hint is translated.
+Implementation remains open in the
+[accepted specification](.scratch/spiral-mascot-hint/spec.md).
+
+### Find more like this
+
+Use one displayed or Grid-selected image as a reference to explore up to 30
+ranked matches from the loaded collection. Reuse the existing local image model,
+let a result become the next reference, and retain a short Back history. Keep
+normal viewing/comparison actions and allow the selected matches or complete
+result to be saved as a Favorite.
+
+September 14 defaults accepted: each filtered result drives browsing/actions,
+every reference searches the original collection, and Back/Esc restores earlier
+visits and finally the original list. Interactive results refresh every 100
+distinct processed images, including cache hits/failures, with a top progress bar.
+Reuse warm Favorite analysis and add persistent per-file analysis for loose
+lists. A new Settings Cache tab will show general/Favorite analysis usage in MB,
+offer full or stale-only analysis cleanup, and configure the general-cache limit,
+initially 2 GB. Accepted cache defaults use hashed-path/source-version keys and
+retain records for temporarily unavailable sources during stale cleanup.
+
+Start with a ranking-quality experiment, then implement a worker-owned search
+session, ranked Grid visits, and an isolated UI feature. The Explorer extraction
+([MA-026](needs_refactoring.md#ma-026)) precedes shared setup and UI integration.
+Positive/negative examples are a separately deferred extension.
+
+The [specification](docs/find-more-like-this/spec.md) is `ready-for-agent` and
+defines accepted behavior and acceptance criteria. The
+[feature plan](docs/find-more-like-this/plan.md) holds the execution map.
+The [ticket index](docs/find-more-like-this/tickets/README.md) proposes twelve
+vertical MVP slices and one deferred extension, with stable FML IDs and
+[executable gates](docs/find-more-like-this/ticket-execution.md). The breakdown
+and test seams are approved for implementation. FML-001's
+[local evaluation](docs/find-more-like-this/evaluation.md) represented all 446
+demo images and proved warm Favorite reuse with zero inference. The interactive
+report awaits 20 content judgments and a proceed/revise verdict; ranking-quality
+validation and search UI delivery remain open. MA-026 is complete; its
+[archived plan](finished_refactorings/2026-09-14-explorer-feature.md) records
+passing full native CI. See the
+[implementation evidence](docs/find-more-like-this/implementation.md).
+
+## LATER
+
 ### Fyne upgrade deferred
 
 Keep Fyne at v2.8.0 in [PR #19](https://github.com/frathe/picfetch/pull/19).
@@ -98,14 +114,11 @@ metadata and `go.sum`. Vendor review remains pending; no samples have been
 submitted by the agent. Record final vendor determinations and rescan the final
 release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
 
-## LATER
-
 ### WinGet package identifier migration
 
 Move the existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkgs` to the
 new identifier `frathe.picfetch` before the next WinGet publication; See the
 [maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
-
 
 ### Revisit HEIC at its next dependency upgrade
 
@@ -143,26 +156,3 @@ retirement.
   mouse and Ctrl key, it does not. Holding the Ctrl key down and clicking on an image does not select it but instead
   opens it. Observation, when pushing the Ctrl key at exactly the same time as clicking on the image, it actually works,
   and the image is selected. (this seems to be a bug in fyne, created an issue, sorry Windows users)
-
-### Qodana drops detected duplicates during serialisation (upstream)
-
-At `210fee5` (run `33270269940`), the IDE reports 71 `DuplicatedCode`
-fragments and the CI SARIF reports 63, with CI's 63 a strict subset of the IDE's 71. The 8 fragments CI is missing are 7
-in
-`internal/imaging/loader_test.go` and 1 at
-`internal/update/tufroot_test.go:173`. That run's own `log/idea.log` carries exactly 3
-`#o.j.q.s.i.r.g.DuplicatesProblem` "Can't find duplicate problem in db" warnings, naming exactly those two files and no
-others, emitted immediately after the line `The Project analysis stage completed in 41s` — so Qodana's own log shows
-detection succeeded and serialisation into the report/SARIF failed afterwards. This is an upstream defect, not a
-picfetch config problem: nothing here suppresses or excludes those two files, and the drop happens before any
-project-side filtering runs.
-
-`qodana.yaml`'s new `_test.go` exclusion (see Done → Internal above) makes this defect invisible going forward in this
-repository, because every dropped fragment happens to live in a test file that the exclusion now removes from the
-inspection entirely — recorded here so the defect is not lost along with the rule that used to surface it. Of the
-12-fragment CSV-to-SARIF gap at `210fee5`, these 8 serialisation losses are one part; the other 4 are the
-source-suppressed production fragments in the orientation pixel loops recorded above, so nothing about that gap is left
-open — only the underlying serialisation defect itself is. See
-`finished_refactorings/2026-08-29-qodana-evidence.md` for the decoded byte offsets and anchoring detail, and
-`plans/2026-08-29-qodana-serialisation-bug-report.md`, Task 8's draft of the upstream report text — as of this writing
-not yet submitted to JetBrains; check that file for whether it has been sent since.

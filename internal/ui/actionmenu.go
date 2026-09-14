@@ -45,9 +45,9 @@ func (v *viewer) reopenVariantGrid() {
 
 // Opening waits for the accepted group so a unique source remains a no-op.
 func (v *viewer) syncDuplicateState() {
-	if v.explorer.prepare != nil && v.grid.DuplicateGroupsReady() {
-		ready := v.explorer.prepare
-		v.explorer.prepare = nil
+	if v.explorerInput.prepare != nil && v.grid.DuplicateGroupsReady() {
+		ready := v.explorerInput.prepare
+		v.explorerInput.prepare = nil
 		ready()
 	}
 	if v.grid.BrowseReady() && !v.grid.Visible() {

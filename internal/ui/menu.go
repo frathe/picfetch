@@ -192,7 +192,7 @@ func (v *viewer) menuState() menus.State {
 		ComparisonActive:   v.comparisonActive(),
 		ExplorerActive:     v.explorerMapActive(),
 		ExplorerCanRetry:   v.explorerCanRetry(),
-		CohortActive:       len(v.explorer.cohort) > 0,
+		CohortActive:       v.explorer.HasCohort(),
 	}
 }
 

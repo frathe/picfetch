@@ -141,7 +141,7 @@ func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
 				// would actively shrink it back out from under the open
 				// grid. The explorer and its cohort browsing retain that
 				// size through both this probe and the final load.
-				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() && len(v.explorer.cohort) == 0 && !v.explorer.surface.Visible() {
+				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() {
 					v.undoGridMaximize()
 					v.autoResizeToImage(bounds)
 				}
@@ -226,7 +226,7 @@ func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.Load
 	v.clearLoadingChrome()
 	v.exif.Refresh()
 	v.startLoadedAnimation(token, loaded)
-	if len(v.explorer.cohort) > 0 {
+	if v.explorer.HasCohort() {
 		v.recordExplorerView("image-loaded")
 	}
 	// Must run - and finish reading v.state.files/v.state.index - before the
@@ -312,7 +312,7 @@ func (v *viewer) syncLoadedFileInfo(loaded *imaging.LoadedImage) {
 func (v *viewer) fitWindowToLoadedImage(loaded *imaging.LoadedImage) {
 	v.zoom.ResetToFit()
 
-	if !v.slides.Active() && !v.grid.Visible() && len(v.explorer.cohort) == 0 && !v.explorer.surface.Visible() {
+	if !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() {
 		b := loaded.Frames[0].Bounds()
 		v.undoGridMaximize()
 		v.autoResizeToImage(b)

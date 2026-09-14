@@ -15,6 +15,7 @@ import (
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -95,10 +96,12 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v, win = buildStartupViewer(testApp)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.spiral.SetUIQueue(&uitest.UIQueue{})
-	v.explorer.ui = &uitest.UIQueue{}
 	// Ordinary Explorer fixtures begin after first-use setup; setup cases reset these.
-	v.explorer.introSeen, v.explorer.assetsReady = true, true
-	v.explorer.presets = &explorerpresets.Store{Dir: t.TempDir()}
+	configureExplorer(v, func(options *explorerui.Options) {
+		options.Queue = &uitest.UIQueue{}
+		options.Settings.IntroSeen, options.AssetsReady = true, true
+		options.Presets = &explorerpresets.Store{Dir: t.TempDir()}
+	})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
 	v.deletion.SetUIQueue(&uitest.UIQueue{})

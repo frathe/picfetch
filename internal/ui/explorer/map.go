@@ -1,5 +1,5 @@
-// Package explorer owns the content map and its camera. Analysis and transitions
-// to Grid View belong to its host; the surface itself starts no background work.
+// Package explorer owns the content map, analysis workflow, setup and editing.
+// Its host owns collection preparation and transitions to Grid View.
 package explorer
 
 import (
@@ -292,6 +292,10 @@ func (m *Map) centerLayout() {
 	m.center = fyne.NewPos((lo.X+hi.X)/2, (lo.Y+hi.Y)/2)
 }
 
+// Fit bounds all piles; centerLayout instead stops at the selected source.
+// Keep these small camera calculations local to their distinct operations.
+//
+//goland:noinspection DuplicatedCode
 func (m *Map) Fit() {
 	m.zoom = 1
 	m.center = fyne.Position{}

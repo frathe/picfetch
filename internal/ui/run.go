@@ -51,7 +51,9 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) error {
 	}
 	view, window := buildStartupViewer(application)
 
-	view.explorer.trial = trial
+	options := view.explorer.Options()
+	options.Trial = trial
+	view.explorer.Configure(options)
 
 	// After construction, so the flags override what saved preferences just
 	// seeded, and before Show, so the window comes up already in the state
@@ -106,7 +108,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) error {
 			case <-notices:
 				fyne.Do(func() {
 					if !view.stopping {
-						trial.Action(view.explorer.trialRun, "stop-requested", 0)
+						view.explorer.RecordAction("stop-requested", 0)
 						application.Quit()
 					}
 				})
@@ -127,8 +129,7 @@ func (v *viewer) waitForShutdown() {
 	// through Spiral.Settle after releasing any held source.
 	// Shutdown has canceled admission; join the native process after the UI loop
 	// retires so the application cannot leave an analysis worker behind.
-	v.explorer.workers.Wait()
-	v.explorer.presetWorkers.Wait()
+	v.explorer.Wait()
 }
 
 // Runtime side effects start only after feature construction and geometry
@@ -164,6 +165,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.stopping = true
 		view.spiral.Close()
 		view.closeExplorer()
+		view.explorer.Stop()
 		view.closeFileWork()
 		view.closeClipboardWork()
 		view.closeOpenChooser()
@@ -198,7 +200,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 		session.Save(application, view.state.unsortedFiles)
 		preferences.Save(application, view.currentPreferences())
-		if !view.storeManaged && view.explorer.trial == nil {
+		if !view.storeManaged && view.explorer.Trial() == nil {
 			view.updater.ApplyStagedUpdate()
 		}
 	})
@@ -232,10 +234,10 @@ func (v *viewer) currentPreferences() preferences.State {
 		MaxThumbCacheMB:         v.settings.thumbCacheMB,
 		MaxFileSizeMB:           v.settings.maxFileMB,
 		FavoritePreviewCache:    v.settings.favPreviewCache,
-		SimilarityFavoriteCache: v.explorer.cacheFavorites,
-		SimilarityAutoUpdate:    v.explorer.automatic,
-		SimilarityAutoFit:       v.explorer.autoFit,
-		SimilarityIntroSeen:     v.explorer.introSeen,
+		SimilarityFavoriteCache: v.explorer.Settings().CacheFavorites,
+		SimilarityAutoUpdate:    v.explorer.Settings().Automatic,
+		SimilarityAutoFit:       v.explorer.Settings().AutoFit,
+		SimilarityIntroSeen:     v.explorer.Settings().IntroSeen,
 		CheckForUpdates:         v.settings.checkForUpdates,
 		LastUpdateCheckDay:      v.LastUpdateCheckDay(),
 		StaticWindowSize:        v.settings.staticWindowSize,

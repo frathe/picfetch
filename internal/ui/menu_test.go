@@ -356,7 +356,7 @@ func TestFavoritesMenuItemOpensStoredFilesThroughViewer(t *testing.T) {
 	if len(v.state.files) != 1 || v.state.files[0].Path() != image.Path() {
 		t.Errorf("files = %v, want favorite image %q", v.state.files, image.Path())
 	}
-	if v.explorer.favoriteDir != filepath.Join(dir, "Trip") {
+	if v.explorerInput.favoriteDir != filepath.Join(dir, "Trip") {
 		t.Fatal("successful favorite open did not commit its collection identity")
 	}
 }

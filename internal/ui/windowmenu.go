@@ -48,7 +48,7 @@ func (v *viewer) syncNativeMenuBar() {
 }
 
 func (v *viewer) showViewer() {
-	if !v.comparisonActive() && (v.explorer.surface.Visible() || len(v.explorer.cohort) > 0) {
+	if !v.comparisonActive() && (v.explorer.Surface().Visible() || v.explorer.HasCohort()) {
 		v.LeaveSimilarityMap()
 		return
 	}
@@ -86,9 +86,9 @@ func (v *viewer) showWindowGrid() {
 	if v.grid.Visible() || v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
-	if len(v.explorer.cohort) > 0 {
-		v.openExplorerGrid()
-		v.explorer.surface.Show()
+	if v.explorer.HasCohort() {
+		v.openExplorerGrid(v.explorer.Cohort())
+		v.explorer.Surface().Show()
 		v.ForceRepaint()
 		return
 	}
@@ -106,7 +106,7 @@ func (v *viewer) showWindowPictureFrame() {
 	if v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
-	if v.variantsSession() || len(v.explorer.cohort) > 0 || v.explorerMapActive() {
+	if v.variantsSession() || v.explorer.HasCohort() || v.explorerMapActive() {
 		return
 	}
 	v.togglePictureFrameMode()

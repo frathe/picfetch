@@ -1,4 +1,4 @@
-package ui
+package explorer
 
 import (
 	"fmt"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/imaging"
-	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 )
 
 func presetRuleFields(rule explorerpresets.Rule, changed func()) (*widget.Form, func() explorerpresets.Rule) {
@@ -65,10 +64,10 @@ func presetRuleFields(rule explorerpresets.Rule, changed func()) (*widget.Form, 
 	form.Append(lang.L("Camera model"), model)
 	form.Append(lang.L("Capture date from (YYYY-MM-DD)"), from)
 	form.Append(lang.L("Capture date through (YYYY-MM-DD)"), through)
-	traits := explorerui.Traits()
+	traits := Traits()
 	for _, tag := range rule.Tags {
-		if !slices.ContainsFunc(traits, func(t explorerui.Trait) bool { return t.ID == tag }) {
-			traits = append(traits, explorerui.Trait{ID: tag, Label: fmt.Sprintf(lang.L("Unavailable tag: %s"), tag)})
+		if !slices.ContainsFunc(traits, func(t Trait) bool { return t.ID == tag }) {
+			traits = append(traits, Trait{ID: tag, Label: fmt.Sprintf(lang.L("Unavailable tag: %s"), tag)})
 		}
 	}
 	var checks []*widget.Check

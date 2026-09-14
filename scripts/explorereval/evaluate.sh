@@ -9,11 +9,13 @@ trial=${5:?trial}
 provider=${6:?provider}
 native=${7:-}
 extra=()
+mode=(-trial "$trial")
 if [[ $trial == library ]]; then extra=(-native "$native"); fi
+if [[ $trial == search ]]; then mode=(-search-evaluate); fi
 mkdir -p "$evidence"
 run_dir=$(mktemp -d "$evidence/$trial-XXXXXX")
 set +e
-"$binary" -assets "$assets" -library "$library" -out "$run_dir/result" -trial "$trial" -provider "$provider" "${extra[@]}" 2>&1 | tee "$run_dir/console.log"
+"$binary" -assets "$assets" -library "$library" -out "$run_dir/result" "${mode[@]}" -provider "$provider" "${extra[@]}" 2>&1 | tee "$run_dir/console.log"
 status=$?
 set -e
 printf '%s\n' "$status" > "$run_dir/exit-status.txt"
@@ -31,6 +33,13 @@ if [[ $trial == throughput ]]; then
     test -s "$run_dir/result/profile.json"
     test -s "$run_dir/result/events.jsonl"
     printf '\nProduction throughput profile: %s/result/profile.json\n' "$run_dir"
+    exit 0
+fi
+if [[ $trial == search ]]; then
+    for output in search-result.json search-initial.json search-review.html search-evaluation.md search-corpus.json favorite-profile.json; do
+        test -s "$run_dir/result/$output"
+    done
+    printf '\nLocal search review: %s/result/search-review.html (human quality decision pending)\n' "$run_dir"
     exit 0
 fi
 for output in result.json initial.json manifest.json review.html pipeline-evaluation.md; do

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
@@ -57,14 +59,16 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		client := similarity.Client{Assets: "../../.scratch/visual-similarity-explorer/assets", FavoritesDir: favorites}
 		var result similarity.Event
-		v.explorerAnalyze = func(ctx context.Context, paths []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
-			return client.Analyze(ctx, paths, controls, func(event similarity.Event) {
-				if event.Complete {
-					result = event
-				}
-				emit(event)
-			})
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(ctx context.Context, paths []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
+				return client.Analyze(ctx, paths, controls, func(event similarity.Event) {
+					if event.Complete {
+						result = event
+					}
+					emit(event)
+				})
+			}
+		})
 		v.showExplorer()
 		v.settleExplorer()
 		if !result.Complete || result.Successful != 1 || result.Failed != 1 || len(result.Items) != 2 || !strings.Contains(result.Items[1].Error, "1048576-byte input limit") || result.Measurements.InferenceAttempts != 1 {
@@ -89,11 +93,15 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 	})
 	t.Run("setup_recovers_missing_model", func(t *testing.T) {
 		v := openGridWith(t, "fixture.jpg")
-		// A model previously checked in this session can disappear from the cache.
-		v.explorer.client.Assets = t.TempDir()
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Client.Assets =
+
+				// A model previously checked in this session can disappear from the cache.
+				t.TempDir()
+		})
 		v.showExplorer()
 		v.settleExplorer()
-		if v.explorer.complete {
+		if v.explorer.State().Complete {
 			t.Fatal("missing model completed analysis")
 		}
 		v.showExplorer()
@@ -106,8 +114,12 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		before := preferences.Load(testApp)
 		t.Cleanup(func() { preferences.Save(testApp, before) })
 		v := openGridWith(t, "fixture.jpg")
-		v.explorer.introSeen, v.explorer.assetsReady = false, false
-		v.explorer.client.Assets = "../../.scratch/visual-similarity-explorer/assets"
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Settings.IntroSeen, options.AssetsReady = false, false
+		})
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Client.Assets = "../../.scratch/visual-similarity-explorer/assets"
+		})
 		v.showExplorer()
 		v.settleExplorer()
 		if v.explorerMapActive() {
@@ -115,14 +127,17 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		fynetest.Tap(explorerDialogButton(t, v, "Continue"))
 		v.settleExplorer()
-		if !v.explorer.complete || !v.explorerMapActive() || v.explorer.available != 1 {
+		if !v.explorer.State().Complete ||
+			!v.explorerMapActive() ||
+			v.explorer.State().Available !=
+				1 {
 			t.Fatal("first-use Continue did not complete analysis with the verified installed model")
 		}
 		v.closeExplorer()
 		v.settleExplorer()
 		v.showExplorer()
 		v.settleExplorer()
-		if v.explorer.setup != nil || !v.explorer.complete {
+		if v.explorer.State().SetupOpen || !v.explorer.State().Complete {
 			t.Fatal("reopening a prepared Explorer repeated setup")
 		}
 	})
@@ -239,7 +254,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v.explorerAnalyze = (similarity.Client{Assets: assets}).Analyze
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = (similarity.Client{Assets: assets}).Analyze
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		fynetest.Tap(explorerButton(t, v, "Unassigned (2)"))
@@ -340,7 +357,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 
 	t.Run("recovery", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg")
-		v.explorerAnalyze = (similarity.Client{Assets: t.TempDir()}).Analyze
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = (similarity.Client{Assets: t.TempDir()}).Analyze
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		failed := false
@@ -356,7 +375,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v.explorerAnalyze = (similarity.Client{Assets: assets}).Analyze
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = (similarity.Client{Assets: assets}).Analyze
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		if piles := explorerPiles(v); len(piles) > 0 {
@@ -478,7 +499,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		defer func() { _ = os.Chmod(paths[0], 0600) }()
 		run(len(paths))
-		v.explorerAnalyze = client.Analyze
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = client.Analyze
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		explorerTag(t, v, "Cat", 1)
@@ -692,7 +715,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Helper()
 			explorerMenu(t, v).Action()
 			v.settleExplorer()
-			if !v.explorer.complete {
+			if !v.explorer.State().Complete {
 				t.Fatal("favorite analysis did not complete")
 			}
 			status := fmt.Sprintf(lang.L("%d ready, %d failed, %d total"), 2, 0, 2)
@@ -829,7 +852,9 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v.explorerAnalyze = (similarity.Client{Assets: assets}).Analyze
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = (similarity.Client{Assets: assets}).Analyze
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		piles := explorerPiles(v)
@@ -900,14 +925,16 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		client := similarity.Client{Assets: assets}
 		var result similarity.Event
-		v.explorerAnalyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
-			return client.Analyze(ctx, paths, nil, func(event similarity.Event) {
-				if event.Complete {
-					result = event
-				}
-				emit(event)
-			})
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				return client.Analyze(ctx, paths, nil, func(event similarity.Event) {
+					if event.Complete {
+						result = event
+					}
+					emit(event)
+				})
+			}
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		if !result.Complete || result.OfflineVerified != similarity.EnforcesNetworkIsolation() || result.Successful != 6 || len(result.Items) != 6 {
@@ -977,17 +1004,19 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		t.Cleanup(unblock)
 		var interrupted error
 		ended := make(chan struct{})
-		v.explorerAnalyze = func(ctx context.Context, paths []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
-			pause := sync.OnceFunc(func() { close(progress); <-release })
-			interrupted = client.Analyze(ctx, paths, controls, func(event similarity.Event) {
-				emit(event)
-				if event.Successful > 0 {
-					pause()
-				}
-			})
-			close(ended)
-			return interrupted
-		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = func(ctx context.Context, paths []string, controls <-chan similarity.Control, emit func(similarity.Event)) error {
+				pause := sync.OnceFunc(func() { close(progress); <-release })
+				interrupted = client.Analyze(ctx, paths, controls, func(event similarity.Event) {
+					emit(event)
+					if event.Successful > 0 {
+						pause()
+					}
+				})
+				close(ended)
+				return interrupted
+			}
+		})
 		explorerMenu(t, v).Action()
 		select {
 		case <-progress:
@@ -999,10 +1028,13 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 		unblock()
 		v.settleExplorer()
-		if !errors.Is(interrupted, context.Canceled) || v.explorer.surface.Visible() || len(explorerPiles(v)) != 0 || v.FileCount() != len(want) {
+		if !errors.Is(interrupted, context.Canceled) ||
+			v.explorer.Surface().Visible() || len(explorerPiles(v)) != 0 || v.FileCount() != len(want) {
 			t.Fatalf("UI exit failed to cancel the actual worker and preserve opened files: %v", interrupted)
 		}
-		v.explorerAnalyze = client.Analyze
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = client.Analyze
+		})
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		piles := explorerPiles(v)

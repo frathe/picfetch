@@ -1,6 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-13 with the next three UI refactoring candidates.
+Updated 2026-09-14 after completing MA-026.
 
 This file contains proposed refactorings and accepted dependency watches.
 Completed findings have been removed; their history remains in Git and the
@@ -8,8 +8,10 @@ Completed findings have been removed; their history remains in Git and the
 Existing MA identifiers and accepted decisions are preserved: MA-024 verifier
 size refactoring remains declined, and MA-025 records acceptance of the decoded
 map-cache limitation previously recorded under MA-015 and in [todos.md](todos.md).
-MA-026 through MA-028 are new architecture work, in recommended execution order;
-they do not reopen the completed maintainability audit.
+MA-026 is complete in `28d65ef`, with full CI qualification recorded in its
+[archived plan](finished_refactorings/2026-09-14-explorer-feature.md).
+MA-027 and MA-028 remain proposed architecture work in that order; they do not
+reopen the completed maintainability audit.
 
 Inspection baseline: `main` at `54fd7c3` (v1.1.2). The root `internal/ui` package
 contains 55 production Go files, 10,835 non-test lines including comments, and
@@ -19,7 +21,6 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-026](#ma-026) | P1 | Make Explorer a complete feature module | Proposed; first extraction |
 | [MA-027](#ma-027) | P2 | Give single-image presentation ownership of its lifecycle | Proposed; second extraction |
 | [MA-028](#ma-028) | P2 | Centralize shared command-admission decisions | Proposed; third refactoring |
 | [MA-023](#ma-023) | P3 | Retire the HEIC fork when an official release contains its fix | Accepted dependency watch |
@@ -28,38 +29,13 @@ explicit cross-feature composition in `internal/ui`.
 
 ## MA-026 — Make Explorer a complete feature module
 
-**First priority: the clearest cohesive extraction, with moderate migration risk.**
-
-**Evidence:** [explorer.go](internal/ui/explorer.go),
-[explorersetup.go](internal/ui/explorersetup.go),
-[explorercohorts.go](internal/ui/explorercohorts.go),
-[explorerpresets.go](internal/ui/explorerpresets.go), and
-[explorerpresetrules.go](internal/ui/explorerpresetrules.go) contain 1,277 lines
-in the root UI package. The map already lives in `internal/ui/explorer`, but
-analysis, asset setup, cohort editing, presets, cancellation, and worker
-completion remain viewer-owned. Direct `v.explorer` state accesses span 17 root
-UI files. The main [Explorer test file](internal/ui/explorer_test.go) contains
-4,572 lines and relies heavily on the full viewer harness.
-
-**Proposed split:**
-
-- Extend the existing Explorer module to own its workflow state, setup and
-  editing dialogs, analysis/preset workers, result queue, and cancellation.
-- Give the viewer a small interface for opening Explorer with a source
-  snapshot, observing state, invalidating sources, closing, and settling work.
-- Keep collection/duplicate snapshot preparation and coordination with Grid
-  View in `internal/ui`, using narrow callbacks for cohort navigation. Do not
-  pass `appState` into the module or introduce a shared feature registry.
-
-**Preserve and verify:** move feature behavior tests to the module's interface,
-retaining root integration coverage for map/grid/image round trips. Pin stale
-result rejection, close/shutdown completion, frozen cohort navigation, and
-rollback when saving cohorts fails. Keep the existing production/test analysis
-and queue adapters.
-
-**Done when:** the viewer no longer owns Explorer's worker groups or edits its
-workflow fields directly, and Explorer behavior can be exercised without
-constructing every unrelated viewer feature. Start with this refactoring PR.
+**Complete (`28d65ef`), 2026-09-14.** Explorer owns its workflow, dialogs,
+cancellation and workers; root retains source preparation and navigation.
+[Native CI](https://github.com/frathe/picfetch/actions/runs/34829485376) passed
+all four Linux/amd64 race partitions and every platform job. Qodana and CodeQL
+are clear. The [archived plan](finished_refactorings/2026-09-14-explorer-feature.md)
+holds the implementation and verification evidence. This anchor remains for
+existing dependency links; MA-026 is no longer open refactoring work.
 
 <a id="ma-027"></a>
 

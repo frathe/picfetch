@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
@@ -96,8 +97,10 @@ func (v *viewer) applyLaunchOptions(opts launch.Options) {
 
 	v.pendingPictureFrame = opts.PictureFrame
 	if opts.ExplorerTrial != "" {
-		v.explorer.pendingLaunch = true
-		v.explorer.presets.Dir = filepath.Join(opts.ExplorerTrial, "presets")
+		v.explorerInput.pendingLaunch = true
+		options := v.explorer.Options()
+		options.Presets = &explorerpresets.Store{Dir: filepath.Join(opts.ExplorerTrial, "presets")}
+		v.explorer.Configure(options)
 		v.favorites.SetDir(filepath.Join(opts.ExplorerTrial, "favorites"))
 		v.updater.SetDir(filepath.Join(opts.ExplorerTrial, "updates"))
 		v.settings.checkForUpdates = false
