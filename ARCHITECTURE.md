@@ -499,7 +499,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 ### `internal/imaging`
 
 Viewer-independent probe → decode → EXIF-orient → cache pipeline (JPEG, PNG,
-GIF including animated, WebP, BMP, TIFF, ICO, XPM, HEIC, AVIF, SVG, camera
+GIF including animated, WebP, BMP, TIFF, ICO, XPM, AVIF, SVG, camera
 RAW via embedded JPEG). RAW is preview-only (`LoadedImage.Preview`);
 `CanEncode` is false. SVG is the only vector format (`svg.go` / `vector.go`).
 Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` serializes resolved destinations. Thumbnail caches carry `favthumbs.Preview` source versions for safe reuse after file replacement, and `ByteCache.Capture` binds in-flight cache writes to the pre-purge revision.
@@ -511,7 +511,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
 | `vector.go` | `Vector` / `ParseVector` / `RasterAt`. |
-| `exif.go` | Orientation tags from JPEG APP1, PNG eXIf, WebP EXIF, and TIFF IFD0 + `ReadMetadata` / `Metadata` (including GPS IFD). Metadata scans JPEG APP1, then TIFF IFD0, then HEIC/AVIF, then RAW preview APP1. |
+| `exif.go` | Orientation tags from JPEG APP1, PNG eXIf, WebP EXIF, and TIFF IFD0 + `ReadMetadata` / `Metadata` (including GPS IFD). Metadata scans JPEG APP1, then TIFF IFD0, then ISOBMFF through the AVIF metadata parser, then RAW preview APP1. |
 | `exififd.go` | Unexported IFD walker (`walkIFD`) and tag value helpers used by `exif.go` and `raw.go`. |
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |

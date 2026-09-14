@@ -136,7 +136,6 @@ exclude:
       - "internal/imaging/exifformat_test.go"
       - "internal/imaging/exififd_test.go"
       - "internal/imaging/gif_test.go"
-      - "internal/imaging/heic_leak_test.go"
       - "internal/imaging/jpegexif_test.go"
       - "internal/imaging/jpegseg_test.go"
       - "internal/imaging/loader_test.go"

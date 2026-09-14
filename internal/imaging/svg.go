@@ -302,8 +302,7 @@ func svgProbeBounds(data []byte) image.Rectangle {
 
 // decodeVector is DecodeLoaded's SVG branch: parse, then take one raster at
 // the logical size as the frame to display now. EXIF orientation is
-// deliberately not applied - an SVG carries none, the same reason HEIC and
-// AVIF are left alone (see readEXIFOrientation).
+// not applied because SVG has no EXIF metadata.
 func decodeVector(data []byte) (*LoadedImage, error) {
 	vec, err := ParseVector(data)
 	if err != nil {

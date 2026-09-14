@@ -734,7 +734,7 @@ func TestSuggestedExportPath(t *testing.T) {
 	}{
 		{"swaps the extension", "/photos/holiday.webp", ".png", 0, "/photos/holiday.png"},
 		{"keeps a name with no extension", "/photos/holiday", ".png", 0, "/photos/holiday.png"},
-		{"only the last dot is the extension", "/photos/holiday.2024.heic", ".jpg", 0, "/photos/holiday.2024.jpg"},
+		{"only the last dot is the extension", "/photos/holiday.2024.webp", ".jpg", 0, "/photos/holiday.2024.jpg"},
 		// A name that is nothing but an extension would otherwise suggest a
 		// bare ".png", which the panel shows as an empty file-name field.
 		{"falls back for a name that is only an extension", "/photos/.jpg", ".png", 0, "/photos/image.png"},

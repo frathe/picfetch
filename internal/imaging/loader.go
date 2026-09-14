@@ -1,6 +1,6 @@
 // Package imaging reads, decodes, EXIF-orients, and caches the image files
 // PicFetch displays: JPEG, PNG, GIF (including animated), WebP, BMP,
-// TIFF, ICO, XPM, HEIC, AVIF, SVG, and camera RAW (embedded JPEG preview
+// TIFF, ICO, XPM, AVIF, SVG, and camera RAW (embedded JPEG preview
 // only — see raw.go).
 //
 // SVG is the one vector format here and the only one whose pixels are not
@@ -26,7 +26,6 @@ import (
 	_ "github.com/fyne-io/image/ico" // registers ICO with image.Decode
 	_ "github.com/fyne-io/image/xpm" // registers XPM with image.Decode
 	_ "github.com/gen2brain/avif"    // registers AVIF with image.Decode (WASM/wazero, no cgo)
-	_ "github.com/gen2brain/heic"    // registers HEIC with image.Decode (WASM/wazero, no cgo)
 	_ "golang.org/x/image/bmp"       // registers BMP with image.Decode
 	_ "golang.org/x/image/tiff"      // registers TIFF with image.Decode
 	_ "golang.org/x/image/webp"      // registers WebP with image.Decode
@@ -39,7 +38,7 @@ import (
 // new format's extensions need adding.
 var supportedExtensions = []string{
 	".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".ico", ".xpm",
-	".heic", ".heif", ".avif", ".svg",
+	".avif", ".svg",
 	".cr2", ".cr3", ".nef", ".nrw", ".arw", ".dng", ".orf", ".rw2", ".raf", ".pef", ".srw", ".raw",
 }
 
@@ -79,7 +78,7 @@ func IsSupportedImage(u fyne.URI) bool {
 	switch strings.ToLower(u.MimeType()) {
 	case "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff",
 		"image/x-icon", "image/vnd.microsoft.icon", "image/x-xpixmap",
-		"image/heic", "image/heif", "image/avif", "image/svg+xml",
+		"image/avif", "image/svg+xml",
 		"image/x-adobe-dng", "image/dng", "image/x-canon-cr2", "image/x-canon-cr3",
 		"image/x-nikon-nef", "image/x-sony-arw", "image/x-olympus-orf",
 		"image/x-panasonic-rw2", "image/x-fuji-raf", "image/x-pentax-pef",
@@ -436,7 +435,7 @@ func DecodeRecord(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 }
 
 // LoadImage reads and decodes an image file of any format registered with
-// the image package (JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, HEIC, AVIF)
+// the image package (JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, AVIF)
 // or a camera RAW container whose embedded JPEG preview raw.go can extract
 // - see ReadAndProbe and DecodeLoaded, which callers wanting to resize a
 // window ahead of the full pixel decode call separately instead. Uses

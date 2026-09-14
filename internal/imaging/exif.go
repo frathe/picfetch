@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gen2brain/avif"
-	"github.com/gen2brain/heic"
 )
 
 // readEXIFOrientation returns the orientation tag's value (1-8), or 1 (no
@@ -268,17 +267,10 @@ func jpegMetadata(data []byte) Metadata {
 	return found
 }
 
-// isobmffMetadata reads Exif metadata out of an ISOBMFF-boxed file (HEIC or
-// AVIF) - JPEG APP1 and TIFF IFD0 are handled before this is called. Both
-// DecodeExif calls fail fast (pure box-walking, no wasm/cgo invocation) on a
-// file that isn't theirs, so trying heic then avif costs nothing extra for
-// the common case of a format with no Exif at all (PNG, GIF, WebP, BMP, ICO,
-// XPM).
+// isobmffMetadata reads Exif metadata from an ISOBMFF container using the
+// AVIF package's box parser, without invoking its image decoder. JPEG APP1
+// and TIFF IFD0 are handled before this is called.
 func isobmffMetadata(data []byte) Metadata {
-	if ex, err := heic.DecodeExif(bytes.NewReader(data)); err == nil {
-		return metadataFromISOBMFFExif(ex.Make, ex.Model, ex.ExposureTime, ex.FNumber, ex.ISOSpeed, ex.FocalLength, ex.DateTimeOriginal, ex.DateTime, ex.GPSLatitude, ex.GPSLongitude)
-	}
-
 	if ex, err := avif.DecodeExif(bytes.NewReader(data)); err == nil {
 		return metadataFromISOBMFFExif(ex.Make, ex.Model, ex.ExposureTime, ex.FNumber, ex.ISOSpeed, ex.FocalLength, ex.DateTimeOriginal, ex.DateTime, ex.GPSLatitude, ex.GPSLongitude)
 	}
@@ -286,12 +278,10 @@ func isobmffMetadata(data []byte) Metadata {
 	return Metadata{}
 }
 
-// metadataFromISOBMFFExif adapts the fields heic.Exif and avif.Exif share
-// (the two packages expose identically-shaped structs) into Metadata,
-// reusing the same formatting helpers the JPEG APP1 walk uses so a HEIC/AVIF
-// photo's EXIF window reads the same as a JPEG's. LensModel has no
-// equivalent in either struct, so it's left unset, same as a JPEG missing
-// that tag. Both decoders report an absent position as a zero latitude and
+// metadataFromISOBMFFExif adapts avif.Exif fields into Metadata, reusing the
+// JPEG APP1 formatting helpers. LensModel has no equivalent in avif.Exif,
+// so it's left unset, same as a JPEG missing that tag. The AVIF parser
+// reports an absent position as a zero latitude and
 // longitude rather than a flag, so an exact (0, 0) is read as "no
 // location": Null Island is open ocean, and treating that one point as
 // missing is a better trade than showing a map of it for every photo that

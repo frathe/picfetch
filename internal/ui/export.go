@@ -50,7 +50,7 @@ const (
 //   - The source format doesn't matter. imaging.CanEncode gates saving
 //     because SaveRotated must re-encode the file in its own format; an
 //     export picks the destination's format instead, which is exactly how a
-//     WebP or HEIC (decode-only in this module's dependencies) gets out.
+//     WebP (decode-only in this module's dependencies) gets out.
 //   - An animation doesn't matter. Save Changes refuses one because it would
 //     have to re-rotate and re-encode every frame; exporting the single
 //     frame on screen as a still is well-defined.

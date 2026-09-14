@@ -73,8 +73,6 @@ bereits geöffnete Handbuchfenster nach vorne, statt eine zweite Kopie zu
 - **TIFF** — `.tif`, `.tiff`
 - **ICO** — `.ico` (Windows-Symbol; das größte enthaltene Bild wird angezeigt)
 - **XPM** — `.xpm` (X Pixmap)
-- **HEIC/HEIF** — `.heic`, `.heif` (iPhone-Fotos; EXIF-Rotation wird
-  angewendet)
 - **AVIF** — `.avif` (eingebaute Rotation/Spiegelung wird angewendet)
 - **SVG** — `.svg` (Vektorgrafik; kleine Symbole werden groß genug geöffnet,
   um das Fenster zu füllen, und das Bild wird bei jeder Zoomstufe scharf neu
@@ -89,12 +87,12 @@ bereits geöffnete Handbuchfenster nach vorne, statt eine zweite Kopie zu
 
 Eine Datei wird auch akzeptiert, wenn Ihr System sie als `image/jpeg`,
 `image/png`, `image/gif`, `image/webp`, `image/bmp`, `image/tiff`,
-`image/x-icon`, `image/vnd.microsoft.icon`, `image/x-xpixmap`, `image/heic`,
-`image/heif`, `image/avif`, `image/svg+xml` oder einen Kamera-RAW-MIME-Typ
+`image/x-icon`, `image/vnd.microsoft.icon`, `image/x-xpixmap`,
+`image/avif`, `image/svg+xml` oder einen Kamera-RAW-MIME-Typ
 wie `image/x-adobe-dng` / `image/x-canon-cr2` meldet, auch wenn die
 Dateiendung fehlt oder ungewöhnlich ist.
 
-Alles andere — PDFs, Videos — wird **nicht** unterstützt.
+HEIC/HEIF, PDFs und Videos werden **nicht** unterstützt.
 
 ---
 
@@ -266,7 +264,7 @@ ein zweites Bild nach dem Bild), fallen beim Strip trotzdem weg, wenn die
 Datei Tags *listet*. Die Schaltfläche selbst
 ist eine kompakte Steuerung, keine durchgehende Leiste.
 
-- Nur JPEG. Bei HEIC, RAW, PNG und WebP fehlt die Schaltfläche.
+- Nur JPEG. Bei RAW, PNG und WebP fehlt die Schaltfläche.
 - Entfernt Kamera, Datum, GPS, XMP, IPTC und Kommentare. Farbprofil (ICC)
   und die eigene Farbtransformation des JPEG bleiben, das Bild sollte also
   gleich aussehen.
@@ -1150,7 +1148,7 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   `R`/`Shift+R` vorgenommene Drehung in die Ursprungsdatei zurück, in deren
   eigenem Format. Ausgegraut, solange es keine Drehung zu speichern gibt;
   nicht verfügbar für Animationen und für Formate, die PicFetch lesen,
-  aber nicht schreiben kann (WebP, HEIC, ICO, XPM, SVG). Dabei wird die
+  aber nicht schreiben kann (WebP, ICO, XPM, SVG). Dabei wird die
   Originaldatei ersetzt und neu kodiert. Bei JPEG kopiert PicFetch die
   Metadaten der Originaldatei (EXIF, einschließlich Kamera/Datum/GPS, sowie
   XMP, ICC und IPTC, falls vorhanden) in die neue Datei und setzt das
@@ -1164,8 +1162,8 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   **`Esc`** bricht ab, ohne einen Speichern-Dialog zu öffnen. Das gewählte
   Format speichert das Bild dann so, wie es gerade angezeigt wird, Drehung
   eingeschlossen, in eine neue Datei Ihrer Wahl. Anders als „Änderungen
-  speichern“ funktioniert das für jedes anzeigbare Bild, auch für WebP- und
-  HEIC-Dateien und für ein einzelnes Bild eines animierten GIFs, und die
+  speichern“ funktioniert das für jedes anzeigbare Bild, auch für WebP-Dateien
+  und für ein einzelnes Bild eines animierten GIFs, und die
   Originaldatei bleibt unangetastet. Endet der von Ihnen eingegebene Name
   bereits auf ein Format, das PicFetch schreiben kann, hat dieses Vorrang
   vor dem in der Abfrage gewählten Format
@@ -1626,5 +1624,5 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   dann; bricht stattdessen einen noch laufenden Scan ab, falls einer
   läuft)
 - **Formate** — JPEG, PNG, GIF (inkl. animiert), WebP, BMP, TIFF, ICO, XPM,
-  HEIC/HEIF, AVIF, SVG, Kamera-RAW (eingebettete JPEG-Vorschau)
+  AVIF, SVG, Kamera-RAW (eingebettete JPEG-Vorschau)
 - **Maximale Fenstergröße** — 1500 × 950

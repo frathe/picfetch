@@ -64,7 +64,6 @@ the front instead of opening a second copy.
 - **TIFF** — `.tif`, `.tiff`
 - **ICO** — `.ico` (Windows icon; the largest embedded image is shown)
 - **XPM** — `.xpm` (X Pixmap)
-- **HEIC/HEIF** — `.heic`, `.heif` (iPhone photos; EXIF rotation applied)
 - **AVIF** — `.avif` (built-in rotation/mirroring applied)
 - **SVG** — `.svg` (vector; small icons open large enough to fill the window,
   and the image re-renders sharp at every zoom level rather than scaling up).
@@ -77,12 +76,12 @@ the front instead of opening a second copy.
 
 A file is also accepted if your system reports it as `image/jpeg`,
 `image/png`, `image/gif`, `image/webp`, `image/bmp`, `image/tiff`,
-`image/x-icon`, `image/vnd.microsoft.icon`, `image/x-xpixmap`, `image/heic`,
-`image/heif`, `image/avif`, `image/svg+xml`, or a camera-RAW MIME type such as
+`image/x-icon`, `image/vnd.microsoft.icon`, `image/x-xpixmap`,
+`image/avif`, `image/svg+xml`, or a camera-RAW MIME type such as
 `image/x-adobe-dng` / `image/x-canon-cr2`, even when the extension is missing
 or unusual.
 
-Everything else — PDFs, videos — is **not** supported.
+HEIC/HEIF, PDFs and videos are **not** supported.
 
 ---
 
@@ -245,7 +244,7 @@ image) are still dropped if you strip a file that *does* list tags.
 The button itself is a compact control, not a full-width
 bar.
 
-- JPEG only. HEIC, RAW, PNG, WebP: the button is hidden.
+- JPEG only. RAW, PNG, WebP: the button is hidden.
 - Removes camera, date, GPS, XMP, IPTC, and comments. Color profile (ICC) and
   the JPEG's own color transform stay, so the picture should look the same.
 - A photo shot sideways (Exif orientation 2–8) is re-saved once so it stays
@@ -1007,7 +1006,7 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
 - **File -> Save Changes** (`Cmd/Ctrl+S`) — writes a rotation you made with
   `R`/`Shift+R` back into the file it came from, in that file's own format.
   Greyed out unless there is a rotation to save; unavailable for animations
-  and for formats PicFetch can read but not write (WebP, HEIC, ICO, XPM, SVG).
+  and for formats PicFetch can read but not write (WebP, ICO, XPM, SVG).
   This replaces the original file and re-encodes it. For JPEG, PicFetch
   copies the original metadata (EXIF, including camera/date/GPS, plus
   XMP, ICC, and IPTC if present) into the new file and sets the
@@ -1020,7 +1019,7 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   **JPEG**, **`Return`** to export, **`Esc`** to cancel without opening a
   save panel at all. The chosen format then saves the image as it currently
   appears, rotation included, to a new file you name. Unlike Save Changes it
-  works for every image the app can display, including WebP and HEIC files
+  works for every image the app can display, including WebP files
   and a single frame of an animated GIF, and it never touches the original.
   If the name you type already ends in a format PicFetch can write, that
   format wins over the one you chose in the prompt
@@ -1410,5 +1409,5 @@ Things PicFetch deliberately does not do (yet):
 - **Clear / Quit** — `Esc` (clears the loaded images first, then quits;
   cancels a scan still in progress instead, if one is running)
 - **Formats** — JPEG, PNG, GIF (incl. animated), WebP, BMP, TIFF, ICO, XPM,
-  HEIC/HEIF, AVIF, SVG, camera RAW (embedded JPEG preview)
+  AVIF, SVG, camera RAW (embedded JPEG preview)
 - **Max window size** — 1500 × 950

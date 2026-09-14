@@ -26,7 +26,7 @@ import (
 //   - v.display.Count() == 1: an animated GIF's frames would all need
 //     re-rotating and re-encoding as a fresh animation, which SaveRotated
 //     doesn't attempt.
-//   - imaging.CanEncode: WebP/HEIC/ICO/XPM have no encoder in this module's
+//   - imaging.CanEncode: WebP/ICO/XPM have no encoder in this module's
 //     dependencies (see save.go's own doc comment in internal/imaging).
 func (v *viewer) canSaveRotation() bool {
 	snapshot := v.display.Snapshot()
