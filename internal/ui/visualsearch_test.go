@@ -315,6 +315,35 @@ func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
 }
 
 func TestFindMoreLikeThisInitialRoundTrip(t *testing.T) {
+	t.Run("deferred-back-observes-later-preparation", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		publish(similarity.SearchPartial, 2, 1)
+		v.grid.SimulateHover(1)
+		v.findMoreLikeThis()
+		publish(similarity.SearchPartial, 0, 1)
+		popup := widget.NewPopUpMenu(fyne.NewMenu("", fyne.NewMenuItem("Example", func() {})), v.win.Canvas())
+		popup.ShowAtPosition(fyne.NewPos(10, 10))
+		v.visualsearch.Back()
+		publish(similarity.SearchReady)
+		wait := v.searchView.overlay
+		if wait == nil {
+			t.Fatal("deferred restoration has no completion")
+		}
+		popup.Hide()
+		for v.searchView.pending != nil {
+			<-wait.notice
+			v.searchView.overlayUI.Drain()
+		}
+		visibleProgress := false
+		explorerWalk(v.win.Content(), func(object fyne.CanvasObject) {
+			if _, ok := object.(*widget.ProgressBar); ok {
+				visibleProgress = true
+			}
+		})
+		if !v.visualsearch.State().Progress.Complete || visibleProgress {
+			t.Fatal("deferred Back restored stale progress after preparation completed")
+		}
+	})
 	t.Run("cohort-stream-history-overlay-exit", func(t *testing.T) {
 		v := explorerFixture(t)
 		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}

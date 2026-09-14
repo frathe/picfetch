@@ -363,7 +363,8 @@ narrow Host. The feature's Settle drains finite query delivery without waiting
 for an idle retained worker; Stop followed by Settle joins retired producers.
 `internal/ui/visualsearch.go` composes command admission, shared Explorer setup,
 ranked Grid visits and complete presentation/restoration deliveries. Deferred Back
-carries its saved Grid state and live progress until the surface can accept both.
+carries its saved Grid state until the surface can accept it; application reads
+current preparation progress from the live search session.
 `internal/ui/browsing.go` captures the shared ranked/cohort command restriction and
 one immutable ranked index order per action or preload pair; menus and duplicate
 handlers consume the same subset restriction. Favorite capture exposes one

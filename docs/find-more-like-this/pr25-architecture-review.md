@@ -1,5 +1,5 @@
 > Follow-up: Ronin authorized the proposed refactor. Implementation and verification
-> are tracked in the [ownership plan](../../plans/2026-09-15-search-ownership.md).
+> are tracked in the [ownership plan](../../finished_refactorings/2026-09-15-search-ownership.md).
 > The assessment below records the code and reviews before that implementation.
 
 # PR #25: architecture assessment from the complete Codex history

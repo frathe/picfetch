@@ -74,7 +74,7 @@ func (v *viewer) startVisualSearch(reference string) {
 		if v.visualsearch.Explore(reference) {
 			v.searchView.imageOrder = nil
 			state := v.visualsearch.State()
-			v.presentSearch(state.Visit, state.Progress)
+			v.presentSearch(state.Visit)
 		}
 		return
 	}
@@ -92,21 +92,20 @@ func (v *viewer) startVisualSearch(reference string) {
 	v.searchView.imageOrder = nil
 	policy := v.searchCachePolicy()
 	if v.visualsearch.Start(searchui.StartRequest{Paths: paths, ReferencePath: reference, Origin: origin, Cache: policy, After: after}) {
-		v.presentSearch(searchui.Visit{ReferencePath: reference}, grid.Progress{Total: len(paths)})
+		v.presentSearch(searchui.Visit{ReferencePath: reference})
 	}
 }
 
-// A deferred restoration carries its Grid visit and live progress together.
-// Publishing a newer ranking preserves the current interaction; Back restores
-// a saved interaction only once the receiving surface can accept it.
+// A deferred restoration carries its saved Grid interaction, while progress
+// remains owned by the live search session. Read progress at delivery time:
+// preparation can complete while a popup is holding this visit.
 type searchDelivery struct {
-	visit    searchui.Visit
-	progress grid.Progress
-	restore  bool
+	visit   searchui.Visit
+	restore bool
 }
 
-func (v *viewer) presentSearch(visit searchui.Visit, progress grid.Progress) {
-	v.applySearchDelivery(searchDelivery{visit: visit, progress: progress})
+func (v *viewer) presentSearch(visit searchui.Visit) {
+	v.applySearchDelivery(searchDelivery{visit: visit})
 }
 
 func (v *viewer) applySearchDelivery(delivery searchDelivery) {
@@ -127,7 +126,7 @@ func (v *viewer) applySearchDelivery(delivery searchDelivery) {
 	v.searchView.pending = nil
 	v.searchView.revision++
 	visit := delivery.visit
-	v.grid.OpenRanked(grid.RankedVisit{ReferencePath: visit.ReferencePath, Paths: visit.Paths, Revision: v.searchView.revision, Progress: delivery.progress, Back: func() { v.visualsearch.Back() }, Exit: v.visualsearch.Exit, Save: v.saveSearchMatches})
+	v.grid.OpenRanked(grid.RankedVisit{ReferencePath: visit.ReferencePath, Paths: visit.Paths, Revision: v.searchView.revision, Progress: v.visualsearch.State().Progress, Back: func() { v.visualsearch.Back() }, Exit: v.visualsearch.Exit, Save: v.saveSearchMatches})
 	if delivery.restore {
 		v.grid.RestoreVisit(visit.Grid)
 	}
@@ -140,14 +139,14 @@ func (v *viewer) resetSearchPresentation() {
 	v.searchView.pending = nil
 }
 
-func (v *viewer) restoreSearchVisit(visit searchui.Visit, progress grid.Progress) {
+func (v *viewer) restoreSearchVisit(visit searchui.Visit) {
 	v.resetSearchPresentation()
-	v.applySearchDelivery(searchDelivery{visit: visit, progress: progress, restore: true})
+	v.applySearchDelivery(searchDelivery{visit: visit, restore: true})
 }
 
 func (v *viewer) returnToSearchGrid() {
 	state := v.visualsearch.State()
-	v.restoreSearchVisit(state.Visit, state.Progress)
+	v.restoreSearchVisit(state.Visit)
 }
 func (v *viewer) searchKey(key fyne.KeyName) bool {
 	if !v.searchActive() {
@@ -213,8 +212,8 @@ func (h searchHost) CaptureVisit() searchui.Visit {
 	}
 	return visit
 }
-func (h searchHost) Present(visit searchui.Visit, progress grid.Progress) {
-	h.v.presentSearch(visit, progress)
+func (h searchHost) Present(visit searchui.Visit, _ grid.Progress) {
+	h.v.presentSearch(visit)
 }
 func (h searchHost) Restore(visit searchui.Visit, origin bool) {
 	v := h.v
@@ -238,7 +237,7 @@ func (h searchHost) Restore(visit searchui.Visit, origin bool) {
 			v.ShowImage(i)
 		}
 	} else {
-		v.restoreSearchVisit(visit, v.visualsearch.State().Progress)
+		v.restoreSearchVisit(visit)
 	}
 	v.syncMenus()
 	v.ForceRepaint()
