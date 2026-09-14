@@ -407,7 +407,7 @@ func TestVisualSearchLifecycleSuspendRestartsOnlyForExplicitQuery(t *testing.T) 
 func TestVisualSearchLifecycleCancellationBeforeAdmissionAndLatestBoundedQuery(t *testing.T) {
 	f, _, _, calls := newSearch(t)
 	after := make(chan struct{})
-	request := visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", After: after}
+	request := visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", After: after, Cache: similarity.CachePolicy{FavoriteEnabled: true}}
 	f.Start(request)
 	f.Close()
 	close(after)
@@ -420,12 +420,13 @@ func TestVisualSearchLifecycleCancellationBeforeAdmissionAndLatestBoundedQuery(t
 	f.Start(request)
 	for range 50 {
 		f.Explore("/b")
+		f.FavoriteSaved()
 		f.Explore("/c")
 	}
 	close(after)
 	call := <-calls
 	query := <-call.queries
-	if query.ReferencePath != "/c" {
+	if query.ReferencePath != "/c" || query.CacheRevision != 50 {
 		t.Fatalf("pending queries were not coalesced: %+v", query)
 	}
 	select {
@@ -433,7 +434,7 @@ func TestVisualSearchLifecycleCancellationBeforeAdmissionAndLatestBoundedQuery(t
 		t.Fatalf("obsolete query retained in bounded lane: %+v", extra)
 	default:
 	}
-	publish(call, query, 1, similarity.SearchFinal, "/a")
+	call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, CacheRevision: query.CacheRevision, Revision: 1, Kind: similarity.SearchFinal, Total: 3, Processed: 3})
 	f.Settle()
 }
 

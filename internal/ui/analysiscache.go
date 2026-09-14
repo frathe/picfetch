@@ -56,3 +56,9 @@ func (h analysisCacheHost) ApplyPolicy(enabled bool, limitMiB int) {
 func (v *viewer) analysisMaintenanceBusy() bool {
 	return v.analysisCache != nil && v.analysisCache.Busy()
 }
+
+func (v *viewer) favoriteSaved() {
+	if !v.analysisMaintenanceBusy() && v.visualsearch != nil {
+		v.visualsearch.FavoriteSaved()
+	}
+}

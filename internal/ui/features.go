@@ -182,5 +182,6 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.settingsWin = settingswin.New(application, view)
 	view.favorites = favorites.New(favoriteListHost{view}, window)
 	view.favorites.SetOnDialogClosed(view.flushSearchPresentation)
+	view.favorites.SetOnSaved(view.favoriteSaved)
 	view.registerAnalysisCache(prefs)
 }

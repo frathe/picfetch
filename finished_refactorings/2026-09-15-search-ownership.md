@@ -122,3 +122,45 @@ completed; all design, implementation and review lead-owned. Local verification 
 - Final timing guard exposed stale progress when preparation completed after Back
   was deferred behind a popup. Presentation now carries only the frozen visit and
   reads live progress on application; the new regression was observed failing first.
+
+## Fresh review follow-up (12d8c51)
+
+The first complete remote round passed all 13 CI/analysis checks and security
+review, but its code review added three confirmed P2 findings. These extend the
+historical 28-finding assessment; they are not a clean final round.
+
+- [Favorite saved during retained preparation](https://github.com/frathe/picfetch/pull/25#discussion_r4010389773):
+  an explicit committed-save observer now sends a cache revision on the bounded
+  query lane. Replacing a queued query retains the latest save revision. The
+  worker acknowledges persistence, refreshes future routing, and reuses retained
+  vectors for newly owned records, regenerating only previews. Opt-outs refresh
+  ownership without persisting Favorite data. This is explicit new admission,
+  not an automatic resurrection of a retired cache writer.
+  Versioned inventory comparison limits completion to changed lists. An
+  overlapping-Favorites regression proves reusable records reach the new list
+  while the existing Favorite's record remains unchanged; missing-preview
+  completion runs only for records unavailable in either enabled store.
+- [Per-source search progress](https://github.com/frathe/picfetch/pull/25#discussion_r4010389781):
+  transient counts use a 100 ms cadence; ranked/failure/final delivery stays exact.
+  Virtual-time coverage failed with 1,001 progress messages, then passed with the
+  bounded cadence and exact final counters. Reference-change and source-validation
+  tests now trigger from actual preparation, independently of transient counts.
+- [Cache inspection progress backlog](https://github.com/frathe/picfetch/pull/25#discussion_r4010389787):
+  each work item owns one queued progress slot; a mutex protects the latest value
+  across worker/UI. The 20,000-record test failed with 20,000 callbacks, then passed
+  with one queued callback displaying the latest count and normal final completion.
+
+Lead owns assessment and all fixes; no additional delegation. Real native UI save
+and reopening tests pass with loose caching both off and on; the off case persists
+two records and reopening makes zero inference attempts. Focused race suites pass
+for similarity, cache UI, visualsearch, Favorites and root search integration.
+Negative overlays verify save notification, query/save coalescing and refreshed
+opt-outs. Existing duplicate-test fragments in explorer_local_test.go and Favorites
+are intentional independent UI assertions and remain covered by the existing exact
+Qodana test-file exclusions; the new duplicated trial setup was factored out.
+Final focused race runs passed (similarity 9.2 s, cache UI 1.8 s, visualsearch
+1.9 s, Favorites 2.2 s); both actual UI/native-worker save cases passed again
+(2.5 s). GoLand reinspection of the final cache changes is clear.
+Root browsing regressions passed under race (25.1 s); `make verify-build` and
+`make check-test-shards` passed, including all 686 root-test assignments.
+Fresh code/security reviews and CI on the follow-up commit remain the final gate.

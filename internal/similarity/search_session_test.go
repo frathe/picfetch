@@ -8,7 +8,56 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 )
+
+func TestSearchSessionProgressHasBoundedCadence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		paths := make([]string, 1001)
+		for i := range paths {
+			paths[i] = filepath.Join(t.TempDir(), "source.jpg")
+		}
+		queries := make(chan SearchQuery, 1)
+		queries <- SearchQuery{ID: 1, ReferencePath: paths[0]}
+		close(queries)
+		var progress []time.Time
+		var final SearchEvent
+		prepared := 0
+		err := runSearchSession(context.Background(), SearchRequest{Paths: paths}, queries, func(_ context.Context, path string) (Item, bool, error) {
+			prepared++
+			// Virtual time models a warm batch followed by slower preparation.
+			if prepared > 990 {
+				time.Sleep(25 * time.Millisecond)
+			}
+			vector := make([]float32, 768)
+			vector[0] = 1
+			return Item{Path: path, Embedding: vector}, true, nil
+		}, nil, nil, func(event SearchEvent) error {
+			if event.Kind == SearchProgress {
+				progress = append(progress, time.Now())
+			}
+			if event.Kind == SearchFinal {
+				final = event
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(progress) < 2 || len(progress) > 4 {
+			t.Fatalf("progress events for 1001 prepared sources: %d", len(progress))
+		}
+		for i := 1; i < len(progress); i++ {
+			if progress[i].Sub(progress[i-1]) < 100*time.Millisecond {
+				t.Fatal("progress exceeded its display cadence")
+			}
+		}
+		if final.Processed != len(paths) || final.Reused != len(paths) {
+			t.Fatalf("final accounting lost: %+v", final)
+		}
+	})
+}
 
 func TestSearchSessionInitialReferenceFirstAndFinal(t *testing.T) {
 	dir := t.TempDir()
@@ -24,7 +73,7 @@ func TestSearchSessionInitialReferenceFirstAndFinal(t *testing.T) {
 			vector := make([]float32, 768)
 			vector[0] = 1
 			return Item{Path: path, Embedding: vector}, false, nil
-		}, nil, func(e SearchEvent) error { events = append(events, e); return nil })
+		}, nil, nil, func(e SearchEvent) error { events = append(events, e); return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,6 +88,42 @@ func TestSearchSessionInitialReferenceFirstAndFinal(t *testing.T) {
 	}
 	if len(finals) != 1 || finals[0].Processed != 2 || finals[0].Total != 2 || len(finals[0].Matches) != 1 || finals[0].Matches[0].Path != a {
 		t.Fatalf("final result: %+v", finals)
+	}
+}
+
+func TestSearchSessionFavoriteSaveRetainsQueryAndPreparation(t *testing.T) {
+	dir := t.TempDir()
+	paths := []string{filepath.Join(dir, "a.jpg"), filepath.Join(dir, "b.jpg"), filepath.Join(dir, "c.jpg")}
+	queries := make(chan SearchQuery, 1)
+	query := SearchQuery{ID: 1, ReferencePath: paths[0]}
+	queries <- query
+	prepared, refreshes := 0, 0
+	var final SearchEvent
+	err := runSearchSession(context.Background(), SearchRequest{Paths: paths}, queries, func(_ context.Context, path string) (Item, bool, error) {
+		prepared++
+		if prepared == 1 {
+			query.CacheRevision = 1
+			queries <- query
+			close(queries)
+		} else if refreshes != 1 {
+			t.Fatal("next preparation preceded ownership refresh")
+		}
+		vector := make([]float32, 768)
+		vector[0] = 1
+		return Item{Path: path, Embedding: vector}, false, nil
+	}, nil, func(_ context.Context, items []Item) {
+		refreshes++
+		if len(items) != 1 || items[0].Path != paths[0] || items[0].Embedding[0] != 1 {
+			t.Fatal("save did not receive the retained preparation")
+		}
+	}, func(event SearchEvent) error {
+		if event.Kind == SearchFinal {
+			final = event
+		}
+		return nil
+	})
+	if err != nil || prepared != 3 || refreshes != 1 || final.QueryID != 1 || final.CacheRevision != 1 || final.Processed != 3 {
+		t.Fatalf("save/reuse sequence: prepared=%d refreshes=%d final=%+v error=%v", prepared, refreshes, final, err)
 	}
 }
 
@@ -59,7 +144,7 @@ func TestSearchSessionPublicationBoundaries(t *testing.T) {
 				vector := make([]float32, 768)
 				vector[0] = 1
 				return Item{Path: path, Embedding: vector}, true, nil
-			}, nil, func(e SearchEvent) error {
+			}, nil, nil, func(e SearchEvent) error {
 				if e.Kind == SearchPartial || e.Kind == SearchFinal {
 					publications = append(publications, e.Processed)
 					kinds = append(kinds, e.Kind)
@@ -106,12 +191,12 @@ func TestSearchSessionProgressiveRankingHasLinearWork(t *testing.T) {
 		}
 		prepared = append(prepared, item)
 		byPath[path] = item
-		return item, true, nil
-	}, nil, func(event SearchEvent) error {
-		if event.Kind == SearchProgress && event.Processed == 350 {
+		if len(prepared) == 350 {
 			query = SearchQuery{ID: 2, ReferencePath: paths[150]}
 			queries <- query
 		}
+		return item, true, nil
+	}, nil, nil, func(event SearchEvent) error {
 		if event.Kind == SearchPartial || event.Kind == SearchFinal {
 			want, err := RankSimilar(context.Background(), byPath[query.ReferencePath], prepared, 30)
 			if err != nil || !slices.Equal(event.Matches, want) {
@@ -148,7 +233,7 @@ func BenchmarkSearchSessionProgressive(b *testing.B) {
 				queries := make(chan SearchQuery, 1)
 				queries <- SearchQuery{ID: 1, ReferencePath: paths[0]}
 				close(queries)
-				if err := runSearchSession(context.Background(), SearchRequest{Paths: paths, Limit: 30}, queries, prepare, nil, func(_ SearchEvent) error { return nil }); err != nil {
+				if err := runSearchSession(context.Background(), SearchRequest{Paths: paths, Limit: 30}, queries, prepare, nil, nil, func(_ SearchEvent) error { return nil }); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -182,9 +267,7 @@ func TestSearchSessionBoundsPartialValidationAndChecksFinalScope(t *testing.T) {
 				return Item{Path: path, Embedding: vector}, true, nil
 			}
 			var publications []int
-			processed := 0
-			err := runSearchSession(context.Background(), SearchRequest{Paths: paths, Limit: 30}, queries, prepare, p.validate, func(event SearchEvent) error {
-				processed = event.Processed
+			err := runSearchSession(context.Background(), SearchRequest{Paths: paths, Limit: 30}, queries, prepare, p.validate, nil, func(event SearchEvent) error {
 				if event.Kind == SearchPartial || event.Kind == SearchFinal {
 					publications = append(publications, event.Processed)
 					if event.Processed == 100 {
@@ -193,6 +276,7 @@ func TestSearchSessionBoundsPartialValidationAndChecksFinalScope(t *testing.T) {
 				}
 				return nil
 			})
+			processed := len(p.versions)
 			wantPublications, wantProcessed := []int{100}, 200
 			if name == "unranked" {
 				wantPublications, wantProcessed = []int{100, 200, 300}, len(paths)

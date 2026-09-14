@@ -20,6 +20,43 @@ import (
 
 func TestMain(m *testing.M) { test.NewApp(); os.Exit(m.Run()) }
 
+func TestAnalysisCacheManagementProgressCoalescesBeforeDelivery(t *testing.T) {
+	q := &uitest.UIQueue{}
+	ready, release := make(chan struct{}), make(chan struct{})
+	provider := maintenance{inspect: func(_ context.Context, _ similarity.CacheRoots, progress func(similarity.CacheProgress)) (similarity.CacheUsage, error) {
+		for i := 1; i <= 20000; i++ {
+			progress(similarity.CacheProgress{Records: i})
+		}
+		close(ready)
+		<-release
+		return similarity.CacheUsage{}, nil
+	}}
+	f := analysiscache.New(&cacheHost{}, analysiscache.Options{Provider: provider, Queue: q})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+		f.Stop()
+		f.Settle()
+	})
+	content := f.Content(true, 2048)
+	<-ready
+	if got := q.Len(); got != 1 {
+		t.Fatalf("inspection queued %d transient updates, want one latest delivery", got)
+	}
+	q.Drain()
+	if !strings.Contains(labels(content), "Processed 20000 records") {
+		t.Fatal("coalescing lost the latest progress")
+	}
+	close(release)
+	f.Settle()
+	if f.Busy() {
+		t.Fatal("coalescing lost final completion")
+	}
+}
+
 type policy struct {
 	enabled bool
 	limit   int

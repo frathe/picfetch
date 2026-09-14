@@ -65,6 +65,65 @@ func TestAnalysisCachePolicyProducerScope(t *testing.T) {
 	}
 }
 
+func TestAnalysisCachePolicyExplicitFavoriteSaveReusesPreparedItems(t *testing.T) {
+	policy := cacheTestPolicy(t)
+	policy.LooseEnabled = false
+	prepared := cacheFixtureItem(t, "already-prepared.jpg")
+	later := cacheFixtureItem(t, "not-yet-prepared.jpg")
+	cached := cacheFixtureItem(t, "already-cached.jpg")
+	if err := favstore.Save(policy.Roots.FavoritesDir, "Existing", []fyne.URI{storage.NewFileURI(cached.Path)}); err != nil {
+		t.Fatal(err)
+	}
+	store := cacheTestStore(t, policy)
+	if err := store.write(context.Background(), cached); err != nil {
+		t.Fatal(err)
+	}
+	existingPath := filepath.Join(favstore.Dir(policy.Roots.FavoritesDir, "Existing"), analysisName(cached.Path))
+	existing, err := os.Stat(existingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.write(context.Background(), prepared); err != nil {
+		t.Fatal(err)
+	}
+	if err := favstore.Save(policy.Roots.FavoritesDir, "Trip", []fyne.URI{storage.NewFileURI(prepared.Path), storage.NewFileURI(later.Path), storage.NewFileURI(cached.Path)}); err != nil {
+		t.Fatal(err)
+	}
+	retained := prepared
+	retained.Preview = nil
+	completed := 0
+	if err := store.refreshFavorites(context.Background(), []Item{retained, cached}, func(_ context.Context, item Item) (Item, error) {
+		completed++
+		if !slices.Equal(item.Embedding, prepared.Embedding) {
+			t.Fatal("prepared vector was lost")
+		}
+		item.Preview = prepared.Preview
+		return item, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.write(context.Background(), later); err != nil {
+		t.Fatal(err)
+	}
+	if completed != 1 {
+		t.Fatalf("prepared record completions: %d", completed)
+	}
+	after, err := os.Stat(existingPath)
+	if err != nil || !sameVersion(existing, after) {
+		t.Fatal("saving one Favorite rewrote an unrelated compatible record")
+	}
+	reopened := cacheTestStore(t, policy)
+	for _, item := range []Item{prepared, later, cached} {
+		if _, hit := reopened.read(context.Background(), item); !hit {
+			t.Fatalf("new Favorite missed %s", item.Path)
+		}
+	}
+	usage, err := (CacheManager{}).Inspect(context.Background(), policy.Roots, nil)
+	if err != nil || usage.General.Records != 0 || usage.Favorite.Records != 4 {
+		t.Fatalf("save effects: %+v, %v", usage, err)
+	}
+}
+
 func TestAnalysisCachePolicyWriteBudget(t *testing.T) {
 	item := cacheFixtureItem(t, "source.jpg")
 	data := cacheTestPayload(t, item)
@@ -199,6 +258,32 @@ func TestAnalysisCachePolicyDisabledStores(t *testing.T) {
 }
 
 func TestAnalysisCachePolicyFavoriteOptOutRejectsRetainedGeneralRecord(t *testing.T) {
+	t.Run("active_save_refreshes_opt_out_without_persisting", func(t *testing.T) {
+		policy := cacheTestPolicy(t)
+		policy.FavoriteEnabled = false
+		item := cacheFixtureItem(t, "new-member.jpg")
+		store := cacheTestStore(t, policy)
+		if err := store.write(context.Background(), item); err != nil {
+			t.Fatal(err)
+		}
+		cacheTestFavorite(t, policy.Roots, item)
+		if err := store.refreshFavorites(context.Background(), []Item{item}, func(_ context.Context, _ Item) (Item, error) {
+			t.Fatal("Favorite opt-out admitted preview completion")
+			return Item{}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, hit := store.read(context.Background(), item); hit {
+			t.Fatal("refreshed Favorite opt-out reused a general record")
+		}
+		if err := store.write(context.Background(), item); err != nil {
+			t.Fatal(err)
+		}
+		usage, err := (CacheManager{}).Inspect(context.Background(), policy.Roots, nil)
+		if err != nil || usage.General.Records != 1 || usage.Favorite.Records != 0 {
+			t.Fatalf("opt-out changed retained bytes: %+v, %v", usage, err)
+		}
+	})
 	policy := cacheTestPolicy(t)
 	item := cacheFixtureItem(t, "former-loose.jpg")
 	general := cacheTestStore(t, policy)

@@ -38,27 +38,32 @@ func analysisName(path string) string {
 
 func (c *favoriteInventory) read(source Item) (Item, bool) {
 	for _, favorite := range c.members[filepath.Clean(source.Path)] {
-		if !favorite.current() {
-			continue
+		if item, hit := favorite.read(source); hit {
+			return item, true
 		}
-		file, err := favorite.root.Open(analysisName(source.Path))
-		if err != nil {
-			continue
-		}
-		info, err := file.Stat()
-		if err != nil || info.Size() > maximumAnalysisRecordBytes {
-			_ = file.Close()
-			continue
-		}
-		item, err := decodeRepresentation(file)
-		_ = file.Close()
-		if err != nil || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS {
-			continue
-		}
-
-		return item, true
 	}
 	return Item{}, false
+}
+
+func (f *favoriteAnalysis) read(source Item) (Item, bool) {
+	if !f.current() {
+		return Item{}, false
+	}
+	file, err := f.root.Open(analysisName(source.Path))
+	if err != nil {
+		return Item{}, false
+	}
+	info, err := file.Stat()
+	if err != nil || info.Size() > maximumAnalysisRecordBytes {
+		_ = file.Close()
+		return Item{}, false
+	}
+	item, err := decodeRepresentation(file)
+	_ = file.Close()
+	if err != nil || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS {
+		return Item{}, false
+	}
+	return item, true
 }
 
 func (c *favoriteInventory) write(ctx context.Context, item Item) error {

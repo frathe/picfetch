@@ -68,6 +68,9 @@ type Feature struct {
 	reference                      string
 	sessionID, queryID, revision   uint64
 	producer                       *producer
+	cacheRevision                  uint64
+	cachePending                   bool
+	lastQuery                      similarity.SearchQuery
 	retired                        []*producer
 }
 
@@ -133,14 +136,32 @@ func (f *Feature) query(path string) {
 	f.queryID++
 	f.reference = path
 	f.pending, f.awaiting, f.queryFailed = true, true, false
-	query := similarity.SearchQuery{ID: f.queryID, ReferencePath: path}
+	query := similarity.SearchQuery{ID: f.queryID, ReferencePath: path, CacheRevision: f.cacheRevision}
+	f.lastQuery = query
+	f.enqueueQuery(query)
+	f.host.Changed()
+}
+
+func (f *Feature) enqueueQuery(query similarity.SearchQuery) {
 	// The UI is the only sender. Replace an unconsumed query without blocking.
 	select {
 	case <-f.producer.queries:
 	default:
 	}
 	f.producer.queries <- query
-	f.host.Changed()
+}
+
+// FavoriteSaved admits persistence after an explicit committed save. The latest
+// query carries its cache revision so rapid Explore/save notifications coalesce
+// without dropping either intent. Settle observes the worker acknowledgement.
+func (f *Feature) FavoriteSaved() {
+	if !f.active || f.stopped || f.producer == nil {
+		return
+	}
+	f.cacheRevision++
+	f.cachePending = true
+	f.lastQuery.CacheRevision = f.cacheRevision
+	f.enqueueQuery(f.lastQuery)
 }
 
 // Back abandons a pending reference or restores a frozen successful visit. It

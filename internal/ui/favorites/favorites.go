@@ -62,6 +62,7 @@ type Host interface {
 type Feature struct {
 	addFiles       []fyne.URI
 	onDialogClosed func()
+	onSaved        func()
 	host           Host
 	win            fyne.Window
 	dir            string
@@ -288,6 +289,9 @@ func (f *Feature) writeFavorite(name string) {
 	// independent: a menu that could not be rebuilt is no reason to leave
 	// the favorite just written unprepared.
 	f.addFiles = nil
+	if f.onSaved != nil {
+		f.onSaved()
+	}
 	f.host.SyncFavoritePreviews(favstore.Dir(f.dir, name), files)
 
 	if !f.refreshMenu() {
@@ -327,3 +331,6 @@ func (f *Feature) AddFiles(files []fyne.URI) {
 
 // SetOnDialogClosed observes return to the main browsing surface.
 func (f *Feature) SetOnDialogClosed(closed func()) { f.onDialogClosed = closed }
+
+// SetOnSaved observes a successfully committed list, before menu refresh.
+func (f *Feature) SetOnSaved(saved func()) { f.onSaved = saved }

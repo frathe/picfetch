@@ -124,7 +124,12 @@ the retained, reference-first worker session with progress and 100-source result
 publications. `search_client.go` owns query/event IPC and observes writer and
 subprocess completion; `search_worker.go` uses canonical decoding and compatible
 Favorite representations, validates source versions before publication, and
-retains vectors rather than previews between queries.
+retains vectors rather than previews between queries. A committed Favorite save
+carries an acknowledged cache revision on the coalesced query lane. The retained
+worker refreshes ownership and persists prepared members, regenerating previews
+without inference; cache opt-outs still refresh ownership without writing Favorite
+records. Transient search progress is limited to one update per 100 ms, while
+ranked, failure and terminal events retain exact accounting.
 
 ### `internal/ort`
 
@@ -393,7 +398,9 @@ refresh/reserve requests, provider dispatch and accepted policy effects. Refresh
 wait behind mutations; automatic eviction and policy retirement survive view close. Persistence toggles commit independently of inspection
 success, retire producers on UI and join their barriers even after Settings closes.
 `work.go` captures providers/roots, queues maintenance writer suspension,
-joins completion barriers off UI and suppresses retired view callbacks. Root
+joins completion barriers off UI and suppresses retired view callbacks. Cache
+inspection holds only one queued progress callback, reading the latest count on
+delivery, so inventory size cannot create an unbounded UI progress backlog. Root
 composes the two-method Host in `internal/ui/analysiscache.go`, uses the Fyne
 application cache root, persists accepted policy and disables new analysis
 admission while maintenance owns the roots. Settings supplies the tab slot,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"time"
 )
 
 // CacheRoots isolates derived image representations from model assets and user data.
@@ -25,8 +26,10 @@ type SearchRequest struct {
 	Cache     CachePolicy
 }
 
-// SearchQuery chooses a reference without replacing the worker's prepared scope.
+// SearchQuery chooses a reference and carries the latest committed Favorite-save
+// revision without replacing the worker's prepared scope.
 type SearchQuery struct {
+	CacheRevision uint64
 	ID            uint64
 	ReferencePath string
 }
@@ -43,6 +46,7 @@ const (
 
 // SearchEvent contains immutable source identities and no inference vectors.
 type SearchEvent struct {
+	CacheRevision                    uint64
 	CachePressureBytes               uint64
 	SessionID, QueryID, Revision     uint64
 	Kind                             SearchKind
@@ -58,7 +62,7 @@ const DefaultAnalysisCacheBytes = 2048 * 1024 * 1024
 
 type searchPreparation func(context.Context, string) (Item, bool, error)
 
-func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan SearchQuery, prepare searchPreparation, validate func(context.Context, Item, []Match, bool) error, emit func(SearchEvent) error) error {
+func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan SearchQuery, prepare searchPreparation, validate func(context.Context, Item, []Match, bool) error, refresh func(context.Context, []Item), emit func(SearchEvent) error) error {
 	paths := make([]string, 0, len(request.Paths))
 	members := make(map[string]bool)
 	for _, path := range request.Paths {
@@ -83,8 +87,10 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 	prepared := make(map[string]Item, len(paths))
 	var query SearchQuery
 	var queryFailed bool
+	cacheChanged := false
 	var ranked []Item
 	rankedAt := 0
+	var lastProgress time.Time
 	send := func(kind SearchKind) error {
 		event.Kind = kind
 		event.QueryID = query.ID
@@ -94,6 +100,13 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 		return emit(snapshot)
 	}
 	accept := func(q SearchQuery) bool {
+		if q.CacheRevision > event.CacheRevision {
+			if refresh != nil {
+				refresh(ctx, items)
+			}
+			event.CacheRevision = q.CacheRevision
+			cacheChanged = true
+		}
 		if q.ID <= query.ID && query.ID != 0 {
 			return false
 		}
@@ -174,6 +187,15 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 				break drain
 			}
 		}
+		if cacheChanged {
+			cacheChanged = false
+			if event.Processed != event.Total {
+				if err := send(SearchProgress); err != nil {
+					return err
+				}
+				lastProgress = time.Now()
+			}
+		}
 		if !members[query.ReferencePath] && !queryFailed {
 			if err := publish(false); err != nil {
 				return err
@@ -244,8 +266,14 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 		items = append(items, item)
 		event.Processed++
 		event.Matches = nil
-		if err := send(SearchProgress); err != nil {
-			return err
+		// Warm caches can prepare thousands of sources between UI frames.
+		// Terminal/ranked events keep exact counts; transient counts have a
+		// bounded cadence independent of collection size.
+		if now := time.Now(); lastProgress.IsZero() || now.Sub(lastProgress) >= 100*time.Millisecond {
+			if err := send(SearchProgress); err != nil {
+				return err
+			}
+			lastProgress = now
 		}
 		if path == query.ReferencePath && item.Error != "" {
 			if err := publish(false); err != nil {
