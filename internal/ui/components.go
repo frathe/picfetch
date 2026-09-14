@@ -94,9 +94,11 @@ func newDropzoneUI(onOpen, onRestore func()) dropzoneUI {
 	// resolves a tap to the deepest matching Tappable under the pointer, so
 	// tapping restoreLink itself reaches its own OnTapped rather than this
 	// wrapper's, even though it's nested inside it.
-	art := widgets.NewTappableArea(container.NewBorder(nil, nil, nil,
+	content := container.NewStack(container.NewBorder(nil, nil, nil,
 		container.NewStack(welcomeArt, emptyStateArt),
-		container.NewCenter(container.NewVBox(hint, restoreLink))), onOpen)
+		container.NewCenter(container.NewVBox(hint, restoreLink))))
+	art := widgets.NewTappableArea(content, onOpen)
+	content.Add(newWelcomePointer(art, restoreLink))
 	art.OnPointer = welcomeArt.lookAt
 	art.OnHover = func(hovering bool) {
 		if hovering {

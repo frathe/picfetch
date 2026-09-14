@@ -45,6 +45,15 @@ import (
 // below.
 var testApp fyne.App
 
+// testTextEntry lets surface tests use Entry behavior without depending on
+// whether a feature extends the widget to handle additional keys.
+type testTextEntry interface {
+	fyne.Focusable
+	fyne.Shortcutable
+	SetText(string)
+	SelectedText() string
+}
+
 func TestMain(m *testing.M) {
 	if similarity.WorkerMain() {
 		return

@@ -36,6 +36,7 @@ var _ mosaicwin.Host = (*viewer)(nil)
 // widgets compose, and menu.go still decides how their menus compose.
 func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State) {
 	view.help = help.New(application, appTitle, assets.ComparingWebP)
+	view.welcomeArt.onCircles = view.help.ShowFinis
 	view.spiral = spiral.New(application)
 	view.spiral.SetOnManual(view.help.ShowManual)
 	view.help.SetOnSpiral(view.openSpiral)

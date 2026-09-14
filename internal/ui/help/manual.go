@@ -63,6 +63,23 @@ const secretPhrase = "please hypnotize me"
 // finisPhrase is the same hidden character name in every locale.
 const finisPhrase = "finis"
 
+// manualSearchEntry receives keys while focused, before the window's Escape
+// handler can see them. All other keys retain Entry's editing/search behavior.
+type manualSearchEntry struct {
+	widget.Entry
+	onEscape func()
+}
+
+func (e *manualSearchEntry) TypedKey(event *fyne.KeyEvent) {
+	if event.Name == fyne.KeyEscape {
+		if e.onEscape != nil {
+			e.onEscape()
+		}
+		return
+	}
+	e.Entry.TypedKey(event)
+}
+
 // manualView is the search-enabled manual page: a fixed entry above the
 // scrollable markdown. Submit (Enter) highlights matches and scrolls the
 // current hit into view; a repeated submit of the same query walks forward.
@@ -71,7 +88,7 @@ type manualView struct {
 	source  string
 	text    *widget.RichText
 	scroll  *container.Scroll
-	entry   *widget.Entry
+	entry   *manualSearchEntry
 	state   searchState
 	current *widget.TextSegment
 
@@ -86,7 +103,8 @@ func newManualView(source string, onSecret func()) *manualView {
 	loadManualMarkdown(text, source)
 	text.Wrapping = fyne.TextWrapWord
 	scroll := container.NewScroll(text)
-	entry := widget.NewEntry()
+	entry := &manualSearchEntry{}
+	entry.ExtendBaseWidget(entry)
 	entry.SetPlaceHolder(lang.L("Search for..."))
 
 	v := &manualView{source: source, text: text, scroll: scroll, entry: entry, onSecret: onSecret}
@@ -179,7 +197,7 @@ func (v *manualView) scrollTo(loc *widget.TextSegment) {
 func (h *Help) ShowManual() {
 	h.manualWin.Show(h.app, lang.L("PicFetch Manual"), fyne.NewSize(manualW, manualH), func() fyne.CanvasObject {
 		h.manual = newManualView(currentManual(), h.openSpiral)
-		h.manual.onFinis = h.showFinis
+		h.manual.onFinis = h.ShowFinis
 
 		return h.manual.content()
 	}, func() {
@@ -190,9 +208,19 @@ func (h *Help) ShowManual() {
 	})
 
 	if win := h.manualWin.Window(); win != nil && h.manual != nil {
+		h.manual.entry.onEscape = win.Close
 		win.Canvas().Focus(h.manual.entry)
 	}
 	if h.onManualOpened != nil {
 		h.onManualOpened()
 	}
+}
+
+// showEmptyManualSearch follows Finis's clue without executing it. ShowManual
+// owns singleton reuse and entry focus; submitting an empty query discards
+// both the previous matches and the highlighted current result.
+func (h *Help) showEmptyManualSearch() {
+	h.ShowManual()
+	h.manual.entry.SetText("")
+	h.manual.submit("")
 }

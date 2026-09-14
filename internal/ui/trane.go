@@ -2,9 +2,13 @@ package ui
 
 import (
 	"image"
+	"image/color"
 	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/ui/assets"
@@ -64,9 +68,13 @@ func removeTraneSpill(frame *image.NRGBA) {
 // choose a pose, on Fyne's UI thread.
 type tranePet struct {
 	widget.BaseWidget
-	gaze    *widgets.Gaze
-	pointer fyne.Position
-	known   bool
+	gaze      *widgets.Gaze
+	pointer   fyne.Position
+	known     bool
+	circles   widgets.CircleGesture
+	center    fyne.Position
+	scale     float32
+	onCircles func()
 }
 
 func newTranePet() *tranePet {
@@ -86,8 +94,7 @@ func (p *tranePet) CreateRenderer() fyne.WidgetRenderer {
 }
 
 func (p *tranePet) Hide() {
-	p.known = false
-	p.renderFrame()
+	p.forgetPointer()
 	p.BaseWidget.Hide()
 }
 
@@ -97,11 +104,62 @@ func (p *tranePet) lookAt(pointer fyne.Position) {
 	}
 	p.pointer, p.known = pointer, true
 	p.renderFrame()
+	if p.scale > 0 && p.circles.Move(fyne.NewPos(
+		(pointer.X-p.center.X)/(18*p.scale), (pointer.Y-p.center.Y)/(18*p.scale)), time.Now()) && p.onCircles != nil {
+		p.onCircles()
+	}
 }
 
 func (p *tranePet) forgetPointer() {
 	p.known = false
+	p.circles.Reset()
 	p.renderFrame()
+}
+
+// welcomePointer covers the complete dropzone above its hoverable children.
+// It owns only hover input: tap hit testing still reaches the restore link
+// or the enclosing open-files area underneath it.
+type welcomePointer struct {
+	widget.BaseWidget
+	area *widgets.TappableArea
+	link *widget.Hyperlink
+}
+
+func newWelcomePointer(area *widgets.TappableArea, link *widget.Hyperlink) *welcomePointer {
+	p := &welcomePointer{area: area, link: link}
+	p.ExtendBaseWidget(p)
+	return p
+}
+
+func (p *welcomePointer) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
+}
+
+func (p *welcomePointer) MouseIn(event *desktop.MouseEvent) {
+	p.area.MouseIn(event)
+	p.updateLink(event)
+}
+
+func (p *welcomePointer) MouseMoved(event *desktop.MouseEvent) {
+	p.area.MouseMoved(event)
+	p.updateLink(event)
+}
+
+func (p *welcomePointer) MouseOut() {
+	p.area.MouseOut()
+	p.link.MouseOut()
+}
+
+func (p *welcomePointer) updateLink(event *desktop.MouseEvent) {
+	if !p.link.Visible() {
+		p.link.MouseOut()
+		return
+	}
+	// The overlay owns movement, but the existing link still owns its
+	// text hit test, underline and cursor feedback.
+	local := *event
+	local.Position = event.AbsolutePosition.Subtract(fyne.CurrentApp().Driver().AbsolutePositionForObject(p.link))
+	p.link.MouseMoved(&local)
 }
 
 // Gaze must be recalculated after the complete layout: the border layout
@@ -123,16 +181,20 @@ func (l welcomeLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 }
 
 func (p *tranePet) renderFrame() {
-	if !p.known {
-		p.gaze.Rest()
-		return
-	}
 	// ImageFillContain centers the cell inside the portrait. Aim from
 	// the face, accounting for both letterboxing and window resizing.
 	portrait := p.gaze.Portrait()
 	size := portrait.Size()
 	scale := min(size.Width/widgets.GazeWidth, size.Height/widgets.GazeHeight)
 	origin := fyne.CurrentApp().Driver().AbsolutePositionForObject(portrait)
-	p.gaze.LookAt(fyne.NewPos(p.pointer.X-origin.X-size.Width/2,
-		p.pointer.Y-origin.Y-(size.Height-widgets.GazeHeight*scale)/2-64*scale), 18*scale)
+	center := origin.Add(fyne.NewPos(size.Width/2, (size.Height-widgets.GazeHeight*scale)/2+64*scale))
+	if center != p.center || scale != p.scale {
+		p.circles.Reset()
+		p.center, p.scale = center, scale
+	}
+	if !p.known {
+		p.gaze.Rest()
+		return
+	}
+	p.gaze.LookAt(p.pointer.Subtract(center), 18*scale)
 }

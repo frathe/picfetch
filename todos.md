@@ -44,17 +44,21 @@ targets pass. The audit preserves inferred MPL matcher attribution for
 exact CPython version, so the retained Python license is explicitly an ancestry
 reference. See the [evidence and limits](plans/2026-09-13-updater-notices.md).
 
-## TODO
-
 ### Mascot-circle hint for the Hypno Spiral
 
-Design accepted September 14: ten consistent-direction mouse circles around
+Completed September 14 at Ronin's request, including the wider speech bubble and
+Escape-to-close fix for focused manual search. Ten consistent-direction circles around
 welcome-screen Trane's head within twenty seconds open or raise Finis. Any Finis
 accepts a fresh ten-circle/twenty-second attempt anywhere within his window to
 reveal a lasting speech bubble. Clicking it opens an empty manual search; the
 secret phrase stays English and its parenthetical hint is translated.
-Implementation remains open in the
-[accepted specification](.scratch/spiral-mascot-hint/spec.md).
+
+Implemented with SDD/TDD; focused race tests, locale checks, shard inventory and
+local format/generated-file/vet/build checks pass. The
+[archived evidence](finished_refactorings/2026-09-14-mascot-circle-hint.md)
+preserves Ronin's native E2E feedback and the unavailable verification results.
+
+## TODO
 
 ### Find more like this
 

@@ -12,7 +12,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -118,10 +117,10 @@ func TestHypnoTunnel(t *testing.T) {
 			testApp.Settings().SetTheme(previousTheme)
 		})
 		v.help.ShowManual()
-		var entry *widget.Entry
+		var entry testTextEntry
 		var visit func(fyne.CanvasObject)
 		visit = func(o fyne.CanvasObject) {
-			if e, ok := o.(*widget.Entry); ok {
+			if e, ok := o.(testTextEntry); ok {
 				entry = e
 			}
 			if c, ok := o.(*fyne.Container); ok {
@@ -138,7 +137,8 @@ func TestHypnoTunnel(t *testing.T) {
 		if entry == nil {
 			t.Fatal("manual search is absent from the window")
 		}
-		entry.OnSubmitted("please hypnotize me")
+		entry.SetText("please hypnotize me")
+		entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 		if !v.spiral.Open() {
 			t.Fatal("manual did not open viewer's Spiral")
 		}
