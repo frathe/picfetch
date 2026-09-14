@@ -175,6 +175,9 @@ func (f *Feature) Exit() {
 	f.host.Changed()
 }
 
+// Active observes admission without copying a potentially large saved visit.
+func (f *Feature) Active() bool { return f.active }
+
 func (f *Feature) State() State {
 	state := State{Active: f.active, Pending: f.pending, Preparing: f.preparing, Progress: f.progress}
 	if len(f.history) > 0 {

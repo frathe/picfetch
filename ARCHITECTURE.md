@@ -69,6 +69,9 @@ threads before reading requests; `worker_other.go` retains the macOS sandbox lau
 pipes; Windows does not install OS network denial and events keep `OfflineVerified`
 false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`
 and assembles the Linux filter for host-independent BPF decision tests.
+`cache_favorites.go` owns the shared Favorite inventory, retained directory handles,
+list versions and producer lease. Both producer admission and maintenance use it;
+unknown membership remains inspectable without admitting unleased writes.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
@@ -359,8 +362,11 @@ supplies source identity, Grid presentation and origin restoration through a
 narrow Host. The feature's Settle drains finite query delivery without waiting
 for an idle retained worker; Stop followed by Settle joins retired producers.
 `internal/ui/visualsearch.go` composes command admission, shared Explorer setup,
-ranked Grid visits, captured image order and ordinary file actions. Favorite
-capture resolves ranked paths in one collection pass and exposes one
+ranked Grid visits and complete presentation/restoration deliveries. Deferred Back
+carries its saved Grid state and live progress until the surface can accept both.
+`internal/ui/browsing.go` captures the shared ranked/cohort command restriction and
+one immutable ranked index order per action or preload pair; menus and duplicate
+handlers consume the same subset restriction. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.
 `internal/ui/searchoverlay.go` observes dismissal of generic canvas overlays while
 a result is pending, with one acknowledged UI callback and cancellable, tracked
@@ -381,8 +387,9 @@ resets ranking to one full prepared-scope pass.
 
 Owns the Settings Cache tab and serialized inspection, retuning, cleanup and
 automatic eviction. `feature.go` presents measured general/Favorite usage and
-partial reports, and coalesces view inspections behind automatic eviction
-without canceling it. Persistence toggles commit independently of inspection
+partial reports. `operation.go` owns explicit intent admission, coalesced usage
+refresh/reserve requests, provider dispatch and accepted policy effects. Refreshes
+wait behind mutations; automatic eviction and policy retirement survive view close. Persistence toggles commit independently of inspection
 success, retire producers on UI and join their barriers even after Settings closes.
 `work.go` captures providers/roots, queues maintenance writer suspension,
 joins completion barriers off UI and suppresses retired view callbacks. Root
@@ -391,13 +398,16 @@ application cache root, persists accepted policy and disables new analysis
 admission while maintenance owns the roots. Settings supplies the tab slot,
 confirmation window and Close notification without sharing worker state.
 
-`internal/similarity/cache_store.go` routes Favorite-first/general record reuse.
+`internal/similarity/cache_store.go` owns Favorite-first/general record reuse and
+producer write scope: Explorer uses Favorite-only writes while search may write
+every enabled store. Neither producer reaches into the store to route a write.
 `cache_payload.go` validates shared representations; `cache_records.go` confines
 inventory to managed records and temporary files. `cache_management.go` reports
 usage and implements conservative stale cleanup/general LRU eviction. Canceled
 maintenance retains its measured remainder after a complete inventory under the
 lease; an interrupted inventory reports its partial counts as incomplete.
-Reconciliation respects cancellation. Missing source paths remain unavailable
+`cache_transaction.go` owns observations, committed removal accounting and final
+outcomes on every return path. Reconciliation respects cancellation. Missing source paths remain unavailable
 without persisted volume identity, even when their parent directory exists.
 A successful general-only retune persists despite incomplete Favorite usage.
 `cache_lease.go` plus build-tagged `cache_lock_*` provide root epochs and native

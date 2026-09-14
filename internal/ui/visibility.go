@@ -13,7 +13,6 @@ package ui
 
 import (
 	"math/rand/v2"
-	"slices"
 
 	"github.com/frathe/picfetch/internal/dupes"
 )
@@ -91,12 +90,7 @@ func (v *viewer) pushHideDuplicates(on bool) {
 // Do not add a bounds check on this path.
 func (v *viewer) nextVisibleIndex(from, delta int) int {
 	if indexes := v.cohortIndexes(); len(indexes) > 0 {
-		pos := slices.Index(indexes, from)
-		if pos < 0 {
-			pos = 0
-			delta = 0
-		}
-		return indexes[((pos+delta)%len(indexes)+len(indexes))%len(indexes)]
+		return neighborInOrder(indexes, from, delta)
 	}
 	return v.dupes.NextVisible(from, delta)
 }

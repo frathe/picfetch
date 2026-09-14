@@ -17,18 +17,20 @@ func (featureQueue) Do(fn func()) { fyne.Do(fn) }
 func (featureQueue) Drain() bool  { return false }
 
 type work struct {
-	cancel               context.CancelFunc
-	done                 chan struct{}
-	view                 uint64
-	viewBound, delivered bool
+	cancel    context.CancelFunc
+	done      chan struct{}
+	view      uint64
+	intent    maintenanceIntent
+	delivered bool
 }
 type result struct {
-	usage  similarity.CacheUsage
-	report similarity.CacheReport
-	err    error
+	usage      similarity.CacheUsage
+	report     similarity.CacheReport
+	err        error
+	incomplete bool
 }
 
-func (f *Feature) start(viewBound bool, run func(context.Context, similarity.CacheMaintenanceProvider, func(similarity.CacheProgress)) result, apply func(result), after ...<-chan struct{}) {
+func (f *Feature) start(op operation, after ...<-chan struct{}) {
 	if f.stopped {
 		return
 	}
@@ -37,7 +39,7 @@ func (f *Feature) start(viewBound bool, run func(context.Context, similarity.Cac
 		f.current.cancel()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	w := &work{cancel: cancel, done: make(chan struct{}), view: f.view, viewBound: viewBound}
+	w := &work{cancel: cancel, done: make(chan struct{}), view: f.view, intent: op.intent}
 	var predecessors []<-chan struct{}
 	for _, barrier := range after {
 		if barrier != nil {
@@ -98,7 +100,7 @@ func (f *Feature) start(viewBound bool, run func(context.Context, similarity.Cac
 		}
 		r := result{err: ctx.Err()}
 		if r.err == nil {
-			r = run(ctx, provider, func(progress similarity.CacheProgress) {
+			r = op.run(ctx, provider, func(progress similarity.CacheProgress) {
 				queue.Do(func() {
 					if f.current != w || !f.open || f.view != w.view {
 						return
@@ -108,15 +110,17 @@ func (f *Feature) start(viewBound bool, run func(context.Context, similarity.Cac
 				notify()
 			})
 		}
+		r.report.Canceled = r.report.Canceled || ctx.Err() != nil || errors.Is(r.err, context.Canceled)
+		r.incomplete = r.err != nil && !errors.Is(r.err, context.Canceled) || r.report.Failures > 0 || r.report.Remaining.Incomplete
 		queue.Do(func() {
 			w.delivered = true
 			if f.current == w {
 				f.current = nil
-				if !f.stopped && (!w.viewBound || f.open && f.view == w.view) {
+				if !f.stopped && (!w.intent.viewBound() || f.open && f.view == w.view) {
 					if r.err != nil && !errors.Is(r.err, context.Canceled) {
 						fyne.LogError("analysis cache maintenance", r.err)
 					}
-					apply(r)
+					f.apply(op, r)
 				}
 			}
 			f.pruneWorkers()
@@ -148,7 +152,7 @@ func (f *Feature) Close() {
 	f.open = false
 	f.pendingInspect = false
 	f.view++
-	if f.current != nil && f.current.viewBound {
+	if f.current != nil && f.current.intent.viewBound() {
 		f.current.cancel()
 		f.current = nil
 	}

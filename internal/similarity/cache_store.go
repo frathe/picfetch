@@ -17,19 +17,27 @@ type CachePressureError struct{ NeedBytes uint64 }
 
 func (CachePressureError) Error() string { return "analysis cache needs space" }
 
+type cacheWriteScope uint8
+
+const (
+	writeEnabledStores cacheWriteScope = iota
+	writeFavoritesOnly
+)
+
 type representationStore struct {
 	policy             CachePolicy
-	favorites          analysisCache
+	favorites          *favoriteInventory
 	general            *os.Root
 	lease              *cacheLease
 	accountedBytes     uint64
 	accountedRevision  string
 	accountedDirectory os.FileInfo
+	writeScope         cacheWriteScope
 	accounted          bool
 }
 
-func openRepresentationStore(ctx context.Context, policy CachePolicy) (*representationStore, error) {
-	store := &representationStore{policy: policy}
+func openRepresentationStore(ctx context.Context, policy CachePolicy, scope cacheWriteScope) (*representationStore, error) {
+	store := &representationStore{policy: policy, writeScope: scope}
 	if store.policy.GeneralLimitBytes == 0 {
 		store.policy.GeneralLimitBytes = DefaultAnalysisCacheBytes
 	}
@@ -66,7 +74,7 @@ func (s *representationStore) read(ctx context.Context, source Item) (Item, bool
 	if s == nil {
 		return Item{}, false
 	}
-	if !s.policy.FavoriteEnabled && len(s.favorites[filepath.Clean(source.Path)]) > 0 {
+	if !s.policy.FavoriteEnabled && len(s.favorites.members[filepath.Clean(source.Path)]) > 0 {
 		return Item{}, false
 	}
 	if s.policy.FavoriteEnabled {
@@ -104,7 +112,7 @@ func (s *representationStore) read(ctx context.Context, source Item) (Item, bool
 	if err != nil {
 		return Item{}, false
 	}
-	if s.policy.FavoriteEnabled && len(s.favorites[filepath.Clean(source.Path)]) > 0 {
+	if s.policy.FavoriteEnabled && len(s.favorites.members[filepath.Clean(source.Path)]) > 0 {
 		_ = s.favorites.write(ctx, item)
 	}
 	return item, true
@@ -113,13 +121,13 @@ func (s *representationStore) write(ctx context.Context, item Item) error {
 	if s == nil {
 		return nil
 	}
-	if len(s.favorites[filepath.Clean(item.Path)]) > 0 {
+	if len(s.favorites.members[filepath.Clean(item.Path)]) > 0 {
 		if s.policy.FavoriteEnabled {
 			return s.favorites.write(ctx, item)
 		}
 		return nil
 	}
-	if s.general == nil {
+	if s.general == nil || s.writeScope != writeEnabledStores {
 		return nil
 	}
 	item.Cohort, item.Position, item.Thumbnail = "", nil, ""

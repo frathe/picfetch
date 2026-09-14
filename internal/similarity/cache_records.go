@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"regexp"
-
-	"github.com/frathe/picfetch/internal/favstore"
 )
 
 var managedAnalysisName = regexp.MustCompile(`^[0-9a-f]{64}\.json$`)
@@ -21,12 +19,14 @@ type managedAnalysis struct {
 	favorite           *favoriteAnalysis
 }
 type analysisInventory struct {
-	records []managedAnalysis
-	usage   CacheUsage
-	roots   []*os.Root
+	records   []managedAnalysis
+	usage     CacheUsage
+	roots     []*os.Root
+	favorites *favoriteInventory
 }
 
 func (i *analysisInventory) close() {
+	i.favorites.close()
 	for _, root := range i.roots {
 		_ = root.Close()
 	}
@@ -105,37 +105,14 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 	i.usage.General.Incomplete = len(failures) > 0 || ctx.Err() != nil
 	generalFailures := len(failures)
 	if roots.FavoritesDir != "" && ctx.Err() == nil {
-		entries, err := os.ReadDir(roots.FavoritesDir)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		var err error
+		i.favorites, err = openFavoriteInventory(ctx, roots.FavoritesDir)
+		if err != nil {
 			failures = append(failures, err)
 		}
-		for _, entry := range entries {
+		for _, favorite := range i.favorites.favorites {
 			if ctx.Err() != nil {
 				break
-			}
-			if !entry.IsDir() || !favstore.ValidName(entry.Name()) {
-				continue
-			}
-			parent, err := os.OpenRoot(roots.FavoritesDir)
-			if err != nil {
-				failures = append(failures, err)
-				continue
-			}
-			root, err := parent.OpenRoot(entry.Name())
-			_ = parent.Close()
-			if err != nil {
-				failures = append(failures, err)
-				continue
-			}
-			favorite, loadErr := loadFavoriteAnalysis(root)
-			if errors.Is(loadErr, os.ErrNotExist) {
-				_ = root.Close()
-				continue
-			}
-			i.roots = append(i.roots, root)
-			if loadErr != nil {
-				failures = append(failures, loadErr)
-				favorite = &favoriteAnalysis{root: root}
 			}
 			add(roots.FavoritesDir, "analysis", false, favorite)
 		}

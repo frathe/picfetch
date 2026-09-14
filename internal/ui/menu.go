@@ -191,7 +191,7 @@ func (v *viewer) menuState() menus.State {
 		CanCopySelection:    v.regionCopyAvailable(),
 		CanCompare:          v.grid.Visible() && v.grid.SelectionCount() == 2,
 		CanFindMoreLikeThis: v.searchReference() != "",
-		SearchActive:        v.searchActive(),
+		RestrictedBrowsing:  v.browsingContext().restricted,
 		CanMosaic:           v.canMosaic(),
 		ComparisonActive:    v.comparisonActive(),
 		ExplorerActive:      v.explorerMapActive(),

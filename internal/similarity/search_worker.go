@@ -99,7 +99,7 @@ func searchLocal(ctx context.Context, req request, queries <-chan SearchQuery, e
 		return err
 	}
 	_ = RegisterLocalFiles()
-	cache, cacheErr := openRepresentationStore(ctx, req.Search.Cache)
+	cache, cacheErr := openRepresentationStore(ctx, req.Search.Cache, writeEnabledStores)
 	if cache != nil {
 		defer cache.close()
 	}

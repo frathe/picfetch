@@ -20,11 +20,14 @@ func (v *viewer) setActionsSort(m filesort.Mode) {
 }
 
 func (v *viewer) toggleHideDuplicates() {
+	if v.browsingContext().restricted {
+		return
+	}
 	v.pushHideDuplicates(!v.dupes.HideDuplicates())
 }
 
 func (v *viewer) browseCurrentDuplicates() {
-	if v.slides.Active() {
+	if v.slides.Active() || v.browsingContext().restricted {
 		return
 	}
 	v.grid.ToggleBrowseDuplicates()

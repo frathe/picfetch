@@ -82,6 +82,11 @@ func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
 		if !v.menus.Actions().Hide().Disabled || !v.menus.Actions().ShowVariant().Disabled {
 			t.Fatal("ranked search enabled duplicate commands")
 		}
+		hidden := v.dupes.HideDuplicates()
+		v.toggleActionsHideDuplicates()
+		if v.dupes.HideDuplicates() != hidden {
+			t.Fatal("direct duplicate command bypassed ranked menu admission")
+		}
 		v.visualsearch.Exit()
 		if v.menus.Actions().Hide().Disabled {
 			t.Fatal("exiting search left duplicate hiding disabled")
@@ -102,6 +107,11 @@ func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
 func streamingSearch(t *testing.T) (*viewer, func(similarity.SearchKind, ...int)) {
 	t.Helper()
 	v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+	return v, streamingSearchFrom(t, v)
+}
+
+func streamingSearchFrom(t *testing.T, v *viewer) func(similarity.SearchKind, ...int) {
+	t.Helper()
 	configureExplorer(v, func(options *explorerui.Options) {
 		options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
 	})
@@ -114,7 +124,16 @@ func streamingSearch(t *testing.T) (*viewer, func(similarity.SearchKind, ...int)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
+			case next := <-queries:
+				query = next
 			case event := <-events:
+				// An explicit Explore can enqueue its query immediately before
+				// this event. Associate publication with the latest admitted query.
+				select {
+				case next := <-queries:
+					query = next
+				default:
+				}
 				event.SessionID, event.QueryID = request.SessionID, query.ID
 				emit(event)
 				delivered <- struct{}{}
@@ -123,10 +142,13 @@ func streamingSearch(t *testing.T) (*viewer, func(similarity.SearchKind, ...int)
 	}})
 	v.findMoreLikeThis()
 	var revision uint64
-	return v, func(kind similarity.SearchKind, indexes ...int) {
+	return func(kind similarity.SearchKind, indexes ...int) {
 		t.Helper()
 		revision++
-		event := similarity.SearchEvent{Kind: kind, Revision: revision, Processed: 4, Total: 4}
+		event := similarity.SearchEvent{Kind: kind, Revision: revision, Processed: v.FileCount(), Total: v.FileCount()}
+		if kind == similarity.SearchPartial {
+			event.Processed /= 2
+		}
 		for _, i := range indexes {
 			event.Matches = append(event.Matches, similarity.Match{Path: v.FileAt(i).Path()})
 		}
@@ -142,6 +164,11 @@ func TestFindMoreLikeThisProgressiveForegroundIdentity(t *testing.T) {
 	v.grid.SimulateHover(1)
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	waitUntilLoaded(t, v)
+	hidden := v.dupes.HideDuplicates()
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+	if v.dupes.HideDuplicates() != hidden {
+		t.Fatal("opened ranked image admitted duplicate hiding through the keyboard")
+	}
 	if got, want := v.preloadCandidates(), []fyne.URI{v.FileAt(1), v.FileAt(0)}; !slices.EqualFunc(got, want, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
 		t.Fatalf("preloads left the captured search order: %v", got)
 	}
@@ -182,6 +209,11 @@ func TestFindMoreLikeThisActionsCaptureRankedSources(t *testing.T) {
 		for i, uri := range v.state.files {
 			v.state.files[i] = searchCountingURI{URI: uri, calls: &calls}
 		}
+		_ = v.preloadCandidates()
+		if got := calls.Load(); got > int64(len(v.state.files)+16) {
+			t.Fatalf("preloads captured the ranked order more than once: %d path reads for %d files", got, len(v.state.files))
+		}
+		calls.Store(0)
 		v.favorites.AddCurrentList()
 		if got := calls.Load(); got > int64(2*len(v.state.files)) {
 			t.Fatalf("Favorite naming repeatedly scanned the original collection: %d path reads for %d files", got, len(v.state.files))
@@ -283,6 +315,65 @@ func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
 }
 
 func TestFindMoreLikeThisInitialRoundTrip(t *testing.T) {
+	t.Run("cohort-stream-history-overlay-exit", func(t *testing.T) {
+		v := explorerFixture(t)
+		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}
+		v.OpenSimilarityCohort(paths)
+		v.grid.SimulateHover(1)
+		camera := v.explorer.Surface().View()
+		publish := streamingSearchFrom(t, v)
+		publish(similarity.SearchPartial, 2, 0)
+		v.grid.SimulateHover(1)
+		v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		opened := v.state.index
+		frozen := favoriteListHost{v}.CurrentFiles()
+		publish(similarity.SearchFinal, 3, 2)
+		if v.grid.Visible() || v.state.index != opened || !slices.Equal(frozen, favoriteListHost{v}.CurrentFiles()) {
+			t.Fatal("final publication retargeted the opened visit")
+		}
+		v.returnToSearchGrid()
+		if !slices.Equal(v.grid.ResultIndexes(), []int{1, 3, 2}) || !slices.Equal(v.grid.Selection(), []int{2}) {
+			t.Fatalf("return lost live rank or selected identity: %v / %v", v.grid.ResultIndexes(), v.grid.Selection())
+		}
+		v.grid.SimulateHover(1)
+		first := v.grid.CaptureVisit()
+		v.findMoreLikeThis()
+		publish(similarity.SearchPartial, 0, 2)
+		popup := widget.NewPopUpMenu(fyne.NewMenu("", fyne.NewMenuItem("Example", func() {})), v.win.Canvas())
+		popup.ShowAtPosition(fyne.NewPos(10, 10))
+		publish(similarity.SearchFinal, 4, 2)
+		before := v.grid.CaptureVisit()
+		// History restoration is also a delivery: it must respect the modal
+		// surface, while retaining the session's completed preparation status.
+		v.visualsearch.Back()
+		during := v.grid.CaptureVisit()
+		if !slices.Equal(during.Results, before.Results) || !slices.Equal(during.Selected, before.Selected) || during.Highlight != before.Highlight {
+			t.Fatal("Back mutated the Grid under an open overlay")
+		}
+		wait := v.searchView.overlay
+		if wait == nil {
+			t.Fatal("deferred Back has no overlay completion")
+		}
+		popup.Hide()
+		for v.searchView.pending != nil {
+			<-wait.notice
+			v.searchView.overlayUI.Drain()
+		}
+		restored := v.grid.CaptureVisit()
+		if !slices.Equal(restored.Results, first.Results) || !slices.Equal(restored.Selected, first.Selected) || restored.Highlight != first.Highlight || !v.visualsearch.State().Progress.Complete {
+			t.Fatal("Back lost the first rank or restored stale preparation progress")
+		}
+		v.visualsearch.Exit()
+		if !slices.Equal(explorerGridPaths(v), paths) || v.grid.Highlight() != 1 || !v.explorer.Surface().Visible() {
+			t.Fatal("Exit did not restore the complete cohort surface")
+		}
+		v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if !v.explorerMapActive() || !reflect.DeepEqual(v.explorer.Surface().View(), camera) {
+			t.Fatal("cohort Back lost the original Explorer camera")
+		}
+	})
 	for _, dismissal := range []string{"escape", "outside"} {
 		t.Run("overlay-"+dismissal, func(t *testing.T) {
 			v, publish := streamingSearch(t)

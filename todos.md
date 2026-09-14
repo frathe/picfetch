@@ -39,6 +39,15 @@ documents completed checks and remaining limitations.
 
 #### Internal
 
+### Find more like this architecture follow-up
+
+Reviewed all 28 Codex findings in PR #25 before further fixes. The
+[architecture assessment](docs/find-more-like-this/pr25-architecture-review.md)
+led to shared Favorite inventory/store routing, explicit maintenance intents and
+transaction outcomes, and shared browsing restrictions/order with complete deferred
+restoration. Local race/build/inspection and real-model reuse checks pass. The
+[active plan](plans/2026-09-15-search-ownership.md) tracks the fresh PR review and CI gates.
+
 ### Comparison test deadline under build contention
 
 Made the automated image-comparison tests more reliable when the computer is

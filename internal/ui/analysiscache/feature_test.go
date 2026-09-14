@@ -505,6 +505,64 @@ func TestAnalysisCacheManagementLimitAutomaticReserveDefersToUserCleanup(t *test
 	}
 }
 
+func TestAnalysisCacheManagementInspectionDefersToMutation(t *testing.T) {
+	for _, retune := range []bool{false, true} {
+		t.Run(map[bool]string{false: "cleanup", true: "retune"}[retune], func(t *testing.T) {
+			started, release := make(chan context.Context, 1), make(chan struct{})
+			inspections := 0
+			mutation := func(ctx context.Context) (similarity.CacheReport, error) {
+				started <- ctx
+				<-release
+				return similarity.CacheReport{AppliedLimit: 128 * 1024 * 1024}, ctx.Err()
+			}
+			provider := maintenance{
+				inspect: func(_ context.Context, _ similarity.CacheRoots, _ func(similarity.CacheProgress)) (similarity.CacheUsage, error) {
+					inspections++
+					return similarity.CacheUsage{}, nil
+				},
+				clean: func(ctx context.Context, _ similarity.CacheCleanRequest, _ func(similarity.CacheProgress)) (similarity.CacheReport, error) {
+					return mutation(ctx)
+				},
+				retune: func(ctx context.Context, _ similarity.CacheRetuneRequest, _ func(similarity.CacheProgress)) (similarity.CacheReport, error) {
+					return mutation(ctx)
+				},
+			}
+			h := &cacheHost{}
+			f := analysiscache.New(h, analysiscache.Options{Provider: provider, Queue: &uitest.UIQueue{}})
+			t.Cleanup(func() {
+				select {
+				case <-release:
+				default:
+					close(release)
+				}
+				f.Stop()
+				f.Settle()
+			})
+			f.Content(true, 2048)
+			f.Settle()
+			if retune {
+				f.Retune(128)
+			} else {
+				f.Clean(similarity.ClearAll)
+			}
+			ctx := <-started
+			f.Inspect()
+			f.Inspect()
+			if ctx.Err() != nil {
+				t.Fatal("usage refresh canceled a committed user operation")
+			}
+			close(release)
+			f.Settle()
+			if inspections != 2 || f.Busy() {
+				t.Fatalf("refreshes did not coalesce after mutation: %d", inspections)
+			}
+			if retune && (len(h.policies) != 1 || h.policies[0].limit != 128) {
+				t.Fatalf("refresh discarded applied limit: %v", h.policies)
+			}
+		})
+	}
+}
+
 func TestAnalysisCacheManagementLimitAutomaticReserveSurvivesViewOpen(t *testing.T) {
 	for _, closeView := range []bool{false, true} {
 		t.Run(map[bool]string{false: "inspect-after-eviction", true: "closed-view-discards-inspection"}[closeView], func(t *testing.T) {

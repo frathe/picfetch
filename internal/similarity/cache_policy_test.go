@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,6 +18,52 @@ import (
 
 	"github.com/frathe/picfetch/internal/favstore"
 )
+
+func TestAnalysisCachePolicyProducerScope(t *testing.T) {
+	for _, scope := range []cacheWriteScope{writeEnabledStores, writeFavoritesOnly} {
+		for _, favoriteEnabled := range []bool{false, true} {
+			for _, looseEnabled := range []bool{false, true} {
+				t.Run(fmt.Sprintf("scope_%d/favorites_%t/loose_%t", scope, favoriteEnabled, looseEnabled), func(t *testing.T) {
+					policy := cacheTestPolicy(t)
+					member := cacheFixtureItem(t, "new-favorite.jpg")
+					retained := cacheFixtureItem(t, "retained-loose.jpg")
+					fresh := cacheFixtureItem(t, "fresh-loose.jpg")
+					seed := cacheTestStore(t, policy)
+					for _, item := range []Item{member, retained} {
+						if err := seed.write(context.Background(), item); err != nil {
+							t.Fatal(err)
+						}
+					}
+					cacheTestFavorite(t, policy.Roots, member)
+					policy.FavoriteEnabled, policy.LooseEnabled = favoriteEnabled, looseEnabled
+					store, err := openRepresentationStore(context.Background(), policy, scope)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(store.close)
+					if _, hit := store.read(context.Background(), retained); hit != looseEnabled {
+						t.Fatalf("producer read scope changed: hit=%t", hit)
+					}
+					if _, hit := store.read(context.Background(), member); hit != (favoriteEnabled && looseEnabled) {
+						t.Fatalf("Favorite promotion/opt-out: hit=%t", hit)
+					}
+					for _, item := range []Item{member, fresh} {
+						if err := store.write(context.Background(), item); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if _, err := os.Stat(cacheTestGeneralPath(policy.Roots, fresh)); (err == nil) != (looseEnabled && scope == writeEnabledStores) {
+						t.Fatalf("producer persisted a loose miss outside its write scope: %v", err)
+					}
+					usage, err := (CacheManager{}).Inspect(context.Background(), policy.Roots, nil)
+					if err != nil || (usage.Favorite.Records == 1) != favoriteEnabled {
+						t.Fatalf("producer Favorite effects: %+v, %v", usage, err)
+					}
+				})
+			}
+		}
+	}
+}
 
 func TestAnalysisCachePolicyWriteBudget(t *testing.T) {
 	item := cacheFixtureItem(t, "source.jpg")
@@ -179,6 +226,42 @@ func TestAnalysisCachePolicyFavoriteOptOutRejectsRetainedGeneralRecord(t *testin
 }
 
 func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *testing.T) {
+	t.Run("lease_failure_keeps_reads_but_blocks_writes", func(t *testing.T) {
+		policy := cacheTestPolicy(t)
+		item := cacheFixtureItem(t, "healthy.jpg")
+		cacheTestFavorite(t, policy.Roots, item)
+		seed := cacheTestStore(t, policy)
+		if err := seed.write(context.Background(), item); err != nil {
+			t.Fatal(err)
+		}
+		seed.close()
+		lock := filepath.Join(policy.Roots.FavoritesDir, ".analysis-lock")
+		if err := os.Remove(lock); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(lock, 0700); err != nil {
+			t.Fatal(err)
+		}
+		store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
+		if store != nil {
+			t.Cleanup(store.close)
+		}
+		if err == nil || store == nil {
+			t.Fatal("broken lease did not report partial admission")
+		}
+		if _, hit := store.read(context.Background(), item); !hit {
+			t.Fatal("lease failure discarded readable Favorite")
+		}
+		item.Embedding = make([]float32, 768)
+		item.Embedding[1] = 1
+		if err := store.write(context.Background(), item); !errors.Is(err, ErrCacheRetired) {
+			t.Fatalf("write without a lease: %v", err)
+		}
+		got, hit := store.read(context.Background(), item)
+		if !hit || got.Embedding[1] != 0 {
+			t.Fatal("unleased producer changed the record")
+		}
+	})
 	for _, corrupt := range []bool{false, true} {
 		name := "unreadable"
 		if corrupt {
@@ -208,7 +291,7 @@ func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *tes
 			} else if err := os.Symlink("file-list.json", filepath.Join(blocked, "file-list.json")); err != nil {
 				t.Fatal(err)
 			}
-			partial, err := openRepresentationStore(context.Background(), policy)
+			partial, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
 			if partial != nil {
 				t.Cleanup(partial.close)
 			}
@@ -374,7 +457,7 @@ func cacheTestPolicy(t *testing.T) CachePolicy {
 
 func cacheTestStore(t *testing.T, policy CachePolicy) *representationStore {
 	t.Helper()
-	store, err := openRepresentationStore(context.Background(), policy)
+	store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
 	if store != nil {
 		t.Cleanup(store.close)
 	}

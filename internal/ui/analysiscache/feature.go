@@ -2,7 +2,6 @@
 package analysiscache
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -99,7 +98,7 @@ func (f *Feature) Content(enabled bool, limitMiB int) fyne.CanvasObject {
 	}
 	f.limit.OnSubmitted = func(text string) {
 		if limit, ok := parseLimit(text); current() && ok {
-			f.retune(limit, 0, true)
+			f.Retune(limit)
 		}
 	}
 	f.loose.OnChanged = func(enabled bool) {
@@ -152,33 +151,7 @@ func (f *Feature) Content(enabled bool, limitMiB int) fyne.CanvasObject {
 	return content
 }
 
-func (f *Feature) Inspect() {
-	if !f.open || f.stopped {
-		return
-	}
-	if f.current != nil && !f.current.viewBound {
-		f.pendingInspect = true
-		return
-	}
-	roots := f.options.Roots
-	f.start(true, func(ctx context.Context, provider similarity.CacheMaintenanceProvider, progress func(similarity.CacheProgress)) result {
-		usage, err := provider.Inspect(ctx, roots, progress)
-		return result{usage: usage, err: err}
-	}, func(r result) {
-		f.showUsage(r.usage)
-		if r.err != nil {
-			f.status.SetText(lang.L("Usage is incomplete."))
-		}
-	})
-}
-
-func (f *Feature) startPendingInspect() {
-	if !f.pendingInspect || f.current != nil || f.hasWorkers() {
-		return
-	}
-	f.pendingInspect = false
-	f.Inspect()
-}
+func (f *Feature) Inspect() { f.submit(operation{intent: inspectUsage}) }
 
 func (f *Feature) showUsage(usage similarity.CacheUsage) {
 	if !f.open {
@@ -206,71 +179,19 @@ func parseLimit(text string) (int, bool) {
 // Retire the captured producers on UI, then track their completion off UI even
 // if Settings closes before their last native operation returns.
 func (f *Feature) setEnabled(enabled bool) {
-	if f.stopped || f.enabled == enabled {
-		return
-	}
-	f.enabled = enabled
-	f.pendingRoom, f.pendingInspect, f.pendingReserve = false, false, 0
-	barriers := f.host.Quiesce()
-	f.host.ApplyPolicy(enabled, f.limitMiB)
-	f.start(false, func(_ context.Context, _ similarity.CacheMaintenanceProvider, _ func(similarity.CacheProgress)) result {
-		return result{}
-	}, func(_ result) { f.Inspect() }, barriers...)
+	f.submit(operation{intent: retirePolicy, enabled: enabled})
 }
 
-// Retune applies a valid limit after general-cache maintenance succeeds, even
-// when Favorite inspection is incomplete. A reduction
-// retires old producers even if current usage fits their former larger budget.
+// Retune commits an explicit limit only after successful general maintenance
+// while its Settings view remains current.
 func (f *Feature) Retune(limitMiB int) {
-	if !f.open || f.stopped {
-		return
-	}
-	f.retune(limitMiB, 0, true)
+	f.submit(operation{intent: applyLimit, limitMiB: limitMiB})
 }
 
-// MakeRoom requests general-cache eviction for the next record without changing
-// standing policy. Settings closure does not cancel this automatic maintenance.
+// MakeRoom coalesces automatic eviction without changing standing policy.
+// Its operation survives Settings closure.
 func (f *Feature) MakeRoom(needBytes uint64) {
-	if f.stopped || !f.enabled {
-		return
-	}
-	if f.Busy() {
-		f.pendingRoom = true
-		f.pendingReserve = max(f.pendingReserve, needBytes)
-		return
-	}
-	f.retune(f.limitMiB, needBytes, false)
-}
-
-func (f *Feature) startPendingRoom() {
-	if !f.pendingRoom || f.current != nil || f.hasWorkers() {
-		return
-	}
-	reserve := f.pendingReserve
-	f.pendingRoom, f.pendingReserve = false, 0
-	f.MakeRoom(reserve)
-}
-
-func (f *Feature) retune(limitMiB int, reserve uint64, viewBound bool) {
-	if limitMiB <= 0 || uint64(limitMiB) > ^uint64(0)/mebibyte {
-		return
-	}
-	request := similarity.CacheRetuneRequest{Roots: f.options.Roots, LimitBytes: uint64(limitMiB) * mebibyte, ReserveBytes: reserve, RetireWriters: limitMiB < f.limitMiB}
-	f.start(viewBound, func(ctx context.Context, provider similarity.CacheMaintenanceProvider, progress func(similarity.CacheProgress)) result {
-		report, err := provider.Retune(ctx, request, progress)
-		return result{report: report, err: err}
-	}, func(r result) {
-		if viewBound && r.report.AppliedLimit == request.LimitBytes && !r.report.Canceled {
-			f.limitMiB = limitMiB
-			f.host.ApplyPolicy(f.enabled, limitMiB)
-		}
-		if f.open {
-			f.syncing = true
-			f.loose.SetChecked(f.enabled)
-			f.syncing = false
-			f.showReport(r)
-		}
-	})
+	f.submit(operation{intent: evictRecords, reserve: needBytes})
 }
 
 func (f *Feature) showReport(r result) {
@@ -278,11 +199,11 @@ func (f *Feature) showReport(r result) {
 	remaining := r.report.Remaining
 	text := fmt.Sprintf(lang.L("Removed %d records (%.1f MB); remaining %d records (%.1f MB)."), r.report.RemovedRecords, float64(r.report.RemovedBytes)/mebibyte, remaining.General.Records+remaining.Favorite.Records, (float64(remaining.General.Bytes)+float64(remaining.Favorite.Bytes))/mebibyte)
 	text += "\n" + fmt.Sprintf(lang.L("Skipped: %d; unavailable: %d; failures: %d."), r.report.Skipped, r.report.Unavailable, r.report.Failures)
-	canceled := r.report.Canceled || errors.Is(r.err, context.Canceled)
+	canceled := r.report.Canceled
 	if canceled {
 		text += "\n" + lang.L("Maintenance was canceled.")
 	}
-	if r.err != nil && !errors.Is(r.err, context.Canceled) || r.report.Failures > 0 || remaining.Incomplete {
+	if r.incomplete {
 		text += "\n" + lang.L("Maintenance is incomplete.")
 	} else if !canceled {
 		text += "\n" + lang.L("Maintenance complete.")
@@ -292,14 +213,7 @@ func (f *Feature) showReport(r result) {
 
 // Clean is admitted after the Clear confirmation or the stale-cleanup command.
 func (f *Feature) Clean(mode similarity.CacheCleanMode) {
-	if !f.open || f.stopped || mode != similarity.ClearAll && mode != similarity.RemoveStale {
-		return
-	}
-	request := similarity.CacheCleanRequest{Roots: f.options.Roots, Mode: mode}
-	f.start(true, func(ctx context.Context, provider similarity.CacheMaintenanceProvider, progress func(similarity.CacheProgress)) result {
-		report, err := provider.Clean(ctx, request, progress)
-		return result{report: report, err: err}
-	}, f.showReport)
+	f.submit(operation{intent: cleanRecords, mode: mode})
 }
 
 func (f *Feature) changed() {

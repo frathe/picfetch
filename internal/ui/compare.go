@@ -99,7 +99,7 @@ func (v *viewer) compareOrderChanged(left, right string) {
 
 func (v *viewer) comparisonClosed() {
 	if v.searchActive() && v.searchView.pending != nil {
-		v.presentSearch(*v.searchView.pending, v.searchView.progress)
+		v.applySearchDelivery(*v.searchView.pending)
 	}
 	v.applyTitle()
 	v.syncMenus()
