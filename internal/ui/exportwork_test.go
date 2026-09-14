@@ -52,12 +52,51 @@ func TestExportCancellationBeforeDestinationLeavesFilesUntouched(t *testing.T) {
 	}
 }
 
+func TestExportCapturesPixelsBeforeChooserReturns(t *testing.T) {
+	v, _, _ := newTestUI(t)
+	source := storage.NewFileURI(uitest.WriteTempFile(t, "source.png", uitest.EncodePNG(t, 8, 16, color.White)))
+	destination := storage.NewFileURI(filepath.Join(t.TempDir(), "export.png"))
+	dropAndWait(t, v, source)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
+	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
+		close(entered)
+		<-release
+		return destination, nil
+	})
+	v.exportAs(".png")
+	select {
+	case <-entered:
+	case <-time.After(testTimeout):
+		t.Fatal("export did not open its chooser")
+	}
+	v.rotateBy(1)
+	once.Do(func() { close(release) })
+	settleChooser(t, v)
+	data, err := os.ReadFile(destination.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := exported.Bounds().Size(); got != image.Pt(8, 16) {
+		t.Fatalf("exported %v, want captured 8x16", got)
+	}
+	if v.img.Image.Bounds().Size() != image.Pt(16, 8) || v.display.Rotation() != 1 {
+		t.Fatal("export replaced the later view rotation")
+	}
+	settleToast(t, v)
+}
+
 func TestExportUnrelatedDestinationPreservesDerivedState(t *testing.T) {
 	v, _, _ := newTestUI(t)
 	source := storage.NewFileURI(uitest.WriteTempFile(t, "source.png", uitest.EncodePNG(t, 8, 16, color.White)))
 	dest := storage.NewFileURI(filepath.Join(t.TempDir(), "export.png"))
 	dropAndWait(t, v, source)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	thumb := image.NewRGBA(image.Rect(0, 0, 8, 16))
 	v.grid.StoreThumb(source, thumb)
 	v.dupes.PutHash(source.String(), 42)
@@ -92,7 +131,7 @@ func TestFileMutationInvalidatesNoncurrentLoadedAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	dropAndWait(t, v, source, alias)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	if current, _, _ := v.CurrentFile(); current.String() != source.String() {
 		t.Fatal("setup did not select the unrelated source")
 	}
@@ -123,7 +162,7 @@ func TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery(t *testing.T) {
 			source := storage.NewFileURI(uitest.WriteTempFile(t, "a.png", uitest.EncodePNG(t, 8, 16, color.White)))
 			target := storage.NewFileURI(uitest.WriteTempFile(t, "z.png", uitest.EncodePNG(t, 4, 4, color.Black)))
 			dropAndWait(t, v, source)
-			v.preloads.Wait()
+			v.display.WaitPreloads()
 			if !add {
 				v.state.setFiles([]fyne.URI{source, target}, []fyne.URI{source, target})
 			}
@@ -160,7 +199,7 @@ func TestExportCommittedAliasRefreshesCurrentPixelsAfterDelivery(t *testing.T) {
 			}
 			alias := storage.NewFileURI(aliasPath)
 			dropAndWait(t, v, source, alias)
-			v.preloads.Wait()
+			v.display.WaitPreloads()
 			if _, err := v.loadComparedImage(context.Background(), alias); err != nil {
 				t.Fatal(err)
 			}

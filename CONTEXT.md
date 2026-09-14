@@ -19,6 +19,22 @@ A transient single-image-viewer mode for defining an image-region selection
 to copy as image data.
 _Avoid_: Crop mode, screenshot mode
 
+**Requested image**:
+The image chosen for the current loading attempt, which may not yet supply
+the content of the single-image view.
+_Avoid_: Displayed image, current image
+
+**Displayed image**:
+The image whose content supplies the single-image view, including its current
+animation frame and view-only rotation. It can remain while another requested
+image is loading.
+_Avoid_: Requested image, current file
+
+**Image capture**:
+Image content retained in a fixed orientation for a particular operation,
+independently of later changes to the single-image view.
+_Avoid_: Screenshot, live displayed image
+
 **Picture-frame mode**:
 A full-screen single-image-viewer mode that advances through the file set on
 a timed interval.

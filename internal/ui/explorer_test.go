@@ -2413,7 +2413,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			members := explorerGridPaths(v)
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 			waitUntilLoaded(t, v)
-			v.preloads.Wait()
+			v.display.WaitPreloads()
 			if err := os.Remove(members[len(members)-1]); err != nil {
 				t.Fatal(err)
 			}
@@ -3491,7 +3491,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		buildMainMenu(v).Items[0].Items[3].Action()
 		v.settleExplorer()
-		v.preloads.Wait()
+		v.display.WaitPreloads()
 		after := allocated()
 		t.Logf("heap baseline %.1f MiB, browsed %.1f MiB, closed %.1f MiB", float64(baseline)/(1<<20), float64(loaded)/(1<<20), float64(after)/(1<<20))
 		if after > baseline+8<<20 {

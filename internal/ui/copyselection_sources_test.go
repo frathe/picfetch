@@ -3,6 +3,7 @@ package ui
 import (
 	"image"
 	"image/color"
+	"runtime"
 	"testing"
 	"time"
 
@@ -88,7 +89,7 @@ func TestCopySelectionRotation(t *testing.T) {
 func TestCopySelectionAnimatedFrame(t *testing.T) {
 	v := newTestViewer(t)
 	clock := newFrameClock()
-	v.frameAfter = clock.After
+	v.display.SetAnimationClock(clock.After)
 
 	path := uitest.WriteTempFile(t, "animated.gif", uitest.EncodeAnimatedGIF(t, 4, 3,
 		[]color.Color{color.NRGBA{R: 255, A: 255}, color.NRGBA{B: 255, A: 255}},
@@ -96,7 +97,7 @@ func TestCopySelectionAnimatedFrame(t *testing.T) {
 	dropAndWait(t, v, storage.NewFileURI(path))
 	clock.waitParked(t)
 
-	initialFrame := v.animFrame.Load()
+	initialFrame := v.display.AppliedFrames()
 	clock.tick(t)
 	waitForAnimFrame(t, v, initialFrame+1)
 	clock.waitParked(t)
@@ -107,21 +108,26 @@ func TestCopySelectionAnimatedFrame(t *testing.T) {
 		return nil
 	})
 	selectRegion(t, v, image.Rect(0, 0, 4, 3))
-	pausedFrame := v.animFrame.Load()
+	pausedFrame := v.display.AppliedFrames()
 
-	clock.tick(t)
-	v.animationPause.mu.Lock()
-	observed := v.animationPause.observed
-	v.animationPause.mu.Unlock()
+	observed := v.display.PauseObserved()
 	if observed == nil {
-		t.Fatal("animated selection did not install a pause observation signal")
+		t.Fatal("stable capture has no pause observation")
 	}
-	select {
-	case <-observed:
-	case <-time.After(testTimeout):
-		t.Fatal("timed out waiting for animation to observe Copy Selection pause")
+	deadline := time.After(testTimeout)
+waiting:
+	for {
+		v.display.Settle()
+		select {
+		case <-observed:
+			break waiting
+		case <-deadline:
+			t.Fatal("animation did not observe stable capture")
+		default:
+			runtime.Gosched()
+		}
 	}
-	if got := v.animFrame.Load(); got != pausedFrame {
+	if got := v.display.AppliedFrames(); got != pausedFrame {
 		t.Fatalf("animation advanced while selecting: animFrame = %d, want paused %d", got, pausedFrame)
 	}
 
@@ -141,8 +147,9 @@ func TestCopySelectionAnimatedFrame(t *testing.T) {
 	clock.waitParked(t)
 
 	selectRegion(t, v, image.Rect(0, 0, 4, 3))
-	beforeCancel := v.animFrame.Load()
+	beforeCancel := v.display.AppliedFrames()
 	v.cancelRegionCopy()
+	clock.waitParked(t)
 	clock.tick(t)
 	waitForAnimFrame(t, v, beforeCancel+1)
 	clock.waitParked(t)
@@ -163,7 +170,7 @@ func TestCopySelectionSVG(t *testing.T) {
 	for range 6 {
 		v.zoom.In()
 	}
-	v.vector.pending.Wait()
+	v.display.Settle()
 	canvasBounds := v.img.Image.Bounds()
 	if canvasBounds.Dx() <= 520 || canvasBounds.Dy() <= 260 {
 		t.Fatalf("zoomed canvas raster = %v, want denser than the 520x260 logical SVG", canvasBounds)

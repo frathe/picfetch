@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -20,6 +21,15 @@ import (
 func profileSearchFavorites(ctx context.Context, config configuration, output io.Writer) error {
 	corpus, err := readSearchCorpus(config.Out)
 	if err != nil {
+		return err
+	}
+	rankingFile, err := os.Open(filepath.Join(config.Out, "search-result.json"))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rankingFile.Close() }()
+	var ranking struct{ SourceSHA256 string }
+	if err := json.NewDecoder(rankingFile).Decode(&ranking); err != nil {
 		return err
 	}
 	cache, err := os.MkdirTemp(config.Out, "favorite-baseline-")
@@ -53,6 +63,9 @@ func profileSearchFavorites(ctx context.Context, config configuration, output io
 			return err
 		}
 		if name == "cold" {
+			if digest != ranking.SourceSHA256 {
+				return fmt.Errorf("favorite baseline sources changed since ranking")
+			}
 			report.InputSHA256 = digest
 		} else if digest != report.InputSHA256 || pass.Successful != report.Passes[0].Successful || pass.Reused != pass.Successful || pass.Measurements.InferenceAttempts != 0 {
 			return fmt.Errorf("favorite baseline sources changed or warm analysis did not reuse all successful sources")

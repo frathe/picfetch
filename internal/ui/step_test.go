@@ -137,8 +137,8 @@ func TestStepImage_NoopWhileLoading(t *testing.T) {
 	b := uitest.TempJPEGURI(t, "b.jpg", 8, 8, color.White)
 	dropAndWait(t, v, a, b)
 	start := v.state.index
-	v.loading.Store(true)
-	t.Cleanup(func() { v.loading.Store(false) })
+	beginPendingImageLoad(v)
+	t.Cleanup(func() { v.display.CancelRequest() })
 	v.StepImage(1)
 	if v.state.index != start {
 		t.Errorf("index = %d, want %d while loading", v.state.index, start)

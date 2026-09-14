@@ -335,8 +335,8 @@ func TestGridBrowseDuringAnalysis(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					f := newGridAnalysisFixture(t, true)
 					// Visiting the source preloads its known copy through the normal
-					// viewer path. The test driver's inline load completion must not
-					// race GridWrap's deferred unselect after Return/click.
+					// viewer path. Opening that cached variant completes synchronously
+					// with GridWrap's deferred unselect after Return/click.
 					f.v.ShowImage(2)
 					waitUntilLoaded(t, f.v)
 					f.v.ShowImage(0)
@@ -361,8 +361,9 @@ func TestGridBrowseDuringAnalysis(t *testing.T) {
 					} else {
 						wrap.Select(f.v.grid.Highlight())
 					}
-					// Full waitUntilLoaded includes the deliberately held neighbor preload.
-					waitFor(t, "chosen variant", &f.v.load)
+					// Observe the foreground handoff only: the next neighbor remains
+					// deliberately blocked while Grid analysis is in progress.
+					waitHandle(t, "the cached variant to finish loading", f.v.display.LoadDone())
 					synctest.Wait()
 					if f.v.grid.Visible() || !f.v.dupes.Inspecting() || f.v.FileAt(f.v.CurrentIndex()).String() != f.files[3].String() {
 						t.Fatal("opening a hidden extra did not keep the chosen file in inspect")

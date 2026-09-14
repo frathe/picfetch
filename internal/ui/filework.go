@@ -20,8 +20,8 @@ import (
 type fileMutationWork struct {
 	saveLifecycle   requestLifecycle
 	saveDone        completion.Signal
-	savePending     bool
 	exportLifecycle requestLifecycle
+	savePending     bool
 	exportPending   bool
 	closed          bool
 	ctx             context.Context
@@ -137,7 +137,7 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 		done()
 		return
 	}
-	revision := v.loadLifecycle.currentRevision()
+	revision := v.display.RequestRevision()
 	ctx := v.fileWork.ctx
 	writer := v.imgCache.Capture()
 	v.fileWork.workers.Go(func() {
@@ -172,7 +172,7 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 			return
 		}
 		v.fileWork.ui.Do(func() {
-			if v.fileWork.closed || revision != v.loadLifecycle.currentRevision() {
+			if v.fileWork.closed || revision != v.display.RequestRevision() {
 				done()
 				return
 			}

@@ -21,7 +21,7 @@ func (v *viewer) regionCopyAvailable() bool {
 	if v.explorerMapActive() {
 		return false
 	}
-	if v.display.Count() == 0 || v.img.Image == nil || v.loading.Load() {
+	if v.display.Count() == 0 || v.img.Image == nil || v.display.Snapshot().Loading {
 		return false
 	}
 	if v.grid.Visible() || v.slides.Active() || v.deletion.Visible() || v.exportPrompt.Visible() {
@@ -38,59 +38,30 @@ func (v *viewer) startRegionCopy() {
 		return
 	}
 
-	source, animated, ok := v.captureRegionCopySource()
+	source, release, ok := v.captureRegionCopySource()
 	if !ok {
 		return
 	}
 	v.regionCopy.Start(v.regionCopyView(v.zoom.Geometry(), source), source)
 	if !v.regionCopy.State().Active {
-		if animated {
-			v.animationPause.unpause()
-		}
+		release()
 		return
 	}
-	v.regionCopyAnimated = animated
+	v.regionCopyRelease = release
 	v.regionCopyInfoVisible = v.info.Object().Visible()
 	v.info.Object().Hide()
 	v.ForceRepaint()
 }
 
-func (v *viewer) captureRegionCopySource() (source copyselection.Source, animated bool, ok bool) {
-	if v.vector.svg != nil {
-		w, h := roundedLogical(v.vector.logical)
-		return copyselection.VectorSource(
-			v.vector.svg,
-			image.Pt(w, h),
-			v.display.Rotation(),
-			v.vector.rasterize,
-		), false, true
+func (v *viewer) captureRegionCopySource() (copyselection.Source, func(), bool) {
+	capture, release, ok := v.display.CaptureStable()
+	if !ok {
+		return copyselection.Source{}, nil, false
 	}
-
-	animated = v.display.Count() > 1
-	var raster image.Image
-	// v.img.Image is the displayed oriented frame redrawRotatedFrame keeps
-	// current for every raster path. Capturing it instead of re-running
-	// display.Rotated() avoids a second full-size RGBA that the Source
-	// would pin for the whole mode. It stays stable while the mode is
-	// active: animations are paused right here, and every rotation or
-	// navigation path yields the mode before touching the frame.
-	capture := func() { raster = v.img.Image }
-	if animated {
-		if !v.animationPause.pause(capture) {
-			return copyselection.Source{}, false, false
-		}
-	} else {
-		capture()
+	if capture.Vector != nil {
+		return copyselection.VectorSource(capture.Vector, capture.LogicalSize, capture.Rotation, capture.Rasterize), release, true
 	}
-	if raster == nil {
-		// Release what this function acquired: the caller cleans up only
-		// after a failed Start, not after a failed capture.
-		if animated {
-			v.animationPause.unpause()
-		}
-		return copyselection.Source{}, false, false
-	}
-	return copyselection.RasterSource(raster), animated, true
+	return copyselection.RasterSource(capture.Pixels), release, true
 }
 
 // finishRegionCopy restores viewer-owned state after cancellation or a
@@ -98,10 +69,10 @@ func (v *viewer) captureRegionCopySource() (source copyselection.Source, animate
 // overlay and cleared its transient state.
 func (v *viewer) finishRegionCopy() {
 	v.regionCopyLifecycle.invalidate()
-	if v.regionCopyAnimated {
-		v.animationPause.unpause()
+	if v.regionCopyRelease != nil {
+		v.regionCopyRelease()
+		v.regionCopyRelease = nil
 	}
-	v.regionCopyAnimated = false
 
 	if v.regionCopyInfoVisible {
 		v.syncInfoOverlayVisibility()

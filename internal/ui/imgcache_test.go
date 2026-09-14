@@ -41,8 +41,7 @@ func TestImageCacheWriters_PreserveCompleteRecords(t *testing.T) {
 					case "foreground":
 						dropAndWait(t, v, u)
 					case "preload":
-						v.preloadOne(v.loadLifecycle.begin(), u)
-						v.preloads.Wait()
+						dropAndWait(t, v, uitest.TempJPEGURI(t, "0-first.jpg", 2, 2, color.Black), u)
 					case "comparison":
 						if _, err := v.loadComparedImage(context.Background(), u); err != nil {
 							t.Fatal(err)
@@ -303,7 +302,7 @@ func TestAttemptLoad_ToastsAndFallsBackToAStaticFrameForAnOversizedAnimation(t *
 	if v.display.Count() != 1 {
 		t.Errorf("display.Count() = %d, want 1 - the animation should not have been composited", v.display.Count())
 	}
-	if v.anim.Begun() {
+	if v.display.AnimationBegun() {
 		t.Error("the animation signal is armed, want no animation goroutine for a refused animation")
 	}
 	if len(v.state.files) != 1 {

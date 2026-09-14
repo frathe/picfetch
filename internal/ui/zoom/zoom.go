@@ -281,19 +281,9 @@ func (z *Zoom) native() fyne.Size {
 // float comparison is deliberate: this filters out no-ops, and the app
 // applies its own hysteresis on top before deciding to re-render anything.
 //
-// The img.Image nil check was removed from this guard deliberately. In
-// production, fyne.Do serializes the vector render goroutine's write to
-// img.Image with every layout pass on the UI goroutine, so the two never
-// truly race. Under the test driver, fyne.Do runs inline on the calling
-// goroutine, and a window resize triggered from zoom's onChanged (see
-// syncWindowToZoom in internal/ui/load.go) can produce a second layout
-// pass while a vector goroutine's fyne.Do is concurrently writing
-// img.Image, making the nil check a data race. The check is not needed
-// for correctness: Scale() returns z.scale directly when z.fit is false
-// (the common case after any In/Out step) without touching img.Image, and
-// the s==z.lastScale guard below silences a no-op secondary layout at
-// the same scale. onScaleChanged itself (requestVectorRender) already
-// returns immediately when v.vector.svg==nil.
+// Scale notification depends on geometry, not raster availability. A duplicate
+// layout at the same scale stays silent; the presentation owner decides whether
+// that scale requires asynchronous vector work.
 func (z *Zoom) notifyScale() {
 	if z.onScaleChanged == nil {
 		return
@@ -474,16 +464,8 @@ func (z *Zoom) apply() {
 		return
 	}
 
-	// No image loaded yet: fall back to the fitting layout. The check used
-	// to be `z.img.Image == nil`, but for SVGs rasterizeVector's fyne.Do
-	// writes img.Image from a background goroutine while the layout pass
-	// this apply runs in may be triggered from the UI goroutine concurrently
-	// (under the test driver both goroutines are distinct, making the read a
-	// data race). native() is safe here: for SVGs it returns z.logical
-	// without touching img.Image; for rasters it only reads img.Image when
-	// z.logical is zero, and rasters are only ever written from the UI
-	// goroutine (or animate's fyne.Do, which is also serialized through it
-	// in production).
+	// Fall back to fitting when native dimensions are unavailable. Logical SVG
+	// dimensions remain authoritative while its live raster density changes.
 	if n := z.native(); n.Width <= 0 || n.Height <= 0 {
 		z.pan = fyne.NewPos(0, 0)
 		z.img.Resize(z.viewport)

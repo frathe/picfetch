@@ -5,9 +5,9 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 236 entries, 470.520s projected weight sum
-# ui-2: 247 entries, 470.530s projected weight sum
-# ui-3: 205 entries, 504.870s projected weight sum
+# ui-1: 234 entries, 470.520s projected weight sum
+# ui-2: 246 entries, 470.530s projected weight sum
+# ui-3: 201 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -24,9 +24,6 @@ TestActionsMenu_ToggleInfoOverlay	ui-1
 TestActionsMenu_TrashNoopsWithoutFiles	ui-1
 TestActionsMenu_TrashOpensConfirmation	ui-1
 TestActionsMenu_WallpaperNoopsWithoutImage	ui-1
-TestAnimationCancellationDiscardsQueuedFrame	ui-1
-TestAnimationQueuedFramePacing	ui-1
-TestAnimationQueuedPauseKeepsCapturedFrame	ui-1
 TestApplySettings_DoesNotRevertLiveShortcutChanges	ui-1
 TestApplySettings_RetunesImageCacheWithoutSorting	ui-1
 TestApplyStagedUpdate_SavesNotesAndCallsApply	ui-1
@@ -82,6 +79,7 @@ TestCopySelectionUnknownKeyCancels	ui-1
 TestCopy_OutsideTheGridStillCopiesTheImage	ui-1
 TestCopy_ReportsAFailedFileCopy	ui-1
 TestCurrentUpdateCallback_DropsEventSupersededWhileQueued	ui-1
+TestDisplayedFileUsesPublishedSource	ui-1
 TestDrain_WaitsUpdateDone	ui-1
 TestE2E_BadDropAfterImagesClearsDisplay	ui-1
 TestE2E_CopySelection	ui-1
@@ -103,6 +101,7 @@ TestExportAs_RunsSavePanelInBackground	ui-1
 TestExportAs_SizeLimitCapsTheWrittenFile	ui-1
 TestExportAs_SuggestedNameCarriesTheAppliedSize	ui-1
 TestExportAs_ToastReportsASizeOnlyWhenOneApplied	ui-1
+TestExportCapturesPixelsBeforeChooserReturns	ui-1
 TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking	ui-1
 TestExportPrompt_EscapeFromTheSizeRowCancels	ui-1
 TestExportPrompt_KeyboardReachesTheSizeRow	ui-1
@@ -177,7 +176,6 @@ TestPerformDelete_LastFileReturnsToEmptyDropzone	ui-1
 TestPerformDelete_RemovesCurrentFileAndAdvancesToTheNextOne	ui-1
 TestPreloadOne_SkipsANeighborTooLargeForTheBudget	ui-1
 TestPromptExport_OpensAtDefaultsAfterANonDefaultExport	ui-1
-TestRasterizeVectorCoalescesABurst	ui-1
 TestRecordWindowPosition_ClockwiseSpiralDragFiresTheGesture	ui-1
 TestRecordWindowPosition_StraightDragDoesNotFireTheGesture	ui-1
 TestRemoveFile_PurgesCacheEntry	ui-1
@@ -476,7 +474,6 @@ TestToggleMergeMode_PrefixesTitleAndPersistsAcrossDrops	ui-2
 TestUpdateCheck_RemovesStaleStage	ui-2
 TestUpdateCheck_SettingOffNeverCallsHTTP	ui-2
 TestUpdateFailureContent_NeedsNoScrollingOnARoomyWindow	ui-2
-TestVectorRasterLandsWhenUIHopIsAsync	ui-2
 TestViewerFileStateSlicesRemainEquivalentAcrossTransitions	ui-2
 TestViewerIndexStaysValidAcrossFileStateTransitions	ui-2
 TestViewerModesApplyBeforeAndAfterLoadingFiles	ui-2
@@ -521,7 +518,6 @@ TestCanSaveRotation_TrueAfterRotatingAnEncodableFormat	ui-3
 TestCanSetWallpaper_FalseWithNoImage	ui-3
 TestCanSetWallpaper_TrueForALoadedImage	ui-3
 TestCancelScan_CancelsInFlightScanWithNoFilesYet	ui-3
-TestCaptureRegionCopySourceReleasesPauseWhenCaptureFails	ui-3
 TestChooserErrorDetail_FallsBackToErrorString	ui-3
 TestChooserErrorDetail_PrefersStderr	ui-3
 TestClearToDropzone_PurgesTheImageCache	ui-3
@@ -604,7 +600,6 @@ TestRandomOtherIndex_CoversEveryOtherIndex	ui-3
 TestRandomOtherIndex_EmptyOrSingleReturnsCurrentUnchanged	ui-3
 TestRandomOtherIndex_NeverReturnsCurrent	ui-3
 TestRasterFormatKeepsNoVectorState	ui-3
-TestRasterizeVectorStopsOnShutdownSignal	ui-3
 TestRecordWindowPosition_CounterClockwiseSpiralDragFiresTheOtherWay	ui-3
 TestRefreshMenus_FavoriteChangeRepublishesTheBarThroughTheViewer	ui-3
 TestRequestDelete_DoesNothingWhileTheExportPromptIsUp	ui-3
@@ -679,8 +674,6 @@ TestUpdateFailureMessage_SharingViolationSaysTheFileWasInUse	ui-3
 TestUpdateFailureMessage_UnknownReasonFallsBackToGeneric	ui-3
 TestUpdateFailureMessage_VirusBlockedNamesTheScannerWithoutThePath	ui-3
 TestVectorFloorMatchesStartWindowSize	ui-3
-TestVectorNeedsRender	ui-3
-TestVectorRasterTarget	ui-3
 TestViewerReset_ReshowsRestoreLinkWhenSessionUnconsumed	ui-3
 TestViewerShow_AllFilesBrokenFallsBackToEmptyState	ui-3
 TestViewerShow_DecodeErrorKeepsHint	ui-3

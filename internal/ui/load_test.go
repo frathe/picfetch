@@ -31,19 +31,13 @@ import (
 // contract: advance the lifecycle and cancel the previous request token.
 func TestInvalidateLoad_CancelsPriorLoadContext(t *testing.T) {
 	v := newTestViewer(t)
-
-	token := v.loadLifecycle.begin()
-
+	beginPendingImageLoad(v)
+	handle := v.display.LoadDone()
+	before := v.display.RequestRevision()
 	got := v.invalidateLoad()
-
-	if token.context().Err() == nil {
-		t.Error("invalidateLoad should cancel the previous generation's load context")
-	}
-	if got != token.revision+1 {
-		t.Errorf("invalidateLoad() = %d, want %d", got, token.revision+1)
-	}
-	if v.loadLifecycle.currentRevision() != got {
-		t.Errorf("load revision = %d, want %d", v.loadLifecycle.currentRevision(), got)
+	waitHandle(t, "cancelled navigation", handle)
+	if got <= before || v.display.Snapshot().Loading {
+		t.Fatal("invalidation did not retire the pending request")
 	}
 }
 
@@ -55,19 +49,34 @@ func TestInvalidateLoad_ZeroValueIsSafe(t *testing.T) {
 	v.invalidateLoad() // must not panic
 }
 
+func TestDisplayedFileUsesPublishedSource(t *testing.T) {
+	v := newTestViewer(t)
+	first := uitest.TempJPEGURI(t, "a.jpg", 4, 5, color.White)
+	second := uitest.TempJPEGURI(t, "b.jpg", 6, 7, color.Black)
+	dropAndWait(t, v, first, second)
+	v.imgCache.Remove(second.String())
+	v.ShowImage(1)
+	if source, ok := v.displayedFile(); !ok || source.String() != first.String() {
+		t.Fatal("outgoing pixels were labeled with the requested source")
+	}
+	if _, ok := v.DisplayedFile(); ok {
+		t.Fatal("EXIF was admitted before replacement finished")
+	}
+	v.invalidateLoad()
+	if source, ok := v.DisplayedFile(); !ok || source.String() != first.String() {
+		t.Fatal("cancelled navigation lost the published source")
+	}
+}
+
 // TestShowImage_StartsLoadLifecycle checks that navigation owns a cancellable
 // lifecycle request rather than relying only on a revision comparison.
 func TestShowImage_StartsLoadLifecycle(t *testing.T) {
 	v := newTestViewer(t)
-
-	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
-	dropAndWait(t, v, a)
-
-	v.loadLifecycle.mu.Lock()
-	hasCancel := v.loadLifecycle.cancel != nil
-	v.loadLifecycle.mu.Unlock()
-	if !hasCancel {
-		t.Error("ShowImage should leave a cancellable load request for preloads and animation")
+	source := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
+	dropAndWait(t, v, source)
+	snapshot := v.display.Snapshot()
+	if snapshot.Requested.Source.String() != source.String() || snapshot.Displayed.Revision != snapshot.Requested.Revision || !v.display.LoadBegun() {
+		t.Fatal("navigation did not publish its request identity")
 	}
 }
 

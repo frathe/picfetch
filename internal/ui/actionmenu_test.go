@@ -339,8 +339,8 @@ func TestCopySelectionAvailability(t *testing.T) {
 		{"decoded image", loadImage, true},
 		{"loading", func(t *testing.T, v *viewer) {
 			loadImage(t, v)
-			v.loading.Store(true)
-			t.Cleanup(func() { v.loading.Store(false) })
+			beginPendingImageLoad(v)
+			t.Cleanup(func() { v.display.CancelRequest() })
 		}, false},
 		{"grid view", func(t *testing.T, v *viewer) {
 			loadImage(t, v)

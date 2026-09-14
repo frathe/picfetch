@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/completion"
@@ -15,6 +16,7 @@ import (
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	"github.com/frathe/picfetch/internal/ui/display"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -28,16 +30,11 @@ import (
 // than one feature belongs here, not bolted onto whichever feature file
 // happens to need it first.
 //
-// ShowImage and handleDrop decode and scan off the main goroutine and apply
-// their results via fyne.Do, finishing v.load / v.scanOp.done - both
-// completion.Signal, see internal/completion for the contract - as the last
-// thing their completion block does. Waiting on those signals - rather than
-// polling v.loading or a widget's visibility - gives the waiter a proper
-// happens-before relationship with everything the producer goroutine wrote,
-// which is what makes these tests race-free under the test driver's
-// fyne.Do: unlike the real app drivers, it runs synchronously on the calling
-// goroutine instead of marshaling onto a single GUI goroutine. Never sleep
-// to guess completion.
+// Display's load/GIF/SVG delivery uses its instance UIQueue. Settle joins finite
+// workers and drains their callbacks; LoadDone then observes the complete retry
+// chain and root handoff. Frame application and animation shutdown have separate
+// observations. Scan still uses its completion.Signal. Never sleep to guess
+// completion or infer it from a widget's visibility.
 //
 // AGENTS.md states the rule this file exists to enforce: every goroutine
 // needs cancellation/staleness handling plus an observable stop/done signal,
@@ -103,6 +100,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	}
 
 	v, win = buildStartupViewer(testApp)
+	v.display.SetUIQueue(&uitest.UIQueue{})
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.spiral.SetUIQueue(&uitest.UIQueue{})
 	// Ordinary Explorer fixtures begin after first-use setup; setup cases reset these.
@@ -130,9 +128,9 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 
 	// Vector re-renders fire from every effective-scale change (a key, a
 	// scroll, or a window resize), and the production debounce would leave
-	// them still pending when a test asserts on v.vector.raster/v.vector.pending
-	// moments later - zeroed here the same way the toast's duration is.
-	v.vector.debounce = 0
+	// work pending until the timer fires. Use zero delay and explicit settlement
+	// so assertions inspect applied results.
+	v.display.SetVectorOptions(display.VectorOptions{})
 
 	// Zoom reports presentation geometry from inside renderer Layout.
 	// Production defers the Copy Selection update through fyne.Do; the test
@@ -164,14 +162,8 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 		}
 	})
 
-	// Registered after the close above so it runs *before* it (t.Cleanup is
-	// LIFO): drain whatever this test left in flight while its window is
-	// still alive. Not every test waits for the work it starts - asserting
-	// that a key is a no-op, say, needs no load to finish - and a decode
-	// goroutine outliving its test goes on to run finishLoad/ForceRepaint
-	// (inline, under the test driver's fyne.Do) while the *next* test is
-	// building its own viewer, which is a genuine race between two tests
-	// rather than anything production does wrong.
+	// Cleanup runs before window close (LIFO). Join workers and drain stale
+	// delivery while this window is alive so no work reaches the next test.
 	t.Cleanup(func() { drain(t, v) })
 
 	return v, win, func() bool { return isClosed }
@@ -216,9 +208,8 @@ func drain(t *testing.T, v *viewer) {
 	v.invalidateLoad()
 	v.scanOp.lifecycle.invalidate()
 	v.sortOp.lifecycle.invalidate()
-	v.vector.lifecycle.invalidate()
 	v.regionCopyLifecycle.invalidate()
-	v.animationPause.unpause()
+	v.display.Stop()
 	v.closeFavoritePreviews()
 	v.grid.Stop()
 	v.exif.Stop()
@@ -230,32 +221,17 @@ func drain(t *testing.T, v *viewer) {
 	v.deletion.Close()
 	v.deletion.Settle()
 
-	// Vector re-renders: spawned by any effective-scale change, so a test
-	// that zoomed or resized may still have one in flight. Must stay below
-	// invalidateLoad and slides.Exit above: only once no superseded decode
-	// can still land in finishLoad (whose resize triggers a scale change)
-	// and no slideshow advance can start a load is this Wait racing no
-	// further Add.
-	v.vector.pending.Wait()
+	// Stop closed display admission before settlement; late root callbacks
+	// cannot begin another load or raster pass during teardown.
+	v.display.Settle()
 	drainClipboard(t, v)
 	drainFileWork(t, v)
 	waitFor(t, "the file chooser at cleanup", &v.chooser)
 	drainOpenChooser(t, v)
 
-	// Ordered causally, not chronologically: a row that can still start
-	// the work a later row waits on must come first, or a finish landing
-	// mid-drain spawns work behind a wait that already returned
-	// (finishLoad begins v.anim and spawns animate before its own done()).
-	// The chain is chooser -> scan -> sort -> load -> animation -> preloads
-	// (preloads is waited out separately, below) - chooser first because
-	// chooserUI delivery calls handleDrop and begins scan. The explicit
-	// native-worker wait and queue drain above must precede these waits;
-	// otherwise a scan could begin behind a wait which already returned. This loop enforces every
-	// edge in that chain now. Ordering helps here in a way a chan-value
-	// table couldn't: these rows hold *completion.Signal, and Wait reads
-	// the live generation at call time, so a correctly ordered row also
-	// catches work that starts during drain, not just whatever was already
-	// in flight when it began.
+	// Native chooser delivery can begin scan, which can begin sort and load.
+	// Drain that delivery first, then observe the current root generations.
+	// Display was stopped above and joins all its retired workers afterward.
 	for _, c := range []struct {
 		name string
 		sig  *completion.Signal
@@ -267,12 +243,13 @@ func drain(t *testing.T, v *viewer) {
 		{"the favorite previews at cleanup", &v.favThumb},
 		{"the scan at cleanup", &v.scanOp.done},
 		{"the sort at cleanup", &v.sortOp.done},
-		{"the load at cleanup", &v.load},
-		{"the animation at cleanup", &v.anim},
 		{"the comparison at cleanup", v.compare.Done()},
 	} {
 		waitFor(t, c.name, c.sig)
 	}
+
+	v.display.Wait()
+	v.display.Settle()
 
 	// Done names only the latest generation. A manual request can supersede
 	// an automatic worker while the older one is still unwinding before it
@@ -303,7 +280,7 @@ func drain(t *testing.T, v *viewer) {
 		v.exif.WaitForTracking()
 		v.mosaicWin.WaitForTracking()
 		v.favThumbWorkers.Wait()
-		v.preloads.Wait()
+		v.display.WaitPreloads()
 		v.grid.Settle()
 		v.slides.Settle()
 		v.spiral.Settle()
@@ -375,7 +352,7 @@ func waitHandle(t *testing.T, name string, h completion.Handle) {
 // step is part of the chain because applyScanResult hands the scanned files
 // to startSort, which only shows the first image once the reorder lands.
 // Use dropAndWaitScan instead when the drop is expected to load nothing
-// (no supported images), since neither sortOp.done nor v.load is touched in
+// (no supported images), since neither sortOp.done nor display.LoadDone is touched in
 // that case.
 func dropAndWait(t *testing.T, v *viewer, uris ...fyne.URI) {
 	t.Helper()
@@ -401,28 +378,13 @@ func dropAndWaitScan(t *testing.T, v *viewer, uris ...fyne.URI) {
 func waitUntilLoaded(t *testing.T, v *viewer) {
 	t.Helper()
 
-	if !v.load.Begun() {
+	if !v.display.LoadBegun() {
 		t.Fatal("the image load never started")
 	}
 
-	waitFor(t, "the image to finish loading", &v.load)
+	v.display.Settle()
+	waitHandle(t, "the image to finish loading", v.display.LoadDone())
 
-	// Also wait out the neighbor preloads finishLoad kicked off (they're
-	// registered with preloads before the load signal finishes): a preload
-	// goroutine that outlives its test keeps reading files - and shared
-	// library state like the MIME map - under whatever test runs next,
-	// which -race rightly reports. "Loaded" here deliberately means
-	// "loaded, and everything that load spawned has settled".
-	settled := make(chan struct{})
-	go func() {
-		v.preloads.Wait()
-		close(settled)
-	}()
-	select {
-	case <-settled:
-	case <-time.After(testTimeout):
-		t.Fatal("timed out waiting for neighbor preloads to settle")
-	}
 }
 
 func waitForScan(t *testing.T, v *viewer) {
@@ -445,15 +407,14 @@ func waitForSort(t *testing.T, v *viewer) {
 	waitFor(t, "the sort", &v.sortOp.done)
 }
 
-// waitForAnimFrame polls v.animFrame - an atomic counter animate bumps after
-// every frame write - until it reaches at least n. Polling the atomic is
-// race-free, unlike reading v.img.Image directly from the test goroutine
-// while animate's own goroutine writes it.
+// waitForAnimFrame drains display delivery until at least n frames have been
+// applied. Worker submission alone cannot satisfy this observation.
 func waitForAnimFrame(t *testing.T, v *viewer, n uint64) {
 	t.Helper()
 
 	deadline := time.Now().Add(testTimeout)
-	for v.animFrame.Load() < n {
+	for v.display.AppliedFrames() < n {
+		v.display.Settle()
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for animFrame to reach %d", n)
 		}
@@ -461,26 +422,21 @@ func waitForAnimFrame(t *testing.T, v *viewer, n uint64) {
 	}
 }
 
-// parkAnimate replaces viewer.frameAfter with a clock that never ticks, so
-// animate sits in its select for the whole test. Must be called before the
-// first drop, like the vector.after seam. Cancellation still wakes it via
-// the load token. Tests that need a known frame index use a frameClock in
-// animate_test.go instead of this.
+// parkAnimate installs a clock that never ticks before the first load.
+// Cancellation still releases playback; frameClock permits individual ticks.
 func parkAnimate(v *viewer) {
-	v.frameAfter = func(time.Duration) <-chan time.Time { return make(chan time.Time) }
+	v.display.SetAnimationClock(func(_ time.Duration) <-chan time.Time { return make(chan time.Time) })
 }
 
-// waitForAnimStopped waits for the current animate call to finish v.anim,
-// which it does right before returning once it notices its generation is
-// stale.
+// waitForAnimStopped observes the current playback worker's return.
 func waitForAnimStopped(t *testing.T, v *viewer) {
 	t.Helper()
 
-	if !v.anim.Begun() {
+	if !v.display.AnimationBegun() {
 		t.Fatal("the animation never started")
 	}
 
-	waitFor(t, "the animation to stop", &v.anim)
+	waitHandle(t, "the animation to stop", v.display.AnimationDone())
 }
 
 // waitForClipboard waits encoding/dispatch, drains queued results, then observes
@@ -523,7 +479,7 @@ func waitForReveal(t *testing.T, v *viewer) {
 }
 
 // waitForCached polls imgCache - populated from preloadOne's background
-// goroutines, which run independently of v.load/scanOp.done - until it holds
+// goroutines, which run independently of display/scan completion - until it holds
 // an entry for u, the same polling-with-timeout style waitForAnimFrame uses
 // for animate's background writes.
 func waitForCached(t *testing.T, v *viewer, u fyne.URI) {
@@ -670,4 +626,9 @@ func namesOfURIs(files []fyne.URI) []string {
 		names[i] = u.Name()
 	}
 	return names
+}
+
+// Leave a real uncached request queued; callers cancel it before test cleanup.
+func beginPendingImageLoad(v *viewer) {
+	v.display.Load(display.Request{Source: storage.NewFileURI("/picfetch-pending-test.png")})
 }

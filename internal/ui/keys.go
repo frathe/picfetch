@@ -402,7 +402,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// user has already navigated past. A single-file drop that found
 	// siblings in the same folder has already expanded the set (see
 	// handleDrop); a genuinely lonely file still no-ops here.
-	if len(v.state.files) < 2 || v.loading.Load() {
+	if len(v.state.files) < 2 || v.display.Snapshot().Loading {
 		return
 	}
 

@@ -7,22 +7,20 @@ package ui
 import (
 	"fmt"
 	"image"
-	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/appearance"
-	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
+	"github.com/frathe/picfetch/internal/ui/display"
 	"github.com/frathe/picfetch/internal/ui/infoview"
 )
 
@@ -43,10 +41,16 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	// widgets built below).
 	var view *viewer
 
-	img := canvas.NewImageFromImage(nil)
-	img.FillMode = canvas.ImageFillContain
-	img.ScaleMode = canvas.ImageScaleSmooth
-	img.Hide()
+	cache := imaging.NewImgCache(int64(prefs.MaxImageCacheMB) * bytesPerMB)
+	presentation := display.New(display.Config{Cache: cache, Callbacks: display.Callbacks{
+		Repaint:            func() { view.ForceRepaint() },
+		Requested:          func(id display.Identity) { view.imageRequested(id) },
+		Probed:             func(bounds image.Rectangle) { view.imageProbed(bounds) },
+		Presented:          func(snapshot display.Snapshot) []fyne.URI { return view.imagePresented(snapshot) },
+		Failed:             func(source fyne.URI, err error) fyne.URI { return view.imageLoadFailed(source, err) },
+		AnimationTruncated: func(source fyne.URI) { view.imageAnimationTruncated(source) },
+	}})
+	img := presentation.Surface()
 
 	dz := newDropzoneUI(
 		func() { view.openFileDialog() },
@@ -69,6 +73,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		win:           window,
 		quit:          application.Quit,
 		img:           img,
+		display:       presentation,
 		hint:          dz.hint,
 		dropzone:      dz.root,
 		dropzoneArt:   dz.art,
@@ -82,8 +87,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		storeManaged:  distribution.StoreManaged,
 		state:         newAppState(filesort.FromPref(prefs.SortMode), prefs.MergeMode),
 		baseTitle:     appTitle,
-		imgCache:      imaging.NewImgCache(int64(prefs.MaxImageCacheMB) * bytesPerMB),
-		preloads:      decodepool.New[string, struct{}](preloadConcurrency),
+		imgCache:      cache,
 		settings: settings{
 			themeMode:  themeMode,
 			maxScan:    prefs.MaxScanFiles,
@@ -102,12 +106,6 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		fileWork:       newFileMutationWork(),
 	}
 
-	view.vector.debounce = defaultVectorDebounce
-	view.vector.rasterize = func(vec *imaging.Vector, w, h int) (image.Image, error) { return vec.RasterAt(w, h) }
-	view.vector.after = time.After
-	view.vector.do = fyne.Do
-	view.frameAfter = time.After
-	view.frameDo = fyne.Do
 	view.chooserUI = fyneChooserQueue{}
 	view.regionCopyDo = fyne.Do
 	view.regionCopyDoAndWait = fyne.DoAndWait

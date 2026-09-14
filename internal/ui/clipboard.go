@@ -36,8 +36,8 @@ func (v *viewer) copyImageToClipboard() {
 	if v.comparisonActive() || v.explorerMapActive() {
 		return
 	}
-	img := v.img.Image
-	if img == nil {
+	capture, captured := v.display.Capture()
+	if !captured {
 		return
 	}
 
@@ -55,7 +55,7 @@ func (v *viewer) copyImageToClipboard() {
 			return
 		}
 		var buf bytes.Buffer
-		err := encode(clipboardContextWriter{ctx: token.context(), out: &buf}, img)
+		err := encode(clipboardContextWriter{ctx: token.context(), out: &buf}, capture.Pixels)
 		if err == nil && token.current() {
 			err = clipboard.CopyImage(buf.Bytes())
 		}

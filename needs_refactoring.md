@@ -1,6 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-14 after completing MA-026.
+Updated 2026-09-14 after completing and qualifying MA-027.
 
 This file contains proposed refactorings and accepted dependency watches.
 Completed findings have been removed; their history remains in Git and the
@@ -10,8 +10,9 @@ size refactoring remains declined, and MA-025 records acceptance of the decoded
 map-cache limitation previously recorded under MA-015 and in [todos.md](todos.md).
 MA-026 is complete in `28d65ef`, with full CI qualification recorded in its
 [archived plan](finished_refactorings/2026-09-14-explorer-feature.md).
-MA-027 and MA-028 remain proposed architecture work in that order; they do not
-reopen the completed maintainability audit.
+MA-027 is complete in `e6024dc`, with native CI and clean code/security reviews
+recorded in its [archived plan](finished_refactorings/2026-09-14-ma-027-presentation.md).
+MA-028 is the next architecture task; it does not reopen the completed audit.
 
 Inspection baseline: `main` at `54fd7c3` (v1.1.2). The root `internal/ui` package
 contains 55 production Go files, 10,835 non-test lines including comments, and
@@ -21,8 +22,7 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-027](#ma-027) | P2 | Give single-image presentation ownership of its lifecycle | Proposed; second extraction |
-| [MA-028](#ma-028) | P2 | Centralize shared command-admission decisions | Proposed; third refactoring |
+| [MA-028](#ma-028) | P2 | Centralize shared command-admission decisions | Proposed; next refactoring |
 | [MA-023](#ma-023) | P3 | Retire the HEIC fork when an official release contains its fix | Accepted dependency watch |
 
 <a id="ma-026"></a>
@@ -41,44 +41,39 @@ existing dependency links; MA-026 is no longer open refactoring work.
 
 ## MA-027 — Give single-image presentation ownership of its lifecycle
 
-**Second priority: substantial locality benefit, with the highest migration risk.**
+**Complete (`e6024dc`), 2026-09-14.** The
+[archived Deep SDD plan](finished_refactorings/2026-09-14-ma-027-presentation.md)
+records the accepted contract, seven slices, red/green evidence and qualification.
 
-**Evidence:** [load.go](internal/ui/load.go), [vector.go](internal/ui/vector.go),
-[rotate.go](internal/ui/rotate.go), and
-[animationpause.go](internal/ui/animationpause.go) span 1,235 root UI lines.
-[display.State](internal/ui/display/display.go) holds frames, rotation, and
-fades, while the viewer still coordinates loading, preloading, GIF playback,
-animation pauses, SVG rasterization, and redraws. These counts describe the
-candidate cluster; collection navigation and window policy will remain in UI.
+[display.Feature](internal/ui/display/feature.go) now owns the surface, source
+identities, captures, rotation/fades and load/GIF/SVG/preload workers. Root
+[load.go](internal/ui/load.go) chooses requested/retry/neighbor sources and
+composes display's synchronous handoff with zoom, window policy, title and EXIF.
+[vector.go](internal/ui/vector.go) only forwards layout density. Root no longer
+owns mutable frames, animation pauses, timers or SVG raster workers.
 
-**Proposed split:**
+The public display contract covers stale delivery, coherent handoff, same-source
+reopening, saved baselines, fresh-delay capture release and all-generation
+teardown. Root tests retain actual input, file actions, cache sharing and window
+composition. Foreground cache admission and budgets remain; display speculation
+uses a separate atomic non-evicting operation. This corrects the design's mistaken
+assumption that existing AddIfFits never evicts; other callers keep its semantics.
 
-- Deepen the existing display module to own current-image presentation work
-  and its lifecycles. Move playback, pause/resume, rotation, and SVG presentation
-  first; move cache-aware loading and preloading in a subsequent slice.
-- Let the viewer select the source and retain file-list navigation, broken-file
-  removal/retry decisions, and cross-feature/window policy. Keep codecs in the
-  viewer-independent `internal/imaging` package.
-- Expose presentation state and controlled image capture for Save, Export,
-  and Copy Selection, so callers do not coordinate mutable frame internals.
-  The module owns cancellation and observable worker completion.
+[Native CI](https://github.com/frathe/picfetch/actions/runs/34851844070) passed
+all four Linux/amd64 race partitions, validation and Windows/macOS guards.
+Qodana and CodeQL have zero findings; fresh Codex code/security reviews are
+clean. The unchanged golden masters pass. All seven tickets are resolved;
+this anchor remains for existing dependency links.
 
-**Preserve and verify:** retain regressions for stale decode/raster delivery,
-GIF frame acknowledgement and Copy Selection pause/resume, SVG logical size and
-rotation, and navigation past broken files. Preserve cache revision checks and
-`Add` for displayed images versus `AddIfFits` for speculative preloads. Keep
-integration coverage for Save/Export reconciliation, zoom, and picture-frame
-transitions as module tests take over presentation behavior.
-
-**Done when:** image presentation changes are local to the owning module and
-the viewer no longer manages its frame timers, SVG workers, or mutable frames
-directly. Existing visible behavior and cache budgets remain intact.
+See the [accepted specification](.scratch/ma-027/spec.md),
+[verification map](.scratch/ma-027/verification.md), and
+[surface-ownership ADR](docs/adr/0001-single-image-presentation-ownership.md).
 
 <a id="ma-028"></a>
 
 ## MA-028 — Centralize shared command-admission decisions
 
-**Third priority: reduce the number of places a new mode must update.**
+**Next refactoring: reduce the number of places a new mode must update.**
 
 **Evidence:** [keys.go](internal/ui/keys.go),
 [shortcuts.go](internal/ui/shortcuts.go), [menu.go](internal/ui/menu.go),
