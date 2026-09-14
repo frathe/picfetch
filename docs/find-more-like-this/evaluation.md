@@ -1,7 +1,8 @@
 # Find more like this: local evaluation
 
-Status: technical experiment complete; relevance judgments and proceed/revise
-decision pending. This does not complete FML-001 or admit FML-002.
+Status: technical experiment complete; Ronin approved proceeding after an overall
+visual review on 2026-09-14. Per-item relevance measurements remain unverified.
+This explicit decision admits FML-002 without exhaustive labeling.
 
 ## Retained run
 
@@ -74,3 +75,12 @@ weak negative-score matches, small scopes and missing-slot precision. They
 prove accounting and failure behavior, not semantic relevance. macOS native
 regressions also prove the network-denied worker and cold/warm Favorite reuse.
 Other-platform search UI qualification remains unverified.
+
+## September 14 proceed decision
+
+Ronin found exhaustive item-by-item review too burdensome, judged the results
+overall good, and explicitly approved following this approach. This supersedes
+the earlier blocking requirement for 20 completed content judgments. Continue
+with exact content similarity using the existing pinned model. The retained
+corpus remains unlabeled: neither median content/appearance precision nor passing
+the initial 0.6 target is established by this qualitative assessment.

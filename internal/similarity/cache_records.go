@@ -1,0 +1,149 @@
+package similarity
+
+import (
+	"context"
+	"errors"
+	"io/fs"
+	"os"
+	"regexp"
+
+	"github.com/frathe/picfetch/internal/favstore"
+)
+
+var managedAnalysisName = regexp.MustCompile(`^[0-9a-f]{64}\.json$`)
+var temporaryAnalysisName = regexp.MustCompile(`^\.[A-Za-z0-9_-]{20,64}\.tmp$`)
+
+type managedAnalysis struct {
+	root               *os.Root
+	name               string
+	info               fs.FileInfo
+	general, temporary bool
+	favorite           *favoriteAnalysis
+}
+type analysisInventory struct {
+	records []managedAnalysis
+	usage   CacheUsage
+	roots   []*os.Root
+}
+
+func (i *analysisInventory) close() {
+	for _, root := range i.roots {
+		_ = root.Close()
+	}
+}
+func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress func(CacheProgress)) error {
+	var failures []error
+	add := func(base, relative string, general bool, favorite *favoriteAnalysis) {
+		var root *os.Root
+		var err error
+		if favorite != nil {
+			root, err = favorite.root.OpenRoot("analysis")
+		} else {
+			parent, openErr := os.OpenRoot(base)
+			if errors.Is(openErr, os.ErrNotExist) {
+				return
+			}
+			if openErr != nil {
+				failures = append(failures, openErr)
+				return
+			}
+			root, err = parent.OpenRoot(relative)
+			_ = parent.Close()
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+		if err != nil {
+			failures = append(failures, err)
+			return
+		}
+		i.roots = append(i.roots, root)
+		dir, err := root.Open(".")
+		if err != nil {
+			failures = append(failures, err)
+			return
+		}
+		entries, err := dir.ReadDir(-1)
+		_ = dir.Close()
+		if err != nil {
+			failures = append(failures, err)
+		}
+		for _, entry := range entries {
+			if ctx.Err() != nil {
+				return
+			}
+			temporary := temporaryAnalysisName.MatchString(entry.Name())
+			if !temporary && !managedAnalysisName.MatchString(entry.Name()) {
+				continue
+			}
+			info, err := root.Lstat(entry.Name())
+			if err != nil {
+				failures = append(failures, err)
+				continue
+			}
+			if !info.Mode().IsRegular() {
+				continue
+			}
+			record := managedAnalysis{root: root, name: entry.Name(), info: info, general: general, temporary: temporary, favorite: favorite}
+			i.records = append(i.records, record)
+			size := &i.usage.Favorite
+			if general {
+				size = &i.usage.General
+			}
+			size.Bytes += uint64(info.Size())
+			if !temporary {
+				size.Records++
+			}
+			if progress != nil {
+				progress(CacheProgress{Phase: "inspect", Records: len(i.records), Bytes: i.usage.General.Bytes + i.usage.Favorite.Bytes})
+			}
+		}
+	}
+	if roots.GeneralDir != "" {
+		add(roots.GeneralDir, "v1", true, nil)
+	}
+	i.usage.General.Incomplete = len(failures) > 0 || ctx.Err() != nil
+	generalFailures := len(failures)
+	if roots.FavoritesDir != "" && ctx.Err() == nil {
+		entries, err := os.ReadDir(roots.FavoritesDir)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			failures = append(failures, err)
+		}
+		for _, entry := range entries {
+			if ctx.Err() != nil {
+				break
+			}
+			if !entry.IsDir() || !favstore.ValidName(entry.Name()) {
+				continue
+			}
+			parent, err := os.OpenRoot(roots.FavoritesDir)
+			if err != nil {
+				failures = append(failures, err)
+				continue
+			}
+			root, err := parent.OpenRoot(entry.Name())
+			_ = parent.Close()
+			if err != nil {
+				failures = append(failures, err)
+				continue
+			}
+			favorite, loadErr := loadFavoriteAnalysis(root)
+			if errors.Is(loadErr, os.ErrNotExist) {
+				_ = root.Close()
+				continue
+			}
+			i.roots = append(i.roots, root)
+			if loadErr != nil {
+				failures = append(failures, loadErr)
+				favorite = &favoriteAnalysis{root: root}
+			}
+			add(roots.FavoritesDir, "analysis", false, favorite)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		failures = append(failures, err)
+	}
+	i.usage.Favorite.Incomplete = len(failures) > generalFailures || ctx.Err() != nil
+	i.usage.Incomplete = i.usage.General.Incomplete || i.usage.Favorite.Incomplete
+	return errors.Join(failures...)
+}

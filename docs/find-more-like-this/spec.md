@@ -1,11 +1,12 @@
 # Find more like this
 
-Status: ready-for-agent
+Status: MVP implemented; qualitative proceed approved September 14, 2026
 Date: 2026-09-14
 Source: /grill-with-docs, Ronin's accepted defaults and amendments, /to-spec
 Delivery: FML-001's technical evaluator is implemented and the 446-image native
-experiment is recorded; human relevance judgments and the proceed/revise decision
-remain pending. Search UI implementation has not started.
+experiment is recorded. Ronin approved proceeding from his overall result review,
+waiving exhaustive per-item judging; quantitative relevance remains unmeasured.
+Search and cache implementation is undergoing final verification and PR review.
 Owner: Pico / T0 lead for specification, architecture, review, and fixes
 
 This is the canonical local issue-tracker specification. The feature's agreed
@@ -35,14 +36,16 @@ Favorite definitions, or expensive installed model assets.
 
 Add Find more like this to Actions and the platform-default Cmd/Ctrl+Shift+L
 shortcut. A displayed image or one Grid reference produces up to 30 images
-ranked by content similarity. A result becomes the active list for browsing and
+ranked by content similarity. Grid shows the reference first with a purple outline,
+followed by up to 30 other matches. This displayed list becomes active for browsing and
 file actions. Choosing another reference searches the original collection again.
 Back/Esc restores earlier visits and eventually the original list; Exit returns
 there directly.
 
 Show a determinate progress bar above Grid View, with processed/total and failed
 counts. Refresh the ranked result after every 100 distinct processed images and
-at completion. Cached and failed images count toward progress. Users can select,
+at completion, then hide the completed progress bar while keeping the counts and
+results. Cached and failed images count toward progress. Users can select,
 open, compare, copy, delete, generate mosaics, and save Favorites while analysis
 continues; every admitted action keeps its captured source identities.
 
@@ -82,7 +85,7 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
 9. As an image browser, I want matches ordered by content similarity, so that promising images appear first.
 10. As an image browser, I want photographs and illustrations of related subjects to match, so that differences in medium do not preclude discovery.
 11. As an image browser, I want the closest available results even when similarity is weak, so that I can judge their usefulness myself.
-12. As an image browser, I want the reference itself excluded, so that results offer other files.
+12. As an image browser, I want up to 30 other files ranked after the separately marked reference, so that I can compare them with the starting image.
 13. As a collection browser, I want repeated occurrences of the same path collapsed, so that they do not consume result slots.
 14. As a collection browser, I want distinct files with identical pixels to remain eligible, so that I can discover alternate copies.
 15. As a user with a small collection, I want fewer than 30 results to work normally, so that a small scope is still useful.
@@ -253,8 +256,9 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
 
 14. **Disk budget.** Default the persisted general limit to 2048 MB using the
     existing Settings byte convention. Validate positive input and overflow,
-    retaining the last valid setting for invalid edits. Apply valid edits live;
-    shrinking below usage schedules worker-driven LRU eviction. Skip persistence
+    retaining the last valid setting for invalid edits. Apply a valid limit on
+    Enter or the Apply cache limit button; typing alone does not evict records.
+    Shrinking below usage schedules worker-driven LRU eviction. Skip persistence
     for a record larger than the entire general budget while keeping its usable
     in-memory analysis. Count serialized bytes, including managed temporary
     files; Favorite analysis is outside this cap. Combined reported usage may
@@ -273,7 +277,10 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
     old source versions, and obsolete Favorite memberships. Preserve records
     whose source status cannot be established because a drive is disconnected
     or access fails. A missing path counts as stale only when its source location
-    can be checked. Constrain traversal/removal to managed record roots and
+    can be checked. The current record format does not retain volume identity,
+    so missing paths are reported unavailable even when their parent directory
+    exists; full cleanup and general-cache LRU can still reclaim those records.
+    Constrain traversal/removal to managed record roots and
     formats; protect user images, Favorite lists/cohorts, thumbnails, model/runtime
     assets, settings, session data, and unrelated files.
 
@@ -294,7 +301,10 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
     delivered callbacks. Close is nonblocking on UI; Stop ends future admission;
     Settle joins, drains, and repeats when delivery admits more work. Share at
     most one native analysis worker for the main window. Bound retained vectors
-    to 256 MiB before allocation; this is separate from the 2 GB disk limit and
+    to 256 MiB before allocation. The subprocess also bounds each JSON input
+    message to 64 MiB; oversized search requests are rejected before launch,
+    independently of the vector budget. Later reference queries receive fresh
+    message budgets. The vector budget is separate from the 2 GB disk limit and
     is not a total RSS cap. Release source pixels and temporary previews between
     inputs; history holds no decoded images or vectors.
 
@@ -409,12 +419,14 @@ usage means measured managed-file sizes, with incomplete measurements labeled;
 the report does not claim to measure total application RSS or filesystem block
 allocation. The separate 256 MiB vector budget is not a total process-memory cap.
 
-The proposed interfaces and future test names are design contracts. This spec
-does not claim the feature, Cache tab, ranking experiment, or native acceptance
-has already been implemented. The ready-for-agent status marks the specification
-ready for the next unblocked ticket, starting with real ranking evaluation.
-Implementation starts under a separate implementation request and retains the
-quality decision, MA-026, and repository commit/release authorization rules.
+The interfaces and test names above are design contracts, not verification
+results. MVP implementation and its measured scope are recorded in the
+[implementation evidence](implementation.md) and
+[continuation record](../../finished_refactorings/2026-09-14-find-more-like-this.md).
+The latest pushed commit's review/CI gate is tracked in
+[PR #25](https://github.com/frathe/picfetch/pull/25). Quantitative relevance and
+unrun native acceptance remain unverified; repository merge/release authorization
+rules still apply.
 
 The existing feature directory remains the single tracker home. No duplicate
 specification or ticket set is created elsewhere. Documentation checks for this

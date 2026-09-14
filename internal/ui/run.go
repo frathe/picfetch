@@ -130,6 +130,9 @@ func (v *viewer) waitForShutdown() {
 	// Shutdown has canceled admission; join the native process after the UI loop
 	// retires so the application cannot leave an analysis worker behind.
 	v.explorer.Wait()
+	v.visualsearch.Wait()
+	v.searchView.overlayWorkers.Wait()
+	v.analysisCache.Wait()
 }
 
 // Runtime side effects start only after feature construction and geometry
@@ -165,6 +168,9 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.stopping = true
 		view.spiral.Close()
 		view.closeExplorer()
+		view.stopSearchOverlayWait()
+		view.visualsearch.Stop()
+		view.analysisCache.Stop()
 		view.explorer.Stop()
 		view.closeFileWork()
 		view.closeClipboardWork()
@@ -234,6 +240,8 @@ func (v *viewer) currentPreferences() preferences.State {
 		MaxFileSizeMB:           v.settings.maxFileMB,
 		FavoritePreviewCache:    v.settings.favPreviewCache,
 		SimilarityFavoriteCache: v.explorer.Settings().CacheFavorites,
+		SimilarityLooseCache:    v.settings.looseAnalysisCache,
+		AnalysisCacheLimitMiB:   v.settings.analysisCacheMiB,
 		SimilarityAutoUpdate:    v.explorer.Settings().Automatic,
 		SimilarityAutoFit:       v.explorer.Settings().AutoFit,
 		SimilarityIntroSeen:     v.explorer.Settings().IntroSeen,

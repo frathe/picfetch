@@ -148,8 +148,15 @@ func (v *viewer) preloadCandidates() []fyne.URI {
 		return nil
 	}
 	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
-	candidates := []fyne.URI{v.state.files[next]}
-	if prev != next {
+	if v.searchActive() {
+		next = v.nextVisibleIndex(v.state.index, 1)
+		prev = v.nextVisibleIndex(v.state.index, -1)
+	}
+	var candidates []fyne.URI
+	if next != v.state.index {
+		candidates = append(candidates, v.state.files[next])
+	}
+	if prev != next && prev != v.state.index {
 		candidates = append(candidates, v.state.files[prev])
 	}
 	return candidates

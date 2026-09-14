@@ -15,6 +15,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	compareui "github.com/frathe/picfetch/internal/ui/compare"
 	"github.com/frathe/picfetch/internal/ui/copyselection"
@@ -31,6 +32,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/ui/spiral"
+	searchui "github.com/frathe/picfetch/internal/ui/visualsearch"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/ui/zoom"
 	"github.com/frathe/picfetch/internal/wingesture"
@@ -335,6 +337,10 @@ type viewer struct {
 	// worker pool and reaches back through the Host interface this viewer
 	// satisfies. handleKeyEvent checks its Visible() before its own
 	// dispatch, the same way it does for the delete confirmation.
+	visualsearch  *searchui.Feature
+	analysisCache *analysiscache.Feature
+	analysisDir   string
+	searchView    searchPresentation
 	grid          *grid.Overview
 	explorer      *explorerui.Feature
 	explorerInput explorerInput
@@ -456,6 +462,7 @@ type viewer struct {
 // directly) forces a full repaint. Refreshing an already-registered
 // ancestor here triggers that repaint immediately instead.
 func (v *viewer) ForceRepaint() {
+	v.flushSearchPresentation()
 	v.win.Content().Refresh()
 }
 
@@ -559,6 +566,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // which art (welcomeArt or emptyStateArt) belongs in the box afterward and
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
+	v.closeVisualSearch()
 	v.closeExplorer()
 	v.grid.Close()
 	v.explorerInput.favoriteDir = ""

@@ -102,6 +102,7 @@ func (v *viewer) applyLaunchOptions(opts launch.Options) {
 		options.Presets = &explorerpresets.Store{Dir: filepath.Join(opts.ExplorerTrial, "presets")}
 		v.explorer.Configure(options)
 		v.favorites.SetDir(filepath.Join(opts.ExplorerTrial, "favorites"))
+		v.analysisDir = filepath.Join(opts.ExplorerTrial, "image-analysis")
 		v.updater.SetDir(filepath.Join(opts.ExplorerTrial, "updates"))
 		v.settings.checkForUpdates = false
 	}

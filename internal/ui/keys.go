@@ -166,6 +166,10 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		return
 	}
 
+	if v.searchKey(ev.Name) {
+		return
+	}
+
 	// Feature entry keys precede Grid dispatch, which owns ordinary letters.
 	// Search retains shifted letters as text; plain M/S keep merge/sort.
 	if v.keyModifiers() == fyne.KeyModifierShift {

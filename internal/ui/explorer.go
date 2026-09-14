@@ -18,7 +18,7 @@ type explorerInput struct {
 
 func (v *viewer) showExplorer() {
 	// The previous collection stays installed until replacement sorting commits.
-	if v.scanOp.active || v.sortOp.active {
+	if v.scanOp.active || v.sortOp.active || v.analysisMaintenanceBusy() {
 		return
 	}
 	if v.stopping || v.comparisonActive() || v.explorerMapActive() && !v.explorerCanRetry() || v.FileCount() == 0 || !v.yieldCopySelection() {
@@ -32,6 +32,8 @@ func (v *viewer) showExplorer() {
 		v.slides.Exit()
 		v.resetFade()
 	}
+	v.explorer.WaitBefore(v.visualsearch.Suspend())
+	v.closeVisualSearch()
 	v.grid.Close()
 	winpos.Maximize(v.win)
 	v.explorerInput.maximized = true
@@ -58,7 +60,11 @@ func (v *viewer) beginExplorerAnalysis() {
 			paths = append(paths, v.FileAt(i).Path())
 		}
 	}
-	v.explorer.Open(explorerui.OpenRequest{Sources: paths, FavoriteDir: v.explorerInput.favoriteDir, FavoritesDir: v.favorites.Dir()})
+	request := explorerui.OpenRequest{Sources: paths, FavoriteDir: v.explorerInput.favoriteDir, FavoritesDir: v.favorites.Dir()}
+	if v.settings.looseAnalysisCache {
+		request.GeneralAnalysisDir = v.analysisDir
+	}
+	v.explorer.Open(request)
 }
 func (v *viewer) UpdateSimilarityMap()                    { v.explorer.UpdateSimilarityMap() }
 func (v *viewer) SetSimilarityAutoUpdate(on bool)         { v.explorer.SetSimilarityAutoUpdate(on) }
@@ -107,6 +113,9 @@ func (v *viewer) closeExplorer() {
 func (v *viewer) explorerSourcesChanged() {
 	v.cancelExplorerPreparation()
 	v.explorer.SourcesChanged()
+	if v.searchActive() {
+		v.visualsearch.Exit()
+	}
 }
 func (v *viewer) settleExplorer() {
 	for {
@@ -150,6 +159,9 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 }
 
 func (v *viewer) cohortIndexes() []int {
+	if v.searchActive() {
+		return v.activeSearchIndexes()
+	}
 	paths, _ := v.explorer.Cohort()
 	if len(paths) == 0 {
 		return nil

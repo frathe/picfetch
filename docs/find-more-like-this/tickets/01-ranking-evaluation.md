@@ -1,8 +1,8 @@
 # 01: Evaluate real-image search quality
 
 Ticket: FML-001
-Status: claimed
-Progress: evaluator implemented and technically verified; [real measurements](../evaluation.md) recorded; relevance judgments and proceed/revise decision pending.
+Status: qualitative acceptance recorded; quantitative judgments waived
+Progress: evaluator and real measurements recorded; Ronin approved proceeding from his overall review. Per-item judgments and P@10 remain unmeasured.
 Approval: /implement use tdd and sdd, 2026-09-14. Dependencies still gate admission.
 Owner: T0 lead; design, review and fixes remain lead-owned.
 Budget: zero spawns; at most two lead review rounds; focused checks.
@@ -23,3 +23,5 @@ Budget: zero spawns; at most two lead review rounds; focused checks.
 **Demo / completion evidence:** A report can be regenerated from the same corpus and identifies both useful matches and measured limitations.
 
 **Execution:** [FML-001 file map, contracts and verification](../ticket-execution.md#fml-001).
+
+Implementation and executable evidence: [continuation record](../../../finished_refactorings/2026-09-14-find-more-like-this.md).

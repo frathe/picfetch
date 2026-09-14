@@ -18,6 +18,28 @@ import (
 )
 
 const workerEnvironment = "PICFETCH_SIMILARITY_WORKER"
+const workerRequestLimit = 64 * 1024 * 1024
+
+// Bound each decoded message independently; a retained search can accept an
+// arbitrary number of small reference queries without exhausting a lifetime cap.
+type workerDecoder struct {
+	reader  *io.LimitedReader
+	decoder *json.Decoder
+}
+
+func newWorkerDecoder(input io.Reader) *workerDecoder {
+	reader := &io.LimitedReader{R: input, N: workerRequestLimit}
+	return &workerDecoder{reader: reader, decoder: json.NewDecoder(reader)}
+}
+func (d *workerDecoder) Decode(value any) error {
+	// Count prefetched bytes toward the next message's budget.
+	buffered, err := io.Copy(io.Discard, d.decoder.Buffered())
+	if err != nil {
+		return err
+	}
+	d.reader.N = workerRequestLimit - buffered
+	return d.decoder.Decode(value)
+}
 
 // Client runs native inference and batch algorithms outside the viewer process.
 // Assets may override the installed assets directory for a local trial.
@@ -25,15 +47,24 @@ type Client struct {
 	Assets string
 	// HTTPClient configures asset downloads; analysis never uses it.
 	HTTPClient *http.Client
-	// FavoritesDir enables per-favorite representation reuse. Empty disables disk caching.
+	// FavoritesDir supplies membership and, unless disabled, Favorite analysis.
 	FavoritesDir string
+	// DisableFavoriteCache preserves membership for loose-cache routing while
+	// disabling Favorite analysis reuse and persistence.
+	DisableFavoriteCache bool
+	// GeneralAnalysisDir enables reuse of compatible loose-image representations.
+	// Analyzer hits are promoted into enabled Favorites; misses are not written here.
+	GeneralAnalysisDir string
 }
 
 type request struct {
-	Assets          string
-	FavoritesDir    string
-	Paths           []string
-	MaxEncodedBytes int64
+	Search               *SearchRequest `json:",omitempty"`
+	Assets               string
+	FavoritesDir         string
+	GeneralAnalysisDir   string
+	DisableFavoriteCache bool
+	Paths                []string
+	MaxEncodedBytes      int64
 }
 
 // Analyze streams serialized immutable snapshots and waits for worker exit.
@@ -53,7 +84,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if assets == "" {
 		assets = defaultAssets(executable)
 	}
-	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes()}
+	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes()}
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	input, err := cmd.StdinPipe()
@@ -191,10 +222,17 @@ func WorkerMain() bool {
 		os.Exit(1)
 	}
 	defer func() { _ = input.Close() }()
-	decoder := json.NewDecoder(io.LimitReader(input, 64<<20))
+	decoder := newWorkerDecoder(input)
 	err = decoder.Decode(&req)
 	if err == nil {
 		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
+		if req.Search != nil {
+			if err := searchWorker(ctx, req, decoder, input); err != nil {
+				_, _ = fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			return true
+		}
 		readCtx, cancelRead := context.WithCancel(ctx)
 		controls := make(chan Control, 1)
 		readDone := make(chan struct{})

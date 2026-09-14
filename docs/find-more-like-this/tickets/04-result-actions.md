@@ -1,7 +1,7 @@
 # 04: Use ordinary actions on the active result
 
 Ticket: FML-004
-Status: ready-for-agent
+Status: implemented; current review/CI gate is tracked in [PR #25](https://github.com/frathe/picfetch/pull/25).
 Approval: /implement use tdd and sdd, 2026-09-14. Dependencies still gate admission.
 Owner: T0 lead; design, review and fixes remain lead-owned.
 Budget: zero spawns; at most two lead review rounds; focused checks.
@@ -23,3 +23,5 @@ Budget: zero spawns; at most two lead review rounds; focused checks.
 **Demo / completion evidence:** Filter a partial result, compare or copy selected images while another batch arrives, and verify the original selected paths reach the existing action.
 
 **Execution:** [FML-004 file map, contracts and verification](../ticket-execution.md#fml-004).
+
+Implementation and executable evidence: [continuation record](../../../finished_refactorings/2026-09-14-find-more-like-this.md).

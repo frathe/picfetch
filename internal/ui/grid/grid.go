@@ -92,6 +92,15 @@ type Host interface {
 
 // Overview is the grid overlay and the state behind it.
 type Overview struct {
+	ranked, pendingRanked *RankedVisit
+	rankedBar             *fyne.Container
+	rankProgress          *widget.ProgressBar
+	rankStatus            *widget.Label
+	rankReference         *widget.Label
+	topBar                *fyne.Container
+	rankBack              *widget.Button
+	onRankedOpen          func(Visit)
+
 	subsetBack   *widget.Button
 	analyze      *widget.Button
 	onAnalyze    func()
@@ -286,6 +295,14 @@ func newGridCell() *fyne.Container {
 	img.ScaleMode = canvas.ImageScaleFastest
 	img.SetMinSize(fyne.NewSize(cellSize, cellSize))
 
+	// Reference identity stays beneath the normal selection and highlight
+	// layers, so ordinary input feedback retains its familiar appearance.
+	reference := canvas.NewRectangle(color.Transparent)
+	reference.StrokeColor = color.NRGBA{R: 168, G: 85, B: 247, A: 255}
+	reference.StrokeWidth = widgets.GridRingWidth
+	reference.CornerRadius = widgets.RingRadius
+	reference.Hide()
+
 	// The selection tint sits under the highlight ring so the ring's
 	// stroke stays crisp over it: the two mark different things and
 	// routinely land on the same cell.
@@ -312,14 +329,14 @@ func newGridCell() *fyne.Container {
 	// WithoutLayout so the chip can sit in the corner at its own min
 	// size; a Border right-slot would stretch it down the cell. Stacked
 	// last so the highlight stroke cannot paint through the digits.
-	return container.NewStack(img, tint, ring, container.NewWithoutLayout(chip))
+	return container.NewStack(img, reference, tint, ring, container.NewWithoutLayout(chip))
 }
 
 func unpackGridCell(cell *fyne.Container) (*canvas.Image, *canvas.Rectangle, *canvas.Rectangle, *dupBadge) {
 	img := cell.Objects[0].(*canvas.Image)
-	tint := cell.Objects[1].(*canvas.Rectangle)
-	ring := cell.Objects[2].(*canvas.Rectangle)
-	chip := cell.Objects[3].(*fyne.Container).Objects[0].(*fyne.Container)
+	tint := cell.Objects[2].(*canvas.Rectangle)
+	ring := cell.Objects[3].(*canvas.Rectangle)
+	chip := cell.Objects[4].(*fyne.Container).Objects[0].(*fyne.Container)
 	return img, tint, ring, &dupBadge{
 		chip:  chip,
 		bg:    chip.Objects[0].(*canvas.Rectangle),
@@ -365,11 +382,18 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 		func(id widget.GridWrapItemID, o fyne.CanvasObject) {
 			cell := o.(*fyne.Container)
 			img, tint, ring, badge := unpackGridCell(cell)
+			reference := cell.Objects[1].(*canvas.Rectangle)
+			hostIndex := g.fileIndex(id)
 
 			g.cellIDs.Store(cell, id)
+			if g.ranked != nil && g.ranked.ReferencePath != "" && hostIndex >= 0 && hostIndex < g.host.FileCount() && g.host.FileAt(hostIndex).Path() == g.ranked.ReferencePath {
+				reference.Show()
+			} else {
+				reference.Hide()
+			}
 			setCellHighlighted(ring, id == g.highlight)
 			setCellSelected(tint, g.isSelected(id))
-			g.applyDupBadge(badge, g.fileIndex(id), cell.Size())
+			g.applyDupBadge(badge, hostIndex, cell.Size())
 
 			// Refresh reaches this callback whether or not the overlay is
 			// actually open: every ForceRepaint refreshes the whole widget
@@ -421,6 +445,9 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 			// and an id resolved past that point would map to itself rather
 			// than to the file this cell was actually showing.
 			i := g.fileIndex(id)
+			if g.ranked != nil && g.onRankedOpen != nil {
+				g.onRankedOpen(g.CaptureVisit())
+			}
 			if g.BrowsingDuplicates() && i >= 0 && g.dupes.GroupSize(i) >= 2 {
 				g.BeginInspect(i)
 				g.closeOverlay(false)
@@ -496,7 +523,9 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 		container.NewCenter(g.empty),
 		g.marqueeBox,
 	)
-	g.overlay = container.NewStack(backdrop, container.NewBorder(g.searchBar, nil, nil, nil, body))
+	g.topBar = container.NewVBox(g.buildRankedBar(), g.searchBar)
+	g.topBar.Hide()
+	g.overlay = container.NewStack(backdrop, container.NewBorder(g.topBar, nil, nil, nil, body))
 	g.overlay.Hide()
 	g.lastResult = g.ResultIndexes()
 
@@ -641,6 +670,10 @@ func (g *Overview) Close() {
 func (g *Overview) closeOverlay(clearInspect bool) {
 	g.work.cancel()
 	g.onAnalyze = nil
+	g.ranked, g.pendingRanked = nil, nil
+	if g.rankedBar != nil {
+		g.rankedBar.Hide()
+	}
 	if g.subset != nil {
 		g.subset = nil
 		g.onSubsetBack = nil

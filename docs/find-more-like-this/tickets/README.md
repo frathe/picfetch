@@ -1,7 +1,7 @@
 # Find more like this — proposed tickets
 
 Status: approved for implementation by /implement use tdd and sdd, 2026-09-14.
-Active: FML-001 claimed; other MVP tickets ready-for-agent subject to blockers.
+Delivery: MVP implementation and verification evidence are in the [continuation record](../../../finished_refactorings/2026-09-14-find-more-like-this.md); the latest review/CI gate is tracked in [PR #25](https://github.com/frathe/picfetch/pull/25).
 Date: 2026-09-14
 Canonical behavior: [specification](../spec.md).
 File maps, interfaces and verification: [ticket execution map](../ticket-execution.md).
@@ -11,13 +11,15 @@ The product decisions and accepted defaults are unchanged. This proposal recuts
 layer-based tasks into 12 complete MVP slices and one deferred follow-up, each
 with its own demonstrable result, blocking edges and linked verification gates.
 Existing FML tracking IDs are retained; numeric file prefixes now express delivery
-order. MVP files are approved and marked `ready-for-agent` or claimed; none is complete.
+order. MVP behavior is implemented; the linked PR tracks final review/CI. Platform and
+quantitative qualification limits remain explicit in the evidence record.
 
-FML-001 is the initial frontier and is now claimed. The separately tracked
+FML-001’s qualitative proceed decision is recorded in the evaluation evidence;
+exhaustive relevance labels and P@10 remain unmeasured. The separately tracked
 [MA-026 Explorer extraction](../../../needs_refactoring.md#ma-026) is complete,
 including full native CI qualification. The first usable search
-arrives in FML-002. Implementation and local evaluation are authorized by `/implement`; commit
-authorization remains governed by the project guide.
+arrives in FML-002. The current request authorizes implementation, commits, a new feature branch,
+PR creation and the GitHub Codex review loop.
 
 ## Proposed breakdown
 

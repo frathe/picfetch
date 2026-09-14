@@ -66,6 +66,7 @@ type Options struct {
 type OpenRequest struct {
 	Sources                   []string
 	FavoriteDir, FavoritesDir string
+	GeneralAnalysisDir        string
 }
 
 // State is a value observation; Revision identifies the current source workflow.
@@ -79,6 +80,8 @@ type State struct {
 
 // Feature owns Explorer's workflow independently of the viewer.
 type Feature struct {
+	analysisDone            chan struct{}
+	analysisBefore          <-chan struct{}
 	preparing               bool
 	setup                   *explorerSetup
 	host                    WorkflowHost
@@ -286,3 +289,24 @@ func (f *Feature) SettlePresets() {
 }
 
 func (f *Feature) Sources() []string { return slices.Clone(f.sources) }
+
+// WaitBefore serializes the next analysis with another feature's native worker.
+// The supplied completion includes all of that feature's retired generations.
+func (f *Feature) WaitBefore(done <-chan struct{}) { f.analysisBefore = done }
+
+// Suspend cancels worker delivery while retaining the last map, its camera and
+// frozen cohort. The returned signal includes native worker exit; callers wait
+// off UI before starting a different native analysis.
+func (f *Feature) Suspend() <-chan struct{} {
+	f.closeExplorerSetup()
+	f.lifecycle.invalidate()
+	f.controls = nil
+	f.preparing = false
+	f.surface.UpdateState(false, false)
+	if f.analysisDone != nil {
+		return f.analysisDone
+	}
+	done := make(chan struct{})
+	close(done)
+	return done
+}

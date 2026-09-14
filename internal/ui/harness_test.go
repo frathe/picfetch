@@ -15,9 +15,11 @@ import (
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/display"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
+	searchui "github.com/frathe/picfetch/internal/ui/visualsearch"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -102,6 +104,10 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v, win = buildStartupViewer(testApp)
 	v.display.SetUIQueue(&uitest.UIQueue{})
 	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}})
+	v.searchView.overlayUI = &uitest.UIQueue{}
+	v.analysisDir = t.TempDir()
+	v.analysisCache.Configure(analysiscache.Options{Roots: v.analysisRoots(), Queue: &uitest.UIQueue{}, ConfirmClear: v.settingsWin.ConfirmClearAnalysis, Changed: v.syncMenus})
 	v.spiral.SetUIQueue(&uitest.UIQueue{})
 	// Ordinary Explorer fixtures begin after first-use setup; setup cases reset these.
 	configureExplorer(v, func(options *explorerui.Options) {
@@ -188,6 +194,15 @@ func drain(t *testing.T, v *viewer) {
 	// this test has already closed. Clearing it first also means nothing
 	// can start a fresh scan behind the waits below.
 	openwith.SetHandler(nil)
+	v.stopSearchOverlayWait()
+	v.searchView.overlayWorkers.Wait()
+	if v.searchView.overlayUI != nil {
+		v.searchView.overlayUI.Drain()
+	}
+	v.visualsearch.Stop()
+	v.analysisCache.Stop()
+	v.analysisCache.Settle()
+	v.visualsearch.Settle()
 	v.closeExplorer()
 	v.settleExplorer()
 	v.closeFileWork()

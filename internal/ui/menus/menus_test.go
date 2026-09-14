@@ -181,7 +181,7 @@ func TestActionsMenu_Composition(t *testing.T) {
 	}
 	a := m.Actions()
 	want := []*fyne.MenuItem{
-		m.sortParent, a.Hide(), a.ShowVariant(), a.Compare(),
+		m.sortParent, a.Hide(), a.ShowVariant(), a.Compare(), a.findMoreLikeThis,
 		nil,
 		a.Rotate(), a.ZoomIn(), a.ZoomOut(),
 		nil,
@@ -397,6 +397,7 @@ func TestApply_Hide(t *testing.T) {
 	}{
 		{"idle", State{}, false, false},
 		{"hiding", State{HideDuplicates: true}, false, true},
+		{"ranked search", State{SearchActive: true}, true, false},
 		{"no files", State{NoFiles: true}, true, false},
 		{"no files while hiding", State{NoFiles: true, HideDuplicates: true}, true, true},
 		{"variants session", State{VariantsSession: true}, true, false},
@@ -427,6 +428,7 @@ func TestApply_ShowVariant(t *testing.T) {
 	}{
 		{"idle", State{}, true, false},
 		{"hiding, group of 2", State{HideDuplicates: true, VariantGroupSize: 2}, false, false},
+		{"ranked search with duplicates", State{SearchActive: true, HideDuplicates: true, VariantGroupSize: 2}, true, false},
 		{"hiding, group of 3", State{HideDuplicates: true, VariantGroupSize: 3}, false, false},
 		{"hiding, group of 1", State{HideDuplicates: true, VariantGroupSize: 1}, true, false},
 		{"hiding, group of 0", State{HideDuplicates: true, VariantGroupSize: 0}, true, false},
@@ -809,7 +811,7 @@ func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 		m.Window().Viewer(), m.Window().Exif(), m.Window().Grid(),
 		m.Window().PictureFrame(), m.Window().Help(), m.window.explorer,
 		m.sortParent,
-		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.Window().Mosaic(), m.Actions().Rotate(),
+		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.actions.findMoreLikeThis, m.Window().Mosaic(), m.Actions().Rotate(),
 		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),
 		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopySelection(), m.Actions().CopyPath(),
 		m.Actions().Reveal(), m.Actions().Wallpaper(), m.Actions().Trash(),

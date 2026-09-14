@@ -1,17 +1,12 @@
 package similarity
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image/jpeg"
-	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,6 +24,7 @@ type cachedRepresentation struct {
 }
 
 type favoriteAnalysis struct {
+	lease   *cacheLease
 	root    *os.Root
 	list    os.FileInfo
 	members map[string]bool
@@ -43,25 +39,53 @@ func openAnalysisCache(ctx context.Context, dir string) (analysisCache, error) {
 	if dir == "" {
 		return cache, nil
 	}
-	names, err := favstore.List(dir)
+	parent, err := os.OpenRoot(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return cache, nil
+	}
 	if err != nil {
 		return cache, err
 	}
-	for _, name := range names {
+	defer func() { _ = parent.Close() }()
+	directory, err := parent.Open(".")
+	if err != nil {
+		return cache, err
+	}
+	entries, err := directory.ReadDir(-1)
+	_ = directory.Close()
+	var failures []error
+	if err != nil {
+		failures = append(failures, err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !favstore.ValidName(entry.Name()) {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
-			return cache, err
+			return cache, errors.Join(append(failures, err)...)
 		}
 		// Rejected/empty favorites close below; admitted roots transfer to
 		// favoriteAnalysis and are closed once by analysisCache.close.
 		//goland:noinspection GoResourceLeak
-		root, err := os.OpenRoot(favstore.Dir(dir, name))
+		root, err := parent.OpenRoot(entry.Name())
 		if err != nil {
+			failures = append(failures, err)
 			continue
 		}
 		favorite, err := loadFavoriteAnalysis(root)
 		if err != nil {
 			_ = root.Close()
+			if !errors.Is(err, os.ErrNotExist) {
+				failures = append(failures, err)
+			}
 			continue
+		}
+		if len(favorite.members) > 0 {
+			favorite.lease, err = openCacheLease(ctx, CacheRoots{FavoritesDir: dir}, false)
+			if err != nil {
+				_ = root.Close()
+				return cache, errors.Join(append(failures, err)...)
+			}
 		}
 		for path := range favorite.members {
 			cache[path] = append(cache[path], favorite)
@@ -70,7 +94,7 @@ func openAnalysisCache(ctx context.Context, dir string) (analysisCache, error) {
 			_ = root.Close()
 		}
 	}
-	return cache, nil
+	return cache, errors.Join(failures...)
 }
 
 func loadFavoriteAnalysis(root *os.Root) (*favoriteAnalysis, error) {
@@ -110,6 +134,7 @@ func (c analysisCache) close() {
 		for _, favorite := range favorites {
 			if !closed[favorite] {
 				_ = favorite.root.Close()
+				favorite.lease.close()
 				closed[favorite] = true
 			}
 		}
@@ -121,6 +146,9 @@ func sameVersion(a, b os.FileInfo) bool {
 }
 
 func (f *favoriteAnalysis) current() bool {
+	if f.list == nil {
+		return false
+	}
 	now, err := f.root.Stat("file-list.json")
 	return err == nil && sameVersion(f.list, now)
 }
@@ -138,30 +166,17 @@ func (c analysisCache) read(source Item) (Item, bool) {
 		if err != nil {
 			continue
 		}
-		var entry cachedRepresentation
-		err = json.NewDecoder(io.LimitReader(file, 1<<20)).Decode(&entry)
+		info, err := file.Stat()
+		if err != nil || info.Size() > maximumAnalysisRecordBytes {
+			_ = file.Close()
+			continue
+		}
+		item, err := decodeRepresentation(file)
 		_ = file.Close()
-		item := entry.Item
-		if err != nil || entry.Version != RepresentationVersion || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS || item.Error != "" || len(item.Embedding) != 768 {
+		if err != nil || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS {
 			continue
 		}
-		hash, err := hex.DecodeString(item.SHA256)
-		if err != nil || len(hash) != sha256.Size {
-			continue
-		}
-		config, err := jpeg.DecodeConfig(bytes.NewReader(item.Preview))
-		if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width > 160 || config.Height > 160 {
-			continue
-		}
-		norm := 0.0
-		for _, value := range item.Embedding {
-			norm += float64(value) * float64(value)
-		}
-		if norm == 0 || math.IsNaN(norm) || math.IsInf(norm, 0) {
-			continue
-		}
-		item.Cohort, item.Position, item.Thumbnail = "", nil, ""
-		item.Tags = nil
+
 		return item, true
 	}
 	return Item{}, false
@@ -183,6 +198,9 @@ func (c analysisCache) write(ctx context.Context, item Item) error {
 }
 
 func (f *favoriteAnalysis) write(ctx context.Context, item Item) error {
+	return f.lease.write(ctx, func() error { return f.writeRecord(ctx, item) })
+}
+func (f *favoriteAnalysis) writeRecord(ctx context.Context, item Item) error {
 	if err := f.root.Mkdir("analysis", 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}

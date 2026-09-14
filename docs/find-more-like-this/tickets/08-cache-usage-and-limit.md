@@ -1,7 +1,7 @@
 # 08: Inspect cache usage and adjust its limit
 
 Ticket: FML-011
-Status: ready-for-agent
+Status: implemented; current review/CI gate is tracked in [PR #25](https://github.com/frathe/picfetch/pull/25).
 Approval: /implement use tdd and sdd, 2026-09-14. Dependencies still gate admission.
 Owner: T0 lead; design, review and fixes remain lead-owned.
 Budget: zero spawns; at most two lead review rounds; focused checks.
@@ -23,3 +23,5 @@ Budget: zero spawns; at most two lead review rounds; focused checks.
 **Demo / completion evidence:** Open Cache, observe separate totals, lower the limit below current general usage, and see background LRU removal plus the persisted new limit.
 
 **Execution:** [FML-011 file map, contracts and verification](../ticket-execution.md#fml-011).
+
+Implementation and executable evidence: [continuation record](../../../finished_refactorings/2026-09-14-find-more-like-this.md).

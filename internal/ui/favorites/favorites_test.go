@@ -40,8 +40,7 @@ type fakeHost struct {
 	runCommands   int
 }
 
-func (h *fakeHost) FileCount() int        { return len(h.files) }
-func (h *fakeHost) FileAt(i int) fyne.URI { return h.files[i] }
+func (h *fakeHost) CurrentFiles() []fyne.URI { return slices.Clone(h.files) }
 func (h *fakeHost) OpenFavorite(_ string, files []fyne.URI) {
 	h.opened = slices.Clone(files)
 	h.calls = append(h.calls, "open")

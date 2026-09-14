@@ -215,6 +215,9 @@ func (f *Feature) newAddDialog(initial string) (dialog.Dialog, *addPanel) {
 		}
 
 		f.addDialog, f.addPanel = nil, nil
+		if f.onDialogClosed != nil {
+			f.onDialogClosed()
+		}
 		// The release grid.Overview.Close and ShowManage's own dialog both
 		// perform, for the same reason: every other key binding in this app
 		// is dispatched from the canvas's own unfocused handler, so a focus

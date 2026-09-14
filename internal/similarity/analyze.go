@@ -51,9 +51,14 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		return emit(snapshot)
 	}
 	cacheStart := time.Now()
-	cache, cacheErr := openAnalysisCache(ctx, req.FavoritesDir)
+	cache, cacheErr := openRepresentationStore(ctx, CachePolicy{
+		Roots:           CacheRoots{FavoritesDir: req.FavoritesDir, GeneralDir: req.GeneralAnalysisDir},
+		FavoriteEnabled: req.FavoritesDir != "" && !req.DisableFavoriteCache, LooseEnabled: req.GeneralAnalysisDir != "",
+	})
 	event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
-	defer cache.close()
+	if cache != nil {
+		defer cache.close()
+	}
 	if cacheErr != nil {
 		event.CacheWarning = cacheErr.Error()
 	}
@@ -107,8 +112,10 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			previous, ok := represented[path]
 			if ok && os.SameFile(previous.info, before) && previous.item.Size == item.Size && previous.item.ModifiedNS == item.ModifiedNS {
 				item, reused = previous.item, true
-			} else if cached, ok := cache.read(item); ok {
-				item, reused = cached, true
+			} else if cache != nil {
+				if cached, ok := cache.read(ctx, item); ok {
+					item, reused = cached, true
+				}
 			}
 			event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
 		}
@@ -186,9 +193,9 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				event.Reused++
 			}
 			represented[path] = representedSource{info: before, item: item}
-			if !reused || backfilled {
+			if cache != nil && cache.policy.FavoriteEnabled && (!reused || backfilled) {
 				cacheStart := time.Now()
-				err := cache.write(ctx, item)
+				err := cache.favorites.write(ctx, item)
 				event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
 				if err != nil && event.CacheWarning == "" {
 					event.CacheWarning = err.Error()

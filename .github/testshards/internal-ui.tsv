@@ -5,9 +5,9 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 234 entries, 470.520s projected weight sum
-# ui-2: 246 entries, 470.530s projected weight sum
-# ui-3: 201 entries, 504.870s projected weight sum
+# ui-1: 236 entries, 470.520s projected weight sum
+# ui-2: 248 entries, 470.530s projected weight sum
+# ui-3: 202 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -109,6 +109,8 @@ TestExportUnrelatedDestinationPreservesDerivedState	ui-1
 TestFavoriteShortcutOpensStoredFilesThroughViewer	ui-1
 TestFileMutationInvalidatesNoncurrentLoadedAlias	ui-1
 TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery	ui-1
+TestFindMoreLikeThisInitialAdmission	ui-1
+TestFindMoreLikeThisSourceAndSortRetirement	ui-1
 TestFinishLoad_PreloadsBothNeighbors	ui-1
 TestGenerationTracksFileSetIdentityNotNavigation	ui-1
 TestGlobalFavoriteShortcutOpensStoredFilesThroughViewer	ui-1
@@ -352,6 +354,8 @@ TestFavoritePreviewCache_DefaultsToTrueOnStartup	ui-2
 TestFavoritePreviews_SupersededWorkersRemainTracked	ui-2
 TestFavoritesMenuYieldsCopySelection	ui-2
 TestFileMutationReconciliationSurvivesUnrelatedCommit	ui-2
+TestFindMoreLikeThisInitialRoundTrip	ui-2
+TestFindMoreLikeThisProgressiveForegroundIdentity	ui-2
 TestHandleDrop_AcceptsPNGAndGIF	ui-2
 TestHandleDrop_CancelsAnyPendingDeleteConfirmation	ui-2
 TestHandleDrop_EmptyDrop	ui-2
@@ -552,6 +556,7 @@ TestExportAs_WritesTheDisplayedFrameToThePickedPath	ui-3
 TestExportItem_DisabledInitiallyAndEnabledOnceAnImageLoads	ui-3
 TestFavoritesMenuItemOpensStoredFilesThroughViewer	ui-3
 TestFileSnapshot_KeysAndGenerationMoveTogether	ui-3
+TestFindMoreLikeThisActionsCaptureRankedSources	ui-3
 TestFinishLoad_ResetsRotationOnNavigation	ui-3
 TestGridHighlight_NamesTheHighlightedFileInTheTitle	ui-3
 TestGridHighlight_VariantsTitleUsesSizeAndPath	ui-3

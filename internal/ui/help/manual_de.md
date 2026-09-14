@@ -865,10 +865,49 @@ werden im Unterordner `analysis` neben der Dateiliste und `thumbs` gespeichert.
 Unveränderte Favoritenbilder mit passender Modell- und Vorverarbeitungsversion
 werden wiederverwendet; geänderte oder ungültige Einträge erneut analysiert.
 Gruppen und Positionen werden für die aktuelle Auswahl neu berechnet. Die
-Cache-Einstellung gilt ab dem nächsten Analysestart. Bilder außerhalb der
-Favoriten werden nicht gespeichert. Die Prüfung großer Bibliotheken läuft noch.
+Cache-Einstellung gilt ab dem nächsten Analysestart. Der Explorer speichert
+Favoritenanalysen; die folgende Bildsuche kann auch Analysen anderer Bilder
+speichern. Die Prüfung großer Bibliotheken läuft noch.
 
 ---
+
+### Mehr davon finden
+
+Wählen Sie **Aktionen -> Mehr davon finden** oder drücken Sie
+**Cmd/Ctrl+Shift+L**, während ein Bild angezeigt wird. In der Rasteransicht
+wählen Sie genau ein Bild aus; ohne Auswahl dient das hervorgehobene Bild als
+Referenz. Bei mehreren ausgewählten Bildern ist der Befehl deaktiviert.
+
+PicFetch vergleicht Bildinhalte lokal in der ursprünglich geladenen Sammlung,
+einschließlich zusammengeführter Ordner, und zeigt bis zu 30 andere Dateien.
+Der Fortschritt zählt verarbeitete Bilder, wiederverwendete Analysen und Fehler.
+Treffer werden nach jeweils 100 Bildern und am Ende aktualisiert. Die erste
+Nutzung verwendet die ausdrückliche Modelleinrichtung des Explorers.
+
+Mit **/** filtern Sie Dateinamen. Öffnen, Kopieren, Vergleichen, Papierkorb und
+Mosaike funktionieren wie gewohnt. Ein geöffnetes Bild behält die Reihenfolge
+seiner Trefferliste, während neue Treffer eintreffen. **Esc** kehrt zur aktuellen
+Suchansicht zurück. Eine neue Referenz durchsucht wieder die ursprüngliche
+Sammlung. **Zurück** stellt frühere Treffer ohne erneute Analyse wieder her;
+20 Besuche bleiben erhalten. Esc hebt zunächst eine Auswahl oder einen
+Dateinamensfilter auf und geht danach zurück. **Suche beenden** stellt direkt
+die ursprüngliche Ansicht wieder her.
+
+**Treffer als Favorit speichern** übernimmt die ausgewählten sichtbaren
+Treffer oder ohne Auswahl die gesamte gefilterte Trefferliste.
+**Aktuelle Liste zu Favoriten hinzufügen** speichert während der Suche die
+aktuelle Rangliste.
+
+Unter **Einstellungen -> Cache** steuern Sie gespeicherte Analysen außerhalb
+der Favoriten und das allgemeine Speicherlimit, anfangs **2048 MB**.
+Favoritenanalysen behalten ihre bisherige Einstellung und zählen nicht gegen
+dieses Limit. Die Anzeige nennt beide Speicherbereiche und ihre Summe.
+**Analyse-Cache leeren** entfernt abgeleitete Analysen; **Veraltete Einträge
+entfernen** löscht ungültige oder überholte Einträge. Vorübergehend unerreichbare
+Laufwerke bleiben berücksichtigt. Bilder, Favoritenlisten, Vorschaubilder,
+Einstellungen und Modelle bleiben erhalten. Die Bereinigung stoppt betroffene
+Analysen und behält die letzte nutzbare Ansicht. Eine neue Suche startet die
+Vorbereitung wieder ausdrücklich.
 
 ## 9. Diaschau-Modus
 

@@ -58,47 +58,36 @@ local format/generated-file/vet/build checks pass. The
 [archived evidence](finished_refactorings/2026-09-14-mascot-circle-hint.md)
 preserves Ronin's native E2E feedback and the unavailable verification results.
 
-## TODO
-
 ### Find more like this
 
-Use one displayed or Grid-selected image as a reference to explore up to 30
-ranked matches from the loaded collection. Reuse the existing local image model,
-let a result become the next reference, and retain a short Back history. Keep
-normal viewing/comparison actions and allow the selected matches or complete
-result to be saved as a Favorite.
+Implemented on `feature/find-more-like-this`: reference-first ranked Grid with
+up to 30 other matches, progressive preparation, reference history, ordinary
+result actions, captured Favorite saves, persistent analysis and Cache settings.
+The worker reuses a bounded top-30 between batches; Favorite saves capture one
+list, and persistence opt-outs remain effective when cache inspection fails.
+Canceled partial inventories remain visibly incomplete; missing-file records are
+retained as unavailable because the cache has no persisted volume identity.
+First-use setup revalidates the captured reference before admitting search.
 
-September 14 defaults accepted: each filtered result drives browsing/actions,
-every reference searches the original collection, and Back/Esc restores earlier
-visits and finally the original list. Interactive results refresh every 100
-distinct processed images, including cache hits/failures, with a top progress bar.
-Reuse warm Favorite analysis and add persistent per-file analysis for loose
-lists. A new Settings Cache tab will show general/Favorite analysis usage in MB,
-offer full or stale-only analysis cleanup, and configure the general-cache limit,
-initially 2 GB. Accepted cache defaults use hashed-path/source-version keys and
-retain records for temporarily unavailable sources during stale cleanup.
+Ronin accepted the overall results from the 446-image
+[local evaluation](docs/find-more-like-this/evaluation.md) and waived exhaustive
+item judgments. Quantitative precision remains unmeasured. Positive/negative
+examples remain a deferred extension, and existing dependency distribution gaps
+remain in LATER below.
 
-Start with a ranking-quality experiment, then implement a worker-owned search
-session, ranked Grid visits, and an isolated UI feature. The Explorer extraction
-([MA-026](needs_refactoring.md#ma-026)) precedes shared setup and UI integration.
-Positive/negative examples are a separately deferred extension.
-
-The [specification](docs/find-more-like-this/spec.md) is `ready-for-agent` and
-defines accepted behavior and acceptance criteria. The
-[feature plan](docs/find-more-like-this/plan.md) holds the execution map.
-The [ticket index](docs/find-more-like-this/tickets/README.md) proposes twelve
-vertical MVP slices and one deferred extension, with stable FML IDs and
-[executable gates](docs/find-more-like-this/ticket-execution.md). The breakdown
-and test seams are approved for implementation. FML-001's
-[local evaluation](docs/find-more-like-this/evaluation.md) represented all 446
-demo images and proved warm Favorite reuse with zero inference. The interactive
-report awaits 20 content judgments and a proceed/revise verdict; ranking-quality
-validation and search UI delivery remain open. MA-026 is complete; its
-[archived plan](finished_refactorings/2026-09-14-explorer-feature.md) records
-passing full native CI. See the
-[implementation evidence](docs/find-more-like-this/implementation.md).
+Focused race/native regressions, build checks, locale/manual checks, shard
+validation and GoLand inspections have recorded evidence. The
+[continuation record](finished_refactorings/2026-09-14-find-more-like-this.md)
+records fixes, test failures/passes and qualification limits. [PR #25](https://github.com/frathe/picfetch/pull/25)
+is the live source for the latest commit's Codex code/security review,
+Qodana/CodeQL results and complete Linux/Windows/macOS CI. Completion of the
+review loop still requires that live gate; older successful checks do not count.
 
 ## LATER
+
+### Existing dependency distribution qualification
+
+Resolve the existing shipped dependency-closure gaps before release: HEIC embedded heic 0.1.6 AGPL/commercial grant evidence, AVIF native component notices/libyuv pin, Fyne font notices and older x/sys inventory. See [exact audit evidence](docs/find-more-like-this/dependency-qualification.md). No decoder/model substitution is included in Find more like this.
 
 ### Fyne upgrade deferred
 

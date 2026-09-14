@@ -39,6 +39,8 @@ const (
 
 	keyFavoritePreviewCache    = "favoritePreviewCache"
 	keySimilarityFavoriteCache = "similarityFavoriteCache"
+	keySimilarityLooseCache    = "similarityLooseCache"
+	keyAnalysisCacheLimitMiB   = "analysisCacheLimitMiB"
 	keySimilarityAutoUpdate    = "similarityAutoUpdate"
 	keySimilarityAutoFit       = "similarityAutoFit"
 	keySimilarityIntroSeen     = "similarityIntroSeen"
@@ -162,6 +164,8 @@ type State struct {
 	FavoritePreviewCache bool
 	// SimilarityFavoriteCache and SimilarityAutoFit default on; automatic map updates default off.
 	SimilarityFavoriteCache, SimilarityAutoUpdate, SimilarityAutoFit bool
+	SimilarityLooseCache                                             bool
+	AnalysisCacheLimitMiB                                            int
 	SimilarityIntroSeen                                              bool
 
 	// CheckForUpdates is the settings window's opt-in for looking for a newer
@@ -231,6 +235,10 @@ func Save(app fyne.App, s State) {
 	p.SetBool(keySlideShuffle, s.SlideShuffle)
 	p.SetBool(keyFavoritePreviewCache, s.FavoritePreviewCache)
 	p.SetBool(keySimilarityFavoriteCache, s.SimilarityFavoriteCache)
+	p.SetBool(keySimilarityLooseCache, s.SimilarityLooseCache)
+	if s.AnalysisCacheLimitMiB > 0 && uint64(s.AnalysisCacheLimitMiB) <= ^uint64(0)/(1024*1024) {
+		p.SetInt(keyAnalysisCacheLimitMiB, s.AnalysisCacheLimitMiB)
+	}
 	p.SetBool(keySimilarityAutoUpdate, s.SimilarityAutoUpdate)
 	p.SetBool(keySimilarityAutoFit, s.SimilarityAutoFit)
 	p.SetBool(keySimilarityIntroSeen, s.SimilarityIntroSeen)
@@ -330,6 +338,13 @@ func loadGeometry(p fyne.Preferences, k geometryKeys) WindowGeometry {
 // as "use the built-in default" (a zero SlideInterval falls back to
 // slideshow.DefaultInterval, a zero WindowSize to internal/ui's
 // startW/startH).
+func analysisCacheLimit(n int) int {
+	if n <= 0 || uint64(n) > ^uint64(0)/(1024*1024) {
+		return 2048
+	}
+	return n
+}
+
 func Load(app fyne.App) State {
 	p := app.Preferences()
 	defaults := mosaic.DefaultSettings()
@@ -373,6 +388,8 @@ func Load(app fyne.App) State {
 		MosaicSettings:          mosaicSettings,
 		FavoritePreviewCache:    p.BoolWithFallback(keyFavoritePreviewCache, true),
 		SimilarityFavoriteCache: p.BoolWithFallback(keySimilarityFavoriteCache, true),
+		SimilarityLooseCache:    p.BoolWithFallback(keySimilarityLooseCache, true),
+		AnalysisCacheLimitMiB:   analysisCacheLimit(p.IntWithFallback(keyAnalysisCacheLimitMiB, 2048)),
 		SimilarityAutoUpdate:    p.Bool(keySimilarityAutoUpdate),
 		SimilarityAutoFit:       p.BoolWithFallback(keySimilarityAutoFit, true),
 		SimilarityIntroSeen:     p.Bool(keySimilarityIntroSeen),

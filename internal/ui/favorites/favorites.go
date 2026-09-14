@@ -4,6 +4,7 @@ package favorites
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -33,8 +34,7 @@ var shortcutKeys = [...]fyne.KeyName{
 
 // Host is the viewer behavior used by the favorites feature.
 type Host interface {
-	FileCount() int
-	FileAt(i int) fyne.URI
+	CurrentFiles() []fyne.URI
 	OpenFavorite(dir string, files []fyne.URI)
 	ShowToast(msg string)
 
@@ -60,9 +60,11 @@ type Host interface {
 
 // Feature owns the Favorites menu and its dialogs.
 type Feature struct {
-	host Host
-	win  fyne.Window
-	dir  string
+	addFiles       []fyne.URI
+	onDialogClosed func()
+	host           Host
+	win            fyne.Window
+	dir            string
 
 	menu            *fyne.Menu
 	addItem         *fyne.MenuItem
@@ -226,7 +228,7 @@ func (f *Feature) menuLabel(name string) string {
 // dialog; showAdd's initial parameter exists for Stage 5's Replace-Cancel,
 // which reopens with the name that just clashed still in the field.
 func (f *Feature) AddCurrentList() {
-	f.showAdd("")
+	f.AddFiles(f.host.CurrentFiles())
 }
 
 func (f *Feature) saveFavorite(name string) {
@@ -266,16 +268,15 @@ func (f *Feature) saveFavorite(name string) {
 }
 
 func (f *Feature) writeFavorite(name string) {
-	count := f.host.FileCount()
-	if count == 0 {
+	files := slices.Clone(f.addFiles)
+	if f.addFiles == nil {
+		files = f.host.CurrentFiles()
+	}
+	if len(files) == 0 {
 		f.host.ShowToast(lang.L("there are no open files to add to favorites"))
 		return
 	}
 
-	files := make([]fyne.URI, count)
-	for i := range files {
-		files[i] = f.host.FileAt(i)
-	}
 	if err := favstore.Save(f.dir, name, files); err != nil {
 		f.reportError(lang.L("could not save favorite %q: %v"), name, err)
 		return
@@ -286,6 +287,7 @@ func (f *Feature) writeFavorite(name string) {
 	// eventually opens it. Placed above refreshMenu because the two are
 	// independent: a menu that could not be rebuilt is no reason to leave
 	// the favorite just written unprepared.
+	f.addFiles = nil
 	f.host.SyncFavoritePreviews(favstore.Dir(f.dir, name), files)
 
 	if !f.refreshMenu() {
@@ -313,3 +315,15 @@ func (f *Feature) reportError(format string, args ...any) {
 	fyne.LogError("favorites operation failed", errors.New(message))
 	f.host.ShowToast(message)
 }
+
+// AddFiles opens naming for an explicit list.
+func (f *Feature) AddFiles(files []fyne.URI) {
+	if f.addDialog != nil || f.win.Canvas().Overlays().Top() != nil {
+		return
+	}
+	f.addFiles = append([]fyne.URI{}, files...)
+	f.showAdd("")
+}
+
+// SetOnDialogClosed observes return to the main browsing surface.
+func (f *Feature) SetOnDialogClosed(closed func()) { f.onDialogClosed = closed }
