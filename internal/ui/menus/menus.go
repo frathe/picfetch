@@ -94,7 +94,7 @@ type State struct {
 	ExplorerActive      bool
 	ExplorerCanRetry    bool
 	CohortActive        bool
-	SearchActive        bool
+	RestrictedBrowsing  bool
 	CanMosaic           bool
 	ComparisonActive    bool // comparison exclusively owns main-window commands
 }
@@ -458,7 +458,7 @@ func (m *Menus) Apply(s State) (changed bool) {
 		}
 		m.window.viewer.Disabled = false
 	}
-	if s.SearchActive {
+	if s.RestrictedBrowsing {
 		m.actions.hide.Disabled = true
 		m.actions.showVariant.Disabled = true
 	}

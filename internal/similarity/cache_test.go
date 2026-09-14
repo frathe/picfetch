@@ -28,7 +28,7 @@ func TestAnalysisCacheClosesRoots(t *testing.T) {
 	}
 	defer cache.close()
 	roots := make(map[*os.Root]bool)
-	for _, favorites := range cache {
+	for _, favorites := range cache.members {
 		for _, favorite := range favorites {
 			roots[favorite.root] = true
 		}

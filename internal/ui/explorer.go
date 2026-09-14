@@ -159,8 +159,8 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 }
 
 func (v *viewer) cohortIndexes() []int {
-	if v.searchActive() {
-		return v.activeSearchIndexes()
+	if order := v.captureSearchOrder(); order.active {
+		return order.indexes
 	}
 	paths, _ := v.explorer.Cohort()
 	if len(paths) == 0 {

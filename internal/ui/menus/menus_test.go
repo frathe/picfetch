@@ -397,7 +397,7 @@ func TestApply_Hide(t *testing.T) {
 	}{
 		{"idle", State{}, false, false},
 		{"hiding", State{HideDuplicates: true}, false, true},
-		{"ranked search", State{SearchActive: true}, true, false},
+		{"ranked search", State{RestrictedBrowsing: true}, true, false},
 		{"no files", State{NoFiles: true}, true, false},
 		{"no files while hiding", State{NoFiles: true, HideDuplicates: true}, true, true},
 		{"variants session", State{VariantsSession: true}, true, false},
@@ -428,7 +428,7 @@ func TestApply_ShowVariant(t *testing.T) {
 	}{
 		{"idle", State{}, true, false},
 		{"hiding, group of 2", State{HideDuplicates: true, VariantGroupSize: 2}, false, false},
-		{"ranked search with duplicates", State{SearchActive: true, HideDuplicates: true, VariantGroupSize: 2}, true, false},
+		{"ranked search with duplicates", State{RestrictedBrowsing: true, HideDuplicates: true, VariantGroupSize: 2}, true, false},
 		{"hiding, group of 3", State{HideDuplicates: true, VariantGroupSize: 3}, false, false},
 		{"hiding, group of 1", State{HideDuplicates: true, VariantGroupSize: 1}, true, false},
 		{"hiding, group of 0", State{HideDuplicates: true, VariantGroupSize: 0}, true, false},

@@ -39,8 +39,7 @@ func (v *viewer) searchReference() string {
 
 type searchPresentation struct {
 	imageOrder     []string
-	pending        *searchui.Visit
-	progress       grid.Progress
+	pending        *searchDelivery
 	revision       uint64
 	applying       bool
 	overlay        *searchOverlayWait
@@ -48,7 +47,7 @@ type searchPresentation struct {
 	overlayUI      searchui.UIQueue
 }
 
-func (v *viewer) searchActive() bool { return v.visualsearch != nil && v.visualsearch.State().Active }
+func (v *viewer) searchActive() bool { return v.visualsearch != nil && v.visualsearch.Active() }
 
 func (v *viewer) findMoreLikeThis() {
 	reference := v.searchReference()
@@ -74,7 +73,8 @@ func (v *viewer) startVisualSearch(reference string) {
 		v.visualsearch.SetCachePolicy(v.searchCachePolicy())
 		if v.visualsearch.Explore(reference) {
 			v.searchView.imageOrder = nil
-			v.presentSearch(v.visualsearch.State().Visit, v.visualsearch.State().Progress)
+			state := v.visualsearch.State()
+			v.presentSearch(state.Visit, state.Progress)
 		}
 		return
 	}
@@ -95,19 +95,29 @@ func (v *viewer) startVisualSearch(reference string) {
 		v.presentSearch(searchui.Visit{ReferencePath: reference}, grid.Progress{Total: len(paths)})
 	}
 }
+
+// A deferred restoration carries its Grid visit and live progress together.
+// Publishing a newer ranking preserves the current interaction; Back restores
+// a saved interaction only once the receiving surface can accept it.
+type searchDelivery struct {
+	visit    searchui.Visit
+	progress grid.Progress
+	restore  bool
+}
+
 func (v *viewer) presentSearch(visit searchui.Visit, progress grid.Progress) {
-	if v.searchView.applying {
+	v.applySearchDelivery(searchDelivery{visit: visit, progress: progress})
+}
+
+func (v *viewer) applySearchDelivery(delivery searchDelivery) {
+	if v.searchView.applying || !v.searchActive() {
 		return
 	}
 	v.searchView.applying = true
 	defer func() { v.searchView.applying = false }()
-	v.searchView.progress = progress
-	if !v.searchActive() {
-		return
-	}
 	overlayOpen := v.win.Canvas().Overlays().Top() != nil
 	if v.comparisonActive() || overlayOpen || v.deletion.Visible() || v.exportPrompt.Visible() || v.searchView.imageOrder != nil {
-		v.searchView.pending = &visit
+		v.searchView.pending = &delivery
 		if overlayOpen {
 			v.watchSearchOverlay()
 		}
@@ -116,14 +126,28 @@ func (v *viewer) presentSearch(visit searchui.Visit, progress grid.Progress) {
 	v.stopSearchOverlayWait()
 	v.searchView.pending = nil
 	v.searchView.revision++
-	v.grid.OpenRanked(grid.RankedVisit{ReferencePath: visit.ReferencePath, Paths: visit.Paths, Revision: v.searchView.revision, Progress: progress, Back: func() { v.visualsearch.Back() }, Exit: v.visualsearch.Exit, Save: v.saveSearchMatches})
+	visit := delivery.visit
+	v.grid.OpenRanked(grid.RankedVisit{ReferencePath: visit.ReferencePath, Paths: visit.Paths, Revision: v.searchView.revision, Progress: delivery.progress, Back: func() { v.visualsearch.Back() }, Exit: v.visualsearch.Exit, Save: v.saveSearchMatches})
+	if delivery.restore {
+		v.grid.RestoreVisit(visit.Grid)
+	}
 	v.ForceRepaint()
 }
-func (v *viewer) returnToSearchGrid() {
+
+func (v *viewer) resetSearchPresentation() {
+	v.stopSearchOverlayWait()
 	v.searchView.imageOrder = nil
+	v.searchView.pending = nil
+}
+
+func (v *viewer) restoreSearchVisit(visit searchui.Visit, progress grid.Progress) {
+	v.resetSearchPresentation()
+	v.applySearchDelivery(searchDelivery{visit: visit, progress: progress, restore: true})
+}
+
+func (v *viewer) returnToSearchGrid() {
 	state := v.visualsearch.State()
-	v.presentSearch(state.Visit, state.Progress)
-	v.grid.RestoreVisit(state.Visit.Grid)
+	v.restoreSearchVisit(state.Visit, state.Progress)
 }
 func (v *viewer) searchKey(key fyne.KeyName) bool {
 	if !v.searchActive() {
@@ -140,52 +164,10 @@ func (v *viewer) searchKey(key fyne.KeyName) bool {
 	return false
 }
 func (v *viewer) closeVisualSearch() {
-	v.stopSearchOverlayWait()
+	v.resetSearchPresentation()
 	if v.visualsearch != nil {
 		v.visualsearch.Close()
 	}
-	v.searchView.imageOrder = nil
-	v.searchView.pending = nil
-}
-func (v *viewer) activeSearchIndexes() []int {
-	if !v.searchActive() {
-		return nil
-	}
-	if v.grid.Visible() {
-		return v.grid.ResultIndexes()
-	}
-	paths := v.searchView.imageOrder
-	if paths == nil {
-		paths = v.visualsearch.State().Visit.Paths
-	}
-	if len(paths) == 0 {
-		return nil
-	}
-	byPath := make(map[string]int, len(paths))
-	for _, path := range paths {
-		byPath[path] = -1
-	}
-	remaining := len(byPath)
-	for i, uri := range v.state.files {
-		if uri == nil {
-			continue
-		}
-		path := uri.Path()
-		if index, wanted := byPath[path]; wanted && index < 0 {
-			byPath[path] = i
-			remaining--
-			if remaining == 0 {
-				break
-			}
-		}
-	}
-	indexes := make([]int, 0, len(paths))
-	for _, path := range paths {
-		if i := byPath[path]; i >= 0 {
-			indexes = append(indexes, i)
-		}
-	}
-	return indexes
 }
 func (v *viewer) indexOfSearchPath(path string) int {
 	for i, uri := range v.state.files {
@@ -236,9 +218,7 @@ func (h searchHost) Present(visit searchui.Visit, progress grid.Progress) {
 }
 func (h searchHost) Restore(visit searchui.Visit, origin bool) {
 	v := h.v
-	v.stopSearchOverlayWait()
-	v.searchView.imageOrder = nil
-	v.searchView.pending = nil
+	v.resetSearchPresentation()
 	if origin {
 		v.grid.Close()
 		if v.FileCount() == 0 {
@@ -258,8 +238,7 @@ func (h searchHost) Restore(visit searchui.Visit, origin bool) {
 			v.ShowImage(i)
 		}
 	} else {
-		v.presentSearch(visit, v.visualsearch.State().Progress)
-		v.grid.RestoreVisit(visit.Grid)
+		v.restoreSearchVisit(visit, v.visualsearch.State().Progress)
 	}
 	v.syncMenus()
 	v.ForceRepaint()
@@ -291,10 +270,11 @@ type favoriteListHost struct{ *viewer }
 
 // CurrentFiles captures ranked indexes once before the naming dialog opens.
 func (h favoriteListHost) CurrentFiles() []fyne.URI {
-	if !h.searchActive() {
+	order := h.captureSearchOrder()
+	if !order.active {
 		return slices.Clone(h.state.files)
 	}
-	indexes := h.activeSearchIndexes()
+	indexes := order.indexes
 	files := make([]fyne.URI, len(indexes))
 	for i, index := range indexes {
 		files[i] = h.viewer.FileAt(index)
@@ -308,7 +288,7 @@ func (v *viewer) searchImageOpened(visit grid.Visit) {
 }
 
 func (v *viewer) flushSearchPresentation() {
-	if v.searchView.pending != nil && !v.searchView.applying && v.grid != nil && v.grid.Visible() && v.searchActive() {
-		v.presentSearch(*v.searchView.pending, v.searchView.progress)
+	if v.searchView.pending != nil && !v.searchView.applying && v.searchActive() {
+		v.applySearchDelivery(*v.searchView.pending)
 	}
 }

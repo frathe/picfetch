@@ -54,7 +54,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 	cache, cacheErr := openRepresentationStore(ctx, CachePolicy{
 		Roots:           CacheRoots{FavoritesDir: req.FavoritesDir, GeneralDir: req.GeneralAnalysisDir},
 		FavoriteEnabled: req.FavoritesDir != "" && !req.DisableFavoriteCache, LooseEnabled: req.GeneralAnalysisDir != "",
-	})
+	}, writeFavoritesOnly)
 	event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
 	if cache != nil {
 		defer cache.close()
@@ -193,9 +193,9 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				event.Reused++
 			}
 			represented[path] = representedSource{info: before, item: item}
-			if cache != nil && cache.policy.FavoriteEnabled && (!reused || backfilled) {
+			if cache != nil && (!reused || backfilled) {
 				cacheStart := time.Now()
-				err := cache.favorites.write(ctx, item)
+				err := cache.write(ctx, item)
 				event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
 				if err != nil && event.CacheWarning == "" {
 					event.CacheWarning = err.Error()

@@ -148,9 +148,9 @@ func (v *viewer) preloadCandidates() []fyne.URI {
 		return nil
 	}
 	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
-	if v.searchActive() {
-		next = v.nextVisibleIndex(v.state.index, 1)
-		prev = v.nextVisibleIndex(v.state.index, -1)
+	if order := v.captureSearchOrder(); order.active {
+		next = neighborInOrder(order.indexes, v.state.index, 1)
+		prev = neighborInOrder(order.indexes, v.state.index, -1)
 	}
 	var candidates []fyne.URI
 	if next != v.state.index {
