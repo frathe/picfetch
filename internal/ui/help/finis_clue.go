@@ -28,7 +28,7 @@ func (c *finisClue) Tapped(_ *fyne.PointEvent) {
 
 func newFinisClue() *finisClue {
 	hint := lang.L("(search for it)")
-	text := widget.NewLabel(secretPhrase + " " + hint)
+	text := widget.NewLabel(lang.L(secretPhrase) + " " + hint)
 	text.Alignment = fyne.TextAlignCenter
 	text.Wrapping = fyne.TextWrapWord
 	clue := &finisClue{text: text, hint: hint}
@@ -72,7 +72,7 @@ func (r *finisClueRenderer) MinSize() fyne.Size {
 	// MinSize query; native layout may query it after laying out the text.
 	th := r.clue.Theme()
 	textSize := th.Size(theme.SizeNameText)
-	phrase := fyne.MeasureText(secretPhrase, textSize, fyne.TextStyle{})
+	phrase := fyne.MeasureText(lang.L(secretPhrase), textSize, fyne.TextStyle{})
 	hint := fyne.MeasureText(r.clue.hint, textSize, fyne.TextStyle{})
 	padding := 2 * th.Size(theme.SizeNameInnerPadding)
 	return fyne.NewSize(max(260, max(phrase.Width, hint.Width)+24+padding),

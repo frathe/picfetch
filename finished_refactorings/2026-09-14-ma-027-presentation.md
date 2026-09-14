@@ -420,3 +420,15 @@ remain on [PR 24](https://github.com/frathe/picfetch/pull/24); this record pins
 the code qualification above without claiming future checks. No merge or
 release is part of this handoff. The unrelated local Codex configuration is
 excluded from every task commit.
+
+### Follow-up PR round at 8665a2f
+
+All four native Linux race test steps and Windows/macOS guards passed. The
+non-UI job failed only when GitHub's artifact service returned HTTP 403 during
+finalization; its test and summary steps succeeded. That job was retried.
+Qodana's post-suppression report and both CodeQL analyses again contain zero
+findings. Security review was clean, but code review found a missing catalog
+entry in the earlier mascot clue feature. The fix and focused red/green evidence
+are in the [mascot plan](2026-09-14-mascot-circle-hint.md#pr-24-localization-review-september-14).
+MA-027 ownership is unchanged. The PR loop continues with a fresh review and
+CI on the follow-up fix; the review containing this finding is not a clean round.
