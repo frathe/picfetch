@@ -81,6 +81,31 @@ func (w CacheWriter[V]) AddIfFits(key string, value V) bool {
 	return true
 }
 
+// AddIfRoom adds new speculative content without replacing, promoting or
+// evicting existing entries. Generation, remaining space and insertion are
+// checked under the same lock; a foreground oversized entry leaves no room.
+func (w CacheWriter[V]) AddIfRoom(key string, value V) bool {
+	if w.cache == nil {
+		return false
+	}
+	c := w.cache
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if w.revision != c.revision {
+		return false
+	}
+	if _, exists := c.items[key]; exists {
+		return false
+	}
+	weight := c.weigh(value)
+	if weight > c.budget-c.used {
+		return false
+	}
+	c.items[key] = c.ll.PushFront(&cacheEntry[V]{key: key, val: value, weight: weight})
+	c.used += weight
+	return true
+}
+
 // cacheEntry is what ll's elements hold. The weight is stored rather than
 // recomputed on eviction: the running total must be unwound by exactly
 // what was added to it, even for callers whose values can change weight.

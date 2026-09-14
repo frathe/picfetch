@@ -57,7 +57,7 @@ const (
 //   - A pending rotation doesn't matter. There's nothing to persist - an
 //     export writes whatever is on screen, rotated or not.
 //
-// What does still matter is !v.loading.Load(), for the same reason it does
+// What does still matter is !v.display.Snapshot().Loading, for the same reason it does
 // in canSaveRotation: mid-load, CurrentFile() already names the file being
 // navigated to while v.img.Image still holds the previous one's pixels, so
 // an export started then would offer the new file's name for the old file's
@@ -65,7 +65,7 @@ const (
 func (v *viewer) canExport() bool {
 	_, _, ok := v.CurrentFile()
 
-	return !v.fileWork.closed && !v.fileWork.exportPending && ok && !v.loading.Load() && v.img.Image != nil
+	return !v.fileWork.closed && !v.fileWork.exportPending && ok && !v.display.Snapshot().Loading && v.img.Image != nil
 }
 
 // promptExport is the File menu's "Export image" action (also Cmd/Ctrl+E,
@@ -130,8 +130,11 @@ func (v *viewer) exportAs(ext string) {
 		return
 	}
 
-	src, _, _ := v.CurrentFile()
-	req := exportRequest{ext: ext, opts: v.exportOptions.Options(), source: src, pixels: v.img.Image, choose: filepicker.ChooseSave, write: v.fileWork.export}
+	capture, ok := v.display.Capture()
+	if !ok {
+		return
+	}
+	req := exportRequest{ext: ext, opts: v.exportOptions.Options(), source: capture.Identity.Source, pixels: capture.Pixels, choose: filepicker.ChooseSave, write: v.fileWork.export}
 
 	// chooser is shared with openFileDialog's own goroutine rather than
 	// given a twin of its own: it means "the native file dialog

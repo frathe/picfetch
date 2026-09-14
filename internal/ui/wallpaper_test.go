@@ -95,8 +95,8 @@ func TestCanSetWallpaper_FalseWhileLoading(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
 
-	v.loading.Store(true)
-	t.Cleanup(func() { v.loading.Store(false) })
+	beginPendingImageLoad(v)
+	t.Cleanup(func() { v.display.CancelRequest() })
 
 	if v.canSetWallpaper() {
 		t.Error("canSetWallpaper should be false while a load is in flight")

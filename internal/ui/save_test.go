@@ -115,8 +115,8 @@ func TestCanSaveRotation_FalseWhileLoading(t *testing.T) {
 		t.Fatal("expected canSaveRotation to be true before simulating an in-flight load")
 	}
 
-	v.loading.Store(true)
-	t.Cleanup(func() { v.loading.Store(false) })
+	beginPendingImageLoad(v)
+	t.Cleanup(func() { v.display.CancelRequest() })
 
 	if v.canSaveRotation() {
 		t.Error("canSaveRotation should be false while a load is in flight - v.state.index may already point at a file whose pixels haven't finished decoding")
@@ -167,7 +167,7 @@ func TestSaveRotation_ConfirmedTrashWaitsForSave(t *testing.T) {
 		source := uitest.TempJPEGURI(t, "a.jpg", 8, 16, color.White)
 		other := uitest.TempJPEGURI(t, "b.jpg", 8, 16, color.Black)
 		dropAndWait(t, v, source, other)
-		v.preloads.Wait()
+		v.display.WaitPreloads()
 		v.rotateBy(1)
 		pixels := &heldSavePixels{Image: v.img.Image, entered: make(chan struct{}), release: make(chan struct{})}
 		v.img.Image = pixels

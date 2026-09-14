@@ -4,7 +4,6 @@ package ui
 
 import (
 	"fmt"
-	"image"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -19,7 +18,7 @@ import (
 // saveRotation so the item is never offered for an action guaranteed to
 // fail or do nothing.
 //
-//   - !v.loading.Load(): attemptLoad sets v.state.index to the file being
+//   - !v.display.Snapshot().Loading: ShowImage sets v.state.index to the file being
 //     navigated to before that file's pixels have finished decoding, so
 //     mid-load, CurrentFile() already names the new file while
 //     v.display/v.img.Image still hold the old one's frames - saving then
@@ -30,12 +29,13 @@ import (
 //   - imaging.CanEncode: WebP/HEIC/ICO/XPM have no encoder in this module's
 //     dependencies (see save.go's own doc comment in internal/imaging).
 func (v *viewer) canSaveRotation() bool {
-	u, _, ok := v.CurrentFile()
-	if !ok {
+	snapshot := v.display.Snapshot()
+	u := snapshot.Displayed.Source
+	if u == nil {
 		return false
 	}
 
-	return !v.fileWork.closed && !v.fileWork.savePending && v.display.Rotation() != 0 && !v.loading.Load() && v.display.Count() == 1 && imaging.CanEncode(u)
+	return !v.fileWork.closed && !v.fileWork.savePending && snapshot.Rotation != 0 && !snapshot.Loading && v.display.Count() == 1 && imaging.CanEncode(u)
 }
 
 // saveRotation is the File menu's "Save Changes" action (also Cmd/Ctrl+S,
@@ -52,16 +52,18 @@ func (v *viewer) saveRotation() {
 		return
 	}
 
-	u, _, _ := v.CurrentFile()
-	pixels, rotation := v.img.Image, v.display.Rotation()
-	loadRevision := v.loadLifecycle.currentRevision()
+	capture, ok := v.display.Capture()
+	if !ok {
+		return
+	}
+	u := capture.Identity.Source
 	token := v.fileWork.saveLifecycle.begin()
 	done := v.fileWork.saveDone.Begin()
 	v.fileWork.savePending = true
 	v.syncMenus()
 	save := v.fileWork.save
 	v.fileWork.workers.Go(func() {
-		result, err := save(token.context(), u, pixels)
+		result, err := save(token.context(), u, capture.Pixels)
 		if result.Committed {
 			v.imgCache.Purge()
 		}
@@ -83,11 +85,8 @@ func (v *viewer) saveRotation() {
 				v.ShowToast(fmt.Sprintf(lang.L("could not save %q: %v"), u.Name(), err))
 				return
 			}
-			if result.Committed && loadRevision == v.loadLifecycle.currentRevision() {
-				// Adopt the saved frame as the baseline without changing the
-				// visible orientation; only turns made since Save remain pending.
-				v.display.SetFrames([]image.Image{pixels})
-				v.display.RotateBy(-rotation)
+			if result.Committed {
+				v.display.ReconcileSaved(capture)
 			}
 			v.ShowToast(lang.L("Saved"))
 		})

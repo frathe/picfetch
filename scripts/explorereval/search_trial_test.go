@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image/color"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,13 +67,42 @@ func TestProductionSearchEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search evaluation lacks cross-session Favorite reuse evidence: %v", err)
 	}
-	var reuse struct{ Passes []profilePass }
+	var reuse struct {
+		InputSHA256 string
+		Passes      []profilePass
+	}
 	if err := json.Unmarshal(data, &reuse); err != nil {
 		t.Fatal(err)
 	}
 	if len(reuse.Passes) != 2 || reuse.Passes[0].Measurements.InferenceAttempts != 21 || reuse.Passes[1].Measurements.InferenceAttempts != 0 || reuse.Passes[1].Reused != 21 {
 		t.Fatalf("cold/warm Favorite measurements did not prove reuse: %+v", reuse)
 	}
+	if reuse.InputSHA256 != report.SourceSHA256 {
+		t.Fatal("unchanged ranking and Favorite baseline describe different sources")
+	}
+	t.Run("source changes after ranking", func(t *testing.T) {
+		baselineOut := t.TempDir()
+		for _, name := range []string{"search-corpus.json", "search-result.json"} {
+			captured, err := os.ReadFile(filepath.Join(out, name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(baselineOut, name), captured, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		changed := uitest.EncodePNG(t, 80, 60, color.NRGBA{R: 255, A: 255})
+		if err := os.WriteFile(filepath.Join(library, corpus.Sources[0].Path), changed, 0600); err != nil {
+			t.Fatal(err)
+		}
+		err := profileSearchFavorites(ctx, configuration{Assets: assets, Library: library, Out: baselineOut}, io.Discard)
+		if err == nil || !strings.Contains(err.Error(), "sources changed since ranking") {
+			t.Fatalf("changed-source Favorite baseline succeeded or failed for another reason: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(baselineOut, "favorite-profile.json")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("changed-source baseline retained a completed evidence file: %v", err)
+		}
+	})
 }
 
 // Command output observes the captured scan, then simulates a user editing the

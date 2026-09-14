@@ -34,7 +34,7 @@ var errWallpaperBusy = wallpaper.ErrBusy
 // item should be enabled. Deliberately the same condition as canExport
 // (export.go), and for the same reasons: this writes a PNG of the frame on
 // screen, so neither the source format nor an animation nor a pending
-// rotation stands in the way, while !v.loading.Load() still does - mid-load
+// rotation stands in the way, while !v.display.Snapshot().Loading still does - mid-load
 // v.img.Image holds the outgoing file's pixels, and those are what would
 // end up on the desktop.
 func (v *viewer) canSetWallpaper() bool {

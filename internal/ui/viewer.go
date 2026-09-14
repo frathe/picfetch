@@ -5,7 +5,6 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -13,7 +12,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/completion"
-	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -100,7 +98,7 @@ type viewer struct {
 
 	// exif is the EXIF metadata panel - see internal/ui/exifwin, which
 	// reaches back only through the "which file is on screen" accessor
-	// registerFeatures hands it. finishLoad calls its Refresh so navigating
+	// registerFeatures hands it. imagePresented calls its Refresh so navigating
 	// while it's open keeps it in sync.
 	exif *exifwin.Window
 
@@ -142,11 +140,6 @@ type viewer struct {
 
 	state appState
 
-	// loadLifecycle owns a logical navigation and all of its descendants:
-	// probe/decode retries, neighbor preloads, and GIF animation. A newer
-	// navigation, drop, clear, or shutdown cancels and supersedes the token.
-	loadLifecycle requestLifecycle
-
 	// favThumbLifecycle owns the background favorite-preview pass
 	// (favthumbs.go). Independent of every lifecycle above it: the pass
 	// belongs to a favorite rather than to whatever is on screen, so it
@@ -169,11 +162,6 @@ type viewer struct {
 	// it - is still there to fall back to when the grid closes, without
 	// anyone having to save and restore a string.
 	gridTitle string
-
-	// loading is true while a decode/render is in flight. The key handler
-	// checks it to ignore repeat events instead of piling up decodes for
-	// images the user has already navigated past.
-	loading atomic.Bool
 
 	// winPos is the window's last known on-screen position. Unlike
 	// windowSize, which windowSizeTracker captures for free off ordinary
@@ -225,16 +213,6 @@ type viewer struct {
 	// leaves the shared state untouched.
 	scanOp asyncOpUI
 
-	// load is begun by ShowImage and finished by whichever step of that
-	// call's decode/retry chain ends it - see load.go. The whole chain
-	// shares one generation rather than beginning a new one per retry, so
-	// a waiter sees the chain as finished only once it truly settles
-	// instead of racing whichever retry finishes first.
-	// See internal/completion for the contract.
-	//
-	// A value field, never copied: it holds a mutex.
-	load completion.Signal
-
 	// sortOp is the background-reorder progress UI - see asyncop.go's
 	// asyncOpUI for the shape it shares with the scan. sortOp.active is
 	// true while the current sortOp.lifecycle request is still
@@ -250,82 +228,31 @@ type viewer struct {
 	// populated v.state.files, so without this Escape would see
 	// len(v.state.files) == 0 and quit the window instead of cancelling
 	// the still-computing reorder. sortOp.lifecycle owns the cancellable
-	// filesort.Order request, staying separate from loadLifecycle so
+	// filesort.Order request, staying separate from display's navigation lifecycle so
 	// reordering cannot stop an unrelated decode, preload, or playing GIF.
 	// sortOp.done is finished by finishSort once that request's reorder has
 	// finished applying (or been discarded as stale), mirroring v.scanOp.done
-	// and v.load so tests can wait on it deterministically.
+	// and display.LoadDone so tests can wait on it deterministically.
 	sortOp asyncOpUI
 	// sortModeBefore is the mode of the retained order while a new mode is
 	// pending. Superseding requests share this rollback point until one lands.
 	sortModeBefore *filesort.Mode
 
-	// animFrame counts every write to v.img.Image - attemptLoad's initial
-	// frame plus each one animate cycles to afterwards - and anim is
-	// finished by animate once its load token is cancelled or stale and
-	// it returns. Both exist so tests can synchronize on frame changes
-	// and animation shutdown via an atomic and a completion.Signal
-	// instead of reading v.img.Image directly from another goroutine,
-	// which would race with attemptLoad's/animate's writes under the fyne
-	// test driver: it runs fyne.Do synchronously on the calling goroutine
-	// rather than marshaling onto a single UI thread, so even a read
-	// sequenced after the load signal finishes has no happens-before edge
-	// against a concurrently running animate call - only observing
-	// animFrame's new value does. Each animate call gets its own captured
-	// finisher (see finishLoad), so a superseded request's completion
-	// can't be mistaken for a newer one's.
-	//
-	// anim is a value field, never copied: it holds a mutex.
-	animFrame atomic.Uint64
-	anim      completion.Signal
-
-	// frameAfter is time.After behind a per-viewer seam so a test can
-	// release GIF frames one at a time instead of racing a live timer.
-	// Write-once: set at construction, and by a test only before its first
-	// drop (concurrency invariant).
-	frameAfter func(time.Duration) <-chan time.Time
-	// frameDo queues an animation frame on UI. Configure once before playback;
-	// held-queue tests replace it without changing Fyne's process-wide driver.
-	frameDo func(func())
-
-	// display owns what is on the canvas right now - the current image's
-	// decoded frames, which of them is up, the view-only rotation, and
-	// the picture-frame crossfade - see internal/ui/display, whose State
-	// doc carries what each piece means. The choreography stays here:
-	// installLoadedFrames (load.go) installs a fresh image's frames and
-	// resets index and rotation on every navigation, animate advances the
-	// index, and rotateBy/resetRotation (rotate.go) turn the rotation and
-	// redraw. The fade is only ever running while picture-frame mode is
-	// active: ShowImage starts one fading the outgoing image out,
-	// finishLoad starts the next fading the incoming one in, and every
-	// path that ends picture-frame mode calls resetFade so the image is
-	// never left invisible or half-faded once it's back in the normal,
-	// instant-swap view. A value field, never copied.
-	display display.State
+	// display owns publication, source identity, captures, rotation/fades and
+	// load/GIF/SVG/preload workers. Root supplies navigation policy and composes
+	// the surface with zoom, window geometry, chrome and file actions.
+	display *display.Feature
 
 	// imgCache holds recently decoded frames keyed by URI string, so
 	// navigating back to an image already seen this session - or one
-	// preloadNeighbors decoded speculatively ahead of time - is a cache hit
+	// display preloaded speculatively ahead of time - is a cache hit
 	// instead of a fresh disk read plus decode. Bounded by a byte budget
 	// (imgCacheMB below, the settings window's binding) rather than an
 	// entry count, since a decoded image's size varies by four orders of
 	// magnitude - see imaging.ByteCache, which is safe for concurrent use
-	// on its own, so both attemptLoad's decode goroutine and preloadOne's
+	// on its own, so both display's foreground and speculative
 	// background goroutines can populate it without going through fyne.Do.
 	imgCache *imaging.ByteCache[*imaging.LoadedImage]
-
-	// preloads bounds how many speculative neighbor decodes run at once and
-	// stops rapid navigation piling up a second decode of the same
-	// not-yet-cached neighbor while the first is still in flight - see
-	// internal/decodepool, the same pool *type* internal/ui/grid fills with
-	// thumbnails, but its own instance and its own budget of slots, the way
-	// imgCache and the grid's thumbnail cache are two caches rather than
-	// one. Keyed by URI string; the claim carries no value, since the
-	// URI alone says what the work is. Without the bound, rapid navigation
-	// could stack an unbounded number of full-size decode goroutines.
-	// waitUntilLoaded (harness_test.go) waits it out after every load so a
-	// preload goroutine never outlives the test whose navigation spawned it.
-	preloads *decodepool.Pool[string, struct{}]
 
 	// zoom is the zoom/pan view of img (0/1/+/- and drag/scroll) - see
 	// internal/ui/zoom, whose widget sits in the window's content Stack in
@@ -354,19 +281,13 @@ type viewer struct {
 	// preference remains owned by infoview.Card and is never toggled here.
 	regionCopyInfoVisible bool
 
-	// regionCopyAnimated is whether finishRegionCopy must unpause the
-	// load-owned animation loop. The captured pixels themselves live on
-	// the Feature.
-	regionCopyAnimated bool
+	// regionCopyRelease owns the stable capture until selection ends.
+	regionCopyRelease func()
 
 	// regionCopyLifecycle cancels stale crop/encode work; regionCopyDoAndWait
 	// is a per-viewer seam for deterministic UI-hop tests.
 	regionCopyLifecycle requestLifecycle
 	regionCopyDoAndWait func(func())
-
-	// animationPause keeps an animated frame fixed from source capture until
-	// Copy Selection ends, without replacing the load-owned animation loop.
-	animationPause animationPause
 
 	// info is the persistent info overlay (I key) - see internal/ui/infoview,
 	// which owns its own widgets, its standing show/hide preference, and the
@@ -504,7 +425,7 @@ type viewer struct {
 	// updater owns client preparation, the release-check/download policy, the
 	// staged-update lifecycle, the What's-New cache, and the last-check-day
 	// storage - see internal/ui/autoupdate. updateOp mirrors
-	// scanOp/loadLifecycle: one requestLifecycle for the background
+	// scanOp/display's navigation lifecycle: one requestLifecycle for the background
 	// check/download, kept here rather than promoted into that package (this
 	// refactor's locked decision on cancellation), so
 	// maybeStartUpdateCheck (autoupdate.go) prepares the client, then begins
@@ -522,10 +443,6 @@ type viewer struct {
 	// handleKeyEvent's Shift+R, and by the normal and comparison zoom views'
 	// Shift+scroll pan through the closures registerFeatures hands them.
 	keyModifiers func() fyne.KeyModifier
-
-	// vector is the whole state of the SVG re-render - see vector.go's
-	// vectorView for what it holds and why it's a value field.
-	vector vectorView
 }
 
 // ForceRepaint refreshes the window's root content object, which has been
@@ -665,12 +582,10 @@ func (v *viewer) clearToDropzone() {
 	v.imgCache.Purge()
 	v.grid.InvalidateContent()
 
-	v.img.Image = nil
-	v.img.Hide()
 	// Drop leftover frames so rotate/zoom enablement (Count() == 0) and
 	// rotateBy's no-op agree with the empty drop zone.
 	v.display.Clear()
-	v.clearVector() // an in-flight rasterization must not land on whatever loads next
+	v.syncPresentationLogicalSize()
 
 	// The info card's own standing preference is left alone - it's a
 	// preference like sortMode/mergeMode, so the card comes back on the
@@ -678,7 +593,6 @@ func (v *viewer) clearToDropzone() {
 	// cleared above, so this call only hides the widget.
 	v.syncInfoOverlayVisibility()
 
-	v.loading.Store(false)
 	v.loadingBar.Hide()
 
 	v.hint.SetText(lang.L("Drop images here"))
@@ -758,12 +672,6 @@ func (v *viewer) reset() {
 	v.openChooserLifecycle.invalidate()
 	v.clearToDropzone()
 
-	// Also cleared here, not just inside clearToDropzone: every path back to
-	// the drop zone must independently abandon the vector, so none of them
-	// can regress into leaving an in-flight rasterization able to land on
-	// whatever loads next.
-	v.clearVector()
-
 	v.showWelcomeState()
 	v.ForceRepaint()
 }
@@ -780,7 +688,6 @@ func (v *viewer) closeFiles() {
 		v.cancelScan()
 	}
 	v.reset()
-	v.clearVector() // see reset's own comment - each layer clears independently
 }
 
 // showWelcomeState restores the launch-time welcome look: welcome art in
@@ -817,8 +724,8 @@ func (v *viewer) ShowEmptyStateError(msg string) {
 // the viewer never grows per-package adapters; and because the type itself
 // stays unexported, none of it is reachable from outside internal/ui.
 
-// CurrentFile returns the file currently displayed and its index, or
-// ok=false when nothing is loaded.
+// CurrentFile returns the collection's selected source and index. During
+// navigation its source can differ from display's published content.
 func (v *viewer) CurrentFile() (u fyne.URI, index int, ok bool) {
 	if len(v.state.files) == 0 {
 		return nil, 0, false
@@ -827,25 +734,18 @@ func (v *viewer) CurrentFile() (u fyne.URI, index int, ok bool) {
 	return v.state.files[v.state.index], v.state.index, true
 }
 
-// displayedFile is CurrentFile narrowed to what the EXIF panel needs: a
-// file that is not merely selected but actually decoded and on screen.
-// The distinction matters during a failed or in-flight load, when v.state.files
-// is non-empty but there is no image to describe.
+// displayedFile identifies published content, including outgoing pixels while
+// another source is requested. Collection selection cannot supply this identity.
 func (v *viewer) displayedFile() (fyne.URI, bool) {
-	if v.img.Image == nil {
-		return nil, false
-	}
-
-	u, _, ok := v.CurrentFile()
-
-	return u, ok
+	source := v.display.Snapshot().Displayed.Source
+	return source, source != nil
 }
 
 // DisplayedFile supplies EXIF only after the selected image has loaded.
 // During navigation, the retained outgoing pixels do not describe the newly
-// selected URI; the panel waits until finishLoad refreshes it.
+// selected URI; the panel waits until imagePresented refreshes it.
 func (v *viewer) DisplayedFile() (fyne.URI, bool) {
-	if v.loading.Load() {
+	if v.display.Snapshot().Loading {
 		return nil, false
 	}
 	return v.displayedFile()
@@ -994,7 +894,7 @@ func (v *viewer) CurrentIndex() int {
 // not change it; replacement, reorder, removal, and clear operations do.
 // Grid thumbnail and deletion work captures it and discards results whose
 // generation has moved on. It is deliberately independent of
-// loadLifecycle: navigation changes the displayed index but not what any
+// display's navigation lifecycle: navigation changes the displayed index but not what any
 // index means.
 //
 // It is read out of the published snapshot rather than a counter of its
@@ -1048,7 +948,7 @@ func (v *viewer) StepImage(delta int) {
 	if v.deletion.Visible() || v.exportPrompt.Visible() {
 		return
 	}
-	if len(v.state.files) < 2 || v.loading.Load() {
+	if len(v.state.files) < 2 || v.display.Snapshot().Loading {
 		return
 	}
 	v.ShowImage(v.nextVisibleIndex(v.state.index, delta))

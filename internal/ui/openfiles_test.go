@@ -454,7 +454,7 @@ func TestOpenChooser_ShutdownDiscardsHeldResult(t *testing.T) {
 	before := uitest.TempJPEGURI(t, "before.jpg", 4, 4, color.White)
 	incoming := uitest.TempJPEGURI(t, "incoming.jpg", 4, 4, color.Black)
 	dropAndWait(t, v, before)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	release := make(chan struct{})
 	called := make(chan struct{})
 	var once sync.Once

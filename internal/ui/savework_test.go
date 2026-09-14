@@ -52,8 +52,8 @@ func TestSaveChangesInvalidatesAliasesAndRejectsOlderPreloads(t *testing.T) {
 		<-release
 		return io.NopCloser(bytes.NewReader(before)), nil
 	})
-	token := v.loadLifecycle.begin()
-	v.preloadOne(token, controlled)
+	v.state.setFiles([]fyne.URI{source, controlled}, []fyne.URI{source, controlled})
+	v.ShowImage(0)
 	<-entered
 	v.rotateBy(1)
 	v.saveRotation()
@@ -62,7 +62,7 @@ func TestSaveChangesInvalidatesAliasesAndRejectsOlderPreloads(t *testing.T) {
 		t.Error("saving through one path retained old pixels under its alias")
 	}
 	close(release)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	if cached, ok := v.imgCache.Get(controlled.String()); ok && cached.Frames[0].Bounds().Size() != image.Pt(16, 8) {
 		t.Error("a pre-commit alias decode repopulated the invalidated cache")
 	}

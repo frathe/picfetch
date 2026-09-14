@@ -364,7 +364,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
-| `lifecycle.go` | `requestLifecycle` / `requestToken`. Load, scan, sort, vector, and copy-selection encode each own an instance. |
+| `lifecycle.go` | `requestLifecycle` / `requestToken` for root scan/sort/copy-selection and other root work. Display owns its load/GIF/SVG lifecycles internally. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
 | `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet` by forwarding `appState`'s published `dupes.Snapshot`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
 | `keys.go` | `handleKeyEvent` / `handleTypedRune`, plus a chained desktop key-down hook that requests the ready-gated comparison link toggle on exact physical `Ctrl+L` without key-repeat flapping. Return immediately while `Canvas().Overlays().Top()` is set (Fyne dialogs/menus). Comparison owns all main-window typing: Escape closes it, F1 opens Help, `0` / `1` / `+` / `-` reach its shared camera or hovered photo pose, swipe-mode `Left` / `Right` / `Home` / `End` reach its divider, and every other key/rune stops before the still-open grid. Copy Selection: `HandleKey` consumes Escape/copy/navigation; unowned keys `yieldCopySelection` except modifier-only and zoom keys. |
@@ -375,13 +375,13 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `memlimits.go` | `settings` value, `settingsState` / `ApplySettings`, memory-limit get/set that retune caches and `imaging.SetMaxEncodedBytes`. |
 | `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync` and `gridSink`; per-request completion plus all-pass worker tracking and terminal shutdown cancellation. |
-| `load.go` | `ShowImage` / `attemptLoad` / `finishLoad` (named steps in this file), neighbor preload (`AddIfFits`), GIF `animate`, `autoResizeToImage` / `resizeToImage` / `syncWindowToZoom` (static-size gate). |
+| `load.go` | `ShowImage` admission and display callbacks: requested/probed/presented/failure, cohort retry and neighbor choices; `autoResizeToImage` / `resizeToImage` / `syncWindowToZoom` (static-size gate). |
 | `toast.go` | Self-dismissing notification card and `ShowToast`. |
 | `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark. |
 | `asyncop.go` | `asyncOpUI` (lifecycle, active, done, spinner) — used only by scan and sort. |
 | `sort.go` | `toggleSort` / `SetSortMode` / `startSort` / `finishSort` over `filesort.Order`; lifecycle is `viewer.sortOp`. |
-| `rotate.go` | View-only 90° rotation (state lives in `internal/ui/display`). `displayedDimensions` is the oriented raster/SVG size. Call `syncMenus` *before* `applyRotationLayout` — a documented `-race` fix under the fake test driver, not call-site discipline. |
-| `vector.go` | Debounced SVG re-render. |
+| `rotate.go` | Rotation commands compose display intents with zoom/window/menu policy. `displayedDimensions` reads the display snapshot's oriented logical size. |
+| `vector.go` | Forwards zoom scale and canvas pixel conversion to display; SVG work and policy live in `display/vector.go`. |
 | `save.go`, `filework.go` | File > Save Changes captures pixels and source, owns cancellable workers and causal UI delivery, then reconciles the current resolved source. Committed stale Save/Export/Strip/mosaic writes invalidate cache revisions, thumbnails and duplicate facts; tracked background identity/info reads preserve unrelated views and retry after intervening commits. |
 | `export.go` | File > Export image (`promptExport` / `exportAs` / `runExport`) via `widgets.ChoiceCard` + `filepicker.ChooseSave`. Carries an `exportRequest` (format plus `imaging.ExportOptions`) and reports the applied size limit in the suggested name and the toast. |
 | `exportoptions.go` | The export prompt's extra rows (`exportOptions`, a `widgets.ExtraRows`): the export size limit rungs and the "Include camera metadata" `widget.Check`, reset to defaults on every open. Both Fyne controls grab canvas focus on tap; the checkbox hands it back from its own `OnChanged` (every effective tap toggles it), while the rungs are tappable labels because a radio item focuses without firing `OnChanged` when the value doesn't change. |
@@ -396,7 +396,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `reveal.go` | Actions > "Reveal in file manager" (`Cmd/Ctrl+R`) and the info overlay's link of the same name: current-file path, own goroutine behind `viewer.reveal`, toast on failure. Glue over `internal/filemanager`. |
 | `copyselection.go` | Viewer adapter for `internal/ui/copyselection`: availability, start/cancel, zoom `Geometry` to `View`, animation pause, clipboard worker, `yieldCopySelection`. Command entry yields through `yieldingMenuCallbacks`, `yieldingShortcuts`, `handleKeyEvent`, and `handleDrop`. |
 | `compare.go` | Viewer adapter for `internal/ui/compare`: validates exactly two explicit grid selections, resolves ascending host indices to URIs, unfocuses the covered grid so desktop modifier hooks remain reachable, and loads through the canonical full-image cache/probe/decode path. That path preserves EXIF-corrected pixels, RAW previews, animation decoding/budget policy, encoded-input limits, and the original first frame; the feature deliberately freezes animation. The adapter owns the exact comparison-window title callback and reports failures without mutating the grid or file set. `comparisonActive()` is the composition layer's sole exclusive-mode fact; `refuseOpenDuringComparison()` owns the localized discard policy. |
-| `animationpause.go` | Serializes animated-frame advancement with Copy Selection's stable source capture. `load.go` keeps the frame index on its worker and paces each delay after queued application acknowledges success; per-viewer `frameDo` permits held-queue tests without changing the global Fyne driver. |
+| `internal/ui/display/animation.go`, `pause.go` | Own acknowledged GIF playback and acquisition-bound stable captures. The root composes Copy Selection and observes display completion. |
 | `openfiles.go` | UI-owned native open admission. Each request captures the native chooser, tracks its worker and queues results through private `chooserUIQueue`. New requests, accepted drops, reset and shutdown invalidate old delivery; comparison is rechecked on UI. `closeOpenChooser` stops admission without waiting for a blocking native panel. Harness settlement waits all native workers, then drains results before scan/sort/load waits. |
 
 #### Feature packages (`internal/ui/...`)
@@ -418,7 +418,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/menus/` | The stateful File/Window/Actions menu items and their whole Checked/Disabled matrix as `Apply(State) (changed bool)`, a pure function of a value snapshot. `ComparisonActive` applies a final all-ordinary-items-disabled override while leaving Help available. Fyne-typed but viewer-free, unit-testable with no app. Menu-bar assembly, the Darwin native-bar fold, the real shortcut bindings, and every action the items run all stay in `internal/ui`. | No Host: `Apply(State)` over a value snapshot built by `menu.go`'s `menuState()`. |
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Both caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
 | `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
-| `internal/ui/display/` | What's currently on the canvas: the decoded frames, which one is up, the view-only rotation (composing `imaging.RotateSteps` itself, in `Rotated`), and the picture-frame crossfade. | No Host: a value `State` field on `viewer`, mutated through its own methods, never copied. |
+| `internal/ui/display/` | Single-image surface publication, rotation/fades, source-bound observations and action captures. `feature.go` owns the surface, snapshots and worker settlement, `capture.go` saved baselines and stable captures, `animation.go`/`pause.go` playback and its acquisition gate, `lifecycle.go` private request tokens, `vector.go` sharpening, `load.go` complete navigation/retries/handoff and `preload.go` bounded speculation. One UI queue delivers workers; separate completion observations distinguish loaded/applied/stopped. | `Feature`; root shares `Surface()` with zoom for geometry only. |
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` extracts the compact single-row atlas and owns the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. `circlegesture.go` recognizes timestamped head-relative pointer turns; hosts own independent instances, geometry normalization and lifecycle reset. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | Embedded viewer artwork, including `ExplorerIntroPNG` for first use. | Leaf. |
 
@@ -432,7 +432,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 
 | File | Responsibility |
 |------|----------------|
-| `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` (displayed image) vs `AddIfFits` (speculative preload). `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
+| `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
@@ -757,7 +757,7 @@ feeds it (hashing pass, browse, badges) but does not own it.
 ### `internal/decodepool`
 
 Bounded workers + per-key in-flight claim. Grid thumbs:
-`Pool[*fyne.Container, int]`. Viewer preloads: `Pool[string, struct{}]`.
+`Pool[*fyne.Container, int]`. Display preloads: `Pool[string, struct{}]`.
 Cell staleness stays in `grid/thumbs.go`.
 
 | File | Responsibility |
@@ -816,13 +816,13 @@ see `AGENTS.md`.
 - "How is EXIF orientation handled?" → `internal/imaging/exif.go` + `orientation.go`.
 - "How is a camera RAW file shown?" → `internal/imaging/raw.go` + `LoadedImage.Preview` + `load.go` / `info.go`.
 - "How does drag-and-drop / folder scanning work?" → `internal/filescan.Images` / `filescan.Siblings` (single-file case) + `drop.go` `handleDrop`.
-- "How is an image shown/preloaded/animated once loaded?" → `load.go`.
+- "How is an image shown/preloaded/animated?" → `internal/ui/display`; root `load.go` owns navigation/window policy.
 - "Which keys do what?" → `keys.go` (`handleKeyEvent` / `handleTypedRune`) + `shortcuts.go`.
 - "How do I find one file by name in a big drop?" → `internal/ui/grid/search.go` + `keys.go` `handleTypedRune`.
 - "How does hide-duplicates work?" → `internal/dupes` (the model: grouping, hide/inspect modes, visibility — `BeginInspect` / `InspectMembers` / `IsHiddenExtra` / `NextVisible` / `Visibility`) + `internal/imaging/dhash.go` (the hash) + `internal/imaging/grouping.go` (cancellable indexed complete linkage) + `internal/ui/grid/hashengine.go` (the pool-driven pass that fills the model) + `grid/dupes.go` (browse). Escape reopen: `internal/ui` `reopenVariantGrid`.
 - "How do I act on several images at once?" → `internal/selection` + `grid/selection.go` `Targets` + `grid/marquee.go` + `batch.go` + `deletion.RequestFiles` / `clipboard.CopyFiles`.
 - "How does zoom/pan work?" → `internal/ui/zoom`; keys in `keys.go`; window resize in `load.go` `syncWindowToZoom`.
-- "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/vector.go` + zoom `SetLogicalSize` / `onScaleChanged`.
+- "How does an SVG stay sharp when I zoom?" → `internal/imaging/vector.go` `RasterAt` + `svg.go` + `internal/ui/display/vector.go` + root density forwarding and zoom `SetLogicalSize` / `onScaleChanged`.
 - "How does rotation work, and how is it saved to disk?" → `internal/ui/display` (frames/rotation state) + `internal/ui/rotate.go` + `internal/ui/save.go` + `internal/imaging/save.go`.
 - "How do I write an image out in a different format, at a smaller size, or without camera metadata?" → `internal/ui/export.go` + `internal/ui/exportoptions.go` + `filepicker.ChooseSave` + `imaging.Export`/`ExportOptions`.
 - "How do I open the current image's folder in Finder/Explorer/my file manager?" -> `internal/ui/reveal.go` + `internal/filemanager` + `shortcuts.go` `wireRevealShortcut` + `internal/ui/infoview` `RevealLink`.

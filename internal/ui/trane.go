@@ -2,12 +2,11 @@ package ui
 
 import (
 	"image"
-	"image/color"
 	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
@@ -132,7 +131,9 @@ func newWelcomePointer(area *widgets.TappableArea, link *widget.Hyperlink) *welc
 }
 
 func (p *welcomePointer) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(canvas.NewRectangle(color.Transparent))
+	// This widget owns hit testing only. Even a transparent painted rectangle
+	// can round underlying image colors during software alpha compositing.
+	return widget.NewSimpleRenderer(container.NewWithoutLayout())
 }
 
 func (p *welcomePointer) MouseIn(event *desktop.MouseEvent) {

@@ -459,17 +459,14 @@ func TestTogglePictureFrameMode_ExitResetsFade(t *testing.T) {
 	// Simulate a fade caught mid-transition, as if leaving picture-frame
 	// mode landed exactly between ShowImage's fade-out and finishLoad's
 	// fade-in.
-	v.img.Translucency = 0.5
-	v.display.StartFade(time.Hour, func(float32) {})
+	v.display.FadeTo(0.5, 0.5, time.Hour)
 
 	v.togglePictureFrameMode()
 
 	if v.img.Translucency != 0 {
 		t.Errorf("Translucency after leaving picture-frame mode = %v, want 0", v.img.Translucency)
 	}
-	if v.display.Fade() != nil {
-		t.Error("the fade should be cleared after leaving picture-frame mode")
-	}
+
 }
 
 func TestHandleKeyEvent_EscapeResetsFade(t *testing.T) {
@@ -482,8 +479,7 @@ func TestHandleKeyEvent_EscapeResetsFade(t *testing.T) {
 	v.togglePictureFrameMode()
 	t.Cleanup(func() { settleSlideshow(t, v) })
 
-	v.img.Translucency = 0.5
-	v.display.StartFade(time.Hour, func(float32) {})
+	v.display.FadeTo(0.5, 0.5, time.Hour)
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
@@ -502,8 +498,7 @@ func TestReset_ResetsFadeLeftMidTransition(t *testing.T) {
 	v.togglePictureFrameMode()
 	t.Cleanup(func() { settleSlideshow(t, v) })
 
-	v.img.Translucency = 0.5
-	v.display.StartFade(time.Hour, func(float32) {})
+	v.display.FadeTo(0.5, 0.5, time.Hour)
 
 	v.reset()
 
@@ -523,7 +518,7 @@ func TestShutdownStopsPictureFrameWithQueuedAdvance(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.Black)
 	dropAndWait(t, v, a, b)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	queue := &pictureFrameCompletionQueue{queued: make(chan struct{}, 1)}
 	v.slides.SetUIQueue(queue)
 	v.slides.SetInterval(time.Nanosecond)

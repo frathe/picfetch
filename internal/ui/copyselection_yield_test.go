@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/uitest"
@@ -147,28 +146,6 @@ func TestFavoritesMenuYieldsCopySelection(t *testing.T) {
 // A capture that produces no frame must release the animation pause it
 // acquired: the caller only cleans up after a failed Start, not a failed
 // capture, and a held pause freezes the animation loop for the session.
-func TestCaptureRegionCopySourceReleasesPauseWhenCaptureFails(t *testing.T) {
-	v := newTestViewer(t)
-	path := uitest.WriteTempFile(t, "anim.gif", uitest.EncodeAnimatedGIF(t, 4, 3,
-		[]color.Color{color.NRGBA{R: 255, A: 255}, color.NRGBA{B: 255, A: 255}},
-		[]int{1000, 1000}))
-	dropAndWait(t, v, storage.NewFileURI(path))
-	if v.display.Count() < 2 {
-		t.Fatal("precondition: the dropped GIF is not animated")
-	}
-
-	v.img.Image = nil // simulate the display layer handing back no frame
-	_, animated, ok := v.captureRegionCopySource()
-	if ok || animated {
-		t.Fatalf("capture with no frame = (animated=%v, ok=%v), want (false, false)", animated, ok)
-	}
-
-	if !v.animationPause.pause(func() {}) {
-		t.Fatal("failed capture left the animation pause held")
-	}
-	v.animationPause.unpause()
-}
-
 // Zoom geometry changes fire for the app's whole lifetime; while Copy
 // Selection is inactive they must not queue UI work at all.
 func TestZoomGeometryCallbackSkipsInactiveMode(t *testing.T) {

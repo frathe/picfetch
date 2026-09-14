@@ -22,8 +22,8 @@ import (
 )
 
 func TestExifNavigationCancelsMetadataBeforeTheNextImageLoads(t *testing.T) {
-	for _, clear := range []bool{false, true} {
-		t.Run(fmt.Sprintf("clear=%v", clear), func(t *testing.T) {
+	for _, clearBeforeLoad := range []bool{false, true} {
+		t.Run(fmt.Sprintf("clear=%v", clearBeforeLoad), func(t *testing.T) {
 			v, _, _ := newTestUI(t)
 			oldFile := uitest.TempGPSJPEGURI(t, "old.jpg", 40, 20, 48.858222, 2.2945)
 			newFile := uitest.TempJPEGURI(t, "new.jpg", 40, 20, color.RGBA{B: 255, A: 255})
@@ -48,10 +48,17 @@ func TestExifNavigationCancelsMetadataBeforeTheNextImageLoads(t *testing.T) {
 				<-newRelease
 				return os.Open(newFile.Path())
 			})
-			v.state.files = []fyne.URI{old, fresh}
-			v.exif.Refresh()
+			loaded, ok := v.imgCache.Get(oldFile.String())
+			if !ok {
+				t.Fatal("the original image was not cached")
+			}
+			// Publish the controlled identity through the real load interface.
+			// Replacing collection selection alone cannot relabel existing pixels.
+			v.imgCache.Add(old.String(), loaded)
+			v.state.setFiles([]fyne.URI{old, fresh}, []fyne.URI{old, fresh})
+			v.ShowImage(0)
 			<-oldEntered
-			if clear {
+			if clearBeforeLoad {
 				v.clearToDropzone()
 			} else {
 				v.ShowImage(1)
@@ -66,7 +73,7 @@ func TestExifNavigationCancelsMetadataBeforeTheNextImageLoads(t *testing.T) {
 				t.Errorf("obsolete metadata during navigation/reset: text=%q, GPS=%v, strip=%v", v.exif.Text().Text, v.exif.Location().Visible(), v.exif.StripButton().Visible())
 			}
 			close(newRelease)
-			if !clear {
+			if !clearBeforeLoad {
 				waitUntilLoaded(t, v)
 				v.exif.Settle()
 			}

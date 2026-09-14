@@ -76,8 +76,7 @@ func TestCopySelectionSuccess(t *testing.T) {
 	selectRegion(t, v, selection)
 	// Replace the live display after activation. Copy Selection must still
 	// use the source presentation captured at entry.
-	v.display.ReplaceCurrent(uniformRegionCopyImage(10, 8, color.NRGBA{G: 255, A: 255}))
-	v.redrawRotatedFrame()
+	v.display.RotateBy(1)
 	v.regionCopy.HandleKey(fyne.KeyReturn)
 	waitForClipboard(t, v)
 
@@ -188,16 +187,6 @@ func selectRegionDrag(t *testing.T, v *viewer, bounds image.Rectangle) {
 	start := toCanvas(float32(bounds.Min.X)+0.75, float32(bounds.Min.Y)+0.75)
 	end := toCanvas(float32(bounds.Max.X)-0.25, float32(bounds.Max.Y)-0.25)
 	test.Drag(v.win.Canvas(), end, end.X-start.X, end.Y-start.Y)
-}
-
-func uniformRegionCopyImage(w, h int, c color.NRGBA) *image.NRGBA {
-	img := image.NewNRGBA(image.Rect(0, 0, w, h))
-	for y := range h {
-		for x := range w {
-			img.SetNRGBA(x, y, c)
-		}
-	}
-	return img
 }
 
 func copySelectionBusyState() copyselection.State {

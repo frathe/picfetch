@@ -65,7 +65,7 @@ func TestDeletion_ShutdownDiscardsQueuedCompletion(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a, b)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	queue := &deletionCompletionQueue{queued: make(chan struct{}, 1)}
 	v.deletion.SetUIQueue(queue)
 	v.deletion.Request()
@@ -105,7 +105,7 @@ func TestDeletion_ReorderBeforeConfirmationPreservesIdentity(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a, b)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	v.deletion.Request()
 	v.state.reorder([]fyne.URI{b, a})
 	v.state.index = 1
@@ -129,7 +129,7 @@ func TestDeletion_ComparisonOpenedDuringMoveReturnsToReconciledFiles(t *testing.
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a, b)
-	v.preloads.Wait()
+	v.display.WaitPreloads()
 	entered, release := make(chan struct{}), make(chan struct{})
 	releaseWorker := sync.OnceFunc(func() { close(release) })
 	uitest.StubTrashMove(t, func(path string) error {

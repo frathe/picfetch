@@ -1,4 +1,4 @@
-// Loading, displaying, preloading, and animating images.
+// Single-image navigation policy and display composition.
 
 package ui
 
@@ -13,27 +13,12 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/ui/display"
 )
 
-// ShowImage loads and displays the file at index i, wrapping around at
-// both ends. A file that fails to decode is dropped from the set and the
-// next one is tried automatically - see attemptLoad - so a bad file never
-// gets stuck on screen or left inconsistent with v.state.index.
+// ShowImage is the existing admission chokepoint for navigation and image actions.
 func (v *viewer) ShowImage(i int) {
-	if v.comparisonActive() {
-		return
-	}
-	if len(v.state.files) == 0 {
-		return
-	}
-
-	// Copy Selection pins a source captured from the displayed image and,
-	// for animations, holds the frame-advance pause. Yield here — the one
-	// chokepoint every displayed-image change funnels through — so no
-	// caller (EXIF-window arrows, sort completion, jumpIfHiddenExtra) can
-	// swap the image under an active selection. The per-entry-point yields
-	// stay for their earlier, cheaper refusal; this is the backstop.
-	if !v.yieldCopySelection() {
+	if v.comparisonActive() || len(v.state.files) == 0 || !v.yieldCopySelection() {
 		return
 	}
 	v.explorerImageOpened()
@@ -41,454 +26,102 @@ func (v *viewer) ShowImage(i int) {
 	v.cancelSave()
 	v.cancelExport()
 	v.exif.Invalidate()
-
-	// Once an image is on screen we keep showing it until the new one is
-	// ready, instead of blanking out to the drop-hint on every navigation.
-	firstLoad := v.img.Image == nil
-
-	// In picture-frame mode, fade the outgoing image out instead of the
-	// usual instant swap - finishLoad fades the incoming one back in once
-	// it's ready. Skipped on the very first image of a session (nothing on
-	// screen yet to fade from) and left alone everywhere else, so ordinary
-	// browsing stays an instant swap exactly as before.
-	if v.slides.Active() && !firstLoad {
+	n := len(v.state.files)
+	v.state.index = ((i % n) + n) % n
+	if v.slides.Active() && v.img.Image != nil {
 		v.startFade(0, 1)
 	}
-
-	v.loading.Store(true)
-	v.loadingBar.Show()
-	v.syncMenus() // grey out Save Changes immediately - see canSaveRotation's !v.loading.Load() guard
-
-	if firstLoad {
-		v.hint.SetText(lang.L("Loading..."))
-		v.dropzone.Show()
-	}
-	v.ForceRepaint()
-
-	// A new request token invalidates any decode/retry chain still in flight,
-	// so a slow load can never overwrite a newer selection. Every retry in
-	// attemptLoad below - for a file that turns out to be broken - shares
-	// this one token and this one generation's finisher: they're
-	// all part of the same logical navigation, not independent ones, so a
-	// genuinely newer ShowImage() call correctly invalidates the whole chain
-	// and, via the token's context, stops attemptLoad's/preloadOne's I/O instead of just
-	// discarding a result they'd otherwise run to completion for - and a
-	// waiter on v.load sees the chain as finished only once it truly settles
-	// instead of racing whichever retry finishes first.
-	token := v.loadLifecycle.begin()
-
-	done := v.load.Begin()
-
-	v.attemptLoad(token, i, done)
+	v.display.Load(display.Request{Source: v.state.files[v.state.index], Transition: v.slides.Active()})
 }
 
-// invalidateLoad cancels and permanently supersedes the current logical
-// navigation, including its decode/retry chain, preloads, and animation.
 func (v *viewer) invalidateLoad() uint64 {
 	v.cancelImageClipboard()
 	v.cancelSave()
 	v.cancelExport()
 	v.exif.Invalidate()
-	return v.loadLifecycle.invalidate()
+	v.display.CancelRequest()
+	return v.display.RequestRevision()
 }
 
-// attemptLoad decodes and displays v.state.files[i] (wrapped into range), sharing
-// token and done with the rest of its retry chain - see ShowImage's
-// comment. It first reads the file and probes just its header
-// (imaging.ReadAndProbe), which is enough to reject an invalid file
-// instantly, without spending time on a full pixel decode that was only
-// going to be thrown away, and to resize the window to its final size
-// before that full decode even starts. On failure it drops that file via
-// RemoveFile and retries at the same position, which now holds what used
-// to be the next file (or wraps around to the first, if i was the last);
-// once nothing is left it falls back to the empty-state error screen.
-func (v *viewer) attemptLoad(token requestToken, i int, done func()) {
-	n := len(v.state.files)
-	i = ((i % n) + n) % n
-	v.state.index = i
-	u := v.state.files[i]
-	cacheWrite := v.imgCache.Capture()
-
-	// A cache hit - either a file already viewed this session, or one
-	// preloadNeighbors decoded speculatively ahead of time - skips the disk
-	// read and decode entirely and finishes synchronously, right here on
-	// the UI goroutine that called ShowImage(). No fyne.Do hop is needed since
-	// we're already on it.
-	if loaded, ok := v.imgCache.Get(u.String()); ok {
-		if !token.current() {
-			done()
-			return
-		}
-		if !cacheWrite.Current() {
-			v.attemptLoad(token, i, done)
-			return
-		}
-		v.finishLoad(token, u, loaded, done)
-		return
+func (v *viewer) imageRequested(_ display.Identity) {
+	v.loadingBar.Show()
+	v.syncMenus()
+	if v.img.Image == nil {
+		v.hint.SetText(lang.L("Loading..."))
+		v.dropzone.Show()
 	}
-
-	go func() {
-		data, bounds, err := imaging.ReadAndProbe(token.context(), u)
-
-		if err == nil {
-			fyne.Do(func() {
-				// In picture-frame mode the window is already full-screen
-				// and there's nothing to resize to, same as the final
-				// resize below. The grid overview is skipped for the same
-				// reason it maximized the window in the first place: it
-				// fills the whole window, so sizing that window to one
-				// image means nothing while it's up - and undoGridMaximize
-				// would actively shrink it back out from under the open
-				// grid. The explorer and its cohort browsing retain that
-				// size through both this probe and the final load.
-				if token.current() && cacheWrite.Current() && !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() {
-					v.undoGridMaximize()
-					v.autoResizeToImage(bounds)
-				}
-			})
-		}
-
-		var loaded *imaging.LoadedImage
-		if err == nil {
-			// The image cache's budget doubles as the animation budget: an
-			// animation whose composited frames couldn't fit in the cache
-			// at all is exactly the one not worth compositing, so this
-			// needs no limit of its own.
-			loaded, err = imaging.DecodeRecord(token.context(), data, v.imgCache.Budget())
-		}
-
-		fyne.Do(func() {
-			if !token.current() {
-				done() // user already navigated elsewhere
-				return
-			}
-			if !cacheWrite.Current() {
-				v.attemptLoad(token, i, done)
-				return
-			}
-
-			if err != nil {
-				msg := fmt.Sprintf(lang.L("could not read %q: %v"), u.Name(), err)
-
-				var dimErr *imaging.InvalidDimensionsError
-				var bigErr *imaging.InputTooLargeError
-
-				switch {
-				case errors.As(err, &dimErr):
-					msg = fmt.Sprintf(lang.L("invalid image dimensions for %q"), u.Name())
-				case errors.As(err, &bigErr):
-					msg = fmt.Sprintf(lang.L("%q is too large to open"), u.Name())
-				}
-
-				v.retryAfterLoadFailure(token, msg, i, done)
-				return
-			}
-
-			b := loaded.Frames[0].Bounds()
-
-			if b.Dx() == 0 || b.Dy() == 0 {
-				msg := fmt.Sprintf(lang.L("invalid image dimensions for %q"), u.Name())
-				v.retryAfterLoadFailure(token, msg, i, done)
-				return
-			}
-
-			// Reported here rather than in finishLoad, which a cache hit
-			// also runs: the user needs telling once, on the decode that
-			// discovered it, not again every time they navigate back.
-			if loaded.AnimationTruncated {
-				v.ShowToast(fmt.Sprintf(lang.L("animation in %q is too large to play"), u.Name()))
-			}
-
-			if !cacheWrite.Add(u.String(), loaded) {
-				v.attemptLoad(token, i, done)
-				return
-			}
-			v.finishLoad(token, u, loaded, done)
-		})
-	}()
-}
-
-// finishLoad displays loaded - already decoded, either just now or earlier
-// and pulled from imgCache - via ordered steps whose constraints live on
-// the helpers, then kicks off speculative preloading of its neighbors
-// and finishes the load signal last. Shared by attemptLoad's disk-decode
-// path (called from inside its completion fyne.Do, which - like every
-// fyne.Do callback in this file - the real driver runs on the UI goroutine
-// but the fyne test driver runs synchronously on whatever goroutine called
-// it) and its cache-hit path (called directly from attemptLoad, always on
-// whichever goroutine called ShowImage()).
-func (v *viewer) finishLoad(token requestToken, u fyne.URI, loaded *imaging.LoadedImage, done func()) {
-	v.installLoadedFrames(loaded)
-	v.presentLoadedImage()
-	v.syncLoadedFileInfo(loaded)
-	v.fitWindowToLoadedImage(loaded)
-	v.applyLoadedTitle(u, loaded)
-	v.clearLoadingChrome()
-	v.exif.Refresh()
-	v.startLoadedAnimation(token, loaded)
-	if v.explorer.HasCohort() {
-		v.recordExplorerView("image-loaded")
-	}
-	// Must run - and finish reading v.state.files/v.state.index - before the
-	// load signal finishes below: that finish is what a waiter (a test's
-	// waitUntilLoaded, or a future navigation) synchronizes on to know
-	// this call is done touching viewer state. Under the fyne test
-	// driver, this whole function already runs on whatever goroutine
-	// called fyne.Do rather than a dedicated UI goroutine (see
-	// attemptLoad's token comment), so finishing the signal first would
-	// let a waiter go on to mutate v.state.files - via reset() or a fresh
-	// drop - concurrently with this read.
-	v.preloadNeighbors(token)
-	done()
-}
-
-// installLoadedFrames copies loaded onto the viewer's display state and
-// resets view-only rotation and GIF frame index for a fresh navigation.
-//
-// A vector's frame is replaced in place by every re-render, so it
-// must not share the backing array of the cached LoadedImage -
-// writing through that would mutate the cache entry and invalidate
-// the byte weight ByteCache computed for it.
-func (v *viewer) installLoadedFrames(loaded *imaging.LoadedImage) {
-	b := loaded.Frames[0].Bounds()
-
-	v.display.SetFrames(loaded.Frames)
-	v.clearVector()
-
-	if loaded.Vector != nil {
-		v.display.SetFrames([]image.Image{loaded.Frames[0]})
-
-		v.vector.svg = loaded.Vector
-		v.vector.logical = fyne.NewSize(float32(b.Dx()), float32(b.Dy()))
-		v.vector.raster = image.Pt(b.Dx(), b.Dy())
-		v.zoom.SetLogicalSize(v.vector.logical)
-	}
-
-	v.display.SetIndex(0)
-	v.display.ResetRotation()
-}
-
-// presentLoadedImage puts loaded pixels on the canvas and hides the
-// drop-zone / empty-state chrome.
-//
-// In picture-frame mode, the outgoing image was left fading toward
-// invisible by ShowImage's startFade(0, 1) (or already is, if that
-// fade had time to finish); forcing it the rest of the way there
-// right before the swap hides the new pixels landing mid-fade, then
-// the fade-in takes over from a clean, fully-invisible start.
-func (v *viewer) presentLoadedImage() {
-	if v.slides.Active() {
-		v.img.Translucency = 1
-	}
-	v.redrawRotatedFrame()
-	if v.slides.Active() {
-		v.startFade(1, 0)
-	}
-	v.img.Show()
-	v.dropzone.Hide()
-	v.welcomeArt.Hide()
-	v.emptyStateArt.Hide()
-}
-
-func (v *viewer) syncLoadedFileInfo(loaded *imaging.LoadedImage) {
-	v.info.SetFile(loaded.FileSize, loaded.HasEXIF, loaded.Preview)
-	v.syncInfoOverlayVisibility()
-}
-
-// fitWindowToLoadedImage starts every navigation at fit-to-window and
-// resizes the window to the new image, except when that resize would
-// fight an overlay that already owns the window size. A manual zoom
-// level rarely still makes sense for an unrelated next image.
-//
-// ResetToFit is applied directly (not just left for the resize below
-// to trigger) since picture-frame mode skips that resize entirely.
-//
-// In picture-frame mode the window is already full-screen and
-// ImageFillContain scales the image to fit it without stretching, so
-// there's nothing to resize to - and resizing a full-screen window is
-// asking for platform-specific trouble. The grid overview is skipped on
-// the same grounds: it fills the window it maximized, and undoGridMaximize
-// would shrink that window while the grid is still drawn over it.
-func (v *viewer) fitWindowToLoadedImage(loaded *imaging.LoadedImage) {
-	v.zoom.ResetToFit()
-
-	if !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() {
-		b := loaded.Frames[0].Bounds()
-		v.undoGridMaximize()
-		v.autoResizeToImage(b)
-	}
-}
-
-func (v *viewer) applyLoadedTitle(u fyne.URI, loaded *imaging.LoadedImage) {
-	b := loaded.Frames[0].Bounds()
-	title := fmt.Sprintf("%s — %d x %d", u.Name(), b.Dx(), b.Dy())
-	if loaded.Preview {
-		title += " " + lang.L("(preview)")
-	}
-
-	// The slideshow uses this so an animated GIF always gets to play at
-	// least one full loop before auto-advancing - see
-	// internal/ui/slideshow. Set unconditionally (0 for a static image) so
-	// a GIF's duration never leaks into the next, static image.
-	animDuration := time.Duration(0)
-	if len(loaded.Frames) > 1 {
-		title += " (animated)"
-		for _, d := range loaded.Delays {
-			animDuration += d
-		}
-	}
-	v.slides.SetAnimDuration(animDuration)
-
-	if n := len(v.state.files); n > 1 {
-		title = fmt.Sprintf("%s  (%d/%d)", title, v.state.index+1, n)
-	}
-
-	v.setTitle(title)
-}
-
-func (v *viewer) clearLoadingChrome() {
-	v.loading.Store(false)
-	v.loadingBar.Hide()
-	v.syncMenus() // rotation just reset to 0, and loading has just cleared - see canSaveRotation
 	v.ForceRepaint()
 }
 
-// startLoadedAnimation runs only after clearLoadingChrome's ForceRepaint.
-// Animated GIFs keep playing until a newer load request (a navigation or
-// a fresh drop) supersedes this one; animate checks the shared token and
-// waits on its context. Under the real driver both go through the same
-// serialized fyne.Do queue either way, but the fyne test driver runs
-// fyne.Do synchronously on the calling goroutine, so spawning animate
-// first let its own first-frame Refresh race with this goroutine's
-// still-running ForceRepaint.
-func (v *viewer) startLoadedAnimation(token requestToken, loaded *imaging.LoadedImage) {
-	if len(loaded.Frames) <= 1 {
-		return
-	}
-	stopped := v.anim.Begin()
-	go v.animate(token, loaded.Frames, loaded.Delays, stopped)
-}
-
-// preloadNeighbors speculatively decodes the files immediately before and
-// after v.state.index in the background, so stepping to either one next is a
-// cache hit instead of a fresh disk read + decode. Always called from
-// finishLoad before the load signal finishes - see its comment - so reading
-// v.state.files/v.state.index here can't race a waiter that's about to mutate them.
-// token is the same one ShowImage created for this navigation - the
-// preloads it starts belong to the request that's now on screen, so
-// they get cancelled alongside its own decode the moment a newer
-// navigation or drop supersedes it (see invalidateLoad).
-func (v *viewer) preloadNeighbors(token requestToken) {
-	n := len(v.state.files)
-	if n < 2 {
-		return
-	}
-
-	next := ((v.state.index+1)%n + n) % n
-	prev := ((v.state.index-1)%n + n) % n
-
-	v.preloadOne(token, v.state.files[next])
-	if prev != next {
-		v.preloadOne(token, v.state.files[prev])
+func (v *viewer) imageProbed(bounds image.Rectangle) {
+	if !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() {
+		v.undoGridMaximize()
+		v.autoResizeToImage(bounds)
 	}
 }
 
-// preloadConcurrency bounds how many preloadOne decodes run at once - see
-// the preloads field comment on the viewer struct.
-const preloadConcurrency = 2
-
-// preloadOne decodes u in the background and adds it to imgCache, unless
-// it's already cached or another preload of the same URI is already in
-// flight. The token is checked before and after the decode so a preload started
-// for a set of files that's since been replaced by a fresh drop doesn't
-// keep working, or land a stale result, after the fact; its context backs that up
-// by making ReadAndProbe stop doing I/O partway through and DecodeRecord
-// skip a decode that has not started, for a preload that goes stale while it's actually running
-// rather than while it is still queued for a slot.
-func (v *viewer) preloadOne(token requestToken, u fyne.URI) {
-	key := u.String()
-	cacheWrite := v.imgCache.Capture()
-
-	// Contains, not Get: a presence test on a speculative path shouldn't
-	// promote the neighbor to most-recently-used, which under a tight byte
-	// budget could make it outlive the image actually on screen.
-	if v.imgCache.Contains(key) {
-		return
+// imagePresented runs synchronously after coherent display publication and
+// before the owner admits animation or neighbor work and completes the load.
+func (v *viewer) imagePresented(snapshot display.Snapshot) []fyne.URI {
+	v.syncPresentationLogicalSize()
+	v.dropzone.Hide()
+	v.welcomeArt.Hide()
+	v.emptyStateArt.Hide()
+	v.info.SetFile(snapshot.FileSize, snapshot.HasEXIF, snapshot.Preview)
+	v.syncInfoOverlayVisibility()
+	v.zoom.ResetToFit()
+	v.imageProbed(image.Rect(0, 0, int(snapshot.Size.Width), int(snapshot.Size.Height)))
+	v.applyLoadedTitle(snapshot)
+	v.loadingBar.Hide()
+	v.syncMenus()
+	v.ForceRepaint()
+	v.exif.Refresh()
+	if v.explorer.HasCohort() {
+		v.recordExplorerView("image-loaded")
 	}
-	if !v.preloads.Claim(key, struct{}{}) {
-		return
-	}
-
-	// Bounded the same way the grid's thumbnail decodes are:
-	// preloadNeighbors only ever asks for two files per settled image,
-	// but rapid navigation could otherwise stack an unbounded number
-	// of these full-size decode goroutines.
-	v.preloads.Go(token.context(), func(acquired bool) {
-		defer v.preloads.Release(key, struct{}{})
-
-		// acquired is false when the token's context was cancelled while
-		// this was still queued for a slot - the pool runs fn either way
-		// precisely so the deferred Release above still clears the claim.
-		if !acquired || !token.current() {
-			return
-		}
-
-		data, bounds, err := imaging.ReadAndProbe(token.context(), u)
-		if err != nil {
-			return
-		}
-
-		// Read once: the settings window can change the budget between
-		// these two uses, and a gate that passed under one value shouldn't
-		// then decode under another.
-		budget := v.imgCache.Budget()
-
-		// Preloading exists to make the *next* navigation instant. An
-		// image big enough that caching it would evict what's on screen
-		// turns that speculative win into a guaranteed re-decode of the
-		// current image, so bail on the header alone rather than paying
-		// for the decode first. Half the budget is where the current image
-		// and one neighbor stop both fitting.
-		if imaging.EstimateDecodedBytes(bounds) > budget/2 {
-			return
-		}
-
-		loaded, err := imaging.DecodeRecord(token.context(), data, budget)
-		if err != nil {
-			return
-		}
-
-		b := loaded.Frames[0].Bounds()
-		if b.Dx() == 0 || b.Dy() == 0 {
-			return
-		}
-
-		if !token.current() {
-			return
-		}
-
-		// AddIfFits, not Add: nothing is displaying this image, so a
-		// refusal costs only the decode that just happened, whereas Add's
-		// never-evict-the-newest rule would let a preloaded neighbor
-		// displace the image the user is looking at.
-		_ = cacheWrite.AddIfFits(key, loaded)
-	})
+	return v.preloadCandidates()
 }
 
-// retryAfterLoadFailure reports msg, drops v.state.files[i], and either continues
-// the retry chain via attemptLoad or, if that emptied the set, falls back
-// to the empty-state error screen and finishes the load signal. See ShowImage/attemptLoad
-// for why the whole chain shares one token and one generation of v.load
-// rather than beginning fresh ones per retry.
-func (v *viewer) retryAfterLoadFailure(token requestToken, msg string, i int, done func()) {
+func (v *viewer) syncPresentationLogicalSize() {
+	snapshot := v.display.Snapshot()
+	logical := fyne.Size{}
+	if snapshot.Vector {
+		logical = snapshot.Size
+	}
+	v.zoom.SetLogicalSize(logical)
+}
+
+func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
+	title := fmt.Sprintf("%s — %d x %d", snapshot.Displayed.Source.Name(), int(snapshot.Size.Width), int(snapshot.Size.Height))
+	if snapshot.Preview {
+		title += " " + lang.L("(preview)")
+	}
+	if snapshot.Animated {
+		title += " (animated)"
+	}
+	v.slides.SetAnimDuration(snapshot.Duration)
+	if n := len(v.state.files); n > 1 {
+		title = fmt.Sprintf("%s  (%d/%d)", title, v.state.index+1, n)
+	}
+	v.setTitle(title)
+}
+
+func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
+	msg := fmt.Sprintf(lang.L("could not read %q: %v"), source.Name(), err)
+	var dimensions *imaging.InvalidDimensionsError
+	var tooLarge *imaging.InputTooLargeError
+	switch {
+	case errors.As(err, &dimensions):
+		msg = fmt.Sprintf(lang.L("invalid image dimensions for %q"), source.Name())
+	case errors.As(err, &tooLarge):
+		msg = fmt.Sprintf(lang.L("%q is too large to open"), source.Name())
+	}
+	i := v.state.index
 	v.RemoveFile(i)
-
 	if len(v.state.files) == 0 {
 		v.ShowEmptyStateError(msg)
-		done()
-		return
+		return nil
 	}
-
 	v.ShowToast(msg)
 	if cohort := v.cohortIndexes(); len(cohort) > 0 {
 		next := cohort[0]
@@ -500,53 +133,26 @@ func (v *viewer) retryAfterLoadFailure(token requestToken, msg string, i int, do
 		}
 		i = next
 	}
-	v.attemptLoad(token, i, done)
+	n := len(v.state.files)
+	v.state.index = ((i % n) + n) % n
+	return v.state.files[v.state.index]
 }
 
-// animate owns the frame index on its worker and starts each delay only
-// after UI acknowledges the preceding frame application. A captured load token
-// rejects stale callbacks. Cancellation ends the worker without waiting for UI;
-// buffered acknowledgements let any later callback finish without blocking.
-// frameAfter and frameDo are per-viewer seams configured before playback.
-// stopped and animFrame retain the harness's completion/progress contract.
-func (v *viewer) animate(token requestToken, frames []image.Image, delays []time.Duration, stopped func()) {
-	defer stopped()
-	idx := 0
-	for token.current() {
-		if !v.animationPause.wait(token.context()) || !token.current() {
-			return
-		}
-		select {
-		case <-v.frameAfter(delays[idx]):
-		case <-token.context().Done():
-			return
-		}
+func (v *viewer) imageAnimationTruncated(source fyne.URI) {
+	v.ShowToast(fmt.Sprintf(lang.L("animation in %q is too large to play"), source.Name()))
+}
 
-		next := (idx + 1) % len(frames)
-		applied := make(chan bool, 1)
-		v.frameDo(func() {
-			advanced := false
-			v.animationPause.advance(func() {
-				if !token.current() {
-					return
-				}
-				v.display.SetIndex(next)
-				v.redrawRotatedFrame()
-				advanced = true
-			})
-			// Buffered: cancellation may already have stopped this worker. UI never
-			// waits for it, and a late callback still has to pass the token check.
-			applied <- advanced
-		})
-		select {
-		case <-token.context().Done():
-			return
-		case advanced := <-applied:
-			if advanced {
-				idx = next
-			}
-		}
+func (v *viewer) preloadCandidates() []fyne.URI {
+	n := len(v.state.files)
+	if n < 2 {
+		return nil
 	}
+	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
+	candidates := []fyne.URI{v.state.files[next]}
+	if prev != next {
+		candidates = append(candidates, v.state.files[prev])
+	}
+	return candidates
 }
 
 // defaultMaxWindowWidth and defaultMaxWindowHeight cap how large the window
@@ -614,12 +220,7 @@ func (v *viewer) syncWindowToZoom() {
 	if v.grid != nil && v.grid.Visible() {
 		return
 	}
-	// The display frames are set by finishLoad on the UI goroutine; their
-	// slice header (length) is never written by the vector render
-	// goroutine, which only replaces the one frame through the existing
-	// pointer (ReplaceCurrent). Checking the count here avoids a race on
-	// v.img.Image, which the vector goroutine may be writing concurrently
-	// via rasterizeVector's fyne.Do.
+	// Presentation availability and logical dimensions come from its owner.
 	if v.display.Count() == 0 {
 		return
 	}
@@ -675,10 +276,7 @@ const slideshowFadeDuration = 400 * time.Millisecond
 // why that matters - is display.StartFade's; the translucency math stays
 // here because v.img is the viewer's.
 func (v *viewer) startFade(start, end float64) {
-	v.display.StartFade(slideshowFadeDuration, func(t float32) {
-		v.img.Translucency = start + float64(t)*(end-start)
-		v.img.Refresh()
-	})
+	v.display.FadeTo(float32(start), float32(end), slideshowFadeDuration)
 }
 
 // resetFade cancels any fade transition in progress and puts v.img back to
@@ -687,8 +285,6 @@ func (v *viewer) startFade(start, end float64) {
 // half-faded once it's back in the normal, instant-swap view.
 func (v *viewer) resetFade() {
 	v.display.ResetFade()
-	v.img.Translucency = 0
-	v.img.Refresh()
 }
 
 // randomOtherIndex picks a uniformly random index in [0,n) other than

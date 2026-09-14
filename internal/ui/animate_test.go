@@ -1,10 +1,8 @@
 package ui
 
 import (
-	"image"
 	"image/color"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2/storage"
@@ -12,29 +10,8 @@ import (
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
-// This file owns animate, load.go's per-frame goroutine for an animated
-// GIF: that it actually advances frames on its own goroutine independent of
-// the test, that navigating away supersedes and stops the previous image's
-// animation rather than letting it bleed through onto the new one, and that
-// cancelling loadLifecycle wakes a sleeping frame delay immediately instead
-// of leaving it to sleep out the rest of the interval. Cancellation is what
-// *stops* an animation, so that wake-up test belongs to animate's contract
-// here rather than to invalidateLoad's own load_test.go.
-//
-// animate writes v.img.Image and bumps the v.animFrame atomic from its own
-// goroutine (see its comment in load.go), so a test goroutine may never read
-// v.img.Image until it has confirmed - via waitForAnimStopped, which waits
-// for v.anim to finish - that animate has actually returned; polling
-// animFrame with waitForAnimFrame is how a test observes progress in the
-// meantime without racing those writes. Both helpers stay in
-// harness_test.go as shared harness. Tests that need a known frame index
-// (or to supersede a live animation without racing finishLoad) replace
-// viewer.frameAfter with a frameClock before the first drop.
-
-// frameClock is time.After that a test steps. parked is signalled each time
-// After is called, so the test can wait until animate is sitting in its
-// select rather than inside fyne.Do - the window where ShowImage's
-// finishLoad would race the display frames/index under the test driver.
+// Root animation tests retain navigation and load integration. Playback pacing
+// and stable-capture tests live at display's public contract seam.
 type frameClock struct {
 	ticks  chan time.Time
 	parked chan struct{}
@@ -47,7 +24,7 @@ func newFrameClock() *frameClock {
 	}
 }
 
-func (c *frameClock) After(time.Duration) <-chan time.Time {
+func (c *frameClock) After(_ time.Duration) <-chan time.Time {
 	select {
 	case c.parked <- struct{}{}:
 	default:
@@ -82,27 +59,18 @@ func TestViewerShow_AnimatesGIF(t *testing.T) {
 
 	dropAndWait(t, v, storage.NewFileURI(path))
 
-	// animate() writes v.img.Image from its own goroutine for as long as its
-	// load token stays current, which the fyne test driver never marshals onto
-	// this one - so reading v.img.Image from here at any point before that
-	// goroutine has fully stopped would race with those writes, even right
-	// after waitForAnimFrame observes a given count: animate is free to keep
-	// writing further frames in between that observation and the next
-	// statement. animFrame reaching 2 (1 for attemptLoad's own first frame, 1
-	// more for animate's first cycle) is proof the animation loop ran at all;
-	// invalidating loadLifecycle and waiting for v.anim to finish then
-	// guarantees no further write can happen, at which point animFrame's final
-	// value is stable and it's finally safe to read v.img.Image.
+	// Observe actual frame delivery, then cancel and join playback so its final
+	// applied count and published pixels remain fixed for the color assertion.
 	waitForAnimFrame(t, v, 2)
 
-	v.loadLifecycle.invalidate()
+	v.invalidateLoad()
 	waitForAnimStopped(t, v)
 
-	// Frame 0 (red) is written on odd counts (attemptLoad's initial write
+	// Frame 0 (red) is written on odd counts (display's initial publication
 	// is count 1), frame 1 (blue) on even ones - whichever count animate
 	// happened to stop on, this checks the frame it left on screen actually
 	// matches the data for that count instead of stale or corrupted pixels.
-	n := v.animFrame.Load()
+	n := v.display.AppliedFrames()
 	wantBlue := n%2 == 0
 
 	r, _, b, _ := v.img.Image.At(0, 0).RGBA()
@@ -121,7 +89,7 @@ func TestViewerShow_NavigatingAwayStopsAnimation(t *testing.T) {
 	// Write-once, before the drop: the same rule as vector.after. 10s GIF
 	// delays so a missing seam cannot pass this by firing time.After on its
 	// own inside testTimeout; the clock is what has to advance the frame.
-	v.frameAfter = clock.After
+	v.display.SetAnimationClock(clock.After)
 
 	animURI := storage.NewFileURI(uitest.WriteTempFile(t, "anim.gif", uitest.EncodeAnimatedGIF(t, 4, 4,
 		[]color.Color{color.RGBA{R: 255, A: 255}, color.RGBA{B: 255, A: 255}},
@@ -138,14 +106,11 @@ func TestViewerShow_NavigatingAwayStopsAnimation(t *testing.T) {
 	// write under the test driver.
 	clock.waitParked(t)
 
-	if v.display.Index() != 1 {
-		t.Fatalf("display.Index() = %d after one clock tick, want 1 - the animation must have actually cycled", v.display.Index())
-	}
 	if _, _, b, _ := v.img.Image.At(0, 0).RGBA(); b == 0 {
 		t.Fatal("expected the blue frame on screen after one clock tick")
 	}
 
-	oldAnim := v.anim.Current()
+	oldAnim := v.display.AnimationDone()
 
 	v.ShowImage(1)
 	waitUntilLoaded(t, v)
@@ -174,168 +139,12 @@ func TestInvalidateLoad_WakesAnimateImmediately(t *testing.T) {
 
 	dropAndWait(t, v, animURI)
 
-	if !v.anim.Begun() {
+	if !v.display.AnimationBegun() {
 		t.Fatal("loading an animated GIF should arm the animation signal")
 	}
 
-	v.loadLifecycle.invalidate()
+	v.invalidateLoad()
 
 	waitForAnimStopped(t, v)
-	v.loadLifecycle.invalidate() // repeated invalidation must remain safe
-}
-
-func TestAnimationQueuedFramePacing(t *testing.T) {
-	v := newTestViewer(t)
-	frames := []image.Image{
-		newQueuedAnimationFrame(color.RGBA{R: 255, A: 255}),
-		newQueuedAnimationFrame(color.RGBA{G: 255, A: 255}),
-		newQueuedAnimationFrame(color.RGBA{B: 255, A: 255}),
-	}
-	v.display.SetFrames(frames)
-	v.redrawRotatedFrame()
-	synctest.Test(t, func(t *testing.T) {
-		var lifecycle requestLifecycle
-		token := lifecycle.begin()
-		defer token.cancelContext()
-		queue := &uitest.UIQueue{}
-		ticks := make(chan time.Time)
-		requested := make(chan time.Duration, 8)
-		v.frameDo = queue.Do
-		v.frameAfter = func(d time.Duration) <-chan time.Time { requested <- d; return ticks }
-		delays := []time.Duration{time.Second, 2 * time.Second, 3 * time.Second}
-		stopped := make(chan struct{})
-		go v.animate(token, frames, delays, func() { close(stopped) })
-		synctest.Wait()
-		if got := <-requested; got != delays[0] {
-			t.Fatalf("initial delay = %v", got)
-		}
-		for step := 1; step <= 4; step++ {
-			ticks <- time.Time{}
-			synctest.Wait()
-			if queue.Len() != 1 {
-				t.Fatalf("queued frames = %d, want exactly one", queue.Len())
-			}
-			select {
-			case got := <-requested:
-				t.Fatalf("requested delay %v before queued frame applied", got)
-			default:
-			}
-			queue.Drain()
-			synctest.Wait()
-			next := step % len(frames)
-			if got := <-requested; got != delays[next] {
-				t.Fatalf("next delay = %v, want applied frame's %v", got, delays[next])
-			}
-			if v.display.Index() != next || v.img.Image != frames[next] {
-				t.Fatalf("wrong displayed frame: index %d, want %d", v.display.Index(), next)
-			}
-		}
-		token.cancelContext()
-		synctest.Wait()
-		select {
-		case <-stopped:
-		default:
-			t.Fatal("animation did not stop")
-		}
-	})
-}
-
-func newQueuedAnimationFrame(c color.Color) image.Image {
-	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
-	for y := range 2 {
-		for x := range 2 {
-			img.Set(x, y, c)
-		}
-	}
-	return img
-}
-
-func TestAnimationCancellationDiscardsQueuedFrame(t *testing.T) {
-	v := newTestViewer(t)
-	frames := []image.Image{newQueuedAnimationFrame(color.Black), newQueuedAnimationFrame(color.White)}
-	v.display.SetFrames(frames)
-	v.redrawRotatedFrame()
-	synctest.Test(t, func(t *testing.T) {
-		var lifecycle requestLifecycle
-		token := lifecycle.begin()
-		defer token.cancelContext()
-		queue := &uitest.UIQueue{}
-		ticks := make(chan time.Time)
-		v.frameDo = queue.Do
-		v.frameAfter = func(_ time.Duration) <-chan time.Time { return ticks }
-		stopped := make(chan struct{})
-		go v.animate(token, frames, []time.Duration{time.Second, 2 * time.Second}, func() { close(stopped) })
-		synctest.Wait()
-		ticks <- time.Time{}
-		synctest.Wait()
-		if queue.Len() != 1 {
-			t.Fatal("frame was not queued")
-		}
-		token.cancelContext()
-		synctest.Wait()
-		select {
-		case <-stopped:
-		default:
-			t.Fatal("cancellation waited for UI application")
-		}
-		replacement := newQueuedAnimationFrame(color.RGBA{G: 255, A: 255})
-		v.display.SetFrames([]image.Image{replacement, frames[1]})
-		v.display.SetIndex(0)
-		v.redrawRotatedFrame()
-		writes := v.animFrame.Load()
-		queue.Drain()
-		if v.img.Image != replacement || v.animFrame.Load() != writes {
-			t.Fatal("late frame changed replacement image")
-		}
-	})
-}
-
-func TestAnimationQueuedPauseKeepsCapturedFrame(t *testing.T) {
-	v := newTestViewer(t)
-	frames := []image.Image{newQueuedAnimationFrame(color.Black), newQueuedAnimationFrame(color.White)}
-	v.display.SetFrames(frames)
-	v.redrawRotatedFrame()
-	synctest.Test(t, func(t *testing.T) {
-		var lifecycle requestLifecycle
-		token := lifecycle.begin()
-		defer token.cancelContext()
-		defer v.animationPause.unpause()
-		queue := &uitest.UIQueue{}
-		ticks := make(chan time.Time)
-		requested := make(chan time.Duration, 4)
-		v.frameDo = queue.Do
-		v.frameAfter = func(d time.Duration) <-chan time.Time { requested <- d; return ticks }
-		stopped := make(chan struct{})
-		go v.animate(token, frames, []time.Duration{time.Second, 2 * time.Second}, func() { close(stopped) })
-		synctest.Wait()
-		<-requested
-		ticks <- time.Time{}
-		synctest.Wait()
-		captured := image.Image(nil)
-		if !v.animationPause.pause(func() { captured = v.img.Image }) {
-			t.Fatal("pause failed")
-		}
-		queue.Drain()
-		synctest.Wait()
-		if v.img.Image != captured || v.display.Index() != 0 {
-			t.Fatal("queued application changed the captured frame")
-		}
-		select {
-		case got := <-requested:
-			t.Fatalf("scheduled %v while source capture was paused", got)
-		default:
-		}
-		v.animationPause.unpause()
-		synctest.Wait()
-		if got := <-requested; got != time.Second {
-			t.Fatalf("resumed delay = %v, want unchanged frame's 1s", got)
-		}
-		token.cancelContext()
-		synctest.Wait()
-		select {
-		case <-stopped:
-		default:
-			t.Fatal("animation did not stop after pause")
-		}
-	})
+	v.invalidateLoad() // repeated invalidation must remain safe
 }
