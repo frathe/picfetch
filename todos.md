@@ -46,7 +46,7 @@ Reviewed all 28 Codex findings in PR #25 before further fixes. The
 led to shared Favorite inventory/store routing, explicit maintenance intents and
 transaction outcomes, and shared browsing restrictions/order with complete deferred
 restoration. Local race/build/inspection and real-model reuse checks pass. The
-[active plan](plans/2026-09-15-search-ownership.md) tracks the fresh PR review and CI gates.
+[implementation record](finished_refactorings/2026-09-15-search-ownership.md) tracks the fresh PR review and CI gates.
 
 ### Comparison test deadline under build contention
 

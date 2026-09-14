@@ -1,6 +1,7 @@
 # PR 25: cache ownership and browsing transitions
 
-Status: implementation and local verification complete; fresh GitHub review/CI pending. Route: Deep (cross-package
+Status: implementation and local verification complete. Final remote acceptance
+is recorded on [PR 25](https://github.com/frathe/picfetch/pull/25) for its latest commit. Route: Deep (cross-package
 refactoring). Evidence: [all 28 Codex findings](../docs/find-more-like-this/pr25-architecture-review.md).
 
 Deliverable: put Favorite ownership, cache operation lifetime, and ranked browsing
@@ -76,8 +77,7 @@ Task graph: `1 -> 2 -> 4`, `3 -> 4`.
 
 Budget: one scout, zero delegated implementations/reviews; focused local suites
 and complete native GitHub CI. Actual: one read-only command ownership scout
-started; all design, implementation and review lead-owned. Verification results
-will be recorded here as tasks complete.
+completed; all design, implementation and review lead-owned. Local verification results are recorded below; remote results are linked from PR 25.
 
 ### Local implementation evidence
 
@@ -118,3 +118,7 @@ will be recorded here as tasks complete.
   were rerun with those host capabilities, without weakening worker policy.
 - No new dependency or shipped closure change. Full Linux race/native Windows and
   Intel/ARM macOS CI, Qodana/CodeQL and fresh bot reviews remain the remote gate.
+
+- Final timing guard exposed stale progress when preparation completed after Back
+  was deferred behind a popup. Presentation now carries only the frozen visit and
+  reads live progress on application; the new regression was observed failing first.
