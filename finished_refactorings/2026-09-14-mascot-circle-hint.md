@@ -250,3 +250,29 @@ Ronin requested: "mark the todo as done" after the Escape fix was committed as
 `0ebad441fa1804969e7aa4f49046f086a4b0fa4f`. The feature is recorded under Done
 and this plan is archived. Earlier native observations and unavailable checks
 above remain the evidence; this documentation update adds no test results.
+
+### PR 24 localization review, September 14
+
+Codex review of 8665a2f identified the revealed search phrase bypassing the
+translation catalog ([thread](https://github.com/frathe/picfetch/pull/24#discussion_r4006130235)).
+This is a convention defect, not a request to translate the canonical trigger:
+the accepted spec requires the phrase to remain English in every locale.
+The clue's label and width measurement now use lang.L(secretPhrase); every
+bundle contains the exact key with an identical value. No visible wording or
+search admission changes.
+
+TestFinisClueLayoutAndLocale now requires the catalog entry to match the
+canonical search trigger. It failed before the fix with the missing English
+entry, then the complete TestFinis family passed under race (24.320s). Root
+TestTranslations_ checks passed under race (1.768s), covering locale parity,
+English identity and prohibited arrows. No new test file or root runnable was
+added, so shard assignments and exact exclusions remain current.
+
+GoLand inspected both changed Go files including weak warnings. finis_clue.go
+is clean. finis_test.go intentionally forces light and dark themes independently
+of the machine preference; Fyne deprecates these helpers for ignoring that
+preference. A narrow GoDeprecation suppression documents this deliberate test
+use. Reinspection leaves only the existing duplicate fixture warning, covered
+by the file's exact DuplicatedCode exclusion in qodana.yaml. These results cover
+this follow-up's files; they do not substitute for earlier unavailable IDE calls.
+Fresh native CI and Codex code/security reviews are required for the fix commit.

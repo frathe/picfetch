@@ -70,6 +70,9 @@ func TestFinisClueLayoutAndLocale(t *testing.T) {
 		if err := json.Unmarshal(data, &catalog); err != nil {
 			t.Fatal(err)
 		}
+		if catalog[secretPhrase] != secretPhrase {
+			t.Fatalf("%s: clue phrase translation = %q, want canonical search trigger %q", locale, catalog[secretPhrase], secretPhrase)
+		}
 		var baseline map[string]string
 		if err := json.Unmarshal(english, &baseline); err != nil {
 			t.Fatal(err)
@@ -82,6 +85,8 @@ func TestFinisClueLayoutAndLocale(t *testing.T) {
 		if err := lang.AddTranslationsForLocale(hint, current); err != nil {
 			t.Fatal(err)
 		}
+		// Exercise both variants independently of the machine preference.
+		//noinspection GoDeprecation
 		for _, th := range []fyne.Theme{theme.LightTheme(), theme.DarkTheme()} {
 			a.Settings().SetTheme(th)
 			h := New(a, "PicFetch", nil)
