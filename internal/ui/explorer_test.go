@@ -4588,9 +4588,11 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			}
 		})
 		explorerMenu(t, v).Action()
+		// Replacement preserves native exclusivity: the old worker must exit
+		// before its successor can deliver, even though its result is stale.
+		close(release)
 		<-delivered
 		v.explorer.Options().Queue.Drain()
-		close(release)
 		v.settleExplorer()
 		piles := explorerPiles(v)
 		if len(piles) != 1 {

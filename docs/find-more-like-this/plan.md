@@ -1,6 +1,6 @@
 # Find more like this — feature and implementation plan
 
-Status: vertical breakdown approved; FML-001 tooling implemented and local measurements recorded; human relevance decision pending.
+Status: MVP implemented following Ronin’s qualitative proceed decision; the latest review/CI gate is recorded in [PR #25](https://github.com/frathe/picfetch/pull/25).
 Date: 2026-09-13.
 Design interview updated: 2026-09-14.
 Baseline: `a4c8863`, based on PicFetch v1.1.2 (`54fd7c3`).

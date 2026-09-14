@@ -48,6 +48,10 @@ func (v *viewer) syncNativeMenuBar() {
 }
 
 func (v *viewer) showViewer() {
+	if v.searchActive() && !v.comparisonActive() {
+		v.visualsearch.Exit()
+		return
+	}
 	if !v.comparisonActive() && (v.explorer.Surface().Visible() || v.explorer.HasCohort()) {
 		v.LeaveSimilarityMap()
 		return
@@ -80,6 +84,10 @@ func (v *viewer) showWindowExif() {
 }
 
 func (v *viewer) showWindowGrid() {
+	if v.searchActive() && !v.comparisonActive() {
+		v.returnToSearchGrid()
+		return
+	}
 	if v.comparisonActive() {
 		return
 	}

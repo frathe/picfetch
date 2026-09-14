@@ -1,0 +1,513 @@
+package visualsearch_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+	"testing"
+	"testing/synctest"
+
+	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/ui/grid"
+	"github.com/frathe/picfetch/internal/ui/visualsearch"
+	"github.com/frathe/picfetch/internal/uitest"
+)
+
+type visitHost struct {
+	current   visualsearch.Visit
+	hold      bool
+	presented []visualsearch.Visit
+	restored  []visualsearch.Visit
+	origins   []bool
+	errors    []error
+}
+
+func (h *visitHost) CaptureVisit() visualsearch.Visit { return h.current }
+func (h *visitHost) Present(v visualsearch.Visit, _ grid.Progress) {
+	if !h.hold {
+		h.current = v
+	}
+	h.presented = append(h.presented, v)
+}
+func (h *visitHost) Restore(v visualsearch.Visit, origin bool) {
+	h.current = v
+	h.restored = append(h.restored, v)
+	h.origins = append(h.origins, origin)
+}
+func (*visitHost) Changed()           {}
+func (h *visitHost) Failed(err error) { h.errors = append(h.errors, err) }
+
+type providerCall struct {
+	request similarity.SearchRequest
+	queries <-chan similarity.SearchQuery
+	emit    func(similarity.SearchEvent)
+	exit    chan error
+}
+
+func heldProvider(calls chan<- providerCall) similarity.SearchProvider {
+	return func(ctx context.Context, r similarity.SearchRequest, queries <-chan similarity.SearchQuery, emit func(similarity.SearchEvent)) error {
+		call := providerCall{request: r, queries: queries, emit: emit, exit: make(chan error)}
+		select {
+		case calls <- call:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		select {
+		case err := <-call.exit:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func newSearch(t *testing.T) (*visualsearch.Feature, *visitHost, *uitest.UIQueue, chan providerCall) {
+	t.Helper()
+	h := &visitHost{}
+	q := &uitest.UIQueue{}
+	calls := make(chan providerCall, 8)
+	f := visualsearch.New(h, visualsearch.Options{Provider: heldProvider(calls), Queue: q})
+	t.Cleanup(func() { f.Stop(); f.Settle() })
+	return f, h, q, calls
+}
+
+func publish(call providerCall, query similarity.SearchQuery, revision uint64, kind similarity.SearchKind, paths ...string) {
+	event := similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: revision, Kind: kind, Processed: 2, Total: 3}
+	for _, path := range paths {
+		event.Matches = append(event.Matches, similarity.Match{Path: path})
+	}
+	call.emit(event)
+}
+
+func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	scope := []string{"/a", "/b", "/c"}
+	origin := visualsearch.Visit{Paths: scope, ImagePath: "/a"}
+	if !f.Start(visualsearch.StartRequest{Paths: scope, ReferencePath: "/a", Origin: origin}) {
+		t.Fatal("valid search rejected")
+	}
+	scope[0] = "/changed"
+	call := <-calls
+	if !reflect.DeepEqual(call.request.Paths, []string{"/a", "/b", "/c"}) {
+		t.Fatalf("scope aliased: %v", call.request.Paths)
+	}
+	query := <-call.queries
+	publish(call, query, 1, similarity.SearchPartial, "/b")
+	if len(h.presented) != 0 {
+		t.Fatal("worker presented outside the UI queue")
+	}
+	q.Drain()
+	if state := f.State(); state.Pending || !state.Preparing || !reflect.DeepEqual(state.Visit.Paths, []string{"/b"}) {
+		t.Fatalf("partial state: %+v", state)
+	}
+	publish(call, query, 2, similarity.SearchFinal, "/c", "/b")
+	f.Settle()
+	if f.State().Preparing {
+		t.Fatal("final query still preparing")
+	}
+	if !f.Explore("/b") {
+		t.Fatal("second reference rejected")
+	}
+	if f.State().Preparing || !f.State().Pending {
+		t.Fatalf("warm query lost prepared-collection status: %+v", f.State())
+	}
+	query = <-call.queries
+	publish(call, query, 3, similarity.SearchFinal, "/a")
+	f.Settle()
+	if len(calls) != 0 {
+		t.Fatal("warm query started another provider")
+	}
+	if !f.Back() || !reflect.DeepEqual(h.current.Paths, []string{"/c", "/b"}) {
+		t.Fatalf("Back did not restore revised first visit: %+v", h.current)
+	}
+	if !f.Back() || f.State().Active || !reflect.DeepEqual(h.current.Paths, []string{"/a", "/b", "/c"}) {
+		t.Fatalf("origin was not retained independently: %+v", h.current)
+	}
+	if !reflect.DeepEqual(h.origins, []bool{false, true}) {
+		t.Fatalf("restoration kinds: %v", h.origins)
+	}
+}
+
+func TestVisualSearchLifecyclePendingBackRejectsQueuedReferences(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	call := <-calls
+	first := <-call.queries
+	publish(call, first, 1, similarity.SearchFinal, "/b", "/c")
+	f.Settle()
+	h.current.Grid = grid.Visit{Paths: []string{"/b", "/c"}, Results: []string{"/c"}, Selected: []string{"/c"}, Subset: []string{"/b", "/c"}, Query: "cat", Highlight: "/c", ScrollOffset: 75, Ranked: true, Visible: true}
+	wantGrid := h.current.Grid
+	f.Explore("/b")
+	second := <-call.queries
+	publish(call, first, 2, similarity.SearchPartial, "/old")
+	publish(call, second, 3, similarity.SearchPartial, "/abandoned")
+	if !f.Back() {
+		t.Fatal("pending Back rejected")
+	}
+	q.Drain()
+	if got := f.State().Visit; got.ReferencePath != "/a" || !reflect.DeepEqual(got.Paths, []string{"/b", "/c"}) {
+		t.Fatalf("queued abandoned references replaced frozen visit: %+v", got)
+	}
+	if !reflect.DeepEqual(h.current.Grid, wantGrid) {
+		t.Fatalf("browsing anchor was lost: %+v", h.current.Grid)
+	}
+	if len(h.presented) != 1 {
+		t.Fatalf("stale callbacks reached presentation: %d", len(h.presented))
+	}
+	select {
+	case query := <-call.queries:
+		t.Fatalf("Back triggered inference: %+v", query)
+	default:
+	}
+	f.Back()
+	if h.current.ImagePath != "/origin" || !h.origins[len(h.origins)-1] {
+		t.Fatal("pending query consumed a successful-history entry")
+	}
+}
+
+func TestVisualSearchBackRetainsSessionCompletion(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
+	call := <-calls
+	first := <-call.queries
+	publish(call, first, 1, similarity.SearchPartial, "/b")
+	q.Drain()
+	h.current.Grid = grid.Visit{Query: "cat", ScrollOffset: 75, Ranked: true, Visible: true}
+	wantGrid := h.current.Grid
+	f.Explore("/b")
+	second := <-call.queries
+	call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: second.ID, Revision: 2, Kind: similarity.SearchFinal, Processed: 3, Total: 3, Matches: []similarity.Match{{Path: "/c"}}})
+	f.Settle()
+	completed := f.State().Progress
+	if !f.Back() || f.State().Preparing || !f.State().Progress.Complete || f.State().Progress != completed {
+		t.Fatalf("Back restored obsolete preparation status: %+v", f.State())
+	}
+	if h.current.ReferencePath != "/a" || !reflect.DeepEqual(h.current.Paths, []string{"/b"}) || !reflect.DeepEqual(h.current.Grid, wantGrid) {
+		t.Fatalf("Back lost the frozen ranking or browsing state: %+v", h.current)
+	}
+}
+
+func TestVisualSearchBackStillObservesPreparation(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
+	call := <-calls
+	first := <-call.queries
+	publish(call, first, 1, similarity.SearchPartial, "/b")
+	q.Drain()
+	f.Explore("/b")
+	second := <-call.queries
+	if !f.Back() {
+		t.Fatal("pending Back rejected")
+	}
+	call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: second.ID, Revision: 2, Kind: similarity.SearchProgress, Processed: 3, Total: 3})
+	publish(call, second, 3, similarity.SearchFinal, "/c")
+	call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: second.ID, Revision: 4, Kind: similarity.SearchReady, Processed: 3, Total: 3})
+	q.Drain()
+	if state := f.State(); state.Preparing || !state.Progress.Complete || state.Progress.Processed != 3 {
+		t.Fatalf("Back stopped observing its retained preparation: %+v", state)
+	}
+	if h.current.ReferencePath != "/a" || !reflect.DeepEqual(h.current.Paths, []string{"/b"}) || len(h.presented) != 1 {
+		t.Fatalf("abandoned query changed the frozen visit: %+v", h.current)
+	}
+}
+
+func TestVisualSearchLatestQueryRevisionAndImmutableDelivery(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
+	call := <-calls
+	first := <-call.queries
+	f.Explore("/b")
+	second := <-call.queries
+	paths := []similarity.Match{{Path: "/c"}, {Path: "/a"}}
+	call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: second.ID, Revision: 3, Kind: similarity.SearchFinal, Matches: paths})
+	paths[0].Path = "/mutated"
+	publish(call, first, 4, similarity.SearchFinal, "/wrong-query")
+	publish(call, second, 2, similarity.SearchPartial, "/old-revision")
+	q.Drain()
+	want := []string{"/c", "/a"}
+	if got := f.State().Visit; got.ReferencePath != "/b" || !reflect.DeepEqual(got.Paths, want) {
+		t.Fatalf("latest eligible publication lost: %+v", got)
+	}
+	h.current.Paths[0] = "/host-mutated"
+	state := f.State()
+	state.Visit.Paths[0] = "/state-mutated"
+	scope := f.Scope()
+	scope[0] = "/scope-mutated"
+	if !reflect.DeepEqual(f.State().Visit.Paths, want) || !f.Contains("/a") || f.Contains("/scope-mutated") {
+		t.Fatal("exported snapshots alias feature-owned slices")
+	}
+	f.Back()
+	if f.State().Active {
+		t.Fatal("superseded reference created a history entry")
+	}
+}
+
+func TestVisualSearchHistoryBranchAndTwentyVisitLimit(t *testing.T) {
+	f, h, _, calls := newSearch(t)
+	paths := make([]string, 23)
+	for i := range paths {
+		paths[i] = fmt.Sprintf("/%02d", i)
+	}
+	f.Start(visualsearch.StartRequest{Paths: paths, ReferencePath: paths[0], Origin: visualsearch.Visit{ImagePath: "/independent-origin"}})
+	call := <-calls
+	for i := 0; i < 22; i++ {
+		if i > 0 {
+			f.Explore(paths[i])
+		}
+		query := <-call.queries
+		publish(call, query, uint64(i+1), similarity.SearchFinal, paths[(i+1)%len(paths)])
+		f.Settle()
+	}
+	f.Back()
+	if f.State().Visit.ReferencePath != paths[20] {
+		t.Fatal("last successful reference did not restore")
+	}
+	f.Explore(paths[22])
+	query := <-call.queries
+	publish(call, query, 23, similarity.SearchFinal, paths[0])
+	f.Settle()
+	for i := 20; i >= 2; i-- {
+		f.Back()
+		if got := f.State().Visit.ReferencePath; got != paths[i] {
+			t.Fatalf("history Back wanted %s, got %s", paths[i], got)
+		}
+	}
+	f.Back()
+	if f.State().Active || h.current.ImagePath != "/independent-origin" {
+		t.Fatalf("eviction lost independent origin: %+v", h.current)
+	}
+}
+
+func TestVisualSearchQueryFailurePreservesLastUsableVisit(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	call := <-calls
+	first := <-call.queries
+	publish(call, first, 1, similarity.SearchPartial, "/b")
+	q.Drain()
+	call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: first.ID, Revision: 2, Kind: similarity.SearchQueryFailure, Processed: 2, Total: 3, Error: "reference changed"})
+	f.Settle()
+	if !f.State().Preparing || f.State().Pending || !reflect.DeepEqual(f.State().Visit.Paths, []string{"/b"}) {
+		t.Fatalf("late failure discarded usable result or hid preparation: %+v", f.State())
+	}
+	f.Explore("/c")
+	second := <-call.queries
+	call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: second.ID, Revision: 3, Kind: similarity.SearchQueryFailure, Processed: 2, Total: 3, Error: "invalid reference"})
+	publish(call, second, 4, similarity.SearchFinal, "/must-not-commit")
+	f.Settle()
+	if len(h.errors) != 2 || !reflect.DeepEqual(f.State().Visit.Paths, []string{"/b"}) {
+		t.Fatalf("pending failure changed successful history: %+v", f.State())
+	}
+	var terminal visualsearch.SessionError
+	if errors.As(h.errors[0], &terminal) {
+		t.Fatal("recoverable query error classified as terminal")
+	}
+	f.Back()
+	if f.State().Active || h.current.ImagePath != "/origin" {
+		t.Fatal("failed query added a history entry")
+	}
+}
+
+func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing.T) {
+	h := &visitHost{}
+	q := &uitest.UIQueue{}
+	started, canceled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	provider := func(ctx context.Context, request similarity.SearchRequest, queries <-chan similarity.SearchQuery, emit func(similarity.SearchEvent)) error {
+		query := <-queries
+		emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: 1, Kind: similarity.SearchFinal, Matches: []similarity.Match{{Path: "/b"}}})
+		close(started)
+		<-ctx.Done()
+		emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: 2, Kind: similarity.SearchFinal, Matches: []similarity.Match{{Path: "/stale"}}})
+		close(canceled)
+		<-release
+		return ctx.Err()
+	}
+	f := visualsearch.New(h, visualsearch.Options{Provider: provider, Queue: q})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+		f.Stop()
+		f.Settle()
+	})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	<-started
+	f.Settle()
+	done := f.Suspend()
+	<-canceled
+	select {
+	case <-done:
+		t.Fatal("suspension completed while the retired provider could still write")
+	default:
+	}
+	q.Drain()
+	if !f.State().Active || !reflect.DeepEqual(f.State().Visit.Paths, []string{"/b"}) || len(h.presented) != 1 {
+		t.Fatalf("suspension or stale publication changed browsing: %+v", f.State())
+	}
+	close(release)
+	<-done
+	f.Settle()
+	if len(h.errors) != 0 {
+		t.Fatalf("expected cancellation reported as failure: %v", h.errors)
+	}
+	f.Back()
+	if h.current.ImagePath != "/origin" {
+		t.Fatal("suspension lost origin")
+	}
+}
+
+func TestVisualSearchLifecycleSuspendRestartsOnlyForExplicitQuery(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	cache := similarity.CachePolicy{LooseEnabled: true, Roots: similarity.CacheRoots{GeneralDir: "/cache"}}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Cache: cache})
+	first := <-calls
+	query := <-first.queries
+	publish(first, query, 1, similarity.SearchFinal, "/b", "/c")
+	f.Settle()
+	f.Explore("/b")
+	query = <-first.queries
+	publish(first, query, 2, similarity.SearchFinal, "/c")
+	f.Settle()
+	publish(first, query, 3, similarity.SearchPartial, "/stale")
+	<-f.Suspend()
+	f.Settle()
+	f.Back()
+	if len(calls) != 0 || f.State().Visit.ReferencePath != "/a" {
+		t.Fatal("Back after suspension triggered preparation or lost history")
+	}
+	if !f.Explore("/c") {
+		t.Fatal("explicit reference could not restart suspended session")
+	}
+	second := <-calls
+	if first.request.SessionID == second.request.SessionID || !reflect.DeepEqual(second.request.Paths, []string{"/a", "/b", "/c"}) || second.request.Cache != cache {
+		t.Fatalf("restart lost original worker contract: %+v", second.request)
+	}
+	newQuery := <-second.queries
+	publish(second, newQuery, 1, similarity.SearchFinal, "/a")
+	publish(first, query, 99, similarity.SearchFinal, "/retired-session")
+	f.Settle()
+	if !reflect.DeepEqual(h.current.Paths, []string{"/a"}) {
+		t.Fatalf("retired session replaced restarted session: %+v", h.current)
+	}
+	publish(second, newQuery, 2, similarity.SearchPartial, "/after-stop")
+	f.Stop()
+	f.Wait()
+	q.Drain()
+	if f.Start(visualsearch.StartRequest{Paths: []string{"/a"}, ReferencePath: "/a"}) || f.Explore("/a") || f.Back() || f.State().Active {
+		t.Fatal("terminal shutdown admitted new work")
+	}
+	if len(h.presented) != 3 {
+		t.Fatalf("shutdown delivered stale pixels: %d", len(h.presented))
+	}
+}
+
+func TestVisualSearchLifecycleCancellationBeforeAdmissionAndLatestBoundedQuery(t *testing.T) {
+	f, _, _, calls := newSearch(t)
+	after := make(chan struct{})
+	request := visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", After: after}
+	f.Start(request)
+	f.Close()
+	close(after)
+	f.Settle()
+	if len(calls) != 0 {
+		t.Fatal("native producer entered before predecessor retirement")
+	}
+	after = make(chan struct{})
+	request.After = after
+	f.Start(request)
+	for range 50 {
+		f.Explore("/b")
+		f.Explore("/c")
+	}
+	close(after)
+	call := <-calls
+	query := <-call.queries
+	if query.ReferencePath != "/c" {
+		t.Fatalf("pending queries were not coalesced: %+v", query)
+	}
+	select {
+	case extra := <-call.queries:
+		t.Fatalf("obsolete query retained in bounded lane: %+v", extra)
+	default:
+	}
+	publish(call, query, 1, similarity.SearchFinal, "/a")
+	f.Settle()
+}
+
+func TestVisualSearchLifecycleUnexpectedExitReportsTerminalFailure(t *testing.T) {
+	for _, failure := range []error{nil, errors.New("source version changed")} {
+		t.Run(fmt.Sprint(failure), func(t *testing.T) {
+			f, h, _, calls := newSearch(t)
+			f.Start(visualsearch.StartRequest{Paths: []string{"/a"}, ReferencePath: "/a"})
+			call := <-calls
+			<-call.queries
+			call.exit <- failure
+			f.Settle()
+			if len(h.errors) != 1 {
+				t.Fatalf("uncompleted query did not report producer exit: %v", h.errors)
+			}
+			var terminal visualsearch.SessionError
+			if !errors.As(h.errors[0], &terminal) {
+				t.Fatalf("producer exit is not distinguished from query failure: %v", h.errors[0])
+			}
+			if failure != nil && !errors.Is(terminal, failure) {
+				t.Fatal("terminal wrapper lost the provider error identity")
+			}
+			if f.State().Pending || f.State().Preparing || len(f.State().Visit.Paths) != 0 {
+				t.Fatalf("exit invented a successful visit: %+v", f.State())
+			}
+		})
+	}
+}
+
+func TestVisualSearchCaptureGridKeepsImageAnchorWithNewestResultPaths(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
+	call := <-calls
+	query := <-call.queries
+	publish(call, query, 1, similarity.SearchPartial, "/b")
+	q.Drain()
+	queueVisit := grid.Visit{Paths: []string{"/b"}, Results: []string{"/b"}, Selected: []string{"/b"}, Subset: []string{"/b"}, Highlight: "/b", Query: "b", ScrollOffset: 30}
+	f.CaptureGrid(queueVisit)
+	queueVisit.Paths[0], queueVisit.Results[0], queueVisit.Selected[0], queueVisit.Subset[0] = "/mutated", "/mutated", "/mutated", "/mutated"
+	h.current = f.State().Visit
+	h.current.ImagePath = "/b"
+	h.hold = true
+	publish(call, query, 2, similarity.SearchFinal, "/c", "/b")
+	f.Settle()
+	f.Explore("/c")
+	query = <-call.queries
+	h.hold = false
+	publish(call, query, 3, similarity.SearchFinal, "/a")
+	f.Settle()
+	f.Back()
+	if !reflect.DeepEqual(h.current.Paths, []string{"/c", "/b"}) || h.current.ImagePath != "/b" {
+		t.Fatalf("capturing the older image surface lost newest ranking: %+v", h.current)
+	}
+	got := h.current.Grid
+	if !reflect.DeepEqual(got.Paths, []string{"/b"}) || !reflect.DeepEqual(got.Results, []string{"/b"}) || !reflect.DeepEqual(got.Selected, []string{"/b"}) || !reflect.DeepEqual(got.Subset, []string{"/b"}) || got.Query != "b" || got.ScrollOffset != 30 {
+		t.Fatalf("image admission anchor was aliased or replaced: %+v", got)
+	}
+}
+
+func TestVisualSearchCanceledSuccessorRetainsExternalRetirementBarrier(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f, _, _, calls := newSearch(t)
+		after := make(chan struct{})
+		defer close(after)
+		f.Start(visualsearch.StartRequest{Paths: []string{"/a"}, ReferencePath: "/a", After: after})
+		done := f.Suspend()
+		synctest.Wait()
+		select {
+		case <-done:
+			t.Fatal("canceled successor completed before the external writer retired")
+		default:
+		}
+		if len(calls) != 0 {
+			t.Fatal("canceled successor admitted native work")
+		}
+	})
+}

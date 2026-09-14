@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	"runtime"
 	"sync"
 
@@ -52,6 +53,16 @@ type Sink interface {
 type Preview struct {
 	image.Image
 	SourceVersion string
+}
+
+// RGBA64At preserves the standard image interface through the version wrapper.
+// The scaler used by Fyne requires it when drawing into an RGBA64Image.
+func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
+	if source, ok := p.Image.(image.RGBA64Image); ok {
+		return source.RGBA64At(x, y)
+	}
+	r, g, b, a := p.At(x, y).RGBA()
+	return color.RGBA64{R: uint16(r), G: uint16(g), B: uint16(b), A: uint16(a)}
 }
 
 // Sync brings favDir's previews in line with files: every file ends up with

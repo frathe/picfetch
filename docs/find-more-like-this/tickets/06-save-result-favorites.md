@@ -1,7 +1,7 @@
 # 06: Save a captured result as a Favorite
 
 Ticket: FML-006
-Status: ready-for-agent
+Status: implemented; current review/CI gate is tracked in [PR #25](https://github.com/frathe/picfetch/pull/25).
 Approval: /implement use tdd and sdd, 2026-09-14. Dependencies still gate admission.
 Owner: T0 lead; design, review and fixes remain lead-owned.
 Budget: zero spawns; at most two lead review rounds; focused checks.
@@ -23,3 +23,5 @@ Budget: zero spawns; at most two lead review rounds; focused checks.
 **Demo / completion evidence:** Open a naming dialog, allow another ranked batch to arrive, then save and confirm that Favorite membership still matches the invocation-time list.
 
 **Execution:** [FML-006 file map, contracts and verification](../ticket-execution.md#fml-006).
+
+Implementation and executable evidence: [continuation record](../../../finished_refactorings/2026-09-14-find-more-like-this.md).

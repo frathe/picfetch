@@ -512,6 +512,93 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		explorerTag(t, v, "Drink", 1)
 	})
 
+	t.Run("new_search_favorite_reuses_general_analysis", func(t *testing.T) {
+		before := preferences.Load(testApp)
+		t.Cleanup(func() { preferences.Save(testApp, before) })
+		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PICFETCH_SIMILARITY_ASSETS", assets)
+		v := openGridWith(t, "a.jpg", "b.jpg")
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
+			options.Settings.CacheFavorites = true
+		})
+		v.settings.looseAnalysisCache = true
+		root := t.TempDir()
+		v.favorites.SetDir(root)
+		files := []fyne.URI{v.FileAt(0), v.FileAt(1)}
+		paths := []string{files[0].Path(), files[1].Path()}
+		v.findMoreLikeThis()
+		v.visualsearch.Settle()
+		if len(v.grid.ResultIndexes()) != 2 {
+			t.Fatal("production search did not prepare its sources")
+		}
+		if err := favstore.Save(root, "Search matches", files); err != nil {
+			t.Fatal(err)
+		}
+		v.OpenFavorite(favstore.Dir(root, "Search matches"), files)
+		waitForScan(t, v)
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		v.showExplorer()
+		v.settleExplorer()
+		want := fmt.Sprintf(lang.L("%d reused"), 2)
+		reused := false
+		explorerWalk(v.win.Content(), func(object fyne.CanvasObject) {
+			if label, ok := object.(*widget.Label); ok && strings.Contains(label.Text, want) {
+				reused = true
+			}
+		})
+		if !v.explorer.State().Complete || !reused {
+			t.Fatal("newly saved Favorite repeated inference instead of reusing general analysis")
+		}
+		var final similarity.Event
+		client := similarity.Client{Assets: assets, FavoritesDir: root}
+		if err := client.Analyze(context.Background(), paths, nil, func(event similarity.Event) { final = event }); err != nil {
+			t.Fatal(err)
+		}
+		if final.Reused != 2 || final.Measurements.InferenceAttempts != 0 {
+			t.Fatalf("general hits were not promoted for Favorite-only reopening: reused=%d inference=%d", final.Reused, final.Measurements.InferenceAttempts)
+		}
+		analysisDir := filepath.Join(favstore.Dir(root, "Search matches"), "analysis")
+		entries, err := os.ReadDir(analysisDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		versions := map[string]os.FileInfo{}
+		for _, entry := range entries {
+			info, err := entry.Info()
+			if err != nil {
+				t.Fatal(err)
+			}
+			versions[entry.Name()] = info
+		}
+		v.LeaveSimilarityMap()
+		previous := v.settingsState()
+		next := previous
+		next.SimilarityFavoriteCache = false
+		v.ApplySettings(previous, next)
+		v.showExplorer()
+		v.settleExplorer()
+		status := fmt.Sprintf(lang.L("%d ready, %d failed, %d total"), 2, 0, 2)
+		found := false
+		explorerWalk(v.win.Content(), func(object fyne.CanvasObject) {
+			if label, ok := object.(*widget.Label); ok && label.Text == status {
+				found = true
+			}
+		})
+		if !v.explorer.State().Complete || !found {
+			t.Fatal("Favorite opt-out reused analysis through its retained general record")
+		}
+		for name, before := range versions {
+			after, err := os.Stat(filepath.Join(analysisDir, name))
+			if err != nil || !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+				t.Fatalf("Favorite opt-out wrote fresh analysis to %s: %v", name, err)
+			}
+		}
+	})
 	t.Run("favorite_cache", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "ordinary.jpg")
 		root := t.TempDir()

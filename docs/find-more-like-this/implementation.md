@@ -1,6 +1,6 @@
 # Find more like this — implementation evidence
 
-Status: FML-001 tooling implemented; real relevance decision pending
+Status: MVP implemented; review/CI evidence and qualification limits linked below
 Started: 2026-09-14
 Baseline: e6c767e
 Authorization: `/implement use tdd and sdd` approves the proposed breakdown and
@@ -15,13 +15,14 @@ source reads, canonical decoding, ranking and artifact generation remain real.
 The tagged native test drives the actual command and network-denied subprocess.
 This applies the accepted evaluator seam; no new user approval is needed for it.
 
-The twelve MVP tickets are approved, subject to blockers. The first search UI
-still requires a recorded real-image quality decision. MA-026 is complete with
+MVP implementation follows the approved ticket sequence and Ronin's recorded
+qualitative proceed decision. MA-026 is complete with
 full native Linux/amd64 CI qualification. FML-009 remains
 deferred. Existing demo/model assets were reused for the 446-image local
 experiment. The [evaluation record](evaluation.md) links its interactive report
-and measured evidence. Twenty content judgments and a human proceed/revise
-decision remain required; neither timing nor synthetic tests supplies them.
+and measured evidence. Ronin approved proceeding from his overall review and
+waived exhaustive per-item judgments. P@10 and exhaustive semantic coverage
+remain unmeasured; neither timing nor synthetic tests supplies them.
 
 ## TDD record
 
@@ -59,7 +60,7 @@ Sparse fixtures cover an unreadable file, failed encodes, wrong vector length,
 zero/NaN/infinite vectors, a distinct identical copy, and an eligible negative
 cosine match. These checks do not claim real hard-negative relevance labels.
 
-## Lead review and verification
+## Historical FML-001 lead review and verification
 
 The code-review skill's standards and spec axes were performed by T0, as the
 project working agreement requires. Baseline `e6c767e` plus all uncommitted/new
@@ -73,8 +74,9 @@ syntax inside JavaScript. Narrow `HtmlUnknownTarget` suppressions cover only
 generated sibling evidence and preview links; their files are checked by the
 command/fixture output. Both new test files have exact Qodana exclusions.
 
-Spec: technical FML-001 output is implemented. The required real relevance
-judgments and proceed/revise verdict remain open. Production search, general
+Historical FML-001 handoff: technical output was implemented while relevance
+judgments and the proceed/revise verdict were still open. Ronin subsequently
+approved proceeding from his overall review; individual judgments remain unmeasured. Production search, general
 cache and other-platform qualification are not claimed by this experiment.
 
 Observed checks:
@@ -114,18 +116,18 @@ with focused race, native worker, build, GoLand and full native Linux/amd64 CI
 evidence. Its [existing tracker anchor](../../needs_refactoring.md#ma-026) remains
 available for dependency links.
 
-## Open delivery work
+## Delivery record
 
 - [x] Complete command dispatch and tagged native search evidence.
 - [x] Pin failure/cancellation, malformed-vector, sparse-result and corpus-bound guards.
 - [x] Complete first-partial, warm-query, 10,000-vector and Favorite-reuse measurements.
 - [x] Finish the local relevance-review controls and judgment export.
-- [ ] Collect the required real-image judgments and confirm semantic case coverage.
-- [ ] Record FML-001's proceed/revise decision before FML-002.
+- Exhaustive real-image judgments were waived by Ronin; quantitative precision and semantic case coverage remain unmeasured.
+- [x] Record Ronin's qualitative FML-001 proceed decision before FML-002.
 - [x] Complete the separately tracked MA-026 prerequisite and full native CI qualification.
-- [ ] Continue the approved ticket frontier through final qualification.
+- [x] Implement the approved MVP ticket sequence and record verified scope and qualification limits in the continuation record.
 
-## Cost and verification
+## Historical FML-001 cost and verification
 
 Two bounded read-only tasks reuse the existing Scout: locate approved local
 corpus/assets/relevance evidence, then inventory Explorer ownership for MA-026.
@@ -135,8 +137,9 @@ and review. This is within the two-Scout-task recon budget.
 The evaluator adds no dependency, native runtime or model asset. Existing
 distribution obligations remain for final feature qualification. Full native
 Linux/amd64 verification passed in [PR #24's CI](https://github.com/frathe/picfetch/actions/runs/34829485376)
-for `28d65ef`. Human semantic qualification and the remaining tickets are not
-complete. Update this record as each cycle closes.
+for `28d65ef`. At that evaluator handoff, human semantic qualification and the
+remaining tickets were still open. The accepted decision and subsequent MVP
+implementation are recorded below.
 
 ## PR #24 review fixes
 
@@ -159,3 +162,15 @@ GoLand inspections of the changed HTML, JavaScript and workflow report no issues
 The GitHub review loop requires a fresh clean code/security review and passing
 CI for the latest pushed fix; [PR #24](https://github.com/frathe/picfetch/pull/24)
 records the review dispositions and current results.
+
+
+## MVP continuation after qualitative acceptance
+
+Ronin accepted the overall search results on September 14 and explicitly waived
+exhaustive item-by-item grading. Production search, visits, ordinary actions,
+Favorite capture and cache management are implemented on
+`feature/find-more-like-this`. The [continuation record](../../finished_refactorings/2026-09-14-find-more-like-this.md)
+contains behavioral red/green evidence, native reuse timings, local checks and
+the [live PR review/CI gate](https://github.com/frathe/picfetch/pull/25). [Dependency qualification](dependency-qualification.md)
+records unchanged assets and existing distribution evidence gaps. No P@10 score
+or unrun platform acceptance is claimed.

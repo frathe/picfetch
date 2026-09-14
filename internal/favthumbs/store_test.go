@@ -13,6 +13,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+	"golang.org/x/image/draw"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -521,5 +522,17 @@ func TestReadContext_CancelledBeforeCacheLookup(t *testing.T) {
 	img, ok, err := ReadContext(ctx, dir, src)
 	if img != nil || ok || !errors.Is(err, context.Canceled) {
 		t.Errorf("cancelled cache lookup = %T, %v, %v", img, ok, err)
+	}
+}
+
+func TestVersionedPreviewPreservesScaledPixels(t *testing.T) {
+	source := newTransparentThumb(4, 4)
+	source.SetNRGBA(2, 2, color.NRGBA{R: 130, G: 90, B: 40, A: 180})
+	preview := &Preview{Image: source}
+	want, got := image.NewNRGBA(image.Rect(0, 0, 12, 12)), image.NewNRGBA(image.Rect(0, 0, 12, 12))
+	draw.ApproxBiLinear.Scale(want, want.Bounds(), source, source.Bounds(), draw.Src, nil)
+	draw.ApproxBiLinear.Scale(got, got.Bounds(), preview, preview.Bounds(), draw.Src, nil)
+	if !bytes.Equal(got.Pix, want.Pix) {
+		t.Fatal("versioned preview lost pixels during scaling")
 	}
 }

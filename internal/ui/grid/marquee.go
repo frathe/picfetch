@@ -196,6 +196,7 @@ func (g *Overview) marqueeDragged(ev *fyne.DragEvent) {
 }
 
 func (g *Overview) marqueeDragEnd() {
+	defer g.flushRanked()
 	if g.marqueeDisarmed || !g.marqueeDragging {
 		g.marqueeDisarmed = false
 		g.marqueeDragging = false
@@ -240,6 +241,7 @@ func (g *Overview) hideMarqueeRect() {
 }
 
 func (g *Overview) cancelMarquee() {
+	defer g.flushRanked()
 	changed := !slices.Equal(g.sel.Indices(), g.marqueeSaved)
 	g.sel.Replace(g.marqueeSaved)
 	g.wrap.Refresh()

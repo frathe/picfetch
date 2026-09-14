@@ -285,6 +285,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 // current when it finishes is the one and only writer of both fields for
 // that landing.
 func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, favoriteDir string) {
+	v.closeVisualSearch()
 	var unsorted []fyne.URI
 	if merging {
 		// Copied rather than appended onto v.state.unsortedFiles directly - same

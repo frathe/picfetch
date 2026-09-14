@@ -30,11 +30,12 @@ import (
 // as method values on the viewer, and every handler stays there: this
 // package never decides what an item does, only whether it is available.
 type Callbacks struct {
-	OpenFiles    func()
-	SaveRotation func()
-	PromptExport func()
-	CloseFiles   func()
-	ShowSettings func()
+	FindMoreLikeThis func()
+	OpenFiles        func()
+	SaveRotation     func()
+	PromptExport     func()
+	CloseFiles       func()
+	ShowSettings     func()
 
 	ShowViewer       func()
 	ShowExplorer     func()
@@ -66,34 +67,36 @@ type Callbacks struct {
 // A Host interface for this would need a dozen methods and would leave
 // the coupling implicit; a value makes it explicit and testable.
 type State struct {
-	ExplorerActive   bool
-	ExplorerCanRetry bool
-	CohortActive     bool
 	// SortMode is the mode whose entry in the Sort order submenu is checked.
 	SortMode filesort.Mode
 	// VariantGroupSize is the duplicate-group size of the file a variant
 	// browse would start from. "Show variants" needs at least 2.
 	VariantGroupSize int
 
-	NoFiles            bool // nothing is loaded at all
-	GridUp             bool // the grid overview is showing
-	NoImage            bool // no decoded frame, so nothing to rotate or zoom
-	SlidesActive       bool // picture-frame mode is running
-	ExifOpen           bool // the EXIF window is already open
-	ManualOpen         bool // the manual window is already open
-	Displayed          bool // there is a current file on display
-	MergeMode          bool
-	HideDuplicates     bool
-	BrowsingDuplicates bool
-	VariantsSession    bool // browsing duplicates, or inspecting a group
-	InfoVisible        bool
-	CanSave            bool // a pending rotation can be written back
-	CanExport          bool
-	CanWallpaper       bool
-	CanCopySelection   bool
-	CanCompare         bool
-	CanMosaic          bool
-	ComparisonActive   bool // comparison exclusively owns main-window commands
+	NoFiles             bool // nothing is loaded at all
+	GridUp              bool // the grid overview is showing
+	NoImage             bool // no decoded frame, so nothing to rotate or zoom
+	SlidesActive        bool // picture-frame mode is running
+	ExifOpen            bool // the EXIF window is already open
+	ManualOpen          bool // the manual window is already open
+	Displayed           bool // there is a current file on display
+	MergeMode           bool
+	HideDuplicates      bool
+	BrowsingDuplicates  bool
+	VariantsSession     bool // browsing duplicates, or inspecting a group
+	InfoVisible         bool
+	CanSave             bool // a pending rotation can be written back
+	CanExport           bool
+	CanWallpaper        bool
+	CanCopySelection    bool
+	CanCompare          bool
+	CanFindMoreLikeThis bool
+	ExplorerActive      bool
+	ExplorerCanRetry    bool
+	CohortActive        bool
+	SearchActive        bool
+	CanMosaic           bool
+	ComparisonActive    bool // comparison exclusively owns main-window commands
 }
 
 // Menus holds every menu item whose Checked or Disabled state moves at
@@ -129,21 +132,22 @@ type WindowItems struct {
 // ActionItems are the Actions menu's items: sort, duplicates, image
 // transforms, merge/info toggles, clipboard, reveal, wallpaper, and trash.
 type ActionItems struct {
-	sort          []*fyne.MenuItem // len 5, index matches filesort.Modes()
-	hide          *fyne.MenuItem
-	showVariant   *fyne.MenuItem
-	compare       *fyne.MenuItem
-	rotate        *fyne.MenuItem
-	zoomIn        *fyne.MenuItem
-	zoomOut       *fyne.MenuItem
-	merge         *fyne.MenuItem
-	info          *fyne.MenuItem
-	copy          *fyne.MenuItem
-	copySelection *fyne.MenuItem
-	copyPath      *fyne.MenuItem
-	reveal        *fyne.MenuItem
-	wallpaper     *fyne.MenuItem
-	trash         *fyne.MenuItem
+	findMoreLikeThis *fyne.MenuItem
+	sort             []*fyne.MenuItem // len 5, index matches filesort.Modes()
+	hide             *fyne.MenuItem
+	showVariant      *fyne.MenuItem
+	compare          *fyne.MenuItem
+	rotate           *fyne.MenuItem
+	zoomIn           *fyne.MenuItem
+	zoomOut          *fyne.MenuItem
+	merge            *fyne.MenuItem
+	info             *fyne.MenuItem
+	copy             *fyne.MenuItem
+	copySelection    *fyne.MenuItem
+	copyPath         *fyne.MenuItem
+	reveal           *fyne.MenuItem
+	wallpaper        *fyne.MenuItem
+	trash            *fyne.MenuItem
 }
 
 // New builds every item with its label, its accelerator, and the Disabled
@@ -231,6 +235,9 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	}
 	m.actions.showVariant.Disabled = true
 
+	m.actions.findMoreLikeThis = fyne.NewMenuItem(lang.L("Find more like this"), c.FindMoreLikeThis)
+	m.actions.findMoreLikeThis.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift}
+	m.actions.findMoreLikeThis.Disabled = true
 	m.actions.compare = fyne.NewMenuItem(lang.L("Compare selected images"), c.Compare)
 	m.actions.compare.Shortcut = &desktop.CustomShortcut{
 		KeyName:  fyne.KeyD,
@@ -331,7 +338,7 @@ func (m *Menus) FileMenu() *fyne.Menu {
 // what can be done with the current file.
 func (m *Menus) ActionsMenu() *fyne.Menu {
 	return fyne.NewMenu(lang.L("Actions"),
-		m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare,
+		m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.findMoreLikeThis,
 		fyne.NewMenuItemSeparator(),
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		fyne.NewMenuItemSeparator(),
@@ -443,13 +450,17 @@ func (m *Menus) Apply(s State) (changed bool) {
 	m.applyActions(s)
 	m.applyComparisonIsolation(s.ComparisonActive)
 	if s.ExplorerActive {
-		for _, item := range []*fyne.MenuItem{m.save, m.export, m.window.exif, m.window.grid, m.window.pictureFrame, m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info, m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal, m.actions.wallpaper, m.actions.trash} {
+		for _, item := range []*fyne.MenuItem{m.save, m.export, m.window.exif, m.window.grid, m.window.pictureFrame, m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.findMoreLikeThis, m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info, m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal, m.actions.wallpaper, m.actions.trash} {
 			item.Disabled = true
 		}
 		for _, item := range m.actions.sort {
 			item.Disabled = true
 		}
 		m.window.viewer.Disabled = false
+	}
+	if s.SearchActive {
+		m.actions.hide.Disabled = true
+		m.actions.showVariant.Disabled = true
 	}
 	if s.CohortActive {
 		m.window.viewer.Disabled = s.ComparisonActive
@@ -501,7 +512,7 @@ func (m *Menus) applyComparisonIsolation(active bool) {
 		item.Disabled = true
 	}
 	for _, item := range []*fyne.MenuItem{
-		m.actions.hide, m.actions.showVariant, m.actions.compare, m.window.mosaic,
+		m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.findMoreLikeThis, m.window.mosaic,
 		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
 		m.actions.merge, m.actions.info, m.actions.copy,
 		m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
@@ -543,6 +554,7 @@ func (m *Menus) applyActions(s State) {
 	canShowVariants := s.HideDuplicates && s.VariantGroupSize >= 2
 	m.actions.showVariant.Disabled = noFiles || s.SlidesActive || !(canShowVariants || s.BrowsingDuplicates)
 	m.actions.compare.Disabled = !s.CanCompare
+	m.actions.findMoreLikeThis.Disabled = !s.CanFindMoreLikeThis
 
 	rotZoomOff := noImage || gridUp
 	m.actions.rotate.Disabled = rotZoomOff
@@ -578,7 +590,7 @@ func (m *Menus) pairs() []pair {
 		m.window.pictureFrame, m.window.help)
 	items = append(items, m.sortParent)
 	items = append(items, m.actions.sort...)
-	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.window.mosaic, m.actions.rotate,
+	items = append(items, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.findMoreLikeThis, m.window.mosaic, m.actions.rotate,
 		m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info,
 		m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
 		m.actions.wallpaper, m.actions.trash)

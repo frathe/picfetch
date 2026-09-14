@@ -45,9 +45,9 @@ func (f *Feature) Open(request OpenRequest) bool {
 	analyze := f.analyze
 	if analyze == nil {
 		client := f.client
-		if f.cacheFavorites {
-			client.FavoritesDir = request.FavoritesDir
-		}
+		client.GeneralAnalysisDir = request.GeneralAnalysisDir
+		client.FavoritesDir = request.FavoritesDir
+		client.DisableFavoriteCache = !f.cacheFavorites
 		analyze = client.Analyze
 	}
 	cacheWarningReported := false
@@ -58,9 +58,32 @@ func (f *Feature) Open(request OpenRequest) bool {
 	f.trialEvent = 0
 	f.cohortStore, f.cohortLoadErr = nil, nil
 	f.cohortSaving = false
+	previous, before := f.analysisDone, f.analysisBefore
+	done := make(chan struct{})
+	f.analysisDone = done
 	f.workers.Go(func() {
+		defer func() {
+			for _, barrier := range []<-chan struct{}{previous, before} {
+				if barrier != nil {
+					<-barrier
+				}
+			}
+			close(done)
+		}()
 		workerErr := context.Canceled
 		defer func() { trial.Exited(run, workerErr) }()
+		for _, barrier := range []<-chan struct{}{previous, before} {
+			if barrier != nil {
+				select {
+				case <-barrier:
+				case <-token.context().Done():
+					return
+				}
+			}
+		}
+		if !token.current() {
+			return
+		}
 		if favoriteDir != "" {
 			store, groups, err := favstore.OpenCohorts(token.context(), favoriteDir)
 			if err == nil && !store.Contains(paths) {

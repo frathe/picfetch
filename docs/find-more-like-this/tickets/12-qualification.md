@@ -1,7 +1,7 @@
 # 12: Qualify the complete feature on supported desktops
 
 Ticket: FML-008
-Status: ready-for-agent
+Status: verified scope and remaining qualification limits are recorded in the continuation evidence; latest checks are in [PR #25](https://github.com/frathe/picfetch/pull/25).
 Approval: /implement use tdd and sdd, 2026-09-14. Dependencies still gate admission.
 Owner: T0 lead; design, review and fixes remain lead-owned.
 Budget: zero spawns; at most two lead review rounds; full final gate.
@@ -23,3 +23,5 @@ Budget: zero spawns; at most two lead review rounds; full final gate.
 **Demo / completion evidence:** Recorded native runs and repository checks establish what is supported, measured and still unverified before feature acceptance.
 
 **Execution:** [FML-008 file map, contracts and verification](../ticket-execution.md#fml-008).
+
+Implementation and executable evidence: [continuation record](../../../finished_refactorings/2026-09-14-find-more-like-this.md).

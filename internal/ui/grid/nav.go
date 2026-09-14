@@ -184,6 +184,10 @@ func (g *Overview) escape() {
 		g.ClearSelection()
 	case g.searching:
 		g.clearSearch()
+	case g.ranked != nil:
+		if back := g.ranked.Back; back != nil {
+			back()
+		}
 	case g.subset != nil:
 		g.Close()
 	case g.browseHost >= 0:

@@ -148,6 +148,23 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 		}
 	}
 
+	if g.ranked != nil {
+		byPath := make(map[string]int, len(g.matches))
+		for _, i := range g.matches {
+			path := g.host.FileAt(i).Path()
+			if _, ok := byPath[path]; !ok {
+				byPath[path] = i
+			}
+		}
+		g.matches = make([]int, 0, len(g.ranked.Paths))
+		for _, path := range g.ranked.Paths {
+			if i, ok := byPath[path]; ok {
+				g.matches = append(g.matches, i)
+				delete(byPath, path)
+			}
+		}
+	}
+
 	g.filterGen.Add(1)
 
 	// GridWrap's renderer does not exist until the overlay has been shown.
@@ -216,6 +233,16 @@ func (g *Overview) restoreHighlight(host int) {
 // active, and each half appears on its own: a selection built without ever
 // opening the search shows only its count, and vice versa.
 func (g *Overview) syncTopBar() {
+	defer func() {
+		if g.topBar == nil {
+			return
+		}
+		if g.searchBar.Visible() || g.rankedBar.Visible() {
+			g.topBar.Show()
+		} else {
+			g.topBar.Hide()
+		}
+	}()
 	if g.analyze != nil {
 		if g.onAnalyze != nil && g.subset != nil {
 			g.analyze.Show()
@@ -229,7 +256,7 @@ func (g *Overview) syncTopBar() {
 		}
 	}
 	if g.subsetBack != nil {
-		if g.subset != nil {
+		if g.subset != nil && g.ranked == nil {
 			g.subsetBack.Show()
 		} else {
 			g.subsetBack.Hide()
@@ -242,7 +269,9 @@ func (g *Overview) syncTopBar() {
 		g.searchLabel.Show()
 		g.countLabel.Show()
 	case g.subset != nil:
-		if g.onAnalyze != nil {
+		if g.ranked != nil {
+			g.searchLabel.SetText(lang.L("Find more like this"))
+		} else if g.onAnalyze != nil {
 			g.searchLabel.SetText(lang.L("Showing Unassigned"))
 		} else {
 			g.searchLabel.SetText(lang.L("Showing similarity cohort"))

@@ -23,6 +23,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
 	"github.com/frathe/picfetch/internal/ui/spiral"
+	searchui "github.com/frathe/picfetch/internal/ui/visualsearch"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/ui/zoom"
 	"github.com/frathe/picfetch/internal/wingesture"
@@ -115,6 +116,8 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 		App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
 		Settings: explorerui.Settings{CacheFavorites: prefs.SimilarityFavoriteCache, AutoFit: prefs.SimilarityAutoFit, Automatic: prefs.SimilarityAutoUpdate, IntroSeen: prefs.SimilarityIntroSeen},
 	})
+	view.visualsearch = searchui.New(searchHost{view}, searchui.Options{})
+	view.grid.SetOnRankedOpen(view.searchImageOpened)
 	view.compare = compareui.New(
 		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 			return view.compareLoad(ctx, uri)
@@ -177,5 +180,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.slides.SetShuffle(prefs.SlideShuffle)
 
 	view.settingsWin = settingswin.New(application, view)
-	view.favorites = favorites.New(view, window)
+	view.favorites = favorites.New(favoriteListHost{view}, window)
+	view.favorites.SetOnDialogClosed(view.flushSearchPresentation)
+	view.registerAnalysisCache(prefs)
 }

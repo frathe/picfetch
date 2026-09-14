@@ -23,6 +23,9 @@ func (v *viewer) toggleSort() {
 // before any files are ever loaded, unlike toggleSort's own S-key call
 // site, which is gated behind handleKeyEvent's len(v.state.files)<2 guard.
 func (v *viewer) SetSortMode(m filesort.Mode) {
+	if v.searchActive() {
+		v.visualsearch.Exit()
+	}
 	if len(v.state.files) == 0 {
 		v.invalidateSort()
 		v.state.SetSortMode(m)

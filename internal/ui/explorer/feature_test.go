@@ -2,8 +2,11 @@ package explorer_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"image/color"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -13,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/explorerpresets"
+	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -269,5 +273,40 @@ func TestFeatureCloseReopenAndStop(t *testing.T) {
 				t.Fatal("retired delivery reopened the feature")
 			}
 		})
+	}
+}
+
+func TestFeatureCanceledBarrierRecordsTrialExit(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	dir := filepath.Join(t.TempDir(), "trial")
+	trial, err := explorertrial.New(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := &featureHost{win: app.NewWindow("Explorer")}
+	analyzed := false
+	f := explorer.NewFeature(host, explorer.Options{App: app, Queue: &uitest.UIQueue{}, Trial: trial, Analyze: func(_ context.Context, _ []string, _ <-chan similarity.Control, _ func(similarity.Event)) error {
+		analyzed = true
+		return nil
+	}})
+	barrier := make(chan struct{})
+	f.WaitBefore(barrier)
+	f.Open(explorer.OpenRequest{Sources: []string{"/a.jpg"}})
+	f.Close()
+	close(barrier)
+	f.Settle()
+	f.Stop()
+	_ = trial.Close() // A canceled-only trial intentionally remains uncollected.
+	data, err := os.ReadFile(filepath.Join(dir, "session.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary explorertrial.Summary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		t.Fatal(err)
+	}
+	if analyzed || len(summary.Analyses) != 1 || summary.Analyses[0].Outcome != "canceled" {
+		t.Fatalf("canceled predecessor wait lost exit observation: analyzed=%v summary=%+v", analyzed, summary)
 	}
 }

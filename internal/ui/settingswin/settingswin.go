@@ -66,6 +66,8 @@ type Window struct {
 	app                   fyne.App
 	host                  Host
 	updatesManagedByStore bool
+	cacheContent          func() fyne.CanvasObject
+	cacheClosed           func()
 
 	// prefs is the form snapshot Show seeded, mutated by each control, and
 	// pushed back through Host.ApplySettings. Ignored while the window is
@@ -117,6 +119,21 @@ func New(application fyne.App, host Host) *Window {
 	return &Window{app: application, host: host}
 }
 
+// SetCacheTab composes the analysis-cache feature without sharing preferences
+// or its worker lifetime with the Settings form.
+func (w *Window) SetCacheTab(content func() fyne.CanvasObject, closed func()) {
+	w.cacheContent, w.cacheClosed = content, closed
+}
+
+// ConfirmClearAnalysis owns confirmation on the live Settings window.
+func (w *Window) ConfirmClearAnalysis(answer func(bool)) {
+	if w.win.Window() == nil {
+		answer(false)
+		return
+	}
+	dialog.ShowConfirm(lang.L("Clear analysis cache"), lang.L("Remove saved image analysis? Your images, Favorites and downloaded models are kept."), answer, w.win.Window())
+}
+
 // Show opens the settings window, or raises it if it's already open.
 // prefs is the standing-preferences snapshot used to seed the form; it is
 // ignored when the window is already showing, so in-flight edits stay put.
@@ -127,6 +144,9 @@ func (w *Window) Show(prefs preferences.State, updatesManagedByStore bool) {
 	}
 	w.win.Show(w.app, lang.L("Settings"), fyne.NewSize(windowW, windowH), w.build, func() {
 		w.closeUpdateFlow()
+		if w.cacheClosed != nil {
+			w.cacheClosed()
+		}
 		w.themeSelect = nil
 		w.sortSelect = nil
 		w.mergeCheck, w.shuffleCheck = nil, nil
@@ -371,12 +391,16 @@ func (w *Window) build() fyne.CanvasObject {
 		updates.Add(w.updateNow)
 	}
 
-	return container.NewAppTabs(
+	tabs := container.NewAppTabs(
 		container.NewTabItem(lang.L("General"), container.NewPadded(container.NewVScroll(general))),
 		container.NewTabItem(lang.L("Appearance"), container.NewPadded(container.NewVScroll(appearanceSettings))),
 		container.NewTabItem(lang.L("Updates"), container.NewPadded(container.NewVScroll(updates))),
 		container.NewTabItem(lang.L("Limits"), container.NewPadded(container.NewVScroll(limitsForm))),
 	)
+	if w.cacheContent != nil {
+		tabs.Append(container.NewTabItem(lang.L("Cache"), container.NewPadded(container.NewVScroll(w.cacheContent()))))
+	}
+	return tabs
 }
 
 // startUpdateCheck owns the Settings window's one manual request. Disabling

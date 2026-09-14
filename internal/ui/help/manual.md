@@ -755,10 +755,44 @@ Open cohorts retain their captured members; reopening uses the latest grouping.
 scans reuse unchanged images with a matching model and preprocessing version;
 changed or invalid entries are scanned again. Grouping and positions are rebuilt
 for the current input; tags are recalculated from the saved representations.
-Cache settings apply when a scan starts. Images outside
-favorites are not saved. Full-library qualification is still in progress.
+Explorer cache settings apply when a scan starts. Explorer saves analysis for
+Favorites; Find more like this also supports caching loose images, as described
+below. Full-library qualification is still in progress.
 
 ---
+
+### Find more like this
+
+Choose **Actions -> Find more like this** or press **Cmd/Ctrl+Shift+L** on a
+displayed image. In Grid, select one image or use the highlighted image with no
+selection. The command is disabled for multiple selected images.
+
+PicFetch compares image content locally across the original loaded collection,
+including merged folders, and shows up to 30 other files. The progress bar counts
+processed images, reused analysis and failures. Results refresh every 100 images
+and when preparation finishes. The first use shares Explorer's explicit model
+setup; searching does not download assets in the background.
+
+Filter results with **/** and use the usual open, copy, comparison, Trash and
+mosaic actions. An opened image keeps that result's navigation order while newer
+matches arrive. **Esc** returns from the image to the current search Grid.
+Choose another reference to search the original collection again. **Back**
+restores earlier results without analysis; PicFetch retains 20 visits. In Grid,
+Esc clears selection or filename search first, then goes Back. **Exit search**
+returns directly to the original view.
+
+**Save matches to Favorites** captures selected matches in the filtered result,
+or the whole filtered result when nothing is selected. During search,
+**Add Current List to Favorites** saves the active ranked list.
+
+**Settings -> Cache** controls persistent analysis for images outside Favorites
+and the general disk limit, initially **2048 MB**. Favorite analysis follows its
+existing preference and does not count against this limit. The tab shows both
+stores and their combined size. **Clear analysis cache** removes derived
+analysis; **Remove stale entries** removes invalid or outdated records, retaining
+records on temporarily inaccessible drives. Images, Favorite lists, previews,
+settings and downloaded models remain. Maintenance stops affected analysis and
+keeps the last usable view; start a new search explicitly to resume preparation.
 
 ## 9. Picture-frame mode
 

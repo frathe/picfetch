@@ -686,6 +686,27 @@ func settingsTabs(t *testing.T, w *Window) *container.AppTabs {
 	return tabs
 }
 
+func TestSettingsCacheTabCompositionAndClose(t *testing.T) {
+	w := New(testApp, &fakeHost{})
+	content := widget.NewLabel("cache contents")
+	closed := 0
+	w.SetCacheTab(func() fyne.CanvasObject { return content }, func() { closed++ })
+	w.Show(preferences.State{}, false)
+	t.Cleanup(func() {
+		if win := w.win.Window(); win != nil {
+			win.Close()
+		}
+	})
+	tabs := settingsTabs(t, w)
+	if len(tabs.Items) != 5 || !containsCanvasObject(tabs.Items[4].Content, content) {
+		t.Fatal("cache content was not attached to Settings")
+	}
+	w.win.Window().Close()
+	if closed != 1 {
+		t.Fatalf("cache close notifications = %d", closed)
+	}
+}
+
 func tabVBox(t *testing.T, item *container.TabItem) *fyne.Container {
 	t.Helper()
 

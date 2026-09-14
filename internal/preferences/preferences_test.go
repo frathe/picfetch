@@ -35,6 +35,21 @@ func TestMosaicPreferencesRotationRange(t *testing.T) {
 	}
 }
 
+func TestAnalysisCachePreferences(t *testing.T) {
+	app := test.NewApp()
+	if got := Load(app); !got.SimilarityLooseCache || got.AnalysisCacheLimitMiB != 2048 {
+		t.Fatalf("fresh analysis policy = %v, %d MiB", got.SimilarityLooseCache, got.AnalysisCacheLimitMiB)
+	}
+	Save(app, State{SimilarityLooseCache: false, AnalysisCacheLimitMiB: 128})
+	if got := Load(app); got.SimilarityLooseCache || got.AnalysisCacheLimitMiB != 128 {
+		t.Fatalf("saved analysis policy = %v, %d MiB", got.SimilarityLooseCache, got.AnalysisCacheLimitMiB)
+	}
+	Save(app, State{SimilarityLooseCache: true, AnalysisCacheLimitMiB: -1})
+	if got := Load(app); !got.SimilarityLooseCache || got.AnalysisCacheLimitMiB != 128 {
+		t.Fatalf("invalid limit replaced accepted policy: %+v", got)
+	}
+}
+
 func TestMosaicPreferences_DefaultsAndRoundTrip(t *testing.T) {
 	app := test.NewApp()
 	if got := Load(app).MosaicSettings; got != mosaic.DefaultSettings() {
@@ -192,21 +207,22 @@ func TestSavePreferences_RoundTrip(t *testing.T) {
 	app := test.NewApp()
 
 	want := State{
-		SortMode:          SortBySize,
-		MergeMode:         true,
-		ThemeMode:         appearance.Dark,
-		SlideInterval:     7 * time.Second,
-		SlideShuffle:      true,
-		MaxScanFiles:      5000,
-		MaxWindowWidth:    1800,
-		MaxWindowHeight:   1100,
-		MaxImageCacheMB:   384,
-		MaxThumbCacheMB:   192,
-		MaxFileSizeMB:     256,
-		WindowSize:        fyne.NewSize(640, 480),
-		WindowPosX:        120,
-		WindowPosY:        340,
-		WindowPositionSet: true,
+		SortMode:              SortBySize,
+		MergeMode:             true,
+		ThemeMode:             appearance.Dark,
+		SlideInterval:         7 * time.Second,
+		SlideShuffle:          true,
+		MaxScanFiles:          5000,
+		MaxWindowWidth:        1800,
+		MaxWindowHeight:       1100,
+		MaxImageCacheMB:       384,
+		MaxThumbCacheMB:       192,
+		AnalysisCacheLimitMiB: 512,
+		MaxFileSizeMB:         256,
+		WindowSize:            fyne.NewSize(640, 480),
+		WindowPosX:            120,
+		WindowPosY:            340,
+		WindowPositionSet:     true,
 		SettingsWindow: WindowGeometry{
 			X: 200, Y: 210, PositionSet: true, Size: fyne.NewSize(470, 440),
 		},

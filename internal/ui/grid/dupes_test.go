@@ -406,10 +406,10 @@ func TestDupBadge_TopRightClearsTheHighlightRing(t *testing.T) {
 
 	cell := newGridCell()
 	_, _, ring, badge := unpackGridCell(cell)
-	if cell.Objects[2] != ring {
+	if cell.Objects[3] != ring {
 		t.Fatal("highlight ring must sit under the badge layer")
 	}
-	if cell.Objects[3] == ring {
+	if cell.Objects[4] == ring {
 		t.Fatal("badge layer must stack above the highlight ring")
 	}
 

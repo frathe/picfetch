@@ -19,6 +19,13 @@ import (
 // group's highest-resolution representative. Without a selection, every
 // member of the filtered Grid result is used.
 func (v *viewer) mosaicSources() ([]fyne.URI, error) {
+	if !v.grid.Visible() && v.searchActive() {
+		var sources []fyne.URI
+		for _, i := range v.activeSearchIndexes() {
+			sources = append(sources, v.FileAt(i))
+		}
+		return sources, nil
+	}
 	if !v.grid.Visible() {
 		sources := make([]fyne.URI, v.FileCount())
 		for i := range sources {
@@ -29,7 +36,7 @@ func (v *viewer) mosaicSources() ([]fyne.URI, error) {
 	indices := v.grid.Selection()
 	if len(indices) == 0 {
 		indices = v.grid.ResultIndexes()
-	} else if !v.grid.BrowsingDuplicates() {
+	} else if !v.grid.BrowsingDuplicates() && !v.searchActive() {
 		visibility := v.dupes.Visibility()
 		if visibility.Hide {
 			resolved := make([]int, 0, len(indices))

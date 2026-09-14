@@ -72,6 +72,16 @@ and assembles the Linux filter for host-independent BPF decision tests.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
+Explorer's analyzer can also read the enabled general store through the shared
+representation store and promote compatible hits into newly saved Favorites;
+its misses retain the existing Favorite-only write policy. Explorer sends Favorite
+membership even when its analysis preference is off, with a separate opt-out
+that blocks both Favorite records and general fallback for those members.
+Producer inventory preserves healthy Favorites alongside per-entry errors;
+incomplete membership disables general reuse/writes for that producer. Cache maintenance
+retains each Favorite directory and list version through inventory and rechecks
+membership before stale removal. Inventory handles unreadable Favorite definitions
+independently so healthy peers remain inspectable and cleanable.
 `encoder.go` (cgo) sets the non-Windows telemetry opt-out before library loading,
 disables telemetry through the runtime API before session creation, and owns
 the pinned native SigLIP 2 session;
@@ -105,6 +115,13 @@ Linux x64/ARM64 and Windows x64/ARM64; native library evidence collection remain
 `platform_darwin_amd64.go` checks the native macOS product version before Intel
 analysis/setup admission (13.4 minimum); `platform_other.go` leaves the other
 platforms' existing admission unchanged. Unknown Intel OS versions fail closed.
+
+Search uses `search_rank.go` for bounded exact cosine top-k and `search.go` for
+the retained, reference-first worker session with progress and 100-source result
+publications. `search_client.go` owns query/event IPC and observes writer and
+subprocess completion; `search_worker.go` uses canonical decoding and compatible
+Favorite representations, validates source versions before publication, and
+retains vectors rather than previews between queries.
 
 ### `internal/ort`
 
@@ -331,6 +348,63 @@ restore their pixels before paint; selection redraws reuse unchanged previews.
 Committed writes through `filework.go` and removals through `viewer.RemoveFile`
 retire the analysis/map while preserving surviving cohort identities;
 `load.go` keeps missing-file retries within the remaining cohort.
+
+### `internal/ui/visualsearch`
+
+Reference-driven browsing over a captured original source scope. `feature.go`
+owns immutable origin/current visits, the latest 20 successful reference visits,
+Back/Exit and branching; `session.go` owns a retained native provider, queued
+session/query/revision delivery, and observable suspension and shutdown. Root
+supplies source identity, Grid presentation and origin restoration through a
+narrow Host. The feature's Settle drains finite query delivery without waiting
+for an idle retained worker; Stop followed by Settle joins retired producers.
+`internal/ui/visualsearch.go` composes command admission, shared Explorer setup,
+ranked Grid visits, captured image order and ordinary file actions. Favorite
+capture resolves ranked paths in one collection pass and exposes one
+`CurrentFiles` snapshot to the naming/overwrite workflow.
+`internal/ui/searchoverlay.go` observes dismissal of generic canvas overlays while
+a result is pending, with one acknowledged UI callback and cancellable, tracked
+worker completion through shutdown and the test harness.
+
+`internal/ui/grid/ranked.go` owns ordered path-based Grid visits, captured
+selection/filter/highlight/scroll state (including duplicate occurrence ordinals),
+determinate progress and deferred
+revision installation during marquee gestures. Rank revisions preserve the
+collection's stable host indexes. The reference leads up to 30 other matches and
+has a purple outline below ordinary selection/highlight feedback. Completion
+hides the progress bar while retaining the result and counts.
+Favorites `AddFiles` captures its list before naming and overwrite dialogs begin.
+The worker retains its top-k between preparation batches; a changed reference
+resets ranking to one full prepared-scope pass.
+
+### `internal/ui/analysiscache`
+
+Owns the Settings Cache tab and serialized inspection, retuning, cleanup and
+automatic eviction. `feature.go` presents measured general/Favorite usage and
+partial reports, and coalesces view inspections behind automatic eviction
+without canceling it. Persistence toggles commit independently of inspection
+success, retire producers on UI and join their barriers even after Settings closes.
+`work.go` captures providers/roots, queues maintenance writer suspension,
+joins completion barriers off UI and suppresses retired view callbacks. Root
+composes the two-method Host in `internal/ui/analysiscache.go`, uses the Fyne
+application cache root, persists accepted policy and disables new analysis
+admission while maintenance owns the roots. Settings supplies the tab slot,
+confirmation window and Close notification without sharing worker state.
+
+`internal/similarity/cache_store.go` routes Favorite-first/general record reuse.
+`cache_payload.go` validates shared representations; `cache_records.go` confines
+inventory to managed records and temporary files. `cache_management.go` reports
+usage and implements conservative stale cleanup/general LRU eviction. Canceled
+maintenance retains its measured remainder after a complete inventory under the
+lease; an interrupted inventory reports its partial counts as incomplete.
+Reconciliation respects cancellation. Missing source paths remain unavailable
+without persisted volume identity, even when their parent directory exists.
+A successful general-only retune persists despite incomplete Favorite usage.
+`cache_lease.go` plus build-tagged `cache_lock_*` provide root epochs and native
+advisory locks shared by Explorer/search subprocess writers and maintenance.
+Old writers cannot publish after a cleanup; installed model/runtime assets are
+outside these roots. The harness drains both new per-instance UI queues and
+production shutdown joins both features after stopping admission.
 
 ### `internal/ui`
 

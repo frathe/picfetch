@@ -40,6 +40,7 @@ func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
 	wireClipboardShortcuts(c, view)
 	wireCopySelectionShortcut(c, view)
 	wireCompareShortcut(yielding, view)
+	yielding.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift}, func(_ fyne.Shortcut) { view.findMoreLikeThis() })
 	wireDeleteShortcut(yielding, view)
 	wireSelectAllShortcut(yielding, view)
 	wireSaveShortcut(yielding, view)

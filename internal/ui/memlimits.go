@@ -62,7 +62,9 @@ type settings struct {
 	// disk" checkbox - see favthumbs.go for its getter/setter pair. Restored
 	// from preferences.State.FavoritePreviewCache in features.go and read
 	// back into it by currentPreferences (run.go).
-	favPreviewCache bool
+	favPreviewCache    bool
+	looseAnalysisCache bool
+	analysisCacheMiB   int
 
 	// checkForUpdates is the settings window's "Check for updates" checkbox -
 	// see autoupdate.go for its getter/setter pair, which delegates to
@@ -230,6 +232,8 @@ func (v *viewer) settingsState() preferences.State {
 		MaxFileSizeMB:           v.MaxFileSizeMB(),
 		FavoritePreviewCache:    v.FavoritePreviewCache(),
 		SimilarityFavoriteCache: v.explorer.Settings().CacheFavorites,
+		SimilarityLooseCache:    v.settings.looseAnalysisCache,
+		AnalysisCacheLimitMiB:   v.settings.analysisCacheMiB,
 		SimilarityAutoUpdate:    v.explorer.Settings().Automatic,
 		SimilarityAutoFit:       v.explorer.Settings().AutoFit,
 		CheckForUpdates:         v.CheckForUpdates(),
@@ -266,6 +270,7 @@ func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {
 		settings := v.explorer.Settings()
 		settings.CacheFavorites = on
 		v.explorer.ApplySettings(settings)
+		v.visualsearch.SetCachePolicy(v.searchCachePolicy())
 	})
 	applySettingChange(prev.SimilarityAutoFit, next.SimilarityAutoFit, func(on bool) {
 		settings := v.explorer.Settings()

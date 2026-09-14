@@ -1,7 +1,7 @@
 # 02: Find matches and return to the original list
 
 Ticket: FML-002
-Status: ready-for-agent
+Status: implemented; current review/CI gate is tracked in [PR #25](https://github.com/frathe/picfetch/pull/25).
 Approval: /implement use tdd and sdd, 2026-09-14. Dependencies still gate admission.
 Owner: T0 lead; design, review and fixes remain lead-owned.
 Budget: zero spawns; at most two lead review rounds; focused checks.
@@ -27,3 +27,8 @@ The [MA-026 Explorer extraction](../../../needs_refactoring.md#ma-026) prerequis
 **Demo / completion evidence:** Search from a merged collection, open a match, and Exit back to the same original visit. Reference chaining and automatic partial-result publication arrive in later tickets.
 
 **Execution:** [FML-002 file map, contracts and verification](../ticket-execution.md#fml-002).
+
+Admission: Ronin’s September 14 qualitative proceed decision supersedes the
+per-item judgment prerequisite; see the updated evaluation record.
+
+Implementation and executable evidence: [continuation record](../../../finished_refactorings/2026-09-14-find-more-like-this.md).
