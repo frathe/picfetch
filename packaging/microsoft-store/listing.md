@@ -72,7 +72,7 @@ photos into a library or creating an account.
 Navigate with the keyboard, jump through large collections in the thumbnail
 grid, compare two images side by side or with an interactive swipe, and inspect
 EXIF details without interrupting your flow. PicFetch supports common image
-formats, modern HEIC and AVIF files, scalable SVG artwork, animated GIFs, and
+formats, modern AVIF files, scalable SVG artwork, animated GIFs, and
 embedded previews from many camera RAW formats.
 
 Images are decoded and processed on your device. PicFetch contains no ads,
@@ -94,7 +94,7 @@ Local Visual Similarity Explorer with subject filters and saved image cohorts
 
 Side-by-side and swipe comparison with linked or independent zoom and pan
 
-JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, HEIC, AVIF, SVG, and camera RAW previews
+JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, AVIF, SVG, and camera RAW previews
 
 Animated GIF playback and sharp on-demand SVG rendering
 
@@ -142,7 +142,7 @@ importieren oder ein Konto anzulegen.
 Navigieren Sie mit der Tastatur, wechseln Sie in der Miniaturansicht schnell
 durch große Sammlungen, vergleichen Sie zwei Bilder nebeneinander oder mit
 einem interaktiven Schieberegler und prüfen Sie EXIF-Daten ohne Unterbrechung.
-PicFetch unterstützt gängige Bildformate, moderne HEIC- und AVIF-Dateien,
+PicFetch unterstützt gängige Bildformate, moderne AVIF-Dateien,
 skalierbare SVG-Grafiken, animierte GIFs und eingebettete Vorschauen vieler
 Kamera-RAW-Formate.
 
@@ -167,7 +167,7 @@ Lokaler Visual Similarity Explorer mit Motivfiltern und gespeicherten Bildgruppe
 
 Vergleich nebeneinander oder per Schieberegler mit gemeinsamem oder unabhängigem Zoom und Verschieben
 
-JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, HEIC, AVIF, SVG und Vorschauen von Kamera-RAW-Dateien
+JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, AVIF, SVG und Vorschauen von Kamera-RAW-Dateien
 
 Wiedergabe animierter GIFs und scharfe SVG-Darstellung in jeder Zoomstufe
 

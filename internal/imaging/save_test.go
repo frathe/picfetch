@@ -34,7 +34,7 @@ func TestCanEncode(t *testing.T) {
 		{"tiff", fakeURI{name: "a.tiff", ext: ".tiff"}, true},
 		{"avif", fakeURI{name: "a.avif", ext: ".avif"}, true},
 		{"webp is decode-only, no encoder", fakeURI{name: "a.webp", ext: ".webp"}, false},
-		{"heic is decode-only, no encoder", fakeURI{name: "a.heic", ext: ".heic"}, false},
+		{"heic unsupported, no encoder", fakeURI{name: "a.heic", ext: ".heic"}, false},
 		{"ico unsupported", fakeURI{name: "a.ico", ext: ".ico"}, false},
 		{"xpm unsupported", fakeURI{name: "a.xpm", ext: ".xpm"}, false},
 		{"no extension", fakeURI{name: "a", ext: ""}, false},
@@ -269,8 +269,8 @@ func TestExport(t *testing.T) {
 
 	// The point of Export over SaveRotated: the destination's format is
 	// chosen by where the pixels are going, with no relationship at all to
-	// where they came from - which is what makes exporting a WebP or HEIC
-	// (formats this module can decode but never encode) possible.
+	// where they came from - which is what makes exporting a WebP
+	// (a format this module can decode but never encode) possible.
 	t.Run("encodes by the destination extension, exactly for a lossless format", func(t *testing.T) {
 		dest := filepath.Join(t.TempDir(), "from-a-webp.png")
 

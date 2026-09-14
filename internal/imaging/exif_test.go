@@ -461,7 +461,7 @@ func TestReadMetadata_GPSLowercaseRef(t *testing.T) {
 }
 
 func TestReadMetadata_GPSZeroIslandIsStillAPosition(t *testing.T) {
-	// Unlike the HEIC/AVIF path, which can't tell (0, 0) from "no tags", an
+	// Unlike the AVIF path, which can't tell (0, 0) from "no tags", an
 	// explicit all-zero JPEG GPS IFD is a real - if unlikely - position.
 	m := ReadMetadata(gpsJPEG(t, gpsFields{
 		latRef: "N", lat: [3][2]uint32{{0, 1}, {0, 1}, {0, 1}},
@@ -642,28 +642,13 @@ func TestReadMetadata_OrientationOnlySegmentYieldsEmpty(t *testing.T) {
 	}
 }
 
-// wantISOBMFFTestFixtureMetadata is what both testdata/test_exif.heic and
-// testdata/test_exif.avif carry - the two files were built (by the
-// gen2brain/heic and gen2brain/avif projects, whose testdata this repo's
-// fixtures are copied from) with the same Make/Model/FNumber/ISO values, no
-// ExposureTime, FocalLength, or date, so ReadMetadata's ISOBMFF fallback
-// should decode both to the same Metadata.
+// wantISOBMFFTestFixtureMetadata describes testdata/test_exif.avif, copied
+// from gen2brain/avif. The fixture has no ExposureTime, FocalLength or date.
 var wantISOBMFFTestFixtureMetadata = Metadata{
 	Make:    "TestCam",
 	Model:   "Model123",
 	FNumber: "f/5.6",
 	ISO:     "ISO 800",
-}
-
-func TestReadMetadata_HEICFallback(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("testdata", "test_exif.heic"))
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
-	}
-
-	if m := ReadMetadata(data); m != wantISOBMFFTestFixtureMetadata {
-		t.Errorf("ReadMetadata() = %+v, want %+v", m, wantISOBMFFTestFixtureMetadata)
-	}
 }
 
 func TestReadMetadata_AVIFFallback(t *testing.T) {
@@ -677,7 +662,7 @@ func TestReadMetadata_AVIFFallback(t *testing.T) {
 	}
 }
 
-func TestReadMetadata_HEICWithNoExifYieldsEmpty(t *testing.T) {
+func TestReadMetadata_AVIFWithNoExifYieldsEmpty(t *testing.T) {
 	// A synthesized AVIF (this package's encodeAVIF helper, loader_test.go)
 	// has no Exif box at all - the ISOBMFF fallback should come back empty,
 	// not error or panic, same as a JPEG with no Exif segment.

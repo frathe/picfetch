@@ -37,8 +37,6 @@ const goldenBlock = `	<key>CFBundleDocumentTypes</key>
 				<string>tiff</string>
 				<string>ico</string>
 				<string>xpm</string>
-				<string>heic</string>
-				<string>heif</string>
 				<string>avif</string>
 				<string>svg</string>
 				<string>cr2</string>
@@ -64,8 +62,6 @@ const goldenBlock = `	<key>CFBundleDocumentTypes</key>
 				<string>com.microsoft.bmp</string>
 				<string>public.tiff</string>
 				<string>com.microsoft.ico</string>
-				<string>public.heic</string>
-				<string>public.heif</string>
 				<string>public.avif</string>
 				<string>public.svg-image</string>
 				<string>public.camera-raw-image</string>

@@ -51,7 +51,7 @@ func (v *viewer) canSetWallpaper() bool {
 // moment they moved it, or trashed it with Shift+Delete one keystroke later.
 // The copy also carries whatever is actually on screen - the current
 // rotation, one frame of an animation - and is a PNG whatever the source
-// was, so a WebP or HEIC this module can only decode still works.
+// was, so a WebP this module can only decode still works.
 //
 // The file and frame are captured here, on the UI goroutine, before the
 // goroutine below starts - mirroring exportAs, and for the same reason:

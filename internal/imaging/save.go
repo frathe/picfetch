@@ -29,10 +29,9 @@ const jpegSaveQuality = 95
 // image.Image in that format. Every entry's decoder is already linked into
 // the binary for IsSupportedImage's sake (see the package doc's import
 // block), so adding the matching Encode call here costs nothing extra.
-// WebP and HEIC are decode-only in the libraries this module depends on
-// (golang.org/x/image/webp and github.com/gen2brain/heic expose no Encode),
-// and ICO/XPM aren't meaningful save targets for a rotated photo, so none of
-// the four appear here - CanEncode reports false for them, and SaveRotated
+// WebP is decode-only in golang.org/x/image/webp, and ICO/XPM aren't
+// meaningful save targets for a rotated photo, so none of the three
+// appear here - CanEncode reports false for them, and SaveRotated
 // refuses before touching the file.
 var encoders = map[string]func(io.Writer, image.Image) error{
 	".jpg":  encodeJPEGForSave,

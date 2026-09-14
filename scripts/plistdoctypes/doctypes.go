@@ -40,8 +40,6 @@ var contentTypeUTIs = []utiMapping{
 	{"tif", "public.tiff"},
 	{"tiff", "public.tiff"},
 	{"ico", "com.microsoft.ico"},
-	{"heic", "public.heic"},
-	{"heif", "public.heif"},
 	{"avif", "public.avif"},
 	{"svg", "public.svg-image"},
 	{"raw", "public.camera-raw-image"},

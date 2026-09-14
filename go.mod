@@ -9,7 +9,6 @@ require (
 	github.com/fyne-io/image v0.1.1
 	github.com/fyne-io/oksvg v0.2.0
 	github.com/gen2brain/avif v0.6.0
-	github.com/gen2brain/heic v0.7.1
 	github.com/nozzle/umap v0.0.0-20260130174432-f6085fb2514d
 	github.com/sigstore/sigstore v1.10.9
 	github.com/sigstore/sigstore-go v1.3.0
@@ -22,8 +21,6 @@ require (
 	golang.org/x/net v0.59.0
 	golang.org/x/sys v0.48.0
 )
-
-replace github.com/gen2brain/heic => github.com/frathe/heic v0.0.0-20260820164529-0ac0a39f8206
 
 // Intel macOS's last official native runtime is 1.23.2. Keep its API 23 binding
 // isolated behind internal/ort; all other platforms retain the current binding.

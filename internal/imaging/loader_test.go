@@ -71,9 +71,9 @@ func TestIsSupportedImage(t *testing.T) {
 		{".tiff", fakeURI{name: "a.tiff", ext: ".tiff"}, true},
 		{".ico", fakeURI{name: "a.ico", ext: ".ico"}, true},
 		{".xpm", fakeURI{name: "a.xpm", ext: ".xpm"}, true},
-		{".heic", fakeURI{name: "a.heic", ext: ".heic"}, true},
-		{".heif", fakeURI{name: "a.heif", ext: ".heif"}, true},
-		{"uppercase .HEIC", fakeURI{name: "a.HEIC", ext: ".HEIC"}, true},
+		{".heic unsupported", fakeURI{name: "a.heic", ext: ".heic"}, false},
+		{".heif unsupported", fakeURI{name: "a.heif", ext: ".heif"}, false},
+		{"uppercase .HEIC unsupported", fakeURI{name: "a.HEIC", ext: ".HEIC"}, false},
 		{".avif", fakeURI{name: "a.avif", ext: ".avif"}, true},
 		{"no extension, no mime", fakeURI{name: "a", ext: ""}, false},
 		{"mime overrides odd extension", fakeURI{name: "a.bin", ext: ".bin", mime: "image/jpeg"}, true},
@@ -84,8 +84,8 @@ func TestIsSupportedImage(t *testing.T) {
 		{"ico mime overrides odd extension", fakeURI{name: "a.bin", ext: ".bin", mime: "image/x-icon"}, true},
 		{"ms-icon mime overrides odd extension", fakeURI{name: "a.bin", ext: ".bin", mime: "image/vnd.microsoft.icon"}, true},
 		{"xpm mime overrides odd extension", fakeURI{name: "a.bin", ext: ".bin", mime: "image/x-xpixmap"}, true},
-		{"heic mime overrides odd extension", fakeURI{name: "a.bin", ext: ".bin", mime: "image/heic"}, true},
-		{"heif mime overrides odd extension", fakeURI{name: "a.bin", ext: ".bin", mime: "image/heif"}, true},
+		{"heic mime unsupported", fakeURI{name: "a.bin", ext: ".bin", mime: "image/heic"}, false},
+		{"heif mime unsupported", fakeURI{name: "a.bin", ext: ".bin", mime: "image/heif"}, false},
 		{"avif mime overrides odd extension", fakeURI{name: "a.bin", ext: ".bin", mime: "image/avif"}, true},
 		{"mime is case-insensitive", fakeURI{name: "a.bin", ext: ".bin", mime: "IMAGE/JPEG"}, true},
 		{"wrong mime, wrong extension", fakeURI{name: "a.txt", ext: ".txt", mime: "text/plain"}, false},
@@ -471,31 +471,25 @@ func TestLoadImage(t *testing.T) {
 		}
 	})
 
-	t.Run("valid heic, EXIF orientation already applied by the decoder", func(t *testing.T) {
+	t.Run("heic unsupported", func(t *testing.T) {
 		data, err := os.ReadFile(filepath.Join("testdata", "test_exif.heic"))
 		if err != nil {
 			t.Fatalf("read fixture: %v", err)
 		}
-		path := writeTempFile(t, "photo.heic", data)
-
-		loaded, err := LoadImage(storage.NewFileURI(path), DefaultImgCacheBytes)
-		if err != nil {
-			t.Fatalf("LoadImage returned error: %v", err)
+		if _, _, err := image.DecodeConfig(bytes.NewReader(data)); !errors.Is(err, image.ErrFormat) {
+			t.Errorf("image.DecodeConfig(HEIC) error = %v, want unknown format", err)
 		}
-
-		if len(loaded.Frames) != 1 {
-			t.Fatalf("frames = %d, want 1 for a static image", len(loaded.Frames))
+		if _, _, err := image.Decode(bytes.NewReader(data)); !errors.Is(err, image.ErrFormat) {
+			t.Errorf("image.Decode(HEIC) error = %v, want unknown format", err)
 		}
-
-		// The fixture carries Exif orientation 6 (a 90-degree rotation); the
-		// heic decoder already applies it before returning pixels, and the
-		// shared orientation reader correctly no-ops on the HEIC container
-		// bytes. If LoadImage applied the rotation a second time on top of the
-		// decoder's own correction,
-		// these bounds would come out swapped.
-		b := loaded.Frames[0].Bounds()
-		if b.Dx() != 480 || b.Dy() != 640 {
-			t.Errorf("decoded size = %dx%d, want 480x640 (EXIF-corrected once, not twice)", b.Dx(), b.Dy())
+		if loaded, err := DecodeLoaded(context.Background(), data, DefaultImgCacheBytes); err == nil || loaded != nil {
+			t.Errorf("DecodeLoaded(HEIC) = (%v, %v), want no image and an error", loaded, err)
+		}
+		for _, name := range []string{"photo.heic", "photo.heif", "renamed.jpg"} {
+			path := writeTempFile(t, name, data)
+			if loaded, err := LoadImage(storage.NewFileURI(path), DefaultImgCacheBytes); err == nil || loaded != nil {
+				t.Errorf("LoadImage(%s) = (%v, %v), want no image and an error", name, loaded, err)
+			}
 		}
 	})
 

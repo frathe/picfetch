@@ -6,88 +6,90 @@
 
 #### New Features
 
+### Find more like this
+
+Choose a picture to find visually similar images in your collection. The Grid
+shows your chosen picture first, followed by up to 30 matches, with the closest
+matches at the top. Results appear as images are prepared.
+
+You can revisit previously chosen reference pictures, use the usual Grid actions
+on results, and save the current result list as a Favorite. PicFetch can remember
+image analysis between sessions to speed up future searches. Manage this stored
+data in Cache settings.
+
+Interrupted scans are clearly marked as incomplete. Images that cannot be found
+remain listed as unavailable, including those that may be on a disconnected drive.
+After first-time setup, PicFetch checks that your chosen picture is still available
+before starting the search. Turning off stored analysis remains effective even
+if PicFetch cannot read the cache.
+
+Results were reviewed using a collection of 446 images and judged satisfactory,
+although search accuracy has not been formally measured. Teaching the search
+through examples of wanted and unwanted results is planned for later.
+Some third-party software distribution requirements also remain open; see LATER
+below. Read the [evaluation](docs/find-more-like-this/evaluation.md) for details.
+
+Targeted tests and code checks have been completed. Final approval still depends
+on the latest automated reviews and Linux, Windows and macOS checks in
+[PR #25](https://github.com/frathe/picfetch/pull/25). The
+[development record](finished_refactorings/2026-09-14-find-more-like-this.md)
+documents completed checks and remaining limitations.
+
 #### Bugfix
 
 #### Internal
+
 ### Comparison test deadline under build contention
 
-Completed on September 12: the regression now uses smaller synthetic frames,
-the existing five-second comparison wait budget, cancellable worker waits and
-reported cleanup failures. Both frames still require detail tiles, preserving
-the cancellation dependency. The original fixture failed all three race runs
-with four CPU contenders sharing one core; the final fixture passed all five
-Ubuntu contention runs (2.9–3.8s). All three Settle regressions pass five Ubuntu
-race repetitions each, and an overlay restoring the obsolete-tile deadlock
-still fails the test as expected. Evidence: `/tmp/picfetch-compare-deadline/`.
+Made the automated image-comparison tests more reliable when the computer is
+busy building or testing other code. The tests still check that background image
+work can be canceled safely and that comparison windows do not get stuck.
 
-Final `make verify` passes on this Ubuntu host: formatting, TUF, Qodana exclusions,
-vet, build and all four Docker race partitions. The complete streams contain
-2,605 top-level passes and five existing skips; all 682 UI assignments ran exactly once.
-The changed regression also passes during the full suite (2.32s).
-Raw gate evidence: `.scratch/race-runs/20260912T185421Z-jHjXwb/`.
-GoLand inspection of `internal/ui/compare/vector_test.go` is complete, including
-weak warnings. Its only findings are intentional duplicate setup in the unchanged
-queued-completion and cancellation tests; the existing exact-file
-`DuplicatedCode` exclusion in `qodana.yaml` covers both. No actionable findings
-remain. A fresh native `go test -race -count=5 -timeout 2m -run
-'^TestCompareSettle_' ./internal/ui/compare` also passes (10.338s).
+The updated tests passed repeated stress runs, and the complete verification
+suite passed on Ubuntu. Code inspection found no issues requiring changes.
 
 ### Qualify updater notices in native release CI
 
-Notice reconciliation and delivery guards are implemented. PR #22's
-[native Linux/amd64 full CI gate](https://github.com/frathe/picfetch/actions/runs/34755687251)
-passes, along with its Windows and macOS native guards. Before release, observe
-the new inspection of final signed Windows archives and both native MSIX bundle
-payloads. This host has no Windows SDK; local unsigned archives for all six
-targets pass. The audit preserves inferred MPL matcher attribution for
-`go-pathspec`; its historical `fnmatch.translate()` source does not identify an
-exact CPython version, so the retained Python license is explicitly an ancestry
-reference. See the [evidence and limits](plans/2026-09-13-updater-notices.md).
+Improved checks that ensure update packages include the required third-party
+license notices.
+
+Checks passed on Linux, Windows and macOS, and unsigned packages passed local
+checks for all six supported targets. The final signed Windows packages still
+need to pass the new inspection before release.
+
+The license notes also clarify where a third-party component's historical source
+version could not be established. See the
+[evidence and limits](plans/2026-09-13-updater-notices.md) and the
+[completed Linux checks](https://github.com/frathe/picfetch/actions/runs/34755687251).
 
 ### Mascot-circle hint for the Hypno Spiral
 
-Completed September 14 at Ronin's request, including the wider speech bubble and
-Escape-to-close fix for focused manual search. Ten consistent-direction circles around
-welcome-screen Trane's head within twenty seconds open or raise Finis. Any Finis
-accepts a fresh ten-circle/twenty-second attempt anywhere within his window to
-reveal a lasting speech bubble. Clicking it opens an empty manual search; the
-secret phrase stays English and its parenthetical hint is translated.
+Added a hidden interaction with Trane and Finis, a wider speech bubble, and a fix
+so Escape closes the manual even when its search field has focus.
 
-Implemented with SDD/TDD; focused race tests, locale checks, shard inventory and
-local format/generated-file/vet/build checks pass. The
-[archived evidence](finished_refactorings/2026-09-14-mascot-circle-hint.md)
-preserves Ronin's native E2E feedback and the unavailable verification results.
+On the welcome screen, move your pointer in ten circles in the same direction
+around Trane's head within twenty seconds. This opens Finis or brings his window
+to the front.
 
-### Find more like this
+Make another ten circles within twenty seconds anywhere inside a Finis window
+to reveal a speech bubble that stays visible. Click the bubble to open the manual
+with an empty search field. The secret phrase remains in English; the hint in
+parentheses appears in your selected language.
 
-Implemented on `feature/find-more-like-this`: reference-first ranked Grid with
-up to 30 other matches, progressive preparation, reference history, ordinary
-result actions, captured Favorite saves, persistent analysis and Cache settings.
-The worker reuses a bounded top-30 between batches; Favorite saves capture one
-list, and persistence opt-outs remain effective when cache inspection fails.
-Canceled partial inventories remain visibly incomplete; missing-file records are
-retained as unavailable because the cache has no persisted volume identity.
-First-use setup revalidates the captured reference before admitting search.
-
-Ronin accepted the overall results from the 446-image
-[local evaluation](docs/find-more-like-this/evaluation.md) and waived exhaustive
-item judgments. Quantitative precision remains unmeasured. Positive/negative
-examples remain a deferred extension, and existing dependency distribution gaps
-remain in LATER below.
-
-Focused race/native regressions, build checks, locale/manual checks, shard
-validation and GoLand inspections have recorded evidence. The
-[continuation record](finished_refactorings/2026-09-14-find-more-like-this.md)
-records fixes, test failures/passes and qualification limits. [PR #25](https://github.com/frathe/picfetch/pull/25)
-is the live source for the latest commit's Codex code/security review,
-Qodana/CodeQL results and complete Linux/Windows/macOS CI. Completion of the
-review loop still requires that live gate; older successful checks do not count.
+Targeted tests, translation checks and local build checks passed. The
+[development record](finished_refactorings/2026-09-14-mascot-circle-hint.md)
+includes hands-on feedback and identifies checks that could not be completed.
 
 ## LATER
 
 ### Existing dependency distribution qualification
 
-Resolve the existing shipped dependency-closure gaps before release: HEIC embedded heic 0.1.6 AGPL/commercial grant evidence, AVIF native component notices/libyuv pin, Fyne font notices and older x/sys inventory. See [exact audit evidence](docs/find-more-like-this/dependency-qualification.md). No decoder/model substitution is included in Find more like this.
+Resolve the remaining shipped dependency-closure gaps before release: AVIF
+native component notices/libyuv pin, Fyne font notices and older x/sys inventory.
+HEIC support and its decoder dependency were removed at Ronin's request on
+September 14, pending distribution qualification. See the
+[audit and current disposition](docs/find-more-like-this/dependency-qualification.md)
+and [removal verification](plans/2026-09-14-remove-heic-decoder.md).
 
 ### Fyne upgrade deferred
 
@@ -113,11 +115,13 @@ Move the existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkg
 new identifier `frathe.picfetch` before the next WinGet publication; See the
 [maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
 
-### Revisit HEIC at its next dependency upgrade
+### Reconsider HEIC support after licensing and security qualification
 
-[MA-023](needs_refactoring.md#ma-023) tracks retiring the HEIC fork when an
-approved official release includes its leak fix. Its separate upgrade trigger
-remains unchanged.
+HEIC/HEIF is currently unsupported. A future restoration needs a documented
+distribution grant or another qualified decoder, containment and platform
+verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
+is closed by removal. Retained [options and source evidence](docs/find-more-like-this/old-heic-wasm-options.md)
+do not authorize restoring a decoder.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 
