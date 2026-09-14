@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -92,6 +93,9 @@ func (f *Feature) start(op operation, after ...<-chan struct{}) {
 			return ctx.Err()
 		}}
 	}
+	var progressMu sync.Mutex
+	var latest similarity.CacheProgress
+	progressQueued := false
 	f.changed()
 	go func() {
 		defer close(w.done)
@@ -101,7 +105,19 @@ func (f *Feature) start(op operation, after ...<-chan struct{}) {
 		r := result{err: ctx.Err()}
 		if r.err == nil {
 			r = op.run(ctx, provider, func(progress similarity.CacheProgress) {
+				progressMu.Lock()
+				latest = progress
+				if progressQueued {
+					progressMu.Unlock()
+					return
+				}
+				progressQueued = true
+				progressMu.Unlock()
 				queue.Do(func() {
+					progressMu.Lock()
+					progress := latest
+					progressQueued = false
+					progressMu.Unlock()
 					if f.current != w || !f.open || f.view != w.view {
 						return
 					}

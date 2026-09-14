@@ -36,6 +36,67 @@ type representationStore struct {
 	accounted          bool
 }
 
+// refreshFavorites is explicit admission after a committed Favorite save, not
+// an automatic retry of a retired writer. It refreshes routing for future items
+// and persists compatible retained vectors for members already prepared.
+func (s *representationStore) refreshFavorites(ctx context.Context, items []Item, complete func(context.Context, Item) (Item, error)) error {
+	if s == nil || ctx.Err() != nil {
+		return ctx.Err()
+	}
+	next, inventoryErr := openRepresentationStore(ctx, s.policy, s.writeScope)
+	if ctx.Err() != nil {
+		// Opening returns an owned partial store on every error path.
+		//goland:noinspection GoDfaErrorMayBeNotNil
+		next.close()
+		return ctx.Err()
+	}
+	// Both stores own partial inventories even when discovery reported errors.
+	//goland:noinspection GoDfaErrorMayBeNotNil
+	changed := next.favorites.changedMembers(s.favorites)
+	s.close()
+	// Preserve healthy entries when unrelated inventory is incomplete.
+	//goland:noinspection GoDfaErrorMayBeNotNil
+	*s = *next
+	if !s.policy.FavoriteEnabled {
+		return inventoryErr
+	}
+	failures := []error{inventoryErr}
+	for _, item := range items {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(append(failures, err)...)
+		}
+		if item.Error != "" {
+			continue
+		}
+		var missing []*favoriteAnalysis
+		for _, favorite := range changed[filepath.Clean(item.Path)] {
+			if _, hit := favorite.read(item); !hit {
+				missing = append(missing, favorite)
+			}
+		}
+		if len(missing) == 0 {
+			continue
+		}
+		cached, hit := s.read(ctx, item)
+		var err error
+		if hit {
+			item = cached
+		} else {
+			item, err = complete(ctx, item)
+		}
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		for _, favorite := range missing {
+			if err := favorite.write(ctx, item); err != nil {
+				failures = append(failures, err)
+			}
+		}
+	}
+	return errors.Join(failures...)
+}
+
 func openRepresentationStore(ctx context.Context, policy CachePolicy, scope cacheWriteScope) (*representationStore, error) {
 	store := &representationStore{policy: policy, writeScope: scope}
 	if store.policy.GeneralLimitBytes == 0 {

@@ -495,8 +495,18 @@ func TestWriteFavoriteSavesCurrentListAndRefreshesMenu(t *testing.T) {
 		storage.NewFileURI("/photos/b.jpg"),
 	}}
 	f := newFeature(t, host)
+	saves := 0
+	f.SetOnSaved(func() {
+		saves++
+		if !favstore.Exists(f.dir, "Trip") {
+			t.Fatal("save notification preceded the committed list")
+		}
+	})
 
 	f.writeFavorite("Trip")
+	if saves != 1 {
+		t.Fatalf("save notifications: %d", saves)
+	}
 
 	got, err := favstore.Load(f.dir, "Trip")
 	if err != nil {

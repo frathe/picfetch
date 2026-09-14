@@ -112,7 +112,7 @@ func searchLocal(ctx context.Context, req request, queries <-chan SearchQuery, e
 			p.encoder.Close()
 		}
 	}()
-	return runSearchSession(ctx, *req.Search, queries, p.prepare, p.validate, func(event SearchEvent) error {
+	return runSearchSession(ctx, *req.Search, queries, p.prepare, p.validate, p.refreshFavorites, func(event SearchEvent) error {
 		event.CacheWarning = p.warning
 		if event.Kind == SearchPartial || event.Kind == SearchFinal {
 			event.CachePressureBytes = p.pressure
@@ -153,4 +153,35 @@ func (p *searchPreparer) validate(ctx context.Context, reference Item, matches [
 		}
 	}
 	return nil
+}
+
+// A committed Favorite save admits a new persistence pass in this retained
+// worker. Vectors stay in memory; only the small disk preview is regenerated.
+func (p *searchPreparer) refreshFavorites(ctx context.Context, items []Item) {
+	if err := p.cache.refreshFavorites(ctx, items, p.completePreview); err != nil && p.warning == "" {
+		p.warning = err.Error()
+	}
+}
+
+func (p *searchPreparer) completePreview(ctx context.Context, item Item) (Item, error) {
+	data, _, err := imaging.ReadAndProbe(ctx, storage.NewFileURI(item.Path))
+	if err != nil {
+		return item, err
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(data)) != item.SHA256 {
+		return item, fmt.Errorf("source changed before Favorite persistence")
+	}
+	loaded, err := imaging.DecodeLoaded(ctx, data, 1)
+	if err != nil {
+		return item, err
+	}
+	if err := p.validate(ctx, item, nil, false); err != nil {
+		return item, err
+	}
+	var preview bytes.Buffer
+	if err := jpeg.Encode(&preview, imaging.ScaleForExport(loaded.Frames[0], 160), &jpeg.Options{Quality: 80}); err != nil {
+		return item, err
+	}
+	item.Preview = preview.Bytes()
+	return item, nil
 }

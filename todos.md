@@ -46,7 +46,10 @@ Reviewed all 28 Codex findings in PR #25 before further fixes. The
 led to shared Favorite inventory/store routing, explicit maintenance intents and
 transaction outcomes, and shared browsing restrictions/order with complete deferred
 restoration. Local race/build/inspection and real-model reuse checks pass. The
-[implementation record](finished_refactorings/2026-09-15-search-ownership.md) tracks the fresh PR review and CI gates.
+[implementation record](finished_refactorings/2026-09-15-search-ownership.md)
+tracks the fresh PR review and CI gates, including the three new findings on
+active Favorite saves and excessive progress delivery. Their fixes and regression
+coverage are implemented; a fresh review round remains required.
 
 ### Comparison test deadline under build contention
 

@@ -104,6 +104,9 @@ func (f *Feature) apply(s *producer, event similarity.SearchEvent) {
 		return
 	}
 	f.revision = event.Revision
+	if event.CacheRevision == f.cacheRevision {
+		f.cachePending = false
+	}
 	if event.CacheWarning != "" && !f.cacheWarned {
 		f.cacheWarned = true
 		fyne.LogError("visual search analysis cache", errors.New(event.CacheWarning))
@@ -153,7 +156,7 @@ func (f *Feature) producerReturned(s *producer, err error) {
 	if err == nil && f.awaiting {
 		err = fmt.Errorf("visual search stopped before completing the current query")
 	}
-	f.pending, f.awaiting, f.preparing = false, false, false
+	f.pending, f.awaiting, f.preparing, f.cachePending = false, false, false, false
 	if err != nil && !errors.Is(err, context.Canceled) {
 		f.host.Failed(SessionError{Err: err})
 	}
@@ -161,6 +164,7 @@ func (f *Feature) producerReturned(s *producer, err error) {
 }
 
 func (f *Feature) retire() <-chan struct{} {
+	f.cachePending = false
 	remaining := f.retired[:0]
 	for _, prior := range f.retired {
 		select {
@@ -220,7 +224,7 @@ func (f *Feature) Settle() {
 		}
 		f.retired = nil
 		delivered := f.ui.Drain()
-		if f.awaiting && f.producer != nil {
+		if (f.awaiting || f.cachePending) && f.producer != nil {
 			select {
 			case <-f.producer.notice:
 			case <-f.producer.done:

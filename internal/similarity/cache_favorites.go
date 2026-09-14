@@ -144,3 +144,23 @@ func openAnalysisCache(ctx context.Context, dir string) (*favoriteInventory, err
 	}
 	return cache, inventoryErr
 }
+
+// changedMembers limits explicit-save completion to newly created or replaced
+// lists. Unchanged Favorites need no per-record I/O during this refresh.
+func (c *favoriteInventory) changedMembers(previous *favoriteInventory) map[string][]*favoriteAnalysis {
+	versions := make(map[string]os.FileInfo, len(previous.favorites))
+	for _, favorite := range previous.favorites {
+		versions[favorite.root.Name()] = favorite.list
+	}
+	changed := map[string][]*favoriteAnalysis{}
+	for _, favorite := range c.favorites {
+		before := versions[favorite.root.Name()]
+		if before != nil && favorite.list != nil && sameVersion(before, favorite.list) {
+			continue
+		}
+		for path := range favorite.members {
+			changed[path] = append(changed[path], favorite)
+		}
+	}
+	return changed
+}

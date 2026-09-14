@@ -512,19 +512,43 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		explorerTag(t, v, "Drink", 1)
 	})
 
+	t.Run("saving_search_favorite_without_loose_cache_reuses_vectors", func(t *testing.T) {
+		v, assets := newSearchFavoriteTrial(t)
+		v.settings.looseAnalysisCache = false
+		v.analysisDir = t.TempDir()
+		v.favorites.SetDir(t.TempDir())
+		files := []fyne.URI{v.FileAt(0), v.FileAt(1)}
+		v.findMoreLikeThis()
+		v.visualsearch.Settle()
+		v.favorites.AddFiles(files)
+		entry, ok := v.win.Canvas().Focused().(interface {
+			SetText(string)
+			TypedKey(*fyne.KeyEvent)
+		})
+		if !ok {
+			t.Fatal("Favorite naming entry unavailable")
+		}
+		entry.SetText("Saved search")
+		entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		v.visualsearch.Settle()
+		usage, err := (similarity.CacheManager{}).Inspect(context.Background(), v.analysisRoots(), nil)
+		if err != nil || usage.General.Records != 0 || usage.Favorite.Records != 2 {
+			t.Fatalf("saved Favorite effects: %+v, %v", usage, err)
+		}
+		var final similarity.Event
+		client := similarity.Client{Assets: assets, FavoritesDir: v.favorites.Dir()}
+		if err := client.Analyze(context.Background(), []string{files[0].Path(), files[1].Path()}, nil, func(event similarity.Event) { final = event }); err != nil {
+			t.Fatal(err)
+		}
+		if final.Reused != 2 || final.Measurements.InferenceAttempts != 0 {
+			t.Fatalf("saved Favorite repeated inference: %+v", final.Measurements)
+		}
+	})
+
 	t.Run("new_search_favorite_reuses_general_analysis", func(t *testing.T) {
 		before := preferences.Load(testApp)
 		t.Cleanup(func() { preferences.Save(testApp, before) })
-		assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Setenv("PICFETCH_SIMILARITY_ASSETS", assets)
-		v := openGridWith(t, "a.jpg", "b.jpg")
-		configureExplorer(v, func(options *explorerui.Options) {
-			options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
-			options.Settings.CacheFavorites = true
-		})
+		v, assets := newSearchFavoriteTrial(t)
 		v.settings.looseAnalysisCache = true
 		root := t.TempDir()
 		v.favorites.SetDir(root)
@@ -1168,4 +1192,19 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatalf("native restart after canceled worker: ready=%d failed=%d items=%d err=%v", retried.Successful, retried.Failed, len(retried.Items), err)
 		}
 	})
+}
+
+func newSearchFavoriteTrial(t *testing.T) (*viewer, string) {
+	t.Helper()
+	assets, err := filepath.Abs("../../.scratch/visual-similarity-explorer/assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PICFETCH_SIMILARITY_ASSETS", assets)
+	v := openGridWith(t, "a.jpg", "b.jpg")
+	configureExplorer(v, func(options *explorerui.Options) {
+		options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
+		options.Settings.CacheFavorites = true
+	})
+	return v, assets
 }
