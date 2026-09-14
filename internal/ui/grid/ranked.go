@@ -26,6 +26,28 @@ type fileOccurrence struct {
 	ordinal int
 }
 
+type rankedSourceIndex struct {
+	byPath     map[string][]int
+	generation uint64
+	count      int
+}
+
+func (g *Overview) rankedSources() *rankedSourceIndex {
+	generation, count := g.host.Generation(), g.host.FileCount()
+	if g.rankSources != nil && g.rankSources.generation == generation && g.rankSources.count == count {
+		return g.rankSources
+	}
+	index := &rankedSourceIndex{generation: generation, count: count, byPath: make(map[string][]int, count)}
+	for i := range count {
+		if source := g.host.FileAt(i); source != nil {
+			path := source.Path()
+			index.byPath[path] = append(index.byPath[path], i)
+		}
+	}
+	g.rankSources = index
+	return index
+}
+
 type Progress struct {
 	Processed, Total, Failed int
 	Complete                 bool
@@ -151,31 +173,45 @@ func (g *Overview) CaptureVisit() Visit {
 	// Keep occurrence ordinals private and immutable so a copied visit retains
 	// one selected duplicate even when paths repeat in a merged collection.
 	visit.selectedOccurrences = make(map[fileOccurrence]bool, len(visit.Selected))
-	selected := make(map[int]bool, len(visit.Selected))
-	counts := make(map[string]int, len(visit.Selected)+1)
-	highlight := g.fileIndex(g.highlight)
-	last := highlight
-	for _, i := range g.Selection() {
-		if i >= 0 && i < g.host.FileCount() {
-			selected[i] = true
-			counts[g.host.FileAt(i).Path()] = 0
-			last = max(last, i)
+	if g.ranked != nil {
+		index := g.rankedSources()
+		for _, i := range g.Selection() {
+			if i >= 0 && i < g.host.FileCount() {
+				path := g.host.FileAt(i).Path()
+				ordinal, found := slices.BinarySearch(index.byPath[path], i)
+				if found {
+					visit.selectedOccurrences[fileOccurrence{path, ordinal}] = true
+				}
+			}
 		}
-	}
-	counts[visit.Highlight] = 0
-	for i := 0; i <= last; i++ {
-		path := g.host.FileAt(i).Path()
-		ordinal, wanted := counts[path]
-		if !wanted {
-			continue
+		visit.highlightOccurrence, _ = slices.BinarySearch(index.byPath[visit.Highlight], g.fileIndex(g.highlight))
+	} else {
+		selected := make(map[int]bool, len(visit.Selected))
+		counts := make(map[string]int, len(visit.Selected)+1)
+		highlight := g.fileIndex(g.highlight)
+		last := highlight
+		for _, i := range g.Selection() {
+			if i >= 0 && i < g.host.FileCount() {
+				selected[i] = true
+				counts[g.host.FileAt(i).Path()] = 0
+				last = max(last, i)
+			}
 		}
-		if selected[i] {
-			visit.selectedOccurrences[fileOccurrence{path, ordinal}] = true
+		counts[visit.Highlight] = 0
+		for i := 0; i <= last; i++ {
+			path := g.host.FileAt(i).Path()
+			ordinal, wanted := counts[path]
+			if !wanted {
+				continue
+			}
+			if selected[i] {
+				visit.selectedOccurrences[fileOccurrence{path, ordinal}] = true
+			}
+			if i == highlight {
+				visit.highlightOccurrence = ordinal
+			}
+			counts[path]++
 		}
-		if i == highlight {
-			visit.highlightOccurrence = ordinal
-		}
-		counts[path]++
 	}
 	if g.subset != nil {
 		visit.Subset = []string{}
@@ -217,24 +253,38 @@ func (g *Overview) restoreVisitState(visit Visit) {
 			wanted[fileOccurrence{path, 0}] = true
 		}
 	}
-	counts := make(map[string]int, len(visit.Selected)+1)
-	for identity := range wanted {
-		counts[identity.path] = 0
-	}
-	counts[visit.Highlight] = 0
 	highlight := -1
-	for i := range g.host.FileCount() {
-		path := g.host.FileAt(i).Path()
-		ordinal, tracked := counts[path]
-		if !tracked {
-			continue
+	if g.ranked != nil {
+		index := g.rankedSources()
+		for identity := range wanted {
+			indexes := index.byPath[identity.path]
+			if identity.ordinal >= 0 && identity.ordinal < len(indexes) && g.subset[identity.path] {
+				selected = append(selected, indexes[identity.ordinal])
+			}
 		}
-		counts[path]++
-		if wanted[fileOccurrence{path, ordinal}] && (g.ranked == nil || g.subset[path]) {
-			selected = append(selected, i)
+		indexes := index.byPath[visit.Highlight]
+		if visit.highlightOccurrence >= 0 && visit.highlightOccurrence < len(indexes) {
+			highlight = indexes[visit.highlightOccurrence]
 		}
-		if path == visit.Highlight && ordinal == visit.highlightOccurrence {
-			highlight = i
+	} else {
+		counts := make(map[string]int, len(visit.Selected)+1)
+		for identity := range wanted {
+			counts[identity.path] = 0
+		}
+		counts[visit.Highlight] = 0
+		for i := range g.host.FileCount() {
+			path := g.host.FileAt(i).Path()
+			ordinal, tracked := counts[path]
+			if !tracked {
+				continue
+			}
+			counts[path]++
+			if wanted[fileOccurrence{path, ordinal}] {
+				selected = append(selected, i)
+			}
+			if path == visit.Highlight && ordinal == visit.highlightOccurrence {
+				highlight = i
+			}
 		}
 	}
 	g.sel.Replace(selected)

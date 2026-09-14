@@ -34,7 +34,11 @@ func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, 
 		return item, false, fmt.Errorf("source exceeds encoded image limit")
 	}
 	reused := false
-	if cached, ok := p.cache.read(ctx, item); ok {
+	cached, hit, cacheErr := p.cache.read(ctx, item)
+	if cacheErr != nil && p.warning == "" {
+		p.warning = cacheErr.Error()
+	}
+	if hit {
 		item = cached
 		reused = true
 	}

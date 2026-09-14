@@ -77,7 +77,10 @@ func (s *representationStore) refreshFavorites(ctx context.Context, items []Item
 		if len(missing) == 0 {
 			continue
 		}
-		cached, hit := s.read(ctx, item)
+		cached, hit, readErr := s.read(ctx, item)
+		if readErr != nil {
+			failures = append(failures, readErr)
+		}
 		var err error
 		if hit {
 			item = cached
@@ -131,20 +134,23 @@ func (s *representationStore) close() {
 	}
 	s.lease.close()
 }
-func (s *representationStore) read(ctx context.Context, source Item) (Item, bool) {
+
+// read keeps a usable hit independent of any Favorite promotion failure.
+// Missing or invalid records remain cache misses; failed promotion is a warning.
+func (s *representationStore) read(ctx context.Context, source Item) (Item, bool, error) {
 	if s == nil {
-		return Item{}, false
+		return Item{}, false, nil
 	}
 	if !s.policy.FavoriteEnabled && len(s.favorites.members[filepath.Clean(source.Path)]) > 0 {
-		return Item{}, false
+		return Item{}, false, nil
 	}
 	if s.policy.FavoriteEnabled {
 		if item, ok := s.favorites.read(source); ok {
-			return item, true
+			return item, true, nil
 		}
 	}
 	if s.general == nil {
-		return Item{}, false
+		return Item{}, false, nil
 	}
 	var item Item
 	err := s.lease.write(ctx, func() error {
@@ -171,12 +177,12 @@ func (s *representationStore) read(ctx context.Context, source Item) (Item, bool
 		return nil
 	})
 	if err != nil {
-		return Item{}, false
+		return Item{}, false, nil
 	}
 	if s.policy.FavoriteEnabled && len(s.favorites.members[filepath.Clean(source.Path)]) > 0 {
-		_ = s.favorites.write(ctx, item)
+		return item, true, s.favorites.write(ctx, item)
 	}
-	return item, true
+	return item, true, nil
 }
 func (s *representationStore) write(ctx context.Context, item Item) error {
 	if s == nil {

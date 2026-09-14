@@ -48,7 +48,7 @@ func TestAnalysisCacheGeneralReopensWithoutPreparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.close()
-	got, ok := reopened.read(context.Background(), item)
+	got, ok := cacheTestRead(t, reopened, context.Background(), item)
 	if !ok || got.Path != item.Path || len(got.Embedding) != 768 || got.Embedding[0] != 1 {
 		t.Fatal("reopened general record was not reusable")
 	}

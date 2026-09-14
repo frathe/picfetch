@@ -5,13 +5,67 @@ import (
 	"image"
 	"image/color"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/frathe/picfetch/internal/uitest"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/storage"
 )
+
+type rankedCountingURI struct {
+	fyne.URI
+	reads *atomic.Int64
+}
+
+func (u rankedCountingURI) Path() string {
+	u.reads.Add(1)
+	return u.URI.Path()
+}
+
+func TestRankedVisitUpdatesUseCapturedSourceIndexes(t *testing.T) {
+	h := hostWith(t, "a.jpg", "b.jpg", "c.jpg")
+	const prefix, updates = 4096, 32
+	files := make([]fyne.URI, prefix, prefix+len(h.files))
+	for i := range files {
+		files[i] = storage.NewFileURI("/unranked.jpg")
+	}
+	h.files = append(files, h.files...)
+	var reads atomic.Int64
+	for i, source := range h.files {
+		h.files[i] = rankedCountingURI{URI: source, reads: &reads}
+	}
+	g := newOverview(t, h)
+	reference := h.FileAt(prefix).Path()
+	paths := []string{h.FileAt(prefix + 1).Path(), h.FileAt(prefix + 2).Path()}
+	g.OpenRanked(RankedVisit{ReferencePath: reference, Paths: paths, Revision: 1})
+	g.HandleRune('/')
+	g.HandleRune('a')
+	g.sel.Replace([]int{prefix})
+	g.Settle()
+	reads.Store(0)
+	for revision := uint64(2); revision < updates+2; revision++ {
+		g.OpenRanked(RankedVisit{ReferencePath: reference, Paths: paths, Revision: revision})
+	}
+	g.Settle()
+	if got := reads.Load(); got > updates*200+1000 {
+		t.Fatalf("rank revisions rescanned the collection: %d path reads for %d updates of three ranked sources", got, updates)
+	} else {
+		t.Logf("rank update path reads: %d", got)
+	}
+	if g.Query() != "a" || !slices.Equal(g.Selection(), []int{prefix}) || !slices.Equal(g.ResultIndexes(), []int{prefix}) {
+		t.Fatalf("bounded updates lost filtering or selection: %q %v %v", g.Query(), g.Selection(), g.ResultIndexes())
+	}
+	slices.Reverse(h.files)
+	h.gen++
+	g.FilesChanged()
+	g.OpenRanked(RankedVisit{ReferencePath: reference, Paths: paths, Revision: updates + 2})
+	if !slices.Equal(g.ResultIndexes(), []int{2}) {
+		t.Fatalf("new source generation reused old indexes: %v", g.ResultIndexes())
+	}
+}
 
 func TestRankedVisitInitialOrderAndFilter(t *testing.T) {
 	h := hostWith(t, "a.jpg", "b.jpg", "c.jpg")

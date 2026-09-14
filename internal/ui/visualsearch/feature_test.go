@@ -80,6 +80,70 @@ func publish(call providerCall, query similarity.SearchQuery, revision uint64, k
 	call.emit(event)
 }
 
+func TestVisualSearchCachePressureRetainsOnlyCompletedProducer(t *testing.T) {
+	for _, final := range []bool{false, true} {
+		t.Run(fmt.Sprintf("final_%t", final), func(t *testing.T) {
+			f, h, q, calls := newSearch(t)
+			f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
+			call := <-calls
+			query := <-call.queries
+			kind, processed := similarity.SearchPartial, 2
+			if final {
+				kind, processed = similarity.SearchFinal, 3
+			}
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 1, Kind: kind, Processed: processed, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/b"}}})
+			q.Drain()
+			f.Settle()
+			var pressure similarity.CachePressureError
+			if len(h.errors) != 1 || !errors.As(h.errors[0], &pressure) || pressure.NeedBytes != 100 || !f.Active() {
+				t.Fatalf("cache pressure lost its request or browsing: %v", h.errors)
+			}
+			if !f.Explore("/b") {
+				t.Fatal("next reference was rejected")
+			}
+			if f.State().Preparing == final || (f.State().SessionID == call.request.SessionID) != final {
+				t.Fatalf("completed=%t, next query repeated the wrong preparation lifetime: %+v", final, f.State())
+			}
+			if final {
+				query = <-call.queries
+				call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 2, Kind: similarity.SearchFinal, Processed: 3, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/a"}}})
+				f.Settle()
+				if len(h.errors) != 1 || len(calls) != 0 {
+					t.Fatal("retained query repeated handled pressure or restarted the provider")
+				}
+			}
+		})
+	}
+}
+
+func TestVisualSearchCachePressureWriterQuiescence(t *testing.T) {
+	for _, phase := range []string{"preparing", "ready", "favorite-pending"} {
+		t.Run(phase, func(t *testing.T) {
+			f, _, q, calls := newSearch(t)
+			f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
+			call := <-calls
+			query := <-call.queries
+			kind := similarity.SearchFinal
+			if phase == "preparing" {
+				kind = similarity.SearchPartial
+			}
+			publish(call, query, 1, kind, "/b")
+			q.Drain()
+			if phase == "favorite-pending" {
+				f.FavoriteSaved()
+			}
+			<-f.SuspendWriters()
+			if !f.Explore("/b") {
+				t.Fatal("explicit next reference rejected")
+			}
+			retained := f.State().SessionID == call.request.SessionID
+			if retained != (phase == "ready") {
+				t.Fatalf("writer quiescence: phase=%s retained=%t", phase, retained)
+			}
+		})
+	}
+}
+
 func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
 	f, h, q, calls := newSearch(t)
 	scope := []string{"/a", "/b", "/c"}
@@ -359,6 +423,54 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 	}
 }
 
+func TestVisualSearchCacheLimitChangesRetireCapturedPolicy(t *testing.T) {
+	for _, limit := range []uint64{512, 1024, 2048} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			f, _, queue, calls := newSearch(t)
+			policy := similarity.CachePolicy{LooseEnabled: true, GeneralLimitBytes: 1024}
+			f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Cache: policy})
+			first := <-calls
+			query := <-first.queries
+			publish(first, query, 1, similarity.SearchPartial, "/b")
+			queue.Drain()
+			policy.GeneralLimitBytes = limit
+			f.SetCachePolicy(policy)
+			changed := limit != first.request.Cache.GeneralLimitBytes
+			state := f.State()
+			if state.Preparing == changed {
+				f.Stop()
+				t.Fatalf("policy change retirement: changed=%v preparing=%v", changed, state.Preparing)
+			}
+			if !state.Active || !reflect.DeepEqual(state.Visit.Paths, []string{"/b"}) {
+				t.Fatalf("policy update lost the current visit: %+v", state)
+			}
+			if changed {
+				f.Settle()
+				publish(first, query, 2, similarity.SearchFinal, "/stale")
+				queue.Drain()
+				if !reflect.DeepEqual(f.State().Visit.Paths, []string{"/b"}) {
+					t.Fatal("retired policy applied stale results")
+				}
+			}
+			if len(calls) != 0 || !f.Explore("/b") {
+				t.Fatal("policy update did not preserve explicit restart admission")
+			}
+			if changed {
+				second := <-calls
+				if second.request.SessionID == first.request.SessionID || second.request.Cache != policy {
+					t.Fatalf("restart retained the old cache policy: %+v", second.request)
+				}
+			} else {
+				select {
+				case <-first.queries:
+				default:
+					t.Fatal("unchanged policy lost its retained query lane")
+				}
+			}
+		})
+	}
+}
+
 func TestVisualSearchLifecycleSuspendRestartsOnlyForExplicitQuery(t *testing.T) {
 	f, h, q, calls := newSearch(t)
 	cache := similarity.CachePolicy{LooseEnabled: true, Roots: similarity.CacheRoots{GeneralDir: "/cache"}}
@@ -461,6 +573,34 @@ func TestVisualSearchLifecycleUnexpectedExitReportsTerminalFailure(t *testing.T)
 				t.Fatalf("exit invented a successful visit: %+v", f.State())
 			}
 		})
+	}
+}
+
+func TestVisualSearchCaptureGridBeforePublication(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
+	call := <-calls
+	query := <-call.queries
+	anchor := grid.Visit{Ranked: true, Visible: true, Query: "a", Searching: true, Selected: []string{"/a"}, Highlight: "/a", ScrollOffset: 30}
+	f.CaptureGrid(anchor)
+	anchor.Selected[0] = "/changed"
+	if got := f.State().Visit.Grid; got.Query != "a" || !reflect.DeepEqual(got.Selected, []string{"/a"}) {
+		t.Fatalf("pending visit lost its Grid anchor: %+v", got)
+	}
+	h.hold = true
+	publish(call, query, 1, similarity.SearchFinal, "/c", "/b")
+	q.Drain()
+	visit := f.State().Visit
+	if got := visit.Grid; got.Query != "a" || !got.Searching || got.Highlight != "/a" || got.ScrollOffset != 30 || !reflect.DeepEqual(got.Selected, []string{"/a"}) {
+		t.Fatalf("first publication lost its Grid anchor: %+v", got)
+	}
+	if !reflect.DeepEqual(visit.Paths, []string{"/c", "/b"}) {
+		t.Fatalf("first publication lost new results: %v", visit.Paths)
+	}
+	f.Close()
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/b"})
+	if f.State().Visit.Grid.Query != "" {
+		t.Fatal("new session retained the prior Grid anchor")
 	}
 }
 

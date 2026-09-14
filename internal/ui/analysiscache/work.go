@@ -72,7 +72,7 @@ func (f *Feature) start(op operation, after ...<-chan struct{}) {
 					ready <- nil
 					return
 				}
-				ready <- host.Quiesce()
+				ready <- host.Quiesce(op.intent == evictRecords)
 			})
 			notify()
 			var barriers []<-chan struct{}

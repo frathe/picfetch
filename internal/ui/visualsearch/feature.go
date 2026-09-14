@@ -10,10 +10,11 @@ import (
 
 // Visit retains source identities and browsing state without decoded images.
 type Visit struct {
-	ReferencePath string
-	Paths         []string
-	Grid          grid.Visit
-	ImagePath     string
+	ReferencePath   string
+	Paths           []string
+	Grid            grid.Visit
+	ImagePath       string
+	ImageOccurrence int
 }
 
 // Host owns presentation and cross-feature navigation on the UI goroutine.
@@ -46,6 +47,7 @@ type StartRequest struct {
 }
 
 type State struct {
+	SessionID                  uint64
 	Active, Pending, Preparing bool
 	Visit                      Visit
 	Progress                   grid.Progress
@@ -63,6 +65,7 @@ type Feature struct {
 	scope                          []string
 	origin                         Visit
 	history                        []Visit
+	initialGrid                    *grid.Visit
 	cache                          similarity.CachePolicy
 	progress                       grid.Progress
 	reference                      string
@@ -93,9 +96,9 @@ func (f *Feature) Configure(options Options) {
 }
 
 // SetCachePolicy changes the policy used by the next explicitly started worker.
-// A changed persistence preference retires current writes while retaining visits.
+// Any policy change retires the captured worker policy while retaining visits.
 func (f *Feature) SetCachePolicy(policy similarity.CachePolicy) {
-	if f.cache.FavoriteEnabled != policy.FavoriteEnabled || f.cache.LooseEnabled != policy.LooseEnabled || f.cache.Roots != policy.Roots || policy.GeneralLimitBytes < f.cache.GeneralLimitBytes {
+	if f.cache != policy {
 		f.Suspend()
 	}
 	f.cache = policy
@@ -133,6 +136,7 @@ func (f *Feature) Explore(path string) bool {
 }
 
 func (f *Feature) query(path string) {
+	f.initialGrid = nil
 	f.queryID++
 	f.reference = path
 	f.pending, f.awaiting, f.queryFailed = true, true, false
@@ -200,11 +204,14 @@ func (f *Feature) Exit() {
 func (f *Feature) Active() bool { return f.active }
 
 func (f *Feature) State() State {
-	state := State{Active: f.active, Pending: f.pending, Preparing: f.preparing, Progress: f.progress}
+	state := State{SessionID: f.sessionID, Active: f.active, Pending: f.pending, Preparing: f.preparing, Progress: f.progress}
 	if len(f.history) > 0 {
 		state.Visit = cloneVisit(f.history[len(f.history)-1])
 	} else if f.active {
 		state.Visit = Visit{ReferencePath: f.reference}
+		if f.initialGrid != nil {
+			state.Visit.Grid = cloneGrid(*f.initialGrid)
+		}
 	}
 	return state
 }
@@ -217,6 +224,9 @@ func (f *Feature) Contains(path string) bool { return slices.Contains(f.scope, p
 func (f *Feature) CaptureGrid(visit grid.Visit) {
 	if len(f.history) > 0 {
 		f.history[len(f.history)-1].Grid = cloneGrid(visit)
+	} else if f.active {
+		captured := cloneGrid(visit)
+		f.initialGrid = &captured
 	}
 }
 
@@ -228,6 +238,7 @@ func (f *Feature) capture() {
 	last := &f.history[len(f.history)-1]
 	last.Grid = cloneGrid(captured.Grid)
 	last.ImagePath = captured.ImagePath
+	last.ImageOccurrence = captured.ImageOccurrence
 	// Presentation can lag behind publication while an image/modal owns input.
 	// Preserve the latest ranked paths even when the captured surface is older.
 }
@@ -243,6 +254,7 @@ func (f *Feature) clear() {
 	f.invalidateQuery()
 	f.active, f.preparing = false, false
 	f.scope, f.history = nil, nil
+	f.initialGrid = nil
 	f.origin = Visit{}
 	f.progress = grid.Progress{}
 }

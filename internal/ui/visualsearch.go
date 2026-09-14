@@ -69,6 +69,7 @@ func (v *viewer) startVisualSearch(reference string) {
 	if v.analysisMaintenanceBusy() {
 		return
 	}
+	v.fileWork.searchLifecycle.invalidate()
 	if v.searchActive() {
 		v.visualsearch.SetCachePolicy(v.searchCachePolicy())
 		if v.visualsearch.Explore(reference) {
@@ -163,18 +164,26 @@ func (v *viewer) searchKey(key fyne.KeyName) bool {
 	return false
 }
 func (v *viewer) closeVisualSearch() {
+	v.fileWork.searchLifecycle.invalidate()
 	v.resetSearchPresentation()
 	if v.visualsearch != nil {
 		v.visualsearch.Close()
 	}
 }
-func (v *viewer) indexOfSearchPath(path string) int {
+func (v *viewer) indexOfSearchOccurrence(path string, occurrence int) int {
+	first := -1
 	for i, uri := range v.state.files {
 		if uri != nil && uri.Path() == path {
-			return i
+			if first < 0 {
+				first = i
+			}
+			if occurrence == 0 {
+				return i
+			}
+			occurrence--
 		}
 	}
-	return -1
+	return first
 }
 func (v *viewer) saveSearchMatches() {
 	if !v.searchActive() || !v.grid.Visible() {
@@ -204,8 +213,14 @@ func (h searchHost) CaptureVisit() searchui.Visit {
 	if h.v.grid.Visible() {
 		visit.Grid = h.v.grid.CaptureVisit()
 	}
-	if uri, _, ok := h.v.CurrentFile(); ok {
+	if uri, index, ok := h.v.CurrentFile(); ok {
 		visit.ImagePath = uri.Path()
+		visit.ImageOccurrence = 0
+		for _, prior := range h.v.state.files[:index] {
+			if prior != nil && prior.Path() == visit.ImagePath {
+				visit.ImageOccurrence++
+			}
+		}
 	}
 	if !h.v.searchActive() {
 		visit.Grid = h.v.grid.CaptureVisit()
@@ -219,6 +234,7 @@ func (h searchHost) Restore(visit searchui.Visit, origin bool) {
 	v := h.v
 	v.resetSearchPresentation()
 	if origin {
+		v.fileWork.searchLifecycle.invalidate()
 		v.grid.Close()
 		if v.FileCount() == 0 {
 			v.clearToDropzone()
@@ -230,7 +246,7 @@ func (h searchHost) Restore(visit searchui.Visit, origin bool) {
 				v.explorer.Surface().Show()
 			}
 		} else {
-			i := v.indexOfSearchPath(visit.ImagePath)
+			i := v.indexOfSearchOccurrence(visit.ImagePath, visit.ImageOccurrence)
 			if i < 0 {
 				i = 0
 			}
@@ -254,14 +270,16 @@ func (h searchHost) Failed(err error) {
 	if errors.As(err, &pressure) {
 		h.v.analysisCache.SetRoots(h.v.analysisRoots())
 		h.v.analysisCache.MakeRoom(pressure.NeedBytes)
-		h.v.ShowToast(lang.L("Analysis paused while cache space is freed. Start another search to continue."))
+		if !h.v.visualsearch.State().Progress.Complete {
+			h.v.ShowToast(lang.L("Analysis paused while cache space is freed. Start another search to continue."))
+		}
 		return
 	}
 	fyne.LogError("visual search", err)
 	h.v.ShowToast(lang.L("Could not search this image. Choose another reference or try again."))
 	var terminal searchui.SessionError
 	if errors.As(err, &terminal) {
-		h.v.visualsearch.Exit()
+		h.v.reconcileSearchOrigin()
 	}
 }
 

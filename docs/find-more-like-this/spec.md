@@ -213,6 +213,9 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
    anchor. Back abandons an uncommitted pending query first, otherwise restores
    the prior visit. Restored visits are frozen: reject later deliveries for the
    abandoned query. Exit and Back from the earliest retained visit restore origin.
+   Image origins retain the path and its occurrence ordinal in merged lists.
+   If that occurrence no longer exists, use a surviving occurrence of the same
+   path, then the first available image.
    Evict older visits beyond 20 while retaining origin. A new query after Back
    discards the abandoned forward branch. Failed queries before first publication
    add no history; later failure leaves the last usable result with honest status.
@@ -251,8 +254,9 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
     Favorite. Avoid a redundant general copy of every Favorite record. Preserve
     the existing Favorite cache toggle, add a default-enabled loose-list toggle,
     and do not bypass an opted-out Favorite write by redirecting it to general
-    storage. Cache errors fall back to preparation with a bounded warning. Tests
-    and native trials inject isolated roots.
+    storage. Cache misses fall back to preparation. Failed promotion into a
+    Favorite reports a bounded cache warning while retaining the usable general
+    hit, without repeating inference. Tests and native trials inject isolated roots.
 
 14. **Disk budget.** Default the persisted general limit to 2048 MB using the
     existing Settings byte convention. Validate positive input and overflow,
@@ -261,8 +265,9 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
     Shrinking below usage schedules worker-driven LRU eviction. Skip persistence
     for a record larger than the entire general budget while keeping its usable
     in-memory analysis. Count serialized bytes, including managed temporary
-    files; Favorite analysis is outside this cap. Combined reported usage may
-    therefore exceed the general limit.
+    files. When eviction is needed, remove managed general temporary files before
+    applying access-time LRU to reusable records. Favorite analysis is outside
+    this cap. Combined reported usage may therefore exceed the general limit.
 
 15. **Cache-tab contract.** The analysiscache UI feature provides tab content,
     Inspect, Clean, Retune, Close, terminal Stop, and Settle behavior over an
@@ -293,8 +298,21 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
     maintenance admission on every exit; cancellation may leave a partially
     cleaned cache and must report that fact. Do not automatically resume inference
     solely because maintenance ended. A later explicit analysis/query can start
-    a fresh producer while retaining the captured browsing context. Inspection
-    and a limit increase without eviction do not retire active producers.
+    a fresh producer while retaining the captured browsing context. Read-only
+    inspection does not retire active producers. A limit increase that needs no
+    eviction does not invalidate shared writer leases or delete records. A valid
+    changed limit cancels local Explorer/search producers on UI and joins their
+    completion off UI before the initial maintenance inventory, preserving their
+    browsing state. Persist the limit only after successful current maintenance;
+    failed or canceled maintenance retains the previous accepted limit without
+    restarting producers. The next explicit reference query uses the accepted
+    limit. An unchanged policy keeps the search worker alive.
+    Automatic eviction preserves a fully prepared search producer with no
+    pending Favorite persistence, so another reference ranks its retained vectors.
+    Its old write lease stays revoked. Unfinished preparation and pending writes
+    still cancel and join; explicit cleanup and policy changes still retire it.
+    Report pressure once per producer and display the paused notice only when
+    preparation was unfinished.
 
 18. **Lifecycle and resources.** Each owning feature has a per-instance drainable
     UI queue, worker completion, cancellation, and session/request checks inside

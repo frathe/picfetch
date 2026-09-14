@@ -126,7 +126,22 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	browseFilter := g.BrowseReady()
 	nameFilter := g.searching && g.query != ""
 	hide := vis.Hide && !browsing && g.subset == nil
-	if nameFilter || hide || browseFilter || g.subset != nil {
+	if g.ranked != nil {
+		needle := strings.ToLower(g.query)
+		index := g.rankedSources()
+		g.matches = make([]int, 0, len(g.ranked.Paths))
+		for _, path := range g.ranked.Paths {
+			indexes := index.byPath[path]
+			if len(indexes) == 0 {
+				continue
+			}
+			i := indexes[0]
+			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
+				continue
+			}
+			g.matches = append(g.matches, i)
+		}
+	} else if nameFilter || hide || browseFilter || g.subset != nil {
 		needle := strings.ToLower(g.query)
 		g.matches = make([]int, 0, g.host.FileCount())
 		for i := range g.host.FileCount() {
@@ -145,23 +160,6 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 				continue
 			}
 			g.matches = append(g.matches, i)
-		}
-	}
-
-	if g.ranked != nil {
-		byPath := make(map[string]int, len(g.matches))
-		for _, i := range g.matches {
-			path := g.host.FileAt(i).Path()
-			if _, ok := byPath[path]; !ok {
-				byPath[path] = i
-			}
-		}
-		g.matches = make([]int, 0, len(g.ranked.Paths))
-		for _, path := range g.ranked.Paths {
-			if i, ok := byPath[path]; ok {
-				g.matches = append(g.matches, i)
-				delete(byPath, path)
-			}
 		}
 	}
 

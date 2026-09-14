@@ -2,10 +2,14 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"image/color"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -13,6 +17,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	searchui "github.com/frathe/picfetch/internal/ui/visualsearch"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -37,6 +42,109 @@ func findSearchMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 	return nil
 }
 func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
+	t.Run("cache-pressure-final", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		v.analysisDir = t.TempDir()
+		v.settings.looseAnalysisCache, v.settings.analysisCacheMiB = true, 1
+		v.analysisCache.Configure(analysiscache.Options{Roots: v.analysisRoots(), Queue: &uitest.UIQueue{}})
+		v.analysisCache.SetPolicy(true, 1)
+		records := filepath.Join(v.analysisDir, "v1")
+		if err := os.Mkdir(records, 0700); err != nil {
+			t.Fatal(err)
+		}
+		record := filepath.Join(records, strings.Repeat("a", 64)+".json")
+		if err := os.WriteFile(record, make([]byte, 1024*1024), 0600); err != nil {
+			t.Fatal(err)
+		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
+		})
+		var calls atomic.Int32
+		firstStopped := make(chan struct{})
+		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
+		v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}, Provider: func(ctx context.Context, request similarity.SearchRequest, queries <-chan similarity.SearchQuery, emit func(similarity.SearchEvent)) error {
+			if calls.Add(1) == 1 {
+				defer close(firstStopped)
+			}
+			var revision uint64
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case query := <-queries:
+					revision++
+					emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: revision, Kind: similarity.SearchFinal, Processed: 3, Total: 3, CachePressureBytes: 1, Matches: []similarity.Match{{Path: paths[1]}, {Path: paths[2]}}})
+				}
+			}
+		}})
+		v.findMoreLikeThis()
+		v.visualsearch.Settle()
+		v.analysisCache.Settle()
+		if _, err := os.Stat(record); !errors.Is(err, os.ErrNotExist) || v.analysisMaintenanceBusy() {
+			t.Fatalf("automatic eviction did not finish: %v", err)
+		}
+		select {
+		case <-firstStopped:
+			t.Fatal("automatic eviction canceled the fully prepared producer")
+		default:
+		}
+		firstSession := v.visualsearch.State().SessionID
+		v.grid.SimulateHover(1)
+		v.findMoreLikeThis()
+		v.visualsearch.Settle()
+		if calls.Load() != 1 || v.visualsearch.State().SessionID != firstSession || v.visualsearch.State().Preparing || v.analysisMaintenanceBusy() {
+			t.Fatal("next reference repeated preparation or handled cache pressure")
+		}
+		// Explicit cleanup still retires the completed producer.
+		v.analysisCache.Content(true, 1)
+		v.analysisCache.Settle()
+		v.analysisCache.Clean(similarity.ClearAll)
+		v.analysisCache.Settle()
+		select {
+		case <-firstStopped:
+		default:
+			t.Fatal("explicit cleanup retained an admitted producer")
+		}
+	})
+	t.Run("limit-increase-before-inspection", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		v.settings.looseAnalysisCache = true
+		publish := streamingSearchFrom(t, v)
+		publish(similarity.SearchPartial, 2, 1)
+		before := v.visualsearch.State().Visit
+		oldLimit := v.settings.analysisCacheMiB
+		provider := &searchLimitInspection{started: make(chan similarity.CacheRetuneRequest, 1), release: make(chan struct{})}
+		t.Cleanup(func() {
+			select {
+			case <-provider.release:
+			default:
+				close(provider.release)
+			}
+		})
+		v.analysisCache.Configure(analysiscache.Options{Provider: provider, Queue: &uitest.UIQueue{}})
+		v.analysisCache.Content(true, oldLimit)
+		v.analysisCache.Settle()
+		if !v.visualsearch.State().Preparing {
+			t.Fatal("read-only usage inspection retired search")
+		}
+		v.analysisCache.Retune(oldLimit * 2)
+		if v.visualsearch.State().Preparing {
+			t.Fatal("increased limit began inspection with the old search producer active")
+		}
+		request := <-provider.started
+		if request.LimitBytes != uint64(oldLimit*2)*1024*1024 || request.RetireWriters || v.settings.analysisCacheMiB != oldLimit {
+			t.Fatal("increase changed lease policy or committed before inspection completed")
+		}
+		v.visualsearch.Settle()
+		if !v.searchActive() || !slices.Equal(v.visualsearch.State().Visit.Paths, before.Paths) || !v.analysisMaintenanceBusy() {
+			t.Fatal("retiring the captured limit lost browsing or maintenance ownership")
+		}
+		close(provider.release)
+		v.analysisCache.Settle()
+		if v.settings.analysisCacheMiB != oldLimit*2 || v.visualsearch.State().Preparing || provider.calls.Load() != 1 {
+			t.Fatal("limit acceptance restarted search or queued additional maintenance")
+		}
+	})
 	for _, changed := range []bool{false, true} {
 		t.Run(fmt.Sprintf("setup reference changed=%v", changed), func(t *testing.T) {
 			v := openGridWith(t, "a.jpg", "b.jpg")
@@ -159,6 +267,20 @@ func streamingSearchFrom(t *testing.T, v *viewer) func(similarity.SearchKind, ..
 }
 
 func TestFindMoreLikeThisProgressiveForegroundIdentity(t *testing.T) {
+	t.Run("open-reference-before-first-result", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		v.grid.HandleRune('/')
+		v.grid.HandleRune('a')
+		v.grid.SimulateHover(0)
+		v.grid.SelectAll()
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		publish(similarity.SearchFinal, 2, 1)
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if v.grid.Query() != "a" || !slices.Equal(v.grid.Selection(), []int{0}) || !slices.Equal(v.grid.ResultIndexes(), []int{0}) {
+			t.Fatalf("initial Grid state was lost: query=%q selected=%v results=%v", v.grid.Query(), v.grid.Selection(), v.grid.ResultIndexes())
+		}
+	})
 	v, publish := streamingSearch(t)
 	publish(similarity.SearchPartial, 2, 1)
 	v.grid.SimulateHover(1)
@@ -187,7 +309,99 @@ func TestFindMoreLikeThisProgressiveForegroundIdentity(t *testing.T) {
 	}
 }
 
+type searchLimitInspection struct {
+	similarity.CacheManager
+	started chan similarity.CacheRetuneRequest
+	release chan struct{}
+	calls   atomic.Int32
+}
+
+func (*searchLimitInspection) Inspect(_ context.Context, _ similarity.CacheRoots, _ func(similarity.CacheProgress)) (similarity.CacheUsage, error) {
+	return similarity.CacheUsage{}, nil
+}
+
+func (p *searchLimitInspection) Retune(ctx context.Context, request similarity.CacheRetuneRequest, _ func(similarity.CacheProgress)) (similarity.CacheReport, error) {
+	p.calls.Add(1)
+	p.started <- request
+	select {
+	case <-p.release:
+		return similarity.CacheReport{AppliedLimit: request.LimitBytes}, nil
+	case <-ctx.Done():
+		return similarity.CacheReport{}, ctx.Err()
+	}
+}
+
+type searchCacheInspection struct {
+	similarity.CacheManager
+	started chan struct{}
+}
+
+func (p searchCacheInspection) Inspect(ctx context.Context, _ similarity.CacheRoots, _ func(similarity.CacheProgress)) (similarity.CacheUsage, error) {
+	close(p.started)
+	<-ctx.Done()
+	return similarity.CacheUsage{}, ctx.Err()
+}
+
 func TestFindMoreLikeThisActionsCaptureRankedSources(t *testing.T) {
+	t.Run("favorite-save-during-inspection", func(t *testing.T) {
+		for _, retired := range []bool{false, true} {
+			t.Run(fmt.Sprintf("retired=%v", retired), func(t *testing.T) {
+				v := openGridWith(t, "a.jpg", "b.jpg")
+				v.settings.looseAnalysisCache = false
+				v.favorites.SetDir(t.TempDir())
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
+					options.Settings.CacheFavorites = true
+				})
+				queue := &uitest.UIQueue{}
+				started := make(chan (<-chan similarity.SearchQuery), 1)
+				v.visualsearch.Configure(searchui.Options{Queue: queue, Provider: func(ctx context.Context, request similarity.SearchRequest, queries <-chan similarity.SearchQuery, emit func(similarity.SearchEvent)) error {
+					query := <-queries
+					emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: 1, Kind: similarity.SearchPartial,
+						Processed: 1, Total: 2, Matches: []similarity.Match{{Path: request.Paths[1]}}})
+					started <- queries
+					<-ctx.Done()
+					return ctx.Err()
+				}})
+				v.findMoreLikeThis()
+				queries := <-started
+				queue.Drain()
+				inspection := searchCacheInspection{started: make(chan struct{})}
+				v.analysisCache.Configure(analysiscache.Options{Roots: v.analysisRoots(), Provider: inspection, Queue: &uitest.UIQueue{}})
+				v.analysisCache.Content(false, 2048)
+				<-inspection.started
+				if !v.analysisCache.Busy() || !v.visualsearch.State().Preparing {
+					t.Fatal("inspection did not overlap active preparation")
+				}
+				if retired {
+					<-v.visualsearch.Suspend()
+				}
+				v.favorites.AddCurrentList()
+				entry, ok := v.win.Canvas().Focused().(interface {
+					SetText(string)
+					TypedKey(*fyne.KeyEvent)
+				})
+				if !ok {
+					t.Fatal("Favorite naming entry unavailable")
+				}
+				entry.SetText("Saved during inspection")
+				entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+				select {
+				case query := <-queries:
+					if retired || query.CacheRevision != 1 {
+						t.Fatalf("unexpected save notification: retired=%v query=%+v", retired, query)
+					}
+				default:
+					if !retired {
+						t.Fatal("read-only inspection dropped the committed Favorite save")
+					}
+				}
+				if len(started) != 0 || retired && v.visualsearch.State().Preparing {
+					t.Fatal("Favorite save restarted a retired producer")
+				}
+			})
+		}
+	})
 	t.Run("favorite-opened-list-scans-once", func(t *testing.T) {
 		v, publish := streamingSearch(t)
 		publish(similarity.SearchFinal, 2, 1)
@@ -290,6 +504,208 @@ func (u searchCountingURI) Path() string {
 }
 
 func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
+	for _, operation := range []string{"ordinary", "committed-trash", "source-failure"} {
+		t.Run("grid-origin-batch-"+operation, func(t *testing.T) {
+			names := make([]string, 40)
+			for i := range names {
+				names[i] = fmt.Sprintf("%02d.jpg", i)
+			}
+			v := openGridWith(t, names...)
+			v.grid.SimulateHover(3)
+			v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+			v.grid.HandleRune('/')
+			v.grid.HandleRune('.')
+			for range 2 {
+				v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyPageDown})
+			}
+			origin := v.grid.CaptureVisit()
+			if origin.ScrollOffset <= 0 || len(origin.Selected) != 1 {
+				t.Fatal("Grid origin lacks a scrolled selection")
+			}
+			publish := streamingSearchFrom(t, v)
+			publish(similarity.SearchFinal, 0, 1)
+			removed := []fyne.URI{v.FileAt(0), v.FileAt(2)}
+			for _, source := range removed {
+				if err := os.Remove(source.Path()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch operation {
+			case "ordinary":
+				v.RemoveFiles([]int{0, 2})
+			case "committed-trash":
+				v.ReconcileDeletedFiles(removed)
+			case "source-failure":
+				searchHost{v}.Failed(searchui.SessionError{Err: errors.New("search source changed")})
+				drainFileWork(t, v)
+			}
+			got := v.grid.CaptureVisit()
+			if !got.Visible || !slices.Equal(got.Selected, origin.Selected) || got.Highlight != origin.Highlight || got.Query != origin.Query || got.ScrollOffset != origin.ScrollOffset {
+				t.Fatalf("reconciliation overwrote restored Grid: got=%+v origin=%+v", got, origin)
+			}
+		})
+	}
+	for _, gridOrigin := range []bool{false, true} {
+		for _, replace := range []bool{false, true} {
+			t.Run(fmt.Sprintf("comparison-source-grid=%v-replaced=%v", gridOrigin, replace), func(t *testing.T) {
+				v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+				v.ShowImage(0)
+				waitUntilLoaded(t, v)
+				if !gridOrigin {
+					v.grid.Close()
+				}
+				publish := streamingSearchFrom(t, v)
+				publish(similarity.SearchFinal, 2, 1)
+				original, survivor := v.FileAt(0), v.FileAt(1)
+				v.grid.ClearSelection()
+				for _, i := range []int{0, 1} {
+					v.grid.SimulateHover(i)
+					v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+				}
+				v.compareSelected()
+				if err := v.compare.Settle(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if !v.comparisonActive() {
+					t.Fatal("comparison was not opened")
+				}
+				if replace {
+					data := uitest.EncodeJPEG(t, 16, 16, color.Black)
+					if err := os.WriteFile(original.Path(), data, 0600); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.Remove(original.Path()); err != nil {
+					t.Fatal(err)
+				}
+				searchHost{v}.Failed(searchui.SessionError{Err: errors.New("search source changed")})
+				drainFileWork(t, v)
+				if v.comparisonActive() {
+					t.Fatal("comparison blocked source reconciliation")
+				}
+				waitUntilLoaded(t, v)
+				want := survivor
+				if replace {
+					want = original
+					if v.img.Image.Bounds().Dx() != 16 {
+						t.Fatal("replaced source retained stale displayed pixels")
+					}
+				}
+				if got, ok := v.DisplayedFile(); !ok || got.String() != want.String() || v.searchActive() || v.grid.Visible() != gridOrigin {
+					t.Fatalf("source reconciliation restored stale presentation: %v", got)
+				}
+			})
+		}
+	}
+	for _, operation := range []string{"ordinary", "committed-trash", "source-failure"} {
+		t.Run("image-origin-batch-"+operation, func(t *testing.T) {
+			v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+			v.grid.Close()
+			v.ShowImage(0)
+			waitUntilLoaded(t, v)
+			publish := streamingSearchFrom(t, v)
+			publish(similarity.SearchFinal, 2, 1)
+			removed := []fyne.URI{v.FileAt(0), v.FileAt(2)}
+			kept := []fyne.URI{v.FileAt(1), v.FileAt(3)}
+			for _, source := range removed {
+				if err := os.Remove(source.Path()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch operation {
+			case "ordinary":
+				v.RemoveFiles([]int{0, 2})
+			case "committed-trash":
+				if !v.ReconcileDeletedFiles(removed) {
+					t.Fatal("completed removals were ignored")
+				}
+			case "source-failure":
+				searchHost{v}.Failed(searchui.SessionError{Err: errors.New("search source changed")})
+				drainFileWork(t, v)
+			}
+			if got := v.display.Snapshot().Requested.Source; got == nil || got.String() != kept[0].String() {
+				t.Fatalf("search restored before removals finished: requested=%v want=%v", got, kept[0])
+			}
+			waitUntilLoaded(t, v)
+			if v.searchActive() || v.grid.Visible() || !slices.EqualFunc(v.state.files, kept, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
+				t.Fatalf("batch restoration lost healthy survivors: files=%v", v.state.files)
+			}
+			if got, ok := v.DisplayedFile(); !ok || got.String() != kept[0].String() {
+				t.Fatalf("batch restored the wrong displayed source: %v", got)
+			}
+		})
+	}
+	for _, change := range []string{"deleted", "replaced", "all-deleted", "new-collection", "new-query", "closed-search"} {
+		t.Run("external-"+change, func(t *testing.T) {
+			v, publish := streamingSearch(t)
+			publish(similarity.SearchFinal, 2, 1)
+			original := v.FileAt(0)
+			imageWriter, thumbWriter := v.imgCache.Capture(), v.grid.CaptureThumbs()
+			switch change {
+			case "deleted", "new-collection":
+				if err := os.Remove(original.Path()); err != nil {
+					t.Fatal(err)
+				}
+			case "all-deleted":
+				for _, source := range v.state.files {
+					if err := os.Remove(source.Path()); err != nil {
+						t.Fatal(err)
+					}
+				}
+			case "replaced":
+				replacement := uitest.TempJPEGURI(t, "replacement.jpg", 16, 16, color.Black)
+				data, err := os.ReadFile(replacement.Path())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(original.Path(), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			searchHost{v}.Failed(searchui.SessionError{Err: errors.New("search source changed")})
+			if change == "new-query" || change == "closed-search" {
+				v.fileWork.workers.Wait()
+				if change == "new-query" {
+					v.startVisualSearch(v.FileAt(1).Path())
+				} else {
+					v.visualsearch.Exit()
+				}
+				drainFileWork(t, v)
+				if v.searchActive() != (change == "new-query") || !imageWriter.Current() || !thumbWriter.Current() {
+					t.Fatal("obsolete reconciliation changed later browsing")
+				}
+				return
+			}
+			if change == "new-collection" {
+				v.fileWork.workers.Wait()
+				replacement := uitest.TempJPEGURI(t, "new-collection.jpg", 12, 12, color.White)
+				dropAndWait(t, v, replacement)
+				drainFileWork(t, v)
+				if v.FileCount() != 1 || v.FileAt(0).String() != replacement.String() || v.searchActive() {
+					t.Fatal("obsolete reconciliation replaced the new collection")
+				}
+				return
+			}
+			drainFileWork(t, v)
+			if v.searchActive() || imageWriter.Current() || thumbWriter.Current() {
+				t.Fatal("terminal source failure retained its session or derived pixels")
+			}
+			want := 3
+			if change == "all-deleted" {
+				want = 0
+			} else if change == "replaced" {
+				want = 4
+			}
+			if v.FileCount() != want || len(v.grid.ResultIndexes()) != want || v.grid.Visible() != (want > 0) {
+				t.Fatalf("origin retained stale source mappings: files=%d results=%v visible=%v", v.FileCount(), v.grid.ResultIndexes(), v.grid.Visible())
+			}
+			if change == "replaced" {
+				waitUntilLoaded(t, v)
+				if v.img.Image.Bounds().Dx() != 16 {
+					t.Fatal("replaced source retained displayed pixels after reconciliation")
+				}
+			}
+		})
+	}
 	for _, change := range []string{"remove", "sort"} {
 		t.Run(change, func(t *testing.T) {
 			v, publish := streamingSearch(t)
@@ -315,6 +731,53 @@ func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
 }
 
 func TestFindMoreLikeThisInitialRoundTrip(t *testing.T) {
+	for _, action := range []string{"exit", "back", "remove-before", "remove-occurrence"} {
+		t.Run("image-origin-occurrence/"+action, func(t *testing.T) {
+			v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+			duplicate := v.FileAt(1)
+			v.SetMergeMode(true)
+			dropAndWait(t, v, duplicate)
+			origin, occurrences := -1, 0
+			for i, uri := range v.state.files {
+				if uri.Path() == duplicate.Path() {
+					origin = i
+					occurrences++
+				}
+			}
+			if occurrences != 2 || origin == 0 {
+				t.Fatal("merge fixture did not retain two image occurrences")
+			}
+			v.grid.Close()
+			v.ShowImage(origin)
+			waitUntilLoaded(t, v)
+			publish := streamingSearchFrom(t, v)
+			publish(similarity.SearchFinal, 0, v.FileCount()-1)
+			switch action {
+			case "exit":
+				v.visualsearch.Exit()
+			case "back":
+				v.visualsearch.Back()
+			case "remove-before":
+				v.RemoveFiles([]int{0})
+				origin--
+			case "remove-occurrence":
+				v.RemoveFiles([]int{origin - 1})
+				origin--
+			}
+			waitUntilLoaded(t, v)
+			if v.searchActive() || v.grid.Visible() || v.state.index != origin {
+				t.Fatalf("image origin restored index %d, want occurrence at %d", v.state.index, origin)
+			}
+			if got, ok := v.DisplayedFile(); !ok || got.Path() != duplicate.Path() {
+				t.Fatal("image origin lost its source")
+			}
+			v.StepImage(1)
+			waitUntilLoaded(t, v)
+			if v.state.index != origin+1 {
+				t.Fatal("navigation did not continue after the restored occurrence")
+			}
+		})
+	}
 	t.Run("deferred-back-observes-later-preparation", func(t *testing.T) {
 		v, publish := streamingSearch(t)
 		publish(similarity.SearchPartial, 2, 1)

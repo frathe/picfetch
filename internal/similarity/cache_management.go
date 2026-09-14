@@ -124,6 +124,13 @@ func (m CacheManager) maintain(ctx context.Context, roots CacheRoots, mode *Cach
 	}
 	if retune != nil {
 		slices.SortFunc(inventory.records, func(a, b managedAnalysis) int {
+			// Unfinished writes cannot be reused and must not displace LRU hits.
+			if a.temporary != b.temporary {
+				if a.temporary {
+					return -1
+				}
+				return 1
+			}
 			if a.info.ModTime().Before(b.info.ModTime()) {
 				return -1
 			}
