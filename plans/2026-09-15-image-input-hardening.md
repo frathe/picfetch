@@ -1,6 +1,7 @@
 # Image input hardening
 
-Status: implemented and full verification passed; live IDE tag refresh pending.
+Status: implemented; GitHub Codex review loop in progress. Local full verification
+passed; live IDE tag refresh remains pending.
 Authorized by Ronin on 2026-09-15.
 Route: Deep, because decoder admission and build selection cross packaging and platforms.
 
@@ -21,7 +22,8 @@ Close the four static-review findings against `367c78fe691dd883cd000c726d92940da
    fallback and preview downscaling. Propagate cancellation into decoding/compositing.
 
 No HEIC restoration, new codec dependency, upstream publication, fuzzing, exploit
-reproduction, commits or desktop launch is part of this change. Limits reduce exposure;
+reproduction or desktop launch is part of this change. The September 15 review-loop
+request authorizes PR creation, fix commits, pushes and review replies. Limits reduce exposure;
 they do not certify decoder correctness or provide an OS memory sandbox.
 
 ## Decisions and dependency obligations
@@ -106,8 +108,8 @@ canonical full tests use the repository's native Linux/amd64 Docker runner.
   `/tmp/picfetch-hardening-verify-final.log`. All 686 top-level UI runnables were
   assigned to the three validated shards. No source changes followed this run.
 
-Implementation review is complete. No commits, pushes, PRs, dependency upgrades,
-desktop launches or fuzz campaigns were made for this viewer change. Existing
+Implementation review is complete. No dependency upgrades, desktop launches or
+fuzz campaigns were made for this viewer change. Existing
 codec-evaluation documents and their todos were preserved. The plan remains here
 until the live IDE verification below is finished; distribution qualification and
 native Windows/macOS execution remain separate release work.
@@ -134,3 +136,28 @@ parameters; hosted workflow analysis is not claimed as verified locally.
 The first escalation for full verification was rejected because the automatic
 approval reviewer reported model capacity exhaustion. Local verification continued;
 the subsequent reviewed invocation was approved and ran normally.
+
+### GitHub Codex review loop
+
+The user invoked the repository review loop on September 15. Deliverable: an open
+PR with a fresh clean Codex code review on its latest commit, completed security
+review, no actionable Qodana/CodeQL results and passing required CI. Merge and
+release require separate authorization. The lead owns findings and fixes; each
+confirmed behavior defect receives a failing bounded regression before its fix.
+Focused local tests prove fixes; CI owns the complete race suite in this loop.
+
+- Initial branch `feature/sec-hardening` was clean at `11a0644`, but its imaging
+  test could not build because the AVIF policy package was absent. All nine omitted
+  files were already committed in its direct child `77a6fc0` on
+  `feature/dep-hardening`. Fast-forwarding recovered the original implementation,
+  Qodana templates and linked research records without rewriting either commit.
+- One read-only scout located that commit while the lead verified the build and
+  GitHub state. Gate: bounded file recovery question, Git tree evidence as oracle,
+  no writes/shared ownership, smaller context than implementation, no delegated
+  review. The lead confirmed the tree diff and performed the fast-forward.
+- Proof commands: focused imaging/build-tool tests; `gh pr checks` and workflow
+  logs for CI; GraphQL review threads and REST reviews for Codex; downloaded
+  post-suppression `qodana.sarif.json` and CodeQL analyses/alerts for static analysis.
+  Review dispositions and live head/check evidence belong in the PR and this record.
+- Patch-file whitespace is intentional unified-diff context; production-source
+  whitespace is checked separately without rewriting the retained patches.
