@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/visualsearch"
@@ -80,37 +81,73 @@ func publish(call providerCall, query similarity.SearchQuery, revision uint64, k
 	call.emit(event)
 }
 
-func TestVisualSearchCachePressureRetainsOnlyCompletedProducer(t *testing.T) {
-	for _, final := range []bool{false, true} {
-		t.Run(fmt.Sprintf("final_%t", final), func(t *testing.T) {
+func TestVisualSearchCachePressureWaitsForReadiness(t *testing.T) {
+	for _, phase := range []string{"completed", "failed-reference", "abandoned-query", "favorite-pending"} {
+		t.Run(phase, func(t *testing.T) {
 			f, h, q, calls := newSearch(t)
 			f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
 			call := <-calls
 			query := <-call.queries
-			kind, processed := similarity.SearchPartial, 2
-			if final {
-				kind, processed = similarity.SearchFinal, 3
-			}
-			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 1, Kind: kind, Processed: processed, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/b"}}})
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 1, Kind: similarity.SearchPartial, Processed: 2, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/b"}}})
 			q.Drain()
-			f.Settle()
+			if len(h.errors) != 0 || !f.State().Preparing || !f.Active() {
+				t.Fatalf("capacity pressure interrupted preparation: errors=%v state=%+v", h.errors, f.State())
+			}
+			if phase == "failed-reference" {
+				call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 2, Kind: similarity.SearchQueryFailure, Processed: 2, Total: 3, Error: "reference unavailable"})
+				q.Drain()
+			}
+			if phase == "abandoned-query" {
+				if !f.Explore("/b") {
+					t.Fatal("next reference rejected during preparation")
+				}
+				query = <-call.queries
+				if !f.Back() {
+					t.Fatal("pending reference was not abandoned")
+				}
+			}
+			if phase == "favorite-pending" {
+				f.FavoriteSaved()
+				query = <-call.queries
+				if query.CacheRevision == 0 {
+					t.Fatal("Favorite persistence was not admitted")
+				}
+			}
+			errorsBefore := len(h.errors)
+			presentedBefore := len(h.presented)
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 3, Kind: similarity.SearchFinal, Processed: 3, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/c"}}})
+			q.Drain()
+			if len(h.errors) != errorsBefore {
+				t.Fatal("query completion requested eviction before session readiness")
+			}
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 4, Kind: similarity.SearchReady, Processed: 3, Total: 3, CachePressureBytes: 100})
+			q.Drain()
+			if phase == "favorite-pending" {
+				if len(h.errors) != errorsBefore {
+					t.Fatal("eviction interrupted pending Favorite persistence")
+				}
+				call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, CacheRevision: query.CacheRevision, Revision: 5, Kind: similarity.SearchReady, Processed: 3, Total: 3, CachePressureBytes: 100})
+				q.Drain()
+			}
+			if (phase == "failed-reference" || phase == "abandoned-query") && len(h.presented) != presentedBefore {
+				t.Fatal("session readiness replaced the frozen visit")
+			}
 			var pressure similarity.CachePressureError
-			if len(h.errors) != 1 || !errors.As(h.errors[0], &pressure) || pressure.NeedBytes != 100 || !f.Active() {
-				t.Fatalf("cache pressure lost its request or browsing: %v", h.errors)
+			if len(h.errors) != errorsBefore+1 || !errors.As(h.errors[errorsBefore], &pressure) || pressure.NeedBytes != 100 || f.State().Preparing {
+				t.Fatalf("ready producer lost its eviction request: errors=%v state=%+v", h.errors, f.State())
 			}
 			if !f.Explore("/b") {
 				t.Fatal("next reference was rejected")
 			}
-			if f.State().Preparing == final || (f.State().SessionID == call.request.SessionID) != final {
-				t.Fatalf("completed=%t, next query repeated the wrong preparation lifetime: %+v", final, f.State())
+			if f.State().Preparing || f.State().SessionID != call.request.SessionID {
+				t.Fatalf("next reference repeated preparation: %+v", f.State())
 			}
-			if final {
-				query = <-call.queries
-				call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 2, Kind: similarity.SearchFinal, Processed: 3, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/a"}}})
-				f.Settle()
-				if len(h.errors) != 1 || len(calls) != 0 {
-					t.Fatal("retained query repeated handled pressure or restarted the provider")
-				}
+			query = <-call.queries
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, CacheRevision: query.CacheRevision, Revision: 6, Kind: similarity.SearchFinal, Processed: 3, Total: 3, Matches: []similarity.Match{{Path: "/a"}}})
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, CacheRevision: query.CacheRevision, Revision: 7, Kind: similarity.SearchReady, Processed: 3, Total: 3, CachePressureBytes: 100})
+			f.Settle()
+			if len(h.errors) != errorsBefore+1 || len(calls) != 0 {
+				t.Fatal("retained query repeated handled pressure or restarted the provider")
 			}
 		})
 	}
@@ -132,7 +169,7 @@ func TestVisualSearchCachePressureWriterQuiescence(t *testing.T) {
 			if phase == "favorite-pending" {
 				f.FavoriteSaved()
 			}
-			<-f.SuspendWriters()
+			<-f.CacheWritesRevoked()
 			if !f.Explore("/b") {
 				t.Fatal("explicit next reference rejected")
 			}
@@ -147,7 +184,7 @@ func TestVisualSearchCachePressureWriterQuiescence(t *testing.T) {
 func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
 	f, h, q, calls := newSearch(t)
 	scope := []string{"/a", "/b", "/c"}
-	origin := visualsearch.Visit{Paths: scope, ImagePath: "/a"}
+	origin := visualsearch.Visit{Paths: scope, Image: fileidentity.Occurrence{Path: "/a"}}
 	if !f.Start(visualsearch.StartRequest{Paths: scope, ReferencePath: "/a", Origin: origin}) {
 		t.Fatal("valid search rejected")
 	}
@@ -195,7 +232,7 @@ func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
 
 func TestVisualSearchLifecyclePendingBackRejectsQueuedReferences(t *testing.T) {
 	f, h, q, calls := newSearch(t)
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
 	call := <-calls
 	first := <-call.queries
 	publish(call, first, 1, similarity.SearchFinal, "/b", "/c")
@@ -225,7 +262,7 @@ func TestVisualSearchLifecyclePendingBackRejectsQueuedReferences(t *testing.T) {
 	default:
 	}
 	f.Back()
-	if h.current.ImagePath != "/origin" || !h.origins[len(h.origins)-1] {
+	if h.current.Image.Path != "/origin" || !h.origins[len(h.origins)-1] {
 		t.Fatal("pending query consumed a successful-history entry")
 	}
 }
@@ -313,7 +350,7 @@ func TestVisualSearchHistoryBranchAndTwentyVisitLimit(t *testing.T) {
 	for i := range paths {
 		paths[i] = fmt.Sprintf("/%02d", i)
 	}
-	f.Start(visualsearch.StartRequest{Paths: paths, ReferencePath: paths[0], Origin: visualsearch.Visit{ImagePath: "/independent-origin"}})
+	f.Start(visualsearch.StartRequest{Paths: paths, ReferencePath: paths[0], Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/independent-origin"}}})
 	call := <-calls
 	for i := 0; i < 22; i++ {
 		if i > 0 {
@@ -338,14 +375,14 @@ func TestVisualSearchHistoryBranchAndTwentyVisitLimit(t *testing.T) {
 		}
 	}
 	f.Back()
-	if f.State().Active || h.current.ImagePath != "/independent-origin" {
+	if f.State().Active || h.current.Image.Path != "/independent-origin" {
 		t.Fatalf("eviction lost independent origin: %+v", h.current)
 	}
 }
 
 func TestVisualSearchQueryFailurePreservesLastUsableVisit(t *testing.T) {
 	f, h, q, calls := newSearch(t)
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
 	call := <-calls
 	first := <-call.queries
 	publish(call, first, 1, similarity.SearchPartial, "/b")
@@ -368,7 +405,7 @@ func TestVisualSearchQueryFailurePreservesLastUsableVisit(t *testing.T) {
 		t.Fatal("recoverable query error classified as terminal")
 	}
 	f.Back()
-	if f.State().Active || h.current.ImagePath != "/origin" {
+	if f.State().Active || h.current.Image.Path != "/origin" {
 		t.Fatal("failed query added a history entry")
 	}
 }
@@ -397,7 +434,7 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 		f.Stop()
 		f.Settle()
 	})
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
 	<-started
 	f.Settle()
 	done := f.Suspend()
@@ -418,8 +455,42 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 		t.Fatalf("expected cancellation reported as failure: %v", h.errors)
 	}
 	f.Back()
-	if h.current.ImagePath != "/origin" {
+	if h.current.Image.Path != "/origin" {
 		t.Fatal("suspension lost origin")
+	}
+}
+
+func TestVisualSearchLifecycleDetachOrigin(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	origin := visualsearch.Visit{
+		Image: fileidentity.Occurrence{Path: "/a", Ordinal: 1},
+		Grid:  grid.Visit{Selected: []string{"/a"}, Query: "saved", Visible: true},
+	}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: origin})
+	call := <-calls
+	query := <-call.queries
+	publish(call, query, 1, similarity.SearchPartial, "/b")
+	q.Drain()
+	presentations := len(h.presented)
+	publish(call, query, 2, similarity.SearchFinal, "/late")
+	detached, active := f.DetachOrigin()
+	if !active || !reflect.DeepEqual(detached, origin) || f.Active() {
+		t.Fatal("detachment lost the origin or retained the search session")
+	}
+	f.Settle()
+	if len(h.restored) != 0 || len(h.presented) != presentations {
+		t.Fatal("detachment or retired delivery changed the surface before root reconciliation")
+	}
+	detached.Grid.Selected[0] = "/changed"
+	if origin.Grid.Selected[0] != "/a" {
+		t.Fatal("detached origin aliases its caller's bookmark")
+	}
+	if _, active := f.DetachOrigin(); active || f.Back() {
+		t.Fatal("retired origin can be restored twice")
+	}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/new"}, ReferencePath: "/new"})
+	if !f.Active() {
+		t.Fatal("detachment permanently stopped search admission")
 	}
 }
 
@@ -615,7 +686,7 @@ func TestVisualSearchCaptureGridKeepsImageAnchorWithNewestResultPaths(t *testing
 	f.CaptureGrid(queueVisit)
 	queueVisit.Paths[0], queueVisit.Results[0], queueVisit.Selected[0], queueVisit.Subset[0] = "/mutated", "/mutated", "/mutated", "/mutated"
 	h.current = f.State().Visit
-	h.current.ImagePath = "/b"
+	h.current.Image.Path = "/b"
 	h.hold = true
 	publish(call, query, 2, similarity.SearchFinal, "/c", "/b")
 	f.Settle()
@@ -625,7 +696,7 @@ func TestVisualSearchCaptureGridKeepsImageAnchorWithNewestResultPaths(t *testing
 	publish(call, query, 3, similarity.SearchFinal, "/a")
 	f.Settle()
 	f.Back()
-	if !reflect.DeepEqual(h.current.Paths, []string{"/c", "/b"}) || h.current.ImagePath != "/b" {
+	if !reflect.DeepEqual(h.current.Paths, []string{"/c", "/b"}) || h.current.Image.Path != "/b" {
 		t.Fatalf("capturing the older image surface lost newest ranking: %+v", h.current)
 	}
 	got := h.current.Grid

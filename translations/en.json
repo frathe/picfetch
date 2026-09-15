@@ -494,6 +494,5 @@
    "Usage is incomplete.": "Usage is incomplete.",
    "Processed %d records (%.1f MB).": "Processed %d records (%.1f MB).",
    "Working...": "Working...",
-   "Analysis paused while cache space is freed. Start another search to continue.": "Analysis paused while cache space is freed. Start another search to continue.",
    "Apply cache limit": "Apply cache limit"
 }

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -782,17 +781,7 @@ func (v *viewer) AfterMetadataRemoved(_ fyne.URI, result imaging.WriteResult) {
 // imgCache is appState's job rather than this method's - see its onRemove
 // hook (state.go), which fires for every removal however it is reached.
 func (v *viewer) RemoveFile(i int) {
-	v.removeFile(i)
-	v.explorerSourcesChanged()
-}
-
-func (v *viewer) removeFile(i int) {
-	v.invalidateSort() // cancel a sort still in flight - see sortOp's field comment
-
-	removed := v.state.removeFile(i)
-	if v.state.snapshot().IndexOf(removed.String()) < 0 {
-		v.explorer.RemoveCohortSource(removed.Path())
-	}
+	v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{i}})
 }
 
 // RemoveFiles drops every named index in one pass for an admitted ordinary
@@ -813,7 +802,7 @@ func (v *viewer) RemoveFiles(indices []int) {
 	if v.comparisonActive() {
 		return
 	}
-	v.removeFiles(indices)
+	v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: indices})
 }
 
 // ReconcileDeletedFiles applies completed OS moves by identity. A confirmation
@@ -833,33 +822,8 @@ func (v *viewer) ReconcileDeletedFiles(uris []fyne.URI) bool {
 	if len(indices) == 0 {
 		return false
 	}
-	if v.comparisonActive() {
-		v.compare.Close()
-	}
-	v.removeFiles(indices)
+	v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: indices})
 	return true
-}
-
-func (v *viewer) removeFiles(indices []int) {
-	prev := -1
-	for _, i := range slices.Backward(slices.Sorted(slices.Values(indices))) {
-		if i == prev || i < 0 || i >= len(v.state.files) {
-			continue
-		}
-		prev = i
-
-		v.removeFile(i)
-	}
-
-	v.grid.FilesChanged()
-	if len(v.state.files) == 0 {
-		v.grid.Close()
-	}
-	// Search restoration can start a load or restore Grid interaction. Admit
-	// it after the collection, cohort and Grid have completed reconciliation.
-	if prev >= 0 {
-		v.explorerSourcesChanged()
-	}
 }
 
 // Modifiers is which keyboard modifiers are held right now, for the feature

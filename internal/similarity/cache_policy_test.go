@@ -1,16 +1,19 @@
 package similarity
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -155,13 +158,91 @@ func TestAnalysisCachePolicyWriteBudget(t *testing.T) {
 		}
 		other := item
 		other.Path = filepath.Join(filepath.Dir(item.Path), "second.jpg")
-		if err := store.write(context.Background(), other); !errors.As(err, &pressure) {
-			t.Fatalf("over-budget new record did not report pressure: %v", err)
+		if err := store.write(context.Background(), other); err != nil {
+			t.Fatalf("producer retried general persistence after pressure: %v", err)
 		}
 		if _, ok := cacheTestRead(t, store, context.Background(), item); !ok {
 			t.Fatal("writer silently evicted an existing record under pressure")
 		}
 	})
+}
+
+func TestAnalysisCachePolicyPressurePreservesFavorites(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("favorites_%t", enabled), func(t *testing.T) {
+			ctx := context.Background()
+			policy := cacheTestPolicy(t)
+			policy.FavoriteEnabled = enabled
+			retained := cacheFixtureItem(t, "retained.jpg")
+			blocked := cacheFixtureItem(t, "blocked.jpg")
+			member := cacheFixtureItem(t, "member.jpg")
+			laterMember := cacheFixtureItem(t, "later-member.jpg")
+			loose := cacheFixtureItem(t, "loose.jpg")
+			policy.GeneralLimitBytes = 0
+			for _, item := range []Item{retained, blocked, member, laterMember, loose} {
+				policy.GeneralLimitBytes = max(policy.GeneralLimitBytes, uint64(len(cacheTestPayload(t, item))))
+			}
+			cacheTestFavorite(t, policy.Roots, member)
+			store := cacheTestStore(t, policy)
+			if err := store.write(ctx, retained); err != nil {
+				t.Fatal(err)
+			}
+			var pressure CachePressureError
+			if err := store.write(ctx, blocked); !errors.As(err, &pressure) || pressure.NeedBytes == 0 {
+				t.Fatalf("first capacity refusal: %v", err)
+			}
+			if _, hit := cacheTestRead(t, store, ctx, retained); !hit {
+				t.Fatal("capacity pressure disabled general reads")
+			}
+			if err := store.write(ctx, blocked); err != nil {
+				t.Fatalf("later general write repeated pressure: %v", err)
+			}
+			if err := store.write(ctx, member); err != nil {
+				t.Fatal(err)
+			}
+			if _, hit := cacheTestRead(t, store, ctx, member); hit != enabled {
+				t.Fatal("capacity pressure changed existing Favorite persistence")
+			}
+			// Space becoming available does not re-admit this producer's writes.
+			if err := os.Remove(cacheTestGeneralPath(policy.Roots, retained)); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.write(ctx, blocked); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(cacheTestGeneralPath(policy.Roots, blocked)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("general persistence resumed after space was freed: %v", err)
+			}
+			// Explicit save admits Favorite persistence, including future members.
+			cacheTestFavorite(t, policy.Roots, member, blocked, laterMember)
+			if err := store.refreshFavorites(ctx, []Item{blocked}, func(_ context.Context, item Item) (Item, error) {
+				return item, nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.write(ctx, laterMember); err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range []Item{blocked, laterMember} {
+				if _, hit := cacheTestRead(t, store, ctx, item); hit != enabled {
+					t.Fatalf("refreshed Favorite persistence changed for %s", item.Path)
+				}
+			}
+			if err := store.write(ctx, loose); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(cacheTestGeneralPath(policy.Roots, loose)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Favorite refresh reopened general writes: %v", err)
+			}
+			fresh := cacheTestStore(t, policy)
+			if err := fresh.write(ctx, loose); err != nil {
+				t.Fatal(err)
+			}
+			if _, hit := cacheTestRead(t, fresh, ctx, loose); !hit {
+				t.Fatal("fresh producer could not persist after space was freed")
+			}
+		})
+	}
 }
 
 func TestAnalysisCachePolicyFavoriteFirstAndPromotion(t *testing.T) {
@@ -444,6 +525,42 @@ func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *tes
 	}
 }
 
+func TestAnalysisCachePayloadBounds(t *testing.T) {
+	item := cacheFixtureItem(t, "source.jpg")
+	valid := cacheTestPayload(t, item)
+	for _, suffix := range []string{"", " \n\t", "{}", "null", "junk"} {
+		t.Run(fmt.Sprintf("suffix_%q", suffix), func(t *testing.T) {
+			payload := append(bytes.Clone(valid), suffix...)
+			got, err := decodeRepresentation(bytes.NewReader(payload))
+			wantValid := strings.TrimSpace(suffix) == ""
+			if (err == nil) != wantValid || (wantValid && got.Path != item.Path) {
+				t.Fatalf("single record with suffix %q: path=%q error=%v", suffix, got.Path, err)
+			}
+		})
+	}
+	for _, extra := range []int{0, 1, 1024} {
+		t.Run(fmt.Sprintf("limit_plus_%d", extra), func(t *testing.T) {
+			payload := append(bytes.Clone(valid), bytes.Repeat([]byte(" "), maximumAnalysisRecordBytes-len(valid)+extra)...)
+			reader := bytes.NewReader(payload)
+			got, err := decodeRepresentation(reader)
+			if (err == nil) != (extra == 0) || (extra == 0 && got.Path != item.Path) {
+				t.Fatalf("record limit plus %d: path=%q error=%v", extra, got.Path, err)
+			}
+			if read := len(payload) - reader.Len(); read > maximumAnalysisRecordBytes+1 {
+				t.Fatalf("oversize detection read %d bytes", read)
+			}
+		})
+	}
+	for _, prefix := range [][]byte{nil, valid} {
+		t.Run(fmt.Sprintf("reader_error_after_%d_bytes", len(prefix)), func(t *testing.T) {
+			reader := io.MultiReader(bytes.NewReader(prefix), iotest.ErrReader(errors.New("cache read failed")))
+			if _, err := decodeRepresentation(reader); err == nil {
+				t.Fatal("reader failure was accepted as a complete record")
+			}
+		})
+	}
+}
+
 func TestAnalysisCachePolicyRejectsInvalidRecords(t *testing.T) {
 	for _, favorite := range []bool{false, true} {
 		name := "general"
@@ -569,12 +686,12 @@ func TestAnalysisCacheLimitRetuneReclaimsTemporariesFirst(t *testing.T) {
 			policy := cacheTestPolicy(t)
 			store := cacheTestStore(t, policy)
 			items := []Item{cacheFixtureItem(t, "older.jpg"), cacheFixtureItem(t, "newer.jpg")}
-			var bytes uint64
+			var recordBytes uint64
 			for i, item := range items {
 				if err := store.write(ctx, item); err != nil {
 					t.Fatal(err)
 				}
-				bytes += uint64(len(cacheTestPayload(t, item)))
+				recordBytes += uint64(len(cacheTestPayload(t, item)))
 				when := time.Date(2020, 1, 1, 0, 0, i, 0, time.UTC)
 				if err := os.Chtimes(cacheTestGeneralPath(policy.Roots, item), when, when); err != nil {
 					t.Fatal(err)
@@ -584,13 +701,13 @@ func TestAnalysisCacheLimitRetuneReclaimsTemporariesFirst(t *testing.T) {
 			if err := os.WriteFile(orphan, []byte("unfinished record"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			limit, removedRecords := bytes, 0
+			limit, removedRecords := recordBytes, 0
 			if evictRecord {
 				limit -= uint64(len(cacheTestPayload(t, items[0])))
 				removedRecords = 1
 			}
 			report, err := (CacheManager{}).Retune(ctx, CacheRetuneRequest{Roots: policy.Roots, LimitBytes: limit}, nil)
-			if err != nil || report.AppliedLimit != limit || report.Remaining.General.Bytes != limit || report.Remaining.General.Records != 2-removedRecords || report.RemovedRecords != removedRecords || report.RemovedBytes != bytes+uint64(len("unfinished record"))-limit {
+			if err != nil || report.AppliedLimit != limit || report.Remaining.General.Bytes != limit || report.Remaining.General.Records != 2-removedRecords || report.RemovedRecords != removedRecords || report.RemovedBytes != recordBytes+uint64(len("unfinished record"))-limit {
 				t.Fatalf("temporary-first retune: %+v, %v", report, err)
 			}
 			if _, err := os.Stat(orphan); !errors.Is(err, os.ErrNotExist) {

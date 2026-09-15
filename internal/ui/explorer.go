@@ -110,13 +110,6 @@ func (v *viewer) closeExplorer() {
 	v.cancelExplorerPreparation()
 	v.explorer.Close()
 }
-func (v *viewer) explorerSourcesChanged() {
-	v.cancelExplorerPreparation()
-	v.explorer.SourcesChanged()
-	if v.searchActive() {
-		v.visualsearch.Exit()
-	}
-}
 func (v *viewer) settleExplorer() {
 	for {
 		v.grid.Settle()

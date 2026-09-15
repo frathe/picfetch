@@ -75,6 +75,9 @@ unknown membership remains inspectable without admitting unleased writes.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
+`cache_payload.go` reads one JSON document through a hard byte bound, then checks
+its version, source identity shape, vector, digest and preview. General/Favorite
+reads, general write validation and maintenance share that decoder.
 Explorer's analyzer can also read the enabled general store through the shared
 representation store and promote compatible hits into newly saved Favorites;
 its misses retain the existing Favorite-only write policy. Explorer sends Favorite
@@ -130,6 +133,16 @@ worker refreshes ownership and persists prepared members, regenerating previews
 without inference; cache opt-outs still refresh ownership without writing Favorite
 records. Transient search progress is limited to one update per 100 ms, while
 ranked, failure and terminal events retain exact accounting.
+The first general-cache capacity refusal reduces that producer's write scope
+to Favorites only, preserving reads and in-memory preparation. Explicit Favorite
+refresh carries that scope forward; new producers receive fresh admission.
+Search reports pressure at session readiness so automatic eviction cannot
+interrupt its preparation, including when a reference failed or was abandoned.
+`search_pipeline_test.go` exercises retained queries through real cached source
+preparation and complete-scope version validation. Its warm benchmark includes
+store reopening, cache reads, validation and progressive ranking; the existing
+session benchmark supplies prepared vectors directly. Both exclude native model
+startup, subprocess transport and UI paint.
 
 ### `internal/ort`
 
@@ -370,11 +383,22 @@ for an idle retained worker; Stop followed by Settle joins retired producers.
 ranked Grid visits and complete presentation/restoration deliveries. Deferred Back
 carries its saved Grid state until the surface can accept it; application reads
 current preparation progress from the live search session.
-Image origins retain their path occurrence ordinal when merge mode repeats a source.
+Capacity pressure requests maintenance once at readiness, after the current
+Favorite-save revision is acknowledged. The prepared worker then remains
+available for reference changes under the existing revoked-lease protocol.
+Image origins and Grid bookmarks use `internal/fileidentity` occurrence values
+when merge mode repeats a source. Grid retains one index per collection generation;
+image-origin lookup captures only the bookmarked path.
 An image opened before the first publication retains its Grid anchor until the
 first successful visit commits. Terminal search failures revalidate the captured
 collection through root's tracked file-work lane before restoring the origin;
 request, session and collection identities reject obsolete reconciliation.
+`internal/ui/sourcechange.go` owns admitted source changes: search detaches its
+origin before callbacks, then root reconciles the complete removal/write/recovery,
+retires Explorer, updates Grid and restores the origin. Display failures receive
+the selected origin index through their existing retry chain instead of starting
+a competing load. Committed writes retain comparison for Grid origins and close
+it when an image origin must be restored.
 `internal/ui/browsing.go` captures the shared ranked/cohort command restriction and
 one immutable ranked index order per action or preload pair; menus and duplicate
 handlers consume the same subset restriction. Favorite capture exposes one
@@ -404,15 +428,21 @@ partial reports. `operation.go` owns explicit intent admission, coalesced usage
 refresh/reserve requests, provider dispatch and accepted policy effects. Refreshes
 wait behind mutations; automatic eviction and policy retirement survive view close. Persistence toggles commit independently of inspection
 success, retire producers on UI and join their barriers even after Settings closes.
-`work.go` captures providers/roots, queues maintenance writer suspension,
-joins completion barriers off UI and suppresses retired view callbacks. Cache
+`work.go` captures providers/roots, joins predecessors, dispatches maintenance
+and suppresses retired view callbacks. `quiescence.go` owns the UI handoff after
+shared write-lease revocation: cancellation can abandon a queued callback, but a
+claimed callback's reply and all retired producer barriers belong to completion.
+Host reasons distinguish local policy retirement before inspection, explicit
+record removal after lease revocation and automatic eviction. Cache
 inspection holds only one queued progress callback, reading the latest count on
 delivery, so inventory size cannot create an unbounded UI progress backlog. Root
 composes the two-method Host in `internal/ui/analysiscache.go`, uses the Fyne
 application cache root, persists accepted policy and disables new analysis
 admission while maintenance owns the roots.
-Automatic eviction permits an idle, fully prepared search producer to retain its
-vectors after lease invalidation; pending preparation/Favorite writes still join.
+Automatic eviction notifies search through `CacheWritesRevoked`, permitting an
+idle, fully prepared producer to retain its vectors after lease invalidation;
+pending preparation/Favorite writes still join. The disk manager retains its
+existing lock/epoch protocol and final committed-effect report.
 Settings supplies the tab slot, confirmation window and Close notification without
 sharing worker state.
 
@@ -466,6 +496,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
+| `sourcechange.go` | Complete source-removal, committed-write, validation-recovery and analysis-policy transitions. Detaches search before callback delivery and restores browsing after collection/cohort/Grid reconciliation; display keeps retry ownership. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken` for root scan/sort/copy-selection and other root work. Display owns its load/GIF/SVG lifecycles internally. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
 | `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet` by forwarding `appState`'s published `dupes.Snapshot`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
@@ -820,6 +851,13 @@ string translation (`FromPref` / `PrefValue`).
 | File | Responsibility |
 |------|----------------|
 | `filesort.go` | `Mode`, `Next`, `Order`, `Label`, `FromPref` / `PrefValue`. |
+
+### `internal/fileidentity`
+
+`occurrence.go` owns immutable path-plus-ordinal bookmarks and a captured index
+for exact occurrence lookup. Grid and image visits share this contract. Missing
+occurrences return absence; each caller chooses its fallback. The package has
+no Fyne or filesystem I/O and does not identify source-content versions.
 
 ### `internal/selection`
 

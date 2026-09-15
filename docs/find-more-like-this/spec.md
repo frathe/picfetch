@@ -311,8 +311,15 @@ are evicted by least recent use; Favorite analysis is outside that size limit.
     pending Favorite persistence, so another reference ranks its retained vectors.
     Its old write lease stays revoked. Unfinished preparation and pending writes
     still cancel and join; explicit cleanup and policy changes still retire it.
-    Report pressure once per producer and display the paused notice only when
-    preparation was unfinished.
+    General-cache capacity pressure does not pause search preparation. After
+    the first capacity refusal, skip further general-cache writes for that
+    producer while retaining reads, in-memory vectors and enabled Favorite
+    writes. Explicit Favorite ownership refresh preserves that restriction;
+    a fresh producer may write again. Report pressure on session readiness,
+    including after a failed or abandoned reference, and request automatic
+    eviction once after any pending Favorite save is acknowledged. Canceling
+    before readiness does not request eviction. Existing vector-memory limits
+    still apply; records skipped on disk may require preparation next session.
 
 18. **Lifecycle and resources.** Each owning feature has a per-instance drainable
     UI queue, worker completion, cancellation, and session/request checks inside

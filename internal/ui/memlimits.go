@@ -163,7 +163,7 @@ func (v *viewer) SetMaxFileSizeMB(n int) {
 	v.settings.maxFileMB = n
 	imaging.SetMaxEncodedBytes(int64(n) * bytesPerMB)
 	if changed {
-		v.explorerSourcesChanged()
+		v.reconcileSources(sourceChange{kind: analysisPolicyChanged})
 	}
 }
 
@@ -205,9 +205,10 @@ func (v *viewer) pushDuplicateDistance(n int) {
 		return
 	}
 	if v.dupes.HideDuplicates() {
-		v.explorerSourcesChanged()
+		v.reconcileSources(sourceChange{kind: duplicatePolicyChanged})
+	} else {
+		v.grid.DuplicateDistanceChanged()
 	}
-	v.grid.DuplicateDistanceChanged()
 }
 
 // settingsState is the form snapshot Settings Show is seeded from: the

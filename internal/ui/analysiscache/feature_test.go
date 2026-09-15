@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -65,12 +66,14 @@ type policy struct {
 type cacheHost struct {
 	policies  []policy
 	quiesced  int
+	reasons   []analysiscache.QuiesceReason
 	barriers  []<-chan struct{}
 	onQuiesce func()
 }
 
-func (h *cacheHost) Quiesce(_ bool) []<-chan struct{} {
+func (h *cacheHost) Quiesce(reason analysiscache.QuiesceReason) []<-chan struct{} {
 	h.quiesced++
+	h.reasons = append(h.reasons, reason)
 	if h.onQuiesce != nil {
 		h.onQuiesce()
 	}
@@ -464,6 +467,56 @@ func TestAnalysisCacheManagementWritersSettleDrainsQuiescenceAndWaitsBothWriters
 	}
 	if h.quiesced != 1 || f.Busy() {
 		t.Fatalf("maintenance did not finish observed retirement: quiesced=%d busy=%v", h.quiesced, f.Busy())
+	}
+}
+
+func TestAnalysisCacheManagementQuiescenceReasons(t *testing.T) {
+	roots := similarity.CacheRoots{GeneralDir: t.TempDir(), FavoritesDir: t.TempDir()}
+	records := filepath.Join(roots.GeneralDir, "v1")
+	if err := os.Mkdir(records, 0700); err != nil {
+		t.Fatal(err)
+	}
+	h := &cacheHost{}
+	f := analysiscache.New(h, analysiscache.Options{Roots: roots, Queue: &uitest.UIQueue{}})
+	t.Cleanup(func() { f.Stop(); f.Settle() })
+	content := f.Content(true, 1)
+	f.Settle()
+	if len(h.reasons) != 0 {
+		t.Fatal("initial usage inspection retired producers")
+	}
+	for _, tc := range []struct {
+		name string
+		run  func()
+		want []analysiscache.QuiesceReason
+	}{
+		{"inspect", f.Inspect, nil},
+		{"unchanged-limit", func() { f.Retune(1) }, nil},
+		{"increase-limit", func() { f.Retune(2) }, []analysiscache.QuiesceReason{analysiscache.PolicyChange}},
+		{"decrease-limit", func() { f.Retune(1) }, []analysiscache.QuiesceReason{analysiscache.PolicyChange, analysiscache.RecordRemoval}},
+		{"clear", func() { f.Clean(similarity.ClearAll) }, []analysiscache.QuiesceReason{analysiscache.RecordRemoval}},
+		{"stale", func() { f.Clean(similarity.RemoveStale) }, []analysiscache.QuiesceReason{analysiscache.RecordRemoval}},
+		{"automatic-eviction", func() {
+			if err := os.WriteFile(filepath.Join(records, strings.Repeat("a", 64)+".json"), []byte("12345"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			f.MakeRoom(1024 * 1024)
+		}, []analysiscache.QuiesceReason{analysiscache.AutomaticEviction}},
+		{"disable-persistence", func() {
+			for _, object := range descendants(content) {
+				if check, ok := object.(*widget.Check); ok {
+					check.SetChecked(false)
+					return
+				}
+			}
+			t.Fatal("persistence toggle is absent")
+		}, []analysiscache.QuiesceReason{analysiscache.PolicyChange}},
+	} {
+		h.reasons = nil
+		tc.run()
+		f.Settle()
+		if !slices.Equal(h.reasons, tc.want) {
+			t.Fatalf("%s maintenance phases: got %v, want %v", tc.name, h.reasons, tc.want)
+		}
 	}
 }
 

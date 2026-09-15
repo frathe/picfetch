@@ -15,9 +15,23 @@ import (
 	"github.com/frathe/picfetch/internal/similarity"
 )
 
+// QuiesceReason identifies why maintenance needs local producers to stop.
+type QuiesceReason uint8
+
+const (
+	// PolicyChange retires captured policy before the initial inventory.
+	PolicyChange QuiesceReason = iota
+	// RecordRemoval follows shared write-lease revocation for explicit maintenance.
+	RecordRemoval
+	// AutomaticEviction follows shared write-lease revocation and may retain
+	// fully prepared producers with no pending writes for in-memory ranking.
+	AutomaticEviction
+)
+
 type Host interface {
-	// Quiesce may retain fully prepared producers with no pending writes during automatic eviction.
-	Quiesce(preservePrepared bool) []<-chan struct{}
+	// Quiesce runs on UI. Every returned barrier belongs to maintenance
+	// completion, including when cancellation follows this call.
+	Quiesce(QuiesceReason) []<-chan struct{}
 	ApplyPolicy(bool, int)
 }
 

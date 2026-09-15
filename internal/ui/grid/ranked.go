@@ -9,6 +9,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/frathe/picfetch/internal/fileidentity"
 )
 
 // Visit captures file identities independently of the collection's indexes.
@@ -18,33 +20,28 @@ type Visit struct {
 	Searching, Ranked, Visible       bool
 	ScrollOffset                     float32
 	subsetBack, analyze              func()
-	selectedOccurrences              map[fileOccurrence]bool
-	highlightOccurrence              int
+	selectedOccurrences              map[fileidentity.Occurrence]bool
+	highlightIdentity                fileidentity.Occurrence
 }
-type fileOccurrence struct {
-	path    string
-	ordinal int
-}
-
-type rankedSourceIndex struct {
-	byPath     map[string][]int
+type visitSourceIndex struct {
+	identities fileidentity.Index
 	generation uint64
 	count      int
 }
 
-func (g *Overview) rankedSources() *rankedSourceIndex {
+func (g *Overview) visitSources() *visitSourceIndex {
 	generation, count := g.host.Generation(), g.host.FileCount()
-	if g.rankSources != nil && g.rankSources.generation == generation && g.rankSources.count == count {
-		return g.rankSources
+	if g.visitIndex != nil && g.visitIndex.generation == generation && g.visitIndex.count == count {
+		return g.visitIndex
 	}
-	index := &rankedSourceIndex{generation: generation, count: count, byPath: make(map[string][]int, count)}
-	for i := range count {
+	index := &visitSourceIndex{generation: generation, count: count}
+	index.identities = fileidentity.NewIndex(count, func(i int) string {
 		if source := g.host.FileAt(i); source != nil {
-			path := source.Path()
-			index.byPath[path] = append(index.byPath[path], i)
+			return source.Path()
 		}
-	}
-	g.rankSources = index
+		return ""
+	})
+	g.visitIndex = index
 	return index
 }
 
@@ -170,49 +167,18 @@ func (g *Overview) CaptureVisit() Visit {
 	if i := g.fileIndex(g.highlight); i >= 0 {
 		visit.Highlight = g.host.FileAt(i).Path()
 	}
-	// Keep occurrence ordinals private and immutable so a copied visit retains
-	// one selected duplicate even when paths repeat in a merged collection.
-	visit.selectedOccurrences = make(map[fileOccurrence]bool, len(visit.Selected))
-	if g.ranked != nil {
-		index := g.rankedSources()
-		for _, i := range g.Selection() {
-			if i >= 0 && i < g.host.FileCount() {
-				path := g.host.FileAt(i).Path()
-				ordinal, found := slices.BinarySearch(index.byPath[path], i)
-				if found {
-					visit.selectedOccurrences[fileOccurrence{path, ordinal}] = true
-				}
+	// Occurrence bookmarks are immutable after capture, including when paths
+	// repeat in a merged collection. Reuse the generation-bound source index.
+	visit.selectedOccurrences = make(map[fileidentity.Occurrence]bool, len(visit.Selected))
+	index := g.visitSources().identities
+	for _, i := range g.Selection() {
+		if i >= 0 && i < g.host.FileCount() {
+			if identity, ok := index.Capture(g.host.FileAt(i).Path(), i); ok {
+				visit.selectedOccurrences[identity] = true
 			}
-		}
-		visit.highlightOccurrence, _ = slices.BinarySearch(index.byPath[visit.Highlight], g.fileIndex(g.highlight))
-	} else {
-		selected := make(map[int]bool, len(visit.Selected))
-		counts := make(map[string]int, len(visit.Selected)+1)
-		highlight := g.fileIndex(g.highlight)
-		last := highlight
-		for _, i := range g.Selection() {
-			if i >= 0 && i < g.host.FileCount() {
-				selected[i] = true
-				counts[g.host.FileAt(i).Path()] = 0
-				last = max(last, i)
-			}
-		}
-		counts[visit.Highlight] = 0
-		for i := 0; i <= last; i++ {
-			path := g.host.FileAt(i).Path()
-			ordinal, wanted := counts[path]
-			if !wanted {
-				continue
-			}
-			if selected[i] {
-				visit.selectedOccurrences[fileOccurrence{path, ordinal}] = true
-			}
-			if i == highlight {
-				visit.highlightOccurrence = ordinal
-			}
-			counts[path]++
 		}
 	}
+	visit.highlightIdentity, _ = index.Capture(visit.Highlight, g.fileIndex(g.highlight))
 	if g.subset != nil {
 		visit.Subset = []string{}
 	}
@@ -248,45 +214,22 @@ func (g *Overview) restoreVisitState(visit Visit) {
 	var selected []int
 	wanted := visit.selectedOccurrences
 	if wanted == nil {
-		wanted = make(map[fileOccurrence]bool, len(visit.Selected))
+		wanted = make(map[fileidentity.Occurrence]bool, len(visit.Selected))
 		for _, path := range visit.Selected {
-			wanted[fileOccurrence{path, 0}] = true
+			wanted[fileidentity.Occurrence{Path: path}] = true
 		}
 	}
-	highlight := -1
-	if g.ranked != nil {
-		index := g.rankedSources()
-		for identity := range wanted {
-			indexes := index.byPath[identity.path]
-			if identity.ordinal >= 0 && identity.ordinal < len(indexes) && g.subset[identity.path] {
-				selected = append(selected, indexes[identity.ordinal])
-			}
-		}
-		indexes := index.byPath[visit.Highlight]
-		if visit.highlightOccurrence >= 0 && visit.highlightOccurrence < len(indexes) {
-			highlight = indexes[visit.highlightOccurrence]
-		}
-	} else {
-		counts := make(map[string]int, len(visit.Selected)+1)
-		for identity := range wanted {
-			counts[identity.path] = 0
-		}
-		counts[visit.Highlight] = 0
-		for i := range g.host.FileCount() {
-			path := g.host.FileAt(i).Path()
-			ordinal, tracked := counts[path]
-			if !tracked {
-				continue
-			}
-			counts[path]++
-			if wanted[fileOccurrence{path, ordinal}] {
-				selected = append(selected, i)
-			}
-			if path == visit.Highlight && ordinal == visit.highlightOccurrence {
-				highlight = i
-			}
+	index := g.visitSources().identities
+	for identity := range wanted {
+		if i := index.Resolve(identity); i >= 0 && (g.ranked == nil || g.subset[identity.Path]) {
+			selected = append(selected, i)
 		}
 	}
+	highlightIdentity := visit.highlightIdentity
+	if highlightIdentity.Path == "" {
+		highlightIdentity.Path = visit.Highlight
+	}
+	highlight := index.Resolve(highlightIdentity)
 	g.sel.Replace(selected)
 	g.wrap.ScrollToOffset(visit.ScrollOffset)
 	if id := g.displayIndexOfHost(highlight); id >= 0 {
