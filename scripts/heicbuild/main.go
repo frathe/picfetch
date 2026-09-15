@@ -29,7 +29,7 @@ const (
 	decoderZipSHA   = "2838bcb83b8da357a19788ad5d8a9d55c16bd4a12961fa81e3ab282974f1ed7a"
 	compilerVersion = "go1.27.1"
 	guestDir        = "scripts/heicguest"
-	guestArtifact   = guestDir + "/decoder.wasm"
+	guestArtifact   = "internal/heicdecode/worker/decoder.wasm"
 	manifestPath    = guestDir + "/decoder.json"
 )
 
@@ -41,11 +41,11 @@ type manifest struct {
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: heicbuild build|check|imports|fixture")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: heicbuild build|check|imports|fixture|photo-fixture")
 		os.Exit(2)
 	}
 	if err := run(os.Args[1]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -58,7 +58,7 @@ func run(mode string) error {
 	if mode == "imports" {
 		return checkImports(root)
 	}
-	if mode != "build" && mode != "check" && mode != "fixture" {
+	if mode != "build" && mode != "check" && mode != "fixture" && mode != "photo-fixture" {
 		return errors.New("unknown heicbuild mode")
 	}
 	if err = verifySource(root); err != nil {
@@ -66,6 +66,9 @@ func run(mode string) error {
 	}
 	if mode == "fixture" {
 		return generateFixture(root)
+	}
+	if mode == "photo-fixture" {
+		return generatePhotoFixture(root)
 	}
 	files, err := buildInputs(root)
 	if err != nil {
@@ -223,6 +226,11 @@ func buildInputs(root string) ([]string, error) {
 				return err
 			}
 			if d.IsDir() {
+				// The native host is outside the guest's compiled dependency graph.
+				// Its embedded artifact is inventoried explicitly below.
+				if dir == "internal/heicdecode" && path != filepath.Join(root, dir) {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 			name := filepath.ToSlash(strings.TrimPrefix(path, root+string(filepath.Separator)))
@@ -305,6 +313,9 @@ func checkNativeSources(root string) error {
 			}
 			if forbiddenImport(imported) {
 				return fmt.Errorf("forbidden native codec import %s in %s", imported, rel)
+			}
+			if imported == "github.com/frathe/picfetch/internal/heicdecode/worker" && rel != "cmd/picfetch-heic-worker/main.go" {
+				return fmt.Errorf("embedded HEIC runtime is helper-only: %s", rel)
 			}
 		}
 		return nil

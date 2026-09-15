@@ -16,6 +16,15 @@ linear memory, 64 KiB output, and 15 seconds. It is a test-asset tool, not an
 application encoder. The generator and generated fixture use PicFetch's MIT
 license. Generation uses unmodified h265 v0.2.3, with its MIT notice retained.
 
+`photo-gradient.heic.gz` contains one PicFetch-owned ordinary 4032x3024 color
+gradient, encoded as eight-bit 4:2:0 lossless HEIC by `fixturephoto` inside WASI.
+Reproduce with `make heic-photo-fixture` (30 s, 1 GiB guest memory, 64 MiB output).
+The gzip wrapper only reduces repository size; native qualification decompresses
+it through a byte limit after admission. The 18,384,780 decoded file bytes have
+SHA-256 `f3600151fccf6a016fc870a4faaf051480aa12f53bc1e9083c0c1c092a7b955f`.
+This is a throughput fixture, not a claim of camera/color/HDR compatibility.
+It has the same PicFetch MIT/upstream encoder notice obligations above.
+
 The tests cover successful byte transport, nonempty pixels, alpha retention,
 NRGBA64 output for the explicit ten-bit fixture, and matching transformed
 config/decode dimensions. They do not establish colorimetric fidelity, broad

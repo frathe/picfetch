@@ -209,6 +209,9 @@ jobs:
       - name: Check Explorer runtime selection and worker exit
         run: go test ./internal/ort ./internal/similarity ./scripts/explorereval -count=1
 
+      - name: Qualify signed HEIC App Sandbox helper
+        run: go run ./scripts/nativeguards -suite heic-macos -capture "${{ runner.temp }}/native-guards-heic-macos.json"
+
       - name: Qualify Intel Explorer download and offline inference
         if: matrix.arch == 'amd64'
         run: make explorer-install-test

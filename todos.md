@@ -93,12 +93,18 @@ Restoration work is authorized and tracked in
 [the active plan](plans/2026-09-15-isolated-heic-restoration.md) and
 [draft PR #28](https://github.com/frathe/picfetch/pull/28). Local source access is
 resolved. The pinned WASI development guest, NRGBA8/NRGBA64 protocol, ordinary
-fixtures and reproducible source/artifact/import guards are present. Production
-decoding remains disabled: native helper restrictions, a real whole-worker memory
-budget, shared app/analysis admission, signing/packaging and compatibility checks
-are unfinished. A local macOS probe rejected the proposed 2 GiB address-space
-limit below existing virtual mappings; separate macOS protection research is
-ongoing. Linux/Windows native enforcement is unverified. See
+fixtures and reproducible source/artifact/import guards are present. A signed
+macOS App Sandbox helper now passes owned file/network-denial, ordinary decode
+and cancellation checks. Its bounded parent transport passes owned crash,
+blocked-writer timeout and diagnostic tests. Ronin accepted the absent hard total
+native-memory cap on macOS; WASM/IPC/deadline/sandbox protections remain mandatory.
+The compiler needs a helper-only executable-memory entitlement; the interpreter
+timed out on an ordinary 12-megapixel fixture under the same deadline.
+Production decoding remains disabled pending shared app/analysis admission,
+canonical imaging integration, Linux/Windows enforcement, final packaging and
+compatibility checks. The updated source instructions also require retaining or
+verifying equivalence of the historical maintained h265 patches before selecting
+the shipped source. Native Intel and full packaged qualification remain open. See
 [qualification evidence](docs/heic/qualification.md).
 
 The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)

@@ -604,11 +604,19 @@ heic-check-provenance: ## Verify pinned source/notices and reproduce the HEIC gu
 heic-check-imports: ## Reject native HEIC codec imports and unreviewed guest dependencies
 	go run ./scripts/heicbuild imports
 
-heic-check-guest: ## Test the development guest against small licensed ordinary fixtures
-	go test -tags "$(APP_TAGS)" ./internal/heicdecode ./scripts/heicbuild
+heic-check-guest: ## Test the guest and owned runtime/transport boundaries
+	go test -tags "$(APP_TAGS)" ./internal/heicdecode/... ./scripts/heicbuild
 
 heic-fixture: ## Reproduce the fixed 16x16 ten-bit fixture inside WASI
 	go run ./scripts/heicbuild fixture
+
+.PHONY: heic-photo-fixture heic-native-macos
+heic-photo-fixture: ## Reproduce the fixed 12-megapixel qualification gradient inside WASI
+	go run ./scripts/heicbuild photo-fixture
+
+heic-native-macos: ## Qualify signed sandboxed helpers and bounded runtime choice on native macOS
+	mkdir -p .scratch/heic-qualification
+	go run ./scripts/nativeguards -suite heic-macos -capture .scratch/heic-qualification/native-macos.json
 
 .PHONY: heic-security-govulncheck
 heic-security-govulncheck: ## Scan the separate WASI guest module (including its fixed fixture generator)

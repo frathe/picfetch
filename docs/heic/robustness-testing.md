@@ -24,11 +24,13 @@ after its provenance and safe handling are reviewed.
 ## Budgets and observables
 
 The initial ceiling for a complete operation is 30 seconds. The separate maxima
-are 1 GiB WASM linear memory, 2 GiB for the OS-enforced helper process family,
+are 1 GiB WASM linear memory, a requested 2 GiB native-process budget,
 64 MiB encoded HEIC input (further reduced by a positive user limit), 64 million
 pixels, checked NRGBA8/NRGBA64 output, 64 KiB metadata, 4096-byte diagnostics,
 one guest decode lane and one live helper per application instance. Native
-helper thread/process ceilings require separate OS enforcement. Measurements
+helper thread/process ceilings require separate OS enforcement. Ronin approved
+macOS's absent hard native-memory cap once sandbox/WASM bounds are verified;
+readiness reports this absence, and a soft Go memory target is not a hard cap. Measurements
 on representative photographs must account for parent input, pipe buffers,
 guest backing, wazero/Go overhead, output staging and application caches. Limits
 may be lowered from evidence; they must remain finite.
@@ -55,7 +57,16 @@ The development guest is a separate WASI-only module. Its positive fixture ABI
 tests use three distinct ordinary images (RGB, alpha, and an explicitly ten-bit
 gradient) plus the upstream byte-identical `main10.heic` alias. Parent protocol
 checks use bounded owned messages. No upstream negative test corpus, historical
-reproducer, fuzz campaign, crash/hang/memory-exhaustion campaign or native
-capability test was run. Source/artifact guards are negatively exercised using
+reproducer or fuzz campaign was run. Owned helper peers now exercise crash,
+blocked-writer timeout, excess diagnostics, descendant cleanup and Stop/Wait.
+Owned tiny WASM modules exercise memory-page admission/growth, loop termination,
+diagnostic bounds and absent filesystem preopens. A deliberately granted
+temporary directory is detected; leader-only termination fails the descendant
+guard. Both controls are restored to their required production behavior.
+The real signed macOS helper checks owned file read/create and loopback TCP/UDP
+denial before ordinary image input, then verifies decode and cancellation. A
+fixed ordinary 12-megapixel gradient compares runtimes within the existing
+deadline; it is not an image-parser attack or a memory-exhaustion campaign.
+Source/artifact guards are negatively exercised using
 owned source text and missing files. Full status and remaining gates are in
 [qualification.md](qualification.md).

@@ -42,3 +42,14 @@ func TestImportGuardRejectsNativeCodec(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestImportGuardKeepsGuestRuntimeOutOfViewer(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "viewer.go")
+	if err := os.WriteFile(file, []byte("package sample\nimport _ \"github.com/frathe/picfetch/internal/heicdecode/worker\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkNativeSources(root); err == nil {
+		t.Fatal("viewer imported the embedded guest runtime")
+	}
+}

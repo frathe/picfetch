@@ -21,6 +21,7 @@ func TestNativeSuitesSelectPlatformAndDistributionGuards(t *testing.T) {
 		{"windows", "windows", "github.com/frathe/picfetch/internal/update", "TestApplyWindows_MissingStagedBinaryRestoresDest", ""},
 		{"windows", "windows", "github.com/frathe/picfetch/internal/distribution", "TestStoreManaged_DefaultBuildIsFalse", ""},
 		{"macos", "darwin", "github.com/frathe/picfetch", "TestInstall_GraftsOntoGLFWsDelegate", ""},
+		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/heicdecode/client", "TestNativeMacSandboxHelper", "heicnative"},
 		{"store", "darwin", "github.com/frathe/picfetch/internal/distribution", "TestStoreManaged_MicrosoftStoreBuildIsTrue", "microsoftstore"},
 	} {
 		t.Run(tc.name+"/"+tc.test, func(t *testing.T) {

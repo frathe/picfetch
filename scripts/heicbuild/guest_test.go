@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -19,10 +18,24 @@ import (
 // Only unchanged licensed small ordinary fixtures enter the development guest.
 // This proves the guest ABI, not native helper resource or sandbox enforcement.
 func TestWASIGuestOrdinaryFixtures(t *testing.T) {
-	wasm, err := os.ReadFile(filepath.Join("..", "heicguest", "decoder.wasm"))
+	wasm, err := os.ReadFile(filepath.Join("..", "..", "internal", "heicdecode", "worker", "decoder.wasm"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Compile the fixed artifact once for ABI checks. Native helper tests
+	// separately cover the real cold-start deadline for every disposable job.
+	ctx, cancel := context.WithTimeout(context.Background(), heicdecode.DefaultLimits(0).Timeout)
+	defer cancel()
+	runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigCompiler().WithMemoryLimitPages(2048).WithCloseOnContextDone(true))
+	defer func() { _ = runtime.Close(context.Background()) }()
+	if _, err = wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := runtime.CompileModule(ctx, wasm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = compiled.Close(context.Background()) }()
 	for _, tt := range []struct {
 		name           string
 		sixteen, alpha bool
@@ -34,7 +47,7 @@ func TestWASIGuestOrdinaryFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			result := runGuest(t, wasm, input, heicdecode.Decode)
+			result := runGuest(t, runtime, compiled, input, heicdecode.Decode)
 			if result.Image == nil || result.Image.Bounds().Empty() {
 				t.Fatal("missing decoded image")
 			}
@@ -58,40 +71,30 @@ func TestWASIGuestOrdinaryFixtures(t *testing.T) {
 					t.Fatal("alpha was flattened")
 				}
 			}
-			config := runGuest(t, wasm, input, heicdecode.DecodeConfig)
+			config := runGuest(t, runtime, compiled, input, heicdecode.DecodeConfig)
 			if config.Image != nil || config.Config.Width != result.Image.Bounds().Dx() || config.Config.Height != result.Image.Bounds().Dy() {
 				t.Fatal("config differs from displayed dimensions")
 			}
-			_ = runGuest(t, wasm, input, heicdecode.DecodeExif)
+			_ = runGuest(t, runtime, compiled, input, heicdecode.DecodeExif)
 		})
 	}
 }
 
-func runGuest(t *testing.T, wasm, input []byte, op heicdecode.Operation) heicdecode.Response {
+func runGuest(t *testing.T, runtime wazero.Runtime, compiled wazero.CompiledModule, input []byte, op heicdecode.Operation) heicdecode.Response {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 	limits := heicdecode.DefaultLimits(1024 * 1024)
+	ctx, cancel := context.WithTimeout(context.Background(), limits.Timeout)
+	defer cancel()
 	limits.MaxPixels = 1024 * 1024
 	limits.MaxOutputBytes = 8 * 1024 * 1024
 	var request bytes.Buffer
 	if err := heicdecode.WriteRequest(&request, heicdecode.Request{Operation: op, Input: input}, limits); err != nil {
 		t.Fatal(err)
 	}
-	// Interpreter avoids executable JIT memory; WASI has no preopens, environment,
-	// real clock, random source, or sockets. The 128 MiB cap is linear memory only.
-	runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter().WithMemoryLimitPages(2048).WithCloseOnContextDone(true))
-	defer func() {
-		if err := runtime.Close(context.Background()); err != nil {
-			t.Error(err)
-		}
-	}()
-	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
-		t.Fatal(err)
-	}
+	// No preopens, environment, real clock, random source, or socket handles.
 	output := &boundedOutput{limit: int(limits.MaxOutputBytes) + int(limits.MaxMetadataBytes) + 4096}
 	config := wazero.NewModuleConfig().WithStdin(&request).WithStdout(output).WithStderr(&boundedOutput{limit: 4096})
-	if _, err := runtime.InstantiateWithConfig(ctx, wasm, config); err != nil {
+	if _, err := runtime.InstantiateModule(ctx, compiled, config); err != nil {
 		t.Fatal(err)
 	}
 	result, err := heicdecode.ReadResponse(bytes.NewReader(output.Bytes()), op, limits)

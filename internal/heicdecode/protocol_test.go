@@ -88,7 +88,7 @@ func responseBytes(t *testing.T, width, height uint32, format, depth uint16, pix
 	t.Helper()
 	var out bytes.Buffer
 	out.WriteString(responseMagic)
-	values := []any{uint16(protocolVersion), uint16(statusOK), width, height, uint32(width * 4), depth, format,
+	values := []any{uint16(protocolVersion), uint16(statusOK), width, height, width * 4, depth, format,
 		uint64(len(pixels)), uint32(len(metadata)), uint32(len(diagnostic))}
 	for _, value := range values {
 		if err := binary.Write(&out, binary.LittleEndian, value); err != nil {

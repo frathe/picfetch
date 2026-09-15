@@ -280,3 +280,115 @@ qualification remains required before exposure. All commits/pushes remain
 permitted; no merge/release. The dedicated macOS research task supplies further
 primary-source implementation guidance. No alternative runtime migration is
 selected by this approval.
+
+## Production continuation task graph
+
+P1 runtime/helper -> P2 native launch and sandbox -> P3 family admission ->
+P4 canonical source integration -> P5 packaging/platform verification. The lead
+owns all implementation, review and fixes. Each boundary lands with focused
+tests before consumers are changed; platform refusal remains explicit.
+
+| Task | Files / contract | Required evidence |
+| --- | --- | --- |
+| P1 | `internal/heicdecode/worker`: fixed embedded WASI artifact, bounded streaming stdin/stdout/stderr, linear memory ceiling and context termination. `cmd/picfetch-heic-worker`: minimal entry point, no Fyne/native codec. Move the artifact into the worker package; maintain provenance. | Owned runtime boundary controls and ordinary fixtures with `go test -tags no_emoji,nodynamic ./internal/heicdecode/worker ./scripts/heicbuild`; import and reproducibility guards. |
+| P2 | Native platform launch establishes restrictions before image input; parent verifies helper identity/readiness and owns timeout, pipes and process join. Capability evidence distinguishes actual OS controls from soft native-memory targets. | Native owned file/socket controls plus ordinary decode; absent sandbox and invalid identity fail closed; cancellation joins helper and all pipe work. Cross-builds are recorded separately from native execution. |
+| P3 | One app-family admission owner serves GUI and analysis consumers. Acquire before bulk source reads; bounded waiting and cancelled queues; release only after helper/output cleanup. | Concurrent GUI/analysis fixture consumers never exceed one admitted HEIC request; queue cancellation and shutdown join are observable. |
+| P4 | Canonical imaging source carries either ordinary encoded bytes or already validated HEIC pixels/metadata, so probe/decode do not retain a second queued HEIC buffer or decode twice. | Display, thumbnail, metadata and similarity focused regressions; ordinary formats unchanged. |
+| P5 | Build/package helper identity and notices; truthful per-platform admission and format declarations; native Linux CI and available macOS tests, GoLand inspections. | Package checks, import/provenance guards, native platform tests and full required CI. Missing native evidence is unverified. |
+
+One additional bounded read-only scout maps source retention and subprocess/UI
+lifetime owners across consumers while the lead implements P1. This independent
+breadth question needs call-path context beyond a grep; it performs no edits or
+review and chooses no architecture. P1-P5 budget: one scout, zero implementation
+spawns, one focused review per boundary plus the final gate. The prior whole
+worker cap gate above is historical and superseded only for the explicitly
+approved macOS limitation.
+
+Publication: candidate `b64cca35430917cec6e59bd1c26ee4e6c86310b0` is pushed
+and GitHub reports its signature valid. The cloud foundation `a3c4d92` is
+unsigned. No history rewrite is authorized or performed; the full PR range
+requires signing cleanup before merge.
+
+### P1/P2 continuation evidence (2026-09-16)
+
+- Fixed artifact moved to the helper-only worker package; native import guard
+  rejects accidentally linking it into the viewer. The parent owns hash pinning,
+  bounded waiting/streams, pre-read admission, readiness, process-group teardown
+  before leader reap, and joined pipe workers. Shared GUI/analysis admission is
+  still P3; the new Client alone does not satisfy that criterion.
+- Owned WASM initial/growth/deadline/diagnostic controls and ordinary decode pass.
+  Owned parent peers pass changed identity, blocked writer timeout, crash,
+  diagnostic overflow, active/queued cancellation and Stop/Wait under race.
+- Real macOS 27.0 arm64 helper bundle verifies App Sandbox and denied owned
+  file-read/create/TCP/UDP before input. Ordinary ten-bit decode and cancellation
+  pass with strict bundle signature verification. Native other-platform startup
+  still fails closed. Direct no-cgo macOS also fails closed.
+- Hardened Runtime without an executable-memory exception refused compiler
+  decoding. Pinned wazero uses RW -> RX without MAP_JIT; Apple's broader unsigned
+  executable memory entitlement is needed by this implementation. It is confined
+  to the helper; no library-validation, DYLD, network or user-file exception.
+- Interpreter comparison with unchanged finite bounds: basic 320x240 1.5206 s;
+  owned valid 4032x3024 gradient reached 30.0093 s and was terminated/joined.
+  Compiler: 1.6174 s and 7.4040 s respectively. Keep compiler on this evidence,
+  document increased trusted native executable-memory authority and own-container
+  rights. These two fixtures are not broad camera qualification.
+- Candidate b64cca3 CI failed only on the race-instrumented development
+  interpreter's 15-second basic/main10 deadline. Fixture ABI tests now use the
+  production compiler, one test-owned compiled module and the actual 30-second
+  contract. No production resource bound was increased. Other CI jobs passed.
+- The independent macOS research has completed; public App Sandbox supports the
+  selected bundle route. No new memory-risk approval is needed. User-owned
+  historical THREAT-MODEL.md in the separate saved checkout is not imported or
+  edited by this feature work.
+
+P2's platform continuation uses one further read-only scout to map the pinned
+Windows API surface and official launch/job/AppContainer semantics while the
+lead completes macOS validation. It writes no code and performs no review or
+security testing. This bounded independent breadth survey replaces repeated
+cold exploration; all design and fixes stay with the lead. Cumulative scout
+count is three including the original source/OS phase; no implementation spawns.
+
+### Worker publication gate and updated source requirement
+
+- Focused race tests pass: protocol 1.205 s, client 1.718 s, worker 15.419 s,
+  guest/build guards 16.506 s, nativeguard tooling 1.236 s.
+- `make verify-build` passes formatting, generated assets/notices, exact Qodana
+  exclusions, source/artifact reproducibility, native import guards, vet and
+  build. The first restricted run could not write Go's module stat cache; the
+  same target passed with authorized standard cache access. Full native
+  Linux/amd64 race and platform CI remain required; no local Docker daemon.
+- `make heic-native-macos` passes both required native guards, 46.377 s total.
+  Missing entitlement refuses before source read; real ten-bit decode,
+  read/create/TCP/UDP denial, cancellation and owned descendant cleanup pass.
+  Canonical compressed gradient: compiler 7.1366 s; interpreter terminated and
+  joined at 30.0108 s under the unchanged 30-second deadline.
+- Owned preopen control passes without filesystem access and traps when given
+  a temporary directory. Temporarily changing group termination to leader-only
+  makes the descendant test fail at its bounded EOF assertion; exact source
+  restored and the focused/native suites pass afterward.
+- GoLand worktree access is resolved. All 34 changed Go files were inspected,
+  including weak warnings. Fixed fixture cleanup, ignored errors, nullable test
+  metadata and redundant types/conversions. Guest-only protocol enum values use
+  a verified `GoUnusedConst` suppression on that declaration; literal owned
+  WASM controls use verified function-scoped duplication suppressions and the
+  existing exact test-file Qodana exclusion. Final re-inspections are clear.
+- Qodana run 35024568046's post-suppression SARIF was retrieved and its b64cca3
+  revision verified. All seven results were inspected: five corrected issues
+  and the two separately compiled guest-status false positives above. This is
+  disposition of the prior commit, not a clean report for the pending commit.
+- One read-only evidence-retrieval scout downloaded that report while the lead
+  inspected/fixed code. Another bounded source inventory now maps historical
+  local patches; it performs no review, edits or upstream test/fuzz execution.
+  These two additional independent scouts exceed the prior count explicitly;
+  all architecture, equivalence assessment and implementation remain with T0.
+
+The coordinator relayed newer user source instructions: retain the maintained
+`third_party/h265` hardening until equivalent upstream checks are verified;
+never add native/in-process fallback. Read the historical `PICFETCH.md` in the
+separate saved checkout. It records additional coded-work, extent/table, NAL,
+frame-retention and transformed-config changes beyond this candidate's source
+selection. P0 now reconciles that source and records each patch disposition
+before P4/P5 activation; the independently verified P1/P2 worker boundary can
+be published while HEIC remains disabled. Do not copy or edit the user's
+historical `THREAT-MODEL.md`. No source-equivalence conclusion follows solely
+from the newer upstream version or the updated AGENTS wording.

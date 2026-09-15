@@ -11,7 +11,7 @@ import (
 const (
 	hardMaxInputBytes      int64 = 64 * 1024 * 1024
 	hardMaxPixels          int64 = 64_000_000
-	hardMaxOutputBytes     int64 = hardMaxPixels * 4
+	hardMaxOutputBytes           = hardMaxPixels * 4
 	hardMaxMetadataBytes         = 64 * 1024
 	hardMaxDiagnosticBytes       = 4096
 )
@@ -19,8 +19,10 @@ const (
 var ErrInvalidLimits = errors.New("invalid HEIC decoder limits")
 
 // Limits is the complete finite resource contract for one helper request.
-// OSProcessBytes must be enforced over the complete helper process family;
-// WASMMemoryBytes is the separate linear-memory ceiling inside that process.
+// WASMMemoryBytes is an enforced linear-memory ceiling. OSProcessBytes is the
+// requested native-process budget; Ready separately reports the hard OS memory
+// control actually installed. macOS explicitly permits an absent hard native
+// cap, while retaining bounded WASM and transport and verified OS sandboxing.
 type Limits struct {
 	Timeout            time.Duration
 	WASMMemoryBytes    int64
@@ -30,7 +32,7 @@ type Limits struct {
 	MaxOutputBytes     int64
 	MaxMetadataBytes   uint32
 	MaxDiagnosticBytes uint32
-	MaxThreads         uint32
+	MaxThreads         uint32 // Decoder threads; the native Go host has its own finite thread ceiling.
 	MaxLiveJobs        uint32
 }
 

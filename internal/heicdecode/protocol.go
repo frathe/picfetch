@@ -25,6 +25,8 @@ var ErrInvalidResponse = errors.New("invalid HEIC helper response")
 // Status classifies a bounded worker refusal, independently of transport errors.
 type Status uint16
 
+// Worker statuses include values used only by the separate WASI guest module.
+// noinspection GoUnusedConst
 const (
 	StatusRejected Status = 1 + iota
 	StatusUnsupported

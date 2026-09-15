@@ -594,8 +594,29 @@ defines separate finite resource contracts; it does not install OS controls.
 `request.go` frames one byte-only operation. `protocol.go` validates versioned
 responses, dimensions, NRGBA8/NRGBA64 layout, operation-specific payload lengths,
 normalized metadata and exact EOF before publication. `metadata.go` rejects
-unknown/duplicate fields and invalid bounded values. No production launcher,
-family-wide broker or native helper is installed; HEIC remains unsupported.
+unknown/duplicate fields and invalid bounded values. `ready.go` reports actual
+startup memory controls separately from requested limits. HEIC viewing remains
+disabled pending app-family integration and platform/package qualification.
+
+### `internal/heicdecode/client`, `worker`, and `cmd/picfetch-heic-worker`
+
+`client` owns one admitted request, bounded waiting, executable hash validation,
+parent-owned file/loopback probes, readiness, bounded pipes and response checks.
+Admission precedes source reads. Stop cancels pending/active work; Wait joins
+process and pipe completion. Unix group termination precedes leader reap.
+This instance is not yet shared across app and analysis processes.
+
+`worker` embeds the fixed WASI artifact and streams bounded stdio through wazero
+with finite linear memory and a deadline. Native code accepts no image paths.
+Its macOS cgo boundary verifies the App Sandbox entitlement; the entry point
+then verifies denied owned file reads/creation and TCP/UDP access before input.
+Other platforms currently refuse startup. Native-memory readiness is explicitly
+zero on macOS; its Go memory target is not a hard OS cap. The helper alone may
+import the embedded guest runtime. `packaging/heic` holds the macOS bundle and
+entitlement templates; `heicinterpreter` is the qualification runtime variant.
+
+`cmd/picfetch-heic-worker` is the minimal single-request entry point, without
+Fyne or a native HEIC codec. Final application packaging/integration is pending.
 
 ### `scripts/heicguest` and `scripts/heicbuild`
 
@@ -603,14 +624,16 @@ Development-only HEIC/WASI qualification. `heicguest` is a separate module pinne
 to unmodified h265 v0.2.3. Its WASI-only entry point rejects movie containers,
 decodes still pixels/config/Exif in the guest, preserves straight-alpha precision
 and emits `internal/heicdecode`'s protocol. `fixturegen` writes one fixed ordinary
-ten-bit gradient. Neither command is an application entry point or a shipped
-helper. The checked guest artifact is not embedded in the viewer.
+ten-bit gradient; `fixturephoto` writes one fixed ordinary 12-megapixel gradient.
+Neither generator is an application encoder. The checked guest artifact lives
+under `internal/heicdecode/worker`; it is not embedded in the viewer.
 
 `heicbuild` implements the Make build/provenance/import guards. It checks source,
 notices and complete build-input hashes, reproduces the guest byte-for-byte and
-rejects native codec imports. Its fixed fixture generator and tests use wazero's
-interpreter with bounded linear memory and byte streams. This does not implement
-a native worker-family memory cap. See `docs/heic/qualification.md`, the active
+rejects native codec and viewer-to-worker imports. Fixed generators and tests
+use bounded linear memory and byte streams. The native helper qualification
+compares interpreter and compiler under the same deadline. This does not
+implement a native worker-family memory cap. See `docs/heic/qualification.md`, the active
 restoration plan and `docs/heic/robustness-testing.md` for status and remaining
 platform, compatibility and distribution gates.
 

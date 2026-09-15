@@ -12,7 +12,7 @@ func TestMetadataRejectsUnvalidatedFields(t *testing.T) {
 		}
 	}
 	got, err := readMetadata([]byte(`{"Orientation":6,"GPSLatitude":0,"GPSLongitude":0,"DateTimeOriginal":"2026:09:15 12:30:00","Make":"Camera"}`))
-	if err != nil || got.Orientation != 6 || got.Make != "Camera" {
+	if err != nil || got == nil || got.Orientation != 6 || got.Make != "Camera" {
 		t.Fatalf("metadata = %+v, %v", got, err)
 	}
 }

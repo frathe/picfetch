@@ -59,6 +59,10 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.require("internal/displays", "TestDisplaySnapshot_PreservesNativeBoundsAndIDs")
 		s.require("internal/winpos", "TestPoller_StopDiscardsQueuedReadWithoutDrainingUI", "TestPoller_StopDuringNativeReadWaitsForReadWithoutPublishing")
 		s.require("internal/filepicker", "TestDarwinPathTransport_RoundTripsNativeURLPaths")
+	case "heic-macos":
+		s.goos = "darwin"
+		s.tags = "heicnative"
+		s.require("internal/heicdecode/client", "TestNativeMacSandboxHelper", "TestNativeMacRuntimeChoice")
 	case "store":
 		s.tags = "microsoftstore"
 		s.require("internal/distribution", "TestStoreManaged_MicrosoftStoreBuildIsTrue")
@@ -161,7 +165,7 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("nativeguards", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	name := flags.String("suite", "", "windows, macos, or store")
+	name := flags.String("suite", "", "windows, macos, heic-macos, or store")
 	capturePath := flags.String("capture", "", "raw go test JSON output path")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -170,7 +174,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *capturePath == "" {
-		return errors.New("usage: nativeguards -suite windows|macos|store -capture <json-file>")
+		return errors.New("usage: nativeguards -suite windows|macos|heic-macos|store -capture <json-file>")
 	}
 	s, err := suiteFor(*name, runtime.GOOS)
 	if err != nil {
