@@ -6,7 +6,7 @@
 
 #### New Features
 
-### Find more like this
+##### Find more like this
 
 Choose a picture to find similar-looking images in your collection. The Grid shows your chosen picture first, followed
 by up to 30 matches, with the closest matches at the top. Results appear as PicFetch processes your images.
@@ -35,7 +35,7 @@ limitations.
 
 #### Internal
 
-### Find more like this architecture follow-up
+##### Find more like this architecture follow-up
 
 Improved how visual search works with Favorites, stored search data and the Grid. Fixes cover saving Favorites while
 stored data is being checked, keeping search updates responsive, and returning to your original collection after
@@ -52,7 +52,7 @@ the [implementation record](finished_refactorings/2026-09-15-search-ownership.md
 The fixes and tests are in place, and local checks passed. Final review and automated check results are recorded
 on [PR #25](https://github.com/frathe/picfetch/pull/25).
 
-### Comparison test deadline under build contention
+##### Comparison test deadline under build contention
 
 Made the automated image-comparison tests more reliable when the computer is busy with other development work. These
 tests check that background image processing can stop safely and that comparison windows do not get stuck.
@@ -60,7 +60,7 @@ tests check that background image processing can stop safely and that comparison
 The updated tests passed repeated runs under heavy load. The full set of checks also passed on Ubuntu, and code
 inspection found no issues requiring changes.
 
-### Qualify updater notices in native release CI
+##### Qualify updater notices in native release CI
 
 Improved checks that make sure update packages include the required license information for third-party software.
 
@@ -71,7 +71,7 @@ The license notes also explain that the exact historical source-code version of 
 confirmed. See the [evidence and limits](plans/2026-09-13-updater-notices.md) and
 the [completed Linux checks](https://github.com/frathe/picfetch/actions/runs/34755687251).
 
-### Mascot-circle hint for the Hypno Spiral
+##### Mascot-circle hint for the Hypno Spiral
 
 Added a hidden interaction with Trane and Finis and made the speech bubble wider. Escape now closes the manual even when
 you are typing in its search field.
