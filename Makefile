@@ -392,7 +392,7 @@ test-race: ## Run the guarded race partitions concurrently in one Linux/amd64 Do
 	@bash scripts/testshards/docker-race.sh "$(CURDIR)" "$(TEST_IMAGE)" \
 		"$(TEST_MEMORY_GIB)" "$(TEST_CONTAINER_LABEL)" "$(TEST_LOCALE)" "$(TEST_ARTIFACTS_DIR)"
 
-verify-build: fmt-check check-tuf-root check-qodana-test-exclusions check-tag-vectors check-app-assets check-updater-notices ## Run local verification without the test suite (format, TUF root, generated assets, notices, Qodana exclusions, vet, build)
+verify-build: fmt-check check-tuf-root check-qodana-test-exclusions check-tag-vectors check-app-assets check-updater-notices heic-check-provenance heic-check-imports ## Run local verification without the test suite (format, TUF root, generated assets, notices, Qodana exclusions, vet, build)
 	go vet -tags "$(APP_TAGS)" ./...
 	go build -tags "$(APP_TAGS)" ./...
 
@@ -424,8 +424,9 @@ golden: ## Regenerate the e2e golden-master screenshots via Docker (linux/amd64,
 tidy: ## Tidy go.mod / go.sum
 	go mod tidy
 
-security-govulncheck: ## Scan dependencies with the module-pinned govulncheck
+security-govulncheck: ## Scan native and HEIC guest dependencies with the module-pinned govulncheck
 	go tool govulncheck -tags "$(APP_TAGS)" ./...
+	$(MAKE) --no-print-directory heic-security-govulncheck
 
 security-github: ## List open GitHub Dependabot alerts for this repo (needs `gh auth login`)
 	gh api "repos/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/dependabot/alerts" \
@@ -592,3 +593,32 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*##"}; {printf "  %-16s %s\n", $$1, $$2}'
+
+.PHONY: heic-build heic-check-provenance heic-check-imports heic-check-guest heic-fixture
+heic-build: ## Rebuild the development-only HEIC WASI guest and provenance record
+	go run ./scripts/heicbuild build
+
+heic-check-provenance: ## Verify pinned source/notices and reproduce the HEIC guest byte-for-byte
+	go run ./scripts/heicbuild check
+
+heic-check-imports: ## Reject native HEIC codec imports and unreviewed guest dependencies
+	go run ./scripts/heicbuild imports
+
+heic-check-guest: ## Test the guest and owned runtime/transport boundaries
+	go test -tags "$(APP_TAGS)" ./internal/heicdecode/... ./scripts/heicbuild
+
+heic-fixture: ## Reproduce the fixed 16x16 ten-bit fixture inside WASI
+	go run ./scripts/heicbuild fixture
+
+.PHONY: heic-photo-fixture heic-native-macos
+heic-photo-fixture: ## Reproduce the fixed 12-megapixel qualification gradient inside WASI
+	go run ./scripts/heicbuild photo-fixture
+
+heic-native-macos: ## Qualify signed sandboxed helpers and bounded runtime choice on native macOS
+	mkdir -p .scratch/heic-qualification
+	go run ./scripts/nativeguards -suite heic-macos -capture .scratch/heic-qualification/native-macos.json
+
+.PHONY: heic-security-govulncheck
+heic-security-govulncheck: ## Scan the separate WASI guest module (including its fixed fixture generator)
+	@scanner="$$(go tool -n govulncheck)"; \
+	cd scripts/heicguest && GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 GOWORK=off "$$scanner" -tags=noasm ./...
