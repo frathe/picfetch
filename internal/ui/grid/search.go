@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/frathe/picfetch/internal/fileidentity"
+
 	"fyne.io/fyne/v2/lang"
 )
 
@@ -128,14 +130,13 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	hide := vis.Hide && !browsing && g.subset == nil
 	if g.ranked != nil {
 		needle := strings.ToLower(g.query)
-		index := g.rankedSources()
+		index := g.visitSources()
 		g.matches = make([]int, 0, len(g.ranked.Paths))
 		for _, path := range g.ranked.Paths {
-			indexes := index.byPath[path]
-			if len(indexes) == 0 {
+			i := index.identities.Resolve(fileidentity.Occurrence{Path: path})
+			if i < 0 {
 				continue
 			}
-			i := indexes[0]
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
 				continue
 			}

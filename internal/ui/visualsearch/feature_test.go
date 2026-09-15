@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/visualsearch"
@@ -147,7 +148,7 @@ func TestVisualSearchCachePressureWriterQuiescence(t *testing.T) {
 func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
 	f, h, q, calls := newSearch(t)
 	scope := []string{"/a", "/b", "/c"}
-	origin := visualsearch.Visit{Paths: scope, ImagePath: "/a"}
+	origin := visualsearch.Visit{Paths: scope, Image: fileidentity.Occurrence{Path: "/a"}}
 	if !f.Start(visualsearch.StartRequest{Paths: scope, ReferencePath: "/a", Origin: origin}) {
 		t.Fatal("valid search rejected")
 	}
@@ -195,7 +196,7 @@ func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
 
 func TestVisualSearchLifecyclePendingBackRejectsQueuedReferences(t *testing.T) {
 	f, h, q, calls := newSearch(t)
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
 	call := <-calls
 	first := <-call.queries
 	publish(call, first, 1, similarity.SearchFinal, "/b", "/c")
@@ -225,7 +226,7 @@ func TestVisualSearchLifecyclePendingBackRejectsQueuedReferences(t *testing.T) {
 	default:
 	}
 	f.Back()
-	if h.current.ImagePath != "/origin" || !h.origins[len(h.origins)-1] {
+	if h.current.Image.Path != "/origin" || !h.origins[len(h.origins)-1] {
 		t.Fatal("pending query consumed a successful-history entry")
 	}
 }
@@ -313,7 +314,7 @@ func TestVisualSearchHistoryBranchAndTwentyVisitLimit(t *testing.T) {
 	for i := range paths {
 		paths[i] = fmt.Sprintf("/%02d", i)
 	}
-	f.Start(visualsearch.StartRequest{Paths: paths, ReferencePath: paths[0], Origin: visualsearch.Visit{ImagePath: "/independent-origin"}})
+	f.Start(visualsearch.StartRequest{Paths: paths, ReferencePath: paths[0], Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/independent-origin"}}})
 	call := <-calls
 	for i := 0; i < 22; i++ {
 		if i > 0 {
@@ -338,14 +339,14 @@ func TestVisualSearchHistoryBranchAndTwentyVisitLimit(t *testing.T) {
 		}
 	}
 	f.Back()
-	if f.State().Active || h.current.ImagePath != "/independent-origin" {
+	if f.State().Active || h.current.Image.Path != "/independent-origin" {
 		t.Fatalf("eviction lost independent origin: %+v", h.current)
 	}
 }
 
 func TestVisualSearchQueryFailurePreservesLastUsableVisit(t *testing.T) {
 	f, h, q, calls := newSearch(t)
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
 	call := <-calls
 	first := <-call.queries
 	publish(call, first, 1, similarity.SearchPartial, "/b")
@@ -368,7 +369,7 @@ func TestVisualSearchQueryFailurePreservesLastUsableVisit(t *testing.T) {
 		t.Fatal("recoverable query error classified as terminal")
 	}
 	f.Back()
-	if f.State().Active || h.current.ImagePath != "/origin" {
+	if f.State().Active || h.current.Image.Path != "/origin" {
 		t.Fatal("failed query added a history entry")
 	}
 }
@@ -397,7 +398,7 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 		f.Stop()
 		f.Settle()
 	})
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: visualsearch.Visit{ImagePath: "/origin"}})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
 	<-started
 	f.Settle()
 	done := f.Suspend()
@@ -418,8 +419,42 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 		t.Fatalf("expected cancellation reported as failure: %v", h.errors)
 	}
 	f.Back()
-	if h.current.ImagePath != "/origin" {
+	if h.current.Image.Path != "/origin" {
 		t.Fatal("suspension lost origin")
+	}
+}
+
+func TestVisualSearchLifecycleDetachOrigin(t *testing.T) {
+	f, h, q, calls := newSearch(t)
+	origin := visualsearch.Visit{
+		Image: fileidentity.Occurrence{Path: "/a", Ordinal: 1},
+		Grid:  grid.Visit{Selected: []string{"/a"}, Query: "saved", Visible: true},
+	}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: origin})
+	call := <-calls
+	query := <-call.queries
+	publish(call, query, 1, similarity.SearchPartial, "/b")
+	q.Drain()
+	presentations := len(h.presented)
+	publish(call, query, 2, similarity.SearchFinal, "/late")
+	detached, active := f.DetachOrigin()
+	if !active || !reflect.DeepEqual(detached, origin) || f.Active() {
+		t.Fatal("detachment lost the origin or retained the search session")
+	}
+	f.Settle()
+	if len(h.restored) != 0 || len(h.presented) != presentations {
+		t.Fatal("detachment or retired delivery changed the surface before root reconciliation")
+	}
+	detached.Grid.Selected[0] = "/changed"
+	if origin.Grid.Selected[0] != "/a" {
+		t.Fatal("detached origin aliases its caller's bookmark")
+	}
+	if _, active := f.DetachOrigin(); active || f.Back() {
+		t.Fatal("retired origin can be restored twice")
+	}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/new"}, ReferencePath: "/new"})
+	if !f.Active() {
+		t.Fatal("detachment permanently stopped search admission")
 	}
 }
 
@@ -615,7 +650,7 @@ func TestVisualSearchCaptureGridKeepsImageAnchorWithNewestResultPaths(t *testing
 	f.CaptureGrid(queueVisit)
 	queueVisit.Paths[0], queueVisit.Results[0], queueVisit.Selected[0], queueVisit.Subset[0] = "/mutated", "/mutated", "/mutated", "/mutated"
 	h.current = f.State().Visit
-	h.current.ImagePath = "/b"
+	h.current.Image.Path = "/b"
 	h.hold = true
 	publish(call, query, 2, similarity.SearchFinal, "/c", "/b")
 	f.Settle()
@@ -625,7 +660,7 @@ func TestVisualSearchCaptureGridKeepsImageAnchorWithNewestResultPaths(t *testing
 	publish(call, query, 3, similarity.SearchFinal, "/a")
 	f.Settle()
 	f.Back()
-	if !reflect.DeepEqual(h.current.Paths, []string{"/c", "/b"}) || h.current.ImagePath != "/b" {
+	if !reflect.DeepEqual(h.current.Paths, []string{"/c", "/b"}) || h.current.Image.Path != "/b" {
 		t.Fatalf("capturing the older image surface lost newest ranking: %+v", h.current)
 	}
 	got := h.current.Grid

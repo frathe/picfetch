@@ -103,17 +103,7 @@ func (v *viewer) reconcileSearchOrigin() {
 			if !token.current() || v.fileWork.closed || generation != v.Generation() || !v.searchActive() || sessionID != v.visualsearch.State().SessionID {
 				return
 			}
-			if v.comparisonActive() {
-				v.compare.Close()
-			}
-			v.favThumbLifecycle.invalidate()
-			v.imgCache.Purge()
-			v.grid.InvalidateContent()
-			v.removeFiles(missing)
-			v.explorerSourcesChanged()
-			if v.grid.Visible() && v.FileCount() > 0 {
-				v.ShowImage(v.state.index)
-			}
+			v.reconcileSources(sourceChange{kind: sourcesRevalidated, removed: missing})
 		})
 	})
 }
@@ -146,10 +136,7 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 				done()
 				return
 			}
-			v.favThumbLifecycle.invalidate()
-			v.explorerSourcesChanged()
-			v.grid.InvalidateContent()
-			v.compare.Refresh()
+			v.reconcileSources(sourceChange{kind: sourceWritten})
 			v.refreshWrittenFile(result, reload, refreshEXIF, done)
 		})
 	})

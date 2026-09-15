@@ -117,13 +117,15 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		msg = fmt.Sprintf(lang.L("%q is too large to open"), source.Name())
 	}
 	i := v.state.index
-	v.RemoveFile(i)
+	restoredIndex := v.reconcileSources(sourceChange{kind: sourceLoadFailed, removed: []int{i}})
 	if len(v.state.files) == 0 {
 		v.ShowEmptyStateError(msg)
 		return nil
 	}
 	v.ShowToast(msg)
-	if cohort := v.cohortIndexes(); len(cohort) > 0 {
+	if restoredIndex >= 0 {
+		i = restoredIndex
+	} else if cohort := v.cohortIndexes(); len(cohort) > 0 {
 		next := cohort[0]
 		for _, index := range cohort {
 			if index >= i {

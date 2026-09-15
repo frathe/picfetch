@@ -370,11 +370,19 @@ for an idle retained worker; Stop followed by Settle joins retired producers.
 ranked Grid visits and complete presentation/restoration deliveries. Deferred Back
 carries its saved Grid state until the surface can accept it; application reads
 current preparation progress from the live search session.
-Image origins retain their path occurrence ordinal when merge mode repeats a source.
+Image origins and Grid bookmarks use `internal/fileidentity` occurrence values
+when merge mode repeats a source. Grid retains one index per collection generation;
+image-origin lookup captures only the bookmarked path.
 An image opened before the first publication retains its Grid anchor until the
 first successful visit commits. Terminal search failures revalidate the captured
 collection through root's tracked file-work lane before restoring the origin;
 request, session and collection identities reject obsolete reconciliation.
+`internal/ui/sourcechange.go` owns admitted source changes: search detaches its
+origin before callbacks, then root reconciles the complete removal/write/recovery,
+retires Explorer, updates Grid and restores the origin. Display failures receive
+the selected origin index through their existing retry chain instead of starting
+a competing load. Committed writes retain comparison for Grid origins and close
+it when an image origin must be restored.
 `internal/ui/browsing.go` captures the shared ranked/cohort command restriction and
 one immutable ranked index order per action or preload pair; menus and duplicate
 handlers consume the same subset restriction. Favorite capture exposes one
@@ -466,6 +474,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
+| `sourcechange.go` | Complete source-removal, committed-write, validation-recovery and analysis-policy transitions. Detaches search before callback delivery and restores browsing after collection/cohort/Grid reconciliation; display keeps retry ownership. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken` for root scan/sort/copy-selection and other root work. Display owns its load/GIF/SVG lifecycles internally. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
 | `visibility.go` | `dupeFileSet` (adapts the viewer to `dupes.FileSet` by forwarding `appState`'s published `dupes.Snapshot`); `jumpIfHiddenExtra`; `pushHideDuplicates`; the navigation helpers (`nextVisibleIndex` / `firstVisibleIndex` / `lastVisibleIndex` / `randomVisibleOther`) that read `v.dupes` instead of polling the grid overlay. |
@@ -820,6 +829,13 @@ string translation (`FromPref` / `PrefValue`).
 | File | Responsibility |
 |------|----------------|
 | `filesort.go` | `Mode`, `Next`, `Order`, `Label`, `FromPref` / `PrefValue`. |
+
+### `internal/fileidentity`
+
+`occurrence.go` owns immutable path-plus-ordinal bookmarks and a captured index
+for exact occurrence lookup. Grid and image visits share this contract. Missing
+occurrences return absence; each caller chooses its fallback. The package has
+no Fyne or filesystem I/O and does not identify source-content versions.
 
 ### `internal/selection`
 

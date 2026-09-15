@@ -4,17 +4,17 @@ package visualsearch
 import (
 	"slices"
 
+	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
 )
 
 // Visit retains source identities and browsing state without decoded images.
 type Visit struct {
-	ReferencePath   string
-	Paths           []string
-	Grid            grid.Visit
-	ImagePath       string
-	ImageOccurrence int
+	ReferencePath string
+	Paths         []string
+	Grid          grid.Visit
+	Image         fileidentity.Occurrence
 }
 
 // Host owns presentation and cross-feature navigation on the UI goroutine.
@@ -191,13 +191,24 @@ func (f *Feature) Back() bool {
 }
 
 func (f *Feature) Exit() {
-	if !f.active {
+	origin, active := f.DetachOrigin()
+	if !active {
 		return
+	}
+	f.host.Restore(origin, true)
+	f.host.Changed()
+}
+
+// DetachOrigin retires the session and transfers an owned origin snapshot to
+// root without invoking presentation callbacks. Source reconciliation restores
+// it only after all collection and surface changes have completed.
+func (f *Feature) DetachOrigin() (Visit, bool) {
+	if !f.active {
+		return Visit{}, false
 	}
 	origin := cloneVisit(f.origin)
 	f.clear()
-	f.host.Restore(origin, true)
-	f.host.Changed()
+	return origin, true
 }
 
 // Active observes admission without copying a potentially large saved visit.
@@ -237,8 +248,7 @@ func (f *Feature) capture() {
 	captured := f.host.CaptureVisit()
 	last := &f.history[len(f.history)-1]
 	last.Grid = cloneGrid(captured.Grid)
-	last.ImagePath = captured.ImagePath
-	last.ImageOccurrence = captured.ImageOccurrence
+	last.Image = captured.Image
 	// Presentation can lag behind publication while an image/modal owns input.
 	// Preserve the latest ranked paths even when the captured surface is older.
 }

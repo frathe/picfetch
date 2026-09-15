@@ -121,6 +121,7 @@ exclude:
       - "internal/favthumbs/store_test.go"
       - "internal/favthumbs/sweep_test.go"
       - "internal/favthumbs/sync_test.go"
+      - "internal/fileidentity/occurrence_test.go"
       - "internal/filemanager/filemanager_test.go"
       - "internal/filepicker/darwin_test.go"
       - "internal/filepicker/filepicker_test.go"

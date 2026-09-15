@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 
 	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
@@ -504,6 +506,86 @@ func (u searchCountingURI) Path() string {
 }
 
 func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
+	for _, gridOrigin := range []bool{false, true} {
+		t.Run(fmt.Sprintf("comparison-committed-write-grid=%v", gridOrigin), func(t *testing.T) {
+			v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+			v.ShowImage(0)
+			waitUntilLoaded(t, v)
+			original := v.FileAt(0)
+			if !gridOrigin {
+				v.grid.Close()
+			}
+			publish := streamingSearchFrom(t, v)
+			publish(similarity.SearchFinal, 2, 1)
+			v.grid.ClearSelection()
+			for _, i := range []int{0, 1} {
+				v.grid.SimulateHover(i)
+				v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+			}
+			v.compareSelected()
+			if err := v.compare.Settle(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			result, err := imaging.SaveRotatedContext(context.Background(), original, image.NewRGBA(image.Rect(0, 0, 19, 13)))
+			if err != nil || !result.Committed {
+				t.Fatalf("source write failed: %v", err)
+			}
+			// Save/export workers invalidate decoded content at disk commit,
+			// before their tracked UI reconciliation is admitted.
+			v.imgCache.Purge()
+			v.afterFileWrite(result, true, true, func() {})
+			drainFileWork(t, v)
+			if err := v.compare.Settle(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if v.searchActive() || v.grid.Visible() != gridOrigin || v.comparisonActive() != gridOrigin {
+				t.Fatal("committed write did not reconcile comparison with the restored origin")
+			}
+			if !gridOrigin {
+				waitUntilLoaded(t, v)
+				if got, ok := v.DisplayedFile(); !ok || got.String() != original.String() || v.img.Image.Bounds().Size() != image.Pt(19, 13) {
+					t.Fatal("committed write restored stale image pixels")
+				}
+			}
+		})
+	}
+	for _, gridOrigin := range []bool{false, true} {
+		t.Run(fmt.Sprintf("load-failure-owner-grid=%v", gridOrigin), func(t *testing.T) {
+			v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+			v.ShowImage(0)
+			waitUntilLoaded(t, v)
+			if !gridOrigin {
+				v.grid.Close()
+			}
+			origin, failed, next := v.FileAt(0), v.FileAt(2), v.FileAt(3)
+			publish := streamingSearchFrom(t, v)
+			publish(similarity.SearchFinal, 2, 1)
+			v.display.WaitPreloads()
+			if err := os.WriteFile(failed.Path(), []byte("unreadable image"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			v.imgCache.Purge()
+			revision := v.display.RequestRevision()
+			v.grid.SimulateHover(1)
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitUntilLoaded(t, v)
+			want := origin
+			if gridOrigin {
+				want = next
+			}
+			current, _, ok := v.CurrentFile()
+			displayed, shown := v.DisplayedFile()
+			if !ok || !shown || current.String() != want.String() || displayed.String() != want.String() {
+				t.Fatalf("load recovery disagrees with browsing: current=%v displayed=%v want=%v", current, displayed, want)
+			}
+			if v.display.RequestRevision() != revision+1 {
+				t.Fatal("source restoration started a competing load instead of using display's retry")
+			}
+			if v.searchActive() || v.grid.Visible() != gridOrigin || v.FileCount() != 3 {
+				t.Fatal("load recovery lost the source change or origin surface")
+			}
+		})
+	}
 	for _, operation := range []string{"ordinary", "committed-trash", "source-failure"} {
 		t.Run("grid-origin-batch-"+operation, func(t *testing.T) {
 			names := make([]string, 40)
