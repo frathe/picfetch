@@ -62,7 +62,7 @@
   signing. The final Windows packages still need to pass the new checks after they are digitally signed.
 
   The license notes also explain that the exact historical source-code version of one included component could not be
-  confirmed. See the [evidence and limits](plans/2026-09-13-updater-notices.md) and
+  confirmed. See the [evidence and limits](finished_refactorings/2026-09-13-updater-notices.md) and
   the [completed Linux checks](https://github.com/frathe/picfetch/actions/runs/34755687251).
 
 - **Mascot-circle hint for the Hypno Spiral**

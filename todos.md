@@ -13,7 +13,7 @@ refresh and re-inspection remain pending; the committed Qodana configuration
 passed hosted analysis. Reload/apply the local `no_emoji nodynamic` module tags
 and inspect the imaging import again before closing this remaining local task.
 Compatibility limits and evidence:
-[implementation plan](plans/2026-09-15-image-input-hardening.md).
+[implementation plan](finished_refactorings/2026-09-15-image-input-hardening.md).
 
 ### Refactoring follow-up review
 
@@ -21,7 +21,7 @@ Implementation and local verification are complete on `feature/refactoring`.
 Run fresh Codex code/security reviews and platform CI, assess all findings and
 inspect the Qodana/CodeQL reports before acceptance. The user authorized the
 GitHub review loop; merging and releasing remain separate actions.
-Contracts and evidence workflow: [review record](plans/2026-09-15-refactoring-review.md).
+Contracts and evidence workflow: [review record](finished_refactorings/2026-09-15-refactoring-review.md).
 
 ## Done
 
@@ -45,7 +45,7 @@ native component notices/libyuv pin, Fyne font notices and older x/sys inventory
 HEIC support and its decoder dependency were removed at Ronin's request on
 September 14, pending distribution qualification. See the
 [audit and current disposition](docs/find-more-like-this/dependency-qualification.md)
-and [removal verification](plans/2026-09-14-remove-heic-decoder.md).
+and [removal verification](finished_refactorings/2026-09-14-remove-heic-decoder.md).
 
 September 15 research: prefer replacements outside gen2brain. The
 [decoder shortlist](docs/image-codec-alternatives-2026-09-15.md) compares direct

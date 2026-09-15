@@ -231,7 +231,7 @@ was created.
 Ronin requested live-window observation with the FPS overlay during the next
 continuation, then requested fully transparent image entrances and launches
 closer to the centre. The implementation and current verification are tracked
-in [the soft-entry plan](../finished_refactorings/2026-09-12-spiral-soft-entry.md).
+in [the soft-entry plan](2026-09-12-spiral-soft-entry.md).
 
 The new entrance multiplies the normal, live-configured opacity by a
 0.75-second smoothstep fade. Travel and GIF playback keep their existing

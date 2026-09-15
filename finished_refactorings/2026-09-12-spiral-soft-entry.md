@@ -2,7 +2,7 @@
 
 Status: complete, accepted by Ronin on 2026-09-12 after an hour of stable,
 relatively smooth native operation around 60 FPS, including smooth GIFs.
-The [final acceptance](../docs/spiral-qualification-2026-09-12.md#accepted-result)
+The [final acceptance](spiral-qualification-2026-09-12.md#accepted-result)
 closes the earlier visual-qualification limits as feature completion blockers;
 their measurement scope remains documented. The 0.75-second fade and 3% disc
 are the accepted final defaults.
@@ -75,7 +75,7 @@ Live-window samples show closer entrances and preserved centre clearance;
 its first six FPS readings are 63/63/63/63/60/63. Capture cadence cannot
 resolve the complete subsecond alpha curve, and the UI-loop readout is not
 a GPU presentation counter. `make build` passes and refreshes bin/picfetch.
-The [durable qualification record](../docs/spiral-qualification-2026-09-12.md)
+The [durable qualification record](spiral-qualification-2026-09-12.md)
 retains both the positive observations and later baseline FPS variability.
 
 The final `make verify` finishes with exit 2. Formatting, metadata checks,

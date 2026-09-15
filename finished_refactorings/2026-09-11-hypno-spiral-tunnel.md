@@ -3,7 +3,7 @@
 **Route:** Deep. **Status:** complete, accepted by Ronin on 2026-09-12.
 **Owner:** Pico / lead. Ronin's hour-long run was stable and relatively smooth,
 stayed around 60 FPS, and played GIFs smoothly. His acceptance closes ticket 05;
-the [final qualification record](../docs/spiral-qualification-2026-09-12.md#accepted-result)
+the [final qualification record](spiral-qualification-2026-09-12.md#accepted-result)
 states the evidence and retained limits. The implementation/review notes below
 are historical; later GIF/control and soft-entry plans supersede their original
 static-preview and entrance defaults. Closure is documentation-only and does
@@ -283,7 +283,7 @@ inspections including warnings. `make build` and Windows/amd64 internal vet
 pass. The preserved baseline ran for 609 default seconds with stable warm
 RSS; a second sustained run uses the fixed executable. Exact measurements,
 capture limits and the final gate are retained in
-[the qualification report](../docs/spiral-qualification-2026-09-12.md).
+[the qualification report](spiral-qualification-2026-09-12.md).
 
 Cost ledger for this continuation: zero spawns; all diagnosis, implementation,
 review and fixes lead-owned. One gate was interrupted for the native defect;

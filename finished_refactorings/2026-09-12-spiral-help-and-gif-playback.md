@@ -2,7 +2,7 @@
 
 Status: complete, accepted by Ronin on 2026-09-12. His hour-long native run
 confirmed stable, relatively smooth operation around 60 FPS and smooth GIF
-playback. See the [final acceptance](../docs/spiral-qualification-2026-09-12.md#accepted-result).
+playback. See the [final acceptance](spiral-qualification-2026-09-12.md#accepted-result).
 Earlier implementation and PR-review evidence below remains historical;
 archiving this feature plan makes no new claim about current remote PR checks.
 

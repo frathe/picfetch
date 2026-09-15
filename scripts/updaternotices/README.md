@@ -50,7 +50,7 @@ before recording its provenance or uploading it. Artifact mode intentionally
 needs only the Go standard library and checkout notices, not a module-cache
 license audit on the signing/packaging runner.
 
-The [implementation evidence](../../plans/2026-09-13-updater-notices.md) records
+The [implementation evidence](../../finished_refactorings/2026-09-13-updater-notices.md) records
 the initial inventory and the inferred Python pathspec ancestry. The retained
 CPython license is a contemporaneous reference, not a claim that its exact
 release was consumed. No dependency or verifier behavior changed.

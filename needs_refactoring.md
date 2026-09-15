@@ -112,5 +112,5 @@ covered by the existing integration guards.
 **Closed by removal, 2026-09-14.** Ronin requested that HEIC support and the
 decoder dependency be removed pending distribution qualification. The fork
 upgrade watch and native leak-test helpers are retired. See the
-[removal record](plans/2026-09-14-remove-heic-decoder.md); reconsidering HEIC
+[removal record](finished_refactorings/2026-09-14-remove-heic-decoder.md); reconsidering HEIC
 support is separate work tracked in [todos.md](todos.md).

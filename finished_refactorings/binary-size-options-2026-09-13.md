@@ -7,7 +7,7 @@ packing, extra startup decompression, or changes to signing and verification.
 
 Ronin subsequently authorized the asset/font/vector changes. Work and current
 verification are tracked in the separate
-[implementation record](../finished_refactorings/2026-09-13-embedded-asset-size.md).
+[implementation record](2026-09-13-embedded-asset-size.md).
 
 ## Recommendation
 
