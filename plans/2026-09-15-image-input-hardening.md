@@ -1,6 +1,7 @@
 # Image input hardening
 
-Status: implemented; GitHub Codex review loop in progress. Local full verification
+Status: implemented; review and hosted verification evidence tracked in
+[PR #27](https://github.com/frathe/picfetch/pull/27). Local full verification
 passed; live IDE tag refresh remains pending.
 Authorized by Ronin on 2026-09-15.
 Route: Deep, because decoder admission and build selection cross packaging and platforms.
@@ -127,7 +128,7 @@ ignored local module settings now contain `no_emoji nodynamic`; completing IDE
 verification requires applying/reloading those settings and re-inspecting. The
 user has been asked asynchronously while tests continue. No source suppression
 weakens the build guard. Fresh Qodana module templates are prepared by its workflow;
-their XML/tags validate, but hosted Qodana execution remains unverified. See the
+their XML/tags validate and PR #27's hosted Qodana report has no findings. See the
 [GoLand setting](https://www.jetbrains.com/help/go/configuring-build-constraints-and-vendoring.html)
 and [Qodana plugin configuration](https://www.jetbrains.com/help/qodana/extending-qodana-plugins.html).
 The IDE also reports unresolved action-input metadata on unchanged GitHub Action
@@ -161,3 +162,35 @@ Focused local tests prove fixes; CI owns the complete race suite in this loop.
   Review dispositions and live head/check evidence belong in the PR and this record.
 - Patch-file whitespace is intentional unified-diff context; production-source
   whitespace is checked separately without rewriting the retained patches.
+- [PR #27](https://github.com/frathe/picfetch/pull/27), initial review head
+  `681562e`: focused imaging and five build-tool packages passed after the
+  fast-forward. [CI run 34994040147](https://github.com/frathe/picfetch/actions/runs/34994040147)
+  passed validation, all four Linux race partitions, Windows tests and both macOS
+  native-guard jobs. The local full race suite was not duplicated for this loop.
+- [Qodana run 34994040172](https://github.com/frathe/picfetch/actions/runs/34994040172)
+  passed. Its final `/qodana.sarif.json` identifies `681562e` and contains zero
+  results, as do `/end/qodana.sarif.json` and the rendered report's result set.
+  The `/start/` baseline is a different report and is not the acceptance result.
+- [CodeQL run 34994040263](https://github.com/frathe/picfetch/actions/runs/34994040263)
+  passed Go and Actions analysis. Both downloaded SARIFs contain zero results;
+  the analyses target merge commit `39926be1`, whose head is `681562e`, and report
+  no extraction error or warning. No open PR code-scanning alerts were returned.
+- Codex security review completed at 16:22:43 UTC with no findings. Code review
+  completed at 16:27:39 UTC with one P2 finding: contributor-facing vet/test
+  commands omitted the newly required build tags. The lead confirmed that
+  untagged `go vet ./internal/imaging` fails at the policy import, then updated
+  CONTRIBUTING and the PR checklist to use `make verify`, and the root guide's
+  direct commands to supply the tags. `make vet` and the documented
+  `go test -tags no_emoji,nodynamic -run TestE2E -v ./internal/ui/...` command
+  passed after the correction (all 13 E2E tests). GoLand re-inspection of the
+  three corrected guidance files reports no findings.
+  This documentation fix reuses the existing build-policy tests and validates
+  the documented commands directly; no test merely mirrors Markdown text.
+- Live GoLand still reports the module-tag configuration error; fresh hosted
+  Qodana verifies the committed template configuration. The review-loop changes
+  add no source suppression. An existing Markdown directory-link warning was
+  resolved by removing the trailing slash from the translations link.
+- After this documentation/evidence commit, a new code review and security
+  review are required on the latest head, alongside its CI and static-analysis
+  results. Final head, run IDs and dispositions are recorded on PR #27 so
+  recording completion does not itself invalidate the reviewed commit.

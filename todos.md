@@ -6,10 +6,12 @@
 
 All four safeguards are implemented: bounded ICO selection, SVG expansion limits,
 enforced WASM AVIF selection, and GIF memory accounting. Full `make verify` and
-both Windows internal-package cross-builds pass. The GitHub Codex review loop is
-authorized and in progress: create the complete PR, address findings with focused
-regressions, and finish fresh code/security reviews plus CI and Qodana/CodeQL.
-The live GoLand build-tag refresh and re-inspection also remain pending.
+both Windows internal-package cross-builds pass. Hosted review, finding
+dispositions and final CI/Qodana/CodeQL evidence are tracked in
+[PR #27](https://github.com/frathe/picfetch/pull/27). The live GoLand build-tag
+refresh and re-inspection remain pending; the committed Qodana configuration
+passed hosted analysis. Reload/apply the local `no_emoji nodynamic` module tags
+and inspect the imaging import again before closing this remaining local task.
 Compatibility limits and evidence:
 [implementation plan](plans/2026-09-15-image-input-hardening.md).
 
