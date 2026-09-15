@@ -6,86 +6,86 @@
 
 #### New Features
 
-##### Find more like this
+- **Find more like this**
 
-Choose a picture to find similar-looking images in your collection. The Grid shows your chosen picture first, followed
-by up to 30 matches, with the closest matches at the top. Results appear as PicFetch processes your images.
+  Choose a picture to find similar-looking images in your collection. The Grid shows your chosen picture first, followed
+  by up to 30 matches, with the closest matches at the top. Results appear as PicFetch processes your images.
 
-You can return to pictures you searched from earlier, use the usual Grid actions on results, and save a result list as a
-Favorite. PicFetch can save what it learns about your images to make future searches faster. Manage this stored data in
-Cache settings.
+  You can return to pictures you searched from earlier, use the usual Grid actions on results, and save a result list as a
+  Favorite. PicFetch can save what it learns about your images to make future searches faster. Manage this stored data in
+  Cache settings.
 
-If a scan stops early, PicFetch clearly marks it as incomplete. Missing images stay listed as unavailable, including
-pictures on a disconnected drive. After first-time setup, PicFetch checks that your chosen picture is still available
-before searching. Turning off saved analysis works even if the stored data cannot be read.
+  If a scan stops early, PicFetch clearly marks it as incomplete. Missing images stay listed as unavailable, including
+  pictures on a disconnected drive. After first-time setup, PicFetch checks that your chosen picture is still available
+  before searching. Turning off saved analysis works even if the stored data cannot be read.
 
-The search was tried with a collection of 446 images, and the results looked useful. Accuracy has not yet been formally
-measured. A way to improve matches by showing PicFetch which results you want and which you do not want is planned for
-later.
+  The search was tried with a collection of 446 images, and the results looked useful. Accuracy has not yet been formally
+  measured. A way to improve matches by showing PicFetch which results you want and which you do not want is planned for
+  later.
 
-Some requirements for including third-party software still need to be resolved; see LATER below. Read
-the [evaluation](docs/find-more-like-this/evaluation.md) for details.
+  Some requirements for including third-party software still need to be resolved; see LATER below. Read
+  the [evaluation](docs/find-more-like-this/evaluation.md) for details.
 
-Tests of the affected features and code checks are complete. Final approval still depends on the latest automated
-reviews and checks on Linux, Windows and macOS in [PR #25](https://github.com/frathe/picfetch/pull/25).
-The [development record](finished_refactorings/2026-09-14-find-more-like-this.md) lists completed checks and remaining
-limitations.
+  Tests of the affected features and code checks are complete. Final approval still depends on the latest automated
+  reviews and checks on Linux, Windows and macOS in [PR #25](https://github.com/frathe/picfetch/pull/25).
+  The [development record](finished_refactorings/2026-09-14-find-more-like-this.md) lists completed checks and remaining
+  limitations.
 
 #### Bugfix
 
 #### Internal
 
-##### Find more like this architecture follow-up
+- **Find more like this architecture follow-up**
 
-Improved how visual search works with Favorites, stored search data and the Grid. Fixes cover saving Favorites while
-stored data is being checked, keeping search updates responsive, and returning to your original collection after
-removing images or closing a comparison. Pictures that appear more than once keep their original positions when you
-return.
+  Improved how visual search works with Favorites, stored search data and the Grid. Fixes cover saving Favorites while
+  stored data is being checked, keeping search updates responsive, and returning to your original collection after
+  removing images or closing a comparison. Pictures that appear more than once keep their original positions when you
+  return.
 
-PicFetch now reports problems saving search data for Favorites while keeping usable results available. Automatic cleanup
-removes temporary files before reusable search data and keeps completed analysis available to the current search.
+  PicFetch now reports problems saving search data for Favorites while keeping usable results available. Automatic cleanup
+  removes temporary files before reusable search data and keeps completed analysis available to the current search.
 
-All 28 review findings were assessed.
-The [architecture assessment](docs/find-more-like-this/pr25-architecture-review.md) explains the changes, and
-the [implementation record](finished_refactorings/2026-09-15-search-ownership.md) documents the fixes and testing.
+  All 28 review findings were assessed.
+  The [architecture assessment](docs/find-more-like-this/pr25-architecture-review.md) explains the changes, and
+  the [implementation record](finished_refactorings/2026-09-15-search-ownership.md) documents the fixes and testing.
 
-The fixes and tests are in place, and local checks passed. Final review and automated check results are recorded
-on [PR #25](https://github.com/frathe/picfetch/pull/25).
+  The fixes and tests are in place, and local checks passed. Final review and automated check results are recorded
+  on [PR #25](https://github.com/frathe/picfetch/pull/25).
 
-##### Comparison test deadline under build contention
+- **Comparison test deadline under build contention**
 
-Made the automated image-comparison tests more reliable when the computer is busy with other development work. These
-tests check that background image processing can stop safely and that comparison windows do not get stuck.
+  Made the automated image-comparison tests more reliable when the computer is busy with other development work. These
+  tests check that background image processing can stop safely and that comparison windows do not get stuck.
 
-The updated tests passed repeated runs under heavy load. The full set of checks also passed on Ubuntu, and code
-inspection found no issues requiring changes.
+  The updated tests passed repeated runs under heavy load. The full set of checks also passed on Ubuntu, and code
+  inspection found no issues requiring changes.
 
-##### Qualify updater notices in native release CI
+- **Qualify updater notices in native release CI**
 
-Improved checks that make sure update packages include the required license information for third-party software.
+  Improved checks that make sure update packages include the required license information for third-party software.
 
-Checks passed on Linux, Windows and macOS. Packages for all six supported targets also passed local checks before
-signing. The final Windows packages still need to pass the new checks after they are digitally signed.
+  Checks passed on Linux, Windows and macOS. Packages for all six supported targets also passed local checks before
+  signing. The final Windows packages still need to pass the new checks after they are digitally signed.
 
-The license notes also explain that the exact historical source-code version of one included component could not be
-confirmed. See the [evidence and limits](plans/2026-09-13-updater-notices.md) and
-the [completed Linux checks](https://github.com/frathe/picfetch/actions/runs/34755687251).
+  The license notes also explain that the exact historical source-code version of one included component could not be
+  confirmed. See the [evidence and limits](plans/2026-09-13-updater-notices.md) and
+  the [completed Linux checks](https://github.com/frathe/picfetch/actions/runs/34755687251).
 
-##### Mascot-circle hint for the Hypno Spiral
+- **Mascot-circle hint for the Hypno Spiral**
 
-Added a hidden interaction with Trane and Finis and made the speech bubble wider. Escape now closes the manual even when
-you are typing in its search field.
+  Added a hidden interaction with Trane and Finis and made the speech bubble wider. Escape now closes the manual even when
+  you are typing in its search field.
 
-On the welcome screen, move your pointer around Trane's head ten times in the same direction within twenty seconds. This
-opens Finis or brings his window to the front.
+  On the welcome screen, move your pointer around Trane's head ten times in the same direction within twenty seconds. This
+  opens Finis or brings his window to the front.
 
-Draw another ten circles with your pointer within twenty seconds anywhere inside a Finis window. A speech bubble appears
-and stays visible. Click it to open the manual with an empty search field. The secret phrase stays in English, while the
-hint in parentheses uses your selected language.
+  Draw another ten circles with your pointer within twenty seconds anywhere inside a Finis window. A speech bubble appears
+  and stays visible. Click it to open the manual with an empty search field. The secret phrase stays in English, while the
+  hint in parentheses uses your selected language.
 
-Tests of the affected features, translation checks and local build checks passed.
-The [development record](finished_refactorings/2026-09-14-mascot-circle-hint.md) includes feedback from hands-on use and
-lists checks that could not be completed.
+  Tests of the affected features, translation checks and local build checks passed.
+  The [development record](finished_refactorings/2026-09-14-mascot-circle-hint.md) includes feedback from hands-on use and
+  lists checks that could not be completed.
 
 ## LATER
 
