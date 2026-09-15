@@ -40,6 +40,9 @@ jobs:
       - name: Check formatting
         run: make fmt-check
 
+      - name: Verify isolated HEIC development artifact
+        run: make heic-check-provenance heic-check-imports
+
       - name: Check search review controls
         run: |
           node --version

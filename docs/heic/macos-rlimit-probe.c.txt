@@ -1,0 +1,17 @@
+#include <sys/resource.h>
+#include <mach/mach.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+int main(void) {
+    struct mach_task_basic_info info = {0};
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    kern_return_t kr = task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &count);
+    if (kr != KERN_SUCCESS) return 2;
+    printf("virtual_bytes=%llu resident_bytes=%llu\n", (unsigned long long)info.virtual_size, (unsigned long long)info.resident_size);
+    struct rlimit limit = {2ULL * 1024 * 1024 * 1024, 2ULL * 1024 * 1024 * 1024};
+    int result = setrlimit(RLIMIT_AS, &limit);
+    int saved_errno = errno;
+    printf("setrlimit_2GiB=%d errno=%d (%s)\n", result, saved_errno, result ? strerror(saved_errno) : "success");
+    return 0;
+}

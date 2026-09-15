@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"image"
 	"testing"
 	"time"
 )
@@ -19,6 +20,8 @@ func TestLimitsValidate(t *testing.T) {
 		mutate func(*Limits)
 	}{
 		{"zero timeout", func(l *Limits) { l.Timeout = 0 }},
+		{"fractional WASM page", func(l *Limits) { l.WASMMemoryBytes = 1 }},
+		{"guest exceeds OS budget", func(l *Limits) { l.OSProcessBytes = l.WASMMemoryBytes - 1 }},
 		{"input over hard ceiling", func(l *Limits) { l.MaxInputBytes = hardMaxInputBytes + 1 }},
 		{"zero pixels", func(l *Limits) { l.MaxPixels = 0 }},
 		{"output too large", func(l *Limits) { l.MaxOutputBytes = hardMaxOutputBytes + 1 }},
@@ -59,7 +62,7 @@ func TestDecodeResponseRejectsInvalidMessages(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := decodeResponse(bytes.NewReader(tt.data), limits); !errors.Is(err, ErrInvalidResponse) {
+			if _, err := ReadResponse(bytes.NewReader(tt.data), Decode, limits); !errors.Is(err, ErrInvalidResponse) {
 				t.Fatalf("decodeResponse() error = %v, want ErrInvalidResponse", err)
 			}
 		})
@@ -114,4 +117,37 @@ func replaceUint64(data []byte, offset int, value uint64) []byte {
 	out := append([]byte(nil), data...)
 	binary.LittleEndian.PutUint64(out[offset:offset+8], value)
 	return out
+}
+
+func TestDecodeResponsePreservesStraightAlphaAndSixteenBitSamples(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		format uint16
+		depth  uint16
+		pixels []byte
+	}{
+		{"straight alpha", pixelFormatRGBA8, 8, []byte{255, 0, 0, 128}},
+		{"sixteen bit", 2, 16, []byte{0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xff}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			data := responseBytes(t, 1, 1, tt.format, tt.depth, tt.pixels, nil, nil)
+			binary.LittleEndian.PutUint32(data[16:20], uint32(len(tt.pixels)))
+			got, err := ReadResponse(bytes.NewReader(data), Decode, DefaultLimits(0))
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch img := any(got.Image).(type) {
+			case *image.NRGBA:
+				if !bytes.Equal(img.Pix, tt.pixels) {
+					t.Fatal("straight alpha samples changed")
+				}
+			case *image.NRGBA64:
+				if !bytes.Equal(img.Pix, tt.pixels) {
+					t.Fatal("sixteen-bit samples changed")
+				}
+			default:
+				t.Fatalf("decoded image type %T loses straight alpha or precision", got.Image)
+			}
+		})
+	}
 }

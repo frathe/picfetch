@@ -44,10 +44,10 @@ source digest, artifact digest, licence and shipped notice location.
 
 | Component | Exact source / artifact | Licence and obligations | Status |
 | --- | --- | --- | --- |
-| `github.com/gen2brain/h265/heic` | Candidate module `github.com/gen2brain/h265` v0.2.3; immutable commit, `h1:` checksum and changes since v0.2.2 still must be obtained from the trusted source. | Upstream licence and complete generated/translated-source provenance must be inspected; ship its notice. | **Blocked:** outbound module/source access is HTTP 403 in this environment; do not invent a pin or digest. Prior repository audit records an invalid result invariant and sequence fallback at v0.2.3. |
-| WASI guest | Reproducible build recipe will name compiler version, target, flags and source tree digest; checked-in artifact gets SHA-256. | Same closure as selected decoder plus compiler/runtime notices where distributed. | Pending source qualification. |
-| wazero | Existing selected dependency is transitive through AVIF; exact selected version and licence will be recorded from `go list -m all` when the guest wrapper is added. | Apache-2.0 notice and NOTICE obligations. | Existing dependency; HEIC usage not yet added. |
-| PicFetch host/helper/protocol | This repository and committed revision. | MIT. | Planned. |
+| `github.com/gen2brain/h265/heic` | v0.2.3 at `b2d46ba787d8f0a2025bd106443ab1b1c7cd010f`; module/archive/source hashes and static v0.2.2 comparison in `docs/heic/qualification.md`. | Upstream licence and complete generated/translated-source provenance must be inspected; ship its notice. | Source recovered locally; MIT notice retained. Exact translated-source lineage and full decoder qualification remain incomplete. Sequence fallback is refused inside the guest. |
+| WASI guest | Reproducible build recipe will name compiler version, target, flags and source tree digest; checked-in artifact gets SHA-256. | Same closure as selected decoder plus compiler/runtime notices where distributed. | Development artifact built and reproduced; production qualification pending. |
+| wazero | Existing wazero v1.12.0; now directly used by the development fixture generator and ABI tests. No version upgrade. | Apache-2.0 notice and NOTICE obligations. | Apache-2.0 license and NOTICE preserved in `docs/heic/notices`; no production HEIC runtime. |
+| PicFetch host/helper/protocol | This repository and guest manifest input hashes. | MIT. | Protocol/guest implemented; production client/helper pending OS controls. |
 | OS restriction helpers | Standard-library/syscall use plus existing pinned `golang.org/x/sys`; no new native runtime. | Existing BSD-3-Clause notice. | Planned per platform. |
 
 The old removed implementation used `github.com/gen2brain/heic` with a Rust
@@ -175,7 +175,54 @@ actual bounded fuzz command and duration are entered below.
 | 2026-09-15 | Existing imaging regressions | The brief's literal `go test -race -tags=no_emoji ...` failed at setup because the repository deliberately requires `nodynamic` for imaging (`internal/avifpolicy` otherwise has no selected file). The convention-compliant `go test -race -tags=no_emoji,nodynamic -count=1 ./internal/imaging ./internal/favthumbs ./internal/filescan` passed: 42.165s, 1.114s, 1.067s. |
 | 2026-09-15 | Packaging/build | `go test -tags=no_emoji,nodynamic ./scripts/plistdoctypes ./scripts/msixstage` passed (0.005s, 0.297s). `make verify-build` passed its TUF, vector, asset, updater-notice and repository-wide vet checks. |
 
-## Cost ledger
+## Local continuation (2026-09-15)
+
+Recovered the cloud's eight-file, 533-line foundation through its supported
+publication control. Draft PR #28 exposes the same foundation as `a3c4d92`
+(the cloud-local commit was `fb2c4a9`); the published branch is
+`codex/implement-authorized-heic-restoration-in-codex`. Continue this branch.
+Remote `main` still equals `0335a44`. The local host is macOS 27.0 build 26A428,
+arm64, Go 1.27.1. Docker is installed but has no running daemon.
+
+The source-access blocker is resolved: the standard Go module registry returned
+v0.2.3 at `b2d46ba787d8f0a2025bd106443ab1b1c7cd010f`, checksum
+`h1:+fEP2Xf1CoZ21SxA2YpqnPZb6Y/hAEkcgjU1gMsOhrk=`. v0.2.2 is available for
+static comparison. No historical reproducer or upstream test corpus is run.
+
+Local work sequence, before adding a production runtime:
+
+1. Record source/license/API differences and actual OS memory semantics in
+   `docs/heic/qualification.md`. A small disposable native macOS probe tests
+   whether the proposed address-space budget can even be installed; it never
+   allocates up to that budget. Public API/source evidence does not count as
+   runtime qualification. Lead owns conclusions.
+2. Complete the independent wire contract: straight-alpha NRGBA8/NRGBA64,
+   explicit operations and failure statuses, bounded structured metadata,
+   request framing, exact output/EOF validation. Share the existing codec-free
+   `internal/heicdecode` package with the separate guest module. Preserve 16-bit output
+   without increasing the 256,000,000-byte output ceiling (32M pixels at 16 bits).
+   Verify with `go test -race -tags no_emoji,nodynamic ./internal/heicdecode/...`.
+3. If source inspection permits a development guest, add a separate WASI-only
+   module at `scripts/heicguest`, reproducible build/provenance/import guards,
+   and tests using only ordinary licensed fixtures. No shipped/production helper
+   runs without qualified OS controls. The guest accepts byte streams and emits
+   the shared wire contract. Source digests and notices accompany the artifact.
+4. Integrate production decoding only after T2 can be enforced and measured.
+   A missing whole-worker memory mechanism blocks that dependent work; no soft
+   substitute, per-process semaphore, or compilation-only platform claim.
+
+One read-only OS-documentation scout was used alongside cloud recovery. G1:
+bounded primary-source question; G2: cited public APIs/kernel implementation;
+G3: zero file writes; G4/G5: independent OS source sweep before lead review.
+Rule S cannot resolve accounting semantics from a textual substitution; Rule W
+holds. No implementation/review/fix delegation. This revises T0's spawn budget
+from zero to one. All reviews/fixes remain with the lead.
+
+The literal imaging commands above require `-tags no_emoji,nodynamic` under the
+current repository policy. Native platform execution and GoLand availability
+will be recorded separately from build-only checks.
+
+## Cloud cost ledger (historical)
 
 | Task | Spawns budget/actual | Review rounds | Full suite | Notes |
 | --- | --- | --- | --- | --- |
@@ -185,3 +232,51 @@ actual bounded fuzz command and duration are entered below.
 | T3 | 0 / 0 | 0 | no | Pending qualified platform admission. |
 | T4 | 0 / 0 | 0 | no | Native platform evidence unavailable in Cloud. |
 | T5 | 0 / 0 | 0 | no | Pending. |
+
+## Local evidence ledger
+
+| Check | Actual result |
+| --- | --- |
+| Source recovery/publication | Draft PR #28 exposes the cloud foundation at `a3c4d92`; continued locally on its published branch. Upstream module and v0.2.2 comparison retrieved through the standard registry, with exact source/archive/module pins recorded in `docs/heic/qualification.md`. |
+| Test-led protocol corrections | New tests first rejected premultiplied RGBA interpretation and absent 16-bit layout, then passed after NRGBA8/NRGBA64 support. Request/operation/metadata tests first failed for missing contracts. Additional limits tests rejected previously accepted fractional WASM pages and guest memory above the outer budget. |
+| Bounded native feasibility probe | macOS 27.0 arm64: `setrlimit(RLIMIT_AS, 2 GiB)` returned EINVAL below existing virtual mappings. Tiny disposable C process, no large allocation. This does not rule out other macOS strategies; separate research is ongoing. |
+| Guest/source guards | `make heic-build heic-check-provenance heic-check-imports` passed. Independent byte-identical rebuild; known module/archive/source/notice checks and native-graph checks. Actual artifact-byte mutation made the provenance command fail; removing the fixture generator's WASI-only build guard made the import command fail. Both exact files restored. Unit guards also refuse altered source content, missing artifact and native codec import. |
+| Positive guest ABI | Four cases / three distinct licensed images; upstream basic/main10 are byte-identical. RGB, alpha and PicFetch-owned explicit ten-bit gradient pass Decode, DecodeConfig and DecodeExif. NRGBA64 and alpha preserved. No camera compatibility, colorimetric/orientation precedence or native sandbox conclusion follows from these checks. |
+| Focused race regression | `go test -race -tags no_emoji,nodynamic -count=1 ./internal/heicdecode ./scripts/heicbuild ./internal/imaging ./internal/favthumbs ./internal/filescan ./scripts/plistdoctypes ./scripts/msixstage` passed. Imaging 28.130s, favorites 1.682s, scanner 1.505s, plist 1.283s, MSIX staging 5.460s. After final protocol/guard refinements, boundary and guest repeated and passed in 1.243s / 58.194s. |
+| Advisory scan | `make security-govulncheck` passed for the native graph and separate WASI module. No reachable or imported-package vulnerability found. Native verbose scan identified existing module-only GO-2026-5932 in unimported `golang.org/x/crypto/openpgp`; this change neither imports it nor changes x/crypto. Guest scan found no vulnerabilities. This is known-advisory coverage, not decoder security certification. |
+| Local build | `make verify-build` completed format/TUF/assets/notices/provenance/import/vet/build. The appended direct shard command selected macOS tests and failed on the pre-existing `TestMergeWindowMenus_FoldsEveryDuplicate`; the Make target explicitly requires a prepared Linux/amd64 runner. Do not change the Linux manifest or bypass the guard for a macOS run. Canonical shard validation remains a CI gate. |
+| Full suite | `make verify` could not start: Docker daemon socket absent. Native Linux/amd64 CI is required. No seccomp, shard or isolation guard was relaxed. |
+| GoLand | Connected IDE reports only `/Users/ronin/Projects/picfetch`; this isolated worktree is not an open GoLand project. Inspections of changed files remain unverified. Qodana is a separate CI check, not a replacement claim. |
+| Production/platform status | No helper/client/broker/OS sandbox or memory control installed. Linux, Windows/MSIX and macOS production HEIC admission all remain disabled. No main/imaging/UI integration, format declarations or packaging exposure changed. |
+
+### Local cost/status ledger
+
+One bounded read-only scout, all implementation/review/fixes by the lead.
+T0 source/build provenance is implemented; translated-source lineage and OS
+qualification are incomplete. T1 protocol and development guest are implemented;
+production client/helper lifecycle is pending the resource decision. T2-T4
+remain blocked on qualified enforcement and then shared admission, compatibility
+and packaging. T5 publishes a reviewable candidate only, without merge/release.
+No native capability/crash/timeout/memory-exhaustion campaign or upstream fuzz
+corpus was executed. CI outcomes/publication are recorded below when observed.
+
+## Accepted macOS memory tradeoff (supersedes the original T0/T2 gate)
+
+After a separate explicit decision, Ronin approved enabling macOS HEIC once
+sandboxing and decoder memory limits are verified, accepting that the native
+helper has no guaranteed hard total-memory cap and can still cause system
+memory pressure or crashes. Unauthorized file/network actions remain
+unacceptable. The former 2 GiB value was an engineering proposal, not his numeric
+requirement. This approval does not permit weaker sandboxing, unvalidated IPC,
+native codec loading, unbounded decoder/input/output/jobs/time, or false claims
+about undiscovered vulnerabilities.
+
+Continue beyond this candidate into a minimal disposable protected helper,
+family-wide app/analysis admission, deterministic cancellation/join and canonical
+imaging integration. macOS must fail closed if its actual sandbox cannot be
+established. Windows/Linux use strong practical restrictions and OS memory
+controls where available, with truthful per-platform reporting. Native/package
+qualification remains required before exposure. All commits/pushes remain
+permitted; no merge/release. The dedicated macOS research task supplies further
+primary-source implementation guidance. No alternative runtime migration is
+selected by this approval.

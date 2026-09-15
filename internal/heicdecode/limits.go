@@ -58,8 +58,8 @@ func DefaultLimits(userMaxInputBytes int64) Limits {
 // Validate rejects relaxed, absent, or internally inconsistent limits.
 func (l Limits) Validate() error {
 	if l.Timeout <= 0 || l.Timeout > 30*time.Second ||
-		l.WASMMemoryBytes <= 0 || l.WASMMemoryBytes > 1*1024*1024*1024 ||
-		l.OSProcessBytes <= 0 || l.OSProcessBytes > 2*1024*1024*1024 ||
+		l.WASMMemoryBytes <= 0 || l.WASMMemoryBytes > 1*1024*1024*1024 || l.WASMMemoryBytes%(64*1024) != 0 ||
+		l.OSProcessBytes <= 0 || l.OSProcessBytes > 2*1024*1024*1024 || l.WASMMemoryBytes > l.OSProcessBytes ||
 		l.MaxInputBytes <= 0 || l.MaxInputBytes > hardMaxInputBytes ||
 		l.MaxPixels <= 0 || l.MaxPixels > hardMaxPixels ||
 		l.MaxOutputBytes <= 0 || l.MaxOutputBytes > hardMaxOutputBytes ||

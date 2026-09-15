@@ -589,15 +589,30 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 
 ### `internal/heicdecode`
 
-Fail-closed boundary for the proposed isolated HEIC/HEIF decoder. `Limits`
-defines distinct finite input, output, metadata, diagnostic, time, thread, live
-job, WASM-linear-memory and complete-process-family ceilings. `protocol.go`
-validates the versioned helper response, checked dimensions and RGBA layout
-before publishing pixels and rejects trailing data. It deliberately contains no
-codec or rich HEIC parser. Runtime/helper integration remains disabled until the
-pinned `github.com/gen2brain/h265/heic` source and guest artifact are qualified
-and a platform's mandatory isolation controls pass natively; see the active
-restoration plan and `docs/heic/robustness-testing.md`.
+Codec-free boundary for the proposed isolated HEIC/HEIF decoder. `limits.go`
+defines separate finite resource contracts; it does not install OS controls.
+`request.go` frames one byte-only operation. `protocol.go` validates versioned
+responses, dimensions, NRGBA8/NRGBA64 layout, operation-specific payload lengths,
+normalized metadata and exact EOF before publication. `metadata.go` rejects
+unknown/duplicate fields and invalid bounded values. No production launcher,
+family-wide broker or native helper is installed; HEIC remains unsupported.
+
+### `scripts/heicguest` and `scripts/heicbuild`
+
+Development-only HEIC/WASI qualification. `heicguest` is a separate module pinned
+to unmodified h265 v0.2.3. Its WASI-only entry point rejects movie containers,
+decodes still pixels/config/Exif in the guest, preserves straight-alpha precision
+and emits `internal/heicdecode`'s protocol. `fixturegen` writes one fixed ordinary
+ten-bit gradient. Neither command is an application entry point or a shipped
+helper. The checked guest artifact is not embedded in the viewer.
+
+`heicbuild` implements the Make build/provenance/import guards. It checks source,
+notices and complete build-input hashes, reproduces the guest byte-for-byte and
+rejects native codec imports. Its fixed fixture generator and tests use wazero's
+interpreter with bounded linear memory and byte streams. This does not implement
+a native worker-family memory cap. See `docs/heic/qualification.md`, the active
+restoration plan and `docs/heic/robustness-testing.md` for status and remaining
+platform, compatibility and distribution gates.
 
 ### `internal/avifpolicy`
 

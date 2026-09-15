@@ -89,13 +89,17 @@ verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-0
 is closed by removal. Retained [options and source evidence](docs/find-more-like-this/old-heic-wasm-options.md)
 do not authorize restoring a decoder.
 
-Restoration work is now authorized and tracked in
-`plans/2026-09-15-isolated-heic-restoration.md`. The bounded parent protocol and
-safe-testing boundary are present, but decoding and format exposure remain
-disabled until the exact h265 source/guest closure can be retrieved and reviewed
-and mandatory native isolation is runtime-qualified. The Codex Cloud checkout
-cannot currently retrieve the candidate source (module proxy HTTP 403) or supply
-Windows/macOS/native Linux isolation evidence.
+Restoration work is authorized and tracked in
+[the active plan](plans/2026-09-15-isolated-heic-restoration.md) and
+[draft PR #28](https://github.com/frathe/picfetch/pull/28). Local source access is
+resolved. The pinned WASI development guest, NRGBA8/NRGBA64 protocol, ordinary
+fixtures and reproducible source/artifact/import guards are present. Production
+decoding remains disabled: native helper restrictions, a real whole-worker memory
+budget, shared app/analysis admission, signing/packaging and compatibility checks
+are unfinished. A local macOS probe rejected the proposed 2 GiB address-space
+limit below existing virtual mappings; separate macOS protection research is
+ongoing. Linux/Windows native enforcement is unverified. See
+[qualification evidence](docs/heic/qualification.md).
 
 The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
 include libheif/libde265 with LGPL distribution work and hpvcd with unresolved

@@ -1,0 +1,31 @@
+{
+  "Version": 1,
+  "Module": "github.com/gen2brain/h265@v0.2.3",
+  "Revision": "b2d46ba787d8f0a2025bd106443ab1b1c7cd010f",
+  "ModuleSum": "h1:+fEP2Xf1CoZ21SxA2YpqnPZb6Y/hAEkcgjU1gMsOhrk=",
+  "ModuleZipSHA256": "2838bcb83b8da357a19788ad5d8a9d55c16bd4a12961fa81e3ab282974f1ed7a",
+  "Compiler": "go1.27.1",
+  "Files": {
+    "docs/heic/notices/Go-LICENSE": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "docs/heic/notices/Go-PATENTS": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc",
+    "docs/heic/notices/h265-LICENSE": "a53831ee9730340d31a911148e69fdd15cc7d1c408b06f3a923b170c4578634d",
+    "docs/heic/notices/wazero-LICENSE": "c46f033d017a5af71a1de0105ec56c41bd47f81a0bbdf779fffe316336dc7c1f",
+    "docs/heic/notices/wazero-NOTICE": "e6f0c5c151a3ff1eba8f5930a31ec084ca6d7adda43c8675ab81f7d36af50b4f",
+    "internal/heicdecode/limits.go": "fc68f6d146dadacee5aa543acadeb691771908f8944e85e2ffb18a1120be6d41",
+    "internal/heicdecode/metadata.go": "ee88ad5b55708636fc5b3470737cb68feb6822e0acf2bf6773c023ea1818656b",
+    "internal/heicdecode/protocol.go": "2f04d0b652a255736ee17f2c194df7b1813c76a02ddb66ec2a4d85e11d2afca4",
+    "internal/heicdecode/request.go": "39bd8fe6af5e228681e0c819e82159c3ecb1c5109ae56513fe9b5faa6ff75ed3",
+    "scripts/heicbuild/fixture.go": "974d3d9569a4a178291c4e4e38aadbdc07ee7d5e0e8d692d94d27b8869225f18",
+    "scripts/heicbuild/main.go": "4a3c593d374af7c223f717738918746f5520c1206d011b9f47be5dba373f930b",
+    "scripts/heicbuild/testdata/README.md": "af6f2d370e164b27a97c093837208f0921eed07360c11cd317780f923227f44e",
+    "scripts/heicbuild/testdata/alpha.heic": "130c9f6c9a9bdefe2fc4b17427ff37b78423f2d3a935f82cfe55a9782f6d0f51",
+    "scripts/heicbuild/testdata/basic.heic": "b3e3ee1e64f7ae42948bd9f83465c9ea110116a662d603d677d3ff262b8e4cfe",
+    "scripts/heicbuild/testdata/main10.heic": "b3e3ee1e64f7ae42948bd9f83465c9ea110116a662d603d677d3ff262b8e4cfe",
+    "scripts/heicbuild/testdata/tenbit.heic": "e8026ee08b531a212a29250b66f663e36fc3fb953ce7d7c5d7c9ed048e499eba",
+    "scripts/heicguest/decoder.wasm": "32f4a29d269b693e27109f11e475533bc38cae16036b55fb8dd6e8d63febe447",
+    "scripts/heicguest/fixturegen/main.go": "b5bc075560ca280ff6b37b50cc48d4758e03c726c0c3235fc3accb28f402701b",
+    "scripts/heicguest/go.mod": "36b7c93e5dd473ac58d0937ae120503595848abe3d1623349f3294fd09104cc8",
+    "scripts/heicguest/go.sum": "e8ceb1eabd033ca36c18c81acf8f62a73846f7e600868e1894b1cbaed01eb95f",
+    "scripts/heicguest/main.go": "30c24f8f4cd92e1b6f06a1601d42e7e6702f7b53551ebfbbb0a744ea437f6c12"
+  }
+}

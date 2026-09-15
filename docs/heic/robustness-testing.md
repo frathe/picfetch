@@ -26,8 +26,9 @@ after its provenance and safe handling are reviewed.
 The initial ceiling for a complete operation is 30 seconds. The separate maxima
 are 1 GiB WASM linear memory, 2 GiB for the OS-enforced helper process family,
 64 MiB encoded HEIC input (further reduced by a positive user limit), 64 million
-pixels, checked RGBA output, 64 KiB metadata, 4096 bytes diagnostics, one helper
-thread/process and one live decode lane per application instance. Measurements
+pixels, checked NRGBA8/NRGBA64 output, 64 KiB metadata, 4096-byte diagnostics,
+one guest decode lane and one live helper per application instance. Native
+helper thread/process ceilings require separate OS enforcement. Measurements
 on representative photographs must account for parent input, pipe buffers,
 guest backing, wazero/Go overhead, output staging and application caches. Limits
 may be lowered from evidence; they must remain finite.
@@ -47,3 +48,14 @@ actual command and duration are recorded in the active plan. Compile-only
 Windows or macOS results do not qualify runtime support. HEIC remains unavailable
 on a platform until its packaged application passes that platform's isolation,
 memory, cleanup and ordinary-photo tests.
+
+## Local development evidence
+
+The development guest is a separate WASI-only module. Its positive fixture ABI
+tests use three distinct ordinary images (RGB, alpha, and an explicitly ten-bit
+gradient) plus the upstream byte-identical `main10.heic` alias. Parent protocol
+checks use bounded owned messages. No upstream negative test corpus, historical
+reproducer, fuzz campaign, crash/hang/memory-exhaustion campaign or native
+capability test was run. Source/artifact guards are negatively exercised using
+owned source text and missing files. Full status and remaining gates are in
+[qualification.md](qualification.md).
