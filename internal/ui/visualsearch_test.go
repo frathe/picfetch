@@ -44,7 +44,7 @@ func findSearchMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 	return nil
 }
 func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
-	t.Run("cache-pressure-final", func(t *testing.T) {
+	t.Run("cache-pressure-continues", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 		v.analysisDir = t.TempDir()
 		v.settings.looseAnalysisCache, v.settings.analysisCacheMiB = true, 1
@@ -63,9 +63,14 @@ func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
 		})
 		var calls atomic.Int32
 		firstStopped := make(chan struct{})
+		preparing := make(chan struct{})
+		finish := make(chan struct{})
+		ready := make(chan struct{}, 1)
+		queue := &uitest.UIQueue{}
 		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
-		v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}, Provider: func(ctx context.Context, request similarity.SearchRequest, queries <-chan similarity.SearchQuery, emit func(similarity.SearchEvent)) error {
-			if calls.Add(1) == 1 {
+		v.visualsearch.Configure(searchui.Options{Queue: queue, Provider: func(ctx context.Context, request similarity.SearchRequest, queries <-chan similarity.SearchQuery, emit func(similarity.SearchEvent)) error {
+			first := calls.Add(1) == 1
+			if first {
 				defer close(firstStopped)
 			}
 			var revision uint64
@@ -74,12 +79,35 @@ func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
 				case <-ctx.Done():
 					return ctx.Err()
 				case query := <-queries:
+					if revision == 0 && first {
+						revision++
+						emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: revision, Kind: similarity.SearchPartial, Processed: 2, Total: 3, CachePressureBytes: 1, Matches: []similarity.Match{{Path: paths[1]}}})
+						close(preparing)
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case <-finish:
+						}
+					}
 					revision++
-					emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: revision, Kind: similarity.SearchFinal, Processed: 3, Total: 3, CachePressureBytes: 1, Matches: []similarity.Match{{Path: paths[1]}, {Path: paths[2]}}})
+					emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: revision, Kind: similarity.SearchFinal, Processed: 3, Total: 3, Matches: []similarity.Match{{Path: paths[1]}, {Path: paths[2]}}})
+					revision++
+					emit(similarity.SearchEvent{SessionID: request.SessionID, QueryID: query.ID, Revision: revision, Kind: similarity.SearchReady, Processed: 3, Total: 3, CachePressureBytes: 1})
+					ready <- struct{}{}
 				}
 			}
 		}})
 		v.findMoreLikeThis()
+		<-preparing
+		queue.Drain()
+		if !v.visualsearch.State().Preparing || v.analysisMaintenanceBusy() {
+			t.Fatal("capacity pressure interrupted preparation or started early eviction")
+		}
+		if _, err := os.Stat(record); err != nil {
+			t.Fatalf("cache record was removed before readiness: %v", err)
+		}
+		close(finish)
+		<-ready
 		v.visualsearch.Settle()
 		v.analysisCache.Settle()
 		if _, err := os.Stat(record); !errors.Is(err, os.ErrNotExist) || v.analysisMaintenanceBusy() {
@@ -93,6 +121,7 @@ func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
 		firstSession := v.visualsearch.State().SessionID
 		v.grid.SimulateHover(1)
 		v.findMoreLikeThis()
+		<-ready
 		v.visualsearch.Settle()
 		if calls.Load() != 1 || v.visualsearch.State().SessionID != firstSession || v.visualsearch.State().Preparing || v.analysisMaintenanceBusy() {
 			t.Fatal("next reference repeated preparation or handled cache pressure")

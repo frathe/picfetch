@@ -81,37 +81,73 @@ func publish(call providerCall, query similarity.SearchQuery, revision uint64, k
 	call.emit(event)
 }
 
-func TestVisualSearchCachePressureRetainsOnlyCompletedProducer(t *testing.T) {
-	for _, final := range []bool{false, true} {
-		t.Run(fmt.Sprintf("final_%t", final), func(t *testing.T) {
+func TestVisualSearchCachePressureWaitsForReadiness(t *testing.T) {
+	for _, phase := range []string{"completed", "failed-reference", "abandoned-query", "favorite-pending"} {
+		t.Run(phase, func(t *testing.T) {
 			f, h, q, calls := newSearch(t)
 			f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
 			call := <-calls
 			query := <-call.queries
-			kind, processed := similarity.SearchPartial, 2
-			if final {
-				kind, processed = similarity.SearchFinal, 3
-			}
-			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 1, Kind: kind, Processed: processed, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/b"}}})
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 1, Kind: similarity.SearchPartial, Processed: 2, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/b"}}})
 			q.Drain()
-			f.Settle()
+			if len(h.errors) != 0 || !f.State().Preparing || !f.Active() {
+				t.Fatalf("capacity pressure interrupted preparation: errors=%v state=%+v", h.errors, f.State())
+			}
+			if phase == "failed-reference" {
+				call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 2, Kind: similarity.SearchQueryFailure, Processed: 2, Total: 3, Error: "reference unavailable"})
+				q.Drain()
+			}
+			if phase == "abandoned-query" {
+				if !f.Explore("/b") {
+					t.Fatal("next reference rejected during preparation")
+				}
+				query = <-call.queries
+				if !f.Back() {
+					t.Fatal("pending reference was not abandoned")
+				}
+			}
+			if phase == "favorite-pending" {
+				f.FavoriteSaved()
+				query = <-call.queries
+				if query.CacheRevision == 0 {
+					t.Fatal("Favorite persistence was not admitted")
+				}
+			}
+			errorsBefore := len(h.errors)
+			presentedBefore := len(h.presented)
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 3, Kind: similarity.SearchFinal, Processed: 3, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/c"}}})
+			q.Drain()
+			if len(h.errors) != errorsBefore {
+				t.Fatal("query completion requested eviction before session readiness")
+			}
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 4, Kind: similarity.SearchReady, Processed: 3, Total: 3, CachePressureBytes: 100})
+			q.Drain()
+			if phase == "favorite-pending" {
+				if len(h.errors) != errorsBefore {
+					t.Fatal("eviction interrupted pending Favorite persistence")
+				}
+				call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, CacheRevision: query.CacheRevision, Revision: 5, Kind: similarity.SearchReady, Processed: 3, Total: 3, CachePressureBytes: 100})
+				q.Drain()
+			}
+			if (phase == "failed-reference" || phase == "abandoned-query") && len(h.presented) != presentedBefore {
+				t.Fatal("session readiness replaced the frozen visit")
+			}
 			var pressure similarity.CachePressureError
-			if len(h.errors) != 1 || !errors.As(h.errors[0], &pressure) || pressure.NeedBytes != 100 || !f.Active() {
-				t.Fatalf("cache pressure lost its request or browsing: %v", h.errors)
+			if len(h.errors) != errorsBefore+1 || !errors.As(h.errors[errorsBefore], &pressure) || pressure.NeedBytes != 100 || f.State().Preparing {
+				t.Fatalf("ready producer lost its eviction request: errors=%v state=%+v", h.errors, f.State())
 			}
 			if !f.Explore("/b") {
 				t.Fatal("next reference was rejected")
 			}
-			if f.State().Preparing == final || (f.State().SessionID == call.request.SessionID) != final {
-				t.Fatalf("completed=%t, next query repeated the wrong preparation lifetime: %+v", final, f.State())
+			if f.State().Preparing || f.State().SessionID != call.request.SessionID {
+				t.Fatalf("next reference repeated preparation: %+v", f.State())
 			}
-			if final {
-				query = <-call.queries
-				call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, Revision: 2, Kind: similarity.SearchFinal, Processed: 3, Total: 3, CachePressureBytes: 100, Matches: []similarity.Match{{Path: "/a"}}})
-				f.Settle()
-				if len(h.errors) != 1 || len(calls) != 0 {
-					t.Fatal("retained query repeated handled pressure or restarted the provider")
-				}
+			query = <-call.queries
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, CacheRevision: query.CacheRevision, Revision: 6, Kind: similarity.SearchFinal, Processed: 3, Total: 3, Matches: []similarity.Match{{Path: "/a"}}})
+			call.emit(similarity.SearchEvent{SessionID: call.request.SessionID, QueryID: query.ID, CacheRevision: query.CacheRevision, Revision: 7, Kind: similarity.SearchReady, Processed: 3, Total: 3, CachePressureBytes: 100})
+			f.Settle()
+			if len(h.errors) != errorsBefore+1 || len(calls) != 0 {
+				t.Fatal("retained query repeated handled pressure or restarted the provider")
 			}
 		})
 	}

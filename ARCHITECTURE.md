@@ -130,6 +130,11 @@ worker refreshes ownership and persists prepared members, regenerating previews
 without inference; cache opt-outs still refresh ownership without writing Favorite
 records. Transient search progress is limited to one update per 100 ms, while
 ranked, failure and terminal events retain exact accounting.
+The first general-cache capacity refusal reduces that producer's write scope
+to Favorites only, preserving reads and in-memory preparation. Explicit Favorite
+refresh carries that scope forward; new producers receive fresh admission.
+Search reports pressure at session readiness so automatic eviction cannot
+interrupt its preparation, including when a reference failed or was abandoned.
 `search_pipeline_test.go` exercises retained queries through real cached source
 preparation and complete-scope version validation. Its warm benchmark includes
 store reopening, cache reads, validation and progressive ranking; the existing
@@ -375,6 +380,9 @@ for an idle retained worker; Stop followed by Settle joins retired producers.
 ranked Grid visits and complete presentation/restoration deliveries. Deferred Back
 carries its saved Grid state until the surface can accept it; application reads
 current preparation progress from the live search session.
+Capacity pressure requests maintenance once at readiness, after the current
+Favorite-save revision is acknowledged. The prepared worker then remains
+available for reference changes under the existing revoked-lease protocol.
 Image origins and Grid bookmarks use `internal/fileidentity` occurrence values
 when merge mode repeats a source. Grid retains one index per collection generation;
 image-origin lookup captures only the bookmarked path.

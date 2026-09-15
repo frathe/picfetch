@@ -155,13 +155,91 @@ func TestAnalysisCachePolicyWriteBudget(t *testing.T) {
 		}
 		other := item
 		other.Path = filepath.Join(filepath.Dir(item.Path), "second.jpg")
-		if err := store.write(context.Background(), other); !errors.As(err, &pressure) {
-			t.Fatalf("over-budget new record did not report pressure: %v", err)
+		if err := store.write(context.Background(), other); err != nil {
+			t.Fatalf("producer retried general persistence after pressure: %v", err)
 		}
 		if _, ok := cacheTestRead(t, store, context.Background(), item); !ok {
 			t.Fatal("writer silently evicted an existing record under pressure")
 		}
 	})
+}
+
+func TestAnalysisCachePolicyPressurePreservesFavorites(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("favorites_%t", enabled), func(t *testing.T) {
+			ctx := context.Background()
+			policy := cacheTestPolicy(t)
+			policy.FavoriteEnabled = enabled
+			retained := cacheFixtureItem(t, "retained.jpg")
+			blocked := cacheFixtureItem(t, "blocked.jpg")
+			member := cacheFixtureItem(t, "member.jpg")
+			laterMember := cacheFixtureItem(t, "later-member.jpg")
+			loose := cacheFixtureItem(t, "loose.jpg")
+			policy.GeneralLimitBytes = 0
+			for _, item := range []Item{retained, blocked, member, laterMember, loose} {
+				policy.GeneralLimitBytes = max(policy.GeneralLimitBytes, uint64(len(cacheTestPayload(t, item))))
+			}
+			cacheTestFavorite(t, policy.Roots, member)
+			store := cacheTestStore(t, policy)
+			if err := store.write(ctx, retained); err != nil {
+				t.Fatal(err)
+			}
+			var pressure CachePressureError
+			if err := store.write(ctx, blocked); !errors.As(err, &pressure) || pressure.NeedBytes == 0 {
+				t.Fatalf("first capacity refusal: %v", err)
+			}
+			if _, hit := cacheTestRead(t, store, ctx, retained); !hit {
+				t.Fatal("capacity pressure disabled general reads")
+			}
+			if err := store.write(ctx, blocked); err != nil {
+				t.Fatalf("later general write repeated pressure: %v", err)
+			}
+			if err := store.write(ctx, member); err != nil {
+				t.Fatal(err)
+			}
+			if _, hit := cacheTestRead(t, store, ctx, member); hit != enabled {
+				t.Fatal("capacity pressure changed existing Favorite persistence")
+			}
+			// Space becoming available does not re-admit this producer's writes.
+			if err := os.Remove(cacheTestGeneralPath(policy.Roots, retained)); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.write(ctx, blocked); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(cacheTestGeneralPath(policy.Roots, blocked)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("general persistence resumed after space was freed: %v", err)
+			}
+			// Explicit save admits Favorite persistence, including future members.
+			cacheTestFavorite(t, policy.Roots, member, blocked, laterMember)
+			if err := store.refreshFavorites(ctx, []Item{blocked}, func(_ context.Context, item Item) (Item, error) {
+				return item, nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.write(ctx, laterMember); err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range []Item{blocked, laterMember} {
+				if _, hit := cacheTestRead(t, store, ctx, item); hit != enabled {
+					t.Fatalf("refreshed Favorite persistence changed for %s", item.Path)
+				}
+			}
+			if err := store.write(ctx, loose); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(cacheTestGeneralPath(policy.Roots, loose)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Favorite refresh reopened general writes: %v", err)
+			}
+			fresh := cacheTestStore(t, policy)
+			if err := fresh.write(ctx, loose); err != nil {
+				t.Fatal(err)
+			}
+			if _, hit := cacheTestRead(t, fresh, ctx, loose); !hit {
+				t.Fatal("fresh producer could not persist after space was freed")
+			}
+		})
+	}
 }
 
 func TestAnalysisCachePolicyFavoriteFirstAndPromotion(t *testing.T) {

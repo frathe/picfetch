@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// CachePressureError asks the parent to make space after retiring the producer.
-// A source's usable in-memory representation is independent of this disk effect.
+// CachePressureError asks the parent to make space once preparation is ready.
+// The producer keeps usable vectors and stops general writes for its lifetime.
 type CachePressureError struct{ NeedBytes uint64 }
 
 func (CachePressureError) Error() string { return "analysis cache needs space" }
@@ -220,6 +220,7 @@ func (s *representationStore) write(ctx context.Context, item Item) error {
 		// The budget includes the temporary file. Even a replacement needs room
 		// for both records until rename; credit the old bytes only after commit.
 		if usage > s.policy.GeneralLimitBytes || uint64(len(data)) > s.policy.GeneralLimitBytes-usage {
+			s.writeScope = writeFavoritesOnly
 			return CachePressureError{NeedBytes: uint64(len(data))}
 		}
 		destination := filepath.Join("v1", filepath.Base(analysisName(item.Path)))

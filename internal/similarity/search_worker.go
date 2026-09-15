@@ -116,9 +116,13 @@ func searchLocal(ctx context.Context, req request, queries <-chan SearchQuery, e
 			p.encoder.Close()
 		}
 	}()
-	return runSearchSession(ctx, *req.Search, queries, p.prepare, p.validate, p.refreshFavorites, func(event SearchEvent) error {
+	return p.run(ctx, *req.Search, queries, emit)
+}
+
+func (p *searchPreparer) run(ctx context.Context, req SearchRequest, queries <-chan SearchQuery, emit func(SearchEvent) error) error {
+	return runSearchSession(ctx, req, queries, p.prepare, p.validate, p.refreshFavorites, func(event SearchEvent) error {
 		event.CacheWarning = p.warning
-		if event.Kind == SearchPartial || event.Kind == SearchFinal {
+		if event.Kind == SearchReady {
 			event.CachePressureBytes = p.pressure
 		}
 		return emit(event)

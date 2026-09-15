@@ -146,11 +146,11 @@ func (f *Feature) apply(s *producer, event similarity.SearchEvent) {
 		f.preparing = false
 		f.host.Failed(SessionError{Err: errors.New(event.Error)})
 	}
-	if event.CachePressureBytes > 0 && !s.pressureReported {
+	// Readiness also arrives after a failed or abandoned reference. Wait for
+	// any explicitly admitted Favorite save before asking maintenance to revoke
+	// leases, so its own pressure request cannot interrupt useful preparation.
+	if event.Kind == similarity.SearchReady && event.CachePressureBytes > 0 && !f.cachePending && !s.pressureReported {
 		s.pressureReported = true
-		if f.preparing {
-			f.Suspend()
-		}
 		f.host.Failed(similarity.CachePressureError{NeedBytes: event.CachePressureBytes})
 	}
 	f.host.Changed()

@@ -275,9 +275,6 @@ func (h searchHost) Failed(err error) {
 	if errors.As(err, &pressure) {
 		h.v.analysisCache.SetRoots(h.v.analysisRoots())
 		h.v.analysisCache.MakeRoom(pressure.NeedBytes)
-		if !h.v.visualsearch.State().Progress.Complete {
-			h.v.ShowToast(lang.L("Analysis paused while cache space is freed. Start another search to continue."))
-		}
 		return
 	}
 	fyne.LogError("visual search", err)

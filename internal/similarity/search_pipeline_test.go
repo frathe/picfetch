@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -143,6 +144,66 @@ func TestSearchWarmPipeline(t *testing.T) {
 			}
 			if len(prepared) != len(corpus.paths) || prepared[0] != corpus.paths[references[0]] || p.encoder != nil || p.warning != "" {
 				t.Fatalf("warm references repeated preparation or opened inference: prepared=%d encoder=%v warning=%s", len(prepared), p.encoder != nil, p.warning)
+			}
+		})
+	}
+}
+
+func TestSearchCachePressurePipeline(t *testing.T) {
+	for _, invalidReference := range []bool{false, true} {
+		t.Run(fmt.Sprintf("invalid-reference=%t", invalidReference), func(t *testing.T) {
+			corpus := newWarmSearchCorpus(t, 201)
+			ctx := context.Background()
+			usage, err := (CacheManager{}).Inspect(ctx, corpus.policy.Roots, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			corpus.policy.GeneralLimitBytes = usage.General.Bytes
+			store := cacheTestStore(t, corpus.policy)
+			// Begin with observed capacity pressure; all remaining inputs are hits,
+			// so the real preparation/publication path requires no model assets.
+			var pressure CachePressureError
+			if err := store.write(ctx, corpus.items[0]); !errors.As(err, &pressure) {
+				t.Fatalf("fixture did not reach general capacity: %v", err)
+			}
+			p := searchPreparer{cache: store, versions: map[string]os.FileInfo{}, pressure: pressure.NeedBytes}
+			t.Cleanup(func() {
+				if p.encoder != nil {
+					p.encoder.Close()
+				}
+			})
+			reference := corpus.paths[0]
+			if invalidReference {
+				reference = filepath.Join(t.TempDir(), "missing.jpg")
+			}
+			queries := make(chan SearchQuery, 1)
+			queries <- SearchQuery{ID: 1, ReferencePath: reference}
+			close(queries)
+			ready, finals, failures := 0, 0, 0
+			err = p.run(ctx, SearchRequest{Paths: corpus.paths}, queries, func(event SearchEvent) error {
+				if event.Kind != SearchReady && event.CachePressureBytes != 0 {
+					t.Fatalf("capacity pressure requested eviction before readiness: kind=%s processed=%d", event.Kind, event.Processed)
+				}
+				switch event.Kind {
+				case SearchReady:
+					ready++
+					if event.CachePressureBytes != pressure.NeedBytes || event.Processed != len(corpus.paths) || event.Reused != len(corpus.paths) || event.Failed != 0 {
+						t.Fatalf("readiness lost completed preparation or pressure: processed=%d reused=%d failed=%d pressure=%d", event.Processed, event.Reused, event.Failed, event.CachePressureBytes)
+					}
+				case SearchFinal:
+					finals++
+					assertSearchRankMatches(t, event.Matches, corpus.matches(0))
+				case SearchQueryFailure:
+					failures++
+				}
+				return nil
+			})
+			wantFinals, wantFailures := 1, 0
+			if invalidReference {
+				wantFinals, wantFailures = 0, 1
+			}
+			if err != nil || ready != 1 || finals != wantFinals || failures != wantFailures || p.encoder != nil || p.warning != "" {
+				t.Fatalf("pressured pipeline: error=%v ready=%d finals=%d failures=%d encoder=%t warning=%s", err, ready, finals, failures, p.encoder != nil, p.warning)
 			}
 		})
 	}
