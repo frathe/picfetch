@@ -8,6 +8,7 @@ package imaging
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"image"
 	"io"
@@ -91,6 +92,9 @@ func trimSVGPrefix(data []byte) []byte {
 // parsing however large the file is - which is why ReadAndProbe can use it
 // for a header probe without paying for a full parse.
 func svgRootAttrs(data []byte) (viewBox, width, height string, ok bool) {
+	// Detection must not scan an encoded-file-sized comment or declaration
+	// before the SVG-specific limit can be applied.
+	data = data[:min(len(data), maxSVGBytes)]
 	dec := xml.NewDecoder(bytes.NewReader(trimSVGPrefix(data)))
 
 	// Accept any declared encoding without actually transcoding: the only
@@ -144,7 +148,7 @@ func svgViewBox(s string) (x, y, w, h float64, ok bool) {
 	var v [4]float64
 	for i, f := range fields {
 		n, err := strconv.ParseFloat(f, 64)
-		if err != nil {
+		if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
 			return 0, 0, 0, 0, false
 		}
 		v[i] = n
@@ -171,7 +175,7 @@ func svgLength(s string) (float64, bool) {
 	s = strings.TrimRight(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 	n, err := strconv.ParseFloat(s, 64)
-	if err != nil || n <= 0 {
+	if err != nil || n <= 0 || math.IsNaN(n) || math.IsInf(n, 0) {
 		return 0, false
 	}
 
@@ -235,7 +239,7 @@ func vectorLogical(w, h float64) image.Rectangle {
 	// maxImagePixels as a per-axis bound, checked while still a float: a
 	// conversion of an out-of-int-range float is implementation-defined,
 	// so the guard must run before the conversion, not after.
-	if w <= 0 || h <= 0 || w > maxImagePixels || h > maxImagePixels {
+	if w <= 0 || h <= 0 || w > maxImagePixels || h > maxImagePixels || math.IsNaN(w) || math.IsNaN(h) {
 		return image.Rectangle{}
 	}
 
@@ -303,8 +307,8 @@ func svgProbeBounds(data []byte) image.Rectangle {
 // decodeVector is DecodeLoaded's SVG branch: parse, then take one raster at
 // the logical size as the frame to display now. EXIF orientation is
 // not applied because SVG has no EXIF metadata.
-func decodeVector(data []byte) (*LoadedImage, error) {
-	vec, err := ParseVector(data)
+func decodeVector(ctx context.Context, data []byte) (*LoadedImage, error) {
+	vec, err := ParseVectorContext(ctx, data)
 	if err != nil {
 		return nil, err
 	}
@@ -313,6 +317,9 @@ func decodeVector(data []byte) (*LoadedImage, error) {
 
 	frame, err := vec.RasterAt(b.Dx(), b.Dy())
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 

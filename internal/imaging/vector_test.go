@@ -1,7 +1,9 @@
 package imaging
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -13,6 +15,60 @@ func TestParseVectorLogicalSize(t *testing.T) {
 	}
 	if got := v.Logical(); got.Dx() != 340 || got.Dy() != 340 {
 		t.Fatalf("Logical = %dx%d, want 340x340", got.Dx(), got.Dy())
+	}
+}
+
+func TestParseVectorRejectsNestedDefinitionReuse(t *testing.T) {
+	// A small, unused definition: rejection does not require expanding it.
+	data := []byte(`<svg viewBox="0 0 24 24"><defs><rect id="tile" width="1" height="1"/><use href="#tile"/></defs></svg>`)
+	if _, err := ParseVector(data); err == nil {
+		t.Fatal("definition containing use must be refused before SVG parsing")
+	}
+}
+
+func TestSVGRejectsNonFiniteSizes(t *testing.T) {
+	for _, value := range []string{"NaN", "+Inf", "-Inf"} {
+		if _, ok := svgLength(value); ok {
+			t.Fatalf("accepted non-finite length %q", value)
+		}
+		if _, _, _, _, ok := svgViewBox(value + " 0 24 24"); ok {
+			t.Fatalf("accepted non-finite origin %q", value)
+		}
+	}
+}
+
+func TestParseVectorAllowsDirectDefinitionReuse(t *testing.T) {
+	data := []byte(`<svg viewBox="0 0 24 24"><defs><rect id="tile" width="12" height="12" fill="red"/></defs><use href="#tile"/></svg>`)
+	vector, err := ParseVectorContext(context.Background(), data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := vector.RasterAt(24, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _, _, a := img.At(5, 5).RGBA()
+	if r == 0 || a == 0 {
+		t.Fatal("direct definition reuse lost its pixels")
+	}
+}
+
+func TestSVGPreflightLimits(t *testing.T) {
+	for name, data := range map[string]string{
+		"nesting":      `<svg viewBox="0 0 24 24">` + strings.Repeat("<g>", maxSVGDepth) + strings.Repeat("</g>", maxSVGDepth) + `</svg>`,
+		"reuse_work":   `<svg viewBox="0 0 24 24"><defs><rect id="tile" width="1" height="1"/></defs>` + strings.Repeat(`<use href="#tile"/>`, 400) + `</svg>`,
+		"source_bytes": strings.Repeat(" ", maxSVGBytes+1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := validateSVG(context.Background(), []byte(data)); !errors.Is(err, errSVGComplexity) {
+				t.Fatalf("preflight error = %v", err)
+			}
+		})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ParseVectorContext(ctx, svgDoc(`viewBox="0 0 24 24"`)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled SVG: %v", err)
 	}
 }
 

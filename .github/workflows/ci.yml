@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  GOFLAGS: -tags=no_emoji
+  GOFLAGS: -tags=no_emoji,nodynamic
 
 jobs:
   validation:

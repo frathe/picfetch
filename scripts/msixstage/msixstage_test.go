@@ -593,7 +593,7 @@ func TestCrossPackagingUsesReviewedInputs(t *testing.T) {
 		{"package-linux", "linux", "picfetch-linux-", ""},
 		{"package-linux-debug", "linux", "picfetch-debug-linux-", "-no-strip-debug\n"},
 		{"package-windows", "windows", "picfetch-windows-", ""},
-		{"package-windows-store", "windows", "picfetch-microsoft-store-", "-tags\nno_emoji,microsoftstore\n"},
+		{"package-windows-store", "windows", "picfetch-microsoft-store-", "-tags\nno_emoji,nodynamic,microsoftstore\n"},
 		{"package-windows-debug", "windows", "picfetch-debug-windows-", "-console\n-no-strip-debug\n"},
 	} {
 		t.Run(route.target, func(t *testing.T) {
@@ -692,7 +692,7 @@ exec /bin/cp "$@"
 			}
 			for _, call := range strings.Split(log, "CROSS\n")[1:] {
 				args, _, _ := strings.Cut(call, "END\n")
-				if !strings.Contains(args, "-tags\nno_emoji") {
+				if !strings.Contains(args, "-tags\nno_emoji,nodynamic") {
 					t.Errorf("packaged app includes the unused emoji font:\n%s", args)
 				}
 			}

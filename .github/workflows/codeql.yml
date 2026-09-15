@@ -62,7 +62,7 @@ jobs:
 
       - name: Build
         if: matrix.build-mode == 'manual'
-        run: go build ./...
+        run: go build -tags no_emoji,nodynamic ./...
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

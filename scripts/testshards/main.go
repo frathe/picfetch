@@ -830,6 +830,10 @@ func rejectParallelCalls(inventory runnableInventory) error {
 }
 
 func goCommandOutput(args ...string) ([]byte, error) {
+	// Inventory and execution must select the same decoder implementation.
+	if args[0] == "list" || args[0] == "test" {
+		args = append([]string{args[0], "-tags=no_emoji,nodynamic"}, args[1:]...)
+	}
 	command := exec.Command("go", args...)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr

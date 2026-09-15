@@ -29,7 +29,7 @@ Container, compiler and artifact-copy failures stop the target immediately.
 1. Change the versions/digests in `packaging/tools.mk`. Inspect each image's
    multiarchitecture index and the CLI/toolchain inside the actual selected
    image. Retain the inspection output with the build logs.
-2. Run `go test ./scripts/msixstage ./scripts/plistdoctypes -count=1`. The guards
+2. Run `go test -tags no_emoji,nodynamic ./scripts/msixstage ./scripts/plistdoctypes -count=1`. The guards
    execute all ordinary/debug/Store cross routes with controlled external
    tools, require provenance and distribution flags, and reject failed builds
    or artifact copies. Workflow guards require shared installation targets.

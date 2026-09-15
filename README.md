@@ -186,8 +186,18 @@ isn't actually corrupted — to open it anyway:
 ```sh
 make run
 # or
-go run .
+go run -tags no_emoji,nodynamic .
 ```
+
+Direct Go builds and tests that include imaging require `nodynamic` and must not
+set `wasm2go`. This keeps AVIF on the embedded WASM/wazero decoder; the build
+fails if either requirement is missed. The Makefile supplies the supported tags.
+
+ICO admission is limited to 16 MiB, 256 entries and 256 pixels per axis; PNG
+and common uncompressed Windows DIB icons are supported. SVG admission is
+limited to 8 MiB, 64 XML levels and bounded definition reuse. References inside
+SVG definitions are refused. GIFs over the animation memory or 4,096-frame
+limit display their first frame. These limits apply before full decoding.
 
 ### Command-line flags
 
@@ -351,7 +361,7 @@ native amd64 CI jobs. The worker policy and isolation tests remain mandatory.
 A focused native Linux ARM64 check can provide supplementary isolation evidence:
 
 ```sh
-go test -race -count=1 -run '^(TestLinuxWorkerIsolation|TestAssetInstall)$' ./internal/similarity ./scripts/explorereval
+go test -tags no_emoji,nodynamic -race -count=1 -run '^(TestLinuxWorkerIsolation|TestAssetInstall)$' ./internal/similarity ./scripts/explorereval
 ```
 
 Run that command in a prepared native Linux environment with the usual GUI build
@@ -403,7 +413,7 @@ Run just this suite natively with the command below. On a non-Linux/amd64 host,
 use `make golden` when the screenshot verdict itself matters.
 
 ```sh
-go test -run TestE2E -v ./...
+go test -tags no_emoji,nodynamic -run TestE2E -v ./...
 ```
 
 **Updating a golden master:** if a legitimate visual change makes one

@@ -19,7 +19,6 @@ import (
 
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
-	"github.com/fyne-io/image/ico"
 	"github.com/gen2brain/avif"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
@@ -241,11 +240,11 @@ func encodeICO(t *testing.T, w, h int, c color.Color) []byte {
 	}
 
 	var buf bytes.Buffer
-	if err := ico.Encode(&buf, img); err != nil {
-		t.Fatalf("encode ico: %v", err)
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode icon PNG: %v", err)
 	}
 
-	return buf.Bytes()
+	return iconFile(icoFixture{w, h, buf.Bytes()})
 }
 
 // encodeXPM builds a minimal single-color XPM (1 color, 1 char per pixel),

@@ -5,7 +5,7 @@ ICON     := assets/appIcon.png
 BIN_DIR  := bin
 WIN_ARCHES := amd64 arm64
 LINUX_ARCHES := amd64 arm64
-APP_TAGS := no_emoji
+APP_TAGS := no_emoji,nodynamic
 include packaging/tools.mk
 
 RELEASE_BRANCH := main
@@ -99,7 +99,7 @@ explorer-install-test: ## Download pinned public assets and qualify local analys
 	go test -tags $(APP_TAGS),explorerinstall ./scripts/explorereval -run '^TestRealAssetInstall$$' -count=1 -v -timeout 25m
 
 explorer-setup: ## Download and verify pinned public Explorer assets (macOS/Linux/Windows x64/arm64)
-	go run ./scripts/explorereval -install -assets "$(EXPLORER_ASSETS)"
+	go run -tags "$(APP_TAGS)" ./scripts/explorereval -install -assets "$(EXPLORER_ASSETS)"
 
 explorer-evaluate: ## Run an offline explorer experiment (TRIAL=smoke, search, throughput, or library)
 	@mkdir -p $(BIN_DIR)
@@ -425,7 +425,7 @@ tidy: ## Tidy go.mod / go.sum
 	go mod tidy
 
 security-govulncheck: ## Scan dependencies with the module-pinned govulncheck
-	go tool govulncheck ./...
+	go tool govulncheck -tags "$(APP_TAGS)" ./...
 
 security-github: ## List open GitHub Dependabot alerts for this repo (needs `gh auth login`)
 	gh api "repos/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/dependabot/alerts" \
@@ -438,7 +438,7 @@ clean: ## Remove all build artifacts
 
 package-mac: install-fyne ## Package a macOS .app bundle (native, no Docker) into bin/
 	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -tags "$(APP_TAGS)" -release
-	go run ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
+	go run -tags "$(APP_TAGS)" ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
 	cp LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md "$(APP_NAME).app/Contents/Resources/"
 	mkdir -p $(BIN_DIR)
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"

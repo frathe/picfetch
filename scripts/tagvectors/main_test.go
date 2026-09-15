@@ -19,7 +19,7 @@ func TestMakeGeneratesVectorsBeforeExplorerBuilds(t *testing.T) {
 		name    string
 		compile string
 	}{
-		{"explorer-setup", "go run ./scripts/explorereval"},
+		{"explorer-setup", `go run -tags "no_emoji,nodynamic" ./scripts/explorereval`},
 		{"explorer-evaluate", "go build "},
 		{"explorer-profile", "go build "},
 		{"explorer-test", "go test -c "},

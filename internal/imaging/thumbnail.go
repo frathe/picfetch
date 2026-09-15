@@ -77,7 +77,7 @@ func decodeThumbnailAtEdge(ctx context.Context, data []byte, bounds image.Rectan
 	// ephemeral on purpose: one raster, then discarded (see vector.go's
 	// note on why thumbnails never share the display path's Vector).
 	if isSVGData(data) {
-		vec, err := ParseVector(data)
+		vec, err := ParseVectorContext(ctx, data)
 		if err != nil {
 			return nil, err
 		}

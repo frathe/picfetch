@@ -12,12 +12,11 @@ import (
 
 // The preview decoder retains paletted native frames and at most two RGBA
 // compositing canvases. One caller-owned decode lane bounds concurrent work.
-const previewGIFDecodeBytes int64 = 256 << 20
-const previewGIFMaxFrames = 4096
+const previewGIFDecodeBytes int64 = 256 * 1024 * 1024
 
 // LoadAnimatedPreviewContext returns oriented, display-ready previews. GIFs
 // preserve their source timing; other formats retain the static thumbnail path.
-// animationBytes bounds retained RGBA pixels; large native decodes fall back to
+// animationBytes bounds retained RGBA pixels and frame objects; large source decodes fall back to
 // a static first frame, with AnimationTruncated set. No preview is upscaled.
 func LoadAnimatedPreviewContext(ctx context.Context, u fyne.URI, maxEdge int, animationBytes int64) (*LoadedImage, error) {
 	if maxEdge <= 0 {
@@ -36,7 +35,7 @@ func LoadAnimatedPreviewContext(ctx context.Context, u fyne.URI, maxEdge int, an
 		edge, fits := animatedPreviewEdge(count, w, h, maxEdge, animationBytes)
 		truncated = !fits
 		if fits {
-			g, decodeErr := gif.DecodeAll(bytes.NewReader(data))
+			g, decodeErr := gif.DecodeAll(ctxReader{ctx: ctx, r: bytes.NewReader(data)})
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -68,12 +67,14 @@ func LoadAnimatedPreviewContext(ctx context.Context, u fyne.URI, maxEdge int, an
 }
 
 func animatedPreviewEdge(count, w, h, maxEdge int, budget int64) (int, bool) {
-	if count <= 0 || count > previewGIFMaxFrames || w <= 0 || h <= 0 || int64(w)*int64(h)*int64(count+8) > previewGIFDecodeBytes {
+	working, ok := gifWorkingBytes(count, w, h)
+	if !ok || working > previewGIFDecodeBytes || maxEdge <= 0 {
 		return 0, false
 	}
-	if budget < 4*int64(count) {
+	if budget < int64(count)*(gifPreviewFrameOverhead+4) {
 		return 0, false
 	}
+	budget -= int64(count) * gifPreviewFrameOverhead
 	// Keep the largest edge that fits all composited frames. Integer sizing
 	// matters for very narrow images, where the shorter edge stays one pixel.
 	low, high := 1, min(maxEdge, max(w, h))
