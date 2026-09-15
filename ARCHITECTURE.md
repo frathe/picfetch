@@ -587,6 +587,18 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | `mutations.go` | Live file-identity transactions shared by Save/Strip/Export and external `WithFileMutation` participants such as Trash; case aliases share admission across atomic replacements, with cancellable admission/I/O and `WriteResult` commit identity. |
 | `save.go` | `SaveRotated`, `Export` (+ `ExportOptions`: size limit, metadata omission and exact-path fallback encoder), `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. `dimensionTagsInvalidated` decides whether the source's dimension tags still describe what is being written, by comparing the written bounds against the source's own frame header - so a resize, a viewer rotation and an Orientation 5-8 source all correct them; Save Changes and export share that policy, retaining tags when geometry is unchanged or the source frame cannot be read (subject to export's resize fallback). |
 
+### `internal/heicdecode`
+
+Fail-closed boundary for the proposed isolated HEIC/HEIF decoder. `Limits`
+defines distinct finite input, output, metadata, diagnostic, time, thread, live
+job, WASM-linear-memory and complete-process-family ceilings. `protocol.go`
+validates the versioned helper response, checked dimensions and RGBA layout
+before publishing pixels and rejects trailing data. It deliberately contains no
+codec or rich HEIC parser. Runtime/helper integration remains disabled until the
+pinned `github.com/gen2brain/h265/heic` source and guest artifact are qualified
+and a platform's mandatory isolation controls pass natively; see the active
+restoration plan and `docs/heic/robustness-testing.md`.
+
 ### `internal/avifpolicy`
 
 An imaging compile dependency with files only under `nodynamic && !wasm2go`.

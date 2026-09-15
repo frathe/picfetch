@@ -152,6 +152,7 @@ exclude:
       - "internal/imaging/thumbnail_test.go"
       - "internal/imaging/tiffbounds_test.go"
       - "internal/imaging/vector_test.go"
+      - "internal/heicdecode/protocol_test.go"
       - "internal/launch/launch_test.go"
       - "internal/mosaic/generator_test.go"
       - "internal/mosaic/layout_test.go"
