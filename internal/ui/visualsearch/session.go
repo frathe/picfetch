@@ -209,10 +209,10 @@ func (f *Feature) Suspend() <-chan struct{} {
 	return done
 }
 
-// SuspendWriters preserves an idle prepared producer for ranking after automatic
+// CacheWritesRevoked preserves an idle prepared producer for ranking after automatic
 // eviction. The maintenance lease has already revoked its old write admission;
 // pending preparation or explicitly admitted Favorite persistence must join.
-func (f *Feature) SuspendWriters() <-chan struct{} {
+func (f *Feature) CacheWritesRevoked() <-chan struct{} {
 	if f.producer != nil && !f.preparing && !f.cachePending {
 		done := make(chan struct{})
 		close(done)

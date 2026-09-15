@@ -39,13 +39,13 @@ func (v *viewer) registerAnalysisCache(prefs preferences.State) {
 
 type analysisCacheHost struct{ v *viewer }
 
-func (h analysisCacheHost) Quiesce(preservePrepared bool) []<-chan struct{} {
+func (h analysisCacheHost) Quiesce(reason analysiscache.QuiesceReason) []<-chan struct{} {
 	v := h.v
 	v.explorerInput.prepareOp.invalidate()
 	v.explorerInput.prepare = nil
 	barriers := []<-chan struct{}{v.explorer.Suspend()}
-	if preservePrepared {
-		return append(barriers, v.visualsearch.SuspendWriters())
+	if reason == analysiscache.AutomaticEviction {
+		return append(barriers, v.visualsearch.CacheWritesRevoked())
 	}
 	return append(barriers, v.visualsearch.Suspend())
 }

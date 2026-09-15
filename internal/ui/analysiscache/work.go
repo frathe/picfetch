@@ -65,32 +65,17 @@ func (f *Feature) start(op operation, after ...<-chan struct{}) {
 	}
 	provider := f.options.Provider
 	if provider == nil {
+		reason := RecordRemoval
+		if op.intent == evictRecords {
+			reason = AutomaticEviction
+		}
 		provider = similarity.CacheManager{Quiesce: func(ctx context.Context, _ similarity.CacheRoots) error {
-			ready := make(chan []<-chan struct{}, 1)
-			queue.Do(func() {
-				if ctx.Err() != nil || f.stopped || f.current != w {
-					ready <- nil
-					return
+			return joinRevokedWriters(ctx, queue, notify, func() []<-chan struct{} {
+				if f.stopped || f.current != w {
+					return nil
 				}
-				ready <- host.Quiesce(op.intent == evictRecords)
+				return host.Quiesce(reason)
 			})
-			notify()
-			var barriers []<-chan struct{}
-			select {
-			case barriers = <-ready:
-			case <-ctx.Done():
-				select {
-				case barriers = <-ready:
-				default:
-					return ctx.Err()
-				}
-			}
-			for _, barrier := range barriers {
-				if barrier != nil {
-					<-barrier
-				}
-			}
-			return ctx.Err()
 		}}
 	}
 	var progressMu sync.Mutex

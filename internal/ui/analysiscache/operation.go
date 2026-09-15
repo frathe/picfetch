@@ -25,13 +25,13 @@ func (i maintenanceIntent) viewBound() bool {
 // An operation captures its inputs before a worker starts. Intent determines
 // admission, provider dispatch, view lifetime and which effects may be applied.
 type operation struct {
-	roots    similarity.CacheRoots
-	mode     similarity.CacheCleanMode
-	limitMiB int
-	reserve  uint64
-	intent   maintenanceIntent
-	retire   bool
-	enabled  bool
+	roots                    similarity.CacheRoots
+	mode                     similarity.CacheCleanMode
+	limitMiB                 int
+	reserve                  uint64
+	intent                   maintenanceIntent
+	requireLeaseInvalidation bool
+	enabled                  bool
 }
 
 func (f *Feature) submit(op operation) {
@@ -55,11 +55,11 @@ func (f *Feature) submit(op operation) {
 		if op.limitMiB <= 0 || uint64(op.limitMiB) > ^uint64(0)/mebibyte {
 			return
 		}
-		op.retire = op.limitMiB < f.limitMiB
+		op.requireLeaseInvalidation = op.limitMiB < f.limitMiB
 		if op.limitMiB != f.limitMiB {
 			// Retune inventories before acquiring any maintenance lease.
 			// Join local producers before they can report the captured old cap.
-			barriers = f.host.Quiesce(false)
+			barriers = f.host.Quiesce(PolicyChange)
 		}
 	case evictRecords:
 		if !f.enabled {
@@ -77,7 +77,7 @@ func (f *Feature) submit(op operation) {
 		}
 		f.enabled = op.enabled
 		f.pendingRoom, f.pendingInspect, f.pendingReserve = false, false, 0
-		barriers = f.host.Quiesce(false)
+		barriers = f.host.Quiesce(PolicyChange)
 		f.host.ApplyPolicy(f.enabled, f.limitMiB)
 	}
 	op.roots = f.options.Roots
@@ -95,7 +95,7 @@ func (op operation) run(ctx context.Context, provider similarity.CacheMaintenanc
 	case applyLimit, evictRecords:
 		report, err := provider.Retune(ctx, similarity.CacheRetuneRequest{
 			Roots: op.roots, LimitBytes: uint64(op.limitMiB) * mebibyte,
-			ReserveBytes: op.reserve, RetireWriters: op.retire,
+			ReserveBytes: op.reserve, RetireWriters: op.requireLeaseInvalidation,
 		}, progress)
 		return result{report: report, err: err}
 	default:

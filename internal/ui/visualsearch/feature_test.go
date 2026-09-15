@@ -133,7 +133,7 @@ func TestVisualSearchCachePressureWriterQuiescence(t *testing.T) {
 			if phase == "favorite-pending" {
 				f.FavoriteSaved()
 			}
-			<-f.SuspendWriters()
+			<-f.CacheWritesRevoked()
 			if !f.Explore("/b") {
 				t.Fatal("explicit next reference rejected")
 			}

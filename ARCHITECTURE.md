@@ -412,15 +412,21 @@ partial reports. `operation.go` owns explicit intent admission, coalesced usage
 refresh/reserve requests, provider dispatch and accepted policy effects. Refreshes
 wait behind mutations; automatic eviction and policy retirement survive view close. Persistence toggles commit independently of inspection
 success, retire producers on UI and join their barriers even after Settings closes.
-`work.go` captures providers/roots, queues maintenance writer suspension,
-joins completion barriers off UI and suppresses retired view callbacks. Cache
+`work.go` captures providers/roots, joins predecessors, dispatches maintenance
+and suppresses retired view callbacks. `quiescence.go` owns the UI handoff after
+shared write-lease revocation: cancellation can abandon a queued callback, but a
+claimed callback's reply and all retired producer barriers belong to completion.
+Host reasons distinguish local policy retirement before inspection, explicit
+record removal after lease revocation and automatic eviction. Cache
 inspection holds only one queued progress callback, reading the latest count on
 delivery, so inventory size cannot create an unbounded UI progress backlog. Root
 composes the two-method Host in `internal/ui/analysiscache.go`, uses the Fyne
 application cache root, persists accepted policy and disables new analysis
 admission while maintenance owns the roots.
-Automatic eviction permits an idle, fully prepared search producer to retain its
-vectors after lease invalidation; pending preparation/Favorite writes still join.
+Automatic eviction notifies search through `CacheWritesRevoked`, permitting an
+idle, fully prepared producer to retain its vectors after lease invalidation;
+pending preparation/Favorite writes still join. The disk manager retains its
+existing lock/epoch protocol and final committed-effect report.
 Settings supplies the tab slot, confirmation window and Close notification without
 sharing worker state.
 

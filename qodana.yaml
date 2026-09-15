@@ -178,6 +178,7 @@ exclude:
       - "internal/trash/trash_test.go"
       - "internal/ui/actionmenu_test.go"
       - "internal/ui/analysiscache/feature_test.go"
+      - "internal/ui/analysiscache/quiescence_test.go"
       - "internal/ui/animate_test.go"
       - "internal/ui/autoupdate/applyfailure_test.go"
       - "internal/ui/autoupdate/updater_test.go"
