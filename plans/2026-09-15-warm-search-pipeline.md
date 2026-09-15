@@ -3,8 +3,10 @@
 Status: implemented, measured and locally verified; branch acceptance pending. Route: Standard (one package, test/benchmark and records).
 This implements the remaining measurement recommendation from the
 [44-finding assessment](../docs/find-more-like-this/pr25-complete-architecture-review.md).
-The optional cache-full behavior decision is pending; this work preserves the
-current behavior. Local commits remain authorized.
+This measurement phase preserved the then-current cache-full behavior. The user
+subsequently selected [continuing in memory](2026-09-15-search-cache-pressure.md).
+Further [profiling and decoder measurements](2026-09-15-warm-search-profile.md)
+build on the baseline below. Local commits remain authorized.
 
 ## Contract
 
@@ -133,5 +135,5 @@ Race artifacts: `.scratch/race-runs/20260915T093948Z-sOFyYA/`.
 
 The lead checked the final scope against the contract and evidence. Only the
 test/benchmark, its Qodana exclusion and architecture/plan/todo records are in
-this change. The pending cache-full product question does not change this
+this change. The later cache-full policy decision is separate from this
 completed characterization/benchmark deliverable.

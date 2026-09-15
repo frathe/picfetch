@@ -14,14 +14,16 @@ import (
 const maximumAnalysisRecordBytes = 1024 * 1024
 
 func decodeRepresentation(reader io.Reader) (Item, error) {
-	decoder := json.NewDecoder(io.LimitReader(reader, maximumAnalysisRecordBytes+1))
-	var entry cachedRepresentation
-	if err := decoder.Decode(&entry); err != nil {
+	data, err := io.ReadAll(io.LimitReader(reader, maximumAnalysisRecordBytes+1))
+	if err != nil {
 		return Item{}, err
 	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return Item{}, fmt.Errorf("analysis record has trailing data")
+	if len(data) > maximumAnalysisRecordBytes {
+		return Item{}, fmt.Errorf("analysis record exceeds the byte limit")
+	}
+	var entry cachedRepresentation
+	if err := json.Unmarshal(data, &entry); err != nil {
+		return Item{}, err
 	}
 	item := entry.Item
 	if entry.Version != RepresentationVersion || !filepath.IsAbs(item.Path) || filepath.Clean(item.Path) != item.Path || item.Error != "" {

@@ -75,6 +75,9 @@ unknown membership remains inspectable without admitting unleased writes.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
 directory handles plus file-list identity to avoid recreating removed favorites.
+`cache_payload.go` reads one JSON document through a hard byte bound, then checks
+its version, source identity shape, vector, digest and preview. General/Favorite
+reads, general write validation and maintenance share that decoder.
 Explorer's analyzer can also read the enabled general store through the shared
 representation store and promote compatible hits into newly saved Favorites;
 its misses retain the existing Favorite-only write policy. Explorer sends Favorite
