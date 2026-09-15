@@ -41,16 +41,20 @@ make run
 3. Run the checks the CI pipeline runs:
 
    ```sh
-   make fmt-check      # goimports -local; should print nothing / exit 0
-   go vet ./...
-   go test -timeout 30m -race ./...
+   make verify
    ```
 
-   Or via the [Makefile](../Makefile): `make fmt`, `make vet`, `make test`.
+   This runs formatting, generated-file checks, vet, build and the Linux/amd64
+   Docker race suite with the required `no_emoji,nodynamic` build tags. The
+   complete suite requires a native Linux/amd64 Docker daemon; see the
+   [test requirements](../README.md#testing). Individual
+   [Makefile](../Makefile) targets include `make vet` and `make test`. For
+   focused checks, include `-tags no_emoji,nodynamic` in direct Go commands
+   that import imaging.
    `make fmt` runs `goimports -local github.com/frathe/picfetch` so stdlib,
    third-party, and this module stay in separate import groups.
 4. If you touched any user-visible string, route it through `lang.L` and add
-   the key to **every** bundle in [translations/](../translations/) —
+   the key to **every** bundle in [translations/](../translations) —
    `main_test.go` fails if a locale drifts out of sync.
 5. If you touched behavior described in the built-in manual
    ([internal/ui/help/manual.md](../internal/ui/help/manual.md) and its `_de`
@@ -74,7 +78,7 @@ make run
 - Open the PR against `main` and fill in the pull request template.
 - Keep the change focused — unrelated cleanup makes review harder and is
   easier to land as its own PR.
-- CI (`goimports -local`, `go vet`, `go build`, `go test -timeout 30m -race`) must pass.
+- CI must pass; `make verify` runs the matching local checks.
 - A maintainer will review and may ask for changes before merging.
 
 ## Reporting bugs and requesting features

@@ -2,6 +2,19 @@
 
 ## Open
 
+### Image input hardening
+
+All four safeguards are implemented: bounded ICO selection, SVG expansion limits,
+enforced WASM AVIF selection, and GIF memory accounting. Full `make verify` and
+both Windows internal-package cross-builds pass. Hosted review, finding
+dispositions and final CI/Qodana/CodeQL evidence are tracked in
+[PR #27](https://github.com/frathe/picfetch/pull/27). The live GoLand build-tag
+refresh and re-inspection remain pending; the committed Qodana configuration
+passed hosted analysis. Reload/apply the local `no_emoji nodynamic` module tags
+and inspect the imaging import again before closing this remaining local task.
+Compatibility limits and evidence:
+[implementation plan](plans/2026-09-15-image-input-hardening.md).
+
 ### Refactoring follow-up review
 
 Implementation and local verification are complete on `feature/refactoring`.
@@ -18,6 +31,9 @@ Contracts and evidence workflow: [review record](plans/2026-09-15-refactoring-re
 
 #### Bugfix
 
+- Bound ICO and SVG input processing, enforce WASM AVIF builds, and account for
+  GIF frame overhead before animation decoding; preserve static GIF fallback.
+
 #### Internal
 
 ## LATER
@@ -30,6 +46,16 @@ HEIC support and its decoder dependency were removed at Ronin's request on
 September 14, pending distribution qualification. See the
 [audit and current disposition](docs/find-more-like-this/dependency-qualification.md)
 and [removal verification](plans/2026-09-14-remove-heic-decoder.md).
+
+September 15 research: prefer replacements outside gen2brain. The
+[decoder shortlist](docs/image-codec-alternatives-2026-09-15.md) compares direct
+libavif builds, HEIC alternatives and small extra formats with their complete
+dependency considerations. A later, explicitly authorized
+[pure-Go security evaluation](docs/purego-codec-security-evaluation-2026-09-15.md)
+found blockers in exact h265 and gav1d snapshots. Its disposable WASM prototype
+passed 9/9 scoped isolation checks, with Docker supplying the outer process
+limit; no production desktop sandbox was proven. No replacement or new format
+is implemented or qualified.
 
 ### Fyne upgrade deferred
 
@@ -62,6 +88,15 @@ distribution grant or another qualified decoder, containment and platform
 verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
 is closed by removal. Retained [options and source evidence](docs/find-more-like-this/old-heic-wasm-options.md)
 do not authorize restoring a decoder.
+
+The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
+include libheif/libde265 with LGPL distribution work and hpvcd with unresolved
+table provenance and security/platform qualification. Ronin prefers avoiding
+gen2brain replacements. The authorized review of h265 v0.2.3 found an invalid
+result invariant, incomplete translated-source provenance and unresolved HEVC
+patent obligations. Its still decoder can also fall back to sequence decoding,
+so a future adapter must reject sequences explicitly. The local fix does not
+qualify the library; HEIC remains disabled.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 

@@ -69,7 +69,7 @@ func TestNativeRunnerListsMatchingTagsBeforeExecutingFullSuite(t *testing.T) {
 		t.Fatalf("commands=%v, want inventory then execution", calls)
 	}
 	for _, args := range calls {
-		if !slices.Contains(args, "-tags=microsoftstore") || !slices.Contains(args, "./internal/distribution") {
+		if !slices.Contains(args, "-tags=no_emoji,nodynamic,microsoftstore") || !slices.Contains(args, "./internal/distribution") {
 			t.Fatalf("selection mismatch: %v", args)
 		}
 	}

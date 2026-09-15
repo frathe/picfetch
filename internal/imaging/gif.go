@@ -15,73 +15,71 @@ import (
 // otherwise spin the UI thread pointlessly.
 const minFrameDelay = 100 * time.Millisecond
 
-// decodeAnimatedGIF decodes every frame of an animated GIF, compositing each
-// one onto the GIF's full canvas per its disposal method so every returned
-// frame is a complete, ready-to-display image rather than just the
-// (typically partial) region that frame updates. It returns a nil slice —
-// not an error — for anything that isn't a multi-frame GIF, so callers fall
-// back to decoding it as a static image.
-//
-// budget caps the total bytes the composited frames may retain. An
-// animation over budget takes the same nil-slice path, with truncated set
-// so the caller can tell the user why a GIF isn't moving; a budget of zero
-// or less means "never retain multiple animation frames", which is what the
-// thumbnail and mosaic paths pass. The frozen path still restores the first
-// frame to the logical canvas through compositeGIFCanvas.
-//
-// The budget bounds the transient decode as well as the retained frames,
-// because probeGIF answers "how many frames, on what canvas" from the block
-// structure alone and the check runs before gif.DecodeAll is ever called.
-// The stdlib decoder rejects any frame whose rectangle exceeds the logical
-// screen (see image/gif's newImageFromDescriptor), so each paletted frame it
-// allocates is at most canvas-sized, i.e. one quarter of the four-bytes-per-
-// pixel figure checked below. Clearing this gate therefore caps DecodeAll's
-// own peak at a quarter of budget - where before, that peak was bounded only
-// by MaxEncodedBytes and whatever the LZW data expanded to.
-func decodeAnimatedGIF(data []byte, budget int64) ([]image.Image, []time.Duration, bool) {
-	// Probed rather than decoded first: a budget consulted on DecodeAll's
-	// result has already paid the allocation it exists to prevent. This also
-	// spares a single-frame GIF - the common case - the decode it used to
-	// pay for here only to have DecodeLoaded decode the same bytes again.
+const (
+	maxGIFFrames = 4096
+	// Includes frame structs, palette interfaces/colors and growing decoder
+	// slices, with headroom. This is conservative admission accounting, not
+	// an OS-enforced heap limit.
+	gifFrameOverhead        = 8 * 1024
+	gifDecodeScratch        = 64 * 1024
+	gifPreviewFrameOverhead = 128
+)
+
+// gifWorkingBytes estimates paletted source frames, per-frame storage,
+// decoder scratch and two full RGBA compositing canvases. Retained output
+// pixels are charged separately, since previews can be smaller than the source.
+func gifWorkingBytes(count, w, h int) (int64, bool) {
+	if count <= 0 || count > maxGIFFrames || checkDimensions(w, h) != nil {
+		return 0, false
+	}
+	pixels := int64(w) * int64(h)
+	return gifDecodeScratch + pixels*int64(count+8) + int64(count)*gifFrameOverhead, true
+}
+
+func gifAnimationFits(count, w, h int, budget int64) bool {
+	working, ok := gifWorkingBytes(count, w, h)
+	if !ok || budget < working {
+		return false
+	}
+	return int64(w)*int64(h)*4 <= (budget-working)/int64(count)
+}
+
+// decodeAnimatedGIF checks the complete animation estimate before DecodeAll.
+// A refusal returns no frames so the caller can decode only the first frame.
+// Zero budget explicitly disables animation without reporting truncation.
+func decodeAnimatedGIF(ctx context.Context, data []byte, budget int64) ([]image.Image, []time.Duration, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, false, err
+	}
 	count, w, h, ok := probeGIF(data)
 	if !ok || count <= 1 {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
-
-	// Checked before decoding, so an animation that can't fit allocates
-	// nothing at all rather than filling up to the limit and then throwing
-	// the work away.
-	if budget <= 0 || int64(w)*int64(h)*4*int64(count) > budget {
-		// Not "truncated" when the caller asked for no animation in the
-		// first place - only when one was genuinely refused.
-		return nil, nil, budget > 0
+	if !gifAnimationFits(count, w, h, budget) {
+		return nil, nil, budget > 0, nil
 	}
-
-	g, err := gif.DecodeAll(bytes.NewReader(data))
+	g, err := gif.DecodeAll(ctxReader{ctx: ctx, r: bytes.NewReader(data)})
+	if cancelled := ctx.Err(); cancelled != nil {
+		return nil, nil, false, cancelled
+	}
 	if err != nil || len(g.Image) <= 1 {
-		return nil, nil, false
+		return nil, nil, false, nil
 	}
-
-	perFrame := int64(g.Config.Width) * int64(g.Config.Height) * 4
-
-	// Redundant while probeGIF is correct - it and gif.DecodeAll read the
-	// same image descriptors out of the same bytes - and kept deliberately:
-	// probeGIF is a hand-written binary walk, and an under-count in it would
-	// otherwise turn straight into unbounded retained memory. Re-checked
-	// here, such a bug degrades only to the pre-probe behaviour (bounded
-	// retention, after a decode that has already happened) instead.
-	if perFrame*int64(len(g.Image)) > budget {
-		return nil, nil, true
+	// Retain a check against actual decoder output as well as the block probe.
+	if !gifAnimationFits(len(g.Image), g.Config.Width, g.Config.Height, budget) {
+		return nil, nil, true, nil
 	}
-
-	frames, delays, _ := compositeGIFFrames(context.Background(), g, 0)
-	return frames, delays, false
+	frames, delays, err := compositeGIFFrames(ctx, g, 0)
+	return frames, delays, false, err
 }
 
 // compositeGIFFrames is shared by full-size viewing and bounded previews.
 // Composite on the logical canvas before scaling so offsets, transparency and
 // disposal retain the same meaning at every preview size.
 func compositeGIFFrames(ctx context.Context, g *gif.GIF, maxEdge int) ([]image.Image, []time.Duration, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 	bounds := image.Rect(0, 0, g.Config.Width, g.Config.Height)
 	canvasImg := image.NewRGBA(bounds)
 
@@ -125,6 +123,9 @@ func compositeGIFFrames(ctx context.Context, g *gif.GIF, maxEdge int) ([]image.I
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 	return frames, delays, nil
 }
 

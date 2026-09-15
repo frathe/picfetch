@@ -2,14 +2,66 @@ package imaging
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/gif"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestGIFAdmissionIncludesFrameCapAndOverhead(t *testing.T) {
+	for _, tc := range []struct {
+		count, w, h int
+		budget      int64
+	}{
+		{4097, 1, 1, math.MaxInt64},
+		{2, 1, 1, 8}, // pixels fit, frame storage does not
+		{2, math.MaxInt, math.MaxInt, math.MaxInt64},
+		{2, 0, 1, math.MaxInt64},
+	} {
+		if gifAnimationFits(tc.count, tc.w, tc.h, tc.budget) {
+			t.Fatalf("admitted invalid/over-budget animation: %+v", tc)
+		}
+	}
+	if !gifAnimationFits(4096, 1, 1, DefaultImgCacheBytes) {
+		t.Fatal("refused supported frame-count boundary")
+	}
+	if _, fits := animatedPreviewEdge(2, 1, 1, 1, math.MinInt64); fits {
+		t.Fatal("negative preview budget must not wrap into admission")
+	}
+}
+
+func TestDecodeAnimatedGIFCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	frames, _, _, err := decodeAnimatedGIF(ctx, nil, DefaultImgCacheBytes)
+	if len(frames) != 0 || !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled animation: %d frames, %v", len(frames), err)
+	}
+}
+
+type cancellingGIFColor struct{ cancel context.CancelFunc }
+
+func (c cancellingGIFColor) RGBA() (r, g, b, a uint32) {
+	c.cancel()
+	return 0xffff, 0, 0, 0xffff
+}
+
+func TestGIFCompositingObservesCancellationDuringDrawing(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	frame := image.NewPaletted(image.Rect(0, 0, 2, 2), color.Palette{cancellingGIFColor{cancel}})
+	g := &gif.GIF{Image: []*image.Paletted{frame, frame}, Delay: []int{1, 1}, Config: image.Config{Width: 2, Height: 2}}
+	frames, delays, err := compositeGIFFrames(ctx, g, 0)
+	if frames != nil || delays != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled during drawing: %d frames, %d delays, %v", len(frames), len(delays), err)
+	}
+}
 
 // buildGIF assembles a raw animated GIF from frames that may be smaller than
 // the overall canvas (the GIF format lets each frame update only part of the
@@ -60,7 +112,7 @@ func TestDecodeAnimatedGIF_DisposalNoneRetainsUntouchedRegion(t *testing.T) {
 		[]int{5, 5},
 		[]byte{gif.DisposalNone, gif.DisposalNone})
 
-	frames, delays, _ := decodeAnimatedGIF(data, DefaultImgCacheBytes)
+	frames, delays, _, _ := decodeAnimatedGIF(context.Background(), data, DefaultImgCacheBytes)
 
 	if len(frames) != 2 {
 		t.Fatalf("frames = %d, want 2", len(frames))
@@ -94,7 +146,7 @@ func TestDecodeAnimatedGIF_DisposalBackgroundClearsRegion(t *testing.T) {
 		[]int{5, 5},
 		[]byte{gif.DisposalBackground, gif.DisposalNone})
 
-	frames, _, _ := decodeAnimatedGIF(data, DefaultImgCacheBytes)
+	frames, _, _, _ := decodeAnimatedGIF(context.Background(), data, DefaultImgCacheBytes)
 
 	if len(frames) != 2 {
 		t.Fatalf("frames = %d, want 2", len(frames))
@@ -121,7 +173,7 @@ func TestDecodeAnimatedGIF_ZeroDelayFloorsToMinimum(t *testing.T) {
 		[]int{0, 0},
 		[]byte{gif.DisposalNone, gif.DisposalNone})
 
-	_, delays, _ := decodeAnimatedGIF(data, DefaultImgCacheBytes)
+	_, delays, _, _ := decodeAnimatedGIF(context.Background(), data, DefaultImgCacheBytes)
 
 	for i, d := range delays {
 		if d != minFrameDelay {
@@ -136,7 +188,7 @@ func TestDecodeAnimatedGIF_SingleFrameReturnsNil(t *testing.T) {
 
 	data := buildGIF(t, 4, 4, []*image.Paletted{frame}, []int{10}, []byte{gif.DisposalNone})
 
-	frames, delays, _ := decodeAnimatedGIF(data, DefaultImgCacheBytes)
+	frames, delays, _, _ := decodeAnimatedGIF(context.Background(), data, DefaultImgCacheBytes)
 
 	if frames != nil || delays != nil {
 		t.Errorf("expected nil, nil for a single-frame GIF, got %d frames, %d delays", len(frames), len(delays))
@@ -144,7 +196,7 @@ func TestDecodeAnimatedGIF_SingleFrameReturnsNil(t *testing.T) {
 }
 
 func TestDecodeAnimatedGIF_NotAGIFReturnsNil(t *testing.T) {
-	frames, delays, _ := decodeAnimatedGIF([]byte("not a gif"), DefaultImgCacheBytes)
+	frames, delays, _, _ := decodeAnimatedGIF(context.Background(), []byte("not a gif"), DefaultImgCacheBytes)
 
 	if frames != nil || delays != nil {
 		t.Errorf("expected nil, nil for non-GIF data, got %d frames, %d delays", len(frames), len(delays))
@@ -172,10 +224,10 @@ func TestDecodeAnimatedGIF_RefusesAnAnimationPastTheBudget(t *testing.T) {
 
 	data := buildGIF(t, 10, 10, frames, delays, disposal)
 
-	// 10x10x4 bytes per frame across 4 frames is 1600; a budget one byte
-	// short of that has to refuse the whole animation rather than
-	// compositing up to the limit.
-	got, gotDelays, truncated := decodeAnimatedGIF(data, 1599)
+	// Admission includes paletted source frames, palettes/frame objects,
+	// decoder scratch, two compositing canvases and retained RGBA frames.
+	const required = 64*1024 + 10*10*(4+8) + 4*8*1024 + 4*10*10*4
+	got, gotDelays, truncated, _ := decodeAnimatedGIF(context.Background(), data, required-1)
 
 	if got != nil || gotDelays != nil {
 		t.Errorf("expected nil, nil for an over-budget animation, got %d frames, %d delays", len(got), len(gotDelays))
@@ -185,7 +237,7 @@ func TestDecodeAnimatedGIF_RefusesAnAnimationPastTheBudget(t *testing.T) {
 	}
 
 	// Exactly at the budget still plays.
-	got, _, truncated = decodeAnimatedGIF(data, 1600)
+	got, _, truncated, _ = decodeAnimatedGIF(context.Background(), data, required)
 
 	if len(got) != 4 {
 		t.Errorf("frames = %d at exactly the budget, want 4", len(got))
@@ -208,7 +260,7 @@ func TestDecodeAnimatedGIF_ZeroBudgetSkipsCompositingWithoutReportingTruncation(
 		[]int{5, 5},
 		[]byte{gif.DisposalNone, gif.DisposalNone})
 
-	frames, delays, truncated := decodeAnimatedGIF(data, 0)
+	frames, delays, truncated, _ := decodeAnimatedGIF(context.Background(), data, 0)
 
 	if frames != nil || delays != nil {
 		t.Errorf("expected nil, nil for a zero budget, got %d frames, %d delays", len(frames), len(delays))
@@ -546,7 +598,7 @@ func TestDecodeAnimatedGIF_RefusesOverBudgetWithoutDecodingFrames(t *testing.T) 
 	data := buildGIF(t, 32, 32, frames, delays, disposal)
 
 	allocs := testing.AllocsPerRun(3, func() {
-		if got, _, _ := decodeAnimatedGIF(data, 1); got != nil {
+		if got, _, _, _ := decodeAnimatedGIF(context.Background(), data, 1); got != nil {
 			t.Fatal("expected the animation to be refused")
 		}
 	})
@@ -567,7 +619,7 @@ func TestDecodeAnimatedGIF_DelayUnitConversion(t *testing.T) {
 		[]int{7, 250},
 		[]byte{gif.DisposalNone, gif.DisposalNone})
 
-	_, delays, _ := decodeAnimatedGIF(data, DefaultImgCacheBytes)
+	_, delays, _, _ := decodeAnimatedGIF(context.Background(), data, DefaultImgCacheBytes)
 
 	if got, want := delays[0], 70*time.Millisecond; got != want {
 		t.Errorf("delays[0] = %v, want %v", got, want)

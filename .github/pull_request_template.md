@@ -8,7 +8,7 @@
 
 ## Checklist
 
-- [ ] `make fmt-check` is clean, `go vet ./...` and `go test -timeout 30m -race ./...` pass
+- [ ] `make verify` passes (format, generated-file checks, vet, build and Docker race tests)
 - [ ] User-visible strings go through `lang.L`, with the key added to every
       bundle in `translations/`
 - [ ] `internal/ui/help/manual.md` and `manual_de.md` updated, if this

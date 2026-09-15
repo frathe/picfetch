@@ -23,6 +23,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+      - name: Configure Go analysis build tags
+        run: |
+          mkdir -p .idea
+          cp .github/qodana/modules.xml .idea/modules.xml
+          cp .github/qodana/picfetch.iml .idea/picfetch.iml
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@v2026.2
         env:

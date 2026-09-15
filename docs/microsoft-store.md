@@ -31,8 +31,8 @@ ONNX DLLs. See [Microsoft's Desktop Bridge runtime guidance](https://learn.micro
 Stage with the official archive for each architecture:
 
 ```powershell
-go run ./scripts/msixstage -arch amd64 -exe bin/picfetch-microsoft-store-amd64.exe -runtime-archive .scratch/windows-explorer/runtime-x64.zip -out .scratch/store-stage-x64
-go run ./scripts/msixstage -arch arm64 -exe bin/picfetch-microsoft-store-arm64.exe -runtime-archive .scratch/windows-explorer/runtime-arm64.zip -out .scratch/store-stage-arm64
+go run -tags no_emoji,nodynamic ./scripts/msixstage -arch amd64 -exe bin/picfetch-microsoft-store-amd64.exe -runtime-archive .scratch/windows-explorer/runtime-x64.zip -out .scratch/store-stage-x64
+go run -tags no_emoji,nodynamic ./scripts/msixstage -arch arm64 -exe bin/picfetch-microsoft-store-arm64.exe -runtime-archive .scratch/windows-explorer/runtime-arm64.zip -out .scratch/store-stage-arm64
 ```
 
 The workflow fetches those archives at packaging time; no model weights enter
@@ -260,7 +260,7 @@ protection change was performed in this local amendment. Do not retag or resubmi
 
 ```sh
 go test -race ./scripts/storepublish
-go test ./scripts/msixstage -run 'Test(MicrosoftStore|StoreWorkflow)'
+go test -tags no_emoji,nodynamic ./scripts/msixstage -run 'Test(MicrosoftStore|StoreWorkflow)'
 ```
 
 Fake-service tests cover the local contract. GitHub approval enforcement, Windows

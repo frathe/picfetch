@@ -10,7 +10,6 @@
 package imaging
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"image"
@@ -23,12 +22,13 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
-	_ "github.com/fyne-io/image/ico" // registers ICO with image.Decode
 	_ "github.com/fyne-io/image/xpm" // registers XPM with image.Decode
 	_ "github.com/gen2brain/avif"    // registers AVIF with image.Decode (WASM/wazero, no cgo)
 	_ "golang.org/x/image/bmp"       // registers BMP with image.Decode
 	_ "golang.org/x/image/tiff"      // registers TIFF with image.Decode
 	_ "golang.org/x/image/webp"      // registers WebP with image.Decode
+
+	_ "github.com/frathe/picfetch/internal/avifpolicy" // requires the WASM/wazero build
 )
 
 // supportedExtensions lists every filename extension IsSupportedImage
@@ -334,6 +334,9 @@ func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Re
 	}
 
 	if isSVGData(data) {
+		if len(data) > maxSVGBytes {
+			return nil, image.Rectangle{}, errSVGComplexity
+		}
 		b := svgProbeBounds(data)
 
 		// Same guard as the raster arm below, so a gigapixel viewBox - an
@@ -346,11 +349,13 @@ func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Re
 		return data, b, nil
 	}
 
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	cfg, format, err := decodeRasterConfig(data)
 
 	if err != nil {
-		if b, ok := previewBounds(data); ok {
-			return data, b, nil
+		if format != "ico" {
+			if b, ok := previewBounds(data); ok {
+				return data, b, nil
+			}
 		}
 		return nil, image.Rectangle{}, err
 	}
@@ -374,22 +379,21 @@ func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Re
 // metadata. Animated GIFs are decoded to every frame instead of just the
 // first.
 //
-// ctx is checked once, up front, rather than threaded into the decode
-// itself: unlike ReadAndProbe's file read, decoding already-in-memory
-// bytes doesn't block on external I/O, so there's no slow operation to
-// interrupt mid-flight - only a possibly-wasted one to skip entirely if
-// ctx is already done by the time this runs (e.g. a generation that went
-// stale while queued behind preloadOne's semaphore).
+// ctx cancels GIF/SVG stream reads and GIF compositing between bounded
+// operations. Individual codec operations may finish before cancellation.
 func DecodeLoaded(ctx context.Context, data []byte, maxAnimBytes int64) (*LoadedImage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	if isSVGData(data) {
-		return decodeVector(data)
+		return decodeVector(ctx, data)
 	}
 
-	frames, delays, truncated := decodeAnimatedGIF(data, maxAnimBytes)
+	frames, delays, truncated, err := decodeAnimatedGIF(ctx, data, maxAnimBytes)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(frames) > 1 {
 		return &LoadedImage{Frames: frames, Delays: delays}, nil
@@ -399,11 +403,13 @@ func DecodeLoaded(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 	// path a static image takes, since image.Decode on a GIF returns its
 	// first frame. A partial GIF frame is then composited onto its logical
 	// canvas without decoding any subsequent frames.
-	decoded, format, err := image.Decode(bytes.NewReader(data))
+	decoded, format, err := decodeRaster(data)
 
 	if err != nil {
-		if loaded, ok := decodeEmbeddedPreview(data); ok {
-			return loaded, nil
+		if format != "ico" {
+			if loaded, ok := decodeEmbeddedPreview(data); ok {
+				return loaded, nil
+			}
 		}
 		return nil, err
 	}

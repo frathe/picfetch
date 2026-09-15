@@ -567,15 +567,17 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 |------|----------------|
 | `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
+| `ico.go` | Explicit ICO probe/decode dispatch, independent of the desktop driver's decoder registration: validates directory/payload spans and dimensions, selects the same single image for probe/decode, delegates PNG or normalized uncompressed DIB pixels to existing decoders, and applies icon transparency. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
-| `vector.go` | `Vector` / `ParseVector` / `RasterAt`. |
+| `vector.go` | `Vector` / `ParseVector` / `ParseVectorContext` / `RasterAt`. |
+| `svg_limits.go` | SVG preflight limits encoded bytes, XML depth and conservative expanded work. Allows direct definition reuse, rejects use inside definitions, and estimates expanded source storage for the cache. |
 | `exif.go` | Orientation tags from JPEG APP1, PNG eXIf, WebP EXIF, and TIFF IFD0 + `ReadMetadata` / `Metadata` (including GPS IFD). Metadata scans JPEG APP1, then TIFF IFD0, then ISOBMFF through the AVIF metadata parser, then RAW preview APP1. |
 | `exififd.go` | Unexported IFD walker (`walkIFD`) and tag value helpers used by `exif.go` and `raw.go`. |
 | `exifformat.go` | Unexported display formatters for exposure, focal length, and Exif dates (`formatExposureTime` / `formatFocalLength` / `formatExifDate` / `parseExifDateTime`). |
 | `orientation.go` | `ApplyOrientation`, `RotateSteps`. |
 | `resample.go` | Rolling-row CatmullRom downscaling for YCbCr sources in `ScaleForExport`; retains sixteen-bit source colors and float64 intermediates with bounded row storage. |
-| `gif.go` | Animated GIF compositing, `probeGIF`, and logical-canvas restoration for a frozen partial first frame without decoding later frames. |
+| `gif.go` | Cancellable animated GIF decoding/compositing, `probeGIF`, shared frame-count and memory admission (palettes, source/output pixels, frame objects and scratch), and logical-canvas restoration for a frozen partial first frame without decoding later frames. |
 | `thumbnail.go` | `LoadThumbnail` / `LoadThumbnailAndBounds` and their context-bearing forms / `NewThumbCache`: same probe+decode, then downsample; `LoadThumbnailAtEdgeContext` supplies bounded static previews at a caller-selected ceiling; `LoadThumbnailAndBounds` also returns native `ReadAndProbe` size for hide-duplicates. Also `FitEdge` (the shared longest-edge rule) and `ScaleForExport` (CatmullRom, for exports) beside the unexported ApproxBiLinear `scaleToFit` thumbnails use. |
 | `preview.go` | `LoadAnimatedPreviewContext` shares GIF compositing and static thumbnail decoding. Chooses a smaller edge to fit retained animation bytes, bounds native decode pixels/frame count before decode, and falls back to the static first frame when those limits are exceeded. Spiral uses a 512px ceiling and 16MiB per preview. |
 | `dhash.go` | `DifferenceHash` / `Hamming` for grid hide-duplicates. |
@@ -584,6 +586,15 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | `grouping.go` | Cancellable greedy complete-linkage grouping; equal hashes reuse their assignment, and narrow distances use verified 16-bit projection candidates. Membership/order remain unchanged; `internal/dupes` chooses native-pixel representatives. |
 | `mutations.go` | Live file-identity transactions shared by Save/Strip/Export and external `WithFileMutation` participants such as Trash; case aliases share admission across atomic replacements, with cancellable admission/I/O and `WriteResult` commit identity. |
 | `save.go` | `SaveRotated`, `Export` (+ `ExportOptions`: size limit, metadata omission and exact-path fallback encoder), `CanEncode` / `CanEncodeExt`, `StripJPEGMetadata`. `dimensionTagsInvalidated` decides whether the source's dimension tags still describe what is being written, by comparing the written bounds against the source's own frame header - so a resize, a viewer rotation and an Orientation 5-8 source all correct them; Save Changes and export share that policy, retaining tags when geometry is unchanged or the source frame cannot be read (subject to export's resize fallback). |
+
+### `internal/avifpolicy`
+
+An imaging compile dependency with files only under `nodynamic && !wasm2go`.
+Unsupported tag combinations cannot build the viewer or imaging-dependent tools.
+Make, CI, packaging and nested test inventory/execution supply `no_emoji,nodynamic`;
+the pinned AVIF dependency therefore selects embedded WASM/wazero and excludes its
+automatic native library loader. `imaging/avif_policy_test.go` checks the dependency's
+file selection on all six shipped platform/architecture targets.
 
 ### `internal/favstore`
 

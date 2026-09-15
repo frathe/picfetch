@@ -42,7 +42,7 @@ func TestAnimatedPreview(t *testing.T) {
 
 func TestAnimatedPreviewBudget(t *testing.T) {
 	u := storage.NewFileURI(writeTempFile(t, "budget.gif", uitest.EncodeAnimatedGIF(t, 160, 80, []color.Color{color.Black, color.White}, []int{1, 0})))
-	const budget = 2 * 40 * 20 * 4
+	const budget = 2 * (40*20*4 + 128)
 	p, err := LoadAnimatedPreviewContext(context.Background(), u, 512, budget)
 	if err != nil {
 		t.Fatal(err)

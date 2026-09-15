@@ -43,7 +43,7 @@ an Intel Mac with `make explorer-install-test` and `make explorer-ui-test`.
 On Windows 11 x64/ARM64, install the assets from PowerShell without Bash or Make:
 
 ```powershell
-go run ./scripts/explorereval -install -assets .scratch/visual-similarity-explorer/assets
+go run -tags no_emoji,nodynamic ./scripts/explorereval -install -assets .scratch/visual-similarity-explorer/assets
 ```
 
 `make explorer-setup` uses the same command. The download is about 451 MB on x64 or 453 MB on ARM64;

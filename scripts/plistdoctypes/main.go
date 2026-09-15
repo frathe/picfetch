@@ -13,7 +13,7 @@
 //
 // Run from the repository root:
 //
-//	go run ./scripts/plistdoctypes path/to/Info.plist
+//	go run -tags no_emoji,nodynamic ./scripts/plistdoctypes path/to/Info.plist
 package main
 
 import (

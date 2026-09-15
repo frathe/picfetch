@@ -6,9 +6,11 @@ package imaging
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
+	"math"
 	"sync"
 
 	"github.com/fyne-io/oksvg"
@@ -36,25 +38,50 @@ type Vector struct {
 	// logical is fixed at parse time, so it needs no lock.
 	logical image.Rectangle
 
-	// srcBytes is the encoded source length, kept only so
-	// loadedImageBytes can charge the cache something honest for the
-	// retained parse tree. Measuring the tree itself would mean walking
-	// it; its size is proportional to this, and this is already bounded
-	// by MaxEncodedBytes.
+	// srcBytes estimates expanded source storage, including definition reuse.
+	// It is a cache charge, not an exact measurement of the renderer's tree.
 	srcBytes int
 }
 
 // ParseVector parses an SVG document. It does not rasterize - DecodeLoaded
 // asks for the first raster separately, at Logical's size.
 func ParseVector(data []byte) (*Vector, error) {
+	return ParseVectorContext(context.Background(), data)
+}
+
+// ParseVectorContext applies input/work limits before entering the renderer.
+// Cancellation is checked during preflight and at the renderer's stream reads;
+// an individual bounded path operation is not interruptible.
+func ParseVectorContext(ctx context.Context, data []byte) (vector *Vector, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(data) > maxSVGBytes {
+		return nil, errSVGComplexity
+	}
 	viewBox, width, height, isSVG := svgRootAttrs(data)
 	if !isSVG {
 		return nil, ErrNotSVG
 	}
 
-	icon, err := oksvg.ReadReplacingCurrentColor(bytes.NewReader(trimSVGPrefix(data)), "#000000")
+	data = bytes.ReplaceAll(trimSVGPrefix(data), []byte("currentColor"), []byte("#000000"))
+	expandedBytes, err := validateSVG(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("validate SVG: %w", err)
+	}
+	// The preflight removes recursive expansion and bounds allocation inputs.
+	// Recovery additionally turns ordinary parser panics into load errors.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			vector, err = nil, fmt.Errorf("parse SVG: %v", recovered)
+		}
+	}()
+	icon, err := oksvg.ReadIconStream(ctxReader{ctx: ctx, r: bytes.NewReader(data)})
 	if err != nil {
 		return nil, fmt.Errorf("parse SVG: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	// oksvg reads the root element's attributes in document order and
@@ -74,12 +101,17 @@ func ParseVector(data []byte) (*Vector, error) {
 		icon.ViewBox.W, icon.ViewBox.H = w, h
 	}
 
+	for _, coordinate := range []float64{icon.ViewBox.X, icon.ViewBox.Y, icon.ViewBox.W, icon.ViewBox.H} {
+		if math.IsNaN(coordinate) || math.IsInf(coordinate, 0) {
+			return nil, ErrNoSVGSize
+		}
+	}
 	logical := vectorLogical(icon.ViewBox.W, icon.ViewBox.H)
 	if logical.Empty() {
 		return nil, ErrNoSVGSize
 	}
 
-	return &Vector{icon: icon, logical: logical, srcBytes: len(data)}, nil
+	return &Vector{icon: icon, logical: logical, srcBytes: expandedBytes}, nil
 }
 
 // Logical is the size the app treats this image as being, whatever size its

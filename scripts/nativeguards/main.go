@@ -74,10 +74,11 @@ func suiteFor(name, hostOS string) (suite, error) {
 
 func (s *suite) testArgs(flags ...string) []string {
 	args := append([]string{"test", "-count=1"}, flags...)
+	tags := "no_emoji,nodynamic"
 	if s.tags != "" {
-		args = append(args, "-tags="+s.tags)
+		tags += "," + s.tags
 	}
-	return args
+	return append(args, "-tags="+tags)
 }
 
 func runSuite(ctx context.Context, s suite, execute goRunner, log, capture io.Writer) error {
