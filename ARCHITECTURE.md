@@ -130,6 +130,11 @@ worker refreshes ownership and persists prepared members, regenerating previews
 without inference; cache opt-outs still refresh ownership without writing Favorite
 records. Transient search progress is limited to one update per 100 ms, while
 ranked, failure and terminal events retain exact accounting.
+`search_pipeline_test.go` exercises retained queries through real cached source
+preparation and complete-scope version validation. Its warm benchmark includes
+store reopening, cache reads, validation and progressive ranking; the existing
+session benchmark supplies prepared vectors directly. Both exclude native model
+startup, subprocess transport and UI paint.
 
 ### `internal/ort`
 

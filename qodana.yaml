@@ -170,6 +170,7 @@ exclude:
       - "internal/similarity/cache_test.go"
       - "internal/similarity/grouping_test.go"
       - "internal/similarity/offline_test.go"
+      - "internal/similarity/search_pipeline_test.go"
       - "internal/similarity/search_protocol_test.go"
       - "internal/similarity/search_rank_test.go"
       - "internal/similarity/search_session_test.go"
