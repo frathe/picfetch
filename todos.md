@@ -1,5 +1,15 @@
 # PicFetch — TODOs
 
+## Open
+
+### Refactoring follow-up review
+
+Implementation and local verification are complete on `feature/refactoring`.
+Run fresh Codex code/security reviews and platform CI, assess all findings and
+inspect the Qodana/CodeQL reports before acceptance. The user authorized the
+GitHub review loop; merging and releasing remain separate actions.
+Contracts and evidence workflow: [review record](plans/2026-09-15-refactoring-review.md).
+
 ## Done
 
 ### What's Changed
