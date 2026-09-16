@@ -106,21 +106,20 @@ historical decoder-suite equivalence is claimed.
 
 Remaining qualification:
 
-- Ronin resumed the GitHub Codex review loop on September 16. At `3973811`,
-  all Linux race shards, Linux amd64/arm64 and macOS Intel/Apple Silicon helper
-  guards and validation pass. Windows HEIC qualification still fails on loopback
-  timeout interpretation; the ordinary suite exposes a CRLF fixture assertion.
-  Qodana's post-suppression report and both CodeQL reports contain zero results.
-  The signing-job security finding is fixed, resolved and followed by clean
-  code/security reviews on `c77d9bd`. The Windows corrections and another review
-  round are in progress. Local
-  canonical shard verification is unavailable because the Docker daemon is stopped.
+- At code checkpoint `ee5cc67`, all hosted CI passes: every Linux race shard,
+  Linux and Windows amd64/arm64 helper guards, macOS Intel/Apple Silicon native
+  guards, ordinary Windows and validation. The signing-job security finding is
+  fixed in `c77d9bd` and resolved; subsequent code/security rounds are clean.
+  Qodana and CodeQL checks pass. Final evidence and review of the documentation
+  follow-up are tracked in [PR #28](https://github.com/frathe/picfetch/pull/28)
+  and the active plan. No broad local race suite was duplicated.
 - Ronin accepted the absent hard total native-memory cap on macOS. WASM,
   transport, deadline and sandbox controls remain mandatory; helper-only
   executable-memory permission is required. The compiler succeeds on the
   ordinary 12MP fixture; the interpreter reaches the finite deadline.
 - Complete distribution-package, Windows Authenticode/MSIX and upgrade
-  qualification remain open. The released updater drops the new helper and
+  qualification remain open, including nonadministrator Windows access to the
+  launch-time loopback configuration query. The released updater drops the new helper and
   deletes staging, leaving an invalid macOS enclosing signature. The first
   transition requires a complete reinstall or a separately qualified bridge.
 - [Compatibility evidence](docs/heic/compatibility-2026-09-16.md) covers ordinary

@@ -665,7 +665,8 @@ and Wait serialize handle retirement. `profile_windows.go` owns the stable
 AppContainer profile and explicit read/execute provisioning for a dedicated
 helper file and its directory, with no inherited ACL grant. Launch does not
 change ACLs. Native controls and ordinary decoder fixtures are required by the
-`heic-windows` amd64/arm64 CI suite; native execution remains unverified.
+`heic-windows` amd64/arm64 CI suite. Both native suites pass at `ee5cc67`;
+distribution-package and standard-user qualification remain separate gates.
 
 ### `scripts/heicpackage`
 

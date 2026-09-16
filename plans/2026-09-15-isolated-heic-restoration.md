@@ -1122,3 +1122,32 @@ permission. Synthetic exemption-list cases cover the exact identity, an
 unrelated SID, no exemption and invalid entries without changing OS policy.
 Windows also reproduces the diagnostic-drain race. Its correction passes 25
 focused race repetitions plus the client package; GoLand reports no findings.
+
+### Passing code checkpoint and final documentation follow-up
+
+At `ee5cc67`, [CI 35084746959](https://github.com/frathe/picfetch/actions/runs/35084746959)
+passes validation, all four Linux race partitions, Linux/Windows amd64+arm64
+HEIC native suites, ordinary Windows and macOS Intel/Apple Silicon native
+suites. Required native guards run without skips. Windows ordinary ten-bit
+decoding takes 4.316 s (amd64) / 4.104 s (ARM64); the 12MP fixture takes
+17.396 s / 14.740 s. The actual PowerShell manifest transformation passes on
+inert fixtures; the diagnostic-overflow regression passes on both Windows
+architectures and Intel macOS. Hosted evidence now supersedes cross-build-only
+qualification statements, without claiming standard-user or packaged Windows
+qualification.
+
+Code-review comment `5695988308` reports no findings on this exact checkpoint.
+The confirmed security thread `4024388304` is fixed by `c77d9bd`, replied to and
+resolved; later code/security reviews on `c77d9bd` and `6021a5f` are clean.
+The current security review and a fresh complete review/CI round for the final
+documentation-only follow-up remain mandatory before loop completion. Final
+head, review comments, check conclusions and static-report provenance are
+recorded in the PR discussion and `.scratch/pr28-review/` after those services
+finish; this evidence capture does not change the reviewed source tree.
+
+The follow-up updates this plan, `todos.md`, architecture, threat model and
+native qualification evidence only. HEIC stays disabled. Distribution/license
+closure, real Authenticode/MSIX, nonadministrator Windows behavior, broader
+camera/color qualification, the first released-updater transition and the
+unsigned initial foundation's merge prerequisite remain explicit. No merge,
+release, production activation or history rewrite is included in this loop.

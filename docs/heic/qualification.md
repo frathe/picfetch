@@ -165,9 +165,9 @@ recorded in the [ordinary compatibility report](compatibility-2026-09-16.md).
 
 | Platform | Documented candidate | Implemented/runtime verified here | Admission |
 | --- | --- | --- | --- |
-| Linux x64/ARM64 | All-thread seccomp, hard RLIMIT_AS virtual-address-space ceiling, CPU/core/file/descriptor limits before input; bounded WASI and parent lifetime | Candidate cross-builds; portable syscall-policy controls pass. Native helper execution and packaged application qualification await CI. No RSS or cgroup limit is claimed. | Disabled |
-| Windows x64/ARM64 | AppContainer/restricted capabilities plus Job Object aggregate commit-memory/process/CPU/kill-on-close limits, explicit inherited pipes and suspended setup | AppContainer/suspended launch and job controls cross-build; owned native controls are wired in CI. Native Windows and MSIX execution remain unverified. | Disabled |
-| macOS Intel/Apple Silicon | Independently entitled App Sandbox helper bundle, hardened runtime, bounded WASI, parent-owned pipes/deadline/group termination | Apple Silicon native ordinary decode, read/create/TCP/UDP denial and cancellation verified below. Intel/packaged application qualification pending. Hard total native cap absent by explicit approval. | Disabled pending qualification |
+| Linux x64/ARM64 | All-thread seccomp, hard RLIMIT_AS virtual-address-space ceiling, CPU/core/file/descriptor limits before input; bounded WASI and parent lifetime | Both native helper suites pass in hosted CI. Packaged application qualification remains open. No RSS or cgroup limit is claimed. | Disabled |
+| Windows x64/ARM64 | AppContainer/restricted capabilities plus Job Object aggregate commit-memory/process/CPU/kill-on-close limits, explicit inherited pipes and suspended setup | Both native policy/transport/ordinary-decoding suites pass at `ee5cc67`. Standard-user, Authenticode/MSIX and distribution execution remain separate qualification gates. | Disabled |
+| macOS Intel/Apple Silicon | Independently entitled App Sandbox helper bundle, hardened runtime, bounded WASI, parent-owned pipes/deadline/group termination | Both architectures have passed native ordinary decode, read/create/TCP/UDP denial and cancellation in CI. Packaged application qualification remains open. Hard total native cap absent by explicit approval. | Disabled pending qualification |
 
 Linux's [cgroup v2 documentation](https://docs.kernel.org/admin-guide/cgroup-v2.html)
 describes charged memory and explicitly permits temporary `memory.max` overshoot.
@@ -398,8 +398,39 @@ controls, inherited-pipe cancellation, analysis attachment cleanup, and ordinary
 ten-bit/12-megapixel decode. The memory control uses a 64 MiB job and a fixed
 65 MiB commitment attempt, touches no pages, and frees any unexpected allocation
 immediately. It is a bounded OS-policy control, not an image decoder stress test.
-Cross-build/vet/IDE results establish compilation only; no Windows execution has
-been observed on this macOS host.
+Cross-build/vet/IDE results establish compilation only. The Windows execution
+evidence below comes from native hosted runners.
+
+## Native Windows qualification checkpoint (2026-09-16)
+
+At `ee5cc67`, [CI run 35084746959](https://github.com/frathe/picfetch/actions/runs/35084746959)
+passes both Windows HEIC suites, including token/job checks, fixed bounded
+commitment refusal, child-process denial, unsandboxed refusal, inherited-pipe
+cancellation and ordinary helper decoding. The native runner rejects skipped
+required guards. `windows-latest` runs amd64; `windows-11-arm` runs ARM64.
+
+| Ordinary fixture | Windows amd64 | Windows ARM64 | Verified result |
+| --- | --- | --- | --- |
+| `tenbit.heic` | 4.316 s | 4.104 s | 16 x 16, NRGBA64 retained |
+| `photo-gradient.heic.gz` | 17.396 s | 14.740 s | 4032 x 3024 |
+
+The launcher checks the native loopback exemption list on every launch and
+refuses an exempt helper SID or query failure. This privileged read cannot run
+inside AppContainer. The helper verifies its exact zero-capability token and
+job before file/network probes. Parent-owned TCP/UDP listeners are positively
+checked first; UDP uses a bounded one-byte echo worker. Windows' packet-drop
+semantics may produce a timeout, accepted only with a live request, the verified
+token and the launcher's nonexemption gate. A successful connection/echo refuses
+readiness. Listeners close and their worker joins before image bytes are read.
+Linux/macOS continue to require explicit permission errors.
+
+The ordinary Windows suite also runs the release workflow's fixed manifest
+transformation on inert helper bytes, verifying both targets and invalid-input
+rejection without signing credentials. The protected signing job has no
+repository checkout/toolchain execution and verifies both executables after
+manifest finalization. Actual Authenticode/MSIX, final distribution execution
+and nonadministrator Windows launches remain unverified; these hosted results
+do not activate HEIC support or qualify the first released-updater transition.
 
 
 ## Package updates and first-upgrade limitation
