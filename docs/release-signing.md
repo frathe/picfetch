@@ -21,6 +21,17 @@ secrets:
 | CERTUM_OTP_URI | The complete otpauth:// TOTP URI for the SimplySign account. |
 | CERTUM_CERT_THUMBPRINT | The code-signing certificate's 40-character SHA-1 thumbprint, without spaces. |
 
+Add these non-secret environment variables to the same protected environment:
+
+| Variable | Value |
+|---|---|
+| SIMPLYSIGN_INSTALLER_SHA256 | The reviewed 64-character SHA-256 digest of `SimplySignDesktop-9.4.4.92-64-bit-en.msi`. |
+| SIMPLYSIGN_SIGNER_THUMBPRINT | The reviewed 40-character SHA-1 thumbprint of that installer's Authenticode signing certificate. |
+
+Obtain both values from a separately authenticated copy of the installer, not
+from the download performed by the release workflow. Update them only after
+reviewing a deliberate SimplySign upgrade.
+
 CERTUM_OTP_URI is highly sensitive: it enables unattended generation of the
 second-factor code. Anyone who can change the release workflow and obtain this
 secret could cause a trusted signature to be made. Keep environment approval
@@ -34,8 +45,10 @@ unattended workflow. Confirm this account setting before the first test tag.
 Certum does not currently document an official headless SimplySign API. The
 workflow therefore pins the third-party setup action to a reviewed commit
 rather than a mutable tag. It also downloads Certum SimplySign Desktop 9.4.4.92
-from Certum's own server and checks its Windows Authenticode signature before
-the action installs it.
+from Certum's own server, checks its pinned SHA-256 digest and Authenticode
+signer certificate, and serves those verified bytes to the setup action over a
+single-use loopback endpoint. The action cannot fetch the installer from
+Certum while signing credentials are available.
 
 ## Release flow
 
