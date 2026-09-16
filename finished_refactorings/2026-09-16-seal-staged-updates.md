@@ -60,6 +60,5 @@ agreement reserves for the lead.
 The initial native Windows run exposed three failing tests. Review also moved
 archive extraction and payload hashing onto the verified memory buffer, added
 Windows write-denying source handles, and consolidated installation onto the
-rollback path exercised by the existing tests. Current completion evidence and
-remaining local IDE limitations are tracked in
-[the PR review record](../plans/2026-09-16-pr32-review.md).
+rollback path exercised by the existing tests. Current completion evidence is tracked in
+[the PR review record](2026-09-16-pr32-review.md).

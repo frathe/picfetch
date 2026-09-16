@@ -2,12 +2,6 @@
 
 ## Open
 
-### PR #32 Windows updater review
-
-Repair archive provenance, retained-handle installation and native Windows
-regressions, then complete fresh Codex code/security reviews and platform CI.
-Evidence: [review plan](plans/2026-09-16-pr32-review.md).
-
 ### Windows signing qualification
 
 Configure the reviewed `SIMPLYSIGN_INSTALLER_SHA256` and
@@ -53,6 +47,12 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
   Evidence: [PR #29 implementation plan](plans/2026-09-16-explorer-configurable-limits.md).
 
 #### Bugfix
+
+- Authenticate staged updates with process-local seals, derive payload hashes
+  from verified archive bytes, and retain a write-denying Windows source handle
+  through installation. Native Windows guards pass; review and final CI evidence:
+  [PR #32](https://github.com/frathe/picfetch/pull/32),
+  [review record](finished_refactorings/2026-09-16-pr32-review.md).
 
 - Bound ICO and SVG input processing, enforce WASM AVIF builds, and account for
   GIF frame overhead before animation decoding; preserve static GIF fallback.

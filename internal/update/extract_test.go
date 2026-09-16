@@ -426,5 +426,8 @@ func extractTestArchive(t *testing.T, path, dest string) (string, string, error)
 		t.Fatal(err)
 	}
 	payload, err := extract(context.Background(), filepath.Base(path), data, dest)
-	return payload.BinaryPath, payload.PlistPath, err
+	if err != nil {
+		return "", "", err
+	}
+	return payload.BinaryPath, payload.PlistPath, nil
 }
