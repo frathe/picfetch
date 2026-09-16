@@ -987,3 +987,10 @@ LOCALAPPDATA from SHGetKnownFolderPath. Chromium's `CreateFilteredEnvironment`
 documents this AppContainer requirement, independently confirmed by the
 maintainer's environment bisection in Convira/convira-sandbox issue #1. Native
 guards remain the acceptance evidence; no unrestricted launch is substituted.
+
+Round 2 (`fa89ab6`) creates the process successfully on Windows but its native
+control exits before Go initialization with STATUS_DLL_INIT_FAILED
+(`0xc0000142`). Test the console-initialization hypothesis by using
+DETACHED_PROCESS for this pipe-only helper instead of CREATE_NO_WINDOW.
+The same AppContainer, child-process restriction, handles and job limits apply.
+The native positive policy and ordinary decode guards must still pass.

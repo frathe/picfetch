@@ -146,7 +146,9 @@ func Start(executable string, args []string, stdio [3]*os.File, limits heicdecod
 		return nil, err
 	}
 	var information windows.ProcessInformation
-	flags := uint32(windows.CREATE_SUSPENDED | windows.CREATE_UNICODE_ENVIRONMENT | windows.EXTENDED_STARTUPINFO_PRESENT | windows.CREATE_NO_WINDOW)
+	// The helper uses only inherited pipes. Avoid hidden-console initialization
+	// and its console host inside this one-process AppContainer.
+	flags := uint32(windows.CREATE_SUSPENDED | windows.CREATE_UNICODE_ENVIRONMENT | windows.EXTENDED_STARTUPINFO_PRESENT | windows.DETACHED_PROCESS)
 	if err = windows.CreateProcess(path, command, nil, nil, true, flags, &environment[0], directory, &startup.StartupInfo, &information); err != nil {
 		return nil, fmt.Errorf("create AppContainer process: %w", err)
 	}
