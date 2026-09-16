@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 
@@ -10,6 +11,8 @@ import (
 
 	"github.com/frathe/picfetch/internal/imaging"
 )
+
+var errComparisonMemoryBudget = errors.New("comparison memory budget exceeded")
 
 // comparisonActive is the composition-layer fact used by every ordinary
 // command entry. Feature packages stay independent: none of them needs to
@@ -69,14 +72,14 @@ func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.
 				if loaded == nil || len(loaded.Frames) == 0 {
 					return loaded, nil
 				}
-				if err := comparisonImageFits(loaded, v.imgCache.Budget()); err != nil {
-					return nil, err
-				}
 				// Comparison displays only the first frame. Do not retain an
 				// animation's unused frames outside their existing cache owner.
 				frozen := *loaded
 				frozen.Frames = []image.Image{loaded.Frames[0]}
 				frozen.Delays = nil
+				if err := comparisonImageFits(&frozen, v.imgCache.Budget()); err != nil {
+					return nil, err
+				}
 				return &frozen, nil
 			}
 			continue
@@ -89,7 +92,7 @@ func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.
 			return nil, err
 		}
 		if imaging.EstimateDecodedBytes(bounds) > v.imgCache.Budget()/2 {
-			return nil, fmt.Errorf("comparison memory budget exceeded")
+			return nil, errComparisonMemoryBudget
 		}
 		// Comparison never animates, so decoding additional GIF frames would
 		// consume memory that cannot contribute to either pane.
@@ -98,6 +101,9 @@ func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.
 			continue
 		}
 		if err != nil {
+			return nil, err
+		}
+		if err := comparisonImageFits(loaded, v.imgCache.Budget()); err != nil {
 			return nil, err
 		}
 		if !imaging.IsAnimatedGIF(data) {
@@ -111,13 +117,17 @@ func comparisonImageFits(loaded *imaging.LoadedImage, budget int64) error {
 	if loaded == nil || len(loaded.Frames) == 0 {
 		return nil
 	}
-	if imaging.EstimateDecodedBytes(loaded.Frames[0].Bounds()) > budget/2 {
-		return fmt.Errorf("comparison memory budget exceeded")
+	if loaded.DecodedBytes() > budget/2 {
+		return errComparisonMemoryBudget
 	}
 	return nil
 }
 
 func (v *viewer) compareFailed(uri fyne.URI, err error) {
+	if errors.Is(err, errComparisonMemoryBudget) {
+		v.ShowToast(lang.L("Selected images exceed the comparison memory budget"))
+		return
+	}
 	v.ShowToast(fmt.Sprintf(lang.L("could not read %q: %v"), uri.Name(), err))
 }
 

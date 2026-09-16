@@ -240,8 +240,8 @@ func TestPreloadOne_SkipsANeighborTooLargeForTheBudget(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 64, 64, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 64, 64, color.White)
 
-	// 64x64 estimates at 16,384 decoded bytes (4 per pixel). A 16 KiB budget
-	// puts that exactly at the budget and so past the half-budget line
+	// 64x64 conservatively estimates at 32,768 decoded bytes (8 per pixel).
+	// A 16 KiB budget puts that past the half-budget line
 	// preloadOne bails at - the point where the current image and one
 	// neighbor stop both fitting.
 	v.imgCache.SetBudget(16 * 1024)

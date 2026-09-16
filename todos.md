@@ -51,7 +51,9 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 - Bound ICO and SVG input processing, enforce WASM AVIF builds, and account for
   GIF frame overhead before animation decoding; preserve static GIF fallback.
 - Bound comparison decodes to half the shared image budget per pane and avoid
-  retaining animation frames that comparison never displays.
+  retaining animation frames that comparison never displays. Include 16-bit
+  pixel admission, actual cached-frame weights, localized refusals and the
+  corrected UI shard assignment (PR #31 follow-up).
 - Bound Visual Similarity Explorer collection work and worker event decoding to
   prevent attacker-controlled collections from exhausting CPU or viewer memory.
 

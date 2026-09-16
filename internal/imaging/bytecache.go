@@ -335,7 +335,7 @@ func imageBytes(m image.Image) int64 {
 	}
 
 	// Anything else (a decoder's own image type, or a wrapper) falls back
-	// to the four-bytes-per-pixel ceiling - an over-estimate is the safe
+	// to the eight-bytes-per-pixel ceiling - an over-estimate is the safe
 	// direction for a budget.
 	return EstimateDecodedBytes(m.Bounds())
 }
@@ -376,14 +376,14 @@ func loadedImageBytes(l *LoadedImage) int64 {
 // EstimateDecodedBytes is the worst-case decoded size of an image whose
 // header declares these bounds - for callers deciding whether a decode is
 // worth starting at all, before there is any concrete image type to
-// measure. Deliberately the four-bytes-per-pixel ceiling: guessing low
-// here would let exactly the images this budget exists to bound slip
-// through the check.
+// measure. Eight bytes per pixel covers the RGBA64 and NRGBA64 outputs of
+// supported sixteen-bit formats as well as the smaller eight-bit outputs.
+// This estimates retained pixels, not transient decoder working memory.
 func EstimateDecodedBytes(b image.Rectangle) int64 {
 	w, h := int64(b.Dx()), int64(b.Dy())
 	if w <= 0 || h <= 0 {
 		return 0
 	}
 
-	return w * h * 4
+	return w * h * 8
 }

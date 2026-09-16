@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"image"
 	"image/color"
+	"image/png"
 	"slices"
 	"strings"
 	"testing"
@@ -154,18 +156,14 @@ func TestCompareAnimated_FreezesFirstDecodedFrameForEntireSession(t *testing.T) 
 		t.Fatalf("first animation frame = R:%d B:%d, want red", r, b)
 	}
 
-	assertFrozen := func(stage string) {
-		t.Helper()
-		comparisonImageHolding(t, v, first)
-	}
-	assertFrozen("after load")
+	comparisonImageHolding(t, v, first)
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
-	assertFrozen("after zoom")
+	comparisonImageHolding(t, v, first)
 	fynetest.Tap(comparisonButton(t, v.compare.Overlay(), lang.L("Swipe")))
 	v.win.Resize(fyne.NewSize(900, 620))
-	assertFrozen("after layout and resize")
+	comparisonImageHolding(t, v, first)
 	fynetest.Tap(comparisonButton(t, v.compare.Overlay(), lang.L("Swap")))
-	assertFrozen("after Swap")
+	comparisonImageHolding(t, v, first)
 }
 
 func TestCompareOrientation_UsesCanonicalEXIFPixelsAndIgnoresViewerRotation(t *testing.T) {
@@ -228,8 +226,9 @@ func TestCompareMemory_RejectsSourcesWhoseCombinedEstimateExceedsBudget(t *testi
 	for name, result := range loads {
 		if result.loaded != nil || result.err == nil {
 			t.Errorf("comparison loader for %q = (%v, %v), want memory-budget refusal", name, result.loaded, result.err)
+			continue
 		}
-		if strings.Contains(result.err.Error(), "comparison memory budget") {
+		if errors.Is(result.err, errComparisonMemoryBudget) {
 			budgetRefusals++
 		} else if !errors.Is(result.err, context.Canceled) {
 			t.Errorf("comparison loader for %q error = %v, want memory-budget refusal or peer cancellation", name, result.err)
@@ -241,6 +240,80 @@ func TestCompareMemory_RejectsSourcesWhoseCombinedEstimateExceedsBudget(t *testi
 	if got := v.imgCache.Len(); got != 0 {
 		t.Errorf("refused comparison retained %d cache entries, want 0", got)
 	}
+	if got, want := v.toast.text.Text, lang.L("Selected images exceed the comparison memory budget"); got != want {
+		t.Errorf("comparison refusal toast = %q, want %q", got, want)
+	}
+	settleToast(t, v)
+}
+
+func TestCompareMemory_LoadAdmission(t *testing.T) {
+	frame := image.NewNRGBA64(image.Rect(0, 0, 3, 2))
+	frame.SetNRGBA64(0, 0, color.NRGBA64{R: 0x1234, A: 0x8001})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, frame); err != nil {
+		t.Fatal(err)
+	}
+	uri := storage.NewFileURI(uitest.WriteTempFile(t, "six-pixels.png", encoded.Bytes()))
+	const frameBytes = 3 * 2 * 8
+	for _, cached := range []bool{false, true} {
+		for _, tc := range []struct {
+			name   string
+			budget int64
+			fits   bool
+		}{
+			{"below_limit", 2*frameBytes - 1, false},
+			{"at_limit", 2 * frameBytes, true},
+		} {
+			name := "decode/" + tc.name
+			if cached {
+				name = "cached/" + tc.name
+			}
+			t.Run(name, func(t *testing.T) {
+				v := newTestViewer(t)
+				v.imgCache.SetBudget(tc.budget)
+				if cached {
+					v.imgCache.Add(uri.String(), &imaging.LoadedImage{Frames: []image.Image{frame}})
+				}
+				loaded, err := v.loadComparedImage(context.Background(), uri)
+				if !tc.fits {
+					if loaded != nil || !errors.Is(err, errComparisonMemoryBudget) {
+						t.Fatalf("load = (%v, %v), want refusal", loaded, err)
+					}
+					if !cached && v.imgCache.Len() != 0 {
+						t.Fatal("refused decode populated the cache")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := loaded.DecodedBytes(); got != frameBytes {
+					t.Fatalf("retained bytes = %d, want %d for 16-bit pixels", got, frameBytes)
+				}
+			})
+		}
+	}
+
+	t.Run("cached_animation_charges_only_first_frame", func(t *testing.T) {
+		v := newTestViewer(t)
+		first := image.NewRGBA(image.Rect(0, 0, 3, 2))
+		complete := &imaging.LoadedImage{
+			Frames: []image.Image{first, image.NewRGBA(first.Bounds()), image.NewRGBA(first.Bounds())},
+			Delays: []time.Duration{time.Second, time.Second, time.Second},
+		}
+		v.imgCache.SetBudget(2 * int64(len(first.Pix)))
+		v.imgCache.Add(uri.String(), complete)
+		loaded, err := v.loadComparedImage(context.Background(), uri)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if loaded == complete || len(loaded.Frames) != 1 || loaded.Frames[0] != first || len(loaded.Delays) != 0 {
+			t.Fatal("comparison must retain a detached first-frame record")
+		}
+		if record, ok := v.imgCache.Get(uri.String()); !ok || record != complete || len(record.Frames) != 3 || len(record.Delays) != 3 {
+			t.Fatal("comparison changed the complete cached animation")
+		}
+	})
 }
 
 func TestCompareInputLimit_FailsWithoutRemovingEitherSelectedSource(t *testing.T) {

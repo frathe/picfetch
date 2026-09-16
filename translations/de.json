@@ -171,6 +171,7 @@
    "Show variants": "Varianten anzeigen",
    "Compare selected images": "Ausgewählte Bilder vergleichen",
    "Select exactly 2 images to compare": "Wählen Sie genau 2 Bilder zum Vergleichen aus",
+   "Selected images exceed the comparison memory budget": "Die ausgewählten Bilder überschreiten das Speicherlimit für den Vergleich",
    "Swipe": "Wischen",
    "Side by side": "Nebeneinander",
    "Swap": "Tauschen",

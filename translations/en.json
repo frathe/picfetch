@@ -171,6 +171,7 @@
    "Show variants": "Show variants",
    "Compare selected images": "Compare selected images",
    "Select exactly 2 images to compare": "Select exactly 2 images to compare",
+   "Selected images exceed the comparison memory budget": "Selected images exceed the comparison memory budget",
    "Swipe": "Swipe",
    "Side by side": "Side by side",
    "Swap": "Swap",
