@@ -979,3 +979,11 @@ four harmless maintained-source casts, two scoped builtin-shadowing names,
 one partial NAL switch followed by explicit remaining-type handling, and two
 retained codec constructors. The nested guest uses NewDecodeBudget; retained
 encoder API does not require deletion. Fresh reports must verify these scopes.
+
+Round 1 native Windows x64 now passes the cache cases, and profile-creation
+errors are absent. AppContainer creation still returns ERROR_ENVVAR_NOT_FOUND;
+adding SystemRoot alone did not solve startup. The next correction adds only
+LOCALAPPDATA from SHGetKnownFolderPath. Chromium's `CreateFilteredEnvironment`
+documents this AppContainer requirement, independently confirmed by the
+maintainer's environment bisection in Convira/convira-sandbox issue #1. Native
+guards remain the acceptance evidence; no unrestricted launch is substituted.

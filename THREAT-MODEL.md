@@ -147,7 +147,8 @@ trusted installed package. Hashes are not an independent package signature.
 | macOS Intel/Apple Silicon | Separately entitled App Sandbox helper and Hardened Runtime with verified owned file/network denial; helper-only executable-memory entitlement for wazero. No guaranteed hard total native-memory ceiling. |
 
 Windows helper startup supplies only `GOMAXPROCS` and the OS-reported
-`SystemRoot`; it does not inherit the parent's environment or search path.
+`SystemRoot`/`LOCALAPPDATA`; it does not inherit the parent's environment or
+search path. Windows redirects the profile directory for the AppContainer.
 Profile creation uses a bounded per-user/session cross-process mutex. These
 startup corrections still require passing native CI; they grant no additional
 AppContainer capabilities or filesystem rights.

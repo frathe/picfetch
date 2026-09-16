@@ -115,12 +115,22 @@ func Start(executable string, args []string, stdio [3]*os.File, limits heicdecod
 	if err != nil {
 		return nil, err
 	}
-	// Supply the system installation directory required by AppContainer startup,
-	// without inheriting the parent's environment or DLL search path.
+	// AppContainer creation needs LOCALAPPDATA to locate its profile. Obtain
+	// OS directory values directly, without inheriting the parent's environment
+	// or DLL search path. Windows redirects LOCALAPPDATA for the child.
 	environment, err := windows.UTF16FromString("GOMAXPROCS=1")
 	if err != nil {
 		return nil, err
 	}
+	profileDirectory, err := windows.KnownFolderPath(windows.FOLDERID_LocalAppData, 0)
+	if err != nil {
+		return nil, fmt.Errorf("locate local application data: %w", err)
+	}
+	localAppData, err := windows.UTF16FromString("LOCALAPPDATA=" + profileDirectory)
+	if err != nil {
+		return nil, err
+	}
+	environment = append(environment, localAppData...)
 	windowsDirectory, err := windows.GetWindowsDirectory()
 	if err != nil {
 		return nil, fmt.Errorf("locate Windows directory: %w", err)

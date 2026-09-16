@@ -46,8 +46,14 @@ func ownedPolicyControl(limits heicdecode.Limits) error {
 		return errors.New("parent environment reached the helper")
 	}
 	windowsDirectory, err := windows.GetWindowsDirectory()
-	if err != nil || os.Getenv("SystemRoot") != windowsDirectory {
-		return fmt.Errorf("helper SystemRoot does not match Windows directory: %w", err)
+	if err != nil {
+		return err
+	}
+	if os.Getenv("SystemRoot") != windowsDirectory {
+		return errors.New("helper SystemRoot does not match Windows directory")
+	}
+	if os.Getenv("LOCALAPPDATA") == "" {
+		return errors.New("helper has no AppContainer profile directory")
 	}
 	// The request is capped at 65 MiB even if the tested restriction is broken.
 	// No page is touched; an unexpected success is freed immediately.
