@@ -346,7 +346,7 @@ func TestImageBytes(t *testing.T) {
 		// block: 16 + 4 + 4. This is the case the type switch exists for -
 		// charging a JPEG 4 bytes per pixel would over-report it by 2.7x.
 		{"YCbCr 4:2:0", image.NewYCbCr(image.Rect(0, 0, 4, 4), image.YCbCrSubsampleRatio420), 16 + 4 + 4},
-		{"unknown type falls back to 4 bytes per pixel", unknownImage{image.Rect(0, 0, 4, 4)}, 4 * 4 * 4},
+		{"unknown type falls back to 8 bytes per pixel", unknownImage{image.Rect(0, 0, 4, 4)}, 4 * 4 * 8},
 	}
 
 	for _, c := range cases {
@@ -382,7 +382,7 @@ func TestEstimateDecodedBytes(t *testing.T) {
 		bounds image.Rectangle
 		want   int64
 	}{
-		{"ordinary bounds", image.Rect(0, 0, 100, 50), 100 * 50 * 4},
+		{"ordinary bounds", image.Rect(0, 0, 100, 50), 100 * 50 * 8},
 		{"empty bounds", image.Rect(0, 0, 0, 0), 0},
 		// Built as a literal rather than with image.Rect, which
 		// canonicalizes swapped corners - a negative Dx/Dy has to come out
@@ -396,6 +396,14 @@ func TestEstimateDecodedBytes(t *testing.T) {
 				t.Errorf("EstimateDecodedBytes(%v) = %d, want %d", c.bounds, got, c.want)
 			}
 		})
+	}
+	for _, frame := range []image.Image{
+		image.NewRGBA64(image.Rect(0, 0, 3, 2)),
+		image.NewNRGBA64(image.Rect(0, 0, 3, 2)),
+	} {
+		if estimate, retained := EstimateDecodedBytes(frame.Bounds()), imageBytes(frame); estimate < retained {
+			t.Errorf("estimate for %T = %d, less than retained pixels %d", frame, estimate, retained)
+		}
 	}
 }
 

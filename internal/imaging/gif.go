@@ -25,6 +25,17 @@ const (
 	gifPreviewFrameOverhead = 128
 )
 
+// IsAnimatedGIF reports whether data describes a GIF with more than one
+// image frame. It performs the same bounded structural probe used for
+// animation admission and does not decode pixels.
+// Comparison calls it to keep first-frame-only records out of the image cache.
+//
+//goland:noinspection GoUnusedExportedFunction
+func IsAnimatedGIF(data []byte) bool {
+	count, _, _, ok := probeGIF(data)
+	return ok && count > 1
+}
+
 // gifWorkingBytes estimates paletted source frames, per-frame storage,
 // decoder scratch and two full RGBA compositing canvases. Retained output
 // pixels are charged separately, since previews can be smaller than the source.

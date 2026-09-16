@@ -2,13 +2,17 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"image"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/imaging"
 )
+
+var errComparisonMemoryBudget = errors.New("comparison memory budget exceeded")
 
 // comparisonActive is the composition-layer fact used by every ordinary
 // command entry. Feature packages stay independent: none of them needs to
@@ -65,31 +69,65 @@ func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.
 		writer := v.imgCache.Capture()
 		if loaded, ok := v.imgCache.Get(uri.String()); ok {
 			if writer.Current() {
-				return loaded, nil
+				if loaded == nil || len(loaded.Frames) == 0 {
+					return loaded, nil
+				}
+				// Comparison displays only the first frame. Do not retain an
+				// animation's unused frames outside their existing cache owner.
+				frozen := *loaded
+				frozen.Frames = []image.Image{loaded.Frames[0]}
+				frozen.Delays = nil
+				if err := comparisonImageFits(&frozen, v.imgCache.Budget()); err != nil {
+					return nil, err
+				}
+				return &frozen, nil
 			}
 			continue
 		}
-		data, _, err := imaging.ReadAndProbe(ctx, uri)
+		data, bounds, err := imaging.ReadAndProbe(ctx, uri)
 		if err != nil {
 			if !writer.Current() {
 				continue
 			}
 			return nil, err
 		}
-		loaded, err := imaging.DecodeRecord(ctx, data, v.imgCache.Budget())
+		if imaging.EstimateDecodedBytes(bounds) > v.imgCache.Budget()/2 {
+			return nil, errComparisonMemoryBudget
+		}
+		// Comparison never animates, so decoding additional GIF frames would
+		// consume memory that cannot contribute to either pane.
+		loaded, err := imaging.DecodeRecord(ctx, data, 0)
 		if !writer.Current() {
 			continue
 		}
 		if err != nil {
 			return nil, err
 		}
-		if writer.Add(uri.String(), loaded) {
-			return loaded, nil
+		if err := comparisonImageFits(loaded, v.imgCache.Budget()); err != nil {
+			return nil, err
 		}
+		if !imaging.IsAnimatedGIF(data) {
+			writer.Add(uri.String(), loaded)
+		}
+		return loaded, nil
 	}
 }
 
+func comparisonImageFits(loaded *imaging.LoadedImage, budget int64) error {
+	if loaded == nil || len(loaded.Frames) == 0 {
+		return nil
+	}
+	if loaded.DecodedBytes() > budget/2 {
+		return errComparisonMemoryBudget
+	}
+	return nil
+}
+
 func (v *viewer) compareFailed(uri fyne.URI, err error) {
+	if errors.Is(err, errComparisonMemoryBudget) {
+		v.ShowToast(lang.L("Selected images exceed the comparison memory budget"))
+		return
+	}
 	v.ShowToast(fmt.Sprintf(lang.L("could not read %q: %v"), uri.Name(), err))
 }
 
