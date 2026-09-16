@@ -692,11 +692,12 @@ Authenticode signing. Native helper tests use the same staging tool. Makefile
 and release/MSIX assembly retain the helper directory; package creation alone
 does not enable the saved HEIC preference. `packaging/heic/qualify-windows*.ps1`
 separates disposable CI account/signing provisioning from standard-user execution.
-`qualify-windows-session.ps1` verifies the desktop owner and session for installed
-MSIX tests; the hosted provisioner obtains a fresh Users-only logon of that owner.
+`qualify-windows-logon.ps1` authenticates the installed test account explicitly
+and starts the fixture with its primary token; this CI-only route is under
+native qualification.
 Native application fixtures exercise executable-derived startup, Settings,
-admission, native decode and shutdown; MSIX launches its registered installed
-executable and checks package identity and unchanged installed helper permissions.
+admission, native decode and shutdown; MSIX uses the real application activation
+manager and checks package identity and unchanged installed helper permissions.
 
 ### `scripts/heicguest` and `scripts/heicbuild`
 

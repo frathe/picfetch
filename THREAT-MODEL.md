@@ -181,10 +181,8 @@ Profile creation uses a bounded per-user/session cross-process mutex. These
 startup controls pass standalone standard-user x64/ARM64 CI at `69fef1a`, including
 the launch-time loopback permission query; they grant no additional AppContainer
 capabilities or filesystem rights. Hosted runner results do not qualify every
-Windows installation. Installed-MSIX qualification now checks desktop-session
-ownership and obtains a fresh standard-user logon of that owner on disposable
-hosted VMs. The earlier alternate-user launch failed before application startup;
-package-context behavior remains unverified until both native CI targets pass.
+Windows installation. The installed-MSIX test process cannot start in the hosted
+alternate-user session, so its package-context behavior remains unverified.
 
 Windows can drop blocked loopback traffic instead of returning a permission
 error. Both parent-owned listeners are positively checked before launch, and

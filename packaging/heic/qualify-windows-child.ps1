@@ -1,6 +1,7 @@
-param([Parameter(Mandatory = $true)][string]$Configuration, [switch]$RequireInstalledMSIX)
+param([Parameter(Mandatory = $true)][string]$Configuration, [switch]$RequireInstalledMSIX, [switch]$Transcript)
 $ErrorActionPreference = 'Stop'
 $config = Get-Content -LiteralPath $Configuration -Raw | ConvertFrom-Json
+if ($Transcript) { Start-Transcript -LiteralPath (Join-Path $config.Evidence 'standard-user.stdout.log') -Force | Out-Null }
 if ($RequireInstalledMSIX -and $config.Scenario -ne 'msix') { throw 'Installed-MSIX configuration is required for the complete Windows native gate.' }
 Set-Location -LiteralPath $config.Repository
 # Start-Process with credentials still inherits the runner's environment.
@@ -52,16 +53,6 @@ if ($config.Scenario -eq 'standalone') {
     if ($LASTEXITCODE -ne 0) { throw 'Native HEIC guards failed under the standard account.' }
     exit 0
 }
-. (Join-Path $PSScriptRoot 'qualify-windows-session.ps1')
-$desktop = Get-HEICDesktopIdentity
-if ($desktop.UserSID -ne $config.UserSID -or $desktop.SessionID -ne $config.SessionID) {
-    throw 'MSIX execution does not match the provisioned desktop owner/session.'
-}
-$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-try {
-    if ($identity.Groups.Value -contains 'S-1-5-32-544') { throw 'MSIX execution requires a fresh standard-user token, not a filtered administrator.' }
-} finally { $identity.Dispose() }
-$desktop | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $config.Evidence 'standard-user-session.json') -Encoding utf8NoBOM
 $package = $null
 try {
     Add-AppxPackage -Path $config.Package -DependencyPath $config.Dependency

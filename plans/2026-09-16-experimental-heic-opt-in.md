@@ -578,3 +578,53 @@ unsandboxed architecture-matched builds are used for that check.
 
 Both amd64 and arm64 installed-test cross-compiles pass. The complete native
 CI jobs remain the required green signal for the account/session change.
+
+
+Experiment result: **not a fix**. At `98d3895`, native CI 35125370261 passes
+every job except the same two installed-MSIX workers. Jobs 104894975201 and
+104894975308 fail before package construction when removing the desktop account
+from Administrators: NTSTATUS 3221225764 / 0xC0000124 (STATUS_SPECIAL_ACCOUNT).
+Microsoft documents that the built-in Administrator cannot be removed from
+Administrators:
+https://learn.microsoft.com/en-us/windows/security/identity-protection/access-control/local-accounts .
+The fresh standard-token experiment therefore cannot run on either hosted image.
+Retained raw logs: `evidence/fix-98d3895-{amd64,arm64}.log`. No installed test
+completed, and no positive package-context result is claimed.
+
+The failed account/password mutation and its dependent session assertions are
+removed. The previously existing fixture and all mandatory gates are restored;
+no WindowsApps ACL, standard-user requirement, identity check, sandbox control or
+required job is relaxed. This avoids leaving an unsupported test setup in the
+branch. The user has been asked whether native x64/ARM64 standard-user desktop
+environments are available; no external access or paid infrastructure is assumed.
+
+Local `make verify-build`, focused package tests and both Windows cross-compiles
+passed for the experiment. Native CI's other thirteen ordinary jobs passed.
+Actual post-suppression Qodana report has zero findings. Fresh Codex code review
+5701461799 reports no findings on 98d3895; this does not change the failed CI
+verdict. Only read-only source discovery was delegated; all changes, assessment
+and cleanup were performed by the lead.
+
+
+Remaining API hypothesis: the failure may depend specifically on
+CreateProcessWithLogonW's token/logon handling rather than every different-SID
+process in that desktop. Microsoft documents LogonUserW -> primary token ->
+CreateProcessWithTokenW as a supported ordinary process launch:
+https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithtokenw .
+It does not guarantee MSIX activation. The second experiment changes only the
+MSIX child launcher to that explicit authentication path; the old standalone
+launcher, disposable Users-only account, installed executable launch, identity
+checks and sandbox tests stay unchanged. The child's PowerShell transcript
+preserves output without adding a command-shell quoting layer or inherited
+administrator token. The same two native jobs are the red/green oracle. If the
+same activation error remains, this API-specific hypothesis is rejected too.
+
+The lead wrote the CI-only helper; source scout found no confirmed supported
+cross-user MSIX workaround. No secondary design/fix/review was delegated.
+Temporary PowerShell tooling under /tmp is used only for syntax/C# compilation;
+it adds no shipped dependency or runtime change.
+
+Second experiment pre-push: all three PowerShell scripts parse with the temporary
+PowerShell 7.5.3 runtime; the embedded C# compiles. Focused nativeguards/msixstage/
+heicpackage tests pass, and GoLand reports no findings in the three script files.
+The failed first experiment's code and its dependent Go assertions are removed.

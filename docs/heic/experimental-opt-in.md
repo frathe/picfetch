@@ -77,35 +77,38 @@ process launch, as described by a [Microsoft Terminal maintainer](https://github
 It requires actual package identity, Store-managed behavior, a nonadministrator
 token and unchanged installed helper bytes/ACLs.
 
-CI's `packaging/heic/qualify-windows.ps1` provisions disposable test state on
-GitHub-hosted runners only. Standalone qualification creates a Users-only account.
-Installed-MSIX qualification uses the desktop owner's local account: the
-provisioner resets its disposable password, temporarily removes other local
-group memberships, and obtains a fresh Users-only logon. Its existing
-administrative process prepares the package and restores membership afterwards.
-The password reset is confined to the ephemeral hosted VM; this provisioner
-must never run on a persistent workstation. The package uses a disposable
-signing certificate and a separate test application.
-
-`qualify-windows-session.ps1` queries the actual Terminal Services session owner.
-The child must match that SID and session, and rejects Administrators membership
-including deny-only membership. The installed test independently requires that
-SID/session, a standard-user token and actual package identity. The child replaces
-inherited profile variables using
+CI's `packaging/heic/qualify-windows.ps1` provisions a disposable local standard
+account on a GitHub-hosted runner. For MSIX it adds a separate test application,
+uses a disposable signing certificate, and records setup separately from
+application execution. The child replaces inherited runner profile variables
+with the loaded standard user's native environment via
 [CreateEnvironmentBlock](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock).
-It removes its test package; the parent removes the owned workspace and test
-certificate/trust entry. Neither script is called by PicFetch.
-
-Both architectures passed standalone qualification at `69fef1a`. Through
-`7f5c1da`, installed-MSIX activation failed before the test process started:
-COM activation returned 0x80070520 and direct launch returned Access denied.
-The alternate account did not own the desktop session. The same-owner fresh
-logon arrangement is under native CI qualification; no positive result is
-claimed yet. It must pass every existing identity, permission, resource and
-sandbox guard. For local session-owned execution, the configuration supplies
-`Scenario: "msix"`, `Repository`, `Go`, `Work`, `Evidence`, `Arch`, `Commit`,
-`UserSID`, `SessionID`, the signed `Package`, its `PackageName` and
-architecture-matched `Dependency`. Provision only disposable test state.
+`qualify-windows-child.ps1` performs the unelevated work
+and removes its test package. The parent removes its account, owned workspace
+and certificate/trust entry. Neither script is called by PicFetch. CI runs both
+architectures for standalone and installed-MSIX scenarios. Runtime or permission
+query failures fail the gate; there is no successful skip or elevated substitute.
+At `69fef1a`, standalone standard-user qualification passes on both architectures.
+Installed-MSIX activation remains blocked: IApplicationActivationManager returned
+0x80070520, and ordinary installed-executable launch returns Access denied with
+either the installed directory or the owned writable workspace as its working
+directory. Both packages install successfully; their test process never starts.
+Microsoft requires an [interactive user for packaged application execution](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-debug).
+Qualification now needs native x64 and ARM64 environments with an interactive
+standard-user session. Actual package identity and every existing guard must
+pass there before this gate is complete. The hosted alternate-user fixture
+does not establish installed Store helper activation, staging or sandbox behavior.
+A same-desktop-owner experiment at `98d3895` also failed on both hosted
+architectures: Windows refused to remove the protected account from
+Administrators (STATUS_SPECIAL_ACCOUNT, 0xC0000124). That account-changing
+experiment was removed. A fresh standard-user desktop remains an environment
+prerequisite, not a demonstrated hosted-CI configuration. A second controlled
+experiment replaces only the credential process-creation API with explicit
+`LogonUserW` authentication and `CreateProcessWithTokenW`. Its application-token
+and package assertions remain unchanged; both native results are required.
+For a local MSIX run, the configuration supplies `Scenario: "msix"`, `Repository`,
+`Go`, `Work`, `Evidence`, `Arch`, `Commit`, the signed `Package`, its `PackageName`
+and architecture-matched `Dependency`. Provision only disposable test state.
 
 The Windows cache uses Win32 sharing restrictions to retain leased executables
 and serialize publishers; copied bytes are checked before publication and again

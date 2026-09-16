@@ -90,11 +90,8 @@ func TestNativeInstalledHEICActivation(t *testing.T) {
 	if err != nil {
 		t.Fatal("installed test-MSIX configuration is required: ", err)
 	}
-	var config struct {
-		Evidence, Commit, UserSID string
-		SessionID                 uint32
-	}
-	if err = json.Unmarshal(configBytes, &config); err != nil || !filepath.IsAbs(config.Evidence) || config.Commit == "" || config.UserSID == "" || config.SessionID == 0 {
+	var config struct{ Evidence, Commit, UserSID string }
+	if err = json.Unmarshal(configBytes, &config); err != nil || !filepath.IsAbs(config.Evidence) || config.Commit == "" || config.UserSID == "" {
 		t.Fatal("invalid installed test-MSIX evidence configuration")
 	}
 	output, err := os.OpenFile(config.Evidence+".log", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
@@ -130,11 +127,6 @@ func TestNativeInstalledHEICActivation(t *testing.T) {
 	if err != nil || user.User.Sid.String() != config.UserSID {
 		t.Fatal("installed activation did not use the provisioned standard account")
 	}
-	var sessionID uint32
-	if err = windows.ProcessIdToSessionId(uint32(os.Getpid()), &sessionID); err != nil || sessionID != config.SessionID {
-		t.Fatal("installed activation did not use the provisioned desktop session")
-	}
-	t.Logf("installed MSIX session=%d", sessionID)
 	t.Setenv("PICFETCH_HEIC_ACTIVATION_CHILD", "1")
 	t.Setenv("PICFETCH_HEIC_ACTIVATION_MSIX", "1")
 	t.Setenv("PICFETCH_HEIC_ACTIVATION_FIXTURE", filepath.Join(root, "heic-activation-fixture.heic"))
