@@ -69,14 +69,17 @@ func Verify(limits heicdecode.Limits) error {
 	if isContainer != 1 {
 		return errors.New("HEIC helper is not an AppContainer process")
 	}
-	var buffer [4096]byte
-	if err := windows.GetTokenInformation(token, tokenCapabilities, &buffer[0], uint32(len(buffer)), &length); err != nil {
+	// TOKEN_GROUPS and TOKEN_APPCONTAINER_INFORMATION contain native pointers.
+	// A byte array on the Go stack has no pointer-alignment guarantee.
+	var buffer [512]uintptr
+	data := (*byte)(unsafe.Pointer(&buffer[0]))
+	if err := windows.GetTokenInformation(token, tokenCapabilities, data, uint32(unsafe.Sizeof(buffer)), &length); err != nil {
 		return fmt.Errorf("query HEIC token capabilities: %w", err)
 	}
 	if length < 4 || (*windows.Tokengroups)(unsafe.Pointer(&buffer[0])).GroupCount != 0 {
 		return errors.New("HEIC helper has unexpected AppContainer capabilities")
 	}
-	if err := windows.GetTokenInformation(token, tokenAppContainerSID, &buffer[0], uint32(len(buffer)), &length); err != nil {
+	if err := windows.GetTokenInformation(token, tokenAppContainerSID, data, uint32(unsafe.Sizeof(buffer)), &length); err != nil {
 		return fmt.Errorf("query HEIC AppContainer identity: %w", err)
 	}
 	if length < uint32(unsafe.Sizeof(uintptr(0))) {

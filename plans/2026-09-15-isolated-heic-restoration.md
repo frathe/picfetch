@@ -1003,3 +1003,14 @@ output confirms the pointed-to structs remain on the movable Go stack. Pin
 both buffers across those calls and add stage-specific errors. Token queries
 already accept typed pointers. Native policy/ordinary-image guards are the
 regression oracle; no syscall result or sandbox check is bypassed.
+
+Round 4 (`a86bb35`) identifies the remaining ERROR_NOACCESS specifically in
+GetTokenInformation(TokenCapabilities), before any job query. Pinning job
+buffers fixes a separate pointer-lifetime defect, not this observed failure.
+The token buffer was a byte array with byte alignment, although TOKEN_GROUPS
+and TOKEN_APPCONTAINER_INFORMATION contain native pointers. Use the same
+4096-byte capacity in a uintptr array to guarantee alignment. The native
+positive guard remains mandatory on both architectures.
+The Windows amd64 compiler listing confirms the defect and correction: the
+old buffer starts at `SP+79`; the uintptr buffer starts at `SP+88`. Windows
+ARM64 vet and GoLand inspection pass.
