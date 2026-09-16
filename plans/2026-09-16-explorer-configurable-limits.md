@@ -90,7 +90,7 @@ images. Temporary test removed; no delegated review or permanent edits.
 | Recon | 1/1 | lead evidence check | no |
 | 1 | 0/0 | 1 | no |
 | 2 | 0/0 | 2 | no |
-| 3 | 1/1 render-only follow-up | 1 | local platform gate blocked; hosted CI |
+| 3 | 1/1 render-only follow-up | 2 (including CI golden follow-up) | local platform gate blocked; hosted CI |
 
 ## Verification evidence
 
@@ -124,3 +124,21 @@ images. Temporary test removed; no delegated review or permanent edits.
   checked after push on the exact latest commit; live results:
   [PR #29 checks](https://github.com/frathe/picfetch/pull/29/checks).
 - Implementation is complete. No merge or release is performed.
+
+
+## Hosted verification follow-up
+
+Commit `5b7f8d2` passed native Windows/macOS guards, Linux non-UI and UI-2 race
+checks, validation, CodeQL and Qodana (final `/qodana.sarif.json`: zero results).
+UI-1 and UI-3 each failed one golden: `bad_drop_after_images.png` and
+`bad_drop_fresh.png`. Linux/amd64 `make golden` reproduced both mismatches;
+inspection confirmed only the intended wrapped-toast card layout changed.
+The two baselines were accepted from those Docker-generated images. No failed
+renders are staged. The full Linux/amd64 E2E render suite passed after the
+baseline update (`internal/ui`: 0.870s); no other golden changed.
+
+GitHub's managed AI security scan failed before analysis with HTTP 400,
+"The requested model is not supported." This is separate from the successful
+CodeQL run and produced no security assessment. No repository security policy
+was relaxed. The managed service failure remains unverified at handoff unless
+GitHub repairs it during the subsequent run.
