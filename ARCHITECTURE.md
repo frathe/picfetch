@@ -642,7 +642,8 @@ limits and a no-access oversized-mapping refusal before readiness. Its native
 qualification is a separate `heic-linux` CI suite. Windows amd64/arm64 uses
 `winisolation` below and verifies its token/job before the same denial probes.
 Windows additionally confirms timed-out loopback probes through the native
-network-isolation diagnostic API; other platforms require permission errors.
+loopback exemption API and verified AppContainer token; other platforms require
+permission errors.
 Other builds refuse startup.
 Native-memory readiness is explicitly zero on macOS; its Go memory target is
 not a hard OS cap. The helper alone may

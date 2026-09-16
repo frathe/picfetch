@@ -60,6 +60,14 @@ func Verify(limits heicdecode.Limits) error {
 	if err := limits.Validate(); err != nil {
 		return err
 	}
+	if err := verifyToken(); err != nil {
+		return err
+	}
+	// A null handle queries the caller's immediate job even in a nested job.
+	return verifyJob(0, limits)
+}
+
+func verifyToken() error {
 	token := windows.GetCurrentProcessToken()
 	var isContainer uint32
 	var length uint32
@@ -96,6 +104,66 @@ func Verify(limits heicdecode.Limits) error {
 	if !matches {
 		return errors.New("HEIC helper has an unexpected AppContainer identity")
 	}
-	// A null handle queries the caller's immediate job even in a nested job.
-	return verifyJob(0, limits)
+	return nil
+}
+
+// VerifyLoopbackIsolation requires the verified zero-capability AppContainer
+// identity to be absent from Windows' explicit loopback exemptions. Capability
+// diagnosis alone does not cover loopback, which Windows filters separately.
+func VerifyLoopbackIsolation() (resultErr error) {
+	if err := verifyToken(); err != nil {
+		return err
+	}
+	expected, err := containerSID(false)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = windows.FreeSid(expected) }()
+	query := windows.NewLazySystemDLL("Firewallapi.dll").NewProc("NetworkIsolationGetAppContainerConfig")
+	kernel := windows.NewLazySystemDLL("kernel32.dll")
+	getHeap, free := kernel.NewProc("GetProcessHeap"), kernel.NewProc("HeapFree")
+	for _, proc := range []*windows.LazyProc{query, getHeap, free} {
+		if err = proc.Find(); err != nil {
+			return err
+		}
+	}
+	heap, _, heapErr := getHeap.Call()
+	if heap == 0 {
+		return fmt.Errorf("get HEIC isolation query heap: %w", heapErr)
+	}
+	var count uint32
+	var entries *windows.SIDAndAttributes
+	code, _, _ := query.Call(uintptr(unsafe.Pointer(&count)), uintptr(unsafe.Pointer(&entries)))
+	if code != 0 {
+		return fmt.Errorf("query HEIC loopback exemptions: %w", windows.Errno(code))
+	}
+	if count != 0 && entries == nil {
+		return errors.New("HEIC loopback exemption query returned no entries")
+	}
+	items := unsafe.Slice(entries, count)
+	// The API allocates both the array and each SID on the process heap.
+	// https://learn.microsoft.com/windows/win32/api/networkisolation/nf-networkisolation-networkisolationgetappcontainerconfig
+	defer func() {
+		for _, item := range items {
+			if item.Sid != nil {
+				if ok, _, _ := free.Call(heap, 0, uintptr(unsafe.Pointer(item.Sid))); ok == 0 {
+					resultErr = errors.Join(resultErr, errors.New("free HEIC loopback exemption SID"))
+				}
+			}
+		}
+		if entries != nil {
+			if ok, _, _ := free.Call(heap, 0, uintptr(unsafe.Pointer(entries))); ok == 0 {
+				resultErr = errors.Join(resultErr, errors.New("free HEIC loopback exemption array"))
+			}
+		}
+	}()
+	for _, item := range items {
+		if item.Sid == nil {
+			return errors.New("HEIC loopback exemption query returned an invalid SID")
+		}
+		if expected.Equals(item.Sid) {
+			return errors.New("HEIC AppContainer has a loopback exemption")
+		}
+	}
+	return nil
 }

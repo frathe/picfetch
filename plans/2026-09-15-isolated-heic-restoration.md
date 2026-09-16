@@ -1087,3 +1087,17 @@ GoLand inspections, including weak warnings. Qodana/CodeQL for `3973811` contain
 zero results; full CI passes except the three Windows jobs described above.
 Code review comment `5695648748` and security comment `5695706814` explicitly
 report no findings on `c77d9bd`; thread `4024388304` is resolved with fix evidence.
+
+Round 7 (`6021a5f`) passes the ordinary Windows suite. The native capability
+diagnostic returns NETISO_ERROR_TYPE_NONE for loopback, so readiness correctly
+remains closed. Loopback filtering is distinct from Internet/private-network
+capability checks. Replace that diagnostic with the documented
+[NetworkIsolationGetAppContainerConfig](https://learn.microsoft.com/en-us/windows/win32/api/networkisolation/nf-networkisolation-networkisolationgetappcontainerconfig)
+query: verify the exact empty-capability AppContainer token again and require
+its SID to be absent from the explicit loopback exemption list. Query errors,
+invalid results and exemptions refuse readiness. Retain the positively checked
+owned listeners, negative traffic observations and all existing OS/WASI limits.
+The generic capability API is removed. The unsandboxed-process regression and
+both native Windows helper fixtures remain required. The UDP listener guard was
+negatively verified by breaking the echo, observing setup refusal, restoring
+and passing; a broken listener cannot qualify as blocked worker traffic.
