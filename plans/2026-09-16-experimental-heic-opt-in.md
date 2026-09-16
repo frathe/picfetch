@@ -70,9 +70,9 @@ a recorded bounded question; no concurrent code ownership overlaps.
 | 01 | Real-admission consumer red: unsupported scan never began sort; green imaging/filescan and direct/folder/sibling/session/Favorite UI cases | Implemented; final gate pending |
 | 02 | Red: missing Experimental tab/default activation; green preference and real-checkbox separate-lifetime tests. Later red: stale open Settings; green live status update | Implemented; final gate pending |
 | 03 | Red: active HEIC choices absent and saved rule rejected; green Explorer real-dialog save/rename and source consumers; native successful analysis and two retained preview queries pass, missing-owner negative control fails as expected | Implemented; final gate pending |
-| 04 | Red: no staging publication; green owned bounded copy/reuse/repair/cancel/preparation-refusal cases. Windows cache/concurrent-process/lease tests compile on both architectures | Native Windows execution unverified |
-| 05, 08 | Standard-user provisioning and real installed-MSIX activation fixtures/CI added. Source installation bytes/ACLs checked; real package identity and exact provisioned user required | Native execution and PowerShell runtime unverified |
-| 06 | Native macOS arm64 signed application-constructor fixture passed; real HEIC decode, restart, cancellation and shutdown | Intel and production GUI smoke unverified |
+| 04 | Red: no staging publication; green owned bounded copy/reuse/repair/cancel/preparation-refusal cases. Windows cache/concurrent-process/lease tests pass natively on both architectures at 085d185 | Fresh final-commit qualification pending |
+| 05, 08 | Standard-user standalone guards pass on both architectures at 085d185. Disposable signed MSIX installs, but activation fails with 0x80070520 in the alternate-user session | Installed-MSIX qualification blocked; wrapper exit correction pending |
+| 06 | Both native macOS architectures pass signed application-constructor and analysis guards at 085d185; real HEIC decode, restart, cancellation and shutdown | Fresh final-commit qualification and production GUI smoke pending |
 | 07 | Linux native target now requires application fixture in addition to helper/seccomp/resource suite | Native execution unverified |
 | 09 | Focused package race suite and make verify-build pass. Initial IDE batch: 47 files; only three weak warnings (one redundant type fixed; two test duplication reports already excluded by exact Qodana paths). English/German light/dark, Cache/Store layout matrix rendered; German overflow seen red and default widened | Native matrix, complete CI and fresh reviews pending |
 
@@ -226,3 +226,41 @@ success but cannot collect detailed build messages in this project.
 Docker is available again and its canonical shard check passes: 691 runnables,
 three shards. The daemon is Linux/aarch64; the complete native AMD64 gate correctly
 refuses emulation. Full race verification stays in hosted native CI.
+
+## PR review loop — 085d185
+
+CI 35105325751 passes validation, every Linux race partition (including the
+previously failing Settings shard), ordinary Windows, the Store executable
+build and both native macOS architectures. Both standard-user Windows native
+event streams contain all required passes and no failed events, including the
+permission query, AppContainer/job checks, concurrent staging, native application
+activation and analysis. Their parent jobs report failure only because GitHub's
+PowerShell wrapper propagates Robocopy's successful copy status of 1. An explicit
+success exit after all checks and cleanup corrects that wrapper; exceptions still
+fail before reaching it.
+
+Both Linux native inventories expose another CGo consumer: similarity's test
+fixtures import the desktop stubs. The runner regression first failed for its
+inventory and execution commands, then passed after separating its complete
+suite with CGo enabled. The helper/client/worker suites retain CGO_ENABLED=0.
+The focused nativeguards package passes; Linux Docker compilation and the
+analysis-owner regression pass with heicnative (0.403 s). This emulated check
+does not qualify native seccomp or resource controls.
+
+Both installed-MSIX jobs now pack, sign and install successfully for the actual
+standard account, but IApplicationActivationManager returns 0x80070520 (no logon
+session). Microsoft documents that a [packaged application runs as an interactive
+user](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-debug).
+The loaded alternate-user profile is not proof of an interactive Windows logon.
+Installed activation remains a failed gate; no elevated/debug-token substitute
+or successful skip is accepted. A fifth bounded read-only scout task checks
+Microsoft's documented direct executable launch semantics while the lead owns
+the fixture decision and other fixes; it reuses the existing scout and changes
+no files.
+
+Qodana's final post-suppression SARIF at 085d185 contains zero findings. Codex's
+security report for that commit says no security issues; its code review is
+still running. CodeQL's previous two results are existing dismissed false
+positives, revalidated against the current exact-name archive admission and
+checked integer conversion; no open alerts were returned. Current-head CodeQL
+results and all final-head reviews must still be inspected before acceptance.

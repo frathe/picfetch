@@ -76,6 +76,11 @@ and removes its test package. The parent removes its account, owned workspace
 and certificate/trust entry. Neither script is called by PicFetch. CI runs both
 architectures for standalone and installed-MSIX scenarios. Runtime or permission
 query failures fail the gate; there is no successful skip or elevated substitute.
+At `085d185`, both standard-user standalone event streams pass. Both installed
+MSIX jobs reach package installation but activation returns 0x80070520: the
+alternate-user process has a loaded profile, not an interactive Windows logon.
+Microsoft requires an [interactive user for packaged application execution](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-debug).
+That installed-MSIX gate remains blocked pending a qualified execution session.
 For a local MSIX run, the configuration supplies `Scenario: "msix"`, `Repository`,
 `Go`, `Work`, `Evidence`, `Arch`, `Commit`, the signed `Package`, its `PackageName`
 and architecture-matched `Dependency`. Provision only disposable test state.
@@ -91,10 +96,11 @@ Store identity; cross-compilation is not that evidence.
 
 Focused preference/Settings/admission/Explorer and helper-publication tests pass
 locally. Native macOS arm64 application-constructor activation passes with the
-unchanged helper entitlement and finite limits. Windows amd64/arm64 test binaries
-compile. Both macOS architectures pass the native CI constructor/analysis guards at
-`f41fe63`. Native Windows, installed-MSIX and Linux qualification remain open
-while CI fixture corrections are verified. Production GUI
+unchanged helper entitlement and finite limits. Both macOS architectures and
+both standard-user Windows event streams pass the native constructor/analysis
+guards at `085d185`. All Linux race partitions pass at that checkpoint. Native
+Linux and the Windows wrapper corrections still require a fresh CI run;
+installed-MSIX activation remains blocked as described above. Production GUI
 smoke tests remain distinct from the test-driver fixture. See the plan for exact
 commands, recorded red/green results and inspections as they complete.
 

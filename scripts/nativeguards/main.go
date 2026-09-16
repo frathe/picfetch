@@ -90,6 +90,11 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.require("internal/ui", "TestNativePackagedHEICActivation")
 		s.require("internal/similarity", "TestNativeHEICAnalysisPixels")
 		s.focused = map[string]string{"./internal/ui": "^TestNativePackagedHEICActivation$"}
+		if name == "heic-linux" {
+			// Analysis tests import desktop stubs. Run their complete suite with
+			// CGo separately from the standalone helper's pure Go tests.
+			s.focused["./internal/similarity"] = "."
+		}
 	}
 	if s.goos != "" && s.goos != hostOS {
 		return suite{}, fmt.Errorf("suite %s requires native %s, running on %s", name, s.goos, hostOS)
@@ -204,10 +209,10 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 func (s *suite) command(ctx context.Context, args []string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, "go", args...)
 	if s.name == "heic-linux" {
-		// Keep the helper qualification on its pure Go runtime. Only the
-		// separately executed GUI fixture needs the existing C/X11 adapters.
+		// Keep the helper qualification on its pure Go runtime. The separately
+		// executed application tests need the existing C/X11 adapters.
 		cgo := "0"
-		if slices.Contains(args, "./internal/ui") {
+		if slices.Contains(args, "./internal/ui") || slices.Contains(args, "./internal/similarity") {
 			cgo = "1"
 		}
 		cmd.Env = append(os.Environ(), "CGO_ENABLED="+cgo)

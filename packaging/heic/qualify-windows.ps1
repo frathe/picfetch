@@ -118,3 +118,6 @@ try {
         }
     }
 }
+# Robocopy's successful "files copied" status is nonzero. Do not let that
+# stale native-command status fail GitHub's wrapper after all checks/cleanup.
+exit 0

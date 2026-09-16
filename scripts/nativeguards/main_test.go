@@ -207,19 +207,21 @@ func TestNativeApplicationGuardRunsWithHelperSuite(t *testing.T) {
 	if err = runSuite(context.Background(), s, execute, io.Discard, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	var helper, application bool
+	var helper, application, analysis bool
 	for _, args := range calls {
 		if slices.Contains(args, "-list") {
 			continue
 		}
 		if slices.Contains(args, "./internal/ui") {
 			application = slices.Contains(args, "-run") && slices.Contains(args, "^TestNativePackagedHEICActivation$")
+		} else if slices.Contains(args, "./internal/similarity") {
+			analysis = slices.Contains(args, "-run") && slices.Contains(args, ".") && !slices.Contains(args, "./internal/heicdecode/client")
 		} else {
 			helper = !slices.Contains(args, "-run")
 		}
 	}
-	if !helper || !application {
-		t.Fatalf("native runner lost helper or application coverage: %v", calls)
+	if !helper || !application || !analysis {
+		t.Fatalf("native runner lost helper, application or analysis coverage: %v", calls)
 	}
 }
 
@@ -233,7 +235,7 @@ func TestLinuxApplicationUsesCGOWithoutChangingHelperBuild(t *testing.T) {
 		for _, flags := range [][]string{{"-list", "."}, {"-json", "-run", "TestNative"}} {
 			command := s.command(context.Background(), append(s.testArgs(flags...), pkg))
 			want := "CGO_ENABLED=0"
-			if pkg == "./internal/ui" {
+			if pkg == "./internal/ui" || pkg == "./internal/similarity" {
 				want = "CGO_ENABLED=1"
 			}
 			for _, value := range command.Environ() {
