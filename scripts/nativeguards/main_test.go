@@ -175,7 +175,7 @@ func TestNativeCIExecutesAndRetainsEveryDeclaredSuite(t *testing.T) {
 			t.Errorf("CI omits Windows qualification contract %q", required)
 		}
 	}
-	if !strings.Contains(string(child), "./scripts/nativeguards -suite heic-windows -capture") || !strings.Contains(string(child), "HEICInstalledActivation") {
+	if !strings.Contains(string(child), "./scripts/nativeguards -suite heic-windows -capture") || !strings.Contains(string(child), "TestNativeInstalledHEICActivation") {
 		t.Fatal("standard-user runner lost native or installed activation")
 	}
 	if !strings.Contains(text, "native-guards-${{ runner.os }}") || !strings.Contains(text, "if: always()") {

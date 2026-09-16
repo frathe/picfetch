@@ -264,3 +264,55 @@ still running. CodeQL's previous two results are existing dismissed false
 positives, revalidated against the current exact-name archive admission and
 checked integer conversion; no open alerts were returned. Current-head CodeQL
 results and all final-head reviews must still be inspected before acceptance.
+
+### Installed executable launch follow-up
+
+The native installed-MSIX activation failure is the red evidence for a bounded
+fixture correction. A [Microsoft Terminal maintainer's explanation](https://github.com/microsoft/terminal/discussions/20060)
+establishes that ordinary CreateProcess on an installed WindowsApps executable
+can resolve its package identity. It does not guarantee success in our
+alternate-user session. The fixture now uses that ordinary launch path, leaving
+the declared test application and every runtime package identity, exact user,
+nonadministrator, Store policy, installed-byte/ACL and native-helper assertion
+intact. No debug activation, access-control changes or fake identity is used.
+Both native architectures must pass; a launch or permission failure still blocks
+qualification. The existing child-script registration guard now names the test
+entry point instead of the removed local COM wrapper class. No production code
+changes.
+
+The 085d185 Go CodeQL analysis could not be processed (HTTP 422, analysis
+1786545678, rules_count 0, Unknown Error), despite its successful workflow. This
+is unverified, not an empty clean analysis; a fresh run must produce a readable
+result set. No repository self-hosted runners are configured.
+
+### Code review disposition and native progress
+
+Codex's code review of 085d185 reports one confirmed P2: startup permanently
+captured a low file-size preference in the immutable HEIC owner. The native
+application regression starts at 1 MiB and uses the owned image with a valid
+free-space box to exceed that limit. Raising to 2 MiB failed with the original
+1 MiB error before the fix. Startup now uses the fixed hard HEIC limits;
+imaging.Reader already applies the current user limit on each new read.
+Foreground and background reads pass both increase/decrease cases through the
+same owner, and a 128 MiB setting still grants at most 64 MiB to input.
+The signed native macOS application regression passes (6.913 s). Evidence:
+`native-live-input-{red,green}.log` in the opt-in evidence directory. No new
+top-level test, Qodana scope or shard entry is introduced. Changed-code GoLand
+inspection is clear, including weak warnings.
+
+At 9ea4dde, both Linux and standard-user Windows native jobs pass, as do all
+Linux race partitions, ordinary Windows and validation. Qodana's final SARIF
+again has zero findings. CodeQL Go processing recovered (analysis 1786683225):
+34 rules and the same two existing dismissed false positives; Actions has 17
+rules and zero results. Installed-MSIX qualification remains pending the
+direct-launch fixture. The fresh code/security review must cover the final
+fix commit after the P2 thread is answered and resolved.
+
+The final 9ea4dde CI run (35107489388) completes with every job passing except
+installed-MSIX activation on amd64/arm64, both still reporting 0x80070520 before
+the direct-launch correction. Focused UI race regressions for the new fix pass
+(5.872 s); formatting is clean. The correction and direct-launch fixture are
+staged, but the configured SSH signer refused the commit on September 16 at
+14:26 UTC (`commit.gpgsign=true`, agent refused operation). Signing remains
+enabled. Publication, the P2 reply/resolution and fresh final-head reviews await
+the user's signing-agent unlock; no new commit or native MSIX success is claimed.

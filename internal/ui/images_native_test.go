@@ -5,6 +5,7 @@ package ui
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/heicdecode"
 	heicclient "github.com/frathe/picfetch/internal/heicdecode/client"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -54,7 +57,7 @@ func TestNativePackagedHEICActivation(t *testing.T) {
 	before := testApp
 	testApp = nativeHEICApp{App: before, cache: nativeHEICCache{Cache: before.Cache(), root: storage.NewFileURI(t.TempDir())}}
 	t.Cleanup(func() { testApp = before; fyne.SetCurrentApp(before) })
-	preferences.Save(testApp, preferences.State{})
+	preferences.Save(testApp, preferences.State{MaxFileSizeMB: 1})
 	uri := storage.NewFileURI(filepath.Join(t.TempDir(), "owned.heic"))
 	fixture, err := os.ReadFile(os.Getenv("PICFETCH_HEIC_ACTIVATION_FIXTURE"))
 	if err != nil {
@@ -100,6 +103,41 @@ func TestNativePackagedHEICActivation(t *testing.T) {
 		if !v.grid.Cached(uri) || !v.grid.Cached(heif) {
 			t.Fatal("native HEIC did not reach grid previews")
 		}
+		t.Run("live file-size limit", func(t *testing.T) {
+			// A valid free-space box grows the owned image above the initial
+			// one-MiB preference without changing its decoded pixels.
+			free := make([]byte, 1024*1024)
+			binary.BigEndian.PutUint32(free, uint32(len(free)))
+			copy(free[4:], "free")
+			large := storage.NewFileURI(uitest.WriteTempFile(t, "larger.heic", append(slices.Clone(fixture), free...)))
+			owner := v.images.owner
+			for _, reader := range []imaging.Reader{v.images.foreground, v.images.background} {
+				v.SetMaxFileSizeMB(1)
+				var tooLarge *imaging.InputTooLargeError
+				if _, err := reader.Read(context.Background(), large); !errors.As(err, &tooLarge) {
+					t.Fatalf("lowered live limit admitted the image: %v", err)
+				}
+				v.SetMaxFileSizeMB(2)
+				source, err := reader.Read(context.Background(), large)
+				if err != nil {
+					t.Fatalf("raised live limit still rejected the image: %v", err)
+				}
+				if source.Bounds().Dx() != 16 || source.Bounds().Dy() != 16 || v.images.owner != owner {
+					t.Fatal("live limit changed native pixels or replaced the shared owner")
+				}
+			}
+			v.SetMaxFileSizeMB(128)
+			checked := errors.New("input ceiling checked")
+			_, err := owner.Do(context.Background(), heicdecode.Decode, func(_ context.Context, maxBytes int64) ([]byte, error) {
+				if maxBytes != 64*1024*1024 {
+					t.Errorf("native hard input ceiling changed: %d", maxBytes)
+				}
+				return nil, checked
+			})
+			if !errors.Is(err, checked) {
+				t.Fatalf("native hard input ceiling was not checked: %v", err)
+			}
+		})
 		entered, done := make(chan struct{}), make(chan error, 1)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

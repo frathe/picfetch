@@ -79,7 +79,7 @@ func preserveNativeHEICInstallation(t *testing.T, helper string) func() {
 }
 
 // The installed test package declares this probe as a separate application.
-// Windows activates that application through its normal launch contract.
+// Windows launches its installed executable with the package's real identity.
 func TestNativeInstalledHEICActivation(t *testing.T) {
 	executable, err := os.Executable()
 	if err != nil {

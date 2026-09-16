@@ -106,12 +106,15 @@ after an enabled preference and validated installed package.
   qualification. Implementation is in progress in the [active opt-in plan](plans/2026-09-16-experimental-heic-opt-in.md).
   Settings/restart, admission, Explorer and private staging are implemented;
   focused race tests, inspections, security checks and native macOS arm64
-  application-constructor/analysis evidence pass. At `085d185`, both macOS
-  architectures and all Linux race shards pass. Both standard-user Windows
-  event streams pass, including permission queries and staging; the parent exit
-  status and Linux analysis-fixture CGo setup are being corrected. Installed
-  MSIX succeeds but activation fails without an interactive logon session.
-  Qodana reports zero findings and security review is clean at that checkpoint.
+  application-constructor/analysis evidence pass. At `9ea4dde`, both Linux and
+  standard-user Windows architectures and all Linux race shards pass; both
+  macOS architectures passed the preceding checkpoint. Installed MSIX succeeds
+  but COM activation fails in the alternate-user session; ordinary installed
+  executable launch is being qualified with all identity checks intact.
+  The confirmed live file-size review finding is fixed with native red/green
+  coverage. Qodana reports zero findings; CodeQL processing recovered with only
+  its two previously dismissed false positives. Security review is clean at
+  `085d185`.
   Complete native CI and final-head reviews remain open. See the [activation record](docs/heic/experimental-opt-in.md).
 
 The September 16 [history reconciliation](docs/heic/history-reconciliation.md)

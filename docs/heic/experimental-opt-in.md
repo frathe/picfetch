@@ -20,6 +20,9 @@ an explanation in Experimental. Ordinary image formats continue to work. No
 alternative decoder, runtime download, elevation prompt or relaxed sandbox is
 available as a fallback. Package-level format queries and OS associations remain
 unchanged. Saved Explorer HEIC rules remain editable when HEIC is disabled.
+The live file-size setting applies to each new read through that reader. The
+shared owner's fixed 64 MiB HEIC input ceiling still bounds every request, even
+when the user chooses a higher limit for ordinary formats.
 
 Development builds need the complete helper package. `go run .` or copying only
 the main executable does not supply it. On macOS use `make package-mac`: the
@@ -60,8 +63,9 @@ viewing, cancellation and shutdown. Fyne's test driver supplies the surface;
 this is application-constructor/package-boundary evidence, not a production GUI
 smoke test. The installed-MSIX entry is `TestNativeInstalledHEICActivation`,
 compiled with `heicnative,microsoftstore` alongside the actual Store executable.
-Windows activates its declared test application through
-[IApplicationActivationManager](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-iapplicationactivationmanager).
+The fixture launches the declared test executable directly from its installed
+WindowsApps path. Windows can resolve package identity during this ordinary
+process launch, as described by a [Microsoft Terminal maintainer](https://github.com/microsoft/terminal/discussions/20060).
 It requires actual package identity, Store-managed behavior, a nonadministrator
 token and unchanged installed helper bytes/ACLs.
 
@@ -77,10 +81,12 @@ and certificate/trust entry. Neither script is called by PicFetch. CI runs both
 architectures for standalone and installed-MSIX scenarios. Runtime or permission
 query failures fail the gate; there is no successful skip or elevated substitute.
 At `085d185`, both standard-user standalone event streams pass. Both installed
-MSIX jobs reach package installation but activation returns 0x80070520: the
-alternate-user process has a loaded profile, not an interactive Windows logon.
+MSIX jobs reach package installation but IApplicationActivationManager returns
+0x80070520 for the alternate-user process with its loaded profile.
 Microsoft requires an [interactive user for packaged application execution](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-debug).
-That installed-MSIX gate remains blocked pending a qualified execution session.
+The direct-launch fixture must establish actual package identity and pass every
+existing guard on both architectures before this gate is qualified; otherwise
+an interactive standard-user test environment remains necessary.
 For a local MSIX run, the configuration supplies `Scenario: "msix"`, `Repository`,
 `Go`, `Work`, `Evidence`, `Arch`, `Commit`, the signed `Package`, its `PackageName`
 and architecture-matched `Dependency`. Provision only disposable test state.
@@ -98,9 +104,10 @@ Focused preference/Settings/admission/Explorer and helper-publication tests pass
 locally. Native macOS arm64 application-constructor activation passes with the
 unchanged helper entitlement and finite limits. Both macOS architectures and
 both standard-user Windows event streams pass the native constructor/analysis
-guards at `085d185`. All Linux race partitions pass at that checkpoint. Native
-Linux and the Windows wrapper corrections still require a fresh CI run;
-installed-MSIX activation remains blocked as described above. Production GUI
+guards at `085d185`. The Linux and Windows runner corrections pass natively on
+both architectures at `9ea4dde`, along with all Linux race partitions. The live
+file-size regression passes natively on macOS arm64; fresh cross-platform CI
+and installed-MSIX activation remain outstanding as described above. Production GUI
 smoke tests remain distinct from the test-driver fixture. See the plan for exact
 commands, recorded red/green results and inspections as they complete.
 

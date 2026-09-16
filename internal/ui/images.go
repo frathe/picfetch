@@ -21,7 +21,9 @@ func installedImageServices(prefs preferences.State, executable, privateDir stri
 	if !prefs.ExperimentalHEIC {
 		return imageServices{}
 	}
-	owner, err := heicclient.OpenInstalled(context.Background(), executable, privateDir, heicdecode.DefaultLimits(int64(prefs.MaxFileSizeMB)*1024*1024))
+	// Readers apply the current file-size setting to each request. Keep the
+	// shared owner's hard ceiling independent of that live preference.
+	owner, err := heicclient.OpenInstalled(context.Background(), executable, privateDir, heicdecode.DefaultLimits(0))
 	if err != nil {
 		return imageServices{startupError: err}
 	}

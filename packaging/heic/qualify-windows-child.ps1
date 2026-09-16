@@ -58,26 +58,16 @@ try {
     $package = Get-AppxPackage -Name $config.PackageName
     if (-not $package) { throw 'The test-MSIX was not installed for the standard user.' }
     $package | Format-List Name, PackageFullName, PackageFamilyName, InstallLocation, Architecture
-    Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-[ComImport, Guid("2E941141-7F97-4756-BA1D-9DECDE894A3D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IHEICApplicationActivationManager {
- [PreserveSig] int ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string app, [MarshalAs(UnmanagedType.LPWStr)] string args, uint options, out uint processId);
-}
-public static class HEICInstalledActivation {
- public static uint Start(string app) {
-  var type = Type.GetTypeFromCLSID(new Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C"));
-  var manager = (IHEICApplicationActivationManager)Activator.CreateInstance(type);
-  uint processId;
-  int result = manager.ActivateApplication(app, "-test.run=^TestNativeInstalledHEICActivation$ -test.v -test.timeout=4m", 0, out processId);
-  Marshal.ThrowExceptionForHR(result);
-  return processId;
- }
-}
-'@
-    $activationPID = [HEICInstalledActivation]::Start($package.PackageFamilyName + '!HEICQualification')
-    $process = [System.Diagnostics.Process]::GetProcessById($activationPID)
+    # Normal installed executable launch lets Windows resolve package identity.
+    # The probe requires actual identity and the exact standard-user token;
+    # running an unpackaged copy cannot satisfy the installed-MSIX guard.
+    $start = [System.Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = Join-Path $package.InstallLocation 'heic-activation.test.exe'
+    $start.Arguments = '-test.run=^TestNativeInstalledHEICActivation$ -test.v -test.timeout=4m'
+    $start.WorkingDirectory = $package.InstallLocation
+    $start.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($start)
+    if (-not $process) { throw 'Windows did not start the installed test application.' }
     if (-not $process.WaitForExit(300000)) { $process.Kill(); throw 'Installed activation did not terminate within five minutes.' }
     $resultPath = Join-Path $config.Evidence 'installed-msix.json'
     if (-not (Test-Path -LiteralPath $resultPath)) { throw 'Installed activation did not produce its completion record.' }
