@@ -145,27 +145,18 @@ func TestCompareAnimated_FreezesFirstDecodedFrameForEntireSession(t *testing.T) 
 	waitForCompare(t, v)
 	loads := collectCompareLoads(t, observed)
 	loaded := requireSuccessfulCompareLoad(t, loads, "b-motion.gif")
-	if got := len(loaded.Frames); got != 2 {
-		t.Fatalf("animated comparison decoded frames = %d, want 2", got)
+	if got := len(loaded.Frames); got != 1 {
+		t.Fatalf("animated comparison decoded frames = %d, want only the displayed first frame", got)
 	}
-	first, later := loaded.Frames[0], loaded.Frames[1]
+	first := loaded.Frames[0]
 	r, _, b, _ := first.At(12, 8).RGBA()
 	if r <= b {
 		t.Fatalf("first animation frame = R:%d B:%d, want red", r, b)
-	}
-	r, _, b, _ = later.At(12, 8).RGBA()
-	if b <= r {
-		t.Fatalf("second animation frame = R:%d B:%d, want blue", r, b)
 	}
 
 	assertFrozen := func(stage string) {
 		t.Helper()
 		comparisonImageHolding(t, v, first)
-		for _, candidate := range comparisonShaders(v.compare.Overlay()) {
-			if candidate.Textures["overview"] == later {
-				t.Fatalf("comparison displayed a later animation frame %s", stage)
-			}
-		}
 	}
 	assertFrozen("after load")
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyPlus})
@@ -219,7 +210,7 @@ func TestCompareOrientation_UsesCanonicalEXIFPixelsAndIgnoresViewerRotation(t *t
 	comparisonImageHolding(t, v, frame)
 }
 
-func TestCompareMemory_HoldsBothFullDecodesBeyondSharedCacheBudget(t *testing.T) {
+func TestCompareMemory_RejectsSourcesWhoseCombinedEstimateExceedsBudget(t *testing.T) {
 	left := storage.NewFileURI(uitest.WriteTempFile(t, "a-wide.png",
 		uitest.EncodePNG(t, 401, 211, color.RGBA{R: 255, A: 255})))
 	right := storage.NewFileURI(uitest.WriteTempFile(t, "b-tall.png",
@@ -228,44 +219,27 @@ func TestCompareMemory_HoldsBothFullDecodesBeyondSharedCacheBudget(t *testing.T)
 	v.imgCache.SetBudget(1)
 	v.imgCache.Purge()
 
-	started := make(chan struct{}, 2)
-	release := make(chan struct{})
-	observed := make(chan observedCompareLoad, 2)
-	v.compareLoad = func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
-		started <- struct{}{}
-		select {
-		case <-release:
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-		loaded, err := v.loadComparedImage(ctx, uri)
-		observed <- observedCompareLoad{uri: uri, loaded: loaded, err: err}
-		return loaded, err
-	}
+	observed := observeRealCompareLoads(v)
 
 	fireCompareShortcut(v)
-	for range 2 {
-		select {
-		case <-started:
-		case <-time.After(testTimeout):
-			t.Fatal("comparison did not start both full-image loads concurrently")
-		}
-	}
-	close(release)
 	waitForCompare(t, v)
 	loads := collectCompareLoads(t, observed)
-	leftLoaded := requireSuccessfulCompareLoad(t, loads, "a-wide.png")
-	rightLoaded := requireSuccessfulCompareLoad(t, loads, "b-tall.png")
-	if got, want := leftLoaded.Frames[0].Bounds(), image.Rect(0, 0, 401, 211); got != want {
-		t.Errorf("left decoded bounds = %v, want full source %v", got, want)
+	budgetRefusals := 0
+	for name, result := range loads {
+		if result.loaded != nil || result.err == nil {
+			t.Errorf("comparison loader for %q = (%v, %v), want memory-budget refusal", name, result.loaded, result.err)
+		}
+		if strings.Contains(result.err.Error(), "comparison memory budget") {
+			budgetRefusals++
+		} else if !errors.Is(result.err, context.Canceled) {
+			t.Errorf("comparison loader for %q error = %v, want memory-budget refusal or peer cancellation", name, result.err)
+		}
 	}
-	if got, want := rightLoaded.Frames[0].Bounds(), image.Rect(0, 0, 233, 377); got != want {
-		t.Errorf("right decoded bounds = %v, want full source %v", got, want)
+	if budgetRefusals == 0 {
+		t.Fatal("comparison did not reject either oversized source against its shared budget")
 	}
-	comparisonImageHolding(t, v, leftLoaded.Frames[0])
-	comparisonImageHolding(t, v, rightLoaded.Frames[0])
-	if got := v.imgCache.Len(); got != 1 {
-		t.Errorf("one-byte full-image cache retained %d entries, want 1 while comparison still holds both panes", got)
+	if got := v.imgCache.Len(); got != 0 {
+		t.Errorf("refused comparison retained %d cache entries, want 0", got)
 	}
 }
 

@@ -47,6 +47,12 @@ func TestImageCacheWriters_PreserveCompleteRecords(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
+					if path == "comparison" && tc.name == "animated.gif" {
+						if _, ok := v.imgCache.Get(u.String()); ok {
+							t.Fatal("first-frame-only comparison record must not replace a complete animated cache record")
+						}
+						return
+					}
 					loaded, ok := v.imgCache.Get(u.String())
 					if !ok {
 						t.Fatal("image was not cached")

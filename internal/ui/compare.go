@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"image"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -65,28 +66,55 @@ func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.
 		writer := v.imgCache.Capture()
 		if loaded, ok := v.imgCache.Get(uri.String()); ok {
 			if writer.Current() {
-				return loaded, nil
+				if loaded == nil || len(loaded.Frames) == 0 {
+					return loaded, nil
+				}
+				if err := comparisonImageFits(loaded, v.imgCache.Budget()); err != nil {
+					return nil, err
+				}
+				// Comparison displays only the first frame. Do not retain an
+				// animation's unused frames outside their existing cache owner.
+				frozen := *loaded
+				frozen.Frames = []image.Image{loaded.Frames[0]}
+				frozen.Delays = nil
+				return &frozen, nil
 			}
 			continue
 		}
-		data, _, err := imaging.ReadAndProbe(ctx, uri)
+		data, bounds, err := imaging.ReadAndProbe(ctx, uri)
 		if err != nil {
 			if !writer.Current() {
 				continue
 			}
 			return nil, err
 		}
-		loaded, err := imaging.DecodeRecord(ctx, data, v.imgCache.Budget())
+		if imaging.EstimateDecodedBytes(bounds) > v.imgCache.Budget()/2 {
+			return nil, fmt.Errorf("comparison memory budget exceeded")
+		}
+		// Comparison never animates, so decoding additional GIF frames would
+		// consume memory that cannot contribute to either pane.
+		loaded, err := imaging.DecodeRecord(ctx, data, 0)
 		if !writer.Current() {
 			continue
 		}
 		if err != nil {
 			return nil, err
 		}
-		if writer.Add(uri.String(), loaded) {
-			return loaded, nil
+		if !imaging.IsAnimatedGIF(data) {
+			writer.Add(uri.String(), loaded)
 		}
+		return loaded, nil
 	}
+}
+
+func comparisonImageFits(loaded *imaging.LoadedImage, budget int64) error {
+	if loaded == nil || len(loaded.Frames) == 0 {
+		return nil
+	}
+	if imaging.EstimateDecodedBytes(loaded.Frames[0].Bounds()) > budget/2 {
+		return fmt.Errorf("comparison memory budget exceeded")
+	}
+	return nil
 }
 
 func (v *viewer) compareFailed(uri fyne.URI, err error) {
