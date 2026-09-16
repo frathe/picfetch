@@ -648,3 +648,19 @@ startup for complete qualification. The parent also captures bounded package-
 specific AppModel/deployment events separately from the test result. This narrows
 future failure evidence; no lack of evidence can satisfy the gate. PowerShell
 parsing, embedded C# compilation, nativeguards tests and GoLand inspections pass.
+
+At `dea62b9`, CI 35129438751 fails only the same two installed-MSIX jobs. Both
+console-free launches now hit the one-minute missing-transcript deadline;
+AppModel/deployment event queries on amd64 find no events in that interval. The
+experiment still never supplies an installed test result. Thus it does not fix
+the original gate, and the explicit-token launcher, transcript switch and startup
+polling are removed. Standard-user creation and execution are restored exactly
+to their previously tested implementation. Only bounded Windows event capture
+and the corrected architecture/evidence documentation remain from this repair
+attempt. No production Go, package contents, token guard or sandbox control is
+changed relative to 7f5c1da.
+
+Final focused package tests, PowerShell parsing and GoLand script inspections
+pass. The user has not provided additional native environments; the two installed
+qualification gates remain unresolved. The working tree must not imply a successful
+fix, and no gate is skipped or replaced by elevated/debug-token execution.

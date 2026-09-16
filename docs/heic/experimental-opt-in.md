@@ -98,14 +98,17 @@ Qualification now needs native x64 and ARM64 environments with an interactive
 standard-user session. Actual package identity and every existing guard must
 pass there before this gate is complete. The hosted alternate-user fixture
 does not establish installed Store helper activation, staging or sandbox behavior.
-A same-desktop-owner experiment at `98d3895` also failed on both hosted
-architectures: Windows refused to remove the protected account from
-Administrators (STATUS_SPECIAL_ACCOUNT, 0xC0000124). That account-changing
-experiment was removed. A fresh standard-user desktop remains an environment
-prerequisite, not a demonstrated hosted-CI configuration. A second controlled
-experiment replaces only the credential process-creation API with explicit
-`LogonUserW` authentication and `CreateProcessWithTokenW`. Its application-token
-and package assertions remain unchanged; both native results are required.
+The same-desktop-owner experiment at `98d3895` failed on both architectures:
+Windows refused to remove the protected account from Administrators
+(STATUS_SPECIAL_ACCOUNT, 0xC0000124). Explicit `LogonUserW` /
+`CreateProcessWithTokenW` experiments at `e8ea7d4` and `dea62b9` also failed before
+producing a child transcript, including with console creation disabled. All
+unsuccessful account/token-launch changes were removed. The original fixture
+now retains bounded package-specific Windows AppModel/deployment events in
+`activation-events.json`; these diagnostics cannot substitute for the installed
+test's completion record. No hosted configuration tried so far establishes
+successful standard-user MSIX activation. A known-working native standard-user
+desktop on each architecture remains the next qualification environment.
 For a local MSIX run, the configuration supplies `Scenario: "msix"`, `Repository`,
 `Go`, `Work`, `Evidence`, `Arch`, `Commit`, the signed `Package`, its `PackageName`
 and architecture-matched `Dependency`. Provision only disposable test state.

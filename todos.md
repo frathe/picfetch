@@ -116,7 +116,10 @@ after an enabled preference and validated installed package.
   standard account; a loaded profile under alternate credentials is insufficient.
   The same-owner fresh-logon experiment at `98d3895` also failed: both hosted
   desktops use a protected account that Windows refuses to remove from
-  Administrators (0xC0000124). The experiment was removed; all gates remain.
+  Administrators (0xC0000124). Explicit-token launch attempts also stalled before
+  the standard-user script began, including without console creation. All failed
+  launcher/account experiments were removed; package-specific Windows events
+  are retained with the restored original fixture. Both gates remain failing.
   Suitable environment access is still unresolved. The separate GitHub AI scanner
   still fails before analysis with an unsupported-model HTTP 400. Keep all failing
   gates and permission checks. The [active plan](plans/2026-09-16-experimental-heic-opt-in.md)

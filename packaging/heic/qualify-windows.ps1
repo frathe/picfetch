@@ -94,15 +94,11 @@ try {
     $config | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding utf8NoBOM
     $child = Join-Path $copy 'packaging/heic/qualify-windows-child.ps1'
     $powershell = (Get-Command pwsh).Source
-    $exitCode = 0
-    if ($Scenario -eq 'msix') {
-        . (Join-Path $PSScriptRoot 'qualify-windows-logon.ps1')
-        New-Item -ItemType File -Path (Join-Path $evidence 'standard-user.stderr.log') | Out-Null
-        $arguments = "-NoProfile -NonInteractive -File `"$child`" -Configuration `"$configPath`" -Transcript"
-        $activationStarted = Get-Date
-        try {
-            $exitCode = [HEICStandardUserLogon]::Run($userName, $env:COMPUTERNAME, $secret, $powershell, $arguments, $copy, (Join-Path $evidence 'standard-user.stdout.log'))
-        } finally {
+    $activationStarted = Get-Date
+    try {
+        $process = Start-Process -FilePath $powershell -Credential $credential -LoadUserProfile -WorkingDirectory $copy -ArgumentList @('-NoProfile', '-File', "`"$child`"", '-Configuration', "`"$configPath`"") -PassThru -Wait -RedirectStandardOutput (Join-Path $evidence 'standard-user.stdout.log') -RedirectStandardError (Join-Path $evidence 'standard-user.stderr.log')
+    } finally {
+        if ($Scenario -eq 'msix') {
             $events = foreach ($channel in @('Microsoft-Windows-AppModel-Runtime/Admin', 'Microsoft-Windows-AppXDeploymentServer/Operational')) {
                 try {
                     $packageEvents = @(Get-WinEvent -FilterHashtable @{ LogName = $channel; StartTime = $activationStarted } -MaxEvents 100 |
@@ -112,13 +108,10 @@ try {
             }
             ConvertTo-Json -InputObject @($events) -Depth 5 | Set-Content -LiteralPath (Join-Path $evidence 'activation-events.json') -Encoding utf8NoBOM
         }
-    } else {
-        $process = Start-Process -FilePath $powershell -Credential $credential -LoadUserProfile -WorkingDirectory $copy -ArgumentList @('-NoProfile', '-File', "`"$child`"", '-Configuration', "`"$configPath`"") -PassThru -Wait -RedirectStandardOutput (Join-Path $evidence 'standard-user.stdout.log') -RedirectStandardError (Join-Path $evidence 'standard-user.stderr.log')
-        $exitCode = $process.ExitCode
     }
     Get-Content -LiteralPath (Join-Path $evidence 'standard-user.stdout.log')
     Get-Content -LiteralPath (Join-Path $evidence 'standard-user.stderr.log')
-    if ($exitCode -ne 0) { throw "Standard-user qualification failed with exit $exitCode." }
+    if ($process.ExitCode -ne 0) { throw "Standard-user qualification failed with exit $($process.ExitCode)." }
 } finally {
     try {
         Copy-Item -Path (Join-Path $evidence '*') -Destination $EvidenceDirectory -Recurse -Force

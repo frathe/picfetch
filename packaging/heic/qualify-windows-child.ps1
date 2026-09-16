@@ -1,7 +1,6 @@
-param([Parameter(Mandatory = $true)][string]$Configuration, [switch]$RequireInstalledMSIX, [switch]$Transcript)
+param([Parameter(Mandatory = $true)][string]$Configuration, [switch]$RequireInstalledMSIX)
 $ErrorActionPreference = 'Stop'
 $config = Get-Content -LiteralPath $Configuration -Raw | ConvertFrom-Json
-if ($Transcript) { Start-Transcript -LiteralPath (Join-Path $config.Evidence 'standard-user.stdout.log') -Force | Out-Null }
 if ($RequireInstalledMSIX -and $config.Scenario -ne 'msix') { throw 'Installed-MSIX configuration is required for the complete Windows native gate.' }
 Set-Location -LiteralPath $config.Repository
 # Start-Process with credentials still inherits the runner's environment.
