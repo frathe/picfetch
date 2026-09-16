@@ -494,5 +494,12 @@
    "Usage is incomplete.": "Usage is incomplete.",
    "Processed %d records (%.1f MB).": "Processed %d records (%.1f MB).",
    "Working...": "Working...",
-   "Apply cache limit": "Apply cache limit"
+   "Apply cache limit": "Apply cache limit",
+   "Memory limit (MB)": "Memory limit (MB)",
+   "Item limit": "Item limit",
+   "Maximum serialized map size; applies to the next analysis": "Maximum serialized map size; applies to the next analysis",
+   "Maximum images per analysis; increase for larger libraries": "Maximum images per analysis; increase for larger libraries",
+   "Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.",
+   "Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.",
+   "Configured limits exceeded.": "Configured limits exceeded."
 }

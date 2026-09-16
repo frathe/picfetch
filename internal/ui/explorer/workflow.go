@@ -45,6 +45,7 @@ func (f *Feature) Open(request OpenRequest) bool {
 	analyze := f.analyze
 	if analyze == nil {
 		client := f.client
+		client.AnalysisLimits = f.limits
 		client.GeneralAnalysisDir = request.GeneralAnalysisDir
 		client.FavoritesDir = request.FavoritesDir
 		client.DisableFavoriteCache = !f.cacheFavorites
@@ -168,9 +169,22 @@ func (f *Feature) Open(request OpenRequest) bool {
 			}
 			if displayErr != nil {
 				f.complete = false
-				f.assetsReady = false
 				fyne.LogError("visual similarity analysis failed", displayErr)
-				f.surface.Status(lang.L("Analysis failed. Open the explorer to retry."))
+				message := ""
+				switch {
+				case errors.Is(displayErr, similarity.ErrAnalysisItemLimit):
+					message = lang.L("Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.")
+				case errors.Is(displayErr, similarity.ErrAnalysisMemoryLimit):
+					message = lang.L("Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.")
+				default:
+					f.assetsReady = false
+				}
+				if message != "" {
+					f.surface.Status(lang.L("Configured limits exceeded."))
+					f.host.ShowToast(message)
+				} else {
+					f.surface.Status(lang.L("Analysis failed. Open the explorer to retry."))
+				}
 			}
 			f.host.Changed()
 		})

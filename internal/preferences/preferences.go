@@ -44,6 +44,8 @@ const (
 	keySimilarityAutoUpdate    = "similarityAutoUpdate"
 	keySimilarityAutoFit       = "similarityAutoFit"
 	keySimilarityIntroSeen     = "similarityIntroSeen"
+	keySimilarityMemoryLimitMB = "similarityMemoryLimitMB"
+	keySimilarityItemLimit     = "similarityItemLimit"
 
 	keyCheckForUpdates    = "checkForUpdates"
 	keyLastUpdateCheckDay = "lastUpdateCheckDay"
@@ -167,6 +169,7 @@ type State struct {
 	SimilarityLooseCache                                             bool
 	AnalysisCacheLimitMiB                                            int
 	SimilarityIntroSeen                                              bool
+	SimilarityMemoryLimitMB, SimilarityItemLimit                     int
 
 	// CheckForUpdates is the settings window's opt-in for looking for a newer
 	// release on startup. Defaults to false (plain p.Bool) so a fresh install
@@ -242,6 +245,12 @@ func Save(app fyne.App, s State) {
 	p.SetBool(keySimilarityAutoUpdate, s.SimilarityAutoUpdate)
 	p.SetBool(keySimilarityAutoFit, s.SimilarityAutoFit)
 	p.SetBool(keySimilarityIntroSeen, s.SimilarityIntroSeen)
+	if s.SimilarityMemoryLimitMB > 0 {
+		p.SetInt(keySimilarityMemoryLimitMB, s.SimilarityMemoryLimitMB)
+	}
+	if s.SimilarityItemLimit > 0 {
+		p.SetInt(keySimilarityItemLimit, s.SimilarityItemLimit)
+	}
 	p.SetBool(keyCheckForUpdates, s.CheckForUpdates)
 	p.SetBool(keyStaticWindowSize, s.StaticWindowSize)
 
@@ -393,6 +402,8 @@ func Load(app fyne.App) State {
 		SimilarityAutoUpdate:    p.Bool(keySimilarityAutoUpdate),
 		SimilarityAutoFit:       p.BoolWithFallback(keySimilarityAutoFit, true),
 		SimilarityIntroSeen:     p.Bool(keySimilarityIntroSeen),
+		SimilarityMemoryLimitMB: p.Int(keySimilarityMemoryLimitMB),
+		SimilarityItemLimit:     p.Int(keySimilarityItemLimit),
 		CheckForUpdates:         p.Bool(keyCheckForUpdates),
 		LastUpdateCheckDay:      p.String(keyLastUpdateCheckDay),
 		StaticWindowSize:        p.Bool(keyStaticWindowSize),
