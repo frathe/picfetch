@@ -148,3 +148,31 @@ func TestNativeWindowsUnsandboxedRefused(t *testing.T) {
 		t.Fatal("ordinary test process accepted as isolated helper")
 	}
 }
+
+func TestLoopbackExemptionRefusesHelperIdentity(t *testing.T) {
+	expected, err := containerSID(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = windows.FreeSid(expected) }()
+	other, err := windows.StringToSid("S-1-15-2-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		entries  []windows.SIDAndAttributes
+		rejected bool
+	}{
+		{"no exemptions", nil, false},
+		{"unrelated identity", []windows.SIDAndAttributes{{Sid: other}}, false},
+		{"helper identity", []windows.SIDAndAttributes{{Sid: other}, {Sid: expected}}, true},
+		{"invalid identity", []windows.SIDAndAttributes{{Sid: nil}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := validateLoopbackExemptions(expected, tc.entries); (err != nil) != tc.rejected {
+				t.Fatalf("loopback exemption policy: %v", err)
+			}
+		})
+	}
+}

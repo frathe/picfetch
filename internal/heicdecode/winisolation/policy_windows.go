@@ -60,14 +60,17 @@ func Verify(limits heicdecode.Limits) error {
 	if err := limits.Validate(); err != nil {
 		return err
 	}
-	if err := verifyToken(); err != nil {
+	if err := VerifyAppContainer(); err != nil {
 		return err
 	}
 	// A null handle queries the caller's immediate job even in a nested job.
 	return verifyJob(0, limits)
 }
 
-func verifyToken() error {
+// VerifyAppContainer checks the exact helper identity and zero capabilities.
+// The launcher separately checks privileged loopback configuration before
+// creation; the worker can recheck this token after its traffic probes.
+func VerifyAppContainer() error {
 	token := windows.GetCurrentProcessToken()
 	var isContainer uint32
 	var length uint32
@@ -107,23 +110,14 @@ func verifyToken() error {
 	return nil
 }
 
-// VerifyLoopbackIsolation requires the verified zero-capability AppContainer
-// identity to be absent from Windows' explicit loopback exemptions. Capability
-// diagnosis alone does not cover loopback, which Windows filters separately.
-func VerifyLoopbackIsolation() (resultErr error) {
-	if err := verifyToken(); err != nil {
-		return err
-	}
-	expected, err := containerSID(false)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = windows.FreeSid(expected) }()
+// The parent checks the native loopback exemption list on every launch. Windows
+// denies this query to the restricted helper; no capability is added to it.
+func verifyLoopbackIsolation(expected *windows.SID) (resultErr error) {
 	query := windows.NewLazySystemDLL("Firewallapi.dll").NewProc("NetworkIsolationGetAppContainerConfig")
 	kernel := windows.NewLazySystemDLL("kernel32.dll")
 	getHeap, free := kernel.NewProc("GetProcessHeap"), kernel.NewProc("HeapFree")
 	for _, proc := range []*windows.LazyProc{query, getHeap, free} {
-		if err = proc.Find(); err != nil {
+		if err := proc.Find(); err != nil {
 			return err
 		}
 	}
@@ -157,6 +151,10 @@ func VerifyLoopbackIsolation() (resultErr error) {
 			}
 		}
 	}()
+	return validateLoopbackExemptions(expected, items)
+}
+
+func validateLoopbackExemptions(expected *windows.SID, items []windows.SIDAndAttributes) error {
 	for _, item := range items {
 		if item.Sid == nil {
 			return errors.New("HEIC loopback exemption query returned an invalid SID")

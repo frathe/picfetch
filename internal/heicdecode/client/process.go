@@ -90,20 +90,27 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	var readinessFailed bool
 	var diagnostic bytes.Buffer // Read only after pipeWork.Wait.
 	var diagnosticErr error     // Read only after pipeWork.Wait.
+	var stderrErr error         // Read only after stderrDone closes.
 	pipeWork.Add(1)
-	stderrDone := make(chan error, 1)
+	stderrDone := make(chan struct{})
 	go func() {
 		defer pipeWork.Done()
+		defer close(stderrDone)
 		count, readErr := io.Copy(&diagnostic, io.LimitReader(errRead, int64(c.config.Limits.MaxDiagnosticBytes)+1))
 		if count > int64(c.config.Limits.MaxDiagnosticBytes) {
 			readErr = ErrDiagnosticLimit
 			diagnosticErr = readErr
 			cancel()
 		}
-		stderrDone <- readErr
+		stderrErr = readErr
 	}()
 	// Every return after Start waits for process exit and all transport workers.
 	defer func() {
+		// Stop the producer, then drain its bounded diagnostics before closing
+		// our read end. Otherwise stdout EOF can race the overflow reader and
+		// turn a diagnostic-limit failure into an ordinary protocol error.
+		process.Kill()
+		<-stderrDone
 		cancel()
 		cancelWork.Wait()
 		// Kill the group before reaping its leader, so its PID cannot be
@@ -129,7 +136,7 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		(runtime.GOOS != "darwin" && ready.NativeMemoryBytes == 0) {
 		readinessFailed = true
 		process.Kill()
-		_ = <-stderrDone
+		<-stderrDone
 		return empty, fmt.Errorf("%w: native readiness", ErrUnavailable)
 	}
 	// No loopback listener remains reachable when image bytes are admitted.
@@ -159,8 +166,9 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	if err = <-writeDone; err != nil {
 		return empty, err
 	}
-	if err = <-stderrDone; err != nil {
-		return empty, err
+	<-stderrDone
+	if stderrErr != nil {
+		return empty, stderrErr
 	}
 	if err = ctx.Err(); err != nil {
 		return empty, err

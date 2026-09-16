@@ -641,9 +641,9 @@ stdio/scheduling operations. It verifies RLIMIT_AS/CPU/core/file/descriptor
 limits and a no-access oversized-mapping refusal before readiness. Its native
 qualification is a separate `heic-linux` CI suite. Windows amd64/arm64 uses
 `winisolation` below and verifies its token/job before the same denial probes.
-Windows additionally confirms timed-out loopback probes through the native
-loopback exemption API and verified AppContainer token; other platforms require
-permission errors.
+Windows additionally confirms timed-out loopback probes with a verified
+AppContainer token after the parent checks the native loopback exemption list;
+other platforms require permission errors.
 Other builds refuse startup.
 Native-memory readiness is explicitly zero on macOS; its Go memory target is
 not a hard OS cap. The helper alone may
@@ -656,7 +656,8 @@ Fyne or a native HEIC codec. Final application packaging/activation is pending.
 ### `internal/heicdecode/winisolation`
 
 Windows-only helper process boundary. `process_windows.go` creates a suspended
-zero-capability AppContainer with three explicit inherited stdio handles,
+zero-capability AppContainer after refusing its explicit loopback exemption,
+with three explicit inherited stdio handles,
 assigns a private one-process Job Object with committed-memory/user-CPU limits
 and kill-on-close, then resumes. `policy_windows.go` queries the actual token,
 identity, capabilities and immediate job before worker readiness. Process Kill

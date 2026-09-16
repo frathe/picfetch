@@ -55,6 +55,9 @@ func Start(executable string, args []string, stdio [3]*os.File, limits heicdecod
 		return nil, err
 	}
 	defer func() { _ = windows.FreeSid(sid) }()
+	if err = verifyLoopbackIsolation(sid); err != nil {
+		return nil, err
+	}
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return nil, err

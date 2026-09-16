@@ -28,7 +28,9 @@ func confirmNetworkDenial(ctx context.Context, host string, probeErr error) erro
 	if host != "127.0.0.1" || !errors.As(probeErr, &networkErr) || !networkErr.Timeout() {
 		return errors.New("expected a timed-out owned loopback probe")
 	}
-	if err := winisolation.VerifyLoopbackIsolation(); err != nil {
+	// Start already refused an explicit loopback exemption before creation.
+	// That privileged query is denied inside the zero-capability container.
+	if err := winisolation.VerifyAppContainer(); err != nil {
 		return err
 	}
 	return ctx.Err()

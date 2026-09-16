@@ -1101,3 +1101,24 @@ The generic capability API is removed. The unsandboxed-process regression and
 both native Windows helper fixtures remain required. The UDP listener guard was
 negatively verified by breaking the echo, observing setup refusal, restoring
 and passing; a broken listener cannot qualify as blocked worker traffic.
+
+The completed `6021a5f` Intel macOS job also exposed a diagnostic cleanup race:
+`TestOwnedPeerCrashAndDiagnosticsFailClosed/diagnostics` observed stdout EOF
+without the expected diagnostic-overflow error. Cleanup cancelled and closed
+the stderr reader before its goroutine had drained the helper's already-written
+bytes. Terminate the producer first, wait for the bounded stderr drain, then
+close the transport and join all work. External cancellation/deadline still
+closes reads immediately. Preserve the existing overflow regression and run it
+repeatedly under race; native Intel CI must pass it as well.
+
+Round 8 (`665dd4b`) confirms that Windows denies the loopback-configuration API
+inside AppContainer. The read belongs to the trusted launcher: before creating
+each helper, it must successfully query the native list and refuse the exact
+helper SID if exempt. No result is cached. The child independently verifies
+its exact empty-capability token and job, observes blocked traffic to checked
+owned listeners, and rechecks the token before accepting a timeout. Missing
+parent policy evidence prevents process creation; this grants no new child
+permission. Synthetic exemption-list cases cover the exact identity, an
+unrelated SID, no exemption and invalid entries without changing OS policy.
+Windows also reproduces the diagnostic-drain race. Its correction passes 25
+focused race repetitions plus the client package; GoLand reports no findings.

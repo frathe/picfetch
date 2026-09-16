@@ -156,8 +156,10 @@ AppContainer capabilities or filesystem rights.
 Windows can drop blocked loopback traffic instead of returning a permission
 error. Both parent-owned listeners are positively checked before launch, and
 UDP has a bounded one-byte echo worker. A helper timeout qualifies only with a
-live request and a verified zero-capability AppContainer identity that the
-native loopback exemption query confirms is not exempt. Successful
+live request and a verified zero-capability AppContainer identity. Before
+creating each helper, the parent must confirm through the native loopback
+exemption API that this identity is not exempt; the AppContainer itself cannot
+perform this privileged query. Successful
 communication, an absent listener or an API
 failure refuses readiness. The listeners close before image input; their worker
 is joined on every path. Linux/macOS still require explicit permission refusal.
