@@ -994,3 +994,12 @@ control exits before Go initialization with STATUS_DLL_INIT_FAILED
 DETACHED_PROCESS for this pipe-only helper instead of CREATE_NO_WINDOW.
 The same AppContainer, child-process restriction, handles and job limits apply.
 The native positive policy and ordinary decode guards must still pass.
+
+Round 3 (`11e0583`) passes Windows owned-peer, inherited transport and
+cancellation tests. The native control now enters Go and returns
+ERROR_NOACCESS during policy verification. The x/sys job-query/set wrappers
+accept raw uintptr addresses and perform lazy DLL resolution; compiler escape
+output confirms the pointed-to structs remain on the movable Go stack. Pin
+both buffers across those calls and add stage-specific errors. Token queries
+already accept typed pointers. Native policy/ordinary-image guards are the
+regression oracle; no syscall result or sandbox check is bypassed.

@@ -65,8 +65,13 @@ func Start(executable string, args []string, stdio [3]*os.File, limits heicdecod
 		}
 	}()
 	policy := jobLimits(limits)
+	// SetInformationJobObject carries this address as uintptr through its
+	// Go wrapper; pin it across lazy DLL resolution and the native call.
+	var pinned runtime.Pinner
+	pinned.Pin(&policy)
+	defer pinned.Unpin()
 	if _, err = windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&policy)), uint32(unsafe.Sizeof(policy))); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("set HEIC job limits: %w", err)
 	}
 	if err = verifyJob(job, limits); err != nil {
 		return nil, err

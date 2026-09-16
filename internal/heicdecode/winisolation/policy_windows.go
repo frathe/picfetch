@@ -4,6 +4,7 @@ package winisolation
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"time"
 	"unsafe"
@@ -35,8 +36,13 @@ func jobLimits(limits heicdecode.Limits) windows.JOBOBJECT_EXTENDED_LIMIT_INFORM
 
 func verifyJob(job windows.Handle, limits heicdecode.Limits) error {
 	var actual windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+	// x/sys accepts a uintptr here, so its lazy DLL resolution cannot keep a
+	// Go stack address valid if the stack grows before the native call.
+	var pinned runtime.Pinner
+	pinned.Pin(&actual)
+	defer pinned.Unpin()
 	if err := windows.QueryInformationJobObject(job, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&actual)), uint32(unsafe.Sizeof(actual)), nil); err != nil {
-		return err
+		return fmt.Errorf("query HEIC job limits: %w", err)
 	}
 	wanted := jobLimits(limits)
 	if actual.BasicLimitInformation.LimitFlags != wanted.BasicLimitInformation.LimitFlags ||
@@ -58,20 +64,20 @@ func Verify(limits heicdecode.Limits) error {
 	var isContainer uint32
 	var length uint32
 	if err := windows.GetTokenInformation(token, tokenIsAppContainer, (*byte)(unsafe.Pointer(&isContainer)), uint32(unsafe.Sizeof(isContainer)), &length); err != nil {
-		return err
+		return fmt.Errorf("query HEIC AppContainer token: %w", err)
 	}
 	if isContainer != 1 {
 		return errors.New("HEIC helper is not an AppContainer process")
 	}
 	var buffer [4096]byte
 	if err := windows.GetTokenInformation(token, tokenCapabilities, &buffer[0], uint32(len(buffer)), &length); err != nil {
-		return err
+		return fmt.Errorf("query HEIC token capabilities: %w", err)
 	}
 	if length < 4 || (*windows.Tokengroups)(unsafe.Pointer(&buffer[0])).GroupCount != 0 {
 		return errors.New("HEIC helper has unexpected AppContainer capabilities")
 	}
 	if err := windows.GetTokenInformation(token, tokenAppContainerSID, &buffer[0], uint32(len(buffer)), &length); err != nil {
-		return err
+		return fmt.Errorf("query HEIC AppContainer identity: %w", err)
 	}
 	if length < uint32(unsafe.Sizeof(uintptr(0))) {
 		return errors.New("HEIC helper has no AppContainer SID")
