@@ -3,6 +3,8 @@
 Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
@@ -38,7 +40,7 @@ public static class HEICStandardUserLogon {
  [DllImport("kernel32.dll")]
  [return: MarshalAs(UnmanagedType.Bool)]
  static extern bool CloseHandle(IntPtr handle);
- public static uint Run(string user, string domain, SecureString password, string application, string arguments, string directory) {
+ public static uint Run(string user, string domain, SecureString password, string application, string arguments, string directory, string transcript) {
   IntPtr token = IntPtr.Zero;
   IntPtr secret = Marshal.SecureStringToGlobalAllocUnicode(password);
   try {
@@ -53,15 +55,26 @@ public static class HEICStandardUserLogon {
    ProcessInfo process;
    // LOGON_WITH_PROFILE; Windows supplies the account's environment and grants
    // that account access to the inherited desktop when Desktop is null.
-   if (!CreateProcessWithTokenW(token, 1, application, command, 0, IntPtr.Zero, directory, ref startup, out process))
+   const uint createNoWindow = 0x08000000;
+   if (!CreateProcessWithTokenW(token, 1, application, command, createNoWindow, IntPtr.Zero, directory, ref startup, out process))
     throw new Win32Exception(Marshal.GetLastWin32Error(), "Standard-user process creation failed.");
    try {
-    uint wait = WaitForSingleObject(process.Process, 600000);
+    var elapsed = Stopwatch.StartNew();
+    uint wait;
+    string timeout = "Standard-user qualification exceeded ten minutes.";
+    do {
+     wait = WaitForSingleObject(process.Process, 1000);
+     if (wait != 258) break;
+     if (elapsed.ElapsedMilliseconds >= 60000 && !File.Exists(transcript)) {
+      timeout = "Standard-user PowerShell did not begin its transcript within one minute.";
+      break;
+     }
+    } while (elapsed.ElapsedMilliseconds < 600000);
     if (wait != 0) {
      int error = Marshal.GetLastWin32Error();
      if (!TerminateProcess(process.Process, 1)) throw new Win32Exception(Marshal.GetLastWin32Error());
      WaitForSingleObject(process.Process, 10000);
-     if (wait == 258) throw new TimeoutException("Standard-user qualification exceeded ten minutes.");
+     if (wait == 258) throw new TimeoutException(timeout);
      throw new Win32Exception(error, "Cannot wait for standard-user qualification.");
     }
     uint code;

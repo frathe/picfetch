@@ -628,3 +628,23 @@ Second experiment pre-push: all three PowerShell scripts parse with the temporar
 PowerShell 7.5.3 runtime; the embedded C# compiles. Focused nativeguards/msixstage/
 heicpackage tests pass, and GoLand reports no findings in the three script files.
 The failed first experiment's code and its dependent Go assertions are removed.
+
+At `e8ea7d4`, CI 35127126778 again passes every ordinary job and fails only the
+two installed-MSIX jobs. Both explicit-token processes time out after ten
+minutes. Both evidence artifacts contain package setup and an empty stderr file,
+but no PowerShell transcript or installed-test completion record. This does not
+establish successful script startup or test execution. Raw logs and artifacts
+are retained under `evidence/fix-e8ea7d4-*`. Qodana post-suppression findings: 0;
+CodeQL has only the two existing dismissed results in unchanged files. Fresh
+security review 5701706446 is clean. The code reviewer correctly identified a
+stale ARCHITECTURE.md claim about COM activation (thread PRRT_kwDOT5ODVc6jCf-e);
+the lead corrected it to direct installed WindowsApps executable launch.
+
+Next controlled probe uses CREATE_NO_WINDOW for the noninteractive PowerShell
+process, as supported by CreateProcessWithTokenW. No app token, package identity
+or helper policy changes. The loop now checks transcript creation as an explicit
+startup observation with a one-minute limit, while retaining ten minutes after
+startup for complete qualification. The parent also captures bounded package-
+specific AppModel/deployment events separately from the test result. This narrows
+future failure evidence; no lack of evidence can satisfy the gate. PowerShell
+parsing, embedded C# compilation, nativeguards tests and GoLand inspections pass.

@@ -696,8 +696,9 @@ separates disposable CI account/signing provisioning from standard-user executio
 and starts the fixture with its primary token; this CI-only route is under
 native qualification.
 Native application fixtures exercise executable-derived startup, Settings,
-admission, native decode and shutdown; MSIX uses the real application activation
-manager and checks package identity and unchanged installed helper permissions.
+admission, native decode and shutdown; MSIX launches its registered installed
+WindowsApps executable directly and checks package identity and unchanged
+installed helper permissions.
 
 ### `scripts/heicguest` and `scripts/heicbuild`
 
