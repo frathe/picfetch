@@ -111,16 +111,23 @@ Store identity; cross-compilation is not that evidence.
 
 ## Current verification and remaining gates
 
-At `69fef1a`, native Linux, macOS and standalone standard-user Windows pass on
-both architectures, including packaged startup, the live file-size regression,
-analysis and platform sandbox guards. All four Linux race partitions, ordinary
-Windows, validation and Store executable construction pass. Installed-MSIX is
-the only failing job in CI run 35111412255. Fresh Codex code/security reviews
-report no findings; final Qodana SARIF is empty, and CodeQL contains only its two
-previously assessed dismissed false positives. GitHub's separate dynamic AI
-scanner fails before analysis because its service rejects the configured model.
-That scan remains unverified. Production GUI smoke tests remain distinct from
-the test-driver fixture. See the plan for exact evidence and remaining gates.
+At `c1b6890`, native Linux, macOS and standalone standard-user Windows pass on
+both architectures on first attempt, including the expanded application
+failure/navigation cases. All four Linux race partitions, ordinary Windows,
+validation and Store input construction pass. Installed-MSIX remains the only
+failing scenario in CI 35120395881: both packages install, but the test process
+cannot start (Access denied). Standard-user desktop-session prerequisites and
+Windows combined application-level ACL/query/concurrent-lifetime cases remain
+open. The old intermittent ARM64 analysis failure did not recur; no root-cause
+fix is claimed.
+
+Fresh Codex code/security reviews report no findings for the implementation
+commit. Final Qodana SARIF is empty; CodeQL contains only its two previously
+assessed dismissed false positives. GitHub's separate dynamic AI scanner still
+fails before analysis because its service rejects the configured model. That
+scan remains unverified. Production GUI smoke tests remain distinct from the
+test-driver fixture. See the plan and PR #28 for checkpoint and subsequent
+documentation-only review/CI evidence.
 
 All prior sandbox, integrity and resource controls remain. macOS still has the
 previously accepted absence of a guaranteed total native-memory cap; WASM,

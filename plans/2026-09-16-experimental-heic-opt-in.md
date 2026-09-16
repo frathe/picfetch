@@ -5,8 +5,8 @@ remaining checklist evidence, installed-MSIX qualification and an external AI
 scan keep final acceptance open.
 
 Resuming agent: start with the [handoff](../.scratch/experimental-heic-opt-in/handoff.md)
-and reconciled ticket checklists. On 2026-09-16, 44/57 items are checked and
-tickets 01/02/03/04 are resolved. Later handoff notes distinguish completed native
+and reconciled ticket checklists. On 2026-09-16, 48/57 items are checked and
+tickets 01/02/03/04/06/07 are resolved. Later handoff notes distinguish completed native
 constructor tests from compound application scenarios still needing proof.
 
 Deliver the accepted [spec](../.scratch/experimental-heic-opt-in/spec.md) through
@@ -99,8 +99,8 @@ decoder behavior is planned. Other architectures require fresh native CI.
 | 03 | Red: active HEIC choices absent and saved rule rejected; green Explorer/source consumers and native analysis/retained queries. Resumed uncached duplicate/Spiral and active-analysis/source-replacement guards pass with negative controls | 6/6 items complete; final integrated native gate remains separate |
 | 04 | Red: no staging publication; green owned bounded copy/reuse/repair/cancel/preparation-refusal cases. Windows cache/concurrent-process/lease tests pass natively on both architectures at 69fef1a | Ticket resolved for staging; installed-MSIX context separate |
 | 05, 08 | Standard-user standalone guards pass on both architectures at 69fef1a. Disposable signed MSIX installs, but both COM and direct activation fail before the test process starts | Installed-MSIX qualification blocked on a suitable interactive standard-user environment |
-| 06 | Both native macOS architectures pass signed application-constructor and analysis guards at 69fef1a; real HEIC decode, restart, cancellation and shutdown | 4/6 items complete; combined packaged failure/navigation evidence remains; production GUI smoke separate |
-| 07 | Both native Linux architectures pass application, analysis, helper/seccomp/resource guards at 69fef1a | 4/6 items complete; combined native directory/failure scenarios remain |
+| 06 | Both native macOS architectures pass expanded package failure, sandbox-readiness refusal, navigation/cancellation and analysis guards at c1b6890 | 6/6 items complete; production GUI smoke and release clearance remain separate |
+| 07 | Both native Linux architectures pass mixed-directory, package-failure recovery, navigation/cancellation, analysis and helper/seccomp/resource guards at c1b6890 | 6/6 items complete |
 | 09 | Complete Linux race partitions and validation pass at 69fef1a. Fresh code/security reviews have no findings; Qodana has zero final results, CodeQL only its two existing dismissed false positives. IDE and sixteen Settings layouts verified | Installed-MSIX and the external GitHub AI scanner remain blocked |
 
 Budget: one initial read-only scout; lead implementation and fixes; focused
@@ -490,3 +490,39 @@ GoLand inspections of both changed code files are clean, including warnings;
 `resume-goland-inspections.json` retains the results. New test inventory is
 retained in `resume-test-inventory.log`. The full race suite remains a CI gate
 under the authorized review-loop procedure.
+
+### Integrated checkpoint — c1b6890
+
+[CI 35120395881](https://github.com/frathe/picfetch/actions/runs/35120395881)
+passes validation, all four Linux race partitions, ordinary Windows, Store input
+construction and all six standalone native platform/architecture targets on the
+first attempt. Retained `resume-{linux,macos,windows}-{amd64,arm64}` artifacts
+contain the mandatory package guards, with no skipped or failed application
+scenarios. The prior unexplained ARM64 analysis failure did not recur; no fix is
+claimed. Both installed-MSIX jobs still install successfully and then fail
+`Process.Start` with Access denied before the test app produces evidence.
+
+Fresh [code review](https://github.com/frathe/picfetch/pull/28#issuecomment-5700753505)
+and [security review](https://github.com/frathe/picfetch/pull/28#issuecomment-5700821584)
+report no findings for c1b6890. Both earlier review threads remain resolved.
+Qodana run 35120395935 has zero post-suppression SARIF results. CodeQL run
+35120395948 passes: Actions analysis 1787413575 has zero results, Go analysis
+1787457184 has exactly the two existing dismissed false positives (fixed runtime
+archive allowlist and bounded integer conversion), validated against unchanged
+source; no open alerts. GitHub AI scan 35120401536 still fails before analysis
+with HTTP 400, requested model unsupported. Its failed log and both new MSIX
+logs are retained as `resume-*-failure.log`; neither failure counts as success.
+
+48/57 ticket items are complete: 01/02/03/04/06/07 are resolved. Ticket 08 retains
+combined application-level private-storage/ACL and failed-query recovery plus
+concurrent application lifetime evidence; native navigation/source replacement
+is now demonstrated. Ticket 05 needs the provisioner/executor split and native
+x64/ARM64 desktops owned by the standard test account. No environment access was
+supplied during this resume, and no such access was inferred. Ticket 09 remains
+open for those Windows cases and complete required CI/external scan results.
+Release, production signing and distribution/color qualification remain separate.
+
+The documentation follow-up records this completed implementation checkpoint;
+it changes no executable or test inputs. Its fresh PR checks/reviews remain
+visible on PR #28. The local handoff and evidence directory preserve current
+operational state without rewriting the historical native results above.

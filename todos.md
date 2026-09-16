@@ -96,40 +96,32 @@ shared GUI/analysis admission, canonical imaging integration and authenticated
 package/update handling. The current opt-in work now constructs an owner only
 after an enabled preference and validated installed package.
 
-- [ ] Implement the [Experimental HEIC opt-in spec](.scratch/experimental-heic-opt-in/spec.md):
-  default-off, restart-only Settings activation on macOS/Linux/Windows and MSIX,
-  immutable session admission and verified private Windows helper staging.
-  [Agent handoff](.scratch/experimental-heic-opt-in/handoff.md): 44/57 ticket
-  checklist items complete; tickets 01/02/03/04 resolved. Resumed consumer tests
-  prove uncached duplicate/Spiral pixels and active-analysis Settings/replacement
-  behavior. Expanded macOS arm64 native race tests prove mixed-directory navigation,
-  foreground cancellation, package/target failure recovery and sandbox-readiness
-  refusal with ordinary viewing intact. Fresh cross-platform CI and remaining
-  Windows application-failure scenarios are still required.
-  Require native packaged activation on amd64/arm64, standard-user Windows and
-  installed disposable-signed test-MSIX; permission-query failure remains a
-  blocker. Retain the accepted macOS memory limitation and separate release
-  gates for licensing/distribution, production signing and camera/color
-  qualification. Implementation is in progress in the [active opt-in plan](plans/2026-09-16-experimental-heic-opt-in.md).
-  Settings/restart, admission, Explorer and private staging are implemented;
-  focused race tests, inspections, security checks and native macOS arm64
-  application-constructor/analysis evidence pass. At `69fef1a`, native Linux,
-  macOS and standard-user Windows pass on both architectures, and all Linux race
-  partitions pass. Installed MSIX succeeds, but COM activation and direct launch
-  both fail before the test application starts, even from a writable workspace.
-  This requires native x64/ARM64 environments with interactive standard-user
-  sessions; no suitable repository runner is configured.
-  [Microsoft's documented alternate-user activation limitation](https://github.com/microsoft/WindowsAppSDK/issues/2555#issuecomment-1190815856)
-  closely matches the COM failure. Run the launcher in a desktop session owned
-  by the test account and verify that ownership before retrying; loading its
-  profile in the runner user's session is insufficient evidence. Split fixture
-  preparation from execution for that path; keep the existing failing gates.
-  The confirmed live file-size review finding is fixed with native red/green
-  coverage. Qodana reports zero findings; CodeQL processing recovered with only
-  its two previously dismissed false positives. Code/security reviews are clean
-  at `69fef1a`. GitHub's separate AI scanner fails before analysis because its
-  configured model is unsupported. Installed-MSIX qualification and that external
-  scan remain open. See the [activation record](docs/heic/experimental-opt-in.md).
+- [ ] Complete the [Experimental HEIC opt-in spec](.scratch/experimental-heic-opt-in/spec.md):
+  default-off, restart-only activation, immutable session admission and verified
+  private Windows helper staging are integrated. The [handoff](.scratch/experimental-heic-opt-in/handoff.md)
+  records 48/57 completed checklist items; tickets 01/02/03/04/06/07 are resolved.
+  At `c1b6890`, all six standalone native platform/architecture targets, all four
+  Linux race partitions, validation, ordinary Windows and Store input construction
+  pass on first attempt. New evidence covers uncached duplicate/Spiral pixels,
+  active-analysis Settings/source replacement, native directory navigation,
+  foreground cancellation, invalid-package recovery and macOS readiness refusal.
+  GoLand, local build/provenance/import checks, shard inventory and dependency
+  scans pass. Fresh Codex code/security reviews are clean; final Qodana has zero
+  results and CodeQL only its two previously dismissed false positives.
+  Remaining: Windows application-level private-storage/ACL and failed-query
+  recovery plus concurrent application lifetimes (08), installed-MSIX activation
+  (05), and final integrated qualification (09). Both MSIX packages install but
+  their test processes still fail to start with Access denied. Split fixture
+  preparation from execution and qualify native x64/ARM64 desktops owned by the
+  standard account; a loaded profile under alternate credentials is insufficient.
+  No suitable environment access was supplied. The separate GitHub AI scanner
+  still fails before analysis with an unsupported-model HTTP 400. Keep all failing
+  gates and permission checks. The [active plan](plans/2026-09-16-experimental-heic-opt-in.md)
+  and [activation record](docs/heic/experimental-opt-in.md) retain exact evidence.
+  The earlier ARM64 analysis failure remains unexplained despite the fresh pass.
+  Production signing, licensing/distribution, broader camera/color qualification,
+  the accepted macOS total-memory limit and the full-reinstallation/qualified-
+  bridge requirement remain separate release constraints.
 
 The September 16 [history reconciliation](docs/heic/history-reconciliation.md)
 accounts for `fc127b44` and `73cb3c9`: all 107 production/source-license files
