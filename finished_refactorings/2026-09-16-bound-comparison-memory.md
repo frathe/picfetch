@@ -99,9 +99,40 @@ Budget: one scout, one final review, one complete-suite gate.
   remains. The unused `assertFrozen` parameter introduced by the PR was removed
   by using its existing assertion helper directly.
 - `make verify` refuses the local Docker daemon's `linux/aarch64` platform.
-  The full race suite remains pending native Linux/amd64 CI after the push;
-  no isolation policy or test was weakened to bypass this prerequisite.
+  The full race suite runs in native Linux/amd64 CI; no isolation policy or
+  test was weakened to bypass this prerequisite. Current-head hosted results
+  and the final review disposition are recorded in
+  [PR #31](https://github.com/frathe/picfetch/pull/31).
 
 Actual cost: one read-only scout, one lead review, one full-gate attempt.
 The user authorized the fix commit and push to PR #31; the unrelated untracked
 GitHub AI scan failure report is excluded from the commit.
+
+## GitHub Codex review loop
+
+The user invoked the repository review loop after `8cdbb18`. No unresolved
+review threads existed at entry. Codex code/security reviews were already
+running for that head, so no duplicate request was posted.
+The initial Codex code and security reviews completed without findings; the
+connector posted its approval reaction after security finished. All eight CI jobs
+passed on merge `41d406d` (head `8cdbb18`, base `459663d`), including all four
+native Linux race partitions. Both CodeQL analyses passed with no new alerts.
+
+The post-suppression Qodana SARIF for `8cdbb18` reported one
+`GoUnusedExportedFunction` warning on `imaging.IsAnimatedGIF`. It is a false
+positive: `internal/ui/compare.go` calls the function before deciding whether
+to cache a decoded comparison source. Keep the function and scope the
+suppression to that declaration, with its comparison-cache purpose documented.
+Local GoLand inspection confirms the declaration and caller have no findings;
+hosted Qodana must verify the suppression on the next pushed commit.
+
+The separate GitHub Advanced Security AI scan failed before producing results
+with `CAPIError: 400 The requested model is not supported`. This service error
+is distinct from the Codex connector's security review and is not a code
+finding. Track its disposition separately in the PR's final check evidence.
+
+Acceptance remains a fresh finding-free Codex code review on the final pushed
+commit, completed Codex security review, no actionable Qodana/CodeQL findings,
+and passing required CI. Review replies and final job/report links in PR #31
+are the live evidence record, so recording outcomes does not create a new,
+unreviewed source commit. Merging and releasing remain outside this workflow.

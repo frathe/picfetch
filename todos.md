@@ -53,7 +53,8 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 - Bound comparison decodes to half the shared image budget per pane and avoid
   retaining animation frames that comparison never displays. Include 16-bit
   pixel admission, actual cached-frame weights, localized refusals and the
-  corrected UI shard assignment (PR #31 follow-up).
+  corrected UI shard assignment. Hosted review dispositions and final CI,
+  Qodana and CodeQL evidence: [PR #31](https://github.com/frathe/picfetch/pull/31).
 - Bound Visual Similarity Explorer collection work and worker event decoding to
   prevent attacker-controlled collections from exhausting CPU or viewer memory.
 
