@@ -677,8 +677,10 @@ and Wait serialize handle retirement. `profile_windows.go` owns the stable
 AppContainer profile and explicit read/execute provisioning for a dedicated
 helper file and its directory, with no inherited ACL grant. Launch does not
 change ACLs. Native controls and ordinary decoder fixtures are required by the
-`heic-windows` amd64/arm64 CI suite. Historical helper results at `ee5cc67`
-do not qualify the new standard-user or installed-MSIX activation paths.
+`heic-windows` amd64/arm64 CI suite. Standalone standard-user qualification passes
+on both architectures at `69fef1a`, including private helper staging and the
+loopback permission query. Installed-MSIX activation remains blocked before
+the test process starts and requires separate package-context evidence.
 
 ### `scripts/heicpackage`
 

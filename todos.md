@@ -106,16 +106,18 @@ after an enabled preference and validated installed package.
   qualification. Implementation is in progress in the [active opt-in plan](plans/2026-09-16-experimental-heic-opt-in.md).
   Settings/restart, admission, Explorer and private staging are implemented;
   focused race tests, inspections, security checks and native macOS arm64
-  application-constructor/analysis evidence pass. At `9ea4dde`, both Linux and
-  standard-user Windows architectures and all Linux race shards pass; both
-  macOS architectures passed the preceding checkpoint. Installed MSIX succeeds
-  but COM activation fails in the alternate-user session; ordinary installed
-  executable launch is being qualified with all identity checks intact.
+  application-constructor/analysis evidence pass. At `69fef1a`, native Linux,
+  macOS and standard-user Windows pass on both architectures, and all Linux race
+  partitions pass. Installed MSIX succeeds, but COM activation and direct launch
+  both fail before the test application starts, even from a writable workspace.
+  This requires native x64/ARM64 environments with interactive standard-user
+  sessions; no suitable repository runner is configured.
   The confirmed live file-size review finding is fixed with native red/green
   coverage. Qodana reports zero findings; CodeQL processing recovered with only
-  its two previously dismissed false positives. Security review is clean at
-  `085d185`.
-  Complete native CI and final-head reviews remain open. See the [activation record](docs/heic/experimental-opt-in.md).
+  its two previously dismissed false positives. Code/security reviews are clean
+  at `69fef1a`. GitHub's separate AI scanner fails before analysis because its
+  configured model is unsupported. Installed-MSIX qualification and that external
+  scan remain open. See the [activation record](docs/heic/experimental-opt-in.md).
 
 The September 16 [history reconciliation](docs/heic/history-reconciliation.md)
 accounts for `fc127b44` and `73cb3c9`: all 107 production/source-license files
@@ -140,8 +142,9 @@ Remaining qualification:
   executable-memory permission is required. The compiler succeeds on the
   ordinary 12MP fixture; the interpreter reaches the finite deadline.
 - Complete distribution-package, Windows Authenticode/MSIX and upgrade
-  qualification remain open, including nonadministrator Windows access to the
-  launch-time loopback configuration query. The released updater drops the new helper and
+  qualification remain open. Nonadministrator launch-time loopback queries pass
+  in standalone Windows native CI on both architectures; installed-MSIX execution
+  is still unqualified. The released updater drops the new helper and
   deletes staging, leaving an invalid macOS enclosing signature. The first
   transition requires a complete reinstall or a separately qualified bridge.
 - [Compatibility evidence](docs/heic/compatibility-2026-09-16.md) covers ordinary

@@ -1,6 +1,7 @@
 # Experimental HEIC opt-in implementation
 
-Date: 2026-09-16. Route: Deep SDD/TDD. Status: in progress.
+Date: 2026-09-16. Route: Deep SDD/TDD. Status: implemented; installed-MSIX
+qualification and an external AI scan remain blocked.
 
 Deliver the accepted [spec](../.scratch/experimental-heic-opt-in/spec.md) through
 the [nine approved tickets](../.scratch/experimental-heic-opt-in/issues/README.md).
@@ -70,11 +71,11 @@ a recorded bounded question; no concurrent code ownership overlaps.
 | 01 | Real-admission consumer red: unsupported scan never began sort; green imaging/filescan and direct/folder/sibling/session/Favorite UI cases | Implemented; final gate pending |
 | 02 | Red: missing Experimental tab/default activation; green preference and real-checkbox separate-lifetime tests. Later red: stale open Settings; green live status update | Implemented; final gate pending |
 | 03 | Red: active HEIC choices absent and saved rule rejected; green Explorer real-dialog save/rename and source consumers; native successful analysis and two retained preview queries pass, missing-owner negative control fails as expected | Implemented; final gate pending |
-| 04 | Red: no staging publication; green owned bounded copy/reuse/repair/cancel/preparation-refusal cases. Windows cache/concurrent-process/lease tests pass natively on both architectures at 085d185 | Fresh final-commit qualification pending |
-| 05, 08 | Standard-user standalone guards pass on both architectures at 085d185. Disposable signed MSIX installs, but activation fails with 0x80070520 in the alternate-user session | Installed-MSIX qualification blocked; wrapper exit correction pending |
-| 06 | Both native macOS architectures pass signed application-constructor and analysis guards at 085d185; real HEIC decode, restart, cancellation and shutdown | Fresh final-commit qualification and production GUI smoke pending |
-| 07 | Linux native target now requires application fixture in addition to helper/seccomp/resource suite | Native execution unverified |
-| 09 | Focused package race suite and make verify-build pass. Initial IDE batch: 47 files; only three weak warnings (one redundant type fixed; two test duplication reports already excluded by exact Qodana paths). English/German light/dark, Cache/Store layout matrix rendered; German overflow seen red and default widened | Native matrix, complete CI and fresh reviews pending |
+| 04 | Red: no staging publication; green owned bounded copy/reuse/repair/cancel/preparation-refusal cases. Windows cache/concurrent-process/lease tests pass natively on both architectures at 69fef1a | Standalone native qualification passes; installed-MSIX open |
+| 05, 08 | Standard-user standalone guards pass on both architectures at 69fef1a. Disposable signed MSIX installs, but both COM and direct activation fail before the test process starts | Installed-MSIX qualification blocked on a suitable interactive standard-user environment |
+| 06 | Both native macOS architectures pass signed application-constructor and analysis guards at 69fef1a; real HEIC decode, restart, cancellation and shutdown | Native qualification passes; production GUI smoke remains separate |
+| 07 | Both native Linux architectures pass application, analysis, helper/seccomp/resource guards at 69fef1a | Native qualification passes |
+| 09 | Complete Linux race partitions and validation pass at 69fef1a. Fresh code/security reviews have no findings; Qodana has zero final results, CodeQL only its two existing dismissed false positives. IDE and sixteen Settings layouts verified | Installed-MSIX and the external GitHub AI scanner remain blocked |
 
 Budget: one initial read-only scout; lead implementation and fixes; focused
 tests during iteration; complete suite once at final gate. No qualification,
@@ -340,3 +341,30 @@ GitHub's separate dynamic AI code-scanning job fails before analysis with a
 service error: HTTP 400, "The requested model is not supported." Its log is
 `ai-scanning-4aca7be.log`; this is distinct from the passing CodeQL workflow
 and requested Codex reviews. No scanner setting or gate is disabled.
+
+## Qualification checkpoint — 69fef1a
+
+CI run 35111412255 is complete. Every job passes except installed-MSIX activation
+on both architectures. The direct launcher also returns Access denied when
+started from the owned writable workspace, so the extra working-directory
+permission demand was not the blocker. The installed test process never starts;
+no package-context helper or sandbox success is claimed. The next qualification
+requires native x64/ARM64 environments with interactive standard-user sessions.
+All identity/permission checks and the failing gates remain intact.
+
+Fresh Codex code review (comment 5699569800) and security review (5699579439)
+report no findings on 69fef1a. Both prior review threads are resolved. Final
+Qodana SARIF has zero findings. CodeQL Go analysis 1786920301 has the same two
+previously assessed dismissed false positives; Actions analysis 1786878185 has
+zero findings, and the open-alert query is empty. The separate dynamic AI scan
+35111413724 fails before analysis with the same unsupported-model service error.
+
+Evidence is under `.scratch/experimental-heic-opt-in/evidence/`: native artifacts
+for all six platform/architecture combinations at 4aca7be, corresponding final
+CI runs, `ci-msix-{amd64,arm64}-69fef1a.log`, `qodana-69fef1a.sarif.json`,
+`codeql-69fef1a-go.sarif.json`, and `ai-scanning-69fef1a.log`. No broad local race
+suite was duplicated. Local Docker remains aarch64; its canonical shard inventory
+passes, while full AMD64 verification stays in native CI. Production GUI smoke,
+licensing/distribution, production signing and broader camera/color gates remain
+separate. This plan stays active because required installed-MSIX qualification
+is incomplete; the draft PR is not ready for acceptance.

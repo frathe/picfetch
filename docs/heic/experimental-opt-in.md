@@ -80,13 +80,16 @@ and removes its test package. The parent removes its account, owned workspace
 and certificate/trust entry. Neither script is called by PicFetch. CI runs both
 architectures for standalone and installed-MSIX scenarios. Runtime or permission
 query failures fail the gate; there is no successful skip or elevated substitute.
-At `085d185`, both standard-user standalone event streams pass. Both installed
-MSIX jobs reach package installation but IApplicationActivationManager returns
-0x80070520 for the alternate-user process with its loaded profile.
+At `69fef1a`, standalone standard-user qualification passes on both architectures.
+Installed-MSIX activation remains blocked: IApplicationActivationManager returned
+0x80070520, and ordinary installed-executable launch returns Access denied with
+either the installed directory or the owned writable workspace as its working
+directory. Both packages install successfully; their test process never starts.
 Microsoft requires an [interactive user for packaged application execution](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-debug).
-The direct-launch fixture must establish actual package identity and pass every
-existing guard on both architectures before this gate is qualified; otherwise
-an interactive standard-user test environment remains necessary.
+Qualification now needs native x64 and ARM64 environments with an interactive
+standard-user session. Actual package identity and every existing guard must
+pass there before this gate is complete. The hosted alternate-user fixture
+does not establish installed Store helper activation, staging or sandbox behavior.
 For a local MSIX run, the configuration supplies `Scenario: "msix"`, `Repository`,
 `Go`, `Work`, `Evidence`, `Arch`, `Commit`, the signed `Package`, its `PackageName`
 and architecture-matched `Dependency`. Provision only disposable test state.
@@ -100,16 +103,16 @@ Store identity; cross-compilation is not that evidence.
 
 ## Current verification and remaining gates
 
-Focused preference/Settings/admission/Explorer and helper-publication tests pass
-locally. Native macOS arm64 application-constructor activation passes with the
-unchanged helper entitlement and finite limits. Both macOS architectures and
-both standard-user Windows event streams pass the native constructor/analysis
-guards at `085d185`. The Linux and Windows runner corrections pass natively on
-both architectures at `9ea4dde`, along with all Linux race partitions. The live
-file-size regression passes natively on macOS arm64; fresh cross-platform CI
-and installed-MSIX activation remain outstanding as described above. Production GUI
-smoke tests remain distinct from the test-driver fixture. See the plan for exact
-commands, recorded red/green results and inspections as they complete.
+At `69fef1a`, native Linux, macOS and standalone standard-user Windows pass on
+both architectures, including packaged startup, the live file-size regression,
+analysis and platform sandbox guards. All four Linux race partitions, ordinary
+Windows, validation and Store executable construction pass. Installed-MSIX is
+the only failing job in CI run 35111412255. Fresh Codex code/security reviews
+report no findings; final Qodana SARIF is empty, and CodeQL contains only its two
+previously assessed dismissed false positives. GitHub's separate dynamic AI
+scanner fails before analysis because its service rejects the configured model.
+That scan remains unverified. Production GUI smoke tests remain distinct from
+the test-driver fixture. See the plan for exact evidence and remaining gates.
 
 All prior sandbox, integrity and resource controls remain. macOS still has the
 previously accepted absence of a guaranteed total native-memory cap; WASM,

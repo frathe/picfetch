@@ -18,8 +18,9 @@ vulnerability findings. [ARCHITECTURE.md](ARCHITECTURE.md) is the package map;
 Experimental Settings opt-in.** Startup validates the executable-derived helper
 package before constructing an immutable shared capability. Missing/corrupt
 packages or failed isolation remain unavailable while ordinary viewing works.
-Windows private staging, standard-user and installed-MSIX activation are new
-paths awaiting native evidence; historical helper results do not qualify them.
+Windows private staging and standalone standard-user activation pass native
+x64/ARM64 qualification at 69fef1a. Installed-MSIX activation remains blocked
+before the test process starts; standalone helper results do not qualify it.
 Distribution clearance, production signing and broad color/camera qualification
 remain release gates. See the [activation record](docs/heic/experimental-opt-in.md).
 The accepted macOS design lacks a hard total native-memory cap; memory pressure
@@ -135,7 +136,10 @@ Go memory target remains soft.
 
 [Limits](internal/heicdecode/limits.go) permit at most **64 MiB encoded input**,
 **64 million pixels**, **256,000,000 output bytes**, **64 KiB normalized metadata**,
-**4096 diagnostic bytes**, and **60 seconds** per request, including admission.
+**4096 diagnostic bytes**, and **60 seconds** per request after admission.
+Readers apply the current user file-size limit to each new read, bounded by the
+shared owner's fixed 64 MiB ceiling. Raising the live preference cannot raise
+that hard HEIC ceiling or replace the owner.
 The output cap admits at most 32 million NRGBA64 pixels. One shared lane covers
 the app and its analysis descendants; bounded queues prioritize interactive work
 without indefinitely starving background requests. Bulk reads wait for admission
@@ -147,7 +151,7 @@ trusted installed package. Hashes are not an independent package signature.
 | Platform | Candidate native helper boundary |
 | --- | --- |
 | Linux x64/ARM64 | Thread-synchronized default-deny seccomp, resource limits and a 2 GiB address-space ceiling before input. This is not a physical-RAM/cgroup limit. |
-| Windows x64/ARM64 | Suspended zero-capability AppContainer setup, explicit inherited handles, private Job Object committed-memory/CPU/process limits and kill-on-close. Native CI controls and ordinary decoding pass; distribution and standard-user qualification remain open. |
+| Windows x64/ARM64 | Suspended zero-capability AppContainer setup, explicit inherited handles, private Job Object committed-memory/CPU/process limits and kill-on-close. Standalone standard-user native guards pass on both architectures; installed-MSIX and production distribution remain unqualified. |
 | macOS Intel/Apple Silicon | Separately entitled App Sandbox helper and Hardened Runtime with verified owned file/network denial; helper-only executable-memory entitlement for wazero. No guaranteed hard total native-memory ceiling. |
 
 The saved `experimentalHEIC` value describes user intent, separately from the
@@ -174,9 +178,11 @@ Windows helper startup supplies only `GOMAXPROCS` and the OS-reported
 `SystemRoot`/`LOCALAPPDATA`; it does not inherit the parent's environment or
 search path. Windows redirects the profile directory for the AppContainer.
 Profile creation uses a bounded per-user/session cross-process mutex. These
-startup controls pass native x64/ARM64 CI at `ee5cc67`; they grant no additional
-AppContainer capabilities or filesystem rights. Hosted runner results do not
-qualify every Windows installation or its ordinary-user firewall API access.
+startup controls pass standalone standard-user x64/ARM64 CI at `69fef1a`, including
+the launch-time loopback permission query; they grant no additional AppContainer
+capabilities or filesystem rights. Hosted runner results do not qualify every
+Windows installation. The installed-MSIX test process cannot start in the hosted
+alternate-user session, so its package-context behavior remains unverified.
 
 Windows can drop blocked loopback traffic instead of returning a permission
 error. Both parent-owned listeners are positively checked before launch, and
