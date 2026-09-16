@@ -1,7 +1,13 @@
 # Experimental HEIC opt-in implementation
 
-Date: 2026-09-16. Route: Deep SDD/TDD. Status: implemented; installed-MSIX
-qualification and an external AI scan remain blocked.
+Date: 2026-09-16. Route: Deep SDD/TDD. Status: implementation integrated;
+remaining checklist evidence, installed-MSIX qualification and an external AI
+scan keep final acceptance open.
+
+Resuming agent: start with the [handoff](../.scratch/experimental-heic-opt-in/handoff.md)
+and reconciled ticket checklists. On 2026-09-16, 44/57 items are checked and
+tickets 01/02/03/04 are resolved. Later handoff notes distinguish completed native
+constructor tests from compound application scenarios still needing proof.
 
 Deliver the accepted [spec](../.scratch/experimental-heic-opt-in/spec.md) through
 the [nine approved tickets](../.scratch/experimental-heic-opt-in/issues/README.md).
@@ -65,16 +71,36 @@ a recorded bounded question; no concurrent code ownership overlaps.
 
 ## Evidence and cost ledger
 
+Resume 2026-09-16: retain Deep routing and approved seams. One read-only scout
+locates existing consumer evidence and completion observables in the UI tests,
+Spiral and Grid while the lead traces native activation fixtures. G1: bounded
+consumer/lifetime question; G2: source-location claims checked with `rg`/reads;
+G3: no writes; G4: consumer sweep is smaller than the complete feature context;
+G5: lead has not traced these consumers in this resumed session. No design,
+review or fixes delegated. Lead adds missing behavioral coverage one slice at
+a time, negatively verifies new guards, and keeps native environment blockers
+explicit. Budget: one scout, focused tests, complete suite through CI.
+
+Resumed slice A (lead): extend `internal/ui/images_native_test.go` through the
+existing packaged constructor to prove mixed-directory HEIC/HEIF/PNG navigation,
+saved disable during an admitted native request, cancellation of a retired
+foreground load on collection replacement, ordinary replacement pixels, and
+continued HEIC use before restart. Existing package construction and execution
+commands below remain unchanged. Verify with
+`go test -tags no_emoji,nodynamic,heicnative -count=1 -run '^TestNativePackagedHEICActivation$' -v ./internal/ui`;
+observe a negative control before recording green. No new runtime seam or
+decoder behavior is planned. Other architectures require fresh native CI.
+
 | Slice | Red / green / inspection evidence | Status |
 | --- | --- | --- |
 | Publication | Nine tickets published, ticket 01 claimed; prior spec preserved | Complete |
-| 01 | Real-admission consumer red: unsupported scan never began sort; green imaging/filescan and direct/folder/sibling/session/Favorite UI cases | Implemented; final gate pending |
-| 02 | Red: missing Experimental tab/default activation; green preference and real-checkbox separate-lifetime tests. Later red: stale open Settings; green live status update | Implemented; final gate pending |
-| 03 | Red: active HEIC choices absent and saved rule rejected; green Explorer real-dialog save/rename and source consumers; native successful analysis and two retained preview queries pass, missing-owner negative control fails as expected | Implemented; final gate pending |
-| 04 | Red: no staging publication; green owned bounded copy/reuse/repair/cancel/preparation-refusal cases. Windows cache/concurrent-process/lease tests pass natively on both architectures at 69fef1a | Standalone native qualification passes; installed-MSIX open |
+| 01 | Real-admission consumer red: unsupported scan never began sort; green imaging/filescan and direct/folder/sibling/session/Favorite UI cases | Ticket resolved; integrated final gate separate |
+| 02 | Red: missing Experimental tab/default activation; green preference and real-checkbox separate-lifetime tests. Later red: stale open Settings; green live status update | Ticket resolved; platform/final gates separate |
+| 03 | Red: active HEIC choices absent and saved rule rejected; green Explorer/source consumers and native analysis/retained queries. Resumed uncached duplicate/Spiral and active-analysis/source-replacement guards pass with negative controls | 6/6 items complete; final integrated native gate remains separate |
+| 04 | Red: no staging publication; green owned bounded copy/reuse/repair/cancel/preparation-refusal cases. Windows cache/concurrent-process/lease tests pass natively on both architectures at 69fef1a | Ticket resolved for staging; installed-MSIX context separate |
 | 05, 08 | Standard-user standalone guards pass on both architectures at 69fef1a. Disposable signed MSIX installs, but both COM and direct activation fail before the test process starts | Installed-MSIX qualification blocked on a suitable interactive standard-user environment |
-| 06 | Both native macOS architectures pass signed application-constructor and analysis guards at 69fef1a; real HEIC decode, restart, cancellation and shutdown | Native qualification passes; production GUI smoke remains separate |
-| 07 | Both native Linux architectures pass application, analysis, helper/seccomp/resource guards at 69fef1a | Native qualification passes |
+| 06 | Both native macOS architectures pass signed application-constructor and analysis guards at 69fef1a; real HEIC decode, restart, cancellation and shutdown | 4/6 items complete; combined packaged failure/navigation evidence remains; production GUI smoke separate |
+| 07 | Both native Linux architectures pass application, analysis, helper/seccomp/resource guards at 69fef1a | 4/6 items complete; combined native directory/failure scenarios remain |
 | 09 | Complete Linux race partitions and validation pass at 69fef1a. Fresh code/security reviews have no findings; Qodana has zero final results, CodeQL only its two existing dismissed false positives. IDE and sixteen Settings layouts verified | Installed-MSIX and the external GitHub AI scanner remain blocked |
 
 Budget: one initial read-only scout; lead implementation and fixes; focused
@@ -368,3 +394,99 @@ passes, while full AMD64 verification stays in native CI. Production GUI smoke,
 licensing/distribution, production signing and broader camera/color gates remain
 separate. This plan stays active because required installed-MSIX qualification
 is incomplete; the draft PR is not ready for acceptance.
+
+### Online investigation of alternate-user MSIX activation
+
+At Ronin's request, stop speculative launcher changes and examine primary
+sources. Microsoft's [WindowsAppSDK issue 2555](https://github.com/microsoft/WindowsAppSDK/issues/2555)
+records the same `0x80070520` during packaged-component activation as another
+user inside the desktop session owner's session. The maintainer specifically
+identifies the [CreateProcessWithLogonW/MSIX interaction](https://github.com/microsoft/WindowsAppSDK/issues/2555#issuecomment-1190815856)
+as an OS issue. Its closed-not-planned status and later OS escalation do not
+establish a fix. This strongly matches our COM failure; the exact failed OS
+check behind our direct-launch Access denied remains untraced.
+
+The next qualification needs the standard test user to own the desktop session
+and run the ordinary activation launcher from that session. Record both process
+SID and desktop-session ownership before launching. A credential process with
+a loaded profile does not establish this arrangement. Do not label GitHub ARM
+runners categorically headless: the [runner maintainer's investigation](https://github.com/actions/runner-images/issues/14049#issuecomment-5217338266)
+found an interactive desktop for the runner account. No supported workaround
+for our secondary-account launch was found, and no further CI retry is justified
+without changing that prerequisite. Native installed-MSIX proof remains open.
+
+The detailed source assessment and next qualification procedure are recorded in
+`.scratch/experimental-heic-opt-in/evidence/msix-activation-research.md`.
+The current hosted-only provisioner must be split from session-local execution
+before offering a manual or interactive-runner path. No implementation or gate
+was changed by this research. Reused the existing read-only scout for one bounded
+primary-source issue search (zero new spawns); lead verified cited comments with
+`gh api`, retained all assessment/design ownership and wrote the record.
+
+The unchanged Windows ARM64 standalone retry at `8aa317a` passes all five native
+packages with no failed event records. Its original analysis-pixel failure is
+retained as unexplained intermittent evidence, not reported as fixed. Fresh
+Codex code/security reviews of that head are clean (comments 5699763980 and
+5699899622); Qodana has zero final results and CodeQL only the two existing
+dismissed false positives. Both installed-MSIX jobs and the separate unsupported-
+model AI scanner remain unsuccessful.
+
+### Resumed consumer and packaged-application evidence — 2026-09-16
+
+Lead-owned slice B extends `images_test.go` at the approved startup/admission,
+Grid, Spiral shader and Explorer Analyze seams. The two new root tests are
+assigned to ui-2 (253 entries). `TestExperimentalHEICPreviewConsumers` establishes
+uncached duplicate previews and actual Spiral shader pixels after ordinary
+admission. `TestExperimentalHEICActiveAnalysis` establishes positive HEIC pixels,
+saved disable while analysis remains current, source replacement/cancellation,
+late-map refusal and continued HEIC use until restart. Native inherited analysis
+and retained-search proof remains in the existing native suite.
+
+Slice A now holds an actual foreground source read after native readiness,
+changes the checkbox while that load is active, replaces its collection and
+observes source closure plus retired-load completion. The fresh ordinary surface
+survives, and the same owner decodes HEIC again before restart. It also opens a
+mixed HEIC/HEIF/PNG directory and navigates each source. Each owned standalone
+package is then relaunched with a missing helper, missing/invalid manifest,
+wrong architecture or changed helper identity. All cases preserve intent and
+the localized explanation and display the ordinary member of a mixed directory.
+These fixture mutations never touch installed MSIX files.
+
+On macOS a final owned negative helper is ad-hoc signed with an empty entitlement
+plist using `codesign --force --sign - --options runtime --entitlements <empty.plist>
+<owned HEICWorker.app>`. Its manifest pins those exact bytes; the enclosing app
+is re-signed and checked with `codesign --verify --deep --strict --verbose=2`.
+Actual readiness refusal must precede any bulk source read; the configured owner
+and saved intent remain stable and ordinary PNG viewing recovers. Production
+entitlements, code, dependencies and decoder bytes are unchanged.
+
+Meaningful negative controls (all temporary edits restored): removing Grid and
+Spiral reader injection fails both preview cases; closing Explorer on the saved
+choice fails the active-session assertion; discarding startup errors fails every
+invalid-package case; giving the negative helper its normal sandbox entitlements
+fails the readiness-refusal assertion. Logs are `evidence/resume-*-negative.log`.
+These are new coverage for already implemented behavior; no production defect
+or runtime fix is claimed.
+
+Local green: the T03 HEIC/injected-reader race gate, Explorer/preset package gate,
+and client race gate pass. The client gate initially failed because the tool
+sandbox prohibited its owned loopback binds; the identical unsandboxed command
+passes (8.643 s), with both logs retained. The expanded real macOS arm64 packaged
+fixture passes with race detection (25.637 s), including all six refusal cases.
+Other native architectures and the complete suite require the fresh CI round.
+Installed-MSIX/session prerequisites, Windows combined ACL/query/concurrent-app
+failure evidence and the external AI scanner remain open. One read-only consumer
+scout was used; all tests, negative controls, assessment and fixes stayed with
+the lead. Final gates/inspection and new-head CI/review results follow below.
+
+Final local gates: `make verify-build` passes, including formatting, exact Qodana
+exclusions, reproducible guest/provenance, native import guard, vet and build.
+Its first sandboxed attempt was blocked by Go-cache writes; the unchanged
+unsandboxed command passed. `make check-test-shards` passes the canonical
+Linux/amd64 inventory with 693 tests. Package/native-runner/plist tests pass.
+`make security-govulncheck` reports zero reachable native vulnerabilities and
+no guest vulnerabilities (one module-only native advisory remains unreachable).
+GoLand inspections of both changed code files are clean, including warnings;
+`resume-goland-inspections.json` retains the results. New test inventory is
+retained in `resume-test-inventory.log`. The full race suite remains a CI gate
+under the authorized review-loop procedure.

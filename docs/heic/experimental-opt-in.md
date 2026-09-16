@@ -61,7 +61,15 @@ runs the shared startup/viewer harness. It exercises the real checkbox across
 separate viewer lifetimes, HEIC/HEIF admission, native helper decoding, ordinary
 viewing, cancellation and shutdown. Fyne's test driver supplies the surface;
 this is application-constructor/package-boundary evidence, not a production GUI
-smoke test. The installed-MSIX entry is `TestNativeInstalledHEICActivation`,
+smoke test. Its resumed coverage adds mixed-directory navigation, a foreground
+source held after native readiness across a saved Settings edit and collection
+replacement, and ordinary viewing after missing/invalid/wrong-target package
+inputs. macOS also exercises an owned helper signed without App Sandbox: native
+readiness refuses it before bulk source reads, and ordinary viewing recovers.
+All damaged-package fixtures are disposable standalone copies; installed MSIX
+files remain immutable. These additions pass locally on macOS arm64 with race
+detection; the current plan records subsequent cross-platform CI results.
+The installed-MSIX entry is `TestNativeInstalledHEICActivation`,
 compiled with `heicnative,microsoftstore` alongside the actual Store executable.
 The fixture launches the declared test executable directly from its installed
 WindowsApps path. Windows can resolve package identity during this ordinary

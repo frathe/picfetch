@@ -99,6 +99,13 @@ after an enabled preference and validated installed package.
 - [ ] Implement the [Experimental HEIC opt-in spec](.scratch/experimental-heic-opt-in/spec.md):
   default-off, restart-only Settings activation on macOS/Linux/Windows and MSIX,
   immutable session admission and verified private Windows helper staging.
+  [Agent handoff](.scratch/experimental-heic-opt-in/handoff.md): 44/57 ticket
+  checklist items complete; tickets 01/02/03/04 resolved. Resumed consumer tests
+  prove uncached duplicate/Spiral pixels and active-analysis Settings/replacement
+  behavior. Expanded macOS arm64 native race tests prove mixed-directory navigation,
+  foreground cancellation, package/target failure recovery and sandbox-readiness
+  refusal with ordinary viewing intact. Fresh cross-platform CI and remaining
+  Windows application-failure scenarios are still required.
   Require native packaged activation on amd64/arm64, standard-user Windows and
   installed disposable-signed test-MSIX; permission-query failure remains a
   blocker. Retain the accepted macOS memory limitation and separate release
@@ -112,6 +119,11 @@ after an enabled preference and validated installed package.
   both fail before the test application starts, even from a writable workspace.
   This requires native x64/ARM64 environments with interactive standard-user
   sessions; no suitable repository runner is configured.
+  [Microsoft's documented alternate-user activation limitation](https://github.com/microsoft/WindowsAppSDK/issues/2555#issuecomment-1190815856)
+  closely matches the COM failure. Run the launcher in a desktop session owned
+  by the test account and verify that ownership before retrying; loading its
+  profile in the runner user's session is insufficient evidence. Split fixture
+  preparation from execution for that path; keep the existing failing gates.
   The confirmed live file-size review finding is fixed with native red/green
   coverage. Qodana reports zero findings; CodeQL processing recovered with only
   its two previously dismissed false positives. Code/security reviews are clean

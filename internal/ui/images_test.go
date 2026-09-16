@@ -16,8 +16,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
@@ -30,6 +32,8 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	mosaiccore "github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/similarity"
+	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -242,6 +246,173 @@ func TestHEICSourceConsumers(t *testing.T) {
 	}
 }
 
+// A notice observes callback submission, so preview assertions never infer
+// completion from a read counter or race the worker's subsequent delivery.
+type heicPreviewQueue struct {
+	uitest.UIQueue
+	notice chan struct{}
+}
+
+func (q *heicPreviewQueue) Do(f func()) {
+	q.UIQueue.Do(f)
+	select {
+	case q.notice <- struct{}{}:
+	default:
+	}
+}
+
+func TestExperimentalHEICPreviewConsumers(t *testing.T) {
+	var decoded atomic.Int64
+	reader := imaging.NewReader(func(ctx context.Context, op heicdecode.Operation, input heicclient.Input) (heicdecode.Response, error) {
+		if _, err := input(ctx, 128); err != nil {
+			return heicdecode.Response{}, err
+		}
+		if op != heicdecode.Decode {
+			return heicdecode.Response{}, nil
+		}
+		decoded.Add(1)
+		pixels := image.NewNRGBA(image.Rect(0, 0, 8, 6))
+		for y := 0; y < 6; y++ {
+			for x := 0; x < 8; x++ {
+				pixels.SetNRGBA(x, y, color.NRGBA{R: uint8(x * 30), G: uint8(y * 40), A: 255})
+			}
+		}
+		return heicdecode.Response{Image: pixels, Config: image.Config{Width: 8, Height: 6}}, nil
+	})
+	v, _, _ := newTestUIWithImages(t, imageServices{foreground: reader, background: reader})
+	first := storage.NewFileURI(uitest.WriteTempFile(t, "first.heic", []byte("owned")))
+	second := storage.NewFileURI(uitest.WriteTempFile(t, "second.heif", []byte("owned")))
+	dropAndWait(t, v, first, second)
+	v.display.Settle()
+	t.Run("uncached duplicate previews", func(t *testing.T) {
+		if v.grid.Cached(first) || v.grid.Cached(second) {
+			t.Fatal("duplicate fixture already has cached thumbnails")
+		}
+		before := decoded.Load()
+		v.grid.SetBrowsingDuplicates(true)
+		v.grid.Settle()
+		if !v.grid.BrowseReady() || len(v.grid.ResultIndexes()) != 2 || decoded.Load() <= before {
+			t.Fatal("admitted HEIC sources did not produce a duplicate group")
+		}
+		for _, uri := range []fyne.URI{first, second} {
+			pixels, ok := v.grid.CachedThumb(uri)
+			if !ok || pixels.Bounds().Dx() == 0 || pixels.Bounds().Dy() == 0 {
+				t.Fatal("duplicate browsing did not produce HEIC previews")
+			}
+		}
+	})
+	t.Run("uncached Spiral preview", func(t *testing.T) {
+		queue := &heicPreviewQueue{notice: make(chan struct{}, 1)}
+		v.spiral.SetUIQueue(queue)
+		before := decoded.Load()
+		v.openSpiral()
+		defer func() { v.spiral.Close(); v.spiral.Settle() }()
+		var shader *canvas.Shader
+		for _, win := range testApp.Driver().AllWindows() {
+			if win.Title() == lang.L("Hypno Spiral") {
+				shader, _ = win.Content().(*canvas.Shader)
+			}
+		}
+		if shader == nil {
+			t.Fatal("Spiral shader is absent from the window")
+		}
+		deadline := time.NewTimer(testTimeout)
+		defer deadline.Stop()
+		for {
+			select {
+			case <-queue.notice:
+				queue.Drain()
+				pixels := shader.Textures["traveller0"]
+				if pixels != nil && pixels.Bounds().Size() == image.Pt(8, 6) {
+					if decoded.Load() <= before {
+						t.Fatal("Spiral used cached pixels instead of its HEIC reader")
+					}
+					return
+				}
+			case <-deadline.C:
+				t.Fatal("admitted HEIC preview did not reach the Spiral shader")
+			}
+		}
+	})
+}
+
+func TestExperimentalHEICActiveAnalysis(t *testing.T) {
+	before := preferences.Load(testApp)
+	t.Cleanup(func() { preferences.Save(testApp, before) })
+	preferences.Save(testApp, preferences.State{ExperimentalHEIC: true})
+	reader := imaging.NewReader(func(ctx context.Context, op heicdecode.Operation, input heicclient.Input) (heicdecode.Response, error) {
+		if _, err := input(ctx, 128); err != nil {
+			return heicdecode.Response{}, err
+		}
+		if op != heicdecode.Decode {
+			return heicdecode.Response{}, nil
+		}
+		return heicdecode.Response{Image: image.NewNRGBA(image.Rect(0, 0, 8, 6)), Config: image.Config{Width: 8, Height: 6}}, nil
+	})
+	v, _, _ := newTestUIWithImages(t, imageServices{foreground: reader, background: reader})
+	first := storage.NewFileURI(uitest.WriteTempFile(t, "first.heic", []byte("owned")))
+	second := storage.NewFileURI(uitest.WriteTempFile(t, "second.heif", []byte("owned")))
+	dropAndWait(t, v, first, second)
+	v.display.Settle()
+	started, stopped := make(chan error, 1), make(chan struct{})
+	preview := uitest.EncodeJPEG(t, 8, 6, color.White)
+	configureExplorer(v, func(options *explorerui.Options) {
+		options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			defer close(stopped)
+			source, err := v.images.background.Read(ctx, storage.NewFileURI(paths[0]))
+			if err == nil && source.Bounds().Size() != image.Pt(8, 6) {
+				err = errors.New("analysis did not receive HEIC pixels")
+			}
+			started <- err
+			if err != nil {
+				return err
+			}
+			<-ctx.Done()
+			emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths), Items: []similarity.Item{{Path: paths[0], Cohort: "retired", Position: []float32{0, 0}, Preview: preview}}})
+			return ctx.Err()
+		}
+	})
+	explorerMenu(t, v).Action()
+	select {
+	case err := <-started:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(testTimeout):
+		t.Fatal("HEIC analysis did not begin")
+	}
+	analysis := observeExplorer(v.explorer)
+	check := experimentalHEICCheckbox(t, v)
+	test.Tap(check)
+	preferences.Save(testApp, v.currentPreferences())
+	if preferences.Load(testApp).ExperimentalHEIC || !v.images.foreground.IsSupportedImage(first) || !v.images.background.IsSupportedImage(second) {
+		t.Fatal("active analysis Settings edit changed session capability or lost saved intent")
+	}
+	if !analysis.current() {
+		t.Fatal("saved HEIC edit retired the active analysis session")
+	}
+	select {
+	case <-stopped:
+		t.Fatal("saved HEIC edit cancelled active analysis")
+	default:
+	}
+	replacement := storage.NewFileURI(uitest.WriteTempFile(t, "replacement.png", uitest.EncodePNG(t, 5, 4, color.White)))
+	dropAndWait(t, v, replacement)
+	select {
+	case <-stopped:
+	case <-time.After(testTimeout):
+		t.Fatal("source replacement did not cancel HEIC analysis")
+	}
+	v.settleExplorer()
+	if len(explorerPiles(v)) != 0 || v.FileCount() != 1 || v.img.Image == nil || v.img.Image.Bounds().Size() != image.Pt(5, 4) {
+		t.Fatal("retired HEIC analysis changed replacement viewing")
+	}
+	dropAndWait(t, v, first, second)
+	if v.FileCount() != 2 || v.img.Image == nil || v.img.Image.Bounds().Size() != image.Pt(8, 6) {
+		t.Fatal("saved disable stopped HEIC before restart")
+	}
+}
+
 func TestHEICOwnerStopsWithViewer(t *testing.T) {
 	executable, err := os.Executable()
 	if err != nil {
@@ -309,6 +480,7 @@ func experimentalHEICCheckbox(t *testing.T, v *viewer) *widget.Check {
 		})
 		tabs.Select(tab)
 		var found *widget.Check
+		var unavailable *widget.Label
 		var walk func(fyne.CanvasObject)
 		walk = func(obj fyne.CanvasObject) {
 			switch value := obj.(type) {
@@ -322,11 +494,18 @@ func experimentalHEICCheckbox(t *testing.T, v *viewer) *widget.Check {
 				if value.Text == lang.L("Experimental HEIC support") {
 					found = value
 				}
+			case *widget.Label:
+				if value.Text == lang.L("Experimental HEIC support is unavailable. Check the installed helper package and sandbox permissions.") {
+					unavailable = value
+				}
 			}
 		}
 		walk(tab.Content)
 		if found == nil {
 			t.Fatal("Experimental checkbox is not in the Settings surface")
+		}
+		if v.images.unavailable() && (unavailable == nil || !unavailable.Visible()) {
+			t.Fatal("unavailable HEIC explanation is not visible in Experimental")
 		}
 		return found
 	}
