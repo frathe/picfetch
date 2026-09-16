@@ -29,6 +29,12 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 
 #### New Features
 
+- Add Settings -> Limits -> Similarity Explorer with persisted 512 MB map-data
+  and 10,000-item defaults, configurable for larger libraries. Resource-limit
+  errors show wrapped toasts naming the setting location. Stream map snapshots
+  in bounded chunks with aggregate accounting instead of one large JSON event.
+  Evidence: [PR #29 implementation plan](plans/2026-09-16-explorer-configurable-limits.md).
+
 #### Bugfix
 
 - Bound ICO and SVG input processing, enforce WASM AVIF builds, and account for

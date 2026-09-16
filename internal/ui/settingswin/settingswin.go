@@ -92,8 +92,9 @@ type Window struct {
 	maxWidthEntry, maxHeightEntry *widget.Entry
 	imgCacheEntry, thumbCacheEntry,
 	maxFileSizeEntry *widget.Entry
-	dupeDistSlider *widget.Slider
-	dupeDistValue  *widget.Label
+	explorerMemoryEntry, explorerItemsEntry *widget.Entry
+	dupeDistSlider                          *widget.Slider
+	dupeDistValue                           *widget.Label
 
 	// updateFlow identifies the currently live manual-update request. Host
 	// callbacks are already delivered on the UI thread, so this narrow
@@ -158,6 +159,7 @@ func (w *Window) Show(prefs preferences.State, updatesManagedByStore bool) {
 		w.intervalEntry, w.maxScanEntry = nil, nil
 		w.maxWidthEntry, w.maxHeightEntry = nil, nil
 		w.imgCacheEntry, w.thumbCacheEntry, w.maxFileSizeEntry = nil, nil, nil
+		w.explorerMemoryEntry, w.explorerItemsEntry = nil, nil
 		w.dupeDistSlider, w.dupeDistValue = nil, nil
 	})
 }
@@ -343,6 +345,21 @@ func (w *Window) build() fyne.CanvasObject {
 		widget.NewFormItem(lang.L("Max window height"), w.maxHeightEntry),
 	)
 	limitsForm := widget.NewForm(maxScanItem, imgCacheItem, thumbCacheItem, maxFileSizeItem)
+	w.explorerMemoryEntry = newPositiveIntEntry(
+		func() int { return w.prefs.SimilarityMemoryLimitMB },
+		func(n int) { w.apply(func(s *preferences.State) { s.SimilarityMemoryLimitMB = n }) },
+		maxMemoryMB, positiveInt,
+	)
+	w.explorerItemsEntry = newPositiveIntEntry(
+		func() int { return w.prefs.SimilarityItemLimit },
+		func(n int) { w.apply(func(s *preferences.State) { s.SimilarityItemLimit = n }) },
+		0, positiveInt,
+	)
+	explorerMemory := widget.NewFormItem(lang.L("Memory limit (MB)"), w.explorerMemoryEntry)
+	explorerMemory.HintText = lang.L("Maximum serialized map size; applies to the next analysis")
+	explorerItems := widget.NewFormItem(lang.L("Item limit"), w.explorerItemsEntry)
+	explorerItems.HintText = lang.L("Maximum images per analysis; increase for larger libraries")
+	limits := container.NewVBox(limitsForm, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), widget.NewForm(explorerMemory, explorerItems))
 
 	w.mergeCheck = widget.NewCheck(lang.L("Merge newly dropped files into the current set"), func(on bool) {
 		w.apply(func(s *preferences.State) { s.MergeMode = on })
@@ -395,7 +412,7 @@ func (w *Window) build() fyne.CanvasObject {
 		container.NewTabItem(lang.L("General"), container.NewPadded(container.NewVScroll(general))),
 		container.NewTabItem(lang.L("Appearance"), container.NewPadded(container.NewVScroll(appearanceSettings))),
 		container.NewTabItem(lang.L("Updates"), container.NewPadded(container.NewVScroll(updates))),
-		container.NewTabItem(lang.L("Limits"), container.NewPadded(container.NewVScroll(limitsForm))),
+		container.NewTabItem(lang.L("Limits"), container.NewPadded(container.NewVScroll(limits))),
 	)
 	if w.cacheContent != nil {
 		tabs.Append(container.NewTabItem(lang.L("Cache"), container.NewPadded(container.NewVScroll(w.cacheContent()))))

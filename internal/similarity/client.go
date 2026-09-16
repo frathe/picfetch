@@ -1,7 +1,6 @@
 package similarity
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -10,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -21,34 +21,41 @@ import (
 const workerEnvironment = "PICFETCH_SIMILARITY_WORKER"
 
 const (
-	workerRequestLimit = 64 * 1024 * 1024
-	workerEventLimit   = 128 * 1024 * 1024
-	// Grouping is quadratic in represented sources; keep its worst case finite.
-	maxAnalysisSources = 5000
+	workerRequestLimit       = 64 * 1024 * 1024
+	DefaultAnalysisMemoryMB  = 512
+	DefaultAnalysisItemLimit = 10000
+	MaxAnalysisMemoryMB      = 1024 * 1024
 )
 
-type workerEventDecoder struct {
-	scanner *bufio.Scanner
+// AnalysisLimits bounds collection work and each serialized result. MemoryMB
+// does not bound total process memory or the native inference runtime.
+type AnalysisLimits struct {
+	MemoryMB int
+	Items    int
 }
 
-func newWorkerEventDecoder(input io.Reader, limit int) *workerEventDecoder {
-	scanner := bufio.NewScanner(input)
-	initial := 64 * 1024
-	if limit < initial {
-		initial = limit
+func (l AnalysisLimits) Normalized() AnalysisLimits {
+	if l.MemoryMB <= 0 || l.MemoryMB > MaxAnalysisMemoryMB {
+		l.MemoryMB = DefaultAnalysisMemoryMB
 	}
-	scanner.Buffer(make([]byte, initial), limit)
-	return &workerEventDecoder{scanner: scanner}
+	if l.Items <= 0 {
+		l.Items = DefaultAnalysisItemLimit
+	}
+	return l
 }
 
-func (d *workerEventDecoder) Decode(event *Event) error {
-	if !d.scanner.Scan() {
-		if err := d.scanner.Err(); err != nil {
-			return fmt.Errorf("decode similarity worker event: %w", err)
-		}
-		return io.EOF
+var (
+	ErrAnalysisItemLimit   = errors.New("similarity explorer item limit exceeded")
+	ErrAnalysisMemoryLimit = errors.New("similarity explorer memory limit exceeded")
+)
+
+func (l AnalysisLimits) validateSourceCount(count int) error {
+	limit := l.Normalized().Items
+	// Grouping is quadratic in represented sources; keep its worst case finite.
+	if count > limit {
+		return fmt.Errorf("%w: accepts at most %d images, got %d", ErrAnalysisItemLimit, limit, count)
 	}
-	return json.Unmarshal(d.scanner.Bytes(), event)
+	return nil
 }
 
 // Bound each decoded message independently; a retained search can accept an
@@ -75,7 +82,8 @@ func (d *workerDecoder) Decode(value any) error {
 // Client runs native inference and batch algorithms outside the viewer process.
 // Assets may override the installed assets directory for a local trial.
 type Client struct {
-	Assets string
+	Assets         string
+	AnalysisLimits AnalysisLimits
 	// HTTPClient configures asset downloads; analysis never uses it.
 	HTTPClient *http.Client
 	// FavoritesDir supplies membership and, unless disabled, Favorite analysis.
@@ -96,6 +104,7 @@ type request struct {
 	DisableFavoriteCache bool
 	Paths                []string
 	MaxEncodedBytes      int64
+	AnalysisLimits       AnalysisLimits
 }
 
 // Analyze streams serialized immutable snapshots and waits for worker exit.
@@ -104,7 +113,8 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := validateAnalysisSourceCount(len(paths)); err != nil {
+	limits := c.AnalysisLimits.Normalized()
+	if err := limits.validateSourceCount(len(paths)); err != nil {
 		return err
 	}
 	if !SupportedPlatform() {
@@ -118,9 +128,13 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if assets == "" {
 		assets = defaultAssets(executable)
 	}
-	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes()}
+	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes(), AnalysisLimits: limits}
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
+	return analyzeCommand(ctx, cmd, req, controls, emit)
+}
+
+func analyzeCommand(ctx context.Context, cmd *exec.Cmd, req request, controls <-chan Control, emit func(Event)) error {
 	input, err := cmd.StdinPipe()
 	if err != nil {
 		return err
@@ -170,7 +184,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 			_ = cmd.Wait()
 		}
 	}()
-	decoder := newWorkerEventDecoder(stdout, workerEventLimit)
+	decoder := newWorkerEventDecoder(stdout, req.AnalysisLimits.Normalized().MemoryMB*1024*1024, req.AnalysisLimits.Normalized().Items)
 	complete := false
 	for {
 		var event Event
@@ -195,6 +209,10 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
+	// Killing the worker after a decode failure must not hide the resource error.
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
 	if waitErr != nil {
 		return fmt.Errorf("analysis worker: %w: %s", waitErr, stderr.String())
 	}
@@ -203,13 +221,6 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	}
 	if !complete {
 		return fmt.Errorf("analysis worker exited without a completed map")
-	}
-	return nil
-}
-
-func validateAnalysisSourceCount(count int) error {
-	if count > maxAnalysisSources {
-		return fmt.Errorf("visual similarity analysis accepts at most %d images, got %d", maxAnalysisSources, count)
 	}
 	return nil
 }
@@ -266,7 +277,7 @@ func WorkerMain() bool {
 	decoder := newWorkerDecoder(input)
 	err = decoder.Decode(&req)
 	if err == nil && req.Search == nil {
-		err = validateAnalysisSourceCount(len(req.Paths))
+		err = req.AnalysisLimits.validateSourceCount(len(req.Paths))
 	}
 	if err == nil {
 		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
@@ -295,7 +306,7 @@ func WorkerMain() bool {
 				}
 			}
 		}()
-		output := json.NewEncoder(os.Stdout)
+		output := newWorkerEventEncoder(os.Stdout, req.AnalysisLimits.Normalized().MemoryMB*1024*1024)
 		err = analyzeLocal(ctx, req, controls, func(event Event) error { return output.Encode(event) })
 		cancelRead()
 		_ = input.Close()

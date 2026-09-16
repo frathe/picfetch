@@ -114,7 +114,8 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.grid = grid.New(view, window, view.dupes)
 	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
 		App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
-		Settings: explorerui.Settings{CacheFavorites: prefs.SimilarityFavoriteCache, AutoFit: prefs.SimilarityAutoFit, Automatic: prefs.SimilarityAutoUpdate, IntroSeen: prefs.SimilarityIntroSeen},
+		Settings: explorerui.Settings{CacheFavorites: prefs.SimilarityFavoriteCache, AutoFit: prefs.SimilarityAutoFit, Automatic: prefs.SimilarityAutoUpdate, IntroSeen: prefs.SimilarityIntroSeen,
+			Limits: similarity.AnalysisLimits{MemoryMB: prefs.SimilarityMemoryLimitMB, Items: prefs.SimilarityItemLimit}},
 	})
 	view.visualsearch = searchui.New(searchHost{view}, searchui.Options{})
 	view.grid.SetOnRankedOpen(view.searchImageOpened)

@@ -50,6 +50,18 @@ func TestAnalysisCachePreferences(t *testing.T) {
 	}
 }
 
+func TestSimilarityLimitPreferences(t *testing.T) {
+	app := test.NewApp()
+	Save(app, State{SimilarityMemoryLimitMB: 256, SimilarityItemLimit: 12000})
+	for _, invalid := range []int{0, -1} {
+		Save(app, State{SimilarityMemoryLimitMB: invalid, SimilarityItemLimit: invalid})
+		got := Load(app)
+		if got.SimilarityMemoryLimitMB != 256 || got.SimilarityItemLimit != 12000 {
+			t.Fatalf("saved explorer limits lost: memory=%d items=%d", got.SimilarityMemoryLimitMB, got.SimilarityItemLimit)
+		}
+	}
+}
+
 func TestMosaicPreferences_DefaultsAndRoundTrip(t *testing.T) {
 	app := test.NewApp()
 	if got := Load(app).MosaicSettings; got != mosaic.DefaultSettings() {

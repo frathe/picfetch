@@ -3,12 +3,15 @@
 package ui
 
 import (
+	"image/color"
 	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -23,7 +26,7 @@ const toastDuration = 10 * time.Second
 // keep working while it's up. It owns its widgets and its auto-hide
 // lifecycle; the viewer composes one and exposes it through ShowToast.
 type toast struct {
-	text *canvas.Text
+	text *widget.Label
 	card *fyne.Container
 
 	// gen mirrors the staleness-guard pattern used for image loads: it
@@ -60,15 +63,23 @@ type toast struct {
 	repaint func()
 }
 
+type toastTheme struct{ fyne.Theme }
+
+func (t toastTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if name == theme.ColorNameForeground {
+		return widgets.ToastTextColor
+	}
+	return t.Theme.Color(name, variant)
+}
+
 // newToast builds the toast card (hidden) with the production auto-hide
 // duration. repaint is called after every visibility change.
 func newToast(repaint func()) *toast {
 	bg := canvas.NewRectangle(widgets.ToastBGColor)
 	bg.CornerRadius = widgets.CardRadius
-	text := canvas.NewText("", widgets.ToastTextColor)
-	text.Alignment = fyne.TextAlignCenter
-	text.TextStyle = fyne.TextStyle{Bold: true}
-	card := container.NewStack(bg, container.NewPadded(text))
+	text := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	text.Wrapping = fyne.TextWrapWord
+	card := container.NewStack(bg, container.NewThemeOverride(text, toastTheme{Theme: fyne.CurrentApp().Settings().Theme()}))
 	card.Hide()
 
 	return &toast{

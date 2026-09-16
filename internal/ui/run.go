@@ -244,6 +244,8 @@ func (v *viewer) currentPreferences() preferences.State {
 		AnalysisCacheLimitMiB:   v.settings.analysisCacheMiB,
 		SimilarityAutoUpdate:    v.explorer.Settings().Automatic,
 		SimilarityAutoFit:       v.explorer.Settings().AutoFit,
+		SimilarityMemoryLimitMB: v.explorer.Settings().Limits.MemoryMB,
+		SimilarityItemLimit:     v.explorer.Settings().Limits.Items,
 		SimilarityIntroSeen:     v.explorer.Settings().IntroSeen,
 		CheckForUpdates:         v.settings.checkForUpdates,
 		LastUpdateCheckDay:      v.LastUpdateCheckDay(),

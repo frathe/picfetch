@@ -46,7 +46,10 @@ func (featureQueue) Do(f func()) { fyne.Do(f) }
 func (featureQueue) Drain() bool { return false }
 
 // Settings holds standing Explorer preferences; it contains no live workflow state.
-type Settings struct{ CacheFavorites, AutoFit, Automatic, IntroSeen bool }
+type Settings struct {
+	CacheFavorites, AutoFit, Automatic, IntroSeen bool
+	Limits                                        similarity.AnalysisLimits
+}
 
 // Options supplies the existing native and UI adapters. Configure on UI before
 // admission; workers capture their provider/client/store when they start.
@@ -92,6 +95,7 @@ type Feature struct {
 	stopping                bool
 	introSeen, assetsReady  bool
 	client                  similarity.Client
+	limits                  similarity.AnalysisLimits
 	supported               bool
 	trial                   *explorertrial.Session
 	trialRun, trialEvent    int
@@ -148,9 +152,10 @@ func (f *Feature) Options() Options {
 	}
 }
 func (f *Feature) Settings() Settings {
-	return Settings{CacheFavorites: f.cacheFavorites, AutoFit: f.autoFit, Automatic: f.automatic, IntroSeen: f.introSeen}
+	return Settings{CacheFavorites: f.cacheFavorites, AutoFit: f.autoFit, Automatic: f.automatic, IntroSeen: f.introSeen, Limits: f.limits}
 }
 func (f *Feature) ApplySettings(settings Settings) {
+	f.limits = settings.Limits.Normalized()
 	f.cacheFavorites, f.autoFit, f.introSeen = settings.CacheFavorites, settings.AutoFit, settings.IntroSeen
 	if f.automatic != settings.Automatic {
 		f.SetSimilarityAutoUpdate(settings.Automatic)

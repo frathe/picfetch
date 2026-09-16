@@ -769,6 +769,7 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	limitControls := map[string]fyne.CanvasObject{
 		"scan cap": w.maxScanEntry, "image cache": w.imgCacheEntry,
 		"thumbnail cache": w.thumbCacheEntry, "file-size cap": w.maxFileSizeEntry,
+		"explorer memory": w.explorerMemoryEntry, "explorer items": w.explorerItemsEntry,
 	}
 	windowAppearanceControls := map[string]fyne.CanvasObject{
 		"window width": w.maxWidthEntry, "window height": w.maxHeightEntry,
@@ -839,6 +840,24 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 		if containsCanvasObject(limits, control) {
 			t.Errorf("Limits tab unexpectedly contains %s control", name)
 		}
+	}
+}
+
+func TestSimilarityLimits_ApplyOnlyValidEdits(t *testing.T) {
+	host := &fakeHost{prefs: preferences.State{SimilarityMemoryLimitMB: 512, SimilarityItemLimit: 10000}}
+	w := showSettings(t, host)
+	if w.explorerMemoryEntry.Text != "512" || w.explorerItemsEntry.Text != "10000" || len(host.applyCalls) != 0 {
+		t.Fatal("explorer limits were not seeded without applying")
+	}
+	w.explorerMemoryEntry.SetText("1024")
+	w.explorerItemsEntry.SetText("50655")
+	for _, invalid := range []string{"", "0", "-1", "1.5", "letters", "99999999999999999999999"} {
+		w.explorerMemoryEntry.SetText(invalid)
+		w.explorerItemsEntry.SetText(invalid)
+	}
+	w.explorerMemoryEntry.SetText("1048577")
+	if got := lastApply(t, host); len(host.applyCalls) != 2 || got.SimilarityMemoryLimitMB != 1024 || got.SimilarityItemLimit != 50655 {
+		t.Fatalf("invalid edits replaced explorer limits: %+v, calls=%d", got, len(host.applyCalls))
 	}
 }
 

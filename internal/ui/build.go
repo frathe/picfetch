@@ -150,7 +150,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	// Pinned to the bottom edge, mirroring how loadingBar is pinned to the
 	// top: a leading spacer eats all the slack space in the VBox, leaving
 	// the card its natural size at the bottom.
-	toastOverlay := container.New(layout.NewVBoxLayout(), layout.NewSpacer(), container.NewCenter(toastComp.card))
+	toastOverlay := container.New(layout.NewVBoxLayout(), layout.NewSpacer(), container.NewPadded(toastComp.card))
 
 	// Pinned to the top-left corner: an HBox with a trailing spacer keeps
 	// the info card at its natural (unstretched) width instead of HBox's
