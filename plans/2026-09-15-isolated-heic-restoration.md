@@ -7,6 +7,18 @@ Use [qualification](../docs/heic/qualification.md) and
 [history reconciliation](../docs/heic/history-reconciliation.md) for the current
 implementation and the disposition of the original branch's changes.
 
+**Next specified work (2026-09-16):**
+[Experimental HEIC opt-in across all platforms](../.scratch/experimental-heic-opt-in/spec.md)
+is the ready-for-agent specification for a default-off, restart-only Settings
+option, shared immutable admission, Windows private helper staging and installed
+MSIX activation. It supersedes this plan's original format-exposure scope for
+that preview: package-level format queries and OS associations stay unchanged.
+Native packaged activation on both architectures of all three operating systems,
+standard-user Windows and installed test-MSIX remains required. Permission-query
+failure is a blocker; the accepted macOS memory limitation remains unchanged.
+This is specification only. Production activation, implementation evidence and
+release clearance remain pending.
+
 Date: 2026-09-15. Route: **Deep SDD/TDD**. The deliverable is decode-only
 HEIC/HEIF support through one bounded, disposable WASI decoder helper, admitted
 only on platforms where both process-family memory enforcement and capability
@@ -1151,3 +1163,12 @@ closure, real Authenticode/MSIX, nonadministrator Windows behavior, broader
 camera/color qualification, the first released-updater transition and the
 unsigned initial foundation's merge prerequisite remain explicit. No merge,
 release, production activation or history rewrite is included in this loop.
+
+### Experimental activation follow-up, 2026-09-16
+
+The accepted opt-in implementation is tracked in
+[the new active plan](2026-09-16-experimental-heic-opt-in.md). Its default-off
+startup wiring supersedes earlier statements here that production always
+constructs an empty image service. This plan's earlier execution/review results
+remain historical; they do not qualify the later private Windows cache or
+installed application paths. Decoder source and native limits are unchanged.

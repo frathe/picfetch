@@ -176,3 +176,15 @@ func TestLoopbackExemptionRefusesHelperIdentity(t *testing.T) {
 		})
 	}
 }
+
+func TestLoopbackPermissionQueryFailureRefused(t *testing.T) {
+	if err := validateLoopbackQuery(uintptr(windows.ERROR_ACCESS_DENIED), 0, nil); !errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+		t.Fatalf("permission-query failure accepted or obscured: %v", err)
+	}
+	if err := validateLoopbackQuery(0, 1, nil); err == nil {
+		t.Fatal("missing native query entries accepted")
+	}
+	if err := validateLoopbackQuery(0, 0, nil); err != nil {
+		t.Fatalf("successful empty native query rejected: %v", err)
+	}
+}

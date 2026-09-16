@@ -5,6 +5,9 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
+
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/filescan"
@@ -24,10 +27,27 @@ type startupState struct {
 // loadStartupState reads persistence and fills only preference defaults that
 // have no distinct zero-value meaning.
 func loadStartupState(application fyne.App) startupState {
+	prefs := normalizePreferenceDefaults(preferences.Load(application))
+	images := imageServices{}
+	if prefs.ExperimentalHEIC {
+		executable, err := os.Executable()
+		if err != nil {
+			images.startupError = err
+		} else {
+			var privateDir string
+			if root := application.Cache().RootURI(); root != nil && root.Scheme() == "file" {
+				privateDir = filepath.Join(root.Path(), "heic-helpers")
+			}
+			images = installedImageServices(prefs, executable, privateDir)
+		}
+		if images.startupError != nil {
+			fyne.LogError("Experimental HEIC package is unavailable", images.startupError)
+		}
+	}
 	return startupState{
-		images:       newImageServices(nil),
+		images:       images,
 		savedSession: session.Load(application),
-		prefs:        normalizePreferenceDefaults(preferences.Load(application)),
+		prefs:        prefs,
 	}
 }
 

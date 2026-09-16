@@ -494,5 +494,9 @@
    "Usage is incomplete.": "Speicherverbrauch ist unvollständig erfasst.",
    "Processed %d records (%.1f MB).": "%d Einträge (%.1f MB) verarbeitet.",
    "Working...": "Wird verarbeitet...",
-   "Apply cache limit": "Cache-Limit anwenden"
+   "Apply cache limit": "Cache-Limit anwenden",
+   "Experimental": "Experimentell",
+   "Experimental HEIC support": "Experimentelle HEIC-Unterstützung",
+   "Restart PicFetch to apply. Colors may be inaccurate; HDR is not supported.": "Zum Anwenden PicFetch neu starten. Farben können ungenau sein; HDR wird nicht unterstützt.",
+   "Experimental HEIC support is unavailable. Check the installed helper package and sandbox permissions.": "Die experimentelle HEIC-Unterstützung ist nicht verfügbar. Prüfe das installierte Hilfsprogramm-Paket und die Sandbox-Berechtigungen."
 }

@@ -494,5 +494,9 @@
    "Usage is incomplete.": "Usage is incomplete.",
    "Processed %d records (%.1f MB).": "Processed %d records (%.1f MB).",
    "Working...": "Working...",
-   "Apply cache limit": "Apply cache limit"
+   "Apply cache limit": "Apply cache limit",
+   "Experimental": "Experimental",
+   "Experimental HEIC support": "Experimental HEIC support",
+   "Restart PicFetch to apply. Colors may be inaccurate; HDR is not supported.": "Restart PicFetch to apply. Colors may be inaccurate; HDR is not supported.",
+   "Experimental HEIC support is unavailable. Check the installed helper package and sandbox permissions.": "Experimental HEIC support is unavailable. Check the installed helper package and sandbox permissions."
 }

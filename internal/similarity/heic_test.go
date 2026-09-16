@@ -89,7 +89,8 @@ func TestHEICAnalysisHelper(_ *testing.T) {
 
 func ownedHEICAnalysis() error {
 	var req request
-	if err := json.NewDecoder(os.Stdin).Decode(&req); err != nil {
+	decoder := json.NewDecoder(os.Stdin)
+	if err := decoder.Decode(&req); err != nil {
 		return err
 	}
 	if req.HEIC == nil {
@@ -101,6 +102,9 @@ func ownedHEICAnalysis() error {
 	}
 	defer cleanup()
 	_ = RegisterLocalFiles()
+	if len(req.Paths) == 1 {
+		return ownedHEICPixels(req, decoder)
+	}
 	// The HEIC suffix forces dispatch; the owner refuses before invoking
 	// the bulk input callback, so no encoded file content is needed.
 	file, err := os.CreateTemp("", "picfetch-owned-analysis-*.heic")
@@ -125,6 +129,57 @@ func ownedHEICAnalysis() error {
 		_, err = io.Copy(io.Discard, os.Stdin)
 	}
 	return err
+}
+
+// The native fixture uses real decoder pixels through the inherited owner.
+// Model inference is outside this pipe/preview boundary test.
+func ownedHEICPixels(req request, decoder *json.Decoder) error {
+	path := req.Paths[0]
+	source, err := req.reader.Read(context.Background(), storage.NewFileURI(path))
+	if err != nil {
+		return err
+	}
+	pixels, err := source.Decode(context.Background(), 1)
+	if err != nil || pixels == nil || len(pixels.Frames) != 1 || pixels.Frames[0].Bounds().Size() != image.Pt(16, 16) {
+		return fmt.Errorf("native analysis pixels: %v", err)
+	}
+	output := json.NewEncoder(os.Stdout)
+	if req.Search == nil {
+		return output.Encode(Event{Complete: true})
+	}
+	if err = output.Encode(SearchEvent{SessionID: req.Search.SessionID, Revision: 1, Kind: SearchReady}); err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	p := searchPreparer{reader: req.reader, versions: map[string]os.FileInfo{path: info}}
+	for revision := uint64(2); revision <= 3; revision++ {
+		var query SearchQuery
+		if err = decoder.Decode(&query); err != nil {
+			return err
+		}
+		if query.ReferencePath != path || query.ID != revision-1 {
+			return fmt.Errorf("unexpected retained query")
+		}
+		item, previewErr := p.completePreview(context.Background(), Item{Path: path, SHA256: fmt.Sprintf("%x", sha256.Sum256(data))})
+		if previewErr != nil {
+			return previewErr
+		}
+		preview, previewErr := jpeg.Decode(bytes.NewReader(item.Preview))
+		if previewErr != nil || preview.Bounds().Size() != image.Pt(16, 16) {
+			return fmt.Errorf("native retained preview: %v", previewErr)
+		}
+		if err = output.Encode(SearchEvent{SessionID: req.Search.SessionID, QueryID: query.ID, Revision: revision, Kind: SearchFinal, Processed: 1, Total: 1}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestAnalysisHEICAttachmentStartFailureJoins(t *testing.T) {

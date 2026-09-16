@@ -50,6 +50,22 @@ func TestAnalysisCachePreferences(t *testing.T) {
 	}
 }
 
+func TestExperimentalHEICPreferences(t *testing.T) {
+	app := test.NewApp()
+	if Load(app).ExperimentalHEIC {
+		t.Fatal("missing preference enabled HEIC")
+	}
+	for _, enabled := range []bool{true, false} {
+		Save(app, State{ExperimentalHEIC: enabled})
+		if got := Load(app).ExperimentalHEIC; got != enabled {
+			t.Fatalf("saved HEIC = %v, want %v", got, enabled)
+		}
+		if app.Preferences().Bool("experimentalHEIC") != enabled {
+			t.Fatal("HEIC preference stored under the wrong key")
+		}
+	}
+}
+
 func TestMosaicPreferences_DefaultsAndRoundTrip(t *testing.T) {
 	app := test.NewApp()
 	if got := Load(app).MosaicSettings; got != mosaic.DefaultSettings() {

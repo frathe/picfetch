@@ -95,7 +95,7 @@ func (f *Feature) editSimilarityPreset(p explorerpresets.Preset) {
 	name.SetPlaceHolder(lang.L("Preset name"))
 	name.SetText(p.Name)
 	var refresh func(string)
-	rules, readRule := presetRuleFields(p.Rule, func() {
+	rules, readRule := presetRuleFields(f.images, p.Rule, func() {
 		if refresh != nil {
 			refresh("")
 		}

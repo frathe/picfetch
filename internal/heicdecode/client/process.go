@@ -20,23 +20,23 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	var empty heicdecode.Response
 	probe, err := os.MkdirTemp("", "picfetch-heic-probe-")
 	if err != nil {
-		return empty, err
+		return empty, fmt.Errorf("%w: setup: %v", ErrUnavailable, err)
 	}
 	defer func() { _ = os.RemoveAll(probe) }()
 	readPath, writePath := filepath.Join(probe, "read"), filepath.Join(probe, "write")
 	if err = os.WriteFile(readPath, []byte("PicFetch owned sandbox probe\n"), 0600); err != nil {
-		return empty, err
+		return empty, fmt.Errorf("%w: setup: %v", ErrUnavailable, err)
 	}
 	// Both endpoints belong to this request. A failed sandbox can reach only
 	// these disposable loopback sockets, never an unrelated network service.
 	probes, err := openNativeProbes(ctx)
 	if err != nil {
-		return empty, err
+		return empty, fmt.Errorf("%w: setup: %v", ErrUnavailable, err)
 	}
 	defer probes.close()
 	limitsJSON, err := json.Marshal(c.config.Limits)
 	if err != nil {
-		return empty, err
+		return empty, fmt.Errorf("%w: setup: %v", ErrUnavailable, err)
 	}
 	cmd := exec.Command(c.config.Executable, "--heic-worker-v2", string(limitsJSON), readPath, writePath, probes.tcp.Addr().String(), probes.udp.LocalAddr().String())
 	cmd.Env = []string{"GOMAXPROCS=1"}
@@ -56,15 +56,15 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	}
 	inRead, inWrite, err := newPipe()
 	if err != nil {
-		return empty, err
+		return empty, fmt.Errorf("%w: setup: %v", ErrUnavailable, err)
 	}
 	outRead, outWrite, err := newPipe()
 	if err != nil {
-		return empty, err
+		return empty, fmt.Errorf("%w: setup: %v", ErrUnavailable, err)
 	}
 	errRead, errWrite, err := newPipe()
 	if err != nil {
-		return empty, err
+		return empty, fmt.Errorf("%w: setup: %v", ErrUnavailable, err)
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = inRead, outWrite, errWrite
 	process, err := startProcess(cmd, c.config.Limits)
@@ -152,13 +152,11 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		return empty, err
 	}
 	writeDone := make(chan error, 1)
-	pipeWork.Add(1)
-	go func() {
-		defer pipeWork.Done()
+	pipeWork.Go(func() {
 		writeErr := heicdecode.WriteRequest(inWrite, heicdecode.Request{Operation: op, Input: data}, c.config.Limits)
 		_ = inWrite.Close()
 		writeDone <- writeErr
-	}()
+	})
 	decoded, readErr := heicdecode.ReadResponse(outRead, op, c.config.Limits)
 	if readErr != nil {
 		return empty, readErr

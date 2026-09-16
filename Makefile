@@ -630,6 +630,7 @@ heic-native-linux: ## Qualify the no-cgo HEIC helper's syscall and native addres
 heic-native-windows: ## Qualify the HEIC AppContainer helper, job limits and inherited pipes on Windows
 	mkdir -p .scratch/heic-qualification
 	go run ./scripts/nativeguards -suite heic-windows -capture .scratch/heic-qualification/native-windows.json
+	pwsh -NoProfile -File packaging/heic/qualify-windows-child.ps1 -RequireInstalledMSIX -Configuration "$(HEIC_MSIX_CONFIGURATION)"
 
 .PHONY: heic-security-govulncheck
 heic-security-govulncheck: ## Scan the separate WASI guest module (including its fixed fixture generator)

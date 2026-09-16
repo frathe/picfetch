@@ -6,7 +6,7 @@
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
 # ui-1: 238 entries, 470.520s projected weight sum
-# ui-2: 248 entries, 470.530s projected weight sum
+# ui-2: 251 entries, 470.530s projected weight sum
 # ui-3: 202 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
@@ -333,6 +333,9 @@ TestE2E_LaunchWithSavedSessionShowsRestoreLink	ui-2
 TestE2E_SuccessfulDropShowsImage	ui-2
 TestExifLink_OpensExifWindow	ui-2
 TestExifNavigationCancelsMetadataBeforeTheNextImageLoads	ui-2
+TestExperimentalHEICAdmission	ui-2
+TestExperimentalHEICRestartOnly	ui-2
+TestExperimentalHEICStartup	ui-2
 TestExportAs_CancelWritesNothing	ui-2
 TestExportAs_ReportsAFailedWrite	ui-2
 TestExportAs_RotationCorrectsDimensionTagsButNotFilenameOrToast	ui-2

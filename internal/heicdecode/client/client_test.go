@@ -321,3 +321,21 @@ func TestStopCancelsAdmittedAndWaitingSources(t *testing.T) {
 		}
 	}
 }
+
+func TestUnavailableProbeStorageRefusesSource(t *testing.T) {
+	owner := ownedPeer(t, "success", time.Second)
+	blocked := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocked, []byte("owned refusal"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"TMPDIR", "TEMP", "TMP"} {
+		t.Setenv(key, blocked)
+	}
+	_, err := owner.Do(context.Background(), heicdecode.Decode, func(_ context.Context, _ int64) ([]byte, error) {
+		t.Fatal("failed sandbox preparation read image input")
+		return nil, nil
+	})
+	if !errors.Is(err, ErrUnavailable) || !owner.Unavailable() {
+		t.Fatalf("failed sandbox preparation did not report unavailable: %v", err)
+	}
+}

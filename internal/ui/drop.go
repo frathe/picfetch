@@ -10,7 +10,6 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/filescan"
-	"github.com/frathe/picfetch/internal/imaging"
 )
 
 // cancelScan aborts a scan in progress (Escape while v.scanOp.active is true).
@@ -138,13 +137,14 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		}
 	}
 
-	expandSiblings := favoriteDir == "" && !merging && !hasDirs && len(uris) == 1 && imaging.IsSupportedImage(uris[0])
+	admit := v.images.foreground.IsSupportedImage
+	expandSiblings := favoriteDir == "" && !merging && !hasDirs && len(uris) == 1 && admit(uris[0])
 
 	scan := func(progress func(int)) (images []fyne.URI, truncated bool) {
 		if expandSiblings {
-			return filescan.Siblings(token.context(), uris[0], maxScan, progress)
+			return filescan.Siblings(token.context(), uris[0], maxScan, progress, filescan.WithAdmission(admit))
 		}
-		return filescan.Images(token.context(), uris, maxScan, progress)
+		return filescan.Images(token.context(), uris, maxScan, progress, filescan.WithAdmission(admit))
 	}
 
 	if !hasDirs && !expandSiblings {

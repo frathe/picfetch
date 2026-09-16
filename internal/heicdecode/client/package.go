@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,7 +11,64 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/frathe/picfetch/internal/heicdecode"
 )
+
+// InstallationRoot discovers only the package containing the running binary.
+// A macOS standalone executable is deliberately not a complete app package.
+func InstallationRoot(executable, system string) (string, error) {
+	if !filepath.IsAbs(executable) {
+		return "", ErrUnavailable
+	}
+	executable, err := filepath.EvalSymlinks(executable)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(executable)
+	switch system {
+	case "darwin":
+		contents := filepath.Dir(dir)
+		root := filepath.Dir(contents)
+		if filepath.Base(dir) != "MacOS" || filepath.Base(contents) != "Contents" || !strings.HasSuffix(strings.ToLower(root), ".app") {
+			return "", ErrUnavailable
+		}
+		return root, nil
+	case "linux", "windows":
+		return dir, nil
+	default:
+		return "", ErrUnavailable
+	}
+}
+
+// OpenInstalled creates the one app-owned client from a complete local package.
+// Preparation never chooses another decoder or downloads a missing helper.
+func OpenInstalled(ctx context.Context, executable, privateDir string, limits heicdecode.Limits) (*Client, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	root, err := InstallationRoot(executable, runtime.GOOS)
+	if err != nil {
+		return nil, err
+	}
+	helper, digest, err := LoadPackage(root, runtime.GOOS, runtime.GOARCH)
+	if err != nil {
+		return nil, err
+	}
+	helper, release, err := prepareInstalled(ctx, helper, digest, privateDir)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := New(Config{Executable: helper, SHA256: digest, Limits: limits})
+	if err != nil {
+		release()
+		return nil, err
+	}
+	owner.release = release
+	return owner, nil
+}
 
 // PackageManifest records the post-signing helper identity within a trusted
 // installed package. It is not an independent signature: package authenticity

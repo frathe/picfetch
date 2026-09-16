@@ -15,12 +15,12 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-func presetRuleFields(rule explorerpresets.Rule, changed func()) (*widget.Form, func() explorerpresets.Rule) {
+func presetRuleFields(reader imaging.Reader, rule explorerpresets.Rule, changed func()) (*widget.Form, func() explorerpresets.Rule) {
 	makeName := widget.NewEntry()
 	makeName.SetPlaceHolder(lang.L("Camera make"))
 	makeName.SetText(rule.Make)
 	formats := []string{lang.L("Any file type")}
-	for _, ext := range imaging.SupportedExtensions() {
+	for _, ext := range reader.SupportedExtensions() {
 		ext = strings.TrimPrefix(ext, ".")
 		if ext == "jpeg" {
 			ext = "jpg"

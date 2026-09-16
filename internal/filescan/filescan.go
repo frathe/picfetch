@@ -35,6 +35,31 @@ import (
 // cap) pass that instead.
 const DefaultMax = 200_000
 
+type options struct{ admit func(fyne.URI) bool }
+
+// Option configures one scan without changing the package's default admission.
+type Option func(*options)
+
+// WithAdmission uses a session's immutable format capability. Nil retains the
+// ordinary package-level policy.
+func WithAdmission(admit func(fyne.URI) bool) Option {
+	return func(o *options) {
+		if admit != nil {
+			o.admit = admit
+		}
+	}
+}
+
+func admission(opts []Option) func(fyne.URI) bool {
+	o := options{admit: imaging.IsSupportedImage}
+	for _, option := range opts {
+		if option != nil {
+			option(&o)
+		}
+	}
+	return o.admit
+}
+
 // realPathOf resolves u's filesystem path through any symlinks, falling
 // back to the URI's own path if that fails (a broken symlink, or a
 // filesystem race between the scan and something else touching the same
@@ -65,7 +90,8 @@ func realPathOf(u fyne.URI) string {
 // discards a superseded scan's result anyway (as internal/ui's handleDrop
 // does) only needs the walk to stop touching the filesystem promptly, not
 // to finish correctly.
-func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int)) (images []fyne.URI, truncated bool) {
+func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int), opts ...Option) (images []fyne.URI, truncated bool) {
+	admit := admission(opts)
 	if max < 1 {
 		max = 1
 	}
@@ -122,7 +148,7 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 			return
 		}
 
-		if !imaging.IsSupportedImage(u) {
+		if !admit(u) {
 			return
 		}
 
@@ -175,7 +201,8 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 // when it is a supported image, otherwise empty. ctx is checked before any
 // work and before each child; an already-cancelled context returns nil,
 // false rather than a partial directory.
-func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int)) (images []fyne.URI, truncated bool) {
+func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int), opts ...Option) (images []fyne.URI, truncated bool) {
+	admit := admission(opts)
 	if max < 1 {
 		max = 1
 	}
@@ -193,7 +220,7 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 		if canList, err := storage.CanList(u); err == nil && canList {
 			return
 		}
-		if !imaging.IsSupportedImage(u) {
+		if !admit(u) {
 			return
 		}
 		pathOf := realPathOf(u)
@@ -214,7 +241,7 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 		}
 	}
 
-	if imaging.IsSupportedImage(file) {
+	if admit(file) {
 		add(file)
 	}
 	if truncated {

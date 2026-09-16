@@ -11,6 +11,7 @@ import (
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/similarity"
 )
 
@@ -54,6 +55,7 @@ type Options struct {
 	App                    fyne.App
 	Discussions            func()
 	Client                 similarity.Client
+	Images                 imaging.Reader
 	Analyze                similarity.Provider
 	Queue                  UIQueue
 	Presets                *explorerpresets.Store
@@ -92,6 +94,7 @@ type Feature struct {
 	stopping                bool
 	introSeen, assetsReady  bool
 	client                  similarity.Client
+	images                  imaging.Reader
 	supported               bool
 	trial                   *explorertrial.Session
 	trialRun, trialEvent    int
@@ -128,6 +131,7 @@ func NewFeature(host WorkflowHost, options Options) *Feature {
 func (f *Feature) Configure(options Options) {
 	f.app, f.discussions = options.App, options.Discussions
 	f.client, f.analyze = options.Client, options.Analyze
+	f.images = options.Images
 	f.ui = options.Queue
 	if f.ui == nil {
 		f.ui = featureQueue{}
@@ -142,7 +146,7 @@ func (f *Feature) Configure(options Options) {
 func (f *Feature) Options() Options {
 	return Options{
 		App: f.app, Discussions: f.discussions,
-		Client: f.client, Analyze: f.analyze, Queue: f.ui, Presets: f.presets,
+		Client: f.client, Images: f.images, Analyze: f.analyze, Queue: f.ui, Presets: f.presets,
 		Supported: f.supported, AssetsReady: f.assetsReady,
 		Settings: f.Settings(), Trial: f.trial,
 	}

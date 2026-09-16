@@ -244,6 +244,7 @@ func (v *viewer) currentPreferences() preferences.State {
 		MaxThumbCacheMB:         v.settings.thumbCacheMB,
 		MaxFileSizeMB:           v.settings.maxFileMB,
 		FavoritePreviewCache:    v.settings.favPreviewCache,
+		ExperimentalHEIC:        v.settings.experimentalHEIC,
 		SimilarityFavoriteCache: v.explorer.Settings().CacheFavorites,
 		SimilarityLooseCache:    v.settings.looseAnalysisCache,
 		AnalysisCacheLimitMiB:   v.settings.analysisCacheMiB,

@@ -128,11 +128,8 @@ func verifyLoopbackIsolation(expected *windows.SID) (resultErr error) {
 	var count uint32
 	var entries *windows.SIDAndAttributes
 	code, _, _ := query.Call(uintptr(unsafe.Pointer(&count)), uintptr(unsafe.Pointer(&entries)))
-	if code != 0 {
-		return fmt.Errorf("query HEIC loopback exemptions: %w", windows.Errno(code))
-	}
-	if count != 0 && entries == nil {
-		return errors.New("HEIC loopback exemption query returned no entries")
+	if err := validateLoopbackQuery(code, count, entries); err != nil {
+		return err
 	}
 	items := unsafe.Slice(entries, count)
 	// The API allocates both the array and each SID on the process heap.
@@ -162,6 +159,16 @@ func validateLoopbackExemptions(expected *windows.SID, items []windows.SIDAndAtt
 		if expected.Equals(item.Sid) {
 			return errors.New("HEIC AppContainer has a loopback exemption")
 		}
+	}
+	return nil
+}
+
+func validateLoopbackQuery(code uintptr, count uint32, entries *windows.SIDAndAttributes) error {
+	if code != 0 {
+		return fmt.Errorf("query HEIC loopback exemptions: %w", windows.Errno(code))
+	}
+	if count != 0 && entries == nil {
+		return errors.New("HEIC loopback exemption query returned no entries")
 	}
 	return nil
 }

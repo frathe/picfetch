@@ -17,6 +17,9 @@ import (
 
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/explorertrial"
+	"github.com/frathe/picfetch/internal/heicdecode"
+	heicclient "github.com/frathe/picfetch/internal/heicdecode/client"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -308,5 +311,80 @@ func TestFeatureCanceledBarrierRecordsTrialExit(t *testing.T) {
 	}
 	if analyzed || len(summary.Analyses) != 1 || summary.Analyses[0].Outcome != "canceled" {
 		t.Fatalf("canceled predecessor wait lost exit observation: analyzed=%v summary=%+v", analyzed, summary)
+	}
+}
+
+func TestExperimentalHEICPresetFormats(t *testing.T) {
+	for _, active := range []bool{false, true} {
+		t.Run(fmt.Sprint(active), func(t *testing.T) {
+			app := test.NewApp()
+			t.Cleanup(app.Quit)
+			host := &featureHost{win: app.NewWindow("Explorer")}
+			reader := imaging.Reader{}
+			if active {
+				reader = imaging.NewReader(func(_ context.Context, _ heicdecode.Operation, _ heicclient.Input) (heicdecode.Response, error) {
+					t.Fatal("format choices attempted decoding")
+					return heicdecode.Response{}, nil
+				})
+			}
+			store := &explorerpresets.Store{Dir: t.TempDir()}
+			provider := func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				var items []similarity.Item
+				for _, path := range paths {
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: uitest.EncodeJPEG(t, 4, 3, color.White)})
+				}
+				emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths), Items: items})
+				return nil
+			}
+			f := explorer.NewFeature(host, explorer.Options{App: app, Queue: &uitest.UIQueue{}, Images: reader, Presets: store, Analyze: provider})
+			t.Cleanup(func() { f.Stop(); f.Settle() })
+			host.win.SetContent(f.Surface().Overlay())
+			f.Open(explorer.OpenRequest{Sources: []string{"/a.jpg", "/b.jpg"}})
+			f.Settle()
+			f.ShowSimilarityPresets()
+			f.Settle()
+			test.Tap(featureButton(t, host, "New preset"))
+			var formats *widget.Select
+			walkFeature(host.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+				if field, ok := o.(*widget.Select); ok && field.PlaceHolder == lang.L("File type") {
+					formats = field
+				}
+			})
+			if formats == nil {
+				t.Fatal("file type control is not in the preset dialog")
+			}
+			for _, ext := range []string{"heic", "heif"} {
+				if slices.Contains(formats.Options, ext) != active {
+					t.Fatalf("%s offered = %v, active = %v", ext, formats.Options, active)
+				}
+			}
+			f.Close()
+			f.Open(explorer.OpenRequest{Sources: []string{"/a.jpg", "/b.jpg"}})
+			f.Settle()
+			// A saved HEIC rule remains editable and persistable with HEIC disabled.
+			saved, err := store.Save(context.Background(), explorerpresets.Preset{Name: "Saved HEIC", Rule: explorerpresets.Rule{Format: "heic"}})
+			if err != nil {
+				t.Fatalf("saved HEIC rule rejected: %v", err)
+			}
+			f.ShowSimilarityPresets()
+			f.Settle()
+			test.Tap(featureButton(t, host, "Saved HEIC"))
+			formats = nil
+			walkFeature(host.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+				if field, ok := o.(*widget.Select); ok && field.PlaceHolder == lang.L("File type") {
+					formats = field
+				}
+			})
+			if formats == nil || formats.Selected != "heic" {
+				t.Fatal("existing HEIC rule was lost")
+			}
+			featureEntry(t, host, "Preset name", "Renamed HEIC")
+			test.Tap(featureButton(t, host, "Save preset"))
+			f.Settle()
+			records, err := store.Load(context.Background())
+			if err != nil || len(records) != 1 || records[0].ID != saved.ID || records[0].Rule.Format != "heic" || records[0].Name != "Renamed HEIC" {
+				t.Fatalf("saved rule changed unexpectedly: %v, %v", records, err)
+			}
+		})
 	}
 }

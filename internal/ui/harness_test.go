@@ -80,10 +80,15 @@ func TestMain(m *testing.M) {
 // a window, not just this one.
 func newTestUI(t *testing.T) (*viewer, fyne.Window, func() bool) {
 	t.Helper()
-	return newTestUIWithImages(t, imageServices{})
+	return newTestUIWithStartupImages(t, nil)
 }
 
-func newTestUIWithImages(t *testing.T, images imageServices) (v *viewer, win fyne.Window, closed func() bool) {
+func newTestUIWithImages(t *testing.T, images imageServices) (*viewer, fyne.Window, func() bool) {
+	t.Helper()
+	return newTestUIWithStartupImages(t, &images)
+}
+
+func newTestUIWithStartupImages(t *testing.T, override *imageServices) (v *viewer, win fyne.Window, closed func() bool) {
 	t.Helper()
 
 	// Reassert the shared app as the current one before building: the
@@ -107,7 +112,12 @@ func newTestUIWithImages(t *testing.T, images imageServices) (v *viewer, win fyn
 	}
 
 	startup := loadStartupState(testApp)
-	startup.images = images
+	if override != nil {
+		startup.images.Stop()
+		startup.images.Wait()
+		startup.images = *override
+	}
+	images := startup.images
 	v, win = buildConfiguredViewer(testApp, startup)
 	v.display.SetUIQueue(&uitest.UIQueue{})
 	v.grid.SetUIQueue(&uitest.UIQueue{})

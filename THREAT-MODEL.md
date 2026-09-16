@@ -14,10 +14,14 @@ vulnerability findings. [ARCHITECTURE.md](ARCHITECTURE.md) is the package map;
 [HEIC qualification](docs/heic/qualification.md) records runtime evidence and
 [history reconciliation](docs/heic/history-reconciliation.md) records carryover.
 
-**Production HEIC viewing remains disabled on every platform.** The candidate
-has an isolated WASI helper and shared application/analysis admission, but
-native Windows, final distribution, compatibility and upgrade qualification
-remain incomplete. Test or CI results for one platform do not qualify another.
+**HEIC viewing is default-off and requires a restart after an explicit
+Experimental Settings opt-in.** Startup validates the executable-derived helper
+package before constructing an immutable shared capability. Missing/corrupt
+packages or failed isolation remain unavailable while ordinary viewing works.
+Windows private staging, standard-user and installed-MSIX activation are new
+paths awaiting native evidence; historical helper results do not qualify them.
+Distribution clearance, production signing and broad color/camera qualification
+remain release gates. See the [activation record](docs/heic/experimental-opt-in.md).
 The accepted macOS design lacks a hard total native-memory cap; memory pressure
 and application/system crashes remain possible. Capability isolation and finite
 WASM/input/output/job/time limits remain mandatory.
@@ -28,7 +32,7 @@ PicFetch is a Go/Fyne desktop image viewer. Files arrive through command-line
 paths, drag-and-drop, native pickers and macOS Open With events. Opening a file
 can also discover sibling images; folder opening can recursively scan a tree.
 Production supports common raster formats, SVG, AVIF and embedded JPEG
-previews from camera RAW containers. HEIC/HEIF is a disabled candidate. PicFetch
+previews from camera RAW containers. HEIC/HEIF is an experimental opt-in. PicFetch
 also handles EXIF metadata, save/export, clipboard, Trash, wallpaper, favorites,
 mosaics and session paths.
 
@@ -111,7 +115,7 @@ place. Image-cache budgets are not process-wide memory quotas. No universal CPU
 or total-memory bound is established here. Codec/runtime selection must also be
 checked for the actual build; this model does not claim every format runs in WASM.
 
-### Candidate HEIC helper boundary
+### Experimental HEIC helper boundary
 
 The [image reader](internal/imaging/source.go) performs bounded leading-brand
 recognition and routes HEIC to an explicitly injected shared client. The default
@@ -145,6 +149,26 @@ trusted installed package. Hashes are not an independent package signature.
 | Linux x64/ARM64 | Thread-synchronized default-deny seccomp, resource limits and a 2 GiB address-space ceiling before input. This is not a physical-RAM/cgroup limit. |
 | Windows x64/ARM64 | Suspended zero-capability AppContainer setup, explicit inherited handles, private Job Object committed-memory/CPU/process limits and kill-on-close. Native CI controls and ordinary decoding pass; distribution and standard-user qualification remain open. |
 | macOS Intel/Apple Silicon | Separately entitled App Sandbox helper and Hardened Runtime with verified owned file/network denial; helper-only executable-memory entitlement for wazero. No guaranteed hard total native-memory ceiling. |
+
+The saved `experimentalHEIC` value describes user intent, separately from the
+session's configured reader and its latest availability failure. Scanning,
+restored sessions and Favorites use that same reader predicate. A failed helper
+never selects a different decoder or replaces the service. Existing package
+format queries and OS associations remain unchanged; sequence admission and
+HEIC encoding stay unsupported.
+
+Windows copies the verified installed helper into a dedicated user/SYSTEM-only
+cache. A cross-process file lock serializes publication and cleanup. Copies are
+bounded and hashed again before atomic publication; only the AppContainer's
+read/execute grant is prepared, on the copied executable and its containing
+directory. Reparse points and hard-linked executable entries are refused before
+permission changes. Client-held file/directory handles deny replacement/deletion
+until Stop/Wait has joined work. Each launch still verifies the pinned hash and
+native readiness. A damaged inactive copy is rebuilt; obsolete live copies are
+retained until a later safe cleanup. Cache/staging failure refuses activation.
+The installed manifest remains part of the enclosing authenticated package;
+a content hash does not establish publisher authenticity. Store source files
+and their ACLs are never staging targets, and Store update authority is unchanged.
 
 Windows helper startup supplies only `GOMAXPROCS` and the OS-reported
 `SystemRoot`/`LOCALAPPDATA`; it does not inherit the parent's environment or

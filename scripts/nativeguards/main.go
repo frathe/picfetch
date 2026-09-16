@@ -23,6 +23,7 @@ type suite struct {
 	name, goos, tags string
 	packages         []string
 	guards           []guard
+	focused          map[string]string
 }
 type goRunner func(context.Context, []string, io.Writer) error
 
@@ -73,9 +74,9 @@ func suiteFor(name, hostOS string) (suite, error) {
 	case "heic-windows":
 		s.goos = "windows"
 		s.tags = "heicnative"
-		s.require("internal/heicdecode/winisolation", "TestNativeWindowsJobAndToken", "TestNativeWindowsUnsandboxedRefused")
+		s.require("internal/heicdecode/winisolation", "TestNativeWindowsJobAndToken", "TestNativeWindowsUnsandboxedRefused", "TestLoopbackPermissionQueryFailureRefused")
 		s.require("internal/heicdecode/worker", "TestNativeNetworkDenialRejectsUnisolatedProcess")
-		s.require("internal/heicdecode/client", "TestNativeSandboxHelper")
+		s.require("internal/heicdecode/client", "TestNativeSandboxHelper", "TestWindowsInstalledHelperCache", "TestWindowsCacheLeaseWaitsForShutdown", "TestWindowsConcurrentHelperStaging", "TestWindowsHelperCacheRejectsHardLinksAndNonDirectories")
 		s.require("internal/heicdecode/client", "TestInheritedRemoteUsesOwner", "TestInheritedRemoteCancellationJoins", "TestAttachmentStopWithoutProcessStartJoinsOwner", "TestRemoteQueuedCancellationReleasesService", "TestRemoteOutputRetainsAdmissionAndStopJoins")
 		s.require("internal/similarity", "TestAnalysisWorkersUseHEICOwner", "TestAnalysisHEICAttachmentStartFailureJoins")
 	case "store":
@@ -84,6 +85,11 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.require("internal/ui/autoupdate", "TestUpdater_AutomaticAndManualShareCompleteTransaction")
 	default:
 		return suite{}, fmt.Errorf("unknown native suite %q", name)
+	}
+	if strings.HasPrefix(name, "heic-") {
+		s.require("internal/ui", "TestNativePackagedHEICActivation")
+		s.require("internal/similarity", "TestNativeHEICAnalysisPixels")
+		s.focused = map[string]string{"./internal/ui": "^TestNativePackagedHEICActivation$"}
 	}
 	if s.goos != "" && s.goos != hostOS {
 		return suite{}, fmt.Errorf("suite %s requires native %s, running on %s", name, s.goos, hostOS)
@@ -119,8 +125,26 @@ func runSuite(ctx context.Context, s suite, execute goRunner, log, capture io.Wr
 		}
 	}
 	var raw bytes.Buffer
-	args := append(s.testArgs("-json", "-v", "-timeout=30m"), s.packages...)
-	executionErr := execute(ctx, args, io.MultiWriter(capture, &raw))
+	var executionErrors []error
+	var full []string
+	for _, pkg := range s.packages {
+		if s.focused[pkg] == "" {
+			full = append(full, pkg)
+		}
+	}
+	if len(full) > 0 {
+		args := append(s.testArgs("-json", "-v", "-timeout=30m"), full...)
+		executionErrors = append(executionErrors, execute(ctx, args, io.MultiWriter(capture, &raw)))
+	}
+	// UI golden tests belong to Linux CI. These suites require the native
+	// application boundary fixture without rerunning unrelated UI surfaces.
+	for _, pkg := range s.packages {
+		if focus := s.focused[pkg]; focus != "" {
+			args := append(s.testArgs("-json", "-v", "-timeout=30m", "-run", focus), pkg)
+			executionErrors = append(executionErrors, execute(ctx, args, io.MultiWriter(capture, &raw)))
+		}
+	}
+	executionErr := errors.Join(executionErrors...)
 	evidenceErr := validateEvents(&raw, s.guards, log)
 	return errors.Join(executionErr, evidenceErr)
 }

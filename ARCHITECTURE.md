@@ -495,7 +495,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. Explicit trial startup reserves new evidence, isolates Favorites/presets/updates, disables update activity, auto-opens Explorer after the ordinary scan, and joins its signal watcher and workers before finalizing evidence. |
 | `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
-| `images.go` | One optional app-family HEIC owner and immutable foreground/background `imaging.Reader` values injected before GUI and analysis work. Shutdown Stop/Wait owns complete helper/pipe retirement. Production construction supplies no owner until package/platform qualification. |
+| `images.go` | One optional app-family HEIC owner and immutable foreground/background `imaging.Reader` values injected before GUI and analysis work. Shutdown Stop/Wait owns complete helper/pipe retirement. Startup loads preferences first and creates one owner only for a valid, opted-in installed helper package; unavailable status is separate from immutable admission. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with a compact 17-cell atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position and circle progress. A hover-only surface preserves input across the restore link; ten circles request `Help.ShowFinis`. No timers or background workers. `scripts/appassets` retains the used pixels from `assets/trane/codex-pet/spritesheet.webp`. |
 | `explorer.go` | Root adapter for Explorer: captures duplicate-prepared sources, composes setup acknowledgment with preferences, maps frozen cohort identities to collection indexes, and coordinates map/Grid/image transitions. The feature owns workflow, dialogs, workers and delivery. `explorerInput` retains collection/launch/window policy only. |
@@ -559,7 +559,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/exifwin/` | EXIF panel (E): `metadata.go` owns cancellable source reads, generation-checked tag/GPS/action presentation and separate `MetadataDone` completion. `stripwork.go` owns cancellable removal, busy admission and a committed `WriteResult` in the Host notification. GPS map (`tiles.go`, `tilework.go`, `startWarm`): four shared workers, a 64-job queue, 256 expiring failure entries and a 16 MiB encoded-byte cache. Navigation/close cancels old reads and tile sessions; collapse cancels tiles. `uiqueue.go` owns result delivery and Settle waits/drains removal, metadata, warm and tile workers repeatedly. Shutdown Stop is terminal. Geometry via `widgets.Singleton`. | 4-method `Host`. |
 | `internal/ui/help/` | Manual, About, What's New (`whatsnew.go`), Help menu; embeds `manual.md` / `manual_de.md`. Secret search phrase calls the viewer’s registered `SetOnSpiral` callback; `finis` in manual search opens the cursor-following companion (`finis.go`, embedded `finis.webp`), hosting `widgets.Gaze` with centered portrait geometry and its own hover surface. `ShowFinis` also serves welcome Trane; ten independent circles reveal the localized, wrapped bubble in `finis_clue.go`, whose click opens an empty focused manual search. | `New(app, title, art)` plus optional event callbacks. |
 | `internal/ui/spiral/` | Full-screen shader easter egg. `tunnel.go` owns serial preview admission and three texture slots; `playback.go` advances bounded GIF frames on the existing UI clock with independent flight origins; `flow.go` owns cycles, batch variation and route selection; `flight.go` owns safe route geometry used for admission/retirement; `shader.go` renders depth, feather and translucent composition. `uiqueue.go` marshals preview/frame callbacks with session checks. H toggles local help; F1 invokes the viewer's manual callback. The shared centre stays within a resized viewport. | Viewer supplies a frozen URI value to `Show` / `ShowForGesture`; `Close` cancels on UI and test `Settle` joins/drains off UI. Process shutdown does not join uninterruptible preview source reads. |
-| `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits, update dialogs, snapshot seed, live apply, Singleton geometry. `Show(State, storeManaged)` replaces the GitHub update controls with Store-owned-update copy when applicable. | `Show(State, bool)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
+| `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits, optional Cache, then Experimental; General always opens first. Snapshot seed, live apply, restart-only HEIC intent, unavailable explanation, update dialogs and Singleton geometry. `Show(State, storeManaged)` replaces the GitHub update controls with Store-owned-update copy when applicable. | `Show(State, bool)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
 | `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `New` does no disk I/O; `SetDir` from `Run`. `SetCommandsEnabled` preserves Add's file availability while disabling both static and dynamically rebuilt menu entries during comparison. | 6-method `Host`. |
 | `internal/ui/menus/` | The stateful File/Window/Actions menu items and their whole Checked/Disabled matrix as `Apply(State) (changed bool)`, a pure function of a value snapshot. `ComparisonActive` applies a final all-ordinary-items-disabled override while leaving Help available. Fyne-typed but viewer-free, unit-testable with no app. Menu-bar assembly, the Darwin native-bar fold, the real shortcut bindings, and every action the items run all stay in `internal/ui`. | No Host: `Apply(State)` over a value snapshot built by `menu.go`'s `menuState()`. |
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Both caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
@@ -580,7 +580,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 |------|----------------|
 | `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
-| `source.go`, `source_kind.go` | Immutable `Reader` and `Source` share ordinary probe/decode algorithms and carry validated HEIC pixels/normalized metadata without retaining encoded HEIC bytes. Reader injection selects the shared owner; zero value refuses HEIC. Bounded leading file-type dispatch precedes bulk reads and prevents native HEIC metadata/preview fallback. `InspectMetadata` returns normalized values, byte count and JPEG strip capability from one source read. |
+| `source.go`, `source_kind.go` | Immutable `Reader` and `Source` share ordinary probe/decode algorithms and carry validated HEIC pixels/normalized metadata without retaining encoded HEIC bytes. Reader injection selects the shared owner; zero value refuses HEIC. Reader format queries capture this capability; package-level queries and OS associations stay unchanged. Bounded leading file-type dispatch precedes bulk reads and prevents native HEIC metadata/preview fallback. `InspectMetadata` returns normalized values, byte count and JPEG strip capability from one source read. |
 | `ico.go` | Explicit ICO probe/decode dispatch, independent of the desktop driver's decoder registration: validates directory/payload spans and dimensions, selects the same single image for probe/decode, delegates PNG or normalized uncompressed DIB pixels to existing decoders, and applies icon transparency. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
@@ -603,14 +603,14 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 
 ### `internal/heicdecode`
 
-Codec-free boundary for the proposed isolated HEIC/HEIF decoder. `limits.go`
+Codec-free boundary for the experimental isolated HEIC/HEIF decoder. `limits.go`
 defines separate finite resource contracts; it does not install OS controls.
 `request.go` frames one byte-only operation. `protocol.go` validates versioned
 responses, dimensions, NRGBA8/NRGBA64 layout, operation-specific payload lengths,
 normalized metadata and exact EOF before publication. `metadata.go` rejects
 unknown/duplicate fields and invalid bounded values. `ready.go` reports actual
-startup memory controls separately from requested limits. HEIC viewing remains
-disabled pending platform/package qualification and production activation.
+startup memory controls separately from requested limits. HEIC viewing is
+default-off and restart-only; full package/platform qualification remains a gate.
 
 ### `internal/heicdecode/client`, `worker`, and `cmd/picfetch-heic-worker`
 
@@ -627,9 +627,18 @@ cancellation; a disconnected queued peer is observed through one control byte.
 and joined before image input or at failed-start cleanup.
 `attachment.go` supplies explicit inherited pipes and observes parent-copy,
 service and remote lifetimes. GUI construction and analysis requests share one
-optional owner; production currently supplies none pending qualification.
-`package.go` bounds and validates the trusted installed-package manifest, fixes
+optional owner. Preferences select that owner once at startup, before file
+admission; checkbox edits never replace it. `package.go` discovers the installation
+from the executable, bounds and validates the trusted installed-package manifest, fixes
 helper paths per OS, checks the target and pins the post-signing executable.
+`staging.go` verifies copied bytes before atomic content-addressed publication.
+`installed_windows.go` owns a private user/SYSTEM cache, cross-process publication
+lock, minimal AppContainer read/execute preparation, write/delete-denying leases
+and safe deferred obsolete-copy cleanup. It never changes Store installation
+files. Client Stop/Wait releases its leases only after admitted work joins.
+Other platforms use the verified installed helper directly. Unsupported Windows
+architectures refuse preparation. Native readiness and per-launch identity checks
+remain mandatory, and `Unavailable` records failures without changing capability.
 
 `worker` embeds the fixed WASI artifact and streams bounded stdio through wazero
 with finite linear memory and a deadline. Native code accepts no image paths.
@@ -651,7 +660,10 @@ import the embedded guest runtime. `packaging/heic` holds the macOS bundle and
 entitlement templates; `heicinterpreter` is the qualification runtime variant.
 
 `cmd/picfetch-heic-worker` is the minimal single-request entry point, without
-Fyne or a native HEIC codec. Final application packaging/activation is pending.
+Fyne or a native HEIC codec. `internal/similarity/heic_native_test.go` verifies
+successful native pixels across inherited analysis pipes and repeated retained
+search previews after normal file admission. Application activation evidence and its outstanding
+gates are tracked in `docs/heic/experimental-opt-in.md`.
 
 ### `internal/heicdecode/winisolation`
 
@@ -665,8 +677,8 @@ and Wait serialize handle retirement. `profile_windows.go` owns the stable
 AppContainer profile and explicit read/execute provisioning for a dedicated
 helper file and its directory, with no inherited ACL grant. Launch does not
 change ACLs. Native controls and ordinary decoder fixtures are required by the
-`heic-windows` amd64/arm64 CI suite. Both native suites pass at `ee5cc67`;
-distribution-package and standard-user qualification remain separate gates.
+`heic-windows` amd64/arm64 CI suite. Historical helper results at `ee5cc67`
+do not qualify the new standard-user or installed-MSIX activation paths.
 
 ### `scripts/heicpackage`
 
@@ -676,7 +688,11 @@ the binary target, uses pure Go for Linux/Windows, and builds/signs/verifies the
 macOS App Sandbox bundle. `finalize` refreshes the manifest after Windows
 Authenticode signing. Native helper tests use the same staging tool. Makefile
 and release/MSIX assembly retain the helper directory; package creation alone
-does not enable production HEIC.
+does not enable the saved HEIC preference. `packaging/heic/qualify-windows*.ps1`
+separates disposable CI account/signing provisioning from standard-user execution.
+Native application fixtures exercise executable-derived startup, Settings,
+admission, native decode and shutdown; MSIX uses the real application activation
+manager and checks package identity and unchanged installed helper permissions.
 
 ### `scripts/heicguest` and `scripts/heicbuild`
 
@@ -961,7 +977,7 @@ when the user opened a single file.
 
 | File | Responsibility |
 |------|----------------|
-| `filescan.go` | `Images(ctx, uris, max, progress)` (recursive); `Siblings(ctx, file, max, progress)` (parent dir only, opened file seeded first); symlink-cycle + per-call dedupe. |
+| `filescan.go` | `Images(ctx, uris, max, progress, opts...)` (recursive); `Siblings(ctx, file, max, progress, opts...)` (parent dir only, opened file seeded first); optional `WithAdmission` captures a reader capability, omitted/nil retains package defaults. Symlink-cycle + per-call dedupe. |
 
 ### `internal/launch`
 

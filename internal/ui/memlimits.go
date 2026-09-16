@@ -63,6 +63,7 @@ type settings struct {
 	// from preferences.State.FavoritePreviewCache in features.go and read
 	// back into it by currentPreferences (run.go).
 	favPreviewCache    bool
+	experimentalHEIC   bool
 	looseAnalysisCache bool
 	analysisCacheMiB   int
 
@@ -232,6 +233,7 @@ func (v *viewer) settingsState() preferences.State {
 		MaxThumbCacheMB:         v.MaxThumbCacheMB(),
 		MaxFileSizeMB:           v.MaxFileSizeMB(),
 		FavoritePreviewCache:    v.FavoritePreviewCache(),
+		ExperimentalHEIC:        v.settings.experimentalHEIC,
 		SimilarityFavoriteCache: v.explorer.Settings().CacheFavorites,
 		SimilarityLooseCache:    v.settings.looseAnalysisCache,
 		AnalysisCacheLimitMiB:   v.settings.analysisCacheMiB,
@@ -242,6 +244,11 @@ func (v *viewer) settingsState() preferences.State {
 		DuplicateDistance:       v.DuplicateDistance(),
 		DuplicateDistanceSet:    v.settings.dupeDistSet,
 	}
+}
+
+func (v *viewer) showSettings() {
+	v.settingsWin.SetHEICUnavailable(v.images.unavailable())
+	v.settingsWin.Show(v.settingsState(), v.storeManaged)
 }
 
 func applySettingChange[T comparable](prev, next T, apply func(T)) {
@@ -267,6 +274,9 @@ func (v *viewer) applyLimitSettings(prev, next preferences.State) {
 }
 
 func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {
+	applySettingChange(prev.ExperimentalHEIC, next.ExperimentalHEIC, func(on bool) {
+		v.settings.experimentalHEIC = on
+	})
 	applySettingChange(prev.SimilarityFavoriteCache, next.SimilarityFavoriteCache, func(on bool) {
 		settings := v.explorer.Settings()
 		settings.CacheFavorites = on

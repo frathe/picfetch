@@ -63,6 +63,7 @@ func (v *viewer) imageProbed(bounds image.Rectangle) {
 // imagePresented runs synchronously after coherent display publication and
 // before the owner admits animation or neighbor work and completes the load.
 func (v *viewer) imagePresented(snapshot display.Snapshot) []fyne.URI {
+	v.settingsWin.SetHEICUnavailable(v.images.unavailable())
 	v.syncPresentationLogicalSize()
 	v.dropzone.Hide()
 	v.welcomeArt.Hide()
@@ -107,6 +108,7 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 }
 
 func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
+	v.settingsWin.SetHEICUnavailable(v.images.unavailable())
 	msg := fmt.Sprintf(lang.L("could not read %q: %v"), source.Name(), err)
 	var dimensions *imaging.InvalidDimensionsError
 	var tooLarge *imaging.InputTooLargeError

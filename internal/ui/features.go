@@ -113,7 +113,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// registered before saved cache limits are applied.
 	view.grid = grid.NewWithReader(view, window, view.dupes, view.images.background)
 	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
-		Client: similarity.Client{HEIC: view.images.owner}, App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
+		Client: similarity.Client{HEIC: view.images.owner}, Images: view.images.foreground, App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
 		Settings: explorerui.Settings{CacheFavorites: prefs.SimilarityFavoriteCache, AutoFit: prefs.SimilarityAutoFit, Automatic: prefs.SimilarityAutoUpdate, IntroSeen: prefs.SimilarityIntroSeen},
 	})
 	view.visualsearch = searchui.New(searchHost{view}, searchui.Options{Provider: (similarity.Client{HEIC: view.images.owner}).Search})
@@ -144,6 +144,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.pushDuplicateDistance(view.DuplicateDistance())
 
 	view.SetFavoritePreviewCache(prefs.FavoritePreviewCache)
+	view.settings.experimentalHEIC = prefs.ExperimentalHEIC
 	// Restore update prefs without SetCheckForUpdates: that setter starts a
 	// network check. Day must be in place before startViewerRuntime's
 	// maybeStartUpdateCheck so Due sees the saved calendar day.

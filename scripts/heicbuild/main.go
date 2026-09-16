@@ -142,7 +142,7 @@ func run(mode string) error {
 	if err = os.WriteFile(filepath.Join(root, manifestPath), append(data, '\n'), 0644); err != nil {
 		return err
 	}
-	fmt.Println("Built development guest and refreshed its provenance manifest; production HEIC remains disabled")
+	fmt.Println("Built isolated HEIC guest and refreshed its provenance manifest; activation remains opt-in")
 	return nil
 }
 
@@ -340,7 +340,7 @@ func checkImports(root string) error {
 	if err != nil {
 		return err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" && line != "github.com/frathe/picfetch v0.0.0" && line != decoderModule+" "+decoderVersion && line != "github.com/frathe/picfetch/scripts/heicguest" {
 			return fmt.Errorf("unreviewed guest dependency: %s", line)
@@ -350,7 +350,7 @@ func checkImports(root string) error {
 	if err != nil {
 		return err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if forbiddenImport(line) {
 			return fmt.Errorf("native graph contains %s", line)
 		}

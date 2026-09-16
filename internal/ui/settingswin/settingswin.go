@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	windowW = 520.0
+	windowW = 640.0
 	windowH = 520.0
 
 	// time.Duration is an int64 nanosecond count. Reject a larger number of
@@ -68,6 +68,8 @@ type Window struct {
 	updatesManagedByStore bool
 	cacheContent          func() fyne.CanvasObject
 	cacheClosed           func()
+	heicUnavailable       bool
+	heicExplanation       *widget.Label
 
 	// prefs is the form snapshot Show seeded, mutated by each control, and
 	// pushed back through Host.ApplySettings. Ignored while the window is
@@ -85,6 +87,7 @@ type Window struct {
 	mergeCheck, shuffleCheck      *widget.Check
 	favPreviewCheck, updateCheck  *widget.Check
 	staticSizeCheck               *widget.Check
+	experimentalHEIC              *widget.Check
 	updateNow                     *widget.Button
 	updateVersion                 *widget.Label
 	updateManaged                 *widget.Label
@@ -125,6 +128,19 @@ func (w *Window) SetCacheTab(content func() fyne.CanvasObject, closed func()) {
 	w.cacheContent, w.cacheClosed = content, closed
 }
 
+// SetHEICUnavailable supplies the current session's status before Show.
+// Saved intent remains in the preference snapshot.
+func (w *Window) SetHEICUnavailable(unavailable bool) {
+	w.heicUnavailable = unavailable
+	if w.heicExplanation != nil {
+		if unavailable {
+			w.heicExplanation.Show()
+		} else {
+			w.heicExplanation.Hide()
+		}
+	}
+}
+
 // ConfirmClearAnalysis owns confirmation on the live Settings window.
 func (w *Window) ConfirmClearAnalysis(answer func(bool)) {
 	if w.win.Window() == nil {
@@ -152,6 +168,8 @@ func (w *Window) Show(prefs preferences.State, updatesManagedByStore bool) {
 		w.mergeCheck, w.shuffleCheck = nil, nil
 		w.favPreviewCheck, w.updateCheck = nil, nil
 		w.staticSizeCheck = nil
+		w.experimentalHEIC = nil
+		w.heicExplanation = nil
 		w.updateNow = nil
 		w.updateVersion = nil
 		w.updateManaged = nil
@@ -400,6 +418,17 @@ func (w *Window) build() fyne.CanvasObject {
 	if w.cacheContent != nil {
 		tabs.Append(container.NewTabItem(lang.L("Cache"), container.NewPadded(container.NewVScroll(w.cacheContent()))))
 	}
+	w.experimentalHEIC = widget.NewCheck(lang.L("Experimental HEIC support"), func(on bool) {
+		w.apply(func(s *preferences.State) { s.ExperimentalHEIC = on })
+	})
+	w.experimentalHEIC.Checked = w.prefs.ExperimentalHEIC
+	warning := widget.NewLabel(lang.L("Restart PicFetch to apply. Colors may be inaccurate; HDR is not supported."))
+	warning.Wrapping = fyne.TextWrapWord
+	w.heicExplanation = widget.NewLabel(lang.L("Experimental HEIC support is unavailable. Check the installed helper package and sandbox permissions."))
+	w.heicExplanation.Wrapping = fyne.TextWrapWord
+	w.SetHEICUnavailable(w.heicUnavailable)
+	experimental := container.NewVBox(w.experimentalHEIC, warning, w.heicExplanation)
+	tabs.Append(container.NewTabItem(lang.L("Experimental"), container.NewPadded(container.NewVScroll(experimental))))
 	return tabs
 }
 

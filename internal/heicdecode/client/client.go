@@ -36,15 +36,18 @@ type Input func(ctx context.Context, maxBytes int64) ([]byte, error)
 // Client admits one job and at most 64 pending callers. Stop is nonblocking;
 // Wait joins active process/pipe work and cancelled waiting callers off the UI.
 type Client struct {
-	config   Config
-	ctx      context.Context
-	cancel   context.CancelFunc
-	lane     admissionQueue
-	mu       sync.Mutex
-	closed   bool
-	active   int
-	services int
-	work     sync.WaitGroup
+	config      Config
+	ctx         context.Context
+	cancel      context.CancelFunc
+	lane        admissionQueue
+	mu          sync.Mutex
+	closed      bool
+	active      int
+	services    int
+	work        sync.WaitGroup
+	unavailable bool
+	release     func()
+	releaseOnce sync.Once
 }
 
 func New(config Config) (*Client, error) {
@@ -65,7 +68,31 @@ func (c *Client) Stop() {
 	c.mu.Unlock()
 }
 
-func (c *Client) Wait() { c.work.Wait() }
+func (c *Client) Wait() {
+	c.work.Wait()
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	if closed && c.release != nil {
+		c.releaseOnce.Do(c.release)
+	}
+}
+
+// Unavailable reports the latest helper identity/readiness failure, separately
+// from immutable reader capability and the user's saved preference.
+func (c *Client) Unavailable() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.unavailable
+}
+
+func (c *Client) recordAvailability(err error) {
+	if err == nil || errors.Is(err, ErrUnavailable) {
+		c.mu.Lock()
+		c.unavailable = err != nil
+		c.mu.Unlock()
+	}
+}
 
 // Do retains admission until source work, the helper, all pipes, and output
 // validation have finished. A cancelled queued call never invokes input.
@@ -86,6 +113,7 @@ func (c *Client) DoWithPriority(ctx context.Context, priority Priority, op heicd
 		result, err = c.run(ctx, op, input)
 		return err
 	})
+	c.recordAvailability(err)
 	if err != nil {
 		return heicdecode.Response{}, err
 	}

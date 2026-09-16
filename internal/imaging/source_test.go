@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +22,38 @@ import (
 	"github.com/frathe/picfetch/internal/heicdecode/client"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestExperimentalHEICFormats(t *testing.T) {
+	configured := NewReader(func(_ context.Context, _ heicdecode.Operation, _ client.Input) (heicdecode.Response, error) {
+		t.Fatal("format admission decoded a source")
+		return heicdecode.Response{}, nil
+	})
+	for _, ext := range []string{".heic", ".HEIF"} {
+		u := uitest.FakeURI{FileName: "photo" + ext, Ext: ext}
+		if !configured.IsSupportedImage(u) || (Reader{}).IsSupportedImage(u) || IsSupportedImage(u) {
+			t.Fatalf("unexpected session admission for %s", ext)
+		}
+	}
+	for _, ext := range []string{".heics", ".heifs"} {
+		if configured.IsSupportedImage(uitest.FakeURI{FileName: "sequence" + ext, Ext: ext}) {
+			t.Fatalf("sequence admitted: %s", ext)
+		}
+	}
+	for _, ext := range SupportedExtensions() {
+		u := uitest.FakeURI{FileName: "ordinary" + ext, Ext: ext}
+		if !configured.IsSupportedImage(u) || !(Reader{}).IsSupportedImage(u) {
+			t.Fatalf("ordinary format lost: %s", ext)
+		}
+	}
+	formats := configured.SupportedExtensions()
+	if !slices.Contains(formats, ".heic") || !slices.Contains(formats, ".heif") || slices.Contains(SupportedExtensions(), ".heic") {
+		t.Fatal("experimental format declarations escaped the reader")
+	}
+	formats[len(formats)-1] = ".changed"
+	if slices.Contains(configured.SupportedExtensions(), ".changed") {
+		t.Fatal("format result aliases reader state")
+	}
+}
 
 func TestSourceHEICAdmissionAndPixels(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", "test_exif.heic"))

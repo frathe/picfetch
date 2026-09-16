@@ -61,7 +61,8 @@ func (r Rule) Validate() error {
 		}
 	}
 	if r.Format != "" {
-		valid := false
+		// Saved rules survive changes in the session's experimental capability.
+		valid := r.Format == "heic" || r.Format == "heif"
 		for _, ext := range imaging.SupportedExtensions() {
 			ext = strings.TrimPrefix(ext, ".")
 			if ext == "jpeg" {

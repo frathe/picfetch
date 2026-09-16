@@ -38,6 +38,7 @@ const (
 	keyWindowPosSet    = "windowPosSet"
 
 	keyFavoritePreviewCache    = "favoritePreviewCache"
+	keyExperimentalHEIC        = "experimentalHEIC"
 	keySimilarityFavoriteCache = "similarityFavoriteCache"
 	keySimilarityLooseCache    = "similarityLooseCache"
 	keyAnalysisCacheLimitMiB   = "analysisCacheLimitMiB"
@@ -162,6 +163,9 @@ type State struct {
 	// check) so that a user who explicitly turns it off can have that
 	// choice persist.
 	FavoritePreviewCache bool
+	// ExperimentalHEIC is saved intent for the next application launch.
+	// Runtime capability belongs to the application's immutable image services.
+	ExperimentalHEIC bool
 	// SimilarityFavoriteCache and SimilarityAutoFit default on; automatic map updates default off.
 	SimilarityFavoriteCache, SimilarityAutoUpdate, SimilarityAutoFit bool
 	SimilarityLooseCache                                             bool
@@ -234,6 +238,7 @@ func Save(app fyne.App, s State) {
 	p.SetString(keyThemeMode, s.ThemeMode.PrefValue())
 	p.SetBool(keySlideShuffle, s.SlideShuffle)
 	p.SetBool(keyFavoritePreviewCache, s.FavoritePreviewCache)
+	p.SetBool(keyExperimentalHEIC, s.ExperimentalHEIC)
 	p.SetBool(keySimilarityFavoriteCache, s.SimilarityFavoriteCache)
 	p.SetBool(keySimilarityLooseCache, s.SimilarityLooseCache)
 	if s.AnalysisCacheLimitMiB > 0 && uint64(s.AnalysisCacheLimitMiB) <= ^uint64(0)/(1024*1024) {
@@ -387,6 +392,7 @@ func Load(app fyne.App) State {
 		MosaicWindow:            loadGeometry(p, mosaicWinKeys),
 		MosaicSettings:          mosaicSettings,
 		FavoritePreviewCache:    p.BoolWithFallback(keyFavoritePreviewCache, true),
+		ExperimentalHEIC:        p.Bool(keyExperimentalHEIC),
 		SimilarityFavoriteCache: p.BoolWithFallback(keySimilarityFavoriteCache, true),
 		SimilarityLooseCache:    p.BoolWithFallback(keySimilarityLooseCache, true),
 		AnalysisCacheLimitMiB:   analysisCacheLimit(p.IntWithFallback(keyAnalysisCacheLimitMiB, 2048)),

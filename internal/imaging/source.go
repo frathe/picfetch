@@ -41,6 +41,37 @@ type Source struct {
 
 func NewReader(decode HEICDecoder) Reader { return Reader{heic: decode} }
 
+// SupportedExtensions describes this reader's immutable decode capability.
+// Package-level declarations deliberately exclude experimental formats.
+func (r Reader) SupportedExtensions() []string {
+	extensions := SupportedExtensions()
+	if r.heic != nil {
+		extensions = append(extensions, ".heic", ".heif")
+	}
+	return extensions
+}
+
+// IsSupportedImage admits still HEIC only when this reader has an owner.
+// It preserves the ordinary extension-first lookup and never decodes a source.
+func (r Reader) IsSupportedImage(u fyne.URI) bool {
+	switch strings.ToLower(u.Extension()) {
+	case ".heic", ".heif":
+		return r.heic != nil
+	case ".heics", ".heifs":
+		return false
+	}
+	if IsSupportedImage(u) {
+		return true
+	}
+	if r.heic != nil {
+		switch strings.ToLower(u.MimeType()) {
+		case "image/heic", "image/heif":
+			return true
+		}
+	}
+	return false
+}
+
 // Read probes ordinary images without decoding their pixels; HEIC bounds and
 // pixels arrive together so a later Decode cannot start another helper job.
 func (r Reader) Read(ctx context.Context, u fyne.URI) (*Source, error) {

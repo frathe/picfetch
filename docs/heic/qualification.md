@@ -2,15 +2,16 @@
 
 ## Current disposition
 
-**HEIC viewing is still disabled on every production platform.** This branch
-contains a reproducible WASI guest, codec-free protocol, bounded parent launcher
-and a minimal helper. Native Apple Silicon tests exercise a signed App Sandbox
-bundle and real decoding. Shared app/analysis admission and canonical imaging
-integration now have focused regression coverage. Linux and Windows restrictions are
-implemented but await native CI. Package construction and updater integration
-are implemented, with native macOS signed-bundle evidence. Native distribution
-qualification, the first-upgrade transition and representative camera
-compatibility remain activation gates. No release or merge is authorized by this record.
+The September 16 [experimental activation record](experimental-opt-in.md)
+supersedes the earlier disabled-constructor status. The implementation now has
+a default-off, restart-only Settings preference and executable-derived package
+activation. Existing helper/source evidence below remains historical evidence;
+it does not qualify the new Windows cache, standard-user or installed-MSIX
+paths. Native macOS arm64 application-constructor coverage passes locally;
+remaining platform/package runs, complete CI and fresh reviews are pending.
+Distribution clearance, production signing, the first-upgrade transition and
+broader camera/color qualification remain release gates. No release or merge
+is authorized by this record.
 
 The subsequent source-retention instruction is implemented by restoring the
 exact maintained production copy in `third_party/h265`. The earlier unmodified

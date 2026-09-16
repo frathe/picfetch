@@ -27,6 +27,12 @@ func TestNativeSuitesSelectPlatformAndDistributionGuards(t *testing.T) {
 		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/update", "TestNativeMacUpdatePreservesSignedBundle", "heicnative"},
 		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/update", "TestNativeMacLegacyUpdateRequiresCompleteReinstall", "heicnative"},
 		{"heic-linux", "linux", "github.com/frathe/picfetch/internal/heicdecode/client", "TestNativeSandboxHelper", "heicnative"},
+		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/ui", "TestNativePackagedHEICActivation", "heicnative"},
+		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/similarity", "TestNativeHEICAnalysisPixels", "heicnative"},
+		{"heic-linux", "linux", "github.com/frathe/picfetch/internal/similarity", "TestNativeHEICAnalysisPixels", "heicnative"},
+		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/similarity", "TestNativeHEICAnalysisPixels", "heicnative"},
+		{"heic-linux", "linux", "github.com/frathe/picfetch/internal/ui", "TestNativePackagedHEICActivation", "heicnative"},
+		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/ui", "TestNativePackagedHEICActivation", "heicnative"},
 		{"heic-linux", "linux", "github.com/frathe/picfetch/internal/heicdecode/worker", "TestNativeLinuxRuntimePolicy", "heicnative"},
 		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/heicdecode/client", "TestInheritedRemoteCancellationJoins", "heicnative"},
 		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/similarity", "TestAnalysisWorkersUseHEICOwner", "heicnative"},
@@ -155,12 +161,64 @@ func TestNativeCIExecutesAndRetainsEveryDeclaredSuite(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, name := range []string{"windows", "macos", "heic-macos", "heic-linux", "heic-windows", "store"} {
+	for _, name := range []string{"windows", "macos", "heic-macos", "heic-linux", "store"} {
 		if !strings.Contains(text, "./scripts/nativeguards -suite "+name+" -capture") {
 			t.Errorf("CI omits %s guard runner", name)
 		}
 	}
+	child, err := os.ReadFile("../../packaging/heic/qualify-windows-child.ps1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{"./packaging/heic/qualify-windows.ps1 -Scenario standalone", "./packaging/heic/qualify-windows.ps1 -Scenario msix", "native-guards-Windows-MSIX-${{ matrix.arch }}", "heic-standard-user/", "heic-installed-msix/"} {
+		if !strings.Contains(text, required) {
+			t.Errorf("CI omits Windows qualification contract %q", required)
+		}
+	}
+	if !strings.Contains(string(child), "./scripts/nativeguards -suite heic-windows -capture") || !strings.Contains(string(child), "HEICInstalledActivation") {
+		t.Fatal("standard-user runner lost native or installed activation")
+	}
 	if !strings.Contains(text, "native-guards-${{ runner.os }}") || !strings.Contains(text, "if: always()") {
 		t.Fatal("raw native guard evidence not retained")
+	}
+}
+
+func TestNativeApplicationGuardRunsWithHelperSuite(t *testing.T) {
+	s, err := suiteFor("heic-linux", "linux")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls [][]string
+	execute := func(_ context.Context, args []string, out io.Writer) error {
+		calls = append(calls, slices.Clone(args))
+		for _, g := range s.guards {
+			pkg := "./" + strings.TrimPrefix(g.Package, "github.com/frathe/picfetch/")
+			if !slices.Contains(args, pkg) {
+				continue
+			}
+			if slices.Contains(args, "-list") {
+				_, _ = fmt.Fprintln(out, g.Test)
+			} else {
+				_, _ = io.WriteString(out, eventsFor(g, "run", "pass"))
+			}
+		}
+		return nil
+	}
+	if err = runSuite(context.Background(), s, execute, io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	var helper, application bool
+	for _, args := range calls {
+		if slices.Contains(args, "-list") {
+			continue
+		}
+		if slices.Contains(args, "./internal/ui") {
+			application = slices.Contains(args, "-run") && slices.Contains(args, "^TestNativePackagedHEICActivation$")
+		} else {
+			helper = !slices.Contains(args, "-run")
+		}
+	}
+	if !helper || !application {
+		t.Fatalf("native runner lost helper or application coverage: %v", calls)
 	}
 }

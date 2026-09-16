@@ -207,14 +207,76 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
-      - name: Qualify HEIC AppContainer, job limits, inherited handles and cancellation
-        run: go run ./scripts/nativeguards -suite heic-windows -capture "${{ runner.temp }}/native-guards-heic-windows.json"
+      - name: Qualify HEIC as a disposable standard user
+        shell: pwsh
+        run: ./packaging/heic/qualify-windows.ps1 -Scenario standalone -EvidenceDirectory "${{ runner.temp }}/heic-standard-user"
       - name: Upload native guard events
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: native-guards-Windows-HEIC-${{ matrix.arch }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/native-guards-heic-windows.json
+          path: ${{ runner.temp }}/heic-standard-user/
+          if-no-files-found: error
+          retention-days: 14
+
+  heic-msix-build:
+    name: Build complete HEIC test-MSIX inputs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Build Store-managed applications for both native targets
+        run: make package-windows-store
+      - uses: actions/upload-artifact@v7
+        with:
+          name: heic-qualification-store-executables
+          path: bin/picfetch-microsoft-store-*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  heic-msix:
+    name: Installed MSIX ${{ matrix.arch }} HEIC activation (attempt ${{ github.run_attempt }})
+    needs: heic-msix-build
+    env:
+      CGO_ENABLED: '0'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: amd64
+            runtime: x64
+          - runner: windows-11-arm
+            arch: arm64
+            runtime: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@v8
+        with:
+          name: heic-qualification-store-executables
+          path: dist/executables
+      - name: Fetch the build-time pinned runtime package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest -Uri 'https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/onnxruntime-win-${{ matrix.runtime }}-1.29.0.zip' -OutFile dist/runtime.zip
+      - name: Install and activate the disposable test-MSIX as a standard user
+        shell: pwsh
+        run: ./packaging/heic/qualify-windows.ps1 -Scenario msix -Executable dist/executables/picfetch-microsoft-store-${{ matrix.arch }}.exe -RuntimeArchive dist/runtime.zip -EvidenceDirectory "${{ runner.temp }}/heic-installed-msix"
+      - name: Upload installed activation and provisioning evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-guards-Windows-MSIX-${{ matrix.arch }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/heic-installed-msix/
           if-no-files-found: error
           retention-days: 14
 

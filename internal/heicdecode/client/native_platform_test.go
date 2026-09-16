@@ -29,14 +29,14 @@ func TestNativeSandboxHelper(t *testing.T) {
 	if output, buildErr := build.CombinedOutput(); buildErr != nil {
 		t.Fatalf("stage helper package: %v: %s", buildErr, output)
 	}
-	executable, digest, err := LoadPackage(packageRoot, runtime.GOOS, runtime.GOARCH)
-	if err != nil {
+	mainExecutable := filepath.Join(packageRoot, "picfetch")
+	if runtime.GOOS == "windows" {
+		mainExecutable += ".exe"
+	}
+	if err = os.WriteFile(mainExecutable, []byte("owned installation marker"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err = prepareNativeHelper(executable); err != nil {
-		t.Fatal(err)
-	}
-	client, err := New(Config{Executable: executable, SHA256: digest, Limits: heicdecode.DefaultLimits(0)})
+	client, err := OpenInstalled(context.Background(), mainExecutable, filepath.Join(t.TempDir(), "heic-helpers"), heicdecode.DefaultLimits(0))
 	if err != nil {
 		t.Fatal(err)
 	}

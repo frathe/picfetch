@@ -50,6 +50,44 @@ func TestImages_EmptyInput(t *testing.T) {
 	}
 }
 
+func TestExperimentalHEICAdmission(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"photo.heic", "other.heif", "ordinary.png", "ignore.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("owned scan fixture"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file := storage.NewFileURI(filepath.Join(dir, "photo.heic"))
+	admit := WithAdmission(func(u fyne.URI) bool {
+		return u.Extension() == ".heic" || u.Extension() == ".heif" || u.Extension() == ".png"
+	})
+	for _, active := range []bool{false, true} {
+		option := WithAdmission(nil)
+		want := 1
+		if active {
+			option, want = admit, 3
+		}
+		images, truncated := Images(context.Background(), []fyne.URI{storage.NewFileURI(dir), file}, DefaultMax, nil, option)
+		if len(images) != want || truncated {
+			t.Fatalf("recursive active=%v: %v, truncated=%v", active, images, truncated)
+		}
+		images, truncated = Siblings(context.Background(), file, DefaultMax, nil, option)
+		if len(images) != want || truncated || (active && images[0].String() != file.String()) {
+			t.Fatalf("siblings active=%v: %v, truncated=%v", active, images, truncated)
+		}
+	}
+	images, truncated := Images(context.Background(), []fyne.URI{file, file}, 1, nil, admit)
+	if len(images) != 1 || !truncated {
+		t.Fatal("custom admission lost the scan cap")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	images, truncated = Siblings(ctx, file, DefaultMax, nil, admit)
+	if len(images) != 0 || truncated {
+		t.Fatal("cancelled custom scan admitted a source")
+	}
+}
+
 func TestImages_FiltersUnsupportedFiles(t *testing.T) {
 	jpegURI := uitest.TempJPEGURI(t, "keep.jpg", 4, 4, color.White)
 	pngPath := uitest.WriteTempFile(t, "keep.png", uitest.EncodePNG(t, 4, 4, color.White))

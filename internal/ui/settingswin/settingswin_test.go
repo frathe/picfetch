@@ -1,14 +1,20 @@
 package settingswin
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"image/png"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
+	fynecanvas "fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/appearance"
@@ -698,7 +704,7 @@ func TestSettingsCacheTabCompositionAndClose(t *testing.T) {
 		}
 	})
 	tabs := settingsTabs(t, w)
-	if len(tabs.Items) != 5 || !containsCanvasObject(tabs.Items[4].Content, content) {
+	if len(tabs.Items) != 6 || !containsCanvasObject(tabs.Items[4].Content, content) || tabs.Items[5].Text != "Experimental" {
 		t.Fatal("cache content was not attached to Settings")
 	}
 	w.win.Window().Close()
@@ -753,7 +759,7 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	w := newUpdateTestWindow(t, &fakeHost{})
 	tabs := settingsTabs(t, w)
 
-	wantLabels := []string{"General", "Appearance", "Updates", "Limits"}
+	wantLabels := []string{"General", "Appearance", "Updates", "Limits", "Experimental"}
 	if len(tabs.Items) != len(wantLabels) {
 		t.Fatalf("tab count = %d, want %d", len(tabs.Items), len(wantLabels))
 	}
@@ -839,6 +845,46 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 		if containsCanvasObject(limits, control) {
 			t.Errorf("Limits tab unexpectedly contains %s control", name)
 		}
+	}
+}
+
+func TestExperimentalHEICControl(t *testing.T) {
+	for _, store := range []bool{false, true} {
+		host := &fakeHost{}
+		w := New(testApp, host)
+		w.SetHEICUnavailable(true)
+		w.Show(host.prefs, store)
+		tabs := settingsTabs(t, w)
+		experimental := tabs.Items[len(tabs.Items)-1]
+		if experimental.Text != "Experimental" || tabs.SelectedIndex() != 0 || w.experimentalHEIC.Checked {
+			t.Fatal("experimental tab or default preference changed")
+		}
+		content := tabVBox(t, experimental)
+		if len(content.Objects) != 3 || content.Objects[0] != w.experimentalHEIC {
+			t.Fatal("experimental control is not in the tab surface")
+		}
+		if label, ok := content.Objects[1].(*widget.Label); !ok || label.Text != "Restart PicFetch to apply. Colors may be inaccurate; HDR is not supported." {
+			t.Fatal("restart/color explanation is not beneath the checkbox")
+		}
+		if label, ok := content.Objects[2].(*widget.Label); !ok || label.Text != "Experimental HEIC support is unavailable. Check the installed helper package and sandbox permissions." {
+			t.Fatal("unavailable package has no localized explanation")
+		}
+		for _, tab := range tabs.Items[:len(tabs.Items)-1] {
+			if containsCanvasObject(tab.Content, w.experimentalHEIC) {
+				t.Fatal("HEIC control occurs outside Experimental")
+			}
+		}
+		test.Tap(w.experimentalHEIC)
+		if !lastApply(t, host).ExperimentalHEIC || host.prevCalls[0].ExperimentalHEIC {
+			t.Fatal("checkbox did not apply the saved choice")
+		}
+		tabs.Select(experimental)
+		w.win.Window().Close()
+		w.Show(host.prefs, store)
+		if settingsTabs(t, w).SelectedIndex() != 0 || !w.experimentalHEIC.Checked {
+			t.Fatal("reopening lost saved intent or selected Experimental")
+		}
+		w.win.Window().Close()
 	}
 }
 
@@ -1101,4 +1147,121 @@ func TestApply_PassesThePreviousSnapshot(t *testing.T) {
 	if host.prevCalls[1] != host.applyCalls[0] {
 		t.Error("second prev is not the first push's next — the chain is broken")
 	}
+}
+
+func TestExperimentalHEICUnavailableStatus(t *testing.T) {
+	w := newUpdateTestWindow(t, &fakeHost{})
+	tabs := settingsTabs(t, w)
+	content := tabVBox(t, tabs.Items[len(tabs.Items)-1])
+	w.SetHEICUnavailable(true)
+	w.Show(preferences.State{}, false)
+	if len(content.Objects) != 3 || !content.Objects[2].Visible() {
+		t.Fatal("late helper failure did not reach the already-open Settings surface")
+	}
+	if tabs.SelectedIndex() != 0 {
+		t.Fatal("unavailable status selected Experimental automatically")
+	}
+	w.SetHEICUnavailable(false)
+	if content.Objects[2].Visible() {
+		t.Fatal("successful later launch retained stale unavailability")
+	}
+}
+
+func TestExperimentalHEICLayout(t *testing.T) {
+	original := testApp.Settings().Theme()
+	t.Cleanup(func() { testApp.Settings().SetTheme(original) })
+	testApp.Settings().SetTheme(theme.DefaultTheme())
+	for _, locale := range []string{"en", "de"} {
+		data, err := os.ReadFile(filepath.Join("..", "..", "..", "translations", locale+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var strings map[string]string
+		if err = json.Unmarshal(data, &strings); err != nil {
+			t.Fatal(err)
+		}
+		for _, mode := range []appearance.Mode{appearance.Light, appearance.Dark} {
+			for _, cache := range []bool{false, true} {
+				for _, store := range []bool{false, true} {
+					name := fmt.Sprintf("%s-%s-cache%v-store%v", locale, mode.PrefValue(), cache, store)
+					t.Run(name, func(t *testing.T) {
+						appearance.Apply(testApp, mode)
+						w := New(testApp, &fakeHost{})
+						w.SetHEICUnavailable(true)
+						if cache {
+							w.SetCacheTab(func() fyne.CanvasObject { return widget.NewLabel("Owned cache surface") }, nil)
+						}
+						w.Show(preferences.State{}, store)
+						t.Cleanup(func() { w.win.Window().Close(); w.WaitForTracking() })
+						tabs := settingsTabs(t, w)
+						for _, tab := range tabs.Items {
+							tab.Text = strings[tab.Text]
+						}
+						tab := tabs.Items[len(tabs.Items)-1]
+						content := tabVBox(t, tab)
+						w.experimentalHEIC.Text = strings[w.experimentalHEIC.Text]
+						w.experimentalHEIC.Refresh()
+						for _, obj := range content.Objects[1:] {
+							label := obj.(*widget.Label)
+							label.SetText(strings[label.Text])
+						}
+						tabs.Refresh()
+						tabs.Select(tab)
+						win := w.win.Window()
+						win.Resize(fyne.NewSize(windowW, windowH))
+						canvas := win.Canvas()
+						canvas.Content().Refresh()
+						if !visibleTabLabel(tabs, tab.Text) {
+							t.Fatal("Experimental tab label is hidden behind overflow at the default size")
+						}
+						if minimum := canvas.Content().MinSize(); minimum.Width > windowW || minimum.Height > windowH {
+							t.Fatalf("Settings no longer fits its default size: %v", minimum)
+						}
+						for _, obj := range content.Objects {
+							if obj.Size().Width <= 0 || obj.Position().X+obj.Size().Width > content.Size().Width+1 {
+								t.Fatalf("Experimental content exceeds its surface: %T %v %v", obj, obj.Position(), obj.Size())
+							}
+						}
+						if directory := os.Getenv("PICFETCH_SETTINGS_LAYOUT_OUTPUT"); directory != "" {
+							if err := os.MkdirAll(directory, 0700); err != nil {
+								t.Fatal(err)
+							}
+							file, err := os.Create(filepath.Join(directory, name+".png"))
+							if err != nil {
+								t.Fatal(err)
+							}
+							encodeErr := png.Encode(file, canvas.Capture())
+							closeErr := file.Close()
+							if err = errors.Join(encodeErr, closeErr); err != nil {
+								t.Fatal(err)
+							}
+						}
+					})
+				}
+			}
+		}
+	}
+}
+
+func visibleTabLabel(object fyne.CanvasObject, text string) bool {
+	if !object.Visible() {
+		return false
+	}
+	switch value := object.(type) {
+	case *fynecanvas.Text:
+		return value.Text == text
+	case *fyne.Container:
+		for _, child := range value.Objects {
+			if visibleTabLabel(child, text) {
+				return true
+			}
+		}
+	case fyne.Widget:
+		for _, child := range test.WidgetRenderer(value).Objects() {
+			if visibleTabLabel(child, text) {
+				return true
+			}
+		}
+	}
+	return false
 }

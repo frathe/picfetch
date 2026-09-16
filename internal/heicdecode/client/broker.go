@@ -126,6 +126,9 @@ func (c *Client) serveRequest(ctx context.Context, op heicdecode.Operation, inpu
 				return data, resultErr
 			})
 		}
+		if ctx.Err() == nil {
+			c.recordAvailability(decodeErr)
+		}
 		if inputErr != nil {
 			return inputErr
 		}
@@ -204,8 +207,7 @@ func writeBrokerResult(w io.Writer, op heicdecode.Operation, result heicdecode.R
 		if decodeErr == nil {
 			return heicdecode.WriteResponse(w, op, result, limits)
 		}
-		var failure *heicdecode.Failure
-		if errors.As(decodeErr, &failure) {
+		if failure, ok := errors.AsType[*heicdecode.Failure](decodeErr); ok {
 			return heicdecode.WriteFailure(w, failure.Status, failure.Diagnostic, limits)
 		}
 		return heicdecode.WriteFailure(w, heicdecode.StatusUnavailable, "helper request failed", limits)

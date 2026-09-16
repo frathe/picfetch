@@ -82,9 +82,9 @@ new identifier `frathe.picfetch` before the next WinGet publication; See the
 
 ### Reconsider HEIC support after licensing and security qualification
 
-HEIC/HEIF is currently unsupported. A future restoration needs a documented
-distribution grant or another qualified decoder, containment and platform
-verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
+HEIC/HEIF remains default-off. Experimental activation is being implemented
+under the accepted September 16 spec; distribution clearance, containment and
+platform verification remain required. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
 is closed by removal. Retained [options and source evidence](docs/find-more-like-this/old-heic-wasm-options.md)
 do not authorize restoring a decoder.
 
@@ -93,7 +93,21 @@ Restoration work is authorized and tracked in
 [draft PR #28](https://github.com/frathe/picfetch/pull/28). The signed `52ed2df`
 checkpoint publishes the maintained-source WASI guest, native helper boundaries,
 shared GUI/analysis admission, canonical imaging integration and authenticated
-package/update handling. Production construction still supplies no HEIC owner.
+package/update handling. The current opt-in work now constructs an owner only
+after an enabled preference and validated installed package.
+
+- [ ] Implement the [Experimental HEIC opt-in spec](.scratch/experimental-heic-opt-in/spec.md):
+  default-off, restart-only Settings activation on macOS/Linux/Windows and MSIX,
+  immutable session admission and verified private Windows helper staging.
+  Require native packaged activation on amd64/arm64, standard-user Windows and
+  installed disposable-signed test-MSIX; permission-query failure remains a
+  blocker. Retain the accepted macOS memory limitation and separate release
+  gates for licensing/distribution, production signing and camera/color
+  qualification. Implementation is in progress in the [active opt-in plan](plans/2026-09-16-experimental-heic-opt-in.md).
+  Settings/restart, admission, Explorer and private staging are implemented;
+  focused race tests, inspections, security checks and native macOS arm64
+  application-constructor/analysis evidence pass. Native Windows/MSIX, remaining architectures, complete CI and fresh
+  reviews remain unverified. See the [activation record](docs/heic/experimental-opt-in.md).
 
 The September 16 [history reconciliation](docs/heic/history-reconciliation.md)
 accounts for `fc127b44` and `73cb3c9`: all 107 production/source-license files
@@ -128,7 +142,7 @@ Remaining qualification:
   ICC/wide-gamut/PQ/HLG/gain-map display is absent and those color classes are
   not deliberately rejected; more fixtures alone cannot establish it.
 - The initial cloud foundation commit is unsigned; the PR's signing prerequisite
-  remains open. No history rewrite, merge, release or production activation is
+  remains open. No history rewrite, merge or release is
   authorized by this reconciliation.
 
 See [qualification evidence](docs/heic/qualification.md) and the current
@@ -141,7 +155,7 @@ gen2brain replacements. The authorized review of h265 v0.2.3 found an invalid
 result invariant, incomplete translated-source provenance and unresolved HEVC
 patent obligations. Its still decoder can also fall back to sequence decoding,
 so a future adapter must reject sequences explicitly. The local fix does not
-qualify the library; HEIC remains disabled.
+qualify the library; experimental activation is tracked separately above.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 

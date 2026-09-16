@@ -6,6 +6,7 @@ import (
 	"github.com/frathe/picfetch/internal/heicdecode"
 	heicclient "github.com/frathe/picfetch/internal/heicdecode/client"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/preferences"
 )
 
 // imageServices owns one admission lane for this viewer and its analysis
@@ -13,6 +14,22 @@ import (
 type imageServices struct {
 	owner                  *heicclient.Client
 	foreground, background imaging.Reader
+	startupError           error
+}
+
+func installedImageServices(prefs preferences.State, executable, privateDir string) imageServices {
+	if !prefs.ExperimentalHEIC {
+		return imageServices{}
+	}
+	owner, err := heicclient.OpenInstalled(context.Background(), executable, privateDir, heicdecode.DefaultLimits(int64(prefs.MaxFileSizeMB)*1024*1024))
+	if err != nil {
+		return imageServices{startupError: err}
+	}
+	return newImageServices(owner)
+}
+
+func (s imageServices) unavailable() bool {
+	return s.startupError != nil || (s.owner != nil && s.owner.Unavailable())
 }
 
 func newImageServices(owner *heicclient.Client) imageServices {
