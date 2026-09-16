@@ -1,6 +1,7 @@
 package similarity
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -18,7 +19,37 @@ import (
 )
 
 const workerEnvironment = "PICFETCH_SIMILARITY_WORKER"
-const workerRequestLimit = 64 * 1024 * 1024
+
+const (
+	workerRequestLimit = 64 * 1024 * 1024
+	workerEventLimit   = 128 * 1024 * 1024
+	// Grouping is quadratic in represented sources; keep its worst case finite.
+	maxAnalysisSources = 5000
+)
+
+type workerEventDecoder struct {
+	scanner *bufio.Scanner
+}
+
+func newWorkerEventDecoder(input io.Reader, limit int) *workerEventDecoder {
+	scanner := bufio.NewScanner(input)
+	initial := 64 * 1024
+	if limit < initial {
+		initial = limit
+	}
+	scanner.Buffer(make([]byte, initial), limit)
+	return &workerEventDecoder{scanner: scanner}
+}
+
+func (d *workerEventDecoder) Decode(event *Event) error {
+	if !d.scanner.Scan() {
+		if err := d.scanner.Err(); err != nil {
+			return fmt.Errorf("decode similarity worker event: %w", err)
+		}
+		return io.EOF
+	}
+	return json.Unmarshal(d.scanner.Bytes(), event)
+}
 
 // Bound each decoded message independently; a retained search can accept an
 // arbitrary number of small reference queries without exhausting a lifetime cap.
@@ -71,6 +102,9 @@ type request struct {
 // Cancellation kills even a batch algorithm that does not accept a context.
 func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Control, emit func(Event)) error {
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateAnalysisSourceCount(len(paths)); err != nil {
 		return err
 	}
 	if !SupportedPlatform() {
@@ -136,7 +170,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 			_ = cmd.Wait()
 		}
 	}()
-	decoder := json.NewDecoder(stdout)
+	decoder := newWorkerEventDecoder(stdout, workerEventLimit)
 	complete := false
 	for {
 		var event Event
@@ -169,6 +203,13 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	}
 	if !complete {
 		return fmt.Errorf("analysis worker exited without a completed map")
+	}
+	return nil
+}
+
+func validateAnalysisSourceCount(count int) error {
+	if count > maxAnalysisSources {
+		return fmt.Errorf("visual similarity analysis accepts at most %d images, got %d", maxAnalysisSources, count)
 	}
 	return nil
 }
@@ -224,6 +265,9 @@ func WorkerMain() bool {
 	defer func() { _ = input.Close() }()
 	decoder := newWorkerDecoder(input)
 	err = decoder.Decode(&req)
+	if err == nil && req.Search == nil {
+		err = validateAnalysisSourceCount(len(req.Paths))
+	}
 	if err == nil {
 		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
 		if req.Search != nil {
