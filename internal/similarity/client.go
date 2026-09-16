@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -18,7 +19,44 @@ import (
 )
 
 const workerEnvironment = "PICFETCH_SIMILARITY_WORKER"
-const workerRequestLimit = 64 * 1024 * 1024
+
+const (
+	workerRequestLimit       = 64 * 1024 * 1024
+	DefaultAnalysisMemoryMB  = 512
+	DefaultAnalysisItemLimit = 10000
+	MaxAnalysisMemoryMB      = 1024 * 1024
+)
+
+// AnalysisLimits bounds collection work and each serialized result. MemoryMB
+// does not bound total process memory or the native inference runtime.
+type AnalysisLimits struct {
+	MemoryMB int
+	Items    int
+}
+
+func (l AnalysisLimits) Normalized() AnalysisLimits {
+	if l.MemoryMB <= 0 || l.MemoryMB > MaxAnalysisMemoryMB {
+		l.MemoryMB = DefaultAnalysisMemoryMB
+	}
+	if l.Items <= 0 {
+		l.Items = DefaultAnalysisItemLimit
+	}
+	return l
+}
+
+var (
+	ErrAnalysisItemLimit   = errors.New("similarity explorer item limit exceeded")
+	ErrAnalysisMemoryLimit = errors.New("similarity explorer memory limit exceeded")
+)
+
+func (l AnalysisLimits) validateSourceCount(count int) error {
+	limit := l.Normalized().Items
+	// Grouping is quadratic in represented sources; keep its worst case finite.
+	if count > limit {
+		return fmt.Errorf("%w: accepts at most %d images, got %d", ErrAnalysisItemLimit, limit, count)
+	}
+	return nil
+}
 
 // Bound each decoded message independently; a retained search can accept an
 // arbitrary number of small reference queries without exhausting a lifetime cap.
@@ -44,7 +82,8 @@ func (d *workerDecoder) Decode(value any) error {
 // Client runs native inference and batch algorithms outside the viewer process.
 // Assets may override the installed assets directory for a local trial.
 type Client struct {
-	Assets string
+	Assets         string
+	AnalysisLimits AnalysisLimits
 	// HTTPClient configures asset downloads; analysis never uses it.
 	HTTPClient *http.Client
 	// FavoritesDir supplies membership and, unless disabled, Favorite analysis.
@@ -65,12 +104,17 @@ type request struct {
 	DisableFavoriteCache bool
 	Paths                []string
 	MaxEncodedBytes      int64
+	AnalysisLimits       AnalysisLimits
 }
 
 // Analyze streams serialized immutable snapshots and waits for worker exit.
 // Cancellation kills even a batch algorithm that does not accept a context.
 func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Control, emit func(Event)) error {
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	limits := c.AnalysisLimits.Normalized()
+	if err := limits.validateSourceCount(len(paths)); err != nil {
 		return err
 	}
 	if !SupportedPlatform() {
@@ -84,9 +128,13 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if assets == "" {
 		assets = defaultAssets(executable)
 	}
-	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes()}
+	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes(), AnalysisLimits: limits}
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
+	return analyzeCommand(ctx, cmd, req, controls, emit)
+}
+
+func analyzeCommand(ctx context.Context, cmd *exec.Cmd, req request, controls <-chan Control, emit func(Event)) error {
 	input, err := cmd.StdinPipe()
 	if err != nil {
 		return err
@@ -136,7 +184,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 			_ = cmd.Wait()
 		}
 	}()
-	decoder := json.NewDecoder(stdout)
+	decoder := newWorkerEventDecoder(stdout, req.AnalysisLimits.Normalized().MemoryMB*1024*1024, req.AnalysisLimits.Normalized().Items)
 	complete := false
 	for {
 		var event Event
@@ -160,6 +208,10 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	waitErr := cmd.Wait()
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	// Killing the worker after a decode failure must not hide the resource error.
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
 	}
 	if waitErr != nil {
 		return fmt.Errorf("analysis worker: %w: %s", waitErr, stderr.String())
@@ -224,6 +276,9 @@ func WorkerMain() bool {
 	defer func() { _ = input.Close() }()
 	decoder := newWorkerDecoder(input)
 	err = decoder.Decode(&req)
+	if err == nil && req.Search == nil {
+		err = req.AnalysisLimits.validateSourceCount(len(req.Paths))
+	}
 	if err == nil {
 		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
 		if req.Search != nil {
@@ -251,7 +306,7 @@ func WorkerMain() bool {
 				}
 			}
 		}()
-		output := json.NewEncoder(os.Stdout)
+		output := newWorkerEventEncoder(os.Stdout, req.AnalysisLimits.Normalized().MemoryMB*1024*1024)
 		err = analyzeLocal(ctx, req, controls, func(event Event) error { return output.Encode(event) })
 		cancelRead()
 		_ = input.Close()

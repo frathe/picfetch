@@ -3,6 +3,7 @@ package explorer_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/color"
 	"os"
@@ -200,8 +201,9 @@ func TestFeatureOpenCopiesSourcesAndRejectsClosedDelivery(t *testing.T) {
 }
 
 type featureHost struct {
-	win  fyne.Window
-	grid bool
+	win    fyne.Window
+	grid   bool
+	toasts []string
 }
 
 func (h *featureHost) Window() fyne.Window             { return h.win }
@@ -216,11 +218,50 @@ func (h *featureHost) Presentation() explorer.Presentation {
 	}
 	return explorer.Presentation{Surface: surface, GridVisible: h.grid}
 }
-func (h *featureHost) ShowToast(_ string)          {}
+func (h *featureHost) ShowToast(message string)    { h.toasts = append(h.toasts, message) }
 func (h *featureHost) Unfocus()                    { h.win.Canvas().Unfocus() }
 func (h *featureHost) Modifiers() fyne.KeyModifier { return 0 }
 
 func (h *featureHost) Repaint() {}
+
+func TestFeatureLimitFailures(t *testing.T) {
+	for _, limitErr := range []error{similarity.ErrAnalysisItemLimit, similarity.ErrAnalysisMemoryLimit} {
+		for _, stale := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%v/stale=%v", limitErr, stale), func(t *testing.T) {
+				app := test.NewApp()
+				t.Cleanup(app.Quit)
+				host := &featureHost{win: app.NewWindow("Explorer")}
+				f := explorer.NewFeature(host, explorer.Options{App: app, Queue: &uitest.UIQueue{}, AssetsReady: true,
+					Analyze: func(_ context.Context, _ []string, _ <-chan similarity.Control, _ func(similarity.Event)) error {
+						return fmt.Errorf("analysis failed: %w", limitErr)
+					}})
+				t.Cleanup(func() { f.Stop(); f.Settle() })
+				f.Open(explorer.OpenRequest{Sources: []string{"/a.jpg"}})
+				f.Wait()
+				if stale {
+					f.Close()
+				}
+				f.Settle()
+				if stale {
+					if len(host.toasts) != 0 {
+						t.Fatalf("stale failure showed toast: %v", host.toasts)
+					}
+					return
+				}
+				want := lang.L("Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.")
+				if errors.Is(limitErr, similarity.ErrAnalysisMemoryLimit) {
+					want = lang.L("Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.")
+				}
+				if !slices.Equal(host.toasts, []string{want}) {
+					t.Fatalf("limit failure toast = %v, want %q", host.toasts, want)
+				}
+				if state := f.State(); !state.CanRetry || !state.AssetsReady || state.Complete {
+					t.Fatalf("limit failure left invalid retry state: %+v", state)
+				}
+			})
+		}
+	}
+}
 
 func TestFeatureCloseReopenAndStop(t *testing.T) {
 	for _, action := range []string{"close", "reopen", "stop"} {

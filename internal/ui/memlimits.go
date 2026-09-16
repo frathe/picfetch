@@ -237,6 +237,8 @@ func (v *viewer) settingsState() preferences.State {
 		AnalysisCacheLimitMiB:   v.settings.analysisCacheMiB,
 		SimilarityAutoUpdate:    v.explorer.Settings().Automatic,
 		SimilarityAutoFit:       v.explorer.Settings().AutoFit,
+		SimilarityMemoryLimitMB: v.explorer.Settings().Limits.MemoryMB,
+		SimilarityItemLimit:     v.explorer.Settings().Limits.Items,
 		CheckForUpdates:         v.CheckForUpdates(),
 		StaticWindowSize:        v.StaticWindowSize(),
 		DuplicateDistance:       v.DuplicateDistance(),
@@ -264,6 +266,16 @@ func (v *viewer) applyLimitSettings(prev, next preferences.State) {
 	applySettingChange(prev.MaxImageCacheMB, next.MaxImageCacheMB, v.SetMaxImageCacheMB)
 	applySettingChange(prev.MaxThumbCacheMB, next.MaxThumbCacheMB, v.SetMaxThumbCacheMB)
 	applySettingChange(prev.MaxFileSizeMB, next.MaxFileSizeMB, v.SetMaxFileSizeMB)
+	applySettingChange(prev.SimilarityMemoryLimitMB, next.SimilarityMemoryLimitMB, func(n int) {
+		settings := v.explorer.Settings()
+		settings.Limits.MemoryMB = n
+		v.explorer.ApplySettings(settings)
+	})
+	applySettingChange(prev.SimilarityItemLimit, next.SimilarityItemLimit, func(n int) {
+		settings := v.explorer.Settings()
+		settings.Limits.Items = n
+		v.explorer.ApplySettings(settings)
+	})
 }
 
 func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {

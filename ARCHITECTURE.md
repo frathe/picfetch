@@ -53,7 +53,13 @@ Local content analysis shared by the viewer and its reproducible experiment.
 `client.go` owns `Client.Analyze` (selected source paths, control channel, immutable `Event` callbacks),
 asset discovery, the cancellable analysis subprocess, and private `WorkerMain`
 dispatch. Each request captures the caller's encoded-file size limit; the worker
-installs it before source reads. `analyze.go` accounts for every input, captures source versions,
+installs it before source reads. Explorer requests also capture configurable
+item and serialized-map memory limits, with item admission checked by both
+client and worker. `analysis_protocol.go` streams snapshot metadata, individual
+items and hierarchy merges, enforcing the same aggregate memory budget at both
+ends and publishing only a completed snapshot to the caller. Resource errors
+survive subprocess cleanup for the settings-guidance toast.
+`analyze.go` accounts for every input, captures source versions,
 reuses canonical full oriented decoding, makes previews, and publishes a map
 on manual request, optionally every 30 sources, and at completion.
 `facts.go` captures versioned oriented dimensions, normalized extension and optional

@@ -3513,6 +3513,60 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal("Close Files from the cohort left the grid over the empty dropzone")
 		}
 	})
+	t.Run("resource_limits", func(t *testing.T) {
+		v := newTestViewer(t)
+		if got := v.settingsState(); got.SimilarityMemoryLimitMB != 512 || got.SimilarityItemLimit != 10000 {
+			t.Fatalf("default explorer limits = %d MB/%d items", got.SimilarityMemoryLimitMB, got.SimilarityItemLimit)
+		}
+		prev := v.settingsState()
+		next := prev
+		next.SimilarityMemoryLimitMB, next.SimilarityItemLimit = 1024, 50655
+		v.ApplySettings(prev, next)
+		if got := v.explorer.Settings().Limits; got.MemoryMB != 1024 || got.Items != 50655 {
+			t.Fatalf("live settings did not reach explorer: %+v", got)
+		}
+		before := preferences.Load(testApp)
+		t.Cleanup(func() {
+			preferences.Save(testApp, before)
+			for key, value := range map[string]int{"similarityMemoryLimitMB": before.SimilarityMemoryLimitMB, "similarityItemLimit": before.SimilarityItemLimit} {
+				if value == 0 {
+					testApp.Preferences().RemoveValue(key)
+				}
+			}
+		})
+		preferences.Save(testApp, v.currentPreferences())
+		reopened := newTestViewer(t)
+		if got := reopened.explorer.Settings().Limits; got.MemoryMB != 1024 || got.Items != 50655 {
+			t.Fatalf("saved explorer limits not restored: %+v", got)
+		}
+		// Applying a stale form's unrelated edit must preserve both live limits.
+		next = prev
+		next.SimilarityAutoFit = !prev.SimilarityAutoFit
+		v.ApplySettings(prev, next)
+		if got := v.settingsState(); got.SimilarityMemoryLimitMB != 1024 || got.SimilarityItemLimit != 50655 {
+			t.Fatal("unrelated stale settings reverted explorer limits")
+		}
+	})
+	t.Run("resource_limit_toast", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg")
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Analyze = nil
+			options.Settings.Limits.Items = 1
+			options.Settings.IntroSeen = true
+			options.Supported, options.AssetsReady = true, true
+		})
+		v.showExplorer()
+		v.settleExplorer()
+		want := lang.L("Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.")
+		if !v.toast.card.Visible() || v.toast.text.Text != want {
+			t.Fatalf("configured client limit did not reach toast: %q", v.toast.text.Text)
+		}
+		v.win.Resize(fyne.NewSize(360, 400))
+		v.ForceRepaint()
+		if v.toast.card.Size().Width > v.win.Canvas().Size().Width || v.toast.text.Size().Height < 2*fyne.MeasureText("Ag", 14, fyne.TextStyle{Bold: true}).Height {
+			t.Fatalf("limit guidance does not fit in a readable wrapped toast: card=%v text=%v window=%v", v.toast.card.Size(), v.toast.text.Size(), v.win.Canvas().Size())
+		}
+	})
 	t.Run("settings", func(t *testing.T) {
 		before := preferences.Load(testApp)
 		t.Cleanup(func() { preferences.Save(testApp, before) })

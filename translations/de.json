@@ -494,5 +494,12 @@
    "Usage is incomplete.": "Speicherverbrauch ist unvollständig erfasst.",
    "Processed %d records (%.1f MB).": "%d Einträge (%.1f MB) verarbeitet.",
    "Working...": "Wird verarbeitet...",
-   "Apply cache limit": "Cache-Limit anwenden"
+   "Apply cache limit": "Cache-Limit anwenden",
+   "Memory limit (MB)": "Speicherlimit (MB)",
+   "Item limit": "Bildanzahl-Limit",
+   "Maximum serialized map size; applies to the next analysis": "Maximale Größe der übertragenen Karte; gilt ab der nächsten Analyse",
+   "Maximum images per analysis; increase for larger libraries": "Maximale Bildanzahl pro Analyse; für größere Sammlungen erhöhen",
+   "Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Bildanzahl-Limit überschritten. Anpassbar unter Einstellungen -> Limits -> Ähnlichkeits-Explorer.",
+   "Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Speicherlimit überschritten. Anpassbar unter Einstellungen -> Limits -> Ähnlichkeits-Explorer.",
+   "Configured limits exceeded.": "Konfigurierte Limits überschritten."
 }
