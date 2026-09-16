@@ -2,6 +2,8 @@ package update
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -39,6 +41,21 @@ type stageFile struct {
 	VerifiedPlistDigest   string `json:"verifiedPlistDigest,omitempty"`
 	VerifiedGOOS          string `json:"verifiedGoos,omitempty"`
 	VerifiedGOARCH        string `json:"verifiedGoarch,omitempty"`
+	Seal                  string `json:"seal,omitempty"`
+}
+
+// stageSealKey deliberately lives only for this process. The update cache is
+// writable by every process running as the user, so a key persisted beside it
+// would not authenticate anything. A stage left by an earlier PicFetch process
+// is therefore discarded and downloaded (and attested) again.
+var stageSealKey = newStageSealKey()
+
+func newStageSealKey() []byte {
+	key := make([]byte, sha256.Size)
+	if _, err := rand.Read(key); err != nil {
+		panic(fmt.Sprintf("update: create stage seal key: %v", err))
+	}
+	return key
 }
 
 // Download fetches rel's archive, SHA-256s it, compares to AssetDigest when
@@ -87,36 +104,20 @@ func (c *Client) DownloadWithProgress(ctx context.Context, rel Release, progress
 		return Stage{}, err
 	}
 
-	tmp, err := writeTempArchive(rel.AssetName, data)
-	if err != nil {
-		return Stage{}, err
-	}
-	defer func() { _ = os.Remove(tmp) }()
-
 	if err := os.MkdirAll(c.cfg.StageDir, 0o700); err != nil {
 		return Stage{}, err
 	}
-	bin, plist, err := extract(ctx, tmp, c.cfg.StageDir)
+	payload, err := extract(ctx, rel.AssetName, data, c.cfg.StageDir)
 	if err != nil {
 		return Stage{}, err
 	}
+	bin, plist := payload.BinaryPath, payload.PlistPath
 	bin, err = filepath.Abs(bin)
 	if err != nil {
 		return Stage{}, err
 	}
 	if plist != "" {
 		plist, err = filepath.Abs(plist)
-		if err != nil {
-			return Stage{}, err
-		}
-	}
-	binaryDigest, err := fileSHA256(bin)
-	if err != nil {
-		return Stage{}, err
-	}
-	plistDigest := ""
-	if plist != "" {
-		plistDigest, err = fileSHA256(plist)
 		if err != nil {
 			return Stage{}, err
 		}
@@ -129,8 +130,8 @@ func (c *Client) DownloadWithProgress(ctx context.Context, rel Release, progress
 		verification: stageVerification{
 			AssetName:     rel.AssetName,
 			ArchiveDigest: hex.EncodeToString(sum[:]),
-			BinaryDigest:  binaryDigest,
-			PlistDigest:   plistDigest,
+			BinaryDigest:  payload.BinaryDigest,
+			PlistDigest:   payload.PlistDigest,
 			GOOS:          c.cfg.GOOS,
 			GOARCH:        c.cfg.GOARCH,
 		},
@@ -253,32 +254,6 @@ func percentageThreshold(total, percent int64) int64 {
 	return quotient*percent + (remainder*percent+99)/100
 }
 
-func writeTempArchive(assetName string, data []byte) (string, error) {
-	f, err := os.CreateTemp("", "picfetch-update-*"+archiveSuffix(assetName))
-	if err != nil {
-		return "", err
-	}
-	name := f.Name()
-	_, err = f.Write(data)
-	closeErr := f.Close()
-	if err != nil {
-		_ = os.Remove(name)
-		return "", err
-	}
-	if closeErr != nil {
-		_ = os.Remove(name)
-		return "", closeErr
-	}
-	return name, nil
-}
-
-func archiveSuffix(name string) string {
-	if strings.HasSuffix(name, ".tar.gz") {
-		return ".tar.gz"
-	}
-	return filepath.Ext(name)
-}
-
 func SaveStage(dir string, s Stage) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -291,7 +266,7 @@ func SaveStage(dir string, s Stage) error {
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(stageFile{
+	sf := stageFile{
 		Version:               s.Version,
 		Notes:                 s.Notes,
 		BinaryPath:            bin,
@@ -302,7 +277,13 @@ func SaveStage(dir string, s Stage) error {
 		VerifiedPlistDigest:   s.verification.PlistDigest,
 		VerifiedGOOS:          s.verification.GOOS,
 		VerifiedGOARCH:        s.verification.GOARCH,
-	})
+	}
+	payload, err := json.Marshal(sf)
+	if err != nil {
+		return err
+	}
+	sf.Seal = hex.EncodeToString(sealStage(payload))
+	data, err := json.Marshal(sf)
 	if err != nil {
 		return err
 	}
@@ -321,6 +302,16 @@ func LoadStage(dir string) (Stage, error) {
 	if err := json.Unmarshal(data, &sf); err != nil {
 		return Stage{}, err
 	}
+	seal := sf.Seal
+	sf.Seal = ""
+	payload, err := json.Marshal(sf)
+	if err != nil {
+		return Stage{}, err
+	}
+	want, err := hex.DecodeString(seal)
+	if err != nil || !hmac.Equal(want, sealStage(payload)) {
+		return Stage{}, errors.New("update: staged update authentication failed")
+	}
 	return Stage{
 		Version:    sf.Version,
 		Notes:      sf.Notes,
@@ -335,6 +326,12 @@ func LoadStage(dir string) (Stage, error) {
 			GOARCH:        sf.VerifiedGOARCH,
 		},
 	}, nil
+}
+
+func sealStage(payload []byte) []byte {
+	mac := hmac.New(sha256.New, stageSealKey)
+	_, _ = mac.Write(payload)
+	return mac.Sum(nil)
 }
 
 // ValidateStage proves that s carries provenance written by Download after

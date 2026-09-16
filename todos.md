@@ -48,6 +48,12 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 
 #### Bugfix
 
+- Authenticate staged updates with process-local seals, derive payload hashes
+  from verified archive bytes, and retain a write-denying Windows source handle
+  through installation. Native Windows guards pass; review and final CI evidence:
+  [PR #32](https://github.com/frathe/picfetch/pull/32),
+  [review record](finished_refactorings/2026-09-16-pr32-review.md).
+
 - Bound ICO and SVG input processing, enforce WASM AVIF builds, and account for
   GIF frame overhead before animation decoding; preserve static GIF fallback.
 - Bound comparison decodes to half the shared image budget per pane and avoid

@@ -1,12 +1,52 @@
 package update
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+// openVerifiedStageBinary returns one handle whose identity is retained from
+// verification through installation. Reopening Stage.BinaryPath after hashing
+// would let another same-user process swap the cache entry between those two
+// operations.
+func openVerifiedStageBinary(stage Stage) (*os.File, error) {
+	if err := ValidateStage(stage); err != nil {
+		return nil, err
+	}
+	f, err := openStageBinary(stage.BinaryPath)
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		_ = f.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("%q is not a regular file", stage.BinaryPath)
+	}
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if !strings.EqualFold(hex.EncodeToString(h.Sum(nil)), stage.verification.BinaryDigest) {
+		_ = f.Close()
+		return nil, errors.New("update: staged binary verification: SHA-256 mismatch")
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return f, nil
+}
 
 // errVerifyMismatch reports that the bytes that landed at the destination are
 // not the bytes that were staged. A filter driver can accept a write and
@@ -14,13 +54,14 @@ import (
 // installed update.
 var errVerifyMismatch = errors.New("installed binary does not match the staged update")
 
-// binaryOps are the file operations swapBinary performs, injected so the
+// binaryOps are the file operations swapBinaryFrom performs, injected so the
 // rollback ordering is testable without a real executable to overwrite.
 type binaryOps struct {
 	Rename   func(oldPath, newPath string) error
 	Copy     func(src, dst string) error
+	CopyFrom func(src io.Reader, dst string) error
 	Remove   func(path string) error
-	Same     func(a, b string) (bool, error)
+	Verify   func(path, digest string) error
 	Relaunch func(dest string) error
 }
 
@@ -32,12 +73,13 @@ func defaultBinaryOps(relaunch func(string) error) binaryOps {
 		Rename:   os.Rename,
 		Copy:     copyFile,
 		Remove:   os.Remove,
-		Same:     sameContents,
+		CopyFrom: copyReader,
+		Verify:   verifyInstalledBinary,
 		Relaunch: relaunch,
 	}
 }
 
-// swapBinary installs stagedPath over dest by renaming dest aside first,
+// swapBinaryFrom installs a validated handle over dest by renaming dest aside first,
 // which is the one form of replacement Windows allows on a running image.
 // Every failure past that rename tries to restore the backup, so a denial by
 // Controlled Folder Access or a virus scanner normally leaves the user's
@@ -47,7 +89,7 @@ func defaultBinaryOps(relaunch func(string) error) binaryOps {
 // The backup at dest+".old" deliberately survives a successful swap: it is
 // still this process's own running image and cannot be deleted from here.
 // The next launch sweeps it.
-func swapBinary(stagedPath, dest string, options ApplyOptions, ops binaryOps) error {
+func swapBinaryFrom(staged *os.File, expectedDigest, dest string, options ApplyOptions, ops binaryOps) error {
 	old := dest + ".old"
 	// A leftover backup from an interrupted earlier attempt would make the
 	// rename below fail on platforms that refuse to clobber, so drop it
@@ -57,17 +99,14 @@ func swapBinary(stagedPath, dest string, options ApplyOptions, ops binaryOps) er
 	if err := ops.Rename(dest, old); err != nil {
 		return &ApplyError{Op: "rename", Path: dest, Err: err}
 	}
-	if err := ops.Copy(stagedPath, dest); err != nil {
+	if err := ops.CopyFrom(staged, dest); err != nil {
 		// A failed copy can still leave dest behind as a truncated file;
 		// removing it first gives the restoring rename a clear destination.
 		_ = ops.Remove(dest)
 		return restoreBinary(ops, dest, old, "copy", err)
 	}
 
-	same, err := ops.Same(stagedPath, dest)
-	if err == nil && !same {
-		err = errVerifyMismatch
-	}
+	err := ops.Verify(dest, expectedDigest)
 	if err != nil {
 		// The bytes at dest are unusable, and removing them first gives the
 		// restoring rename a clear destination.
@@ -81,6 +120,17 @@ func swapBinary(stagedPath, dest string, options ApplyOptions, ops binaryOps) er
 			// rollback: the user only has to start PicFetch again.
 			return &ApplyError{Op: "relaunch", Path: dest, Err: err}
 		}
+	}
+	return nil
+}
+
+func verifyInstalledBinary(path, digest string) error {
+	got, err := fileSHA256(path)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(got, digest) {
+		return errVerifyMismatch
 	}
 	return nil
 }
@@ -127,27 +177,16 @@ func restoreBinary(ops binaryOps, dest, old, op string, cause error) error {
 	return &ApplyError{Op: op, Path: dest, Err: cause}
 }
 
-// sameContents compares two files by SHA-256 rather than by size or
-// modification time, because the writes this guards are the ones an
-// antivirus filter is most likely to have quietly rewritten.
-func sameContents(a, b string) (bool, error) {
-	sumA, err := fileSHA256(a)
-	if err != nil {
-		return false, err
-	}
-	sumB, err := fileSHA256(b)
-	if err != nil {
-		return false, err
-	}
-	return sumA == sumB, nil
-}
-
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = in.Close() }()
+	return copyReader(in, dst)
+}
+
+func copyReader(in io.Reader, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}

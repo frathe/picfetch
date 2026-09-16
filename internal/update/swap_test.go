@@ -2,10 +2,12 @@ package update
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -13,6 +15,7 @@ import (
 // distinguishable from one another, not valid on the host OS.
 const (
 	fakeStaged = "/cache/picfetch-staged"
+	fakeDigest = "authenticated digest"
 	fakeDest   = "/app/picfetch"
 	fakeOld    = fakeDest + ".old"
 )
@@ -30,7 +33,7 @@ func swapLabel(path string) string {
 	}
 }
 
-// fakeOps records every file operation swapBinary performs, in order, so the
+// fakeOps records every file operation swapBinaryFrom performs, in order, so the
 // tests can assert on the rollback sequence rather than only on the returned
 // error: a swap that never restored the backup would still return the same
 // error.
@@ -82,9 +85,22 @@ func (f *fakeOps) ops() binaryOps {
 			f.calls = append(f.calls, "remove "+swapLabel(path))
 			return f.removeErr[swapLabel(path)]
 		},
-		Same: func(a, b string) (bool, error) {
-			f.calls = append(f.calls, "same "+swapLabel(a)+" "+swapLabel(b))
-			return f.same, f.sameErr
+		CopyFrom: func(_ io.Reader, dst string) error {
+			f.calls = append(f.calls, "copy staged→"+swapLabel(dst))
+			return f.copyErr["staged→"+swapLabel(dst)]
+		},
+		Verify: func(path, digest string) error {
+			f.calls = append(f.calls, "verify "+swapLabel(path))
+			if digest != fakeDigest {
+				return errors.New("expected authenticated digest")
+			}
+			if f.sameErr != nil {
+				return f.sameErr
+			}
+			if !f.same {
+				return errVerifyMismatch
+			}
+			return nil
 		},
 		Relaunch: func(dest string) error {
 			f.calls = append(f.calls, "relaunch "+swapLabel(dest))
@@ -120,7 +136,7 @@ func assertApplyError(t *testing.T, err error, wantOp string) {
 
 func TestSwapBinary_HappyPath(t *testing.T) {
 	ops := newFakeOps()
-	if err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops()); err != nil {
+	if err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops()); err != nil {
 		t.Fatalf("swapBinary = %v, want nil", err)
 	}
 	// The single "remove old" is the stale-leftover sweep before the rename;
@@ -130,24 +146,73 @@ func TestSwapBinary_HappyPath(t *testing.T) {
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
-		"same staged dest",
+		"verify dest",
 	)
 	if ops.relaunched {
 		t.Error("relaunched without ApplyOptions.Relaunch")
 	}
 }
 
+func TestSwapBinaryFrom_UsesValidatedHandleAfterPathReplacement(t *testing.T) {
+	dir := t.TempDir()
+	stagedPath := filepath.Join(dir, "staged")
+	dest := filepath.Join(dir, "picfetch")
+	trusted := []byte("verified release executable")
+	if err := os.WriteFile(stagedPath, trusted, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("old executable"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := fileSHA256(stagedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := Stage{BinaryPath: stagedPath, verification: stageVerification{
+		AssetName: "picfetch-windows-amd64.zip", ArchiveDigest: strings.Repeat("a", 64),
+		BinaryDigest: digest, GOOS: "windows", GOARCH: "amd64",
+	}}
+	handle, err := openVerifiedStageBinary(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = handle.Close() }()
+	if runtime.GOOS == "windows" {
+		if err := os.Rename(stagedPath, stagedPath+".verified"); err == nil {
+			t.Fatal("renamed a retained Windows source")
+		}
+		if err := os.WriteFile(stagedPath, []byte("changed source"), 0o755); err == nil {
+			t.Fatal("modified a retained Windows source")
+		}
+	} else {
+		if err := os.Rename(stagedPath, stagedPath+".verified"); err != nil {
+			t.Fatal(err)
+		}
+		writeSwapFile(t, stagedPath, "replacement source")
+	}
+	if err := swapBinaryFrom(handle, digest, dest, ApplyOptions{}, defaultBinaryOps(nil)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, trusted) {
+		t.Fatalf("installed bytes = %q, want validated handle bytes %q", got, trusted)
+	}
+}
+
 func TestSwapBinary_StaleBackupRemoveFailureIsIgnored(t *testing.T) {
 	ops := newFakeOps()
 	ops.removeErr["old"] = errors.New("still locked")
-	if err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops()); err != nil {
+	if err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops()); err != nil {
 		t.Fatalf("swapBinary = %v, want nil", err)
 	}
 	ops.assertCalls(t,
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
-		"same staged dest",
+		"verify dest",
 	)
 }
 
@@ -155,7 +220,7 @@ func TestSwapBinary_RenameFailureIsNotRolledBack(t *testing.T) {
 	ops := newFakeOps()
 	cause := errors.New("access denied")
 	ops.renameErr["dest→old"] = cause
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
 	assertApplyError(t, err, "rename")
 	if !errors.Is(err, cause) {
 		t.Errorf("error does not unwrap to the rename cause: %v", err)
@@ -173,7 +238,7 @@ func TestSwapBinary_CopyFailureRestoresOriginal(t *testing.T) {
 	ops := newFakeOps()
 	cause := errors.New("virus scan blocked the write")
 	ops.copyErr["staged→dest"] = cause
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
 	assertApplyError(t, err, "copy")
 	if !errors.Is(err, cause) {
 		t.Errorf("error does not unwrap to the copy cause: %v", err)
@@ -201,7 +266,7 @@ func TestSwapBinary_RestoreFailureReportsBoth(t *testing.T) {
 	ops.copyErr["staged→dest"] = copyCause
 	ops.copyErr["old→dest"] = fallbackCause
 	ops.renameErr["old→dest"] = restoreCause
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops())
 	assertApplyError(t, err, "restore")
 	for _, cause := range []error{copyCause, restoreCause, fallbackCause} {
 		if !errors.Is(err, cause) {
@@ -230,7 +295,7 @@ func TestSwapBinary_RestoreRetriesTheRename(t *testing.T) {
 	ops.renameErr["old→dest"] = errors.New("still locked")
 	ops.renameFailures["old→dest"] = 1
 
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops())
 
 	// A rollback that landed reports the step that actually failed, so the
 	// next launch says the old PicFetch still works and the sweep is free to
@@ -258,7 +323,7 @@ func TestSwapBinary_RestoreFallsBackToCopyingTheBackup(t *testing.T) {
 	ops.copyErr["staged→dest"] = copyCause
 	ops.renameErr["old→dest"] = errors.New("cannot move the backup")
 
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops())
 
 	assertApplyError(t, err, "copy")
 	if !errors.Is(err, copyCause) {
@@ -272,7 +337,7 @@ func TestSwapBinary_RestoreFallsBackToCopyingTheBackup(t *testing.T) {
 func TestSwapBinary_VerifyMismatchRollsBack(t *testing.T) {
 	ops := newFakeOps()
 	ops.same = false
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops())
 	assertApplyError(t, err, "verify")
 	if !errors.Is(err, errVerifyMismatch) {
 		t.Errorf("error does not unwrap to errVerifyMismatch: %v", err)
@@ -281,7 +346,7 @@ func TestSwapBinary_VerifyMismatchRollsBack(t *testing.T) {
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
-		"same staged dest",
+		"verify dest",
 		"remove dest",
 		"rename old→dest",
 	)
@@ -291,7 +356,7 @@ func TestSwapBinary_VerifyErrorRollsBack(t *testing.T) {
 	ops := newFakeOps()
 	cause := errors.New("hashing the installed file failed")
 	ops.sameErr = cause
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops())
 	assertApplyError(t, err, "verify")
 	if !errors.Is(err, cause) {
 		t.Errorf("error does not unwrap to the verify cause: %v", err)
@@ -300,7 +365,7 @@ func TestSwapBinary_VerifyErrorRollsBack(t *testing.T) {
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
-		"same staged dest",
+		"verify dest",
 		"remove dest",
 		"rename old→dest",
 	)
@@ -313,7 +378,7 @@ func TestSwapBinary_VerifyRestoreFailureReportsBoth(t *testing.T) {
 	fallbackCause := errors.New("backup unreadable")
 	ops.renameErr["old→dest"] = restoreCause
 	ops.copyErr["old→dest"] = fallbackCause
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{}, ops.ops())
 	assertApplyError(t, err, "restore")
 	if !errors.Is(err, restoreCause) {
 		t.Errorf("error does not unwrap to the restore cause: %v", err)
@@ -329,7 +394,7 @@ func TestSwapBinary_VerifyRestoreFailureReportsBoth(t *testing.T) {
 func TestSwapBinary_RelaunchOnlyAfterSuccessfulVerify(t *testing.T) {
 	ops := newFakeOps()
 	ops.same = false
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
 	assertApplyError(t, err, "verify")
 	if ops.relaunched {
 		t.Error("relaunched a binary that failed verification")
@@ -341,14 +406,14 @@ func TestSwapBinary_RelaunchOnlyAfterSuccessfulVerify(t *testing.T) {
 
 func TestSwapBinary_RelaunchRunsAfterVerify(t *testing.T) {
 	ops := newFakeOps()
-	if err := swapBinary(fakeStaged, fakeDest, ApplyOptions{Relaunch: true}, ops.ops()); err != nil {
+	if err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{Relaunch: true}, ops.ops()); err != nil {
 		t.Fatalf("swapBinary = %v, want nil", err)
 	}
 	ops.assertCalls(t,
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
-		"same staged dest",
+		"verify dest",
 		"relaunch dest",
 	)
 }
@@ -357,7 +422,7 @@ func TestSwapBinary_RelaunchFailureIsReported(t *testing.T) {
 	ops := newFakeOps()
 	cause := errors.New("start failed")
 	ops.relaunchErr = cause
-	err := swapBinary(fakeStaged, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
+	err := swapBinaryFrom(nil, fakeDigest, fakeDest, ApplyOptions{Relaunch: true}, ops.ops())
 	assertApplyError(t, err, "relaunch")
 	if !errors.Is(err, cause) {
 		t.Errorf("error does not unwrap to the relaunch cause: %v", err)
@@ -367,7 +432,7 @@ func TestSwapBinary_RelaunchFailureIsReported(t *testing.T) {
 		"remove old",
 		"rename dest→old",
 		"copy staged→dest",
-		"same staged dest",
+		"verify dest",
 		"relaunch dest",
 	)
 }
@@ -377,7 +442,7 @@ func TestSwapBinary_RelaunchFailureIsReported(t *testing.T) {
 // Everything above drives fakes, which pins the rollback ordering but not
 // which real function each binaryOps field is bound to. defaultBinaryOps has
 // no caller outside //go:build windows, so without the two tests below a
-// Copy bound to Same, or a Remove aimed at dest instead of the backup, would
+// no-op CopyFrom, or a Remove aimed at dest instead of the backup, would
 // compile, vet and pass every other test in this package.
 
 func writeSwapFile(t *testing.T, path, content string) string {
@@ -386,6 +451,18 @@ func writeSwapFile(t *testing.T, path, content string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func verifiedSwapStage(t *testing.T, path string) Stage {
+	t.Helper()
+	digest, err := fileSHA256(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Stage{BinaryPath: path, verification: stageVerification{
+		AssetName: "picfetch-windows-amd64.zip", ArchiveDigest: strings.Repeat("a", 64),
+		BinaryDigest: digest, GOOS: "windows", GOARCH: "amd64",
+	}}
 }
 
 func assertSwapFile(t *testing.T, path, want string) {
@@ -410,7 +487,16 @@ func TestSwapBinary_DefaultOpsInstallTheStagedBytes(t *testing.T) {
 	// clears before it renames anything aside.
 	old := writeSwapFile(t, dest+".old", "stale backup")
 
-	if err := swapBinary(staged, dest, ApplyOptions{}, defaultBinaryOps(nil)); err != nil {
+	handle, err := os.Open(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = handle.Close() }()
+	digest, err := fileSHA256(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := swapBinaryFrom(handle, digest, dest, ApplyOptions{}, defaultBinaryOps(nil)); err != nil {
 		t.Fatalf("swapBinary = %v, want nil", err)
 	}
 
@@ -435,7 +521,7 @@ func TestSwapBinary_DefaultOpsInstallTheStagedBytes(t *testing.T) {
 
 // TestDefaultBinaryOps_BindsEveryFieldToItsOwnOperation checks the fields one
 // at a time, because a successful swap cannot tell some of them apart from a
-// stub: a Same that always answers true, or a Remove that does nothing, both
+// stub: a Verify that always returns nil, or a Remove that does nothing, both
 // still leave the staged bytes installed.
 func TestDefaultBinaryOps_BindsEveryFieldToItsOwnOperation(t *testing.T) {
 	dir := t.TempDir()
@@ -445,12 +531,23 @@ func TestDefaultBinaryOps_BindsEveryFieldToItsOwnOperation(t *testing.T) {
 	b := writeSwapFile(t, filepath.Join(dir, "b"), "same bytes")
 	c := writeSwapFile(t, filepath.Join(dir, "c"), "other bytes")
 
-	if same, err := ops.Same(a, b); err != nil || !same {
-		t.Errorf("Same(equal, equal) = %v, %v; want true, nil", same, err)
+	digest, err := fileSHA256(a)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if same, err := ops.Same(a, c); err != nil || same {
-		t.Errorf("Same(equal, other) = %v, %v; want false, nil", same, err)
+	if err := ops.Verify(b, digest); err != nil {
+		t.Fatalf("Verify matching bytes: %v", err)
 	}
+	if err := ops.Verify(c, digest); !errors.Is(err, errVerifyMismatch) {
+		t.Fatalf("Verify different bytes = %v", err)
+	}
+	if err := ops.Verify(filepath.Join(dir, "missing"), digest); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Verify missing file = %v", err)
+	}
+	if err := ops.CopyFrom(strings.NewReader("reader bytes"), b); err != nil {
+		t.Fatal(err)
+	}
+	assertSwapFile(t, b, "reader bytes")
 
 	if err := ops.Copy(c, b); err != nil {
 		t.Fatalf("Copy = %v", err)
@@ -477,7 +574,7 @@ func TestDefaultBinaryOps_BindsEveryFieldToItsOwnOperation(t *testing.T) {
 
 // TestDefaultBinaryOps_RelaunchIsTheInjectedStarter pins the one field that
 // is a parameter rather than a package function: the platform-specific
-// starter has to arrive at swapBinary unwrapped and with dest intact.
+// starter has to arrive at swapBinaryFrom unwrapped and with dest intact.
 func TestDefaultBinaryOps_RelaunchIsTheInjectedStarter(t *testing.T) {
 	got := ""
 	want := errors.New("could not start")

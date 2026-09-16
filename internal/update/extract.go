@@ -3,32 +3,44 @@ package update
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
-func extract(ctx context.Context, archivePath, destDir string) (binaryPath, plistPath string, err error) {
+type extractedPayload struct {
+	BinaryPath, PlistPath     string
+	BinaryDigest, PlistDigest string
+}
+
+// extract consumes the same in-memory bytes that passed release verification.
+// The manifest hashes entry streams, never files in the writable stage directory.
+func extract(ctx context.Context, archiveName string, data []byte, destDir string) (extractedPayload, error) {
 	if err := ctx.Err(); err != nil {
-		return "", "", err
+		return extractedPayload{}, err
 	}
+	digests := make(map[string]string)
+	var err error
 	switch {
-	case strings.HasSuffix(archivePath, ".tar.gz"):
-		err = extractTarGz(ctx, archivePath, destDir)
-	case strings.HasSuffix(strings.ToLower(archivePath), ".zip"):
-		err = extractZip(ctx, archivePath, destDir)
+	case strings.HasSuffix(archiveName, ".tar.gz"):
+		err = extractTarGz(ctx, data, destDir, digests)
+	case strings.HasSuffix(strings.ToLower(archiveName), ".zip"):
+		err = extractZip(ctx, data, destDir, digests)
 	default:
-		return "", "", fmt.Errorf("unsupported archive %q", filepath.Base(archivePath))
+		return extractedPayload{}, fmt.Errorf("unsupported archive %q", filepath.Base(archiveName))
 	}
 	if err != nil {
-		return "", "", err
+		return extractedPayload{}, err
 	}
-	return pickPayload(destDir)
+	return pickPayload(digests)
 }
 
 func safeJoin(dest, entry string) (string, error) {
@@ -40,24 +52,23 @@ func safeJoin(dest, entry string) (string, error) {
 	return filepath.Join(dest, entry), nil
 }
 
-func extractZip(ctx context.Context, zipPath, destDir string) error {
-	r, err := zip.OpenReader(zipPath)
+func extractZip(ctx context.Context, data []byte, destDir string, digests map[string]string) error {
+	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return err
 	}
-	defer func() { _ = r.Close() }()
 	for _, f := range r.File {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := extractZipFile(destDir, f); err != nil {
+		if err := extractZipFile(destDir, f, digests); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func extractZipFile(destDir string, f *zip.File) error {
+func extractZipFile(destDir string, f *zip.File, digests map[string]string) error {
 	name := f.Name
 	if name == "" || name == "." {
 		return nil
@@ -82,16 +93,11 @@ func extractZipFile(destDir string, f *zip.File) error {
 		return err
 	}
 	defer func() { _ = rc.Close() }()
-	return writeNewFile(target, f.Mode().Perm(), rc)
+	return writeExtractedFile(target, f.Mode().Perm(), rc, digests)
 }
 
-func extractTarGz(ctx context.Context, path, destDir string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-	gr, err := gzip.NewReader(f)
+func extractTarGz(ctx context.Context, data []byte, destDir string, digests map[string]string) error {
+	gr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -108,13 +114,13 @@ func extractTarGz(ctx context.Context, path, destDir string) error {
 		if err != nil {
 			return err
 		}
-		if err := extractTarEntry(destDir, hdr, tr); err != nil {
+		if err := extractTarEntry(destDir, hdr, tr, digests); err != nil {
 			return err
 		}
 	}
 }
 
-func extractTarEntry(destDir string, hdr *tar.Header, r io.Reader) error {
+func extractTarEntry(destDir string, hdr *tar.Header, r io.Reader, digests map[string]string) error {
 	name := hdr.Name
 	if name == "" || name == "." {
 		return nil
@@ -138,10 +144,19 @@ func extractTarEntry(destDir string, hdr *tar.Header, r io.Reader) error {
 			return err
 		}
 		mode := os.FileMode(hdr.Mode).Perm()
-		return writeNewFile(target, mode, r)
+		return writeExtractedFile(target, mode, r, digests)
 	default:
 		return fmt.Errorf("refusing tar entry %q type %v", name, hdr.Typeflag)
 	}
+}
+
+func writeExtractedFile(path string, mode os.FileMode, r io.Reader, digests map[string]string) error {
+	h := sha256.New()
+	if err := writeNewFile(path, mode, io.TeeReader(r, h)); err != nil {
+		return err
+	}
+	digests[path] = hex.EncodeToString(h.Sum(nil))
+	return nil
 }
 
 func writeNewFile(path string, mode os.FileMode, r io.Reader) error {
@@ -163,16 +178,15 @@ func writeNewFile(path string, mode os.FileMode, r io.Reader) error {
 	return closeErr
 }
 
-func pickPayload(dest string) (binaryPath, plistPath string, err error) {
+func pickPayload(digests map[string]string) (extractedPayload, error) {
 	var macosBins, winExes, linuxOrBare []string
-	err = filepath.WalkDir(dest, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
-			return nil
-		}
-		name := d.Name()
+	paths := make([]string, 0, len(digests))
+	for path := range digests {
+		paths = append(paths, path)
+	}
+	slices.Sort(paths)
+	for _, path := range paths {
+		name := filepath.Base(path)
 		if isMacOSBinary(path) {
 			macosBins = append(macosBins, path)
 		}
@@ -182,26 +196,25 @@ func pickPayload(dest string) (binaryPath, plistPath string, err error) {
 		if name == "picfetch" || strings.HasPrefix(name, "picfetch-linux-") {
 			linuxOrBare = append(linuxOrBare, path)
 		}
-		return nil
-	})
-	if err != nil {
-		return "", "", err
 	}
+	var bin, plist string
 	if len(macosBins) > 0 {
-		bin := macosBins[0]
-		plist := filepath.Join(filepath.Dir(filepath.Dir(bin)), "Info.plist")
-		if st, err := os.Stat(plist); err == nil && !st.IsDir() {
-			return bin, plist, nil
+		bin = macosBins[0]
+		candidate := filepath.Join(filepath.Dir(filepath.Dir(bin)), "Info.plist")
+		if _, ok := digests[candidate]; ok {
+			plist = candidate
 		}
-		return bin, "", nil
+	} else if len(winExes) > 0 {
+		bin = winExes[0]
+	} else if len(linuxOrBare) == 1 {
+		bin = linuxOrBare[0]
+	} else {
+		return extractedPayload{}, fmt.Errorf("no update payload in archive")
 	}
-	if len(winExes) > 0 {
-		return winExes[0], "", nil
-	}
-	if len(linuxOrBare) == 1 {
-		return linuxOrBare[0], "", nil
-	}
-	return "", "", fmt.Errorf("no update payload in archive")
+	return extractedPayload{
+		BinaryPath: bin, PlistPath: plist,
+		BinaryDigest: digests[bin], PlistDigest: digests[plist],
+	}, nil
 }
 
 func isMacOSBinary(path string) bool {

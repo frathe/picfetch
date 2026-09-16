@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -164,6 +165,36 @@ func TestValidateStage_RejectsUnverifiedAndTamperedStages(t *testing.T) {
 	}
 	if StageMatchesRelease(loaded, rel) {
 		t.Fatal("tampered staged binary unexpectedly matched release")
+	}
+}
+
+func TestLoadStage_RejectsForgedSeal(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "picfetch.exe")
+	payload := []byte("attacker executable")
+	if err := os.WriteFile(bin, payload, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(payload)
+	forged := stageFile{
+		Version:               "v999.0.0",
+		BinaryPath:            bin,
+		VerifiedAssetName:     "picfetch-windows-amd64.zip",
+		VerifiedArchiveDigest: strings.Repeat("a", 64),
+		VerifiedBinaryDigest:  hex.EncodeToString(sum[:]),
+		VerifiedGOOS:          "windows",
+		VerifiedGOARCH:        "amd64",
+		Seal:                  strings.Repeat("0", 64),
+	}
+	data, err := json.Marshal(forged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, stageJSONName), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadStage(dir); err == nil || !strings.Contains(err.Error(), "authentication failed") {
+		t.Fatalf("LoadStage forged metadata = %v, want authentication failure", err)
 	}
 }
 
