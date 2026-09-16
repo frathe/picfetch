@@ -104,36 +104,20 @@ func (c *Client) DownloadWithProgress(ctx context.Context, rel Release, progress
 		return Stage{}, err
 	}
 
-	tmp, err := writeTempArchive(rel.AssetName, data)
-	if err != nil {
-		return Stage{}, err
-	}
-	defer func() { _ = os.Remove(tmp) }()
-
 	if err := os.MkdirAll(c.cfg.StageDir, 0o700); err != nil {
 		return Stage{}, err
 	}
-	bin, plist, err := extract(ctx, tmp, c.cfg.StageDir)
+	payload, err := extract(ctx, rel.AssetName, data, c.cfg.StageDir)
 	if err != nil {
 		return Stage{}, err
 	}
+	bin, plist := payload.BinaryPath, payload.PlistPath
 	bin, err = filepath.Abs(bin)
 	if err != nil {
 		return Stage{}, err
 	}
 	if plist != "" {
 		plist, err = filepath.Abs(plist)
-		if err != nil {
-			return Stage{}, err
-		}
-	}
-	binaryDigest, err := fileSHA256(bin)
-	if err != nil {
-		return Stage{}, err
-	}
-	plistDigest := ""
-	if plist != "" {
-		plistDigest, err = fileSHA256(plist)
 		if err != nil {
 			return Stage{}, err
 		}
@@ -146,8 +130,8 @@ func (c *Client) DownloadWithProgress(ctx context.Context, rel Release, progress
 		verification: stageVerification{
 			AssetName:     rel.AssetName,
 			ArchiveDigest: hex.EncodeToString(sum[:]),
-			BinaryDigest:  binaryDigest,
-			PlistDigest:   plistDigest,
+			BinaryDigest:  payload.BinaryDigest,
+			PlistDigest:   payload.PlistDigest,
 			GOOS:          c.cfg.GOOS,
 			GOARCH:        c.cfg.GOARCH,
 		},
@@ -268,32 +252,6 @@ func (r *downloadProgressReporter) emit(downloaded int64) {
 func percentageThreshold(total, percent int64) int64 {
 	quotient, remainder := total/100, total%100
 	return quotient*percent + (remainder*percent+99)/100
-}
-
-func writeTempArchive(assetName string, data []byte) (string, error) {
-	f, err := os.CreateTemp("", "picfetch-update-*"+archiveSuffix(assetName))
-	if err != nil {
-		return "", err
-	}
-	name := f.Name()
-	_, err = f.Write(data)
-	closeErr := f.Close()
-	if err != nil {
-		_ = os.Remove(name)
-		return "", err
-	}
-	if closeErr != nil {
-		_ = os.Remove(name)
-		return "", closeErr
-	}
-	return name, nil
-}
-
-func archiveSuffix(name string) string {
-	if strings.HasSuffix(name, ".tar.gz") {
-		return ".tar.gz"
-	}
-	return filepath.Ext(name)
 }
 
 func SaveStage(dir string, s Stage) error {

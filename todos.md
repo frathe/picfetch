@@ -2,6 +2,12 @@
 
 ## Open
 
+### PR #32 Windows updater review
+
+Repair archive provenance, retained-handle installation and native Windows
+regressions, then complete fresh Codex code/security reviews and platform CI.
+Evidence: [review plan](plans/2026-09-16-pr32-review.md).
+
 ### Windows signing qualification
 
 Configure the reviewed `SIMPLYSIGN_INSTALLER_SHA256` and

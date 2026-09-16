@@ -10,6 +10,10 @@ import (
 	"strconv"
 )
 
+func openStageBinary(path string) (*os.File, error) {
+	return os.Open(path)
+}
+
 func applyUnix(stage Stage, dest string, options ApplyOptions) error {
 	return applyUnixWithLauncher(stage, dest, options, launchUnix)
 }

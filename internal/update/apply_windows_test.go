@@ -23,7 +23,7 @@ func TestApplyWindows_ReplacesDestAndKeepsOld(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyWindows(Stage{BinaryPath: staged}, dest, ApplyOptions{}); err != nil {
+	if err := applyWindows(verifiedSwapStage(t, staged), dest, ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -48,15 +48,19 @@ func TestApplyWindows_MissingStagedBinaryRestoresDest(t *testing.T) {
 	if err := os.WriteFile(dest, []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	staged := filepath.Join(dir, "never-downloaded.exe")
+	staged := writeSwapFile(t, filepath.Join(dir, "staged.exe"), "new")
+	stage := verifiedSwapStage(t, staged)
+	if err := os.Remove(staged); err != nil {
+		t.Fatal(err)
+	}
 
-	err := applyWindows(Stage{BinaryPath: staged}, dest, ApplyOptions{})
+	err := applyWindows(stage, dest, ApplyOptions{})
 	var applyErr *ApplyError
 	if !errors.As(err, &applyErr) {
 		t.Fatalf("applyWindows = %T (%v), want *ApplyError", err, err)
 	}
-	if applyErr.Op != "copy" {
-		t.Errorf("Op = %q, want %q", applyErr.Op, "copy")
+	if applyErr.Op != "verify" {
+		t.Errorf("Op = %q, want %q", applyErr.Op, "verify")
 	}
 	if applyErr.Path != dest {
 		t.Errorf("Path = %q, want %q", applyErr.Path, dest)
@@ -67,10 +71,38 @@ func TestApplyWindows_MissingStagedBinaryRestoresDest(t *testing.T) {
 
 	got, readErr := os.ReadFile(dest)
 	if readErr != nil || string(got) != "old" {
-		t.Fatalf("dest = %q, %v; want the installed executable restored to %q", got, readErr, "old")
+		t.Fatalf("dest = %q, %v; want the installed executable unchanged at %q", got, readErr, "old")
 	}
 	if _, err := os.Stat(dest + ".old"); !os.IsNotExist(err) {
-		t.Errorf("the backup was renamed back, so nothing may remain at dest.old: %v", err)
+		t.Errorf("verification must fail before creating dest.old: %v", err)
+	}
+}
+
+func TestApplyWindows_RejectsUnverifiedStageBeforeMutation(t *testing.T) {
+	dir := t.TempDir()
+	dest := writeSwapFile(t, filepath.Join(dir, "picfetch.exe"), "installed")
+	staged := writeSwapFile(t, filepath.Join(dir, "staged.exe"), "download")
+	if err := applyWindows(Stage{BinaryPath: staged}, dest, ApplyOptions{}); err == nil {
+		t.Fatal("applied a stage without verified provenance")
+	}
+	assertSwapFile(t, dest, "installed")
+	if _, err := os.Stat(dest + ".old"); !os.IsNotExist(err) {
+		t.Fatalf("unexpected backup after failed verification: %v", err)
+	}
+}
+
+func TestOpenVerifiedStageBinary_RejectsActiveWindowsWriter(t *testing.T) {
+	path := writeSwapFile(t, filepath.Join(t.TempDir(), "staged.exe"), "download")
+	stage := verifiedSwapStage(t, path)
+	writer, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = writer.Close() }()
+	handle, err := openVerifiedStageBinary(stage)
+	if err == nil {
+		_ = handle.Close()
+		t.Fatal("admitted a source with an active writer")
 	}
 }
 

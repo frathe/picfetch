@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,7 +152,7 @@ func TestExtract_MacOSApp(t *testing.T) {
 		"PicFetch.app/Contents/Info.plist":     []byte("plist"),
 	})
 	dest := t.TempDir()
-	bin, plist, err := extract(context.Background(), zipPath, dest)
+	bin, plist, err := extractTestArchive(t, zipPath, dest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +220,7 @@ func TestExtract_ZipSlipDotDot(t *testing.T) {
 	zipPath := writeZip(t, t.TempDir(), "slip.zip", map[string][]byte{
 		"../escape": []byte("nope"),
 	})
-	_, _, err := extract(context.Background(), zipPath, dest)
+	_, _, err := extractTestArchive(t, zipPath, dest)
 	if err == nil {
 		t.Fatal("want zip-slip error")
 	}
@@ -237,7 +239,7 @@ func TestExtract_TarSlipDotDot(t *testing.T) {
 	tarPath := writeTarGz(t, t.TempDir(), "slip.tar.gz", map[string][]byte{
 		"../escape": []byte("nope"),
 	})
-	_, _, err := extract(context.Background(), tarPath, dest)
+	_, _, err := extractTestArchive(t, tarPath, dest)
 	if err == nil {
 		t.Fatal("want zip-slip error")
 	}
@@ -256,7 +258,7 @@ func TestExtract_ZipSlipAbsolute(t *testing.T) {
 	zipPath := writeZip(t, t.TempDir(), "slip.zip", map[string][]byte{
 		"/tmp/x": []byte("nope"),
 	})
-	_, _, err := extract(context.Background(), zipPath, dest)
+	_, _, err := extractTestArchive(t, zipPath, dest)
 	if err == nil {
 		t.Fatal("want zip-slip error")
 	}
@@ -283,7 +285,7 @@ func TestExtract_TarSlipAbsolute(t *testing.T) {
 	tarPath := writeTarGz(t, t.TempDir(), "slip.tar.gz", map[string][]byte{
 		"/tmp/x": []byte("nope"),
 	})
-	_, _, err := extract(context.Background(), tarPath, dest)
+	_, _, err := extractTestArchive(t, tarPath, dest)
 	if err == nil {
 		t.Fatal("want zip-slip error")
 	}
@@ -308,7 +310,7 @@ func TestExtract_LinuxTarball(t *testing.T) {
 		"picfetch-linux-amd64": []byte("elf"),
 	})
 	dest := t.TempDir()
-	bin, plist, err := extract(context.Background(), tarPath, dest)
+	bin, plist, err := extractTestArchive(t, tarPath, dest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +338,7 @@ func TestExtractTarEntry_NULTypeflag(t *testing.T) {
 		Size:     int64(len(body)),
 		Typeflag: 0,
 	}
-	if err := extractTarEntry(dest, hdr, strings.NewReader(body)); err != nil {
+	if err := extractTarEntry(dest, hdr, strings.NewReader(body), make(map[string]string)); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(filepath.Join(dest, hdr.Name))
@@ -353,7 +355,7 @@ func TestExtract_WindowsZip(t *testing.T) {
 		"picfetch.exe": []byte("mz"),
 	})
 	dest := t.TempDir()
-	bin, plist, err := extract(context.Background(), zipPath, dest)
+	bin, plist, err := extractTestArchive(t, zipPath, dest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,8 +378,53 @@ func TestExtract_NoPayload(t *testing.T) {
 	zipPath := writeZip(t, t.TempDir(), "empty.zip", map[string][]byte{
 		"README.txt": []byte("no"),
 	})
-	_, _, err := extract(context.Background(), zipPath, t.TempDir())
+	_, _, err := extractTestArchive(t, zipPath, t.TempDir())
 	if err == nil {
 		t.Fatal("want error when no payload matches")
 	}
+}
+
+func TestExtract_IgnoresExistingPayload(t *testing.T) {
+	archive := writeZip(t, t.TempDir(), "documentation.zip", map[string][]byte{
+		"README.txt": []byte("documentation only"),
+	})
+	dest := t.TempDir()
+	writeSwapFile(t, filepath.Join(dest, "picfetch.exe"), "previous download")
+	if _, _, err := extractTestArchive(t, archive, dest); err == nil {
+		t.Fatal("selected a payload that was not in the archive")
+	}
+}
+
+func TestExtract_RecordsArchiveDigests(t *testing.T) {
+	entries := []archiveEntry{
+		{name: "PicFetch.app/Contents/MacOS/picfetch", body: []byte("release binary")},
+		{name: "PicFetch.app/Contents/Info.plist", body: []byte("release metadata")},
+	}
+	for _, name := range []string{"release.zip", "release.tar.gz"} {
+		t.Run(name, func(t *testing.T) {
+			data := zipArchiveBytes(t, entries)
+			if strings.HasSuffix(name, ".tar.gz") {
+				data = tarGzArchiveBytes(t, entries)
+			}
+			payload, err := extract(context.Background(), name, data, t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			binarySum, plistSum := sha256.Sum256(entries[0].body), sha256.Sum256(entries[1].body)
+			if payload.BinaryDigest != hex.EncodeToString(binarySum[:]) || payload.PlistDigest != hex.EncodeToString(plistSum[:]) {
+				t.Fatalf("payload digests do not match archive entries: %+v", payload)
+			}
+		})
+	}
+}
+
+// extractTestArchive adapts disk-backed fixtures to the production memory input.
+func extractTestArchive(t *testing.T, path, dest string) (string, string, error) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := extract(context.Background(), filepath.Base(path), data, dest)
+	return payload.BinaryPath, payload.PlistPath, err
 }

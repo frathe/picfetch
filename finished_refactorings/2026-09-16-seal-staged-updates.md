@@ -54,3 +54,12 @@ agreement reserves for the lead.
 | Seal metadata | 0 / 0 | 1 | no | Forged-stage guard passed and was negatively verified. |
 | Bind apply handle | 0 / 0 | 1 | no | Handle/path replacement regression passed; Windows test binary cross-compiled. |
 | Final gate | 0 / 0 | 1 | yes | See handoff test report. |
+
+## PR #32 follow-up
+
+The initial native Windows run exposed three failing tests. Review also moved
+archive extraction and payload hashing onto the verified memory buffer, added
+Windows write-denying source handles, and consolidated installation onto the
+rollback path exercised by the existing tests. Current completion evidence and
+remaining local IDE limitations are tracked in
+[the PR review record](../plans/2026-09-16-pr32-review.md).
