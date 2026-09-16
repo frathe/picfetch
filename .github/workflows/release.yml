@@ -119,13 +119,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out code
-        uses: actions/checkout@v7
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+      # No checkout, repository programs or build toolchain may run with the signer.
       - name: Download unsigned Windows artifacts
         uses: actions/download-artifact@v8
         with:
@@ -185,19 +179,36 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw "Signing failed for $($archive.Name)."
             }
-            & $signtool.FullName verify /pa /all /v /tw $executable
-            if ($LASTEXITCODE -ne 0) {
-              throw "Signature verification failed for $($archive.Name)."
-            }
             $helper = Join-Path $unpacked 'heic/picfetch-heic-worker.exe'
             if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) { throw 'The HEIC helper is missing.' }
             & $signtool.FullName sign /fd sha256 /tr http://time.certum.pl /td sha256 /sha1 $env:CERTUM_CERT_THUMBPRINT /v $helper
             if ($LASTEXITCODE -ne 0) { throw 'HEIC helper signing failed.' }
-            & $signtool.FullName verify /pa /all /v /tw $helper
-            if ($LASTEXITCODE -ne 0) { throw 'HEIC helper signature verification failed.' }
             $arch = if ($archive.BaseName.EndsWith('-amd64')) { 'amd64' } else { 'arm64' }
-            go run ./scripts/heicpackage -mode finalize -os windows -arch $arch -out $unpacked
-            if ($LASTEXITCODE -ne 0) { throw 'HEIC post-signing manifest verification failed.' }
+
+            # Only fixed data operations run after authentication. Never execute
+            # repository code here, even to refresh a post-signing digest.
+            $manifestPath = Join-Path $unpacked 'heic/manifest.json'
+            if ((Get-Item -LiteralPath $manifestPath -ErrorAction Stop).Length -gt 4096) {
+              throw 'The HEIC manifest is too large.'
+            }
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -AsHashtable
+            if ($manifest.version -ne 1 -or $manifest.goos -cne 'windows' -or $manifest.goarch -cne $arch -or
+                $manifest.guestSHA256 -cnotmatch '^[0-9a-f]{64}$' -or $manifest.guestSHA256 -ceq ('0' * 64)) {
+              throw 'The HEIC manifest target or guest digest is invalid.'
+            }
+            $finalManifest = [ordered]@{
+              version = 1
+              goos = 'windows'
+              goarch = $arch
+              executableSHA256 = (Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant()
+              guestSHA256 = $manifest.guestSHA256
+            }
+            $finalManifest | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
+
+            foreach ($signedFile in @($executable, $helper)) {
+              & $signtool.FullName verify /pa /all /v /tw $signedFile
+              if ($LASTEXITCODE -ne 0) { throw "Final signature verification failed: $signedFile" }
+            }
 
             $packageFiles = @($executable, (Join-Path $unpacked 'heic'))
             foreach ($name in @('LICENSE', 'THIRD-PARTY-NOTICES.md', 'PRIVACY.md')) {

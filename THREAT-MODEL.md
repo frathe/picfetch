@@ -288,6 +288,9 @@ qualified bridge. New updater tests do not fix an already installed old updater.
 
 The [release workflow](.github/workflows/release.yml) configures CI gates,
 Windows signing/verification and release publication dependencies.
+The protected Windows signing job has no repository checkout/toolchain and
+executes no repository programs. Fixed PowerShell data operations refresh the
+post-signing helper digest; both executable signatures are checked afterward.
 [Signing documentation](docs/release-signing.md) describes required environment
 protection and credential handling. Configuration does not prove that live
 environment approvals are enabled, a particular CI run passed, or a downloaded

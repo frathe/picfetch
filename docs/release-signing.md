@@ -42,9 +42,11 @@ the action installs it.
 1. A v* tag runs the normal reusable CI test gate.
 2. The Linux cross-build produces the two unsigned Windows ZIP artifacts.
 3. The sign-windows job waits for the protected release-signing environment,
-   downloads those artifacts, and authenticates SimplySign.
-4. SignTool signs each picfetch.exe with SHA-256 and Certum's RFC-3161
-   timestamp service, then verifies the embedded signature.
+   downloads those artifacts, and authenticates SimplySign. It has no source
+   checkout or build toolchain and never executes repository programs.
+4. SignTool signs each picfetch.exe and its HEIC helper with SHA-256 and Certum's
+   RFC-3161 timestamp service. Fixed PowerShell hash/JSON commands refresh the
+   helper manifest, then both executable signatures are verified before packing.
 5. The job uploads new signed Windows ZIP artifacts.
 6. The final release job publishes macOS, Linux, and only the signed Windows
    ZIPs. It does not download the unsigned Windows artifacts.

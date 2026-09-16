@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -308,6 +310,53 @@ func TestStandaloneArchivesRetainNotices(t *testing.T) {
 	}
 	if !bytes.Contains(makefile, []byte(`cp LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md "$(APP_NAME).app/Contents/Resources/"`)) {
 		t.Fatal("macOS bundle omits license documents")
+	}
+}
+
+func TestReleaseSigningDoesNotExecuteRepositoryCode(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			Environment string
+			Steps       []struct{ Uses, Run string }
+		}
+	}
+	if err := yaml.Unmarshal(data, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	signing, ok := workflow.Jobs["sign-windows"]
+	if !ok || signing.Environment != "release-signing" {
+		t.Fatal("protected signing job is missing")
+	}
+	var commands strings.Builder
+	for _, step := range signing.Steps {
+		if step.Uses != "" && !strings.HasPrefix(step.Uses, "actions/download-artifact@") &&
+			!strings.HasPrefix(step.Uses, "actions/upload-artifact@") &&
+			step.Uses != "dismine/windows-app-signing-setup-action@89ae3b032d4bc7a5b98d1a42a34e61ecb6faad64" {
+			t.Errorf("signing job admits a checkout, toolchain or unreviewed action: %s", step.Uses)
+		}
+		commands.WriteString(step.Run)
+	}
+	script := commands.String()
+	if regexp.MustCompile(`\bgo\s+(run|build|test|generate)\b`).MatchString(script) {
+		t.Error("repository Go code executes in the signing environment")
+	}
+	for _, want := range []string{
+		"Get-FileHash -LiteralPath $helper -Algorithm SHA256",
+		"ConvertTo-Json",
+		"Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM",
+		"foreach ($signedFile in @($executable, $helper))",
+		"verify /pa /all /v /tw $signedFile",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("fixed manifest/signature finalization missing: %s", want)
+		}
+	}
+	if strings.LastIndex(script, "verify /pa /all /v /tw $signedFile") < strings.LastIndex(script, "Set-Content -LiteralPath $manifestPath") {
+		t.Error("final signature verification must follow manifest finalization")
 	}
 }
 

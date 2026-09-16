@@ -1014,3 +1014,13 @@ positive guard remains mandatory on both architectures.
 The Windows amd64 compiler listing confirms the defect and correction: the
 old buffer starts at `SP+79`; the uintptr buffer starts at `SP+88`. Windows
 ARM64 vet and GoLand inspection pass.
+
+The security review of `11e0583` reported P1 thread `4024388304`: repository
+`go run` in the authenticated Windows signing job can use the live signer.
+Confirmed. Remove checkout/setup-go from that job and replace finalization
+with fixed PowerShell JSON validation and SHA-256 commands; verify both signed
+executables after these data operations and before packing. The signing action,
+environment approval and artifact names stay fixed. Regression
+`TestReleaseSigningDoesNotExecuteRepositoryCode` was observed red for checkout,
+toolchain and Go execution; it must pass after the workflow correction.
+No real signing service, release tag or publication is exercised by this loop.
