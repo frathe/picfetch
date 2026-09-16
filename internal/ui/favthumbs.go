@@ -66,7 +66,7 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 		defer done()
 		defer token.cancelContext()
 
-		if err := favthumbs.Sync(token.context(), favDir, files, sink); err != nil {
+		if err := favthumbs.SyncWithReader(token.context(), favDir, files, sink, v.images.background); err != nil {
 			// A superseded pass returns context.Canceled, which is this
 			// design working rather than anything failing.
 			if errors.Is(err, context.Canceled) {

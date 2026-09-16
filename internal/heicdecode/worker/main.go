@@ -17,6 +17,9 @@ import (
 // Main serves one request in the dedicated, disposable helper process. Probe
 // paths and loopback endpoints are parent-owned launch controls, never supplied
 // by an image. Any missing platform restriction exits before reading stdin.
+// The separate cmd/picfetch-heic-worker entry point is its production caller.
+//
+// noinspection GoUnusedExportedFunction
 func Main(args []string) int {
 	if len(args) != 6 || args[0] != "--heic-worker-v2" || len(args[1]) > 2048 {
 		return 2
@@ -93,5 +96,7 @@ func verifyDenial(ctx context.Context, readPath, writePath, tcpAddress, udpAddre
 }
 
 func permissionDenied(err error) bool {
-	return errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES)
+	// Winsock reports WSAEACCES (10013), while file APIs use the ordinary
+	// permission mapping. Refused connections or timeouts do not prove denial.
+	return errors.Is(err, os.ErrPermission) || (runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(10013)))
 }

@@ -69,6 +69,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Staging the x64 package or pinned runtime failed.' }
           go run -tags no_emoji,nodynamic ./scripts/msixstage -arch arm64 -exe dist/executables/picfetch-microsoft-store-arm64.exe -runtime-archive dist/onnxruntime-win-arm64.zip -out dist/stage-arm64
           if ($LASTEXITCODE -ne 0) { throw 'Staging the ARM64 package failed.' }
+          go run ./scripts/heicpackage -os windows -arch amd64 -out dist/stage-x64
+          if ($LASTEXITCODE -ne 0) { throw 'Staging the x64 HEIC helper failed.' }
+          go run ./scripts/heicpackage -os windows -arch arm64 -out dist/stage-arm64
+          if ($LASTEXITCODE -ne 0) { throw 'Staging the ARM64 HEIC helper failed.' }
 
       - name: Ensure Desktop C++ framework for local certification
         shell: pwsh

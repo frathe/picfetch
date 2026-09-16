@@ -133,6 +133,7 @@ func (v *viewer) waitForShutdown() {
 	v.visualsearch.Wait()
 	v.searchView.overlayWorkers.Wait()
 	v.analysisCache.Wait()
+	v.images.Wait()
 }
 
 // Runtime side effects start only after feature construction and geometry
@@ -166,6 +167,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
 		view.stopping = true
+		view.images.Stop()
 		view.spiral.Close()
 		view.closeExplorer()
 		view.stopSearchOverlayWait()
@@ -206,6 +208,9 @@ func registerShutdown(application fyne.App, view *viewer) {
 		session.Save(application, view.state.unsortedFiles)
 		preferences.Save(application, view.currentPreferences())
 		if !view.storeManaged && view.explorer.Trial() == nil {
+			// Helper files can be replaced by this update. Its native/pipe
+			// work has no remaining UI delivery dependency after Stop.
+			view.images.Wait()
 			view.updater.ApplyStagedUpdate()
 		}
 	})

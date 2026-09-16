@@ -3,7 +3,6 @@ package similarity
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"image/jpeg"
@@ -15,6 +14,7 @@ import (
 )
 
 type searchPreparer struct {
+	reader   imaging.Reader
 	assets   string
 	cache    *representationStore
 	encoder  *Encoder
@@ -43,11 +43,11 @@ func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, 
 		reused = true
 	}
 	if !reused {
-		data, bounds, err := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+		source, err := p.reader.Read(ctx, storage.NewFileURI(path))
 		if err != nil {
 			return item, false, err
 		}
-		loaded, err := imaging.DecodeLoaded(ctx, data, 1)
+		loaded, err := source.Decode(ctx, 1)
 		if err != nil {
 			return item, false, err
 		}
@@ -61,8 +61,8 @@ func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, 
 		if err != nil {
 			return item, false, err
 		}
-		item.Facts = imageFacts(path, data, bounds)
-		item.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
+		item.Facts = imageFacts(path, source)
+		item.SHA256 = fmt.Sprintf("%x", source.SHA256())
 		var preview bytes.Buffer
 		if err := jpeg.Encode(&preview, imaging.ScaleForExport(loaded.Frames[0], 160), &jpeg.Options{Quality: 80}); err != nil {
 			return item, false, err
@@ -107,7 +107,7 @@ func searchLocal(ctx context.Context, req request, queries <-chan SearchQuery, e
 	if cache != nil {
 		defer cache.close()
 	}
-	p := searchPreparer{assets: req.Assets, cache: cache, versions: map[string]os.FileInfo{}}
+	p := searchPreparer{reader: req.reader, assets: req.Assets, cache: cache, versions: map[string]os.FileInfo{}}
 	if cacheErr != nil {
 		p.warning = cacheErr.Error()
 	}
@@ -172,14 +172,14 @@ func (p *searchPreparer) refreshFavorites(ctx context.Context, items []Item) {
 }
 
 func (p *searchPreparer) completePreview(ctx context.Context, item Item) (Item, error) {
-	data, _, err := imaging.ReadAndProbe(ctx, storage.NewFileURI(item.Path))
+	source, err := p.reader.Read(ctx, storage.NewFileURI(item.Path))
 	if err != nil {
 		return item, err
 	}
-	if fmt.Sprintf("%x", sha256.Sum256(data)) != item.SHA256 {
+	if fmt.Sprintf("%x", source.SHA256()) != item.SHA256 {
 		return item, fmt.Errorf("source changed before Favorite persistence")
 	}
-	loaded, err := imaging.DecodeLoaded(ctx, data, 1)
+	loaded, err := source.Decode(ctx, 1)
 	if err != nil {
 		return item, err
 	}

@@ -42,7 +42,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	var view *viewer
 
 	cache := imaging.NewImgCache(int64(prefs.MaxImageCacheMB) * bytesPerMB)
-	presentation := display.New(display.Config{Cache: cache, Callbacks: display.Callbacks{
+	presentation := display.New(display.Config{Reader: startup.images.foreground, PreloadReader: startup.images.background, Cache: cache, Callbacks: display.Callbacks{
 		Repaint:            func() { view.ForceRepaint() },
 		Requested:          func(id display.Identity) { view.imageRequested(id) },
 		Probed:             func(bounds image.Rectangle) { view.imageProbed(bounds) },
@@ -69,6 +69,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	loadingBar.Hide()
 
 	view = &viewer{
+		images:        startup.images,
 		app:           application,
 		win:           window,
 		quit:          application.Quit,

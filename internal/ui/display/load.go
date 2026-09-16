@@ -56,8 +56,9 @@ func (f *Feature) attemptLoad(token requestToken, request Request, done func()) 
 		return
 	}
 	f.loadWorkers.Go(func() {
-		data, bounds, err := imaging.ReadAndProbe(token.context(), u)
+		source, err := f.config.Reader.Read(token.context(), u)
 		if err == nil && f.config.Callbacks.Probed != nil {
+			bounds := source.Bounds()
 			f.config.Queue.Do(func() {
 				if token.current() && writer.Current() {
 					f.config.Callbacks.Probed(bounds)
@@ -66,7 +67,7 @@ func (f *Feature) attemptLoad(token requestToken, request Request, done func()) 
 		}
 		var loaded *imaging.LoadedImage
 		if err == nil {
-			loaded, err = imaging.DecodeRecord(token.context(), data, f.config.Cache.Budget())
+			loaded, err = source.Decode(token.context(), f.config.Cache.Budget())
 		}
 		f.config.Queue.Do(func() {
 			if !token.current() {

@@ -38,7 +38,7 @@ func (f *Feature) preloadOne(token requestToken, u fyne.URI) {
 			return
 		}
 
-		data, bounds, err := imaging.ReadAndProbe(token.context(), u)
+		source, err := f.config.PreloadReader.Read(token.context(), u)
 		if err != nil {
 			return
 		}
@@ -54,11 +54,11 @@ func (f *Feature) preloadOne(token requestToken, u fyne.URI) {
 		// current image, so bail on the header alone rather than paying
 		// for the decode first. Half the budget is where the current image
 		// and one neighbor stop both fitting.
-		if imaging.EstimateDecodedBytes(bounds) > budget/2 {
+		if imaging.EstimateDecodedBytes(source.Bounds()) > budget/2 {
 			return
 		}
 
-		loaded, err := imaging.DecodeRecord(token.context(), data, budget)
+		loaded, err := source.Decode(token.context(), budget)
 		if err != nil {
 			return
 		}

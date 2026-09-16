@@ -14,6 +14,7 @@ const (
 	hardMaxOutputBytes           = hardMaxPixels * 4
 	hardMaxMetadataBytes         = 64 * 1024
 	hardMaxDiagnosticBytes       = 4096
+	hardMaxDuration              = time.Minute
 )
 
 var ErrInvalidLimits = errors.New("invalid HEIC decoder limits")
@@ -44,7 +45,7 @@ func DefaultLimits(userMaxInputBytes int64) Limits {
 		input = userMaxInputBytes
 	}
 	return Limits{
-		Timeout:            30 * time.Second,
+		Timeout:            hardMaxDuration,
 		WASMMemoryBytes:    1 * 1024 * 1024 * 1024,
 		OSProcessBytes:     2 * 1024 * 1024 * 1024,
 		MaxInputBytes:      input,
@@ -59,7 +60,7 @@ func DefaultLimits(userMaxInputBytes int64) Limits {
 
 // Validate rejects relaxed, absent, or internally inconsistent limits.
 func (l Limits) Validate() error {
-	if l.Timeout <= 0 || l.Timeout > 30*time.Second ||
+	if l.Timeout <= 0 || l.Timeout > hardMaxDuration ||
 		l.WASMMemoryBytes <= 0 || l.WASMMemoryBytes > 1*1024*1024*1024 || l.WASMMemoryBytes%(64*1024) != 0 ||
 		l.OSProcessBytes <= 0 || l.OSProcessBytes > 2*1024*1024*1024 || l.WASMMemoryBytes > l.OSProcessBytes ||
 		l.MaxInputBytes <= 0 || l.MaxInputBytes > hardMaxInputBytes ||

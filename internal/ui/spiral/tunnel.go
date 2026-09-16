@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-
-	"github.com/frathe/picfetch/internal/imaging"
 )
 
 const tunnelPreviewEdge = 512
@@ -156,7 +154,7 @@ func (s *Spiral) loadTunnelPreview(t *tunnelSession, index int) {
 	queue := s.ui
 	s.previewWorkers.Go(func() {
 		defer cancel()
-		loaded, err := imaging.LoadAnimatedPreviewContext(ctx, u, tunnelPreviewEdge, tunnelAnimationBytes)
+		loaded, err := s.reader.Preview(ctx, u, tunnelPreviewEdge, tunnelAnimationBytes)
 		var preview *tunnelPreview
 		if err == nil && ctx.Err() == nil {
 			preview = newTunnelPreview(index, loaded)

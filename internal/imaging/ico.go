@@ -25,6 +25,9 @@ var errInvalidICO = errors.New("invalid or unsupported ICO")
 // The desktop driver also registers an ICO decoder. Dispatch explicitly so
 // the viewer's admission cannot depend on global decoder registration order.
 func decodeRasterConfig(data []byte) (image.Config, string, error) {
+	if routeSource(data) == sourceIsolated {
+		return image.Config{}, "", image.ErrFormat
+	}
 	if bytes.HasPrefix(data, []byte("\x00\x00\x01\x00")) {
 		cfg, err := decodeICOConfig(bytes.NewReader(data))
 		return cfg, "ico", err
@@ -33,6 +36,9 @@ func decodeRasterConfig(data []byte) (image.Config, string, error) {
 }
 
 func decodeRaster(data []byte) (image.Image, string, error) {
+	if routeSource(data) == sourceIsolated {
+		return nil, "", image.ErrFormat
+	}
 	if bytes.HasPrefix(data, []byte("\x00\x00\x01\x00")) {
 		img, err := decodeICO(bytes.NewReader(data))
 		return img, "ico", err

@@ -16,6 +16,7 @@ import (
 // startupState is the persisted input snapshot consumed by buildViewer and
 // geometry restoration.
 type startupState struct {
+	images       imageServices
 	savedSession []fyne.URI
 	prefs        preferences.State
 }
@@ -24,6 +25,7 @@ type startupState struct {
 // have no distinct zero-value meaning.
 func loadStartupState(application fyne.App) startupState {
 	return startupState{
+		images:       newImageServices(nil),
 		savedSession: session.Load(application),
 		prefs:        normalizePreferenceDefaults(preferences.Load(application)),
 	}
@@ -32,7 +34,10 @@ func loadStartupState(application fyne.App) startupState {
 // buildStartupViewer is the shared load, construct, then restore entry point.
 // It leaves noPollerStop installed for startViewerRuntime to replace.
 func buildStartupViewer(application fyne.App) (*viewer, fyne.Window) {
-	startup := loadStartupState(application)
+	return buildConfiguredViewer(application, loadStartupState(application))
+}
+
+func buildConfiguredViewer(application fyne.App, startup startupState) (*viewer, fyne.Window) {
 	view, window := buildViewer(application, startup)
 	restoreStartupGeometry(view, window, startup)
 	return view, window

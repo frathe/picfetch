@@ -62,15 +62,8 @@ func (w *Window) Refresh() {
 	generation := w.metadata.generation
 	done := w.metadata.done.Begin()
 	w.metadata.workers.Go(func() {
-		data, _, err := imaging.ReadAndProbe(ctx, u)
-		var metadata imaging.Metadata
-		var canStrip bool
-		if err == nil && ctx.Err() == nil {
-			metadata = imaging.ReadMetadata(data)
-			if ctx.Err() == nil {
-				canStrip = imaging.CanStripJPEGMetadata(data) && !metadata.Empty()
-			}
-		}
+		info, err := w.reader.InspectMetadata(ctx, u)
+		metadata, canStrip := info.Values, info.CanStrip
 		if ctx.Err() != nil {
 			cancel()
 			done()

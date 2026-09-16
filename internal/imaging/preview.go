@@ -3,7 +3,6 @@ package imaging
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"image"
 	"image/gif"
 
@@ -19,13 +18,10 @@ const previewGIFDecodeBytes int64 = 256 * 1024 * 1024
 // animationBytes bounds retained RGBA pixels and frame objects; large source decodes fall back to
 // a static first frame, with AnimationTruncated set. No preview is upscaled.
 func LoadAnimatedPreviewContext(ctx context.Context, u fyne.URI, maxEdge int, animationBytes int64) (*LoadedImage, error) {
-	if maxEdge <= 0 {
-		return nil, fmt.Errorf("preview edge must be positive: %d", maxEdge)
-	}
-	data, bounds, err := ReadAndProbe(ctx, u)
-	if err != nil {
-		return nil, err
-	}
+	return (Reader{}).Preview(ctx, u, maxEdge, animationBytes)
+}
+
+func decodePreview(ctx context.Context, data []byte, bounds image.Rectangle, maxEdge int, animationBytes int64) (*LoadedImage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

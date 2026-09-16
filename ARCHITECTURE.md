@@ -56,6 +56,10 @@ dispatch. Each request captures the caller's encoded-file size limit; the worker
 installs it before source reads. `analyze.go` accounts for every input, captures source versions,
 reuses canonical full oriented decoding, makes previews, and publishes a map
 on manual request, optionally every 30 sources, and at completion.
+`heic.go` attaches the optional application-owned HEIC client's explicit pipes,
+initializes one worker Remote/`imaging.Reader`, and joins connection cleanup.
+Analysis and retained search derive hashes/facts/previews from `imaging.Source`;
+workers receive no helper executable selection and cannot launch their own.
 `facts.go` captures versioned oriented dimensions, normalized extension and optional
 EXIF camera/calendar-date facts from already-read sources; old cached representations
 backfill these facts without inference. `tags.go` exposes catalogue identity for
@@ -483,6 +487,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. Explicit trial startup reserves new evidence, isolates Favorites/presets/updates, disables update activity, auto-opens Explorer after the ordinary scan, and joins its signal watcher and workers before finalizing evidence. |
 | `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
+| `images.go` | One optional app-family HEIC owner and immutable foreground/background `imaging.Reader` values injected before GUI and analysis work. Shutdown Stop/Wait owns complete helper/pipe retirement. Production construction supplies no owner until package/platform qualification. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with a compact 17-cell atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position and circle progress. A hover-only surface preserves input across the restore link; ten circles request `Help.ShowFinis`. No timers or background workers. `scripts/appassets` retains the used pixels from `assets/trane/codex-pet/spritesheet.webp`. |
 | `explorer.go` | Root adapter for Explorer: captures duplicate-prepared sources, composes setup acknowledgment with preferences, maps frozen cohort identities to collection indexes, and coordinates map/Grid/image transitions. The feature owns workflow, dialogs, workers and delivery. `explorerInput` retains collection/launch/window policy only. |
@@ -567,6 +572,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 |------|----------------|
 | `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
+| `source.go`, `source_kind.go` | Immutable `Reader` and `Source` share ordinary probe/decode algorithms and carry validated HEIC pixels/normalized metadata without retaining encoded HEIC bytes. Reader injection selects the shared owner; zero value refuses HEIC. Bounded leading file-type dispatch precedes bulk reads and prevents native HEIC metadata/preview fallback. `InspectMetadata` returns normalized values, byte count and JPEG strip capability from one source read. |
 | `ico.go` | Explicit ICO probe/decode dispatch, independent of the desktop driver's decoder registration: validates directory/payload spans and dimensions, selects the same single image for probe/decode, delegates PNG or normalized uncompressed DIB pixels to existing decoders, and applies icon transparency. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
@@ -596,7 +602,7 @@ responses, dimensions, NRGBA8/NRGBA64 layout, operation-specific payload lengths
 normalized metadata and exact EOF before publication. `metadata.go` rejects
 unknown/duplicate fields and invalid bounded values. `ready.go` reports actual
 startup memory controls separately from requested limits. HEIC viewing remains
-disabled pending app-family integration and platform/package qualification.
+disabled pending platform/package qualification and production activation.
 
 ### `internal/heicdecode/client`, `worker`, and `cmd/picfetch-heic-worker`
 
@@ -604,24 +610,64 @@ disabled pending app-family integration and platform/package qualification.
 parent-owned file/loopback probes, readiness, bounded pipes and response checks.
 Admission precedes source reads. Stop cancels pending/active work; Wait joins
 process and pipe completion. Unix group termination precedes leader reap.
-This instance is not yet shared across app and analysis processes.
+Its fair lane gives waiting background work a turn after three foreground
+grants. `broker.go` serves at most eight explicit pipe connections through that
+same lane, sending native-ready grants before remote bulk reads and retaining
+admission through result delivery. `remote.go` validates frames and joins
+cancellation; a disconnected queued peer is observed through one control byte.
+`attachment.go` supplies explicit inherited pipes and observes parent-copy,
+service and remote lifetimes. GUI construction and analysis requests share one
+optional owner; production currently supplies none pending qualification.
+`package.go` bounds and validates the trusted installed-package manifest, fixes
+helper paths per OS, checks the target and pins the post-signing executable.
 
 `worker` embeds the fixed WASI artifact and streams bounded stdio through wazero
 with finite linear memory and a deadline. Native code accepts no image paths.
 Its macOS cgo boundary verifies the App Sandbox entitlement; the entry point
 then verifies denied owned file reads/creation and TCP/UDP access before input.
-Other platforms currently refuse startup. Native-memory readiness is explicitly
-zero on macOS; its Go memory target is not a hard OS cap. The helper alone may
+The Linux no-cgo amd64/arm64 candidate installs synchronized default-deny
+seccomp with exact Go thread flags, private anonymous mappings and runtime
+stdio/scheduling operations. It verifies RLIMIT_AS/CPU/core/file/descriptor
+limits and a no-access oversized-mapping refusal before readiness. Its native
+qualification is a separate `heic-linux` CI suite. Windows amd64/arm64 uses
+`winisolation` below and verifies its token/job before the same denial probes.
+Other builds refuse startup.
+Native-memory readiness is explicitly zero on macOS; its Go memory target is
+not a hard OS cap. The helper alone may
 import the embedded guest runtime. `packaging/heic` holds the macOS bundle and
 entitlement templates; `heicinterpreter` is the qualification runtime variant.
 
 `cmd/picfetch-heic-worker` is the minimal single-request entry point, without
-Fyne or a native HEIC codec. Final application packaging/integration is pending.
+Fyne or a native HEIC codec. Final application packaging/activation is pending.
+
+### `internal/heicdecode/winisolation`
+
+Windows-only helper process boundary. `process_windows.go` creates a suspended
+zero-capability AppContainer with three explicit inherited stdio handles,
+assigns a private one-process Job Object with committed-memory/user-CPU limits
+and kill-on-close, then resumes. `policy_windows.go` queries the actual token,
+identity, capabilities and immediate job before worker readiness. Process Kill
+and Wait serialize handle retirement. `profile_windows.go` owns the stable
+AppContainer profile and explicit read/execute provisioning for a dedicated
+helper file and its directory, with no inherited ACL grant. Launch does not
+change ACLs. Native controls and ordinary decoder fixtures are required by the
+`heic-windows` amd64/arm64 CI suite; native execution remains unverified.
+
+### `scripts/heicpackage`
+
+Stages the minimal native helper at `client.PackagePaths`, its complete
+h265/Go/wazero notices and a bounded post-signing SHA-256 manifest. It verifies
+the binary target, uses pure Go for Linux/Windows, and builds/signs/verifies the
+macOS App Sandbox bundle. `finalize` refreshes the manifest after Windows
+Authenticode signing. Native helper tests use the same staging tool. Makefile
+and release/MSIX assembly retain the helper directory; package creation alone
+does not enable production HEIC.
 
 ### `scripts/heicguest` and `scripts/heicbuild`
 
-Development-only HEIC/WASI qualification. `heicguest` is a separate module pinned
-to unmodified h265 v0.2.3. Its WASI-only entry point rejects movie containers,
+Development-only HEIC/WASI qualification. `heicguest` is a separate module using
+the maintained `third_party/h265` copy through an explicit local replacement.
+Its WASI-only entry point rejects movie containers,
 decodes still pixels/config/Exif in the guest, preserves straight-alpha precision
 and emits `internal/heicdecode`'s protocol. `fixturegen` writes one fixed ordinary
 ten-bit gradient; `fixturephoto` writes one fixed ordinary 12-megapixel gradient.
@@ -636,6 +682,16 @@ compares interpreter and compiler under the same deadline. This does not
 implement a native worker-family memory cap. See `docs/heic/qualification.md`, the active
 restoration plan and `docs/heic/robustness-testing.md` for status and remaining
 platform, compatibility and distribution gates.
+
+### `third_party/h265`
+
+The v0.2.2-based production source previously maintained at PicFetch `fc127b44`,
+including local coded-work, container, NAL and transformed-config hardening.
+`PICFETCH.md` records selection and upgrade rules; `PICFETCH-SOURCE.json` pins
+the exact 107-file production copy. The separate WASI guest uses `noasm`; this
+module is excluded from native application imports, not from source provenance.
+`scripts/heicbuild/source.go` verifies its baseline and both module replacements.
+The ordinary fixture target `test-h265` reaches this nested source through WASI.
 
 ### `internal/avifpolicy`
 
@@ -684,10 +740,11 @@ GitHub-release check, SHA-256 + immutable release attestation verify, stage, app
 | `update.go` | `Client`, `AssetName`, `Newer`, `Due`. |
 | `github.go` | Releases + release-attestation HTTP. |
 | `checksums.go` | `VerifyHash` (optional API digest). |
-| `download.go` / `extract.go` | Fetch with optional `DownloadProgress`, hash, attest, unzip/tar, and persist `Stage` provenance plus extracted-file hashes for reuse/apply revalidation. |
+| `download.go` / `extract.go` | Fetch with optional `DownloadProgress`, hash, attest, unzip/tar, and persist `Stage` provenance plus extracted-file hashes for reuse/apply revalidation. Each authenticated archive extracts into a fresh payload directory before companion hashes are captured. |
+| `companions.go` / `package_install.go` | Bounded exact companion inventories tied to stage provenance. Linux/Windows swap the dedicated helper directory around the existing binary transaction and roll it back on failure. Qualified macOS stages replace the complete verified app bundle, preserving its enclosing/nested signatures. Legacy stages keep their binary/plist path and cannot install a newly introduced helper. |
 | `attest.go` | GitHub Fulcio Sigstore `Verifier` + in-toto release policy. |
 | `tufroot.go` | Offline 60-day expiry check and verified sync of `embed/tuf-repo.github.com/root.json`. |
-| `apply.go` / `apply_unix.go` / `apply_windows.go` | `Apply` dispatcher with `ApplyOptions`, normal shutdown without relaunch, explicit Perform-update relaunch. Unix (`apply_unix.go`) writes `<dest>.new` beside the target, renames it into place, and rolls back through `<dest>.old` on failure. Windows (`apply_windows.go`) replaces the running executable in-process via `swapBinary` — it used to run a generated `<dest>.apply.cmd` through `cmd.exe`, which Controlled Folder Access refuses outright regardless of `cmd.exe`'s own Microsoft signature; that script is gone. |
+| `apply.go` / `apply_unix.go` / `apply_windows.go` | `Apply` dispatcher with `ApplyOptions`, normal shutdown without relaunch, explicit Perform-update relaunch. Legacy/standalone Unix (`apply_unix.go`) writes `<dest>.new` beside the target, renames it into place, and rolls back through `<dest>.old` on failure. Windows (`apply_windows.go`) replaces the running executable in-process via `swapBinary` — it used to run a generated `<dest>.apply.cmd` through `cmd.exe`, which Controlled Folder Access refuses outright regardless of `cmd.exe`'s own Microsoft signature; that script is gone. |
 | `swap.go` | `swapBinary`: the Windows in-process replace. Renames the running executable to `<dest>.old` (the one replacement Windows allows on a running image), copies the staged binary over `dest`, SHA-256-verifies the copy against the stage, and *tries* to restore `<dest>.old` on any failure past the rename — the rename back is retried a few times and then falls back to copying the backup over `dest`, but if all of that is refused too, `dest` is left truncated or missing and the reported `Op` is `restore`. That is the one outcome PicFetch cannot recover from or even report on the next launch, since reading the record needs the executable that is broken. `<dest>.old` deliberately survives a successful swap — it is still this process's own running image — for the next launch to sweep (`await.go`). |
 | `applyerr.go` | `ApplyError` (`Op`/`Path`/`Err`) and `FailureReason` (`ReasonAccessDenied` / `ReasonVirusBlocked` / `ReasonSharingViolation` / `ReasonUnknown`); `ClassifyApplyError` maps a failed `Apply` to the reason the next launch reports, preferring Windows errno classification (`applyerr_windows.go`) over the portable `fs.ErrPermission` fallback (`applyerr_other.go`). |
 | `await.go` | `AwaitPIDEnv` (`PICFETCH_UPDATE_AWAIT_PID`) relaunch handshake. `CleanupPredecessor`, called from `main.go` before `app.NewWithID`, waits (bounded, 15s) for the process that installed this executable to exit before preferences are touched, then sweeps `<dest>.new` / `<dest>.apply.cmd` left by pre-2026-08-30 updates. `SweepBackup`, called from `internal/ui` startup once the Fyne app cache exists, removes `<dest>.old` — skipped when the last recorded apply failure has `Op == "restore"`, the one state where the backup is the user's only intact executable. |

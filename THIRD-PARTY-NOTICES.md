@@ -9,6 +9,14 @@ reconciles the pinned production updater sources across all six desktop targets;
 `make check-updater-notices` verifies that inventory and its exact source texts.
 Test-only dependencies are excluded because they do not ship.
 
+The isolated HEIC helper contains the maintained PicFetch h265/HEIC source based
+on gen2brain/h265 v0.2.2 (MIT), a Go WASI runtime (BSD-3-Clause and patent grant),
+and wazero v1.12.0 (Apache-2.0). Their complete applicable source notices ship in
+`heic/notices/`, under `Contents/Resources/` in the macOS app. The helper's manifest
+records its post-signing executable and guest hashes. HEIC viewing remains
+disabled until platform qualification is complete. These software notices make
+no claim about HEVC patent rights.
+
 The historical `github.com/hashicorp/golang-lru/v2` notices remain below,
 including MPL-2.0 and the separate Go-derived BSD notice for `simplelru/list.go`.
 The updater inventory also records MPL-2.0 matcher provenance in

@@ -93,6 +93,11 @@ func DisplayName(m Mode) string {
 // stop touching the filesystem promptly once ctx is done - it doesn't need
 // to return a fully correct partial order, since nothing ever looks at one.
 func Order(ctx context.Context, m Mode, raw []fyne.URI) []fyne.URI {
+	return OrderWithReader(ctx, m, raw, imaging.Reader{})
+}
+
+// OrderWithReader uses the caller's shared reader for capture-date extraction.
+func OrderWithReader(ctx context.Context, m Mode, raw []fyne.URI, reader imaging.Reader) []fyne.URI {
 	ordered := append([]fyne.URI(nil), raw...)
 
 	switch m {
@@ -100,7 +105,7 @@ func Order(ctx context.Context, m Mode, raw []fyne.URI) []fyne.URI {
 		// Already in raw order - nothing to do.
 	case ByCaptureDate:
 		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) {
-			date, err := captureOrModTime(ctx, u)
+			date, err := captureOrModTime(ctx, u, reader)
 			return date.UnixNano(), err
 		})
 	case ByModTime:
@@ -199,8 +204,8 @@ func fileSizeOf(u fyne.URI) int64 {
 // capture-date sort mode still produces a sensible, total order instead of
 // clumping every such file at the same zero-time position. Cancellation stops
 // the sort instead of falling back to another filesystem operation.
-func captureOrModTime(ctx context.Context, u fyne.URI) (time.Time, error) {
-	date, ok, err := imaging.CaptureDateContext(ctx, u)
+func captureOrModTime(ctx context.Context, u fyne.URI, reader imaging.Reader) (time.Time, error) {
+	date, ok, err := reader.CaptureDate(ctx, u)
 	if ctx.Err() != nil {
 		return time.Time{}, ctx.Err()
 	}

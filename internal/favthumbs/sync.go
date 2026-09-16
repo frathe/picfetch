@@ -83,6 +83,11 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 // sink may be nil, which reads as "nothing is cached, and storing is a
 // no-op": the pass still fills the on-disk cache for a later opener.
 func Sync(ctx context.Context, favDir string, files []fyne.URI, sink Sink) error {
+	return SyncWithReader(ctx, favDir, files, sink, imaging.Reader{})
+}
+
+// SyncWithReader shares the caller's canonical source reader across the bounded workers.
+func SyncWithReader(ctx context.Context, favDir string, files []fyne.URI, sink Sink, reader imaging.Reader) error {
 	// The app's merge mode loads one path at two indices whenever the same
 	// file arrives from two dropped folders. Two workers on that path would
 	// duplicate a full decode and then race each other to write a single
@@ -148,7 +153,7 @@ loop:
 				return
 			}
 
-			if err := syncFile(ctx, favDir, u, sink); err != nil {
+			if err := syncFile(ctx, favDir, u, sink, reader); err != nil {
 				fail(err)
 			}
 		})
@@ -178,7 +183,7 @@ loop:
 // syncFile brings one file's preview up to date, taking the cheapest of the
 // three routes that applies. It is the body of a worker goroutine, so it
 // touches nothing shared beyond sink, which the caller owns and guards.
-func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
+func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink, reader imaging.Reader) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -216,7 +221,7 @@ func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
 		return nil
 	}
 
-	thumb, err = imaging.LoadThumbnailContext(ctx, u)
+	thumb, _, err = reader.Thumbnail(ctx, u, imaging.ThumbnailSize)
 	if err != nil {
 		return err
 	}

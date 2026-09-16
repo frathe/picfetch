@@ -29,16 +29,17 @@ type DownloadProgress struct {
 }
 
 type stageFile struct {
-	Version               string `json:"version"`
-	Notes                 string `json:"notes"`
-	BinaryPath            string `json:"binaryPath"`
-	PlistPath             string `json:"plistPath,omitempty"`
-	VerifiedAssetName     string `json:"verifiedAssetName,omitempty"`
-	VerifiedArchiveDigest string `json:"verifiedArchiveDigest,omitempty"`
-	VerifiedBinaryDigest  string `json:"verifiedBinaryDigest,omitempty"`
-	VerifiedPlistDigest   string `json:"verifiedPlistDigest,omitempty"`
-	VerifiedGOOS          string `json:"verifiedGoos,omitempty"`
-	VerifiedGOARCH        string `json:"verifiedGoarch,omitempty"`
+	VerifiedCompanionDigests map[string]string `json:"verifiedCompanionDigests,omitempty"`
+	Version                  string            `json:"version"`
+	Notes                    string            `json:"notes"`
+	BinaryPath               string            `json:"binaryPath"`
+	PlistPath                string            `json:"plistPath,omitempty"`
+	VerifiedAssetName        string            `json:"verifiedAssetName,omitempty"`
+	VerifiedArchiveDigest    string            `json:"verifiedArchiveDigest,omitempty"`
+	VerifiedBinaryDigest     string            `json:"verifiedBinaryDigest,omitempty"`
+	VerifiedPlistDigest      string            `json:"verifiedPlistDigest,omitempty"`
+	VerifiedGOOS             string            `json:"verifiedGoos,omitempty"`
+	VerifiedGOARCH           string            `json:"verifiedGoarch,omitempty"`
 }
 
 // Download fetches rel's archive, SHA-256s it, compares to AssetDigest when
@@ -96,7 +97,16 @@ func (c *Client) DownloadWithProgress(ctx context.Context, rel Release, progress
 	if err := os.MkdirAll(c.cfg.StageDir, 0o700); err != nil {
 		return Stage{}, err
 	}
-	bin, plist, err := extract(ctx, tmp, c.cfg.StageDir)
+	payload, err := os.MkdirTemp(c.cfg.StageDir, "payload-")
+	if err != nil {
+		return Stage{}, err
+	}
+	defer func() {
+		if err != nil {
+			_ = os.RemoveAll(payload)
+		}
+	}()
+	bin, plist, err := extract(ctx, tmp, payload)
 	if err != nil {
 		return Stage{}, err
 	}
@@ -121,18 +131,23 @@ func (c *Client) DownloadWithProgress(ctx context.Context, rel Release, progress
 			return Stage{}, err
 		}
 	}
+	companions, err := captureCompanions(bin, c.cfg.GOOS, c.cfg.GOARCH)
+	if err != nil {
+		return Stage{}, err
+	}
 	st = Stage{
 		Version:    rel.Version,
 		Notes:      rel.Notes,
 		BinaryPath: bin,
 		PlistPath:  plist,
 		verification: stageVerification{
-			AssetName:     rel.AssetName,
-			ArchiveDigest: hex.EncodeToString(sum[:]),
-			BinaryDigest:  binaryDigest,
-			PlistDigest:   plistDigest,
-			GOOS:          c.cfg.GOOS,
-			GOARCH:        c.cfg.GOARCH,
+			AssetName:        rel.AssetName,
+			ArchiveDigest:    hex.EncodeToString(sum[:]),
+			BinaryDigest:     binaryDigest,
+			CompanionDigests: companions,
+			PlistDigest:      plistDigest,
+			GOOS:             c.cfg.GOOS,
+			GOARCH:           c.cfg.GOARCH,
 		},
 	}
 	if err := SaveStage(c.cfg.StageDir, st); err != nil {
@@ -292,16 +307,17 @@ func SaveStage(dir string, s Stage) error {
 		return err
 	}
 	data, err := json.Marshal(stageFile{
-		Version:               s.Version,
-		Notes:                 s.Notes,
-		BinaryPath:            bin,
-		PlistPath:             plist,
-		VerifiedAssetName:     s.verification.AssetName,
-		VerifiedArchiveDigest: s.verification.ArchiveDigest,
-		VerifiedBinaryDigest:  s.verification.BinaryDigest,
-		VerifiedPlistDigest:   s.verification.PlistDigest,
-		VerifiedGOOS:          s.verification.GOOS,
-		VerifiedGOARCH:        s.verification.GOARCH,
+		Version:                  s.Version,
+		Notes:                    s.Notes,
+		BinaryPath:               bin,
+		PlistPath:                plist,
+		VerifiedAssetName:        s.verification.AssetName,
+		VerifiedArchiveDigest:    s.verification.ArchiveDigest,
+		VerifiedBinaryDigest:     s.verification.BinaryDigest,
+		VerifiedCompanionDigests: s.verification.CompanionDigests,
+		VerifiedPlistDigest:      s.verification.PlistDigest,
+		VerifiedGOOS:             s.verification.GOOS,
+		VerifiedGOARCH:           s.verification.GOARCH,
 	})
 	if err != nil {
 		return err
@@ -327,12 +343,13 @@ func LoadStage(dir string) (Stage, error) {
 		BinaryPath: sf.BinaryPath,
 		PlistPath:  sf.PlistPath,
 		verification: stageVerification{
-			AssetName:     sf.VerifiedAssetName,
-			ArchiveDigest: sf.VerifiedArchiveDigest,
-			BinaryDigest:  sf.VerifiedBinaryDigest,
-			PlistDigest:   sf.VerifiedPlistDigest,
-			GOOS:          sf.VerifiedGOOS,
-			GOARCH:        sf.VerifiedGOARCH,
+			AssetName:        sf.VerifiedAssetName,
+			ArchiveDigest:    sf.VerifiedArchiveDigest,
+			BinaryDigest:     sf.VerifiedBinaryDigest,
+			CompanionDigests: sf.VerifiedCompanionDigests,
+			PlistDigest:      sf.VerifiedPlistDigest,
+			GOOS:             sf.VerifiedGOOS,
+			GOARCH:           sf.VerifiedGOARCH,
 		},
 	}, nil
 }
@@ -352,6 +369,9 @@ func ValidateStage(s Stage) error {
 	}
 	if err := verifyFileSHA256(s.BinaryPath, v.BinaryDigest); err != nil {
 		return fmt.Errorf("update: staged binary verification: %w", err)
+	}
+	if err := validateCompanions(s); err != nil {
+		return err
 	}
 	if s.PlistPath == "" {
 		if v.PlistDigest != "" {

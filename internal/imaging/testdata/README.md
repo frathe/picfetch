@@ -1,7 +1,9 @@
 # Image fixtures
 
-`test_exif.heic` is retained solely to test rejection of unsupported HEIC
-images. It contains image data, not decoder code. It was copied from
+`test_exif.heic` tests production rejection of unsupported HEIC images and the
+candidate sandboxed helper's ordinary metadata/container-rotation behavior.
+It is a synthetic TestCam/Model123 fixture, not a camera photograph. It contains
+image data, not decoder code. It was copied from
 [gen2brain/heic](https://github.com/gen2brain/heic/tree/v0.7.1/testdata),
 whose [MIT license](https://github.com/gen2brain/heic/blob/v0.7.1/LICENSE)
 is retained below. The HEIC decoder is not a PicFetch dependency.

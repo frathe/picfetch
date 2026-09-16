@@ -83,12 +83,12 @@ jobs:
           # name already carries the arch, and that is what users unpacked
           # before Windows gained a second architecture.
           for arch in amd64 arm64; do
-            cp "picfetch-windows-$arch.exe" "picfetch.exe"
-            zip "picfetch-windows-$arch.zip" "picfetch.exe" ../LICENSE ../THIRD-PARTY-NOTICES.md ../PRIVACY.md -j
-            rm "picfetch.exe"
+            cp "picfetch-windows-$arch.exe" "heic-windows-$arch/picfetch.exe"
+            cp ../LICENSE ../THIRD-PARTY-NOTICES.md ../PRIVACY.md "heic-windows-$arch/"
+            (cd "heic-windows-$arch" && zip -r "../picfetch-windows-$arch.zip" picfetch.exe heic LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md)
           done
           for arch in amd64 arm64; do
-            tar -czf "picfetch-linux-$arch.tar.gz" "picfetch-linux-$arch" -C .. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md
+            tar -czf "picfetch-linux-$arch.tar.gz" "picfetch-linux-$arch" -C "heic-linux-$arch" heic -C "$GITHUB_WORKSPACE" LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md
           done
 
       - name: Upload unsigned Windows artifacts for signing
@@ -119,6 +119,13 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
       - name: Download unsigned Windows artifacts
         uses: actions/download-artifact@v8
         with:
@@ -182,8 +189,17 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw "Signature verification failed for $($archive.Name)."
             }
+            $helper = Join-Path $unpacked 'heic/picfetch-heic-worker.exe'
+            if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) { throw 'The HEIC helper is missing.' }
+            & $signtool.FullName sign /fd sha256 /tr http://time.certum.pl /td sha256 /sha1 $env:CERTUM_CERT_THUMBPRINT /v $helper
+            if ($LASTEXITCODE -ne 0) { throw 'HEIC helper signing failed.' }
+            & $signtool.FullName verify /pa /all /v /tw $helper
+            if ($LASTEXITCODE -ne 0) { throw 'HEIC helper signature verification failed.' }
+            $arch = if ($archive.BaseName.EndsWith('-amd64')) { 'amd64' } else { 'arm64' }
+            go run ./scripts/heicpackage -mode finalize -os windows -arch $arch -out $unpacked
+            if ($LASTEXITCODE -ne 0) { throw 'HEIC post-signing manifest verification failed.' }
 
-            $packageFiles = @($executable)
+            $packageFiles = @($executable, (Join-Path $unpacked 'heic'))
             foreach ($name in @('LICENSE', 'THIRD-PARTY-NOTICES.md', 'PRIVACY.md')) {
               $notice = Join-Path $unpacked $name
               if (-not (Test-Path -LiteralPath $notice -PathType Leaf)) {

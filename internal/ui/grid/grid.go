@@ -92,6 +92,7 @@ type Host interface {
 
 // Overview is the grid overlay and the state behind it.
 type Overview struct {
+	reader                imaging.Reader
 	ranked, pendingRanked *RankedVisit
 	visitIndex            *visitSourceIndex
 	rankedBar             *fyne.Container
@@ -361,7 +362,13 @@ func unpackGridCell(cell *fyne.Container) (*canvas.Image, *canvas.Rectangle, *ca
 // real Fyne canvas focus, which this app deliberately never hands to
 // GridWrap (see Close's comment on why).
 func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
+	return NewWithReader(host, win, model, imaging.Reader{})
+}
+
+// NewWithReader installs the canonical source dependency before work starts.
+func NewWithReader(host Host, win fyne.Window, model *dupes.Model, reader imaging.Reader) *Overview {
 	g := &Overview{
+		reader:     reader,
 		host:       host,
 		win:        win,
 		sel:        selection.New(),

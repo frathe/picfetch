@@ -62,12 +62,13 @@ type Stage struct {
 }
 
 type stageVerification struct {
-	AssetName     string
-	ArchiveDigest string
-	BinaryDigest  string
-	PlistDigest   string
-	GOOS          string
-	GOARCH        string
+	CompanionDigests map[string]string
+	AssetName        string
+	ArchiveDigest    string
+	BinaryDigest     string
+	PlistDigest      string
+	GOOS             string
+	GOARCH           string
 }
 
 type Client struct {

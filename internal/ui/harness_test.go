@@ -78,7 +78,12 @@ func TestMain(m *testing.M) {
 // defer, so a second Close panics partway through and leaves that mutex
 // permanently locked - wedging every later test in the package that touches
 // a window, not just this one.
-func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
+func newTestUI(t *testing.T) (*viewer, fyne.Window, func() bool) {
+	t.Helper()
+	return newTestUIWithImages(t, imageServices{})
+}
+
+func newTestUIWithImages(t *testing.T, images imageServices) (v *viewer, win fyne.Window, closed func() bool) {
 	t.Helper()
 
 	// Reassert the shared app as the current one before building: the
@@ -101,10 +106,12 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 		}
 	}
 
-	v, win = buildStartupViewer(testApp)
+	startup := loadStartupState(testApp)
+	startup.images = images
+	v, win = buildConfiguredViewer(testApp, startup)
 	v.display.SetUIQueue(&uitest.UIQueue{})
 	v.grid.SetUIQueue(&uitest.UIQueue{})
-	v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}})
+	v.visualsearch.Configure(searchui.Options{Provider: (similarity.Client{HEIC: images.owner}).Search, Queue: &uitest.UIQueue{}})
 	v.searchView.overlayUI = &uitest.UIQueue{}
 	v.analysisDir = t.TempDir()
 	v.analysisCache.Configure(analysiscache.Options{Roots: v.analysisRoots(), Queue: &uitest.UIQueue{}, ConfirmClear: v.settingsWin.ConfirmClearAnalysis, Changed: v.syncMenus})
@@ -194,6 +201,7 @@ func drain(t *testing.T, v *viewer) {
 	// this test has already closed. Clearing it first also means nothing
 	// can start a fresh scan behind the waits below.
 	openwith.SetHandler(nil)
+	v.images.Stop()
 	v.stopSearchOverlayWait()
 	v.searchView.overlayWorkers.Wait()
 	if v.searchView.overlayUI != nil {
@@ -300,6 +308,7 @@ func drain(t *testing.T, v *viewer) {
 		v.slides.Settle()
 		v.spiral.Settle()
 		v.exif.Settle()
+		v.images.Wait()
 		close(settled)
 	}()
 

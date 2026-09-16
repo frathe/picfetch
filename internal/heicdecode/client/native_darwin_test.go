@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -60,8 +61,44 @@ func TestNativeMacSandboxHelper(t *testing.T) {
 		if decodeErr != nil {
 			t.Fatal(decodeErr)
 		}
-		if img, ok := result.Image.(*image.NRGBA64); !ok || img.Bounds().Dx() != 16 || img.Bounds().Dy() != 16 {
+		img, ok := result.Image.(*image.NRGBA64)
+		if !ok || img.Bounds().Dx() != 16 || img.Bounds().Dy() != 16 {
 			t.Fatalf("ordinary ten-bit result: %T", result.Image)
+		}
+		// The owned lossless full-range source is a known grayscale ramp.
+		// Allow one ten-bit quantization step in the sixteen-bit output.
+		for y := 0; y < 16; y++ {
+			for x := 0; x < 16; x++ {
+				pixel := img.NRGBA64At(x, y)
+				expected := (x + y) * 2000
+				if pixel.R != pixel.G || pixel.G != pixel.B || pixel.A != 65535 || int(pixel.R) < expected-65 || int(pixel.R) > expected+65 {
+					t.Fatalf("ten-bit ramp at %d,%d: %+v, expected gray %d", x, y, pixel, expected)
+				}
+			}
+		}
+	})
+	t.Run("metadata and container rotation", func(t *testing.T) {
+		// This ordinary synthetic fixture carries both Exif orientation 6 and
+		// a container rotation. Independent ImageIO output is 480x640; applying
+		// the Exif orientation to already transformed pixels would rotate twice.
+		path := filepath.Join(root, "internal", "imaging", "testdata", "test_exif.heic")
+		for _, operation := range []heicdecode.Operation{heicdecode.Decode, heicdecode.DecodeConfig, heicdecode.DecodeExif} {
+			result, decodeErr := client.Do(context.Background(), operation, func(_ context.Context, _ int64) ([]byte, error) {
+				return os.ReadFile(path)
+			})
+			if decodeErr != nil {
+				t.Fatal(decodeErr)
+			}
+			metadata := result.Metadata
+			if metadata == nil || metadata.Orientation != 6 || metadata.Make != "TestCam" || metadata.Model != "Model123" || metadata.FNumber != 5.6 || metadata.ISOSpeed != 800 {
+				t.Fatalf("ordinary fixture metadata: %+v", metadata)
+			}
+			if operation != heicdecode.DecodeExif && (result.Config.Width != 480 || result.Config.Height != 640) {
+				t.Fatalf("transformed configuration: %+v", result.Config)
+			}
+			if operation == heicdecode.Decode && result.Image.Bounds() != image.Rect(0, 0, 480, 640) {
+				t.Fatalf("transformed pixels: %v", result.Image.Bounds())
+			}
 		}
 	})
 	t.Run("cancellation joins admitted and queued work", func(t *testing.T) {
@@ -103,6 +140,20 @@ func TestNativeMacSandboxHelper(t *testing.T) {
 
 func buildNativeMacHelper(t *testing.T, root, engine string) Config {
 	t.Helper()
+	if engine == "compiler" {
+		bundle := filepath.Join(t.TempDir(), "PicFetch.app")
+		command := exec.Command("go", "run", "./scripts/heicpackage", "-os", "darwin", "-arch", runtime.GOARCH, "-out", bundle)
+		command.Dir = root
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("stage signed helper package: %v: %s", err, output)
+		}
+		executable, digest, err := LoadPackage(bundle, "darwin", runtime.GOARCH)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return Config{Executable: executable, SHA256: digest, Limits: heicdecode.DefaultLimits(0)}
+	}
+
 	var err error
 	tags := "no_emoji,nodynamic"
 	entitlements := filepath.Join(root, "packaging", "heic", "macos.entitlements.plist")

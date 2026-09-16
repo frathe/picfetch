@@ -23,7 +23,9 @@ after its provenance and safe handling are reviewed.
 
 ## Budgets and observables
 
-The initial ceiling for a complete operation is 30 seconds. The separate maxima
+The current finite ceiling for an admitted operation is 60 seconds. Native
+Intel ordinary-camera evidence motivated tuning the initial 30-second proposal;
+see the qualification record for completed and pending measurements. The separate maxima
 are 1 GiB WASM linear memory, a requested 2 GiB native-process budget,
 64 MiB encoded HEIC input (further reduced by a positive user limit), 64 million
 pixels, checked NRGBA8/NRGBA64 output, 64 KiB metadata, 4096-byte diagnostics,

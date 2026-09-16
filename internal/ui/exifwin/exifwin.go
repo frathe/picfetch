@@ -62,8 +62,9 @@ type Host interface {
 // Singleton): a second request raises the existing window rather than
 // stacking up duplicates.
 type Window struct {
-	app  fyne.App
-	host Host
+	reader imaging.Reader
+	app    fyne.App
+	host   Host
 
 	win widgets.Singleton
 
@@ -134,7 +135,13 @@ type Window struct {
 // New returns the EXIF window for application. host.DisplayedFile is called
 // on every open and refresh to find the file to read.
 func New(application fyne.App, host Host) *Window {
+	return NewWithReader(application, host, imaging.Reader{})
+}
+
+// NewWithReader installs the canonical source dependency before work starts.
+func NewWithReader(application fyne.App, host Host, reader imaging.Reader) *Window {
 	w := &Window{
+		reader:    reader,
 		app:       application,
 		host:      host,
 		tiles:     newTileFetcher(osmTiles, nil),

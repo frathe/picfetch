@@ -23,10 +23,10 @@ import (
 
 const (
 	decoderModule   = "github.com/gen2brain/h265"
-	decoderVersion  = "v0.2.3"
-	decoderRevision = "b2d46ba787d8f0a2025bd106443ab1b1c7cd010f"
-	decoderSum      = "h1:+fEP2Xf1CoZ21SxA2YpqnPZb6Y/hAEkcgjU1gMsOhrk="
-	decoderZipSHA   = "2838bcb83b8da357a19788ad5d8a9d55c16bd4a12961fa81e3ab282974f1ed7a"
+	decoderVersion  = "v0.2.2"
+	decoderRevision = "665fd95984177afef4a7efca7d50638e4b695c7a"
+	decoderSum      = "h1:rnpfo8I4PFhohbij8ySYZlJFn07TTwV+/uWBrKsOEas="
+	decoderZipSHA   = "57a197c95e25b481abcd6d20773ebfb17d859e6d864017304aff6ec0e0f19757"
 	compilerVersion = "go1.27.1"
 	guestDir        = "scripts/heicguest"
 	guestArtifact   = "internal/heicdecode/worker/decoder.wasm"
@@ -36,6 +36,7 @@ const (
 type manifest struct {
 	Version                                                int
 	Module, Revision, ModuleSum, ModuleZipSHA256, Compiler string
+	MaintainedRevision, MaintainedRecordSHA256             string
 	Files                                                  map[string]string
 }
 
@@ -83,7 +84,7 @@ func run(mode string) error {
 		if err = json.Unmarshal(data, &m); err != nil {
 			return err
 		}
-		if m.Version != 1 || m.Module != decoderModule+"@"+decoderVersion || m.Revision != decoderRevision || m.ModuleSum != decoderSum || m.ModuleZipSHA256 != decoderZipSHA || m.Compiler != compilerVersion {
+		if m.Version != 2 || m.Module != decoderModule+"@"+decoderVersion || m.Revision != decoderRevision || m.ModuleSum != decoderSum || m.ModuleZipSHA256 != decoderZipSHA || m.Compiler != compilerVersion || m.MaintainedRevision != maintainedRevision || m.MaintainedRecordSHA256 != maintainedRecordSHA {
 			return errors.New("guest manifest disagrees with reviewed source/toolchain pins")
 		}
 		expected := append(append([]string(nil), files...), guestArtifact)
@@ -126,7 +127,7 @@ func run(mode string) error {
 	if err = os.WriteFile(filepath.Join(root, guestArtifact), built, 0644); err != nil {
 		return err
 	}
-	m := manifest{Version: 1, Module: decoderModule + "@" + decoderVersion, Revision: decoderRevision, ModuleSum: decoderSum, ModuleZipSHA256: decoderZipSHA, Compiler: compilerVersion, Files: make(map[string]string)}
+	m := manifest{Version: 2, Module: decoderModule + "@" + decoderVersion, Revision: decoderRevision, ModuleSum: decoderSum, ModuleZipSHA256: decoderZipSHA, Compiler: compilerVersion, MaintainedRevision: maintainedRevision, MaintainedRecordSHA256: maintainedRecordSHA, Files: make(map[string]string)}
 	for _, name := range append(files, guestArtifact) {
 		sum, err := fileDigest(filepath.Join(root, name))
 		if err != nil {
@@ -173,6 +174,12 @@ func goCommand(root string, guest bool, args ...string) ([]byte, error) {
 }
 
 func verifySource(root string) error {
+	if err := verifyMaintainedSource(root); err != nil {
+		return err
+	}
+	if err := verifyReplacements(root); err != nil {
+		return err
+	}
 	version, err := goCommand(root, true, "env", "GOVERSION")
 	if err != nil {
 		return err
@@ -220,7 +227,7 @@ func verifySource(root string) error {
 
 func buildInputs(root string) ([]string, error) {
 	var files []string
-	for _, dir := range []string{"internal/heicdecode", guestDir, "docs/heic/notices", "scripts/heicbuild/testdata"} {
+	for _, dir := range []string{"internal/heicdecode", guestDir, "docs/heic/notices", "scripts/heicbuild/testdata", "third_party/h265"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -244,7 +251,7 @@ func buildInputs(root string) ([]string, error) {
 			return nil, err
 		}
 	}
-	files = append(files, "scripts/heicbuild/main.go", "scripts/heicbuild/fixture.go")
+	files = append(files, "go.mod", "scripts/heicbuild/main.go", "scripts/heicbuild/fixture.go", "scripts/heicbuild/source.go")
 	sort.Strings(files)
 	return files, nil
 }
@@ -294,7 +301,7 @@ func checkNativeSources(root string) error {
 		}
 		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
-			if rel == guestDir || (rel != "." && (strings.HasPrefix(d.Name(), ".") || d.Name() == "vendor" || d.Name() == "bin" || d.Name() == "fyne-cross")) {
+			if rel == guestDir || rel == "third_party/h265" || (rel != "." && (strings.HasPrefix(d.Name(), ".") || d.Name() == "vendor" || d.Name() == "bin" || d.Name() == "fyne-cross")) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -323,6 +330,9 @@ func checkNativeSources(root string) error {
 }
 
 func checkImports(root string) error {
+	if err := verifyReplacements(root); err != nil {
+		return err
+	}
 	if err := checkNativeSources(root); err != nil {
 		return err
 	}

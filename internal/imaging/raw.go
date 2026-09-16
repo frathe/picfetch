@@ -30,10 +30,6 @@ func isRAF(data []byte) bool {
 	return bytes.HasPrefix(data, []byte("FUJIFILM"))
 }
 
-func isISOBMFF(data []byte) bool {
-	return len(data) >= 8 && string(data[4:8]) == "ftyp"
-}
-
 func tiffOrder(data []byte) (binary.ByteOrder, bool) {
 	if len(data) < 8 {
 		return nil, false
@@ -58,7 +54,8 @@ func tiffOrder(data []byte) (binary.ByteOrder, bool) {
 
 func looksLikePreviewContainer(data []byte) bool {
 	_, isTIFF := tiffOrder(data)
-	return isTIFF || isISOBMFF(data) || isRAF(data)
+	kind := routeSource(data)
+	return isTIFF || kind == sourceCR3 || kind == sourceAVIF || isRAF(data)
 }
 
 // embeddedJPEGPreview returns the largest valid JPEG payload embedded in a

@@ -19,6 +19,9 @@ func applyUnix(stage Stage, dest string, options ApplyOptions) error {
 // test. launch is called only after the executable and optional plist have
 // both been installed successfully.
 func applyUnixWithLauncher(stage Stage, dest string, options ApplyOptions, launch func(string) error) error {
+	if stage.verification.GOOS == "darwin" && len(stage.verification.CompanionDigests) != 0 {
+		return applyMacBundle(stage, dest, options, launch)
+	}
 	dest, err := filepath.EvalSymlinks(dest)
 	if err != nil {
 		return err

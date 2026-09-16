@@ -35,6 +35,8 @@ type Snapshot struct {
 
 // Config supplies instance dependencies before presentation starts.
 type Config struct {
+	Reader         imaging.Reader
+	PreloadReader  imaging.Reader
 	Queue          UIQueue
 	AnimationAfter func(time.Duration) <-chan time.Time
 	Callbacks      Callbacks

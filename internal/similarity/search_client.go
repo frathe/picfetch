@@ -36,10 +36,16 @@ func (c Client) Search(ctx context.Context, search SearchRequest, queries <-chan
 	req := request{Assets: assets, MaxEncodedBytes: imaging.MaxEncodedBytes(), Search: &search}
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
-	return searchCommand(ctx, cmd, req, queries, emit)
+	return c.searchCommand(ctx, cmd, req, queries, emit)
 }
 
-func searchCommand(ctx context.Context, cmd *exec.Cmd, req request, queries <-chan SearchQuery, emit func(SearchEvent)) error {
+func (c Client) searchCommand(ctx context.Context, cmd *exec.Cmd, req request, queries <-chan SearchQuery, emit func(SearchEvent)) error {
+	link, err := c.attachHEIC(ctx, cmd, &req)
+	if err != nil {
+		return err
+	}
+	defer closeHEICAttachment(link)
+
 	// Reject large path inventories before JSON encoding can duplicate them.
 	if req.Search != nil {
 		remaining := workerRequestLimit
@@ -72,6 +78,9 @@ func searchCommand(ctx context.Context, cmd *exec.Cmd, req request, queries <-ch
 	cmd.WaitDelay = 3 * time.Second
 	if err := cmd.Start(); err != nil {
 		return err
+	}
+	if link != nil {
+		link.Started()
 	}
 	stop := make(chan struct{})
 	done := make(chan struct{})

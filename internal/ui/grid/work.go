@@ -37,7 +37,7 @@ func (g *Overview) restartWork() {
 	g.work.generation = g.host.Generation()
 	g.work.revision++
 	g.work.facts = g.dupes.CaptureFacts()
-	g.hashes = &hashEngine{host: g.host, pool: g.decodes, thumbs: g.thumbs, model: g.dupes, facts: g.work.facts, ui: g.ui}
+	g.hashes = &hashEngine{reader: g.reader, host: g.host, pool: g.decodes, thumbs: g.thumbs, model: g.dupes, facts: g.work.facts, ui: g.ui}
 }
 
 func (g *Overview) workContext() context.Context {

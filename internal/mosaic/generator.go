@@ -36,8 +36,13 @@ type Generator struct {
 }
 
 // New creates a mosaic generator backed by PicFetch's canonical image loader.
-func New() *Generator {
-	return &Generator{load: loadCanonicalSource, cacheBytes: defaultRepeatCacheBytes, previewClock: time.Now}
+func New() *Generator { return NewWithReader(imaging.Reader{}) }
+
+// NewWithReader binds every source to the caller's canonical reader.
+func NewWithReader(reader imaging.Reader) *Generator {
+	return &Generator{load: func(ctx context.Context, uri fyne.URI) (*loadedSource, error) {
+		return loadSourceWithReader(ctx, uri, reader)
+	}, cacheBytes: defaultRepeatCacheBytes, previewClock: time.Now}
 }
 
 // Generate renders one validated request with a fresh production generator.
@@ -234,11 +239,15 @@ func validateStoredRequest(request Request) error {
 }
 
 func loadCanonicalSource(ctx context.Context, uri fyne.URI) (*loadedSource, error) {
-	data, bounds, err := imaging.ReadAndProbe(ctx, uri)
+	return loadSourceWithReader(ctx, uri, imaging.Reader{})
+}
+
+func loadSourceWithReader(ctx context.Context, uri fyne.URI, reader imaging.Reader) (*loadedSource, error) {
+	source, err := reader.Read(ctx, uri)
 	if err != nil {
 		return nil, err
 	}
-	decoded, err := imaging.DecodeLoaded(ctx, data, 0)
+	decoded, err := source.Decode(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +256,7 @@ func loadCanonicalSource(ctx context.Context, uri fyne.URI) (*loadedSource, erro
 	}
 	sourceBounds := decoded.Frames[0].Bounds()
 	if decoded.Vector != nil {
-		sourceBounds = bounds
+		sourceBounds = source.Bounds()
 	}
 
 	return &loadedSource{

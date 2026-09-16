@@ -8,10 +8,9 @@ All four safeguards are implemented: bounded ICO selection, SVG expansion limits
 enforced WASM AVIF selection, and GIF memory accounting. Full `make verify` and
 both Windows internal-package cross-builds pass. Hosted review, finding
 dispositions and final CI/Qodana/CodeQL evidence are tracked in
-[PR #27](https://github.com/frathe/picfetch/pull/27). The live GoLand build-tag
-refresh and re-inspection remain pending; the committed Qodana configuration
-passed hosted analysis. Reload/apply the local `no_emoji nodynamic` module tags
-and inspect the imaging import again before closing this remaining local task.
+[PR #27](https://github.com/frathe/picfetch/pull/27). The local `no_emoji nodynamic` module tags were applied in GoLand on
+2026-09-16 and the imaging loader re-inspects clear; the committed Qodana
+configuration passed hosted analysis.
 Compatibility limits and evidence:
 [implementation plan](finished_refactorings/2026-09-15-image-input-hardening.md).
 
@@ -100,12 +99,50 @@ blocked-writer timeout and diagnostic tests. Ronin accepted the absent hard tota
 native-memory cap on macOS; WASM/IPC/deadline/sandbox protections remain mandatory.
 The compiler needs a helper-only executable-memory entitlement; the interpreter
 timed out on an ordinary 12-megapixel fixture under the same deadline.
-Production decoding remains disabled pending shared app/analysis admission,
-canonical imaging integration, Linux/Windows enforcement, final packaging and
-compatibility checks. The updated source instructions also require retaining or
-verifying equivalence of the historical maintained h265 patches before selecting
-the shipped source. Native Intel and full packaged qualification remain open. See
+Production decoding remains disabled pending native Linux/Windows/Intel
+qualification, distribution-package verification and representative camera
+compatibility checks. The historical maintained h265 production copy is restored
+with exact baseline/replacement guards; its native qualification is in progress.
+Intel passed sandbox/small-image checks but the 12MP compiler fixture reached
+the initial 30-second deadline. A documented finite 60-second candidate retains
+all other bounds; fresh native timing and full packaged qualification remain open. See
 [qualification evidence](docs/heic/qualification.md).
+The Linux no-cgo amd64/arm64 candidate now cross-builds with a synchronized
+default-deny runtime policy and verified-before-input address-space controls.
+Its native guard matrix is wired; actual Linux execution remains pending CI.
+Windows now has suspended AppContainer creation, explicit stdio handles and
+Job Object process/commit-memory/CPU/kill-on-close restrictions. The child
+verifies token/job state before readiness. AMD64/ARM64 cross-builds and Windows
+vet pass; native controls and ordinary fixtures await `heic-windows` CI.
+Dedicated helper permissions and MSIX packaging remain qualification gates.
+Package staging now records fixed helper paths, post-signing hashes and exact
+notices. The complete macOS app and nested helper pass strict signature checks.
+The updater now preserves authenticated companion files and rollback; native
+macOS controls verify the complete signed bundle after install and rollback.
+The released updater still omits the first helper-bearing package and deletes
+its cache, leaving a macOS signature mismatch. That initial transition requires
+a complete package reinstall or separately qualified bridge before release.
+Windows Authenticode/MSIX execution and native CI remain unverified.
+The complete implementation checkpoint and its remaining qualification gates
+are tracked in draft PR #28. The earlier P0-only signing attempt failed without
+publishing; the current checkpoint includes the subsequent integration work.
+The shared client lane and bounded pipe service are implemented with fair
+foreground/background admission, grant-before-read, framed canonical output
+and joined cancellation. Inherited analysis pipe components pass native macOS
+subprocess tests; Windows native execution remains pending. The canonical
+imaging Reader/Source now passes admission, metadata, pixel-fidelity and ordinary
+format regressions. Application ownership and GUI/analysis consumer injection
+are implemented with joined shutdown. Native activation and compatibility
+qualification remain open; construction currently supplies no HEIC owner.
+Additional [ordinary compatibility checks](docs/heic/compatibility-2026-09-16.md)
+cover real-helper synthetic metadata/orientation, alpha and a known ten-bit
+ramp. One hash-verified public-domain Samsung S23 Ultra photograph decodes in
+20.414 seconds with correct upright dimensions and metadata. Its P3 pixels
+differ from color-managed ImageIO; broader camera and faithful color claims
+remain unqualified. Faithful ICC/wide-gamut/PQ/HLG/gain-map display is not implemented:
+the decoder leaves source-space RGB and the guest drops the color description.
+These color classes are not deliberately rejected. This is a support boundary,
+not a claim that more test fixtures would establish HDR/color management.
 
 The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
 include libheif/libde265 with LGPL distribution work and hpvcd with unresolved

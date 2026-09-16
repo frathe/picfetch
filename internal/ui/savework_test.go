@@ -285,11 +285,13 @@ func (p *heldSavePixels) At(x, y int) color.Color {
 }
 
 func TestSaveChangesLeavesQueuedUIResponsive(t *testing.T) {
-	v, _, _ := newTestUI(t)
-	source := storage.NewFileURI(uitest.WriteTempFile(t, "save.png", uitest.EncodePNG(t, 8, 16, color.White)))
-	dropAndWait(t, v, source)
-	v.rotateBy(1)
 	synctest.Test(t, func(t *testing.T) {
+		// Source cancellation registers with fileWork.ctx. Construct and
+		// clean up its owner in this same bubble as the worker's signal.
+		v, _, _ := newTestUI(t)
+		source := storage.NewFileURI(uitest.WriteTempFile(t, "save.png", uitest.EncodePNG(t, 8, 16, color.White)))
+		dropAndWait(t, v, source)
+		v.rotateBy(1)
 		pixels := &heldSavePixels{Image: v.img.Image, entered: make(chan struct{}), release: make(chan struct{})}
 		v.img.Image = pixels
 		actions := make(chan func(), 2)

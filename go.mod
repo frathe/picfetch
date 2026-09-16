@@ -27,6 +27,9 @@ require (
 // isolated behind internal/ort; all other platforms retain the current binding.
 replace github.com/frathe/picfetch/internal/ortlegacy => github.com/yalue/onnxruntime_go v1.25.0
 
+// Retain the maintained decoder source; only the separate WASI module imports it.
+replace github.com/gen2brain/h265 => ./third_party/h265
+
 require (
 	fyne.io/systray v1.12.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect

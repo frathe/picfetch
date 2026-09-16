@@ -11,6 +11,7 @@ import (
 
 func TestLimitsValidate(t *testing.T) {
 	valid := DefaultLimits(32 * 1024 * 1024)
+	valid.Timeout = time.Minute
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("default limits: %v", err)
 	}
@@ -20,6 +21,7 @@ func TestLimitsValidate(t *testing.T) {
 		mutate func(*Limits)
 	}{
 		{"zero timeout", func(l *Limits) { l.Timeout = 0 }},
+		{"timeout over hard ceiling", func(l *Limits) { l.Timeout = time.Minute + time.Nanosecond }},
 		{"fractional WASM page", func(l *Limits) { l.WASMMemoryBytes = 1 }},
 		{"guest exceeds OS budget", func(l *Limits) { l.OSProcessBytes = l.WASMMemoryBytes - 1 }},
 		{"input over hard ceiling", func(l *Limits) { l.MaxInputBytes = hardMaxInputBytes + 1 }},
@@ -79,8 +81,8 @@ func TestDefaultLimitsClampUserInput(t *testing.T) {
 	if got := DefaultLimits(7).MaxInputBytes; got != 7 {
 		t.Fatalf("small user limit = %d, want 7", got)
 	}
-	if got := DefaultLimits(7).Timeout; got != 30*time.Second {
-		t.Fatalf("timeout = %v, want 30s", got)
+	if got := DefaultLimits(7).Timeout; got != time.Minute {
+		t.Fatalf("timeout = %v, want 60s", got)
 	}
 }
 

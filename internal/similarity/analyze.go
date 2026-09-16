@@ -3,7 +3,6 @@ package similarity
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"image/jpeg"
 	"os"
@@ -125,13 +124,13 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		}
 		if sourceErr == nil && reused && (item.Facts.Version != FactsVersion || item.Facts.Width <= 0 || item.Facts.Height <= 0) {
 			factsStart := time.Now()
-			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+			source, readErr := req.reader.Read(ctx, storage.NewFileURI(path))
 			sourceErr = readErr
-			if sourceErr == nil && fmt.Sprintf("%x", sha256.Sum256(data)) != item.SHA256 {
+			if sourceErr == nil && fmt.Sprintf("%x", source.SHA256()) != item.SHA256 {
 				sourceErr = fmt.Errorf("source changed since cached representation")
 			}
 			if sourceErr == nil {
-				item.Facts = imageFacts(path, data, bounds)
+				item.Facts = imageFacts(path, source)
 				backfilled = true
 			}
 			event.Measurements.DecodeSeconds += time.Since(factsStart).Seconds()
@@ -147,12 +146,12 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				}
 			}
 			decodeStart := time.Now()
-			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+			source, readErr := req.reader.Read(ctx, storage.NewFileURI(path))
 			sourceErr = readErr
 			if sourceErr == nil {
-				item.Facts = imageFacts(path, data, bounds)
-				item.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
-				loaded, decodeErr := imaging.DecodeLoaded(ctx, data, 1)
+				item.Facts = imageFacts(path, source)
+				item.SHA256 = fmt.Sprintf("%x", source.SHA256())
+				loaded, decodeErr := source.Decode(ctx, 1)
 				event.Measurements.DecodeSeconds += time.Since(decodeStart).Seconds()
 				sourceErr = decodeErr
 				if sourceErr == nil {

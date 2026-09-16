@@ -36,14 +36,15 @@ type Input func(ctx context.Context, maxBytes int64) ([]byte, error)
 // Client admits one job and at most 64 pending callers. Stop is nonblocking;
 // Wait joins active process/pipe work and cancelled waiting callers off the UI.
 type Client struct {
-	config Config
-	ctx    context.Context
-	cancel context.CancelFunc
-	slot   chan struct{}
-	mu     sync.Mutex
-	closed bool
-	active int
-	work   sync.WaitGroup
+	config   Config
+	ctx      context.Context
+	cancel   context.CancelFunc
+	lane     admissionQueue
+	mu       sync.Mutex
+	closed   bool
+	active   int
+	services int
+	work     sync.WaitGroup
 }
 
 func New(config Config) (*Client, error) {
@@ -54,7 +55,7 @@ func New(config Config) (*Client, error) {
 		return nil, ErrUnavailable
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Client{config: config, ctx: ctx, cancel: cancel, slot: make(chan struct{}, 1)}, nil
+	return &Client{config: config, ctx: ctx, cancel: cancel}, nil
 }
 
 func (c *Client) Stop() {
@@ -69,14 +70,42 @@ func (c *Client) Wait() { c.work.Wait() }
 // Do retains admission until source work, the helper, all pipes, and output
 // validation have finished. A cancelled queued call never invokes input.
 func (c *Client) Do(ctx context.Context, op heicdecode.Operation, input Input) (heicdecode.Response, error) {
+	return c.DoWithPriority(ctx, Foreground, op, input)
+}
+
+// DoWithPriority preserves FIFO within each class and gives waiting background
+// work a turn after at most three foreground grants. The timeout begins after
+// admission; queued callers retain their own cancellation/deadline.
+func (c *Client) DoWithPriority(ctx context.Context, priority Priority, op heicdecode.Operation, input Input) (heicdecode.Response, error) {
+	var result heicdecode.Response
+	err := c.withAdmission(ctx, priority, func(ctx context.Context) error {
+		if err := c.verifyExecutable(ctx); err != nil {
+			return err
+		}
+		var err error
+		result, err = c.run(ctx, op, input)
+		return err
+	})
+	if err != nil {
+		return heicdecode.Response{}, err
+	}
+	return result, nil
+}
+
+// The pipe service also holds this grant through downstream response delivery,
+// so a stalled analysis consumer cannot accumulate decoded outputs off-lane.
+func (c *Client) withAdmission(ctx context.Context, priority Priority, operation func(context.Context) error) error {
+	if priority > Background {
+		return heicdecode.ErrInvalidRequest
+	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
-		return heicdecode.Response{}, context.Canceled
+		return context.Canceled
 	}
 	if c.active >= 65 {
 		c.mu.Unlock()
-		return heicdecode.Response{}, ErrBusy
+		return ErrBusy
 	}
 	c.active++
 	c.work.Add(1)
@@ -90,25 +119,21 @@ func (c *Client) Do(ctx context.Context, op heicdecode.Operation, input Input) (
 	ctx, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(c.ctx, cancel)
 	defer func() { stop(); cancel() }()
-	select {
-	case c.slot <- struct{}{}:
-		defer func() { <-c.slot }()
-	case <-ctx.Done():
-		return heicdecode.Response{}, ctx.Err()
+	admitted := c.lane.enter(ctx, priority)
+	defer admitted.release()
+	if err := admitted.wait(); err != nil {
+		return err
 	}
 	ctx, deadline := context.WithTimeout(ctx, c.config.Limits.Timeout)
 	defer deadline()
 	if err := ctx.Err(); err != nil {
-		return heicdecode.Response{}, err
+		return err
 	}
-	if err := c.verifyExecutable(ctx); err != nil {
-		return heicdecode.Response{}, err
-	}
-	result, err := c.run(ctx, op, input)
+	err := operation(ctx)
 	if ctx.Err() != nil {
-		return heicdecode.Response{}, ctx.Err()
+		return ctx.Err()
 	}
-	return result, err
+	return err
 }
 
 func (c *Client) verifyExecutable(ctx context.Context) error {

@@ -19,9 +19,19 @@ func TestNativeSuitesSelectPlatformAndDistributionGuards(t *testing.T) {
 		{"windows", "windows", "github.com/frathe/picfetch/internal/clipboard", "TestCopyFilesWindows_DecodesUTF8WithNonUTF8Default", ""},
 		{"windows", "windows", "github.com/frathe/picfetch/internal/filepicker", "TestWindowsPickerTransport_EmitsUTF8PathArrays", ""},
 		{"windows", "windows", "github.com/frathe/picfetch/internal/update", "TestApplyWindows_MissingStagedBinaryRestoresDest", ""},
+		{"windows", "windows", "github.com/frathe/picfetch/internal/update", "TestDownloadedCompanionsRemainVerifiedAfterPersistence", ""},
+		{"windows", "windows", "github.com/frathe/picfetch/internal/update", "TestApplyInstallsCompanionsAndRollsBackOnBinaryFailure", ""},
 		{"windows", "windows", "github.com/frathe/picfetch/internal/distribution", "TestStoreManaged_DefaultBuildIsFalse", ""},
 		{"macos", "darwin", "github.com/frathe/picfetch", "TestInstall_GraftsOntoGLFWsDelegate", ""},
 		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/heicdecode/client", "TestNativeMacSandboxHelper", "heicnative"},
+		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/update", "TestNativeMacUpdatePreservesSignedBundle", "heicnative"},
+		{"heic-macos", "darwin", "github.com/frathe/picfetch/internal/update", "TestNativeMacLegacyUpdateRequiresCompleteReinstall", "heicnative"},
+		{"heic-linux", "linux", "github.com/frathe/picfetch/internal/heicdecode/client", "TestNativeSandboxHelper", "heicnative"},
+		{"heic-linux", "linux", "github.com/frathe/picfetch/internal/heicdecode/worker", "TestNativeLinuxRuntimePolicy", "heicnative"},
+		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/heicdecode/client", "TestInheritedRemoteCancellationJoins", "heicnative"},
+		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/similarity", "TestAnalysisWorkersUseHEICOwner", "heicnative"},
+		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/heicdecode/winisolation", "TestNativeWindowsJobAndToken", "heicnative"},
+		{"heic-windows", "windows", "github.com/frathe/picfetch/internal/heicdecode/client", "TestNativeSandboxHelper", "heicnative"},
 		{"store", "darwin", "github.com/frathe/picfetch/internal/distribution", "TestStoreManaged_MicrosoftStoreBuildIsTrue", "microsoftstore"},
 	} {
 		t.Run(tc.name+"/"+tc.test, func(t *testing.T) {
@@ -145,7 +155,7 @@ func TestNativeCIExecutesAndRetainsEveryDeclaredSuite(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, name := range []string{"windows", "macos", "store"} {
+	for _, name := range []string{"windows", "macos", "heic-macos", "heic-linux", "heic-windows", "store"} {
 		if !strings.Contains(text, "./scripts/nativeguards -suite "+name+" -capture") {
 			t.Errorf("CI omits %s guard runner", name)
 		}

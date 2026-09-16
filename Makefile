@@ -440,7 +440,9 @@ clean: ## Remove all build artifacts
 package-mac: install-fyne ## Package a macOS .app bundle (native, no Docker) into bin/
 	"$(FYNE_BIN)" package -os darwin -icon $(ICON) -name "$(APP_NAME)" -appID $(PACKAGE_ID) -tags "$(APP_TAGS)" -release
 	go run -tags "$(APP_TAGS)" ./scripts/plistdoctypes "$(APP_NAME).app/Contents/Info.plist"
+	go run ./scripts/heicpackage -os darwin -arch $$(go env GOARCH) -out "$(APP_NAME).app"
 	cp LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md "$(APP_NAME).app/Contents/Resources/"
+	codesign --force --sign - "$(APP_NAME).app"
 	mkdir -p $(BIN_DIR)
 	rm -rf "$(BIN_DIR)/$(APP_NAME).app"
 	mv "$(APP_NAME).app" "$(BIN_DIR)/"
@@ -459,6 +461,7 @@ package-windows: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Win
 	for arch in $(WIN_ARCHES); do \
 		"$(FYNE_CROSS_BIN)" windows -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_WINDOWS_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/windows-$$arch/$(BIN_NAME).exe $(BIN_DIR)/$(BIN_NAME)-windows-$$arch.exe || exit 1; \
+		go run ./scripts/heicpackage -os windows -arch $$arch -out "$(BIN_DIR)/heic-windows-$$arch" || exit 1; \
 	done
 
 package-windows-store: warm-fyne-cross-windows install-fyne-cross ## Cross-compile Microsoft Store-managed Windows .exe files into bin/ (MSIX packaging runs on Windows in CI)
@@ -480,6 +483,7 @@ package-linux: warm-fyne-cross-linux install-fyne-cross ## Cross-compile Linux b
 	for arch in $(LINUX_ARCHES); do \
 		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-linux-$$arch || exit 1; \
+		go run ./scripts/heicpackage -os linux -arch $$arch -out "$(BIN_DIR)/heic-linux-$$arch" || exit 1; \
 	done
 
 package-linux-debug: warm-fyne-cross-linux install-fyne-cross ## Cross-compile unstripped Linux binaries for diagnosing startup failures, one per arch in LINUX_ARCHES
@@ -610,7 +614,7 @@ heic-check-guest: ## Test the guest and owned runtime/transport boundaries
 heic-fixture: ## Reproduce the fixed 16x16 ten-bit fixture inside WASI
 	go run ./scripts/heicbuild fixture
 
-.PHONY: heic-photo-fixture heic-native-macos
+.PHONY: heic-photo-fixture heic-native-macos heic-native-linux heic-native-windows
 heic-photo-fixture: ## Reproduce the fixed 12-megapixel qualification gradient inside WASI
 	go run ./scripts/heicbuild photo-fixture
 
@@ -618,7 +622,23 @@ heic-native-macos: ## Qualify signed sandboxed helpers and bounded runtime choic
 	mkdir -p .scratch/heic-qualification
 	go run ./scripts/nativeguards -suite heic-macos -capture .scratch/heic-qualification/native-macos.json
 
+heic-native-linux: ## Qualify the no-cgo HEIC helper's syscall and native address-space limits on Linux
+	mkdir -p .scratch/heic-qualification
+	go run ./scripts/nativeguards -suite heic-linux -capture .scratch/heic-qualification/native-linux.json
+
+heic-native-windows: ## Qualify the HEIC AppContainer helper, job limits and inherited pipes on Windows
+	mkdir -p .scratch/heic-qualification
+	go run ./scripts/nativeguards -suite heic-windows -capture .scratch/heic-qualification/native-windows.json
+
 .PHONY: heic-security-govulncheck
 heic-security-govulncheck: ## Scan the separate WASI guest module (including its fixed fixture generator)
 	@scanner="$$(go tool -n govulncheck)"; \
 	cd scripts/heicguest && GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 GOWORK=off "$$scanner" -tags=noasm ./...
+
+.PHONY: generate-heic-wasm check-heic-wasm test-h265
+generate-heic-wasm: heic-build ## Rebuild the guest from the maintained h265 source
+
+check-heic-wasm: heic-check-provenance heic-check-imports ## Verify maintained source and WASI-only decoder provenance
+
+test-h265: check-heic-wasm ## Exercise the maintained nested decoder through ordinary WASI fixtures
+	go test -tags "$(APP_TAGS)" -run '^TestWASIGuestOrdinaryFixtures$$' -count=1 ./scripts/heicbuild

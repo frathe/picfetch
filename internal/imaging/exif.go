@@ -233,6 +233,9 @@ func (m Metadata) Empty() bool {
 // field (or all of them) blank rather than returning an error - there is no
 // error to report, only "nothing to show".
 func ReadMetadata(data []byte) Metadata {
+	if routeSource(data) == sourceIsolated {
+		return Metadata{}
+	}
 	if len(data) >= 4 && data[0] == 0xFF && data[1] == 0xD8 {
 		return jpegMetadata(data)
 	}
@@ -271,6 +274,9 @@ func jpegMetadata(data []byte) Metadata {
 // AVIF package's box parser, without invoking its image decoder. JPEG APP1
 // and TIFF IFD0 are handled before this is called.
 func isobmffMetadata(data []byte) Metadata {
+	if routeSource(data) != sourceAVIF {
+		return Metadata{}
+	}
 	if ex, err := avif.DecodeExif(bytes.NewReader(data)); err == nil {
 		return metadataFromISOBMFFExif(ex.Make, ex.Model, ex.ExposureTime, ex.FNumber, ex.ISOSpeed, ex.FocalLength, ex.DateTimeOriginal, ex.DateTime, ex.GPSLatitude, ex.GPSLongitude)
 	}

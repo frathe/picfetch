@@ -1,4 +1,4 @@
-//go:build !darwin || !cgo
+//go:build (!darwin || !cgo) && (!linux || cgo || (!amd64 && !arm64)) && (!windows || (!amd64 && !arm64))
 
 package worker
 

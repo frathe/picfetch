@@ -432,3 +432,40 @@ func TestUnixRelaunchCommand_WaitsForOldProcessAndPassesPathAsArgument(t *testin
 		t.Error("post-exit relaunch errors are not connected to PicFetch stderr")
 	}
 }
+
+func TestApplyUnixPreservesWholeVerifiedMacBundle(t *testing.T) {
+	directory := t.TempDir()
+	installedRoot := filepath.Join(directory, "installed", "PicFetch.app")
+	stagedRoot := filepath.Join(directory, "staged", "PicFetch.app")
+	relative := []string{"Contents/MacOS/picfetch", "Contents/Info.plist", "Contents/_CodeSignature/CodeResources", "Contents/Helpers/HEICWorker.app/Contents/MacOS/picfetch-heic-worker", "Contents/Resources/heic/manifest.json", "Contents/Resources/heic/notices/h265-LICENSE"}
+	for _, name := range relative {
+		for _, side := range []struct{ root, version string }{{installedRoot, "old"}, {stagedRoot, "new"}} {
+			path := filepath.Join(side.root, filepath.FromSlash(name))
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(side.version+" "+name), 0755); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	files, err := companionDigests(stagedRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := Stage{BinaryPath: filepath.Join(stagedRoot, "Contents", "MacOS", "picfetch"), PlistPath: filepath.Join(stagedRoot, "Contents", "Info.plist"), verification: stageVerification{GOOS: "darwin", CompanionDigests: files}}
+	launched := false
+	err = applyUnixWithLauncher(stage, filepath.Join(installedRoot, "Contents", "MacOS", "picfetch"), ApplyOptions{Relaunch: true}, func(_ string) error {
+		launched = true
+		for _, name := range relative {
+			data, readErr := os.ReadFile(filepath.Join(installedRoot, filepath.FromSlash(name)))
+			if readErr != nil || string(data) != "new "+name {
+				t.Errorf("relaunch before complete bundle: %s = %q (%v)", name, data, readErr)
+			}
+		}
+		return nil
+	})
+	if err != nil || !launched {
+		t.Fatalf("bundle installation/relaunch: %v, launched=%v", err, launched)
+	}
+}

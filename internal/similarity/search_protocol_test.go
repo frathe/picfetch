@@ -25,7 +25,7 @@ func TestSearchProtocolInitialFlowAndControlClosure(t *testing.T) {
 	queries := searchProtocolQueries(t, ctx, req)
 	cmd := searchProtocolCommand(t, ctx, "clean")
 	var events []SearchEvent
-	err := searchCommand(ctx, cmd, req, queries, func(event SearchEvent) {
+	err := (Client{}).searchCommand(ctx, cmd, req, queries, func(event SearchEvent) {
 		events = append(events, event)
 		if event.Kind == SearchReady {
 			close(queries)
@@ -57,7 +57,7 @@ func TestSearchProtocolRejectsInvalidStreams(t *testing.T) {
 			queries := searchProtocolQueries(t, ctx, req)
 			cmd := searchProtocolCommand(t, ctx, mode)
 			var events []SearchEvent
-			err := searchCommand(ctx, cmd, req, queries, func(event SearchEvent) { events = append(events, event) })
+			err := (Client{}).searchCommand(ctx, cmd, req, queries, func(event SearchEvent) { events = append(events, event) })
 			if err == nil || errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("invalid stream was accepted or stalled until timeout: %v", err)
 			}
@@ -82,7 +82,7 @@ func TestSearchProtocolCancellationJoinsProcessAndControls(t *testing.T) {
 			queries := make(chan SearchQuery)
 			cmd := searchProtocolCommand(t, ctx, mode)
 			delivered := 0
-			err := searchCommand(ctx, cmd, req, queries, func(event SearchEvent) {
+			err := (Client{}).searchCommand(ctx, cmd, req, queries, func(event SearchEvent) {
 				delivered++
 				if event.Kind != SearchProgress {
 					t.Errorf("unexpected pre-cancellation event: %+v", event)
@@ -122,7 +122,7 @@ func TestSearchProtocolCancellationJoinsProcessAndControls(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			completed <- searchCommand(checking, cmd, req, queries, func(_ SearchEvent) { cancel() })
+			completed <- (Client{}).searchCommand(checking, cmd, req, queries, func(_ SearchEvent) { cancel() })
 		}()
 		t.Cleanup(func() { cancel(); releaseWriter(); searchProtocolWait(t, done) })
 		searchProtocolWait(t, checking.writerEntered)
@@ -154,7 +154,7 @@ func TestSearchProtocolExitBeforeReady(t *testing.T) {
 			queries := searchProtocolQueries(t, ctx, req)
 			cmd := searchProtocolCommand(t, ctx, mode)
 			delivered := 0
-			err := searchCommand(ctx, cmd, req, queries, func(_ SearchEvent) { delivered++ })
+			err := (Client{}).searchCommand(ctx, cmd, req, queries, func(_ SearchEvent) { delivered++ })
 			wantError := "before readiness"
 			if mode == "provider_error" {
 				wantError = "fixture worker setup failed"
@@ -368,7 +368,7 @@ func TestSearchProtocolRejectsOversizedRequestBeforeLaunch(t *testing.T) {
 		req.Search.Paths[i] = fmt.Sprintf("%s%d", path, i)
 	}
 	cmd := searchProtocolCommand(t, context.Background(), "early_exit")
-	err := searchCommand(context.Background(), cmd, req, nil, func(_ SearchEvent) {})
+	err := (Client{}).searchCommand(context.Background(), cmd, req, nil, func(_ SearchEvent) {})
 	if err == nil || !strings.Contains(err.Error(), "request exceeds") || cmd.Process != nil {
 		t.Fatalf("oversized scope launched worker instead of rejecting admission: process=%v err=%v", cmd.Process, err)
 	}

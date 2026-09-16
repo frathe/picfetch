@@ -169,3 +169,16 @@ func ownedModule(pages byte, body []byte) []byte {
 		10, byte(len(body) + 3), 1, byte(len(body) + 1), 0}
 	return append(module, body...)
 }
+
+func TestNativeDenialErrorsRequirePermission(t *testing.T) {
+	for _, err := range []error{os.ErrPermission, &os.PathError{Op: "open", Path: "owned", Err: os.ErrPermission}} {
+		if !permissionDenied(err) {
+			t.Fatalf("permission refusal not recognized: %v", err)
+		}
+	}
+	for _, err := range []error{nil, os.ErrNotExist, context.DeadlineExceeded, errors.New("connection refused")} {
+		if permissionDenied(err) {
+			t.Fatalf("non-permission failure counted as isolation: %v", err)
+		}
+	}
+}

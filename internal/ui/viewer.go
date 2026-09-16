@@ -41,8 +41,9 @@ import (
 // viewer bundles the UI elements and the navigation state so the drop
 // handler and the key handler can share them without package-level globals.
 type viewer struct {
-	app fyne.App
-	win fyne.Window
+	images imageServices
+	app    fyne.App
+	win    fyne.Window
 	// stopping retires title/menu updates before shutdown cancels features.
 	// Fyne may run OnStopped after the native event loop has drained.
 	stopping bool

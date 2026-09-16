@@ -56,7 +56,7 @@ func (g *Overview) Warm() error {
 		}
 
 		version, _ := favthumbs.EntryName(u)
-		thumb, native, err := imaging.LoadThumbnailAndBoundsContext(ctx, u)
+		thumb, native, err := g.reader.Thumbnail(ctx, u, imaging.ThumbnailSize)
 		if err != nil {
 			return err
 		}
@@ -267,7 +267,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 			var err error
 			var native image.Rectangle
 			version, _ = favthumbs.EntryName(u)
-			if thumb, native, err = imaging.LoadThumbnailAndBoundsContext(ctx, u); err != nil {
+			if thumb, native, err = g.reader.Thumbnail(ctx, u, imaging.ThumbnailSize); err != nil {
 				// No retry here: release lets the cell's next update pass
 				// claim and try again, and the normal viewing path is
 				// where the file's actual error surfaces to the user.

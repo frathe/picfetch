@@ -12,10 +12,12 @@ type ApplyOptions struct {
 // Apply replaces the running executable at dest with stage.BinaryPath.
 // dest is os.Executable() from UI glue. A var so tests stub it.
 var Apply = func(stage Stage, dest string, options ApplyOptions) error {
-	switch runtime.GOOS {
-	case "windows":
-		return applyWindows(stage, dest, options)
-	default:
-		return applyUnix(stage, dest, options)
-	}
+	return applyWithCompanions(stage, dest, func() error {
+		switch runtime.GOOS {
+		case "windows":
+			return applyWindows(stage, dest, options)
+		default:
+			return applyUnix(stage, dest, options)
+		}
+	})
 }

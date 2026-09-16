@@ -38,7 +38,7 @@ var _ mosaicwin.Host = (*viewer)(nil)
 func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State) {
 	view.help = help.New(application, appTitle, assets.ComparingWebP)
 	view.welcomeArt.onCircles = view.help.ShowFinis
-	view.spiral = spiral.New(application)
+	view.spiral = spiral.NewWithReader(application, view.images.foreground)
 	view.spiral.SetOnManual(view.help.ShowManual)
 	view.help.SetOnSpiral(view.openSpiral)
 
@@ -46,7 +46,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// position poller; both doors reach the viewer-owned Spiral.
 	view.spiralDrag = wingesture.New(wingesture.Config{})
 	view.spiralGesture = view.openSpiralForGesture
-	view.exif = exifwin.New(application, view)
+	view.exif = exifwin.NewWithReader(application, view, view.images.foreground)
 
 	// Resolve these callbacks against the viewer at call time so tests can
 	// replace keyModifiers after construction.
@@ -111,12 +111,12 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 
 	// The thumbnail-cache setter reaches into the grid, so the grid must be
 	// registered before saved cache limits are applied.
-	view.grid = grid.New(view, window, view.dupes)
+	view.grid = grid.NewWithReader(view, window, view.dupes, view.images.background)
 	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
-		App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
+		Client: similarity.Client{HEIC: view.images.owner}, App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
 		Settings: explorerui.Settings{CacheFavorites: prefs.SimilarityFavoriteCache, AutoFit: prefs.SimilarityAutoFit, Automatic: prefs.SimilarityAutoUpdate, IntroSeen: prefs.SimilarityIntroSeen},
 	})
-	view.visualsearch = searchui.New(searchHost{view}, searchui.Options{})
+	view.visualsearch = searchui.New(searchHost{view}, searchui.Options{Provider: (similarity.Client{HEIC: view.images.owner}).Search})
 	view.grid.SetOnRankedOpen(view.searchImageOpened)
 	view.compare = compareui.New(
 		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {

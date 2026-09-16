@@ -15,10 +15,50 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/heicdecode"
+	heicclient "github.com/frathe/picfetch/internal/heicdecode/client"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/display"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestHEICDisplayAndPreloadUseInjectedReaders(t *testing.T) {
+	uri := func(name string) fyne.URI {
+		return uitest.ReaderURI(storage.NewFileURI("/"+name+".heic"), func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader([]byte(name))), nil
+		})
+	}
+	first, next := uri("first"), uri("next")
+	var foreground, background atomic.Int64
+	reader := func(calls *atomic.Int64, width int) imaging.Reader {
+		return imaging.NewReader(func(ctx context.Context, op heicdecode.Operation, input heicclient.Input) (heicdecode.Response, error) {
+			calls.Add(1)
+			if _, err := input(ctx, 128); err != nil {
+				return heicdecode.Response{}, err
+			}
+			if op != heicdecode.Decode {
+				return heicdecode.Response{}, heicdecode.ErrInvalidRequest
+			}
+			pixels := image.NewNRGBA64(image.Rect(0, 0, width, 3))
+			return heicdecode.Response{Image: pixels, Config: image.Config{Width: width, Height: 3}, Metadata: &heicdecode.Metadata{Make: "Owned"}}, nil
+		})
+	}
+	f := newPresentation(t, display.Config{Reader: reader(&foreground, 2), PreloadReader: reader(&background, 4), Callbacks: display.Callbacks{Presented: func(_ display.Snapshot) []fyne.URI { return []fyne.URI{next} }}})
+	f.Load(display.Request{Source: first})
+	f.Settle()
+	if f.Surface().Image == nil || f.Surface().Image.Bounds().Size() != image.Pt(2, 3) || !f.Snapshot().HasEXIF {
+		t.Fatal("foreground source did not reach presentation")
+	}
+	loaded, ok := f.cache.Get(next.String())
+	if !ok || loaded.Frames[0].Bounds().Size() != image.Pt(4, 3) || !loaded.HasEXIF || loaded.FileSize != 4 {
+		t.Fatal("preload source did not retain complete cache facts")
+	}
+	f.Load(display.Request{Source: next})
+	f.Settle()
+	if foreground.Load() != 1 || background.Load() != 1 || f.Surface().Image != loaded.Frames[0] {
+		t.Fatal("preload handoff decoded again or changed pixels")
+	}
+}
 
 func loadContract(t *testing.T) {
 	t.Run("cache generation", loadCacheGenerationContract)

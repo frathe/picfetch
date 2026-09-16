@@ -7,11 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +46,37 @@ func TestRejectsChangedHelperBeforeReadingSource(t *testing.T) {
 // TestMain also supplies an owned protocol peer. It is never a decoder or OS
 // sandbox test: these modes exercise only the parent's process/pipe boundary.
 func TestMain(m *testing.M) {
+	if len(os.Args) == 3 && (os.Args[1] == "--owned-heic-remote" || os.Args[1] == "--owned-heic-remote-cancel") {
+		var config PipeConfig
+		if err := json.Unmarshal([]byte(os.Args[2]), &config); err != nil {
+			os.Exit(2)
+		}
+		remote, err := OpenRemote(config)
+		if err != nil {
+			os.Exit(2)
+		}
+		ctx := context.Background()
+		if os.Args[1] == "--owned-heic-remote-cancel" {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, 500*time.Millisecond)
+			defer cancel()
+		}
+		result, err := remote.Do(ctx, heicdecode.Decode, func(_ context.Context, _ int64) ([]byte, error) { return []byte("owned inherited input"), nil })
+		remote.Stop()
+		remote.Wait()
+		if os.Args[1] == "--owned-heic-remote-cancel" {
+			if !errors.Is(err, context.DeadlineExceeded) {
+				os.Exit(2)
+			}
+			_, _ = fmt.Fprintln(os.Stdout, "owned remote cancellation complete")
+			os.Exit(0)
+		}
+		if err != nil || result.Image == nil || result.Image.Bounds() != image.Rect(0, 0, 1, 1) {
+			os.Exit(2)
+		}
+		_, _ = fmt.Fprintln(os.Stdout, "owned remote decode complete")
+		os.Exit(0)
+	}
 	if len(os.Args) == 3 && os.Args[1] == "--owned-heic-descendant" {
 		connection, err := net.DialTimeout("tcp4", os.Args[2], time.Second)
 		if err != nil {
@@ -63,7 +97,17 @@ func TestMain(m *testing.M) {
 		if err := heicdecode.WriteReady(os.Stdout, heicdecode.Ready{WASMMemoryBytes: limits.WASMMemoryBytes, NativeMemoryBytes: limits.OSProcessBytes}); err != nil {
 			os.Exit(2)
 		}
-		switch filepath.Base(os.Args[0]) {
+		switch strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") {
+		case "success":
+			request, err := heicdecode.ReadRequest(os.Stdin, limits)
+			if err != nil {
+				os.Exit(2)
+			}
+			result := heicdecode.Response{Image: image.NewNRGBA64(image.Rect(0, 0, 1, 1))}
+			if err = heicdecode.WriteResponse(os.Stdout, request.Operation, result, limits); err != nil {
+				os.Exit(2)
+			}
+			os.Exit(0)
 		case "hang":
 			// Remain alive with all pipes open until the parent terminates us.
 			for {
@@ -104,10 +148,14 @@ func ownedPeer(t *testing.T, mode string, timeout time.Duration) *Client {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), mode)
-	// A hard link preserves executable identity without a second binary-sized
-	// test allocation. Its basename selects an owned protocol behavior above.
-	if err = os.Link(executable, path); err != nil {
+	name := mode
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	path := filepath.Join(t.TempDir(), name)
+	// Its basename selects an owned protocol behavior above. Unix uses a
+	// hard link; Windows prepares an independent AppContainer-readable copy.
+	if err = installOwnedPeer(executable, path); err != nil {
 		t.Fatal(err)
 	}
 	file, err := os.Open(path)

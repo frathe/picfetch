@@ -9,11 +9,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
 
+	heicclient "github.com/frathe/picfetch/internal/heicdecode/client"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -45,6 +47,9 @@ func (d *workerDecoder) Decode(value any) error {
 // Assets may override the installed assets directory for a local trial.
 type Client struct {
 	Assets string
+	// HEIC is the application's shared admission owner. Nil preserves the
+	// existing unavailable-format behavior; workers never launch their own.
+	HEIC *heicclient.Client
 	// HTTPClient configures asset downloads; analysis never uses it.
 	HTTPClient *http.Client
 	// FavoritesDir supplies membership and, unless disabled, Favorite analysis.
@@ -58,13 +63,15 @@ type Client struct {
 }
 
 type request struct {
-	Search               *SearchRequest `json:",omitempty"`
+	HEIC                 *heicclient.PipeConfig `json:",omitempty"`
+	Search               *SearchRequest         `json:",omitempty"`
 	Assets               string
 	FavoritesDir         string
 	GeneralAnalysisDir   string
 	DisableFavoriteCache bool
 	Paths                []string
 	MaxEncodedBytes      int64
+	reader               imaging.Reader
 }
 
 // Analyze streams serialized immutable snapshots and waits for worker exit.
@@ -87,6 +94,15 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes()}
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
+	return c.analyzeCommand(ctx, cmd, req, controls, emit)
+}
+
+func (c Client) analyzeCommand(ctx context.Context, cmd *exec.Cmd, req request, controls <-chan Control, emit func(Event)) error {
+	link, err := c.attachHEIC(ctx, cmd, &req)
+	if err != nil {
+		return err
+	}
+	defer closeHEICAttachment(link)
 	input, err := cmd.StdinPipe()
 	if err != nil {
 		return err
@@ -101,6 +117,9 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	}
 	if err := cmd.Start(); err != nil {
 		return err
+	}
+	if link != nil {
+		link.Started()
 	}
 	stopWriter := make(chan struct{})
 	writerDone := make(chan struct{})
@@ -215,51 +234,56 @@ func WorkerMain() bool {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	var req request
 	input, err := controlInput()
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	defer func() { _ = input.Close() }()
-	decoder := newWorkerDecoder(input)
-	err = decoder.Decode(&req)
-	if err == nil {
-		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
-		if req.Search != nil {
-			if err := searchWorker(ctx, req, decoder, input); err != nil {
-				_, _ = fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			return true
-		}
-		readCtx, cancelRead := context.WithCancel(ctx)
-		controls := make(chan Control, 1)
-		readDone := make(chan struct{})
-		go func() {
-			defer close(readDone)
-			defer close(controls)
-			for {
-				var control Control
-				if err := decoder.Decode(&control); err != nil {
-					return
-				}
-				select {
-				case controls <- control:
-				case <-readCtx.Done():
-					return
-				}
-			}
-		}()
-		output := json.NewEncoder(os.Stdout)
-		err = analyzeLocal(ctx, req, controls, func(event Event) error { return output.Encode(event) })
-		cancelRead()
-		_ = input.Close()
-		<-readDone
-	}
-	if err != nil {
+	if err = runWorker(ctx, input); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	return true
+}
+
+func runWorker(ctx context.Context, input io.ReadCloser) error {
+	var req request
+	decoder := newWorkerDecoder(input)
+	if err := decoder.Decode(&req); err != nil {
+		return err
+	}
+	cleanup, err := openWorkerSource(&req)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
+	if req.Search != nil {
+		return searchWorker(ctx, req, decoder, input)
+	}
+	readCtx, cancelRead := context.WithCancel(ctx)
+	controls := make(chan Control, 1)
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		defer close(controls)
+		for {
+			var control Control
+			if err := decoder.Decode(&control); err != nil {
+				return
+			}
+			select {
+			case controls <- control:
+			case <-readCtx.Done():
+				return
+			}
+		}
+	}()
+	output := json.NewEncoder(os.Stdout)
+	err = analyzeLocal(ctx, req, controls, func(event Event) error { return output.Encode(event) })
+	cancelRead()
+	_ = input.Close()
+	<-readDone
+	return err
 }

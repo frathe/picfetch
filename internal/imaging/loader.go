@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
 	_ "github.com/fyne-io/image/xpm" // registers XPM with image.Decode
 	_ "github.com/gen2brain/avif"    // registers AVIF with image.Decode (WASM/wazero, no cgo)
 	_ "golang.org/x/image/bmp"       // registers BMP with image.Decode
@@ -227,12 +226,9 @@ func (e *InputTooLargeError) Error() string {
 	return fmt.Sprintf("file exceeds the %d-byte input limit", e.limit)
 }
 
-// ctxReader wraps r so a Read call fails with ctx's error once ctx is
-// done, instead of running r's Read to completion for a result a
-// cancelled load has already discarded. readRawBytes's io.ReadAll loop
-// calls Read repeatedly for anything bigger than one chunk, so this stops
-// a large or slow (e.g. network-mounted) file's read partway through
-// rather than only catching the cancellation before the next file starts.
+// ctxReader checks cancellation between reads. Reader also closes its source
+// on cancellation and joins the close callback; interruption of an already
+// blocked storage operation depends on that backend's Close implementation.
 type ctxReader struct {
 	ctx context.Context
 	r   io.Reader
@@ -243,49 +239,6 @@ func (cr ctxReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 	return cr.r.Read(p)
-}
-
-// readRawBytes reads u's contents into memory, up to MaxEncodedBytes - the
-// first step shared by ReadAndProbe (which goes on to decode the header)
-// and CaptureDate (which only needs the bytes to walk for Exif). ctx is
-// checked once up front, before even opening u - cheap enough there's no
-// reason not to, mirroring internal/filesort's Order - and then on every
-// Read the io.ReadAll loop makes, via ctxReader, so a load abandoned
-// partway through a large read stops doing I/O for it instead of finishing
-// unseen.
-func readRawBytes(ctx context.Context, u fyne.URI) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	rc, err := storage.Reader(u)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rc.Close() }()
-
-	// Read one byte past the limit rather than exactly up to it: io.ReadAll
-	// on a LimitReader returns the same short slice whether the file ended
-	// at the limit or was cut off there, so the extra byte is what
-	// distinguishes "fits exactly" from "too large".
-	limit := MaxEncodedBytes()
-
-	data, err := io.ReadAll(io.LimitReader(ctxReader{ctx: ctx, r: rc}, limit+1))
-	if err != nil {
-		return nil, err
-	}
-
-	// A backend may return its last bytes with EOF while cancellation arrives.
-	// Do not accept that read just because ReadAll needs no further Read call.
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	if int64(len(data)) > limit {
-		return nil, &InputTooLargeError{limit: limit}
-	}
-
-	return data, nil
 }
 
 // CaptureDate is the compatibility form of CaptureDateContext. Unreadable or
@@ -301,37 +254,21 @@ func CaptureDate(u fyne.URI) (time.Time, bool) {
 // Context checks surround the non-interruptible metadata walk. A Read already
 // blocked in the storage backend must return before cancellation can stop I/O.
 func CaptureDateContext(ctx context.Context, u fyne.URI) (time.Time, bool, error) {
-	data, err := readRawBytes(ctx, u)
-	if err != nil {
-		return time.Time{}, false, err
-	}
-	date := ReadMetadata(data).DateTakenTime
-	if err := ctx.Err(); err != nil {
-		return time.Time{}, false, err
-	}
-	return date, !date.IsZero(), nil
+	return (Reader{}).CaptureDate(ctx, u)
 }
 
-// ReadAndProbe reads u's raw bytes and decodes just its header - via
-// image.DecodeConfig, so no pixel data is touched - to learn its final
-// display size and reject a zero or absurdly large one instantly, without
-// paying for a full decode that was only going to be thrown away. bounds
-// already accounts for any Exif orientation swap (a 90/270 degree rotation
-// exchanges width and height), so a caller can resize the window to it
-// ahead of the full pixel decode in DecodeLoaded. This is also the natural
-// hook for a future downsampling pass on huge-but-valid images.
-//
-// ctx is threaded through to readRawBytes, which is where the actual I/O
-// happens - see its own comment. A caller (internal/ui's attemptLoad/
-// preloadOne) whose generation has been superseded by a newer navigation
-// or drop cancels ctx instead of just discarding the result once it comes
-// back, so an abandoned load stops doing I/O instead of finishing unseen.
+// ReadAndProbe is the byte-oriented compatibility path for ordinary images.
+// Bounds include Exif orientation. HEIC-aware callers use their injected Reader
+// and Source.Decode, because isolated output has no native encoded-byte path.
 func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Rectangle, err error) {
-	data, err = readRawBytes(ctx, u)
-
+	source, err := (Reader{}).Read(ctx, u)
 	if err != nil {
 		return nil, image.Rectangle{}, err
 	}
+	return source.encoded, source.bounds, nil
+}
+
+func probeEncoded(data []byte) ([]byte, image.Rectangle, error) {
 
 	if isSVGData(data) {
 		if len(data) > maxSVGBytes {

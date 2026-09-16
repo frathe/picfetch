@@ -46,7 +46,6 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	cmd := exec.Command(c.config.Executable, "--heic-worker-v2", string(limitsJSON), readPath, writePath, tcp.Addr().String(), udp.LocalAddr().String())
 	cmd.Env = []string{"GOMAXPROCS=1"}
 	cmd.Dir = string(filepath.Separator)
-	configureProcess(cmd)
 	var pipes []*os.File
 	defer func() {
 		for _, file := range pipes {
@@ -73,7 +72,8 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		return empty, err
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = inRead, outWrite, errWrite
-	if err = cmd.Start(); err != nil {
+	process, err := startProcess(cmd, c.config.Limits)
+	if err != nil {
 		return empty, fmt.Errorf("%w: launch: %v", ErrUnavailable, err)
 	}
 	_ = inRead.Close()
@@ -86,7 +86,7 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	cancelWork.Add(1)
 	context.AfterFunc(ctx, func() {
 		defer cancelWork.Done()
-		killProcess(cmd)
+		process.Kill()
 		_ = inWrite.Close()
 		_ = outRead.Close()
 		_ = errRead.Close()
@@ -111,7 +111,7 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		cancelWork.Wait()
 		// Kill the group before reaping its leader, so its PID cannot be
 		// recycled between Wait and a late cancellation callback.
-		processErr := cmd.Wait()
+		processErr := process.Wait()
 		pipeWork.Wait()
 		if diagnosticErr != nil {
 			result = empty
@@ -160,4 +160,11 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		return empty, err
 	}
 	return decoded, nil
+}
+
+// Each platform owns family termination and a final join. Windows creates a
+// suspended AppContainer process rather than asking exec.Cmd to start it.
+type helperProcess interface {
+	Kill()
+	Wait() error
 }

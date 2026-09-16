@@ -110,7 +110,7 @@ func (v *viewer) startSort(mode filesort.Mode, unsorted []fyne.URI, onDone func(
 	v.ForceRepaint()
 
 	go func() {
-		ordered := filesort.Order(token.context(), mode, unsorted)
+		ordered := filesort.OrderWithReader(token.context(), mode, unsorted, v.images.background)
 		fyne.Do(func() {
 			v.finishSort(token, ordered, sortDone, onDone)
 		})

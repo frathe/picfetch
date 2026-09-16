@@ -1,13 +1,13 @@
-//go:build !darwin && !linux
+//go:build !darwin && !linux && (!windows || (!amd64 && !arm64))
 
 package client
 
-import "os/exec"
+import (
+	"os/exec"
 
-func configureProcess(_ *exec.Cmd) {}
+	"github.com/frathe/picfetch/internal/heicdecode"
+)
 
-func killProcess(cmd *exec.Cmd) {
-	if cmd.Process != nil {
-		_ = cmd.Process.Kill()
-	}
+func startProcess(_ *exec.Cmd, _ heicdecode.Limits) (helperProcess, error) {
+	return nil, ErrUnavailable
 }

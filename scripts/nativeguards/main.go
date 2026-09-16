@@ -49,7 +49,7 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.require("internal/wallpaper", "TestSetWindows_TargetPreservesOpaqueIDAndUnicodePath", "TestSetWindows_TargetValidationFailsBeforeMutation")
 		s.require("internal/clipboard", "TestCopyFilesWindows_DecodesUTF8WithNonUTF8Default")
 		s.require("internal/filepicker", "TestWindowsPickerTransport_EmitsUTF8PathArrays")
-		s.require("internal/update", "TestApplyWindows_ReplacesDestAndKeepsOld", "TestApplyWindows_MissingStagedBinaryRestoresDest", "TestWindowsRelaunchCommand_PassesThePIDInTheInheritedEnvironment", "TestClassifyApplyError_WindowsErrno", "TestWaitMilliseconds_NeverConvertsToAnUnboundedWait")
+		s.require("internal/update", "TestApplyWindows_ReplacesDestAndKeepsOld", "TestApplyWindows_MissingStagedBinaryRestoresDest", "TestWindowsRelaunchCommand_PassesThePIDInTheInheritedEnvironment", "TestClassifyApplyError_WindowsErrno", "TestWaitMilliseconds_NeverConvertsToAnUnboundedWait", "TestDownloadedCompanionsRemainVerifiedAfterPersistence", "TestApplyInstallsCompanionsAndRollsBackOnBinaryFailure")
 		s.require("internal/ui/autoupdate", "TestUpdater_AutomaticAndManualShareCompleteTransaction", "TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform")
 		s.require("internal/distribution", "TestStoreManaged_DefaultBuildIsFalse")
 	case "macos":
@@ -63,6 +63,19 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.goos = "darwin"
 		s.tags = "heicnative"
 		s.require("internal/heicdecode/client", "TestNativeMacSandboxHelper", "TestNativeMacRuntimeChoice")
+		s.require("internal/update", "TestNativeMacUpdatePreservesSignedBundle", "TestNativeMacLegacyUpdateRequiresCompleteReinstall")
+	case "heic-linux":
+		s.goos = "linux"
+		s.tags = "heicnative"
+		s.require("internal/heicdecode/worker", "TestNativeLinuxRuntimePolicy")
+		s.require("internal/heicdecode/client", "TestNativeSandboxHelper")
+	case "heic-windows":
+		s.goos = "windows"
+		s.tags = "heicnative"
+		s.require("internal/heicdecode/winisolation", "TestNativeWindowsJobAndToken", "TestNativeWindowsUnsandboxedRefused")
+		s.require("internal/heicdecode/client", "TestNativeSandboxHelper")
+		s.require("internal/heicdecode/client", "TestInheritedRemoteUsesOwner", "TestInheritedRemoteCancellationJoins", "TestAttachmentStopWithoutProcessStartJoinsOwner", "TestRemoteQueuedCancellationReleasesService", "TestRemoteOutputRetainsAdmissionAndStopJoins")
+		s.require("internal/similarity", "TestAnalysisWorkersUseHEICOwner", "TestAnalysisHEICAttachmentStartFailureJoins")
 	case "store":
 		s.tags = "microsoftstore"
 		s.require("internal/distribution", "TestStoreManaged_MicrosoftStoreBuildIsTrue")
@@ -165,7 +178,7 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("nativeguards", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	name := flags.String("suite", "", "windows, macos, heic-macos, or store")
+	name := flags.String("suite", "", "windows, macos, heic-macos, heic-linux, heic-windows, or store")
 	capturePath := flags.String("capture", "", "raw go test JSON output path")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -174,7 +187,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *capturePath == "" {
-		return errors.New("usage: nativeguards -suite windows|macos|heic-macos|store -capture <json-file>")
+		return errors.New("usage: nativeguards -suite windows|macos|heic-macos|heic-linux|heic-windows|store -capture <json-file>")
 	}
 	s, err := suiteFor(*name, runtime.GOOS)
 	if err != nil {
@@ -188,6 +201,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 	defer cancel()
 	execute := func(ctx context.Context, args []string, out io.Writer) error {
 		cmd := exec.CommandContext(ctx, "go", args...)
+		if s.name == "heic-linux" {
+			// The standalone Linux helper policy supports the pure Go runtime.
+			cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+		}
 		cmd.Stdout = out
 		cmd.Stderr = stderr
 		return cmd.Run()

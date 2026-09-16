@@ -2,6 +2,7 @@ package spiral
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -16,8 +17,38 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/heicdecode"
+	heicclient "github.com/frathe/picfetch/internal/heicdecode/client"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestTunnelUsesInjectedHEICReader(t *testing.T) {
+	reader := imaging.NewReader(func(ctx context.Context, op heicdecode.Operation, input heicclient.Input) (heicdecode.Response, error) {
+		if op != heicdecode.Decode {
+			return heicdecode.Response{}, heicdecode.ErrInvalidRequest
+		}
+		if _, err := input(ctx, 128); err != nil {
+			return heicdecode.Response{}, err
+		}
+		return heicdecode.Response{Image: image.NewNRGBA64(image.Rect(0, 0, 8, 6)), Config: image.Config{Width: 8, Height: 6}}, nil
+	})
+	s := NewWithReader(test.NewApp(), reader)
+	s.SetUIQueue(&uitest.UIQueue{})
+	s.frameInterval = time.Minute
+	s.st.randomness = 0
+	s.now = func() time.Time { return time.Unix(1000, 0) }
+	t.Cleanup(func() { s.Close(); waitSettled(t, s) })
+	u := storage.NewFileURI(uitest.WriteTempFile(t, "owned.heic", []byte("owned source")))
+	s.Show([]fyne.URI{u})
+	s.win.Resize(fyne.NewSize(800, 600))
+	s.previewWorkers.Wait()
+	s.ui.Drain()
+	pixels := s.shader.Textures["traveller0"]
+	if pixels == nil || pixels.Bounds().Size() != image.Pt(8, 6) {
+		t.Fatal("isolated preview did not reach the Spiral shader")
+	}
+}
 
 func BenchmarkAdvanceTunnel(b *testing.B) {
 	a := test.NewApp()

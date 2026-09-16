@@ -36,6 +36,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/frathe/picfetch/internal/imaging"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/lang"
@@ -58,7 +60,8 @@ const followEpsilon = 0.5
 // without opening anything, so the app can construct it at startup and pay
 // nothing until someone actually finds it.
 type Spiral struct {
-	app fyne.App
+	reader imaging.Reader
+	app    fyne.App
 
 	// win is the open window, nil whenever it is closed. Read and written
 	// only on Fyne's UI goroutine (Show, Close, the SetOnClosed callback,
@@ -124,7 +127,13 @@ type Spiral struct {
 // construct unconditionally at startup: no window, no goroutine, no shader
 // - just the state the first Show will seed its uniforms from.
 func New(app fyne.App) *Spiral {
+	return NewWithReader(app, imaging.Reader{})
+}
+
+// NewWithReader installs the canonical source dependency before work starts.
+func NewWithReader(app fyne.App, reader imaging.Reader) *Spiral {
 	return &Spiral{
+		reader:        reader,
 		app:           app,
 		st:            newState(),
 		frameInterval: defaultFrameInterval,

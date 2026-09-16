@@ -202,12 +202,12 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 			done()
 			return
 		}
-		var data []byte
+		var metadata imaging.MetadataInfo
 		var infoErr error
 		if !reload {
-			data, _, infoErr = imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+			metadata, infoErr = v.images.foreground.InspectMetadata(ctx, storage.NewFileURI(path))
 		}
-		hasEXIF := !imaging.ReadMetadata(data).Empty()
+		hasEXIF := !metadata.Values.Empty()
 		if ctx.Err() != nil {
 			done()
 			return
@@ -227,7 +227,7 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 				return
 			}
 			if infoErr == nil {
-				v.info.SetFile(int64(len(data)), hasEXIF, false)
+				v.info.SetFile(metadata.FileSize, hasEXIF, false)
 				v.syncInfoOverlayVisibility()
 				v.updateInfoOverlay()
 			}

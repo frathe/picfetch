@@ -69,14 +69,14 @@ func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.
 			}
 			continue
 		}
-		data, _, err := imaging.ReadAndProbe(ctx, uri)
+		source, err := v.images.foreground.Read(ctx, uri)
 		if err != nil {
 			if !writer.Current() {
 				continue
 			}
 			return nil, err
 		}
-		loaded, err := imaging.DecodeRecord(ctx, data, v.imgCache.Budget())
+		loaded, err := source.Decode(ctx, v.imgCache.Budget())
 		if !writer.Current() {
 			continue
 		}

@@ -41,6 +41,7 @@ const hideApplyMinInterval = 250 * time.Millisecond
 // does have to touch the overlay comes back through Run's apply callback
 // instead (Overview.hashFactsReady).
 type hashEngine struct {
+	reader imaging.Reader
 	// host, pool, thumbs, model and ui are the Overview's own, shared
 	// rather than copied: the engine hashes onto the same decode pool the
 	// cells decode on - which is what keeps Settle's decodes.Wait barrier
@@ -172,7 +173,7 @@ func (e *hashEngine) Run(ctx context.Context, apply func(remaining int32, gen ui
 			if thumb == nil {
 				var err error
 				version, _ = favthumbs.EntryName(file)
-				thumb, native, err = imaging.LoadThumbnailAndBoundsContext(ctx, file)
+				thumb, native, err = e.reader.Thumbnail(ctx, file, imaging.ThumbnailSize)
 				if workCancelled(ctx, err) {
 					return
 				}
@@ -203,7 +204,11 @@ func (e *hashEngine) Run(ctx context.Context, apply func(remaining int32, gen ui
 						return
 					}
 				} else {
-					_, b, err := imaging.ReadAndProbe(ctx, file)
+					source, err := e.reader.Read(ctx, file)
+					var b image.Rectangle
+					if err == nil {
+						b = source.Bounds()
+					}
 					if workCancelled(ctx, err) {
 						return
 					}

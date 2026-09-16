@@ -41,6 +41,8 @@ profile:
 #Specify Qodana linter for analysis (Applied in CI/CD pipeline)
 linter: jetbrains/qodana-go:2026.2
 include:
+  # Preserve reviewed codec variants for exact source comparison. Keep this
+  # generated paths list contiguous so sync-qodana-test-exclusions can update it.
   - name: DuplicatedCode
 # Shared table-test scaffolding is intentionally excluded from DuplicatedCode
 # because it reads better repeated than extracted; production duplication
@@ -99,6 +101,8 @@ exclude:
   - name: GoResourceLeak
     paths:
       - "internal/clipboard/clipboard.go"
+  # Preserve reviewed codec variants for exact source comparison. Keep this
+  # generated paths list contiguous so sync-qodana-test-exclusions can update it.
   - name: DuplicatedCode
     paths:
       - "internal/appearance/appearance_test.go"
@@ -131,14 +135,24 @@ exclude:
       - "internal/hdbscan/hdbscan_test.go"
       - "internal/hdbscan/labels_test.go"
       - "internal/hdbscan/sets_test.go"
+      - "internal/heicdecode/client/admission_test.go"
+      - "internal/heicdecode/client/attachment_test.go"
       - "internal/heicdecode/client/client_test.go"
       - "internal/heicdecode/client/native_darwin_test.go"
+      - "internal/heicdecode/client/native_platform_test.go"
+      - "internal/heicdecode/client/package_test.go"
+      - "internal/heicdecode/client/peer_other_test.go"
+      - "internal/heicdecode/client/peer_windows_test.go"
       - "internal/heicdecode/client/process_unix_test.go"
+      - "internal/heicdecode/client/remote_test.go"
       - "internal/heicdecode/metadata_test.go"
       - "internal/heicdecode/protocol_test.go"
       - "internal/heicdecode/ready_test.go"
       - "internal/heicdecode/request_test.go"
       - "internal/heicdecode/response_test.go"
+      - "internal/heicdecode/winisolation/native_windows_test.go"
+      - "internal/heicdecode/worker/linux_filter_test.go"
+      - "internal/heicdecode/worker/native_linux_test.go"
       - "internal/heicdecode/worker/runtime_test.go"
       - "internal/imaging/avif_policy_test.go"
       - "internal/imaging/bytecache_test.go"
@@ -157,6 +171,7 @@ exclude:
       - "internal/imaging/preview_test.go"
       - "internal/imaging/raw_test.go"
       - "internal/imaging/save_test.go"
+      - "internal/imaging/source_test.go"
       - "internal/imaging/svg_test.go"
       - "internal/imaging/thumbnail_test.go"
       - "internal/imaging/tiffbounds_test.go"
@@ -180,6 +195,7 @@ exclude:
       - "internal/similarity/cache_store_test.go"
       - "internal/similarity/cache_test.go"
       - "internal/similarity/grouping_test.go"
+      - "internal/similarity/heic_test.go"
       - "internal/similarity/offline_test.go"
       - "internal/similarity/search_pipeline_test.go"
       - "internal/similarity/search_protocol_test.go"
@@ -280,6 +296,7 @@ exclude:
       - "internal/ui/help/mascot_test.go"
       - "internal/ui/help/search_test.go"
       - "internal/ui/help/whatsnew_test.go"
+      - "internal/ui/images_test.go"
       - "internal/ui/imgcache_test.go"
       - "internal/ui/info_test.go"
       - "internal/ui/infoview/card_test.go"
@@ -351,9 +368,11 @@ exclude:
       - "internal/update/await_test.go"
       - "internal/update/await_windows_test.go"
       - "internal/update/checksums_test.go"
+      - "internal/update/companions_test.go"
       - "internal/update/download_test.go"
       - "internal/update/extract_test.go"
       - "internal/update/github_test.go"
+      - "internal/update/package_native_darwin_test.go"
       - "internal/update/swap_test.go"
       - "internal/update/tufroot_repo_test.go"
       - "internal/update/tufroot_test.go"
@@ -379,6 +398,7 @@ exclude:
       - "scripts/explorereval/trial_test.go"
       - "scripts/heicbuild/guest_test.go"
       - "scripts/heicbuild/main_test.go"
+      - "scripts/heicpackage/main_test.go"
       - "scripts/msixstage/msixstage_test.go"
       - "scripts/nativeguards/main_test.go"
       - "scripts/plistdoctypes/doctypes_test.go"
@@ -392,3 +412,102 @@ exclude:
       - "scripts/updaternotices/main_test.go"
       - "scripts/wingettag/tag_test.go"
       - "scripts/wingettag/workflow_test.go"
+      - "third_party/h265/heic/color_amd64.go"
+      - "third_party/h265/heic/color_arm64.go"
+      - "third_party/h265/heic/color_riscv64.go"
+      - "third_party/h265/heic/color_row.go"
+      - "third_party/h265/heic/gridenc.go"
+      - "third_party/h265/hevc/ctu.go"
+      - "third_party/h265/hevc/dsp_amd64.go"
+      - "third_party/h265/hevc/dsp_arm64.go"
+      - "third_party/h265/hevc/dsp_riscv64.go"
+      - "third_party/h265/hevc/headers.go"
+      - "third_party/h265/hevc/inter.go"
+      - "third_party/h265/hevc/interpred.go"
+      - "third_party/h265/hevc/lossyenc.go"
+      - "third_party/h265/hevc/rdoq.go"
+      - "third_party/h265/hevc/residual.go"
+      - "third_party/h265/hevc/residualenc.go"
+      - "third_party/h265/hevc/sao.go"
+      - "third_party/h265/hevc/saoenc.go"
+      - "third_party/h265/hevc/slice.go"
+      - "third_party/h265/hevc/transformenc.go"
+
+  # Retained decoder source: build-specific/public API declarations and Go
+  # assembly are preserved byte-for-byte. See third_party/h265/PICFETCH.md.
+  - name: GoUnusedParameter
+    paths:
+      - "third_party/h265/heic/color_amd64.go"
+      - "third_party/h265/heic/color_arm64.go"
+      - "third_party/h265/heic/color_riscv64.go"
+      - "third_party/h265/hevc/dsp_amd64.go"
+      - "third_party/h265/hevc/dsp_arm64.go"
+      - "third_party/h265/hevc/dsp_riscv64.go"
+  - name: GoUnusedExportedFunction
+    paths:
+      - "third_party/h265/heic/encode.go"
+      - "third_party/h265/heic/exif.go"
+      - "third_party/h265/heic/heic.go"
+      - "third_party/h265/hevc/nal.go"
+  - name: GoUnusedFunction
+    paths:
+      - "third_party/h265/heic/ycbcr.go"
+      - "third_party/h265/hevc/itransform.go"
+      - "third_party/h265/hevc/nal.go"
+      - "third_party/h265/hevc/residual.go"
+  - name: GoUnusedConst
+    paths:
+      - "third_party/h265/hevc/cabac_tables.go"
+      - "third_party/h265/hevc/nal.go"
+  - name: GoUnusedType
+    paths:
+      - "third_party/h265/hevc/mvpred.go"
+  - name: All
+    paths:
+      - "third_party/h265/heic/color_amd64.s"
+      - "third_party/h265/heic/color_arm64.s"
+      - "third_party/h265/heic/color_riscv64.s"
+      - "third_party/h265/heic/cpu_amd64.s"
+      - "third_party/h265/hevc/cpu_amd64.s"
+      - "third_party/h265/hevc/deblock_amd64.s"
+      - "third_party/h265/hevc/deblock_arm64.s"
+      - "third_party/h265/hevc/deblock_riscv64.s"
+      - "third_party/h265/hevc/dequant_amd64.s"
+      - "third_party/h265/hevc/dequant_arm64.s"
+      - "third_party/h265/hevc/dequant_riscv64.s"
+      - "third_party/h265/hevc/idct_amd64.s"
+      - "third_party/h265/hevc/idct_arm64.s"
+      - "third_party/h265/hevc/idct_riscv64.s"
+      - "third_party/h265/hevc/interpred_amd64.s"
+      - "third_party/h265/hevc/interpred_arm64.s"
+      - "third_party/h265/hevc/interpred_bi_amd64.s"
+      - "third_party/h265/hevc/interpred_bi_arm64.s"
+      - "third_party/h265/hevc/interpred_bi_riscv64.s"
+      - "third_party/h265/hevc/interpred_copy_amd64.s"
+      - "third_party/h265/hevc/interpred_copy_arm64.s"
+      - "third_party/h265/hevc/interpred_copy_riscv64.s"
+      - "third_party/h265/hevc/interpred_riscv64.s"
+      - "third_party/h265/hevc/interpred_tap_amd64.s"
+      - "third_party/h265/hevc/interpred_tap_arm64.s"
+      - "third_party/h265/hevc/interpred_tap_riscv64.s"
+      - "third_party/h265/hevc/interpred_tapv_amd64.s"
+      - "third_party/h265/hevc/interpred_tapv_arm64.s"
+      - "third_party/h265/hevc/interpred_tapv_riscv64.s"
+      - "third_party/h265/hevc/intrapred_amd64.s"
+      - "third_party/h265/hevc/intrapred_arm64.s"
+      - "third_party/h265/hevc/intrapred_riscv64.s"
+      - "third_party/h265/hevc/itransform_amd64.s"
+      - "third_party/h265/hevc/itransform_arm64.s"
+      - "third_party/h265/hevc/itransform_riscv64.s"
+      - "third_party/h265/hevc/satd_amd64.s"
+      - "third_party/h265/hevc/satd_arm64.s"
+      - "third_party/h265/hevc/satd_riscv64.s"
+      - "third_party/h265/hevc/sse_amd64.s"
+      - "third_party/h265/hevc/sse_arm64.s"
+      - "third_party/h265/hevc/sse_riscv64.s"
+      - "third_party/h265/hevc/transformenc_amd64.s"
+      - "third_party/h265/hevc/transformenc_arm64.s"
+      - "third_party/h265/hevc/transformenc_riscv64.s"
+      - "third_party/h265/hevc/transpose_amd64.s"
+      - "third_party/h265/hevc/transpose_arm64.s"
+      - "third_party/h265/hevc/transpose_riscv64.s"
