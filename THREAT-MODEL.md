@@ -123,10 +123,11 @@ HEIC refusal does not trigger parent metadata parsing or RAW/JPEG fallback.
 
 The [runtime](internal/heicdecode/worker/runtime.go) supplies bounded standard
 streams without guest filesystem mounts, environment, clock, randomness or
-sockets. It caps WASM linear memory at **1 GiB** and reserves the capped backing
-store once to avoid transient old/new buffers on growth. This does not cap the
-native Go/wazero process or parent/cached pixel storage. The native Go memory
-target remains soft.
+sockets. It caps WASM linear memory at **1 GiB**. Growth can temporarily retain
+old and replacement backing buffers; the linear-memory ceiling does not cover
+that overlap, the native Go/wazero process or parent/cached pixels. Eager
+reservation was rejected after it broke native Linux qualification. The native
+Go memory target remains soft.
 
 [Limits](internal/heicdecode/limits.go) permit at most **64 MiB encoded input**,
 **64 million pixels**, **256,000,000 output bytes**, **64 KiB normalized metadata**,
@@ -151,8 +152,8 @@ boundaries. A decoder failure, runtime compromise and OS sandbox escape are
 separate events. The fixed module, Go, wazero and kernel are trusted components;
 containment is not proof of absence of defects. See the qualification record for
 native execution evidence, executable-memory tradeoff and incomplete package
-checks. A stricter memory reservation may refuse a job when native headroom is
-insufficient; raising limits or dropping isolation is not a fallback.
+checks. Insufficient native headroom may refuse a job; raising limits or
+dropping isolation is not a fallback.
 
 Container transforms run in the guest. ICC/wide-gamut/HDR presentation is not
 implemented: some such files can decode into untagged pixels rather than being

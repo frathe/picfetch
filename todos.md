@@ -98,14 +98,15 @@ package/update handling. Production construction still supplies no HEIC owner.
 The September 16 [history reconciliation](docs/heic/history-reconciliation.md)
 accounts for `fc127b44` and `73cb3c9`: all 107 production/source-license files
 were preserved byte for byte. It restores the current app-wide threat model,
-fixed WASM backing storage, Qodana YAML guard, four ordinary fixtures and Fyne
-metadata ignore rule. Focused race/interpreter tests, native Apple Silicon
+Qodana YAML guard, four ordinary fixtures and Fyne metadata ignore rule. The
+historical eager WASM allocation option was withdrawn after fresh native Linux
+CI failed; existing memory ceilings and sandbox policy remain intact. Focused race/interpreter tests, native Apple Silicon
 guards, build/provenance/import checks and GoLand inspections pass. No complete
 historical decoder-suite equivalence is claimed.
 
 Remaining qualification:
 
-- Fresh native CI must exercise the restored memory configuration. On baseline
+- Fresh native CI must verify the withdrawn eager-allocation trial. On baseline
   `52ed2df`, Linux amd64/arm64 and macOS Intel/Apple Silicon helper guards and
   all UI race shards pass; Windows HEIC guards and the non-UI Linux race job
   fail. The CI/GitHub review agent remains paused at Ronin's request. Review

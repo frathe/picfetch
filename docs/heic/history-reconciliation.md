@@ -17,7 +17,7 @@ existing Deep plan rather than replacing the new helper architecture.
 | --- | --- |
 | Preserved decoder hardening | Compare all 107 `PICFETCH-SOURCE.json` entries byte for byte against `fc127b44`; `make check-heic-wasm`. |
 | Qodana YAML rejected before path checks | `go test ./scripts/qodanaconfig`; actual Make gate rejects malformed YAML in an isolated temporary checkout. |
-| Fixed guest backing storage and unchanged ceiling | `TestRuntimeMemoryGrowthReusesBacking` under compiler and interpreter; owned runtime regression suite and native macOS helper tests. |
+| Evaluate historical eager memory allocation without breaking isolation | Trial runtime/native guards, then restore the prior allocation strategy if current native constraints reject it; keep all memory and sandbox limits unchanged. |
 | Useful ordinary compatibility coverage restored | `make test-h265` through the fixed WASI artifact; exact fixture hashes/provenance in testdata README. |
 | Current app-wide threat model | Check relative links and review every changed assertion against the current source/qualification record. |
 | Reviewable publication | Focused tests, build/provenance/import/Qodana/shard checks, GoLand inspections, signed commit and matching GitHub PR head. |
@@ -40,10 +40,10 @@ non-vendored path changed by that commit, grouped by responsibility.
 | `go.mod`, `go.sum` | Current root/guest replacements select the exact maintained h265 source; removed Rust decoder remains absent. |
 | `internal/heicdecode/client.go`, `command_unix.go`, `command_windows.go`, `worker.go` | Replaced by dedicated `cmd/picfetch-heic-worker`, `client/`, `worker/` and `winisolation/`, with shared app-family admission and native restrictions. Do not restore self-execution/ordinary-privilege launch. |
 | `internal/heicdecode/register.go`, `internal/imaging/heic.go` | Replaced by explicit injected `imaging.Reader`/`Source`; production activation remains disabled instead of globally registering HEIC. |
-| `internal/heicdecode/runtime.go` | Replaced by `worker/runtime.go`; restore capped one-time backing storage with a real memory-growth regression. |
+| `internal/heicdecode/runtime.go` | Replaced by `worker/runtime.go`. Historical eager maximum-capacity allocation was trialed, then withdrawn after native Linux failures; the existing linear/native ceilings remain unchanged. |
 | `internal/heicdecode/wire/wire.go` | Current codec-free request/response/readiness/metadata protocol replaces it; retains bounded NRGBA8/NRGBA64 transport. |
 | `internal/heicdecode/decoder.json`, `decoder.wasm`, `scripts/heicwasm/main.go`, `scripts/heicwasmbuild/main.go` | Superseded by separate `scripts/heicguest`, `scripts/heicbuild`, its exact manifest and helper-only embedded artifact. |
-| `internal/heicdecode/client_test.go`, `runtime_test.go`, `testdata/capabilities/main.go` | Current owned process/IPC/memory/cancellation/capability tests cover the new boundary. Restore the omitted memory-growth allocation property; old test binaries and protocol are not current tests. |
+| `internal/heicdecode/client_test.go`, `runtime_test.go`, `testdata/capabilities/main.go` | Current owned process/IPC/memory/cancellation/capability tests cover the new boundary. Current ceiling/cancellation tests remain; the trial stable-backing regression was removed with the incompatible eager-allocation option. Old test binaries and protocol are not current tests. |
 | `internal/imaging/exif.go`, `loader.go`, `internal/similarity/analyze.go`, `facts.go`, `search_worker.go`, `internal/ui/exifwin/metadata.go`, `filework.go` | Current injected reader and shared analysis pipes propagate context, validated pixels and metadata; byte-only helpers refuse HEIC/native preview fallback. |
 | `internal/imaging/heic_test.go` | Current source, native-helper and guest tests cover admission, upright metadata/pixels, cancellation, alpha and explicit ten-bit output. Extend ordinary container/chroma coverage below; no claim of full historical test equivalence. |
 | `internal/imaging/heic_leak_test.go` | Legacy in-process/RSS comparison does not qualify the new process-family budget. Native memory/cleanup guards and platform qualification replace that claim. |
@@ -88,9 +88,10 @@ historical evidence; it is not copied as an assertion of current behavior.
 
 - Before changes, the actual Make exclusion-check recipe accepted malformed
   `exclude: [` YAML (exit 0) in an isolated temporary repository.
-- Before memory preallocation, both owned memory-growth regression cases
-  failed because growth replaced the backing buffer; restoring the setting
-  passes while preserving refusal above the two-page ceiling.
+- In the allocation trial, both owned memory-growth regression cases first
+  failed because growth replaced the backing buffer, then passed with eager
+  reservation while preserving ceiling refusal. This was not sufficient native
+  qualification; the option and its pointer-stability test were later removed.
 - The YAML validator's five cases pass. The actual Make gate now rejects the
   same malformed YAML and accepts valid configuration. Exact Qodana exclusions
   include the new test file.
@@ -103,8 +104,8 @@ historical evidence; it is not copied as an assertion of current behavior.
   assets/notices, source and artifact reproducibility, native import guards,
   vet and build. The initial restricted-cache failure was rerun with access to
   the existing Go cache; no source or policy was weakened.
-- `make heic-native-macos` passes all four required Apple Silicon guards with
-  preallocation enabled: sandbox/readiness/decode/cancellation, both runtime
+- `make heic-native-macos` passes all four required Apple Silicon guards during
+  the preallocation trial: sandbox/readiness/decode/cancellation, both runtime
   engines, signed bundle install/rollback, and the legacy upgrade limitation.
   The interpreter's expected deadline is a successful containment check, not
   a claim that it decoded the 12MP image.
@@ -125,5 +126,31 @@ the resulting commit and remote-head verification. Production activation and
 the separately paused CI/GitHub review loop are outside this reconciliation's
 completion claim. At baseline `52ed2df`, native Linux/macOS guards and all UI
 race shards passed, while Windows HEIC guards and the non-UI Linux race job
-failed. Those results do not qualify the new memory configuration on other
-platforms; fresh CI is required.
+failed. Fresh CI must verify the reconciliation and its native Linux correction.
+
+### Native Linux regression caught before handoff
+
+Signed trial commit `30f5b10` reached PR #28 and triggered native CI run
+[35064245412](https://github.com/frathe/picfetch/actions/runs/35064245412).
+Both Linux architectures failed `TestNativeSandboxHelper` on the ordinary
+ten-bit and 12MP fixtures; they passed at `52ed2df`. The amd64 event artifact
+records a closed response pipe and `HEIC helper exceeded diagnostic limit`
+for both fixtures. The native policy guard itself passed. Bounded diagnostics
+intentionally discard content, so no exact inner fatal message is claimed.
+
+The only production runtime change was `WithMemoryCapacityFromMax(true)`.
+Eager allocation competes with host/runtime mappings under the 2 GiB Linux
+address-space ceiling, but the precise allocation-versus-policy mechanism is
+not established by the captured error. The useful-omissions scope does not
+justify a new allocator or a larger security budget. Restore `runtime.go` and
+`runtime_test.go` exactly to `52ed2df`, retaining the existing ceiling tests,
+and require the unchanged native Linux guards to pass again. All sandbox,
+WASM/native memory, diagnostic and deadline limits remain intact. The other
+restored omissions remain included. Current threat/qualification records
+explicitly retain transient backing-buffer overlap as a limitation.
+
+After withdrawing the option, focused worker race tests pass (14.419 s), as do
+interpreter memory/cancellation tests (0.303 s). Both restored runtime files
+have clear GoLand inspections and exactly match `52ed2df`. The subsequent PR
+CI run is the required native Linux confirmation; its status is reported in the
+PR description and final handoff rather than inferred from local Mac results.

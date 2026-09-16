@@ -117,12 +117,13 @@ only the generated explicit-depth gradient is used as ten-bit evidence.
 
 ## Resource and compatibility limits
 
-The WASI runtime reserves its capped backing store once; memory growth reuses
-that store instead of temporarily retaining old and replacement guest buffers.
-An owned two-page module tests stable backing storage and ceiling refusal for
-both explicit module maxima and the runtime-imposed maximum. This is not a
-whole-helper RSS guarantee; it increases up-front virtual memory reservation,
-so native platform qualification must include this configuration.
+The WASI runtime enforces a linear-memory ceiling, but guest growth can
+temporarily retain old and replacement backing buffers. Eager maximum-capacity
+allocation was trialed during history reconciliation and passed local runtime
+and native Apple Silicon tests. It broke both native Linux architectures on
+ordinary fixtures, so it was withdrawn without raising limits or relaxing
+seccomp. Neither allocation strategy establishes a whole-helper RSS guarantee.
+See [the reconciliation evidence](history-reconciliation.md).
 
 The candidate production maxima remain 64 MiB input, 64M pixels, 256,000,000
 output bytes, 64 KiB normalized metadata, 4096-byte diagnostics, 60 seconds,

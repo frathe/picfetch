@@ -917,3 +917,21 @@ has passing Linux/macOS native guards and UI shards, but failing Windows HEIC
 and non-UI Linux race jobs. Fresh CI must qualify the new configuration. These
 and distribution/color/upgrade/signing gates remain explicit in `todos.md`;
 this reconciliation does not claim feature or review-loop completion.
+
+
+### Native regression follow-up before reconciliation handoff
+
+The signed reconciliation `30f5b10` was pushed and verified as PR #28's head.
+Fresh native Linux amd64 and arm64 guards then failed on both ordinary decoder
+fixtures while the native policy guard passed. The captured amd64 events show
+bounded diagnostic overflow and a closed response pipe; they do not expose the
+inner runtime fatal message. This is a new regression relative to `52ed2df`.
+
+Withdraw the optional eager WASM backing reservation, the sole production
+runtime change, restoring both runtime files exactly to the passing baseline.
+Do not enlarge native/guest limits, alter seccomp, suppress tests or introduce
+an experimental allocator. Keep the other reconciled omissions. The existing
+native Linux guard is the regression check; its new CI result must establish
+whether this correction restores the prior behavior. Current threat and
+qualification documents retain temporary backing-buffer overlap as a residual
+memory cost. Earlier preallocation evidence above describes the trial only.

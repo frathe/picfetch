@@ -29,7 +29,10 @@ func execute(ctx context.Context, module []byte, stdin io.Reader, stdout, stderr
 	}
 	ctx, cancel := context.WithTimeout(ctx, limits.Timeout)
 	defer cancel()
-	runtime := newGuestRuntime(ctx, limits)
+	config := runtimeConfig().
+		WithMemoryLimitPages(uint32(limits.WASMMemoryBytes / (64 * 1024))).
+		WithCloseOnContextDone(true)
+	runtime := wazero.NewRuntimeWithConfig(ctx, config)
 	defer func() { _ = runtime.Close(context.Background()) }()
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
 		return err
@@ -50,16 +53,6 @@ func execute(ctx context.Context, module []byte, stdin io.Reader, stdout, stderr
 		return errors.New("HEIC guest exceeded stream limit")
 	}
 	return err
-}
-
-func newGuestRuntime(ctx context.Context, limits heicdecode.Limits) wazero.Runtime {
-	// Reserve the capped backing store once so growth cannot transiently retain
-	// both an old and a replacement guest buffer. Host memory is still separate.
-	config := runtimeConfig().
-		WithMemoryLimitPages(uint32(limits.WASMMemoryBytes / (64 * 1024))).
-		WithMemoryCapacityFromMax(true).
-		WithCloseOnContextDone(true)
-	return wazero.NewRuntimeWithConfig(ctx, config)
 }
 
 type limitedWriter struct {
