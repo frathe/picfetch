@@ -250,6 +250,44 @@ func TestOwnedPeerStartupDiagnostics(t *testing.T) {
 	}
 }
 
+func TestOwnedNativeProbesEchoAndJoin(t *testing.T) {
+	probes, err := openNativeProbes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer probes.close()
+	connection, err := net.DialTimeout("udp4", probes.udp.LocalAddr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = connection.Close() }()
+	_ = connection.SetDeadline(time.Now().Add(time.Second))
+	if _, err = connection.Write([]byte{0}); err != nil {
+		t.Fatal(err)
+	}
+	var reply [1]byte
+	if _, err = io.ReadFull(connection, reply[:]); err != nil || reply[0] != 0 {
+		t.Fatalf("owned probe echo: %v, %v", reply, err)
+	}
+	probes.close()
+	select {
+	case <-probes.udpDone:
+	default:
+		t.Fatal("probe close did not join its worker")
+	}
+	if _, _, err = probes.udp.ReadFrom(reply[:]); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("probe listener remained open: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if unexpected, err := openNativeProbes(ctx); !errors.Is(err, context.Canceled) || unexpected != nil {
+		if unexpected != nil {
+			unexpected.close()
+		}
+		t.Fatalf("cancelled probe setup: %v", err)
+	}
+}
+
 func TestStopCancelsAdmittedAndWaitingSources(t *testing.T) {
 	client := ownedPeer(t, "hang", 5*time.Second)
 	entered := make(chan struct{})

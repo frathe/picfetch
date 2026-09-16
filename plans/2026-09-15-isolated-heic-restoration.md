@@ -1052,3 +1052,38 @@ inspections pass for the remaining local changes. Required remaining work:
 publish native diagnostics and the PowerShell fixture test, dispose of thread
 `4024388304`, complete another fresh review, pass both Windows native guards,
 and inspect final CI/static reports for the eventual head.
+
+Round 6 (`3973811`) passes Windows token/job, commitment, process denial and
+the real PowerShell manifest-transformation guard. Both real helper fixtures
+stop on a TCP loopback timeout. Windows' AppContainer loopback filter drops
+packets rather than necessarily returning WSAEACCES. Chromium's native tests
+likewise observe TCP/UDP timeouts; Microsoft's diagnostic API can identify a
+missing network capability. Sources:
+[Windows loopback filtering](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/filter-origin-documentation#appcontainer-loopback),
+[native Chromium controls](https://chromium.googlesource.com/chromium/src/+/90ebe709881f7572f250d30e9ec77a39b5d8a482/sandbox/win/src/app_container_test.cc),
+[NetworkIsolationDiagnoseConnectFailureAndGetInfo](https://learn.microsoft.com/en-us/windows/win32/api/netfw/nf-netfw-networkisolationdiagnoseconnectfailureandgetinfo).
+
+Lead-owned correction: retain empty-capability AppContainer/job verification,
+all file denial checks and existing sandbox limits. Validate both parent-owned
+loopback listeners before launching the helper. Keep a bounded one-byte UDP
+echo worker with close/join cleanup; Windows must receive no echo. A Windows
+timeout qualifies only while the request is live and the native diagnostic API
+successfully identifies a missing capability. An ordinary timeout without this
+policy evidence, a refused connection, successful communication, cancellation
+or an API error still fails closed. Linux/macOS still require permission errors.
+Focused client/worker tests, Windows cross-builds and both native Windows CI
+jobs are the acceptance commands; GoLand must inspect all changed code.
+
+The ordinary Windows suite additionally exposed an existing jq fixture check
+that expected LF-only output; normalize surrounding whitespace while retaining
+the exact `false` result and failing exit requirement. No environment policy is
+changed. The startup-diagnostic test was also negatively verified locally by
+removing its delivery, observing the expected failure, restoring and passing.
+
+Local evidence for round 6: focused client, worker, msixstage and nativeguards
+tests pass; the new probe lifetime and startup cases pass under race. Windows
+amd64 cross-build and ARM64 focused vet pass. Every changed Go file has clear
+GoLand inspections, including weak warnings. Qodana/CodeQL for `3973811` contain
+zero results; full CI passes except the three Windows jobs described above.
+Code review comment `5695648748` and security comment `5695706814` explicitly
+report no findings on `c77d9bd`; thread `4024388304` is resolved with fix evidence.

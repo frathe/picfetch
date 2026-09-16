@@ -597,7 +597,7 @@ func testStoreEnvironmentPolicy(t *testing.T) {
 			cmd := exec.Command("jq", "-e", "-s", "-f", "../storepublish/environment-policy.jq")
 			cmd.Stdin = strings.NewReader(environment + "\n" + branches + "\n" + custom)
 			out, err := cmd.CombinedOutput()
-			if (err == nil) != (change == "valid") || (err != nil && string(out) != "false\n") {
+			if (err == nil) != (change == "valid") || (err != nil && strings.TrimSpace(string(out)) != "false") {
 				t.Fatalf("policy %s: %s (%v)", change, out, err)
 			}
 		})

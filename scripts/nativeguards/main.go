@@ -74,6 +74,7 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.goos = "windows"
 		s.tags = "heicnative"
 		s.require("internal/heicdecode/winisolation", "TestNativeWindowsJobAndToken", "TestNativeWindowsUnsandboxedRefused")
+		s.require("internal/heicdecode/worker", "TestNativeNetworkDenialRejectsUnisolatedProcess")
 		s.require("internal/heicdecode/client", "TestNativeSandboxHelper")
 		s.require("internal/heicdecode/client", "TestInheritedRemoteUsesOwner", "TestInheritedRemoteCancellationJoins", "TestAttachmentStopWithoutProcessStartJoinsOwner", "TestRemoteQueuedCancellationReleasesService", "TestRemoteOutputRetainsAdmissionAndStopJoins")
 		s.require("internal/similarity", "TestAnalysisWorkersUseHEICOwner", "TestAnalysisHEICAttachmentStartFailureJoins")

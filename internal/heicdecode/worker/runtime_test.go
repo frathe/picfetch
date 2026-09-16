@@ -182,3 +182,13 @@ func TestNativeDenialErrorsRequirePermission(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeNetworkDenialRejectsUnisolatedProcess(t *testing.T) {
+	// Even on Windows a timeout is insufficient in an ordinary process. The
+	// native API must identify an actual missing AppContainer capability.
+	for _, probeErr := range []error{nil, os.ErrDeadlineExceeded, context.Canceled, errors.New("connection refused")} {
+		if err := confirmNetworkDenial(context.Background(), "127.0.0.1", probeErr); err == nil {
+			t.Fatalf("unisolated network failure accepted as denial: %v", probeErr)
+		}
+	}
+}

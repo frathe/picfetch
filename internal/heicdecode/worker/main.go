@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"runtime"
@@ -88,11 +89,18 @@ func verifyDenial(ctx context.Context, readPath, writePath, tcpAddress, udpAddre
 			if i == 1 {
 				_ = connection.SetWriteDeadline(time.Now().Add(time.Second))
 				_, dialErr = connection.Write([]byte{0})
+				if runtime.GOOS == "windows" && dialErr == nil {
+					_ = connection.SetReadDeadline(time.Now().Add(time.Second))
+					var reply [1]byte
+					_, dialErr = io.ReadFull(connection, reply[:])
+				}
 			}
 			_ = connection.Close()
 		}
 		if !permissionDenied(dialErr) {
-			return fmt.Errorf("HEIC native %s denial unavailable: %v", network, dialErr)
+			if confirmErr := confirmNetworkDenial(ctx, host, dialErr); confirmErr != nil {
+				return fmt.Errorf("HEIC native %s denial unavailable: %v (%w)", network, dialErr, confirmErr)
+			}
 		}
 	}
 	return ctx.Err()
@@ -100,6 +108,7 @@ func verifyDenial(ctx context.Context, readPath, writePath, tcpAddress, udpAddre
 
 func permissionDenied(err error) bool {
 	// Winsock reports WSAEACCES (10013), while file APIs use the ordinary
-	// permission mapping. Refused connections or timeouts do not prove denial.
+	// permission mapping. A timeout alone never proves denial; Windows may
+	// separately confirm its dropped loopback traffic through the native API.
 	return errors.Is(err, os.ErrPermission) || (runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(10013)))
 }

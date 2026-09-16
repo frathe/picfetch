@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,21 +29,16 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	}
 	// Both endpoints belong to this request. A failed sandbox can reach only
 	// these disposable loopback sockets, never an unrelated network service.
-	tcp, err := net.Listen("tcp4", "127.0.0.1:0")
+	probes, err := openNativeProbes(ctx)
 	if err != nil {
 		return empty, err
 	}
-	defer func() { _ = tcp.Close() }()
-	udp, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	if err != nil {
-		return empty, err
-	}
-	defer func() { _ = udp.Close() }()
+	defer probes.close()
 	limitsJSON, err := json.Marshal(c.config.Limits)
 	if err != nil {
 		return empty, err
 	}
-	cmd := exec.Command(c.config.Executable, "--heic-worker-v2", string(limitsJSON), readPath, writePath, tcp.Addr().String(), udp.LocalAddr().String())
+	cmd := exec.Command(c.config.Executable, "--heic-worker-v2", string(limitsJSON), readPath, writePath, probes.tcp.Addr().String(), probes.udp.LocalAddr().String())
 	cmd.Env = []string{"GOMAXPROCS=1"}
 	cmd.Dir = string(filepath.Separator)
 	var pipes []*os.File
@@ -138,6 +132,8 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		_ = <-stderrDone
 		return empty, fmt.Errorf("%w: native readiness", ErrUnavailable)
 	}
+	// No loopback listener remains reachable when image bytes are admitted.
+	probes.close()
 	if err = ctx.Err(); err != nil {
 		return empty, err
 	}

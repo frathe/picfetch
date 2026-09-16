@@ -623,6 +623,8 @@ grants. `broker.go` serves at most eight explicit pipe connections through that
 same lane, sending native-ready grants before remote bulk reads and retaining
 admission through result delivery. `remote.go` validates frames and joins
 cancellation; a disconnected queued peer is observed through one control byte.
+`probes.go` owns checked loopback listeners and a bounded UDP echo worker, closed
+and joined before image input or at failed-start cleanup.
 `attachment.go` supplies explicit inherited pipes and observes parent-copy,
 service and remote lifetimes. GUI construction and analysis requests share one
 optional owner; production currently supplies none pending qualification.
@@ -639,6 +641,8 @@ stdio/scheduling operations. It verifies RLIMIT_AS/CPU/core/file/descriptor
 limits and a no-access oversized-mapping refusal before readiness. Its native
 qualification is a separate `heic-linux` CI suite. Windows amd64/arm64 uses
 `winisolation` below and verifies its token/job before the same denial probes.
+Windows additionally confirms timed-out loopback probes through the native
+network-isolation diagnostic API; other platforms require permission errors.
 Other builds refuse startup.
 Native-memory readiness is explicitly zero on macOS; its Go memory target is
 not a hard OS cap. The helper alone may

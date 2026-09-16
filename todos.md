@@ -106,12 +106,14 @@ historical decoder-suite equivalence is claimed.
 
 Remaining qualification:
 
-- Ronin resumed the GitHub Codex review loop on September 16. At `6537ac0`,
+- Ronin resumed the GitHub Codex review loop on September 16. At `3973811`,
   all Linux race shards, Linux amd64/arm64 and macOS Intel/Apple Silicon helper
-  guards, ordinary Windows and validation pass. Windows HEIC qualification
-  still fails. Qodana's post-suppression report and both CodeQL reports contain
-  zero results. The fresh security review found repository execution in the
-  signing job; its confirmed fix and another review round are in progress. Local
+  guards and validation pass. Windows HEIC qualification still fails on loopback
+  timeout interpretation; the ordinary suite exposes a CRLF fixture assertion.
+  Qodana's post-suppression report and both CodeQL reports contain zero results.
+  The signing-job security finding is fixed, resolved and followed by clean
+  code/security reviews on `c77d9bd`. The Windows corrections and another review
+  round are in progress. Local
   canonical shard verification is unavailable because the Docker daemon is stopped.
 - Ronin accepted the absent hard total native-memory cap on macOS. WASM,
   transport, deadline and sandbox controls remain mandatory; helper-only
