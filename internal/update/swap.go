@@ -1,12 +1,81 @@
 package update
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+// openVerifiedStageBinary returns one handle whose identity is retained from
+// verification through installation. Reopening Stage.BinaryPath after hashing
+// would let another same-user process swap the cache entry between those two
+// operations.
+func openVerifiedStageBinary(stage Stage) (*os.File, error) {
+	if err := ValidateStage(stage); err != nil {
+		return nil, err
+	}
+	f, err := os.Open(stage.BinaryPath)
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		_ = f.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("%q is not a regular file", stage.BinaryPath)
+	}
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if !strings.EqualFold(hex.EncodeToString(h.Sum(nil)), stage.verification.BinaryDigest) {
+		_ = f.Close()
+		return nil, errors.New("update: staged binary verification: SHA-256 mismatch")
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	return f, nil
+}
+
+// swapBinaryFrom installs bytes from an already authenticated open handle.
+// It is the Windows trust-boundary path; unlike swapBinary it never reopens a
+// cache-controlled source pathname.
+func swapBinaryFrom(staged *os.File, expectedDigest, dest string, options ApplyOptions, ops binaryOps) error {
+	old := dest + ".old"
+	_ = ops.Remove(old)
+	if err := ops.Rename(dest, old); err != nil {
+		return &ApplyError{Op: "rename", Path: dest, Err: err}
+	}
+	if err := copyReader(staged, dest); err != nil {
+		_ = ops.Remove(dest)
+		return restoreBinary(ops, dest, old, "copy", err)
+	}
+	got, err := fileSHA256(dest)
+	if err == nil && !strings.EqualFold(got, expectedDigest) {
+		err = errVerifyMismatch
+	}
+	if err != nil {
+		_ = ops.Remove(dest)
+		return restoreBinary(ops, dest, old, "verify", err)
+	}
+	if options.Relaunch {
+		if err := ops.Relaunch(dest); err != nil {
+			return &ApplyError{Op: "relaunch", Path: dest, Err: err}
+		}
+	}
+	return nil
+}
 
 // errVerifyMismatch reports that the bytes that landed at the destination are
 // not the bytes that were staged. A filter driver can accept a write and
@@ -148,6 +217,10 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer func() { _ = in.Close() }()
+	return copyReader(in, dst)
+}
+
+func copyReader(in io.Reader, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}

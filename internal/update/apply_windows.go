@@ -14,7 +14,12 @@ import (
 // apply script this replaced was blocked outright whenever PicFetch lived in
 // a protected folder; picfetch.exe is judged on its own reputation instead.
 func applyWindows(stage Stage, dest string, options ApplyOptions) error {
-	return swapBinary(stage.BinaryPath, dest, options, defaultBinaryOps(relaunchWindows))
+	staged, err := openVerifiedStageBinary(stage)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = staged.Close() }()
+	return swapBinaryFrom(staged, stage.verification.BinaryDigest, dest, options, defaultBinaryOps(relaunchWindows))
 }
 
 // relaunchWindows starts the freshly installed executable and tells it which

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -134,6 +135,48 @@ func TestSwapBinary_HappyPath(t *testing.T) {
 	)
 	if ops.relaunched {
 		t.Error("relaunched without ApplyOptions.Relaunch")
+	}
+}
+
+func TestSwapBinaryFrom_UsesValidatedHandleAfterPathReplacement(t *testing.T) {
+	dir := t.TempDir()
+	stagedPath := filepath.Join(dir, "staged")
+	dest := filepath.Join(dir, "picfetch")
+	trusted := []byte("verified release executable")
+	if err := os.WriteFile(stagedPath, trusted, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("old executable"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := fileSHA256(stagedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := Stage{BinaryPath: stagedPath, verification: stageVerification{
+		AssetName: "picfetch-windows-amd64.zip", ArchiveDigest: strings.Repeat("a", 64),
+		BinaryDigest: digest, GOOS: "windows", GOARCH: "amd64",
+	}}
+	handle, err := openVerifiedStageBinary(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = handle.Close() }()
+	if err := os.Rename(stagedPath, stagedPath+".verified"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stagedPath, []byte("attacker executable"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := swapBinaryFrom(handle, digest, dest, ApplyOptions{}, defaultBinaryOps(nil)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, trusted) {
+		t.Fatalf("installed bytes = %q, want validated handle bytes %q", got, trusted)
 	}
 }
 

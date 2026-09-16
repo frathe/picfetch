@@ -2,6 +2,8 @@ package update
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -39,6 +41,21 @@ type stageFile struct {
 	VerifiedPlistDigest   string `json:"verifiedPlistDigest,omitempty"`
 	VerifiedGOOS          string `json:"verifiedGoos,omitempty"`
 	VerifiedGOARCH        string `json:"verifiedGoarch,omitempty"`
+	Seal                  string `json:"seal,omitempty"`
+}
+
+// stageSealKey deliberately lives only for this process. The update cache is
+// writable by every process running as the user, so a key persisted beside it
+// would not authenticate anything. A stage left by an earlier PicFetch process
+// is therefore discarded and downloaded (and attested) again.
+var stageSealKey = newStageSealKey()
+
+func newStageSealKey() []byte {
+	key := make([]byte, sha256.Size)
+	if _, err := rand.Read(key); err != nil {
+		panic(fmt.Sprintf("update: create stage seal key: %v", err))
+	}
+	return key
 }
 
 // Download fetches rel's archive, SHA-256s it, compares to AssetDigest when
@@ -291,7 +308,7 @@ func SaveStage(dir string, s Stage) error {
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(stageFile{
+	sf := stageFile{
 		Version:               s.Version,
 		Notes:                 s.Notes,
 		BinaryPath:            bin,
@@ -302,7 +319,13 @@ func SaveStage(dir string, s Stage) error {
 		VerifiedPlistDigest:   s.verification.PlistDigest,
 		VerifiedGOOS:          s.verification.GOOS,
 		VerifiedGOARCH:        s.verification.GOARCH,
-	})
+	}
+	payload, err := json.Marshal(sf)
+	if err != nil {
+		return err
+	}
+	sf.Seal = hex.EncodeToString(sealStage(payload))
+	data, err := json.Marshal(sf)
 	if err != nil {
 		return err
 	}
@@ -321,6 +344,16 @@ func LoadStage(dir string) (Stage, error) {
 	if err := json.Unmarshal(data, &sf); err != nil {
 		return Stage{}, err
 	}
+	seal := sf.Seal
+	sf.Seal = ""
+	payload, err := json.Marshal(sf)
+	if err != nil {
+		return Stage{}, err
+	}
+	want, err := hex.DecodeString(seal)
+	if err != nil || !hmac.Equal(want, sealStage(payload)) {
+		return Stage{}, errors.New("update: staged update authentication failed")
+	}
 	return Stage{
 		Version:    sf.Version,
 		Notes:      sf.Notes,
@@ -335,6 +368,12 @@ func LoadStage(dir string) (Stage, error) {
 			GOARCH:        sf.VerifiedGOARCH,
 		},
 	}, nil
+}
+
+func sealStage(payload []byte) []byte {
+	mac := hmac.New(sha256.New, stageSealKey)
+	_, _ = mac.Write(payload)
+	return mac.Sum(nil)
 }
 
 // ValidateStage proves that s carries provenance written by Download after
