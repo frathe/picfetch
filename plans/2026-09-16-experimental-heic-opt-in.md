@@ -526,3 +526,55 @@ The documentation follow-up records this completed implementation checkpoint;
 it changes no executable or test inputs. Its fresh PR checks/reviews remain
 visible on PR #28. The local handoff and evidence directory preserve current
 operational state without rewriting the historical native results above.
+
+### Installed-MSIX CI repair — 2026-09-16
+
+User asks to fix the two failing CI workers. Continue the Deep route, with the
+lead owning diagnosis, implementation and review. The existing installed
+`TestNativeInstalledHEICActivation` seam is the acceptance test: both native
+architectures must execute it successfully from the registered package, under
+the exact standard-user SID, retaining every sandbox and resource assertion.
+`gh run view 35121709978 --job <job> --log-failed` reproduces the observed red
+verdict (104882311939 amd64; 104882311951 arm64); retained logs show successful
+installation followed by Access denied before any test completion record.
+Native CI is the only available execution environment, so its minutes-long
+loop is the honest exception to the diagnosing skill's seconds-long target.
+
+Ranked hypotheses: desktop-owner/credential SID mismatch; direct executable
+launch instead of registered activation; incomplete registration/permissions.
+Qualification must not use debugging tokens, relaxed WindowsApps ACLs,
+administrator execution, an extracted binary or skipped guards.
+
+Read-only source scout delegation: G1 yes (one bounded Windows API/source
+question); G2 yes (lead fetches and checks every cited primary-source URL);
+G3 yes (no writes); G4 yes (independent API/source discovery); G5 yes (new
+session/token source search, not existing code review). S/W: cannot answer via
+one repository search; no implementation specification delegated. Existing
+scout can be reused. Lead concurrently investigates the actual launcher and
+CI logs. Cost: one scout, no delegated design/review/fixes.
+
+First hypothesis probe changes only the CI account/session arrangement, retaining
+direct installed-executable launch and all existing application guards. A new
+shared PowerShell session reader checks WTS owner SID against the process user;
+the child and installed test require the provisioned SID/session. Hosted MSIX
+provisioning resets only the ephemeral runner account password, removes its local
+memberships except Users before fresh authentication, and restores memberships
+with its retained administrative token. No persistent-host execution is admitted.
+Standalone qualification still uses a newly created disposable account.
+
+Microsoft documents token creation on authentication and its group/logon SIDs:
+https://learn.microsoft.com/en-us/windows/win32/secauthz/access-tokens . A Microsoft
+engineer confirms Windows 11 supports installed executable activation with
+identity: https://github.com/microsoft/WindowsAppSDK/discussions/2391 .
+Those primitives do not guarantee same-SID fresh-logon MSIX behavior: native CI
+is the decisive experiment, not a claimed success. The existing installed test
+is the real regression seam, already red on both jobs; no source-string test
+is substituted for execution.
+
+Pre-push focused tests: nativeguards, msixstage and heicpackage pass; GoLand
+reports no findings in all four changed/new code files, including warnings.
+The first cross-compile attempt was blocked by sandboxed Go-cache access;
+unsandboxed architecture-matched builds are used for that check.
+
+Both amd64 and arm64 installed-test cross-compiles pass. The complete native
+CI jobs remain the required green signal for the account/session change.

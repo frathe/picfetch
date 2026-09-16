@@ -111,10 +111,10 @@ after an enabled preference and validated installed package.
   Remaining: Windows application-level private-storage/ACL and failed-query
   recovery plus concurrent application lifetimes (08), installed-MSIX activation
   (05), and final integrated qualification (09). Both MSIX packages install but
-  their test processes still fail to start with Access denied. Split fixture
-  preparation from execution and qualify native x64/ARM64 desktops owned by the
-  standard account; a loaded profile under alternate credentials is insufficient.
-  No suitable environment access was supplied. The separate GitHub AI scanner
+  their test processes failed to start with Access denied through `7f5c1da`.
+  The CI repair tests a fresh Users-only logon of the actual desktop owner, with
+  SID/session and token checks; both native results remain required.
+  The separate GitHub AI scanner
   still fails before analysis with an unsupported-model HTTP 400. Keep all failing
   gates and permission checks. The [active plan](plans/2026-09-16-experimental-heic-opt-in.md)
   and [activation record](docs/heic/experimental-opt-in.md) retain exact evidence.

@@ -1,5 +1,5 @@
-# Provisions disposable CI-only account/package state. Application tests run
-# under that standard account; none of this provisioning is in PicFetch.
+# Provisions disposable CI-only account/package state. MSIX uses a fresh
+# standard-user logon of the desktop owner; none of this is in PicFetch.
 param(
     [ValidateSet('standalone', 'msix')][string]$Scenario = 'standalone',
     [Parameter(Mandatory = $true)][string]$EvidenceDirectory,
@@ -22,12 +22,39 @@ $evidence = Join-Path $workRoot 'evidence'
 $certificate = $null
 $trusted = $null
 $account = $null
+$createdAccount = $false
+$removedGroups = @()
+$addedUsers = $false
 New-Item -ItemType Directory -Path $workRoot, $evidence -Force | Out-Null
 New-Item -ItemType Directory -Path $EvidenceDirectory -Force | Out-Null
 try {
     $secret = ConvertTo-SecureString ('Pf!' + [Guid]::NewGuid().ToString('N') + '9a') -AsPlainText -Force
-    $account = New-LocalUser -Name $userName -Password $secret -Description 'Disposable PicFetch HEIC qualification account'
-    Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $account
+    $desktop = $null
+    if ($Scenario -eq 'msix') {
+        . (Join-Path $PSScriptRoot 'qualify-windows-session.ps1')
+        $desktop = Get-HEICDesktopIdentity
+        $account = Get-LocalUser -SID $desktop.UserSID
+        $userName = $account.Name
+        # This VM is disposable. Keep the administrative provisioner's existing
+        # token, but authenticate the child after removing local group rights.
+        # A new logon must be Users-only; a filtered admin token is not accepted.
+        Set-LocalUser -SID $account.SID -Password $secret
+        foreach ($group in Get-LocalGroup) {
+            if ($group.SID.Value -eq 'S-1-5-32-545') { continue }
+            if (Get-LocalGroupMember -SID $group.SID | Where-Object { $_.SID.Value -eq $account.SID.Value }) {
+                Remove-LocalGroupMember -SID $group.SID -Member $account
+                $removedGroups += $group.SID
+            }
+        }
+        if (-not (Get-LocalGroupMember -SID 'S-1-5-32-545' | Where-Object { $_.SID.Value -eq $account.SID.Value })) {
+            Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $account
+            $addedUsers = $true
+        }
+    } else {
+        $account = New-LocalUser -Name $userName -Password $secret -Description 'Disposable PicFetch HEIC qualification account'
+        $createdAccount = $true
+        Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $account
+    }
     $credential = [PSCredential]::new("$env:COMPUTERNAME\$userName", $secret)
     & icacls $workRoot /grant "*$($account.SID.Value):(OI)(CI)M" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the owned qualification workspace.' }
@@ -36,6 +63,7 @@ try {
     $config = @{
         Scenario = $Scenario; Repository = $copy; Go = $go; Work = $workRoot
         Evidence = $evidence; Arch = $architecture; Commit = $env:GITHUB_SHA
+        UserSID = $account.SID.Value
     }
     if ($Scenario -eq 'msix') {
         if (-not $Executable -or -not $RuntimeArchive) { throw 'MSIX qualification requires the built Store executable and pinned runtime archive.' }
@@ -47,7 +75,9 @@ try {
         & $go test -tags no_emoji,nodynamic,heicnative,microsoftstore -c -o (Join-Path $stage 'heic-activation.test.exe') ./internal/ui
         if ($LASTEXITCODE -ne 0) { throw 'Application activation probe build failed.' }
         Copy-Item -LiteralPath (Join-Path $repository 'scripts/heicbuild/testdata/tenbit.heic') -Destination (Join-Path $stage 'heic-activation-fixture.heic')
-        @{ Evidence = (Join-Path $evidence 'installed-msix'); Commit = $env:GITHUB_SHA; UserSID = $account.SID.Value } |
+        $config.SessionID = $desktop.SessionID
+        $desktop | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'desktop-session.json') -Encoding utf8NoBOM
+        @{ Evidence = (Join-Path $evidence 'installed-msix'); Commit = $env:GITHUB_SHA; UserSID = $account.SID.Value; SessionID = $desktop.SessionID } |
             ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'heic-activation.json') -Encoding utf8NoBOM
         $manifestPath = Join-Path $stage 'AppxManifest.xml'
         [xml]$manifest = Get-Content -LiteralPath $manifestPath -Raw
@@ -109,7 +139,9 @@ try {
             if ($certificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $certificate.Thumbprint) }
         } finally {
             try {
-                if ($account) {
+                foreach ($groupSID in $removedGroups) { Add-LocalGroupMember -SID $groupSID -Member $account }
+                if ($addedUsers) { Remove-LocalGroupMember -SID 'S-1-5-32-545' -Member $account }
+                if ($createdAccount) {
                     try {
                         Get-CimInstance -ClassName Win32_UserProfile -Filter "SID='$($account.SID.Value)'" | Remove-CimInstance
                     } finally { Remove-LocalUser -SID $account.SID }
