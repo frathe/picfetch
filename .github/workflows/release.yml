@@ -127,15 +127,30 @@ jobs:
 
       - name: Download and verify Certum SimplySign Desktop
         shell: pwsh
+        env:
+          SIMPLYSIGN_INSTALLER_SHA256: ${{ vars.SIMPLYSIGN_INSTALLER_SHA256 }}
+          SIMPLYSIGN_SIGNER_THUMBPRINT: ${{ vars.SIMPLYSIGN_SIGNER_THUMBPRINT }}
         run: |
           $installerUrl = 'https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi'
           Invoke-WebRequest -Uri $installerUrl -OutFile SimplySignDesktop.msi -ErrorAction Stop
 
-          $signature = Get-AuthenticodeSignature -FilePath SimplySignDesktop.msi
-          if ($signature.Status -ne 'Valid') {
-            throw "SimplySign installer has an invalid Authenticode signature: $($signature.Status)."
+          if ($env:SIMPLYSIGN_INSTALLER_SHA256 -notmatch '^[0-9A-Fa-f]{64}$') {
+            throw 'SIMPLYSIGN_INSTALLER_SHA256 must be the reviewed installer SHA-256 digest.'
           }
-          Write-Host "Verified SimplySign installer publisher: $($signature.SignerCertificate.Subject)"
+          $actualHash = (Get-FileHash -LiteralPath SimplySignDesktop.msi -Algorithm SHA256).Hash
+          if ($actualHash -ne $env:SIMPLYSIGN_INSTALLER_SHA256) {
+            throw "SimplySign installer SHA-256 mismatch: $actualHash."
+          }
+
+          if ($env:SIMPLYSIGN_SIGNER_THUMBPRINT -notmatch '^[0-9A-Fa-f]{40}$') {
+            throw 'SIMPLYSIGN_SIGNER_THUMBPRINT must be the reviewed signer certificate thumbprint.'
+          }
+          $signature = Get-AuthenticodeSignature -FilePath SimplySignDesktop.msi
+          if ($signature.Status -ne 'Valid' -or
+              $signature.SignerCertificate.Thumbprint -ne $env:SIMPLYSIGN_SIGNER_THUMBPRINT) {
+            throw "SimplySign installer signature is not the reviewed certificate: $($signature.Status), $($signature.SignerCertificate.Thumbprint)."
+          }
+          Write-Host "Verified SimplySign installer SHA-256 and publisher: $($signature.SignerCertificate.Subject)"
 
       - name: Authenticate Certum SimplySign
         # This commit is the reviewed v1 release of the third-party action.
@@ -145,7 +160,8 @@ jobs:
           certum-username: ${{ secrets.CERTUM_USERNAME }}
           certum-otp-uri: ${{ secrets.CERTUM_OTP_URI }}
           certum-key-id: ${{ secrets.CERTUM_CERT_THUMBPRINT }}
-          # Install the verified local MSI; fail if it is missing instead of downloading a fallback.
+          # The pinned action installs the verified local MSI and skips downloading.
+          # Fail if it is missing instead of downloading a fallback.
           simplysign-url: https://simplysign-installer.invalid/SimplySignDesktop.msi
 
       - name: Sign, timestamp, and verify Windows executables

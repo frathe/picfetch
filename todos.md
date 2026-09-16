@@ -2,6 +2,17 @@
 
 ## Open
 
+### Windows signing qualification
+
+Configure the reviewed `SIMPLYSIGN_INSTALLER_SHA256` and
+`SIMPLYSIGN_SIGNER_THUMBPRINT` variables in the protected `release-signing`
+environment, then qualify a signed test-tag release using
+[the signing guide](docs/release-signing.md). The workflow retains the verified
+local installer handoff and checks both pins before installation. Fixes,
+hosted review dispositions and CI evidence are tracked in
+[PR #30](https://github.com/frathe/picfetch/pull/30); PR CI does not execute the
+credentialed signing job.
+
 ### Image input hardening
 
 All four safeguards are implemented: bounded ICO selection, SVG expansion limits,
