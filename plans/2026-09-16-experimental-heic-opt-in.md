@@ -185,3 +185,44 @@ Store-only policy test correctly skips in this non-Store suite. Raw events are
 Final formatting, Qodana exclusion, provenance and native import checks pass.
 The import check needed ordinary Go module-cache access after a sandboxed cache
 write failed; rerun with that access passed without policy/source changes.
+
+## PR review loop — f41fe63
+
+Ronin committed/pushed the implementation as `f41fe630158baa1c65f8dc75122c332dcddd4a1d`
+and resumed the requested CI/Codex loop on September 16. The working tree was
+clean on entry. Fix commits, pushes, review requests/replies and dispositions
+follow the repository's invoked review-loop authorization; no merge/release is
+included. One read-only scout task located existing Linux CGo setup while the
+lead investigated provenance. All fixes and reviews remain lead-owned.
+
+CI 35103830559 passes both macOS native architectures, ordinary Windows, the
+Store executable build, the non-UI race partition and UI shards 1/3. The remaining
+failures are addressed in this first correction, pending a fresh run:
+
+- Regenerate provenance after committed `SplitSeq` build-tool cleanup. The guest
+  artifact is unchanged and both provenance/import checks pass locally.
+- Keep Linux helper/analysis guards no-CGo, but enable CGo for the separately
+  executed GUI inventory/fixture and install the existing X11/C build inputs.
+  The runner regression failed for both GUI command modes before correction.
+- The restart test selected another viewer's Settings surface. An owned prior
+  window reproduces the exact failure; selecting only the window opened by the
+  tested viewer fixes it. Focused UI race tests pass (2.947 s).
+- The disposable standard account passes SID/nonadministrator checks, but
+  known-folder lookup is denied. The fixture now imports its loaded user's
+  environment with CreateEnvironmentBlock before native activation, replacing
+  inherited privileged-runner profile values. No application fallback or
+  permission-query relaxation is added; native CI must qualify the correction.
+- Shorten the disposable MSIX identity to fit the manifest's 50-character limit.
+- Qodana's final post-suppression SARIF has one confirmed unused test function;
+  remove both platform variants now that OpenInstalled owns helper preparation.
+  Start-report warnings are not the final result set.
+
+Focused nativeguards/client tests pass, along with changed-file GoLand checks.
+The three mixed-receiver IDE warnings in the runner are fixed. Two intentional
+local test-setup duplication notices remain documented under their existing exact
+Qodana exclusions; no production warning is suppressed. GoLand build reports
+success but cannot collect detailed build messages in this project.
+
+Docker is available again and its canonical shard check passes: 691 runnables,
+three shards. The daemon is Linux/aarch64; the complete native AMD64 gate correctly
+refuses emulation. Full race verification stays in hosted native CI.

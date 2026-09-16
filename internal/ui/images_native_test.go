@@ -72,8 +72,7 @@ func TestNativePackagedHEICActivation(t *testing.T) {
 		if v.images.owner != nil || v.images.foreground.IsSupportedImage(uri) {
 			t.Fatal("default startup enabled HEIC")
 		}
-		v.showSettings()
-		check := experimentalHEICCheckbox(t)
+		check := experimentalHEICCheckbox(t, v)
 		if check.Checked {
 			t.Fatal("checkbox did not default off")
 		}
@@ -124,8 +123,7 @@ func TestNativePackagedHEICActivation(t *testing.T) {
 			t.Fatalf("native cancellation: %v", err)
 		}
 		owner := v.images.owner
-		v.showSettings()
-		test.Tap(experimentalHEICCheckbox(t))
+		test.Tap(experimentalHEICCheckbox(t, v))
 		preferences.Save(testApp, v.currentPreferences())
 		if v.images.owner != owner || !v.images.foreground.IsSupportedImage(uri) {
 			t.Fatal("disabling replaced the running decoder")

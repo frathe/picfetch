@@ -3,6 +3,42 @@ $ErrorActionPreference = 'Stop'
 $config = Get-Content -LiteralPath $Configuration -Raw | ConvertFrom-Json
 if ($RequireInstalledMSIX -and $config.Scenario -ne 'msix') { throw 'Installed-MSIX configuration is required for the complete Windows native gate.' }
 Set-Location -LiteralPath $config.Repository
+# Start-Process with credentials still inherits the runner's environment.
+# Replace profile values with the loaded standard user's native environment
+# before any known-folder query. This changes only the owned CI test process.
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+public static class HEICStandardUserEnvironment {
+ [DllImport("userenv.dll", SetLastError = true)]
+ [return: MarshalAs(UnmanagedType.Bool)]
+ static extern bool CreateEnvironmentBlock(out IntPtr block, IntPtr token, [MarshalAs(UnmanagedType.Bool)] bool inherit);
+ [DllImport("userenv.dll", SetLastError = true)]
+ [return: MarshalAs(UnmanagedType.Bool)]
+ static extern bool DestroyEnvironmentBlock(IntPtr block);
+ public static void Apply() {
+  using (var identity = WindowsIdentity.GetCurrent()) {
+   IntPtr block;
+   if (!CreateEnvironmentBlock(out block, identity.Token, false)) throw new Win32Exception(Marshal.GetLastWin32Error());
+   try {
+    for (IntPtr cursor = block; Marshal.ReadInt16(cursor) != 0;) {
+     string entry = Marshal.PtrToStringUni(cursor);
+     cursor = IntPtr.Add(cursor, (entry.Length + 1) * 2);
+     int separator = entry.IndexOf('=');
+     if (separator > 0) Environment.SetEnvironmentVariable(entry.Substring(0, separator), entry.Substring(separator + 1));
+    }
+   } finally { if (!DestroyEnvironmentBlock(block)) throw new Win32Exception(Marshal.GetLastWin32Error()); }
+  }
+ }
+}
+'@
+[HEICStandardUserEnvironment]::Apply()
+$env:PATH = (Split-Path -Parent $config.Go) + ';' + $env:PATH
+$profileDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+if (-not $profileDirectory) { throw 'The standard user has no accessible local application-data folder.' }
+Write-Output "Standard-user local application data: $profileDirectory"
 $env:GOCACHE = Join-Path $config.Work 'go-cache'
 $env:GOPATH = Join-Path $config.Work 'go-path'
 $env:CGO_ENABLED = '0'

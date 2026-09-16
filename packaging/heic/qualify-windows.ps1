@@ -52,7 +52,7 @@ try {
         $manifestPath = Join-Path $stage 'AppxManifest.xml'
         [xml]$manifest = Get-Content -LiteralPath $manifestPath -Raw
         $publisher = 'CN=PicFetch HEIC Qualification ' + $identity
-        $packageName = 'PicFetch.HEICQualification.' + $identity
+        $packageName = 'PicFetch.HEIC.' + $identity
         $manifest.Package.Identity.SetAttribute('Name', $packageName)
         $manifest.Package.Identity.SetAttribute('Publisher', $publisher)
         $probe = $manifest.Package.Applications.Application.CloneNode($true)

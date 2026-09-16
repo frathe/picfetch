@@ -21,7 +21,7 @@
     "internal/heicdecode/request.go": "39bd8fe6af5e228681e0c819e82159c3ecb1c5109ae56513fe9b5faa6ff75ed3",
     "internal/heicdecode/worker/decoder.wasm": "cdaf9af71d8a8624c620a2ca8f90865a00a2d2dc228bb8bdb058564726d769ed",
     "scripts/heicbuild/fixture.go": "dd205a231c22f464ff86a5d922e1ee95bdca03f1e4b1ac864439cf4fdea9b512",
-    "scripts/heicbuild/main.go": "2ff88583a41a65c30101db37e437b3a870aa44f68415a3284ca86e171d289e75",
+    "scripts/heicbuild/main.go": "ef335b3738f657b1b88012c0eae85477a48150667e6fe1a229d28adc3a389ecf",
     "scripts/heicbuild/source.go": "fa21510be758ac3a4634e0db028f0920747c9efb05bc903c2c4429bed0d46857",
     "scripts/heicbuild/testdata/README.md": "bad7e52474096919ae14e0d82cddb5bc73b79434473f9402c1c82ada91ae19f5",
     "scripts/heicbuild/testdata/alpha.heic": "130c9f6c9a9bdefe2fc4b17427ff37b78423f2d3a935f82cfe55a9782f6d0f51",

@@ -29,5 +29,3 @@ func installOwnedPeer(source, destination string) error {
 	}
 	return winisolation.PrepareExecutable(destination)
 }
-
-func prepareNativeHelper(path string) error { return winisolation.PrepareExecutable(path) }

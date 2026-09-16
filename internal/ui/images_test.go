@@ -279,10 +279,15 @@ func TestHEICOwnerStopsWithViewer(t *testing.T) {
 	}
 }
 
-func experimentalHEICCheckbox(t *testing.T) *widget.Check {
+func experimentalHEICCheckbox(t *testing.T, v *viewer) *widget.Check {
 	t.Helper()
+	before := slices.Clone(testApp.Driver().AllWindows())
+	if v.settingsWin.Open() {
+		t.Fatal("fixture requires this viewer's Settings to be closed")
+	}
+	v.showSettings()
 	for _, win := range testApp.Driver().AllWindows() {
-		if win.Title() != lang.L("Settings") {
+		if slices.Contains(before, win) || win.Title() != lang.L("Settings") {
 			continue
 		}
 		surface := win.Content()
@@ -330,6 +335,15 @@ func experimentalHEICCheckbox(t *testing.T) *widget.Check {
 }
 
 func TestExperimentalHEICRestartOnly(t *testing.T) {
+	// Another viewer's Settings surface must not receive this viewer's edits.
+	prior := testApp.NewWindow(lang.L("Settings"))
+	prior.SetContent(container.NewAppTabs(container.NewTabItem(lang.L("Experimental"), widget.NewCheck(lang.L("Experimental HEIC support"), nil))))
+	prior.Show()
+	t.Cleanup(func() {
+		if slices.Contains(testApp.Driver().AllWindows(), prior) {
+			prior.Close()
+		}
+	})
 	before := preferences.Load(testApp)
 	t.Cleanup(func() { preferences.Save(testApp, before) })
 	preferences.Save(testApp, preferences.State{})
@@ -337,8 +351,7 @@ func TestExperimentalHEICRestartOnly(t *testing.T) {
 	heic := storage.NewFileURI("owned.heic")
 	t.Run("enable requires restart", func(t *testing.T) {
 		v, _, _ := newTestUI(t)
-		v.showSettings()
-		check := experimentalHEICCheckbox(t)
+		check := experimentalHEICCheckbox(t, v)
 		if check.Checked || v.images.foreground.IsSupportedImage(heic) {
 			t.Fatal("HEIC enabled by default")
 		}
@@ -354,8 +367,7 @@ func TestExperimentalHEICRestartOnly(t *testing.T) {
 			t.Fatalf("restart did not activate saved preference: %v", services.startupError)
 		}
 		v, _, _ := newTestUIWithImages(t, services)
-		v.showSettings()
-		check := experimentalHEICCheckbox(t)
+		check := experimentalHEICCheckbox(t, v)
 		if !check.Checked {
 			t.Fatal("saved preference was not restored to the checkbox")
 		}
@@ -378,8 +390,7 @@ func TestExperimentalHEICRestartOnly(t *testing.T) {
 		preferences.Save(testApp, prefs)
 		services := installedImageServices(prefs, filepath.Join(t.TempDir(), "missing"), private)
 		v, _, _ := newTestUIWithImages(t, services)
-		v.showSettings()
-		if !experimentalHEICCheckbox(t).Checked || !v.images.unavailable() {
+		if !experimentalHEICCheckbox(t, v).Checked || !v.images.unavailable() {
 			t.Fatal("unavailable package lost saved intent or explanation state")
 		}
 		ordinary := storage.NewFileURI(uitest.WriteTempFile(t, "ordinary.png", uitest.EncodePNG(t, 3, 2, color.White)))

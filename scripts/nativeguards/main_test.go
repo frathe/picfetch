@@ -222,3 +222,25 @@ func TestNativeApplicationGuardRunsWithHelperSuite(t *testing.T) {
 		t.Fatalf("native runner lost helper or application coverage: %v", calls)
 	}
 }
+
+func TestLinuxApplicationUsesCGOWithoutChangingHelperBuild(t *testing.T) {
+	t.Setenv("CGO_ENABLED", "unexpected")
+	s, err := suiteFor("heic-linux", "linux")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range []string{"./internal/ui", "./internal/heicdecode/client", "./internal/heicdecode/worker", "./internal/similarity"} {
+		for _, flags := range [][]string{{"-list", "."}, {"-json", "-run", "TestNative"}} {
+			command := s.command(context.Background(), append(s.testArgs(flags...), pkg))
+			want := "CGO_ENABLED=0"
+			if pkg == "./internal/ui" {
+				want = "CGO_ENABLED=1"
+			}
+			for _, value := range command.Environ() {
+				if strings.HasPrefix(value, "CGO_ENABLED=") && value != want {
+					t.Errorf("%s %v: %s, want %s", pkg, flags, value, want)
+				}
+			}
+		}
+	}
+}

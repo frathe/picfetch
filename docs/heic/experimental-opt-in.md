@@ -68,7 +68,10 @@ token and unchanged installed helper bytes/ACLs.
 CI's `packaging/heic/qualify-windows.ps1` provisions a disposable local standard
 account on a GitHub-hosted runner. For MSIX it adds a separate test application,
 uses a disposable signing certificate, and records setup separately from
-application execution. `qualify-windows-child.ps1` performs the unelevated work
+application execution. The child replaces inherited runner profile variables
+with the loaded standard user's native environment via
+[CreateEnvironmentBlock](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock).
+`qualify-windows-child.ps1` performs the unelevated work
 and removes its test package. The parent removes its account, owned workspace
 and certificate/trust entry. Neither script is called by PicFetch. CI runs both
 architectures for standalone and installed-MSIX scenarios. Runtime or permission
@@ -89,8 +92,9 @@ Store identity; cross-compilation is not that evidence.
 Focused preference/Settings/admission/Explorer and helper-publication tests pass
 locally. Native macOS arm64 application-constructor activation passes with the
 unchanged helper entitlement and finite limits. Windows amd64/arm64 test binaries
-compile. Native Windows, installed-MSIX, Linux and macOS amd64 results for these
-new paths remain unverified until their new CI jobs execute. Production GUI
+compile. Both macOS architectures pass the native CI constructor/analysis guards at
+`f41fe63`. Native Windows, installed-MSIX and Linux qualification remain open
+while CI fixture corrections are verified. Production GUI
 smoke tests remain distinct from the test-driver fixture. See the plan for exact
 commands, recorded red/green results and inspections as they complete.
 

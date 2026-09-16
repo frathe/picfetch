@@ -201,6 +201,20 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 	return errors.Join(failures...)
 }
 
+func (s *suite) command(ctx context.Context, args []string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "go", args...)
+	if s.name == "heic-linux" {
+		// Keep the helper qualification on its pure Go runtime. Only the
+		// separately executed GUI fixture needs the existing C/X11 adapters.
+		cgo := "0"
+		if slices.Contains(args, "./internal/ui") {
+			cgo = "1"
+		}
+		cmd.Env = append(os.Environ(), "CGO_ENABLED="+cgo)
+	}
+	return cmd
+}
+
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("nativeguards", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -226,11 +240,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Minute)
 	defer cancel()
 	execute := func(ctx context.Context, args []string, out io.Writer) error {
-		cmd := exec.CommandContext(ctx, "go", args...)
-		if s.name == "heic-linux" {
-			// The standalone Linux helper policy supports the pure Go runtime.
-			cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
-		}
+		cmd := s.command(ctx, args)
 		cmd.Stdout = out
 		cmd.Stderr = stderr
 		return cmd.Run()
