@@ -4,6 +4,8 @@ Navigation map for AI agents. PicFetch is a Fyne desktop image viewer: one
 binary, split into `internal/...` packages. Start here to find a file.
 Standing rules (data flow, concurrency, conventions, build) live in
 `AGENTS.md` — do not duplicate them here.
+`THREAT-MODEL.md` maps application assets, trust boundaries and residual risks;
+HEIC execution and distribution evidence lives in `docs/heic/qualification.md`.
 
 ## Package map
 
@@ -46,6 +48,12 @@ the raw events outside the repository; the generated assignment lives at
 | `main.go` | `summarize`, `plan`, `check`, `regex`, `partition`, and `capture` command paths: complete event-stream validation, deterministic assignment, live build-selected inventory and parallel-call checks, exact anchored filters, exact-package subtraction, concise diagnostics, and raw preservation. |
 | `docker-race.sh` | Public Make runner: unique host artifact directory, attached Docker lifecycle, raw streams and console retention, exit/memory/OOM diagnostics before cleanup. |
 | `main_test.go` | Command-boundary fixtures for event streams and capture, deterministic planning, every manifest rejection, build-selected runnable forms, parallel-call refusal, exact filter generation, package partitioning, and Make contract expansion. |
+
+### `scripts/qodanaconfig`
+
+Validates the root Qodana YAML mapping before Make's exact test-path inventory
+check. `main_test.go` covers malformed mappings, commented parents and duplicate
+keys; text path matching alone cannot establish YAML validity.
 
 ### `internal/similarity`
 

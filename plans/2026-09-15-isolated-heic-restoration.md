@@ -1,5 +1,12 @@
 # Isolated HEIC/HEIF restoration
 
+**Current status:** production HEIC remains disabled. This chronological plan's
+original 30-second/all-platform hard-memory requirements were superseded by
+the recorded 60-second ceiling and accepted macOS native-memory limitation.
+Use [qualification](../docs/heic/qualification.md) and
+[history reconciliation](../docs/heic/history-reconciliation.md) for the current
+implementation and the disposition of the original branch's changes.
+
 Date: 2026-09-15. Route: **Deep SDD/TDD**. The deliverable is decode-only
 HEIC/HEIF support through one bounded, disposable WASI decoder helper, admitted
 only on platforms where both process-family memory enforcement and capability
@@ -872,3 +879,41 @@ historical prototype. Neither branch nor the historical hardening commit is
 merged. The missing documents are reported for separate intentional integration.
 HEIC activation remains disabled, all qualification limitations remain explicit,
 and no history rewrite, merge or release is authorized by this checkpoint.
+
+
+### Historical omission reconciliation (2026-09-16)
+
+Ronin authorized restoring useful omissions from `feature/heic-hardening`
+commits `fc127b44` and `73cb3c9` into the existing PR, including signed commit
+and push. The earlier checkpoint's deliberate document omission is superseded
+by this authorization. The CI/review agent remains paused; no merge, release,
+activation or history rewrite is included.
+
+The lead restored capped one-time guest backing storage, YAML validation before
+Qodana path checks, four unchanged ordinary positive fixtures, stronger alpha
+coverage, the generated Fyne metadata ignore and an adapted app-wide threat
+model. The 107 maintained production/source-license files were already present
+byte for byte; the current helper architecture replaces the older worker.
+[The reconciliation ledger](../docs/heic/history-reconciliation.md) accounts
+for every historical non-vendored path and the selected/omitted test coverage.
+
+The lead owned implementation, all review and fixes. One bounded read-only
+scout checked ordinary fixture provenance and final source/fixture identity
+while the lead reviewed code and ran checks (no writes, decoder execution or
+review delegation). It confirmed 107/107 source/license files and 4/4 restored
+fixtures with no mismatches. This adds evidence to the existing Deep plan.
+
+The Make gate first accepted malformed YAML; the restored parser rejects it.
+Both memory-growth cases first replaced the backing buffer; preallocation makes
+them pass without raising the ceiling. Focused worker/build-tool/validator race
+regressions and interpreter memory/cancellation tests pass. All four native
+Apple Silicon guards pass after preallocation. The guest regenerates unchanged;
+`make verify-build` and GoLand inspections of all changed Go files pass.
+
+Canonical shard validation could not complete locally: the Linux-only direct
+target was accidentally run on macOS, and the documented Docker target then
+found no running daemon. No UI test or assignment changed. Current baseline CI
+has passing Linux/macOS native guards and UI shards, but failing Windows HEIC
+and non-UI Linux race jobs. Fresh CI must qualify the new configuration. These
+and distribution/color/upgrade/signing gates remain explicit in `todos.md`;
+this reconciliation does not claim feature or review-loop completion.

@@ -90,59 +90,46 @@ do not authorize restoring a decoder.
 
 Restoration work is authorized and tracked in
 [the active plan](plans/2026-09-15-isolated-heic-restoration.md) and
-[draft PR #28](https://github.com/frathe/picfetch/pull/28). Local source access is
-resolved. The pinned WASI development guest, NRGBA8/NRGBA64 protocol, ordinary
-fixtures and reproducible source/artifact/import guards are present. A signed
-macOS App Sandbox helper now passes owned file/network-denial, ordinary decode
-and cancellation checks. Its bounded parent transport passes owned crash,
-blocked-writer timeout and diagnostic tests. Ronin accepted the absent hard total
-native-memory cap on macOS; WASM/IPC/deadline/sandbox protections remain mandatory.
-The compiler needs a helper-only executable-memory entitlement; the interpreter
-timed out on an ordinary 12-megapixel fixture under the same deadline.
-Production decoding remains disabled pending native Linux/Windows/Intel
-qualification, distribution-package verification and representative camera
-compatibility checks. The historical maintained h265 production copy is restored
-with exact baseline/replacement guards; its native qualification is in progress.
-Intel passed sandbox/small-image checks but the 12MP compiler fixture reached
-the initial 30-second deadline. A documented finite 60-second candidate retains
-all other bounds; fresh native timing and full packaged qualification remain open. See
-[qualification evidence](docs/heic/qualification.md).
-The Linux no-cgo amd64/arm64 candidate now cross-builds with a synchronized
-default-deny runtime policy and verified-before-input address-space controls.
-Its native guard matrix is wired; actual Linux execution remains pending CI.
-Windows now has suspended AppContainer creation, explicit stdio handles and
-Job Object process/commit-memory/CPU/kill-on-close restrictions. The child
-verifies token/job state before readiness. AMD64/ARM64 cross-builds and Windows
-vet pass; native controls and ordinary fixtures await `heic-windows` CI.
-Dedicated helper permissions and MSIX packaging remain qualification gates.
-Package staging now records fixed helper paths, post-signing hashes and exact
-notices. The complete macOS app and nested helper pass strict signature checks.
-The updater now preserves authenticated companion files and rollback; native
-macOS controls verify the complete signed bundle after install and rollback.
-The released updater still omits the first helper-bearing package and deletes
-its cache, leaving a macOS signature mismatch. That initial transition requires
-a complete package reinstall or separately qualified bridge before release.
-Windows Authenticode/MSIX execution and native CI remain unverified.
-The complete implementation checkpoint and its remaining qualification gates
-are tracked in draft PR #28. The earlier P0-only signing attempt failed without
-publishing; the current checkpoint includes the subsequent integration work.
-The shared client lane and bounded pipe service are implemented with fair
-foreground/background admission, grant-before-read, framed canonical output
-and joined cancellation. Inherited analysis pipe components pass native macOS
-subprocess tests; Windows native execution remains pending. The canonical
-imaging Reader/Source now passes admission, metadata, pixel-fidelity and ordinary
-format regressions. Application ownership and GUI/analysis consumer injection
-are implemented with joined shutdown. Native activation and compatibility
-qualification remain open; construction currently supplies no HEIC owner.
-Additional [ordinary compatibility checks](docs/heic/compatibility-2026-09-16.md)
-cover real-helper synthetic metadata/orientation, alpha and a known ten-bit
-ramp. One hash-verified public-domain Samsung S23 Ultra photograph decodes in
-20.414 seconds with correct upright dimensions and metadata. Its P3 pixels
-differ from color-managed ImageIO; broader camera and faithful color claims
-remain unqualified. Faithful ICC/wide-gamut/PQ/HLG/gain-map display is not implemented:
-the decoder leaves source-space RGB and the guest drops the color description.
-These color classes are not deliberately rejected. This is a support boundary,
-not a claim that more test fixtures would establish HDR/color management.
+[draft PR #28](https://github.com/frathe/picfetch/pull/28). The signed `52ed2df`
+checkpoint publishes the maintained-source WASI guest, native helper boundaries,
+shared GUI/analysis admission, canonical imaging integration and authenticated
+package/update handling. Production construction still supplies no HEIC owner.
+
+The September 16 [history reconciliation](docs/heic/history-reconciliation.md)
+accounts for `fc127b44` and `73cb3c9`: all 107 production/source-license files
+were preserved byte for byte. It restores the current app-wide threat model,
+fixed WASM backing storage, Qodana YAML guard, four ordinary fixtures and Fyne
+metadata ignore rule. Focused race/interpreter tests, native Apple Silicon
+guards, build/provenance/import checks and GoLand inspections pass. No complete
+historical decoder-suite equivalence is claimed.
+
+Remaining qualification:
+
+- Fresh native CI must exercise the restored memory configuration. On baseline
+  `52ed2df`, Linux amd64/arm64 and macOS Intel/Apple Silicon helper guards and
+  all UI race shards pass; Windows HEIC guards and the non-UI Linux race job
+  fail. The CI/GitHub review agent remains paused at Ronin's request. Review
+  reports and required CI must be addressed before acceptance. Local canonical
+  shard verification is unavailable because the Docker daemon is stopped.
+- Ronin accepted the absent hard total native-memory cap on macOS. WASM,
+  transport, deadline and sandbox controls remain mandatory; helper-only
+  executable-memory permission is required. The compiler succeeds on the
+  ordinary 12MP fixture; the interpreter reaches the finite deadline.
+- Complete distribution-package, Windows Authenticode/MSIX and upgrade
+  qualification remain open. The released updater drops the new helper and
+  deletes staging, leaving an invalid macOS enclosing signature. The first
+  transition requires a complete reinstall or a separately qualified bridge.
+- [Compatibility evidence](docs/heic/compatibility-2026-09-16.md) covers ordinary
+  synthetic metadata/orientation, alpha and ten-bit transport plus one verified
+  Samsung S23 Ultra photo. Broader camera coverage remains open. Faithful
+  ICC/wide-gamut/PQ/HLG/gain-map display is absent and those color classes are
+  not deliberately rejected; more fixtures alone cannot establish it.
+- The initial cloud foundation commit is unsigned; the PR's signing prerequisite
+  remains open. No history rewrite, merge, release or production activation is
+  authorized by this reconciliation.
+
+See [qualification evidence](docs/heic/qualification.md) and the current
+[threat model](THREAT-MODEL.md) for controls and accepted limitations.
 
 The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
 include libheif/libde265 with LGPL distribution work and hpvcd with unresolved

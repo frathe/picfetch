@@ -31,3 +31,27 @@ config/decode dimensions. They do not establish colorimetric fidelity, broad
 camera compatibility, Exif/container-orientation precedence, production sandbox
 qualification, or a whole-worker memory ceiling. Runtime memory is not measured
 by the WASM linear-memory cap.
+
+## Recovered ordinary fixtures
+
+The following unchanged positive fixtures were recovered from
+fc127b44e1c99447b8d150256563c6d4f99b8ad3 under
+third_party/h265/heic/testdata and compared byte for byte with upstream h265
+v0.2.2, commit 665fd95984177afef4a7efca7d50638e4b695c7a. They cover ordinary
+4:2:2, 4:4:4, lossless and embedded-thumbnail containers. The repository MIT
+license and both copyright notices are retained in the existing h265 notice;
+no additional original-media provenance is asserted.
+
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| chroma422.heic | 22466 | 66ab3939ee65e456c5dd251c11c3bbc06988a97b3204fe07783a3099c5feac03 |
+| chroma444.heic | 21527 | 922d8b5fbc5016b03c23fb1cbb8a481055657134c05197b264c56a2d124b5dca |
+| lossless.heic | 37654 | ed6be32433f7faa64fea894ecf8119fbdffbdc91420d7d08933812577ace594a |
+| thumb.heic | 20337 | 45c4dd0be12e0dc796ec057ba783ac8e6dfac04351a3b93279a430d9c0017531 |
+
+All eight small fixtures exercise Decode, DecodeConfig and DecodeExif through
+the bounded WASI guest. Configuration must agree with displayed dimensions;
+the alpha fixture must retain its endpoint and midpoint ramp. This restores
+useful positive coverage without asserting pixel equivalence or importing the
+historical full codec tests/benchmark/encoder/reproducer suites. Existing
+libde265 YUV-plane digests are not RGBA-protocol pixel references.

@@ -73,6 +73,50 @@ func TestRuntimeCancelsOwnedLoop(t *testing.T) {
 	}
 }
 
+func TestRuntimeMemoryGrowthReusesBacking(t *testing.T) {
+	for _, explicitMax := range []bool{false, true} {
+		name := "runtime maximum"
+		memorySection := []byte{5, 3, 1, 0, 1}
+		if explicitMax {
+			name = "module maximum"
+			memorySection = []byte{5, 4, 1, 1, 1, 2}
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			limits := heicdecode.DefaultLimits(0)
+			limits.WASMMemoryBytes = 2 * 64 * 1024
+			runtime := newGuestRuntime(ctx, limits)
+			defer func() { _ = runtime.Close(ctx) }()
+			// An owned module exports one page of memory and no code/imports.
+			moduleBytes := append([]byte{0, 0x61, 0x73, 0x6d, 1, 0, 0, 0}, memorySection...)
+			moduleBytes = append(moduleBytes, 7, 10, 1, 6, 'm', 'e', 'm', 'o', 'r', 'y', 2, 0)
+			module, err := runtime.Instantiate(ctx, moduleBytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			memory := module.Memory()
+			before, ok := memory.Read(0, 1)
+			if !ok {
+				t.Fatal("initial memory unavailable")
+			}
+			before[0] = 42
+			if previous, ok := memory.Grow(1); !ok || previous != 1 {
+				t.Fatalf("allowed growth = %d, %v", previous, ok)
+			}
+			after, ok := memory.Read(0, 1)
+			if !ok || after[0] != 42 {
+				t.Fatal("growth lost existing data")
+			}
+			if &before[0] != &after[0] {
+				t.Fatal("growth replaced the guest backing buffer")
+			}
+			if _, ok := memory.Grow(1); ok {
+				t.Fatal("growth exceeded the two-page ceiling")
+			}
+		})
+	}
+}
+
 func TestRuntimeBoundsGuestDiagnostics(t *testing.T) {
 	limits := heicdecode.DefaultLimits(0)
 	var diagnostic bytes.Buffer
@@ -158,13 +202,13 @@ func diagnosticModule() []byte {
 	return module
 }
 
-// ownedModule builds one function and a one-or-two-page memory from literal
-// instructions. It has no imports, image input, or third-party parser code.
+// ownedModule builds one function with a fixed one-or-two-page memory ceiling.
+// It has no imports, image input, or third-party parser code.
 func ownedModule(pages byte, body []byte) []byte {
 	module := []byte{0, 0x61, 0x73, 0x6d, 1, 0, 0, 0,
 		1, 4, 1, 0x60, 0, 0, // one () -> () type
 		3, 2, 1, 0, // one function
-		5, 4, 1, 1, pages, 2, // bounded memory
+		5, 4, 1, 1, pages, pages, // bounded memory
 		7, 10, 1, 6, '_', 's', 't', 'a', 'r', 't', 0, 0,
 		10, byte(len(body) + 3), 1, byte(len(body) + 1), 0}
 	return append(module, body...)

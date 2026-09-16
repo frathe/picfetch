@@ -61,7 +61,9 @@ implementation is preserved in full; no complete equivalence to upstream's
 different table representation is claimed. All 107 production/source-notice
 files are byte-identical to the clean historical subtree, including unused
 native assembly. The WASI guest selects `noasm`; native application imports
-remain prohibited. The historical test corpus and THREAT-MODEL.md are not copied.
+remain prohibited. The historical full test corpus is not imported. Selected
+ordinary fixtures and a current application-wide [threat model](../../THREAT-MODEL.md)
+are restored by the [history reconciliation](history-reconciliation.md).
 
 The exact upstream base module sum is
 `h1:rnpfo8I4PFhohbij8ySYZlJFn07TTwV+/uWBrKsOEas=` and its ZIP SHA-256 is
@@ -114,6 +116,13 @@ Upstream `basic.heic` and `main10.heic` are byte-identical in the pinned archive
 only the generated explicit-depth gradient is used as ten-bit evidence.
 
 ## Resource and compatibility limits
+
+The WASI runtime reserves its capped backing store once; memory growth reuses
+that store instead of temporarily retaining old and replacement guest buffers.
+An owned two-page module tests stable backing storage and ceiling refusal for
+both explicit module maxima and the runtime-imposed maximum. This is not a
+whole-helper RSS guarantee; it increases up-front virtual memory reservation,
+so native platform qualification must include this configuration.
 
 The candidate production maxima remain 64 MiB input, 64M pixels, 256,000,000
 output bytes, 64 KiB normalized metadata, 4096-byte diagnostics, 60 seconds,
@@ -209,10 +218,10 @@ once sandboxing and finite decoder memory are verified, even though the native
 helper lacks a guaranteed hard total-memory cap and can cause memory pressure or
 crashes. Capability restrictions remain mandatory. This supersedes the original
 whole-worker-cap gate for macOS; the proposed 2 GiB number was an engineering
-starting point. The current candidate launches a helper through its isolated
-client tests; the application has not yet adopted that client.
-Implementation continues with bounded host allocations, byte-only validated IPC,
-finite jobs/time, cancellation/cleanup, shared admission and platform sandboxing.
+starting point. Application/analysis injection of the shared client is now
+implemented, while production construction still supplies no HEIC owner.
+Bounded host allocations, byte-only validated IPC, finite jobs/time,
+cancellation/cleanup, shared admission and platform sandboxing remain required.
 
 ## Native macOS helper evidence, 2026-09-16
 

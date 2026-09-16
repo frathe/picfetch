@@ -37,10 +37,12 @@ func TestWASIGuestOrdinaryFixtures(t *testing.T) {
 	}
 	defer func() { _ = compiled.Close(context.Background()) }()
 	for _, tt := range []struct {
-		name           string
-		sixteen, alpha bool
+		name  string
+		depth int
+		alpha bool
 	}{
-		{"basic.heic", false, false}, {"main10.heic", false, false}, {"tenbit.heic", true, false}, {"alpha.heic", false, true},
+		{"basic.heic", 8, false}, {"main10.heic", 8, false}, {"tenbit.heic", 16, false}, {"alpha.heic", 8, true},
+		{"chroma422.heic", 0, false}, {"chroma444.heic", 0, false}, {"lossless.heic", 0, false}, {"thumb.heic", 0, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			input, err := os.ReadFile(filepath.Join("testdata", tt.name))
@@ -51,8 +53,11 @@ func TestWASIGuestOrdinaryFixtures(t *testing.T) {
 			if result.Image == nil || result.Image.Bounds().Empty() {
 				t.Fatal("missing decoded image")
 			}
-			_, sixteen := result.Image.(*image.NRGBA64)
-			if sixteen != tt.sixteen {
+			depth := 8
+			if _, sixteen := result.Image.(*image.NRGBA64); sixteen {
+				depth = 16
+			}
+			if tt.depth != 0 && depth != tt.depth {
 				t.Fatalf("pixel type = %T", result.Image)
 			}
 			if tt.alpha {
@@ -60,15 +65,11 @@ func TestWASIGuestOrdinaryFixtures(t *testing.T) {
 				if !ok {
 					t.Fatalf("alpha type = %T", result.Image)
 				}
-				transparent := false
-				for i := 3; i < len(img.Pix); i += 4 {
-					if img.Pix[i] < 255 {
-						transparent = true
-						break
-					}
-				}
-				if !transparent {
-					t.Fatal("alpha was flattened")
+				left := img.NRGBAAt(0, 0).A
+				middle := img.NRGBAAt(img.Bounds().Dx()/2, 0).A
+				right := img.NRGBAAt(img.Bounds().Dx()-1, 0).A
+				if left > 8 || right < 240 || middle <= left || middle >= right {
+					t.Fatalf("alpha ramp was lost: left=%d middle=%d right=%d", left, middle, right)
 				}
 			}
 			config := runGuest(t, runtime, compiled, input, heicdecode.DecodeConfig)

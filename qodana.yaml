@@ -403,6 +403,7 @@ exclude:
       - "scripts/nativeguards/main_test.go"
       - "scripts/plistdoctypes/doctypes_test.go"
       - "scripts/plistdoctypes/main_test.go"
+      - "scripts/qodanaconfig/main_test.go"
       - "scripts/releasenotes/main_test.go"
       - "scripts/releasenotes/notes_test.go"
       - "scripts/storepublish/main_test.go"

@@ -110,6 +110,8 @@ precedence over its default handoff procedure.
 - Use `internal/uitest` for synthetic image formats, temp URIs, approximate comparisons, and OS seam stubs. UI tests should build through `newTestUI`/`newTestViewer`, which mirror production startup.
 - `CanvasObject.Visible()` is the object's own hidden flag, not a statement about the tree it is in: a widget that was built and then left out of its container still reports `true`. A test that asserts only `Visible()` therefore passes on a widget that never reaches the screen. When the fact under test is "this is *in* the surface", walk the container from its root — see `infoview`'s `inCard` in `card_test.go`. `Visible()` alone is enough only for a widget already known to be in the tree whose show/hide is what moves.
 - Keep platform-specific behavior in existing build-tag pairs and preserve no-cgo AVIF decoding through `gen2brain` WASM; Fyne itself still requires a C/OpenGL toolchain.
+- **HEIC source changes:** Read [the maintained-source record](third_party/h265/PICFETCH.md) before changing the decoder or its build. Preserve local hardening until equivalent upstream checks are verified. HEIC parsing belongs only in the separate WASI guest; keep the native import guard and fail-closed application boundary. `make test-h265` covers ordinary WASI fixtures, not the historical full decoder suite.
+- **Security-boundary changes:** Reconcile [THREAT-MODEL.md](THREAT-MODEL.md) when parser ownership, worker permissions, memory limits, sensitive persistence or update authority changes; distinguish implemented controls from platform qualification.
 
 ## Build and Verification
 

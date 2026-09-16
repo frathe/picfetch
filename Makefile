@@ -194,7 +194,8 @@ sync-qodana-test-exclusions: ## Synchronize Qodana's duplication exclusions with
 	fi; \
 	$(MAKE) --no-print-directory check-qodana-test-exclusions
 
-check-qodana-test-exclusions: ## Fail if qodana.yaml does not exclude every *_test.go from duplication checks
+check-qodana-test-exclusions: ## Validate Qodana YAML and require every *_test.go duplication exclusion
+	go run ./scripts/qodanaconfig
 	@set -eu; \
 	listed=$$(mktemp); \
 	test_files=$$(mktemp); \
