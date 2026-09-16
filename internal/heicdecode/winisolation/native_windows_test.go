@@ -45,6 +45,10 @@ func ownedPolicyControl(limits heicdecode.Limits) error {
 	if os.Getenv("PICFETCH_OWNED_PARENT_ENVIRONMENT") != "" {
 		return errors.New("parent environment reached the helper")
 	}
+	windowsDirectory, err := windows.GetWindowsDirectory()
+	if err != nil || os.Getenv("SystemRoot") != windowsDirectory {
+		return fmt.Errorf("helper SystemRoot does not match Windows directory: %w", err)
+	}
 	// The request is capped at 65 MiB even if the tested restriction is broken.
 	// No page is touched; an unexpected success is freed immediately.
 	if limits.OSProcessBytes != 64*1024*1024 {

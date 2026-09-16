@@ -115,11 +115,21 @@ func Start(executable string, args []string, stdio [3]*os.File, limits heicdecod
 	if err != nil {
 		return nil, err
 	}
-	// No parent environment, search path or user image location enters the child.
+	// Supply the system installation directory required by AppContainer startup,
+	// without inheriting the parent's environment or DLL search path.
 	environment, err := windows.UTF16FromString("GOMAXPROCS=1")
 	if err != nil {
 		return nil, err
 	}
+	windowsDirectory, err := windows.GetWindowsDirectory()
+	if err != nil {
+		return nil, fmt.Errorf("locate Windows directory: %w", err)
+	}
+	systemRoot, err := windows.UTF16FromString("SystemRoot=" + windowsDirectory)
+	if err != nil {
+		return nil, err
+	}
+	environment = append(environment, systemRoot...)
 	environment = append(environment, 0)
 	directory, err := windows.UTF16PtrFromString(filepath.Dir(executable))
 	if err != nil {
@@ -128,7 +138,7 @@ func Start(executable string, args []string, stdio [3]*os.File, limits heicdecod
 	var information windows.ProcessInformation
 	flags := uint32(windows.CREATE_SUSPENDED | windows.CREATE_UNICODE_ENVIRONMENT | windows.EXTENDED_STARTUPINFO_PRESENT | windows.CREATE_NO_WINDOW)
 	if err = windows.CreateProcess(path, command, nil, nil, true, flags, &environment[0], directory, &startup.StartupInfo, &information); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create AppContainer process: %w", err)
 	}
 	runtime.KeepAlive(capability)
 	runtime.KeepAlive(handles)

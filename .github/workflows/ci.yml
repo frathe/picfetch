@@ -187,6 +187,9 @@ jobs:
 
   heic-windows:
     name: Windows ${{ matrix.arch }} HEIC sandbox and pipe guards (attempt ${{ github.run_attempt }})
+    env:
+      # The shipped Windows helper is pure Go; ARM runners lack a native C compiler.
+      CGO_ENABLED: '0'
     strategy:
       fail-fast: false
       matrix:

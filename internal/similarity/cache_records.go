@@ -3,6 +3,7 @@ package similarity
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"regexp"
@@ -37,7 +38,7 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 		var root *os.Root
 		var err error
 		if favorite != nil {
-			root, err = favorite.root.OpenRoot("analysis")
+			root, err = openAnalysisDirectory(favorite.root, "analysis")
 		} else {
 			parent, openErr := os.OpenRoot(base)
 			if errors.Is(openErr, os.ErrNotExist) {
@@ -47,7 +48,7 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 				failures = append(failures, openErr)
 				return
 			}
-			root, err = parent.OpenRoot(relative)
+			root, err = openAnalysisDirectory(parent, relative)
 			_ = parent.Close()
 		}
 		if errors.Is(err, os.ErrNotExist) {
@@ -123,4 +124,21 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 	i.usage.Favorite.Incomplete = len(failures) > generalFailures || ctx.Err() != nil
 	i.usage.Incomplete = i.usage.General.Incomplete || i.usage.Favorite.Incomplete
 	return errors.Join(failures...)
+}
+
+// Windows can report a regular file passed to OpenRoot as ErrNotExist. Keep
+// that invalid cache layout visible as a partial inventory, rather than
+// reporting an empty, healthy cache. The opened parent pins this check.
+func openAnalysisDirectory(parent *os.Root, name string) (*os.Root, error) {
+	root, err := parent.OpenRoot(name)
+	if errors.Is(err, os.ErrNotExist) {
+		info, statErr := parent.Stat(name)
+		if statErr == nil && !info.IsDir() {
+			return nil, fmt.Errorf("analysis cache %s is not a directory", name)
+		}
+		if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+			return nil, statErr
+		}
+	}
+	return root, err
 }

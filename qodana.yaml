@@ -63,12 +63,27 @@ exclude:
       # Explicit types in fixtures are intentional test scaffolding.
       - "internal/imaging/orientation_test.go"
       - "internal/ui/mosaic_test.go"
+      # Preserve the exact maintained codec source; these casts are harmless.
+      - "third_party/h265/hevc/itransform.go"
+      - "third_party/h265/hevc/lossyenc.go"
+      - "third_party/h265/hevc/decoder.go"
   # The JPEG fast path handles four subsampling ratios; other ratios use the
   # generic scaler below. TestScaleForExport_PreservesJPEGFilterPixels covers
   # all six ratios and verifies exact CatmullRom output.
   - name: GoSwitchMissingCasesForIotaConsts
     paths:
       - "internal/imaging/thumbnail.go"
+      # Remaining NAL types have explicit EOS/non-VCL handling after the switch.
+      - "third_party/h265/hevc/decoder.go"
+  # *heicdecode.Failure implements error in protocol.go. Qodana's PR analysis
+  # fails to resolve that method; these standard **Failure targets are valid
+  # and covered by broker refusal/remote admission tests and go vet.
+  - name: GoErrorsAs
+    paths:
+      - "internal/heicdecode/client/broker.go"
+      - "internal/heicdecode/client/remote.go"
+      - "internal/heicdecode/client/remote_test.go"
+      - "internal/similarity/heic_test.go"
   # Product names (Microsoft/Store/GitHub) keep their capitalization in CLI
   # diagnostics; these files do not report sentence-capitalization defects.
   - name: GoErrorStringFormat
@@ -96,6 +111,9 @@ exclude:
   - name: GoReservedWordUsedAsName
     paths:
       - "internal/ui/exif_test.go"
+      # Scoped locals in the maintained codec retain their source identities.
+      - "third_party/h265/hevc/itransform.go"
+      - "third_party/h265/hevc/lossyenc.go"
   # writeTempPNGFile takes ownership and closes the file on every path;
   # the Darwin/Windows callers remove the returned filename after use.
   - name: GoResourceLeak
@@ -450,6 +468,9 @@ exclude:
       - "third_party/h265/heic/exif.go"
       - "third_party/h265/heic/heic.go"
       - "third_party/h265/hevc/nal.go"
+      # Public retained codec API; NewDecodeBudget is used by the nested module.
+      - "third_party/h265/hevc/budget.go"
+      - "third_party/h265/hevc/encoder.go"
   - name: GoUnusedFunction
     paths:
       - "third_party/h265/heic/ycbcr.go"

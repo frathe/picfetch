@@ -292,8 +292,9 @@ func TestStandaloneArchivesRetainNotices(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`"picfetch.exe" ../LICENSE ../THIRD-PARTY-NOTICES.md ../PRIVACY.md -j`,
-		`-C .. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md`,
+		`cp ../LICENSE ../THIRD-PARTY-NOTICES.md ../PRIVACY.md "heic-windows-$arch/"`,
+		`picfetch.exe heic LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md)`,
+		`-C "heic-linux-$arch" heic -C "$GITHUB_WORKSPACE" LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md`,
 		`@('LICENSE', 'THIRD-PARTY-NOTICES.md', 'PRIVACY.md')`,
 		`Compress-Archive -Path $packageFiles`,
 	} {

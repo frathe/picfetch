@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -62,10 +63,17 @@ func TestFavoriteAnalysisFollowsOpenedDirectory(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = root.Close() }()
-			if err := os.Rename(favstore.Dir(dir, "Trip"), filepath.Join(dir, "Moved")); err != nil {
-				t.Fatal(err)
+			renameErr := os.Rename(favstore.Dir(dir, "Trip"), filepath.Join(dir, "Moved"))
+			if runtime.GOOS == "windows" {
+				// Windows pins an os.Root directory against rename. Verify the
+				// same membership guarantee through that platform's refusal.
+				if renameErr == nil {
+					t.Fatal("Windows renamed a retained directory root")
+				}
+			} else if renameErr != nil {
+				t.Fatal(renameErr)
 			}
-			if replacement {
+			if replacement && renameErr == nil {
 				if err := favstore.Save(dir, "Trip", []fyne.URI{storage.NewFileURI(other)}); err != nil {
 					t.Fatal(err)
 				}
@@ -76,6 +84,14 @@ func TestFavoriteAnalysisFollowsOpenedDirectory(t *testing.T) {
 			}
 			if len(favorite.members) != 1 || !favorite.members[original] || favorite.members[other] || !favorite.current() {
 				t.Fatalf("opened directory associated with replacement membership: %v", favorite.members)
+			}
+			if renameErr != nil {
+				if err := root.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(favstore.Dir(dir, "Trip"), filepath.Join(dir, "Moved")); err != nil {
+					t.Fatalf("released directory still cannot be renamed: %v", err)
+				}
 			}
 		})
 	}

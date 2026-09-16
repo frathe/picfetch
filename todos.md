@@ -106,12 +106,12 @@ historical decoder-suite equivalence is claimed.
 
 Remaining qualification:
 
-- Fresh native CI must verify the withdrawn eager-allocation trial. On baseline
-  `52ed2df`, Linux amd64/arm64 and macOS Intel/Apple Silicon helper guards and
-  all UI race shards pass; Windows HEIC guards and the non-UI Linux race job
-  fail. The CI/GitHub review agent remains paused at Ronin's request. Review
-  reports and required CI must be addressed before acceptance. Local canonical
-  shard verification is unavailable because the Docker daemon is stopped.
+- Ronin resumed the GitHub Codex review loop on September 16. At `08a71f2`,
+  Linux amd64/arm64 and macOS Intel/Apple Silicon helper guards and all UI race
+  shards pass. Windows HEIC guards and a stale packaging-notice assertion in
+  the non-UI Linux race job fail. Fresh code/security reviews, static-report
+  dispositions and required CI remain pending in the active plan. Local
+  canonical shard verification is unavailable because the Docker daemon is stopped.
 - Ronin accepted the absent hard total native-memory cap on macOS. WASM,
   transport, deadline and sandbox controls remain mandatory; helper-only
   executable-memory permission is required. The compiler succeeds on the

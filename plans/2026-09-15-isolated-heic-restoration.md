@@ -935,3 +935,47 @@ native Linux guard is the regression check; its new CI result must establish
 whether this correction restores the prior behavior. Current threat and
 qualification documents retain temporary backing-buffer overlap as a residual
 memory cost. Earlier preallocation evidence above describes the trial only.
+
+### GitHub Codex review loop (2026-09-16)
+
+Ronin resumed the review loop on PR #28 at `08a71f2`. This authorizes fix
+commits, pushes and review discussion; merge, release, production activation
+and history rewriting remain outside scope. Existing code/security reviews
+cover only `a3c4d92`, and there are no unresolved review threads at entry.
+
+Route: Deep continuation for native Windows failures. Lead owns all assessment,
+implementation and fixes. One read-only scout retrieves Qodana/CodeQL evidence
+while the lead diagnoses CI: G1 bounded artifact collection, G2 retained API/
+SARIF outputs, G3 no tracked writes, G4/G5 independent evidence not yet held by
+lead. Budget: one scout, no implementation delegation, focused local tests;
+the complete suite runs in native CI as required by the review-loop agreement.
+
+Acceptance commands/evidence:
+
+- `go test -tags no_emoji,nodynamic ./scripts/msixstage ./scripts/nativeguards`
+  verifies packaging notice contracts and native runner selection.
+- Focused changed HEIC/client/cache tests and Windows cross-compilation verify
+  local changes; native `heic-windows` CI on both architectures must run every
+  required sandbox/pipe guard without skips. No relaxed isolation controls.
+- Inspect changed code with GoLand, and fetch post-suppression Qodana SARIF,
+  CodeQL analyses and failed job events after every relevant push.
+- Final `gh pr view` plus review/thread API evidence must establish a fresh
+  clean Codex code review and completed security review on the latest head,
+  actionable static findings resolved, and required CI passing.
+
+Round 1 local evidence: focused `msixstage`, `nativeguards`, `qodanaconfig`,
+HEIC client and affected similarity tests pass. Both Windows architecture
+guard binaries cross-compile. The notice assertion was observed failing on
+the old commands, then passing after updating its archive contract; removing
+the privacy notice from the new archive command fails it again. GoLand reports
+no findings for all seven changed Go files. Formatting and exact Qodana
+configuration checks pass. Native Windows behavior awaits hosted execution.
+
+At the entry head, CodeQL Go/Actions each report zero SARIF results (merge
+`575fde0` has `08a71f2` as head parent), and the PR-ref alerts list is empty.
+Qodana's 14 post-suppression findings are dispositioned with exact-file scopes:
+five false `errors.As` target warnings (`*heicdecode.Failure` implements error),
+four harmless maintained-source casts, two scoped builtin-shadowing names,
+one partial NAL switch followed by explicit remaining-type handling, and two
+retained codec constructors. The nested guest uses NewDecodeBudget; retained
+encoder API does not require deletion. Fresh reports must verify these scopes.

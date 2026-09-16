@@ -5,6 +5,7 @@
 package winisolation
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -25,6 +26,32 @@ func containerSID(create bool) (*windows.SID, error) {
 	library := windows.NewLazySystemDLL("userenv.dll")
 	var sid *windows.SID
 	if create {
+		// Profile registration is shared by all PicFetch processes for this
+		// user. Serialize it across processes; a Go mutex cannot do that.
+		// Win32 mutex ownership is bound to the acquiring OS thread.
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		user, userErr := windows.GetCurrentProcessToken().GetTokenUser()
+		if userErr != nil {
+			return nil, userErr
+		}
+		mutexName, nameErr := windows.UTF16PtrFromString(`Local\` + containerName + "." + user.User.Sid.String())
+		if nameErr != nil {
+			return nil, nameErr
+		}
+		mutex, mutexErr := windows.CreateMutex(nil, false, mutexName)
+		if mutexErr != nil && !errors.Is(mutexErr, windows.ERROR_ALREADY_EXISTS) {
+			return nil, fmt.Errorf("open HEIC profile lock: %w", mutexErr)
+		}
+		defer func() { _ = windows.CloseHandle(mutex) }()
+		state, waitErr := windows.WaitForSingleObject(mutex, 10000)
+		if waitErr != nil {
+			return nil, fmt.Errorf("wait for HEIC profile lock: %w", waitErr)
+		}
+		if state != windows.WAIT_OBJECT_0 && state != windows.WAIT_ABANDONED {
+			return nil, fmt.Errorf("HEIC profile lock wait returned %d", state)
+		}
+		defer func() { _ = windows.ReleaseMutex(mutex) }()
 		procedure := library.NewProc("CreateAppContainerProfile")
 		if err = procedure.Find(); err != nil {
 			return nil, err

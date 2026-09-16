@@ -144,6 +144,12 @@ trusted installed package. Hashes are not an independent package signature.
 | --- | --- |
 | Linux x64/ARM64 | Thread-synchronized default-deny seccomp, resource limits and a 2 GiB address-space ceiling before input. This is not a physical-RAM/cgroup limit. |
 | Windows x64/ARM64 | Suspended zero-capability AppContainer setup, explicit inherited handles, private Job Object committed-memory/CPU/process limits and kill-on-close. Native qualification still fails and activation is blocked. |
+
+Windows helper startup supplies only `GOMAXPROCS` and the OS-reported
+`SystemRoot`; it does not inherit the parent's environment or search path.
+Profile creation uses a bounded per-user/session cross-process mutex. These
+startup corrections still require passing native CI; they grant no additional
+AppContainer capabilities or filesystem rights.
 | macOS Intel/Apple Silicon | Separately entitled App Sandbox helper and Hardened Runtime with verified owned file/network denial; helper-only executable-memory entitlement for wazero. No guaranteed hard total native-memory ceiling. |
 
 Actual platform controls are verified before helper readiness; unsupported or
