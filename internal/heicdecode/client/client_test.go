@@ -94,10 +94,19 @@ func TestMain(m *testing.M) {
 		if err := json.Unmarshal([]byte(os.Args[2]), &limits); err != nil {
 			os.Exit(2)
 		}
+		mode := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+		if mode == "startup" {
+			_, _ = fmt.Fprintln(os.Stderr, "owned startup refusal")
+			os.Exit(3)
+		}
+		if mode == "startup-overflow" {
+			_, _ = io.CopyN(os.Stderr, zeroReader{}, int64(limits.MaxDiagnosticBytes)+1)
+			os.Exit(3)
+		}
 		if err := heicdecode.WriteReady(os.Stdout, heicdecode.Ready{WASMMemoryBytes: limits.WASMMemoryBytes, NativeMemoryBytes: limits.OSProcessBytes}); err != nil {
 			os.Exit(2)
 		}
-		switch strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe") {
+		switch mode {
 		case "success":
 			request, err := heicdecode.ReadRequest(os.Stdin, limits)
 			if err != nil {
@@ -114,6 +123,7 @@ func TestMain(m *testing.M) {
 				time.Sleep(time.Hour)
 			}
 		case "crash":
+			_, _ = fmt.Fprintln(os.Stderr, "owned post-readiness diagnostic")
 			os.Exit(7)
 		case "diagnostics":
 			_, _ = io.CopyN(os.Stderr, zeroReader{}, int64(limits.MaxDiagnosticBytes)+1)
@@ -209,6 +219,32 @@ func TestOwnedPeerCrashAndDiagnosticsFailClosed(t *testing.T) {
 			}
 			if !errors.Is(err, want) {
 				t.Fatalf("peer did not exercise expected boundary: %v, want %v", err, want)
+			}
+			if strings.Contains(err.Error(), "owned post-readiness diagnostic") {
+				t.Fatal("post-readiness helper diagnostics reached the caller")
+			}
+		})
+	}
+}
+
+func TestOwnedPeerStartupDiagnostics(t *testing.T) {
+	for _, mode := range []string{"startup", "startup-overflow"} {
+		t.Run(mode, func(t *testing.T) {
+			client := ownedPeer(t, mode, 5*time.Second)
+			called := false
+			_, err := client.Do(context.Background(), heicdecode.Decode, func(_ context.Context, _ int64) ([]byte, error) {
+				called = true
+				return nil, nil
+			})
+			if called || !errors.Is(err, ErrUnavailable) {
+				t.Fatalf("startup refusal: input called=%v, err=%v", called, err)
+			}
+			if mode == "startup" {
+				if !strings.Contains(err.Error(), `"owned startup refusal\n"`) {
+					t.Fatalf("bounded startup diagnostic missing: %v", err)
+				}
+			} else if !errors.Is(err, ErrDiagnosticLimit) || strings.Contains(err.Error(), "startup diagnostic") {
+				t.Fatalf("oversized startup diagnostic not bounded: %v", err)
 			}
 		})
 	}

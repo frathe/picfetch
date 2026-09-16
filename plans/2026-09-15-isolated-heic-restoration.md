@@ -1024,3 +1024,31 @@ environment approval and artifact names stay fixed. Regression
 `TestReleaseSigningDoesNotExecuteRepositoryCode` was observed red for checkout,
 toolchain and Go execution; it must pass after the workflow correction.
 No real signing service, release tag or publication is exercised by this loop.
+
+Round 5 (`6537ac0`) passes the native token and job queries and the bounded
+commitment refusal. Its inert child-process control fails in Go before reaching
+the kernel: syscall.StartProcess returns EINVAL when ProcAttr.Files has fewer
+than three entries. Supply the owned control's three standard handles and keep
+requiring an actual permission/quota/child-policy refusal. The real helper still
+fails readiness; add bounded, quoted startup diagnostics to distinguish native
+policy, file denial and TCP/UDP denial. They are available only before any image
+input; diagnostics after readiness remain private and overflow remains fatal.
+Owned-peer regression tests cover this boundary. No denial criterion changes.
+
+Qodana `35078625681` has zero post-suppression findings for `6537ac0`. CodeQL
+`35078625690` has zero Go/Actions results and no open PR alerts; its merge parents
+include that exact head. CI `35078625610` passes every job except the two Windows
+HEIC guards. Focused client/worker/package tests, ARM64 cross-compilation,
+format/exclusion checks and GoLand inspections pass for the next corrections.
+`TestWindowsHEICManifestFinalization` extracts the actual fixed PowerShell data
+transformation and runs it on inert helper bytes, including both targets, an
+invalid target, a zero guest digest and an oversized manifest. Native Windows
+CI requires this guard without skips; local macOS only compiles it. No test
+authenticates a signer or runs the fixture as an executable.
+
+The SSH signing delay cleared on resumption: security fix `c77d9bd` is signed
+and present on PR #28. Focused tests, vet, format/exclusion checks and GoLand
+inspections pass for the remaining local changes. Required remaining work:
+publish native diagnostics and the PowerShell fixture test, dispose of thread
+`4024388304`, complete another fresh review, pass both Windows native guards,
+and inspect final CI/static reports for the eventual head.

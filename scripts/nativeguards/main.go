@@ -52,6 +52,7 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.require("internal/update", "TestApplyWindows_ReplacesDestAndKeepsOld", "TestApplyWindows_MissingStagedBinaryRestoresDest", "TestWindowsRelaunchCommand_PassesThePIDInTheInheritedEnvironment", "TestClassifyApplyError_WindowsErrno", "TestWaitMilliseconds_NeverConvertsToAnUnboundedWait", "TestDownloadedCompanionsRemainVerifiedAfterPersistence", "TestApplyInstallsCompanionsAndRollsBackOnBinaryFailure")
 		s.require("internal/ui/autoupdate", "TestUpdater_AutomaticAndManualShareCompleteTransaction", "TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform")
 		s.require("internal/distribution", "TestStoreManaged_DefaultBuildIsFalse")
+		s.require("scripts/msixstage", "TestWindowsHEICManifestFinalization")
 	case "macos":
 		s.goos = "darwin"
 		s.require("", "TestInstall_GraftsOntoGLFWsDelegate")

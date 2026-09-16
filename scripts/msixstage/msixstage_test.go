@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -14,12 +15,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/frathe/picfetch/internal/heicdecode/client"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -357,6 +361,96 @@ func TestReleaseSigningDoesNotExecuteRepositoryCode(t *testing.T) {
 	}
 	if strings.LastIndex(script, "verify /pa /all /v /tw $signedFile") < strings.LastIndex(script, "Set-Content -LiteralPath $manifestPath") {
 		t.Error("final signature verification must follow manifest finalization")
+	}
+}
+
+// Execute only the fixed data transformation from the real workflow, with an
+// inert helper file. This never authenticates a signer or executes an artifact.
+func TestWindowsHEICManifestFinalization(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("requires the native Windows PowerShell used by release signing")
+	}
+	data, err := os.ReadFile("../../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct{ Steps []struct{ Run string } }
+	}
+	if err = yaml.Unmarshal(data, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	var transform string
+	for _, step := range workflow.Jobs["sign-windows"].Steps {
+		start := strings.Index(step.Run, "$manifestPath =")
+		end := strings.Index(step.Run, "foreach ($signedFile")
+		if start >= 0 && end > start {
+			transform = step.Run[start:end]
+		}
+	}
+	if transform == "" {
+		t.Fatal("fixed manifest transformation is missing")
+	}
+	for _, tc := range []struct {
+		name, arch, target, guest string
+		oversized, rejected       bool
+	}{
+		{"amd64", "amd64", "amd64", strings.Repeat("a", 64), false, false},
+		{"arm64", "arm64", "arm64", strings.Repeat("b", 64), false, false},
+		{"wrong target", "amd64", "arm64", strings.Repeat("a", 64), false, true},
+		{"zero guest", "amd64", "amd64", strings.Repeat("0", 64), false, true},
+		{"oversized", "amd64", "amd64", strings.Repeat("a", 64), true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), "owned ' data")
+			if err := os.MkdirAll(filepath.Join(root, "heic"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			helper, manifest, err := client.PackagePaths(root, "windows")
+			if err != nil {
+				t.Fatal(err)
+			}
+			inert := []byte("owned inert helper hash fixture")
+			if err = os.WriteFile(helper, inert, 0600); err != nil {
+				t.Fatal(err)
+			}
+			record := client.PackageManifest{Version: 1, GOOS: "windows", GOARCH: tc.target, ExecutableSHA256: strings.Repeat("0", 64), GuestSHA256: tc.guest}
+			encoded, err := json.Marshal(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.oversized {
+				encoded = append(encoded, bytes.Repeat([]byte(" "), 4096)...)
+			}
+			if err = os.WriteFile(manifest, encoded, 0600); err != nil {
+				t.Fatal(err)
+			}
+			script := "param([string]$unpacked, [string]$arch)\n$ErrorActionPreference = 'Stop'\n$helper = Join-Path $unpacked 'heic/picfetch-heic-worker.exe'\n" + transform
+			path := filepath.Join(t.TempDir(), "finalize.ps1")
+			if err = os.WriteFile(path, []byte(script), 0600); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			output, runErr := exec.CommandContext(ctx, "pwsh", "-NoProfile", "-NonInteractive", "-File", path, root, tc.arch).CombinedOutput()
+			if ctx.Err() != nil || (runErr != nil) != tc.rejected {
+				t.Fatalf("finalization: %v, context=%v, output=%s", runErr, ctx.Err(), output)
+			}
+			if tc.rejected {
+				return
+			}
+			_, digest, err := client.LoadPackage(root, "windows", tc.arch)
+			if err != nil || digest != sha256.Sum256(inert) {
+				t.Fatalf("finalized package: digest=%x err=%v", digest, err)
+			}
+			updated, err := os.ReadFile(manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = json.Unmarshal(updated, &record); err != nil || record.GuestSHA256 != tc.guest {
+				t.Fatalf("guest identity changed: %+v, %v", record, err)
+			}
+		})
 	}
 }
 

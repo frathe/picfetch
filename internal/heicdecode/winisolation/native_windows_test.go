@@ -69,7 +69,9 @@ func ownedPolicyControl(limits heicdecode.Limits) error {
 		return fmt.Errorf("unexpected commitment refusal: %w", err)
 	}
 	// A second copy of this inert control must be refused by the kernel.
-	child, err := os.StartProcess(os.Args[0], []string{os.Args[0], "--owned-exit"}, &os.ProcAttr{})
+	child, err := os.StartProcess(os.Args[0], []string{os.Args[0], "--owned-exit"}, &os.ProcAttr{
+		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
+	})
 	if child != nil {
 		_ = child.Kill()
 		_, _ = child.Wait()

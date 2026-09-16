@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -92,12 +93,14 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		_ = errRead.Close()
 	})
 	var pipeWork sync.WaitGroup
-	var diagnosticErr error // Read only after pipeWork.Wait.
+	var readinessFailed bool
+	var diagnostic bytes.Buffer // Read only after pipeWork.Wait.
+	var diagnosticErr error     // Read only after pipeWork.Wait.
 	pipeWork.Add(1)
 	stderrDone := make(chan error, 1)
 	go func() {
 		defer pipeWork.Done()
-		count, readErr := io.Copy(io.Discard, io.LimitReader(errRead, int64(c.config.Limits.MaxDiagnosticBytes)+1))
+		count, readErr := io.Copy(&diagnostic, io.LimitReader(errRead, int64(c.config.Limits.MaxDiagnosticBytes)+1))
 		if count > int64(c.config.Limits.MaxDiagnosticBytes) {
 			readErr = ErrDiagnosticLimit
 			diagnosticErr = readErr
@@ -116,6 +119,10 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 		if diagnosticErr != nil {
 			result = empty
 			resultErr = errors.Join(resultErr, diagnosticErr)
+		} else if readinessFailed && diagnostic.Len() > 0 {
+			// Readiness precedes all image input. Quote its bounded startup
+			// diagnostic, but never publish parser diagnostics after readiness.
+			resultErr = fmt.Errorf("%w: startup diagnostic %q", resultErr, diagnostic.String())
 		}
 		if resultErr == nil && processErr != nil {
 			result = empty
@@ -126,6 +133,9 @@ func (c *Client) run(ctx context.Context, op heicdecode.Operation, input Input) 
 	if err != nil || ready.WASMMemoryBytes != c.config.Limits.WASMMemoryBytes ||
 		ready.NativeMemoryBytes > c.config.Limits.OSProcessBytes ||
 		(runtime.GOOS != "darwin" && ready.NativeMemoryBytes == 0) {
+		readinessFailed = true
+		process.Kill()
+		_ = <-stderrDone
 		return empty, fmt.Errorf("%w: native readiness", ErrUnavailable)
 	}
 	if err = ctx.Err(); err != nil {

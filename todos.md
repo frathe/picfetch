@@ -106,11 +106,12 @@ historical decoder-suite equivalence is claimed.
 
 Remaining qualification:
 
-- Ronin resumed the GitHub Codex review loop on September 16. At `08a71f2`,
-  Linux amd64/arm64 and macOS Intel/Apple Silicon helper guards and all UI race
-  shards pass. Windows HEIC guards and a stale packaging-notice assertion in
-  the non-UI Linux race job fail. Fresh code/security reviews, static-report
-  dispositions and required CI remain pending in the active plan. Local
+- Ronin resumed the GitHub Codex review loop on September 16. At `6537ac0`,
+  all Linux race shards, Linux amd64/arm64 and macOS Intel/Apple Silicon helper
+  guards, ordinary Windows and validation pass. Windows HEIC qualification
+  still fails. Qodana's post-suppression report and both CodeQL reports contain
+  zero results. The fresh security review found repository execution in the
+  signing job; its confirmed fix and another review round are in progress. Local
   canonical shard verification is unavailable because the Docker daemon is stopped.
 - Ronin accepted the absent hard total native-memory cap on macOS. WASM,
   transport, deadline and sandbox controls remain mandatory; helper-only

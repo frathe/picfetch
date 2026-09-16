@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"runtime"
@@ -39,11 +40,13 @@ func Main(args []string) int {
 	debug.SetMemoryLimit(limits.OSProcessBytes - limits.OSProcessBytes/4)
 	nativeMemory, err := isolate(limits)
 	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return 3
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), limits.Timeout)
 	defer cancel()
 	if err = verifyDenial(ctx, args[2], args[3], args[4], args[5]); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return 3
 	}
 	if err = heicdecode.WriteReady(os.Stdout, heicdecode.Ready{WASMMemoryBytes: limits.WASMMemoryBytes, NativeMemoryBytes: nativeMemory}); err != nil {
@@ -89,7 +92,7 @@ func verifyDenial(ctx context.Context, readPath, writePath, tcpAddress, udpAddre
 			_ = connection.Close()
 		}
 		if !permissionDenied(dialErr) {
-			return errors.New("HEIC native network denial unavailable")
+			return fmt.Errorf("HEIC native %s denial unavailable: %v", network, dialErr)
 		}
 	}
 	return ctx.Err()
