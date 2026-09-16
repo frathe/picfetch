@@ -152,33 +152,6 @@ jobs:
           }
           Write-Host "Verified SimplySign installer SHA-256 and publisher: $($signature.SignerCertificate.Subject)"
 
-          # The setup action accepts only a URL. Serve the verified bytes over
-          # loopback so it cannot make a second request to Certum's server.
-          @'
-          $listener = [System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 43127)
-          $listener.Start()
-          try {
-            $client = $listener.AcceptTcpClient()
-            try {
-              $stream = $client.GetStream()
-              $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 1024, $true)
-              while (($line = $reader.ReadLine()) -ne '') {
-                if ($null -eq $line) { throw 'The local installer request ended before its headers.' }
-              }
-              $body = [IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'SimplySignDesktop.msi'))
-              $header = [Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Type: application/octet-stream`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
-              $stream.Write($header, 0, $header.Length)
-              $stream.Write($body, 0, $body.Length)
-            } finally {
-              $client.Dispose()
-            }
-          } finally {
-            $listener.Stop()
-          }
-          '@ | Set-Content -LiteralPath serve-simplysign.ps1
-          Start-Process -FilePath pwsh -ArgumentList '-NoProfile', '-File', (Join-Path $PWD 'serve-simplysign.ps1') -WindowStyle Hidden
-          Start-Sleep -Seconds 1
-
       - name: Authenticate Certum SimplySign
         # This commit is the reviewed v1 release of the third-party action.
         # Do not replace it with a floating tag: it receives the TOTP secret.
@@ -187,8 +160,9 @@ jobs:
           certum-username: ${{ secrets.CERTUM_USERNAME }}
           certum-otp-uri: ${{ secrets.CERTUM_OTP_URI }}
           certum-key-id: ${{ secrets.CERTUM_CERT_THUMBPRINT }}
-          # This loopback endpoint serves the already verified local MSI once.
-          simplysign-url: http://127.0.0.1:43127/SimplySignDesktop.msi
+          # The pinned action installs the verified local MSI and skips downloading.
+          # Fail if it is missing instead of downloading a fallback.
+          simplysign-url: https://simplysign-installer.invalid/SimplySignDesktop.msi
 
       - name: Sign, timestamp, and verify Windows executables
         shell: pwsh

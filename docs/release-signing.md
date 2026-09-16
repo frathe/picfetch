@@ -46,9 +46,10 @@ Certum does not currently document an official headless SimplySign API. The
 workflow therefore pins the third-party setup action to a reviewed commit
 rather than a mutable tag. It also downloads Certum SimplySign Desktop 9.4.4.92
 from Certum's own server, checks its pinned SHA-256 digest and Authenticode
-signer certificate, and serves those verified bytes to the setup action over a
-single-use loopback endpoint. The action cannot fetch the installer from
-Certum while signing credentials are available.
+signer certificate, and leaves the verified `SimplySignDesktop.msi` in the
+workspace. The pinned action skips downloading when that file exists and
+installs it directly. Its fallback URL uses the reserved `.invalid` domain so
+a missing local installer fails instead of fetching another copy.
 
 ## Release flow
 
