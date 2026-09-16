@@ -64,7 +64,7 @@ try {
     $start = [System.Diagnostics.ProcessStartInfo]::new()
     $start.FileName = Join-Path $package.InstallLocation 'heic-activation.test.exe'
     $start.Arguments = '-test.run=^TestNativeInstalledHEICActivation$ -test.v -test.timeout=4m'
-    $start.WorkingDirectory = $package.InstallLocation
+    $start.WorkingDirectory = $config.Work
     $start.UseShellExecute = $false
     $process = [System.Diagnostics.Process]::Start($start)
     if (-not $process) { throw 'Windows did not start the installed test application.' }

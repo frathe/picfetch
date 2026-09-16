@@ -316,3 +316,27 @@ staged, but the configured SSH signer refused the commit on September 16 at
 14:26 UTC (`commit.gpgsign=true`, agent refused operation). Signing remains
 enabled. Publication, the P2 reply/resolution and fresh final-head reviews await
 the user's signing-agent unlock; no new commit or native MSIX success is claimed.
+
+## PR review loop — 4aca7be
+
+Ronin unlocked the signer and authorized retry. The signed fix commit is pushed;
+the confirmed P2 thread was answered with red/green evidence and resolved. Fresh
+Codex code review reports no findings on 4aca7be; security review is running.
+All six standalone native OS/architecture jobs pass, as do all four Linux race
+partitions, ordinary Windows, validation and Store executable construction.
+Final Qodana SARIF has zero findings. CodeQL Go analysis 1786844866 processes
+successfully with the same two dismissed false positives; Actions has zero
+results. Raw native artifacts are retained under the opt-in evidence directory.
+
+Direct installed-MSIX launch still fails before the test process starts:
+Access denied. The fixture had selected the protected WindowsApps package as
+its current directory. One bounded follow-up starts from its already writable
+owned workspace, retaining the absolute installed executable, real identity
+and every other guard. This tests whether directory access is the remaining
+launcher issue; it is not proof that the alternate-user session is sufficient.
+Failed launch or permission checks remain blockers.
+
+GitHub's separate dynamic AI code-scanning job fails before analysis with a
+service error: HTTP 400, "The requested model is not supported." Its log is
+`ai-scanning-4aca7be.log`; this is distinct from the passing CodeQL workflow
+and requested Codex reviews. No scanner setting or gate is disabled.
