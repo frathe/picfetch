@@ -11,10 +11,8 @@ package imaging
 // must copy. Returning false from fn stops the walk; true continues.
 // Non-JPEG data (missing FF D8) is a no-op.
 //
-// This is a literal extract of the four header walks in jpegEXIFOrientation,
-// jpegMetadata, jpegMetadataSegments, and jpegHasRemovableMetadata. It does
-// not skip fill 0xFF bytes and does not walk the entropy-coded scan — those
-// are jpegLength / stripJPEGSegments, which stay separate.
+// This reader is deliberately header-only and tolerant for viewing and export.
+// Metadata removal uses its own complete primary-image policy in jpegprivacy.go.
 func walkJPEGSegments(data []byte, fn func(marker byte, payload []byte) bool) {
 	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
 		return

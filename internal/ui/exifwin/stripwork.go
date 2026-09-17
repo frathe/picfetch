@@ -55,11 +55,12 @@ func (w *Window) performStrip(u fyne.URI) {
 			if err != nil {
 				if current {
 					fyne.LogError("failed to remove metadata", err)
-					w.host.ShowToast(fmt.Sprintf(lang.L("could not remove metadata from %q: %v"), u.Name(), err))
+					w.host.ShowToast(fmt.Sprintf(lang.L("could not remove metadata from %q: %v"), u.Name(), removalErrorText(err)))
+					w.Refresh()
 				}
 				return
 			}
-			if !w.stopped && (current || result.Committed) {
+			if !w.stopped && result.Committed {
 				// Some hosts already refresh through their notification. Keep
 				// exactly one fallback read for hosts that do not.
 				metadataGeneration := w.metadata.generation
@@ -68,8 +69,10 @@ func (w *Window) performStrip(u fyne.URI) {
 					w.Refresh()
 				}
 			}
-			if current {
+			if current && result.Committed {
 				w.host.ShowToast(lang.L("Metadata removed"))
+			} else if current {
+				w.Refresh()
 			}
 		})
 	})

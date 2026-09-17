@@ -71,9 +71,19 @@ The fixed set of images available to supply cards for one mosaic generation.
 _Avoid_: Sources, image list, Grid result
 
 **Metadata removal**:
-Rewriting an original image file in place so its identifying tags are gone.
-The file that had the tags is the file that loses them.
+Rewriting an original image file in place so its identifying metadata and
+secondary media are gone while the primary image remains.
 _Avoid_: Strip, scrub, sanitize
+
+**Primary image**:
+The main photograph retained by JPEG metadata removal, as distinct from its
+embedded previews, additional pictures or motion-photo content.
+_Avoid_: Displayed image (a viewing state), first preview
+
+**Secondary media**:
+Previews, additional pictures, video or audio stored alongside the primary
+image within the same file.
+_Avoid_: Metadata (too broad), other files
 
 **Metadata omission**:
 Writing an exported copy without the source's identifying tags. The source

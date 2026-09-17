@@ -2,6 +2,19 @@
 
 ## Open
 
+### JPEG metadata removal privacy contract
+
+Status: implementation and local verification complete; human acceptance pending.
+Commit-bound review and CI evidence is maintained on
+[PR #37](https://github.com/frathe/picfetch/pull/37). Exact scan/restart consumption,
+whole-scan removal,
+preview/trailer removal, qualified ICC
+normalization, lossless upright images, bounded removal memory, refusal without rewriting, and content-based
+window availability are implemented. See the [implementation record](plans/2026-09-17-jpeg-metadata-privacy.md),
+[qualification evidence](docs/jpeg-metadata-removal-qualification.md),
+[design decision](docs/adr/0001-jpeg-metadata-removal-refuses-uncertain-input.md) and
+[primary-source research](docs/jpeg-metadata-removal-research-2026-09-17.md).
+
 ### EXIF thumbnail review and acceptance
 
 PR #36 erases validated EXIF JPEG thumbnail payloads on save/export while

@@ -56,6 +56,7 @@ func (w *Window) showConfirm(c confirmation) dialog.Dialog {
 	message := &widget.Label{
 		Text:      c.message,
 		Alignment: fyne.TextAlignCenter,
+		Wrapping:  fyne.TextWrapWord,
 	}
 
 	var confirm dialog.Dialog

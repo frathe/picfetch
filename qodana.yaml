@@ -138,6 +138,7 @@ exclude:
       - "internal/imaging/exififd_test.go"
       - "internal/imaging/gif_test.go"
       - "internal/imaging/jpegexif_test.go"
+      - "internal/imaging/jpegprivacy_test.go"
       - "internal/imaging/jpegseg_test.go"
       - "internal/imaging/avif_policy_test.go"
       - "internal/imaging/ico_test.go"
