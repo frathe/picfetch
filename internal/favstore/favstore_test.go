@@ -110,25 +110,37 @@ func TestDefaultDirUsesUserConfigDirectory(t *testing.T) {
 }
 
 func TestDefaultDirFallbackIsPrivate(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows permissions are ACL-based")
-	}
-
 	tempDir := t.TempDir()
 	dir, err := defaultDir("", errors.New("no config directory"), tempDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	privateDir := filepath.Dir(dir)
-	if privateDir == tempDir {
-		t.Fatal("fallback used the shared temporary directory directly")
+	if filepath.Dir(privateDir) != tempDir || filepath.Base(dir) != "favorites" {
+		t.Fatalf("fallback %q is not inside a private child of %q", dir, tempDir)
+	}
+	second, err := defaultDir("", nil, tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second == dir {
+		t.Fatal("separate fallbacks reused the same directory")
 	}
 	info, err := os.Stat(privateDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := info.Mode().Perm(); got != 0o700 {
+	if got := info.Mode().Perm(); runtime.GOOS != "windows" && got != 0o700 {
 		t.Errorf("fallback directory permissions = %#o, want 0700", got)
+	}
+}
+
+func TestDefaultDirFallbackFailure(t *testing.T) {
+	t.Parallel()
+
+	dir, err := defaultDir("", errors.New("no config directory"), filepath.Join(t.TempDir(), "missing"))
+	if dir != "" || !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("fallback = %q, %v; want no directory and the filesystem error", dir, err)
 	}
 }
 
@@ -233,28 +245,46 @@ func TestSaveUsesPrivatePermissions(t *testing.T) {
 		t.Skip("Windows permissions are ACL-based")
 	}
 
-	dir := t.TempDir()
-	favoriteDir := filepath.Join(dir, "Private")
-	if err := os.Mkdir(favoriteDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := Save(dir, "Private", []fyne.URI{storage.NewFileURI("/private/photo.jpg")}); err != nil {
-		t.Fatal(err)
-	}
-
-	dirInfo, err := os.Stat(favoriteDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := dirInfo.Mode().Perm(); got != 0o700 {
-		t.Errorf("favorite directory permissions = %#o, want 0700", got)
-	}
-	fileInfo, err := os.Stat(filepath.Join(favoriteDir, fileListName))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := fileInfo.Mode().Perm(); got != 0o600 {
-		t.Errorf("favorite file permissions = %#o, want 0600", got)
+	for _, legacy := range []bool{false, true} {
+		name := "new"
+		if legacy {
+			name = "legacy"
+		}
+		t.Run(name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "favorites")
+			favoriteDir := filepath.Join(dir, "Private")
+			listPath := filepath.Join(favoriteDir, fileListName)
+			if legacy {
+				if err := os.MkdirAll(favoriteDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(favoriteDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(listPath, []byte(`{"0":"/old/photo.jpg"}`), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(listPath, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := Save(dir, "Private", []fyne.URI{storage.NewFileURI("/private/photo.jpg")}); err != nil {
+				t.Fatal(err)
+			}
+			for path, mode := range map[string]os.FileMode{favoriteDir: 0o700, listPath: 0o600} {
+				info, err := os.Stat(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := info.Mode().Perm(); got != mode {
+					t.Errorf("%s permissions = %#o, want %#o", path, got, mode)
+				}
+			}
+			files, err := Load(dir, "Private")
+			if err != nil || len(files) != 1 || files[0].Path() != "/private/photo.jpg" {
+				t.Fatalf("saved favorite = %v, %v; want the replacement list", files, err)
+			}
+		})
 	}
 }
 

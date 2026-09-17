@@ -24,7 +24,7 @@ therefore read saved path metadata when the surrounding hierarchy is traversable
    Verify: `go test -tags no_emoji,nodynamic ./internal/favstore -run TestDefaultDirFallbackIsPrivate`
 3. Production handles directory-selection failure through its existing startup
    error return.
-   Verify: `go test -tags no_emoji,nodynamic ./internal/ui -run TestNonExistent`
+   Verify: `go test -tags no_emoji,nodynamic ./internal/ui -run '^TestRun_RejectsUnavailableFavoriteStorageBeforeBuildingViewer$'`
 
 ## Non-goals and limits
 
@@ -32,6 +32,8 @@ therefore read saved path metadata when the surrounding hierarchy is traversable
   rewrite every favorite at startup.
 - Platform ACL policy remains the operating system's responsibility; the fix
   enforces the restrictive modes represented by Go's portable file API.
+- The random temporary fallback is session-specific; later launches do not
+  rediscover Favorites saved there.
 
 ## Tasks
 
@@ -49,5 +51,7 @@ Owner: T0 inline
 Files: `internal/ui/run.go`  
 Depends: Task 1  
 Contract: `Run` returns a `DefaultDir` error before constructing the viewer.  
-Verify: `go test -tags no_emoji,nodynamic ./internal/ui -run TestNonExistent`  
+Verify: `go test -tags no_emoji,nodynamic ./internal/ui -run '^TestRun_RejectsUnavailableFavoriteStorageBeforeBuildingViewer$'`
 Budget: 0 spawns; 1 review round; full suite at final gate.
+
+PR review and verification: [PR #39 record](../plans/2026-09-17-pr39-review.md).
