@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -168,7 +169,85 @@ func (u *Updater) EnsureClient() error {
 func newUpdateHTTPClient(responseHeaderTimeout time.Duration) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = responseHeaderTimeout
-	return &http.Client{Transport: transport}
+	return &http.Client{Transport: idleTimeoutTransport{
+		base:    transport,
+		timeout: responseHeaderTimeout,
+	}}
+}
+
+type idleTimeoutTransport struct {
+	base    http.RoundTripper
+	timeout time.Duration
+}
+
+func (t idleTimeoutTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Body != nil && t.timeout > 0 {
+		resp.Body = newIdleTimeoutReadCloser(resp.Body, t.timeout)
+	}
+	return resp, nil
+}
+
+type idleTimeoutReadCloser struct {
+	body      io.ReadCloser
+	timer     *time.Timer
+	timeout   time.Duration
+	mu        sync.Mutex
+	closeOnce sync.Once
+	closeErr  error
+	closed    bool
+	timedOut  bool
+}
+
+func newIdleTimeoutReadCloser(body io.ReadCloser, timeout time.Duration) *idleTimeoutReadCloser {
+	r := &idleTimeoutReadCloser{body: body, timeout: timeout}
+	r.timer = time.AfterFunc(timeout, r.expire)
+	return r
+}
+
+func (r *idleTimeoutReadCloser) Read(p []byte) (int, error) {
+	n, err := r.body.Read(p)
+	r.mu.Lock()
+	if n > 0 && !r.closed && !r.timedOut {
+		r.timer.Reset(r.timeout)
+	}
+	timedOut := r.timedOut
+	r.mu.Unlock()
+	if timedOut && err != nil {
+		return n, fmt.Errorf("update response body idle timeout: %w", err)
+	}
+	return n, err
+}
+
+func (r *idleTimeoutReadCloser) Close() error {
+	r.mu.Lock()
+	if !r.closed {
+		r.closed = true
+		r.timer.Stop()
+	}
+	r.mu.Unlock()
+	r.closeBody()
+	return r.closeErr
+}
+
+func (r *idleTimeoutReadCloser) expire() {
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return
+	}
+	r.timedOut = true
+	r.mu.Unlock()
+	r.closeBody()
+}
+
+func (r *idleTimeoutReadCloser) closeBody() {
+	r.closeOnce.Do(func() {
+		r.closeErr = r.body.Close()
+	})
 }
 
 // SetCurrentVersion overrides CurrentVersion for tests - production Fyne

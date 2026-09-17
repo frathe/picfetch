@@ -463,17 +463,18 @@ func TestUpdater_EnsureClient_SuccessIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestUpdateHTTPClient_AllowsSlowResponseBody(t *testing.T) {
+func TestUpdateHTTPClient_AllowsResponseBodyWithProgress(t *testing.T) {
 	const (
-		body    = "slow update archive"
+		body    = "slow"
 		timeout = 25 * time.Millisecond
 	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", fmt.Sprint(len(body)))
-		_, _ = io.WriteString(w, body[:1])
-		w.(http.Flusher).Flush()
-		time.Sleep(4 * timeout)
-		_, _ = io.WriteString(w, body[1:])
+		for _, char := range body {
+			_, _ = fmt.Fprint(w, string(char))
+			w.(http.Flusher).Flush()
+			time.Sleep(timeout / 2)
+		}
 	}))
 	defer srv.Close()
 
@@ -488,6 +489,30 @@ func TestUpdateHTTPClient_AllowsSlowResponseBody(t *testing.T) {
 	}
 	if string(got) != body {
 		t.Errorf("body = %q, want %q", got, body)
+	}
+}
+
+func TestUpdateHTTPClient_ClosesStalledResponseBody(t *testing.T) {
+	const timeout = 25 * time.Millisecond
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		defer func() { <-release }()
+		w.Header().Set("Content-Length", "2")
+		_, _ = io.WriteString(w, "a")
+		w.(http.Flusher).Flush()
+	}))
+	defer func() {
+		close(release)
+		srv.Close()
+	}()
+
+	resp, err := newUpdateHTTPClient(timeout).Get(srv.URL)
+	if err != nil {
+		t.Fatalf("Get() before reading the stalled body = %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if _, err := io.ReadAll(resp.Body); err == nil {
+		t.Fatal("reading a stalled response body succeeded, want idle-timeout error")
 	}
 }
 
