@@ -414,7 +414,7 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 		return err == nil, err
 	}
 
-	var pixels image.Image = ApplyOrientation(p.pixels, orient)
+	pixels := ApplyOrientation(p.pixels, orient)
 	if p.components == 1 {
 		// Orientation helpers return RGBA; retain the grayscale encoder/model.
 		gray := image.NewGray(pixels.Bounds())

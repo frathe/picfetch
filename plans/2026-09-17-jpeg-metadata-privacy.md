@@ -1,6 +1,8 @@
 # Complete JPEG metadata removal
 
-Status: local implementation verified; hosted PR review/CI and human acceptance pending. Route: Deep (imaging, window, qualification).
+Status: implementation and first hosted CI verified; human acceptance pending.
+Current commit-bound review/check evidence: [PR #37](https://github.com/frathe/picfetch/pull/37).
+Route: Deep (imaging, window, qualification).
 Deliver the accepted `.scratch/jpeg-metadata-privacy/spec.md` through its selected
 public mutation/inspection and real EXIF-window seams. Existing user documentation
 edits are retained. The user subsequently authorized committing and pushing this
@@ -92,8 +94,11 @@ tasks, one concurrent agent, one final complete suite attempt.
   imaging/EXIF-window race regression command, and GoLand reinspection of all
   three subsequently changed Go files passed. All six named AC tests are listed
   by the test inventory command.
-- Hosted PR review/CI remains pending. Native Windows/macOS runtime execution is
-  unverified; no platform-specific implementation was introduced.
+- Hosted CI on `ef18e79868657d7e3e4f3d1f764aa924b30fccd2` passed all four Linux
+  race partitions, validation, Windows tests and native macOS amd64/arm64 guards.
+  Both CodeQL analyses passed, with no open PR alerts. Native desktop/manual
+  runtime qualification remains unverified; no platform-specific implementation
+  was introduced. See the hosted review record below for subsequent heads.
 
 ## Acceptance map
 
@@ -129,3 +134,27 @@ now retains the validated JFIF header and swaps its density axes for orientation
 vet/build, focused race tests and GoLand passed for this final change; the
 requested GitHub review workflow runs the complete suite on the actual PR commit.
 Do not interpret the earlier full Docker run as proof of this later source revision.
+
+### Hosted review record
+
+The user explicitly delegated the GitHub Codex review loop. The review-loop
+agent owns assessment, fixes, focused verification and review dispositions for
+[PR #37](https://github.com/frathe/picfetch/pull/37), without merging or releasing.
+Final commit-bound review and check evidence is recorded on that PR so recording
+the result does not create another unreviewed commit.
+
+- Initial head `ef18e79`: no existing unresolved threads. CI run `35212934602`
+  and CodeQL run `35212934599` passed. Qodana run `35212934587` passed its gate,
+  but the root `qodana.sarif.json` contained two post-suppression findings.
+- `GoUnusedGlobalVariable` on `ErrJPEGMetadataNotJPEG` is a false positive:
+  `internal/ui/exifwin/metadata.go` compares the sentinel in both refresh and
+  error presentation. Retained the API and added a documented declaration-local
+  suppression, matching the existing cross-package suppression convention.
+- `GoVarAndConstTypeMayBeOmitted` on the orientation result is valid. Removed the
+  redundant `image.Image` annotation; the function already returns that interface.
+- These edits change no behavior. Existing JPEG removal, file mutation/transaction
+  and EXIF-window delivery regressions passed with `-race -count=1`; focused vet,
+  formatting and GoLand inspections with warnings enabled also passed.
+- A fresh Codex code/security review and Qodana/CodeQL/CI evaluation of the pushed
+  cleanup head are required before the review loop completes. Review requests
+  are posted only after prior reviews finish, avoiding duplicate queued work.

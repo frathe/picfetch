@@ -25,7 +25,11 @@ type JPEGMetadataInspection struct {
 }
 
 var (
-	ErrJPEGMetadataNotJPEG     = errNotJPEG
+	// The EXIF window uses this sentinel to distinguish non-JPEG sources.
+	// Qodana's differential analysis misses those cross-package references.
+	//goland:noinspection GoUnusedGlobalVariable
+	ErrJPEGMetadataNotJPEG = errNotJPEG
+
 	ErrJPEGMetadataStructure   = errors.New("JPEG structure is incomplete or invalid")
 	ErrJPEGMetadataProcess     = errors.New("JPEG process or color interpretation is not qualified for metadata removal")
 	ErrJPEGMetadataProfile     = errors.New("ICC profile is not qualified for metadata removal")
