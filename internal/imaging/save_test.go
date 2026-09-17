@@ -590,7 +590,7 @@ func TestStripJPEGMetadata_Orientation6StaysUpright(t *testing.T) {
 
 func TestStripJPEGMetadata_Orientation6KeepsICC(t *testing.T) {
 	orig := halfRedHalfBlueJPEG(t, 20, 10, 6)
-	icc := wrapAPP2([]byte("ICC_PROFILE\x00\x01\x01dummy-icc"))
+	icc := profileSegments(removalFixture(t, "rgb-v4.icc"))[0]
 	withICC, err := injectJPEGMetadata(orig, [][]byte{icc})
 	if err != nil {
 		t.Fatal(err)
@@ -604,7 +604,7 @@ func TestStripJPEGMetadata_Orientation6KeepsICC(t *testing.T) {
 
 	got := mustRead(t, path)
 	if !bytes.Contains(got, []byte("ICC_PROFILE")) {
-		t.Fatal("orientation 2–8 re-encode must keep the original ICC profile")
+		t.Fatal("orientation 2–8 re-encode must retain the qualified color profile")
 	}
 	if !ReadMetadata(got).Empty() {
 		t.Fatal("want no Exif after strip")

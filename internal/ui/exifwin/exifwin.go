@@ -1,7 +1,7 @@
 // Package exifwin is the EXIF metadata window: a small panel listing the
 // current image's camera settings, opened with the E key or the info
 // overlay's "Show EXIF data" link. Below the list (and, for a JPEG that
-// lists camera tags and has something to strip, a Remove Metadata button) sits a collapsible
+// has removable content, a Remove Metadata button) sits a collapsible
 // OpenStreetMap view, shown only for a photo that carries GPS tags and
 // collapsed until the user expands it - which is also what keeps the widget
 // from fetching any map tiles unasked.
@@ -75,11 +75,11 @@ type Window struct {
 	// open. stripBar is the centered wrapper around it in the north stack,
 	// hidden as a unit so a hidden button does not leave its row.
 	// canStrip is whether the button should appear: the file lists
-	// camera/GPS tags *and* StripJPEGMetadata would rewrite it. Hidden
-	// when the panel says "No EXIF metadata found in this file."
-	strip    *widget.Button
-	stripBar *fyne.Container
-	canStrip bool
+	// removable content established by imaging's complete inspection.
+	strip         *widget.Button
+	stripBar      *fyne.Container
+	canStrip      bool
+	removalStatus *widget.Label
 
 	// pending is the file the open confirmation is about, nil when none
 	// is showing. confirm is that dialog itself, so a second request can
@@ -200,6 +200,8 @@ func (w *Window) Show() {
 	w.win.Show(w.app, lang.L("EXIF Data"), fyne.NewSize(exifW, exifH), func() fyne.CanvasObject {
 		w.text = widget.NewLabel("")
 		w.text.Wrapping = fyne.TextWrapWord
+		w.removalStatus = widget.NewLabel("")
+		w.removalStatus.Wrapping = fyne.TextWrapWord
 
 		w.buildLocation()
 
@@ -237,6 +239,7 @@ func (w *Window) Show() {
 		w.pending = nil
 
 		w.text = nil
+		w.removalStatus = nil
 		w.strip = nil
 		w.stripBar = nil
 		w.north = nil
@@ -275,7 +278,7 @@ func (w *Window) dismissStalePending() {
 
 // syncStripVisible shows the Remove Metadata button when canStrip is set
 // and hides it otherwise. Hidden, not disabled: no greyed-out button for a
-// file with nothing the panel lists. The bar is removed from north when
+// file with no qualified removable content. The bar is removed from north when
 // hidden: Show/Hide alone leaves it in the tree, and a content Refresh
 // still paints the last visible row.
 func (w *Window) syncStripVisible() {
@@ -347,7 +350,7 @@ func (w *Window) requestStrip() {
 
 	if w.showConfirm(confirmation{
 		title:      lang.L("Remove Metadata?"),
-		message:    fmt.Sprintf(lang.L("Remove camera, date, GPS, and other tags from %q? This cannot be undone."), u.Name()),
+		message:    fmt.Sprintf(lang.L("Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Sideways photos are re-encoded at JPEG quality 95. This cannot be undone."), u.Name()),
 		action:     lang.L("Remove Metadata"),
 		importance: widget.DangerImportance,
 		onConfirm:  func() { w.performStrip(u) },
