@@ -2,6 +2,16 @@
 
 ## Open
 
+### EXIF thumbnail review and acceptance
+
+PR #36 erases validated EXIF JPEG thumbnail payloads on save/export while
+preserving unrelated metadata. Implementation, focused race tests, GoLand
+inspections and platform CI pass. Complete the fresh Codex review round after
+the last disposition, then await human acceptance before archiving this plan.
+Final commit-bound review/check evidence is maintained on
+[PR #36](https://github.com/frathe/picfetch/pull/36);
+[active review record](plans/2026-09-17-pr36-review.md).
+
 ### Windows signing qualification
 
 Configure the reviewed `SIMPLYSIGN_INSTALLER_SHA256` and
@@ -47,13 +57,6 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
   Evidence: [PR #29 implementation plan](plans/2026-09-16-explorer-configurable-limits.md).
 
 #### Bugfix
-
-- Erase the EXIF JPEG thumbnail payload on save/export, validating both byte
-  orders and malformed descriptors before clearing bytes. Preserve unrelated
-  metadata and the original input. Local imaging race tests and build/inspection
-  gates pass; hosted review and final CI evidence:
-  [PR #36](https://github.com/frathe/picfetch/pull/36),
-  [review record](finished_refactorings/2026-09-17-pr36-review.md).
 
 - Reject Save Changes through symlink leaves, preserving both the link and target
   without copying image content into a different directory. Keep regular writes
