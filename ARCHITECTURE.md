@@ -609,8 +609,10 @@ file selection on all six shipped platform/architecture targets.
 
 ### `internal/favstore`
 
-Named file lists under a caller-supplied config directory. No UI.
-`DefaultDir` is the production path helper.
+Named file lists under a caller-supplied config directory. No UI. Saved path
+metadata uses private directories/files. `DefaultDir` is the production path
+helper and creates an isolated temporary fallback when user configuration is
+unavailable.
 
 | File | Responsibility |
 |------|----------------|

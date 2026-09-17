@@ -60,6 +60,16 @@
 
 ## Open
 
+### Private Favorite storage review and acceptance
+
+PR #39 makes new and re-saved Favorite lists private and isolates the temporary
+fallback. Legacy replacement, fallback failure/isolation, and early startup
+failure regressions, focused race suites, GoLand inspections and local build
+checks pass. Complete the fresh Codex code/security
+reviews and platform CI; hosted dispositions and final checks belong on
+[PR #39](https://github.com/frathe/picfetch/pull/39).
+Scope, limits and local evidence: [review record](plans/2026-09-17-pr39-review.md).
+
 ## Deferred
 
 ### Fyne upgrade deferred

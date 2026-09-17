@@ -19,13 +19,25 @@ import (
 
 const fileListName = "file-list.json"
 
-// DefaultDir returns the directory used for favorites in production.
-func DefaultDir() string {
+// DefaultDir returns the directory used for favorites in production. When the
+// user configuration directory is unavailable, it creates an isolated
+// temporary directory rather than placing path metadata directly in the shared
+// temporary directory.
+func DefaultDir() (string, error) {
 	base, err := os.UserConfigDir()
-	if err != nil || base == "" {
-		base = os.TempDir()
+	return defaultDir(base, err, os.TempDir())
+}
+
+func defaultDir(base string, configErr error, tempDir string) (string, error) {
+	if configErr == nil && base != "" {
+		return filepath.Join(base, "picfetch", "favorites"), nil
 	}
-	return filepath.Join(base, "picfetch", "favorites")
+
+	privateDir, err := os.MkdirTemp(tempDir, "picfetch-")
+	if err != nil {
+		return "", fmt.Errorf("create private favorites directory: %w", err)
+	}
+	return filepath.Join(privateDir, "favorites"), nil
 }
 
 // ValidName reports whether name is safe to use as one directory component.
@@ -104,7 +116,10 @@ func Save(dir, name string, files []fyne.URI) error {
 	}
 
 	favoriteDir := filepath.Join(dir, name)
-	if err := os.MkdirAll(favoriteDir, 0o755); err != nil {
+	if err := os.MkdirAll(favoriteDir, 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(favoriteDir, 0o700); err != nil {
 		return err
 	}
 
@@ -115,7 +130,7 @@ func Save(dir, name string, files []fyne.URI) error {
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
 
-	if err := tmp.Chmod(0o644); err != nil {
+	if err := tmp.Chmod(0o600); err != nil {
 		_ = tmp.Close()
 		return err
 	}

@@ -41,13 +41,18 @@ const (
 func Run(application fyne.App, initial []fyne.URI, opts launch.Options) error {
 	var trial *explorertrial.Session
 	var err error
-	favoritesDir := favstore.DefaultDir()
+	var favoritesDir string
 	if opts.ExplorerTrial != "" {
 		trial, err = explorertrial.New(opts.ExplorerTrial)
 		if err != nil {
 			return err
 		}
 		favoritesDir = filepath.Join(opts.ExplorerTrial, "favorites")
+	} else {
+		favoritesDir, err = favstore.DefaultDir()
+		if err != nil {
+			return err
+		}
 	}
 	view, window := buildStartupViewer(application)
 

@@ -6,6 +6,9 @@
 package ui
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -21,10 +24,28 @@ import (
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/update"
 )
+
+func TestRun_RejectsUnavailableFavoriteStorageBeforeBuildingViewer(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("exercises Linux configuration and temporary-directory lookup")
+	}
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "")
+	t.Setenv("TMPDIR", filepath.Join(tempDir, "missing"))
+
+	// A nil app makes accidental viewer construction fail instead of starting
+	// workers after the storage failure.
+	err := Run(nil, nil, launch.Options{})
+	if !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "create private favorites directory") {
+		t.Fatalf("Run error = %v, want the private-storage creation failure", err)
+	}
+}
 
 func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 	application := test.NewApp()
