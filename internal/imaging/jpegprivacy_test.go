@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestJPEGMetadataRemovalPrivacy(t *testing.T) {
 			allow     bool
 		}{
 			{"centered", 3, 1, 1, false, true},
-			{"co-sited", 3, 1, 2, false, false},
+			{"co-sited", 3, 1, 2, false, true},
 			{"reserved zero", 3, 1, 0, false, false},
 			{"reserved value", 3, 1, 3, false, false},
 			{"wrong type", 4, 1, 1, false, false},
@@ -50,7 +51,7 @@ func TestJPEGMetadataRemovalPrivacy(t *testing.T) {
 						entries = append(entries, entries[1])
 					}
 					tiff := buildIFD0TIFF(t, entries...)
-					data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...)))
+					data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...)), jpegSegmentBytes(0xfe, []byte("private comment")))
 					inspection := InspectJPEGMetadata(context.Background(), data)
 					path := writeTempFile(t, "chroma-positioning.jpg", data)
 					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
@@ -67,7 +68,7 @@ func TestJPEGMetadataRemovalPrivacy(t *testing.T) {
 					if clean := InspectJPEGMetadata(context.Background(), got); clean.State != JPEGMetadataClean || clean.Err != nil {
 						t.Fatalf("removed output = %+v", clean)
 					}
-					if orientation == 1 && !bytes.Equal(got, plain) {
+					if orientation == 1 && tc.value == 1 && !bytes.Equal(got, plain) {
 						t.Fatal("centered removal changed the upright primary JPEG")
 					}
 				})
@@ -84,18 +85,20 @@ func TestJPEGMetadataRemovalPrivacy(t *testing.T) {
 				allow bool
 			}{
 				{"sRGB", 1, "R98", true},
-				{"Adobe RGB", 0xffff, "R03", false},
-				{"uncalibrated", 0xffff, "R98", false},
-				{"conflicting interoperability", 1, "R03", false},
+				{"Adobe RGB", 0xffff, "R03", true},
+				{"uncalibrated", 0xffff, "R98", true},
+				{"conflicting interoperability", 1, "R03", true},
+				{"reserved color space", 2, "R98", false},
+				{"unknown interoperability", 1, "XYZ", false},
 			} {
 				t.Run(tc.name+" big-endian="+strconv.FormatBool(bigEndian), func(t *testing.T) {
-					data := mustInjectRemoval(t, plain, removalColorEXIF(tc.space, tc.index, bigEndian))
+					data := mustInjectRemoval(t, plain, removalColorEXIF(tc.space, tc.index, bigEndian), jpegSegmentBytes(0xfe, []byte("private comment")))
 					inspection := InspectJPEGMetadata(context.Background(), data)
 					path := writeTempFile(t, "color.jpg", data)
 					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
 					if tc.allow {
-						if inspection.State != JPEGMetadataRemovable || inspection.Err != nil || err != nil || !result.Committed || !bytes.Equal(plain, mustRead(t, path)) {
-							t.Fatalf("sRGB removal = %+v; %+v, %v", inspection, result, err)
+						if inspection.State != JPEGMetadataRemovable || inspection.Err != nil || err != nil || !result.Committed || !bytes.Equal(mustInjectRemoval(t, plain, removalColorEXIF(tc.space, tc.index, false)), mustRead(t, path)) {
+							t.Fatalf("color declaration removal = %+v; %+v, %v", inspection, result, err)
 						}
 					} else if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) || !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
 						t.Fatalf("color refusal = %+v; %+v, %v", inspection, result, err)
@@ -348,14 +351,11 @@ func TestJPEGMetadataRemovalFidelity(t *testing.T) {
 		for _, orientation := range []uint16{2, 6} {
 			plain := uitest.EncodeJPEG(t, 16, 12, color.White)
 			jfif := []byte{'J', 'F', 'I', 'F', 0, 1, 2, 0, 0, 2, 0, 1, 0, 0}
-			data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe0, jfif), wrapAsAPP1(buildExifSegment(t, orientation, false)))
+			data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe0, jfif), wrapAsAPP1(buildExifSegment(t, orientation, false)), jpegSegmentBytes(0xfe, []byte("private comment")))
 			path := writeTempFile(t, "aspect.jpg", data)
 			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
 			if err != nil || !result.Committed {
 				t.Fatalf("orientation = %+v, %v", result, err)
-			}
-			if orientation == 6 {
-				jfif[9], jfif[11] = 1, 2
 			}
 			wantPrefix := append([]byte{0xff, 0xd8}, jpegSegmentBytes(0xe0, jfif)...)
 			if !bytes.HasPrefix(mustRead(t, path), wantPrefix) {
@@ -394,6 +394,10 @@ func TestJPEGMetadataRemovalFidelity(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
+						if jpegEXIFOrientation(got) != orientation || !reflect.DeepEqual(before, after) {
+							t.Fatal("orientation or exact decoded samples changed")
+						}
+						after = ApplyOrientation(after, orientation)
 						width, height := 16, 12
 						if orientation >= 5 {
 							width, height = 12, 16
@@ -401,41 +405,8 @@ func TestJPEGMetadataRemovalFidelity(t *testing.T) {
 						if after.Bounds().Dx() != width || after.Bounds().Dy() != height {
 							t.Fatalf("orientation bounds %v", after.Bounds())
 						}
-						// Compare each output sample against the independently mapped
-						// source coordinate with JPEG's lossy tolerance.
-						var total uint64
-						for y := 0; y < height; y++ {
-							for x := 0; x < width; x++ {
-								sx, sy := x, y
-								switch orientation {
-								case 2:
-									sx, sy = 15-x, y
-								case 3:
-									sx, sy = 15-x, 11-y
-								case 4:
-									sx, sy = x, 11-y
-								case 5:
-									sx, sy = y, x
-								case 6:
-									sx, sy = y, 11-x
-								case 7:
-									sx, sy = 15-y, 11-x
-								case 8:
-									sx, sy = 15-y, x
-								}
-								r, g, b, _ := before.At(sx, sy).RGBA()
-								rr, gg, bb, _ := after.At(x, y).RGBA()
-								for _, pair := range [][2]uint32{{r, rr}, {g, gg}, {b, bb}} {
-									if pair[0] > pair[1] {
-										total += uint64(pair[0] - pair[1])
-									} else {
-										total += uint64(pair[1] - pair[0])
-									}
-								}
-							}
-						}
-						if float64(total)/(16*12*3*257) > 12 {
-							t.Fatal("orientation exceeded 12/255 mean JPEG sample tolerance")
+						if !reflect.DeepEqual(ApplyOrientation(before, orientation), after) {
+							t.Fatal("displayed pixels changed")
 						}
 						if !bytes.Equal(profileTestTags(t, profile)["wtpt"], profileTestTags(t, readRemovalProfile(t, got))["wtpt"]) {
 							t.Fatal("orientation changed profile transform")
@@ -494,7 +465,7 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 						components[frame+10+3*i] = id
 						components[scan+5+2*i] = id
 					}
-					data := mustInjectRemoval(t, components, wrapAsAPP1(buildExifSegment(t, orientation, false)))
+					data := mustInjectRemoval(t, components, wrapAsAPP1(buildExifSegment(t, orientation, false)), jpegSegmentBytes(0xfe, []byte("private comment")))
 					inspection := InspectJPEGMetadata(context.Background(), data)
 					path := writeTempFile(t, "component-interpretation.jpg", data)
 					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
@@ -543,7 +514,7 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 				tiff = append(root, tiff[8:]...)
 			}
 			tiff = append(tiff, values...)
-			data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...)))
+			data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...)), jpegSegmentBytes(0xfe, []byte("private comment")))
 			inspection := InspectJPEGMetadata(context.Background(), data)
 			path := writeTempFile(t, "color-transform.jpg", data)
 			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
@@ -561,13 +532,14 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 			t.Fatal(err)
 		}
 		ctx := &jpegDecodeObserveContext{Context: context.Background()}
-		inspection := InspectJPEGMetadata(ctx, encoded.Bytes())
+		data := mustInjectRemoval(t, encoded.Bytes(), jpegSegmentBytes(0xee, []byte{'A', 'd', 'o', 'b', 'e', 0, 100, 0, 0, 0, 0, 0}))
+		inspection := InspectJPEGMetadata(ctx, data)
 		if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataMemory) || ctx.decoded {
 			t.Fatalf("memory admission = %+v, full decode started=%v", inspection, ctx.decoded)
 		}
-		path := writeTempFile(t, "large-photo.jpg", encoded.Bytes())
+		path := writeTempFile(t, "large-photo.jpg", data)
 		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
-		if !errors.Is(err, ErrJPEGMetadataMemory) || result.Committed || ctx.decoded || !bytes.Equal(encoded.Bytes(), mustRead(t, path)) {
+		if !errors.Is(err, ErrJPEGMetadataMemory) || result.Committed || ctx.decoded || !bytes.Equal(data, mustRead(t, path)) {
 			t.Fatalf("memory refusal = %+v, %v, full decode started=%v", result, err, ctx.decoded)
 		}
 	})
@@ -648,28 +620,16 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 			t.Fatalf("cancellation = %+v, %v", result, err)
 		}
 	})
-	t.Run("cancellation during pixel orientation", func(t *testing.T) {
+	t.Run("cancellation during pixel validation", func(t *testing.T) {
 		data := mustInjectRemoval(t, uitest.EncodeJPEG(t, 512, 512, color.White), wrapAsAPP1(buildExifSegment(t, 6, false)))
-		path := writeTempFile(t, "cancel-orientation.jpg", data)
+		data = append(data, []byte("private preview")...)
+		path := writeTempFile(t, "cancel-validation.jpg", data)
 		base, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		// Begin counting only after the standard decoder has returned, so
-		// additional header/entropy checks cannot satisfy this regression.
 		ctx := &jpegDecodeObserveContext{Context: base, cancel: cancel}
 		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
-		if !ctx.decoded || ctx.afterDecode != 100 || !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
-			t.Fatalf("pixel-work cancellation = %+v, %v", result, err)
-		}
-	})
-	t.Run("cancellation during JPEG encoding", func(t *testing.T) {
-		data := mustInjectRemoval(t, uitest.EncodeJPEG(t, 512, 512, color.White), wrapAsAPP1(buildExifSegment(t, 6, false)))
-		path := writeTempFile(t, "cancel-encoding.jpg", data)
-		base, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		ctx := &jpegEncodeCancelContext{Context: base, cancel: cancel}
-		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
-		if !ctx.observed || !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
-			t.Fatalf("encoder cancellation observed=%v result=%+v error=%v", ctx.observed, result, err)
+		if !ctx.decoded || !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+			t.Fatalf("pixel-validation cancellation = %+v, %v", result, err)
 		}
 	})
 	t.Run("cancellation during output header validation", func(t *testing.T) {
@@ -683,14 +643,6 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 			t.Fatalf("output-header cancellation observed=%v result=%+v error=%v", ctx.observed, result, err)
 		}
 	})
-}
-
-// Cancellation is injected at the standard-library encoding boundary so this
-// public mutation test needs neither timing assumptions nor a production hook.
-type jpegEncodeCancelContext struct {
-	context.Context
-	cancel   context.CancelFunc
-	observed bool
 }
 
 // Cancel at output validation's standard-library DecodeConfig boundary,
@@ -737,9 +689,8 @@ func (i removalUniformImage) Bounds() image.Rectangle { return i.bounds }
 
 type jpegDecodeObserveContext struct {
 	context.Context
-	decoded     bool
-	afterDecode int
-	cancel      context.CancelFunc
+	decoded bool
+	cancel  context.CancelFunc
 }
 
 func (c *jpegDecodeObserveContext) Err() error {
@@ -749,35 +700,16 @@ func (c *jpegDecodeObserveContext) Err() error {
 		frame, more := frames.Next()
 		if frame.Function == "image/jpeg.Decode" {
 			c.decoded = true
+			if c.cancel != nil {
+				c.cancel()
+			}
 			return c.Context.Err()
 		}
 		if !more {
 			break
 		}
 	}
-	if c.decoded && c.cancel != nil && c.afterDecode < 100 {
-		c.afterDecode++
-		if c.afterDecode == 100 {
-			c.cancel()
-		}
-	}
-	return c.Context.Err()
-}
 
-func (c *jpegEncodeCancelContext) Err() error {
-	var callers [32]uintptr
-	frames := runtime.CallersFrames(callers[:runtime.Callers(2, callers[:])])
-	for {
-		frame, more := frames.Next()
-		if frame.Function == "image/jpeg.Encode" {
-			c.observed = true
-			c.cancel()
-			break
-		}
-		if !more {
-			break
-		}
-	}
 	return c.Context.Err()
 }
 
@@ -874,6 +806,117 @@ func TestJPEGMetadataRemovalInspection(t *testing.T) {
 }
 
 func TestJPEGMetadataRemovalProfiles(t *testing.T) {
+	t.Run("standard optional camera profile fields", func(t *testing.T) {
+		for _, version := range []string{"v2", "v4"} {
+			base := removalFixture(t, "rgb-"+version+".icc")
+			luminance := make([]byte, 20)
+			copy(luminance, "XYZ ")
+			binary.BigEndian.PutUint32(luminance[12:16], 80*65536)
+			measurement := make([]byte, 36)
+			copy(measurement, "meas")
+			binary.BigEndian.PutUint32(measurement[8:12], 1)
+			binary.BigEndian.PutUint32(measurement[24:28], 2)
+			binary.BigEndian.PutUint32(measurement[28:32], 65536)
+			binary.BigEndian.PutUint32(measurement[32:36], 2)
+			technology := []byte("sig \x00\x00\x00\x00CRT ")
+			tags := map[string][]byte{
+				"lumi": luminance, "meas": measurement, "tech": technology,
+				"vued": profileTestTags(t, base)["desc"],
+			}
+			for _, field := range []string{"attributes", "lumi", "meas", "tech", "vued", "all"} {
+				t.Run(version+"/"+field, func(t *testing.T) {
+					extra := make(map[string][]byte)
+					for name, value := range tags {
+						if field == name || field == "all" {
+							extra[name] = value
+						}
+					}
+					profile := removalProfileWithTags(t, base, extra)
+					if field == "attributes" || field == "all" {
+						binary.BigEndian.PutUint64(profile[56:64], 0x5052495600000005)
+					}
+					plain := removalFixture(t, "baseline-rgb.jpg")
+					data := mustInjectRemoval(t, plain, profileSegments(profile)...)
+					path := writeTempFile(t, "camera-profile.jpg", data)
+					inspection := InspectJPEGMetadata(context.Background(), data)
+					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+					if inspection.State != JPEGMetadataRemovable || inspection.Err != nil || err != nil || !result.Committed {
+						t.Fatalf("standard camera profile = %+v; %+v, %v", inspection, result, err)
+					}
+					output := mustRead(t, path)
+					clean, primary := removalProfileParts(t, output)
+					if !bytes.Equal(primary, plain) {
+						t.Fatal("image bytes changed")
+					}
+					before, after := profileTestTags(t, profile), profileTestTags(t, clean)
+					for name, value := range before {
+						switch name {
+						case "desc", "cprt", "dmnd", "dmdd", "vued":
+						default:
+							if !bytes.Equal(value, after[name]) {
+								t.Fatalf("numerical/enumerated field %s changed", name)
+							}
+						}
+					}
+					if after["vued"] != nil || bytes.Contains(clean, []byte("PRIV")) || binary.BigEndian.Uint64(clean[56:64]) != binary.BigEndian.Uint64(profile[56:64])&15 {
+						t.Fatal("private profile fields survived or standard media attributes changed")
+					}
+					if again := InspectJPEGMetadata(context.Background(), output); again.State != JPEGMetadataClean || again.Err != nil {
+						t.Fatalf("output is not clean: %+v", again)
+					}
+				})
+			}
+		}
+	})
+	t.Run("sRGB EXIF with sRGB ICC", func(t *testing.T) {
+		plain := removalFixture(t, "baseline-rgb.jpg")
+		segments := append(profileSegments(removalFixture(t, "rgb-v4.icc")), removalColorEXIF(1, "R98", false))
+		data := mustInjectRemoval(t, plain, segments...)
+		inspection := InspectJPEGMetadata(context.Background(), data)
+		if inspection.State != JPEGMetadataRemovable || inspection.Err != nil {
+			t.Fatalf("ordinary sRGB JPEG cannot remove metadata: %+v", inspection)
+		}
+	})
+	t.Run("malformed optional profile fields leave source untouched", func(t *testing.T) {
+		base := removalFixture(t, "rgb-v2.icc")
+		plain := removalFixture(t, "baseline-rgb.jpg")
+		for _, tc := range []struct {
+			name, tag, kind string
+			size, offset    int
+			value           uint32
+		}{
+			{"luminance length", "lumi", "XYZ ", 24, 12, 65536},
+			{"luminance type", "lumi", "text", 20, 12, 65536},
+			{"luminance X", "lumi", "XYZ ", 20, 8, 1},
+			{"negative luminance", "lumi", "XYZ ", 20, 12, 0xffffffff},
+			{"luminance Z", "lumi", "XYZ ", 20, 16, 1},
+			{"measurement length", "meas", "meas", 40, 8, 1},
+			{"measurement type", "meas", "text", 36, 8, 1},
+			{"measurement reserved", "meas", "meas", 36, 4, 1},
+			{"observer enum", "meas", "meas", 36, 8, 3},
+			{"geometry enum", "meas", "meas", 36, 24, 3},
+			{"flare range", "meas", "meas", 36, 28, 65537},
+			{"illuminant enum", "meas", "meas", 36, 32, 9},
+			{"technology length", "tech", "sig ", 16, 8, 0x43525420},
+			{"technology type", "tech", "text", 12, 8, 0x43525420},
+			{"unknown technology", "tech", "sig ", 12, 8, 0x50524956},
+			{"view description", "vued", "desc", 12, 8, 0xffffffff},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				value := make([]byte, tc.size)
+				copy(value, tc.kind)
+				binary.BigEndian.PutUint32(value[tc.offset:], tc.value)
+				profile := removalProfileWithTags(t, base, map[string][]byte{tc.tag: value})
+				data := mustInjectRemoval(t, plain, profileSegments(profile)...)
+				path := writeTempFile(t, "refused-profile.jpg", data)
+				inspection := InspectJPEGMetadata(context.Background(), data)
+				result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+				if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProfile) || !errors.Is(err, ErrJPEGMetadataProfile) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+					t.Fatalf("malformed profile refusal = %+v; %+v, %v", inspection, result, err)
+				}
+			})
+		}
+	})
 	t.Run("filled JFIF retains normalized ICC through orientation", func(t *testing.T) {
 		plain := removalFixture(t, "baseline-rgb.jpg")
 		profile := removalFixture(t, "rgb-v4.icc")
@@ -902,7 +945,7 @@ func TestJPEGMetadataRemovalProfiles(t *testing.T) {
 			}
 		}
 	})
-	t.Run("explicit EXIF color with ICC is refused", func(t *testing.T) {
+	t.Run("explicit EXIF color with a different ICC is preserved", func(t *testing.T) {
 		plain := removalFixture(t, "baseline-rgb.jpg")
 		profile := removalFixture(t, "rgb-v4.icc")
 		// Derive a qualified, non-sRGB matrix by changing the red primary.
@@ -923,8 +966,18 @@ func TestJPEGMetadataRemovalProfiles(t *testing.T) {
 			inspection := InspectJPEGMetadata(context.Background(), data)
 			path := writeTempFile(t, "conflicting-color.jpg", data)
 			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
-			if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) || !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
-				t.Fatalf("EXIF/ICC refusal (EXIF first=%v) = %+v; %+v, %v", exifFirst, inspection, result, err)
+			if inspection.State != JPEGMetadataRemovable || inspection.Err != nil || err != nil || !result.Committed {
+				t.Fatalf("EXIF/ICC preservation (EXIF first=%v) = %+v; %+v, %v", exifFirst, inspection, result, err)
+			}
+			got := mustRead(t, path)
+			if (bytes.Index(got, []byte("Exif\x00\x00")) < bytes.Index(got, []byte("ICC_PROFILE\x00"))) != exifFirst {
+				t.Fatal("relative order of rendering declarations changed")
+			}
+			if values := removalRenderingValues(t, got); values[2] != 1 || values[3] != binary.LittleEndian.Uint32([]byte("R98\x00")) {
+				t.Fatalf("explicit EXIF color changed: %v", values)
+			}
+			if !bytes.Equal(profileTestTags(t, readRemovalProfile(t, got))["rXYZ"], red) {
+				t.Fatal("retained ICC transform changed")
 			}
 		}
 	})
@@ -953,13 +1006,16 @@ func TestJPEGMetadataRemovalProfiles(t *testing.T) {
 		copy(unknown[132:136], "zzzz")
 		badVersion := bytes.Clone(profile)
 		badVersion[9] = 0x1f
+		reservedAttributes := bytes.Clone(profile)
+		binary.BigEndian.PutUint32(reservedAttributes[60:64], 16)
 		wrongModel := removalFixture(t, "gray-v4.icc")
 		for name, segments := range map[string][][]byte{
-			"unknown transform": profileSegments(unknown),
-			"invalid version":   profileSegments(badVersion),
-			"model mismatch":    profileSegments(wrongModel),
-			"duplicate chunks":  {profileSegments(profile)[0], profileSegments(profile)[0]},
-			"missing chunk":     {jpegSegmentBytes(0xe2, append([]byte("ICC_PROFILE\x00\x01\x02"), profile...))},
+			"unknown transform":         profileSegments(unknown),
+			"invalid version":           profileSegments(badVersion),
+			"reserved media attributes": profileSegments(reservedAttributes),
+			"model mismatch":            profileSegments(wrongModel),
+			"duplicate chunks":          {profileSegments(profile)[0], profileSegments(profile)[0]},
+			"missing chunk":             {jpegSegmentBytes(0xe2, append([]byte("ICC_PROFILE\x00\x01\x02"), profile...))},
 		} {
 			t.Run(name, func(t *testing.T) {
 				data := mustInjectRemoval(t, plain, segments...)
@@ -1040,6 +1096,176 @@ func TestJPEGMetadataRemovalProfiles(t *testing.T) {
 	}
 }
 
+func TestJPEGMetadataRemovalCameraDeclarations(t *testing.T) {
+	for _, name := range []string{"baseline-rgb", "progressive-rgb", "multiscan-rgb"} {
+		for orientation := uint16(1); orientation <= 8; orientation++ {
+			for _, positioning := range []uint32{1, 2} {
+				for _, space := range []uint16{1, 0xffff} {
+					for _, version := range []string{"none", "v2", "v4"} {
+						t.Run(name+"/orientation="+strconv.Itoa(int(orientation))+"/positioning="+strconv.Itoa(int(positioning))+"/space="+strconv.Itoa(int(space))+"/"+version, func(t *testing.T) {
+							plain := removalFixture(t, name+".jpg")
+							index := "R98"
+							if space == 0xffff {
+								index = "R03"
+							}
+							colorTIFF := removalColorEXIF(space, index, false)[10:]
+							root := buildIFD0TIFF(t,
+								tiffEntry{tag: 0x0112, typ: 3, count: 1, value: uint32(orientation)},
+								tiffEntry{tag: 0x0213, typ: 3, count: 1, value: positioning},
+								tiffEntry{tag: 0x8769, typ: 4, count: 1, value: 50})
+							tiff := append(root, colorTIFF[26:]...)
+							binary.LittleEndian.PutUint32(tiff[72:76], 80)
+							tiff = append(tiff, []byte("private camera identity and thumbnail")...)
+							segments := [][]byte{jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...))}
+							if version != "none" {
+								segments = append(segments, profileSegments(removalFixture(t, "rgb-"+version+".icc"))...)
+							}
+							data := append(mustInjectRemoval(t, plain, segments...), []byte("private trailing preview")...)
+							path := writeTempFile(t, "camera.jpg", data)
+							if inspection := InspectJPEGMetadata(context.Background(), data); inspection.State != JPEGMetadataRemovable || inspection.Err != nil {
+								t.Fatalf("camera JPEG has no removal action: %+v", inspection)
+							}
+							result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+							if err != nil || !result.Committed {
+								t.Fatalf("camera removal = %+v, %v", result, err)
+							}
+							got := mustRead(t, path)
+							if jpegEXIFOrientation(got) != int(orientation) || bytes.Contains(got, []byte("private")) || !ReadMetadata(got).Empty() {
+								t.Fatal("rendering orientation or privacy was lost")
+							}
+							wantRendering := [4]uint32{uint32(orientation), positioning, uint32(space), binary.LittleEndian.Uint32(append([]byte(index), 0))}
+							if values := removalRenderingValues(t, got); values != wantRendering {
+								t.Fatalf("rendering declarations = %v, want %v", values, wantRendering)
+							}
+							if !bytes.Equal(removalImageBytes(t, got), plain) {
+								t.Fatal("encoded primary image data changed")
+							}
+							before, err := jpeg.Decode(bytes.NewReader(data))
+							if err != nil {
+								t.Fatal(err)
+							}
+							after, err := jpeg.Decode(bytes.NewReader(got))
+							if err != nil || !reflect.DeepEqual(before, after) {
+								t.Fatalf("camera pixels changed: %v", err)
+							}
+							if inspection := InspectJPEGMetadata(context.Background(), got); inspection.State != JPEGMetadataClean || inspection.Err != nil {
+								t.Fatalf("sanitized camera JPEG is not clean: %+v", inspection)
+							}
+							again, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+							if err != nil || again.Committed || !bytes.Equal(got, mustRead(t, path)) {
+								t.Fatalf("repeated removal = %+v, %v", again, err)
+							}
+						})
+					}
+				}
+			}
+		}
+	}
+}
+
+// Read the rebuilt declarations through the existing TIFF consumer, separately
+// from the removal parser. Unknown output tags are a privacy failure.
+func removalRenderingValues(t *testing.T, data []byte) [4]uint32 {
+	t.Helper()
+	values := [4]uint32{1, 1, 0, 0}
+	walkJPEGSegments(data, func(marker byte, payload []byte) bool {
+		if marker != 0xe1 {
+			return true
+		}
+		if len(payload) < 14 || !bytes.HasPrefix(payload, []byte("Exif\x00\x00")) || len(payload) > 104 {
+			t.Fatal("unexpected retained EXIF payload")
+		}
+		tiff := payload[6:]
+		bo, ok := tiffOrder(tiff)
+		if !ok {
+			t.Fatal("invalid output TIFF")
+		}
+		offsets := [3]uint32{bo.Uint32(tiff[4:8])}
+		for level := range offsets {
+			if offsets[level] == 0 {
+				continue
+			}
+			walkIFD(tiff, bo, offsets[level], func(tag, kind uint16, value []byte) {
+				switch {
+				case level == 0 && tag == 0x0112 && kind == 3:
+					values[0] = uint32(bo.Uint16(value))
+				case level == 0 && tag == 0x0213 && kind == 3:
+					values[1] = uint32(bo.Uint16(value))
+				case level == 1 && tag == 0xa001 && kind == 3:
+					values[2] = uint32(bo.Uint16(value))
+				case level == 2 && tag == 1 && kind == 2:
+					values[3] = binary.LittleEndian.Uint32(value)
+				case level == 0 && tag == 0x8769 && kind == 4, level == 1 && tag == 0xa005 && kind == 4:
+					offsets[level+1] = bo.Uint32(value)
+				default:
+					t.Fatalf("unexpected output tag %#x in directory %d", tag, level)
+				}
+			})
+		}
+		return true
+	})
+	return values
+}
+
+func removalImageBytes(t *testing.T, data []byte) []byte {
+	t.Helper()
+	out := bytes.Clone(data[:2])
+	for pos := 2; pos+4 <= len(data); {
+		if data[pos] != 0xff {
+			t.Fatal("invalid output header")
+		}
+		marker := data[pos+1]
+		if marker == 0xda {
+			return append(out, data[pos:]...)
+		}
+		length := int(binary.BigEndian.Uint16(data[pos+2 : pos+4]))
+		if length < 2 || pos+2+length > len(data) {
+			t.Fatal("invalid output segment")
+		}
+		if marker != 0xe1 && marker != 0xe2 {
+			out = append(out, data[pos:pos+2+length]...)
+		}
+		pos += 2 + length
+	}
+	t.Fatal("output contains no scan")
+	return nil
+}
+
+func TestJPEGMetadataRemovalPhotoMemory(t *testing.T) {
+	// Admission inspects headers only. Use independent baseline/progressive
+	// headers at camera dimensions; their tiny scans are deliberately not decoded.
+	for _, name := range []string{"baseline-rgb.jpg", "entropy-progressive-420.jpg"} {
+		for _, tc := range []struct {
+			width, height uint16
+			allow         bool
+		}{
+			{6000, 4000, true},
+			{18000, 10000, false},
+		} {
+			t.Run(name+"/"+strconv.Itoa(int(tc.width)), func(t *testing.T) {
+				data := removalFixture(t, name)
+				marker := byte(0xc0)
+				if name != "baseline-rgb.jpg" {
+					marker = 0xc2
+				}
+				at := bytes.Index(data, []byte{0xff, marker})
+				if at < 0 {
+					t.Fatal("fixture has no frame")
+				}
+				binary.BigEndian.PutUint16(data[at+5:at+7], tc.height)
+				binary.BigEndian.PutUint16(data[at+7:at+9], tc.width)
+				// Reserve the encoded storage of a normal 10 MiB camera file.
+				data = append(data, make([]byte, 10*1024*1024-len(data))...)
+				ctx := &jpegDecodeObserveContext{Context: context.Background()}
+				memory, err := jpegRemovalAdmission(ctx, data)
+				if ctx.decoded || tc.allow && (err != nil || memory.working > jpegRemovalWorkingBytes) || !tc.allow && !errors.Is(err, ErrJPEGMetadataMemory) {
+					t.Fatalf("photo admission: %+v, %v, decode=%v", memory, err, ctx.decoded)
+				}
+			})
+		}
+	}
+}
+
 func profileSegments(profile []byte) [][]byte {
 	return [][]byte{jpegSegmentBytes(0xe2, append([]byte("ICC_PROFILE\x00\x01\x01"), profile...))}
 }
@@ -1103,6 +1329,34 @@ func profileTestTags(t *testing.T, p []byte) map[string][]byte {
 		tags[string(e[:4])] = p[start : start+size]
 	}
 	return tags
+}
+
+func removalProfileWithTags(t *testing.T, source []byte, extra map[string][]byte) []byte {
+	t.Helper()
+	tags := profileTestTags(t, source)
+	for name, value := range extra {
+		tags[name] = value
+	}
+	names := make([]string, 0, len(tags))
+	for name := range tags {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	profile := make([]byte, 132+12*len(names))
+	copy(profile[:128], source[:128])
+	binary.BigEndian.PutUint32(profile[128:132], uint32(len(names)))
+	for i, name := range names {
+		entry := profile[132+12*i : 144+12*i]
+		copy(entry[:4], name)
+		binary.BigEndian.PutUint32(entry[4:8], uint32(len(profile)))
+		binary.BigEndian.PutUint32(entry[8:12], uint32(len(tags[name])))
+		profile = append(profile, tags[name]...)
+		for len(profile)%4 != 0 {
+			profile = append(profile, 0)
+		}
+	}
+	binary.BigEndian.PutUint32(profile[:4], uint32(len(profile)))
+	return profile
 }
 
 func fillRemovalMarker(t *testing.T, data []byte, marker byte) []byte {

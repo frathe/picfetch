@@ -240,18 +240,18 @@ nothing left to remove from a file that cannot be processed safely.
 
 - Removes camera, date, GPS, XMP, IPTC and comments throughout all supported
   scans, embedded previews, additional pictures, and trailing audio/video.
-- Upright images keep their encoded image data and pixels without recompression.
-  Qualified color transforms stay; descriptive ICC profile fields are removed
-  or replaced with neutral values.
+- Images keep their encoded image data and pixels without recompression. Only
+  validated orientation and color instructions are rebuilt in a minimal EXIF
+  block. Qualified color transforms stay; descriptive ICC profile fields are
+  removed or replaced with neutral values.
 - Baseline and progressive 8-bit gray/RGB JPEGs are supported, including separate
   component scans. Supported ICC profiles are v2/v4 matrix/TRC RGB and gray/TRC
   input/display profiles with XYZ color space. Other encodings, color models,
   unfamiliar profile fields, and uncertain or malformed data are refused. The
   original file stays untouched on refusal or cancellation before replacement.
   A separate memory limit can refuse large JPEGs even when the viewer opens them.
-- Sideways photos (Exif orientation 2-8) are corrected with one JPEG quality-95
-  re-encode. This can change pixels slightly; the retained profile still matches
-  the output color model. View-only rotation (`R`) is not written; use
+- Sideways photos keep their orientation instruction, so they remain upright
+  without another JPEG compression. View-only rotation (`R`) is not written; use
   **File -> Save Changes** first if that rotation should land on disk.
 - Removal applies only to this file. It does not anonymize visible image content
   or hidden information encoded in pixels, and does not erase sidecars, backups,

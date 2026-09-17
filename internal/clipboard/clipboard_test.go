@@ -5,9 +5,108 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestClipboardCommandOwnerLifetime(t *testing.T) {
+	switch os.Getenv("PICFETCH_CLIPBOARD_OWNER_FIXTURE") {
+	case "launcher":
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil || string(data) != "copied image" {
+			os.Exit(2)
+		}
+		child := exec.Command(os.Args[0], "-test.run=^TestClipboardCommandOwnerLifetime$")
+		child.Env = append(os.Environ(), "PICFETCH_CLIPBOARD_OWNER_FIXTURE=owner")
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+		child.ExtraFiles = []*os.File{os.NewFile(3, "release"), os.NewFile(4, "ready")}
+		if err := child.Start(); err != nil {
+			os.Exit(3)
+		}
+		_ = child.Process.Release()
+		os.Exit(0)
+	case "owner":
+		ready, release := os.NewFile(4, "ready"), os.NewFile(3, "release")
+		_, _ = ready.Write([]byte{1})
+		_, _ = io.Copy(io.Discard, release)
+		// The owner must still be able to serve the clipboard after return.
+		_, outErr := os.Stdout.Write([]byte("owner output"))
+		_, errErr := os.Stderr.Write([]byte("owner diagnostic"))
+		if outErr == nil && errErr == nil {
+			_, _ = ready.Write([]byte{2})
+		}
+		os.Exit(0)
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("Linux clipboard-owner inheritance uses Unix extra descriptors")
+	}
+	release, unblock, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = release.Close(); _ = unblock.Close() }()
+	ready, signal, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ready.Close(); _ = signal.Close() }()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestClipboardCommandOwnerLifetime$")
+	cmd.Env = append(os.Environ(), "PICFETCH_CLIPBOARD_OWNER_FIXTURE=launcher")
+	cmd.Stdin = strings.NewReader("copied image")
+	cmd.ExtraFiles = []*os.File{release, signal}
+	completed := make(chan error, 1)
+	go func() { _, err := runClipboardCommand(cmd); completed <- err }()
+	if err := ready.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	var status [1]byte
+	if _, err := io.ReadFull(ready, status[:]); err != nil || status[0] != 1 {
+		t.Fatalf("owner did not start: %v, %v", status, err)
+	}
+	select {
+	case err := <-completed:
+		if err != nil {
+			t.Error(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("copy remained pending after launcher exit while clipboard owner held its streams")
+		_ = unblock.Close()
+		if err := <-completed; err != nil {
+			t.Error(err)
+		}
+	}
+	_ = unblock.Close()
+	if _, err := io.ReadFull(ready, status[:]); err != nil || status[0] != 2 {
+		t.Fatalf("owner streams were closed prematurely: %v, %v", status, err)
+	}
+}
+
+func TestClipboardCommandFailureDiagnostics(t *testing.T) {
+	switch os.Getenv("PICFETCH_CLIPBOARD_ERROR_FIXTURE") {
+	case "short":
+		_, _ = os.Stderr.WriteString("clipboard unavailable")
+		os.Exit(2)
+	case "long":
+		_, _ = os.Stderr.WriteString(strings.Repeat("diagnostic\n", 16384))
+		os.Exit(3)
+	}
+	for _, fixture := range []string{"short", "long"} {
+		t.Run(fixture, func(t *testing.T) {
+			cmd := exec.Command(os.Args[0], "-test.run=^TestClipboardCommandFailureDiagnostics$")
+			cmd.Env = append(os.Environ(), "PICFETCH_CLIPBOARD_ERROR_FIXTURE="+fixture)
+			_, err := runClipboardCommand(cmd)
+			exitErr, ok := errors.AsType[*exec.ExitError](err)
+			if !ok || len(exitErr.Stderr) == 0 || len(exitErr.Stderr) > 64*1024 {
+				t.Fatalf("missing or unbounded launch diagnostic: %v", err)
+			}
+			if fixture == "short" && (exitErr.ExitCode() != 2 || string(exitErr.Stderr) != "clipboard unavailable") {
+				t.Fatalf("launch failure detail changed: %v, %q", exitErr, exitErr.Stderr)
+			}
+		})
+	}
+}
 
 func TestCopyImageLinux_PrefersXClip(t *testing.T) {
 	origXClip, origWlCopy, origRun := lookupXClip, lookupWlCopy, runClipboardCommand

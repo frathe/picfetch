@@ -547,7 +547,8 @@ func TestStripJPEGMetadata_RemovesGPSWithoutTouchingPixelsWhenOrientation1(t *te
 }
 
 func TestStripJPEGMetadata_Orientation6StaysUpright(t *testing.T) {
-	path := writeTempFile(t, "rotated.jpg", halfRedHalfBlueJPEG(t, 20, 10, 6))
+	data := append(halfRedHalfBlueJPEG(t, 20, 10, 6), []byte("private trailer")...)
+	path := writeTempFile(t, "rotated.jpg", data)
 	u := storage.NewFileURI(path)
 
 	loadedBefore, err := LoadImage(u, DefaultImgCacheBytes)
@@ -563,11 +564,11 @@ func TestStripJPEGMetadata_Orientation6StaysUpright(t *testing.T) {
 		t.Fatalf("StripJPEGMetadata: %v", err)
 	}
 
-	if !ReadMetadata(mustRead(t, path)).Empty() {
-		t.Fatal("want no Exif after strip")
+	if !ReadMetadata(mustRead(t, path)).Empty() || bytes.Contains(mustRead(t, path), []byte("private trailer")) {
+		t.Fatal("want no identifying metadata after strip")
 	}
-	if jpegEXIFOrientation(mustRead(t, path)) != 1 {
-		t.Fatal("stripped file must not carry orientation 6")
+	if jpegEXIFOrientation(mustRead(t, path)) != 6 {
+		t.Fatal("stripped file must retain orientation 6 without recompression")
 	}
 
 	loadedAfter, err := LoadImage(u, DefaultImgCacheBytes)
@@ -604,13 +605,13 @@ func TestStripJPEGMetadata_Orientation6KeepsICC(t *testing.T) {
 
 	got := mustRead(t, path)
 	if !bytes.Contains(got, []byte("ICC_PROFILE")) {
-		t.Fatal("orientation 2–8 re-encode must retain the qualified color profile")
+		t.Fatal("orientation 2–8 removal must retain the qualified color profile")
 	}
 	if !ReadMetadata(got).Empty() {
 		t.Fatal("want no Exif after strip")
 	}
-	if jpegEXIFOrientation(got) != 1 {
-		t.Fatal("stripped file must not carry orientation 6")
+	if jpegEXIFOrientation(got) != 6 {
+		t.Fatal("stripped file must retain orientation 6 without recompression")
 	}
 
 	loaded, err := LoadImage(u, DefaultImgCacheBytes)
@@ -769,11 +770,11 @@ func TestStripJPEGMetadata_Orientation6DropsTrailer(t *testing.T) {
 	}
 
 	got := mustRead(t, path)
-	if bytes.Contains(got, []byte("Exif\x00\x00")) {
-		t.Fatal("re-encode path left trailer Exif")
+	if !ReadMetadata(got).Empty() || jpegEXIFOrientation(got) != 6 {
+		t.Fatal("removal lost orientation or left trailer metadata")
 	}
 	if n := jpegLength(got); n != len(got) {
-		t.Fatalf("re-encode path left a trailer: jpegLength=%d len=%d", n, len(got))
+		t.Fatalf("removal left a trailer: jpegLength=%d len=%d", n, len(got))
 	}
 }
 
@@ -797,7 +798,7 @@ func TestCanStripJPEGMetadata(t *testing.T) {
 		{"stdlib JPEG has nothing removable", plainBuf.Bytes(), false},
 		{"GPS splice is removable", gpsJPEG, true},
 		{"GPS JPEG after EOI is removable", appendAfterEOI(t, plainBuf.Bytes(), gpsTrailerJPEG(t)), true},
-		{"orientation 6 must re-encode", halfRedHalfBlueJPEG(t, 4, 4, 6), true},
+		{"orientation alone is already clean", halfRedHalfBlueJPEG(t, 4, 4, 6), false},
 		{"PNG magic is not a JPEG", []byte("\x89PNG\r\n"), false},
 	}
 

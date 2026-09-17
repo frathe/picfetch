@@ -6,39 +6,52 @@
 
 #### New Features
 
+![trane security superhero](https://github.com/frathe/picfetch/blob/main/assets/trane/trane_security_superhero_v2.png?raw=true)
+
+- **Security fixes and hardening**
+
+  This release includes several security fixes and hardening improvements to make
+  PicFetch more resilient when handling malformed images and large collections.
+  Stronger validation and resource limits reduce the risk of excessive memory and
+  CPU use, while additional safeguards protect file saves, strengthen update
+  integrity, and tighten permissions in release workflows.
+
 - Add Settings -> Limits -> Similarity Explorer with persisted 512 MB map-data
   and 10,000-item defaults, configurable for larger libraries. Resource-limit
   errors show wrapped toasts naming the setting location. Stream map snapshots
   in bounded chunks with aggregate accounting instead of one large JSON event.
-  Evidence: [PR #29 implementation plan](plans/2026-09-16-explorer-configurable-limits.md).
 
 #### Bugfix
+
+- Fix Linux clipboard copies staying busy after the helper forks its clipboard
+  owner, which also blocked Copy Image Path. Complete on launcher exit while
+  preserving bounded failure diagnostics and the running clipboard owner.
+
+- Restore JPEG metadata removal for common EXIF/ICC color declarations and camera
+  chroma settings. Keep orientation and encoded image data without recompression,
+  while retaining structural validation, privacy checks and memory limits. Qualify
+  the standard optional sRGB profile fields found in the supplied camera JPEG.
 
 - Bound RAW fallback JPEG parsing with one input-sized budget shared by header,
   marker-fill and entropy traversal. Preserve ordinary multi-preview selection
   and replace timing-dependent coverage with deterministic budget checks.
-  Local evidence: [review record](finished_refactorings/2026-09-17-pr40-review.md).
-  Hosted review dispositions and final checks: [PR #40](https://github.com/frathe/picfetch/pull/40).
 
 - Reject Save Changes through symlink leaves, preserving both the link and target
   without copying image content into a different directory. Keep regular writes
-  at the selected filename and serialize parent-directory aliases. Verification:
-  [PR #35](https://github.com/frathe/picfetch/pull/35),
-  [review record](finished_refactorings/2026-09-17-pr35-review.md).
+  at the selected filename and serialize parent-directory aliases.
 
 - Authenticate staged updates with process-local seals, derive payload hashes
   from verified archive bytes, and retain a write-denying Windows source handle
-  through installation. Native Windows guards pass; review and final CI evidence:
-  [PR #32](https://github.com/frathe/picfetch/pull/32),
-  [review record](finished_refactorings/2026-09-16-pr32-review.md).
+  through installation.
 
 - Bound ICO and SVG input processing, enforce WASM AVIF builds, and account for
   GIF frame overhead before animation decoding; preserve static GIF fallback.
+
 - Bound comparison decodes to half the shared image budget per pane and avoid
   retaining animation frames that comparison never displays. Include 16-bit
   pixel admission, actual cached-frame weights, localized refusals and the
-  corrected UI shard assignment. Hosted review dispositions and final CI,
-  Qodana and CodeQL evidence: [PR #31](https://github.com/frathe/picfetch/pull/31).
+  corrected UI shard assignment.
+
 - Bound Visual Similarity Explorer collection work and worker event decoding to
   prevent attacker-controlled collections from exhausting CPU or viewer memory.
 
@@ -47,34 +60,18 @@
 - Pin the TUF-root workflow's checkout/setup-go actions to verified v7 commits,
   disable checkout credential persistence, and configure GitHub CLI authentication
   before pushing. Focused TUF tests and stubbed publication paths pass; the live
-  scheduled write path is not exercised by PR CI. Review dispositions and final
-  hosted checks are tracked in [PR #34](https://github.com/frathe/picfetch/pull/34).
+  scheduled write path is not exercised by PR CI.
+
 - Pin the Qodana action to its reviewed commit, remove source-write permission
   and automatic fix pushes, and disable persisted checkout credentials. Retain
-  PR comments, annotations and the Go linter's required project token. Review
-  dispositions and hosted verification: [PR #33](https://github.com/frathe/picfetch/pull/33).
-- *Windows signing qualification*
-  Completed. The Windows release-signing workflow uses the protected
+  PR comments, annotations and the Go linter's required project token.
+
+- Windows signing qualification Completed. The Windows release-signing workflow uses the protected
   `release-signing` environment, retains the verified local installer handoff,
   and checks `SIMPLYSIGN_INSTALLER_SHA256` and `SIMPLYSIGN_SIGNER_THUMBPRINT`
-  before installation. Setup and test-tag qualification are described in
-  [the signing guide](docs/release-signing.md). Fixes, hosted review dispositions
-  and CI evidence are tracked in
-  [PR #30](https://github.com/frathe/picfetch/pull/30); PR CI does not execute the
-  credentialed signing job.
-
+  before installation.
 
 ## Open
-
-### Private Favorite storage review and acceptance
-
-PR #39 makes new and re-saved Favorite lists private and isolates the temporary
-fallback. Legacy replacement, fallback failure/isolation, and early startup
-failure regressions, focused race suites, GoLand inspections and local build
-checks pass. Complete the fresh Codex code/security
-reviews and platform CI; hosted dispositions and final checks belong on
-[PR #39](https://github.com/frathe/picfetch/pull/39).
-Scope, limits and local evidence: [review record](plans/2026-09-17-pr39-review.md).
 
 ## Deferred
 

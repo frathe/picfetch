@@ -368,10 +368,10 @@ func writeFileContext(ctx context.Context, path string, perm os.FileMode, write 
 }
 
 // StripJPEGMetadata removes identifying metadata and secondary media from a
-// qualified JPEG in place. Upright coded image data is retained exactly;
-// orientations 2-8 are corrected with a JPEG quality-95 re-encode. Qualified
-// color transforms survive with neutral descriptive fields. Uncertain inputs
-// return an error without rewriting. Clean inputs are unchanged. Replacement
+// qualified JPEG in place. Coded image data is retained exactly, together with
+// rebuilt orientation/color instructions and qualified color transforms with
+// neutral descriptive fields. Uncertain inputs return an error without rewriting.
+// Clean inputs are unchanged. Replacement
 // preserves permissions and follows symlinks through the serialized transaction.
 func StripJPEGMetadata(u fyne.URI) error {
 	_, err := StripJPEGMetadataContext(context.Background(), u)
@@ -394,8 +394,7 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	orient := p.orientation
-	if bytes.Equal(data, p.output) && orient == 1 {
+	if bytes.Equal(data, p.output) {
 		return false, nil
 	}
 
@@ -404,43 +403,8 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 		return false, err
 	}
 
-	if orient == 1 {
-		stripped := p.output
-		err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
-			_, err := w.Write(stripped)
-			return err
-		})
-		return err == nil, err
-	}
-
-	pixels, err := orientJPEGRemoval(ctx, p.pixels, orient, p.components)
-	if err != nil {
-		return false, err
-	}
-	encodedData, err := encodeJPEGRemoval(ctx, pixels, p.icc, p.encodeLimit)
-	if err != nil {
-		return false, err
-	}
-	if len(p.jfif) != 0 {
-		header := bytes.Clone(p.jfif)
-		if orient >= 5 {
-			copy(header[8:10], p.jfif[10:12])
-			copy(header[10:12], p.jfif[8:10])
-		}
-		encodedData, err = injectJPEGMetadata(encodedData, [][]byte{jpegSegmentBytes(0xe0, header)})
-		if err != nil {
-			return false, err
-		}
-	}
-	validated, err := prepareJPEGRemoval(ctx, encodedData)
-	if err != nil {
-		return false, err
-	}
-	if !bytes.Equal(validated.output, encodedData) || validated.orientation != 1 {
-		return false, ErrJPEGMetadataStructure
-	}
 	err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
-		_, err := w.Write(validated.output)
+		_, err := w.Write(p.output)
 		return err
 	})
 	return err == nil, err

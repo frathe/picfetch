@@ -795,6 +795,18 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 					// after SOI when adding the profile under test.
 					at := 4 + int(binary.BigEndian.Uint16(plain[4:6]))
 					data = append(append(bytes.Clone(plain[:at]), segment...), plain[at:]...)
+					// Camera/editor output often declares sRGB in EXIF as well
+					// as ICC. Add an Exif IFD containing ColorSpace=1, followed
+					// by private unused bytes which must not survive removal.
+					tiff := []byte{'I', 'I', 42, 0, 8, 0, 0, 0,
+						1, 0, 0x69, 0x87, 4, 0, 1, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0,
+						1, 0, 1, 0xa0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}
+					payload = append([]byte("Exif\x00\x00"), tiff...)
+					payload = append(payload, []byte("private camera description")...)
+					segment = []byte{0xff, 0xe1, 0, 0}
+					binary.BigEndian.PutUint16(segment[2:], uint16(len(payload)+2))
+					segment = append(segment, payload...)
+					data = append(append(bytes.Clone(data[:at]), segment...), data[at:]...)
 				}
 				app := test.NewApp()
 				u := storage.NewFileURI(uitest.WriteTempFile(t, "fixture.jpg", data))
@@ -813,6 +825,9 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 				w.Settle()
 				if bytes.Equal(data, readWindowFile(t, u)) || host.after != 1 || len(host.toasts) != 1 || host.toasts[0] != lang.L("Metadata removed") {
 					t.Fatalf("removal did not complete: after=%d toasts=%v", host.after, host.toasts)
+				}
+				if bytes.Contains(readWindowFile(t, u), []byte("private camera description")) {
+					t.Fatal("private EXIF payload survived removal")
 				}
 				if !windowContainsLabel(w.Window().Content(), lang.L("Metadata removal: nothing to remove.")) {
 					t.Fatal("successful removal did not refresh to verified clean status")

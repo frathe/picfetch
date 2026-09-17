@@ -79,7 +79,9 @@ func normalizeRemovalICC(ctx context.Context, p []byte, components int) ([]byte,
 	if components == 1 && string(p[16:20]) != "GRAY" || components == 3 && string(p[16:20]) != "RGB " {
 		return nil, ErrJPEGMetadataProfile
 	}
-	if binary.BigEndian.Uint32(p[44:48]) & ^uint32(3) != 0 || binary.BigEndian.Uint64(p[56:64]) & ^uint64(15) != 0 || binary.BigEndian.Uint32(p[64:68]) > 3 || !allZero(p[100:128]) {
+	// Attributes 0-3 describe the media; 4-31 are reserved. The high word
+	// belongs to the vendor and is identity data, removed during rebuilding.
+	if binary.BigEndian.Uint32(p[44:48]) & ^uint32(3) != 0 || binary.BigEndian.Uint32(p[60:64]) & ^uint32(15) != 0 || binary.BigEndian.Uint32(p[64:68]) > 3 || !allZero(p[100:128]) {
 		return nil, ErrJPEGMetadataProfile
 	}
 	// ICC PCS illuminant is D50, encoded as the specified s15Fixed16 XYZ.
@@ -119,12 +121,24 @@ func normalizeRemovalICC(ctx context.Context, p []byte, components int) ([]byte,
 			return nil, ErrJPEGMetadataProfile
 		}
 		switch name {
-		case "desc", "cprt", "dmnd", "dmdd":
+		case "desc", "cprt", "dmnd", "dmdd", "vued":
 			if !validICCDescription(value, version) {
 				return nil, ErrJPEGMetadataProfile
 			}
 		case "wtpt", "bkpt", "rXYZ", "gXYZ", "bXYZ":
 			if len(value) != 20 || string(value[:4]) != "XYZ " {
+				return nil, ErrJPEGMetadataProfile
+			}
+		case "lumi":
+			if len(value) != 20 || string(value[:4]) != "XYZ " || !allZero(value[8:12]) || int32(binary.BigEndian.Uint32(value[12:16])) < 0 || !allZero(value[16:20]) {
+				return nil, ErrJPEGMetadataProfile
+			}
+		case "meas":
+			if !validICCMeasurement(value) {
+				return nil, ErrJPEGMetadataProfile
+			}
+		case "tech":
+			if !validICCTechnology(value) {
 				return nil, ErrJPEGMetadataProfile
 			}
 		case "chad":
@@ -167,6 +181,7 @@ func normalizeRemovalICC(ctx context.Context, p []byte, components int) ([]byte,
 	}
 	delete(tags, "dmnd")
 	delete(tags, "dmdd")
+	delete(tags, "vued")
 	tags["desc"] = neutralICCText(version, true)
 	tags["cprt"] = neutralICCText(version, false)
 	names := make([]string, 0, len(tags))
@@ -180,7 +195,7 @@ func normalizeRemovalICC(ctx context.Context, p []byte, components int) ([]byte,
 	copy(out[24:36], []byte{7, 0xd0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0})
 	copy(out[36:40], "acsp")
 	copy(out[44:48], p[44:48])
-	copy(out[56:80], p[56:80])
+	copy(out[60:80], p[60:80])
 	binary.BigEndian.PutUint32(out[128:132], uint32(len(names)))
 	for i, name := range names {
 		value := tags[name]
@@ -195,6 +210,31 @@ func normalizeRemovalICC(ctx context.Context, p []byte, components int) ([]byte,
 	}
 	binary.BigEndian.PutUint32(out[:4], uint32(len(out)))
 	return out, nil
+}
+
+func validICCMeasurement(p []byte) bool {
+	// ICC measurementType: observer, backing XYZ, geometry, flare and
+	// illuminant. Only fixed numerical values and standard enums survive.
+	return len(p) == 36 && string(p[:4]) == "meas" &&
+		binary.BigEndian.Uint32(p[8:12]) <= 2 &&
+		binary.BigEndian.Uint32(p[24:28]) <= 2 &&
+		binary.BigEndian.Uint32(p[28:32]) <= 65536 &&
+		binary.BigEndian.Uint32(p[32:36]) <= 8
+}
+
+func validICCTechnology(p []byte) bool {
+	if len(p) != 12 || string(p[:4]) != "sig " {
+		return false
+	}
+	// ICC technologyTag signatures, not arbitrary four-byte vendor text.
+	switch string(p[8:12]) {
+	case "fscn", "dcam", "rscn", "ijet", "twax", "epho", "esta", "dsub",
+		"rpho", "fprn", "vidm", "vidc", "pjtv", "CRT ", "PMD ", "AMD ",
+		"LCD ", "OLED", "KPCD", "imgs", "grav", "offs", "silk", "flex",
+		"mpfs", "mpfr", "dmpc", "dcpj":
+		return true
+	}
+	return false
 }
 
 func allZero(p []byte) bool {

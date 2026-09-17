@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"image/color"
 	"image/jpeg"
 )
 
@@ -12,15 +13,14 @@ const jpegRemovalScratchBytes int64 = 16 * 1024 * 1024
 const jpegRemovalSourceBytes = (jpegRemovalWorkingBytes - jpegRemovalScratchBytes) / 4
 
 type jpegRemovalMemory struct {
-	working  int64
-	oriented int64
+	working int64
 }
 
 // jpegRemovalAdmission reads headers without allocating image planes or copied
 // JPEG data. Account MCU padding, all component samples, progressive int32
-// coefficient blocks, possible RGB conversion, and an oriented output plus its
-// validation decode. Four encoded copies and ICC/small-object scratch are
-// reserved separately. This is an operation budget, not the foreground cache.
+// coefficient blocks and possible RGB conversion. Four encoded copies and
+// ICC/small-object scratch are reserved separately. This is an operation budget,
+// not the foreground cache.
 func jpegRemovalAdmission(ctx context.Context, data []byte) (jpegRemovalMemory, error) {
 	if int64(len(data)) > jpegRemovalSourceBytes {
 		return jpegRemovalMemory{}, ErrJPEGMetadataMemory
@@ -63,16 +63,23 @@ func jpegRemovalAdmission(ctx context.Context, data []byte) (jpegRemovalMemory, 
 		memory.working += samples / 8
 	}
 	if len(frame.ids) == 3 {
-		// Go's flexible sampling path may expand all three components
-		// to full planes, then retain them during RGB conversion.
-		memory.working += 7 * plane
-		// The new RGB encode is 4:2:0 and pads independently to 16x16
-		// MCUs. Reserve RGBA orientation plus its validation planes.
-		outputPlane := ((int64(cfg.Width) + 15) / 16) * 16 * ((int64(cfg.Height) + 15) / 16) * 16
-		memory.oriented = memory.working + 4*plane + 2*outputPlane
+		// Go expands flexible sampling to three full planes. Ordinary
+		// YCbCr uses its subsampled planes and needs no RGBA conversion.
+		planes := 3 * plane
+		h0, h1, h2 := payload[7]>>4, payload[10]>>4, payload[13]>>4
+		v0, v1, v2 := payload[7]&15, payload[10]&15, payload[13]&15
+		if int64(h0) == horizontal && int64(v0) == vertical && h1 == h2 && v1 == v2 && h0%h1 == 0 && v0%v1 == 0 {
+			switch h0/h1<<4 | v0/v1 {
+			case 0x11, 0x12, 0x21, 0x22, 0x41, 0x42:
+				planes = samples
+			}
+		}
+		memory.working += planes
+		if cfg.ColorModel == color.RGBAModel {
+			memory.working += 4 * plane
+		}
 	} else {
 		memory.working += plane
-		memory.oriented = memory.working + 2*plane
 	}
 	if memory.working > jpegRemovalWorkingBytes {
 		return memory, ErrJPEGMetadataMemory

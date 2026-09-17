@@ -261,9 +261,10 @@ entfernen“ von einer Datei, die nicht sicher verarbeitet werden kann.
 
 - Entfernt Kamera, Datum, GPS, XMP, IPTC und Kommentare in allen unterstützten
   Scans, eingebettete Vorschaubilder, weitere Bilder sowie angehängte Audio-/Videodaten.
-- Aufrechte Bilder behalten ihre kodierten Bilddaten und Pixel ohne Neukodierung.
-  Unterstützte Farbtransformationen bleiben erhalten; beschreibende ICC-Felder
-  werden entfernt oder durch neutrale Werte ersetzt.
+- Bilder behalten ihre kodierten Bilddaten und Pixel ohne Neukodierung. Nur
+  geprüfte Angaben zu Ausrichtung und Farbe werden in einem minimalen EXIF-Block
+  neu aufgebaut. Unterstützte Farbtransformationen bleiben erhalten; beschreibende
+  ICC-Felder werden entfernt oder durch neutrale Werte ersetzt.
 - Unterstützt werden 8-Bit-JPEGs mit Graustufen/RGB, Baseline und progressiv,
   einschließlich getrennter Komponenten-Scans. Bei ICC werden v2/v4-Eingabe- und
   Bildschirmprofile mit RGB-Matrix/TRC oder Graustufen-TRC und XYZ-Farbraum
@@ -272,9 +273,8 @@ entfernen“ von einer Datei, die nicht sicher verarbeitet werden kann.
   dem Ersetzen bleibt die Originaldatei unverändert.
   Eine eigene Speichergrenze kann große JPEGs ablehnen, auch wenn die Bildansicht
   sie öffnen kann.
-- Seitliche Fotos (Exif-Orientierung 2-8) werden einmal mit JPEG-Qualität 95
-  neu kodiert. Dabei können sich Pixel leicht ändern; das erhaltene Profil passt
-  weiterhin zum Farbmodell. Nur-Ansicht-Drehung (`R`) wird nicht geschrieben;
+- Seitliche Fotos behalten ihre Ausrichtungsangabe und bleiben dadurch ohne
+  erneute JPEG-Kompression aufrecht. Nur-Ansicht-Drehung (`R`) wird nicht geschrieben;
   verwenden Sie dafür zuerst **Datei -> Änderungen speichern**.
 - Die Entfernung betrifft nur diese Datei. Sie anonymisiert keine sichtbaren
   Bildinhalte oder in Pixeln versteckten Informationen und löscht keine

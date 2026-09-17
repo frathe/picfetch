@@ -13,34 +13,32 @@ removal; metadata-preserving Save Changes and export retain their separate polic
 | JFIF/JFXX | Validate JFIF 1.00-1.02 immediately after SOI, retain its 14-byte interpretation/density header with zero thumbnail dimensions; remove thumbnail bytes, extensions and unclaimed payload. |
 | Adobe | Validate version 100, zero flags and qualified gray/RGB transform. Retain only the 12-byte declaration; conflicts with JFIF or RGB component identifiers are refused. |
 | SPIFF | APP8 SPIFF declarations are refused because their base-image color interpretation is not qualified. |
-| EXIF color | Absent color declarations are qualified. Default sRGB (`ColorSpace=1`, `R98` interoperability) is qualified only without an ICC profile. Any explicit EXIF ColorSpace or InteroperabilityIndex combined with any ICC profile is conservatively refused because agreement and precedence are not qualified. Non-sRGB/uncalibrated declarations, other interoperability values and explicit TransferFunction, WhitePoint, PrimaryChromaticities, YCbCrCoefficients, ReferenceBlackWhite or Gamma tags are also refused. |
-| EXIF chroma positioning | Absent or explicitly centered `YCbCrPositioning=1` is qualified. Co-sited positioning (`2`), reserved values and malformed or duplicate declarations are refused for both upright and oriented removal. |
+| EXIF color | Rebuild validated `ColorSpace=1`/`65535` and `InteroperabilityIndex=R98`/`R03` alongside the sanitized ICC profile, preserving their existing interpretation without assuming agreement or precedence. Duplicate, malformed or other enumerations are refused. Explicit TransferFunction, WhitePoint, PrimaryChromaticities, YCbCrCoefficients, ReferenceBlackWhite and Gamma remain refused. |
+| EXIF chroma positioning | Preserve co-sited `YCbCrPositioning=2` with the unchanged compressed image; centered `1` is the default and needs no retained tag. Reserved values and malformed or duplicate declarations remain refused. |
 | ICC | v2/v4 input/display (`scnr`/`mntr`) RGB matrix/TRC and gray/TRC with XYZ PCS and D50 header illuminant. Required descriptions/copyright/white point and model-specific transform tags must exist. |
-| ICC transform tags | Exact XYZ columns, white/black points, `chad`, `chrm`, and monotonic `curv` or qualified gamma/sRGB `para` types 0/3. Other tags, LUT models, ambiguous assembly, partial overlaps, wrong models and malformed lengths are refused. Maximum assembled source profile: 4 MiB. |
-| ICC identity | Rebuild the tag table/data with zero padding; retain exact transform payloads. Replace description/copyright with neutral text, remove manufacturer/model descriptions and unclaimed bytes, normalize creation date, clear creator/manufacturer/model/platform/CMM/profile ID. Preserve qualified rendering intent and device attributes. |
+| ICC transform tags | Exact XYZ columns, white/black points, `chad`, `chrm`, and monotonic `curv` or qualified gamma/sRGB `para` types 0/3. Also retain standard `lumi` (nonnegative Y, zero X/Z), fixed-size `meas` with bounded standard observer/geometry/flare/illuminant values, and enumerated `tech`. Other tags, LUT models, ambiguous assembly, partial overlaps, wrong models and malformed lengths are refused. Maximum assembled source profile: 4 MiB. |
+| ICC identity | Rebuild the tag table/data with zero padding; retain exact numerical payloads. Replace description/copyright with neutral text, remove manufacturer/model/viewing descriptions and unclaimed bytes, normalize creation date, clear creator/manufacturer/model/platform/CMM/profile ID and vendor-specific device attributes. Preserve qualified rendering intent and the four standard media-attribute bits; reserved bits remain refused. |
 | Retained markers | Preserve legal fill on retained JFIF, Adobe and EOI markers. When the assembled ICC profile already equals its qualified normalized form, preserve its original marker fill, chunking and scan placement; packet packaging alone is not removable private data. |
-| Orientation | Identity/absent: primary encoded bytes and decoded samples remain identical. Orientations 2-8: apply the existing quality-95 re-encode, retain gray/RGB model and normalized profile, preserve JFIF density/pixel aspect with axes swapped for orientations 5-8, and validate the proposed result before replacement. |
-| Memory | A separate 256 MiB estimated working-memory budget reserves encoded copies, ICC scratch, padded component planes, progressive coefficient arrays and nonzero masks, orientation and output validation. Header-only admission precedes copied JPEG data, entropy masks and full decoding; encoded sources are limited to 60 MiB or the configured file limit, whichever is lower. Re-encoded output is bounded by the remaining budget. Larger files may remain viewable while metadata removal is refused. |
+| Orientation | All orientations retain exact encoded image bytes and decoded samples. Rebuild Orientation 2-8 without recompression; absent/identity needs no retained tag. JFIF density/pixel aspect and ICC transforms stay in the original image coordinate system. The rebuilt EXIF contains at most 104 payload bytes with fresh pointers, zero padding and no descriptive values, thumbnails or source data gaps. |
+| Memory | The separate 256 MiB working-memory budget reserves encoded copies, ICC scratch, padded/subsampled component planes, progressive coefficient arrays and nonzero masks, plus RGB conversion only when required by the decoder. Flexible sampling retains its full-plane estimate. Header-only admission precedes copied JPEG data, entropy masks and full decoding; encoded sources remain limited to 60 MiB or the configured file limit, whichever is lower. Ordinary 24 MP 4:2:0 progressive headers with 10 MiB encoded storage are admitted; oversized working sets remain refused before decoding. |
 
 Unknown input is not presented as clean. Inspection and mutation share the policy;
 mutation reads the current file after transaction admission. Clean sources return
 an uncommitted result. Cancellation/refusal before replacement leaves bytes intact;
 committed results preserve their existing host-reconciliation semantics.
-The EXIF transform-tag refusal is conservative: DCF basic readers may ignore
-those tags in favor of default sRGB, but this operation does not establish full
-DCF basic conformance. Coexisting explicit EXIF color declarations and ICC profiles
-are refused even when they might agree: this operation does not qualify their
-numerical equivalence or resolve their precedence. Orientation-only EXIF together
-with a qualified ICC profile remains supported. See DCF 2.0
-sections 4.4.5.4, 4.5.4, 6.2.4 and 7.5 in the
-[JEITA/CIPA specification](https://www.jeita.or.jp/cgi-bin/standard_e/pdf.cgi?jk_n=51&jk_pdf_file=CP).
-Centered chroma positioning can be removed because EXIF specifies the same
-interpretation when the tag is absent. Co-sited positioning requires separate
-rendering qualification. See the `YCbCrPositioning` entry in section 4.6.4,
-printed page 36 of [CIPA DC-008-2010](https://www.cipa.jp/std/documents/e/DC-008-2010_E.pdf).
-Cancellation is checked throughout scan traversal, between orientation rows and
-at buffered JPEG encoder output boundaries; the encoder's pixel loops unwind on
-cancellation instead of finishing a discarded image.
+The retained EXIF is reconstructed from finite enumerations: orientation 2-8,
+co-sited chroma placement, the two supported ColorSpace values and the two
+supported InteroperabilityIndex values. Identity/centered defaults are omitted.
+Keeping these declarations with unchanged compressed samples and ICC numerical
+transforms preserves the reader's interpretation, including when EXIF and ICC
+would select different color spaces. No numerical equivalence or precedence is
+assumed. Camera/date/GPS/MakerNote/thumbnail directories, text, source padding,
+unclaimed bytes and next-IFD links are never copied. Malformed rendering fields
+still cause refusal; unqualified numerical EXIF transforms remain unsupported.
+The orientation/chroma/color fields are defined in section 4.6 of
+[CIPA DC-008-2010](https://www.cipa.jp/std/documents/e/DC-008-2010_E.pdf).
+Cancellation remains checked during source reads, marker/scan traversal,
+validation decoding and atomic output writes; this operation has no encoder.
 Entropy qualification follows [ITU-T T.81](https://www.w3.org/Graphics/JPEG/itu-t81.pdf),
 sections B.1.1.5, E.1.2 and F.1.2.3 and Annexes C/G. Unused scan bytes are outside
 the qualified image coding syntax; the steganography exclusion does not cover
@@ -61,8 +59,30 @@ ICC 2.1/4.3 RGB sRGB matrix/TRC and D50 gray gamma 2.2, plus input-class derivat
 The public mutation tests compare outputs with independent clean JPEG fixtures,
 exact decoded samples and exact numerical profile tag payloads. The combined
 matrix covers each applicable JPEG/profile family. Orientation tests cover all
-values 2-8 with RGB/gray v2/v4 profiles; the deliberately high-frequency fixture
-allows mean channel error at most 12/255 for the documented lossy re-encode.
+values 2-8 with RGB/gray v2/v4 profiles and require exact decoded/displayed sample
+equality. A 288-case camera-declaration matrix combines three scan families, all
+eight orientations, both chroma placements, both color declarations and absent,
+v2 or v4 ICC profiles. It asserts exact compressed-image bytes, retained rendering
+values, removed private payloads and idempotence. Both TIFF byte orders and
+conflicting EXIF/ICC interpretations also have coverage.
+
+A supplied 4048x3036 camera JPEG exposed another compatibility gap: its ordinary
+v2 sRGB profile contains optional luminance, measurement, technology and viewing
+description tags, plus vendor attribute bits. Synthetic v2/v4 regressions now
+cover those fields individually and together, and malformed variants must leave
+the source untouched. The tag layouts/enumerations and header attributes follow
+[ICC.1:2022](https://www.color.org/specification/ICC.1-2022-05.pdf), sections
+7.2.14, 9.2.33-34, 9.2.49-50 and 10.14. Only standard numerical/enumerated data
+survives; vendor identity and descriptions are removed. Nonstandard vendor CMM
+interpretation is not qualified.
+
+On a temporary copy of the supplied JPEG, removal succeeds and ExifTool finds
+only `ColorSpace=sRGB` in EXIF, with no XMP/IPTC. Strict `djpeg` output before and
+after has identical SHA-256
+`455e13d4c2071e11bb7b10feaceb3aefcd06c86eb4209a9a3569739f91d43258`.
+LittleCMS comparison of the extracted profiles yields zero XYZ difference for
+343 samples under every rendering intent. The private photo/profile are not
+repository fixtures; the source attachment remains unchanged.
 
 `reference.py check` independently opens original and output profiles with
 LittleCMS 2.19.1 and transforms 343 RGB grid samples or 257 gray samples into XYZ
@@ -85,7 +105,7 @@ also fail. Every generated JPEG decoded with independent `djpeg -strict`.
 
 ## Acceptance commands and limits
 
-All seven `TestJPEGMetadataRemoval*` acceptance tests are registered in imaging and
+The `TestJPEGMetadataRemoval*` acceptance tests are registered in imaging and
 the EXIF window. Run them with:
 
 ```sh
@@ -108,4 +128,7 @@ working-memory estimate bounds this operation's admitted work, not whole-process
 RSS or the independently retained foreground image cache. Structural qualification plus decoding is
 not a claim that a file contains no hidden information. Native Windows/macOS UI
 behavior is not established by Linux tests; final gate evidence belongs in the
-[implementation record](../plans/2026-09-17-jpeg-metadata-privacy.md).
+[original implementation record](../plans/2026-09-17-jpeg-metadata-privacy.md)
+and the [compatibility follow-up](../finished_refactorings/2026-09-17-jpeg-removal-compatibility.md).
+The [camera-profile and clipboard follow-up](../finished_refactorings/2026-09-17-jpeg-and-clipboard-followup.md)
+records the supplied-photo qualification and latest full-gate results.

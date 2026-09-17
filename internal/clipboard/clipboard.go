@@ -62,9 +62,30 @@ func writeTempPNGFile(f tempPNGFile, data []byte, remove func(string) error) (st
 	return f.Name(), nil
 }
 
-// runClipboardCommand runs the already-built clipboard command; a var so
-// tests can stub the process out entirely.
-var runClipboardCommand = func(cmd *exec.Cmd) ([]byte, error) { return cmd.Output() }
+// runClipboardCommand waits for the launcher, not a background clipboard owner.
+// xclip and wl-copy fork owners that inherit output descriptors. Output's pipes
+// would keep Wait blocked until that owner loses the clipboard, preventing the
+// next copy. No caller consumes stdout; Run sends it to the null device. A real
+// stderr file preserves launch diagnostics without waiting for inherited pipes.
+// The dispatcher remains replaceable by the existing platform test stubs.
+var runClipboardCommand = func(cmd *exec.Cmd) ([]byte, error) {
+	stderr, err := os.CreateTemp("", "picfetch_clip_stderr_*")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = stderr.Close(); _ = os.Remove(stderr.Name()) }()
+	cmd.Stderr = stderr
+	err = cmd.Run()
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		if _, seekErr := stderr.Seek(0, io.SeekStart); seekErr != nil {
+			return nil, errors.Join(err, seekErr)
+		}
+		var readErr error
+		exitErr.Stderr, readErr = io.ReadAll(io.LimitReader(stderr, 64*1024))
+		err = errors.Join(err, readErr)
+	}
+	return nil, err
+}
 
 // copyImageDarwin shells out to osascript: pbcopy is text-only, but
 // AppleScript's "read ... as «class PNGf»" reads a PNG file straight onto

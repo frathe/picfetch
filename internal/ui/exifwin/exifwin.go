@@ -350,7 +350,7 @@ func (w *Window) requestStrip() {
 
 	if w.showConfirm(confirmation{
 		title:      lang.L("Remove Metadata?"),
-		message:    fmt.Sprintf(lang.L("Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Sideways photos are re-encoded at JPEG quality 95. This cannot be undone."), u.Name()),
+		message:    fmt.Sprintf(lang.L("Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone."), u.Name()),
 		action:     lang.L("Remove Metadata"),
 		importance: widget.DangerImportance,
 		onConfirm:  func() { w.performStrip(u) },
