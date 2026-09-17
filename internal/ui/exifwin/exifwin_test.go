@@ -3,7 +3,9 @@ package exifwin
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"image/color"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -767,25 +769,169 @@ func TestStripButton_HiddenForAPNG(t *testing.T) {
 	}
 }
 
-func TestStripButton_HiddenWhenTheTagListIsEmpty(t *testing.T) {
-	app := test.NewApp()
-	data := append(uitest.EncodeJPEG(t, 8, 8, color.White), []byte("ftypmp42fake-video")...)
-	u := storage.NewFileURI(uitest.WriteTempFile(t, "trailer.jpg", data))
-	host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
-	w := newTestWindow(t, app, host)
-	w.Show()
-	settleMetadata(w)
-	t.Cleanup(func() { w.Window().Close() })
+func TestJPEGMetadataRemovalUI(t *testing.T) {
+	for _, name := range []string{"baseline-rgb", "progressive-rgb", "multiscan-rgb", "baseline-gray", "progressive-gray"} {
+		for _, version := range []string{"none", "v2", "v4"} {
+			t.Run(name+" "+version, func(t *testing.T) {
+				plain, err := os.ReadFile(filepath.Join("..", "..", "imaging", "testdata", "jpeg-removal", name+".jpg"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				data := append(bytes.Clone(plain), []byte("fixture trailer")...)
+				if version != "none" {
+					model := "rgb"
+					if strings.HasSuffix(name, "gray") {
+						model = "gray"
+					}
+					profile, err := os.ReadFile(filepath.Join("..", "..", "imaging", "testdata", "jpeg-removal", model+"-"+version+".icc"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					payload := append([]byte("ICC_PROFILE\x00\x01\x01"), profile...)
+					segment := []byte{0xff, 0xe2, 0, 0}
+					binary.BigEndian.PutUint16(segment[2:], uint16(len(payload)+2))
+					segment = append(segment, payload...)
+					data = append(append(append([]byte(nil), plain[:2]...), segment...), plain[2:]...)
+				}
+				app := test.NewApp()
+				u := storage.NewFileURI(uitest.WriteTempFile(t, "fixture.jpg", data))
+				host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
+				w := newTestWindow(t, app, host)
+				w.Show()
+				w.Settle()
+				defer w.Window().Close()
+				if _, found := absolutePos(w.Window().Content(), w.StripButton()); !found {
+					t.Fatal("qualified content has no real action")
+				}
+				w.StripButton().OnTapped()
+				panel := w.Window().Canvas().Focused().(*widgets.ChoicePanel)
+				panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+				panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+				w.Settle()
+				if bytes.Equal(data, readWindowFile(t, u)) || host.after != 1 || len(host.toasts) != 1 || host.toasts[0] != lang.L("Metadata removed") {
+					t.Fatalf("removal did not complete: after=%d toasts=%v", host.after, host.toasts)
+				}
+				if !windowContainsLabel(w.Window().Content(), lang.L("Metadata removal: nothing to remove.")) {
+					t.Fatal("successful removal did not refresh to verified clean status")
+				}
+				if _, found := absolutePos(w.Window().Content(), w.StripButton()); found {
+					t.Fatal("clean action remains in tree")
+				}
+			})
+		}
+	}
+	t.Run("clean and unsupported status are distinct", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			data   []byte
+			status string
+		}{
+			{"clean", uitest.EncodeJPEG(t, 8, 8, color.White), "Metadata removal: nothing to remove."},
+			{"unsupported profile", append([]byte{0xff, 0xd8, 0xff, 0xe2, 0, 20}, append([]byte("ICC_PROFILE\x00\x01\x01test"), uitest.EncodeJPEG(t, 8, 8, color.White)[2:]...)...), "Metadata removal is unavailable for this color profile."},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				app := test.NewApp()
+				u := storage.NewFileURI(uitest.WriteTempFile(t, "status.jpg", tc.data))
+				host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
+				w := newTestWindow(t, app, host)
+				w.Show()
+				w.Settle()
+				defer w.Window().Close()
+				if _, found := absolutePos(w.Window().Content(), w.StripButton()); found {
+					t.Fatal("unavailable action is in tree")
+				}
+				if !windowContainsLabel(w.Window().Content(), lang.L(tc.status)) {
+					t.Fatalf("missing distinct status %q", tc.status)
+				}
+				if !bytes.Equal(tc.data, readWindowFile(t, u)) || host.after != 0 || len(host.toasts) != 0 {
+					t.Fatal("inspection changed source or reported success")
+				}
+			})
+		}
+	})
+	t.Run("source becomes clean before confirmation", func(t *testing.T) {
+		app := test.NewApp()
+		plain := uitest.EncodeJPEG(t, 8, 8, color.White)
+		u := storage.NewFileURI(uitest.WriteTempFile(t, "cleaned.jpg", append(bytes.Clone(plain), []byte("fixture trailer")...)))
+		host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
+		w := newTestWindow(t, app, host)
+		w.Show()
+		w.Settle()
+		defer w.Window().Close()
+		w.StripButton().OnTapped()
+		if err := os.WriteFile(u.Path(), plain, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		panel := w.Window().Canvas().Focused().(*widgets.ChoicePanel)
+		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		w.Settle()
+		if host.after != 0 || len(host.toasts) != 0 {
+			t.Fatalf("no-op reported removal: after=%d toasts=%v", host.after, host.toasts)
+		}
+		if _, found := absolutePos(w.Window().Content(), w.StripButton()); found {
+			t.Fatal("stale action remains after no-op")
+		}
+	})
 
-	if got := w.Text().Text; got != lang.L("No EXIF metadata found in this file.") && got != "No EXIF metadata found in this file." {
-		t.Fatalf("text = %q, want the empty-panel message", got)
+	t.Run("trailer action and default cancellation", func(t *testing.T) {
+		app := test.NewApp()
+		plain := uitest.EncodeJPEG(t, 8, 8, color.White)
+		data := append(bytes.Clone(plain), []byte("fixture trailer")...)
+		u := storage.NewFileURI(uitest.WriteTempFile(t, "trailer.jpg", data))
+		host := &stubHost{current: func() (fyne.URI, bool) { return u, true }}
+		w := newTestWindow(t, app, host)
+		w.Show()
+		settleMetadata(w)
+		t.Cleanup(func() { w.Window().Close() })
+		if got := w.Text().Text; got != lang.L("No EXIF metadata found in this file.") {
+			t.Fatalf("text = %q, want empty EXIF list", got)
+		}
+		if _, found := absolutePos(w.Window().Content(), w.StripButton()); !found || !w.StripButton().Visible() {
+			t.Fatal("removable content must offer the real action even with an empty EXIF list")
+		}
+		w.StripButton().OnTapped()
+		if dir := os.Getenv("PICFETCH_UI_EVIDENCE"); dir != "" {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			var picture bytes.Buffer
+			if err := png.Encode(&picture, w.Window().Canvas().Capture()); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "jpeg-removal-confirm.png"), picture.Bytes(), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if width := w.Window().Canvas().Overlays().Top().MinSize().Width; width > exifW {
+			t.Fatalf("confirmation requires width %v, exceeds the panel's %v", width, exifW)
+		}
+		panel := w.Window().Canvas().Focused().(*widgets.ChoicePanel)
+		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn}) // default Cancel
+		if !bytes.Equal(data, readWindowFile(t, u)) || host.after != 0 {
+			t.Fatal("default cancellation changed source")
+		}
+		w.StripButton().OnTapped()
+		panel = w.Window().Canvas().Focused().(*widgets.ChoicePanel)
+		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		w.Settle()
+		if !bytes.Equal(plain, readWindowFile(t, u)) || host.after != 1 {
+			t.Fatal("confirmed removal did not produce only the primary image")
+		}
+		if _, found := absolutePos(w.Window().Content(), w.StripButton()); found {
+			t.Fatal("action remains in tree after success")
+		}
+	})
+}
+
+func readWindowFile(t *testing.T, u fyne.URI) []byte {
+	t.Helper()
+	data, err := os.ReadFile(u.Path())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if w.StripButton() == nil || w.StripButton().Visible() {
-		t.Fatal("want the button hidden when the panel says there is no EXIF metadata")
-	}
-	if northHolds(w.north, w.stripBar) {
-		t.Fatal("empty tag list must not leave stripBar in the north stack")
-	}
+	return data
 }
 
 func TestStripButton_HiddenBarTakesNoHeightAfterNavigate(t *testing.T) {
@@ -1314,4 +1460,18 @@ func TestWindow_OldTileNoticeCannotChangeReopenedWindow(t *testing.T) {
 		t.Error("old tile notice altered replacement widgets")
 	}
 	w.Window().Close()
+}
+
+func windowContainsLabel(root fyne.CanvasObject, text string) bool {
+	if label, ok := root.(*widget.Label); ok && label.Visible() && label.Text == text {
+		return true
+	}
+	if c, ok := root.(*fyne.Container); ok {
+		for _, child := range c.Objects {
+			if windowContainsLabel(child, text) {
+				return true
+			}
+		}
+	}
+	return false
 }

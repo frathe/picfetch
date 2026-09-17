@@ -2,6 +2,7 @@ package exifwin
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -31,6 +32,7 @@ func (w *Window) Invalidate() {
 		return
 	}
 	w.text.SetText("")
+	w.setRemovalStatus("")
 	w.canStrip = false
 	w.syncStripVisible()
 	w.showLocation(imaging.Metadata{})
@@ -44,6 +46,7 @@ func (w *Window) Refresh() {
 		return
 	}
 	w.cancelMetadata()
+	w.setRemovalStatus("")
 	w.dismissStalePending()
 	w.canStrip = false
 	w.syncStripVisible()
@@ -64,11 +67,11 @@ func (w *Window) Refresh() {
 	w.metadata.workers.Go(func() {
 		data, _, err := imaging.ReadAndProbe(ctx, u)
 		var metadata imaging.Metadata
-		var canStrip bool
+		var inspection imaging.JPEGMetadataInspection
 		if err == nil && ctx.Err() == nil {
 			metadata = imaging.ReadMetadata(data)
 			if ctx.Err() == nil {
-				canStrip = imaging.CanStripJPEGMetadata(data) && !metadata.Empty()
+				inspection = imaging.InspectJPEGMetadata(ctx, data)
 			}
 		}
 		if ctx.Err() != nil {
@@ -89,7 +92,12 @@ func (w *Window) Refresh() {
 			}
 			w.text.SetText(formatExifMetadata(metadata))
 			w.showLocation(metadata)
-			w.canStrip = canStrip
+			w.canStrip = inspection.State == imaging.JPEGMetadataRemovable
+			if inspection.State == imaging.JPEGMetadataClean {
+				w.setRemovalStatus(lang.L("Metadata removal: nothing to remove."))
+			} else if inspection.Err != nil && !errors.Is(inspection.Err, imaging.ErrJPEGMetadataNotJPEG) {
+				w.setRemovalStatus(removalErrorText(inspection.Err))
+			}
 			w.syncStripVisible()
 		})
 	})
@@ -106,3 +114,30 @@ func (w *Window) cancelMetadata() {
 // MetadataDone names the current metadata read through UI result delivery.
 // Settle waits all reads (including superseded ones) and drains that delivery.
 func (w *Window) MetadataDone() *completion.Signal { return &w.metadata.done }
+
+func (w *Window) setRemovalStatus(text string) {
+	if w.removalStatus == nil || w.north == nil {
+		return
+	}
+	w.removalStatus.SetText(text)
+	if text == "" {
+		w.north.Remove(w.removalStatus)
+	} else if !northHolds(w.north, w.removalStatus) {
+		w.north.Add(w.removalStatus)
+	}
+}
+
+func removalErrorText(err error) string {
+	switch {
+	case errors.Is(err, imaging.ErrJPEGMetadataStructure):
+		return lang.L("Metadata removal is unavailable: this JPEG is incomplete or invalid.")
+	case errors.Is(err, imaging.ErrJPEGMetadataProfile):
+		return lang.L("Metadata removal is unavailable for this color profile.")
+	case errors.Is(err, imaging.ErrJPEGMetadataOrientation):
+		return lang.L("Metadata removal is unavailable because orientation could not be verified.")
+	case errors.Is(err, imaging.ErrJPEGMetadataProcess), errors.Is(err, imaging.ErrJPEGMetadataNotJPEG):
+		return lang.L("Metadata removal is unavailable for this image's encoding or color model.")
+	default:
+		return lang.L("Could not process this file. Check access, available space, and the file size limit.")
+	}
+}

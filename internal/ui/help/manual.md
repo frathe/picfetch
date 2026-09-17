@@ -232,32 +232,30 @@ Files with no Exif data (most PNGs, GIFs, and WebPs, and any JPEG without a
 camera-written Exif segment) show a "no metadata found" message instead of
 an empty window.
 
-Below the tag list, JPEGs get a **Remove Metadata** button (above the map,
-when there is one). It asks for confirmation (**Cancel** selected by
-default; **`Left`**/**`Right`** and **`Return`** / **`Esc`**, same keyboard rules as
-other PicFetch confirmations). It rewrites the **original JPEG** in place.
-The button is hidden for a JPEG with nothing left to remove, including after
-a successful strip, and whenever the panel shows "no metadata found". Identifying
-bytes that are not listed (comments, XMP, IPTC, a second picture after the
-image) are still dropped if you strip a file that *does* list tags.
+Below the tag list, JPEGs with removable content get a **Remove Metadata**
+button, even when the EXIF list is empty. **Cancel** is selected by default;
+use **`Left`**/**`Right`** and **`Return`** / **`Esc`** as in other confirmations.
+Confirmation replaces the **original JPEG**. A separate message distinguishes
+nothing left to remove from a file that cannot be processed safely.
 
-The button itself is a compact control, not a full-width
-bar.
-
-- JPEG only. RAW, PNG, WebP: the button is hidden.
-- Removes camera, date, GPS, XMP, IPTC, and comments. Color profile (ICC) and
-  the JPEG's own color transform stay, so the picture should look the same.
-- A photo shot sideways (Exif orientation 2–8) is re-saved once so it stays
-  upright without the orientation tag; that is a normal JPEG re-encode (quality
-  95), not a lossless copy. The original ICC profile is copied onto that
-  re-encode.
-- A photo already upright is stripped without re-encoding the pixels.
-- View-only rotation (`R`) is not written; use **File -> Save Changes** first
-  if that rotation should land on disk.
-- A second JPEG or motion-photo video appended after the main image is
-  discarded, so tags hidden in that extra copy are removed too. The still
-  stays; the extra frame or video does not.
-- Cannot be undone except from backups / Trash — this is not a Trash move.
+- Removes camera, date, GPS, XMP, IPTC and comments throughout all supported
+  scans, embedded previews, additional pictures, and trailing audio/video.
+- Upright images keep their encoded image data and pixels without recompression.
+  Qualified color transforms stay; descriptive ICC profile fields are removed
+  or replaced with neutral values.
+- Baseline and progressive 8-bit gray/RGB JPEGs are supported, including separate
+  component scans. Supported ICC profiles are v2/v4 matrix/TRC RGB and gray/TRC
+  input/display profiles with XYZ color space. Other encodings, color models,
+  unfamiliar profile fields, and uncertain or malformed data are refused. The
+  original file stays untouched on refusal or cancellation before replacement.
+- Sideways photos (Exif orientation 2-8) are corrected with one JPEG quality-95
+  re-encode. This can change pixels slightly; the retained profile still matches
+  the output color model. View-only rotation (`R`) is not written; use
+  **File -> Save Changes** first if that rotation should land on disk.
+- Removal applies only to this file. It does not anonymize visible image content
+  or hidden information encoded in pixels, and does not erase sidecars, file
+  attributes, backups, caches or other copies. It cannot be undone through Trash.
+- RAW, PNG and WebP do not offer this action.
 
 Below the tag list, a photo that carries GPS coordinates gets a collapsible
 **Location** section: expand it and a map centred on the spot the photo was
@@ -1388,8 +1386,9 @@ Things PicFetch deliberately does not do (yet):
   capture date and coordinates for the current image, plus a collapsible map
   of where it was taken when the photo carries GPS tags; JPEGs also get a
   **Remove Metadata** button below the tags (above the map) that strips
-  identifying tags from the file in place after confirmation, hidden when
-  the tag list is empty or nothing is left to remove; while that window is focused, `Left`/`Right` change image
+  identifying metadata and secondary media after confirmation; availability
+  follows file contents, with separate clean and unsupported status; while that
+  window is focused, `Left`/`Right` change image
 - **Picture-frame mode** — `P` toggles a full-screen slideshow with a
   crossfade between images; `Up`/`Down` tune the (default 10s) auto-advance
   interval while it's on; `Shift+P` toggles shuffle order (`[shuffle]` in

@@ -63,7 +63,6 @@
    "Show EXIF data": "EXIF-Daten anzeigen",
    "Remove Metadata": "Metadaten entfernen",
    "Remove Metadata?": "Metadaten entfernen?",
-   "Remove camera, date, GPS, and other tags from %q? This cannot be undone.": "Kamera-, Datums-, GPS- und andere Tags aus %q entfernen? Das kann nicht rückgängig gemacht werden.",
    "Metadata removed": "Metadaten entfernt",
    "could not remove metadata from %q: %v": "Metadaten von %q konnten nicht entfernt werden: %v",
    "Could not read this file's metadata.": "Die Metadaten dieser Datei konnten nicht gelesen werden.",
@@ -502,5 +501,12 @@
    "Maximum images per analysis; increase for larger libraries": "Maximale Bildanzahl pro Analyse; für größere Sammlungen erhöhen",
    "Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Bildanzahl-Limit überschritten. Anpassbar unter Einstellungen -> Limits -> Ähnlichkeits-Explorer.",
    "Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Speicherlimit überschritten. Anpassbar unter Einstellungen -> Limits -> Ähnlichkeits-Explorer.",
-   "Configured limits exceeded.": "Konfigurierte Limits überschritten."
+   "Configured limits exceeded.": "Konfigurierte Limits überschritten.",
+   "Metadata removal: nothing to remove.": "Metadaten entfernen: nichts zu entfernen.",
+   "Metadata removal is unavailable: this JPEG is incomplete or invalid.": "Metadaten können nicht entfernt werden: Dieses JPEG ist unvollständig oder ungültig.",
+   "Metadata removal is unavailable for this color profile.": "Für dieses Farbprofil können Metadaten nicht sicher entfernt werden.",
+   "Metadata removal is unavailable because orientation could not be verified.": "Metadaten können nicht entfernt werden, weil die Bildausrichtung nicht eindeutig ist.",
+   "Metadata removal is unavailable for this image's encoding or color model.": "Für diese Bildkodierung oder dieses Farbmodell können Metadaten nicht sicher entfernt werden.",
+   "Could not process this file. Check access, available space, and the file size limit.": "Die Datei konnte nicht verarbeitet werden. Prüfen Sie Zugriffsrechte, freien Speicherplatz und die Dateigrößenbegrenzung.",
+   "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Sideways photos are re-encoded at JPEG quality 95. This cannot be undone.": "Identifizierende Metadaten, Vorschaubilder, weitere Bilder und Audio/Video aus %q entfernen? Die Originaldatei wird ersetzt. Seitlich aufgenommene Fotos werden mit JPEG-Qualität 95 neu kodiert. Das kann nicht rückgängig gemacht werden."
 }

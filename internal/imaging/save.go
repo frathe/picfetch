@@ -1,9 +1,11 @@
 package imaging
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"image"
+	"image/draw"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
@@ -366,22 +368,12 @@ func writeFileContext(ctx context.Context, path string, perm os.FileMode, write 
 	return os.Rename(tmpPath, path)
 }
 
-// StripJPEGMetadata removes identifying metadata from the JPEG at u
-// (Exif, XMP, IPTC, COM, MPF) in place, keeping JFIF APP0, Adobe APP14,
-// and ICC. Bytes after the primary EOI (a concatenated second JPEG,
-// motion-photo video) are discarded. CanStripJPEGMetadata is true when
-// those bytes are the only thing left to remove. When the file's Exif
-// Orientation is 2–8, the pixels are
-// decoded with that orientation applied and re-encoded at jpegSaveQuality
-// so the photo does not appear sideways after the tag is gone; ICC APP2
-// from the original is spliced back (Adobe APP14 is not: it would
-// misdeclare image/jpeg.Encode's color transform). On orientation 1 the
-// lossless header walk keeps APP14 as well.
-//
-// A non-JPEG returns errNotJPEG and does not write. A JPEG with nothing
-// removable returns nil without rewriting the file. The write is the
-// same temp-file-then-rename as SaveRotated, preserving permission bits.
-// Metadata removal follows a symlink to its target; SaveRotated rejects the link.
+// StripJPEGMetadata removes identifying metadata and secondary media from a
+// qualified JPEG in place. Upright coded image data is retained exactly;
+// orientations 2-8 are corrected with a JPEG quality-95 re-encode. Qualified
+// color transforms survive with neutral descriptive fields. Uncertain inputs
+// return an error without rewriting. Clean inputs are unchanged. Replacement
+// preserves permissions and follows symlinks through the serialized transaction.
 func StripJPEGMetadata(u fyne.URI) error {
 	_, err := StripJPEGMetadataContext(context.Background(), u)
 	return err
@@ -395,15 +387,16 @@ func StripJPEGMetadataContext(ctx context.Context, u fyne.URI) (WriteResult, err
 }
 
 func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
-	data, err := readFileContext(ctx, path)
+	data, err := readJPEGRemovalSource(ctx, path)
 	if err != nil {
 		return false, err
 	}
-	if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
-		return false, errNotJPEG
+	p, err := prepareJPEGRemoval(ctx, data)
+	if err != nil {
+		return false, err
 	}
-	orient := jpegEXIFOrientation(data)
-	if !jpegHasRemovableMetadata(data) && orient == 1 {
+	orient := p.orientation
+	if bytes.Equal(data, p.output) && orient == 1 {
 		return false, nil
 	}
 
@@ -413,10 +406,7 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 	}
 
 	if orient == 1 {
-		stripped, err := stripJPEGSegments(data)
-		if err != nil {
-			return false, err
-		}
+		stripped := p.output
 		err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
 			_, err := w.Write(stripped)
 			return err
@@ -424,29 +414,65 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 		return err == nil, err
 	}
 
-	loaded, err := DecodeLoaded(ctx, data, 0)
+	var pixels image.Image = ApplyOrientation(p.pixels, orient)
+	if p.components == 1 {
+		// Orientation helpers return RGBA; retain the grayscale encoder/model.
+		gray := image.NewGray(pixels.Bounds())
+		draw.Draw(gray, gray.Bounds(), pixels, pixels.Bounds().Min, draw.Src)
+		pixels = gray
+	}
+	var encoded bytes.Buffer
+	if err := encodeJPEGKeepingICC(&encoded, pixels, p.output); err != nil {
+		return false, err
+	}
+	encodedData := encoded.Bytes()
+	if len(p.jfif) != 0 {
+		header := bytes.Clone(p.jfif)
+		if orient >= 5 {
+			copy(header[8:10], p.jfif[10:12])
+			copy(header[10:12], p.jfif[8:10])
+		}
+		encodedData, err = injectJPEGMetadata(encodedData, [][]byte{jpegSegmentBytes(0xe0, header)})
+		if err != nil {
+			return false, err
+		}
+	}
+	validated, err := prepareJPEGRemoval(ctx, encodedData)
 	if err != nil {
 		return false, err
 	}
-	if len(loaded.Frames) == 0 {
-		return false, errNotJPEG
+	if !bytes.Equal(validated.output, encodedData) || validated.orientation != 1 {
+		return false, ErrJPEGMetadataStructure
 	}
 	err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
-		return encodeJPEGKeepingICC(w, loaded.Frames[0], data)
+		_, err := w.Write(validated.output)
+		return err
 	})
 	return err == nil, err
 }
 
-// CanStripJPEGMetadata reports whether StripJPEGMetadata would rewrite
-// data. False for non-JPEG. True when there is a removable COM/APPn
-// segment, bytes after the primary EOI (a concatenated second JPEG or
-// motion-photo video), or when Exif Orientation is 2–8 (those files must
-// be re-encoded so they stay upright).
-func CanStripJPEGMetadata(data []byte) bool {
-	if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
-		return false
+func readJPEGRemovalSource(ctx context.Context, path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
-	return jpegHasRemovableMetadata(data) || jpegEXIFOrientation(data) != 1
+	defer func() { _ = f.Close() }()
+	limit := MaxEncodedBytes()
+	data, err := io.ReadAll(contextRead{ctx: ctx, in: io.LimitReader(f, limit+1)})
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, &InputTooLargeError{limit: limit}
+	}
+	return data, nil
+}
+
+// CanStripJPEGMetadata is the compatibility predicate for the shared inspection.
+// False includes both verified clean and unsupported inputs; callers presenting
+// status should use InspectJPEGMetadata to distinguish them.
+func CanStripJPEGMetadata(data []byte) bool {
+	return InspectJPEGMetadata(context.Background(), data).State == JPEGMetadataRemovable
 }
 
 // UnsupportedSaveFormatError reports that SaveRotated has no encoder for a

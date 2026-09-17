@@ -252,35 +252,33 @@ Kopie zu öffnen. Dateien ohne Exif-Daten (die meisten PNGs, GIFs und WebPs
 sowie jedes JPEG ohne von einer Kamera geschriebenes Exif-Segment) zeigen
 stattdessen die Meldung „keine Metadaten gefunden“.
 
-Unterhalb der Tag-Liste erscheint bei JPEGs die Schaltfläche
-**Metadaten entfernen** (oberhalb der Karte, falls eine da ist). Sie fragt
-nach (**Abbrechen** vorausgewählt; **`Left`**/**`Right`** und **`Return`** /
-**`Esc`**, dieselben Tastatur-Regeln wie bei anderen PicFetch-Bestätigungen).
-Sie schreibt die **ursprüngliche JPEG-Datei** direkt um. Die Schaltfläche
-fehlt, sobald nichts mehr zu entfernen ist — auch nach einem erfolgreichen
-Strip — und immer dann, wenn das Fenster „keine Metadaten gefunden“ anzeigt.
-Identifizierende Bytes, die die Liste nicht zeigt (Kommentare, XMP, IPTC,
-ein zweites Bild nach dem Bild), fallen beim Strip trotzdem weg, wenn die
-Datei Tags *listet*. Die Schaltfläche selbst
-ist eine kompakte Steuerung, keine durchgehende Leiste.
+JPEGs mit entfernbaren Inhalten erhalten unterhalb der Tag-Liste die
+Schaltfläche **Metadaten entfernen**, auch wenn die EXIF-Liste leer ist.
+**Abbrechen** ist vorausgewählt; **`Left`**/**`Right`** und **`Return`** / **`Esc`**
+funktionieren wie bei anderen Bestätigungen. Die Bestätigung ersetzt die
+**ursprüngliche JPEG-Datei**. Eine eigene Meldung unterscheidet „nichts zu
+entfernen“ von einer Datei, die nicht sicher verarbeitet werden kann.
 
-- Nur JPEG. Bei RAW, PNG und WebP fehlt die Schaltfläche.
-- Entfernt Kamera, Datum, GPS, XMP, IPTC und Kommentare. Farbprofil (ICC)
-  und die eigene Farbtransformation des JPEG bleiben, das Bild sollte also
-  gleich aussehen.
-- Ein seitlich aufgenommenes Foto (Exif-Orientierung 2–8) wird einmal neu
-  gespeichert, damit es ohne Orientierungs-Tag aufrecht bleibt; das ist eine
-  normale JPEG-Neukodierung (Qualität 95), kein verlustfreier Kopiervorgang.
-  Das ursprüngliche ICC-Profil wird auf diese Neukodierung übernommen.
-- Ein bereits aufrechtes Foto wird ohne Neukodierung der Pixel bereinigt.
-- Nur-Ansicht-Drehung (`R`) wird nicht mitgeschrieben; nutzen Sie zuerst
-  **Datei -> Änderungen speichern**, wenn diese Drehung auf die Platte
-  soll.
-- Ein zweites JPEG oder Motion-Photo-Video hinter dem Hauptbild wird
-  verworfen, damit auch Tags in dieser Kopie verschwinden. Das Standbild
-  bleibt; das Extra-Bild oder Video nicht.
-- Nicht rückgängig zu machen außer über Backups / Papierkorb — kein
-  Verschieben in den Papierkorb.
+- Entfernt Kamera, Datum, GPS, XMP, IPTC und Kommentare in allen unterstützten
+  Scans, eingebettete Vorschaubilder, weitere Bilder sowie angehängte Audio-/Videodaten.
+- Aufrechte Bilder behalten ihre kodierten Bilddaten und Pixel ohne Neukodierung.
+  Unterstützte Farbtransformationen bleiben erhalten; beschreibende ICC-Felder
+  werden entfernt oder durch neutrale Werte ersetzt.
+- Unterstützt werden 8-Bit-JPEGs mit Graustufen/RGB, Baseline und progressiv,
+  einschließlich getrennter Komponenten-Scans. Bei ICC werden v2/v4-Eingabe- und
+  Bildschirmprofile mit RGB-Matrix/TRC oder Graustufen-TRC und XYZ-Farbraum
+  unterstützt. Andere Kodierungen, Farbmodelle, unbekannte Profilfelder sowie
+  unklare oder fehlerhafte Daten werden abgelehnt. Bei Ablehnung oder Abbruch vor
+  dem Ersetzen bleibt die Originaldatei unverändert.
+- Seitliche Fotos (Exif-Orientierung 2-8) werden einmal mit JPEG-Qualität 95
+  neu kodiert. Dabei können sich Pixel leicht ändern; das erhaltene Profil passt
+  weiterhin zum Farbmodell. Nur-Ansicht-Drehung (`R`) wird nicht geschrieben;
+  verwenden Sie dafür zuerst **Datei -> Änderungen speichern**.
+- Die Entfernung betrifft nur diese Datei. Sie anonymisiert keine sichtbaren
+  Bildinhalte oder in Pixeln versteckten Informationen und löscht keine
+  Begleitdateien, Dateiattribute, Backups, Caches oder andere Kopien.
+  Sie kann nicht über den Papierkorb rückgängig gemacht werden.
+- Bei RAW, PNG und WebP fehlt diese Aktion.
 
 Unterhalb der Tag-Liste erhält ein Foto mit GPS-Koordinaten einen
 ausklappbaren Bereich **„Ort“**: aufgeklappt zeigt er eine Karte, die auf
@@ -1598,9 +1596,9 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   Blende, ISO, Brennweite, Aufnahmedatum und Koordinaten für das aktuelle
   Bild sowie eine ausklappbare Karte des Aufnahmeorts, wenn das Foto
   GPS-Tags trägt; bei JPEGs steht unter den Tags (oberhalb der Karte)
-  **Metadaten entfernen**, das nach Bestätigung identifizierende Tags direkt
-  aus der Datei entfernt und fehlt, wenn die Tag-Liste leer ist oder nichts
-  mehr zu entfernen ist; solange das Fenster den Fokus hat, wechseln `Left`/`Right` das Bild
+  **Metadaten entfernen**, das nach Bestätigung identifizierende Metadaten
+  und zusätzliche Medien aus der Datei entfernt; Verfügbarkeit und Status
+  richten sich nach dem Dateiinhalt; solange das Fenster den Fokus hat, wechseln `Left`/`Right` das Bild
 - **Diaschau-Modus** — `P` schaltet eine Vollbild-Diaschau mit Überblendung
   zwischen den Bildern ein/aus; `Up`/`Down` stellen das (standardmäßig 10 s)
   Auto-Weiterschalt-Intervall ein, solange sie aktiv ist; `Shift+P` schaltet

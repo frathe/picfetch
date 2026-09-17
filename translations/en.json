@@ -63,7 +63,6 @@
    "Show EXIF data": "Show EXIF data",
    "Remove Metadata": "Remove Metadata",
    "Remove Metadata?": "Remove Metadata?",
-   "Remove camera, date, GPS, and other tags from %q? This cannot be undone.": "Remove camera, date, GPS, and other tags from %q? This cannot be undone.",
    "Metadata removed": "Metadata removed",
    "could not remove metadata from %q: %v": "could not remove metadata from %q: %v",
    "Could not read this file's metadata.": "Could not read this file's metadata.",
@@ -502,5 +501,12 @@
    "Maximum images per analysis; increase for larger libraries": "Maximum images per analysis; increase for larger libraries",
    "Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Item limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.",
    "Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.": "Memory limit exceeded. Adjust in Settings -> Limits -> Similarity Explorer.",
-   "Configured limits exceeded.": "Configured limits exceeded."
+   "Configured limits exceeded.": "Configured limits exceeded.",
+   "Metadata removal: nothing to remove.": "Metadata removal: nothing to remove.",
+   "Metadata removal is unavailable: this JPEG is incomplete or invalid.": "Metadata removal is unavailable: this JPEG is incomplete or invalid.",
+   "Metadata removal is unavailable for this color profile.": "Metadata removal is unavailable for this color profile.",
+   "Metadata removal is unavailable because orientation could not be verified.": "Metadata removal is unavailable because orientation could not be verified.",
+   "Metadata removal is unavailable for this image's encoding or color model.": "Metadata removal is unavailable for this image's encoding or color model.",
+   "Could not process this file. Check access, available space, and the file size limit.": "Could not process this file. Check access, available space, and the file size limit.",
+   "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Sideways photos are re-encoded at JPEG quality 95. This cannot be undone.": "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Sideways photos are re-encoded at JPEG quality 95. This cannot be undone."
 }
