@@ -61,22 +61,16 @@ func isJPEGExt(ext string) bool {
 
 // CanEncode reports whether SaveRotated has an encoder for u's format, so a
 // caller (internal/ui's canSaveRotation) can decide whether to offer saving
-// at all instead of finding out only after attempting it. It resolves a
-// symlink first, matching SaveRotated's own behavior: what governs there is
-// the format of the file that will actually be written.
+// at all instead of finding out only after attempting it. The selected path's
+// extension governs; SaveRotated refuses symlink leaves rather than following them.
 func CanEncode(u fyne.URI) bool {
-	ext := u.Extension()
-	if path, err := filepath.EvalSymlinks(u.Path()); err == nil {
-		ext = filepath.Ext(path)
-	}
-	return CanEncodeExt(ext)
+	return CanEncodeExt(u.Extension())
 }
 
 // CanEncodeExt reports whether ext (a leading-dot file extension, as
 // filepath.Ext and fyne.URI.Extension both produce, in any case) has an
 // encoder. It is the check the export path wants - internal/ui asks it
-// about a destination the user just named, which may not exist yet and so
-// has no symlink for CanEncode above to resolve.
+// about a destination the user just named, which may not exist yet.
 func CanEncodeExt(ext string) bool {
 	_, ok := encoders[strings.ToLower(ext)]
 	return ok
@@ -90,18 +84,18 @@ func CanEncodeExt(ext string) bool {
 // shape, dimension tags are corrected and invalidated coordinates removed,
 // using the same policy as Export. Other formats still do not carry metadata.
 //
-// It resolves a symlink before writing, so saving an image opened through a
-// link updates the target instead of replacing the link itself, and the
-// replacement keeps the original file's permission bits. See writeEncodedContext
+// A symlink at u is rejected so saving cannot redirect the write or copy the
+// target into a different directory. Parent-directory symlinks are resolved;
+// regular files keep their original permission bits. See writeEncodedContext
 // for the atomic write both this and Export go through.
 func SaveRotated(u fyne.URI, img image.Image) error {
 	_, err := SaveRotatedContext(context.Background(), u, img)
 	return err
 }
 
-// SaveRotatedContext holds the resolved file's transaction through replacement.
+// SaveRotatedContext holds the selected file's transaction through replacement.
 func SaveRotatedContext(ctx context.Context, u fyne.URI, img image.Image) (WriteResult, error) {
-	return fileTransactions.write(ctx, u.Path(), false, func(path string) (bool, error) {
+	return fileTransactions.write(ctx, u.Path(), true, func(path string) (bool, error) {
 		err := saveRotated(ctx, path, img)
 		return err == nil, err
 	})
@@ -386,8 +380,8 @@ func writeFileContext(ctx context.Context, path string, perm os.FileMode, write 
 //
 // A non-JPEG returns errNotJPEG and does not write. A JPEG with nothing
 // removable returns nil without rewriting the file. The write is the
-// same temp-file-then-rename as SaveRotated, through a symlink to the
-// target, preserving permission bits.
+// same temp-file-then-rename as SaveRotated, preserving permission bits.
+// Metadata removal follows a symlink to its target; SaveRotated rejects the link.
 func StripJPEGMetadata(u fyne.URI) error {
 	_, err := StripJPEGMetadataContext(context.Background(), u)
 	return err

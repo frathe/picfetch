@@ -48,6 +48,12 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 
 #### Bugfix
 
+- Reject Save Changes through symlink leaves, preserving both the link and target
+  without copying image content into a different directory. Keep regular writes
+  at the selected filename and serialize parent-directory aliases. Verification:
+  [PR #35](https://github.com/frathe/picfetch/pull/35),
+  [review record](finished_refactorings/2026-09-17-pr35-review.md).
+
 - Authenticate staged updates with process-local seals, derive payload hashes
   from verified archive bytes, and retain a write-denying Windows source handle
   through installation. Native Windows guards pass; review and final CI evidence:
