@@ -6,7 +6,19 @@
 
 #### New Features
 
+- Help -> Release Notes shows the installed release's text offline and offers
+  a link to browse all older releases on GitHub. Menu and link labels are
+  available in English and German; notes retain their published language.
+  Markdown images load online without blocking the window; notes without
+  images start no image requests. The post-update What's New window reads
+  the same bundled release-notes file.
+
 #### Bugfix
+
+![trane security superhero](https://github.com/frathe/picfetch/blob/main/assets/trane/trane_bsod_eyes.png?raw=true)
+
+- Windows Make targets automatically discover the existing portable MinGW
+  compiler under `.tools/windows/mingw64/bin`, including from fresh terminals.
 
 - Fixed Windows analysis-cache validation rejecting Fyne's forward-slash paths:
   Favorite representations can be reused and general representations can be
@@ -15,11 +27,6 @@
 #### Internal
 
 ## Open
-
-- Complete the full verification gate and GoLand inspections for the Windows
-  analysis-cache fix in a working toolchain. Local shell/cgo limitations and
-  pre-existing Windows fixture failures are recorded in
-  [the evidence](plans/2026-09-17-windows-analysis-cache.md).
 
 ## Deferred
 

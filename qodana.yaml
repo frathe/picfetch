@@ -270,6 +270,7 @@ exclude:
       - "internal/ui/help/manual_search_test.go"
       - "internal/ui/help/manual_test.go"
       - "internal/ui/help/mascot_test.go"
+      - "internal/ui/help/releaseimage_test.go"
       - "internal/ui/help/search_test.go"
       - "internal/ui/help/whatsnew_test.go"
       - "internal/ui/imgcache_test.go"

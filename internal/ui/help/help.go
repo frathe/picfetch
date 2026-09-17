@@ -3,7 +3,10 @@
 package help
 
 import (
+	"net/http"
 	"net/url"
+	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
@@ -26,12 +29,17 @@ type Help struct {
 	// where the app keeps its assets.
 	art []byte
 
-	manualWin   widgets.Singleton
-	aboutWin    widgets.Singleton
-	whatsNewWin widgets.Singleton
-	finisWin    widgets.Singleton
-	finis       *finisView
-	manual      *manualView
+	manualWin    widgets.Singleton
+	aboutWin     widgets.Singleton
+	whatsNewWin  widgets.Singleton
+	finisWin     widgets.Singleton
+	finis        *finisView
+	manual       *manualView
+	notes        *releaseNotesSession
+	imageClient  *http.Client
+	imageUI      UIQueue
+	imageWorkers sync.WaitGroup
+	stopped      bool
 
 	onManualClosed func()
 	onManualOpened func()
@@ -42,7 +50,10 @@ type Help struct {
 // New returns the help UI for application, showing title as the app's name
 // and art as the About box's illustration.
 func New(application fyne.App, title string, art []byte) *Help {
-	return &Help{app: application, title: title, art: art}
+	return &Help{
+		app: application, title: title, art: art,
+		imageClient: &http.Client{Timeout: 20 * time.Second}, imageUI: fyneQueue{},
+	}
 }
 
 // SetOnSpiral registers the manual secret callback. It is read at invocation,
@@ -77,8 +88,8 @@ func (h *Help) ShowDiscussions() {
 	}
 }
 
-// Menu is the app's Help menu: the manual, and an About screen below a
-// separator (the usual place for it in a Help menu). Returns the *fyne.Menu
+// Menu is the app's Help menu: manual, release notes, community, and About
+// below a separator. Returns the *fyne.Menu
 // itself rather than a whole *fyne.MainMenu, so internal/ui can combine it
 // with its own File menu into one bar - composing menus is the app's job,
 // not this package's, the same "internal/ui decides how features compose"
@@ -89,8 +100,9 @@ func (h *Help) Menu() *fyne.Menu {
 	// Display-only: F1 itself is handleKeyEvent in internal/ui. This is the
 	// same menu-hint pattern File uses for Open/Save/Export.
 	manual.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyF1}
+	releases := fyne.NewMenuItem(lang.L("Release Notes"), h.ShowReleaseNotes)
 	about := fyne.NewMenuItem(lang.L("About"), h.ShowAbout)
 	discussions := fyne.NewMenuItem(lang.L("GitHub Discussions"), h.ShowDiscussions)
 
-	return fyne.NewMenu(lang.L("Help"), manual, discussions, fyne.NewMenuItemSeparator(), about)
+	return fyne.NewMenu(lang.L("Help"), manual, releases, discussions, fyne.NewMenuItemSeparator(), about)
 }

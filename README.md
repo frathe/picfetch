@@ -170,7 +170,8 @@ isn't actually corrupted — to open it anyway:
 
 - Go 1.27.1 or newer (see the `go` directive in [go.mod](go.mod))
 - A C toolchain for cgo (Fyne's OpenGL bindings require it) — Xcode Command
-  Line Tools on macOS, `gcc` + `libgl1-mesa-dev`/`xorg-dev` on Linux
+  Line Tools on macOS, `gcc` + `libgl1-mesa-dev`/`xorg-dev` on Linux,
+  or MinGW-w64 on Windows
 - [Docker](https://www.docker.com/) — used by `make test`/`make verify` so
   tests and golden comparisons run on Linux/amd64 like CI, and also needed
   for cross-compilation and `make golden`
@@ -188,6 +189,11 @@ make run
 # or
 go run -tags no_emoji,nodynamic .
 ```
+
+On Windows, Make automatically adds `.tools/windows/mingw64/bin` to its
+command environment when that directory contains `gcc.exe`. An existing
+compiler on `PATH` takes precedence. This also works in fresh terminals and
+GoLand's Make targets; direct `go` commands still need the compiler on `PATH`.
 
 Direct Go builds and tests that include imaging require `nodynamic` and must not
 set `wasm2go`. This keeps AVIF on the embedded WASM/wazero decoder; the build

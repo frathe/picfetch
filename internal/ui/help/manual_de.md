@@ -1198,6 +1198,11 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
     tatsächlich greifenden Größengrenze exportiert wird, behält alles außer
     den wenigen Angaben, die die alte Breite und Höhe festhielten; diese
     werden entfernt, statt eine Größe zu nennen, die die Datei nicht mehr hat
+- **Hilfe -> Versionshinweise** — zeigt die Versionshinweise der installierten
+  Version auch offline als Text an. Bilder werden online im Hintergrund geladen,
+  ohne den Text zu verzögern. **Alle Versionen ansehen** öffnet GitHub im Browser,
+  wo Sie die Hinweise zu älteren Versionen lesen können. Die Hinweise bleiben
+  in der Sprache ihrer Veröffentlichung.
 - **Datei -> Dateien schließen** — zurück zum Ablagebereich, ohne das
   Programm zu beenden
 - **Datei -> Einstellungen…** — öffnet das Einstellungsfenster, darunter den

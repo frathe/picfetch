@@ -244,8 +244,9 @@ func (v *viewer) sweepUpdateBackupAt(dest string) *autoupdate.ApplyFailure {
 }
 
 // maybeShowWhatsNew opens the release-notes window once after an applied
-// update, when the cached version matches this build. The cache is cleared
-// before show so a later launch does not reopen it. newTestUI does not run
+// update, when the cached version matches this build. The cache is only a
+// one-shot marker; the displayed notes come from this build's bundled file.
+// The marker is cleared before show. newTestUI does not run
 // SetOnStarted; tests call this directly.
 func (v *viewer) maybeShowWhatsNew() {
 	wn, err := autoupdate.LoadWhatsNew(v.app)
@@ -257,7 +258,7 @@ func (v *viewer) maybeShowWhatsNew() {
 		return
 	}
 	_ = autoupdate.ClearWhatsNew(v.app)
-	v.help.ShowWhatsNew(wn.Version, wn.Body)
+	v.help.ShowReleaseNotes()
 }
 
 // maybeShowUpdateFailure explains a failed binary replacement on the launch

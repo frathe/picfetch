@@ -1026,14 +1026,41 @@ func TestWhatsNewCache_RoundTripAndClear(t *testing.T) {
 
 func TestMaybeShowWhatsNew_ShowsAndClearsCache(t *testing.T) {
 	v := newTestViewer(t)
-	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "# notes"); err != nil {
+	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "# obsolete cached release notes"); err != nil {
 		t.Fatal(err)
 	}
 	v.updater.SetCurrentVersion("0.2.6")
 
+	before := len(v.app.Driver().AllWindows())
 	v.maybeShowWhatsNew()
 	if !v.help.WhatsNewOpen() {
 		t.Fatal("WhatsNewOpen should be true after matching maybeShowWhatsNew")
+	}
+	windows := v.app.Driver().AllWindows()
+	if len(windows) != before+1 {
+		t.Fatal("post-update notes did not create exactly one window")
+	}
+	notesWindow := windows[len(windows)-1]
+	t.Cleanup(notesWindow.Close)
+	var prose strings.Builder
+	var walk func(fyne.CanvasObject)
+	walk = func(object fyne.CanvasObject) {
+		switch object := object.(type) {
+		case *widget.RichText:
+			for _, segment := range object.Segments {
+				prose.WriteString(segment.Textual())
+			}
+		case *container.Scroll:
+			walk(object.Content)
+		case *fyne.Container:
+			for _, child := range object.Objects {
+				walk(child)
+			}
+		}
+	}
+	walk(notesWindow.Content())
+	if !strings.Contains(prose.String(), "What's Changed") || strings.Contains(prose.String(), "obsolete cached release notes") {
+		t.Fatalf("post-update window did not use the bundled release-notes file: %q", prose.String())
 	}
 	wn, err := autoupdate.LoadWhatsNew(v.app)
 	if err != nil {

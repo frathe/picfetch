@@ -6,6 +6,15 @@ BIN_DIR  := bin
 WIN_ARCHES := amd64 arm64
 LINUX_ARCHES := amd64 arm64
 APP_TAGS := no_emoji,nodynamic
+
+# Make the optional portable Windows compiler available to Go/cgo. Keep
+# compilers already on PATH ahead of it and preserve explicit Go settings.
+ifeq ($(OS),Windows_NT)
+ifneq ($(wildcard .tools/windows/mingw64/bin/gcc.exe),)
+export PATH := $(PATH);$(CURDIR)/.tools/windows/mingw64/bin
+endif
+endif
+
 include packaging/tools.mk
 
 RELEASE_BRANCH := main
@@ -535,7 +544,8 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 	@# A GitHub TUF root bump, if any, is a separate commit before Release.
 	@# Release notes come from todos.md ## Done (empty categories dropped);
 	@# they are written to .github/release-notes.md in the Release commit so
-	@# the workflow can attach them, then Done items are cleared.
+	@# the workflow can attach them. A bundled copy serves Help -> Release Notes;
+	@# both copies and the version bump share the release commit. Done is cleared.
 	@set -e; \
 	part=$${PART:-patch}; \
 	branch=$$(git rev-parse --abbrev-ref HEAD); \
@@ -581,8 +591,9 @@ release: ## Full release: verify, bump version, commit, tag, push (PART=major|mi
 		git commit -m "Update GitHub TUF root"; \
 	fi; \
 	go run ./scripts/releasenotes --prev "$$prev_version" --next "$$new_version" --write .github/release-notes.md --clear-done; \
+	cp .github/release-notes.md internal/ui/help/release-notes.md; \
 	scripts/bump_version.sh $$part >/dev/null; \
-	git add FyneApp.toml .github/release-notes.md todos.md; \
+	git add FyneApp.toml .github/release-notes.md internal/ui/help/release-notes.md todos.md; \
 	git commit -m "Release $$tag"; \
 	git tag -a "$$tag" -m "Release $$tag"; \
 	git push origin "$(RELEASE_BRANCH)"; \

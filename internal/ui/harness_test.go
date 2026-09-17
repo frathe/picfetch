@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"slices"
 	"testing"
@@ -43,6 +44,12 @@ import (
 // and any new background work must be added to newTestUI's drain cleanup,
 // below.
 var testApp fyne.App
+
+type offlineReleaseImages struct{}
+
+func (offlineReleaseImages) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: http.NoBody}, nil
+}
 
 // testTextEntry lets surface tests use Entry behavior without depending on
 // whether a feature extends the widget to handle additional keys.
@@ -103,6 +110,8 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 
 	v, win = buildStartupViewer(testApp)
 	v.display.SetUIQueue(&uitest.UIQueue{})
+	v.help.SetUIQueue(&uitest.UIQueue{})
+	v.help.SetImageClient(&http.Client{Transport: offlineReleaseImages{}})
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}})
 	v.searchView.overlayUI = &uitest.UIQueue{}
@@ -194,6 +203,8 @@ func drain(t *testing.T, v *viewer) {
 	// this test has already closed. Clearing it first also means nothing
 	// can start a fresh scan behind the waits below.
 	openwith.SetHandler(nil)
+	v.help.Stop()
+	v.help.Settle()
 	v.stopSearchOverlayWait()
 	v.searchView.overlayWorkers.Wait()
 	if v.searchView.overlayUI != nil {

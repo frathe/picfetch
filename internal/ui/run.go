@@ -129,6 +129,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options) error {
 }
 
 func (v *viewer) waitForShutdown() {
+	v.help.Wait()
 	// Preview cancellation cannot interrupt a source already blocked in native
 	// I/O. Close retires its UI delivery; only the test harness joins those reads
 	// through Spiral.Settle after releasing any held source.
@@ -171,6 +172,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
 		view.stopping = true
+		view.help.Stop()
 		view.spiral.Close()
 		view.closeExplorer()
 		view.stopSearchOverlayWait()
