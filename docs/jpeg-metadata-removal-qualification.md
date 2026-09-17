@@ -12,7 +12,7 @@ removal; metadata-preserving Save Changes and export retain their separate polic
 | JFIF/JFXX | Validate JFIF 1.00-1.02 immediately after SOI, retain its 14-byte interpretation/density header with zero thumbnail dimensions; remove thumbnail bytes, extensions and unclaimed payload. |
 | Adobe | Validate version 100, zero flags and qualified gray/RGB transform. Retain only the 12-byte declaration; conflicts with JFIF or RGB component identifiers are refused. |
 | SPIFF | APP8 SPIFF declarations are refused because their base-image color interpretation is not qualified. |
-| EXIF color | Absent color declarations or default sRGB (`ColorSpace=1`, `R98` interoperability) are qualified. Non-sRGB/uncalibrated declarations, other interoperability values and explicit TransferFunction, WhitePoint, PrimaryChromaticities, YCbCrCoefficients, ReferenceBlackWhite or Gamma tags are refused, including when an ICC profile is also present. |
+| EXIF color | Absent color declarations are qualified. Default sRGB (`ColorSpace=1`, `R98` interoperability) is qualified only without an ICC profile. Any explicit EXIF ColorSpace or InteroperabilityIndex combined with any ICC profile is conservatively refused because agreement and precedence are not qualified. Non-sRGB/uncalibrated declarations, other interoperability values and explicit TransferFunction, WhitePoint, PrimaryChromaticities, YCbCrCoefficients, ReferenceBlackWhite or Gamma tags are also refused. |
 | ICC | v2/v4 input/display (`scnr`/`mntr`) RGB matrix/TRC and gray/TRC with XYZ PCS and D50 header illuminant. Required descriptions/copyright/white point and model-specific transform tags must exist. |
 | ICC transform tags | Exact XYZ columns, white/black points, `chad`, `chrm`, and monotonic `curv` or qualified gamma/sRGB `para` types 0/3. Other tags, LUT models, ambiguous assembly, partial overlaps, wrong models and malformed lengths are refused. Maximum assembled source profile: 4 MiB. |
 | ICC identity | Rebuild the tag table/data with zero padding; retain exact transform payloads. Replace description/copyright with neutral text, remove manufacturer/model descriptions and unclaimed bytes, normalize creation date, clear creator/manufacturer/model/platform/CMM/profile ID. Preserve qualified rendering intent and device attributes. |
@@ -25,7 +25,10 @@ an uncommitted result. Cancellation/refusal before replacement leaves bytes inta
 committed results preserve their existing host-reconciliation semantics.
 The EXIF transform-tag refusal is conservative: DCF basic readers may ignore
 those tags in favor of default sRGB, but this operation does not establish full
-DCF basic conformance or resolve conflicting EXIF/ICC precedence. See DCF 2.0
+DCF basic conformance. Coexisting explicit EXIF color declarations and ICC profiles
+are refused even when they might agree: this operation does not qualify their
+numerical equivalence or resolve their precedence. Orientation-only EXIF together
+with a qualified ICC profile remains supported. See DCF 2.0
 sections 4.4.5.4, 4.5.4, 6.2.4 and 7.5 in the
 [JEITA/CIPA specification](https://www.jeita.or.jp/cgi-bin/standard_e/pdf.cgi?jk_n=51&jk_pdf_file=CP).
 Cancellation is checked throughout scan traversal, between orientation rows and

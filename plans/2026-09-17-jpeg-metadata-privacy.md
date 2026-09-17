@@ -241,3 +241,29 @@ Compatibility follow-up after `cb9fc1c`:
   explicit EXIF transform/colorimetry tags have their own red/green refusal
   coverage. The qualification record documents this conservative scope and its
   primary DCF source; conflicting ICC/EXIF precedence is not assumed.
+
+Follow-up review findings on `6d8b7f6`:
+
+- All normal CI/CodeQL jobs passed; CodeQL alerts were empty and post-suppression
+  Qodana SARIF had zero results. The fresh security review completed without
+  actionable findings. The fresh code review identified three remaining cases.
+- Admission and full parsing now share one bounded marker-fill reader, which
+  polls cancellation at most 4096 fill bytes apart. This removes the unchecked
+  second fill pass while retaining the public marker-fill and cancellation
+  regressions; no large stress input or timing-dependent test was needed.
+- A public clean/no-op regression exposed canonicalization of legal fill before
+  EOI. Output now retains the exact original EOI marker span, both when clean and
+  when other metadata is removed; the observed red regression is green.
+- A qualified non-sRGB ICC derivative combined with explicit EXIF sRGB exposed
+  the inverse declaration conflict. Explicit EXIF ColorSpace or InteropIndex
+  together with any ICC is now conservatively refused, independent of segment
+  order. The public refusal regression observed committed rewrites before the
+  fix and now proves unchanged bytes/no commit. Orientation-only EXIF plus ICC
+  remains covered by the existing supported fidelity matrix.
+- An independent follow-up found that output-header validation still used a
+  non-cancellable reader. It now uses the operation context like admission/full
+  decoding. A deterministic public-operation regression failed with a committed
+  rewrite before the fix, then passed with cancellation/no commit/unchanged
+  bytes at the standard-library output DecodeConfig boundary.
+- Final focused imaging/window race regressions, imaging vet, formatting and
+  warnings-inclusive GoLand inspections of all three changed Go files pass.

@@ -80,7 +80,7 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 	}
 	p.encodeLimit = (jpegRemovalWorkingBytes - memory.oriented) / 4
 	p.output = []byte{0xff, 0xd8}
-	var frame, scan, jfif, adobe, exif bool
+	var frame, scan, jfif, adobe, exif, exifColor bool
 	adobeTransform := byte(0xff)
 	var policy jpegScanPolicy
 	var profile removalICC
@@ -89,17 +89,11 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			return p, err
 		}
 		start := pos
-		if data[pos] != 0xff {
-			return p, ErrJPEGMetadataStructure
+		marker, after, err := jpegRemovalMarker(ctx, data, pos)
+		if err != nil {
+			return p, err
 		}
-		for pos < len(data) && data[pos] == 0xff {
-			pos++
-		}
-		if pos == len(data) {
-			return p, ErrJPEGMetadataStructure
-		}
-		marker := data[pos]
-		pos++
+		pos = after
 		if marker == 0xd9 {
 			if !frame || !scan || !policy.complete() {
 				return p, ErrJPEGMetadataStructure
@@ -113,7 +107,10 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			if bytes.Equal(policy.ids, []byte("RGB")) && (jfif || adobe && adobeTransform != 0) {
 				return p, ErrJPEGMetadataProcess
 			}
-			p.output = append(p.output, 0xff, 0xd9)
+			if exifColor && profile.total != 0 {
+				return p, ErrJPEGMetadataProcess
+			}
+			p.output = append(p.output, data[start:pos]...)
 			segments, err := profile.normalized(ctx, p.components)
 			if err != nil {
 				return p, err
@@ -130,7 +127,10 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 				}
 				p.output = append(out, p.output[at:]...)
 			}
-			cfg, err := jpeg.DecodeConfig(bytes.NewReader(p.output))
+			cfg, err := jpeg.DecodeConfig(contextRead{ctx: ctx, in: bytes.NewReader(p.output)})
+			if cancelled := ctx.Err(); cancelled != nil {
+				return p, cancelled
+			}
 			if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > maxImagePixels {
 				return p, ErrJPEGMetadataStructure
 			}
@@ -200,7 +200,7 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 				}
 				exif = true
 				var err error
-				p.orientation, err = removalEXIF(payload[6:])
+				p.orientation, exifColor, err = removalEXIF(payload[6:])
 				if err != nil {
 					return p, err
 				}
@@ -254,10 +254,12 @@ func jpegScanEnd(ctx context.Context, data []byte, pos int) (int, error) {
 
 // removalEXIF qualifies orientation and the color declarations which would be
 // lost with APP1. Only default sRGB interpretation is qualified for removal.
-func removalEXIF(tiff []byte) (int, error) {
+// The boolean reports an explicit color declaration whose agreement with a
+// retained ICC profile would also need qualification.
+func removalEXIF(tiff []byte) (int, bool, error) {
 	bo, ok := tiffOrder(tiff)
 	if !ok {
-		return 0, ErrJPEGMetadataOrientation
+		return 0, false, ErrJPEGMetadataOrientation
 	}
 	const (
 		primary = iota
@@ -280,17 +282,17 @@ func removalEXIF(tiff []byte) (int, error) {
 		}
 		header, ok := tiffSpan(tiff, offset, 2)
 		if !ok || offset < 8 {
-			return 0, invalid
+			return 0, false, invalid
 		}
 		count := uint64(bo.Uint16(header))
 		entries, ok := tiffSpan(tiff, offset+2, count*12+4)
 		if !ok {
-			return 0, invalid
+			return 0, false, invalid
 		}
 		ends[level] = offset + 2 + count*12 + 4
 		for previous := 0; previous < level; previous++ {
 			if offset < ends[previous] && offsets[previous] < ends[level] {
-				return 0, ErrJPEGMetadataProcess
+				return 0, false, ErrJPEGMetadataProcess
 			}
 		}
 		for i := uint64(0); i < count; i++ {
@@ -300,35 +302,35 @@ func removalEXIF(tiff []byte) (int, error) {
 			case level == primary && (tag == 0x012d || tag == 0x013e || tag == 0x013f || tag == 0x0211 || tag == 0x0214), level == exif && tag == 0xa500:
 				// Explicit transfer/colorimetry tags need their own transform
 				// qualification; ICC presence does not establish precedence.
-				return 0, ErrJPEGMetadataProcess
+				return 0, false, ErrJPEGMetadataProcess
 			case level == primary && tag == 0x112:
 				if foundOrientation || kind != 3 || values != 1 {
-					return 0, ErrJPEGMetadataOrientation
+					return 0, false, ErrJPEGMetadataOrientation
 				}
 				foundOrientation = true
 				orient = int(bo.Uint16(e[8:10]))
 				if orient < 1 || orient > 8 {
-					return 0, ErrJPEGMetadataOrientation
+					return 0, false, ErrJPEGMetadataOrientation
 				}
 			case level == primary && tag == 0x8769 || level == exif && tag == 0xa005:
 				if offsets[level+1] != 0 || kind != 4 || values != 1 || bo.Uint32(e[8:12]) < 8 {
-					return 0, ErrJPEGMetadataProcess
+					return 0, false, ErrJPEGMetadataProcess
 				}
 				offsets[level+1] = uint64(bo.Uint32(e[8:12]))
 			case level == exif && tag == 0xa001:
 				if foundSpace || kind != 3 || values != 1 || bo.Uint16(e[8:10]) != 1 {
-					return 0, ErrJPEGMetadataProcess
+					return 0, false, ErrJPEGMetadataProcess
 				}
 				foundSpace = true
 			case level == interop && tag == 1:
 				if foundIndex || kind != 2 || values != 4 || string(e[8:12]) != "R98\x00" {
-					return 0, ErrJPEGMetadataProcess
+					return 0, false, ErrJPEGMetadataProcess
 				}
 				foundIndex = true
 			}
 		}
 	}
-	return orient, nil
+	return orient, foundSpace || foundIndex, nil
 }
 
 // orientJPEGRemoval checks cancellation between rows and writes the final color

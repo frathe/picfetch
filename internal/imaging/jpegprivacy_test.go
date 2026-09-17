@@ -450,6 +450,17 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 			t.Fatalf("encoder cancellation observed=%v result=%+v error=%v", ctx.observed, result, err)
 		}
 	})
+	t.Run("cancellation during output header validation", func(t *testing.T) {
+		data := append(bytes.Clone(plain), []byte("fixture trailer")...)
+		path := writeTempFile(t, "cancel-output-header.jpg", data)
+		base, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ctx := &jpegConfigCancelContext{Context: base, cancel: cancel}
+		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
+		if !ctx.observed || !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+			t.Fatalf("output-header cancellation observed=%v result=%+v error=%v", ctx.observed, result, err)
+		}
+	})
 }
 
 // Cancellation is injected at the standard-library encoding boundary so this
@@ -458,6 +469,41 @@ type jpegEncodeCancelContext struct {
 	context.Context
 	cancel   context.CancelFunc
 	observed bool
+}
+
+// Cancel at output validation's standard-library DecodeConfig boundary,
+// following admission's first DecodeConfig. No private production hook is used.
+type jpegConfigCancelContext struct {
+	context.Context
+	cancel   context.CancelFunc
+	inside   bool
+	configs  int
+	observed bool
+}
+
+func (c *jpegConfigCancelContext) Err() error {
+	var callers [32]uintptr
+	frames := runtime.CallersFrames(callers[:runtime.Callers(2, callers[:])])
+	inside := false
+	for {
+		frame, more := frames.Next()
+		if frame.Function == "image/jpeg.DecodeConfig" {
+			inside = true
+			break
+		}
+		if !more {
+			break
+		}
+	}
+	if inside && !c.inside {
+		c.configs++
+		if c.configs == 2 {
+			c.observed = true
+			c.cancel()
+		}
+	}
+	c.inside = inside
+	return c.Context.Err()
 }
 
 type removalUniformImage struct {
@@ -521,6 +567,24 @@ func mustInjectRemoval(t *testing.T, plain []byte, segments ...[]byte) []byte {
 }
 
 func TestJPEGMetadataRemovalInspection(t *testing.T) {
+	t.Run("legal EOI fill preserves clean and removable sources", func(t *testing.T) {
+		plain := uitest.EncodeJPEG(t, 16, 12, color.White)
+		filled := append(bytes.Clone(plain[:len(plain)-2]), 0xff, 0xff, 0xd9)
+		for _, metadata := range []bool{false, true} {
+			data := filled
+			state := JPEGMetadataClean
+			if metadata {
+				data = mustInjectRemoval(t, filled, jpegSegmentBytes(0xfe, []byte("fixture description")))
+				state = JPEGMetadataRemovable
+			}
+			inspection := InspectJPEGMetadata(context.Background(), data)
+			path := writeTempFile(t, "filled-end.jpg", data)
+			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+			if inspection.State != state || inspection.Err != nil || err != nil || result.Committed != metadata || !bytes.Equal(filled, mustRead(t, path)) {
+				t.Fatalf("EOI fill (metadata=%v) = %+v; %+v, %v", metadata, inspection, result, err)
+			}
+		}
+	})
 	plain := uitest.EncodeJPEG(t, 16, 12, color.White)
 	data := append(bytes.Clone(plain), []byte("fixture trailer")...)
 	path := writeTempFile(t, "repeat.jpg", data)
@@ -546,6 +610,32 @@ func TestJPEGMetadataRemovalInspection(t *testing.T) {
 }
 
 func TestJPEGMetadataRemovalProfiles(t *testing.T) {
+	t.Run("explicit EXIF color with ICC is refused", func(t *testing.T) {
+		plain := removalFixture(t, "baseline-rgb.jpg")
+		profile := removalFixture(t, "rgb-v4.icc")
+		// Derive a qualified, non-sRGB matrix by changing the red primary.
+		red := profileTestTags(t, profile)["rXYZ"]
+		binary.BigEndian.PutUint32(red[8:12], binary.BigEndian.Uint32(red[8:12])+2048)
+		if got := InspectJPEGMetadata(context.Background(), mustInjectRemoval(t, plain, profileSegments(profile)...)); got.State != JPEGMetadataRemovable || got.Err != nil {
+			t.Fatalf("independent ICC qualification = %+v", got)
+		}
+		for _, exifFirst := range []bool{false, true} {
+			segments := profileSegments(profile)
+			exif := removalColorEXIF(1, "R98", false)
+			if exifFirst {
+				segments = append([][]byte{exif}, segments...)
+			} else {
+				segments = append(segments, exif)
+			}
+			data := mustInjectRemoval(t, plain, segments...)
+			inspection := InspectJPEGMetadata(context.Background(), data)
+			path := writeTempFile(t, "conflicting-color.jpg", data)
+			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+			if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) || !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+				t.Fatalf("EXIF/ICC refusal (EXIF first=%v) = %+v; %+v, %v", exifFirst, inspection, result, err)
+			}
+		}
+	})
 	t.Run("chunks across scans assemble in sequence order", func(t *testing.T) {
 		plain := removalFixture(t, "progressive-rgb.jpg")
 		profile := removalFixture(t, "rgb-v4.icc")

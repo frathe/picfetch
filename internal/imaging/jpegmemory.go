@@ -85,22 +85,11 @@ func jpegRemovalFrame(ctx context.Context, data []byte) (jpegScanPolicy, []byte,
 		if err := ctx.Err(); err != nil {
 			return frame, nil, err
 		}
-		if data[pos] != 0xff {
-			return frame, nil, ErrJPEGMetadataStructure
+		marker, after, err := jpegRemovalMarker(ctx, data, pos)
+		if err != nil {
+			return frame, nil, err
 		}
-		for pos < len(data) && data[pos] == 0xff {
-			pos++
-			if pos%4096 == 0 {
-				if err := ctx.Err(); err != nil {
-					return frame, nil, err
-				}
-			}
-		}
-		if pos == len(data) {
-			return frame, nil, ErrJPEGMetadataStructure
-		}
-		marker := data[pos]
-		pos++
+		pos = after
 		if marker == 0x00 || marker == 0x01 || marker >= 0xd0 && marker <= 0xda {
 			return frame, nil, ErrJPEGMetadataProcess
 		}
@@ -119,4 +108,26 @@ func jpegRemovalFrame(ctx context.Context, data []byte) (jpegScanPolicy, []byte,
 		}
 	}
 	return frame, nil, ErrJPEGMetadataProcess
+}
+
+// jpegRemovalMarker shares bounded fill traversal between admission and the
+// complete parser. Callers retain the original marker span when writing output.
+func jpegRemovalMarker(ctx context.Context, data []byte, pos int) (byte, int, error) {
+	if pos >= len(data) || data[pos] != 0xff {
+		return 0, pos, ErrJPEGMetadataStructure
+	}
+	nextCheck := pos
+	for pos < len(data) && data[pos] == 0xff {
+		if pos >= nextCheck {
+			if err := ctx.Err(); err != nil {
+				return 0, pos, err
+			}
+			nextCheck = pos + 4096
+		}
+		pos++
+	}
+	if pos == len(data) {
+		return 0, pos, ErrJPEGMetadataStructure
+	}
+	return data[pos], pos + 1, nil
 }
