@@ -2,83 +2,69 @@
 
 ### New Features
 
-- **Find more like this**
+![trane security superhero](https://github.com/frathe/picfetch/blob/main/assets/trane/trane_security_superhero_v2.png?raw=true)
 
-  Choose a picture to find similar-looking images in your collection. The Grid shows your chosen picture first, followed
-  by up to 30 matches, with the closest matches at the top. Results appear as PicFetch processes your images.
+- **Security fixes and hardening**
 
-  You can return to pictures you searched from earlier, use the usual Grid actions on results, and save a result list as a
-  Favorite. PicFetch can save what it learns about your images to make future searches faster. Manage this stored data in
-  Cache settings.
+  This release includes several security fixes and hardening improvements to make
+  PicFetch more resilient when handling malformed images and large collections.
+  Stronger validation and resource limits reduce the risk of excessive memory and
+  CPU use, while additional safeguards protect file saves, strengthen update
+  integrity, and tighten permissions in release workflows.
 
-  If a scan stops early, PicFetch clearly marks it as incomplete. Missing images stay listed as unavailable, including
-  pictures on a disconnected drive. After first-time setup, PicFetch checks that your chosen picture is still available
-  before searching. Turning off saved analysis works even if the stored data cannot be read.
+- Add Settings -> Limits -> Similarity Explorer with persisted 512 MB map-data
+  and 10,000-item defaults, configurable for larger libraries. Resource-limit
+  errors show wrapped toasts naming the setting location. Stream map snapshots
+  in bounded chunks with aggregate accounting instead of one large JSON event.
 
-  The search was tried with a collection of 446 images, and the results looked useful. Accuracy has not yet been formally
-  measured. A way to improve matches by showing PicFetch which results you want and which you do not want is planned for
-  later.
+### Bugfix
 
-  Some requirements for including third-party software still need to be resolved; see LATER below. Read
-  the [evaluation](docs/find-more-like-this/evaluation.md) for details.
+- Fix Linux clipboard copies staying busy after the helper forks its clipboard
+  owner, which also blocked Copy Image Path. Complete on launcher exit while
+  preserving bounded failure diagnostics and the running clipboard owner.
 
-  Tests of the affected features and code checks are complete. Final approval still depends on the latest automated
-  reviews and checks on Linux, Windows and macOS in [PR #25](https://github.com/frathe/picfetch/pull/25).
-  The [development record](finished_refactorings/2026-09-14-find-more-like-this.md) lists completed checks and remaining
-  limitations.
+- Restore JPEG metadata removal for common EXIF/ICC color declarations and camera
+  chroma settings. Keep orientation and encoded image data without recompression,
+  while retaining structural validation, privacy checks and memory limits. Qualify
+  the standard optional sRGB profile fields found in the supplied camera JPEG.
+
+- Bound RAW fallback JPEG parsing with one input-sized budget shared by header,
+  marker-fill and entropy traversal. Preserve ordinary multi-preview selection
+  and replace timing-dependent coverage with deterministic budget checks.
+
+- Reject Save Changes through symlink leaves, preserving both the link and target
+  without copying image content into a different directory. Keep regular writes
+  at the selected filename and serialize parent-directory aliases.
+
+- Authenticate staged updates with process-local seals, derive payload hashes
+  from verified archive bytes, and retain a write-denying Windows source handle
+  through installation.
+
+- Bound ICO and SVG input processing, enforce WASM AVIF builds, and account for
+  GIF frame overhead before animation decoding; preserve static GIF fallback.
+
+- Bound comparison decodes to half the shared image budget per pane and avoid
+  retaining animation frames that comparison never displays. Include 16-bit
+  pixel admission, actual cached-frame weights, localized refusals and the
+  corrected UI shard assignment.
+
+- Bound Visual Similarity Explorer collection work and worker event decoding to
+  prevent attacker-controlled collections from exhausting CPU or viewer memory.
 
 ### Internal
 
-- **Find more like this architecture follow-up**
+- Pin the TUF-root workflow's checkout/setup-go actions to verified v7 commits,
+  disable checkout credential persistence, and configure GitHub CLI authentication
+  before pushing. Focused TUF tests and stubbed publication paths pass; the live
+  scheduled write path is not exercised by PR CI.
 
-  Improved how visual search works with Favorites, stored search data and the Grid. Fixes cover saving Favorites while
-  stored data is being checked, keeping search updates responsive, and returning to your original collection after
-  removing images or closing a comparison. Pictures that appear more than once keep their original positions when you
-  return.
+- Pin the Qodana action to its reviewed commit, remove source-write permission
+  and automatic fix pushes, and disable persisted checkout credentials. Retain
+  PR comments, annotations and the Go linter's required project token.
 
-  PicFetch now reports problems saving search data for Favorites while keeping usable results available. Automatic cleanup
-  removes temporary files before reusable search data and keeps completed analysis available to the current search.
+- Windows signing qualification Completed. The Windows release-signing workflow uses the protected
+  `release-signing` environment, retains the verified local installer handoff,
+  and checks `SIMPLYSIGN_INSTALLER_SHA256` and `SIMPLYSIGN_SIGNER_THUMBPRINT`
+  before installation.
 
-  All 28 review findings were assessed.
-  The [architecture assessment](docs/find-more-like-this/pr25-architecture-review.md) explains the changes, and
-  the [implementation record](finished_refactorings/2026-09-15-search-ownership.md) documents the fixes and testing.
-
-  The fixes and tests are in place, and local checks passed. Final review and automated check results are recorded
-  on [PR #25](https://github.com/frathe/picfetch/pull/25).
-
-- **Comparison test deadline under build contention**
-
-  Made the automated image-comparison tests more reliable when the computer is busy with other development work. These
-  tests check that background image processing can stop safely and that comparison windows do not get stuck.
-
-  The updated tests passed repeated runs under heavy load. The full set of checks also passed on Ubuntu, and code
-  inspection found no issues requiring changes.
-
-- **Qualify updater notices in native release CI**
-
-  Improved checks that make sure update packages include the required license information for third-party software.
-
-  Checks passed on Linux, Windows and macOS. Packages for all six supported targets also passed local checks before
-  signing. The final Windows packages still need to pass the new checks after they are digitally signed.
-
-  The license notes also explain that the exact historical source-code version of one included component could not be
-  confirmed. See the [evidence and limits](finished_refactorings/2026-09-13-updater-notices.md) and
-  the [completed Linux checks](https://github.com/frathe/picfetch/actions/runs/34755687251).
-
-- **Mascot-circle hint for the Hypno Spiral**
-
-  Added a hidden interaction with Trane and Finis and made the speech bubble wider. Escape now closes the manual even when
-  you are typing in its search field.
-
-  On the welcome screen, move your pointer around Trane's head ten times in the same direction within twenty seconds. This
-  opens Finis or brings his window to the front.
-
-  Draw another ten circles with your pointer within twenty seconds anywhere inside a Finis window. A speech bubble appears
-  and stays visible. Click it to open the manual with an empty search field. The secret phrase stays in English, while the
-  hint in parentheses uses your selected language.
-
-  Tests of the affected features, translation checks and local build checks passed.
-  The [development record](finished_refactorings/2026-09-14-mascot-circle-hint.md) includes feedback from hands-on use and
-  lists checks that could not be completed.
-
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.1.2...v1.1.3
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.1.3...v1.1.4

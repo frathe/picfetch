@@ -2,8 +2,8 @@
 Icon = "assets/appIcon.png"
 Name = "PicFetch"
 ID = "io.github.frathe.picfetch"
-Version = "1.1.3"
-Build = 469
+Version = "1.1.4"
+Build = 470
 
 [Migrations]
 fyneDo = true
