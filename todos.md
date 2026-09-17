@@ -4,9 +4,9 @@
 
 ### Updater response-body bounds review
 
-Review and fix PR #38, mark it ready, and complete fresh Codex reviews plus
-CI/Qodana/CodeQL verification on the latest pushed commit. Track findings and
-local evidence in [the review record](plans/2026-09-17-pr38-review.md); final
+PR #38 is ready; local review and first-round Codex findings are fixed. Complete
+fresh Codex reviews plus CI/Qodana/CodeQL verification on the latest pushed
+commit. Track findings and local evidence in [the review record](plans/2026-09-17-pr38-review.md); final
 commit-bound hosted evidence belongs on [PR #38](https://github.com/frathe/picfetch/pull/38).
 
 ### JPEG metadata removal privacy contract

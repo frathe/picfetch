@@ -494,6 +494,36 @@ func TestIdleTimeoutReadCloser_StaleExpiration(t *testing.T) {
 	})
 }
 
+func TestIdleTimeoutReadCloser_CloseJoinsExpiration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		body := newIdleTimeoutReadCloser(io.NopCloser(strings.NewReader("a")), time.Second)
+		body.timer.Stop()
+		entered, release := make(chan struct{}), make(chan struct{})
+		body.timer = time.AfterFunc(time.Second, func() {
+			close(entered)
+			<-release
+			body.expire()
+		})
+		<-entered
+		closed := make(chan error, 1)
+		go func() { closed <- body.Close() }()
+		synctest.Wait()
+		var returnedEarly bool
+		select {
+		case <-closed:
+			returnedEarly = true
+		default:
+		}
+		close(release)
+		if returnedEarly {
+			t.Fatal("Close returned while its timer callback was still running")
+		}
+		if err := <-closed; err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestUpdateHTTPClient_AllowsResponseBodyWithProgress(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const (
@@ -572,6 +602,35 @@ func TestUpdateHTTPClient_ClosesStalledResponseBody(t *testing.T) {
 				}
 			} else if err == nil || !strings.Contains(err.Error(), "idle timeout") {
 				t.Fatalf("body error = %v, want idle timeout before request deadline", err)
+			}
+		})
+	}
+}
+
+func TestUpdater_StartManual_ResponseFailureMessages(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		cause error
+		want  string
+	}{
+		{"timeout", errResponseBodyIdleTimeout, "The update server stopped sending data. Please try again."},
+		{"size limit", update.ErrGitHubResponseTooLarge, "The update server response exceeds the size limit."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			u := New(test.NewApp(), t.TempDir(), nil)
+			u.SetVerifierFactory(func() (update.Verifier, error) {
+				return nil, fmt.Errorf("request details: %w", tc.cause)
+			})
+			var got error
+			u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+				Failed: func(err error) { got = err },
+			})
+			waitUpdater(t, u)
+			if got == nil || got.Error() != tc.want {
+				t.Fatalf("manual failure = %v, want %q", got, tc.want)
+			}
+			if !errors.Is(got, tc.cause) {
+				t.Errorf("manual failure lost its diagnostic cause: %v", got)
 			}
 		})
 	}

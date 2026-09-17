@@ -16,7 +16,8 @@ const (
 	maxGitHubResponseBytes = 16 * 1024 * 1024
 )
 
-var errGitHubResponseTooLarge = errors.New("github response exceeds size limit")
+// ErrGitHubResponseTooLarge identifies an API document rejected before decoding.
+var ErrGitHubResponseTooLarge = errors.New("github response exceeds size limit")
 
 type ghRelease struct {
 	TagName    string    `json:"tag_name"`
@@ -124,7 +125,7 @@ func decodeGitHubJSON(r io.Reader, limit int64, dst any) error {
 		return err
 	}
 	if int64(len(data)) > limit {
-		return errGitHubResponseTooLarge
+		return ErrGitHubResponseTooLarge
 	}
 	return json.Unmarshal(data, dst)
 }

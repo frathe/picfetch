@@ -19,12 +19,15 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/update"
 )
 
 var errClientNotPrepared = errors.New("update client not prepared")
+
+var errResponseBodyIdleTimeout = errors.New("update response body idle timeout")
 
 // DefaultDir is the production stage directory: a "picfetch/updates"
 // subdirectory of the OS cache dir, or os.TempDir() if that can't be
@@ -197,6 +200,7 @@ type idleTimeoutReadCloser struct {
 	timeout   time.Duration
 	deadline  time.Time
 	mu        sync.Mutex
+	callbacks sync.WaitGroup
 	closeOnce sync.Once
 	closeErr  error
 	closed    bool
@@ -206,6 +210,7 @@ type idleTimeoutReadCloser struct {
 func newIdleTimeoutReadCloser(body io.ReadCloser, timeout time.Duration) *idleTimeoutReadCloser {
 	r := &idleTimeoutReadCloser{body: body, timeout: timeout, deadline: time.Now().Add(timeout)}
 	r.mu.Lock()
+	r.callbacks.Add(1)
 	r.timer = time.AfterFunc(timeout, r.expire)
 	r.mu.Unlock()
 	return r
@@ -216,12 +221,12 @@ func (r *idleTimeoutReadCloser) Read(p []byte) (int, error) {
 	r.mu.Lock()
 	if n > 0 && !r.closed && !r.timedOut {
 		r.deadline = time.Now().Add(r.timeout)
-		r.timer.Reset(r.timeout)
+		r.resetTimer(r.timeout)
 	}
 	timedOut := r.timedOut
 	r.mu.Unlock()
 	if timedOut && err != nil {
-		return n, fmt.Errorf("update response body idle timeout: %w", err)
+		return n, fmt.Errorf("%w: %w", errResponseBodyIdleTimeout, err)
 	}
 	return n, err
 }
@@ -230,14 +235,27 @@ func (r *idleTimeoutReadCloser) Close() error {
 	r.mu.Lock()
 	if !r.closed {
 		r.closed = true
-		r.timer.Stop()
+		if r.timer.Stop() {
+			r.callbacks.Done()
+		}
 	}
 	r.mu.Unlock()
 	r.closeBody()
+	r.callbacks.Wait()
 	return r.closeErr
 }
 
+// resetTimer runs under mu. A reset of an expired AfterFunc schedules another
+// callback; an active timer keeps its existing completion claim instead.
+func (r *idleTimeoutReadCloser) resetTimer(timeout time.Duration) {
+	r.callbacks.Add(1)
+	if r.timer.Reset(timeout) {
+		r.callbacks.Done()
+	}
+}
+
 func (r *idleTimeoutReadCloser) expire() {
+	defer r.callbacks.Done()
 	r.mu.Lock()
 	if r.closed || r.timedOut {
 		r.mu.Unlock()
@@ -246,7 +264,7 @@ func (r *idleTimeoutReadCloser) expire() {
 	// Reset cannot recall an AfterFunc callback that has already started.
 	// A successful read may have extended the deadline while it waited for mu.
 	if remaining := time.Until(r.deadline); remaining > 0 {
-		r.timer.Reset(remaining)
+		r.resetTimer(remaining)
 		r.mu.Unlock()
 		return
 	}
@@ -518,8 +536,22 @@ func (u *Updater) matchingUsableStage(rel update.Release) (update.Stage, bool) {
 
 func (u *Updater) reportFailure(ctx context.Context, stale func() bool, events Events, message string, err error) {
 	fyne.LogError(message, err)
+	switch {
+	case errors.Is(err, errResponseBodyIdleTimeout):
+		err = localizedUpdateError{message: lang.L("The update server stopped sending data. Please try again."), cause: err}
+	case errors.Is(err, update.ErrGitHubResponseTooLarge):
+		err = localizedUpdateError{message: lang.L("The update server response exceeds the size limit."), cause: err}
+	}
 	u.emitError(ctx, stale, events.Failed, err)
 }
+
+type localizedUpdateError struct {
+	message string
+	cause   error
+}
+
+func (e localizedUpdateError) Error() string { return e.message }
+func (e localizedUpdateError) Unwrap() error { return e.cause }
 
 func requestStopped(ctx context.Context, stale func() bool) bool {
 	return ctx == nil || ctx.Err() != nil || stale == nil || stale()

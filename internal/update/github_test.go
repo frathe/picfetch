@@ -140,8 +140,8 @@ func TestDecodeGitHubJSON(t *testing.T) {
 		reader := strings.NewReader(body)
 		var got map[string]string
 		err := decodeGitHubJSON(reader, 8, &got)
-		if !errors.Is(err, errGitHubResponseTooLarge) {
-			t.Fatalf("error = %v, want errors.Is(_, errGitHubResponseTooLarge)", err)
+		if !errors.Is(err, ErrGitHubResponseTooLarge) {
+			t.Fatalf("error = %v, want errors.Is(_, ErrGitHubResponseTooLarge)", err)
 		}
 		if consumed := len(body) - reader.Len(); consumed != 9 {
 			t.Errorf("source bytes consumed = %d, want limit plus one (9)", consumed)
@@ -151,7 +151,7 @@ func TestDecodeGitHubJSON(t *testing.T) {
 	t.Run("read failure", func(t *testing.T) {
 		var got map[string]string
 		err := decodeGitHubJSON(io.MultiReader(strings.NewReader(`{"key":`), errorReader{}), 16, &got)
-		if err == nil || errors.Is(err, errGitHubResponseTooLarge) {
+		if err == nil || errors.Is(err, ErrGitHubResponseTooLarge) {
 			t.Fatalf("error = %v, want source read error", err)
 		}
 	})
