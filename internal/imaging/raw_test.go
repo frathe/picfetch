@@ -141,6 +141,74 @@ func TestLoadImage_CR3EmbeddedJPEG(t *testing.T) {
 	}
 }
 
+func TestJPEGLengthHonorsWorkBudget(t *testing.T) {
+	preview := encodeJPEG(t, 24, 16, color.White)
+	withFill := append([]byte{0xFF, 0xD8}, bytes.Repeat([]byte{0xFF}, 16)...)
+	withFill = append(withFill, preview[2:]...)
+	for name, data := range map[string][]byte{"plain": preview, "marker fill": withFill} {
+		t.Run(name, func(t *testing.T) {
+			remaining := 0
+			if got := jpegLengthAt(data, 0, &remaining); got != 0 {
+				t.Fatalf("empty budget: length = %d, want refusal", got)
+			}
+			remaining = len(data)
+			if got := jpegLengthAt(data, 0, &remaining); got != len(data) {
+				t.Fatalf("length = %d, want %d", got, len(data))
+			}
+			used := len(data) - remaining
+			for _, budget := range []int{0, 1, used - 1} {
+				remaining = budget
+				if got := jpegLengthAt(data, 0, &remaining); got != 0 {
+					t.Errorf("budget %d: length = %d, want refusal", budget, got)
+				}
+				if remaining != 0 {
+					t.Errorf("budget %d: remaining = %d, want 0", budget, remaining)
+				}
+			}
+			remaining = used
+			if got := jpegLengthAt(data, 0, &remaining); got != len(data) || remaining != 0 {
+				t.Errorf("exact budget: length = %d, remaining = %d", got, remaining)
+			}
+			if got := jpegLengthAt(data, 0, &remaining); got != 0 {
+				t.Errorf("reused exhausted budget: length = %d, want refusal", got)
+			}
+		})
+	}
+}
+
+func TestScanJPEGsMultiplePreviews(t *testing.T) {
+	small := encodeJPEG(t, 8, 8, color.White)
+	large := encodeJPEG(t, 40, 20, color.Black)
+	previews := append(append([]byte(nil), small...), large...)
+	for name, data := range map[string][]byte{
+		"CR3":           cr3WithJPEG(previews),
+		"RAF":           rafWithJPEG(previews),
+		"TIFF fallback": append([]byte{'I', 'I', 42, 0, 0, 0, 0, 0}, previews...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			found := scanJPEGs(data)
+			if len(found) != 2 || !bytes.Equal(found[0], small) || !bytes.Equal(found[1], large) {
+				t.Fatal("scan did not preserve both complete previews in source order")
+			}
+			if got, ok := embeddedJPEGPreview(data); !ok || !bytes.Equal(got, large) {
+				t.Fatal("did not select the larger preview")
+			}
+		})
+	}
+}
+
+func TestScanJPEGsRejectsUnclosedCandidates(t *testing.T) {
+	data := make([]byte, 8, 256*1024)
+	copy(data[4:], "ftyp")
+	for len(data)+4 <= cap(data) {
+		data = append(data, 0xFF, 0xD8, 0xFF, 0xDA)
+	}
+
+	if got := scanJPEGs(data); len(got) != 0 {
+		t.Fatalf("found %d previews, want none", len(got))
+	}
+}
+
 func TestLoadImage_RAFEmbeddedJPEG(t *testing.T) {
 	jpegBytes := encodeJPEG(t, 18, 12, color.White)
 	path := writeTempFile(t, "photo.raf", rafWithJPEG(jpegBytes))
