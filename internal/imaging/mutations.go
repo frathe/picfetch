@@ -143,13 +143,13 @@ func resolvedWritePath(path string, create bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Export confirms a destination name, not the target of a leaf symlink.
+	// Save and Export confirm a destination name, not a leaf symlink target.
 	// Keep the leaf unresolved so a link introduced after this check is
 	// replaced by the atomic rename instead of redirecting the write.
 	resolved := filepath.Join(dir, filepath.Base(abs))
 	if info, err := os.Lstat(resolved); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
-			return "", &os.PathError{Op: "export", Path: abs, Err: errors.New("destination is a symbolic link")}
+			return "", &os.PathError{Op: "write", Path: abs, Err: errors.New("destination is a symbolic link")}
 		}
 	} else if !os.IsNotExist(err) {
 		return "", err

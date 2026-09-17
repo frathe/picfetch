@@ -152,7 +152,7 @@ func TestFileMutationResultsDistinguishCommitFromNoopAndFailure(t *testing.T) {
 	}
 }
 
-func TestExportPreservesSymlinkParentsAndRejectsSymlinkLeaves(t *testing.T) {
+func TestFileWritesPreserveSymlinkParentsAndRejectSymlinkLeaves(t *testing.T) {
 	actual := t.TempDir()
 	alias := filepath.Join(t.TempDir(), "alias")
 	if err := os.Symlink(actual, alias); err != nil {
@@ -183,7 +183,11 @@ func TestExportPreservesSymlinkParentsAndRejectsSymlinkLeaves(t *testing.T) {
 			if err := os.Symlink(target, link); err != nil {
 				t.Fatal(err)
 			}
-			result, err := ExportContext(context.Background(), storage.NewFileURI(link), pixels, nil, ExportOptions{})
+			result, err := SaveRotatedContext(context.Background(), storage.NewFileURI(link), pixels)
+			if err == nil || result.Committed {
+				t.Errorf("symlink leaf save = %+v, %v", result, err)
+			}
+			result, err = ExportContext(context.Background(), storage.NewFileURI(link), pixels, nil, ExportOptions{})
 			if err == nil || result.Committed {
 				t.Errorf("symlink leaf export = %+v, %v", result, err)
 			}
@@ -359,13 +363,13 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 				if alias == "symlink" {
 					link := filepath.Join(t.TempDir(), "alias.jpg")
 					target := source.Path()
-					if next == "export" {
+					if next != "strip" {
 						target = filepath.Dir(target)
 					}
 					if err := os.Symlink(target, link); err != nil {
 						t.Fatal(err)
 					}
-					if next == "export" {
+					if next != "strip" {
 						link = filepath.Join(link, filepath.Base(source.Path()))
 					}
 					destination = storage.NewFileURI(link)
@@ -423,7 +427,7 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 					}
 					if alias == "symlink" {
 						link := destination.Path()
-						if next == "export" {
+						if next != "strip" {
 							link = filepath.Dir(link)
 						}
 						info, err := os.Lstat(link)
