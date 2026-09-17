@@ -10,9 +10,7 @@
 
 These items are still open. Ronin owns acceptance and release decisions; technical
 preparation can be delegated. For each completed item, record the tested version,
-platform, result and any accepted limits before ticking its box. PR acceptance
-follows the required reviews and CI on the latest commit; those agent tasks remain
-in [todos.md](todos.md). This list records existing work, not new verification results.
+platform, result and any accepted limits before ticking its box.
 
 ## Details
 
