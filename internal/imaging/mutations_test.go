@@ -258,7 +258,7 @@ func TestFileTransactionClaimsAreReleasedAfterSuccessFailureAndCancellation(t *t
 	release()
 	for _, fail := range []bool{false, true} {
 		for range 100 {
-			_, _ = transactions.write(context.Background(), path, true, func(_ string) (bool, error) {
+			_, _ = transactions.write(context.Background(), path, true, false, func(_ string) (bool, error) {
 				if fail {
 					return false, errors.New("write failed")
 				}
@@ -412,7 +412,7 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 						t.Fatal(err)
 					}
 					want := image.Pt(13, 17)
-					if next == "strip" {
+					if next == "strip" || (alias == "symlink" && next == "save") {
 						want = image.Pt(20, 40)
 					}
 					if image.Pt(cfg.Width, cfg.Height) != want {
@@ -430,8 +430,20 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						if info.Mode()&os.ModeSymlink == 0 {
+						if next == "save" && !info.Mode().IsRegular() {
+							t.Error("saving through the alias did not replace the symlink")
+						} else if next != "save" && info.Mode()&os.ModeSymlink == 0 {
 							t.Error("writing through the confirmed alias replaced the link")
+						}
+						if next == "save" {
+							data, err := os.ReadFile(link)
+							if err != nil {
+								t.Fatal(err)
+							}
+							cfg, err := jpeg.DecodeConfig(bytes.NewReader(data))
+							if err != nil || image.Pt(cfg.Width, cfg.Height) != image.Pt(13, 17) {
+								t.Errorf("replacement dimensions = %dx%d, want 13x17: %v", cfg.Width, cfg.Height, err)
+							}
 						}
 					}
 				})

@@ -113,11 +113,11 @@ func sameWriteTarget(a, b string) bool {
 	return aErr == nil && bErr == nil && os.SameFile(aDir, bDir)
 }
 
-func (p *pathTransactions) write(ctx context.Context, path string, create bool, write func(string) (bool, error)) (WriteResult, error) {
+func (p *pathTransactions) write(ctx context.Context, path string, create, rejectSymlink bool, write func(string) (bool, error)) (WriteResult, error) {
 	if err := ctx.Err(); err != nil {
 		return WriteResult{}, err
 	}
-	resolved, err := resolvedWritePath(path, create)
+	resolved, err := resolvedWritePath(path, create, rejectSymlink)
 	if err != nil {
 		return WriteResult{}, err
 	}
@@ -131,7 +131,7 @@ func (p *pathTransactions) write(ctx context.Context, path string, create bool, 
 	return result, err
 }
 
-func resolvedWritePath(path string, create bool) (string, error) {
+func resolvedWritePath(path string, create, rejectSymlink bool) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
@@ -143,16 +143,17 @@ func resolvedWritePath(path string, create bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Export confirms a destination name, not the target of a leaf symlink.
 	// Keep the leaf unresolved so a link introduced after this check is
 	// replaced by the atomic rename instead of redirecting the write.
 	resolved := filepath.Join(dir, filepath.Base(abs))
-	if info, err := os.Lstat(resolved); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return "", &os.PathError{Op: "export", Path: abs, Err: errors.New("destination is a symbolic link")}
+	if rejectSymlink {
+		if info, err := os.Lstat(resolved); err == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				return "", &os.PathError{Op: "export", Path: abs, Err: errors.New("destination is a symbolic link")}
+			}
+		} else if !os.IsNotExist(err) {
+			return "", err
 		}
-	} else if !os.IsNotExist(err) {
-		return "", err
 	}
 	return resolved, nil
 }

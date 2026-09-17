@@ -186,20 +186,28 @@ func TestSaveRotated(t *testing.T) {
 		}
 	})
 
-	t.Run("updates a symlink target without replacing the link", func(t *testing.T) {
+	t.Run("replaces a symlink without changing its target", func(t *testing.T) {
 		dir := t.TempDir()
 		target := filepath.Join(dir, "target.png")
-		if err := os.WriteFile(target, []byte("placeholder"), 0o600); err != nil {
+		original := []byte("placeholder")
+		if err := os.WriteFile(target, original, 0o600); err != nil {
 			t.Fatalf("write target: %v", err)
 		}
-		link := filepath.Join(dir, "photo.webp")
+		link := filepath.Join(dir, "photo.png")
 		if err := os.Symlink(target, link); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
 
 		u := storage.NewFileURI(link)
 		if !CanEncode(u) {
-			t.Fatal("CanEncode returned false for a link to an encodable PNG target")
+			t.Fatal("CanEncode returned false for an encodable link name")
+		}
+		unsupportedLink := filepath.Join(dir, "photo.webp")
+		if err := os.Symlink(target, unsupportedLink); err != nil {
+			t.Fatal(err)
+		}
+		if CanEncode(storage.NewFileURI(unsupportedLink)) {
+			t.Fatal("CanEncode followed an unsupported link name to an encodable target")
 		}
 		if err := SaveRotated(u, markedImage(3, 2)); err != nil {
 			t.Fatalf("SaveRotated: %v", err)
@@ -209,16 +217,19 @@ func TestSaveRotated(t *testing.T) {
 		if err != nil {
 			t.Fatalf("lstat link: %v", err)
 		}
-		if info.Mode()&os.ModeSymlink == 0 {
-			t.Error("SaveRotated replaced the symlink instead of updating its target")
+		if !info.Mode().IsRegular() {
+			t.Error("SaveRotated followed the symlink instead of replacing it")
 		}
 
-		loaded, err := LoadImage(storage.NewFileURI(target), DefaultImgCacheBytes)
+		loaded, err := LoadImage(u, DefaultImgCacheBytes)
 		if err != nil {
-			t.Fatalf("load saved target: %v", err)
+			t.Fatalf("load saved file: %v", err)
 		}
 		if got := loaded.Frames[0].Bounds(); got.Dx() != 3 || got.Dy() != 2 {
-			t.Errorf("saved target bounds = %v, want 3x2", got)
+			t.Errorf("saved file bounds = %v, want 3x2", got)
+		}
+		if got, err := os.ReadFile(target); err != nil || !bytes.Equal(got, original) {
+			t.Errorf("SaveRotated changed the symlink target: %q, %v", got, err)
 		}
 	})
 
