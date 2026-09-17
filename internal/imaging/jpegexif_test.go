@@ -442,6 +442,42 @@ func buildExifWithThumbnailIFD(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
+func buildExifWithJPEGThumbnail(t *testing.T, thumbnail []byte) []byte {
+	t.Helper()
+
+	bo := binary.LittleEndian
+	u16 := func(v uint16) []byte { b := make([]byte, 2); bo.PutUint16(b, v); return b }
+	u32 := func(v uint32) []byte { b := make([]byte, 4); bo.PutUint32(b, v); return b }
+
+	const ifd0Offset = 8
+	const ifd0Size = 2 + 4
+	const ifd1Offset = ifd0Offset + ifd0Size
+	const ifd1Size = 2 + 2*12 + 4
+	const thumbnailOffset = ifd1Offset + ifd1Size
+
+	buf := new(bytes.Buffer)
+	buf.WriteString("Exif\x00\x00")
+	buf.WriteString("II")
+	buf.Write(u16(0x002A))
+	buf.Write(u32(ifd0Offset))
+	buf.Write(u16(0))
+	buf.Write(u32(ifd1Offset))
+
+	buf.Write(u16(2))
+	buf.Write(u16(0x0201)) // JPEGInterchangeFormat
+	buf.Write(u16(4))      // LONG
+	buf.Write(u32(1))
+	buf.Write(u32(thumbnailOffset))
+	buf.Write(u16(0x0202)) // JPEGInterchangeFormatLength
+	buf.Write(u16(4))      // LONG
+	buf.Write(u32(1))
+	buf.Write(u32(uint32(len(thumbnail))))
+	buf.Write(u32(0))
+	buf.Write(thumbnail)
+
+	return buf.Bytes()
+}
+
 func TestNormalizeSavedExif(t *testing.T) {
 	t.Run("sets orientation 6 to 1 and leaves the rest of the payload intact", func(t *testing.T) {
 		app1 := wrapAsAPP1(buildExifSegment(t, 6, false))
@@ -482,6 +518,26 @@ func TestNormalizeSavedExif(t *testing.T) {
 		}
 		if parseExifOrientation(got[4:]) != 1 {
 			t.Errorf("orientation = %d, want 1", parseExifOrientation(got[4:]))
+		}
+	})
+
+	t.Run("erases the unlinked JPEG thumbnail bytes", func(t *testing.T) {
+		var thumbnailBuffer bytes.Buffer
+		if err := jpeg.Encode(&thumbnailBuffer, markedImage(3, 2), &jpeg.Options{Quality: 90}); err != nil {
+			t.Fatal(err)
+		}
+		thumbnail := thumbnailBuffer.Bytes()
+		app1 := wrapAsAPP1(buildExifWithJPEGThumbnail(t, thumbnail))
+		if !bytes.Contains(app1, thumbnail) {
+			t.Fatal("fixture: thumbnail bytes are absent")
+		}
+
+		got := normalizeSavedExif(app1, image.Point{})
+		if bytes.Contains(got, thumbnail) {
+			t.Fatal("unlinked thumbnail remains recoverable in the Exif segment")
+		}
+		if !bytes.Contains(app1, thumbnail) {
+			t.Fatal("normalizeSavedExif mutated the input segment")
 		}
 	})
 
