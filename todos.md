@@ -2,6 +2,16 @@
 
 ## Open
 
+### EXIF thumbnail review and acceptance
+
+PR #36 erases validated EXIF JPEG thumbnail payloads on save/export while
+preserving unrelated metadata. Implementation, focused race tests, GoLand
+inspections and platform CI pass. Complete the fresh Codex review round after
+the last disposition, then await human acceptance before archiving this plan.
+Final commit-bound review/check evidence is maintained on
+[PR #36](https://github.com/frathe/picfetch/pull/36);
+[active review record](plans/2026-09-17-pr36-review.md).
+
 ### Windows signing qualification
 
 Configure the reviewed `SIMPLYSIGN_INSTALLER_SHA256` and

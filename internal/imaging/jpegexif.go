@@ -243,8 +243,8 @@ const interopIFDPointer = 0xA005
 
 // normalizeSavedExif returns a copy of app1 (a full FF E1 Exif segment)
 // with IFD0 Orientation (tag 0x0112) set to 1 when that tag is present
-// as a SHORT, and with IFD0's next-IFD pointer zeroed so a thumbnail
-// IFD1 is no longer linked. corrected is the size of the frame being
+// as a SHORT, and with an IFD1 JPEG thumbnail erased before IFD1 is
+// unlinked. corrected is the size of the frame being
 // written when that frame no longer matches what the source's dimension
 // tags describe, and the zero value when it still does - a written frame is
 // never 0x0, so nothing else has to be passed to say "leave them alone". If
@@ -262,15 +262,15 @@ func normalizeSavedExif(app1 []byte, corrected image.Point) []byte {
 }
 
 // patchSavedTIFF rewrites tiff (an Exif APP1 payload's TIFF portion, i.e.
-// app1[10:]) in place: it forces IFD0's Orientation entry to 1, zeroes
-// IFD0's next-IFD pointer so a thumbnail IFD1 is unlinked, and - when
+// app1[10:]) in place: it forces IFD0's Orientation entry to 1, erases a
+// JPEG thumbnail referenced by IFD1, unlinks IFD1, and - when
 // corrected is not the zero value - rewrites the dimension tags across
 // IFD0, the Exif SubIFD and the Interoperability IFD to that size,
 // removing the ones it cannot rewrite honestly along with the two
-// coordinate tags no size can repair. It does not follow the next-IFD
-// pointer or compact the freed bytes. Every offset is bounds checked
-// against len(tiff); any failure to locate IFD0 leaves tiff unchanged
-// rather than panicking.
+// coordinate tags no size can repair. It follows only the first next-IFD
+// pointer for thumbnail erasure and does not compact the freed bytes. Every
+// offset is bounds checked against len(tiff); any failure to locate IFD0
+// leaves tiff unchanged rather than panicking.
 func patchSavedTIFF(tiff []byte, corrected image.Point) {
 	bo, ok := tiffOrder(tiff)
 	if !ok {
@@ -306,7 +306,68 @@ func patchSavedTIFF(tiff []byte, corrected image.Point) {
 		}
 	}
 
+	ifd1Offset := uint64(bo.Uint32(tiff[nextIFDOffset : nextIFDOffset+4]))
+	eraseIFD1JPEGThumbnail(tiff, bo, ifd1Offset)
 	bo.PutUint32(tiff[nextIFDOffset:nextIFDOffset+4], 0)
+}
+
+// eraseIFD1JPEGThumbnail clears the encoded thumbnail payload identified by
+// JPEGInterchangeFormat and JPEGInterchangeFormatLength. Unlinking IFD1 alone
+// is insufficient because recovery tools can carve the otherwise intact JPEG
+// directly from the copied APP1 bytes.
+// Malformed descriptors are left alone: an in-bounds span is not sufficient
+// evidence that it holds thumbnail bytes rather than retained metadata.
+func eraseIFD1JPEGThumbnail(tiff []byte, bo binary.ByteOrder, ifd1Offset uint64) {
+	if ifd1Offset == 0 {
+		return
+	}
+
+	entries, _, ok := ifdEntryOffsets(tiff, bo, ifd1Offset)
+	if !ok {
+		return
+	}
+
+	var thumbnailOffset, thumbnailLength uint64
+	var hasOffset, hasLength bool
+	for _, entryOffset := range entries {
+		tag := bo.Uint16(tiff[entryOffset : entryOffset+2])
+		if tag != 0x0201 && tag != 0x0202 {
+			continue
+		}
+		if bo.Uint16(tiff[entryOffset+2:entryOffset+4]) != 4 ||
+			bo.Uint32(tiff[entryOffset+4:entryOffset+8]) != 1 {
+			return
+		}
+		value := uint64(bo.Uint32(tiff[entryOffset+8 : entryOffset+12]))
+		if tag == 0x0201 {
+			if hasOffset {
+				return
+			}
+			thumbnailOffset = value
+			hasOffset = true
+		} else {
+			if hasLength {
+				return
+			}
+			thumbnailLength = value
+			hasLength = true
+		}
+	}
+
+	if !hasOffset || !hasLength || thumbnailOffset < 8 || thumbnailLength == 0 || thumbnailOffset > uint64(len(tiff)) ||
+		thumbnailLength > uint64(len(tiff))-thumbnailOffset {
+		return
+	}
+	thumbnail := tiff[thumbnailOffset : thumbnailOffset+thumbnailLength]
+	if jpegLength(thumbnail) != len(thumbnail) {
+		return
+	}
+	// Marker closure alone also accepts an empty SOI/EOI pair. Require a
+	// readable frame header without decoding or allocating thumbnail pixels.
+	if _, err := jpeg.DecodeConfig(bytes.NewReader(thumbnail)); err != nil {
+		return
+	}
+	clear(thumbnail)
 }
 
 // correctSavedDimensions rewrites every dimension tag across IFD0, the Exif
