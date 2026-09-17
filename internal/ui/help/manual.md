@@ -248,13 +248,16 @@ nothing left to remove from a file that cannot be processed safely.
   input/display profiles with XYZ color space. Other encodings, color models,
   unfamiliar profile fields, and uncertain or malformed data are refused. The
   original file stays untouched on refusal or cancellation before replacement.
+  A separate memory limit can refuse large JPEGs even when the viewer opens them.
 - Sideways photos (Exif orientation 2-8) are corrected with one JPEG quality-95
   re-encode. This can change pixels slightly; the retained profile still matches
   the output color model. View-only rotation (`R`) is not written; use
   **File -> Save Changes** first if that rotation should land on disk.
 - Removal applies only to this file. It does not anonymize visible image content
-  or hidden information encoded in pixels, and does not erase sidecars, file
-  attributes, backups, caches or other copies. It cannot be undone through Trash.
+  or hidden information encoded in pixels, and does not erase sidecars, backups,
+  caches or other copies. Filesystem attributes and timestamps may change during
+  replacement; neither their preservation nor their removal is guaranteed.
+  This action cannot be undone through Trash.
 - RAW, PNG and WebP do not offer this action.
 
 Below the tag list, a photo that carries GPS coordinates gets a collapsible

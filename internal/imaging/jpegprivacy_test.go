@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"image"
 	"image/color"
 	"image/jpeg"
 	"os"
@@ -208,6 +209,25 @@ func TestJPEGMetadataRemovalFidelity(t *testing.T) {
 
 func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 	plain := uitest.EncodeJPEG(t, 16, 12, color.White)
+	t.Run("inspection has a separate working-memory limit", func(t *testing.T) {
+		// A real, ordinary JPEG with constant pixels needs little encoded
+		// storage; the test generator does not allocate its full pixel plane.
+		var encoded bytes.Buffer
+		large := removalUniformImage{Uniform: image.NewUniform(color.White), bounds: image.Rect(0, 0, 10000, 5000)}
+		if err := jpeg.Encode(&encoded, large, nil); err != nil {
+			t.Fatal(err)
+		}
+		ctx := &jpegDecodeObserveContext{Context: context.Background()}
+		inspection := InspectJPEGMetadata(ctx, encoded.Bytes())
+		if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataMemory) || ctx.decoded {
+			t.Fatalf("memory admission = %+v, full decode started=%v", inspection, ctx.decoded)
+		}
+		path := writeTempFile(t, "large-photo.jpg", encoded.Bytes())
+		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
+		if !errors.Is(err, ErrJPEGMetadataMemory) || result.Committed || ctx.decoded || !bytes.Equal(encoded.Bytes(), mustRead(t, path)) {
+			t.Fatalf("memory refusal = %+v, %v, full decode started=%v", result, err, ctx.decoded)
+		}
+	})
 	t.Run("conflicting Adobe and RGB component declarations", func(t *testing.T) {
 		components := bytes.Clone(plain)
 		frame := bytes.Index(components, []byte{0xff, 0xc0})
@@ -256,6 +276,7 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 	})
 	for name, data := range map[string][]byte{
 		"conflicting color declarations": mustInjectRemoval(t, plain, jfif, adobe),
+		"unsupported SPIFF declaration":  mustInjectRemoval(t, plain, jpegSegmentBytes(0xe8, []byte("SPIFF\x00"))),
 		"missing end":                    plain[:len(plain)-2],
 		"incomplete image":               {0xff, 0xd8, 0xff, 0xd9},
 		"invalid profile":                mustInjectRemoval(t, plain, jpegSegmentBytes(0xe2, []byte("ICC_PROFILE\x00\x01\x01fixture"))),
@@ -316,6 +337,34 @@ type jpegEncodeCancelContext struct {
 	context.Context
 	cancel   context.CancelFunc
 	observed bool
+}
+
+type removalUniformImage struct {
+	*image.Uniform
+	bounds image.Rectangle
+}
+
+func (i removalUniformImage) Bounds() image.Rectangle { return i.bounds }
+
+type jpegDecodeObserveContext struct {
+	context.Context
+	decoded bool
+}
+
+func (c *jpegDecodeObserveContext) Err() error {
+	var callers [32]uintptr
+	frames := runtime.CallersFrames(callers[:runtime.Callers(2, callers[:])])
+	for {
+		frame, more := frames.Next()
+		if frame.Function == "image/jpeg.Decode" {
+			c.decoded = true
+			break
+		}
+		if !more {
+			break
+		}
+	}
+	return c.Context.Err()
 }
 
 func (c *jpegEncodeCancelContext) Err() error {

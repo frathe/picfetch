@@ -504,6 +504,7 @@
    "Configured limits exceeded.": "Konfigurierte Limits überschritten.",
    "Metadata removal: nothing to remove.": "Metadaten entfernen: nichts zu entfernen.",
    "Metadata removal is unavailable: this JPEG is incomplete or invalid.": "Metadaten können nicht entfernt werden: Dieses JPEG ist unvollständig oder ungültig.",
+   "Metadata removal is unavailable: this JPEG exceeds the memory limit.": "Metadaten können nicht entfernt werden: Dieses JPEG überschreitet das Speicherlimit.",
    "Metadata removal is unavailable for this color profile.": "Für dieses Farbprofil können Metadaten nicht sicher entfernt werden.",
    "Metadata removal is unavailable because orientation could not be verified.": "Metadaten können nicht entfernt werden, weil die Bildausrichtung nicht eindeutig ist.",
    "Metadata removal is unavailable for this image's encoding or color model.": "Für diese Bildkodierung oder dieses Farbmodell können Metadaten nicht sicher entfernt werden.",

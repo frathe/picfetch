@@ -129,6 +129,8 @@ func (w *Window) setRemovalStatus(text string) {
 
 func removalErrorText(err error) string {
 	switch {
+	case errors.Is(err, imaging.ErrJPEGMetadataMemory):
+		return lang.L("Metadata removal is unavailable: this JPEG exceeds the memory limit.")
 	case errors.Is(err, imaging.ErrJPEGMetadataStructure):
 		return lang.L("Metadata removal is unavailable: this JPEG is incomplete or invalid.")
 	case errors.Is(err, imaging.ErrJPEGMetadataProfile):

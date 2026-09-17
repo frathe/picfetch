@@ -270,13 +270,17 @@ entfernen“ von einer Datei, die nicht sicher verarbeitet werden kann.
   unterstützt. Andere Kodierungen, Farbmodelle, unbekannte Profilfelder sowie
   unklare oder fehlerhafte Daten werden abgelehnt. Bei Ablehnung oder Abbruch vor
   dem Ersetzen bleibt die Originaldatei unverändert.
+  Eine eigene Speichergrenze kann große JPEGs ablehnen, auch wenn die Bildansicht
+  sie öffnen kann.
 - Seitliche Fotos (Exif-Orientierung 2-8) werden einmal mit JPEG-Qualität 95
   neu kodiert. Dabei können sich Pixel leicht ändern; das erhaltene Profil passt
   weiterhin zum Farbmodell. Nur-Ansicht-Drehung (`R`) wird nicht geschrieben;
   verwenden Sie dafür zuerst **Datei -> Änderungen speichern**.
 - Die Entfernung betrifft nur diese Datei. Sie anonymisiert keine sichtbaren
   Bildinhalte oder in Pixeln versteckten Informationen und löscht keine
-  Begleitdateien, Dateiattribute, Backups, Caches oder andere Kopien.
+  Begleitdateien, Backups, Caches oder andere Kopien. Dateiattribute und Zeitstempel
+  können sich beim Ersetzen ändern; weder ihr Erhalt noch ihre Entfernung wird
+  garantiert.
   Sie kann nicht über den Papierkorb rückgängig gemacht werden.
 - Bei RAW, PNG und WebP fehlt diese Aktion.
 

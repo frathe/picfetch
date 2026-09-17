@@ -35,6 +35,7 @@ var (
 	ErrJPEGMetadataProcess     = errors.New("JPEG process or color interpretation is not qualified for metadata removal")
 	ErrJPEGMetadataProfile     = errors.New("ICC profile is not qualified for metadata removal")
 	ErrJPEGMetadataOrientation = errors.New("JPEG orientation is ambiguous or invalid")
+	ErrJPEGMetadataMemory      = errors.New("JPEG metadata removal exceeds its working-memory limit")
 )
 
 // InspectJPEGMetadata uses the same cancellable policy as the mutation operation.
@@ -57,6 +58,7 @@ type jpegRemoval struct {
 	orientation int
 	components  int
 	pixels      image.Image
+	encodeLimit int64
 }
 
 // prepareJPEGRemoval deliberately does not change the tolerant header reader used
@@ -72,6 +74,11 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 	if int64(len(data)) > MaxEncodedBytes() {
 		return p, &InputTooLargeError{limit: MaxEncodedBytes()}
 	}
+	memory, err := jpegRemovalAdmission(ctx, data)
+	if err != nil {
+		return p, err
+	}
+	p.encodeLimit = (jpegRemovalWorkingBytes - memory.oriented) / 4
 	p.output = []byte{0xff, 0xd8}
 	var frame, scan, jfif, adobe, exif bool
 	adobeTransform := byte(0xff)
@@ -96,6 +103,9 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 		if marker == 0xd9 {
 			if !frame || !scan || !policy.complete() {
 				return p, ErrJPEGMetadataStructure
+			}
+			if p.orientation != 1 && p.encodeLimit <= 0 {
+				return p, ErrJPEGMetadataMemory
 			}
 			if adobe && ((jfif && adobeTransform != 1) || (p.components == 1 && adobeTransform != 0)) {
 				return p, ErrJPEGMetadataProcess
@@ -201,6 +211,8 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 				return p, err
 			}
 			continue
+		case marker == 0xe8 && bytes.HasPrefix(payload, []byte("SPIFF\x00")):
+			return p, ErrJPEGMetadataProcess
 		case marker == 0xfe || marker >= 0xe0 && marker <= 0xef:
 			continue
 		default:
@@ -322,6 +334,8 @@ func orientJPEGRemoval(ctx context.Context, source image.Image, orientation, com
 			if gray != nil {
 				gray.Pix[dy*gray.Stride+dx] = uint8(pixel.R >> 8)
 			} else {
+				// Exactly one destination is allocated: gray == nil implies rgba != nil.
+				//goland:noinspection GoMaybeNil
 				rgba.SetRGBA64(dx, dy, pixel)
 			}
 		}
@@ -331,19 +345,27 @@ func orientJPEGRemoval(ctx context.Context, source image.Image, orientation, com
 
 type jpegRemovalEncodeCanceled struct{ err error }
 
-type jpegRemovalEncodeWriter struct{ contextWrite }
+type jpegRemovalEncodeWriter struct {
+	contextWrite
+	limit   int64
+	written int64
+}
 
-func (w jpegRemovalEncodeWriter) Write(p []byte) (int, error) {
+func (w *jpegRemovalEncodeWriter) Write(p []byte) (int, error) {
+	if int64(len(p)) > w.limit-w.written {
+		panic(jpegRemovalEncodeCanceled{err: ErrJPEGMetadataMemory})
+	}
 	n, err := w.contextWrite.Write(p)
 	if err != nil {
 		// image/jpeg records writer errors but finishes all pixel blocks. This
 		// private signal exits those loops at the next buffered output write.
 		panic(jpegRemovalEncodeCanceled{err: err})
 	}
+	w.written += int64(n)
 	return n, nil
 }
 
-func encodeJPEGRemoval(ctx context.Context, pixels image.Image, original []byte) (output []byte, err error) {
+func encodeJPEGRemoval(ctx context.Context, pixels image.Image, original []byte, limit int64) (output []byte, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			if cancelled, ok := recovered.(jpegRemovalEncodeCanceled); ok {
@@ -354,7 +376,7 @@ func encodeJPEGRemoval(ctx context.Context, pixels image.Image, original []byte)
 		}
 	}()
 	var encoded bytes.Buffer
-	writer := jpegRemovalEncodeWriter{contextWrite{ctx: ctx, out: &encoded}}
+	writer := &jpegRemovalEncodeWriter{contextWrite: contextWrite{ctx: ctx, out: &encoded}, limit: limit}
 	if err := jpeg.Encode(writer, pixels, &jpeg.Options{Quality: jpegSaveQuality}); err != nil {
 		return nil, err
 	}

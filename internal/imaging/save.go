@@ -417,7 +417,7 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	encodedData, err := encodeJPEGRemoval(ctx, pixels, p.output)
+	encodedData, err := encodeJPEGRemoval(ctx, pixels, p.output, p.encodeLimit)
 	if err != nil {
 		return false, err
 	}
@@ -452,12 +452,26 @@ func readJPEGRemovalSource(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	limit := MaxEncodedBytes()
+	configuredLimit := MaxEncodedBytes()
+	limit := min(configuredLimit, jpegRemovalSourceBytes)
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > configuredLimit {
+		return nil, &InputTooLargeError{limit: configuredLimit}
+	}
+	if info.Size() > jpegRemovalSourceBytes {
+		return nil, ErrJPEGMetadataMemory
+	}
 	data, err := io.ReadAll(contextRead{ctx: ctx, in: io.LimitReader(f, limit+1)})
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(data)) > limit {
+		if limit < configuredLimit {
+			return nil, ErrJPEGMetadataMemory
+		}
 		return nil, &InputTooLargeError{limit: limit}
 	}
 	return data, nil

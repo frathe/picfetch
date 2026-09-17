@@ -184,3 +184,36 @@ Follow-up review findings through `e5ebc50`:
   both pushed heads with CAPI HTTP 400, "The requested model is not supported."
   This is distinct from the passing CodeQL jobs and the Codex security review;
   its unavailable result must remain explicit in final PR evidence.
+- `f9ce1d7` Qodana confirmed the original two findings are gone and reported only
+  `GoMaybeNil` on the orientation RGBA destination. This is a false positive:
+  allocation initializes exactly one of the gray/RGBA pointers, and the gray
+  branch handles its non-nil case. Added an explained statement-local suppression;
+  existing gray/RGB orientation and cancellation regressions retain the behavior.
+
+Follow-up review findings on `f9ce1d7`:
+
+- SPIFF APP8 is unsupported interpretation data. A public refusal regression
+  observed the previous committed rewrite, then passed after explicit refusal.
+- Preserved full-decode integrity validation and added a 256 MiB removal-specific
+  working-memory budget. Header-only admission precedes encoded copies and full
+  decoding, using bounded int64 arithmetic and MCU/component sampling to include
+  progressive coefficient arrays. Rotation and re-encoded output have separate
+  reservations within that budget; source reads honor its 60 MiB encoded cap.
+  A valid generated 50-megapixel JPEG observed the old full decode/clean result;
+  the public regression now proves resource refusal before `jpeg.Decode`, no
+  commit and unchanged source. The constant-color generator allocates no source
+  pixel plane. Existing supported JPEG/profile/orientation fixtures still pass.
+- Sampling accounting uses maxima across all components and reserves full planes
+  for Go 1.27's flexible sampling path and possible RGB conversion. Output decode
+  padding is independently rounded for the encoder's 4:2:0 layout. Final focused
+  imaging/window race regressions, vet, manual/translation guards, formatting and
+  warnings-inclusive GoLand inspections passed before the grouped fix commit.
+- Root independently supplied the localized memory-error mapping and real-window
+  confirmation regression: red with the generic message, green with the explicit
+  memory refusal, unchanged bytes and no success notification. Focused window
+  race tests, translation guards and GoLand passed for that slice.
+- Both manuals now say replacement may change filesystem attributes/timestamps;
+  neither preservation nor removal is guaranteed. Existing manual guards passed.
+- The Codex security review of `f9ce1d7` completed at 11:35:59 UTC without added
+  actionable findings. These follow-up changes still require a fresh code and
+  security review on the next pushed head, plus its CI and post-suppression SARIF.

@@ -11,10 +11,12 @@ removal; metadata-preserving Save Changes and export retain their separate polic
 | Scan boundaries | All supported scans are followed through structural EOI. APP/COM metadata is removed between scans as well as in the header. Missing boundaries and unsupported structures are refused. |
 | JFIF/JFXX | Validate JFIF 1.00-1.02 immediately after SOI, retain its 14-byte interpretation/density header with zero thumbnail dimensions; remove thumbnail bytes, extensions and unclaimed payload. |
 | Adobe | Validate version 100, zero flags and qualified gray/RGB transform. Retain only the 12-byte declaration; conflicts with JFIF or RGB component identifiers are refused. |
+| SPIFF | APP8 SPIFF declarations are refused because their base-image color interpretation is not qualified. |
 | ICC | v2/v4 input/display (`scnr`/`mntr`) RGB matrix/TRC and gray/TRC with XYZ PCS and D50 header illuminant. Required descriptions/copyright/white point and model-specific transform tags must exist. |
 | ICC transform tags | Exact XYZ columns, white/black points, `chad`, `chrm`, and monotonic `curv` or qualified gamma/sRGB `para` types 0/3. Other tags, LUT models, ambiguous assembly, partial overlaps, wrong models and malformed lengths are refused. Maximum assembled source profile: 4 MiB. |
 | ICC identity | Rebuild the tag table/data with zero padding; retain exact transform payloads. Replace description/copyright with neutral text, remove manufacturer/model descriptions and unclaimed bytes, normalize creation date, clear creator/manufacturer/model/platform/CMM/profile ID. Preserve qualified rendering intent and device attributes. |
 | Orientation | Identity/absent: primary encoded bytes and decoded samples remain identical. Orientations 2-8: apply the existing quality-95 re-encode, retain gray/RGB model and normalized profile, preserve JFIF density/pixel aspect with axes swapped for orientations 5-8, and validate the proposed result before replacement. |
+| Memory | A separate 256 MiB estimated working-memory budget reserves encoded copies, ICC scratch, padded component planes, progressive coefficient arrays, orientation and output validation. Header-only admission precedes copied JPEG data and full decoding; encoded sources are limited to 60 MiB or the configured file limit, whichever is lower. Re-encoded output is bounded by the remaining budget. Larger files may remain viewable while metadata removal is refused. |
 
 Unknown input is not presented as clean. Inspection and mutation share the policy;
 mutation reads the current file after transaction admission. Clean sources return
@@ -76,8 +78,11 @@ cover cancellation, navigation, close and retry. The wrapped confirmation was
 rendered and visually inspected at the ordinary 420-pixel panel width.
 
 This operation does not anonymize visible content, remove steganographic data in
-image coding/numerical color transforms, erase filesystem metadata or other copies,
-or qualify every JPEG/ICC extension. Structural qualification plus decoding is
+image coding/numerical color transforms, erase other copies, or qualify every
+JPEG/ICC extension. Atomic replacement may reset filesystem attributes or
+timestamps; neither their preservation nor their removal is guaranteed. The
+working-memory estimate bounds this operation's admitted work, not whole-process
+RSS or the independently retained foreground image cache. Structural qualification plus decoding is
 not a claim that a file contains no hidden information. Native Windows/macOS UI
 behavior is not established by Linux tests; final gate evidence belongs in the
 [implementation record](../plans/2026-09-17-jpeg-metadata-privacy.md).

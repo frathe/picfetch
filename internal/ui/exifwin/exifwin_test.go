@@ -852,6 +852,35 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 			})
 		}
 	})
+	t.Run("memory refusal is explained after confirmation", func(t *testing.T) {
+		app, host := gpsApp(t)
+		u, _ := host.DisplayedFile()
+		before := readWindowFile(t, u)
+		w := newTestWindow(t, app, host)
+		w.Show()
+		w.Settle()
+		defer w.Window().Close()
+		// Exercise error delivery through the existing per-window mutation
+		// boundary without making the UI test allocate a large image.
+		w.stripFile = func(_ context.Context, _ fyne.URI) (imaging.WriteResult, error) {
+			return imaging.WriteResult{}, imaging.ErrJPEGMetadataMemory
+		}
+		if _, found := absolutePos(w.Window().Content(), w.StripButton()); !found {
+			t.Fatal("removable source has no real action")
+		}
+		w.StripButton().OnTapped()
+		panel := w.Window().Canvas().Focused().(*widgets.ChoicePanel)
+		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		w.Settle()
+		want := lang.L("Metadata removal is unavailable: this JPEG exceeds the memory limit.")
+		if len(host.toasts) != 1 || !strings.Contains(host.toasts[0], want) {
+			t.Fatalf("memory refusal message = %v, want %q", host.toasts, want)
+		}
+		if host.after != 0 || !bytes.Equal(before, readWindowFile(t, u)) {
+			t.Fatal("memory refusal changed the source or notified a successful removal")
+		}
+	})
 	t.Run("source becomes clean before confirmation", func(t *testing.T) {
 		app := test.NewApp()
 		plain := uitest.EncodeJPEG(t, 8, 8, color.White)
