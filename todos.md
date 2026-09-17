@@ -66,6 +66,12 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 
 #### Internal
 
+- Pin the TUF-root workflow's checkout/setup-go actions to verified v7 commits,
+  disable checkout credential persistence, and configure GitHub CLI authentication
+  before pushing. Focused TUF tests and stubbed publication paths pass; the live
+  scheduled write path is not exercised by PR CI. Review dispositions and final
+  hosted checks are tracked in [PR #34](https://github.com/frathe/picfetch/pull/34).
+
 ## LATER
 
 ### Existing dependency distribution qualification
