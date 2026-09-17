@@ -442,10 +442,9 @@ func buildExifWithThumbnailIFD(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-func buildExifWithJPEGThumbnail(t *testing.T, thumbnail []byte) []byte {
+func buildExifWithJPEGThumbnail(t *testing.T, bo binary.ByteOrder, thumbnail []byte) []byte {
 	t.Helper()
 
-	bo := binary.LittleEndian
 	u16 := func(v uint16) []byte { b := make([]byte, 2); bo.PutUint16(b, v); return b }
 	u32 := func(v uint32) []byte { b := make([]byte, 4); bo.PutUint32(b, v); return b }
 
@@ -457,7 +456,11 @@ func buildExifWithJPEGThumbnail(t *testing.T, thumbnail []byte) []byte {
 
 	buf := new(bytes.Buffer)
 	buf.WriteString("Exif\x00\x00")
-	buf.WriteString("II")
+	if bo == binary.BigEndian {
+		buf.WriteString("MM")
+	} else {
+		buf.WriteString("II")
+	}
 	buf.Write(u16(0x002A))
 	buf.Write(u32(ifd0Offset))
 	buf.Write(u16(0))
@@ -521,25 +524,61 @@ func TestNormalizeSavedExif(t *testing.T) {
 		}
 	})
 
-	t.Run("erases the unlinked JPEG thumbnail bytes", func(t *testing.T) {
-		var thumbnailBuffer bytes.Buffer
-		if err := jpeg.Encode(&thumbnailBuffer, markedImage(3, 2), &jpeg.Options{Quality: 90}); err != nil {
-			t.Fatal(err)
-		}
-		thumbnail := thumbnailBuffer.Bytes()
-		app1 := wrapAsAPP1(buildExifWithJPEGThumbnail(t, thumbnail))
-		if !bytes.Contains(app1, thumbnail) {
-			t.Fatal("fixture: thumbnail bytes are absent")
-		}
+	for _, bo := range []binary.ByteOrder{binary.LittleEndian, binary.BigEndian} {
+		t.Run("JPEG thumbnail "+bo.String(), func(t *testing.T) {
+			var thumbnailBuffer bytes.Buffer
+			if err := jpeg.Encode(&thumbnailBuffer, markedImage(3, 2), &jpeg.Options{Quality: 90}); err != nil {
+				t.Fatal(err)
+			}
+			thumbnail := thumbnailBuffer.Bytes()
+			app1 := wrapAsAPP1(buildExifWithJPEGThumbnail(t, bo, thumbnail))
+			before := bytes.Clone(app1)
+			got := normalizeSavedExif(app1, image.Point{})
+			const thumbnailStart = 10 + 8 + 6 + 30
+			if !bytes.Equal(got[thumbnailStart:], make([]byte, len(thumbnail))) {
+				t.Fatal("thumbnail payload was not completely erased")
+			}
+			if !bytes.Equal(app1, before) {
+				t.Fatal("normalizeSavedExif mutated the input segment")
+			}
 
-		got := normalizeSavedExif(app1, image.Point{})
-		if bytes.Contains(got, thumbnail) {
-			t.Fatal("unlinked thumbnail remains recoverable in the Exif segment")
-		}
-		if !bytes.Contains(app1, thumbnail) {
-			t.Fatal("normalizeSavedExif mutated the input segment")
-		}
-	})
+			for _, tc := range []struct {
+				name string
+				edit func([]byte)
+			}{
+				{"missing offset", func(tiff []byte) { bo.PutUint16(tiff[16:18], 0x0100); bo.PutUint32(tiff[36:40], 8) }},
+				{"zero offset", func(tiff []byte) { bo.PutUint32(tiff[24:28], 0); bo.PutUint32(tiff[36:40], 8) }},
+				{"header overlap", func(tiff []byte) { bo.PutUint32(tiff[24:28], 2); bo.PutUint32(tiff[36:40], 8) }},
+				{"directory overlap", func(tiff []byte) { bo.PutUint32(tiff[24:28], 14); bo.PutUint32(tiff[36:40], 4) }},
+				{"missing length", func(tiff []byte) { bo.PutUint16(tiff[28:30], 0x0100) }},
+				{"duplicate offset", func(tiff []byte) { bo.PutUint16(tiff[28:30], 0x0201) }},
+				{"duplicate length", func(tiff []byte) { bo.PutUint16(tiff[16:18], 0x0202); bo.PutUint32(tiff[36:40], 8) }},
+				{"wrong type", func(tiff []byte) { bo.PutUint16(tiff[18:20], 3) }},
+				{"wrong count", func(tiff []byte) { bo.PutUint32(tiff[20:24], 2) }},
+				{"zero length", func(tiff []byte) { bo.PutUint32(tiff[36:40], 0) }},
+				{"offset beyond payload", func(tiff []byte) { bo.PutUint32(tiff[24:28], ^uint32(0)) }},
+				{"length beyond payload", func(tiff []byte) { bo.PutUint32(tiff[36:40], ^uint32(0)) }},
+				{"truncated IFD1", func(tiff []byte) { bo.PutUint16(tiff[14:16], ^uint16(0)) }},
+				{"non JPEG data", func(tiff []byte) { tiff[44] = 0 }},
+				{"length includes unrelated trailing bytes", func(tiff []byte) { bo.PutUint32(tiff[36:40], uint32(len(tiff)-44)) }},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					payload := append(buildExifWithJPEGThumbnail(t, bo, thumbnail), []byte("retained metadata")...)
+					tc.edit(payload[6:])
+					input := wrapAsAPP1(payload)
+					original := bytes.Clone(input)
+					want := bytes.Clone(input)
+					bo.PutUint32(want[20:24], 0) // IFD0's next-IFD pointer is still unlinked.
+					if output := normalizeSavedExif(input, image.Point{}); !bytes.Equal(output, want) {
+						t.Fatal("malformed thumbnail descriptor erased retained EXIF bytes")
+					}
+					if !bytes.Equal(input, original) {
+						t.Fatal("normalizeSavedExif mutated the malformed input segment")
+					}
+				})
+			}
+		})
+	}
 
 	t.Run("XMP APP1 is returned copied, not rewritten as Exif", func(t *testing.T) {
 		in := wrapAsAPP1([]byte("http://ns.adobe.com/xap/1.0/\x00<x/>"))
@@ -585,6 +624,33 @@ func TestEncodeJPEGPreservingMetadata(t *testing.T) {
 		}
 		if !bytes.Contains(got[3], []byte("ICC_PROFILE")) {
 			t.Fatal("lost ICC")
+		}
+	})
+
+	t.Run("saved JPEG contains no original EXIF thumbnail pixels", func(t *testing.T) {
+		var thumbnail bytes.Buffer
+		if err := jpeg.Encode(&thumbnail, markedImage(7, 5), nil); err != nil {
+			t.Fatal(err)
+		}
+		exif := wrapAsAPP1(buildExifWithJPEGThumbnail(t, binary.BigEndian, thumbnail.Bytes()))
+		orig := spliceMetadataIntoJPEG(t, markedImage(4, 3), [][]byte{exif})
+		before := bytes.Clone(orig)
+		var out bytes.Buffer
+		if err := encodeJPEGPreservingMetadata(&out, markedImage(3, 4), orig, image.Pt(3, 4)); err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(out.Bytes(), thumbnail.Bytes()) {
+			t.Fatal("saved JPEG retains the original thumbnail")
+		}
+		config, err := jpeg.DecodeConfig(bytes.NewReader(out.Bytes()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if config.Width != 3 || config.Height != 4 {
+			t.Fatalf("saved frame = %dx%d, want 3x4", config.Width, config.Height)
+		}
+		if !bytes.Equal(orig, before) {
+			t.Fatal("encoder mutated the original JPEG")
 		}
 	})
 

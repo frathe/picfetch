@@ -48,6 +48,13 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 
 #### Bugfix
 
+- Erase the EXIF JPEG thumbnail payload on save/export, validating both byte
+  orders and malformed descriptors before clearing bytes. Preserve unrelated
+  metadata and the original input. Local imaging race tests and build/inspection
+  gates pass; hosted review and final CI evidence:
+  [PR #36](https://github.com/frathe/picfetch/pull/36),
+  [review record](finished_refactorings/2026-09-17-pr36-review.md).
+
 - Authenticate staged updates with process-local seals, derive payload hashes
   from verified archive bytes, and retain a write-denying Windows source handle
   through installation. Native Windows guards pass; review and final CI evidence:
