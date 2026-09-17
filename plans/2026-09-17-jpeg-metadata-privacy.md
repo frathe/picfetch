@@ -302,3 +302,38 @@ Follow-up review findings on `c3c20d2`:
 - Focused imaging/window race regressions (including a rejected identifier
   permutation), imaging vet, formatting and GoLand inspections of both changed
   Go files pass. Both replacement ADR links resolve to git-tracked files.
+
+Follow-up review findings on `088f909`:
+
+- All 13 normal hosted checks passed, CodeQL alerts were empty and the downloaded
+  post-suppression Qodana report contained zero results. Security review completed
+  without actionable findings. Fresh code review identified chroma-positioning
+  loss and unused bytes accepted inside entropy intervals.
+- EXIF `YCbCrPositioning=1` is qualified because the primary EXIF specification
+  defines the same centered interpretation when absent. Co-sited/reserved,
+  malformed and duplicate declarations are refused. Upright/oriented public
+  regressions observed red for co-sited and duplicate declarations, then green;
+  accepted centered inputs still remove successfully and inspect clean.
+- A removal-only Huffman syntax validator now demands the exact expected MCU
+  data, proper one padding bits and cycling restart markers, without decoder
+  resynchronization. It retains only progressive nonzero masks, reserves their
+  memory before allocation, polls cancellation during MCU/fill traversal and
+  leaves full pixel reconstruction with the existing decoder. No dependency or
+  copied decoder implementation was added.
+- Public regressions observed all five original JPEG families incorrectly
+  accepting unused scan bytes before the fix. The expanded green checks reject
+  extra ordinary/stuffed bytes at every scan/restart boundary, malformed padding,
+  extra/wrong restart markers; supported clean/removal results retain exact bytes.
+  Cancellation before pixel decode and phase-observed orientation cancellation
+  remain covered independently.
+- Five independently generated 35x27 fixtures add partial MCU edges, 4:2:0 and
+  4:4:4, separate-component scans, progressive refinement, restart cycling and
+  final stuffed `FF00`. All ten JPEGs and four ICC profiles reproduce exactly
+  through the recorded pinned generator; every JPEG passes `djpeg -strict`.
+  Exploratory 4:2:0 progressive/separate-component restart-every-MCU files pass
+  that decoder but fail standalone Go 1.27 decoding. The existing conservative
+  refusal is documented rather than expanding the pixel decoder's scope.
+- Final focused imaging/window race regressions pass (10.146s/3.279s), as do
+  imaging vet, formatting/diff checks and warnings-inclusive GoLand inspections
+  of all five changed Go files and the fixture generator. Current-head hosted
+  review/CI receipts remain on PR #37; human acceptance is still pending.

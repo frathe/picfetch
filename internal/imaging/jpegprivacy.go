@@ -178,7 +178,7 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			}
 			scan = true
 			p.output = append(p.output, data[start:pos]...)
-			end, err := jpegScanEnd(ctx, data, pos)
+			end, err := policy.entropyEnd(ctx, data, pos, payload)
 			if err != nil {
 				return p, err
 			}
@@ -262,35 +262,6 @@ func restoreRemovalICC(output []byte, spans []jpegRemovalICCSpan) []byte {
 	return append(restored, output[pos:]...)
 }
 
-func jpegScanEnd(ctx context.Context, data []byte, pos int) (int, error) {
-	markerStart := -1
-	nextCheck := pos
-	for ; pos < len(data); pos++ {
-		if pos >= nextCheck {
-			if err := ctx.Err(); err != nil {
-				return 0, err
-			}
-			nextCheck = pos + 4096
-		}
-		marker := data[pos]
-		if markerStart < 0 {
-			if marker == 0xff {
-				markerStart = pos
-			}
-			continue
-		}
-		if marker == 0xff {
-			continue
-		}
-		if marker == 0 || marker >= 0xd0 && marker <= 0xd7 {
-			markerStart = -1
-			continue
-		}
-		return markerStart, nil
-	}
-	return 0, ErrJPEGMetadataStructure
-}
-
 // removalEXIF qualifies orientation and the color declarations which would be
 // lost with APP1. Only default sRGB interpretation is qualified for removal.
 // The boolean reports an explicit color declaration whose agreement with a
@@ -310,6 +281,7 @@ func removalEXIF(tiff []byte) (int, bool, error) {
 	offsets := [3]uint64{uint64(bo.Uint32(tiff[4:8]))}
 	var ends [3]uint64
 	orient, foundOrientation, foundSpace, foundIndex := 1, false, false, false
+	foundPositioning := false
 	for level := range offsets {
 		offset := offsets[level]
 		if level != primary && offset == 0 {
@@ -338,6 +310,12 @@ func removalEXIF(tiff []byte) (int, bool, error) {
 			e := entries[i*12 : i*12+12]
 			tag, kind, values := bo.Uint16(e[:2]), bo.Uint16(e[2:4]), bo.Uint32(e[4:8])
 			switch {
+			case level == primary && tag == 0x0213:
+				// Centered chroma is also the EXIF default when this tag is absent.
+				if foundPositioning || kind != 3 || values != 1 || bo.Uint16(e[8:10]) != 1 {
+					return 0, false, ErrJPEGMetadataProcess
+				}
+				foundPositioning = true
 			case level == primary && (tag == 0x012d || tag == 0x013e || tag == 0x013f || tag == 0x0211 || tag == 0x0214), level == exif && tag == 0xa500:
 				// Explicit transfer/colorimetry tags need their own transform
 				// qualification; ICC presence does not establish precedence.

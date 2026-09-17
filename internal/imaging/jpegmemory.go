@@ -58,6 +58,9 @@ func jpegRemovalAdmission(ctx context.Context, data []byte) (jpegRemovalMemory, 
 	}
 	if frame.progressive {
 		memory.working += 4 * samples
+		// Strict entropy validation retains one nonzero-coefficient mask
+		// per padded block, conservatively alongside the decoder arrays.
+		memory.working += samples / 8
 	}
 	if len(frame.ids) == 3 {
 		// Go's flexible sampling path may expand all three components

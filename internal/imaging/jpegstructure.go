@@ -11,6 +11,7 @@ type jpegScanPolicy struct {
 	quant        [4]bool
 	huffman      [2][4]bool
 	coefficients [3][64]int
+	entropy      jpegEntropyState
 }
 
 func (s *jpegScanPolicy) frame(marker byte, p []byte) error {
@@ -21,6 +22,8 @@ func (s *jpegScanPolicy) frame(marker byte, p []byte) error {
 		return ErrJPEGMetadataStructure
 	}
 	s.progressive = marker == 0xc2
+	s.entropy.width = int(binary.BigEndian.Uint16(p[3:5]))
+	s.entropy.height = int(binary.BigEndian.Uint16(p[1:3]))
 	for i := 0; i < int(p[5]); i++ {
 		c := p[6+3*i : 9+3*i]
 		for _, id := range s.ids {
@@ -33,6 +36,12 @@ func (s *jpegScanPolicy) frame(marker byte, p []byte) error {
 		}
 		s.ids = append(s.ids, c[0])
 		s.quantizers = append(s.quantizers, c[2])
+		s.entropy.horizontal[i], s.entropy.vertical[i] = int(c[1]>>4), int(c[1]&15)
+		if p[5] == 1 {
+			s.entropy.horizontal[i], s.entropy.vertical[i] = 1, 1
+		}
+		s.entropy.maxH = max(s.entropy.maxH, s.entropy.horizontal[i])
+		s.entropy.maxV = max(s.entropy.maxV, s.entropy.vertical[i])
 		for k := range s.coefficients[i] {
 			s.coefficients[i][k] = -1
 		}
@@ -45,6 +54,7 @@ func (s *jpegScanPolicy) table(marker byte, p []byte) error {
 		if len(p) != 2 {
 			return ErrJPEGMetadataStructure
 		}
+		s.entropy.restart = int(binary.BigEndian.Uint16(p))
 		return nil
 	}
 	if len(p) == 0 {
@@ -78,6 +88,9 @@ func (s *jpegScanPolicy) table(marker byte, p []byte) error {
 			}
 			if n == 0 || n > 256 || len(p) < 16+n {
 				return ErrJPEGMetadataStructure
+			}
+			if err := s.entropy.tables[kind][id].set(p[:16], p[16:16+n]); err != nil {
+				return err
 			}
 			s.huffman[kind][id] = true
 			p = p[16+n:]

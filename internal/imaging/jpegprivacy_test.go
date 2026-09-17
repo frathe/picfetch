@@ -21,6 +21,59 @@ import (
 )
 
 func TestJPEGMetadataRemovalPrivacy(t *testing.T) {
+	t.Run("EXIF chroma positioning", func(t *testing.T) {
+		plain := removalFixture(t, "baseline-rgb.jpg")
+		for _, tc := range []struct {
+			name      string
+			kind      uint16
+			count     uint32
+			value     uint32
+			duplicate bool
+			allow     bool
+		}{
+			{"centered", 3, 1, 1, false, true},
+			{"co-sited", 3, 1, 2, false, false},
+			{"reserved zero", 3, 1, 0, false, false},
+			{"reserved value", 3, 1, 3, false, false},
+			{"wrong type", 4, 1, 1, false, false},
+			{"empty value", 3, 0, 1, false, false},
+			{"multiple values", 3, 2, 1, false, false},
+			{"duplicate tag", 3, 1, 1, true, false},
+		} {
+			for _, orientation := range []uint32{1, 6} {
+				t.Run(tc.name+" orientation="+strconv.Itoa(int(orientation)), func(t *testing.T) {
+					entries := []tiffEntry{
+						{tag: 0x0112, typ: 3, count: 1, value: orientation},
+						{tag: 0x0213, typ: tc.kind, count: tc.count, value: tc.value},
+					}
+					if tc.duplicate {
+						entries = append(entries, entries[1])
+					}
+					tiff := buildIFD0TIFF(t, entries...)
+					data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...)))
+					inspection := InspectJPEGMetadata(context.Background(), data)
+					path := writeTempFile(t, "chroma-positioning.jpg", data)
+					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+					if !tc.allow {
+						if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) || !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+							t.Fatalf("chroma-positioning refusal = %+v; %+v, %v", inspection, result, err)
+						}
+						return
+					}
+					if inspection.State != JPEGMetadataRemovable || inspection.Err != nil || err != nil || !result.Committed {
+						t.Fatalf("centered removal = %+v; %+v, %v", inspection, result, err)
+					}
+					got := mustRead(t, path)
+					if clean := InspectJPEGMetadata(context.Background(), got); clean.State != JPEGMetadataClean || clean.Err != nil {
+						t.Fatalf("removed output = %+v", clean)
+					}
+					if orientation == 1 && !bytes.Equal(got, plain) {
+						t.Fatal("centered removal changed the upright primary JPEG")
+					}
+				})
+			}
+		}
+	})
 	t.Run("EXIF color declaration", func(t *testing.T) {
 		plain := uitest.EncodeJPEG(t, 16, 12, color.White)
 		for _, bigEndian := range []bool{false, true} {
@@ -119,6 +172,137 @@ func TestJPEGMetadataRemovalPrivacy(t *testing.T) {
 			t.Fatal("output must contain only the primary JPEG and thumbnail-free JFIF")
 		}
 	})
+}
+
+func TestJPEGMetadataRemovalEntropy(t *testing.T) {
+	for _, name := range []string{
+		"baseline-rgb", "progressive-rgb", "multiscan-rgb", "baseline-gray", "progressive-gray",
+		"entropy-baseline-420-restart1", "entropy-progressive-420", "entropy-progressive-444-restart1",
+		"entropy-multiscan-444-restart1", "entropy-progressive-gray-restart1",
+	} {
+		t.Run(name+" unused scan bytes", func(t *testing.T) {
+			plain := removalFixture(t, name+".jpg")
+			if inspection := InspectJPEGMetadata(context.Background(), plain); inspection.State != JPEGMetadataClean || inspection.Err != nil {
+				t.Fatalf("independent clean fixture = %+v", inspection)
+			}
+			withComment := mustInjectRemoval(t, plain, jpegSegmentBytes(0xfe, []byte("fixture description")))
+			cleanPath := writeTempFile(t, "clean-entropy.jpg", withComment)
+			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(cleanPath))
+			if err != nil || !result.Committed || !bytes.Equal(plain, mustRead(t, cleanPath)) {
+				t.Fatalf("independent clean output = %+v, %v", result, err)
+			}
+			for _, at := range removalEntropyBoundaries(t, plain) {
+				for _, extra := range [][]byte{{0x42}, {0xff, 0x00}} {
+					data := append(bytes.Clone(plain[:at]), extra...)
+					data = append(data, plain[at:]...)
+					inspection := InspectJPEGMetadata(context.Background(), data)
+					path := writeTempFile(t, "unused-scan.jpg", data)
+					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+					if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataStructure) || !errors.Is(err, ErrJPEGMetadataStructure) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+						t.Fatalf("unused scan bytes refusal = %+v; %+v, %v", inspection, result, err)
+					}
+				}
+			}
+		})
+	}
+	t.Run("cancellation before pixel decoding", func(t *testing.T) {
+		data := uitest.EncodeJPEG(t, 2048, 2048, color.White)
+		base, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ctx := &jpegDecodeObserveContext{Context: &groupingCancelContext{Context: base, cancel: cancel, after: 100}}
+		inspection := InspectJPEGMetadata(ctx, data)
+		if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, context.Canceled) || ctx.decoded {
+			t.Fatalf("entropy cancellation = %+v, full decode started=%v", inspection, ctx.decoded)
+		}
+	})
+	t.Run("padding and restart boundaries", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			blocks  int
+			restart bool
+			entropy []byte
+			allow   bool
+		}{
+			{"one block", 1, false, []byte{0x3f}, true},
+			{"restart", 2, true, []byte{0x3f, 0xff, 0xd0, 0x3f}, true},
+			{"restart fill", 2, true, []byte{0x3f, 0xff, 0xff, 0xd0, 0x3f}, true},
+			{"zero final padding", 1, false, []byte{0x3e}, false},
+			{"extra final restart", 1, false, []byte{0x3f, 0xff, 0xd0}, false},
+			{"zero restart padding", 2, true, []byte{0x3e, 0xff, 0xd0, 0x3f}, false},
+			{"extra restart byte", 2, true, []byte{0x3f, 0x42, 0xff, 0xd0, 0x3f}, false},
+			{"wrong restart", 2, true, []byte{0x3f, 0xff, 0xd1, 0x3f}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				data := removalZeroBlocks(tc.blocks, tc.restart, tc.entropy)
+				inspection := InspectJPEGMetadata(context.Background(), data)
+				path := writeTempFile(t, "entropy-boundary.jpg", data)
+				result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+				if tc.allow {
+					if inspection.State != JPEGMetadataClean || inspection.Err != nil || err != nil || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+						t.Fatalf("legal interval = %+v; %+v, %v", inspection, result, err)
+					}
+				} else if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataStructure) || !errors.Is(err, ErrJPEGMetadataStructure) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+					t.Fatalf("invalid interval refusal = %+v; %+v, %v", inspection, result, err)
+				}
+			})
+		}
+	})
+}
+
+// Each synthetic gray block has DC category zero and AC EOB, both Huffman
+// code 0. Thus 0x3f encodes one block followed by six required one padding bits.
+func removalZeroBlocks(blocks int, restart bool, entropy []byte) []byte {
+	data := []byte{0xff, 0xd8}
+	data = append(data, jpegSegmentBytes(0xdb, append([]byte{0}, bytes.Repeat([]byte{1}, 64)...))...)
+	data = append(data, jpegSegmentBytes(0xc0, []byte{8, 0, 8, 0, byte(8 * blocks), 1, 1, 0x11, 0})...)
+	var tables []byte
+	for _, class := range []byte{0, 0x10} {
+		tables = append(tables, class, 1)
+		tables = append(tables, make([]byte, 16)...)
+	}
+	data = append(data, jpegSegmentBytes(0xc4, tables)...)
+	if restart {
+		data = append(data, jpegSegmentBytes(0xdd, []byte{0, 1})...)
+	}
+	data = append(data, jpegSegmentBytes(0xda, []byte{1, 1, 0, 0, 63, 0})...)
+	data = append(data, entropy...)
+	return append(data, 0xff, 0xd9)
+}
+
+// Locate intervals in known synthetic fixtures without interpreting their
+// coefficients. The operation under test must establish exact consumption.
+func removalEntropyBoundaries(t *testing.T, data []byte) []int {
+	t.Helper()
+	var boundaries []int
+	for pos := 2; pos < len(data)-1; {
+		if data[pos] != 0xff {
+			t.Fatal("fixture marker expected")
+		}
+		marker := data[pos+1]
+		if marker == 0xd9 {
+			break
+		}
+		pos += 2 + int(binary.BigEndian.Uint16(data[pos+2:]))
+		if marker != 0xda {
+			continue
+		}
+		for pos < len(data)-1 {
+			if data[pos] != 0xff {
+				pos++
+				continue
+			}
+			if data[pos+1] == 0 {
+				pos += 2
+				continue
+			}
+			boundaries = append(boundaries, pos)
+			if data[pos+1] < 0xd0 || data[pos+1] > 0xd7 {
+				break
+			}
+			pos += 2
+		}
+	}
+	return boundaries
 }
 
 func removalFixture(t *testing.T, name string) []byte {
@@ -469,11 +653,11 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 		path := writeTempFile(t, "cancel-orientation.jpg", data)
 		base, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		// Give reading/parsing the small encoded fixture ample work, then
-		// cancel only if the pixel-heavy transformation observes the context.
-		ctx := &groupingCancelContext{Context: base, cancel: cancel, after: 100}
+		// Begin counting only after the standard decoder has returned, so
+		// additional header/entropy checks cannot satisfy this regression.
+		ctx := &jpegDecodeObserveContext{Context: base, cancel: cancel}
 		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
-		if !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+		if !ctx.decoded || ctx.afterDecode != 100 || !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
 			t.Fatalf("pixel-work cancellation = %+v, %v", result, err)
 		}
 	})
@@ -553,7 +737,9 @@ func (i removalUniformImage) Bounds() image.Rectangle { return i.bounds }
 
 type jpegDecodeObserveContext struct {
 	context.Context
-	decoded bool
+	decoded     bool
+	afterDecode int
+	cancel      context.CancelFunc
 }
 
 func (c *jpegDecodeObserveContext) Err() error {
@@ -563,10 +749,16 @@ func (c *jpegDecodeObserveContext) Err() error {
 		frame, more := frames.Next()
 		if frame.Function == "image/jpeg.Decode" {
 			c.decoded = true
-			break
+			return c.Context.Err()
 		}
 		if !more {
 			break
+		}
+	}
+	if c.decoded && c.cancel != nil && c.afterDecode < 100 {
+		c.afterDecode++
+		if c.afterDecode == 100 {
+			c.cancel()
 		}
 	}
 	return c.Context.Err()

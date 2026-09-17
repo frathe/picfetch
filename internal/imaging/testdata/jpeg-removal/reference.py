@@ -158,15 +158,7 @@ class LittleCMS:
                 self.lib.cmsCloseProfile(profile)
 
 
-def generate(destination, lcms):
-    version = subprocess.run(
-        [str(CJPEG), "-version"], check=True, capture_output=True, text=True
-    )
-    version_text = (version.stdout + version.stderr).strip()
-    if not version_text.startswith("libjpeg-turbo version 3.2.0 "):
-        raise RuntimeError(f"unexpected cjpeg version: {version_text}")
-    destination.mkdir(parents=True, exist_ok=True)
-    width, height = 16, 12
+def write_pattern(destination, width, height, prefix=""):
     rgb = bytes(
         channel
         for y in range(height)
@@ -178,10 +170,22 @@ def generate(destination, lcms):
         )
     )
     gray = bytes((19 * x + 37 * y) % 256 for y in range(height) for x in range(width))
-    rgb_source = destination / "pattern-rgb.ppm"
-    gray_source = destination / "pattern-gray.pgm"
+    rgb_source = destination / f"{prefix}pattern-rgb.ppm"
+    gray_source = destination / f"{prefix}pattern-gray.pgm"
     rgb_source.write_bytes(f"P6\n{width} {height}\n255\n".encode("ascii") + rgb)
     gray_source.write_bytes(f"P5\n{width} {height}\n255\n".encode("ascii") + gray)
+    return rgb_source, gray_source
+
+
+def generate(destination, lcms):
+    version = subprocess.run(
+        [str(CJPEG), "-version"], check=True, capture_output=True, text=True
+    )
+    version_text = (version.stdout + version.stderr).strip()
+    if not version_text.startswith("libjpeg-turbo version 3.2.0 "):
+        raise RuntimeError(f"unexpected cjpeg version: {version_text}")
+    destination.mkdir(parents=True, exist_ok=True)
+    rgb_source, gray_source = write_pattern(destination, 16, 12)
     scans = destination / "sequential.scans"
     scans.write_text("0: 0 63 0 0;\n1: 0 63 0 0;\n2: 0 63 0 0;\n", encoding="ascii")
     variants = (
@@ -199,11 +203,25 @@ def generate(destination, lcms):
             ],
             check=True,
         )
+    rgb_source, gray_source = write_pattern(destination, 35, 27, "entropy-")
+    entropy_variants = (
+        ("baseline-420-restart1", rgb_source, ["-baseline", "-sample", "2x2,1x1,1x1", "-restart", "1B"]),
+        ("progressive-420", rgb_source, ["-progressive", "-sample", "2x2,1x1,1x1"]),
+        ("progressive-444-restart1", rgb_source, ["-progressive", "-sample", "1x1,1x1,1x1", "-restart", "1B"]),
+        ("multiscan-444-restart1", rgb_source, ["-baseline", "-sample", "1x1,1x1,1x1", "-scans", str(scans), "-restart", "1B"]),
+        ("progressive-gray-restart1", gray_source, ["-progressive", "-grayscale", "-restart", "1B"]),
+    )
+    for name, source, options in entropy_variants:
+        subprocess.run(
+            [str(CJPEG), "-quality", "90", *options,
+             "-outfile", str(destination / f"entropy-{name}.jpg"), str(source)],
+            check=True,
+        )
     for name in PROFILES:
         lcms.generate_profile(
             destination / name, name.startswith("gray"), 2.1 if "v2" in name else 4.3
         )
-    print(f"Generated 5 JPEGs and 4 ICC profiles in {destination}")
+    print(f"Generated 10 JPEGs and 4 ICC profiles in {destination}")
     print(f"{version_text}; LittleCMS package 2.19.1, encoded API version 2190")
 
 

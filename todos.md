@@ -4,9 +4,10 @@
 
 ### JPEG metadata removal privacy contract
 
-Status: implementation and hosted platform checks pass; human acceptance pending.
+Status: implementation and local verification complete; human acceptance pending.
 Commit-bound review and CI evidence is maintained on
-[PR #37](https://github.com/frathe/picfetch/pull/37). Whole-scan removal,
+[PR #37](https://github.com/frathe/picfetch/pull/37). Exact scan/restart consumption,
+whole-scan removal,
 preview/trailer removal, qualified ICC
 normalization, lossless upright images, bounded removal memory, refusal without rewriting, and content-based
 window availability are implemented. See the [implementation record](plans/2026-09-17-jpeg-metadata-privacy.md),

@@ -33,6 +33,26 @@ The generator emits these 16 x 12 pixel JPEGs, using quality 90:
 | `progressive-gray.jpg` | Progressive grayscale |
 
 The original patterned PPM/PGM files and sequential scan script are also emitted.
+Five additional `entropy-*.jpg` fixtures use the same formulas at 35x27 pixels
+and quality 90, covering partial MCU edges and exact entropy boundaries:
+
+| File | Encoding |
+| --- | --- |
+| `entropy-baseline-420-restart1.jpg` | Baseline 4:2:0, restart every MCU |
+| `entropy-progressive-420.jpg` | Progressive 4:2:0, no restarts |
+| `entropy-progressive-444-restart1.jpg` | Progressive 4:4:4, restart every MCU |
+| `entropy-multiscan-444-restart1.jpg` | Separate-component sequential 4:4:4, restart every MCU |
+| `entropy-progressive-gray-restart1.jpg` | Progressive grayscale, restart every MCU |
+
+`reference.py generate` reproduces all ten JPEGs; restart options use `-restart
+1B`. These fixtures pass the pinned `djpeg -strict` and Go 1.27 decoder. They
+exercise restart cycling, progressive EOB/refinement, ordinary stuffed bytes,
+and legal final `FF00` immediately before scan/restart markers. Public tests
+require exact clean output and reject additional bytes at every interval end.
+Exploratory progressive/separate-component 4:2:0 fixtures with restart every
+MCU pass `djpeg -strict` but fail the Go decoder; they are outside this operation's
+qualified set and are not part of the committed supported corpus.
+
 JPEGs contain no embedded ICC profile; tests can insert each applicable profile
 and metadata independently. `rgb-v2.icc` and `rgb-v4.icc` are LittleCMS-generated
 sRGB matrix/TRC profiles. `gray-v2.icc` and `gray-v4.icc` are D50 gray gamma 2.2
