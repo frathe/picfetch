@@ -238,15 +238,16 @@ func concatStrips(data []byte, offs, lens []uint32) []byte {
 // at a JPEG (some MakerNotes hide one).
 func scanJPEGs(data []byte) [][]byte {
 	var found [][]byte
-	// Failed SOS candidates share the furthest EOI search position so a run of
-	// malformed candidates cannot repeatedly rescan the same remaining bytes.
-	eoiSearchStart := 0
-	for i := 0; i+3 < len(data); i++ {
+	// Bound all candidate parsing, including repeated header and marker-fill
+	// traversal. Disjoint previews fit; excessive overlapping candidates stop
+	// the fallback scan without discarding previews already found.
+	workLeft := len(data)
+	for i := 0; i+3 < len(data) && workLeft > 0; i++ {
 		if data[i] != 0xFF || data[i+1] != 0xD8 || data[i+2] != 0xFF {
 			continue
 		}
 
-		n := jpegLengthAt(data, i, &eoiSearchStart)
+		n := jpegLengthAt(data, i, &workLeft)
 		if n < 4 {
 			continue
 		}
@@ -263,10 +264,14 @@ func scanJPEGs(data []byte) [][]byte {
 // jpegLength returns the number of bytes from data[0] through the EOI of a
 // JPEG that starts there, or 0 if the marker structure doesn't close.
 func jpegLength(data []byte) int {
-	return jpegLengthAt(data, 0, nil)
+	workLeft := len(data)
+	return jpegLengthAt(data, 0, &workLeft)
 }
 
-func jpegLengthAt(data []byte, start int, eoiSearchStart *int) int {
+// jpegLengthAt spends one work unit per header fill byte or entropy-search
+// step. Every parsing loop consumes work, and segment payloads are skipped in
+// constant time. Sharing workLeft bounds repeated parsing across candidates.
+func jpegLengthAt(data []byte, start int, workLeft *int) int {
 	if start < 0 || start >= len(data) || !isJPEG(data[start:]) {
 		return 0
 	}
@@ -278,6 +283,10 @@ func jpegLengthAt(data []byte, start int, eoiSearchStart *int) int {
 		}
 
 		for pos < len(data) && data[pos] == 0xFF {
+			if *workLeft == 0 {
+				return 0
+			}
+			*workLeft -= 1
 			pos++
 		}
 		if pos >= len(data) {
@@ -294,7 +303,7 @@ func jpegLengthAt(data []byte, start int, eoiSearchStart *int) int {
 			continue
 		}
 		if marker == 0xDA { // SOS: entropy-coded data until EOI
-			eoi := scanToEOI(data, pos, eoiSearchStart)
+			eoi := scanToEOI(data, pos, workLeft)
 			if eoi == 0 {
 				return 0
 			}
@@ -314,11 +323,12 @@ func jpegLengthAt(data []byte, start int, eoiSearchStart *int) int {
 	return 0
 }
 
-func scanToEOI(data []byte, pos int, searchStart *int) int {
-	if searchStart != nil {
-		pos = max(pos, *searchStart)
-	}
+func scanToEOI(data []byte, pos int, workLeft *int) int {
 	for pos+1 < len(data) {
+		if *workLeft == 0 {
+			return 0
+		}
+		*workLeft -= 1
 		if data[pos] != 0xFF {
 			pos++
 			continue
@@ -330,9 +340,6 @@ func scanToEOI(data []byte, pos int, searchStart *int) int {
 			continue
 		}
 		if marker == 0xD9 {
-			if searchStart != nil {
-				*searchStart = pos
-			}
 			return pos + 2
 		}
 		if marker >= 0xD0 && marker <= 0xD7 {
@@ -340,9 +347,6 @@ func scanToEOI(data []byte, pos int, searchStart *int) int {
 			continue
 		}
 		pos++
-	}
-	if searchStart != nil {
-		*searchStart = len(data)
 	}
 	return 0
 }

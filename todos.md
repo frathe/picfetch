@@ -14,6 +14,12 @@
 
 #### Bugfix
 
+- Bound RAW fallback JPEG parsing with one input-sized budget shared by header,
+  marker-fill and entropy traversal. Preserve ordinary multi-preview selection
+  and replace timing-dependent coverage with deterministic budget checks.
+  Local evidence: [review record](finished_refactorings/2026-09-17-pr40-review.md).
+  Hosted review dispositions and final checks: [PR #40](https://github.com/frathe/picfetch/pull/40).
+
 - Reject Save Changes through symlink leaves, preserving both the link and target
   without copying image content into a different directory. Keep regular writes
   at the selected filename and serialize parent-directory aliases. Verification:
