@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2/storage"
 
@@ -138,6 +139,26 @@ func TestLoadImage_CR3EmbeddedJPEG(t *testing.T) {
 	}
 	if !loaded.Preview {
 		t.Error("Preview = false, want true")
+	}
+}
+
+func TestScanJPEGsRejectsManyUnclosedCandidatesPromptly(t *testing.T) {
+	data := make([]byte, 8, 256*1024)
+	copy(data[4:], "ftyp")
+	for len(data)+4 <= cap(data) {
+		data = append(data, 0xFF, 0xD8, 0xFF, 0xDA)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		_ = scanJPEGs(data)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("scanJPEGs did not complete within 2 seconds")
 	}
 }
 
