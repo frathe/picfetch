@@ -184,7 +184,7 @@ func TestSaveRotated(t *testing.T) {
 		}
 	})
 
-	t.Run("replaces a symlink without changing its target", func(t *testing.T) {
+	t.Run("rejects a symlink without changing the link or its target", func(t *testing.T) {
 		dir := t.TempDir()
 		target := filepath.Join(dir, "target.png")
 		original := []byte("placeholder")
@@ -207,24 +207,19 @@ func TestSaveRotated(t *testing.T) {
 		if CanEncode(storage.NewFileURI(unsupportedLink)) {
 			t.Fatal("CanEncode followed an unsupported link name to an encodable target")
 		}
-		if err := SaveRotated(u, markedImage(3, 2)); err != nil {
-			t.Fatalf("SaveRotated: %v", err)
+		if err := SaveRotated(u, markedImage(3, 2)); err == nil {
+			t.Fatal("SaveRotated accepted a symlink destination")
 		}
 
 		info, err := os.Lstat(link)
 		if err != nil {
 			t.Fatalf("lstat link: %v", err)
 		}
-		if !info.Mode().IsRegular() {
-			t.Error("SaveRotated followed the symlink instead of replacing it")
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Error("SaveRotated replaced the symlink")
 		}
-
-		loaded, err := LoadImage(u, DefaultImgCacheBytes)
-		if err != nil {
-			t.Fatalf("load saved file: %v", err)
-		}
-		if got := loaded.Frames[0].Bounds(); got.Dx() != 3 || got.Dy() != 2 {
-			t.Errorf("saved file bounds = %v, want 3x2", got)
+		if got, err := os.Readlink(link); err != nil || got != target {
+			t.Errorf("SaveRotated changed the symlink: %q, %v", got, err)
 		}
 		if got, err := os.ReadFile(target); err != nil || !bytes.Equal(got, original) {
 			t.Errorf("SaveRotated changed the symlink target: %q, %v", got, err)

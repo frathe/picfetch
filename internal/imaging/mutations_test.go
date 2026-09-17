@@ -152,7 +152,7 @@ func TestFileMutationResultsDistinguishCommitFromNoopAndFailure(t *testing.T) {
 	}
 }
 
-func TestExportPreservesSymlinkParentsAndRejectsSymlinkLeaves(t *testing.T) {
+func TestFileWritesPreserveSymlinkParentsAndRejectSymlinkLeaves(t *testing.T) {
 	actual := t.TempDir()
 	alias := filepath.Join(t.TempDir(), "alias")
 	if err := os.Symlink(actual, alias); err != nil {
@@ -183,7 +183,11 @@ func TestExportPreservesSymlinkParentsAndRejectsSymlinkLeaves(t *testing.T) {
 			if err := os.Symlink(target, link); err != nil {
 				t.Fatal(err)
 			}
-			result, err := ExportContext(context.Background(), storage.NewFileURI(link), pixels, nil, ExportOptions{})
+			result, err := SaveRotatedContext(context.Background(), storage.NewFileURI(link), pixels)
+			if err == nil || result.Committed {
+				t.Errorf("symlink leaf save = %+v, %v", result, err)
+			}
+			result, err = ExportContext(context.Background(), storage.NewFileURI(link), pixels, nil, ExportOptions{})
 			if err == nil || result.Committed {
 				t.Errorf("symlink leaf export = %+v, %v", result, err)
 			}
@@ -258,7 +262,7 @@ func TestFileTransactionClaimsAreReleasedAfterSuccessFailureAndCancellation(t *t
 	release()
 	for _, fail := range []bool{false, true} {
 		for range 100 {
-			_, _ = transactions.write(context.Background(), path, true, false, func(_ string) (bool, error) {
+			_, _ = transactions.write(context.Background(), path, true, func(_ string) (bool, error) {
 				if fail {
 					return false, errors.New("write failed")
 				}
@@ -343,43 +347,6 @@ func (p *heldMutationPixels) At(x, y int) color.Color {
 }
 
 func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
-	t.Run("strip follows a saved symlink replacement", func(t *testing.T) {
-		target := uitest.TempGPSJPEGURI(t, "target.jpg", 40, 20, 48.858222, 2.2945)
-		before, err := os.ReadFile(target.Path())
-		if err != nil {
-			t.Fatal(err)
-		}
-		link := filepath.Join(t.TempDir(), "selected.jpg")
-		if err := os.Symlink(target.Path(), link); err != nil {
-			t.Fatal(err)
-		}
-		selected := storage.NewFileURI(link)
-		synctest.Test(t, func(t *testing.T) {
-			pixels := &heldMutationPixels{Image: image.NewRGBA(image.Rect(0, 0, 20, 40)), entered: make(chan struct{}), release: make(chan struct{})}
-			saved, stripped := make(chan error, 1), make(chan error, 1)
-			go func() { saved <- SaveRotated(selected, pixels) }()
-			<-pixels.entered
-			go func() { stripped <- StripJPEGMetadata(selected) }()
-			synctest.Wait()
-			close(pixels.release)
-			if err := <-saved; err != nil {
-				t.Fatal(err)
-			}
-			if err := <-stripped; err != nil {
-				t.Fatal(err)
-			}
-		})
-		data, err := os.ReadFile(link)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ReadMetadata(data).Empty() {
-			t.Error("queued metadata removal left identifying tags in the saved file")
-		}
-		if data, err := os.ReadFile(target.Path()); err != nil || !bytes.Equal(data, before) {
-			t.Errorf("queued metadata removal changed the original symlink target: %v", err)
-		}
-	})
 	for _, alias := range []string{"direct", "symlink", "case"} {
 		for _, next := range []string{"strip", "save", "export"} {
 			t.Run(fmt.Sprintf("alias=%s/next=%s", alias, next), func(t *testing.T) {
@@ -396,13 +363,13 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 				if alias == "symlink" {
 					link := filepath.Join(t.TempDir(), "alias.jpg")
 					target := source.Path()
-					if next == "export" {
+					if next != "strip" {
 						target = filepath.Dir(target)
 					}
 					if err := os.Symlink(target, link); err != nil {
 						t.Fatal(err)
 					}
-					if next == "export" {
+					if next != "strip" {
 						link = filepath.Join(link, filepath.Base(source.Path()))
 					}
 					destination = storage.NewFileURI(link)
@@ -449,7 +416,7 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 						t.Fatal(err)
 					}
 					want := image.Pt(13, 17)
-					if next == "strip" || (alias == "symlink" && next == "save") {
+					if next == "strip" {
 						want = image.Pt(20, 40)
 					}
 					if image.Pt(cfg.Width, cfg.Height) != want {
@@ -460,27 +427,15 @@ func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
 					}
 					if alias == "symlink" {
 						link := destination.Path()
-						if next == "export" {
+						if next != "strip" {
 							link = filepath.Dir(link)
 						}
 						info, err := os.Lstat(link)
 						if err != nil {
 							t.Fatal(err)
 						}
-						if next == "save" && !info.Mode().IsRegular() {
-							t.Error("saving through the alias did not replace the symlink")
-						} else if next != "save" && info.Mode()&os.ModeSymlink == 0 {
+						if info.Mode()&os.ModeSymlink == 0 {
 							t.Error("writing through the confirmed alias replaced the link")
-						}
-						if next == "save" {
-							data, err := os.ReadFile(link)
-							if err != nil {
-								t.Fatal(err)
-							}
-							cfg, err := jpeg.DecodeConfig(bytes.NewReader(data))
-							if err != nil || image.Pt(cfg.Width, cfg.Height) != image.Pt(13, 17) {
-								t.Errorf("replacement dimensions = %dx%d, want 13x17: %v", cfg.Width, cfg.Height, err)
-							}
 						}
 					}
 				})

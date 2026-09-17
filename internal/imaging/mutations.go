@@ -113,41 +113,25 @@ func sameWriteTarget(a, b string) bool {
 	return aErr == nil && bErr == nil && os.SameFile(aDir, bDir)
 }
 
-func (p *pathTransactions) write(ctx context.Context, path string, create, rejectSymlink bool, write func(string) (bool, error)) (WriteResult, error) {
-	for {
-		if err := ctx.Err(); err != nil {
-			return WriteResult{}, err
-		}
-		resolved, err := resolvedWritePath(path, create, rejectSymlink)
-		if err != nil {
-			return WriteResult{}, err
-		}
-		result := WriteResult{Path: resolved}
-		release, err := p.acquire(ctx, resolved)
-		if err != nil {
-			return result, err
-		}
-		// A preceding save can replace a symlink while this writer waits.
-		// Resolve again under admission, then retry with the current destination's
-		// claim if it changed; metadata removal must read the newly saved file.
-		current, err := resolvedWritePath(path, create, rejectSymlink)
-		if err != nil {
-			release()
-			return result, err
-		}
-		if current != resolved {
-			release()
-			continue
-		}
-		// This branch always returns; retries above release immediately.
-		//noinspection GoDeferInLoop
-		defer release()
-		result.Committed, err = write(resolved)
+func (p *pathTransactions) write(ctx context.Context, path string, create bool, write func(string) (bool, error)) (WriteResult, error) {
+	if err := ctx.Err(); err != nil {
+		return WriteResult{}, err
+	}
+	resolved, err := resolvedWritePath(path, create)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	result := WriteResult{Path: resolved}
+	release, err := p.acquire(ctx, resolved)
+	if err != nil {
 		return result, err
 	}
+	defer release()
+	result.Committed, err = write(resolved)
+	return result, err
 }
 
-func resolvedWritePath(path string, create, rejectSymlink bool) (string, error) {
+func resolvedWritePath(path string, create bool) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
@@ -159,17 +143,16 @@ func resolvedWritePath(path string, create, rejectSymlink bool) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	// Save and Export confirm a destination name, not a leaf symlink target.
 	// Keep the leaf unresolved so a link introduced after this check is
 	// replaced by the atomic rename instead of redirecting the write.
 	resolved := filepath.Join(dir, filepath.Base(abs))
-	if rejectSymlink {
-		if info, err := os.Lstat(resolved); err == nil {
-			if info.Mode()&os.ModeSymlink != 0 {
-				return "", &os.PathError{Op: "export", Path: abs, Err: errors.New("destination is a symbolic link")}
-			}
-		} else if !os.IsNotExist(err) {
-			return "", err
+	if info, err := os.Lstat(resolved); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", &os.PathError{Op: "write", Path: abs, Err: errors.New("destination is a symbolic link")}
 		}
+	} else if !os.IsNotExist(err) {
+		return "", err
 	}
 	return resolved, nil
 }
