@@ -114,21 +114,35 @@ func sameWriteTarget(a, b string) bool {
 }
 
 func (p *pathTransactions) write(ctx context.Context, path string, create, rejectSymlink bool, write func(string) (bool, error)) (WriteResult, error) {
-	if err := ctx.Err(); err != nil {
-		return WriteResult{}, err
-	}
-	resolved, err := resolvedWritePath(path, create, rejectSymlink)
-	if err != nil {
-		return WriteResult{}, err
-	}
-	result := WriteResult{Path: resolved}
-	release, err := p.acquire(ctx, resolved)
-	if err != nil {
+	for {
+		if err := ctx.Err(); err != nil {
+			return WriteResult{}, err
+		}
+		resolved, err := resolvedWritePath(path, create, rejectSymlink)
+		if err != nil {
+			return WriteResult{}, err
+		}
+		result := WriteResult{Path: resolved}
+		release, err := p.acquire(ctx, resolved)
+		if err != nil {
+			return result, err
+		}
+		// A preceding save can replace a symlink while this writer waits.
+		// Resolve again under admission, then retry with the current destination's
+		// claim if it changed; metadata removal must read the newly saved file.
+		current, err := resolvedWritePath(path, create, rejectSymlink)
+		if err != nil {
+			release()
+			return result, err
+		}
+		if current != resolved {
+			release()
+			continue
+		}
+		defer release()
+		result.Committed, err = write(resolved)
 		return result, err
 	}
-	defer release()
-	result.Committed, err = write(resolved)
-	return result, err
 }
 
 func resolvedWritePath(path string, create, rejectSymlink bool) (string, error) {

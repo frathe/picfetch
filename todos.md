@@ -48,6 +48,12 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
 
 #### Bugfix
 
+- Keep Save Changes writes at the selected filename, replacing symlink leaves
+  without overwriting their targets. Recheck queued file mutations after admission
+  so metadata removal operates on the newly saved file. Review and verification:
+  [PR #35](https://github.com/frathe/picfetch/pull/35),
+  [review record](finished_refactorings/2026-09-17-pr35-review.md).
+
 - Authenticate staged updates with process-local seals, derive payload hashes
   from verified archive bytes, and retain a write-denying Windows source handle
   through installation. Native Windows guards pass; review and final CI evidence:

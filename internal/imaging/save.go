@@ -71,8 +71,7 @@ func CanEncode(u fyne.URI) bool {
 // CanEncodeExt reports whether ext (a leading-dot file extension, as
 // filepath.Ext and fyne.URI.Extension both produce, in any case) has an
 // encoder. It is the check the export path wants - internal/ui asks it
-// about a destination the user just named, which may not exist yet and so
-// has no symlink for CanEncode above to resolve.
+// about a destination the user just named, which may not exist yet.
 func CanEncodeExt(ext string) bool {
 	_, ok := encoders[strings.ToLower(ext)]
 	return ok
@@ -382,8 +381,8 @@ func writeFileContext(ctx context.Context, path string, perm os.FileMode, write 
 //
 // A non-JPEG returns errNotJPEG and does not write. A JPEG with nothing
 // removable returns nil without rewriting the file. The write is the
-// same temp-file-then-rename as SaveRotated, through a symlink to the
-// target, preserving permission bits.
+// same temp-file-then-rename as SaveRotated, preserving permission bits.
+// Metadata removal follows a symlink to its target; SaveRotated replaces the link.
 func StripJPEGMetadata(u fyne.URI) error {
 	_, err := StripJPEGMetadataContext(context.Background(), u)
 	return err

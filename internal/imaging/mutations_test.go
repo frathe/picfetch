@@ -343,6 +343,43 @@ func (p *heldMutationPixels) At(x, y int) color.Color {
 }
 
 func TestFileMutationsSerializeWholeTransactionsAcrossAliases(t *testing.T) {
+	t.Run("strip follows a saved symlink replacement", func(t *testing.T) {
+		target := uitest.TempGPSJPEGURI(t, "target.jpg", 40, 20, 48.858222, 2.2945)
+		before, err := os.ReadFile(target.Path())
+		if err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(t.TempDir(), "selected.jpg")
+		if err := os.Symlink(target.Path(), link); err != nil {
+			t.Fatal(err)
+		}
+		selected := storage.NewFileURI(link)
+		synctest.Test(t, func(t *testing.T) {
+			pixels := &heldMutationPixels{Image: image.NewRGBA(image.Rect(0, 0, 20, 40)), entered: make(chan struct{}), release: make(chan struct{})}
+			saved, stripped := make(chan error, 1), make(chan error, 1)
+			go func() { saved <- SaveRotated(selected, pixels) }()
+			<-pixels.entered
+			go func() { stripped <- StripJPEGMetadata(selected) }()
+			synctest.Wait()
+			close(pixels.release)
+			if err := <-saved; err != nil {
+				t.Fatal(err)
+			}
+			if err := <-stripped; err != nil {
+				t.Fatal(err)
+			}
+		})
+		data, err := os.ReadFile(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ReadMetadata(data).Empty() {
+			t.Error("queued metadata removal left identifying tags in the saved file")
+		}
+		if data, err := os.ReadFile(target.Path()); err != nil || !bytes.Equal(data, before) {
+			t.Errorf("queued metadata removal changed the original symlink target: %v", err)
+		}
+	})
 	for _, alias := range []string{"direct", "symlink", "case"} {
 		for _, next := range []string{"strip", "save", "export"} {
 			t.Run(fmt.Sprintf("alias=%s/next=%s", alias, next), func(t *testing.T) {

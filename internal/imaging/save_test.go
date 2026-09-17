@@ -49,10 +49,8 @@ func TestCanEncode(t *testing.T) {
 	}
 }
 
-// TestCanEncodeExt covers the extension check on its own, without
-// CanEncode's symlink resolution: it is what the export path asks, since an
-// export destination is a name the user just typed rather than a file
-// already on disk.
+// TestCanEncodeExt covers the extension check without a URI: it is what the
+// export path asks about the destination name or its fallback format.
 func TestCanEncodeExt(t *testing.T) {
 	cases := []struct {
 		ext  string
