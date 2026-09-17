@@ -139,6 +139,8 @@ func (p *pathTransactions) write(ctx context.Context, path string, create, rejec
 			release()
 			continue
 		}
+		// This branch always returns; retries above release immediately.
+		//noinspection GoDeferInLoop
 		defer release()
 		result.Committed, err = write(resolved)
 		return result, err
