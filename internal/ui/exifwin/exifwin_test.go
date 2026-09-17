@@ -791,7 +791,10 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 					segment := []byte{0xff, 0xe2, 0, 0}
 					binary.BigEndian.PutUint16(segment[2:], uint16(len(payload)+2))
 					segment = append(segment, payload...)
-					data = append(append(append([]byte(nil), plain[:2]...), segment...), plain[2:]...)
+					// These fixtures begin with JFIF, which must stay immediately
+					// after SOI when adding the profile under test.
+					at := 4 + int(binary.BigEndian.Uint16(plain[4:6]))
+					data = append(append(bytes.Clone(plain[:at]), segment...), plain[at:]...)
 				}
 				app := test.NewApp()
 				u := storage.NewFileURI(uitest.WriteTempFile(t, "fixture.jpg", data))

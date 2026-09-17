@@ -158,3 +158,29 @@ the result does not create another unreviewed commit.
 - A fresh Codex code/security review and Qodana/CodeQL/CI evaluation of the pushed
   cleanup head are required before the review loop completes. Review requests
   are posted only after prior reviews finish, avoiding duplicate queued work.
+
+Follow-up review findings through `e5ebc50`:
+
+- Confirmed ambiguous Adobe/JFIF versus RGB component declarations and misplaced
+  JFIF. Public inspection/mutation regressions failed before the fixes and pass
+  with refusal/no commit/unchanged source. Valid fixture metadata now follows the
+  required leading JFIF rather than displacing it.
+- Confirmed uninterruptible orientation/encoding. Orientation now checks between
+  rows and directly retains the gray/RGB model. JPEG encoding unwinds only a
+  private cancellation signal at buffered writes, since the standard encoder
+  otherwise keeps processing after writer errors. Public cancellation regressions
+  failed before each fix; encoding cancellation is injected through a test-owned
+  context at the stable standard-library encoder boundary, without production
+  hooks or scheduler timing assumptions.
+- Confirmed alignment-dependent scan polling. Scan traversal now advances through
+  every byte with a progress threshold, including marker runs. Existing complete
+  scan/process acceptance tests and cancellation regressions cover the refactor.
+- Focused imaging/EXIF-window race acceptance and transaction/lifetime regressions,
+  vet, formatting and GoLand inspections of all four changed Go files pass.
+- Qodana on `e5ebc50` showed that the original in-block suppression was ineffective
+  and raised a documentation-format notice. The sentinel now has a properly named
+  comment and a suppression on its own declaration; the next SARIF verifies it.
+- GitHub's separate "Code scanning AI findings" service failed before analysis on
+  both pushed heads with CAPI HTTP 400, "The requested model is not supported."
+  This is distinct from the passing CodeQL jobs and the Codex security review;
+  its unavailable result must remain explicit in final PR evidence.

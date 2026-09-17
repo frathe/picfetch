@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"image"
-	"image/draw"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
@@ -414,18 +413,14 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 		return err == nil, err
 	}
 
-	pixels := ApplyOrientation(p.pixels, orient)
-	if p.components == 1 {
-		// Orientation helpers return RGBA; retain the grayscale encoder/model.
-		gray := image.NewGray(pixels.Bounds())
-		draw.Draw(gray, gray.Bounds(), pixels, pixels.Bounds().Min, draw.Src)
-		pixels = gray
-	}
-	var encoded bytes.Buffer
-	if err := encodeJPEGKeepingICC(&encoded, pixels, p.output); err != nil {
+	pixels, err := orientJPEGRemoval(ctx, p.pixels, orient, p.components)
+	if err != nil {
 		return false, err
 	}
-	encodedData := encoded.Bytes()
+	encodedData, err := encodeJPEGRemoval(ctx, pixels, p.output)
+	if err != nil {
+		return false, err
+	}
 	if len(p.jfif) != 0 {
 		header := bytes.Clone(p.jfif)
 		if orient >= 5 {

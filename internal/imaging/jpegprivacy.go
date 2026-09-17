@@ -24,12 +24,13 @@ type JPEGMetadataInspection struct {
 	Err   error
 }
 
-var (
-	// The EXIF window uses this sentinel to distinguish non-JPEG sources.
-	// Qodana's differential analysis misses those cross-package references.
-	//goland:noinspection GoUnusedGlobalVariable
-	ErrJPEGMetadataNotJPEG = errNotJPEG
+// ErrJPEGMetadataNotJPEG lets the EXIF window distinguish non-JPEG sources.
+// Qodana's differential analysis misses those cross-package references.
+//
+//goland:noinspection GoUnusedGlobalVariable
+var ErrJPEGMetadataNotJPEG = errNotJPEG
 
+var (
 	ErrJPEGMetadataStructure   = errors.New("JPEG structure is incomplete or invalid")
 	ErrJPEGMetadataProcess     = errors.New("JPEG process or color interpretation is not qualified for metadata removal")
 	ErrJPEGMetadataProfile     = errors.New("ICC profile is not qualified for metadata removal")
@@ -99,6 +100,9 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			if adobe && ((jfif && adobeTransform != 1) || (p.components == 1 && adobeTransform != 0)) {
 				return p, ErrJPEGMetadataProcess
 			}
+			if bytes.Equal(policy.ids, []byte("RGB")) && (jfif || adobe && adobeTransform != 0) {
+				return p, ErrJPEGMetadataProcess
+			}
 			p.output = append(p.output, 0xff, 0xd9)
 			segments, err := profile.normalized(ctx, p.components)
 			if err != nil {
@@ -161,7 +165,7 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			}
 		case marker == 0xe0:
 			if bytes.HasPrefix(payload, []byte("JFIF\x00")) {
-				if jfif || scan || len(payload) < 14 || payload[5] != 1 || payload[6] > 2 || payload[7] > 2 || binary.BigEndian.Uint16(payload[8:10]) == 0 || binary.BigEndian.Uint16(payload[10:12]) == 0 || len(payload) < 14+3*int(payload[12])*int(payload[13]) {
+				if start != 2 || jfif || scan || len(payload) < 14 || payload[5] != 1 || payload[6] > 2 || payload[7] > 2 || binary.BigEndian.Uint16(payload[8:10]) == 0 || binary.BigEndian.Uint16(payload[10:12]) == 0 || len(payload) < 14+3*int(payload[12])*int(payload[13]) {
 					return p, ErrJPEGMetadataStructure
 				}
 				jfif = true
@@ -208,30 +212,30 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 }
 
 func jpegScanEnd(ctx context.Context, data []byte, pos int) (int, error) {
-	for pos < len(data) {
-		if pos%4096 == 0 {
+	markerStart := -1
+	nextCheck := pos
+	for ; pos < len(data); pos++ {
+		if pos >= nextCheck {
 			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
-		}
-		if data[pos] != 0xff {
-			pos++
-			continue
-		}
-		start := pos
-		pos++
-		for pos < len(data) && data[pos] == 0xff {
-			pos++
-		}
-		if pos == len(data) {
-			break
+			nextCheck = pos + 4096
 		}
 		marker := data[pos]
-		if marker == 0 || marker >= 0xd0 && marker <= 0xd7 {
-			pos++
+		if markerStart < 0 {
+			if marker == 0xff {
+				markerStart = pos
+			}
 			continue
 		}
-		return start, nil
+		if marker == 0xff {
+			continue
+		}
+		if marker == 0 || marker >= 0xd0 && marker <= 0xd7 {
+			markerStart = -1
+			continue
+		}
+		return markerStart, nil
 	}
 	return 0, ErrJPEGMetadataStructure
 }
@@ -267,4 +271,95 @@ func removalOrientation(tiff []byte) (int, error) {
 		}
 	}
 	return orient, nil
+}
+
+// orientJPEGRemoval checks cancellation between rows and writes the final color
+// model directly, avoiding a second full-image conversion for gray sources.
+func orientJPEGRemoval(ctx context.Context, source image.Image, orientation, components int) (image.Image, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	bounds := source.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	size := image.Rect(0, 0, width, height)
+	if orientation >= 5 {
+		size = image.Rect(0, 0, height, width)
+	}
+	var output image.Image
+	var gray *image.Gray
+	var rgba *image.RGBA
+	if components == 1 {
+		gray = image.NewGray(size)
+		output = gray
+	} else {
+		rgba = image.NewRGBA(size)
+		output = rgba
+	}
+	pixels := orientationPixels(source)
+	for y := range height {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		for x := range width {
+			dx, dy := x, y
+			switch orientation {
+			case 2:
+				dx = width - 1 - x
+			case 3:
+				dx, dy = width-1-x, height-1-y
+			case 4:
+				dy = height - 1 - y
+			case 5:
+				dx, dy = y, x
+			case 6:
+				dx, dy = height-1-y, x
+			case 7:
+				dx, dy = height-1-y, width-1-x
+			case 8:
+				dx, dy = y, width-1-x
+			}
+			pixel := pixels.RGBA64At(bounds.Min.X+x, bounds.Min.Y+y)
+			if gray != nil {
+				gray.Pix[dy*gray.Stride+dx] = uint8(pixel.R >> 8)
+			} else {
+				rgba.SetRGBA64(dx, dy, pixel)
+			}
+		}
+	}
+	return output, ctx.Err()
+}
+
+type jpegRemovalEncodeCanceled struct{ err error }
+
+type jpegRemovalEncodeWriter struct{ contextWrite }
+
+func (w jpegRemovalEncodeWriter) Write(p []byte) (int, error) {
+	n, err := w.contextWrite.Write(p)
+	if err != nil {
+		// image/jpeg records writer errors but finishes all pixel blocks. This
+		// private signal exits those loops at the next buffered output write.
+		panic(jpegRemovalEncodeCanceled{err: err})
+	}
+	return n, nil
+}
+
+func encodeJPEGRemoval(ctx context.Context, pixels image.Image, original []byte) (output []byte, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			if cancelled, ok := recovered.(jpegRemovalEncodeCanceled); ok {
+				output, err = nil, cancelled.err
+			} else {
+				panic(recovered)
+			}
+		}
+	}()
+	var encoded bytes.Buffer
+	writer := jpegRemovalEncodeWriter{contextWrite{ctx: ctx, out: &encoded}}
+	if err := jpeg.Encode(writer, pixels, &jpeg.Options{Quality: jpegSaveQuality}); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return injectJPEGMetadata(encoded.Bytes(), jpegICCSegments(original))
 }

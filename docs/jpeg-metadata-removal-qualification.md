@@ -9,8 +9,8 @@ removal; metadata-preserving Save Changes and export retain their separate polic
 | --- | --- |
 | JPEG | 8-bit Huffman SOF0 baseline and SOF2 progressive, one or three components, 8-bit quantization tables; complete coefficient progression, including separate-component sequential scans. Other processes and four-component color are refused. |
 | Scan boundaries | All supported scans are followed through structural EOI. APP/COM metadata is removed between scans as well as in the header. Missing boundaries and unsupported structures are refused. |
-| JFIF/JFXX | Validate JFIF 1.00-1.02, retain its 14-byte interpretation/density header with zero thumbnail dimensions; remove thumbnail bytes, extensions and unclaimed payload. |
-| Adobe | Validate version 100, zero flags and qualified gray/RGB transform. Retain only the 12-byte declaration; conflicting declarations are refused. |
+| JFIF/JFXX | Validate JFIF 1.00-1.02 immediately after SOI, retain its 14-byte interpretation/density header with zero thumbnail dimensions; remove thumbnail bytes, extensions and unclaimed payload. |
+| Adobe | Validate version 100, zero flags and qualified gray/RGB transform. Retain only the 12-byte declaration; conflicts with JFIF or RGB component identifiers are refused. |
 | ICC | v2/v4 input/display (`scnr`/`mntr`) RGB matrix/TRC and gray/TRC with XYZ PCS and D50 header illuminant. Required descriptions/copyright/white point and model-specific transform tags must exist. |
 | ICC transform tags | Exact XYZ columns, white/black points, `chad`, `chrm`, and monotonic `curv` or qualified gamma/sRGB `para` types 0/3. Other tags, LUT models, ambiguous assembly, partial overlaps, wrong models and malformed lengths are refused. Maximum assembled source profile: 4 MiB. |
 | ICC identity | Rebuild the tag table/data with zero padding; retain exact transform payloads. Replace description/copyright with neutral text, remove manufacturer/model descriptions and unclaimed bytes, normalize creation date, clear creator/manufacturer/model/platform/CMM/profile ID. Preserve qualified rendering intent and device attributes. |
@@ -20,6 +20,9 @@ Unknown input is not presented as clean. Inspection and mutation share the polic
 mutation reads the current file after transaction admission. Clean sources return
 an uncommitted result. Cancellation/refusal before replacement leaves bytes intact;
 committed results preserve their existing host-reconciliation semantics.
+Cancellation is checked throughout scan traversal, between orientation rows and
+at buffered JPEG encoder output boundaries; the encoder's pixel loops unwind on
+cancellation instead of finishing a discarded image.
 
 ## Corpus and independent color reference
 

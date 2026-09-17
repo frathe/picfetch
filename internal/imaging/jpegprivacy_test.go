@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -207,11 +208,54 @@ func TestJPEGMetadataRemovalFidelity(t *testing.T) {
 
 func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 	plain := uitest.EncodeJPEG(t, 16, 12, color.White)
-	// Conflicting recognized color declarations are uncertain in either order.
+	t.Run("conflicting Adobe and RGB component declarations", func(t *testing.T) {
+		components := bytes.Clone(plain)
+		frame := bytes.Index(components, []byte{0xff, 0xc0})
+		scan := bytes.Index(components, []byte{0xff, 0xda})
+		if frame < 0 || scan < 0 {
+			t.Fatal("fixture has no baseline frame or scan")
+		}
+		for i, id := range []byte{'R', 'G', 'B'} {
+			components[frame+10+3*i] = id
+			components[scan+5+2*i] = id
+		}
+		adobeYCbCr := jpegSegmentBytes(0xee, []byte{'A', 'd', 'o', 'b', 'e', 0, 100, 0, 0, 0, 0, 1})
+		for _, orientation := range []uint16{1, 6} {
+			data := mustInjectRemoval(t, components, adobeYCbCr, wrapAsAPP1(buildExifSegment(t, orientation, false)))
+			path := writeTempFile(t, "conflicting-colors.jpg", data)
+			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+			if !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+				t.Fatalf("orientation %d: conflicting color declarations = %+v, %v", orientation, result, err)
+			}
+			inspection := InspectJPEGMetadata(context.Background(), data)
+			if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) {
+				t.Fatalf("orientation %d: conflicting color inspection = %+v", orientation, inspection)
+			}
+		}
+	})
+	// Conflicting recognized color declarations remain uncertain even in order.
 	adobe := jpegSegmentBytes(0xee, []byte{'A', 'd', 'o', 'b', 'e', 0, 100, 0, 0, 0, 0, 0})
 	jfif := jpegSegmentBytes(0xe0, []byte{'J', 'F', 'I', 'F', 0, 1, 2, 0, 0, 1, 0, 1, 0, 0})
+	t.Run("misplaced JFIF declaration", func(t *testing.T) {
+		// The standard-library fixture starts with a quantization table.
+		afterTable := 4 + int(binary.BigEndian.Uint16(plain[4:6]))
+		beforeScan := bytes.Index(plain, []byte{0xff, 0xda})
+		for _, at := range []int{afterTable, beforeScan} {
+			data := append(bytes.Clone(plain[:at]), jfif...)
+			data = append(data, plain[at:]...)
+			inspection := InspectJPEGMetadata(context.Background(), data)
+			if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataStructure) {
+				t.Fatalf("misplaced JFIF inspection = %+v", inspection)
+			}
+			path := writeTempFile(t, "misplaced-jfif.jpg", data)
+			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+			if !errors.Is(err, ErrJPEGMetadataStructure) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+				t.Fatalf("misplaced JFIF removal = %+v, %v", result, err)
+			}
+		}
+	})
 	for name, data := range map[string][]byte{
-		"conflicting color declarations": mustInjectRemoval(t, plain, adobe, jfif),
+		"conflicting color declarations": mustInjectRemoval(t, plain, jfif, adobe),
 		"missing end":                    plain[:len(plain)-2],
 		"incomplete image":               {0xff, 0xd8, 0xff, 0xd9},
 		"invalid profile":                mustInjectRemoval(t, plain, jpegSegmentBytes(0xe2, []byte("ICC_PROFILE\x00\x01\x01fixture"))),
@@ -240,15 +284,70 @@ func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 			t.Fatalf("cancellation = %+v, %v", result, err)
 		}
 	})
+	t.Run("cancellation during pixel orientation", func(t *testing.T) {
+		data := mustInjectRemoval(t, uitest.EncodeJPEG(t, 512, 512, color.White), wrapAsAPP1(buildExifSegment(t, 6, false)))
+		path := writeTempFile(t, "cancel-orientation.jpg", data)
+		base, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		// Give reading/parsing the small encoded fixture ample work, then
+		// cancel only if the pixel-heavy transformation observes the context.
+		ctx := &groupingCancelContext{Context: base, cancel: cancel, after: 100}
+		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
+		if !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+			t.Fatalf("pixel-work cancellation = %+v, %v", result, err)
+		}
+	})
+	t.Run("cancellation during JPEG encoding", func(t *testing.T) {
+		data := mustInjectRemoval(t, uitest.EncodeJPEG(t, 512, 512, color.White), wrapAsAPP1(buildExifSegment(t, 6, false)))
+		path := writeTempFile(t, "cancel-encoding.jpg", data)
+		base, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ctx := &jpegEncodeCancelContext{Context: base, cancel: cancel}
+		result, err := StripJPEGMetadataContext(ctx, storage.NewFileURI(path))
+		if !ctx.observed || !errors.Is(err, context.Canceled) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+			t.Fatalf("encoder cancellation observed=%v result=%+v error=%v", ctx.observed, result, err)
+		}
+	})
+}
+
+// Cancellation is injected at the standard-library encoding boundary so this
+// public mutation test needs neither timing assumptions nor a production hook.
+type jpegEncodeCancelContext struct {
+	context.Context
+	cancel   context.CancelFunc
+	observed bool
+}
+
+func (c *jpegEncodeCancelContext) Err() error {
+	var callers [32]uintptr
+	frames := runtime.CallersFrames(callers[:runtime.Callers(2, callers[:])])
+	for {
+		frame, more := frames.Next()
+		if frame.Function == "image/jpeg.Encode" {
+			c.observed = true
+			c.cancel()
+			break
+		}
+		if !more {
+			break
+		}
+	}
+	return c.Context.Err()
 }
 
 func mustInjectRemoval(t *testing.T, plain []byte, segments ...[]byte) []byte {
 	t.Helper()
-	out, err := injectJPEGMetadata(plain, segments)
-	if err != nil {
-		t.Fatal(err)
+	at := 2
+	// Keep independently generated JFIF fixtures in their required leading
+	// position while adding the metadata under test after that declaration.
+	if len(plain) >= 11 && bytes.Equal(plain[2:4], []byte{0xff, 0xe0}) && bytes.Equal(plain[6:11], []byte("JFIF\x00")) {
+		at += 2 + int(binary.BigEndian.Uint16(plain[4:6]))
 	}
-	return out
+	out := bytes.Clone(plain[:at])
+	for _, segment := range segments {
+		out = append(out, segment...)
+	}
+	return append(out, plain[at:]...)
 }
 
 func TestJPEGMetadataRemovalInspection(t *testing.T) {
