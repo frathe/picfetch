@@ -114,6 +114,17 @@ func TestCheck(t *testing.T) {
 }
 
 func TestDecodeGitHubJSON(t *testing.T) {
+	t.Run("exact limit", func(t *testing.T) {
+		const body = `{"key":"value"}`
+		var got map[string]string
+		if err := decodeGitHubJSON(strings.NewReader(body), int64(len(body)), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got["key"] != "value" {
+			t.Errorf("key = %q, want value", got["key"])
+		}
+	})
+
 	t.Run("within limit", func(t *testing.T) {
 		var got map[string]string
 		if err := decodeGitHubJSON(strings.NewReader(`{"key":"value"}`), 16, &got); err != nil {
@@ -125,10 +136,15 @@ func TestDecodeGitHubJSON(t *testing.T) {
 	})
 
 	t.Run("over limit", func(t *testing.T) {
+		const body = `{"key":"value"}`
+		reader := strings.NewReader(body)
 		var got map[string]string
-		err := decodeGitHubJSON(strings.NewReader(`{"key":"value"}`), 8, &got)
+		err := decodeGitHubJSON(reader, 8, &got)
 		if !errors.Is(err, errGitHubResponseTooLarge) {
 			t.Fatalf("error = %v, want errors.Is(_, errGitHubResponseTooLarge)", err)
+		}
+		if consumed := len(body) - reader.Len(); consumed != 9 {
+			t.Errorf("source bytes consumed = %d, want limit plus one (9)", consumed)
 		}
 	})
 
@@ -143,7 +159,7 @@ func TestDecodeGitHubJSON(t *testing.T) {
 
 type errorReader struct{}
 
-func (errorReader) Read([]byte) (int, error) { return 0, errors.New("read failed") }
+func (errorReader) Read(_ []byte) (int, error) { return 0, errors.New("read failed") }
 
 func TestCheck_SameTag(t *testing.T) {
 	srv := serveLatest(t, nil, nil)

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2/test"
@@ -463,56 +464,116 @@ func TestUpdater_EnsureClient_SuccessIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestUpdateHTTPClient_AllowsResponseBodyWithProgress(t *testing.T) {
-	const (
-		body    = "slow"
-		timeout = 25 * time.Millisecond
-	)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Length", fmt.Sprint(len(body)))
-		for _, char := range body {
-			_, _ = fmt.Fprint(w, string(char))
-			w.(http.Flusher).Flush()
-			time.Sleep(timeout / 2)
-		}
-	}))
-	defer srv.Close()
+func TestIdleTimeoutReadCloser_StaleExpiration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = time.Second
+		body := newIdleTimeoutReadCloser(io.NopCloser(strings.NewReader("ab")), timeout)
+		defer func() { _ = body.Close() }()
 
-	resp, err := newUpdateHTTPClient(timeout).Get(srv.URL)
-	if err != nil {
-		t.Fatalf("Get() before reading the slow body = %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	got, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("reading a response body slower than the header timeout = %v", err)
-	}
-	if string(got) != body {
-		t.Errorf("body = %q, want %q", got, body)
-	}
+		// Hold an already-fired callback before it acquires the body's mutex.
+		// Reset cannot recall this callback, even though a read makes progress.
+		body.timer.Stop()
+		entered, release := make(chan struct{}), make(chan struct{})
+		body.timer = time.AfterFunc(timeout, func() {
+			close(entered)
+			<-release
+			body.expire()
+		})
+		<-entered
+		buf := make([]byte, 1)
+		_, readErr := body.Read(buf)
+		close(release)
+		synctest.Wait()
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		got, err := io.ReadAll(body)
+		if err != nil || string(got) != "b" {
+			t.Fatalf("body after progress and stale expiration = %q, %v; want b, nil", got, err)
+		}
+	})
+}
+
+func TestUpdateHTTPClient_AllowsResponseBodyWithProgress(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			body    = "slow"
+			timeout = time.Second
+		)
+		reader, writer := io.Pipe()
+		defer func() { _ = reader.Close() }()
+		client := newUpdateHTTPClient(timeout)
+		transport := client.Transport.(idleTimeoutTransport)
+		transport.base = updateResponseTransport{body: reader}
+		client.Transport = transport
+		go func() {
+			defer func() { _ = writer.Close() }()
+			for _, char := range body {
+				time.Sleep(timeout / 2)
+				if _, err := fmt.Fprint(writer, string(char)); err != nil {
+					return
+				}
+			}
+		}()
+		resp, err := client.Get("https://updates.invalid/archive")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		got, err := io.ReadAll(resp.Body)
+		if err != nil || string(got) != body {
+			t.Fatalf("progressing body = %q, %v; want %q, nil", got, err, body)
+		}
+	})
+}
+
+type updateResponseTransport struct{ body io.ReadCloser }
+
+func (t updateResponseTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: http.StatusOK, Body: t.body}, nil
 }
 
 func TestUpdateHTTPClient_ClosesStalledResponseBody(t *testing.T) {
-	const timeout = 25 * time.Millisecond
-	release := make(chan struct{})
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		defer func() { <-release }()
-		w.Header().Set("Content-Length", "2")
-		_, _ = io.WriteString(w, "a")
-		w.(http.Flusher).Flush()
-	}))
-	defer func() {
-		close(release)
-		srv.Close()
-	}()
-
-	resp, err := newUpdateHTTPClient(timeout).Get(srv.URL)
-	if err != nil {
-		t.Fatalf("Get() before reading the stalled body = %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if _, err := io.ReadAll(resp.Body); err == nil {
-		t.Fatal("reading a stalled response body succeeded, want idle-timeout error")
+	for _, callerCancels := range []bool{false, true} {
+		name := "idle timeout"
+		if callerCancels {
+			name = "caller cancellation"
+		}
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Length", "2")
+				_, _ = io.WriteString(w, "a")
+				w.(http.Flusher).Flush()
+				<-r.Context().Done()
+			}))
+			defer srv.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			timeout := time.Second
+			if callerCancels {
+				timeout = time.Hour
+			}
+			resp, err := newUpdateHTTPClient(timeout).Do(req)
+			if err != nil {
+				t.Fatalf("Do() before reading the stalled body = %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if callerCancels {
+				cancel()
+			}
+			_, err = io.ReadAll(resp.Body)
+			if callerCancels {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("body error = %v, want context cancellation", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "idle timeout") {
+				t.Fatalf("body error = %v, want idle timeout before request deadline", err)
+			}
+		})
 	}
 }
 

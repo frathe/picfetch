@@ -195,6 +195,7 @@ type idleTimeoutReadCloser struct {
 	body      io.ReadCloser
 	timer     *time.Timer
 	timeout   time.Duration
+	deadline  time.Time
 	mu        sync.Mutex
 	closeOnce sync.Once
 	closeErr  error
@@ -203,8 +204,10 @@ type idleTimeoutReadCloser struct {
 }
 
 func newIdleTimeoutReadCloser(body io.ReadCloser, timeout time.Duration) *idleTimeoutReadCloser {
-	r := &idleTimeoutReadCloser{body: body, timeout: timeout}
+	r := &idleTimeoutReadCloser{body: body, timeout: timeout, deadline: time.Now().Add(timeout)}
+	r.mu.Lock()
 	r.timer = time.AfterFunc(timeout, r.expire)
+	r.mu.Unlock()
 	return r
 }
 
@@ -212,6 +215,7 @@ func (r *idleTimeoutReadCloser) Read(p []byte) (int, error) {
 	n, err := r.body.Read(p)
 	r.mu.Lock()
 	if n > 0 && !r.closed && !r.timedOut {
+		r.deadline = time.Now().Add(r.timeout)
 		r.timer.Reset(r.timeout)
 	}
 	timedOut := r.timedOut
@@ -235,7 +239,14 @@ func (r *idleTimeoutReadCloser) Close() error {
 
 func (r *idleTimeoutReadCloser) expire() {
 	r.mu.Lock()
-	if r.closed {
+	if r.closed || r.timedOut {
+		r.mu.Unlock()
+		return
+	}
+	// Reset cannot recall an AfterFunc callback that has already started.
+	// A successful read may have extended the deadline while it waited for mu.
+	if remaining := time.Until(r.deadline); remaining > 0 {
+		r.timer.Reset(remaining)
 		r.mu.Unlock()
 		return
 	}
