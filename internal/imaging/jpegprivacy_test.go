@@ -567,6 +567,40 @@ func mustInjectRemoval(t *testing.T, plain []byte, segments ...[]byte) []byte {
 }
 
 func TestJPEGMetadataRemovalInspection(t *testing.T) {
+	t.Run("retained declaration fill is not metadata", func(t *testing.T) {
+		plain := removalFixture(t, "baseline-rgb.jpg")
+		for _, tc := range []struct {
+			name     string
+			marker   byte
+			segments [][]byte
+		}{
+			{"JFIF", 0xe0, nil},
+			{"Adobe", 0xee, [][]byte{jpegSegmentBytes(0xee, []byte{'A', 'd', 'o', 'b', 'e', 0, 100, 0, 0, 0, 0, 1})}},
+			{"ICC", 0xe2, profileSegments(removalFixture(t, "rgb-v4.icc"))},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				path := writeTempFile(t, "normalized.jpg", mustInjectRemoval(t, plain, tc.segments...))
+				if _, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path)); err != nil {
+					t.Fatal(err)
+				}
+				clean := mustRead(t, path)
+				filled := fillRemovalMarker(t, clean, tc.marker)
+				for _, metadata := range []bool{false, true} {
+					data, state := filled, JPEGMetadataClean
+					if metadata {
+						data = fillRemovalMarker(t, mustInjectRemoval(t, clean, jpegSegmentBytes(0xfe, []byte("fixture description"))), tc.marker)
+						state = JPEGMetadataRemovable
+					}
+					inspection := InspectJPEGMetadata(context.Background(), data)
+					path := writeTempFile(t, "filled-declaration.jpg", data)
+					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+					if inspection.State != state || inspection.Err != nil || err != nil || result.Committed != metadata || !bytes.Equal(filled, mustRead(t, path)) {
+						t.Fatalf("declaration fill (metadata=%v) = %+v; %+v, %v", metadata, inspection, result, err)
+					}
+				}
+			})
+		}
+	})
 	t.Run("legal EOI fill preserves clean and removable sources", func(t *testing.T) {
 		plain := uitest.EncodeJPEG(t, 16, 12, color.White)
 		filled := append(bytes.Clone(plain[:len(plain)-2]), 0xff, 0xff, 0xd9)
@@ -610,6 +644,34 @@ func TestJPEGMetadataRemovalInspection(t *testing.T) {
 }
 
 func TestJPEGMetadataRemovalProfiles(t *testing.T) {
+	t.Run("filled JFIF retains normalized ICC through orientation", func(t *testing.T) {
+		plain := removalFixture(t, "baseline-rgb.jpg")
+		profile := removalFixture(t, "rgb-v4.icc")
+		for _, orientation := range []uint16{1, 6} {
+			segments := append(profileSegments(profile), wrapAsAPP1(buildExifSegment(t, orientation, false)))
+			data := fillRemovalMarker(t, mustInjectRemoval(t, plain, segments...), 0xe0)
+			path := writeTempFile(t, "filled-profile.jpg", data)
+			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+			if err != nil || !result.Committed {
+				t.Fatalf("filled profile orientation %d = %+v, %v", orientation, result, err)
+			}
+			output := mustRead(t, path)
+			if got := InspectJPEGMetadata(context.Background(), output); got.State != JPEGMetadataClean || got.Err != nil {
+				t.Fatalf("filled profile output = %+v", got)
+			}
+			// The fixture tag table is independent of marker fill and of
+			// the tolerant export reader's handling of filled JFIF.
+			start := bytes.Index(output, []byte("ICC_PROFILE\x00\x01\x01"))
+			if start < 0 {
+				t.Fatal("normalized profile was lost")
+			}
+			p := output[start+14:]
+			p = p[:binary.BigEndian.Uint32(p[:4])]
+			if !bytes.Equal(profileTestTags(t, profile)["rTRC"], profileTestTags(t, p)["rTRC"]) {
+				t.Fatal("normalized profile transform changed")
+			}
+		}
+	})
 	t.Run("explicit EXIF color with ICC is refused", func(t *testing.T) {
 		plain := removalFixture(t, "baseline-rgb.jpg")
 		profile := removalFixture(t, "rgb-v4.icc")
@@ -811,4 +873,14 @@ func profileTestTags(t *testing.T, p []byte) map[string][]byte {
 		tags[string(e[:4])] = p[start : start+size]
 	}
 	return tags
+}
+
+func fillRemovalMarker(t *testing.T, data []byte, marker byte) []byte {
+	t.Helper()
+	pos := bytes.Index(data, []byte{0xff, marker})
+	if pos < 0 {
+		t.Fatalf("fixture has no marker %#x", marker)
+	}
+	out := append(bytes.Clone(data[:pos]), 0xff)
+	return append(out, data[pos:]...)
 }

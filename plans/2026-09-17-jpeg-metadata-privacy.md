@@ -267,3 +267,22 @@ Follow-up review findings on `6d8b7f6`:
   bytes at the standard-library output DecodeConfig boundary.
 - Final focused imaging/window race regressions, imaging vet, formatting and
   warnings-inclusive GoLand inspections of all three changed Go files pass.
+
+Follow-up review finding on `a6a75f6`:
+
+- All normal hosted checks and security review passed, with zero post-suppression
+  Qodana results and no open CodeQL alerts. Fresh code review found that rebuilding
+  retained JFIF still removed legal marker fill. Public no-op regressions also
+  confirmed the same class for Adobe and already-normalized ICC markers.
+- Retained JFIF/Adobe preserve their original marker prefix. ICC normalization
+  reports exact assembled-profile equality; an already-sanitized profile retains
+  its original chunks, fill and scan positions even when other metadata is
+  removed. Arbitrary ICC internals are still qualified and sanitized as before.
+- ICC insertion uses the recorded leading-JFIF end, including fill. Orientation
+  receives the already-qualified normalized ICC segments directly instead of
+  passing through the tolerant export walker. Public filled-JFIF/profile checks
+  verify upright and oriented output remains qualified and retains its transform.
+- The new marker no-op regressions observed committed rewrites before the fix
+  and are now green for clean files and files with removable comments.
+- Focused imaging/window race regressions, imaging vet, formatting and
+  warnings-inclusive GoLand inspections of all four changed Go files pass.

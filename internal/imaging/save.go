@@ -417,7 +417,7 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	encodedData, err := encodeJPEGRemoval(ctx, pixels, p.output, p.encodeLimit)
+	encodedData, err := encodeJPEGRemoval(ctx, pixels, p.icc, p.encodeLimit)
 	if err != nil {
 		return false, err
 	}

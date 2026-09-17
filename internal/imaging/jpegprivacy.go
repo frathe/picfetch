@@ -59,6 +59,12 @@ type jpegRemoval struct {
 	components  int
 	pixels      image.Image
 	encodeLimit int64
+	icc         [][]byte
+}
+
+type jpegRemovalICCSpan struct {
+	at   int
+	data []byte
 }
 
 // prepareJPEGRemoval deliberately does not change the tolerant header reader used
@@ -84,6 +90,8 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 	adobeTransform := byte(0xff)
 	var policy jpegScanPolicy
 	var profile removalICC
+	var iccSpans []jpegRemovalICCSpan
+	jfifEnd := 0
 	for pos := 2; pos < len(data); {
 		if err := ctx.Err(); err != nil {
 			return p, err
@@ -111,15 +119,20 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 				return p, ErrJPEGMetadataProcess
 			}
 			p.output = append(p.output, data[start:pos]...)
-			segments, err := profile.normalized(ctx, p.components)
+			segments, iccClean, err := profile.normalized(ctx, p.components)
 			if err != nil {
 				return p, err
 			}
-			if len(segments) > 0 {
+			p.icc = segments
+			if len(segments) > 0 && iccClean {
+				// Qualified normalized profiles need no sanitization. Preserve
+				// their original marker fill, chunking and scan placement.
+				p.output = restoreRemovalICC(p.output, iccSpans)
+			} else if len(segments) > 0 {
 				// Keep a leading JFIF directly after SOI.
 				at := 2
-				if len(p.output) > 6 && p.output[2] == 0xff && p.output[3] == 0xe0 {
-					at += 2 + int(binary.BigEndian.Uint16(p.output[4:6]))
+				if jfifEnd != 0 {
+					at = jfifEnd
 				}
 				out := append([]byte(nil), p.output[:at]...)
 				for _, segment := range segments {
@@ -182,7 +195,8 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 				header := append([]byte(nil), payload[:14]...)
 				header[12], header[13] = 0, 0
 				p.jfif = header
-				p.output = append(p.output, jpegSegmentBytes(marker, header)...)
+				p.output = appendRemovalSegment(p.output, data[start:after], header)
+				jfifEnd = len(p.output)
 			}
 			continue
 		case marker == 0xee:
@@ -191,7 +205,7 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			}
 			adobe = true
 			adobeTransform = payload[11]
-			p.output = append(p.output, jpegSegmentBytes(marker, payload[:12])...)
+			p.output = appendRemovalSegment(p.output, data[start:after], payload[:12])
 			continue
 		case marker == 0xe1:
 			if bytes.HasPrefix(payload, []byte("Exif\x00\x00")) {
@@ -210,6 +224,7 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			if err := profile.add(payload); err != nil {
 				return p, err
 			}
+			iccSpans = append(iccSpans, jpegRemovalICCSpan{at: len(p.output), data: data[start:pos]})
 			continue
 		case marker == 0xe8 && bytes.HasPrefix(payload, []byte("SPIFF\x00")):
 			return p, ErrJPEGMetadataProcess
@@ -221,6 +236,27 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 		p.output = append(p.output, data[start:pos]...)
 	}
 	return p, ErrJPEGMetadataStructure
+}
+
+func appendRemovalSegment(output, prefix, payload []byte) []byte {
+	output = append(output, prefix...)
+	output = binary.BigEndian.AppendUint16(output, uint16(len(payload)+2))
+	return append(output, payload...)
+}
+
+func restoreRemovalICC(output []byte, spans []jpegRemovalICCSpan) []byte {
+	size := len(output)
+	for _, span := range spans {
+		size += len(span.data)
+	}
+	restored := make([]byte, 0, size)
+	pos := 0
+	for _, span := range spans {
+		restored = append(restored, output[pos:span.at]...)
+		restored = append(restored, span.data...)
+		pos = span.at
+	}
+	return append(restored, output[pos:]...)
 }
 
 func jpegScanEnd(ctx context.Context, data []byte, pos int) (int, error) {
@@ -413,7 +449,7 @@ func (w *jpegRemovalEncodeWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func encodeJPEGRemoval(ctx context.Context, pixels image.Image, original []byte, limit int64) (output []byte, err error) {
+func encodeJPEGRemoval(ctx context.Context, pixels image.Image, profile [][]byte, limit int64) (output []byte, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			if cancelled, ok := recovered.(jpegRemovalEncodeCanceled); ok {
@@ -431,5 +467,5 @@ func encodeJPEGRemoval(ctx context.Context, pixels image.Image, original []byte,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return injectJPEGMetadata(encoded.Bytes(), jpegICCSegments(original))
+	return injectJPEGMetadata(encoded.Bytes(), profile)
 }

@@ -35,12 +35,14 @@ func (c *removalICC) add(p []byte) error {
 	return nil
 }
 
-func (c *removalICC) normalized(ctx context.Context, components int) ([][]byte, error) {
+// normalized reports whether the assembled source is already exactly sanitized,
+// so callers can retain its original marker packaging without a false rewrite.
+func (c *removalICC) normalized(ctx context.Context, components int) ([][]byte, bool, error) {
 	if c.total == 0 {
-		return nil, nil
+		return nil, true, nil
 	}
 	if len(c.chunks) != int(c.total) {
-		return nil, ErrJPEGMetadataProfile
+		return nil, false, ErrJPEGMetadataProfile
 	}
 	data := make([]byte, 0, c.size)
 	for i := 1; i <= int(c.total); i++ {
@@ -48,7 +50,7 @@ func (c *removalICC) normalized(ctx context.Context, components int) ([][]byte, 
 	}
 	profile, err := normalizeRemovalICC(ctx, data, components)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	const chunkSize = 65533 - 14
 	total := (len(profile) + chunkSize - 1) / chunkSize
@@ -60,7 +62,7 @@ func (c *removalICC) normalized(ctx context.Context, components int) ([][]byte, 
 		segments = append(segments, jpegSegmentBytes(0xe2, payload))
 		pos = end
 	}
-	return segments, nil
+	return segments, bytes.Equal(data, profile), nil
 }
 
 // normalizeRemovalICC supports matrix/TRC RGB and monochrome input/display
