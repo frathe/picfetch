@@ -4,12 +4,20 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
 
-const githubAPIVersion = "2022-11-28"
+const (
+	githubAPIVersion       = "2022-11-28"
+	maxGitHubResponseBytes = 16 * 1024 * 1024
+)
+
+// ErrGitHubResponseTooLarge identifies an API document rejected before decoding.
+var ErrGitHubResponseTooLarge = errors.New("github response exceeds size limit")
 
 type ghRelease struct {
 	TagName    string    `json:"tag_name"`
@@ -44,7 +52,7 @@ func (c *Client) Check(ctx context.Context, currentVersion string) (*Release, er
 	}
 
 	var gh ghRelease
-	if err := json.NewDecoder(resp.Body).Decode(&gh); err != nil {
+	if err := decodeGitHubJSON(resp.Body, maxGitHubResponseBytes, &gh); err != nil {
 		return nil, fmt.Errorf("github latest release: %w", err)
 	}
 	if gh.Draft || gh.Prerelease || !Newer(currentVersion, gh.TagName) {
@@ -99,7 +107,7 @@ func (c *Client) fetchReleaseAttestation(ctx context.Context, digestHex, userAge
 		return nil, fmt.Errorf("github attestations: %s", resp.Status)
 	}
 	var gh ghAttestations
-	if err := json.NewDecoder(resp.Body).Decode(&gh); err != nil {
+	if err := decodeGitHubJSON(resp.Body, maxGitHubResponseBytes, &gh); err != nil {
 		return nil, fmt.Errorf("github attestations: %w", err)
 	}
 	if len(gh.Attestations) == 0 {
@@ -109,6 +117,17 @@ func (c *Client) fetchReleaseAttestation(ctx context.Context, digestHex, userAge
 		return nil, fmt.Errorf("github attestations: missing bundle")
 	}
 	return gh.Attestations[0].Bundle, nil
+}
+
+func decodeGitHubJSON(r io.Reader, limit int64, dst any) error {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return err
+	}
+	if int64(len(data)) > limit {
+		return ErrGitHubResponseTooLarge
+	}
+	return json.Unmarshal(data, dst)
 }
 
 func (c *Client) newGitHubRequest(ctx context.Context, rawURL, userAgent string) (*http.Request, error) {

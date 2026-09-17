@@ -130,6 +130,8 @@
    "Later": "Später",
    "OK": "OK",
    "Could not check for updates: %v": "Suche nach Updates fehlgeschlagen: %v",
+   "The update server stopped sending data. Please try again.": "Der Update-Server sendet keine Daten mehr. Bitte versuchen Sie es erneut.",
+   "The update server response exceeds the size limit.": "Die Antwort des Update-Servers überschreitet die zulässige Größe.",
    "Could not perform update: %v": "Update konnte nicht installiert werden: %v",
    "Update could not be installed": "Update konnte nicht installiert werden",
    "Windows blocked PicFetch from replacing itself at %s. This is Controlled Folder Access (\"Überwachter Ordnerzugriff\") protecting that folder. Allow PicFetch through it in Windows Security -> Virus & threat protection -> Ransomware protection -> Allow an app through Controlled folder access, or move PicFetch to a folder outside Documents, Pictures, Music, Videos and Desktop.": "Windows hat verhindert, dass PicFetch sich selbst unter %s ersetzt. Grund ist der Überwachte Ordnerzugriff, der diesen Ordner schützt. Erlauben Sie PicFetch den Zugriff unter Windows-Sicherheit -> Viren- & Bedrohungsschutz -> Ransomware-Schutz -> App durch überwachten Ordnerzugriff zulassen, oder verschieben Sie PicFetch in einen Ordner außerhalb von Dokumente, Bilder, Musik, Videos und Desktop.",

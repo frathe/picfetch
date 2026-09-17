@@ -130,6 +130,8 @@
    "Later": "Later",
    "OK": "OK",
    "Could not check for updates: %v": "Could not check for updates: %v",
+   "The update server stopped sending data. Please try again.": "The update server stopped sending data. Please try again.",
+   "The update server response exceeds the size limit.": "The update server response exceeds the size limit.",
    "Could not perform update: %v": "Could not perform update: %v",
    "Update could not be installed": "Update could not be installed",
    "Windows blocked PicFetch from replacing itself at %s. This is Controlled Folder Access (\"Überwachter Ordnerzugriff\") protecting that folder. Allow PicFetch through it in Windows Security -> Virus & threat protection -> Ransomware protection -> Allow an app through Controlled folder access, or move PicFetch to a folder outside Documents, Pictures, Music, Videos and Desktop.": "Windows blocked PicFetch from replacing itself at %s. This is Controlled Folder Access (\"Überwachter Ordnerzugriff\") protecting that folder. Allow PicFetch through it in Windows Security -> Virus & threat protection -> Ransomware protection -> Allow an app through Controlled folder access, or move PicFetch to a folder outside Documents, Pictures, Music, Videos and Desktop.",

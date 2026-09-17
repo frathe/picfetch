@@ -1,62 +1,5 @@
 # PicFetch — TODOs
 
-## Open
-
-### JPEG metadata removal privacy contract
-
-Status: implementation and local verification complete; human acceptance pending.
-Commit-bound review and CI evidence is maintained on
-[PR #37](https://github.com/frathe/picfetch/pull/37). Exact scan/restart consumption,
-whole-scan removal,
-preview/trailer removal, qualified ICC
-normalization, lossless upright images, bounded removal memory, refusal without rewriting, and content-based
-window availability are implemented. See the [implementation record](plans/2026-09-17-jpeg-metadata-privacy.md),
-[qualification evidence](docs/jpeg-metadata-removal-qualification.md),
-[design decision](docs/adr/0001-jpeg-metadata-removal-refuses-uncertain-input.md) and
-[primary-source research](docs/jpeg-metadata-removal-research-2026-09-17.md).
-
-### EXIF thumbnail review and acceptance
-
-PR #36 erases validated EXIF JPEG thumbnail payloads on save/export while
-preserving unrelated metadata. Implementation, focused race tests, GoLand
-inspections and platform CI pass. Complete the fresh Codex review round after
-the last disposition, then await human acceptance before archiving this plan.
-Final commit-bound review/check evidence is maintained on
-[PR #36](https://github.com/frathe/picfetch/pull/36);
-[active review record](plans/2026-09-17-pr36-review.md).
-
-### Windows signing qualification
-
-Configure the reviewed `SIMPLYSIGN_INSTALLER_SHA256` and
-`SIMPLYSIGN_SIGNER_THUMBPRINT` variables in the protected `release-signing`
-environment, then qualify a signed test-tag release using
-[the signing guide](docs/release-signing.md). The workflow retains the verified
-local installer handoff and checks both pins before installation. Fixes,
-hosted review dispositions and CI evidence are tracked in
-[PR #30](https://github.com/frathe/picfetch/pull/30); PR CI does not execute the
-credentialed signing job.
-
-### Image input hardening
-
-All four safeguards are implemented: bounded ICO selection, SVG expansion limits,
-enforced WASM AVIF selection, and GIF memory accounting. Full `make verify` and
-both Windows internal-package cross-builds pass. Hosted review, finding
-dispositions and final CI/Qodana/CodeQL evidence are tracked in
-[PR #27](https://github.com/frathe/picfetch/pull/27). The live GoLand build-tag
-refresh and re-inspection remain pending; the committed Qodana configuration
-passed hosted analysis. Reload/apply the local `no_emoji nodynamic` module tags
-and inspect the imaging import again before closing this remaining local task.
-Compatibility limits and evidence:
-[implementation plan](finished_refactorings/2026-09-15-image-input-hardening.md).
-
-### Refactoring follow-up review
-
-Implementation and local verification are complete on `feature/refactoring`.
-Run fresh Codex code/security reviews and platform CI, assess all findings and
-inspect the Qodana/CodeQL reports before acceptance. The user authorized the
-GitHub review loop; merging and releasing remain separate actions.
-Contracts and evidence workflow: [review record](finished_refactorings/2026-09-15-refactoring-review.md).
-
 ## Done
 
 ### What's Changed
@@ -104,27 +47,20 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
   and automatic fix pushes, and disable persisted checkout credentials. Retain
   PR comments, annotations and the Go linter's required project token. Review
   dispositions and hosted verification: [PR #33](https://github.com/frathe/picfetch/pull/33).
+- *Windows signing qualification*
+  Completed. The Windows release-signing workflow uses the protected
+  `release-signing` environment, retains the verified local installer handoff,
+  and checks `SIMPLYSIGN_INSTALLER_SHA256` and `SIMPLYSIGN_SIGNER_THUMBPRINT`
+  before installation. Setup and test-tag qualification are described in
+  [the signing guide](docs/release-signing.md). Fixes, hosted review dispositions
+  and CI evidence are tracked in
+  [PR #30](https://github.com/frathe/picfetch/pull/30); PR CI does not execute the
+  credentialed signing job.
 
-## LATER
 
-### Existing dependency distribution qualification
+## Open
 
-Resolve the remaining shipped dependency-closure gaps before release: AVIF
-native component notices/libyuv pin, Fyne font notices and older x/sys inventory.
-HEIC support and its decoder dependency were removed at Ronin's request on
-September 14, pending distribution qualification. See the
-[audit and current disposition](docs/find-more-like-this/dependency-qualification.md)
-and [removal verification](finished_refactorings/2026-09-14-remove-heic-decoder.md).
-
-September 15 research: prefer replacements outside gen2brain. The
-[decoder shortlist](docs/image-codec-alternatives-2026-09-15.md) compares direct
-libavif builds, HEIC alternatives and small extra formats with their complete
-dependency considerations. A later, explicitly authorized
-[pure-Go security evaluation](docs/purego-codec-security-evaluation-2026-09-15.md)
-found blockers in exact h265 and gav1d snapshots. Its disposable WASM prototype
-passed 9/9 scoped isolation checks, with Docker supplying the outer process
-limit; no production desktop sandbox was proven. No replacement or new format
-is implemented or qualified.
+## Deferred
 
 ### Fyne upgrade deferred
 
@@ -133,22 +69,14 @@ Ronin reports an upstream library regression with v2.8.1. Revisit the upgrade
 after an upstream fix is available and the affected behavior is verified.
 The four grouped `golang.org/x/*` updates remain in the PR.
 
-### Antivirus verdicts on unreleased builds
-
-The September 11 local builds have likely false positives: Microsoft flags both
-Linux architectures as `Trojan:Script/Wacatac.C!ml`; Trapmine alone flags Windows
-AMD64 as `Malicious.high.ml.score`. Microsoft reports both Windows builds as
-undetected. Windows ARM64 is 0/67, but Trapmine cannot process that file type.
-All 99 distinct cached dependency directories and archives match the build
-metadata and `go.sum`. Vendor review remains pending; no samples have been
-submitted by the agent. Record final vendor determinations and rescan the final
-release artifacts. See [the investigation](docs/antivirus-triage-2026-09-11.md).
-
 ### WinGet package identifier migration
 
-Move the existing `io.github.frathe.picfetch` manifests in `microsoft/winget-pkgs` to the
-new identifier `frathe.picfetch` before the next WinGet publication; See the
-[maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559).
+Deferred by Ronin on September 13. Keep `io.github.frathe.picfetch` for now;
+the rename to `frathe.picfetch` is not a next-release requirement. Resume only
+after Ronin chooses to proceed, following the inventory, Windows upgrade tests
+and publication steps in [the migration plan](docs/winget-package-id-migration.md).
+The [maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559)
+remains background for that deferred work.
 
 ### Reconsider HEIC support after licensing and security qualification
 
@@ -185,13 +113,6 @@ retirement.
 - **Retained decoded map tiles (MA-025):** Accepted by the user on 2026-09-09. The map loads only when opened, and
   checking the geolocation of thousands of images is outside expected use. The upstream decoded-tile cache remains
   unbounded; its long-session impact is unmeasured. No further measurement or implementation work is planned.
-
-- Windows releases are not Authenticode-signed. Controlled Folder Access and SmartScreen both judge by signature and
-  reputation as well as by which program is writing, so an unsigned `picfetch.exe` can still be blocked even with the
-  in-process swap (see Done → Bugfix above, where the block would now name `picfetch.exe` instead of `cmd.exe`). The
-  real remaining fix is signing the Windows release build — Azure Trusted Signing or a purchased certificate — in
-  `.github/workflows/release.yml`, which runs no
-  `signtool` today.
 
 - There is a bug in the Windows Version: WHen in Gridview, multiselect via the space key works, but when trying it with
   mouse and Ctrl key, it does not. Holding the Ctrl key down and clicking on an image does not select it but instead

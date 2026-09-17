@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2/test"
@@ -463,31 +464,175 @@ func TestUpdater_EnsureClient_SuccessIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestUpdateHTTPClient_AllowsSlowResponseBody(t *testing.T) {
-	const (
-		body    = "slow update archive"
-		timeout = 25 * time.Millisecond
-	)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Length", fmt.Sprint(len(body)))
-		_, _ = io.WriteString(w, body[:1])
-		w.(http.Flusher).Flush()
-		time.Sleep(4 * timeout)
-		_, _ = io.WriteString(w, body[1:])
-	}))
-	defer srv.Close()
+func TestIdleTimeoutReadCloser_StaleExpiration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = time.Second
+		body := newIdleTimeoutReadCloser(io.NopCloser(strings.NewReader("ab")), timeout)
+		defer func() { _ = body.Close() }()
 
-	resp, err := newUpdateHTTPClient(timeout).Get(srv.URL)
-	if err != nil {
-		t.Fatalf("Get() before reading the slow body = %v", err)
+		// Hold an already-fired callback before it acquires the body's mutex.
+		// Reset cannot recall this callback, even though a read makes progress.
+		body.timer.Stop()
+		entered, release := make(chan struct{}), make(chan struct{})
+		body.timer = time.AfterFunc(timeout, func() {
+			close(entered)
+			<-release
+			body.expire()
+		})
+		<-entered
+		buf := make([]byte, 1)
+		_, readErr := body.Read(buf)
+		close(release)
+		synctest.Wait()
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		got, err := io.ReadAll(body)
+		if err != nil || string(got) != "b" {
+			t.Fatalf("body after progress and stale expiration = %q, %v; want b, nil", got, err)
+		}
+	})
+}
+
+func TestIdleTimeoutReadCloser_CloseJoinsExpiration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		body := newIdleTimeoutReadCloser(io.NopCloser(strings.NewReader("a")), time.Second)
+		body.timer.Stop()
+		entered, release := make(chan struct{}), make(chan struct{})
+		body.timer = time.AfterFunc(time.Second, func() {
+			close(entered)
+			<-release
+			body.expire()
+		})
+		<-entered
+		closed := make(chan error, 1)
+		go func() { closed <- body.Close() }()
+		synctest.Wait()
+		var returnedEarly bool
+		select {
+		case <-closed:
+			returnedEarly = true
+		default:
+		}
+		close(release)
+		if returnedEarly {
+			t.Fatal("Close returned while its timer callback was still running")
+		}
+		if err := <-closed; err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestUpdateHTTPClient_AllowsResponseBodyWithProgress(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			body    = "slow"
+			timeout = time.Second
+		)
+		reader, writer := io.Pipe()
+		defer func() { _ = reader.Close() }()
+		client := newUpdateHTTPClient(timeout)
+		transport := client.Transport.(idleTimeoutTransport)
+		transport.base = updateResponseTransport{body: reader}
+		client.Transport = transport
+		go func() {
+			defer func() { _ = writer.Close() }()
+			for _, char := range body {
+				time.Sleep(timeout / 2)
+				if _, err := fmt.Fprint(writer, string(char)); err != nil {
+					return
+				}
+			}
+		}()
+		resp, err := client.Get("https://updates.invalid/archive")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		got, err := io.ReadAll(resp.Body)
+		if err != nil || string(got) != body {
+			t.Fatalf("progressing body = %q, %v; want %q, nil", got, err, body)
+		}
+	})
+}
+
+type updateResponseTransport struct{ body io.ReadCloser }
+
+func (t updateResponseTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: http.StatusOK, Body: t.body}, nil
+}
+
+func TestUpdateHTTPClient_ClosesStalledResponseBody(t *testing.T) {
+	for _, callerCancels := range []bool{false, true} {
+		name := "idle timeout"
+		if callerCancels {
+			name = "caller cancellation"
+		}
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Length", "2")
+				_, _ = io.WriteString(w, "a")
+				w.(http.Flusher).Flush()
+				<-r.Context().Done()
+			}))
+			defer srv.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			timeout := time.Second
+			if callerCancels {
+				timeout = time.Hour
+			}
+			resp, err := newUpdateHTTPClient(timeout).Do(req)
+			if err != nil {
+				t.Fatalf("Do() before reading the stalled body = %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if callerCancels {
+				cancel()
+			}
+			_, err = io.ReadAll(resp.Body)
+			if callerCancels {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("body error = %v, want context cancellation", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "idle timeout") {
+				t.Fatalf("body error = %v, want idle timeout before request deadline", err)
+			}
+		})
 	}
-	defer func() { _ = resp.Body.Close() }()
-	got, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("reading a response body slower than the header timeout = %v", err)
-	}
-	if string(got) != body {
-		t.Errorf("body = %q, want %q", got, body)
+}
+
+func TestUpdater_StartManual_ResponseFailureMessages(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		cause error
+		want  string
+	}{
+		{"timeout", errResponseBodyIdleTimeout, "The update server stopped sending data. Please try again."},
+		{"size limit", update.ErrGitHubResponseTooLarge, "The update server response exceeds the size limit."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			u := New(test.NewApp(), t.TempDir(), nil)
+			u.SetVerifierFactory(func() (update.Verifier, error) {
+				return nil, fmt.Errorf("request details: %w", tc.cause)
+			})
+			var got error
+			u.StartManual(context.Background(), func() bool { return false }, "v0.2.5", Events{
+				Failed: func(err error) { got = err },
+			})
+			waitUpdater(t, u)
+			if got == nil || got.Error() != tc.want {
+				t.Fatalf("manual failure = %v, want %q", got, tc.want)
+			}
+			if !errors.Is(got, tc.cause) {
+				t.Errorf("manual failure lost its diagnostic cause: %v", got)
+			}
+		})
 	}
 }
 
