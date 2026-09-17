@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -96,11 +97,38 @@ func TestDefaultDirUsesUserConfigDirectory(t *testing.T) {
 
 	base, err := os.UserConfigDir()
 	if err != nil || base == "" {
-		base = os.TempDir()
+		t.Skip("user configuration directory is unavailable")
 	}
 	want := filepath.Join(base, "picfetch", "favorites")
-	if got := DefaultDir(); got != want {
+	got, err := DefaultDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
 		t.Errorf("DefaultDir() = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultDirFallbackIsPrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows permissions are ACL-based")
+	}
+
+	tempDir := t.TempDir()
+	dir, err := defaultDir("", errors.New("no config directory"), tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateDir := filepath.Dir(dir)
+	if privateDir == tempDir {
+		t.Fatal("fallback used the shared temporary directory directly")
+	}
+	info, err := os.Stat(privateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o700 {
+		t.Errorf("fallback directory permissions = %#o, want 0700", got)
 	}
 }
 
@@ -197,6 +225,36 @@ func TestSaveOverwritesExistingFavorite(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Path() != "/second.jpg" {
 		t.Errorf("Load = %v, want only /second.jpg", got)
+	}
+}
+
+func TestSaveUsesPrivatePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows permissions are ACL-based")
+	}
+
+	dir := t.TempDir()
+	favoriteDir := filepath.Join(dir, "Private")
+	if err := os.Mkdir(favoriteDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(dir, "Private", []fyne.URI{storage.NewFileURI("/private/photo.jpg")}); err != nil {
+		t.Fatal(err)
+	}
+
+	dirInfo, err := os.Stat(favoriteDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o700 {
+		t.Errorf("favorite directory permissions = %#o, want 0700", got)
+	}
+	fileInfo, err := os.Stat(filepath.Join(favoriteDir, fileListName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Errorf("favorite file permissions = %#o, want 0600", got)
 	}
 }
 
