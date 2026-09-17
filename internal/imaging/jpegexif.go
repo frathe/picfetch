@@ -362,6 +362,11 @@ func eraseIFD1JPEGThumbnail(tiff []byte, bo binary.ByteOrder, ifd1Offset uint64)
 	if jpegLength(thumbnail) != len(thumbnail) {
 		return
 	}
+	// Marker closure alone also accepts an empty SOI/EOI pair. Require a
+	// readable frame header without decoding or allocating thumbnail pixels.
+	if _, err := jpeg.DecodeConfig(bytes.NewReader(thumbnail)); err != nil {
+		return
+	}
 	clear(thumbnail)
 }
 

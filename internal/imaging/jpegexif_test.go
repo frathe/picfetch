@@ -560,6 +560,10 @@ func TestNormalizeSavedExif(t *testing.T) {
 				{"length beyond payload", func(tiff []byte) { bo.PutUint32(tiff[36:40], ^uint32(0)) }},
 				{"truncated IFD1", func(tiff []byte) { bo.PutUint16(tiff[14:16], ^uint16(0)) }},
 				{"non JPEG data", func(tiff []byte) { tiff[44] = 0 }},
+				{"JPEG markers without a frame", func(tiff []byte) {
+					copy(tiff[44:], []byte{0xFF, 0xD8, 0xFF, 0xD9})
+					bo.PutUint32(tiff[36:40], 4)
+				}},
 				{"length includes unrelated trailing bytes", func(tiff []byte) { bo.PutUint32(tiff[36:40], uint32(len(tiff)-44)) }},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
