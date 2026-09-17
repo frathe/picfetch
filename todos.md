@@ -8,7 +8,7 @@ Status: implementation and hosted platform checks pass; human acceptance pending
 Commit-bound review and CI evidence is maintained on
 [PR #37](https://github.com/frathe/picfetch/pull/37). Whole-scan removal,
 preview/trailer removal, qualified ICC
-normalization, lossless upright images, refusal without rewriting, and content-based
+normalization, lossless upright images, bounded removal memory, refusal without rewriting, and content-based
 window availability are implemented. See the [implementation record](plans/2026-09-17-jpeg-metadata-privacy.md),
 [qualification evidence](docs/jpeg-metadata-removal-qualification.md),
 [design decision](docs/adr/0001-jpeg-metadata-removal-refuses-uncertain-input.md) and

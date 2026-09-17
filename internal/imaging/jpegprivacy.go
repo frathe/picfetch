@@ -200,7 +200,7 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 				}
 				exif = true
 				var err error
-				p.orientation, err = removalOrientation(payload[6:])
+				p.orientation, err = removalEXIF(payload[6:])
 				if err != nil {
 					return p, err
 				}
@@ -252,34 +252,80 @@ func jpegScanEnd(ctx context.Context, data []byte, pos int) (int, error) {
 	return 0, ErrJPEGMetadataStructure
 }
 
-func removalOrientation(tiff []byte) (int, error) {
+// removalEXIF qualifies orientation and the color declarations which would be
+// lost with APP1. Only default sRGB interpretation is qualified for removal.
+func removalEXIF(tiff []byte) (int, error) {
 	bo, ok := tiffOrder(tiff)
 	if !ok {
 		return 0, ErrJPEGMetadataOrientation
 	}
-	offset := uint64(bo.Uint32(tiff[4:8]))
-	header, ok := tiffSpan(tiff, offset, 2)
-	if !ok || offset < 8 {
-		return 0, ErrJPEGMetadataOrientation
-	}
-	count := uint64(bo.Uint16(header))
-	entries, ok := tiffSpan(tiff, offset+2, count*12+4)
-	if !ok {
-		return 0, ErrJPEGMetadataOrientation
-	}
-	orient, found := 1, false
-	for i := uint64(0); i < count; i++ {
-		e := entries[i*12 : i*12+12]
-		if bo.Uint16(e[:2]) != 0x112 {
+	const (
+		primary = iota
+		exif
+		interop
+	)
+	// Follow only IFD0 -> Exif -> Interoperability. GPS and thumbnail IFDs
+	// contain no qualified primary-image color declarations.
+	offsets := [3]uint64{uint64(bo.Uint32(tiff[4:8]))}
+	var ends [3]uint64
+	orient, foundOrientation, foundSpace, foundIndex := 1, false, false, false
+	for level := range offsets {
+		offset := offsets[level]
+		if level != primary && offset == 0 {
 			continue
 		}
-		if found || bo.Uint16(e[2:4]) != 3 || bo.Uint32(e[4:8]) != 1 {
-			return 0, ErrJPEGMetadataOrientation
+		invalid := ErrJPEGMetadataProcess
+		if level == primary {
+			invalid = ErrJPEGMetadataOrientation
 		}
-		found = true
-		orient = int(bo.Uint16(e[8:10]))
-		if orient < 1 || orient > 8 {
-			return 0, ErrJPEGMetadataOrientation
+		header, ok := tiffSpan(tiff, offset, 2)
+		if !ok || offset < 8 {
+			return 0, invalid
+		}
+		count := uint64(bo.Uint16(header))
+		entries, ok := tiffSpan(tiff, offset+2, count*12+4)
+		if !ok {
+			return 0, invalid
+		}
+		ends[level] = offset + 2 + count*12 + 4
+		for previous := 0; previous < level; previous++ {
+			if offset < ends[previous] && offsets[previous] < ends[level] {
+				return 0, ErrJPEGMetadataProcess
+			}
+		}
+		for i := uint64(0); i < count; i++ {
+			e := entries[i*12 : i*12+12]
+			tag, kind, values := bo.Uint16(e[:2]), bo.Uint16(e[2:4]), bo.Uint32(e[4:8])
+			switch {
+			case level == primary && (tag == 0x012d || tag == 0x013e || tag == 0x013f || tag == 0x0211 || tag == 0x0214), level == exif && tag == 0xa500:
+				// Explicit transfer/colorimetry tags need their own transform
+				// qualification; ICC presence does not establish precedence.
+				return 0, ErrJPEGMetadataProcess
+			case level == primary && tag == 0x112:
+				if foundOrientation || kind != 3 || values != 1 {
+					return 0, ErrJPEGMetadataOrientation
+				}
+				foundOrientation = true
+				orient = int(bo.Uint16(e[8:10]))
+				if orient < 1 || orient > 8 {
+					return 0, ErrJPEGMetadataOrientation
+				}
+			case level == primary && tag == 0x8769 || level == exif && tag == 0xa005:
+				if offsets[level+1] != 0 || kind != 4 || values != 1 || bo.Uint32(e[8:12]) < 8 {
+					return 0, ErrJPEGMetadataProcess
+				}
+				offsets[level+1] = uint64(bo.Uint32(e[8:12]))
+			case level == exif && tag == 0xa001:
+				if foundSpace || kind != 3 || values != 1 || bo.Uint16(e[8:10]) != 1 {
+					return 0, ErrJPEGMetadataProcess
+				}
+				foundSpace = true
+			case level == interop && tag == 1:
+				if foundIndex || kind != 2 || values != 4 || string(e[8:12]) != "R98\x00" {
+					return 0, ErrJPEGMetadataProcess
+				}
+				foundIndex = true
+			}
 		}
 	}
 	return orient, nil

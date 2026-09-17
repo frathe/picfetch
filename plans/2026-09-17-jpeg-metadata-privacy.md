@@ -217,3 +217,27 @@ Follow-up review findings on `f9ce1d7`:
 - The Codex security review of `f9ce1d7` completed at 11:35:59 UTC without added
   actionable findings. These follow-up changes still require a fresh code and
   security review on the next pushed head, plus its CI and post-suppression SARIF.
+
+Compatibility follow-up after `cb9fc1c`:
+
+- The new admission reader reused the viewing/export walker, which stops at legal
+  marker-fill bytes before a frame. A public inspection/mutation regression
+  exposed the unintended refusal. A removal-specific, cancellable frame reader
+  now preserves the complete parser's support; the regression passes and proves
+  exact primary-image preservation after removing a comment.
+- Focused imaging/window race regressions, imaging vet, formatting and GoLand
+  inspections of all three changed code files pass.
+- `cb9fc1c` passed CI run 35218977951 and CodeQL run 35218977905, with no open
+  CodeQL alerts. Qodana run 35218977861's post-suppression SARIF has zero results.
+  Its security review completed without actionable findings; the compatibility
+  follow-up still requires fresh hosted review/CI on its own pushed head.
+- The fresh code review confirmed missing cancellation during admission's second
+  header walk. The removal-specific reader fixes it by polling at every marker
+  and during legal fill runs, while retaining the pre-allocation budget checks.
+- The review also found EXIF-only Adobe RGB interpretation loss. Public tests
+  observed destructive success before the fix in both TIFF byte orders; they
+  now prove non-sRGB/uncalibrated or conflicting interoperability declarations
+  are refused unchanged, while default sRGB/R98 removes successfully. Six
+  explicit EXIF transform/colorimetry tags have their own red/green refusal
+  coverage. The qualification record documents this conservative scope and its
+  primary DCF source; conflicting ICC/EXIF precedence is not assumed.

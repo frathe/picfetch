@@ -21,6 +21,55 @@ import (
 )
 
 func TestJPEGMetadataRemovalPrivacy(t *testing.T) {
+	t.Run("EXIF color declaration", func(t *testing.T) {
+		plain := uitest.EncodeJPEG(t, 16, 12, color.White)
+		for _, bigEndian := range []bool{false, true} {
+			for _, tc := range []struct {
+				name  string
+				space uint16
+				index string
+				allow bool
+			}{
+				{"sRGB", 1, "R98", true},
+				{"Adobe RGB", 0xffff, "R03", false},
+				{"uncalibrated", 0xffff, "R98", false},
+				{"conflicting interoperability", 1, "R03", false},
+			} {
+				t.Run(tc.name+" big-endian="+strconv.FormatBool(bigEndian), func(t *testing.T) {
+					data := mustInjectRemoval(t, plain, removalColorEXIF(tc.space, tc.index, bigEndian))
+					inspection := InspectJPEGMetadata(context.Background(), data)
+					path := writeTempFile(t, "color.jpg", data)
+					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+					if tc.allow {
+						if inspection.State != JPEGMetadataRemovable || inspection.Err != nil || err != nil || !result.Committed || !bytes.Equal(plain, mustRead(t, path)) {
+							t.Fatalf("sRGB removal = %+v; %+v, %v", inspection, result, err)
+						}
+					} else if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) || !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+						t.Fatalf("color refusal = %+v; %+v, %v", inspection, result, err)
+					}
+				})
+			}
+		}
+	})
+	t.Run("legal marker fill remains supported", func(t *testing.T) {
+		plain := removalFixture(t, "baseline-rgb.jpg")
+		frame := bytes.Index(plain, []byte{0xff, 0xc0})
+		if frame < 0 {
+			t.Fatal("fixture has no baseline frame")
+		}
+		filled := append(bytes.Clone(plain[:frame]), 0xff)
+		filled = append(filled, plain[frame:]...)
+		data := mustInjectRemoval(t, filled, jpegSegmentBytes(0xfe, []byte("fixture description")))
+		inspection := InspectJPEGMetadata(context.Background(), data)
+		if inspection.State != JPEGMetadataRemovable || inspection.Err != nil {
+			t.Fatalf("filled-marker inspection = %+v", inspection)
+		}
+		path := writeTempFile(t, "filled-marker.jpg", data)
+		result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+		if err != nil || !result.Committed || !bytes.Equal(filled, mustRead(t, path)) {
+			t.Fatalf("filled-marker removal = %+v, %v", result, err)
+		}
+	})
 	for _, name := range []string{"baseline-rgb", "progressive-rgb", "multiscan-rgb", "baseline-gray", "progressive-gray"} {
 		t.Run(name+" all scan intervals", func(t *testing.T) {
 			plain := removalFixture(t, name+".jpg")
@@ -79,6 +128,35 @@ func removalFixture(t *testing.T, name string) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+func removalColorEXIF(space uint16, index string, bigEndian bool) []byte {
+	var bo binary.ByteOrder = binary.LittleEndian
+	tiff := make([]byte, 74)
+	copy(tiff, "II")
+	if bigEndian {
+		bo = binary.BigEndian
+		copy(tiff, "MM")
+	}
+	bo.PutUint16(tiff[2:4], 42)
+	bo.PutUint32(tiff[4:8], 8)
+	entry := func(at int, tag, kind uint16, count uint32) {
+		bo.PutUint16(tiff[at:at+2], tag)
+		bo.PutUint16(tiff[at+2:at+4], kind)
+		bo.PutUint32(tiff[at+4:at+8], count)
+	}
+	bo.PutUint16(tiff[8:10], 1)
+	entry(10, 0x8769, 4, 1) // IFD0 -> Exif IFD.
+	bo.PutUint32(tiff[18:22], 26)
+	bo.PutUint16(tiff[26:28], 2)
+	entry(28, 0xa001, 3, 1) // ColorSpace.
+	bo.PutUint16(tiff[36:38], space)
+	entry(40, 0xa005, 4, 1) // Exif -> Interoperability IFD.
+	bo.PutUint32(tiff[48:52], 56)
+	bo.PutUint16(tiff[56:58], 1)
+	entry(58, 1, 2, 4) // InteroperabilityIndex.
+	copy(tiff[66:70], index)
+	return jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...))
 }
 
 func TestJPEGMetadataRemovalFidelity(t *testing.T) {
@@ -209,6 +287,49 @@ func TestJPEGMetadataRemovalFidelity(t *testing.T) {
 
 func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 	plain := uitest.EncodeJPEG(t, 16, 12, color.White)
+	for _, tc := range []struct {
+		name   string
+		tag    uint16
+		values []uint32
+	}{
+		{"transfer function", 0x012d, nil},
+		{"white point", 0x013e, []uint32{3127, 10000, 3290, 10000}},
+		{"primary chromaticities", 0x013f, []uint32{64, 100, 33, 100, 30, 100, 60, 100, 15, 100, 6, 100}},
+		{"YCbCr coefficients", 0x0211, []uint32{299, 1000, 587, 1000, 114, 1000}},
+		{"reference black white", 0x0214, []uint32{0, 1, 255, 1, 128, 1, 255, 1, 128, 1, 255, 1}},
+		{"gamma", 0xa500, []uint32{22, 10}},
+	} {
+		t.Run("explicit EXIF "+tc.name, func(t *testing.T) {
+			var values []byte
+			kind, count := uint16(5), uint32(len(tc.values)/2)
+			for _, value := range tc.values {
+				values = binary.LittleEndian.AppendUint32(values, value)
+			}
+			if tc.tag == 0x012d {
+				kind, count = 3, 768
+				for i := range count {
+					values = binary.LittleEndian.AppendUint16(values, uint16(i%256)*257)
+				}
+			}
+			valueOffset := uint32(26)
+			if tc.tag == 0xa500 {
+				valueOffset = 44
+			}
+			tiff := buildIFD0TIFF(t, tiffEntry{tag: tc.tag, typ: kind, count: count, value: valueOffset})
+			if tc.tag == 0xa500 {
+				root := buildIFD0TIFF(t, tiffEntry{tag: 0x8769, typ: 4, count: 1, value: 26})
+				tiff = append(root, tiff[8:]...)
+			}
+			tiff = append(tiff, values...)
+			data := mustInjectRemoval(t, plain, jpegSegmentBytes(0xe1, append([]byte("Exif\x00\x00"), tiff...)))
+			inspection := InspectJPEGMetadata(context.Background(), data)
+			path := writeTempFile(t, "color-transform.jpg", data)
+			result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+			if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) || !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+				t.Fatalf("EXIF transform refusal = %+v; %+v, %v", inspection, result, err)
+			}
+		})
+	}
 	t.Run("inspection has a separate working-memory limit", func(t *testing.T) {
 		// A real, ordinary JPEG with constant pixels needs little encoded
 		// storage; the test generator does not allocate its full pixel plane.
