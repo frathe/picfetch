@@ -8,9 +8,18 @@
 
 #### Bugfix
 
+- Fixed Windows analysis-cache validation rejecting Fyne's forward-slash paths:
+  Favorite representations can be reused and general representations can be
+  persisted. Native regression tests cover reopening and stale cleanup.
+
 #### Internal
 
 ## Open
+
+- Complete the full verification gate and GoLand inspections for the Windows
+  analysis-cache fix in a working toolchain. Local shell/cgo limitations and
+  pre-existing Windows fixture failures are recorded in
+  [the evidence](plans/2026-09-17-windows-analysis-cache.md).
 
 ## Deferred
 

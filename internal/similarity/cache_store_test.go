@@ -11,7 +11,10 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -51,6 +54,74 @@ func TestAnalysisCacheGeneralReopensWithoutPreparation(t *testing.T) {
 	got, ok := cacheTestRead(t, reopened, context.Background(), item)
 	if !ok || got.Path != item.Path || len(got.Embedding) != 768 || got.Embedding[0] != 1 {
 		t.Fatal("reopened general record was not reusable")
+	}
+}
+
+func TestAnalysisCacheFileURIPathsReopen(t *testing.T) {
+	for _, favorite := range []bool{false, true} {
+		name := "general"
+		if favorite {
+			name = "favorite"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			item := cacheFixtureItem(t, "source image.jpg")
+			// Explorer and search receive URI paths, which use forward slashes
+			// on Windows even though filepath.Clean uses backslashes.
+			item.Path = storage.NewFileURI(item.Path).Path()
+			policy := cacheTestPolicy(t)
+			if favorite {
+				cacheTestFavorite(t, policy.Roots, item)
+				policy.LooseEnabled = false
+			}
+			store := cacheTestStore(t, policy)
+			if err := store.write(ctx, item); err != nil {
+				t.Fatalf("persist UI source: %v", err)
+			}
+			store.close()
+			reopened := cacheTestStore(t, policy)
+			got, hit := cacheTestRead(t, reopened, ctx, item)
+			if !hit || got.Path != item.Path || !slices.Equal(got.Embedding, item.Embedding) || !bytes.Equal(got.Preview, item.Preview) {
+				t.Fatal("reopened UI source lost its cached representation or identity")
+			}
+			usage, err := (CacheManager{}).Inspect(ctx, policy.Roots, nil)
+			if err != nil || usage.General.Records+usage.Favorite.Records != 1 {
+				t.Fatalf("persisted UI source missing from cache usage: %+v, %v", usage, err)
+			}
+			report, err := (CacheManager{}).Clean(ctx, CacheCleanRequest{Roots: policy.Roots, Mode: RemoveStale}, nil)
+			if err != nil || report.RemovedRecords != 0 {
+				t.Fatalf("valid UI source treated as stale: %+v, %v", report, err)
+			}
+		})
+	}
+}
+
+func TestAnalysisCachePayloadPathValidation(t *testing.T) {
+	item := cacheFixtureItem(t, "source.jpg")
+	dir, base := filepath.Dir(item.Path), filepath.Base(item.Path)
+	for _, tc := range []struct {
+		name, path string
+		valid      bool
+	}{
+		{"native", item.Path, true},
+		{"file_uri", storage.NewFileURI(item.Path).Path(), true},
+		{"empty", "", false},
+		{"relative", base, false},
+		{"dot", dir + "/./" + base, false},
+		{"parent", dir + "/child/../" + base, false},
+		{"repeated_separator", dir + "//" + base, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			candidate := item
+			candidate.Path = tc.path
+			got, err := decodeRepresentation(bytes.NewReader(cacheTestPayload(t, candidate)))
+			if (err == nil) != tc.valid {
+				t.Fatalf("path %q: valid=%t, error=%v", tc.path, tc.valid, err)
+			}
+			if err == nil && got.Path != tc.path {
+				t.Fatal("cache validation changed the source identity")
+			}
+		})
 	}
 }
 

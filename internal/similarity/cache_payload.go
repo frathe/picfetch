@@ -26,7 +26,9 @@ func decodeRepresentation(reader io.Reader) (Item, error) {
 		return Item{}, err
 	}
 	item := entry.Item
-	if entry.Version != RepresentationVersion || !filepath.IsAbs(item.Path) || filepath.Clean(item.Path) != item.Path || item.Error != "" {
+	// Fyne file URI paths use forward slashes on Windows. Accept that spelling
+	// without rewriting the source identity used by cache keys and UI events.
+	if entry.Version != RepresentationVersion || !filepath.IsAbs(item.Path) || filepath.Clean(item.Path) != filepath.FromSlash(item.Path) || item.Error != "" {
 		return Item{}, fmt.Errorf("incompatible analysis record")
 	}
 	if _, valid := searchEmbeddingNorm(item.Embedding); !valid {
