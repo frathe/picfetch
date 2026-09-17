@@ -287,6 +287,44 @@ func TestJPEGMetadataRemovalFidelity(t *testing.T) {
 
 func TestJPEGMetadataRemovalRefusal(t *testing.T) {
 	plain := uitest.EncodeJPEG(t, 16, 12, color.White)
+	t.Run("undeclared component interpretation", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			ids   []byte
+			allow bool
+		}{
+			{"YCbCr identifiers", []byte{1, 2, 3}, true},
+			{"RGB identifiers", []byte("RGB"), true},
+			{"unqualified identifiers", []byte("ABC"), false},
+			{"unqualified identifier order", []byte{3, 2, 1}, false},
+		} {
+			for _, orientation := range []uint16{1, 6} {
+				t.Run(tc.name+" orientation="+strconv.Itoa(int(orientation)), func(t *testing.T) {
+					components := bytes.Clone(plain)
+					frame := bytes.Index(components, []byte{0xff, 0xc0})
+					scan := bytes.Index(components, []byte{0xff, 0xda})
+					if frame < 0 || scan < 0 {
+						t.Fatal("fixture has no baseline frame or scan")
+					}
+					for i, id := range tc.ids {
+						components[frame+10+3*i] = id
+						components[scan+5+2*i] = id
+					}
+					data := mustInjectRemoval(t, components, wrapAsAPP1(buildExifSegment(t, orientation, false)))
+					inspection := InspectJPEGMetadata(context.Background(), data)
+					path := writeTempFile(t, "component-interpretation.jpg", data)
+					result, err := StripJPEGMetadataContext(context.Background(), storage.NewFileURI(path))
+					if tc.allow {
+						if inspection.State != JPEGMetadataRemovable || inspection.Err != nil || err != nil || !result.Committed {
+							t.Fatalf("qualified interpretation = %+v; %+v, %v", inspection, result, err)
+						}
+					} else if inspection.State != JPEGMetadataUnsupported || !errors.Is(inspection.Err, ErrJPEGMetadataProcess) || !errors.Is(err, ErrJPEGMetadataProcess) || result.Committed || !bytes.Equal(data, mustRead(t, path)) {
+						t.Fatalf("interpretation refusal = %+v; %+v, %v", inspection, result, err)
+					}
+				})
+			}
+		}
+	})
 	for _, tc := range []struct {
 		name   string
 		tag    uint16

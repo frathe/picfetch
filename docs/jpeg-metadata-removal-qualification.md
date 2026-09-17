@@ -8,6 +8,7 @@ removal; metadata-preserving Save Changes and export retain their separate polic
 | Dimension | Qualified behavior |
 | --- | --- |
 | JPEG | 8-bit Huffman SOF0 baseline and SOF2 progressive, one or three components, 8-bit quantization tables; complete coefficient progression, including separate-component sequential scans. Other processes and four-component color are refused. |
+| Component interpretation | Three-component JPEGs without JFIF or Adobe declarations require ordered component IDs `1, 2, 3` (YCbCr) or `R, G, B` (RGB). Other undeclared layouts are refused for both upright and oriented removal. |
 | Scan boundaries | All supported scans are followed through structural EOI. APP/COM metadata is removed between scans as well as in the header. Missing boundaries and unsupported structures are refused. |
 | JFIF/JFXX | Validate JFIF 1.00-1.02 immediately after SOI, retain its 14-byte interpretation/density header with zero thumbnail dimensions; remove thumbnail bytes, extensions and unclaimed payload. |
 | Adobe | Validate version 100, zero flags and qualified gray/RGB transform. Retain only the 12-byte declaration; conflicts with JFIF or RGB component identifiers are refused. |

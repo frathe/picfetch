@@ -112,6 +112,9 @@ func prepareJPEGRemoval(ctx context.Context, data []byte) (jpegRemoval, error) {
 			if adobe && ((jfif && adobeTransform != 1) || (p.components == 1 && adobeTransform != 0)) {
 				return p, ErrJPEGMetadataProcess
 			}
+			if p.components == 3 && !jfif && !adobe && !bytes.Equal(policy.ids, []byte{1, 2, 3}) && !bytes.Equal(policy.ids, []byte("RGB")) {
+				return p, ErrJPEGMetadataProcess
+			}
 			if bytes.Equal(policy.ids, []byte("RGB")) && (jfif || adobe && adobeTransform != 0) {
 				return p, ErrJPEGMetadataProcess
 			}

@@ -15,6 +15,7 @@ The existing orientation-correcting re-encode for sideways photos retains its
 documented quality qualification and must satisfy the same metadata/profile
 policy. Metadata omission during export remains a separate operation.
 
-The [specification](../../.scratch/jpeg-metadata-privacy/spec.md) defines the
-behavioral requirements; the [research](../jpeg-metadata-removal-research-2026-09-17.md)
-records the supporting format facts and limits.
+The tracked [qualification record](../jpeg-metadata-removal-qualification.md)
+defines the supported behavior, acceptance checks and limits. The
+[research](../jpeg-metadata-removal-research-2026-09-17.md) records the supporting
+format facts.

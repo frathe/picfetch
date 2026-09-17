@@ -286,3 +286,19 @@ Follow-up review finding on `a6a75f6`:
   and are now green for clean files and files with removable comments.
 - Focused imaging/window race regressions, imaging vet, formatting and
   warnings-inclusive GoLand inspections of all four changed Go files pass.
+
+Follow-up review findings on `c3c20d2`:
+
+- Normal CI, CodeQL and security review passed; CodeQL alerts and post-suppression
+  Qodana results were empty. Fresh code review found an undeclared component-color
+  path and a broken ADR link to the local, untracked issue-tracker specification.
+- Three-component JPEGs without JFIF/Adobe now require qualified `1/2/3` YCbCr or
+  literal `RGB` identifiers. Public upright/oriented tests observed unsupported
+  `ABC` inputs being rewritten before the fix, then passed with refusal/no commit/
+  unchanged source; both qualified identifier sets continue to remove successfully.
+- The ADR now links to permanent tracked requirements/qualification documentation
+  instead of the ignored issue-tracker file. The qualification table records the
+  component-identifier support limit.
+- Focused imaging/window race regressions (including a rejected identifier
+  permutation), imaging vet, formatting and GoLand inspections of both changed
+  Go files pass. Both replacement ADR links resolve to git-tracked files.
