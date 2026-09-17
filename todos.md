@@ -71,6 +71,10 @@ Contracts and evidence workflow: [review record](finished_refactorings/2026-09-1
   before pushing. Focused TUF tests and stubbed publication paths pass; the live
   scheduled write path is not exercised by PR CI. Review dispositions and final
   hosted checks are tracked in [PR #34](https://github.com/frathe/picfetch/pull/34).
+- Pin the Qodana action to its reviewed commit, remove source-write permission
+  and automatic fix pushes, and disable persisted checkout credentials. Retain
+  PR comments, annotations and the Go linter's required project token. Review
+  dispositions and hosted verification: [PR #33](https://github.com/frathe/picfetch/pull/33).
 
 ## LATER
 
