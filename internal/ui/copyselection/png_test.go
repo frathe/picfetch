@@ -65,3 +65,11 @@ func TestPNG_RejectsInvalidBounds(t *testing.T) {
 		})
 	}
 }
+
+func TestPNG_RejectsSelectionThatExceedsWorkingMemoryBudget(t *testing.T) {
+	src := image.NewUniform(color.White)
+
+	if _, err := copyselection.PNG(src, image.Rect(0, 0, 16_777_217, 1)); err == nil {
+		t.Fatal("PNG() error = nil, want a recoverable size-limit error")
+	}
+}
