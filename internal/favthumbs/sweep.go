@@ -1,6 +1,7 @@
 package favthumbs
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,6 +20,13 @@ import (
 // preview that could belong to it is retained rather than destroyed on the
 // strength of a stat error that may only be temporary.
 func Sweep(favDir string, files []fyne.URI) error {
+	return sweepContext(context.Background(), favDir, files)
+}
+
+func sweepContext(ctx context.Context, favDir string, files []fyne.URI) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	dir := Dir(favDir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -34,6 +42,9 @@ func Sweep(favDir string, files []fyne.URI) error {
 	expected := make(map[string]bool, len(files))
 	var offlineHashes []string
 	for _, f := range files {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if name, ok := EntryName(f); ok {
 			expected[name] = true
 			continue
@@ -50,6 +61,9 @@ func Sweep(favDir string, files []fyne.URI) error {
 
 	var firstErr error
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// Candidates are only regular files: a subdirectory or symlink that
 		// happens to carry a .jpg/.png name is not something Write ever
 		// produced, so it is left alone rather than risk removing something

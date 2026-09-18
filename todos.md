@@ -9,7 +9,8 @@
 #### Bugfix
 
 - Limit eager favorite previews to the first 256 distinct files, with bounded,
-  cancellable preparation and one source decode at a time per pass.
+  cancellable decode preparation and one source decode at a time per pass,
+  while retaining and reusing existing previews for the rest of the Favorite.
 - Bound single-image sibling scans by the configured scan limit, preserve
   sibling name order, and report truncation accurately for non-image entries.
 - Bound Copy Selection PNG encoding using Max file size (MB), including
@@ -28,9 +29,10 @@
   capture. Repeated invalid-image errors exposed Fyne theme scopes retaining
   parsed fonts; focused rendering and race regressions pass. See
   `plans/2026-09-18-toast-font-retention.md`.
-- Restore large-Favorite preview reuse on PR #45 while retaining bounded eager
-  source decoding. The first-256 policy discards existing tail previews and
-  makes Grid decode their originals again. PR remains in draft.
+- Complete latest-commit hosted review for PR #45's preview-reuse correction.
+  The 300-image comparison now matches the base with no Grid original reads;
+  eager source decoding remains bounded. PR remains in draft pending the
+  bounded user capture of the toast correction.
 
 ## Deferred
 

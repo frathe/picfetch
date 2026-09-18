@@ -628,8 +628,8 @@ background pass; `Sink` is the caller’s in-memory thumb cache.
 | File | Responsibility |
 |------|----------------|
 | `store.go` / `name.go` | On-disk lookup and filename scheme; `ReadContext` / `WriteContext` check cancellation through cache decode/encode and before atomic replacement. |
-| `sync.go` | Cancellable `Sync` walk: memory → disk → decode, then `Sink`; bounds preparation and eager work to the first 256 unique source paths, serializes full-resolution decodes within each pass, waits all admitted work and sweeps against that bounded set only on completion. |
-| `sweep.go` | Deletes stale preview files after a complete pass. |
+| `sync.go` | Cancellable `Sync` walk: memory → disk → decode, then `Sink`; bounds original-decode preparation to the first 256 unique source paths and serializes those decodes. Later entries reuse memory/disk previews without original reads. A completed pass prunes against the full Favorite membership. |
+| `sweep.go` | Deletes stale preview files; Sync's membership scan and deletion walk check cancellation, preserving current tail previews and the offline-source guard. |
 
 ### `internal/session`
 

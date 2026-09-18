@@ -1108,9 +1108,10 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   place. **Add** stays greyed out until the name is usable — anything but
   empty, or containing `/ \ : * ? " < > |`. Saving also starts preparing
   grid previews for the first 256 distinct files in the saved list. The
-  background pass processes one image at a time; other thumbnails are loaded
-  when needed in Grid Overview (`G`). A completed pass removes older disk
-  previews outside that set
+  background pass decodes one original image at a time. Existing previews
+  for the rest of the list are kept and reused within the thumbnail memory
+  budget; uncached thumbnails are loaded when needed in Grid Overview (`G`).
+  A completed pass removes stale previews and previews for removed files
 - **Favorites -> _favorite name_** — opens that saved list through the same
   scan, sort, and merge behavior as Open Files. Each entry shows how many
   files it stores, e.g. `Holiday 2024 (128)`; entries are sorted by name,
@@ -1123,7 +1124,7 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   cancels. Either way of cancelling reopens the Add dialog with the name you
   typed still in the field, rather than making you retype it. Opening a
   favorite also tops up missing grid previews for those first 256 distinct
-  files in the background
+  files in the background and reuses cached previews for the remaining files
 - **Favorites -> Manage Favorites…** (also `Cmd/Ctrl+Shift+F`) — lists every
   saved collection, each with the same file count, and lets you open or
   remove one. Fully keyboard-driven: **`Up`**/**`Down`** move a ring between

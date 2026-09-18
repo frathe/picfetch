@@ -197,7 +197,7 @@ func TestSyncWritesPreviewForEveryFile(t *testing.T) {
 	}
 }
 
-func TestSyncBoundsPersistentPreviewsAndDecodeWork(t *testing.T) {
+func TestSyncBoundsOriginalDecodesAndRetainsCachedTail(t *testing.T) {
 	t.Parallel()
 
 	const limit = 256
@@ -208,9 +208,10 @@ func TestSyncBoundsPersistentPreviewsAndDecodeWork(t *testing.T) {
 	}
 	sink := newTestSink()
 	work := append([]fyne.URI{nil, files[0]}, files[:limit]...)
-	work = append(work, observedPathURI{URI: files[limit], onPath: func() {
-		t.Error("preparation examined a source beyond the unique-path limit")
-	}})
+	work = append(work, uitest.ReaderURI(files[limit], func() (io.ReadCloser, error) {
+		t.Error("eager pass read an original beyond its decode limit")
+		return nil, errors.New("unexpected original read")
+	}))
 
 	if err := Sync(context.Background(), favDir, work, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
@@ -230,14 +231,51 @@ func TestSyncBoundsPersistentPreviewsAndDecodeWork(t *testing.T) {
 	if err := Write(favDir, files[limit], newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
 		t.Fatal(err)
 	}
-	if err := Sync(context.Background(), favDir, work, nil); err != nil {
+	removed := newSourceFile(t, t.TempDir(), "removed.jpg")
+	if err := Write(favDir, removed, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
 		t.Fatal(err)
 	}
-	if got := countFiles(t, Dir(favDir)); got != limit {
-		t.Errorf("existing cache retained %d previews, want %d", got, limit)
+	tailSink := newTestSink()
+	if err := Sync(context.Background(), favDir, work, tailSink); err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := Read(favDir, files[limit]); ok {
-		t.Error("completed pass retained a preview outside the bounded set")
+	if got := countFiles(t, Dir(favDir)); got != limit+1 {
+		t.Errorf("existing cache retained %d previews, want %d", got, limit+1)
+	}
+	if _, ok := Read(favDir, files[limit]); !ok {
+		t.Error("completed pass deleted a current tail preview")
+	}
+	if _, ok := tailSink.storedFor(work[len(work)-1]); !ok {
+		t.Error("existing tail preview was not offered to the Grid cache")
+	}
+	if _, ok := Read(favDir, removed); ok {
+		t.Error("completed pass retained a preview for a removed source")
+	}
+
+	// A tail thumbnail already decoded by Grid can be persisted without
+	// another original read, even though it is outside eager admission.
+	if err := os.Remove(previewPath(t, favDir, files[limit], ".jpg")); err != nil {
+		t.Fatal(err)
+	}
+	tailSink.setCached(work[len(work)-1], newOpaqueThumb(1, 1, color.RGBA{A: 255}))
+	if err := Sync(context.Background(), favDir, work, tailSink); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Read(favDir, files[limit]); !ok {
+		t.Error("existing memory preview was not persisted for the tail")
+	}
+}
+
+func TestDedupeStopsAtOriginalDecodeLimit(t *testing.T) {
+	files := make([]fyne.URI, maxSyncEntries+1)
+	for i := range maxSyncEntries {
+		files[i] = storage.NewFileURI(fmt.Sprintf("/synthetic/%d.jpg", i))
+	}
+	files[maxSyncEntries] = observedPathURI{URI: storage.NewFileURI("/synthetic/tail.jpg"), onPath: func() {
+		t.Error("decode preparation examined a source beyond its limit")
+	}}
+	if got := len(dedupe(context.Background(), files)); got != maxSyncEntries {
+		t.Fatalf("admitted %d originals, want %d", got, maxSyncEntries)
 	}
 }
 

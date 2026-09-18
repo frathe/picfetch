@@ -1267,10 +1267,12 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   ausgegraut, solange der Name ungültig ist — also leer ist oder eines der
   Zeichen `/ \ : * ? " < > |` enthält. Beim Speichern werden außerdem
   Raster-Vorschaubilder für die ersten 256 unterschiedlichen Dateien der
-  gespeicherten Liste vorbereitet. Der Hintergrundlauf verarbeitet jeweils
-  ein Bild; weitere Miniaturbilder werden bei Bedarf in der Rasterübersicht
-  (`G`) geladen. Ein abgeschlossener Lauf entfernt ältere gespeicherte
-  Vorschaubilder außerhalb dieser Auswahl
+  gespeicherten Liste vorbereitet. Der Hintergrundlauf dekodiert jeweils
+  ein Originalbild. Vorhandene Vorschaubilder für den Rest der Liste bleiben
+  erhalten und werden innerhalb des Miniaturbild-Speicherbudgets wiederverwendet.
+  Fehlende Miniaturbilder werden bei Bedarf in der Rasterübersicht (`G`)
+  geladen. Ein abgeschlossener Lauf entfernt veraltete Vorschaubilder und
+  Vorschaubilder für entfernte Dateien
 - **Favoriten -> _Favoritenname_** — öffnet die gespeicherte Liste mit
   demselben Scan-, Sortier- und Zusammenführen-Verhalten wie „Dateien
   öffnen“. Jeder Eintrag zeigt, wie viele Dateien er enthält, z. B.
@@ -1287,7 +1289,8 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   Hinzufügen erneut, mit dem eingegebenen Namen weiterhin im Feld, statt
   ihn erneut eintippen zu lassen. Beim Öffnen werden fehlende
   Raster-Vorschaubilder für diese ersten 256 unterschiedlichen Dateien
-  ebenfalls im Hintergrund ergänzt
+  ebenfalls im Hintergrund ergänzt; für die übrigen Dateien werden vorhandene
+  Vorschaubilder wiederverwendet
 - **Favoriten -> Favoriten verwalten…** (auch `Cmd`/`Strg+Shift+F`) — zeigt
   alle gespeicherten Sammlungen mit ihrer Dateianzahl an und lässt Sie eine
   davon öffnen oder entfernen. Vollständig über die Tastatur bedienbar:

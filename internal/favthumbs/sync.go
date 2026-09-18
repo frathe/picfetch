@@ -12,9 +12,8 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-// maxSyncEntries bounds the unique source paths admitted to one eager pass,
-// including preparation and persistent preview generation. Existing previews
-// outside that set are pruned after a completed pass.
+// maxSyncEntries bounds preparation and original-image decoding in an eager
+// pass. Existing previews beyond this prefix remain eligible for reuse.
 const maxSyncEntries = 256
 
 // Decode serially because a permitted source can expand to hundreds of
@@ -58,11 +57,11 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 	return color.RGBA64{R: uint16(r), G: uint16(g), B: uint16(b), A: uint16(a)}
 }
 
-// Sync brings favDir's previews in line with the bounded prefix of files: up
-// to maxSyncEntries files end up with a current preview on disk, the caller's
-// in-memory cache is offered whatever the pass produced or found, and previews
-// outside that set are pruned. Sweep retains older versions of admitted files
-// whose sources are temporarily inaccessible.
+// Sync decodes originals only for the first maxSyncEntries unique paths.
+// Remaining files reuse existing memory or disk previews without reading their
+// originals. The caller's byte-budgeted sink decides how much to retain in RAM.
+// Pruning uses the full Favorite membership, preserving current tail previews
+// and older versions of sources that are temporarily inaccessible.
 //
 // Each file takes the cheapest route that gets it there. A thumbnail the
 // caller already holds needs neither a decode nor a read, only a write if
@@ -81,8 +80,6 @@ func Sync(ctx context.Context, favDir string, files []fyne.URI, sink Sink) error
 	// file arrives from two dropped folders. Two workers on that path would
 	// duplicate a full decode and then race each other to write a single
 	// destination, so the repeats come out before any work is handed out.
-	// Sweep below gets this same bounded set so an older, larger cache is
-	// reduced to the current limit rather than retained indefinitely.
 	work := dedupe(ctx, files)
 
 	// sem bounds concurrent decodes; wg lets the sweep below wait for every
@@ -142,13 +139,34 @@ loop:
 				return
 			}
 
-			if err := syncFile(ctx, favDir, u, sink); err != nil {
+			if err := syncFile(ctx, favDir, u, sink, true); err != nil {
 				fail(err)
 			}
 		})
 	}
 
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if sink != nil {
+		admitted := make(map[string]bool, len(work))
+		for _, u := range work {
+			admitted[u.Path()] = true
+		}
+		for _, u := range files {
+			if ctx.Err() != nil {
+				break
+			}
+			if u == nil || admitted[u.Path()] {
+				continue
+			}
+			if err := syncFile(ctx, favDir, u, sink, false); err != nil {
+				fail(err)
+			}
+		}
+	}
 
 	// A cancelled pass never established which previews are garbage: files
 	// it never reached have no preview yet through no fault of their own.
@@ -159,8 +177,11 @@ loop:
 		return err
 	}
 
-	if err := Sweep(favDir, work); err != nil {
+	if err := sweepContext(ctx, favDir, files); err != nil {
 		fail(err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	mu.Lock()
@@ -172,12 +193,15 @@ loop:
 // syncFile brings one file's preview up to date, taking the cheapest of the
 // three routes that applies. It is the body of a worker goroutine, so it
 // touches nothing shared beyond sink, which the caller owns and guards.
-func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
+func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink, decodeOriginal bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	name, named := EntryName(u)
 	if !named {
+		if !decodeOriginal {
+			return ctx.Err()
+		}
 		return fmt.Errorf("favthumbs: cannot determine entry name for %v", u)
 	}
 	current := func() bool { now, ok := EntryName(u); return named && ok && name == now }
@@ -208,6 +232,9 @@ func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
 			sink.Store(u, &Preview{Image: thumb, SourceVersion: name})
 		}
 		return nil
+	}
+	if !decodeOriginal {
+		return ctx.Err()
 	}
 
 	thumb, err = imaging.LoadThumbnailContext(ctx, u)
