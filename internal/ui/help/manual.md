@@ -756,8 +756,10 @@ scans reuse unchanged images with a matching model and preprocessing version;
 changed or invalid entries are scanned again. Grouping and positions are rebuilt
 for the current input; tags are recalculated from the saved representations.
 Explorer cache settings apply when a scan starts. Explorer saves analysis for
-Favorites; Find more like this also supports caching loose images, as described
-below. Full-library qualification is still in progress.
+Favorites and writes compatible loose-image representations to the shared general
+cache when **Cache analysis for loose images** is enabled in **Settings -> Cache**.
+Find more like this reuses the same cache. Full-library qualification is still in
+progress.
 
 ---
 

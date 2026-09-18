@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAnalysisLimitsAllowQualifiedLibrary(t *testing.T) {
@@ -31,6 +32,63 @@ func TestAnalysisLimitsAllowQualifiedLibrary(t *testing.T) {
 	err := (Client{AnalysisLimits: AnalysisLimits{Items: 2}}).Analyze(context.Background(), []string{"a", "b", "c"}, nil, func(_ Event) { t.Fatal("over-limit collection published") })
 	if !errors.Is(err, ErrAnalysisItemLimit) {
 		t.Fatalf("client lost configured limit: %v", err)
+	}
+}
+
+func TestAnalyzerStorePersistsLooseRepresentations(t *testing.T) {
+	for _, looseEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("loose-enabled=%t", looseEnabled), func(t *testing.T) {
+			policy := cacheTestPolicy(t)
+			policy.GeneralLimitBytes = 64 * 1024
+			req := request{FavoritesDir: policy.Roots.FavoritesDir, GeneralAnalysisLimitBytes: policy.GeneralLimitBytes}
+			if looseEnabled {
+				req.GeneralAnalysisDir = policy.Roots.GeneralDir
+			}
+			store, err := openAnalyzerRepresentationStore(context.Background(), req)
+			if store != nil {
+				defer store.close()
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if looseEnabled && store.policy.GeneralLimitBytes != policy.GeneralLimitBytes {
+				t.Fatalf("analyzer cache limit = %d, want %d", store.policy.GeneralLimitBytes, policy.GeneralLimitBytes)
+			}
+			if err := store.write(context.Background(), cacheFixtureItem(t, "loose.jpg")); err != nil {
+				t.Fatal(err)
+			}
+			wantGeneralRecords := 0
+			if looseEnabled {
+				wantGeneralRecords = 1
+			}
+			usage, err := (CacheManager{}).Inspect(context.Background(), policy.Roots, nil)
+			if err != nil || usage.Favorite.Records != 0 || usage.General.Records != wantGeneralRecords {
+				t.Fatalf("analyzer cache effects: %+v, %v", usage, err)
+			}
+		})
+	}
+}
+
+func TestAnalyzerCacheWriteReportsPressureAfterCompletion(t *testing.T) {
+	event := Event{}
+	recordAnalyzerCacheWrite(&event, CachePressureError{NeedBytes: 64})
+	recordAnalyzerCacheWrite(&event, CachePressureError{NeedBytes: 128})
+	if event.CachePressureBytes != 128 || event.CacheWarning != "" {
+		t.Fatalf("cache pressure = %d, warning = %q", event.CachePressureBytes, event.CacheWarning)
+	}
+	recordAnalyzerCacheWrite(&event, errors.New("cache unavailable"))
+	if event.CacheWarning != "cache unavailable" {
+		t.Fatalf("cache failure warning = %q", event.CacheWarning)
+	}
+	for _, complete := range []bool{false, true} {
+		delivered := analysisEventForDelivery(Event{Complete: complete, CachePressureBytes: event.CachePressureBytes}, time.Second)
+		want := uint64(0)
+		if complete {
+			want = event.CachePressureBytes
+		}
+		if delivered.CachePressureBytes != want {
+			t.Fatalf("complete=%t delivered pressure = %d, want %d", complete, delivered.CachePressureBytes, want)
+		}
 	}
 }
 

@@ -54,10 +54,12 @@ type Settings struct {
 // Options supplies the existing native and UI adapters. Configure on UI before
 // admission; workers capture their provider/client/store when they start.
 type Options struct {
-	App                    fyne.App
-	Discussions            func()
-	Client                 similarity.Client
-	Analyze                similarity.Provider
+	App         fyne.App
+	Discussions func()
+	Client      similarity.Client
+	Analyze     similarity.Provider
+	// CachePressure requests general-cache eviction after a completed map.
+	CachePressure          func(uint64)
 	Queue                  UIQueue
 	Presets                *explorerpresets.Store
 	Supported, AssetsReady bool
@@ -65,11 +67,12 @@ type Options struct {
 	Trial                  *explorertrial.Session
 }
 
-// OpenRequest captures a prepared collection and its Favorite ownership.
+// OpenRequest captures a prepared collection and its cache policy at admission.
 type OpenRequest struct {
 	Sources                   []string
 	FavoriteDir, FavoritesDir string
 	GeneralAnalysisDir        string
+	GeneralAnalysisLimitBytes uint64
 }
 
 // State is a value observation; Revision identifies the current source workflow.
@@ -95,6 +98,7 @@ type Feature struct {
 	stopping                bool
 	introSeen, assetsReady  bool
 	client                  similarity.Client
+	cachePressure           func(uint64)
 	limits                  similarity.AnalysisLimits
 	supported               bool
 	trial                   *explorertrial.Session
@@ -131,7 +135,7 @@ func NewFeature(host WorkflowHost, options Options) *Feature {
 // providers and stores. Replace Queue only after Wait has joined those workers.
 func (f *Feature) Configure(options Options) {
 	f.app, f.discussions = options.App, options.Discussions
-	f.client, f.analyze = options.Client, options.Analyze
+	f.client, f.analyze, f.cachePressure = options.Client, options.Analyze, options.CachePressure
 	f.ui = options.Queue
 	if f.ui == nil {
 		f.ui = featureQueue{}
@@ -146,7 +150,7 @@ func (f *Feature) Configure(options Options) {
 func (f *Feature) Options() Options {
 	return Options{
 		App: f.app, Discussions: f.discussions,
-		Client: f.client, Analyze: f.analyze, Queue: f.ui, Presets: f.presets,
+		Client: f.client, Analyze: f.analyze, CachePressure: f.cachePressure, Queue: f.ui, Presets: f.presets,
 		Supported: f.supported, AssetsReady: f.assetsReady,
 		Settings: f.Settings(), Trial: f.trial,
 	}

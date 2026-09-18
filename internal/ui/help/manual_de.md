@@ -866,8 +866,11 @@ Unveränderte Favoritenbilder mit passender Modell- und Vorverarbeitungsversion
 werden wiederverwendet; geänderte oder ungültige Einträge erneut analysiert.
 Gruppen und Positionen werden für die aktuelle Auswahl neu berechnet. Die
 Cache-Einstellung gilt ab dem nächsten Analysestart. Der Explorer speichert
-Favoritenanalysen; die folgende Bildsuche kann auch Analysen anderer Bilder
-speichern. Die Prüfung großer Bibliotheken läuft noch.
+Favoritenanalysen und schreibt, wenn **Analysen für Bilder außerhalb von
+Favoriten speichern** im Tab **Einstellungen -> Cache** aktiviert ist,
+kompatible Bildrepräsentationen in den gemeinsamen allgemeinen Cache. **Mehr davon
+finden** verwendet denselben Cache wieder. Die Prüfung großer Bibliotheken läuft
+noch.
 
 ---
 

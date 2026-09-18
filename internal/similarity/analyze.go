@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"image/jpeg"
 	"os"
@@ -47,14 +48,10 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 	event := Event{Total: len(req.Paths), OfflineVerified: offline, Stage: "encoding"}
 	event.Measurements.SetupSeconds = time.Since(start).Seconds()
 	send := func(snapshot Event) error {
-		snapshot.Measurements.ElapsedSeconds = time.Since(start).Seconds()
-		return emit(snapshot)
+		return emit(analysisEventForDelivery(snapshot, time.Since(start)))
 	}
 	cacheStart := time.Now()
-	cache, cacheErr := openRepresentationStore(ctx, CachePolicy{
-		Roots:           CacheRoots{FavoritesDir: req.FavoritesDir, GeneralDir: req.GeneralAnalysisDir},
-		FavoriteEnabled: req.FavoritesDir != "" && !req.DisableFavoriteCache, LooseEnabled: req.GeneralAnalysisDir != "",
-	}, writeFavoritesOnly)
+	cache, cacheErr := openAnalyzerRepresentationStore(ctx, req)
 	event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
 	if cache != nil {
 		defer cache.close()
@@ -201,9 +198,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				cacheStart := time.Now()
 				err := cache.write(ctx, item)
 				event.Measurements.CacheSeconds += time.Since(cacheStart).Seconds()
-				if err != nil && event.CacheWarning == "" {
-					event.CacheWarning = err.Error()
-				}
+				recordAnalyzerCacheWrite(&event, err)
 			}
 		}
 		items = append(items, item)
@@ -219,6 +214,40 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		}
 	}
 	return publishMap(true)
+}
+
+func analysisEventForDelivery(snapshot Event, elapsed time.Duration) Event {
+	snapshot.Measurements.ElapsedSeconds = elapsed.Seconds()
+	if !snapshot.Complete {
+		snapshot.CachePressureBytes = 0
+	}
+	return snapshot
+}
+
+func recordAnalyzerCacheWrite(event *Event, err error) {
+	if err == nil {
+		return
+	}
+	var pressure CachePressureError
+	if errors.As(err, &pressure) {
+		event.CachePressureBytes = max(event.CachePressureBytes, pressure.NeedBytes)
+		return
+	}
+	if event.CacheWarning == "" {
+		event.CacheWarning = err.Error()
+	}
+}
+
+func openAnalyzerRepresentationStore(ctx context.Context, req request) (*representationStore, error) {
+	scope := writeFavoritesOnly
+	if req.GeneralAnalysisDir != "" {
+		scope = writeEnabledStores
+	}
+	return openRepresentationStore(ctx, CachePolicy{
+		Roots:           CacheRoots{FavoritesDir: req.FavoritesDir, GeneralDir: req.GeneralAnalysisDir},
+		FavoriteEnabled: req.FavoritesDir != "" && !req.DisableFavoriteCache, LooseEnabled: req.GeneralAnalysisDir != "",
+		GeneralLimitBytes: req.GeneralAnalysisLimitBytes,
+	}, scope)
 }
 
 func publishAnalysisMap(ctx context.Context, event *Event, items []Item, complete bool, send func(Event) error) error {

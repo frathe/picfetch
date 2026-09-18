@@ -42,6 +42,7 @@ import (
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/ui/analysiscache"
 )
 
 func explorerMenu(t *testing.T, v *viewer) *fyne.MenuItem {
@@ -310,6 +311,34 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
+	t.Run("cache_pressure_evicts_after_completed_map", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg")
+		v.analysisDir = t.TempDir()
+		v.settings.looseAnalysisCache, v.settings.analysisCacheMiB = true, 1
+		v.analysisCache.Configure(analysiscache.Options{Roots: v.analysisRoots(), Queue: &uitest.UIQueue{}})
+		v.analysisCache.SetPolicy(true, 1)
+		records := filepath.Join(v.analysisDir, "v1")
+		if err := os.Mkdir(records, 0700); err != nil {
+			t.Fatal(err)
+		}
+		record := filepath.Join(records, strings.Repeat("a", 64)+".json")
+		if err := os.WriteFile(record, make([]byte, 1024*1024), 0600); err != nil {
+			t.Fatal(err)
+		}
+		configureExplorer(v, func(options *explorerui.Options) {
+			options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
+			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, CachePressureBytes: 1})
+				return nil
+			}
+		})
+		v.showExplorer()
+		v.settleExplorer()
+		v.analysisCache.Settle()
+		if _, err := os.Stat(record); !os.IsNotExist(err) || v.analysisMaintenanceBusy() {
+			t.Fatalf("Explorer cache pressure did not finish automatic eviction: %v", err)
+		}
+	})
 	t.Run("setup_first_use", func(t *testing.T) {
 		v := openGridWith(t, "first.jpg")
 		configureExplorer(v, func(options *explorerui.Options) {

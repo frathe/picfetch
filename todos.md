@@ -29,10 +29,13 @@
 
 ## Open
 
-- Complete PR #45's review before marking it ready. The 22k-item retest
-  confirmed the toast fix but exposed per-source decode-pool waiters; the new
-  bounded priority queue covers that same backlog shape. The Cache-tab Favorite
-  preview limit remains configurable and defaults to 1000. See
+- Complete the fresh PR #45 review loop after making loose-image analysis cache
+  writes symmetric: an Explorer pass must warm **Find more like this** while
+  retaining separate Favorite lifetime and general-cache eviction policies. The
+  22k-item retest confirmed the toast fix but exposed per-source decode-pool
+  waiters; the new bounded priority queue covers that same backlog shape. The
+  Cache-tab Favorite preview limit remains configurable and defaults to 1000.
+  See `plans/2026-09-18-symmetric-analysis-cache.md`,
   `plans/2026-09-18-grid-decode-queue.md`,
   `plans/2026-09-18-favorite-preview-reuse.md`, and
   `plans/2026-09-18-favorite-preview-limit-setting.md`.

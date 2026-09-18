@@ -84,11 +84,11 @@ directory handles plus file-list identity to avoid recreating removed favorites.
 `cache_payload.go` reads one JSON document through a hard byte bound, then checks
 its version, source identity shape, vector, digest and preview. General/Favorite
 reads, general write validation and maintenance share that decoder.
-Explorer's analyzer can also read the enabled general store through the shared
-representation store and promote compatible hits into newly saved Favorites;
-its misses retain the existing Favorite-only write policy. Explorer sends Favorite
-membership even when its analysis preference is off, with a separate opt-out
-that blocks both Favorite records and general fallback for those members.
+Explorer's analyzer and search share the representation store. When the general
+cache is enabled, both reuse and write compatible loose-image records; Explorer
+also promotes compatible hits into newly saved Favorites. Explorer sends Favorite
+membership even when its analysis preference is off, with a separate opt-out that
+blocks both Favorite records and general fallback for those members.
 Producer inventory preserves healthy Favorites alongside per-entry errors;
 incomplete membership disables general reuse/writes for that producer. Cache maintenance
 retains each Favorite directory and list version through inventory and rechecks
@@ -453,8 +453,11 @@ Settings supplies the tab slot, confirmation window and Close notification witho
 sharing worker state.
 
 `internal/similarity/cache_store.go` owns Favorite-first/general record reuse and
-producer write scope: Explorer uses Favorite-only writes while search may write
-every enabled store. Neither producer reaches into the store to route a write.
+producer write scope: Explorer and search both begin with every enabled store;
+capacity pressure can narrow an individual producer to Favorite-only writes.
+Explorer reports that pressure only with its completed map, so root can run the
+existing automatic eviction after preparation. Neither producer reaches into the
+store to route a write.
 `cache_payload.go` validates shared representations; `cache_records.go` confines
 inventory to managed records and temporary files. `cache_management.go` reports
 usage and implements conservative stale cleanup/general LRU eviction. Canceled
