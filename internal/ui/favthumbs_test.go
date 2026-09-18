@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"io"
@@ -176,6 +177,40 @@ func TestSyncFavoritePreviews_DoesNotEvictGridThumbnails(t *testing.T) {
 	}
 	if _, ok := favthumbs.Read(dir, second); !ok {
 		t.Fatal("declined memory admission prevented the disk preview")
+	}
+}
+
+func TestSyncFavoritePreviews_RefreshesChangedGridThumbnails(t *testing.T) {
+	for _, budget := range []int64{256, 192} {
+		t.Run(fmt.Sprint(budget), func(t *testing.T) {
+			v := newTestViewer(t)
+			source := uitest.TempJPEGURI(t, "changed.jpg", 4, 4, color.White)
+			other := uitest.TempJPEGURI(t, "other.jpg", 4, 4, color.Black)
+			v.grid.SetCacheBytes(budget)
+			stale := &favthumbs.Preview{Image: image.NewRGBA(image.Rect(0, 0, 2, 4)), SourceVersion: "previous version"}
+			if !v.grid.StoreThumb(source, stale) || !v.grid.StoreThumb(other, &favthumbs.Preview{Image: image.NewRGBA(image.Rect(0, 0, 4, 4))}) {
+				t.Fatal("could not seed the grid thumbnails")
+			}
+			dir := t.TempDir()
+			if err := favthumbs.Write(dir, source, image.NewRGBA(image.Rect(0, 0, 4, 4))); err != nil {
+				t.Fatal(err)
+			}
+			v.SyncFavoritePreviews(dir, []fyne.URI{source})
+			settleFavoritePreviews(t, v)
+			thumb, ok := v.grid.CachedThumb(source)
+			if budget == 256 {
+				name, _ := favthumbs.EntryName(source)
+				preview, versioned := thumb.(*favthumbs.Preview)
+				if !ok || !versioned || preview.SourceVersion != name || preview.Bounds() != image.Rect(0, 0, 4, 4) {
+					t.Fatal("current disk preview did not replace the stale grid thumbnail")
+				}
+			} else if ok {
+				t.Fatal("stale thumbnail remained visible when its replacement could not fit")
+			}
+			if !v.grid.Cached(other) {
+				t.Fatal("refreshing a changed source evicted an unrelated thumbnail")
+			}
+		})
 	}
 }
 

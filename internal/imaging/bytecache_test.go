@@ -49,6 +49,35 @@ func TestByteCacheCapturedWritesRejectPrePurgeProducers(t *testing.T) {
 	}
 }
 
+func TestByteCacheCapturedRefreshPreservesOtherEntries(t *testing.T) {
+	c := newTestByteCache(100)
+	c.Add("changed", 20)
+	c.Add("other", 40)
+	w := c.Capture()
+	if !w.RefreshIfRoom("changed", 60) || c.Bytes() != 100 || c.Len() != 2 || !c.Contains("other") {
+		t.Fatal("replacement did not reuse its allocation and retain its neighbor")
+	}
+	c.Add("foreground", 1)
+	if c.Contains("changed") || !c.Contains("other") {
+		t.Fatal("background replacement promoted the changed entry")
+	}
+	if w.RefreshIfRoom("other", 100) || c.Contains("other") || c.Bytes() != 1 {
+		t.Fatal("unadmitted replacement retained stale pixels or evicted its neighbor")
+	}
+	if !w.RefreshIfRoom("new", 99) || w.AddIfRoom("new", 1) || c.Bytes() != 100 {
+		t.Fatal("refresh insertion changed AddIfRoom's no-replacement contract")
+	}
+	c.Purge()
+	c.Add("new", 40)
+	if w.RefreshIfRoom("new", 10) || w.RefreshIfRoom("late", 1) || c.Bytes() != 40 {
+		t.Fatal("pre-purge refresh changed current contents")
+	}
+	var zero CacheWriter[int64]
+	if zero.RefreshIfRoom("zero", 1) {
+		t.Fatal("zero writer admitted refreshed pixels")
+	}
+}
+
 // --- ByteCache eviction ------------------------------------------------------
 
 // TestByteCache_EvictsByWeightNotCount is the whole point of the type: three

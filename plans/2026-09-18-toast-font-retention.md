@@ -11,8 +11,9 @@ The last heap snapshot attributed 94.68% of retained allocations to
 show repeated image-load failures; the user confirms many invalid JPEGs.
 Fyne 2.8 creates a new scope on each `ThemeOverride.Refresh`, retaining parsed
 fonts under every scope. PicFetch's root repaint refreshes the toast override.
-This path predates PR #45. Its separate Favorite preview-reuse regression
-remains open; fixing the toast does not establish restored Grid responsiveness.
+This path predates PR #45. The separate Favorite preview-reuse regression is
+tracked in `2026-09-18-favorite-preview-reuse.md`; fixing the toast alone does
+not establish restored Grid responsiveness.
 
 ## Acceptance and work
 
@@ -49,3 +50,6 @@ Local profiles and user source paths stay outside committed evidence.
   build passed. No dependencies changed; no source instrumentation ships.
 - The original profiling binary is preserved locally. The fixed diagnostic
   was rebuilt; the user's equivalent bounded capture is pending.
+- Full CI, Qodana, CodeQL and the security review passed on `4eb5300`.
+  Its code review identified two preview-cache edge cases, handled in the
+  linked plan. No new toast finding was reported.

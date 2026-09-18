@@ -254,7 +254,12 @@ func TestSyncBoundsOriginalDecodesAndRetainsCachedTail(t *testing.T) {
 
 	// A tail thumbnail already decoded by Grid can be persisted without
 	// another original read, even though it is outside eager admission.
-	if err := os.Remove(previewPath(t, favDir, files[limit], ".jpg")); err != nil {
+	if err := os.WriteFile(previewPath(t, favDir, files[limit], ".jpg"), []byte("corrupt preview"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// A failed cache-only read must let the next pass persist Grid's fresh
+	// thumbnail; a corrupt file's existence cannot permanently block repair.
+	if err := Sync(context.Background(), favDir, work, tailSink); err != nil {
 		t.Fatal(err)
 	}
 	tailSink.setCached(work[len(work)-1], newOpaqueThumb(1, 1, color.RGBA{A: 255}))

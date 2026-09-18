@@ -571,7 +571,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 
 | File | Responsibility |
 |------|----------------|
-| `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
+| `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `RefreshIfRoom` lets Favorite warming replace stale keys, dropping only that key if the replacement cannot fit. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
 | `ico.go` | Explicit ICO probe/decode dispatch, independent of the desktop driver's decoder registration: validates directory/payload spans and dimensions, selects the same single image for probe/decode, delegates PNG or normalized uncompressed DIB pixels to existing decoders, and applies icon transparency. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |

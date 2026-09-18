@@ -73,3 +73,36 @@ fixed by naming the URIs `source`; three independent lifecycle/open fixtures
 have narrowly scoped duplicate-code suppressions with their rationale.
 Final GoLand inspections, focused fixture checks, formatting, exclusions,
 vet and build pass for this follow-up.
+
+### Review follow-up: stale memory and corrupt disk entries
+
+The next Codex review identified two gaps in the cache-only path. Lead will
+reproduce and fix both, with one read-only scout locating existing disk-cache
+tests while the lead examines memory admission. No implementation is delegated.
+
+- Refresh a changed source's thumbnail atomically without evicting unrelated
+  keys or promoting an existing key. If its new pixels cannot fit, remove the
+  obsolete key so Grid can load the source on demand. Preserve AddIfRoom's
+  existing display-preload contract and pre-purge writer rejection.
+  Verify focused ByteCache tests and
+  `TestSyncFavoritePreviews_RefreshesChangedGridThumbnails`.
+- A failed disk-preview decode must allow a later versioned memory thumbnail
+  to repair the cache, without reading a tail original in the eager pass or
+  rewriting healthy existing previews. Verify
+  `TestSyncBoundsOriginalDecodesAndRetainsCachedTail` and the package race suite.
+- Update cache documentation and the UI shard manifest; run GoLand, formatting,
+  vet/build and fresh hosted review. These fixes extend the existing Standard
+  work to the shared byte cache; no new dependency or background worker.
+
+Verification: both reports reproduced before the fixes. The stale-key test
+failed with and without room for the replacement; the tail test could not
+persist fresh memory pixels over the corrupt cache entry. Both pass after the
+fixes. Focused race runs passed for Favorite previews, imaging and viewer
+integration (3.132s, 11.636s, 18.994s). The complete Favorite-cache race suite
+passed (4.147s), as did the new byte-cache guard and existing display preload
+contract (1.056s, 1.065s). Temporary overlays were rejected for LRU promotion,
+pre-purge publication and retaining an unadmitted stale key. GoLand is clear
+on all six changed Go files, including warnings. The manifest now covers 693
+UI tests. Full CI and security/Qodana/CodeQL passed on the previous `4eb5300`;
+its two code-review findings are addressed here and require another fresh
+review. The bounded native comparison remains pending.

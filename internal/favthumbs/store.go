@@ -169,7 +169,8 @@ func hasAlpha(img image.Image) bool {
 
 // Read returns the current preview for src stored under favDir. It reports
 // false when there is no preview, when the stored preview is for an older
-// version of src, or when the stored preview cannot be decoded.
+// version of src, or when the stored preview cannot be decoded. A corrupt
+// preview is removed best-effort so a later memory hit can repair it.
 func Read(favDir string, src fyne.URI) (image.Image, bool) {
 	img, ok, _ := ReadContext(context.Background(), favDir, src)
 	return img, ok
@@ -238,10 +239,23 @@ func decodeFile(ctx context.Context, path string) (image.Image, bool) {
 	if err != nil {
 		return nil, false
 	}
-	defer func() { _ = f.Close() }()
-
 	img, err := decodePreview(ctx, f)
+	var failedInfo os.FileInfo
 	if err != nil {
+		failedInfo, _ = f.Stat()
+	}
+	_ = f.Close()
+	if err != nil {
+		// A cache-only miss cannot decode an original to overwrite this
+		// file. Drop the failed entry so a later current memory thumbnail
+		// is not blocked by hasCurrentPreview's inexpensive existence test.
+		// Close first for Windows, then check for a replacement installed
+		// while the failed file was being decoded.
+		if ctx.Err() == nil && failedInfo != nil {
+			if current, statErr := os.Stat(path); statErr == nil && os.SameFile(failedInfo, current) {
+				_ = os.Remove(path)
+			}
+		}
 		return nil, false
 	}
 	return img, true

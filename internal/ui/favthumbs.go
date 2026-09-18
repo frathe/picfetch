@@ -105,7 +105,10 @@ func (s gridSink) Store(src fyne.URI, thumb image.Image) {
 	// Background warming must not evict thumbnails already in use. A separate
 	// "full" check misses a partially free cache and races other producers;
 	// generation, remaining space and admission must share the cache lock.
-	_ = s.writer.AddIfRoom(src.String(), thumb)
+	// Sync rejected an older source version before offering these pixels.
+	// Replace that key if possible, or discard it if the new version cannot
+	// fit; unrelated thumbnails keep their bytes and recency.
+	_ = s.writer.RefreshIfRoom(src.String(), thumb)
 }
 
 // closeFavoritePreviews stops admission and cancels the pass without waiting

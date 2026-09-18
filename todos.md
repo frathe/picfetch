@@ -29,10 +29,11 @@
   capture. Repeated invalid-image errors exposed Fyne theme scopes retaining
   parsed fonts; focused rendering and race regressions pass. See
   `plans/2026-09-18-toast-font-retention.md`.
-- Complete latest-commit hosted review for PR #45's preview-reuse correction.
-  The 300-image comparison now matches the base with no Grid original reads;
-  eager source decoding remains bounded. PR remains in draft pending the
-  bounded user capture of the toast correction.
+- Complete PR #45's review and bounded native comparison before marking it
+  ready. The 300-image comparison matches the base with no Grid original reads;
+  eager source decoding remains bounded. Follow-up regressions cover stale
+  memory-thumbnail replacement and recovery from corrupt disk previews. See
+  `plans/2026-09-18-favorite-preview-reuse.md` and the PR for current hosted checks.
 
 ## Deferred
 

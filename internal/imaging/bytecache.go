@@ -85,6 +85,18 @@ func (w CacheWriter[V]) AddIfFits(key string, value V) bool {
 // evicting existing entries. Generation, remaining space and insertion are
 // checked under the same lock; a foreground oversized entry leaves no room.
 func (w CacheWriter[V]) AddIfRoom(key string, value V) bool {
+	return w.storeIfRoom(key, value, false)
+}
+
+// RefreshIfRoom replaces a key without promoting it or evicting other entries.
+// If the replacement cannot fit, the obsolete key is removed so callers cannot
+// serve stale pixels. A missing key is inserted only when room remains.
+// Like AddIfRoom, admission is atomic and rejects pre-purge producers.
+func (w CacheWriter[V]) RefreshIfRoom(key string, value V) bool {
+	return w.storeIfRoom(key, value, true)
+}
+
+func (w CacheWriter[V]) storeIfRoom(key string, value V, replace bool) bool {
 	if w.cache == nil {
 		return false
 	}
@@ -94,10 +106,20 @@ func (w CacheWriter[V]) AddIfRoom(key string, value V) bool {
 	if w.revision != c.revision {
 		return false
 	}
-	if _, exists := c.items[key]; exists {
-		return false
-	}
 	weight := c.weigh(value)
+	if el, exists := c.items[key]; exists {
+		if !replace {
+			return false
+		}
+		entry := el.Value.(*cacheEntry[V])
+		if weight > c.budget-(c.used-entry.weight) {
+			c.removeElement(el)
+			return false
+		}
+		c.used += weight - entry.weight
+		entry.val, entry.weight = value, weight
+		return true
+	}
 	if weight > c.budget-c.used {
 		return false
 	}
