@@ -207,8 +207,12 @@ func TestSyncBoundsPersistentPreviewsAndDecodeWork(t *testing.T) {
 		files[i] = uitest.TempJPEGURI(t, fmt.Sprintf("%03d.jpg", i), 1, 1, color.RGBA{R: uint8(i), A: 255})
 	}
 	sink := newTestSink()
+	work := append([]fyne.URI{nil, files[0]}, files[:limit]...)
+	work = append(work, observedPathURI{URI: files[limit], onPath: func() {
+		t.Error("preparation examined a source beyond the unique-path limit")
+	}})
 
-	if err := Sync(context.Background(), favDir, files, sink); err != nil {
+	if err := Sync(context.Background(), favDir, work, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -221,6 +225,30 @@ func TestSyncBoundsPersistentPreviewsAndDecodeWork(t *testing.T) {
 	if _, ok := Read(favDir, files[limit]); ok {
 		t.Error("file beyond the work limit received a preview")
 	}
+
+	// An older version may already have persisted previews beyond the cap.
+	if err := Write(favDir, files[limit], newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	if err := Sync(context.Background(), favDir, work, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := countFiles(t, Dir(favDir)); got != limit {
+		t.Errorf("existing cache retained %d previews, want %d", got, limit)
+	}
+	if _, ok := Read(favDir, files[limit]); ok {
+		t.Error("completed pass retained a preview outside the bounded set")
+	}
+}
+
+type observedPathURI struct {
+	fyne.URI
+	onPath func()
+}
+
+func (u observedPathURI) Path() string {
+	u.onPath()
+	return u.URI.Path()
 }
 
 func TestSyncStoresEveryFileInSink(t *testing.T) {
@@ -380,6 +408,9 @@ func TestSyncCachedHitDoesNotRewriteExistingPreview(t *testing.T) {
 // is missing only keeps a favorite's directory correct if the previews for
 // files that left the list go away too, otherwise every edit of a favorite
 // grows it permanently.
+// Keep independent fixtures for the complete and cancelled sweep outcomes.
+//
+//goland:noinspection DuplicatedCode
 func TestSyncSweepsStalePreview(t *testing.T) {
 	t.Parallel()
 
@@ -410,6 +441,9 @@ func TestSyncSweepsStalePreview(t *testing.T) {
 // which previews are garbage, so pruning on the strength of it would
 // delete perfectly live previews and force a full re-decode of the
 // favorite on its next open.
+// Keep independent fixtures for the complete and cancelled sweep outcomes.
+//
+//goland:noinspection DuplicatedCode
 func TestSyncCancelledContextReturnsErrorAndDoesNotSweep(t *testing.T) {
 	t.Parallel()
 
@@ -424,6 +458,9 @@ func TestSyncCancelledContextReturnsErrorAndDoesNotSweep(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+	listed = observedPathURI{URI: listed, onPath: func() {
+		t.Error("cancelled pass examined a source during preparation")
+	}}
 
 	if err := Sync(ctx, favDir, []fyne.URI{listed}, newTestSink()); err == nil {
 		t.Error("Sync(cancelled ctx) = nil, want an error")
@@ -431,6 +468,30 @@ func TestSyncCancelledContextReturnsErrorAndDoesNotSweep(t *testing.T) {
 
 	if !fileExists(stale) {
 		t.Errorf("preview %q was swept by a cancelled pass", stale)
+	}
+}
+
+func TestSyncCancellationDuringPreparation(t *testing.T) {
+	t.Parallel()
+
+	favDir := t.TempDir()
+	src := uitest.TempJPEGURI(t, "a.jpg", 1, 1, color.White)
+	if err := Write(favDir, src, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	files := []fyne.URI{
+		observedPathURI{URI: src, onPath: cancel},
+		observedPathURI{URI: src, onPath: func() {
+			t.Error("preparation continued after cancellation")
+		}},
+	}
+	if err := Sync(ctx, favDir, files, nil); !errors.Is(err, context.Canceled) {
+		t.Errorf("Sync = %v, want cancellation", err)
+	}
+	if _, ok := Read(favDir, src); !ok {
+		t.Error("cancelled preparation removed an existing preview")
 	}
 }
 

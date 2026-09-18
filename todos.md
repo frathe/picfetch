@@ -8,6 +8,8 @@
 
 #### Bugfix
 
+- Limit eager favorite previews to the first 256 distinct files, with bounded,
+  cancellable preparation and one source decode at a time per pass.
 - Bound single-image sibling scans by the configured scan limit, preserve
   sibling name order, and report truncation accurately for non-image entries.
 - Bound Copy Selection PNG encoding using Max file size (MB), including

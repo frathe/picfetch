@@ -1265,7 +1265,12 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   sie zurück zum Feld, **`Left`**/**`Right`** bewegen dort den Rahmen, und
   **`Esc`** bricht von beiden Stellen aus ab. „Hinzufügen“ bleibt
   ausgegraut, solange der Name ungültig ist — also leer ist oder eines der
-  Zeichen `/ \ : * ? " < > |` enthält
+  Zeichen `/ \ : * ? " < > |` enthält. Beim Speichern werden außerdem
+  Raster-Vorschaubilder für die ersten 256 unterschiedlichen Dateien der
+  gespeicherten Liste vorbereitet. Der Hintergrundlauf verarbeitet jeweils
+  ein Bild; weitere Miniaturbilder werden bei Bedarf in der Rasterübersicht
+  (`G`) geladen. Ein abgeschlossener Lauf entfernt ältere gespeicherte
+  Vorschaubilder außerhalb dieser Auswahl
 - **Favoriten -> _Favoritenname_** — öffnet die gespeicherte Liste mit
   demselben Scan-, Sortier- und Zusammenführen-Verhalten wie „Dateien
   öffnen“. Jeder Eintrag zeigt, wie viele Dateien er enthält, z. B.
@@ -1280,7 +1285,9 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   ersetzt —, **`Return`** löst die markierte Option aus, **`Esc`** bricht
   ab. Beide Wege, die Rückfrage abzubrechen, öffnen den Dialog zum
   Hinzufügen erneut, mit dem eingegebenen Namen weiterhin im Feld, statt
-  ihn erneut eintippen zu lassen
+  ihn erneut eintippen zu lassen. Beim Öffnen werden fehlende
+  Raster-Vorschaubilder für diese ersten 256 unterschiedlichen Dateien
+  ebenfalls im Hintergrund ergänzt
 - **Favoriten -> Favoriten verwalten…** (auch `Cmd`/`Strg+Shift+F`) — zeigt
   alle gespeicherten Sammlungen mit ihrer Dateianzahl an und lässt Sie eine
   davon öffnen oder entfernen. Vollständig über die Tastatur bedienbar:
