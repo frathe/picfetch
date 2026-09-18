@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"image"
 	"image/color"
-	"image/png"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -18,22 +16,21 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
-// tilePNG is a one-pixel PNG - the smallest thing the map widget's decoder
-// accepts as a tile, and all these tests need it to be.
+// tilePNG is a correctly sized map tile accepted by the fetcher's validation.
 func tilePNG(t *testing.T) []byte {
 	t.Helper()
 
-	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	img.Set(0, 0, color.RGBA{R: 1, G: 2, B: 3, A: 255})
+	return uitest.EncodePNG(t, tileSize, tileSize, color.RGBA{R: 1, G: 2, B: 3, A: 255})
+}
 
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		t.Fatalf("encode tile: %v", err)
-	}
+func pngWithDimensions(t *testing.T, width, height int) []byte {
+	t.Helper()
 
-	return buf.Bytes()
+	return uitest.EncodePNG(t, width, height, color.Black)
 }
 
 // tileServer is a stand-in tile service: it counts what was asked for, and
@@ -126,6 +123,30 @@ func (s *tileServer) breakIt() {
 // fetcher is a field on Window rather than package-level state.
 func fetcherFor(s *tileServer) *tileFetcher {
 	return newTileFetcher(s.URL+"/%d/%d/%d.png", http.DefaultTransport)
+}
+
+func TestGet_RejectsInvalidOrUnexpectedTileImages(t *testing.T) {
+	tests := []struct {
+		name string
+		body []byte
+	}{
+		{name: "not PNG", body: []byte("not a PNG")},
+		{name: "wrong dimensions", body: pngWithDimensions(t, 257, 256)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write(test.body)
+			}))
+			t.Cleanup(server.Close)
+
+			fetcher := newTileFetcher(server.URL+"/%d/%d/%d.png", http.DefaultTransport)
+			if _, err := fetcher.get(t.Context(), server.URL+"/15/0/0.png"); err == nil {
+				t.Fatal("get accepted an invalid map tile")
+			}
+		})
+	}
 }
 
 // waitForPending blocks until the fetcher has nothing outstanding.

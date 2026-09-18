@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/png"
 	"io"
 	"log"
 	"math"
@@ -52,6 +53,7 @@ const (
 	// warms in each direction: a 5x5 block, comfortably more than the
 	// panel-sized map draws at once.
 	prefetchRadius = 2
+	tileSize       = 256
 )
 
 // errTilePending is what the map widget's HTTP client returns for a tile
@@ -261,6 +263,15 @@ func (f *tileFetcher) get(ctx context.Context, url string) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(res.Body, maxTileBytes))
 	if err != nil {
 		return nil, err
+	}
+
+	config, err := png.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("decode tile header: %w", err)
+	}
+
+	if config.Width != tileSize || config.Height != tileSize {
+		return nil, fmt.Errorf("tile dimensions are %dx%d, want %dx%d", config.Width, config.Height, tileSize, tileSize)
 	}
 
 	return data, nil
