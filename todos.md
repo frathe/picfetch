@@ -26,21 +26,9 @@
 
 - Pin Microsoft Store approval and publishing actions to reviewed immutable commits
   and guard the policy in the workflow contract tests.
-
-## Open
-
-- Complete the fresh PR #45 review loop after making loose-image analysis cache
-  writes symmetric: an Explorer pass must warm **Find more like this** while
-  retaining separate Favorite lifetime and general-cache eviction policies. The
-  22k-item retest confirmed the toast fix but exposed per-source decode-pool
-  waiters; the new bounded priority queue covers that same backlog shape, and
-  its `Wait` barrier now joins workers, cancellation dispatchers, and active
-  cancellation callbacks. The Cache-tab Favorite preview limit remains
-  configurable and defaults to 1000.
-  See `plans/2026-09-18-symmetric-analysis-cache.md`,
-  `plans/2026-09-18-grid-decode-queue.md`,
-  `plans/2026-09-18-favorite-preview-reuse.md`, and
-  `plans/2026-09-18-favorite-preview-limit-setting.md`.
+- Explorer now warms the existing configured loose-image cache for **Find more
+  like this**. Its Favorite lifetime, general-cache eviction policy, and native
+  worker lifecycle remain separate.
 
 ## Deferred
 

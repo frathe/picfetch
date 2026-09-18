@@ -176,7 +176,13 @@ Budget: 0 implementation spawns; 1 lead review round; full suite no.
   Idle reusable queues hold no callback, while a later active epoch rearms one.
   Deterministic running-callback, idle-cancellation, and queue-rearm
   regressions passed alongside the decode-pool, Grid, and display race gates.
-  A new fresh review is required after its push.
+  The final fresh review and hosted checks are recorded below.
+- Final GitHub evidence for `8ec930a61f74871da61f4a92355fada342fcdbd9`:
+  Codex code and security reviews completed with no findings; all eight review
+  threads are resolved; CI run `35385380509` passed every required platform and
+  race job; Qodana run `35385380562` has zero post-suppression SARIF results;
+  and CodeQL run `35385380538` has zero Go results across 34 rules, zero
+  Actions results across 17 rules, and zero open PR merge-ref alerts.
 
 ## Cost ledger
 
@@ -187,4 +193,4 @@ Budget: 0 implementation spawns; 1 lead review round; full suite no.
 | T2 | 0 / 0 | 1 lead | no | Hot analyzer context. |
 | T3 | 0 / 0 | 1 lead | no | Captured existing root maintenance seam. |
 | T4 | 0 / 0 | 1 lead | no | Policy record and asset-qualified case. |
-| Gate | — | 3 lead | CI | Two fresh reviews found and validated shutdown-lifetime defects; the next replacement review and CI run are pending. |
+| Gate | — | 3 lead | CI | Two fresh reviews found and validated shutdown-lifetime defects; the third was clean on the final head. |
