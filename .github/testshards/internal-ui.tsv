@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 239 entries, 470.520s projected weight sum
+# ui-1: 241 entries, 470.520s projected weight sum
 # ui-2: 248 entries, 470.530s projected weight sum
 # ui-3: 202 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -219,6 +219,8 @@ TestSyncFavoritePreviews_OpeningAFavoriteWritesPreviews	ui-1
 TestSyncWindowToZoom_LargeImageStaysCapped	ui-1
 TestSyncWindowToZoom_ZoomInGrowsWindow	ui-1
 TestThemeMode_RestoresAppliesLiveAndPersists	ui-1
+TestToast_RepaintsReuseParsedFonts	ui-1
+TestToast_WrappedTextRemainsReadable	ui-1
 TestToggleInfoOverlay_HiddenUntilAnImageIsLoaded	ui-1
 TestTogglePictureFrameMode_ExitResetsFade	ui-1
 TestToggleSort_CyclesThroughAllModesAndBackToName	ui-1

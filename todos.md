@@ -24,6 +24,14 @@
 
 ## Open
 
+- Verify the toast font-retention fix against the bounded 22k-item Favorite
+  capture. Repeated invalid-image errors exposed Fyne theme scopes retaining
+  parsed fonts; focused rendering and race regressions pass. See
+  `plans/2026-09-18-toast-font-retention.md`.
+- Restore large-Favorite preview reuse on PR #45 while retaining bounded eager
+  source decoding. The first-256 policy discards existing tail previews and
+  makes Grid decode their originals again. PR remains in draft.
+
 ## Deferred
 
 ### Fyne upgrade deferred

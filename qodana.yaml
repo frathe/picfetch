@@ -313,6 +313,7 @@ exclude:
       - "internal/ui/state_test.go"
       - "internal/ui/staticsize_test.go"
       - "internal/ui/step_test.go"
+      - "internal/ui/toast_test.go"
       - "internal/ui/trane_test.go"
       - "internal/ui/translations_test.go"
       - "internal/ui/tunnel_test.go"
