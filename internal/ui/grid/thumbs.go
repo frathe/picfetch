@@ -15,8 +15,8 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-// thumbConcurrency bounds how many thumbnail decodes run at once - a small
-// worker-pool semaphore rather than one goroutine per request.
+// thumbConcurrency bounds how many thumbnail decodes run at once through a
+// small worker queue rather than one goroutine per request.
 // widget.GridWrap is virtualized (it only ever builds/updates cells for the
 // currently visible rows, unlike container.NewGridWrap), which already
 // keeps the *number* of thumbnails requested at once bounded to roughly a
@@ -158,6 +158,7 @@ func (g *Overview) SetCacheBytes(n int64) {
 func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id int, gen uint64) {
 	ctx := g.workContext()
 	facts := g.work.facts
+	queue := g.work.queue
 	writer := g.thumbs.Capture()
 	if ctx.Err() != nil {
 		return
@@ -202,7 +203,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 		return
 	}
 
-	// Both g.ui.Do calls below run from inside this same g.decodes.Go
+	// Both g.ui.Do calls below run from inside this same queue.Go
 	// body, on purpose: decodes.Wait only guarantees that the fn it
 	// spawned has returned, so a completion's g.ui.Do has to sit on the
 	// return path of that fn for Wait to guarantee it was reached. A
@@ -211,7 +212,7 @@ func (g *Overview) requestThumbnail(key *fyne.Container, img *canvas.Image, id i
 	// would not be covered by that Wait, and could land on g.ui after
 	// Settle had already decided there was nothing left to drain,
 	// reintroducing the same race this queue exists to close.
-	g.decodes.Go(ctx, func(acquired bool) {
+	queue.Go(func(acquired bool) {
 		if !acquired || ctx.Err() != nil {
 			g.decodes.Release(key, claim)
 			return

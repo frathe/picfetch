@@ -8,15 +8,19 @@
 
 #### Bugfix
 
-- Limit eager favorite previews to the first 256 distinct files, with bounded,
-  cancellable decode preparation and one source decode at a time per pass,
-  while retaining and reusing existing previews for the rest of the Favorite.
+- Bound automatic Favorite preview source decoding to the configured number of
+  distinct files (default 1000), with cancellable preparation and one source
+  decode at a time per pass, while retaining and reusing existing previews for
+  the rest of the Favorite.
 - Bound single-image sibling scans by the configured scan limit, preserve
   sibling name order, and report truncation accurately for non-image entries.
 - Bound Copy Selection PNG encoding using Max file size (MB), including
   scanline storage and encoded output, while preserving recoverable retries.
 - Restrict release-note artwork to approved GitHub HTTPS providers and validate
   every redirect before fetching it.
+- Reuse the toast theme scope across replacements and root repaints. The
+  bounded 22k-item retest no longer retained parsed fonts under repeated
+  invalid-image errors.
 
 #### Internal
 
@@ -25,17 +29,12 @@
 
 ## Open
 
-- Verify the toast font-retention fix against the bounded 22k-item Favorite
-  capture. Repeated invalid-image errors exposed Fyne theme scopes retaining
-  parsed fonts; focused rendering and race regressions pass. See
-  `plans/2026-09-18-toast-font-retention.md`.
-- Complete PR #45's review and bounded native comparison before marking it
-  ready. The 300-image comparison matches the base with no Grid original reads;
-  eager source decoding remains bounded. Follow-up regressions cover stale
-  memory-thumbnail replacement and recovery from corrupt disk previews. See
-  `plans/2026-09-18-favorite-preview-reuse.md` and the PR for current hosted checks.
-- Include the new Cache-tab Favorite preview limit (default 1000) in that review;
-  persistence, cancellation and English/German layout checks pass. See
+- Complete PR #45's review before marking it ready. The 22k-item retest
+  confirmed the toast fix but exposed per-source decode-pool waiters; the new
+  bounded priority queue covers that same backlog shape. The Cache-tab Favorite
+  preview limit remains configurable and defaults to 1000. See
+  `plans/2026-09-18-grid-decode-queue.md`,
+  `plans/2026-09-18-favorite-preview-reuse.md`, and
   `plans/2026-09-18-favorite-preview-limit-setting.md`.
 
 ## Deferred

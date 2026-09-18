@@ -41,14 +41,13 @@ const hideApplyMinInterval = 250 * time.Millisecond
 // does have to touch the overlay comes back through Run's apply callback
 // instead (Overview.hashFactsReady).
 type hashEngine struct {
-	// host, pool, thumbs, model and ui are the Overview's own, shared
-	// rather than copied: the engine hashes onto the same decode pool the
-	// cells decode on - which is what keeps Settle's decodes.Wait barrier
-	// covering hash jobs too - fills the same thumbnail cache, and
-	// installs into the same duplicate model the badges and the filter
-	// read.
+	// host, queue, thumbs, model and ui are the Overview's own, shared
+	// rather than copied: the engine hashes through the same decode pool
+	// session the cells use - which is what keeps Settle's decodes.Wait
+	// barrier covering hash jobs too - fills the same thumbnail cache, and
+	// installs into the same duplicate model the badges and the filter read.
 	host   Host
-	pool   *decodepool.Pool[*fyne.Container, thumbClaim]
+	queue  *decodepool.Queue[*fyne.Container, thumbClaim]
 	thumbs *imaging.ByteCache[image.Image]
 	model  *dupes.Model
 	facts  dupes.FactWriter
@@ -145,7 +144,7 @@ func (e *hashEngine) Run(ctx context.Context, apply func(remaining int32, gen ui
 	e.beginPass(n)
 	for _, j := range jobs {
 		file, key, cached, hashed, sized := j.file, j.key, j.thumb, j.hashed, j.sized
-		e.pool.Go(ctx, func(acquired bool) {
+		e.queue.GoLow(func(acquired bool) {
 			defer func() {
 				e.hashing.Delete(key)
 				remaining := e.hashJobs.Add(-1)

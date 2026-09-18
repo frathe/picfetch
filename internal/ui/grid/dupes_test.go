@@ -52,7 +52,7 @@ func TestHideDuplicatesPublishesWhileSourceReadsRemainPending(t *testing.T) {
 		permits <- struct{}{}
 		permits <- struct{}{}
 		g.decodes = decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency)
-		g.hashes.pool = g.decodes
+		g.restartWork()
 		defer func() { close(permits); g.Stop(); g.Settle() }()
 		g.SetHideDuplicates(true)
 		for {
@@ -666,6 +666,10 @@ func mustThumb(t *testing.T, u fyne.URI) image.Image {
 	return thumb
 }
 
+// Keep this ordinary live-regrouping fixture distinct from the queued-worker
+// interleaving below: each protects a separate update ordering.
+//
+//goland:noinspection DuplicatedCode
 func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
 	g := newOverview(t, host)
@@ -705,6 +709,8 @@ func TestSetDuplicateDistance_RegroupsLive(t *testing.T) {
 // workers (native-size probes, because only hashes were injected), the
 // user moves the distance slider, then those workers' g.ui.Do installs
 // land. A snapshot computed at the old distance would undo the slider.
+//
+//goland:noinspection DuplicatedCode
 func TestSetDuplicateDistance_HashWorkerInstallKeepsCurrentDistance(t *testing.T) {
 	host := hostWith(t, "a.jpg", "b.jpg")
 	g := newOverview(t, host)

@@ -2,8 +2,11 @@ package decodepool
 
 import (
 	"context"
+	"runtime"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 )
 
 func TestClaim_SecondClaimForSameValueIsRefused(t *testing.T) {
@@ -71,6 +74,135 @@ func TestGo_LimitBoundsConcurrency(t *testing.T) {
 	}
 }
 
+// TestGo_QueueDoesNotCreateWaiterPerJob reproduces the Grid's large-folder
+// shape: every decode slot is busy while a whole source list queues behind it.
+// A bounded queue keeps those pending jobs as data. The old semaphore design
+// instead gave every pending job a goroutine parked on the semaphore.
+func TestGo_QueueDoesNotCreateWaiterPerJob(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const limit = 4
+		const queuedJobs = 22_000
+
+		p := New[int, int](limit)
+		entered := make(chan struct{}, limit)
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(func() {
+			unblock()
+			p.Wait()
+		})
+
+		for range limit {
+			p.Go(context.Background(), func(acquired bool) {
+				if !acquired {
+					t.Error("uncancelled held job was not admitted")
+					return
+				}
+				entered <- struct{}{}
+				<-release
+			})
+		}
+		for range limit {
+			<-entered
+		}
+
+		baseline := runtime.NumGoroutine()
+		for range queuedJobs {
+			p.Go(context.Background(), func(bool) {})
+		}
+
+		synctest.Wait()
+		if excess := runtime.NumGoroutine() - baseline; excess > 8 {
+			t.Fatalf("queueing %d jobs added %d goroutines, want <= 8", queuedJobs, excess)
+		}
+	})
+}
+
+func TestQueue_CancellationDoesNotCreateCallbackPerJob(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const queuedJobs = 22_000
+
+		p := New[int, int](1)
+		held := make(chan struct{})
+		holding := make(chan struct{})
+		unhold := sync.OnceFunc(func() { close(held) })
+		ctx, cancel := context.WithCancel(context.Background())
+		q := p.Begin(ctx)
+		callbackRelease := make(chan struct{})
+		unblockCallbacks := sync.OnceFunc(func() { close(callbackRelease) })
+		t.Cleanup(func() {
+			unblockCallbacks()
+			unhold()
+			p.Wait()
+		})
+
+		p.Go(context.Background(), func(acquired bool) {
+			if !acquired {
+				t.Error("uncancelled held job was not admitted")
+				return
+			}
+			close(holding)
+			<-held
+		})
+		<-holding
+
+		callbackStarted := make(chan struct{})
+		var first sync.Once
+		for range queuedJobs {
+			q.Go(func(acquired bool) {
+				if acquired {
+					t.Error("cancelled queued job was admitted")
+				}
+				first.Do(func() { close(callbackStarted) })
+				<-callbackRelease
+			})
+		}
+
+		baseline := runtime.NumGoroutine()
+		cancel()
+		<-callbackStarted
+		synctest.Wait()
+		if excess := runtime.NumGoroutine() - baseline; excess > 8 {
+			t.Fatalf("cancelling %d jobs added %d goroutines, want <= 8", queuedJobs, excess)
+		}
+	})
+}
+
+func TestQueue_InteractiveJobsRunBeforeBackgroundWork(t *testing.T) {
+	p := New[int, int](1)
+	held := make(chan struct{})
+	holding := make(chan struct{})
+	unhold := sync.OnceFunc(func() { close(held) })
+	t.Cleanup(func() {
+		unhold()
+		p.Wait()
+	})
+
+	p.Go(context.Background(), func(acquired bool) {
+		if !acquired {
+			t.Error("uncancelled held job was not admitted")
+			return
+		}
+		close(holding)
+		<-held
+	})
+	<-holding
+
+	q := p.Begin(context.Background())
+	order := make(chan string, 3)
+	q.GoLow(func(bool) { order <- "background" })
+	q.Go(func(bool) { order <- "stale cell" })
+	q.Go(func(bool) { order <- "current cell" })
+
+	unhold()
+	p.Wait()
+	for i, want := range []string{"current cell", "stale cell", "background"} {
+		if got := <-order; got != want {
+			t.Fatalf("run %d = %q, want %q", i, got, want)
+		}
+	}
+}
+
 func TestGo_CancelledWhileQueuedStillCallsFn(t *testing.T) {
 	p := New[int, int](1)
 	holding := make(chan struct{})
@@ -80,10 +212,9 @@ func TestGo_CancelledWhileQueuedStillCallsFn(t *testing.T) {
 		<-block
 	})
 
-	// The pool's one slot has to be genuinely taken before the cancelled call
-	// queues behind it: Go does its waiting on the spawned goroutine, so
-	// without this handshake that goroutine might not have reached its select
-	// yet and the cancelled call would find the slot free.
+	// The pool's one worker has to be genuinely occupied before the cancelled
+	// call queues behind it. Otherwise the worker could admit the call before
+	// cancellation dispatch proves the queued-work path.
 	<-holding
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -97,9 +228,8 @@ func TestGo_CancelledWhileQueuedStillCallsFn(t *testing.T) {
 		close(resolved)
 	})
 
-	// And it has to resolve while the slot is still held. Releasing first
-	// would leave its select with two ready cases - the freed slot and the
-	// cancelled ctx - which select picks between at random.
+	// It has to resolve while the slot is still held. Releasing first could let
+	// ordinary worker admission hide a broken cancellation-dispatch path.
 	<-resolved
 
 	close(block)

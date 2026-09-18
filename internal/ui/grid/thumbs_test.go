@@ -444,9 +444,9 @@ func TestRequestThumbnail_CancelledSlotWaiterReleasesClaim(t *testing.T) {
 	host.files[0] = u
 	g := newOverview(t, host)
 	synctest.Test(t, func(t *testing.T) {
-		// Slot waits must belong to this bubble to be durably blocked.
+		// Workers must belong to this bubble to be durably blocked.
 		g.decodes = decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency)
-		g.hashes.pool = g.decodes
+		g.restartWork()
 		unpark := parkDecodes(t, g)
 		cell, img := newCell()
 		g.cellIDs.Store(cell, 0)
@@ -463,6 +463,92 @@ func TestRequestThumbnail_CancelledSlotWaiterReleasesClaim(t *testing.T) {
 		g.Settle()
 		if held.opens.Load() != 0 {
 			t.Errorf("cancelled slot waiter opened %d sources", held.opens.Load())
+		}
+	})
+}
+
+func TestRequestThumbnail_PrioritizesCurrentCellAheadOfQueuedHash(t *testing.T) {
+	host := hostWith(t, "background.jpg", "current.jpg")
+	background, backgroundRead := heldGridURI(t, host.files[0], nil)
+	current, currentRead := heldGridURI(t, host.files[1], nil)
+	host.files[0], host.files[1] = background, current
+	g := newOverview(t, host)
+	g.decodes = decodepool.New[*fyne.Container, thumbClaim](1)
+	g.restartWork()
+
+	held := make(chan struct{})
+	holding := make(chan struct{})
+	unhold := sync.OnceFunc(func() { close(held) })
+	defer func() {
+		currentRead.unblock()
+		backgroundRead.unblock()
+		unhold()
+		g.Settle()
+	}()
+	g.decodes.Go(context.Background(), func(acquired bool) {
+		if !acquired {
+			t.Error("uncancelled held job was not admitted")
+			return
+		}
+		close(holding)
+		<-held
+	})
+	<-holding
+
+	// The hash pass has work only for background. The current source lacks a
+	// thumbnail, but its known facts keep it out of the low-priority hash pass.
+	g.dupes.PutHash(current.String(), 1)
+	g.dupes.PutNativeSize(current.String(), image.Pt(8, 8))
+	if n := g.hashRemaining(); n != 1 {
+		t.Fatalf("queued hash jobs = %d, want 1", n)
+	}
+	cell, img := newCell()
+	g.cellIDs.Store(cell, 1)
+	g.requestThumbnail(cell, img, 1, host.gen)
+
+	unhold()
+	select {
+	case <-currentRead.entered:
+	case <-backgroundRead.entered:
+		t.Fatal("background hash began before the current cell thumbnail")
+	case <-time.After(5 * time.Second):
+		t.Fatal("current cell thumbnail did not begin")
+	}
+	currentRead.unblock()
+	backgroundRead.wait(t)
+}
+
+func TestHashRemaining_CancelledSlotWaitersClearAccounting(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg", "c.jpg")
+	g := newOverview(t, host)
+	synctest.Test(t, func(t *testing.T) {
+		g.decodes = decodepool.New[*fyne.Container, thumbClaim](1)
+		g.restartWork()
+		held := make(chan struct{})
+		holding := make(chan struct{})
+		unhold := sync.OnceFunc(func() { close(held) })
+		defer func() {
+			unhold()
+			g.Settle()
+		}()
+		g.decodes.Go(context.Background(), func(acquired bool) {
+			if !acquired {
+				t.Error("uncancelled held job was not admitted")
+				return
+			}
+			close(holding)
+			<-held
+		})
+		<-holding
+
+		if n := g.hashRemaining(); n != 3 {
+			t.Fatalf("queued hash jobs = %d, want 3", n)
+		}
+		synctest.Wait()
+		g.Close()
+		synctest.Wait()
+		if got := g.hashes.hashJobs.Load(); got != 0 {
+			t.Fatalf("queued hash jobs after cancellation = %d, want 0", got)
 		}
 	})
 }
@@ -522,7 +608,7 @@ func TestRequestThumbnail_ReopenKeepsNewClaimWhileOldReadStops(t *testing.T) {
 	g := newOverview(t, host)
 	synctest.Test(t, func(t *testing.T) {
 		g.decodes = decodepool.New[*fyne.Container, thumbClaim](thumbConcurrency)
-		g.hashes.pool = g.decodes
+		g.restartWork()
 		oldURI, oldRead := heldGridURI(t, base, nil)
 		newURI, newRead := heldGridURI(t, base, nil)
 		defer func() { oldRead.unblock(); newRead.unblock(); g.Stop(); g.Settle() }()
