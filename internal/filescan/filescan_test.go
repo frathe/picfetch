@@ -470,6 +470,25 @@ func TestSiblings_CapsAtMaxKeepsOpenedFile(t *testing.T) {
 	}
 }
 
+func TestSiblings_CapsDirectoryEntriesWhenFilesAreUnsupported(t *testing.T) {
+	root := t.TempDir()
+	opened := writeJPEG(t, root, "opened.jpg")
+	for i := range 20 {
+		name := filepath.Join(root, fmt.Sprintf("clutter%02d.txt", i))
+		if err := os.WriteFile(name, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	images, truncated := Siblings(context.Background(), opened, 3, nil)
+	if !truncated {
+		t.Fatal("truncated = false, want true when the directory-entry budget is exhausted")
+	}
+	if len(images) != 1 || images[0].String() != opened.String() {
+		t.Fatalf("images = %v, want only the opened image", images)
+	}
+}
+
 func TestSiblings_MaxFlooredAtOne(t *testing.T) {
 	root := t.TempDir()
 	opened := writeJPEG(t, root, "opened.jpg")
