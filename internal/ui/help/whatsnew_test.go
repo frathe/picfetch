@@ -115,7 +115,7 @@ func releaseTestPNG(t *testing.T) []byte {
 func TestReleaseNotesImagesLoadWithoutBlocking(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	data := releaseTestPNG(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.RawQuery != "raw=true" {
 			t.Errorf("image query = %q, want raw=true", r.URL.RawQuery)
 		}
@@ -128,8 +128,8 @@ func TestReleaseNotesImagesLoadWithoutBlocking(t *testing.T) {
 	}))
 	defer server.Close()
 	h := newReleaseNotesHelp(t, test.NewApp())
-	h.imageClient = server.Client()
-	h.ShowWhatsNew("1.2.3", "# Notes\n\n![Art]("+server.URL+"/new-image.png?raw=true)\n\nStill readable")
+	h.imageClient = releaseImageTestClient(t, server)
+	h.ShowWhatsNew("1.2.3", "# Notes\n\n![Art](https://github.com/new-image.png?raw=true)\n\nStill readable")
 	defer h.Stop()
 	text := findRichText(h.whatsNewWin.Window().Content())
 	if !strings.Contains(richTextPlain(text.Segments), "Still readable") {
@@ -166,7 +166,7 @@ func TestReleaseNotesImagesLoadWithoutBlocking(t *testing.T) {
 }
 
 func TestReleaseNotesPreparesNestedImagesBeforeLayout(t *testing.T) {
-	parsed := widget.NewRichTextFromMarkdown("- ![list](https://example.invalid/list.png)\n\n| ![heading](https://example.invalid/header.png) |\n| --- |\n| ![cell](https://example.invalid/cell.png) |")
+	parsed := widget.NewRichTextFromMarkdown("- ![list](https://github.com/list.png)\n\n| ![heading](https://github.com/header.png) |\n| --- |\n| ![cell](https://github.com/cell.png) |")
 	var requests []releaseImageRequest
 	parsed.Segments = prepareReleaseImages(parsed.Segments, &requests)
 	if len(requests) != 3 {
@@ -180,7 +180,7 @@ func TestReleaseNotesWithoutImagesDoesNotFetch(t *testing.T) {
 		t.Error("notes without images must not start an image request")
 		return nil, errors.New("unexpected image request")
 	})}
-	h.ShowWhatsNew("1.2.3", "# Changes\n\nPlain release notes with a [changelog](https://example.invalid/releases).")
+	h.ShowWhatsNew("1.2.3", "# Changes\n\nPlain release notes with a [changelog](https://github.com/releases).")
 	h.Settle()
 	text := findRichText(h.whatsNewWin.Window().Content())
 	if !strings.Contains(richTextPlain(text.Segments), "Plain release notes") {
@@ -202,7 +202,7 @@ func TestReleaseNotesImageCloseAndStopCancelRequests(t *testing.T) {
 				close(cancelled)
 				return nil, request.Context().Err()
 			})}
-			h.ShowWhatsNew("1.2.3", "![Art](https://example.invalid/different-release.png)")
+			h.ShowWhatsNew("1.2.3", "![Art](https://github.com/different-release.png)")
 			waitReleaseImageSignal(t, started)
 			if terminal {
 				h.Stop()
@@ -220,14 +220,14 @@ func TestReleaseNotesImageCloseAndStopCancelRequests(t *testing.T) {
 
 func TestReleaseNotesQueuedImageCannotReachClosedWindow(t *testing.T) {
 	h := newReleaseNotesHelp(t, test.NewApp())
-	h.ShowWhatsNew("1.2.3", "![Old](https://example.invalid/old.png)")
+	h.ShowWhatsNew("1.2.3", "![Old](https://github.com/old.png)")
 	old := releaseImageSegments(findRichText(h.whatsNewWin.Window().Content()))[0]
 	h.Wait() // The download finished, but its UI delivery is still queued.
 	if old.picture != nil {
 		t.Fatal("image was published outside the UI queue")
 	}
 	h.whatsNewWin.Window().Close()
-	h.ShowWhatsNew("1.2.3", "- New release\n\n  ![New](https://example.invalid/new.png)")
+	h.ShowWhatsNew("1.2.3", "- New release\n\n  ![New](https://github.com/new.png)")
 	current := releaseImageSegments(findRichText(h.whatsNewWin.Window().Content()))[0]
 	h.Settle()
 	if old.picture != nil || current.picture == nil {
@@ -240,7 +240,7 @@ func TestReleaseNotesFailedImageKeepsNotesReadable(t *testing.T) {
 	h.imageClient = &http.Client{Transport: releaseImageTransport(func(_ *http.Request) (*http.Response, error) {
 		return nil, errors.New("offline")
 	})}
-	h.ShowWhatsNew("1.2.3", "# Changes\n\n![Art](https://example.invalid/art.png)\n\nRelease text")
+	h.ShowWhatsNew("1.2.3", "# Changes\n\n![Art](https://github.com/art.png)\n\nRelease text")
 	h.Settle()
 	text := findRichText(h.whatsNewWin.Window().Content())
 	art := releaseImageSegments(text)[0]
