@@ -52,7 +52,7 @@ type Help struct {
 func New(application fyne.App, title string, art []byte) *Help {
 	return &Help{
 		app: application, title: title, art: art,
-		imageClient: &http.Client{Timeout: 20 * time.Second}, imageUI: fyneQueue{},
+		imageClient: &http.Client{Timeout: 20 * time.Second, CheckRedirect: releaseImageRedirectPolicy}, imageUI: fyneQueue{},
 	}
 }
 
