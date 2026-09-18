@@ -8,27 +8,27 @@
 
 #### Bugfix
 
-- Bound automatic Favorite preview source decoding to the configured number of
-  distinct files (default 1000), with cancellable preparation and one source
-  decode at a time per pass, while retaining and reusing existing previews for
-  the rest of the Favorite.
-- Bound single-image sibling scans by the configured scan limit, preserve
-  sibling name order, and report truncation accurately for non-image entries.
-- Bound Copy Selection PNG encoding using Max file size (MB), including
-  scanline storage and encoded output, while preserving recoverable retries.
-- Restrict release-note artwork to approved GitHub HTTPS providers and validate
-  every redirect before fetching it.
-- Reuse the toast theme scope across replacements and root repaints. The
-  bounded 22k-item retest no longer retained parsed fonts under repeated
-  invalid-image errors.
+![trane pest control](https://github.com/frathe/picfetch/raw/main/assets/trane/trane_pest_control.png?raw=true)
 
-#### Internal
+- Favorites handle large collections more smoothly. Automatic preview loading now
+  respects your configured file limit (1,000 by default), reuses previews that
+  are already available, and can stop promptly when you switch views.
+- When viewing a single image, PicFetch scans nearby files only up to your
+  configured limit, keeps them in filename order, and accurately tells you when
+  the folder scan was limited.
+- Copy Selection now respects the **Max file size (MB)** setting throughout PNG
+  creation, reducing memory use while still allowing a failed copy to be retried.
+- Release-note images are loaded only from approved, secure GitHub sources.
+- Notifications keep their correct appearance as views change, and repeatedly
+  opening invalid images no longer causes unnecessary memory retention in very
+  large collections.
 
-- Pin Microsoft Store approval and publishing actions to reviewed immutable commits
-  and guard the policy in the workflow contract tests.
-- Explorer now warms the existing configured loose-image cache for **Find more
-  like this**. Its Favorite lifetime, general-cache eviction policy, and native
-  worker lifecycle remain separate.
+#### Behind the scenes
+
+- Microsoft Store publishing now has stronger safeguards to ensure reviewed
+  releases are the ones approved and published.
+- **Find more like this** now uses your configured image cache to improve
+  responsiveness, while keeping its Favorites and background work independent.
 
 ## Deferred
 
@@ -53,8 +53,7 @@ remains background for that deferred work.
 HEIC/HEIF is currently unsupported. A future restoration needs a documented
 distribution grant or another qualified decoder, containment and platform
 verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
-is closed by removal. Retained [options and source evidence](docs/find-more-like-this/old-heic-wasm-options.md)
-do not authorize restoring a decoder.
+is closed by removal. 
 
 The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
 include libheif/libde265 with LGPL distribution work and hpvcd with unresolved
