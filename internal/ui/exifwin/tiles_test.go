@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"image"
 	"image/color"
-	"image/png"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -18,32 +16,21 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // tilePNG is a correctly sized map tile accepted by the fetcher's validation.
 func tilePNG(t *testing.T) []byte {
 	t.Helper()
 
-	img := image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
-	img.Set(0, 0, color.RGBA{R: 1, G: 2, B: 3, A: 255})
-
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		t.Fatalf("encode tile: %v", err)
-	}
-
-	return buf.Bytes()
+	return uitest.EncodePNG(t, tileSize, tileSize, color.RGBA{R: 1, G: 2, B: 3, A: 255})
 }
 
 func pngWithDimensions(t *testing.T, width, height int) []byte {
 	t.Helper()
 
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, image.NewGray(image.Rect(0, 0, width, height))); err != nil {
-		t.Fatalf("encode %dx%d PNG: %v", width, height, err)
-	}
-
-	return buf.Bytes()
+	return uitest.EncodePNG(t, width, height, color.Black)
 }
 
 // tileServer is a stand-in tile service: it counts what was asked for, and
