@@ -14,7 +14,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
-	"github.com/frathe/picfetch/internal/ui/grid"
+	"github.com/frathe/picfetch/internal/preferences"
 )
 
 // FavoritePreviewCache and SetFavoritePreviewCache are the settings
@@ -32,6 +32,18 @@ func (v *viewer) SetFavoritePreviewCache(on bool) {
 	v.settings.favPreviewCache = on
 
 	if !on {
+		v.favThumbLifecycle.invalidate()
+	}
+}
+
+// SetFavoritePreviewLimit retires a pass admitted under the previous limit.
+// The next Favorite open/save captures the new limit before launching work.
+func (v *viewer) SetFavoritePreviewLimit(n int) {
+	if n <= 0 {
+		n = preferences.DefaultFavoritePreviewLimit
+	}
+	if v.settings.favPreviewLimit != n {
+		v.settings.favPreviewLimit = n
 		v.favThumbLifecycle.invalidate()
 	}
 }
@@ -60,13 +72,14 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	token := v.favThumbLifecycle.begin()
 
 	done := v.favThumb.Begin()
-	sink := gridSink{grid: v.grid, writer: v.grid.CaptureThumbs()}
+	sink := gridSink{writer: v.grid.CaptureThumbs()}
+	limit := v.settings.favPreviewLimit
 
 	v.favThumbWorkers.Go(func() {
 		defer done()
 		defer token.cancelContext()
 
-		if err := favthumbs.Sync(token.context(), favDir, files, sink); err != nil {
+		if err := favthumbs.Sync(token.context(), favDir, files, limit, sink); err != nil {
 			// A superseded pass returns context.Canceled, which is this
 			// design working rather than anything failing.
 			if errors.Is(err, context.Canceled) {
@@ -85,38 +98,26 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 // Both methods are called from several of Sync's worker goroutines at once,
 // and neither wraps its work in fyne.Do - unlike almost everything else
 // this package does off the UI goroutine. That is safe *because* of how
-// little they reach: CachedThumb and StoreThumb bottom out in the grid's
-// imaging.ByteCache, which guards itself with a mutex, and touch no widget,
+// little they reach: Peek and RefreshIfRoom use the grid's captured
+// imaging.ByteCache writer, which guards itself with a mutex, and touch no widget,
 // no canvas, and no viewer field. Anything added here that does touch a
 // widget needs fyne.Do again.
 type gridSink struct {
-	grid   *grid.Overview
 	writer imaging.CacheWriter[image.Image]
 }
 
 func (s gridSink) Cached(src fyne.URI) (image.Image, bool) {
-	if !s.writer.Current() {
-		return nil, false
-	}
-	return s.grid.CachedThumb(src)
+	return s.writer.Peek(src.String())
 }
 
 func (s gridSink) Store(src fyne.URI, thumb image.Image) {
-	// The check that makes the pre-warm worth doing, and the reason
-	// ThumbCacheFull exists at all (see its comment in internal/ui/grid):
-	// StoreThumb's AddIfFits refuses only a thumbnail too big for the whole
-	// budget, and once the cache is merely full it evicts least-recently-used
-	// entries and stores anyway. Offering unconditionally over a favorite
-	// larger than the budget would therefore evict this pass's own earliest
-	// entries as it walked the list, leaving only the tail cached - while
-	// the grid opens at the head. Stopping at the budget keeps the head
-	// warm and lets the tail decode on demand, exactly as it does without
-	// any of this.
-	if s.grid.ThumbCacheFull() {
-		return
-	}
-
-	_ = s.writer.AddIfFits(src.String(), thumb)
+	// Background warming must not evict thumbnails already in use. A separate
+	// "full" check misses a partially free cache and races other producers;
+	// generation, remaining space and admission must share the cache lock.
+	// Sync rejected an older source version before offering these pixels.
+	// Replace that key if possible, or discard it if the new version cannot
+	// fit; unrelated thumbnails keep their bytes and recency.
+	_ = s.writer.RefreshIfRoom(src.String(), thumb)
 }
 
 // closeFavoritePreviews stops admission and cancels the pass without waiting

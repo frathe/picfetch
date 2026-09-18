@@ -184,9 +184,8 @@ func (s hostSet) Snapshot() dupes.Snapshot {
 func parkDecodes(t *testing.T, g *Overview) (unpark func()) {
 	t.Helper()
 
-	// The pool waits for its slot on the spawned goroutine, so each parker
-	// has to report that it really holds one before the caller can be sure
-	// its own requests queue behind them.
+	// The demand-started worker has to report that it really holds a slot
+	// before the caller can be sure its own requests queue behind it.
 	holding := make(chan struct{}, thumbConcurrency)
 	parked := make(chan struct{})
 	unpark = sync.OnceFunc(func() { close(parked) })

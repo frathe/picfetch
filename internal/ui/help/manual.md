@@ -756,8 +756,10 @@ scans reuse unchanged images with a matching model and preprocessing version;
 changed or invalid entries are scanned again. Grouping and positions are rebuilt
 for the current input; tags are recalculated from the saved representations.
 Explorer cache settings apply when a scan starts. Explorer saves analysis for
-Favorites; Find more like this also supports caching loose images, as described
-below. Full-library qualification is still in progress.
+Favorites and writes compatible loose-image representations to the shared general
+cache when **Cache analysis for loose images** is enabled in **Settings -> Cache**.
+Find more like this reuses the same cache. Full-library qualification is still in
+progress.
 
 ---
 
@@ -1060,7 +1062,11 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   **Duplicate match distance** slider (0–32, default 6; lower is
   stricter, 0 is an exact thumbnail hash) that hide-duplicates (`D`) uses,
   and the **Cache favorite previews on disk** checkbox (on by default) for
-  the background favorite-preview generation described below. The **Limits**
+  the background favorite-preview generation described below. The **Cache** tab
+  groups this checkbox with **Favorite preview limit** (default 1000), which
+  limits automatic generation while retaining reuse of existing previews.
+  Changing the limit stops the current pass and applies on the next Favorite
+  open or save. The **Limits**
   tab contains **Max files per folder scan**, **Max image cache (MB)**,
   **Max thumbnail cache (MB)**, and **Max file size (MB)**. **Check for
   updates** (off by default) is under Updates. When enabled, PicFetch checks
@@ -1107,8 +1113,12 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   **`Right`** move the ring once you're there, and **`Esc`** cancels from either
   place. **Add** stays greyed out until the name is usable — anything but
   empty, or containing `/ \ : * ? " < > |`. Saving also starts preparing
-  that favorite's grid previews in the background, so opening its Grid
-  Overview (`G`) later is fast
+  grid previews for the first 1000 distinct files by default, adjustable under
+  **Settings -> Cache -> Favorite preview limit**. The
+  background pass decodes one original image at a time. Existing previews
+  for the rest of the list are kept and reused within the thumbnail memory
+  budget; uncached thumbnails are loaded when needed in Grid Overview (`G`).
+  A completed pass removes stale previews and previews for removed files
 - **Favorites -> _favorite name_** — opens that saved list through the same
   scan, sort, and merge behavior as Open Files. Each entry shows how many
   files it stores, e.g. `Holiday 2024 (128)`; entries are sorted by name,
@@ -1120,8 +1130,8 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   by itself — **`Return`** activates whichever is ringed, and **`Esc`**
   cancels. Either way of cancelling reopens the Add dialog with the name you
   typed still in the field, rather than making you retype it. Opening a
-  favorite also tops up its grid previews in the background if any are
-  missing, so its Grid Overview opens quickly
+  favorite also tops up missing grid previews up to the configured limit
+  in the background and reuses cached previews for the remaining files
 - **Favorites -> Manage Favorites…** (also `Cmd/Ctrl+Shift+F`) — lists every
   saved collection, each with the same file count, and lets you open or
   remove one. Fully keyboard-driven: **`Up`**/**`Down`** move a ring between

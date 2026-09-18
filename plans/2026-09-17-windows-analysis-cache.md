@@ -15,7 +15,8 @@ rejected the records. Existing fixtures used native paths and missed this.
 - Permit the platform's equivalent slash spelling during validation; continue
   rejecting relative paths and redundant path components.
 - Preserve cache preferences, leases, capacity and producer write scopes.
-  Explorer's existing general-cache access is read-only; search populates it.
+  Explorer and search write compatible loose-image representations only while
+  the existing loose-cache preference is enabled.
 - Do not change unrelated Windows fixture assumptions or native file behavior.
 
 ## Acceptance and task graph

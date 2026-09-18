@@ -200,6 +200,27 @@ func TestFeatureOpenCopiesSourcesAndRejectsClosedDelivery(t *testing.T) {
 	}
 }
 
+func TestFeatureReportsCompletedCachePressure(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	host := &featureHost{win: app.NewWindow("Explorer")}
+	var pressures []uint64
+	f := explorer.NewFeature(host, explorer.Options{
+		App: app, Queue: &uitest.UIQueue{}, CachePressure: func(needBytes uint64) { pressures = append(pressures, needBytes) },
+		Analyze: func(_ context.Context, _ []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+			emit(similarity.Event{Total: 1, Successful: 1, CachePressureBytes: 64})
+			emit(similarity.Event{Total: 1, Successful: 1, Complete: true, CachePressureBytes: 128})
+			return nil
+		},
+	})
+	t.Cleanup(func() { f.Stop(); f.Settle() })
+	f.Open(explorer.OpenRequest{Sources: []string{"/a.jpg"}})
+	f.Settle()
+	if !slices.Equal(pressures, []uint64{128}) {
+		t.Fatalf("cache pressure = %v, want [128] after completion", pressures)
+	}
+}
+
 type featureHost struct {
 	win    fyne.Window
 	grid   bool

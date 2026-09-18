@@ -29,6 +29,7 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
+	searchui "github.com/frathe/picfetch/internal/ui/visualsearch"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -542,6 +543,38 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		if final.Reused != 2 || final.Measurements.InferenceAttempts != 0 {
 			t.Fatalf("saved Favorite repeated inference: %+v", final.Measurements)
+		}
+	})
+
+	t.Run("explorer_general_cache_warms_search", func(t *testing.T) {
+		v, assets := newSearchFavoriteTrial(t)
+		v.settings.looseAnalysisCache = true
+		v.analysisDir = t.TempDir()
+		v.favorites.SetDir(t.TempDir())
+		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}
+
+		v.showExplorer()
+		v.settleExplorer()
+		usage, err := (similarity.CacheManager{}).Inspect(context.Background(), v.analysisRoots(), nil)
+		if err != nil || usage.General.Records != len(paths) || usage.Favorite.Records != 0 {
+			t.Fatalf("Explorer cache effects: %+v, %v", usage, err)
+		}
+
+		v.LeaveSimilarityMap()
+		var ready similarity.SearchEvent
+		client := similarity.Client{Assets: assets}
+		v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}, Provider: func(ctx context.Context, request similarity.SearchRequest, queries <-chan similarity.SearchQuery, emit func(similarity.SearchEvent)) error {
+			return client.Search(ctx, request, queries, func(event similarity.SearchEvent) {
+				if event.Kind == similarity.SearchReady {
+					ready = event
+				}
+				emit(event)
+			})
+		}})
+		v.findMoreLikeThis()
+		v.visualsearch.Settle()
+		if ready.Processed != len(paths) || ready.Reused != len(paths) || ready.Failed != 0 || len(v.grid.ResultIndexes()) != len(paths) {
+			t.Fatalf("Find more like this recomputed Explorer analysis: %+v", ready)
 		}
 	})
 

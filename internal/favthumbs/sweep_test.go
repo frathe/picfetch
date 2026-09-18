@@ -1,6 +1,8 @@
 package favthumbs
 
 import (
+	"context"
+	"errors"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -10,6 +12,32 @@ import (
 	"fyne.io/fyne/v2"
 )
 
+func TestSweepCancellationDuringMembershipScanKeepsPreviews(t *testing.T) {
+	source := newSourceFile(t, t.TempDir(), "kept.jpg")
+	dir := t.TempDir()
+	if err := Write(dir, source, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	files := []fyne.URI{
+		observedPathURI{URI: source, onPath: cancel},
+		observedPathURI{URI: source, onPath: func() {
+			t.Error("cancelled sweep continued examining sources")
+		}},
+	}
+	if err := sweepContext(ctx, dir, files); !errors.Is(err, context.Canceled) {
+		t.Fatalf("sweep = %v, want cancellation", err)
+	}
+	if _, ok := Read(dir, source); !ok {
+		t.Fatal("cancelled sweep removed a current preview")
+	}
+}
+
+// Keep the source-version mutation fixture independent of removal/retention
+// fixtures so their opposite sweep outcomes remain explicit.
+//
+//goland:noinspection DuplicatedCode
 func TestSweepDeletesStalePreviewForChangedSource(t *testing.T) {
 	t.Parallel()
 

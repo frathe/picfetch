@@ -114,6 +114,13 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.grid = grid.New(view, window, view.dupes)
 	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
 		App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
+		CachePressure: func(needBytes uint64) {
+			if view.analysisCache == nil {
+				return
+			}
+			view.analysisCache.SetRoots(view.analysisRoots())
+			view.analysisCache.MakeRoom(needBytes)
+		},
 		Settings: explorerui.Settings{CacheFavorites: prefs.SimilarityFavoriteCache, AutoFit: prefs.SimilarityAutoFit, Automatic: prefs.SimilarityAutoUpdate, IntroSeen: prefs.SimilarityIntroSeen,
 			Limits: similarity.AnalysisLimits{MemoryMB: prefs.SimilarityMemoryLimitMB, Items: prefs.SimilarityItemLimit}},
 	})
@@ -145,6 +152,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.pushDuplicateDistance(view.DuplicateDistance())
 
 	view.SetFavoritePreviewCache(prefs.FavoritePreviewCache)
+	view.SetFavoritePreviewLimit(prefs.FavoritePreviewLimit)
 	// Restore update prefs without SetCheckForUpdates: that setter starts a
 	// network check. Day must be in place before startViewerRuntime's
 	// maybeStartUpdateCheck so Due sees the saved calendar day.

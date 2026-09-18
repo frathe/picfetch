@@ -866,8 +866,11 @@ Unveränderte Favoritenbilder mit passender Modell- und Vorverarbeitungsversion
 werden wiederverwendet; geänderte oder ungültige Einträge erneut analysiert.
 Gruppen und Positionen werden für die aktuelle Auswahl neu berechnet. Die
 Cache-Einstellung gilt ab dem nächsten Analysestart. Der Explorer speichert
-Favoritenanalysen; die folgende Bildsuche kann auch Analysen anderer Bilder
-speichern. Die Prüfung großer Bibliotheken läuft noch.
+Favoritenanalysen und schreibt, wenn **Analysen für Bilder außerhalb von
+Favoriten speichern** im Tab **Einstellungen -> Cache** aktiviert ist,
+kompatible Bildrepräsentationen in den gemeinsamen allgemeinen Cache. **Mehr davon
+finden** verwendet denselben Cache wieder. Die Prüfung großer Bibliotheken läuft
+noch.
 
 ---
 
@@ -1211,7 +1214,11 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   Ausblenden von Duplikaten (`D`) verwendet, und das Kontrollkästchen
   **Favoriten-Vorschauen auf der Festplatte zwischenspeichern** (standardmäßig
   an) für die unten beschriebene Hintergrund-Erzeugung der
-  Favoriten-Vorschauen. Im Tab **Grenzwerte** stehen **Maximale Dateien pro
+  Favoriten-Vorschauen. Im Tab **Cache** steht dieses Kontrollkästchen zusammen
+  mit **Limit für Favoriten-Vorschaubilder** (Vorgabe 1000), das die automatische
+  Erstellung begrenzt; vorhandene Vorschaubilder werden weiterhin verwendet.
+  Eine Änderung stoppt den aktuellen Lauf und gilt beim nächsten Öffnen oder
+  Speichern eines Favoriten. Im Tab **Grenzwerte** stehen **Maximale Dateien pro
   Ordner-Scan**, **Maximaler Bildcache (MB)**, **Maximaler Miniaturbild-Cache
   (MB)** und **Maximale Dateigröße (MB)**. **Nach Updates suchen**
   (standardmäßig aus) steht unter Updates. Wenn aktiviert, prüft PicFetch
@@ -1265,7 +1272,15 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   sie zurück zum Feld, **`Left`**/**`Right`** bewegen dort den Rahmen, und
   **`Esc`** bricht von beiden Stellen aus ab. „Hinzufügen“ bleibt
   ausgegraut, solange der Name ungültig ist — also leer ist oder eines der
-  Zeichen `/ \ : * ? " < > |` enthält
+  Zeichen `/ \ : * ? " < > |` enthält. Beim Speichern werden außerdem
+  standardmäßig Raster-Vorschaubilder für die ersten 1000 unterschiedlichen
+  Dateien vorbereitet, einstellbar unter **Einstellungen -> Cache -> Limit für
+  Favoriten-Vorschaubilder**. Der Hintergrundlauf dekodiert jeweils
+  ein Originalbild. Vorhandene Vorschaubilder für den Rest der Liste bleiben
+  erhalten und werden innerhalb des Miniaturbild-Speicherbudgets wiederverwendet.
+  Fehlende Miniaturbilder werden bei Bedarf in der Rasterübersicht (`G`)
+  geladen. Ein abgeschlossener Lauf entfernt veraltete Vorschaubilder und
+  Vorschaubilder für entfernte Dateien
 - **Favoriten -> _Favoritenname_** — öffnet die gespeicherte Liste mit
   demselben Scan-, Sortier- und Zusammenführen-Verhalten wie „Dateien
   öffnen“. Jeder Eintrag zeigt, wie viele Dateien er enthält, z. B.
@@ -1280,7 +1295,10 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   ersetzt —, **`Return`** löst die markierte Option aus, **`Esc`** bricht
   ab. Beide Wege, die Rückfrage abzubrechen, öffnen den Dialog zum
   Hinzufügen erneut, mit dem eingegebenen Namen weiterhin im Feld, statt
-  ihn erneut eintippen zu lassen
+  ihn erneut eintippen zu lassen. Beim Öffnen werden fehlende
+  Raster-Vorschaubilder bis zum eingestellten Limit
+  ebenfalls im Hintergrund ergänzt; für die übrigen Dateien werden vorhandene
+  Vorschaubilder wiederverwendet
 - **Favoriten -> Favoriten verwalten…** (auch `Cmd`/`Strg+Shift+F`) — zeigt
   alle gespeicherten Sammlungen mit ihrer Dateianzahl an und lässt Sie eine
   davon öffnen oder entfernen. Vollständig über die Tastatur bedienbar:

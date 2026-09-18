@@ -122,6 +122,8 @@
    "Merge newly dropped files into the current set": "Merge newly dropped files into the current set",
    "Shuffle picture-frame order": "Shuffle picture-frame order",
    "Cache favorite previews on disk": "Cache favorite previews on disk",
+   "Favorite preview limit": "Favorite preview limit",
+   "Limits automatic preview generation when opening or saving a Favorite; existing cached previews beyond this limit are still reused.": "Limits automatic preview generation when opening or saving a Favorite; existing cached previews beyond this limit are still reused.",
    "Keep a fixed window size": "Keep a fixed window size",
    "Check for updates": "Check for updates",
    "Check now": "Check now",

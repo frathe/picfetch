@@ -8,19 +8,27 @@
 
 #### Bugfix
 
+- Bound automatic Favorite preview source decoding to the configured number of
+  distinct files (default 1000), with cancellable preparation and one source
+  decode at a time per pass, while retaining and reusing existing previews for
+  the rest of the Favorite.
 - Bound single-image sibling scans by the configured scan limit, preserve
   sibling name order, and report truncation accurately for non-image entries.
 - Bound Copy Selection PNG encoding using Max file size (MB), including
   scanline storage and encoded output, while preserving recoverable retries.
 - Restrict release-note artwork to approved GitHub HTTPS providers and validate
   every redirect before fetching it.
+- Reuse the toast theme scope across replacements and root repaints. The
+  bounded 22k-item retest no longer retained parsed fonts under repeated
+  invalid-image errors.
 
 #### Internal
 
 - Pin Microsoft Store approval and publishing actions to reviewed immutable commits
   and guard the policy in the workflow contract tests.
-
-## Open
+- Explorer now warms the existing configured loose-image cache for **Find more
+  like this**. Its Favorite lifetime, general-cache eviction policy, and native
+  worker lifecycle remain separate.
 
 ## Deferred
 

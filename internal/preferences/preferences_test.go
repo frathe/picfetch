@@ -35,6 +35,25 @@ func TestMosaicPreferencesRotationRange(t *testing.T) {
 	}
 }
 
+func TestFavoritePreviewLimitPreferences(t *testing.T) {
+	app := test.NewApp()
+	if got := Load(app).FavoritePreviewLimit; got != 1000 {
+		t.Fatalf("default preview limit = %d, want 1000", got)
+	}
+	Save(app, State{FavoritePreviewLimit: 37})
+	if got := Load(app).FavoritePreviewLimit; got != 37 {
+		t.Fatalf("saved preview limit = %d, want 37", got)
+	}
+	Save(app, State{FavoritePreviewLimit: -1})
+	if got := Load(app).FavoritePreviewLimit; got != 37 {
+		t.Fatal("invalid limit overwrote the saved value")
+	}
+	app.Preferences().SetInt("favoritePreviewLimit", -1)
+	if got := Load(app).FavoritePreviewLimit; got != 1000 {
+		t.Fatalf("invalid stored preview limit = %d, want default 1000", got)
+	}
+}
+
 func TestAnalysisCachePreferences(t *testing.T) {
 	app := test.NewApp()
 	if got := Load(app); !got.SimilarityLooseCache || got.AnalysisCacheLimitMiB != 2048 {
@@ -230,6 +249,7 @@ func TestSavePreferences_RoundTrip(t *testing.T) {
 		MaxImageCacheMB:       384,
 		MaxThumbCacheMB:       192,
 		AnalysisCacheLimitMiB: 512,
+		FavoritePreviewLimit:  37,
 		MaxFileSizeMB:         256,
 		WindowSize:            fyne.NewSize(640, 480),
 		WindowPosX:            120,

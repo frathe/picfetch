@@ -47,11 +47,14 @@ func (f *Feature) Open(request OpenRequest) bool {
 		client := f.client
 		client.AnalysisLimits = f.limits
 		client.GeneralAnalysisDir = request.GeneralAnalysisDir
+		client.GeneralAnalysisLimitBytes = request.GeneralAnalysisLimitBytes
 		client.FavoritesDir = request.FavoritesDir
 		client.DisableFavoriteCache = !f.cacheFavorites
 		analyze = client.Analyze
 	}
 	cacheWarningReported := false
+	cachePressureReported := false
+	cachePressure := f.cachePressure
 	favoriteDir := f.favoriteDir
 	trial := f.trial
 	run := trial.Begin(paths)
@@ -151,6 +154,10 @@ func (f *Feature) Open(request OpenRequest) bool {
 					f.RecordView("view-observed")
 				}
 				f.surface.UpdateState(!f.complete && f.available > f.mapped, f.building)
+				if event.Complete && event.CachePressureBytes > 0 && !cachePressureReported && cachePressure != nil {
+					cachePressureReported = true
+					cachePressure(event.CachePressureBytes)
+				}
 			})
 		})
 		workerErr = err

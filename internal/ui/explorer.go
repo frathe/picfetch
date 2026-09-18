@@ -61,8 +61,9 @@ func (v *viewer) beginExplorerAnalysis() {
 		}
 	}
 	request := explorerui.OpenRequest{Sources: paths, FavoriteDir: v.explorerInput.favoriteDir, FavoritesDir: v.favorites.Dir()}
-	if v.settings.looseAnalysisCache {
-		request.GeneralAnalysisDir = v.analysisDir
+	cache := v.searchCachePolicy()
+	if cache.LooseEnabled {
+		request.GeneralAnalysisDir, request.GeneralAnalysisLimitBytes = cache.Roots.GeneralDir, cache.GeneralLimitBytes
 	}
 	v.explorer.Open(request)
 }

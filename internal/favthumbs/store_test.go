@@ -8,6 +8,8 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -186,6 +188,9 @@ func TestReadMissesWhenNothingWritten(t *testing.T) {
 	}
 }
 
+// Keep the seconds and subsecond edit fixtures independent; both protect version identity.
+//
+//goland:noinspection DuplicatedCode
 func TestReadMissesWhenSourceModTimeChangesButOldFileSurvives(t *testing.T) {
 	t.Parallel()
 
@@ -221,6 +226,67 @@ func TestReadMissesWhenSourceModTimeChangesButOldFileSurvives(t *testing.T) {
 	// this stage's Read.
 	if _, err := os.Stat(oldPath); err != nil {
 		t.Errorf("expected stale preview to remain on disk at %q: %v", oldPath, err)
+	}
+}
+
+type cleanupContext struct {
+	context.Context
+	check func()
+}
+
+func (c cleanupContext) Err() error {
+	c.check()
+	return c.Context.Err()
+}
+
+func TestCorruptPreviewCleanupSerializesWithReplacement(t *testing.T) {
+	dir := t.TempDir()
+	source := newSourceFile(t, dir, "source.jpg")
+	if err := Write(dir, source, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
+		t.Fatal(err)
+	}
+	path := previewPath(t, dir, source, ".jpg")
+	if err := os.WriteFile(path, []byte("broken cache"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	failed, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delayed, err := os.Open(path)
+	if err != nil {
+		_ = failed.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = failed.Close(); _ = delayed.Close() })
+	entered, release, removed := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	defer unblock()
+	ctx := cleanupContext{Context: context.Background(), check: func() { close(entered); <-release }}
+	go func() { discardCorruptPreview(ctx, path, failed); close(removed) }()
+	<-entered
+	if previewCommitMu.TryLock() {
+		previewCommitMu.Unlock()
+		t.Error("failed-preview identity check is not serialized with replacement")
+	}
+	if runtime.GOOS == "windows" {
+		// Windows does not allow replacement while this second os.Open
+		// handle remains live; Unix permits the delayed-reader case below.
+		_ = delayed.Close()
+	}
+	written := make(chan error, 1)
+	go func() {
+		written <- Write(dir, source, newOpaqueThumb(2, 1, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
+	}()
+	unblock()
+	<-removed
+	if err := <-written; err != nil {
+		t.Fatal(err)
+	}
+	// A delayed failed reader must also preserve a completed replacement.
+	discardCorruptPreview(context.Background(), path, delayed)
+	if preview, ok := Read(dir, source); !ok || preview.Bounds() != image.Rect(0, 0, 2, 1) {
+		t.Fatal("failed reader removed the healthy replacement")
 	}
 }
 

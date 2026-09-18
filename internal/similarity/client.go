@@ -91,20 +91,23 @@ type Client struct {
 	// DisableFavoriteCache preserves membership for loose-cache routing while
 	// disabling Favorite analysis reuse and persistence.
 	DisableFavoriteCache bool
-	// GeneralAnalysisDir enables reuse of compatible loose-image representations.
-	// Analyzer hits are promoted into enabled Favorites; misses are not written here.
-	GeneralAnalysisDir string
+	// GeneralAnalysisDir and GeneralAnalysisLimitBytes configure bounded reuse
+	// and persistence of compatible loose-image representations. Analyzer hits
+	// are promoted into enabled Favorites.
+	GeneralAnalysisDir        string
+	GeneralAnalysisLimitBytes uint64
 }
 
 type request struct {
-	Search               *SearchRequest `json:",omitempty"`
-	Assets               string
-	FavoritesDir         string
-	GeneralAnalysisDir   string
-	DisableFavoriteCache bool
-	Paths                []string
-	MaxEncodedBytes      int64
-	AnalysisLimits       AnalysisLimits
+	Search                    *SearchRequest `json:",omitempty"`
+	Assets                    string
+	FavoritesDir              string
+	GeneralAnalysisDir        string
+	GeneralAnalysisLimitBytes uint64
+	DisableFavoriteCache      bool
+	Paths                     []string
+	MaxEncodedBytes           int64
+	AnalysisLimits            AnalysisLimits
 }
 
 // Analyze streams serialized immutable snapshots and waits for worker exit.
@@ -128,7 +131,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	if assets == "" {
 		assets = defaultAssets(executable)
 	}
-	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes(), AnalysisLimits: limits}
+	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, GeneralAnalysisLimitBytes: c.GeneralAnalysisLimitBytes, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes(), AnalysisLimits: limits}
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	return analyzeCommand(ctx, cmd, req, controls, emit)

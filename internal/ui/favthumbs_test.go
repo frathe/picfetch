@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"io"
@@ -69,6 +70,9 @@ func previewNames(t *testing.T, favDir string) []string {
 	return names
 }
 
+// Keep opening and reopening fixtures independent: they assert different disk effects.
+//
+//goland:noinspection DuplicatedCode
 func TestSyncFavoritePreviews_OpeningAFavoriteWritesPreviews(t *testing.T) {
 	v := newTestViewer(t)
 	first := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
@@ -89,8 +93,8 @@ func TestSyncFavoritePreviews_OpeningAFavoriteWritesPreviews(t *testing.T) {
 func TestSyncFavoritePreviews_PreferenceOffWritesNothing(t *testing.T) {
 	v := newTestViewer(t)
 	v.SetFavoritePreviewCache(false)
-	image := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
-	favDir := storeFavorite(t, v, "Trip", image)
+	source := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
+	favDir := storeFavorite(t, v, "Trip", source)
 
 	v.favorites.Menu().Items[2].Action()
 	waitForScan(t, v)
@@ -108,6 +112,9 @@ func TestSyncFavoritePreviews_PreferenceOffWritesNothing(t *testing.T) {
 // TestSyncFavoritePreviews_SecondOpenAddsNothing is the point of persisting
 // previews at all: the second open finds every one of them current and
 // neither re-encodes nor accumulates a duplicate beside it.
+// Keep the second-open fixture independent of the initial-write scenario.
+//
+//goland:noinspection DuplicatedCode
 func TestSyncFavoritePreviews_SecondOpenAddsNothing(t *testing.T) {
 	v := newTestViewer(t)
 	first := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
@@ -138,8 +145,8 @@ func TestSyncFavoritePreviews_SecondOpenAddsNothing(t *testing.T) {
 // paints from it instead of decoding the originals again.
 func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 	v := newTestViewer(t)
-	image := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
-	storeFavorite(t, v, "Trip", image)
+	source := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
+	storeFavorite(t, v, "Trip", source)
 
 	v.favorites.Menu().Items[2].Action()
 	settleFavoritePreviews(t, v)
@@ -147,8 +154,108 @@ func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if _, ok := v.grid.CachedThumb(image); !ok {
-		t.Errorf("grid thumbnail cache has no entry for %q after a preview pass", image.Name())
+	if _, ok := v.grid.CachedThumb(source); !ok {
+		t.Errorf("grid thumbnail cache has no entry for %q after a preview pass", source.Name())
+	}
+}
+
+func TestFavoritePreviewLimitAppliesAndCancelsCurrentPass(t *testing.T) {
+	v := newTestViewer(t)
+	prev := v.settingsState()
+	if prev.FavoritePreviewLimit != 1000 {
+		t.Fatalf("default preview limit = %d, want 1000", prev.FavoritePreviewLimit)
+	}
+	token := v.favThumbLifecycle.begin()
+	next := prev
+	next.FavoritePreviewLimit = 1
+	v.ApplySettings(prev, next)
+	if token.current() || v.currentPreferences().FavoritePreviewLimit != 1 || v.settingsState().FavoritePreviewLimit != 1 {
+		t.Fatal("preview-limit edit did not cancel and update persisted/form values")
+	}
+	files := []fyne.URI{
+		uitest.TempJPEGURI(t, "first.jpg", 1, 1, color.White),
+		uitest.TempJPEGURI(t, "second.jpg", 1, 1, color.Black),
+	}
+	dir := t.TempDir()
+	v.SyncFavoritePreviews(dir, files)
+	settleFavoritePreviews(t, v)
+	if len(previewNames(t, dir)) != 1 {
+		t.Fatal("preview pass ignored the selected limit")
+	}
+}
+
+func TestSyncFavoritePreviews_DoesNotEvictGridThumbnails(t *testing.T) {
+	t.Run("warming preserves recency", func(t *testing.T) {
+		v := newTestViewer(t)
+		older := uitest.TempJPEGURI(t, "older.jpg", 1, 1, color.White)
+		recent := uitest.TempJPEGURI(t, "recent.jpg", 1, 1, color.Black)
+		incoming := uitest.TempJPEGURI(t, "incoming.jpg", 1, 1, color.Black)
+		v.grid.SetCacheBytes(16)
+		name, _ := favthumbs.EntryName(older)
+		pixels := image.NewRGBA(image.Rect(0, 0, 1, 1))
+		if !v.grid.StoreThumb(older, &favthumbs.Preview{Image: pixels, SourceVersion: name}) || !v.grid.StoreThumb(recent, &favthumbs.Preview{Image: pixels}) {
+			t.Fatal("could not seed both thumbnails")
+		}
+		v.SyncFavoritePreviews(t.TempDir(), []fyne.URI{older})
+		settleFavoritePreviews(t, v)
+		if !v.grid.StoreThumb(incoming, &favthumbs.Preview{Image: pixels}) {
+			t.Fatal("could not store the newly viewed thumbnail")
+		}
+		if v.grid.Cached(older) || !v.grid.Cached(recent) {
+			t.Fatal("background lookup promoted an older thumbnail over a recently viewed one")
+		}
+	})
+	v := newTestViewer(t)
+	first := uitest.TempJPEGURI(t, "first.jpg", 4, 4, color.White)
+	second := uitest.TempJPEGURI(t, "second.jpg", 4, 4, color.Black)
+	// A versioned 4x4 preview weighs 128 bytes. Leave some free space, but
+	// not enough for the next preview; a pre-check for "full" misses this.
+	v.grid.SetCacheBytes(192)
+	if !v.grid.StoreThumb(first, &favthumbs.Preview{Image: image.NewRGBA(image.Rect(0, 0, 4, 4))}) {
+		t.Fatal("could not seed the foreground thumbnail")
+	}
+	dir := t.TempDir()
+	v.SyncFavoritePreviews(dir, []fyne.URI{second})
+	settleFavoritePreviews(t, v)
+	if !v.grid.Cached(first) || v.grid.Cached(second) {
+		t.Fatal("background preview displaced the foreground thumbnail")
+	}
+	if _, ok := favthumbs.Read(dir, second); !ok {
+		t.Fatal("declined memory admission prevented the disk preview")
+	}
+}
+
+func TestSyncFavoritePreviews_RefreshesChangedGridThumbnails(t *testing.T) {
+	for _, budget := range []int64{256, 192} {
+		t.Run(fmt.Sprint(budget), func(t *testing.T) {
+			v := newTestViewer(t)
+			source := uitest.TempJPEGURI(t, "changed.jpg", 4, 4, color.White)
+			other := uitest.TempJPEGURI(t, "other.jpg", 4, 4, color.Black)
+			v.grid.SetCacheBytes(budget)
+			stale := &favthumbs.Preview{Image: image.NewRGBA(image.Rect(0, 0, 2, 4)), SourceVersion: "previous version"}
+			if !v.grid.StoreThumb(source, stale) || !v.grid.StoreThumb(other, &favthumbs.Preview{Image: image.NewRGBA(image.Rect(0, 0, 4, 4))}) {
+				t.Fatal("could not seed the grid thumbnails")
+			}
+			dir := t.TempDir()
+			if err := favthumbs.Write(dir, source, image.NewRGBA(image.Rect(0, 0, 4, 4))); err != nil {
+				t.Fatal(err)
+			}
+			v.SyncFavoritePreviews(dir, []fyne.URI{source})
+			settleFavoritePreviews(t, v)
+			thumb, ok := v.grid.CachedThumb(source)
+			if budget == 256 {
+				name, _ := favthumbs.EntryName(source)
+				preview, versioned := thumb.(*favthumbs.Preview)
+				if !ok || !versioned || preview.SourceVersion != name || preview.Bounds() != image.Rect(0, 0, 4, 4) {
+					t.Fatal("current disk preview did not replace the stale grid thumbnail")
+				}
+			} else if ok {
+				t.Fatal("stale thumbnail remained visible when its replacement could not fit")
+			}
+			if !v.grid.Cached(other) {
+				t.Fatal("refreshing a changed source evicted an unrelated thumbnail")
+			}
+		})
 	}
 }
 
@@ -158,10 +265,10 @@ func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 // pass over no files is exactly what deletes them.
 func TestSyncFavoritePreviews_EmptyListSweepsStalePreviews(t *testing.T) {
 	v := newTestViewer(t)
-	image := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
-	favDir := storeFavorite(t, v, "Trip", image)
+	source := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
+	favDir := storeFavorite(t, v, "Trip", source)
 
-	v.SyncFavoritePreviews(favDir, []fyne.URI{image})
+	v.SyncFavoritePreviews(favDir, []fyne.URI{source})
 	settleFavoritePreviews(t, v)
 	if got := previewNames(t, favDir); len(got) != 1 {
 		t.Fatalf("preview files = %v, want one for the single favorited file", got)
@@ -281,6 +388,10 @@ func TestFavoritePreviews_SupersededWorkersRemainTracked(t *testing.T) {
 	})
 }
 
+// Terminal shutdown needs its own application rather than stopping the shared
+// viewer harness, even though startup setup matches other lifecycle fixtures.
+//
+//goland:noinspection DuplicatedCode
 func TestShutdownCancelsFavoritePreviews(t *testing.T) {
 	application := test.NewApp()
 	v, win := buildStartupViewer(application)

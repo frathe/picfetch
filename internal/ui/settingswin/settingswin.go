@@ -93,6 +93,7 @@ type Window struct {
 	imgCacheEntry, thumbCacheEntry,
 	maxFileSizeEntry *widget.Entry
 	explorerMemoryEntry, explorerItemsEntry *widget.Entry
+	favPreviewLimitEntry                    *widget.Entry
 	dupeDistSlider                          *widget.Slider
 	dupeDistValue                           *widget.Label
 
@@ -160,6 +161,7 @@ func (w *Window) Show(prefs preferences.State, updatesManagedByStore bool) {
 		w.maxWidthEntry, w.maxHeightEntry = nil, nil
 		w.imgCacheEntry, w.thumbCacheEntry, w.maxFileSizeEntry = nil, nil, nil
 		w.explorerMemoryEntry, w.explorerItemsEntry = nil, nil
+		w.favPreviewLimitEntry = nil
 		w.dupeDistSlider, w.dupeDistValue = nil, nil
 	})
 }
@@ -375,6 +377,19 @@ func (w *Window) build() fyne.CanvasObject {
 		w.apply(func(s *preferences.State) { s.FavoritePreviewCache = on })
 	})
 	w.favPreviewCheck.Checked = w.prefs.FavoritePreviewCache
+	w.favPreviewLimitEntry = newPositiveIntEntry(
+		func() int { return w.prefs.FavoritePreviewLimit },
+		func(n int) { w.apply(func(s *preferences.State) { s.FavoritePreviewLimit = n }) },
+		0, positiveInt,
+	)
+	previewLimit := widget.NewFormItem(lang.L("Favorite preview limit"), w.favPreviewLimitEntry)
+	previewExplanation := widget.NewLabel(lang.L("Limits automatic preview generation when opening or saving a Favorite; existing cached previews beyond this limit are still reused."))
+	previewExplanation.Wrapping = fyne.TextWrapWord
+	cacheSettings := container.NewVBox(w.favPreviewCheck, widget.NewForm(previewLimit), previewExplanation)
+	if w.cacheContent != nil {
+		cacheSettings.Add(widget.NewSeparator())
+		cacheSettings.Add(w.cacheContent())
+	}
 
 	w.staticSizeCheck = widget.NewCheck(lang.L("Keep a fixed window size"), func(on bool) {
 		w.apply(func(s *preferences.State) { s.StaticWindowSize = on })
@@ -391,7 +406,7 @@ func (w *Window) build() fyne.CanvasObject {
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
-	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, w.favPreviewCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit)
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit)
 	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
 	updates := container.NewVBox(w.updateVersion)
 	if w.updatesManagedByStore {
@@ -413,10 +428,8 @@ func (w *Window) build() fyne.CanvasObject {
 		container.NewTabItem(lang.L("Appearance"), container.NewPadded(container.NewVScroll(appearanceSettings))),
 		container.NewTabItem(lang.L("Updates"), container.NewPadded(container.NewVScroll(updates))),
 		container.NewTabItem(lang.L("Limits"), container.NewPadded(container.NewVScroll(limits))),
+		container.NewTabItem(lang.L("Cache"), container.NewPadded(container.NewVScroll(cacheSettings))),
 	)
-	if w.cacheContent != nil {
-		tabs.Append(container.NewTabItem(lang.L("Cache"), container.NewPadded(container.NewVScroll(w.cacheContent()))))
-	}
 	return tabs
 }
 

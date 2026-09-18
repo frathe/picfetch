@@ -33,7 +33,10 @@ const FactsVersion = 1
 type Event struct {
 	// OfflineVerified means OS network denial was verified, not just that the
 	// computation is local. Windows workers leave it false.
-	OfflineVerified           bool
+	OfflineVerified bool
+	// CachePressureBytes requests general-cache eviction after the completed
+	// map has been delivered, so maintenance never interrupts preparation.
+	CachePressureBytes        uint64 `json:",omitempty"`
 	Items                     []Item
 	Merges                    []CohortMerge `json:",omitempty"`
 	Total, Successful, Failed int

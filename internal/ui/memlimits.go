@@ -63,6 +63,7 @@ type settings struct {
 	// from preferences.State.FavoritePreviewCache in features.go and read
 	// back into it by currentPreferences (run.go).
 	favPreviewCache    bool
+	favPreviewLimit    int
 	looseAnalysisCache bool
 	analysisCacheMiB   int
 
@@ -232,6 +233,7 @@ func (v *viewer) settingsState() preferences.State {
 		MaxThumbCacheMB:         v.MaxThumbCacheMB(),
 		MaxFileSizeMB:           v.MaxFileSizeMB(),
 		FavoritePreviewCache:    v.FavoritePreviewCache(),
+		FavoritePreviewLimit:    v.settings.favPreviewLimit,
 		SimilarityFavoriteCache: v.explorer.Settings().CacheFavorites,
 		SimilarityLooseCache:    v.settings.looseAnalysisCache,
 		AnalysisCacheLimitMiB:   v.settings.analysisCacheMiB,
@@ -292,6 +294,7 @@ func (v *viewer) applyIntegrationSettings(prev, next preferences.State) {
 	})
 	applySettingChange(prev.SimilarityAutoUpdate, next.SimilarityAutoUpdate, v.SetSimilarityAutoUpdate)
 	applySettingChange(prev.FavoritePreviewCache, next.FavoritePreviewCache, v.SetFavoritePreviewCache)
+	applySettingChange(prev.FavoritePreviewLimit, next.FavoritePreviewLimit, v.SetFavoritePreviewLimit)
 	applySettingChange(prev.CheckForUpdates, next.CheckForUpdates, v.SetCheckForUpdates)
 }
 

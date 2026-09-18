@@ -72,6 +72,16 @@ func (t toastTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) c
 	return t.Theme.Color(name, variant)
 }
 
+// The toast's label and theme are fixed for its lifetime. Refresh its content
+// without reapplying the override: Fyne 2.8 gives every override refresh a new
+// scope and retains another parsed font when that scope is painted.
+type toastThemeScope struct{ *container.ThemeOverride }
+
+func (s *toastThemeScope) Refresh() {
+	s.Content.Refresh()
+	s.BaseWidget.Refresh()
+}
+
 // newToast builds the toast card (hidden) with the production auto-hide
 // duration. repaint is called after every visibility change.
 func newToast(repaint func()) *toast {
@@ -79,7 +89,8 @@ func newToast(repaint func()) *toast {
 	bg.CornerRadius = widgets.CardRadius
 	text := widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	text.Wrapping = fyne.TextWrapWord
-	card := container.NewStack(bg, container.NewThemeOverride(text, toastTheme{Theme: fyne.CurrentApp().Settings().Theme()}))
+	scope := &toastThemeScope{container.NewThemeOverride(text, toastTheme{Theme: fyne.CurrentApp().Settings().Theme()})}
+	card := container.NewStack(bg, scope)
 	card.Hide()
 
 	return &toast{

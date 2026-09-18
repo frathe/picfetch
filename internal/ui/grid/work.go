@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
 )
 
@@ -17,6 +20,7 @@ type workSession struct {
 	revision   uint64
 	stopped    bool
 	facts      dupes.FactWriter
+	queue      *decodepool.Queue[*fyne.Container, thumbClaim]
 }
 
 // A reopened cell can have the same id while its old decode still unwinds.
@@ -37,7 +41,8 @@ func (g *Overview) restartWork() {
 	g.work.generation = g.host.Generation()
 	g.work.revision++
 	g.work.facts = g.dupes.CaptureFacts()
-	g.hashes = &hashEngine{host: g.host, pool: g.decodes, thumbs: g.thumbs, model: g.dupes, facts: g.work.facts, ui: g.ui}
+	g.work.queue = g.decodes.Begin(g.work.ctx)
+	g.hashes = &hashEngine{host: g.host, queue: g.work.queue, thumbs: g.thumbs, model: g.dupes, facts: g.work.facts, ui: g.ui}
 }
 
 func (g *Overview) workContext() context.Context {

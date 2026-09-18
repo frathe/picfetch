@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"runtime"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -13,22 +12,11 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-// syncConcurrency bounds how many files a single pass works on at once - a
-// small worker-pool semaphore rather than one goroutine per file, since a
-// favorite can hold thousands and each miss costs a full-resolution decode.
-//
-// This is deliberately its own budget rather than a share of grid's
-// thumbConcurrency. The two pools run in different situations: the grid's
-// serves decodes the user is waiting to see, while this one runs in the
-// background of whatever the user is doing now. Making them draw on one
-// budget would let a background pass over a large favorite starve the
-// thumbnails actually on screen, which is the exact opposite of what a
-// preview cache is for.
-// Leave one Go execution slot outside prewarm when the runtime has more than
-// one. Four competing decodes otherwise delay foreground work on small CPU
-// budgets. A single-processor runtime still makes progress with one worker.
+// Decode serially because a permitted source can expand to hundreds of
+// megabytes before thumbnailing. Parallel full-resolution decodes would turn
+// the background optimization into a multi-gigabyte transient allocation.
 func syncConcurrency() int {
-	return min(4, max(1, runtime.GOMAXPROCS(0)-1))
+	return 1
 }
 
 // Sink is the consumer-side view of the caller's in-memory thumbnail cache.
@@ -65,10 +53,12 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 	return color.RGBA64{R: uint16(r), G: uint16(g), B: uint16(b), A: uint16(a)}
 }
 
-// Sync brings favDir's previews in line with files: every file ends up with
-// a current preview on disk, the caller's in-memory cache is offered
-// whatever the pass produced or found, and previews that no file maps to
-// any more are pruned.
+// Sync decodes originals only for the first limit unique paths; limit must
+// be positive. The caller chooses the limit before launching the pass.
+// Remaining files reuse existing memory or disk previews without reading their
+// originals. The caller's byte-budgeted sink decides how much to retain in RAM.
+// Pruning uses the full Favorite membership, preserving current tail previews
+// and older versions of sources that are temporarily inaccessible.
 //
 // Each file takes the cheapest route that gets it there. A thumbnail the
 // caller already holds needs neither a decode nor a read, only a write if
@@ -82,14 +72,15 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 //
 // sink may be nil, which reads as "nothing is cached, and storing is a
 // no-op": the pass still fills the on-disk cache for a later opener.
-func Sync(ctx context.Context, favDir string, files []fyne.URI, sink Sink) error {
+func Sync(ctx context.Context, favDir string, files []fyne.URI, limit int, sink Sink) error {
 	// The app's merge mode loads one path at two indices whenever the same
 	// file arrives from two dropped folders. Two workers on that path would
 	// duplicate a full decode and then race each other to write a single
 	// destination, so the repeats come out before any work is handed out.
-	// Sweep below still gets the original slice: it builds its own
-	// expected-name set, which dedupes internally.
-	work := dedupe(files)
+	if limit <= 0 {
+		return fmt.Errorf("favthumbs: preview limit must be positive")
+	}
+	work := dedupe(ctx, files, limit)
 
 	// sem bounds concurrent decodes; wg lets the sweep below wait for every
 	// worker to be completely done, which is what makes the sweep's view of
@@ -148,13 +139,39 @@ loop:
 				return
 			}
 
-			if err := syncFile(ctx, favDir, u, sink); err != nil {
+			if err := syncFile(ctx, favDir, u, sink, true); err != nil {
 				fail(err)
 			}
 		})
 	}
 
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if sink != nil {
+		admitted := make(map[string]bool, len(work))
+		for _, u := range work {
+			admitted[u.Path()] = true
+		}
+		for _, u := range files {
+			if ctx.Err() != nil {
+				break
+			}
+			if u == nil {
+				continue
+			}
+			path := u.Path()
+			if admitted[path] {
+				continue
+			}
+			admitted[path] = true
+			if err := syncFile(ctx, favDir, u, sink, false); err != nil {
+				fail(err)
+			}
+		}
+	}
 
 	// A cancelled pass never established which previews are garbage: files
 	// it never reached have no preview yet through no fault of their own.
@@ -165,8 +182,11 @@ loop:
 		return err
 	}
 
-	if err := Sweep(favDir, files); err != nil {
+	if err := sweepContext(ctx, favDir, files); err != nil {
 		fail(err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	mu.Lock()
@@ -178,12 +198,15 @@ loop:
 // syncFile brings one file's preview up to date, taking the cheapest of the
 // three routes that applies. It is the body of a worker goroutine, so it
 // touches nothing shared beyond sink, which the caller owns and guards.
-func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
+func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink, decodeOriginal bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	name, named := EntryName(u)
 	if !named {
+		if !decodeOriginal {
+			return ctx.Err()
+		}
 		return fmt.Errorf("favthumbs: cannot determine entry name for %v", u)
 	}
 	current := func() bool { now, ok := EntryName(u); return named && ok && name == now }
@@ -215,6 +238,9 @@ func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
 		}
 		return nil
 	}
+	if !decodeOriginal {
+		return ctx.Err()
+	}
 
 	thumb, err = imaging.LoadThumbnailContext(ctx, u)
 	if err != nil {
@@ -234,13 +260,20 @@ func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink) error {
 	return err
 }
 
-// dedupe returns files with repeats of the same path removed, preserving
-// first-appearance order. Nil entries drop out with them, since there is no
-// file for the pass to work on.
-func dedupe(files []fyne.URI) []fyne.URI {
-	seen := make(map[string]bool, len(files))
-	out := make([]fyne.URI, 0, len(files))
+// dedupe admits at most limit unique paths in first-appearance order.
+// Nil entries and repeats do not consume the budget. Preparation stops as soon
+// as the budget is full, retaining no work or bookkeeping for the unused tail.
+func dedupe(ctx context.Context, files []fyne.URI, limit int) []fyne.URI {
+	if limit <= 0 {
+		return nil
+	}
+	capacity := min(len(files), limit)
+	seen := make(map[string]bool, capacity)
+	out := make([]fyne.URI, 0, capacity)
 	for _, u := range files {
+		if ctx.Err() != nil {
+			break
+		}
 		if u == nil {
 			continue
 		}
@@ -251,6 +284,9 @@ func dedupe(files []fyne.URI) []fyne.URI {
 		}
 		seen[path] = true
 		out = append(out, u)
+		if len(out) == limit {
+			break
+		}
 	}
 	return out
 }

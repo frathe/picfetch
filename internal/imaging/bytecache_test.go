@@ -28,6 +28,12 @@ func TestByteCacheCapturedWritesRejectPrePurgeProducers(t *testing.T) {
 	if old.Current() {
 		t.Error("pre-purge writer is still current")
 	}
+	if _, ok := old.Peek("fresh"); ok {
+		t.Error("pre-purge writer read a newer generation")
+	}
+	if value, ok := fresh.Peek("fresh"); !ok || value != 7 {
+		t.Error("current writer could not inspect cached pixels")
+	}
 	if old.Add("old displayed", 20) {
 		t.Error("pre-purge displayed pixels repopulated the cache")
 	}
@@ -44,8 +50,40 @@ func TestByteCacheCapturedWritesRejectPrePurgeProducers(t *testing.T) {
 		t.Error("current display lost Add's oversized retention")
 	}
 	var zero CacheWriter[int64]
+	if _, ok := zero.Peek("zero"); ok {
+		t.Error("zero writer read cached pixels")
+	}
 	if zero.Current() || zero.Add("zero", 1) || zero.AddIfFits("zero", 1) {
 		t.Error("zero writer admitted a record")
+	}
+}
+
+func TestByteCacheCapturedRefreshPreservesOtherEntries(t *testing.T) {
+	c := newTestByteCache(100)
+	c.Add("changed", 20)
+	c.Add("other", 40)
+	w := c.Capture()
+	if !w.RefreshIfRoom("changed", 60) || c.Bytes() != 100 || c.Len() != 2 || !c.Contains("other") {
+		t.Fatal("replacement did not reuse its allocation and retain its neighbor")
+	}
+	c.Add("foreground", 1)
+	if c.Contains("changed") || !c.Contains("other") {
+		t.Fatal("background replacement promoted the changed entry")
+	}
+	if w.RefreshIfRoom("other", 100) || c.Contains("other") || c.Bytes() != 1 {
+		t.Fatal("unadmitted replacement retained stale pixels or evicted its neighbor")
+	}
+	if !w.RefreshIfRoom("new", 99) || w.AddIfRoom("new", 1) || c.Bytes() != 100 {
+		t.Fatal("refresh insertion changed AddIfRoom's no-replacement contract")
+	}
+	c.Purge()
+	c.Add("new", 40)
+	if w.RefreshIfRoom("new", 10) || w.RefreshIfRoom("late", 1) || c.Bytes() != 40 {
+		t.Fatal("pre-purge refresh changed current contents")
+	}
+	var zero CacheWriter[int64]
+	if zero.RefreshIfRoom("zero", 1) {
+		t.Fatal("zero writer admitted refreshed pixels")
 	}
 }
 
