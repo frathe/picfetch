@@ -8,6 +8,9 @@
 
 #### Bugfix
 
+- Restrict release-note artwork to approved GitHub HTTPS providers and validate
+  every redirect before fetching it.
+
 #### Internal
 
 ## Open

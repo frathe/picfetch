@@ -6,6 +6,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -27,11 +28,12 @@ func releaseImageTestClient(t *testing.T, server *httptest.Server) *http.Client 
 	}
 	client := server.Client()
 	transport := client.Transport.(*http.Transport).Clone()
-	transport.TLSClientConfig.InsecureSkipVerify = true // Test certificate is not issued for github.com.
+	transport.TLSClientConfig.ServerName = serverURL.Hostname()
 	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, serverURL.Host)
 	}
 	client.Transport = transport
+	t.Cleanup(client.CloseIdleConnections)
 	return client
 }
 
@@ -77,30 +79,113 @@ func TestLoadReleaseImageFormatsAndURLs(t *testing.T) {
 }
 
 func TestLoadReleaseImageRejectsUntrustedDestinations(t *testing.T) {
-	for _, rawURL := range []string{
-		"http://github.com/frathe/picfetch/image.png",
-		"https://example.com/image.png",
-		"https://127.0.0.1/image.png",
-	} {
+	data := releaseTestPNG(t)
+	for _, rawURL := range untrustedReleaseImageURLs() {
 		t.Run(rawURL, func(t *testing.T) {
-			got, err := loadReleaseImage(context.Background(), &http.Client{}, rawURL)
+			requests := 0
+			client := &http.Client{Transport: releaseImageTransport(func(request *http.Request) (*http.Response, error) {
+				requests++
+				return &http.Response{StatusCode: http.StatusOK, Request: request, Body: io.NopCloser(bytes.NewReader(data))}, nil
+			})}
+			got, err := loadReleaseImage(context.Background(), client, rawURL)
 			if got != nil || err == nil {
 				t.Fatalf("loadReleaseImage(%q) = %v, %v; want rejection", rawURL, got, err)
+			}
+			if requests != 0 {
+				t.Fatalf("untrusted initial URL reached transport %d times", requests)
 			}
 		})
 	}
 }
 
+// Deliberate downgrade fixture; the transport never opens a network connection.
+//
+// noinspection HttpUrlsUsage
+func untrustedReleaseImageURLs() []string {
+	return []string{
+		"http://github.com/frathe/picfetch/image.png",
+		"https://example.invalid/image.png",
+		"https://127.0.0.1/image.png",
+		"https://github.com.example.invalid/image.png",
+		"https://githubusercontent.com.example.invalid/image.png",
+		"https://notgithubusercontent.com/image.png",
+		"https://user:password@github.com/image.png",
+	}
+}
+
 func TestReleaseImageClientRejectsUntrustedRedirect(t *testing.T) {
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "http://127.0.0.1/private", http.StatusFound)
-	}))
-	defer server.Close()
-	client := releaseImageTestClient(t, server)
-	client.CheckRedirect = releaseImageRedirectPolicy
+	data := releaseTestPNG(t)
+	for _, target := range untrustedReleaseImageURLs() {
+		t.Run(target, func(t *testing.T) {
+			for _, trustedHops := range []int{0, 1} {
+				requests := 0
+				client := &http.Client{Transport: releaseImageTransport(func(request *http.Request) (*http.Response, error) {
+					requests++
+					if requests <= trustedHops+1 {
+						location := target
+						if requests <= trustedHops {
+							location = "https://raw.githubusercontent.com/frathe/picfetch/main/art.png"
+						}
+						return &http.Response{StatusCode: http.StatusFound, Header: http.Header{"Location": {location}}, Body: io.NopCloser(strings.NewReader(""))}, nil
+					}
+					return &http.Response{StatusCode: http.StatusOK, Request: request, Body: io.NopCloser(bytes.NewReader(data))}, nil
+				})}
+				got, err := loadReleaseImage(context.Background(), client, testReleaseImageURL)
+				if got != nil || err == nil || !strings.Contains(err.Error(), "redirect") {
+					t.Fatalf("after %d trusted hops: image = %v, error = %v; want redirect rejection", trustedHops, got, err)
+				}
+				if requests != trustedHops+1 {
+					t.Fatalf("after %d trusted hops: transport calls = %d; untrusted target must not be requested", trustedHops, requests)
+				}
+			}
+		})
+	}
+}
+
+func TestReleaseImageClientAllowsProviderRedirects(t *testing.T) {
+	data := releaseTestPNG(t)
+	for _, status := range []int{http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
+		requests := 0
+		target := "https://raw.githubusercontent.com/frathe/picfetch/main/art.png?raw=true"
+		client := &http.Client{Transport: releaseImageTransport(func(request *http.Request) (*http.Response, error) {
+			requests++
+			if requests == 1 {
+				return &http.Response{StatusCode: status, Header: http.Header{"Location": {target}}, Body: io.NopCloser(strings.NewReader(""))}, nil
+			}
+			if request.URL.String() != target || request.Method != http.MethodGet {
+				t.Errorf("redirect request = %s %s; want GET %s", request.Method, request.URL, target)
+			}
+			return &http.Response{StatusCode: http.StatusOK, Request: request, Body: io.NopCloser(bytes.NewReader(data))}, nil
+		})}
+		got, err := loadReleaseImage(context.Background(), client, testReleaseImageURL)
+		if err != nil || got == nil || requests != 2 {
+			t.Fatalf("HTTP %d: image = %v, error = %v, requests = %d; want decoded image after two requests", status, got, err, requests)
+		}
+	}
+}
+
+func TestReleaseImageClientBoundsRedirects(t *testing.T) {
+	requests := 0
+	client := &http.Client{Timeout: time.Second, Transport: releaseImageTransport(func(_ *http.Request) (*http.Response, error) {
+		requests++
+		return &http.Response{StatusCode: http.StatusFound, Header: http.Header{"Location": {testReleaseImageURL}}, Body: io.NopCloser(strings.NewReader(""))}, nil
+	})}
 	_, err := loadReleaseImage(context.Background(), client, testReleaseImageURL)
-	if err == nil || !strings.Contains(err.Error(), "redirect") {
-		t.Fatalf("loadReleaseImage redirect error = %v; want redirect rejection", err)
+	if err == nil || !strings.Contains(err.Error(), "redirect") || requests != 10 {
+		t.Fatalf("redirect loop: error = %v, requests = %d; want rejection after ten requests", err, requests)
+	}
+}
+
+func TestLoadReleaseImageRejectsUntrustedResponseURL(t *testing.T) {
+	data := releaseTestPNG(t)
+	client := &http.Client{Transport: releaseImageTransport(func(request *http.Request) (*http.Response, error) {
+		finalRequest := request.Clone(request.Context())
+		finalRequest.URL.Host = "example.invalid"
+		return &http.Response{StatusCode: http.StatusOK, Request: finalRequest, Body: io.NopCloser(bytes.NewReader(data))}, nil
+	})}
+	got, err := loadReleaseImage(context.Background(), client, testReleaseImageURL)
+	if got != nil || err == nil || !strings.Contains(err.Error(), "untrusted URL") {
+		t.Fatalf("image = %v, error = %v; want untrusted response URL rejection", got, err)
 	}
 }
 
