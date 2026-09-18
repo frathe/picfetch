@@ -184,7 +184,7 @@ func (p *Pool[K, V]) startCancellationWorkerLocked() {
 		return
 	}
 	p.cancelling = true
-	go p.drainCancellations()
+	p.dispatch(p.drainCancellations)
 }
 
 func (p *Pool[K, V]) drainCancellations() {
@@ -208,8 +208,16 @@ func (p *Pool[K, V]) drainCancellations() {
 func (p *Pool[K, V]) startWorkersLocked() {
 	for p.workers < p.limit && (len(p.high) != 0 || len(p.low) != 0) {
 		p.workers++
-		go p.work()
+		p.dispatch(p.work)
 	}
+}
+
+func (p *Pool[K, V]) dispatch(fn func()) {
+	p.pending.Add(1)
+	go func() {
+		defer p.pending.Done()
+		fn()
+	}()
 }
 
 func (p *Pool[K, V]) work() {
@@ -269,8 +277,9 @@ func (p *Pool[K, V]) finished(item job[K, V]) {
 	p.pending.Done()
 }
 
-// Wait blocks until every function submitted so far has returned. The
-// application never needs this; tests do.
+// Wait blocks until every function submitted so far and the workers or
+// cancellation dispatcher that own it have exited. The application never
+// needs this; tests do.
 func (p *Pool[K, V]) Wait() {
 	p.pending.Wait()
 }

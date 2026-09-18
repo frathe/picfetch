@@ -33,7 +33,8 @@
   writes symmetric: an Explorer pass must warm **Find more like this** while
   retaining separate Favorite lifetime and general-cache eviction policies. The
   22k-item retest confirmed the toast fix but exposed per-source decode-pool
-  waiters; the new bounded priority queue covers that same backlog shape. The
+  waiters; the new bounded priority queue covers that same backlog shape, and
+  its `Wait` barrier now joins workers and cancellation dispatchers. The
   Cache-tab Favorite preview limit remains configurable and defaults to 1000.
   See `plans/2026-09-18-symmetric-analysis-cache.md`,
   `plans/2026-09-18-grid-decode-queue.md`,

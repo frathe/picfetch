@@ -118,6 +118,29 @@ func TestGo_QueueDoesNotCreateWaiterPerJob(t *testing.T) {
 	})
 }
 
+func TestWait_JoinsInternalDispatcherLifetime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := New[int, int](1)
+		release := make(chan struct{})
+		p.dispatch(func() { <-release })
+
+		waited := make(chan struct{})
+		go func() {
+			p.Wait()
+			close(waited)
+		}()
+		synctest.Wait()
+		select {
+		case <-waited:
+			t.Fatal("Wait returned while an internal dispatcher was still running")
+		default:
+		}
+
+		close(release)
+		<-waited
+	})
+}
+
 func TestQueue_CancellationDoesNotCreateCallbackPerJob(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const queuedJobs = 22_000

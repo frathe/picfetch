@@ -162,7 +162,13 @@ Budget: 0 implementation spawns; 1 lead review round; full suite no.
   execution remains unavailable because
   `.scratch/visual-similarity-explorer/assets/vision_model.onnx` is absent.
   No native cache claim is made until the pinned assets are installed.
-- The fresh hosted PR review/CI evidence is appended after the push.
+- The first fresh Codex review on `ffd11b1` found a P1 decode-pool shutdown
+  barrier outside the cache-policy change: `Wait` could return after the final
+  callback but before a worker or cancellation dispatcher stopped touching the
+  pool. Both dispatcher launch paths now use the same tracked dispatch helper;
+  `go test -race -tags no_emoji,nodynamic ./internal/decodepool -count=1` and
+  `go test -race -tags no_emoji,nodynamic ./internal/ui/grid ./internal/ui/display -count=1`
+  passed. A new fresh review is required after its push.
 
 ## Cost ledger
 
@@ -173,4 +179,4 @@ Budget: 0 implementation spawns; 1 lead review round; full suite no.
 | T2 | 0 / 0 | 1 lead | no | Hot analyzer context. |
 | T3 | 0 / 0 | 1 lead | no | Captured existing root maintenance seam. |
 | T4 | 0 / 0 | 1 lead | no | Policy record and asset-qualified case. |
-| Gate | — | 1 lead | CI | Existing PR loop supplies the broad hosted gate after push. |
+| Gate | — | 2 lead | CI | First fresh review found and validated one shutdown-lifetime defect; the replacement review and CI run are pending. |
