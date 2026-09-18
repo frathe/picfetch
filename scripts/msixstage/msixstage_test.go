@@ -409,10 +409,23 @@ func TestStoreWorkflowPublishingContract(t *testing.T) {
 			t.Errorf("publisher contains unsafe or coupled source %q", forbidden)
 		}
 	}
-	prepare := bytes.Split(publisher, []byte("\n  publish:"))[0]
+	prepare, publish, found := bytes.Cut(publisher, []byte("\n  publish:"))
+	if !found {
+		t.Fatal("publisher missing protected publish job")
+	}
 	for _, forbidden := range []string{"environment:", "secrets.MSSTORE_", "deployments: write"} {
 		if bytes.Contains(prepare, []byte(forbidden)) {
 			t.Errorf("unapproved preparation contains %q", forbidden)
+		}
+	}
+	actions := regexp.MustCompile(`(?m)^\s+(?:-\s+)?uses:\s+(\S+)`).FindAllSubmatch(publish, -1)
+	if len(actions) == 0 {
+		t.Fatal("protected publish job missing action references")
+	}
+	pinnedAction := regexp.MustCompile(`^[^@]+@[0-9a-f]{40}$`)
+	for _, action := range actions {
+		if !pinnedAction.Match(action[1]) {
+			t.Errorf("protected publish action must use an immutable full commit SHA: %s", action[1])
 		}
 	}
 }

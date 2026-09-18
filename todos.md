@@ -13,6 +13,9 @@
 
 #### Internal
 
+- Pin protected Microsoft Store publisher actions to reviewed immutable commits
+  and guard the policy in the workflow contract tests.
+
 ## Open
 
 ## Deferred
