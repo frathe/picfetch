@@ -69,6 +69,9 @@ func previewNames(t *testing.T, favDir string) []string {
 	return names
 }
 
+// Keep opening and reopening fixtures independent: they assert different disk effects.
+//
+//goland:noinspection DuplicatedCode
 func TestSyncFavoritePreviews_OpeningAFavoriteWritesPreviews(t *testing.T) {
 	v := newTestViewer(t)
 	first := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
@@ -89,8 +92,8 @@ func TestSyncFavoritePreviews_OpeningAFavoriteWritesPreviews(t *testing.T) {
 func TestSyncFavoritePreviews_PreferenceOffWritesNothing(t *testing.T) {
 	v := newTestViewer(t)
 	v.SetFavoritePreviewCache(false)
-	image := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
-	favDir := storeFavorite(t, v, "Trip", image)
+	source := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
+	favDir := storeFavorite(t, v, "Trip", source)
 
 	v.favorites.Menu().Items[2].Action()
 	waitForScan(t, v)
@@ -108,6 +111,9 @@ func TestSyncFavoritePreviews_PreferenceOffWritesNothing(t *testing.T) {
 // TestSyncFavoritePreviews_SecondOpenAddsNothing is the point of persisting
 // previews at all: the second open finds every one of them current and
 // neither re-encodes nor accumulates a duplicate beside it.
+// Keep the second-open fixture independent of the initial-write scenario.
+//
+//goland:noinspection DuplicatedCode
 func TestSyncFavoritePreviews_SecondOpenAddsNothing(t *testing.T) {
 	v := newTestViewer(t)
 	first := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
@@ -138,8 +144,8 @@ func TestSyncFavoritePreviews_SecondOpenAddsNothing(t *testing.T) {
 // paints from it instead of decoding the originals again.
 func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 	v := newTestViewer(t)
-	image := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
-	storeFavorite(t, v, "Trip", image)
+	source := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
+	storeFavorite(t, v, "Trip", source)
 
 	v.favorites.Menu().Items[2].Action()
 	settleFavoritePreviews(t, v)
@@ -147,8 +153,29 @@ func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if _, ok := v.grid.CachedThumb(image); !ok {
-		t.Errorf("grid thumbnail cache has no entry for %q after a preview pass", image.Name())
+	if _, ok := v.grid.CachedThumb(source); !ok {
+		t.Errorf("grid thumbnail cache has no entry for %q after a preview pass", source.Name())
+	}
+}
+
+func TestSyncFavoritePreviews_DoesNotEvictGridThumbnails(t *testing.T) {
+	v := newTestViewer(t)
+	first := uitest.TempJPEGURI(t, "first.jpg", 4, 4, color.White)
+	second := uitest.TempJPEGURI(t, "second.jpg", 4, 4, color.Black)
+	// A versioned 4x4 preview weighs 128 bytes. Leave some free space, but
+	// not enough for the next preview; a pre-check for "full" misses this.
+	v.grid.SetCacheBytes(192)
+	if !v.grid.StoreThumb(first, &favthumbs.Preview{Image: image.NewRGBA(image.Rect(0, 0, 4, 4))}) {
+		t.Fatal("could not seed the foreground thumbnail")
+	}
+	dir := t.TempDir()
+	v.SyncFavoritePreviews(dir, []fyne.URI{second})
+	settleFavoritePreviews(t, v)
+	if !v.grid.Cached(first) || v.grid.Cached(second) {
+		t.Fatal("background preview displaced the foreground thumbnail")
+	}
+	if _, ok := favthumbs.Read(dir, second); !ok {
+		t.Fatal("declined memory admission prevented the disk preview")
 	}
 }
 
@@ -158,10 +185,10 @@ func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 // pass over no files is exactly what deletes them.
 func TestSyncFavoritePreviews_EmptyListSweepsStalePreviews(t *testing.T) {
 	v := newTestViewer(t)
-	image := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
-	favDir := storeFavorite(t, v, "Trip", image)
+	source := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
+	favDir := storeFavorite(t, v, "Trip", source)
 
-	v.SyncFavoritePreviews(favDir, []fyne.URI{image})
+	v.SyncFavoritePreviews(favDir, []fyne.URI{source})
 	settleFavoritePreviews(t, v)
 	if got := previewNames(t, favDir); len(got) != 1 {
 		t.Fatalf("preview files = %v, want one for the single favorited file", got)
@@ -281,6 +308,10 @@ func TestFavoritePreviews_SupersededWorkersRemainTracked(t *testing.T) {
 	})
 }
 
+// Terminal shutdown needs its own application rather than stopping the shared
+// viewer harness, even though startup setup matches other lifecycle fixtures.
+//
+//goland:noinspection DuplicatedCode
 func TestShutdownCancelsFavoritePreviews(t *testing.T) {
 	application := test.NewApp()
 	v, win := buildStartupViewer(application)

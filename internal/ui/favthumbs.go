@@ -102,21 +102,10 @@ func (s gridSink) Cached(src fyne.URI) (image.Image, bool) {
 }
 
 func (s gridSink) Store(src fyne.URI, thumb image.Image) {
-	// The check that makes the pre-warm worth doing, and the reason
-	// ThumbCacheFull exists at all (see its comment in internal/ui/grid):
-	// StoreThumb's AddIfFits refuses only a thumbnail too big for the whole
-	// budget, and once the cache is merely full it evicts least-recently-used
-	// entries and stores anyway. Offering unconditionally over a favorite
-	// larger than the budget would therefore evict this pass's own earliest
-	// entries as it walked the list, leaving only the tail cached - while
-	// the grid opens at the head. Stopping at the budget keeps the head
-	// warm and lets the tail decode on demand, exactly as it does without
-	// any of this.
-	if s.grid.ThumbCacheFull() {
-		return
-	}
-
-	_ = s.writer.AddIfFits(src.String(), thumb)
+	// Background warming must not evict thumbnails already in use. A separate
+	// "full" check misses a partially free cache and races other producers;
+	// generation, remaining space and admission must share the cache lock.
+	_ = s.writer.AddIfRoom(src.String(), thumb)
 }
 
 // closeFavoritePreviews stops admission and cancels the pass without waiting

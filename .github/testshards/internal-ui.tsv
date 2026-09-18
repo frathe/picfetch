@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 241 entries, 470.520s projected weight sum
+# ui-1: 242 entries, 470.520s projected weight sum
 # ui-2: 248 entries, 470.530s projected weight sum
 # ui-3: 202 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -215,6 +215,7 @@ TestStepImage_NoopWhileExportPromptVisible	ui-1
 TestStepImage_SingleFileDropWalksFolderSiblings	ui-1
 TestStripMetadata_HidesExifLinkAndShrinksReportedSize	ui-1
 TestSweepUpdateBackup_SweepsWithNoFailureRecord	ui-1
+TestSyncFavoritePreviews_DoesNotEvictGridThumbnails	ui-1
 TestSyncFavoritePreviews_OpeningAFavoriteWritesPreviews	ui-1
 TestSyncWindowToZoom_LargeImageStaysCapped	ui-1
 TestSyncWindowToZoom_ZoomInGrowsWindow	ui-1

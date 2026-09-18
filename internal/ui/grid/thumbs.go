@@ -120,31 +120,16 @@ func (g *Overview) StoreThumb(u fyne.URI, thumb image.Image) bool {
 	return g.thumbs.AddIfFits(u.String(), thumb)
 }
 
-// ThumbCacheFull reports whether the thumbnail cache has reached its byte
-// budget.
-//
-// This exists so a background pass can pre-warm the cache from
-// disk-persisted previews (internal/favthumbs) before the grid ever opens,
-// and StoreThumb's AddIfFits alone cannot bound that pass. AddIfFits only
-// refuses an entry that outweighs the *whole* budget by itself; once the
-// cache is merely full it evicts least-recently-used entries and stores
-// anyway (see evict's comment in internal/imaging/bytecache.go). So a
-// pre-warm that just called StoreThumb in list order over a favorite
-// bigger than the budget would evict its own earliest entries as it went,
-// finishing with only the *last* N thumbnails cached - while the grid
-// opens at the *first* file. Checking ThumbCacheFull between offers lets
-// the caller stop pre-warming at the budget instead, keeping the head of
-// the list warm and letting the tail decode on demand exactly as it does
-// today.
+// ThumbCacheFull reports whether the cache has reached its byte budget.
+// This is a snapshot, not an admission check: even a partly free cache may
+// lack room for the next thumbnail. Background warming uses the captured
+// cache writer's AddIfRoom to check capacity and insert under one lock.
 func (g *Overview) ThumbCacheFull() bool {
 	return thumbCacheFull(g.thumbs)
 }
 
-// thumbCacheFull is the budget check behind ThumbCacheFull, as a function
-// over the cache rather than a method on Overview, because the hashing
-// pass makes exactly the same speculative write from a type that holds
-// the cache but not the overlay (hashengine.go). One implementation, so
-// the two callers cannot drift apart.
+// thumbCacheFull also serves the duplicate-hash engine, which owns the cache
+// rather than the overview. It only reports current occupancy.
 func thumbCacheFull(c *imaging.ByteCache[image.Image]) bool {
 	return c.Bytes() >= c.Budget()
 }

@@ -19,6 +19,10 @@ must use the complete membership, not the decode-admission prefix.
    Metadata/cached-preview traversal is cancellable; bookkeeping for pruning
    follows collection membership, while original decode admission stays capped.
    Verify package tests plus the existing 300-image comparison harness.
+   Background admission must not evict existing Grid thumbnails when there
+   is some free memory but insufficient room for the next thumbnail. Verify
+   `TestSyncFavoritePreviews_DoesNotEvictGridThumbnails`; use the existing
+   generation-bound `AddIfRoom` operation for atomic admission.
 3. Preserve cancellation/offline retention and source-version checks. Verify
    the package race suite and focused favorite-preview UI regressions.
 4. Update the two manuals, architecture and prior evidence to distinguish
@@ -31,6 +35,8 @@ This does not claim to restore eager original decoding over the whole list.
 
 Files: `internal/favthumbs/{sync,sweep}.go`, their existing test files,
 `internal/ui/help/manual{,_de}.md`, `ARCHITECTURE.md`, evidence and `todos.md`.
+The near-full-cache finding also touches root `favthumbs.go` and its existing
+tests, the UI shard manifest and outdated Grid cache accessor documentation.
 Budget: one scout; lead-only fixes; focused local race tests, complete CI.
 
 ## Verification
@@ -51,3 +57,19 @@ Budget: one scout; lead-only fixes; focused local race tests, complete CI.
 - Final GoLand inspections, formatting, exclusions, vet/build and the manual
   guard passed. No new test file or top-level internal/ui test was added in
   this follow-up. Exact-head hosted review remains pending.
+
+### Near-full-cache follow-up
+
+A 192-byte cache holding one 128-byte versioned thumbnail was below the old
+`ThumbCacheFull` threshold. Warming another 128-byte thumbnail evicted the
+existing one, so the previous pre-check did not provide its documented bound.
+The new integration regression failed before switching the sink to AddIfRoom.
+The new top-level UI test is assigned to ui-1 in the shard manifest; its file
+already has a Qodana test exclusion. No cache API or dependency changes.
+Focused UI race regressions passed (4.449s), including source-version and
+cancellation coverage. The updated shard check accounts for 692 tests.
+GoLand's existing package-shadowing warnings in the touched fixture file were
+fixed by naming the URIs `source`; three independent lifecycle/open fixtures
+have narrowly scoped duplicate-code suppressions with their rationale.
+Final GoLand inspections, focused fixture checks, formatting, exclusions,
+vet and build pass for this follow-up.
