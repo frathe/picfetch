@@ -1,23 +1,27 @@
 ## What's Changed
 
-### New Features
-
-- Help -> Release Notes shows the installed release's text offline and offers
-  a link to browse all older releases on GitHub. Menu and link labels are
-  available in English and German; notes retain their published language.
-  Markdown images load online without blocking the window; notes without
-  images start no image requests. The post-update What's New window reads
-  the same bundled release-notes file.
-
 ### Bugfix
 
-![trane security superhero](https://github.com/frathe/picfetch/blob/main/assets/trane/trane_bsod_eyes.png?raw=true)
+![trane pest control](https://github.com/frathe/picfetch/raw/main/assets/trane/trane_pest_control.png?raw=true)
 
-- Windows Make targets automatically discover the existing portable MinGW
-  compiler under `.tools/windows/mingw64/bin`, including from fresh terminals.
+- Favorites handle large collections more smoothly. Automatic preview loading now
+  respects your configured file limit (1,000 by default), reuses previews that
+  are already available, and can stop promptly when you switch views.
+- When viewing a single image, PicFetch scans nearby files only up to your
+  configured limit, keeps them in filename order, and accurately tells you when
+  the folder scan was limited.
+- Copy Selection now respects the **Max file size (MB)** setting throughout PNG
+  creation, reducing memory use while still allowing a failed copy to be retried.
+- Release-note images are loaded only from approved, secure GitHub sources.
+- Notifications keep their correct appearance as views change, and repeatedly
+  opening invalid images no longer causes unnecessary memory retention in very
+  large collections.
 
-- Fixed Windows analysis-cache validation rejecting Fyne's forward-slash paths:
-  Favorite representations can be reused and general representations can be
-  persisted. Native regression tests cover reopening and stale cleanup.
+### Behind the scenes
 
-**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.1.4...v1.1.5
+- Microsoft Store publishing now has stronger safeguards to ensure reviewed
+  releases are the ones approved and published.
+- **Find more like this** now uses your configured image cache to improve
+  responsiveness, while keeping its Favorites and background work independent.
+
+**Full Changelog**: https://github.com/frathe/picfetch/compare/v1.1.5...v1.1.6
