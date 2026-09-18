@@ -134,6 +134,34 @@ func TestCopySelectionEncodeFailure(t *testing.T) {
 	}
 }
 
+func TestCopySelectionFileSizeLimit(t *testing.T) {
+	v := newTestViewer(t)
+	dropAndWait(t, v, regionCopyPNGURI(t, "limit.png", markedRegionCopyImage(600, 600)))
+	v.win.Resize(fyne.NewSize(800, 800))
+	v.SetMaxFileSizeMB(1)
+	dispatches := 0
+	uitest.StubClipboardCopy(t, func(_ []byte) error {
+		dispatches++
+		return nil
+	})
+
+	selectRegion(t, v, image.Rect(10, 10, 590, 590))
+	v.regionCopy.HandleKey(fyne.KeyReturn)
+	waitForClipboard(t, v)
+	assertRecoverableRegionCopyFailure(t, v)
+	if dispatches != 0 {
+		t.Fatalf("clipboard dispatches over file size limit = %d, want 0", dispatches)
+	}
+	settleToast(t, v)
+
+	v.SetMaxFileSizeMB(2)
+	v.regionCopy.HandleKey(fyne.KeyReturn)
+	waitForClipboard(t, v)
+	if dispatches != 1 || v.regionCopy.State().Active {
+		t.Fatalf("retry after raising limit = {dispatches:%d state:%+v}, want one dispatch and inactive", dispatches, v.regionCopy.State())
+	}
+}
+
 func TestCopySelectionClipboardFailure(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, regionCopyPNGURI(t, "clipboard.png", markedRegionCopyImage(10, 8)))
@@ -174,6 +202,9 @@ func assertRecoverableRegionCopyFailure(t *testing.T, v *viewer) {
 	}
 }
 
+// This drag intentionally skips the activation performed by selectRegion.
+//
+//goland:noinspection DuplicatedCode
 func selectRegionDrag(t *testing.T, v *viewer, bounds image.Rectangle) {
 	t.Helper()
 	geometry := v.zoom.Geometry()

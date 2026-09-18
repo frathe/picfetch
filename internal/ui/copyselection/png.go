@@ -2,18 +2,18 @@ package copyselection
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+
+	"github.com/frathe/picfetch/internal/imaging"
 )
 
-const maxPNGBytes = 64 * 1024 * 1024
-
-var errSelectionTooLarge = errors.New("copy selection exceeds the 64 MiB memory limit")
-
-// PNG returns a zero-origin PNG containing bounds from src.
+// PNG returns a zero-origin, eight-bit PNG containing bounds from src.
+// The current Max file size setting bounds the pixel footprint, encoder rows
+// and encoded output independently; compression state and buffer growth add
+// overhead. One encode retains its captured limit if the setting changes.
 func PNG(src image.Image, bounds image.Rectangle) ([]byte, error) {
 	if src == nil {
 		return nil, fmt.Errorf("copy selection PNG: nil source")
@@ -21,13 +21,17 @@ func PNG(src image.Image, bounds image.Rectangle) ([]byte, error) {
 	if bounds.Empty() || bounds.Intersect(src.Bounds()) != bounds {
 		return nil, fmt.Errorf("copy selection PNG: bounds %v outside source %v", bounds, src.Bounds())
 	}
+	maxPNGBytes := imaging.MaxEncodedBytes()
 	width, height := bounds.Dx(), bounds.Dy()
-	if width <= 0 || height <= 0 || width > maxPNGBytes/4 || height > maxPNGBytes/4 ||
-		int64(width)*int64(height) > maxPNGBytes/4 {
-		return nil, errSelectionTooLarge
+	// image/png retains five filter rows and one previous row, each with a
+	// filter byte. Division keeps both checks safe from dimension overflow.
+	pixelLimit := maxPNGBytes / 4
+	rowPixelLimit := (maxPNGBytes/6 - 1) / 4
+	if width <= 0 || height <= 0 || int64(width) > pixelLimit/int64(height) || int64(width) > rowPixelLimit {
+		return nil, selectionTooLargeError{limit: maxPNGBytes}
 	}
 
-	buf := limitedBuffer{remaining: maxPNGBytes}
+	buf := limitedBuffer{maxBytes: maxPNGBytes}
 	crop := cropImage{src: src, bounds: bounds}
 	if err := png.Encode(&buf, crop); err != nil {
 		return nil, err
@@ -43,7 +47,7 @@ type cropImage struct {
 	bounds image.Rectangle
 }
 
-func (c cropImage) ColorModel() color.Model { return c.src.ColorModel() }
+func (_ cropImage) ColorModel() color.Model { return color.NRGBAModel }
 func (c cropImage) Bounds() image.Rectangle {
 	return image.Rect(0, 0, c.bounds.Dx(), c.bounds.Dy())
 }
@@ -53,14 +57,18 @@ func (c cropImage) At(x, y int) color.Color {
 
 type limitedBuffer struct {
 	bytes.Buffer
-	remaining int
+	maxBytes int64
 }
 
 func (b *limitedBuffer) Write(p []byte) (int, error) {
-	if len(p) > b.remaining {
-		return 0, errSelectionTooLarge
+	if int64(len(p)) > b.maxBytes-int64(b.Len()) {
+		return 0, selectionTooLargeError{limit: b.maxBytes}
 	}
-	n, err := b.Buffer.Write(p)
-	b.remaining -= n
-	return n, err
+	return b.Buffer.Write(p)
+}
+
+type selectionTooLargeError struct{ limit int64 }
+
+func (e selectionTooLargeError) Error() string {
+	return fmt.Sprintf("copy selection exceeds the %d-byte size limit", e.limit)
 }

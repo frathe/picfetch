@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 238 entries, 470.520s projected weight sum
+# ui-1: 239 entries, 470.520s projected weight sum
 # ui-2: 248 entries, 470.530s projected weight sum
 # ui-3: 202 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -72,6 +72,7 @@ TestCopyPathToClipboard_SetsFilePath	ui-1
 TestCopySelectionActivation	ui-1
 TestCopySelectionClipboardFailure	ui-1
 TestCopySelectionEncodeFailure	ui-1
+TestCopySelectionFileSizeLimit	ui-1
 TestCopySelectionKeyboard	ui-1
 TestCopySelectionPixels	ui-1
 TestCopySelectionRotation	ui-1
