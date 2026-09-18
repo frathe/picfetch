@@ -34,6 +34,9 @@
   eager source decoding remains bounded. Follow-up regressions cover stale
   memory-thumbnail replacement and recovery from corrupt disk previews. See
   `plans/2026-09-18-favorite-preview-reuse.md` and the PR for current hosted checks.
+- Include the new Cache-tab Favorite preview limit (default 1000) in that review;
+  persistence, cancellation and English/German layout checks pass. See
+  `plans/2026-09-18-favorite-preview-limit-setting.md`.
 
 ## Deferred
 

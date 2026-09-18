@@ -50,22 +50,23 @@ func TestRun_RejectsUnavailableFavoriteStorageBeforeBuildingViewer(t *testing.T)
 func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 	application := test.NewApp()
 	preferences.Save(application, preferences.State{
-		SortMode:          preferences.SortBySize,
-		MergeMode:         true,
-		SlideInterval:     7 * time.Second,
-		SlideShuffle:      true,
-		MaxScanFiles:      5000,
-		MaxWindowWidth:    1800,
-		MaxWindowHeight:   1100,
-		MaxImageCacheMB:   384,
-		MaxThumbCacheMB:   192,
-		MaxFileSizeMB:     256,
-		WindowSize:        fyne.NewSize(700, 500),
-		WindowPosX:        120,
-		WindowPosY:        340,
-		WindowPositionSet: true,
-		StaticWindowSize:  true,
-		DuplicateDistance: 0, DuplicateDistanceSet: true,
+		SortMode:             preferences.SortBySize,
+		MergeMode:            true,
+		SlideInterval:        7 * time.Second,
+		SlideShuffle:         true,
+		MaxScanFiles:         5000,
+		MaxWindowWidth:       1800,
+		MaxWindowHeight:      1100,
+		MaxImageCacheMB:      384,
+		MaxThumbCacheMB:      192,
+		FavoritePreviewLimit: 37,
+		MaxFileSizeMB:        256,
+		WindowSize:           fyne.NewSize(700, 500),
+		WindowPosX:           120,
+		WindowPosY:           340,
+		WindowPositionSet:    true,
+		StaticWindowSize:     true,
+		DuplicateDistance:    0, DuplicateDistanceSet: true,
 	})
 
 	v, win := buildStartupViewer(application)
@@ -109,6 +110,9 @@ func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 	}
 	if got, want := v.imgCache.Budget(), int64(384*bytesPerMB); got != want {
 		t.Errorf("imgCache.Budget() = %d, want %d", got, want)
+	}
+	if got := v.currentPreferences().FavoritePreviewLimit; got != 37 {
+		t.Fatalf("restored preview limit = %d, want 37", got)
 	}
 	if got, want := v.MaxThumbCacheMB(), 192; got != want {
 		t.Errorf("MaxThumbCacheMB() = %d, want %d (from saved preferences)", got, want)
@@ -301,15 +305,17 @@ func TestStartup_OmittedPreferencesUseShippedDefaults(t *testing.T) {
 
 func TestNormalizePreferenceDefaults(t *testing.T) {
 	defaults := preferences.State{
-		MaxScanFiles:      filescan.DefaultMax,
-		MaxWindowWidth:    defaultMaxWindowWidth,
-		MaxWindowHeight:   defaultMaxWindowHeight,
-		MaxImageCacheMB:   defaultMaxImageCacheMB,
-		MaxThumbCacheMB:   defaultMaxThumbCacheMB,
-		MaxFileSizeMB:     defaultMaxFileSizeMB,
-		DuplicateDistance: imaging.DuplicateMaxDistance,
+		FavoritePreviewLimit: preferences.DefaultFavoritePreviewLimit,
+		MaxScanFiles:         filescan.DefaultMax,
+		MaxWindowWidth:       defaultMaxWindowWidth,
+		MaxWindowHeight:      defaultMaxWindowHeight,
+		MaxImageCacheMB:      defaultMaxImageCacheMB,
+		MaxThumbCacheMB:      defaultMaxThumbCacheMB,
+		MaxFileSizeMB:        defaultMaxFileSizeMB,
+		DuplicateDistance:    imaging.DuplicateMaxDistance,
 	}
 	custom := preferences.State{
+		FavoritePreviewLimit: 37,
 		MaxScanFiles:         1,
 		MaxWindowWidth:       1,
 		MaxWindowHeight:      1,
@@ -320,12 +326,13 @@ func TestNormalizePreferenceDefaults(t *testing.T) {
 		DuplicateDistanceSet: true,
 	}
 	negative := preferences.State{
-		MaxScanFiles:    -1,
-		MaxWindowWidth:  -1,
-		MaxWindowHeight: -1,
-		MaxImageCacheMB: -1,
-		MaxThumbCacheMB: -1,
-		MaxFileSizeMB:   -1,
+		FavoritePreviewLimit: -1,
+		MaxScanFiles:         -1,
+		MaxWindowWidth:       -1,
+		MaxWindowHeight:      -1,
+		MaxImageCacheMB:      -1,
+		MaxThumbCacheMB:      -1,
+		MaxFileSizeMB:        -1,
 	}
 	sentinels := preferences.State{
 		WindowSize:        fyne.NewSize(0, 500),
@@ -340,6 +347,7 @@ func TestNormalizePreferenceDefaults(t *testing.T) {
 		},
 	}
 	sentinelsWithDefaults := sentinels
+	sentinelsWithDefaults.FavoritePreviewLimit = preferences.DefaultFavoritePreviewLimit
 	sentinelsWithDefaults.MaxScanFiles = filescan.DefaultMax
 	sentinelsWithDefaults.MaxWindowWidth = defaultMaxWindowWidth
 	sentinelsWithDefaults.MaxWindowHeight = defaultMaxWindowHeight

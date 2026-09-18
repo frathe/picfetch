@@ -159,7 +159,52 @@ func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 	}
 }
 
+func TestFavoritePreviewLimitAppliesAndCancelsCurrentPass(t *testing.T) {
+	v := newTestViewer(t)
+	prev := v.settingsState()
+	if prev.FavoritePreviewLimit != 1000 {
+		t.Fatalf("default preview limit = %d, want 1000", prev.FavoritePreviewLimit)
+	}
+	token := v.favThumbLifecycle.begin()
+	next := prev
+	next.FavoritePreviewLimit = 1
+	v.ApplySettings(prev, next)
+	if token.current() || v.currentPreferences().FavoritePreviewLimit != 1 || v.settingsState().FavoritePreviewLimit != 1 {
+		t.Fatal("preview-limit edit did not cancel and update persisted/form values")
+	}
+	files := []fyne.URI{
+		uitest.TempJPEGURI(t, "first.jpg", 1, 1, color.White),
+		uitest.TempJPEGURI(t, "second.jpg", 1, 1, color.Black),
+	}
+	dir := t.TempDir()
+	v.SyncFavoritePreviews(dir, files)
+	settleFavoritePreviews(t, v)
+	if len(previewNames(t, dir)) != 1 {
+		t.Fatal("preview pass ignored the selected limit")
+	}
+}
+
 func TestSyncFavoritePreviews_DoesNotEvictGridThumbnails(t *testing.T) {
+	t.Run("warming preserves recency", func(t *testing.T) {
+		v := newTestViewer(t)
+		older := uitest.TempJPEGURI(t, "older.jpg", 1, 1, color.White)
+		recent := uitest.TempJPEGURI(t, "recent.jpg", 1, 1, color.Black)
+		incoming := uitest.TempJPEGURI(t, "incoming.jpg", 1, 1, color.Black)
+		v.grid.SetCacheBytes(16)
+		name, _ := favthumbs.EntryName(older)
+		pixels := image.NewRGBA(image.Rect(0, 0, 1, 1))
+		if !v.grid.StoreThumb(older, &favthumbs.Preview{Image: pixels, SourceVersion: name}) || !v.grid.StoreThumb(recent, &favthumbs.Preview{Image: pixels}) {
+			t.Fatal("could not seed both thumbnails")
+		}
+		v.SyncFavoritePreviews(t.TempDir(), []fyne.URI{older})
+		settleFavoritePreviews(t, v)
+		if !v.grid.StoreThumb(incoming, &favthumbs.Preview{Image: pixels}) {
+			t.Fatal("could not store the newly viewed thumbnail")
+		}
+		if v.grid.Cached(older) || !v.grid.Cached(recent) {
+			t.Fatal("background lookup promoted an older thumbnail over a recently viewed one")
+		}
+	})
 	v := newTestViewer(t)
 	first := uitest.TempJPEGURI(t, "first.jpg", 4, 4, color.White)
 	second := uitest.TempJPEGURI(t, "second.jpg", 4, 4, color.Black)

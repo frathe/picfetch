@@ -1,5 +1,9 @@
 # Preserve large-Favorite preview reuse
 
+The initial 256-source policy below is now configurable, defaulting to 1000
+at the user's request; see `2026-09-18-favorite-preview-limit-setting.md`.
+The 256-entry cases remain useful coverage of a selected custom limit.
+
 Route: Standard; lead owns implementation and review. No new dependency,
 background lifetime, UI string or Grid interface. One read-only scout mapped
 existing cache paths while the lead examined the measured regression.
@@ -106,3 +110,25 @@ on all six changed Go files, including warnings. The manifest now covers 693
 UI tests. Full CI and security/Qodana/CodeQL passed on the previous `4eb5300`;
 its two code-review findings are addressed here and require another fresh
 review. The bounded native comparison remains pending.
+
+The review of `5f8dae2` found three additional cases: the warming lookup itself
+promotes entries before refresh; repeated tail paths decode cached previews
+again when memory admission declines; and corrupt-file identity checking is
+not atomic with removal. Lead will cover lookup recency and one-off tail work
+in the existing regressions, and serialize preview replacement with failed-entry
+cleanup using a runtime commit mutex. Encoding/decoding stays outside that
+short critical section. Verify the Favorite-cache race suite and focused viewer
+preview tests, then rerun exact-head hosted review. The newly requested saved
+limit defaults to 1000 and is tracked in the separate settings plan.
+
+These three reports were confirmed. The existing regressions failed for 267
+preview offers instead of 257 distinct sources and for warming promoting an
+older thumbnail over one the user viewed more recently. They now pass using
+generation-bound Peek and one visit per tail path. The cleanup regression
+also exposed recycled file identities after closing a delayed reader: retain
+its handle until entering the same commit mutex as writers. Encoding/decoding
+stays outside the critical section, with cancellation checked inside it.
+The complete preview race suite passes (3.293s); overlays removing the cleanup
+lock or identity guard fail for the expected reasons. All changed code files
+pass GoLand inspections. One pre-existing duplicated source-version fixture
+has a narrowly scoped suppression explaining its independent coverage.

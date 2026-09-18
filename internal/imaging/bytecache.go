@@ -53,6 +53,25 @@ func (w CacheWriter[V]) Current() bool {
 	return w.revision == w.cache.revision
 }
 
+// Peek reads current pixels without changing recency. Purge invalidation and
+// lookup share the lock, so an old producer cannot reuse a newer generation.
+func (w CacheWriter[V]) Peek(key string) (V, bool) {
+	var zero V
+	if w.cache == nil {
+		return zero, false
+	}
+	c := w.cache
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if w.revision != c.revision {
+		return zero, false
+	}
+	if entry, ok := c.items[key]; ok {
+		return entry.Value.(*cacheEntry[V]).val, true
+	}
+	return zero, false
+}
+
 // Add admits current display pixels with ByteCache.Add's oversized retention.
 func (w CacheWriter[V]) Add(key string, value V) bool {
 	if w.cache == nil {

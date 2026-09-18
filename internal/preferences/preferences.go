@@ -19,6 +19,9 @@ import (
 	"github.com/frathe/picfetch/internal/mosaic"
 )
 
+// DefaultFavoritePreviewLimit bounds automatic original decoding per Favorite pass.
+const DefaultFavoritePreviewLimit = 1000
+
 const (
 	keySortMode        = "sortMode"
 	keyMergeMode       = "mergeMode"
@@ -38,6 +41,7 @@ const (
 	keyWindowPosSet    = "windowPosSet"
 
 	keyFavoritePreviewCache    = "favoritePreviewCache"
+	keyFavoritePreviewLimit    = "favoritePreviewLimit"
 	keySimilarityFavoriteCache = "similarityFavoriteCache"
 	keySimilarityLooseCache    = "similarityLooseCache"
 	keyAnalysisCacheLimitMiB   = "analysisCacheLimitMiB"
@@ -164,6 +168,7 @@ type State struct {
 	// check) so that a user who explicitly turns it off can have that
 	// choice persist.
 	FavoritePreviewCache bool
+	FavoritePreviewLimit int
 	// SimilarityFavoriteCache and SimilarityAutoFit default on; automatic map updates default off.
 	SimilarityFavoriteCache, SimilarityAutoUpdate, SimilarityAutoFit bool
 	SimilarityLooseCache                                             bool
@@ -237,6 +242,9 @@ func Save(app fyne.App, s State) {
 	p.SetString(keyThemeMode, s.ThemeMode.PrefValue())
 	p.SetBool(keySlideShuffle, s.SlideShuffle)
 	p.SetBool(keyFavoritePreviewCache, s.FavoritePreviewCache)
+	if s.FavoritePreviewLimit > 0 {
+		p.SetInt(keyFavoritePreviewLimit, s.FavoritePreviewLimit)
+	}
 	p.SetBool(keySimilarityFavoriteCache, s.SimilarityFavoriteCache)
 	p.SetBool(keySimilarityLooseCache, s.SimilarityLooseCache)
 	if s.AnalysisCacheLimitMiB > 0 && uint64(s.AnalysisCacheLimitMiB) <= ^uint64(0)/(1024*1024) {
@@ -354,6 +362,13 @@ func analysisCacheLimit(n int) int {
 	return n
 }
 
+func favoritePreviewLimit(n int) int {
+	if n <= 0 {
+		return DefaultFavoritePreviewLimit
+	}
+	return n
+}
+
 func Load(app fyne.App) State {
 	p := app.Preferences()
 	defaults := mosaic.DefaultSettings()
@@ -396,6 +411,7 @@ func Load(app fyne.App) State {
 		MosaicWindow:            loadGeometry(p, mosaicWinKeys),
 		MosaicSettings:          mosaicSettings,
 		FavoritePreviewCache:    p.BoolWithFallback(keyFavoritePreviewCache, true),
+		FavoritePreviewLimit:    favoritePreviewLimit(p.IntWithFallback(keyFavoritePreviewLimit, DefaultFavoritePreviewLimit)),
 		SimilarityFavoriteCache: p.BoolWithFallback(keySimilarityFavoriteCache, true),
 		SimilarityLooseCache:    p.BoolWithFallback(keySimilarityLooseCache, true),
 		AnalysisCacheLimitMiB:   analysisCacheLimit(p.IntWithFallback(keyAnalysisCacheLimitMiB, 2048)),

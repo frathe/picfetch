@@ -28,6 +28,12 @@ func TestByteCacheCapturedWritesRejectPrePurgeProducers(t *testing.T) {
 	if old.Current() {
 		t.Error("pre-purge writer is still current")
 	}
+	if _, ok := old.Peek("fresh"); ok {
+		t.Error("pre-purge writer read a newer generation")
+	}
+	if value, ok := fresh.Peek("fresh"); !ok || value != 7 {
+		t.Error("current writer could not inspect cached pixels")
+	}
 	if old.Add("old displayed", 20) {
 		t.Error("pre-purge displayed pixels repopulated the cache")
 	}
@@ -44,6 +50,9 @@ func TestByteCacheCapturedWritesRejectPrePurgeProducers(t *testing.T) {
 		t.Error("current display lost Add's oversized retention")
 	}
 	var zero CacheWriter[int64]
+	if _, ok := zero.Peek("zero"); ok {
+		t.Error("zero writer read cached pixels")
+	}
 	if zero.Current() || zero.Add("zero", 1) || zero.AddIfFits("zero", 1) {
 		t.Error("zero writer admitted a record")
 	}

@@ -106,7 +106,7 @@ func benchmarkPreviewContention(b *testing.B, sources, foreground []fyne.URI, co
 		})
 	}
 	if condition == "disk-warm" {
-		if err := Sync(context.Background(), favDir, files, nil); err != nil {
+		if err := Sync(context.Background(), favDir, files, 256, nil); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -132,7 +132,7 @@ func benchmarkPreviewContention(b *testing.B, sources, foreground []fyne.URI, co
 		b.StartTimer()
 		if condition != "alone" {
 			go func() {
-				err := Sync(ctx, favDir, files, sink)
+				err := Sync(ctx, favDir, files, 256, sink)
 				finished = time.Now()
 				done <- err
 			}()

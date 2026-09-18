@@ -14,7 +14,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
-	"github.com/frathe/picfetch/internal/ui/grid"
+	"github.com/frathe/picfetch/internal/preferences"
 )
 
 // FavoritePreviewCache and SetFavoritePreviewCache are the settings
@@ -32,6 +32,18 @@ func (v *viewer) SetFavoritePreviewCache(on bool) {
 	v.settings.favPreviewCache = on
 
 	if !on {
+		v.favThumbLifecycle.invalidate()
+	}
+}
+
+// SetFavoritePreviewLimit retires a pass admitted under the previous limit.
+// The next Favorite open/save captures the new limit before launching work.
+func (v *viewer) SetFavoritePreviewLimit(n int) {
+	if n <= 0 {
+		n = preferences.DefaultFavoritePreviewLimit
+	}
+	if v.settings.favPreviewLimit != n {
+		v.settings.favPreviewLimit = n
 		v.favThumbLifecycle.invalidate()
 	}
 }
@@ -60,13 +72,14 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	token := v.favThumbLifecycle.begin()
 
 	done := v.favThumb.Begin()
-	sink := gridSink{grid: v.grid, writer: v.grid.CaptureThumbs()}
+	sink := gridSink{writer: v.grid.CaptureThumbs()}
+	limit := v.settings.favPreviewLimit
 
 	v.favThumbWorkers.Go(func() {
 		defer done()
 		defer token.cancelContext()
 
-		if err := favthumbs.Sync(token.context(), favDir, files, sink); err != nil {
+		if err := favthumbs.Sync(token.context(), favDir, files, limit, sink); err != nil {
 			// A superseded pass returns context.Canceled, which is this
 			// design working rather than anything failing.
 			if errors.Is(err, context.Canceled) {
@@ -85,20 +98,16 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 // Both methods are called from several of Sync's worker goroutines at once,
 // and neither wraps its work in fyne.Do - unlike almost everything else
 // this package does off the UI goroutine. That is safe *because* of how
-// little they reach: CachedThumb and StoreThumb bottom out in the grid's
-// imaging.ByteCache, which guards itself with a mutex, and touch no widget,
+// little they reach: Peek and RefreshIfRoom use the grid's captured
+// imaging.ByteCache writer, which guards itself with a mutex, and touch no widget,
 // no canvas, and no viewer field. Anything added here that does touch a
 // widget needs fyne.Do again.
 type gridSink struct {
-	grid   *grid.Overview
 	writer imaging.CacheWriter[image.Image]
 }
 
 func (s gridSink) Cached(src fyne.URI) (image.Image, bool) {
-	if !s.writer.Current() {
-		return nil, false
-	}
-	return s.grid.CachedThumb(src)
+	return s.writer.Peek(src.String())
 }
 
 func (s gridSink) Store(src fyne.URI, thumb image.Image) {

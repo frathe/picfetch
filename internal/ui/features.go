@@ -145,6 +145,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.pushDuplicateDistance(view.DuplicateDistance())
 
 	view.SetFavoritePreviewCache(prefs.FavoritePreviewCache)
+	view.SetFavoritePreviewLimit(prefs.FavoritePreviewLimit)
 	// Restore update prefs without SetCheckForUpdates: that setter starts a
 	// network check. Day must be in place before startViewerRuntime's
 	// maybeStartUpdateCheck so Due sees the saved calendar day.

@@ -62,7 +62,7 @@ func TestSyncLeavesForegroundCapacityAndConverges(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				done := make(chan error, 1)
-				go func() { done <- Sync(ctx, favDir, files, nil) }()
+				go func() { done <- Sync(ctx, favDir, files, 256, nil) }()
 				synctest.Wait()
 				if got := int(reads.Load()); got != tc.admitted {
 					t.Errorf("admitted source reads = %d, want %d with %d processors", got, tc.admitted, tc.procs)
@@ -76,7 +76,7 @@ func TestSyncLeavesForegroundCapacityAndConverges(t *testing.T) {
 				if err := <-done; !errors.Is(err, context.Canceled) {
 					t.Errorf("held pass = %v, want cancellation", err)
 				}
-				if err := Sync(context.Background(), favDir, files, nil); err != nil {
+				if err := Sync(context.Background(), favDir, files, 256, nil); err != nil {
 					t.Fatal(err)
 				}
 				for _, u := range files {
@@ -185,7 +185,7 @@ func TestSyncWritesPreviewForEveryFile(t *testing.T) {
 		uitest.TempJPEGURI(t, "c.jpg", 20, 20, color.RGBA{B: 200, A: 255}),
 	}
 
-	if err := Sync(context.Background(), favDir, files, newTestSink()); err != nil {
+	if err := Sync(context.Background(), favDir, files, 256, newTestSink()); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -213,7 +213,7 @@ func TestSyncBoundsOriginalDecodesAndRetainsCachedTail(t *testing.T) {
 		return nil, errors.New("unexpected original read")
 	}))
 
-	if err := Sync(context.Background(), favDir, work, sink); err != nil {
+	if err := Sync(context.Background(), favDir, work, 256, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -236,8 +236,16 @@ func TestSyncBoundsOriginalDecodesAndRetainsCachedTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	tailSink := newTestSink()
-	if err := Sync(context.Background(), favDir, work, tailSink); err != nil {
+	// Merge mode may repeat a tail path. A full sink cannot turn repeated
+	// disk reads into memory hits, so each path must be visited only once.
+	for range 10 {
+		work = append(work, work[len(work)-1])
+	}
+	if err := Sync(context.Background(), favDir, work, 256, tailSink); err != nil {
 		t.Fatal(err)
+	}
+	if got := tailSink.storeCalls(); got != limit+1 {
+		t.Fatalf("preview offers = %d, want one per distinct source (%d)", got, limit+1)
 	}
 	if got := countFiles(t, Dir(favDir)); got != limit+1 {
 		t.Errorf("existing cache retained %d previews, want %d", got, limit+1)
@@ -259,11 +267,11 @@ func TestSyncBoundsOriginalDecodesAndRetainsCachedTail(t *testing.T) {
 	}
 	// A failed cache-only read must let the next pass persist Grid's fresh
 	// thumbnail; a corrupt file's existence cannot permanently block repair.
-	if err := Sync(context.Background(), favDir, work, tailSink); err != nil {
+	if err := Sync(context.Background(), favDir, work, 256, tailSink); err != nil {
 		t.Fatal(err)
 	}
 	tailSink.setCached(work[len(work)-1], newOpaqueThumb(1, 1, color.RGBA{A: 255}))
-	if err := Sync(context.Background(), favDir, work, tailSink); err != nil {
+	if err := Sync(context.Background(), favDir, work, 256, tailSink); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := Read(favDir, files[limit]); !ok {
@@ -271,16 +279,38 @@ func TestSyncBoundsOriginalDecodesAndRetainsCachedTail(t *testing.T) {
 	}
 }
 
-func TestDedupeStopsAtOriginalDecodeLimit(t *testing.T) {
-	files := make([]fyne.URI, maxSyncEntries+1)
-	for i := range maxSyncEntries {
-		files[i] = storage.NewFileURI(fmt.Sprintf("/synthetic/%d.jpg", i))
+func TestSyncHonorsConfiguredLimit(t *testing.T) {
+	files := make([]fyne.URI, 4)
+	for i := range files {
+		files[i] = uitest.TempJPEGURI(t, fmt.Sprintf("%d.jpg", i), 1, 1, color.White)
 	}
-	files[maxSyncEntries] = observedPathURI{URI: storage.NewFileURI("/synthetic/tail.jpg"), onPath: func() {
-		t.Error("decode preparation examined a source beyond its limit")
-	}}
-	if got := len(dedupe(context.Background(), files)); got != maxSyncEntries {
-		t.Fatalf("admitted %d originals, want %d", got, maxSyncEntries)
+	for _, limit := range []int{1, 3, 1000} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			sink := newTestSink()
+			if err := Sync(context.Background(), t.TempDir(), files, limit, sink); err != nil {
+				t.Fatal(err)
+			}
+			if got := sink.storeCalls(); got != min(limit, len(files)) {
+				t.Fatalf("prepared %d previews with limit %d", got, limit)
+			}
+		})
+	}
+}
+
+func TestDedupeStopsAtOriginalDecodeLimit(t *testing.T) {
+	for _, maxSyncEntries := range []int{1, 256, 1000} {
+		t.Run(fmt.Sprint(maxSyncEntries), func(t *testing.T) {
+			files := make([]fyne.URI, maxSyncEntries+1)
+			for i := range maxSyncEntries {
+				files[i] = storage.NewFileURI(fmt.Sprintf("/synthetic/%d.jpg", i))
+			}
+			files[maxSyncEntries] = observedPathURI{URI: storage.NewFileURI("/synthetic/tail.jpg"), onPath: func() {
+				t.Error("decode preparation examined a source beyond its limit")
+			}}
+			if got := len(dedupe(context.Background(), files, maxSyncEntries)); got != maxSyncEntries {
+				t.Fatalf("admitted %d originals, want %d", got, maxSyncEntries)
+			}
+		})
 	}
 }
 
@@ -304,7 +334,7 @@ func TestSyncStoresEveryFileInSink(t *testing.T) {
 	}
 	sink := newTestSink()
 
-	if err := Sync(context.Background(), favDir, files, sink); err != nil {
+	if err := Sync(context.Background(), favDir, files, 256, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -359,7 +389,7 @@ func TestSyncReusesPreviewFromDiskInsteadOfDecoding(t *testing.T) {
 	}
 
 	sink := newTestSink()
-	if err := Sync(context.Background(), favDir, []fyne.URI{src}, sink); err != nil {
+	if err := Sync(context.Background(), favDir, []fyne.URI{src}, 256, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -387,7 +417,7 @@ func TestSyncCachedHitSkipsReadAndDecode(t *testing.T) {
 	sink := newTestSink()
 	sink.setCached(src, newOpaqueThumb(8, 8, green))
 
-	if err := Sync(context.Background(), favDir, []fyne.URI{src}, sink); err != nil {
+	if err := Sync(context.Background(), favDir, []fyne.URI{src}, 256, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -433,7 +463,7 @@ func TestSyncCachedHitDoesNotRewriteExistingPreview(t *testing.T) {
 	sink := newTestSink()
 	sink.setCached(src, thumb)
 
-	if err := Sync(context.Background(), favDir, []fyne.URI{src}, sink); err != nil {
+	if err := Sync(context.Background(), favDir, []fyne.URI{src}, 256, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -466,7 +496,7 @@ func TestSyncSweepsStalePreview(t *testing.T) {
 	}
 	stale := previewPath(t, favDir, dropped, ".jpg")
 
-	if err := Sync(context.Background(), favDir, []fyne.URI{kept}, newTestSink()); err != nil {
+	if err := Sync(context.Background(), favDir, []fyne.URI{kept}, 256, newTestSink()); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -505,7 +535,7 @@ func TestSyncCancelledContextReturnsErrorAndDoesNotSweep(t *testing.T) {
 		t.Error("cancelled pass examined a source during preparation")
 	}}
 
-	if err := Sync(ctx, favDir, []fyne.URI{listed}, newTestSink()); err == nil {
+	if err := Sync(ctx, favDir, []fyne.URI{listed}, 256, newTestSink()); err == nil {
 		t.Error("Sync(cancelled ctx) = nil, want an error")
 	}
 
@@ -530,7 +560,7 @@ func TestSyncCancellationDuringPreparation(t *testing.T) {
 			t.Error("preparation continued after cancellation")
 		}},
 	}
-	if err := Sync(ctx, favDir, files, nil); !errors.Is(err, context.Canceled) {
+	if err := Sync(ctx, favDir, files, 256, nil); !errors.Is(err, context.Canceled) {
 		t.Errorf("Sync = %v, want cancellation", err)
 	}
 	if _, ok := Read(favDir, src); !ok {
@@ -554,7 +584,7 @@ func TestSyncBadFileDoesNotStopPeers(t *testing.T) {
 	files := append([]fyne.URI{bad}, good...)
 
 	sink := newTestSink()
-	if err := Sync(context.Background(), favDir, files, sink); err == nil {
+	if err := Sync(context.Background(), favDir, files, 256, sink); err == nil {
 		t.Error("Sync = nil, want the undecodable file's error")
 	}
 
@@ -599,7 +629,7 @@ func TestSyncTwiceLeavesNoDuplicates(t *testing.T) {
 		uitest.TempJPEGURI(t, "b.jpg", 30, 40, color.RGBA{G: 200, A: 255}),
 	}
 
-	if err := Sync(context.Background(), favDir, files, newTestSink()); err != nil {
+	if err := Sync(context.Background(), favDir, files, 256, newTestSink()); err != nil {
 		t.Fatalf("first Sync: %v", err)
 	}
 	first := countFiles(t, Dir(favDir))
@@ -607,7 +637,7 @@ func TestSyncTwiceLeavesNoDuplicates(t *testing.T) {
 		t.Fatalf("first pass left %d previews, want %d", first, len(files))
 	}
 
-	if err := Sync(context.Background(), favDir, files, newTestSink()); err != nil {
+	if err := Sync(context.Background(), favDir, files, 256, newTestSink()); err != nil {
 		t.Fatalf("second Sync: %v", err)
 	}
 	if second := countFiles(t, Dir(favDir)); second != first {
@@ -628,7 +658,7 @@ func TestSyncNilSinkStillWritesPreviews(t *testing.T) {
 		uitest.TempJPEGURI(t, "b.jpg", 30, 40, color.RGBA{G: 200, A: 255}),
 	}
 
-	if err := Sync(context.Background(), favDir, files, nil); err != nil {
+	if err := Sync(context.Background(), favDir, files, 256, nil); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -654,7 +684,7 @@ func TestSyncDeduplicatesRepeatedFiles(t *testing.T) {
 	files := []fyne.URI{dup, other, dup}
 
 	sink := newTestSink()
-	if err := Sync(context.Background(), favDir, files, sink); err != nil {
+	if err := Sync(context.Background(), favDir, files, 256, sink); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 
@@ -687,13 +717,13 @@ func TestSyncReplacesLegacyPreviewAfterCompletePass(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := Sync(ctx, favDir, []fyne.URI{src}, newTestSink()); err == nil {
+	if err := Sync(ctx, favDir, []fyne.URI{src}, 256, newTestSink()); err == nil {
 		t.Error("cancelled sync returned success")
 	}
 	if !fileExists(legacy) {
 		t.Fatal("cancelled pass removed an unvisited legacy preview")
 	}
-	if err := Sync(context.Background(), favDir, []fyne.URI{src}, newTestSink()); err != nil {
+	if err := Sync(context.Background(), favDir, []fyne.URI{src}, 256, newTestSink()); err != nil {
 		t.Fatal(err)
 	}
 	if fileExists(legacy) {
@@ -747,7 +777,7 @@ func TestSync_CancelsHeldReadsAndSlotWaiterWithoutPublishingOrSweeping(t *testin
 	})
 	sink := newTestSink()
 	done := make(chan error, 1)
-	go func() { done <- Sync(ctx, favDir, files, sink) }()
+	go func() { done <- Sync(ctx, favDir, files, 256, sink) }()
 	for range workers {
 		select {
 		case <-entered:
@@ -780,7 +810,7 @@ func TestSync_CancelsHeldReadsAndSlotWaiterWithoutPublishingOrSweeping(t *testin
 		t.Error("cancelled pass swept an unvisited preview")
 	}
 	// The next complete pass uses the same sources and converges while idle.
-	if err := Sync(context.Background(), favDir, files, sink); err != nil {
+	if err := Sync(context.Background(), favDir, files, 256, sink); err != nil {
 		t.Fatal(err)
 	}
 	for _, u := range files {
@@ -817,7 +847,7 @@ func TestSync_CancellationAfterMemoryLookupStopsDiskAndStore(t *testing.T) {
 				}
 			}
 			sink := cancelAfterCacheSink{testSink: newTestSink(), cancel: cancel, hit: hit}
-			if err := Sync(ctx, dir, []fyne.URI{src}, sink); !errors.Is(err, context.Canceled) {
+			if err := Sync(ctx, dir, []fyne.URI{src}, 256, sink); !errors.Is(err, context.Canceled) {
 				t.Errorf("Sync = %v", err)
 			}
 			if sink.storeCalls() != 0 {
@@ -847,7 +877,7 @@ func TestSync_SourceReplacementDuringDecodeCannotLabelOldPixelsAsCurrent(t *test
 		return io.NopCloser(bytes.NewReader(old)), nil
 	})
 	sink := newTestSink()
-	if err := Sync(context.Background(), favDir, []fyne.URI{u}, sink); err != nil {
+	if err := Sync(context.Background(), favDir, []fyne.URI{u}, 256, sink); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := Read(favDir, src); ok {
@@ -856,7 +886,7 @@ func TestSync_SourceReplacementDuringDecodeCannotLabelOldPixelsAsCurrent(t *test
 	if _, ok := sink.storedFor(u); ok {
 		t.Error("old decode was offered to the current memory sink")
 	}
-	if err := Sync(context.Background(), favDir, []fyne.URI{src}, sink); err != nil {
+	if err := Sync(context.Background(), favDir, []fyne.URI{src}, 256, sink); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := Read(favDir, src); !ok {

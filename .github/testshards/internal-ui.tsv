@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 243 entries, 470.520s projected weight sum
+# ui-1: 244 entries, 470.520s projected weight sum
 # ui-2: 248 entries, 470.530s projected weight sum
 # ui-3: 202 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -108,6 +108,7 @@ TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking	ui-1
 TestExportPrompt_EscapeFromTheSizeRowCancels	ui-1
 TestExportPrompt_KeyboardReachesTheSizeRow	ui-1
 TestExportUnrelatedDestinationPreservesDerivedState	ui-1
+TestFavoritePreviewLimitAppliesAndCancelsCurrentPass	ui-1
 TestFavoriteShortcutOpensStoredFilesThroughViewer	ui-1
 TestFileMutationInvalidatesNoncurrentLoadedAlias	ui-1
 TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery	ui-1

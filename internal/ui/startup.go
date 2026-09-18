@@ -43,6 +43,9 @@ func buildStartupViewer(application fyne.App) (*viewer, fyne.Window) {
 // flags distinguish unsaved positions, and zero secondary geometry uses each
 // window's built-in placement and size.
 func normalizePreferenceDefaults(prefs preferences.State) preferences.State {
+	if prefs.FavoritePreviewLimit <= 0 {
+		prefs.FavoritePreviewLimit = preferences.DefaultFavoritePreviewLimit
+	}
 	if prefs.MaxScanFiles <= 0 {
 		prefs.MaxScanFiles = filescan.DefaultMax
 	}

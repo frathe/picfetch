@@ -12,10 +12,6 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-// maxSyncEntries bounds preparation and original-image decoding in an eager
-// pass. Existing previews beyond this prefix remain eligible for reuse.
-const maxSyncEntries = 256
-
 // Decode serially because a permitted source can expand to hundreds of
 // megabytes before thumbnailing. Parallel full-resolution decodes would turn
 // the background optimization into a multi-gigabyte transient allocation.
@@ -57,7 +53,8 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 	return color.RGBA64{R: uint16(r), G: uint16(g), B: uint16(b), A: uint16(a)}
 }
 
-// Sync decodes originals only for the first maxSyncEntries unique paths.
+// Sync decodes originals only for the first limit unique paths; limit must
+// be positive. The caller chooses the limit before launching the pass.
 // Remaining files reuse existing memory or disk previews without reading their
 // originals. The caller's byte-budgeted sink decides how much to retain in RAM.
 // Pruning uses the full Favorite membership, preserving current tail previews
@@ -75,12 +72,15 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 //
 // sink may be nil, which reads as "nothing is cached, and storing is a
 // no-op": the pass still fills the on-disk cache for a later opener.
-func Sync(ctx context.Context, favDir string, files []fyne.URI, sink Sink) error {
+func Sync(ctx context.Context, favDir string, files []fyne.URI, limit int, sink Sink) error {
 	// The app's merge mode loads one path at two indices whenever the same
 	// file arrives from two dropped folders. Two workers on that path would
 	// duplicate a full decode and then race each other to write a single
 	// destination, so the repeats come out before any work is handed out.
-	work := dedupe(ctx, files)
+	if limit <= 0 {
+		return fmt.Errorf("favthumbs: preview limit must be positive")
+	}
+	work := dedupe(ctx, files, limit)
 
 	// sem bounds concurrent decodes; wg lets the sweep below wait for every
 	// worker to be completely done, which is what makes the sweep's view of
@@ -159,9 +159,14 @@ loop:
 			if ctx.Err() != nil {
 				break
 			}
-			if u == nil || admitted[u.Path()] {
+			if u == nil {
 				continue
 			}
+			path := u.Path()
+			if admitted[path] {
+				continue
+			}
+			admitted[path] = true
 			if err := syncFile(ctx, favDir, u, sink, false); err != nil {
 				fail(err)
 			}
@@ -255,11 +260,14 @@ func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink, decodeO
 	return err
 }
 
-// dedupe admits at most maxSyncEntries unique paths in first-appearance order.
+// dedupe admits at most limit unique paths in first-appearance order.
 // Nil entries and repeats do not consume the budget. Preparation stops as soon
 // as the budget is full, retaining no work or bookkeeping for the unused tail.
-func dedupe(ctx context.Context, files []fyne.URI) []fyne.URI {
-	capacity := min(len(files), maxSyncEntries)
+func dedupe(ctx context.Context, files []fyne.URI, limit int) []fyne.URI {
+	if limit <= 0 {
+		return nil
+	}
+	capacity := min(len(files), limit)
 	seen := make(map[string]bool, capacity)
 	out := make([]fyne.URI, 0, capacity)
 	for _, u := range files {
@@ -276,7 +284,7 @@ func dedupe(ctx context.Context, files []fyne.URI) []fyne.URI {
 		}
 		seen[path] = true
 		out = append(out, u)
-		if len(out) == maxSyncEntries {
+		if len(out) == limit {
 			break
 		}
 	}

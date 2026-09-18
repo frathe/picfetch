@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"fyne.io/fyne/v2"
 )
@@ -20,6 +21,11 @@ import (
 // size on every open - visible blockiness would be far more noticeable than
 // it is on a one-off export.
 const jpegQuality = 85
+
+// Only final cache mutations share this lock; codecs and temporary writes run
+// independently. A failed reader cannot unlink a concurrently installed entry
+// between checking its identity and removing it.
+var previewCommitMu sync.Mutex
 
 // Write stores thumb as the current preview for src under favDir, replacing
 // any preview already on disk for it. It fails when src cannot be
@@ -112,6 +118,11 @@ func writeEntryContext(ctx context.Context, favDir, name string, thumb image.Ima
 		return err
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	previewCommitMu.Lock()
+	defer previewCommitMu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -239,26 +250,35 @@ func decodeFile(ctx context.Context, path string) (image.Image, bool) {
 	if err != nil {
 		return nil, false
 	}
+	// Failed reads close earlier under the commit lock; this also covers a
+	// decoder panic and the successful-read path.
+	defer func() { _ = f.Close() }()
 	img, err := decodePreview(ctx, f)
-	var failedInfo os.FileInfo
-	if err != nil {
-		failedInfo, _ = f.Stat()
-	}
-	_ = f.Close()
 	if err != nil {
 		// A cache-only miss cannot decode an original to overwrite this
 		// file. Drop the failed entry so a later current memory thumbnail
 		// is not blocked by hasCurrentPreview's inexpensive existence test.
 		// Close first for Windows, then check for a replacement installed
 		// while the failed file was being decoded.
-		if ctx.Err() == nil && failedInfo != nil {
-			if current, statErr := os.Stat(path); statErr == nil && os.SameFile(failedInfo, current) {
-				_ = os.Remove(path)
-			}
-		}
+		discardCorruptPreview(ctx, path, f)
 		return nil, false
 	}
 	return img, true
+}
+
+func discardCorruptPreview(ctx context.Context, path string, failed *os.File) {
+	previewCommitMu.Lock()
+	defer previewCommitMu.Unlock()
+	// Retain the open handle until this critical section so a previously
+	// unlinked inode cannot be recycled for a healthy replacement first.
+	failedInfo, statErr := failed.Stat()
+	_ = failed.Close()
+	if ctx.Err() != nil || statErr != nil {
+		return
+	}
+	if current, err := os.Stat(path); err == nil && os.SameFile(failedInfo, current) {
+		_ = os.Remove(path)
+	}
 }
 
 func decodePreview(ctx context.Context, r io.Reader) (image.Image, error) {

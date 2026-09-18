@@ -686,6 +686,37 @@ func settingsTabs(t *testing.T, w *Window) *container.AppTabs {
 	return tabs
 }
 
+func TestFavoritePreviewLimitInCacheTab(t *testing.T) {
+	host := &fakeHost{prefs: preferences.State{FavoritePreviewLimit: 1000}}
+	w := showSettings(t, host)
+	tabs := settingsTabs(t, w)
+	if len(tabs.Items) != 5 || w.favPreviewLimitEntry == nil || !containsCanvasObject(tabs.Items[4].Content, w.favPreviewLimitEntry) {
+		t.Fatal("Cache tab does not contain the Favorite preview limit")
+	}
+	if w.favPreviewLimitEntry.Text != "1000" {
+		t.Fatal("preview limit was not seeded from preferences")
+	}
+	cache := tabVBox(t, tabs.Items[4])
+	explanation, ok := cache.Objects[2].(*widget.Label)
+	if !ok || explanation.Wrapping != fyne.TextWrapWord || explanation.Text != "Limits automatic preview generation when opening or saving a Favorite; existing cached previews beyond this limit are still reused." {
+		t.Fatal("Cache tab is missing the wrapped preview-limit explanation")
+	}
+	w.favPreviewLimitEntry.SetText("42")
+	if got := lastApply(t, host).FavoritePreviewLimit; got != 42 {
+		t.Fatalf("applied preview limit = %d, want 42", got)
+	}
+	for _, invalid := range []string{"", "0", "-1", "1.5", "bad"} {
+		w.favPreviewLimitEntry.SetText(invalid)
+		if w.prefs.FavoritePreviewLimit != 42 {
+			t.Fatalf("invalid input %q changed the preview limit", invalid)
+		}
+	}
+	w.win.Window().Close()
+	if w.favPreviewLimitEntry != nil {
+		t.Fatal("closed Settings retained the preview-limit control")
+	}
+}
+
 func TestSettingsCacheTabCompositionAndClose(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	content := widget.NewLabel("cache contents")
@@ -753,7 +784,7 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	w := newUpdateTestWindow(t, &fakeHost{})
 	tabs := settingsTabs(t, w)
 
-	wantLabels := []string{"General", "Appearance", "Updates", "Limits"}
+	wantLabels := []string{"General", "Appearance", "Updates", "Limits", "Cache"}
 	if len(tabs.Items) != len(wantLabels) {
 		t.Fatalf("tab count = %d, want %d", len(tabs.Items), len(wantLabels))
 	}
@@ -780,7 +811,7 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	for name, control := range map[string]fyne.CanvasObject{
 		"sort": w.sortSelect, "interval": w.intervalEntry,
 		"duplicate distance": w.dupeDistSlider,
-		"merge":              w.mergeCheck, "shuffle": w.shuffleCheck, "favorite previews": w.favPreviewCheck,
+		"merge":              w.mergeCheck, "shuffle": w.shuffleCheck,
 	} {
 		if !containsCanvasObject(general, control) {
 			t.Errorf("General tab does not contain %s control", name)
@@ -805,6 +836,10 @@ func TestSettingsTabs_GroupControlsAndOpenOnGeneral(t *testing.T) {
 	}
 
 	appearanceTab := tabs.Items[1].Content
+	cacheTab := tabs.Items[4].Content
+	if !containsCanvasObject(cacheTab, w.favPreviewCheck) || !containsCanvasObject(cacheTab, w.favPreviewLimitEntry) || containsCanvasObject(general, w.favPreviewCheck) {
+		t.Error("Favorite preview controls are not grouped in Cache")
+	}
 	if !containsCanvasObject(appearanceTab, w.themeSelect) {
 		t.Error("Appearance tab does not contain appearance selector")
 	}
