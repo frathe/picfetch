@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"runtime"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -13,22 +12,16 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-// syncConcurrency bounds how many files a single pass works on at once - a
-// small worker-pool semaphore rather than one goroutine per file, since a
-// favorite can hold thousands and each miss costs a full-resolution decode.
-//
-// This is deliberately its own budget rather than a share of grid's
-// thumbConcurrency. The two pools run in different situations: the grid's
-// serves decodes the user is waiting to see, while this one runs in the
-// background of whatever the user is doing now. Making them draw on one
-// budget would let a background pass over a large favorite starve the
-// thumbnails actually on screen, which is the exact opposite of what a
-// preview cache is for.
-// Leave one Go execution slot outside prewarm when the runtime has more than
-// one. Four competing decodes otherwise delay foreground work on small CPU
-// budgets. A single-processor runtime still makes progress with one worker.
+// maxSyncEntries bounds both persistent cache entries and source decodes in
+// one eager pass. A preview is at most 200x200 pixels, so this also places a
+// small, predictable ceiling on cache growth even for incompressible PNGs.
+const maxSyncEntries = 256
+
+// Decode serially because a permitted source can expand to hundreds of
+// megabytes before thumbnailing. Parallel full-resolution decodes would turn
+// the background optimization into a multi-gigabyte transient allocation.
 func syncConcurrency() int {
-	return min(4, max(1, runtime.GOMAXPROCS(0)-1))
+	return 1
 }
 
 // Sink is the consumer-side view of the caller's in-memory thumbnail cache.
@@ -65,8 +58,9 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 	return color.RGBA64{R: uint16(r), G: uint16(g), B: uint16(b), A: uint16(a)}
 }
 
-// Sync brings favDir's previews in line with files: every file ends up with
-// a current preview on disk, the caller's in-memory cache is offered
+// Sync brings favDir's previews in line with the bounded prefix of files: up
+// to maxSyncEntries files end up with a current preview on disk, the caller's
+// in-memory cache is offered
 // whatever the pass produced or found, and previews that no file maps to
 // any more are pruned.
 //
@@ -87,9 +81,12 @@ func Sync(ctx context.Context, favDir string, files []fyne.URI, sink Sink) error
 	// file arrives from two dropped folders. Two workers on that path would
 	// duplicate a full decode and then race each other to write a single
 	// destination, so the repeats come out before any work is handed out.
-	// Sweep below still gets the original slice: it builds its own
-	// expected-name set, which dedupes internally.
+	// Sweep below gets this same bounded set so an older, larger cache is
+	// reduced to the current limit rather than retained indefinitely.
 	work := dedupe(files)
+	if len(work) > maxSyncEntries {
+		work = work[:maxSyncEntries]
+	}
 
 	// sem bounds concurrent decodes; wg lets the sweep below wait for every
 	// worker to be completely done, which is what makes the sweep's view of
@@ -165,7 +162,7 @@ loop:
 		return err
 	}
 
-	if err := Sweep(favDir, files); err != nil {
+	if err := Sweep(favDir, work); err != nil {
 		fail(err)
 	}
 

@@ -26,7 +26,7 @@ import (
 )
 
 func TestSyncLeavesForegroundCapacityAndConverges(t *testing.T) {
-	for _, tc := range []struct{ procs, admitted int }{{1, 1}, {2, 1}, {3, 2}, {8, 4}} {
+	for _, tc := range []struct{ procs, admitted int }{{1, 1}, {2, 1}, {3, 1}, {8, 1}} {
 		t.Run(fmt.Sprint(tc.procs), func(t *testing.T) {
 			previous := runtime.GOMAXPROCS(tc.procs)
 			defer runtime.GOMAXPROCS(previous)
@@ -194,6 +194,32 @@ func TestSyncWritesPreviewForEveryFile(t *testing.T) {
 		if !fileExists(path) {
 			t.Errorf("no preview at %q for %v", path, f)
 		}
+	}
+}
+
+func TestSyncBoundsPersistentPreviewsAndDecodeWork(t *testing.T) {
+	t.Parallel()
+
+	const limit = 256
+	favDir := filepath.Join(t.TempDir(), "Trip")
+	files := make([]fyne.URI, limit+1)
+	for i := range files {
+		files[i] = uitest.TempJPEGURI(t, fmt.Sprintf("%03d.jpg", i), 1, 1, color.RGBA{R: uint8(i), A: 255})
+	}
+	sink := newTestSink()
+
+	if err := Sync(context.Background(), favDir, files, sink); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if got := countFiles(t, Dir(favDir)); got != limit {
+		t.Fatalf("persistent previews = %d, want bounded at %d", got, limit)
+	}
+	if got := sink.storeCalls(); got != limit {
+		t.Errorf("decoded previews = %d, want bounded at %d", got, limit)
+	}
+	if _, ok := Read(favDir, files[limit]); ok {
+		t.Error("file beyond the work limit received a preview")
 	}
 }
 
