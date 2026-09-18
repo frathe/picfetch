@@ -232,7 +232,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 	v.win.RequestFocus()
 
 	if truncated {
-		v.ShowToast(fmt.Sprintf(lang.L("stopped scanning after %d images - the dropped folder tree is very large"), maxScan))
+		v.ShowToast(fmt.Sprintf(lang.L("scan limit of %d reached - some files may not have been included"), maxScan))
 		if v.explorer.Trial() != nil {
 			v.explorerInput.pendingLaunch = false
 			v.pendingPictureFrame = false

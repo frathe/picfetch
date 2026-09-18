@@ -19,6 +19,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -169,10 +171,11 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 // Siblings returns the supported images that share file's parent directory.
 // It does not recurse into subdirectories. If file itself is a supported
 // image it is always the first entry — the caller's URI, not a possibly
-// different URI storage.List produced for the same path — so a caller that
+// different URI the listing produced for the same path — so a caller that
 // looks the opened file up by URI.String() still finds it after a sort.
-// Directories among the children are skipped. For file URIs, at most max
-// directory entries are read, even when most entries are not images; this
+// Other admitted siblings retain name order. Directories among the children
+// are skipped. For file URIs, at most max directory entries are considered,
+// plus one entry to detect truncation, even when most entries are not images; this
 // keeps the cap effective as a bound on both work and allocation. Non-file
 // repositories have no bounded listing API, so they retain only the opened
 // file instead of materializing an unbounded parent listing. max is floored
@@ -226,6 +229,7 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 	if truncated {
 		return images, truncated
 	}
+	seeded := len(images)
 
 	parent, err := storage.Parent(file)
 	if err != nil {
@@ -240,6 +244,7 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 	}
 	defer func() { _ = directory.Close() }()
 
+	// Bound each allocation; subsequent batches continue up to max entries.
 	const batchSize = 256
 	entriesRead := 0
 	for entriesRead < max && !truncated && ctx.Err() == nil {
@@ -253,7 +258,15 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 			break
 		}
 	}
-	if truncated || ctx.Err() != nil || entriesRead < max {
+	if ctx.Err() != nil {
+		return images, truncated
+	}
+	// File.ReadDir uses directory order, whereas storage.List used name order.
+	// Sort only the bounded result, keeping the caller's opened URI first.
+	slices.SortFunc(images[seeded:], func(a, b fyne.URI) int {
+		return strings.Compare(a.Name(), b.Name())
+	})
+	if truncated || entriesRead < max {
 		return images, truncated
 	}
 
