@@ -409,7 +409,7 @@ func TestStoreWorkflowPublishingContract(t *testing.T) {
 			t.Errorf("publisher contains unsafe or coupled source %q", forbidden)
 		}
 	}
-	prepare, publish, found := bytes.Cut(publisher, []byte("\n  publish:"))
+	prepare, _, found := bytes.Cut(publisher, []byte("\n  publish:"))
 	if !found {
 		t.Fatal("publisher missing protected publish job")
 	}
@@ -418,14 +418,14 @@ func TestStoreWorkflowPublishingContract(t *testing.T) {
 			t.Errorf("unapproved preparation contains %q", forbidden)
 		}
 	}
-	actions := regexp.MustCompile(`(?m)^\s+(?:-\s+)?uses:\s+(\S+)`).FindAllSubmatch(publish, -1)
+	actions := regexp.MustCompile(`(?m)^\s+(?:-\s+)?uses:\s+(\S+)`).FindAllSubmatch(publisher, -1)
 	if len(actions) == 0 {
-		t.Fatal("protected publish job missing action references")
+		t.Fatal("Store publisher workflow missing action references")
 	}
 	pinnedAction := regexp.MustCompile(`^[^@]+@[0-9a-f]{40}$`)
 	for _, action := range actions {
 		if !pinnedAction.Match(action[1]) {
-			t.Errorf("protected publish action must use an immutable full commit SHA: %s", action[1])
+			t.Errorf("Store publisher action must use an immutable full commit SHA: %s", action[1])
 		}
 	}
 }
