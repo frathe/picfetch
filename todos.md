@@ -8,6 +8,8 @@
 
 #### Bugfix
 
+- Bound Copy Selection PNG encoding using Max file size (MB), including
+  scanline storage and encoded output, while preserving recoverable retries.
 - Restrict release-note artwork to approved GitHub HTTPS providers and validate
   every redirect before fetching it.
 
