@@ -13,6 +13,9 @@
 
 #### Internal
 
+- Pin Microsoft Store approval and publishing actions to reviewed immutable commits
+  and guard the policy in the workflow contract tests.
+
 ## Open
 
 ## Deferred

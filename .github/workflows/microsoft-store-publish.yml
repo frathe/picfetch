@@ -45,7 +45,9 @@ jobs:
       artifact_id: ${{ steps.record.outputs.artifact-id }}
     steps:
       - name: Check out trusted main at this workflow's fixed commit
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # Inputs verified against the pinned action.yml; IDE SHA metadata is incomplete.
+        # noinspection UndefinedParamsPresent
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -69,7 +71,9 @@ jobs:
           fi
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        # Inputs verified against the pinned action.yml; IDE SHA metadata is incomplete.
+        # noinspection UndefinedParamsPresent
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
@@ -111,7 +115,9 @@ jobs:
       - name: Retain exact approval record
         id: record
         if: steps.selection.outputs.sha256 != ''
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # Inputs verified against the pinned action.yml; IDE SHA metadata is incomplete.
+        # noinspection UndefinedParamsPresent
         with:
           name: microsoft-store-approval-${{ github.run_id }}-${{ github.run_attempt }}
           path: approval.json
@@ -133,7 +139,9 @@ jobs:
       deployments: write
     steps:
       - name: Check out the same trusted publisher commit used for preparation
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # Inputs verified against the pinned action.yml; IDE SHA metadata is incomplete.
+        # noinspection UndefinedParamsPresent
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -141,14 +149,18 @@ jobs:
 
       - name: Download the reviewed approval artifact by immutable ID
         if: needs.prepare.outputs.artifact_id != ''
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        # Inputs verified against the pinned action.yml; IDE SHA metadata is incomplete.
+        # noinspection UndefinedParamsPresent
         with:
           artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
           path: approval
           merge-multiple: true
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        # Inputs verified against the pinned action.yml; IDE SHA metadata is incomplete.
+        # noinspection UndefinedParamsPresent
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
@@ -190,7 +202,9 @@ jobs:
 
       - name: Retain diagnostic result
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # Inputs verified against the pinned action.yml; IDE SHA metadata is incomplete.
+        # noinspection UndefinedParamsPresent
         with:
           name: microsoft-store-result-${{ github.run_id }}-${{ github.run_attempt }}
           path: store-result.json
