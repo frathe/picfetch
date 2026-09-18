@@ -64,14 +64,16 @@ type searchPreparation func(context.Context, string) (Item, bool, error)
 
 func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan SearchQuery, prepare searchPreparation, validate func(context.Context, Item, []Match, bool) error, refresh func(context.Context, []Item), emit func(SearchEvent) error) error {
 	paths := make([]string, 0, len(request.Paths))
-	members := make(map[string]bool)
+	// Match equivalent input paths without changing the caller's identities.
+	// In particular, Windows file URIs use slashes while Clean uses backslashes.
+	members := make(map[string]string)
 	for _, path := range request.Paths {
 		if !filepath.IsAbs(path) {
 			return fmt.Errorf("search source must be an absolute path")
 		}
-		path = filepath.Clean(path)
-		if !members[path] {
-			members[path] = true
+		key := filepath.Clean(path)
+		if _, exists := members[key]; !exists {
+			members[key] = path
 			paths = append(paths, path)
 		}
 	}
@@ -86,6 +88,7 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 	items := make([]Item, 0, len(paths))
 	prepared := make(map[string]Item, len(paths))
 	var query SearchQuery
+	var queryInScope bool
 	var queryFailed bool
 	cacheChanged := false
 	var ranked []Item
@@ -111,6 +114,11 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 			return false
 		}
 		q.ReferencePath = filepath.Clean(q.ReferencePath)
+		path, exists := members[q.ReferencePath]
+		queryInScope = exists
+		if exists {
+			q.ReferencePath = path
+		}
 		query = q
 		queryFailed = false
 		ranked, rankedAt = nil, 0
@@ -124,7 +132,7 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 		}
 		ref, ok := prepared[query.ReferencePath]
 		if !ok || ref.Error != "" {
-			if !ok && members[query.ReferencePath] {
+			if !ok && queryInScope {
 				return nil
 			}
 			queryFailed = true
@@ -196,7 +204,7 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 				lastProgress = time.Now()
 			}
 		}
-		if !members[query.ReferencePath] && !queryFailed {
+		if !queryInScope && !queryFailed {
 			if err := publish(false); err != nil {
 				return err
 			}
@@ -231,7 +239,7 @@ func runSearchSession(ctx context.Context, request SearchRequest, queries <-chan
 			continue
 		}
 		path := query.ReferencePath
-		if _, ok := prepared[path]; ok || !members[path] {
+		if _, ok := prepared[path]; ok || !queryInScope {
 			for cursor < len(paths) {
 				path = paths[cursor]
 				cursor++

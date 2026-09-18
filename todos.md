@@ -8,7 +8,24 @@
 
 #### Bugfix
 
+- Restore Windows "Find more like this" results and analysis-cache reuse by
+  preserving URI path identities through the search worker. Add a mandatory
+  native Windows regression guard; verification is tracked in
+  [the plan](plans/2026-09-19-windows-visual-search-paths.md).
+
 #### Internal
+
+## Open
+
+### Native Windows similarity-cache tests
+
+The full `internal/similarity` suite has three failures on Windows that also
+reproduce with the pre-fix search implementation: permission assumptions in
+`TestAnalysisCacheMaintenancePartialFailure`, URI/native path comparison in
+`TestAnalysisCacheConfinementManagedUsageAndTemps`, and open-directory rename
+sharing in `TestFavoriteAnalysisFollowsOpenedDirectory`. Qualify these separately;
+the Windows search tests and production search/cache integration pass. See
+[the regression evidence](plans/2026-09-19-windows-visual-search-paths.md).
 
 ## Deferred
 

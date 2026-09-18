@@ -91,6 +91,59 @@ func TestSearchSessionInitialReferenceFirstAndFinal(t *testing.T) {
 	}
 }
 
+func TestSearchSessionPreservesSourcePaths(t *testing.T) {
+	for _, spelling := range []string{"native", "uri", "mixed"} {
+		t.Run(spelling, func(t *testing.T) {
+			dir := t.TempDir()
+			a, b := filepath.Join(dir, "first image.jpg"), filepath.Join(dir, "second image.jpg")
+			if spelling != "native" {
+				a = filepath.ToSlash(a)
+			}
+			if spelling == "uri" {
+				b = filepath.ToSlash(b)
+			}
+			queries := make(chan SearchQuery, 1)
+			queries <- SearchQuery{ID: 1, ReferencePath: filepath.Clean(b)}
+			var prepared []string
+			var finals []SearchEvent
+			err := runSearchSession(context.Background(), SearchRequest{SessionID: 7, Paths: []string{a, b, filepath.Clean(a)}, Limit: 30}, queries,
+				func(_ context.Context, path string) (Item, bool, error) {
+					prepared = append(prepared, path)
+					vector := make([]float32, 768)
+					vector[0] = 1
+					return Item{Path: path, Embedding: vector}, false, nil
+				}, nil, nil, func(event SearchEvent) error {
+					if event.Kind == SearchFinal {
+						finals = append(finals, event)
+					}
+					if event.Kind == SearchReady {
+						if event.QueryID == 1 {
+							queries <- SearchQuery{ID: 2, ReferencePath: filepath.Clean(a)}
+						} else {
+							close(queries)
+						}
+					}
+					return nil
+				})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(prepared, []string{b, a}) {
+				t.Fatalf("preparation changed source identity or repeated an alias: got %q, want %q", prepared, []string{b, a})
+			}
+			if len(finals) != 2 {
+				t.Fatalf("retained search published %d final results; want 2", len(finals))
+			}
+			for i, want := range []string{a, b} {
+				final := finals[i]
+				if final.QueryID != uint64(i+1) || final.Processed != 2 || final.Total != 2 || len(final.Matches) != 1 || final.Matches[0].Path != want {
+					t.Fatalf("query %d did not preserve its result identity %q: %+v", i+1, want, final)
+				}
+			}
+		})
+	}
+}
+
 func TestSearchSessionFavoriteSaveRetainsQueryAndPreparation(t *testing.T) {
 	dir := t.TempDir()
 	paths := []string{filepath.Join(dir, "a.jpg"), filepath.Join(dir, "b.jpg"), filepath.Join(dir, "c.jpg")}

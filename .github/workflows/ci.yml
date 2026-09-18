@@ -168,6 +168,9 @@ jobs:
       - name: Execute native Windows guards
         run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json"
 
+      - name: Check Windows visual search
+        run: go test -tags no_emoji,nodynamic ./internal/similarity -run '^TestSearch' -count=1 -timeout 3m
+
       - name: Execute Microsoft Store distribution guards
         run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json"
 
