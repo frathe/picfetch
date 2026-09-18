@@ -168,7 +168,15 @@ Budget: 0 implementation spawns; 1 lead review round; full suite no.
   pool. Both dispatcher launch paths now use the same tracked dispatch helper;
   `go test -race -tags no_emoji,nodynamic ./internal/decodepool -count=1` and
   `go test -race -tags no_emoji,nodynamic ./internal/ui/grid ./internal/ui/display -count=1`
-  passed. A new fresh review is required after its push.
+  passed.
+- The replacement Codex review on `1982327` found a second P1 in the same
+  shutdown barrier: a started `context.AfterFunc` callback could outlive
+  `Wait`. Queues now arm a callback only for an active work epoch and give it a
+  tracked pending lease until either `stop` succeeds or the callback returns.
+  Idle reusable queues hold no callback, while a later active epoch rearms one.
+  Deterministic running-callback, idle-cancellation, and queue-rearm
+  regressions passed alongside the decode-pool, Grid, and display race gates.
+  A new fresh review is required after its push.
 
 ## Cost ledger
 
@@ -179,4 +187,4 @@ Budget: 0 implementation spawns; 1 lead review round; full suite no.
 | T2 | 0 / 0 | 1 lead | no | Hot analyzer context. |
 | T3 | 0 / 0 | 1 lead | no | Captured existing root maintenance seam. |
 | T4 | 0 / 0 | 1 lead | no | Policy record and asset-qualified case. |
-| Gate | — | 2 lead | CI | First fresh review found and validated one shutdown-lifetime defect; the replacement review and CI run are pending. |
+| Gate | — | 3 lead | CI | Two fresh reviews found and validated shutdown-lifetime defects; the next replacement review and CI run are pending. |

@@ -19,6 +19,9 @@ type Pool[K, V comparable] struct {
 	limit    int
 	inflight sync.Map
 	pending  sync.WaitGroup
+	// afterFunc is per-pool so callback lifetimes can be held deterministically
+	// in tests. New supplies context.AfterFunc.
+	afterFunc func(context.Context, func()) func() bool
 
 	mu            sync.Mutex
 	high, low     []job[K, V]
@@ -27,21 +30,20 @@ type Pool[K, V comparable] struct {
 	cancelling    bool
 }
 
-// Queue binds a related set of jobs to one context. A Queue's cancellation
-// removes every job still waiting for a worker and calls it with acquired set
-// to false. Reusing one Queue for a logical work session therefore makes one
-// cancellation cleanup pass, rather than one goroutine per queued job.
+// Queue binds a related set of jobs to one context. It arms one cancellation
+// callback while it has work; cancellation removes every waiting job and calls
+// it with acquired set to false. Reusing one Queue for a logical work session
+// therefore makes one cancellation cleanup pass, rather than one goroutine per
+// queued job.
 type Queue[K, V comparable] struct {
 	pool *Pool[K, V]
 	ctx  context.Context
 
-	// stop unregisters the cancellation callback for Pool.Go's one-job
-	// convenience queue. All fields below are guarded by pool.mu.
+	// stop unregisters the callback for the current non-idle work epoch.
+	// All fields below are guarded by pool.mu.
 	stop        func() bool
-	oneShot     bool
 	cancelled   bool
 	outstanding int
-	stopped     bool
 }
 
 type job[K, V comparable] struct {
@@ -55,7 +57,7 @@ func New[K, V comparable](limit int) *Pool[K, V] {
 	if limit <= 0 {
 		panic("decodepool: limit must be positive")
 	}
-	return &Pool[K, V]{limit: limit}
+	return &Pool[K, V]{limit: limit, afterFunc: context.AfterFunc}
 }
 
 // Claim records that work is being spawned for key toward v, reporting
@@ -81,13 +83,11 @@ func (p *Pool[K, V]) Release(key K, v V) {
 // work session through the returned Queue so cancellation can release pending
 // claims and accounting without waiting for an occupied decode slot.
 func (p *Pool[K, V]) Begin(ctx context.Context) *Queue[K, V] {
-	return p.begin(ctx, false)
+	return p.begin(ctx)
 }
 
-func (p *Pool[K, V]) begin(ctx context.Context, oneShot bool) *Queue[K, V] {
-	q := &Queue[K, V]{pool: p, ctx: ctx, oneShot: oneShot}
-	q.stop = context.AfterFunc(ctx, func() { p.cancel(q) })
-	return q
+func (p *Pool[K, V]) begin(ctx context.Context) *Queue[K, V] {
+	return &Queue[K, V]{pool: p, ctx: ctx}
 }
 
 // Go adds interactive work to the pool without blocking its caller. It is a
@@ -99,7 +99,7 @@ func (p *Pool[K, V]) begin(ctx context.Context, oneShot bool) *Queue[K, V] {
 // work when acquired is false. The slot is held for the whole of fn and
 // released when it returns.
 func (p *Pool[K, V]) Go(ctx context.Context, fn func(acquired bool)) {
-	p.begin(ctx, true).Go(fn)
+	p.begin(ctx).Go(fn)
 }
 
 // Go adds interactive work to q. Newer interactive jobs run before older ones
@@ -129,6 +129,9 @@ func (q *Queue[K, V]) submit(fn func(acquired bool), low bool) {
 		p.mu.Unlock()
 		return
 	}
+	if q.outstanding == 1 {
+		p.armCancellationLocked(q)
+	}
 	if low {
 		p.low = append(p.low, item)
 	} else {
@@ -152,6 +155,17 @@ func (p *Pool[K, V]) cancelLocked(q *Queue[K, V]) {
 	p.high = p.removeQueueLocked(p.high, q)
 	p.low = p.removeQueueLocked(p.low, q)
 	p.startCancellationWorkerLocked()
+}
+
+// armCancellationLocked takes a pending credit before registering the callback.
+// The current job already owns a credit, so Wait cannot observe a zero count
+// between the Add and a cancellation callback that starts immediately.
+func (p *Pool[K, V]) armCancellationLocked(q *Queue[K, V]) {
+	p.pending.Add(1)
+	q.stop = p.afterFunc(q.ctx, func() {
+		defer p.pending.Done()
+		p.cancel(q)
+	})
 }
 
 func (p *Pool[K, V]) removeQueueLocked(jobs []job[K, V], q *Queue[K, V]) []job[K, V] {
@@ -266,20 +280,19 @@ func (p *Pool[K, V]) finished(item job[K, V]) {
 	var stop func() bool
 	p.mu.Lock()
 	q.outstanding--
-	if q.oneShot && q.outstanding == 0 && !q.stopped {
-		q.stopped = true
-		stop = q.stop
+	if q.outstanding == 0 {
+		stop, q.stop = q.stop, nil
 	}
 	p.mu.Unlock()
-	if stop != nil {
-		_ = stop()
+	if stop != nil && stop() {
+		p.pending.Done()
 	}
 	p.pending.Done()
 }
 
-// Wait blocks until every function submitted so far and the workers or
-// cancellation dispatcher that own it have exited. The application never
-// needs this; tests do.
+// Wait blocks until every function submitted so far, its cancellation callback,
+// and the workers or cancellation dispatcher that own it have exited. The
+// application never needs this; tests do.
 func (p *Pool[K, V]) Wait() {
 	p.pending.Wait()
 }
