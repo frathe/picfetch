@@ -284,6 +284,9 @@ func TestMergeModeGetterSetter(t *testing.T) {
 // is what TestImages_RecursesIntoNestedDirectories in internal/filescan
 // covers now; what still earns this one its keep is the goroutine-to-UI
 // wiring for a directory drop, not the walk itself.
+// Keep its fixture independent so it exercises the complete drop path.
+//
+//goland:noinspection DuplicatedCode
 func TestHandleDrop_RecursesIntoNestedDirectories(t *testing.T) {
 	v := newTestViewer(t)
 
@@ -655,18 +658,37 @@ func TestHandleDrop_UnsupportedSingleFileDoesNotExpandFolder(t *testing.T) {
 }
 
 func TestHandleDrop_SiblingScanTruncationToast(t *testing.T) {
-	v := newTestViewer(t)
-	v.settings.maxScan = 2
-	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
-	dropAndWait(t, v, files[0])
-	if n := len(v.state.files); n != 2 {
-		t.Fatalf("files = %d, want 2 (maxScan)", n)
+	for _, tc := range []struct {
+		name       string
+		imageNames []string
+		clutter    int
+		wantImages int
+	}{
+		{"image limit", []string{"a.jpg", "b.jpg", "c.jpg"}, 0, 2},
+		{"entry limit", []string{"a.jpg"}, 3, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newTestViewer(t)
+			v.settings.maxScan = 2
+			files := uitest.TempDirJPEGURIs(t, tc.imageNames...)
+			for i := range tc.clutter {
+				name := filepath.Join(filepath.Dir(files[0].Path()), fmt.Sprintf("clutter%d.txt", i))
+				if err := os.WriteFile(name, []byte("x"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			dropAndWait(t, v, files[0])
+			if n := len(v.state.files); n != tc.wantImages {
+				t.Fatalf("files = %d, want %d", n, tc.wantImages)
+			}
+			if !v.toast.card.Visible() {
+				t.Fatal("want a toast warning that the scan was truncated")
+			}
+			const want = "scan limit of 2 reached - some files may not have been included"
+			if v.toast.text.Text != want {
+				t.Errorf("toast text = %q, want %q", v.toast.text.Text, want)
+			}
+			settleToast(t, v)
+		})
 	}
-	if !v.toast.card.Visible() {
-		t.Fatal("want a toast warning that the scan was truncated")
-	}
-	if !strings.Contains(v.toast.text.Text, "2") {
-		t.Errorf("toast text = %q, want it to mention the cap (2)", v.toast.text.Text)
-	}
-	settleToast(t, v)
 }

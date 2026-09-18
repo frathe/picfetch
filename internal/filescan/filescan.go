@@ -16,7 +16,11 @@ package filescan
 
 import (
 	"context"
+	"io"
+	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -167,14 +171,19 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 // Siblings returns the supported images that share file's parent directory.
 // It does not recurse into subdirectories. If file itself is a supported
 // image it is always the first entry — the caller's URI, not a possibly
-// different URI storage.List produced for the same path — so a caller that
+// different URI the listing produced for the same path — so a caller that
 // looks the opened file up by URI.String() still finds it after a sort.
-// Directories among the children are skipped. max is floored at 1, the same
-// as Images; truncated means the listing stopped at max rather than
-// exhausting the directory. On Parent/List failure the result is just file
-// when it is a supported image, otherwise empty. ctx is checked before any
-// work and before each child; an already-cancelled context returns nil,
-// false rather than a partial directory.
+// Other admitted siblings retain name order. Directories among the children
+// are skipped. For file URIs, at most max directory entries are considered,
+// plus one entry to detect truncation, even when most entries are not images; this
+// keeps the cap effective as a bound on both work and allocation. Non-file
+// repositories have no bounded listing API, so they retain only the opened
+// file instead of materializing an unbounded parent listing. max is floored
+// at 1, the same as Images; truncated means either the image cap or the
+// directory-entry budget was reached before exhausting the directory. On
+// Parent/open failure the result is just file when it is a supported image,
+// otherwise empty. ctx is checked before any work and before each child; an
+// already-cancelled context returns nil, false rather than a partial directory.
 func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int)) (images []fyne.URI, truncated bool) {
 	if max < 1 {
 		max = 1
@@ -220,17 +229,52 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 	if truncated {
 		return images, truncated
 	}
+	seeded := len(images)
 
 	parent, err := storage.Parent(file)
 	if err != nil {
 		return images, truncated
 	}
-	children, err := storage.List(parent)
+	if parent.Scheme() != "file" {
+		return images, truncated
+	}
+	directory, err := os.Open(parent.Path())
 	if err != nil {
 		return images, truncated
 	}
-	for _, child := range children {
-		add(child)
+	defer func() { _ = directory.Close() }()
+
+	// Bound each allocation; subsequent batches continue up to max entries.
+	const batchSize = 256
+	entriesRead := 0
+	for entriesRead < max && !truncated && ctx.Err() == nil {
+		batch := min(batchSize, max-entriesRead)
+		entries, readErr := directory.ReadDir(batch)
+		for _, entry := range entries {
+			entriesRead++
+			add(storage.NewFileURI(filepath.Join(parent.Path(), entry.Name())))
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	if ctx.Err() != nil {
+		return images, truncated
+	}
+	// File.ReadDir uses directory order, whereas storage.List used name order.
+	// Sort only the bounded result, keeping the caller's opened URI first.
+	slices.SortFunc(images[seeded:], func(a, b fyne.URI) int {
+		return strings.Compare(a.Name(), b.Name())
+	})
+	if truncated || entriesRead < max {
+		return images, truncated
+	}
+
+	// Read one entry past the budget to distinguish an exactly exhausted
+	// directory from one whose remaining entries were deliberately skipped.
+	more, readErr := directory.ReadDir(1)
+	if len(more) > 0 || (readErr != nil && readErr != io.EOF) {
+		truncated = true
 	}
 	return images, truncated
 }

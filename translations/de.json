@@ -29,7 +29,7 @@
    "Scanning... 0 images": "Scannen... 0 Bilder",
    "Scanning... %d images": "Scannen... %d Bilder",
    "Sorting...": "Sortieren...",
-   "stopped scanning after %d images - the dropped folder tree is very large": "Scannen nach %d Bildern gestoppt - der abgelegte Ordnerbaum ist sehr groß",
+   "scan limit of %d reached - some files may not have been included": "Scan-Limit von %d erreicht - möglicherweise wurden nicht alle Dateien berücksichtigt",
    "cancelled scanning": "Scannen abgebrochen",
    "cancelled sorting": "Sortieren abgebrochen",
    "none of the %d dropped files is a supported image": "Keine der %d abgelegten Dateien ist ein unterstütztes Bildformat",

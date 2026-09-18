@@ -8,6 +8,8 @@
 
 #### Bugfix
 
+- Bound single-image sibling scans by the configured scan limit, preserve
+  sibling name order, and report truncation accurately for non-image entries.
 - Bound Copy Selection PNG encoding using Max file size (MB), including
   scanline storage and encoded output, while preserving recoverable retries.
 - Restrict release-note artwork to approved GitHub HTTPS providers and validate

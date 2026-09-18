@@ -69,6 +69,9 @@ func TestImages_FiltersUnsupportedFiles(t *testing.T) {
 	}
 }
 
+// Keep this traversal fixture beside its assertions, independent of UI tests.
+//
+//goland:noinspection DuplicatedCode
 func TestImages_RecursesIntoNestedDirectories(t *testing.T) {
 	root := t.TempDir()
 	for i := range 3 {
@@ -399,8 +402,8 @@ func writeJPEG(t *testing.T, dir, name string) fyne.URI {
 func TestSiblings_ListsSameDirectoryOnly(t *testing.T) {
 	root := t.TempDir()
 	opened := writeJPEG(t, root, "b.jpg")
-	writeJPEG(t, root, "a.jpg")
 	writeJPEG(t, root, "c.jpg")
+	writeJPEG(t, root, "a.jpg")
 	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -424,11 +427,8 @@ func TestSiblings_ListsSameDirectoryOnly(t *testing.T) {
 	for i, u := range images {
 		names[i] = u.Name()
 	}
-	if !slices.Contains(names, "a.jpg") || !slices.Contains(names, "c.jpg") {
-		t.Fatalf("names = %v, want a.jpg and c.jpg among siblings", names)
-	}
-	if slices.Contains(names, "nested.jpg") || slices.Contains(names, "notes.txt") {
-		t.Fatalf("names = %v, must not include nested.jpg or notes.txt", names)
+	if want := []string{"b.jpg", "a.jpg", "c.jpg"}; !slices.Equal(names, want) {
+		t.Fatalf("names = %v, want opened file followed by name-ordered siblings %v", names, want)
 	}
 }
 
@@ -441,6 +441,39 @@ func TestSiblings_ListFailureReturnsOpenedFile(t *testing.T) {
 	}
 	if len(images) != 1 || images[0].String() != opened.String() {
 		t.Fatalf("images = %v, want just the opened URI after List fails", images)
+	}
+}
+
+func TestSiblings_ReadsMultipleBatchesInNameOrder(t *testing.T) {
+	root := t.TempDir()
+	for i := 299; i >= 0; i-- {
+		writeJPEG(t, root, fmt.Sprintf("photo%03d.jpg", i))
+	}
+	opened := storage.NewFileURI(filepath.Join(root, "photo150.jpg"))
+	images, truncated := Siblings(context.Background(), opened, 400, nil)
+	if len(images) != 300 || truncated {
+		t.Fatalf("images = %d, truncated = %v, want all 300 images across batches", len(images), truncated)
+	}
+	if images[0].String() != opened.String() {
+		t.Fatalf("images[0] = %q, want opened URI %q", images[0], opened)
+	}
+	names := make([]string, len(images)-1)
+	for i, u := range images[1:] {
+		names[i] = u.Name()
+	}
+	if !slices.IsSorted(names) {
+		t.Fatal("siblings are not in name order across directory-read batches")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	images, truncated = Siblings(ctx, opened, 400, func(n int) {
+		if n == 260 {
+			cancel()
+		}
+	})
+	if len(images) != 260 || truncated {
+		t.Fatalf("cancelled scan: images = %d, truncated = %v, want 260 images without truncation", len(images), truncated)
 	}
 }
 
@@ -467,6 +500,37 @@ func TestSiblings_CapsAtMaxKeepsOpenedFile(t *testing.T) {
 	}
 	if images[0].String() != opened.String() {
 		t.Fatalf("images[0] = %q, want opened file even when the cap is hit", images[0])
+	}
+}
+
+func TestSiblings_CapsDirectoryEntriesWhenFilesAreUnsupported(t *testing.T) {
+	root := t.TempDir()
+	opened := writeJPEG(t, root, "opened.jpg")
+	for i := range 20 {
+		name := filepath.Join(root, fmt.Sprintf("clutter%02d.txt", i))
+		if err := os.WriteFile(name, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, tc := range []struct {
+		limit     int
+		truncated bool
+	}{
+		{3, true},
+		{20, true},
+		{21, false},
+		{22, false},
+	} {
+		t.Run(fmt.Sprintf("limit %d", tc.limit), func(t *testing.T) {
+			images, truncated := Siblings(context.Background(), opened, tc.limit, nil)
+			if truncated != tc.truncated {
+				t.Fatalf("truncated = %v, want %v for 21 directory entries", truncated, tc.truncated)
+			}
+			if len(images) != 1 || images[0].String() != opened.String() {
+				t.Fatalf("images = %v, want only the opened image", images)
+			}
+		})
 	}
 }
 
