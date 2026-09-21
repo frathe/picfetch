@@ -1,5 +1,5 @@
 # Publishes each GitHub release to microsoft/winget-pkgs as
-# io.github.frathe.picfetch.
+# frathe.picfetch.
 #
 # Triggered by the Release workflow completing, not on: release: GitHub does
 # not start new workflow runs from events created with GITHUB_TOKEN, and
@@ -76,7 +76,7 @@ jobs:
       # it runs `cargo binstall` but ubuntu-slim has no Rust toolchain.
       - uses: vedantmgoyal9/winget-releaser@b3a5dae0047c6180023acba3f548c55fdf6b7193
         with:
-          identifier: io.github.frathe.picfetch
+          identifier: frathe.picfetch
           # Default regex is exe/msi/msix/appx and misses these portable zips.
           # Only Windows zip assets; not Linux tarballs or macOS zips.
           installers-regex: 'picfetch-windows-(amd64|arm64)\.zip$'

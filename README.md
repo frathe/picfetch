@@ -144,7 +144,7 @@ Windows builds for both x64 (`picfetch-windows-amd64.zip`) and ARM64
 ### Windows (WinGet)
 
 ```powershell
-winget install io.github.frathe.picfetch
+winget install frathe.picfetch
 ```
 
 Releases are immutable. GitHub issues a Sigstore release attestation that
