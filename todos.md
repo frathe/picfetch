@@ -8,14 +8,7 @@
 
 #### Bugfix
 
-![trane pest control](https://github.com/frathe/picfetch/raw/main/assets/trane/trane_pest_control.png?raw=true)
-
-- fix "more like this" not correctly working on Windows 11.
-
 #### Internal
-
-- changed winget application identifier to `frathe.picfetch` 
-  (from `io.github.frathe.picfetch`).
 
 ## Open
 
