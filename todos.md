@@ -6,21 +6,41 @@
 
 #### New Features
 
+- Added Help -> Licenses, showing the release's embedded third-party notices
+  as Markdown without an internet connection, including Store builds.
+
 #### Bugfix
+
+- License blocks now wrap and share the document's scroll surface, so mouse
+  wheel scrolling works over the text as well as the background.
 
 #### Internal
 
+- Expanded the AVIF/native/WASI notices with full reviewed license, patent and
+  attribution texts. Added pinned source/payload checks and release-archive
+  guards for both loose notices and the executable's embedded document.
+
 ## Open
 
-### Native Windows similarity-cache tests
+### Finish AVIF notice release qualification
 
-The full `internal/similarity` suite has three failures on Windows that also
-reproduce with the pre-fix search implementation: permission assumptions in
-`TestAnalysisCacheMaintenancePartialFailure`, URI/native path comparison in
-`TestAnalysisCacheConfinementManagedUsageAndTemps`, and open-directory rename
-sharing in `TestFavoriteAnalysisFollowsOpenedDirectory`. Qualify these separately;
-the Windows search tests and production search/cache integration pass. See
-[the regression evidence](plans/2026-09-19-windows-visual-search-paths.md).
+Implementation and local evidence are recorded in
+[the plan](plans/2026-09-21-avif-license-viewer.md). Remaining before release:
+
+- Obtain upstream evidence for the historical libyuv checkout and modified
+  WASI SDK/libc inputs used in the pinned AVIF payload. The source texts are
+  retained, but the floating libyuv branch and SDK `33.0+m` do not establish
+  exact historical source correspondence; see
+  [provenance limits](scripts/avifnotices/README.md#provenance-limits).
+- Run complete verification on native Linux/amd64 or CI; this workstation's
+  Linux/aarch64 Docker daemon cannot satisfy the worker-isolation test gate.
+- Verify native offline Licenses UI on Windows/Linux, and final signed Store
+  MSIX/bundle plus WACK. Unsigned GitHub archives for both architectures and
+  Store executable payloads passed local notice checks; actual MSIX/bundle
+  structure has automated fixture coverage, not a signed local build.
+- Recheck all final release artifacts against their exact dependency/payload
+  versions. AVIF, ONNX and other bundled native/WASM updates must include
+  corresponding notice updates in the same change.
 
 ## Deferred
 
@@ -45,7 +65,7 @@ remains background for that deferred work.
 HEIC/HEIF is currently unsupported. A future restoration needs a documented
 distribution grant or another qualified decoder, containment and platform
 verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
-is closed by removal. 
+is closed by removal.
 
 The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
 include libheif/libde265 with LGPL distribution work and hpvcd with unresolved

@@ -41,7 +41,7 @@ func TestRun_RejectsUnavailableFavoriteStorageBeforeBuildingViewer(t *testing.T)
 
 	// A nil app makes accidental viewer construction fail instead of starting
 	// workers after the storage failure.
-	err := Run(nil, nil, launch.Options{})
+	err := Run(nil, nil, launch.Options{}, "")
 	if !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "create private favorites directory") {
 		t.Fatalf("Run error = %v, want the private-storage creation failure", err)
 	}

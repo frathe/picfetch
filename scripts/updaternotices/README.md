@@ -44,6 +44,13 @@ use the archive root. An MSIX bundle must contain `picfetch-x64.msix` and
 misplaced or non-regular notices fail. Archive inspection reads without extraction
 and does not validate code signatures, executable behavior or Windows SDK schemas.
 
+Every payload must also contain exactly one regular executable with the complete
+checkout `THIRD-PARTY-NOTICES.md` embedded as contiguous bytes: `picfetch.exe`
+for Windows/Store, `PicFetch.app/Contents/MacOS/picfetch` for macOS, and the archive
+basename without `.tar.gz` for Linux. The bounded-memory scan reads through EOF
+even after finding the text so checksum/trailer errors still fail. This checks
+the offline notice resource after linking/signing; Help's tests check its display.
+
 CI checks source coverage. Release checks all six final archives after Windows
 signing and before publication; Store packaging checks the final signed bundle
 before recording its provenance or uploading it. Artifact mode intentionally
