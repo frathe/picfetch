@@ -17,6 +17,10 @@
 
 #### Internal
 
+- Create a three-minute 1080p PicFetch feature promo with original electronic
+  music, Trane artwork, 22 animated scenes and verified media output. see the
+  [production record](finished_refactorings/2026-09-22-picfetch-promo.md).
+
 - Accept Go build diagnostics in the native qualification runner while still
   rejecting build failures and missing or skipped required tests.
 
