@@ -21,7 +21,7 @@ func TestNativeSuitesSelectPlatformAndDistributionGuards(t *testing.T) {
 		{"windows", "windows", "github.com/frathe/picfetch/internal/update", "TestApplyWindows_MissingStagedBinaryRestoresDest", ""},
 		{"windows", "windows", "github.com/frathe/picfetch/internal/distribution", "TestStoreManaged_DefaultBuildIsFalse", ""},
 		{"macos", "darwin", "github.com/frathe/picfetch", "TestInstall_GraftsOntoGLFWsDelegate", ""},
-		{"store", "darwin", "github.com/frathe/picfetch/internal/distribution", "TestStoreManaged_MicrosoftStoreBuildIsTrue", "microsoftstore"},
+		{"store", "windows", "github.com/frathe/picfetch/internal/distribution", "TestStoreManaged_MicrosoftStoreBuildIsTrue", "microsoftstore"},
 	} {
 		t.Run(tc.name+"/"+tc.test, func(t *testing.T) {
 			s, err := suiteFor(tc.name, tc.os)
@@ -34,6 +34,46 @@ func TestNativeSuitesSelectPlatformAndDistributionGuards(t *testing.T) {
 		if _, err := suiteFor(tc[0], tc[1]); err == nil {
 			t.Errorf("accepted %v", tc)
 		}
+	}
+}
+
+func TestHEICNativeInventory(t *testing.T) {
+	for _, tc := range []struct{ name, host, platformTest string }{
+		{"linux", "linux", ""},
+		{"macos", "darwin", "TestHEICDarwinNativeQualification"},
+		{"windows", "windows", "TestHEICWindowsWICProbe"},
+		{"store", "windows", "TestHEICWindowsWICProbe"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := suiteFor(tc.name, tc.host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, required := range []guard{
+				{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeQualification"},
+				{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeQualification/full_primary_10_bit"},
+				{"github.com/frathe/picfetch/internal/heic", "TestHEICNativePrimarySelection"},
+				{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeCorpus/icc-srgb8"},
+				{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeCorpus/icc-p3-linear10"},
+				{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeCorpus/grid10"},
+				{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeCorpus/alpha-premultiplied10"},
+				{"github.com/frathe/picfetch/internal/similarity", "TestHEICAnalysisWorker/native_finite"},
+				{"github.com/frathe/picfetch/internal/similarity", "TestHEICAnalysisWorker/native_retained_search"},
+				{"github.com/frathe/picfetch/internal/similarity", "TestHEICAnalysisWorker/native_limits"},
+				{"github.com/frathe/picfetch/internal/imaging", "TestHEICNativeQualification"},
+				{"github.com/frathe/picfetch/internal/imaging", "TestHEICNativeQualification/nonfirst-primary"},
+			} {
+				if !slices.Contains(s.guards, required) {
+					t.Errorf("native inventory omitted %v", required)
+				}
+			}
+			if tc.platformTest != "" && !slices.Contains(s.guards, guard{"github.com/frathe/picfetch/internal/heic", tc.platformTest}) {
+				t.Errorf("native inventory omitted %s", tc.platformTest)
+			}
+		})
+	}
+	if _, err := suiteFor("store", "linux"); err == nil {
+		t.Fatal("Store native qualification accepted a Linux host")
 	}
 }
 
@@ -105,6 +145,8 @@ func TestNativeEventsRejectMissingSkippedFailedOrMalformedEvidence(t *testing.T)
 		"skipped child": valid + eventsFor(guard{g.Package, g.Test + "/Unicode"}, "run", "skip"),
 		"wrong package": eventsFor(guard{"other", g.Test}, "run", "pass"),
 		"duplicate":     valid + valid, "malformed": valid + "{",
+		"pass before run": eventsFor(g, "pass", "run"),
+		"null event":      valid + "null\n",
 		"package failure": valid + eventsFor(guard{g.Package, ""}, "fail"),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -115,6 +157,37 @@ func TestNativeEventsRejectMissingSkippedFailedOrMalformedEvidence(t *testing.T)
 	}
 	if err := validateEvents(strings.NewReader(valid), []guard{g}, io.Discard); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestHEICNativeRunnerRequiresEveryFixtureEvent(t *testing.T) {
+	parent := guard{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeQualification"}
+	child := guard{parent.Package, parent.Test + "/full_primary_10_bit"}
+	s := suite{name: "fixture", packages: []string{"./internal/heic"}, guards: []guard{parent, child}}
+	for name, childEvents := range map[string]string{
+		"present": eventsFor(child, "run", "pass"),
+		"missing": "",
+		"skipped": eventsFor(child, "run", "skip"),
+		"failed":  eventsFor(child, "run", "fail"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			var capture bytes.Buffer
+			execute := func(_ context.Context, args []string, out io.Writer) error {
+				if slices.Contains(args, "-list") {
+					_, _ = fmt.Fprintln(out, parent.Test)
+				} else {
+					_, _ = io.WriteString(out, eventsFor(parent, "run")+childEvents+eventsFor(parent, "pass"))
+				}
+				return nil
+			}
+			err := runSuite(context.Background(), s, execute, io.Discard, &capture)
+			if (err == nil) != (name == "present") {
+				t.Fatalf("fixture evidence %q: %v", name, err)
+			}
+			if capture.Len() == 0 {
+				t.Fatal("top-level build inventory prevented fixture event validation")
+			}
+		})
 	}
 }
 

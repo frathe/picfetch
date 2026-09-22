@@ -26,6 +26,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -68,6 +69,12 @@ type Window struct {
 	updatesManagedByStore bool
 	cacheContent          func() fyne.CanvasObject
 	cacheClosed           func()
+	heicGuideAction       func()
+	heicGuideButton       *widget.Button
+	heicCheckAction       func()
+	heicCheckButton       *widget.Button
+	heicStatusLabel       *widget.Label
+	heicStatus            heic.State
 
 	// prefs is the form snapshot Show seeded, mutated by each control, and
 	// pushed back through Host.ApplySettings. Ignored while the window is
@@ -127,6 +134,9 @@ func (w *Window) SetCacheTab(content func() fyne.CanvasObject, closed func()) {
 	w.cacheContent, w.cacheClosed = content, closed
 }
 
+// SetHEICGuideAction connects the Help-owned offline installation guide.
+func (w *Window) SetHEICGuideAction(action func()) { w.heicGuideAction = action }
+
 // ConfirmClearAnalysis owns confirmation on the live Settings window.
 func (w *Window) ConfirmClearAnalysis(answer func(bool)) {
 	if w.win.Window() == nil {
@@ -154,6 +164,9 @@ func (w *Window) Show(prefs preferences.State, updatesManagedByStore bool) {
 		w.mergeCheck, w.shuffleCheck = nil, nil
 		w.favPreviewCheck, w.updateCheck = nil, nil
 		w.staticSizeCheck = nil
+		w.heicGuideButton = nil
+		w.heicCheckButton = nil
+		w.heicStatusLabel = nil
 		w.updateNow = nil
 		w.updateVersion = nil
 		w.updateManaged = nil
@@ -406,7 +419,15 @@ func (w *Window) build() fyne.CanvasObject {
 	meta := w.app.Metadata()
 	w.updateVersion = widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
-	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit)
+	heicGuide := widget.NewButton(lang.L("HEIC installation instructions"), nil)
+	w.heicGuideButton = heicGuide
+	heicGuide.OnTapped = func() {
+		if w.heicGuideButton == heicGuide && w.heicGuideAction != nil {
+			w.heicGuideAction()
+		}
+	}
+	heic := container.NewVBox(w.buildHEICSupport(), heicGuide)
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit, widget.NewSeparator(), heic)
 	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
 	updates := container.NewVBox(w.updateVersion)
 	if w.updatesManagedByStore {

@@ -23,6 +23,7 @@ import (
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
 
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -30,6 +31,9 @@ import (
 // is resolvable; without it, every test that reads a temp file through a
 // fyne.URI fails with "no repository registered for scheme 'file'".
 func TestMain(m *testing.M) {
+	if heic.WorkerMain() {
+		return
+	}
 	test.NewApp()
 	os.Exit(m.Run())
 }

@@ -291,7 +291,7 @@ type favoriteListHost struct{ *viewer }
 func (h favoriteListHost) CurrentFiles() []fyne.URI {
 	order := h.captureSearchOrder()
 	if !order.active {
-		return slices.Clone(h.state.files)
+		return h.persistedFiles(h.state.files)
 	}
 	indexes := order.indexes
 	files := make([]fyne.URI, len(indexes))

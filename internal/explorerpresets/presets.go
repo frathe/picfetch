@@ -62,7 +62,7 @@ func (r Rule) Validate() error {
 	}
 	if r.Format != "" {
 		valid := false
-		for _, ext := range imaging.SupportedExtensions() {
+		for _, ext := range imaging.RecognizedExtensions() {
 			ext = strings.TrimPrefix(ext, ".")
 			if ext == "jpeg" {
 				ext = "jpg"

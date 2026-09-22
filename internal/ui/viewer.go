@@ -50,6 +50,7 @@ type viewer struct {
 	// fact in internal/distribution. Tests can set the per-viewer value to
 	// exercise both delivery channels without mutable package-level seams.
 	storeManaged bool
+	heic         *heicWork
 	// quit requests application shutdown after PerformUpdate has successfully
 	// recorded apply-and-relaunch intent. buildViewer initializes it from the
 	// app instance; tests replace this per-viewer seam so they never stop the

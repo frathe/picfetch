@@ -29,13 +29,13 @@ import (
 	_ "golang.org/x/image/webp"      // registers WebP with image.Decode
 
 	_ "github.com/frathe/picfetch/internal/avifpolicy" // requires the WASM/wazero build
+	"github.com/frathe/picfetch/internal/heic"
 )
 
 // supportedExtensions lists every filename extension IsSupportedImage
 // recognizes, lowercase with a leading dot, in the order SupportedExtensions
-// reports them. scripts/plistdoctypes renders this same list into the
-// packaged macOS app's CFBundleTypeExtensions, so this is the one place a
-// new format's extensions need adding.
+// reports them. Conditional system formats belong in RecognizedExtensions;
+// package declarations use that static superset without probing this machine.
 var supportedExtensions = []string{
 	".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".ico", ".xpm",
 	".avif", ".svg",
@@ -55,9 +55,9 @@ var supportedExtensionSet = func() map[string]struct{} {
 // SupportedExtensions returns every filename extension IsSupportedImage
 // recognizes, lowercase with a leading dot, in declared order. The result is
 // a defensive copy - the caller mutating it can't affect supportedExtensions
-// itself. scripts/plistdoctypes is the one caller outside this package,
-// using it to keep the packaged macOS app's CFBundleTypeExtensions list from
-// drifting out of sync with the decoders actually registered above.
+// itself. It covers unconditional decoders only. Package declarations and
+// portable rules use RecognizedExtensions; runtime HEIC admission is captured
+// independently for each operation.
 func SupportedExtensions() []string {
 	out := make([]string, len(supportedExtensions))
 	copy(out, supportedExtensions)
@@ -296,7 +296,9 @@ func CaptureDate(u fyne.URI) (time.Time, bool) {
 }
 
 // CaptureDateContext reads bounded source bytes and extracts the capture date
-// without decoding pixels. Missing metadata is a successful zero/false result;
+// through the captured decoder policy. A native HEIC provider may decode the
+// primary image to establish canonical dimensions. Missing metadata is a
+// successful zero/false result;
 // read failures, including cancellation, remain errors for the caller's policy.
 // Context checks surround the non-interruptible metadata walk. A Read already
 // blocked in the storage backend must return before cancellation can stop I/O.
@@ -305,7 +307,11 @@ func CaptureDateContext(ctx context.Context, u fyne.URI) (time.Time, bool, error
 	if err != nil {
 		return time.Time{}, false, err
 	}
-	date := ReadMetadata(data).DateTakenTime
+	metadata, err := ReadMetadataContext(ctx, data)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	date := metadata.DateTakenTime
 	if err := ctx.Err(); err != nil {
 		return time.Time{}, false, err
 	}
@@ -331,6 +337,13 @@ func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Re
 
 	if err != nil {
 		return nil, image.Rectangle{}, err
+	}
+	if heic.IsData(data) {
+		result, readErr := readHEIC(ctx, data, false)
+		if readErr != nil {
+			return nil, image.Rectangle{}, readErr
+		}
+		return data, image.Rect(0, 0, result.Width, result.Height), nil
 	}
 
 	if isSVGData(data) {
@@ -385,6 +398,9 @@ func DecodeLoaded(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if heic.IsData(data) {
+		return decodeHEIC(ctx, data)
+	}
 
 	if isSVGData(data) {
 		return decodeVector(ctx, data)
@@ -436,7 +452,9 @@ func DecodeRecord(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 		return nil, err
 	}
 	loaded.FileSize = int64(len(data))
-	loaded.HasEXIF = !ReadMetadata(data).Empty()
+	if !heic.IsData(data) {
+		loaded.HasEXIF = !ReadMetadata(data).Empty()
+	}
 	return loaded, nil
 }
 

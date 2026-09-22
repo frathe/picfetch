@@ -13,7 +13,7 @@ import (
 )
 
 func workerCommand(ctx context.Context, executable string) *exec.Cmd {
-	return exec.CommandContext(ctx, executable)
+	return gracefulWorker(exec.CommandContext(ctx, executable))
 }
 
 // Install denial before reading requests or loading native code. TSYNC applies

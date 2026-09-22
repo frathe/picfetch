@@ -62,6 +62,7 @@ func (v *viewer) compareSelected() {
 // path and cache without changing the displayed file or removing failures
 // from the file set.
 func (v *viewer) loadComparedImage(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
+	ctx = v.heicContext(ctx)
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err

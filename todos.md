@@ -22,10 +22,15 @@ Design agreed in [the HEIC system-decoder specification](docs/heic-system-decodi
 and [ADR 0002](docs/adr/0002-system-provided-heic-decoding.md): include macOS,
 Windows and Linux, integrate all existing image consumers, and add Settings
 buttons for a support check and the current OS's Markdown installation guide.
-Linux uses installed libheif with an HEVC decoder. Implementation and native
-qualification remain open; HEIC is still disabled.
+Linux uses installed libheif with an HEVC decoder. Implementation is in progress
+under [the Deep plan](plans/2026-09-22-system-heic.md), with delegated tickets and
+lead-owned review. Linux native slices pass, including ICC-tagged photos;
+color correction is best effort and delegated to the system decoder per the
+2026-09-22 clarification. Full feature qualification remains
+open. macOS is a candidate awaiting native execution; Windows production remains
+unavailable pending designated-primary selection evidence. No release is qualified.
 The implementation spec is published in the local issue tracker at
-`.scratch/os-heic/spec.md` with status `ready-for-agent`.
+`.scratch/os-heic/spec.md`; ticket/evidence records are under `.scratch/os-heic/`.
 
 ### Finish AVIF notice release qualification
 
@@ -68,9 +73,8 @@ remains background for that deferred work.
 The system-provided decoder route is now active under the open HEIC item above.
 Bundled decoder alternatives below remain deferred.
 
-HEIC/HEIF is currently unsupported. A future restoration needs a documented
-distribution grant or another qualified decoder, containment and platform
-verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
+Restoring a bundled decoder still needs a documented distribution grant,
+containment and platform verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
 is closed by removal.
 
 The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
@@ -80,7 +84,7 @@ gen2brain replacements. The authorized review of h265 v0.2.3 found an invalid
 result invariant, incomplete translated-source provenance and unresolved HEVC
 patent obligations. Its still decoder can also fall back to sequence decoding,
 so a future adapter must reject sequences explicitly. The local fix does not
-qualify the library; HEIC remains disabled.
+qualify that library; the bundled HEIC decoder remains removed.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 

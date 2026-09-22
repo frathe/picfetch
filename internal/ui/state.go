@@ -12,9 +12,11 @@ import (
 type appState struct {
 	files         []fyne.URI
 	unsortedFiles []fyne.URI
-	index         int
-	sortMode      filesort.Mode
-	mergeMode     bool
+	// Retained for saved collections while a system decoder is unavailable.
+	unavailableHEIC []fyne.URI
+	index           int
+	sortMode        filesort.Mode
+	mergeMode       bool
 
 	// published is the immutable {keys, generation} view of files that
 	// readers off the UI goroutine use instead of touching the slice -
@@ -111,6 +113,7 @@ func (s *appState) reorder(files []fyne.URI) {
 func (s *appState) clearFiles() {
 	s.files = nil
 	s.unsortedFiles = nil
+	s.unavailableHEIC = nil
 	s.index = 0
 	s.publish()
 }

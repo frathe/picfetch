@@ -128,8 +128,8 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				sourceErr = fmt.Errorf("source changed since cached representation")
 			}
 			if sourceErr == nil {
-				item.Facts = imageFacts(path, data, bounds)
-				backfilled = true
+				item.Facts, sourceErr = imageFacts(ctx, path, data, bounds)
+				backfilled = sourceErr == nil
 			}
 			event.Measurements.DecodeSeconds += time.Since(factsStart).Seconds()
 		}
@@ -147,7 +147,9 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
 			sourceErr = readErr
 			if sourceErr == nil {
-				item.Facts = imageFacts(path, data, bounds)
+				item.Facts, sourceErr = imageFacts(ctx, path, data, bounds)
+			}
+			if sourceErr == nil {
 				item.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
 				loaded, decodeErr := imaging.DecodeLoaded(ctx, data, 1)
 				event.Measurements.DecodeSeconds += time.Since(decodeStart).Seconds()

@@ -1,0 +1,91 @@
+//go:build darwin && cgo && (amd64 || arm64)
+
+package heic
+
+import (
+	"bytes"
+	"context"
+	"encoding/binary"
+	"errors"
+	"os"
+	"strings"
+	"testing"
+)
+
+// This is a required native runner inventory, not a substitute for the wider
+// fixture qualification recorded in the implementation evidence.
+func TestHEICDarwinNativeQualification(t *testing.T) {
+	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
+		t.Skip("requires explicit native ImageIO qualification")
+	}
+	client := NewClient("")
+	t.Cleanup(func() { client.Stop(); client.Wait() })
+	t.Run("representative_pixels", func(t *testing.T) {
+		if err := client.Check(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, tc := range []struct {
+		file string
+		want [4]byte
+	}{
+		{"probe8.heic", [4]byte{0, 255, 0, 255}},
+		{"probe10.heic", [4]byte{0, 255, 0, 255}},
+		{"container-rotate.heic", [4]byte{255, 255, 0, 0}},
+		{"exif-rotate.heic", [4]byte{0, 0, 255, 255}},
+		{"container-and-exif.heic", [4]byte{255, 255, 0, 0}},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			data, err := os.ReadFile("testdata/" + tc.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := Request{Pixels: true, MaxEncodedBytes: 64 * 1024, MaxPixels: 64 * 64}
+			result, err := client.Read(context.Background(), data, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Width != 64 || result.Height != 64 || result.Stride != 256 || len(result.Pixels) != 64*64*4 {
+				t.Fatalf("full primary dimensions/payload = %dx%d stride=%d bytes=%d", result.Width, result.Height, result.Stride, len(result.Pixels))
+			}
+			if !strings.HasPrefix(result.Provider, "Apple ImageIO ") {
+				t.Fatalf("unexpected native provider identity: %q", result.Provider)
+			}
+			t.Logf("provider=%q os=%+v", result.Provider, SystemIdentity())
+			for index, point := range [][2]int{{8, 8}, {48, 8}, {8, 48}, {48, 48}} {
+				pixel := result.Pixels[point[1]*result.Stride+point[0]*4:][:4]
+				for _, value := range pixel[:3] {
+					if delta := int(value) - int(tc.want[index]); delta < -2 || delta > 2 {
+						t.Fatalf("pixel %v=%v, want grayscale %d", point, pixel, tc.want[index])
+					}
+				}
+				if pixel[3] != 255 {
+					t.Fatalf("opaque fixture lost alpha at %v: %v", point, pixel)
+				}
+			}
+			request.Pixels = false
+			metadata, err := client.Read(context.Background(), data, request)
+			if err != nil || metadata.Width != result.Width || metadata.Height != result.Height || len(metadata.Pixels) != 0 {
+				t.Fatalf("metadata dimensions disagree with pixels: %+v, %v", metadata, err)
+			}
+		})
+	}
+	t.Run("HDR_native_rendering", func(t *testing.T) {
+		data := []byte(probe10)
+		profile := bytes.Index(data, []byte("nclx"))
+		if profile < 0 {
+			t.Fatal("fixture has no explicit nclx profile")
+		}
+		binary.BigEndian.PutUint16(data[profile+6:], 16)
+		_, err := client.Read(context.Background(), data, Request{Pixels: true, MaxEncodedBytes: 64 * 1024, MaxPixels: 64 * 64})
+		if err != nil {
+			t.Fatalf("native PQ rendition was refused: %v", err)
+		}
+	})
+	t.Run("pixel_budget_refusal", func(t *testing.T) {
+		_, err := client.Read(context.Background(), []byte(probe8), Request{Pixels: true, MaxEncodedBytes: 64 * 1024, MaxPixels: 64*64 - 1})
+		if !errors.Is(err, ErrInvalid) {
+			t.Fatalf("oversized primary image = %v, want invalid", err)
+		}
+	})
+}

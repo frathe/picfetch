@@ -25,6 +25,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/selection"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -92,6 +93,7 @@ type Host interface {
 
 // Overview is the grid overlay and the state behind it.
 type Overview struct {
+	heic                  *heic.Capability
 	ranked, pendingRanked *RankedVisit
 	visitIndex            *visitSourceIndex
 	rankedBar             *fyne.Container

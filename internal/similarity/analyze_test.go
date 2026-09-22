@@ -188,7 +188,9 @@ func TestAnalysisProtocolPreservesLimitErrorsAndConfiguration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			cmd := exec.CommandContext(ctx, executable, "-test.run=^TestAnalysisProtocolHelperProcess$", "-test.timeout=10s")
+			// Allow the large streamed result and race-detector shutdown the
+			// same bounded budget as the search protocol helper.
+			cmd := exec.CommandContext(ctx, executable, "-test.run=^TestAnalysisProtocolHelperProcess$", "-test.timeout=20s")
 			cmd.Env = append(os.Environ(), "PICFETCH_TEST_ANALYSIS_PROTOCOL="+mode)
 			paths := make([]string, 50655)
 			for i := range paths {

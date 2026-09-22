@@ -60,7 +60,7 @@ func (w *Window) Refresh() {
 		return
 	}
 	w.text.SetText(lang.L("Loading..."))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(w.heic.CaptureContext(context.Background()))
 	w.metadata.cancel = cancel
 	generation := w.metadata.generation
 	done := w.metadata.done.Begin()
@@ -69,7 +69,7 @@ func (w *Window) Refresh() {
 		var metadata imaging.Metadata
 		var inspection imaging.JPEGMetadataInspection
 		if err == nil && ctx.Err() == nil {
-			metadata = imaging.ReadMetadata(data)
+			metadata, err = imaging.ReadMetadataContext(ctx, data)
 			if ctx.Err() == nil {
 				inspection = imaging.InspectJPEGMetadata(ctx, data)
 			}

@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -107,6 +108,8 @@ type request struct {
 	DisableFavoriteCache      bool
 	Paths                     []string
 	MaxEncodedBytes           int64
+	MaxPixels                 int64
+	HEIC                      workerHEIC
 	AnalysisLimits            AnalysisLimits
 }
 
@@ -132,6 +135,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 		assets = defaultAssets(executable)
 	}
 	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, GeneralAnalysisLimitBytes: c.GeneralAnalysisLimitBytes, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes(), AnalysisLimits: limits}
+	req.captureHEIC(heic.FromContext(ctx))
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	return analyzeCommand(ctx, cmd, req, controls, emit)
@@ -203,6 +207,9 @@ func analyzeCommand(ctx context.Context, cmd *exec.Cmd, req request, controls <-
 			break
 		}
 		complete = event.Complete
+		if event.HEICUnavailable {
+			heic.ReportUnavailable(ctx)
+		}
 		emit(event)
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
@@ -264,17 +271,23 @@ func WorkerMain() bool {
 		return false
 	}
 	_ = os.Unsetenv(workerEnvironment)
-	if err := isolateWorker(); err != nil {
+	if err := runWorker(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	return true
+}
+
+func runWorker() error {
+	if err := isolateWorker(); err != nil {
+		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var req request
 	input, err := controlInput()
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	defer func() { _ = input.Close() }()
 	decoder := newWorkerDecoder(input)
@@ -284,12 +297,11 @@ func WorkerMain() bool {
 	}
 	if err == nil {
 		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
+		var release func()
+		ctx, release = workerHEICContext(ctx, req)
+		defer release()
 		if req.Search != nil {
-			if err := searchWorker(ctx, req, decoder, input); err != nil {
-				_, _ = fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-			return true
+			return searchWorker(ctx, req, decoder, input)
 		}
 		readCtx, cancelRead := context.WithCancel(ctx)
 		controls := make(chan Control, 1)
@@ -310,14 +322,13 @@ func WorkerMain() bool {
 			}
 		}()
 		output := newWorkerEventEncoder(os.Stdout, req.AnalysisLimits.Normalized().MemoryMB*1024*1024)
-		err = analyzeLocal(ctx, req, controls, func(event Event) error { return output.Encode(event) })
+		err = analyzeLocal(ctx, req, controls, func(event Event) error {
+			event.HEICUnavailable = workerHEICUnavailable(ctx)
+			return output.Encode(event)
+		})
 		cancelRead()
 		_ = input.Close()
 		<-readDone
 	}
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	return true
+	return err
 }

@@ -19,6 +19,7 @@ that HEIC works in the current build.
 | Q4: Linux dependency | Use system-installed libheif with a working HEVC decoder. Another application's ability to open HEIC does not establish PicFetch support. |
 | Q5: recheck | A successful check enables subsequent HEIC opens immediately. It does not silently rescan or replace the current collection. |
 | Q6: unavailable decoder | Explicit opens explain unavailable support and offer the guide. Mixed scans retain supported images and report skipped HEIC once per scan. |
+| Q7: color compatibility (2026-09-22) | Let the system decoder render the image. ICC, wide-gamut and HDR content must not be rejected merely because PicFetch has not qualified its color rendition. Color differences are acceptable; add no separate color-management dependency. |
 
 The architectural trade-off is recorded in
 [ADR 0002](adr/0002-system-provided-heic-decoding.md). The local interview
@@ -58,12 +59,13 @@ promise that every HEIF container or codec profile works.
 
 Apply container orientation/mirroring and EXIF interpretation exactly once.
 Probe dimensions, thumbnails, full-image pixels and image-consuming features
-must agree on the oriented result. Produce a color-correct SDR representation
-for the existing viewer, with native-platform fixture evidence for wide-gamut
-and HDR sources. Native HDR display, gain/depth inspection, auxiliary-image
-browsing and sequence playback are outside scope. If a source cannot provide a
-qualified SDR result, report a file-specific unsupported case rather than show
-known incorrect colors. Do not fall back from a still decoder to movie/sequence
+must agree on the oriented result. Use the system decoder's rendition in the
+existing 8-bit viewer. Color correction is best effort: ICC profiles, gamut,
+HDR metadata and bit depth must not introduce PicFetch-specific admission gates
+when the system decoder can produce usable pixels. Color differences are
+acceptable, and no additional color-management layer is required. Native HDR
+display, gain/depth inspection, auxiliary-image browsing and sequence playback
+remain outside scope. Do not fall back from a still decoder to movie/sequence
 decoding, even for a renamed source.
 
 Existing metadata inspection remains best effort and must never double-apply
@@ -183,7 +185,7 @@ the available branch. Do not silently skip required native cases.
 | Criterion | Required coverage | Verification command |
 | --- | --- | --- |
 | AC1: capability lifecycle | Unknown, available, unavailable, failed, cached restart, changed identity, manual refresh, coalescing and stale delivery | `go test -tags no_emoji,nodynamic ./internal/preferences ./internal/ui/...` |
-| AC2: decoder behavior | Real licensed fixtures for 8/10-bit stills, primary selection, orientation/mirroring, grids, alpha, SDR color and malformed/renamed/sequence input; no HEIC encoder | `go test -tags no_emoji,nodynamic ./internal/imaging` |
+| AC2: decoder behavior | Real licensed fixtures for 8/10-bit stills, primary selection, orientation/mirroring, grids, alpha, native color rendition and malformed/renamed/sequence input; no HEIC encoder | `go test -tags no_emoji,nodynamic ./internal/imaging` |
 | AC3: feature parity | Thumbnails, comparison, captures/export, mosaic and similarity subprocesses consume the same oriented pixels; no AVIF regression | `go test -tags no_emoji,nodynamic ./internal/imaging ./internal/mosaic ./internal/similarity ./internal/ui/...` |
 | AC4: admission and recovery | Initial open while probing, mixed/all-HEIC scans, targeted guide, immediate refresh, saved-list preservation and unavailable format rules | `go test -tags no_emoji,nodynamic ./internal/filescan ./internal/explorerpresets ./internal/session ./internal/favstore ./internal/ui/...` |
 | AC5: Settings/help | Both buttons are reachable in the widget tree; correct current-OS content, offline singleton lifecycle, translated states and no Unicode arrows | `go test -tags no_emoji,nodynamic ./internal/ui/settingswin ./internal/ui/help .` |
@@ -200,9 +202,9 @@ Windows Store behavior. A cross-build or a stub test is not native evidence.
 
 ## Qualification work and honest limits
 
-- Establish exact API/ABI compatibility, primary-image selection and transform/
-  color semantics on each native backend. Record real 10-bit/HDR-to-SDR evidence
-  before advertising that case; the design requirement is not proof of support.
+- Establish exact API/ABI compatibility, primary-image selection and transforms
+  on each native backend. Record real ICC/10-bit/HDR decoding evidence; native
+  rendition is best effort and does not promise color fidelity.
 - Validate decoder discovery after installation and removal, including a
   running app, retained analysis workers and Store packaging. Inspect failed
   probes without treating every failure as a missing codec.

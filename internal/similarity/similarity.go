@@ -31,6 +31,8 @@ const FactsVersion = 1
 
 // Event is an immutable analysis snapshot. Complete includes layout delivery.
 type Event struct {
+	// HEICUnavailable reports decisive loss of the captured system provider.
+	HEICUnavailable bool `json:",omitempty"`
 	// OfflineVerified means OS network denial was verified, not just that the
 	// computation is local. Windows workers leave it false.
 	OfflineVerified bool

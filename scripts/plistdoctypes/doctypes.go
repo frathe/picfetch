@@ -11,7 +11,7 @@ import (
 // dot) with its Uniform Type Identifier. Order here is the order
 // contentTypeList renders LSItemContentTypes in - grouped by format family
 // (common raster, then vector, then camera RAW) rather than
-// imaging.SupportedExtensions()'s own order, since that reads better in a
+// imaging.RecognizedExtensions()'s own order, since that reads better in a
 // hand-maintained Info.plist entry than an extension-alphabetical one
 // would.
 //
@@ -41,6 +41,8 @@ var contentTypeUTIs = []utiMapping{
 	{"tiff", "public.tiff"},
 	{"ico", "com.microsoft.ico"},
 	{"avif", "public.avif"},
+	{"heic", "public.heic"},
+	{"heif", "public.heif"},
 	{"svg", "public.svg-image"},
 	{"raw", "public.camera-raw-image"},
 	{"cr2", "com.canon.cr2-raw-image"},
@@ -74,10 +76,10 @@ func contentTypeList() []string {
 	return out
 }
 
-// bareExtensions is imaging.SupportedExtensions() with the leading dot
+// bareExtensions is imaging.RecognizedExtensions() with the leading dot
 // stripped from each entry - the form CFBundleTypeExtensions needs.
 func bareExtensions() []string {
-	exts := imaging.SupportedExtensions()
+	exts := imaging.RecognizedExtensions()
 	out := make([]string, len(exts))
 
 	for i, e := range exts {

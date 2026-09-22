@@ -10,8 +10,8 @@ Standing rules (data flow, concurrency, conventions, build) live in
 ### `github.com/frathe/picfetch` (package main)
 
 Entry point only. `main.go` parses the command line (`launchArgs`, see
-`internal/launch`) before any side effect, dispatches the private `similarity.WorkerMain`
-subprocess mode before desktop startup, calls `openwith.Install` (first
+`internal/launch`) before any side effect, dispatches the private `heic.WorkerMain` and `similarity.WorkerMain`
+subprocess modes before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
 cleanup for Store-managed builds and explicit Explorer trials, asks `launch.Options.ApplicationID` to validate and select the app identity before
 building the `fyne.App`, loads embedded
@@ -275,8 +275,11 @@ Its README records the libyuv/WASI source-provenance limits.
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.
 `docs/packaging-inputs.md` describes provenance and native artifact validation.
-`scripts/plistdoctypes` derives macOS file associations from supported formats;
+`scripts/plistdoctypes` derives macOS file associations from recognized formats;
 `scripts/msixstage` stages Store manifests/assets and guards packaging routes.
+`scripts/linuxdesktop` stages a desktop launcher and official icon for each
+Linux archive. All three use static `imaging.RecognizedExtensions()`; desktop
+declarations do not depend on build-host codec availability.
 
 ### `scripts/storepublish`
 
@@ -302,7 +305,7 @@ release. `docs/microsoft-store.md` covers setup and recovery.
 
 ### `scripts/nativeguards`
 
-Native Windows/macOS and explicit Microsoft Store validation. `main.go`
+Native Linux/Windows/macOS and explicit Microsoft Store validation. `main.go`
 selects suites, verifies build-selected inventories, runs the full packages,
 retains raw Go test events and requires named guards to run/pass without skips.
 The macOS suite includes root main's Cocoa-linked delegate test; Windows includes
@@ -575,11 +578,38 @@ Help's `licenses.go` displays the complete immutable release notice document
 supplied by `main.go` through `ui.Run` and `Help.SetLicenses`. Help -> Licenses
 opens a scrollable Markdown singleton, with no runtime file reads or downloads.
 
+### `internal/heic`
+
+Instance-owned system HEIC boundary. `Capability` coalesces representative checks,
+validates persisted OS/architecture/version/revision observations, captures immutable
+operation snapshots and invalidates a disappeared provider once per generation.
+`context.go` carries those snapshots through ordinary imaging and analysis calls.
+Root `internal/ui/heic.go` owns persistence, queued status delivery/rechecks,
+Settings/Help wiring, and shutdown settlement. Saved collections retain temporarily
+unavailable members in `appState.unavailableHEIC` independently of displayed files.
+
+`Client` bounds native children (two slots, deadlines, framed output, Stop/Wait).
+`WorkerMain` dispatches before desktop startup. `container.go` performs checked
+primary-item/property and EXIF-transform interpretation inside that child;
+`native_linux.go/.c` dynamically loads system libheif with an HEVC provider.
+Native color rendition is best effort; ICC, gamut, HDR and bit depth are left
+to the decoder while resource bounds and canonical output validation remain.
+`native_darwin.go/.c` is an ImageIO candidate using designated-primary selection;
+its native qualification remains open. Windows production remains unavailable
+pending WIC primary-selection evidence; `wicprobe_windows_test.go` contains only
+a qualification experiment. `process_*` and `restrict_*` own platform containment:
+Linux has resource limits, inherited network-denial seccomp, process-group
+retirement and parent-death signaling. Other-platform containment is not qualified.
+`testdata/` contains authored Main/Main10 and transform/primary fixtures with
+reproducible generators. `notices/` retains the adapted public libheif header's
+source and exact license texts, also shipped in `THIRD-PARTY-NOTICES.md`.
+
 ### `internal/imaging`
 
 Viewer-independent probe → decode → EXIF-orient → cache pipeline (JPEG, PNG,
 GIF including animated, WebP, BMP, TIFF, ICO, XPM, AVIF, SVG, camera
-RAW via embedded JPEG). RAW is preview-only (`LoadedImage.Preview`);
+RAW via embedded JPEG), plus conditionally admitted system HEIC through captured
+`heic.Snapshot` contexts. RAW is preview-only (`LoadedImage.Preview`);
 `CanEncode` is false. SVG is the only vector format (`svg.go` / `vector.go`).
 Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` serializes resolved destinations. Thumbnail caches carry `favthumbs.Preview` source versions for safe reuse after file replacement, and `ByteCache.Capture` binds in-flight cache writes to the pre-purge revision.
 
@@ -587,6 +617,8 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 |------|----------------|
 | `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `RefreshIfRoom` lets Favorite warming replace stale keys, dropping only that key if the replacement cannot fit. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
+| `heic.go` | Canonical native HEIC probe/pixels, independent output validation, `ReadMetadataContext` and worker pixel budget. No image decoder is globally registered. |
+| `recognized.go` | Static `RecognizedExtensions` for package declarations and portable format rules, distinct from unconditional runtime `SupportedExtensions`. |
 | `ico.go` | Explicit ICO probe/decode dispatch, independent of the desktop driver's decoder registration: validates directory/payload spans and dimensions, selects the same single image for probe/decode, delegates PNG or normalized uncompressed DIB pixels to existing decoders, and applies icon transparency. |
 | `raw.go` | Largest embedded JPEG from TIFF IFDs or SOI scan (CR3/RAF). |
 | `svg.go` | SVG detection, logical-size floor (`MinVectorWidth`/`Height` = UI `startW`/`startH`), `ClampVectorRaster` / `MaxVectorRasterPixels`. |
@@ -678,6 +710,7 @@ Secondary-window geometry is `WindowGeometry` structs.
 
 | File | Responsibility |
 |------|----------------|
+| `heic.go` | Independently locked load/save/invalidation of the versioned system HEIC observation; stale Settings snapshots cannot overwrite it. |
 | `preferences.go` | `Save`, `Load`, `SaveLastUpdateCheckDay`, `State`, `WindowGeometry`; persists normalized mosaic visual settings and secondary-window geometry, never mosaic sources or display IDs. |
 
 ### `internal/appearance`
@@ -1020,7 +1053,7 @@ see `AGENTS.md`.
 - "How is a WinGet publish gated after Release?" → `.github/workflows/winget.yml` + `scripts/wingettag` (vX.Y.Z allowlist; `workflow_run` must be `release.yml` on a published tag).
 - "How are Microsoft Store updates submitted and reconciled?" → `scripts/storepublish` + `.github/workflows/microsoft-store-publish.yml` + `docs/microsoft-store.md`.
 - "How does a macOS Open With reach the viewer?" → `internal/openwith` (queue + Objective-C graft) + `main.go` `openwith.Install` + `internal/ui/openwith.go` + `run.go` `SetOnStarted`.
-- "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/loader.go` `SupportedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
+- "How does the packaged macOS app declare file/folder associations (Open With)?" → `internal/imaging/recognized.go` `RecognizedExtensions` + `scripts/plistdoctypes` + `Makefile` `package-mac`.
 - "How do Favorites work?" → `internal/favstore` + `internal/ui/favorites` + `shortcuts.go` + `viewer.OpenFavorite`.
 - "How are favorite previews cached on disk?" → `internal/favthumbs` + `internal/ui/favthumbs.go` + `favorites` + `grid` thumb accessors.
 - "Where is the File menu / Settings window?" → `menu.go` `buildMainMenu` + `actionmenu.go` + `settingswin` + `viewer.settingsState` / `ApplySettings` + `viewer.closeFiles`.

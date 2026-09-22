@@ -17,6 +17,7 @@ import (
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
@@ -136,6 +137,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	}
 
 	registerFeatures(view, application, window, prefs)
+	view.configureHEIC(heic.NewClient(""))
 
 	// The bar lives in its own overlay layer on top of the stack, pinned to
 	// the top edge by the VBox layout, so showing/hiding it never resizes

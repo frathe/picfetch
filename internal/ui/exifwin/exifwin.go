@@ -25,6 +25,7 @@ import (
 	xwidget "fyne.io/x/fyne/widget"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -127,9 +128,13 @@ type Window struct {
 	stripFile   func(context.Context, fyne.URI) (imaging.WriteResult, error)
 	stripWork   stripMutation
 	metadata    metadataRead
+	heic        *heic.Capability
 
 	onClosed func()
 }
+
+// SetHEICCapability supplies the app's shared decoder policy before reads begin.
+func (w *Window) SetHEICCapability(capability *heic.Capability) { w.heic = capability }
 
 // New returns the EXIF window for application. host.DisplayedFile is called
 // on every open and refresh to find the file to read.

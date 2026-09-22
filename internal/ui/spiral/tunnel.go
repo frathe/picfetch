@@ -44,7 +44,7 @@ type tunnelSession struct {
 }
 
 func (s *Spiral) startTunnel() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.heic.CaptureContext(context.Background()))
 	s.tunnel = &tunnelSession{ctx: ctx, cancel: cancel, start: s.now(),
 		rng:    rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		failed: make([]bool, len(s.sources)), usable: make(map[string]bool), gapFactor: 1,

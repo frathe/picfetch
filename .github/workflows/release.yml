@@ -88,7 +88,7 @@ jobs:
             rm "picfetch.exe"
           done
           for arch in amd64 arm64; do
-            tar -czf "picfetch-linux-$arch.tar.gz" "picfetch-linux-$arch" -C .. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md
+            tar -czf "picfetch-linux-$arch.tar.gz" "picfetch-linux-$arch" -C "linux-$arch" . -C ../.. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md
           done
 
       - name: Upload unsigned Windows artifacts for signing

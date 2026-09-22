@@ -12,6 +12,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -34,6 +35,7 @@ func (c Client) Search(ctx context.Context, search SearchRequest, queries <-chan
 	}
 	search.Paths = slices.Clone(search.Paths)
 	req := request{Assets: assets, MaxEncodedBytes: imaging.MaxEncodedBytes(), Search: &search}
+	req.captureHEIC(heic.FromContext(ctx))
 	cmd := workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	return searchCommand(ctx, cmd, req, queries, emit)
@@ -133,6 +135,9 @@ func searchCommand(ctx context.Context, cmd *exec.Cmd, req request, queries <-ch
 		}
 		revision = event.Revision
 		ready = ready || event.Kind == SearchReady
+		if event.HEICUnavailable {
+			heic.ReportUnavailable(ctx)
+		}
 		emit(event)
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
@@ -174,7 +179,10 @@ func searchWorker(ctx context.Context, req request, decoder *workerDecoder, inpu
 		}
 	}()
 	output := json.NewEncoder(os.Stdout)
-	err := searchLocal(ctx, req, queries, func(event SearchEvent) error { return output.Encode(event) })
+	err := searchLocal(ctx, req, queries, func(event SearchEvent) error {
+		event.HEICUnavailable = workerHEICUnavailable(ctx)
+		return output.Encode(event)
+	})
 	cancel()
 	_ = input.Close()
 	<-done

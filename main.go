@@ -21,6 +21,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
@@ -112,7 +113,7 @@ func main() {
 		os.Exit(exit)
 	}
 
-	if similarity.WorkerMain() {
+	if heic.WorkerMain() || similarity.WorkerMain() {
 		return
 	}
 

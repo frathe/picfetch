@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/display"
 )
@@ -107,6 +108,10 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 }
 
 func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
+	retained := append([]fyne.URI(nil), v.state.unavailableHEIC...)
+	if errors.Is(err, heic.ErrUnavailable) {
+		retained = append(retained, source)
+	}
 	msg := fmt.Sprintf(lang.L("could not read %q: %v"), source.Name(), err)
 	var dimensions *imaging.InvalidDimensionsError
 	var tooLarge *imaging.InputTooLargeError
@@ -120,8 +125,13 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 	restoredIndex := v.reconcileSources(sourceChange{kind: sourceLoadFailed, removed: []int{i}})
 	if len(v.state.files) == 0 {
 		v.ShowEmptyStateError(msg)
+		v.state.unavailableHEIC = retained
+		if errors.Is(err, heic.ErrUnavailable) {
+			v.explainUnavailableHEIC([]fyne.URI{source}, true)
+		}
 		return nil
 	}
+	v.state.unavailableHEIC = retained
 	v.ShowToast(msg)
 	if restoredIndex >= 0 {
 		i = restoredIndex

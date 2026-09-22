@@ -70,6 +70,12 @@ func realPathOf(u fyne.URI) string {
 // does) only needs the walk to stop touching the filesystem promptly, not
 // to finish correctly.
 func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int)) (images []fyne.URI, truncated bool) {
+	return ImagesWithAdmission(ctx, uris, max, progress, imaging.IsSupportedImage)
+}
+
+// ImagesWithAdmission applies an operation's captured format policy while
+// preserving the normal traversal, file cap and cancellation behavior.
+func ImagesWithAdmission(ctx context.Context, uris []fyne.URI, max int, progress func(n int), accepts func(fyne.URI) bool) (images []fyne.URI, truncated bool) {
 	if max < 1 {
 		max = 1
 	}
@@ -126,7 +132,7 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 			return
 		}
 
-		if !imaging.IsSupportedImage(u) {
+		if !accepts(u) {
 			return
 		}
 
@@ -185,6 +191,11 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 // otherwise empty. ctx is checked before any work and before each child; an
 // already-cancelled context returns nil, false rather than a partial directory.
 func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int)) (images []fyne.URI, truncated bool) {
+	return SiblingsWithAdmission(ctx, file, max, progress, imaging.IsSupportedImage)
+}
+
+// SiblingsWithAdmission shares ImagesWithAdmission's captured format policy.
+func SiblingsWithAdmission(ctx context.Context, file fyne.URI, max int, progress func(n int), accepts func(fyne.URI) bool) (images []fyne.URI, truncated bool) {
 	if max < 1 {
 		max = 1
 	}
@@ -202,7 +213,7 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 		if canList, err := storage.CanList(u); err == nil && canList {
 			return
 		}
-		if !imaging.IsSupportedImage(u) {
+		if !accepts(u) {
 			return
 		}
 		pathOf := realPathOf(u)
@@ -223,9 +234,7 @@ func Siblings(ctx context.Context, file fyne.URI, max int, progress func(n int))
 		}
 	}
 
-	if imaging.IsSupportedImage(file) {
-		add(file)
-	}
+	add(file)
 	if truncated {
 		return images, truncated
 	}

@@ -3,6 +3,7 @@
    "Image unavailable": "Bild nicht verfügbar",
    "Release Notes": "Versionshinweise",
    "Licenses": "Lizenzen",
+   "HEIC installation instructions": "HEIC-Installationsanleitung",
    "Browse all releases": "Alle Versionen ansehen",
    "Image order": "Bildreihenfolge",
    "Main order": "Hauptansicht",
@@ -518,5 +519,16 @@
    "Metadata removal is unavailable because orientation could not be verified.": "Metadaten können nicht entfernt werden, weil die Bildausrichtung nicht eindeutig ist.",
    "Metadata removal is unavailable for this image's encoding or color model.": "Für diese Bildkodierung oder dieses Farbmodell können Metadaten nicht sicher entfernt werden.",
    "Could not process this file. Check access, available space, and the file size limit.": "Die Datei konnte nicht verarbeitet werden. Prüfen Sie Zugriffsrechte, freien Speicherplatz und die Dateigrößenbegrenzung.",
-   "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone.": "Identifizierende Metadaten, Vorschaubilder, weitere Bilder und Audio/Video aus %q entfernen? Die Originaldatei wird ersetzt. Bilddaten und erforderliche Angaben zu Ausrichtung und Farbe bleiben ohne Neukodierung erhalten. Das kann nicht rückgängig gemacht werden."
+   "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone.": "Identifizierende Metadaten, Vorschaubilder, weitere Bilder und Audio/Video aus %q entfernen? Die Originaldatei wird ersetzt. Bilddaten und erforderliche Angaben zu Ausrichtung und Farbe bleiben ohne Neukodierung erhalten. Das kann nicht rückgängig gemacht werden.",
+   "Check HEIC support": "HEIC-Unterstützung prüfen",
+   "HEIC support: not checked": "HEIC-Unterstützung: nicht geprüft",
+   "HEIC support: checking": "HEIC-Unterstützung: Prüfung läuft",
+   "HEIC support: available": "HEIC-Unterstützung: verfügbar",
+   "HEIC support: unavailable": "HEIC-Unterstützung: nicht verfügbar",
+   "HEIC check failed; previous support remains available": "HEIC-Prüfung fehlgeschlagen; bisherige Unterstützung bleibt verfügbar",
+   "HEIC support check failed; try checking again": "HEIC-Prüfung fehlgeschlagen; bitte erneut prüfen",
+   "HEIC support": "HEIC-Unterstützung",
+   "HEIC support is unavailable. Check support in Settings or open the installation guide.": "HEIC-Unterstützung ist nicht verfügbar. Prüfen Sie die Unterstützung in den Einstellungen oder öffnen Sie die Installationsanleitung.",
+   "HEIC support could not be checked. Retry in Settings or open the installation guide.": "Die HEIC-Unterstützung konnte nicht geprüft werden. Versuchen Sie es in den Einstellungen erneut oder öffnen Sie die Installationsanleitung.",
+   "Skipped %d HEIC files because system support is unavailable. See Settings for the HEIC installation guide.": "%d HEIC-Dateien wurden übersprungen, weil die Systemunterstützung nicht verfügbar ist. Die HEIC-Installationsanleitung finden Sie in den Einstellungen."
 }

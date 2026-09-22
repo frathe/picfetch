@@ -19,6 +19,7 @@ func (f *Feature) Load(request Request) {
 	}
 	f.beginRequest(request.Source)
 	token := f.loadLife.begin()
+	token.ctx = f.config.HEIC.CaptureContext(token.context())
 	done := f.load.Begin()
 	f.loadFinish = done
 	if f.config.Callbacks.Requested != nil {

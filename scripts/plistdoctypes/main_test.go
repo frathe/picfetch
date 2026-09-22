@@ -3,9 +3,36 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/frathe/picfetch/internal/imaging"
 )
+
+func TestHEICStaticDeclarations(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "Info.plist")
+	if err := os.WriteFile(path, []byte(fyneTemplateFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{path}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"heic", "heif", "public.heic", "public.heif", "jpg", "public.jpeg", "public.folder"} {
+		if strings.Count(string(data), "<string>"+value+"</string>") != 1 {
+			t.Errorf("static declaration must contain %q exactly once", value)
+		}
+	}
+	for _, ext := range []string{".heic", ".heif"} {
+		if slices.Contains(imaging.SupportedExtensions(), ext) {
+			t.Errorf("optional codec %s entered unconditional runtime extensions", ext)
+		}
+	}
+}
 
 func TestRun_Usage(t *testing.T) {
 	cases := [][]string{

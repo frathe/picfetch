@@ -44,6 +44,8 @@ func (s *suite) require(pkg string, tests ...string) {
 func suiteFor(name, hostOS string) (suite, error) {
 	s := suite{name: name}
 	switch name {
+	case "linux":
+		s.goos = "linux"
 	case "windows":
 		s.goos = "windows"
 		s.require("internal/wallpaper", "TestSetWindows_TargetPreservesOpaqueIDAndUnicodePath", "TestSetWindows_TargetValidationFailsBeforeMutation")
@@ -60,6 +62,7 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.require("internal/winpos", "TestPoller_StopDiscardsQueuedReadWithoutDrainingUI", "TestPoller_StopDuringNativeReadWaitsForReadWithoutPublishing")
 		s.require("internal/filepicker", "TestDarwinPathTransport_RoundTripsNativeURLPaths")
 	case "store":
+		s.goos = "windows"
 		s.tags = "microsoftstore"
 		s.require("internal/distribution", "TestStoreManaged_MicrosoftStoreBuildIsTrue")
 		s.require("internal/ui/autoupdate", "TestUpdater_AutomaticAndManualShareCompleteTransaction")
@@ -69,7 +72,53 @@ func suiteFor(name, hostOS string) (suite, error) {
 	if s.goos != "" && s.goos != hostOS {
 		return suite{}, fmt.Errorf("suite %s requires native %s, running on %s", name, s.goos, hostOS)
 	}
+	s.requireHEIC()
 	return s, nil
+}
+
+// requireHEIC records the cases that currently exist, including named fixture
+// checks. Passing this inventory does not establish the wider platform/package
+// qualification evidence required by the HEIC specification.
+func (s *suite) requireHEIC() {
+	tests := []string{"TestHEICNativeQualification", "TestHEICNativePrimarySelection", "TestHEICNativeCorpus"}
+	for _, name := range []string{
+		"probe_8_and_10_bit_pixels", "full_primary_8_bit", "full_primary_10_bit",
+		"container-rotate", "exif-rotate", "container-and-exif", "sequence",
+		"AVIF_keeps_existing_decoder", "HDR", "wide_gamut", "oversized_dimensions", "malformed_box",
+	} {
+		tests = append(tests, "TestHEICNativeQualification/"+name)
+	}
+	for _, name := range []string{
+		"icc-srgb8", "icc-srgb10", "icc-p3-linear8", "icc-p3-linear10", "color8", "color10",
+		"grid8", "grid10", "mirror-horizontal8", "mirror-horizontal10", "mirror-rotate8",
+		"alpha-straight8", "alpha-straight10", "alpha-premultiplied8", "alpha-premultiplied10",
+	} {
+		tests = append(tests, "TestHEICNativeCorpus/"+name)
+	}
+	switch s.goos {
+	case "linux":
+		tests = append(tests, "TestHEICLinuxWorkerRestrictions", "TestHEICWorkerDiesWithProducer")
+	case "darwin":
+		tests = append(tests, "TestHEICDarwinNativeQualification")
+		for _, name := range []string{
+			"representative_pixels", "probe8.heic", "probe10.heic", "container-rotate.heic",
+			"exif-rotate.heic", "container-and-exif.heic", "HDR_native_rendering", "pixel_budget_refusal",
+		} {
+			tests = append(tests, "TestHEICDarwinNativeQualification/"+name)
+		}
+	case "windows":
+		// This experiment supplements the required production decoder tests;
+		// it cannot qualify an unavailable adapter merely by passing itself.
+		tests = append(tests, "TestHEICWindowsWICProbe")
+	}
+	s.require("internal/heic", tests...)
+	imagingTests := []string{"TestHEICNativeQualification"}
+	for _, name := range []string{"probe8", "probe10", "container-rotate", "exif-rotate", "container-and-exif", "nonfirst-primary"} {
+		imagingTests = append(imagingTests, "TestHEICNativeQualification/"+name)
+	}
+	s.require("internal/imaging", imagingTests...)
+	s.require("internal/similarity", "TestHEICAnalysisWorker",
+		"TestHEICAnalysisWorker/native_finite", "TestHEICAnalysisWorker/native_retained_search", "TestHEICAnalysisWorker/native_limits")
 }
 
 func (s *suite) testArgs(flags ...string) []string {
@@ -94,7 +143,8 @@ func runSuite(ctx context.Context, s suite, execute goRunner, log, capture io.Wr
 		}
 		names := strings.Fields(inventory.String())
 		for _, required := range s.guards {
-			if required.Package == full && !slices.Contains(names, required.Test) {
+			topLevel, _, _ := strings.Cut(required.Test, "/")
+			if required.Package == full && !slices.Contains(names, topLevel) {
 				return fmt.Errorf("required guard not build-selected: %s %s", full, required.Test)
 			}
 		}
@@ -126,6 +176,9 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 		} else if err != nil {
 			return fmt.Errorf("invalid go test event stream: %w", err)
 		}
+		if e.Action == "" || e.Package == "" {
+			return errors.New("invalid go test event: missing action or package")
+		}
 		if e.Action == "fail" {
 			failures = append(failures, fmt.Errorf("failed: %s %s", e.Package, e.Test))
 		}
@@ -141,6 +194,9 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 					state.runs++
 				}
 				if e.Action == "pass" {
+					if state.runs != 1 || state.passes != 0 {
+						state.rejected = true
+					}
 					state.passes++
 				}
 			}
@@ -161,7 +217,7 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("nativeguards", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	name := flags.String("suite", "", "windows, macos, or store")
+	name := flags.String("suite", "", "linux, windows, macos, or store")
 	capturePath := flags.String("capture", "", "raw go test JSON output path")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -170,7 +226,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *capturePath == "" {
-		return errors.New("usage: nativeguards -suite windows|macos|store -capture <json-file>")
+		return errors.New("usage: nativeguards -suite linux|windows|macos|store -capture <json-file>")
 	}
 	s, err := suiteFor(*name, runtime.GOOS)
 	if err != nil {
@@ -184,11 +240,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 	defer cancel()
 	execute := func(ctx context.Context, args []string, out io.Writer) error {
 		cmd := exec.CommandContext(ctx, "go", args...)
+		cmd.Env = append(os.Environ(), "PICFETCH_HEIC_NATIVE_TEST=1")
 		cmd.Stdout = out
 		cmd.Stderr = stderr
 		return cmd.Run()
 	}
 	_, _ = fmt.Fprintf(stdout, "Native guards: suite=%s runtime=%s/%s Go=%s tags=%q\n", s.name, runtime.GOOS, runtime.GOARCH, runtime.Version(), s.tags)
+	_, _ = fmt.Fprintln(stdout, "HEIC: this inventory checks implemented cases; full fixture, packaged-open, codec-absence/recheck and target-matrix evidence remains a separate qualification requirement.")
 	err = runSuite(ctx, s, execute, stdout, capture)
 	return errors.Join(err, capture.Close())
 }

@@ -46,6 +46,7 @@ const (
 
 // SearchEvent contains immutable source identities and no inference vectors.
 type SearchEvent struct {
+	HEICUnavailable                  bool `json:",omitempty"`
 	CacheRevision                    uint64
 	CachePressureBytes               uint64
 	SessionID, QueryID, Revision     uint64
