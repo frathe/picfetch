@@ -24,6 +24,8 @@ Windows and Linux, integrate all existing image consumers, and add Settings
 buttons for a support check and the current OS's Markdown installation guide.
 Linux uses installed libheif with an HEVC decoder. Implementation and native
 qualification remain open; HEIC is still disabled.
+The implementation spec is published in the local issue tracker at
+`.scratch/os-heic/spec.md` with status `ready-for-agent`.
 
 ### Finish AVIF notice release qualification
 
