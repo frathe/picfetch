@@ -12,6 +12,19 @@
 
 ## Open
 
+### delegate heic image rendering to the OS
+
+Add back support for HEIC image formats, on start check if the system supports rendering of heic images. if yes save that
+information to the settings so we don't have to check that on every launch. when the os does support the rendering we
+delegate the rendering to the OS and enable HEIC support.
+
+Design agreed in [the HEIC system-decoder specification](docs/heic-system-decoding.md)
+and [ADR 0002](docs/adr/0002-system-provided-heic-decoding.md): include macOS,
+Windows and Linux, integrate all existing image consumers, and add Settings
+buttons for a support check and the current OS's Markdown installation guide.
+Linux uses installed libheif with an HEVC decoder. Implementation and native
+qualification remain open; HEIC is still disabled.
+
 ### Finish AVIF notice release qualification
 
 Implementation and local evidence are recorded in
@@ -49,6 +62,9 @@ The [maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/4333
 remains background for that deferred work.
 
 ### Reconsider HEIC support after licensing and security qualification
+
+The system-provided decoder route is now active under the open HEIC item above.
+Bundled decoder alternatives below remain deferred.
 
 HEIC/HEIF is currently unsupported. A future restoration needs a documented
 distribution grant or another qualified decoder, containment and platform
