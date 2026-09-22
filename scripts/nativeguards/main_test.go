@@ -160,6 +160,34 @@ func TestNativeEventsRejectMissingSkippedFailedOrMalformedEvidence(t *testing.T)
 	}
 }
 
+func TestNativeEventsHandleBuildDiagnostics(t *testing.T) {
+	g := fixtureSuite().guards[0]
+	valid := eventsFor(g, "run", "pass")
+	for _, tc := range []struct {
+		name, diagnostic string
+		wantError        string
+	}{
+		{"linker warning", `{"ImportPath":"example.test","Action":"build-output","Output":"ld: warning: duplicate library\\n"}`, ""},
+		{"failed build", `{"ImportPath":"example.test","Action":"build-fail"}`, "failed build: example.test"},
+		{"missing import path", `{"Action":"build-output","Output":"warning"}`, "invalid go build event"},
+		{"diagnostic is not test evidence", `{"ImportPath":"example.test","Action":"build-output","Test":"TestRequired"}`, "invalid go build event"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateEvents(strings.NewReader(tc.diagnostic+"\n"+valid), []guard{g}, io.Discard)
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("validation = %v, want %q", err, tc.wantError)
+			}
+		})
+	}
+	if err := validateEvents(strings.NewReader(`{"ImportPath":"example.test","Action":"build-output"}`), []guard{g}, io.Discard); err == nil {
+		t.Fatal("build output substituted for a required test")
+	}
+}
+
 func TestHEICNativeRunnerRequiresEveryFixtureEvent(t *testing.T) {
 	parent := guard{"github.com/frathe/picfetch/internal/heic", "TestHEICNativeQualification"}
 	child := guard{parent.Package, parent.Test + "/full_primary_10_bit"}

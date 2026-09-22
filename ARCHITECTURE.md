@@ -594,8 +594,11 @@ primary-item/property and EXIF-transform interpretation inside that child;
 `native_linux.go/.c` dynamically loads system libheif with an HEVC provider.
 Native color rendition is best effort; ICC, gamut, HDR and bit depth are left
 to the decoder while resource bounds and canonical output validation remain.
-`native_darwin.go/.c` is an ImageIO candidate using designated-primary selection;
-its native qualification remains open. Windows production remains unavailable
+`native_darwin.go/.c` uses ImageIO designated-primary selection and canonical
+pixels; `metadata.go` extracts bounded, primary-associated EXIF inside that
+worker using checked container references and local extents. Apple Silicon
+rendering/metadata tests pass; premultiplied-alpha and wider native qualification
+remain open. Windows production remains unavailable
 pending WIC primary-selection evidence; `wicprobe_windows_test.go` contains only
 a qualification experiment. `process_*` and `restrict_*` own platform containment:
 Linux has resource limits, inherited network-denial seccomp, process-group

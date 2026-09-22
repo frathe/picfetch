@@ -137,6 +137,7 @@ exclude:
       - "internal/heic/corpus_test.go"
       - "internal/heic/darwinpolicy_test.go"
       - "internal/heic/detection_test.go"
+      - "internal/heic/metadata_test.go"
       - "internal/heic/native_darwin_test.go"
       - "internal/heic/primaryfixture_test.go"
       - "internal/heic/process_linux_test.go"

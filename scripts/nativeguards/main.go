@@ -103,6 +103,7 @@ func (s *suite) requireHEIC() {
 		for _, name := range []string{
 			"representative_pixels", "probe8.heic", "probe10.heic", "container-rotate.heic",
 			"exif-rotate.heic", "container-and-exif.heic", "HDR_native_rendering", "pixel_budget_refusal",
+			"primary_metadata",
 		} {
 			tests = append(tests, "TestHEICDarwinNativeQualification/"+name)
 		}
@@ -156,7 +157,7 @@ func runSuite(ctx context.Context, s suite, execute goRunner, log, capture io.Wr
 	return errors.Join(executionErr, evidenceErr)
 }
 
-type event struct{ Action, Package, Test string }
+type event struct{ Action, Package, Test, ImportPath string }
 type guardResult struct {
 	runs, passes int
 	rejected     bool
@@ -175,6 +176,15 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 			break
 		} else if err != nil {
 			return fmt.Errorf("invalid go test event stream: %w", err)
+		}
+		if e.Action == "build-output" || e.Action == "build-fail" {
+			if e.ImportPath == "" || e.Package != "" || e.Test != "" {
+				return errors.New("invalid go build event")
+			}
+			if e.Action == "build-fail" {
+				failures = append(failures, fmt.Errorf("failed build: %s", e.ImportPath))
+			}
+			continue
 		}
 		if e.Action == "" || e.Package == "" {
 			return errors.New("invalid go test event: missing action or package")

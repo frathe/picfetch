@@ -8,7 +8,13 @@
 
 #### Bugfix
 
+- Restore macOS HEIC camera metadata and refresh previously cached image facts
+  without repeating similarity inference.
+
 #### Internal
+
+- Accept Go build diagnostics in the native qualification runner while still
+  rejecting build failures and missing or skipped required tests.
 
 ## Open
 
@@ -27,8 +33,14 @@ under [the Deep plan](plans/2026-09-22-system-heic.md), with delegated tickets a
 lead-owned review. Linux native slices pass, including ICC-tagged photos;
 color correction is best effort and delegated to the system decoder per the
 2026-09-22 clarification. Full feature qualification remains
-open. macOS is a candidate awaiting native execution; Windows production remains
-unavailable pending designated-primary selection evidence. No release is qualified.
+open. Native Apple Silicon verification now passes viewing, clipboard encoding,
+PNG/JPEG export, mosaics, retained search, EXIF delivery and cached-fact repair.
+ImageIO still reports no images for the two authored premultiplied-alpha
+fixtures; those required native tests remain failing. The Go build-diagnostic
+handling in the native runner is fixed. Full verification requires native
+Linux/amd64 CI; this Mac's Docker daemon is ARM64. See the plan's macOS record.
+Windows production remains unavailable pending designated-primary selection
+evidence. No release is qualified.
 The implementation spec is published in the local issue tracker at
 `.scratch/os-heic/spec.md`; ticket/evidence records are under `.scratch/os-heic/`.
 

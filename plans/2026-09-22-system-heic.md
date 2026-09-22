@@ -158,6 +158,151 @@ No claim of a complete sandbox or Windows network denial is introduced.
   once; only its two failing packages were rerun after their fixes.
   `make build` also passes and updates `bin/picfetch` for manual use.
 
+### macOS Apple Silicon verification (2026-09-22)
+
+Native follow-up on macOS 27.0 build 26A428, Darwin 27.0.0, arm64,
+Go 1.27.1, Apple ImageIO 2851. This establishes working system decoding on
+this Mac; it does not close all macOS qualification requirements.
+
+- `PICFETCH_HEIC_NATIVE_TEST=1 go test -tags no_emoji,nodynamic -count=1 -v
+  -run 'TestHEIC(DarwinNativeQualification|NativeQualification|NativePrimarySelection|NativeCorpus)$'
+  ./internal/heic` runs the real sandboxed ImageIO children. Main/Main10,
+  designated non-first primary, container/EXIF rotation precedence, grids,
+  ICC, color, HDR-declaration rendition, mirrors (including 10-bit), straight
+  alpha, malformed input, sequence refusal and pixel limits pass. Both
+  `alpha-premultiplied8` and `alpha-premultiplied10` fail with
+  `invalid designated-primary image index`.
+- Independent `/usr/bin/sips -g pixelWidth -g pixelHeight` cannot obtain
+  dimensions for either failing fixture. A standalone C probe calling ImageIO
+  directly reports `count=0 primary=0` for both, versus one decodable image
+  for straight alpha and two images with primary index 1 for the non-first
+  fixture. This localizes the rejection to ImageIO/container compatibility;
+  it does not establish that every premultiplied-alpha HEIC is unsupported.
+  No fallback to an arbitrary image index or substitute decoder was added.
+- `PICFETCH_HEIC_NATIVE_TEST=1 go test -tags no_emoji,nodynamic -count=1 -v
+  -run HEIC ./internal/imaging ./internal/ui ./internal/similarity
+  ./internal/mosaic ./internal/ui/spiral ./internal/ui/settingswin
+  ./internal/ui/help` passes all selected cases except
+  `TestHEICAnalysisWorker/native_finite`. Real native display captures,
+  clipboard PNG encoding (OS clipboard stubbed), PNG/JPEG export and mosaic
+  pixels pass. Retained native search and captured analysis resource limits
+  also pass. UI tests use the Fyne harness, not a visual desktop inspection.
+- The analysis failure is missing EXIF: expected camera make `MIT`, received
+  empty metadata. `native_darwin.go` never sets `Result.EXIF`, and its C bridge
+  has no metadata output, while `ReadMetadataContext` consumes that field.
+  The native adapter needs primary-associated metadata delivery. The failure
+  was reproduced independently of the alpha cases with
+  `-run '^TestHEIC(NativeCorpus|AnalysisWorker)$/^(alpha-premultiplied(8|10)|native_finite)$'`
+  against `./internal/heic ./internal/similarity`.
+- `go run ./scripts/nativeguards -suite macos -capture
+  .scratch/os-heic/evidence/macos-arm64-native-baseline.jsonl` runs all selected
+  native packages. Root, openwith, displays, winpos, filepicker and imaging
+  pass; HEIC and similarity fail on the cases above. The runner additionally
+  rejects Go 1.27 `build-output` events, which identify linker diagnostics
+  through `ImportPath` instead of `Package`. Its final error is therefore
+  `invalid go test event: missing action or package`; no clean qualification
+  gate is claimed. Full event evidence and the runner log are retained under
+  `.scratch/os-heic/evidence/macos-arm64-native-baseline.{jsonl,log}`.
+- `make build` passes and produces the native arm64 `bin/picfetch` with the
+  ImageIO adapter. The linker emits its existing duplicate `-lobjc` warning.
+
+Remaining: macOS EXIF delivery, premultiplied-alpha compatibility investigation,
+native-runner build-event handling, Intel/older-macOS runs, packaged-open and
+desktop visual checks, and the previously open containment/target-matrix
+qualification. Verification made no production or test-code changes and did
+not run the complete Linux/amd64 race gate. No codec was installed, and no
+commit or push was made.
+
+### macOS follow-up fixes (authorized 2026-09-22)
+
+Continue the existing Deep plan, lead-owned with zero delegation. Preserve the
+native pixel path and provider boundary; add no codec or runtime dependency.
+
+1. Restore bounded, primary-associated EXIF bytes in the macOS worker. First
+   pin missing metadata and unrelated-item rejection in native tests, then
+   rerun the existing native finite-analysis regression. Files: HEIC adapter,
+   its metadata helper/tests, and required native inventory. Proof:
+   `PICFETCH_HEIC_NATIVE_TEST=1 go test -tags no_emoji,nodynamic -run HEIC
+   ./internal/heic ./internal/imaging ./internal/similarity ./internal/ui`.
+2. Teach `scripts/nativeguards` to accept structured build diagnostics while
+   retaining build failures and strict named-test evidence. Add failing event
+   stream regressions first. Proof: `go test ./scripts/nativeguards`.
+3. Investigate the authored premultiplied-alpha containers against direct
+   ImageIO. Correct a demonstrated fixture/adapter defect if possible; retain
+   native refusal as an explicit qualification limit otherwise. Do not select
+   arbitrary frames or silently discard alpha signaling to pass a test.
+4. Run the macOS native inventory, focused race tests, build checks and changed
+   code GoLand inspections. Attempt `make verify` under the repository's native
+   Linux/amd64 requirement; record unavailable platform checks honestly.
+
+Tasks 1-3 are independent, performed inline; all precede task 4. Budget: zero
+spawns, one final full gate attempt, focused iterations as failures require.
+
+#### Fix results and limits
+
+- The original missing-EXIF analysis failure and a new valid version-1 cache
+  regression were observed failing before their fixes. The worker now extracts
+  the declared primary's associated `Exif` item, bounds total metadata to
+  1 MiB, and validates box spans, 16/32-bit IDs, local file/idat extents,
+  multi-extent assembly and offset arithmetic. External references, unsupported
+  storage, ambiguous metadata and malformed tables leave metadata absent.
+  Pixel decoding and orientation remain with ImageIO. The existing item-info
+  walk is shared with container admission; no dependency/source code was copied.
+- `heic.Revision=2` invalidates old capability observations. `FactsVersion=2`
+  activates the existing facts-backfill path for cached analyses; the native
+  regression verifies camera make restoration, persistent repair, unchanged
+  previews and zero repeated inference on the warm pass. This one-time facts
+  refresh also applies to cached non-HEIC sources; their image representations
+  remain reusable.
+- Native guards now distinguish `ImportPath`-bearing build events from
+  `Package`-bearing test events, as documented by
+  [Go's build JSON contract](https://pkg.go.dev/cmd/go#hdr-Build__json_encoding).
+  The new regression first failed on a normal linker warning, then passed;
+  explicit build failures, malformed events and absent required tests remain
+  errors. The macOS required inventory now includes `primary_metadata`.
+- The premultiplied-alpha reference direction matches
+  [libheif's encoder](https://github.com/strukturag/libheif/blob/v1.17.6/libheif/context.cc#L2469-L2472).
+  The standalone diagnostic confirms that direct index-zero decoding also
+  fails, and hiding the auxiliary item does not help. Reversing the `prem`
+  relationship lets ImageIO expose an image but changes the container meaning;
+  it is not a valid fix. Original fixtures, pixel expectations and required
+  test inventory remain intact. Both native-alpha failures remain open.
+  Diagnostic code/output: `.scratch/os-heic/evidence/debug-imageio-probe.c`
+  and `macos-arm64-alpha-diagnostic.log` in the same directory.
+- Metadata parser tests cover real associated/unassociated input, truncated
+  containers, malformed tables, wide identifiers, split extents and byte-budget
+  rejection. A 10-second fuzz run completed 3,264,093 executions without failure.
+- `go test -race -tags no_emoji,nodynamic -count=1 ./internal/heic
+  ./internal/similarity ./scripts/nativeguards` passes all three full packages.
+  Opt-in native qualification is separate from this portable race run.
+- `PICFETCH_HEIC_NATIVE_TEST=1 go test -race -tags no_emoji,nodynamic -run HEIC
+  -count=1 ./internal/imaging ./internal/ui ./internal/mosaic
+  ./internal/ui/spiral ./internal/ui/settingswin ./internal/ui/help` passes all
+  six packages, including the real native image operations. Evidence:
+  `.scratch/os-heic/evidence/macos-arm64-consumers-final.log`.
+- `make verify-build build` passes: formatting, notices/generated assets,
+  exact Qodana test exclusions, vet, package builds and native `bin/picfetch`.
+  `make verify` was attempted once and stopped at the required platform guard:
+  Docker reports `linux/aarch64`. No full Linux race pass is claimed.
+- The final macOS native runner passes root/platform guards, imaging and all
+  native analysis modes, including metadata/cache repair. Its only failing
+  leaf tests are the two premultiplied-alpha fixtures. Required tests were
+  neither skipped nor removed. Final raw events and reports are retained as
+  `.scratch/os-heic/evidence/macos-arm64-native-final.{jsonl,log}`; build and
+  race reports are adjacent `macos-arm64-build-final.log` and
+  `macos-arm64-race-final.log`.
+- All ten changed Go files were inspected in GoLand with `errorsOnly=false`.
+  Fixed the exported-constant comment and exhaustive-orientation warning;
+  an explicit Go string type resolves the IDE's incorrect cgo printf typing.
+  Narrow duplication suppressions retain intentional platform binding and
+  native-test setup. Reinspection reports no remaining findings or timeouts.
+
+Actual follow-up ledger: zero spawns; lead review and inline corrections;
+one full gate attempt rejected by platform policy, focused native/race checks
+and native inventory/build reruns after inspection corrections. No commit or
+push. Wider Intel, older-OS,
+packaged-open and native containment qualification remains open.
+
 ### Dependency and distribution record
 
 No module dependency or decoder binary was added. Linux uses the system's

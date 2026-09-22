@@ -25,6 +25,8 @@ func nativeRead(data []byte, request Request) (Result, error) {
 	if err := validateDarwinContainer(data); err != nil {
 		return Result{}, err
 	}
+	// Each platform keeps its own cgo request/allocation boundary.
+	//goland:noinspection DuplicatedCode
 	pixels := C.int(0)
 	if request.Pixels {
 		pixels = 1
@@ -32,7 +34,7 @@ func nativeRead(data []byte, request Request) (Result, error) {
 	decoded := C.picfetch_imageio_read((*C.uint8_t)(unsafe.Pointer(&data[0])), C.size_t(len(data)), C.int64_t(request.MaxPixels), pixels)
 	defer C.free(unsafe.Pointer(decoded.pixels))
 	if decoded.code != 0 {
-		message := C.GoString(&decoded.message[0])
+		var message string = C.GoString(&decoded.message[0])
 		switch decoded.code {
 		case 1:
 			return Result{}, fmt.Errorf("%w: %s", ErrUnavailable, message)
@@ -46,6 +48,7 @@ func nativeRead(data []byte, request Request) (Result, error) {
 	}
 	result := Result{Width: int(decoded.width), Height: int(decoded.height), Stride: int(decoded.width) * 4,
 		Pixels:   C.GoBytes(unsafe.Pointer(decoded.pixels), C.int(decoded.pixel_bytes)),
+		EXIF:     primaryEXIF(data),
 		Provider: C.GoString(&decoded.provider[0]) + "; Darwin " + systemVersion()}
 	// ImageIO reports one intended-display orientation. Apply that value once;
 	// neither a thumbnail transform nor a second EXIF fallback is requested.

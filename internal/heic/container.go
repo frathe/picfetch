@@ -181,7 +181,7 @@ func primaryPropertyIndices(table []byte, primary uint32, propertyCount int) ([]
 	count := binary.BigEndian.Uint32(table[4:])
 	table = table[8:]
 	var selected []int
-	for index := uint32(0); index < count; index++ {
+	for range count {
 		idBytes := 2
 		if version == 1 {
 			idBytes = 4
@@ -228,19 +228,38 @@ func primaryItemType(info []byte, primary uint32) (string, error) {
 	if info == nil {
 		return "", nil
 	}
-	if len(info) < 6 || info[0] > 1 {
+	var itemType string
+	err := walkItemInfo(info, func(id uint32, kind string, protected bool) error {
+		if id == primary {
+			if protected {
+				return ErrUnsupported
+			}
+			itemType = kind
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if itemType == "" {
 		return "", ErrInvalid
+	}
+	return itemType, nil
+}
+
+func walkItemInfo(info []byte, visit func(uint32, string, bool) error) error {
+	if len(info) < 6 || info[0] > 1 {
+		return ErrInvalid
 	}
 	count := uint32(binary.BigEndian.Uint16(info[4:]))
 	header := 6
 	if info[0] == 1 {
 		if len(info) < 8 {
-			return "", ErrInvalid
+			return ErrInvalid
 		}
 		count, header = binary.BigEndian.Uint32(info[4:]), 8
 	}
 	seen := make(map[uint32]bool)
-	var itemType string
 	err := walkBoxes(info[header:], func(kind string, payload []byte) error {
 		if kind != "infe" || len(payload) < 4 {
 			return ErrInvalid
@@ -263,21 +282,15 @@ func primaryItemType(info []byte, primary uint32) (string, error) {
 			return ErrInvalid
 		}
 		seen[id] = true
-		if id == primary {
-			if binary.BigEndian.Uint16(payload[4+idBytes:]) != 0 {
-				return ErrUnsupported
-			}
-			itemType = string(payload[typeOffset : typeOffset+4])
-		}
-		return nil
+		return visit(id, string(payload[typeOffset:typeOffset+4]), binary.BigEndian.Uint16(payload[4+idBytes:]) != 0)
 	})
 	if err != nil {
-		return "", err
+		return err
 	}
-	if uint32(len(seen)) != count || itemType == "" {
-		return "", ErrInvalid
+	if uint32(len(seen)) != count {
+		return ErrInvalid
 	}
-	return itemType, nil
+	return nil
 }
 
 func tiffMetadata(metadata []byte) []byte {
@@ -316,7 +329,7 @@ func exifOrientation(tiff []byte) int {
 	if count*12 > uint64(len(tiff))-offset {
 		return 1
 	}
-	for index := uint64(0); index < count; index++ {
+	for index := range count {
 		entry := tiff[offset+index*12:]
 		if order.Uint16(entry) == 0x112 && order.Uint16(entry[2:]) == 3 && order.Uint32(entry[4:]) == 1 {
 			orientation := int(order.Uint16(entry[8:]))
@@ -357,7 +370,7 @@ func orientResult(result *Result, orientation int) {
 				sx, sy = y, height-1-x
 			case 7:
 				sx, sy = width-1-y, height-1-x
-			case 8:
+			default: // The remaining validated orientation is 8.
 				sx, sy = width-1-y, x
 			}
 			copy(pixels[y*result.Stride+x*4:][:4], result.Pixels[sy*oldStride+sx*4:][:4])

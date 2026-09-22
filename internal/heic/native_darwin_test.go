@@ -88,4 +88,27 @@ func TestHEICDarwinNativeQualification(t *testing.T) {
 			t.Fatalf("oversized primary image = %v, want invalid", err)
 		}
 	})
+	t.Run("primary_metadata", func(t *testing.T) {
+		data, err := os.ReadFile("testdata/exif-rotate.heic")
+		if err != nil {
+			t.Fatal(err)
+		}
+		tiff := bytes.Index(data, []byte{'I', 'I', 42, 0})
+		if tiff < 0 {
+			t.Fatal("fixture lost EXIF data")
+		}
+		for _, pixels := range []bool{false, true} {
+			request := Request{Pixels: pixels, MaxEncodedBytes: 64 * 1024, MaxPixels: 4096}
+			result, err := client.Read(t.Context(), data, request)
+			if err != nil || !bytes.Equal(result.EXIF, data[tiff:]) {
+				t.Fatalf("pixels=%v primary metadata = %x, error=%v", pixels, result.EXIF, err)
+			}
+			unassociated := bytes.Clone(data)
+			copy(unassociated[bytes.Index(unassociated, []byte("cdsc")):], "free")
+			result, err = client.Read(t.Context(), unassociated, request)
+			if err != nil || len(result.EXIF) != 0 {
+				t.Fatalf("pixels=%v unassociated metadata = %x, error=%v", pixels, result.EXIF, err)
+			}
+		}
+	})
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -16,6 +17,9 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
+// Finite and retained native scenarios intentionally own independent lifetimes.
+//
+//goland:noinspection DuplicatedCode
 func TestHEICAnalysisWorker(t *testing.T) {
 	t.Run("native_finite", func(t *testing.T) {
 		if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
@@ -99,6 +103,26 @@ func TestHEICAnalysisWorker(t *testing.T) {
 		if !fresh.OfflineVerified && EnforcesNetworkIsolation() {
 			t.Fatal("native analysis bypassed worker isolation")
 		}
+		// A pre-fix macOS cache has valid pixels and facts version 1, but
+		// empty camera metadata. Refresh its facts without repeating inference.
+		legacyPath := filepath.Join(client.GeneralAnalysisDir, "v1", filepath.Base(analysisName(metadataPath)))
+		legacyData, err := os.ReadFile(legacyPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var legacy cachedRepresentation
+		if err := json.Unmarshal(legacyData, &legacy); err != nil {
+			t.Fatal(err)
+		}
+		legacy.Item.Facts.Version = 1
+		legacy.Item.Facts.Make = ""
+		legacyData, err = json.Marshal(legacy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(legacyPath, legacyData, 0600); err != nil {
+			t.Fatal(err)
+		}
 		var warm Event
 		if err := client.Analyze(ctx, paths, nil, func(event Event) {
 			if event.Complete {
@@ -114,6 +138,14 @@ func TestHEICAnalysisWorker(t *testing.T) {
 			if warm.Items[i].Facts != fresh.Items[i].Facts || !bytes.Equal(warm.Items[i].Preview, fresh.Items[i].Preview) {
 				t.Fatalf("cache changed canonical HEIC facts or pixels for %s", names[i])
 			}
+		}
+		repairedData, err := os.ReadFile(legacyPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		repaired, err := decodeRepresentation(bytes.NewReader(repairedData))
+		if err != nil || repaired.Facts != fresh.Items[6].Facts {
+			t.Fatalf("repaired metadata was not persisted: %+v, %v", repaired.Facts, err)
 		}
 	})
 	t.Run("native_retained_search", testHEICRetainedSearch)
@@ -177,6 +209,7 @@ func testHEICAnalysisLimits(t *testing.T) {
 	}
 }
 
+//goland:noinspection DuplicatedCode
 func testHEICRetainedSearch(t *testing.T) {
 	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
 		t.Skip("native qualification requires PICFETCH_HEIC_NATIVE_TEST=1 and installed similarity assets")
