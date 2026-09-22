@@ -1,4 +1,4 @@
-// Single-image navigation policy and display composition.
+// Single-image navigation, load-failure handling and display composition.
 
 package ui
 

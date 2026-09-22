@@ -165,7 +165,7 @@ func (s *appState) removeFile(i int) fyne.URI {
 	return target
 }
 
-// Stable sorting preserves each URI's occurrence ordinal across displayed,
+// Stable sorting preserves each repeated URI's occurrence ordinal across displayed,
 // unsorted and retained orders even when other sources move around it.
 func (s *appState) fileOccurrence(i int) int {
 	key := s.files[i].String()

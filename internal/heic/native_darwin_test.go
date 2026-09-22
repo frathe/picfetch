@@ -29,7 +29,8 @@ func TestHEICDarwinNativeQualification(t *testing.T) {
 		if mdat < 0 {
 			t.Fatal("fixture has no media payload")
 		}
-		clear(data[mdat+4:])
+		data = data[:mdat+4]
+		binary.BigEndian.PutUint32(data[mdat-4:mdat], 8)
 		request := Request{MaxEncodedBytes: int64(len(data)), MaxPixels: 4096}
 		result, err := client.Read(t.Context(), data, request)
 		if err != nil || result.Width != 64 || result.Height != 64 || len(result.Pixels) != 0 {
