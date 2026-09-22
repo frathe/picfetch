@@ -7,7 +7,9 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,6 +29,13 @@ import (
 type testHEICBackend struct {
 	check func(context.Context) error
 	read  func(context.Context, []byte, heic.Request) (heic.Result, error)
+	wait  func()
+}
+
+func (b testHEICBackend) Wait() {
+	if b.wait != nil {
+		b.wait()
+	}
 }
 
 func TestHEICFeatureIntegration(t *testing.T) {
@@ -123,6 +132,41 @@ func (b testHEICBackend) Read(ctx context.Context, data []byte, request heic.Req
 }
 
 func TestHEICCapabilityLifecycle(t *testing.T) {
+	t.Run("production_shutdown_joins_backend", func(t *testing.T) {
+		v := newTestViewer(t)
+		entered, release := make(chan struct{}, 1), make(chan struct{})
+		var once sync.Once
+		unblock := func() { once.Do(func() { close(release) }) }
+		t.Cleanup(unblock)
+		v.configureHEIC(testHEICBackend{wait: func() {
+			select {
+			case entered <- struct{}{}:
+			default:
+			}
+			<-release
+		}})
+		lifecycle := v.app.Lifecycle().(interface{ OnStopped() func() })
+		previous := lifecycle.OnStopped()
+		registerShutdown(v.app, v)
+		shutdown := lifecycle.OnStopped()
+		v.app.Lifecycle().SetOnStopped(previous)
+		shutdown()
+		done := make(chan struct{})
+		go func() { v.waitForShutdown(); close(done) }()
+		select {
+		case <-entered:
+		case <-done:
+			t.Fatal("production shutdown returned without joining the HEIC backend")
+		case <-time.After(testTimeout):
+			t.Fatal("production shutdown never reached the HEIC backend join")
+		}
+		unblock()
+		select {
+		case <-done:
+		case <-time.After(testTimeout):
+			t.Fatal("production shutdown did not finish after HEIC worker exit")
+		}
+	})
 	v := newTestViewer(t)
 	v.configureHEIC(testHEICBackend{check: func(_ context.Context) error { return nil }})
 	v.heic.ui = &uitest.UIQueue{}
@@ -140,6 +184,60 @@ func TestHEICCapabilityLifecycle(t *testing.T) {
 }
 
 func TestHEICUnavailableFiles(t *testing.T) {
+	t.Run("scan_cap_counts_available_images", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		v.settings.maxScan = 1
+		dir := t.TempDir()
+		for _, name := range []string{"a.heic", "b.heic", "c.jpg"} {
+			data := []byte("unavailable")
+			if name == "c.jpg" {
+				data = uitest.EncodeJPEG(t, 2, 1, color.White)
+			}
+			if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		v.handleDrop([]fyne.URI{storage.NewFileURI(dir)})
+		waitForScan(t, v)
+		if !v.sortOp.done.Begun() {
+			t.Fatal("unavailable HEIC files consumed the scan cap before the JPEG")
+		}
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		if v.FileCount() != 1 || v.FileAt(0).Name() != "c.jpg" {
+			t.Fatalf("supported file missing after unavailable HEICs: %v", v.state.files)
+		}
+	})
+	t.Run("persist_original_order", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		first := uitest.TempJPEGURI(t, "a.jpg", 2, 1, color.White)
+		middle := storage.NewFileURI(uitest.WriteTempFile(t, "b.heic", []byte("unavailable")))
+		last := uitest.TempJPEGURI(t, "c.jpg", 2, 1, color.White)
+		dropAndWait(t, v, first, middle, last)
+		assertSaved := func(want ...string) {
+			t.Helper()
+			if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, want) {
+				t.Fatalf("saved order = %v, want %v", got, want)
+			}
+		}
+		assertSaved("a.jpg", "b.heic", "c.jpg")
+		if got := namesOfURIs(v.persistedFiles([]fyne.URI{last, first})); !slices.Equal(got, []string{"c.jpg", "a.jpg", "b.heic"}) {
+			t.Fatalf("Favorite's visible order changed: %v", got)
+		}
+		v.RemoveFile(0)
+		assertSaved("b.heic", "c.jpg")
+		v.SetMergeMode(true)
+		added := uitest.TempJPEGURI(t, "d.jpg", 2, 1, color.White)
+		dropAndWait(t, v, added, middle)
+		assertSaved("b.heic", "c.jpg", "d.jpg")
+		v.SetMergeMode(false)
+		dropAndWait(t, v, added, last)
+		assertSaved("d.jpg", "c.jpg")
+	})
 	v := newTestViewer(t)
 	var available atomic.Bool
 	v.configureHEIC(testHEICBackend{check: func(_ context.Context) error {

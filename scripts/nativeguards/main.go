@@ -99,7 +99,7 @@ func (s *suite) requireHEIC() {
 	case "linux":
 		tests = append(tests, "TestHEICLinuxWorkerRestrictions", "TestHEICWorkerDiesWithProducer")
 	case "darwin":
-		tests = append(tests, "TestHEICDarwinNativeQualification")
+		tests = append(tests, "TestHEICDarwinNativeQualification", "TestHEICDarwinInheritedSandbox")
 		for _, name := range []string{
 			"representative_pixels", "probe8.heic", "probe10.heic", "container-rotate.heic",
 			"exif-rotate.heic", "container-and-exif.heic", "HDR_native_rendering", "pixel_budget_refusal",

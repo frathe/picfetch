@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"net"
 	"os"
-	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // This is a required native runner inventory, not a substitute for the wider
@@ -21,44 +23,6 @@ func TestHEICDarwinNativeQualification(t *testing.T) {
 	}
 	client := NewClient("")
 	t.Cleanup(func() { client.Stop(); client.Wait() })
-	t.Run("premultiplication_diagnostic", func(t *testing.T) {
-		probe := exec.CommandContext(t.Context(), "swift", "-e", `
-import Foundation
-import ImageIO
-import CoreGraphics
-for name in CommandLine.arguments.dropFirst() {
-    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: name) as CFURL, nil) else { continue }
-    print("[DEBUG-pr50-alpha]", name, "count", CGImageSourceGetCount(source), "primary", CGImageSourceGetPrimaryImageIndex(source))
-    for index in 0..<CGImageSourceGetCount(source) {
-        print("[DEBUG-pr50-alpha] index", index, "properties", String(describing: CGImageSourceCopyPropertiesAtIndex(source, index, nil)))
-        if let image = CGImageSourceCreateImageAtIndex(source, index, nil) {
-            print("[DEBUG-pr50-alpha] index", index, "alpha", image.alphaInfo.rawValue, "size", image.width, image.height)
-        }
-    }
-}`, "testdata/alpha-straight8.heic", "testdata/alpha-premultiplied8.heic", "testdata/alpha-premultiplied10.heic")
-		output, err := probe.CombinedOutput()
-		t.Logf("[DEBUG-pr50-alpha] direct ImageIO frames: %s; error: %v", output, err)
-		for _, name := range []string{"alpha-premultiplied8", "alpha-premultiplied10"} {
-			data, err := os.ReadFile("testdata/" + name + ".heic")
-			if err != nil {
-				t.Fatal(err)
-			}
-			reference := bytes.Index(data, []byte("prem"))
-			if reference < 0 {
-				t.Fatal("authored fixture lost prem reference")
-			}
-			copy(data[reference:reference+4], "free")
-			result, err := client.Read(t.Context(), data, Request{Pixels: true, MaxEncodedBytes: 64 * 1024, MaxPixels: 4096})
-			if err != nil {
-				t.Logf("[DEBUG-pr50-alpha] %s without prem: %v", name, err)
-				continue
-			}
-			for _, point := range [][2]int{{16, 16}, {48, 16}, {16, 48}, {48, 48}} {
-				pixel := result.Pixels[point[1]*result.Stride+point[0]*4:][:4]
-				t.Logf("[DEBUG-pr50-alpha] %s without prem at %v: %v", name, point, pixel)
-			}
-		}
-	})
 	t.Run("representative_pixels", func(t *testing.T) {
 		if err := client.Check(context.Background()); err != nil {
 			t.Fatal(err)
@@ -150,4 +114,48 @@ for name in CommandLine.arguments.dropFirst() {
 			}
 		}
 	})
+}
+
+func TestHEICDarwinInheritedSandbox(t *testing.T) {
+	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
+		t.Skip("requires native sandbox qualification")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	stage := os.Getenv("PICFETCH_HEIC_SANDBOX_STAGE")
+	if stage == "child" {
+		for _, network := range []string{"tcp4", "udp4"} {
+			dialer := net.Dialer{Timeout: time.Second}
+			connection, err := dialer.DialContext(ctx, network, "192.0.2.1:443")
+			if err == nil {
+				if network == "udp4" {
+					_, err = connection.Write(nil)
+				}
+				_ = connection.Close()
+			}
+			if !errors.Is(err, syscall.EPERM) && !errors.Is(err, syscall.EACCES) {
+				t.Fatalf("inherited %s network denial = %v", network, err)
+			}
+		}
+		return
+	}
+	client := NewClient("")
+	next := "parent"
+	if stage == "parent" {
+		client = NewInheritedSandboxClient("")
+		next = "child"
+	}
+	t.Cleanup(func() { client.Stop(); client.Wait() })
+	cmd := client.command(ctx, os.Args[0])
+	cmd.Args = append(cmd.Args, "-test.run=^TestHEICDarwinInheritedSandbox$", "-test.v")
+	cmd.Env = append(os.Environ(), "PICFETCH_HEIC_SANDBOX_STAGE="+next)
+	prepareWorker(cmd)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("sandbox stage %s: %v\n%s", next, err, output)
+	}
+	if stage == "parent" {
+		if err := client.Check(ctx); err != nil {
+			t.Fatalf("native decoding inside inherited sandbox: %v", err)
+		}
+	}
 }

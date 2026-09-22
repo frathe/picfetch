@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -20,7 +21,7 @@ type heicWork struct {
 	ui         fileUIQueue
 	workers    sync.WaitGroup
 	delivery   <-chan struct{}
-	stopped    bool
+	stopped    atomic.Bool
 }
 
 func (v *viewer) heicContext(ctx context.Context) context.Context {
@@ -31,18 +32,56 @@ func (v *viewer) heicContext(ctx context.Context) context.Context {
 }
 
 func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
-	result := append([]fyne.URI(nil), files...)
-	seen := make(map[string]bool, len(result))
-	for _, uri := range result {
-		seen[uri.String()] = true
+	available := make(map[string]bool, len(files))
+	for _, uri := range files {
+		available[uri.String()] = true
+	}
+	missing := make(map[string]fyne.URI, len(v.state.unavailableHEIC))
+	for _, uri := range v.state.unavailableHEIC {
+		if !available[uri.String()] {
+			missing[uri.String()] = uri
+		}
+	}
+	// Attach unavailable members to the preceding surviving source. This
+	// reconstructs unsorted session order while preserving a Favorite's chosen
+	// order for its visible members, and never resurrects removed visible files.
+	after := make(map[string][]fyne.URI)
+	anchor := ""
+	for _, uri := range v.state.unavailableOrder {
+		key := uri.String()
+		if available[key] {
+			anchor = key
+		} else if retained, ok := missing[key]; ok {
+			after[anchor] = append(after[anchor], retained)
+			delete(missing, key)
+		}
+	}
+	result := append([]fyne.URI(nil), after[""]...)
+	for _, uri := range files {
+		result = append(result, uri)
+		result = append(result, after[uri.String()]...)
+		delete(after, uri.String())
 	}
 	for _, uri := range v.state.unavailableHEIC {
-		if !seen[uri.String()] {
+		if _, ok := missing[uri.String()]; ok {
 			result = append(result, uri)
-			seen[uri.String()] = true
+			delete(missing, uri.String())
 		}
 	}
 	return result
+}
+
+func (v *viewer) retainUnavailableHEIC(merging bool, skipped, order []fyne.URI) {
+	if merging {
+		v.state.unavailableOrder = append(v.persistedFiles(v.state.unsortedFiles), order...)
+		v.state.unavailableHEIC = append(v.state.unavailableHEIC, skipped...)
+	} else {
+		v.state.unavailableOrder = append([]fyne.URI(nil), order...)
+		v.state.unavailableHEIC = append([]fyne.URI(nil), skipped...)
+	}
+	if len(v.state.unavailableHEIC) == 0 {
+		v.state.unavailableOrder = nil
+	}
 }
 
 func (v *viewer) explainUnavailableHEIC(skipped []fyne.URI, explicit bool) {
@@ -73,8 +112,11 @@ func (v *viewer) configureHEIC(backend heic.Backend) {
 	v.heic = &heicWork{backend: backend, ui: fyneFileQueue{}, capability: heic.NewCapability(backend, heic.SystemIdentity(), preferences.LoadHEICObservation(v.app))}
 	work := v.heic
 	work.capability.SetOnInvalidated(func() {
+		if work.stopped.Load() {
+			return
+		}
 		work.ui.Do(func() {
-			if work.stopped || v.heic != work {
+			if work.stopped.Load() || v.heic != work {
 				return
 			}
 			if !work.capability.State().Known {
@@ -96,7 +138,7 @@ func (v *viewer) configureHEIC(backend heic.Backend) {
 
 func (v *viewer) startHEICCheck(manual bool) {
 	work := v.heic
-	if work == nil || work.stopped {
+	if work == nil || work.stopped.Load() {
 		return
 	}
 	var done <-chan struct{}
@@ -113,8 +155,11 @@ func (v *viewer) startHEICCheck(manual bool) {
 	queue := work.ui
 	work.workers.Go(func() {
 		<-done
+		if work.stopped.Load() {
+			return
+		}
 		queue.Do(func() {
-			if work.stopped || v.heic != work || work.delivery != done {
+			if work.stopped.Load() || v.heic != work || work.delivery != done {
 				return
 			}
 			state := work.capability.State()
@@ -127,13 +172,25 @@ func (v *viewer) startHEICCheck(manual bool) {
 }
 
 func (v *viewer) stopHEIC() {
-	if v.heic == nil || v.heic.stopped {
+	if v.heic == nil || v.heic.stopped.Swap(true) {
 		return
 	}
-	v.heic.stopped = true
 	v.heic.capability.Stop()
 	if backend, ok := v.heic.backend.(interface{ Stop() }); ok {
 		backend.Stop()
+	}
+}
+
+// waitHEIC joins canceled workers after the event loop exits. It never drains
+// UI callbacks; those have already been invalidated by stopHEIC.
+func (v *viewer) waitHEIC() {
+	if v.heic == nil {
+		return
+	}
+	v.heic.capability.Wait()
+	v.heic.workers.Wait()
+	if backend, ok := v.heic.backend.(interface{ Wait() }); ok {
+		backend.Wait()
 	}
 }
 

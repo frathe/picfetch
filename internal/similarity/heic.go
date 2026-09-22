@@ -26,7 +26,7 @@ func workerHEICContext(ctx context.Context, req request) (context.Context, func(
 	if !snapshot.Available {
 		return heic.WithSnapshot(ctx, snapshot), func() {}
 	}
-	client := heic.NewClient("")
+	client := heic.NewInheritedSandboxClient("")
 	maxPixels := req.MaxPixels
 	if maxPixels <= 0 || maxPixels > imaging.MaxImagePixels() {
 		maxPixels = imaging.MaxImagePixels()

@@ -131,6 +131,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 }
 
 func (v *viewer) waitForShutdown() {
+	v.waitHEIC()
 	v.help.Wait()
 	// Preview cancellation cannot interrupt a source already blocked in native
 	// I/O. Close retires its UI delivery; only the test harness joins those reads

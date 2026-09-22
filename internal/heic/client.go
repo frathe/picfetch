@@ -35,6 +35,16 @@ func NewClient(executable string) *Client {
 		slots: make(chan struct{}, 2), active: make(map[uint64]context.CancelFunc)}
 }
 
+// NewInheritedSandboxClient is for an analysis producer that verifies its own
+// OS network denial before reading images. Its children inherit that sandbox;
+// installing a second macOS sandbox can fail even with the same policy.
+// Other platforms retain their ordinary child launch and resource limits.
+func NewInheritedSandboxClient(executable string) *Client {
+	client := NewClient(executable)
+	client.command = inheritedWorkerCommand
+	return client
+}
+
 func (c *Client) Check(ctx context.Context) error {
 	_, err := c.run(ctx, nil, wireRequest{Check: true}, 10*time.Second)
 	return err

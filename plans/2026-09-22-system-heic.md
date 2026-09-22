@@ -65,6 +65,42 @@ launcher restriction before Go execution; retry outside that restriction.
   distinguish reference handling from bitmap conversion before a production
   change; remove this probe after diagnosis. GoLand also inspected that file.
 
+### Codex findings and native follow-up
+
+- The initial Codex code review identified scan-cap accounting, retained-file
+  ordering and missing production shutdown joins. Each received an observed
+  failing regression before its fix. Unavailable HEICs now stay outside the
+  admitted-image count; saved collections retain their original positions
+  across merges/removals; production shutdown joins capability, delivery and
+  native workers after cancelling admission, without draining UI callbacks.
+- Hosted run `35783733207` confirms all three Windows cache regressions now
+  pass. Its native analysis assets are installed; the remaining Windows HEIC
+  failures still report the missing Microsoft decoder. Both macOS architectures
+  still fail the original premultiplied-alpha cases.
+- The same run exposed Intel macOS refusing a nested `sandbox-exec`
+  (`sandbox_apply: Operation not permitted`). Analysis producers already verify
+  their own OS network denial before image reads. Their HEIC children now inherit
+  that sandbox directly; desktop decoding still installs its own sandbox. A
+  required native regression verifies TCP/UDP denial in the child and successful
+  HEIC decoding under the inherited policy. Other platforms keep the original
+  launch path and all common cancellation/resource bounds.
+- Run `35784428795`'s temporary ImageIO probe found one frame in both original
+  premultiplied fixtures. ImageIO reports no alpha on those originals; removing
+  only `prem` instead renders the grayscale alpha plane as opaque pixels. This
+  is not a valid workaround. The probe is removed, original corpus expectations
+  remain, and the user has been asked whether explicit unsupported-file refusal
+  on macOS is acceptable or full correct rendering is required.
+- Qodana run `35783733218`'s root post-suppression SARIF has zero results;
+  CodeQL passes. Run `35784428795` passes validation and all Linux race shards.
+  Security review completed on `07ecc15`; a clean final-head review is still
+  required after these fixes.
+- Focused HEIC/UI file-state race regressions and HEIC/similarity/nativeguards
+  race checks pass locally. GoLand inspected all fourteen changed Go files,
+  including weak warnings. The only findings are two pre-existing duplicate
+  transition sequences in `filestate_test.go`; they exercise separate slice and
+  index invariants and are covered by that test file's existing exact Qodana
+  duplication exclusion. No source suppression or test exclusion was broadened.
+
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement
 with SDD/TDD, delegate tickets, and review their work.

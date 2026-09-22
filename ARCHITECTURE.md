@@ -589,6 +589,10 @@ Settings/Help wiring, and shutdown settlement. Saved collections retain temporar
 unavailable members in `appState.unavailableHEIC` independently of displayed files.
 
 `Client` bounds native children (two slots, deadlines, framed output, Stop/Wait).
+Analysis producers use `NewInheritedSandboxClient` after establishing their
+own sandbox and verify OS network denial before reading images. macOS children
+inherit that policy without a second `sandbox-exec`; desktop children still
+install their own sandbox, and all client cancellation/resource bounds remain.
 `WorkerMain` dispatches before desktop startup. `container.go` performs checked
 primary-item/property and EXIF-transform interpretation inside that child;
 `native_linux.go/.c` dynamically loads system libheif with an HEVC provider.

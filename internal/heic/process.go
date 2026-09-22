@@ -10,3 +10,7 @@ import (
 func workerCommand(ctx context.Context, executable string) *exec.Cmd {
 	return exec.CommandContext(ctx, executable)
 }
+
+func inheritedWorkerCommand(ctx context.Context, executable string) *exec.Cmd {
+	return workerCommand(ctx, executable)
+}
