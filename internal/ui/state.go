@@ -133,6 +133,14 @@ func (s *appState) removeFile(i int) fyne.URI {
 			break
 		}
 	}
+	// Remove the same occurrence from the retained order. Unavailable members
+	// keep their positions when a surviving source has the same URI as target.
+	for j, u := range s.unavailableOrder {
+		if u.String() == target.String() {
+			s.unavailableOrder = append(s.unavailableOrder[:j], s.unavailableOrder[j+1:]...)
+			break
+		}
+	}
 
 	s.publish()
 

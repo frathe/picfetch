@@ -32,35 +32,48 @@ func (v *viewer) heicContext(ctx context.Context) context.Context {
 }
 
 func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
-	available := make(map[string]bool, len(files))
+	available := make(map[string]int, len(files))
 	for _, uri := range files {
-		available[uri.String()] = true
+		available[uri.String()]++
 	}
 	missing := make(map[string]fyne.URI, len(v.state.unavailableHEIC))
 	for _, uri := range v.state.unavailableHEIC {
-		if !available[uri.String()] {
+		if available[uri.String()] == 0 {
 			missing[uri.String()] = uri
 		}
 	}
 	// Attach unavailable members to the preceding surviving source. This
 	// reconstructs unsorted session order while preserving a Favorite's chosen
 	// order for its visible members, and never resurrects removed visible files.
-	after := make(map[string][]fyne.URI)
-	anchor := ""
+	// Merge mode permits repeated visible sources. Each occurrence owns its
+	// own following gaps, even when another occurrence has the same URI.
+	type position struct {
+		key        string
+		occurrence int
+	}
+	after := make(map[position][]fyne.URI)
+	occurrences := make(map[string]int)
+	anchor := position{}
 	for _, uri := range v.state.unavailableOrder {
 		key := uri.String()
-		if available[key] {
-			anchor = key
+		if available[key] > 0 {
+			occurrences[key]++
+			if occurrences[key] <= available[key] {
+				anchor = position{key, occurrences[key]}
+			}
 		} else if retained, ok := missing[key]; ok {
 			after[anchor] = append(after[anchor], retained)
 			delete(missing, key)
 		}
 	}
-	result := append([]fyne.URI(nil), after[""]...)
+	clear(occurrences)
+	result := append([]fyne.URI(nil), after[position{}]...)
 	for _, uri := range files {
+		key := uri.String()
+		occurrences[key]++
+		anchor = position{key, occurrences[key]}
 		result = append(result, uri)
-		result = append(result, after[uri.String()]...)
-		delete(after, uri.String())
+		result = append(result, after[anchor]...)
 	}
 	for _, uri := range v.state.unavailableHEIC {
 		if _, ok := missing[uri.String()]; ok {

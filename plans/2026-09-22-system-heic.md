@@ -101,6 +101,25 @@ launcher restriction before Go execution; retry outside that restriction.
   index invariants and are covered by that test file's existing exact Qodana
   duplication exclusion. No source suppression or test exclusion was broadened.
 
+### Final-head follow-up
+
+- On `9287768`, validation and all four Linux race partitions pass; Qodana run
+  `35786131685` has zero root post-suppression SARIF findings and CodeQL has no
+  open PR alerts. Security review completed without findings. Both macOS
+  architectures pass inherited TCP/UDP denial and real HEIC analysis; the Intel
+  nested-sandbox failure is resolved. Native CI now fails only on unavailable
+  Microsoft codecs in hosted Windows and both macOS premultiplied-alpha cases.
+  There are no self-hosted runners registered for this repository.
+- Lead follow-up reproduced one remaining retained-order edge case: merge mode
+  permits repeated visible URIs, but their skipped followers were all attached
+  to the first occurrence. The regression observed `[a,b,d,c,a]` instead of
+  `[a,b,c,a,d]`. Retained positions now identify each occurrence, and removal
+  removes the corresponding occurrence from the retained order. The focused
+  regression covers both merge and subsequent removal and now passes together
+  with HEIC, app-state, viewer-state and batch-removal race regressions. GoLand
+  reinspected all three changed Go files with weak warnings enabled and found
+  no issues. A fresh review/CI round is required after this correction.
+
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement
 with SDD/TDD, delegate tickets, and review their work.

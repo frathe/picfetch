@@ -184,6 +184,25 @@ func TestHEICCapabilityLifecycle(t *testing.T) {
 }
 
 func TestHEICUnavailableFiles(t *testing.T) {
+	t.Run("merged_duplicate_preserves_positions", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		first := uitest.TempJPEGURI(t, "a.jpg", 2, 1, color.White)
+		middle := storage.NewFileURI(uitest.WriteTempFile(t, "b.heic", []byte("unavailable")))
+		last := uitest.TempJPEGURI(t, "c.jpg", 2, 1, color.White)
+		added := storage.NewFileURI(uitest.WriteTempFile(t, "d.heic", []byte("unavailable")))
+		dropAndWait(t, v, first, middle, last)
+		v.SetMergeMode(true)
+		dropAndWait(t, v, first, added)
+		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"a.jpg", "b.heic", "c.jpg", "a.jpg", "d.heic"}) {
+			t.Fatalf("merged repeated source changed saved positions: %v", got)
+		}
+		v.RemoveFile(0)
+		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"b.heic", "c.jpg", "a.jpg", "d.heic"}) {
+			t.Fatalf("removing repeated source changed saved positions: %v", got)
+		}
+	})
 	t.Run("scan_cap_counts_available_images", func(t *testing.T) {
 		v := newTestViewer(t)
 		v.startHEICCheck(false)

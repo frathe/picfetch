@@ -37,8 +37,10 @@ qualification items below are not implicitly closed by opening the PR.
 The initial three Codex findings have focused regression fixes. Windows cache
 regressions now pass in hosted CI; missing Microsoft codecs still prevent its
 native HEIC qualification. macOS premultiplied-alpha rendering remains incorrect;
-Intel nested-sandbox startup has a fix awaiting native CI evidence. Final clean
-code/security review and complete CI remain open.
+Intel nested-sandbox startup and HEIC analysis now pass on both macOS
+architectures. A further regression fixes retained ordering when merge mode
+repeats a visible source. Final clean code/security review and complete CI
+remain open.
 
 ### delegate heic image rendering to the OS
 
