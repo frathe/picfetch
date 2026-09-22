@@ -140,6 +140,16 @@ Windows builds for both x64 (`picfetch-windows-amd64.zip`) and ARM64
 (`picfetch-windows-arm64.zip`); grab the one matching your machine. See
 [Building](#building) below to build from source instead.
 
+### Linux desktop installation
+
+Extract the archive for your architecture and run `sh install.sh` inside the
+extracted directory. This installs PicFetch and its notices under
+`$XDG_DATA_HOME/io.github.frathe.picfetch` (normally
+`~/.local/share/io.github.frathe.picfetch`) and registers a launcher with
+absolute binary and icon paths. PicFetch then appears in the application menu
+and "Open With" choices. No administrator access or default-association change
+is needed. The binary can also be run directly from the extracted archive.
+
 ### Windows (Microsoft Store)
 
 [![Download from the Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9p0dm0kth01k?ocid=webpdpshare)

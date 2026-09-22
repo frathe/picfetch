@@ -9,12 +9,16 @@ import (
 	"github.com/frathe/picfetch/internal/filesort"
 )
 
+type collectionSource struct {
+	uri         fyne.URI
+	unavailable bool
+}
+
 type appState struct {
 	files         []fyne.URI
 	unsortedFiles []fyne.URI
 	// Retained for saved collections while a system decoder is unavailable.
-	unavailableHEIC  []fyne.URI
-	unavailableOrder []fyne.URI
+	unavailableOrder []collectionSource
 	index            int
 	sortMode         filesort.Mode
 	mergeMode        bool
@@ -114,7 +118,6 @@ func (s *appState) reorder(files []fyne.URI) {
 func (s *appState) clearFiles() {
 	s.files = nil
 	s.unsortedFiles = nil
-	s.unavailableHEIC = nil
 	s.unavailableOrder = nil
 	s.index = 0
 	s.publish()
@@ -135,8 +138,8 @@ func (s *appState) removeFile(i int) fyne.URI {
 	}
 	// Remove the same occurrence from the retained order. Unavailable members
 	// keep their positions when a surviving source has the same URI as target.
-	for j, u := range s.unavailableOrder {
-		if u.String() == target.String() {
+	for j, source := range s.unavailableOrder {
+		if !source.unavailable && source.uri.String() == target.String() {
 			s.unavailableOrder = append(s.unavailableOrder[:j], s.unavailableOrder[j+1:]...)
 			break
 		}
@@ -149,4 +152,14 @@ func (s *appState) removeFile(i int) fyne.URI {
 	}
 
 	return target
+}
+
+func (s *appState) retainOrder(order []collectionSource) {
+	s.unavailableOrder = nil
+	for _, source := range order {
+		if source.unavailable {
+			s.unavailableOrder = order
+			return
+		}
+	}
 }

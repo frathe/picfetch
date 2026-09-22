@@ -72,21 +72,23 @@ picfetch_heic_result picfetch_heic_read(const uint8_t *data, size_t length, int6
     CHECK(heif_context_get_primary_image_handle(context, &handle));
     int width = heif_image_handle_get_width(handle), height = heif_image_handle_get_height(handle);
     if (width <= 0 || height <= 0 || (int64_t)width * height > max_pixels) { FAILURE(3, "primary dimensions exceed pixel limit"); }
-    options = heif_decoding_options_alloc();
-    if (!options || options->version < 4) { FAILURE(1, "incompatible libheif decoding options ABI"); }
-    options->ignore_transformations = 0;
-    options->strict_decoding = 1;
-    // Let the native decoder render color and bit depth into the viewer format.
-    options->convert_hdr_to_8bit = 1;
-    options->decoder_id = decoder_id;
-    CHECK(heif_decode_image(handle, &image, 1, 11, options));
-    result.width = heif_image_get_primary_width(image);
-    result.height = heif_image_get_primary_height(image);
-    if (result.width <= 0 || result.height <= 0 || (int64_t)result.width * result.height > max_pixels) { FAILURE(3, "decoded dimensions exceed pixel limit"); }
-    int stride = 0;
-    const uint8_t *plane = heif_image_get_plane_readonly(image, 10, &stride);
-    if (!plane || stride < (int64_t)result.width * 4 || (int64_t)stride * result.height > 4LL * 1024 * 1024 * 1024) { FAILURE(3, "invalid decoded RGBA plane"); }
+    result.width = width;
+    result.height = height;
     if (pixels) {
+        options = heif_decoding_options_alloc();
+        if (!options || options->version < 4) { FAILURE(1, "incompatible libheif decoding options ABI"); }
+        options->ignore_transformations = 0;
+        options->strict_decoding = 1;
+        // Let the native decoder render color and bit depth into the viewer format.
+        options->convert_hdr_to_8bit = 1;
+        options->decoder_id = decoder_id;
+        CHECK(heif_decode_image(handle, &image, 1, 11, options));
+        result.width = heif_image_get_primary_width(image);
+        result.height = heif_image_get_primary_height(image);
+        if (result.width <= 0 || result.height <= 0 || (int64_t)result.width * result.height > max_pixels) { FAILURE(3, "decoded dimensions exceed pixel limit"); }
+        int stride = 0;
+        const uint8_t *plane = heif_image_get_plane_readonly(image, 10, &stride);
+        if (!plane || stride < (int64_t)result.width * 4 || (int64_t)stride * result.height > 4LL * 1024 * 1024 * 1024) { FAILURE(3, "invalid decoded RGBA plane"); }
         result.pixel_bytes = (size_t)result.width * result.height * 4;
         result.pixels = malloc(result.pixel_bytes);
         if (!result.pixels) { FAILURE(4, "allocating canonical pixels failed"); }

@@ -5,8 +5,55 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 )
+
+func TestHEICDarwinAlphaPreparation(t *testing.T) {
+	for _, bits := range []string{"8", "10"} {
+		for _, alpha := range []string{"straight", "premultiplied"} {
+			t.Run(alpha+bits, func(t *testing.T) {
+				data, err := os.ReadFile("testdata/alpha-" + alpha + bits + ".heic")
+				if err != nil {
+					t.Fatal(err)
+				}
+				original := bytes.Clone(data)
+				prepared, changed, err := darwinAlphaInput(data)
+				if err != nil || changed != (alpha == "premultiplied") {
+					t.Fatalf("alpha preparation changed=%t error=%v", changed, err)
+				}
+				if !bytes.Equal(data, original) || len(prepared) != len(data) {
+					t.Fatal("preparation changed source bytes or container offsets")
+				}
+				media := bytes.Index(data, []byte("mdat"))
+				if media < 0 || !bytes.Equal(data[media:], prepared[media:]) {
+					t.Fatal("preparation changed the encoded image payload")
+				}
+				metadata, err := primaryAlpha(prepared)
+				if err != nil || metadata.primary != 1 || metadata.item != 2 || metadata.premultiplied {
+					t.Fatalf("prepared alpha association = %+v, %v", metadata, err)
+				}
+				if _, err := inspectContainer(prepared); err != nil {
+					t.Fatalf("preparation damaged primary properties: %v", err)
+				}
+			})
+		}
+	}
+	data, err := os.ReadFile("testdata/alpha-premultiplied8.heic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prem := bytes.Index(data, []byte("prem"))
+	binary.BigEndian.PutUint16(data[prem+6:], 65535)
+	if _, _, err := darwinAlphaInput(data); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("malformed alpha reference = %v, want invalid", err)
+	}
+	pixels := []byte{17, 8, 4, 0, 80, 40, 20, 128, 120, 60, 30, 192, 160, 80, 40, 255}
+	undoPremultiplication(pixels)
+	if !bytes.Equal(pixels, []byte{0, 0, 0, 0, 159, 80, 40, 128, 159, 80, 40, 192, 160, 80, 40, 255}) {
+		t.Fatalf("restored straight-alpha channels = %v", pixels)
+	}
+}
 
 func TestHEICDarwinProfileAdmission(t *testing.T) {
 	data := []byte(probe10)

@@ -132,6 +132,22 @@ func (b testHEICBackend) Read(ctx context.Context, data []byte, request heic.Req
 }
 
 func TestHEICCapabilityLifecycle(t *testing.T) {
+	t.Run("shutdown_clears_queued_invalidation", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.configureHEIC(testHEICBackend{check: func(_ context.Context) error { return nil }})
+		v.heic.ui = &uitest.UIQueue{}
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		if !preferences.LoadHEICObservation(v.app).Available {
+			t.Fatal("successful check was not persisted")
+		}
+		snapshot := v.heic.capability.Snapshot()
+		heic.ReportUnavailable(heic.WithSnapshot(t.Context(), snapshot))
+		v.stopHEIC()
+		if stored := preferences.LoadHEICObservation(v.app); stored.Available || !stored.CheckedAt.IsZero() {
+			t.Fatalf("shutdown retained invalidated support while delivery was queued: %+v", stored)
+		}
+	})
 	t.Run("production_shutdown_joins_backend", func(t *testing.T) {
 		v := newTestViewer(t)
 		entered, release := make(chan struct{}, 1), make(chan struct{})
@@ -184,6 +200,49 @@ func TestHEICCapabilityLifecycle(t *testing.T) {
 }
 
 func TestHEICUnavailableFiles(t *testing.T) {
+	t.Run("retention_has_a_separate_cap", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		v.settings.maxScan = 2
+		dir := t.TempDir()
+		for _, name := range []string{"a.heic", "b.heic", "c.heic", "d.heic"} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("unavailable"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		v.handleDrop([]fyne.URI{storage.NewFileURI(dir)})
+		waitForScan(t, v)
+		if saved := v.persistedFiles(v.state.unsortedFiles); len(saved) != 2 {
+			t.Fatalf("unavailable retention exceeded separate cap: %v", saved)
+		}
+		if !strings.Contains(v.toast.text.Text, "scan limit") {
+			t.Fatalf("retention truncation was not reported: %q", v.toast.text.Text)
+		}
+	})
+	t.Run("explicit_unavailable_source_does_not_open_siblings", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "a.heic")
+		if err := os.WriteFile(path, []byte("unavailable"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "b.jpg"), uitest.EncodeJPEG(t, 2, 1, color.White), 0600); err != nil {
+			t.Fatal(err)
+		}
+		v.handleDrop([]fyne.URI{storage.NewFileURI(path)})
+		waitForScan(t, v)
+		if v.sortOp.done.Begun() {
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+		}
+		if v.FileCount() != 0 || len(v.persistedFiles(nil)) != 1 {
+			t.Fatalf("explicit unavailable source opened its neighbor: %v", v.state.files)
+		}
+		_ = explorerDialogButton(t, v, "HEIC installation guide")
+	})
 	t.Run("merged_duplicate_preserves_positions", func(t *testing.T) {
 		v := newTestViewer(t)
 		v.startHEICCheck(false)
@@ -201,6 +260,10 @@ func TestHEICUnavailableFiles(t *testing.T) {
 		v.RemoveFile(0)
 		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"b.heic", "c.jpg", "a.jpg", "d.heic"}) {
 			t.Fatalf("removing repeated source changed saved positions: %v", got)
+		}
+		dropAndWait(t, v, first, middle)
+		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"b.heic", "c.jpg", "a.jpg", "d.heic", "a.jpg", "b.heic"}) {
+			t.Fatalf("merging repeated unavailable source lost an occurrence: %v", got)
 		}
 	})
 	t.Run("scan_cap_counts_available_images", func(t *testing.T) {
@@ -252,7 +315,7 @@ func TestHEICUnavailableFiles(t *testing.T) {
 		v.SetMergeMode(true)
 		added := uitest.TempJPEGURI(t, "d.jpg", 2, 1, color.White)
 		dropAndWait(t, v, added, middle)
-		assertSaved("b.heic", "c.jpg", "d.jpg")
+		assertSaved("b.heic", "c.jpg", "d.jpg", "b.heic")
 		v.SetMergeMode(false)
 		dropAndWait(t, v, added, last)
 		assertSaved("d.jpg", "c.jpg")

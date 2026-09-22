@@ -139,6 +139,59 @@ the earlier invalid in-reference box renaming. It logs actual native RGBA and
 does not alter the original required corpus expectations. Remove the diagnostic
 once native evidence is collected. GoLand inspected the changed test file.
 
+### Second/third review fixes
+
+- Retained collection entries now carry per-occurrence availability, preserving
+  repeated unavailable URIs as well as visible duplicates across merge, removal
+  and backend loss. HEIC and nearby file-state race regressions pass.
+- HEIC worker requests use the exact already-admitted buffer length as their
+  encoded-byte ceiling. A size-setting change affects the next read, without
+  rejecting a buffer that the reader already admitted. The regression first
+  failed after a probe lowered the setting, then passed along with image-read,
+  metadata and size-limit race regressions.
+- Linux metadata probes now read validated handle dimensions/EXIF without
+  calling the pixel decoder. An authored fixture with valid dimensions and a
+  corrupted media payload first failed probing; it now probes successfully
+  while pixel decoding still fails. The actual native corpus continues to pass.
+  CI adds an Ubuntu 24.04 native job with distro libheif/libde265, pinned analysis
+  assets, the required guard inventory and retained raw events.
+- Linux archives now ship a per-user installer for the matching binary, icon,
+  notices and absolute-path desktop entry. The real release tar command is
+  tested for both architectures; each extracted installer is run under isolated
+  XDG storage and the entry is launched through GIO from an unrelated directory.
+  Tests preserve Unicode, spaces, quoting and desktop field-code characters.
+  The installer does not change default associations. Escaping follows the
+  [freedesktop Exec rules](https://specifications.freedesktop.org/desktop-entry/latest/exec-variables.html).
+- The macOS valid-reference experiment produced alpha 0/128/192/255 on both
+  authored fixtures, with the expected still-premultiplied color channels.
+  Production now removes the primary's validated prem reference in a copied
+  container, fills the same space with a sibling free box, lets ImageIO compose
+  alpha, and restores straight channels. Shared alpha metadata validation was
+  extracted from the Windows adapter without changing its contract. Portable
+  tests preserve source bytes, offsets, media, primary/auxiliary associations
+  and reject malformed references. Original native corpus expectations remain
+  unchanged; production native qualification is still required. The diagnostic
+  is removed.
+- All changed code files were inspected with GoLand including weak warnings.
+  The macOS adapter's intentional cgo-boundary duplication has a narrow documented
+  suppression; reinspection is clear. Windows cross-vet passes for the extracted
+  parser and transport test. Final `make verify-build` and focused HEIC/drop/
+  file-state race tests pass after the three scan/shutdown corrections; their
+  GoLand reinspections and the CI workflow inspection are also clear.
+- A Windows native run exposed a cold PowerShell test timing out at its exact
+  20-second deadline. Its transport fixture now allows one bounded minute and
+  reports context state on failure; path/Unicode assertions remain intact.
+
+The review of `65aa995` returned four additional findings. Three have observed
+red regressions: cap unavailable retention separately from admitted images,
+keep an unavailable explicit HEIC at its own error/guide instead of opening a
+sibling, and clear invalidated persisted capability during shutdown even when
+its UI callback is suppressed. Fixes retain cancellation and normal source paths.
+The Arch claim is rejected: `osReleaseValue` returns `(empty, true)` for an absent
+key, so the Arch branch is reachable. Existing
+`TestHEICGuideCurrentSystemSelection/Arch_rolling_x86_64` (no `VERSION_ID`) and
+the complete focused HEIC guide tests pass without changes.
+
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement
 with SDD/TDD, delegate tickets, and review their work.

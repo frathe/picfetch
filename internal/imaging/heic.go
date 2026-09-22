@@ -37,10 +37,10 @@ func readHEIC(ctx context.Context, data []byte, pixels bool) (heic.Result, error
 	if !snapshot.Available || snapshot.Backend == nil {
 		return heic.Result{}, heic.ErrUnavailable
 	}
-	if int64(len(data)) > MaxEncodedBytes() {
-		return heic.Result{}, &InputTooLargeError{limit: MaxEncodedBytes()}
-	}
-	result, err := snapshot.Backend.Read(ctx, data, heic.Request{Pixels: pixels, MaxEncodedBytes: MaxEncodedBytes(), MaxPixels: maxImagePixels})
+	// These bytes have already passed the reader's captured size limit. Bound
+	// each worker request to that admitted buffer; later setting changes apply
+	// to the next read, just as they do for the other image formats.
+	result, err := snapshot.Backend.Read(ctx, data, heic.Request{Pixels: pixels, MaxEncodedBytes: int64(len(data)), MaxPixels: maxImagePixels})
 	if ctx.Err() != nil {
 		return heic.Result{}, ctx.Err()
 	}

@@ -151,6 +151,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		check = capability.Ensure(token.context())
 	}
 	var skipped, sourceOrder []fyne.URI
+	retentionTruncated := false
 	seenOrder := make(map[string]bool)
 	record := func(uri fyne.URI) {
 		if !seenOrder[uri.String()] {
@@ -175,15 +176,28 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 				return false
 			}
 		}
-		record(uri)
 		if !snapshot.Available {
+			if seenOrder[uri.String()] {
+				return false
+			}
+			if len(skipped) >= maxScan {
+				retentionTruncated = true
+				return false
+			}
+			record(uri)
 			skipped = append(skipped, uri)
 			return false
 		}
+		record(uri)
 		return true
 	}
 
 	scan := func(progress func(int)) (images []fyne.URI, truncated bool) {
+		if expandSiblings && heic.IsExtension(uris[0].Extension()) && !accepts(uris[0]) {
+			// An unavailable explicit source belongs at its own guide/error
+			// state; opening it must not display an unrelated neighbor.
+			return nil, false
+		}
 		if expandSiblings {
 			images, truncated = filescan.SiblingsWithAdmission(token.context(), uris[0], maxScan, progress, accepts)
 		} else {
@@ -196,7 +210,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 				return strings.Compare(a.Name(), b.Name())
 			})
 		}
-		return images, truncated
+		return images, truncated || retentionTruncated
 	}
 
 	explicitHEIC := false
@@ -273,6 +287,9 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 
 		v.retainUnavailableHEIC(merging, skipped, sourceOrder)
 		v.explainUnavailableHEIC(skipped, true)
+		if truncated {
+			v.ShowToast(fmt.Sprintf(lang.L("scan limit of %d reached - some files may not have been included"), maxScan))
+		}
 
 		// A --slideshow launch whose paths held no image is spent here
 		// rather than left armed for whatever the user drops next.

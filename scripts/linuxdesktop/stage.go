@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,9 @@ import (
 )
 
 type appMetadata struct{ Name, ID, Icon string }
+
+//go:embed install.sh
+var installerTemplate string
 
 func stage(root, executable, out string) error {
 	if !safeBasename(executable, true) {
@@ -41,7 +45,11 @@ func stage(root, executable, out string) error {
 	if err := os.WriteFile(filepath.Join(out, meta.ID+".desktop"), []byte(entry), 0644); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(out, meta.ID+".png"), icon, 0644)
+	if err := os.WriteFile(filepath.Join(out, meta.ID+".png"), icon, 0644); err != nil {
+		return err
+	}
+	installer := strings.NewReplacer("@APP_ID@", meta.ID, "@EXECUTABLE@", executable).Replace(installerTemplate)
+	return os.WriteFile(filepath.Join(out, "install.sh"), []byte(installer), 0755)
 }
 
 // Exec is a desktop-entry argument vector, not a shell command. Restrict the

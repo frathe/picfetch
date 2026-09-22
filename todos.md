@@ -34,13 +34,15 @@ Codex code/security, Qodana/CodeQL and complete CI results on the final head.
 The [implementation plan](plans/2026-09-22-system-heic.md) records evidence;
 the user's functional testing covers Windows, macOS and Linux. Remaining
 qualification items below are not implicitly closed by opening the PR.
-The initial three Codex findings have focused regression fixes. Windows cache
-regressions now pass in hosted CI; missing Microsoft codecs still prevent its
-native HEIC qualification. macOS premultiplied-alpha rendering remains incorrect;
-Intel nested-sandbox startup and HEIC analysis now pass on both macOS
-architectures. A further regression fixes retained ordering when merge mode
-repeats a visible source. Final clean code/security review and complete CI
-remain open.
+The first three Codex findings are fixed; later rounds cover collection
+occurrences, scan retention and explicit opens, shutdown persistence, encoded
+limits, Linux launcher installation and native CI/probing. The Arch-guide claim
+is a verified false positive. Windows cache regressions pass in hosted CI;
+missing Microsoft codecs still prevent its native HEIC qualification. Intel
+nested-sandbox startup and HEIC analysis pass on both macOS architectures. A
+native ImageIO experiment recovered correct alpha through a valid reference
+rewrite; the production correction now awaits the original native corpus.
+Final clean code/security review and complete CI remain open.
 
 ### delegate heic image rendering to the OS
 

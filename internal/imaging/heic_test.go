@@ -84,6 +84,34 @@ func (b heicBackend) Read(ctx context.Context, data []byte, request heic.Request
 }
 
 func TestHEICDecoderContract(t *testing.T) {
+	t.Run("size setting applies to the next read", func(t *testing.T) {
+		withMaxEncodedBytes(t, 4096)
+		backend := heicBackend{read: func(_ context.Context, data []byte, request heic.Request) (heic.Result, error) {
+			if request.MaxEncodedBytes < int64(len(data)) {
+				t.Fatalf("already admitted bytes rejected by worker ceiling: %+v", request)
+			}
+			result := heic.Result{Width: 1, Height: 1}
+			if request.Pixels {
+				result.Stride, result.Pixels = 4, []byte{0, 0, 0, 255}
+			} else {
+				SetMaxEncodedBytes(1)
+			}
+			return result, nil
+		}}
+		ctx := heic.WithSnapshot(t.Context(), heic.Snapshot{Backend: backend, Available: true})
+		uri := storage.NewFileURI("testdata/test_exif.heic")
+		data, _, err := ReadAndProbe(ctx, uri)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := DecodeLoaded(ctx, data, 0); err != nil {
+			t.Fatalf("setting change retroactively rejected admitted HEIC: %v", err)
+		}
+		var tooLarge *InputTooLargeError
+		if _, _, err := ReadAndProbe(ctx, uri); !errors.As(err, &tooLarge) {
+			t.Fatalf("next read did not use the changed limit: %v", err)
+		}
+	})
 	t.Run("metadata comes from the captured native primary item", func(t *testing.T) {
 		data, err := os.ReadFile("testdata/test_exif.heic")
 		if err != nil {
@@ -106,7 +134,7 @@ func TestHEICDecoderContract(t *testing.T) {
 	})
 	t.Run("shared probe and decode use captured backend with canonical pixels", func(t *testing.T) {
 		backend := heicBackend{read: func(_ context.Context, data []byte, request heic.Request) (heic.Result, error) {
-			if len(data) != 1130 || request.MaxPixels != maxImagePixels || request.MaxEncodedBytes != MaxEncodedBytes() {
+			if len(data) != 1130 || request.MaxPixels != maxImagePixels || request.MaxEncodedBytes != int64(len(data)) {
 				t.Fatalf("source/limits not preserved: bytes=%d request=%+v", len(data), request)
 			}
 			result := heic.Result{Width: 2, Height: 1, Provider: "test system boundary"}

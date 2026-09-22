@@ -108,10 +108,16 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 }
 
 func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
-	order := v.persistedFiles(v.state.unsortedFiles)
-	retained := append([]fyne.URI(nil), v.state.unavailableHEIC...)
-	if errors.Is(err, heic.ErrUnavailable) {
-		retained = append(retained, source)
+	retained := v.retainedOrder()
+	for i, entry := range retained {
+		if !entry.unavailable && entry.uri.String() == source.String() {
+			if errors.Is(err, heic.ErrUnavailable) {
+				retained[i].unavailable = true
+			} else {
+				retained = append(retained[:i], retained[i+1:]...)
+			}
+			break
+		}
 	}
 	msg := fmt.Sprintf(lang.L("could not read %q: %v"), source.Name(), err)
 	var dimensions *imaging.InvalidDimensionsError
@@ -126,15 +132,13 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 	restoredIndex := v.reconcileSources(sourceChange{kind: sourceLoadFailed, removed: []int{i}})
 	if len(v.state.files) == 0 {
 		v.ShowEmptyStateError(msg)
-		v.state.unavailableHEIC = retained
-		v.state.unavailableOrder = order
+		v.state.retainOrder(retained)
 		if errors.Is(err, heic.ErrUnavailable) {
 			v.explainUnavailableHEIC([]fyne.URI{source}, true)
 		}
 		return nil
 	}
-	v.state.unavailableHEIC = retained
-	v.state.unavailableOrder = order
+	v.state.retainOrder(retained)
 	v.ShowToast(msg)
 	if restoredIndex >= 0 {
 		i = restoredIndex

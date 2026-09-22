@@ -277,8 +277,10 @@ digests consumed by Makefile and the release/Store workflows.
 `docs/packaging-inputs.md` describes provenance and native artifact validation.
 `scripts/plistdoctypes` derives macOS file associations from recognized formats;
 `scripts/msixstage` stages Store manifests/assets and guards packaging routes.
-`scripts/linuxdesktop` stages a desktop launcher and official icon for each
-Linux archive. All three use static `imaging.RecognizedExtensions()`; desktop
+`scripts/linuxdesktop` stages a desktop launcher template, official icon and
+per-user `install.sh` for each Linux archive. Installation copies the binary
+and notices under XDG data storage and publishes an absolute-path launcher.
+All three use static `imaging.RecognizedExtensions()`; desktop
 declarations do not depend on build-host codec availability.
 
 ### `scripts/storepublish`
@@ -586,7 +588,8 @@ operation snapshots and invalidates a disappeared provider once per generation.
 `context.go` carries those snapshots through ordinary imaging and analysis calls.
 Root `internal/ui/heic.go` owns persistence, queued status delivery/rechecks,
 Settings/Help wiring, and shutdown settlement. Saved collections retain temporarily
-unavailable members in `appState.unavailableHEIC` independently of displayed files.
+unavailable members by collection occurrence in `appState.unavailableOrder`,
+including repeated URIs, independently of displayed files.
 
 `Client` bounds native children (two slots, deadlines, framed output, Stop/Wait).
 Analysis producers use `NewInheritedSandboxClient` after establishing their
@@ -596,6 +599,9 @@ install their own sandbox, and all client cancellation/resource bounds remain.
 `WorkerMain` dispatches before desktop startup. `container.go` performs checked
 primary-item/property and EXIF-transform interpretation inside that child;
 `native_linux.go/.c` dynamically loads system libheif with an HEVC provider.
+`alpha.go` validates the primary's auxiliary-alpha associations on Windows and
+macOS. `darwinalpha.go` preserves container offsets while adapting premultiplied
+references for ImageIO's native alpha composition and restores straight channels.
 Native color rendition is best effort; ICC, gamut, HDR and bit depth are left
 to the decoder while resource bounds and canonical output validation remain.
 `native_darwin.go/.c` uses ImageIO designated-primary selection and canonical

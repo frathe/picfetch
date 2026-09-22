@@ -159,39 +159,3 @@ func TestHEICDarwinInheritedSandbox(t *testing.T) {
 		}
 	}
 }
-
-func TestHEICDarwinAlphaReferenceDiagnostic(t *testing.T) {
-	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
-		t.Skip("requires native ImageIO diagnosis")
-	}
-	client := NewClient("")
-	t.Cleanup(func() { client.Stop(); client.Wait() })
-	for _, bits := range []string{"8", "10"} {
-		data, err := os.ReadFile("testdata/alpha-premultiplied" + bits + ".heic")
-		if err != nil {
-			t.Fatal(err)
-		}
-		// Owned fixtures use ordinary-size boxes. Remove the complete prem
-		// reference and put a free box beside iref so iloc offsets stay valid.
-		ref, prem := bytes.Index(data, []byte("iref"))-4, bytes.Index(data, []byte("prem"))-4
-		if ref < 0 || prem < ref {
-			t.Fatal("fixture has no premultiplication reference")
-		}
-		end := ref + int(binary.BigEndian.Uint32(data[ref:]))
-		size := int(binary.BigEndian.Uint32(data[prem:]))
-		copy(data[prem:end-size], data[prem+size:end])
-		binary.BigEndian.PutUint32(data[ref:], uint32(end-ref-size))
-		clear(data[end-size : end])
-		binary.BigEndian.PutUint32(data[end-size:], uint32(size))
-		copy(data[end-size+4:], "free")
-		result, err := client.Read(t.Context(), data, Request{Pixels: true, MaxEncodedBytes: int64(len(data)), MaxPixels: 4096})
-		if err != nil {
-			t.Logf("[DEBUG-pr50-alpha-reference] bits=%s error=%v", bits, err)
-			continue
-		}
-		for _, point := range [][2]int{{16, 16}, {48, 16}, {16, 48}, {48, 48}} {
-			pixel := result.Pixels[point[1]*result.Stride+point[0]*4:][:4]
-			t.Logf("[DEBUG-pr50-alpha-reference] bits=%s point=%v rgba=%v", bits, point, pixel)
-		}
-	}
-}

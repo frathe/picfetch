@@ -3,6 +3,7 @@
 package heic
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -12,6 +13,29 @@ import (
 
 	"golang.org/x/sys/unix"
 )
+
+func TestHEICLinuxHeaderProbe(t *testing.T) {
+	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
+		t.Skip("requires explicit native provider qualification")
+	}
+	data := []byte(probe8)
+	mdat := bytes.Index(data, []byte("mdat"))
+	if mdat < 0 {
+		t.Fatal("fixture has no media payload")
+	}
+	clear(data[mdat+4:])
+	client := NewClient("")
+	t.Cleanup(func() { client.Stop(); client.Wait() })
+	request := Request{MaxEncodedBytes: int64(len(data)), MaxPixels: 4096}
+	result, err := client.Read(t.Context(), data, request)
+	if err != nil || result.Width != 64 || result.Height != 64 || len(result.Pixels) != 0 {
+		t.Fatalf("header probe inspected corrupt pixel payload: %+v, %v", result, err)
+	}
+	request.Pixels = true
+	if _, err := client.Read(t.Context(), data, request); err == nil {
+		t.Fatal("pixel decode accepted corrupt payload")
+	}
+}
 
 func TestHEICLinuxWorkerRestrictions(t *testing.T) {
 	stage := os.Getenv("PICFETCH_HEIC_RESTRICTION_TEST")

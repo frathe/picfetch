@@ -97,7 +97,7 @@ func (s *suite) requireHEIC() {
 	}
 	switch s.goos {
 	case "linux":
-		tests = append(tests, "TestHEICLinuxWorkerRestrictions", "TestHEICWorkerDiesWithProducer")
+		tests = append(tests, "TestHEICLinuxHeaderProbe", "TestHEICLinuxWorkerRestrictions", "TestHEICWorkerDiesWithProducer")
 	case "darwin":
 		tests = append(tests, "TestHEICDarwinNativeQualification", "TestHEICDarwinInheritedSandbox")
 		for _, name := range []string{

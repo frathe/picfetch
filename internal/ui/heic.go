@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -36,12 +37,6 @@ func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
 	for _, uri := range files {
 		available[uri.String()]++
 	}
-	missing := make(map[string]fyne.URI, len(v.state.unavailableHEIC))
-	for _, uri := range v.state.unavailableHEIC {
-		if available[uri.String()] == 0 {
-			missing[uri.String()] = uri
-		}
-	}
 	// Attach unavailable members to the preceding surviving source. This
 	// reconstructs unsorted session order while preserving a Favorite's chosen
 	// order for its visible members, and never resurrects removed visible files.
@@ -54,16 +49,15 @@ func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
 	after := make(map[position][]fyne.URI)
 	occurrences := make(map[string]int)
 	anchor := position{}
-	for _, uri := range v.state.unavailableOrder {
-		key := uri.String()
-		if available[key] > 0 {
+	for _, source := range v.state.unavailableOrder {
+		key := source.uri.String()
+		if source.unavailable {
+			after[anchor] = append(after[anchor], source.uri)
+		} else if available[key] > 0 {
 			occurrences[key]++
 			if occurrences[key] <= available[key] {
 				anchor = position{key, occurrences[key]}
 			}
-		} else if retained, ok := missing[key]; ok {
-			after[anchor] = append(after[anchor], retained)
-			delete(missing, key)
 		}
 	}
 	clear(occurrences)
@@ -75,26 +69,33 @@ func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
 		result = append(result, uri)
 		result = append(result, after[anchor]...)
 	}
-	for _, uri := range v.state.unavailableHEIC {
-		if _, ok := missing[uri.String()]; ok {
-			result = append(result, uri)
-			delete(missing, uri.String())
-		}
-	}
 	return result
 }
 
+func (v *viewer) retainedOrder() []collectionSource {
+	if v.state.unavailableOrder != nil {
+		return slices.Clone(v.state.unavailableOrder)
+	}
+	order := make([]collectionSource, len(v.state.unsortedFiles))
+	for i, uri := range v.state.unsortedFiles {
+		order[i].uri = uri
+	}
+	return order
+}
+
 func (v *viewer) retainUnavailableHEIC(merging bool, skipped, order []fyne.URI) {
+	var retained []collectionSource
 	if merging {
-		v.state.unavailableOrder = append(v.persistedFiles(v.state.unsortedFiles), order...)
-		v.state.unavailableHEIC = append(v.state.unavailableHEIC, skipped...)
-	} else {
-		v.state.unavailableOrder = append([]fyne.URI(nil), order...)
-		v.state.unavailableHEIC = append([]fyne.URI(nil), skipped...)
+		retained = v.retainedOrder()
 	}
-	if len(v.state.unavailableHEIC) == 0 {
-		v.state.unavailableOrder = nil
+	missing := make(map[string]bool, len(skipped))
+	for _, uri := range skipped {
+		missing[uri.String()] = true
 	}
+	for _, uri := range order {
+		retained = append(retained, collectionSource{uri, missing[uri.String()]})
+	}
+	v.state.retainOrder(retained)
 }
 
 func (v *viewer) explainUnavailableHEIC(skipped []fyne.URI, explicit bool) {
@@ -189,6 +190,11 @@ func (v *viewer) stopHEIC() {
 		return
 	}
 	v.heic.capability.Stop()
+	if !v.heic.capability.State().Known {
+		// Shutdown suppresses queued UI delivery, including invalidation
+		// persistence. Reconcile before Fyne flushes preferences at OnStopped.
+		preferences.ClearHEICObservation(v.app)
+	}
 	if backend, ok := v.heic.backend.(interface{ Stop() }); ok {
 		backend.Stop()
 	}

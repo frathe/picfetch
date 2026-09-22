@@ -245,7 +245,7 @@ func TestNativeCIExecutesAndRetainsEveryDeclaredSuite(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, name := range []string{"windows", "macos", "store"} {
+	for _, name := range []string{"linux", "windows", "macos", "store"} {
 		if !strings.Contains(text, "./scripts/nativeguards -suite "+name+" -capture") {
 			t.Errorf("CI omits %s guard runner", name)
 		}

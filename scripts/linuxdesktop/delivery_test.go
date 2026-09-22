@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -53,7 +54,7 @@ func TestHEICStaticDeclarationsDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			executable := "picfetch-linux-" + arch
-			binary := []byte("representative bundled executable for archive membership")
+			binary := []byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\n")
 			if err := os.WriteFile(filepath.Join(bin, executable), binary, 0755); err != nil {
 				t.Fatal(err)
 			}
@@ -86,7 +87,7 @@ func TestHEICStaticDeclarationsDelivery(t *testing.T) {
 				t.Fatalf("release archive command: %v\n%s", err, output)
 			}
 			files := archiveFiles(t, filepath.Join(bin, executable+".tar.gz"))
-			for _, name := range []string{executable, "io.github.frathe.picfetch.desktop", "io.github.frathe.picfetch.png", "LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md"} {
+			for _, name := range []string{executable, "install.sh", "io.github.frathe.picfetch.desktop", "io.github.frathe.picfetch.png", "LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md"} {
 				if len(files[name]) == 0 {
 					t.Errorf("release archive is missing %s", name)
 				}
@@ -96,6 +97,30 @@ func TestHEICStaticDeclarationsDelivery(t *testing.T) {
 			}
 			if data := files["io.github.frathe.picfetch.desktop"]; len(data) != 0 && desktopFields(t, data)["Exec"] != executable+" %F" {
 				t.Error("archive launcher targets another architecture")
+			}
+			if runtime.GOOS != "linux" {
+				return
+			}
+			extracted := t.TempDir()
+			for name, data := range files {
+				if err := os.WriteFile(filepath.Join(extracted, name), data, 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			dataHome := filepath.Join(t.TempDir(), "data café 'quote' $dollar `tick` % space")
+			install := exec.Command("sh", filepath.Join(extracted, "install.sh"))
+			install.Dir = t.TempDir()
+			install.Env = append(os.Environ(), "XDG_DATA_HOME="+dataHome)
+			if output, err := install.CombinedOutput(); err != nil {
+				t.Fatalf("install extracted archive: %v\n%s", err, output)
+			}
+			launcher := filepath.Join(dataHome, "applications", "io.github.frathe.picfetch.desktop")
+			argument := filepath.Join(t.TempDir(), "opened café $literal.heic")
+			launch := exec.Command("gio", "launch", launcher, argument)
+			output, err := launch.CombinedOutput()
+			if err != nil || strings.TrimSpace(string(output)) != argument {
+				entry, readErr := os.ReadFile(launcher)
+				t.Fatalf("installed desktop launcher: %v output=%q, want argument %q\nentry (%v):\n%s", err, output, argument, readErr, entry)
 			}
 		})
 	}
