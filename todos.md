@@ -22,6 +22,16 @@
 
 ## Open
 
+### Native Windows similarity-cache tests
+
+The full `internal/similarity` suite has three failures on Windows that also
+reproduce with the pre-fix search implementation: permission assumptions in
+`TestAnalysisCacheMaintenancePartialFailure`, URI/native path comparison in
+`TestAnalysisCacheConfinementManagedUsageAndTemps`, and open-directory rename
+sharing in `TestFavoriteAnalysisFollowsOpenedDirectory`. Qualify these separately;
+the Windows search tests and production search/cache integration pass. See
+[the regression evidence](plans/2026-09-19-windows-visual-search-paths.md).
+
 ### Finish AVIF notice release qualification
 
 Implementation and local evidence are recorded in
@@ -32,8 +42,6 @@ Implementation and local evidence are recorded in
   retained, but the floating libyuv branch and SDK `33.0+m` do not establish
   exact historical source correspondence; see
   [provenance limits](scripts/avifnotices/README.md#provenance-limits).
-- Run complete verification on native Linux/amd64 or CI; this workstation's
-  Linux/aarch64 Docker daemon cannot satisfy the worker-isolation test gate.
 - Verify native offline Licenses UI on Windows/Linux, and final signed Store
   MSIX/bundle plus WACK. Unsigned GitHub archives for both architectures and
   Store executable payloads passed local notice checks; actual MSIX/bundle

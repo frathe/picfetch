@@ -169,3 +169,31 @@ is pinned, but that cannot prove its historical source closure. These are open
 release qualifications in `todos.md`, not a claim of legal certification or
 fully attested source correspondence. No commit, push, signing or publication
 was authorized or performed. Keep this plan active until acceptance/qualification.
+
+### PR #49 review loop (2026-09-22)
+
+The user invoked the repository's GitHub Codex review loop, authorizing fix
+commits, pushes, review replies and thread resolution. This supersedes the
+implementation session's no-commit restriction above; release qualification
+remains open.
+
+- Confirmed the Codex finding on `todos.md`: the AVIF section displaced the
+  unrelated Windows similarity-cache follow-up. Restored that section verbatim
+  from the PR's parent, alongside the AVIF work, including all three test names
+  and the existing evidence link. No Windows behavior changed.
+- Thin repair: two Markdown files, no agents, no source or test changes.
+  Verification compares the restored section byte-for-byte with the parent,
+  checks both open sections and their evidence links, and runs `git diff --check`.
+- [CI run 35642591941](https://github.com/frathe/picfetch/actions/runs/35642591941)
+  passed on `8a723aa736`: validation, all four native Linux race partitions,
+  Windows tests, and both macOS native guards. This completes the previously
+  pending full Linux CI qualification, so that item was removed from `todos.md`.
+  Native offline UI and signed Store/WACK qualifications remain open.
+- [Qodana run 35642591966](https://github.com/frathe/picfetch/actions/runs/35642591966)
+  passed; the downloaded post-suppression `qodana.sarif.json` contains zero
+  results. CodeQL has no open alerts for this PR. Existing job annotations only
+  announce the future `ubuntu-latest` runner-image migration.
+- Codex security review completed without findings on `8a723aa736`. The code
+  review found the displaced TODO above; the repaired commit requires another
+  fresh code/security review and its own CI results before loop completion.
+  Final results will be recorded on the PR after those checks complete.
