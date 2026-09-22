@@ -120,6 +120,25 @@ launcher restriction before Go execution; retry outside that restriction.
   reinspected all three changed Go files with weak warnings enabled and found
   no issues. A fresh review/CI round is required after this correction.
 
+### Second Codex review
+
+The review of `9287768` returned six findings: macOS premultiplied alpha,
+collection occurrences (including repeated unavailable members), Linux desktop
+installation, HEIC encoded-size admission, Linux native CI coverage and redundant
+Linux probe decoding. The lead validated each against current code. New observed
+red regressions cover repeated unavailable members, changing the size setting
+after source admission, missing Linux CI invocation, decoding corrupt media
+during an otherwise valid header probe, and the absent Linux archive installer.
+Focused fixes and inspections are in progress; none of these threads is closed
+on assertion alone.
+
+A temporary native test-only ImageIO experiment removes the complete `prem`
+reference from copied fixtures and replaces its space with a sibling `free` box,
+preserving all `iloc` offsets. This distinguishes a valid reference rewrite from
+the earlier invalid in-reference box renaming. It logs actual native RGBA and
+does not alter the original required corpus expectations. Remove the diagnostic
+once native evidence is collected. GoLand inspected the changed test file.
+
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement
 with SDD/TDD, delegate tickets, and review their work.
