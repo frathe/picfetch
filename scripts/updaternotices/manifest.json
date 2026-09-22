@@ -574,7 +574,7 @@
   },
   {
     "module": "github.com/google/go-containerregistry",
-    "version": "v0.21.7",
+    "version": "v0.22.1",
     "files": [
       {
         "path": "LICENSE",
@@ -582,7 +582,7 @@
       }
     ],
     "license": "Apache-2.0",
-    "source": "https://proxy.golang.org/github.com/google/go-containerregistry/@v/v0.21.7.zip",
+    "source": "https://proxy.golang.org/github.com/google/go-containerregistry/@v/v0.22.1.zip",
     "packages": [
       "github.com/google/go-containerregistry/pkg/name"
     ]
@@ -721,7 +721,7 @@
   },
   {
     "module": "github.com/secure-systems-lab/go-securesystemslib",
-    "version": "v0.11.0",
+    "version": "v0.11.1",
     "files": [
       {
         "path": "LICENSE",
@@ -729,7 +729,7 @@
       }
     ],
     "license": "MIT",
-    "source": "https://proxy.golang.org/github.com/secure-systems-lab/go-securesystemslib/@v/v0.11.0.zip",
+    "source": "https://proxy.golang.org/github.com/secure-systems-lab/go-securesystemslib/@v/v0.11.1.zip",
     "packages": [
       "github.com/secure-systems-lab/go-securesystemslib/cjson",
       "github.com/secure-systems-lab/go-securesystemslib/dsse",
@@ -767,7 +767,7 @@
   },
   {
     "module": "github.com/sigstore/protobuf-specs",
-    "version": "v0.5.1",
+    "version": "v0.5.2",
     "files": [
       {
         "path": "COPYRIGHT.txt",
@@ -779,7 +779,7 @@
       }
     ],
     "license": "Apache-2.0",
-    "source": "https://proxy.golang.org/github.com/sigstore/protobuf-specs/@v/v0.5.1.zip",
+    "source": "https://proxy.golang.org/github.com/sigstore/protobuf-specs/@v/v0.5.2.zip",
     "packages": [
       "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1",
       "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1",
@@ -856,7 +856,7 @@
   },
   {
     "module": "github.com/sigstore/sigstore",
-    "version": "v1.10.9",
+    "version": "v1.10.10",
     "files": [
       {
         "path": "COPYRIGHT.txt",
@@ -868,7 +868,7 @@
       }
     ],
     "license": "Apache-2.0",
-    "source": "https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.10.9.zip",
+    "source": "https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.10.10.zip",
     "packages": [
       "github.com/sigstore/sigstore/pkg/cryptoutils",
       "github.com/sigstore/sigstore/pkg/signature",

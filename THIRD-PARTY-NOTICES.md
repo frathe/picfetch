@@ -3077,11 +3077,11 @@ The Go-derived source headers below also use the complete [Go BSD license](#upda
 - `x509/root_darwin_armx.go (lines 3-5)`: [license text 1c830a763cea](#updater-text-1c830a763cea)
   Applies to: `x509/root_darwin_armx.go`, `x509/root_linux.go`.
 
-### github.com/google/go-containerregistry v0.21.7
+### github.com/google/go-containerregistry v0.22.1
 
 License: Apache-2.0
 
-Source: https://proxy.golang.org/github.com/google/go-containerregistry/@v/v0.21.7.zip
+Source: https://proxy.golang.org/github.com/google/go-containerregistry/@v/v0.22.1.zip
 
 - `LICENSE`: [license text 58d1e17ffe51](#updater-text-58d1e17ffe51)
 
@@ -3148,11 +3148,11 @@ Source: https://proxy.golang.org/github.com/pkg/errors/@v/v0.9.1.zip
 
 - `LICENSE`: [license text 8d427fd87bc9](#updater-text-8d427fd87bc9)
 
-### github.com/secure-systems-lab/go-securesystemslib v0.11.0
+### github.com/secure-systems-lab/go-securesystemslib v0.11.1
 
 License: MIT
 
-Source: https://proxy.golang.org/github.com/secure-systems-lab/go-securesystemslib/@v/v0.11.0.zip
+Source: https://proxy.golang.org/github.com/secure-systems-lab/go-securesystemslib/@v/v0.11.1.zip
 
 - `LICENSE`: [license text cb64503e4772](#updater-text-cb64503e4772)
 
@@ -3170,11 +3170,11 @@ The matcher in `gitignore.go` closely matches Python pathspec 0.2.2 at revision 
 - `scripts/updaternotices/licenses/cpython-LICENSE`: [license text be4ab0448730](#updater-text-be4ab0448730)
   Original source: https://github.com/python/cpython/blob/v2.7.6/LICENSE
 
-### github.com/sigstore/protobuf-specs v0.5.1
+### github.com/sigstore/protobuf-specs v0.5.2
 
 License: Apache-2.0
 
-Source: https://proxy.golang.org/github.com/sigstore/protobuf-specs/@v/v0.5.1.zip
+Source: https://proxy.golang.org/github.com/sigstore/protobuf-specs/@v/v0.5.2.zip
 
 - `COPYRIGHT.txt`: [license text 193753bc913f](#updater-text-193753bc913f)
 - `LICENSE`: [license text cfc7749b96f6](#updater-text-cfc7749b96f6)
@@ -3197,11 +3197,11 @@ Source: https://proxy.golang.org/github.com/sigstore/rekor-tiles/v2/@v/v2.3.0.zi
 - `COPYRIGHT.txt`: [license text 9daa76e002ba](#updater-text-9daa76e002ba)
 - `LICENSE`: [license text c71d239df917](#updater-text-c71d239df917)
 
-### github.com/sigstore/sigstore v1.10.9
+### github.com/sigstore/sigstore v1.10.10
 
 License: Apache-2.0
 
-Source: https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.10.9.zip
+Source: https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.10.10.zip
 
 - `COPYRIGHT.txt`: [license text 6622d1d495e7](#updater-text-6622d1d495e7)
 - `LICENSE`: [license text cfc7749b96f6](#updater-text-cfc7749b96f6)
