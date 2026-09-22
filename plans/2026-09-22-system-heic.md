@@ -223,6 +223,38 @@ file-state race regressions. `make verify-build` passes. All four changed Go
 files have clear GoLand results with weak warnings included. A fresh hosted
 review and complete CI round remains required after this commit.
 
+### Fifth review follow-up
+
+On `5fc6896`, validation, all Linux race partitions and Linux/both macOS native
+suites pass. Qodana run `35792631242` has zero root post-suppression findings;
+CodeQL has no open PR alerts. Security review completed without findings. The
+Windows run again fails only from missing Microsoft HEIF activation, with cache
+and picker regressions passing; its raw events and job logs were inspected.
+
+The next code review raised four findings: redundant ImageIO pixel decoding
+during metadata probing, removal of the wrong repeated source, missing guide
+delivery after cached availability fails during an explicit open, and the
+already-known unqualified Windows runner. The first three are code corrections;
+the runner finding remains open pending an official-codec-equipped Windows
+runner. Do not remove or skip required native tests to hide that gap.
+
+Lead-owned regressions observed the UI failures before their fixes. Removal
+now follows the selected URI's stable occurrence ordinal through displayed,
+unsorted and retained order; failed reads mark that same retained occurrence.
+Provider loss preserves the collection but stops automatic neighbor substitution,
+clears old pixels and opens the existing guide dialog. Focused HEIC/drop/app-state
+race tests pass. A required macOS header-only regression corrupts media while
+retaining properties; first publish it against the existing adapter for hosted
+red evidence, then move full ImageIO creation/validation under pixel admission.
+No new test files/top-level UI tests, dependencies or worker seams.
+
+GoLand reviewed the changed files but its PSI/file-text mismatch prevents a
+complete UI inspection; retry before handoff, and report it unverified if it
+persists. The native test's duplicated assertions intentionally mirror Linux's
+separate native adapter regression; its existing exact Qodana test exclusion
+already covers that scope. No suppression is broadened. All work remains
+lead-owned with zero spawns; hosted CI supplies native macOS evidence.
+
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement
 with SDD/TDD, delegate tickets, and review their work.

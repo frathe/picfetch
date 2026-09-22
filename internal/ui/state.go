@@ -125,21 +125,32 @@ func (s *appState) clearFiles() {
 
 func (s *appState) removeFile(i int) fyne.URI {
 	target := s.files[i]
+	occurrence := s.fileOccurrence(i)
 	s.files = append(s.files[:i], s.files[i+1:]...)
 	if s.index >= len(s.files) {
 		s.index = len(s.files) - 1
 	}
 
+	remaining := occurrence
 	for j, u := range s.unsortedFiles {
 		if u.String() == target.String() {
+			remaining--
+			if remaining != 0 {
+				continue
+			}
 			s.unsortedFiles = append(s.unsortedFiles[:j], s.unsortedFiles[j+1:]...)
 			break
 		}
 	}
 	// Remove the same occurrence from the retained order. Unavailable members
 	// keep their positions when a surviving source has the same URI as target.
+	remaining = occurrence
 	for j, source := range s.unavailableOrder {
 		if !source.unavailable && source.uri.String() == target.String() {
+			remaining--
+			if remaining != 0 {
+				continue
+			}
 			s.unavailableOrder = append(s.unavailableOrder[:j], s.unavailableOrder[j+1:]...)
 			break
 		}
@@ -152,6 +163,19 @@ func (s *appState) removeFile(i int) fyne.URI {
 	}
 
 	return target
+}
+
+// Stable sorting preserves each URI's occurrence ordinal across displayed,
+// unsorted and retained orders even when other sources move around it.
+func (s *appState) fileOccurrence(i int) int {
+	key := s.files[i].String()
+	occurrence := 0
+	for _, uri := range s.files[:i+1] {
+		if uri.String() == key {
+			occurrence++
+		}
+	}
+	return occurrence
 }
 
 func (s *appState) retainOrder(order []collectionSource) {

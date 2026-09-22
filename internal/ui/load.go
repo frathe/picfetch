@@ -109,8 +109,13 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 
 func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 	retained := v.retainedOrder()
+	remaining := v.state.fileOccurrence(v.state.index)
 	for i, entry := range retained {
 		if !entry.unavailable && entry.uri.String() == source.String() {
+			remaining--
+			if remaining != 0 {
+				continue
+			}
 			if errors.Is(err, heic.ErrUnavailable) {
 				retained[i].unavailable = true
 			} else {
@@ -139,6 +144,28 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		return nil
 	}
 	v.state.retainOrder(retained)
+	if errors.Is(err, heic.ErrUnavailable) {
+		// A cached capability can disappear after sibling admission. Keep
+		// the surviving collection, but stop this request at its own guide
+		// instead of automatically displaying a different source.
+		v.pendingPictureFrame = false
+		v.slides.Exit()
+		v.resetFade()
+		v.display.Clear()
+		v.syncPresentationLogicalSize()
+		v.syncInfoOverlayVisibility()
+		v.loadingBar.Hide()
+		v.hint.SetText(msg)
+		v.dropzone.Show()
+		v.welcomeArt.Hide()
+		v.restoreLink.Hide()
+		v.emptyStateArt.Show()
+		v.setTitle(appTitle)
+		v.syncMenus()
+		v.ForceRepaint()
+		v.explainUnavailableHEIC([]fyne.URI{source}, true)
+		return nil
+	}
 	v.ShowToast(msg)
 	if restoredIndex >= 0 {
 		i = restoredIndex

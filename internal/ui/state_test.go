@@ -52,6 +52,22 @@ func TestAppStateReplaceFilesCopiesAndResetsIndex(t *testing.T) {
 }
 
 func TestAppStateRemoveFileRemovesOneMatchingUnsortedDuplicate(t *testing.T) {
+	t.Run("later occurrence retains surrounding HEIC positions", func(t *testing.T) {
+		a, c := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/c.jpg")
+		b, d := storage.NewFileURI("/images/b.heic"), storage.NewFileURI("/images/d.heic")
+		v := viewer{state: appState{
+			files: []fyne.URI{a, a, c}, unsortedFiles: []fyne.URI{a, c, a}, index: 1,
+			unavailableOrder: []collectionSource{{a, false}, {b, true}, {c, false}, {a, false}, {d, true}},
+		}}
+		state := &v.state
+		state.removeFile(1)
+		if !slices.EqualFunc(state.unsortedFiles, []fyne.URI{a, c}, sameURI) {
+			t.Fatalf("removed wrong unsorted occurrence: %v", state.unsortedFiles)
+		}
+		if got := namesOfURIs(v.persistedFiles(state.unsortedFiles)); !slices.Equal(got, []string{"a.jpg", "b.heic", "c.jpg", "d.heic"}) {
+			t.Fatalf("removed wrong retained occurrence: %v", got)
+		}
+	})
 	a := storage.NewFileURI("/images/a.jpg")
 	b := storage.NewFileURI("/images/b.jpg")
 	state := appState{

@@ -23,6 +23,23 @@ func TestHEICDarwinNativeQualification(t *testing.T) {
 	}
 	client := NewClient("")
 	t.Cleanup(func() { client.Stop(); client.Wait() })
+	t.Run("header_probe_without_pixels", func(t *testing.T) {
+		data := []byte(probe8)
+		mdat := bytes.Index(data, []byte("mdat"))
+		if mdat < 0 {
+			t.Fatal("fixture has no media payload")
+		}
+		clear(data[mdat+4:])
+		request := Request{MaxEncodedBytes: int64(len(data)), MaxPixels: 4096}
+		result, err := client.Read(t.Context(), data, request)
+		if err != nil || result.Width != 64 || result.Height != 64 || len(result.Pixels) != 0 {
+			t.Fatalf("header probe inspected corrupt pixel payload: %+v, %v", result, err)
+		}
+		request.Pixels = true
+		if _, err := client.Read(t.Context(), data, request); err == nil {
+			t.Fatal("pixel decode accepted corrupt payload")
+		}
+	})
 	t.Run("representative_pixels", func(t *testing.T) {
 		if err := client.Check(context.Background()); err != nil {
 			t.Fatal(err)

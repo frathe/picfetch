@@ -47,6 +47,10 @@ architectures. Linux native guards and all race partitions also pass on
 review found unsupported-probe persistence and stalled mixed traversal; fixes
 now have focused race and GoLand evidence. Final clean code/security review
 and complete CI remain open.
+The next review adds macOS header-only probing, selected duplicate removal and
+guide delivery after stale availability. UI fixes pass focused race checks;
+the required macOS regression awaits hosted red/green evidence. The Windows
+runner requirement is now also an unresolved review finding.
 
 ### delegate heic image rendering to the OS
 

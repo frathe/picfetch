@@ -460,6 +460,51 @@ func TestHEICUnavailableFiles(t *testing.T) {
 }
 
 func TestHEICUnavailableGuide(t *testing.T) {
+	t.Run("later failed occurrence keeps its position", func(t *testing.T) {
+		v := newTestViewer(t)
+		a := storage.NewFileURI("/images/a.heic")
+		x, y := storage.NewFileURI("/images/x.jpg"), storage.NewFileURI("/images/y.jpg")
+		files := []fyne.URI{a, x, a, y}
+		v.state.setFiles(files, files)
+		v.state.index = 2
+		if next := v.imageLoadFailed(a, heic.ErrUnavailable); next != nil {
+			t.Fatal("provider loss automatically retried another source")
+		}
+		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"a.heic", "x.jpg", "a.heic", "y.jpg"}) {
+			t.Fatalf("provider loss retained the wrong duplicate occurrence: %v", got)
+		}
+	})
+	t.Run("cached support disappears before explicit open", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.configureHEIC(testHEICBackend{check: func(_ context.Context) error { return nil }})
+		v.heic.ui = &uitest.UIQueue{}
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		data, err := os.ReadFile("../imaging/testdata/test_exif.heic")
+		if err != nil {
+			t.Fatal(err)
+		}
+		dir := t.TempDir()
+		source := storage.NewFileURI(filepath.Join(dir, "a.heic"))
+		neighbor := storage.NewFileURI(filepath.Join(dir, "b.jpg"))
+		if err := os.WriteFile(source.Path(), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(neighbor.Path(), uitest.EncodeJPEG(t, 2, 1, color.White), 0600); err != nil {
+			t.Fatal(err)
+		}
+		v.handleDrop([]fyne.URI{source})
+		waitForScan(t, v)
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		if v.img.Image != nil {
+			t.Fatal("stale-capability open silently displayed a neighboring image")
+		}
+		_ = explorerDialogButton(t, v, "HEIC installation guide")
+		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"a.heic", "b.jpg"}) {
+			t.Fatalf("provider-loss guide discarded the retained collection: %v", got)
+		}
+	})
 	v := newTestViewer(t)
 	v.startHEICCheck(false)
 	v.settleHEIC()
