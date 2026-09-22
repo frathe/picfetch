@@ -1,4 +1,4 @@
-//go:build (!linux && !darwin) || !cgo || (!amd64 && !arm64)
+//go:build (!linux && !darwin && !windows) || (!windows && !cgo) || (!amd64 && !arm64)
 
 package heic
 

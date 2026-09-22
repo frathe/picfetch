@@ -39,7 +39,7 @@ func TestFeatureFavoriteSaveRollback(t *testing.T) {
 			provider := func(_ context.Context, sources []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 				var items []similarity.Item
 				for _, path := range sources {
-					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Tags: []string{"cat"}, Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon"}})
 				}
 				emit(similarity.Event{Complete: true, Total: len(items), Successful: len(items), Items: items})
 				return nil

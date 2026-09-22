@@ -108,9 +108,10 @@ func (s *suite) requireHEIC() {
 			tests = append(tests, "TestHEICDarwinNativeQualification/"+name)
 		}
 	case "windows":
-		// This experiment supplements the required production decoder tests;
-		// it cannot qualify an unavailable adapter merely by passing itself.
-		tests = append(tests, "TestHEICWindowsWICProbe")
+		tests = append(tests, "TestHEICWindowsWICProbe", "TestHEICWindowsPrimaryVariants", "TestHEICWindowsWorkerRestrictions", "TestHEICWindowsAlphaMetadata")
+		for _, name := range []string{"primary_1_renumber_false", "primary_2_renumber_false", "primary_1_renumber_true", "primary_2_renumber_true"} {
+			tests = append(tests, "TestHEICWindowsPrimaryVariants/"+name)
+		}
 	}
 	s.require("internal/heic", tests...)
 	imagingTests := []string{"TestHEICNativeQualification"}

@@ -56,6 +56,11 @@ type containerProperty struct {
 // primaryItemProperties returns only properties associated with pitm, retaining
 // their payloads for provider-specific admission. It never parses HEVC data.
 func primaryItemProperties(data []byte) (string, []containerProperty, error) {
+	return itemProperties(data, 0)
+}
+
+// A zero item selects pitm; a nonzero item selects an associated auxiliary.
+func itemProperties(data []byte, item uint32) (string, []containerProperty, error) {
 	var meta []byte
 	branded := false
 	err := walkBoxes(data, func(kind string, payload []byte) error {
@@ -129,6 +134,9 @@ func primaryItemProperties(data []byte) (string, []containerProperty, error) {
 	}
 	if primary == 0 || properties == nil {
 		return "", nil, ErrInvalid
+	}
+	if item != 0 {
+		primary = item
 	}
 	itemType, err := primaryItemType(itemInfo, primary)
 	if err != nil {

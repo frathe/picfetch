@@ -303,6 +303,147 @@ and native inventory/build reruns after inspection corrections. No commit or
 push. Wider Intel, older-OS,
 packaged-open and native containment qualification remains open.
 
+### Windows 11 follow-up (2026-09-22)
+
+Continue this plan on native Windows/amd64. The installed Microsoft HEIF
+1.2.30.0 and HEVC 2.4.43.0 extensions pass the existing bounded WIC experiment:
+Main/Main10 pixels and the second-stored designated primary are correct.
+Production still selects the unavailable stub. No codec installation or new
+module dependency is needed or authorized by this follow-up.
+
+Tasks, owned by the lead, in order:
+
+1. Record failing production native tests; add broader primary-selection and
+   metadata assertions using existing authored fixtures. Implement the Microsoft
+   WIC adapter only after those native observations, preserving bounded workers,
+   primary selection, native color, one orientation application and EXIF delivery.
+   Files: `internal/heic`, existing qualification tests/inventory. Proof:
+   `PICFETCH_HEIC_NATIVE_TEST=1 go test -tags no_emoji,nodynamic -run HEIC
+   ./internal/heic` (PowerShell environment assignment on this host).
+2. Run real imaging/analysis/UI consumers and fix reproduced defects inline.
+   Proof: the same opt-in with `go test -tags no_emoji,nodynamic -run HEIC
+   ./internal/imaging ./internal/similarity ./internal/ui ./internal/mosaic
+   ./internal/ui/spiral ./internal/ui/settingswin ./internal/ui/help`.
+3. Run native Windows inventory, focused race checks, changed-file GoLand
+   inspections and one `make verify` attempt. Record unsupported corpus cases
+   and unavailable wider-platform/package verification explicitly.
+
+Budget: one read-only scout for independent test/toolchain inventory; all design,
+review and fixes stay with the lead. Scout gate: bounded question, file/command
+locations as oracle, no writes, independent breadth not yet read by the lead.
+No tests or qualification requirements may be weakened to report a clean gate.
+Windows ARM64, older providers, Store packaging and complete containment remain
+separate qualification evidence.
+
+#### Windows results and evidence
+
+- Windows 11 Pro 25H2, build 26200.9445, amd64, Go 1.27.1. The independent
+  WIC probe records actual loaded `msheif_store.dll` from HEIF 1.2.30.0 and
+  `HEVCDECODER_STORE.dll` from HEVC 2.4.43.0. No extension was installed or
+  replaced. Evidence: `.scratch/os-heic/evidence/windows-wic-final.log`.
+- All production native tests initially failed because Windows selected the
+  unavailable stub. The adapter now uses the explicit Microsoft decoder class,
+  checks its class/vendor identity, pins stream memory through native lifetime,
+  and keeps every decode inside the existing cancellable worker. Four primary
+  variants independently change `pitm` and non-monotonic item identifiers; all
+  select the declared image rather than storage order or lowest item ID.
+- Observed red tests established missing EXIF-only orientation, ignored declared
+  oversized dimensions and lost alpha. WIC's HEIF orientation property handles
+  container transforms; associated EXIF supplies fallback only when those are
+  absent. WIC's separate alpha chain is composed with the primary, with declared
+  premultiplication undone once. Associated metadata rejects unrelated/depth
+  auxiliaries and malformed/unknown tables. An unknown auxiliary-version test
+  was observed failing before its fix. All existing corpus expectations remain
+  intact, including all four alpha cases; no Windows fixture is waived.
+- Windows worker tests first failed on missing console suppression and missing
+  resource limits. Workers now run hidden with a job limiting committed memory
+  to 4 GiB, CPU time to 40 seconds and active processes to one. Parent deadlines
+  and cancellation remain in effect. No network/filesystem sandbox or
+  parent-death guarantee is claimed. These are resource limits, not a complete
+  containment qualification.
+- Revision 3 invalidates observations saved while Windows used the stub. Two
+  existing UI assertions incorrectly compared native Windows separators with
+  normalized Fyne URI paths; canonical URI comparisons now verify preserved
+  session membership and correct capture-date sorting without platform bias.
+- `PICFETCH_HEIC_NATIVE_TEST=1 go test -race -tags no_emoji,nodynamic -count=1
+  -run HEIC ./internal/heic ./internal/imaging ./internal/similarity ./internal/ui
+  ./internal/mosaic ./internal/ui/spiral ./internal/ui/settingswin
+  ./internal/ui/help` passes all eight packages. This includes native viewing,
+  clipboard PNG encoding, PNG/JPEG export, mosaics, finite/retained analysis and
+  captured limits. It uses the Fyne harness and stubbed desktop clipboard,
+  not a visual desktop inspection. Log: `windows-native-race.log` in the evidence
+  directory above. The final WIC/primary/alpha/worker checks also pass without
+  the race detector. `go test ./scripts/nativeguards` passes.
+- The broader `nativeguards -suite windows` run passes its HEIC requirements.
+  It remains non-green on existing filesystem cases: unavailable symlink
+  privileges, Unix-permission assumptions, a URI/native-path comparison, and
+  renaming an analysis directory while Windows holds it open. Raw events are
+  in `windows-native.jsonl`; the runner report is `windows-native.log`. Those
+  broader failures are not reclassified as HEIC success or silently skipped.
+- All 16 changed Go files were inspected with GoLand `errorsOnly=false`, with
+  no findings in the final results (`windows-goland.json` and
+  `windows-goland-explorer.json`). Initial Explorer inspection timeouts were
+  rerun individually to completion. Native focused vet
+  and the stripped `bin/picfetch.exe` build pass. The built application itself
+  successfully executes the private representative 8/10-bit check, recorded
+  in `windows-built-worker.json`; this is additional to test-binary evidence.
+- `make verify-build` passes on a native Linux/amd64 Docker snapshot with all
+  changed source overlaid. Git archive uses `core.autocrlf=false` so the Windows
+  checkout's CRLF conversion does not produce unrelated formatting failures;
+  no working-tree line-ending mass rewrite was made. The isolated snapshot
+  avoids very slow Windows bind-mount directory scans. It runs the unmodified
+  Makefile checks (formatting, TUF, exclusions, assets/notices, vet and build).
+  Logs: `linux-verify-build-snapshot.log` and `linux-verify-build-final.log`;
+  the final run also includes the three corrected Explorer test files.
+- The initial `make verify` attempt stopped before tests because Git Bash cannot
+  fork in this host session, including outside the tool sandbox. Docker also
+  exposed 16,592,285,696 bytes, below the required 16 GiB container budget.
+  The user authorized raising the limit; `C:/Users/flori/.wslconfig` now sets
+  20 GiB. The user subsequently authorized the restart. Docker Desktop was
+  stopped, WSL shut down, and Docker restarted successfully; the native
+  Linux/amd64 daemon now exposes 20,971,147,264 bytes. The full race suite ran
+  with the unchanged 16 GiB container limit. A PowerShell launcher
+  enforces the same native-platform and available-memory checks, then invokes
+  the repository's unchanged `docker-race.sh --container` / `make
+  test-race-direct` path because the host Git Bash fork issue remains. Evidence:
+  `.scratch/os-heic/evidence/linux-race-20260922-221757/`. All 13 changed Go
+  files were compared against the snapshot before starting and match exactly
+  after canonical LF conversion.
+- The complete race run finished in 503 seconds, exit 2, without an OOM kill.
+  UI shards 1 and 2 passed. All failures in shard 3 and the non-UI partition
+  came from the stale Explorer fixtures described below; no race reports or
+  additional failure categories were present. The original full run remains
+  non-green; its failed cases were corrected and rerun with the race detector
+  on both platforms, rather than repeating the complete suite.
+- The full race run reproduced Explorer preset failures left by the earlier
+  HEIC facts-version migration: eleven synthetic current-analysis fixtures in
+  `internal/ui/explorer_test.go`, `internal/ui/explorer/feature_test.go` and
+  `cohort_workflow_test.go` still declared version 1 after `FactsVersion` became
+  2. The production preset boundary correctly refused those stale facts. The
+  lead changed current fixtures to `similarity.FactsVersion`, preserving the
+  intentional version-1 cache-repair regression in `heic_analysis_test.go`.
+  Two feature-level cases were independently observed failing on Windows before
+  the same fixture correction. Passing proof after correction: focused race reruns of
+  `TestVisualSimilarityExplorer/presets_*` and the two feature cases on Windows
+  and Linux (`windows-explorer-facts-regressions.log` and
+  `linux-explorer-facts-regressions.log`). The original full-run results remain
+  recorded; no skipped tests or weakened production-version checks are introduced.
+
+API evidence: Microsoft's [HEIF orientation property](https://learn.microsoft.com/en-us/windows/win32/api/wincodec/ne-wincodec-wicheifproperties),
+[frame-chain interface](https://learn.microsoft.com/en-us/windows/win32/api/wincodec/nn-wincodec-iwicbitmapframechainreader)
+and [job lifetime contract](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-createjobobjectw).
+Frame-zero primary ordering is native experimental evidence, not a claimed
+generic WIC API guarantee. The win32metadata repository's MIT license expressly
+does not relicense original SDK headers. No SDK header/implementation is shipped;
+these minimal Go ABI declarations and adapter logic are authored here. Release
+payload/notice review and the wider target matrix remain open.
+
+Actual ledger so far: one read-only inventory scout reused for two bounded
+searches; all review/fixes inline; focused red/green/native/race checks, one
+interrupted full-gate attempt, one complete race run and focused failing-case
+reruns, and successful build checks after resolving snapshot transport issues.
+No commits, pushes, codec installations or releases.
+
 ### Dependency and distribution record
 
 No module dependency or decoder binary was added. Linux uses the system's
@@ -318,8 +459,13 @@ source/build instructions remain in this source tree; system library replacement
 is not prevented. Payload/closure and full distribution review remain required
 before release readiness is claimed.
 
-Apple adapters use system frameworks only. The Windows experiment uses public
-SDK WIC declarations, tied to the upstream source revision in its evidence.
+Apple adapters use system frameworks only. The Windows adapter and independent
+experiment use public SDK WIC declarations, tied to win32metadata revision
+`5c5efbc01d4c87f6830ec304d42777991d533154` in their source. Only API declarations
+are represented by repository-authored Go bindings; no SDK implementation,
+Microsoft codec binary or Store package is redistributed. WIC frame-chain and
+orientation contracts are linked in the Windows evidence below. Existing
+`golang.org/x/sys v0.48.0` and shipped module notices are unchanged.
 Fixtures are repository-authored MIT patterns generated with the already installed
 FFmpeg 6.1.1/x265 3.5 toolchain; no encoder binary is bundled or invoked at runtime.
 Exact commands, profiles, expectations and hashes live in `internal/heic/testdata/`.

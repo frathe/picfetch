@@ -243,7 +243,7 @@ func TestHEICBackendLossPreservesSession(t *testing.T) {
 	v.app.Lifecycle().SetOnStopped(previous)
 	shutdown()
 	files := session.Load(v.app)
-	if len(files) != 1 || files[0].Path() != path {
+	if len(files) != 1 || files[0].String() != storage.NewFileURI(path).String() {
 		t.Fatalf("provider loss erased saved session membership: %v", files)
 	}
 }
@@ -282,7 +282,7 @@ func TestHEICCaptureDateSort(t *testing.T) {
 	v.SetSortMode(filesort.ByCaptureDate)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
-	if v.FileAt(0).Path() != path {
+	if v.FileAt(0).String() != storage.NewFileURI(path).String() {
 		t.Fatalf("capture-date sort ignored HEIC metadata: first=%s", v.FileAt(0).Name())
 	}
 }

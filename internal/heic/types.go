@@ -9,7 +9,7 @@ import (
 )
 
 // Revision changes when the adapter or its representative pixel checks change.
-const Revision = 2
+const Revision = 3
 
 var (
 	ErrUnavailable = errors.New("system HEIC decoder is unavailable")

@@ -598,11 +598,16 @@ to the decoder while resource bounds and canonical output validation remain.
 pixels; `metadata.go` extracts bounded, primary-associated EXIF inside that
 worker using checked container references and local extents. Apple Silicon
 rendering/metadata tests pass; premultiplied-alpha and wider native qualification
-remain open. Windows production remains unavailable
-pending WIC primary-selection evidence; `wicprobe_windows_test.go` contains only
-a qualification experiment. `process_*` and `restrict_*` own platform containment:
+remain open. `native_windows.go` / `wic_windows.go` bind the official Microsoft
+HEIF WIC decoder; `alpha_windows.go` reads primary-associated alpha through WIC's
+frame-chain reader and restores straight RGBA. Native Windows 11/amd64 corpus
+and primary-order tests cover this adapter; older providers/ARM64 remain open.
+`wicprobe_windows_test.go` independently records provider modules and ordering.
+`process_*` and `restrict_*` own platform containment:
 Linux has resource limits, inherited network-denial seccomp, process-group
-retirement and parent-death signaling. Other-platform containment is not qualified.
+retirement and parent-death signaling. Windows hides child consoles and bounds
+memory, CPU time and process count with a job; it provides no network/filesystem
+sandbox or parent-death guarantee. macOS containment is not qualified.
 `testdata/` contains authored Main/Main10 and transform/primary fixtures with
 reproducible generators. `notices/` retains the adapted public libheif header's
 source and exact license texts, also shipped in `THIRD-PARTY-NOTICES.md`.

@@ -8,6 +8,10 @@
 
 #### Bugfix
 
+- Enable Windows HEIC decoding through installed Microsoft extensions, preserving
+  primary-image selection, EXIF orientation, metadata and transparency. Keep
+  decoder workers hidden and enforce memory, CPU and child-process limits.
+- Refresh Explorer test fixtures after the HEIC analysis-facts version change.
 - Restore macOS HEIC camera metadata and refresh previously cached image facts
   without repeating similarity inference.
 
@@ -37,10 +41,18 @@ open. Native Apple Silicon verification now passes viewing, clipboard encoding,
 PNG/JPEG export, mosaics, retained search, EXIF delivery and cached-fact repair.
 ImageIO still reports no images for the two authored premultiplied-alpha
 fixtures; those required native tests remain failing. The Go build-diagnostic
-handling in the native runner is fixed. Full verification requires native
-Linux/amd64 CI; this Mac's Docker daemon is ARM64. See the plan's macOS record.
-Windows production remains unavailable pending designated-primary selection
-evidence. No release is qualified.
+handling in the native runner is fixed. See the plan's macOS record for that
+host's ARM64 Docker limitation.
+Windows 11/amd64 now passes the real HEIC corpus, including primary-order variants,
+grids, mirrors and straight/premultiplied alpha. Windows ARM64, older extensions,
+packaged opens and Store deployment remain unverified; see the Windows follow-up
+record in the plan for final checks and broader native-suite failures.
+Windows HEIC focused race tests and native/Linux build checks pass. The
+user-authorized 20 GiB WSL memory cap is active after the approved restart;
+the full Linux/amd64 race suite completed with the unchanged 16 GiB limit.
+Its only failures were stale Explorer facts fixtures; those were corrected,
+and all affected tests pass focused race reruns on both Windows and Linux.
+No release is qualified.
 The implementation spec is published in the local issue tracker at
 `.scratch/os-heic/spec.md`; ticket/evidence records are under `.scratch/os-heic/`.
 

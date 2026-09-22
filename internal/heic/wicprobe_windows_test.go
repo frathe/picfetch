@@ -3,11 +3,15 @@
 package heic
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -18,10 +22,10 @@ import (
 	"github.com/frathe/picfetch/internal/wincom"
 )
 
-// This is a bounded qualification experiment, not an enabled decoder. The
-// Microsoft API does not document HEIF primary-item to frame-index mapping.
+// This bounded experiment independently checks Microsoft's frame ordering and
+// provider identity alongside the production adapter's native tests.
 // SDK ABI source: microsoft/win32metadata commit
-// 71033001b4479c6566546b68d32276e70a8d68b9, wincodec.h.
+// 5c5efbc01d4c87f6830ec304d42777991d533154, wincodec.h.
 func TestHEICWindowsWICProbe(t *testing.T) {
 	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
 		t.Skip("requires explicit native Windows WIC qualification")
@@ -54,9 +58,8 @@ func TestHEICWindowsWICProbe(t *testing.T) {
 				t.Fatal(err)
 			}
 			frames := wicProbeFrames(t, data)
-			// This explicitly tests an unresolved hypothesis. No production
-			// adapter may adopt GetFrame(0) until native evidence establishes
-			// this on the supported providers and a broader primary corpus.
+			// WIC orders its primary first even when pitm names a later stored
+			// item. The production variants also change pitm and item IDs.
 			assertGrayPixel(t, frames[0], 8, 8, fixture.left)
 			assertGrayPixel(t, frames[0], 48, 8, fixture.right)
 		})
@@ -132,11 +135,117 @@ func wicProbeGUID(t *testing.T, text string) windows.GUID {
 	return id
 }
 
+//go:uintptrescapes
 func wicProbeCall(t *testing.T, name string, function uintptr, arguments ...uintptr) {
 	t.Helper()
 	hr, _, _ := syscall.SyscallN(function, arguments...)
 	if wincom.FailedHRESULT(hr) {
 		t.Fatalf("%s: HRESULT 0x%08x", name, uint32(hr))
+	}
+}
+
+func TestHEICWindowsPrimaryVariants(t *testing.T) {
+	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
+		t.Skip("requires native Windows WIC qualification")
+	}
+	data, err := os.ReadFile("testdata/nonfirst-primary.heic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient("")
+	t.Cleanup(func() { client.Stop(); client.Wait() })
+	for _, renumber := range []bool{false, true} {
+		for _, primary := range []uint16{1, 2} {
+			t.Run(fmt.Sprintf("primary_%d_renumber_%t", primary, renumber), func(t *testing.T) {
+				input := bytes.Clone(data)
+				id := primary
+				if renumber {
+					ids := []uint16{9, 3}
+					id = ids[primary-1]
+					iloc, ipma, cursor := bytes.Index(input, []byte("iloc")), bytes.Index(input, []byte("ipma")), 0
+					for index, itemID := range ids {
+						infe := cursor + bytes.Index(input[cursor:], []byte("infe"))
+						binary.BigEndian.PutUint16(input[infe+8:], itemID)
+						binary.BigEndian.PutUint16(input[iloc+12+index*14:], itemID)
+						binary.BigEndian.PutUint16(input[ipma+12+index*7:], itemID)
+						cursor = infe + 4
+					}
+				}
+				binary.BigEndian.PutUint16(input[bytes.Index(input, []byte("pitm"))+8:], id)
+				result, err := client.Read(t.Context(), input, Request{Pixels: true, MaxEncodedBytes: 64 * 1024, MaxPixels: 4096})
+				if err != nil {
+					t.Fatal(err)
+				}
+				left := int(primary-1) * 255
+				assertGrayPixel(t, result, 8, 8, left)
+				assertGrayPixel(t, result, 48, 8, 255-left)
+			})
+		}
+	}
+}
+
+func TestHEICWindowsAlphaMetadata(t *testing.T) {
+	data, err := os.ReadFile("testdata/alpha-premultiplied8.heic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name                 string
+		change               func([]byte)
+		alpha, premultiplied bool
+		want                 error
+	}{
+		{"primary alpha", func(_ []byte) {}, true, true, nil},
+		{"other image alpha", func(b []byte) { binary.BigEndian.PutUint16(b[bytes.Index(b, []byte("auxl"))+8:], 3) }, false, false, nil},
+		{"other image premultiplication", func(b []byte) { binary.BigEndian.PutUint16(b[bytes.Index(b, []byte("prem"))+4:], 3) }, true, false, nil},
+		{"depth auxiliary", func(b []byte) { i := bytes.Index(b, []byte("auxid:1")); b[i+6] = '2' }, false, false, nil},
+		{"unknown auxiliary version", func(b []byte) { b[bytes.Index(b, []byte("auxC"))+4] = 1 }, false, false, ErrUnsupported},
+		{"malformed references", func(b []byte) { b[bytes.Index(b, []byte("iref"))+4] = 2 }, false, false, ErrInvalid},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := bytes.Clone(data)
+			tc.change(input)
+			alpha, premultiplied, err := windowsAlpha(input)
+			if alpha != tc.alpha || premultiplied != tc.premultiplied || !errors.Is(err, tc.want) {
+				t.Fatalf("alpha=%t premultiplied=%t error=%v, want %t %t %v", alpha, premultiplied, err, tc.alpha, tc.premultiplied, tc.want)
+			}
+		})
+	}
+}
+
+func TestHEICWindowsWorkerRestrictions(t *testing.T) {
+	if os.Getenv("PICFETCH_HEIC_NATIVE_TEST") != "1" {
+		t.Skip("requires native Windows worker qualification")
+	}
+	if os.Getenv("PICFETCH_HEIC_RESTRICTION_TEST") == "1" {
+		if err := restrictWorker(); err != nil {
+			t.Fatal(err)
+		}
+		var limits windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+		if err := windows.QueryInformationJobObject(0, windows.JobObjectExtendedLimitInformation, uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits)), nil); err != nil {
+			t.Fatal(err)
+		}
+		flags := uint32(windows.JOB_OBJECT_LIMIT_PROCESS_MEMORY | windows.JOB_OBJECT_LIMIT_PROCESS_TIME | windows.JOB_OBJECT_LIMIT_ACTIVE_PROCESS)
+		if limits.BasicLimitInformation.LimitFlags&flags != flags || limits.ProcessMemoryLimit != 4*1024*1024*1024 || limits.BasicLimitInformation.PerProcessUserTimeLimit != 40*10_000_000 || limits.BasicLimitInformation.ActiveProcessLimit != 1 {
+			t.Fatalf("incorrect worker limits: %+v", limits)
+		}
+		return
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, executable, "-test.run=^TestHEICWindowsWorkerRestrictions$", "-test.v")
+	prepareWorker(cmd)
+	if cmd.SysProcAttr == nil || !cmd.SysProcAttr.HideWindow || cmd.SysProcAttr.CreationFlags&windows.CREATE_NO_WINDOW == 0 {
+		t.Error("HEIC workers must not open console windows")
+	}
+	cmd.Env = append(os.Environ(), "PICFETCH_HEIC_RESTRICTION_TEST=1")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("worker restriction child: %v\n%s", err, output)
 	}
 }
 
@@ -210,6 +319,24 @@ func wicProbeFrames(t *testing.T, data []byte) []Result {
 		wicProbeRelease(unsafe.Pointer(frame))
 		frames = append(frames, result)
 		t.Logf("frame %d: %dx%d, left=%v right=%v", index, result.Width, result.Height, result.Pixels[8*result.Stride+8*4:][:4], result.Pixels[8*result.Stride+48*4:][:4])
+	}
+	var modules [1024]windows.Handle
+	var needed uint32
+	if err := windows.EnumProcessModules(windows.CurrentProcess(), &modules[0], uint32(unsafe.Sizeof(modules)), &needed); err != nil {
+		t.Fatal(err)
+	}
+	if needed > uint32(unsafe.Sizeof(modules)) {
+		t.Fatal("provider module list exceeds qualification bound")
+	}
+	for _, module := range modules[:uintptr(needed)/unsafe.Sizeof(modules[0])] {
+		var path [32768]uint16
+		if _, err := windows.GetModuleFileName(module, &path[0], uint32(len(path))); err != nil {
+			t.Fatal(err)
+		}
+		name := windows.UTF16ToString(path[:])
+		if lower := strings.ToLower(name); strings.Contains(lower, "heif") || strings.Contains(lower, "hevc") {
+			t.Logf("loaded codec module: %s", name)
+		}
 	}
 	runtime.KeepAlive(data)
 	return frames
