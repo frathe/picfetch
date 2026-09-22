@@ -1,5 +1,70 @@
 # System-provided HEIC implementation
 
+## PR #50 review loop (2026-09-22)
+
+The user requested PR creation and the GitHub Codex review loop after reporting
+functional HEIC testing on Windows, macOS and Linux. PR:
+https://github.com/frathe/picfetch/pull/50. Initial head:
+`1282f13d7a765ee42aee6d9011e2c728589163bd`; working tree initially clean.
+
+The lead owns assessment and all fixes. Authorization includes fix commits,
+pushes to this branch, review replies/resolution and fresh bot-review requests;
+merge and release are outside this request. No delegated review or fixes.
+
+Acceptance: inspect all unresolved threads, including older commits, and each
+Codex code/security, Qodana and CodeQL result. Confirm defects with focused
+regressions, inspect changed code with GoLand including weak warnings, and keep
+formatting, exclusions, shards and documentation current. Hosted CI runs the
+complete suites; local verification is limited to changed tests, focused
+regressions and build checks. Finish only with a fresh clean code review on
+the final pushed commit, completed security review without actionable findings,
+clear Qodana/CodeQL results and passing required CI. Final commit-bound evidence
+belongs in the PR conversation so recording it does not invalidate those checks.
+
+Initial Codex code and security reviews started automatically on PR creation.
+Existing platform qualification limits below remain explicit until new evidence
+supersedes them. The first local build-check attempt hit the sandbox's Snap
+launcher restriction before Go execution; retry outside that restriction.
+
+### Initial hosted findings and fixes
+
+- CI run `35782606225` reproduced missing native-analysis assets on Windows
+  and macOS. Both native jobs now install the already pinned assets before
+  qualification. macOS matrix fail-fast is disabled to preserve Intel evidence
+  when Apple Silicon fails. No required native case is skipped or relaxed.
+- Windows reports Microsoft HEIF activation `0x80040154`: the hosted runner
+  has no registered decoder. A qualified runner's availability/labels were
+  requested from the user; this environment requirement remains open.
+- Hosted macOS now decodes both premultiplied-alpha fixtures but returns opaque
+  alpha (`255` instead of `0`), unlike the earlier local ImageIO refusal. This
+  is a real native rendering defect and remains open.
+- Windows exposed a genuine cache-inventory error: `os.Root.OpenRoot` can
+  report an existing non-directory as absent. A retained-root `Lstat` on that
+  error now distinguishes unusable directories from missing caches. The
+  existing partial-inspection/cleanup regression failed in hosted Windows.
+- Two Windows cache assertions were platform-specific. Favorite membership
+  now compares canonical Fyne URIs. The opened-root test accepts only Windows'
+  sharing-violation refusal, still verifies original membership, and requires
+  rename to succeed after closing the handle; Unix rename/replacement checks
+  remain unchanged. No tests are skipped.
+- Qodana run `35782606207` was green but its root post-suppression
+  `qodana.sarif.json` contained ten findings. Fixed the Settings package-name
+  collision; explicitly typed the Linux cgo string; documented five confirmed
+  cross-package usage false positives with declaration-local suppressions.
+  The archive's `/start/` report is the baseline, not this result set.
+- README and both manuals incorrectly said HEIC was unsupported. They now
+  describe optional system support and the actual Settings action labels.
+- Local `make verify-build` passes outside the Snap sandbox restriction.
+  Focused cache race regressions and HEIC/preferences/imaging/Settings race
+  checks pass; existing manual checks pass. GoLand inspected all ten changed
+  Go files with `errorsOnly=false`; its one intentional cgo duplication finding
+  received the same narrow boundary suppression as the macOS adapter.
+- A temporary `[DEBUG-pr50-alpha]` native test probe removes only the `prem`
+  reference from a copy of each authored fixture and logs native pixels. The
+  required original corpus tests remain intact. Hosted macOS evidence will
+  distinguish reference handling from bitmap conversion before a production
+  change; remove this probe after diagnosis. GoLand also inspected that file.
+
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement
 with SDD/TDD, delegate tickets, and review their work.

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -62,10 +64,16 @@ func TestFavoriteAnalysisFollowsOpenedDirectory(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = root.Close() }()
-			if err := os.Rename(favstore.Dir(dir, "Trip"), filepath.Join(dir, "Moved")); err != nil {
-				t.Fatal(err)
+			moveErr := os.Rename(favstore.Dir(dir, "Trip"), filepath.Join(dir, "Moved"))
+			if moveErr != nil {
+				// Windows keeps os.Root's directory handle open without delete
+				// sharing. The original root must remain valid until it closes.
+				const sharingViolation = syscall.Errno(32)
+				if runtime.GOOS != "windows" || !errors.Is(moveErr, sharingViolation) {
+					t.Fatal(moveErr)
+				}
 			}
-			if replacement {
+			if replacement && moveErr == nil {
 				if err := favstore.Save(dir, "Trip", []fyne.URI{storage.NewFileURI(other)}); err != nil {
 					t.Fatal(err)
 				}
@@ -76,6 +84,14 @@ func TestFavoriteAnalysisFollowsOpenedDirectory(t *testing.T) {
 			}
 			if len(favorite.members) != 1 || !favorite.members[original] || favorite.members[other] || !favorite.current() {
 				t.Fatalf("opened directory associated with replacement membership: %v", favorite.members)
+			}
+			if moveErr != nil {
+				if err := root.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(favstore.Dir(dir, "Trip"), filepath.Join(dir, "Moved")); err != nil {
+					t.Fatalf("closed directory still cannot move: %v", err)
+				}
 			}
 		})
 	}

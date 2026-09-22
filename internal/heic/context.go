@@ -17,6 +17,9 @@ func FromContext(ctx context.Context) Snapshot {
 
 // ReportUnavailable carries a private producer's decisive backend-loss result
 // back to the capability generation that admitted the producer.
+// Qodana's PR analysis misses the finite/retained similarity client callers.
+//
+//goland:noinspection GoUnusedExportedFunction
 func ReportUnavailable(ctx context.Context) {
 	if ctx.Err() != nil {
 		return

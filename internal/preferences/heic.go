@@ -11,6 +11,9 @@ import (
 const heicObservationKey = "heicObservation.v1"
 
 // ClearHEICObservation retires a genuinely invalidated provider observation.
+// Qodana's PR analysis misses the caller in internal/ui/heic.go.
+//
+//goland:noinspection GoUnusedExportedFunction
 func ClearHEICObservation(app fyne.App) {
 	prefsWriteMu.Lock()
 	defer prefsWriteMu.Unlock()

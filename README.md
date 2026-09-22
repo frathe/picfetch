@@ -48,7 +48,10 @@ set with the keyboard.
   the title and info overlay — with no demosaic engine. AVIF decodes
   through embedded WASM (no cgo), so it needs no system libraries and doesn't
   complicate cross-compilation. SVG is rasterized on the fly and re-rendered
-  as you zoom, so it stays sharp at any zoom level. HEIC/HEIF is currently unsupported
+  as you zoom, so it stays sharp at any zoom level. HEIC/HEIF still images
+  (`.heic`, `.heif`) open when a compatible system decoder is available. Settings
+  provides **Check HEIC support** and offline **HEIC installation instructions**;
+  availability and color rendition depend on the installed system decoder.
 - On macOS, the same format list also opens through Finder's **Open With**,
   a drop on the Dock icon, `open -a`, or double-clicking a file already
   associated with PicFetch — whether PicFetch is already running or being

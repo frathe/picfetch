@@ -426,8 +426,8 @@ func (w *Window) build() fyne.CanvasObject {
 			w.heicGuideAction()
 		}
 	}
-	heic := container.NewVBox(w.buildHEICSupport(), heicGuide)
-	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit, widget.NewSeparator(), heic)
+	heicSettings := container.NewVBox(w.buildHEICSupport(), heicGuide)
+	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit, widget.NewSeparator(), heicSettings)
 	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
 	updates := container.NewVBox(w.updateVersion)
 	if w.updatesManagedByStore {

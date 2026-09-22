@@ -158,6 +158,8 @@ jobs:
   windows-test:
     name: Windows tests (attempt ${{ github.run_attempt }})
     runs-on: windows-latest
+    env:
+      PICFETCH_SIMILARITY_ASSETS: ${{ github.workspace }}/.scratch/native-guard-assets
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -167,6 +169,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+
+      - name: Install pinned native analysis assets
+        run: go run ./scripts/explorereval -install -assets "$env:PICFETCH_SIMILARITY_ASSETS"
 
       - name: Execute native Windows guards
         run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json"
@@ -189,6 +194,7 @@ jobs:
   macos-test:
     name: macOS ${{ matrix.arch }} native guards (attempt ${{ github.run_attempt }})
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: macos-latest
@@ -196,6 +202,8 @@ jobs:
           - runner: macos-15-intel
             arch: amd64
     runs-on: ${{ matrix.runner }}
+    env:
+      PICFETCH_SIMILARITY_ASSETS: ${{ github.workspace }}/.scratch/native-guard-assets
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -205,6 +213,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+
+      - name: Install pinned native analysis assets
+        run: make explorer-setup EXPLORER_ASSETS="$PICFETCH_SIMILARITY_ASSETS"
 
       - name: Execute Cocoa-linked macOS guards
         run: go run ./scripts/nativeguards -suite macos -capture "${{ runner.temp }}/native-guards-macos.json"

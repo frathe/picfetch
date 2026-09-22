@@ -6,6 +6,9 @@ import (
 )
 
 // IsExtension recognizes the still-image names, independently of availability.
+// Qodana's PR analysis misses the callers in internal/ui/drop.go.
+//
+//goland:noinspection GoUnusedExportedFunction
 func IsExtension(extension string) bool {
 	switch strings.ToLower(extension) {
 	case ".heic", ".heif":

@@ -65,6 +65,7 @@ the front instead of opening a second copy.
 - **ICO** — `.ico` (Windows icon; the largest embedded image is shown)
 - **XPM** — `.xpm` (X Pixmap)
 - **AVIF** — `.avif` (built-in rotation/mirroring applied)
+- **HEIC/HEIF** — `.heic`, `.heif` (still images; requires a compatible system decoder)
 - **SVG** — `.svg` (vector; small icons open large enough to fill the window,
   and the image re-renders sharp at every zoom level rather than scaling up).
   Re-rendering uses the screen's pixels (including Retina), not just the window
@@ -81,7 +82,11 @@ A file is also accepted if your system reports it as `image/jpeg`,
 `image/x-adobe-dng` / `image/x-canon-cr2`, even when the extension is missing
 or unusual.
 
-HEIC/HEIF, PDFs and videos are **not** supported.
+HEIC support is checked in the background and remembered for the current system.
+In Settings, use **Check HEIC support** after installing a decoder, or open the
+**HEIC installation instructions** for your operating system. A successful check does
+not promise that every HEIC file can be decoded. Color rendition depends on the
+system decoder. HEIC sequences, PDFs and videos are **not** supported.
 
 ---
 
@@ -1425,5 +1430,5 @@ Things PicFetch deliberately does not do (yet):
 - **Clear / Quit** — `Esc` (clears the loaded images first, then quits;
   cancels a scan still in progress instead, if one is running)
 - **Formats** — JPEG, PNG, GIF (incl. animated), WebP, BMP, TIFF, ICO, XPM,
-  AVIF, SVG, camera RAW (embedded JPEG preview)
+  AVIF, SVG, camera RAW (embedded JPEG preview), HEIC/HEIF (with system support)
 - **Max window size** — 1500 × 950

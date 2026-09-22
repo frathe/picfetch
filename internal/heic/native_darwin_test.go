@@ -20,6 +20,28 @@ func TestHEICDarwinNativeQualification(t *testing.T) {
 	}
 	client := NewClient("")
 	t.Cleanup(func() { client.Stop(); client.Wait() })
+	t.Run("premultiplication_diagnostic", func(t *testing.T) {
+		for _, name := range []string{"alpha-premultiplied8", "alpha-premultiplied10"} {
+			data, err := os.ReadFile("testdata/" + name + ".heic")
+			if err != nil {
+				t.Fatal(err)
+			}
+			reference := bytes.Index(data, []byte("prem"))
+			if reference < 0 {
+				t.Fatal("authored fixture lost prem reference")
+			}
+			copy(data[reference:reference+4], "free")
+			result, err := client.Read(t.Context(), data, Request{Pixels: true, MaxEncodedBytes: 64 * 1024, MaxPixels: 4096})
+			if err != nil {
+				t.Logf("[DEBUG-pr50-alpha] %s without prem: %v", name, err)
+				continue
+			}
+			for _, point := range [][2]int{{16, 16}, {48, 16}, {16, 48}, {48, 48}} {
+				pixel := result.Pixels[point[1]*result.Stride+point[0]*4:][:4]
+				t.Logf("[DEBUG-pr50-alpha] %s without prem at %v: %v", name, point, pixel)
+			}
+		}
+	})
 	t.Run("representative_pixels", func(t *testing.T) {
 		if err := client.Check(context.Background()); err != nil {
 			t.Fatal(err)

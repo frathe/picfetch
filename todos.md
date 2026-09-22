@@ -26,6 +26,15 @@
 
 ## Open
 
+### Complete HEIC PR #50 review loop
+
+[PR #50](https://github.com/frathe/picfetch/pull/50) is open for the system HEIC
+implementation. Resolve confirmed review/CI findings and obtain fresh clean
+Codex code/security, Qodana/CodeQL and complete CI results on the final head.
+The [implementation plan](plans/2026-09-22-system-heic.md) records evidence;
+the user's functional testing covers Windows, macOS and Linux. Remaining
+qualification items below are not implicitly closed by opening the PR.
+
 ### delegate heic image rendering to the OS
 
 Add back support for HEIC image formats, on start check if the system supports rendering of heic images. if yes save that

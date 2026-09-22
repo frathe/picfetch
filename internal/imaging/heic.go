@@ -9,6 +9,9 @@ import (
 )
 
 // MaxImagePixels is the canonical decode ceiling passed to private workers.
+// Qodana's PR analysis misses the callers in internal/similarity/heic.go.
+//
+//goland:noinspection GoUnusedExportedFunction
 func MaxImagePixels() int64 { return maxImagePixels }
 
 // ReadMetadataContext reads metadata using the operation's captured capability.

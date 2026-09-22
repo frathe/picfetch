@@ -22,6 +22,8 @@ func nativeRead(data []byte, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// Each platform keeps its own cgo request/allocation boundary.
+	//goland:noinspection DuplicatedCode
 	pixels := C.int(0)
 	if request.Pixels {
 		pixels = 1
@@ -30,7 +32,7 @@ func nativeRead(data []byte, request Request) (Result, error) {
 	defer C.free(unsafe.Pointer(decoded.pixels))
 	defer C.free(unsafe.Pointer(decoded.exif))
 	if decoded.code != 0 {
-		message := C.GoString(&decoded.message[0])
+		var message string = C.GoString(&decoded.message[0])
 		switch decoded.code {
 		case 1:
 			return Result{}, fmt.Errorf("%w: %s", ErrUnavailable, message)

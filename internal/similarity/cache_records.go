@@ -3,6 +3,7 @@ package similarity
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"regexp"
@@ -37,7 +38,7 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 		var root *os.Root
 		var err error
 		if favorite != nil {
-			root, err = favorite.root.OpenRoot("analysis")
+			root, err = openAnalysisDirectory(favorite.root, "analysis")
 		} else {
 			parent, openErr := os.OpenRoot(base)
 			if errors.Is(openErr, os.ErrNotExist) {
@@ -47,7 +48,7 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 				failures = append(failures, openErr)
 				return
 			}
-			root, err = parent.OpenRoot(relative)
+			root, err = openAnalysisDirectory(parent, relative)
 			_ = parent.Close()
 		}
 		if errors.Is(err, os.ErrNotExist) {
@@ -123,4 +124,20 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 	i.usage.Favorite.Incomplete = len(failures) > generalFailures || ctx.Err() != nil
 	i.usage.Incomplete = i.usage.General.Incomplete || i.usage.Favorite.Incomplete
 	return errors.Join(failures...)
+}
+
+// Windows can report an existing non-directory as missing when OpenRoot asks
+// for a directory handle. An unusable cache is a partial-inventory error, not
+// an empty cache; inspect only that failure through the same retained root.
+func openAnalysisDirectory(parent *os.Root, name string) (*os.Root, error) {
+	root, err := parent.OpenRoot(name)
+	if !errors.Is(err, os.ErrNotExist) {
+		return root, err
+	}
+	if _, statErr := parent.Lstat(name); statErr == nil {
+		return nil, fmt.Errorf("analysis path %q exists but cannot be opened as a directory: %v", name, err)
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return nil, statErr
+	}
+	return nil, err
 }
