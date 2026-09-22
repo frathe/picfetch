@@ -49,7 +49,10 @@ now have focused race and GoLand evidence. Final clean code/security review
 and complete CI remain open.
 The next review adds macOS header-only probing, selected duplicate removal and
 guide delivery after stale availability. UI fixes pass focused race checks;
-the required macOS regression awaits hosted red/green evidence. The Windows
+GoLand inspections are clear after repairing its stale index. The macOS adapter
+now confines full image creation to pixel requests and awaits its existing
+native metadata/pixel suites; corruption did not provide a valid regression
+because ImageIO accepts damaged media, so that experimental test is removed. The Windows
 runner requirement is now also an unresolved review finding.
 
 ### delegate heic image rendering to the OS

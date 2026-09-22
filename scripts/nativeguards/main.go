@@ -103,7 +103,7 @@ func (s *suite) requireHEIC() {
 		for _, name := range []string{
 			"representative_pixels", "probe8.heic", "probe10.heic", "container-rotate.heic",
 			"exif-rotate.heic", "container-and-exif.heic", "HDR_native_rendering", "pixel_budget_refusal",
-			"primary_metadata", "header_probe_without_pixels",
+			"primary_metadata",
 		} {
 			tests = append(tests, "TestHEICDarwinNativeQualification/"+name)
 		}

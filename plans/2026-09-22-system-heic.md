@@ -248,12 +248,30 @@ retaining properties; first publish it against the existing adapter for hosted
 red evidence, then move full ImageIO creation/validation under pixel admission.
 No new test files/top-level UI tests, dependencies or worker seams.
 
-GoLand reviewed the changed files but its PSI/file-text mismatch prevents a
-complete UI inspection; retry before handoff, and report it unverified if it
-persists. The native test's duplicated assertions intentionally mirror Linux's
+GoLand's initial PSI/file-text mismatch prevented a complete UI inspection.
+Refreshing the affected text through its editor API repaired the stale index;
+all four changed UI files now have clear inspections including weak warnings.
+The native test's duplicated assertions intentionally mirror Linux's
 separate native adapter regression; its existing exact Qodana test exclusion
 already covers that scope. No suppression is broadened. All work remains
 lead-owned with zero spawns; hosted CI supplies native macOS evidence.
+
+The first Apple Silicon run accepted zero-filled media even for a pixel read,
+so that failure was not valid red evidence for probing. The corrected native
+regression removes the media payload and adjusts the enclosing box size while
+retaining its header/properties; qualify that actual failure before claiming
+the guard proves metadata does not create a full image.
+
+ImageIO also accepted the truncated media for pixel reads. Neither corruption
+experiment is a valid refusal-based guard, and both are removed. The production
+change moves full-image creation/status/dimension validation into the existing
+pixel-request branch; property dimensions, orientation and provider identity
+remain available without that call. Existing required native tests already
+compare probe dimensions/orientation against pixels and verify associated EXIF
+for both request modes. Final hosted suites must pass those unchanged checks;
+no measured performance or new negative-test evidence is claimed. GoLand's C
+inspection and local `make verify-build` pass. Qodana runs `35794376598` and
+`35794663171` both have zero post-suppression results.
 
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement

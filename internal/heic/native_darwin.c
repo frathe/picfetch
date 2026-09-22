@@ -76,24 +76,24 @@ picfetch_imageio_result picfetch_imageio_read(const uint8_t *data, size_t length
         (!integer_property(properties, kCGImagePropertyOrientation, &orientation) || orientation < 1 || orientation > 8)) {
         FAILURE(3, "invalid primary orientation");
     }
-    const void *keys[] = {kCGImageSourceShouldCacheImmediately, kCGImageSourceShouldAllowFloat};
-    const void *values[] = {kCFBooleanTrue, kCFBooleanFalse};
-    options = CFDictionaryCreate(kCFAllocatorDefault, keys, values, 2,
-                                  &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    if (!options) { FAILURE(4, "allocating ImageIO options failed"); }
-    image = CGImageSourceCreateImageAtIndex(source, index, options);
-    if (!image) { FAILURE(3, "ImageIO full-primary decoding failed"); }
-    if (CGImageSourceGetStatusAtIndex(source, index) != kCGImageStatusComplete) {
-        FAILURE(3, "ImageIO primary decoding did not complete");
-    }
-    if (CGImageGetWidth(image) != (size_t)width || CGImageGetHeight(image) != (size_t)height) {
-        FAILURE(3, "full-primary decode disagrees with source dimensions");
-    }
     result.width = (int)width;
     result.height = (int)height;
     result.orientation = (int)orientation;
     provider_identity(result.provider, sizeof(result.provider));
     if (pixels) {
+        const void *keys[] = {kCGImageSourceShouldCacheImmediately, kCGImageSourceShouldAllowFloat};
+        const void *values[] = {kCFBooleanTrue, kCFBooleanFalse};
+        options = CFDictionaryCreate(kCFAllocatorDefault, keys, values, 2,
+                                      &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        if (!options) { FAILURE(4, "allocating ImageIO options failed"); }
+        image = CGImageSourceCreateImageAtIndex(source, index, options);
+        if (!image) { FAILURE(3, "ImageIO full-primary decoding failed"); }
+        if (CGImageSourceGetStatusAtIndex(source, index) != kCGImageStatusComplete) {
+            FAILURE(3, "ImageIO primary decoding did not complete");
+        }
+        if (CGImageGetWidth(image) != (size_t)width || CGImageGetHeight(image) != (size_t)height) {
+            FAILURE(3, "full-primary decode disagrees with source dimensions");
+        }
         result.pixel_bytes = (size_t)width * (size_t)height * 4;
         result.pixels = calloc(1, result.pixel_bytes);
         if (!result.pixels) { FAILURE(4, "allocating canonical RGBA pixels failed"); }
