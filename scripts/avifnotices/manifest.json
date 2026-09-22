@@ -1,0 +1,272 @@
+{
+  "notes": "PicFetch ships github.com/gen2brain/avif's embedded WASM payload under the nodynamic build policy, using the wazero Go runtime. The complete payload includes the AV1 encoder even when PicFetch only decodes an image. This section retains the codec and runtime notices, including bundled libaom helpers and the AOM patent license. Licenses are also available offline through Help -> Licenses.\n\nThe module's build recipe pins libavif v1.4.2, libaom v3.14.1 and dav1d 1.5.3. The payload's version strings confirm libaom and dav1d. Libyuv's build input is the floating stable branch; its exact historical checkout is not attested. WASM debug paths identify wasisdk://v33.0+m and its compiler identifies LLVM 4434dabb69916856b824f68a64b029c67175e532. The SDK 33 wasi-libc revision below is the corresponding upstream reference; the +m build's local modifications are not documented. These source references describe the reviewed notices, not a reproducible-build claim. The exact shipped payload is bound by the hashes below.\n\nThe complete upstream license aggregates are retained, including notices for optional source components not necessarily linked into this build. Source license texts are not translated. scripts/avifnotices/manifest.json records the reviewed inputs; make check-avif-notices rejects version, payload, source-text or generated-notice drift.",
+  "modules": [
+    {
+      "path": "github.com/gen2brain/avif",
+      "version": "v0.6.0",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "7ccd0e2f82eac9b87608576a9e559567f1ba049bebe709135eef3a9661bbc96e"
+        },
+        {
+          "path": "lib/Makefile",
+          "sha256": "1404fe10eb61f9733e967ff1ffea5f02bde13d17fd78038f237ba32346e5c3ec"
+        },
+        {
+          "path": "lib/avif.c",
+          "sha256": "7e9603ea6d645c64c86857043b3d97102546c7a8a2d701149daec7a96118bfb9"
+        },
+        {
+          "path": "avif_wazero.go",
+          "sha256": "a60925be429779481cc683b39489194ce6e533d2cf8bde6e1efec3661049df31"
+        },
+        {
+          "path": "lib/avif.wasm",
+          "sha256": "52181752f8d92a43dfd0ca33179d32fdf7452a669cc1e260f37fabb8319de6bf"
+        },
+        {
+          "path": "lib/avif.wasm.gz",
+          "sha256": "92ffd604d276359c2df829effc615cd9f286c36ece5761644929e4396eb97360"
+        }
+      ]
+    },
+    {
+      "path": "github.com/tetratelabs/wazero",
+      "version": "v1.12.0",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c46f033d017a5af71a1de0105ec56c41bd47f81a0bbdf779fffe316336dc7c1f"
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "e6f0c5c151a3ff1eba8f5930a31ec084ca6d7adda43c8675ab81f7d36af50b4f"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "name": "github.com/gen2brain/avif",
+      "version": "v0.6.0 (1fd2a9a51895ca03a192dd49917840794c8a77a1)",
+      "license": "MIT",
+      "files": [
+        {
+          "path": "licenses/gen2brain-avif-LICENSE.txt",
+          "sha256": "7ccd0e2f82eac9b87608576a9e559567f1ba049bebe709135eef3a9661bbc96e",
+          "source": "https://raw.githubusercontent.com/gen2brain/avif/1fd2a9a51895ca03a192dd49917840794c8a77a1/LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "libavif",
+      "version": "v1.4.2 (c5240fc79fe5c2407e10afd35f5505ef6333ea49)",
+      "license": "BSD-2-Clause and upstream aggregate notices",
+      "notes": "The complete license aggregate is from the build recipe's libavif revision. The older LICENSE.libavif copy in the Go module is not used as the source of this notice.",
+      "files": [
+        {
+          "path": "licenses/libavif-LICENSE.txt",
+          "sha256": "165abf92cc04b39e80d29cadea7a6a7e8fddf59407d4ad2616507a7ebe8216f9",
+          "source": "https://raw.githubusercontent.com/AOMediaCodec/libavif/c5240fc79fe5c2407e10afd35f5505ef6333ea49/LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "dav1d",
+      "version": "1.5.3 (b546257f770768b2c88258c533da38b91a06f737)",
+      "license": "BSD-2-Clause",
+      "files": [
+        {
+          "path": "licenses/dav1d-COPYING.txt",
+          "sha256": "dd92c3c2247c5651606fc23a5e2d6a1ebc5ace9a3e49cbde0e12f05ad1cb1ee5",
+          "source": "https://raw.githubusercontent.com/videolan/dav1d/b546257f770768b2c88258c533da38b91a06f737/COPYING"
+        }
+      ]
+    },
+    {
+      "name": "libaom",
+      "version": "v3.14.1 (03087864cf4bea6abb0d28f95cf7843511413d8f)",
+      "license": "BSD-3-Clause and Alliance for Open Media Patent License 1.0",
+      "files": [
+        {
+          "path": "licenses/aom-LICENSE.txt",
+          "sha256": "4764a286d8b2faeaf42f4418e7d7a28d58fc8fd4d00a3d0a7f44b0a4099de7f2",
+          "source": "https://aomedia.googlesource.com/aom/+/03087864cf4bea6abb0d28f95cf7843511413d8f/LICENSE"
+        },
+        {
+          "path": "licenses/aom-PATENTS.txt",
+          "sha256": "661fb8e504744e95587b556b94a58343448300606a41bea8c7a9b97125696e61",
+          "source": "https://aomedia.googlesource.com/aom/+/03087864cf4bea6abb0d28f95cf7843511413d8f/PATENTS"
+        }
+      ]
+    },
+    {
+      "name": "libaom bundled fastfeat and vector",
+      "version": "libaom v3.14.1",
+      "license": "BSD-3-Clause (fastfeat) and MIT (vector)",
+      "notes": "The shipped payload contains aom_fast9_detect and aom_vector_* functions.",
+      "files": [
+        {
+          "path": "licenses/aom-fastfeat-LICENSE.txt",
+          "sha256": "499041ddee5227b6f29ca06c17803e5fe24d60f243c69635cd76b7ba08d0ddd5",
+          "source": "https://aomedia.googlesource.com/aom/+/03087864cf4bea6abb0d28f95cf7843511413d8f/third_party/fastfeat/LICENSE"
+        },
+        {
+          "path": "licenses/aom-vector-LICENSE.txt",
+          "sha256": "ff6c857ce2708e87701323078aef115c1872a1f80a9649f86dc899b48083bc60",
+          "source": "https://aomedia.googlesource.com/aom/+/03087864cf4bea6abb0d28f95cf7843511413d8f/third_party/vector/LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "libyuv",
+      "version": "stable; reviewed reference eb6e7bb63738e29efd82ea3cf2a115238a89fa51",
+      "license": "BSD-3-Clause and accompanying Google patent grant",
+      "notes": "The build recipe does not pin a commit. This reference is the stable branch tip observed on 2026-09-21, not proof of the historical checkout. The complete PATENTS text below has only a terminal newline added.",
+      "files": [
+        {
+          "path": "licenses/libyuv-LICENSE.txt",
+          "sha256": "2b2cc1180c7e6988328ad2033b04b80117419db9c4c584918bbb3cfec7e9364f",
+          "source": "https://chromium.googlesource.com/libyuv/libyuv/+/eb6e7bb63738e29efd82ea3cf2a115238a89fa51/LICENSE"
+        },
+        {
+          "path": "licenses/libyuv-AUTHORS.txt",
+          "sha256": "1e8751834a0341c39c75a06021fdad56aa614fc6cd7cf0a7f8a18921689c9e2c",
+          "source": "https://chromium.googlesource.com/libyuv/libyuv/+/eb6e7bb63738e29efd82ea3cf2a115238a89fa51/AUTHORS"
+        },
+        {
+          "path": "licenses/libyuv-PATENTS.txt",
+          "sha256": "a26701f5f944a26a03684f6ed26698c540b7f54712c42b5e6fe27ed7cda0914d",
+          "source": "https://chromium.googlesource.com/libyuv/libyuv/+/eb6e7bb63738e29efd82ea3cf2a115238a89fa51/PATENTS"
+        }
+      ]
+    },
+    {
+      "name": "WASI libc",
+      "version": "SDK 33 upstream reference 161b3195fc2558d2b1ba3eb9ffae3b2b47407623",
+      "license": "Apache-2.0 WITH LLVM-exception, Apache-2.0, MIT, and component licenses",
+      "notes": "The payload identifies SDK 33.0+m; the upstream SDK pins this wasi-libc revision. All three offered license texts and the component index are retained. Unknown local SDK modifications remain a provenance limitation.",
+      "files": [
+        {
+          "path": "licenses/wasi-libc-LICENSE.txt",
+          "sha256": "2711a8b5a5cdfef0e639f96c1aca12ae23d7d64a02d0507f1bdf14d2b27bbc3a",
+          "source": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE"
+        },
+        {
+          "path": "licenses/wasi-libc-LICENSE-MIT.txt",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+          "source": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE-MIT"
+        },
+        {
+          "path": "licenses/wasi-libc-LICENSE-APACHE.txt",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+          "source": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE-APACHE"
+        },
+        {
+          "path": "licenses/wasi-libc-LICENSE-APACHE-LLVM.txt",
+          "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+          "source": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/LICENSE-APACHE-LLVM"
+        }
+      ]
+    },
+    {
+      "name": "WASI libc: musl and math/sorting notices",
+      "version": "161b3195fc2558d2b1ba3eb9ffae3b2b47407623",
+      "license": "MIT and Sun Microsystems permissive notice",
+      "files": [
+        {
+          "path": "licenses/musl-COPYRIGHT.txt",
+          "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+          "source": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-top-half/musl/COPYRIGHT"
+        },
+        {
+          "path": "licenses/musl-sun-NOTICE.txt",
+          "sha256": "16cd38a2d4dd0bf4b8a51ab4bd8779856a38d7ac96d4f8a3b092d8c707b0a021",
+          "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-top-half/musl/src/math/__cos.c#L2-L11"
+        },
+        {
+          "path": "licenses/musl-arm-exp-NOTICE.txt",
+          "sha256": "f116966f95dc0f50b5cb67894c89e342a21be93ae821e841efb8cca987a8c949",
+          "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-top-half/musl/src/math/exp.c#L1-L6"
+        },
+        {
+          "path": "licenses/musl-arm-expf-NOTICE.txt",
+          "sha256": "b11e271534b26e37a6b82ff5246a72e97b13abc388288d97c5e7690a2931eea2",
+          "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-top-half/musl/src/math/expf.c#L1-L6"
+        },
+        {
+          "path": "licenses/musl-qsort-NOTICE.txt",
+          "sha256": "67f1f2f3c0447c68be581010fee98dca1c7ea1edf8fbfc61c7e5ee6ad9f99de4",
+          "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-top-half/musl/src/stdlib/qsort.c#L1-L20"
+        }
+      ],
+      "notes": "Complete musl copyright terms and the applicable in-source notices are reproduced below. Arm's SPDX MIT references use the full MIT terms reproduced in the WASI libc section."
+    },
+    {
+      "name": "WASI libc: cloudlibc",
+      "version": "161b3195fc2558d2b1ba3eb9ffae3b2b47407623",
+      "license": "BSD-2-Clause",
+      "files": [
+        {
+          "path": "licenses/cloudlibc-LICENSE.txt",
+          "sha256": "c8b789cf5a746611e6300a0cc7750dbf92b61912a709d04e639245f7290656d0",
+          "source": "https://raw.githubusercontent.com/WebAssembly/wasi-libc/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/libc-bottom-half/cloudlibc/LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "WASI libc: dlmalloc",
+      "version": "2.8.6 in wasi-libc 161b3195fc2558d2b1ba3eb9ffae3b2b47407623",
+      "license": "CC0-1.0 / public domain",
+      "files": [
+        {
+          "path": "licenses/dlmalloc-NOTICE.txt",
+          "sha256": "a72fc0671bf75e5c156ecf2c0a11ad795d75d520a9f0d2bdce4718e168789efb",
+          "source": "https://github.com/WebAssembly/wasi-libc/blob/161b3195fc2558d2b1ba3eb9ffae3b2b47407623/dlmalloc/src/malloc.c#L1-L9"
+        },
+        {
+          "path": "licenses/CC0-1.0.txt",
+          "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+          "source": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt"
+        }
+      ]
+    },
+    {
+      "name": "LLVM compiler-rt",
+      "version": "4434dabb69916856b824f68a64b029c67175e532",
+      "license": "Apache-2.0 WITH LLVM-exception and legacy runtime license texts",
+      "notes": "The WASM producer identifies this LLVM revision, and the payload includes compiler runtime builtins such as __multi3.",
+      "files": [
+        {
+          "path": "licenses/compiler-rt-LICENSE.txt",
+          "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
+          "source": "https://raw.githubusercontent.com/llvm/llvm-project/4434dabb69916856b824f68a64b029c67175e532/compiler-rt/LICENSE.TXT"
+        },
+        {
+          "path": "licenses/compiler-rt-CREDITS.txt",
+          "sha256": "a9901f47a089da41e4690682d00ce4cedaa2baf41fedbe79beee366d43ac2461",
+          "source": "https://raw.githubusercontent.com/llvm/llvm-project/4434dabb69916856b824f68a64b029c67175e532/compiler-rt/CREDITS.TXT"
+        }
+      ]
+    },
+    {
+      "name": "github.com/tetratelabs/wazero",
+      "version": "v1.12.0",
+      "license": "Apache-2.0",
+      "notes": "This Go runtime executes the embedded WASM and implements its WASI host calls. Its complete LICENSE and NOTICE are reproduced.",
+      "files": [
+        {
+          "path": "licenses/wazero-LICENSE.txt",
+          "sha256": "c46f033d017a5af71a1de0105ec56c41bd47f81a0bbdf779fffe316336dc7c1f",
+          "source": "https://raw.githubusercontent.com/tetratelabs/wazero/v1.12.0/LICENSE"
+        },
+        {
+          "path": "licenses/wazero-NOTICE.txt",
+          "sha256": "e6f0c5c151a3ff1eba8f5930a31ec084ca6d7adda43c8675ab81f7d36af50b4f",
+          "source": "https://raw.githubusercontent.com/tetratelabs/wazero/v1.12.0/NOTICE"
+        }
+      ]
+    }
+  ]
+}

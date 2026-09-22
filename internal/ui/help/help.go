@@ -17,7 +17,7 @@ import (
 
 const DiscussionsURL = "https://github.com/frathe/picfetch/discussions"
 
-// Help owns the documentation windows (manual, About, What's New). Each is
+// Help owns the documentation windows (manual, About, What's New, Licenses). Each is
 // a widgets.Singleton, so a second request raises the window that's already
 // open instead of stacking up duplicates.
 type Help struct {
@@ -32,6 +32,8 @@ type Help struct {
 	manualWin    widgets.Singleton
 	aboutWin     widgets.Singleton
 	whatsNewWin  widgets.Singleton
+	licensesWin  widgets.Singleton
+	licenses     string
 	finisWin     widgets.Singleton
 	finis        *finisView
 	manual       *manualView
@@ -55,6 +57,9 @@ func New(application fyne.App, title string, art []byte) *Help {
 		imageClient: &http.Client{Timeout: 20 * time.Second, CheckRedirect: releaseImageRedirectPolicy}, imageUI: fyneQueue{},
 	}
 }
+
+// SetLicenses supplies the build's embedded notice document before opening Help.
+func (h *Help) SetLicenses(notices string) { h.licenses = notices }
 
 // SetOnSpiral registers the manual secret callback. It is read at invocation,
 // so replacing it while the manual is open takes effect immediately.
@@ -88,7 +93,7 @@ func (h *Help) ShowDiscussions() {
 	}
 }
 
-// Menu is the app's Help menu: manual, release notes, community, and About
+// Menu is the app's Help menu: manual, release notes, licenses, community, and About
 // below a separator. Returns the *fyne.Menu
 // itself rather than a whole *fyne.MainMenu, so internal/ui can combine it
 // with its own File menu into one bar - composing menus is the app's job,
@@ -101,8 +106,9 @@ func (h *Help) Menu() *fyne.Menu {
 	// same menu-hint pattern File uses for Open/Save/Export.
 	manual.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyF1}
 	releases := fyne.NewMenuItem(lang.L("Release Notes"), h.ShowReleaseNotes)
+	licenses := fyne.NewMenuItem(lang.L("Licenses"), h.ShowLicenses)
 	about := fyne.NewMenuItem(lang.L("About"), h.ShowAbout)
 	discussions := fyne.NewMenuItem(lang.L("GitHub Discussions"), h.ShowDiscussions)
 
-	return fyne.NewMenu(lang.L("Help"), manual, releases, discussions, fyne.NewMenuItemSeparator(), about)
+	return fyne.NewMenu(lang.L("Help"), manual, releases, licenses, discussions, fyne.NewMenuItemSeparator(), about)
 }

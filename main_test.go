@@ -10,6 +10,16 @@ import (
 	"unicode"
 )
 
+func TestEmbeddedNoticesMatchShippedDocument(t *testing.T) {
+	want, err := os.ReadFile("THIRD-PARTY-NOTICES.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(want) == 0 || thirdPartyNotices != string(want) {
+		t.Fatal("the executable must embed the exact nonempty release notice document")
+	}
+}
+
 func TestArgsToURIs_ResolvesRelativeToAbsolute(t *testing.T) {
 	uris := argsToURIs([]string{"one.jpg", filepath.Join("sub", "two.png")})
 

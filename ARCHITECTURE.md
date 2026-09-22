@@ -15,8 +15,9 @@ subprocess mode before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
 cleanup for Store-managed builds and explicit Explorer trials, asks `launch.Options.ApplicationID` to validate and select the app identity before
 building the `fyne.App`, loads embedded
-`translations/*.json`, converts CLI paths to URIs (`argsToURIs`), and calls
-`ui.Run`. `main_darwin_test.go` asserts the graft landed — this is the only
+`translations/*.json`, embeds `THIRD-PARTY-NOTICES.md`, converts CLI paths to URIs
+(`argsToURIs`), and passes the immutable notices to `ui.Run`, which supplies
+Help's offline Licenses window before startup. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
 
 ### `scripts/historymovie`
@@ -262,8 +263,14 @@ Generation uses local `cwebp`; the application keeps its existing image decoders
 `scripts/updaternotices` reconciles the six-target production updater dependency
 union with its reviewed `manifest.json`, checks source-file hashes and generates
 the bounded updater section of `THIRD-PARTY-NOTICES.md`. `artifacts.go` verifies
-byte-identical license/privacy/notices inside finished ZIP/tar.gz archives and
-both MSIX bundle payloads; CI runs this before release publication/Store upload.
+byte-identical license/privacy/notices and the complete notice document embedded
+in each executable inside finished ZIP/tar.gz archives and both MSIX bundle
+payloads; CI runs this before release publication/Store upload.
+
+`scripts/avifnotices` checks resolved AVIF/wazero versions and hashes of the
+reviewed WASM payload, build recipe and retained source license texts against
+`manifest.json`; it generates the AVIF section of `THIRD-PARTY-NOTICES.md` offline.
+Its README records the libyuv/WASI source-provenance limits.
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.
@@ -563,6 +570,10 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/display/` | Single-image surface publication, rotation/fades, source-bound observations and action captures. `feature.go` owns the surface, snapshots and worker settlement, `capture.go` saved baselines and stable captures, `animation.go`/`pause.go` playback and its acquisition gate, `lifecycle.go` private request tokens, `vector.go` sharpening, `load.go` complete navigation/retries/handoff and `preload.go` bounded speculation. One UI queue delivers workers; separate completion observations distinguish loaded/applied/stopped. | `Feature`; root shares `Surface()` with zoom for geometry only. |
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` extracts the compact single-row atlas and owns the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. `circlegesture.go` recognizes timestamped head-relative pointer turns; hosts own independent instances, geometry normalization and lifecycle reset. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | Embedded viewer artwork, including `ExplorerIntroPNG` for first use. | Leaf. |
+
+Help's `licenses.go` displays the complete immutable release notice document
+supplied by `main.go` through `ui.Run` and `Help.SetLicenses`. Help -> Licenses
+opens a scrollable Markdown singleton, with no runtime file reads or downloads.
 
 ### `internal/imaging`
 

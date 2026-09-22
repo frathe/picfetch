@@ -6,12 +6,22 @@ Make targets, the release workflow and the Store workflow use these same inputs.
 Tools install into version-specific, ignored `.tools/` directories; a globally
 installed CLI does not select the version used by these targets.
 
-App build/run and packaging targets pass Fyne's supported `no_emoji` build tag;
+App build/run and packaging targets pass `no_emoji,nodynamic` build tags;
 Store packages also retain `microsoftstore`. The bundled emoji font is omitted
-by project choice. Direct Go app builds should likewise pass `-tags no_emoji`.
+by project choice. Direct Go app builds should likewise pass `-tags no_emoji,nodynamic`.
 Before compilation, Make regenerates exact binary tag vectors from the retained
 JSON source; CI checks freshness with `make check-tag-vectors`. Neither step
 changes the signing order or adds a runtime dependency.
+
+`THIRD-PARTY-NOTICES.md` is embedded directly by `main.go` for offline Help ->
+Licenses in every distribution, as well as copied beside release artifacts.
+`make check-avif-notices` binds the reviewed AVIF/wazero versions, embedded WASM
+payload and full retained source notices; `make check-updater-notices` covers
+the updater dependency closure. Both are CI and `verify-build` prerequisites.
+See [AVIF provenance and upgrade checks](../scripts/avifnotices/README.md).
+The final archive check compares the loose notices and the full document inside
+each executable, including both MSIX payloads. Run it on the newly built release
+artifacts; older binaries cannot establish delivery of the current notices.
 
 The image digests name multiarchitecture indexes, supporting amd64 and arm64
 build hosts. An image upgrade must retain both host architectures. The container

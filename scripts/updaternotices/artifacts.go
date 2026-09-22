@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+const maxPackageBytes = 512 * 1024 * 1024
+
 func inspectArtifact(root, artifact string) error {
 	want := make(map[string][]byte)
 	for _, name := range []string{"LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md"} {
@@ -33,10 +35,12 @@ func inspectArtifact(root, artifact string) error {
 		return inspectBundle(&reader.Reader, want)
 	}
 	prefix := ""
+	executable := "picfetch.exe"
 	if strings.HasPrefix(filepath.Base(artifact), "picfetch-macos-") {
 		prefix = "PicFetch.app/Contents/Resources/"
+		executable = "PicFetch.app/Contents/MacOS/picfetch"
 	}
-	return inspectZip(&reader.Reader, prefix, want)
+	return inspectZip(&reader.Reader, prefix, executable, want)
 }
 
 func inspectBundle(reader *zip.Reader, want map[string][]byte) error {
@@ -51,7 +55,6 @@ func inspectBundle(reader *zip.Reader, want map[string][]byte) error {
 		seen[file.Name] = true
 		// Current payloads are below 100 MiB. Bound allocation when inspecting
 		// an invalid archive without extracting any files to the filesystem.
-		const maxPackageBytes = 512 * 1024 * 1024
 		data, err := readZipEntry(file, maxPackageBytes)
 		if err != nil {
 			return err
@@ -60,7 +63,7 @@ func inspectBundle(reader *zip.Reader, want map[string][]byte) error {
 		if err != nil {
 			return err
 		}
-		if err := inspectZip(payload, "", want); err != nil {
+		if err := inspectZip(payload, "", "picfetch.exe", want); err != nil {
 			return fmt.Errorf("%s: %w", file.Name, err)
 		}
 	}
@@ -70,9 +73,20 @@ func inspectBundle(reader *zip.Reader, want map[string][]byte) error {
 	return nil
 }
 
-func inspectZip(reader *zip.Reader, prefix string, want map[string][]byte) error {
+func inspectZip(reader *zip.Reader, prefix, executable string, want map[string][]byte) error {
 	seen := make(map[string]bool)
+	executableSeen := false
 	for _, file := range reader.File {
+		if file.Name == executable {
+			if executableSeen || !file.Mode().IsRegular() {
+				return fmt.Errorf("duplicate or non-regular executable %s", file.Name)
+			}
+			if err := inspectZipExecutable(file, want["THIRD-PARTY-NOTICES.md"]); err != nil {
+				return err
+			}
+			executableSeen = true
+			continue
+		}
 		name, ok := strings.CutPrefix(file.Name, prefix)
 		if !ok {
 			continue
@@ -93,7 +107,62 @@ func inspectZip(reader *zip.Reader, prefix string, want map[string][]byte) error
 		}
 		seen[name] = true
 	}
-	return requireNotices(seen, want)
+	if err := requireNotices(seen, want); err != nil {
+		return err
+	}
+	if !executableSeen {
+		return fmt.Errorf("missing executable %s", executable)
+	}
+	return nil
+}
+
+func inspectZipExecutable(file *zip.File, want []byte) error {
+	if file.UncompressedSize64 > maxPackageBytes {
+		return fmt.Errorf("oversized archive entry %s", file.Name)
+	}
+	r, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = r.Close() }()
+	return inspectEmbeddedNotices(r, file.Name, want)
+}
+
+func inspectEmbeddedNotices(reader io.Reader, name string, want []byte) error {
+	// Keep enough overlap to find the complete notice across read boundaries.
+	// Memory depends on the checkout's notice size, never on executable size.
+	chunkSize := max(32*1024, len(want))
+	buffer := make([]byte, chunkSize+max(0, len(want)-1))
+	reader = io.LimitReader(reader, maxPackageBytes+1)
+	var total int64
+	retained := 0
+	found := len(want) == 0
+	for {
+		n, err := reader.Read(buffer[retained:])
+		total += int64(n)
+		if total > maxPackageBytes {
+			return fmt.Errorf("oversized archive entry %s", name)
+		}
+		window := buffer[:retained+n]
+		if !found {
+			found = bytes.Contains(window, want)
+		}
+		if err != nil {
+			if err != io.EOF {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+			if !found {
+				return fmt.Errorf("missing or stale embedded THIRD-PARTY-NOTICES.md in %s", name)
+			}
+			return nil
+		}
+		// Continue to EOF after matching: ZIP checksums may fail on the final read.
+		retained = 0
+		if !found {
+			retained = min(len(want)-1, len(window))
+			copy(buffer, window[len(window)-retained:])
+		}
+	}
 }
 
 func readZipEntry(file *zip.File, limit int64) ([]byte, error) {
@@ -128,12 +197,27 @@ func inspectTar(artifact string, want map[string][]byte) error {
 	defer func() { _ = compressed.Close() }()
 	reader := tar.NewReader(compressed)
 	seen := make(map[string]bool)
+	executable := strings.TrimSuffix(filepath.Base(artifact), ".tar.gz")
+	executableSeen := false
 	for {
 		header, err := reader.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return err
+		}
+		if header.Name == executable {
+			if executableSeen || header.Typeflag != tar.TypeReg {
+				return fmt.Errorf("duplicate or non-regular executable %s", header.Name)
+			}
+			if header.Size > maxPackageBytes {
+				return fmt.Errorf("oversized archive entry %s", header.Name)
+			}
+			if err := inspectEmbeddedNotices(reader, header.Name, want["THIRD-PARTY-NOTICES.md"]); err != nil {
+				return err
+			}
+			executableSeen = true
+			continue
 		}
 		expected, ok := want[header.Name]
 		if !ok {
@@ -156,7 +240,13 @@ func inspectTar(artifact string, want map[string][]byte) error {
 	if _, err := io.Copy(io.Discard, compressed); err != nil {
 		return err
 	}
-	return requireNotices(seen, want)
+	if err := requireNotices(seen, want); err != nil {
+		return err
+	}
+	if !executableSeen {
+		return fmt.Errorf("missing executable %s", executable)
+	}
+	return nil
 }
 
 func requireNotices(seen map[string]bool, want map[string][]byte) error {

@@ -57,6 +57,9 @@ jobs:
       - name: Check updater dependency notices
         run: make check-updater-notices
 
+      - name: Check AVIF payload and dependency notices
+        run: make check-avif-notices
+
       - name: Install Linux GUI build dependencies
         run: |
           sudo apt-get update

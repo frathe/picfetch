@@ -401,8 +401,8 @@ func TestHelpMenu(t *testing.T) {
 		t.Errorf("expected menu label %q, got %q", "Help", help.Label)
 	}
 
-	if got := len(help.Items); got != 5 {
-		t.Fatalf("expected 5 help items, got %d", got)
+	if got := len(help.Items); got != 6 {
+		t.Fatalf("expected 6 help items, got %d", got)
 	}
 
 	manual := help.Items[0]
@@ -428,7 +428,12 @@ func TestHelpMenu(t *testing.T) {
 		t.Fatal("Help does not offer release notes")
 	}
 
-	discussions := help.Items[2]
+	licenses := help.Items[2]
+	if licenses.Label != "Licenses" || licenses.Action == nil {
+		t.Fatal("Help does not offer licenses")
+	}
+
+	discussions := help.Items[3]
 	if discussions.Label != "GitHub Discussions" || discussions.Action == nil {
 		t.Fatal("Help does not offer a GitHub Discussions link")
 	}
@@ -439,11 +444,11 @@ func TestHelpMenu(t *testing.T) {
 	if application.opened == nil || application.opened.String() != "https://github.com/frathe/picfetch/discussions" {
 		t.Fatalf("Discussions opened %v; want the public project page without attached user data", application.opened)
 	}
-	if !help.Items[3].IsSeparator {
+	if !help.Items[4].IsSeparator {
 		t.Error("expected a separator before About")
 	}
 
-	about := help.Items[4]
+	about := help.Items[5]
 
 	if about.Label != "About" {
 		t.Errorf("expected item label %q, got %q", "About", about.Label)
