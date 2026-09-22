@@ -150,6 +150,19 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		v.startHEICCheck(false)
 		check = capability.Ensure(token.context())
 	}
+	waitForCapability := func() bool {
+		if check == nil {
+			return true
+		}
+		select {
+		case <-check:
+			snapshot = capability.Snapshot()
+			check = nil
+			return true
+		case <-token.context().Done():
+			return false
+		}
+	}
 	var skipped, sourceOrder []fyne.URI
 	retentionTruncated := false
 	seenOrder := make(map[string]bool)
@@ -166,15 +179,6 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 			}
 			record(uri)
 			return true
-		}
-		if check != nil {
-			select {
-			case <-check:
-				snapshot = capability.Snapshot()
-				check = nil
-			case <-token.context().Done():
-				return false
-			}
 		}
 		if !snapshot.Available {
 			if seenOrder[uri.String()] {
@@ -193,7 +197,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	}
 
 	scan := func(progress func(int)) (images []fyne.URI, truncated bool) {
-		if expandSiblings && heic.IsExtension(uris[0].Extension()) && !accepts(uris[0]) {
+		if expandSiblings && heic.IsExtension(uris[0].Extension()) && (!waitForCapability() || !accepts(uris[0])) {
 			// An unavailable explicit source belongs at its own guide/error
 			// state; opening it must not display an unrelated neighbor.
 			return nil, false
@@ -209,6 +213,24 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 			slices.SortStableFunc(sourceOrder[1:], func(a, b fyne.URI) int {
 				return strings.Compare(a.Name(), b.Name())
 			})
+		}
+		if check != nil && len(skipped) > 0 {
+			// Pending HEICs use the separate retention budget while other
+			// formats keep traversal and progress moving. Resolve admission
+			// only after traversal, preserving original order and the normal
+			// deduplication/image cap if support becomes available.
+			if !waitForCapability() {
+				return nil, false
+			}
+			if snapshot.Available {
+				var admissionTruncated bool
+				images, admissionTruncated = filescan.ImagesWithAdmission(token.context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
+					return heic.IsExtension(uri.Extension()) || imaging.IsSupportedImage(uri)
+				})
+				truncated = truncated || admissionTruncated
+				skipped = nil
+				sourceOrder = images
+			}
 		}
 		return images, truncated || retentionTruncated
 	}

@@ -121,7 +121,7 @@ func (c *Capability) startCheck(parent context.Context) <-chan struct{} {
 		c.state.Checking = false
 		if !c.stopped {
 			c.state.Err = err
-			if err == nil || errors.Is(err, ErrUnavailable) {
+			if err == nil || errors.Is(err, ErrUnavailable) || errors.Is(err, ErrUnsupported) {
 				c.state.Known = true
 				c.state.Available = err == nil
 				c.state.Observation = Observation{Identity: c.identity, CheckedAt: time.Now().UTC(), Available: err == nil}

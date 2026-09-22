@@ -41,8 +41,12 @@ is a verified false positive. Windows cache regressions pass in hosted CI;
 missing Microsoft codecs still prevent its native HEIC qualification. Intel
 nested-sandbox startup and HEIC analysis pass on both macOS architectures. A
 native ImageIO experiment recovered correct alpha through a valid reference
-rewrite; the production correction now awaits the original native corpus.
-Final clean code/security review and complete CI remain open.
+rewrite; the production correction passes the original corpus on both macOS
+architectures. Linux native guards and all race partitions also pass on
+`85fa03a`, with zero Qodana findings and no open CodeQL alerts. Its fresh code
+review found unsupported-probe persistence and stalled mixed traversal; fixes
+now have focused race and GoLand evidence. Final clean code/security review
+and complete CI remain open.
 
 ### delegate heic image rendering to the OS
 
@@ -61,8 +65,8 @@ color correction is best effort and delegated to the system decoder per the
 2026-09-22 clarification. Full feature qualification remains
 open. Native Apple Silicon verification now passes viewing, clipboard encoding,
 PNG/JPEG export, mosaics, retained search, EXIF delivery and cached-fact repair.
-ImageIO still reports no images for the two authored premultiplied-alpha
-fixtures; those required native tests remain failing. The Go build-diagnostic
+Both macOS architectures now pass the original premultiplied-alpha fixtures
+after the validated container-reference correction. The Go build-diagnostic
 handling in the native runner is fixed. See the plan's macOS record for that
 host's ARM64 Docker limitation.
 Windows 11/amd64 now passes the real HEIC corpus, including primary-order variants,

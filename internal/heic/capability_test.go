@@ -3,6 +3,7 @@ package heic
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +20,32 @@ func (b checkBackend) Read(_ context.Context, _ []byte, _ Request) (Result, erro
 
 func TestHEICCapabilityLifecycle(t *testing.T) {
 	identity := Identity{OS: "linux", Architecture: "amd64", OSVersion: "test-os", Revision: Revision}
+	t.Run("unsupported required fixture persists an unavailable observation", func(t *testing.T) {
+		for _, previouslyAvailable := range []bool{false, true} {
+			stored := Observation{}
+			if previouslyAvailable {
+				stored = Observation{Identity: identity, CheckedAt: time.Unix(100, 0), Available: true}
+			}
+			var calls atomic.Int32
+			backend := checkBackend{check: func(_ context.Context) error {
+				calls.Add(1)
+				return fmt.Errorf("required 10-bit fixture: %w", ErrUnsupported)
+			}}
+			capability := NewCapability(backend, identity, stored)
+			t.Cleanup(func() { capability.Stop(); capability.Wait() })
+			<-capability.Check(context.Background())
+			state := capability.State()
+			if !state.Known || state.Available || state.Checking || state.Err != nil || !state.Observation.Matches(identity) || state.Observation.Available {
+				t.Fatalf("unsupported capability state = %+v", state)
+			}
+			restarted := NewCapability(backend, identity, state.Observation)
+			t.Cleanup(func() { restarted.Stop(); restarted.Wait() })
+			<-restarted.Ensure(context.Background())
+			if calls.Load() != 1 || !restarted.State().Known || restarted.State().Available {
+				t.Fatalf("unsupported capability was reprobed on restart: calls=%d state=%+v", calls.Load(), restarted.State())
+			}
+		}
+	})
 	t.Run("matching observation avoids native work", func(t *testing.T) {
 		for _, available := range []bool{false, true} {
 			stored := Observation{Identity: identity, CheckedAt: time.Unix(100, 0), Available: available}

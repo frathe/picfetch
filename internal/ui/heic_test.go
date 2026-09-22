@@ -200,6 +200,104 @@ func TestHEICCapabilityLifecycle(t *testing.T) {
 }
 
 func TestHEICUnavailableFiles(t *testing.T) {
+	t.Run("mixed_scan_progresses_while_check_is_pending", func(t *testing.T) {
+		for _, tc := range []struct {
+			name      string
+			available bool
+			limit     int
+			cancel    bool
+		}{
+			{"available", true, 5, false},
+			{"unavailable", false, 5, false},
+			{"available_at_cap", true, 2, false},
+			{"unavailable_at_cap", false, 2, false},
+			{"cancelled", true, 5, true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				v := newTestViewer(t)
+				release := make(chan struct{})
+				unblock := sync.OnceFunc(func() { close(release) })
+				t.Cleanup(unblock)
+				v.configureHEIC(testHEICBackend{
+					check: func(ctx context.Context) error {
+						select {
+						case <-release:
+							if tc.available {
+								return nil
+							}
+							return heic.ErrUnavailable
+						case <-ctx.Done():
+							return ctx.Err()
+						}
+					},
+					read: func(_ context.Context, _ []byte, request heic.Request) (heic.Result, error) {
+						result := heic.Result{Width: 2, Height: 1}
+						if request.Pixels {
+							result.Stride = 8
+							result.Pixels = []byte{255, 0, 0, 255, 0, 255, 0, 255}
+						}
+						return result, nil
+					},
+				})
+				v.heic.ui = &uitest.UIQueue{}
+				v.settings.maxScan = tc.limit
+				data, err := os.ReadFile("../imaging/testdata/test_exif.heic")
+				if err != nil {
+					t.Fatal(err)
+				}
+				root := t.TempDir()
+				var sources []fyne.URI
+				for _, name := range []string{"a.heic", "b.heic"} {
+					path := filepath.Join(root, name)
+					if err := os.WriteFile(path, data, 0600); err != nil {
+						t.Fatal(err)
+					}
+					sources = append(sources, storage.NewFileURI(path))
+				}
+				sources = append(sources, uitest.TempJPEGURI(t, "c.jpg", 2, 1, color.White))
+				walked := make(chan struct{})
+				last := uitest.DirectoryURI(storage.NewFileURI(filepath.Join(root, "last")), func() ([]fyne.URI, error) {
+					close(walked)
+					return nil, nil
+				})
+				directory := uitest.DirectoryURI(storage.NewFileURI(root), func() ([]fyne.URI, error) {
+					return append(slices.Clone(sources), last), nil
+				})
+				v.handleDrop([]fyne.URI{directory})
+				select {
+				case <-walked:
+				case <-time.After(testTimeout):
+					t.Fatal("pending HEIC check blocked traversal before later supported files")
+				}
+				if got := v.scanOp.label.Text; got != "Scanning... 1 images" {
+					t.Fatalf("supported-file progress while checking = %q", got)
+				}
+				if tc.cancel {
+					v.cancelScan()
+					waitForScan(t, v)
+					if v.FileCount() != 0 {
+						t.Fatal("cancelled scan applied pending files")
+					}
+					unblock()
+					return
+				}
+				unblock()
+				waitForScan(t, v)
+				waitForSort(t, v)
+				waitUntilLoaded(t, v)
+				want := sources[2:]
+				if tc.available {
+					want = sources[:min(len(sources), tc.limit)]
+				}
+				if !slices.Equal(v.state.unsortedFiles, want) {
+					t.Fatalf("admitted files = %v, want %v", v.state.unsortedFiles, want)
+				}
+				if !tc.available && !slices.Equal(v.persistedFiles(v.state.unsortedFiles), sources) {
+					t.Fatal("pending unavailable files lost their collection positions")
+				}
+			})
+		}
+	})
 	t.Run("retention_has_a_separate_cap", func(t *testing.T) {
 		v := newTestViewer(t)
 		v.startHEICCheck(false)

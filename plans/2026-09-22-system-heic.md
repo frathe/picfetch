@@ -192,6 +192,37 @@ key, so the Arch branch is reachable. Existing
 `TestHEICGuideCurrentSystemSelection/Arch_rolling_x86_64` (no `VERSION_ID`) and
 the complete focused HEIC guide tests pass without changes.
 
+### Fourth review follow-up
+
+Run `35790253024` on `85fa03a` passes validation, all four Linux race
+partitions, Linux native guards and both Intel/Apple Silicon native guards.
+Both original premultiplied-alpha fixtures pass. Qodana's root post-suppression
+SARIF has zero findings and CodeQL has no open PR alerts. Windows cache/picker
+regressions pass, but missing Microsoft HEIF activation (`0x80040154`) still
+blocks native Windows/Store qualification. No qualified self-hosted runner is
+registered. Security review completed without findings.
+
+The code review of `85fa03a` identified two more issues. The lead will persist
+unsupported required-fixture probes as completed negative observations, and
+defer bounded HEIC candidates during mixed traversal until the initial check
+finishes. Preserve source order, separate retention/admission caps, explicit
+single-file behavior and cancellation. Existing test files cover unsupported
+observations across restart, later JPEG progress while checking, both check
+outcomes, admission at the cap and cancellation before check completion.
+
+Verification: focused `TestHEICCapabilityLifecycle` and
+`TestHEICUnavailableFiles` regressions in `internal/heic` and `internal/ui`,
+then HEIC/drop/file-state race regressions and `make verify-build`; changed
+Go files receive GoLand inspections including weak warnings. No new top-level
+UI tests, dependencies or interfaces. Zero spawns; all fixes remain lead-owned.
+
+Observed red: unsupported probes left `Known:false` with an operational error;
+all five pending-scan cases timed out before reaching later files. Both fixes
+now pass their focused race checks and the broader HEIC/drop/cancellation/
+file-state race regressions. `make verify-build` passes. All four changed Go
+files have clear GoLand results with weak warnings included. A fresh hosted
+review and complete CI round remains required after this commit.
+
 Route: Deep. Authority: accepted `.scratch/os-heic/spec.md`,
 `docs/heic-system-decoding.md`, ADR 0002, and the user's request to implement
 with SDD/TDD, delegate tickets, and review their work.
