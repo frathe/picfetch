@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -21,6 +22,22 @@ func TestHEICDarwinNativeQualification(t *testing.T) {
 	client := NewClient("")
 	t.Cleanup(func() { client.Stop(); client.Wait() })
 	t.Run("premultiplication_diagnostic", func(t *testing.T) {
+		probe := exec.CommandContext(t.Context(), "swift", "-e", `
+import Foundation
+import ImageIO
+import CoreGraphics
+for name in CommandLine.arguments.dropFirst() {
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: name) as CFURL, nil) else { continue }
+    print("[DEBUG-pr50-alpha]", name, "count", CGImageSourceGetCount(source), "primary", CGImageSourceGetPrimaryImageIndex(source))
+    for index in 0..<CGImageSourceGetCount(source) {
+        print("[DEBUG-pr50-alpha] index", index, "properties", String(describing: CGImageSourceCopyPropertiesAtIndex(source, index, nil)))
+        if let image = CGImageSourceCreateImageAtIndex(source, index, nil) {
+            print("[DEBUG-pr50-alpha] index", index, "alpha", image.alphaInfo.rawValue, "size", image.width, image.height)
+        }
+    }
+}`, "testdata/alpha-straight8.heic", "testdata/alpha-premultiplied8.heic", "testdata/alpha-premultiplied10.heic")
+		output, err := probe.CombinedOutput()
+		t.Logf("[DEBUG-pr50-alpha] direct ImageIO frames: %s; error: %v", output, err)
 		for _, name := range []string{"alpha-premultiplied8", "alpha-premultiplied10"} {
 			data, err := os.ReadFile("testdata/" + name + ".heic")
 			if err != nil {
