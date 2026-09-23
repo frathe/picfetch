@@ -6,6 +6,11 @@
 
 #### New Features
 
+- *delegate heic image rendering to the OS*
+  Add back support for HEIC image formats, on start check if the system supports rendering of heic images. if yes save
+  that information to the settings so we don't have to check that on every launch. when the os does support the 
+  rendering we delegate the rendering to the OS and enable HEIC support.
+
 #### Bugfix
 
 - Enable Windows HEIC decoding through installed Microsoft extensions, preserving
@@ -42,105 +47,6 @@ in the disposable container and rerunning `go test -race` for
 keep the launch assertions intact. This is separate from the Windows CI codec
 exception.
 
-### Complete HEIC PR #50 review loop
-
-[PR #50](https://github.com/frathe/picfetch/pull/50) is open for the system HEIC
-implementation. Resolve confirmed review/CI findings and obtain fresh clean
-Codex code/security, Qodana/CodeQL and complete CI results on the final head.
-The [implementation plan](plans/2026-09-22-system-heic.md) records evidence;
-the user's functional testing covers Windows, macOS and Linux. Remaining
-qualification items below are not implicitly closed by opening the PR.
-The first three Codex findings are fixed; later rounds cover collection
-occurrences, scan retention and explicit opens, shutdown persistence, encoded
-limits, Linux launcher installation and native CI/probing. The Arch-guide claim
-is a verified false positive. Windows cache regressions pass in hosted CI;
-missing Microsoft codecs still prevent its native HEIC qualification. Intel
-nested-sandbox startup and HEIC analysis pass on both macOS architectures. A
-native ImageIO experiment recovered correct alpha through a valid reference
-rewrite; the production correction passes the original corpus on both macOS
-architectures. Linux native guards and all race partitions also pass on
-`85fa03a`, with zero Qodana findings and no open CodeQL alerts. Its fresh code
-review found unsupported-probe persistence and stalled mixed traversal; fixes
-now have focused race and GoLand evidence. Final clean code/security review
-and complete CI remain open.
-The next review adds macOS header-only probing, selected duplicate removal and
-guide delivery after stale availability. UI fixes pass focused race checks;
-GoLand inspections are clear after repairing its stale index. The macOS adapter
-now confines full image creation to pixel requests and awaits its existing
-native metadata/pixel suites; corruption did not provide a valid regression
-because ImageIO accepts damaged media, so that experimental test is removed. The Windows
-runner requirement is now also an unresolved review finding.
-
-2026-09-23: the maintainer reports functional testing on Windows ARM and chooses
-to retain x64 CI, excluding only the installed-codec HEIC tests there. The
-explicit `-skip-heic-codecs` option is restricted to Windows/Store GitHub Actions
-suites; local native qualification and Linux/macOS CI stay strict. Windows
-worker restrictions, alpha metadata and portable regressions remain required.
-See the [runner research and decision](docs/windows-heic-runner-research-2026-09-23.md).
-At implementation handoff the changed CI had not run or been pushed, and the
-review thread was unchanged. The user subsequently authorized commit, push and
-a fresh review loop; final commit-bound results will be recorded on the PR.
-The maintainer has closed the Windows/Store pre-release qualification items
-and will test them after rollout. Missing native ARM64 logs and installed-package
-evidence are accepted deferrals, not release blockers. The `store` guard suite
-only tests the Store build tag.
-
-### delegate heic image rendering to the OS
-
-Add back support for HEIC image formats, on start check if the system supports rendering of heic images. if yes save that
-information to the settings so we don't have to check that on every launch. when the os does support the rendering we
-delegate the rendering to the OS and enable HEIC support.
-
-Design agreed in [the HEIC system-decoder specification](docs/heic-system-decoding.md)
-and [ADR 0002](docs/adr/0002-system-provided-heic-decoding.md): include macOS,
-Windows and Linux, integrate all existing image consumers, and add Settings
-buttons for a support check and the current OS's Markdown installation guide.
-Linux uses installed libheif with an HEVC decoder. Implementation is in progress
-under [the Deep plan](plans/2026-09-22-system-heic.md), with delegated tickets and
-lead-owned review. Linux native slices pass, including ICC-tagged photos;
-color correction is best effort and delegated to the system decoder per the
-2026-09-22 clarification. Full feature qualification remains
-open. Native Apple Silicon verification now passes viewing, clipboard encoding,
-PNG/JPEG export, mosaics, retained search, EXIF delivery and cached-fact repair.
-Both macOS architectures now pass the original premultiplied-alpha fixtures
-after the validated container-reference correction. The Go build-diagnostic
-handling in the native runner is fixed. See the plan's macOS record for that
-host's ARM64 Docker limitation.
-Windows 11/amd64 now passes the real HEIC corpus, including primary-order variants,
-grids, mirrors and straight/premultiplied alpha. The maintainer also reports
-Windows ARM functional testing. Native ARM64 automated qualification, older
-extensions, packaged opens and Store deployment were not verified in this
-session. The maintainer accepts the remaining Windows/Store qualification as
-post-rollout testing; see the Windows follow-up record in the plan for earlier
-checks and broader native-suite failures.
-Windows HEIC focused race tests and native/Linux build checks pass. The
-user-authorized 20 GiB WSL memory cap is active after the approved restart;
-the full Linux/amd64 race suite completed with the unchanged 16 GiB limit.
-Its only failures were stale Explorer facts fixtures; those were corrected,
-and all affected tests pass focused race reruns on both Windows and Linux.
-The Windows/Store qualification items are closed by the maintainer's accepted
-post-rollout testing decision, rather than by new test evidence.
-The implementation spec is published in the local issue tracker at
-`.scratch/os-heic/spec.md`; ticket/evidence records are under `.scratch/os-heic/`.
-
-### Finish AVIF notice release qualification
-
-Implementation and local evidence are recorded in
-[the plan](plans/2026-09-21-avif-license-viewer.md). Remaining before release:
-
-- Obtain upstream evidence for the historical libyuv checkout and modified
-  WASI SDK/libc inputs used in the pinned AVIF payload. The source texts are
-  retained, but the floating libyuv branch and SDK `33.0+m` do not establish
-  exact historical source correspondence; see
-  [provenance limits](scripts/avifnotices/README.md#provenance-limits).
-- Verify native offline Licenses UI on Windows/Linux, and final signed Store
-  MSIX/bundle plus WACK. Unsigned GitHub archives for both architectures and
-  Store executable payloads passed local notice checks; actual MSIX/bundle
-  structure has automated fixture coverage, not a signed local build.
-- Recheck all final release artifacts against their exact dependency/payload
-  versions. AVIF, ONNX and other bundled native/WASM updates must include
-  corresponding notice updates in the same change.
-
 ## Deferred
 
 ### Fyne upgrade deferred
@@ -150,32 +56,6 @@ Ronin reports an upstream library regression with v2.8.1. Revisit the upgrade
 after an upstream fix is available and the affected behavior is verified.
 The four grouped `golang.org/x/*` updates remain in the PR.
 
-### WinGet package identifier migration
-
-Deferred by Ronin on September 13. Keep `io.github.frathe.picfetch` for now;
-the rename to `frathe.picfetch` is not a next-release requirement. Resume only
-after Ronin chooses to proceed, following the inventory, Windows upgrade tests
-and publication steps in [the migration plan](docs/winget-package-id-migration.md).
-The [maintainer's suggestion](https://github.com/microsoft/winget-pkgs/pull/433339#issuecomment-5639706559)
-remains background for that deferred work.
-
-### Reconsider HEIC support after licensing and security qualification
-
-The system-provided decoder route is now active under the open HEIC item above.
-Bundled decoder alternatives below remain deferred.
-
-Restoring a bundled decoder still needs a documented distribution grant,
-containment and platform verification. The previous fork-upgrade watch [MA-023](needs_refactoring.md#ma-023)
-is closed by removal.
-
-The [independent alternatives](docs/image-codec-alternatives-2026-09-15.md#heic-alternatives)
-include libheif/libde265 with LGPL distribution work and hpvcd with unresolved
-table provenance and security/platform qualification. Ronin prefers avoiding
-gen2brain replacements. The authorized review of h265 v0.2.3 found an invalid
-result invariant, incomplete translated-source provenance and unresolved HEVC
-patent obligations. Its still decoder can also fall back to sequence decoding,
-so a future adapter must reject sequences explicitly. The local fix does not
-qualify that library; the bundled HEIC decoder remains removed.
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027
 
