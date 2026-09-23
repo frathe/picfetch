@@ -202,6 +202,13 @@ Windows Store behavior. A cross-build or a stub test is not native evidence.
 
 ## Qualification work and honest limits
 
+**Windows/Store disposition, 2026-09-23:** the maintainer closed the remaining
+Windows x64/ARM64 native-evidence, installed-package, codec-recovery and final
+package qualification tasks, accepting testing after rollout. They are not
+pre-release blockers. This supersedes the Windows/Store timing requirement
+above; it does not claim unexecuted tests passed. Existing automated packaging
+checks remain in place. See the [decision and evidence](windows-heic-runner-research-2026-09-23.md).
+
 - Establish exact API/ABI compatibility, primary-image selection and transforms
   on each native backend. Record real ICC/10-bit/HDR decoding evidence; native
   rendition is best effort and does not promise color fidelity.

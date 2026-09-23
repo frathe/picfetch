@@ -210,13 +210,15 @@ jobs:
         run: go run ./scripts/explorereval -install -assets "$env:PICFETCH_SIMILARITY_ASSETS"
 
       - name: Execute native Windows guards
-        run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json"
+        # Hosted x64 Windows lacks Microsoft HEIF/HEVC extensions. Keep worker
+        # and portable guards; installed-codec qualification runs separately.
+        run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json" -skip-heic-codecs
 
       - name: Check Windows visual search
         run: go test -tags no_emoji,nodynamic ./internal/similarity -run '^TestSearch' -count=1 -timeout 3m
 
       - name: Execute Microsoft Store distribution guards
-        run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json"
+        run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json" -skip-heic-codecs
 
       - name: Upload native guard events
         if: always()

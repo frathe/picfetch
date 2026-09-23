@@ -2,6 +2,105 @@
 
 ## PR #50 review loop (2026-09-22)
 
+### Review loop resumed (2026-09-23)
+
+The user explicitly authorized committing and pushing the CI exception and
+starting another GitHub Codex review loop. Commit the reviewed changes, explain
+the maintainer-approved scope change in the remaining Windows runner thread,
+and resolve it once the addressed behavior has verification evidence. Obtain
+fresh code/security reviews, inspect post-suppression Qodana/CodeQL results,
+and require complete hosted CI on the latest commit. Confirmed findings and
+fixes remain lead-owned; local verification uses focused tests/build checks,
+with the full race suite supplied by CI. The accepted post-rollout Windows/Store
+qualification disposition below remains in force. No merge or release is
+authorized. Final commit-bound results belong in the PR evidence record.
+
+### Windows/Store qualification disposition (2026-09-23)
+
+After the remaining qualification work was explained, the maintainer explicitly
+requested that these items be marked done and stated that testing will happen
+after rollout. This supersedes earlier Windows/Store release-blocking language
+in this plan and its linked records.
+
+- [x] Native Windows x64/ARM64 qualification evidence: accepted deferral.
+- [x] Installed MSIX/Store HEIC opens, workers and consumers: accepted deferral.
+- [x] Missing-codec installation/recheck/removal recovery: accepted deferral.
+- [x] Final signed-package qualification evidence: accepted deferral.
+
+These are closed pre-release tasks by maintainer decision, not claims that the
+unexecuted tests passed. The maintainer owns post-rollout testing. Existing
+automatic packaging/WACK checks are unchanged. No rollout, release, commit,
+push or GitHub thread resolution is implied or performed by this disposition.
+
+### Windows CI codec exception (2026-09-23)
+
+The maintainer explicitly chose to keep x64 CI and disable only the tests that
+need installed HEIF/HEVC codecs there. This supersedes the earlier requirement
+to keep those tests mandatory in hosted Windows CI. Native local qualification,
+Linux/macOS CI and Windows worker/metadata/portable regressions remain required.
+
+Standard route, lead-owned: add an explicit `-skip-heic-codecs` runner option,
+accepted only for Windows/Store suites in GitHub Actions. Use an exact test-name
+filter for both execution and required evidence; retain the same full packages
+and native-worker opt-in. Both Windows CI commands select it. Default commands
+continue requiring codecs. No ARM runner or automatic missing-codec fallback.
+
+Acceptance: `go test ./scripts/nativeguards` proves the exact codec selection,
+retained non-codec guards, default strictness, scope restrictions and x64 workflow
+wiring. Observe the workflow regression fail before editing. Run focused race
+tests, `make verify-build`, and changed-code GoLand inspections; Windows runtime
+results require a later CI run. Update this record, `todos.md` and the research
+note. No implementation delegation, new test files, dependencies or commits.
+
+Implementation evidence: the workflow regression failed on both original
+Windows commands before the exception. All `scripts/nativeguards` tests pass
+with `-race`; a temporary Go overlay broadening the exclusion to every HEIC test
+correctly fails on lost worker/metadata/portable coverage. The real files were
+unchanged by that negative verification and pass again. `make verify-build`
+passes, Windows x64 cross-vet passes for `scripts/nativeguards`, and GoLand
+inspections with `errorsOnly=false` report no issues in both changed Go files
+and the workflow. The final CLI wording explicitly limits the qualification
+disclaimer to that CI run; focused race tests and reinspection pass afterwards.
+
+`make test-race` completed with all three UI partitions passing. Its only test
+failure was `scripts/linuxdesktop/TestHEICStaticDeclarationsDelivery` (both
+architectures): the disposable Ubuntu container lacked `gio`. Installing
+`libglib2.0-bin` in that container and rerunning the entire `scripts/linuxdesktop`
+package with `-race -count=1` passed. The original aggregate command still
+returned exit 2; it is not recorded as a clean full gate. Raw events are under
+`.scratch/race-runs/20260923T063617Z-rH2PQs/`. The persistent Docker dependency fix
+is separately tracked in `todos.md`; no launcher test was skipped or weakened.
+Hosted Windows execution remains unverified until these uncommitted changes
+reach CI. This does not reopen the maintainer's accepted qualification deferral.
+
+### Windows runner research (2026-09-23)
+
+The initial request was a bounded investigation of the runner blocker, recorded
+in [the sourced research note](../docs/windows-heic-runner-research-2026-09-23.md).
+The maintainer reports functional testing on Windows and Windows ARM; record
+this separately from retained native-guard and installed-package evidence.
+Live PR inspection confirms the runner finding is the only unresolved thread.
+On head `a00e98a`, run `35795206229` fails Microsoft HEIF activation on Windows
+Server 2025; its Store step is skipped. No self-hosted runner is registered.
+
+Candidates considered: a small hosted `windows-11-arm` WIC probe, or the existing
+codec-equipped Windows 11 machines running the unchanged native suites and,
+after qualification, a controlled CI job. Codec availability on the hosted ARM
+image is unverified. Store-tagged tests do not qualify actual MSIX execution.
+The note gives commands, exact remaining evidence and supported-source limits.
+
+Research route: documentation only; one independent primary-source research
+agent, with lead-owned repository/PR assessment and final source review. Its
+scope was one note; the lead owns this plan and `todos.md`. Source links and
+read-only GitHub job/artifact queries supply evidence; `git diff --check`
+verifies document edits. The investigation itself changed no code/tests/workflows
+and ran no native qualification. The subsequent user instruction and CI change
+are recorded above. No codec installation, commit, push or review disposition
+was performed. The later maintainer disposition above closes the Windows/Store
+pre-release qualification tasks as accepted post-rollout testing.
+
+### Existing review-loop record
+
 The user requested PR creation and the GitHub Codex review loop after reporting
 functional HEIC testing on Windows, macOS and Linux. PR:
 https://github.com/frathe/picfetch/pull/50. Initial head:

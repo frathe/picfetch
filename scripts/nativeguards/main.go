@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -23,6 +24,7 @@ type suite struct {
 	name, goos, tags string
 	packages         []string
 	guards           []guard
+	skipTests        string
 }
 type goRunner func(context.Context, []string, io.Writer) error
 
@@ -125,11 +127,29 @@ func (s *suite) requireHEIC() {
 
 func (s *suite) testArgs(flags ...string) []string {
 	args := append([]string{"test", "-count=1"}, flags...)
+	if s.skipTests != "" {
+		args = append(args, "-skip", s.skipTests)
+	}
 	tags := "no_emoji,nodynamic"
 	if s.tags != "" {
 		tags += "," + s.tags
 	}
 	return append(args, "-tags="+tags)
+}
+
+// skipHEICCodecs preserves worker, metadata and portable regressions on hosted
+// Windows CI, which has no Microsoft HEIF/HEVC extensions. Local runs stay strict.
+func (s *suite) skipHEICCodecs(githubActions bool) error {
+	if !githubActions || s.goos != "windows" {
+		return errors.New("-skip-heic-codecs requires a Windows or Store suite in GitHub Actions")
+	}
+	s.skipTests = "^(TestHEICNativeQualification|TestHEICNativePrimarySelection|TestHEICNativeCorpus|TestHEICWindowsWICProbe|TestHEICWindowsPrimaryVariants|TestHEICAnalysisWorker)$"
+	filter := regexp.MustCompile(s.skipTests)
+	s.guards = slices.DeleteFunc(s.guards, func(g guard) bool {
+		top, _, _ := strings.Cut(g.Test, "/")
+		return filter.MatchString(top)
+	})
+	return nil
 }
 
 func runSuite(ctx context.Context, s suite, execute goRunner, log, capture io.Writer) error {
@@ -230,6 +250,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	flags.SetOutput(stderr)
 	name := flags.String("suite", "", "linux, windows, macos, or store")
 	capturePath := flags.String("capture", "", "raw go test JSON output path")
+	skipCodecs := flags.Bool("skip-heic-codecs", false, "exclude installed HEIC codec tests in Windows GitHub Actions only")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -237,11 +258,16 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *capturePath == "" {
-		return errors.New("usage: nativeguards -suite linux|windows|macos|store -capture <json-file>")
+		return errors.New("usage: nativeguards -suite linux|windows|macos|store -capture <json-file> [-skip-heic-codecs]")
 	}
 	s, err := suiteFor(*name, runtime.GOOS)
 	if err != nil {
 		return err
+	}
+	if *skipCodecs {
+		if err := s.skipHEICCodecs(os.Getenv("GITHUB_ACTIONS") == "true"); err != nil {
+			return err
+		}
 	}
 	capture, err := os.Create(*capturePath)
 	if err != nil {
@@ -257,6 +283,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmd.Run()
 	}
 	_, _ = fmt.Fprintf(stdout, "Native guards: suite=%s runtime=%s/%s Go=%s tags=%q\n", s.name, runtime.GOOS, runtime.GOARCH, runtime.Version(), s.tags)
+	if s.skipTests != "" {
+		_, _ = fmt.Fprintf(stdout, "HEIC: Windows CI excludes installed-codec tests matching %s; this run does not qualify Windows/Store HEIC decoding.\n", s.skipTests)
+	}
 	_, _ = fmt.Fprintln(stdout, "HEIC: this inventory checks implemented cases; full fixture, packaged-open, codec-absence/recheck and target-matrix evidence remains a separate qualification requirement.")
 	err = runSuite(ctx, s, execute, stdout, capture)
 	return errors.Join(err, capture.Close())

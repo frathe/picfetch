@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -74,6 +75,90 @@ func TestHEICNativeInventory(t *testing.T) {
 	}
 	if _, err := suiteFor("store", "linux"); err == nil {
 		t.Fatal("Store native qualification accepted a Linux host")
+	}
+}
+
+func TestWindowsCISkipsOnlyInstalledHEICCodecTests(t *testing.T) {
+	codecTests := []string{
+		"TestHEICNativeQualification", "TestHEICNativePrimarySelection", "TestHEICNativeCorpus",
+		"TestHEICWindowsWICProbe", "TestHEICWindowsPrimaryVariants", "TestHEICAnalysisWorker",
+	}
+	for _, name := range []string{"windows", "store"} {
+		t.Run(name, func(t *testing.T) {
+			s, err := suiteFor(name, "windows")
+			if err != nil {
+				t.Fatal(err)
+			}
+			originalGuards, originalPackages := slices.Clone(s.guards), slices.Clone(s.packages)
+			if slices.Contains(s.testArgs(), "-skip") {
+				t.Fatal("default native qualification skips tests")
+			}
+			if err := s.skipHEICCodecs(true); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(s.packages, originalPackages) {
+				t.Fatal("codec exception removed package coverage")
+			}
+			args := s.testArgs()
+			i := slices.Index(args, "-skip")
+			if i < 0 || i+1 >= len(args) {
+				t.Fatalf("codec exception has no execution filter: %v", args)
+			}
+			filter := regexp.MustCompile(args[i+1])
+			for _, name := range codecTests {
+				if !filter.MatchString(name) || filter.MatchString(name+"Extra") {
+					t.Errorf("codec filter must match exactly %s", name)
+				}
+			}
+			var evidence strings.Builder
+			for _, g := range originalGuards {
+				top, _, _ := strings.Cut(g.Test, "/")
+				excluded := slices.Contains(codecTests, top)
+				if filter.MatchString(top) != excluded || slices.Contains(s.guards, g) == excluded {
+					t.Errorf("incorrect execution/evidence selection for %v", g)
+				}
+				if !excluded {
+					evidence.WriteString(eventsFor(g, "run", "pass"))
+				}
+			}
+			for _, name := range []string{"TestHEICWindowsWorkerRestrictions", "TestHEICWindowsAlphaMetadata", "TestHEICWorkerLifecycle", "TestHEICWorkerProtocol"} {
+				if filter.MatchString(name) {
+					t.Errorf("codec exception disabled %s", name)
+				}
+			}
+			if err := validateEvents(strings.NewReader(evidence.String()), s.guards, io.Discard); err != nil {
+				t.Fatalf("CI still requires excluded codec evidence: %v", err)
+			}
+			worker := guard{"github.com/frathe/picfetch/internal/heic", "TestHEICWindowsWorkerRestrictions"}
+			missingWorker := strings.ReplaceAll(evidence.String(), eventsFor(worker, "run", "pass"), "")
+			if err := validateEvents(strings.NewReader(missingWorker), s.guards, io.Discard); err == nil {
+				t.Fatal("CI no longer requires Windows worker restrictions")
+			}
+		})
+	}
+}
+
+func TestHEICCodecExceptionRequiresWindowsCI(t *testing.T) {
+	for _, tc := range []struct {
+		name, host string
+		ci         bool
+	}{
+		{"windows", "windows", false}, {"store", "windows", false},
+		{"linux", "linux", true}, {"macos", "darwin", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := suiteFor(tc.name, tc.host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			originalGuards := slices.Clone(s.guards)
+			if err := s.skipHEICCodecs(tc.ci); err == nil {
+				t.Fatal("accepted codec exception outside Windows CI")
+			}
+			if !slices.Equal(s.guards, originalGuards) || slices.Contains(s.testArgs(), "-skip") {
+				t.Fatal("rejected codec exception changed qualification")
+			}
+		})
 	}
 }
 
@@ -252,5 +337,17 @@ func TestNativeCIExecutesAndRetainsEveryDeclaredSuite(t *testing.T) {
 	}
 	if !strings.Contains(text, "native-guards-${{ runner.os }}") || !strings.Contains(text, "if: always()") {
 		t.Fatal("raw native guard evidence not retained")
+	}
+	for _, line := range strings.Split(text, "\n") {
+		if !strings.Contains(line, "run: go run ./scripts/nativeguards") {
+			continue
+		}
+		windows := strings.Contains(line, "-suite windows ") || strings.Contains(line, "-suite store ")
+		if strings.Contains(line, "-skip-heic-codecs") != windows {
+			t.Errorf("only Windows/Store CI must skip installed-codec tests: %s", line)
+		}
+	}
+	if !strings.Contains(text, "runs-on: windows-latest") || strings.Contains(text, "windows-11-arm") {
+		t.Fatal("Windows CI must retain its x64 hosted runner")
 	}
 }

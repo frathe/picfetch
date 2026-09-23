@@ -17,6 +17,12 @@
 
 #### Internal
 
+- Close the Windows/Store HEIC pre-release qualification items by maintainer
+  decision (2026-09-23). Native x64/ARM64 evidence, installed MSIX behavior,
+  codec installation/recheck recovery and final-package qualification are
+  accepted as deferred to the maintainer's testing after rollout. This records
+  acceptance of the deferral, not successful execution of the outstanding tests.
+
 - Create a three-minute 1080p PicFetch feature promo with original electronic
   music, Trane artwork, 22 animated scenes and verified media output. see the
   [production record](finished_refactorings/2026-09-22-picfetch-promo.md).
@@ -25,6 +31,16 @@
   rejecting build failures and missing or skipped required tests.
 
 ## Open
+
+### Include gio in the Docker test environment
+
+The 2026-09-23 Docker race run found that `scripts/testshards/docker-race.sh`
+does not install `libglib2.0-bin`, required by Linux desktop launcher tests.
+Both architecture cases failed only because `gio` was missing; installing it
+in the disposable container and rerunning `go test -race` for
+`./scripts/linuxdesktop` passed. Add the dependency to the Docker test setup;
+keep the launch assertions intact. This is separate from the Windows CI codec
+exception.
 
 ### Complete HEIC PR #50 review loop
 
@@ -55,6 +71,20 @@ native metadata/pixel suites; corruption did not provide a valid regression
 because ImageIO accepts damaged media, so that experimental test is removed. The Windows
 runner requirement is now also an unresolved review finding.
 
+2026-09-23: the maintainer reports functional testing on Windows ARM and chooses
+to retain x64 CI, excluding only the installed-codec HEIC tests there. The
+explicit `-skip-heic-codecs` option is restricted to Windows/Store GitHub Actions
+suites; local native qualification and Linux/macOS CI stay strict. Windows
+worker restrictions, alpha metadata and portable regressions remain required.
+See the [runner research and decision](docs/windows-heic-runner-research-2026-09-23.md).
+At implementation handoff the changed CI had not run or been pushed, and the
+review thread was unchanged. The user subsequently authorized commit, push and
+a fresh review loop; final commit-bound results will be recorded on the PR.
+The maintainer has closed the Windows/Store pre-release qualification items
+and will test them after rollout. Missing native ARM64 logs and installed-package
+evidence are accepted deferrals, not release blockers. The `store` guard suite
+only tests the Store build tag.
+
 ### delegate heic image rendering to the OS
 
 Add back support for HEIC image formats, on start check if the system supports rendering of heic images. if yes save that
@@ -77,15 +107,19 @@ after the validated container-reference correction. The Go build-diagnostic
 handling in the native runner is fixed. See the plan's macOS record for that
 host's ARM64 Docker limitation.
 Windows 11/amd64 now passes the real HEIC corpus, including primary-order variants,
-grids, mirrors and straight/premultiplied alpha. Windows ARM64, older extensions,
-packaged opens and Store deployment remain unverified; see the Windows follow-up
-record in the plan for final checks and broader native-suite failures.
+grids, mirrors and straight/premultiplied alpha. The maintainer also reports
+Windows ARM functional testing. Native ARM64 automated qualification, older
+extensions, packaged opens and Store deployment were not verified in this
+session. The maintainer accepts the remaining Windows/Store qualification as
+post-rollout testing; see the Windows follow-up record in the plan for earlier
+checks and broader native-suite failures.
 Windows HEIC focused race tests and native/Linux build checks pass. The
 user-authorized 20 GiB WSL memory cap is active after the approved restart;
 the full Linux/amd64 race suite completed with the unchanged 16 GiB limit.
 Its only failures were stale Explorer facts fixtures; those were corrected,
 and all affected tests pass focused race reruns on both Windows and Linux.
-No release is qualified.
+The Windows/Store qualification items are closed by the maintainer's accepted
+post-rollout testing decision, rather than by new test evidence.
 The implementation spec is published in the local issue tracker at
 `.scratch/os-heic/spec.md`; ticket/evidence records are under `.scratch/os-heic/`.
 
