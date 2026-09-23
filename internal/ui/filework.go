@@ -116,7 +116,7 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 		return
 	}
 	files := v.state.snapshot()
-	ctx := v.fileWork.ctx
+	ctx := v.heicContext(v.fileWork.ctx)
 	v.fileWork.workers.Go(func() {
 		affected := writtenFileLoaded(ctx, result.Path, files)
 		if ctx.Err() != nil {
@@ -207,7 +207,11 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 		if !reload {
 			data, _, infoErr = imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
 		}
-		hasEXIF := !imaging.ReadMetadata(data).Empty()
+		metadata, metadataErr := imaging.ReadMetadataContext(ctx, data)
+		if infoErr == nil {
+			infoErr = metadataErr
+		}
+		hasEXIF := !metadata.Empty()
 		if ctx.Err() != nil {
 			done()
 			return

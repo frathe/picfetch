@@ -35,6 +35,17 @@ Image content retained in a fixed orientation for a particular operation,
 independently of later changes to the single-image view.
 _Avoid_: Screenshot, live displayed image
 
+**HEIC support check**:
+A check of whether the current system can supply HEIC decoding for PicFetch,
+available on request from Settings. A successful check does not promise that
+every HEIC file can be decoded.
+_Avoid_: Codec installation, file validation
+
+**HEIC installation guide**:
+In-app instructions for obtaining HEIC decoding support on the current
+operating system.
+_Avoid_: Installer, support check
+
 **Picture-frame mode**:
 A full-screen single-image-viewer mode that advances through the file set on
 a timed interval.

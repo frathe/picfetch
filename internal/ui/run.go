@@ -131,6 +131,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 }
 
 func (v *viewer) waitForShutdown() {
+	v.waitHEIC()
 	v.help.Wait()
 	// Preview cancellation cannot interrupt a source already blocked in native
 	// I/O. Close retires its UI delivery; only the test harness joins those reads
@@ -147,6 +148,7 @@ func (v *viewer) waitForShutdown() {
 // restoration, so polling cannot observe a nil slideshow or replace a saved
 // position before it has been applied.
 func startViewerRuntime(view *viewer, window fyne.Window, favoritesDir string) {
+	view.startHEICCheck(false)
 	view.favorites.SetDir(favoritesDir)
 	view.stopWinPosPoll = startWindowPosPolling(view, window)
 	if view.updater.Dir() == "" {
@@ -174,6 +176,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
 		view.stopping = true
+		view.stopHEIC()
 		view.help.Stop()
 		view.spiral.Close()
 		view.closeExplorer()
@@ -212,7 +215,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		// not discard it - which costs nothing, as the process is exiting.
 		openwith.SetHandler(nil)
 
-		session.Save(application, view.state.unsortedFiles)
+		session.Save(application, view.persistedFiles(view.state.unsortedFiles))
 		preferences.Save(application, view.currentPreferences())
 		if !view.storeManaged && view.explorer.Trial() == nil {
 			view.updater.ApplyStagedUpdate()

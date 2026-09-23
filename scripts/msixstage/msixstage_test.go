@@ -14,12 +14,47 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/frathe/picfetch/internal/imaging"
 )
+
+func TestHEICStaticDeclarations(t *testing.T) {
+	for _, arch := range []string{"amd64", "arm64"} {
+		t.Run(arch, func(t *testing.T) {
+			manifest, err := renderManifest(appMetadata{Version: "1.0.0"}, arch)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, ext := range []string{".heic", ".heif", ".jpg", ".avif", ".raw"} {
+				if strings.Count(manifest, "<uap:FileType>"+ext+"</uap:FileType>") != 1 {
+					t.Errorf("static declaration must contain %q exactly once", ext)
+				}
+			}
+		})
+	}
+	for _, ext := range []string{".heic", ".heif"} {
+		if slices.Contains(imaging.SupportedExtensions(), ext) {
+			t.Errorf("optional codec %s entered unconditional runtime extensions", ext)
+		}
+	}
+	want := imaging.RecognizedExtensions()
+	modified := imaging.RecognizedExtensions()
+	for i := range modified {
+		modified[i] = ".mutated"
+	}
+	if !slices.Equal(imaging.RecognizedExtensions(), want) {
+		t.Fatal("mutating a returned extension list changed future declarations")
+	}
+	for _, ext := range imaging.SupportedExtensions() {
+		if !slices.Contains(want, ext) {
+			t.Errorf("recognition omitted unconditional runtime extension %s", ext)
+		}
+	}
+}
 
 func TestRenderManifest_UsesStoreIdentityVersionAndArchitecture(t *testing.T) {
 	manifest, err := renderManifest(appMetadata{Version: "1.0.0"}, "amd64")
@@ -69,13 +104,13 @@ func TestRenderManifest_MapsArm64AndRejectsUnsupportedArchitecture(t *testing.T)
 	}
 }
 
-func TestRenderManifest_EmitsEverySupportedImageExtension(t *testing.T) {
+func TestRenderManifest_EmitsEveryRecognizedImageExtension(t *testing.T) {
 	manifest, err := renderManifest(appMetadata{Version: "1.0.0"}, "amd64")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, ext := range imaging.SupportedExtensions() {
+	for _, ext := range imaging.RecognizedExtensions() {
 		want := "<uap:FileType>" + ext + "</uap:FileType>"
 		if strings.Count(manifest, want) != 1 {
 			t.Errorf("manifest count for %q = %d, want 1", ext, strings.Count(manifest, want))
@@ -293,7 +328,7 @@ func TestStandaloneArchivesRetainNotices(t *testing.T) {
 	}
 	for _, want := range []string{
 		`"picfetch.exe" ../LICENSE ../THIRD-PARTY-NOTICES.md ../PRIVACY.md -j`,
-		`-C .. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md`,
+		`-C ../.. LICENSE THIRD-PARTY-NOTICES.md PRIVACY.md`,
 		`@('LICENSE', 'THIRD-PARTY-NOTICES.md', 'PRIVACY.md')`,
 		`Compress-Archive -Path $packageFiles`,
 	} {

@@ -1,4 +1,4 @@
-// Single-image navigation policy and display composition.
+// Single-image navigation, load-failure handling and display composition.
 
 package ui
 
@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/display"
 )
@@ -107,6 +108,22 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 }
 
 func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
+	retained := v.retainedOrder()
+	remaining := v.state.fileOccurrence(v.state.index)
+	for i, entry := range retained {
+		if !entry.unavailable && entry.uri.String() == source.String() {
+			remaining--
+			if remaining != 0 {
+				continue
+			}
+			if errors.Is(err, heic.ErrUnavailable) {
+				retained[i].unavailable = true
+			} else {
+				retained = append(retained[:i], retained[i+1:]...)
+			}
+			break
+		}
+	}
 	msg := fmt.Sprintf(lang.L("could not read %q: %v"), source.Name(), err)
 	var dimensions *imaging.InvalidDimensionsError
 	var tooLarge *imaging.InputTooLargeError
@@ -120,6 +137,33 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 	restoredIndex := v.reconcileSources(sourceChange{kind: sourceLoadFailed, removed: []int{i}})
 	if len(v.state.files) == 0 {
 		v.ShowEmptyStateError(msg)
+		v.state.retainOrder(retained)
+		if errors.Is(err, heic.ErrUnavailable) {
+			v.explainUnavailableHEIC([]fyne.URI{source}, true)
+		}
+		return nil
+	}
+	v.state.retainOrder(retained)
+	if errors.Is(err, heic.ErrUnavailable) {
+		// A cached capability can disappear after sibling admission. Keep
+		// the surviving collection, but stop this request at its own guide
+		// instead of automatically displaying a different source.
+		v.pendingPictureFrame = false
+		v.slides.Exit()
+		v.resetFade()
+		v.display.Clear()
+		v.syncPresentationLogicalSize()
+		v.syncInfoOverlayVisibility()
+		v.loadingBar.Hide()
+		v.hint.SetText(msg)
+		v.dropzone.Show()
+		v.welcomeArt.Hide()
+		v.restoreLink.Hide()
+		v.emptyStateArt.Show()
+		v.setTitle(appTitle)
+		v.syncMenus()
+		v.ForceRepaint()
+		v.explainUnavailableHEIC([]fyne.URI{source}, true)
 		return nil
 	}
 	v.ShowToast(msg)

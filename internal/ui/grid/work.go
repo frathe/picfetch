@@ -8,6 +8,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/heic"
 )
 
 // workSession is UI-owned. Workers capture ctx and revision at admission;
@@ -37,12 +38,21 @@ func (g *Overview) restartWork() {
 	if g.work.cancel != nil {
 		g.work.cancel()
 	}
-	g.work.ctx, g.work.cancel = context.WithCancel(context.Background())
+	g.work.ctx, g.work.cancel = context.WithCancel(g.heic.CaptureContext(context.Background()))
 	g.work.generation = g.host.Generation()
 	g.work.revision++
 	g.work.facts = g.dupes.CaptureFacts()
 	g.work.queue = g.decodes.Begin(g.work.ctx)
 	g.hashes = &hashEngine{host: g.host, queue: g.work.queue, thumbs: g.thumbs, model: g.dupes, facts: g.work.facts, ui: g.ui}
+}
+
+// SetHEICCapability supplies the same app capability used by full-image loads.
+// Reopen work captures its value once; a check never restarts an active session.
+func (g *Overview) SetHEICCapability(capability *heic.Capability) {
+	g.heic = capability
+	if g.work.ctx != nil && !g.visible {
+		g.restartWork()
+	}
 }
 
 func (g *Overview) workContext() context.Context {

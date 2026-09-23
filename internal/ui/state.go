@@ -9,12 +9,19 @@ import (
 	"github.com/frathe/picfetch/internal/filesort"
 )
 
+type collectionSource struct {
+	uri         fyne.URI
+	unavailable bool
+}
+
 type appState struct {
 	files         []fyne.URI
 	unsortedFiles []fyne.URI
-	index         int
-	sortMode      filesort.Mode
-	mergeMode     bool
+	// Retained for saved collections while a system decoder is unavailable.
+	unavailableOrder []collectionSource
+	index            int
+	sortMode         filesort.Mode
+	mergeMode        bool
 
 	// published is the immutable {keys, generation} view of files that
 	// readers off the UI goroutine use instead of touching the slice -
@@ -111,20 +118,40 @@ func (s *appState) reorder(files []fyne.URI) {
 func (s *appState) clearFiles() {
 	s.files = nil
 	s.unsortedFiles = nil
+	s.unavailableOrder = nil
 	s.index = 0
 	s.publish()
 }
 
 func (s *appState) removeFile(i int) fyne.URI {
 	target := s.files[i]
+	occurrence := s.fileOccurrence(i)
 	s.files = append(s.files[:i], s.files[i+1:]...)
 	if s.index >= len(s.files) {
 		s.index = len(s.files) - 1
 	}
 
+	remaining := occurrence
 	for j, u := range s.unsortedFiles {
 		if u.String() == target.String() {
+			remaining--
+			if remaining != 0 {
+				continue
+			}
 			s.unsortedFiles = append(s.unsortedFiles[:j], s.unsortedFiles[j+1:]...)
+			break
+		}
+	}
+	// Remove the same occurrence from the retained order. Unavailable members
+	// keep their positions when a surviving source has the same URI as target.
+	remaining = occurrence
+	for j, source := range s.unavailableOrder {
+		if !source.unavailable && source.uri.String() == target.String() {
+			remaining--
+			if remaining != 0 {
+				continue
+			}
+			s.unavailableOrder = append(s.unavailableOrder[:j], s.unavailableOrder[j+1:]...)
 			break
 		}
 	}
@@ -136,4 +163,27 @@ func (s *appState) removeFile(i int) fyne.URI {
 	}
 
 	return target
+}
+
+// Stable sorting preserves each repeated URI's occurrence ordinal across displayed,
+// unsorted and retained orders even when other sources move around it.
+func (s *appState) fileOccurrence(i int) int {
+	key := s.files[i].String()
+	occurrence := 0
+	for _, uri := range s.files[:i+1] {
+		if uri.String() == key {
+			occurrence++
+		}
+	}
+	return occurrence
+}
+
+func (s *appState) retainOrder(order []collectionSource) {
+	s.unavailableOrder = nil
+	for _, source := range order {
+		if source.unavailable {
+			s.unavailableOrder = order
+			return
+		}
+	}
 }

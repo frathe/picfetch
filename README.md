@@ -48,7 +48,10 @@ set with the keyboard.
   the title and info overlay — with no demosaic engine. AVIF decodes
   through embedded WASM (no cgo), so it needs no system libraries and doesn't
   complicate cross-compilation. SVG is rasterized on the fly and re-rendered
-  as you zoom, so it stays sharp at any zoom level. HEIC/HEIF is currently unsupported
+  as you zoom, so it stays sharp at any zoom level. HEIC/HEIF still images
+  (`.heic`, `.heif`) open when a compatible system decoder is available. Settings
+  provides **Check HEIC support** and offline **HEIC installation instructions**;
+  availability and color rendition depend on the installed system decoder.
 - On macOS, the same format list also opens through Finder's **Open With**,
   a drop on the Dock icon, `open -a`, or double-clicking a file already
   associated with PicFetch — whether PicFetch is already running or being
@@ -136,6 +139,16 @@ toolchain required. macOS builds are published for both Apple Silicon
 Windows builds for both x64 (`picfetch-windows-amd64.zip`) and ARM64
 (`picfetch-windows-arm64.zip`); grab the one matching your machine. See
 [Building](#building) below to build from source instead.
+
+### Linux desktop installation
+
+Extract the archive for your architecture and run `sh install.sh` inside the
+extracted directory. This installs PicFetch and its notices under
+`$XDG_DATA_HOME/io.github.frathe.picfetch` (normally
+`~/.local/share/io.github.frathe.picfetch`) and registers a launcher with
+absolute binary and icon paths. PicFetch then appears in the application menu
+and "Open With" choices. No administrator access or default-association change
+is needed. The binary can also be run directly from the extracted archive.
 
 ### Windows (Microsoft Store)
 

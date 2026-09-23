@@ -14,6 +14,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/explorerpresets"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/analysiscache"
@@ -61,7 +62,7 @@ type testTextEntry interface {
 }
 
 func TestMain(m *testing.M) {
-	if similarity.WorkerMain() {
+	if heic.WorkerMain() || similarity.WorkerMain() {
 		return
 	}
 	testApp = test.NewApp()
@@ -101,6 +102,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	// test's check cannot make Due false, leave notes, or leave a recorded
 	// apply failure for the next.
 	testApp.Preferences().SetString("lastUpdateCheckDay", "")
+	testApp.Preferences().SetString("heicObservation.v1", "")
 	testApp.Preferences().SetBool("checkForUpdates", false)
 	for _, key := range []string{autoupdate.WhatsNewCacheKey, autoupdate.ApplyFailureCacheKey} {
 		if testApp.Cache().Exists(key) {
@@ -109,6 +111,8 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	}
 
 	v, win = buildStartupViewer(testApp)
+	v.configureHEIC(unavailableHEICBackend{})
+	v.heic.ui = &uitest.UIQueue{}
 	v.display.SetUIQueue(&uitest.UIQueue{})
 	v.help.SetUIQueue(&uitest.UIQueue{})
 	v.help.SetImageClient(&http.Client{Transport: offlineReleaseImages{}})
@@ -203,6 +207,8 @@ func drain(t *testing.T, v *viewer) {
 	// this test has already closed. Clearing it first also means nothing
 	// can start a fresh scan behind the waits below.
 	openwith.SetHandler(nil)
+	v.stopHEIC()
+	v.settleHEIC()
 	v.help.Stop()
 	v.help.Settle()
 	v.stopSearchOverlayWait()

@@ -267,7 +267,7 @@ func TestLaunchOptions_PictureFrameSpentWhenLaunchCancelled(t *testing.T) {
 					v.dropzone.Hide()
 					source := uitest.TempJPEGURI(t, "launch.jpg", 4, 4, color.White)
 					finish = func() {
-						v.applyScanResult(token, false, []fyne.URI{source}, []fyne.URI{source}, false, v.MaxScan(), done, "")
+						v.applyScanResult(token, false, []fyne.URI{source}, []fyne.URI{source}, false, v.MaxScan(), done, "", nil, nil)
 					}
 				} else {
 					entered, release := make(chan struct{}), make(chan struct{})

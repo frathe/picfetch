@@ -155,9 +155,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  windows-test:
-    name: Windows tests (attempt ${{ github.run_attempt }})
-    runs-on: windows-latest
+  linux-native:
+    name: Linux native guards (attempt ${{ github.run_attempt }})
+    runs-on: ubuntu-24.04
+    env:
+      PICFETCH_SIMILARITY_ASSETS: ${{ github.workspace }}/.scratch/native-guard-assets
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -168,14 +170,55 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
+      - name: Install system HEIC decoder and build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev libheif1 libheif-plugin-libde265
+          dpkg-query -W libheif1 libheif-plugin-libde265 libde265-0
+
+      - name: Install pinned native analysis assets
+        run: make explorer-setup EXPLORER_ASSETS="$PICFETCH_SIMILARITY_ASSETS"
+
+      - name: Execute native Linux guards
+        run: go run ./scripts/nativeguards -suite linux -capture "${{ runner.temp }}/native-guards-linux.json"
+
+      - name: Upload native guard events
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-guards-${{ runner.os }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-guards-linux.json
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-test:
+    name: Windows tests (attempt ${{ github.run_attempt }})
+    runs-on: windows-latest
+    env:
+      PICFETCH_SIMILARITY_ASSETS: ${{ github.workspace }}/.scratch/native-guard-assets
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install pinned native analysis assets
+        run: go run ./scripts/explorereval -install -assets "$env:PICFETCH_SIMILARITY_ASSETS"
+
       - name: Execute native Windows guards
-        run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json"
+        # Hosted x64 Windows lacks Microsoft HEIF/HEVC extensions. Keep worker
+        # and portable guards; installed-codec qualification runs separately.
+        run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json" -skip-heic-codecs
 
       - name: Check Windows visual search
         run: go test -tags no_emoji,nodynamic ./internal/similarity -run '^TestSearch' -count=1 -timeout 3m
 
       - name: Execute Microsoft Store distribution guards
-        run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json"
+        run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json" -skip-heic-codecs
 
       - name: Upload native guard events
         if: always()
@@ -189,6 +232,7 @@ jobs:
   macos-test:
     name: macOS ${{ matrix.arch }} native guards (attempt ${{ github.run_attempt }})
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: macos-latest
@@ -196,6 +240,8 @@ jobs:
           - runner: macos-15-intel
             arch: amd64
     runs-on: ${{ matrix.runner }}
+    env:
+      PICFETCH_SIMILARITY_ASSETS: ${{ github.workspace }}/.scratch/native-guard-assets
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -205,6 +251,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+
+      - name: Install pinned native analysis assets
+        run: make explorer-setup EXPLORER_ASSETS="$PICFETCH_SIMILARITY_ASSETS"
 
       - name: Execute Cocoa-linked macOS guards
         run: go run ./scripts/nativeguards -suite macos -capture "${{ runner.temp }}/native-guards-macos.json"

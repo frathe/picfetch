@@ -32,6 +32,7 @@ func (f *Feature) Open(request OpenRequest) bool {
 	f.complete = false
 	f.hasMap = false
 	token := f.lifecycle.begin()
+	token.ctx = f.heic.CaptureContext(token.context())
 	f.token = token
 	f.surface.SetResult(nil, nil)
 	f.surface.Status(lang.L("Analyzing images..."))

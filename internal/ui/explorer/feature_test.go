@@ -31,7 +31,7 @@ func TestFeaturePresetSavePreviewAndApply(t *testing.T) {
 	provider := func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 		var items []similarity.Item
 		for _, path := range paths {
-			items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+			items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon"}})
 		}
 		emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
 		return nil

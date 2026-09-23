@@ -37,7 +37,7 @@ func (f *Feature) beginProducer(after <-chan struct{}) {
 	f.sessionID++
 	f.cacheWarned = false
 	f.revision = 0
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(f.heic.CaptureContext(context.Background()))
 	s := &producer{id: f.sessionID, cancel: cancel, queries: make(chan similarity.SearchQuery, 1), done: make(chan struct{}), notice: make(chan struct{}, 1)}
 	f.producer = s
 	request := similarity.SearchRequest{SessionID: s.id, Paths: slices.Clone(f.scope), Limit: 30, Cache: f.cache}

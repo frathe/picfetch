@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2/storage"
+
 	"github.com/frathe/picfetch/internal/favstore"
 )
 
@@ -364,7 +366,7 @@ func TestAnalysisCacheConfinementManagedUsageAndTemps(t *testing.T) {
 		}
 	}
 	files, err := favstore.Load(policy.Roots.FavoritesDir, "Trip")
-	if err != nil || len(files) != 1 || files[0].Path() != item.Path {
+	if err != nil || len(files) != 1 || files[0].String() != storage.NewFileURI(item.Path).String() {
 		t.Fatalf("cleanup changed Favorite membership: %v, %v", files, err)
 	}
 	if data, err := os.ReadFile(item.Path); err != nil || string(data) != "source" {

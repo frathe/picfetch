@@ -127,7 +127,7 @@ func (v *viewer) showMosaic() {
 }
 
 func (v *viewer) GenerateMosaic(ctx context.Context, request mosaiccore.Request, report func(mosaiccore.Progress)) (mosaiccore.Result, error) {
-	return mosaiccore.GenerateWithProgress(ctx, request, report)
+	return mosaiccore.GenerateWithProgress(v.heicContext(ctx), request, report)
 }
 
 func (v *viewer) InspectMosaicDisplays() (displays.Snapshot, error) {

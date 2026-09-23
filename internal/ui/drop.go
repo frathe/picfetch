@@ -4,12 +4,15 @@ package ui
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/filescan"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -138,16 +141,105 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		}
 	}
 
-	expandSiblings := favoriteDir == "" && !merging && !hasDirs && len(uris) == 1 && imaging.IsSupportedImage(uris[0])
-
-	scan := func(progress func(int)) (images []fyne.URI, truncated bool) {
-		if expandSiblings {
-			return filescan.Siblings(token.context(), uris[0], maxScan, progress)
+	expandSiblings := favoriteDir == "" && !merging && !hasDirs && len(uris) == 1 && (imaging.IsSupportedImage(uris[0]) || heic.IsExtension(uris[0].Extension()))
+	capability := v.heic.capability
+	snapshot := capability.Snapshot()
+	state := capability.State()
+	var check <-chan struct{}
+	if !state.Known {
+		v.startHEICCheck(false)
+		check = capability.Ensure(token.context())
+	}
+	waitForCapability := func() bool {
+		if check == nil {
+			return true
 		}
-		return filescan.Images(token.context(), uris, maxScan, progress)
+		select {
+		case <-check:
+			snapshot = capability.Snapshot()
+			check = nil
+			return true
+		case <-token.context().Done():
+			return false
+		}
+	}
+	var skipped, sourceOrder []fyne.URI
+	retentionTruncated := false
+	seenOrder := make(map[string]bool)
+	record := func(uri fyne.URI) {
+		if !seenOrder[uri.String()] {
+			sourceOrder = append(sourceOrder, uri)
+			seenOrder[uri.String()] = true
+		}
+	}
+	accepts := func(uri fyne.URI) bool {
+		if !heic.IsExtension(uri.Extension()) {
+			if !imaging.IsSupportedImage(uri) {
+				return false
+			}
+			record(uri)
+			return true
+		}
+		if !snapshot.Available {
+			if seenOrder[uri.String()] {
+				return false
+			}
+			if len(skipped) >= maxScan {
+				retentionTruncated = true
+				return false
+			}
+			record(uri)
+			skipped = append(skipped, uri)
+			return false
+		}
+		record(uri)
+		return true
 	}
 
-	if !hasDirs && !expandSiblings {
+	scan := func(progress func(int)) (images []fyne.URI, truncated bool) {
+		if expandSiblings && heic.IsExtension(uris[0].Extension()) && (!waitForCapability() || !accepts(uris[0])) {
+			// An unavailable explicit source belongs at its own guide/error
+			// state; opening it must not display an unrelated neighbor.
+			return nil, false
+		}
+		if expandSiblings {
+			images, truncated = filescan.SiblingsWithAdmission(token.context(), uris[0], maxScan, progress, accepts)
+		} else {
+			images, truncated = filescan.ImagesWithAdmission(token.context(), uris, maxScan, progress, accepts)
+		}
+		if expandSiblings && len(sourceOrder) > 1 {
+			// Sibling discovery preserves the opened source first and sorts
+			// its bounded directory result by name, including retained gaps.
+			slices.SortStableFunc(sourceOrder[1:], func(a, b fyne.URI) int {
+				return strings.Compare(a.Name(), b.Name())
+			})
+		}
+		if check != nil && len(skipped) > 0 {
+			// Pending HEICs use the separate retention budget while other
+			// formats keep traversal and progress moving. Resolve admission
+			// only after traversal, preserving original order and the normal
+			// deduplication/image cap if support becomes available.
+			if !waitForCapability() {
+				return nil, false
+			}
+			if snapshot.Available {
+				var admissionTruncated bool
+				images, admissionTruncated = filescan.ImagesWithAdmission(token.context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
+					return heic.IsExtension(uri.Extension()) || imaging.IsSupportedImage(uri)
+				})
+				truncated = truncated || admissionTruncated
+				skipped = nil
+				sourceOrder = images
+			}
+		}
+		return images, truncated || retentionTruncated
+	}
+
+	explicitHEIC := false
+	for _, uri := range uris {
+		explicitHEIC = explicitHEIC || heic.IsExtension(uri.Extension())
+	}
+	if !hasDirs && !expandSiblings && (check == nil || !explicitHEIC) {
 		// nil progress: this path is synchronous and instantaneous, so
 		// there's nothing to show, and it avoids calling fyne.Do from the
 		// UI goroutine. Multi-file loose drops and merge-mode single
@@ -156,7 +248,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		// below, same as a folder drop.
 		images, truncated := scan(nil)
 		fyne.Do(func() {
-			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir)
+			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir, skipped, sourceOrder)
 		})
 		return
 	}
@@ -178,7 +270,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		})
 
 		fyne.Do(func() {
-			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir)
+			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir, skipped, sourceOrder)
 		})
 	}()
 }
@@ -192,7 +284,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 // actually ran under (handleDrop's snapshot), so the truncation toast below
 // reports it accurately even if the settings window has since changed
 // v.settings.maxScan.
-func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images []fyne.URI, truncated bool, maxScan int, scanDone func(), favoriteDir string) {
+func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images []fyne.URI, truncated bool, maxScan int, scanDone func(), favoriteDir string, skipped, sourceOrder []fyne.URI) {
 	defer scanDone()
 	defer token.cancelContext()
 
@@ -213,6 +305,12 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 			v.ShowToast(msg)
 		} else {
 			v.ShowEmptyStateError(msg)
+		}
+
+		v.retainUnavailableHEIC(merging, skipped, sourceOrder)
+		v.explainUnavailableHEIC(skipped, true)
+		if truncated {
+			v.ShowToast(fmt.Sprintf(lang.L("scan limit of %d reached - some files may not have been included"), maxScan))
 		}
 
 		// A --slideshow launch whose paths held no image is spent here
@@ -254,7 +352,9 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 	// nothing here may touch the UI once it starts. The truncation toast
 	// above raced exactly that way before this ordering was fixed. Under the
 	// real driver the fyne.Do queue serializes both orders identically.
-	v.applyScannedFiles(merging, images, uris, favoriteDir)
+	explicit := len(uris) == 1 && heic.IsExtension(uris[0].Extension())
+	v.explainUnavailableHEIC(skipped, explicit)
+	v.applyScannedCollection(merging, images, uris, favoriteDir, skipped, sourceOrder)
 }
 
 // applyScannedFiles merges or replaces the file set with images, then
@@ -285,6 +385,10 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 // current when it finishes is the one and only writer of both fields for
 // that landing.
 func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, favoriteDir string) {
+	v.applyScannedCollection(merging, images, dropped, favoriteDir, nil, images)
+}
+
+func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI, favoriteDir string, skipped, sourceOrder []fyne.URI) {
 	v.closeVisualSearch()
 	var unsorted []fyne.URI
 	if merging {
@@ -303,6 +407,7 @@ func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, fav
 		// Collection identity belongs to the committed file set, including
 		// when a replacement scan or its reorder is cancelled.
 		v.explorerInput.favoriteDir = favoriteDir
+		v.retainUnavailableHEIC(merging, skipped, sourceOrder)
 		if !merging {
 			v.state.replaceFiles(unsorted, ordered)
 		} else {

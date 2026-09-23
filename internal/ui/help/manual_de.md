@@ -74,6 +74,7 @@ bereits geöffnete Handbuchfenster nach vorne, statt eine zweite Kopie zu
 - **ICO** — `.ico` (Windows-Symbol; das größte enthaltene Bild wird angezeigt)
 - **XPM** — `.xpm` (X Pixmap)
 - **AVIF** — `.avif` (eingebaute Rotation/Spiegelung wird angewendet)
+- **HEIC/HEIF** — `.heic`, `.heif` (Einzelbilder; benötigt einen kompatiblen Systemdecoder)
 - **SVG** — `.svg` (Vektorgrafik; kleine Symbole werden groß genug geöffnet,
   um das Fenster zu füllen, und das Bild wird bei jeder Zoomstufe scharf neu
   gerendert, statt hochskaliert zu werden). Das Neu-Rendern nutzt die Pixel
@@ -92,7 +93,12 @@ Eine Datei wird auch akzeptiert, wenn Ihr System sie als `image/jpeg`,
 wie `image/x-adobe-dng` / `image/x-canon-cr2` meldet, auch wenn die
 Dateiendung fehlt oder ungewöhnlich ist.
 
-HEIC/HEIF, PDFs und Videos werden **nicht** unterstützt.
+Die HEIC-Unterstützung wird im Hintergrund geprüft und für das aktuelle System
+gespeichert. Verwenden Sie nach der Installation eines Decoders in den
+Einstellungen **HEIC-Unterstützung prüfen**, oder öffnen Sie die
+**HEIC-Installationsanleitung** für Ihr Betriebssystem. Eine erfolgreiche Prüfung
+garantiert nicht, dass jede HEIC-Datei dekodiert werden kann. Die Farbwiedergabe
+hängt vom Systemdecoder ab. HEIC-Sequenzen, PDFs und Videos werden **nicht** unterstützt.
 
 ---
 
@@ -1649,5 +1655,5 @@ Dinge, die PicFetch absichtlich (noch) nicht tut:
   dann; bricht stattdessen einen noch laufenden Scan ab, falls einer
   läuft)
 - **Formate** — JPEG, PNG, GIF (inkl. animiert), WebP, BMP, TIFF, ICO, XPM,
-  AVIF, SVG, Kamera-RAW (eingebettete JPEG-Vorschau)
+  AVIF, SVG, Kamera-RAW (eingebettete JPEG-Vorschau), HEIC/HEIF (mit Systemunterstützung)
 - **Maximale Fenstergröße** — 1500 × 950

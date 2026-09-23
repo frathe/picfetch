@@ -11,7 +11,7 @@ import (
 
 // goldenBlock is renderDocumentTypes(bareExtensions())'s exact output as of
 // this test's writing. It is the anti-drift guard for the whole package: if
-// internal/imaging.SupportedExtensions() gains or loses a format, or
+// internal/imaging.RecognizedExtensions() gains or loses a format, or
 // contentTypeUTIs changes, this test fails until the golden text below is
 // updated to match - the same way any golden test works.
 const goldenBlock = `	<key>CFBundleDocumentTypes</key>
@@ -51,6 +51,8 @@ const goldenBlock = `	<key>CFBundleDocumentTypes</key>
 				<string>pef</string>
 				<string>srw</string>
 				<string>raw</string>
+				<string>heic</string>
+				<string>heif</string>
 			</array>
 			<key>LSItemContentTypes</key>
 			<array>
@@ -63,6 +65,8 @@ const goldenBlock = `	<key>CFBundleDocumentTypes</key>
 				<string>public.tiff</string>
 				<string>com.microsoft.ico</string>
 				<string>public.avif</string>
+				<string>public.heic</string>
+				<string>public.heif</string>
 				<string>public.svg-image</string>
 				<string>public.camera-raw-image</string>
 				<string>com.canon.cr2-raw-image</string>
@@ -106,28 +110,28 @@ func TestRenderDocumentTypes_Golden(t *testing.T) {
 func TestRenderDocumentTypes_EveryExtensionEmitted(t *testing.T) {
 	block := renderDocumentTypes(bareExtensions())
 
-	for _, ext := range imaging.SupportedExtensions() {
+	for _, ext := range imaging.RecognizedExtensions() {
 		bare := strings.TrimPrefix(ext, ".")
 		want := "<string>" + bare + "</string>"
 		if !strings.Contains(block, want) {
-			t.Errorf("rendered block is missing %q for imaging.SupportedExtensions() entry %q", want, ext)
+			t.Errorf("rendered block is missing %q for imaging.RecognizedExtensions() entry %q", want, ext)
 		}
 	}
 }
 
-// TestContentTypeUTIs_ExtensionsAreAllSupported guards the table the other
+// TestContentTypeUTIs_ExtensionsAreAllRecognized guards the table the other
 // direction: every extension contentTypeUTIs references should still be one
-// internal/imaging actually decodes, so the table doesn't silently reference
+// internal/imaging recognizes, so the table doesn't silently reference
 // a format that was removed.
-func TestContentTypeUTIs_ExtensionsAreAllSupported(t *testing.T) {
+func TestContentTypeUTIs_ExtensionsAreAllRecognized(t *testing.T) {
 	supported := make(map[string]bool)
-	for _, ext := range imaging.SupportedExtensions() {
+	for _, ext := range imaging.RecognizedExtensions() {
 		supported[strings.TrimPrefix(ext, ".")] = true
 	}
 
 	for _, m := range contentTypeUTIs {
 		if !supported[m.ext] {
-			t.Errorf("contentTypeUTIs references extension %q, which imaging.SupportedExtensions() no longer lists", m.ext)
+			t.Errorf("contentTypeUTIs references extension %q, which imaging.RecognizedExtensions() no longer lists", m.ext)
 		}
 	}
 }

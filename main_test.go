@@ -20,6 +20,21 @@ func TestEmbeddedNoticesMatchShippedDocument(t *testing.T) {
 	}
 }
 
+func TestHEICBindingNotices(t *testing.T) {
+	if !strings.Contains(thirdPartyNotices, "libheif v1.17.6") || !strings.Contains(thirdPartyNotices, "Copyright (c) 2017-2023 Dirk Farin") {
+		t.Fatal("shipped notices omit the adapted libheif ABI header attribution")
+	}
+	for _, name := range []string{"LGPL-3.txt", "GPL-3.txt"} {
+		license, err := os.ReadFile(filepath.Join("internal/heic/notices", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(thirdPartyNotices, string(license)) {
+			t.Fatalf("shipped notices omit exact %s text", name)
+		}
+	}
+}
+
 func TestArgsToURIs_ResolvesRelativeToAbsolute(t *testing.T) {
 	uris := argsToURIs([]string{"one.jpg", filepath.Join("sub", "two.png")})
 

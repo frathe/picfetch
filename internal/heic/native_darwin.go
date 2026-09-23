@@ -1,0 +1,66 @@
+//go:build darwin && cgo && (amd64 || arm64)
+
+package heic
+
+/*
+#cgo LDFLAGS: -framework ImageIO -framework CoreGraphics -framework CoreFoundation
+#include <stdlib.h>
+#include "native_darwin.h"
+*/
+import "C"
+
+import (
+	"fmt"
+	"unsafe"
+)
+
+// nativeRead is entered only by WorkerMain in the bounded native child.
+func nativeRead(data []byte, request Request) (Result, error) {
+	if err := validateRequest(request, int64(len(data))); err != nil {
+		return Result{}, err
+	}
+	if _, err := inspectContainer(data); err != nil {
+		return Result{}, err
+	}
+	if err := validateDarwinContainer(data); err != nil {
+		return Result{}, err
+	}
+	prepared, premultiplied, err := darwinAlphaInput(data)
+	// Keep each platform's checked cgo allocation boundary local to its ABI.
+	//goland:noinspection DuplicatedCode
+	if err != nil {
+		return Result{}, err
+	}
+	// Each platform keeps its own cgo request/allocation boundary.
+	//goland:noinspection DuplicatedCode
+	pixels := C.int(0)
+	if request.Pixels {
+		pixels = 1
+	}
+	decoded := C.picfetch_imageio_read((*C.uint8_t)(unsafe.Pointer(&prepared[0])), C.size_t(len(prepared)), C.int64_t(request.MaxPixels), pixels)
+	defer C.free(unsafe.Pointer(decoded.pixels))
+	if decoded.code != 0 {
+		var message string = C.GoString(&decoded.message[0])
+		switch decoded.code {
+		case 1:
+			return Result{}, fmt.Errorf("%w: %s", ErrUnavailable, message)
+		case 2:
+			return Result{}, fmt.Errorf("%w: %s", ErrUnsupported, message)
+		case 3:
+			return Result{}, fmt.Errorf("%w: %s", ErrInvalid, message)
+		default:
+			return Result{}, fmt.Errorf("ImageIO native decode: %s", message)
+		}
+	}
+	result := Result{Width: int(decoded.width), Height: int(decoded.height), Stride: int(decoded.width) * 4,
+		Pixels:   C.GoBytes(unsafe.Pointer(decoded.pixels), C.int(decoded.pixel_bytes)),
+		EXIF:     primaryEXIF(data),
+		Provider: C.GoString(&decoded.provider[0]) + "; Darwin " + systemVersion()}
+	if premultiplied {
+		undoPremultiplication(result.Pixels)
+	}
+	// ImageIO reports one intended-display orientation. Apply that value once;
+	// neither a thumbnail transform nor a second EXIF fallback is requested.
+	orientResult(&result, int(decoded.orientation))
+	return result, nil
+}

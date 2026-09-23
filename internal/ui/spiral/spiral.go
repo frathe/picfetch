@@ -39,6 +39,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/lang"
+
+	"github.com/frathe/picfetch/internal/heic"
 )
 
 // defaultFrameInterval is how often the frame goroutine does a round of
@@ -74,6 +76,7 @@ type Spiral struct {
 	st       *state
 	sources  []fyne.URI
 	onManual func()
+	heic     *heic.Capability
 
 	// Everything below is rebuilt per window by Show and is only ever
 	// touched on the UI goroutine. They are fields rather than closure
@@ -141,6 +144,9 @@ func (s *Spiral) Open() bool {
 
 // SetOnManual connects F1 in this window to the application's manual.
 func (s *Spiral) SetOnManual(f func()) { s.onManual = f }
+
+// SetHEICCapability supplies the app's optional decoder for future sessions.
+func (s *Spiral) SetHEICCapability(capability *heic.Capability) { s.heic = capability }
 
 // ShowForGesture opens the spiral on the pattern the user's gesture asked
 // for, and is the window-drag gesture's way in (internal/wingesture, wired

@@ -11,6 +11,7 @@ import (
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/similarity"
 )
 
@@ -86,6 +87,7 @@ type State struct {
 
 // Feature owns Explorer's workflow independently of the viewer.
 type Feature struct {
+	heic                    *heic.Capability
 	analysisDone            chan struct{}
 	analysisBefore          <-chan struct{}
 	preparing               bool
@@ -123,6 +125,9 @@ type Feature struct {
 	available, mapped       int
 	building, automatic     bool
 }
+
+// SetHEICCapability supplies the support policy captured by future analyses.
+func (f *Feature) SetHEICCapability(capability *heic.Capability) { f.heic = capability }
 
 func NewFeature(host WorkflowHost, options Options) *Feature {
 	f := &Feature{host: host, win: host.Window()}

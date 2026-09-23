@@ -1387,7 +1387,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					if i == 3 {
 						cohort = "protected"
 					}
-					items = append(items, similarity.Item{Path: path, Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg", Make: makeName}})
+					items = append(items, similarity.Item{Path: path, Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Width: 80, Height: 120, Format: "jpg", Make: makeName}})
 				}
 				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
 				return nil
@@ -1458,7 +1458,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 				var items []similarity.Item
 				for i, path := range paths {
-					facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Format: "jpg"}
+					facts := similarity.ImageFacts{Version: similarity.FactsVersion, Width: 80, Height: 120, Format: "jpg"}
 					if i == 2 {
 						facts.Width, facts.Height = 120, 80
 					}
@@ -1512,7 +1512,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 				var items []similarity.Item
 				for i, path := range paths {
-					facts := similarity.ImageFacts{Version: 1, Width: 80, Height: 120, Model: "EOS Test", CaptureDate: "2026-09-09"}
+					facts := similarity.ImageFacts{Version: similarity.FactsVersion, Width: 80, Height: 120, Model: "EOS Test", CaptureDate: "2026-09-09"}
 					tags := []string{"cat", "animal"}
 					if i == 1 {
 						facts.CaptureDate = "2026-09-10"
@@ -1582,7 +1582,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					if i == 0 {
 						model = "EOS1"
 					}
-					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon", Model: model}})
 				}
 				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
 				return nil
@@ -1637,7 +1637,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 				var items []similarity.Item
 				for _, path := range paths {
-					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+					items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon"}})
 				}
 				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
 				return nil
@@ -1673,7 +1673,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				if i == 0 || i == 3 {
 					model = "EOS1"
 				}
-				items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
+				items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: cohort, Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon", Model: model}})
 			}
 			return similarity.Event{Total: 4, Successful: n, Items: items, Complete: complete}
 		}
@@ -1719,7 +1719,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
 		var items []similarity.Item
 		for i := range 3 {
-			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+			items = append(items, similarity.Item{Path: v.FileAt(i).Path(), Cohort: "unassigned", Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon"}})
 		}
 		publish(similarity.Event{Total: 3, Successful: 3, Items: slices.Clone(items)})
 		fynetest.Tap(explorerButton(t, v, "Presets"))
@@ -1772,7 +1772,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			options.Analyze = func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 				var items []similarity.Item
 				for _, path := range paths {
-					items = append(items, similarity.Item{Path: path, Cohort: "automatic", Preview: pixels, Facts: similarity.ImageFacts{Version: 1, Make: "Canon"}})
+					items = append(items, similarity.Item{Path: path, Cohort: "automatic", Preview: pixels, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon"}})
 				}
 				emit(similarity.Event{Total: 3, Successful: 1, Items: items[:1]})
 				close(first)
@@ -1925,7 +1925,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					if i == 0 {
 						model = "EOS1"
 					}
-					items = append(items, similarity.Item{Path: path, Cohort: group, Preview: preview, Facts: similarity.ImageFacts{Version: 1, Make: "Canon", Model: model}})
+					items = append(items, similarity.Item{Path: path, Cohort: group, Preview: preview, Facts: similarity.ImageFacts{Version: similarity.FactsVersion, Make: "Canon", Model: model}})
 				}
 				emit(similarity.Event{Total: len(paths), Successful: len(paths), Complete: true, Items: items})
 				return nil

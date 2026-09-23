@@ -7,7 +7,7 @@
 # weights: single CI attempt; projected test sums, not measured shard runtimes
 # ui-1: 244 entries, 470.520s projected weight sum
 # ui-2: 248 entries, 470.530s projected weight sum
-# ui-3: 202 entries, 504.870s projected weight sum
+# ui-3: 210 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -568,6 +568,14 @@ TestFindMoreLikeThisActionsCaptureRankedSources	ui-3
 TestFinishLoad_ResetsRotationOnNavigation	ui-3
 TestGridHighlight_NamesTheHighlightedFileInTheTitle	ui-3
 TestGridHighlight_VariantsTitleUsesSizeAndPath	ui-3
+TestHEICBackendLossPreservesSession	ui-3
+TestHEICCapabilityLifecycle	ui-3
+TestHEICCaptureDateSort	ui-3
+TestHEICFeatureIntegration	ui-3
+TestHEICImageOperations	ui-3
+TestHEICNativeImageOperations	ui-3
+TestHEICUnavailableFiles	ui-3
+TestHEICUnavailableGuide	ui-3
 TestHandleDrop_AcceptsRAW	ui-3
 TestHandleDrop_FiltersUnsupportedFiles	ui-3
 TestHandleDrop_MergeSingleFileDoesNotExpandSiblings	ui-3

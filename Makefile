@@ -494,6 +494,7 @@ package-linux: warm-fyne-cross-linux install-fyne-cross ## Cross-compile Linux b
 	for arch in $(LINUX_ARCHES); do \
 		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME) -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto || exit 1; \
 		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-linux-$$arch || exit 1; \
+		go run -tags "$(APP_TAGS)" ./scripts/linuxdesktop -root . -executable "$(BIN_NAME)-linux-$$arch" -out "$(BIN_DIR)/linux-$$arch" || exit 1; \
 	done
 
 package-linux-debug: warm-fyne-cross-linux install-fyne-cross ## Cross-compile unstripped Linux binaries for diagnosing startup failures, one per arch in LINUX_ARCHES
@@ -501,6 +502,7 @@ package-linux-debug: warm-fyne-cross-linux install-fyne-cross ## Cross-compile u
 	for arch in $(LINUX_ARCHES); do \
 		"$(FYNE_CROSS_BIN)" linux -engine "$(FYNE_CROSS_ENGINE)" -image "$(FYNE_CROSS_LINUX_IMAGE)" -cache "$(FYNE_CROSS_CACHE)" -arch=$$arch -icon $(ICON) -name $(BIN_NAME)-debug -app-id $(PACKAGE_ID) -tags "$(APP_TAGS)" -env GOTOOLCHAIN=auto -no-strip-debug || exit 1; \
 		cp fyne-cross/bin/linux-$$arch/* $(BIN_DIR)/$(BIN_NAME)-debug-linux-$$arch || exit 1; \
+		go run -tags "$(APP_TAGS)" ./scripts/linuxdesktop -root . -executable "$(BIN_NAME)-debug-linux-$$arch" -out "$(BIN_DIR)/linux-debug-$$arch" || exit 1; \
 	done
 
 build-linux-all: package-linux ## Alias for package-linux: cross-compile Linux binaries for all LINUX_ARCHES via fyne-cross (needs Docker)

@@ -20,7 +20,7 @@ func presetRuleFields(rule explorerpresets.Rule, changed func()) (*widget.Form, 
 	makeName.SetPlaceHolder(lang.L("Camera make"))
 	makeName.SetText(rule.Make)
 	formats := []string{lang.L("Any file type")}
-	for _, ext := range imaging.SupportedExtensions() {
+	for _, ext := range imaging.RecognizedExtensions() {
 		ext = strings.TrimPrefix(ext, ".")
 		if ext == "jpeg" {
 			ext = "jpg"

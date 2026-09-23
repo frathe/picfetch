@@ -61,7 +61,10 @@ func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, 
 		if err != nil {
 			return item, false, err
 		}
-		item.Facts = imageFacts(path, data, bounds)
+		item.Facts, err = imageFacts(ctx, path, data, bounds)
+		if err != nil {
+			return item, false, err
+		}
 		item.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
 		var preview bytes.Buffer
 		if err := jpeg.Encode(&preview, imaging.ScaleForExport(loaded.Frames[0], 160), &jpeg.Options{Quality: 80}); err != nil {

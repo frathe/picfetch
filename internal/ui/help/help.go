@@ -33,6 +33,8 @@ type Help struct {
 	aboutWin     widgets.Singleton
 	whatsNewWin  widgets.Singleton
 	licensesWin  widgets.Singleton
+	heicGuideWin widgets.Singleton
+	guideSystem  func() heicGuideSystem
 	licenses     string
 	finisWin     widgets.Singleton
 	finis        *finisView
@@ -54,6 +56,7 @@ type Help struct {
 func New(application fyne.App, title string, art []byte) *Help {
 	return &Help{
 		app: application, title: title, art: art,
+		guideSystem: currentHEICGuideSystem,
 		imageClient: &http.Client{Timeout: 20 * time.Second, CheckRedirect: releaseImageRedirectPolicy}, imageUI: fyneQueue{},
 	}
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func workerCommand(ctx context.Context, executable string) *exec.Cmd {
-	return exec.CommandContext(ctx, "/usr/bin/sandbox-exec", "-p", "(version 1) (allow default) (deny network*)", executable)
+	return gracefulWorker(exec.CommandContext(ctx, "/usr/bin/sandbox-exec", "-p", "(version 1) (allow default) (deny network*)", executable))
 }
 
 func isolateWorker() error { return nil }

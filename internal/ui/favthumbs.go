@@ -70,6 +70,7 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	// two passes competing for decodes - and for the thumbnail cache, where
 	// the loser would be evicting the winner's entries.
 	token := v.favThumbLifecycle.begin()
+	token.ctx = v.heicContext(token.context())
 
 	done := v.favThumb.Begin()
 	sink := gridSink{writer: v.grid.CaptureThumbs()}

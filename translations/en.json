@@ -3,6 +3,7 @@
    "Image unavailable": "Image unavailable",
    "Release Notes": "Release Notes",
    "Licenses": "Licenses",
+   "HEIC installation instructions": "HEIC installation instructions",
    "Browse all releases": "Browse all releases",
    "Image order": "Image order",
    "Main order": "Main order",
@@ -518,5 +519,16 @@
    "Metadata removal is unavailable because orientation could not be verified.": "Metadata removal is unavailable because orientation could not be verified.",
    "Metadata removal is unavailable for this image's encoding or color model.": "Metadata removal is unavailable for this image's encoding or color model.",
    "Could not process this file. Check access, available space, and the file size limit.": "Could not process this file. Check access, available space, and the file size limit.",
-   "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone.": "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone."
+   "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone.": "Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone.",
+   "Check HEIC support": "Check HEIC support",
+   "HEIC support: not checked": "HEIC support: not checked",
+   "HEIC support: checking": "HEIC support: checking",
+   "HEIC support: available": "HEIC support: available",
+   "HEIC support: unavailable": "HEIC support: unavailable",
+   "HEIC check failed; previous support remains available": "HEIC check failed; previous support remains available",
+   "HEIC support check failed; try checking again": "HEIC support check failed; try checking again",
+   "HEIC support": "HEIC support",
+   "HEIC support is unavailable. Check support in Settings or open the installation guide.": "HEIC support is unavailable. Check support in Settings or open the installation guide.",
+   "HEIC support could not be checked. Retry in Settings or open the installation guide.": "HEIC support could not be checked. Retry in Settings or open the installation guide.",
+   "Skipped %d HEIC files because system support is unavailable. See Settings for the HEIC installation guide.": "Skipped %d HEIC files because system support is unavailable. See Settings for the HEIC installation guide."
 }

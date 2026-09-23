@@ -102,6 +102,7 @@ func (v *viewer) invalidateSort() uint64 {
 // superseded.
 func (v *viewer) startSort(mode filesort.Mode, unsorted []fyne.URI, onDone func(ordered []fyne.URI)) {
 	token, sortDone := v.sortOp.begin()
+	token.ctx = v.heicContext(token.context())
 
 	v.sortOp.show()
 	// A widget hidden since construction has never been painted, so it has

@@ -12,6 +12,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/decodepool"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -35,6 +36,7 @@ type Snapshot struct {
 
 // Config supplies instance dependencies before presentation starts.
 type Config struct {
+	HEIC           *heic.Capability
 	Queue          UIQueue
 	AnimationAfter func(time.Duration) <-chan time.Time
 	Callbacks      Callbacks
@@ -107,6 +109,9 @@ func New(config Config) *Feature {
 
 // SetUIQueue configures delivery before the first request.
 func (f *Feature) SetUIQueue(queue UIQueue) { f.config.Queue = queue }
+
+// SetHEICCapability supplies the shared app capability before any load begins.
+func (f *Feature) SetHEICCapability(capability *heic.Capability) { f.config.HEIC = capability }
 
 // SetAnimationClock configures timing before playback begins.
 func (f *Feature) SetAnimationClock(after func(time.Duration) <-chan time.Time) {

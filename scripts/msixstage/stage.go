@@ -206,7 +206,7 @@ func renderManifest(meta appMetadata, arch string) (string, error) {
 	}
 
 	var fileTypes strings.Builder
-	for _, ext := range imaging.SupportedExtensions() {
+	for _, ext := range imaging.RecognizedExtensions() {
 		_, _ = fmt.Fprintf(&fileTypes, "              <uap:FileType>%s</uap:FileType>\n", ext)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/frathe/picfetch/internal/fileidentity"
+	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
 )
@@ -56,6 +57,7 @@ type State struct {
 // Feature is UI-owned. Workers capture immutable requests and deliver through
 // Queue; Wait and Settle are the only blocking lifecycle observations.
 type Feature struct {
+	heic                           *heic.Capability
 	host                           Host
 	provider                       similarity.SearchProvider
 	ui                             UIQueue
@@ -76,6 +78,9 @@ type Feature struct {
 	lastQuery                      similarity.SearchQuery
 	retired                        []*producer
 }
+
+// SetHEICCapability supplies the support policy captured by future producers.
+func (f *Feature) SetHEICCapability(capability *heic.Capability) { f.heic = capability }
 
 func New(host Host, options Options) *Feature {
 	f := &Feature{host: host}

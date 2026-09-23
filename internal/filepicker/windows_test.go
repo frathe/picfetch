@@ -18,7 +18,9 @@ func TestWindowsPickerTransport_EmitsUTF8PathArrays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	// Hosted runners can spend over 20 seconds starting a cold PowerShell
+	// process while the other native test packages are running.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	// Run the actual picker serializer, without opening WinForms or modifying
 	// desktop state. Environment transport keeps the fixture out of script text.
@@ -28,7 +30,7 @@ func TestWindowsPickerTransport_EmitsUTF8PathArrays(t *testing.T) {
 	out, err := cmd.Output()
 	selected, err := decodePickedPaths(out, err)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("picker transport: %v (context: %v)", err, ctx.Err())
 	}
 	if len(selected) != len(paths) {
 		t.Fatalf("selected %d paths, want %d", len(selected), len(paths))
