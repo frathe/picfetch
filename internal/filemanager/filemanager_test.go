@@ -151,8 +151,8 @@ func TestRevealLinux_SendsShowItemsOverDBus(t *testing.T) {
 }
 
 // TestRevealLinux_PercentEncodesTheURI: ShowItems takes URIs, not paths, so
-// a space or a '#' in a file name has to survive the D-Bus call the same way
-// internal/clipboard's uri-list makes it survive a paste.
+// URI delimiters and dbus-send's comma-separated array delimiter have to
+// survive the D-Bus call as filename characters.
 func TestRevealLinux_PercentEncodesTheURI(t *testing.T) {
 	origDBus, origRun := lookupDBusSend, runRevealCommand
 	t.Cleanup(func() { lookupDBusSend, runRevealCommand = origDBus, origRun })
@@ -165,11 +165,11 @@ func TestRevealLinux_PercentEncodesTheURI(t *testing.T) {
 		return nil, nil
 	}
 
-	if err := revealLinux("/pics/holiday #1.jpg"); err != nil {
+	if err := revealLinux("/pics/holiday, #1.jpg"); err != nil {
 		t.Fatalf("revealLinux() error = %v", err)
 	}
 
-	if want := "array:string:file:///pics/holiday%20%231.jpg"; !slices.Contains(gotArgs, want) {
+	if want := "array:string:file:///pics/holiday%2C%20%231.jpg"; !slices.Contains(gotArgs, want) {
 		t.Errorf("dbus-send args = %v, want %q present", gotArgs, want)
 	}
 }
