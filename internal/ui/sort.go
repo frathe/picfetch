@@ -103,6 +103,7 @@ func (v *viewer) invalidateSort() uint64 {
 func (v *viewer) startSort(mode filesort.Mode, unsorted []fyne.URI, onDone func(ordered []fyne.URI)) {
 	token, sortDone := v.sortOp.begin()
 	token.ctx = v.heicContext(token.context())
+	v.syncMenus()
 
 	v.sortOp.show()
 	// A widget hidden since construction has never been painted, so it has
@@ -152,6 +153,7 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 	v.sortModeBefore = nil
 
 	onDone(ordered)
+	v.syncMenus()
 }
 
 // cancelSort aborts a reorder in progress (Escape while v.sortOp.active is

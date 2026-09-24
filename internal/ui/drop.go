@@ -117,6 +117,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	v.invalidateSort()
 	v.invalidateLoad()
 	token, scanDone := v.scanOp.begin()
+	v.syncMenus()
 
 	v.scanOp.label.SetText(lang.L("Scanning... 0 images"))
 	v.scanOp.show()
@@ -292,6 +293,7 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 		return
 	}
 	v.scanOp.finish()
+	v.syncMenus()
 
 	if len(images) == 0 {
 		v.explorerInput.pendingLaunch = false

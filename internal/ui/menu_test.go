@@ -634,6 +634,25 @@ func TestCloseFilesItem_DisabledWithNoFilesLoaded(t *testing.T) {
 	if !v.menus.CloseFiles().Disabled {
 		t.Error("Close Files menu item should be disabled with nothing loaded")
 	}
+
+	v.scanOp.active = true
+	v.syncMenus()
+	if v.menus.CloseFiles().Disabled {
+		t.Error("Close Files menu item should be enabled while an initial scan is active")
+	}
+
+	v.scanOp.active = false
+	v.sortOp.active = true
+	v.syncMenus()
+	if v.menus.CloseFiles().Disabled {
+		t.Error("Close Files menu item should be enabled while an initial sort is active")
+	}
+
+	v.sortOp.active = false
+	v.syncMenus()
+	if !v.menus.CloseFiles().Disabled {
+		t.Error("Close Files menu item should be disabled again after work ends with nothing loaded")
+	}
 }
 
 func TestCloseFilesItem_EnabledAfterFilesLoaded(t *testing.T) {

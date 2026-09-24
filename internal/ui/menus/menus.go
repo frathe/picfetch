@@ -74,6 +74,7 @@ type State struct {
 	VariantGroupSize int
 
 	NoFiles             bool // nothing is loaded at all
+	FileWorkActive      bool // a scan or sort can still be cancelled through Close Files
 	GridUp              bool // the grid overview is showing
 	NoImage             bool // no decoded frame, so nothing to rotate or zoom
 	SlidesActive        bool // picture-frame mode is running
@@ -482,7 +483,7 @@ func (m *Menus) applyFile(s State) {
 
 	m.export.Disabled = !s.CanExport
 
-	m.closeFiles.Disabled = s.NoFiles
+	m.closeFiles.Disabled = s.NoFiles && !s.FileWorkActive
 	m.settings.Disabled = false
 }
 
