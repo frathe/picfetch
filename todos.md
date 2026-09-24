@@ -16,6 +16,8 @@
 
 #### Internal
 
+- Hardened `make ci-failures` against command injection from crafted branch names
+  and Make variable overrides.
 - Include `libglib2.0-bin` in the Docker race, full test, and coverage
   containers so Linux desktop launcher tests can invoke `gio`.
 

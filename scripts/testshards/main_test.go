@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -749,7 +750,7 @@ CI failure details (1 failed package, 1 job error)
 func TestMakeCIFailuresFindsLatestCompletedRunOrAcceptsRunID(t *testing.T) {
 	output := makeDryRun(t, "ci-failures")
 	for _, want := range []string{
-		`gh run list --workflow "CI"`,
+		`gh run list --workflow "$workflow"`,
 		`--branch "$branch" --status completed --limit 1`,
 		`gh run view "$run" --log-failed`,
 		`go run ./scripts/testshards ci-failures`,
@@ -760,7 +761,7 @@ func TestMakeCIFailuresFindsLatestCompletedRunOrAcceptsRunID(t *testing.T) {
 	}
 
 	explicit := makeDryRun(t, "ci-failures", "CI_RUN=33800732837")
-	if !strings.Contains(explicit, `run="33800732837"`) {
+	if !strings.Contains(explicit, `run="${CI_RUN:-}"`) {
 		t.Fatalf("make ci-failures does not accept an explicit run ID:\n%s", explicit)
 	}
 	command := exec.Command("make", "--no-print-directory", "help")
@@ -772,6 +773,73 @@ func TestMakeCIFailuresFindsLatestCompletedRunOrAcceptsRunID(t *testing.T) {
 	if !strings.Contains(string(help), "ci-failures") {
 		t.Fatalf("make help does not list ci-failures:\n%s", help)
 	}
+}
+
+func TestMakeCIFailuresTreatsVariableValuesAsData(t *testing.T) {
+	root := filepath.Join("..", "..")
+	bin := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "injected")
+	argLog := filepath.Join(t.TempDir(), "gh-args")
+	gh := filepath.Join(bin, "gh")
+	writeTestFile(t, gh, `#!/bin/sh
+printf '%s\n' "$@" >> "$GH_ARGS_LOG"
+case "$*" in
+  *"--json databaseId"*) echo 33800732837 ;;
+  *"--json conclusion"*) echo failure ;;
+  *"--json url"*) echo https://example.invalid/run ;;
+  *"--log-failed"*) : ;;
+esac
+`)
+	if err := os.Chmod(gh, 0o755); err != nil {
+		t.Fatalf("chmod fake gh: %v", err)
+	}
+
+	payload := "`touch>" + marker + "`"
+	command := exec.Command("make", "--no-print-directory", "ci-failures",
+		"CI_RUN="+payload, "CI_BRANCH="+payload, "CI_WORKFLOW="+payload)
+	command.Dir = root
+	command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "GH_ARGS_LOG="+argLog)
+	output, err := command.CombinedOutput()
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Make variable shell syntax was executed: stat marker: %v", err)
+	}
+	if err != nil {
+		t.Fatalf("make ci-failures: %v\n%s", err, output)
+	}
+	requireFakeGHArg(t, argLog, payload)
+
+	for _, name := range []string{"CI_RUN", "CI_BRANCH", "CI_WORKFLOW"} {
+		t.Run(name, func(t *testing.T) {
+			makeMarker := filepath.Join(t.TempDir(), "make-function-executed")
+			argLog := filepath.Join(t.TempDir(), "gh-args")
+			makePayload := "$(shell touch " + makeMarker + " && printf 33800732837)"
+			command := exec.Command("make", "--no-print-directory", "ci-failures", name+"="+makePayload)
+			command.Dir = root
+			command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "CI_BRANCH=test-branch", "GH_ARGS_LOG="+argLog)
+			output, err := command.CombinedOutput()
+			if _, statErr := os.Stat(makeMarker); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("Make function in %s was executed: stat marker: %v", name, statErr)
+			}
+			if err != nil {
+				t.Fatalf("make ci-failures with Make function in %s: %v\n%s", name, err, output)
+			}
+			requireFakeGHArg(t, argLog, makePayload)
+		})
+	}
+}
+
+func requireFakeGHArg(t *testing.T, path, want string) {
+	t.Helper()
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read fake gh arguments: %v", err)
+	}
+	for _, arg := range strings.Split(string(contents), "\n") {
+		if arg == want {
+			return
+		}
+	}
+	t.Fatalf("fake gh did not receive %q as one argument:\n%s", want, contents)
 }
 
 func TestPackagePartition_ExcludesOnlyExactMainUIPackage(t *testing.T) {
