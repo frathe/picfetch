@@ -107,7 +107,12 @@ func (g *Overview) applyMarquee(origin, at fyne.Position, add bool) {
 		return
 	}
 	g.wrap.Refresh()
-	g.syncTopBar()
+	// Keep the catcher's ancestor layout fixed while Fyne is reporting drag
+	// positions in the coordinate frame captured at mouse-down. The completed
+	// gesture synchronizes the bar once that frame is no longer in use.
+	if !g.marqueeDragging {
+		g.syncTopBar()
+	}
 	g.host.ForceRepaint()
 	g.fireSelectionChanged()
 }
@@ -206,6 +211,8 @@ func (g *Overview) marqueeDragEnd() {
 	g.marqueeDragging = false
 	g.hideMarqueeRect()
 	g.host.Unfocus()
+	g.syncTopBar()
+	g.host.ForceRepaint()
 	grid := g.marqueeLattice()
 	if d := cellAtPoint(g.marqueeOrigin, grid); d >= 0 {
 		g.setHighlight(d)

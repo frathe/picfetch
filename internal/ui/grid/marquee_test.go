@@ -331,6 +331,32 @@ func TestMarqueeDrag_SelectsWithoutOpening(t *testing.T) {
 	}
 }
 
+func TestMarqueeDrag_DefersTopBarLayoutUntilDragEnd(t *testing.T) {
+	g, _ := openGrid(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+	layoutMarquee(t, g, 3)
+	if g.topBar.Visible() {
+		t.Fatal("precondition: the ordinary unselected grid should start without a top bar")
+	}
+
+	pad := g.wrap.Theme().Size(theme.SizeNamePadding)
+	g.catcher.Dragged(&fyne.DragEvent{
+		Position: fyne.NewPos(pad+10, pad+10),
+		Dragged:  fyne.NewDelta(8, 8),
+	})
+
+	if g.SelectionCount() == 0 {
+		t.Fatal("precondition: the drag should already have selected a cell")
+	}
+	if g.topBar.Visible() {
+		t.Error("the top bar must not change the drag surface layout before DragEnd")
+	}
+
+	g.catcher.DragEnd()
+	if !g.topBar.Visible() {
+		t.Error("the top bar should reflect the completed selection after DragEnd")
+	}
+}
+
 func TestMarqueeDrag_PlainClickPathUntouched(t *testing.T) {
 	g, host := openGrid(t, "a.jpg", "b.jpg")
 	click(g, host, 1, 0)
