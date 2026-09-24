@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // Reveal dispatches to the current OS's own way of showing path in a file
@@ -115,11 +116,12 @@ func revealLinux(path string) error {
 // are legal in a file name but structural in a URI - '#', which would
 // otherwise start a fragment and truncate the path, '?', and spaces - are
 // percent-encoded, the same reason internal/wallpaper and
-// internal/clipboard build their own URIs this way.
+// internal/clipboard build their own URIs this way. Commas also need explicit
+// escaping because dbus-send parses them as array element separators.
 func fileURI(path string) string {
 	u := url.URL{Scheme: "file", Path: path}
 
-	return u.String()
+	return strings.ReplaceAll(u.String(), ",", "%2C")
 }
 
 // revealWindows opens Explorer with path selected.

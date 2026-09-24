@@ -12,6 +12,8 @@
   monitor connected during export cannot turn a targeted Linux request into
   a global wallpaper change.
 
+- Fixed "Reveal in file manager" on Linux for filenames containing commas.
+
 #### Internal
 
 - Include `libglib2.0-bin` in the Docker race, full test, and coverage
