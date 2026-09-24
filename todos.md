@@ -8,6 +8,8 @@
 
 #### Bugfix
 
+- Fixed "Reveal in file manager" on Linux for filenames containing commas.
+
 #### Internal
 
 ## Open
