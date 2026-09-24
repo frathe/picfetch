@@ -216,17 +216,29 @@ func TestMosaicWallpaper_PassesExactResultAndOpaqueTarget(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			v := newTestViewer(t)
 			result := testMosaicResult(t, color.NRGBA{R: 230, G: 40, B: 20, A: 255})
+			inspections := 0
+			uitest.StubDisplays(t, func(_ fyne.Window) (displays.Snapshot, error) {
+				inspections++
+				return displays.Snapshot{Displays: []displays.Display{{ID: target}, {ID: "other-display"}}, Default: target}, nil
+			})
 			var got wallpaper.Request
 			uitest.StubWallpaperSet(t, func(request wallpaper.Request) error {
 				got = request
 				return nil
 			})
 
-			if err := v.SetMosaicWallpaper(context.Background(), result, target, false); err != nil {
+			if err := v.SetMosaicWallpaper(context.Background(), result, target); err != nil {
 				t.Fatal(err)
 			}
 			if got.Target != target || got.Solo {
 				t.Fatalf("wallpaper target=%q solo=%v, want target=%q solo=false", got.Target, got.Solo, target)
+			}
+			wantInspections := 1
+			if target == "" {
+				wantInspections = 0
+			}
+			if inspections != wantInspections {
+				t.Fatalf("display inspections=%d, want %d for target %q", inspections, wantInspections, target)
 			}
 			written, err := loadExported(t, got.Path)
 			if err != nil {
@@ -242,30 +254,96 @@ func TestMosaicWallpaper_PassesExactResultAndOpaqueTarget(t *testing.T) {
 	}
 }
 
-// TestMosaicWallpaper_SoloForwardsToTheRequest covers the single-monitor
-// desktop: mosaicwin always supplies a real Target, but when the caller
-// confirms it is the only attached display, the platform dispatcher (Linux
-// in particular - see internal/wallpaper) needs to know that applying it is
-// safe as a global change rather than an unsupported per-display one.
-func TestMosaicWallpaper_SoloForwardsToTheRequest(t *testing.T) {
+// A current single-display topology permits the Linux solo fallback.
+func TestMosaicWallpaper_CurrentSingleDisplayAuthorizesSolo(t *testing.T) {
 	v := newTestViewer(t)
 	result := testMosaicResult(t, color.White)
+	uitest.StubDisplays(t, func(_ fyne.Window) (displays.Snapshot, error) {
+		return displays.Snapshot{Displays: []displays.Display{{ID: "only-display"}}, Default: "only-display"}, nil
+	})
 	var got wallpaper.Request
 	uitest.StubWallpaperSet(t, func(request wallpaper.Request) error {
 		got = request
 		return nil
 	})
 
-	if err := v.SetMosaicWallpaper(context.Background(), result, "only-display", true); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), result, "only-display"); err != nil {
 		t.Fatal(err)
 	}
 	if !got.Solo {
-		t.Fatal("solo target was not forwarded to the platform wallpaper request")
+		t.Fatal("current single-display topology did not authorize the solo wallpaper request")
+	}
+}
+
+func TestMosaicWallpaper_RechecksSoloAfterCopy(t *testing.T) {
+	v := newTestViewer(t)
+	result := testMosaicResult(t, color.White)
+	inspections := 0
+	copyReadyAtInspection := false
+	uitest.StubDisplays(t, func(_ fyne.Window) (displays.Snapshot, error) {
+		inspections++
+		copyReadyAtInspection = len(wallpaperFiles(t, v)) == 1
+		return displays.Snapshot{
+			Displays: []displays.Display{{ID: "one"}, {ID: "two"}},
+			Default:  "one",
+		}, nil
+	})
+	var got wallpaper.Request
+	uitest.StubWallpaperSet(t, func(request wallpaper.Request) error {
+		got = request
+		return nil
+	})
+
+	if err := v.SetMosaicWallpaper(context.Background(), result, "one"); err != nil {
+		t.Fatal(err)
+	}
+	if inspections != 1 || !copyReadyAtInspection {
+		t.Fatalf("final display inspections = %d, copy ready = %v", inspections, copyReadyAtInspection)
+	}
+	if got.Target != "one" || got.Solo {
+		t.Fatalf("wallpaper request target=%q solo=%v, want one and false", got.Target, got.Solo)
+	}
+}
+
+func TestMosaicWallpaper_FinalInspectionFailureClearsCopy(t *testing.T) {
+	for _, scenario := range []struct {
+		name     string
+		topology displays.Snapshot
+		err      error
+	}{
+		{name: "selected display detached", topology: displays.Snapshot{Displays: []displays.Display{{ID: "other"}}, Default: "other"}},
+		{name: "inspection failed", err: errors.New("display inspection failed")},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			v := newTestViewer(t)
+			result := testMosaicResult(t, color.White)
+			copyReadyAtInspection := false
+			uitest.StubDisplays(t, func(_ fyne.Window) (displays.Snapshot, error) {
+				copyReadyAtInspection = len(wallpaperFiles(t, v)) == 1
+				return scenario.topology, scenario.err
+			})
+			wallpaperCalls := 0
+			uitest.StubWallpaperSet(t, func(_ wallpaper.Request) error {
+				wallpaperCalls++
+				return nil
+			})
+
+			if err := v.SetMosaicWallpaper(context.Background(), result, "one"); err == nil {
+				t.Fatal("wallpaper request succeeded without a verified selected display")
+			}
+			if !copyReadyAtInspection || wallpaperCalls != 0 || len(wallpaperFiles(t, v)) != 0 {
+				t.Fatalf("copy ready at inspection=%v, wallpaper calls=%d, leftover copies=%v",
+					copyReadyAtInspection, wallpaperCalls, wallpaperFiles(t, v))
+			}
+		})
 	}
 }
 
 func TestMosaicWallpaper_CleanupIsScopedPerTarget(t *testing.T) {
 	v := newTestViewer(t)
+	uitest.StubDisplays(t, func(_ fyne.Window) (displays.Snapshot, error) {
+		return displays.Snapshot{Displays: []displays.Display{{ID: "display-a"}, {ID: "display-b"}}, Default: "display-a"}, nil
+	})
 	var requests []wallpaper.Request
 	uitest.StubWallpaperSet(t, func(request wallpaper.Request) error {
 		requests = append(requests, request)
@@ -274,17 +352,17 @@ func TestMosaicWallpaper_CleanupIsScopedPerTarget(t *testing.T) {
 	first := testMosaicResult(t, color.NRGBA{R: 255, A: 255})
 	second := testMosaicResult(t, color.NRGBA{B: 255, A: 255})
 
-	if err := v.SetMosaicWallpaper(context.Background(), first, "display-a", false); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), first, "display-a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := v.SetMosaicWallpaper(context.Background(), second, "display-b", false); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), second, "display-b"); err != nil {
 		t.Fatal(err)
 	}
 	if got := wallpaperFiles(t, v); len(got) != 2 {
 		t.Fatalf("two target files = %v, want 2", got)
 	}
 	firstA, firstB := requests[0].Path, requests[1].Path
-	if err := v.SetMosaicWallpaper(context.Background(), second, "display-a", false); err != nil {
+	if err := v.SetMosaicWallpaper(context.Background(), second, "display-a"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(firstA); !errors.Is(err, os.ErrNotExist) {
@@ -310,6 +388,9 @@ func TestMosaicWallpaper_CleanupIsScopedPerTarget(t *testing.T) {
 
 func TestMosaicWallpaper_RejectsOverlapAndDeletesOnlyFailedCopy(t *testing.T) {
 	v := newTestViewer(t)
+	uitest.StubDisplays(t, func(_ fyne.Window) (displays.Snapshot, error) {
+		return displays.Snapshot{Displays: []displays.Display{{ID: "display-a"}, {ID: "display-b"}}, Default: "display-a"}, nil
+	})
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "ordinary.jpg", 4, 4, color.White))
 	result := testMosaicResult(t, color.White)
 	started := make(chan struct{})
@@ -320,10 +401,10 @@ func TestMosaicWallpaper_RejectsOverlapAndDeletesOnlyFailedCopy(t *testing.T) {
 		return errors.New("native failure")
 	})
 	done := make(chan error, 1)
-	go func() { done <- v.SetMosaicWallpaper(context.Background(), result, "display-a", false) }()
+	go func() { done <- v.SetMosaicWallpaper(context.Background(), result, "display-a") }()
 	<-started
 
-	err := v.SetMosaicWallpaper(context.Background(), result, "display-b", false)
+	err := v.SetMosaicWallpaper(context.Background(), result, "display-b")
 	if !errors.Is(err, errWallpaperBusy) {
 		t.Fatalf("overlapping wallpaper call = %v, want errWallpaperBusy", err)
 	}

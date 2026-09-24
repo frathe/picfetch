@@ -33,7 +33,7 @@ type fakeHost struct {
 	generate  func(context.Context, mosaic.Request) (mosaic.Result, error)
 	progress  func(context.Context, mosaic.Request, func(mosaic.Progress)) (mosaic.Result, error)
 	inspect   func() (displays.Snapshot, error)
-	wallpaper func(context.Context, mosaic.Result, displays.ID, bool) error
+	wallpaper func(context.Context, mosaic.Result, displays.ID) error
 }
 
 func (h *fakeHost) GenerateMosaic(ctx context.Context, request mosaic.Request, report func(mosaic.Progress)) (mosaic.Result, error) {
@@ -47,8 +47,8 @@ func (h *fakeHost) InspectMosaicDisplays() (displays.Snapshot, error) {
 	return h.inspect()
 }
 
-func (h *fakeHost) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID, solo bool) error {
-	return h.wallpaper(ctx, result, target, solo)
+func (h *fakeHost) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID) error {
+	return h.wallpaper(ctx, result, target)
 }
 
 func TestMosaicWindow_IsSingletonAndSnapshotsInputs(t *testing.T) {
@@ -523,7 +523,7 @@ func TestMosaicKeyboard_EnterAndSpaceReachEveryPreviewAction(t *testing.T) {
 		generations++
 		return mosaic.Generate(ctx, request)
 	}
-	host.wallpaper = func(context.Context, mosaic.Result, displays.ID, bool) error {
+	host.wallpaper = func(context.Context, mosaic.Result, displays.ID) error {
 		wallpaperCalls++
 		return nil
 	}
@@ -631,9 +631,8 @@ func TestMosaicTarget_IdenticalDisplaysRemainIndividuallySelectable(t *testing.T
 	host := successfulHost(t)
 	host.inspect = func() (displays.Snapshot, error) { return topology, nil }
 	var wallpaperTarget displays.ID
-	var wallpaperSolo bool
-	host.wallpaper = func(_ context.Context, _ mosaic.Result, target displays.ID, solo bool) error {
-		wallpaperTarget, wallpaperSolo = target, solo
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, target displays.ID) error {
+		wallpaperTarget = target
 		return nil
 	}
 	w := New(test.NewApp(), host)
@@ -664,12 +663,6 @@ func TestMosaicTarget_IdenticalDisplaysRemainIndividuallySelectable(t *testing.T
 	settleWindow(t, w)
 	if wallpaperTarget != "one" {
 		t.Fatalf("wallpaper target = %q, want the explicitly selected display one", wallpaperTarget)
-	}
-	// Two displays are attached, so a global change could wrongly affect the
-	// other one: solo must stay false and the platform must keep refusing an
-	// unsupported Linux target instead of silently going global.
-	if wallpaperSolo {
-		t.Fatal("wallpaper solo = true with two attached displays, want false")
 	}
 }
 
@@ -1070,7 +1063,7 @@ func TestMosaicStartOver_IsDisabledDuringRegeneration(t *testing.T) {
 		}
 		return mosaic.Generate(ctx, request)
 	}
-	host.wallpaper = func(context.Context, mosaic.Result, displays.ID, bool) error {
+	host.wallpaper = func(context.Context, mosaic.Result, displays.ID) error {
 		wallpaperCalls++
 		return nil
 	}
@@ -1124,7 +1117,7 @@ func TestMosaicStartOver_IsDisabledDuringWallpaperChange(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	host := successfulHost(t)
-	host.wallpaper = func(context.Context, mosaic.Result, displays.ID, bool) error {
+	host.wallpaper = func(context.Context, mosaic.Result, displays.ID) error {
 		close(started)
 		<-release
 		return nil
@@ -1276,10 +1269,9 @@ func TestMosaicFailureKeepsPreview(t *testing.T) {
 func TestMosaicWallpaper_PassesLatestResultAndTarget(t *testing.T) {
 	var got mosaic.Result
 	var target displays.ID
-	var solo bool
 	host := successfulHost(t)
-	host.wallpaper = func(_ context.Context, result mosaic.Result, display displays.ID, isSolo bool) error {
-		got, target, solo = result, display, isSolo
+	host.wallpaper = func(_ context.Context, result mosaic.Result, display displays.ID) error {
+		got, target = result, display
 		return nil
 	}
 	w := New(test.NewApp(), host)
@@ -1294,29 +1286,23 @@ func TestMosaicWallpaper_PassesLatestResultAndTarget(t *testing.T) {
 	if target != "one" || !samePixels(got, want) {
 		t.Fatalf("wallpaper target=%q or pixels did not match the latest result", target)
 	}
-	// mustSnapshot's topology carries exactly one display, so the selected
-	// target is by construction the only attached display: solo must report
-	// that, or a single-monitor Linux desktop can never honor this request.
-	if !solo {
-		t.Fatal("wallpaper solo = false, want true for a single-display topology")
-	}
 	if !w.PreviewActionsEnabled() {
 		t.Fatal("wallpaper completion did not re-enable preview actions")
 	}
 	w.Close()
 }
 
-func TestMosaicWallpaper_ReinspectsDisplaysBeforeAuthorizingSolo(t *testing.T) {
+func TestMosaicWallpaper_ReinspectsDisplaysBeforeDispatch(t *testing.T) {
 	topology := testTopology("one", 80, 50)
 	inspections := 0
-	var solo bool
+	wallpaperCalls := 0
 	host := successfulHost(t)
 	host.inspect = func() (displays.Snapshot, error) {
 		inspections++
 		return topology, nil
 	}
-	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID, isSolo bool) error {
-		solo = isSolo
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID) error {
+		wallpaperCalls++
 		return nil
 	}
 	w := New(test.NewApp(), host)
@@ -1332,10 +1318,51 @@ func TestMosaicWallpaper_ReinspectsDisplaysBeforeAuthorizingSolo(t *testing.T) {
 	if inspections != 2 {
 		t.Fatalf("display inspections = %d, want generation and wallpaper inspections", inspections)
 	}
-	if solo {
-		t.Fatal("wallpaper solo = true after a second display was attached")
+	if wallpaperCalls != 1 {
+		t.Fatalf("wallpaper calls = %d, want one selected-target request", wallpaperCalls)
 	}
 	w.Close()
+}
+
+func TestMosaicWallpaper_ClickRefreshRejectsUnavailableTarget(t *testing.T) {
+	for _, scenario := range []struct {
+		name       string
+		inspect    func() (displays.Snapshot, error)
+		wantStatus string
+	}{
+		{
+			name:       "selected display detached",
+			inspect:    func() (displays.Snapshot, error) { return testTopology("two", 80, 50), nil },
+			wantStatus: "The selected display is no longer attached. Choose another display.",
+		},
+		{
+			name:       "inspection failed",
+			inspect:    func() (displays.Snapshot, error) { return displays.Snapshot{}, errors.New("inspection failed") },
+			wantStatus: "Could not refresh displays: inspection failed",
+		},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			host := successfulHost(t)
+			wallpaperCalls := 0
+			host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID) error {
+				wallpaperCalls++
+				return nil
+			}
+			w := New(test.NewApp(), host)
+			w.SetUIQueue(&uitest.UIQueue{})
+			w.Show(mustSnapshot(t))
+			t.Cleanup(w.Close)
+			w.Generate()
+			settleWindow(t, w)
+			host.inspect = scenario.inspect
+
+			w.SetWallpaper()
+			settleWindow(t, w)
+			if wallpaperCalls != 0 || w.Status() != scenario.wantStatus {
+				t.Fatalf("wallpaper calls=%d, status=%q, want no call and %q", wallpaperCalls, w.Status(), scenario.wantStatus)
+			}
+		})
+	}
 }
 
 func TestMosaicWallpaper_TargetUnsupportedOffersExplicitGlobalAction(t *testing.T) {
@@ -1345,11 +1372,8 @@ func TestMosaicWallpaper_TargetUnsupportedOffersExplicitGlobalAction(t *testing.
 	host.inspect = func() (displays.Snapshot, error) { return topology, nil }
 	var targets []displays.ID
 	var applied mosaic.Result
-	host.wallpaper = func(_ context.Context, result mosaic.Result, target displays.ID, solo bool) error {
+	host.wallpaper = func(_ context.Context, result mosaic.Result, target displays.ID) error {
 		targets = append(targets, target)
-		if solo {
-			return errors.New("two displays must not be reported as solo")
-		}
 		if target != "" {
 			return fmt.Errorf("set wallpaper: %w", &wallpaper.TargetUnsupportedError{Platform: "Linux"})
 		}
@@ -1406,7 +1430,7 @@ func TestMosaicWallpaper_OtherFailuresKeepSelectedTarget(t *testing.T) {
 		t.Run(failure.Error(), func(t *testing.T) {
 			host := successfulHost(t)
 			var targets []displays.ID
-			host.wallpaper = func(_ context.Context, _ mosaic.Result, target displays.ID, _ bool) error {
+			host.wallpaper = func(_ context.Context, _ mosaic.Result, target displays.ID) error {
 				targets = append(targets, target)
 				return failure
 			}
@@ -1430,7 +1454,7 @@ func TestMosaicWallpaper_OtherFailuresKeepSelectedTarget(t *testing.T) {
 func TestMosaicWallpaper_MissingTargetDoesNotApplyGlobally(t *testing.T) {
 	host := successfulHost(t)
 	calls := 0
-	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID, _ bool) error {
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID) error {
 		calls++
 		return nil
 	}
@@ -1451,7 +1475,7 @@ func TestMosaicWallpaper_MissingTargetDoesNotApplyGlobally(t *testing.T) {
 
 func TestMosaicWallpaper_LateUnsupportedDoesNotChangeReopenedWindow(t *testing.T) {
 	host := successfulHost(t)
-	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID, _ bool) error {
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID) error {
 		return &wallpaper.TargetUnsupportedError{Platform: "Linux"}
 	}
 	w := New(test.NewApp(), host)
@@ -1504,7 +1528,7 @@ func successfulHost(t *testing.T) *fakeHost {
 	return &fakeHost{
 		generate:  mosaic.Generate,
 		inspect:   func() (displays.Snapshot, error) { return testTopology("one", 80, 50), nil },
-		wallpaper: func(context.Context, mosaic.Result, displays.ID, bool) error { return nil },
+		wallpaper: func(context.Context, mosaic.Result, displays.ID) error { return nil },
 	}
 }
 

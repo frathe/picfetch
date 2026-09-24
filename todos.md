@@ -8,6 +8,10 @@
 
 #### Bugfix
 
+- Recheck the selected mosaic wallpaper display after writing its PNG, so a
+  monitor connected during export cannot turn a targeted Linux request into
+  a global wallpaper change.
+
 #### Internal
 
 - Include `libglib2.0-bin` in the Docker race, full test, and coverage
