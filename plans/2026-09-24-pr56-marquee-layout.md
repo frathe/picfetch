@@ -81,4 +81,10 @@ required CI before handoff.
 | Task 1 | 0 / 0 | 1 | no | Mounted geometry guards pass; the ordinary guard failed on the deliberately restored original sync (39 px shift in both directions). |
 | Task 2 | 0 / 0 | 1 | no | Ranked guard failed on the PR head (39 px shift), then passed after deferring progress. Grid package tests and GoLand inspections pass. |
 | Task 3 | 0 / 0 | 1 | no | Grouping guard failed before the shared toolbar guard (39 px shift), then passed. |
-| Gate | — | pending | no | `make verify-build` and Grid package tests passed locally; GitHub CI supplies the complete race suite. |
+| Gate | — | 1 clean remote round | no | `make verify-build` and Grid package tests passed locally; all required CI passed at `828370c`. |
+
+At `828370c`, the fresh Codex code and security reviews completed without
+findings; PR 56 had no review threads. CI run 36009340002 passed all platform
+and race jobs. Qodana run 36009340031's post-suppression SARIF had zero results;
+both analyses in CodeQL run 36009340010 had zero results. The PR's live checks
+are the source for the latest head after this evidence record is committed.
