@@ -708,6 +708,11 @@ func (w *Window) SetWallpaper() {
 	if !w.PreviewActionsEnabled() || w.host == nil || (w.target == "" && !w.wallpaperAllDisplays) {
 		return
 	}
+	if !w.wallpaperAllDisplays {
+		if _, attached := w.refreshSelectedDisplay(); !attached {
+			return
+		}
+	}
 	result, target := w.result, w.target
 	solo := len(w.snapshot.Displays.Displays) == 1
 	if w.wallpaperAllDisplays {

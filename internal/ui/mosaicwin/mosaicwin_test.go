@@ -1306,6 +1306,38 @@ func TestMosaicWallpaper_PassesLatestResultAndTarget(t *testing.T) {
 	w.Close()
 }
 
+func TestMosaicWallpaper_ReinspectsDisplaysBeforeAuthorizingSolo(t *testing.T) {
+	topology := testTopology("one", 80, 50)
+	inspections := 0
+	var solo bool
+	host := successfulHost(t)
+	host.inspect = func() (displays.Snapshot, error) {
+		inspections++
+		return topology, nil
+	}
+	host.wallpaper = func(_ context.Context, _ mosaic.Result, _ displays.ID, isSolo bool) error {
+		solo = isSolo
+		return nil
+	}
+	w := New(test.NewApp(), host)
+	w.SetUIQueue(&uitest.UIQueue{})
+	w.Show(mustSnapshot(t))
+	w.Generate()
+	settleWindow(t, w)
+
+	topology.Displays = append(topology.Displays, testTopology("two", 80, 50).Displays...)
+	w.SetWallpaper()
+	settleWindow(t, w)
+
+	if inspections != 2 {
+		t.Fatalf("display inspections = %d, want generation and wallpaper inspections", inspections)
+	}
+	if solo {
+		t.Fatal("wallpaper solo = true after a second display was attached")
+	}
+	w.Close()
+}
+
 func TestMosaicWallpaper_TargetUnsupportedOffersExplicitGlobalAction(t *testing.T) {
 	host := successfulHost(t)
 	topology := testTopology("one", 80, 50)
