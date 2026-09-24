@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
 )
 
 type rankedCountingURI struct {
@@ -113,6 +114,59 @@ func TestRankedVisitInitialOrderAndFilter(t *testing.T) {
 	g.HandleKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
 	if !slices.Equal(g.ResultIndexes(), []int{2, 0}) {
 		t.Fatalf("restored rank: %v", g.ResultIndexes())
+	}
+}
+
+func TestRankedProgress_DefersLayoutDuringMarquee(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		initial Progress
+		latest  Progress
+	}{
+		{"complete", Progress{Processed: 1, Total: 4}, Progress{Processed: 4, Total: 4, Complete: true}},
+		{"restart", Progress{Processed: 4, Total: 4, Complete: true}, Progress{Processed: 1, Total: 4}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := hostWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+			g := newOverview(t, h)
+			g.OpenRanked(RankedVisit{
+				ReferencePath: h.FileAt(0).Path(),
+				Paths:         []string{h.FileAt(1).Path(), h.FileAt(2).Path(), h.FileAt(3).Path()},
+				Revision:      1,
+				Progress:      tc.initial,
+			})
+			g.win.SetPadded(false)
+			g.win.SetContent(g.Overlay())
+			g.win.Resize(fyne.NewSize(376, 440))
+			g.overlay.Refresh()
+			before := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y
+			if g.rankProgress.Visible() == tc.initial.Complete {
+				t.Fatal("precondition: initial progress visibility does not match completion")
+			}
+
+			pad := g.wrap.Theme().Size(theme.SizeNamePadding)
+			g.catcher.Dragged(&fyne.DragEvent{
+				Position: fyne.NewPos(pad+10, pad+10),
+				Dragged:  fyne.NewDelta(8, 8),
+			})
+			if g.SelectionCount() == 0 {
+				t.Fatal("precondition: the marquee did not select a cell")
+			}
+			g.SetRankedProgress(tc.latest)
+			g.overlay.Refresh()
+			if during := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y; during != before {
+				t.Errorf("grid body moved during marquee from y=%v to y=%v", before, during)
+			}
+
+			g.catcher.DragEnd()
+			g.overlay.Refresh()
+			if g.rankProgress.Visible() == tc.latest.Complete {
+				t.Error("progress visibility did not reflect the latest state after DragEnd")
+			}
+			if after := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y; after == before {
+				t.Error("the completed progress change did not update grid layout after DragEnd")
+			}
+		})
 	}
 }
 

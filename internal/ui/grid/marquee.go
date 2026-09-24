@@ -206,6 +206,8 @@ func (g *Overview) marqueeDragEnd() {
 	g.marqueeDragging = false
 	g.hideMarqueeRect()
 	g.host.Unfocus()
+	g.syncTopBar()
+	g.host.ForceRepaint()
 	grid := g.marqueeLattice()
 	if d := cellAtPoint(g.marqueeOrigin, grid); d >= 0 {
 		g.setHighlight(d)
@@ -244,12 +246,12 @@ func (g *Overview) cancelMarquee() {
 	defer g.flushRanked()
 	changed := !slices.Equal(g.sel.Indices(), g.marqueeSaved)
 	g.sel.Replace(g.marqueeSaved)
+	g.marqueeDisarmed = true
+	g.marqueeDragging = false
 	g.wrap.Refresh()
 	g.syncTopBar()
 	g.host.ForceRepaint()
 	g.hideMarqueeRect()
-	g.marqueeDisarmed = true
-	g.marqueeDragging = false
 	g.marqueeSaved = nil
 	if changed {
 		g.fireSelectionChanged()

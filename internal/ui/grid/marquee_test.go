@@ -331,6 +331,98 @@ func TestMarqueeDrag_SelectsWithoutOpening(t *testing.T) {
 	}
 }
 
+func TestMarqueeDrag_DefersTopBarLayoutUntilDragEnd(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		initialSelected bool
+		wantSelection   int
+		cellColumn      int
+		cellRow         int
+	}{
+		{"selection starts", false, 1, 0, 0},
+		{"selection clears", true, 0, 1, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, host := openGrid(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+			if tc.initialSelected {
+				click(g, host, 0, fyne.KeyModifierShortcutDefault)
+			}
+			g.win.SetPadded(false)
+			g.win.SetContent(g.Overlay())
+			g.win.Resize(fyne.NewSize(376, 400))
+			g.overlay.Refresh()
+			if g.wrap.ColumnCount() != 3 || g.topBar.Visible() != tc.initialSelected {
+				t.Fatalf("precondition: columns=%d top bar visible=%v", g.wrap.ColumnCount(), g.topBar.Visible())
+			}
+			before := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y
+
+			pad := g.wrap.Theme().Size(theme.SizeNamePadding)
+			pitch := cellSize + pad
+			g.catcher.Dragged(&fyne.DragEvent{
+				Position: fyne.NewPos(pad+float32(tc.cellColumn)*pitch+10, pad+float32(tc.cellRow)*pitch+10),
+				Dragged:  fyne.NewDelta(8, 8),
+			})
+			g.overlay.Refresh()
+			if g.SelectionCount() != tc.wantSelection {
+				t.Fatalf("precondition: selection count=%d, want %d", g.SelectionCount(), tc.wantSelection)
+			}
+			if g.topBar.Visible() != tc.initialSelected {
+				t.Error("the top bar changed visibility before DragEnd")
+			}
+			if during := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y; during != before {
+				t.Errorf("grid body moved during marquee from y=%v to y=%v", before, during)
+			}
+
+			g.catcher.DragEnd()
+			g.overlay.Refresh()
+			if g.topBar.Visible() != (tc.wantSelection > 0) {
+				t.Error("the top bar did not reflect the completed selection")
+			}
+			after := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y
+			if tc.wantSelection > 0 && after <= before || tc.wantSelection == 0 && after >= before {
+				t.Errorf("grid body y=%v after DragEnd, was %v before", after, before)
+			}
+		})
+	}
+}
+
+func TestMarqueeDrag_GroupingCompletionKeepsTopBarLayout(t *testing.T) {
+	g, _ := openGrid(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+	g.win.SetPadded(false)
+	g.win.SetContent(g.Overlay())
+	g.win.Resize(fyne.NewSize(376, 400))
+	g.overlay.Refresh()
+	if g.rebuildGroups() {
+		t.Fatal("precondition: grouping should be queued before the drag")
+	}
+
+	before := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y
+	pad := g.wrap.Theme().Size(theme.SizeNamePadding)
+	g.catcher.Dragged(&fyne.DragEvent{
+		Position: fyne.NewPos(pad+10, pad+10),
+		Dragged:  fyne.NewDelta(8, 8),
+	})
+	if g.SelectionCount() == 0 {
+		t.Fatal("precondition: the drag did not select a cell")
+	}
+	g.Settle()
+	if _, ready := g.dupes.CurrentGroups(); !ready {
+		t.Fatal("precondition: queued grouping was not delivered")
+	}
+	g.overlay.Refresh()
+	if during := fyne.CurrentApp().Driver().AbsolutePositionForObject(g.catcher).Y; during != before {
+		t.Errorf("grouping completion moved grid body during marquee from y=%v to y=%v", before, during)
+	}
+	if g.topBar.Visible() {
+		t.Error("grouping completion showed the selection bar before DragEnd")
+	}
+
+	g.catcher.DragEnd()
+	if !g.topBar.Visible() {
+		t.Error("the selection bar did not appear after DragEnd")
+	}
+}
+
 func TestMarqueeDrag_PlainClickPathUntouched(t *testing.T) {
 	g, host := openGrid(t, "a.jpg", "b.jpg")
 	click(g, host, 1, 0)

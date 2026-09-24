@@ -8,6 +8,9 @@
 
 #### Bugfix
 
+- Keep Grid View marquee selection aligned with the pointer when the selection
+  bar or ranked-search progress changes; update those bars after mouse-up.
+
 - Prevent planted `.new` symlinks from redirecting Unix in-app updates, and
   reclaim stale staging files left by an interrupted update.
 

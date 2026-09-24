@@ -95,6 +95,7 @@ type Host interface {
 type Overview struct {
 	heic                  *heic.Capability
 	ranked, pendingRanked *RankedVisit
+	pendingProgress       *Progress
 	visitIndex            *visitSourceIndex
 	rankedBar             *fyne.Container
 	rankProgress          *widget.ProgressBar
@@ -676,7 +677,7 @@ func (g *Overview) closeOverlay(clearInspect bool) {
 		g.visitIndex = nil
 	}
 	g.onAnalyze = nil
-	g.ranked, g.pendingRanked = nil, nil
+	g.ranked, g.pendingRanked, g.pendingProgress = nil, nil, nil
 	if g.rankedBar != nil {
 		g.rankedBar.Hide()
 	}
