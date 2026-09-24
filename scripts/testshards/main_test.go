@@ -811,7 +811,7 @@ esac
 			makePayload := "$(shell touch " + makeMarker + " && printf 33800732837)"
 			command := exec.Command("make", "--no-print-directory", "ci-failures", name+"="+makePayload)
 			command.Dir = root
-			command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "CI_BRANCH=test-branch")
 			output, err := command.CombinedOutput()
 			if _, statErr := os.Stat(makeMarker); !errors.Is(statErr, os.ErrNotExist) {
 				t.Fatalf("Make function in %s was executed: stat marker: %v", name, statErr)
