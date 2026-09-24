@@ -69,7 +69,11 @@ architectures): the disposable Ubuntu container lacked `gio`. Installing
 package with `-race -count=1` passed. The original aggregate command still
 returned exit 2; it is not recorded as a clean full gate. Raw events are under
 `.scratch/race-runs/20260923T063617Z-rH2PQs/`. The persistent Docker dependency fix
-is separately tracked in `todos.md`; no launcher test was skipped or weakened.
+was completed on 2026-09-24: the race, full test, and coverage containers now
+install `libglib2.0-bin`. The new runner guards failed before the fix and pass
+after it. `make verify` passed, including the Docker race suite and both Linux
+desktop launcher architecture cases; artifacts are under
+`.scratch/race-runs/20260924T091344Z-m6lHbZ/`. No launcher test was skipped or weakened.
 Hosted Windows execution remains unverified until these uncommitted changes
 reach CI. This does not reopen the maintainer's accepted qualification deferral.
 

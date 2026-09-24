@@ -898,6 +898,17 @@ func TestMakeTestRemainsCompleteAndUnsharded(t *testing.T) {
 	}
 }
 
+func TestDockerFullTestRunnersInstallGio(t *testing.T) {
+	for _, target := range []string{"test", "coverage"} {
+		t.Run(target, func(t *testing.T) {
+			output := makeDryRun(t, target)
+			if !regexp.MustCompile(`apt-get install -y -qq [^;\n]*\blibglib2\.0-bin\b`).MatchString(output) {
+				t.Fatalf("make %s does not install gio in its test container:\n%s", target, output)
+			}
+		})
+	}
+}
+
 func TestMakeCoverageRunsCompleteUnshardedSuiteAndBuildsHTML(t *testing.T) {
 	output := makeDryRun(t, "coverage")
 	for _, want := range []string{
@@ -980,6 +991,32 @@ func TestMakeRaceRunsCanonicalConcurrentContractInOneContainer(t *testing.T) {
 		if !strings.Contains(direct, want) {
 			t.Fatalf("concurrent race contract is missing %q:\n%s", want, direct)
 		}
+	}
+}
+
+func TestRaceContainerInstallsGio(t *testing.T) {
+	dir := t.TempDir()
+	installArgs := filepath.Join(dir, "apt-install-args")
+	writeRaceCommandFixture(t, dir, "apt-get", `#!/bin/sh
+if [ "$1" = install ]; then printf '%s\n' "$*" > "$APT_INSTALL_ARGS"; fi
+`)
+	for _, name := range []string{"locale-gen", "chown", "make"} {
+		writeRaceCommandFixture(t, dir, name, "#!/bin/sh\nexit 0\n")
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("APT_INSTALL_ARGS", installArgs)
+	t.Setenv("HOST_UID", "1234")
+	t.Setenv("HOST_GID", "1234")
+	command := exec.Command("bash", "docker-race.sh", "--container", "en_US.UTF-8", filepath.Join(dir, "capture"), filepath.Join(dir, "cgroup"))
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("race container setup: %v\n%s", err, output)
+	}
+	args, err := os.ReadFile(installArgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?:^|\s)libglib2\.0-bin(?:\s|$)`).Match(args) {
+		t.Fatalf("race container does not install gio: apt-get %s", args)
 	}
 }
 

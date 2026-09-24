@@ -10,17 +10,10 @@
 
 #### Internal
 
+- Include `libglib2.0-bin` in the Docker race, full test, and coverage
+  containers so Linux desktop launcher tests can invoke `gio`.
+
 ## Open
-
-### Include gio in the Docker test environment
-
-The 2026-09-23 Docker race run found that `scripts/testshards/docker-race.sh`
-does not install `libglib2.0-bin`, required by Linux desktop launcher tests.
-Both architecture cases failed only because `gio` was missing; installing it
-in the disposable container and rerunning `go test -race` for
-`./scripts/linuxdesktop` passed. Add the dependency to the Docker test setup;
-keep the launch assertions intact. This is separate from the Windows CI codec
-exception.
 
 ## Deferred
 
