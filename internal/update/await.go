@@ -21,9 +21,9 @@ const AwaitPIDEnv = "PICFETCH_UPDATE_AWAIT_PID"
 const awaitPredecessorTimeout = 15 * time.Second
 
 // CleanupPredecessor waits for the process that installed this executable to
-// exit, then deletes the leftovers an update from before 2026-08-30 could
-// have left beside it. Both halves are no-ops on a normal launch: only a
-// relaunch sets AwaitPIDEnv, and only an update leaves anything to sweep.
+// exit, then deletes old update staging files beside it. Both halves are
+// no-ops on a normal launch: only a relaunch sets AwaitPIDEnv, and only an
+// interrupted update leaves anything to sweep.
 //
 // The backup the current apply leaves behind is deliberately not swept here.
 // Whether it is still the user's only working executable is a question only
@@ -52,9 +52,9 @@ func CleanupPredecessor() {
 	sweepLeftovers(dest)
 }
 
-// sweepLeftovers removes the two files an apply left beside the executable
-// back when it ran through a cmd.exe script. Errors are ignored: a file the
-// exiting predecessor still holds open is swept by the launch after this one.
+// sweepLeftovers removes legacy fixed-name staging files and old randomized
+// Unix staging files. Errors are ignored: a file the exiting predecessor still
+// holds open is swept by a later launch.
 func sweepLeftovers(dest string) {
 	if dest == "" {
 		// The suffixes below would otherwise resolve against the working
@@ -63,6 +63,7 @@ func sweepLeftovers(dest string) {
 	}
 	_ = os.Remove(dest + ".new")
 	_ = os.Remove(dest + ".apply.cmd")
+	sweepTemporarySiblings(dest)
 }
 
 // sweepAttempts and sweepRetryDelay bound the second chance the sweep gets.
