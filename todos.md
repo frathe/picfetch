@@ -16,6 +16,8 @@
 
 #### Internal
 
+- Restricted WinGet publishing to successful Release workflow runs, strengthened
+  the manual-dispatch regression guard, and updated failed-publish recovery guidance.
 - Hardened `make ci-failures` against command injection from crafted branch names
   and Make variable overrides.
 - Include `libglib2.0-bin` in the Docker race, full test, and coverage

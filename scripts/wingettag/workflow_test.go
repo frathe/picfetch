@@ -29,7 +29,7 @@ func TestWorkflowGatesUntrustedReleaseTag(t *testing.T) {
 	if !strings.Contains(yml, "CANDIDATE: ${{ github.event.workflow_run.head_branch }}") {
 		t.Error("tag must enter the job only via the allowlisted CANDIDATE env var")
 	}
-	if strings.Contains(yml, "workflow_dispatch:") {
+	if strings.Contains(yml, "workflow_dispatch") {
 		t.Error("secret-bearing workflow must not support dispatch from caller-selected refs")
 	}
 	if !strings.Contains(yml, "github.event.workflow_run.path == '.github/workflows/release.yml'") {
