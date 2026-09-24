@@ -8,6 +8,9 @@
 
 #### Bugfix
 
+- Prevent planted `.new` symlinks from redirecting Unix in-app updates, and
+  reclaim stale staging files left by an interrupted update.
+
 - Recheck the selected mosaic wallpaper display after writing its PNG, so a
   monitor connected during export cannot turn a targeted Linux request into
   a global wallpaper change.
@@ -16,6 +19,8 @@
 
 #### Internal
 
+- Restricted WinGet publishing to successful Release workflow runs, strengthened
+  the manual-dispatch regression guard, and updated failed-publish recovery guidance.
 - Hardened `make ci-failures` against command injection from crafted branch names
   and Make variable overrides.
 - Include `libglib2.0-bin` in the Docker race, full test, and coverage

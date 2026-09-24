@@ -336,10 +336,14 @@ the live README/site show working commands and the tested user procedure.
 2. Verify installation and upgrade to that version on the qualified Windows
    environments, including version, launch, alias, cleanup, and saved state.
 3. If WinGet submission fails after GitHub assets publish, inspect the failure
-   and fix the relevant workflow/catalog issue. The workflow's
-   `workflow_dispatch` input can retry that published tag using updated main.
-   Check existing PRs/manifests first: do not submit an already seeded identical
-   version again, create a duplicate PR, or replace immutable release assets.
+   and check existing PRs/manifests before retrying. For a transient failure,
+   rerun the original WinGet job; [GitHub reruns use the original workflow
+   revision](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
+   The secret-bearing workflow has no manual dispatch, so a fix on
+   main cannot replay that published tag. If recovery needs a workflow fix,
+   establish a separately reviewed submission path. Do not submit an already
+   seeded identical version again, create a duplicate PR, or replace immutable
+   release assets.
 4. Record tested recovery and escalation steps for partial catalog publication,
    failed transitions, and obsolete old-ID commands/exports. Recovery must match
    the actual published state; do not assume changing the ID back is harmless.

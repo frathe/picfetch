@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+func sweepTemporarySiblings(_ string) {}
+
 // awaitProcessExit waits on the process object instead of polling: Windows
 // signals it the moment the predecessor exits, so the launch is held for
 // exactly as long as it has to be. SYNCHRONIZE is the only access

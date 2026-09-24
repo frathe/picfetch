@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestApplyUnix_ReplacesDest(t *testing.T) {
@@ -83,6 +84,153 @@ func TestApplyUnix_CopiesPlist(t *testing.T) {
 	}
 	if string(bin) != "new" {
 		t.Errorf("dest = %q, want new", bin)
+	}
+}
+
+func TestApplyUnix_DoesNotFollowPlantedTemporarySymlinks(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "PicFetch.app", "Contents", "MacOS", "picfetch")
+	plistDest := filepath.Join(dir, "PicFetch.app", "Contents", "Info.plist")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("old binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(dir, "staged")
+	if err := os.WriteFile(staged, []byte("new binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stagedPlist := filepath.Join(dir, "staged.plist")
+	if err := os.WriteFile(stagedPlist, []byte("new plist"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	binaryTarget := filepath.Join(dir, "binary-target")
+	plistTarget := filepath.Join(dir, "plist-target")
+	if err := os.WriteFile(binaryTarget, []byte("binary secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plistTarget, []byte("plist secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(binaryTarget, dest+".new"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(plistTarget, plistDest+".new"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := applyUnix(Stage{BinaryPath: staged, PlistPath: stagedPlist}, dest, ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	for path, want := range map[string]string{
+		binaryTarget: "binary secret",
+		plistTarget:  "plist secret",
+		dest:         "new binary",
+		plistDest:    "new plist",
+	} {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Errorf("%s = %q, want %q", path, got, want)
+		}
+	}
+	for _, path := range []string{binaryTarget, plistTarget} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Errorf("%s mode = %o, want 0600", path, info.Mode().Perm())
+		}
+	}
+}
+
+func TestSweepLeftovers_RemovesInterruptedUnixTemporarySiblings(t *testing.T) {
+	dir := t.TempDir()
+	contents := filepath.Join(dir, "PicFetch.app", "Contents")
+	dest := filepath.Join(contents, "MacOS", "picfetch")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("installed"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	binaryTemp := filepath.Join(filepath.Dir(dest), ".picfetch.new-123456789")
+	plistTemp := filepath.Join(contents, ".Info.plist.new-987654321")
+	old := time.Now().Add(-10 * time.Minute)
+	for _, path := range []string{binaryTemp, plistTemp} {
+		if err := os.WriteFile(path, []byte("interrupted update"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	generated, err := os.CreateTemp(filepath.Dir(dest), ".picfetch.new-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generatedTemp := generated.Name()
+	if err := generated.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(generatedTemp, old, old); err != nil {
+		t.Fatal(err)
+	}
+	lookalikes := []string{
+		filepath.Join(filepath.Dir(dest), ".picfetch.new-backup"),
+		filepath.Join(contents, ".Info.plist.new-local"),
+		filepath.Join(filepath.Dir(dest), ".picfetch.new-4294967296"),
+		filepath.Join(filepath.Dir(dest), ".picfetch.new-0123"),
+	}
+	for _, path := range lookalikes {
+		if err := os.WriteFile(path, []byte("not an updater temporary"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	backup := dest + ".old"
+	unrelated := filepath.Join(filepath.Dir(dest), ".picfetch.new-abc123.bak")
+	recent := filepath.Join(filepath.Dir(dest), ".picfetch.new-31415926")
+	target := filepath.Join(dir, "target")
+	for _, path := range []string{backup, unrelated, recent, target} {
+		if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(filepath.Dir(dest), ".picfetch.new-27182818")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	matchingDir := filepath.Join(contents, ".Info.plist.new-16180339")
+	if err := os.Mkdir(matchingDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	sweepLeftovers(dest)
+
+	for _, path := range []string{binaryTemp, plistTemp, generatedTemp} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("interrupted staging file %q survived: %v", path, err)
+		}
+	}
+	for _, path := range []string{dest, backup, unrelated, recent, target, link, matchingDir} {
+		if _, err := os.Lstat(path); err != nil {
+			t.Errorf("sweep removed %q: %v", path, err)
+		}
+	}
+	for _, path := range lookalikes {
+		if _, err := os.Lstat(path); err != nil {
+			t.Errorf("sweep removed unrelated file %q: %v", path, err)
+		}
 	}
 }
 
