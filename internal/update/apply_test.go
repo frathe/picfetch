@@ -86,6 +86,69 @@ func TestApplyUnix_CopiesPlist(t *testing.T) {
 	}
 }
 
+func TestApplyUnix_DoesNotFollowPlantedTemporarySymlinks(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "PicFetch.app", "Contents", "MacOS", "picfetch")
+	plistDest := filepath.Join(dir, "PicFetch.app", "Contents", "Info.plist")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("old binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(dir, "staged")
+	if err := os.WriteFile(staged, []byte("new binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stagedPlist := filepath.Join(dir, "staged.plist")
+	if err := os.WriteFile(stagedPlist, []byte("new plist"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	binaryTarget := filepath.Join(dir, "binary-target")
+	plistTarget := filepath.Join(dir, "plist-target")
+	if err := os.WriteFile(binaryTarget, []byte("binary secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plistTarget, []byte("plist secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(binaryTarget, dest+".new"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(plistTarget, plistDest+".new"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := applyUnix(Stage{BinaryPath: staged, PlistPath: stagedPlist}, dest, ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	for path, want := range map[string]string{
+		binaryTarget: "binary secret",
+		plistTarget:  "plist secret",
+		dest:         "new binary",
+		plistDest:    "new plist",
+	} {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Errorf("%s = %q, want %q", path, got, want)
+		}
+	}
+	for _, path := range []string{binaryTarget, plistTarget} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Errorf("%s mode = %o, want 0600", path, info.Mode().Perm())
+		}
+	}
+}
+
 func TestApplyUnix_PlistCopyFailureLeavesInstalledFilesUntouched(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "PicFetch.app", "Contents", "MacOS", "picfetch")

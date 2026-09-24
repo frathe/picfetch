@@ -4,6 +4,8 @@ package update
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,28 +29,22 @@ func applyUnixWithLauncher(stage Stage, dest string, options ApplyOptions, launc
 	if err != nil {
 		return err
 	}
-	newBinary := dest + ".new"
+	newBinary, err := copyToTemporarySibling(stage.BinaryPath, dest, 0o755)
+	if err != nil {
+		return err
+	}
 	old := dest + ".old"
 	defer func() { _ = os.Remove(newBinary) }()
-	if err := copyFile(stage.BinaryPath, newBinary); err != nil {
-		return err
-	}
-	if err := os.Chmod(newBinary, 0o755); err != nil {
-		return err
-	}
 
 	plistDest := ""
 	newPlist := ""
 	if stage.PlistPath != "" {
 		plistDest = filepath.Join(filepath.Dir(dest), "..", "Info.plist")
-		newPlist = plistDest + ".new"
+		newPlist, err = copyToTemporarySibling(stage.PlistPath, plistDest, 0o644)
+		if err != nil {
+			return err
+		}
 		defer func() { _ = os.Remove(newPlist) }()
-		if err := copyFile(stage.PlistPath, newPlist); err != nil {
-			return err
-		}
-		if err := os.Chmod(newPlist, 0o644); err != nil {
-			return err
-		}
 	}
 
 	if err := os.Rename(dest, old); err != nil {
@@ -95,6 +91,55 @@ func applyUnixWithLauncher(stage Stage, dest string, options ApplyOptions, launc
 		}
 	}
 	return nil
+}
+
+func copyToTemporarySibling(src, dest string, mode os.FileMode) (name string, err error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = in.Close() }()
+
+	dir := filepath.Dir(dest)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	out, err := os.CreateTemp(dir, "."+filepath.Base(dest)+".new-*")
+	if err != nil {
+		return "", err
+	}
+	name = out.Name()
+	tempName := name
+	defer func() {
+		if out != nil {
+			_ = out.Close()
+		}
+		if err != nil {
+			_ = os.Remove(tempName)
+		}
+	}()
+
+	info, err := out.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("temporary update file %q is not regular", name)
+	}
+	if err := out.Chmod(mode); err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		return "", err
+	}
+	if err := out.Sync(); err != nil {
+		return "", err
+	}
+	if err := out.Close(); err != nil {
+		return "", err
+	}
+	out = nil
+	return name, nil
 }
 
 func rollbackUnixBinary(dest, old string, cause error) error {
