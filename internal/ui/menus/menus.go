@@ -74,6 +74,7 @@ type State struct {
 	VariantGroupSize int
 
 	NoFiles             bool // nothing is loaded at all
+	FileWorkActive      bool // a scan or sort can still be cancelled through Close Files
 	GridUp              bool // the grid overview is showing
 	NoImage             bool // no decoded frame, so nothing to rotate or zoom
 	SlidesActive        bool // picture-frame mode is running
@@ -182,7 +183,7 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	}
 
 	m.closeFiles = fyne.NewMenuItem(lang.L("Close Files"), c.CloseFiles)
-	m.closeFiles.Disabled = true // Apply enables it once State.NoFiles is false, i.e. a file is loaded
+	m.closeFiles.Disabled = true // Apply enables it once a file is loaded or a scan/sort starts
 	m.settings = fyne.NewMenuItem(lang.L("Settings…"), c.ShowSettings)
 
 	m.window.explorer = fyne.NewMenuItem(lang.L("Similarity Explorer"), c.ShowExplorer)
@@ -482,7 +483,7 @@ func (m *Menus) applyFile(s State) {
 
 	m.export.Disabled = !s.CanExport
 
-	m.closeFiles.Disabled = s.NoFiles
+	m.closeFiles.Disabled = s.NoFiles && !s.FileWorkActive
 	m.settings.Disabled = false
 }
 

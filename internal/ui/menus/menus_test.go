@@ -546,6 +546,7 @@ func TestApply_FileItems(t *testing.T) {
 		wantSave, wantExport, wantClose bool
 	}{
 		{"nothing loaded", State{NoFiles: true}, true, true, true},
+		{"scan or sort pending", State{NoFiles: true, FileWorkActive: true}, true, true, false},
 		{"loaded, nothing pending", State{}, true, true, false},
 		{"pending rotation", State{CanSave: true}, false, true, false},
 		{"exportable", State{CanExport: true}, true, false, false},

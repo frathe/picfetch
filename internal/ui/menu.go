@@ -174,6 +174,7 @@ func (v *viewer) menuState() menus.State {
 		VariantGroupSize: v.grid.SourceDuplicateGroupSize(),
 
 		NoFiles:             v.FileCount() == 0,
+		FileWorkActive:      v.scanOp.active || v.sortOp.active,
 		GridUp:              v.grid.Visible(),
 		NoImage:             v.display.Count() == 0,
 		SlidesActive:        v.slides.Active(),
@@ -221,7 +222,8 @@ func (v *viewer) menuState() menus.State {
 //     what gets their new Disabled state onto the bar and performs the Darwin
 //     native-bar fold, so it must see both post-toggle values.
 //   - Skipping them when nothing moved cannot skip a needed update. FileCount
-//     is also State.NoFiles, which moves Close Files, while comparison
+//     is also State.NoFiles, which moves Close Files, while active scan/sort
+//     work moves it independently through State.FileWorkActive. Comparison
 //     visibility is State.ComparisonActive, whose final override always moves
 //     the normally-enabled Open and Settings items on entry and exit. Either
 //     Favorites fact can therefore change only on a turn Apply reports.
