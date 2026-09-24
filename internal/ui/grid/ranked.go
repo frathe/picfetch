@@ -139,6 +139,10 @@ func (g *Overview) SetRankedProgress(progress Progress) {
 	if g.rankProgress == nil {
 		return
 	}
+	if g.marqueeDragging {
+		g.pendingProgress = &progress
+		return
+	}
 	g.rankProgress.Max = float64(max(progress.Total, 1))
 	g.rankProgress.SetValue(float64(progress.Processed))
 	if progress.Complete {
@@ -242,8 +246,16 @@ func (g *Overview) restoreVisitState(visit Visit) {
 	g.fireSelectionChanged()
 }
 func (g *Overview) flushRanked() {
-	if pending := g.pendingRanked; pending != nil && !g.marqueeDragging {
+	if g.marqueeDragging {
+		return
+	}
+	progress := g.pendingProgress
+	g.pendingProgress = nil
+	if pending := g.pendingRanked; pending != nil {
 		g.pendingRanked = nil
 		g.OpenRanked(*pending)
+	}
+	if progress != nil {
+		g.SetRankedProgress(*progress)
 	}
 }

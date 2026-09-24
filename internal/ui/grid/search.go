@@ -232,6 +232,12 @@ func (g *Overview) restoreHighlight(host int) {
 // active, and each half appears on its own: a selection built without ever
 // opening the search shows only its count, and vice versa.
 func (g *Overview) syncTopBar() {
+	// Dragged positions use the mouse-down frame. Keep the catcher's ancestor
+	// layout fixed until DragEnd or cancellation, including when a queued
+	// grouping result calls this from outside the marquee path.
+	if g.marqueeDragging {
+		return
+	}
 	defer func() {
 		if g.topBar == nil {
 			return
