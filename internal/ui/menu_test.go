@@ -728,8 +728,12 @@ func TestCloseFiles_CancelsScanInProgress(t *testing.T) {
 	v.scanOp.label.Show()
 	v.dropzone.Hide()
 	v.welcomeArt.Hide()
+	v.syncMenus()
+	if v.menus.CloseFiles().Disabled {
+		t.Fatal("Close Files should be enabled while the scan is active")
+	}
 
-	v.closeFiles()
+	v.menus.CloseFiles().Action()
 
 	if v.scanOp.active {
 		t.Error("closeFiles should cancel a scan in progress")
@@ -740,6 +744,9 @@ func TestCloseFiles_CancelsScanInProgress(t *testing.T) {
 	if !v.dropzone.Visible() || !v.welcomeArt.Visible() {
 		t.Error("expected the welcome drop zone back after closeFiles cancels a scan")
 	}
+	if !v.menus.CloseFiles().Disabled {
+		t.Error("Close Files should be disabled after its action cancels the scan")
+	}
 
 	settleToast(t, v) // cancelScan raises a "cancelled scanning" toast
 }
@@ -747,10 +754,9 @@ func TestCloseFiles_CancelsScanInProgress(t *testing.T) {
 // TestSyncMenus_KeepsFavoritesAddItemInStep guards the placement of
 // SetHasFiles inside syncMenus' changed branch (menu.go). Skipping it on an
 // unchanged sync is only safe because the Favorites "Add Current List" item
-// can move only on a turn where Close Files moved too - both are driven by
-// FileCount. If someone lifts SetHasFiles out of that branch, or Apply stops
-// assigning closeFiles.Disabled from NoFiles outright, this catches the drift
-// in whichever direction it happens.
+// can move only on a turn where the menu matrix moved too. In the idle states
+// below, both items are driven by FileCount; during scan/sort Close Files can
+// move independently. This catches drift in the loaded/cleared transitions.
 func TestSyncMenus_KeepsFavoritesAddItemInStep(t *testing.T) {
 	v := newTestViewer(t)
 

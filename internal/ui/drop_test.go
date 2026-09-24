@@ -63,6 +63,9 @@ func TestHandleDrop_NoSupportedImages(t *testing.T) {
 		uitest.FakeURI{FileName: "b.pdf", Ext: ".pdf"},
 	})
 	waitForScan(t, v)
+	if !v.menus.CloseFiles().Disabled {
+		t.Error("Close Files should be disabled once an unsupported scan ends without files")
+	}
 
 	if v.state.files != nil {
 		t.Errorf("files = %v, want nil when nothing dropped is a supported image", v.state.files)
@@ -402,8 +405,8 @@ func TestCancelScan_NoOpWhenNotScanning(t *testing.T) {
 	}
 }
 
-// TestCancelScan_CancelsInFlightScanWithNoFilesYet drives cancelScan
-// directly against the UI state handleDrop leaves in place while its scan
+// TestCancelScan_CancelsInFlightScanWithNoFilesYet drives Escape against
+// the UI state handleDrop leaves in place while its scan
 // is still in flight (token started, spinner/counter shown, drop zone hidden),
 // without racing handleDrop's own background goroutine to reproduce that
 // state - see the note on TestHandleDrop_SupersededScanGoroutineExits below
@@ -417,11 +420,18 @@ func TestCancelScan_CancelsInFlightScanWithNoFilesYet(t *testing.T) {
 	v.scanOp.label.Show()
 	v.dropzone.Hide()
 	v.welcomeArt.Hide()
+	v.syncMenus()
+	if v.menus.CloseFiles().Disabled {
+		t.Fatal("Close Files should be enabled during the initial scan")
+	}
 
-	v.cancelScan()
+	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
 	if v.scanOp.active {
 		t.Error("scanOp.active should be false after cancelScan")
+	}
+	if !v.menus.CloseFiles().Disabled {
+		t.Error("Close Files should be disabled after Escape cancels the initial scan")
 	}
 	if v.scanOp.spinner.Visible() || v.scanOp.label.Visible() {
 		t.Error("scan spinner/label should be hidden after cancelScan")
@@ -531,6 +541,12 @@ func TestHandleDrop_SupersededScanGoroutineExits(t *testing.T) {
 	v.handleDrop([]fyne.URI{root})
 	scanA := v.scanOp.done.Current()
 	waitFor(t, "the first directory listing to start", &listing)
+	if v.menus.CloseFiles().Disabled {
+		t.Error("Close Files should be enabled while the first directory scan is running")
+	}
+	if !v.menus.Save().Disabled || !v.menus.Export().Disabled || !v.favorites.Menu().Items[0].Disabled {
+		t.Error("file-dependent commands should remain disabled until files are committed")
+	}
 
 	dropAndWait(t, v, jpegB)
 	releaseListing()

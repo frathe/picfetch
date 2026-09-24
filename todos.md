@@ -12,6 +12,9 @@
   monitor connected during export cannot turn a targeted Linux request into
   a global wallpaper change.
 
+- Keep File > Close Files available during an initial scan or sort, then
+  disable it again when Escape cancels that work in an empty viewer.
+
 - Fixed "Reveal in file manager" on Linux for filenames containing commas.
 
 #### Internal

@@ -38,6 +38,7 @@ func (v *viewer) cancelScan() {
 		v.dropzone.Show()
 	}
 
+	v.syncMenus()
 	v.ForceRepaint()
 	v.ShowToast(lang.L("cancelled scanning"))
 }

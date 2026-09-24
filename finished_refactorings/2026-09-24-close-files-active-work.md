@@ -14,15 +14,17 @@ operations.
    Verify: `go test -tags no_emoji,nodynamic ./internal/ui -run 'TestCloseFilesItem_' -count=1`
 2. Other file-dependent commands remain disabled while no files are committed.
    Verify: `go test -tags no_emoji,nodynamic ./internal/ui/menus -run '^TestApply_FileItems$' -count=1`
-3. Scan and sort transitions publish the new menu state when work starts and
-   ends.
-   Verify: `go test -tags no_emoji,nodynamic ./internal/ui/... -count=1`
+3. Scan and sort transitions publish the new menu state when work starts,
+   finishes, or is cancelled with Escape.
+   Verify: `go test -tags no_emoji,nodynamic ./internal/ui -run '^(TestHandleDrop_NoSupportedImages|TestHandleDrop_SupersededScanGoroutineExits|TestCancelScan_CancelsInFlightScanWithNoFilesYet|TestHandleKeyEvent_EscapeDuringFirstDropReorderDoesNotCloseWindow)$' -count=1`
 
 ## Implementation
 
 - Extend the menu snapshot with the active scan/sort fact without changing the
   meaning of `NoFiles` for other commands.
-- Synchronize menus at scan and sort lifecycle boundaries.
+- Synchronize menus at scan and sort lifecycle boundaries, including Escape
+  cancellation. Refresh the sort-completion state before its callback starts
+  image loading, which may complete on a worker under Fyne's test driver.
 - Extend the existing menu-state tests; no new top-level UI test or shard entry
   is required.
 

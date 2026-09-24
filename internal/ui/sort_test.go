@@ -287,6 +287,10 @@ func TestHandleKeyEvent_EscapeDuringFirstDropReorderDoesNotCloseWindow(t *testin
 
 	v.sortOp.lifecycle.begin()
 	v.sortOp.active = true
+	v.syncMenus()
+	if v.menus.CloseFiles().Disabled {
+		t.Fatal("Close Files should be enabled during the initial sort")
+	}
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
@@ -295,6 +299,9 @@ func TestHandleKeyEvent_EscapeDuringFirstDropReorderDoesNotCloseWindow(t *testin
 	}
 	if v.sortOp.active {
 		t.Error("Escape's cancelSort should clear v.sortOp.active")
+	}
+	if !v.menus.CloseFiles().Disabled {
+		t.Error("Close Files should be disabled after Escape cancels the initial sort")
 	}
 }
 

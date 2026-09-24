@@ -152,8 +152,8 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 	v.sortOp.finish()
 	v.sortModeBefore = nil
 
-	onDone(ordered)
 	v.syncMenus()
+	onDone(ordered)
 }
 
 // cancelSort aborts a reorder in progress (Escape while v.sortOp.active is
@@ -180,6 +180,7 @@ func (v *viewer) cancelSort() {
 		v.dropzone.Show()
 	}
 
+	v.syncMenus()
 	v.ForceRepaint()
 	v.ShowToast(lang.L("cancelled sorting"))
 }
