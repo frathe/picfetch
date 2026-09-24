@@ -42,7 +42,8 @@ TEST_CAPTURE ?= /tmp/picfetch-test-$(TEST_PARTITION).json
 TEST_ARTIFACTS_DIR ?= .scratch/race-runs
 CI_RUN ?=
 CI_WORKFLOW ?= CI
-CI_BRANCH ?= $(shell git branch --show-current)
+CI_BRANCH ?=
+export CI_RUN CI_WORKFLOW CI_BRANCH
 COVERAGE_DIR := coverage
 COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
@@ -364,13 +365,15 @@ coverage: ## Generate HTML source-line coverage from the full unsharded Docker s
 ci-failures: ## Aggregate failed-test details from the latest completed CI run (optional: CI_RUN=ID)
 	@set -eu; \
 	command -v gh >/dev/null 2>&1 || { echo "GitHub CLI (gh) is required." >&2; exit 1; }; \
-	branch="$(CI_BRANCH)"; \
-	run="$(CI_RUN)"; \
+	branch="$${CI_BRANCH:-}"; \
+	if [ -z "$$branch" ]; then branch="$$(git branch --show-current)"; fi; \
+	run="$${CI_RUN:-}"; \
+	workflow="$${CI_WORKFLOW:-CI}"; \
 	if [ -z "$$run" ]; then \
 		if [ -z "$$branch" ]; then echo "Cannot detect the current branch; pass CI_RUN=<ID>." >&2; exit 1; fi; \
-		run="$$(gh run list --workflow "$(CI_WORKFLOW)" --branch "$$branch" --status completed --limit 1 --json databaseId --jq '.[0].databaseId')"; \
+		run="$$(gh run list --workflow "$$workflow" --branch "$$branch" --status completed --limit 1 --json databaseId --jq '.[0].databaseId')"; \
 	fi; \
-	if [ -z "$$run" ]; then echo "No completed $(CI_WORKFLOW) run found for branch $$branch." >&2; exit 1; fi; \
+	if [ -z "$$run" ]; then echo "No completed $$workflow run found for branch $$branch." >&2; exit 1; fi; \
 	conclusion="$$(gh run view "$$run" --json conclusion --jq '.conclusion')"; \
 	url="$$(gh run view "$$run" --json url --jq '.url')"; \
 	echo "CI run $$run ($$conclusion)"; \
