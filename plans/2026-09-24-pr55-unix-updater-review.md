@@ -61,3 +61,14 @@ its results are checked against GitHub. Budget: one scout, one full hosted suite
   file. A file left by a crash within that interval is cleaned on a later
   launch after it has aged; no timed background cleanup runs while PicFetch is
   open.
+
+## Codex review round 2
+
+The code review on `63c0181` found that the alphanumeric filename filter was
+broader than Go's generated temporary suffix and could delete an unrelated
+stale `.picfetch.new-backup` or `.Info.plist.new-local`. The local Go 1.27.1
+`os.CreateTemp` appends a canonical decimal `uint32`. The cleanup regression
+failed first for alphabetic, over-range, and leading-zero lookalikes; then the
+matcher was restricted to that format. The test also creates a real
+`os.CreateTemp` sibling so a future toolchain format change fails visibly.
+The security review and CI results for the next commit remain pending.

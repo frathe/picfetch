@@ -5,6 +5,7 @@ package update
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -58,20 +59,9 @@ func sweepSiblingDirectory(dir, prefix string) {
 }
 
 func temporarySuffix(suffix string) bool {
-	if suffix == "" {
-		return false
-	}
-	for i := range len(suffix) {
-		c := suffix[i]
-		switch {
-		case c >= '0' && c <= '9':
-		case c >= 'A' && c <= 'Z':
-		case c >= 'a' && c <= 'z':
-		default:
-			return false
-		}
-	}
-	return true
+	// os.CreateTemp appends a decimal uint32 without leading zeroes.
+	n, err := strconv.ParseUint(suffix, 10, 32)
+	return err == nil && strconv.FormatUint(n, 10) == suffix
 }
 
 // awaitPollInterval trades a little launch latency for not spinning: the

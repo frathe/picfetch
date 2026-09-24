@@ -161,38 +161,63 @@ func TestSweepLeftovers_RemovesInterruptedUnixTemporarySiblings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	binaryTemp := filepath.Join(filepath.Dir(dest), ".picfetch.new-abc123")
-	plistTemp := filepath.Join(contents, ".Info.plist.new-def456")
+	binaryTemp := filepath.Join(filepath.Dir(dest), ".picfetch.new-123456789")
+	plistTemp := filepath.Join(contents, ".Info.plist.new-987654321")
+	old := time.Now().Add(-10 * time.Minute)
 	for _, path := range []string{binaryTemp, plistTemp} {
 		if err := os.WriteFile(path, []byte("interrupted update"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		old := time.Now().Add(-10 * time.Minute)
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	generated, err := os.CreateTemp(filepath.Dir(dest), ".picfetch.new-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generatedTemp := generated.Name()
+	if err := generated.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(generatedTemp, old, old); err != nil {
+		t.Fatal(err)
+	}
+	lookalikes := []string{
+		filepath.Join(filepath.Dir(dest), ".picfetch.new-backup"),
+		filepath.Join(contents, ".Info.plist.new-local"),
+		filepath.Join(filepath.Dir(dest), ".picfetch.new-4294967296"),
+		filepath.Join(filepath.Dir(dest), ".picfetch.new-0123"),
+	}
+	for _, path := range lookalikes {
+		if err := os.WriteFile(path, []byte("not an updater temporary"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.Chtimes(path, old, old); err != nil {
 			t.Fatal(err)
 		}
 	}
 	backup := dest + ".old"
 	unrelated := filepath.Join(filepath.Dir(dest), ".picfetch.new-abc123.bak")
-	recent := filepath.Join(filepath.Dir(dest), ".picfetch.new-fresh789")
+	recent := filepath.Join(filepath.Dir(dest), ".picfetch.new-31415926")
 	target := filepath.Join(dir, "target")
 	for _, path := range []string{backup, unrelated, recent, target} {
 		if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	link := filepath.Join(filepath.Dir(dest), ".picfetch.new-link123")
+	link := filepath.Join(filepath.Dir(dest), ".picfetch.new-27182818")
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
 	}
-	matchingDir := filepath.Join(contents, ".Info.plist.new-dir123")
+	matchingDir := filepath.Join(contents, ".Info.plist.new-16180339")
 	if err := os.Mkdir(matchingDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
 
 	sweepLeftovers(dest)
 
-	for _, path := range []string{binaryTemp, plistTemp} {
+	for _, path := range []string{binaryTemp, plistTemp, generatedTemp} {
 		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("interrupted staging file %q survived: %v", path, err)
 		}
@@ -200,6 +225,11 @@ func TestSweepLeftovers_RemovesInterruptedUnixTemporarySiblings(t *testing.T) {
 	for _, path := range []string{dest, backup, unrelated, recent, target, link, matchingDir} {
 		if _, err := os.Lstat(path); err != nil {
 			t.Errorf("sweep removed %q: %v", path, err)
+		}
+	}
+	for _, path := range lookalikes {
+		if _, err := os.Lstat(path); err != nil {
+			t.Errorf("sweep removed unrelated file %q: %v", path, err)
 		}
 	}
 }
