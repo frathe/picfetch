@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 244 entries, 470.520s projected weight sum
+# ui-1: 246 entries, 470.520s projected weight sum
 # ui-2: 248 entries, 470.530s projected weight sum
 # ui-3: 210 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -163,6 +163,8 @@ TestMosaicMenu_FollowsGridResultImmediately	ui-1
 TestMosaicSnapshot_DoesNotRetargetAfterGridMutation	ui-1
 TestMosaicSources_HiddenDuplicatesUseHighestResolution	ui-1
 TestMosaicWallpaper_CleanupIsScopedPerTarget	ui-1
+TestMosaicWallpaper_FinalInspectionFailureClearsCopy	ui-1
+TestMosaicWallpaper_RechecksSoloAfterCopy	ui-1
 TestMosaicWindow_DirectInvocationGuardsEmptySources	ui-1
 TestOpenChooser_AdmissionRunsBeforeNativeWork	ui-1
 TestOpenChooser_CurrentErrorWaitsForUIDelivery	ui-1
@@ -412,8 +414,8 @@ TestMemoryLimitGettersAndSetters	ui-2
 TestMetadataRemovalRefreshesCurrentAliasWithoutLosingRotation	ui-2
 TestMosaicPreferences_RestoreAndCurrentSnapshot	ui-2
 TestMosaicSources_UsesCompleteFilteredResultWithoutSelection	ui-2
+TestMosaicWallpaper_CurrentSingleDisplayAuthorizesSolo	ui-2
 TestMosaicWallpaper_PassesExactResultAndOpaqueTarget	ui-2
-TestMosaicWallpaper_SoloForwardsToTheRequest	ui-2
 TestMosaicWindow_OpensFromMenuWithDefensiveSnapshot	ui-2
 TestNavigationDoesNotInvalidateScan	ui-2
 TestOpenReleasesPage_HandsTheReleasesURLToTheApp	ui-2

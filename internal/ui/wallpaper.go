@@ -11,6 +11,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -80,7 +81,7 @@ func (v *viewer) setAsWallpaper() {
 		defer done()
 		defer v.wallpaperBusy.Store(false)
 
-		if err := v.applyWallpaper(context.Background(), img, src.Name(), "", false); err != nil {
+		if err := v.applyWallpaper(context.Background(), img, src.Name(), ""); err != nil {
 			v.reportWallpaperError(err)
 			return
 		}
@@ -92,10 +93,9 @@ func (v *viewer) setAsWallpaper() {
 
 // applyWallpaper is the single write-then-set lifecycle used by both viewer
 // pixels and immutable mosaic-result pixels. The caller owns wallpaperBusy.
-// solo tells a platform that cannot truthfully address one display among
-// several that target is nonetheless the only display currently attached, so
-// honoring it as a global change is safe - see wallpaper.Request.Solo.
-func (v *viewer) applyWallpaper(ctx context.Context, img image.Image, label string, target displays.ID, solo bool) error {
+// A nonempty target is revalidated after encoding because only the topology
+// immediately before platform dispatch can authorize a Linux solo fallback.
+func (v *viewer) applyWallpaper(ctx context.Context, img image.Image, label string, target displays.ID) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -104,6 +104,27 @@ func (v *viewer) applyWallpaper(ctx context.Context, img image.Image, label stri
 		return fmt.Errorf("write wallpaper copy for %q: %w", label, err)
 	}
 
+	if err := ctx.Err(); err != nil {
+		_ = os.Remove(dest)
+		return err
+	}
+	solo := false
+	if target != "" {
+		var topology displays.Snapshot
+		var inspectErr error
+		fyne.DoAndWait(func() {
+			topology, inspectErr = v.InspectMosaicDisplays()
+		})
+		if inspectErr != nil {
+			_ = os.Remove(dest)
+			return inspectErr
+		}
+		if !slices.ContainsFunc(topology.Displays, func(display displays.Display) bool { return display.ID == target }) {
+			_ = os.Remove(dest)
+			return errors.New(lang.L("The selected display is no longer attached. Choose another display."))
+		}
+		solo = len(topology.Displays) == 1
+	}
 	if err := ctx.Err(); err != nil {
 		_ = os.Remove(dest)
 		return err
@@ -176,10 +197,9 @@ func wallpaperScope(target displays.ID) string {
 
 // SetMosaicWallpaper applies the immutable latest result to the selected
 // display, or all displays when target is explicitly empty. It deliberately
-// never reads the main viewer image. solo is the caller's confirmation that
-// target is currently the only attached
-// display - see wallpaper.Request.Solo for why that matters to Linux.
-func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID, solo bool) error {
+// never reads the main viewer image. For a selected target, it verifies the
+// current display topology after writing the PNG and before platform dispatch.
+func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID) error {
 	pixels := result.Image()
 	if pixels == nil {
 		return errors.New("mosaic wallpaper has no generated pixels")
@@ -189,7 +209,7 @@ func (v *viewer) SetMosaicWallpaper(ctx context.Context, result mosaic.Result, t
 	}
 	defer v.wallpaperBusy.Store(false)
 
-	return v.applyWallpaper(ctx, pixels, lang.L("Image Mosaic"), target, solo)
+	return v.applyWallpaper(ctx, pixels, lang.L("Image Mosaic"), target)
 }
 
 // reportWallpaperError toasts a failed wallpaper change from the background

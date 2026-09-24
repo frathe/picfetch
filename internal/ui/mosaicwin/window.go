@@ -76,11 +76,9 @@ type Host interface {
 	InspectMosaicDisplays() (displays.Snapshot, error)
 	AfterFileExported(imaging.WriteResult)
 	// SetMosaicWallpaper accepts an empty target for an explicit all-displays
-	// action. A solo argument confirms a nonempty target is
-	// currently the only attached display - see wallpaper.Request.Solo for why
-	// that lets a platform that can't truthfully address one display among
-	// several honor it anyway.
-	SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID, solo bool) error
+	// action. The host reinspects displays after encoding the wallpaper copy
+	// and determines whether a nonempty target is the only attached display.
+	SetMosaicWallpaper(ctx context.Context, result mosaic.Result, target displays.ID) error
 }
 
 // Window is the one secondary mosaic workflow window.
@@ -708,16 +706,20 @@ func (w *Window) SetWallpaper() {
 	if !w.PreviewActionsEnabled() || w.host == nil || (w.target == "" && !w.wallpaperAllDisplays) {
 		return
 	}
+	if !w.wallpaperAllDisplays {
+		if _, attached := w.refreshSelectedDisplay(); !attached {
+			return
+		}
+	}
 	result, target := w.result, w.target
-	solo := len(w.snapshot.Displays.Displays) == 1
 	if w.wallpaperAllDisplays {
-		target, solo = "", false
+		target = ""
 	}
 	ctx, revision := w.actionLifecycle.begin()
 	w.actionBusy = true
 	w.syncActions()
 	w.workers.Go(func() {
-		err := w.host.SetMosaicWallpaper(ctx, result, target, solo)
+		err := w.host.SetMosaicWallpaper(ctx, result, target)
 		w.ui.Do(func() {
 			if !w.actionLifecycle.current(revision) || !w.Opened() {
 				return
