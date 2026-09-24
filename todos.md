@@ -8,6 +8,9 @@
 
 #### Bugfix
 
+- Prevent planted `.new` symlinks from redirecting Unix in-app updates, and
+  reclaim stale staging files left by an interrupted update.
+
 - Recheck the selected mosaic wallpaper display after writing its PNG, so a
   monitor connected during export cannot turn a targeted Linux request into
   a global wallpaper change.

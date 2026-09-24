@@ -104,7 +104,7 @@ func copyToTemporarySibling(src, dest string, mode os.FileMode) (name string, er
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	out, err := os.CreateTemp(dir, "."+filepath.Base(dest)+".new-*")
+	out, err := os.CreateTemp(dir, temporarySiblingPrefix(dest)+"*")
 	if err != nil {
 		return "", err
 	}
@@ -140,6 +140,10 @@ func copyToTemporarySibling(src, dest string, mode os.FileMode) (name string, er
 	}
 	out = nil
 	return name, nil
+}
+
+func temporarySiblingPrefix(dest string) string {
+	return "." + filepath.Base(dest) + ".new-"
 }
 
 func rollbackUnixBinary(dest, old string, cause error) error {

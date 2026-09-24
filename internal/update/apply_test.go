@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestApplyUnix_ReplacesDest(t *testing.T) {
@@ -145,6 +146,60 @@ func TestApplyUnix_DoesNotFollowPlantedTemporarySymlinks(t *testing.T) {
 		}
 		if info.Mode().Perm() != 0o600 {
 			t.Errorf("%s mode = %o, want 0600", path, info.Mode().Perm())
+		}
+	}
+}
+
+func TestSweepLeftovers_RemovesInterruptedUnixTemporarySiblings(t *testing.T) {
+	dir := t.TempDir()
+	contents := filepath.Join(dir, "PicFetch.app", "Contents")
+	dest := filepath.Join(contents, "MacOS", "picfetch")
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("installed"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	binaryTemp := filepath.Join(filepath.Dir(dest), ".picfetch.new-abc123")
+	plistTemp := filepath.Join(contents, ".Info.plist.new-def456")
+	for _, path := range []string{binaryTemp, plistTemp} {
+		if err := os.WriteFile(path, []byte("interrupted update"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-10 * time.Minute)
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	backup := dest + ".old"
+	unrelated := filepath.Join(filepath.Dir(dest), ".picfetch.new-abc123.bak")
+	recent := filepath.Join(filepath.Dir(dest), ".picfetch.new-fresh789")
+	target := filepath.Join(dir, "target")
+	for _, path := range []string{backup, unrelated, recent, target} {
+		if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(filepath.Dir(dest), ".picfetch.new-link123")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	matchingDir := filepath.Join(contents, ".Info.plist.new-dir123")
+	if err := os.Mkdir(matchingDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	sweepLeftovers(dest)
+
+	for _, path := range []string{binaryTemp, plistTemp} {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("interrupted staging file %q survived: %v", path, err)
+		}
+	}
+	for _, path := range []string{dest, backup, unrelated, recent, target, link, matchingDir} {
+		if _, err := os.Lstat(path); err != nil {
+			t.Errorf("sweep removed %q: %v", path, err)
 		}
 	}
 }
