@@ -43,6 +43,11 @@ TEST_ARTIFACTS_DIR ?= .scratch/race-runs
 CI_RUN ?=
 CI_WORKFLOW ?= CI
 CI_BRANCH ?=
+# Export overrides as literal data; recursive Make expansion would execute
+# functions such as $(shell ...) supplied in a command-line value.
+override CI_RUN := $(value CI_RUN)
+override CI_WORKFLOW := $(value CI_WORKFLOW)
+override CI_BRANCH := $(value CI_BRANCH)
 export CI_RUN CI_WORKFLOW CI_BRANCH
 COVERAGE_DIR := coverage
 COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out

@@ -775,13 +775,14 @@ func TestMakeCIFailuresFindsLatestCompletedRunOrAcceptsRunID(t *testing.T) {
 	}
 }
 
-func TestMakeCIFailuresDoesNotExecuteMakeVariableShellSyntax(t *testing.T) {
+func TestMakeCIFailuresTreatsVariableValuesAsData(t *testing.T) {
 	root := filepath.Join("..", "..")
 	bin := t.TempDir()
 	marker := filepath.Join(t.TempDir(), "injected")
 	gh := filepath.Join(bin, "gh")
 	writeTestFile(t, gh, `#!/bin/sh
 case "$*" in
+  *"--json databaseId"*) echo 33800732837 ;;
   *"--json conclusion"*) echo failure ;;
   *"--json url"*) echo https://example.invalid/run ;;
   *"--log-failed"*) : ;;
@@ -802,6 +803,23 @@ esac
 	}
 	if err != nil {
 		t.Fatalf("make ci-failures: %v\n%s", err, output)
+	}
+
+	for _, name := range []string{"CI_RUN", "CI_BRANCH", "CI_WORKFLOW"} {
+		t.Run(name, func(t *testing.T) {
+			makeMarker := filepath.Join(t.TempDir(), "make-function-executed")
+			makePayload := "$(shell touch " + makeMarker + " && printf 33800732837)"
+			command := exec.Command("make", "--no-print-directory", "ci-failures", name+"="+makePayload)
+			command.Dir = root
+			command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			output, err := command.CombinedOutput()
+			if _, statErr := os.Stat(makeMarker); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("Make function in %s was executed: stat marker: %v", name, statErr)
+			}
+			if err != nil {
+				t.Fatalf("make ci-failures with Make function in %s: %v\n%s", name, err, output)
+			}
+		})
 	}
 }
 
