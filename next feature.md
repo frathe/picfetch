@@ -17,6 +17,10 @@ Design decisions agreed through Q1-Q25 of the interview with Ronin on
 qualification have not started. Location Suggestions remains a separate future
 idea, not part of the accepted MVP. Domain terms are in [CONTEXT.md](CONTEXT.md).
 
+The published [Location Map specification](.scratch/location-map/spec.md) is the
+implementation source of truth. This document retains the design interview and
+the separate future-feature ideas.
+
 ---
 
 # Phase 1: Location Map MVP

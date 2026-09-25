@@ -34,10 +34,11 @@
 
 ## Open
 
-- **Location Map MVP:** Design interview complete; behavior recorded in
-  [the feature design](<next feature.md>). Implementation planning and code are
-  pending. Include duplicate-aware GPS fallback, Favorite-owned GPS persistence,
-  bounded tile residency and 10k qualification; Ronin owns the 30k stress test.
+- **Location Map MVP:** [Specification](.scratch/location-map/spec.md) published
+  locally as `ready-for-agent`; implementation planning and code are pending.
+  Include duplicate-aware GPS fallback, Favorite-owned GPS persistence, bounded
+  tile residency and 10k qualification; Ronin owns the 30k stress test. The
+  [design interview](<next feature.md>) retains the original decisions.
 
 ## Deferred
 
