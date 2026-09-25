@@ -100,6 +100,29 @@ passed (`internal/ui`, 90.354s). Grid session-counter regression passed (1.310s)
 including its deliberate negative verification. `make fmt-check`, exact Qodana
 test-exclusion validation and release-note synchronization checks passed.
 
+### Agent workflow documentation follow-up
+
+Ronin requested the new local Qodana usage in `AGENTS.md`'s GitHub review loop.
+The Writing for Agents skill keeps one local-analysis procedure there, with the
+existing research guide as its setup/troubleshooting reference. The procedure
+prefers IDE-local Qodana with existing configuration and uploads off; when that
+cannot run, it accepts documented GoLand inspections of every changed code file,
+including weak warnings, with no claim of identical profile coverage.
+
+This session used that fallback: desktop-control startup failed before any
+GoLand dialog interaction, while GoLand's inspection tools completed all seven
+changed Go files listed in the preceding round. The only remaining findings
+were the two previously excluded test-duplication fragments in `menu_test.go`.
+Tool: GoLand `get_file_problems(errorsOnly=false)`, no timeouts; the tool does
+not expose the active profile's name, so no `qodana.starter` parity is claimed.
+File scope: `autoupdate.go`, `run.go`, `load.go`, `locationmap_test.go`,
+`menu_test.go`, `savework_test.go` under `internal/ui`, plus
+`internal/ui/grid/dupes_test.go`.
+The inspected code is pushed as `fe04238459eea9c2df965773d1c086e8eb353d8e`;
+this follow-up changes documentation only. `make vet` and `make build` also
+passed before that push. All three review threads have evidence-backed replies
+and are resolved; fresh reviews started automatically on that head.
+
 ## Contract and seams
 
 Retain the approved viewer action/render, controlled source I/O, tile HTTP,

@@ -7,7 +7,7 @@
 - Read `ARCHITECTURE.md` before code: it is the authoritative package map and “where to look for X” index.
 - Update `ARCHITECTURE.md` in the same change when packages are added, removed, renamed, or files move between packages.
 - Open work belongs in `todos.md`; do not add `TODO`/`FIXME` comments to source.
-- Do not run `git commit` unless the user explicitly authorizes commits or invokes the GitHub Cortex review loop below. Otherwise end with a suggested commit message for the user.
+- Do not run `git commit` unless the user explicitly authorizes commits or invokes the GitHub Codex review loop below. Otherwise end with a suggested commit message for the user.
 
 ## Collaboration
 
@@ -27,14 +27,16 @@ release unless the user separately requests that action.
 
 1. Identify the current branch's open PR with `gh`, check the working tree, and
    read every unresolved review thread, including threads from older commits.
-   Inspect Codex code/security reports, Qodana, CodeQL, and all CI checks.
+   Inspect Codex code/security reports, CodeQL, all CI checks, and the local
+   static-analysis results described below.
 2. Validate each finding against the current code and repository conventions.
    The lead owns the assessment and fixes. Fix confirmed defects and add useful
    regression coverage; explain rejected or already-fixed findings with concrete
    evidence. Do not change code merely to satisfy an incorrect report.
 3. Run the changed tests and focused regressions locally. Let GitHub CI run the
    complete suite; do not duplicate the broad local race suite for this workflow.
-   Keep formatting, test exclusions, shard assignments, and docs current.
+   Run local static analysis as described below. Keep formatting, test
+   exclusions, shard assignments, and docs current.
 4. Commit and push the fixes. Reply to each addressed thread with the commit,
    disposition, and verification evidence, then resolve it. Keep unrelated user
    edits out of the commit.
@@ -45,12 +47,14 @@ release unless the user separately requests that action.
    bot mention after posting the finding's disposition.
    This repository's Codex connector advertises `@codex review` check the live bot summary if that trigger changes. Do not
    repeatedly post requests while a review is queued or running.
-6. Inspect fresh Qodana/SARIF findings even when the workflow is green or neutral,
-   and fetch failed CI job logs. Validate, fix, test, push, and reply again as
-   needed. Use the post-suppression Qodana report as described below.
+6. Inspect fresh local-analysis findings, including weak warnings, and fetch
+   failed CI job logs. Validate, fix, test, push, and reply again as needed.
+   When a Qodana SARIF report is available, use its post-suppression results
+   as described under "Reading a Qodana report", not the summary CSV totals.
 7. Finish only after a fresh Codex code review reports no findings on the latest
    pushed commit, the security review has completed without actionable findings,
-   Qodana/CodeQL results are clear of actionable findings, and required CI passes.
+   local static analysis and CodeQL are clear of actionable findings, and required
+   CI passes.
    A review containing findings is not a clean final round merely because the
    lead later fixes or dismisses them: complete another review after those
    dispositions. A clean review of an older commit does not count. If the user
@@ -63,6 +67,34 @@ Keep `todos.md` and the applicable plan/evidence record current, and give concis
 progress updates while waiting. Use the existing SDD/TDD working agreement for
 implementation; this workflow's local-test and commit authorization rules take
 precedence over its default handoff procedure.
+
+### Local static analysis while Qodana CI is paused
+
+Ronin disabled Qodana CI on 2026-09-25 after its trial subscription expired.
+Keep the workflow, `qodana.yaml`, build-tag configuration and exact test exclusions
+for local use and possible restoration. Treat the disabled CI gate as explicitly
+waived, not passed; re-enable it only at Ronin's direction.
+
+Use GoLand's **Tools -> Qodana -> Try Code Analysis with Qodana** (or **Problems ->
+Qodana -> Try locally**) with the existing `qodana.yaml` and cloud-result uploads
+off. This IDE-local mode does not need a separate Qodana subscription; moving
+the standalone Go CLI/Docker scanner locally does not remove its license check.
+Before setting up or troubleshooting local analysis, read
+[the local inspection guide](docs/local-qodana-inspections-2026-09-25.md).
+
+If IDE-local Qodana cannot run, use GoLand's **Code -> Inspect Code...** or its
+inspection tools on every changed code file, including weak warnings. Record
+the fallback and its scope; GoLand's profile is not an exact substitute for
+`qodana.starter` and `qodana.yaml` exclusions. Preserve justified source-local
+suppressions; assess intentional test duplication against the existing exact
+exclusions rather than refactoring tests merely to lower a count.
+
+After fixes, re-run affected inspections. Record the analyzed revision, file
+scope, tool/profile, findings and dispositions in the plan/evidence record.
+Timeouts, skipped files and incomplete scans remain unverified, never a clean
+gate. Documentation-only commits can carry forward unchanged-code inspection
+evidence with its original revision stated. CodeQL, fresh Codex code/security
+reviews and the full GitHub test suite remain required on the latest commit.
 
 ## Architecture and Data Flow
 
@@ -148,7 +180,7 @@ precedence over its default handoff procedure.
   counts one result per duplicate *cluster*; `log/qodana_inspections_summary.csv` counts
   every finding *before* both source-level suppressions and `qodana.yaml`'s config-level
   scope exclusions, and one row per *fragment*. The two disagree by design — compare
-  fragment sets, never totals. CI runs the `qodana.starter` profile, not the IDE Project
+  fragment sets, never totals. The retained CI configuration uses `qodana.starter`, not the IDE Project
   Default, so IDE and CI totals are not comparable either.
 
 ## Agent skills
