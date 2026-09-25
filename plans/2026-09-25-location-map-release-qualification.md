@@ -3,7 +3,37 @@
 Ronin approved closing the release gaps, with Pico launching a probeable client
 and Ronin loading the images and performing the interactions. This is a Deep
 continuation of the existing Location Map plan, not authorization to commit,
-push, open a PR, change OS permissions, or release.
+push, open a PR, change OS permissions, or release. The subsequent authorization
+below supersedes that initial publishing restriction, not the release restriction.
+
+## 2026-09-25 maintainer acceptance and PR review loop
+
+Ronin explicitly closed the performance gate: "3 mark as done ... it is running
+butter smooth!". Performance qualification is **done by maintainer acceptance**
+of the recorded 50,672-image run and later 441-image updated-client smoke test.
+Exact 10k latency/30k-count protocols, input-to-render samples and repeated
+warm/reopen measurements are waived for this release, not represented as run or
+passed. The formal runner/checker stays strict; no fabricated report is created.
+
+Ronin assigned complete verification to the GitHub PR and authorized push,
+PR creation and the GitHub Codex review loop. Preserve his existing `d337e10`
+commit; commit the acceptance record, push `feature/image-map`, create a PR against
+the repository default branch, and follow code/security reviews plus CI,
+Qodana post-suppression SARIF and CodeQL. T0 validates/fixes findings with focused
+regressions and GoLand inspection, replies/resolves threads, then obtains a fresh
+clean review on the latest commit. No full local race rerun, merge or release.
+Existing composite coverage gaps are not silently waived by performance approval.
+
+Review skill adaptation: use standards/spec axes, but the explicit repository
+workflow overrides that skill's parallel-reviewer default and fixed-point prompt.
+The PR merge-base is the comparison point; all assessment and fixes remain T0.
+One optional T3 Luna/medium scout may inspect three read-only historical PR API
+resources (summary/reviews, comments, checks) to identify Codex code/security
+completion formats and review trigger. G1 <=25-line prompt; G2 exact `gh pr view`
+and `gh api` locators independently verifiable; G3 no writes and three resources;
+G4 independent API evidence while T0 publishes; G5 remote review-report format is
+new context. S/W: bounded report-format interpretation, no code or verdicts.
+Budget: at most one scout, no delegated reviews/fixes, no local full-suite run.
 
 ## Contract and seams
 
@@ -238,5 +268,7 @@ This build adds keyboard selection/Shift-pan and duplicate progress. Ronin's
 native smoke verdict: "looks good". The observer reports 441 admitted images;
 record this as acceptance of the updated client, not another large-scale run or
 an inferred checklist of individual actions. No repeat large benchmark is
-demanded. Close the client to finalize source-free observations. Formal latency,
-native Linux/amd64 verification and the listed composite coverage gaps stay open.
+demanded. Close the client to finalize source-free observations. At this handoff,
+formal latency, native Linux/amd64 verification and composite coverage stayed open;
+the subsequent maintainer decision above closes performance by acceptance and
+assigns complete verification to the PR. Composite coverage is not waived.

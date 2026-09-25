@@ -56,7 +56,8 @@
   for Map/Explorer and keyboard photo/cluster selection with Enter to open.
   Keyboard-only use is a standing user goal: the map path now covers entry,
   directional selection, offscreen targets, zoom/Fit All and return navigation.
-  Ticket audit checks 45/64 complete supported criteria; per-ticket comments
+  Ticket audit checks 49/64 criteria (45 previously verified, four closed by
+  explicit maintainer performance acceptance); per-ticket comments
   retain missing composite integration coverage instead of treating existing
   passing parent test names as proof of absent scenarios.
   Ronin explicitly accepted the tested 50,672-image build as smooth enough for
@@ -64,10 +65,12 @@
   recorded in ticket 13. That run predates the new keyboard/progress controls.
   Ronin then accepted the updated keyboard/progress client's native smoke test
   (441 admitted images) with "looks good"; that build is recorded separately.
-  Remaining gates include formal 10k latency evidence, still-uncovered composite
-  cases, native Linux/amd64 full verification and the
-  earlier IDE build-tag inspection limitation. No passing exact-30k/10k formal
-  checker result is claimed or inferred from the successful manual trial.
+  Ronin explicitly marked performance done: "it is running butter smooth!".
+  Exact-10k/30k measurement protocols are waived for this release, not measured
+  passes. Complete native Linux/amd64 verification moves to the GitHub PR.
+  Remaining work: the authorized PR/Codex review loop, still-uncovered composite
+  cases and the earlier IDE build-tag inspection limitation. No merge or release
+  is authorized by the review loop.
   [Model routing](.scratch/location-map/model-routing.md) assigns bounded
   subagent candidates while retaining lead-owned integration and review.
   Include duplicate-aware GPS fallback, Favorite-owned GPS persistence, bounded
