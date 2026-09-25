@@ -34,6 +34,11 @@
 
 ## Open
 
+- **Location Map MVP:** Design interview complete; behavior recorded in
+  [the feature design](<next feature.md>). Implementation planning and code are
+  pending. Include duplicate-aware GPS fallback, Favorite-owned GPS persistence,
+  bounded tile residency and 10k qualification; Ronin owns the 30k stress test.
+
 ## Deferred
 
 ### Fyne upgrade deferred
@@ -59,9 +64,12 @@ retirement.
   do not justify the security risk and maintenance burden of a custom or
   trimmed verifier. The refactoring plan and upgrade watch have been removed.
 
-- **Retained decoded map tiles (MA-025):** Accepted by the user on 2026-09-09. The map loads only when opened, and
-  checking the geolocation of thousands of images is outside expected use. The upstream decoded-tile cache remains
-  unbounded; its long-session impact is unmeasured. No further measurement or implementation work is planned.
+- **Retained decoded EXIF map tiles (MA-025):** Accepted by the user on 2026-09-09
+  for occasional single-photo EXIF lookups. The upstream decoded-tile cache is
+  unbounded and its long-session impact remains unmeasured. The new Location Map
+  changes the scale assumption: bounded tile residency and sustained browsing
+  measurements belong to that feature's open work above. The original decision
+  does not qualify collection-scale map browsing.
 
 - There is a bug in the Windows Version: WHen in Gridview, multiselect via the space key works, but when trying it with
   mouse and Ctrl key, it does not. Holding the Ctrl key down and clicking on an image does not select it but instead
