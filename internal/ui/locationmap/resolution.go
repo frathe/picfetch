@@ -1,6 +1,7 @@
 package locationmap
 
 import (
+	"context"
 	"math"
 
 	"github.com/frathe/picfetch/internal/imaging"
@@ -28,10 +29,18 @@ type LocationResolution struct {
 	Outcome    LocationOutcome
 }
 
+// Refuse unproven fallback rather than hold a worker on quadratic agreement.
+const maxLocationComparisons = 1000000
+
 // ResolveLocation uses a representative's location, or a location on which all
 // readable donors agree. It leaves non-location metadata with the representative.
-func ResolveLocation(representative LocationCandidate, others []LocationCandidate) LocationResolution {
+// Canceled or over-budget agreement stays unreadable, without borrowing GPS.
+func ResolveLocation(ctx context.Context, representative LocationCandidate, others []LocationCandidate) LocationResolution {
 	result := LocationResolution{Metadata: representative.Metadata, DonorIndex: -1}
+	if ctx.Err() != nil {
+		result.Outcome = LocationUnreadable
+		return result
+	}
 	if validLocation(representative.Metadata) {
 		result.Outcome = LocationLocated
 		return result
@@ -42,21 +51,52 @@ func ResolveLocation(representative LocationCandidate, others []LocationCandidat
 	}
 
 	var donors []LocationCandidate
+	var best LocationCandidate
+	seen := make(map[[2]float64]bool)
 	for _, candidate := range others {
-		if candidate.ReadError {
+		if ctx.Err() != nil || candidate.ReadError {
 			result.Outcome = LocationUnreadable
 			return result
 		}
 		if validLocation(candidate.Metadata) {
-			donors = append(donors, candidate)
+			if len(donors) == 0 || candidate.PixelCount > best.PixelCount || (candidate.PixelCount == best.PixelCount && candidate.Index < best.Index) {
+				best = candidate
+			}
+			position := [2]float64{candidate.Metadata.Latitude, candidate.Metadata.Longitude}
+			if !seen[position] {
+				seen[position] = true
+				donors = append(donors, candidate)
+			}
 		}
 	}
 	if len(donors) == 0 {
 		result.Outcome = LocationUnlocated
 		return result
 	}
+	// Every pair is at most the sum of its distances to this anchor. This
+	// proves tight groups in linear work, even with many distinct coordinates.
+	tight := true
+	for _, donor := range donors[1:] {
+		if ctx.Err() != nil {
+			result.Outcome = LocationUnreadable
+			return result
+		}
+		if locationDistance(donors[0].Metadata, donor.Metadata) > 50 {
+			tight = false
+			break
+		}
+	}
+	comparisons := 0
 	for i, first := range donors {
+		if tight {
+			break
+		}
 		for _, second := range donors[i+1:] {
+			if ctx.Err() != nil || comparisons >= maxLocationComparisons {
+				result.Outcome = LocationUnreadable
+				return result
+			}
+			comparisons++
 			if locationDistance(first.Metadata, second.Metadata) > 100+0.000001 {
 				result.Outcome = LocationConflict
 				return result
@@ -64,12 +104,6 @@ func ResolveLocation(representative LocationCandidate, others []LocationCandidat
 		}
 	}
 
-	best := donors[0]
-	for _, candidate := range donors[1:] {
-		if candidate.PixelCount > best.PixelCount || (candidate.PixelCount == best.PixelCount && candidate.Index < best.Index) {
-			best = candidate
-		}
-	}
 	result.Metadata.Latitude = best.Metadata.Latitude
 	result.Metadata.Longitude = best.Metadata.Longitude
 	result.Metadata.HasGPS = true

@@ -78,6 +78,12 @@ func NewTileStore(options TileOptions) *TileStore {
 	if options.Client == nil {
 		options.Client = &http.Client{Timeout: 15 * time.Second}
 	}
+	// Tile paths disclose the viewed area. Never forward them to a redirect
+	// destination, and keep the caller's shared client policy unchanged.
+	client := *options.Client
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -90,7 +96,7 @@ func NewTileStore(options TileOptions) *TileStore {
 	if options.DecodedBytes <= 0 {
 		options.DecodedBytes = defaultDecoded
 	}
-	return &TileStore{client: options.Client, now: options.Now, url: options.URL,
+	return &TileStore{client: &client, now: options.Now, url: options.URL,
 		encodedLimit: options.EncodedBytes, decodedLimit: options.DecodedBytes,
 		entries: make(map[TileKey]*tileEntry), failures: make(map[TileKey]*tileFailure)}
 }

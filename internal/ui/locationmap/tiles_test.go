@@ -37,6 +37,39 @@ func tilePNG(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
+func TestTileStoreRejectsRedirects(t *testing.T) {
+	for _, destination := range []string{
+		"https://other.example/1/0/0.png",
+		"https://127.0.0.1/private",
+		"http://192.168.1.1/private",
+		"http://tile.openstreetmap.org/1/0/0.png",
+		"https://tile.openstreetmap.org/redirected.png",
+	} {
+		t.Run(destination, func(t *testing.T) {
+			hits := 0
+			client := tileClient(func(w http.ResponseWriter, _ *http.Request) {
+				hits++
+				if hits == 1 {
+					w.Header().Set("Location", destination)
+					w.WriteHeader(http.StatusFound)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+			})
+			store := NewTileStore(TileOptions{Client: client})
+			if _, _, err := store.Fetch(context.Background(), TileKey{Z: 1}); err == nil {
+				t.Fatal("redirect response accepted as a tile")
+			}
+			if hits != 1 {
+				t.Fatalf("redirect sent %d requests; want only the original OSM request", hits)
+			}
+			if client.CheckRedirect != nil {
+				t.Fatal("tile store changed the caller's shared HTTP client")
+			}
+		})
+	}
+}
+
 func TestTileStoreFreshAndRevalidate(t *testing.T) {
 	pixels := tilePNG(t)
 	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)

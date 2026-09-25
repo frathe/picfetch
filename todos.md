@@ -18,6 +18,10 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Bugfix
 
+- Location Map's loading and offline background now follows the selected theme.
+  Find more like this becomes available after leaving a map visit, keeping image
+  navigation consistent. Large duplicate groups no longer hold up cancellation.
+
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.
 
@@ -34,6 +38,8 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Internal
 
+- PR 58 review hardening: isolated map trials preserve normal updater files,
+  trial reports count extensionless images, and map tiles reject redirects.
 - Windows package updates are published through WinGet only after a release
   succeeds, with clearer recovery instructions if publishing fails.
 - Improve the safety of developer tools used to investigate failed builds.
@@ -75,8 +81,12 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   Ronin explicitly marked performance done: "it is running butter smooth!".
   Exact-10k/30k measurement protocols are waived for this release, not measured
   passes. Complete native Linux/amd64 verification moves to the GitHub PR.
-  Remaining work: the authorized PR/Codex review loop, still-uncovered composite
-  cases and the earlier IDE build-tag inspection limitation. No merge or release
+  The [PR 58 review continuation](plans/2026-09-25-pr58-review.md) fixes six
+  further code/security findings with focused race regressions and clear GoLand
+  inspections of all changed code. Its conservative donor-work limit may leave
+  unusually large groups with many distinct GPS positions unmapped. Remaining
+  work: final PR/Codex results, still-uncovered composite cases and the earlier
+  IDE build-tag inspection limitation. No merge or release
   is authorized by the review loop.
   [Model routing](.scratch/location-map/model-routing.md) assigns bounded
   subagent candidates while retaining lead-owned integration and review.

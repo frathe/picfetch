@@ -138,7 +138,7 @@ func (f *Feature) scan(sources []Source) {
 					donors = append(donors, LocationCandidate{Index: i, PixelCount: donor.Pixels, Metadata: fact, ReadError: readErr != nil})
 				}
 			}
-			resolved := ResolveLocation(representative, donors)
+			resolved := ResolveLocation(ctx, representative, donors)
 			if ctx.Err() != nil {
 				return
 			}

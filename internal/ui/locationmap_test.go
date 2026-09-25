@@ -62,6 +62,27 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func TestLocationMap(t *testing.T) {
+	t.Run("placeholder_theme", func(t *testing.T) {
+		previous := testApp.Settings().Theme()
+		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
+		testApp.Settings().SetTheme(theme.DefaultTheme())
+		v := newTestViewer(t)
+		dropAndWait(t, v, uitest.TempGPSJPEGURI(t, "photo.jpg", 24, 16, 52.52, 13.405))
+		locationMenu(t, v).Action()
+		v.locationMap.Settle() // Offline harness leaves the placeholder exposed.
+		for _, mode := range []appearance.Mode{appearance.Light, appearance.Dark, appearance.Light} {
+			v.SetThemeMode(mode)
+			capture := v.win.Canvas().Capture()
+			position := v.app.Driver().AbsolutePositionForObject(locationSurface(t, v))
+			for _, offset := range []int{32, 48} {
+				pixel := color.NRGBAModel.Convert(capture.At(int(position.X)+offset, int(position.Y)+32)).(color.NRGBA)
+				light := int(pixel.R)+int(pixel.G)+int(pixel.B) > 3*128
+				if light != (mode == appearance.Light) {
+					t.Errorf("placeholder does not follow %v appearance: %v", mode, pixel)
+				}
+			}
+		}
+	})
 	t.Run("keyboard_navigation", func(t *testing.T) {
 		v := newTestViewer(t)
 		files := []fyne.URI{
@@ -534,7 +555,11 @@ func TestLocationMap(t *testing.T) {
 		if err := v.configureLocationTrial(dir); err != nil {
 			t.Fatal(err)
 		}
-		dropAndWait(t, v, uitest.TempGPSJPEGURI(t, "trial.jpg", 24, 16, 52.52, 13.405))
+		extensionless := uitest.TempGPSJPEGURI(t, "extensionless", 24, 16, 48.85, 2.35)
+		// A URI provider may know the MIME type even without a file extension.
+		dropAndWait(t, v,
+			uitest.TempGPSJPEGURI(t, "trial.jpg", 24, 16, 52.52, 13.405),
+			uitest.FakeURI{FileName: strings.TrimPrefix(extensionless.Path(), "/"), Mime: "image/jpeg"})
 		for range 2 {
 			locationMenu(t, v).Action()
 			v.locationMap.Settle()
@@ -552,7 +577,7 @@ func TestLocationMap(t *testing.T) {
 		if err := json.Unmarshal(data, &state); err != nil {
 			t.Fatal(err)
 		}
-		if state.Images != 1 || state.Formats["jpg"] != 1 || !state.Ready || state.Active || len(state.Stages) != 2 {
+		if state.Images != 2 || state.Formats["jpg"] != 1 || state.Formats["unknown"] != 1 || len(state.Formats) != 2 || !state.Ready || state.Active || len(state.Stages) != 2 {
 			t.Fatalf("incorrect observed admission/session: %+v", state)
 		}
 		for i, stage := range state.Stages {

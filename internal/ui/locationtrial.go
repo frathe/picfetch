@@ -36,7 +36,11 @@ func (v *viewer) beginLocationTrial() {
 	t.state.Images = v.FileCount()
 	t.state.Formats = map[string]int{}
 	for _, source := range v.state.files {
-		t.state.Formats[strings.ToLower(strings.TrimPrefix(filepath.Ext(source.Path()), "."))]++
+		format := strings.ToLower(strings.TrimPrefix(filepath.Ext(source.Path()), "."))
+		if format == "" {
+			format = "unknown"
+		}
+		t.state.Formats[format]++
 	}
 	kind := "warm"
 	if len(t.state.Stages) == 0 {

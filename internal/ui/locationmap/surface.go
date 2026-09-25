@@ -48,11 +48,18 @@ type mapCard struct {
 
 func newSurface(feature *Feature) *Surface {
 	s := &Surface{feature: feature, layer: container.NewWithoutLayout(), tileLayer: container.NewWithoutLayout(), centerX: .5, centerY: .5, scale: 256}
-	s.background = canvas.NewRasterWithPixels(func(x, y, _, _ int) color.Color {
-		if (x/16+y/16)%2 == 0 {
-			return color.NRGBA{R: 42, G: 44, B: 47, A: 255}
+	s.background = canvas.NewRaster(func(width, height int) image.Image {
+		colors := [2]color.NRGBA{
+			color.NRGBAModel.Convert(theme.Color(theme.ColorNameBackground)).(color.NRGBA),
+			color.NRGBAModel.Convert(theme.Color(theme.ColorNameInputBackground)).(color.NRGBA),
 		}
-		return color.NRGBA{R: 52, G: 54, B: 57, A: 255}
+		pixels := image.NewNRGBA(image.Rect(0, 0, width, height))
+		for y := range height {
+			for x := range width {
+				pixels.SetNRGBA(x, y, colors[(x/16+y/16)%2])
+			}
+		}
+		return pixels
 	})
 	s.filename = widget.NewLabel("")
 	s.filename.Wrapping = fyne.TextWrapBreak
