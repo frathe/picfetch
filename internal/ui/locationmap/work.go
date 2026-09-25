@@ -199,6 +199,14 @@ func (f *Feature) ValidateSources(done func(bool)) {
 	sources, before := slices.Clone(f.sources), maps.Clone(f.versions)
 	f.workers.Go(func() {
 		after := sourceVersions(ctx, sources)
+		changed := !maps.Equal(before, after)
+		for _, version := range after {
+			// Two unknown versions cannot prove unchanged provider content.
+			if version == "" {
+				changed = true
+				break
+			}
+		}
 		queue.Do(func() {
 			if ctx.Err() != nil || f.stopped || generation != f.generation || revision != f.validationRevision {
 				return
@@ -206,7 +214,7 @@ func (f *Feature) ValidateSources(done func(bool)) {
 			cancel()
 			f.validationCancel = nil
 			f.versions = after
-			done(!maps.Equal(before, after))
+			done(changed)
 		})
 	})
 }

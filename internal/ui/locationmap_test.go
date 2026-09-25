@@ -62,6 +62,35 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func TestLocationMap(t *testing.T) {
+	t.Run("clipboard_shortcuts", func(t *testing.T) {
+		v := newTestViewer(t)
+		source := uitest.TempGPSJPEGURI(t, "clipboard.jpg", 24, 16, 52.52, 13.405)
+		dropAndWait(t, v, source)
+		var copies atomic.Int32
+		uitest.StubClipboardCopy(t, func(_ []byte) error { copies.Add(1); return nil })
+		v.app.Clipboard().SetContent("keep clipboard")
+		handler := &fyne.ShortcutHandler{}
+		wireGlobalShortcuts(handler, v)
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		handler.TypedShortcut(&fyne.ShortcutCopy{})
+		drainClipboard(t, v)
+		handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift})
+		handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift})
+		drainClipboard(t, v)
+		if copies.Load() != 0 || v.app.Clipboard().Content() != "keep clipboard" || v.regionCopy.State().Active {
+			t.Fatalf("map shortcuts acted on hidden image: copies=%d path=%q region=%v", copies.Load(), v.app.Clipboard().Content(), v.regionCopy.State().Active)
+		}
+		fynetest.Tap(locationPhoto(t, v, source.Name()))
+		waitUntilLoaded(t, v)
+		handler.TypedShortcut(&fyne.ShortcutCopy{})
+		drainClipboard(t, v)
+		handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift})
+		handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyC, Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift})
+		if copies.Load() != 1 || v.app.Clipboard().Content() != source.Path() || !v.regionCopy.State().Active {
+			t.Fatal("clipboard commands did not resume on the visible map-origin image")
+		}
+	})
 	t.Run("placeholder_theme", func(t *testing.T) {
 		previous := testApp.Settings().Theme()
 		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
@@ -955,6 +984,140 @@ func TestLocationMap(t *testing.T) {
 		})
 	})
 	t.Run("external_changes", func(t *testing.T) {
+		t.Run("unversioned_source", func(t *testing.T) {
+			v := newTestViewer(t)
+			v.win.Resize(fyne.NewSize(1000, 700))
+			var content atomic.Value
+			content.Store(uitest.GPSJPEG(t, 24, 16, 52.52, 13.405))
+			base := storage.NewFileURI(filepath.Join(t.TempDir(), "provider.jpg"))
+			source := uitest.ReaderURI(base, func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(content.Load().([]byte))), nil
+			})
+			anchor := uitest.TempGPSJPEGURI(t, "anchor.jpg", 24, 16, 0, 0)
+			dropAndWait(t, v, source, anchor)
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			if len(v.locationMap.Points()) != 2 {
+				t.Fatal("provider URI was not admitted")
+			}
+			for _, point := range v.locationMap.Points() {
+				if point.Source.URI.String() == source.String() {
+					v.OpenLocationImage(point.Source.Identity)
+				}
+			}
+			waitUntilLoaded(t, v)
+			if v.locationMap.Visible() || !v.locationInput.image {
+				t.Fatal("provider image visit did not open")
+			}
+			content.Store(uitest.GPSJPEG(t, 24, 16, 40.7, -74))
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			v.locationMap.Settle()
+			found := false
+			for _, point := range v.locationMap.Points() {
+				if point.Source.URI.String() == source.String() {
+					found = true
+					if math.Abs(point.Metadata.Latitude-40.7) > .000001 {
+						t.Fatalf("unversioned source reused stale GPS: %v", point.Metadata.Latitude)
+					}
+				}
+			}
+			if !found || !v.locationMap.Visible() {
+				t.Fatal("return lost the provider location")
+			}
+		})
+		t.Run("return_validation_barrier", func(t *testing.T) {
+			for _, route := range []string{"direct", "cluster", "busy_copy"} {
+				t.Run(route, func(t *testing.T) {
+					v := newTestViewer(t)
+					a := uitest.TempGPSJPEGURI(t, "changed.jpg", 24, 16, 52.52, 13.405)
+					sources := []fyne.URI{a}
+					if route == "cluster" {
+						sources = append(sources, uitest.TempGPSJPEGURI(t, "neighbor.jpg", 24, 16, 52.52, 13.405))
+					}
+					dropAndWait(t, v, sources...)
+					var requests, seconds atomic.Int64
+					v.locationMap.ConfigureTiles(locationmap.TileOptions{
+						Now: func() time.Time { return time.Unix(1000+seconds.Load(), 0) },
+						Client: &http.Client{Transport: locationTileTransport(func(_ *http.Request) (*http.Response, error) {
+							requests.Add(1)
+							return nil, errors.New("controlled offline tiles")
+						})},
+					}, noLocationRetry)
+					locationMenu(t, v).Action()
+					v.locationMap.Settle()
+					fynetest.Tap(locationPhoto(t, v, a.Name()))
+					if route == "cluster" {
+						v.grid.Settle()
+					} else {
+						waitUntilLoaded(t, v)
+					}
+					v.locationMap.Settle()
+					before := requests.Load()
+					seconds.Store(3600) // Old failed tiles would now admit another request.
+					if err := os.WriteFile(a.Path(), uitest.GPSJPEG(t, 24, 16, 40.7, -74), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					v.locationMap.SetUIQueue(&uitest.UIQueue{})
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+					v.locationMap.Wait() // The validation callback has not been delivered.
+					if v.locationMap.Visible() || requests.Load() != before {
+						t.Fatalf("unvalidated map exposed old locations: visible=%v tile requests=%d -> %d", v.locationMap.Visible(), before, requests.Load())
+					}
+					if route != "cluster" {
+						v.startRegionCopy()
+						if !v.regionCopy.State().Active {
+							t.Fatal("pending return hid the current image's commands")
+						}
+					}
+					releaseCopy := func() {}
+					if route == "busy_copy" {
+						started, release := make(chan struct{}), make(chan struct{})
+						var once sync.Once
+						releaseCopy = func() { once.Do(func() { close(release) }) }
+						t.Cleanup(releaseCopy)
+						uitest.StubClipboardCopy(t, func(_ []byte) error {
+							close(started)
+							<-release
+							return nil
+						})
+						selectRegion(t, v, image.Rect(1, 1, 12, 8))
+						v.regionCopy.HandleKey(fyne.KeyReturn)
+						select {
+						case <-started:
+						case <-time.After(testTimeout):
+							t.Fatal("clipboard dispatch did not start")
+						}
+					}
+					v.locationMap.Settle()
+					v.grid.Settle()
+					v.locationMap.Settle()
+					if route == "busy_copy" {
+						if v.locationMap.Visible() || !v.regionCopy.State().Busy {
+							t.Fatal("validation interrupted an in-flight copy")
+						}
+						releaseCopy()
+						waitForClipboard(t, v)
+						v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+						v.locationMap.Settle()
+					}
+					if !v.locationMap.Visible() || v.grid.Visible() || v.regionCopy.State().Active {
+						t.Fatal("validated return did not restore the map")
+					}
+					found := false
+					for _, point := range v.locationMap.Points() {
+						if point.Source.URI.Path() == a.Path() {
+							found = true
+							if math.Abs(point.Metadata.Latitude-40.7) > .000001 {
+								t.Fatal("validated return retained old GPS")
+							}
+						}
+					}
+					if !found {
+						t.Fatal("validated return lost the changed source")
+					}
+				})
+			}
+		})
 		t.Run("browsing_routes", func(t *testing.T) {
 			for _, route := range []string{"entry", "direct", "cluster"} {
 				t.Run(route, func(t *testing.T) {
@@ -1691,6 +1854,12 @@ func TestLocationMap(t *testing.T) {
 				t.Fatal("held tile kept map visible")
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			// Return validates asynchronously. Old transport notifications can
+			// remain buffered; wait for this return's actual UI delivery first.
+			for !v.locationMap.Visible() {
+				<-queue.ready
+				queue.Drain()
+			}
 			<-entered
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 			v.locationMap.Settle()

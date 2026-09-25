@@ -191,19 +191,28 @@ func (v *viewer) locationImageOpened(visit grid.Visit) {
 }
 
 func (v *viewer) returnLocationMap() {
-	v.locationInput.cluster = false
-	v.locationInput.image = false
-	v.locationInput.order = nil
-	if saved := v.locationInput.savedGrid; saved != nil {
-		v.locationInput.savedGrid = nil
-		v.grid.RestoreVisit(*saved)
-	}
-	v.locationInput.clusterGrid = nil
-	v.locationMap.Return()
 	v.locationMap.ValidateSources(func(changed bool) {
+		// Keep the browsing visit visible until validation completes. It can
+		// still start Copy Selection while the worker is checking sources.
+		ready := v.yieldCopySelection()
+		if ready {
+			v.locationInput.cluster = false
+			v.locationInput.image = false
+			v.locationInput.order = nil
+			if saved := v.locationInput.savedGrid; saved != nil {
+				v.locationInput.savedGrid = nil
+				v.grid.RestoreVisit(*saved)
+			}
+			v.locationInput.clusterGrid = nil
+		}
 		if changed {
+			// Reconcile even when an in-flight copy defers the visible return:
+			// validation has already recorded these new source versions.
 			v.grid.InvalidateContent()
 			v.rebuildLocationMap()
+		}
+		if ready {
+			v.locationMap.Return()
 		}
 	})
 }
@@ -261,10 +270,12 @@ func (v *viewer) captureLocationReconciliation(removed []int) func() {
 			v.grid.RestoreVisit(*current)
 		}
 		v.locationInput.transition = false
+		// Rebuild retires validation, so admit an exhausted visit's return
+		// only after the new source generation owns the map.
+		v.rebuildLocationMap()
 		if v.locationInput.cluster && len(v.locationInput.order) == 0 {
 			v.returnLocationMap()
 		}
-		v.rebuildLocationMap()
 	}
 }
 

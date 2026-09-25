@@ -21,6 +21,9 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Location Map's loading and offline background now follows the selected theme.
   Find more like this becomes available after leaving a map visit, keeping image
   navigation consistent. Large duplicate groups no longer hold up cancellation.
+- Map clipboard shortcuts no longer act on the hidden image. Returning from a
+  photo or cluster checks source changes before displaying locations or fetching
+  tiles; readable provider images without file versions refresh their GPS too.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.
@@ -81,7 +84,7 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   Ronin explicitly marked performance done: "it is running butter smooth!".
   Exact-10k/30k measurement protocols are waived for this release, not measured
   passes. Complete native Linux/amd64 verification moves to the GitHub PR.
-  The [PR 58 review continuation](plans/2026-09-25-pr58-review.md) fixes six
+  The [PR 58 review continuation](plans/2026-09-25-pr58-review.md) fixes nine
   further code/security findings with focused race regressions and clear GoLand
   inspections of all changed code. Its conservative donor-work limit may leave
   unusually large groups with many distinct GPS positions unmapped. Remaining
