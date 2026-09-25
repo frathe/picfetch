@@ -58,6 +58,7 @@ func (v *viewer) prepareLocationMap() {
 			}
 		}
 		if !v.grid.PrepareDuplicateGroups() {
+			v.syncDuplicatePreparationProgress()
 			v.Unfocus()
 			return
 		}
@@ -154,7 +155,7 @@ func (v *viewer) locationMapKey(key fyne.KeyName) bool {
 	case fyne.KeyF1:
 		v.help.ShowManual()
 	default:
-		v.locationMap.HandleKey(key)
+		v.locationMap.HandleKey(key, v.keyModifiers())
 	}
 	return true
 }

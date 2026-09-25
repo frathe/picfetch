@@ -21,9 +21,61 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestGridThemeSwitch(t *testing.T) {
+	for _, initial := range []appearance.Mode{appearance.Light, appearance.Dark} {
+		t.Run(initial.PrefValue(), func(t *testing.T) {
+			previousTheme := testApp.Settings().Theme()
+			previousMode := testApp.Preferences().String("themeMode")
+			t.Cleanup(func() {
+				testApp.Preferences().SetString("themeMode", previousMode)
+				testApp.Settings().SetTheme(previousTheme)
+			})
+			testApp.Settings().SetTheme(theme.DefaultTheme())
+			testApp.Preferences().SetString("themeMode", initial.PrefValue())
+			v := newTestViewer(t)
+			dropAndWait(t, v, uitest.TempJPEGURI(t, "theme.jpg", 24, 16, color.NRGBA{R: 210, B: 150, A: 255}))
+			v.win.Resize(fyne.NewSize(800, 600))
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+			v.grid.Settle()
+			assertBackground := func(stage string) {
+				t.Helper()
+				if !v.grid.Visible() {
+					t.Fatal("Grid not open")
+				}
+				capture := v.win.Canvas().Capture()
+				want := color.NRGBAModel.Convert(theme.Color(theme.ColorNameBackground))
+				for name, point := range map[string]image.Point{
+					"top edge":    image.Pt(1, 1),
+					"side gutter": image.Pt(1, capture.Bounds().Dy()/2),
+					"empty body":  image.Pt(capture.Bounds().Dx()/2, capture.Bounds().Dy()-10),
+				} {
+					if got := color.NRGBAModel.Convert(capture.At(point.X, point.Y)); got != want {
+						t.Errorf("%s %s: Grid background=%v, current theme=%v", stage, name, got, want)
+					}
+				}
+			}
+			for _, mode := range []appearance.Mode{initial, appearance.Dark, appearance.Light, appearance.Dark} {
+				v.SetThemeMode(mode)
+				assertBackground(mode.PrefValue())
+				v.handleTypedRune('/')
+				v.handleTypedRune('x')
+				v.grid.Settle()
+				assertBackground(mode.PrefValue() + " search")
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+				v.grid.Settle()
+				assertBackground(mode.PrefValue() + " reopen")
+			}
+		})
+	}
+}
 
 // The viewer and its pools must be created inside the synctest bubble. Three
 // held hash reads leave a decode slot for the known groups before opening Grid.

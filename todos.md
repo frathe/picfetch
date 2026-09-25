@@ -47,17 +47,27 @@
   in Grid. The current OSM raster service has no documented dark style;
   [the accepted local dark filter](plans/2026-09-25-location-map-dark-poc.md)
   keeps that provider and now follows app appearance in both maps, leaving photos
-  and EXIF controls/markers unchanged. Ronin liked the POC's appearance; native
-  drag performance remains unqualified. Fixed construction-time background
+  and EXIF controls/markers unchanged. Ronin liked the POC's appearance. Fixed construction-time background
   colors that left Location Map chrome and Explorer panels dark in light mode.
   PRIVACY.md now describes both map entry points, tile-area disclosure, local
   filtering and local Favorite metadata caching.
-  Ticket audit checks 37/64 complete supported criteria; per-ticket comments
+  The [release continuation](plans/2026-09-25-location-map-release-qualification.md)
+  adds composite regressions, live Grid theme repair, duplicate-check progress
+  for Map/Explorer and keyboard photo/cluster selection with Enter to open.
+  Keyboard-only use is a standing user goal: the map path now covers entry,
+  directional selection, offscreen targets, zoom/Fit All and return navigation.
+  Ticket audit checks 45/64 complete supported criteria; per-ticket comments
   retain missing composite integration coverage instead of treating existing
   passing parent test names as proof of absent scenarios.
-  Remaining gates include native smoke/10k evidence, native Linux/amd64 full
-  verification, the IDE build-tag inspection limitation and build-bound native
-  evidence plus Ronin's post-fix 30k verdict.
+  Ronin explicitly accepted the tested 50,672-image build as smooth enough for
+  production; private source-free stage/RSS observations and binary identity are
+  recorded in ticket 13. That run predates the new keyboard/progress controls.
+  Ronin then accepted the updated keyboard/progress client's native smoke test
+  (441 admitted images) with "looks good"; that build is recorded separately.
+  Remaining gates include formal 10k latency evidence, still-uncovered composite
+  cases, native Linux/amd64 full verification and the
+  earlier IDE build-tag inspection limitation. No passing exact-30k/10k formal
+  checker result is claimed or inferred from the successful manual trial.
   [Model routing](.scratch/location-map/model-routing.md) assigns bounded
   subagent candidates while retaining lead-owned integration and review.
   Include duplicate-aware GPS fallback, Favorite-owned GPS persistence, bounded

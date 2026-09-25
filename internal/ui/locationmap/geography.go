@@ -92,11 +92,20 @@ type Cluster struct {
 }
 
 type clusterCell struct {
-	X, Y int
+	X, Y float64
 }
 
 // Clusters groups visible points around stable leaders in input order.
 func Clusters(points []WorldPoint, camera Camera, width, height, diameter float64) []Cluster {
+	return groupClusters(points, camera, width, height, diameter, true)
+}
+
+// NavigationClusters groups all projected points, including those outside the viewport.
+func NavigationClusters(points []WorldPoint, camera Camera, width, height, diameter float64) []Cluster {
+	return groupClusters(points, camera, width, height, diameter, false)
+}
+
+func groupClusters(points []WorldPoint, camera Camera, width, height, diameter float64, visibleOnly bool) []Cluster {
 	if !finite(camera.X) || !finite(camera.Y) || !finite(camera.Scale) || camera.Scale <= 0 ||
 		!finite(width) || !finite(height) || width <= 0 || height <= 0 ||
 		!finite(diameter) || diameter <= 0 {
@@ -115,14 +124,15 @@ func Clusters(points []WorldPoint, camera Camera, width, height, diameter float6
 		deltaX := math.Remainder(point.X-centerX, 1)
 		x := width/2 + deltaX*camera.Scale
 		y := height/2 + (point.Y-camera.Y)*camera.Scale
-		if !finite(x) || !finite(y) || x < -diameter || x > width+diameter || y < -diameter || y > height+diameter {
+		if !finite(x) || !finite(y) || (visibleOnly &&
+			(x < -diameter || x > width+diameter || y < -diameter || y > height+diameter)) {
 			continue
 		}
-		cell := clusterCell{X: int(math.Floor(x / diameter)), Y: int(math.Floor(y / diameter))}
+		cell := clusterCell{X: clusterCellCoordinate(x, diameter), Y: clusterCellCoordinate(y, diameter)}
 		leader := -1
 		for offsetX := -1; offsetX <= 1; offsetX++ {
 			for offsetY := -1; offsetY <= 1; offsetY++ {
-				candidate, exists := leaders[clusterCell{cell.X + offsetX, cell.Y + offsetY}]
+				candidate, exists := leaders[clusterCell{cell.X + float64(offsetX), cell.Y + float64(offsetY)}]
 				if !exists || (leader >= 0 && candidate >= leader) {
 					continue
 				}
@@ -139,4 +149,58 @@ func Clusters(points []WorldPoint, camera Camera, width, height, diameter float6
 		clusters = append(clusters, Cluster{Members: []int{index}, X: x, Y: y})
 	}
 	return clusters
+}
+
+func clusterCellCoordinate(value, diameter float64) float64 {
+	cell := math.Floor(value / diameter)
+	if !finite(cell) {
+		return value
+	}
+	return cell
+}
+
+// NearestCluster returns the closest cluster in a cardinal screen direction.
+func NearestCluster(clusters []Cluster, selected int, width, height float64, dx, dy int) int {
+	validSelection := selected >= 0 && selected < len(clusters) && validCluster(clusters[selected])
+	if !finite(width) || !finite(height) || width <= 0 || height <= 0 ||
+		!((dx == -1 || dx == 1) && dy == 0 || (dy == -1 || dy == 1) && dx == 0) {
+		if validSelection {
+			return selected
+		}
+		return -1
+	}
+	if !validSelection {
+		best := -1
+		bestDistance := math.Inf(1)
+		for index, cluster := range clusters {
+			if !validCluster(cluster) {
+				continue
+			}
+			if distance := math.Hypot(cluster.X-width/2, cluster.Y-height/2); best == -1 || distance < bestDistance {
+				best, bestDistance = index, distance
+			}
+		}
+		return best
+	}
+	best := selected
+	bestDistance := math.Inf(1)
+	current := clusters[selected]
+	for index, cluster := range clusters {
+		if index == selected || !validCluster(cluster) {
+			continue
+		}
+		offsetX := cluster.X - current.X
+		offsetY := cluster.Y - current.Y
+		if dx != 0 && float64(dx)*offsetX <= 0 || dy != 0 && float64(dy)*offsetY <= 0 {
+			continue
+		}
+		if distance := math.Hypot(offsetX, offsetY); best == selected || distance < bestDistance {
+			best, bestDistance = index, distance
+		}
+	}
+	return best
+}
+
+func validCluster(cluster Cluster) bool {
+	return len(cluster.Members) > 0 && finite(cluster.X) && finite(cluster.Y)
 }

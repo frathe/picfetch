@@ -688,6 +688,15 @@ Sammlungsreihenfolge; **Escape** kehrt zur unveränderten Kartenposition zurück
 Ziehen verschiebt die Karte, Scrollen zoomt. **Alle einpassen** zeigt alle
 gefundenen Standorte. **Zurück zur Bildansicht** beendet die Karte.
 
+Auf der Karte wählen **Left / Right / Up / Down** das nächste Foto oder die
+nächste Gruppe in dieser Richtung mit einem hervorgehobenen Rahmen aus. Die
+erste Pfeiltaste wählt die Gruppe nahe der Mitte; Ziele außerhalb des sichtbaren
+Bereichs werden eingeblendet. **Enter** öffnet das ausgewählte Foto oder die
+Gruppe im Raster. **Shift + Pfeiltasten** verschieben die Karte, ohne die Auswahl
+zu ändern. **+ / -** zoomt, **0** passt alle Standorte ein. Die Auswahl
+bleibt beim Besuch von Bild und Raster erhalten; **Escape** kehrt zurück oder
+verlässt die Karte.
+
 Markierungen mit einer Anzahl gruppieren nahe Bilder bei der aktuellen Zoomstufe.
 Über jeder Anzahl erscheint ein repräsentatives Vorschaubild. Ein Klick auf das
 Vorschaubild oder die Anzahl öffnet genau die Bilder dieser Gruppe im
@@ -696,7 +705,9 @@ der Gruppe. Escape führt von Bild -> Raster -> Karte zurück, einschließlich d
 normalen Escape-Stufen für Rastersuche und Auswahl. Spätere Funde erweitern eine
 bereits geöffnete Gruppe nicht.
 
-Bei ausgeblendeten Duplikaten wird zuerst die Gruppierung abgeschlossen. Eigene
+Bei ausgeblendeten Duplikaten wird zuerst die Gruppierung abgeschlossen. Ein
+Fortschrittsbalken zeigt geprüfte Bilder und wartet danach auf die abschließende
+Gruppierung. Eigene
 GPS-Daten des Repräsentanten haben Vorrang. Andernfalls müssen die verorteten
 Kopien paarweise höchstens 100 Meter auseinanderliegen. Die Kopie mit der höchsten
 Auflösung liefert dann den Standort. Konflikte

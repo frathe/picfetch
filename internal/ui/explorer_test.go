@@ -3804,6 +3804,10 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					if !v.explorerMapActive() {
 						t.Fatal("waiting for duplicate facts hid the map")
 					}
+					progress, waiting := preparationBars(v.explorer.Surface().Overlay())
+					if progress == nil || waiting != nil || progress.Value >= progress.Max {
+						t.Fatal("Explorer duplicate wait has no incomplete progress bar")
+					}
 					if action == "cancel" {
 						v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 					}
@@ -3831,6 +3835,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					if action == "finish" {
 						t.Fatal("finished duplicate preparation did not start analysis")
 					}
+				}
+				if progress, waiting := preparationBars(v.explorer.Surface().Overlay()); progress != nil || waiting != nil {
+					t.Fatal("retired duplicate preparation retained progress")
 				}
 			})
 		}

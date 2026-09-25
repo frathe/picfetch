@@ -403,6 +403,11 @@ a filename tooltip; singleton photo taps open images directly, without a details
 sidebar. A cluster's preview and count share the exact-membership Grid action.
 Rearrangement transfers already-painted, source-version-matched pixels before
 replacing cards; fully warm drags do not start new preview workers.
+Directional keys select the nearest photo/cluster; Shift+arrows pan without
+changing selection; Enter invokes its normal
+open action. Selection uses occurrence identity, survives hidden visits and
+reclustering, and paints a live-themed border. Offscreen targets use the same
+wrapped clustering geometry and are exposed without changing zoom.
 Root `locationmap.go` captures `fileidentity.Occurrence` sources independently
 of Grid filters, preserves Grid selections and routes image/Escape
 transitions through ordinary display loading. Image visits retain the map's
@@ -425,6 +430,9 @@ Shared `mapstyle` follows the resolved app theme without changing cached pixels;
 mounted and newly completed scenes adopt theme changes without new HTTP demand.
 Photo previews are not filtered. Outer chrome and hover tooltips use
 `widgets.NewThemedRectangle` so their background colors follow live theme changes.
+Grid's separate throttled duplicate-progress observer feeds Location Map and
+Explorer preparation through root. Shared `widgets.PreparationProgress` displays
+measured checks, then indeterminate final grouping; retirement stops animation.
 `facts.go` bounds raw metadata to live source membership; `favorites.go` stores
 versioned records only for saved Favorite members, with captured directory
 handles and membership namespaces preventing retired-owner publication.
@@ -436,6 +444,10 @@ collects actual admission/stages and sampled RSS, and drives its macOS Swift
 ScreenCaptureKit/CGEvent helper for input-to-visible frame evidence. Its checker validates count, binary
 identity, native screen artifacts, timing thresholds and the separate 30k verdict;
 checker tests are not native performance qualification.
+`manual.go` in that tool supplies a separate human-controlled launch without a
+screen/input helper. It retains source-free state and sampled RSS in live JSONL
+and `manual-report.json`; these observations do not satisfy the latency checker
+or supply a human verdict.
 
 ### `internal/ui/mapstyle`
 

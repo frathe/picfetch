@@ -59,6 +59,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.grid.SetOnResultChanged(view.syncMenus)
 	view.slides.SetOnActiveChanged(view.syncMenus)
 	view.grid.SetOnDupeStateChanged(view.syncDuplicateState)
+	view.grid.SetOnDuplicateProgress(view.syncDuplicatePreparationProgress)
 	view.syncMenus()
 
 	return fyne.NewMainMenu(view.menus.FileMenu(), view.favorites.Menu(), view.menus.ActionsMenu(), view.menus.WindowMenu(), view.help.Menu())

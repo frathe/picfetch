@@ -47,6 +47,7 @@ func (v *viewer) showExplorer() {
 		}
 		if !v.grid.PrepareDuplicateGroups() {
 			v.explorer.Preparing()
+			v.syncDuplicatePreparationProgress()
 			return
 		}
 		v.explorerInput.prepare = nil

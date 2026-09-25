@@ -269,6 +269,7 @@ exclude:
       - "internal/ui/locationmap/facts_test.go"
       - "scripts/locationmapqualify/evidence_test.go"
       - "scripts/locationmapqualify/main_test.go"
+      - "scripts/locationmapqualify/manual_test.go"
       - "scripts/locationmapqualify/runner_test.go"
       - "internal/locationtrial/recorder_test.go"
       - "internal/ui/export_test.go"

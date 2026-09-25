@@ -117,14 +117,15 @@ type Overview struct {
 	host              Host
 	win               fyne.Window
 
-	visible      bool
-	onVisibility func()
-	onDupeState  func()
-	onSelection  func()
-	onResult     func()
-	lastResult   []int
-	wrap         *widget.GridWrap
-	overlay      *fyne.Container
+	visible             bool
+	onVisibility        func()
+	onDupeState         func()
+	onDuplicateProgress func()
+	onSelection         func()
+	onResult            func()
+	lastResult          []int
+	wrap                *widget.GridWrap
+	overlay             *fyne.Container
 
 	// The bar across the top of the overlay, hidden until there is either a
 	// search or a selection to report: what was typed on the left, how much
@@ -514,7 +515,7 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	// confirmation's: the grid replaces the image view entirely rather
 	// than dimming it behind a centered card, so it needs to fully hide
 	// whatever's underneath.
-	backdrop := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
+	backdrop := widgets.NewThemedRectangle(theme.ColorNameBackground)
 
 	// Body stack order is load-bearing. Walk is back-to-front and the last
 	// match wins: the catcher is Draggable but not Tappable, Hoverable, or

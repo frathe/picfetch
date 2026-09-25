@@ -20,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -59,6 +60,219 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func TestLocationMap(t *testing.T) {
+	t.Run("keyboard_navigation", func(t *testing.T) {
+		v := newTestViewer(t)
+		files := []fyne.URI{
+			uitest.PatternedGPSJPEGURI(t, "center.jpg", 1, 64, 48, 0, 0),
+			uitest.PatternedGPSJPEGURI(t, "east-a.jpg", 2, 64, 48, 0, 4),
+			uitest.PatternedGPSJPEGURI(t, "east-b.jpg", 3, 64, 48, 0, 4),
+			uitest.PatternedGPSJPEGURI(t, "west.jpg", 4, 64, 48, 0, -4),
+			uitest.PatternedGPSJPEGURI(t, "north.jpg", 5, 64, 48, 4, 0),
+			uitest.PatternedGPSJPEGURI(t, "south.jpg", 6, 64, 48, -4, 0),
+		}
+		dropAndWait(t, v, files...)
+		v.win.Resize(fyne.NewSize(1000, 700))
+		v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierShift }
+		v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyL})
+		v.keyModifiers = func() fyne.KeyModifier { return 0 }
+		v.locationMap.Settle()
+		press := func(key fyne.KeyName) {
+			t.Helper()
+			if focus := v.win.Canvas().Focused(); focus != nil {
+				focus.TypedKey(&fyne.KeyEvent{Name: key})
+			} else {
+				v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: key})
+			}
+			v.grid.Settle()
+			v.locationMap.Settle()
+		}
+		selected := func(names ...string) {
+			t.Helper()
+			marked := false
+			explorerWalk(locationPhoto(t, v, names...), func(object fyne.CanvasObject) {
+				if frame, ok := object.(*canvas.Rectangle); ok && frame.StrokeWidth == 3 && frame.StrokeColor == theme.Color(theme.ColorNamePrimary) {
+					marked = true
+				}
+			})
+			if !marked {
+				t.Fatalf("keyboard selection border missing from %v", names)
+			}
+		}
+		center := v.app.Driver().AbsolutePositionForObject(locationPhoto(t, v, "center.jpg"))
+		press(fyne.KeyRight)
+		selected("center.jpg")
+		press(fyne.KeyRight)
+		selected("east-a.jpg", "east-b.jpg")
+		if got := v.app.Driver().AbsolutePositionForObject(locationPhoto(t, v, "center.jpg")); got != center {
+			t.Fatalf("selecting an in-view cluster moved the map: %v -> %v", center, got)
+		}
+		press(fyne.KeyRight)
+		selected("east-a.jpg", "east-b.jpg") // No neighbor in that direction: retain selection.
+		press(fyne.KeyReturn)
+		if !v.grid.Visible() || v.locationMap.Visible() || len(v.grid.ResultIndexes()) != 2 {
+			t.Fatal("Enter did not open the exact selected two-image cluster")
+		}
+		press(fyne.KeyEscape)
+		selected("east-a.jpg", "east-b.jpg")
+		press(fyne.KeyLeft)
+		selected("center.jpg")
+		press(fyne.KeyUp)
+		selected("north.jpg")
+		press(fyne.KeyDown)
+		selected("center.jpg")
+		press(fyne.KeyDown)
+		selected("south.jpg")
+		press(fyne.KeyUp)
+		press(fyne.KeyLeft)
+		selected("west.jpg")
+		press(fyne.KeyEnter)
+		waitUntilLoaded(t, v)
+		if v.locationMap.Visible() || v.state.files[v.state.index].Name() != "west.jpg" {
+			t.Fatal("Enter did not open the selected singleton")
+		}
+		press(fyne.KeyEscape)
+		selected("west.jpg")
+		press(fyne.KeyEscape)
+		if v.locationMap.Active() {
+			t.Fatal("Escape did not leave the map")
+		}
+	})
+	t.Run("keyboard_navigation_offscreen", func(t *testing.T) {
+		v := newTestViewer(t)
+		dropAndWait(t, v,
+			uitest.TempGPSJPEGURI(t, "center.jpg", 24, 16, 0, 0),
+			uitest.TempGPSJPEGURI(t, "east.jpg", 24, 16, 0, 4),
+			uitest.TempGPSJPEGURI(t, "west.jpg", 24, 16, 0, -4))
+		v.win.Resize(fyne.NewSize(1000, 700))
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		press := func(key fyne.KeyName) {
+			v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: key})
+			v.locationMap.Settle()
+		}
+		original := locationPhoto(t, v, "east.jpg").Position()
+		press(fyne.KeyRight)
+		press(fyne.KeyEqual)
+		press(fyne.KeyPlus)
+		cards := 0
+		explorerWalk(locationSurface(t, v), func(object fyne.CanvasObject) {
+			if _, ok := object.(*widgets.TappableArea); ok {
+				cards++
+			}
+		})
+		if cards != 1 {
+			t.Fatalf("zoom fixture should leave only center in view, got %d cards", cards)
+		}
+		press(fyne.KeyRight)
+		photo := locationPhoto(t, v, "east.jpg")
+		if photo.Position().X < 0 || photo.Position().X+photo.Size().Width > locationSurface(t, v).Size().Width {
+			t.Fatal("keyboard navigation left the selected photo outside the viewport")
+		}
+		previous := testApp.Settings().Theme()
+		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
+		for _, mode := range []appearance.Mode{appearance.Light, appearance.Dark} {
+			v.SetThemeMode(mode)
+			marked := 0
+			explorerWalk(locationSurface(t, v), func(object fyne.CanvasObject) {
+				if frame, ok := object.(*canvas.Rectangle); ok && frame.StrokeWidth == 3 {
+					marked++
+					if frame.StrokeColor != theme.Color(theme.ColorNamePrimary) {
+						t.Fatal("keyboard border retained the old theme color")
+					}
+				}
+			})
+			if marked != 1 {
+				t.Fatalf("expected one keyboard border, got %d", marked)
+			}
+		}
+		press(fyne.KeyMinus)
+		press(fyne.Key0)
+		if got := locationPhoto(t, v, "east.jpg").Position(); got != original {
+			t.Fatalf("keyboard Fit All did not restore framing: %v -> %v", original, got)
+		}
+		press(fyne.KeyEnter)
+		waitUntilLoaded(t, v)
+		if v.state.files[v.state.index].Name() != "east.jpg" {
+			t.Fatal("zoom/Fit All lost keyboard selection")
+		}
+	})
+	t.Run("keyboard_navigation_recluster", func(t *testing.T) {
+		v := newTestViewer(t)
+		dropAndWait(t, v,
+			uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 0, 0),
+			uitest.TempGPSJPEGURI(t, "b.jpg", 24, 16, 0, .3),
+			uitest.TempGPSJPEGURI(t, "east.jpg", 24, 16, 0, 6),
+			uitest.TempGPSJPEGURI(t, "west.jpg", 24, 16, 0, -6))
+		v.win.Resize(fyne.NewSize(1000, 700))
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		press := func(key fyne.KeyName) {
+			v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: key})
+			v.grid.Settle()
+			v.locationMap.Settle()
+		}
+		locationButton(t, v, fmt.Sprintf(lang.L("%d images"), 2))
+		press(fyne.KeyRight)
+		for range 3 {
+			press(fyne.KeyPlus)
+		}
+		locationPhoto(t, v, "a.jpg")
+		locationPhoto(t, v, "b.jpg")
+		press(fyne.KeyEnter)
+		waitUntilLoaded(t, v)
+		if v.locationMap.Visible() || v.grid.Visible() || v.state.files[v.state.index].Name() != "a.jpg" {
+			t.Fatal("selection did not follow its source after a cluster split")
+		}
+		press(fyne.KeyEscape)
+		for range 3 {
+			press(fyne.KeyMinus)
+		}
+		press(fyne.KeyEnter)
+		if !v.grid.Visible() || len(v.grid.ResultIndexes()) != 2 {
+			t.Fatal("Enter retained stale singleton membership after clusters merged")
+		}
+	})
+	t.Run("keyboard_navigation_shift_pan", func(t *testing.T) {
+		v := newTestViewer(t)
+		dropAndWait(t, v, uitest.TempGPSJPEGURI(t, "selected.jpg", 24, 16, 0, 0))
+		v.win.Resize(fyne.NewSize(1000, 700))
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyRight})
+		v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierShift }
+		for _, move := range []struct {
+			key    fyne.KeyName
+			dx, dy float32
+		}{
+			{fyne.KeyRight, -60, 0},
+			{fyne.KeyDown, 0, -60},
+			{fyne.KeyLeft, 60, 0},
+			{fyne.KeyUp, 0, 60},
+		} {
+			before := locationPhoto(t, v, "selected.jpg").Position()
+			v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: move.key})
+			v.locationMap.Settle()
+			photo := locationPhoto(t, v, "selected.jpg")
+			if got := photo.Position().Subtract(before); math.Abs(float64(got.X-move.dx)) > .01 || math.Abs(float64(got.Y-move.dy)) > .01 {
+				t.Fatalf("Shift+%s moved the photo by %v, want (%v,%v)", move.key, got, move.dx, move.dy)
+			}
+			marked := false
+			explorerWalk(photo, func(object fyne.CanvasObject) {
+				if frame, ok := object.(*canvas.Rectangle); ok && frame.StrokeWidth == 3 {
+					marked = true
+				}
+			})
+			if !marked {
+				t.Fatal("keyboard panning lost photo selection")
+			}
+		}
+		v.keyModifiers = func() fyne.KeyModifier { return 0 }
+		v.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyEnter})
+		waitUntilLoaded(t, v)
+		if v.locationMap.Visible() {
+			t.Fatal("Enter no longer opens the selected photo after panning")
+		}
+	})
 	t.Run("dark_filter", func(t *testing.T) {
 		previous := testApp.Settings().Theme()
 		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
@@ -666,6 +880,76 @@ func TestLocationMap(t *testing.T) {
 		})
 	})
 	t.Run("external_changes", func(t *testing.T) {
+		t.Run("browsing_routes", func(t *testing.T) {
+			for _, route := range []string{"entry", "direct", "cluster"} {
+				t.Run(route, func(t *testing.T) {
+					v := newTestViewer(t)
+					v.win.Resize(fyne.NewSize(1000, 700))
+					donor := uitest.PatternedGPSJPEGURI(t, "a-donor.jpg", 1, 64, 48, 52.52, 13.405)
+					rep := uitest.PatternedJPEGURISize(t, "b-representative.jpg", 1, 192, 144)
+					anchor := uitest.PatternedGPSJPEGURI(t, "z-anchor.jpg", 47, 64, 48, 35.68, 139.69)
+					sources := []fyne.URI{donor, rep, anchor}
+					if route == "cluster" {
+						sources = append(sources, uitest.PatternedGPSJPEGURI(t, "c-colocated.jpg", 93, 64, 48, 52.52, 13.405))
+					}
+					dropAndWait(t, v, sources...)
+					v.menus.Actions().Hide().Action()
+					v.grid.Settle()
+					locationMenu(t, v).Action()
+					v.grid.Settle()
+					v.locationMap.Settle()
+					locationSurface(t, v).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(35, 20)})
+					position := v.app.Driver().AbsolutePositionForObject(locationPhoto(t, v, anchor.Name()))
+					if route == "entry" {
+						v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+					} else {
+						fynetest.Tap(locationPhoto(t, v, rep.Name()))
+						if route == "cluster" {
+							v.grid.Settle()
+							if len(v.grid.ResultIndexes()) != 2 {
+								t.Fatal("fixture did not enter a two-member cluster")
+							}
+						} else {
+							waitUntilLoaded(t, v)
+						}
+					}
+					changed := uitest.PatternedGPSJPEGURI(t, "changed.jpg", 1, 64, 48, 40.7, -74)
+					data, err := os.ReadFile(changed.Path())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(donor.Path(), data, 0o600); err != nil {
+						t.Fatal(err)
+					}
+					if route == "entry" {
+						locationMenu(t, v).Action()
+					} else {
+						v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+					}
+					// Validation delivers a root rebuild which may start duplicate work.
+					v.locationMap.Settle()
+					v.grid.Settle()
+					v.locationMap.Settle()
+					found := false
+					for _, point := range v.locationMap.Points() {
+						if point.Source.URI.Path() == rep.Path() {
+							found = true
+							if math.Abs(point.Metadata.Latitude-40.7) > .000001 || point.Donor.URI == nil || point.Donor.URI.Path() != donor.Path() {
+								t.Fatalf("hidden donor change not reflected: %+v", point)
+							}
+						}
+					}
+					if !found || !v.locationMap.Visible() {
+						t.Fatal("return lost the map or borrowed representative")
+					}
+					if route != "entry" {
+						if got := v.app.Driver().AbsolutePositionForObject(locationPhoto(t, v, anchor.Name())); got != position {
+							t.Fatalf("external refresh moved the retained camera: %v -> %v", position, got)
+						}
+					}
+				})
+			}
+		})
 		t.Run("stale_validation", func(t *testing.T) {
 			v := newTestViewer(t)
 			a := uitest.TempGPSJPEGURI(t, "old.jpg", 24, 16, 52.52, 13.405)
@@ -747,6 +1031,47 @@ func TestLocationMap(t *testing.T) {
 		}
 	})
 	t.Run("gps_cache_policy", func(t *testing.T) {
+		t.Run("live_ownership_and_errors", func(t *testing.T) {
+			v := newTestViewer(t)
+			root := t.TempDir()
+			v.favorites.SetDir(root)
+			data := uitest.EncodeJPEG(t, 24, 16, color.White)
+			var fail atomic.Bool
+			var reads [2]atomic.Int32
+			sources := make([]fyne.URI, 2)
+			for i, name := range []string{"a-valid-absence.jpg", "b-transient-error.jpg"} {
+				base := storage.NewFileURI(uitest.WriteTempFile(t, name, data))
+				sources[i] = uitest.ReaderURI(base, func() (io.ReadCloser, error) {
+					reads[i].Add(1)
+					if i == 1 && fail.Load() {
+						return nil, errors.New("controlled transient read failure")
+					}
+					return io.NopCloser(bytes.NewReader(data)), nil
+				})
+			}
+			dropAndWait(t, v, sources...)
+			v.display.Settle()
+			for i := range reads {
+				reads[i].Store(0)
+			}
+			fail.Store(true)
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			if counts := v.locationMap.Counts(); !counts.Complete || counts.Unlocated != 1 || counts.Failed != 1 {
+				t.Fatalf("read failure was confused with successful absence: %+v", counts)
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			fail.Store(false)
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			if counts := v.locationMap.Counts(); counts.Unlocated != 2 || counts.Failed != 0 || reads[0].Load() != 1 || reads[1].Load() != 2 {
+				t.Fatalf("retry/reuse mismatch: reads=%d/%d counts=%+v", reads[0].Load(), reads[1].Load(), counts)
+			}
+			entries, err := os.ReadDir(root)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("unsaved map created persistent records: %v %v", entries, err)
+			}
+		})
 		t.Run("save_promotion_and_unsaved_merge", func(t *testing.T) {
 			v := newTestViewer(t)
 			a := uitest.TempJPEGURI(t, "member.jpg", 24, 16, color.White)
@@ -798,6 +1123,37 @@ func TestLocationMap(t *testing.T) {
 			}
 		})
 		t.Run("live_reuse", func(t *testing.T) {
+			t.Run("partial_cancel", func(t *testing.T) {
+				v := newTestViewer(t)
+				data := uitest.EncodeJPEG(t, 24, 16, color.White)
+				base := storage.NewFileURI(uitest.WriteTempFile(t, "a-completed.jpg", data))
+				var reads atomic.Int32
+				a := uitest.ReaderURI(base, func() (io.ReadCloser, error) {
+					reads.Add(1)
+					return io.NopCloser(bytes.NewReader(data)), nil
+				})
+				b, hold, entered, release := locationHeldRead(t, uitest.TempJPEGURI(t, "b-pending.jpg", 24, 16, color.Black))
+				dropAndWait(t, v, a, b)
+				v.display.Settle()
+				reads.Store(0)
+				hold.Store(true)
+				queue := &uitest.UIQueue{}
+				v.locationMap.SetUIQueue(queue)
+				locationMenu(t, v).Action()
+				<-entered
+				queue.Drain()
+				if counts := v.locationMap.Counts(); counts.Completed != 1 || counts.Complete {
+					t.Fatalf("partial scan fixture did not publish completed member: %+v", counts)
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				release()
+				v.locationMap.Settle()
+				locationMenu(t, v).Action()
+				v.locationMap.Settle()
+				if counts := v.locationMap.Counts(); !counts.Complete || counts.Unlocated != 2 || reads.Load() != 1 {
+					t.Fatalf("partial cancellation lost reusable fact or unfinished member: reads=%d counts=%+v", reads.Load(), counts)
+				}
+			})
 			v := newTestViewer(t)
 			data := uitest.EncodeJPEG(t, 24, 16, color.White)
 			base := storage.NewFileURI(uitest.WriteTempFile(t, "no-gps.jpg", data))
@@ -1311,6 +1667,115 @@ func TestLocationMap(t *testing.T) {
 		}
 	})
 	t.Run("preparation_and_counts", func(t *testing.T) {
+		t.Run("duplicate_progress", func(t *testing.T) {
+			for _, cancel := range []bool{false, true} {
+				t.Run(fmt.Sprintf("cancel=%t", cancel), func(t *testing.T) {
+					synctest.Test(t, func(t *testing.T) {
+						fixture := newGridAnalysisFixture(t, true)
+						v := fixture.v
+						pixels := uitest.EncodePNG(t, 256, 256, color.Black)
+						v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: locationTileTransport(func(_ *http.Request) (*http.Response, error) {
+							return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(pixels))}, nil
+						})}}, noLocationRetry)
+						locationMenu(t, v).Action()
+						fixture.deliver()
+						bar, waiting := preparationBars(v.locationMap.Overlay())
+						if bar == nil || waiting != nil || bar.Max != 3 || bar.Value != 0 {
+							t.Fatalf("initial remaining-check progress: bar=%+v waiting=%v", bar, waiting != nil)
+						}
+						fixture.releaseNext(4)
+						fixture.deliver()
+						bar, waiting = preparationBars(v.locationMap.Overlay())
+						if bar == nil || waiting != nil || bar.Max != 3 || bar.Value != 1 {
+							t.Fatalf("completed check did not advance progress: bar=%+v waiting=%v", bar, waiting != nil)
+						}
+						if cancel {
+							v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+						}
+						fixture.releaseNext(5)
+						fixture.releaseNext(6)
+						fixture.deliver()
+						v.grid.Settle()
+						v.locationMap.Settle()
+						if bar, waiting := preparationBars(v.locationMap.Overlay()); bar != nil || waiting != nil {
+							t.Fatal("completed/cancelled preparation retained progress")
+						}
+						if cancel && v.locationMap.Active() {
+							t.Fatal("late progress reopened cancelled Location Map")
+						}
+					})
+				})
+			}
+		})
+		t.Run("fallback_accounting", func(t *testing.T) {
+			for _, outcome := range []string{"located", "unlocated", "unreadable", "conflict"} {
+				t.Run(outcome, func(t *testing.T) {
+					v := newTestViewer(t)
+					base := uitest.PatternedGPSJPEGURI(t, "a-donor.jpg", 1, 64, 48, 52.52, 13.405)
+					if outcome == "unlocated" {
+						base = uitest.PatternedJPEGURISize(t, "a-donor.jpg", 1, 64, 48)
+					}
+					data, err := os.ReadFile(base.Path())
+					if err != nil {
+						t.Fatal(err)
+					}
+					var hold atomic.Bool
+					entered, release := make(chan struct{}), make(chan struct{})
+					var once sync.Once
+					unblock := func() { once.Do(func() { close(release) }) }
+					t.Cleanup(unblock)
+					donor := uitest.ReaderURI(base, func() (io.ReadCloser, error) {
+						if hold.CompareAndSwap(true, false) {
+							close(entered)
+							<-release
+							if outcome == "unreadable" {
+								return nil, errors.New("controlled donor failure")
+							}
+						}
+						return io.NopCloser(bytes.NewReader(data)), nil
+					})
+					rep := uitest.PatternedJPEGURISize(t, "z-representative.jpg", 1, 192, 144)
+					sources := []fyne.URI{donor, rep}
+					if outcome == "conflict" {
+						sources = append(sources, uitest.PatternedGPSJPEGURI(t, "b-conflict.jpg", 1, 96, 72, 40.7, -74))
+					}
+					dropAndWait(t, v, sources...)
+					v.menus.Actions().Hide().Action()
+					v.grid.Settle()
+					v.display.Settle()
+					pixels := uitest.EncodePNG(t, 256, 256, color.Black)
+					v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: locationTileTransport(func(_ *http.Request) (*http.Response, error) {
+						return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(pixels))}, nil
+					})}}, noLocationRetry)
+					queue := &uitest.UIQueue{}
+					v.locationMap.SetUIQueue(queue)
+					hold.Store(true)
+					beforeToast := v.toast.gen.Load()
+					locationMenu(t, v).Action()
+					<-entered
+					queue.Drain()
+					if counts := v.locationMap.Counts(); counts.Total != 1 || counts.Completed != 0 || counts.Complete {
+						t.Fatalf("group completed before required donor read: %+v", counts)
+					}
+					unblock()
+					v.locationMap.Settle()
+					want := locationmap.Counts{Total: 1, Completed: 1, Complete: true}
+					switch outcome {
+					case "located":
+						want.Located = 1
+					case "unlocated":
+						want.Unlocated = 1
+					case "unreadable":
+						want.Failed = 1
+					case "conflict":
+						want.Conflicts = 1
+					}
+					if got := v.locationMap.Counts(); got != want || v.toast.gen.Load() != beforeToast {
+						t.Fatalf("fallback accounting/toast: got %+v want %+v; toast=%q", got, want, v.toast.text.Text)
+					}
+				})
+			}
+		})
 		t.Run("duplicate_preparation", func(t *testing.T) {
 			v := newTestViewer(t)
 			a := uitest.PatternedGPSJPEGURI(t, "small.jpg", 1, 64, 48, 52.52, 13.405)
@@ -1326,6 +1791,10 @@ func TestLocationMap(t *testing.T) {
 			if len(v.locationMap.Points()) != 0 {
 				t.Fatal("map plotted before duplicate preparation completed")
 			}
+			progress, waiting := preparationBars(v.locationMap.Overlay())
+			if progress == nil || waiting != nil || progress.Value >= progress.Max {
+				t.Fatal("held duplicate checks have no mounted incomplete progress bar")
+			}
 			unblock()
 			v.grid.Settle()
 			v.locationMap.Settle()
@@ -1333,6 +1802,9 @@ func TestLocationMap(t *testing.T) {
 			counts := v.locationMap.Counts()
 			if len(points) != 1 || points[0].Source.URI.Path() != b.Path() || counts.Total != 1 || counts.Completed != 1 || !counts.Complete {
 				t.Fatalf("map did not use highest-resolution representative: %v %+v", points, counts)
+			}
+			if progress, waiting := preparationBars(v.locationMap.Overlay()); progress != nil || waiting != nil {
+				t.Fatal("completed preparation retained its progress bar")
 			}
 		})
 		t.Run("progressive_results", func(t *testing.T) {
@@ -1425,6 +1897,86 @@ func TestLocationMap(t *testing.T) {
 		})
 	})
 	t.Run("thumbnail_reuse", func(t *testing.T) {
+		t.Run("source_versions", func(t *testing.T) {
+			for _, stage := range []string{"metadata", "preview"} {
+				t.Run(stage, func(t *testing.T) {
+					v := newTestViewer(t)
+					base := uitest.TempGPSJPEGURI(t, "changed.jpg", 24, 16, 52.52, 13.405)
+					var reads atomic.Int32
+					var hold atomic.Bool
+					entered, release := make(chan struct{}), make(chan struct{})
+					var once sync.Once
+					unblock := func() { once.Do(func() { close(release) }) }
+					t.Cleanup(unblock)
+					heldRead := int32(1)
+					if stage == "preview" {
+						heldRead = 2
+					}
+					source := uitest.ReaderURI(base, func() (io.ReadCloser, error) {
+						data, err := os.ReadFile(base.Path())
+						if err != nil {
+							return nil, err
+						}
+						if reads.Add(1) == heldRead && hold.CompareAndSwap(true, false) {
+							close(entered)
+							<-release
+						}
+						return io.NopCloser(bytes.NewReader(data)), nil
+					})
+					dropAndWait(t, v, source)
+					v.display.Settle()
+					reads.Store(0)
+					hold.Store(true)
+					queue := &locationNoticeQueue{UIQueue: &uitest.UIQueue{}, ready: make(chan struct{}, 1)}
+					v.locationMap.SetUIQueue(queue)
+					locationMenu(t, v).Action()
+				waiting:
+					for {
+						select {
+						case <-entered:
+							break waiting
+						case <-queue.ready:
+							queue.Drain()
+						}
+					}
+					if err := os.WriteFile(base.Path(), uitest.GPSJPEG(t, 60, 40, 40.7, -74), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					unblock()
+					v.locationMap.Settle()
+					if stage == "metadata" {
+						if len(v.locationMap.Points()) != 0 || len(v.locationMap.RawFacts()) != 0 {
+							t.Fatal("held metadata published facts after its source changed")
+						}
+					} else {
+						explorerWalk(locationPhoto(t, v, source.Name()), func(object fyne.CanvasObject) {
+							if img, ok := object.(*canvas.Image); ok && img.Image != nil {
+								t.Error("held old preview was mounted after its source changed")
+							}
+						})
+						if _, ok := v.grid.CachedThumb(source); ok {
+							t.Fatal("held old preview entered the shared thumbnail cache")
+						}
+					}
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+					locationMenu(t, v).Action()
+					v.locationMap.Settle()
+					points := v.locationMap.Points()
+					if len(points) != 1 || math.Abs(points[0].Metadata.Latitude-40.7) > .000001 {
+						t.Fatalf("reopen did not read the current source version: %+v", points)
+					}
+					fresh := false
+					explorerWalk(locationPhoto(t, v, source.Name()), func(object fyne.CanvasObject) {
+						if img, ok := object.(*canvas.Image); ok && img.Image != nil && img.Image.Bounds().Dx() == 60 {
+							fresh = true
+						}
+					})
+					if !fresh {
+						t.Fatal("current source preview was not mounted")
+					}
+				})
+			}
+		})
 		t.Run("visible_demand", func(t *testing.T) {
 			v := newTestViewer(t)
 			a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
@@ -1452,6 +2004,78 @@ func TestLocationMap(t *testing.T) {
 		})
 	})
 	t.Run("lifecycle", func(t *testing.T) {
+		t.Run("cluster_visit", func(t *testing.T) {
+			v := newTestViewer(t)
+			v.win.Resize(fyne.NewSize(1000, 700))
+			a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+			b := uitest.TempGPSJPEGURI(t, "b.jpg", 24, 16, 52.52, 13.405)
+			c, holdC, enteredC, releaseC := locationHeldRead(t, uitest.TempGPSJPEGURI(t, "c.jpg", 24, 16, 52.52, 13.405))
+			d, holdD, enteredD, releaseD := locationHeldRead(t, uitest.TempGPSJPEGURI(t, "d.jpg", 24, 16, 52.52, 13.405))
+			dropAndWait(t, v, a, b, c, d)
+			v.display.Settle()
+			var requests atomic.Int32
+			var returning atomic.Bool
+			enteredTile, cancelledTile := make(chan struct{}, 128), make(chan struct{}, 128)
+			pixels := uitest.EncodePNG(t, 256, 256, color.Black)
+			v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: locationTileTransport(func(request *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				if !returning.Load() {
+					enteredTile <- struct{}{}
+					<-request.Context().Done()
+					cancelledTile <- struct{}{}
+					return nil, request.Context().Err()
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(pixels))}, nil
+			})}}, noLocationRetry)
+			holdC.Store(true)
+			holdD.Store(true)
+			queue := &uitest.UIQueue{}
+			v.locationMap.SetUIQueue(queue)
+			locationMenu(t, v).Action()
+			<-enteredC
+			queue.Drain()
+			locationSurface(t, v).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(60, 30)})
+			position := v.app.Driver().AbsolutePositionForObject(locationPhoto(t, v, a.Name()))
+			<-enteredTile
+			fynetest.Tap(locationButton(t, v, fmt.Sprintf(lang.L("%d images"), 2)))
+			v.grid.Settle()
+			<-cancelledTile
+			releaseC()
+			<-enteredD
+			queue.Drain()
+			if len(v.locationMap.Points()) != 3 || !slices.Equal(v.grid.ResultIndexes(), []int{0, 1}) {
+				t.Fatal("Grid visit stopped discovery or changed frozen membership")
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitUntilLoaded(t, v)
+			releaseD()
+			v.locationMap.Settle()
+			if counts := v.locationMap.Counts(); !counts.Complete || counts.Located != 4 || v.locationMap.Visible() {
+				t.Fatalf("cluster image visit stopped discovery: %+v", counts)
+			}
+			hiddenRequests := requests.Load()
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			v.grid.Settle()
+			v.locationMap.Settle()
+			if requests.Load() != hiddenRequests || !v.grid.Visible() {
+				t.Fatal("hidden Grid return restarted map tiles")
+			}
+			returning.Store(true)
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			v.locationMap.Settle()
+			if !v.locationMap.Visible() || requests.Load() <= hiddenRequests {
+				t.Fatal("map return did not resume visible tile demand")
+			}
+			if got := v.app.Driver().AbsolutePositionForObject(locationPhoto(t, v, a.Name())); got != position {
+				t.Fatalf("cluster discovery/visit moved manual camera: %v -> %v", position, got)
+			}
+			locationButton(t, v, fmt.Sprintf(lang.L("%d images"), 4))
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			v.locationMap.Settle()
+			if v.locationMap.Active() {
+				t.Fatal("cluster visit retained active map after final exit")
+			}
+		})
 		t.Run("preparation_and_scan_retirement", func(t *testing.T) {
 			v, release, queue := locationProgressFixture(t)
 			queue.Drain()
@@ -1690,6 +2314,31 @@ func TestLocationMap(t *testing.T) {
 		})
 	})
 	t.Run("selection_feedback", func(t *testing.T) {
+		t.Run("duplicate_provenance", func(t *testing.T) {
+			v := newTestViewer(t)
+			donor := uitest.PatternedGPSJPEGURI(t, "a-donor.jpg", 1, 64, 48, 52.52, 13.405)
+			rep := uitest.PatternedJPEGURISize(t, "z-representative.jpg", 1, 192, 144)
+			dropAndWait(t, v, donor, rep)
+			v.menus.Actions().Hide().Action()
+			v.grid.Settle()
+			v.ShowImage(0)
+			waitUntilLoaded(t, v)
+			if displayed, ok := v.displayedFile(); !ok || displayed.Path() != donor.Path() || !v.dupes.Visibility().HiddenExtra(0) {
+				t.Fatal("fixture does not display a hidden duplicate member")
+			}
+			locationMenu(t, v).Action()
+			v.grid.Settle()
+			v.locationMap.Settle()
+			highlighted := false
+			explorerWalk(locationPhoto(t, v, rep.Name()), func(object fyne.CanvasObject) {
+				if frame, ok := object.(*canvas.Rectangle); ok && frame.StrokeWidth == 2 && frame.StrokeColor == theme.Color(theme.ColorNamePrimary) {
+					highlighted = true
+				}
+			})
+			if !highlighted {
+				t.Fatal("displayed hidden member did not highlight its current representative")
+			}
+		})
 		t.Run("direct_images", func(t *testing.T) {
 			v := newTestViewer(t)
 			a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
@@ -1724,6 +2373,20 @@ func TestLocationMap(t *testing.T) {
 }
 
 type locationTileTransport func(*http.Request) (*http.Response, error)
+
+func preparationBars(root fyne.CanvasObject) (*widget.ProgressBar, *widget.ProgressBarInfinite) {
+	var progress *widget.ProgressBar
+	var waiting *widget.ProgressBarInfinite
+	explorerWalk(root, func(object fyne.CanvasObject) {
+		switch bar := object.(type) {
+		case *widget.ProgressBar:
+			progress = bar
+		case *widget.ProgressBarInfinite:
+			waiting = bar
+		}
+	})
+	return progress, waiting
+}
 
 func locationGPSRecords(t *testing.T, dir string) []string {
 	t.Helper()
@@ -1882,20 +2545,22 @@ func locationFilenameVisible(t *testing.T, v *viewer, name string) bool {
 	return visible
 }
 
-func locationPhoto(t *testing.T, v *viewer, name string) *widgets.TappableArea {
+func locationPhoto(t *testing.T, v *viewer, names ...string) *widgets.TappableArea {
 	t.Helper()
 	var found *widgets.TappableArea
 	explorerWalk(locationSurface(t, v), func(object fyne.CanvasObject) {
 		if area, ok := object.(*widgets.TappableArea); ok {
 			area.MouseIn(&desktop.MouseEvent{})
-			if locationFilenameVisible(t, v, name) {
-				found = area
+			for _, name := range names {
+				if locationFilenameVisible(t, v, name) {
+					found = area
+				}
 			}
 			area.MouseOut()
 		}
 	})
 	if found == nil {
-		t.Fatalf("photo %q missing from mounted surface", name)
+		t.Fatalf("photos %q missing from mounted surface", names)
 	}
 	return found
 }

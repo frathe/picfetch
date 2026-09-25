@@ -45,6 +45,8 @@ type Feature struct {
 	active             bool
 	points             []Point
 	status             *widget.Label
+	preparing          bool
+	preparation        *widgets.PreparationProgress
 	surface            *Surface
 	counts             Counts
 	slots              chan struct{}
@@ -114,6 +116,7 @@ func New(host Host, options Options) *Feature {
 	f.lifetime, f.stopLifetime = context.WithCancel(context.Background())
 	f.ConfigureTiles(TileOptions{}, nil)
 	f.status = widget.NewLabel("")
+	f.preparation = widgets.NewPreparationProgress()
 	f.surface = newSurface(f)
 	clipped := container.NewClip(f.surface)
 	// Border may resize its center before asking for MinSize. Fyne 2.8's
@@ -121,7 +124,7 @@ func New(host Host, options Options) *Feature {
 	clipped.ExtendBaseWidget(clipped)
 	content := container.NewBorder(container.NewHBox(widget.NewLabel(lang.L("Location Map")),
 		widget.NewButton(lang.L("Fit All"), func() { f.surface.fit(); host.Unfocus() }),
-		widget.NewButton(lang.L("Back to Viewer"), host.LeaveLocationMap)), container.NewVBox(f.status, widget.NewLabel(lang.L("© OpenStreetMap contributors"))), nil, nil, clipped)
+		widget.NewButton(lang.L("Back to Viewer"), host.LeaveLocationMap)), container.NewVBox(f.preparation, f.status, widget.NewLabel(lang.L("© OpenStreetMap contributors"))), nil, nil, clipped)
 	f.overlay = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameBackground), content)
 	f.overlay.Hide()
 	return f
@@ -146,14 +149,26 @@ func (f *Feature) prepare(retain bool) {
 		return
 	}
 	visible := !retain || f.Visible()
+	selected := f.surface.selected
 	f.Close()
+	if retain {
+		f.surface.selected = selected
+	}
 	f.active = true
 	f.counts = Counts{}
+	f.preparing = true
+	f.preparation.Update(0, 0)
 	f.status.SetText(lang.L("Checking duplicate groups..."))
 	if visible {
 		f.overlay.Show()
 	}
 	f.host.LocationMapChanged()
+}
+
+func (f *Feature) SetPreparationProgress(completed, total int) {
+	if f.preparing {
+		f.preparation.Update(completed, total)
+	}
 }
 
 func (f *Feature) Open(sources []Source) {
@@ -168,7 +183,11 @@ func (f *Feature) open(sources []Source, retain bool) {
 		return
 	}
 	visible := !retain || f.Visible()
+	selected := f.surface.selected
 	f.Close()
+	if retain {
+		f.surface.selected = selected
+	}
 	f.active = true
 	if !retain {
 		f.surface.manual = false
@@ -199,6 +218,9 @@ func (f *Feature) open(sources []Source, retain bool) {
 }
 
 func (f *Feature) Close() {
+	f.surface.selected = fileidentity.Occurrence{}
+	f.preparing = false
+	f.preparation.Hide()
 	if f.validationCancel != nil {
 		f.validationCancel()
 		f.validationCancel = nil

@@ -603,6 +603,13 @@ Image arrows browse mapped photos in collection order; **Escape** returns to
 the same map camera. Drag to pan, scroll to zoom, and use **Fit All** to frame
 the discovered locations. **Back to Viewer** exits the map.
 
+On the map, **Left / Right / Up / Down** select the nearest photo or cluster in
+that direction with a highlighted border. The first arrow selects the group
+nearest the center; offscreen targets are brought into view. **Enter** opens the
+selected photo or cluster Grid. **Shift + arrow keys** pan without changing
+selection. **+ / -** zoom and **0** fits all locations.
+Selection survives image/Grid visits; **Escape** returns or exits the map.
+
 Counted pins group nearby images at the current zoom, with a representative
 photo above each count. Click either that photo or the count to browse
 exactly those images in Grid; image arrows stay in that group. Escape retraces
@@ -610,6 +617,7 @@ image -> Grid -> map, retaining normal Grid search/selection Escape stages.
 New discoveries do not add images to an already-open group.
 
 With duplicate hiding enabled, preparation finishes before locations appear.
+A progress bar shows checked images, then waits for the final grouping.
 A representative's own GPS wins. Otherwise, located copies must all agree
 within 100 metres; the highest-resolution donor supplies the location.
 Conflicts and unreadable sources are counted separately.

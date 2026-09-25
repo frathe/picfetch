@@ -164,3 +164,122 @@ func TestClustersRejectsInvalidViewport(t *testing.T) {
 		}
 	}
 }
+
+func TestNavigationClustersIncludesOffscreenPointsAndWrappedMembership(t *testing.T) {
+	points := []WorldPoint{
+		{.99, .5}, {.01, .5}, // One pin across the dateline.
+		{.3, .5}, {.301, .5}, // A second pin beyond the viewport.
+		{math.NaN(), .5},
+	}
+	camera := Camera{X: 0, Y: .5, Scale: 1000}
+	visible := Clusters(points, camera, 400, 300, 50)
+	if len(visible) != 1 || !reflect.DeepEqual(visible[0].Members, []int{0, 1}) {
+		t.Fatalf("visible clusters = %+v, want dateline pair only", visible)
+	}
+	got := NavigationClusters(points, camera, 400, 300, 50)
+	if len(got) != 2 || !reflect.DeepEqual(got[0].Members, []int{0, 1}) || !reflect.DeepEqual(got[1].Members, []int{2, 3}) ||
+		math.Abs(got[0].X-190) > 1e-8 || math.Abs(got[1].X-500) > 1e-8 {
+		t.Fatalf("navigation clusters = %+v, want wrapped pair and offscreen pair", got)
+	}
+}
+
+func TestNavigationClustersKeepsDistantLeadersSeparate(t *testing.T) {
+	points := []WorldPoint{{.2, .5}, {.3, .5}, {.2, .5}}
+	got := NavigationClusters(points, Camera{X: .5, Y: .5, Scale: 1e20}, 400, 300, 1)
+	if len(got) != 2 || !reflect.DeepEqual(got[0].Members, []int{0, 2}) || !reflect.DeepEqual(got[1].Members, []int{1}) {
+		t.Fatalf("distant navigation clusters = %+v, want first and third grouped", got)
+	}
+}
+
+func TestNearestClusterChoosesClosestInEachDirection(t *testing.T) {
+	clusters := []Cluster{
+		{Members: []int{0}, X: 100, Y: 100},
+		{Members: []int{1}, X: 110, Y: 100},
+		{Members: []int{2}, X: 90, Y: 100},
+		{Members: []int{3}, X: 100, Y: 90},
+		{Members: []int{4}, X: 100, Y: 110},
+		{Members: []int{5}, X: 130, Y: 100},
+	}
+	for _, tc := range []struct {
+		name   string
+		dx, dy int
+		want   int
+	}{
+		{"right", 1, 0, 1},
+		{"left", -1, 0, 2},
+		{"up", 0, -1, 3},
+		{"down", 0, 1, 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NearestCluster(clusters, 0, 200, 200, tc.dx, tc.dy); got != tc.want {
+				t.Fatalf("NearestCluster(%s) = %d, want %d", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNearestClusterFirstSelectionAndInvalidInputs(t *testing.T) {
+	clusters := []Cluster{
+		{Members: []int{0}, X: 95, Y: 100},
+		{Members: []int{1}, X: 105, Y: 100},
+		{Members: []int{2}, X: 100, Y: 120},
+		{Members: nil, X: 100, Y: 100},
+		{Members: []int{4}, X: math.NaN(), Y: 100},
+	}
+	for _, tc := range []struct {
+		name          string
+		selected      int
+		width, height float64
+		dx, dy        int
+		want          int
+	}{
+		{"first ignores direction", -1, 200, 200, 0, -1, 0},
+		{"out-of-range selection", 99, 200, 200, 1, 0, 0},
+		{"empty selected cluster", 3, 200, 200, 1, 0, 0},
+		{"nonfinite selected cluster", 4, 200, 200, 1, 0, 0},
+		{"zero direction", 0, 200, 200, 0, 0, 0},
+		{"diagonal direction", 0, 200, 200, 1, 1, 0},
+		{"large direction", 0, 200, 200, 2, 0, 0},
+		{"invalid direction and selection", -1, 200, 200, 0, 0, -1},
+		{"zero width", 0, 0, 200, 1, 0, 0},
+		{"nonfinite height", 0, 200, math.Inf(1), 1, 0, 0},
+		{"invalid dimensions and selection", -1, math.NaN(), 200, 1, 0, -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NearestCluster(clusters, tc.selected, tc.width, tc.height, tc.dx, tc.dy); got != tc.want {
+				t.Fatalf("NearestCluster() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+	if got := NearestCluster(nil, -1, 200, 200, 1, 0); got != -1 {
+		t.Errorf("empty clusters selected %d, want -1", got)
+	}
+	if got := NearestCluster(clusters[3:5], -1, 200, 200, 1, 0); got != -1 {
+		t.Errorf("no valid clusters selected %d, want -1", got)
+	}
+}
+
+func TestNearestClusterStrictHalfPlaneDistanceAndStableTie(t *testing.T) {
+	clusters := []Cluster{
+		{Members: []int{0}, X: 100, Y: 100},
+		{Members: []int{1}, X: 100, Y: 101}, // On the boundary: excluded for Right.
+		{Members: []int{2}, X: 115, Y: 100},
+		{Members: []int{3}, X: 105, Y: 101},
+		{Members: []int{4}, X: 105, Y: 99}, // Equal distance to 3: input order wins.
+		{Members: nil, X: 101, Y: 100},
+		{Members: []int{6}, X: math.Inf(1), Y: 100},
+	}
+	if got := NearestCluster(clusters, 0, 200, 200, 1, 0); got != 3 {
+		t.Fatalf("nearest right cluster = %d, want 3", got)
+	}
+	if got := NearestCluster(clusters, 0, 200, 200, -1, 0); got != 0 {
+		t.Fatalf("no left cluster returned %d, want selected 0", got)
+	}
+	extreme := []Cluster{
+		{Members: []int{0}, X: 1e308, Y: 1e308},
+		{Members: []int{1}, X: 0, Y: -1e308},
+	}
+	if got := NearestCluster(extreme, 0, 200, 200, 1, 0); got != 0 {
+		t.Fatalf("extreme off-axis distance selected %d to the right, want 0", got)
+	}
+}

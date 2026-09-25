@@ -5,6 +5,30 @@ Unit-test timings and small synthetic collections do **not** qualify 10k or 30k.
 The screen helper is compiled from this directory using Apple's system SDK;
 no new third-party runtime or distributable asset is introduced.
 
+## Human-controlled session
+
+For a session where the user loads images and performs all clicks:
+
+```sh
+make build
+go run ./scripts/locationmapqualify manual \
+  -binary ./bin/picfetch -evidence /explicit/new-evidence-directory -timeout 30m
+```
+
+This opens an empty, isolated client without a screen/input helper or extra OS
+permissions. Load the chosen collection, open Location Map, browse, return from
+images/clusters, and close/reopen the map. Quit the client to finish. The tool
+records the binary SHA-256, PID, source-free app state and sampled RSS; live
+observations are in `observations.jsonl`, with a final `manual-report.json`.
+The console and isolated app storage may contain private library paths. Keep the
+whole evidence directory local. Interrupted/failed sessions are retained; never
+reuse an evidence directory.
+
+This is not input-to-visible latency measurement and cannot pass the formal
+evidence checker. It generates no human verdict. A user can supply an assessment
+of this exact build separately, but the agreed measured latency gate remains
+open until independently measured or explicitly changed by the maintainer.
+
 ## Run
 
 Choose the image directory explicitly. Use a fresh evidence directory whose

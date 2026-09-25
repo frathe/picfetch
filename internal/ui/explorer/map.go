@@ -41,6 +41,7 @@ type Map struct {
 	host               Host
 	overlay            *fyne.Container
 	status             *widget.Label
+	preparation        *widgets.PreparationProgress
 	unassigned         *widget.Button
 	update             *widget.Button
 	automatic          *widget.Check
@@ -81,6 +82,7 @@ func New(host Host) *Map {
 	m := &Map{host: host, zoom: 1, scene: container.NewWithoutLayout()}
 	m.ExtendBaseWidget(m)
 	m.status = widget.NewLabel("")
+	m.preparation = widgets.NewPreparationProgress()
 	m.status.Truncation = fyne.TextTruncateEllipsis
 	m.unassigned = widget.NewButton(lang.L("Unassigned"), nil)
 	m.unassigned.Hide()
@@ -124,7 +126,7 @@ func New(host Host) *Map {
 		widget.NewLabel(lang.L("Broader")), widget.NewLabel(lang.L("Finer")),
 		container.NewGridWrap(fyne.NewSize(160, m.granularity.MinSize().Height), m.granularity)))
 	toolbar = container.NewBorder(nil, nil, nil, granularity, toolbar)
-	m.overlay = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameBackground), container.NewBorder(toolbar, nil, tags, nil, m))
+	m.overlay = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameBackground), container.NewBorder(container.NewVBox(toolbar, m.preparation), nil, tags, nil, m))
 	m.overlay.Hide()
 	return m
 }

@@ -34,6 +34,17 @@ func binaryIdentity(path string) (string, error) {
 }
 
 func runCLI(args []string, output io.Writer) error {
+	if len(args) > 0 && args[0] == "manual" {
+		options, err := parseManualRun(args[1:], output)
+		if err != nil {
+			return err
+		}
+		interrupt, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		ctx, cancel := context.WithTimeout(interrupt, options.timeout)
+		defer cancel()
+		return runManual(ctx, options, output, startNativeProcess, observeMemory)
+	}
 	if len(args) > 0 && args[0] == "run" {
 		options, err := parseNativeRun(args[1:], output)
 		if err != nil {
@@ -46,7 +57,7 @@ func runCLI(args []string, output io.Writer) error {
 		return runNative(ctx, options.images, options.evidence, options.binary, options.helper, output)
 	}
 	if len(args) == 0 || args[0] != "check" {
-		return errors.New("usage: locationmapqualify check -evidence DIR -images COUNT -binary FILE; or run -images DIR -evidence NEW_DIR -binary FILE -helper FILE [-timeout 30m]")
+		return errors.New("usage: locationmapqualify check -evidence DIR -images COUNT -binary FILE; run -images DIR -evidence NEW_DIR -binary FILE -helper FILE [-timeout 30m]; or manual -binary FILE -evidence NEW_DIR [-timeout 30m]")
 	}
 	flags := flag.NewFlagSet("check", flag.ContinueOnError)
 	flags.SetOutput(output)

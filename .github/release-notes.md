@@ -2,12 +2,30 @@
 
 ### New Features
 
+- Browse GPS-tagged photos with Window -> Location Map (`Shift+L`). Explore
+  geographic clusters, open their exact members in Grid View, and return to the
+  same map position. Location scanning is progressive and reuses completed facts;
+  saved Favorites can retain their own location cache.
+- Use arrow keys to select the nearest map photo or cluster, with a highlighted
+  border, and Enter to open it. Offscreen targets are brought into view;
+  Shift+arrow keys pan without changing selection.
+- Show duplicate-check progress while Location Map or Similarity Explorer waits
+  for grouping to finish.
+- OpenStreetMap tiles now follow dark appearance through a local display filter
+  in both Location Map and the EXIF Location panel, without changing provider or
+  photo colors.
+
 - *delegate heic image rendering to the OS*
   Add back support for HEIC image formats, on start check if the system supports rendering of heic images. if yes save
   that information to the settings so we don't have to check that on every launch. when the os does support the 
   rendering we delegate the rendering to the OS and enable HEIC support.
 
 ### Bugfix
+
+- Keep loaded map tiles and photo previews visible together while dragging, and
+  replace the background only when the next tile scene is complete. Correct
+  live Light/Dark panel backgrounds in Location Map, Grid View and Similarity
+  Explorer.
 
 - Enable Windows HEIC decoding through installed Microsoft extensions, preserving
   primary-image selection, EXIF orientation, metadata and transparency. Keep

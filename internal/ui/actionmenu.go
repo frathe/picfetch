@@ -46,6 +46,17 @@ func (v *viewer) reopenVariantGrid() {
 	v.syncMenus()
 }
 
+// Progress delivery is independent of accepted groups and native menu updates.
+func (v *viewer) syncDuplicatePreparationProgress() {
+	completed, total := v.grid.DuplicatePreparationProgress()
+	if v.locationInput.prepare != nil {
+		v.locationMap.SetPreparationProgress(completed, total)
+	}
+	if v.explorerInput.prepare != nil {
+		v.explorer.SetPreparationProgress(completed, total)
+	}
+}
+
 // Opening waits for the accepted group so a unique source remains a no-op.
 func (v *viewer) syncDuplicateState() {
 	if v.locationInput.prepare != nil && v.grid.DuplicateGroupsReady() {
