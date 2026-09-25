@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/theme"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
 // Host owns transitions out of the geographic surface.
@@ -122,7 +122,7 @@ func New(host Host, options Options) *Feature {
 	content := container.NewBorder(container.NewHBox(widget.NewLabel(lang.L("Location Map")),
 		widget.NewButton(lang.L("Fit All"), func() { f.surface.fit(); host.Unfocus() }),
 		widget.NewButton(lang.L("Back to Viewer"), host.LeaveLocationMap)), container.NewVBox(f.status, widget.NewLabel(lang.L("© OpenStreetMap contributors"))), nil, nil, clipped)
-	f.overlay = container.NewStack(canvas.NewRectangle(theme.Color(theme.ColorNameBackground)), content)
+	f.overlay = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameBackground), content)
 	f.overlay.Hide()
 	return f
 }

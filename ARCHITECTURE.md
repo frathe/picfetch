@@ -360,6 +360,8 @@ cohort visits; full exit clears them. Filtering starts no background work.
 `Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
 stable samples of up to fifteen distinct members per `Pile`, fitted thin frames,
 Shift-scroll panning and a granularity slider cutting the supplied hierarchy.
+The outer panel background uses `widgets.NewThemedRectangle` so toolbar and
+sidebar backgrounds follow appearance changes alongside their standard controls.
 Slider release rearranges piles and centers the selected source or arrangement
 at the current zoom; background publications retain shared-source anchors.
 `Map.View` captures source-free camera geometry on UI for explicit trial recording.
@@ -419,6 +421,10 @@ its tiles are ready; the prior complete scene follows the camera during pan/zoom
 partial failures and retries. Each scene has at most 128 rendered references;
 hidden/closed views retire both work and painted references. Local results remain
 usable even when the initial map has only checkerboards.
+Shared `mapstyle` follows the resolved app theme without changing cached pixels;
+mounted and newly completed scenes adopt theme changes without new HTTP demand.
+Photo previews are not filtered. Outer chrome and hover tooltips use
+`widgets.NewThemedRectangle` so their background colors follow live theme changes.
 `facts.go` bounds raw metadata to live source membership; `favorites.go` stores
 versioned records only for saved Favorite members, with captured directory
 handles and membership namespaces preventing retired-owner publication.
@@ -430,6 +436,17 @@ collects actual admission/stages and sampled RSS, and drives its macOS Swift
 ScreenCaptureKit/CGEvent helper for input-to-visible frame evidence. Its checker validates count, binary
 identity, native screen artifacts, timing thresholds and the separate 30k verdict;
 checker tests are not native performance qualification.
+
+### `internal/ui/mapstyle`
+
+`ForTheme` is the shared display-only color treatment for collection and EXIF
+maps. It wraps immutable source pixels, without another pixel cache, reversing
+luminance and softening chroma in dark mode; light mode restores originals.
+It reads resolved theme colors so both forced and system appearance work.
+EXIF's `themedMap` adapter in `exifwin/map.go` wraps the pinned Fyne-X map raster
+generator, leaving controls, markers, HTTP and caches unchanged.
+Shared `widgets.NewThemedRectangle` uses a paint-time theme color for plain
+canvas backgrounds, avoiding construction-time color snapshots in map chrome.
 
 ### `internal/locationtrial`
 

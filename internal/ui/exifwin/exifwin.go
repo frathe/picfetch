@@ -101,7 +101,7 @@ type Window struct {
 	// open. The section is hidden entirely for a photo with no GPS tags,
 	// and starts collapsed otherwise: no tiles are fetched until the user
 	// asks to see them.
-	locationMap *xwidget.Map
+	locationMap *themedMap
 	location    *fyne.Container
 	toggle      *widget.Button
 	body        *fyne.Container
@@ -379,14 +379,7 @@ func (w *Window) requestStrip() {
 func (w *Window) buildLocation() {
 	w.tiles.Restart()
 	w.observeTiles(w.warmGen)
-	w.locationMap = xwidget.NewMapWithOptions(
-		xwidget.WithOsmTiles(),
-		xwidget.WithTileSource(w.tiles.template),
-		xwidget.WithHTTPClient(w.tiles.client()),
-		xwidget.WithZoomButtons(true),
-		xwidget.WithScrollButtons(false),
-		xwidget.AtZoomLevel(mapZoom),
-	)
+	w.locationMap = newThemedMap(w.tiles.template, w.tiles.client())
 
 	spinner := widget.NewProgressBarInfinite()
 	w.loading = container.NewCenter(container.NewVBox(widget.NewLabel(lang.L("Loading map…")), spinner))

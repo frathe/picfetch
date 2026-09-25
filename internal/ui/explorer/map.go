@@ -20,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
 // Host owns transitions while Map retains its view across those transitions.
@@ -123,7 +124,7 @@ func New(host Host) *Map {
 		widget.NewLabel(lang.L("Broader")), widget.NewLabel(lang.L("Finer")),
 		container.NewGridWrap(fyne.NewSize(160, m.granularity.MinSize().Height), m.granularity)))
 	toolbar = container.NewBorder(nil, nil, nil, granularity, toolbar)
-	m.overlay = container.NewStack(canvas.NewRectangle(theme.Color(theme.ColorNameBackground)), container.NewBorder(toolbar, nil, tags, nil, m))
+	m.overlay = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameBackground), container.NewBorder(toolbar, nil, tags, nil, m))
 	m.overlay.Hide()
 	return m
 }

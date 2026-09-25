@@ -31,6 +31,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
@@ -58,6 +59,105 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func TestLocationMap(t *testing.T) {
+	t.Run("dark_filter", func(t *testing.T) {
+		previous := testApp.Settings().Theme()
+		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
+		testApp.Settings().SetTheme(theme.DefaultTheme())
+		v := newTestViewer(t)
+		v.SetThemeMode(appearance.Dark)
+		tile := image.NewNRGBA(image.Rect(0, 0, 256, 256))
+		for y := range 256 {
+			for x := range 256 {
+				pixel := color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+				if x >= 128 {
+					pixel = color.NRGBA{A: 255}
+				}
+				tile.SetNRGBA(x, y, pixel)
+			}
+		}
+		var encoded bytes.Buffer
+		if err := png.Encode(&encoded, tile); err != nil {
+			t.Fatal(err)
+		}
+		var calls atomic.Int32
+		v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: locationTileTransport(func(_ *http.Request) (*http.Response, error) {
+			calls.Add(1)
+			return &http.Response{StatusCode: 200, Header: http.Header{"Cache-Control": []string{"max-age=3600"}}, Body: io.NopCloser(bytes.NewReader(encoded.Bytes()))}, nil
+		})}}, noLocationRetry)
+		dropAndWait(t, v, uitest.PatternedGPSJPEGURI(t, "unaltered.jpg", 1, 144, 96, 52.52, 13.405))
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		found := 0
+		explorerWalk(locationSurface(t, v), func(object fyne.CanvasObject) {
+			if img, ok := object.(*canvas.Image); ok && img.Image != nil && img.Image.Bounds().Dx() == 256 {
+				found++
+				background := color.NRGBAModel.Convert(img.Image.At(0, 0)).(color.NRGBA)
+				label := color.NRGBAModel.Convert(img.Image.At(200, 0)).(color.NRGBA)
+				if background.R > 64 || background.G > 64 || background.B > 64 || label.R < 180 || label.G < 180 || label.B < 180 {
+					t.Fatalf("dark map lacks dark background/light labels: %v / %v", background, label)
+				}
+			}
+		})
+		if found == 0 || calls.Load() == 0 {
+			t.Fatal("setup did not mount requested map tiles")
+		}
+		photo := locationPhoto(t, v, "unaltered.jpg")
+		var original image.Image
+		explorerWalk(photo, func(object fyne.CanvasObject) {
+			if img, ok := object.(*canvas.Image); ok {
+				original = img.Image
+			}
+		})
+		if original == nil {
+			t.Fatal("photo preview missing")
+		}
+		pixel := original.At(20, 20)
+		before := calls.Load()
+		locationCapture(t, v, "dark-filter.png")
+		for _, mode := range []appearance.Mode{appearance.Light, appearance.Dark, appearance.Light} {
+			v.SetThemeMode(mode)
+			v.locationMap.Settle()
+			want := color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+			if mode == appearance.Dark {
+				want = color.NRGBA{R: 24, G: 28, B: 34, A: 255}
+			}
+			locationAssertTileColor(t, v, want)
+			capture := v.win.Canvas().Capture()
+			for name, y := range map[string]int{"toolbar": 10, "footer": capture.Bounds().Max.Y - 10} {
+				background := color.NRGBAModel.Convert(capture.At(capture.Bounds().Max.X-10, y))
+				if expected := color.NRGBAModel.Convert(theme.Color(theme.ColorNameBackground)); background != expected {
+					t.Errorf("map %s retained the wrong theme background: %v, want %v", name, background, expected)
+				}
+			}
+			explorerWalk(photo, func(object fyne.CanvasObject) {
+				if img, ok := object.(*canvas.Image); ok && (img.Image != original || img.Image.At(20, 20) != pixel) {
+					t.Fatal("map filter changed the photo preview")
+				}
+			})
+			if calls.Load() != before {
+				t.Fatal("appearance change requested new tiles")
+			}
+		}
+		locationCapture(t, v, "light-filter.png")
+		t.Run("partial_replacement", func(t *testing.T) {
+			v := newTestViewer(t)
+			v.SetThemeMode(appearance.Light)
+			v.win.Resize(fyne.NewSize(1000, 700))
+			oldTile := uitest.EncodePNG(t, 256, 256, color.NRGBA{R: 255, G: 255, B: 255, A: 255})
+			newTile := uitest.EncodePNG(t, 256, 256, color.NRGBA{A: 255})
+			startReplacement, finishRetry := locationTileRetryFixture(t, v, oldTile, newTile)
+			dropAndWait(t, v, uitest.TempGPSJPEGURI(t, "pending.jpg", 24, 16, 52.52, 13.405))
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			startReplacement()
+			locationSurface(t, v).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(60, 0)})
+			v.locationMap.Settle()
+			v.SetThemeMode(appearance.Dark)
+			locationAssertTileColor(t, v, color.NRGBA{R: 24, G: 28, B: 34, A: 255})
+			finishRetry()
+			locationAssertTileColor(t, v, color.NRGBA{R: 215, G: 219, B: 225, A: 255})
+		})
+	})
 	t.Run("photo_presentation", func(t *testing.T) {
 		for _, clustered := range []bool{false, true} {
 			t.Run(fmt.Sprint(clustered), func(t *testing.T) {
@@ -913,51 +1013,30 @@ func TestLocationMap(t *testing.T) {
 		})
 	})
 	t.Run("tile_recovery", func(t *testing.T) {
+		previous := testApp.Settings().Theme()
+		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
+		testApp.Settings().SetTheme(theme.DefaultTheme())
 		t.Run("atomic_retry", func(t *testing.T) {
 			v := newTestViewer(t)
+			v.SetThemeMode(appearance.Light)
 			v.win.Resize(fyne.NewSize(1000, 700))
 			oldColor, newColor := color.NRGBA{B: 91, A: 255}, color.NRGBA{G: 91, A: 255}
 			oldTile, newTile := uitest.EncodePNG(t, 256, 256, oldColor), uitest.EncodePNG(t, 256, 256, newColor)
-			var replacing, failed atomic.Bool
-			var seconds atomic.Int64
-			waiting, permit := make(chan struct{}, 1), make(chan struct{})
-			unblock := sync.OnceFunc(func() { close(permit) })
-			t.Cleanup(unblock)
-			v.locationMap.ConfigureTiles(locationmap.TileOptions{Now: func() time.Time { return time.Unix(1000+seconds.Load(), 0) }, Client: &http.Client{Transport: locationTileTransport(func(_ *http.Request) (*http.Response, error) {
-				pixels := oldTile
-				if replacing.Load() {
-					if failed.CompareAndSwap(false, true) {
-						return &http.Response{StatusCode: 503, Header: http.Header{"Retry-After": []string{"2"}}, Body: http.NoBody}, nil
-					}
-					pixels = newTile
-				}
-				return &http.Response{StatusCode: 200, Header: http.Header{"Cache-Control": []string{"no-cache"}}, Body: io.NopCloser(bytes.NewReader(pixels))}, nil
-			})}}, func(ctx context.Context, _ time.Duration) error {
-				waiting <- struct{}{}
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-permit:
-					return nil
-				}
-			})
+			startReplacement, finishRetry := locationTileRetryFixture(t, v, oldTile, newTile)
 			dropAndWait(t, v, uitest.TempGPSJPEGURI(t, "partial.jpg", 24, 16, 52.52, 13.405))
 			locationMenu(t, v).Action()
 			v.locationMap.Settle()
 			locationAssertTileColor(t, v, oldColor)
-			replacing.Store(true)
+			startReplacement()
 			locationSurface(t, v).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(60, 0)})
 			v.locationMap.Settle()
-			<-waiting
 			locationAssertTileColor(t, v, oldColor)
-			seconds.Store(2)
-			unblock()
-			v.locationMap.Wait()
-			v.locationMap.Settle()
+			finishRetry()
 			locationAssertTileColor(t, v, newColor)
 		})
 		t.Run("obsolete_viewport", func(t *testing.T) {
 			v := newTestViewer(t)
+			v.SetThemeMode(appearance.Light)
 			v.win.Resize(fyne.NewSize(1000, 700))
 			colors := []color.NRGBA{{B: 91, A: 255}, {R: 91, A: 255}, {G: 91, A: 255}}
 			pixels := [][]byte{uitest.EncodePNG(t, 256, 256, colors[0]), uitest.EncodePNG(t, 256, 256, colors[1]), uitest.EncodePNG(t, 256, 256, colors[2])}
@@ -1685,6 +1764,42 @@ func (transport locationTileTransport) RoundTrip(request *http.Request) (*http.R
 }
 
 func noLocationRetry(_ context.Context, _ time.Duration) error { return context.Canceled }
+
+// locationTileRetryFixture holds one failed replacement tile while the others
+// complete, until finishRetry advances time and delivers its successful retry.
+func locationTileRetryFixture(t *testing.T, v *viewer, oldTile, newTile []byte) (startReplacement, finishRetry func()) {
+	t.Helper()
+	var replacing, failed atomic.Bool
+	var seconds atomic.Int64
+	waiting, permit := make(chan struct{}, 1), make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(permit) })
+	t.Cleanup(unblock)
+	v.locationMap.ConfigureTiles(locationmap.TileOptions{Now: func() time.Time { return time.Unix(1000+seconds.Load(), 0) }, Client: &http.Client{Transport: locationTileTransport(func(_ *http.Request) (*http.Response, error) {
+		pixels := oldTile
+		if replacing.Load() {
+			if failed.CompareAndSwap(false, true) {
+				return &http.Response{StatusCode: 503, Header: http.Header{"Retry-After": []string{"2"}}, Body: http.NoBody}, nil
+			}
+			pixels = newTile
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{"Cache-Control": []string{"no-cache"}}, Body: io.NopCloser(bytes.NewReader(pixels))}, nil
+	})}}, func(ctx context.Context, _ time.Duration) error {
+		waiting <- struct{}{}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-permit:
+			return nil
+		}
+	})
+	return func() { replacing.Store(true) }, func() {
+		<-waiting
+		seconds.Store(2)
+		unblock()
+		v.locationMap.Wait()
+		v.locationMap.Settle()
+	}
+}
 
 // The first mapped source is complete while the second actual source read waits.
 func locationProgressFixture(t *testing.T) (*viewer, func(), *uitest.UIQueue) {

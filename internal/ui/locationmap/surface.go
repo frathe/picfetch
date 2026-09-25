@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/fileidentity"
+	"github.com/frathe/picfetch/internal/ui/mapstyle"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
@@ -45,7 +46,7 @@ func newSurface(feature *Feature) *Surface {
 	})
 	s.filename = widget.NewLabel("")
 	s.filename.Wrapping = fyne.TextWrapBreak
-	s.tooltip = container.NewStack(canvas.NewRectangle(theme.Color(theme.ColorNameOverlayBackground)), s.filename)
+	s.tooltip = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameOverlayBackground), s.filename)
 	s.hideFilename()
 	s.ExtendBaseWidget(s)
 	return s
@@ -211,6 +212,11 @@ func (r *surfaceRenderer) Layout(size fyne.Size) {
 func (*surfaceRenderer) MinSize() fyne.Size { return fyne.NewSize(200, 140) }
 func (r *surfaceRenderer) Refresh() {
 	r.s.background.Refresh()
+	for _, object := range r.s.tileLayer.Objects {
+		if img, ok := object.(*canvas.Image); ok {
+			img.Image = mapstyle.ForTheme(img.Image)
+		}
+	}
 	r.s.tileLayer.Refresh()
 	r.s.layer.Refresh()
 }

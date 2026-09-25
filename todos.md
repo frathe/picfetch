@@ -44,7 +44,14 @@
   source-versioned photo pixels, moves stale tiles with pan/zoom, swaps only
   complete tile scenes, and adds direct-open framed single photos/hover names
   and cluster previews. Cluster previews and counts both open that exact group
-  in Grid. The current OSM raster service has no documented dark style.
+  in Grid. The current OSM raster service has no documented dark style;
+  [the accepted local dark filter](plans/2026-09-25-location-map-dark-poc.md)
+  keeps that provider and now follows app appearance in both maps, leaving photos
+  and EXIF controls/markers unchanged. Ronin liked the POC's appearance; native
+  drag performance remains unqualified. Fixed construction-time background
+  colors that left Location Map chrome and Explorer panels dark in light mode.
+  PRIVACY.md now describes both map entry points, tile-area disclosure, local
+  filtering and local Favorite metadata caching.
   Ticket audit checks 37/64 complete supported criteria; per-ticket comments
   retain missing composite integration coverage instead of treating existing
   passing parent test names as proof of absent scenarios.

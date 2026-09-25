@@ -9,6 +9,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/lang"
+
+	"github.com/frathe/picfetch/internal/ui/mapstyle"
 )
 
 type tileView struct {
@@ -182,7 +184,7 @@ func (f *Feature) requestTiles(ctx context.Context, placements []tilePlacement, 
 						}
 						if err == nil {
 							for _, img := range placement.images {
-								img.Image = pixels
+								img.Image = mapstyle.ForTheme(pixels)
 								img.Refresh()
 							}
 							return
@@ -207,6 +209,8 @@ func (f *Feature) requestTiles(ctx context.Context, placements []tilePlacement, 
 					if img.Image == nil {
 						return
 					}
+					// Detached tiles may have arrived before a theme change.
+					img.Image = mapstyle.ForTheme(img.Image)
 					objects = append(objects, img)
 				}
 			}
