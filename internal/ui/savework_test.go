@@ -322,6 +322,9 @@ func TestSaveChangesLeavesQueuedUIResponsive(t *testing.T) {
 		// Cancel and drain that work before outer viewer cleanup runs.
 		v.grid.Stop()
 		v.grid.Settle()
+		// The same committed save invalidates Favorite GPS facts. Join its
+		// worker here so its WaitGroup leaves this bubble before outer cleanup.
+		v.locationMap.Settle()
 	})
 }
 

@@ -227,7 +227,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 		session.Save(application, view.persistedFiles(view.state.unsortedFiles))
 		preferences.Save(application, view.currentPreferences())
-		if !view.storeManaged && view.explorer.Trial() == nil {
+		if !view.storeManaged && view.explorer.Trial() == nil && view.locationTrial == nil {
 			view.updater.ApplyStagedUpdate()
 		}
 	})

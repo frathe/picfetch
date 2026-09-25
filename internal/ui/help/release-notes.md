@@ -2,51 +2,45 @@
 
 ### New Features
 
-- Browse GPS-tagged photos with Window -> Location Map (`Shift+L`). Explore
-  geographic clusters, open their exact members in Grid View, and return to the
-  same map position. Location scanning is progressive and reuses completed facts;
-  saved Favorites can retain their own location cache.
-- Use arrow keys to select the nearest map photo or cluster, with a highlighted
-  border, and Enter to open it. Offscreen targets are brought into view;
-  Shift+arrow keys pan without changing selection.
-- Show duplicate-check progress while Location Map or Similarity Explorer waits
-  for grouping to finish.
-- OpenStreetMap tiles now follow dark appearance through a local display filter
-  in both Location Map and the EXIF Location panel, without changing provider or
-  photo colors.
+Explore your photos by where they were taken. Open **Window -> Location Map**
+(`Shift+L`) to see photos with location information on an interactive map.
+Nearby photos are grouped together: open a group to browse all its pictures,
+then return to the same map position. Use the arrow keys to select a photo or
+group, Enter to open it, and Shift+arrow keys to move around the map. Zoom with
+`+`/`-` or press `0` to fit everything. The map follows your light or dark theme,
+keeps photos visible while dragging, and shows progress while checking duplicates.
 
-- *delegate heic image rendering to the OS*
-  Add back support for HEIC image formats, on start check if the system supports rendering of heic images. if yes save
-  that information to the settings so we don't have to check that on every launch. when the os does support the 
-  rendering we delegate the rendering to the OS and enable HEIC support.
+![Trane exploring a map of Europe with photo pins](https://raw.githubusercontent.com/frathe/picfetch/9521edb7087c1d229355419e3d3ce0f5299089fc/assets/trane/trane_europe_map.png)
+
+- The EXIF Location panel also follows dark mode without changing photo colors
+  or the OpenStreetMap provider.
+- Similarity Explorer now shows progress while checking duplicate groups.
+- HEIC photo support is back on systems with a compatible built-in decoder.
+  PicFetch checks availability and remembers the result for later launches.
 
 ### Bugfix
 
-- Keep loaded map tiles and photo previews visible together while dragging, and
-  replace the background only when the next tile scene is complete. Correct
-  live Light/Dark panel backgrounds in Location Map, Grid View and Similarity
-  Explorer.
+- Reduce map flicker when dragging by keeping the current background and photos
+  visible until the next section of the map is ready.
+- Switching between light and dark mode now updates panel backgrounds correctly
+  in Location Map, Grid View and Similarity Explorer.
 
-- Enable Windows HEIC decoding through installed Microsoft extensions, preserving
-  primary-image selection, EXIF orientation, metadata and transparency. Keep
-  decoder workers hidden and enforce memory, CPU and child-process limits.
-- Refresh Explorer test fixtures after the HEIC analysis-facts version change.
-- Restore macOS HEIC camera metadata and refresh previously cached image facts
-  without repeating similarity inference.
+- Open HEIC photos on Windows using installed Microsoft image extensions, with
+  the correct photo, orientation, camera details and transparency. Photo loading
+  runs in the background with resource limits.
+- Restore camera details for HEIC photos on macOS and refresh previously saved
+  information without repeating the slower similarity analysis.
 
 ### Internal
 
-- Close the Windows/Store HEIC pre-release qualification items by maintainer
-  decision (2026-09-23). Native x64/ARM64 evidence, installed MSIX behavior,
-  codec installation/recheck recovery and final-package qualification are
-  accepted as deferred to the maintainer's testing after rollout. This records
-  acceptance of the deferral, not successful execution of the outstanding tests.
+- Additional checks of Windows HEIC support and Microsoft Store installation
+  are deferred to testing after release; these checks are not yet complete.
+- Update automated tests for HEIC photos in Similarity Explorer.
 
-- Create a three-minute 1080p PicFetch feature promo with original electronic
-  music, Trane artwork, 22 animated scenes and verified media output. see the
-  [production record](finished_refactorings/2026-09-22-picfetch-promo.md).
+- Add a three-minute video showcasing PicFetch with Trane, animated scenes and
+  original music. See the [production notes](https://github.com/frathe/picfetch/blob/main/finished_refactorings/2026-09-22-picfetch-promo.md).
 
-- Accept Go build diagnostics in the native qualification runner while still
-  rejecting build failures and missing or skipped required tests.
+- Improve release checks so harmless compiler messages do not flag a working
+  build as broken, while actual build failures and missing tests are still caught.
 
 **Full Changelog**: https://github.com/frathe/picfetch/compare/v1.1.8...v1.1.9

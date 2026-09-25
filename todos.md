@@ -6,31 +6,38 @@
 
 #### New Features
 
+Explore your photos by where they were taken. Open **Window -> Location Map**
+(`Shift+L`) to see photos with location information on an interactive map.
+Nearby photos are grouped together: open a group to browse all its pictures,
+then return to the same map position. Use the arrow keys to select a photo or
+group, Enter to open it, and Shift+arrow keys to move around the map. Zoom with
+`+`/`-` or press `0` to fit everything. The map follows your light or dark theme,
+keeps photos visible while dragging, and shows progress while checking duplicates.
+
+![Trane exploring a map of Europe with photo pins](https://raw.githubusercontent.com/frathe/picfetch/9521edb7087c1d229355419e3d3ce0f5299089fc/assets/trane/trane_europe_map.png)
+
 #### Bugfix
 
-- Keep Grid View marquee selection aligned with the pointer when the selection
-  bar or ranked-search progress changes; update those bars after mouse-up.
+- Dragging a selection box in Grid View now stays aligned with the pointer,
+  even when the selection controls or search progress change.
 
-- Prevent planted `.new` symlinks from redirecting Unix in-app updates, and
-  reclaim stale staging files left by an interrupted update.
+- Make in-app updates safer on macOS and Linux, and clean up temporary files
+  left behind by interrupted updates.
 
-- Recheck the selected mosaic wallpaper display after writing its PNG, so a
-  monitor connected during export cannot turn a targeted Linux request into
-  a global wallpaper change.
+- On Linux, applying a mosaic wallpaper keeps it on the monitor you selected,
+  even if another monitor is connected while the wallpaper is being prepared.
 
-- Keep File > Close Files available during an initial scan or sort, then
-  disable it again when Escape cancels that work in an empty viewer.
+- **File -> Close Files** now remains available while your first collection is
+  loading or being sorted. Cancelling that work with Escape resets the menu correctly.
 
 - Fixed "Reveal in file manager" on Linux for filenames containing commas.
 
 #### Internal
 
-- Restricted WinGet publishing to successful Release workflow runs, strengthened
-  the manual-dispatch regression guard, and updated failed-publish recovery guidance.
-- Hardened `make ci-failures` against command injection from crafted branch names
-  and Make variable overrides.
-- Include `libglib2.0-bin` in the Docker race, full test, and coverage
-  containers so Linux desktop launcher tests can invoke `gio`.
+- Windows package updates are published through WinGet only after a release
+  succeeds, with clearer recovery instructions if publishing fails.
+- Improve the safety of developer tools used to investigate failed builds.
+- Improve automated checks for Linux desktop integration.
 
 ## Open
 
@@ -56,7 +63,7 @@
   for Map/Explorer and keyboard photo/cluster selection with Enter to open.
   Keyboard-only use is a standing user goal: the map path now covers entry,
   directional selection, offscreen targets, zoom/Fit All and return navigation.
-  Ticket audit checks 49/64 criteria (45 previously verified, four closed by
+  Ticket audit checks 50/64 criteria (46 verified, four closed by
   explicit maintainer performance acceptance); per-ticket comments
   retain missing composite integration coverage instead of treating existing
   passing parent test names as proof of absent scenarios.
@@ -78,6 +85,14 @@
   [design interview](<next feature.md>) retains the original decisions.
 
 ## Deferred
+
+### Qodana CI paused
+
+Disabled at Ronin's request on 2026-09-25 after the trial subscription expired.
+Keep its configuration for possible restoration; this is not a passed scan.
+GoLand inspections and CodeQL remain in use. The
+[local inspection research](docs/local-qodana-inspections-2026-09-25.md) records
+the IDE-only Qodana option, licensing distinction and historical inspection advice.
 
 ### Fyne upgrade deferred
 

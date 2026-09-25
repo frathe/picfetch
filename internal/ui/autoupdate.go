@@ -27,7 +27,7 @@ func (v *viewer) CheckForUpdates() bool {
 }
 
 func (v *viewer) SetCheckForUpdates(on bool) {
-	if v.storeManaged || v.explorer.Trial() != nil {
+	if v.storeManaged || v.explorer.Trial() != nil || v.locationTrial != nil {
 		v.settings.checkForUpdates = false
 		v.updateOp.invalidate()
 		return
@@ -60,7 +60,7 @@ func (v *viewer) currentUpdateVersion() string { return v.updater.CurrentVersion
 // before beginning updateOp's lifecycle token and handing Updater.Start its
 // context and a staleness func.
 func (v *viewer) maybeStartUpdateCheck() {
-	if v.storeManaged || v.explorer.Trial() != nil {
+	if v.storeManaged || v.explorer.Trial() != nil || v.locationTrial != nil {
 		return
 	}
 	v.updater.RemoveStaleStage()
@@ -101,7 +101,7 @@ func (v *viewer) maybeStartUpdateCheck() {
 // on Updater's tracked worker; this entry point only validates cheap local
 // prerequisites and adapts worker events onto Fyne's UI thread.
 func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
-	if v.explorer.Trial() != nil {
+	if v.explorer.Trial() != nil || v.locationTrial != nil {
 		if callbacks.Failed != nil {
 			callbacks.Failed(errors.New(lang.L("Updates are unavailable in this session")))
 		}
@@ -179,7 +179,7 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 // usable staged update still exists. The actual file replacement remains in
 // Run's SetOnStopped callback, after session and preference persistence.
 func (v *viewer) PerformUpdate() error {
-	if v.explorer.Trial() != nil {
+	if v.explorer.Trial() != nil || v.locationTrial != nil {
 		return errors.New(lang.L("Updates are unavailable in this session"))
 	}
 	if v.storeManaged {

@@ -39,8 +39,10 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/locationtrial"
 	"github.com/frathe/picfetch/internal/ui/locationmap"
+	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/uitest"
+	"github.com/frathe/picfetch/internal/update"
 )
 
 func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
@@ -476,6 +478,54 @@ func TestLocationMap(t *testing.T) {
 		waitUntilLoaded(t, v)
 		if current, _, _ := v.CurrentFile(); current.String() != source.String() {
 			t.Fatal("photo click opened another source")
+		}
+	})
+	t.Run("native_trial_update_isolation", func(t *testing.T) {
+		v := newTestViewer(t)
+		if err := v.configureLocationTrial(filepath.Join(t.TempDir(), "trial")); err != nil {
+			t.Fatal(err)
+		}
+		v.updater.SetCurrentVersion("0.2.6")
+		stale := saveVerifiedUpdateStage(t, v, "v0.2.5", "old stage")
+		v.SetCheckForUpdates(true)
+		if v.CheckForUpdates() || v.currentPreferences().CheckForUpdates {
+			t.Error("trial accepted automatic-update preference")
+		}
+		if _, err := os.Stat(stale.BinaryPath); err != nil {
+			t.Errorf("trial removed a pre-existing update stage: %v", err)
+		}
+		v.updater.SetClient(nil)
+		var verifierCalls atomic.Int32
+		v.updater.SetVerifierFactory(func() (update.Verifier, error) {
+			verifierCalls.Add(1)
+			return nil, errors.New("trial attempted verifier construction")
+		})
+		var manualErr error
+		v.CheckForUpdatesNow(settingswin.UpdateCallbacks{Failed: func(err error) { manualErr = err }})
+		waitFor(t, "trial manual update", v.updater.Done())
+		if manualErr == nil || manualErr.Error() != lang.L("Updates are unavailable in this session") || verifierCalls.Load() != 0 || v.updater.Done().Begun() {
+			t.Errorf("trial admitted a manual update: error=%v verifier calls=%d", manualErr, verifierCalls.Load())
+		}
+		stage := saveVerifiedUpdateStage(t, v, "v0.2.7", "normal-session stage")
+		quitCalls, applyCalls := 0, 0
+		v.quit = func() { quitCalls++ }
+		originalApply := update.Apply
+		update.Apply = func(_ update.Stage, _ string, _ update.ApplyOptions) error { applyCalls++; return nil }
+		t.Cleanup(func() { update.Apply = originalApply })
+		if err := v.PerformUpdate(); err == nil || err.Error() != lang.L("Updates are unavailable in this session") || quitCalls != 0 {
+			t.Errorf("trial admitted apply/relaunch: error=%v quit calls=%d", err, quitCalls)
+		}
+		lifecycle := v.app.Lifecycle().(interface{ OnStopped() func() })
+		previous := lifecycle.OnStopped()
+		registerShutdown(v.app, v)
+		shutdown := lifecycle.OnStopped()
+		v.app.Lifecycle().SetOnStopped(previous)
+		shutdown()
+		if applyCalls != 0 {
+			t.Error("trial shutdown applied a normal-session update stage")
+		}
+		if _, err := os.Stat(stage.BinaryPath); err != nil {
+			t.Errorf("trial shutdown modified the normal-session update stage: %v", err)
 		}
 	})
 	t.Run("native_trial_observations", func(t *testing.T) {
@@ -1099,7 +1149,7 @@ func TestLocationMap(t *testing.T) {
 			data := uitest.EncodeJPEG(t, 24, 16, color.White)
 			base := storage.NewFileURI(uitest.WriteTempFile(t, "saved.jpg", data))
 			var reads atomic.Int32
-			source := uitest.ReaderURI(base, func() (io.ReadCloser, error) { reads.Add(1); return io.NopCloser(bytes.NewReader(data)), nil })
+			source := uitest.ReaderURI(base, func() (io.ReadCloser, error) { reads.Add(1); return os.Open(base.Path()) })
 			dir := storeFavorite(t, v, "Locations", base)
 			dropAndWait(t, v, source)
 			locationMenu(t, v).Action()
@@ -1108,18 +1158,36 @@ func TestLocationMap(t *testing.T) {
 				t.Fatal("Favorite raw GPS record was not persisted")
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
-			fresh := newTestViewer(t)
-			fresh.favorites.SetDir(filepath.Dir(dir))
-			fresh.OpenFavorite(dir, []fyne.URI{source})
-			waitForScan(t, fresh)
-			waitForSort(t, fresh)
-			waitUntilLoaded(t, fresh)
-			fresh.display.Settle()
-			reads.Store(0)
-			locationMenu(t, fresh).Action()
-			fresh.locationMap.Settle()
+			openFreshMap := func() *viewer {
+				t.Helper()
+				fresh := newTestViewer(t)
+				fresh.favorites.SetDir(filepath.Dir(dir))
+				fresh.OpenFavorite(dir, []fyne.URI{source})
+				waitForScan(t, fresh)
+				waitForSort(t, fresh)
+				waitUntilLoaded(t, fresh)
+				fresh.display.Settle()
+				reads.Store(0)
+				locationMenu(t, fresh).Action()
+				fresh.locationMap.Settle()
+				return fresh
+			}
+			fresh := openFreshMap()
 			if reads.Load() != 0 || fresh.locationMap.Counts().Unlocated != 1 {
 				t.Fatalf("fresh instance did not reuse versioned Favorite fact: reads=%d counts=%+v", reads.Load(), fresh.locationMap.Counts())
+			}
+			fresh.LeaveLocationMap()
+			updated := uitest.GPSJPEG(t, 40, 24, 40.7, -74)
+			if err := os.WriteFile(base.Path(), updated, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			changed := openFreshMap()
+			points := changed.locationMap.Points()
+			if reads.Load() == 0 || len(points) != 1 || math.Abs(points[0].Metadata.Latitude-40.7) > .001 {
+				t.Fatalf("changed Favorite source reused stale no-GPS disk fact: reads=%d points=%+v", reads.Load(), points)
+			}
+			if current, err := os.ReadFile(base.Path()); err != nil || !bytes.Equal(current, updated) {
+				t.Fatal("refreshing the Favorite location changed image bytes")
 			}
 		})
 		t.Run("live_reuse", func(t *testing.T) {
@@ -1256,21 +1324,24 @@ func TestLocationMap(t *testing.T) {
 		t.Run("navigation", func(t *testing.T) {
 			v := newTestViewer(t)
 			a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
-			b := uitest.TempGPSJPEGURI(t, "b.jpg", 24, 16, 52.52, 13.405)
-			c := uitest.TempJPEGURI(t, "c.jpg", 24, 16, color.White)
+			b := uitest.TempJPEGURI(t, "b.jpg", 24, 16, color.White)
+			c := uitest.TempGPSJPEGURI(t, "c.jpg", 24, 16, 52.52, 13.405)
 			dropAndWait(t, v, a, b, c)
 			locationMenu(t, v).Action()
 			v.locationMap.Settle()
 			fynetest.Tap(locationButton(t, v, fmt.Sprintf(lang.L("%d images"), 2)))
 			v.grid.Settle()
-			if !v.grid.Visible() || !slices.Equal(v.grid.ResultIndexes(), []int{0, 1}) {
+			if !v.grid.Visible() || !slices.Equal(v.grid.ResultIndexes(), []int{0, 2}) {
 				t.Fatalf("cluster Grid members: %v", v.grid.ResultIndexes())
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 			waitUntilLoaded(t, v)
+			if candidates := v.preloadCandidates(); len(candidates) != 1 || candidates[0].String() != c.String() {
+				t.Fatalf("cluster preloads escaped nonadjacent visit membership: %v", candidates)
+			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 			waitUntilLoaded(t, v)
-			if v.state.index != 1 {
+			if v.state.index != 2 {
 				t.Fatal("cluster image arrows escaped frozen membership")
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})

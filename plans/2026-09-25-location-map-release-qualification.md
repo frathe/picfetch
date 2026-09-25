@@ -35,6 +35,71 @@ G4 independent API evidence while T0 publishes; G5 remote review-report format i
 new context. S/W: bounded report-format interpretation, no code or verdicts.
 Budget: at most one scout, no delegated reviews/fixes, no local full-suite run.
 
+### Qodana subscription ended
+
+Ronin authorized disabling Qodana CI after the trial subscription expired.
+Preserve its workflow/configuration for later restoration; do not weaken CodeQL,
+tests or local GoLand inspection requirements. The Qodana gate is explicitly
+waived while disabled, not reported as a passing scan. Verify the live workflow
+state with `gh workflow view qodana_code_quality.yml` and retain the decision here.
+
+One additional T3 Luna/medium scout researches only official GoLand documentation
+for local GUI/command-line inspection and profile support. G1 <=25 lines;
+G2 primary-source URLs and quoted supported commands independently checked by T0;
+G3 read-only, no local files; G4/G5 unfamiliar local inspection capabilities while
+T0 handles CI; S/W requires documentation interpretation, no delegated review.
+Budget increase: one scout for the newly requested licensing/local-tool question.
+The research skill's writing step stays with T0 to preserve T3 read-only routing.
+
+### PR 58, first qualification round
+
+Opened [PR 58](https://github.com/frathe/picfetch/pull/58) from `feature/image-map`
+at `f2a2e02`; merge base `48ec832a6c9c1e351981b0f3797eee56bc873203`.
+CI run `36152139675` passed non-UI/ui-3 races, Windows tests and Linux/macOS
+native guards. ui-1/ui-2 exposed old seven-entry Window-menu assertions and a
+Save Changes test that joined map invalidation outside its synctest bubble.
+Both reproduced locally; update the expected map entry/shortcut and settle the
+newly admitted worker inside the bubble. No production save behavior changed.
+
+Codex security completed without findings on that head. Code review produced:
+
+- Update isolation: confirmed. Automatic stale-stage removal, preference changes,
+  manual check/apply and shutdown apply must all reject Location Map trials.
+  `TestLocationMap/native_trial_update_isolation` failed for all those effects
+  with stubbed update I/O; the guard fix passes under the race detector.
+- Progress totals: rejected for the reported new-session scenario. `restartWork`
+  already allocates a new hash engine on close/reopen and generation changes.
+  `TestDuplicatePreparationProgressResetsAcrossSessions` proves fresh accounting;
+  deliberately carrying the old total into the new engine made it fail at 2/2
+  instead of 0/0. Restoring production code passes; no counter reset added.
+- Map preloads: confirmed. The cluster navigation test now uses nonadjacent
+  collection indexes and failed when an unlocated neighbor was preloaded.
+  Preload candidates now use the same cohort/location order as navigation,
+  retaining the active-empty-search behavior.
+
+The changed Favorite version test closes ticket 08's first criterion: a new
+viewer rejects the old no-GPS disk record after the image gains coordinates,
+without changing source bytes. The version-check mutation failed as expected;
+restored race test passes. Ticket audit is now 50/64 (46 verified, 4 accepted).
+
+Ronin requested end-user release prose and Trane artwork. Updated `todos.md`,
+canonical and bundled release notes; the latter two match byte-for-byte.
+The commit-pinned GitHub raw artwork URL returned HTTP 200, `image/png`, 589369
+bytes. Release-note/manual guard tests pass. No artwork was generated or edited.
+
+GoLand inspected all seven changed Go files, including weak warnings. Only two
+pre-existing duplicate test-scaffolding fragments remain in `menu_test.go`
+(534/610), already covered by that file's exact `qodana.yaml` exclusion. Other
+changed files are clear. Qodana workflow state is verified `disabled_manually`
+after Ronin's explicit instruction; CodeQL passed with no open PR alerts.
+Fresh latest-head review/CI remains required after pushing these fixes.
+
+Focused native race run covering all `TestLocationMap`, menu, Save Changes
+responsiveness, Find More Like This and automatic/manual update regressions
+passed (`internal/ui`, 90.354s). Grid session-counter regression passed (1.310s),
+including its deliberate negative verification. `make fmt-check`, exact Qodana
+test-exclusion validation and release-note synchronization checks passed.
+
 ## Contract and seams
 
 Retain the approved viewer action/render, controlled source I/O, tile HTTP,
