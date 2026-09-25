@@ -36,9 +36,11 @@
 
 - **Location Map MVP:** [Specification](.scratch/location-map/spec.md) and
   [13 approved tickets](.scratch/location-map/README.md) published locally.
-  Start with [ticket 01](.scratch/location-map/issues/01-browse-real-gps-photos.md);
-  implementation planning and code are pending. Tickets 01-12 are
-  `ready-for-agent`; ticket 13 is `ready-for-human` for Ronin's 30k test.
+  Implementation and lead review are in progress under
+  [the Deep SDD/TDD plan](plans/2026-09-25-location-map.md). All six planned
+  bounded implementation delegates delivered; acceptance is not yet complete.
+  Remaining gates include native smoke/10k evidence, native Linux/amd64 full
+  verification, the IDE build-tag inspection limitation and Ronin's 30k verdict.
   [Model routing](.scratch/location-map/model-routing.md) assigns bounded
   subagent candidates while retaining lead-owned integration and review.
   Include duplicate-aware GPS fallback, Favorite-owned GPS persistence, bounded

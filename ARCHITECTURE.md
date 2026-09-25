@@ -388,6 +388,48 @@ Committed writes through `filework.go` and removals through `viewer.RemoveFile`
 retire the analysis/map while preserving surviving cohort identities;
 `load.go` keeps missing-file retries within the remaining cohort.
 
+### `internal/ui/locationmap`
+
+`Feature` owns the loaded collection's geographic surface, recorded metadata,
+on-demand previews and camera. `work.go` bounds active source reads, captures
+HEIC contexts and Grid cache writers, checks source versions and queues UI
+delivery; `Settle` joins current/retired work and drains callbacks repeatedly.
+`Close` retires a session, while terminal `Stop` also closes admission.
+`surface.go` projects recorded GPS and retains only mounted viewport previews.
+Root `locationmap.go` captures `fileidentity.Occurrence` sources independently
+of Grid filters, preserves Grid selections and routes preview/image/Escape
+transitions through ordinary display loading. Image visits retain the map's
+camera and scope. `geography.go` supplies wrapped Mercator projection, fit and
+display-space clusters; `resolution.go` derives representative locations using
+the all-pairs donor rule without changing raw source metadata. Cluster visits
+use Grid's exact occurrence subsets, retaining surviving bookmarks across
+deletion and sort. Root joins `sourcechange.go`/`filework.go` for committed
+changes; tracked entry/return validation detects external source versions.
+
+`tiles.go` owns identified HTTP requests, freshness/revalidation, bounded encoded
+and decoded LRUs, and failure deadlines. `viewport.go` owns visible demand,
+tracked requests/retry timers, cancellation while hidden and viewer-lifetime
+notification throttling. Local results remain usable over checkerboards.
+`facts.go` bounds raw metadata to live source membership; `favorites.go` stores
+versioned records only for saved Favorite members, with captured directory
+handles and membership namespaces preventing retired-owner publication.
+Committed source writes retire live facts immediately and schedule tracked disk
+invalidation, serialized with revalidated raw-fact publication. Each saved member
+owns at most one record, with its current source version inside the record.
+The native runner in `scripts/locationmapqualify` launches isolated trial storage,
+collects actual admission/stages and sampled RSS, and drives its macOS Swift
+ScreenCaptureKit/CGEvent helper for input-to-visible frame evidence. Its checker validates count, binary
+identity, native screen artifacts, timing thresholds and the separate 30k verdict;
+checker tests are not native performance qualification.
+
+### `internal/locationtrial`
+
+Explicit native Location Map trial snapshots only: actual admitted count/format
+mix and UI-side preparation/scan stages. `Recorder.Publish` coalesces immutable
+snapshots to one filesystem worker; `Stop` closes admission without joining and
+`Wait` observes the final flush/error off UI. Its state is not render timing:
+screen observations belong to the separate native qualification runner.
+
 ### `internal/ui/visualsearch`
 
 Reference-driven browsing over a captured original source scope. `feature.go`

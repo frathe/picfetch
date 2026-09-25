@@ -19,6 +19,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/help"
+	"github.com/frathe/picfetch/internal/ui/locationmap"
 	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/slideshow"
@@ -112,6 +113,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// The thumbnail-cache setter reaches into the grid, so the grid must be
 	// registered before saved cache limits are applied.
 	view.grid = grid.New(view, window, view.dupes)
+	view.locationMap = locationmap.New(view, locationmap.Options{Context: view.heicContext, Thumbnails: view.grid.CaptureThumbs})
 	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
 		App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
 		CachePressure: func(needBytes uint64) {
@@ -126,6 +128,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	})
 	view.visualsearch = searchui.New(searchHost{view}, searchui.Options{})
 	view.grid.SetOnRankedOpen(view.searchImageOpened)
+	view.grid.SetOnSubsetOpen(view.locationImageOpened)
 	view.compare = compareui.New(
 		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 			return view.compareLoad(ctx, uri)

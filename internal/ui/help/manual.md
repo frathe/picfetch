@@ -594,6 +594,40 @@ of the display selected when it was generated.
 
 ---
 
+### Location Map
+
+**Window -> Location Map** or **`Shift+L`** shows recorded GPS locations for the
+loaded collection, independently of Grid search and selection. Click a thumbnail
+to preview its filename and recorded date, then **Open Image** to view it.
+Image arrows browse mapped photos in collection order; **Escape** returns to
+the same map camera. Drag to pan, scroll to zoom, and use **Fit All** to frame
+the discovered locations. **Back to Viewer** exits the map.
+
+Counted pins group nearby images at the current zoom. Open a pin to browse
+exactly those images in Grid; image arrows stay in that group. Escape retraces
+image -> Grid -> map, retaining normal Grid search/selection Escape stages.
+New discoveries do not add images to an already-open group.
+
+With duplicate hiding enabled, preparation finishes before locations appear.
+A representative's own GPS wins. Otherwise, located copies must all agree
+within 100 metres; the highest-resolution donor supplies the location and the
+preview names it. Conflicts and unreadable sources are counted separately.
+Progressive results remain usable while other sources are being read.
+
+OpenStreetMap tiles require an internet connection. Unavailable tiles show
+checkerboards; local locations and browsing continue, and visible tiles retry.
+GPS facts remain in memory for unsaved images. Favorites cache only their saved
+members; saving promotes known facts, while unsaved merge additions remain in
+memory. Removing a Favorite does not discard the loaded collection.
+Committed edits and deletions rebuild the map automatically. Entering or returning
+also checks for external file changes; a manually chosen camera is retained.
+
+Locations come from supported embedded metadata, including PNG/WebP EXIF.
+XMP-only locations and sidecars are not read. RAW support depends on the supported
+container/preview. HEIC requires an available system decoder. The current AVIF
+adapter cannot distinguish absent GPS from an explicit (0, 0), so that AVIF
+position is not plotted. Browsing never changes source image metadata.
+
 ### Similarity Explorer (Intel/Apple Silicon Mac, Linux and Windows)
 
 On first use, Trane introduces the Explorer and its SigLIP 2 AI model for finding

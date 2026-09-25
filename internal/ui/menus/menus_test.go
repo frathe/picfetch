@@ -300,7 +300,7 @@ func TestWindowMenu_Composition(t *testing.T) {
 		t.Errorf("Window menu Label = %q, want %q", menu.Label, lang.L("Window"))
 	}
 	w := m.Window()
-	want := []*fyne.MenuItem{w.Viewer(), w.Exif(), w.Grid(), w.PictureFrame(), w.Help(), m.window.explorer, w.Mosaic()}
+	want := []*fyne.MenuItem{w.Viewer(), w.Exif(), w.Grid(), w.PictureFrame(), w.Help(), m.window.explorer, m.window.locationMap, w.Mosaic()}
 	assertItems(t, "Window", menu.Items, want)
 }
 
@@ -810,7 +810,7 @@ func TestPairs_CoversEveryStatefulItem(t *testing.T) {
 	items := []*fyne.MenuItem{
 		m.open, m.Save(), m.Export(), m.CloseFiles(), m.settings,
 		m.Window().Viewer(), m.Window().Exif(), m.Window().Grid(),
-		m.Window().PictureFrame(), m.Window().Help(), m.window.explorer,
+		m.Window().PictureFrame(), m.Window().Help(), m.window.explorer, m.window.locationMap,
 		m.sortParent,
 		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.actions.findMoreLikeThis, m.Window().Mosaic(), m.Actions().Rotate(),
 		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),

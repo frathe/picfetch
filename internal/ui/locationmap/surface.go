@@ -1,0 +1,196 @@
+package locationmap
+
+import (
+	"fmt"
+	"image"
+	"image/color"
+	"math"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/widget"
+
+	"github.com/frathe/picfetch/internal/fileidentity"
+	"github.com/frathe/picfetch/internal/ui/widgets"
+)
+
+// Surface is the clipped geographic canvas. Its children exist only in view.
+type Surface struct {
+	widget.BaseWidget
+	feature                 *Feature
+	layer                   *fyne.Container
+	tileLayer               *fyne.Container
+	background              *canvas.Raster
+	centerX, centerY, scale float64
+	images                  []*canvas.Image
+	revision                uint64
+	manual                  bool
+}
+
+func newSurface(feature *Feature) *Surface {
+	s := &Surface{feature: feature, layer: container.NewWithoutLayout(), tileLayer: container.NewWithoutLayout(), centerX: .5, centerY: .5, scale: 256}
+	s.background = canvas.NewRasterWithPixels(func(x, y, _, _ int) color.Color {
+		if (x/16+y/16)%2 == 0 {
+			return color.NRGBA{R: 42, G: 44, B: 47, A: 255}
+		}
+		return color.NRGBA{R: 52, G: 54, B: 57, A: 255}
+	})
+	s.ExtendBaseWidget(s)
+	return s
+}
+
+func (s *Surface) positions() []WorldPoint {
+	points := make([]WorldPoint, len(s.feature.points))
+	for i, point := range s.feature.points {
+		p, ok := Project(point.Metadata.Latitude, point.Metadata.Longitude)
+		if !ok {
+			p = WorldPoint{X: math.NaN(), Y: math.NaN()}
+		}
+		points[i] = p
+	}
+	return points
+}
+
+func (s *Surface) fit() {
+	camera := FitCamera(s.positions(), float64(s.Size().Width), float64(s.Size().Height), 60)
+	s.centerX, s.centerY, s.scale = camera.X, camera.Y, camera.Scale
+	s.arrange()
+}
+
+func (s *Surface) clear() {
+	if s.feature.previewCancel != nil {
+		s.feature.previewCancel()
+		s.feature.previewCancel = nil
+	}
+	s.revision++
+	for _, img := range s.images {
+		img.Image = nil
+		img.Refresh()
+	}
+	s.images = nil
+	s.layer.RemoveAll()
+}
+
+func (s *Surface) arrange() {
+	s.clear()
+	if !s.feature.active || !s.feature.Visible() {
+		return
+	}
+	if s.feature.ctx == nil {
+		return
+	}
+	s.feature.updateTiles()
+	var visible []Point
+	for _, cluster := range Clusters(s.positions(), Camera{s.centerX, s.centerY, s.scale}, float64(s.Size().Width), float64(s.Size().Height), 108) {
+		px, py := float32(cluster.X), float32(cluster.Y)
+		if len(cluster.Members) > 1 {
+			members := make([]fileidentity.Occurrence, len(cluster.Members))
+			highlight := false
+			for i, index := range cluster.Members {
+				members[i] = s.feature.points[index].Source.Identity
+				highlight = highlight || members[i] == s.feature.displayed
+			}
+			pin := widget.NewButton(fmt.Sprintf(lang.L("%d images"), len(members)), func() { s.feature.host.OpenLocationCluster(members) })
+			if highlight {
+				pin.Importance = widget.HighImportance
+			}
+			pin.Resize(fyne.NewSize(96, 48))
+			pin.Move(fyne.NewPos(px-48, py-24))
+			s.layer.Add(pin)
+			continue
+		}
+		point := s.feature.points[cluster.Members[0]]
+		img := canvas.NewImageFromImage(nil)
+		img.FillMode = canvas.ImageFillContain
+		button := widget.NewButton(point.Source.URI.Name(), func() { s.feature.showPreview(point) })
+		if point.Source.Identity == s.feature.displayed {
+			button.Importance = widget.HighImportance
+		}
+		card := container.NewBorder(nil, button, nil, nil, widgets.NewTappableArea(img, func() { s.feature.showPreview(point) }))
+		card.Resize(fyne.NewSize(96, 96))
+		card.Move(fyne.NewPos(px-48, py-48))
+		s.layer.Add(card)
+		s.images = append(s.images, img)
+		visible = append(visible, point)
+	}
+	if len(visible) > 0 {
+		s.feature.previews(visible, s.revision)
+	}
+	s.layer.Refresh()
+}
+
+func (s *Surface) setPreviews(images []image.Image) {
+	for i, img := range images {
+		s.images[i].Image = img
+		s.images[i].Refresh()
+	}
+}
+
+func (s *Surface) CreateRenderer() fyne.WidgetRenderer { return &surfaceRenderer{s: s} }
+
+type surfaceRenderer struct {
+	s    *Surface
+	size fyne.Size
+}
+
+func (r *surfaceRenderer) Layout(size fyne.Size) {
+	if r.size == size {
+		return
+	}
+	r.size = size
+	r.s.background.Resize(size)
+	r.s.layer.Resize(size)
+	r.s.tileLayer.Resize(size)
+	r.s.arrange()
+}
+func (*surfaceRenderer) MinSize() fyne.Size { return fyne.NewSize(200, 140) }
+func (r *surfaceRenderer) Refresh() {
+	r.s.background.Refresh()
+	r.s.tileLayer.Refresh()
+	r.s.layer.Refresh()
+}
+func (r *surfaceRenderer) Objects() []fyne.CanvasObject {
+	return []fyne.CanvasObject{r.s.background, r.s.tileLayer, r.s.layer}
+}
+func (*surfaceRenderer) Destroy() {}
+
+func (s *Surface) Dragged(event *fyne.DragEvent) {
+	s.manual = true
+	s.centerX -= float64(event.Dragged.DX) / s.scale
+	s.centerY -= float64(event.Dragged.DY) / s.scale
+	s.arrange()
+}
+func (*Surface) DragEnd() {}
+func (s *Surface) Scrolled(event *fyne.ScrollEvent) {
+	s.zoom(math.Pow(1.2, float64(event.Scrolled.DY)/10), event.Position)
+}
+func (s *Surface) zoom(factor float64, anchor fyne.Position) {
+	s.manual = true
+	old := s.scale
+	s.scale = math.Max(256, math.Min(256*math.Pow(2, 19), s.scale*factor))
+	s.centerX += float64(anchor.X-s.Size().Width/2) * (1/old - 1/s.scale)
+	s.centerY += float64(anchor.Y-s.Size().Height/2) * (1/old - 1/s.scale)
+	s.arrange()
+}
+
+func (f *Feature) HandleKey(key fyne.KeyName) {
+	s := f.surface
+	switch key {
+	case fyne.Key0:
+		s.fit()
+	case fyne.KeyPlus, fyne.KeyEqual:
+		s.zoom(2, fyne.NewPos(s.Size().Width/2, s.Size().Height/2))
+	case fyne.KeyMinus:
+		s.zoom(.5, fyne.NewPos(s.Size().Width/2, s.Size().Height/2))
+	case fyne.KeyLeft:
+		s.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(60, 0)})
+	case fyne.KeyRight:
+		s.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(-60, 0)})
+	case fyne.KeyUp:
+		s.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(0, 60)})
+	case fyne.KeyDown:
+		s.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(0, -60)})
+	}
+}

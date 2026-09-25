@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -49,6 +50,8 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 			return err
 		}
 		favoritesDir = filepath.Join(opts.ExplorerTrial, "favorites")
+	} else if opts.LocationMapTrial != "" {
+		favoritesDir = filepath.Join(opts.LocationMapTrial, "favorites")
 	} else {
 		favoritesDir, err = favstore.DefaultDir()
 		if err != nil {
@@ -56,6 +59,9 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 		}
 	}
 	view, window := buildStartupViewer(application)
+	if err := view.configureLocationTrial(opts.LocationMapTrial); err != nil {
+		return errors.Join(err, trial.Close())
+	}
 	view.help.SetLicenses(notices)
 
 	options := view.explorer.Options()
@@ -87,7 +93,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 		// report ordered after the sweep: reporting clears the record, and a
 		// cleared record reads as a clean install, so a reporter that ran
 		// first would let the sweep take the last working binary.
-		if !view.storeManaged && trial == nil {
+		if !view.storeManaged && trial == nil && view.locationTrial == nil {
 			failure := view.sweepUpdateBackup()
 			view.maybeShowWhatsNew()
 			view.maybeShowUpdateFailure(failure)
@@ -105,7 +111,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 		view.openInitialFiles()
 	})
 	stopSignals := func() {}
-	if trial != nil {
+	if trial != nil || view.locationTrial != nil {
 		notices := make(chan os.Signal, 1)
 		signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
 		stop, done := make(chan struct{}), make(chan struct{})
@@ -127,12 +133,13 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 	application.Run()
 	stopSignals()
 	view.waitForShutdown()
-	return trial.Close()
+	return errors.Join(trial.Close(), view.waitLocationTrial())
 }
 
 func (v *viewer) waitForShutdown() {
 	v.waitHEIC()
 	v.help.Wait()
+	v.locationMap.Wait()
 	// Preview cancellation cannot interrupt a source already blocked in native
 	// I/O. Close retires its UI delivery; only the test harness joins those reads
 	// through Spiral.Settle after releasing any held source.
@@ -178,6 +185,9 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.stopping = true
 		view.stopHEIC()
 		view.help.Stop()
+		view.closeLocationMap()
+		view.locationMap.Stop()
+		view.stopLocationTrial()
 		view.spiral.Close()
 		view.closeExplorer()
 		view.stopSearchOverlayWait()

@@ -1,5 +1,24 @@
 package grid
 
+import "github.com/frathe/picfetch/internal/fileidentity"
+
+// OpenOccurrences opens an exact occurrence cohort without collapsing repeated paths.
+func (g *Overview) OpenOccurrences(members []fileidentity.Occurrence, label string, back func()) {
+	g.Close()
+	g.subset = map[string]bool{}
+	g.subsetOccurrences = map[fileidentity.Occurrence]bool{}
+	g.subsetLabel = label
+	g.onSubsetBack = back
+	for _, member := range members {
+		g.subset[member.Path] = true
+		g.subsetOccurrences[member] = true
+	}
+	g.applyFilter()
+	g.Toggle()
+}
+
+func (g *Overview) SetOnSubsetOpen(open func(Visit)) { g.onSubsetOpen = open }
+
 // OpenUnassigned adds the selection-only analysis action to this subset visit.
 func (g *Overview) OpenUnassigned(paths []string, back, analyze func()) {
 	g.OpenSubset(paths, back)

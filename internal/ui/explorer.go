@@ -33,6 +33,7 @@ func (v *viewer) showExplorer() {
 		v.resetFade()
 	}
 	v.explorer.WaitBefore(v.visualsearch.Suspend())
+	v.closeLocationMap()
 	v.closeVisualSearch()
 	v.grid.Close()
 	winpos.Maximize(v.win)
@@ -119,7 +120,7 @@ func (v *viewer) settleExplorer() {
 		}
 	}
 }
-func (v *viewer) explorerGridChanged() { v.syncMenus() }
+func (v *viewer) explorerGridChanged() { v.locationGridChanged(); v.syncMenus() }
 func (v *viewer) explorerCanRetry() bool {
 	return v.explorer.State().CanRetry && v.explorerInput.prepare == nil
 }
@@ -153,6 +154,9 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 }
 
 func (v *viewer) cohortIndexes() []int {
+	if indexes := v.locationIndexes(); len(indexes) > 0 {
+		return indexes
+	}
 	if order := v.captureSearchOrder(); order.active {
 		return order.indexes
 	}

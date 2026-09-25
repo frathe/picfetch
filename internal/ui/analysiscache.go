@@ -62,6 +62,7 @@ func (v *viewer) analysisMaintenanceBusy() bool {
 }
 
 func (v *viewer) favoriteSaved() {
+	v.locationMap.FavoritesSaved(v.favorites.Dir())
 	if v.visualsearch != nil {
 		v.visualsearch.FavoriteSaved()
 	}

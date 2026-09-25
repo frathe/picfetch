@@ -174,6 +174,11 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// Search retains shifted letters as text; plain M/S keep merge/sort.
 	if v.keyModifiers() == fyne.KeyModifierShift {
 		switch ev.Name {
+		case fyne.KeyL:
+			if !(v.grid.Visible() && v.grid.Searching()) {
+				v.showLocationMap()
+			}
+			return
 		case fyne.KeyM:
 			if !(v.grid.Visible() && v.grid.Searching()) {
 				v.showMosaic()
@@ -198,6 +203,10 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.LeaveSimilarityMap()
 			return
 		}
+		if v.locationInput.cluster && ev.Name == fyne.KeyV && !v.grid.Searching() {
+			v.LeaveLocationMap()
+			return
+		}
 		v.grid.HandleKey(ev)
 		if !v.grid.Visible() && v.explorerMapActive() {
 			v.recordExplorerView("map-return")
@@ -205,7 +214,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		return
 	}
 
-	if v.explorerKey(ev.Name) {
+	if v.locationMapKey(ev.Name) || v.explorerKey(ev.Name) {
 		return
 	}
 

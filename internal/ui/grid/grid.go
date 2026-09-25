@@ -25,6 +25,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/selection"
@@ -105,13 +106,16 @@ type Overview struct {
 	rankBack              *widget.Button
 	onRankedOpen          func(Visit)
 
-	subsetBack   *widget.Button
-	analyze      *widget.Button
-	onAnalyze    func()
-	onSubsetBack func()
-	subset       map[string]bool
-	host         Host
-	win          fyne.Window
+	subsetBack        *widget.Button
+	analyze           *widget.Button
+	onAnalyze         func()
+	onSubsetBack      func()
+	subset            map[string]bool
+	subsetOccurrences map[fileidentity.Occurrence]bool
+	subsetLabel       string
+	onSubsetOpen      func(Visit)
+	host              Host
+	win               fyne.Window
 
 	visible      bool
 	onVisibility func()
@@ -452,6 +456,9 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 			if g.ranked != nil && g.onRankedOpen != nil {
 				g.onRankedOpen(g.CaptureVisit())
 			}
+			if g.subsetOccurrences != nil && g.onSubsetOpen != nil {
+				g.onSubsetOpen(g.CaptureVisit())
+			}
 			if g.BrowsingDuplicates() && i >= 0 && g.dupes.GroupSize(i) >= 2 {
 				g.BeginInspect(i)
 				g.closeOverlay(false)
@@ -683,6 +690,8 @@ func (g *Overview) closeOverlay(clearInspect bool) {
 	}
 	if g.subset != nil {
 		g.subset = nil
+		g.subsetOccurrences = nil
+		g.subsetLabel = ""
 		g.onSubsetBack = nil
 		g.applyFilter()
 	}

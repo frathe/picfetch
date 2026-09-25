@@ -93,6 +93,24 @@ build: ## Build a native binary for the current OS/arch into bin/ (stripped, no 
 run: ## Run the app directly (go run .)
 	go run -tags "$(APP_TAGS)" .
 
+LOCATION_MAP_EVIDENCE ?=
+LOCATION_MAP_IMAGES ?=
+LOCATION_MAP_EXPECTED_IMAGES ?= 10000
+LOCATION_MAP_TIMEOUT ?= 30m
+
+.PHONY: location-map-qualification-test location-map-check-evidence location-map-qualify
+location-map-qualification-test: ## Test native Location Map evidence validation (does not qualify performance)
+	go test -race -count=1 ./scripts/locationmapqualify ./internal/locationtrial
+
+location-map-qualify: build ## Collect native macOS Location Map evidence from explicitly supplied image/evidence directories
+	@test "$$(uname -s)" = Darwin || { echo 'Native Location Map collection currently requires macOS.'; exit 1; }
+	@test -n "$(LOCATION_MAP_IMAGES)" -a -n "$(LOCATION_MAP_EVIDENCE)" || { echo 'Set LOCATION_MAP_IMAGES and a new LOCATION_MAP_EVIDENCE directory.'; exit 1; }
+	xcrun swiftc -parse-as-library -warnings-as-errors -O scripts/locationmapqualify/native/capture.swift -o "$(BIN_DIR)/location-map-capture"
+	go run ./scripts/locationmapqualify run -images "$(LOCATION_MAP_IMAGES)" -evidence "$(LOCATION_MAP_EVIDENCE)" -binary "$(BIN_DIR)/$(BIN_NAME)" -helper "$(BIN_DIR)/location-map-capture" -timeout "$(LOCATION_MAP_TIMEOUT)"
+
+location-map-check-evidence: build ## Validate native evidence against this build and the explicit expected image count
+	go run ./scripts/locationmapqualify check -evidence "$(LOCATION_MAP_EVIDENCE)" -images "$(LOCATION_MAP_EXPECTED_IMAGES)" -binary "$(BIN_DIR)/$(BIN_NAME)"
+
 MOVIE_SECONDS ?= 180
 MOVIE_DIR ?= .scratch/history-movies
 export MOVIE_SECONDS MOVIE_DIR

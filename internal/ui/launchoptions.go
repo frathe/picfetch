@@ -98,12 +98,18 @@ func (v *viewer) applyLaunchOptions(opts launch.Options) {
 	v.pendingPictureFrame = opts.PictureFrame
 	if opts.ExplorerTrial != "" {
 		v.explorerInput.pendingLaunch = true
+	}
+	trialDir := opts.ExplorerTrial
+	if trialDir == "" {
+		trialDir = opts.LocationMapTrial
+	}
+	if trialDir != "" {
 		options := v.explorer.Options()
-		options.Presets = &explorerpresets.Store{Dir: filepath.Join(opts.ExplorerTrial, "presets")}
+		options.Presets = &explorerpresets.Store{Dir: filepath.Join(trialDir, "presets")}
 		v.explorer.Configure(options)
-		v.favorites.SetDir(filepath.Join(opts.ExplorerTrial, "favorites"))
-		v.analysisDir = filepath.Join(opts.ExplorerTrial, "image-analysis")
-		v.updater.SetDir(filepath.Join(opts.ExplorerTrial, "updates"))
+		v.favorites.SetDir(filepath.Join(trialDir, "favorites"))
+		v.analysisDir = filepath.Join(trialDir, "image-analysis")
+		v.updater.SetDir(filepath.Join(trialDir, "updates"))
 		v.settings.checkForUpdates = false
 	}
 }

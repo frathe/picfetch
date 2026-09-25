@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 246 entries, 470.520s projected weight sum
+# ui-1: 247 entries, 470.520s projected weight sum
 # ui-2: 248 entries, 470.530s projected weight sum
 # ui-3: 210 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -152,6 +152,7 @@ TestLaunchOptions_PictureFrameSpentWhenLaunchCancelled	ui-1
 TestLaunchOptions_PictureFrameSpentWhenResetBeforeScan	ui-1
 TestLaunchOptions_PictureFrameSpentWhenTheLaunchLoadsNothing	ui-1
 TestLaunchOptions_PictureFrameStartsAfterTheLaunchFilesLoad	ui-1
+TestLocationMap	ui-1
 TestManualUpdateCheck_CancelledRequestEmitsNoTerminalCallback	ui-1
 TestManualUpdateFlow_CallbacksReadyThenPerformRequestsRelaunch	ui-1
 TestMaxWindowSizeGetterSetter	ui-1

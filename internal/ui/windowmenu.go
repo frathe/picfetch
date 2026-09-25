@@ -48,6 +48,10 @@ func (v *viewer) syncNativeMenuBar() {
 }
 
 func (v *viewer) showViewer() {
+	if v.locationMap.Active() {
+		v.LeaveLocationMap()
+		return
+	}
 	if v.searchActive() && !v.comparisonActive() {
 		v.visualsearch.Exit()
 		return
@@ -84,11 +88,18 @@ func (v *viewer) showWindowExif() {
 }
 
 func (v *viewer) showWindowGrid() {
-	if v.searchActive() && !v.comparisonActive() {
-		v.returnToSearchGrid()
+	if v.comparisonActive() {
 		return
 	}
-	if v.comparisonActive() {
+	if v.locationInput.cluster {
+		v.openLocationGrid()
+		return
+	}
+	if v.locationMap.Active() {
+		v.closeLocationMap()
+	}
+	if v.searchActive() && !v.comparisonActive() {
+		v.returnToSearchGrid()
 		return
 	}
 	if v.grid.Visible() || v.slides.Active() || v.FileCount() == 0 {

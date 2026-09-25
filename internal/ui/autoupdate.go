@@ -23,7 +23,7 @@ import (
 // on starts a check when due; turning it off cancels an in-flight check but
 // leaves an already-complete stage on disk for apply-on-stop.
 func (v *viewer) CheckForUpdates() bool {
-	return v.settings.checkForUpdates && !v.storeManaged && v.explorer.Trial() == nil
+	return v.settings.checkForUpdates && !v.storeManaged && v.explorer.Trial() == nil && v.locationTrial == nil
 }
 
 func (v *viewer) SetCheckForUpdates(on bool) {

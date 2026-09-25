@@ -48,6 +48,11 @@ func (v *viewer) reopenVariantGrid() {
 
 // Opening waits for the accepted group so a unique source remains a no-op.
 func (v *viewer) syncDuplicateState() {
+	if v.locationInput.prepare != nil && v.grid.DuplicateGroupsReady() {
+		ready := v.locationInput.prepare
+		v.locationInput.prepare = nil
+		ready()
+	}
 	if v.explorerInput.prepare != nil && v.grid.DuplicateGroupsReady() {
 		ready := v.explorerInput.prepare
 		v.explorerInput.prepare = nil

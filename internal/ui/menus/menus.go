@@ -39,6 +39,7 @@ type Callbacks struct {
 
 	ShowViewer       func()
 	ShowExplorer     func()
+	ShowLocationMap  func()
 	ShowExif         func()
 	ShowGrid         func()
 	ShowPictureFrame func()
@@ -93,6 +94,7 @@ type State struct {
 	CanCompare          bool
 	CanFindMoreLikeThis bool
 	ExplorerActive      bool
+	LocationMapActive   bool
 	ExplorerCanRetry    bool
 	CohortActive        bool
 	RestrictedBrowsing  bool
@@ -123,6 +125,7 @@ type Menus struct {
 type WindowItems struct {
 	viewer       *fyne.MenuItem
 	explorer     *fyne.MenuItem
+	locationMap  *fyne.MenuItem
 	mosaic       *fyne.MenuItem
 	exif         *fyne.MenuItem
 	grid         *fyne.MenuItem
@@ -187,6 +190,8 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	m.settings = fyne.NewMenuItem(lang.L("Settings…"), c.ShowSettings)
 
 	m.window.explorer = fyne.NewMenuItem(lang.L("Similarity Explorer"), c.ShowExplorer)
+	m.window.locationMap = fyne.NewMenuItem(lang.L("Location Map"), c.ShowLocationMap)
+	m.window.locationMap.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierShift}
 	m.window.explorer.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierShift}
 	m.window.mosaic = fyne.NewMenuItem(lang.L("Generate Image Mosaic..."), c.Mosaic)
 	m.window.mosaic.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyM, Modifier: fyne.KeyModifierShift}
@@ -353,7 +358,7 @@ func (m *Menus) ActionsMenu() *fyne.Menu {
 // WindowMenu is the Window menu: one item per surface the app can show.
 func (m *Menus) WindowMenu() *fyne.Menu {
 	return fyne.NewMenu(lang.L("Window"),
-		m.window.viewer, m.window.exif, m.window.grid, m.window.pictureFrame, m.window.help, m.window.explorer, m.window.mosaic)
+		m.window.viewer, m.window.exif, m.window.grid, m.window.pictureFrame, m.window.help, m.window.explorer, m.window.locationMap, m.window.mosaic)
 }
 
 // Save is the File menu's "Save Changes" item.
@@ -450,7 +455,7 @@ func (m *Menus) Apply(s State) (changed bool) {
 	m.applyWindow(s)
 	m.applyActions(s)
 	m.applyComparisonIsolation(s.ComparisonActive)
-	if s.ExplorerActive {
+	if s.ExplorerActive || s.LocationMapActive {
 		for _, item := range []*fyne.MenuItem{m.save, m.export, m.window.exif, m.window.grid, m.window.pictureFrame, m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.findMoreLikeThis, m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info, m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal, m.actions.wallpaper, m.actions.trash} {
 			item.Disabled = true
 		}
@@ -525,6 +530,8 @@ func (m *Menus) applyComparisonIsolation(active bool) {
 
 // applyWindow greys out whichever surface is already showing.
 func (m *Menus) applyWindow(s State) {
+	m.window.locationMap.Disabled = s.ComparisonActive || s.FileWorkActive
+	m.window.locationMap.Checked = s.LocationMapActive
 	m.window.explorer.Disabled = s.NoFiles || s.ComparisonActive || s.ExplorerActive && !s.ExplorerCanRetry
 	m.window.mosaic.Disabled = !s.CanMosaic
 	m.window.viewer.Disabled = !s.GridUp && !s.SlidesActive
@@ -587,7 +594,7 @@ type pair struct {
 func (m *Menus) pairs() []pair {
 	items := make([]*fyne.MenuItem, 0, len(m.actions.sort)+24)
 	items = append(items, m.open, m.save, m.export, m.closeFiles, m.settings)
-	items = append(items, m.window.viewer, m.window.explorer, m.window.exif, m.window.grid,
+	items = append(items, m.window.viewer, m.window.explorer, m.window.locationMap, m.window.exif, m.window.grid,
 		m.window.pictureFrame, m.window.help)
 	items = append(items, m.sortParent)
 	items = append(items, m.actions.sort...)

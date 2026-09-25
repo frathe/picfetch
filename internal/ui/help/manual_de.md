@@ -678,6 +678,47 @@ Das Bild behält die Abmessungen des bei der Erstellung gewählten Bildschirms.
 
 ---
 
+### Standortkarte
+
+**Fenster -> Standortkarte** oder **`Shift+L`** zeigt aufgezeichnete GPS-Standorte
+der geladenen Sammlung, unabhängig von Rastersuche und Auswahl. Ein Klick auf
+ein Vorschaubild zeigt Dateiname und vorhandenes Aufnahmedatum. **Bild öffnen**
+wechselt zur Bildansicht. Die Pfeiltasten blättern durch verortete Bilder in
+Sammlungsreihenfolge; **Escape** kehrt zur unveränderten Kartenposition zurück.
+Ziehen verschiebt die Karte, Scrollen zoomt. **Alle einpassen** zeigt alle
+gefundenen Standorte. **Zurück zur Bildansicht** beendet die Karte.
+
+Markierungen mit einer Anzahl gruppieren nahe Bilder bei der aktuellen Zoomstufe.
+Ein Klick öffnet genau diese Bilder im Raster; die Bildpfeile bleiben innerhalb
+der Gruppe. Escape führt von Bild -> Raster -> Karte zurück, einschließlich der
+normalen Escape-Stufen für Rastersuche und Auswahl. Spätere Funde erweitern eine
+bereits geöffnete Gruppe nicht.
+
+Bei ausgeblendeten Duplikaten wird zuerst die Gruppierung abgeschlossen. Eigene
+GPS-Daten des Repräsentanten haben Vorrang. Andernfalls müssen die verorteten
+Kopien paarweise höchstens 100 Meter auseinanderliegen. Die Kopie mit der höchsten
+Auflösung liefert dann den Standort und wird in der Vorschau genannt. Konflikte
+und nicht lesbare Quellen werden getrennt gezählt. Bereits gefundene Standorte
+bleiben während des weiteren Einlesens nutzbar.
+
+OpenStreetMap-Kacheln benötigen eine Internetverbindung. Fehlende Kacheln zeigen
+ein Schachbrett; lokale Standorte bleiben nutzbar, sichtbare Kacheln werden erneut
+angefordert. GPS-Daten ungespeicherter Bilder bleiben im Arbeitsspeicher.
+Favoriten speichern nur Daten ihrer gespeicherten Mitglieder. Beim Speichern
+werden bekannte Daten übernommen; noch ungespeicherte Ergänzungen einer
+zusammengeführten Sammlung bleiben im Arbeitsspeicher. Das Entfernen eines
+Favoriten verwirft die geladene Sammlung nicht.
+Bestätigte Dateiänderungen und Löschungen bauen die Karte automatisch neu auf.
+Beim Öffnen oder Zurückkehren werden auch externe Dateiänderungen geprüft.
+Eine manuell gewählte Kartenposition bleibt erhalten.
+
+Standorte stammen aus unterstützten eingebetteten Metadaten, auch PNG/WebP-EXIF.
+Reine XMP-Standorte und Sidecar-Dateien werden nicht gelesen. RAW-Unterstützung
+hängt vom Container oder Vorschaubild ab; HEIC benötigt einen Systemdecoder.
+Der aktuelle AVIF-Adapter unterscheidet fehlende GPS-Daten nicht von (0, 0),
+weshalb dieser AVIF-Standort nicht eingezeichnet wird. Das Erkunden verändert
+keine Metadaten der Bilddateien.
+
 ### Ähnlichkeits-Explorer (Intel-Mac/Apple Silicon, Linux und Windows)
 
 Beim ersten Öffnen stellt Trane den Explorer und das KI-Modell SigLIP 2 zum

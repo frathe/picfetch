@@ -15,6 +15,23 @@ import (
 // argument, which would make "picfetch ~/photos --slideshow" open a file
 // named "--slideshow" rather than start picture-frame mode.
 func TestParse_FlagsAnywhereAmongPaths(t *testing.T) {
+	t.Run("isolated location map trial", func(t *testing.T) {
+		paths, opts, err := Parse([]string{"--location-map-trial", "/new map trial", "/photos"})
+		if err != nil || !equalStrings(paths, []string{"/photos"}) || opts.LocationMapTrial != "/new map trial" {
+			t.Fatalf("map trial flag: %+v %v", opts, err)
+		}
+		identity, err := opts.ApplicationID(context.Background(), "ordinary")
+		if err != nil || identity == "ordinary" || identity == "" {
+			t.Fatalf("trial did not isolate preferences: %q %v", identity, err)
+		}
+		if _, _, err := Parse([]string{"--location-map-trial="}); err == nil {
+			t.Fatal("empty trial directory accepted")
+		}
+		opts.ExplorerTrial = "/another trial"
+		if _, err := opts.ApplicationID(context.Background(), "ordinary"); err == nil {
+			t.Fatal("overlapping trial modes accepted")
+		}
+	})
 	t.Run("isolated explorer trial", func(t *testing.T) {
 		paths, _, err := Parse([]string{"--explorer-trial", "/new trial", "/photos"})
 		if err != nil || !equalStrings(paths, []string{"/photos"}) {
