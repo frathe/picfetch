@@ -72,8 +72,16 @@ stable is retained as a failed sample. It samples RGB pixels every third pixel
 inside the central 80% by 60% of the window, excluding pointer/bars/toasts, and
 retains whole-window before/after PNGs for each measured gesture.
 
-After complete cold and warm scans, it submits at least 40 alternating horizontal
-pans and in/out zooms. Every submitted measurement is retained, including slow
+Formal gesture qualification is currently unavailable: the capture helper refuses
+pan/zoom measurements because its body hash cannot identify the requested
+transform independently of background tile delivery. A native run therefore
+stops with an explicit error at its first gesture and cannot produce a qualifying
+report. Manual browsing and stage/RSS observation remain available. Reliable
+visual transform correlation is tracked in `todos.md`; the release's existing
+maintainer performance acceptance is separate from measured latency evidence.
+
+The protocol requires at least 40 alternating horizontal Shift+arrow pans and
+in/out zooms after complete cold and warm scans. Every submitted measurement is retained, including slow
 or failed measurements. Another entry followed immediately by Escape measures
 visible cancellation/exit feedback. Exit frames must match the stable closed-viewer
 body captured before that entry; unrelated scan/tile changes cannot complete the
@@ -85,10 +93,10 @@ For 30k, browsing continues for at least one further minute after the first
 40 gestures, with RSS observation throughout that interval,
 and at least three complete open/close cycles are recorded.
 
-Capture cadence quantizes latency. A changed body frame is observable feedback,
-not proof that every tile or thumbnail has finished loading. Background tiles
-can change pixels; stable-frame admission reduces but cannot mathematically
-eliminate that ambiguity. Review the retained image pairs. Capture and PNG
+Capture cadence quantizes latency. Changed body pixels alone do not identify
+a gesture. Both collection and report validation require explicit gesture
+identification; older reports without it no longer qualify. The current helper
+does not set that evidence. Capture and PNG
 encoding run in a separate process but consume system resources. `/bin/ps`
 samples application RSS every 250 ms, so reported peak RSS is a sampled peak.
 Hardware, storage description, format counts, binary SHA-256, helper SHA-256 and

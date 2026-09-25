@@ -20,7 +20,7 @@ func validReport(images int) Report {
 		if i%2 == 1 {
 			kind = "zoom"
 		}
-		gestures[i] = Gesture{Kind: kind, InputNS: int64(i+1) * 1_000_000_000, VisibleNS: int64(i+1)*1_000_000_000 + 100_000_000, Before: "before.png", After: "after.png"}
+		gestures[i] = Gesture{Kind: kind, InputNS: int64(i+1) * 1_000_000_000, VisibleNS: int64(i+1)*1_000_000_000 + 100_000_000, Before: "before.png", After: "after.png", Identified: true}
 	}
 	return Report{
 		Schema: 1, BuildID: fixtureBuild, Native: true, Observation: "macos-screen-capture",
@@ -29,6 +29,14 @@ func validReport(images int) Report {
 		Stages:   []Stage{{Kind: "cold", StartNS: 1, EndNS: 1_000_000_001, PreparationNS: 500_000_000, ScanNS: 500_000_000, Complete: true}, {Kind: "warm", StartNS: 2_000_000_000, EndNS: 3_000_000_000, PreparationNS: 500_000_000, ScanNS: 500_000_000, Complete: true}},
 		Gestures: gestures, Cancellations: []Cancellation{{InputNS: 1, VisibleNS: 250_000_001, Before: "before.png", After: "after.png", Complete: true}},
 		Memory: []MemorySample{{AtNS: 1, RSSBytes: 100}, {AtNS: 60_000_000_001, RSSBytes: 200}},
+	}
+}
+
+func TestCheckReportRejectsUnidentifiedGestures(t *testing.T) {
+	report := validReport(10_000)
+	report.Gestures[0].Identified = false
+	if err := CheckReport(report, 10_000, fixtureBuild); err == nil {
+		t.Fatal("an unrelated changed frame qualified as gesture timing")
 	}
 }
 

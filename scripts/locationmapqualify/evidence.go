@@ -45,12 +45,13 @@ type Report struct {
 type Stage = locationtrial.Stage
 
 type Gesture struct {
-	Kind      string `json:"kind"`
-	InputNS   int64  `json:"input_ns"`
-	VisibleNS int64  `json:"visible_ns"`
-	Before    string `json:"before"`
-	After     string `json:"after"`
-	Skipped   bool   `json:"skipped"`
+	Kind       string `json:"kind"`
+	InputNS    int64  `json:"input_ns"`
+	VisibleNS  int64  `json:"visible_ns"`
+	Before     string `json:"before"`
+	After      string `json:"after"`
+	Skipped    bool   `json:"skipped"`
+	Identified bool   `json:"identified"`
 }
 
 type Cancellation struct {
@@ -118,7 +119,7 @@ func CheckReport(report Report, expectedImages int, expectedBuild string) error 
 	}
 	pan, zoom, fast := false, false, 0
 	for i, gesture := range report.Gestures {
-		if gesture.Skipped || gesture.InputNS <= 0 || gesture.VisibleNS <= gesture.InputNS || gesture.Before == "" || gesture.After == "" {
+		if !gesture.Identified || gesture.Skipped || gesture.InputNS <= 0 || gesture.VisibleNS <= gesture.InputNS || gesture.Before == "" || gesture.After == "" {
 			return fmt.Errorf("gesture %d is skipped or invalid", i)
 		}
 		switch gesture.Kind {

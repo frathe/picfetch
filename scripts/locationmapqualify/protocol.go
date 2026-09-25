@@ -75,6 +75,9 @@ func nativeInput(ctx context.Context, driver nativeDriver, command nativeCommand
 	if (command.Kind == "cancel" || command.Kind == "close") && !result.ClosedViewer {
 		return result, errors.New("native exit has no identified closed-viewer frame")
 	}
+	if (command.Kind == "pan" || command.Kind == "zoom") && !result.Identified {
+		return result, errors.New("native gesture has no identified transform; changed pixels alone cannot qualify latency")
+	}
 	return result, nil
 }
 
@@ -128,7 +131,7 @@ func collectNative(ctx context.Context, driver nativeDriver, report *Report, sus
 				key = mapKeyMinus
 			}
 		}
-		observation, err := nativeInput(ctx, driver, nativeCommand{Kind: kind, Key: key, Name: fmt.Sprintf("gesture-%03d", i)})
+		observation, err := nativeInput(ctx, driver, nativeCommand{Kind: kind, Key: key, Shift: kind == "pan", Name: fmt.Sprintf("gesture-%03d", i)})
 		// An errored observation is retained, including a zero/incomplete sample.
 		//goland:noinspection GoDfaErrorMayBeNotNil
 		report.Gestures = append(report.Gestures, observation.Gesture)

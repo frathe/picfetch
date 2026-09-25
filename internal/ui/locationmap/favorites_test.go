@@ -28,7 +28,7 @@ func TestFavoriteFactsRetainOnlyLocation(t *testing.T) {
 	if err := favstore.Save(dir, "Saved", []fyne.URI{source}); err != nil {
 		t.Fatal(err)
 	}
-	owners, err := openFavoriteFacts(context.Background(), dir)
+	owners, err := openFavoriteFacts(context.Background(), dir, []fyne.URI{source})
 	if err != nil || len(owners.owners) != 1 {
 		t.Fatalf("open Favorite: %v", err)
 	}
@@ -63,10 +63,11 @@ func TestFavoriteRetiredCleanup(t *testing.T) {
 	for _, scenario := range []string{"cancelled", "cancelled_during", "bounded", "unexpected_tree"} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := t.TempDir()
-			if err := favstore.Save(dir, "Saved", []fyne.URI{storage.NewFileURI(filepath.Join(dir, "photo.jpg"))}); err != nil {
+			sources := []fyne.URI{storage.NewFileURI(filepath.Join(dir, "photo.jpg"))}
+			if err := favstore.Save(dir, "Saved", sources); err != nil {
 				t.Fatal(err)
 			}
-			owners, err := openFavoriteFacts(context.Background(), dir)
+			owners, err := openFavoriteFacts(context.Background(), dir, sources)
 			if err != nil || len(owners.owners) != 1 {
 				t.Fatalf("open initial Favorite: %v", err)
 			}
@@ -102,7 +103,7 @@ func TestFavoriteRetiredCleanup(t *testing.T) {
 			} else if scenario == "cancelled_during" {
 				scanContext = &resolutionCancelContext{Context: ctx, cancel: cancel, checks: 12}
 			}
-			owners, err = openFavoriteFacts(scanContext, dir)
+			owners, err = openFavoriteFacts(scanContext, dir, sources)
 			defer owners.close()
 			remaining, readErr := os.ReadDir(retired)
 			switch scenario {
@@ -124,5 +125,39 @@ func TestFavoriteRetiredCleanup(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFavoriteFactsLiveScope(t *testing.T) {
+	dir := t.TempDir()
+	live := storage.NewFileURI(filepath.Join(dir, "live.jpg"))
+	other := storage.NewFileURI(filepath.Join(dir, "other.jpg"))
+	for name, sources := range map[string][]fyne.URI{
+		"Mixed": {live, other}, "Shared": {live}, "Unrelated": {other},
+	} {
+		if err := favstore.Save(dir, name, sources); err != nil {
+			t.Fatal(err)
+		}
+	}
+	owners, err := openFavoriteFacts(context.Background(), dir, []fyne.URI{live, live})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owners.close()
+	if len(owners.owners) != 2 || len(owners.members) != 1 || len(owners.members[live.Path()]) != 2 {
+		t.Fatalf("inventory retained unrelated membership: owners=%d members=%d live owners=%d", len(owners.owners), len(owners.members), len(owners.members[live.Path()]))
+	}
+	for _, owner := range owners.owners {
+		if len(owner.members) != 1 || !owner.members[live.Path()] {
+			t.Fatal("owner retained unrelated paths")
+		}
+	}
+	if _, err := os.Stat(filepath.Join(favstore.Dir(dir, "Unrelated"), favoriteGPSDirectory)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unrelated Favorite acquired a location cache: %v", err)
+	}
+	empty, err := openFavoriteFacts(context.Background(), dir, nil)
+	defer empty.close()
+	if err != nil || len(empty.owners) != 0 || len(empty.members) != 0 {
+		t.Fatal("empty source scope retained Favorite inventory")
 	}
 }

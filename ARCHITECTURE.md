@@ -423,7 +423,8 @@ changes; tracked entry/return validation detects external source versions.
 and decoded LRUs, and failure deadlines. `viewport.go` owns visible demand,
 tracked requests/retry timers, cancellation while hidden and viewer-lifetime
 notification throttling. A replacement tile scene remains detached until all
-its tiles are ready; the prior complete scene follows the camera during pan/zoom,
+its tiles are ready; initial successful tiles are mounted despite failed neighbors.
+The prior painted scene follows the camera during pan/zoom,
 partial failures and retries. Each scene has at most 128 rendered references;
 hidden/closed views retire both work and painted references. Local results remain
 usable even when the initial map has only checkerboards.
@@ -437,7 +438,8 @@ measured checks, then indeterminate final grouping; retirement stops animation.
 `facts.go` retains only fixed-size raw GPS fields for live source membership;
 `work.go` and Favorite reads project away unrelated EXIF strings before retaining
 points or facts. `favorites.go` stores
-versioned records only for saved Favorite members, with captured directory
+versioned records only for saved Favorite members in the operation's live source
+scope; unrelated memberships and owner handles are not retained. Captured directory
 handles and membership namespaces preventing retired-owner publication.
 Committed source writes retire live facts immediately and schedule tracked disk
 invalidation, serialized with revalidated raw-fact publication. Each saved member
@@ -450,7 +452,9 @@ ScreenCaptureKit/CGEvent helper for input-to-visible frame evidence. Its checker
 identity, native screen artifacts, timing thresholds and the separate 30k verdict;
 checker tests are not native performance qualification.
 Exit timing requires pixels matching the stable closed-viewer baseline captured
-before entry. `native/capture_test.swift` checks that response policy without
+before entry. Gesture latency requires identified visual transforms; the current
+hash-only helper refuses pan/zoom samples, leaving formal latency qualification
+unavailable. `native/capture_test.swift` checks that response policy without
 screen/input access; macOS CI also type-checks the production Swift helper.
 `manual.go` in that tool supplies a separate human-controlled launch without a
 screen/input helper. It retains source-free state and sampled RSS in live JSONL

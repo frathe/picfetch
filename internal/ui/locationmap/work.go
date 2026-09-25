@@ -118,7 +118,7 @@ func (f *Feature) scan(sources []Source) {
 				f.versions = versions
 			}
 		})
-		owners, cacheErr := openFavoriteFacts(ctx, favoriteRoot)
+		owners, cacheErr := openFavoriteFacts(ctx, favoriteRoot, allSources)
 		defer owners.close()
 		f.cacheFailure(queue, ctx, generation, cacheErr)
 		counts := Counts{Total: len(sources)}

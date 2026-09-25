@@ -777,7 +777,7 @@ func TestLocationMap(t *testing.T) {
 						t.Fatalf("shared explicit-zero metadata did not reach map: %+v", points)
 					}
 					read, err := imaging.ReadMetadataURIContext(context.Background(), source)
-					if err != nil || read != points[0].Metadata {
+					if err != nil || read.HasGPS != points[0].Metadata.HasGPS || read.Latitude != points[0].Metadata.Latitude || read.Longitude != points[0].Metadata.Longitude {
 						t.Fatalf("map/shared metadata disagree: %v %+v", err, read)
 					}
 					after, err := os.ReadFile(source.Path())
@@ -1727,6 +1727,32 @@ func TestLocationMap(t *testing.T) {
 		previous := testApp.Settings().Theme()
 		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
 		testApp.Settings().SetTheme(theme.DefaultTheme())
+		t.Run("initial_partial", func(t *testing.T) {
+			v := newTestViewer(t)
+			v.SetThemeMode(appearance.Light)
+			v.win.Resize(fyne.NewSize(1000, 700))
+			pixels := uitest.EncodePNG(t, 256, 256, color.NRGBA{G: 91, A: 255})
+			var successes, failures atomic.Int32
+			v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: locationTileTransport(func(request *http.Request) (*http.Response, error) {
+				var zoom, x, y int
+				if _, err := fmt.Sscanf(request.URL.Path, "/%d/%d/%d.png", &zoom, &x, &y); err != nil {
+					return nil, err
+				}
+				if x%2 == 0 {
+					failures.Add(1)
+					return &http.Response{StatusCode: 503, Header: http.Header{}, Body: http.NoBody}, nil
+				}
+				successes.Add(1)
+				return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(pixels))}, nil
+			})}}, noLocationRetry)
+			dropAndWait(t, v, uitest.TempGPSJPEGURI(t, "partial.jpg", 24, 16, 52.52, 13.405))
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			if successes.Load() == 0 || failures.Load() == 0 {
+				t.Fatal("fixture did not deliver both successful and failed tiles")
+			}
+			locationAssertTileColor(t, v, color.NRGBA{G: 91, A: 255})
+		})
 		t.Run("atomic_retry", func(t *testing.T) {
 			v := newTestViewer(t)
 			v.SetThemeMode(appearance.Light)

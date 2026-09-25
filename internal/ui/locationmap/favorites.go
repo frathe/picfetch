@@ -51,10 +51,14 @@ func (c *favoriteFacts) close() {
 	}
 }
 
-func openFavoriteFacts(ctx context.Context, dir string) (*favoriteFacts, error) {
+func openFavoriteFacts(ctx context.Context, dir string, sources []fyne.URI) (*favoriteFacts, error) {
 	c := &favoriteFacts{members: map[string][]*favoriteOwner{}}
-	if dir == "" {
+	if dir == "" || len(sources) == 0 {
 		return c, nil
+	}
+	live := make(map[string]bool, len(sources))
+	for _, source := range sources {
+		live[filepath.Clean(source.Path())] = true
 	}
 	names, err := favstore.List(dir)
 	if err != nil {
@@ -65,11 +69,14 @@ func openFavoriteFacts(ctx context.Context, dir string) (*favoriteFacts, error) 
 		if err := ctx.Err(); err != nil {
 			return c, err
 		}
-		owner, err := openFavoriteOwner(ctx, favstore.Dir(dir, name))
+		owner, err := openFavoriteOwner(ctx, favstore.Dir(dir, name), live)
 		if err != nil {
 			if !errors.Is(err, errFavoriteRetired) {
 				failures = append(failures, err)
 			}
+			continue
+		}
+		if owner == nil {
 			continue
 		}
 		c.owners = append(c.owners, owner)
@@ -84,13 +91,13 @@ func sameFavoriteVersion(a, b os.FileInfo) bool {
 	return os.SameFile(a, b) && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
 }
 
-func openFavoriteOwner(ctx context.Context, dir string) (owner *favoriteOwner, err error) {
+func openFavoriteOwner(ctx context.Context, dir string, live map[string]bool) (owner *favoriteOwner, err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if owner == nil || err != nil {
 			_ = root.Close()
 		}
 	}()
@@ -120,11 +127,19 @@ func openFavoriteOwner(ctx context.Context, dir string) (owner *favoriteOwner, e
 	}
 	owner = &favoriteOwner{dir: dir, root: root, directory: directory, list: list, members: map[string]bool{}}
 	for index, path := range members {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		i, e := strconv.Atoi(index)
 		if e != nil || i < 0 {
 			return nil, errors.New("invalid Favorite member index")
 		}
-		owner.members[filepath.Clean(path)] = true
+		if path = filepath.Clean(path); live[path] {
+			owner.members[path] = true
+		}
+	}
+	if len(owner.members) == 0 {
+		return nil, nil
 	}
 	if !owner.current() {
 		return nil, errFavoriteRetired
@@ -349,7 +364,7 @@ func (f *Feature) invalidatePersistentFacts(queue UIQueue, dir string, sources [
 	f.persistence.Lock()
 	defer f.persistence.Unlock()
 	ctx := context.Background()
-	owners, err := openFavoriteFacts(ctx, dir)
+	owners, err := openFavoriteFacts(ctx, dir, sources)
 	// Partial inventory is non-nil even when some Favorite owners are unavailable.
 	//goland:noinspection GoDfaErrorMayBeNotNil
 	defer owners.close()
@@ -411,7 +426,7 @@ func (f *Feature) persistKnown(queue UIQueue, ctx context.Context, dir string, s
 	if ctx.Err() != nil {
 		return
 	}
-	owners, err := openFavoriteFacts(ctx, dir)
+	owners, err := openFavoriteFacts(ctx, dir, sources)
 	// The inventory is always non-nil; errors describe partially unavailable owners.
 	//goland:noinspection GoDfaErrorMayBeNotNil
 	defer owners.close()

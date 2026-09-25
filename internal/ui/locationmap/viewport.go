@@ -121,6 +121,25 @@ func (f *Feature) updateTiles() {
 			placements[index].images = append(placements[index].images, img)
 		}
 	}
+	// With no prior scene to preserve, expose successful initial tiles as they
+	// arrive. Missing neighbors retain the offline background. Later viewports
+	// still replace the retained scene only once their full demand is ready.
+	painted := false
+	for _, object := range s.tileLayer.Objects {
+		if img, ok := object.(*canvas.Image); ok && img.Image != nil {
+			painted = true
+			break
+		}
+	}
+	if !painted {
+		clearTileLayer(s.tileLayer)
+		for _, placement := range placements {
+			for _, img := range placement.images {
+				s.tileLayer.Objects = append(s.tileLayer.Objects, img)
+			}
+		}
+		s.tileLayer.Refresh()
+	}
 	f.requestTiles(ctx, placements, f.tileRevision)
 }
 
@@ -214,6 +233,9 @@ func (f *Feature) requestTiles(ctx context.Context, placements []tilePlacement, 
 					img.Image = mapstyle.ForTheme(img.Image)
 					objects = append(objects, img)
 				}
+			}
+			if len(objects) > 0 && len(f.surface.tileLayer.Objects) > 0 && f.surface.tileLayer.Objects[0] == objects[0] {
+				return // Initial tiles are already mounted, including retry results.
 			}
 			clearTileLayer(f.surface.tileLayer)
 			f.surface.tileLayer.Objects = objects

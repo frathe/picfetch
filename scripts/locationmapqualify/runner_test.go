@@ -32,11 +32,13 @@ func TestProcessDriverReadsPublishedState(t *testing.T) {
 }
 
 type fixtureNativeDriver struct {
-	state       locationtrial.State
-	inputs      int
-	failGesture int
-	gestures    int
-	wrongExit   bool
+	state        locationtrial.State
+	inputs       int
+	failGesture  int
+	gestures     int
+	wrongExit    bool
+	wrongGesture bool
+	commands     []nativeCommand
 }
 
 func (d *fixtureNativeDriver) State(_ context.Context) (locationtrial.State, error) {
@@ -44,6 +46,7 @@ func (d *fixtureNativeDriver) State(_ context.Context) (locationtrial.State, err
 }
 func (d *fixtureNativeDriver) Input(_ context.Context, command nativeCommand) (nativeObservation, error) {
 	d.inputs++
+	d.commands = append(d.commands, command)
 	if command.Kind == "open" {
 		d.state.Active, d.state.Visible = true, true
 		kind := "warm"
@@ -57,6 +60,7 @@ func (d *fixtureNativeDriver) Input(_ context.Context, command nativeCommand) (n
 	}
 	observation := nativeObservation{Kind: command.Kind, InputNS: int64(d.inputs) * 1_000_000_000, VisibleNS: int64(d.inputs)*1_000_000_000 + 10, Before: fmt.Sprintf("%s-before.png", command.Name), After: fmt.Sprintf("%s-after.png", command.Name)}
 	observation.ClosedViewer = !d.wrongExit && (command.Kind == "cancel" || command.Kind == "close")
+	observation.Identified = !d.wrongGesture && (command.Kind == "pan" || command.Kind == "zoom")
 	if command.Kind == "pan" || command.Kind == "zoom" {
 		d.gestures++
 		if d.gestures == d.failGesture {
@@ -78,6 +82,33 @@ func TestNativeProtocolRejectsUnidentifiedExit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNativeProtocolRejectsUnidentifiedGesture(t *testing.T) {
+	for _, kind := range []string{"pan", "zoom"} {
+		t.Run(kind, func(t *testing.T) {
+			driver := &fixtureNativeDriver{wrongGesture: true}
+			observation, err := nativeInput(context.Background(), driver, nativeCommand{Kind: kind})
+			if err == nil || observation.VisibleNS == 0 {
+				t.Fatal("uncorrelated frame change was qualified as gesture timing or discarded")
+			}
+		})
+	}
+}
+
+func TestNativeProtocolPanUsesShift(t *testing.T) {
+	driver := &fixtureNativeDriver{state: locationtrial.State{Images: 7, Formats: map[string]int{"jpg": 7}, Ready: true}}
+	var report Report
+	_ = collectNative(context.Background(), driver, &report, func() bool { return false })
+	for _, command := range driver.commands {
+		if command.Kind == "pan" {
+			if !command.Shift {
+				t.Fatal("native pan used photo-selection arrows without Shift")
+			}
+			return
+		}
+	}
+	t.Fatal("protocol did not submit a pan")
 }
 
 func TestNativeProtocolUsesObservedCountAndRetainsFailedSample(t *testing.T) {

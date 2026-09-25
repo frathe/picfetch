@@ -31,6 +31,9 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   to the encoded cache budget; oversized cache headers do not prevent display.
 - Location Map keeps only GPS fields in its metadata cache. Retired Favorite
   cache cleanup is bounded and cancellable, avoiding long cleanup during map exit.
+- Opening Location Map retains Favorite GPS ownership only for the current
+  sources. Initial map tiles can appear even when a neighboring request fails;
+  dragging still keeps the previous map visible while replacements load.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.
@@ -53,12 +56,20 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Native map exit timing now requires the observed closed viewer, not an unrelated
   changing map frame. Added macOS observer-policy checks and duplicate-shortcut
   regression coverage for map visits.
+- PR 58 follow-up: corrected GPS-only metadata assertions and native Shift+arrow
+  pan input. Uncorrelated pan/zoom timings now fail qualification explicitly.
 - Windows package updates are published through WinGet only after a release
   succeeds, with clearer recovery instructions if publishing fails.
 - Improve the safety of developer tools used to investigate failed builds.
 - Improve automated checks for Linux desktop integration.
 
 ## Open
+
+- **Native Location Map gesture timing:** replace hash-only change detection with
+  independently verified pan/zoom transforms before enabling formal latency
+  qualification again. The current helper rejects these measurements; manual
+  trials and stage/RSS observation remain usable. Existing maintainer performance
+  acceptance stands separately from measured timing evidence.
 
 - **Location Map MVP:** [Specification](.scratch/location-map/spec.md) and
   [13 approved tickets](.scratch/location-map/README.md) published locally.

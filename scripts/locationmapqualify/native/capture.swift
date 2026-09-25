@@ -35,6 +35,9 @@ struct Observation: Encodable {
 func isResponseFrame(kind: String, current: UInt64, before: UInt64, closed: UInt64?) -> Bool {
     guard current != before else { return false }
     if kind == "cancel" || kind == "close" { return closed == current }
+    // Body hashes cannot distinguish a gesture from background tile delivery.
+    // Formal gesture timing stays unavailable until visual correlation exists.
+    if kind == "pan" || kind == "zoom" { return false }
     return true
 }
 
@@ -142,6 +145,11 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
     }
 
     func admit(_ command: Command, _ continuation: CheckedContinuation<Observation, Never>, deadline: UInt64) {
+        if command.kind == "pan" || command.kind == "zoom" {
+            continuation.resume(returning: Observation(kind: command.kind, skipped: true,
+                error: "native gesture transform identification is unavailable; changed pixels cannot qualify latency"))
+            return
+        }
         let now = nanoseconds(mach_absolute_time())
         let needsStableFrame = command.kind == "pan" || command.kind == "zoom" || command.kind == "open"
         if latest == nil || (needsStableFrame && now - nanoseconds(changedAt) < 250_000_000) {
