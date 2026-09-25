@@ -379,6 +379,13 @@ func (f *Feature) invalidatePersistentFacts(queue UIQueue, dir string, sources [
 				f.cacheFailure(queue, f.lifetime, 0, err)
 			}
 		}
+		// A replacement scan may have won the persistence mutex first. Restore
+		// only its current, version-validated raw fact after removing stale disk
+		// state, so delayed cleanup cannot erase the scan's valid publication.
+		version, known := favthumbs.EntryName(source)
+		if metadata, ok := f.facts.Get(source.String(), version); known && ok {
+			f.cacheFailure(queue, f.lifetime, 0, owners.store(ctx, source, Fact{Version: version, Metadata: metadata}))
+		}
 	}
 }
 

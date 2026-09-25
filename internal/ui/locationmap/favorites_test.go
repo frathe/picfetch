@@ -16,6 +16,7 @@ import (
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 func TestFavoriteFactsRetainOnlyLocation(t *testing.T) {
@@ -159,5 +160,62 @@ func TestFavoriteFactsLiveScope(t *testing.T) {
 	defer empty.close()
 	if err != nil || len(empty.owners) != 0 || len(empty.members) != 0 {
 		t.Fatal("empty source scope retained Favorite inventory")
+	}
+}
+
+func TestFavoriteInvalidationKeepsNewerFact(t *testing.T) {
+	for _, publication := range []string{"pending", "published", "invalidated"} {
+		t.Run(publication, func(t *testing.T) {
+			dir := t.TempDir()
+			source := storage.NewFileURI(filepath.Join(dir, "edited.jpg"))
+			if err := os.WriteFile(source.Path(), []byte("source version fixture"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			sources := []fyne.URI{source}
+			if err := favstore.Save(dir, "Saved", sources); err != nil {
+				t.Fatal(err)
+			}
+			owners, err := openFavoriteFacts(context.Background(), dir, sources)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer owners.close()
+			version, ok := favthumbs.EntryName(source)
+			if !ok {
+				t.Fatal("fixture has no source version")
+			}
+			old := Fact{Version: version, Metadata: imaging.Metadata{HasGPS: true, Latitude: 52.52, Longitude: 13.405}}
+			if err := owners.store(context.Background(), source, old); err != nil {
+				t.Fatal(err)
+			}
+			f := &Feature{facts: NewFactCache(), lifetime: context.Background()}
+			f.facts.Keep([]string{source.String()})
+			fresh := Fact{Version: version, Metadata: imaging.Metadata{HasGPS: true, Latitude: 40.7, Longitude: -74}}
+			if publication != "invalidated" {
+				if !f.facts.Capture(source.String(), version).Store(context.Background(), fresh.Metadata) {
+					t.Fatal("fresh raw fact was refused")
+				}
+			}
+			if publication == "published" {
+				if err := f.persistFact(context.Background(), owners, source, fresh); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Exercise the legal worker ordering in which a fresh scan has already
+			// published its raw result before the queued invalidation acquires I/O.
+			queue := &uitest.UIQueue{}
+			f.invalidatePersistentFacts(queue, dir, sources)
+			got, hit, err := owners.load(context.Background(), source, version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if publication == "invalidated" {
+				if hit {
+					t.Fatal("invalidated disk fact survived without new raw authority")
+				}
+			} else if !hit || got != fresh.Metadata {
+				t.Fatal("delayed invalidation discarded the newly valid Favorite fact")
+			}
+		})
 	}
 }

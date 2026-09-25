@@ -276,7 +276,7 @@ func (f *Feature) InvalidateSources(sources []fyne.URI) {
 	f.facts.Invalidate(keys)
 	if !f.stopped && len(sources) > 0 {
 		// A committed disk effect survives closing the map and application Stop.
-		// The tracked finite cleanup is joined off UI; no new source read is needed.
+		// Tracked cleanup reconciles any fresh raw fact and is joined off UI.
 		dir, queue := f.favoriteRoot.Load().(string), f.ui
 		sources = slices.Clone(sources)
 		f.workers.Go(func() { f.invalidatePersistentFacts(queue, dir, sources) })

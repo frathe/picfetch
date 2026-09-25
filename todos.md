@@ -34,6 +34,8 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Opening Location Map retains Favorite GPS ownership only for the current
   sources. Initial map tiles can appear even when a neighboring request fails;
   dragging still keeps the previous map visible while replacements load.
+- Editing an image while Location Map is open preserves its refreshed Favorite
+  GPS cache even when older cleanup finishes after the new scan.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.
