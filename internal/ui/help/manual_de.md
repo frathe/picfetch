@@ -681,15 +681,17 @@ Das Bild behält die Abmessungen des bei der Erstellung gewählten Bildschirms.
 ### Standortkarte
 
 **Fenster -> Standortkarte** oder **`Shift+L`** zeigt aufgezeichnete GPS-Standorte
-der geladenen Sammlung, unabhängig von Rastersuche und Auswahl. Ein Klick auf
-ein Vorschaubild zeigt Dateiname und vorhandenes Aufnahmedatum. **Bild öffnen**
-wechselt zur Bildansicht. Die Pfeiltasten blättern durch verortete Bilder in
+der geladenen Sammlung, unabhängig von Rastersuche und Auswahl. Über einem
+gerahmten Vorschaubild zeigt der Mauszeiger den Dateinamen; ein Klick auf ein
+einzelnes Foto öffnet es direkt. Die Pfeiltasten blättern durch verortete Bilder in
 Sammlungsreihenfolge; **Escape** kehrt zur unveränderten Kartenposition zurück.
 Ziehen verschiebt die Karte, Scrollen zoomt. **Alle einpassen** zeigt alle
 gefundenen Standorte. **Zurück zur Bildansicht** beendet die Karte.
 
 Markierungen mit einer Anzahl gruppieren nahe Bilder bei der aktuellen Zoomstufe.
-Ein Klick öffnet genau diese Bilder im Raster; die Bildpfeile bleiben innerhalb
+Über jeder Anzahl erscheint ein repräsentatives Vorschaubild. Ein Klick auf das
+Vorschaubild oder die Anzahl öffnet genau die Bilder dieser Gruppe im
+Raster. Die Bildpfeile bleiben innerhalb
 der Gruppe. Escape führt von Bild -> Raster -> Karte zurück, einschließlich der
 normalen Escape-Stufen für Rastersuche und Auswahl. Spätere Funde erweitern eine
 bereits geöffnete Gruppe nicht.
@@ -697,13 +699,15 @@ bereits geöffnete Gruppe nicht.
 Bei ausgeblendeten Duplikaten wird zuerst die Gruppierung abgeschlossen. Eigene
 GPS-Daten des Repräsentanten haben Vorrang. Andernfalls müssen die verorteten
 Kopien paarweise höchstens 100 Meter auseinanderliegen. Die Kopie mit der höchsten
-Auflösung liefert dann den Standort und wird in der Vorschau genannt. Konflikte
+Auflösung liefert dann den Standort. Konflikte
 und nicht lesbare Quellen werden getrennt gezählt. Bereits gefundene Standorte
 bleiben während des weiteren Einlesens nutzbar.
 
-OpenStreetMap-Kacheln benötigen eine Internetverbindung. Fehlende Kacheln zeigen
-ein Schachbrett; lokale Standorte bleiben nutzbar, sichtbare Kacheln werden erneut
-angefordert. GPS-Daten ungespeicherter Bilder bleiben im Arbeitsspeicher.
+OpenStreetMap-Kacheln benötigen eine Internetverbindung. Beim Ziehen und Nachladen
+bleibt die letzte vollständige Karte sichtbar, bis alle neuen Kacheln bereit
+sind. Ohne zuvor geladene Karte erscheint bei fehlenden Kacheln ein Schachbrett.
+Lokale Standorte bleiben nutzbar, sichtbare Kacheln werden erneut angefordert.
+GPS-Daten ungespeicherter Bilder bleiben im Arbeitsspeicher.
 Favoriten speichern nur Daten ihrer gespeicherten Mitglieder. Beim Speichern
 werden bekannte Daten übernommen; noch ungespeicherte Ergänzungen einer
 zusammengeführten Sammlung bleiben im Arbeitsspeicher. Das Entfernen eines

@@ -39,8 +39,18 @@
   Implementation and lead review are in progress under
   [the Deep SDD/TDD plan](plans/2026-09-25-location-map.md). All six planned
   bounded implementation delegates delivered; acceptance is not yet complete.
+  Ronin's informal 30k trial found drag/photo flicker and interaction issues;
+  [the follow-up polish](plans/2026-09-25-location-map-polish.md) now retains
+  source-versioned photo pixels, moves stale tiles with pan/zoom, swaps only
+  complete tile scenes, and adds direct-open framed single photos/hover names
+  and cluster previews. Cluster previews and counts both open that exact group
+  in Grid. The current OSM raster service has no documented dark style.
+  Ticket audit checks 37/64 complete supported criteria; per-ticket comments
+  retain missing composite integration coverage instead of treating existing
+  passing parent test names as proof of absent scenarios.
   Remaining gates include native smoke/10k evidence, native Linux/amd64 full
-  verification, the IDE build-tag inspection limitation and Ronin's 30k verdict.
+  verification, the IDE build-tag inspection limitation and build-bound native
+  evidence plus Ronin's post-fix 30k verdict.
   [Model routing](.scratch/location-map/model-routing.md) assigns bounded
   subagent candidates while retaining lead-owned integration and review.
   Include duplicate-aware GPS fallback, Favorite-owned GPS persistence, bounded

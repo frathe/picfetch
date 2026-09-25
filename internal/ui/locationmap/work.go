@@ -247,14 +247,25 @@ func (f *Feature) readSource(ctx context.Context, uri fyne.URI, owners *favorite
 }
 
 func (f *Feature) previews(points []Point, revision uint64) {
+	images := make([]image.Image, len(points))
+	missing := false
+	for i, img := range f.surface.images {
+		images[i] = img.Image
+		missing = missing || img.Image == nil
+	}
+	if !missing {
+		return
+	}
 	ctx, cancel := context.WithCancel(f.ctx)
 	f.previewCancel = cancel
 	generation, queue, writer := f.generation, f.ui, f.thumbs
 	f.run(ctx, func() {
-		images := make([]image.Image, len(points))
 		for i, point := range points {
 			if ctx.Err() != nil {
 				return
+			}
+			if images[i] != nil {
+				continue
 			}
 			u := point.Source.URI
 			version, versioned := favthumbs.EntryName(u)

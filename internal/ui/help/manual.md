@@ -597,25 +597,28 @@ of the display selected when it was generated.
 ### Location Map
 
 **Window -> Location Map** or **`Shift+L`** shows recorded GPS locations for the
-loaded collection, independently of Grid search and selection. Click a thumbnail
-to preview its filename and recorded date, then **Open Image** to view it.
+loaded collection, independently of Grid search and selection. Hover over a
+framed thumbnail to see its filename; click an individual photo to open it directly.
 Image arrows browse mapped photos in collection order; **Escape** returns to
 the same map camera. Drag to pan, scroll to zoom, and use **Fit All** to frame
 the discovered locations. **Back to Viewer** exits the map.
 
-Counted pins group nearby images at the current zoom. Open a pin to browse
+Counted pins group nearby images at the current zoom, with a representative
+photo above each count. Click either that photo or the count to browse
 exactly those images in Grid; image arrows stay in that group. Escape retraces
 image -> Grid -> map, retaining normal Grid search/selection Escape stages.
 New discoveries do not add images to an already-open group.
 
 With duplicate hiding enabled, preparation finishes before locations appear.
 A representative's own GPS wins. Otherwise, located copies must all agree
-within 100 metres; the highest-resolution donor supplies the location and the
-preview names it. Conflicts and unreadable sources are counted separately.
+within 100 metres; the highest-resolution donor supplies the location.
+Conflicts and unreadable sources are counted separately.
 Progressive results remain usable while other sources are being read.
 
-OpenStreetMap tiles require an internet connection. Unavailable tiles show
-checkerboards; local locations and browsing continue, and visible tiles retry.
+OpenStreetMap tiles require an internet connection. While dragging or loading,
+the last complete map stays visible until all replacement tiles are ready.
+Without a previously loaded map, unavailable tiles show checkerboards; local
+locations and browsing continue, and visible tiles retry.
 GPS facts remain in memory for unsaved images. Favorites cache only their saved
 members; saving promotes known facts, while unsaved merge additions remain in
 memory. Removing a Favorite does not discard the loaded collection.

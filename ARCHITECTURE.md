@@ -395,9 +395,14 @@ on-demand previews and camera. `work.go` bounds active source reads, captures
 HEIC contexts and Grid cache writers, checks source versions and queues UI
 delivery; `Settle` joins current/retired work and drains callbacks repeatedly.
 `Close` retires a session, while terminal `Stop` also closes admission.
-`surface.go` projects recorded GPS and retains only mounted viewport previews.
+`surface.go` projects recorded GPS and retains only mounted viewport previews,
+including one framed representative above each cluster count. Photo hover shows
+a filename tooltip; singleton photo taps open images directly, without a details
+sidebar. A cluster's preview and count share the exact-membership Grid action.
+Rearrangement transfers already-painted, source-version-matched pixels before
+replacing cards; fully warm drags do not start new preview workers.
 Root `locationmap.go` captures `fileidentity.Occurrence` sources independently
-of Grid filters, preserves Grid selections and routes preview/image/Escape
+of Grid filters, preserves Grid selections and routes image/Escape
 transitions through ordinary display loading. Image visits retain the map's
 camera and scope. `geography.go` supplies wrapped Mercator projection, fit and
 display-space clusters; `resolution.go` derives representative locations using
@@ -409,7 +414,11 @@ changes; tracked entry/return validation detects external source versions.
 `tiles.go` owns identified HTTP requests, freshness/revalidation, bounded encoded
 and decoded LRUs, and failure deadlines. `viewport.go` owns visible demand,
 tracked requests/retry timers, cancellation while hidden and viewer-lifetime
-notification throttling. Local results remain usable over checkerboards.
+notification throttling. A replacement tile scene remains detached until all
+its tiles are ready; the prior complete scene follows the camera during pan/zoom,
+partial failures and retries. Each scene has at most 128 rendered references;
+hidden/closed views retire both work and painted references. Local results remain
+usable even when the initial map has only checkerboards.
 `facts.go` bounds raw metadata to live source membership; `favorites.go` stores
 versioned records only for saved Favorite members, with captured directory
 handles and membership namespaces preventing retired-owner publication.

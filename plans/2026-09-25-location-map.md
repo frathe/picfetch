@@ -425,6 +425,13 @@ The normal Computer Use capture delay cannot measure the 100ms requirement.
 
 ### Remaining acceptance / required input
 
+2026-09-25 follow-up: Ronin has now reported an informal 30k run that "went
+relatively well", with rendering/interaction findings. See the
+[polish plan](2026-09-25-location-map-polish.md) and ticket 13. Its checklist audit
+also found proposed child scenarios absent from the retained test inventory:
+all 18 parent names passing is not complete acceptance of those composite
+contracts. Ticket 12 remains open; 37/64 ticket acceptance points are verified.
+
 - Native smoke and 10k collection runs, artifact review and any resulting fixes
   remain outstanding. The Computer Use skill requires explicit authorization
   for running the dedicated ScreenCaptureKit/CGEvent helper. Requested that

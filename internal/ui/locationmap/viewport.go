@@ -46,19 +46,28 @@ func waitForTileRetry(ctx context.Context, delay time.Duration) error {
 }
 
 func (f *Feature) suspendTiles() {
+	f.cancelTileRequests()
+	if f.surface != nil {
+		clearTileLayer(f.surface.tileLayer)
+	}
+}
+
+func (f *Feature) cancelTileRequests() {
 	if f.tileCancel != nil {
 		f.tileCancel()
 		f.tileCancel = nil
 	}
 	f.tileRevision++
-	if f.surface != nil {
-		for _, object := range f.surface.tileLayer.Objects {
-			if img, ok := object.(*canvas.Image); ok {
-				img.Image = nil
-			}
+}
+
+func clearTileLayer(layer *fyne.Container) {
+	for _, object := range layer.Objects {
+		if img, ok := object.(*canvas.Image); ok {
+			img.Image = nil
+			img.Refresh()
 		}
-		f.surface.tileLayer.RemoveAll()
 	}
+	layer.RemoveAll()
 }
 
 func (f *Feature) updateTiles() {
@@ -67,7 +76,10 @@ func (f *Feature) updateTiles() {
 	if f.tileCancel != nil && view == f.tileView {
 		return
 	}
-	f.suspendTiles()
+	// Retire network demand without removing the last painted scene. New tiles
+	// remain detached until the complete current viewport can replace it at once.
+	f.cancelTileRequests()
+	f.movePaintedTiles(view)
 	f.tileView = view
 	if view.size.Width <= 0 || view.size.Height <= 0 {
 		return
@@ -97,7 +109,6 @@ func (f *Feature) updateTiles() {
 			img.FillMode = canvas.ImageFillStretch
 			img.Move(fyne.NewPos(float32((float64(x)-left)*edge), float32((float64(y)-top)*edge)))
 			img.Resize(fyne.NewSize(float32(edge+1), float32(edge+1)))
-			s.tileLayer.Add(img)
 			index, ok := byKey[key]
 			if !ok {
 				index = len(placements)
@@ -110,13 +121,38 @@ func (f *Feature) updateTiles() {
 	f.requestTiles(ctx, placements, f.tileRevision)
 }
 
+// Move the retained scene through the same camera transform as the photos.
+// Updating its pose after each input avoids accumulating a second drag offset.
+func (f *Feature) movePaintedTiles(view tileView) {
+	previous := f.paintedTileView
+	if previous.scale > 0 {
+		ratio := float32(view.scale / previous.scale)
+		dx := float32((previous.x-view.x)*view.scale) + view.size.Width/2 - previous.size.Width/2*ratio
+		dy := float32((previous.y-view.y)*view.scale) + view.size.Height/2 - previous.size.Height/2*ratio
+		for _, object := range f.surface.tileLayer.Objects {
+			position, size := object.Position(), object.Size()
+			object.Move(fyne.NewPos(position.X*ratio+dx, position.Y*ratio+dy))
+			object.Resize(fyne.NewSize(size.Width*ratio, size.Height*ratio))
+		}
+	}
+	f.paintedTileView = view
+}
+
 func (f *Feature) requestTiles(ctx context.Context, placements []tilePlacement, revision uint64) {
 	queue, store, wait := f.ui, f.tiles, f.tileWait
+	// Called on UI: successful detached tiles survive a retry. Workers only read
+	// this captured demand; they never inspect UI-owned canvas image state.
+	var remaining []tilePlacement
+	for _, placement := range placements {
+		if placement.images[0].Image == nil {
+			remaining = append(remaining, placement)
+		}
+	}
 	f.workers.Go(func() {
 		var workers sync.WaitGroup
 		var mu sync.Mutex
 		var retry time.Time
-		for lane := range min(4, len(placements)) {
+		for lane := range min(4, len(remaining)) {
 			workers.Go(func() {
 				select {
 				case f.tileSlots <- struct{}{}:
@@ -124,11 +160,11 @@ func (f *Feature) requestTiles(ctx context.Context, placements []tilePlacement, 
 					return
 				}
 				defer func() { <-f.tileSlots }()
-				for index := lane; index < len(placements); index += 4 {
+				for index := lane; index < len(remaining); index += 4 {
 					if ctx.Err() != nil {
 						return
 					}
-					placement := placements[index]
+					placement := remaining[index]
 					pixels, next, err := store.Fetch(ctx, placement.key)
 					if ctx.Err() != nil {
 						return
@@ -161,6 +197,24 @@ func (f *Feature) requestTiles(ctx context.Context, placements []tilePlacement, 
 			})
 		}
 		workers.Wait()
+		queue.Do(func() {
+			if ctx.Err() != nil || revision != f.tileRevision || !f.Visible() {
+				return
+			}
+			var objects []fyne.CanvasObject
+			for _, placement := range placements {
+				for _, img := range placement.images {
+					if img.Image == nil {
+						return
+					}
+					objects = append(objects, img)
+				}
+			}
+			clearTileLayer(f.surface.tileLayer)
+			f.surface.tileLayer.Objects = objects
+			f.paintedTileView = f.tileView
+			f.surface.tileLayer.Refresh()
+		})
 		if retry.IsZero() || ctx.Err() != nil {
 			return
 		}

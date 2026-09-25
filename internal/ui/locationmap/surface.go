@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/fileidentity"
@@ -23,11 +24,16 @@ type Surface struct {
 	layer                   *fyne.Container
 	tileLayer               *fyne.Container
 	background              *canvas.Raster
+	tooltip                 *fyne.Container
+	filename                *widget.Label
 	centerX, centerY, scale float64
 	images                  []*canvas.Image
+	previewKeys             []previewKey
 	revision                uint64
 	manual                  bool
 }
+
+type previewKey struct{ uri, version string }
 
 func newSurface(feature *Feature) *Surface {
 	s := &Surface{feature: feature, layer: container.NewWithoutLayout(), tileLayer: container.NewWithoutLayout(), centerX: .5, centerY: .5, scale: 256}
@@ -37,6 +43,10 @@ func newSurface(feature *Feature) *Surface {
 		}
 		return color.NRGBA{R: 52, G: 54, B: 57, A: 255}
 	})
+	s.filename = widget.NewLabel("")
+	s.filename.Wrapping = fyne.TextWrapBreak
+	s.tooltip = container.NewStack(canvas.NewRectangle(theme.Color(theme.ColorNameOverlayBackground)), s.filename)
+	s.hideFilename()
 	s.ExtendBaseWidget(s)
 	return s
 }
@@ -60,31 +70,50 @@ func (s *Surface) fit() {
 }
 
 func (s *Surface) clear() {
-	if s.feature.previewCancel != nil {
-		s.feature.previewCancel()
-		s.feature.previewCancel = nil
-	}
-	s.revision++
+	s.retirePreviewWork()
 	for _, img := range s.images {
 		img.Image = nil
 		img.Refresh()
 	}
 	s.images = nil
+	s.previewKeys = nil
 	s.layer.RemoveAll()
 }
 
+func (s *Surface) retirePreviewWork() {
+	s.hideFilename()
+	if s.feature.previewCancel != nil {
+		s.feature.previewCancel()
+		s.feature.previewCancel = nil
+	}
+	s.revision++
+}
+
 func (s *Surface) arrange() {
-	s.clear()
 	if !s.feature.active || !s.feature.Visible() {
 		return
 	}
 	if s.feature.ctx == nil {
 		return
 	}
+	s.retirePreviewWork()
+	// Reuse only pixels already painted for this exact source version. Keep the
+	// old cards mounted until their fully populated replacements are ready.
+	pixels := make(map[previewKey]image.Image, len(s.images))
+	for i, img := range s.images {
+		pixels[s.previewKeys[i]] = img.Image
+	}
+	previousImages := s.images
+	s.images = nil
+	s.previewKeys = nil
+	var objects []fyne.CanvasObject
 	s.feature.updateTiles()
 	var visible []Point
 	for _, cluster := range Clusters(s.positions(), Camera{s.centerX, s.centerY, s.scale}, float64(s.Size().Width), float64(s.Size().Height), 108) {
 		px, py := float32(cluster.X), float32(cluster.Y)
+		point := s.feature.points[cluster.Members[0]]
+		open := func() { s.feature.host.OpenLocationImage(point.Source.Identity) }
+		photoY := py - 36
 		if len(cluster.Members) > 1 {
 			members := make([]fileidentity.Occurrence, len(cluster.Members))
 			highlight := false
@@ -92,33 +121,67 @@ func (s *Surface) arrange() {
 				members[i] = s.feature.points[index].Source.Identity
 				highlight = highlight || members[i] == s.feature.displayed
 			}
-			pin := widget.NewButton(fmt.Sprintf(lang.L("%d images"), len(members)), func() { s.feature.host.OpenLocationCluster(members) })
+			open = func() { s.feature.host.OpenLocationCluster(members) }
+			pin := widget.NewButton(fmt.Sprintf(lang.L("%d images"), len(members)), open)
 			if highlight {
 				pin.Importance = widget.HighImportance
 			}
-			pin.Resize(fyne.NewSize(96, 48))
-			pin.Move(fyne.NewPos(px-48, py-24))
-			s.layer.Add(pin)
-			continue
+			pin.Resize(fyne.NewSize(96, 32))
+			pin.Move(fyne.NewPos(px-48, py+20))
+			objects = append(objects, pin)
+			photoY = py - 54
 		}
-		point := s.feature.points[cluster.Members[0]]
-		img := canvas.NewImageFromImage(nil)
+		key := previewKey{point.Source.URI.String(), point.Version}
+		img := canvas.NewImageFromImage(pixels[key])
 		img.FillMode = canvas.ImageFillContain
-		button := widget.NewButton(point.Source.URI.Name(), func() { s.feature.showPreview(point) })
+		frame := canvas.NewRectangle(color.NRGBA{R: 245, G: 245, B: 245, A: 255})
+		frame.StrokeColor = color.NRGBA{R: 190, G: 190, B: 190, A: 255}
+		frame.StrokeWidth = 1
+		frame.Shadow = canvas.Shadow{Color: color.NRGBA{A: 100}, BlurRadius: 4, Offset: fyne.NewPos(1, 2)}
 		if point.Source.Identity == s.feature.displayed {
-			button.Importance = widget.HighImportance
+			frame.StrokeColor = theme.Color(theme.ColorNamePrimary)
+			frame.StrokeWidth = 2
 		}
-		card := container.NewBorder(nil, button, nil, nil, widgets.NewTappableArea(img, func() { s.feature.showPreview(point) }))
-		card.Resize(fyne.NewSize(96, 96))
-		card.Move(fyne.NewPos(px-48, py-48))
-		s.layer.Add(card)
+		card := widgets.NewTappableArea(container.NewStack(frame, container.NewPadded(img)), open)
+		card.Resize(fyne.NewSize(96, 72))
+		card.Move(fyne.NewPos(px-48, photoY))
+		card.OnHover = func(hovering bool) {
+			if !hovering {
+				s.hideFilename()
+				return
+			}
+			s.filename.SetText(point.Source.URI.Name())
+			s.filename.Show()
+			size := fyne.MeasureText(s.filename.Text, theme.TextSize(), s.filename.TextStyle).Add(fyne.NewSquareSize(2 * theme.InnerPadding()))
+			size.Width = min(size.Width, max(0, s.Size().Width-16))
+			s.filename.Resize(size)
+			size.Height = s.filename.MinSize().Height
+			s.tooltip.Resize(size)
+			y := photoY - size.Height - 4
+			if y < 0 {
+				y = photoY + 76
+			}
+			s.tooltip.Move(fyne.NewPos(max(0, min(px-size.Width/2, s.Size().Width-size.Width)), max(0, min(y, s.Size().Height-size.Height))))
+			s.tooltip.Show()
+		}
+		objects = append(objects, card)
 		s.images = append(s.images, img)
+		s.previewKeys = append(s.previewKeys, key)
 		visible = append(visible, point)
 	}
 	if len(visible) > 0 {
 		s.feature.previews(visible, s.revision)
 	}
+	s.layer.Objects = objects
 	s.layer.Refresh()
+	for _, img := range previousImages {
+		img.Image = nil
+	}
+}
+
+func (s *Surface) hideFilename() {
+	s.filename.Hide()
+	s.tooltip.Hide()
 }
 
 func (s *Surface) setPreviews(images []image.Image) {
@@ -152,7 +215,7 @@ func (r *surfaceRenderer) Refresh() {
 	r.s.layer.Refresh()
 }
 func (r *surfaceRenderer) Objects() []fyne.CanvasObject {
-	return []fyne.CanvasObject{r.s.background, r.s.tileLayer, r.s.layer}
+	return []fyne.CanvasObject{r.s.background, r.s.tileLayer, r.s.layer, r.s.tooltip}
 }
 func (*surfaceRenderer) Destroy() {}
 
