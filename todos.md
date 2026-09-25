@@ -34,8 +34,13 @@
 
 ## Open
 
-- **Location Map MVP:** [Specification](.scratch/location-map/spec.md) published
-  locally as `ready-for-agent`; implementation planning and code are pending.
+- **Location Map MVP:** [Specification](.scratch/location-map/spec.md) and
+  [13 approved tickets](.scratch/location-map/README.md) published locally.
+  Start with [ticket 01](.scratch/location-map/issues/01-browse-real-gps-photos.md);
+  implementation planning and code are pending. Tickets 01-12 are
+  `ready-for-agent`; ticket 13 is `ready-for-human` for Ronin's 30k test.
+  [Model routing](.scratch/location-map/model-routing.md) assigns bounded
+  subagent candidates while retaining lead-owned integration and review.
   Include duplicate-aware GPS fallback, Favorite-owned GPS persistence, bounded
   tile residency and 10k qualification; Ronin owns the 30k stress test. The
   [design interview](<next feature.md>) retains the original decisions.
