@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -108,9 +109,161 @@ func TestTileStoreFreshAndRevalidate(t *testing.T) {
 		t.Fatalf("HTTP hits = %d, want 2", hits)
 	}
 	encoded, decoded := store.Usage()
-	if encoded != int64(len(pixels)) || decoded != 256*256*4 {
+	const metadataBytes = len("Cache-Control") + len("max-age=20") + 16 + len("ETag") + len(`"first"`) + 16
+	if encoded != int64(len(pixels)+metadataBytes) || decoded != 256*256*4 {
 		t.Fatalf("Usage = %d, %d", encoded, decoded)
 	}
+}
+
+func TestTileStoreResponseMetadata(t *testing.T) {
+	pixels := tilePNG(t)
+	t.Run("oversized", func(t *testing.T) {
+		for _, status := range []int{http.StatusOK, http.StatusNotModified} {
+			for _, field := range []string{"ETag", "Last-Modified", "Cache-Control"} {
+				t.Run(http.StatusText(status)+"/"+field, func(t *testing.T) {
+					hits := 0
+					client := tileClient(func(w http.ResponseWriter, _ *http.Request) {
+						hits++
+						if status == http.StatusNotModified && hits == 1 {
+							w.Header().Set("Cache-Control", "no-cache")
+							w.Header().Set("ETag", "initial")
+							_, _ = w.Write(pixels)
+							return
+						}
+						w.Header().Set("Cache-Control", "max-age=3600")
+						w.Header().Set(field, strings.Repeat("x", 4*1024+1))
+						if status == http.StatusNotModified {
+							w.WriteHeader(status)
+						} else {
+							_, _ = w.Write(pixels)
+						}
+					})
+					store := NewTileStore(TileOptions{Client: client})
+					if status == http.StatusNotModified {
+						if _, _, err := store.Fetch(context.Background(), TileKey{}); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if img, _, err := store.Fetch(context.Background(), TileKey{}); err != nil || img == nil {
+						t.Fatalf("oversized metadata prevented displaying valid pixels: %v", err)
+					}
+					if encoded, decoded := store.Usage(); encoded != 0 || decoded != 0 {
+						t.Fatalf("oversized metadata response retained cache state: %d, %d", encoded, decoded)
+					}
+				})
+			}
+		}
+	})
+	t.Run("ignore_unrelated", func(t *testing.T) {
+		hits := 0
+		store := NewTileStore(TileOptions{Client: tileClient(func(w http.ResponseWriter, _ *http.Request) {
+			hits++
+			w.Header().Set("X-Unused", strings.Repeat("x", 64*1024))
+			w.Header().Set("Cache-Control", "max-age=3600")
+			_, _ = w.Write(pixels)
+		})})
+		for range 2 {
+			if _, _, err := store.Fetch(context.Background(), TileKey{}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		encoded, _ := store.Usage()
+		if hits != 1 || encoded <= int64(len(pixels)) || encoded > int64(len(pixels))+128 {
+			t.Fatalf("retained metadata must be small, charged, and reusable: hits=%d encoded=%d pixels=%d", hits, encoded, len(pixels))
+		}
+	})
+	t.Run("budget_eviction", func(t *testing.T) {
+		hits := 0
+		limit := int64(2 * len(pixels))
+		store := NewTileStore(TileOptions{EncodedBytes: limit, DecodedBytes: 1, Client: tileClient(func(w http.ResponseWriter, _ *http.Request) {
+			hits++
+			w.Header().Set("ETag", strings.Repeat("e", len(pixels)/2))
+			w.Header().Set("Cache-Control", "max-age=3600")
+			_, _ = w.Write(pixels)
+		})})
+		for _, key := range []TileKey{{X: 1}, {X: 2}, {X: 1}} {
+			if _, _, err := store.Fetch(context.Background(), key); err != nil {
+				t.Fatal(err)
+			}
+			if encoded, decoded := store.Usage(); encoded > limit || decoded != 0 {
+				t.Fatalf("metadata escaped the configured cache budgets: %d, %d", encoded, decoded)
+			}
+		}
+		if hits != 3 {
+			t.Fatalf("metadata did not consume encoded budget: hits=%d", hits)
+		}
+	})
+	t.Run("revalidation_growth", func(t *testing.T) {
+		hits := 0
+		store := NewTileStore(TileOptions{EncodedBytes: int64(len(pixels)) + 128, DecodedBytes: 1, Client: tileClient(func(w http.ResponseWriter, r *http.Request) {
+			hits++
+			if hits == 2 {
+				w.Header().Set("ETag", strings.Repeat("e", 256))
+				w.Header().Set("Cache-Control", "max-age=3600")
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			if r.Header.Get("If-None-Match") != "" {
+				t.Error("discarded metadata still supplied a validator")
+			}
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("ETag", "initial")
+			_, _ = w.Write(pixels)
+		})})
+		for range 2 {
+			if img, _, err := store.Fetch(context.Background(), TileKey{}); err != nil || img == nil {
+				t.Fatalf("fetch failed: %v", err)
+			}
+		}
+		if encoded, decoded := store.Usage(); encoded != 0 || decoded != 0 {
+			t.Fatalf("304 growth escaped encoded budget: %d, %d", encoded, decoded)
+		}
+		if _, _, err := store.Fetch(context.Background(), TileKey{}); err != nil || hits != 3 {
+			t.Fatalf("discarded entry was reused: hits=%d error=%v", hits, err)
+		}
+	})
+	t.Run("decoded_only_budget", func(t *testing.T) {
+		hits := 0
+		store := NewTileStore(TileOptions{EncodedBytes: 128, DecodedBytes: 4 * 256 * 256 * 4, Client: tileClient(func(w http.ResponseWriter, _ *http.Request) {
+			hits++
+			w.Header().Set("ETag", strings.Repeat("e", 32))
+			w.Header().Set("Cache-Control", "max-age=3600")
+			_, _ = w.Write(pixels)
+		})})
+		for _, key := range []TileKey{{X: 1}, {X: 2}, {X: 1}} {
+			if _, _, err := store.Fetch(context.Background(), key); err != nil {
+				t.Fatal(err)
+			}
+			if encoded, _ := store.Usage(); encoded <= 0 || encoded > 128 {
+				t.Fatalf("decoded-only metadata escaped encoded budget: %d", encoded)
+			}
+		}
+		if hits != 3 {
+			t.Fatalf("decoded-only metadata was not evicted: hits=%d", hits)
+		}
+	})
+	t.Run("merged_metadata_limit", func(t *testing.T) {
+		hits := 0
+		store := NewTileStore(TileOptions{Client: tileClient(func(w http.ResponseWriter, _ *http.Request) {
+			hits++
+			if hits == 1 {
+				w.Header().Set("ETag", strings.Repeat("e", 3*1024))
+				w.Header().Set("Cache-Control", "no-cache")
+				_, _ = w.Write(pixels)
+				return
+			}
+			w.Header().Set("Last-Modified", strings.Repeat("m", 2*1024))
+			w.WriteHeader(http.StatusNotModified)
+		})})
+		for range 2 {
+			if img, _, err := store.Fetch(context.Background(), TileKey{}); err != nil || img == nil {
+				t.Fatalf("valid pixels were lost: %v", err)
+			}
+		}
+		if encoded, decoded := store.Usage(); encoded != 0 || decoded != 0 {
+			t.Fatalf("304 merged metadata exceeded the per-entry limit: %d, %d", encoded, decoded)
+		}
+	})
 }
 
 func TestTileStoreNoStoreAndExpiry(t *testing.T) {
@@ -145,7 +298,8 @@ func TestTileStoreNoStoreAndExpiry(t *testing.T) {
 	if hits != 3 {
 		t.Fatalf("HTTP hits = %d, want 3", hits)
 	}
-	if encoded, decoded := store.Usage(); encoded != int64(len(pixels)) || decoded != 256*256*4 {
+	const metadataBytes = len("Expires") + len(http.TimeFormat) + 16 + len("Age") + len("1") + 16
+	if encoded, decoded := store.Usage(); encoded != int64(len(pixels)+metadataBytes) || decoded != 256*256*4 {
 		t.Fatalf("retained fresh entry = %d, %d", encoded, decoded)
 	}
 	now = now.Add(3 * time.Second)

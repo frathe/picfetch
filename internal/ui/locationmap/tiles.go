@@ -20,6 +20,7 @@ import (
 
 const (
 	maxTileResponse = 1024 * 1024
+	maxTileMetadata = 4 * 1024
 	defaultEncoded  = 32 * 1024 * 1024
 	defaultDecoded  = 64 * 1024 * 1024
 	maxTileFailures = 1024
@@ -30,6 +31,7 @@ type TileKey struct{ Z, X, Y int }
 
 // TileOptions configures an in-memory tile store. URL is a fmt.Sprintf template
 // with three integer placeholders, in Z, X, Y order.
+// EncodedBytes includes retained freshness and validator metadata.
 type TileOptions struct {
 	Client       *http.Client
 	Now          func() time.Time
@@ -39,14 +41,15 @@ type TileOptions struct {
 }
 
 type tileEntry struct {
-	encoded      []byte
-	decoded      image.Image
-	expires      time.Time
-	etag         string
-	lastModified string
-	freshness    http.Header
-	encodedNode  *list.Element
-	decodedNode  *list.Element
+	encoded       []byte
+	decoded       image.Image
+	expires       time.Time
+	etag          string
+	lastModified  string
+	freshness     http.Header
+	metadataBytes int64
+	encodedNode   *list.Element
+	decodedNode   *list.Element
 }
 
 type tileFailure struct {
@@ -58,19 +61,20 @@ type tileFailure struct {
 
 // TileStore retains bounded encoded and decoded tiles. It owns no workers.
 type TileStore struct {
-	client       *http.Client
-	now          func() time.Time
-	url          string
-	encodedLimit int64
-	decodedLimit int64
-	mu           sync.Mutex
-	entries      map[TileKey]*tileEntry
-	encodedLRU   list.List
-	decodedLRU   list.List
-	encodedBytes int64
-	decodedBytes int64
-	failures     map[TileKey]*tileFailure
-	failureLRU   list.List
+	client        *http.Client
+	now           func() time.Time
+	url           string
+	encodedLimit  int64
+	decodedLimit  int64
+	mu            sync.Mutex
+	entries       map[TileKey]*tileEntry
+	encodedLRU    list.List
+	decodedLRU    list.List
+	encodedBytes  int64
+	metadataBytes int64
+	decodedBytes  int64
+	failures      map[TileKey]*tileFailure
+	failureLRU    list.List
 }
 
 // NewTileStore constructs a goroutine-safe, memory-only tile store.
@@ -101,11 +105,11 @@ func NewTileStore(options TileOptions) *TileStore {
 		entries: make(map[TileKey]*tileEntry), failures: make(map[TileKey]*tileFailure)}
 }
 
-// Usage reports bytes retained by the encoded and decoded LRUs.
+// Usage reports encoded pixels plus response metadata, and decoded pixel bytes.
 func (s *TileStore) Usage() (encodedBytes, decodedBytes int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.encodedBytes, s.decodedBytes
+	return s.encodedBytes + s.metadataBytes, s.decodedBytes
 }
 
 // Fetch returns a tile or the earliest retry time after a failure.
@@ -180,21 +184,24 @@ func (s *TileStore) Fetch(ctx context.Context, key TileKey) (image.Image, time.T
 	if err := ctx.Err(); err != nil {
 		return nil, time.Time{}, err
 	}
-	expires, noStore := tileFreshness(response.Header, now)
+	header, metadataBytes, cacheable := tileResponseMetadata(response.Header)
+	expires, noStore := tileFreshness(header, now)
 	s.mu.Lock()
 	if err := ctx.Err(); err != nil {
 		s.mu.Unlock()
 		return nil, time.Time{}, err
 	}
 	s.clearFailure(key)
-	if noStore {
+	if noStore || !cacheable || metadataBytes > s.encodedLimit {
 		s.dropEntry(key)
 	} else {
 		s.dropEntry(key)
-		entry := &tileEntry{expires: expires, etag: response.Header.Get("ETag"), lastModified: response.Header.Get("Last-Modified"), freshness: response.Header.Clone()}
+		entry := &tileEntry{expires: expires, etag: header.Get("ETag"), lastModified: header.Get("Last-Modified"), freshness: header, metadataBytes: metadataBytes}
 		s.entries[key] = entry
+		s.metadataBytes += metadataBytes
 		s.addEncoded(key, entry, data)
 		s.addDecoded(key, entry, img)
+		s.trimEncoded()
 		s.discardEmpty(key, entry)
 	}
 	s.mu.Unlock()
@@ -222,6 +229,7 @@ func (s *TileStore) decodeCached(ctx context.Context, key TileKey, encoded []byt
 }
 
 func (s *TileStore) notModified(ctx context.Context, key TileKey, header http.Header, now time.Time) (image.Image, time.Time, error) {
+	update, _, cacheable := tileResponseMetadata(header)
 	s.mu.Lock()
 	entry := s.entries[key]
 	if entry == nil || (entry.encoded == nil && entry.decoded == nil) {
@@ -232,10 +240,11 @@ func (s *TileStore) notModified(ctx context.Context, key TileKey, header http.He
 	merged := entry.freshness.Clone()
 	merged.Del("Age")
 	merged.Del("Date")
-	for key, values := range header {
+	for key, values := range update {
 		merged[key] = append([]string(nil), values...)
 	}
 	s.mu.Unlock()
+	merged, metadataBytes, mergedCacheable := tileResponseMetadata(merged)
 	if img == nil {
 		var err error
 		img, err = decodeTile(data)
@@ -254,24 +263,42 @@ func (s *TileStore) notModified(ctx context.Context, key TileKey, header http.He
 	}
 	s.clearFailure(key)
 	if current := s.entries[key]; current == entry {
-		if noStore {
+		if noStore || !cacheable || !mergedCacheable || metadataBytes > s.encodedLimit {
 			s.dropEntry(key)
 		} else {
 			entry.expires = expires
 			entry.freshness = merged
-			if value := header.Get("ETag"); value != "" {
-				entry.etag = value
-			}
-			if value := header.Get("Last-Modified"); value != "" {
-				entry.lastModified = value
-			}
+			entry.etag, entry.lastModified = merged.Get("ETag"), merged.Get("Last-Modified")
+			s.metadataBytes += metadataBytes - entry.metadataBytes
+			entry.metadataBytes = metadataBytes
 			if entry.decoded == nil {
 				s.addDecoded(key, entry, img)
 			}
+			s.trimEncoded()
+			s.discardEmpty(key, entry)
 		}
 	}
 	s.mu.Unlock()
 	return img, time.Time{}, nil
+}
+
+// tileResponseMetadata retains only bounded cache policy and validators. Refuse
+// retention rather than truncate directives or validators and change semantics.
+func tileResponseMetadata(header http.Header) (http.Header, int64, bool) {
+	retained := make(http.Header)
+	var size int64
+	for _, name := range []string{"Cache-Control", "Expires", "Date", "Age", "ETag", "Last-Modified"} {
+		for _, value := range header.Values(name) {
+			// Charge string data and each value's string header, including empty
+			// values, so repeated empty fields cannot create unbounded slices.
+			size += int64(len(name) + len(value) + 16)
+			if size > maxTileMetadata {
+				return nil, 0, false
+			}
+			retained.Add(name, strings.Clone(value))
+		}
+	}
+	return retained, size, true
 }
 
 func decodeTile(data []byte) (image.Image, error) {
@@ -395,14 +422,6 @@ func (s *TileStore) addEncoded(key TileKey, entry *tileEntry, data []byte) {
 	entry.encoded = data
 	entry.encodedNode = s.encodedLRU.PushFront(key)
 	s.encodedBytes += int64(len(data))
-	for oldest := s.encodedLRU.Back(); oldest != nil && s.encodedBytes > s.encodedLimit; oldest = s.encodedLRU.Back() {
-		oldKey := oldest.Value.(TileKey)
-		old := s.entries[oldKey]
-		s.encodedBytes -= int64(len(old.encoded))
-		old.encoded, old.encodedNode = nil, nil
-		s.encodedLRU.Remove(oldest)
-		s.discardEmpty(oldKey, old)
-	}
 }
 
 func (s *TileStore) addDecoded(key TileKey, entry *tileEntry, img image.Image) {
@@ -427,6 +446,28 @@ func (s *TileStore) addDecoded(key TileKey, entry *tileEntry, img image.Image) {
 	}
 }
 
+// trimEncoded shares the encoded budget with metadata even when only decoded
+// pixels remain. Prefer evicting encoded pixels, then retire decoded-only entries
+// if their retained metadata alone exceeds that budget.
+func (s *TileStore) trimEncoded() {
+	for s.encodedBytes+s.metadataBytes > s.encodedLimit {
+		if oldest := s.encodedLRU.Back(); oldest != nil {
+			key := oldest.Value.(TileKey)
+			entry := s.entries[key]
+			s.encodedBytes -= int64(len(entry.encoded))
+			entry.encoded, entry.encodedNode = nil, nil
+			s.encodedLRU.Remove(oldest)
+			s.discardEmpty(key, entry)
+			continue
+		}
+		if oldest := s.decodedLRU.Back(); oldest != nil {
+			s.dropEntry(oldest.Value.(TileKey))
+			continue
+		}
+		return
+	}
+}
+
 func (s *TileStore) dropEntry(key TileKey) {
 	entry := s.entries[key]
 	if entry == nil {
@@ -440,11 +481,12 @@ func (s *TileStore) dropEntry(key TileKey) {
 		s.decodedBytes -= 256 * 256 * 4
 		s.decodedLRU.Remove(entry.decodedNode)
 	}
+	s.metadataBytes -= entry.metadataBytes
 	delete(s.entries, key)
 }
 
 func (s *TileStore) discardEmpty(key TileKey, entry *tileEntry) {
 	if entry.encoded == nil && entry.decoded == nil {
-		delete(s.entries, key)
+		s.dropEntry(key)
 	}
 }

@@ -30,8 +30,12 @@ func (v *viewer) showLocationMap() {
 	v.closeExplorer()
 	v.closeVisualSearch()
 	visit := v.grid.CaptureVisit()
-	visit.Visible = false
-	v.grid.RestoreVisit(visit)
+	if visit.Ranked {
+		v.grid.Close()
+	} else {
+		visit.Visible = false
+		v.grid.RestoreVisit(visit)
+	}
 	if v.slides.Active() {
 		v.slides.Exit()
 		v.resetFade()

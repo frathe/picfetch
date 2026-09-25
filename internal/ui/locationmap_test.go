@@ -38,6 +38,7 @@ import (
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/locationtrial"
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/locationmap"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -62,6 +63,38 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func TestLocationMap(t *testing.T) {
+	t.Run("ranked_search_entry", func(t *testing.T) {
+		for _, route := range []string{"menu", "shortcut"} {
+			t.Run(route, func(t *testing.T) {
+				v, publish := streamingSearch(t)
+				publish(similarity.SearchFinal, 2, 1)
+				if !v.searchActive() || !v.grid.Visible() || !v.grid.CaptureVisit().Ranked {
+					t.Fatal("fixture did not open live ranked search results")
+				}
+				if route == "menu" {
+					locationMenu(t, v).Action()
+				} else {
+					v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierShift }
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyL})
+				}
+				v.visualsearch.Settle()
+				v.grid.Settle()
+				v.locationMap.Settle()
+				if !v.locationMap.Visible() || v.grid.Visible() || v.grid.CaptureVisit().Ranked || v.searchActive() {
+					t.Fatalf("ranked results cover map entry: map=%v grid=%v ranked=%v search=%v", v.locationMap.Visible(), v.grid.Visible(), v.grid.CaptureVisit().Ranked, v.searchActive())
+				}
+				if v.locationMap.Counts().Total != v.FileCount() {
+					t.Fatal("map entry retained the ranked-result subset")
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				v.grid.Toggle()
+				v.grid.Settle()
+				if v.grid.CaptureVisit().Ranked || len(v.grid.ResultIndexes()) != v.FileCount() {
+					t.Fatal("leaving the map revived stale ranked results")
+				}
+			})
+		}
+	})
 	t.Run("clipboard_shortcuts", func(t *testing.T) {
 		v := newTestViewer(t)
 		source := uitest.TempGPSJPEGURI(t, "clipboard.jpg", 24, 16, 52.52, 13.405)

@@ -33,7 +33,8 @@ func (f *Feature) ConfigureTiles(options TileOptions, wait func(context.Context,
 	f.tileWait = wait
 }
 
-// TileUsage reports cache-owned encoded/decoded bytes, not mounted references.
+// TileUsage reports encoded pixels plus response metadata and decoded pixels,
+// not mounted references.
 func (f *Feature) TileUsage() (int64, int64) { return f.tiles.Usage() }
 
 func waitForTileRetry(ctx context.Context, delay time.Duration) error {
