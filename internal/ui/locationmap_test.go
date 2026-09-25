@@ -1618,7 +1618,28 @@ func TestLocationMap(t *testing.T) {
 					if raw := v.locationMap.RawFacts()[rep.String()]; raw.Metadata.HasGPS != direct {
 						t.Fatal("derived donor coordinates were stored as representative raw GPS")
 					}
-					fynetest.Tap(locationPhoto(t, v, rep.Name()))
+					photo := locationPhoto(t, v, rep.Name())
+					photo.MouseIn(&desktop.MouseEvent{})
+					caption := ""
+					explorerWalk(locationSurface(t, v), func(object fyne.CanvasObject) {
+						if label, ok := object.(*widget.Label); ok && label.Visible() &&
+							(label.Text == rep.Name() || strings.HasPrefix(label.Text, rep.Name()+"\n")) {
+							caption = label.Text
+						}
+					})
+					wantCaption := rep.Name()
+					if !direct {
+						wantCaption += "\n" + fmt.Sprintf(lang.L("Location from %s"), donor.Name())
+					}
+					if caption != wantCaption {
+						t.Fatalf("location provenance caption = %q, want %q", caption, wantCaption)
+					}
+					locationCapture(t, v, fmt.Sprintf("gps-provenance-%t.png", direct))
+					photo.MouseOut()
+					if locationFilenameVisible(t, v, rep.Name()) {
+						t.Fatal("location provenance tooltip remained after hover ended")
+					}
+					fynetest.Tap(photo)
 					waitUntilLoaded(t, v)
 					if current, _, _ := v.CurrentFile(); current.Path() != rep.Path() {
 						t.Fatal("fallback opened donor instead of representative")
@@ -2803,7 +2824,8 @@ func locationFilenameVisible(t *testing.T, v *viewer, name string) bool {
 	t.Helper()
 	visible := false
 	explorerWalk(locationSurface(t, v), func(object fyne.CanvasObject) {
-		if label, ok := object.(*widget.Label); ok && label.Visible() && label.Text == name {
+		if label, ok := object.(*widget.Label); ok && label.Visible() &&
+			(label.Text == name || strings.HasPrefix(label.Text, name+"\n")) {
 			visible = true
 		}
 	})

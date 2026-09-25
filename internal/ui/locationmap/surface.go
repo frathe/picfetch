@@ -171,7 +171,11 @@ func (s *Surface) arrange() {
 				s.hideFilename()
 				return
 			}
-			s.filename.SetText(point.Source.URI.Name())
+			caption := point.Source.URI.Name()
+			if point.Donor.URI != nil {
+				caption += "\n" + fmt.Sprintf(lang.L("Location from %s"), point.Donor.URI.Name())
+			}
+			s.filename.SetText(caption)
 			s.filename.Show()
 			size := fyne.MeasureText(s.filename.Text, theme.TextSize(), s.filename.TextStyle).Add(fyne.NewSquareSize(2 * theme.InnerPadding()))
 			size.Width = min(size.Width, max(0, s.Size().Width-16))
