@@ -2,11 +2,32 @@ package locationmap
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/frathe/picfetch/internal/imaging"
 )
+
+func TestFactCacheRetainsOnlyLocation(t *testing.T) {
+	cache := NewFactCache()
+	cache.Keep([]string{"photo"})
+	large := strings.Repeat("camera", 16*1024)
+	metadata := imaging.Metadata{Make: large, Model: large, LensModel: large,
+		ExposureTime: large, FNumber: large, ISO: large, FocalLength: large,
+		DateTaken: large, DateTakenTime: time.Now(), HasGPS: true, Latitude: 52.52, Longitude: 13.405}
+	if !cache.Capture("photo", "v1").Store(context.Background(), metadata) {
+		t.Fatal("source fact was not admitted")
+	}
+	want := imaging.Metadata{HasGPS: true, Latitude: 52.52, Longitude: 13.405}
+	if got, ok := cache.Get("photo", "v1"); !ok || got != want {
+		t.Fatal("map fact retained non-location EXIF data or lost GPS")
+	}
+	if cache.Snapshot()["photo"].Metadata != want {
+		t.Fatal("snapshot retained non-location EXIF data")
+	}
+}
 
 func TestFactCacheReusesCompletedFactsIncludingAbsentGPS(t *testing.T) {
 	cache := NewFactCache()

@@ -27,6 +27,15 @@ struct Observation: Encodable {
     var after = ""
     var skipped = false
     var error = ""
+    var closed_viewer = false
+}
+
+// Exit timing must identify the viewer captured before map entry. Scanning and
+// tile delivery can change arbitrary map pixels after Escape was posted.
+func isResponseFrame(kind: String, current: UInt64, before: UInt64, closed: UInt64?) -> Bool {
+    guard current != before else { return false }
+    if kind == "cancel" || kind == "close" { return closed == current }
+    return true
 }
 
 // Both input and WindowServer display times use Mach absolute ticks, converted
@@ -47,6 +56,7 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
     var latest: CVPixelBuffer?
     var latestHash: UInt64 = 0
     var changedAt: UInt64 = 0
+    var closedViewerHash: UInt64?
     var pending: (Command, CVPixelBuffer, UInt64, UInt64, CheckedContinuation<Observation, Never>)?
 
     init(pid: pid_t, directory: URL) {
@@ -86,9 +96,11 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         latest = pixels
         latestHash = currentHash
         guard let (command, before, beforeHash, inputTicks, continuation) = pending,
-              currentHash != beforeHash, displayTicks > inputTicks else { return }
+              isResponseFrame(kind: command.kind, current: currentHash, before: beforeHash, closed: closedViewerHash),
+              displayTicks > inputTicks else { return }
         pending = nil
         var observation = Observation(kind: command.kind, input_ns: nanoseconds(inputTicks), visible_ns: nanoseconds(displayTicks))
+        observation.closed_viewer = command.kind == "cancel" || command.kind == "close"
         do {
             // Entry feedback is an orchestration boundary, not a latency sample.
             // Avoid PNG encoding before the immediate scan-cancellation trial.
@@ -131,7 +143,7 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
 
     func admit(_ command: Command, _ continuation: CheckedContinuation<Observation, Never>, deadline: UInt64) {
         let now = nanoseconds(mach_absolute_time())
-        let needsStableFrame = command.kind == "pan" || command.kind == "zoom"
+        let needsStableFrame = command.kind == "pan" || command.kind == "zoom" || command.kind == "open"
         if latest == nil || (needsStableFrame && now - nanoseconds(changedAt) < 250_000_000) {
             if now >= deadline {
                 continuation.resume(returning: Observation(kind: command.kind, skipped: true, error: "no stable native frame before input"))
@@ -147,6 +159,7 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
             return
         }
         if command.shift { down.flags = .maskShift; up.flags = .maskShift }
+        if command.kind == "open" { closedViewerHash = latestHash }
         let input = mach_absolute_time()
         pending = (command, before, latestHash, input, continuation)
         if command.shift, let modifier = CGEvent(keyboardEventSource: nil, virtualKey: 0x38, keyDown: true) {
@@ -169,6 +182,7 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
     }
 }
 
+#if !CAPTURE_TEST
 @main struct CaptureMain {
     static func main() async {
         do {
@@ -217,3 +231,4 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         }
     }
 }
+#endif

@@ -29,6 +29,8 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Opening Location Map from visual-search results now closes the ranked Grid
   and maps the loaded collection. Tile response metadata is bounded and charged
   to the encoded cache budget; oversized cache headers do not prevent display.
+- Location Map keeps only GPS fields in its metadata cache. Retired Favorite
+  cache cleanup is bounded and cancellable, avoiding long cleanup during map exit.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.
@@ -48,6 +50,9 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 - PR 58 review hardening: isolated map trials preserve normal updater files,
   trial reports count extensionless images, and map tiles reject redirects.
+- Native map exit timing now requires the observed closed viewer, not an unrelated
+  changing map frame. Added macOS observer-policy checks and duplicate-shortcut
+  regression coverage for map visits.
 - Windows package updates are published through WinGet only after a release
   succeeds, with clearer recovery instructions if publishing fails.
 - Improve the safety of developer tools used to investigate failed builds.
@@ -89,11 +94,12 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   Ronin explicitly marked performance done: "it is running butter smooth!".
   Exact-10k/30k measurement protocols are waived for this release, not measured
   passes. Complete native Linux/amd64 verification moves to the GitHub PR.
-  The [PR 58 review continuation](plans/2026-09-25-pr58-review.md) fixes twelve
+  The [PR 58 review continuation](plans/2026-09-25-pr58-review.md) fixes sixteen
   further code/security findings with focused race regressions and clear GoLand
   inspections of all changed code. Its conservative donor-work limit may leave
   unusually large groups with many distinct GPS positions unmapped. Remaining
-  work: final PR/Codex results, still-uncovered composite cases and the earlier
+  work: final PR/Codex results (paused after the requested final fix batch),
+  native Swift CI confirmation, still-uncovered composite cases and the earlier
   IDE build-tag inspection limitation. No merge or release
   is authorized by the review loop.
   [Model routing](.scratch/location-map/model-routing.md) assigns bounded

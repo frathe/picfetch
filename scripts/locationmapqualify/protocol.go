@@ -28,7 +28,8 @@ type nativeCommand struct {
 }
 type nativeObservation struct {
 	Gesture
-	Error string `json:"error"`
+	Error        string `json:"error"`
+	ClosedViewer bool   `json:"closed_viewer"`
 }
 type nativeDriver interface {
 	State(context.Context) (locationtrial.State, error)
@@ -70,6 +71,9 @@ func nativeInput(ctx context.Context, driver nativeDriver, command nativeCommand
 	}
 	if result.Skipped || result.InputNS <= 0 || result.VisibleNS <= result.InputNS {
 		return result, errors.New("native input has no observed visible response")
+	}
+	if (command.Kind == "cancel" || command.Kind == "close") && !result.ClosedViewer {
+		return result, errors.New("native exit has no identified closed-viewer frame")
 	}
 	return result, nil
 }

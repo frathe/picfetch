@@ -244,6 +244,7 @@ func (f *Feature) readSource(ctx context.Context, uri fyne.URI, owners *favorite
 	if err != nil {
 		return imaging.Metadata{}, version, err
 	}
+	metadata = locationMetadata(metadata)
 	after, afterKnown := favthumbs.EntryName(uri)
 	if known != afterKnown || version != after {
 		return imaging.Metadata{}, version, errors.New("location source changed during metadata read")

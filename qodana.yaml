@@ -267,6 +267,7 @@ exclude:
       - "internal/ui/locationmap/geography_test.go"
       - "internal/ui/locationmap/resolution_test.go"
       - "internal/ui/locationmap/facts_test.go"
+      - "internal/ui/locationmap/favorites_test.go"
       - "scripts/locationmapqualify/evidence_test.go"
       - "scripts/locationmapqualify/main_test.go"
       - "scripts/locationmapqualify/manual_test.go"

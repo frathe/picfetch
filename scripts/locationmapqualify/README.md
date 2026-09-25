@@ -67,7 +67,7 @@ The independent helper captures complete ScreenCaptureKit window frames,
 requesting 120 fps (actual cadence depends on the display/system). It timestamps
 keyboard submission using Mach absolute time and uses WindowServer's frame
 `displayTime` in the same timebase, not media PTS or worker completion. Before
-each pan/zoom it requires 250 ms of stable map-body pixels; failure to become
+each pan/zoom or map entry it requires 250 ms of stable body pixels; failure to become
 stable is retained as a failed sample. It samples RGB pixels every third pixel
 inside the central 80% by 60% of the window, excluding pointer/bars/toasts, and
 retains whole-window before/after PNGs for each measured gesture.
@@ -75,7 +75,11 @@ retains whole-window before/after PNGs for each measured gesture.
 After complete cold and warm scans, it submits at least 40 alternating horizontal
 pans and in/out zooms. Every submitted measurement is retained, including slow
 or failed measurements. Another entry followed immediately by Escape measures
-visible cancellation/exit feedback; app state independently confirms retirement.
+visible cancellation/exit feedback. Exit frames must match the stable closed-viewer
+body captured before that entry; unrelated scan/tile changes cannot complete the
+sample. Missing or changed baselines (for example, an animated background photo)
+fail closed rather than producing a successful latency measurement. App state
+independently confirms retirement; it never supplies or corrects the pixel timestamp.
 This does not claim an uninterruptible filesystem read has already returned.
 For 30k, browsing continues for at least one further minute after the first
 40 gestures, with RSS observation throughout that interval,

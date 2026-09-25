@@ -13,7 +13,8 @@ Entry point only. `main.go` parses the command line (`launchArgs`, see
 `internal/launch`) before any side effect, dispatches the private `heic.WorkerMain` and `similarity.WorkerMain`
 subprocess modes before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
-cleanup for Store-managed builds and explicit Explorer trials, asks `launch.Options.ApplicationID` to validate and select the app identity before
+cleanup for Store-managed builds and explicit Explorer or Location Map trials,
+asks `launch.Options.ApplicationID` to validate and select the app identity before
 building the `fyne.App`, loads embedded
 `translations/*.json`, embeds `THIRD-PARTY-NOTICES.md`, converts CLI paths to URIs
 (`argsToURIs`), and passes the immutable notices to `ui.Run`, which supplies
@@ -433,17 +434,24 @@ Photo previews are not filtered. Outer chrome and hover tooltips use
 Grid's separate throttled duplicate-progress observer feeds Location Map and
 Explorer preparation through root. Shared `widgets.PreparationProgress` displays
 measured checks, then indeterminate final grouping; retirement stops animation.
-`facts.go` bounds raw metadata to live source membership; `favorites.go` stores
+`facts.go` retains only fixed-size raw GPS fields for live source membership;
+`work.go` and Favorite reads project away unrelated EXIF strings before retaining
+points or facts. `favorites.go` stores
 versioned records only for saved Favorite members, with captured directory
 handles and membership namespaces preventing retired-owner publication.
 Committed source writes retire live facts immediately and schedule tracked disk
 invalidation, serialized with revalidated raw-fact publication. Each saved member
 owns at most one record, with its current source version inside the record.
+Retired-namespace cleanup checks cancellation and examines at most 1,024 entries
+per Favorite opening in batches of 64; unexpected nested trees are left alone.
 The native runner in `scripts/locationmapqualify` launches isolated trial storage,
 collects actual admission/stages and sampled RSS, and drives its macOS Swift
 ScreenCaptureKit/CGEvent helper for input-to-visible frame evidence. Its checker validates count, binary
 identity, native screen artifacts, timing thresholds and the separate 30k verdict;
 checker tests are not native performance qualification.
+Exit timing requires pixels matching the stable closed-viewer baseline captured
+before entry. `native/capture_test.swift` checks that response policy without
+screen/input access; macOS CI also type-checks the production Swift helper.
 `manual.go` in that tool supplies a separate human-controlled launch without a
 screen/input helper. It retains source-free state and sampled RSS in live JSONL
 and `manual-report.json`; these observations do not satisfy the latency checker

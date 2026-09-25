@@ -34,6 +34,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -63,6 +64,47 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func TestLocationMap(t *testing.T) {
+	t.Run("duplicate_shortcuts", func(t *testing.T) {
+		for _, visit := range []string{"map", "image", "cluster", "cluster_image"} {
+			for _, modifier := range []fyne.KeyModifier{0, fyne.KeyModifierShift} {
+				t.Run(fmt.Sprintf("%s/%d", visit, modifier), func(t *testing.T) {
+					v := newTestViewer(t)
+					a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+					b := uitest.TempGPSJPEGURI(t, "b.jpg", 24, 16, 52.52, 13.405)
+					dropAndWait(t, v, a, b)
+					locationMenu(t, v).Action()
+					v.locationMap.Settle()
+					points := v.locationMap.Points()
+					switch visit {
+					case "image":
+						v.OpenLocationImage(points[0].Source.Identity)
+						waitUntilLoaded(t, v)
+					case "cluster", "cluster_image":
+						v.OpenLocationCluster([]fileidentity.Occurrence{points[0].Source.Identity, points[1].Source.Identity})
+						v.grid.Settle()
+						if visit == "cluster_image" {
+							v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+							waitUntilLoaded(t, v)
+						}
+					}
+					visible := v.grid.Visible()
+					v.keyModifiers = func() fyne.KeyModifier { return modifier }
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+					v.grid.Settle()
+					if v.dupes.HideDuplicates() || v.grid.BrowsingDuplicates() || v.grid.Visible() != visible {
+						t.Fatal("duplicate shortcut changed the frozen map visit")
+					}
+					v.LeaveLocationMap()
+					v.keyModifiers = func() fyne.KeyModifier { return 0 }
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
+					v.grid.Settle()
+					if !v.dupes.HideDuplicates() {
+						t.Fatal("duplicate shortcut did not resume after map exit")
+					}
+				})
+			}
+		}
+	})
 	t.Run("ranked_search_entry", func(t *testing.T) {
 		for _, route := range []string{"menu", "shortcut"} {
 			t.Run(route, func(t *testing.T) {

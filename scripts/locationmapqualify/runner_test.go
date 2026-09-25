@@ -36,6 +36,7 @@ type fixtureNativeDriver struct {
 	inputs      int
 	failGesture int
 	gestures    int
+	wrongExit   bool
 }
 
 func (d *fixtureNativeDriver) State(_ context.Context) (locationtrial.State, error) {
@@ -55,6 +56,7 @@ func (d *fixtureNativeDriver) Input(_ context.Context, command nativeCommand) (n
 		d.state.Active, d.state.Visible = false, false
 	}
 	observation := nativeObservation{Kind: command.Kind, InputNS: int64(d.inputs) * 1_000_000_000, VisibleNS: int64(d.inputs)*1_000_000_000 + 10, Before: fmt.Sprintf("%s-before.png", command.Name), After: fmt.Sprintf("%s-after.png", command.Name)}
+	observation.ClosedViewer = !d.wrongExit && (command.Kind == "cancel" || command.Kind == "close")
 	if command.Kind == "pan" || command.Kind == "zoom" {
 		d.gestures++
 		if d.gestures == d.failGesture {
@@ -64,6 +66,18 @@ func (d *fixtureNativeDriver) Input(_ context.Context, command nativeCommand) (n
 		}
 	}
 	return observation, nil
+}
+
+func TestNativeProtocolRejectsUnidentifiedExit(t *testing.T) {
+	for _, kind := range []string{"cancel", "close"} {
+		t.Run(kind, func(t *testing.T) {
+			driver := &fixtureNativeDriver{wrongExit: true}
+			observation, err := nativeInput(context.Background(), driver, nativeCommand{Kind: kind})
+			if err == nil || observation.VisibleNS == 0 {
+				t.Fatal("unrelated frame change was accepted as closed-viewer evidence or discarded")
+			}
+		})
+	}
 }
 
 func TestNativeProtocolUsesObservedCountAndRetainsFailedSample(t *testing.T) {

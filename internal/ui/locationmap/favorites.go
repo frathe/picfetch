@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -23,6 +24,7 @@ import (
 
 const favoriteGPSDirectory = ".location-map"
 const maxGPSRecordBytes = 64 * 1024
+const maxFavoriteCleanupEntries = 1024
 
 var errFavoriteRetired = errors.New("location Favorite owner retired")
 
@@ -63,7 +65,7 @@ func openFavoriteFacts(ctx context.Context, dir string) (*favoriteFacts, error) 
 		if err := ctx.Err(); err != nil {
 			return c, err
 		}
-		owner, err := openFavoriteOwner(favstore.Dir(dir, name))
+		owner, err := openFavoriteOwner(ctx, favstore.Dir(dir, name))
 		if err != nil {
 			if !errors.Is(err, errFavoriteRetired) {
 				failures = append(failures, err)
@@ -82,7 +84,7 @@ func sameFavoriteVersion(a, b os.FileInfo) bool {
 	return os.SameFile(a, b) && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
 }
 
-func openFavoriteOwner(dir string) (owner *favoriteOwner, err error) {
+func openFavoriteOwner(ctx context.Context, dir string) (owner *favoriteOwner, err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, err
@@ -151,25 +153,102 @@ func openFavoriteOwner(dir string) (owner *favoriteOwner, err error) {
 		_ = records.Close()
 		return nil, errFavoriteRetired
 	}
-	// Old handles cannot recreate these retired directories. Only our exact
-	// hexadecimal membership namespaces are eligible for disposable cleanup.
-	if folder, e := cache.Open("."); e == nil {
-		entries, e := folder.ReadDir(-1)
-		_ = folder.Close()
-		if e == nil {
-			for _, entry := range entries {
-				if !owner.current() {
-					break
-				}
-				if entry.IsDir() && entry.Name() != namespace && len(entry.Name()) == 64 {
-					if _, e := hex.DecodeString(entry.Name()); e == nil {
-						_ = cache.RemoveAll(entry.Name())
-					}
+	if err := owner.cleanupRetired(ctx, cache, namespace); err != nil {
+		_ = records.Close()
+		return nil, err
+	}
+	return owner, nil
+}
+
+// Cleanup is best-effort and bounded across directory and record entries.
+// Unexpected nested trees are never traversed. A later visit may reclaim more;
+// namespace isolation does not depend on completing this maintenance.
+func (o *favoriteOwner) cleanupRetired(ctx context.Context, cache *os.Root, namespace string) error {
+	folder, err := cache.Open(".")
+	if err != nil {
+		return ctx.Err()
+	}
+	defer func() { _ = folder.Close() }()
+	remaining := maxFavoriteCleanupEntries
+	for remaining > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		entries, readErr := folder.ReadDir(min(64, remaining))
+		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if remaining == 0 || !o.current() {
+				return nil
+			}
+			remaining--
+			name := entry.Name()
+			if !entry.IsDir() || name == namespace || len(name) != 64 {
+				continue
+			}
+			if _, err := hex.DecodeString(name); err != nil {
+				continue
+			}
+			records, err := cache.OpenRoot(name)
+			if err != nil {
+				continue
+			}
+			err = o.cleanRetiredRecords(ctx, records, &remaining)
+			_ = records.Close()
+			if err != nil {
+				return err
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if o.current() {
+				_ = cache.Remove(name) // Only succeeds for an empty namespace.
+			}
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	return ctx.Err()
+}
+
+func (o *favoriteOwner) cleanRetiredRecords(ctx context.Context, records *os.Root, remaining *int) error {
+	folder, err := records.Open(".")
+	if err != nil {
+		return ctx.Err()
+	}
+	defer func() { _ = folder.Close() }()
+	for *remaining > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		entries, readErr := folder.ReadDir(min(64, *remaining))
+		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if !o.current() {
+				return nil
+			}
+			*remaining -= 1
+			name := entry.Name()
+			if entry.IsDir() {
+				continue
+			}
+			if strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".tmp") {
+				_ = records.Remove(name)
+			} else if len(name) == 69 && strings.HasSuffix(name, ".json") {
+				if _, err := hex.DecodeString(name[:64]); err == nil {
+					_ = records.Remove(name)
 				}
 			}
 		}
+		if readErr != nil {
+			break
+		}
 	}
-	return owner, nil
+	return ctx.Err()
 }
 
 func (o *favoriteOwner) current() bool {
@@ -217,7 +296,7 @@ func (c *favoriteFacts) load(ctx context.Context, source fyne.URI, version strin
 			continue
 		}
 		if ctx.Err() == nil && owner.current() {
-			return record.Metadata, true, nil
+			return locationMetadata(record.Metadata), true, nil
 		}
 	}
 	return imaging.Metadata{}, false, nil
@@ -231,7 +310,7 @@ func (c *favoriteFacts) store(ctx context.Context, source fyne.URI, fact Fact) e
 	if !ok || version != fact.Version {
 		return nil
 	}
-	data, err := json.Marshal(gpsRecord{Schema: 1, Path: filepath.Clean(source.Path()), Version: version, Metadata: fact.Metadata})
+	data, err := json.Marshal(gpsRecord{Schema: 1, Path: filepath.Clean(source.Path()), Version: version, Metadata: locationMetadata(fact.Metadata)})
 	if err != nil {
 		return err
 	}

@@ -7,10 +7,16 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
-// Fact is completed raw metadata for one source version.
+// Fact is completed raw GPS metadata for one source version.
 type Fact struct {
 	Version  string
 	Metadata imaging.Metadata
+}
+
+// locationMetadata keeps only the fixed-size fields used by the map. Camera
+// and other EXIF strings can be large and belong to the EXIF view, not this cache.
+func locationMetadata(metadata imaging.Metadata) imaging.Metadata {
+	return imaging.Metadata{HasGPS: metadata.HasGPS, Latitude: metadata.Latitude, Longitude: metadata.Longitude}
 }
 
 type factEntry struct {
@@ -92,7 +98,7 @@ func (w FactWriter) Store(ctx context.Context, metadata imaging.Metadata) bool {
 	if entry != w.entry || entry.version != w.version || entry.revision != w.revision || ctx.Err() != nil {
 		return false
 	}
-	entry.fact = &Fact{Version: w.version, Metadata: metadata}
+	entry.fact = &Fact{Version: w.version, Metadata: locationMetadata(metadata)}
 	return true
 }
 
