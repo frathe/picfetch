@@ -106,6 +106,13 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Open
 
+- **Model asset mirror:** requested versioned GitHub hosting with upstream
+  fallback, retaining the existing model bytes and checksums. Google's base
+  model declares Apache-2.0, but the pinned community export has no licence
+  declaration. Await the [authorized upstream clarification](https://github.com/huggingface/transformers.js/issues/1487#issuecomment-5849743595)
+  before publication; no runtime/download change or upload has been made. See
+  the [licensing preflight](docs/model-mirror-licensing-2026-09-26.md).
+
 - **Combined PR 63 merge decision:** PR 61's license notices, findings
   command and fixes are consolidated into the repository-owned PR 63 branch
   with its renewed Qodana token wiring. The code-bearing merge `93026c3` has a
