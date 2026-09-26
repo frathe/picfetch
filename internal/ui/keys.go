@@ -214,14 +214,11 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		return
 	}
 
-	if v.locationMapKey(ev.Name) || v.explorerKey(ev.Name) {
-		return
-	}
-
 	// Copy Selection owns Escape, Return/Enter, and image navigation via
 	// HandleKey. Zoom keys keep the mode. Every other key yields, then
 	// runs as usual. A pending copy swallows all of this except window
-	// close, which never arrives here.
+	// close, which never arrives here. This also precedes map-origin image
+	// navigation so returning to a map or cluster cannot bypass the mode.
 	if v.regionCopy.HandleKey(ev.Name) {
 		return
 	}
@@ -229,6 +226,10 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if !v.yieldCopySelection() {
 			return
 		}
+	}
+
+	if v.locationMapKey(ev.Name) || v.explorerKey(ev.Name) {
+		return
 	}
 
 	switch ev.Name {

@@ -36,6 +36,9 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   dragging still keeps the previous map visible while replacements load.
 - Editing an image while Location Map is open preserves its refreshed Favorite
   GPS cache even when older cleanup finishes after the new scan.
+- Copy Selection now keeps keyboard priority in photos opened from Location Map.
+  Escape cancels the selection before leaving the photo, G clears an idle
+  selection before opening Grid, and both keys wait while a copy is finishing.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.
@@ -111,9 +114,10 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   further code/security findings with focused race regressions and clear GoLand
   inspections of all changed code. Its conservative donor-work limit may leave
   unusually large groups with many distinct GPS positions unmapped. Remaining
-  work: final PR/Codex results (paused after the requested final fix batch),
-  native Swift CI confirmation, still-uncovered composite cases and the earlier
-  IDE build-tag inspection limitation. No merge or release
+  work: the renewed PR/Codex round after the 2026-09-26 Copy Selection fix,
+  still-uncovered composite cases and the earlier IDE build-tag inspection
+  limitation. The preceding c02f6ed round passed all CI/CodeQL checks and fresh
+  code/security reviews, including native Swift CI. No merge or release
   is authorized by the review loop.
   [Model routing](.scratch/location-map/model-routing.md) assigns bounded
   subagent candidates while retaining lead-owned integration and review.

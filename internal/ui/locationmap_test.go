@@ -64,6 +64,69 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 }
 
 func TestLocationMap(t *testing.T) {
+	t.Run("copy_selection_navigation", func(t *testing.T) {
+		for _, route := range []string{"direct", "cluster"} {
+			for _, key := range []fyne.KeyName{fyne.KeyEscape, fyne.KeyG} {
+				for _, busy := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/%s/busy=%t", route, key, busy), func(t *testing.T) {
+						v := newTestViewer(t)
+						a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+						sources := []fyne.URI{a}
+						if route == "cluster" {
+							sources = append(sources, uitest.TempGPSJPEGURI(t, "b.jpg", 24, 16, 52.52, 13.405))
+						}
+						dropAndWait(t, v, sources...)
+						locationMenu(t, v).Action()
+						v.locationMap.Settle()
+						fynetest.Tap(locationPhoto(t, v, a.Name()))
+						if route == "cluster" {
+							v.grid.Settle()
+							v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+						}
+						waitUntilLoaded(t, v)
+						v.copyActionsSelection()
+						if !v.regionCopy.State().Active {
+							t.Fatal("map-origin image did not admit Copy Selection")
+						}
+						if busy {
+							started, release := make(chan struct{}), make(chan struct{})
+							var once sync.Once
+							unblock := func() { once.Do(func() { close(release) }) }
+							defer func() {
+								unblock()
+								waitForClipboard(t, v)
+							}()
+							uitest.StubClipboardCopy(t, func(_ []byte) error {
+								close(started)
+								<-release
+								return nil
+							})
+							selectRegion(t, v, image.Rect(1, 1, 12, 8))
+							v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+							select {
+							case <-started:
+							case <-time.After(testTimeout):
+								t.Fatal("region copy did not reach clipboard")
+							}
+						}
+						v.handleKeyEvent(&fyne.KeyEvent{Name: key})
+						v.locationMap.Settle()
+						v.grid.Settle()
+						if busy || key == fyne.KeyEscape {
+							if v.locationMap.Visible() || v.grid.Visible() || !v.locationInput.image {
+								t.Fatal("Copy Selection key left its map-origin image visit")
+							}
+						} else if !v.grid.Visible() {
+							t.Fatal("idle Copy Selection prevented opening Grid")
+						}
+						if state := v.regionCopy.State(); state.Active != busy || state.Busy != busy {
+							t.Fatalf("Copy Selection state after %s: %+v, want active/busy=%t", key, state, busy)
+						}
+					})
+				}
+			}
+		}
+	})
 	t.Run("duplicate_shortcuts", func(t *testing.T) {
 		for _, visit := range []string{"map", "image", "cluster", "cluster_image"} {
 			for _, modifier := range []fyne.KeyModifier{0, fyne.KeyModifierShift} {
