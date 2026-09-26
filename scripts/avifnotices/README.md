@@ -10,7 +10,11 @@ The checker resolves `github.com/gen2brain/avif` and `github.com/tetratelabs/waz
 from the current module graph, rejects replacements/version drift, and verifies
 the reviewed source/payload hashes in `manifest.json`. It compares the generated
 AVIF section with `THIRD-PARTY-NOTICES.md`. Generation is offline once the pinned
-Go modules are cached; it reads retained notice sources under `licenses/` and
+Go modules are cached. Both commands first download the two selected modules
+through Go's configured module proxy/cache, then resolve their source directories;
+`go list -m` alone can return no directory on a fresh CI runner. A missing module
+directory is rejected rather than reading source paths relative to the checkout.
+The generator reads retained notice sources under `licenses/` and
 changes only the bounded AVIF section. It never fetches license texts.
 
 The original file is embedded by `main.go`, passed through `ui.Run`, and shown

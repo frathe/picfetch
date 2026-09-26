@@ -25,6 +25,8 @@
 
 #### Internal
 
+- Make AVIF notice validation work with a fresh Go module cache while retaining
+  the reviewed payload and license checks.
 - Restricted WinGet publishing to successful Release workflow runs, strengthened
   the manual-dispatch regression guard, and updated failed-publish recovery guidance.
 - Hardened `make ci-failures` against command injection from crafted branch names
