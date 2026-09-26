@@ -1,45 +1,28 @@
-#-------------------------------------------------------------------------------#
-#        Discover additional configuration options in our documentation         #
-#               https://www.jetbrains.com/help/qodana/github.html               #
-#-------------------------------------------------------------------------------#
-
 name: Qodana
 on:
   workflow_dispatch:
   pull_request:
   push:
-    branches:
-      - main
+    branches: # Specify your branches here
+      - main # The 'main' branch
+      - 'releases/*' # The release branches
 
 jobs:
   qodana:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       checks: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Configure Go analysis build tags
-        run: |
-          mkdir -p .idea
-          cp .github/qodana/modules.xml .idea/modules.xml
-          cp .github/qodana/picfetch.iml .idea/picfetch.iml
+          ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
+          fetch-depth: 0  # a full history is required for pull request analysis
       - name: 'Qodana Scan'
-        uses: JetBrains/qodana-action@10be11607eb323a180e2b76b26c9c5cdceac3e77 # v2026.2
-        env:
-          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+        uses: JetBrains/qodana-action@v2026.1
         with:
-          # Pull requests use differential analysis against their merge base.
-          # Pushes to main and workflow_dispatch runs scan the full project.
-          #args: --apply-fixes
-          pr-mode: ${{ github.event_name == 'pull_request' }}
-          use-caches: true
-          post-pr-comment: true
-          use-annotations: true
-          # Upload Qodana results (SARIF, other artifacts, logs) as an artifact to the job
-          upload-result: true
+          pr-mode: false
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_1506204616 }}
+          QODANA_ENDPOINT: 'https://qodana.cloud'
