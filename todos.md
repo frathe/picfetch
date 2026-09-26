@@ -20,8 +20,11 @@
 - **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
   recommends shared command policy (MA-028), explicit browsing ownership and
   collection transitions (MA-029/030), followed by Favorite ownership, a bounded
-  worker-lifetime pilot and launch policy (MA-031 through MA-033). Proposals only;
-  keep feature state local and preserve explicit composition. Start with MA-028.
+  worker-lifetime pilot and launch policy (MA-031 through MA-033). Keep feature
+  state local and preserve explicit composition. MA-028's
+  [design](docs/command-admission.md) is accepted: full command migration with
+  shared pure admission and the agreed input/yield corrections. Implementation
+  planning is next; MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency
