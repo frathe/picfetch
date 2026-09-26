@@ -398,6 +398,8 @@ on-demand previews and camera. `work.go` bounds active source reads, captures
 HEIC contexts and Grid cache writers, checks source versions and queues UI
 delivery; `Settle` joins current/retired work and drains callbacks repeatedly.
 `Close` retires a session, while terminal `Stop` also closes admission.
+Progressive counts/cards update immediately; automatic camera fitting coalesces
+on a tracked 250 ms timer, with immediate initial/final fits and manual input.
 `surface.go` projects recorded GPS and retains only mounted viewport previews,
 including one framed representative above each cluster count. Photo hover shows
 a filename tooltip; singleton photo taps open images directly, without a details
@@ -444,6 +446,8 @@ handles and membership namespaces preventing retired-owner publication.
 Committed source writes retire live facts immediately and schedule tracked disk
 invalidation, serialized with revalidated raw-fact publication. Each saved member
 owns at most one record, with its current source version inside the record.
+Favorite enumeration reads cancellable batches; committed cache cleanup survives
+map close but terminal Stop cancels it between filesystem operations.
 Retired-namespace cleanup checks cancellation and examines at most 1,024 entries
 per Favorite opening in batches of 64; unexpected nested trees are left alone.
 The native runner in `scripts/locationmapqualify` launches isolated trial storage,

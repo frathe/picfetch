@@ -1790,6 +1790,101 @@ func TestLocationMap(t *testing.T) {
 		previous := testApp.Settings().Theme()
 		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
 		testApp.Settings().SetTheme(theme.DefaultTheme())
+		t.Run("progressive_demand", func(t *testing.T) {
+			for _, action := range []string{"automatic", "manual", "stop"} {
+				t.Run(action, func(t *testing.T) {
+					synctest.Test(t, func(t *testing.T) {
+						v := newTestViewer(t)
+						v.win.Resize(fyne.NewSize(1000, 700))
+						var sources []fyne.URI
+						entered := make(chan int, 3)
+						var holds [3]atomic.Bool
+						var release []func()
+						defer func() {
+							for _, unblock := range release {
+								unblock()
+							}
+						}()
+						for i, coordinates := range [][2]float64{{52.52, 13.405}, {40.7, -74}, {-33.87, 151.21}} {
+							data := uitest.GPSJPEG(t, 24, 16, coordinates[0], coordinates[1])
+							base := storage.NewFileURI(uitest.WriteTempFile(t, fmt.Sprintf("photo-%d.jpg", i), data))
+							resume := make(chan struct{})
+							unblock := sync.OnceFunc(func() { close(resume) })
+							release = append(release, unblock)
+							sources = append(sources, uitest.ReaderURI(base, func() (io.ReadCloser, error) {
+								if holds[i].CompareAndSwap(true, false) {
+									entered <- i
+									<-resume
+								}
+								return io.NopCloser(bytes.NewReader(data)), nil
+							}))
+						}
+						dropAndWait(t, v, sources...)
+						v.display.Settle()
+						for i := range holds {
+							holds[i].Store(true)
+						}
+						var requests atomic.Int32
+						pixels := uitest.EncodePNG(t, 256, 256, color.White)
+						v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: locationTileTransport(func(_ *http.Request) (*http.Response, error) {
+							requests.Add(1)
+							return &http.Response{StatusCode: 200, Header: http.Header{"Cache-Control": []string{"no-cache"}}, Body: io.NopCloser(bytes.NewReader(pixels))}, nil
+						})}}, noLocationRetry)
+						queue := &uitest.UIQueue{}
+						v.locationMap.SetUIQueue(queue)
+						deliver := func() { synctest.Wait(); queue.Drain(); synctest.Wait(); queue.Drain() }
+						locationMenu(t, v).Action()
+						<-entered
+						release[0]()
+						<-entered
+						deliver()
+						initial := requests.Load()
+						if initial == 0 || v.locationMap.Counts().Completed != 1 {
+							t.Fatal("initial location did not immediately display and request tiles")
+						}
+						release[1]()
+						<-entered
+						deliver()
+						if requests.Load() != initial || v.locationMap.Counts().Completed != 2 {
+							t.Fatalf("progressive location restarted tile demand: requests=%d -> %d completed=%d", initial, requests.Load(), v.locationMap.Counts().Completed)
+						}
+						if action == "stop" {
+							v.locationMap.Stop()
+							release[2]()
+							beforeWait := time.Now()
+							v.locationMap.Settle()
+							if time.Since(beforeWait) != 0 || requests.Load() != initial || v.locationMap.Active() {
+								t.Fatal("Stop waited for automatic fit or admitted retired tile demand")
+							}
+							return
+						}
+						manual := action == "manual"
+						if manual {
+							locationSurface(t, v).Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(60, 0)})
+							deliver()
+							if requests.Load() <= initial {
+								t.Fatal("automatic fit throttle delayed manual tile demand")
+							}
+							initial = requests.Load()
+						}
+						time.Sleep(250 * time.Millisecond) // Advance the synctest clock, not wall time.
+						deliver()
+						if manual && requests.Load() != initial || !manual && requests.Load() <= initial {
+							t.Fatal("scheduled auto-fit ignored manual input or did not request the settled viewport")
+						}
+						beforeFinal := requests.Load()
+						release[2]()
+						v.locationMap.Settle()
+						if !v.locationMap.Counts().Complete || v.locationMap.Counts().Located != 3 {
+							t.Fatal("throttling prevented completed progressive locations")
+						}
+						if !manual && requests.Load() <= beforeFinal {
+							t.Fatal("final scan did not immediately fit and request its viewport")
+						}
+					})
+				})
+			}
+		})
 		t.Run("initial_partial", func(t *testing.T) {
 			v := newTestViewer(t)
 			v.SetThemeMode(appearance.Light)

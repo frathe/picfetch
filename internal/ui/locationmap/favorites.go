@@ -53,6 +53,9 @@ func (c *favoriteFacts) close() {
 
 func openFavoriteFacts(ctx context.Context, dir string, sources []fyne.URI) (*favoriteFacts, error) {
 	c := &favoriteFacts{members: map[string][]*favoriteOwner{}}
+	if err := ctx.Err(); err != nil {
+		return c, err
+	}
 	if dir == "" || len(sources) == 0 {
 		return c, nil
 	}
@@ -60,28 +63,47 @@ func openFavoriteFacts(ctx context.Context, dir string, sources []fyne.URI) (*fa
 	for _, source := range sources {
 		live[filepath.Clean(source.Path())] = true
 	}
-	names, err := favstore.List(dir)
+	folder, err := os.Open(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return c, nil
+	}
 	if err != nil {
 		return c, err
 	}
+	defer func() { _ = folder.Close() }()
 	var failures []error
-	for _, name := range names {
+	for {
 		if err := ctx.Err(); err != nil {
 			return c, err
 		}
-		owner, err := openFavoriteOwner(ctx, favstore.Dir(dir, name), live)
-		if err != nil {
-			if !errors.Is(err, errFavoriteRetired) {
-				failures = append(failures, err)
+		entries, readErr := folder.ReadDir(64)
+		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return c, err
 			}
-			continue
+			if !entry.IsDir() || !favstore.ValidName(entry.Name()) {
+				continue
+			}
+			owner, err := openFavoriteOwner(ctx, favstore.Dir(dir, entry.Name()), live)
+			if err != nil {
+				if !errors.Is(err, errFavoriteRetired) && !errors.Is(err, os.ErrNotExist) {
+					failures = append(failures, err)
+				}
+				continue
+			}
+			if owner == nil {
+				continue
+			}
+			c.owners = append(c.owners, owner)
+			for path := range owner.members {
+				c.members[path] = append(c.members[path], owner)
+			}
 		}
-		if owner == nil {
-			continue
-		}
-		c.owners = append(c.owners, owner)
-		for path := range owner.members {
-			c.members[path] = append(c.members[path], owner)
+		if readErr != nil {
+			if !errors.Is(readErr, io.EOF) {
+				failures = append(failures, readErr)
+			}
+			break
 		}
 	}
 	return c, errors.Join(failures...)
@@ -363,14 +385,20 @@ func (f *Feature) persistFact(ctx context.Context, owners *favoriteFacts, source
 func (f *Feature) invalidatePersistentFacts(queue UIQueue, dir string, sources []fyne.URI) {
 	f.persistence.Lock()
 	defer f.persistence.Unlock()
-	ctx := context.Background()
+	ctx := f.lifetime
 	owners, err := openFavoriteFacts(ctx, dir, sources)
 	// Partial inventory is non-nil even when some Favorite owners are unavailable.
 	//goland:noinspection GoDfaErrorMayBeNotNil
 	defer owners.close()
 	f.cacheFailure(queue, f.lifetime, 0, err)
 	for _, source := range sources {
+		if ctx.Err() != nil {
+			return
+		}
 		for _, owner := range owners.members[filepath.Clean(source.Path())] {
+			if ctx.Err() != nil {
+				return
+			}
 			if !owner.current() {
 				continue
 			}
@@ -382,6 +410,9 @@ func (f *Feature) invalidatePersistentFacts(queue UIQueue, dir string, sources [
 		// A replacement scan may have won the persistence mutex first. Restore
 		// only its current, version-validated raw fact after removing stale disk
 		// state, so delayed cleanup cannot erase the scan's valid publication.
+		if ctx.Err() != nil {
+			return
+		}
 		version, known := favthumbs.EntryName(source)
 		if metadata, ok := f.facts.Get(source.String(), version); known && ok {
 			f.cacheFailure(queue, f.lifetime, 0, owners.store(ctx, source, Fact{Version: version, Metadata: metadata}))

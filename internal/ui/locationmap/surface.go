@@ -252,6 +252,7 @@ func (r *surfaceRenderer) Objects() []fyne.CanvasObject {
 func (*surfaceRenderer) Destroy() {}
 
 func (s *Surface) Dragged(event *fyne.DragEvent) {
+	s.feature.cancelAutoFit()
 	s.manual = true
 	s.centerX -= float64(event.Dragged.DX) / s.scale
 	s.centerY -= float64(event.Dragged.DY) / s.scale
@@ -262,6 +263,7 @@ func (s *Surface) Scrolled(event *fyne.ScrollEvent) {
 	s.zoom(math.Pow(1.2, float64(event.Scrolled.DY)/10), event.Position)
 }
 func (s *Surface) zoom(factor float64, anchor fyne.Position) {
+	s.feature.cancelAutoFit()
 	s.manual = true
 	old := s.scale
 	s.scale = math.Max(256, math.Min(256*math.Pow(2, 19), s.scale*factor))
@@ -343,6 +345,7 @@ func (s *Surface) moveDirection(dx, dy int, modifiers fyne.KeyModifier) {
 	}
 	target := clusters[next]
 	s.selected = s.feature.points[target.Members[0]].Source.Identity
+	s.feature.cancelAutoFit()
 	s.manual = true
 	// Expose the entire card and count without changing zoom or unnecessarily
 	// moving a target that is already comfortably inside the viewport.

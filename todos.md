@@ -39,6 +39,11 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Copy Selection now keeps keyboard priority in photos opened from Location Map.
   Escape cancels the selection before leaving the photo, G clears an idle
   selection before opening Grid, and both keys wait while a copy is finishing.
+- Progressive location scans limit automatic map movement to four updates per
+  second, reducing repeated tile downloads while keeping counts and photo cards
+  current. Manual movement and the completed scan update immediately.
+- Quitting cancels remaining Favorite GPS cache maintenance between filesystem
+  operations; simply leaving the map still lets committed cleanup finish.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.

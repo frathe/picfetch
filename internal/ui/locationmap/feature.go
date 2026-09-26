@@ -40,6 +40,8 @@ type Feature struct {
 	ctx                context.Context
 	cancel             context.CancelFunc
 	previewCancel      context.CancelFunc
+	autoFitCancel      context.CancelFunc
+	lastAutoFit        time.Time
 	generation         uint64
 	stopped            bool
 	active             bool
@@ -218,6 +220,8 @@ func (f *Feature) open(sources []Source, retain bool) {
 }
 
 func (f *Feature) Close() {
+	f.cancelAutoFit()
+	f.lastAutoFit = time.Time{}
 	f.surface.selected = fileidentity.Occurrence{}
 	f.preparing = false
 	f.preparation.Hide()
@@ -275,8 +279,8 @@ func (f *Feature) InvalidateSources(sources []fyne.URI) {
 	}
 	f.facts.Invalidate(keys)
 	if !f.stopped && len(sources) > 0 {
-		// A committed disk effect survives closing the map and application Stop.
-		// Tracked cleanup reconciles any fresh raw fact and is joined off UI.
+		// Cache cleanup survives closing the map, but terminal Stop cancels it.
+		// Source-version checks still reject stale disk facts on later visits.
 		dir, queue := f.favoriteRoot.Load().(string), f.ui
 		sources = slices.Clone(sources)
 		f.workers.Go(func() { f.invalidatePersistentFacts(queue, dir, sources) })

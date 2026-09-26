@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -103,11 +104,7 @@ func (f *Feature) scan(sources []Source) {
 					f.status.SetText(fmt.Sprintf(lang.L("No usable image locations. %d without GPS, %d unreadable, %d conflicts"), counts.Unlocated, counts.Failed, counts.Conflicts))
 				}
 			}
-			if !f.surface.manual {
-				f.surface.fit()
-			} else {
-				f.surface.arrange()
-			}
+			f.presentLocations()
 			f.host.LocationMapChanged()
 		})
 	}
@@ -166,6 +163,54 @@ func (f *Feature) scan(sources []Source) {
 			f.persistKnown(queue, ctx, latest, allSources, generation)
 		}
 	})
+}
+
+// Keep counts and cards progressive without restarting public tile requests on
+// every source. Initial/final fits are immediate; intermediate automatic camera
+// updates share one tracked timer. Manual camera changes keep their own cadence.
+func (f *Feature) presentLocations() {
+	if f.surface.manual {
+		f.surface.arrange()
+		return
+	}
+	now := time.Now()
+	delay := 250*time.Millisecond - now.Sub(f.lastAutoFit)
+	if f.lastAutoFit.IsZero() || f.counts.Complete || !f.Visible() || delay <= 0 {
+		f.cancelAutoFit()
+		f.lastAutoFit = now
+		f.surface.fit()
+		return
+	}
+	f.surface.arrange()
+	if f.autoFitCancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(f.ctx)
+	f.autoFitCancel = cancel
+	generation, queue := f.generation, f.ui
+	f.workers.Go(func() {
+		if waitForTileRetry(ctx, delay) != nil {
+			return
+		}
+		queue.Do(func() {
+			if ctx.Err() != nil || generation != f.generation {
+				return
+			}
+			f.cancelAutoFit()
+			if f.surface.manual {
+				return
+			}
+			f.lastAutoFit = time.Now()
+			f.surface.fit()
+		})
+	})
+}
+
+func (f *Feature) cancelAutoFit() {
+	if f.autoFitCancel != nil {
+		f.autoFitCancel()
+		f.autoFitCancel = nil
+	}
 }
 
 func sourceVersions(ctx context.Context, sources []fyne.URI) map[string]string {

@@ -98,7 +98,7 @@ func TestFavoriteRetiredCleanup(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			var scanContext context.Context = ctx
+			scanContext := ctx
 			if scenario == "cancelled" {
 				scanContext = &resolutionCancelContext{Context: ctx, cancel: cancel, checks: 2}
 			} else if scenario == "cancelled_during" {
@@ -157,6 +157,8 @@ func TestFavoriteFactsLiveScope(t *testing.T) {
 		t.Fatalf("unrelated Favorite acquired a location cache: %v", err)
 	}
 	empty, err := openFavoriteFacts(context.Background(), dir, nil)
+	// Partial inventories are non-nil even on errors and must be closed.
+	//goland:noinspection GoDfaErrorMayBeNotNil
 	defer empty.close()
 	if err != nil || len(empty.owners) != 0 || len(empty.members) != 0 {
 		t.Fatal("empty source scope retained Favorite inventory")
@@ -217,5 +219,52 @@ func TestFavoriteInvalidationKeepsNewerFact(t *testing.T) {
 				t.Fatal("delayed invalidation discarded the newly valid Favorite fact")
 			}
 		})
+	}
+}
+
+func TestFavoriteInvalidationCancellation(t *testing.T) {
+	dir := t.TempDir()
+	source := storage.NewFileURI(uitest.WriteTempFile(t, "edited.jpg", []byte("source version fixture")))
+	sources := []fyne.URI{source}
+	if err := favstore.Save(dir, "Saved", sources); err != nil {
+		t.Fatal(err)
+	}
+	owners, err := openFavoriteFacts(context.Background(), dir, sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owners.close()
+	version, _ := favthumbs.EntryName(source)
+	fact := Fact{Version: version, Metadata: imaging.Metadata{HasGPS: true, Latitude: 52.52, Longitude: 13.405}}
+	if err := owners.store(context.Background(), source, fact); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	f := &Feature{facts: NewFactCache(), lifetime: ctx}
+	// Terminal Stop cancels this lifetime, including workers awaiting persistence.
+	cancel()
+	f.invalidatePersistentFacts(&uitest.UIQueue{}, dir, sources)
+	if _, hit, err := owners.load(context.Background(), source, version); err != nil || !hit {
+		t.Fatal("terminally cancelled invalidation continued filesystem maintenance")
+	}
+}
+
+func TestFavoriteInventoryCancellation(t *testing.T) {
+	dir := t.TempDir()
+	// Unrelated/incomplete directories still require cancellable enumeration.
+	for i := range 200 {
+		if err := os.Mkdir(filepath.Join(dir, fmt.Sprintf("Favorite-%03d", i)), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	scan := &resolutionCancelContext{Context: ctx, cancel: cancel, checks: 4}
+	owners, err := openFavoriteFacts(scan, dir, []fyne.URI{storage.NewFileURI(filepath.Join(dir, "photo.jpg"))})
+	// Cancellation returns a non-nil partial inventory with any owned handles.
+	//goland:noinspection GoDfaErrorMayBeNotNil
+	defer owners.close()
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Favorite inventory ignored cancellation during enumeration: %v", err)
 	}
 }
