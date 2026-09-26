@@ -22,5 +22,14 @@ func TestMain(m *testing.M) {
 	if WorkerMain() {
 		return
 	}
+	if mode := os.Getenv("PICFETCH_TEST_ANALYSIS_PROTOCOL"); mode != "" {
+		// Protocol helpers must not start testing.M's alarm or write its
+		// status lines to stdout. The parent context owns their lifetime.
+		if err := analysisProtocolHelperProcess(mode); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		return
+	}
 	os.Exit(m.Run())
 }
