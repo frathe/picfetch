@@ -44,6 +44,9 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   current. Manual movement and the completed scan update immediately.
 - Quitting cancels remaining Favorite GPS cache maintenance between filesystem
   operations; simply leaving the map still lets committed cleanup finish.
+- Opening a location cluster now starts with every member visible and no inherited
+  selection, preventing copy/delete actions from targeting an outside photo.
+  Returning restores the original Grid filter and selection.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.

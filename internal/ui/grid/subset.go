@@ -5,6 +5,10 @@ import "github.com/frathe/picfetch/internal/fileidentity"
 // OpenOccurrences opens an exact occurrence cohort without collapsing repeated paths.
 func (g *Overview) OpenOccurrences(members []fileidentity.Occurrence, label string, back func()) {
 	g.Close()
+	// Hidden visits can retain interaction state; it must not filter or target
+	// files outside this new cohort. The caller owns restoring the saved visit.
+	g.ClearSelection()
+	g.clearSearch()
 	g.subset = map[string]bool{}
 	g.subsetOccurrences = map[fileidentity.Occurrence]bool{}
 	g.subsetLabel = label

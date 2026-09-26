@@ -1570,6 +1570,51 @@ func TestLocationMap(t *testing.T) {
 		})
 	})
 	t.Run("cluster_visit", func(t *testing.T) {
+		t.Run("isolates_saved_grid_state", func(t *testing.T) {
+			v := newTestViewer(t)
+			a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+			b := uitest.TempGPSJPEGURI(t, "b.jpg", 24, 16, 52.52, 13.405)
+			outside := uitest.TempJPEGURI(t, "outside.jpg", 24, 16, color.White)
+			dropAndWait(t, v, a, b, outside)
+			v.grid.Toggle()
+			v.grid.Settle()
+			v.grid.SimulateHover(2)
+			v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+			v.grid.HandleRune('/')
+			v.grid.HandleRune('a')
+			if !slices.Equal(v.grid.Selection(), []int{2}) || !slices.Equal(v.grid.ResultIndexes(), []int{0}) {
+				t.Fatal("saved Grid filter and outside selection setup failed")
+			}
+			var copied []string
+			uitest.StubClipboardCopyFiles(t, func(paths []string) error { copied = slices.Clone(paths); return nil })
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			for range 2 {
+				fynetest.Tap(locationButton(t, v, fmt.Sprintf(lang.L("%d images"), 2)))
+				v.grid.Settle()
+				if got := v.grid.ResultIndexes(); !slices.Equal(got, []int{0, 1}) {
+					t.Errorf("saved search filtered cluster membership: %v", got)
+				}
+				if v.grid.SelectionCount() != 0 || v.grid.Searching() {
+					t.Errorf("cluster inherited saved interaction state: selection=%v query=%q", v.grid.Selection(), v.grid.Query())
+				}
+				copied = nil
+				v.copyGridSelection()
+				waitForClipboard(t, v)
+				if len(copied) != 1 || copied[0] != a.Path() {
+					t.Errorf("cluster clipboard targeted outside the highlighted member: %v", copied)
+				}
+				if t.Failed() {
+					t.FailNow()
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				v.locationMap.Settle()
+				if !v.locationMap.Visible() || v.grid.Visible() || v.grid.Query() != "a" ||
+					!v.grid.Searching() || !slices.Equal(v.grid.Selection(), []int{2}) {
+					t.Fatal("cluster return did not restore the saved Grid filter and selection")
+				}
+			}
+		})
 		t.Run("preview_opens_exact_members", func(t *testing.T) {
 			v := newTestViewer(t)
 			v.win.Resize(fyne.NewSize(1000, 700))
