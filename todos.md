@@ -74,6 +74,8 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Internal
 
+- Make AVIF notice validation work with a fresh Go module cache while retaining
+  the reviewed payload and license checks.
 - PR 58 review hardening: isolated map trials preserve normal updater files,
   trial reports count extensionless images, and map tiles reject redirects.
 - Native map exit timing now requires the observed closed viewer, not an unrelated
@@ -112,10 +114,12 @@ the IDE-only Qodana option, licensing distinction and historical inspection advi
 
 ### Fyne upgrade deferred
 
-Keep Fyne at v2.8.0 in [PR #19](https://github.com/frathe/picfetch/pull/19).
+Keep Fyne at v2.8.0, including [PR #59](https://github.com/frathe/picfetch/pull/59).
 Ronin reports an upstream library regression with v2.8.1. Revisit the upgrade
 after an upstream fix is available and the affected behavior is verified.
-The four grouped `golang.org/x/*` updates remain in the PR.
+PR #59 retains its grouped Sigstore v1.11.0 update. The earlier hold in
+[PR #19](https://github.com/frathe/picfetch/pull/19) retained its four grouped
+`golang.org/x/*` updates.
 
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027

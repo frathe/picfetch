@@ -60,6 +60,13 @@ func main() {
 }
 
 func run(root string, write bool) error {
+	// Module-only listing can omit Dir until the source archive is downloaded.
+	download := exec.Command("go", "mod", "download", "github.com/gen2brain/avif", "github.com/tetratelabs/wazero")
+	download.Dir = root
+	download.Env = append(os.Environ(), "GOWORK=off")
+	if output, err := download.CombinedOutput(); err != nil {
+		return fmt.Errorf("download AVIF modules: %w: %s", err, output)
+	}
 	cmd := exec.Command("go", "list", "-mod=readonly", "-m", "-json", "github.com/gen2brain/avif", "github.com/tetratelabs/wazero")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOWORK=off")
@@ -124,7 +131,7 @@ func renderNotices(root string, inventory manifest, modules map[string]resolvedM
 	seen := make(map[string]bool)
 	for _, pin := range inventory.Modules {
 		module, ok := modules[pin.Path]
-		if !ok || seen[pin.Path] || module.Replace != nil || module.Version != pin.Version || len(pin.Files) == 0 {
+		if !ok || seen[pin.Path] || module.Replace != nil || module.Version != pin.Version || module.Dir == "" || len(pin.Files) == 0 {
 			return nil, fmt.Errorf("AVIF module %s@%s changed, was replaced, or lacks reviewed inputs", pin.Path, pin.Version)
 		}
 		seen[pin.Path] = true
