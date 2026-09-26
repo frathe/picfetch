@@ -74,6 +74,8 @@ func wireCompareShortcut(c shortcutAdder, view *viewer) {
 		KeyName:  fyne.KeyD,
 		Modifier: fyne.KeyModifierShortcutDefault,
 	}, open)
+	// The shortcut constant is Command on macOS and Control on other builds.
+	//goland:noinspection GoBoolExpressions
 	if fyne.KeyModifierShortcutDefault != fyne.KeyModifierControl {
 		c.AddShortcut(&desktop.CustomShortcut{
 			KeyName:  fyne.KeyD,
@@ -99,7 +101,7 @@ func (y yieldingShortcuts) AddShortcut(shortcut fyne.Shortcut, handler func(fyne
 		if y.view.win.Canvas().Overlays().Top() != nil {
 			return
 		}
-		if y.view.comparisonActive() && !y.comparisonAllowed || y.view.explorerMapActive() && !y.explorerAllowed {
+		if y.view.comparisonActive() && !y.comparisonAllowed || (y.view.explorerMapActive() || y.view.locationMapVisible()) && !y.explorerAllowed {
 			return
 		}
 		if !y.view.yieldCopySelection() {

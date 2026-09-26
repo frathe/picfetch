@@ -104,6 +104,15 @@ func launchArgs(args []string, stdout, stderr io.Writer) (paths []string, opts l
 	return paths, opts, -1
 }
 
+// cleanupLaunchPredecessor admits the pre-app filesystem cleanup only for
+// ordinary portable launches. The callback keeps this boundary desktop-free.
+func cleanupLaunchPredecessor(opts launch.Options, cleanup func()) {
+	//goland:noinspection GoBoolExpressions
+	if !distribution.StoreManaged && opts.ExplorerTrial == "" && opts.LocationMapTrial == "" {
+		cleanup()
+	}
+}
+
 func main() {
 	// Before every side effect below: --help and a rejected flag must not
 	// graft Objective-C methods, touch the update channel, or create an app
@@ -139,12 +148,7 @@ func main() {
 	// preferences while the process it replaced is still flushing its own.
 	// Microsoft Store builds never stage or apply GitHub-delivered binaries,
 	// so they must not inspect or clean that channel's predecessor files.
-	// Qodana analyzes the default build, where StoreManaged is a constant false;
-	// the microsoftstore build tag replaces it with the true variant.
-	//goland:noinspection GoBoolExpressions
-	if !distribution.StoreManaged && opts.ExplorerTrial == "" {
-		update.CleanupPredecessor()
-	}
+	cleanupLaunchPredecessor(opts, update.CleanupPredecessor)
 
 	identity, err := opts.ApplicationID(context.Background(), appID)
 	if err != nil {

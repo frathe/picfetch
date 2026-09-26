@@ -84,6 +84,19 @@ var (
 	ScrimColor = color.NRGBA{R: 0, G: 0, B: 0, A: 140}
 )
 
+// NewThemedRectangle resolves its fill when painted instead of retaining the
+// color from construction. Normal Fyne theme refresh updates these surfaces
+// alongside their standard child widgets.
+func NewThemedRectangle(name fyne.ThemeColorName) *canvas.Rectangle {
+	return canvas.NewRectangle(themedColor(name))
+}
+
+type themedColor fyne.ThemeColorName
+
+func (name themedColor) RGBA() (r, g, b, a uint32) {
+	return theme.Color(fyne.ThemeColorName(name)).RGBA()
+}
+
 // NewFocusRing returns one of the manually drawn selection rings used where
 // this app tracks its own selection instead of Fyne's widget-focus system
 // (see grid.Overview.Close's comment for why it never uses that): a

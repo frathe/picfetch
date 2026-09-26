@@ -678,6 +678,62 @@ Das Bild behält die Abmessungen des bei der Erstellung gewählten Bildschirms.
 
 ---
 
+### Standortkarte
+
+**Fenster -> Standortkarte** oder **`Shift+L`** zeigt aufgezeichnete GPS-Standorte
+der geladenen Sammlung, unabhängig von Rastersuche und Auswahl. Über einem
+gerahmten Vorschaubild zeigt der Mauszeiger den Dateinamen; ein Klick auf ein
+einzelnes Foto öffnet es direkt. Die Pfeiltasten blättern durch verortete Bilder in
+Sammlungsreihenfolge; **Escape** kehrt zur unveränderten Kartenposition zurück.
+Ziehen verschiebt die Karte, Scrollen zoomt. **Alle einpassen** zeigt alle
+gefundenen Standorte. **Zurück zur Bildansicht** beendet die Karte.
+
+Auf der Karte wählen **Left / Right / Up / Down** das nächste Foto oder die
+nächste Gruppe in dieser Richtung mit einem hervorgehobenen Rahmen aus. Die
+erste Pfeiltaste wählt die Gruppe nahe der Mitte; Ziele außerhalb des sichtbaren
+Bereichs werden eingeblendet. **Enter** öffnet das ausgewählte Foto oder die
+Gruppe im Raster. **Shift + Pfeiltasten** verschieben die Karte, ohne die Auswahl
+zu ändern. **+ / -** zoomt, **0** passt alle Standorte ein. Die Auswahl
+bleibt beim Besuch von Bild und Raster erhalten; **Escape** kehrt zurück oder
+verlässt die Karte.
+
+Markierungen mit einer Anzahl gruppieren nahe Bilder bei der aktuellen Zoomstufe.
+Über jeder Anzahl erscheint ein repräsentatives Vorschaubild. Ein Klick auf das
+Vorschaubild oder die Anzahl öffnet genau die Bilder dieser Gruppe im
+Raster. Die Bildpfeile bleiben innerhalb
+der Gruppe. Escape führt von Bild -> Raster -> Karte zurück, einschließlich der
+normalen Escape-Stufen für Rastersuche und Auswahl. Spätere Funde erweitern eine
+bereits geöffnete Gruppe nicht.
+
+Bei ausgeblendeten Duplikaten wird zuerst die Gruppierung abgeschlossen. Ein
+Fortschrittsbalken zeigt geprüfte Bilder und wartet danach auf die abschließende
+Gruppierung. Eigene
+GPS-Daten des Repräsentanten haben Vorrang. Andernfalls müssen die verorteten
+Kopien paarweise höchstens 100 Meter auseinanderliegen. Die Kopie mit der höchsten
+Auflösung liefert dann den Standort. Konflikte
+und nicht lesbare Quellen werden getrennt gezählt. Bereits gefundene Standorte
+bleiben während des weiteren Einlesens nutzbar.
+
+OpenStreetMap-Kacheln benötigen eine Internetverbindung. Beim Ziehen und Nachladen
+bleibt die letzte vollständige Karte sichtbar, bis alle neuen Kacheln bereit
+sind. Ohne zuvor geladene Karte erscheint bei fehlenden Kacheln ein Schachbrett.
+Lokale Standorte bleiben nutzbar, sichtbare Kacheln werden erneut angefordert.
+GPS-Daten ungespeicherter Bilder bleiben im Arbeitsspeicher.
+Favoriten speichern nur Daten ihrer gespeicherten Mitglieder. Beim Speichern
+werden bekannte Daten übernommen; noch ungespeicherte Ergänzungen einer
+zusammengeführten Sammlung bleiben im Arbeitsspeicher. Das Entfernen eines
+Favoriten verwirft die geladene Sammlung nicht.
+Bestätigte Dateiänderungen und Löschungen bauen die Karte automatisch neu auf.
+Beim Öffnen oder Zurückkehren werden auch externe Dateiänderungen geprüft.
+Eine manuell gewählte Kartenposition bleibt erhalten.
+
+Standorte stammen aus unterstützten eingebetteten Metadaten, auch PNG/WebP-EXIF.
+Reine XMP-Standorte und Sidecar-Dateien werden nicht gelesen. RAW-Unterstützung
+hängt vom Container oder Vorschaubild ab; HEIC benötigt einen Systemdecoder.
+Der aktuelle AVIF-Adapter unterscheidet fehlende GPS-Daten nicht von (0, 0),
+weshalb dieser AVIF-Standort nicht eingezeichnet wird. Das Erkunden verändert
+keine Metadaten der Bilddateien.
+
 ### Ähnlichkeits-Explorer (Intel-Mac/Apple Silicon, Linux und Windows)
 
 Beim ersten Öffnen stellt Trane den Explorer und das KI-Modell SigLIP 2 zum

@@ -26,6 +26,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/help"
 	"github.com/frathe/picfetch/internal/ui/infoview"
+	"github.com/frathe/picfetch/internal/ui/locationmap"
 	"github.com/frathe/picfetch/internal/ui/menus"
 	"github.com/frathe/picfetch/internal/ui/mosaicwin"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
@@ -344,6 +345,9 @@ type viewer struct {
 	grid          *grid.Overview
 	explorer      *explorerui.Feature
 	explorerInput explorerInput
+	locationMap   *locationmap.Feature
+	locationTrial *locationTrialSession
+	locationInput locationInput
 
 	// compare is the opaque two-image surface stacked above the still-open
 	// grid. The feature owns its widgets and workers; this viewer owns only
@@ -566,6 +570,8 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // which art (welcomeArt or emptyStateArt) belongs in the box afterward and
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
+	v.locationMap.SetSources(nil)
+	v.closeLocationMap()
 	v.closeVisualSearch()
 	v.closeExplorer()
 	v.grid.Close()

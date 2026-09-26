@@ -131,6 +131,23 @@ func PatternedJPEGURISize(t *testing.T, name string, seed, w, h int) fyne.URI {
 	return storage.NewFileURI(WriteTempFile(t, name, buf.Bytes()))
 }
 
+// PatternedGPSJPEGURI combines the duplicate fixture's pixels with real GPS EXIF.
+func PatternedGPSJPEGURI(t *testing.T, name string, seed, w, h int, lat, lon float64) fyne.URI {
+	t.Helper()
+	uri := PatternedJPEGURISize(t, name, seed, w, h)
+	pixels, err := os.ReadFile(uri.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	gps := GPSJPEG(t, w, h, lat, lon)
+	segmentEnd := 4 + int(binary.BigEndian.Uint16(gps[4:6]))
+	data := append(append([]byte(nil), gps[:segmentEnd]...), pixels[2:]...)
+	if err := os.WriteFile(uri.Path(), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return uri
+}
+
 // LineArtGray draws thin dark strokes on a white background: a sketch, a
 // screenshot, a logo, a scan - the common case where the subject occupies
 // only a small fraction of the pixels. seed picks the stroke positions, so
@@ -397,7 +414,8 @@ type RAWPreview struct {
 	Color         color.Color
 	Orientation   uint16 // 0 omits the tag
 	Make, Model   string
-	DateTime      string // Exif "YYYY:MM:DD HH:MM:SS"
+	DateTime      string      // Exif "YYYY:MM:DD HH:MM:SS"
+	GPS           *[2]float64 // Optional latitude/longitude on the embedded JPEG.
 }
 
 // EncodeRAWPreview builds a little-endian TIFF whose only image is a JPEG
@@ -412,6 +430,9 @@ func EncodeRAWPreview(t *testing.T, p RAWPreview) []byte {
 		p.Color = color.White
 	}
 	jpegBytes := EncodeJPEG(t, p.Width, p.Height, p.Color)
+	if p.GPS != nil {
+		jpegBytes = GPSJPEG(t, p.Width, p.Height, p.GPS[0], p.GPS[1])
+	}
 
 	type entry struct {
 		tag, typ uint16
@@ -627,15 +648,60 @@ func exifTIFF(data []byte) []byte {
 // EXIF window's map section to have somewhere to point.
 func GPSJPEG(t *testing.T, w, h int, lat, lon float64) []byte {
 	t.Helper()
+	return GPSDateJPEG(t, w, h, lat, lon, "")
+}
+
+// GPSMetadataTIFF supplies real EXIF bytes for native-decoder/container fixtures.
+func GPSMetadataTIFF(t *testing.T, lat, lon float64, date string) []byte {
+	t.Helper()
+	return bytes.Clone(exifTIFF(GPSDateJPEG(t, 2, 1, lat, lon, date)))
+}
+
+// PNGWithEXIF inserts a correctly checksummed eXIf chunk after the image header.
+func PNGWithEXIF(t *testing.T, metadata []byte) []byte {
+	t.Helper()
+	base := EncodePNG(t, 24, 16, color.White)
+	end := 8 + 12 + int(binary.BigEndian.Uint32(base[8:12]))
+	chunk := binary.BigEndian.AppendUint32(nil, uint32(len(metadata)))
+	chunk = append(chunk, "eXIf"...)
+	chunk = append(chunk, metadata...)
+	chunk = binary.BigEndian.AppendUint32(chunk, crc32.ChecksumIEEE(chunk[4:]))
+	return append(append(bytes.Clone(base[:end]), chunk...), base[end:]...)
+}
+
+// WebPWithEXIF adds EXIF to a caller-provided VP8X image without changing pixels.
+func WebPWithEXIF(t *testing.T, base, metadata []byte) []byte {
+	t.Helper()
+	if len(base) < 30 || string(base[:4]) != "RIFF" || string(base[8:16]) != "WEBPVP8X" {
+		t.Fatal("WebP fixture requires a RIFF/VP8X image")
+	}
+	data := bytes.Clone(base)
+	data[20] |= 0x08
+	data = append(data, "EXIF"...)
+	data = binary.LittleEndian.AppendUint32(data, uint32(len(metadata)))
+	data = append(data, metadata...)
+	if len(metadata)%2 != 0 {
+		data = append(data, 0)
+	}
+	binary.LittleEndian.PutUint32(data[4:8], uint32(len(data)-8))
+	return data
+}
+
+// GPSDateJPEG adds an optional recorded capture date to the real GPS fixture.
+func GPSDateJPEG(t *testing.T, w, h int, lat, lon float64, date string) []byte {
+	t.Helper()
 
 	data := EncodeJPEG(t, w, h, color.White)
 
 	const (
-		ifd0Size    = 2 + 1*12 + 4
 		gpsEntryCnt = 4
 		gpsSize     = 2 + gpsEntryCnt*12 + 4
 	)
-	gpsOffset := uint32(tiffHeaderSize + ifd0Size)
+	entryCount := uint16(1)
+	if date != "" {
+		entryCount++
+	}
+	gpsOffset := uint32(tiffHeaderSize + 2 + int(entryCount)*12 + 4)
 	valueOffset := gpsOffset + gpsSize
 
 	// Exif carries the hemisphere in its own tag, so the coordinate itself
@@ -652,11 +718,17 @@ func GPSJPEG(t *testing.T, w, h int, lat, lon float64) []byte {
 
 	buf := newLittleEndianTIFF()
 
-	buf.u16(1)
+	buf.u16(entryCount)
 	buf.u16(0x8825) // GPSIFDPointer
 	buf.u16(4)      // LONG
 	buf.u32(1)
 	buf.u32(gpsOffset)
+	if date != "" {
+		buf.u16(0x0132)
+		buf.u16(2)
+		buf.u32(uint32(len(date) + 1))
+		buf.u32(valueOffset + 48)
+	}
 	buf.u32(0) // next IFD offset
 
 	buf.u16(gpsEntryCnt)
@@ -685,6 +757,9 @@ func GPSJPEG(t *testing.T, w, h int, lat, lon float64) []byte {
 
 	_, _ = buf.Write(dmsRationals(lat))
 	_, _ = buf.Write(dmsRationals(lon))
+	if date != "" {
+		_, _ = buf.WriteString(date + "\x00")
+	}
 
 	return wrapAPP1(data, buf.Bytes())
 }

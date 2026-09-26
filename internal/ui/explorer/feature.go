@@ -195,9 +195,15 @@ func (f *Feature) Preparing() {
 	f.retireAnalysis()
 	f.cohort = nil
 	f.preparing = true
+	f.surface.preparation.Update(0, 0)
 	f.surface.Show()
 	f.surface.Status(lang.L("Checking duplicate groups..."))
 	f.host.Repaint()
+}
+func (f *Feature) SetPreparationProgress(completed, total int) {
+	if f.preparing {
+		f.surface.preparation.Update(completed, total)
+	}
 }
 func (f *Feature) Close() {
 	f.retireAnalysis()
@@ -236,6 +242,7 @@ func (f *Feature) SourcesChanged() {
 func (f *Feature) retireAnalysis() {
 	f.closeExplorerSetup()
 	f.preparing = false
+	f.surface.preparation.Hide()
 	if len(f.sources) > 0 {
 		f.trial.Action(f.trialRun, "explorer-exit", len(f.sources))
 	}
@@ -316,6 +323,7 @@ func (f *Feature) Suspend() <-chan struct{} {
 	f.lifecycle.invalidate()
 	f.controls = nil
 	f.preparing = false
+	f.surface.preparation.Hide()
 	f.surface.UpdateState(false, false)
 	if f.analysisDone != nil {
 		return f.analysisDone

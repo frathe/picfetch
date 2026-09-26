@@ -236,6 +236,12 @@ func ReadMetadata(data []byte) Metadata {
 	if len(data) >= 4 && data[0] == 0xFF && data[1] == 0xD8 {
 		return jpegMetadata(data)
 	}
+	if m := pngMetadata(data); !m.Empty() {
+		return m
+	}
+	if m := webpMetadata(data); !m.Empty() {
+		return m
+	}
 	if _, ok := tiffOrder(data); ok {
 		if m := parseExifMetadata(data); !m.Empty() {
 			return m
@@ -247,6 +253,57 @@ func ReadMetadata(data []byte) Metadata {
 	if jpegBytes, ok := embeddedJPEGPreview(data); ok {
 		return jpegMetadata(jpegBytes)
 	}
+	return Metadata{}
+}
+
+func pngMetadata(data []byte) Metadata {
+	const signature = "\x89PNG\r\n\x1a\n"
+	if len(data) < len(signature) || string(data[:len(signature)]) != signature {
+		return Metadata{}
+	}
+
+	for offset := len(signature); offset+12 <= len(data); {
+		length := uint64(binary.BigEndian.Uint32(data[offset : offset+4]))
+		payloadStart := offset + 8
+		payloadEnd := uint64(payloadStart) + length
+		if payloadEnd+4 > uint64(len(data)) {
+			return Metadata{}
+		}
+		if string(data[offset+4:offset+8]) == "eXIf" {
+			return parseExifMetadata(data[payloadStart:int(payloadEnd)])
+		}
+		offset = int(payloadEnd) + 4
+	}
+
+	return Metadata{}
+}
+
+func webpMetadata(data []byte) Metadata {
+	if len(data) < 12 || string(data[:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		return Metadata{}
+	}
+	containerEnd := uint64(binary.LittleEndian.Uint32(data[4:8])) + 8
+	if containerEnd < 12 || containerEnd > uint64(len(data)) {
+		return Metadata{}
+	}
+
+	for offset := 12; uint64(offset)+8 <= containerEnd; {
+		length := uint64(binary.LittleEndian.Uint32(data[offset+4 : offset+8]))
+		payloadStart := offset + 8
+		payloadEnd := uint64(payloadStart) + length
+		if payloadEnd+length%2 > containerEnd {
+			return Metadata{}
+		}
+		if string(data[offset:offset+4]) == "EXIF" {
+			payload := data[payloadStart:int(payloadEnd)]
+			if len(payload) >= 6 && string(payload[:6]) == "Exif\x00\x00" {
+				payload = payload[6:]
+			}
+			return parseExifMetadata(payload)
+		}
+		offset = int(payloadEnd + length%2)
+	}
+
 	return Metadata{}
 }
 

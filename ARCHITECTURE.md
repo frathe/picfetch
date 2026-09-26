@@ -13,7 +13,8 @@ Entry point only. `main.go` parses the command line (`launchArgs`, see
 `internal/launch`) before any side effect, dispatches the private `heic.WorkerMain` and `similarity.WorkerMain`
 subprocess modes before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
-cleanup for Store-managed builds and explicit Explorer trials, asks `launch.Options.ApplicationID` to validate and select the app identity before
+cleanup for Store-managed builds and explicit Explorer or Location Map trials,
+asks `launch.Options.ApplicationID` to validate and select the app identity before
 building the `fyne.App`, loads embedded
 `translations/*.json`, embeds `THIRD-PARTY-NOTICES.md`, converts CLI paths to URIs
 (`argsToURIs`), and passes the immutable notices to `ui.Run`, which supplies
@@ -360,6 +361,8 @@ cohort visits; full exit clears them. Filtering starts no background work.
 `Map` owns the clipped pan/zoom surface, opaque toolbar, Unassigned entry and
 stable samples of up to fifteen distinct members per `Pile`, fitted thin frames,
 Shift-scroll panning and a granularity slider cutting the supplied hierarchy.
+The outer panel background uses `widgets.NewThemedRectangle` so toolbar and
+sidebar backgrounds follow appearance changes alongside their standard controls.
 Slider release rearranges piles and centers the selected source or arrangement
 at the current zoom; background publications retain shared-source anchors.
 `Map.View` captures source-free camera geometry on UI for explicit trial recording.
@@ -387,6 +390,99 @@ restore their pixels before paint; selection redraws reuse unchanged previews.
 Committed writes through `filework.go` and removals through `viewer.RemoveFile`
 retire the analysis/map while preserving surviving cohort identities;
 `load.go` keeps missing-file retries within the remaining cohort.
+
+### `internal/ui/locationmap`
+
+`Feature` owns the loaded collection's geographic surface, recorded metadata,
+on-demand previews and camera. `work.go` bounds active source reads, captures
+HEIC contexts and Grid cache writers, checks source versions and queues UI
+delivery; `Settle` joins current/retired work and drains callbacks repeatedly.
+`Close` retires a session, while terminal `Stop` also closes admission.
+Progressive counts/cards update immediately; automatic camera fitting coalesces
+on a tracked 250 ms timer, with immediate initial/final fits and manual input.
+`surface.go` projects recorded GPS and retains only mounted viewport previews,
+including one framed representative above each cluster count. Photo hover shows
+a filename tooltip; singleton photo taps open images directly, without a details
+sidebar. A cluster's preview and count share the exact-membership Grid action.
+Rearrangement transfers already-painted, source-version-matched pixels before
+replacing cards; fully warm drags do not start new preview workers.
+Directional keys select the nearest photo/cluster; Shift+arrows pan without
+changing selection; Enter invokes its normal
+open action. Selection uses occurrence identity, survives hidden visits and
+reclustering, and paints a live-themed border. Offscreen targets use the same
+wrapped clustering geometry and are exposed without changing zoom.
+Root `locationmap.go` captures `fileidentity.Occurrence` sources independently
+of Grid filters, preserves Grid selections and routes image/Escape
+transitions through ordinary display loading. Image visits retain the map's
+camera and scope. `geography.go` supplies wrapped Mercator projection, fit and
+display-space clusters; `resolution.go` derives representative locations using
+the all-pairs donor rule without changing raw source metadata. Cluster visits
+use Grid's exact occurrence subsets, retaining surviving bookmarks across
+deletion and sort. Root joins `sourcechange.go`/`filework.go` for committed
+changes; tracked entry/return validation detects external source versions.
+
+`tiles.go` owns identified HTTP requests, freshness/revalidation, bounded encoded
+and decoded LRUs, and failure deadlines. `viewport.go` owns visible demand,
+tracked requests/retry timers, cancellation while hidden and viewer-lifetime
+notification throttling. A replacement tile scene remains detached until all
+its tiles are ready; initial successful tiles are mounted despite failed neighbors.
+The prior painted scene follows the camera during pan/zoom,
+partial failures and retries. Each scene has at most 128 rendered references;
+hidden/closed views retire both work and painted references. Local results remain
+usable even when the initial map has only checkerboards.
+Shared `mapstyle` follows the resolved app theme without changing cached pixels;
+mounted and newly completed scenes adopt theme changes without new HTTP demand.
+Photo previews are not filtered. Outer chrome and hover tooltips use
+`widgets.NewThemedRectangle` so their background colors follow live theme changes.
+Grid's separate throttled duplicate-progress observer feeds Location Map and
+Explorer preparation through root. Shared `widgets.PreparationProgress` displays
+measured checks, then indeterminate final grouping; retirement stops animation.
+`facts.go` retains only fixed-size raw GPS fields for live source membership;
+`work.go` and Favorite reads project away unrelated EXIF strings before retaining
+points or facts. `favorites.go` stores
+versioned records only for saved Favorite members in the operation's live source
+scope; unrelated memberships and owner handles are not retained. Captured directory
+handles and membership namespaces preventing retired-owner publication.
+Committed source writes retire live facts immediately and schedule tracked disk
+invalidation, serialized with revalidated raw-fact publication. Each saved member
+owns at most one record, with its current source version inside the record.
+Favorite enumeration reads cancellable batches; committed cache cleanup survives
+map close but terminal Stop cancels it between filesystem operations.
+Retired-namespace cleanup checks cancellation and examines at most 1,024 entries
+per Favorite opening in batches of 64; unexpected nested trees are left alone.
+The native runner in `scripts/locationmapqualify` launches isolated trial storage,
+collects actual admission/stages and sampled RSS, and drives its macOS Swift
+ScreenCaptureKit/CGEvent helper for input-to-visible frame evidence. Its checker validates count, binary
+identity, native screen artifacts, timing thresholds and the separate 30k verdict;
+checker tests are not native performance qualification.
+Exit timing requires pixels matching the stable closed-viewer baseline captured
+before entry. Gesture latency requires identified visual transforms; the current
+hash-only helper refuses pan/zoom samples, leaving formal latency qualification
+unavailable. `native/capture_test.swift` checks that response policy without
+screen/input access; macOS CI also type-checks the production Swift helper.
+`manual.go` in that tool supplies a separate human-controlled launch without a
+screen/input helper. It retains source-free state and sampled RSS in live JSONL
+and `manual-report.json`; these observations do not satisfy the latency checker
+or supply a human verdict.
+
+### `internal/ui/mapstyle`
+
+`ForTheme` is the shared display-only color treatment for collection and EXIF
+maps. It wraps immutable source pixels, without another pixel cache, reversing
+luminance and softening chroma in dark mode; light mode restores originals.
+It reads resolved theme colors so both forced and system appearance work.
+EXIF's `themedMap` adapter in `exifwin/map.go` wraps the pinned Fyne-X map raster
+generator, leaving controls, markers, HTTP and caches unchanged.
+Shared `widgets.NewThemedRectangle` uses a paint-time theme color for plain
+canvas backgrounds, avoiding construction-time color snapshots in map chrome.
+
+### `internal/locationtrial`
+
+Explicit native Location Map trial snapshots only: actual admitted count/format
+mix and UI-side preparation/scan stages. `Recorder.Publish` coalesces immutable
+snapshots to one filesystem worker; `Stop` closes admission without joining and
+`Wait` observes the final flush/error off UI. Its state is not render timing:
+screen observations belong to the separate native qualification runner.
 
 ### `internal/ui/visualsearch`
 

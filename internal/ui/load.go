@@ -55,7 +55,7 @@ func (v *viewer) imageRequested(_ display.Identity) {
 }
 
 func (v *viewer) imageProbed(bounds image.Rectangle) {
-	if !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() {
+	if !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() && !v.locationMap.Active() {
 		v.undoGridMaximize()
 		v.autoResizeToImage(bounds)
 	}
@@ -64,6 +64,8 @@ func (v *viewer) imageProbed(bounds image.Rectangle) {
 // imagePresented runs synchronously after coherent display publication and
 // before the owner admits animation or neighbor work and completes the load.
 func (v *viewer) imagePresented(snapshot display.Snapshot) []fyne.URI {
+	v.recordLocationTrial()
+	v.syncLocationDisplayed()
 	v.syncPresentationLogicalSize()
 	v.dropzone.Hide()
 	v.welcomeArt.Hide()
@@ -194,9 +196,9 @@ func (v *viewer) preloadCandidates() []fyne.URI {
 		return nil
 	}
 	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
-	if order := v.captureSearchOrder(); order.active {
-		next = neighborInOrder(order.indexes, v.state.index, 1)
-		prev = neighborInOrder(order.indexes, v.state.index, -1)
+	if order := v.cohortIndexes(); len(order) > 0 || v.captureSearchOrder().active {
+		next = neighborInOrder(order, v.state.index, 1)
+		prev = neighborInOrder(order, v.state.index, -1)
 	}
 	var candidates []fyne.URI
 	if next != v.state.index {

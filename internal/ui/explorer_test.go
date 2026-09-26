@@ -33,7 +33,9 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/explorertrial"
 	"github.com/frathe/picfetch/internal/favstore"
@@ -311,6 +313,26 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	for _, key := range []string{"similarityFavoriteCache", "similarityAutoFit", "similarityAutoUpdate"} {
 		testApp.Preferences().RemoveValue(key)
 	}
+	t.Run("theme_switch", func(t *testing.T) {
+		previous := testApp.Settings().Theme()
+		t.Cleanup(func() { testApp.Settings().SetTheme(previous) })
+		testApp.Settings().SetTheme(theme.DefaultTheme())
+		v := explorerFixture(t)
+		v.win.Resize(fyne.NewSize(1100, 750))
+		for _, mode := range []appearance.Mode{appearance.Dark, appearance.Light, appearance.Dark} {
+			v.SetThemeMode(mode)
+			capture := v.win.Canvas().Capture()
+			want := color.NRGBAModel.Convert(theme.Color(theme.ColorNameBackground))
+			for name, position := range map[string]image.Point{
+				"toolbar": image.Pt(capture.Bounds().Max.X-10, 10),
+				"sidebar": image.Pt(10, capture.Bounds().Max.Y-10),
+			} {
+				if got := color.NRGBAModel.Convert(capture.At(position.X, position.Y)); got != want {
+					t.Errorf("Explorer %s retained the wrong theme background: %v, want %v", name, got, want)
+				}
+			}
+		}
+	})
 	t.Run("cache_pressure_evicts_after_completed_map", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg")
 		v.analysisDir = t.TempDir()
@@ -3782,6 +3804,10 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					if !v.explorerMapActive() {
 						t.Fatal("waiting for duplicate facts hid the map")
 					}
+					progress, waiting := preparationBars(v.explorer.Surface().Overlay())
+					if progress == nil || waiting != nil || progress.Value >= progress.Max {
+						t.Fatal("Explorer duplicate wait has no incomplete progress bar")
+					}
 					if action == "cancel" {
 						v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 					}
@@ -3809,6 +3835,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					if action == "finish" {
 						t.Fatal("finished duplicate preparation did not start analysis")
 					}
+				}
+				if progress, waiting := preparationBars(v.explorer.Surface().Overlay()); progress != nil || waiting != nil {
+					t.Fatal("retired duplicate preparation retained progress")
 				}
 			})
 		}

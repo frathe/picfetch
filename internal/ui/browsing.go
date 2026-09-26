@@ -11,7 +11,7 @@ type browsingContext struct {
 
 func (v *viewer) browsingContext() browsingContext {
 	ranked := v.searchActive()
-	return browsingContext{ranked: ranked, grid: v.grid.Visible(), restricted: ranked || v.explorer.HasCohort()}
+	return browsingContext{ranked: ranked, grid: v.grid.Visible(), restricted: ranked || v.explorer.HasCohort() || v.locationMap.Active()}
 }
 
 // searchOrder is one immutable index snapshot for an action or both preloads.
