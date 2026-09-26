@@ -21,29 +21,39 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Location Map's loading and offline background now follows the selected theme.
   Find more like this becomes available after leaving a map visit, keeping image
   navigation consistent. Large duplicate groups no longer hold up cancellation.
+
 - Map clipboard shortcuts no longer act on the hidden image. Returning from a
   photo or cluster checks source changes before displaying locations or fetching
   tiles; readable provider images without file versions refresh their GPS too.
+
 - Map previews name the source photo when a hidden duplicate supplies the GPS
   location, while continuing to open the displayed representative.
+
 - Opening Location Map from visual-search results now closes the ranked Grid
   and maps the loaded collection. Tile response metadata is bounded and charged
   to the encoded cache budget; oversized cache headers do not prevent display.
+
 - Location Map keeps only GPS fields in its metadata cache. Retired Favorite
   cache cleanup is bounded and cancellable, avoiding long cleanup during map exit.
+
 - Opening Location Map retains Favorite GPS ownership only for the current
   sources. Initial map tiles can appear even when a neighboring request fails;
   dragging still keeps the previous map visible while replacements load.
+
 - Editing an image while Location Map is open preserves its refreshed Favorite
   GPS cache even when older cleanup finishes after the new scan.
+
 - Copy Selection now keeps keyboard priority in photos opened from Location Map.
   Escape cancels the selection before leaving the photo, G clears an idle
   selection before opening Grid, and both keys wait while a copy is finishing.
+
 - Progressive location scans limit automatic map movement to four updates per
   second, reducing repeated tile downloads while keeping counts and photo cards
   current. Manual movement and the completed scan update immediately.
+
 - Quitting cancels remaining Favorite GPS cache maintenance between filesystem
   operations; simply leaving the map still lets committed cleanup finish.
+
 - Opening a location cluster now starts with every member visible and no inherited
   selection, preventing copy/delete actions from targeting an outside photo.
   Returning restores the original Grid filter and selection.
@@ -78,60 +88,17 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Open
 
+- **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
+  recommends shared command policy (MA-028), explicit browsing ownership and
+  collection transitions (MA-029/030), followed by Favorite ownership, a bounded
+  worker-lifetime pilot and launch policy (MA-031 through MA-033). Proposals only;
+  keep feature state local and preserve explicit composition. Start with MA-028.
+
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency
   qualification again. The current helper rejects these measurements; manual
   trials and stage/RSS observation remain usable. Existing maintainer performance
   acceptance stands separately from measured timing evidence.
-
-- **Location Map MVP:** [Specification](.scratch/location-map/spec.md) and
-  [13 approved tickets](.scratch/location-map/README.md) published locally.
-  Implementation and lead review are in progress under
-  [the Deep SDD/TDD plan](plans/2026-09-25-location-map.md). All six planned
-  bounded implementation delegates delivered; acceptance is not yet complete.
-  Ronin's informal 30k trial found drag/photo flicker and interaction issues;
-  [the follow-up polish](plans/2026-09-25-location-map-polish.md) now retains
-  source-versioned photo pixels, moves stale tiles with pan/zoom, swaps only
-  complete tile scenes, and adds direct-open framed single photos/hover names
-  and cluster previews. Cluster previews and counts both open that exact group
-  in Grid. The current OSM raster service has no documented dark style;
-  [the accepted local dark filter](plans/2026-09-25-location-map-dark-poc.md)
-  keeps that provider and now follows app appearance in both maps, leaving photos
-  and EXIF controls/markers unchanged. Ronin liked the POC's appearance. Fixed construction-time background
-  colors that left Location Map chrome and Explorer panels dark in light mode.
-  PRIVACY.md now describes both map entry points, tile-area disclosure, local
-  filtering and local Favorite metadata caching.
-  The [release continuation](plans/2026-09-25-location-map-release-qualification.md)
-  adds composite regressions, live Grid theme repair, duplicate-check progress
-  for Map/Explorer and keyboard photo/cluster selection with Enter to open.
-  Keyboard-only use is a standing user goal: the map path now covers entry,
-  directional selection, offscreen targets, zoom/Fit All and return navigation.
-  Ticket audit checks 50/64 criteria (46 verified, four closed by
-  explicit maintainer performance acceptance); per-ticket comments
-  retain missing composite integration coverage instead of treating existing
-  passing parent test names as proof of absent scenarios.
-  Ronin explicitly accepted the tested 50,672-image build as smooth enough for
-  production; private source-free stage/RSS observations and binary identity are
-  recorded in ticket 13. That run predates the new keyboard/progress controls.
-  Ronin then accepted the updated keyboard/progress client's native smoke test
-  (441 admitted images) with "looks good"; that build is recorded separately.
-  Ronin explicitly marked performance done: "it is running butter smooth!".
-  Exact-10k/30k measurement protocols are waived for this release, not measured
-  passes. Complete native Linux/amd64 verification moves to the GitHub PR.
-  The [PR 58 review continuation](plans/2026-09-25-pr58-review.md) fixes sixteen
-  further code/security findings with focused race regressions and clear GoLand
-  inspections of all changed code. Its conservative donor-work limit may leave
-  unusually large groups with many distinct GPS positions unmapped. Remaining
-  work: the renewed PR/Codex round after the 2026-09-26 Copy Selection fix,
-  still-uncovered composite cases and the earlier IDE build-tag inspection
-  limitation. The preceding c02f6ed round passed all CI/CodeQL checks and fresh
-  code/security reviews, including native Swift CI. No merge or release
-  is authorized by the review loop.
-  [Model routing](.scratch/location-map/model-routing.md) assigns bounded
-  subagent candidates while retaining lead-owned integration and review.
-  Include duplicate-aware GPS fallback, Favorite-owned GPS persistence, bounded
-  tile residency and 10k qualification; Ronin owns the 30k stress test. The
-  [design interview](<next feature.md>) retains the original decisions.
 
 ## Deferred
 
