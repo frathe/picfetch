@@ -74,6 +74,16 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Internal
 
+- Complete embedded Fyne font and Windows GLFW header notices, with pinned
+  upstream source/text checks in the existing notice gate.
+- Apply the owner's fifteen reviewed FOSSA decisions with per-issue evidence
+  and PicFetch/version scope; retain all notices and global license policies.
+  See [the disposition record](docs/fossa-license-ci-2026-09-26.md) and use
+  `make fossa-findings PR=61` to check the latest scan independently.
+- Reject incomplete FOSSA revision counts rather than publishing a false
+  zero-findings report; cover missing and null counts on both revision reads.
+- Complete GoLand inspections of all three PR 61 changed Go files at `548a9a0`:
+  no errors or warnings, including weak warnings. Qodana remains a separate gate.
 - Make AVIF notice validation work with a fresh Go module cache while retaining
   the reviewed payload and license checks.
 - PR 58 review hardening: isolated map trials preserve normal updater files,
@@ -89,6 +99,20 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Improve automated checks for Linux desktop integration.
 
 ## Open
+
+- **Combined PR 63 review-loop gates:** PR 61's license notices, findings
+  command and fixes are consolidated into the repository-owned PR 63 branch
+  with its renewed Qodana token wiring. Obtain fresh latest-head Codex
+  code/security reviews, CI, CodeQL and post-suppression Qodana results.
+  PR 61 remains open; nothing is merged into main and no gate is waived.
+  See [the review-loop record](plans/2026-09-26-pr61-license-notices.md).
+
+- **Similarity protocol race timeout:** the PR 61 final Docker race run hit
+  `TestAnalysisProtocolPreservesLimitErrorsAndConfiguration/complete`'s 20-second
+  helper deadline while the helper was at `os.Exit(0)`. Its code is unchanged;
+  three focused host race reruns passed. Investigate load-sensitive helper exit
+  behavior separately; do not skip the test or count the failed full run as
+  passed. Evidence is in the [PR 61 record](plans/2026-09-26-pr61-license-notices.md).
 
 - **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
   recommends shared command policy (MA-028), explicit browsing ownership and
@@ -108,9 +132,10 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   `QODANA_TOKEN` secret still has its August timestamp. The workflow now
   references the new secret without changing the job's `QODANA_TOKEN` variable,
   analysis profile, build tags, exclusions or permissions. Ronin authorized
-  publishing the restoration on a feature branch; a fresh completed scan remains
-  pending. Inspect post-suppression SARIF
-  before treating this gate as passed. The
+  publishing the restoration on a feature branch. The local inspection guide
+  now distinguishes restored CI from the historical pause (PR 63's Codex P2).
+  A fresh completed scan of the combined branch remains pending. Inspect
+  post-suppression SARIF before treating this gate as passed. The
   [local inspection guide](docs/local-qodana-inspections-2026-09-25.md) remains
   the fallback reference.
 

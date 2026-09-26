@@ -13,6 +13,7 @@
 [![Website](https://img.shields.io/badge/website-frathe.github.io-55309e)](https://frathe.github.io/picfetch/)
 [![English](https://img.shields.io/badge/lang-en-blue.svg)](translations/en.json)
 [![Deutsch](https://img.shields.io/badge/lang-de-red.svg)](translations/de.json)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ffrathe%2Fpicfetch.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Ffrathe%2Fpicfetch?ref=badge_shield)
 
 ![Header](assets/header.jpg)
 
@@ -524,6 +525,9 @@ checks for. This project follows a
 
 MIT — see [LICENSE](LICENSE). Third-party dependencies are listed with their
 own licenses in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ffrathe%2Fpicfetch.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Ffrathe%2Fpicfetch?ref=badge_large)
 
 ## Development
 

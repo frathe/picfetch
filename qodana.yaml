@@ -414,6 +414,7 @@ exclude:
       - "scripts/explorereval/search_test.go"
       - "scripts/explorereval/search_trial_test.go"
       - "scripts/explorereval/trial_test.go"
+      - "scripts/fossafindings/main_test.go"
       - "scripts/linuxdesktop/delivery_test.go"
       - "scripts/linuxdesktop/main_test.go"
       - "scripts/msixstage/msixstage_test.go"
