@@ -49,6 +49,15 @@ override CI_RUN := $(value CI_RUN)
 override CI_WORKFLOW := $(value CI_WORKFLOW)
 override CI_BRANCH := $(value CI_BRANCH)
 export CI_RUN CI_WORKFLOW CI_BRANCH
+PR ?=
+FOSSA_REVISION ?=
+FOSSA_ENV_FILE ?=
+FOSSA_OUTPUT_DIR ?=
+override PR := $(value PR)
+override FOSSA_REVISION := $(value FOSSA_REVISION)
+override FOSSA_ENV_FILE := $(value FOSSA_ENV_FILE)
+override FOSSA_OUTPUT_DIR := $(value FOSSA_OUTPUT_DIR)
+export PR FOSSA_REVISION FOSSA_ENV_FILE FOSSA_OUTPUT_DIR
 COVERAGE_DIR := coverage
 COVERAGE_PROFILE := $(COVERAGE_DIR)/coverage.out
 COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
@@ -56,14 +65,19 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 .PHONY: all build build-linux-all run fmt fmt-check vet test coverage ci-failures update-test-image enter-test-container test-native test-race test-race-direct test-race-non-ui-direct test-race-ui-direct verify golden tidy clean package-mac warm-fyne-cross-windows warm-fyne-cross-linux package-windows package-windows-store package-windows-debug package-linux package-linux-debug build-all install-tools install-fyne install-fyne-cross install-linux-tools security security-govulncheck security-github bump-version release check-tuf-root sync-tuf-root sync-qodana-test-exclusions check-qodana-test-exclusions check-test-shards check-test-shards-direct help
 .PHONY: verify-build --skip-local-tests
 .PHONY: generate-updater-notices check-updater-notices generate-avif-notices check-avif-notices
+.PHONY: fossa-findings
 
 all: build
+
+fossa-findings: ## Retrieve current FOSSA licensing findings (PR=61 or FOSSA_REVISION=<sha>; key in .env.local)
+	go run ./scripts/fossafindings
 
 generate-updater-notices: ## Regenerate updater notices from the reviewed source/license manifest
 	go run ./scripts/updaternotices -write
 
 check-updater-notices: ## Check all six updater dependency targets and exact license/NOTICE text
 	go run ./scripts/updaternotices
+	go test ./scripts/updaternotices -run '^TestDesktopNoticesMatchReviewedSources$$' -count=1
 
 generate-avif-notices: ## Regenerate AVIF/WASM notices from the reviewed payload/source manifest
 	go run ./scripts/avifnotices -write

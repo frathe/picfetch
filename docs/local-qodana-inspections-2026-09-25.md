@@ -1,11 +1,25 @@
-# Local inspection after disabling Qodana CI
+# Local inspection and Qodana CI
 
-Checked against JetBrains documentation on 2026-09-25. Ronin authorized disabling
-Qodana CI because the trial subscription ended. GitHub reports workflow
-`qodana_code_quality.yml` as `disabled_manually`; its YAML, `qodana.yaml` and
-analysis build-tag configuration are retained. No credentials were changed.
-The failed scan did not produce a usable analysis report. This is a waived CI
-gate, not a clean Qodana result. CodeQL, tests and GoLand inspections remain.
+## Current status: CI restored on 2026-09-26
+
+Ronin renewed the trial and authorized re-enabling Qodana CI on 2026-09-26.
+The workflow is active; PR 63 references the renewed GitHub secret while
+preserving the analysis profile, build tags, exact exclusions and permissions.
+The earlier paused-CI waiver is withdrawn. Require a fresh completed scan and
+review its post-suppression `qodana.sarif.json` before calling this gate clean.
+A licensing failure or incomplete scan remains unverified, not waived or passed.
+The local options below are fallback inspection tools, not a replacement for
+the restored CI gate. CodeQL and tests remain required too.
+
+## Historical pause: 2026-09-25
+
+The local options were checked against JetBrains documentation on 2026-09-25.
+On that date, Ronin authorized disabling Qodana CI because the trial had ended.
+GitHub then reported `qodana_code_quality.yml` as `disabled_manually`; its YAML,
+`qodana.yaml` and analysis build-tag configuration were retained. No credentials
+were changed as part of that pause. The failed scan produced no usable report.
+The gate was explicitly waived for that pause only, not counted as a clean
+result. This paragraph records history, not the current verification policy.
 
 ## Local options
 
@@ -56,12 +70,15 @@ style and omitted-type advice. Preserve those distinctions and existing justifie
 suppressions when selecting a local profile.
 
 JetBrains explicitly warns that IDE and standalone Qodana results can differ
-because their plugin configurations differ. This repository's CI used
+because their plugin configurations differ. This repository's CI uses
 `qodana.starter` and `qodana.yaml` exclusions; GoLand's default profile is not
 evidence of equivalent coverage. The documented local Qodana path has not yet
 been exercised here after subscription expiry.
 [IDE/standalone distinction](https://www.jetbrains.com/help/qodana/quick-start.html).
 
-After deliberately restoring an eligible subscription/token, the workflow can
-be re-enabled with `gh workflow enable qodana_code_quality.yml`. Review a fresh
-post-suppression SARIF result before claiming that gate passes again.
+For a future owner-authorized pause, retain the configuration and use the local
+options above. After the owner authorizes restoration with an eligible
+subscription/token, re-enable with `gh workflow enable qodana_code_quality.yml`.
+This restoration already happened on 2026-09-26; do not repeat it merely because
+you are following this guide. Always review a fresh post-suppression SARIF result
+before claiming that the restored gate passes.

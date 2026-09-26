@@ -32,7 +32,7 @@ jobs:
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@10be11607eb323a180e2b76b26c9c5cdceac3e77 # v2026.2
         env:
-          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_1506204616 }}
         with:
           # Pull requests use differential analysis against their merge base.
           # Pushes to main and workflow_dispatch runs scan the full project.

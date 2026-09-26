@@ -74,6 +74,22 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Internal
 
+- Complete embedded Fyne font and Windows GLFW header notices, with pinned
+  upstream source/text checks in the existing notice gate.
+- Apply the owner's fifteen reviewed FOSSA decisions with per-issue evidence
+  and PicFetch/version scope; retain all notices and global license policies.
+  See [the disposition record](docs/fossa-license-ci-2026-09-26.md) and use
+  `make fossa-findings PR=63` to check the consolidated PR's latest scan.
+- Reject incomplete FOSSA revision counts rather than publishing a false
+  zero-findings report; cover missing and null counts on both revision reads.
+- Complete GoLand inspections of all three PR 61 changed Go files at `548a9a0`:
+  no errors or warnings, including weak warnings. Qodana remains a separate gate.
+- Restore Qodana CI with the renewed trial token, preserving its profile,
+  exclusions, permissions and reusable inactive pause instructions. Combined
+  PR 63's `93026c3` passes Qodana with zero post-suppression SARIF findings;
+  its fresh Codex code/security reviews, full CI, CodeQL and FOSSA also pass.
+  The local inspection guide now clearly separates restored CI from the
+  historical pause. See [the evidence](plans/2026-09-26-pr61-license-notices.md).
 - Make AVIF notice validation work with a fresh Go module cache while retaining
   the reviewed payload and license checks.
 - PR 58 review hardening: isolated map trials preserve normal updater files,
@@ -90,6 +106,21 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Open
 
+- **Combined PR 63 merge decision:** PR 61's license notices, findings
+  command and fixes are consolidated into the repository-owned PR 63 branch
+  with its renewed Qodana token wiring. The code-bearing merge `93026c3` has a
+  clean review round; require the latest head's checks before any later merge.
+  Merging PR 63 or closing PR 61 still requires the owner's direction.
+  Nothing is merged into main and no gate is waived.
+  See [the review-loop record](plans/2026-09-26-pr61-license-notices.md).
+
+- **Similarity protocol race timeout:** the PR 61 final Docker race run hit
+  `TestAnalysisProtocolPreservesLimitErrorsAndConfiguration/complete`'s 20-second
+  helper deadline while the helper was at `os.Exit(0)`. Its code is unchanged;
+  three focused host race reruns passed. Investigate load-sensitive helper exit
+  behavior separately; do not skip the test or count the failed full run as
+  passed. Evidence is in the [PR 61 record](plans/2026-09-26-pr61-license-notices.md).
+
 - **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
   recommends shared command policy (MA-028), explicit browsing ownership and
   collection transitions (MA-029/030), followed by Favorite ownership, a bounded
@@ -104,6 +135,10 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Deferred
 
+<!--
+Inactive pause record, retained for reuse after Ronin authorizes another CI
+pause. Update the date and restore this section when that happens.
+
 ### Qodana CI paused
 
 Disabled at Ronin's request on 2026-09-25 after the trial subscription expired.
@@ -111,6 +146,7 @@ Keep its configuration for possible restoration; this is not a passed scan.
 GoLand inspections and CodeQL remain in use. The
 [local inspection research](docs/local-qodana-inspections-2026-09-25.md) records
 the IDE-only Qodana option, licensing distinction and historical inspection advice.
+-->
 
 ### Fyne upgrade deferred
 

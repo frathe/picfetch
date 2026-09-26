@@ -261,6 +261,11 @@ Generation uses local `cwebp`; the application keeps its existing image decoders
 
 ### Packaging tooling
 
+`scripts/fossafindings` powers `make fossa-findings`: it resolves the remote PR
+head (or an explicit revision), reads the scoped FOSSA licensing API without
+mutations, and saves paginated evidence plus JSON/Markdown reports under
+`.scratch/fossa-findings`. Credential files are parsed as data, never sourced.
+
 `scripts/updaternotices` reconciles the six-target production updater dependency
 union with its reviewed `manifest.json`, checks source-file hashes and generates
 the bounded updater section of `THIRD-PARTY-NOTICES.md`. `artifacts.go` verifies
