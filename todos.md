@@ -23,8 +23,10 @@
   worker-lifetime pilot and launch policy (MA-031 through MA-033). Keep feature
   state local and preserve explicit composition. MA-028's
   [design](docs/command-admission.md) is accepted: full command migration with
-  shared pure admission and the agreed input/yield corrections. Implementation
-  planning is next; MA-029 through MA-033 remain proposals.
+  shared pure admission and the agreed input/yield corrections. Its
+  [specification](.scratch/ma-028/spec.md) is published as `ready-for-agent`,
+  with acceptance commands and native-input qualification requirements.
+  Implementation planning is next; MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency

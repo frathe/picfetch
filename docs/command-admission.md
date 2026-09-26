@@ -11,6 +11,10 @@ the [ADR](adr/0003-shared-command-admission.md) records the ownership trade-off.
 This document describes the intended change; it does not claim implementation
 or passing tests.
 
+The [published specification](../.scratch/ma-028/spec.md) is `ready-for-agent`
+and adds user stories, test boundaries and acceptance commands for implementation
+planning. Native accelerator/focus qualification remains a separate required gate.
+
 ## Accepted decisions
 
 | Decision | Contract |
