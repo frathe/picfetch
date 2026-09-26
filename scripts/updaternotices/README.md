@@ -16,6 +16,7 @@ It excludes tests and build tools. The reviewed manifest pins both module versio
 and the union of selected package paths: an existing module's newly imported
 package can introduce a different file license. Replacements require a fresh
 source review rather than silently inheriting the original module's notices.
+
 Each module's `source` must be its exact `https://proxy.golang.org` ZIP URL for
 the resolved module path and version, using Go's uppercase-letter escaping.
 Changing a version requires updating that source URL even when its license
@@ -35,6 +36,16 @@ Inline `#updater-text-...` links in the generated section, including manifest
 notes, must target a license heading emitted from the current inventory. Both
 checking and regeneration reject missing targets, so a shared-license link
 must be reviewed when its last matching source text changes or is removed.
+
+The Make target additionally runs `TestDesktopNoticesMatchReviewedSources`.
+This guards the separately maintained Fyne font and native GLFW/header sections
+against omitted or altered complete license text, changed source hashes,
+dependency version changes and replacements. Its pinned inputs are in the test;
+the upstream LGPL 2.1 text is retained in `licenses/LGPL-2.1.txt` (source:
+https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt). The font license check
+allows only CRLF-to-LF normalization. The generator does not rewrite these
+desktop sections: review the new source and edit the sections and pins together.
+Existing artifact checks verify the complete document, including these sections.
 
 The artifact check compares `LICENSE`, `THIRD-PARTY-NOTICES.md` and `PRIVACY.md`
 byte for byte with the checkout. macOS release ZIPs use

@@ -64,6 +64,7 @@ generate-updater-notices: ## Regenerate updater notices from the reviewed source
 
 check-updater-notices: ## Check all six updater dependency targets and exact license/NOTICE text
 	go run ./scripts/updaternotices
+	go test ./scripts/updaternotices -run '^TestDesktopNoticesMatchReviewedSources$$' -count=1
 
 generate-avif-notices: ## Regenerate AVIF/WASM notices from the reviewed payload/source manifest
 	go run ./scripts/avifnotices -write
