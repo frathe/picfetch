@@ -9,59 +9,66 @@
 Explore your photos by where they were taken. Open **Window -> Location Map**
 (`Shift+L`) to see photos with location information on an interactive map.
 Nearby photos are grouped together: open a group to browse all its pictures,
-then return to the same map position. Use the arrow keys to select a photo or
-group, Enter to open it, and Shift+arrow keys to move around the map. Zoom with
-`+`/`-` or press `0` to fit everything. The map follows your light or dark theme,
-keeps photos visible while dragging, and shows progress while checking duplicates.
+then return to the same map position.
+
+Use the arrow keys to select a photo or group, Enter to open it, and hold Shift
+while pressing an arrow key to move around the map. Zoom with `+`/`-`, or press
+`0` to show all photo locations. The map matches your light or dark theme,
+keeps photos visible while you drag it, and shows progress while checking for
+duplicate photos.
 
 ![Trane exploring a map of Europe with photo pins](https://raw.githubusercontent.com/frathe/picfetch/9521edb7087c1d229355419e3d3ce0f5299089fc/assets/trane/trane_europe_map.png)
 
 #### Bugfix
 
-- Location Map's loading and offline background now follows the selected theme.
-  Find more like this becomes available after leaving a map visit, keeping image
-  navigation consistent. Large duplicate groups no longer hold up cancellation.
+- Location Map's background now matches your theme while loading or offline.
+  Parts of the map can appear even if another part fails to download, and the
+  current map stays visible while you drag to an area that is still loading.
 
-- Map clipboard shortcuts no longer act on the hidden image. Returning from a
-  photo or cluster checks source changes before displaying locations or fetching
-  tiles; readable provider images without file versions refresh their GPS too.
+- Returning to the map after viewing a photo or group now checks for changes to
+  the images and refreshes their locations. This also works for images from
+  sources that cannot report whether a file has changed.
 
-- Map previews name the source photo when a hidden duplicate supplies the GPS
-  location, while continuing to open the displayed representative.
+- When a hidden duplicate provides a photo's location, the map preview now names
+  that duplicate. Opening the preview still shows the photo pictured on the card.
 
-- Opening Location Map from visual-search results now closes the ranked Grid
-  and maps the loaded collection. Tile response metadata is bounded and charged
-  to the encoded cache budget; oversized cache headers do not prevent display.
+- Opening Location Map from visual-search results now closes the search grid and
+  shows locations from your loaded collection. **Find more like this** becomes
+  available again after you leave the photos opened from the map.
 
-- Location Map keeps only GPS fields in its metadata cache. Retired Favorite
-  cache cleanup is bounded and cancellable, avoiding long cleanup during map exit.
+- Copy shortcuts used on the map no longer copy the image hidden behind it.
 
-- Opening Location Map retains Favorite GPS ownership only for the current
-  sources. Initial map tiles can appear even when a neighboring request fails;
-  dragging still keeps the previous map visible while replacements load.
+- **Copy Selection** works correctly in photos opened from the map. Escape clears
+  the selection before leaving the photo, and G clears it before opening Grid
+  View. Neither key interrupts a copy that is still finishing.
 
-- Editing an image while Location Map is open preserves its refreshed Favorite
-  GPS cache even when older cleanup finishes after the new scan.
+- Opening a group on the map now shows every photo in that group and clears any
+  previous selection, so an old selection cannot cause you to copy or delete
+  photos outside the group. Returning restores your previous Grid View filter
+  and selection.
 
-- Copy Selection now keeps keyboard priority in photos opened from Location Map.
-  Escape cancels the selection before leaving the photo, G clears an idle
-  selection before opening Grid, and both keys wait while a copy is finishing.
+- While photos are being checked for locations, the map adjusts its position at
+  most four times per second, reducing repeated downloads. Photo counts and
+  previews stay up to date; moving the map yourself still takes effect immediately,
+  as does the final adjustment when the scan finishes.
 
-- Progressive location scans limit automatic map movement to four updates per
-  second, reducing repeated tile downloads while keeping counts and photo cards
-  current. Manual movement and the completed scan update immediately.
+- Large groups of duplicate photos no longer delay cancellation. Cleaning up old
+  saved location data no longer causes long delays when leaving the map, and
+  quitting stops the remaining cleanup after any file operation already underway.
 
-- Quitting cancels remaining Favorite GPS cache maintenance between filesystem
-  operations; simply leaving the map still lets committed cleanup finish.
+- Fixed how Location Map manages saved location information for Favorites when
+  the loaded photos change. Editing a photo while the map is open now preserves
+  its updated location information even if an earlier cleanup is still finishing.
 
-- Opening a location cluster now starts with every member visible and no inherited
-  selection, preventing copy/delete actions from targeting an outside photo.
-  Returning restores the original Grid filter and selection.
+- Reduced Location Map's memory use by storing only the photo details needed for
+  locations and limiting how much download information it keeps. Map images can
+  still appear when that extra information is too large to store. Map downloads
+  also no longer follow redirects to other web addresses.
 
 - Dragging a selection box in Grid View now stays aligned with the pointer,
   even when the selection controls or search progress change.
 
-- Make in-app updates safer on macOS and Linux, and clean up temporary files
+- In-app updates on macOS and Linux are now safer and clean up temporary files
   left behind by interrupted updates.
 
 - On Linux, applying a mosaic wallpaper keeps it on the monitor you selected,
@@ -74,51 +81,51 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Internal
 
-- Add release regression coverage for Location Map's remaining combined cases:
-  repeated source occurrences, metadata limits/read-only input, cache reuse,
-  thumbnail/camera rebuilding, overlapping write completions and empty collections.
-- Complete embedded Fyne font and Windows GLFW header notices, with pinned
-  upstream source/text checks in the existing notice gate.
-- Apply the owner's fifteen reviewed FOSSA decisions with per-issue evidence
-  and PicFetch/version scope; retain all notices and global license policies.
-  See [the disposition record](docs/fossa-license-ci-2026-09-26.md) and use
-  `make fossa-findings PR=63` to check the consolidated PR's latest scan.
-- Reject incomplete FOSSA revision counts rather than publishing a false
-  zero-findings report; cover missing and null counts on both revision reads.
-- Complete GoLand inspections of all three PR 61 changed Go files at `548a9a0`:
-  no errors or warnings, including weak warnings. Qodana remains a separate gate.
-- Restore Qodana CI with the renewed trial token, preserving its profile,
-  exclusions, permissions and reusable inactive pause instructions. Combined
-  PR 63's `93026c3` passes Qodana with zero post-suppression SARIF findings;
-  its fresh Codex code/security reviews, full CI, CodeQL and FOSSA also pass.
-  The local inspection guide now clearly separates restored CI from the
-  historical pause. See [the evidence](plans/2026-09-26-pr61-license-notices.md).
-- Make AVIF notice validation work with a fresh Go module cache while retaining
-  the reviewed payload and license checks.
-- PR 58 review hardening: isolated map trials preserve normal updater files,
-  trial reports count extensionless images, and map tiles reject redirects.
-- Native map exit timing now requires the observed closed viewer, not an unrelated
-  changing map frame. Added macOS observer-policy checks and duplicate-shortcut
-  regression coverage for map visits.
-- PR 58 follow-up: corrected GPS-only metadata assertions and native Shift+arrow
-  pan input. Uncorrelated pan/zoom timings now fail qualification explicitly.
+- Added automated tests for Location Map, including repeated photos, unusually
+  large photo details, read-only images, saved location data, preview and map
+  position updates, overlapping image saves, and empty collections.
+
+- Completed license notices for bundled fonts and Windows components, and added
+  checks to keep those notices accurate.
+
+- Reviewed fifteen license-check findings for third-party components and recorded
+  the decisions for the relevant PicFetch versions. Required notices and existing
+  license rules remain in place. See the
+  [license review details](docs/fossa-license-ci-2026-09-26.md).
+
+- Fixed license-check reports that could incorrectly show no findings when the
+  scan results were incomplete.
+
+- Completed editor-based code inspections with no errors or warnings in the
+  inspected files.
+
+- Restored the additional automated code checks provided by Qodana. The reviewed
+  changes passed those checks, code and security reviews, automated tests, and
+  license checks. Updated the developer guide to explain which checks are active.
+  See the [verification details](plans/2026-09-26-pr61-license-notices.md).
+
+- Fixed license checks for AVIF image support so they also work in a fresh
+  developer setup.
+
+- Improved map testing tools so test runs leave normal update files alone and
+  correctly count images whose filenames have no extension.
+
+- Made map performance measurements more reliable: exit timing now checks that
+  the viewer actually closed, and movement or zoom timings are rejected if the
+  tool cannot confirm that the requested action took place.
+
+- Corrected tests for stored location information and Shift+arrow map movement.
+  Added checks for the macOS testing tools and duplicate-photo shortcuts while
+  browsing from the map.
+
 - Windows package updates are published through WinGet only after a release
   succeeds, with clearer recovery instructions if publishing fails.
-- Improve the safety of developer tools used to investigate failed builds.
-- Improve automated checks for Linux desktop integration.
+
+- Improved the safety of developer tools used to investigate failed builds.
+
+- Improved automated checks for Linux desktop integration.
 
 ## Open
-
-- **Location Map release handoff:** PR 63 is merged into main (`d2fff17`).
-  The six combined test gaps now have passing, negatively verified acceptance
-  tests on `feature/location-map-release-qualification`; GoLand and the complete
-  `make verify` gate pass. The owner committed these changes as `b781858` and
-  authorized publishing the branch and running the GitHub Codex review loop.
-  Require the PR's latest commit-bound CI/review evidence before merging.
-  Final release archives, signing and
-  embedded-notice delivery must still pass the authorized release pipeline;
-  they are not implied by source tests. See the
-  [qualification record](plans/2026-09-26-location-map-release-gaps.md).
 
 - **Similarity protocol race timeout:** the PR 61 final Docker race run hit
   `TestAnalysisProtocolPreservesLimitErrorsAndConfiguration/complete`'s 20-second
