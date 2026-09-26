@@ -5,7 +5,9 @@ Branch: `feature/location-map-release-qualification`, from merged `main`
 actions and rendered state, the real metadata reader, source versions, and
 Favorite/live cache interfaces. The user requested closing the six documented
 verification gaps, not waiving them. No new feature, dependency, merge, release,
-signing operation, or publication is authorized by this work.
+signing operation, or publication was authorized by the initial implementation
+request. The later review-loop authorization below permits branch publication,
+but not a merge or release.
 
 ## Acceptance and tasks
 
@@ -115,11 +117,36 @@ restored. The actual change is tests, inventory/exclusions, and evidence/docs.
 No runtime package, dependency, app identity, native policy, or notice changed.
 No architecture-map update is needed for a test added within an existing package.
 
-No commit, push, new PR, merge, release, or signing operation was performed.
+At the initial handoff, no commit, push, new PR, merge, release, or signing
+operation had been performed.
 Fresh branch CI (including Qodana post-suppression SARIF and CodeQL) and review
 remain future gates after commit/PR authorization. Local tests do not qualify
 native Windows/macOS graphical behavior or future signed archives. The existing
 maintainer performance acceptance and Windows/Store HEIC deferral remain intact.
+
+## Authorized GitHub review loop (2026-09-26)
+
+Ronin subsequently committed the implementation as `b781858` and authorized
+commits, push, PR creation, and the GitHub Codex review loop. Preserve that
+commit. The comparison point is merged main `d2fff17`:
+`git diff d2fff17...HEAD`. Spec: acceptance items 1–6 above; standards: AGENTS.md
+and the SDD/TDD agreement. The code-review skill's standards/spec axes stay
+lead-owned, overriding its parallel-reviewer default. No additional delegation
+is needed for the already-reviewed test change.
+
+The initial standards/spec assessment found no new actionable issue. The single
+changed Go file retains the inspected SHA-256 above; all existing local race,
+negative-guard and full-suite evidence remains applicable. Documentation-only
+authorization updates do not trigger another broad local race run. GitHub runs
+the complete suite on the published head.
+
+Inspect every unresolved thread, fresh Codex code and security completion,
+CodeQL alerts, FOSSA statuses, and Qodana's post-suppression SARIF for the latest
+commit. Fix confirmed findings inline, run focused regressions and GoLand,
+reply/resolve, then obtain another fresh clean review. Request `@codex review`
+once only if no review is already queued/running. Keep commit-bound final
+results in the PR's review-loop summary and local `.scratch/` evidence; this
+record does not predeclare any remote gate passed. No merge or release.
 
 ## Ledger
 

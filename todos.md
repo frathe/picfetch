@@ -109,11 +109,13 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Open
 
-- **Location Map release qualification:** PR 63 is merged into main (`d2fff17`).
+- **Location Map release handoff:** PR 63 is merged into main (`d2fff17`).
   The six combined test gaps now have passing, negatively verified acceptance
   tests on `feature/location-map-release-qualification`; GoLand and the complete
-  `make verify` gate pass. Commit/PR handoff and fresh branch CI/review remain
-  pending. Final release archives, signing and
+  `make verify` gate pass. The owner committed these changes as `b781858` and
+  authorized publishing the branch and running the GitHub Codex review loop.
+  Require the PR's latest commit-bound CI/review evidence before merging.
+  Final release archives, signing and
   embedded-notice delivery must still pass the authorized release pipeline;
   they are not implied by source tests. See the
   [qualification record](plans/2026-09-26-location-map-release-gaps.md).
