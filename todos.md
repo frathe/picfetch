@@ -26,7 +26,10 @@
   shared pure admission and the agreed input/yield corrections. Its
   [specification](.scratch/ma-028/spec.md) is published as `ready-for-agent`,
   with acceptance commands and native-input qualification requirements.
-  Implementation planning is next; MA-029 through MA-033 remain proposals.
+  A [ten-ticket execution draft](plans/2026-09-27-ma-028-command-admission.md)
+  now records blocking edges, agent/model routing and verification ownership;
+  breakdown approval is pending before local tickets are published.
+  MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency

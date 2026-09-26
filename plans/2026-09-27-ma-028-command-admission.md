@@ -1,0 +1,260 @@
+# MA-028 ticket and execution plan
+
+Status: draft breakdown; awaiting approval before publishing tickets.
+Date: 2026-09-27.
+Inspected revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
+Route: Deep, because the change crosses feature adapters and native input on
+all shipped desktop platforms. This turn prepares tickets, not application code.
+
+Source of truth: the [accepted specification](../.scratch/ma-028/spec.md),
+[design](../docs/command-admission.md) and
+[ownership ADR](../docs/adr/0003-shared-command-admission.md). D1-D7 remain settled.
+The parent specification and backlog issue are not modified by ticketing.
+
+## Proposed tickets and blocking edges
+
+Each linked draft is one independently reviewable ticket. On approval, publish
+it under `.scratch/ma-028/issues/` with the same filename and update these links.
+Drafts are not yet available for implementation.
+
+| Ticket | Delivers | Blocked by | Owner / model / effort |
+| --- | --- | --- | --- |
+| [01](../.scratch/ma-028/draft-issues/01-policy-and-save.md) | Shared admission, proven through Save Changes without losing an unavailable selection | None | T0 Codex Lead / GPT-6 Astra / extra high |
+| [02](../.scratch/ma-028/draft-issues/02-clipboard-and-editing.md) | Correct text, region, Grid and image copy routing, including accelerator delivery | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [03](../.scratch/ma-028/draft-issues/03-open-close-favorites.md) | Consistent Open, Close Files and Favorites admission, including external delivery | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [04](../.scratch/ma-028/draft-issues/04-file-actions.md) | Export, Trash, reveal and wallpaper with prompt ownership and captured subjects | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [05](../.scratch/ma-028/draft-issues/05-window-and-help-entry.md) | Consistent ordinary window, comparison, Settings and Help entry | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [06](../.scratch/ma-028/draft-issues/06-map-and-mosaic-entry.md) | Explorer, Location Map and mosaic entry with safe preparation and retained visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [07](../.scratch/ma-028/draft-issues/07-sort-duplicates-search.md) | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [08](../.scratch/ma-028/draft-issues/08-navigation-and-presentation.md) | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [09](../.scratch/ma-028/draft-issues/09-converge-and-verify.md) | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [10](../.scratch/ma-028/draft-issues/10-native-qualification.md) | Native Linux, Windows and macOS evidence and final acceptance record | 09 | Native desktop operator + T0 Codex Lead / GPT-6 Astra / high |
+
+The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
+Those middle tickets share a prerequisite, not permission to edit concurrently.
+They touch common root input/menu code. Work serially in the displayed order,
+one fresh implementation context per ticket. Shared-file ownership is a scheduling
+constraint, not an invented dependency edge. Recheck each ticket against the
+then-current tree and retain its predecessor evidence.
+
+01 includes the small prefactor and a real Save Changes path; there is no
+standalone infrastructure-only milestone. 02-08 are vertical behavior slices.
+09 is the contract/removal step after the migration batches; 10 is the platform
+acceptance gate. All intermediate batches must remain buildable and green for
+their applicable tests; keep existing admission for not-yet-migrated commands.
+The first slice is not completion of MA-028.
+
+## Agent and model selection
+
+The recommendation is task-specific judgment, not a benchmark claim. The live
+Codex tools expose `gpt-6-astra`, `gpt-6-sol` and `gpt-6-luna`. Official
+[model selection guidance](https://developers.openai.com/api/docs/guides/model-selection)
+positions Astra for demanding analysis, Sol for everyday coding and Luna for
+scoped work; the [model catalog](https://developers.openai.com/api/docs/models)
+confirms the model IDs. These pages were consulted on 2026-09-27. No API access,
+pricing assumption or model switch is needed to use this plan.
+
+Best primary agent: a Codex Lead with Go/Fyne context, using GPT-6 Astra.
+Each migration ticket crosses admission, actual invocation and menu presentation;
+several also cross asynchronous or native dispatch. The repository assigns
+architecture, cross-cutting work, review and fixes to T0. Calling a whole ticket
+an ordinary `go-expert` subtask would evade that ownership rule.
+
+| Role | Codex recommendation | Repository's Claude harness equivalent | Use here |
+| --- | --- | --- | --- |
+| T0 Lead | `gpt-6-astra`, high; extra high for the rows marked above | Opus 5 Lead, per working agreement | All design, family integration, review, fixes and acceptance |
+| T1 Implementer | `gpt-6-sol`, medium | `go-expert`, Sonnet 5 | Optional bounded Go implementation after T0 fixes its interface and tests |
+| T2 Mechanical | `gpt-6-luna`, medium | exact-spec general-purpose, Haiku 4.5 | Optional table expansion needing comprehension; use scripts for deterministic manifest/catalog edits |
+| T3 Scout | read-only agent, `gpt-6-luna`, medium when selectable | `Explore` | Bounded factual route/test search, returning citations |
+| Native operator | Human with the actual desktop; T0 interprets evidence | Same | Physical accelerator, native menu and close behavior on each platform |
+
+The Claude names are the repository's recorded mapping, not a fresh claim about
+provider availability. The named `.claude/agents` are not live Codex agent types.
+In particular, do not assign this plan to `refactor-planner` wholesale: its local
+definition refers to an older Phase-2 plan and it remains a T1 role under the
+working agreement. No standing tier map or agent definition is changed here.
+
+Implementation defaults to zero subagent spawns per ticket. An optional support
+task must first record G1-G5: <=25-line cold-start prompt, one verification
+command, <=3 non-overlapping files, smaller necessary context, and no duplicate
+of the Lead's hot context. Scripts precede spawns. At most one implementation
+support spawn per ticket and two concurrent scouts/support tasks overall;
+never concurrent edits to shared root files. After two failed delegated gates,
+T0 resumes inline. No delegated review or post-review fixer.
+
+## Shared contracts established by 01
+
+01 pins these private root-UI boundaries before another ticket starts:
+
+- `decideCommand(commandRequest, commandContext) commandDecision`: pure,
+  deterministic, value-only admission, refusal reason, required yield and target
+  kind. The request distinguishes command, intent and route.
+- `(*viewer).commandContext() commandContext`: UI-thread observation of existing
+  owners, without payload capture, cancellation, I/O or worker admission.
+- `(*viewer).queryCommand(commandRequest) commandDecision`: fresh observation
+  and pure decision only, suitable for menu availability.
+- `(*viewer).admitCommand(commandRequest) (commandDecision, bool)`: fresh
+  observation and decision, then existing refusal feedback or the required
+  yield. The boolean means the caller may proceed; it never executes arbitrary
+  callbacks or captures file/image payloads.
+
+Use distinct facts for visible surface, retained visit, modal/editor/menu input
+owner, busy region copy, ordinary clipboard work, operation admission, concrete
+capabilities and prospective subject. Do not store widgets, callbacks, files,
+pixels, mutable feature state or a generic active-mode flag in the policy.
+01 records the concrete value/enumeration fields and outcome precedence after
+its failing tests demonstrate the distinctions. Later tickets extend cases
+without replacing these boundaries or introducing a runtime command catalogue.
+
+Menu availability remains data in the existing `menus.State` snapshot, built at
+one root site. Introduce a `menus.Availability` value with named availability
+fields for migrated actions; retain presentation facts for labels/checked states.
+Do not export root command IDs to features. Favorites/Help keep their own
+construction and accept narrow, intent-specific root admission/presentation
+adapters. Their precise adapter signatures are owned by 03/05 and consumed
+within those tickets, not speculative prerequisites for another ticket.
+
+An invocation must pass admission before destructive yielding or operation-starting
+capture. An admitted action captures its established subject exactly once.
+An asynchronous admission point repeats policy plus its operation's token and
+identity checks. Prompt-owned controls, already admitted feature-local controls,
+committed writes and housekeeping are classified separately; do not route them
+indiscriminately through the fresh-command gate.
+
+## File map and verification by ticket
+
+This is a locator map, not permission for adjacent rewrites. Tickets describe
+behavior; implementation updates this map if the current tree requires a move.
+Tests extend the existing root harness and affected feature suites. New root
+tests also require exact shard entries/counts and exact Qodana test exclusions.
+
+| Ticket | Main implementation locations | Test / contract focus | Spawn budget; review; full suite |
+| --- | --- | --- | --- |
+| 01 | New private policy/adapter files in `internal/ui`; `save.go`, `menu.go`, `shortcuts.go`, `menus/menus.go` | Shared contracts above; Save capability before yielding; pure queries and fresh invocation | 0; T0 task gate; no |
+| 02 | `clipboard.go`, `clipboardwork.go`, `copyfiles.go`, `copyselection.go`, `batch.go`, `shortcuts.go`, `actionmenu.go`, `menu.go`, relevant native menu adapter | Copy target and editor intent, positive accelerator delivery, busy transitions | 0; T0 task gate; no |
+| 03 | `openfiles.go`, `openwith.go`, `drop.go`, `viewer.go`, `session.go`, `shortcuts.go`, `favorites`, `menu.go` | Open/Close/Favorite routes; chooser identity and modal refusal | 0; T0 task gate; no |
+| 04 | `save.go`, `export.go`, `exportoptions.go`, `batch.go`, `reveal.go`, `wallpaper.go`, `filework.go`, input/menu adapters | Owner controls versus new commands; committed writes survive changing admission | 0; T0 task gate; no |
+| 05 | `windowmenu.go`, `compare.go`, `keys.go`, `shortcuts.go`, `menu.go`, `features.go`, `info.go`, `tunnel.go`, `help`, Settings entry adapter | Show/toggle difference, comparison Help, actual feature links/menu entries | 0; T0 task gate; no |
+| 06 | `explorer.go`, `locationmap.go`, `mosaic.go`, `keys.go`, menu/Host adapters | Setup/preparation revalidation; captured sources; retained map/cohort visits | 0; T0 task gate; no |
+| 07 | `actionmenu.go`, `sort.go`, `browsing.go`, `visualsearch.go`, `keys.go`, `shortcuts.go`, menu/Host adapters | Restricted browsing, duplicate preparation, captured search reference/generation | 0; T0 task gate; no |
+| 08 | `keys.go`, `viewer.go`, `rotate.go`, `slideshow.go`, `info.go`, `actionmenu.go`, relevant EXIF/Grid/display adapters | Typed/local versus EXIF navigation; reset/zoom/rotation; Escape and automatic advance | 0; T0 task gate; no |
+| 09 | All migrated adapters; superseded wrappers/state predicates; tests; `ARCHITECTURE.md`, `todos.md`, this evidence record | Complete inventory and structural review; all deterministic gates | 0; T0 final deterministic review; once |
+| 10 | Native evidence/runbook and this record; any discovered fixes remain T0-owned | Actual desktop input on Linux/Windows/macOS and latest-revision reconciliation | 0; T0 final acceptance; only repeat affected gates if code changes |
+
+For every migrated command, record actual menu, accelerator, registered shortcut,
+plain/modified key, bare user entry, Host/link, drop/OS and async admission routes.
+Each row states observation owner, effect owner, intent/target, applicable test
+case, and a reason for every non-applicable route. Complete a family's rows
+before accepting that family; a `RunCommand` wrapper call is not bare-entry
+coverage. The inventory is evidence, not runtime registration.
+
+The following concrete command groups seed that ledger. Split grouped verbs
+into individual evidence rows when their routes or outcomes differ:
+
+| Ticket | Commands / actual route anchors | Observation and effects stay with |
+| --- | --- | --- |
+| 01 | Save Changes: File callback, Cmd/Ctrl+S registration/accelerator, bare `saveRotation` | display capability/capture; existing save/file-work lane |
+| 02 | Copy; explicit Copy image; Copy Path; activate/repeat Copy Selection; region confirm/cancel; Select All | focused editor, region feature, Grid targets, display and clipboard owner |
+| 03 | Open chooser/dropzone; dropped URIs; OS-open/startup deliveries; restore previous session link; Close Files; Favorite open/index shortcut, add/overwrite/manage/remove and direct Host entry | chooser/scan lifecycle, root collection and Favorite feature/storage; dialog controls stay owned |
+| 04 | Export prompt; admitted format/option confirmation; Trash request and owned confirmation; reveal menu/shortcut/info link; ordinary and mosaic wallpaper entry; Save completion regression | export/deletion prompt owners; captured targets; file/wallpaper work; EXIF/mosaic committed notifications |
+| 05 | Viewer; Grid Show/G toggle; Picture-frame Show/P toggle; compare selected; EXIF E/menu/info link; Settings; Manual F1/menus/About/Spiral links; About; Release Notes; Licenses; Discussions; Finis; Hypno Spiral secret/gesture entry | existing window/feature state and explicit root composition; separate-window local controls remain local |
+| 06 | Explorer Shift+S/menu/bare/retry; Location Map Shift+L/menu/bare/return; map image/cluster and Explorer cohort/unassigned Host visits; mosaic Shift+M/menu/bare | feature-owned setup/work/camera; root preparation/collection transitions and captured mosaic source pool |
+| 07 | Sort selected order / S cycle; hide duplicates D/menu; browse variants Shift+D/menu; Find more like this Cmd/Ctrl+Shift+L/menu/bare; search Back/Exit/save-results callbacks and Explorer selection-analysis callbacks classified at the ownership seam | file sort, duplicate model/Grid, search generation/reference, existing local feature controls |
+| 08 | Next/previous/first/last image; EXIF StepImage and Grid image-open Host routes; rotate both ways; reset+fit 0; actual size 1; zoom +/- and pan; merge M; info I; shuffle Shift+P; interval Up/Down; settings setters; Escape and native close | display/zoom, Grid, EXIF, slideshow and existing ordered dispatch; background advances/loads are not new user commands |
+
+No new shortcuts/menu items are implied by this ledger. Mark absent bindings
+N/A with that reason. Startup option application, automatic update UI, render
+notifications, settings-owned controls and feature-owned confirmation are not
+automatically reclassified as unrelated main-window commands.
+
+## Acceptance commands
+
+These are future implementation gates, not tests run during ticketing. Keep
+the spec's top-level `TestCommandAdmission*` names, adding family subtests under
+`TestCommandAdmissionRoutes` (`save`, `clipboard`, `open`, `files`, `windows`,
+`maps`, `search`, `navigation`). Other top-level matrices may use those same
+family subtest names as needed. A command exit of zero with absent cases/skips
+is not evidence: retain verbose case names and compare against the inventory.
+
+| Gate | Command and required evidence |
+| --- | --- |
+| V01 | Run both V01 commands in ticket 01: pure policy/queries/yield/Save regressions, then route subtest `save`; include actual menu/shortcut/bare cases and observed D7 red before green |
+| V02 | Run both V02 commands in ticket 02: editing/busy/region/clipboard regressions, then route subtest `clipboard`; prove positive editor delivery and region/ordinary clipboard distinction |
+| V03 | Run both V03 commands in ticket 03: modal/async/Open/Favorites/comparison-refusal regressions, then route subtest `open`; replace obsolete drop-cancels-delete assertions with accepted D4 behavior |
+| V04 | Run both V04 commands in ticket 04: modal/async/file-action regressions, then route subtest `files`; include committed writes after modal entry |
+| V05 | Run both V05 commands in ticket 05: window/comparison/modal/busy regressions, then route subtest `windows`; exercise actual feature-created Help items/links and bare entries |
+| V06 | Run both V06 commands in ticket 06: visits/async/Explorer/Location Map/mosaic regressions, then route subtest `maps`; hold preparation then change admission |
+| V07 | Run both V07 commands in ticket 07: visits/async/search/sort/duplicate regressions, then route subtest `search`; assert generation/reference and retained-visit cases |
+| V08 | Run both V08 commands in ticket 08: yield/visits/step/region/Escape regressions, then route subtest `navigation`; assert EXIF versus typed navigation and local key ownership |
+| V09 | List guards with `go test -tags no_emoji,nodynamic ./internal/ui -list '^TestCommandAdmission'`; run `go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^TestCommandAdmission'` and every spec AC regression command; inspect `git diff <recorded-implementation-base> -- internal/ui`; run `make check-test-shards`, `make check-qodana-test-exclusions`, `make verify` |
+| V10 | `make run` on each native Linux/Windows/macOS desktop, followed by all four native scenarios in the spec; retain OS/arch, Fyne version, revision, input route and visible/payload outcomes. Launching alone does not pass |
+
+Go splits `-run` patterns on slashes. The tickets therefore use two invocations:
+one for top-level regressions and one for the exact family subtest. Retain that
+form when extending their gates; do not insert slash-qualified names into the
+top-level alternation.
+
+AC ownership: AC1/AC7 start in 01; AC4 in 02; AC3/AC5/AC6 and AC2 are extended
+by every applicable family; AC8 in 05-08; AC9 in 03/04/06/07; AC11/AC12 in 09;
+AC10 and the final acceptance check in 10. All ACs are mandatory at completion.
+
+At every task gate: observe intended red then green for changed behavior, keep
+OS seams stubbed, settle actual queues/signals, inspect all changed code files
+including weak warnings, and record actual command output and findings. Follow
+the local inspection guide before configuring Qodana/GoLand. Re-run affected
+inspections after fixes. Keep existing justified suppressions. Current Qodana CI
+is enabled; incomplete/licensing-error scans remain unverified and only a fresh
+post-suppression SARIF can establish its result. `make verify` uses native
+Linux/amd64 Docker; do not substitute emulation or weaken isolation tests.
+
+Start a native accelerator feasibility check during 02 on any available desktop;
+do not wait until 10 to discover menu interception. The final three-platform run
+still targets the integrated revision. If a platform is unavailable, record it
+as unverified and leave 10 open. If qualification requires a new dependency or
+native decoding change, record the concrete obstacle under D1 before expanding
+scope. An instance-owned bounded qualification seam is permissible; global
+mutable seams and timing-based guesses are not.
+
+Record the actual implementation base at the start of 01. At 09 update the
+architecture map for any package/file ownership movement, the backlog and this
+record. At 10 reconcile all evidence with the tested revision; retain earlier
+unchanged-code evidence explicitly, and repeat affected tests/inspections/native
+scenarios after fixes. A PR review loop, commits, pushes, merge and release are
+not authorized by this ticketing request. Move the accepted implementation plan
+to `finished_refactorings/` only after the work has passed its gates and is accepted.
+
+## Ticketing evidence and cost ledger
+
+Read the working agreement, architecture, full spec/interview, design/ADR and
+domain vocabulary; checked the real menu, shortcut, key, preparation and Help
+entry paths. A read-only scout enumerated Open/Favorite/clipboard routes and
+test anchors while T0 examined the other adapters. G1-G5: bounded factual prompt,
+source-citation oracle, zero edited files, smaller route/test scope, no duplicate
+of T0's source-reading scope. The scout inherited this session's model; that is
+an actual execution fact, separate from the cheaper T3 recommendation above.
+T0 retains all ticket design and review.
+
+Source checks confirmed chooser admission/delivery are separate
+(`internal/ui/openfiles.go:18`, `:33`); Favorite menus use the generic runner
+while numbered opens and Manage rows have distinct entry paths
+(`internal/ui/favorites/favorites.go:176`, `:193`, `manage.go:274`). The pinned
+Fyne driver tries menu accelerators before focused widgets and invokes matching
+actions without checking Disabled (`internal/driver/glfw/window.go:862`, `:886`
+in the local v2.8.0 module). These are source facts, not native test results.
+
+Documentation verification passed: ten numbered draft files, required fields,
+all relative links, the expected acyclic blocking graph, acceptance checklists,
+test-selector regex syntax and whitespace. Confirmed that no published `issues/`
+directory exists. `git diff --check` passed; only this plan and `todos.md` are
+visible Git changes, with the ten local drafts retained under ignored `.scratch/`.
+
+| Phase | Spawn budget / actual | Review | Full suite | Result |
+| --- | --- | --- | --- | --- |
+| Ticket preparation | 1 / 1 read-only scout | T0 consistency check | No | Drafts prepared for breakdown approval |
+| Implementation 01-08 | 0 each / not started | T0 per task | No | Pending |
+| Convergence 09 | 0 / not started | T0 | Once | Pending |
+| Native acceptance 10 | 0 / not started | T0 + native operators | Conditional on fixes | Pending |
+
+No application test, native run or code inspection is claimed for this
+documentation-only preparation. Local `.scratch/` artifacts are ignored by Git;
+they are the configured tracker, and this tracked plan links to them.
