@@ -10,14 +10,12 @@
 
 #### Internal
 
-## Open
+- Stabilize the similarity protocol race test by dispatching its helper before
+  the test runner starts and bounding its lifetime from the parent. Preserve
+  configuration/error transport and cancellation/exit coverage. See the
+  [diagnosis and verification record](plans/2026-09-26-similarity-protocol-timeout.md).
 
-- **Similarity protocol race timeout:** the PR 61 final Docker race run hit
-  `TestAnalysisProtocolPreservesLimitErrorsAndConfiguration/complete`'s 20-second
-  helper deadline while the helper was at `os.Exit(0)`. Its code is unchanged;
-  three focused host race reruns passed. Investigate load-sensitive helper exit
-  behavior separately; do not skip the test or count the failed full run as
-  passed. Evidence is in the [PR 61 record](plans/2026-09-26-pr61-license-notices.md).
+## Open
 
 - **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
   recommends shared command policy (MA-028), explicit browsing ownership and

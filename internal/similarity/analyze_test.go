@@ -180,17 +180,19 @@ func TestWorkerEventProtocolRejectsInvalidFrames(t *testing.T) {
 }
 
 func TestAnalysisProtocolPreservesLimitErrorsAndConfiguration(t *testing.T) {
-	for _, mode := range []string{"limit", "complete"} {
+	for _, mode := range []string{"limit", "complete", "cancel-after-complete"} {
 		t.Run(mode, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			// The parent bounds the whole subprocess lifetime, including race
+			// shutdown, with headroom for the concurrent Docker race partitions.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			executable, err := os.Executable()
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Allow the large streamed result and race-detector shutdown the
-			// same bounded budget as the search protocol helper.
-			cmd := exec.CommandContext(ctx, executable, "-test.run=^TestAnalysisProtocolHelperProcess$", "-test.timeout=20s")
+			// Worker mode must bypass testing.M, including its alarm: a helper
+			// can still be inside race-detector shutdown after delivering results.
+			cmd := exec.CommandContext(ctx, executable, "-test.run=^$", "-test.timeout=1ns")
 			cmd.Env = append(os.Environ(), "PICFETCH_TEST_ANALYSIS_PROTOCOL="+mode)
 			paths := make([]string, 50655)
 			for i := range paths {
@@ -198,7 +200,12 @@ func TestAnalysisProtocolPreservesLimitErrorsAndConfiguration(t *testing.T) {
 			}
 			req := request{Paths: paths, AnalysisLimits: AnalysisLimits{MemoryMB: 2048, Items: 50655}}
 			var events []Event
-			err = analyzeCommand(ctx, cmd, req, nil, func(e Event) { events = append(events, e) })
+			err = analyzeCommand(ctx, cmd, req, nil, func(e Event) {
+				events = append(events, e)
+				if mode == "cancel-after-complete" && e.Complete {
+					cancel()
+				}
+			})
 			if cmd.ProcessState == nil {
 				t.Fatal("analysis returned before worker exit")
 			}
@@ -206,37 +213,44 @@ func TestAnalysisProtocolPreservesLimitErrorsAndConfiguration(t *testing.T) {
 				if !errors.Is(err, ErrAnalysisMemoryLimit) || len(events) != 0 {
 					t.Fatalf("worker failure hid limit or published partial map: %v, %v", err, events)
 				}
-			} else if err != nil || len(events) != 1 || !events[0].Complete || len(events[0].Items) != 50655 {
+				return
+			}
+			if mode == "cancel-after-complete" {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("worker cancellation = %v; want context cancellation", err)
+				}
+			} else if err != nil || !cmd.ProcessState.Success() {
+				t.Fatalf("worker did not exit successfully: %v, %v", err, cmd.ProcessState)
+			}
+			if len(events) != 1 || !events[0].Complete || len(events[0].Items) != 50655 {
 				t.Fatalf("configured worker did not complete: %v, events=%d", err, len(events))
 			}
 		})
 	}
 }
 
-func TestAnalysisProtocolHelperProcess(_ *testing.T) {
-	mode := os.Getenv("PICFETCH_TEST_ANALYSIS_PROTOCOL")
-	if mode == "" {
-		return
-	}
+func analysisProtocolHelperProcess(mode string) error {
 	var req request
 	if err := json.NewDecoder(os.Stdin).Decode(&req); err != nil || req.AnalysisLimits.MemoryMB != 2048 || req.AnalysisLimits.Items != 50655 || len(req.Paths) != 50655 {
-		_, _ = fmt.Fprintln(os.Stderr, "analysis configuration not captured", err)
-		os.Exit(2)
+		return fmt.Errorf("analysis configuration not captured: %v", err)
 	}
 	if mode == "limit" {
 		// A tiny synthetic budget exercises error transport without a large allocation.
-		err := newWorkerEventEncoder(os.Stdout, 32).Encode(Event{Stage: "complete", Complete: true})
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+		return newWorkerEventEncoder(os.Stdout, 32).Encode(Event{Stage: "complete", Complete: true})
 	}
 	items := make([]Item, len(req.Paths))
 	for i := range items {
 		items[i] = Item{Path: req.Paths[i]}
 	}
 	if err := newWorkerEventEncoder(os.Stdout, 32*1024*1024).Encode(Event{Complete: true, Stage: "complete", Total: len(items), Items: items}); err != nil {
-		os.Exit(2)
+		return err
 	}
-	os.Exit(0)
+	if mode == "cancel-after-complete" {
+		// Keep the worker alive after publication until the parent cancels.
+		_, err := io.Copy(io.Discard, os.Stdin)
+		return err
+	}
+	return nil
 }
 
 func TestAnalysisRejectsOversizedCollection(t *testing.T) {
