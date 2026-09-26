@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -379,6 +381,7 @@ func writeTestFile(t *testing.T, path string, data []byte) {
 func TestWorkflowChecksFinalNotices(t *testing.T) {
 	root := filepath.Join("..", "..")
 	for _, check := range []struct{ file, command, before string }{
+		{"Makefile", "go test ./scripts/updaternotices -run '^TestDesktopNoticesMatchReviewedSources$$' -count=1", "generate-avif-notices:"},
 		{".github/workflows/ci.yml", "make check-updater-notices", "- name: Vet"},
 		{".github/workflows/release.yml", "-artifact dist/picfetch-macos-arm64.zip -artifact dist/picfetch-macos-x86_64.zip", "- name: Create GitHub release"},
 		{".github/workflows/release.yml", "-artifact dist/picfetch-windows-amd64.zip -artifact dist/picfetch-windows-arm64.zip", "- name: Create GitHub release"},
@@ -399,6 +402,84 @@ func TestWorkflowChecksFinalNotices(t *testing.T) {
 func TestNoticesMatchReviewedSources(t *testing.T) {
 	if err := notices(filepath.Join("..", ".."), false); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDesktopNoticesMatchReviewedSources(t *testing.T) {
+	root := filepath.Join("..", "..")
+	document, err := os.ReadFile(filepath.Join(root, "THIRD-PARTY-NOTICES.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(document, []byte("Copyright 2015 Google Inc. All Rights Reserved.")) {
+		t.Error("Noto Sans font copyright must accompany its license")
+	}
+	for _, entry := range []noticeModule{
+		{
+			Module: "fyne.io/fyne/v2", Version: "v2.8.0",
+			Files: []noticeFile{
+				{Path: "theme/font/LICENSE_DejaVu-Powerline.txt", SHA256: "a30f2466a95cd1eaeff6041692f43469edcca052d002e877015a819c6e31c194"},
+				{Path: "theme/font/LICENSE.txt", SHA256: "c4910f5c1bcf2f7326f9fc3d33b7fc4eed7bf294374e3a17aaee64ceff0fb85b"},
+				{Path: "theme/font/LICENSE_Inter.txt", SHA256: "4d7d9c95e7d7f2f0ebf76d5e0b344826b74e903a34028ee18ab54bb639e45906"},
+			},
+		},
+		{
+			Module: "github.com/go-gl/glfw/v3.4/glfw", Version: "v0.1.0-pre.1.0.20260707082822-2a407d02d01a",
+			Files: []noticeFile{
+				{Path: "glfw/LICENSE.md", SHA256: "149704059b5d0bf551637e50042dd4de9c2cae921021f6636298911e3a5f9462"},
+				{Path: "glfw/deps/mingw/dinput.h", SHA256: "72316ef3309b6a9b60d16f064a84fc5af6efd84546d69ac557b117bc398e3aab", Start: 1, End: 17},
+				{Path: "glfw/deps/mingw/xinput.h", SHA256: "4f78d7a9df66252a02342dc874b786ed666f9c32b523ae3734d44d87e09fc0e7", Start: 1, End: 18},
+				{Path: "scripts/updaternotices/licenses/LGPL-2.1.txt", SHA256: "20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95", Repository: true},
+			},
+		},
+	} {
+		t.Run(entry.Module, func(t *testing.T) {
+			download := exec.Command("go", "mod", "download", entry.Module)
+			download.Dir = root
+			download.Env = append(os.Environ(), "GOWORK=off")
+			if output, err := download.CombinedOutput(); err != nil {
+				t.Fatalf("download reviewed desktop source: %v: %s", err, output)
+			}
+			cmd := exec.Command("go", "list", "-mod=readonly", "-m", "-json", entry.Module)
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(), "GOWORK=off")
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("resolve desktop dependency: %v: %s", err, output)
+			}
+			var module goModule
+			if err := json.Unmarshal(output, &module); err != nil {
+				t.Fatal(err)
+			}
+			if module.Version != entry.Version || module.Replace != nil {
+				t.Fatalf("%s changed or was replaced; review desktop source licenses", entry.Module)
+			}
+			if !bytes.Contains(document, []byte(moduleArchiveURL(entry.Module, entry.Version))) {
+				t.Error("desktop notices must link to the exact distributed module source")
+			}
+			for _, file := range entry.Files {
+				t.Run(file.Path, func(t *testing.T) {
+					dir := module.Dir
+					if file.Repository {
+						dir = root
+					}
+					data, err := os.ReadFile(filepath.Join(dir, file.Path))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if fmt.Sprintf("%x", sha256.Sum256(data)) != file.SHA256 {
+						t.Fatal("reviewed license source changed")
+					}
+					if file.End > 0 {
+						data = bytes.Join(bytes.SplitAfter(data, []byte("\n"))[file.Start-1:file.End], nil)
+					}
+					data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+					if !bytes.Contains(document, data) {
+						t.Error("shipped desktop notices omit or alter the complete reviewed license text")
+					}
+				})
+			}
+		})
 	}
 }
 

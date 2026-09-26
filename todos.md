@@ -74,6 +74,9 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Internal
 
+- Complete embedded Fyne font and Windows GLFW header notices, with pinned
+  upstream source/text checks in the existing notice gate.
+
 - PR 58 review hardening: isolated map trials preserve normal updater files,
   trial reports count extensionless images, and map tiles reject redirects.
 - Native map exit timing now requires the observed closed viewer, not an unrelated
@@ -87,6 +90,12 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Improve automated checks for Linux desktop integration.
 
 ## Open
+
+- **PR 61 FOSSA decisions:** repository notice coverage is prepared; review the
+  remaining flags in FOSSA using [the disposition guide](docs/fossa-license-ci-2026-09-26.md).
+  Confirm File Matches for provisional findings and reconcile the 13 GitHub
+  findings against the eight-row export. A fresh passing remote check is still
+  required; local notice checks do not approve FOSSA policy findings.
 
 - **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
   recommends shared command policy (MA-028), explicit browsing ownership and
