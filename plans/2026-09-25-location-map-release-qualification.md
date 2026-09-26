@@ -1,5 +1,16 @@
 # Location Map release qualification
 
+## 2026-09-26 combined-test follow-up
+
+The six composite test gaps retained below are now covered by
+`TestLocationMapReleaseQualification`; all six groups passed, including their
+deliberately broken negative guards, and the new group passes with `-race`.
+See the [current qualification record](2026-09-26-location-map-release-gaps.md)
+for commands and remaining final gates. This supersedes those specific historical
+coverage gaps, not native performance measurements or release-artifact checks.
+
+## Original qualification scope
+
 Ronin approved closing the release gaps, with Pico launching a probeable client
 and Ronin loading the images and performing the interactions. This is a Deep
 continuation of the existing Location Map plan, not authorization to commit,
