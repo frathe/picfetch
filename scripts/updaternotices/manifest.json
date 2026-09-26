@@ -856,7 +856,7 @@
   },
   {
     "module": "github.com/sigstore/sigstore",
-    "version": "v1.10.10",
+    "version": "v1.11.0",
     "files": [
       {
         "path": "COPYRIGHT.txt",
@@ -868,7 +868,7 @@
       }
     ],
     "license": "Apache-2.0",
-    "source": "https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.10.10.zip",
+    "source": "https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.11.0.zip",
     "packages": [
       "github.com/sigstore/sigstore/pkg/cryptoutils",
       "github.com/sigstore/sigstore/pkg/signature",

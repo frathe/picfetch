@@ -38,10 +38,12 @@
 
 ### Fyne upgrade deferred
 
-Keep Fyne at v2.8.0 in [PR #19](https://github.com/frathe/picfetch/pull/19).
+Keep Fyne at v2.8.0, including [PR #59](https://github.com/frathe/picfetch/pull/59).
 Ronin reports an upstream library regression with v2.8.1. Revisit the upgrade
 after an upstream fix is available and the affected behavior is verified.
-The four grouped `golang.org/x/*` updates remain in the PR.
+PR #59 retains its grouped Sigstore v1.11.0 update. The earlier hold in
+[PR #19](https://github.com/frathe/picfetch/pull/19) retained its four grouped
+`golang.org/x/*` updates.
 
 
 ### Retire the GitHub-hosted Intel macOS runner before August 2027

@@ -5515,11 +5515,11 @@ Source: https://proxy.golang.org/github.com/sigstore/rekor-tiles/v2/@v/v2.3.0.zi
 - `COPYRIGHT.txt`: [license text 9daa76e002ba](#updater-text-9daa76e002ba)
 - `LICENSE`: [license text c71d239df917](#updater-text-c71d239df917)
 
-### github.com/sigstore/sigstore v1.10.10
+### github.com/sigstore/sigstore v1.11.0
 
 License: Apache-2.0
 
-Source: https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.10.10.zip
+Source: https://proxy.golang.org/github.com/sigstore/sigstore/@v/v1.11.0.zip
 
 - `COPYRIGHT.txt`: [license text 6622d1d495e7](#updater-text-6622d1d495e7)
 - `LICENSE`: [license text cfc7749b96f6](#updater-text-cfc7749b96f6)
