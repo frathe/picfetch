@@ -74,6 +74,9 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 #### Internal
 
+- Add release regression coverage for Location Map's remaining combined cases:
+  repeated source occurrences, metadata limits/read-only input, cache reuse,
+  thumbnail/camera rebuilding, overlapping write completions and empty collections.
 - Complete embedded Fyne font and Windows GLFW header notices, with pinned
   upstream source/text checks in the existing notice gate.
 - Apply the owner's fifteen reviewed FOSSA decisions with per-issue evidence
@@ -106,13 +109,14 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Open
 
-- **Combined PR 63 merge decision:** PR 61's license notices, findings
-  command and fixes are consolidated into the repository-owned PR 63 branch
-  with its renewed Qodana token wiring. The code-bearing merge `93026c3` has a
-  clean review round; require the latest head's checks before any later merge.
-  Merging PR 63 or closing PR 61 still requires the owner's direction.
-  Nothing is merged into main and no gate is waived.
-  See [the review-loop record](plans/2026-09-26-pr61-license-notices.md).
+- **Location Map release qualification:** PR 63 is merged into main (`d2fff17`).
+  The six combined test gaps now have passing, negatively verified acceptance
+  tests on `feature/location-map-release-qualification`; GoLand and the complete
+  `make verify` gate pass. Commit/PR handoff and fresh branch CI/review remain
+  pending. Final release archives, signing and
+  embedded-notice delivery must still pass the authorized release pipeline;
+  they are not implied by source tests. See the
+  [qualification record](plans/2026-09-26-location-map-release-gaps.md).
 
 - **Similarity protocol race timeout:** the PR 61 final Docker race run hit
   `TestAnalysisProtocolPreservesLimitErrorsAndConfiguration/complete`'s 20-second

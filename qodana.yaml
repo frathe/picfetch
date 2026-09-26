@@ -263,6 +263,7 @@ exclude:
       - "internal/ui/explorer_local_test.go"
       - "internal/ui/explorer_test.go"
       - "internal/ui/locationmap_test.go"
+      - "internal/ui/locationmap_release_test.go"
       - "internal/ui/locationmap/tiles_test.go"
       - "internal/ui/locationmap/geography_test.go"
       - "internal/ui/locationmap/resolution_test.go"
