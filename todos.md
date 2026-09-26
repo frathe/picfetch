@@ -91,11 +91,14 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Open
 
-- **PR 61 FOSSA decisions:** repository notice coverage is prepared; review the
-  remaining flags in FOSSA using [the disposition guide](docs/fossa-license-ci-2026-09-26.md).
-  Confirm File Matches for provisional findings and reconcile the 13 GitHub
-  findings against the eight-row export. A fresh passing remote check is still
-  required; local notice checks do not approve FOSSA policy findings.
+- **PR 61 FOSSA decisions:** notice fixes are pushed in `f0ed64a`; review the
+  remaining findings using [the disposition guide](docs/fossa-license-ci-2026-09-26.md).
+  The second export identifies all 13 original issues, including five denied
+  CC findings in non-distributed upstream docs/test samples, but still refers
+  to pre-fix `cf24b84`. Export the latest PR revision (the `f0ed64a` check reports
+  15), confirm File Matches and record project/version-scoped decisions. A fresh
+  passing remote check is still required; local checks cannot approve policy
+  findings, and the two additional live issues remain unidentified.
 
 - **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
   recommends shared command policy (MA-028), explicit browsing ownership and

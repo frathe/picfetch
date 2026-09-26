@@ -6,18 +6,31 @@ the check. It does not record a completed FOSSA review or a passing remote scan.
 
 ## Evidence and proposed dispositions
 
-The supplied CSV contains eight active **Flagged** issues for revision
+The first CSV contained eight active **Flagged** issues. The second export,
+`CSV_Licensing_ISSUES_2026-09-26_161730994Z.csv`, contains those same eight rows
+unchanged plus five **Denied** issues. This reconciles the original 13-versus-eight
+discrepancy. Both exports still describe revision
 `cf24b842e471a3f5dc32e130b38ed8798b76f2b0`, analyzed at 14:25 UTC on
-2026-09-26. Its `originPaths` identify dependency discovery, not licensed source
-file matches. GitHub reported 13 issues, so this is not a complete inventory of
-the live gate. The following reasons are proposals for the project owner to
-validate and record, not approvals already made in FOSSA or a legal opinion.
+2026-09-26, before the notice fix. Export time is not analysis time.
+
+The live check on notice-fix commit
+`f0ed64a0ea319d16bd49013ab13c580d3b6355b3` reports **15 issues**, updated at
+15:05:37 UTC. Its complete current issue list is not in either supplied CSV.
+Open the latest PR check's Details link before exporting or resolving issues.
+The CSV's `originPaths` identify dependency discovery, not licensed source file
+matches. The following reasons are proposals for the project owner to validate
+and record, not approvals already made in FOSSA or a legal opinion.
 
 | CSV issue | License and component | Proposed project/version disposition |
 | --- | --- | --- |
 | 21232391 | BitstreamVera; Fyne v2.8.0 | **Accept documented use.** PicFetch ships Fyne's unchanged DejaVuSansMono-Powerline font, not a standalone font product. The full supplied Bitstream/Arev terms and attribution are now in the shipped notice document. Do not remove this real font-license detection. |
 | 21232390 | LGPL-2.1-or-later; GLFW `v0.1.0-pre.1.0.20260707082822-2a407d02d01a` | **Accept only the reviewed header use.** Windows GLFW includes the Wine-derived `dinput.h` and `xinput.h` interface headers. These provide declarations, layouts, constants and short invocation macros; no Wine runtime is bundled. The LGPL 2.1 section 5 header-use provision is the relevant rationale, not an assertion that all static LGPL linking is harmless. Full header attributions, LGPL text and exact upstream source are now supplied. Reassess if File Matches includes other implementation code. |
 | 21232392 | MPL-2.0; json-canonicalization `v0.0.0-20241213102144-19d51d7fe467` | **Not in the shipped build, if matches agree.** The MPL notices are in the Java/C# number-conversion implementations. PicFetch selects the Apache-2.0 Go package `go/src/webpki.org/jsoncanonicalizer`; its Apache terms are already shipped. Keep the upstream mixed-license classification intact. |
+| 21232394 | CC-BY-SA-4.0 (**Denied**); go-digest v1.0.0 | **Not distributed, if matches agree.** The upstream README expressly assigns this license to `README.md` and `CONTRIBUTING.md`, via `LICENSE.docs`; the Go implementation is Apache-2.0. PicFetch selects five Apache-licensed Go files, with no embedded files, and does not package those upstream documents. Its Apache terms are already shipped. Record a project/version exception for the documentation-only match, not a global CC-BY-SA allowance. |
+| 21232398 | CC-BY-SA-1.0 (**Denied**); x/text v0.42.0 | **Not in the shipped build, if matches agree.** The identified Russian/Hebrew excerpts are test samples. All six production target dependency lists exclude the sample package and `_test.go` files. Record the test-only scope; retain the module's BSD notice. |
+| 21232395 | CC-BY-SA-2.0 (**Denied**); x/text v0.42.0 | **Not in the shipped build, if matches agree.** The identified Japanese/Korean excerpts are test samples excluded from all six production targets. Use the same scoped test-only disposition, with the version-specific source lines below. |
+| 21232397 | CC-BY-SA-2.5 (**Denied**); x/text v0.42.0 | **Not in the shipped build, if matches agree.** The identified Chinese excerpts are test samples excluded from all six production targets. Do not change the license of the upstream module as a whole. |
+| 21232396 | CC-BY-SA-3.0 (**Denied**); x/text v0.42.0 | **Not in the shipped build, if matches agree.** The identified Vietnamese/Greek/Arabic/Thai excerpts are test samples excluded from all six production targets. Resolve only the validated sample matches in this project/version. |
 | 21232393 | openssl-ssleay; x/crypto v0.57.0 | **Provisional: inspect File Matches first.** Source search found OpenSSL/CRYPTOGAMS ancestry in `chacha20/chacha_ppc64x.s`, but no literal SSLeay/Eric Young notice. That assembly is constrained to ppc64/ppc64le and excluded from all six amd64/arm64 releases. If this is the complete match, record “not compiled into supported release targets”; otherwise review the actual matched files before resolving. |
 | 21232402 | Apache-2.0 WITH LLVM exception; PicFetch root | **Accept documented use, if matches agree.** The AVIF WASM closure includes compiler/runtime components under these terms. The complete reviewed upstream aggregates, source revisions and payload hashes are already retained by `scripts/avifnotices` and shipped in the notices. This does not change PicFetch's own MIT license. |
 | 21232399 | LGPL-3.0-or-later; PicFetch root | **Accept the scoped binding, if matches agree.** `internal/heic/libheif_abi.h` openly identifies its adapted libheif v1.17.6 ABI declarations. Source attribution and full GPL/LGPL texts are retained; Linux loads the system libheif dynamically, without bundling it. Review against LGPL 3 section 3 for these layout declarations. This rationale does not approve bundling a future libheif binary. |
@@ -61,6 +74,40 @@ the decision to the actual latest PR revision, not only the historical CSV SHA.
   [the PowerPC assembly header and build constraint](https://github.com/golang/crypto/blob/3f62bf119e84c6e35e8518a2958089ade622d1a3/chacha20/chacha_ppc64x.s)
   support the conditional exclusion rationale, but do not prove which source
   FOSSA matched. The module's BSD notice is already shipped.
+- **go-digest:** the upstream
+  [copyright/license section](https://github.com/opencontainers/go-digest/blob/v1.0.0/README.md#copyright-and-license)
+  distinguishes Apache-licensed code from the two CC-licensed documentation
+  files. Its wording omits “ShareAlike” in one sentence, but
+  [LICENSE.docs](https://github.com/opencontainers/go-digest/blob/v1.0.0/LICENSE.docs)
+  and the next sentence identify CC-BY-SA 4.0. Do not classify this as simply
+  CC-BY 4.0. Production selection is `algorithm.go`, `digest.go`, `digester.go`,
+  `doc.go` and `verifiers.go`, each with an Apache header; `EmbedFiles` is empty.
+  The release workflow and MSIX staging copy the application and PicFetch's
+  explicit notice/privacy files, not the upstream README/contribution docs.
+  The existing [updater inventory](../scripts/updaternotices/manifest.json)
+  already supplies this module's full Apache license.
+- **x/text:** the exact
+  [v0.42.0 module source](https://proxy.golang.org/golang.org/x/text/@v/v0.42.0.zip)
+  contains the identified samples in `internal/testtext/text.go`,
+  `cases/map_test.go` and `unicode/norm/normalize_test.go`. All 23 imports of
+  `internal/testtext` within this module are from `_test.go` files.
+  The source attribution lines for each detected version are:
+
+  | Version | `internal/testtext/text.go` | `cases/map_test.go` | `unicode/norm/normalize_test.go` |
+  | --- | --- | --- | --- |
+  | 1.0 | 35, 60 | 869 | 1256, 1281 |
+  | 2.0 | 79, 94 | None | 1290, 1308 |
+  | 2.5 | 86 | 861 | 1315 |
+  | 3.0 | 23, 43, 52, 69 | 851, 876 | 1244, 1264, 1273, 1298 |
+
+  Production `go list -mod=readonly -tags=no_emoji,nodynamic -deps -json .`
+  with `CGO_ENABLED=1`, for Darwin/Linux/Windows on amd64/arm64, completed
+  without package errors at `f0ed64a`. Every target selects 29 x/text packages
+  but not `internal/testtext` or `cases`; none selects or embeds these test
+  sample files. This is build-selection evidence, not a cross-compilation or
+  the missing FOSSA File Matches. If FOSSA names different files, stop and review
+  them. No dependency replacement, extra CC license text or scanner exclusion
+  is needed for the identified non-distributed samples.
 - **PicFetch root:** see [the binding attribution](../internal/heic/libheif_abi.h),
   [its notice/source-delivery record](../internal/heic/notices/README.md), and
   [the AVIF notice manifest](../scripts/avifnotices/manifest.json).
@@ -86,6 +133,13 @@ distribution obligation while leaving the policy flag active. Existing project
 policy assignments cannot be changed by committing `project.policy` in
 `.fossa.yml`; FOSSA explicitly requires project settings for that change.
 [Licensing policies](https://docs.fossa.com/docs/policies/licensing-policies).
+
+**Denied** means the assigned policy rejects a detected license. It does not
+establish that the licensed upstream documentation/test material is part of
+PicFetch's distribution. For the five CC findings, validate the file scope and
+record the project/version disposition above. Do not mark CC-BY-SA globally
+allowed, overwrite a module's real mixed-license classification, or remove
+unrelated required notices.
 
 There is no documented repository-only issue-resolution mechanism in the
 configuration interfaces reviewed below. Clearing the remaining valid flags
@@ -128,7 +182,7 @@ After the repository notice changes are available in the PR:
    revision matches the latest PR commit, then open **Issues -> Licensing ->
    Active**.
 2. Open each finding. Check **File Matches**, including all additional paths,
-   and the dependency version against the evidence below. Do not resolve a
+   and the dependency version against the evidence above. Do not resolve a
    provisional match if FOSSA names a different file.
 3. Select the validated issue and choose **Actions -> Ignore**; some
    organizations label the same action **Resolve**. Choose **In this project**
@@ -165,8 +219,9 @@ available controls and verify the actual GitHub License Compliance status. A
 green local notice check is not evidence that the remote FOSSA gate passed.
 [Automatic updates](https://docs.fossa.com/docs/project-setup/automatic-updates).
 
-If the latest check still reports more issues than the supplied CSV, export the
-remaining active findings from that same revision. Completion requires every
-live finding to have a validated disposition and the check to pass on the
-latest PR commit. The historical 13-versus-eight count discrepancy alone cannot
-be resolved from configuration documentation.
+The second export resolves the original 13-versus-eight count discrepancy, but
+still predates the notice fix. Export **all active licensing issue types** from
+the latest PR revision, including both Flagged and Denied. The observed current
+check has 15 issues; the additional two are not identified by the supplied data
+and must not be guessed or pre-approved. Completion requires every live finding
+to have a validated disposition and the check to pass on the latest PR commit.

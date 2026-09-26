@@ -79,7 +79,53 @@ authorized a commit and push to PR 61; no merge, release or FOSSA write is in sc
   other changed file. Lead review confirmed no other whitespace findings,
   dependency changes, omitted pre-existing notices or CI gate exclusions.
 - Remote FOSSA remains pending authenticated project-owner review, including
-  File Matches for provisional findings and the 13-versus-eight discrepancy.
+  File Matches for provisional findings. The follow-up below reconciles the
+  initial count discrepancy without claiming that the remote gate passed.
+
+## Follow-up: complete original export at 16:17 UTC
+
+Scope: finish the existing Standard investigation with a documentation-only
+update to this evidence, the disposition guide and `todos.md`. Preserve all
+notices, dependencies, application behavior and CI enforcement. Lead owns the
+classification and all changes; one bounded read-only scout gathers x/text
+source/build-selection evidence while the lead checks go-digest and report
+provenance. Delegation is independent, read-only, specified by exact versions
+and targets, and verified by the same six `go list` commands. No review or fix
+is delegated. No new unit test is appropriate for an account-side policy
+decision; the actual remote status remains the pass/fail signal.
+
+- The second ZIP SHA-256 is
+  `9ce43b4ee151118cf2e91911924c941fcbcd42f402cbc9e1d5e8c1c25eedc18b`.
+  Parsed both CSVs by issue ID: 8 prior rows, 13 current rows, no removed or
+  changed prior rows. Added IDs 21232394-21232398 are five Denied CC findings.
+  Both exports have `analyzedAt=2026-09-26T14:25:00.119Z` and root version
+  `cf24b842e471a3f5dc32e130b38ed8798b76f2b0`, not notice-fix `f0ed64a`.
+- `gh api repos/frathe/picfetch/commits/f0ed64a0ea319d16bd49013ab13c580d3b6355b3/status`
+  reproduces the remaining failure: License Compliance is `error`, description
+  `15 issues found`, updated 15:05:37 UTC. Security Analysis and Dependency
+  Quality succeed. The supplied export cannot identify the two extra findings.
+- go-digest v1.0.0 assigns its docs license only to README/contribution docs;
+  all five selected Go files are Apache-licensed and `EmbedFiles` is empty.
+  Packaging does not copy the upstream documentation; existing notices retain
+  the Apache license. No additional notice or dependency change is justified.
+- x/text v0.42.0's CC URL references are in test samples. All six production
+  `go list -mod=readonly -tags=no_emoji,nodynamic -deps -json .` commands
+  completed without package errors with cgo enabled. Package counts are
+  Darwin 815/814, Linux 823/822 and Windows 819/818 (amd64/arm64). Each target
+  selects 29 x/text packages, without `internal/testtext`, `cases` or the
+  snippet-bearing test files. This is selection evidence, not cross-build proof.
+- FOSSA access remains unavailable: no connector/CLI/API key and the Browser
+  skill's supported discovery returned no available browsers. Requested the
+  latest revision's export/File Matches from the user; no issue resolutions or
+  global policy changes were made.
+- Verification: `make fmt-check check-updater-notices check-avif-notices`
+  and `git diff --check` passed. A CSV-to-guide check confirms all 13 exported
+  issue IDs appear exactly once; all local Markdown links resolve. Lead reran
+  the six-target dependency-selection assertions successfully and confirmed
+  Apache headers on all five selected go-digest source files.
+  The passing full `make verify` evidence for unchanged code/notices at
+  `f0ed64a` carries forward; do not repeat the full race suite for prose edits.
+  The earlier GoLand limitation remains unverified, not cleared by this update.
 
 ## Cost ledger
 
@@ -87,3 +133,4 @@ authorized a commit and push to PR 61; no merge, release or FOSSA write is in sc
 | --- | --- | --- | --- |
 | Repository changes | 0/0 | Lead | Final gate only |
 | FOSSA documentation | 1/1 | Lead | No |
+| Follow-up x/text source/build lookup | 1/1 | Lead | No; unchanged code |
