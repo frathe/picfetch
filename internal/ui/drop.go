@@ -81,22 +81,11 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	if len(uris) == 0 {
 		return
 	}
-	if v.refuseOpenDuringComparison() {
+	if _, ok := v.admitCommand(commandRequest{command: commandOpen}); !ok {
 		return
 	}
 
-	// A drag-and-drop is a separate OS-level event, not gated by the
-	// keyboard the way handleKeyEvent's own guard blocks everything else
-	// while a delete confirmation is up - so it's still possible to drop
-	// new files mid-prompt. Dismiss the prompt rather than let it linger
-	// over a file list a replace-mode drop is about to wipe out from under
-	// it. Same reasoning for the grid overview: it shows the file set that's
-	// about to be replaced (or, in merge mode, about to change), so a drop
-	// arriving while it's open closes it back to the normal view instead of
-	// leaving it showing stale thumbnails.
-	if !v.yieldCopySelection() {
-		return
-	}
+	// Admission precedes collection replacement and all cancellation effects.
 	// A replacement request must not inherit --slideshow from the launch
 	// scan or its still-pending reorder.
 	if v.scanOp.active || v.sortOp.active {
@@ -435,7 +424,7 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 
 		if merging {
 			if !v.showFileIfPresent(images[0]) {
-				v.ShowImage(0)
+				v.loadImage(0)
 			}
 			return
 		}
@@ -448,6 +437,6 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 		if len(dropped) == 1 && v.showFileIfPresent(dropped[0]) {
 			return
 		}
-		v.ShowImage(0)
+		v.loadImage(0)
 	})
 }

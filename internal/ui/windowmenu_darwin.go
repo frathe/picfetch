@@ -130,17 +130,21 @@ char *testItemTitle(uintptr_t menuPtr, int index) {
 	return copyTitle([[m itemAtIndex:index] title]);
 }
 
-static int applyModifierMaskInSubmenu(NSMenu *sub, NSString *itemTitle, unsigned int mask) {
+static int applyModifierMaskInSubmenu(NSMenu *sub, NSString *itemTitle, unsigned int mask, int clearKey) {
 	if (sub == nil || itemTitle == nil) {
 		return 0;
 	}
 	for (NSMenuItem *item in [sub itemArray]) {
 		if ([item.title isEqualToString:itemTitle]) {
-			[item setKeyEquivalentModifierMask:mask];
+			if (clearKey) {
+				[item setKeyEquivalent:@""];
+			} else {
+				[item setKeyEquivalentModifierMask:mask];
+			}
 			return 1;
 		}
 		NSMenu *child = [item submenu];
-		if (child != nil && applyModifierMaskInSubmenu(child, itemTitle, mask)) {
+		if (child != nil && applyModifierMaskInSubmenu(child, itemTitle, mask, clearKey)) {
 			return 1;
 		}
 	}
@@ -150,7 +154,7 @@ static int applyModifierMaskInSubmenu(NSMenu *sub, NSString *itemTitle, unsigned
 // Fyne's insertDarwinMenuItem only calls setKeyEquivalentModifierMask when
 // the mask is non-zero, so an unmodified CustomShortcut keeps AppKit's
 // default Command (⌘M = Minimize). Walk the live bar and clear that.
-int setNativeMenuItemModifierMask(const char *menuTitle, const char *itemTitle, unsigned int mask) {
+int setNativeMenuItemModifierMask(const char *menuTitle, const char *itemTitle, unsigned int mask, int clearKey) {
 	if (itemTitle == NULL) {
 		return 0;
 	}
@@ -170,13 +174,13 @@ int setNativeMenuItemModifierMask(const char *menuTitle, const char *itemTitle, 
 				if (![sub.title isEqualToString:mt] && ![top.title isEqualToString:mt]) {
 					continue;
 				}
-				if (applyModifierMaskInSubmenu(sub, it, mask)) {
+				if (applyModifierMaskInSubmenu(sub, it, mask, clearKey)) {
 					return 1;
 				}
 			}
 		}
 	}
-	return applyModifierMaskInSubmenu([NSApp windowsMenu], it, mask);
+	return applyModifierMaskInSubmenu([NSApp windowsMenu], it, mask, clearKey);
 }
 
 void testAddItemWithKey(uintptr_t menuPtr, const char *title, const char *key) {
@@ -195,12 +199,17 @@ unsigned long testItemModifierMask(uintptr_t menuPtr, int index) {
 	return [[m itemAtIndex:index] keyEquivalentModifierMask];
 }
 
-int setMenuItemModifierMask(uintptr_t menuPtr, const char *itemTitle, unsigned int mask) {
+int setMenuItemModifierMask(uintptr_t menuPtr, const char *itemTitle, unsigned int mask, int clearKey) {
 	NSMenu *m = (__bridge NSMenu *)(void *)menuPtr;
 	if (m == nil || itemTitle == NULL) {
 		return 0;
 	}
-	return applyModifierMaskInSubmenu(m, [NSString stringWithUTF8String:itemTitle], mask);
+	return applyModifierMaskInSubmenu(m, [NSString stringWithUTF8String:itemTitle], mask, clearKey);
+}
+
+char *testItemKeyEquivalent(uintptr_t menuPtr, int index) {
+	NSMenu *m = (__bridge NSMenu *)(void *)menuPtr;
+	return copyTitle([[m itemAtIndex:index] keyEquivalent]);
 }
 */
 import "C"
@@ -300,20 +309,35 @@ func testItemModifierMask(menu uintptr, index int) uint64 {
 func setMenuItemModifierMask(menu uintptr, itemTitle string, mask uint) bool {
 	c := C.CString(itemTitle)
 	defer C.free(unsafe.Pointer(c))
-	return C.setMenuItemModifierMask(C.uintptr_t(menu), c, C.uint(mask)) != 0
+	return C.setMenuItemModifierMask(C.uintptr_t(menu), c, C.uint(mask), 0) != 0
 }
 
-func setNativeMenuItemModifierMask(menuTitle, itemTitle string, mask uint) {
+func clearMenuItemKey(menu uintptr, itemTitle string) bool {
+	c := C.CString(itemTitle)
+	defer C.free(unsafe.Pointer(c))
+	return C.setMenuItemModifierMask(C.uintptr_t(menu), c, 0, 1) != 0
+}
+
+func testItemKeyEquivalent(menu uintptr, index int) string {
+	return stringFromOwnedCString(C.testItemKeyEquivalent(C.uintptr_t(menu), C.int(index)))
+}
+
+func setNativeMenuItemModifierMask(menuTitle, itemTitle string, mask uint, clearKey bool) {
 	cm := C.CString(menuTitle)
 	defer C.free(unsafe.Pointer(cm))
 	ci := C.CString(itemTitle)
 	defer C.free(unsafe.Pointer(ci))
-	C.setNativeMenuItemModifierMask(cm, ci, C.uint(mask))
+	clear := C.int(0)
+	if clearKey {
+		clear = 1
+	}
+	C.setNativeMenuItemModifierMask(cm, ci, C.uint(mask), clear)
 }
 
 // applyUnmodifiedNativeAccelerators clears AppKit's default Command mask on
 // Fyne menu items whose CustomShortcut asked for no modifiers. Items that
-// set KeyModifierShortcutDefault (Copy, Open, …) are left alone. Window
+// set KeyModifierShortcutDefault are left alone, except Copy: its native key
+// equivalent is cleared so focused editors receive it through GLFW. Window
 // items are searched in NSApp.windowsMenu after mergeNativeWindowMenu
 // removes the duplicate Fyne Window submenu.
 func applyUnmodifiedNativeAccelerators(bar *fyne.MainMenu) {
@@ -340,11 +364,15 @@ func applyUnmodifiedNativeItems(menuTitle string, items []*fyne.MenuItem) {
 			}
 			applyUnmodifiedNativeItems(title, item.ChildMenu.Items)
 		}
+		if nativeEditingAccelerator(item) {
+			setNativeMenuItemModifierMask(menuTitle, item.Label, 0, true)
+			continue
+		}
 		sc, ok := item.Shortcut.(*desktop.CustomShortcut)
 		if !ok || sc.Modifier != 0 {
 			continue
 		}
-		setNativeMenuItemModifierMask(menuTitle, item.Label, 0)
+		setNativeMenuItemModifierMask(menuTitle, item.Label, 0, false)
 	}
 }
 
@@ -355,4 +383,5 @@ var _ = []any{
 	testTopLevelCount, testTopLevelSubmenuTitle,
 	testItemCount, testItemIsSeparator, testItemTitle, testHeldItemTitles,
 	testAddItemWithKey, testItemModifierMask, setMenuItemModifierMask,
+	clearMenuItemKey, testItemKeyEquivalent,
 }

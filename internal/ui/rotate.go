@@ -12,7 +12,7 @@ import "image"
 // the window to match - a manual zoom level or window size chosen for the
 // old orientation rarely still makes sense once the axes have swapped.
 func (v *viewer) rotateBy(steps int) {
-	if v.display.Count() == 0 {
+	if _, ok := v.admitCommand(commandRequest{command: commandRotate}); !ok {
 		return
 	}
 
@@ -27,6 +27,9 @@ func (v *viewer) rotateBy(steps int) {
 // clears any view-only rotation back to the image's native EXIF
 // orientation, the same way 0 resets zoom back to fit.
 func (v *viewer) resetRotation() {
+	if _, ok := v.admitCommand(commandRequest{command: commandReset}); !ok {
+		return
+	}
 	if !v.display.ResetRotation() {
 		return
 	}

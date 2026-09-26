@@ -22,6 +22,9 @@ var finisAtlas []byte
 
 // ShowFinis opens or raises the companion, retaining the current view on reuse.
 func (h *Help) ShowFinis() {
+	if !h.admitted() {
+		return
+	}
 	if h.finis == nil {
 		view, err := newFinisView()
 		if err != nil {

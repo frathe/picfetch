@@ -146,12 +146,8 @@ func TestOpenInitialFiles_PlainLaunchStartsNoScan(t *testing.T) {
 	}
 }
 
-// TestOpenWithHandler_DeliveryClosesTheGridAndCancelsAPendingDelete proves
-// the delivery really goes through handleDrop rather than some parallel
-// ingestion path: closing the grid and dismissing the confirmation are
-// handleDrop's own first two statements, and nothing in openwith.go repeats
-// them.
-func TestOpenWithHandler_DeliveryClosesTheGridAndCancelsAPendingDelete(t *testing.T) {
+// OS-open delivery uses the same admission as an ordinary drop.
+func TestOpenWithHandler_DeliveryPreservesPendingDelete(t *testing.T) {
 	v := openGridWith(t, "a.jpg", "b.jpg")
 
 	v.deletion.Request()
@@ -167,14 +163,14 @@ func TestOpenWithHandler_DeliveryClosesTheGridAndCancelsAPendingDelete(t *testin
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if v.grid.Visible() {
-		t.Error("the grid should have closed - it was showing the file set the delivery replaced")
+	if !v.grid.Visible() {
+		t.Error("the covered Grid should remain open")
 	}
-	if v.deletion.Visible() {
-		t.Error("the pending delete confirmation should have been cancelled")
+	if !v.deletion.Visible() {
+		t.Error("the pending delete confirmation was cancelled")
 	}
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "c.jpg" {
-		t.Errorf("files = %v, want the delivered c.jpg to have replaced the set", v.state.files)
+	if len(v.state.files) != 2 || v.state.files[0].Name() != "a.jpg" {
+		t.Errorf("files = %v, want the original set", v.state.files)
 	}
 }
 

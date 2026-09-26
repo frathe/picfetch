@@ -45,10 +45,7 @@ func (v *viewer) canSaveRotation() bool {
 // here rather than trusted from the menu item's Disabled state, since the
 // shortcut bypasses the menu entirely.
 func (v *viewer) saveRotation() {
-	if v.comparisonActive() {
-		return
-	}
-	if !v.canSaveRotation() {
+	if _, ok := v.admitCommand(commandRequest{command: commandSave}); !ok {
 		return
 	}
 

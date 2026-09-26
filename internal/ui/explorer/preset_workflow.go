@@ -28,9 +28,11 @@ func (f *Feature) showPresetDialog(title string, body fyne.CanvasObject) dialog.
 			f.cohortDialog = nil
 		}
 		f.win.Canvas().Unfocus()
+		f.host.Changed()
 	})
 	f.cohortDialog = d
 	d.Show()
+	f.host.Changed()
 	return d
 }
 

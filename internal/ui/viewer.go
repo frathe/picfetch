@@ -647,6 +647,9 @@ func (v *viewer) undoGridMaximize() {
 // instead of replacing it - see SetMergeMode below, which does the actual
 // work.
 func (v *viewer) toggleMergeMode() {
+	if _, ok := v.admitCommand(commandRequest{command: commandMerge}); !ok {
+		return
+	}
 	v.SetMergeMode(!v.state.MergeMode())
 }
 
@@ -672,7 +675,7 @@ func (v *viewer) MergeMode() bool {
 func (v *viewer) showFileIfPresent(target fyne.URI) bool {
 	for i, u := range v.state.files {
 		if u.String() == target.String() {
-			v.ShowImage(i)
+			v.loadImage(i)
 			return true
 		}
 	}
@@ -695,7 +698,7 @@ func (v *viewer) reset() {
 // in progress first - unlike Escape (handleKeyEvent), it never closes the
 // window, since File > Close is a distinct action from quitting the app.
 func (v *viewer) closeFiles() {
-	if v.comparisonActive() {
+	if _, ok := v.admitCommand(commandRequest{command: commandCloseFiles}); !ok {
 		return
 	}
 	if v.scanOp.active {
@@ -910,10 +913,10 @@ func (v *viewer) Advance() {
 		return
 	}
 	if v.slides.Shuffle() {
-		v.ShowImage(v.randomVisibleOther(v.state.index))
+		v.loadImage(v.randomVisibleOther(v.state.index))
 		return
 	}
-	v.ShowImage(v.nextVisibleIndex(v.state.index, 1))
+	v.loadImage(v.nextVisibleIndex(v.state.index, 1))
 }
 
 // StepImage moves by delta files (typically +1 or -1), wrapping through
@@ -927,16 +930,7 @@ func (v *viewer) Advance() {
 // one path.
 // Picture-frame shuffle does not apply: this is what the arrow keys do.
 func (v *viewer) StepImage(delta int) {
-	if v.comparisonActive() {
-		return
-	}
-	if v.win.Canvas().Overlays().Top() != nil {
-		return
-	}
-	if v.deletion.Visible() || v.exportPrompt.Visible() {
-		return
-	}
-	if len(v.state.files) < 2 || v.display.Snapshot().Loading {
+	if _, ok := v.admitCommand(commandRequest{command: commandNavigate}); !ok {
 		return
 	}
 	v.ShowImage(v.nextVisibleIndex(v.state.index, delta))

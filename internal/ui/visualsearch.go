@@ -7,7 +7,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/preferences"
@@ -17,12 +16,15 @@ import (
 )
 
 func (v *viewer) searchReference() string {
-	if v.stopping || v.analysisMaintenanceBusy() || v.FileCount() == 0 || v.scanOp.active || v.sortOp.active || v.comparisonActive() || v.explorerMapActive() || v.locationMap.Active() || v.slides.Active() || v.win.Canvas().Overlays().Top() != nil || v.deletion.Visible() || v.exportPrompt.Visible() {
+	if !v.queryCommand(commandRequest{command: commandSearch}).allowed {
 		return ""
 	}
-	if _, editing := v.win.Canvas().Focused().(*widget.Entry); editing {
-		return ""
-	}
+	return v.searchTarget()
+}
+
+// searchTarget resolves only the prospective source. Cross-feature admission
+// is decided before the caller captures that source for a search session.
+func (v *viewer) searchTarget() string {
 	if v.grid.Visible() {
 		if v.grid.SelectionCount() > 1 {
 			return ""
@@ -51,10 +53,10 @@ type searchPresentation struct {
 func (v *viewer) searchActive() bool { return v.visualsearch != nil && v.visualsearch.Active() }
 
 func (v *viewer) findMoreLikeThis() {
-	reference := v.searchReference()
-	if reference == "" || !v.yieldCopySelection() {
+	if _, ok := v.admitCommand(commandRequest{command: commandSearch}); !ok {
 		return
 	}
+	reference := v.searchTarget()
 	generation := v.Generation()
 	if !v.explorer.EnsureReady(func() {
 		preferences.Save(v.app, v.currentPreferences())
@@ -67,7 +69,7 @@ func (v *viewer) findMoreLikeThis() {
 	v.startVisualSearch(reference)
 }
 func (v *viewer) startVisualSearch(reference string) {
-	if v.analysisMaintenanceBusy() {
+	if _, ok := v.admitCommand(commandRequest{command: commandSearch, route: routeDelivery}); !ok {
 		return
 	}
 	v.fileWork.searchLifecycle.invalidate()
@@ -226,7 +228,7 @@ func (h searchHost) Restore(visit searchui.Visit, origin bool) {
 	v.resetSearchPresentation()
 	if origin {
 		if i := v.restoreSearchOrigin(visit); i >= 0 {
-			v.ShowImage(i)
+			v.loadImage(i)
 		}
 	} else {
 		v.restoreSearchVisit(visit)

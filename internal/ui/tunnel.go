@@ -16,7 +16,7 @@ func (v *viewer) tunnelSources() []fyne.URI {
 }
 
 func (v *viewer) openSpiral() {
-	if v.stopping {
+	if _, ok := v.admitCommand(commandRequest{command: commandSpiral}); !ok {
 		return
 	}
 	var sources []fyne.URI
@@ -27,7 +27,7 @@ func (v *viewer) openSpiral() {
 }
 
 func (v *viewer) openSpiralForGesture(clockwise bool) {
-	if v.stopping {
+	if _, ok := v.admitCommand(commandRequest{command: commandSpiral}); !ok {
 		return
 	}
 	var sources []fyne.URI

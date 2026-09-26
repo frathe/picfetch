@@ -28,6 +28,9 @@ var releaseNotesMD string
 // ShowReleaseNotes opens this build's bundled notes, including on first installs
 // and Store builds where no automatic-update What's New cache is available.
 func (h *Help) ShowReleaseNotes() {
+	if !h.admitted() {
+		return
+	}
 	h.ShowWhatsNew(h.app.Metadata().Version, releaseNotesMD)
 }
 

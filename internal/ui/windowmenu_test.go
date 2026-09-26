@@ -36,7 +36,7 @@ func TestWindowCommandAdmissionMatrix(t *testing.T) {
 		{"viewer preserves inspect", "inspect", "viewer", state{inspect: true}, state{inspect: true}},
 		{"grid yields copy selection", "copy", "grid", state{grid: true}, state{grid: true}},
 	} {
-		for _, route := range []string{"key", "menu", "direct command"} {
+		for _, route := range []string{"key", "menu", "bare handler"} {
 			t.Run(tc.name+"/"+route, func(t *testing.T) {
 				var v *viewer
 				if tc.initial == "inspect" {
@@ -79,8 +79,8 @@ func TestWindowCommandAdmissionMatrix(t *testing.T) {
 					v.handleKeyEvent(&fyne.KeyEvent{Name: key})
 				case "menu":
 					action()
-				case "direct command":
-					v.RunCommand(direct)
+				case "bare handler":
+					direct()
 				}
 				v.grid.Settle()
 				got := state{v.grid.Visible(), v.slides.Active(), v.dupes.Inspecting(), v.regionCopy.State().Active}

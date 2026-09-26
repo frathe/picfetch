@@ -93,7 +93,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		index = v.state.index
 	}
 	if index >= 0 && change.kind != sourceLoadFailed {
-		v.ShowImage(index)
+		v.loadImage(index)
 	}
 	if restore {
 		v.syncMenus()

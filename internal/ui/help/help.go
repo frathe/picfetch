@@ -49,6 +49,28 @@ type Help struct {
 	onManualOpened func()
 
 	onSpiral func()
+	admit    func() bool
+	menu     *fyne.Menu
+}
+
+// SetAdmission installs the application-owned gate for fresh Help actions.
+// Automatic notifications and controls of an already-open window stay local.
+func (h *Help) SetAdmission(admit func() bool) { h.admit = admit }
+
+func (h *Help) admitted() bool { return h.admit == nil || h.admit() }
+
+// SetCommandsEnabled updates presentation without running admission effects.
+func (h *Help) SetCommandsEnabled(enabled bool) (changed bool) {
+	if h.menu == nil {
+		return false
+	}
+	for _, item := range h.menu.Items {
+		if !item.IsSeparator && item.Disabled == enabled {
+			item.Disabled = !enabled
+			changed = true
+		}
+	}
+	return changed
 }
 
 // New returns the help UI for application, showing title as the app's name
@@ -90,6 +112,15 @@ func (h *Help) SetOnManualOpened(f func()) { h.onManualOpened = f }
 
 // ShowDiscussions opens the public community page without attaching app data.
 func (h *Help) ShowDiscussions() {
+	if !h.admitted() {
+		return
+	}
+	h.OpenDiscussionsLink()
+}
+
+// OpenDiscussionsLink serves an already-owned dialog's community hyperlink.
+// It is not a new main-window command (notably during Explorer setup).
+func (h *Help) OpenDiscussionsLink() {
 	target, _ := url.Parse(DiscussionsURL)
 	if err := h.app.OpenURL(target); err != nil {
 		fyne.LogError("open GitHub Discussions", err)
@@ -104,6 +135,9 @@ func (h *Help) ShowDiscussions() {
 // rule the grid/slideshow full-window-mode guard follows (see
 // ARCHITECTURE.md).
 func (h *Help) Menu() *fyne.Menu {
+	if h.menu != nil {
+		return h.menu
+	}
 	manual := fyne.NewMenuItem(lang.L("Manual"), h.ShowManual)
 	// Display-only: F1 itself is handleKeyEvent in internal/ui. This is the
 	// same menu-hint pattern File uses for Open/Save/Export.
@@ -113,5 +147,6 @@ func (h *Help) Menu() *fyne.Menu {
 	about := fyne.NewMenuItem(lang.L("About"), h.ShowAbout)
 	discussions := fyne.NewMenuItem(lang.L("GitHub Discussions"), h.ShowDiscussions)
 
-	return fyne.NewMenu(lang.L("Help"), manual, releases, licenses, discussions, fyne.NewMenuItemSeparator(), about)
+	h.menu = fyne.NewMenu(lang.L("Help"), manual, releases, licenses, discussions, fyne.NewMenuItemSeparator(), about)
+	return h.menu
 }

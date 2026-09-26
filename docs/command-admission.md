@@ -1,6 +1,6 @@
 # MA-028: shared command admission
 
-Status: accepted design; implementation planning and verification pending.
+Status: implementation complete; integrated verification and native acceptance tracked separately.
 Date: 2026-09-27
 
 The `/grill-with-docs MA-028` interview established one shared decision module
@@ -8,12 +8,14 @@ for application-wide commands. The user accepted Q1-Q3 on 2026-09-26 and Q4-Q7
 on 2026-09-27. All presented design decisions are settled. The
 [interview record](../.scratch/ma-028/interview.md) retains source evidence and
 the [ADR](adr/0003-shared-command-admission.md) records the ownership trade-off.
-This document describes the intended change; it does not claim implementation
-or passing tests.
+The implementation follows these decisions. See the
+[verification record](command-admission-verification-2026-09-27.md) for actual
+results and outstanding native qualification; this design is not test evidence.
 
-The [published specification](../.scratch/ma-028/spec.md) is `ready-for-agent`
-and adds user stories, test boundaries and acceptance commands for implementation
-planning. Native accelerator/focus qualification remains a separate required gate.
+The [published specification](../.scratch/ma-028/spec.md) supplies user stories,
+test boundaries and acceptance commands. The implementation request accepted
+the [execution plan](../plans/2026-09-27-ma-028-command-admission.md).
+Native accelerator/focus qualification remains a separate required gate.
 
 ## Accepted decisions
 
@@ -118,8 +120,8 @@ the application must account for.
 Start with private root UI policy and adapters over current feature observations.
 Migrate one family at a time. Remove duplicated admission predicates only when
 all of that family's applicable routes use the shared decision. Keep construction,
-overlay and shutdown composition explicit. The eventual implementation plan
-chooses exact Go types, file changes, test names and migration slices.
+overlay and shutdown composition explicit. The implementation plan records
+the exact Go types, file changes, test names and migration slices.
 
 Verification must establish:
 
@@ -127,9 +129,9 @@ Verification must establish:
    state, capability, intent and target distinctions, including refusal without
    effects and admission requiring a yield.
 2. Actual menu callbacks, registered shortcuts and unwrapped user-action entries
-   enforce the same shared rules and their deliberate differences. Extend
-   `TestWindowCommandAdmissionMatrix`; its current `RunCommand` route alone does
-   not cover bare handlers.
+   enforce the same shared rules and their deliberate differences.
+   `TestWindowCommandAdmissionMatrix` now exercises bare handlers directly;
+   its former `RunCommand` wrapper route did not establish that coverage.
 3. Concrete regressions cover D4-D7: commands cannot act below a prompt; editor
    Copy/Select All reach the editor; busy-region menu availability changes and
    recovers; unavailable Save leaves idle Copy Selection intact. Repeated menu
@@ -151,8 +153,8 @@ accelerator/focus routes. Do not solve this by silently dropping the editor's
 shortcut. Platform-specific native menu behavior needs separate evidence;
 source inspection is not a native runtime qualification.
 
-Implementation must follow the repository's focused-regression, shard/exclusion,
+Implementation follows the repository's focused-regression, shard/exclusion,
 GoLand inspection and final verification requirements. No application tests or
-native experiments were run for this documentation-only interview. The inspected
+native experiments were run during the earlier documentation-only interview. The inspected
 commits `1adc477` and `6c0db30` have the same tree, so the intervening history
 change did not invalidate the source evidence.

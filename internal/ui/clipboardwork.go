@@ -16,7 +16,7 @@ type clipboardWork struct {
 	lifecycle  requestLifecycle
 	workers    sync.WaitGroup
 	pending    atomic.Bool
-	closed     bool
+	closed     atomic.Bool
 	imageBound bool
 	ui         clipboardUIQueue
 	encode     func(io.Writer, image.Image) error
@@ -47,13 +47,14 @@ func (v *viewer) clipboardBusy() bool {
 }
 
 func (v *viewer) beginClipboardCopy(imageBound bool) (requestToken, func(), bool) {
-	if v.clipboardWork.closed || v.clipboardBusy() {
+	if v.clipboardWork.closed.Load() || v.clipboardBusy() {
 		return requestToken{}, nil, false
 	}
 	v.clipboardWork.pending.Store(true)
 	v.clipboardWork.imageBound = imageBound
 	token := v.clipboardWork.lifecycle.begin()
 	finished := v.clipboard.Begin()
+	v.syncMenus()
 	done := sync.OnceFunc(func() {
 		token.cancelContext()
 		v.clipboardWork.pending.Store(false)
@@ -63,18 +64,23 @@ func (v *viewer) beginClipboardCopy(imageBound bool) (requestToken, func(), bool
 }
 
 // completeClipboardCopy submits the only result effect. The worker can finish
-// before UI delivery; the operation's Signal includes that delivery. Cancelled
-// work finishes directly, and a queued callback rechecks before touching UI.
+// before UI delivery; the operation's Signal includes that delivery and restored
+// menu availability. Shutdown cancellation finishes directly without UI delivery.
+// Other cancellations still refresh availability, but discard their result effect.
 func (v *viewer) completeClipboardCopy(token requestToken, done func(), apply func()) {
-	if !token.current() {
+	if !token.current() && v.clipboardWork.closed.Load() {
 		done()
 		return
 	}
 	v.clipboardWork.ui.Do(func() {
 		defer done()
-		if token.current() {
+		if token.current() && apply != nil {
 			apply()
 		}
+		// Release admission before observing it for menus, on the same UI turn
+		// as done so an older completion cannot clear a newer operation.
+		v.clipboardWork.pending.Store(false)
+		v.syncMenus()
 	})
 }
 
@@ -85,7 +91,7 @@ func (v *viewer) cancelImageClipboard() {
 }
 
 func (v *viewer) closeClipboardWork() {
-	v.clipboardWork.closed = true
+	v.clipboardWork.closed.Store(true)
 	v.clipboardWork.lifecycle.invalidate()
 }
 

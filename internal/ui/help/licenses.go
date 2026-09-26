@@ -10,6 +10,9 @@ import (
 // ShowLicenses renders the embedded release document without reading files or
 // fetching license texts. Repeated requests raise the same window; Escape closes.
 func (h *Help) ShowLicenses() {
+	if !h.admitted() {
+		return
+	}
 	if h.stopped {
 		return
 	}

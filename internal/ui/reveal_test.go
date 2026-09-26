@@ -160,8 +160,8 @@ func TestRevealLink_RevealsCurrentFile(t *testing.T) {
 }
 
 // TestRevealActionsFile_MenuItemRevealsCurrentFile drives the Actions menu
-// item's own callback, which reaches the command through
-// yieldingMenuCallbacks rather than through the canvas shortcut above.
+// item's own callback, which reaches the guarded command directly rather than
+// through the canvas shortcut above.
 func TestRevealActionsFile_MenuItemRevealsCurrentFile(t *testing.T) {
 	v, _, _ := newTestUI(t)
 

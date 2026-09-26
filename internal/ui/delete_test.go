@@ -297,10 +297,8 @@ func TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError(t *testing.T) {
 	settleToast(t, v)
 }
 
-// TestHandleDrop_CancelsAnyPendingDeleteConfirmation guards against a fresh
-// drop landing while the confirmation card is still up over a file list
-// that drop is about to replace.
-func TestHandleDrop_CancelsAnyPendingDeleteConfirmation(t *testing.T) {
+// A drop cannot replace the collection owned by a pending confirmation.
+func TestHandleDrop_PreservesPendingDeleteConfirmation(t *testing.T) {
 	v := newTestViewer(t)
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a)
@@ -313,8 +311,8 @@ func TestHandleDrop_CancelsAnyPendingDeleteConfirmation(t *testing.T) {
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
 	dropAndWait(t, v, b)
 
-	if v.deletion.Visible() {
-		t.Error("a fresh drop should dismiss any pending delete confirmation")
+	if !v.deletion.Visible() || v.FileAt(0).String() != a.String() {
+		t.Error("a fresh drop replaced the prompt or its collection")
 	}
 }
 

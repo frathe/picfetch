@@ -69,6 +69,7 @@ func (f *Feature) prepareExplorer(ready func()) {
 	s.panel = widget.NewModalPopUp(container.New(explorerSetupLayout{f.win.Canvas()}, body), f.win.Canvas())
 	f.win.Resize(f.win.Canvas().Size().Max(fyne.NewSize(720, 660)))
 	s.panel.Show()
+	f.host.Changed()
 	if !f.supported {
 		s.status.SetText(lang.L("Similarity Explorer requires an Intel Mac with macOS 13.4 or newer, an Apple Silicon Mac, Linux x64/ARM64 or Windows 11 x64/ARM64."))
 		s.primary.Hide()
@@ -124,6 +125,7 @@ func (f *Feature) closeExplorerSetup() {
 		s.op.invalidate()
 		s.panel.Hide()
 		f.setup = nil
+		f.host.Changed()
 	}
 }
 

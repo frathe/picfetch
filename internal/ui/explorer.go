@@ -17,11 +17,7 @@ type explorerInput struct {
 }
 
 func (v *viewer) showExplorer() {
-	// The previous collection stays installed until replacement sorting commits.
-	if v.scanOp.active || v.sortOp.active || v.analysisMaintenanceBusy() {
-		return
-	}
-	if v.stopping || v.comparisonActive() || v.explorerMapActive() && !v.explorerCanRetry() || v.FileCount() == 0 || !v.yieldCopySelection() {
+	if _, ok := v.admitCommand(commandRequest{command: commandExplorer}); !ok {
 		return
 	}
 	defer v.syncMenus()
@@ -55,6 +51,10 @@ func (v *viewer) showExplorer() {
 	v.beginExplorerAnalysis()
 }
 func (v *viewer) beginExplorerAnalysis() {
+	if _, ok := v.admitCommand(commandRequest{command: commandExplorer, route: routeDelivery}); !ok {
+		v.closeExplorer()
+		return
+	}
 	paths := make([]string, 0, v.FileCount())
 	visibility := v.dupes.Visibility()
 	for i := range v.FileCount() {

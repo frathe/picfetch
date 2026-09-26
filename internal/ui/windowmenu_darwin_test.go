@@ -145,6 +145,12 @@ func TestMergeWindowMenus_FoldsEveryDuplicate(t *testing.T) {
 }
 
 func TestSetMenuItemModifierMask_ClearsDefaultCommand(t *testing.T) {
+	copyMenu := testNewMenu("Actions")
+	defer testReleaseMenu(copyMenu)
+	testAddItemWithKey(copyMenu, "Copy image", "c")
+	if !clearMenuItemKey(copyMenu, "Copy image") || testItemKeyEquivalent(copyMenu, 0) != "" {
+		t.Fatal("native Copy still intercepts focused editor input")
+	}
 	m := newTestMenu(t, "Actions")
 	testAddItemWithKey(m, "Toggle merge mode", "m")
 

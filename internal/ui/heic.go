@@ -113,11 +113,14 @@ func (v *viewer) explainUnavailableHEIC(skipped []fyne.URI, explicit bool) {
 	v.ShowToast(message)
 	body := widget.NewLabel(message)
 	body.Wrapping = fyne.TextWrapWord
-	dialog.NewCustomConfirm(lang.L("HEIC support"), lang.L("HEIC installation guide"), lang.L("Close"), body, func(open bool) {
+	prompt := dialog.NewCustomConfirm(lang.L("HEIC support"), lang.L("HEIC installation guide"), lang.L("Close"), body, func(open bool) {
 		if open && !v.stopping {
 			v.help.ShowHEICGuide()
 		}
-	}, v.win).Show()
+	}, v.win)
+	prompt.SetOnClosed(v.syncMenus)
+	prompt.Show()
+	v.syncMenus()
 }
 
 // configureHEIC sets the single native boundary before admitting any image or

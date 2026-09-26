@@ -1,6 +1,7 @@
 package menus
 
 import (
+	"reflect"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -192,26 +193,6 @@ func TestActionsMenu_Composition(t *testing.T) {
 	assertItems(t, "Actions", menu.Items, want)
 }
 
-func TestApply_MosaicFollowsCanMosaicAndComparisonIsolation(t *testing.T) {
-	fired := false
-	m := New(Callbacks{Mosaic: func() { fired = true }}, filesort.ByName)
-	item := m.Window().Mosaic()
-	if item.Label != lang.L("Generate Image Mosaic...") || !item.Disabled {
-		t.Fatalf("initial Mosaic item = {label:%q disabled:%v}", item.Label, item.Disabled)
-	}
-	if !m.Apply(State{CanMosaic: true}) || item.Disabled {
-		t.Fatal("CanMosaic did not enable the mosaic item")
-	}
-	item.Action()
-	if !fired {
-		t.Fatal("Mosaic item did not call its callback")
-	}
-	m.Apply(State{CanMosaic: true, ComparisonActive: true})
-	if !item.Disabled {
-		t.Fatal("comparison isolation did not disable the mosaic item")
-	}
-}
-
 func TestActionsMenu_CopySelection(t *testing.T) {
 	fired := false
 	m := New(Callbacks{CopySelection: func() { fired = true }}, filesort.ByName)
@@ -249,7 +230,7 @@ func TestActionsMenu_CopySelection(t *testing.T) {
 		t.Errorf("initial CopySelection state = {Disabled:%v Checked:%v}, want {true false}", item.Disabled, item.Checked)
 	}
 
-	if !m.Apply(State{CanCopySelection: true}) {
+	if !m.Apply(State{Availability: Availability{CopySelection: true}}) {
 		t.Fatal("Apply did not report CopySelection becoming enabled")
 	}
 	if item.Disabled || item.Checked {
@@ -280,7 +261,7 @@ func TestCompareEntry_MenuItem(t *testing.T) {
 		t.Errorf("initial Compare state = {Disabled:%v Checked:%v}, want {true false}", item.Disabled, item.Checked)
 	}
 
-	if !m.Apply(State{CanCompare: true}) {
+	if !m.Apply(State{Availability: Availability{Compare: true}}) {
 		t.Fatal("Apply did not report Compare becoming enabled")
 	}
 	if item.Disabled || item.Checked {
@@ -321,553 +302,6 @@ func assertItems(t *testing.T, menu string, got, want []*fyne.MenuItem) {
 		if got[i] != want[i] {
 			t.Errorf("%s menu item %d = %q, want %q", menu, i, got[i].Label, want[i].Label)
 		}
-	}
-}
-
-func TestApply_SortCheckFollowsSortMode(t *testing.T) {
-	modes := filesort.Modes()
-
-	for _, mode := range modes {
-		// Start on a different mode so Apply has to move the check,
-		// rather than agreeing with what New already set.
-		m := New(Callbacks{}, mode.Next())
-		m.Apply(State{SortMode: mode})
-		for i, it := range m.Actions().Sort() {
-			checkChecked(t, filesort.DisplayName(modes[i]), it, modes[i] == mode)
-			checkDisabled(t, filesort.DisplayName(modes[i]), it, false)
-		}
-	}
-}
-
-func TestApply_SortChecksNothingForAnUnknownMode(t *testing.T) {
-	for _, mode := range []filesort.Mode{-1, filesort.Mode(len(filesort.Modes())), 99} {
-		m := newMenus()
-		m.Apply(State{SortMode: mode})
-		for i, it := range m.Actions().Sort() {
-			checkChecked(t, filesort.DisplayName(filesort.Modes()[i]), it, false)
-			checkDisabled(t, filesort.DisplayName(filesort.Modes()[i]), it, false)
-		}
-	}
-}
-
-// TestApply_SortIsNeverDisabled pins the one item in the Actions menu
-// that stays available no matter what: reordering an empty set is a
-// no-op, not an error.
-func TestApply_SortIsNeverDisabled(t *testing.T) {
-	m := newMenus()
-	m.Apply(everythingOn())
-	for i, it := range m.Actions().Sort() {
-		checkDisabled(t, filesort.DisplayName(filesort.Modes()[i]), it, false)
-	}
-}
-
-// everythingOn is the State with every bool set, used to prove the items
-// that are never disabled really never are.
-func everythingOn() State {
-	return State{
-		SortMode:           filesort.ByName,
-		VariantGroupSize:   9,
-		NoFiles:            true,
-		GridUp:             true,
-		NoImage:            true,
-		SlidesActive:       true,
-		ExifOpen:           true,
-		ManualOpen:         true,
-		Displayed:          true,
-		MergeMode:          true,
-		HideDuplicates:     true,
-		BrowsingDuplicates: true,
-		VariantsSession:    true,
-		InfoVisible:        true,
-		CanSave:            true,
-		CanExport:          true,
-		CanWallpaper:       true,
-		CanCopySelection:   true,
-		CanCompare:         true,
-		CanMosaic:          true,
-	}
-}
-
-func TestApply_Hide(t *testing.T) {
-	for _, tc := range []struct {
-		name            string
-		state           State
-		wantDisabled    bool
-		wantCheckedFlag bool
-	}{
-		{"idle", State{}, false, false},
-		{"hiding", State{HideDuplicates: true}, false, true},
-		{"ranked search", State{RestrictedBrowsing: true}, true, false},
-		{"no files", State{NoFiles: true}, true, false},
-		{"no files while hiding", State{NoFiles: true, HideDuplicates: true}, true, true},
-		{"variants session", State{VariantsSession: true}, true, false},
-		{"variants session while hiding", State{VariantsSession: true, HideDuplicates: true}, true, true},
-		{"both", State{NoFiles: true, VariantsSession: true}, true, false},
-		{"both while hiding", State{NoFiles: true, VariantsSession: true, HideDuplicates: true}, true, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "hide", m.Actions().Hide(), tc.wantDisabled)
-			checkChecked(t, "hide", m.Actions().Hide(), tc.wantCheckedFlag)
-		})
-	}
-}
-
-// TestApply_ShowVariant walks the one genuinely compound rule in the
-// matrix: the item is live only when there is somewhere to go (a
-// duplicate group of at least two while hiding) or somewhere to come back
-// from (already browsing), and never while there are no files or the
-// slideshow is running.
-func TestApply_ShowVariant(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		state        State
-		wantDisabled bool
-		wantChecked  bool
-	}{
-		{"idle", State{}, true, false},
-		{"hiding, group of 2", State{HideDuplicates: true, VariantGroupSize: 2}, false, false},
-		{"ranked search with duplicates", State{RestrictedBrowsing: true, HideDuplicates: true, VariantGroupSize: 2}, true, false},
-		{"hiding, group of 3", State{HideDuplicates: true, VariantGroupSize: 3}, false, false},
-		{"hiding, group of 1", State{HideDuplicates: true, VariantGroupSize: 1}, true, false},
-		{"hiding, group of 0", State{HideDuplicates: true, VariantGroupSize: 0}, true, false},
-		{"hiding, negative group", State{HideDuplicates: true, VariantGroupSize: -1}, true, false},
-		{"group of 5 but not hiding", State{VariantGroupSize: 5}, true, false},
-		{"browsing with no group at all", State{BrowsingDuplicates: true}, false, true},
-		{"browsing while hiding", State{BrowsingDuplicates: true, HideDuplicates: true, VariantGroupSize: 2}, false, true},
-		{"no files kills the group case", State{NoFiles: true, HideDuplicates: true, VariantGroupSize: 2}, true, false},
-		{"no files kills the browse case", State{NoFiles: true, BrowsingDuplicates: true}, true, true},
-		{"slides kill the group case", State{SlidesActive: true, HideDuplicates: true, VariantGroupSize: 2}, true, false},
-		{"slides kill the browse case", State{SlidesActive: true, BrowsingDuplicates: true}, true, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "showVariant", m.Actions().ShowVariant(), tc.wantDisabled)
-			checkChecked(t, "showVariant", m.Actions().ShowVariant(), tc.wantChecked)
-		})
-	}
-}
-
-func TestApply_RotateAndZoomShareOneCondition(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-		want  bool
-	}{
-		{"image showing", State{}, false},
-		{"no image", State{NoImage: true}, true},
-		{"grid up", State{GridUp: true}, true},
-		{"no image and grid up", State{NoImage: true, GridUp: true}, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "rotate", m.Actions().Rotate(), tc.want)
-			checkDisabled(t, "zoomIn", m.Actions().ZoomIn(), tc.want)
-			checkDisabled(t, "zoomOut", m.Actions().ZoomOut(), tc.want)
-		})
-	}
-}
-
-func TestApply_Info(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		state        State
-		wantDisabled bool
-		wantChecked  bool
-	}{
-		{"hidden", State{}, false, false},
-		{"visible", State{InfoVisible: true}, false, true},
-		{"grid up", State{GridUp: true}, true, false},
-		{"grid up while visible", State{GridUp: true, InfoVisible: true}, true, true},
-		{"no image does not disable it", State{NoImage: true}, false, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "info", m.Actions().Info(), tc.wantDisabled)
-			checkChecked(t, "info", m.Actions().Info(), tc.wantChecked)
-		})
-	}
-}
-
-// TestApply_MergeIsNeverDisabled: merge mode is a preference about the
-// next drop, so it stays reachable with nothing loaded.
-func TestApply_MergeIsNeverDisabled(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-		want  bool
-	}{
-		{"off", State{}, false},
-		{"on", State{MergeMode: true}, true},
-		{"on with everything else on too", everythingOn(), true},
-		{"off with no files", State{NoFiles: true}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "merge", m.Actions().Merge(), false)
-			checkChecked(t, "merge", m.Actions().Merge(), tc.want)
-		})
-	}
-}
-
-func TestApply_ClipboardWallpaperAndTrash(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		state         State
-		wantNoFiles   bool
-		wantWallpaper bool
-	}{
-		{"files, wallpaper allowed", State{CanWallpaper: true}, false, false},
-		{"files, wallpaper not allowed", State{}, false, true},
-		{"no files, wallpaper allowed", State{NoFiles: true, CanWallpaper: true}, true, false},
-		{"no files, wallpaper not allowed", State{NoFiles: true}, true, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "copy", m.Actions().Copy(), tc.wantNoFiles)
-			checkDisabled(t, "copyPath", m.Actions().CopyPath(), tc.wantNoFiles)
-			checkDisabled(t, "reveal", m.Actions().Reveal(), tc.wantNoFiles)
-			checkDisabled(t, "trash", m.Actions().Trash(), tc.wantNoFiles)
-			checkDisabled(t, "wallpaper", m.Actions().Wallpaper(), tc.wantWallpaper)
-		})
-	}
-}
-
-func TestApply_FileItems(t *testing.T) {
-	for _, tc := range []struct {
-		name                            string
-		state                           State
-		wantSave, wantExport, wantClose bool
-	}{
-		{"nothing loaded", State{NoFiles: true}, true, true, true},
-		{"scan or sort pending", State{NoFiles: true, FileWorkActive: true}, true, true, false},
-		{"loaded, nothing pending", State{}, true, true, false},
-		{"pending rotation", State{CanSave: true}, false, true, false},
-		{"exportable", State{CanExport: true}, true, false, false},
-		{"both", State{CanSave: true, CanExport: true}, false, false, false},
-		// CanSave/CanExport are computed by internal/ui, so a State that
-		// claims both while claiming no files is not one the app builds -
-		// the matrix still has to answer for it, item by item.
-		{"contradictory", State{NoFiles: true, CanSave: true, CanExport: true}, false, false, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "save", m.Save(), tc.wantSave)
-			checkDisabled(t, "export", m.Export(), tc.wantExport)
-			checkDisabled(t, "closeFiles", m.CloseFiles(), tc.wantClose)
-		})
-	}
-}
-
-func TestApply_WindowViewer(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-		want  bool
-	}{
-		{"already in the viewer", State{}, true},
-		{"cohort image", State{CohortActive: true}, false},
-		{"comparison inside cohort", State{CohortActive: true, ComparisonActive: true}, true},
-		{"grid up", State{GridUp: true}, false},
-		{"slides active", State{SlidesActive: true}, false},
-		{"both", State{GridUp: true, SlidesActive: true}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "window.viewer", m.Window().Viewer(), tc.want)
-		})
-	}
-}
-
-func TestApply_WindowExif(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-		want  bool
-	}{
-		{"file displayed, window closed", State{Displayed: true}, false},
-		{"file displayed, window open", State{Displayed: true, ExifOpen: true}, true},
-		{"nothing displayed", State{}, true},
-		{"nothing displayed, window open", State{ExifOpen: true}, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "window.exif", m.Window().Exif(), tc.want)
-		})
-	}
-}
-
-func TestApply_WindowGrid(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-		want  bool
-	}{
-		{"files loaded, viewer showing", State{}, false},
-		{"grid already up", State{GridUp: true}, true},
-		{"no files", State{NoFiles: true}, true},
-		{"slides active", State{SlidesActive: true}, true},
-		{"all three", State{GridUp: true, NoFiles: true, SlidesActive: true}, true},
-		{"variants session does not disable it", State{VariantsSession: true}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "window.grid", m.Window().Grid(), tc.want)
-		})
-	}
-}
-
-func TestApply_WindowPictureFrame(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-		want  bool
-	}{
-		{"files loaded, viewer showing", State{}, false},
-		{"slides already active", State{SlidesActive: true}, true},
-		{"no files", State{NoFiles: true}, true},
-		{"variants session", State{VariantsSession: true}, true},
-		{"all three", State{SlidesActive: true, NoFiles: true, VariantsSession: true}, true},
-		{"grid up does not disable it", State{GridUp: true}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "window.pictureFrame", m.Window().PictureFrame(), tc.want)
-		})
-	}
-}
-
-func TestApply_WindowHelp(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-		want  bool
-	}{
-		{"manual closed", State{}, false},
-		{"manual open", State{ManualOpen: true}, true},
-		{"manual closed with nothing loaded", State{NoFiles: true}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state)
-			checkDisabled(t, "window.help", m.Window().Help(), tc.want)
-		})
-	}
-}
-
-func TestApply_ChangedIsFalseWhenNothingMoves(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		state State
-	}{
-		{"zero state", State{}},
-		{"everything on", everythingOn()},
-		{"a loaded, displayed file", State{SortMode: filesort.ByModTime, Displayed: true, CanSave: true, CanExport: true, CanWallpaper: true, CanCopySelection: true, CanCompare: true}},
-		{"empty drop zone", State{NoFiles: true, NoImage: true}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.state) // settle
-			if m.Apply(tc.state) {
-				t.Error("Apply reported a change for an identical re-apply")
-			}
-			if m.Apply(tc.state) {
-				t.Error("Apply reported a change on a third identical apply")
-			}
-		})
-	}
-}
-
-// TestApply_ChangedIsTrueForASingleFlip walks one State field at a time,
-// in both directions, and demands Apply notice. A missed flip here is a
-// menu that stays stale on screen because internal/ui was told there was
-// nothing to redraw.
-func TestApply_ChangedIsTrueForASingleFlip(t *testing.T) {
-	base := State{}
-
-	withSort := base
-	withSort.SortMode = filesort.ByCaptureDate
-
-	hiding := base
-	hiding.HideDuplicates = true
-	hidingWithGroup := hiding
-	hidingWithGroup.VariantGroupSize = 2
-
-	displayed := base
-	displayed.Displayed = true
-	displayedExifOpen := displayed
-	displayedExifOpen.ExifOpen = true
-
-	flip := func(mutate func(*State)) State {
-		s := base
-		mutate(&s)
-		return s
-	}
-
-	for _, tc := range []struct {
-		name string
-		from State
-		to   State
-	}{
-		{"SortMode", base, withSort},
-		{"NoFiles", base, flip(func(s *State) { s.NoFiles = true })},
-		{"GridUp", base, flip(func(s *State) { s.GridUp = true })},
-		{"NoImage", base, flip(func(s *State) { s.NoImage = true })},
-		{"SlidesActive", base, flip(func(s *State) { s.SlidesActive = true })},
-		{"ExifOpen", displayed, displayedExifOpen},
-		{"ManualOpen", base, flip(func(s *State) { s.ManualOpen = true })},
-		{"Displayed", base, displayed},
-		{"MergeMode", base, flip(func(s *State) { s.MergeMode = true })},
-		{"HideDuplicates", base, hiding},
-		{"BrowsingDuplicates", base, flip(func(s *State) { s.BrowsingDuplicates = true })},
-		{"VariantsSession", base, flip(func(s *State) { s.VariantsSession = true })},
-		{"InfoVisible", base, flip(func(s *State) { s.InfoVisible = true })},
-		{"CanSave", base, flip(func(s *State) { s.CanSave = true })},
-		{"CanExport", base, flip(func(s *State) { s.CanExport = true })},
-		{"CanWallpaper", base, flip(func(s *State) { s.CanWallpaper = true })},
-		{"CanCopySelection", base, flip(func(s *State) { s.CanCopySelection = true })},
-		{"CanCompare", base, flip(func(s *State) { s.CanCompare = true })},
-		{"CanMosaic", base, flip(func(s *State) { s.CanMosaic = true })},
-		{"VariantGroupSize crossing 2", hiding, hidingWithGroup},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMenus()
-			m.Apply(tc.from) // settle
-			if !m.Apply(tc.to) {
-				t.Error("Apply reported no change on the flip")
-			}
-			if !m.Apply(tc.from) {
-				t.Error("Apply reported no change flipping back")
-			}
-		})
-	}
-}
-
-// TestApply_ChangedIgnoresStateFieldsNoItemReads guards the other
-// direction: a State field that moves without moving an item must not
-// make internal/ui rebuild the native bar for nothing.
-func TestApply_ChangedIgnoresStateFieldsNoItemReads(t *testing.T) {
-	m := newMenus()
-	from := State{HideDuplicates: true, VariantGroupSize: 3}
-	m.Apply(from)
-
-	to := from
-	to.VariantGroupSize = 4 // still >= 2, so "Show variants" does not move
-	if m.Apply(to) {
-		t.Error("Apply reported a change for a group size that stayed above the threshold")
-	}
-}
-
-// TestApply_IsIdempotent proves the matrix is a function of State alone:
-// the same snapshot lands on the same items no matter what came before.
-func TestApply_IsIdempotent(t *testing.T) {
-	target := State{
-		SortMode:         filesort.BySize,
-		VariantGroupSize: 2,
-		GridUp:           true,
-		HideDuplicates:   true,
-		Displayed:        true,
-		CanExport:        true,
-		CanCopySelection: true,
-		CanCompare:       true,
-	}
-
-	fresh := newMenus()
-	fresh.Apply(target)
-
-	viaOtherStates := newMenus()
-	viaOtherStates.Apply(everythingOn())
-	viaOtherStates.Apply(State{NoFiles: true, NoImage: true})
-	viaOtherStates.Apply(target)
-
-	got, want := viaOtherStates.pairs(), fresh.pairs()
-	if len(got) != len(want) {
-		t.Fatalf("matrix length %d, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("item %d = %+v, want %+v", i, got[i], want[i])
-		}
-	}
-}
-
-// TestPairs_CoversEveryStatefulItem keeps the change detector honest: if
-// an item is added to the struct but not to pairs, Apply would silently
-// stop reporting its moves.
-func TestPairs_CoversEveryStatefulItem(t *testing.T) {
-	m := newMenus()
-	items := []*fyne.MenuItem{
-		m.open, m.Save(), m.Export(), m.CloseFiles(), m.settings,
-		m.Window().Viewer(), m.Window().Exif(), m.Window().Grid(),
-		m.Window().PictureFrame(), m.Window().Help(), m.window.explorer, m.window.locationMap,
-		m.sortParent,
-		m.Actions().Hide(), m.Actions().ShowVariant(), m.Actions().Compare(), m.actions.findMoreLikeThis, m.Window().Mosaic(), m.Actions().Rotate(),
-		m.Actions().ZoomIn(), m.Actions().ZoomOut(), m.Actions().Merge(),
-		m.Actions().Info(), m.Actions().Copy(), m.Actions().CopySelection(), m.Actions().CopyPath(),
-		m.Actions().Reveal(), m.Actions().Wallpaper(), m.Actions().Trash(),
-	}
-	items = append(items, m.Actions().Sort()...)
-
-	if got, want := len(m.pairs()), len(items); got != want {
-		t.Fatalf("pairs covers %d items, want %d", got, want)
-	}
-
-	for _, it := range items {
-		before := m.pairs()
-		it.Disabled = !it.Disabled
-		after := m.pairs()
-		it.Disabled = !it.Disabled
-
-		moved := false
-		for i := range before {
-			if before[i] != after[i] {
-				moved = true
-			}
-		}
-		if !moved {
-			t.Errorf("%q is not covered by pairs", it.Label)
-		}
-	}
-}
-
-func TestCompareMenuState_DisablesEveryOrdinaryItemButHelp(t *testing.T) {
-	m := newMenus()
-	m.Apply(State{
-		ComparisonActive: true,
-		CanSave:          true,
-		CanExport:        true,
-		CanWallpaper:     true,
-		CanCopySelection: true,
-		CanCompare:       true,
-		Displayed:        true,
-	})
-
-	for _, menu := range []*fyne.Menu{m.FileMenu(), m.ActionsMenu()} {
-		for _, item := range menu.Items {
-			if item.IsSeparator {
-				continue
-			}
-			checkDisabled(t, menu.Label+" -> "+item.Label, item, true)
-			if item.ChildMenu != nil {
-				for _, child := range item.ChildMenu.Items {
-					checkDisabled(t, item.Label+" -> "+child.Label, child, true)
-				}
-			}
-		}
-	}
-	for _, item := range m.WindowMenu().Items {
-		checkDisabled(t, "Window -> "+item.Label, item, item != m.Window().Help())
 	}
 }
 
@@ -957,6 +391,112 @@ func TestNew_ItemsRunTheirOwnCallback(t *testing.T) {
 		it.Action()
 		if len(sorted) != 1 || sorted[0] != filesort.Modes()[i] {
 			t.Errorf("sort[%d] %q asked for %v, want [%v]", i, it.Label, sorted, filesort.Modes()[i])
+		}
+	}
+}
+
+// Each named availability is a supplied decision, independently rendered.
+func TestApply_AvailabilityAndChangeDetection(t *testing.T) {
+	m := newMenus()
+	items := map[string]*fyne.MenuItem{
+		"Open":             m.open,
+		"Save":             m.save,
+		"Export":           m.export,
+		"CloseFiles":       m.closeFiles,
+		"Settings":         m.settings,
+		"Viewer":           m.window.viewer,
+		"Explorer":         m.window.explorer,
+		"LocationMap":      m.window.locationMap,
+		"Mosaic":           m.window.mosaic,
+		"Exif":             m.window.exif,
+		"Grid":             m.window.grid,
+		"PictureFrame":     m.window.pictureFrame,
+		"Help":             m.window.help,
+		"Sort":             m.sortParent,
+		"HideDuplicates":   m.actions.hide,
+		"BrowseDuplicates": m.actions.showVariant,
+		"Compare":          m.actions.compare,
+		"Search":           m.actions.findMoreLikeThis,
+		"Rotate":           m.actions.rotate,
+		"Zoom":             m.actions.zoomIn,
+		"Merge":            m.actions.merge,
+		"Info":             m.actions.info,
+		"Copy":             m.actions.copy,
+		"CopySelection":    m.actions.copySelection,
+		"CopyPath":         m.actions.copyPath,
+		"Reveal":           m.actions.reveal,
+		"Wallpaper":        m.actions.wallpaper,
+		"Trash":            m.actions.trash,
+	}
+	var state State
+	m.Apply(state)
+	value := reflect.ValueOf(&state.Availability).Elem()
+	if len(items) != value.NumField() {
+		t.Fatal("new availability needs rendering coverage")
+	}
+	for name, item := range items {
+		t.Run(name, func(t *testing.T) {
+			if !item.Disabled {
+				t.Fatal("zero decision enabled an action")
+			}
+			value.FieldByName(name).SetBool(true)
+			if !m.Apply(state) || item.Disabled {
+				t.Fatal("admission was not rendered")
+			}
+			if m.Apply(state) {
+				t.Fatal("unchanged snapshot caused refresh")
+			}
+			value.FieldByName(name).SetBool(false)
+			if !m.Apply(state) || !item.Disabled {
+				t.Fatal("refusal was not rendered")
+			}
+		})
+	}
+	// Shared presentations remain paired, without deriving their own policy.
+	state.Availability.Zoom = true
+	state.Availability.Sort = true
+	m.Apply(state)
+	if m.actions.zoomOut.Disabled {
+		t.Fatal("Zoom out diverged")
+	}
+	for _, item := range m.actions.sort {
+		if item.Disabled {
+			t.Fatal("sort child diverged")
+		}
+	}
+	state.Availability = Availability{}
+	m.Apply(state)
+	if !m.actions.zoomOut.Disabled {
+		t.Fatal("Zoom out missed refusal")
+	}
+	for _, item := range m.actions.sort {
+		if !item.Disabled {
+			t.Fatal("sort child missed refusal")
+		}
+	}
+}
+
+func TestApply_PresentationIsIndependentOfAdmission(t *testing.T) {
+	m := newMenus()
+	for _, mode := range filesort.Modes() {
+		s := State{SortMode: mode, MergeMode: true, HideDuplicates: true, BrowsingDuplicates: true, InfoVisible: true, LocationMapActive: true}
+		m.Apply(s)
+		for i, candidate := range filesort.Modes() {
+			checkChecked(t, "sort", m.actions.sort[i], candidate == mode)
+		}
+		for _, item := range []*fyne.MenuItem{m.actions.merge, m.actions.hide, m.actions.showVariant, m.actions.info, m.window.locationMap} {
+			if !item.Checked || !item.Disabled {
+				t.Fatal("presentation and refusal are not independent")
+			}
+		}
+		if m.Apply(s) {
+			t.Fatal("identical presentation refreshed the bar")
+		}
+	}
+	m.Apply(State{SortMode: filesort.Mode(99)})
+	for _, item := range m.actions.sort {
+		if item.Checked {
+			t.Fatal("unknown sort checked a mode")
 		}
 	}
 }

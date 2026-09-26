@@ -1,39 +1,74 @@
 # MA-028 ticket and execution plan
 
-Status: draft breakdown; awaiting approval before publishing tickets.
+Status: implementation and available local gates passed; native/CI acceptance open.
 Date: 2026-09-27.
-Inspected revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
+Planning revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
 Route: Deep, because the change crosses feature adapters and native input on
-all shipped desktop platforms. This turn prepares tickets, not application code.
+all shipped desktop platforms. Implementation base: `e440685` (clean worktree).
+The implementation request authorizes the draft breakdown and local commits.
+
+## Implementation record
+
+The [implementation verification record](../docs/command-admission-verification-2026-09-27.md)
+contains the completed command/route ledger, ownership review, observed
+red/green failures, final test/inspection scope and native limitations.
+The historical ticketing evidence at the end describes the earlier planning
+turn, not the current implementation state.
+
+Final-gate budget exception: the first complete Docker run exposed clipboard
+surface-pixel fixtures rejected by the new frame-count fact and a direct
+Close Files startup-reset regression. Both received focused fixes and green
+regressions. The ui-2 panic prevented later tests in that partition, so a
+second complete Make verification is required rather than treating the
+partial run as coverage. T0 owns both runs and their findings.
+Before that rerun, an additional red completion assertion caught Copy/Copy Path
+menus remaining disabled after region copying. The existing clipboard result
+queue now restores availability before completion; success, cancellation and
+terminal no-UI shutdown regressions passed. No new worker was introduced.
+
+Use the accepted pure-decision and real-viewer test seams from the specification.
+Work through vertical red/green slices in ticket order; T0 owns integration,
+review and fixes. Native platforms without runnable desktop access remain
+unverified, with ticket 10 open rather than inferred from unit tests.
+
+Read-only reconnaissance support: one bounded scout (two assignments) maps accelerator/editor
+dispatch and existing tests while T0 implements Save admission. G1-G5: bounded
+question under 25 lines; verify citations with `rg`/targeted reads; zero edited
+files; small input-routing scope; no duplicate of T0's Save context. No review
+or implementation delegated. Budget: one scout spawn, two read-only assignments, no support writes. The second
+assignment audited main-canvas modal creators/notifications across features:
+G1 <=25 lines, G2 citations verified with targeted reads, G3 zero writes,
+G4 bounded notification sweep, G5 separate from T0's navigation implementation.
 
 Source of truth: the [accepted specification](../.scratch/ma-028/spec.md),
 [design](../docs/command-admission.md) and
 [ownership ADR](../docs/adr/0003-shared-command-admission.md). D1-D7 remain settled.
 The parent specification and backlog issue are not modified by ticketing.
 
-## Proposed tickets and blocking edges
+## Published tickets and blocking edges
 
-Each linked draft is one independently reviewable ticket. On approval, publish
-it under `.scratch/ma-028/issues/` with the same filename and update these links.
-Drafts are not yet available for implementation.
+The implementation request accepted the breakdown. Tickets are published under
+`.scratch/ma-028/issues/`; the original drafts are retained as planning history.
+Tickets 01-09 are implemented and locally verified; ticket 10 is
+`ready-for-human` because the required native desktops are not all available.
 
 | Ticket | Delivers | Blocked by | Owner / model / effort |
 | --- | --- | --- | --- |
-| [01](../.scratch/ma-028/draft-issues/01-policy-and-save.md) | Shared admission, proven through Save Changes without losing an unavailable selection | None | T0 Codex Lead / GPT-6 Astra / extra high |
-| [02](../.scratch/ma-028/draft-issues/02-clipboard-and-editing.md) | Correct text, region, Grid and image copy routing, including accelerator delivery | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [03](../.scratch/ma-028/draft-issues/03-open-close-favorites.md) | Consistent Open, Close Files and Favorites admission, including external delivery | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [04](../.scratch/ma-028/draft-issues/04-file-actions.md) | Export, Trash, reveal and wallpaper with prompt ownership and captured subjects | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [05](../.scratch/ma-028/draft-issues/05-window-and-help-entry.md) | Consistent ordinary window, comparison, Settings and Help entry | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [06](../.scratch/ma-028/draft-issues/06-map-and-mosaic-entry.md) | Explorer, Location Map and mosaic entry with safe preparation and retained visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [07](../.scratch/ma-028/draft-issues/07-sort-duplicates-search.md) | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [08](../.scratch/ma-028/draft-issues/08-navigation-and-presentation.md) | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [09](../.scratch/ma-028/draft-issues/09-converge-and-verify.md) | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../.scratch/ma-028/draft-issues/10-native-qualification.md) | Native Linux, Windows and macOS evidence and final acceptance record | 09 | Native desktop operator + T0 Codex Lead / GPT-6 Astra / high |
+| [01](../.scratch/ma-028/issues/01-policy-and-save.md) | Shared admission, proven through Save Changes without losing an unavailable selection | None | T0 Codex Lead / GPT-6 Astra / extra high |
+| [02](../.scratch/ma-028/issues/02-clipboard-and-editing.md) | Correct text, region, Grid and image copy routing, including accelerator delivery | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [03](../.scratch/ma-028/issues/03-open-close-favorites.md) | Consistent Open, Close Files and Favorites admission, including external delivery | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [04](../.scratch/ma-028/issues/04-file-actions.md) | Export, Trash, reveal and wallpaper with prompt ownership and captured subjects | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [05](../.scratch/ma-028/issues/05-window-and-help-entry.md) | Consistent ordinary window, comparison, Settings and Help entry | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [06](../.scratch/ma-028/issues/06-map-and-mosaic-entry.md) | Explorer, Location Map and mosaic entry with safe preparation and retained visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [07](../.scratch/ma-028/issues/07-sort-duplicates-search.md) | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [08](../.scratch/ma-028/issues/08-navigation-and-presentation.md) | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [09](../.scratch/ma-028/issues/09-converge-and-verify.md) | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Native Linux, Windows and macOS evidence and final acceptance record | 09 | Native desktop operator + T0 Codex Lead / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.
 They touch common root input/menu code. Work serially in the displayed order,
-one fresh implementation context per ticket. Shared-file ownership is a scheduling
+one vertical behavior slice per ticket. Shared-file ownership is a scheduling
 constraint, not an invented dependency edge. Recheck each ticket against the
 then-current tree and retain its predecessor evidence.
 
@@ -169,7 +204,7 @@ automatically reclassified as unrelated main-window commands.
 
 ## Acceptance commands
 
-These are future implementation gates, not tests run during ticketing. Keep
+These implementation gates supersede the earlier ticketing-only status. Keep
 the spec's top-level `TestCommandAdmission*` names, adding family subtests under
 `TestCommandAdmissionRoutes` (`save`, `clipboard`, `open`, `files`, `windows`,
 `maps`, `search`, `navigation`). Other top-level matrices may use those same
@@ -219,11 +254,14 @@ Record the actual implementation base at the start of 01. At 09 update the
 architecture map for any package/file ownership movement, the backlog and this
 record. At 10 reconcile all evidence with the tested revision; retain earlier
 unchanged-code evidence explicitly, and repeat affected tests/inspections/native
-scenarios after fixes. A PR review loop, commits, pushes, merge and release are
-not authorized by this ticketing request. Move the accepted implementation plan
+scenarios after fixes. The later `/implement MA-028` request explicitly authorizes local commits.
+No PR review loop, pushes, merge or release are authorized. Move the accepted implementation plan
 to `finished_refactorings/` only after the work has passed its gates and is accepted.
 
 ## Ticketing evidence and cost ledger
+
+This section records the earlier ticket-preparation turn. Current execution
+evidence and the implementation ledger follow it.
 
 Read the working agreement, architecture, full spec/interview, design/ADR and
 domain vocabulary; checked the real menu, shortcut, key, preparation and Help
@@ -258,3 +296,17 @@ visible Git changes, with the ten local drafts retained under ignored `.scratch/
 No application test, native run or code inspection is claimed for this
 documentation-only preparation. Local `.scratch/` artifacts are ignored by Git;
 they are the configured tracker, and this tracked plan links to them.
+
+## Implementation execution ledger (2026-09-27)
+
+| Phase | Actual delegation | Review and verification | Result |
+| --- | --- | --- | --- |
+| Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
+| Convergence 09 | None | T0 structural review; 124 focused top-level passes, nine new guard groups; all 68 changed Go files inspected without findings | Final `make verify` passed, including every Docker race partition; existing platform skips are explicitly retained in the evidence |
+| Native acceptance 10 | None | Source tracing and Windows cross-vet only; no native desktop claim | Open for Linux/Windows/macOS operators and outstanding CI |
+
+Two complete Make runs are authorized by the budget exception above; no broad
+local race run was used during the individual red/green loops. The final
+[evidence record](../docs/command-admission-verification-2026-09-27.md) names both
+retained artifact directories, the exact inspection scope/hash and every
+remaining gate. No push, PR review loop, merge or release was performed.

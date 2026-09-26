@@ -254,6 +254,13 @@ func (p *managePanel) scrollIntoView(row int) {
 // for themselves: a second dialog would stack over the first and take the
 // keyboard from it.
 func (f *Feature) ShowManage() {
+	if !f.host.AdmitFavorite(ManageCommand) {
+		return
+	}
+	f.showManage()
+}
+
+func (f *Feature) showManage() {
 	if f.manageDialog != nil {
 		return
 	}
@@ -292,6 +299,7 @@ func (f *Feature) ShowManage() {
 		}
 
 		f.manageDialog, f.managePanel = nil, nil
+		f.dialogChanged()
 		// The release grid.Overview.Close performs, for the same reason:
 		// every other key binding in this app is dispatched from the
 		// canvas's own unfocused handler, so a focus left behind would
@@ -301,6 +309,7 @@ func (f *Feature) ShowManage() {
 
 	f.manageDialog, f.managePanel = d, panel
 	d.Show()
+	f.dialogChanged()
 	// After Show: Fyne can only focus an object it can walk to, and the
 	// panel is only part of an overlay once the dialog is up.
 	panel.takeFocus()
@@ -377,7 +386,7 @@ func (f *Feature) rebuildManage() {
 	row := f.managePanel.row
 
 	f.hideManage()
-	f.ShowManage()
+	f.showManage()
 	// Not unconditional: a rebuild whose favstore.List failed reported that
 	// and left no dialog, and so nothing to put a ring on.
 	if f.managePanel != nil {

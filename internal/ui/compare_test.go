@@ -614,12 +614,10 @@ func TestCompareCommandEntryPoints_MenuAndFeatureCallbacksAreIgnored(t *testing.
 		})
 	}
 
-	t.Run("FavoritesHostRunner", func(t *testing.T) {
+	t.Run("FavoritesHostAdmission", func(t *testing.T) {
 		v := openActiveComparisonWithExtra(t)
-		ran := false
-		v.RunCommand(func() { ran = true })
-		if ran {
-			t.Error("Favorites Host.RunCommand ran an action during comparison")
+		if v.AdmitFavorite(favoriteui.OpenCommand) {
+			t.Error("Favorites host admitted an action during comparison")
 		}
 	})
 

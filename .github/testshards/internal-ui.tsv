@@ -5,9 +5,9 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 248 entries, 470.520s projected weight sum
-# ui-2: 249 entries, 470.530s projected weight sum
-# ui-3: 210 entries, 504.870s projected weight sum
+# ui-1: 251 entries, 470.520s projected weight sum
+# ui-2: 252 entries, 470.530s projected weight sum
+# ui-3: 213 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -46,6 +46,9 @@ TestClearToDropzone_ClearsInspect	ui-1
 TestClearToDropzone_ExitsPictureFrameMode	ui-1
 TestCloseFilesItem_DisabledAgainAfterCloseFiles	ui-1
 TestCloseFiles_ResetsLoadedFilesToWelcomeState	ui-1
+TestCommandAdmissionPolicy	ui-1
+TestCommandAdmissionQueries	ui-1
+TestCommandAdmissionTextEditing	ui-1
 TestCompareAllowedCommands_ToolbarRemainsAboveInputShield	ui-1
 TestCompareAnimated_FreezesFirstDecodedFrameForEntireSession	ui-1
 TestCompareCommandEntryPoints_MenuAndFeatureCallbacksAreIgnored	ui-1
@@ -159,6 +162,7 @@ TestManualUpdateFlow_CallbacksReadyThenPerformRequestsRelaunch	ui-1
 TestMaxWindowSizeGetterSetter	ui-1
 TestMaybeShowWhatsNew_ShowsAndClearsCache	ui-1
 TestMemoryLimitSetters_FloorAtOne	ui-1
+TestMenuCallbacksRecheckAdmission	ui-1
 TestMicrosoftStoreUpdateActionsAreRefused	ui-1
 TestMosaicKeyboard	ui-1
 TestMosaicMenu_FollowsGridResultImmediately	ui-1
@@ -258,7 +262,6 @@ TestWireAddFavoritesShortcut_DoesNothingWithoutFiles	ui-1
 TestWireExportShortcuts_OpensPromptAndSetsWallpaperWithoutColliding	ui-1
 TestWireManageFavoritesShortcut_DoesNothingWhileTheExportPromptIsUp	ui-1
 TestWireSaveShortcut_SavesTheCurrentRotation	ui-1
-TestYieldingMenuCallbacksWrapsEveryField	ui-1
 TestActionsMenu_CloseFiles	ui-2
 TestActionsMenu_CopyPathWritesClipboard	ui-2
 TestActionsMenu_HideNoopsWithoutFiles	ui-2
@@ -307,6 +310,9 @@ TestClipboardEncodingLeavesQueuedUIResponsive	ui-2
 TestClipboardNavigationCancelsHeldEncoding	ui-2
 TestClipboardQueuedResultsOwnCompletionAndDiscardStaleEffects	ui-2
 TestCloseFilesItem_EnabledAfterFilesLoaded	ui-2
+TestCommandAdmissionBusyCopy	ui-2
+TestCommandAdmissionRoutes	ui-2
+TestCommandAdmissionVisits	ui-2
 TestCompareDividerKeys_ViewerRoutesShiftWithoutChangingCoveredState	ui-2
 TestCompareExit_BackToGridLeavesTheGridSelectionAndTitleUntouched	ui-2
 TestCompareGridLeak_PointerGesturesCannotScrollCoveredGrid	ui-2
@@ -369,10 +375,10 @@ TestFileMutationReconciliationSurvivesUnrelatedCommit	ui-2
 TestFindMoreLikeThisInitialRoundTrip	ui-2
 TestFindMoreLikeThisProgressiveForegroundIdentity	ui-2
 TestHandleDrop_AcceptsPNGAndGIF	ui-2
-TestHandleDrop_CancelsAnyPendingDeleteConfirmation	ui-2
 TestHandleDrop_EmptyDrop	ui-2
 TestHandleDrop_ErrorAfterImagesClearsDisplay	ui-2
 TestHandleDrop_MergeModeDropWithNothingSupportedKeepsExistingSet	ui-2
+TestHandleDrop_PreservesPendingDeleteConfirmation	ui-2
 TestHandleDrop_SingleFileDoesNotRecurse	ui-2
 TestHandleDrop_SingleFileExpandsSiblingsAndKeepsOpened	ui-2
 TestHandleDrop_TwoFilesInSameDirDoNotExpand	ui-2
@@ -423,7 +429,7 @@ TestMosaicWindow_OpensFromMenuWithDefensiveSnapshot	ui-2
 TestNavigationDoesNotInvalidateScan	ui-2
 TestOpenReleasesPage_HandsTheReleasesURLToTheApp	ui-2
 TestOpenReleasesPage_LogsAnAppThatCannotOpenTheURL	ui-2
-TestOpenWithHandler_DeliveryClosesTheGridAndCancelsAPendingDelete	ui-2
+TestOpenWithHandler_DeliveryPreservesPendingDelete	ui-2
 TestPerformDelete_OnLastImageOfMultipleAdvancesWithoutPanicking	ui-2
 TestPerformUpdate_InvalidMissingOrSameStageDoesNotQuit	ui-2
 TestPromptExport_DoesNothingWhileTheDeleteCardIsUp	ui-2
@@ -542,6 +548,9 @@ TestCloseFilesClearsVector	ui-3
 TestCloseFilesItem_DisabledWithNoFilesLoaded	ui-3
 TestCloseFiles_CancelsScanInProgress	ui-3
 TestCloseFiles_NeverClosesTheWindow	ui-3
+TestCommandAdmissionAsync	ui-3
+TestCommandAdmissionModalOwnership	ui-3
+TestCommandAdmissionYieldOrdering	ui-3
 TestCompareCancel_EscapeStopsPendingLoadsAndPreservesSelection	ui-3
 TestCompareCommandIsolation_ShortcutsAreIgnored	ui-3
 TestCompareFailure_ReturnsToGridWithoutRemovingEitherFile	ui-3

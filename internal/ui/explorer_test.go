@@ -409,12 +409,12 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			options.Client.Assets = filepath.Join(t.TempDir(), "assets")
 		})
 		v.showExplorer()
-		// Replacement invalidates even an asset check whose UI delivery is pending.
+		// A fresh drop is refused while the setup dialog owns input.
 		dropAndWait(t, v, uitest.TempJPEGURI(t, "replacement.jpg", 4, 4, color.White))
 		v.settleExplorer()
-		if v.explorer.State().SetupOpen || v.win.Canvas().Overlays().Top() != nil ||
-			v.explorer.Options().Settings.IntroSeen {
-			t.Fatal("source replacement left first-use setup active")
+		if !v.explorer.State().SetupOpen || v.win.Canvas().Overlays().Top() == nil ||
+			v.explorer.Options().Settings.IntroSeen || v.FileAt(0).Name() != "first.jpg" {
+			t.Fatal("drop replaced first-use setup or its collection")
 		}
 	})
 	t.Run("setup_window_size", func(t *testing.T) {

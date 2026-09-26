@@ -1,7 +1,7 @@
 // Window menu: the show/enter actions its items run, plus the native
 // menu-bar refresh every menu rebuild needs. Which surface is already
-// showing decides what is enabled, but that matrix lives in
-// internal/ui/menus now; this file implements the actions. The actions
+// showing contributes to shared command admission; internal/ui/menus renders
+// those decisions, and this file implements the guarded actions. The actions
 // don't resync that matrix themselves: the feature observers registered
 // in buildMainMenu (grid visibility, slideshow active, manual
 // opened/closed) fire syncMenus after each surface change settles, on
@@ -12,7 +12,18 @@
 
 package ui
 
-import "fyne.io/fyne/v2"
+import (
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
+)
+
+// AppKit invokes a menu action before GLFW can route Copy to a focused Entry.
+// Keep explicit image-menu clicks, but leave the physical editing accelerator
+// to GLFW's focused-widget/canvas dispatch. Copy Path is a distinct shortcut.
+func nativeEditingAccelerator(item *fyne.MenuItem) bool {
+	shortcut, ok := item.Shortcut.(*desktop.CustomShortcut)
+	return ok && shortcut.KeyName == fyne.KeyC && shortcut.Modifier == fyne.KeyModifierShortcutDefault
+}
 
 func (v *viewer) refreshMainMenu() {
 	if v.stopping || v.win == nil || v.win.MainMenu() == nil {
@@ -48,19 +59,19 @@ func (v *viewer) syncNativeMenuBar() {
 }
 
 func (v *viewer) showViewer() {
+	if _, ok := v.admitCommand(commandRequest{command: commandViewer, intent: intentShow}); !ok {
+		return
+	}
 	if v.locationMap.Active() {
 		v.LeaveLocationMap()
 		return
 	}
-	if v.searchActive() && !v.comparisonActive() {
+	if v.searchActive() {
 		v.visualsearch.Exit()
 		return
 	}
-	if !v.comparisonActive() && (v.explorer.Surface().Visible() || v.explorer.HasCohort()) {
+	if v.explorer.Surface().Visible() || v.explorer.HasCohort() {
 		v.LeaveSimilarityMap()
-		return
-	}
-	if v.comparisonActive() {
 		return
 	}
 	// Close() ClearInspects even when the overlay is already hidden.
@@ -77,7 +88,7 @@ func (v *viewer) showViewer() {
 }
 
 func (v *viewer) showWindowExif() {
-	if v.comparisonActive() {
+	if _, ok := v.admitCommand(commandRequest{command: commandExif, intent: intentShow}); !ok {
 		return
 	}
 	v.exif.Show()
@@ -88,7 +99,7 @@ func (v *viewer) showWindowExif() {
 }
 
 func (v *viewer) showWindowGrid() {
-	if v.comparisonActive() {
+	if _, ok := v.admitCommand(commandRequest{command: commandGrid, intent: intentShow}); !ok {
 		return
 	}
 	if v.locationInput.cluster {
@@ -98,7 +109,7 @@ func (v *viewer) showWindowGrid() {
 	if v.locationMap.Active() {
 		v.closeLocationMap()
 	}
-	if v.searchActive() && !v.comparisonActive() {
+	if v.searchActive() {
 		v.returnToSearchGrid()
 		return
 	}
@@ -119,13 +130,7 @@ func (v *viewer) showWindowGrid() {
 }
 
 func (v *viewer) showWindowPictureFrame() {
-	if v.comparisonActive() {
-		return
-	}
-	if v.slides.Active() || v.FileCount() == 0 {
-		return
-	}
-	if v.variantsSession() || v.explorer.HasCohort() || v.explorerMapActive() {
+	if _, ok := v.admitCommand(commandRequest{command: commandPictureFrame, intent: intentShow}); !ok {
 		return
 	}
 	v.togglePictureFrameMode()

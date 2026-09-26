@@ -195,6 +195,9 @@ func (v *manualView) scrollTo(loc *widget.TextSegment) {
 // while the window is still open just raises it instead of opening a
 // duplicate (see widgets.Singleton).
 func (h *Help) ShowManual() {
+	if !h.admitted() {
+		return
+	}
 	h.manualWin.Show(h.app, lang.L("PicFetch Manual"), fyne.NewSize(manualW, manualH), func() fyne.CanvasObject {
 		h.manual = newManualView(currentManual(), h.openSpiral)
 		h.manual.onFinis = h.ShowFinis

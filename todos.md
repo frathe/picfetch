@@ -10,6 +10,13 @@
 
 #### Internal
 
+- MA-028 shared command admission is implemented across menus, shortcuts, keys,
+  direct actions and open delivery. Pure decisions precede yielding; existing
+  features retain payload capture and worker lifetimes. See the
+  [implementation and verification record](docs/command-admission-verification-2026-09-27.md).
+  `make verify` and all 68 changed-file GoLand inspections passed. Native
+  acceptance remains open below.
+
 - Stabilize the similarity protocol race test by dispatching its helper before
   the test runner starts and bounding its lifetime from the parent. Preserve
   configuration/error transport and cancellation/exit coverage. See the
@@ -24,11 +31,14 @@
   state local and preserve explicit composition. MA-028's
   [design](docs/command-admission.md) is accepted: full command migration with
   shared pure admission and the agreed input/yield corrections. Its
-  [specification](.scratch/ma-028/spec.md) is published as `ready-for-agent`,
-  with acceptance commands and native-input qualification requirements.
-  A [ten-ticket execution draft](plans/2026-09-27-ma-028-command-admission.md)
-  now records blocking edges, agent/model routing and verification ownership;
-  breakdown approval is pending before local tickets are published.
+  [specification](.scratch/ma-028/spec.md) and
+  [published ten-ticket plan](plans/2026-09-27-ma-028-command-admission.md)
+  track implementation and acceptance. Tickets 01-09 are implemented; retain
+  ticket 10 for native Linux/Windows/macOS editor accelerators, actual menu
+  activation/enablement, modal controls and close during held region copying.
+  macOS AppKit compilation/runtime and physical input on all three platforms
+  remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
+  workflow; local GoLand checks are not a Qodana-CI pass.
   MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

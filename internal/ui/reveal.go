@@ -23,10 +23,7 @@ import (
 // grid-selection routing: delete and copy act on a set because a set has a
 // meaning there, while revealing twelve files across nine folders does not.
 func (v *viewer) revealCurrentFile() {
-	if v.comparisonActive() {
-		return
-	}
-	if len(v.state.files) == 0 {
+	if _, ok := v.admitCommand(commandRequest{command: commandReveal}); !ok {
 		return
 	}
 

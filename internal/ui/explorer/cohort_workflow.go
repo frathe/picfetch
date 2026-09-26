@@ -190,9 +190,11 @@ func (f *Feature) AnalyzeSelection(selected []string) {
 			f.cohortDialog = nil
 		}
 		f.win.Canvas().Unfocus()
+		f.host.Changed()
 	})
 	f.cohortDialog = review
 	review.Show()
+	f.host.Changed()
 	if len(traits) > 0 {
 		f.win.Canvas().Focus(name)
 	} else {

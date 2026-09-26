@@ -395,7 +395,8 @@ func TestCurrentManual_OtherLocaleFallsBackToEnglish(t *testing.T) {
 
 func TestHelpMenu(t *testing.T) {
 	application := &discussionLinkApp{}
-	help := New(application, "PicFetch", nil).Menu()
+	h := New(application, "PicFetch", nil)
+	help := h.Menu()
 
 	if help.Label != "Help" {
 		t.Errorf("expected menu label %q, got %q", "Help", help.Label)
@@ -443,6 +444,16 @@ func TestHelpMenu(t *testing.T) {
 	discussions.Action()
 	if application.opened == nil || application.opened.String() != "https://github.com/frathe/picfetch/discussions" {
 		t.Fatalf("Discussions opened %v; want the public project page without attached user data", application.opened)
+	}
+	h.SetAdmission(func() bool { return false })
+	application.opened = nil
+	discussions.Action()
+	if application.opened != nil {
+		t.Fatal("blocked main-window Help action opened the browser")
+	}
+	h.OpenDiscussionsLink()
+	if application.opened == nil {
+		t.Fatal("owned dialog hyperlink was blocked by main-window admission")
 	}
 	if !help.Items[4].IsSeparator {
 		t.Error("expected a separator before About")

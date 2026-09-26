@@ -10,24 +10,21 @@ import (
 )
 
 func (v *viewer) setActionsSort(m filesort.Mode) {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.SortMode() == m {
+	if _, ok := v.admitCommand(commandRequest{command: commandSort, sortMode: m}); !ok {
 		return
 	}
 	v.SetSortMode(m)
 }
 
 func (v *viewer) toggleHideDuplicates() {
-	if v.browsingContext().restricted {
+	if _, ok := v.admitCommand(commandRequest{command: commandHideDuplicates}); !ok {
 		return
 	}
 	v.pushHideDuplicates(!v.dupes.HideDuplicates())
 }
 
 func (v *viewer) browseCurrentDuplicates() {
-	if v.slides.Active() || v.browsingContext().restricted {
+	if _, ok := v.admitCommand(commandRequest{command: commandBrowseDuplicates, intent: intentToggle}); !ok {
 		return
 	}
 	v.grid.ToggleBrowseDuplicates()
@@ -70,7 +67,13 @@ func (v *viewer) syncDuplicateState() {
 		ready()
 	}
 	if v.grid.BrowseReady() && !v.grid.Visible() {
-		v.grid.Toggle()
+		if _, ok := v.admitCommand(commandRequest{command: commandBrowseDuplicates, intent: intentShow, route: routeDelivery}); ok {
+			v.grid.Toggle()
+		} else {
+			// Preparation has finished, but its presentation is no longer
+			// admitted. Retire it rather than replaying after the prompt.
+			v.grid.SetBrowsingDuplicates(false)
+		}
 	}
 	v.syncMenus()
 }
@@ -80,126 +83,65 @@ func (v *viewer) variantsSession() bool {
 }
 
 func (v *viewer) toggleActionsHideDuplicates() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.FileCount() == 0 || v.variantsSession() {
+	if _, ok := v.admitCommand(commandRequest{command: commandHideDuplicates, route: routeMenu}); !ok {
 		return
 	}
 	v.toggleHideDuplicates()
 }
 
 func (v *viewer) showActionsVariant() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.FileCount() == 0 || v.slides.Active() {
-		return
-	}
-	if v.grid.BrowsingDuplicates() {
-		v.browseCurrentDuplicates() // leave browse even if hide is now off
-		return
-	}
-	if !v.dupes.HideDuplicates() || v.grid.SourceDuplicateGroupSize() < 2 {
+	if _, ok := v.admitCommand(commandRequest{command: commandBrowseDuplicates, intent: intentShow}); !ok {
 		return
 	}
 	v.browseCurrentDuplicates()
 }
 
 func (v *viewer) rotateActionsImage() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.display.Count() == 0 || v.grid.Visible() {
-		return
-	}
 	v.rotateBy(1)
 }
 
 func (v *viewer) zoomActionsIn() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.display.Count() == 0 || v.grid.Visible() {
+	if _, ok := v.admitCommand(commandRequest{command: commandZoom}); !ok {
 		return
 	}
 	v.zoom.In()
 }
 
 func (v *viewer) zoomActionsOut() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.display.Count() == 0 || v.grid.Visible() {
+	if _, ok := v.admitCommand(commandRequest{command: commandZoom}); !ok {
 		return
 	}
 	v.zoom.Out()
 }
 
 func (v *viewer) toggleActionsMergeMode() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
 	v.toggleMergeMode()
 }
 
 func (v *viewer) toggleActionsInfoOverlay() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.grid.Visible() {
-		return
-	}
 	v.toggleInfoOverlay()
 }
 
 func (v *viewer) copyActionsImage() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.FileCount() == 0 {
-		return
-	}
 	v.copySelection()
 }
 
 func (v *viewer) copyActionsSelection() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if !v.regionCopyAvailable() {
-		return
-	}
 	v.startRegionCopy()
 }
 
 func (v *viewer) copyActionsPath() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
 	v.copyPathToClipboard()
 }
 
 func (v *viewer) revealActionsFile() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
 	v.revealCurrentFile()
 }
 
 func (v *viewer) wallpaperActionsImage() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
 	v.setAsWallpaper()
 }
 
 func (v *viewer) trashActionsImage() {
-	if v.comparisonActive() || v.explorerMapActive() {
-		return
-	}
-	if v.FileCount() == 0 {
-		return
-	}
 	v.requestDelete()
 }

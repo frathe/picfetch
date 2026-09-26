@@ -242,7 +242,9 @@ func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
 				t.Fatal("first-use setup did not open")
 			}
 			if changed {
-				v.ShowImage(1)
+				// An already-admitted load can complete beneath setup; a fresh
+				// user navigation is now correctly refused by modal ownership.
+				v.loadImage(1)
 				waitUntilLoaded(t, v)
 			}
 			if v.Generation() != generation {
