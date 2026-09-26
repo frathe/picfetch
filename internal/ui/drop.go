@@ -105,6 +105,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	}
 
 	v.closeExplorer()
+	v.closeLocationMap()
 	v.openChooserLifecycle.invalidate()
 	v.deletion.Cancel()
 	v.grid.Close()
@@ -416,6 +417,7 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 		} else {
 			v.state.setFiles(unsorted, ordered)
 		}
+		v.locationMap.SetSources(v.state.files)
 		v.ForceRepaint()
 
 		// Here rather than anywhere earlier because this is the first point

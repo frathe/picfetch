@@ -70,6 +70,23 @@ func (g *Overview) clearHashes() {
 // time. nil is a no-op.
 func (g *Overview) SetOnDupeStateChanged(f func()) { g.onDupeState = f }
 
+// SetOnDuplicateProgress observes throttled UI-side check progress separately
+// from accepted group/menu state. It does not signal worker completion.
+func (g *Overview) SetOnDuplicateProgress(f func()) { g.onDuplicateProgress = f }
+
+func (g *Overview) fireDuplicateProgress() {
+	if g.onDuplicateProgress != nil {
+		g.onDuplicateProgress()
+	}
+}
+
+// DuplicatePreparationProgress counts admitted checks in the current work
+// session. Zero remaining checks can still leave final grouping outstanding.
+func (g *Overview) DuplicatePreparationProgress() (completed, total int) {
+	total = int(g.hashes.hashTotal.Load())
+	return max(0, total-int(g.hashes.hashJobs.Load())), total
+}
+
 func (g *Overview) fireDupeState() {
 	if g.onDupeState != nil {
 		g.onDupeState()
@@ -339,13 +356,16 @@ func (g *Overview) duplicateDistance() int {
 // grouping through the same cancellable owner as search and distance changes.
 func (g *Overview) hashRemaining() int {
 	ctx := g.resumeWork()
-	return g.hashes.Run(ctx, g.hashFactsReady)
+	queued := g.hashes.Run(ctx, g.hashFactsReady)
+	g.fireDuplicateProgress()
+	return queued
 }
 
 func (g *Overview) hashFactsReady(remaining int32, gen uint64) {
 	if gen != g.host.Generation() {
 		return
 	}
+	g.fireDuplicateProgress()
 	if !g.dupes.HideDuplicates() && g.browseHost < 0 {
 		if remaining == 0 {
 			g.fireDupeState()

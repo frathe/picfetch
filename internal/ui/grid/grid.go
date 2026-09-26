@@ -25,6 +25,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/selection"
@@ -105,22 +106,26 @@ type Overview struct {
 	rankBack              *widget.Button
 	onRankedOpen          func(Visit)
 
-	subsetBack   *widget.Button
-	analyze      *widget.Button
-	onAnalyze    func()
-	onSubsetBack func()
-	subset       map[string]bool
-	host         Host
-	win          fyne.Window
+	subsetBack        *widget.Button
+	analyze           *widget.Button
+	onAnalyze         func()
+	onSubsetBack      func()
+	subset            map[string]bool
+	subsetOccurrences map[fileidentity.Occurrence]bool
+	subsetLabel       string
+	onSubsetOpen      func(Visit)
+	host              Host
+	win               fyne.Window
 
-	visible      bool
-	onVisibility func()
-	onDupeState  func()
-	onSelection  func()
-	onResult     func()
-	lastResult   []int
-	wrap         *widget.GridWrap
-	overlay      *fyne.Container
+	visible             bool
+	onVisibility        func()
+	onDupeState         func()
+	onDuplicateProgress func()
+	onSelection         func()
+	onResult            func()
+	lastResult          []int
+	wrap                *widget.GridWrap
+	overlay             *fyne.Container
 
 	// The bar across the top of the overlay, hidden until there is either a
 	// search or a selection to report: what was typed on the left, how much
@@ -452,6 +457,9 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 			if g.ranked != nil && g.onRankedOpen != nil {
 				g.onRankedOpen(g.CaptureVisit())
 			}
+			if g.subsetOccurrences != nil && g.onSubsetOpen != nil {
+				g.onSubsetOpen(g.CaptureVisit())
+			}
 			if g.BrowsingDuplicates() && i >= 0 && g.dupes.GroupSize(i) >= 2 {
 				g.BeginInspect(i)
 				g.closeOverlay(false)
@@ -507,7 +515,7 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	// confirmation's: the grid replaces the image view entirely rather
 	// than dimming it behind a centered card, so it needs to fully hide
 	// whatever's underneath.
-	backdrop := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
+	backdrop := widgets.NewThemedRectangle(theme.ColorNameBackground)
 
 	// Body stack order is load-bearing. Walk is back-to-front and the last
 	// match wins: the catcher is Draggable but not Tappable, Hoverable, or
@@ -683,6 +691,8 @@ func (g *Overview) closeOverlay(clearInspect bool) {
 	}
 	if g.subset != nil {
 		g.subset = nil
+		g.subsetOccurrences = nil
+		g.subsetLabel = ""
 		g.onSubsetBack = nil
 		g.applyFilter()
 	}

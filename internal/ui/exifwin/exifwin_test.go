@@ -16,11 +16,14 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -430,6 +433,62 @@ func TestToggleLocation_ShowsAndHidesTheMap(t *testing.T) {
 
 	if w.LocationExpanded() || w.body.Visible() {
 		t.Error("map is still shown after collapsing the section, want hidden")
+	}
+}
+
+func TestLocationMapTheme(t *testing.T) {
+	app, host := gpsApp(t)
+	app.Settings().SetTheme(theme.DefaultTheme())
+	appearance.Apply(app, appearance.Light)
+	server := newTileServer(t)
+	w := newTestWindow(t, app, host)
+	w.tiles = fetcherFor(server)
+	w.Show()
+	settleMetadata(w)
+	t.Cleanup(func() { w.Window().Close() })
+	w.ToggleLocation()
+	waitForWarm(t, w)
+	var raster *canvas.Raster
+	var walk func(fyne.CanvasObject)
+	walk = func(object fyne.CanvasObject) {
+		if !object.Visible() {
+			return
+		}
+		switch object := object.(type) {
+		case *canvas.Raster:
+			raster = object
+		case *fyne.Container:
+			for _, child := range object.Objects {
+				walk(child)
+			}
+		case fyne.Widget:
+			for _, child := range test.WidgetRenderer(object).Objects() {
+				walk(child)
+			}
+		}
+	}
+	walk(w.Location())
+	if raster == nil {
+		t.Fatal("expanded location has no visible map raster")
+	}
+	w.Window().Canvas().Capture()
+	w.Settle()
+	before := server.count()
+	for _, mode := range []appearance.Mode{appearance.Light, appearance.Dark, appearance.Light, appearance.Dark} {
+		appearance.Apply(app, mode)
+		capture := w.Window().Canvas().Capture()
+		position := app.Driver().AbsolutePositionForObject(raster).Add(fyne.NewPos(20, 20))
+		want := color.NRGBA{R: 1, G: 2, B: 3, A: 255} // original tilePNG pixels
+		if mode == appearance.Dark {
+			want = color.NRGBA{R: 214, G: 218, B: 224, A: 255}
+		}
+		if got := color.NRGBAModel.Convert(capture.At(int(position.X), int(position.Y))); got != want {
+			t.Fatalf("EXIF map has wrong theme pixels: %v, want %v (mode %v)", got, want, mode)
+		}
+		w.Settle()
+		if server.count() != before {
+			t.Fatal("EXIF theme switch downloaded tiles again")
+		}
 	}
 }
 

@@ -118,7 +118,7 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 	files := v.state.snapshot()
 	ctx := v.heicContext(v.fileWork.ctx)
 	v.fileWork.workers.Go(func() {
-		affected := writtenFileLoaded(ctx, result.Path, files)
+		affected := writtenFileSources(ctx, result.Path, files)
 		if ctx.Err() != nil {
 			done()
 			return
@@ -132,11 +132,11 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 				v.afterFileWrite(result, reload, refreshEXIF, done)
 				return
 			}
-			if !affected {
+			if len(affected) == 0 {
 				done()
 				return
 			}
-			v.reconcileSources(sourceChange{kind: sourceWritten})
+			v.reconcileSources(sourceChange{kind: sourceWritten, written: affected})
 			v.refreshWrittenFile(result, reload, refreshEXIF, done)
 		})
 	})
@@ -144,30 +144,27 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 
 // Exporting a new copy leaves loaded sources unchanged. Resolve aliases on a
 // worker before discarding their derived state, including noncurrent sources.
-func writtenFileLoaded(ctx context.Context, path string, files dupes.Snapshot) bool {
+func writtenFileSources(ctx context.Context, path string, files dupes.Snapshot) []fyne.URI {
 	if ctx.Err() != nil {
-		return false
+		return nil
 	}
-	if files.IndexOf(storage.NewFileURI(path).String()) >= 0 {
-		return true
-	}
-	written, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
+	written, _ := os.Stat(path)
+	var affected []fyne.URI
 	for i := range files.Count() {
 		if ctx.Err() != nil {
-			return false
+			return nil
 		}
 		u, err := storage.ParseURI(files.KeyAt(i))
 		if err != nil || u.Scheme() != "file" {
 			continue
 		}
-		if source, err := os.Stat(u.Path()); err == nil && os.SameFile(source, written) {
-			return true
+		if filepath.Clean(u.Path()) == filepath.Clean(path) {
+			affected = append(affected, u)
+		} else if source, err := os.Stat(u.Path()); err == nil && written != nil && os.SameFile(source, written) {
+			affected = append(affected, u)
 		}
 	}
-	return false
+	return affected
 }
 
 // A separate commit may invalidate the cache while this decision is queued.

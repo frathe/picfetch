@@ -174,6 +174,11 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// Search retains shifted letters as text; plain M/S keep merge/sort.
 	if v.keyModifiers() == fyne.KeyModifierShift {
 		switch ev.Name {
+		case fyne.KeyL:
+			if !(v.grid.Visible() && v.grid.Searching()) {
+				v.showLocationMap()
+			}
+			return
 		case fyne.KeyM:
 			if !(v.grid.Visible() && v.grid.Searching()) {
 				v.showMosaic()
@@ -198,6 +203,10 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.LeaveSimilarityMap()
 			return
 		}
+		if v.locationInput.cluster && ev.Name == fyne.KeyV && !v.grid.Searching() {
+			v.LeaveLocationMap()
+			return
+		}
 		v.grid.HandleKey(ev)
 		if !v.grid.Visible() && v.explorerMapActive() {
 			v.recordExplorerView("map-return")
@@ -205,14 +214,11 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		return
 	}
 
-	if v.explorerKey(ev.Name) {
-		return
-	}
-
 	// Copy Selection owns Escape, Return/Enter, and image navigation via
 	// HandleKey. Zoom keys keep the mode. Every other key yields, then
 	// runs as usual. A pending copy swallows all of this except window
-	// close, which never arrives here.
+	// close, which never arrives here. This also precedes map-origin image
+	// navigation so returning to a map or cluster cannot bypass the mode.
 	if v.regionCopy.HandleKey(ev.Name) {
 		return
 	}
@@ -220,6 +226,10 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if !v.yieldCopySelection() {
 			return
 		}
+	}
+
+	if v.locationMapKey(ev.Name) || v.explorerKey(ev.Name) {
+		return
 	}
 
 	switch ev.Name {

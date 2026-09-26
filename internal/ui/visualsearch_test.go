@@ -44,6 +44,52 @@ func findSearchMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 	return nil
 }
 func TestFindMoreLikeThisInitialAdmission(t *testing.T) {
+	t.Run("location-map", func(t *testing.T) {
+		for _, visit := range []string{"map", "image", "cluster"} {
+			t.Run(visit, func(t *testing.T) {
+				v := newTestViewer(t)
+				files := []fyne.URI{uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)}
+				if visit == "cluster" {
+					files = append(files, uitest.TempGPSJPEGURI(t, "b.jpg", 24, 16, 52.52, 13.405))
+				}
+				dropAndWait(t, v, files...)
+				configureExplorer(v, func(options *explorerui.Options) {
+					options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
+				})
+				v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}, Provider: func(ctx context.Context, _ similarity.SearchRequest, _ <-chan similarity.SearchQuery, _ func(similarity.SearchEvent)) error {
+					<-ctx.Done()
+					return ctx.Err()
+				}})
+				locationMenu(t, v).Action()
+				v.locationMap.Settle()
+				if visit != "map" {
+					fynetest.Tap(locationPhoto(t, v, "a.jpg"))
+					if visit == "image" {
+						waitUntilLoaded(t, v)
+					} else {
+						v.grid.Settle()
+						v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+					}
+				}
+				if !findSearchMenu(t, v).Disabled {
+					t.Error("search menu enabled during a retained Location Map visit")
+				}
+				handler := &fyne.ShortcutHandler{}
+				wireGlobalShortcuts(handler, v)
+				handler.TypedShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift})
+				findSearchMenu(t, v).Action()
+				v.findMoreLikeThis()
+				if v.searchActive() || !v.locationMap.Active() {
+					t.Fatal("search entry displaced or overlapped the retained map visit")
+				}
+				v.showViewer()
+				v.findMoreLikeThis()
+				if !v.searchActive() {
+					t.Fatal("leaving Location Map did not restore search admission")
+				}
+			})
+		}
+	})
 	t.Run("cache-pressure-continues", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 		v.analysisDir = t.TempDir()

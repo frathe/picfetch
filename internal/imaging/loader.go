@@ -98,6 +98,12 @@ type LoadedImage struct {
 	Delays   []time.Duration // parallel to Frames; unused when len(Frames) == 1
 	FileSize int64           // raw byte count read by ReadAndProbe, for the info overlay
 
+	// Vector is the parsed source of an SVG, retained so the app can
+	// rasterize it again at a different size as the zoom level or window
+	// size changes. Nil for every raster format, which is what internal/ui
+	// branches on to decide whether re-rendering means anything.
+	Vector *Vector
+
 	// HasEXIF reports whether ReadMetadata found anything in the raw bytes
 	// this was decoded from - what the info overlay uses to decide whether
 	// offering its "Show EXIF data" link means anything. DecodeRecord fills
@@ -111,12 +117,6 @@ type LoadedImage struct {
 	// doesn't move - which is a far better outcome for a valid file than
 	// refusing it outright; internal/ui says so with a toast.
 	AnimationTruncated bool
-
-	// Vector is the parsed source of an SVG, retained so the app can
-	// rasterize it again at a different size as the zoom level or window
-	// size changes. Nil for every raster format, which is what internal/ui
-	// branches on to decide whether re-rendering means anything.
-	Vector *Vector
 
 	// Preview reports that Frames came from an embedded JPEG inside a camera
 	// RAW container (CR2, NEF, ARW, DNG, CR3, …) rather than from decoding
@@ -286,6 +286,25 @@ func readRawBytes(ctx context.Context, u fyne.URI) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// ReadMetadataURIContext reads bounded source bytes and extracts metadata
+// without probing or decoding image pixels. A successful read with no usable
+// metadata returns an empty Metadata; I/O, size-limit, capability, and
+// cancellation failures remain errors.
+func ReadMetadataURIContext(ctx context.Context, u fyne.URI) (Metadata, error) {
+	data, err := readRawBytes(ctx, u)
+	if err != nil {
+		return Metadata{}, err
+	}
+	metadata, err := ReadMetadataContext(ctx, data)
+	if err != nil {
+		return Metadata{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Metadata{}, err
+	}
+	return metadata, nil
 }
 
 // CaptureDate is the compatibility form of CaptureDateContext. Unreadable or

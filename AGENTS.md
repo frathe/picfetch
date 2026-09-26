@@ -7,7 +7,7 @@
 - Read `ARCHITECTURE.md` before code: it is the authoritative package map and “where to look for X” index.
 - Update `ARCHITECTURE.md` in the same change when packages are added, removed, renamed, or files move between packages.
 - Open work belongs in `todos.md`; do not add `TODO`/`FIXME` comments to source.
-- Do not run `git commit` unless the user explicitly authorizes commits or invokes the GitHub Cortex review loop below. Otherwise end with a suggested commit message for the user.
+- Do not run `git commit` unless the user explicitly authorizes commits or invokes the GitHub Codex review loop below. Otherwise end with a suggested commit message for the user.
 
 ## Collaboration
 
@@ -27,14 +27,16 @@ release unless the user separately requests that action.
 
 1. Identify the current branch's open PR with `gh`, check the working tree, and
    read every unresolved review thread, including threads from older commits.
-   Inspect Codex code/security reports, Qodana, CodeQL, and all CI checks.
+   Inspect Codex code/security reports, CodeQL, all CI checks, and the local
+   static-analysis results described below.
 2. Validate each finding against the current code and repository conventions.
    The lead owns the assessment and fixes. Fix confirmed defects and add useful
    regression coverage; explain rejected or already-fixed findings with concrete
    evidence. Do not change code merely to satisfy an incorrect report.
 3. Run the changed tests and focused regressions locally. Let GitHub CI run the
    complete suite; do not duplicate the broad local race suite for this workflow.
-   Keep formatting, test exclusions, shard assignments, and docs current.
+   Run local static analysis as described below. Keep formatting, test
+   exclusions, shard assignments, and docs current.
 4. Commit and push the fixes. Reply to each addressed thread with the commit,
    disposition, and verification evidence, then resolve it. Keep unrelated user
    edits out of the commit.
@@ -45,12 +47,14 @@ release unless the user separately requests that action.
    bot mention after posting the finding's disposition.
    This repository's Codex connector advertises `@codex review` check the live bot summary if that trigger changes. Do not
    repeatedly post requests while a review is queued or running.
-6. Inspect fresh Qodana/SARIF findings even when the workflow is green or neutral,
-   and fetch failed CI job logs. Validate, fix, test, push, and reply again as
-   needed. Use the post-suppression Qodana report as described below.
+6. Inspect fresh local-analysis findings, including weak warnings, and fetch
+   failed CI job logs. Validate, fix, test, push, and reply again as needed.
+   When a Qodana SARIF report is available, use its post-suppression results
+   as described under "Reading a Qodana report", not the summary CSV totals.
 7. Finish only after a fresh Codex code review reports no findings on the latest
    pushed commit, the security review has completed without actionable findings,
-   Qodana/CodeQL results are clear of actionable findings, and required CI passes.
+   local static analysis and CodeQL are clear of actionable findings, and required
+   CI passes.
    A review containing findings is not a clean final round merely because the
    lead later fixes or dismisses them: complete another review after those
    dispositions. A clean review of an older commit does not count. If the user
@@ -63,6 +67,34 @@ Keep `todos.md` and the applicable plan/evidence record current, and give concis
 progress updates while waiting. Use the existing SDD/TDD working agreement for
 implementation; this workflow's local-test and commit authorization rules take
 precedence over its default handoff procedure.
+
+### Local static analysis while Qodana CI is paused
+
+Ronin disabled Qodana CI on 2026-09-25 after its trial subscription expired.
+Keep the workflow, `qodana.yaml`, build-tag configuration and exact test exclusions
+for local use and possible restoration. Treat the disabled CI gate as explicitly
+waived, not passed; re-enable it only at Ronin's direction.
+
+Use GoLand's **Tools -> Qodana -> Try Code Analysis with Qodana** (or **Problems ->
+Qodana -> Try locally**) with the existing `qodana.yaml` and cloud-result uploads
+off. This IDE-local mode does not need a separate Qodana subscription; moving
+the standalone Go CLI/Docker scanner locally does not remove its license check.
+Before setting up or troubleshooting local analysis, read
+[the local inspection guide](docs/local-qodana-inspections-2026-09-25.md).
+
+If IDE-local Qodana cannot run, use GoLand's **Code -> Inspect Code...** or its
+inspection tools on every changed code file, including weak warnings. Record
+the fallback and its scope; GoLand's profile is not an exact substitute for
+`qodana.starter` and `qodana.yaml` exclusions. Preserve justified source-local
+suppressions; assess intentional test duplication against the existing exact
+exclusions rather than refactoring tests merely to lower a count.
+
+After fixes, re-run affected inspections. Record the analyzed revision, file
+scope, tool/profile, findings and dispositions in the plan/evidence record.
+Timeouts, skipped files and incomplete scans remain unverified, never a clean
+gate. Documentation-only commits can carry forward unchanged-code inspection
+evidence with its original revision stated. CodeQL, fresh Codex code/security
+reviews and the full GitHub test suite remain required on the latest commit.
 
 ## Architecture and Data Flow
 
@@ -82,7 +114,7 @@ precedence over its default handoff procedure.
 ## Concurrency and Fyne
 
 - Scan, load, sort, and vector work each own a `requestLifecycle`; capture its token, check staleness before expensive work and before applying results, and marshal background UI updates through `fyne.Do`.
-- `internal/ui/grid`, `internal/ui/compare`, `internal/ui/mosaicwin`, `internal/ui/deletion`, `internal/ui/slideshow`, `internal/ui/exifwin`, `internal/ui/spiral`, `internal/ui/explorer`, `internal/ui/display`, `internal/ui/visualsearch`, `internal/ui/analysiscache`, and `internal/ui/help` are the per-instance `UIQueue` exceptions: their tests drain completions instead of letting the Fyne test driver run them inline on workers. `internal/ui`'s `newTestUI` installs a drainable `uitest.UIQueue` on all twelve; keep worker completions on `g.ui.Do` / `f.queueUI` / `w.ui.Do` / `c.ui.Do` / `f.ui.Do` / `s.ui.Do` / captured `queue.Do`. Every `g.ui.Do` submission stays inside its tracked decode or grouping worker. Grid `Settle` waits both the decode pool and the independent grouping worker before draining and repeating; sharing the decode pool would postpone progressive hiding behind the full hash backlog. Grid `Close` cancels the current work session; `Stop` permanently ends admission at shutdown. Reopened sessions retain the common pool but own fresh hash accounting and revision-tagged cell claims. Compare `Settle` waits its load worker and both pane raster waitgroups, drains queued completions, then repeats because applying a queued load can start fresh vector work. Mosaic `Settle` waits its complete worker set, drains queued completions, and repeats because a drained action can start work. EXIF `Settle` waits removal workers, metadata reads, warm passes and the shared tile workers before draining callbacks, then repeats because metadata may start map work. `MetadataDone` includes UI delivery for its own read; navigation invalidates metadata immediately, and the next completed image admits Refresh; navigation/collapse/no-GPS/close cancels its session, and shutdown Stop is terminal. Tile Pending counts current work for display, never completion; wait for the worker/notice itself. Deletion `Settle` waits Trash workers before draining their UI completions; `Close` stops unstarted moves and suppresses late callbacks, while submitted OS moves finish independently.
+- `internal/ui/grid`, `internal/ui/compare`, `internal/ui/mosaicwin`, `internal/ui/deletion`, `internal/ui/slideshow`, `internal/ui/exifwin`, `internal/ui/spiral`, `internal/ui/explorer`, `internal/ui/display`, `internal/ui/visualsearch`, `internal/ui/analysiscache`, `internal/ui/help`, and `internal/ui/locationmap` are the per-instance `UIQueue` exceptions: their tests drain completions instead of letting the Fyne test driver run them inline on workers. `internal/ui`'s `newTestUI` installs a drainable `uitest.UIQueue` on all thirteen; keep worker completions on `g.ui.Do` / `f.queueUI` / `w.ui.Do` / `c.ui.Do` / `f.ui.Do` / `s.ui.Do` / captured `queue.Do`. Every `g.ui.Do` submission stays inside its tracked decode or grouping worker. Grid `Settle` waits both the decode pool and the independent grouping worker before draining and repeating; sharing the decode pool would postpone progressive hiding behind the full hash backlog. Grid `Close` cancels the current work session; `Stop` permanently ends admission at shutdown. Reopened sessions retain the common pool but own fresh hash accounting and revision-tagged cell claims. Compare `Settle` waits its load worker and both pane raster waitgroups, drains queued completions, then repeats because applying a queued load can start fresh vector work. Mosaic `Settle` waits its complete worker set, drains queued completions, and repeats because a drained action can start work. EXIF `Settle` waits removal workers, metadata reads, warm passes and the shared tile workers before draining callbacks, then repeats because metadata may start map work. `MetadataDone` includes UI delivery for its own read; navigation invalidates metadata immediately, and the next completed image admits Refresh; navigation/collapse/no-GPS/close cancels its session, and shutdown Stop is terminal. Tile Pending counts current work for display, never completion; wait for the worker/notice itself. Deletion `Settle` waits Trash workers before draining their UI completions; `Close` stops unstarted moves and suppresses late callbacks, while submitted OS moves finish independently.
 - Explorer's `Feature` owns analysis/setup/cohort workers, separate preset workers, and their UI queue. Root `settleExplorer` settles duplicate-preparation Grid work and repeats when feature `Settle` reports UI delivery; `SettlePresets` can observe preset completion while analysis streams. Each delivery rechecks its request token. Close/source replacement invalidate analysis, setup, and preset work before clearing the surface; `Stop` ends admission and `Wait` joins workers off UI. Root keeps collection/duplicate preparation and Grid/image transitions in `explorerInput` and its Host adapter. Keep menu notification separate from repaint: committed source reconciliation can retire analysis before Grid indexes are rebuilt. The harness closes Explorer before settlement so an active subprocess can exit without queued callbacks.
 - Visual search and analysis-cache completions use their captured per-instance queues. Visual search `Settle` waits finite query delivery and retired producers, leaving a ready retained producer alive; `Stop` closes admission before `Wait` joins it off UI. Analysis-cache `Settle` drains while joining because maintenance can await a queued `Host.Quiesce`; it repeats when delivery starts another operation. Settings `Close` cancels view-bound inspection/cleanup while automatic eviction and committed persistence-toggle retirement finish independently; terminal `Stop` cancels all work. Root harness cleanup stops and joins the overlay observer, drains its optional queue, stops both features, settles analysis-cache before visual search, then closes/settles Explorer. Keep these barriers ahead of scan/load cleanup.
 - Spiral owns one serial preview lane across close/reopen. `Close` invalidates its session and cancels without waiting for UI; `Settle` joins frame/preview workers and drains queued test delivery after Close. Frame delivery allows one unacknowledged callback and rechecks its generation inside the callback. Preview delivery rechecks session and order revision before installing pixels. The viewer freezes one duplicate-visibility snapshot at opening; repeated triggers preserve that source list.
@@ -105,6 +137,18 @@ precedence over its default handoff procedure.
   without waiting; Wait/Settle join current and retired workers off UI. The root
   harness installs an offline HTTP transport, stops Help and drains it before
   other viewer work. Notes without images start no image workers.
+
+- Location Map owns a per-instance UIQueue for metadata, validation, previews
+  and tile delivery. Hidden map visits keep GPS work but cancel viewport requests
+  and retry timers. Entry/return validation and committed source reconciliation
+  rebuild derived positions without changing a manual camera or expanding a
+  frozen cluster visit. Raw facts are live-member/version bound; Favorite disk
+  records belong to captured saved membership, never derived donor positions.
+  `Close` cancels without joining on UI; `Stop` ends admission. `Wait` joins
+  current and retired workers, and `Settle` repeats joining and draining because
+  scan delivery starts viewport previews. Keep its harness stop/settle before
+  Grid and display cleanup. Root closes the image-visit state with the feature;
+  a replacement collection must retain ordinary Escape behavior.
 
 ## Project Conventions
 
@@ -136,7 +180,7 @@ precedence over its default handoff procedure.
   counts one result per duplicate *cluster*; `log/qodana_inspections_summary.csv` counts
   every finding *before* both source-level suppressions and `qodana.yaml`'s config-level
   scope exclusions, and one row per *fragment*. The two disagree by design — compare
-  fragment sets, never totals. CI runs the `qodana.starter` profile, not the IDE Project
+  fragment sets, never totals. The retained CI configuration uses `qodana.starter`, not the IDE Project
   Default, so IDE and CI totals are not comparable either.
 
 ## Agent skills

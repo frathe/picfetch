@@ -17,7 +17,7 @@ import (
 )
 
 func (v *viewer) searchReference() string {
-	if v.stopping || v.analysisMaintenanceBusy() || v.FileCount() == 0 || v.scanOp.active || v.sortOp.active || v.comparisonActive() || v.explorerMapActive() || v.slides.Active() || v.win.Canvas().Overlays().Top() != nil || v.deletion.Visible() || v.exportPrompt.Visible() {
+	if v.stopping || v.analysisMaintenanceBusy() || v.FileCount() == 0 || v.scanOp.active || v.sortOp.active || v.comparisonActive() || v.explorerMapActive() || v.locationMap.Active() || v.slides.Active() || v.win.Canvas().Overlays().Top() != nil || v.deletion.Visible() || v.exportPrompt.Visible() {
 		return ""
 	}
 	if _, editing := v.win.Canvas().Focused().(*widget.Entry); editing {

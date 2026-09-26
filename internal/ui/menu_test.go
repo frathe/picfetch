@@ -147,10 +147,10 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 	if window.Label != "Window" {
 		t.Errorf("fourth menu label = %q, want %q", window.Label, "Window")
 	}
-	if len(window.Items) != 7 {
-		t.Fatalf("Window menu items = %d, want 7 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help, Similarity Explorer, Generate Image Mosaic...)", len(window.Items))
+	if len(window.Items) != 8 {
+		t.Fatalf("Window menu items = %d, want 8 (Viewer, EXIF Data, Grid View, Picture-frame mode, Help, Similarity Explorer, Location Map, Generate Image Mosaic...)", len(window.Items))
 	}
-	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help", "Similarity Explorer", "Generate Image Mosaic..."}
+	wantWindowLabels := []string{"Viewer", "EXIF Data", "Grid View", "Picture-frame mode", "Help", "Similarity Explorer", "Location Map", "Generate Image Mosaic..."}
 	for i, want := range wantWindowLabels {
 		got := window.Items[i]
 		if got.Label != want {
@@ -163,11 +163,14 @@ func TestBuildMainMenu_Structure(t *testing.T) {
 			t.Errorf("Window menu item %d (%q) is a separator, want a normal item", i, want)
 		}
 	}
-	if !window.Items[0].Disabled || !window.Items[1].Disabled || !window.Items[2].Disabled || !window.Items[3].Disabled || !window.Items[5].Disabled || !window.Items[6].Disabled {
+	if !window.Items[0].Disabled || !window.Items[1].Disabled || !window.Items[2].Disabled || !window.Items[3].Disabled || !window.Items[5].Disabled || !window.Items[7].Disabled {
 		t.Error("Image windows should start disabled with no files")
 	}
 	if window.Items[4].Disabled {
 		t.Error("Help should start enabled")
+	}
+	if window.Items[6].Disabled {
+		t.Error("Location Map should allow opening its empty state")
 	}
 
 	if got := menu.Items[4]; got.Label != "Help" {
@@ -179,8 +182,8 @@ func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
 	v := newTestViewer(t)
 	window := buildMainMenu(v).Items[3]
 
-	if len(window.Items) != 7 {
-		t.Fatalf("Window menu items = %d, want 7", len(window.Items))
+	if len(window.Items) != 8 {
+		t.Fatalf("Window menu items = %d, want 8", len(window.Items))
 	}
 
 	want := []struct {
@@ -194,6 +197,7 @@ func TestBuildMainMenu_WindowItemsDisplayTheirAccelerators(t *testing.T) {
 		{"Picture-frame mode", fyne.KeyP, 0},
 		{"Help", fyne.KeyF1, 0},
 		{"Similarity Explorer", fyne.KeyS, fyne.KeyModifierShift},
+		{"Location Map", fyne.KeyL, fyne.KeyModifierShift},
 		{"Generate Image Mosaic...", fyne.KeyM, fyne.KeyModifierShift},
 	}
 	for i, tc := range want {

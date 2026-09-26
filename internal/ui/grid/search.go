@@ -145,9 +145,19 @@ func (g *Overview) applyVisibleFilter(resetView bool, keepHost int) {
 	} else if nameFilter || hide || browseFilter || g.subset != nil {
 		needle := strings.ToLower(g.query)
 		g.matches = make([]int, 0, g.host.FileCount())
+		var occurrences *visitSourceIndex
+		if g.subsetOccurrences != nil {
+			occurrences = g.visitSources()
+		}
 		for i := range g.host.FileCount() {
 			if g.subset != nil && !g.subset[g.host.FileAt(i).Path()] {
 				continue
+			}
+			if occurrences != nil {
+				identity, _ := occurrences.identities.Capture(g.host.FileAt(i).Path(), i)
+				if !g.subsetOccurrences[identity] {
+					continue
+				}
 			}
 			if nameFilter && !strings.Contains(strings.ToLower(g.host.FileAt(i).Name()), needle) {
 				continue
@@ -274,7 +284,9 @@ func (g *Overview) syncTopBar() {
 		g.searchLabel.Show()
 		g.countLabel.Show()
 	case g.subset != nil:
-		if g.ranked != nil {
+		if g.subsetLabel != "" {
+			g.searchLabel.SetText(g.subsetLabel)
+		} else if g.ranked != nil {
 			g.searchLabel.SetText(lang.L("Find more like this"))
 		} else if g.onAnalyze != nil {
 			g.searchLabel.SetText(lang.L("Showing Unassigned"))

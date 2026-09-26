@@ -1,6 +1,10 @@
 package ui
 
-import "slices"
+import (
+	"slices"
+
+	"fyne.io/fyne/v2"
+)
 
 type sourceChangeKind uint8
 
@@ -18,6 +22,7 @@ const (
 type sourceChange struct {
 	kind    sourceChangeKind
 	removed []int
+	written []fyne.URI
 }
 
 // reconcileSources returns an image requested by origin restoration, or -1.
@@ -30,6 +35,10 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	}))
 	if len(indices) == 0 && (change.kind == sourcesRemoved || change.kind == sourceLoadFailed) {
 		return -1
+	}
+	finishLocation := v.captureLocationReconciliation(indices)
+	if change.kind == sourceWritten {
+		v.locationMap.InvalidateSources(change.written)
 	}
 
 	origin, restore := v.visualsearch.DetachOrigin()
@@ -74,6 +83,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	if change.kind == sourceWritten {
 		v.compare.Refresh()
 	}
+	finishLocation()
 
 	index := -1
 	if restore {

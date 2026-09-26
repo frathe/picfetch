@@ -63,7 +63,8 @@ type hashEngine struct {
 	hashing sync.Map
 
 	// hashJobs counts those pool jobs so the last one can finishBrowse.
-	hashJobs atomic.Int32
+	hashJobs  atomic.Int32
+	hashTotal atomic.Int32
 
 	// hideApply stays set until the in-flight UI install returns, so an
 	// idle fyne.Do cannot re-arm mid-apply and queue one install per
@@ -241,6 +242,7 @@ func (e *hashEngine) beginPass(n int) {
 	if e.hashJobs.Load() == 0 {
 		e.hideApplyAt.Store(0)
 	}
+	e.hashTotal.Add(int32(n))
 	e.hashJobs.Add(int32(n))
 }
 

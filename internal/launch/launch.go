@@ -16,8 +16,10 @@ package launch
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,7 +44,8 @@ type Options struct {
 	PictureFrame bool
 
 	// ExplorerTrial requests an isolated native collection in a new directory.
-	ExplorerTrial string
+	ExplorerTrial    string
+	LocationMapTrial string
 
 	// Sort is one of the preferences.SortBy* constants, validated by Parse.
 	Sort *string
@@ -61,6 +64,17 @@ type Options struct {
 // ApplicationID validates trial isolation before Fyne can open preferences or
 // session storage. Ordinary launches retain the supplied stable application ID.
 func (o Options) ApplicationID(ctx context.Context, normal string) (string, error) {
+	if o.LocationMapTrial != "" {
+		if o.ExplorerTrial != "" {
+			return "", errors.New("choose only one native trial mode")
+		}
+		path, err := filepath.Abs(o.LocationMapTrial)
+		if err != nil {
+			return "", err
+		}
+		digest := sha256.Sum256([]byte(filepath.Clean(path)))
+		return fmt.Sprintf("%s.location-map-trial.%x", normal, digest[:12]), nil
+	}
 	if o.ExplorerTrial == "" {
 		return normal, nil
 	}
@@ -93,6 +107,18 @@ type spec struct {
 }
 
 var flagSpecs = []spec{
+	{
+		name: "location-map-trial",
+		arg:  "DIR",
+		help: "record an isolated native Location Map trial in a new directory",
+		set: func(o *Options, raw string) error {
+			if strings.TrimSpace(raw) == "" {
+				return errors.New("trial directory is empty")
+			}
+			o.LocationMapTrial = raw
+			return nil
+		},
+	},
 	{
 		name: "explorer-trial",
 		arg:  "DIR",

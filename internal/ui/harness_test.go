@@ -21,6 +21,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/display"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
+	"github.com/frathe/picfetch/internal/ui/locationmap"
 	searchui "github.com/frathe/picfetch/internal/ui/visualsearch"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -117,6 +118,8 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v.help.SetUIQueue(&uitest.UIQueue{})
 	v.help.SetImageClient(&http.Client{Transport: offlineReleaseImages{}})
 	v.grid.SetUIQueue(&uitest.UIQueue{})
+	v.locationMap.SetUIQueue(&uitest.UIQueue{})
+	v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: offlineReleaseImages{}}}, noLocationRetry)
 	v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}})
 	v.searchView.overlayUI = &uitest.UIQueue{}
 	v.analysisDir = t.TempDir()
@@ -211,6 +214,13 @@ func drain(t *testing.T, v *viewer) {
 	v.settleHEIC()
 	v.help.Stop()
 	v.help.Settle()
+	v.closeLocationMap()
+	v.locationMap.Stop()
+	v.stopLocationTrial()
+	if err := v.waitLocationTrial(); err != nil {
+		t.Errorf("location trial: %v", err)
+	}
+	v.locationMap.Settle()
 	v.stopSearchOverlayWait()
 	v.searchView.overlayWorkers.Wait()
 	if v.searchView.overlayUI != nil {

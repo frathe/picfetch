@@ -26,6 +26,42 @@ import (
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
+func TestDuplicatePreparationProgressResetsAcrossSessions(t *testing.T) {
+	host := hostWith(t, "a.jpg", "b.jpg")
+	g := newOverview(t, host)
+	g.PrepareDuplicateGroups()
+	g.Settle()
+	if completed, total := g.DuplicatePreparationProgress(); completed != 2 || total != 2 {
+		t.Fatalf("first pass = %d/%d, want 2/2", completed, total)
+	}
+	g.Close()
+	g.PrepareDuplicateGroups()
+	g.Settle()
+	if completed, total := g.DuplicatePreparationProgress(); completed != 0 || total != 0 {
+		t.Fatalf("reopened cached session = %d/%d, want 0/0", completed, total)
+	}
+	base := hostWith(t, "new.jpg").files[0]
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	defer once.Do(func() { close(release) })
+	host.files = []fyne.URI{uitest.ReaderURI(base, func() (io.ReadCloser, error) {
+		close(entered)
+		<-release
+		return os.Open(base.Path())
+	})}
+	host.gen++
+	g.PrepareDuplicateGroups()
+	<-entered
+	if completed, total := g.DuplicatePreparationProgress(); completed != 0 || total != 1 {
+		t.Fatalf("replacement session = %d/%d, want 0/1", completed, total)
+	}
+	once.Do(func() { close(release) })
+	g.Settle()
+	if completed, total := g.DuplicatePreparationProgress(); completed != 1 || total != 1 {
+		t.Fatalf("completed replacement = %d/%d, want 1/1", completed, total)
+	}
+}
+
 func TestHideDuplicatesPublishesWhileSourceReadsRemainPending(t *testing.T) {
 	host := hostPatterned(t, []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg", "g.jpg", "h.jpg"}, []int{1, 1, 1, 1, 1, 1, 1, 1})
 	data, err := os.ReadFile(host.files[0].Path())

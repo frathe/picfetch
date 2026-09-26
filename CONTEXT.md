@@ -143,6 +143,27 @@ the explorer map. The sample represents the cohort's contents, not its full
 membership.
 _Avoid_: Image cohort (the group itself), mosaic
 
+**Location Map**:
+A geographic view of the loaded collection using recorded GPS coordinates and
+honoring duplicate hiding. A duplicate group's highest-resolution image can be
+located using coordinates recorded by another member of that group.
+_Avoid_: Similarity map, explorer map
+
+**Location cluster**:
+A group of mapped images represented by one counted pin because their
+positions are too close to display separately at the current map zoom.
+_Avoid_: Duplicate group, image cohort
+
+**Location source**:
+The image whose recorded GPS coordinates position an image on Location Map.
+It can be a hidden duplicate of the image shown by the map.
+_Avoid_: Displayed image, inferred location
+
+**GPS cache**:
+Remembered per-image location metadata used by Location Map, retained on disk
+for Favorite collections and in memory for live collections.
+_Avoid_: Tile cache, thumbnail cache, analysis cache
+
 **Trane**:
 PicFetch's dog mascot, including the character on the welcome screen.
 

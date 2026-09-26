@@ -22,6 +22,7 @@ func (f *Feature) Open(request OpenRequest) bool {
 	f.surface.Show()
 	f.cohort = nil
 	f.preparing = false
+	f.surface.preparation.Hide()
 	f.host.Repaint()
 	if slices.Equal(paths, f.sources) && f.complete {
 		return true

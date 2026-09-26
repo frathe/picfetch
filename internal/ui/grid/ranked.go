@@ -22,7 +22,32 @@ type Visit struct {
 	subsetBack, analyze              func()
 	selectedOccurrences              map[fileidentity.Occurrence]bool
 	highlightIdentity                fileidentity.Occurrence
+	occurrenceSubset                 map[fileidentity.Occurrence]bool
+	subsetLabel                      string
 }
+
+// RemapOccurrences applies an admitted collection removal to immutable bookmarks.
+// Missing mappings are deleted occurrences, not fallbacks to an adjacent copy.
+func (v Visit) RemapOccurrences(survivors map[fileidentity.Occurrence]fileidentity.Occurrence) Visit {
+	remap := func(before map[fileidentity.Occurrence]bool) map[fileidentity.Occurrence]bool {
+		if before == nil {
+			return nil
+		}
+		after := make(map[fileidentity.Occurrence]bool, len(before))
+		for identity := range before {
+			if next, ok := survivors[identity]; ok {
+				after[next] = true
+			}
+		}
+		return after
+	}
+	v.selectedOccurrences = remap(v.selectedOccurrences)
+	v.occurrenceSubset = remap(v.occurrenceSubset)
+	v.highlightIdentity = survivors[v.highlightIdentity]
+	v.Highlight = v.highlightIdentity.Path
+	return v
+}
+
 type visitSourceIndex struct {
 	identities fileidentity.Index
 	generation uint64
@@ -156,6 +181,8 @@ func (g *Overview) SetOnRankedOpen(open func(Visit)) { g.onRankedOpen = open }
 
 func (g *Overview) CaptureVisit() Visit {
 	visit := Visit{Query: g.query, Searching: g.searching, Visible: g.visible, ScrollOffset: g.ScrollOffset(), subsetBack: g.onSubsetBack, analyze: g.onAnalyze}
+	visit.occurrenceSubset = g.subsetOccurrences
+	visit.subsetLabel = g.subsetLabel
 	if g.ranked != nil {
 		visit.Ranked = true
 		visit.Paths = slices.Clone(g.ranked.Paths)
@@ -199,6 +226,7 @@ func (g *Overview) RestoreVisit(visit Visit) {
 	if !visit.Ranked {
 		g.Close()
 		g.onSubsetBack, g.onAnalyze = visit.subsetBack, visit.analyze
+		g.subsetOccurrences, g.subsetLabel = visit.occurrenceSubset, visit.subsetLabel
 		if visit.Subset != nil {
 			g.subset = map[string]bool{}
 			for _, path := range visit.Subset {

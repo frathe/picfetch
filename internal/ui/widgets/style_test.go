@@ -16,6 +16,33 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+func TestPreparationProgressPhasesAndRetirement(t *testing.T) {
+	progress := NewPreparationProgress()
+	window := test.NewWindow(progress)
+	defer window.Close()
+	defer progress.Hide()
+	progress.Update(1, 4)
+	if !progress.Visible() || !progress.checks.Visible() || progress.checks.Value != 1 || progress.checks.Max != 4 || progress.waiting.Visible() || progress.waiting.Running() {
+		t.Fatalf("measured checks were not shown exclusively: outer=%t checks=%t value=%v max=%v waiting visible=%t running=%t", progress.Visible(), progress.checks.Visible(), progress.checks.Value, progress.checks.Max, progress.waiting.Visible(), progress.waiting.Running())
+	}
+	progress.Update(4, 4)
+	if progress.checks.Visible() || !progress.waiting.Visible() || !progress.waiting.Running() {
+		t.Fatal("final grouping was falsely shown as complete instead of waiting")
+	}
+	progress.Hide()
+	if progress.Visible() || progress.waiting.Running() {
+		t.Fatal("retirement retained preparation animation")
+	}
+	progress.Update(0, 0)
+	if !progress.Visible() || !progress.waiting.Visible() || !progress.waiting.Running() {
+		t.Fatal("unmeasured preparation did not resume waiting")
+	}
+	progress.Update(2, 3)
+	if !progress.checks.Visible() || progress.checks.Value != 2 || progress.waiting.Running() {
+		t.Fatal("measured work did not retire the waiting animation")
+	}
+}
+
 // TestRinged_LeavesTheRingRoomOutsideTheButton is the whole point of the
 // inset: a Fyne button paints an opaque background across its entire area,
 // so a ring laid out at the same size as the button it marks is covered up

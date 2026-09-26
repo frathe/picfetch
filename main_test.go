@@ -8,7 +8,42 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/launch"
 )
+
+func TestTrialLaunchPreservesPredecessorArtifacts(t *testing.T) {
+	for _, mode := range []string{"ordinary", "location-map-trial", "explorer-trial"} {
+		t.Run(mode, func(t *testing.T) {
+			var args []string
+			if mode != "ordinary" {
+				args = []string{"--" + mode, t.TempDir()}
+			}
+			_, opts, err := launch.Parse(args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stage := filepath.Join(t.TempDir(), "picfetch.new")
+			if err := os.WriteFile(stage, []byte("normal-session update"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cleanupLaunchPredecessor(opts, func() {
+				if err := os.Remove(stage); err != nil {
+					t.Fatal(err)
+				}
+			})
+			data, err := os.ReadFile(stage)
+			if mode != "ordinary" || distribution.StoreManaged {
+				if err != nil || string(data) != "normal-session update" {
+					t.Fatalf("isolated launch changed normal update artifacts: %q, %v", data, err)
+				}
+			} else if !os.IsNotExist(err) {
+				t.Fatalf("ordinary portable launch skipped predecessor cleanup: %v", err)
+			}
+		})
+	}
+}
 
 func TestEmbeddedNoticesMatchShippedDocument(t *testing.T) {
 	want, err := os.ReadFile("THIRD-PARTY-NOTICES.md")

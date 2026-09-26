@@ -27,6 +27,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 
 		ShowViewer:       view.showViewer,
 		ShowExplorer:     view.showExplorer,
+		ShowLocationMap:  view.showLocationMap,
 		ShowExif:         view.showWindowExif,
 		ShowGrid:         view.showWindowGrid,
 		ShowPictureFrame: view.showWindowPictureFrame,
@@ -58,6 +59,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.grid.SetOnResultChanged(view.syncMenus)
 	view.slides.SetOnActiveChanged(view.syncMenus)
 	view.grid.SetOnDupeStateChanged(view.syncDuplicateState)
+	view.grid.SetOnDuplicateProgress(view.syncDuplicatePreparationProgress)
 	view.syncMenus()
 
 	return fyne.NewMainMenu(view.menus.FileMenu(), view.favorites.Menu(), view.menus.ActionsMenu(), view.menus.WindowMenu(), view.help.Menu())
@@ -74,7 +76,7 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 	c.OpenFiles = v.yieldThenAllowedDuringComparison(c.OpenFiles)
 	c.ShowHelp = v.yieldThenAllowedDuringComparison(c.ShowHelp)
 	c.SetSort = v.yieldThenMode(c.SetSort)
-	for _, callback := range []*func(){&c.ShowViewer, &c.ShowExplorer, &c.Mosaic, &c.CloseFiles, &c.ShowSettings} {
+	for _, callback := range []*func(){&c.ShowViewer, &c.ShowExplorer, &c.ShowLocationMap, &c.Mosaic, &c.CloseFiles, &c.ShowSettings} {
 		*callback = v.yieldThenMapAllowed(*callback)
 	}
 
@@ -103,7 +105,7 @@ func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
 
 func (v *viewer) yieldThen(fn func()) func() {
 	return v.yieldThenMapAllowed(func() {
-		if !v.explorerMapActive() && fn != nil {
+		if !v.explorerMapActive() && !v.locationMapVisible() && fn != nil {
 			fn()
 		}
 	})
@@ -196,8 +198,9 @@ func (v *viewer) menuState() menus.State {
 		CanMosaic:           v.canMosaic(),
 		ComparisonActive:    v.comparisonActive(),
 		ExplorerActive:      v.explorerMapActive(),
+		LocationMapActive:   v.locationMapVisible(),
 		ExplorerCanRetry:    v.explorerCanRetry(),
-		CohortActive:        v.explorer.HasCohort(),
+		CohortActive:        v.explorer.HasCohort() || v.locationMap.Active(),
 	}
 }
 

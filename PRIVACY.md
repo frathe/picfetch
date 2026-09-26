@@ -1,6 +1,6 @@
 # PicFetch privacy policy
 
-Effective date: September 11, 2026
+Effective date: September 25, 2026
 
 PicFetch is a free and open-source desktop image viewer. It has no accounts,
 advertising, analytics, or telemetry. The PicFetch developer does not collect,
@@ -21,21 +21,37 @@ open a localhost server or expose a model API on a network port. PicFetch
 disables ONNX Runtime telemetry before creating an analysis session; if the
 telemetry opt-out fails, analysis does not start.
 
-PicFetch can display GPS coordinates already embedded in an image. The Location
-map is collapsed by default, and no map request is made merely by opening the
-image or its EXIF information.
+PicFetch can display GPS coordinates already embedded in images. Reading these
+coordinates is local. Opening an image or its EXIF information does not by itself
+request map tiles; the EXIF Location section is collapsed by default.
 
 ## OpenStreetMap location map
 
-When the user explicitly expands the Location section for an image containing
-GPS coordinates, PicFetch requests the map tiles needed to display that area
-from `tile.openstreetmap.org`. Those requests disclose the requested map area,
-the device's IP address, and a PicFetch user-agent string to the OpenStreetMap
-tile service. PicFetch does not send the image, filename, or other EXIF fields.
+PicFetch uses `tile.openstreetmap.org` for both the collection-wide **Location
+Map** and the **Location** section of an image's EXIF window. Tile requests begin
+when the user opens Location Map, or expands the EXIF Location section for an
+image with GPS coordinates. Panning, zooming, resizing, or navigating while a map
+is open can request additional tiles. The EXIF map also loads nearby tiles around
+the image's location.
+
+Requests contain map tile coordinates (zoom level, column, and row), not the
+original GPS metadata. They nevertheless disclose the map areas being viewed,
+which can reveal or approximate where images were taken. The tile service also
+receives the device's IP address, a PicFetch user-agent string, and ordinary HTTP
+connection information. PicFetch does not send images, previews, filenames,
+local paths, or other EXIF fields with tile requests.
+
+Downloaded map tiles are cached in memory. The collection map also reads image
+metadata locally and can save versioned metadata, including GPS coordinates and
+source paths, in local caches for saved Favorites. These records are not uploaded.
+The dark-mode filter for both maps changes map colors locally; it does not change
+the provider, upload photos, or request a separate dark map service.
 
 The OpenStreetMap Foundation processes those requests under its own
-[privacy policy](https://osmfoundation.org/wiki/Privacy_Policy). The map can be
-avoided entirely by leaving the Location section collapsed.
+[privacy policy](https://osmfoundation.org/wiki/Privacy_Policy). To avoid OSM tile
+requests, do not open Location Map and leave the EXIF Location section collapsed.
+Leaving the collection map, collapsing the EXIF section, or closing its window
+cancels that map's pending tile work; requests already sent cannot be recalled.
 
 ## Similarity Explorer downloads
 

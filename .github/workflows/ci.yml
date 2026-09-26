@@ -258,6 +258,13 @@ jobs:
       - name: Execute Cocoa-linked macOS guards
         run: go run ./scripts/nativeguards -suite macos -capture "${{ runner.temp }}/native-guards-macos.json"
 
+      - name: Check native Location Map observer
+        run: |
+          xcrun swiftc -parse-as-library -warnings-as-errors -typecheck scripts/locationmapqualify/native/capture.swift
+          xcrun swiftc -parse-as-library -warnings-as-errors -D CAPTURE_TEST scripts/locationmapqualify/native/capture.swift scripts/locationmapqualify/native/capture_test.swift -o "$RUNNER_TEMP/location-map-capture-test"
+          "$RUNNER_TEMP/location-map-capture-test"
+          go test -count=1 -run '^TestNativeProtocol' ./scripts/locationmapqualify
+
       - name: Check Explorer runtime selection and worker exit
         run: go test ./internal/ort ./internal/similarity ./scripts/explorereval -count=1
 
