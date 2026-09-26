@@ -102,7 +102,23 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   trials and stage/RSS observation remain usable. Existing maintainer performance
   acceptance stands separately from measured timing evidence.
 
+- **Qodana CI restoration:** re-enabled on 2026-09-26 at Ronin's request after
+  trial renewal. GitHub confirms workflow `344916353` is `active`. The new secret
+  is `QODANA_TOKEN_1506204616` (updated 2026-09-26); the workflow's former
+  `QODANA_TOKEN` secret still has its August timestamp. The workflow now
+  references the new secret without changing the job's `QODANA_TOKEN` variable,
+  analysis profile, build tags, exclusions or permissions. Ronin authorized
+  publishing the restoration on a feature branch; a fresh completed scan remains
+  pending. Inspect post-suppression SARIF
+  before treating this gate as passed. The
+  [local inspection guide](docs/local-qodana-inspections-2026-09-25.md) remains
+  the fallback reference.
+
 ## Deferred
+
+<!--
+Inactive pause record, retained for reuse after Ronin authorizes another CI
+pause. Update the date and restore this section when that happens.
 
 ### Qodana CI paused
 
@@ -111,6 +127,7 @@ Keep its configuration for possible restoration; this is not a passed scan.
 GoLand inspections and CodeQL remain in use. The
 [local inspection research](docs/local-qodana-inspections-2026-09-25.md) records
 the IDE-only Qodana option, licensing distinction and historical inspection advice.
+-->
 
 ### Fyne upgrade deferred
 

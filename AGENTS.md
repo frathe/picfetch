@@ -68,15 +68,30 @@ progress updates while waiting. Use the existing SDD/TDD working agreement for
 implementation; this workflow's local-test and commit authorization rules take
 precedence over its default handoff procedure.
 
+### Qodana CI and local static analysis
+
+Qodana CI was re-enabled at Ronin's request on 2026-09-26 for a renewed trial.
+The earlier paused-CI waiver is withdrawn. Keep `qodana.yaml`, build tags and
+exact test exclusions aligned between CI and local analysis. A licensing error
+or incomplete scan is an unverified gate, not a pass; change workflow enablement
+only at Ronin's direction. Review a fresh post-suppression SARIF result before
+claiming that Qodana passes.
+
+<!--
+Inactive pause-only guidance, retained for the next trial expiry. Restore only
+after Ronin authorizes another CI pause, and update the pause date.
+
 ### Local static analysis while Qodana CI is paused
 
 Ronin disabled Qodana CI on 2026-09-25 after its trial subscription expired.
 Keep the workflow, `qodana.yaml`, build-tag configuration and exact test exclusions
 for local use and possible restoration. Treat the disabled CI gate as explicitly
 waived, not passed; re-enable it only at Ronin's direction.
+-->
 
-Use GoLand's **Tools -> Qodana -> Try Code Analysis with Qodana** (or **Problems ->
-Qodana -> Try locally**) with the existing `qodana.yaml` and cloud-result uploads
+For local analysis, use GoLand's **Tools -> Qodana -> Try Code Analysis with
+Qodana** (or **Problems -> Qodana -> Try locally**) with the existing
+`qodana.yaml` and cloud-result uploads
 off. This IDE-local mode does not need a separate Qodana subscription; moving
 the standalone Go CLI/Docker scanner locally does not remove its license check.
 Before setting up or troubleshooting local analysis, read
