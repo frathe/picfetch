@@ -79,11 +79,17 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 - Apply the owner's fifteen reviewed FOSSA decisions with per-issue evidence
   and PicFetch/version scope; retain all notices and global license policies.
   See [the disposition record](docs/fossa-license-ci-2026-09-26.md) and use
-  `make fossa-findings PR=61` to check the latest scan independently.
+  `make fossa-findings PR=63` to check the consolidated PR's latest scan.
 - Reject incomplete FOSSA revision counts rather than publishing a false
   zero-findings report; cover missing and null counts on both revision reads.
 - Complete GoLand inspections of all three PR 61 changed Go files at `548a9a0`:
   no errors or warnings, including weak warnings. Qodana remains a separate gate.
+- Restore Qodana CI with the renewed trial token, preserving its profile,
+  exclusions, permissions and reusable inactive pause instructions. Combined
+  PR 63's `93026c3` passes Qodana with zero post-suppression SARIF findings;
+  its fresh Codex code/security reviews, full CI, CodeQL and FOSSA also pass.
+  The local inspection guide now clearly separates restored CI from the
+  historical pause. See [the evidence](plans/2026-09-26-pr61-license-notices.md).
 - Make AVIF notice validation work with a fresh Go module cache while retaining
   the reviewed payload and license checks.
 - PR 58 review hardening: isolated map trials preserve normal updater files,
@@ -100,11 +106,12 @@ keeps photos visible while dragging, and shows progress while checking duplicate
 
 ## Open
 
-- **Combined PR 63 review-loop gates:** PR 61's license notices, findings
+- **Combined PR 63 merge decision:** PR 61's license notices, findings
   command and fixes are consolidated into the repository-owned PR 63 branch
-  with its renewed Qodana token wiring. Obtain fresh latest-head Codex
-  code/security reviews, CI, CodeQL and post-suppression Qodana results.
-  PR 61 remains open; nothing is merged into main and no gate is waived.
+  with its renewed Qodana token wiring. The code-bearing merge `93026c3` has a
+  clean review round; require the latest head's checks before any later merge.
+  Merging PR 63 or closing PR 61 still requires the owner's direction.
+  Nothing is merged into main and no gate is waived.
   See [the review-loop record](plans/2026-09-26-pr61-license-notices.md).
 
 - **Similarity protocol race timeout:** the PR 61 final Docker race run hit
@@ -125,19 +132,6 @@ keeps photos visible while dragging, and shows progress while checking duplicate
   qualification again. The current helper rejects these measurements; manual
   trials and stage/RSS observation remain usable. Existing maintainer performance
   acceptance stands separately from measured timing evidence.
-
-- **Qodana CI restoration:** re-enabled on 2026-09-26 at Ronin's request after
-  trial renewal. GitHub confirms workflow `344916353` is `active`. The new secret
-  is `QODANA_TOKEN_1506204616` (updated 2026-09-26); the workflow's former
-  `QODANA_TOKEN` secret still has its August timestamp. The workflow now
-  references the new secret without changing the job's `QODANA_TOKEN` variable,
-  analysis profile, build tags, exclusions or permissions. Ronin authorized
-  publishing the restoration on a feature branch. The local inspection guide
-  now distinguishes restored CI from the historical pause (PR 63's Codex P2).
-  A fresh completed scan of the combined branch remains pending. Inspect
-  post-suppression SARIF before treating this gate as passed. The
-  [local inspection guide](docs/local-qodana-inspections-2026-09-25.md) remains
-  the fallback reference.
 
 ## Deferred
 
