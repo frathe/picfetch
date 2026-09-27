@@ -63,6 +63,9 @@
   The next PR review found a Finis clue nil-pointer crash beneath a main-window
   modal. Owned Help/Spiral navigation is repaired with red/green and omission
   coverage, focused race tests, nine-file inspections and native Windows repeats.
+  A further review found asynchronous empty-state cleanup restoring minimized
+  Windows windows. The Windows Unmaximize adapter now checks native maximize
+  state; native red/green, held last-file Trash, reset/race and inspections pass.
   Physical input on all three platforms and full macOS desktop acceptance remain
   unverified; ticket 10 stays open. At `4674cca`, fresh PR 66 CI and CodeQL passed,
   Codex code/security reviews have no findings, and Qodana's inspected SARIF has

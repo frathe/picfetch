@@ -13,6 +13,7 @@ var (
 	user32             = syscall.NewLazyDLL("user32.dll")
 	procClientToScreen = user32.NewProc("ClientToScreen")
 	procShowWindow     = user32.NewProc("ShowWindow")
+	procIsZoomed       = user32.NewProc("IsZoomed")
 )
 
 // swMaximize is SW_MAXIMIZE, the nCmdShow value ShowWindow uses to activate
@@ -54,7 +55,7 @@ func platformMaximize(ctx any) {
 		return
 	}
 
-	procShowWindow.Call(win.HWND, uintptr(swMaximize))
+	_, _, _ = procShowWindow.Call(win.HWND, uintptr(swMaximize))
 }
 
 func platformUnmaximize(ctx any) {
@@ -63,5 +64,12 @@ func platformUnmaximize(ctx any) {
 		return
 	}
 
-	procShowWindow.Call(win.HWND, uintptr(swRestore))
+	// SW_RESTORE also activates normal windows and restores minimized ones.
+	// Empty-state cleanup can run after the user minimizes, so only undo an
+	// actual maximize; never change a minimized window's visibility or focus.
+	maximized, _, _ := procIsZoomed.Call(win.HWND)
+	if maximized == 0 {
+		return
+	}
+	_, _, _ = procShowWindow.Call(win.HWND, uintptr(swRestore))
 }

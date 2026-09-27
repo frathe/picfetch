@@ -75,6 +75,53 @@ This finding requires a fix push, thread disposition/resolution and another
 fresh code/security review and complete CI/CodeQL/Qodana evidence on the new
 head. The final PR disposition records that exact head and its results.
 
+### Windows review round on `bad9b82`
+
+[CI 36325879551](https://github.com/frathe/picfetch/actions/runs/36325879551),
+[CodeQL 36325879554](https://github.com/frathe/picfetch/actions/runs/36325879554)
+and all FOSSA checks passed. Native artifacts `10934445136` (Windows),
+`10934087321` (macOS amd64) and `10933534978` (macOS arm64) match this exact
+revision; the required case-alias/Copy-menu events each have one run, one pass,
+zero skips and zero failures. T0 independently counted the scout's extracted
+events. [Qodana 36325879543](https://github.com/frathe/picfetch/actions/runs/36325879543)
+artifact `10933822903` contains a successful final SARIF with zero results and
+the exact `bad9b822c076d8e5fbf083498ac0607f152c1139` provenance. Security review
+completed cleanly at 14:31:11 UTC. The previous Help thread was resolved.
+
+Fresh code review completed at 14:34:34 UTC with one new confirmed P2:
+[minimized-window cleanup](https://github.com/frathe/picfetch/pull/66#discussion_r4115719860).
+Windows Unmaximize called SW_RESTORE regardless of state, so asynchronous
+last-image cleanup could restore a minimized window and take focus.
+[Microsoft's ShowWindow contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow)
+documents restoration/activation;
+[IsZoomed](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-iszoomed)
+identifies the maximized state. The Windows adapter now checks IsZoomed before
+restoring; no root command or other platform policy changes.
+
+T0's disposable native probe calls the production Unmaximize function against
+the isolated PicFetch HWND. Before the repair, both minimized and
+maximized-then-minimized windows reopened and changed foreground ownership.
+After repair, all four cases pass: normal unchanged, maximized restored,
+minimized unchanged, and maximized-then-minimized unchanged. IsZoomed was false
+in both minimized states. The actual rebuilt app still resets a maximized image
+to the 536 x 379 welcome window on Escape.
+
+The end-to-end native check uses an isolated PATH launcher to hold a successful
+Recycle Bin operation on a copied fixture. After minimizing PicFetch, releasing
+the held child lets last-image cleanup finish: title becomes PicFetch, the child
+exits, and the file is gone, while IsIconic stays true and foreground ownership
+is unchanged. App PID 30704 and held child 3760 exited; the launcher returned 0.
+Native input remains OS-injected. Raw probe source, red/green state matrices,
+screenshots and `minimized-trash-result.json` remain in the Windows evidence
+directory. No native calls were added to ordinary desktop-free tests.
+
+Focused race tests pass winpos in 2.880s and root UI reset/ownership regressions
+in 15.310s; focused vet and changed-file goimports/whitespace pass. GoLand
+inspected both changed Go files including weak warnings. Two existing unchecked
+ShowWindow results were made explicitly ignored: the return reports previous
+visibility, not failure. Reinspection is clear. Fresh latest-head remote gates
+and a clean code/security review are still required after this fix push.
+
 T0 owns the standards and specification assessments and all fixes. One bounded
 read-only scout extracted existing native test events; T0 verified its results
 with `jq`. No review or fix was delegated. Full tests run in GitHub CI; local

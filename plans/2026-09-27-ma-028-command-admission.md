@@ -1,6 +1,6 @@
 # MA-028 ticket and execution plan
 
-Status: Windows prompt-focus and Help-owned navigation fixes locally verified; fresh PR 66 gates required; physical/native desktop acceptance open.
+Status: Windows prompt-focus, Help navigation and minimized-window fixes locally verified; fresh PR 66 gates required; physical/native desktop acceptance open.
 Date: 2026-09-27.
 Planning revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
 Route: Deep, because the change crosses feature adapters and native input on
@@ -40,6 +40,24 @@ No implementation, review or native desktop interaction is delegated.
 ### Remaining acceptance follow-up (2026-09-27)
 
 #### Windows 11 qualification follow-up
+
+PR review of `bad9b82` found that Windows Unmaximize uses SW_RESTORE for every
+window state, which can foreground a minimized app during asynchronous empty
+state cleanup. T0 owns a narrow native-boundary fix in `internal/winpos/windows.go`
+and its API documentation: restore only a maximized, non-minimized window.
+Verify red/green against a disposable native PicFetch HWND using the production
+Unmaximize entry point, covering normal, maximized, minimized and minimized
+after maximize states; repeat native Escape reset and focused reset/winpos
+race/vet tests. Keep native probes outside ordinary desktop-free tests rather
+than add a global syscall seam. Inspect changed code; full suite remains CI.
+Budget: no delegation or new dependency; native/source evidence in the existing
+Windows directory and PR record; continue until the next clean review round.
+
+Result: native red/green confirms both minimized states now retain minimization
+and foreground ownership. Native maximize/Escape still resets; real last-file
+Trash completion beneath minimization leaves the window minimized. Focused
+race/vet and two-file GoLand reinspection pass. No new package/test seam or
+dependency; exact native states and process cleanup are in the PR evidence.
 
 PR review of `d662160` identified a Help-owned continuation blocked by fresh
 main-window admission: Finis's clue can dereference a missing manual beneath a
