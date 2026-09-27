@@ -72,8 +72,8 @@
   `make run` session exited 0; the Windows record retains the evidence.
   Linux is also complete: on 2026-09-27 the user confirmed that physical-input
   checks were already tested but not documented, accepting the retained
-  Make-built runtime evidence. Only macOS desktop acceptance remains;
-  ticket 10 stays open. At `4674cca`, fresh PR 66 CI and CodeQL passed,
+  Make-built runtime evidence. macOS now passes as recorded below;
+  ticket 10 stays open for the fresh PR loop. At `4674cca`, fresh PR 66 CI and CodeQL passed,
   Codex code/security reviews have no findings, and Qodana's inspected SARIF has
   zero results after addressing the original eight findings. The
   [review-loop record](docs/command-admission-pr-66-review-2026-09-27.md) retains
@@ -90,6 +90,11 @@
   [docs/ma-028](docs/ma-028/README.md), with its personal home path redacted and
   raw evidence left ignored, as recorded in the
   [portability audit](docs/ma-028-portability-audit-2026-09-27.md).
+  The [macOS qualification](docs/command-admission-macos-qualification-2026-09-27.md)
+  now records passing physical image/Grid Cmd+A/C, exact clipboard pixels,
+  modal/prompt controls, held-copy refusal/recovery and focused native/race
+  checks. Native busy/modal close now pass with exit 0; all three platforms are
+  qualified. The newly requested PR loop remains before ticket closure.
   MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

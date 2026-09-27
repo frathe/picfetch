@@ -1,6 +1,6 @@
 # MA-028: shared command admission
 
-Status: ready-for-human (Linux and Windows qualification complete; only macOS desktop acceptance remains)
+Status: native qualification complete on all three platforms; final PR 66 review loop pending
 Date: 2026-09-27
 Source: `/to-spec MA-028`, synthesizing the accepted D1-D7 interview decisions.
 Inspected revision: `770052498a8f4fb3ca7bb8be02448287b40ccecb`.
@@ -38,7 +38,11 @@ Inspected revision: `770052498a8f4fb3ca7bb8be02448287b40ccecb`.
   physical-input checks were already tested but not documented, and accepted
   the existing Make-built runtime evidence. See the
   [Linux completion record](../command-admission-linux-qualification-2026-09-27.md).
-- [ ] Ticket 10: remaining macOS desktop qualification. Completed preparation is checked
+- [x] Complete macOS desktop qualification, including physical image/Grid
+  Cmd+A/C, exact native clipboard payloads, modal controls, held-copy menu
+  refusal/recovery and native busy/modal close. The [Mac record](../command-admission-macos-qualification-2026-09-27.md)
+  retains the storage-only qualification overlay and actual input provenance.
+- [ ] Ticket 10: fresh PR 66 review-loop gates and final acceptance, tracked
   separately in [ticket 10](issues/10-native-qualification.md).
 
 The problem statement and contract below describe the accepted pre-implementation

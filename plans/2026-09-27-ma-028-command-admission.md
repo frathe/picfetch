@@ -1,6 +1,6 @@
 # MA-028 ticket and execution plan
 
-Status: Linux and Windows qualification complete; only macOS desktop acceptance remains; final documentation-head PR 66 gates required.
+Status: all native desktop qualification complete; fresh PR 66 gates required before acceptance and archival.
 Date: 2026-09-27.
 Planning revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
 Route: Deep, because the change crosses feature adapters and native input on
@@ -8,6 +8,35 @@ all shipped desktop platforms. Implementation base: `e440685` (clean worktree).
 The implementation request authorizes the draft breakdown and local commits.
 
 ## Implementation record
+
+### macOS completion follow-up (2026-09-27)
+
+The user requests the remaining ticket 10 work, followed by commit/push, the
+PR 66 review loop, ticket closure and todos updates. T0 owns native desktop
+execution, all assessment/fixes and final acceptance. Use an isolated ordinary
+profile with generated/copied fixtures and literal `make run`; record native
+automation separately from the required operator-performed physical Cmd+A/C.
+Retain raw artifacts under `.scratch/ma-028/macos-2026-09-27` and summarize
+actual outcomes in a tracked macOS qualification record. Existing source
+inspection evidence carries forward only for unchanged code; inspect changed
+code and run focused regressions if fixes are needed. Full suite: GitHub CI.
+
+One read-only T3 scout maps Mac profile isolation and reproducible clipboard
+holding. G1-G5: bounded prompt; verify returned source citations with targeted
+reads; zero writes; small independent storage/clipboard scope; no duplicate
+native execution or review context. Budget: one spawn, all implementation and
+review T0. Final gates: all AC10 native groups, physical editor observations,
+fresh clean Codex code/security review, passing required CI/CodeQL and inspected
+post-suppression Qodana SARIF on the latest pushed commit. No merge/release.
+
+Native result: all four macOS groups pass on `41cdaa9` with the documented
+qualification-only app identity/storage overlay. The user performed physical
+image/Grid Cmd+A/C and region drags; T0 verified clipboard payloads, unchanged
+pixels, native menu refusal/recovery and busy/modal close (both exit 0).
+The unmodified native guards and focused Mac race tests pass. Product code is
+unchanged; no new dependency or inspection waiver. One actual scout spawn,
+T0 review, no broad local suite. See the [Mac record](../docs/command-admission-macos-qualification-2026-09-27.md).
+Commit/push and fresh PR review/CI precede ticket closure and plan archival.
 
 The [implementation verification record](../docs/command-admission-verification-2026-09-27.md)
 contains the completed command/route ledger, ownership review, observed
@@ -21,8 +50,8 @@ adds native evidence and verified prompt-focus, Help and minimized-window
 repairs. Final physical Ctrl+A/C checks in image and Grid fields passed on
 `10f16a0`, with exact clipboard payloads and unchanged image/Grid pixels.
 The user confirmed Linux physical-input completion on 2026-09-27, accepting
-the retained Make-built runtime evidence. Only macOS desktop qualification remains;
-the PR review-loop section records completed remote verification separately.
+the retained Make-built runtime evidence. macOS qualification is now complete
+as recorded above; fresh PR gates remain before ticket closure.
 The historical ticketing evidence at the end describes the earlier planning
 turn, not the current implementation state.
 
@@ -336,16 +365,16 @@ The parent specification and backlog issue are not modified by ticketing.
 The implementation request accepted the breakdown. Tickets are published under
 `docs/ma-028/issues/`; the original drafts are retained as planning history.
 Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementation
-checklist items checked against the recorded local evidence. Ticket 10 is
-unblocked and `ready-for-human` after repair of the confirmed Linux reset defect:
-its completed preparation, scoped Linux checks and repair are checked separately.
+checklist items checked against the recorded local evidence. Ticket 10's native
+qualification is complete; it remains in progress for the fresh PR review loop.
+Its preparation, native checks and repairs are checked separately.
 Case-insensitive export now passes on FAT16, including five race repetitions.
 Focused native guards now pass in Windows amd64 and both macOS CI architectures.
 Fresh remote review/CI/analysis gates pass at `4674cca` as recorded above.
 Windows desktop and physical editor-input qualification is now complete at
 `10f16a0`. Linux qualification is complete by the user's retrospective
 physical-input confirmation and acceptance of its recorded Make-built launch.
-Only macOS desktop execution remains; ticket 10 is not resolved.
+macOS desktop execution now passes; final fresh remote gates precede resolution.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
@@ -358,7 +387,7 @@ Only macOS desktop execution remains; ticket 10 is not resolved.
 | [07](../docs/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
 | [08](../docs/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
 | [09](../docs/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../docs/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Linux and Windows complete; finish macOS desktop acceptance | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
+| [10](../docs/ma-028/issues/10-native-qualification.md) | In progress / review loop | All native platforms qualified; fresh remote gates before acceptance | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.

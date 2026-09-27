@@ -5,14 +5,25 @@ that editor shortcuts reach text, menus reflect current admission, and native
 dispatch cannot bypass the integrated policy. Close MA-028 only with complete
 deterministic and native evidence.
 
-**Blocked by:** None; prerequisite 09 is resolved. Only macOS native desktop
-qualification remains. Linux is complete by the user's retrospective physical-input
-confirmation and acceptance of its retained runtime evidence; Windows is
-complete at `10f16a0`. Remote gates and final-head results are retained in PR 66.
+**Blocked by:** Fresh PR 66 review-loop gates before final acceptance;
+prerequisite 09 and all three native desktop qualifications are complete.
+Linux is complete by the user's retrospective physical-input confirmation and
+acceptance of its retained runtime evidence; Windows at `10f16a0`; macOS at
+`41cdaa9` with the documented qualification-only storage/identity overlay.
+Remote gates and final-head results are retained in PR 66.
 The user authorized publication and the review loop on 2026-09-27.
 
-**Status:** ready-for-human (Linux and Windows complete; only macOS desktop
-qualification remains).
+**Status:** in-progress (all native qualification complete; fresh PR 66 review
+loop required before closure).
+
+## macOS qualification results (2026-09-27)
+
+The [macOS record](../../command-admission-macos-qualification-2026-09-27.md)
+retains literal Make-run launch with documented storage/identity substitutions,
+passing native guards and focused race tests, operator-performed Cmd+A/C in
+image/Grid fields, exact clipboard/image comparisons, modal/prompt ownership
+and successful held-region-copy refusal/recovery. Native busy/modal close both
+exited 0. The requested fresh PR loop remains in progress. Product source is unchanged.
 
 ## Windows qualification results (2026-09-27)
 
@@ -149,10 +160,10 @@ requires an early feasibility observation during 02 and final evidence here.
 
 ## Remaining acceptance checks
 
-Linux and Windows qualification are complete, including physical editor input.
-The all-platform boxes below remain unchecked only for macOS's full desktop
-procedure. They do not require repeating completed Linux/Windows checks unless
-relevant code changes. Linux's accepted Make-built launch is recorded above.
+Linux, Windows and macOS qualification are complete, including physical editor
+input. The completed desktop checks do not need repeating unless relevant code
+changes. Linux's accepted Make-built launch and macOS's Make-run qualification
+harness are recorded above; final PR gates remain required.
 
 - [x] Repair Linux Escape/reset from ordinary WM maximization. Dynamic reset now
   requests native restore before resize, without changing fixed-size or
@@ -163,23 +174,23 @@ relevant code changes. Linux's accepted Make-built launch is recorded above.
   files inspect cleanly; Windows cross-vet and fresh `make verify` pass.
   Retain exact source hashes, screenshots, logs and
   `.scratch/race-runs/20260927T103730Z-3Tubvu` in the Linux repair record.
-- [ ] On the remaining native macOS desktop, run the integrated revision
+- [x] On the remaining native macOS desktop, run the integrated revision
   with `make run`; record OS/architecture, revision, Fyne version, input route,
   reproducible steps and actual visible/payload outcomes. Launch alone does
   not establish any scenario below. Verify V10.
-- [ ] With loaded images/Grid and a focused naming/editing field, select
+- [x] With loaded images/Grid and a focused naming/editing field, select
   distinctive text and use physical platform Copy and Select All. Confirm text
   payload/selection and unchanged underlying image/Grid, including the route
   that would otherwise match an application menu accelerator. Verify V10.
-- [ ] Separately invoke explicit image menu actions in an admitted context and
+- [x] Separately invoke explicit image menu actions in an admitted context and
   under a real dialog. Confirm image intent when admitted, modal refusal when
   blocked, and positive prompt control/confirmation/cancel behavior. Verify V10.
-- [ ] Exercise actual menu selection and native availability through modal and
+- [x] Exercise actual menu selection and native availability through modal and
   held region-copy entry/exit. Disabled items cannot bypass live admission;
   legitimate menu selections still work, refusal feedback is preserved and
   native close remains usable. Hold copy reproducibly through an instance-owned
   seam if needed; do not rely on clipboard speed. Verify V10.
-- [ ] Reconcile results with ticket 09 and all spec ACs. T0 fixes confirmed
+- [x] Reconcile results with ticket 09 and all spec ACs. T0 fixes confirmed
   defects inline and repeats affected automated checks, inspections and native
   scenarios on the changed revision. A newly discovered behavior choice outside
   D4-D7 requires its concrete D1 scenario decision. An unavailable platform stays
