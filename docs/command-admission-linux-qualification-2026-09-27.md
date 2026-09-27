@@ -1,8 +1,9 @@
 # MA-028 Linux native-input qualification
 
 Date: 2026-09-27. Requested and assessed by T0 on the local desktop.
-**Correction after the user's screenshot: Linux acceptance has a confirmed,
-unfixed maximized-window Escape reset defect.** See the diagnostic section below.
+**Current repair status: the maximized-window Escape defect is fixed; native
+checks, focused regressions, changed-file inspections and `make verify` pass.**
+See the repair section below. The earlier diagnostic evidence is retained.
 The earlier interpretation of the small rendered surface as a capture limitation
 was incorrect; the positive command-admission observations are not an overall
 Linux acceptance pass.
@@ -11,7 +12,8 @@ Original scoped result: the four native scenario groups passed with OS-injected 
 pointer events. This is actual GLFW/XWayland runtime evidence, not Fyne's test
 driver. It is **not physical-keyboard operator evidence**; that literal part of
 AC10, the other platforms and the external gates remain open in ticket 10.
-No production code or dependencies changed during this qualification.
+The initial qualification changed no production code or dependencies; the later
+authorized repair is recorded separately below.
 
 ## Revision and environment
 
@@ -150,7 +152,7 @@ differing pixels, and the refused Copy Path preserved the region PNG bytes.
 - Logs contain startup locale-C parsing and Fyne threading-model warnings.
   They contain no new panic or clipboard failure in the confirmed runs. These
   warnings were not resolved or counted as a clean static-analysis result.
-- The window-reset defect below remains unfixed. The earlier
+- The window-reset defect below required the subsequent repair. The earlier
   Make/race and 68-file GoLand evidence remains attached to unchanged code at
   `9dc3a81`; the native binary came from documentation-only descendant `6db8d73`.
   No broad suite or GoLand reinspection was rerun for this evidence-only update.
@@ -161,7 +163,7 @@ interaction, artifact inspection, assessment and tracker update. The diagnostic
 skill was used to separate inconclusive input-harness attempts from app behavior;
 only the throwaway input pacing changed, not production code.
 
-## Confirmed Linux Escape reset defect (user follow-up)
+## Confirmed Linux Escape reset defect (diagnostic history)
 
 The user's full-desktop screenshot at 12:03:45 shows that the small lower-left
 surface is visible on screen, not just in `import` captures. T0 reproduced it
@@ -234,4 +236,88 @@ five isolated diagnostic app sessions exited normally, and the failed
 empty-window capture process was stopped. One additional read-only scout traced
 the pinned driver sequence; T0 verified citations and owned all native probes,
 diagnosis and record corrections. The diagnosing-bugs workflow stops at the
-confirmed cause here; production repair remains open in ticket 10.
+confirmed cause at that handoff; the user subsequently authorized repair below.
+
+## Authorized repair and verification
+
+The user's "continue the work" authorized the fix from base `8d68cd7`.
+Dynamic `clearToDropzone` now requests native unmaximization even when Grid or
+Explorer did not initiate it, before requesting the welcome size. The existing
+owned-maximize path still clears its ownership and restores its remembered
+position; its boolean result prevents a duplicate native restore request.
+Ordinary image load/zoom policy is unchanged. Fixed-size reset still preserves
+an ordinary maximized window and still restores Grid-owned maximization to the
+pre-Grid fixed size. No worker, package, platform implementation, dependency or
+user-visible string was added.
+
+The per-viewer `unmaximizeWindow` boundary is initialized to the existing
+`winpos.Unmaximize` operation during normal construction. The new regression
+drives real Escape/Close Files with a window-manager fake that rejects Resize
+while maximized, even while the Fyne canvas changes. Its initial observed red:
+
+```text
+native window after Escape: maximized=true size={1600 1000};
+want restored 520x340 (logical canvas={520 340})
+```
+
+After the fix, `TestEscapeResetRestoresNativeWindow` covers ordinary Escape,
+Close Files, Grid-owned reset, fixed ordinary maximize and fixed Grid restore.
+A temporary Go build overlay omitting native restoration fails ordinary Escape
+and Close Files while the fixed/owned controls pass. The unmodified final guard
+passes again. This is a native-boundary regression, not a claim that the fake
+replaces real WM qualification.
+
+Native results on the same Ubuntu/GNOME/XWayland desktop, with fresh isolated
+profiles and copied fixtures:
+
+| Check | Observed result |
+| --- | --- |
+| Ordinary WM maximize then Escape | Five consecutive runs: 1920 x 1131/maximized -> 624 x 409/unmaximized welcome |
+| Grid -> viewer -> Escape | 1920 x 1131 -> 624 x 409, maximization cleared |
+| Original two-image/Grid/rotation sequence then Escape | Compact 624 x 409 welcome restored, no lower-left-only surface |
+| Fixed ordinary WM maximize then Escape | Welcome fills the preserved 1920 x 1131/maximized window |
+| Fixed Grid maximize then Escape | Configured 1080 x 720 native size restored, maximization cleared |
+
+The native loop was tightened to wait for changed, stable geometry as well as
+both maximization flags, and to require the welcome title at completion. An
+early probe that saw the flags before the resize was not counted. Selected
+screenshots were visually inspected; all owned app processes exited normally.
+Input remains OS-injected XTEST, not a physical-keyboard operator claim.
+
+Verification artifacts are retained in
+[`.scratch/ma-028/linux-reset-repair-2026-09-27`](../.scratch/ma-028/linux-reset-repair-2026-09-27/),
+with working output at `/tmp/picfetch-linux-reset-fix-Y5iRmx`.
+`repeat-native.sh` launches isolated windows and runs five ordinary plus Grid
+and multi-image/rotation cases; `repro.sh` also supports the fixed-size controls.
+`red-and-inspections.md` records the original red and exact inspected source
+hashes. `negative-guard.log`, `guard-final.log`, focused logs, native logs and
+screenshots retain the outputs. The mutation source is qualification-only,
+under ignored scratch storage; production sources contain no instrumentation.
+
+- Make native build passed. Tested binary SHA-256:
+  `f2ef241cef14ece454d1ef743d4ab5bcbba3cfd12062724e72594a45931cba81`.
+- Focused reset/static-size/command-admission union: 28 top-level passes in
+  3.367s, including all five new boundary cases.
+- Neighbor run: six top-level passes in 3.269s, including Explorer
+  `close_files_memory`, `cold_cohort_size`, `return_to_map`, chooser retirement,
+  actual Close Files menu, scan/sort Escape and Grid-visible zoom. The first
+  selector omitted Explorer subtests; the corrected run explicitly includes them.
+- Windows internal-package cross-vet passed with `CGO_ENABLED=0`; this is not
+  native Windows qualification.
+- GoLand `get_file_problems(errorsOnly=false)` returned no findings or timeouts
+  for `viewer.go`, `build.go`, and `reset_test.go` after their final edits.
+  No suppression changed. The earlier 65 unaffected Go files retain their
+  original evidence; Qodana-CI/SARIF remains a separate, unverified gate.
+- Final `make verify`: exit 0, including format/generated inputs/notices, vet,
+  build, exact Qodana exclusions/shards and all native Linux/amd64 Docker race
+  partitions. Root UI partitions passed in 489.127s (ui-1), 398.887s (ui-2),
+  and 404.303s (ui-3); the new boundary test passed under race in 4.920s.
+  Artifacts: `.scratch/race-runs/20260927T103730Z-3Tubvu`, plus `verify.log`
+  in the repair evidence. Existing explicit skips remain, including the
+  case-insensitive export case and native HEIC qualification; they are not
+  counted as passed platform evidence.
+
+T0 owns the regression, fix, native probes and all review. One further bounded
+read-only scout assignment identified neighboring static-size/ownership tests;
+no implementation or review was delegated. Platform/physical-input,
+case-insensitive export and external CI limitations remain as recorded above.

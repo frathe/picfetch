@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/uitest"
@@ -62,5 +63,84 @@ func TestViewerReset(t *testing.T) {
 	}
 	if size := v.win.Canvas().Size(); !uitest.ApproxEqual(size.Width, startW) || !uitest.ApproxEqual(size.Height, startH) {
 		t.Errorf("window size = %v, want %vx%v after reset", size, startW, startH)
+	}
+}
+
+// nativeResetWindow models the window-manager boundary: a maximized native
+// window rejects a requested size even if Fyne changes its logical canvas.
+// This is the mismatch observed on Linux, which Canvas().Size() cannot detect.
+type nativeResetWindow struct {
+	fyne.Window
+	nativeSize fyne.Size
+	maximized  bool
+}
+
+func (w *nativeResetWindow) Resize(size fyne.Size) {
+	w.Window.Resize(size)
+	if !w.maximized {
+		w.nativeSize = size
+	}
+}
+
+func TestEscapeResetRestoresNativeWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		staticSize bool
+		gridVisit  bool
+		closeFiles bool
+	}{
+		{name: "ordinary_maximize"},
+		{name: "close_files", closeFiles: true},
+		{name: "grid_maximize", gridVisit: true},
+		{name: "fixed_ordinary_maximize", staticSize: true},
+		{name: "fixed_grid_maximize", staticSize: true, gridVisit: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newTestViewer(t)
+			u := uitest.TempJPEGURI(t, "one.jpg", 800, 600, color.White)
+			dropAndWait(t, v, u)
+			v.SetStaticWindowSize(tc.staticSize)
+			if tc.gridVisit {
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+			}
+
+			restoredSize := v.win.Canvas().Size()
+			maximizedSize := fyne.NewSize(1600, 1000)
+			v.win.Resize(maximizedSize)
+			native := &nativeResetWindow{Window: v.win, nativeSize: maximizedSize, maximized: true}
+			v.win = native
+			v.unmaximizeWindow = func(window fyne.Window) {
+				if window != native {
+					t.Fatal("reset restored a different native window")
+				}
+				if native.maximized {
+					native.maximized = false
+					native.nativeSize = restoredSize
+					native.Window.Resize(restoredSize)
+				}
+			}
+
+			if tc.closeFiles {
+				v.closeFiles()
+			} else {
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			}
+
+			wantSize := fyne.NewSize(startW, startH)
+			wantMaximized := tc.staticSize && !tc.gridVisit
+			if wantMaximized {
+				wantSize = maximizedSize
+			} else if tc.staticSize {
+				wantSize = restoredSize
+			}
+			if native.maximized != wantMaximized || native.nativeSize != wantSize {
+				t.Errorf("native window after reset: maximized=%v size=%v; want maximized=%v size=%v (logical canvas=%v)",
+					native.maximized, native.nativeSize, wantMaximized, wantSize, native.Canvas().Size())
+			}
+			if len(v.state.files) != 0 || !v.dropzone.Visible() {
+				t.Fatal("reset did not return to the empty welcome view")
+			}
+		})
 	}
 }

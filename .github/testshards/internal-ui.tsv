@@ -7,7 +7,7 @@
 # weights: single CI attempt; projected test sums, not measured shard runtimes
 # ui-1: 251 entries, 470.520s projected weight sum
 # ui-2: 252 entries, 470.530s projected weight sum
-# ui-3: 213 entries, 504.870s projected weight sum
+# ui-3: 214 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -569,6 +569,7 @@ TestE2E_BadDropWithNothingLoadedShowsPlaceholder	ui-3
 TestE2E_EscapeQuitsWhenNothingLoaded	ui-3
 TestE2E_EscapeResetsAfterImagesLoaded	ui-3
 TestE2E_TappingDropzoneArtOpensFileDialog	ui-3
+TestEscapeResetRestoresNativeWindow	ui-3
 TestExportAs_ExportsAFormatThatHasNoEncoderOfItsOwn	ui-3
 TestExportAs_HonorsAnEncodableExtensionTheUserTyped	ui-3
 TestExportAs_JPEGSourceKeepsGPSExif	ui-3

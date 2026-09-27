@@ -6,9 +6,10 @@ explicitly allowed. No push, PR review loop, merge or release was requested.
 
 Status: implementation and available local deterministic gates passed.
 Scoped Linux native-input scenarios passed with OS-injected events, but a user
-follow-up confirmed an unfixed native Escape/maximize reset defect. Linux
-acceptance is not clean; physical operator, other-platform and CI gates also
-remain open. See the
+follow-up exposed a native Escape/maximize reset defect. That defect is now
+repaired and passes repeated native checks, a red/green boundary regression,
+changed-file GoLand inspections and a fresh full `make verify`. Physical
+operator, other-platform and CI acceptance remains open. See the
 [Linux qualification record](command-admission-linux-qualification-2026-09-27.md).
 The execution plan stays in `plans/`.
 
@@ -290,7 +291,15 @@ A later user screenshot confirmed that the small surface inside a maximized
 window was an actual defect. A fresh one-image native reproduction fails:
 Escape keeps 1920 x 1131/maximized instead of the initial 624 x 409 client target.
 Restoring native maximization before Escape makes the control pass. The Linux
-record retains the diagnosis and geometry assertion; no fix is applied yet.
+record retains that diagnostic history and the subsequent authorized repair:
+dynamic reset now restores native state before resizing. Five ordinary native
+repeats, Grid, multi-image/rotation and both fixed-size controls pass. The new
+boundary regression also fails when restoration is deliberately omitted through
+a temporary build overlay. All three changed Go files have clean GoLand
+inspection results, and fresh `make verify` passed with artifacts in
+`.scratch/race-runs/20260927T103730Z-3Tubvu`. Exact final source hashes and
+inspection scope are in the Linux repair evidence; the other 65 inspected
+Go files retain their unchanged-code evidence above.
 Windows and macOS desktops were unavailable. Windows internal-package cross-vet passed,
 but macOS AppKit compilation and its
 new isolated native-menu assertion have not run here.
@@ -305,9 +314,9 @@ leaving physical Cmd+C to GLFW and explicit image-menu selection intact.
 Consequently AppKit no longer draws that item's native Cmd+C hint. This is
 part of the D5 route correction, not native runtime evidence.
 
-Ticket 10 records the completed Linux OS-injected checks separately and is now
-ready-for-agent for the confirmed reset defect, with the literal physical-input
-procedure and untested platforms still requiring native operators.
+Ticket 10 records the completed Linux OS-injected checks and repaired reset
+defect separately and returns to ready-for-human: the literal physical-input
+procedure and untested platforms still require native operators.
 Run the spec's four groups on Windows/macOS and retain revision/OS/input route
 and actual payload/visible outcomes. Do not archive the plan or claim MA-028
 accepted until the remaining observations and required CI gates are complete.

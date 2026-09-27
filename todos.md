@@ -8,6 +8,12 @@
 
 #### Bugfix
 
+- Escape/Close Files now leave ordinary native maximization before restoring
+  the compact welcome window. Preserve fixed-size and Grid-owned restore
+  behavior. A native-boundary regression and repeated Linux desktop checks
+  cover the canvas/native size mismatch; fresh `make verify` and changed-file
+  GoLand inspections passed.
+
 #### Internal
 
 - MA-028 shared command admission is implemented across menus, shortcuts, keys,
@@ -16,8 +22,9 @@
   [implementation and verification record](docs/command-admission-verification-2026-09-27.md).
   `make verify` and all 68 changed-file GoLand inspections passed. The
   [Linux native-input scenarios](docs/command-admission-linux-qualification-2026-09-27.md)
-  passed their scoped OS-injected checks, but the follow-up found a real native
-  maximized-window reset failure; overall Linux acceptance is not clean.
+  passed their scoped OS-injected checks. The subsequently found native
+  maximized-window reset failure is repaired and locally verified; remaining
+  platform/operator and CI acceptance is below.
 
 - Stabilize the similarity protocol race test by dispatching its helper before
   the test runner starts and bounding its lifetime from the parent. Preserve
@@ -40,13 +47,10 @@
   ticket 10 for the remaining native/CI gates. Linux GNOME/XWayland runtime
   checks passed editor shortcuts, actual menu activation/enablement, modal
   controls and native close during held region copying with OS-injected input.
-  **Confirmed Linux blocker:** an ordinary WM-maximized image window remains
-  maximized after Escape while the welcome surface shrinks into its lower-left
-  corner. The native one-image test fails at 1920 x 1131 instead of 624 x 409;
-  the reset only unmaximizes Grid/Explorer-owned maximization. Fix and repeat
-  native geometry/state assertions, preserving static-size behavior. The
-  existing canvas-size-only test does not cover this. Diagnosis and controls
-  are recorded in the Linux evidence; production repair is still open.
+  The Linux Escape/maximize defect found during qualification is fixed: native
+  size/state checks pass repeatedly, including fixed-size controls; the new
+  native-boundary regression, changed-file inspections and fresh full Make
+  gate pass. Historical diagnosis and final evidence remain in the Linux record.
   macOS AppKit compilation/runtime and physical input on all three platforms
   remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
   workflow; local GoLand checks are not a Qodana-CI pass.

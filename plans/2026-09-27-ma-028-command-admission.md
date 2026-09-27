@@ -14,8 +14,9 @@ contains the completed command/route ledger, ownership review, observed
 red/green failures, final test/inspection scope and native limitations.
 The [Linux qualification record](../docs/command-admission-linux-qualification-2026-09-27.md)
 adds passing scoped native scenarios at `6db8d73` using OS-injected XTEST input
-on GNOME/XWayland, followed by a confirmed native Escape/maximize reset defect.
-That Linux repair, physical-input, other-platform and external gates remain open.
+on GNOME/XWayland, followed by diagnosis and repair of a native Escape/maximize
+reset defect. The repair now passes native controls, TDD, inspections and a
+fresh full Make gate. Physical-input, other-platform and external gates remain open.
 The historical ticketing evidence at the end describes the earlier planning
 turn, not the current implementation state.
 
@@ -23,15 +24,43 @@ Linux qualification correction (user report, 2026-09-27): a real maximized-windo
 Escape reset failure is now reproduced with a fresh profile and one image.
 Native geometry stays 1920 x 1131 with both maximization flags after Escape,
 instead of the initial 624 x 409 welcome target. The earlier small rendered
-surface was not merely a capture limitation. Acceptance remains blocked on this
-defect as well as the outstanding platform/CI gates. T0 owns diagnosis; no
-production fix is included in the current diagnostic scope.
+surface was not merely a capture limitation. At the diagnostic handoff it was
+unfixed; the subsequently authorized repair below is now locally verified.
+The outstanding platform/CI gates still prevent overall acceptance.
 
 One further read-only scout assignment traced pinned Fyne resize and native
 geometry callbacks while T0 investigates application reset/maximize ownership.
 G1-G5: under 25 lines; verify returned source citations with targeted reads;
 zero files changed; bounded pinned-driver scope; separate from T0's app path.
 No implementation, review or native desktop interaction is delegated.
+
+### Authorized Linux reset repair (2026-09-27)
+
+The user's "continue the work" authorizes repairing the confirmed defect.
+T0 owns the fix and review within ticket 10. Retain the existing accepted
+real-viewer input seam plus the diagnosed native geometry/state loop. Add an
+instance-owned OS-unmaximize seam, initialized to the existing winpos operation,
+so the real Escape path can be tested against a window-manager boundary that
+rejects Resize while maximized; canvas size alone is explicitly not the oracle.
+
+- [x] Red: real Escape/reset leaves the simulated native window maximized even
+  though its logical canvas changes; retain the already-red native desktop loop.
+- [x] Green: dynamic reset restores ordinary WM maximization before requesting
+  the compact welcome size. Preserve Grid/Explorer-owned restoration, fixed-size
+  behavior and ordinary load/zoom policy; no new worker or dependency.
+- [x] Verify: focused reset/static-size/command-admission tests; native ordinary
+  and Grid maximize/Escape, fixed-size control and original multi-image sequence;
+  changed-file GoLand inspections; one new final `make verify` for changed code.
+- [x] Land: update ticket/spec/evidence/todos, commit locally, retain external
+  platform/CI limitations. No push, PR workflow, merge or release is authorized.
+
+Expected source scope: `viewer.go`, `build.go`, existing `reset_test.go`, shard
+manifest; extend only if the native feedback loop demonstrates a further need.
+No new test file or package is planned. One read-only scout assignment can
+inventory existing static-size and owned-maximize regressions while T0 builds
+the new boundary test. G1-G5: bounded prompt under 25 lines, source/test citations
+verified with `rg`, zero edits, small test-inventory scope distinct from T0's
+native-window fake and fix. No implementation or review is delegated.
 
 Final-gate budget exception: the first complete Docker run exposed clipboard
 surface-pixel fixtures rejected by the new frame-count fact and a direct
@@ -75,9 +104,9 @@ The implementation request accepted the breakdown. Tickets are published under
 `.scratch/ma-028/issues/`; the original drafts are retained as planning history.
 Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementation
 checklist items checked against the recorded local evidence. Ticket 10 is
-unblocked and `ready-for-agent` for the confirmed Linux reset defect: its
-completed preparation and scoped Linux checks remain checked separately.
-Linux repair, physical-input, Windows/macOS, case-insensitive export and fresh
+unblocked and `ready-for-human` after repair of the confirmed Linux reset defect:
+its completed preparation, scoped Linux checks and repair are checked separately.
+Physical-input, Windows/macOS, case-insensitive export and fresh
 CI acceptance remain open; the partial evidence does not resolve ticket 10.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
@@ -91,7 +120,7 @@ CI acceptance remain open; the partial evidence does not resolve ticket 10.
 | [07](../.scratch/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
 | [08](../.scratch/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
 | [09](../.scratch/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Open / ready-for-agent | Repair confirmed Linux reset defect; complete native Linux, Windows and macOS evidence and final acceptance record | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
+| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Linux reset repaired and locally verified; complete remaining native/operator and CI acceptance evidence | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.
@@ -331,14 +360,18 @@ they are the configured tracker, and this tracked plan links to them.
 | --- | --- | --- | --- |
 | Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
 | Convergence 09 | None | T0 structural review; 124 focused top-level passes, nine new guard groups; all 68 changed Go files inspected without findings | Final `make verify` passed, including every Docker race partition; existing platform skips are explicitly retained in the evidence |
-| Native acceptance 10 | Two further read-only scout assignments (launch isolation; pinned driver resize); no implementation support | T0: scoped native checks plus subsequent native Escape/maximize red repro and restore-first/Grid controls; retained screenshots and payload/geometry checks | Scoped groups passed at `6db8d73`, but native reset defect is confirmed and unfixed; physical operator, Windows/macOS, case-insensitive export and CI gates also remain open |
+| Native acceptance 10 | Three further read-only scout assignments (launch isolation; pinned driver resize; neighboring tests); no implementation support | T0: scoped native checks, Escape/maximize diagnosis, red/green boundary regression and repair, repeated native/static controls, three-file inspections and fresh Make gate | Linux reset repaired; physical operator, Windows/macOS, case-insensitive export and CI gates remain open |
 
-Two complete Make runs are authorized by the budget exception above; no broad
-local race run was used during the individual red/green loops. The final
+The original implementation used two complete Make runs under the budget
+exception above; no broad local race run was used during individual red/green
+loops. The subsequent repair adds the single final gate below. The original
 [evidence record](../docs/command-admission-verification-2026-09-27.md) names both
 retained artifact directories, the exact inspection scope/hash and every
 remaining gate. No push, PR review loop, merge or release was performed.
-The Linux follow-up changed evidence/tracker files only; it carries forward the
-unchanged-code Make/race and GoLand evidence from `9dc3a81`, without rerunning
-the broad suite or claiming new inspections. Both qualification windows and
-held clipboard launchers were closed after testing.
+The initial Linux follow-up changed evidence/tracker files only. The authorized
+reset repair then changed three Go files plus the shard manifest, with one
+additional complete `make verify` (exit 0) and fresh GoLand inspection of all
+three files, without findings. Race artifacts are
+`.scratch/race-runs/20260927T103730Z-3Tubvu`; native/review evidence is in the
+Linux record. Both original clipboard holds and every subsequent native test
+window were closed. No new worker, dependency, package or translation was added.

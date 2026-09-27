@@ -44,6 +44,10 @@ import (
 type viewer struct {
 	app fyne.App
 	win fyne.Window
+	// unmaximizeWindow is the native window-manager boundary. Keeping it on
+	// the viewer lets reset tests observe native geometry independently of
+	// the Fyne test driver's always-resizable logical canvas.
+	unmaximizeWindow func(fyne.Window)
 	// stopping retires title/menu updates before shutdown cancels features.
 	// Fyne may run OnStopped after the native event loop has drained.
 	stopping bool
@@ -613,12 +617,18 @@ func (v *viewer) clearToDropzone() {
 	v.dropzone.Show()
 
 	v.setTitle(appTitle)
-	v.undoGridMaximize()
+	unmaximizeRequested := v.undoGridMaximize()
 	// With a fixed window size the empty drop zone must not shrink the
 	// window back to startW×startH - that is exactly the size the user
 	// asked to keep. Dynamic mode still resets to the drop-zone size so
 	// Escape returns to the same compact welcome frame as a fresh launch.
 	if !v.settings.staticWindowSize {
+		// A user can also maximize through the window manager, without a
+		// Grid/Explorer ownership flag. Restore that native state before
+		// Resize, which otherwise only shrinks Fyne's logical canvas.
+		if !unmaximizeRequested {
+			v.unmaximizeWindow(v.win)
+		}
 		v.win.Resize(fyne.NewSize(startW, startH))
 	}
 	v.syncMenus()
@@ -633,14 +643,16 @@ func (v *viewer) clearToDropzone() {
 // is silently ignored - see winpos.Unmaximize. Restoring the last known
 // position afterward matters for the same reason: the OS's own
 // un-maximize placement rarely lands back where the window was before the
-// grid took over.
-func (v *viewer) undoGridMaximize() {
+// grid took over. The result reports whether an unmaximize was requested,
+// not whether an asynchronous window manager has already applied it.
+func (v *viewer) undoGridMaximize() bool {
 	if !v.grid.ConsumeMaximized() && !v.explorerInput.maximized {
-		return
+		return false
 	}
 	v.explorerInput.maximized = false
-	winpos.Unmaximize(v.win)
+	v.unmaximizeWindow(v.win)
 	v.winPos.Restore(v.win)
+	return true
 }
 
 // toggleMergeMode flips whether the next drop merges into the existing set
