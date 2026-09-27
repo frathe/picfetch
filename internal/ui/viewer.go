@@ -342,17 +342,18 @@ type viewer struct {
 	// worker pool and reaches back through the Host interface this viewer
 	// satisfies. handleKeyEvent checks its Visible() before its own
 	// dispatch, the same way it does for the delete confirmation.
-	visualsearch  *searchui.Feature
-	analysisCache *analysiscache.Feature
-	analysisDir   string
-	searchView    searchPresentation
-	browsing      browsingVisits
-	grid          *grid.Overview
-	explorer      *explorerui.Feature
-	explorerInput explorerInput
-	locationMap   *locationmap.Feature
-	locationTrial *locationTrialSession
-	locationInput locationInput
+	visualsearch    *searchui.Feature
+	analysisCache   *analysiscache.Feature
+	analysisDir     string
+	searchView      searchPresentation
+	browsing        browsingVisits
+	browsingUpdates int // UI-only menu publication barrier during reconciliation.
+	grid            *grid.Overview
+	explorer        *explorerui.Feature
+	explorerInput   explorerInput
+	locationMap     *locationmap.Feature
+	locationTrial   *locationTrialSession
+	locationInput   locationInput
 
 	// compare is the opaque two-image surface stacked above the still-open
 	// grid. The feature owns its widgets and workers; this viewer owns only

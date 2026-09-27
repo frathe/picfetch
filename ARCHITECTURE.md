@@ -517,8 +517,14 @@ first successful visit commits. Terminal search failures revalidate the captured
 collection through root's tracked file-work lane before restoring the origin;
 request, session and collection identities reject obsolete reconciliation.
 `internal/ui/sourcechange.go` owns admitted source changes: the browsing owner
-detaches the search origin and retires the producer before callbacks, then root reconciles the complete removal/write/recovery,
-retires Explorer, updates Grid and restores the origin. Display failures receive
+detaches the search origin and retires the producer before callbacks. One
+occurrence-survivor map remaps all retained visits, subset bookmarks and the
+detached origin after collection publication. Root then retires affected
+analysis, updates Grid/map facts and restores through current bindings. Sorting
+uses the same transaction and exact image occurrence, not first-URI lookup.
+Image restoration chooses exact occurrence, same source within the restored
+scope, then first eligible; an exhausted restriction returns to its parent.
+Display failures receive
 the selected origin index through their existing retry chain instead of starting
 a competing load. Committed writes retain comparison for Grid origins and close
 it when an image origin must be restored.

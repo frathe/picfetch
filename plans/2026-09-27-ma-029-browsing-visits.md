@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: tickets 01-06 complete; implementing ticket 07 of 09.
+Status: tickets 01-07 complete; implementing ticket 08 of 09.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -159,7 +159,7 @@ implementation slot: root/feature ownership must be changed together by the lead
 - [x] 04: ranked search authority, history and origin restoration.
 - [x] 05: direct-map authority, live navigation and valid return.
 - [x] 06: exact frozen cluster authority and return stages.
-- [ ] 07: ordered reconciliation and identity/fallback matrix.
+- [x] 07: ordered reconciliation and identity/fallback matrix.
 - [ ] 08: single-chain failed-load recovery and HEIC guidance.
 - [ ] 09: route/authority convergence and final verification.
 - [ ] PR ready, fresh clean latest-head Codex code/security reviews, CI,
@@ -180,7 +180,8 @@ Use that PATH and a writable temporary Go cache for local commands.
 | 04 | 1 / 1 | 1 | no | complete; evidence below |
 | 05 | 0 / 0 | 2 | no | direct-map owner, live scope and validated return |
 | 06 | 0 / 0 | 2 | no | frozen cluster owner and validated Grid/map stages |
-| 07-08 | per routing above / 0 | 0 | no | pending |
+| 07 | 1 / 1 | 2 | no | common occurrence remap, scoped origin restoration |
+| 08 | 0 / 0 | 0 | no | pending |
 | 09 / review | 0 / 0 | 0 | CI | pending |
 
 Compatibility mapping: the proposed `TestBrowsingCompatibility` family reuses
@@ -523,3 +524,92 @@ Lead review confirms saved subset callbacks cannot revive a cluster; return
 bindings are refreshed after source remapping. Duplicated Explorer/Map remap
 capture adapters remain the explicit next-ticket consolidation, not a second
 visit owner. No new test file/top-level test/shard assignment was needed.
+
+Ticket 06 commit: `d97bca6`.
+
+07 contract before tests: root captures one `browsingReconciliation` before a
+collection mutation: exact occurrence survivors, live subset Grid interaction,
+and any detached search origin. Search detaches before feature callbacks. The
+same owner remap runs immediately after publication; root then reconciles
+feature/Grid facts and applies the retained destination through current bindings.
+`browsingOrigin.remap` preserves a surviving exact image occurrence, marking a
+missing one separately from its same-source fallback. Scope restoration chooses
+exact, then same-source, then first eligible; only baseline scope uses collection
+zero. Empty restricted origins return to their parent without starting a load.
+Sort completion uses this same transaction and exact occurrence identity instead
+of early search Exit plus first-URI lookup. Existing `reconcileSources` still
+returns an explicit restored-image index or -1 for display's retry consumer; 08
+consolidates the separate successor decision. No new source identity/store.
+
+Scout findings verified with targeted reads: ordinary search tests cover batch
+remove/trash/failure, committed writes under comparison and original-image return;
+savework cancellation tests cover committed-vs-uncommitted navigate/clear/close.
+Missing guards are repeated occurrence sort, selected duplicate removal and
+missing restricted origin fallback. Add real-harness cases in this slice.
+
+### Ticket 07 evidence (working diff over `d97bca6`)
+
+Removed separate Explorer and Location Map reconciliation captures. One root
+capture detaches search before callbacks and computes occurrence survivors for
+retained visits, live subset interaction and the detached origin. Owner rebinding
+follows collection publication before feature/Grid notification. Root restores
+current subset bindings, rebuilds map facts and applies the destination. Sorting
+uses the same path at completion and exact occurrence identity, not an early
+search Exit/load followed by first-URI lookup. The UI-only browsingUpdates effect
+barrier defers native menu publication until the synchronous transaction finishes;
+it owns no visit and stores no deferred command.
+
+`browsingOrigin.remap` distinguishes a missing exact occurrence from its
+same-source fallback. `browsingScope.RestoreImage` chooses exact, same-source in
+scope, then first eligible. Only an ordinary scope falls back to collection zero.
+Empty restricted search origins return to their retained parent before restoring
+Grid or starting a load. Covered Explorer Grid origins reconcile under comparison
+with current callbacks, independently of admission for a new user-visible return.
+The existing restored-index/-1 outcome still feeds display's sole retry chain.
+
+New `TestBrowsingCollectionChanges` subcases: restricted_search_origin_fallback,
+sorted_repeated_image_origin, removed_selected_search_origin,
+surviving_middle_occurrence, exhausted_search_origin/{false,true},
+committed_write_under_cohort_comparison and coherent_menu_publication.
+Red: unrelated cohort fallback (`FAIL 0.151s`); repeated sort and substituted
+selection (`FAIL 0.363s`). The first run had an unused import and one later
+fixture assumed two identical URIs in a single drop would survive scan dedup;
+neither is counted as behavioral evidence. Repeated drops build the real merge
+occurrences. Negative verification removed origin remapping and incorrectly used
+user admission to rebuild the covered Grid: all three guards failed
+(`FAIL 0.407s`). Disabling the menu barrier failed the publication guard
+(`FAIL 0.125s`). All mutations restored; new-family final pass was 0.959s.
+
+Final uncached verbose regression selector passed (`ok .../internal/ui 38.017s`):
+`^(TestBrowsing.*|TestFindMoreLikeThis.*|TestVisualSimilarityExplorer|TestLocationMap|TestLocationMapReleaseQualification|TestSaveChanges.*|TestExport.*|TestSetSortMode.*|TestToggleSort.*|TestCancelSort.*|TestCommandAdmissionVisits|TestWindowCommandAdmissionMatrix|TestMenu.*)$`.
+The menu-publication subcase was added afterward and separately passed before
+negative verification (0.128s), then in the final new-family rerun above.
+One existing test, ExportCommittedCaseAliasKeepsWrittenPixelsOnReset, skipped
+because this filesystem is case-sensitive; its case-insensitive behavior remains
+unverified locally, not counted as a pass. No required new case skipped.
+
+Operation/origin coverage: source-and-sort search tests cover ordinary image/Grid
+batch removals, committed trash, external failure/replacement and comparison
+writes; new cases cover Explorer image fallback/exhaustion and covered Grid
+writes. Existing Location Map/release tests cover map/direct/cluster sort,
+committed write/GPS removal and frozen occurrence survivors. Save cancellation
+tests pass all committed/uncommitted navigate/clear/close cases. Existing
+deferred/lifecycle tests keep old deliveries from reviving replacement visits.
+
+Formatting/vet and diff checks passed; Docker inventories report 726 runnables,
+three shards, exact exclusions clear. New top-level family is assigned to ui-3.
+GoLand completed all ten changed code files, including weak warnings. Two new
+missing-iota warnings in sourcechange.go were fixed with explicit defaults and
+re-inspected clear. The four unchanged viewer.go duplication fragments remain
+(503/555/579/836), with their prior dispositions. The nine-line comparison setup
+in browsing_test.go intentionally repeats a real-harness arrangement; that exact
+test file is already excluded from CI DuplicatedCode at qodana.yaml:365. Keep the
+test local and readable instead of extracting a helper solely to lower an IDE
+count. No other findings/timeouts. No new worker/dependency/native glue/string.
+
+Intermediate GitHub CI for `d97bca6` has one failing UI-3 golden,
+TestE2E_EscapeResetsAfterImagesLoaded (after_escape_reset.png mismatch); no race
+report. Other shards, native guards, CodeQL and Qodana jobs succeeded, but no
+final SARIF claim is made. The UI-3 job also failed at `385fac3`; diagnosis is
+ongoing with a focused 20-repeat Docker race test, not golden regeneration.
+Final CI qualification remains the explicit 09/review gate.

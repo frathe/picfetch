@@ -3,7 +3,6 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 
-	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/preferences"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/ui/grid"
@@ -137,47 +136,6 @@ func (v *viewer) restoreExplorerGrid(bookmark *grid.Visit) {
 		plan.grid = bookmark
 	}
 	v.presentExplorerGrid(plan.source, paths, unassigned, plan.grid)
-}
-
-// captureExplorerReconciliation keeps saved occurrence interaction independent
-// of index shifts. Capturing precedes collection publication; restoring uses the
-// rebound owner and fresh callbacks, never the bookmark's old closures.
-func (v *viewer) captureExplorerReconciliation(removed []int) func() {
-	if !v.browsing.has(browsingExplorerMap) {
-		return func() {}
-	}
-	var bookmark *grid.Visit
-	if !v.searchActive() && v.browsing.has(browsingExplorer) && v.grid.Visible() {
-		captured := v.grid.CaptureVisit()
-		bookmark = &captured
-	}
-	var survivors map[fileidentity.Occurrence]fileidentity.Occurrence
-	if len(removed) > 0 {
-		survivors = make(map[fileidentity.Occurrence]fileidentity.Occurrence, v.FileCount())
-		before, after := map[string]int{}, map[string]int{}
-		nextRemoved := 0
-		for i, source := range v.state.files {
-			path := source.Path()
-			old := fileidentity.Occurrence{Path: path, Ordinal: before[path]}
-			before[path]++
-			if nextRemoved < len(removed) && removed[nextRemoved] == i {
-				nextRemoved++
-				continue
-			}
-			survivors[old] = fileidentity.Occurrence{Path: path, Ordinal: after[path]}
-			after[path]++
-		}
-	}
-	return func() {
-		v.browsing.reconcile(v.Generation(), survivors)
-		if bookmark != nil {
-			if survivors != nil {
-				remapped := bookmark.RemapOccurrences(survivors)
-				bookmark = &remapped
-			}
-			v.restoreExplorerGrid(bookmark)
-		}
-	}
 }
 
 func (v *viewer) returnExplorerMap(binding browsingBinding) {

@@ -37,6 +37,21 @@ type browsingOrigin struct {
 	image fileidentity.Occurrence
 }
 
+func (o browsingOrigin) remap(survivors map[fileidentity.Occurrence]fileidentity.Occurrence) browsingOrigin {
+	if survivors == nil {
+		return o
+	}
+	o.grid = o.grid.RemapOccurrences(survivors)
+	if next, ok := survivors[o.image]; ok {
+		o.image = next
+	} else {
+		// Keep the source as a fallback, but do not mistake a shifted ordinal
+		// for the removed exact occurrence.
+		o.image.Ordinal = -1
+	}
+	return o
+}
+
 // browsingVisits owns navigation authority, not feature data or visibility.
 // Retained parents survive image and covering-interaction transitions. Each
 // captured return belongs to both its collection and its transition revision.
@@ -226,7 +241,8 @@ func (b *browsingVisits) reconcile(generation uint64, survivors map[fileidentity
 			b.stack[i].grid = &remapped
 		}
 		if origin := b.stack[i].origin; origin != nil && survivors != nil {
-			origin.grid = origin.grid.RemapOccurrences(survivors)
+			remapped := origin.remap(survivors)
+			b.stack[i].origin = &remapped
 		}
 		if survivors != nil && b.stack[i].occurrences != nil {
 			var remapped []fileidentity.Occurrence

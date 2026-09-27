@@ -265,48 +265,6 @@ func (v *viewer) rebuildLocationMap() {
 	v.prepareLocationMap()
 }
 
-// captureLocationReconciliation runs before indexes change. It preserves exact
-// occurrence bookmarks and the Grid's ordinary selection/search escape stages.
-func (v *viewer) captureLocationReconciliation(removed []int) func() {
-	if !v.locationVisitActive() {
-		return func() { v.locationMap.SetSources(v.state.files) }
-	}
-	v.locationInput.prepareOp.invalidate()
-	v.locationInput.prepare = nil
-	var current *grid.Visit
-	if v.browsing.current().binding.kind == browsingCluster && v.grid.Visible() {
-		visit := v.grid.CaptureVisit()
-		current = &visit
-	}
-	old := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
-	ordinals := map[string]int{}
-	survivors := map[fileidentity.Occurrence]fileidentity.Occurrence{}
-	for i, source := range v.state.files {
-		if _, deleted := slices.BinarySearch(removed, i); deleted {
-			continue
-		}
-		before, _ := old.Capture(source.Path(), i)
-		after := fileidentity.Occurrence{Path: source.Path(), Ordinal: ordinals[source.Path()]}
-		ordinals[source.Path()]++
-		survivors[before] = after
-	}
-	if current != nil {
-		*current = current.RemapOccurrences(survivors)
-	}
-	return func() {
-		v.browsing.reconcile(v.Generation(), survivors)
-		if current != nil {
-			v.presentLocationGrid(current)
-		}
-		// Rebuild retires validation, so admit an exhausted visit's return
-		// only after the new source generation owns the map.
-		v.rebuildLocationMap()
-		if v.browsing.current().binding.kind == browsingCluster && len(v.browsing.current().occurrences) == 0 {
-			v.returnLocationMap()
-		}
-	}
-}
-
 func (v *viewer) OpenLocationImage(identity fileidentity.Occurrence) {
 	indexes := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
 	i := indexes.Resolve(identity)

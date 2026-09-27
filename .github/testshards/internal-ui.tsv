@@ -7,7 +7,7 @@
 # weights: single CI attempt; projected test sums, not measured shard runtimes
 # ui-1: 254 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
-# ui-3: 216 entries, 504.870s projected weight sum
+# ui-3: 217 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -538,6 +538,7 @@ TestApplySettings_AppliesOnlyChangedFields	ui-3
 TestApplyStagedUpdate_RelaunchFailureRetainsNotesAndStage	ui-3
 TestApplyStagedUpdate_UnverifiedStageNeverApplies	ui-3
 TestAutomaticCheckDoesNotBlockOrSupersedeManualPreparation	ui-3
+TestBrowsingCollectionChanges	ui-3
 TestBrowsingProgressiveScopes	ui-3
 TestBrowsingVisitLifecycle	ui-3
 TestBuildMainMenu_ExportItemDisplaysItsAccelerator	ui-3

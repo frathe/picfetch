@@ -62,10 +62,12 @@
   [nine implementation tickets](.scratch/ma-029/issues/README.md) are published
   under the authorized implementation workflow. The
   [Deep SDD plan](plans/2026-09-27-ma-029-browsing-visits.md) tracks per-ticket
-  TDD, commits and verification; tickets 01-06 are complete (explicit scopes,
+  TDD, commits and verification; tickets 01-07 are complete (explicit scopes,
   no unrelated navigation/preloads from an empty restriction, and preserved
-  action targets, and authoritative Explorer/ranked-search/Location Map visits).
-  Ticket 07 consolidates committed-source reconciliation. Keep the PR draft
+  action targets, authoritative Explorer/ranked-search/Location Map visits,
+  and shared committed-source remapping/restoration).
+  Ticket 08 consolidates load recovery. One intermediate CI golden mismatch
+  (Escape reset, UI-3) is under diagnosis and remains an open final gate. Keep the PR draft
   until all nine tickets finish, then complete fresh GitHub reviews and CI.
   MA-030 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.

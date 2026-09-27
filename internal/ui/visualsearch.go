@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
-	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
@@ -192,16 +191,6 @@ func (v *viewer) closeVisualSearch() {
 	}
 }
 
-// sourceOccurrences captures only the bookmarked path, so an image-origin
-// lookup does not retain an index for unrelated collection members.
-func (v *viewer) sourceOccurrences(path string) fileidentity.Index {
-	return fileidentity.NewIndex(len(v.state.files), func(i int) string {
-		if uri := v.state.files[i]; uri != nil && uri.Path() == path {
-			return path
-		}
-		return ""
-	})
-}
 func (v *viewer) saveSearchMatches() {
 	if !v.searchActive() || !v.grid.Visible() {
 		return
@@ -230,9 +219,7 @@ func (h searchHost) CaptureVisit() searchui.Visit {
 	if h.v.grid.Visible() {
 		visit.Grid = h.v.grid.CaptureVisit()
 	}
-	if uri, index, ok := h.v.CurrentFile(); ok {
-		visit.Image, _ = h.v.sourceOccurrences(uri.Path()).Capture(uri.Path(), index)
-	}
+	visit.Image = h.v.currentImageOccurrence()
 	if !h.v.searchActive() {
 		visit.Grid = h.v.grid.CaptureVisit()
 	}
@@ -263,50 +250,21 @@ func (v *viewer) exitVisualSearch(binding browsingBinding) {
 	}
 	v.visualsearch.Detach()
 	v.resetSearchPresentation()
-	if i := v.restoreSearchOrigin(searchui.Visit{Grid: plan.origin.grid, Image: plan.origin.image}); i >= 0 {
+	if i := v.restoreBrowsingOrigin(*plan.origin); i >= 0 {
 		v.loadImage(i)
 	}
 	v.syncMenus()
 	v.ForceRepaint()
 }
 
-func (v *viewer) detachSearchOrigin() (searchui.Visit, bool) {
+func (v *viewer) detachSearchOrigin() (browsingOrigin, bool) {
 	origin, active := v.browsing.detachSearch()
 	if !active {
-		return searchui.Visit{}, false
+		return browsingOrigin{}, false
 	}
 	v.visualsearch.Detach()
 	v.resetSearchPresentation()
-	return searchui.Visit{Grid: origin.grid, Image: origin.image}, true
-}
-
-// restoreSearchOrigin restores interaction and selects an image without
-// starting a load. Its caller owns either fresh admission or a display retry.
-func (v *viewer) restoreSearchOrigin(visit searchui.Visit) int {
-	v.fileWork.searchLifecycle.invalidate()
-	v.grid.Close()
-	if v.FileCount() == 0 {
-		v.clearToDropzone()
-		return -1
-	}
-	if visit.Grid.Visible {
-		if visit.Grid.Subset != nil && v.browsing.has(browsingExplorer) {
-			v.restoreExplorerGrid(&visit.Grid)
-		} else {
-			v.grid.RestoreVisit(visit.Grid)
-		}
-		return -1
-	}
-	index := v.sourceOccurrences(visit.Image.Path)
-	i := index.Resolve(visit.Image)
-	if i < 0 {
-		i = index.Resolve(fileidentity.Occurrence{Path: visit.Image.Path})
-	}
-	if i < 0 {
-		i = 0
-	}
-	v.state.index = i
-	return i
+	return origin, true
 }
 
 func (h searchHost) Changed() {

@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"image"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -16,10 +18,147 @@ import (
 
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/fileidentity"
+	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestBrowsingCollectionChanges(t *testing.T) {
+	t.Run("coherent_menu_publication", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		publish(similarity.SearchFinal, 2, 1)
+		if !v.menus.Actions().Hide().Disabled {
+			t.Fatal("ranked visit did not disable duplicate toggling")
+		}
+		observed, leaked := false, false
+		v.grid.SetOnResultChanged(func() {
+			observed = true
+			v.syncMenus()
+			leaked = leaked || !v.menus.Actions().Hide().Disabled
+		})
+		v.RemoveFile(3)
+		if !observed || leaked || v.menus.Actions().Hide().Disabled {
+			t.Fatal("reconciliation published intermediate or stale menu availability")
+		}
+	})
+	t.Run("committed_write_under_cohort_comparison", func(t *testing.T) {
+		v := explorerFixture(t)
+		first, second := v.FileAt(14), v.FileAt(15)
+		paths := []string{first.Path(), second.Path()}
+		v.OpenSimilarityCohort(paths)
+		publish := streamingSearchFrom(t, v)
+		publish(similarity.SearchFinal, 0, 1)
+		for _, i := range []int{0, 1} {
+			v.grid.SimulateHover(i)
+			v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+		}
+		v.compareSelected()
+		if err := v.compare.Settle(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		result, err := imaging.SaveRotatedContext(context.Background(), first, image.NewRGBA(image.Rect(0, 0, 19, 13)))
+		if err != nil || !result.Committed {
+			t.Fatalf("fixture did not commit: %v", err)
+		}
+		v.afterFileWrite(result, false, false, func() {})
+		drainFileWork(t, v)
+		if err := v.compare.Settle(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if v.searchActive() || !v.comparisonActive() || !v.grid.Visible() || !slices.Equal(explorerGridPaths(v), paths) {
+			t.Fatal("committed reconciliation lost the covered cohort Grid")
+		}
+		v.compare.Close()
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		if !v.explorerMapActive() {
+			t.Fatal("covered reconciliation retained a stale return binding")
+		}
+	})
+	t.Run("surviving_middle_occurrence", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		duplicate := v.FileAt(1)
+		v.SetMergeMode(true)
+		dropAndWait(t, v, duplicate)
+		dropAndWait(t, v, duplicate)
+		v.grid.Close()
+		v.ShowImage(2)
+		waitUntilLoaded(t, v)
+		publish := streamingSearchFrom(t, v)
+		publish(similarity.SearchFinal, 0, 4)
+		v.RemoveFile(1)
+		waitUntilLoaded(t, v)
+		if v.searchActive() || v.state.index != 1 || v.currentImageOccurrence().Ordinal != 0 {
+			t.Fatal("origin ordinal was not remapped to its exact surviving occurrence")
+		}
+	})
+	t.Run("exhausted_search_origin", func(t *testing.T) {
+		for _, imageOrigin := range []bool{false, true} {
+			t.Run(fmt.Sprint(imageOrigin), func(t *testing.T) {
+				v := explorerFixture(t)
+				v.OpenSimilarityCohort([]string{v.FileAt(14).Path()})
+				if imageOrigin {
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+					waitUntilLoaded(t, v)
+				}
+				publish := streamingSearchFrom(t, v)
+				publish(similarity.SearchFinal, 0, 1)
+				revision := v.display.RequestRevision()
+				v.RemoveFile(14)
+				if v.searchActive() || v.grid.Visible() || !v.explorerMapActive() || v.display.RequestRevision() != revision {
+					t.Fatal("exhausted origin revived a subset or loaded an unrelated image")
+				}
+			})
+		}
+	})
+	t.Run("sorted_repeated_image_origin", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		duplicate := v.FileAt(1)
+		v.SetMergeMode(true)
+		dropAndWait(t, v, duplicate)
+		v.grid.Close()
+		v.ShowImage(2)
+		waitUntilLoaded(t, v)
+		publish := streamingSearchFrom(t, v)
+		publish(similarity.SearchFinal, 0, 3)
+		v.SetSortMode(filesort.ByDropOrder)
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		if v.searchActive() || v.state.index != 3 || v.FileAt(v.state.index).Path() != duplicate.Path() {
+			t.Fatal("sort replaced the repeated image origin with its first occurrence")
+		}
+	})
+	t.Run("removed_selected_search_origin", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
+		duplicate := v.FileAt(1)
+		v.SetMergeMode(true)
+		dropAndWait(t, v, duplicate)
+		v.grid.Toggle()
+		v.grid.SimulateHover(1)
+		v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+		publish := streamingSearchFrom(t, v)
+		publish(similarity.SearchFinal, 0, 3)
+		v.RemoveFile(1)
+		if v.searchActive() || !v.grid.Visible() || v.grid.SelectionCount() != 0 {
+			t.Fatal("removed origin selection substituted the surviving duplicate")
+		}
+	})
+	t.Run("restricted_search_origin_fallback", func(t *testing.T) {
+		v := explorerFixture(t)
+		first, second := v.FileAt(14), v.FileAt(15)
+		v.OpenSimilarityCohort([]string{first.Path(), second.Path()})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		publish := streamingSearchFrom(t, v)
+		publish(similarity.SearchFinal, 0, 1)
+		v.RemoveFile(14)
+		waitUntilLoaded(t, v)
+		if v.searchActive() || !v.browsing.has(browsingExplorer) || v.FileAt(v.state.index).Path() != second.Path() {
+			t.Fatal("missing Explorer origin fell back outside its restored cohort")
+		}
+	})
+}
 
 func TestBrowsingVisitTransitions(t *testing.T) {
 	t.Run("frozen_cluster_and_retired_return", func(t *testing.T) {

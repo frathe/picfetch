@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/fileidentity"
 )
 
 type browsingKind uint8
@@ -102,6 +103,49 @@ func (s browsingScope) Last() (int, bool) {
 		return 0, false
 	}
 	return s.indexes[len(s.indexes)-1], true
+}
+
+// RestoreImage prefers the exact bookmark, then another occurrence of that
+// source, then the first eligible image. A restriction never widens implicitly.
+func (s browsingScope) RestoreImage(origin fileidentity.Occurrence, identities fileidentity.Index) (int, bool) {
+	eligible := func(i int) bool {
+		return i >= 0 && i < s.collection.Count() && (!s.restricted || slices.Contains(s.indexes, i))
+	}
+	if i := identities.Resolve(origin); eligible(i) {
+		return i, true
+	}
+	for ordinal := 0; ; ordinal++ {
+		i := identities.Resolve(fileidentity.Occurrence{Path: origin.Path, Ordinal: ordinal})
+		if i < 0 {
+			break
+		}
+		if eligible(i) {
+			return i, true
+		}
+	}
+	if s.restricted {
+		return s.First()
+	}
+	return 0, s.collection.Count() > 0
+}
+
+// sourceOccurrences captures only the bookmarked path, without retaining an
+// index for unrelated collection members.
+func (v *viewer) sourceOccurrences(path string) fileidentity.Index {
+	return fileidentity.NewIndex(len(v.state.files), func(i int) string {
+		if uri := v.state.files[i]; uri != nil && uri.Path() == path {
+			return path
+		}
+		return ""
+	})
+}
+
+func (v *viewer) currentImageOccurrence() fileidentity.Occurrence {
+	if uri, position, ok := v.CurrentFile(); ok {
+		identity, _ := v.sourceOccurrences(uri.Path()).Capture(uri.Path(), position)
+		return identity
+	}
+	return fileidentity.Occurrence{}
 }
 
 // browsingContext observes the source subset for payload/order capture.
