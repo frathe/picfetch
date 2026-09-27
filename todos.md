@@ -58,8 +58,10 @@
   [MA-029 design](docs/browsing-visits.md) are accepted, including return
   fallbacks, failed-load recovery and duplicate-inspection compatibility.
   Its [local specification](.scratch/ma-029/spec.md) is `ready-for-agent`, with
-  the user stories and executable acceptance map. Next: task decomposition and
-  the Deep SDD implementation plan.
+  the user stories and executable acceptance map. The
+  [nine-ticket draft breakdown](.scratch/ma-029/ticket-drafts/README.md) awaits
+  approval of ticket size and dependencies before publication. Next: publish
+  the approved tickets, then prepare the Deep SDD implementation plan.
   MA-030 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
