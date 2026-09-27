@@ -14,8 +14,9 @@
   direct actions and open delivery. Pure decisions precede yielding; existing
   features retain payload capture and worker lifetimes. See the
   [implementation and verification record](docs/command-admission-verification-2026-09-27.md).
-  `make verify` and all 68 changed-file GoLand inspections passed. Native
-  acceptance remains open below.
+  `make verify` and all 68 changed-file GoLand inspections passed. The
+  [Linux native-input scenarios](docs/command-admission-linux-qualification-2026-09-27.md)
+  passed with OS-injected keyboard/mouse events; remaining acceptance is below.
 
 - Stabilize the similarity protocol race test by dispatching its helper before
   the test runner starts and bounding its lifetime from the parent. Preserve
@@ -35,8 +36,9 @@
   [published ten-ticket plan](plans/2026-09-27-ma-028-command-admission.md)
   track implementation and acceptance. Tickets 01-09 are done/resolved at
   `9dc3a81`, with their implementation checklists complete; retain
-  ticket 10 for native Linux/Windows/macOS editor accelerators, actual menu
-  activation/enablement, modal controls and close during held region copying.
+  ticket 10 for the remaining native/CI gates. Linux GNOME/XWayland runtime
+  checks passed editor shortcuts, actual menu activation/enablement, modal
+  controls and native close during held region copying with OS-injected input.
   macOS AppKit compilation/runtime and physical input on all three platforms
   remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
   workflow; local GoLand checks are not a Qodana-CI pass.

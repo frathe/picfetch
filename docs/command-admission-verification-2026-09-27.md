@@ -5,7 +5,10 @@ User authorization: `/implement MA-028 use tdd and sdd`, with local commits
 explicitly allowed. No push, PR review loop, merge or release was requested.
 
 Status: implementation and available local deterministic gates passed.
-Native acceptance remains open. The execution plan stays in `plans/`.
+Linux native-input scenario groups now pass with OS-injected events; physical
+operator, other-platform and CI acceptance remains open. See the
+[Linux qualification record](command-admission-linux-qualification-2026-09-27.md).
+The execution plan stays in `plans/`.
 
 ## Ownership and structural review
 
@@ -41,7 +44,8 @@ The closed flag is atomic because that terminal check is made by the worker.
 Routes: M = explicit menu; A = its accelerator; S = registered shortcut;
 K = plain/modified key; B = bare guarded action; H = Host/link/gesture;
 D = drop; O = OS-open; C = asynchronous continuation. A listed accelerator is
-source/test-driver coverage only until native ticket 10 passes. An omitted
+source/test-driver coverage except for the explicitly observed Linux routes in
+the qualification record; ticket 10 remains open. An omitted
 route is N/A because no such binding/entry exists, not an untested alternate
 implementation. Related feature-owned controls are identified explicitly.
 
@@ -109,7 +113,7 @@ column names the existing capture/effect owner. Tests refer to
 | Shuffle | K/B `toggleSlideshowShuffle` | Routes/navigation; slideshow setting |
 | Interval | K Up/Down in frame mode | Policy, slideshow/key regressions; slideshow owner |
 | Settings setters / automatic load/advance | H/C, already-owned effects | Async committed save, FileMutationReconciliation*, existing slideshow tests |
-| Escape / native window close | K/H, ordered owner dispatch, no generic admission wrapper | EscapeUnwindsModesBeforeReset, CopySelectionBusyBlocksOtherCommands; native close still needs ticket 10 |
+| Escape / native window close | K/H, ordered owner dispatch, no generic admission wrapper | EscapeUnwindsModesBeforeReset, CopySelectionBusyBlocksOtherCommands; Linux native close passed while busy and modal; remaining platforms need ticket 10 |
 
 ## Observed red/green evidence
 
@@ -269,11 +273,18 @@ internal/ui/windowmenu_darwin_test.go
 internal/ui/windowmenu_test.go
 ```
 
-## Native acceptance remains open
+## Native evidence and remaining acceptance
 
 Host observation: Linux/x86_64; Docker reports native Linux x86_64. Fyne is
-v2.8.0. No physical/native desktop qualification was performed. Windows and
-macOS desktops were unavailable. Windows internal-package cross-vet passed,
+v2.8.0. The [Linux native qualification](command-admission-linux-qualification-2026-09-27.md)
+ran the Make-built production binary at clean revision `6db8d73` (unchanged
+implementation `9dc3a81`) on Ubuntu/GNOME Wayland via XWayland. OS-injected
+keyboard/mouse events passed editor Copy/Select All, explicit image-menu intent,
+modal refusal and owner controls, held-copy menu entry/recovery, and native close
+while busy/modal. Screenshots, payload comparisons, exact harness and launch
+details are retained. Physical-keyboard operation was not performed, and the
+binary was launched after `make build`, not through literal `make run`.
+Windows and macOS desktops were unavailable. Windows internal-package cross-vet passed,
 but macOS AppKit compilation and its
 new isolated native-menu assertion have not run here.
 
@@ -287,11 +298,11 @@ leaving physical Cmd+C to GLFW and explicit image-menu selection intact.
 Consequently AppKit no longer draws that item's native Cmd+C hint. This is
 part of the D5 route correction, not native runtime evidence.
 
-Ticket 10 remains ready-for-human: on each native Linux/Windows/macOS desktop,
-run the integrated revision and the spec's four scenario groups (positive
-editor Copy/Select All, explicit image-menu intent and modal refusal, live
-menu/busy transitions, owner controls/native close). Record revision/OS/input
-route and actual payload/visible outcomes. Do not archive the plan or claim
-MA-028 accepted until those observations and required CI gates are complete.
+Ticket 10 records the completed Linux OS-injected checks separately and remains
+ready-for-human for the literal physical-input procedure and untested platforms.
+Run the spec's four groups on Windows/macOS and retain revision/OS/input route
+and actual payload/visible outcomes. Do not archive the plan or claim MA-028
+accepted until the remaining observations and required CI gates are complete.
 The existing case-alias export regression must also run on a case-insensitive
-filesystem; Linux's explicit skip does not establish that behavior.
+filesystem; Linux's explicit skip does not establish that behavior. The new
+empty qualification directory rejected ext4 `+F` with `Operation not supported`.

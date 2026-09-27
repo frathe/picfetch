@@ -12,6 +12,9 @@ The implementation request authorizes the draft breakdown and local commits.
 The [implementation verification record](../docs/command-admission-verification-2026-09-27.md)
 contains the completed command/route ledger, ownership review, observed
 red/green failures, final test/inspection scope and native limitations.
+The [Linux qualification record](../docs/command-admission-linux-qualification-2026-09-27.md)
+adds passing native scenario groups at `6db8d73` using OS-injected XTEST input
+on GNOME/XWayland. Physical-input, other-platform and external gates remain open.
 The historical ticketing evidence at the end describes the earlier planning
 turn, not the current implementation state.
 
@@ -40,6 +43,12 @@ assignment audited main-canvas modal creators/notifications across features:
 G1 <=25 lines, G2 citations verified with targeted reads, G3 zero writes,
 G4 bounded notification sweep, G5 separate from T0's navigation implementation.
 
+Linux qualification follow-up: one additional bounded read-only assignment to
+the same scout checked isolated launch storage and clipboard hold seams. G1-G5:
+under 25 prompt lines; source citations verified; no edited files; bounded
+launch/clipboard scope; distinct from T0's desktop execution. T0 owns all native
+input, review and evidence updates. No implementation/review was delegated.
+
 Source of truth: the [accepted specification](../.scratch/ma-028/spec.md),
 [design](../docs/command-admission.md) and
 [ownership ADR](../docs/adr/0003-shared-command-admission.md). D1-D7 remain settled.
@@ -52,7 +61,9 @@ The implementation request accepted the breakdown. Tickets are published under
 Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementation
 checklist items checked against the recorded local evidence. Ticket 10 is
 unblocked and `ready-for-human`: its completed preparation is checked off,
-but native desktop, case-insensitive export and fresh CI acceptance remain open.
+and Linux OS-injected native scenario groups are recorded separately as passed.
+Physical-input, Windows/macOS, case-insensitive export and fresh CI acceptance
+remain open; the partial evidence does not resolve ticket 10.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
@@ -305,10 +316,14 @@ they are the configured tracker, and this tracked plan links to them.
 | --- | --- | --- | --- |
 | Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
 | Convergence 09 | None | T0 structural review; 124 focused top-level passes, nine new guard groups; all 68 changed Go files inspected without findings | Final `make verify` passed, including every Docker race partition; existing platform skips are explicitly retained in the evidence |
-| Native acceptance 10 | None | Source tracing and Windows cross-vet only; no native desktop claim | Open for Linux/Windows/macOS operators and outstanding CI |
+| Native acceptance 10 | One further read-only scout assignment; no implementation support | T0: native Linux build, XTEST editor/menu/modal input, deterministic process-local clipboard hold/recovery, native busy/modal close; retained screenshots and payload checks | Linux injected-input groups passed at `6db8d73`; physical operator, Windows/macOS, case-insensitive export and CI gates remain open |
 
 Two complete Make runs are authorized by the budget exception above; no broad
 local race run was used during the individual red/green loops. The final
 [evidence record](../docs/command-admission-verification-2026-09-27.md) names both
 retained artifact directories, the exact inspection scope/hash and every
 remaining gate. No push, PR review loop, merge or release was performed.
+The Linux follow-up changed evidence/tracker files only; it carries forward the
+unchanged-code Make/race and GoLand evidence from `9dc3a81`, without rerunning
+the broad suite or claiming new inspections. Both qualification windows and
+held clipboard launchers were closed after testing.
