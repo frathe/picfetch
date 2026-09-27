@@ -9,6 +9,9 @@
 - Help -> Privacy policy opens the installed build's policy in a scrollable
   offline window, alongside Release Notes. Menu labels use the existing English
   and German translations; the policy retains its published English text.
+  PR 67's source commit passed fresh code/security reviews, all 17 CI checks
+  and inspected Qodana SARIF. See the
+  [feature evidence](finished_refactorings/2026-09-27-help-privacy-policy.md).
 
 #### Bugfix
 
@@ -49,11 +52,6 @@ leaves your selection intact.
   [diagnosis and verification record](plans/2026-09-26-similarity-protocol-timeout.md).
 
 ## Open
-
-- **Help privacy policy verification:** run the full gate on native Linux/amd64;
-  this host's ARM Docker daemon fails the required platform check. Local build,
-  focused tests and GoLand inspections are recorded in the
-  [feature evidence](finished_refactorings/2026-09-27-help-privacy-policy.md).
 
 - **Application architecture:** MA-028's shared command policy is complete.
   The [remaining assessment proposals](needs_refactoring.md) are explicit

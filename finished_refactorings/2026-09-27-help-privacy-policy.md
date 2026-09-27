@@ -69,7 +69,8 @@ its branch, commit, push, PR and GitHub Codex review loop.
   checks, exact Qodana test exclusions, `go vet`, and `go build`.
 - `make verify` stopped at its platform guard: Docker reports
   `linux/aarch64`, whereas the complete suite requires native Linux/amd64.
-  The full Linux race suite remains unverified; no isolation guard was waived.
+  The local full suite could not run; no isolation guard was waived. The
+  native Linux CI results below subsequently verified the source revision.
 - GoLand `get_file_problems(errorsOnly=false)` inspected all eight changed Go
   files listed below, using the active Project Default profile, with no timeout.
   Seven files had no findings. `main.go:125` had one weak duplicate-code warning
@@ -79,8 +80,8 @@ its branch, commit, push, PR and GitHub Codex review loop.
   implementation; no production suppression or refactor was added. Main and
   privacy rendering were re-inspected after restoring the negative probes.
 - These IDE inspections are the documented local fallback. IDE-local Qodana
-  was not run through the available connector; no fresh CI Qodana SARIF or
-  CodeQL result is claimed for this uncommitted change. Native desktop visual
+  was not run through the available connector. CI Qodana SARIF and CodeQL
+  evidence was obtained in the PR round below. Native desktop visual
   qualification is not claimed.
 
 Analyzed source SHA-256 values:
@@ -102,12 +103,43 @@ No dependencies changed. The initial implementation handoff was uncommitted.
 
 ## GitHub review loop
 
-Branch: `feature/help-privacy-policy`. The accepted implementation and its
-local evidence are ready for the first PR review. Required CI, fresh Codex
-code/security reviews, CodeQL and post-suppression Qodana SARIF remain pending.
+Branch: `feature/help-privacy-policy`.
+PR: [67](https://github.com/frathe/picfetch/pull/67).
+Source commit: `bf6152403a2c1ba373cac884239d0b199f88975c`
+(`Add offline privacy policy to Help menu`).
 The review workflow uses focused local tests; the complete race suite runs in CI.
 
 One additional read-only scout maps CI artifact names and completion evidence
 while the lead publishes the branch. The task is bounded, independently
 verifiable against workflow files, touches no files, and needs only CI context.
 All review assessments and any fixes remain with the lead.
+
+### Source review round
+
+- Codex's [review summary](https://github.com/frathe/picfetch/pull/67#issuecomment-5859440241)
+  marks code review complete at 20:15:35 UTC and security review complete at
+  20:17:02 UTC on 2026-09-27, both naming `bf61524`. No findings or inline
+  review threads were posted; the connector's clean-review thumbs-up was
+  recorded at 20:17:05 UTC. No fixes or finding dispositions were needed.
+- All 17 PR checks passed. [CI run 36347216466](https://github.com/frathe/picfetch/actions/runs/36347216466)
+  passed validation, all four native Linux/amd64 race partitions, Linux native
+  guards, Windows tests, and macOS arm64/amd64 native guards.
+- [CodeQL run 36347216473](https://github.com/frathe/picfetch/actions/runs/36347216473)
+  passed Actions and Go analysis. Analyses `1847999868` and `1848011333` report
+  zero results and no error on PR merge revision
+  `6367a2febd6cc95a8045e423c80f9f2ae61afd7e`, which GitHub binds to source head
+  `bf6152403a2c1ba373cac884239d0b199f88975c`. The PR-ref open-alert query was empty.
+- [Qodana run 36347216459](https://github.com/frathe/picfetch/actions/runs/36347216459)
+  passed. Artifact `10940828112` (`qodana-report`) contains
+  `/end/qodana.sarif.json` with source revision `bf6152403a2c1ba373cac884239d0b199f88975c`,
+  profile `starter`, zero post-suppression results, `executionSuccessful: true`,
+  exit code 0 and no execution/configuration notifications. This was a
+  differential PR scan; the pre-suppression CSV totals were not used.
+- FOSSA dependency-quality, license-compliance and security-analysis checks
+  passed. Local source hashes and GoLand evidence above remain unchanged.
+
+This evidence-only closure commit removes the verification TODO. It still needs
+fresh Codex code/security reviews and all remote gates on its own head. Their
+terminal results will be recorded in the PR conversation, avoiding another
+documentation commit that would restart the checks. The PR remains open for
+Ronin; this workflow does not authorize merging or releasing.
