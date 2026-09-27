@@ -1268,6 +1268,9 @@ von beidem verfügbar, erscheint eine Fehler-Toast-Meldung. Unter macOS
   ohne den Text zu verzögern. **Alle Versionen ansehen** öffnet GitHub im Browser,
   wo Sie die Hinweise zu älteren Versionen lesen können. Die Hinweise bleiben
   in der Sprache ihrer Veröffentlichung.
+- **Hilfe -> Datenschutzerklärung** — zeigt die Datenschutzerklärung der
+  installierten Version in einem scrollbaren Fenster auch offline an.
+  Der veröffentlichte englische Text bleibt unverändert.
 - **Datei -> Dateien schließen** — zurück zum Ablagebereich, ohne das
   Programm zu beenden
 - **Datei -> Einstellungen…** — öffnet das Einstellungsfenster, darunter den

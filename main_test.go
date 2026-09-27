@@ -55,6 +55,16 @@ func TestEmbeddedNoticesMatchShippedDocument(t *testing.T) {
 	}
 }
 
+func TestEmbeddedPrivacyPolicyMatchesShippedDocument(t *testing.T) {
+	want, err := os.ReadFile("PRIVACY.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(want) == 0 || privacyPolicy != string(want) {
+		t.Fatal("the executable must embed the exact nonempty privacy policy")
+	}
+}
+
 func TestHEICBindingNotices(t *testing.T) {
 	if !strings.Contains(thirdPartyNotices, "libheif v1.17.6") || !strings.Contains(thirdPartyNotices, "Copyright (c) 2017-2023 Dirk Farin") {
 		t.Fatal("shipped notices omit the adapted libheif ABI header attribution")

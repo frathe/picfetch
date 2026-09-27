@@ -38,9 +38,9 @@ const (
 // file set to open on startup (command-line arguments, resolved to URIs by
 // the caller); empty for a plain launch. opts carries that launch's flags,
 // already parsed and validated by internal/launch; the zero value is a
-// plain launch that overrides nothing. notices is this build's embedded
-// third-party notice document, supplied by main alongside its other resources.
-func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices string) error {
+// plain launch that overrides nothing. notices and privacy are this build's
+// embedded documents, supplied by main alongside its other resources.
+func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices, privacy string) error {
 	var trial *explorertrial.Session
 	var err error
 	var favoritesDir string
@@ -63,6 +63,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices 
 		return errors.Join(err, trial.Close())
 	}
 	view.help.SetLicenses(notices)
+	view.help.SetPrivacyPolicy(privacy)
 
 	options := view.explorer.Options()
 	options.Trial = trial

@@ -1107,6 +1107,9 @@ toast. macOS (Finder) and Windows (Explorer) always select the file itself.
   with text available offline. Images load online in the background without
   delaying the text. **Browse all releases** opens GitHub in your browser to
   read notes for older versions. The notes retain their published language.
+- **Help -> Privacy policy** — shows the installed version's privacy policy
+  in a scrollable window, available offline. The policy retains its published
+  English text.
 - **File -> Close Files** — returns to the drop zone without quitting
 - **File -> Settings…** — opens the settings window, including the
   **Duplicate match distance** slider (0–32, default 6; lower is

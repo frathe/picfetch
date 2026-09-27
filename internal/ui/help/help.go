@@ -17,7 +17,7 @@ import (
 
 const DiscussionsURL = "https://github.com/frathe/picfetch/discussions"
 
-// Help owns the documentation windows (manual, About, What's New, Licenses). Each is
+// Help owns the documentation windows (manual, About, release notes, privacy policy, licenses). Each is
 // a widgets.Singleton, so a second request raises the window that's already
 // open instead of stacking up duplicates.
 type Help struct {
@@ -32,10 +32,12 @@ type Help struct {
 	manualWin    widgets.Singleton
 	aboutWin     widgets.Singleton
 	whatsNewWin  widgets.Singleton
+	privacyWin   widgets.Singleton
 	licensesWin  widgets.Singleton
 	heicGuideWin widgets.Singleton
 	guideSystem  func() heicGuideSystem
 	licenses     string
+	privacy      string
 	finisWin     widgets.Singleton
 	finis        *finisView
 	manual       *manualView
@@ -86,6 +88,9 @@ func New(application fyne.App, title string, art []byte) *Help {
 // SetLicenses supplies the build's embedded notice document before opening Help.
 func (h *Help) SetLicenses(notices string) { h.licenses = notices }
 
+// SetPrivacyPolicy supplies the build's embedded policy before opening Help.
+func (h *Help) SetPrivacyPolicy(policy string) { h.privacy = policy }
+
 // SetOnSpiral registers the manual secret callback. It is read at invocation,
 // so replacing it while the manual is open takes effect immediately.
 func (h *Help) SetOnSpiral(f func()) { h.onSpiral = f }
@@ -127,7 +132,7 @@ func (h *Help) OpenDiscussionsLink() {
 	}
 }
 
-// Menu is the app's Help menu: manual, release notes, licenses, community, and About
+// Menu is the app's Help menu: manual, release notes, privacy, licenses, community, and About
 // below a separator. Returns the *fyne.Menu
 // itself rather than a whole *fyne.MainMenu, so internal/ui can combine it
 // with its own File menu into one bar - composing menus is the app's job,
@@ -143,10 +148,11 @@ func (h *Help) Menu() *fyne.Menu {
 	// same menu-hint pattern File uses for Open/Save/Export.
 	manual.Shortcut = &desktop.CustomShortcut{KeyName: fyne.KeyF1}
 	releases := fyne.NewMenuItem(lang.L("Release Notes"), h.ShowReleaseNotes)
+	privacy := fyne.NewMenuItem(lang.L("Privacy policy"), h.ShowPrivacyPolicy)
 	licenses := fyne.NewMenuItem(lang.L("Licenses"), h.ShowLicenses)
 	about := fyne.NewMenuItem(lang.L("About"), h.ShowAbout)
 	discussions := fyne.NewMenuItem(lang.L("GitHub Discussions"), h.ShowDiscussions)
 
-	h.menu = fyne.NewMenu(lang.L("Help"), manual, releases, licenses, discussions, fyne.NewMenuItemSeparator(), about)
+	h.menu = fyne.NewMenu(lang.L("Help"), manual, releases, privacy, licenses, discussions, fyne.NewMenuItemSeparator(), about)
 	return h.menu
 }

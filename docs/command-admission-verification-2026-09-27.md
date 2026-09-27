@@ -99,6 +99,7 @@ column names the existing capture/effect owner. Tests refer to
 | Manual | M/A/K/B/H About/Spiral links `Help.ShowManual` | ModalOwnership, Compare*, Help tests; Help singleton |
 | About | M/B `Help.ShowAbout` | Routes/windows, MenuCallbacksRecheckAdmission; Help owner |
 | Release Notes | M/B `Help.ShowReleaseNotes` | MenuCallbacksRecheckAdmission, Help tests; Help owner |
+| Privacy policy | M/B `Help.ShowPrivacyPolicy` | MenuCallbacksRecheckAdmission, PrivacyPolicyMenuShowsOfflineDocument; Help owner |
 | Licenses | M/B `Help.ShowLicenses` | MenuCallbacksRecheckAdmission, Help tests; Help owner |
 | Discussions | M/B `Help.ShowDiscussions` | MenuCallbacksRecheckAdmission, HelpMenu; browser intent |
 | Owned community hyperlink | H Explorer setup/About `OpenDiscussionsLink` | HelpMenu; dialog control, not an unrelated main-window command |
