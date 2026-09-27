@@ -257,3 +257,33 @@ an inspected Qodana SARIF for that final documentation-only head. The final
 disposition comment and check runs on [PR 66](https://github.com/frathe/picfetch/pull/66)
 record that head and its results; this source-revision record is not a substitute
 for those latest-commit gates. No merge or release is authorized or performed.
+
+## Windows physical-input completion
+
+The user subsequently completed physical Ctrl+A/C in both image and Grid
+naming fields on source revision `10f16a0126dde8f852a058682dd0681c61111122`.
+T0 verified independent clipboard sentinels were replaced by the exact field
+text, inspected full-field selection, compared unchanged image/Grid pixels and
+closed the isolated literal `make run` session with exit 0. The
+[Windows record](command-admission-windows-qualification-2026-09-27.md#final-physical-keyboard-qualification)
+retains source/binary identity, operator/input distinctions, times and artifacts.
+Windows V10 is complete; Linux physical-input/literal Make-run and full macOS
+desktop qualification remain open.
+
+The preceding source revision already passed all 17 PR checks, CI run
+`36327036028`, CodeQL run `36327036051` and Qodana run `36327036045`.
+Artifact `10934490868`'s post-suppression `end/qodana.sarif.json` had zero
+results and successful execution, as recorded in the
+[source-head disposition](https://github.com/frathe/picfetch/pull/66#issuecomment-5856936989).
+Further fresh code/security reviews on that same source completed at
+16:47:00/16:46:22 UTC with no findings. Both earlier review threads are resolved.
+
+This completion changes Markdown only. Local tests and GoLand inspections
+carry forward at their original recorded revisions: the initial Windows focus
+repair, the Help/Spiral repair at `bad9b82`, and the final Windows adapter scope
+at `10f16a0`; no changed code requires a new inspection. T0 checks the evidence,
+current-status consistency, tracked local links and whitespace. No broad local
+race suite is repeated. A fresh Codex code/security review, full CI, CodeQL
+and inspected final Qodana SARIF remain required on the pushed documentation
+head; PR 66's final disposition records their exact results without creating
+another evidence-only commit and resetting those gates.

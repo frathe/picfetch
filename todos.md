@@ -66,7 +66,11 @@
   A further review found asynchronous empty-state cleanup restoring minimized
   Windows windows. The Windows Unmaximize adapter now checks native maximize
   state; native red/green, held last-file Trash, reset/race and inspections pass.
-  Physical input on all three platforms and full macOS desktop acceptance remain
+  Windows qualification is complete at `10f16a0`: the user physically pressed
+  Ctrl+A/C in image and Grid naming fields, with exact clipboard payloads,
+  full-field selection and unchanged image/Grid pixels. The isolated literal
+  `make run` session exited 0; the Windows record retains the evidence.
+  Linux physical-input/literal Make-run and full macOS desktop acceptance remain
   unverified; ticket 10 stays open. At `4674cca`, fresh PR 66 CI and CodeQL passed,
   Codex code/security reviews have no findings, and Qodana's inspected SARIF has
   zero results after addressing the original eight findings. The

@@ -1,6 +1,6 @@
 # MA-028 ticket and execution plan
 
-Status: Windows prompt-focus, Help navigation and minimized-window fixes locally verified; fresh PR 66 gates required; physical/native desktop acceptance open.
+Status: Windows native/physical qualification complete at `10f16a0`; Linux physical-input/literal Make-run and full macOS desktop acceptance open; final documentation-head PR 66 gates required.
 Date: 2026-09-27.
 Planning revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
 Route: Deep, because the change crosses feature adapters and native input on
@@ -17,8 +17,10 @@ adds passing scoped native scenarios at `6db8d73` using OS-injected XTEST input
 on GNOME/XWayland, followed by diagnosis and repair of a native Escape/maximize
 reset defect. The repair now passes native controls, TDD, inspections and a
 fresh full Make gate. The [Windows qualification](../docs/command-admission-windows-qualification-2026-09-27.md)
-adds scoped native evidence and a verified prompt-focus repair. Physical input
-and full macOS desktop gates remain open;
+adds native evidence and verified prompt-focus, Help and minimized-window
+repairs. Final physical Ctrl+A/C checks in image and Grid fields passed on
+`10f16a0`, with exact clipboard payloads and unchanged image/Grid pixels.
+Linux physical-input/literal Make-run and full macOS desktop gates remain open;
 the PR review-loop section records completed remote verification separately.
 The historical ticketing evidence at the end describes the earlier planning
 turn, not the current implementation state.
@@ -339,8 +341,9 @@ its completed preparation, scoped Linux checks and repair are checked separately
 Case-insensitive export now passes on FAT16, including five race repetitions.
 Focused native guards now pass in Windows amd64 and both macOS CI architectures.
 Fresh remote review/CI/analysis gates pass at `4674cca` as recorded above.
-Physical-input and full Windows/macOS desktop execution remain open;
-the partial evidence does not resolve ticket 10.
+Windows desktop and physical editor-input qualification is now complete at
+`10f16a0`. Linux physical-input/literal Make-run and full macOS desktop execution
+remain open; ticket 10 is not resolved.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
@@ -353,7 +356,7 @@ the partial evidence does not resolve ticket 10.
 | [07](../docs/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
 | [08](../docs/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
 | [09](../docs/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../docs/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Linux reset and Windows prompt-focus repaired; scoped native checks passed; complete physical/native desktop acceptance | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
+| [10](../docs/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Windows complete; finish Linux physical-input/literal Make-run and full macOS desktop acceptance | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.
@@ -598,6 +601,7 @@ under `docs/ma-028`; raw artifacts remain ignored.
 | Native acceptance 10 | Five further read-only scout assignments (launch isolation; pinned driver resize; neighboring tests; native CI selection; native test startup/toolchain), the last two on one new scout; no implementation support | T0: scoped native checks, Escape/maximize TDD repair, repeated native/static controls, inspections/Make gates, case-alias FAT16 pass plus five race repeats, focused CI suite with red/green and mutation controls | Linux reset, case-alias and local CI-selection gaps closed; physical operator, Windows/macOS execution and external CI gates remain open |
 | Portable tracker / publication | One bounded read-only assignment to the existing scout for PR workflow triggers; no implementation support | T0: exact 22-file move/content comparison, redaction, authoritative index/tracker pointers, tracked-only link and scope checks | Documentation-only; Make/inspection evidence carried forward from unchanged code at `ba43d1b`; push and PR creation authorized |
 | PR 66 review loop | One bounded read-only assignment to the existing scout for native artifact events; no implementation support | T0: standards/spec review, eight SARIF dispositions, focused race/vet, four-file IDE inspection, fresh reviews and full remote gates | Source round `4674cca` clean; final documentation-head checks retained on PR 66; physical/native desktop acceptance still open |
+| Windows physical completion | One bounded read-only assignment to the existing scout for evidence/status locations; no implementation support | User: physical Ctrl+A/C in both editor contexts. T0: isolated Make launch, independent clipboard sentinels, screenshot/pixel checks, cleanup and evidence review | Windows V10 complete at `10f16a0`; documentation-only follow-up carries existing source inspections and requires fresh remote review/CI; no broad local suite |
 
 The original implementation used two complete Make runs under the budget
 exception above; no broad local race run was used during individual red/green

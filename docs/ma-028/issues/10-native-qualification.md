@@ -5,14 +5,14 @@ that editor shortcuts reach text, menus reflect current admission, and native
 dispatch cannot bypass the integrated policy. Close MA-028 only with complete
 deterministic and native evidence.
 
-**Blocked by:** None; prerequisite 09 is resolved. Native desktop access,
-physical-input observations are still required. Remote gates passed on the
-cleanup revision `4674cca`; final-head results are retained in PR 66.
+**Blocked by:** None; prerequisite 09 is resolved. Remaining Linux/macOS native
+desktop/operator observations are still required. Windows qualification is
+complete at `10f16a0`; remote gates and final-head results are retained in PR 66.
 The user authorized publication and the review loop on 2026-09-27.
 
-**Status:** ready-for-human (Linux reset and Windows prompt-focus defects repaired;
-scoped Linux/Windows native checks passed; physical input and full macOS
-desktop qualification remain open).
+**Status:** ready-for-human (Windows complete, including physical input;
+Linux physical-input/literal Make-run and full macOS desktop qualification
+remain open).
 
 ## Windows qualification results (2026-09-27)
 
@@ -21,6 +21,13 @@ review loop. T0 ran literal `make run` with an isolated ordinary profile and
 generated fixtures, using OS-injected Win32 keyboard/mouse input and real menus,
 dialogs and clipboard. See the [Windows evidence record](../../command-admission-windows-qualification-2026-09-27.md)
 for exact scope, source hashes, artifacts, test commands and host limitations.
+
+- [x] Complete the remaining physical Windows editor checks at `10f16a0`.
+  The user physically pressed Ctrl+A/C in image and Grid naming fields;
+  exact text replaced separate clipboard sentinels and screenshots show full
+  field selection. Pixel comparisons confirm unchanged image/Grid state,
+  including the single selected Grid thumbnail. The new isolated `make run`
+  session exited 0. The Windows record retains times, binary hash and artifacts.
 
 - [x] Verify editor Ctrl+A/C against independent clipboard sentinels in image
   and Grid naming dialogs; verify unchanged Grid selection pixels.
@@ -36,9 +43,9 @@ for exact scope, source hashes, artifacts, test commands and host limitations.
   held workers are released. Focused Windows race tests, native case-alias guard,
   build/vet and eight-file GoLand inspections have no actionable findings.
 
-These are scoped native observations, not physical keyboard evidence. The
-external launcher hold is distinct from an instance encoder seam. Fresh
-CI/reviews/CodeQL and inspected Qodana SARIF remain required on the pushed head,
+The earlier automated checks remain distinct from the completed physical
+operator checks above. The external launcher hold is distinct from an instance
+encoder seam. Fresh CI/reviews/CodeQL and inspected Qodana SARIF remain required on the pushed head,
 recorded on PR 66. All-platform unchecked criteria below remain open.
 
 ## Linux qualification results (2026-09-27)
@@ -60,8 +67,9 @@ Both app sessions exited normally and held clipboard launchers were released.
 The initial qualification changed no production code; the subsequent reset
 repair is recorded below. The spec's physical-input and literal `make run`
 procedure is not silently replaced: this used injected OS events and a directly
-launched `make build` binary. Windows/macOS full desktop scenarios remain untested;
-their subsequent isolated native CI guards pass as recorded below.
+launched `make build` binary. Windows/macOS full desktop scenarios were untested
+at that Linux handoff; Windows is now qualified above. macOS remains open.
+Their subsequent isolated native CI guards pass as recorded below.
 
 ### Completed Linux runtime checks (OS-injected input)
 
@@ -129,6 +137,11 @@ requires an early feasibility observation during 02 and final evidence here.
   regression in the verification record.
 
 ## Remaining acceptance checks
+
+Windows has completed each native scenario, including physical editor input.
+The all-platform boxes below remain unchecked for Linux's physical-input/literal
+`make run` procedure and macOS's full desktop procedure. They do not require
+repeating the completed Windows checks unless relevant code changes.
 
 - [x] Repair Linux Escape/reset from ordinary WM maximization. Dynamic reset now
   requests native restore before resize, without changing fixed-size or

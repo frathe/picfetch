@@ -9,8 +9,10 @@ Status: implementation and available local deterministic gates passed.
 Scoped Linux native-input scenarios passed with OS-injected events, but a user
 follow-up exposed a native Escape/maximize reset defect. That defect is now
 repaired and passes repeated native checks, a red/green boundary regression,
-changed-file GoLand inspections and a fresh full `make verify`. Physical
-operator and full Windows/macOS desktop acceptance remain open. Fresh CI,
+changed-file GoLand inspections and a fresh full `make verify`. Windows native
+and physical-keyboard qualification is now complete at `10f16a0`; see the
+[Windows evidence](command-admission-windows-qualification-2026-09-27.md).
+Linux physical-input/literal Make-run and full macOS acceptance remain open. Fresh CI,
 CodeQL, Qodana SARIF and Codex code/security reviews pass at `4674cca`; see the
 [PR 66 review record](command-admission-pr-66-review-2026-09-27.md) for exact
 evidence and the final documentation-head gate. See the
@@ -51,8 +53,8 @@ The closed flag is atomic because that terminal check is made by the worker.
 Routes: M = explicit menu; A = its accelerator; S = registered shortcut;
 K = plain/modified key; B = bare guarded action; H = Host/link/gesture;
 D = drop; O = OS-open; C = asynchronous continuation. A listed accelerator is
-source/test-driver coverage except for the explicitly observed Linux routes in
-the qualification record; ticket 10 remains open. An omitted
+source/test-driver coverage except for the explicitly observed Linux/Windows
+routes in their qualification records; ticket 10 remains open. An omitted
 route is N/A because no such binding/entry exists, not an untested alternate
 implementation. Related feature-owned controls are identified explicitly.
 
@@ -323,8 +325,10 @@ part of the D5 route correction, not native runtime evidence.
 Ticket 10 records the completed Linux OS-injected checks and repaired reset
 defect separately and returns to ready-for-human: the literal physical-input
 procedure and untested platforms still require native operators.
-Run the spec's four groups on Windows/macOS and retain revision/OS/input route
-and actual payload/visible outcomes. Do not archive the plan or claim MA-028
+Windows subsequently completed all four groups, including physical editor
+shortcuts. Complete the remaining Linux procedure and all four groups on macOS;
+retain revision/OS/input route and actual payload/visible outcomes.
+Do not archive the plan or claim MA-028
 accepted until the remaining observations and required CI gates are complete.
 The case-alias export gap is now closed at `75fd69e`: the existing regression
 passed on a disposable Linux `vfat`/FAT16 filesystem, once normally and five

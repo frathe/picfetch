@@ -1,9 +1,53 @@
 # MA-028 Windows 11 qualification
 
-Status: scoped native scenarios passed; a prompt-focus defect was repaired.
-Physical keyboard observations and full macOS desktop qualification remain
-open in [ticket 10](ma-028/issues/10-native-qualification.md). This record does
-not close AC10 or archive the plan.
+Status: Windows qualification complete, including operator-performed physical
+Ctrl+A/C in both image and Grid naming fields. Linux physical-input/literal
+Make-run qualification and full macOS desktop qualification remain open in
+[ticket 10](ma-028/issues/10-native-qualification.md). This record does not close
+all-platform AC10 or archive the plan. Final documentation-head CI and reviews
+are recorded separately on PR 66.
+
+## Final physical-keyboard qualification
+
+Tested source: `10f16a0126dde8f852a058682dd0681c61111122`, with no source edits.
+Windows 11 Pro 25H2, build 26200.9457, amd64; Go 1.27.1 and Fyne 2.8.0.
+The new isolated ordinary profile and copied generated fixtures were launched
+with literal `make run`. The resulting executable SHA-256 was
+`f01b83e198f889066a7d0832ca05899a4566e269d99d1445dbf062c5ef50873e`.
+Raw artifacts are retained locally under
+`.scratch/ma-028/windows-mcp-2026-09-27`; see `environment.json`,
+`tested-executable.json`, the physical-result JSON files and screenshots 07-16.
+
+T0 prepared Add to Favorites over the loaded image, entered distinctive text,
+then replaced the clipboard with an unrelated sentinel without injecting Copy
+or Select All. The user physically pressed Ctrl+A then Ctrl+C and confirmed
+completion. T0 read the OS clipboard, inspected the complete highlighted field,
+and compared the underlying image pixels. The same procedure was repeated
+over Grid with only the first of three fixtures selected.
+
+| Context | Physical result observed (UTC) | Clipboard result | Visible/state evidence |
+| --- | --- | --- | --- |
+| Image | 17:20:37 | Exact `MA028 IMAGE physical 927`, replacing the image sentinel | Screenshot 10 shows full-field selection. All 77,694 exposed image pixels match screenshot 09; after Cancel, all 157,491 content pixels match the original loaded view. Title, image index and dimensions are unchanged. |
+| Grid | 17:28:58 | Exact `MA028 GRID physical 927`, replacing the Grid sentinel | Screenshot 15 shows full-field selection. All 50,050 pixels covering the three thumbnails and selection borders match screenshot 14; the same rectangle is identical before opening and after cancelling the dialog. Only the first thumbnail remains selected. |
+
+The comparisons are retained in `image-pixel-comparison.json` and
+`physical-pixel-comparisons.json`, with explicit regions and zero differing
+pixels. Both dialogs were cancelled; no Favorite was created. Native close
+ended the owned application and Make launcher with exit 0 (`app-exit.txt`).
+
+Windows-MCP supplied setup screenshots through an evidence-only local stdio
+client. Its initial coordinate-based input did not reliably retain the intended
+window, so those attempts are excluded. Final preparation used verified Win32
+window/control handles and foreground ownership. An intervening unavailable
+desktop paused collection until the user returned. Neither setup automation
+nor screenshots alone are treated as physical input: the two successful
+operator-performed shortcut sequences above provide that evidence.
+
+Together with the native menus, modal controls, held-copy recovery/close and
+review-fix observations below and on PR 66, this closes the Windows portion of
+V10. This follow-up changes documentation only. Source test/inspection evidence
+carries forward at its recorded revisions, including the final `10f16a0`
+Windows adapter inspection; fresh remote gates remain required for its new head.
 
 ## Environment and isolation
 
@@ -134,6 +178,6 @@ Git checkout conversion), under `internal/ui/`:
 
 T0 owns execution, findings, fixes and assessment. One bounded read-only scout
 supplied source locations; no implementation/review was delegated. Commit/push
-and the PR review loop are authorized; merge/release are not. Physical input
-on each OS, full macOS desktop qualification and final cross-platform acceptance
-remain open.
+and the PR review loop are authorized; merge/release are not. These initial
+automated observations are supplemented by the final physical-keyboard section
+above. Linux and macOS qualification still prevent cross-platform acceptance.
