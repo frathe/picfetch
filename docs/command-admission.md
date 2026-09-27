@@ -1,6 +1,6 @@
 # MA-028: shared command admission
 
-Status: implementation complete; integrated verification and native acceptance tracked separately.
+Status: accepted and complete; integrated verification and all-platform native acceptance recorded separately.
 Date: 2026-09-27
 
 The `/grill-with-docs MA-028` interview established one shared decision module
@@ -10,12 +10,13 @@ on 2026-09-27. All presented design decisions are settled. The
 the [ADR](adr/0003-shared-command-admission.md) records the ownership trade-off.
 The implementation follows these decisions. See the
 [verification record](command-admission-verification-2026-09-27.md) for actual
-results and outstanding native qualification; this design is not test evidence.
+results and completed native qualification; this design is not test evidence.
 
 The [published specification](ma-028/spec.md) supplies user stories,
 test boundaries and acceptance commands. The implementation request accepted
-the [execution plan](../plans/2026-09-27-ma-028-command-admission.md).
-Native accelerator/focus qualification remains a separate required gate.
+the [execution plan](../finished_refactorings/2026-09-27-ma-028-command-admission.md).
+Native accelerator/focus qualification passed as a separate required gate;
+the platform records retain its actual input and launch provenance.
 
 ## Accepted decisions
 

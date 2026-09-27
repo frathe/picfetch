@@ -617,7 +617,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `tunnel.go` | Both Spiral trigger doors; freezes the loaded main-order URI list through one installed duplicate-visibility snapshot, without preparing groups or narrowing to grid selection. |
 | `windowtrack.go` | Main-window size tracker and position poller; `widgetGeometry` / `prefGeometry` translate `preferences.WindowGeometry` ↔ `widgets.Geometry`. |
 | `windowmenu.go` | Window-menu action handlers (`showViewer`, `showWindowExif`, `showWindowGrid`, `showWindowPictureFrame`, `showWindowHelp` — grid/picture-frame mutual exclusion lives in the first two) plus `refreshMainMenu` / `syncNativeMenuBar` and the Darwin sync entry points. The Checked/Disabled matrix itself lives in `internal/ui/menus`. |
-| `windowmenu_darwin.go` | Fold Window into GLFW's `NSApp.windowsMenu` after Show/rebuild and clear the default Command mask on unmodified accelerators. Clear native Copy's key equivalent so physical Cmd+C reaches GLFW's editor/canvas path; explicit image-menu clicks keep image intent. Native qualification remains tracked in MA-028. |
+| `windowmenu_darwin.go` | Fold Window into GLFW's `NSApp.windowsMenu` after Show/rebuild and clear the default Command mask on unmodified accelerators. Clear native Copy's key equivalent so physical Cmd+C reaches GLFW's editor/canvas path; explicit image-menu clicks keep image intent. Native qualification is complete; see the [MA-028 macOS record](docs/command-admission-macos-qualification-2026-09-27.md). |
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |

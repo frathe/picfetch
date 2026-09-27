@@ -7,10 +7,11 @@ The user explicitly invoked the review loop on 2026-09-27, authorizing scoped
 fixes, commits, pushes, review replies/resolution and fresh review requests.
 Merge/release and physical-input acceptance remain outside this loop.
 
-Current status: all three native platforms are qualified. The macOS handoff and
-review round below supersede the historical pending-platform statements in
-earlier sections. Ticket 10 remains open until a fresh clean review and all
-required remote gates pass after the latest finding's disposition.
+Current status: MA-028 is accepted and all ten tickets are resolved after the
+clean `e2d3b30` round below. All three native platforms are qualified. Current
+acceptance supersedes historical pending-platform statements in earlier
+sections. The documentation-only closure receives fresh latest-head remote
+gates, recorded in PR 66's final disposition rather than another evidence commit.
 
 ## Windows follow-up from `bae3c55`
 
@@ -347,3 +348,42 @@ of their outcome. After the fix is pushed and the thread is resolved, obtain
 another fresh code/security review and required CI/CodeQL plus inspected final
 Qodana SARIF on the new head. Ticket 10 and the plan remain open until that
 round passes. PR 66 records exact latest-head outcomes; no merge or release.
+
+## Acceptance round on `e2d3b30`
+
+Accepted revision: `e2d3b30c123752f976fd5f2d3515a62170bfa9d6`.
+The stale-status finding is fixed and resolved with evidence in its thread.
+All three review threads, including both earlier product defects, are resolved.
+
+- Fresh [code review](https://github.com/frathe/picfetch/pull/66#issuecomment-5858834677)
+  completed at 19:04:41 UTC without findings; fresh
+  [security review](https://github.com/frathe/picfetch/pull/66#issuecomment-5858836929)
+  completed at 19:04:58 UTC without security issues. Both name this exact head.
+- [CI 36342698887](https://github.com/frathe/picfetch/actions/runs/36342698887)
+  passed validation, all four Linux race partitions, Linux native guards,
+  Windows tests and both macOS native jobs.
+- [CodeQL 36342698907](https://github.com/frathe/picfetch/actions/runs/36342698907)
+  passed Go and Actions analysis; the branch has no open code-scanning alerts.
+  All FOSSA dependency, license and security checks passed. All 17 PR checks
+  succeeded.
+- [Qodana 36342698891](https://github.com/frathe/picfetch/actions/runs/36342698891)
+  passed. T0 inspected artifact `10939079228`, `/end/qodana.sarif.json`: zero
+  post-suppression results, successful execution, exit code 0, no execution
+  notifications and exact `e2d3b30` provenance. Scope is configured incremental
+  PR analysis. Original source-revision GoLand inspection evidence remains
+  valid for unchanged code; no broad local suite was repeated.
+
+Standards assessment: no outstanding actionable findings. Specification
+assessment: all implementation and native acceptance criteria are met, with
+the platform records retaining operator/automation and launch distinctions.
+Ticket 10 is resolved, the plan is archived and todos/backlog status updated.
+The closure changes Markdown only. Local validation checks current status,
+all ticket checkboxes, tracked relative links, archive references and whitespace.
+All ten tickets have resolved status and no unchecked criteria; 154 relative
+links across the 32 closure files resolve, with the backlog check scoped to
+its changed sections and todos checked through the Open section. No reference
+to the old active-plan path remains. Whitespace checks pass.
+Fresh code/security reviews, full CI/CodeQL and inspected Qodana SARIF are still
+required on the closure commit itself; PR 66's final disposition pins that
+latest head and the actual results without recursively resetting the gates.
+No merge or release is authorized or performed.

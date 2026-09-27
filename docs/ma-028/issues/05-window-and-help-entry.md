@@ -16,21 +16,19 @@ native Linux/amd64 Docker race partitions. All 68 changed Go files returned no
 GoLand inspection findings, including requested weak warnings.
 See the [command/route and verification record](../../command-admission-verification-2026-09-27.md)
 for observed red/green results, exact inspection scope/hash and retained logs.
-This resolves the implementation slice. Linux and Windows qualification are
-complete; only macOS desktop acceptance remains under
-[ticket 10](10-native-qualification.md), with fresh remote gates required on
-each final PR head. Its later record
-includes the completed Linux reset repair, case-insensitive export qualification
-and focused native CI selection. Checked items
-record implementation and the available deterministic verification, not native
-runtime qualification. References to native close/accelerators below retain
-that separate acceptance gate.
+This resolves the implementation slice. All-platform native acceptance is
+now complete in [ticket 10](10-native-qualification.md), including the Linux
+reset repair, case-insensitive export, focused native CI guards and physical
+editor-input evidence. The clean `e2d3b30` review round permits final acceptance;
+PR 66 records fresh gates for the documentation-only closure head. Checked
+items below retain their original implementation/deterministic scope; the
+separate platform records establish native runtime qualification.
 
 **Agent/model:** T0 Codex Lead, GPT-6 Astra, high reasoning. Feature-created
 menus and links require root composition decisions and lead-owned review.
 
 **Context:** [MA-028 spec](../spec.md), window family and AC2/AC3/AC5/AC8; follow
-the [execution plan](../../../plans/2026-09-27-ma-028-command-admission.md).
+the [execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md).
 Explorer/Location Map/mosaic entry belongs to ticket 06.
 
 - [x] Migrate actual Window/File/Help callbacks, accelerators, plain keys,

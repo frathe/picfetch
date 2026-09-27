@@ -1,8 +1,9 @@
 # MA-028 macOS qualification
 
 Status: macOS desktop qualification complete, including physical editor input.
-Linux and Windows are also complete. Fresh PR 66 gates remain before closure of
-[ticket 10](ma-028/issues/10-native-qualification.md).
+Linux and Windows are also complete. The clean PR 66 round at `e2d3b30` permits
+closure of [ticket 10](ma-028/issues/10-native-qualification.md); see the
+[acceptance record](command-admission-pr-66-review-2026-09-27.md#acceptance-round-on-e2d3b30).
 The user requested completion, commit/push and the PR 66 review loop before
 ticket closure. No merge or release is authorized.
 

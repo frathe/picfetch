@@ -12,7 +12,7 @@ restrictions and source identity of retained visits.
 retained visits and feature-owned lifetimes require cross-feature judgment.
 
 **Context:** [MA-028 spec](../spec.md), AC2/AC6/AC8/AC9; follow the
-[execution plan](../../../plans/2026-09-27-ma-028-command-admission.md). Browsing
+[execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md). Browsing
 ownership refactoring MA-029 and collection-transition MA-030 are out of scope.
 
 - [ ] Migrate Explorer entry/retry, Location Map entry/return and mosaic entry

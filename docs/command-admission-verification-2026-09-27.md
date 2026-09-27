@@ -13,12 +13,13 @@ changed-file GoLand inspections and a fresh full `make verify`. Windows native
 and physical-keyboard qualification is now complete at `10f16a0`; see the
 [Windows evidence](command-admission-windows-qualification-2026-09-27.md).
 The user has confirmed Linux physical-input completion and accepted its retained
-Make-built runtime evidence. Only macOS desktop acceptance remains. Fresh CI,
-CodeQL, Qodana SARIF and Codex code/security reviews pass at `4674cca`; see the
+Make-built runtime evidence. macOS desktop qualification is also complete;
+see the [macOS evidence](command-admission-macos-qualification-2026-09-27.md).
+Fresh CI, CodeQL, Qodana SARIF and Codex code/security reviews pass at `e2d3b30`; see the
 [PR 66 review record](command-admission-pr-66-review-2026-09-27.md) for exact
 evidence and the final documentation-head gate. See the
 [Linux qualification record](command-admission-linux-qualification-2026-09-27.md).
-The execution plan stays in `plans/`.
+Ticket 10 is resolved and the execution plan is archived in `finished_refactorings/`.
 
 ## Ownership and structural review
 
@@ -54,8 +55,8 @@ The closed flag is atomic because that terminal check is made by the worker.
 Routes: M = explicit menu; A = its accelerator; S = registered shortcut;
 K = plain/modified key; B = bare guarded action; H = Host/link/gesture;
 D = drop; O = OS-open; C = asynchronous continuation. A listed accelerator is
-source/test-driver coverage except for the explicitly observed Linux/Windows
-routes in their qualification records; ticket 10 remains open. An omitted
+source/test-driver coverage except for the explicitly observed Linux/Windows/macOS
+routes in their qualification records; ticket 10 is resolved. An omitted
 route is N/A because no such binding/entry exists, not an untested alternate
 implementation. Related feature-owned controls are identified explicitly.
 
@@ -123,7 +124,7 @@ column names the existing capture/effect owner. Tests refer to
 | Shuffle | K/B `toggleSlideshowShuffle` | Routes/navigation; slideshow setting |
 | Interval | K Up/Down in frame mode | Policy, slideshow/key regressions; slideshow owner |
 | Settings setters / automatic load/advance | H/C, already-owned effects | Async committed save, FileMutationReconciliation*, existing slideshow tests |
-| Escape / native window close | K/H, ordered owner dispatch, no generic admission wrapper | EscapeUnwindsModesBeforeReset, CopySelectionBusyBlocksOtherCommands; Linux/Windows native close passed while busy and modal; macOS remains in ticket 10 |
+| Escape / native window close | K/H, ordered owner dispatch, no generic admission wrapper | EscapeUnwindsModesBeforeReset, CopySelectionBusyBlocksOtherCommands; Linux/Windows/macOS native close passed while busy and modal; platform records retain the exact scope |
 
 ## Observed red/green evidence
 
@@ -327,10 +328,10 @@ Ticket 10 records the Linux OS-injected checks and repaired reset defect
 separately from the user's subsequent retrospective confirmation of physical
 input and acceptance of the Make-built launch. Linux qualification is complete.
 Windows also completed all four groups, including physical editor shortcuts.
-Ticket 10 remains ready-for-human for all four groups on macOS;
-retain revision/OS/input route and actual payload/visible outcomes.
-Do not archive the plan or claim MA-028
-accepted until the remaining observations and required CI gates are complete.
+macOS also completed all four groups, including physical editor shortcuts;
+its record retains revision/OS/input route and actual payload/visible outcomes.
+Ticket 10 and MA-028 are accepted after the clean `e2d3b30` review/CI round.
+The archived plan and PR 66 retain acceptance and final documentation-head gates.
 The case-alias export gap is now closed at `75fd69e`: the existing regression
 passed on a disposable Linux `vfat`/FAT16 filesystem, once normally and five
 times with race instrumentation, with no skips. See the Linux qualification

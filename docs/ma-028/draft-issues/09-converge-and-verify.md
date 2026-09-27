@@ -16,7 +16,7 @@ duplicates and search; 08: Share navigation and presentation admission.
 review, findings, fixes and final deterministic gates remain with T0.
 
 **Context:** [MA-028 spec](../spec.md), all ACs with AC11/AC12 owned here;
-the [execution plan](../../../plans/2026-09-27-ma-028-command-admission.md)
+the [execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md)
 defines the migration ledger and evidence rules. Native AC10 remains ticket 10.
 
 - [ ] Reconcile every actual command against all applicable menu, accelerator,

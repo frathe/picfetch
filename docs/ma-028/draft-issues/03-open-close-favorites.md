@@ -12,7 +12,7 @@ replace the collection or dismiss an active confirmation behind the user's back.
 coordination and chooser delivery exceed a single-package delegated task.
 
 **Context:** [MA-028 spec](../spec.md), D2-D4/D6-D7 and AC2/AC3/AC9; follow the
-[execution plan](../../../plans/2026-09-27-ma-028-command-admission.md).
+[execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md).
 
 - [ ] Inventory/migrate Open menu, both open shortcuts, dropzone, drop, OS-open,
   restore-session user link, bare Open/Close Files and Favorite Host entries;

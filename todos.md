@@ -22,15 +22,16 @@
 
 #### Internal
 
-- MA-028 shared command admission is implemented across menus, shortcuts, keys,
-  direct actions and open delivery. Pure decisions precede yielding; existing
-  features retain payload capture and worker lifetimes. See the
-  [implementation and verification record](docs/command-admission-verification-2026-09-27.md).
-  `make verify` and all 68 changed-file GoLand inspections passed. The
-  [Linux native-input scenarios](docs/command-admission-linux-qualification-2026-09-27.md)
-  passed their scoped OS-injected checks. The subsequently found native
-  maximized-window reset failure is repaired and locally verified; remaining
-  platform/operator and CI acceptance is below.
+- MA-028 shared command admission is complete across menus, shortcuts, keys,
+  direct actions and open delivery. All ten tickets are resolved. Linux,
+  Windows and macOS native qualification passed, with physical editor-input
+  provenance retained in the platform records. The clean PR 66 acceptance
+  round at `e2d3b30` passed all 17 checks, fresh code/security reviews and
+  inspected Qodana SARIF; source tests and GoLand evidence are retained at
+  their recorded revisions. See the [completed ticket](docs/ma-028/issues/10-native-qualification.md),
+  [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md)
+  and [review evidence](docs/command-admission-pr-66-review-2026-09-27.md).
+  PR 66 records fresh gates for the final documentation-only closure head.
 
 - Stabilize the similarity protocol race test by dispatching its helper before
   the test runner starts and bounding its lifetime from the parent. Preserve
@@ -39,63 +40,12 @@
 
 ## Open
 
-- **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
-  recommends shared command policy (MA-028), explicit browsing ownership and
-  collection transitions (MA-029/030), followed by Favorite ownership, a bounded
-  worker-lifetime pilot and launch policy (MA-031 through MA-033). Keep feature
-  state local and preserve explicit composition. MA-028's
-  [design](docs/command-admission.md) is accepted: full command migration with
-  shared pure admission and the agreed input/yield corrections. Its
-  [specification](docs/ma-028/spec.md) and
-  [published ten-ticket plan](plans/2026-09-27-ma-028-command-admission.md)
-  track implementation and acceptance. Tickets 01-09 are done/resolved at
-  `9dc3a81`, with their implementation checklists complete; retain
-  ticket 10 for the remaining physical/native desktop gates. Linux GNOME/XWayland runtime
-  checks passed editor shortcuts, actual menu activation/enablement, modal
-  controls and native close during held region copying with OS-injected input.
-  The Linux Escape/maximize defect found during qualification is fixed: native
-  size/state checks pass repeatedly, including fixed-size controls; the new
-  native-boundary regression, changed-file inspections and fresh full Make
-  gate pass. Historical diagnosis and final evidence remain in the Linux record.
-  Scoped Windows 11 native checks now pass using literal `make run`, real menus
-  and clipboard, and OS-injected input. The discovered prompt-focus defect is
-  repaired, with focused race tests, native repeats and eight-file inspections.
-  The next PR review found a Finis clue nil-pointer crash beneath a main-window
-  modal. Owned Help/Spiral navigation is repaired with red/green and omission
-  coverage, focused race tests, nine-file inspections and native Windows repeats.
-  A further review found asynchronous empty-state cleanup restoring minimized
-  Windows windows. The Windows Unmaximize adapter now checks native maximize
-  state; native red/green, held last-file Trash, reset/race and inspections pass.
-  Windows qualification is complete at `10f16a0`: the user physically pressed
-  Ctrl+A/C in image and Grid naming fields, with exact clipboard payloads,
-  full-field selection and unchanged image/Grid pixels. The isolated literal
-  `make run` session exited 0; the Windows record retains the evidence.
-  Linux is also complete: on 2026-09-27 the user confirmed that physical-input
-  checks were already tested but not documented, accepting the retained
-  Make-built runtime evidence. macOS now passes as recorded below;
-  ticket 10 stays open for the fresh PR loop. At `4674cca`, fresh PR 66 CI and CodeQL passed,
-  Codex code/security reviews have no findings, and Qodana's inspected SARIF has
-  zero results after addressing the original eight findings. The
-  [review-loop record](docs/command-admission-pr-66-review-2026-09-27.md) retains
-  exact evidence; PR 66 records the final documentation-only head's mandatory
-  checks/reviews. Local GoLand evidence remains distinct from Qodana CI.
-  The case-insensitive export regression now passes on temporary FAT16 storage,
-  including five race runs. Windows/macOS CI now selects focused native guards
-  for case-alias export and macOS Copy-menu behavior, with command-boundary
-  tests rejecting missing/skipped evidence. The actual new runner passes on
-  Linux FAT16 and rejects an ext4 skip. The focused guards now also pass in
-  native Windows amd64 and macOS arm64/amd64 CI, including the AppKit assertion;
-  these isolated tests do not replace desktop/physical-input checks. The user
-  authorized the PR 66 review loop. The reviewed planning Markdown is tracked under
-  [docs/ma-028](docs/ma-028/README.md), with its personal home path redacted and
-  raw evidence left ignored, as recorded in the
-  [portability audit](docs/ma-028-portability-audit-2026-09-27.md).
-  The [macOS qualification](docs/command-admission-macos-qualification-2026-09-27.md)
-  now records passing physical image/Grid Cmd+A/C, exact clipboard pixels,
-  modal/prompt controls, held-copy refusal/recovery and focused native/race
-  checks. Native busy/modal close now pass with exit 0; all three platforms are
-  qualified. The newly requested PR loop remains before ticket closure.
-  MA-029 through MA-033 remain proposals.
+- **Application architecture:** MA-028's shared command policy is complete.
+  The [remaining assessment proposals](needs_refactoring.md) are explicit
+  browsing ownership and collection transitions (MA-029/030), followed by
+  Favorite ownership, a bounded worker-lifetime pilot and launch policy
+  (MA-031 through MA-033). These remain proposals, not accepted implementation
+  work. Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency

@@ -12,7 +12,7 @@ differences or comparison's Help access.
 menus and links require root composition decisions and lead-owned review.
 
 **Context:** [MA-028 spec](../spec.md), window family and AC2/AC3/AC5/AC8; follow
-the [execution plan](../../../plans/2026-09-27-ma-028-command-admission.md).
+the [execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md).
 Explorer/Location Map/mosaic entry belongs to ticket 06.
 
 - [ ] Migrate actual Window/File/Help callbacks, accelerators, plain keys,

@@ -13,7 +13,7 @@ input owner changes.
 between new user entry and operation-owned/committed continuations.
 
 **Context:** [MA-028 spec](../spec.md), file/image family and AC3/AC6/AC9; use the
-[execution plan](../../../plans/2026-09-27-ma-028-command-admission.md).
+[execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md).
 
 - [ ] Migrate export, Trash, reveal and ordinary wallpaper across actual menu,
   registered shortcut, info link and bare user entries where applicable. Include

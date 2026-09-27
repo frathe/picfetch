@@ -2,10 +2,10 @@
 
 Status: Windows qualification complete, including operator-performed physical
 Ctrl+A/C in both image and Grid naming fields. Linux qualification is also
-complete by user confirmation; only macOS desktop qualification remains open in
-[ticket 10](ma-028/issues/10-native-qualification.md). This record does not close
-all-platform AC10 or archive the plan. Final documentation-head CI and reviews
-are recorded separately on PR 66.
+complete by user confirmation; macOS qualification is complete in its separate
+record. [Ticket 10](ma-028/issues/10-native-qualification.md) is resolved after
+all-platform AC10 and the clean PR 66 acceptance round. Final documentation-head
+CI and reviews are recorded separately on PR 66.
 
 ## Final physical-keyboard qualification
 

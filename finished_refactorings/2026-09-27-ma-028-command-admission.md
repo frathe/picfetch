@@ -1,6 +1,6 @@
 # MA-028 ticket and execution plan
 
-Status: all native desktop qualification complete; fresh PR 66 gates required before acceptance and archival.
+Status: accepted and complete; all ten tickets resolved after the clean `e2d3b30` review/CI round. Archived 2026-09-27.
 Date: 2026-09-27.
 Planning revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
 Route: Deep, because the change crosses feature adapters and native input on
@@ -36,7 +36,14 @@ pixels, native menu refusal/recovery and busy/modal close (both exit 0).
 The unmodified native guards and focused Mac race tests pass. Product code is
 unchanged; no new dependency or inspection waiver. One actual scout spawn,
 T0 review, no broad local suite. See the [Mac record](../docs/command-admission-macos-qualification-2026-09-27.md).
-Commit/push and fresh PR review/CI precede ticket closure and plan archival.
+The evidence commit `6e63d75` received one confirmed stale-status finding;
+T0 corrected the chronological PR record in `e2d3b30`. Its fresh code/security
+reviews have no findings, all 17 checks pass, and Qodana artifact `10939079228`
+has zero final SARIF results with successful execution and exact provenance.
+All three review threads are resolved. Ticket 10 is accepted and this plan
+archived. The documentation-only closure receives fresh final-head remote
+gates, pinned by the PR 66 disposition; no merge/release. One scout was reused
+for a second bounded read-only status-location assignment; no review delegated.
 
 The [implementation verification record](../docs/command-admission-verification-2026-09-27.md)
 contains the completed command/route ledger, ownership review, observed
@@ -51,7 +58,7 @@ repairs. Final physical Ctrl+A/C checks in image and Grid fields passed on
 `10f16a0`, with exact clipboard payloads and unchanged image/Grid pixels.
 The user confirmed Linux physical-input completion on 2026-09-27, accepting
 the retained Make-built runtime evidence. macOS qualification is now complete
-as recorded above; fresh PR gates remain before ticket closure.
+as recorded above; the fresh PR gates passed before ticket closure.
 The historical ticketing evidence at the end describes the earlier planning
 turn, not the current implementation state.
 
@@ -61,7 +68,8 @@ Native geometry stays 1920 x 1131 with both maximization flags after Escape,
 instead of the initial 624 x 409 welcome target. The earlier small rendered
 surface was not merely a capture limitation. At the diagnostic handoff it was
 unfixed; the subsequently authorized repair below is now locally verified.
-The outstanding physical/native desktop gates still prevent overall acceptance.
+At that diagnostic stage, outstanding physical/native desktop gates prevented
+overall acceptance; the later completion records above supersede that status.
 
 One further read-only scout assignment traced pinned Fyne resize and native
 geometry callbacks while T0 investigates application reset/maximize ownership.
@@ -365,8 +373,8 @@ The parent specification and backlog issue are not modified by ticketing.
 The implementation request accepted the breakdown. Tickets are published under
 `docs/ma-028/issues/`; the original drafts are retained as planning history.
 Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementation
-checklist items checked against the recorded local evidence. Ticket 10's native
-qualification is complete; it remains in progress for the fresh PR review loop.
+checklist items checked against the recorded local evidence. Ticket 10 is also
+done/resolved after native qualification and the clean `e2d3b30` review loop.
 Its preparation, native checks and repairs are checked separately.
 Case-insensitive export now passes on FAT16, including five race repetitions.
 Focused native guards now pass in Windows amd64 and both macOS CI architectures.
@@ -374,7 +382,7 @@ Fresh remote review/CI/analysis gates pass at `4674cca` as recorded above.
 Windows desktop and physical editor-input qualification is now complete at
 `10f16a0`. Linux qualification is complete by the user's retrospective
 physical-input confirmation and acceptance of its recorded Make-built launch.
-macOS desktop execution now passes; final fresh remote gates precede resolution.
+macOS desktop execution and fresh remote gates passed before resolution.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
@@ -387,7 +395,7 @@ macOS desktop execution now passes; final fresh remote gates precede resolution.
 | [07](../docs/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
 | [08](../docs/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
 | [09](../docs/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../docs/ma-028/issues/10-native-qualification.md) | In progress / review loop | All native platforms qualified; fresh remote gates before acceptance | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
+| [10](../docs/ma-028/issues/10-native-qualification.md) | Done / resolved | All native platforms qualified; clean review and remote gates; integrated migration accepted | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.
@@ -625,6 +633,9 @@ under `docs/ma-028`; raw artifacts remain ignored.
 
 ## Implementation execution ledger (2026-09-27)
 
+Each row records its phase's outcome at that time; later completion rows
+supersede earlier pending-platform statements.
+
 | Phase | Actual delegation | Review and verification | Result |
 | --- | --- | --- | --- |
 | Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
@@ -634,6 +645,7 @@ under `docs/ma-028`; raw artifacts remain ignored.
 | PR 66 review loop | One bounded read-only assignment to the existing scout for native artifact events; no implementation support | T0: standards/spec review, eight SARIF dispositions, focused race/vet, four-file IDE inspection, fresh reviews and full remote gates | Source round `4674cca` clean; final documentation-head checks retained on PR 66; physical/native desktop acceptance still open |
 | Windows physical completion | One bounded read-only assignment to the existing scout for evidence/status locations; no implementation support | User: physical Ctrl+A/C in both editor contexts. T0: isolated Make launch, independent clipboard sentinels, screenshot/pixel checks, cleanup and evidence review | Windows V10 complete at `10f16a0`; documentation-only follow-up carries existing source inspections and requires fresh remote review/CI; no broad local suite |
 | Linux operator confirmation | One bounded read-only status-location search assigned to the existing scout; T0 owns all edits and assessment | User: retrospective confirmation that physical input was tested. T0: record provenance and reconcile current status | Linux V10 complete; only macOS remains. Documentation-only validation and fresh final-head review/CI; no new runtime claims or local suite |
+| macOS and final acceptance | One new read-only scout, two bounded assignments (storage/clipboard seams and status locations); no implementation or review delegation | User physical editor/region input; T0 native menu/payload/pixel/close checks, focused native/race tests, evidence review and one documentation finding fix | All platforms complete; fresh code/security reviews, all 17 checks and inspected zero-result SARIF pass at `e2d3b30`; ticket resolved and plan archived; final closure-head gates recorded on PR 66 |
 
 The original implementation used two complete Make runs under the budget
 exception above; no broad local race run was used during individual red/green

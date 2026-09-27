@@ -13,7 +13,7 @@ capture and write path. This is the first complete slice of shared admission.
 the cross-cutting interface and cannot be delegated as a T1 implementation task.
 
 **Context:** [Accepted MA-028 spec](../spec.md), decisions D1-D7; see the
-[execution plan](../../../plans/2026-09-27-ma-028-command-admission.md) for shared
+[execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md) for shared
 signatures, file locators, budgets and evidence requirements. No new dependencies,
 public API or runtime command catalogue. Other command families migrate later.
 

@@ -14,7 +14,7 @@ interception, intent and clipboard lifetimes make this the highest-risk input sl
 
 **Context:** [MA-028 spec](../spec.md), especially D5-D7 and AC4-AC7; shared
 interfaces and completion rules are in the
-[execution plan](../../../plans/2026-09-27-ma-028-command-admission.md).
+[execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md).
 
 - [ ] Migrate Copy, explicit Copy image, Copy Path, Copy Selection activation
   and Select All through each actual menu/accelerator/registered-shortcut/bare

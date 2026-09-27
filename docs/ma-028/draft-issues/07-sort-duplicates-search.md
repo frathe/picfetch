@@ -13,7 +13,7 @@ restrictions and search generation/reference are the primary risks.
 
 **Context:** [MA-028 spec](../spec.md), sort/duplicates/search family and
 AC2/AC6/AC8/AC9; use the
-[execution plan](../../../plans/2026-09-27-ma-028-command-admission.md).
+[execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md).
 
 - [ ] Migrate selected/cycled sort, hide duplicates, browse variants and Find
   more like this through actual menus, S/D/Shift+D, the search shortcut and bare

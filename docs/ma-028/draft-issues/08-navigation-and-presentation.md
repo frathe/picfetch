@@ -13,7 +13,7 @@ the difference between user navigation and background display work stay lead-own
 
 **Context:** [MA-028 spec](../spec.md), navigation/presentation family and
 AC2/AC3/AC6/AC8; use the
-[execution plan](../../../plans/2026-09-27-ma-028-command-admission.md).
+[execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md).
 
 - [ ] Migrate next/previous/first/last user navigation, rotation both ways,
   reset+fit, actual size, zoom, merge/info, shuffle and interval actions through

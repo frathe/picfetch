@@ -14,8 +14,8 @@ after `make build`, without claiming a literal `make run` invocation.
 
 The limits below describe the original automated sessions. They do not undo
 the subsequent operator confirmation above. Windows qualification and fresh
-remote gates are recorded in ticket 10 and PR 66; macOS desktop acceptance is
-the only remaining platform qualification.
+remote gates are recorded in ticket 10 and PR 66. macOS qualification is now
+complete in its separate record, and ticket 10 is resolved.
 
 **Repair status: the maximized-window Escape defect is fixed; native
 checks, focused regressions, changed-file inspections and `make verify` pass.**

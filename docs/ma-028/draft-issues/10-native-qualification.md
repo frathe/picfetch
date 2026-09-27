@@ -16,7 +16,7 @@ Lead on GPT-6 Astra, high reasoning. A model cannot substitute for an unavailabl
 OS or physical/native accelerator evidence. T0 owns all diagnosis/fixes/review.
 
 **Context:** [MA-028 spec](../spec.md), AC10 and its four-step native procedure;
-the [execution plan](../../../plans/2026-09-27-ma-028-command-admission.md)
+the [execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md)
 requires an early feasibility observation during 02 and final evidence here.
 
 - [ ] On each native Linux/Windows/macOS desktop, run the integrated revision

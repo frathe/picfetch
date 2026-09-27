@@ -5,16 +5,26 @@ that editor shortcuts reach text, menus reflect current admission, and native
 dispatch cannot bypass the integrated policy. Close MA-028 only with complete
 deterministic and native evidence.
 
-**Blocked by:** Fresh PR 66 review-loop gates before final acceptance;
-prerequisite 09 and all three native desktop qualifications are complete.
+**Blocked by:** None. Prerequisite 09, all three native desktop qualifications
+and the fresh PR 66 review-loop gates at `e2d3b30` are complete.
 Linux is complete by the user's retrospective physical-input confirmation and
 acceptance of its retained runtime evidence; Windows at `10f16a0`; macOS at
 `41cdaa9` with the documented qualification-only storage/identity overlay.
 Remote gates and final-head results are retained in PR 66.
 The user authorized publication and the review loop on 2026-09-27.
 
-**Status:** in-progress (all native qualification complete; fresh PR 66 review
-loop required before closure).
+**Status:** resolved (done; integrated migration and all-platform acceptance).
+
+## Answer
+
+All acceptance checks are complete. The fresh code/security reviews at
+`e2d3b30` have no findings, all 17 PR checks pass, all three review threads are
+resolved, and the inspected final Qodana SARIF has zero results with successful
+execution and exact-head provenance. See the
+[review-loop record](../../command-admission-pr-66-review-2026-09-27.md#acceptance-round-on-e2d3b30)
+for runs, artifacts and review links. The plan is archived and todos updated.
+The documentation-only closure commit receives its own fresh remote gates;
+their exact-head disposition is retained on PR 66. No merge or release.
 
 ## macOS qualification results (2026-09-27)
 
@@ -23,7 +33,7 @@ retains literal Make-run launch with documented storage/identity substitutions,
 passing native guards and focused race tests, operator-performed Cmd+A/C in
 image/Grid fields, exact clipboard/image comparisons, modal/prompt ownership
 and successful held-region-copy refusal/recovery. Native busy/modal close both
-exited 0. The requested fresh PR loop remains in progress. Product source is unchanged.
+exited 0. The requested fresh PR loop passed at `e2d3b30`. Product source is unchanged.
 
 ## Windows qualification results (2026-09-27)
 
@@ -57,7 +67,7 @@ for exact scope, source hashes, artifacts, test commands and host limitations.
 The earlier automated checks remain distinct from the completed physical
 operator checks above. The external launcher hold is distinct from an instance
 encoder seam. Fresh CI/reviews/CodeQL and inspected Qodana SARIF remain required on the pushed head,
-recorded on PR 66. All-platform unchecked criteria below remain open.
+recorded on PR 66. All-platform criteria below are now complete.
 
 ## Linux qualification results (2026-09-27)
 
@@ -89,14 +99,14 @@ repair is recorded below. That session used injected OS events and a directly
 launched `make build` binary. The subsequent user confirmation above closes the
 Linux acceptance gap without changing those historical facts. Windows/macOS
 full desktop scenarios were untested at that Linux handoff; Windows is now
-qualified above. macOS remains open.
+qualified above, and macOS is now qualified in its separate record.
 Their subsequent isolated native CI guards pass as recorded below.
 
 ### Completed Linux runtime checks (OS-injected input)
 
 These scoped observations remain valid. The user-confirmed maximized-window
 Escape defect is now repaired and verified below. The subsequent operator
-confirmation completes Linux; macOS and final-head remote gates remain separate.
+confirmation completes Linux; the macOS and remote results are recorded separately.
 
 - [x] Record clean revision, native build, OS/architecture, Fyne version, isolated
   profile, actual input route and retained artifacts.
@@ -142,7 +152,7 @@ Lead on GPT-6 Astra, high reasoning. A model cannot substitute for an unavailabl
 OS or physical/native accelerator evidence. T0 owns all diagnosis/fixes/review.
 
 **Context:** [MA-028 spec](../spec.md), AC10 and its four-step native procedure;
-the [execution plan](../../../plans/2026-09-27-ma-028-command-admission.md)
+the [execution plan](../../../finished_refactorings/2026-09-27-ma-028-command-admission.md)
 requires an early feasibility observation during 02 and final evidence here.
 
 ## Completed preparation
@@ -158,7 +168,7 @@ requires an early feasibility observation during 02 and final evidence here.
 - [x] Record the native runbook, missing platforms and case-insensitive export
   regression in the verification record.
 
-## Remaining acceptance checks
+## Completed acceptance checks
 
 Linux, Windows and macOS qualification are complete, including physical editor
 input. The completed desktop checks do not need repeating unless relevant code
@@ -225,7 +235,7 @@ harness are recorded above; final PR gates remain required.
   The review record links exact runs/artifacts. Final-head results for the
   documentation-only follow-up are retained on PR 66; they remain a separate
   required review-loop gate, not inferred from unchanged source.
-- [ ] Record the final evidence and remaining limitations. Only after all
+- [x] Record the final evidence and remaining limitations. Only after all
   required gates pass may the implementation be proposed as accepted and the
   plan archived. No merge, release, commit or push is implied.
 
