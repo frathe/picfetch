@@ -14,7 +14,8 @@ qualification. Other features retain the usual local-tracker convention.
 - [Execution plan and complete ticket index](../../plans/2026-09-27-ma-028-command-admission.md):
   dependencies, implementation history and verification ownership.
 - [Implementation verification](../command-admission-verification-2026-09-27.md)
-  and [Linux qualification](../command-admission-linux-qualification-2026-09-27.md):
+  and [Linux qualification](../command-admission-linux-qualification-2026-09-27.md)
+  and [Windows qualification](../command-admission-windows-qualification-2026-09-27.md):
   completed checks, precise scope and remaining limitations.
 - [PR 66 review-loop evidence](../command-admission-pr-66-review-2026-09-27.md):
   static-analysis dispositions, fresh reviews and external verification.
@@ -26,7 +27,7 @@ qualification. Other features retain the usual local-tracker convention.
 
 The planning documents are tracked; raw screenshots, logs, binaries, fixtures,
 mutation files and checksums remain ignored under `.scratch/ma-028` on the
-original Linux workstation. Paths to those artifacts in the summaries are
+original Linux and Windows workstations. Paths to those artifacts in the summaries are
 optional local audit references, not requirements for another checkout.
 The [privacy audit](../ma-028-portability-audit-2026-09-27.md) records the review,
 redaction and exclusions. The interview uses `$GOMODCACHE` for its pinned Fyne

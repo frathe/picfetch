@@ -10,8 +10,36 @@ physical-input observations are still required. Remote gates passed on the
 cleanup revision `4674cca`; final-head results are retained in PR 66.
 The user authorized publication and the review loop on 2026-09-27.
 
-**Status:** ready-for-human (Linux native reset defect repaired and locally
-verified; physical-input and full Windows/macOS desktop qualification remain open).
+**Status:** ready-for-human (Linux reset and Windows prompt-focus defects repaired;
+scoped Linux/Windows native checks passed; physical input and full macOS
+desktop qualification remain open).
+
+## Windows qualification results (2026-09-27)
+
+The user authorized feasible Windows 11 checks, commit/push and another PR 66
+review loop. T0 ran literal `make run` with an isolated ordinary profile and
+generated fixtures, using OS-injected Win32 keyboard/mouse input and real menus,
+dialogs and clipboard. See the [Windows evidence record](../../command-admission-windows-qualification-2026-09-27.md)
+for exact scope, source hashes, artifacts, test commands and host limitations.
+
+- [x] Verify editor Ctrl+A/C against independent clipboard sentinels in image
+  and Grid naming dialogs; verify unchanged Grid selection pixels.
+- [x] Compare native Ctrl+C and actual Actions -> Copy image with fixture pixels;
+  verify real modal refusal and positive Add/Cancel controls.
+- [x] Hold successful region-copy completion, inspect menu disablement, refusal
+  feedback and unchanged clipboard data, then verify recovery on release.
+- [x] Repair native prompt keyboard ownership: Tab no longer strands Export on
+  its checkbox, and dismissed Delete no longer retains hidden focus. Observe
+  the regression red/green and failing under an omission overlay; repeat native
+  arrow/Return/Escape/checkbox and maximized-window reset controls after repair.
+- [x] Verify native close while busy and while modal; final sessions exit 0 and
+  held workers are released. Focused Windows race tests, native case-alias guard,
+  build/vet and eight-file GoLand inspections have no actionable findings.
+
+These are scoped native observations, not physical keyboard evidence. The
+external launcher hold is distinct from an instance encoder seam. Fresh
+CI/reviews/CodeQL and inspected Qodana SARIF remain required on the pushed head,
+recorded on PR 66. All-platform unchecked criteria below remain open.
 
 ## Linux qualification results (2026-09-27)
 

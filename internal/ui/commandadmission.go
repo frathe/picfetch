@@ -30,9 +30,14 @@ func (h deletionHost) ForceRepaint()   { h.promptChanged() }
 func (h deletionHost) ShowImage(i int) { h.loadImage(i) }
 
 func (v *viewer) promptChanged() {
-	// In-tree cards do not have Fyne's overlay focus manager. Release any
-	// underlying Entry before GLFW can dispatch an editing shortcut to it.
-	if v.deletion.Visible() || v.exportPrompt.Visible() {
+	// In-tree cards do not have Fyne's overlay focus manager. Keep Tab and
+	// prompt controls on one owner, then release focus on dismissal.
+	switch {
+	case v.deletion.Visible():
+		v.deletion.Focus(v.win.Canvas())
+	case v.exportPrompt.Visible():
+		v.exportPrompt.Focus(v.win.Canvas())
+	default:
 		v.Unfocus()
 	}
 	v.syncMenus()

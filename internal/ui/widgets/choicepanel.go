@@ -30,11 +30,9 @@ type Choice struct {
 // internal/ui/keys.go) answering keys aimed at the dialog.
 //
 // The ring is drawn from the panel's own selected index either way, never
-// from Fyne's widget-focus state: inside the card the panel is not focused at
-// all (HandleKey feeds it the keys the app dispatcher already owns), and
-// inside a dialog it is a single focus stop whose selection still has to move
-// under the arrow keys. Same manual model internal/ui/favorites' managePanel
-// uses over its two axes.
+// from Fyne's widget-focus state. The panel is a single keyboard owner in
+// both a card and a dialog; arrow keys move its own selection. The containing
+// card can also route those keys to its extra rows.
 type ChoicePanel struct {
 	widget.BaseWidget
 
@@ -55,11 +53,13 @@ type ChoicePanel struct {
 	// Cancel) has nothing left for Escape to do.
 	onCancel func()
 
-	// onBack is what Up runs - see SetOnBack. Nil for every panel that lives
-	// inside a ChoiceCard (deletion, the export prompt): those are fed keys by
-	// the app's own dispatcher, where Up already means something else, and
-	// leaving the field nil is what keeps this panel from stepping on it.
+	// onBack is what Up runs in a standalone panel. ChoiceCard handles its
+	// own extra-row navigation before delegating button keys to handleKey.
 	onBack func()
+
+	// cardKey keeps a containing card's extra-row navigation on the same
+	// focus owner as its buttons. Standalone dialog panels use handleKey.
+	cardKey func(*fyne.KeyEvent)
 
 	choices  []Choice
 	selected int
@@ -299,6 +299,19 @@ func (p *ChoicePanel) runChoice(i int) func() {
 // registered. Every other key is deliberately left alone, so a caller can
 // still make its own use of it.
 func (p *ChoicePanel) TypedKey(ev *fyne.KeyEvent) {
+	if p.cardKey != nil {
+		p.cardKey(ev)
+		return
+	}
+	p.handleKey(ev)
+}
+
+// AcceptsTab keeps an in-tree card's keyboard on its single focus owner.
+// Its established arrow keys navigate the card; Tab must not focus a child
+// checkbox or button that cannot handle the card's Escape/Return controls.
+func (p *ChoicePanel) AcceptsTab() bool { return p.cardKey != nil }
+
+func (p *ChoicePanel) handleKey(ev *fyne.KeyEvent) {
 	switch ev.Name {
 	case fyne.KeyLeft:
 		p.Select(p.selected - 1)

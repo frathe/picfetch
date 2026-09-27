@@ -1,6 +1,6 @@
 # MA-028: shared command admission
 
-Status: ready-for-human (Linux reset repaired; automated gates passed at `4674cca`; physical/native desktop acceptance open)
+Status: ready-for-human (Linux reset and Windows prompt-focus repaired; scoped Linux/Windows native checks passed; physical/native desktop acceptance open)
 Date: 2026-09-27
 Source: `/to-spec MA-028`, synthesizing the accepted D1-D7 interview decisions.
 Inspected revision: `770052498a8f4fb3ca7bb8be02448287b40ccecb`.

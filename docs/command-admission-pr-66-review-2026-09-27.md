@@ -7,6 +7,23 @@ The user explicitly invoked the review loop on 2026-09-27, authorizing scoped
 fixes, commits, pushes, review replies/resolution and fresh review requests.
 Merge/release and physical-input acceptance remain outside this loop.
 
+## Windows follow-up from `bae3c55`
+
+The user requested all feasible Windows ticket 10 checks, then commit/push and
+another review loop. The [Windows qualification record](command-admission-windows-qualification-2026-09-27.md)
+retains native outcomes, the discovered prompt-focus defect, red/green and
+omission evidence, focused Windows race results, eight-file GoLand inspections,
+source hashes and honest host limits. Initial PR inspection found no unresolved
+threads; prior code/security reviews and CI were clean on `bae3c55`.
+
+The repair gives in-tree Export/Delete cards one keyboard owner, preserves
+their controls and releases focus on dismissal. Native repeats verify editor
+copy, prompt control, maximized-window reset and native busy/modal close. T0
+owns every assessment/fix. No broad local race suite was repeated. Required
+fresh code/security reviews, CI/CodeQL and inspected Qodana SARIF must pass on
+the new pushed head; the final PR disposition pins that commit and evidence.
+Physical keyboard and full macOS desktop acceptance remain open in ticket 10.
+
 T0 owns the standards and specification assessments and all fixes. One bounded
 read-only scout extracted existing native test events; T0 verified its results
 with `jq`. No review or fix was delegated. Full tests run in GitHub CI; local

@@ -184,7 +184,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	choices := make([]widgets.Choice, 2)
 	choices[pngChoice] = widgets.Choice{Label: lang.L("PNG"), OnChosen: func() { view.exportAs(exportPNGExt) }}
 	choices[jpegChoice] = widgets.Choice{Label: lang.L("JPEG"), OnChosen: func() { view.exportAs(exportJPEGExt) }}
-	view.exportOptions = newExportOptions(view.ForceRepaint, view.Unfocus)
+	view.exportOptions = newExportOptions(view.ForceRepaint, view.promptChanged)
 	view.exportPrompt = widgets.NewChoiceCardWithRows(view.promptChanged, view.exportOptions, choices...)
 
 	// Run starts the position poller only after buildViewer returns. Register

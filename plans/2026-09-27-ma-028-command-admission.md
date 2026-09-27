@@ -1,6 +1,6 @@
 # MA-028 ticket and execution plan
 
-Status: implementation, local and remote gates passed at `4674cca`; physical/native desktop acceptance open.
+Status: Windows prompt-focus follow-up locally verified; fresh PR 66 gates required; physical/native desktop acceptance open.
 Date: 2026-09-27.
 Planning revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
 Route: Deep, because the change crosses feature adapters and native input on
@@ -16,7 +16,9 @@ The [Linux qualification record](../docs/command-admission-linux-qualification-2
 adds passing scoped native scenarios at `6db8d73` using OS-injected XTEST input
 on GNOME/XWayland, followed by diagnosis and repair of a native Escape/maximize
 reset defect. The repair now passes native controls, TDD, inspections and a
-fresh full Make gate. Physical-input and full Windows/macOS desktop gates remain open;
+fresh full Make gate. The [Windows qualification](../docs/command-admission-windows-qualification-2026-09-27.md)
+adds scoped native evidence and a verified prompt-focus repair. Physical input
+and full macOS desktop gates remain open;
 the PR review-loop section records completed remote verification separately.
 The historical ticketing evidence at the end describes the earlier planning
 turn, not the current implementation state.
@@ -36,6 +38,44 @@ zero files changed; bounded pinned-driver scope; separate from T0's app path.
 No implementation, review or native desktop interaction is delegated.
 
 ### Remaining acceptance follow-up (2026-09-27)
+
+#### Windows 11 qualification follow-up
+
+The user authorizes completing feasible ticket 10 checks on Windows 11, then
+committing, pushing and running the PR review loop. T0 retains native execution,
+assessment and fixes. Use the existing AC10 procedure with an isolated ordinary
+profile and copied fixtures; record OS-injected input separately from physical
+keyboard evidence. No merge or release. Retain evidence under
+`.scratch/ma-028/windows-2026-09-27` and summarize outcomes in a tracked Windows
+qualification record. The full suite runs in CI under the review-loop rule.
+
+One read-only scout located Windows profile isolation and the clipboard launcher
+hold. G1-G5: bounded prompt, cited paths checked by T0, no writes, small independent
+launch/clipboard scope, no duplicated native execution/review context. Budget
+one spawn / actual one; no implementation or review delegated. T0 verifies
+native payloads/screenshots/process exits, runs focused native guards, updates
+ticket/spec/todos evidence, and inspects any changed code before publication.
+
+Windows found a D4 prompt-control defect: native Tab focuses Export's metadata
+checkbox, which swallows Escape; Delete's focused panel can remain focused after
+dismissal and swallow the next viewer Escape. A new subtest in the existing
+`TestCommandAdmissionModalOwnership` reproduces both failures (red log retained).
+T0 repairs focus ownership in the existing ChoiceCard/ChoicePanel composition
+and root prompt adapter, preserving its established arrow/Return/Escape controls.
+Verify with that regression, focused command/prompt/widget suites, native repeats,
+changed-file IDE inspections and latest-head CI. No new top-level test, package,
+dependency or user-visible string is planned. This is D4's existing requirement
+that the prompt's own controls remain usable, not a new command-policy choice.
+
+Completed: scoped Windows scenarios, red/green/omission regression, focused
+Windows race tests, native case-alias guard, Make build, package vet and
+eight-file GoLand inspection. Two intentional test-setup duplicate fragments
+retain the existing exact Qodana exclusion. Whole-tree local formatting and a
+broader export selection exposed host limitations retained in the Windows
+record; changed-file formatting passes. Native busy/modal close exit 0; all
+owned app/hold processes were released. Fresh remote gates must pass on the
+pushed head and are pinned in the PR's final disposition. Actual delegation:
+one read-only scout; all implementation/review/fixes T0.
 
 #### PR 66 review loop
 
@@ -274,7 +314,7 @@ the partial evidence does not resolve ticket 10.
 | [07](../docs/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
 | [08](../docs/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
 | [09](../docs/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../docs/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Linux reset repaired and automated gates passed; complete physical/native desktop acceptance | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
+| [10](../docs/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Linux reset and Windows prompt-focus repaired; scoped native checks passed; complete physical/native desktop acceptance | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.

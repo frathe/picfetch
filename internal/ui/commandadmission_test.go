@@ -453,6 +453,53 @@ func TestCommandAdmissionQueries(t *testing.T) {
 }
 
 func TestCommandAdmissionModalOwnership(t *testing.T) {
+	t.Run("prompt keyboard focus returns to viewer", func(t *testing.T) {
+		for _, prompt := range []string{"delete", "export"} {
+			t.Run(prompt, func(t *testing.T) {
+				v := newTestViewer(t)
+				dropAndWait(t, v, uitest.TempJPEGURI(t, "photo.jpg", 40, 20, color.White))
+				if prompt == "delete" {
+					v.requestDelete()
+				} else {
+					v.promptExport()
+				}
+				c := v.win.Canvas()
+				if prompt == "export" {
+					test.Tap(v.exportOptions.metaCheck)
+					if c.Focused() == v.exportOptions.metaCheck {
+						t.Fatal("clicked metadata checkbox retained keyboard ownership")
+					}
+					if c.Focused() != nil {
+						c.Focused().TypedKey(&fyne.KeyEvent{Name: fyne.KeyUp})
+						if v.exportOptions.focus != exportMetadataRow {
+							t.Fatal("focused card did not route Up to its extra rows")
+						}
+					}
+				}
+				if focused, ok := c.Focused().(fyne.Tabbable); ok && focused.AcceptsTab() {
+					c.Focused().TypedKey(&fyne.KeyEvent{Name: fyne.KeyTab})
+				} else {
+					c.FocusNext()
+				}
+				focused := c.Focused()
+				if focused == nil {
+					t.Fatal("Tab did not focus a prompt control")
+				}
+				t.Logf("Tab focused %T", focused)
+				focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				if v.deletion.Visible() || v.exportPrompt.Visible() {
+					t.Fatal("focused prompt control swallowed Escape")
+				}
+				if c.Focused() != nil {
+					t.Fatalf("hidden prompt retained focus on %T", c.Focused())
+				}
+				c.OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				if v.FileCount() != 0 {
+					t.Fatal("Escape did not return to the viewer after prompt dismissal")
+				}
+			})
+		}
+	})
 	t.Run("favorite dialog notifications", func(t *testing.T) {
 		v := newTestViewer(t)
 		dropAndWait(t, v, uitest.TempJPEGURI(t, "photo.jpg", 40, 20, color.White))

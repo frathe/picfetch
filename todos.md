@@ -8,6 +8,12 @@
 
 #### Bugfix
 
+- Keep Export/Delete keyboard focus on the prompt through Tab and checkbox
+  clicks, and release it on dismissal. Windows native qualification found
+  Escape swallowed by Export's checkbox or Delete's hidden panel; focused
+  regressions and native repeats verify the repair. See the
+  [Windows evidence](docs/command-admission-windows-qualification-2026-09-27.md).
+
 - Escape/Close Files now leave ordinary native maximization before restoring
   the compact welcome window. Preserve fixed-size and Grid-owned restore
   behavior. A native-boundary regression and repeated Linux desktop checks
@@ -51,8 +57,11 @@
   size/state checks pass repeatedly, including fixed-size controls; the new
   native-boundary regression, changed-file inspections and fresh full Make
   gate pass. Historical diagnosis and final evidence remain in the Linux record.
-  Physical input on all three platforms and full Windows/macOS desktop
-  acceptance remain unverified. At `4674cca`, fresh PR 66 CI and CodeQL passed,
+  Scoped Windows 11 native checks now pass using literal `make run`, real menus
+  and clipboard, and OS-injected input. The discovered prompt-focus defect is
+  repaired, with focused race tests, native repeats and eight-file inspections.
+  Physical input on all three platforms and full macOS desktop acceptance remain
+  unverified; ticket 10 stays open. At `4674cca`, fresh PR 66 CI and CodeQL passed,
   Codex code/security reviews have no findings, and Qodana's inspected SARIF has
   zero results after addressing the original eight findings. The
   [review-loop record](docs/command-admission-pr-66-review-2026-09-27.md) retains
