@@ -2,7 +2,8 @@
 
 Date: 2026-09-27. Implementation base: `e440685` (clean worktree).
 User authorization: `/implement MA-028 use tdd and sdd`, with local commits
-explicitly allowed. No push, PR review loop, merge or release was requested.
+explicitly allowed. Push and PR creation were subsequently authorized with the
+portable tracker move; merge and release remain outside that authorization.
 
 Status: implementation and available local deterministic gates passed.
 Scoped Linux native-input scenarios passed with OS-injected events, but a user
@@ -336,6 +337,6 @@ are rejected. The real runner passes on FAT16 and rejects an ext4 skip. See the
 new native-CI follow-up in the Linux qualification record for inspection,
 full-suite and negative-control evidence. This does not establish actual
 Windows/macOS execution.
-Read-only GitHub checks found no PR or runs for this branch; publishing and
-starting the CI/review workflow await permission. Native CI does not replace
-the physical-input procedure.
+At the local qualification handoff, GitHub had no PR or runs for this branch.
+The user subsequently authorized publication and PR creation. Remote results
+remain pending, and native CI does not replace the physical-input procedure.

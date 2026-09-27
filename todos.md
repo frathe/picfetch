@@ -40,7 +40,7 @@
   state local and preserve explicit composition. MA-028's
   [design](docs/command-admission.md) is accepted: full command migration with
   shared pure admission and the agreed input/yield corrections. Its
-  [specification](.scratch/ma-028/spec.md) and
+  [specification](docs/ma-028/spec.md) and
   [published ten-ticket plan](plans/2026-09-27-ma-028-command-admission.md)
   track implementation and acceptance. Tickets 01-09 are done/resolved at
   `9dc3a81`, with their implementation checklists complete; retain
@@ -58,11 +58,12 @@
   including five race runs. Windows/macOS CI now selects focused native guards
   for case-alias export and macOS Copy-menu behavior, with command-boundary
   tests rejecting missing/skipped evidence. The actual new runner passes on
-  Linux FAT16 and rejects an ext4 skip; native Windows/macOS execution and PR
-  publication/review permission are still pending. The
-  [portability audit](docs/ma-028-portability-audit-2026-09-27.md) recommends a
-  redacted planning-Markdown move, leaving raw evidence ignored; that choice
-  is pending.
+  Linux FAT16 and rejects an ext4 skip; native Windows/macOS execution and
+  remote CI/review results remain pending. The user authorized pushing and
+  opening a PR. The reviewed planning Markdown is now tracked under
+  [docs/ma-028](docs/ma-028/README.md), with its personal home path redacted and
+  raw evidence left ignored, as recorded in the
+  [portability audit](docs/ma-028-portability-audit-2026-09-27.md).
   MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

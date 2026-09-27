@@ -36,6 +36,34 @@ No implementation, review or native desktop interaction is delegated.
 
 ### Remaining acceptance follow-up (2026-09-27)
 
+#### Portable tracker and PR publication
+
+The user approved moving the reviewed planning Markdown, committing, pushing
+this branch and opening a PR. T0 will move exactly the spec, interview and twenty
+current/draft tickets to `docs/ma-028`, redact the interview's home path, update
+links and add an index. Raw artifacts remain ignored under `.scratch/ma-028`.
+No product behavior or acceptance requirement changes; ticket 10 stays open.
+Verify the exact 22-document move, redaction, tracked-only Markdown link targets,
+unchanged source/workflow hashes and `git diff --check`. Carry forward the full
+Make/inspection evidence from `ba43d1b` for this documentation-only change.
+Then push the existing branch and open a PR against the repository default.
+This is not authorization to merge, release or claim pending CI/native passes.
+
+Budget: one bounded read-only scout can inventory PR-triggered workflow/check
+names while T0 owns the document move and privacy/link verification. G1-G5:
+under 25 lines; verify returned citations with one targeted `rg`; zero edits;
+bounded cross-workflow trigger sweep; distinct from T0's document work. No
+delegated review or implementation. No repeat broad local race run for docs.
+
+Local migration verification passed: all 22 documents compared with their
+originals after only the approved substitutions, then current ticket status
+was updated separately. The 23-file Markdown-only directory includes its new
+index; all 117 scoped relative links resolve through tracked files. Credential/
+home-path scans, raw-evidence checksums and staged whitespace checks passed.
+Source/workflow hashes match `ba43d1b`. T0 verified the scout's PR-trigger
+citations: opening against `main` starts CI, CodeQL and Qodana, but is not proof
+that those checks have completed successfully.
+
 #### Native CI selection implementation
 
 The user subsequently requested continuing ticket 10 until human interaction
@@ -79,7 +107,7 @@ Its existing module LICENSE/NOTICE were reviewed (MIT and Apache-2.0); no new
 module/version, shipped dependency closure or notice-delivery change is made.
 The user's cross-desktop portability request is assessed in the
 [privacy and migration audit](../docs/ma-028-portability-audit-2026-09-27.md).
-Moving the curated Markdown subset awaits their choice; raw artifacts stay local.
+The subsequently approved curated move is complete; raw artifacts stay local.
 
 Final gate artifacts: `.scratch/race-runs/20260927T113110Z-p0dfVe` and
 `.scratch/ma-028/native-ci-2026-09-27`. The ordinary suite's existing environment
@@ -103,8 +131,8 @@ case-alias and macOS menu assertions. G1-G5: prompt under 25 lines; verify
 file:line conclusions with targeted reads; zero edits; bounded cross-file
 workflow/test-selection search; separate from T0's filesystem execution.
 T0 retains acceptance and review. Budget: one scout, no new broad suite for
-evidence-only work. GitHub has no PR/runs for this branch; publishing and the
-PR/review workflow await explicit permission. Native physical-input and
+evidence-only work. At that handoff GitHub had no PR/runs for this branch;
+publication still awaited permission. Native physical-input and
 unavailable OS checks stay open.
 
 Completed: the existing case-alias guard passed once normally and five times
@@ -113,8 +141,8 @@ unmounted and its loop device detached. Source is unchanged at `75fd69e`.
 T0 verified the scout's selection finding: neither native CI package list
 includes root UI, so the case-alias and Darwin Copy-menu assertions are absent.
 A focused suite and command-boundary guard tests were proposed at that handoff
-and subsequently implemented above; PR publication and CI/review execution
-still await permission. That evidence-only follow-up used one
+and subsequently implemented above; publication permission followed with the
+portable tracker request. That evidence-only follow-up used one
 read-only scout spawn, zero code edits, focused tests only, T0 review. Evidence:
 [Linux qualification](../docs/command-admission-linux-qualification-2026-09-27.md).
 
@@ -177,7 +205,7 @@ under 25 prompt lines; source citations verified; no edited files; bounded
 launch/clipboard scope; distinct from T0's desktop execution. T0 owns all native
 input, review and evidence updates. No implementation/review was delegated.
 
-Source of truth: the [accepted specification](../.scratch/ma-028/spec.md),
+Source of truth: the [accepted specification](../docs/ma-028/spec.md),
 [design](../docs/command-admission.md) and
 [ownership ADR](../docs/adr/0003-shared-command-admission.md). D1-D7 remain settled.
 The parent specification and backlog issue are not modified by ticketing.
@@ -185,7 +213,7 @@ The parent specification and backlog issue are not modified by ticketing.
 ## Published tickets and blocking edges
 
 The implementation request accepted the breakdown. Tickets are published under
-`.scratch/ma-028/issues/`; the original drafts are retained as planning history.
+`docs/ma-028/issues/`; the original drafts are retained as planning history.
 Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementation
 checklist items checked against the recorded local evidence. Ticket 10 is
 unblocked and `ready-for-human` after repair of the confirmed Linux reset defect:
@@ -197,16 +225,16 @@ the partial evidence does not resolve ticket 10.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
-| [01](../.scratch/ma-028/issues/01-policy-and-save.md) | Done / resolved | Shared admission, proven through Save Changes without losing an unavailable selection | None | T0 Codex Lead / GPT-6 Astra / extra high |
-| [02](../.scratch/ma-028/issues/02-clipboard-and-editing.md) | Done / resolved | Correct text, region, Grid and image copy routing, including accelerator delivery | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [03](../.scratch/ma-028/issues/03-open-close-favorites.md) | Done / resolved | Consistent Open, Close Files and Favorites admission, including external delivery | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [04](../.scratch/ma-028/issues/04-file-actions.md) | Done / resolved | Export, Trash, reveal and wallpaper with prompt ownership and captured subjects | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [05](../.scratch/ma-028/issues/05-window-and-help-entry.md) | Done / resolved | Consistent ordinary window, comparison, Settings and Help entry | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [06](../.scratch/ma-028/issues/06-map-and-mosaic-entry.md) | Done / resolved | Explorer, Location Map and mosaic entry with safe preparation and retained visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [07](../.scratch/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [08](../.scratch/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [09](../.scratch/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Linux reset repaired and locally verified; complete remaining native/operator and CI acceptance evidence | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
+| [01](../docs/ma-028/issues/01-policy-and-save.md) | Done / resolved | Shared admission, proven through Save Changes without losing an unavailable selection | None | T0 Codex Lead / GPT-6 Astra / extra high |
+| [02](../docs/ma-028/issues/02-clipboard-and-editing.md) | Done / resolved | Correct text, region, Grid and image copy routing, including accelerator delivery | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [03](../docs/ma-028/issues/03-open-close-favorites.md) | Done / resolved | Consistent Open, Close Files and Favorites admission, including external delivery | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [04](../docs/ma-028/issues/04-file-actions.md) | Done / resolved | Export, Trash, reveal and wallpaper with prompt ownership and captured subjects | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [05](../docs/ma-028/issues/05-window-and-help-entry.md) | Done / resolved | Consistent ordinary window, comparison, Settings and Help entry | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [06](../docs/ma-028/issues/06-map-and-mosaic-entry.md) | Done / resolved | Explorer, Location Map and mosaic entry with safe preparation and retained visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [07](../docs/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [08](../docs/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [09](../docs/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [10](../docs/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Linux reset repaired and locally verified; complete remaining native/operator and CI acceptance evidence | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.
@@ -398,8 +426,9 @@ architecture map for any package/file ownership movement, the backlog and this
 record. At 10 reconcile all evidence with the tested revision; retain earlier
 unchanged-code evidence explicitly, and repeat affected tests/inspections/native
 scenarios after fixes. The later `/implement MA-028` request explicitly authorizes local commits.
-No PR review loop, pushes, merge or release are authorized. Move the accepted implementation plan
-to `finished_refactorings/` only after the work has passed its gates and is accepted.
+The later portability request also authorizes pushing and opening a PR, not
+merge or release. Move the accepted implementation plan to
+`finished_refactorings/` only after its gates pass and the work is accepted.
 
 ## Ticketing evidence and cost ledger
 
@@ -437,8 +466,9 @@ visible Git changes, with the ten local drafts retained under ignored `.scratch/
 | Native acceptance 10 | 0 / not started | T0 + native operators | Conditional on fixes | Pending |
 
 No application test, native run or code inspection is claimed for this
-documentation-only preparation. Local `.scratch/` artifacts are ignored by Git;
-they are the configured tracker, and this tracked plan links to them.
+documentation-only preparation. At that stage the tracker was ignored under
+`.scratch/`. The approved portability follow-up now tracks its planning Markdown
+under `docs/ma-028`; raw artifacts remain ignored.
 
 ## Implementation execution ledger (2026-09-27)
 
@@ -447,6 +477,7 @@ they are the configured tracker, and this tracked plan links to them.
 | Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
 | Convergence 09 | None | T0 structural review; 124 focused top-level passes, nine new guard groups; all 68 changed Go files inspected without findings | Final `make verify` passed, including every Docker race partition; existing platform skips are explicitly retained in the evidence |
 | Native acceptance 10 | Five further read-only scout assignments (launch isolation; pinned driver resize; neighboring tests; native CI selection; native test startup/toolchain), the last two on one new scout; no implementation support | T0: scoped native checks, Escape/maximize TDD repair, repeated native/static controls, inspections/Make gates, case-alias FAT16 pass plus five race repeats, focused CI suite with red/green and mutation controls | Linux reset, case-alias and local CI-selection gaps closed; physical operator, Windows/macOS execution and external CI gates remain open |
+| Portable tracker / publication | One bounded read-only assignment to the existing scout for PR workflow triggers; no implementation support | T0: exact 22-file move/content comparison, redaction, authoritative index/tracker pointers, tracked-only link and scope checks | Documentation-only; Make/inspection evidence carried forward from unchanged code at `ba43d1b`; push and PR creation authorized |
 
 The original implementation used two complete Make runs under the budget
 exception above; no broad local race run was used during individual red/green

@@ -1,6 +1,11 @@
 # Issue tracker: Local Markdown
 
-Issues and specs for this repo live as Markdown files in `.scratch/`.
+Issues and specs for this repo normally live as Markdown files in `.scratch/`.
+
+For **MA-028**, fetch and update the authoritative tracker in
+[`docs/ma-028`](../ma-028/README.md): the user approved tracking its planning
+Markdown for cross-desktop handoff. Only raw local evidence remains under
+`.scratch/ma-028`. The conventions below continue to apply to other features.
 
 ## Conventions
 

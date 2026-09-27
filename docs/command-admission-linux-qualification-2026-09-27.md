@@ -33,8 +33,8 @@ authorized repair is recorded separately below.
   text/images. Fixtures were copies of `internal/ui/testdata/explorer/astronaut.png`
   and `coffee.png`, not original user images.
 
-Retained local artifacts are in
-[`.scratch/ma-028/linux-native-2026-09-27`](../.scratch/ma-028/linux-native-2026-09-27/).
+Optional local artifacts are in
+`.scratch/ma-028/linux-native-2026-09-27` on the original workstation.
 They are intentionally ignored tracker evidence, not shipped assets. The directory
 contains the harness source/binary, launcher shim, build/app logs, selected
 screenshots, fixture/payload files, `payload-checks.txt` and `SHA256SUMS`.
@@ -173,7 +173,7 @@ preferences or clipboard hold is necessary. The blank-launch baseline's native
 client target is 624 x 409 here (logical `startW/startH` are 520 x 340).
 
 Artifacts and the bounded agent-runnable geometry assertion are retained under
-[`.scratch/ma-028/linux-escape-reset-2026-09-27`](../.scratch/ma-028/linux-escape-reset-2026-09-27/).
+`.scratch/ma-028/linux-escape-reset-2026-09-27` (optional local evidence).
 `results.txt` records the exact outputs; `escape-failure.png` reproduces the user
 symptom and `control-pass.png` shows the control. The working directory is
 `/tmp/picfetch-linux-escape-b56v16`. Launch for the minimal failure:
@@ -285,7 +285,7 @@ screenshots were visually inspected; all owned app processes exited normally.
 Input remains OS-injected XTEST, not a physical-keyboard operator claim.
 
 Verification artifacts are retained in
-[`.scratch/ma-028/linux-reset-repair-2026-09-27`](../.scratch/ma-028/linux-reset-repair-2026-09-27/),
+`.scratch/ma-028/linux-reset-repair-2026-09-27` (optional local evidence),
 with working output at `/tmp/picfetch-linux-reset-fix-Y5iRmx`.
 `repeat-native.sh` launches isolated windows and runs five ordinary plus Grid
 and multi-image/rotation cases; `repro.sh` also supports the fixed-size controls.
@@ -369,7 +369,7 @@ The FAT mount was normally unmounted and its owned loop device detached.
 Final checks found neither test mount nor a loop203 backing file. No existing
 disk, global configuration, application preference or user image was changed.
 Logs, hashes, setup history and cleanup checks are retained in
-[`.scratch/ma-028/case-insensitive-2026-09-27`](../.scratch/ma-028/case-insensitive-2026-09-27/).
+`.scratch/ma-028/case-insensitive-2026-09-27` (optional local evidence).
 The full Make and GoLand evidence from the preceding repair carries forward for
 unchanged code; no redundant full suite or new inspections were claimed.
 
@@ -473,5 +473,6 @@ Native Windows/macOS execution still has not occurred. Root UI's test harness
 uses Fyne's test application; the Darwin guard checks isolated native menu
 objects, not a running desktop's physical Cmd+C route. Neither the focused
 suite nor its Linux qualification substitutes for the spec's physical-input
-procedure. Publishing the branch and running remote CI/reviews remain awaiting
-permission; ticket 10 and the overall acceptance gate stay open.
+procedure. The user subsequently authorized publishing this branch and opening
+a PR with the portable tracker move. Remote results remain unverified;
+ticket 10 and the overall acceptance gate stay open.

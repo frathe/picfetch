@@ -2,8 +2,10 @@
 
 Date: 2026-09-27. Scope: the local `.scratch/ma-028` folder before the new
 native-CI evidence was added (106 files, about 14 MiB, including 40 PNGs).
-This is a migration assessment, not approval to publish raw desktop evidence.
-No folder move or upload has been performed.
+The user subsequently approved the curated move, commit, push and PR creation.
+The 22 reviewed planning documents now live under [docs/ma-028](ma-028/README.md),
+with one home-path redaction and updated links. Raw desktop evidence remains
+ignored and is excluded from publication.
 
 The linked, already-tracked Linux qualification summary also contained the
 username in its FAT mount path. Its current text now uses `<user>` instead;
@@ -11,23 +13,23 @@ the original local evidence and checksums are unchanged. This is a privacy
 cleanup, not a credential rotation. Earlier local commits still contain the
 original path; no history rewrite has been authorized or performed.
 
-## Recommendation
+## Approved migration
 
-Move the 22 planning documents into tracked `docs/ma-028`: `spec.md`,
+Moved the 22 planning documents into tracked `docs/ma-028`: `spec.md`,
 `interview.md`, the ten current `issues/*.md`, and the ten historical
-`draft-issues/*.md`. Keep drafts explicitly historical and ticket 10 open.
+`draft-issues/*.md`. Drafts remain explicitly historical and ticket 10 open.
 These documents were read in full; the only personal machine path in that
-subset is the pinned Fyne module reference in `interview.md`. Replace its
-home-directory prefix with `$GOMODCACHE/`, preserving the exact module version
-and source location.
+subset was the pinned Fyne module reference in `interview.md`. Its home-directory
+prefix is now `$GOMODCACHE/`, preserving the exact module version and source
+location. A direct comparison confirmed all 22 moves contained only the planned
+path/link substitutions before current ticket/publication status was updated.
 
-Before committing a move, update inbound links in the plan, todos and design
-records, and outbound links to tracked docs/plans. Audit links to other ignored
-specs: either provide sufficient context in the portable document or label the
-link local-only. Add a short index distinguishing accepted spec, current tickets,
-historical drafts and tracked qualification summaries. Verify the resulting
-link targets from a checkout without `.scratch`. No machine-specific launcher
-is needed merely to carry the acceptance procedure to another desktop.
+Inbound links in the plan, todos, design and backlog now point to the tracked
+files. The index separates accepted spec, current tickets, historical drafts
+and qualification summaries. The tracker guide records this feature-specific
+location. Raw-artifact references are labeled optional local evidence rather
+than broken links into an ignored folder. No machine-specific launcher is
+needed merely to carry the acceptance procedure to another desktop.
 
 ## Findings and treatment
 
@@ -53,8 +55,24 @@ The tracked implementation and Linux qualification records already carry the
 meaningful observations and limitations without requiring the raw artifacts on
 every desktop. Keep those summaries portable; raw artifact links must be labeled
 as optional local evidence, not prerequisites for understanding or running the
-remaining acceptance checks. Publishing the branch and executing remote CI still
-require separate authorization.
+remaining acceptance checks. The user has now authorized publishing the branch
+and opening a PR; remote CI results remain unverified until inspected.
 
-The curated move is awaiting the user's choice between moving portable Markdown
-and leaving the folder in place. A wholesale move is not recommended.
+The curated move preserves the raw evidence and its original checksums. No
+binary, image, log or intentionally broken mutation source was added to docs.
+
+## Migration verification
+
+- All 22 expected destination documents were initially absent; the move then
+  passed direct comparison against the original text with only the approved
+  redaction/link substitutions. Current ticket/publication status was updated
+  separately afterwards; historical drafts retain their original meaning.
+- The portable index adds one Markdown file. The staged migration contains no
+  non-Markdown files or `.scratch` artifacts.
+- A relative-link check against the Git index passed all 117 scoped links;
+  each target is available from tracked files without the original `.scratch`.
+- The credential/home-path scan found no matches in `docs/ma-028`.
+  `git diff --cached --check` and retained raw-evidence checksums passed.
+- Source/workflow hashes still match the inspected and fully verified
+  `ba43d1b` revision. This documentation-only move carries that evidence forward;
+  it does not rerun or claim completed remote/native acceptance.

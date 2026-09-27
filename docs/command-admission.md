@@ -6,13 +6,13 @@ Date: 2026-09-27
 The `/grill-with-docs MA-028` interview established one shared decision module
 for application-wide commands. The user accepted Q1-Q3 on 2026-09-26 and Q4-Q7
 on 2026-09-27. All presented design decisions are settled. The
-[interview record](../.scratch/ma-028/interview.md) retains source evidence and
+[interview record](ma-028/interview.md) retains source evidence and
 the [ADR](adr/0003-shared-command-admission.md) records the ownership trade-off.
 The implementation follows these decisions. See the
 [verification record](command-admission-verification-2026-09-27.md) for actual
 results and outstanding native qualification; this design is not test evidence.
 
-The [published specification](../.scratch/ma-028/spec.md) supplies user stories,
+The [published specification](ma-028/spec.md) supplies user stories,
 test boundaries and acceptance commands. The implementation request accepted
 the [execution plan](../plans/2026-09-27-ma-028-command-admission.md).
 Native accelerator/focus qualification remains a separate required gate.

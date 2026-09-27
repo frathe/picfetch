@@ -205,10 +205,11 @@ every later mode addition without moving feature state.
 accepted interview decisions. Migrate every application-wide command family;
 preserve intended route differences and explicitly correct modal ownership,
 focused-text editing, busy-region-copy menu availability and checking
-availability before yielding. The [specification](.scratch/ma-028/spec.md) is
-published as `ready-for-agent`, with test boundaries, acceptance commands and
-native-input qualification requirements. Implementation and verification
-remain pending.
+availability before yielding. The [specification](docs/ma-028/spec.md) records
+the completed implementation and local verification. Tickets 01-09 are resolved;
+[ticket 10](docs/ma-028/issues/10-native-qualification.md) remains `ready-for-human`
+for physical-input, other-platform and remote CI acceptance. The tracked
+[handoff index](docs/ma-028/README.md) preserves the cross-desktop test procedure.
 
 **Recurring evidence:** Explorer's
 [enabled menu but blocked Favorites shortcuts](https://github.com/frathe/picfetch/pull/18#discussion_r3983220054),
