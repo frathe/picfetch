@@ -72,6 +72,21 @@ The complete set of image files currently represented by Grid View after its
 active filtering, including files outside the visible scroll area.
 _Avoid_: Visible cells, current files
 
+**Browsing visit**:
+A browsing context retained while moving between its image list and individual
+images, with a scope and a destination for return.
+_Avoid_: Input mode, search query, visible surface
+
+**Browsing scope**:
+The ordered images available for navigation within a browsing visit.
+An empty restricted scope remains distinct from unrestricted collection browsing.
+_Avoid_: Grid selection, search scope, loaded collection
+
+**Return destination**:
+The browsing visit to resume when leaving another visit through its return
+action.
+_Avoid_: Previous image, search history
+
 **Target display**:
 The attached display chosen as a mosaic's native-pixel output and wallpaper
 destination.

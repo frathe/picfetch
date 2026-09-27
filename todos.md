@@ -51,11 +51,15 @@
 ## Open
 
 - **Application architecture:** MA-028's shared command policy is complete.
-  The [remaining assessment proposals](needs_refactoring.md) are explicit
+  The [remaining refactoring backlog](needs_refactoring.md) covers explicit
   browsing ownership and collection transitions (MA-029/030), followed by
   Favorite ownership, a bounded worker-lifetime pilot and launch policy
-  (MA-031 through MA-033). These remain proposals, not accepted implementation
-  work. Keep feature state local and preserve explicit composition.
+  (MA-031 through MA-033). All ten decisions in the
+  [MA-029 design](docs/browsing-visits.md) are accepted, including return
+  fallbacks, failed-load recovery and duplicate-inspection compatibility.
+  Next: write its Deep SDD implementation plan and executable acceptance map.
+  MA-030 through MA-033 remain proposals.
+  Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency

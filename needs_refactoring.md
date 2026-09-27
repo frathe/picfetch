@@ -1,10 +1,10 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-27 after completion of MA-028. The cross-feature
-architecture assessment of PR review history and implementation is dated
-2026-09-26.
+Updated 2026-09-27 after completion of MA-028 and acceptance of MA-029's design.
+The cross-feature architecture assessment of PR review history and
+implementation is dated 2026-09-26.
 
-This file contains proposed refactorings and accepted dependency watches.
+This file contains open refactorings, accepted designs and dependency watches.
 Completed findings have been removed; their history remains in Git and the
 [maintainability implementation plan](finished_refactorings/2026-09-06-maintainability-plan.md).
 Existing MA identifiers and accepted decisions are preserved: MA-024 verifier
@@ -16,8 +16,9 @@ MA-027 is complete in `e6024dc`, with native CI and clean code/security reviews
 recorded in its [archived plan](finished_refactorings/2026-09-14-ma-027-presentation.md).
 MA-028 is complete, with all-platform qualification and a clean PR 66 review
 round recorded in its [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md).
-MA-029 through MA-033 below are
-proposals, not accepted implementation plans or unresolved PR defects.
+MA-029's design is accepted; implementation planning is next. MA-030 through
+MA-033 remain proposals. None is an accepted implementation plan or an
+unresolved PR defect.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
 the root `internal/ui` package contained 55 production Go files, 10,835 non-test
@@ -27,7 +28,7 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-029](#ma-029) | P1 | Give browsing visits one explicit state owner | Recommended; large, incremental |
+| [MA-029](#ma-029) | P1 | Give browsing visits one explicit state owner | Design accepted; implementation planning next |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | Recommended; large, incremental |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
@@ -260,6 +261,16 @@ require hand-editing independent admission predicates in all input adapters.
 
 ## MA-029 — Give browsing visits one explicit state owner
 
+**Design accepted, 2026-09-27.** The [design record](docs/browsing-visits.md)
+and [ownership ADR](docs/adr/0004-browsing-visit-ownership.md) capture all ten
+accepted interview decisions. Migrate Explorer, ranked search and Location Map
+incrementally while keeping feature-owned data and MA-028 command admission.
+Empty migrated scopes have explicit return behavior; failed-load recovery and
+older duplicate-inspection navigation retain their accepted distinctions.
+Reuse the existing collection identity/reconciliation seam independently of
+MA-030. The next step is a Deep SDD implementation plan; no application code
+has changed. The following rationale records the original assessment.
+
 **P1; high confidence in the need, medium confidence in the final interface.**
 This is the useful state-management module suggested by the review history.
 
@@ -311,8 +322,9 @@ visit whose originating feature is still alive.
 
 **First slice:** name and centralize the existing browse-scope resolver and its
 empty-scope behavior. Then migrate shared image/Grid return transitions for
-Explorer and search before adapting Location Map. Use MA-030's occurrence
-remapping when collection members disappear; no filesystem I/O in this module.
+Explorer and search before adapting Location Map. Use the existing occurrence
+identity and remapping mechanisms when collection members disappear; MA-030
+is not a prerequisite. No filesystem I/O belongs in this module.
 
 **Verification/done:** exercise collection -> Explorer cohort -> search -> image
 -> Back/Exit; comparison over ranked results; Copy Selection during return;
