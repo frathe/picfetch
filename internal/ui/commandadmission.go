@@ -51,7 +51,7 @@ func (v *viewer) commandContext() commandContext {
 	context := commandContext{
 		stopping:           v.stopping,
 		canSave:            v.canSaveRotation(),
-		cohortVisit:        v.explorer.HasCohort(),
+		cohortVisit:        v.browsing.has(browsingExplorer),
 		locationVisit:      v.locationMap.Active(),
 		searchVisit:        v.searchActive(),
 		variantsVisit:      v.variantsSession(),

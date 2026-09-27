@@ -14,6 +14,7 @@ const (
 	browsingSearch
 	browsingLocation
 	browsingCluster
+	browsingExplorerMap
 )
 
 type browsingBinding struct {
@@ -53,7 +54,12 @@ func (v *viewer) captureBrowsingScope() browsingScope {
 		scope.complete = state.Progress.Complete
 		return scope
 	}
-	if v.explorer.HasCohort() {
+	if v.browsing.current().binding.kind == browsingExplorerMap {
+		scope.restricted, scope.binding = true, v.browsing.current().binding
+		scope.complete = v.explorer.State().Complete
+		return scope
+	}
+	if v.browsing.has(browsingExplorer) {
 		paths, _ := v.explorer.Cohort()
 		members := make(map[string]bool, len(paths))
 		for _, path := range paths {
@@ -66,7 +72,7 @@ func (v *viewer) captureBrowsingScope() browsingScope {
 			}
 		}
 		scope.indexes, scope.restricted = indexes, true
-		scope.binding.kind, scope.binding.visit = browsingExplorer, v.explorer.State().Revision
+		scope.binding = v.browsing.current().binding
 	}
 	return scope
 }

@@ -70,7 +70,7 @@ func (v *viewer) showViewer() {
 		v.visualsearch.Exit()
 		return
 	}
-	if v.explorer.Surface().Visible() || v.explorer.HasCohort() {
+	if v.browsing.has(browsingExplorerMap) {
 		v.LeaveSimilarityMap()
 		return
 	}
@@ -116,10 +116,8 @@ func (v *viewer) showWindowGrid() {
 	if v.grid.Visible() || v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
-	if v.explorer.HasCohort() {
-		v.openExplorerGrid(v.explorer.Cohort())
-		v.explorer.Surface().Show()
-		v.ForceRepaint()
+	if v.browsing.has(browsingExplorer) {
+		v.returnExplorerGrid()
 		return
 	}
 	if v.dupes.Inspecting() {

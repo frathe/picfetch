@@ -205,7 +205,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 				return
 			}
 		}
-		if v.explorer.HasCohort() && ev.Name == fyne.KeyV && !v.grid.Searching() {
+		if v.browsing.has(browsingExplorer) && ev.Name == fyne.KeyV && !v.grid.Searching() {
 			v.LeaveSimilarityMap()
 			return
 		}
@@ -214,9 +214,6 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			return
 		}
 		v.grid.HandleKey(ev)
-		if !v.grid.Visible() && v.explorerMapActive() {
-			v.recordExplorerView("map-return")
-		}
 		return
 	}
 

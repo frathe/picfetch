@@ -63,7 +63,7 @@ func (v *viewer) imageRequested(_ display.Identity) {
 }
 
 func (v *viewer) imageProbed(bounds image.Rectangle) {
-	if !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() && !v.locationMap.Active() {
+	if !v.slides.Active() && !v.grid.Visible() && !v.browsing.has(browsingExplorerMap) && !v.locationMap.Active() {
 		v.undoGridMaximize()
 		v.autoResizeToImage(bounds)
 	}
@@ -87,7 +87,7 @@ func (v *viewer) imagePresented(snapshot display.Snapshot) []fyne.URI {
 	v.syncMenus()
 	v.ForceRepaint()
 	v.exif.Refresh()
-	if v.explorer.HasCohort() {
+	if v.browsing.has(browsingExplorer) {
 		v.recordExplorerView("image-loaded")
 	}
 	return v.preloadCandidates()
@@ -177,6 +177,10 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		return nil
 	}
 	v.ShowToast(msg)
+	if scope := v.captureBrowsingScope(); restoredIndex < 0 && scope.restricted && len(scope.indexes) == 0 {
+		v.loadingBar.Hide()
+		return nil
+	}
 	if restoredIndex >= 0 {
 		i = restoredIndex
 	} else if cohort := v.cohortIndexes(); len(cohort) > 0 {

@@ -240,6 +240,11 @@ func (g *Overview) RestoreVisit(visit Visit) {
 	}
 	g.restoreVisitState(visit)
 }
+
+// RestoreInteraction applies a bookmark to bindings installed by the current
+// visit owner. It cannot revive a saved subset or any of its old callbacks.
+func (g *Overview) RestoreInteraction(visit Visit) { g.restoreVisitState(visit) }
+
 func (g *Overview) restoreVisitState(visit Visit) {
 	g.query, g.searching = visit.Query, visit.Searching
 	g.applyFilter()

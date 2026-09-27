@@ -346,6 +346,7 @@ type viewer struct {
 	analysisCache *analysiscache.Feature
 	analysisDir   string
 	searchView    searchPresentation
+	browsing      browsingVisits
 	grid          *grid.Overview
 	explorer      *explorerui.Feature
 	explorerInput explorerInput

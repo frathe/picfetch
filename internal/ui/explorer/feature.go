@@ -20,7 +20,7 @@ type WorkflowHost interface {
 	Window() fyne.Window
 	Changed()
 	Repaint()
-	BrowseCohort([]string, bool)
+	BrowseCohort([]string, bool) bool
 	LeaveExplorer()
 	ReturnToMap()
 	Presentation() Presentation
@@ -266,8 +266,12 @@ func (f *Feature) openCohort(paths []string, unassigned bool) {
 		return
 	}
 	f.RecordView("map-departure")
+	previous, previousUnassigned := f.cohort, f.unassignedCohort
 	f.cohort, f.unassignedCohort = slices.Clone(paths), unassigned
-	f.host.BrowseCohort(slices.Clone(paths), unassigned)
+	if !f.host.BrowseCohort(slices.Clone(paths), unassigned) {
+		f.cohort, f.unassignedCohort = previous, previousUnassigned
+		return
+	}
 	f.host.Changed()
 	f.RecordView("cohort-open")
 }
@@ -293,10 +297,6 @@ func (f *Feature) RecordView(kind string) {
 // ReturnToMap completes a feature-owned edit through the root navigation adapter.
 func (f *Feature) ReturnToMap() {
 	f.host.ReturnToMap()
-	f.surface.Show()
-	f.host.Repaint()
-	f.host.Changed()
-	f.RecordView("map-return")
 }
 
 // SettlePresets observes preset completion without waiting on a streaming analysis.

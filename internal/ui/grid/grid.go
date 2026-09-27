@@ -457,7 +457,7 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 			if g.ranked != nil && g.onRankedOpen != nil {
 				g.onRankedOpen(g.CaptureVisit())
 			}
-			if g.subsetOccurrences != nil && g.onSubsetOpen != nil {
+			if g.ranked == nil && g.subset != nil && g.onSubsetOpen != nil {
 				g.onSubsetOpen(g.CaptureVisit())
 			}
 			if g.BrowsingDuplicates() && i >= 0 && g.dupes.GroupSize(i) >= 2 {
@@ -491,6 +491,10 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	g.selLabel = widget.NewLabelWithStyle("", fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
 	g.subsetBack = widget.NewButton(lang.L("Back to map"), func() {
 		back := g.onSubsetBack
+		if g.subsetOccurrences == nil && back != nil {
+			back()
+			return
+		}
 		g.Close()
 		if back != nil {
 			back()

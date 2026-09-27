@@ -37,6 +37,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		return -1
 	}
 	finishLocation := v.captureLocationReconciliation(indices)
+	finishExplorer := v.captureExplorerReconciliation(indices)
 	if change.kind == sourceWritten {
 		v.locationMap.InvalidateSources(change.written)
 	}
@@ -84,10 +85,16 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		v.compare.Refresh()
 	}
 	finishLocation()
+	finishExplorer()
 
 	index := -1
 	if restore {
 		index = v.restoreSearchOrigin(origin)
+	}
+	if v.browsing.has(browsingExplorer) {
+		if paths, _ := v.explorer.Cohort(); len(paths) == 0 {
+			v.returnExplorerMap(v.browsing.current().binding)
+		}
 	}
 	if change.kind == sourcesRevalidated && index < 0 && v.FileCount() > 0 {
 		index = v.state.index

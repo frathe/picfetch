@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -9,12 +10,231 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
+	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestBrowsingVisitTransitions(t *testing.T) {
+	var visits browsingVisits
+	visits.enterExplorer(7)
+	parent := visits.current()
+	binding := visits.openExplorerCohort(7)
+	bookmark := grid.Visit{Query: "sunset", Highlight: "/b.jpg", ScrollOffset: 240}
+	if !visits.openImage(binding, 7, bookmark) {
+		t.Fatal("current cohort image was refused")
+	}
+	if visits.current().surface != browsingImage || !visits.has(browsingExplorerMap) {
+		t.Fatal("image opening lost its retained Explorer parent")
+	}
+	plan, ok := visits.planReturn(binding, 7, browsingReturnGrid)
+	if !ok || plan.grid.Query != bookmark.Query || plan.grid.ScrollOffset != bookmark.ScrollOffset {
+		t.Fatal("current return lost its Grid interaction")
+	}
+	if visits.commitReturn(plan, 8) {
+		t.Fatal("old collection return was accepted")
+	}
+	if !visits.commitReturn(plan, 7) || visits.current().surface != browsingGrid {
+		t.Fatal("valid image-to-Grid return refused")
+	}
+	if visits.commitReturn(plan, 7) {
+		t.Fatal("already consumed transition was replayed")
+	}
+	toMap, ok := visits.planReturn(binding, 7, browsingReturnParent)
+	if !ok || !visits.commitReturn(toMap, 7) || visits.current().binding != parent.binding || visits.has(browsingExplorer) {
+		t.Fatal("Grid return did not retire the cohort to its retained parent")
+	}
+	binding = visits.openExplorerCohort(7)
+	old, _ := visits.planReturn(binding, 7, browsingReturnParent)
+	visits.rebind(8)
+	if visits.commitReturn(old, 8) {
+		t.Fatal("collection rebinding retained an obsolete return")
+	}
+	visits.leaveExplorer()
+	visits.enterExplorer(8)
+	visits.openExplorerCohort(8)
+	if visits.commitReturn(old, 8) || visits.current().binding.visit == binding.visit {
+		t.Fatal("close/reopen revived an old visit")
+	}
+}
+
+func TestBrowsingRoundTrips(t *testing.T) {
+	t.Run("explorer_surviving_selection", func(t *testing.T) {
+		v := explorerFixture(t)
+		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
+		v.OpenSimilarityCohort(paths)
+		v.grid.SelectAll()
+		v.grid.SimulateHover(0)
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{1}})
+		v.returnExplorerGrid()
+		bookmark := v.grid.CaptureVisit()
+		if !slices.Equal(bookmark.Selected, []string{paths[0], paths[2]}) {
+			t.Fatalf("return did not preserve only surviving selections: %v", bookmark.Selected)
+		}
+		fynetest.Tap(explorerButton(t, v, "Back to map"))
+		if !v.explorerMapActive() {
+			t.Fatal("image bookmark revived an obsolete return callback")
+		}
+	})
+	for _, unassigned := range []bool{false, true} {
+		name := "cohort"
+		if unassigned {
+			name = "unassigned"
+		}
+		t.Run("explorer/"+name, func(t *testing.T) {
+			v := explorerFixture(t)
+			v.win.Resize(fyne.NewSize(480, 280))
+			camera := v.explorer.Surface().View()
+			var paths []string
+			for i := range 16 {
+				paths = append(paths, v.FileAt(i).Path())
+			}
+			if unassigned {
+				v.OpenSimilarityUnassigned(paths)
+			} else {
+				v.OpenSimilarityCohort(paths)
+			}
+			v.grid.SimulateHover(1)
+			v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+			v.grid.HandleRune('/')
+			v.grid.HandleRune('.')
+			v.grid.SimulateHover(15)
+			before := v.grid.CaptureVisit()
+			if before.ScrollOffset == 0 {
+				t.Fatal("fixture did not scroll the Explorer Grid")
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitUntilLoaded(t, v)
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			after := v.grid.CaptureVisit()
+			if !v.grid.Visible() || after.Query != before.Query || after.Searching != before.Searching ||
+				!slices.Equal(after.Selected, before.Selected) || after.Highlight != before.Highlight || after.ScrollOffset != before.ScrollOffset {
+				t.Fatalf("Explorer Grid bookmark lost: query=%q/%q selection=%v/%v highlight=%s/%s scroll=%v/%v", before.Query, after.Query, before.Selected, after.Selected, before.Highlight, after.Highlight, before.ScrollOffset, after.ScrollOffset)
+			}
+			fynetest.Tap(explorerButton(t, v, "Back to map"))
+			if !v.explorerMapActive() || v.grid.Visible() || v.explorer.Surface().View().Center != camera.Center {
+				t.Fatal("cohort return did not retain its Explorer camera")
+			}
+		})
+	}
+}
+
+func TestBrowsingEmptyScope(t *testing.T) {
+	t.Run("explorer_filter", func(t *testing.T) {
+		v := explorerFixture(t)
+		v.OpenSimilarityCohort([]string{v.FileAt(0).Path()})
+		for _, r := range "/absent" {
+			v.handleTypedRune(r)
+		}
+		if len(v.grid.ResultIndexes()) != 0 || !v.grid.Visible() || !v.browsing.has(browsingExplorer) {
+			t.Fatal("empty filter retired the editable cohort")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if !v.grid.Visible() || len(v.grid.ResultIndexes()) != 1 {
+			t.Fatal("filter Escape lost its cohort")
+		}
+	})
+	t.Run("explorer_last_member_load_failure", func(t *testing.T) {
+		v := explorerFixture(t)
+		path := v.FileAt(16).Path()
+		v.OpenSimilarityCohort([]string{path})
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		v.imgCache.Purge()
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		if !v.explorerMapActive() || v.display.Snapshot().Displayed.Source.Path() == v.FileAt(16).Path() {
+			t.Fatal("failed cohort member loaded an unrelated successor instead of returning to Explorer")
+		}
+	})
+	t.Run("explorer_last_member", func(t *testing.T) {
+		v := explorerFixture(t)
+		v.OpenSimilarityCohort([]string{v.FileAt(16).Path()})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		revision := v.display.RequestRevision()
+		v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{16}})
+		v.settleExplorer()
+		if !v.explorerMapActive() || v.grid.Visible() || v.explorer.State().SessionCurrent {
+			t.Fatal("exhausted cohort did not return to the retired Explorer map")
+		}
+		if got := v.preloadCandidates(); len(got) != 0 {
+			t.Fatalf("exhausted Explorer preloaded the collection: %v", got)
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+		if v.display.RequestRevision() != revision {
+			t.Fatal("exhausted Explorer navigated into the collection")
+		}
+	})
+}
+
+func TestBrowsingVisitLifecycle(t *testing.T) {
+	for _, retirement := range []string{"close_reopen", "collection_replacement", "source_removal"} {
+		t.Run("explorer/"+retirement, func(t *testing.T) {
+			v := explorerFixture(t)
+			v.OpenSimilarityCohort([]string{v.FileAt(0).Path(), v.FileAt(1).Path()})
+			old := v.browsing.current().binding
+			switch retirement {
+			case "close_reopen":
+				v.LeaveSimilarityMap()
+				v.OpenSimilarityCohort([]string{v.FileAt(2).Path()})
+			case "collection_replacement":
+				dropAndWait(t, v, uitest.TempJPEGURI(t, "replacement.jpg", 24, 16, color.White))
+			case "source_removal":
+				v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{1}})
+			}
+			before := v.browsing.current()
+			v.returnExplorerMap(old)
+			if v.browsing.current().binding != before.binding || v.explorerMapActive() {
+				t.Fatal("obsolete Explorer return revived a retired presentation")
+			}
+			if retirement == "source_removal" {
+				fynetest.Tap(explorerButton(t, v, "Back to map"))
+				if !v.explorerMapActive() {
+					t.Fatal("reconciled Grid did not install a current return binding")
+				}
+			}
+		})
+	}
+}
+
+func TestBrowsingDeferredReturns(t *testing.T) {
+	t.Run("explorer_admission_rechecked", func(t *testing.T) {
+		v := explorerFixture(t)
+		v.OpenSimilarityCohort([]string{v.FileAt(0).Path()})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		binding := v.browsing.current().binding
+		prompt := dialog.NewInformation("Test", "Cover", v.win)
+		prompt.Show()
+		before, _ := v.explorer.Cohort()
+		v.OpenSimilarityCohort([]string{v.FileAt(1).Path()})
+		if after, _ := v.explorer.Cohort(); !slices.Equal(after, before) {
+			t.Fatal("refused cohort delivery replaced the retained visit membership")
+		}
+		v.returnExplorerMap(binding)
+		v.returnExplorerGrid()
+		if v.explorerMapActive() || v.grid.Visible() || v.browsing.current().surface != browsingImage {
+			t.Fatal("covered Explorer return bypassed current admission")
+		}
+		prompt.Hide()
+		if v.grid.Visible() || v.explorerMapActive() {
+			t.Fatal("refused Explorer return replayed automatically")
+		}
+		v.returnExplorerGrid()
+		if !v.grid.Visible() {
+			t.Fatal("fresh admitted Grid return refused")
+		}
+	})
+}
 
 func TestBrowsingScope(t *testing.T) {
 	t.Run("snapshot_binding_and_discovery", func(t *testing.T) {

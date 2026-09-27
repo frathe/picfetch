@@ -527,6 +527,12 @@ Explorer/search/Location Map orders once per navigation action or preload pair.
 Empty restrictions produce no navigation target. Command restrictions live in
 the shared root policy. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.
+`internal/ui/browsing_visits.go` owns Explorer's retained map/cohort visit stack,
+foreground surface, collection/visit binding and validated return plans.
+Grid interaction is captured before image opening and restored through one root
+boundary with fresh callbacks; bookmarks do not authorize navigation. Explorer
+keeps analysis/cohort data and its camera. Search and Location Map are still
+temporary source adapters pending the remaining MA-029 migration tickets.
 `internal/ui/searchoverlay.go` observes dismissal of generic canvas overlays while
 a result is pending, with one acknowledged UI callback and cancellable, tracked
 worker completion through shutdown and the test harness.

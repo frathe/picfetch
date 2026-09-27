@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: tickets 01-02 complete; implementing ticket 03 of 09.
+Status: tickets 01-03 complete; implementing ticket 04 of 09.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -60,6 +60,21 @@ before ticket 03 tests, after 01 establishes the snapshot contract. Search
 retains an origin independently of its active query; map/Explorer origins and
 foreground surface are distinct. Covers stay MA-028 observations. Grid bookmarks
 carry interaction, never independent authorization to restore callbacks.
+
+03 transition contract: `browsingVisits` retains a stack of value visits: an
+Explorer map parent and a cohort foreground, each with a monotonic identity and
+collection binding. `enterExplorer`, `openExplorerCohort` and `openImage` own
+entry; `planReturn(binding, generation, destination)` captures an immutable
+return and `commitReturn(plan, generation)` rejects retired/rebound sources.
+Grid and parent are explicit destinations; feature visibility never authorizes
+one. `leaveExplorer` retires the family. Source reconciliation rebinds surviving
+visits and bookmarks, making previously captured returns obsolete.
+The module keeps only Grid's captured interaction value, not cohort analysis or
+camera state. Root restores through one boundary: install current subset and
+callbacks, then `Grid.RestoreInteraction`. A pre-close callback now also captures
+path-based Explorer subsets. Comparison/input covers remain current MA-028 facts,
+independent of retained visits. Search and Location Map keep the documented
+legacy adapters until 04-06; they may temporarily cover a retained Explorer.
 
 Authority inventory before migration:
 
@@ -132,7 +147,7 @@ the owner interface while the scout returns facts, never review decisions.
 - [x] Plan: files, dependency graph, routing and focused verification.
 - [x] 01: explicit immutable scopes, integrated navigation/preloads, baseline.
 - [x] 02: separate captured action targets.
-- [ ] 03: Explorer authority, round trips, exhaustion and lifecycle.
+- [x] 03: Explorer authority, round trips, exhaustion and lifecycle.
 - [ ] 04: ranked search authority, history and origin restoration.
 - [ ] 05: direct-map authority, live navigation and valid return.
 - [ ] 06: exact frozen cluster authority and return stages.
@@ -153,7 +168,7 @@ Use that PATH and a writable temporary Go cache for local commands.
 | --- | --- | --- | --- | --- |
 | 01 | 1 / 1 | 1 | no | complete; evidence below |
 | 02 | 0 / 0 | 1 | no | complete; evidence below |
-| 03 | 1 / 1 | 0 | no | reconnaissance |
+| 03 | 1 / 1 | 1 | no | complete; evidence below |
 | 04-08 | per routing above / 0 | 0 | no | pending |
 | 09 / review | 0 / 0 | 0 | CI | pending |
 
@@ -245,3 +260,68 @@ Lead review confirms scope sharing does not narrow ordinary
 Favorites or replace batch selection with visit membership. No new worker,
 command replay, user string, dependency or native glue. Ticket 02 uses no
 subagent because this is already-hot cross-feature context.
+
+Ticket 02 commit: `90c3aab`, pushed to draft PR 68.
+
+### Ticket 03 evidence (working diff over `90c3aab`)
+
+The private value owner now retains Explorer map/cohort visits, a foreground
+surface and collection/visit-bound, single-consumption return plans. Root owns
+admission and effects; Explorer still owns cohort membership, analysis and
+camera. All root `HasCohort` navigation/admission observations were retired.
+Feature return requests no longer unconditionally reveal its map. Refused cohort
+delivery rolls back feature membership. Path-subset Grid callbacks capture the
+bookmark before Close and authorize Back/Escape/G through the owner; exact map
+subsets keep their existing adapter until 06.
+
+New executed families: `TestBrowsingVisitTransitions` (valid image/Grid/parent
+transitions; collection, revision and retired identity guards),
+`TestBrowsingRoundTrips` (cohort and Unassigned interaction/nonzero scroll/camera,
+surviving selection), `TestBrowsingEmptyScope` (editable filter, committed final
+removal, final decode failure), `TestBrowsingVisitLifecycle` (close/reopen,
+replacement, removal/rebound Back), and `TestBrowsingDeferredReturns` (live modal
+refusal, no replay, refused cohort membership unchanged).
+
+Red: both cohort/Unassigned round trips lost query and selection, and final-member
+removal failed to return to Explorer (`FAIL 0.297s`). The later final-decode guard
+also failed by loading an unrelated successor (`FAIL 0.764s`). Green restored
+interaction and stops the existing retry chain when no restricted successor
+exists. This narrow recovery bridge is necessary for this slice's exhaustion;
+the full successor-policy consolidation remains 08.
+
+Negative verification: removing the collection guard failed with "old collection
+return was accepted" (`0.013s`); removing the transition revision guard failed
+with "already consumed transition was replayed" (`0.013s`); ignoring visit
+identity failed the real close/reopen return (`0.139s`); bypassing return admission
+failed the covered-return test (`0.138s`). Each mutation was restored.
+
+The uncached verbose focused gate passed (`ok .../internal/ui 40.558s`):
+`^(TestBrowsing.*|TestVisualSimilarityExplorer|TestFindMoreLikeThis.*|TestLocationMap|TestCommandAdmissionVisits|TestWindowCommandAdmissionMatrix)$`.
+No skipped cases in this log. Full changed-package suites passed: grid 1.775s,
+explorer 0.490s. Existing `TestVisualSimilarityExplorer/progressive_browse_camera`
+and `unassigned_grid_return` are the progressive-scope and menu/key AC anchors;
+its setup/replacement/source families and command-admission matrix remain the
+lifetime/route anchors. The trial recording test now uses the restored filter's
+normal extra Escape stage, consistent with preserving the accepted bookmark;
+no recording evidence is dropped. Root now records one parent return, not two.
+
+Docker shard/exclusion checks passed: 724 runnables, three shards. No new test
+file, so existing exact Qodana test exclusions cover this slice. GoLand completed
+all 21 changed code files (including new browsing_visits.go) with weak warnings
+enabled and no timeouts. Only viewer.go's same four unchanged duplicate fragments
+remain (now lines 502, 554, 578, 835); dispositions are unchanged from 01. This is
+the IDE fallback, not a claim of fresh CI Qodana SARIF equivalence.
+
+Lead review found and fixed callback ordering, duplicate return recording and
+refused cohort mutation. Source removals and sorts rebind Explorer before fresh
+bookmark restoration. Their currently separate Explorer/Location remap capture
+adapters are an explicit 07 consolidation obligation. Search retains its legacy
+origin adapter until 04, but restores an Explorer Grid through the new validated
+boundary instead of reviving saved subset callbacks. No worker, native glue,
+user string or dependency was introduced.
+
+Final restored-guard Explorer/new-family check passed (19.991s), final trial
+presentation projection check passed (0.534s), and the changed Explorer package
+passed again (0.414s). Final `make fmt-check vet` and `git diff --check` passed.
+Intermediate PR head `90c3aab` has successful full CI, CodeQL and Qodana jobs;
+this is not the final-head review/SARIF gate and no final scan claim is made.

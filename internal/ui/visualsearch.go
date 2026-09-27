@@ -247,9 +247,10 @@ func (v *viewer) restoreSearchOrigin(visit searchui.Visit) int {
 		return -1
 	}
 	if visit.Grid.Visible {
-		v.grid.RestoreVisit(visit.Grid)
-		if visit.Grid.Subset != nil && v.explorer.HasCohort() {
-			v.explorer.Surface().Show()
+		if visit.Grid.Subset != nil && v.browsing.has(browsingExplorer) {
+			v.restoreExplorerGrid(&visit.Grid)
+		} else {
+			v.grid.RestoreVisit(visit.Grid)
 		}
 		return -1
 	}

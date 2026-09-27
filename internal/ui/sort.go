@@ -62,9 +62,11 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 
 	v.startSort(m, unsorted, func(ordered []fyne.URI) {
 		finishLocation := v.captureLocationReconciliation(nil)
+		finishExplorer := v.captureExplorerReconciliation(nil)
 		v.state.reorder(ordered)
 		v.grid.FilesChanged()
 		finishLocation()
+		finishExplorer()
 		v.ForceRepaint()
 		v.showFileIfPresent(current)
 	})
