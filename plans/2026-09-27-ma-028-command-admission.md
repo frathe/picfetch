@@ -13,10 +13,25 @@ The [implementation verification record](../docs/command-admission-verification-
 contains the completed command/route ledger, ownership review, observed
 red/green failures, final test/inspection scope and native limitations.
 The [Linux qualification record](../docs/command-admission-linux-qualification-2026-09-27.md)
-adds passing native scenario groups at `6db8d73` using OS-injected XTEST input
-on GNOME/XWayland. Physical-input, other-platform and external gates remain open.
+adds passing scoped native scenarios at `6db8d73` using OS-injected XTEST input
+on GNOME/XWayland, followed by a confirmed native Escape/maximize reset defect.
+That Linux repair, physical-input, other-platform and external gates remain open.
 The historical ticketing evidence at the end describes the earlier planning
 turn, not the current implementation state.
+
+Linux qualification correction (user report, 2026-09-27): a real maximized-window
+Escape reset failure is now reproduced with a fresh profile and one image.
+Native geometry stays 1920 x 1131 with both maximization flags after Escape,
+instead of the initial 624 x 409 welcome target. The earlier small rendered
+surface was not merely a capture limitation. Acceptance remains blocked on this
+defect as well as the outstanding platform/CI gates. T0 owns diagnosis; no
+production fix is included in the current diagnostic scope.
+
+One further read-only scout assignment traced pinned Fyne resize and native
+geometry callbacks while T0 investigates application reset/maximize ownership.
+G1-G5: under 25 lines; verify returned source citations with targeted reads;
+zero files changed; bounded pinned-driver scope; separate from T0's app path.
+No implementation, review or native desktop interaction is delegated.
 
 Final-gate budget exception: the first complete Docker run exposed clipboard
 surface-pixel fixtures rejected by the new frame-count fact and a direct
@@ -60,10 +75,10 @@ The implementation request accepted the breakdown. Tickets are published under
 `.scratch/ma-028/issues/`; the original drafts are retained as planning history.
 Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementation
 checklist items checked against the recorded local evidence. Ticket 10 is
-unblocked and `ready-for-human`: its completed preparation is checked off,
-and Linux OS-injected native scenario groups are recorded separately as passed.
-Physical-input, Windows/macOS, case-insensitive export and fresh CI acceptance
-remain open; the partial evidence does not resolve ticket 10.
+unblocked and `ready-for-agent` for the confirmed Linux reset defect: its
+completed preparation and scoped Linux checks remain checked separately.
+Linux repair, physical-input, Windows/macOS, case-insensitive export and fresh
+CI acceptance remain open; the partial evidence does not resolve ticket 10.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
@@ -76,7 +91,7 @@ remain open; the partial evidence does not resolve ticket 10.
 | [07](../.scratch/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
 | [08](../.scratch/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
 | [09](../.scratch/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Native Linux, Windows and macOS evidence and final acceptance record | 09 | Native desktop operator + T0 Codex Lead / GPT-6 Astra / high |
+| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Open / ready-for-agent | Repair confirmed Linux reset defect; complete native Linux, Windows and macOS evidence and final acceptance record | 09 | T0 Codex Lead + native desktop operators / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.
@@ -316,7 +331,7 @@ they are the configured tracker, and this tracked plan links to them.
 | --- | --- | --- | --- |
 | Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
 | Convergence 09 | None | T0 structural review; 124 focused top-level passes, nine new guard groups; all 68 changed Go files inspected without findings | Final `make verify` passed, including every Docker race partition; existing platform skips are explicitly retained in the evidence |
-| Native acceptance 10 | One further read-only scout assignment; no implementation support | T0: native Linux build, XTEST editor/menu/modal input, deterministic process-local clipboard hold/recovery, native busy/modal close; retained screenshots and payload checks | Linux injected-input groups passed at `6db8d73`; physical operator, Windows/macOS, case-insensitive export and CI gates remain open |
+| Native acceptance 10 | Two further read-only scout assignments (launch isolation; pinned driver resize); no implementation support | T0: scoped native checks plus subsequent native Escape/maximize red repro and restore-first/Grid controls; retained screenshots and payload/geometry checks | Scoped groups passed at `6db8d73`, but native reset defect is confirmed and unfixed; physical operator, Windows/macOS, case-insensitive export and CI gates also remain open |
 
 Two complete Make runs are authorized by the budget exception above; no broad
 local race run was used during the individual red/green loops. The final

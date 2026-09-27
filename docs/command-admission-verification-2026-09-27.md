@@ -5,8 +5,10 @@ User authorization: `/implement MA-028 use tdd and sdd`, with local commits
 explicitly allowed. No push, PR review loop, merge or release was requested.
 
 Status: implementation and available local deterministic gates passed.
-Linux native-input scenario groups now pass with OS-injected events; physical
-operator, other-platform and CI acceptance remains open. See the
+Scoped Linux native-input scenarios passed with OS-injected events, but a user
+follow-up confirmed an unfixed native Escape/maximize reset defect. Linux
+acceptance is not clean; physical operator, other-platform and CI gates also
+remain open. See the
 [Linux qualification record](command-admission-linux-qualification-2026-09-27.md).
 The execution plan stays in `plans/`.
 
@@ -284,6 +286,11 @@ modal refusal and owner controls, held-copy menu entry/recovery, and native clos
 while busy/modal. Screenshots, payload comparisons, exact harness and launch
 details are retained. Physical-keyboard operation was not performed, and the
 binary was launched after `make build`, not through literal `make run`.
+A later user screenshot confirmed that the small surface inside a maximized
+window was an actual defect. A fresh one-image native reproduction fails:
+Escape keeps 1920 x 1131/maximized instead of the initial 624 x 409 client target.
+Restoring native maximization before Escape makes the control pass. The Linux
+record retains the diagnosis and geometry assertion; no fix is applied yet.
 Windows and macOS desktops were unavailable. Windows internal-package cross-vet passed,
 but macOS AppKit compilation and its
 new isolated native-menu assertion have not run here.
@@ -298,8 +305,9 @@ leaving physical Cmd+C to GLFW and explicit image-menu selection intact.
 Consequently AppKit no longer draws that item's native Cmd+C hint. This is
 part of the D5 route correction, not native runtime evidence.
 
-Ticket 10 records the completed Linux OS-injected checks separately and remains
-ready-for-human for the literal physical-input procedure and untested platforms.
+Ticket 10 records the completed Linux OS-injected checks separately and is now
+ready-for-agent for the confirmed reset defect, with the literal physical-input
+procedure and untested platforms still requiring native operators.
 Run the spec's four groups on Windows/macOS and retain revision/OS/input route
 and actual payload/visible outcomes. Do not archive the plan or claim MA-028
 accepted until the remaining observations and required CI gates are complete.

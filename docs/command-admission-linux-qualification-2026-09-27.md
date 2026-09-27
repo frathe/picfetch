@@ -1,7 +1,13 @@
 # MA-028 Linux native-input qualification
 
 Date: 2026-09-27. Requested and assessed by T0 on the local desktop.
-Result: the four native scenario groups passed with OS-injected keyboard and
+**Correction after the user's screenshot: Linux acceptance has a confirmed,
+unfixed maximized-window Escape reset defect.** See the diagnostic section below.
+The earlier interpretation of the small rendered surface as a capture limitation
+was incorrect; the positive command-admission observations are not an overall
+Linux acceptance pass.
+
+Original scoped result: the four native scenario groups passed with OS-injected keyboard and
 pointer events. This is actual GLFW/XWayland runtime evidence, not Fyne's test
 driver. It is **not physical-keyboard operator evidence**; that literal part of
 AC10, the other platforms and the external gates remain open in ticket 10.
@@ -103,8 +109,9 @@ surface. Menus were opened by native pointer input, e.g. File `(31,16)` and
 Actions `(195,16)`; explicit image Copy was `(228,540)` in the original layout.
 These are run-specific coordinates, not a portable scripted test. Captures after
 the maximized Grid visit retained a larger X drawable around the smaller image
-surface; menu state was checked on that rendered surface. Full compositor/layout
-qualification is not asserted by this command-admission exercise.
+surface; menu state was checked on that rendered surface. The user subsequently
+confirmed the mismatch on the actual desktop. It is a real defect, not grounds
+to exclude the window state from qualification; see below.
 
 The retained shim contains the exact FIFO protocol. During each meaningful
 busy check, a fresh launcher process was observed before testing refusal/close;
@@ -143,7 +150,7 @@ differing pixels, and the refused Copy Path preserved the region PNG bytes.
 - Logs contain startup locale-C parsing and Fyne threading-model warnings.
   They contain no new panic or clipboard failure in the confirmed runs. These
   warnings were not resolved or counted as a clean static-analysis result.
-- No confirmed command-admission defect required a production fix. The earlier
+- The window-reset defect below remains unfixed. The earlier
   Make/race and 68-file GoLand evidence remains attached to unchanged code at
   `9dc3a81`; the native binary came from documentation-only descendant `6db8d73`.
   No broad suite or GoLand reinspection was rerun for this evidence-only update.
@@ -153,3 +160,78 @@ checked launch-storage isolation and hold seams. T0 performed every native
 interaction, artifact inspection, assessment and tracker update. The diagnostic
 skill was used to separate inconclusive input-harness attempts from app behavior;
 only the throwaway input pacing changed, not production code.
+
+## Confirmed Linux Escape reset defect (user follow-up)
+
+The user's full-desktop screenshot at 12:03:45 shows that the small lower-left
+surface is visible on screen, not just in `import` captures. T0 reproduced it
+twice with the same unchanged production binary. The minimal case requires only
+one loaded image, ordinary WM maximization and Escape; no Grid, dialog, saved
+preferences or clipboard hold is necessary. The blank-launch baseline's native
+client target is 624 x 409 here (logical `startW/startH` are 520 x 340).
+
+Artifacts and the bounded agent-runnable geometry assertion are retained under
+[`.scratch/ma-028/linux-escape-reset-2026-09-27`](../.scratch/ma-028/linux-escape-reset-2026-09-27/).
+`results.txt` records the exact outputs; `escape-failure.png` reproduces the user
+symptom and `control-pass.png` shows the control. The working directory is
+`/tmp/picfetch-linux-escape-b56v16`. Launch for the minimal failure:
+
+```sh
+env XDG_CONFIG_HOME=/tmp/picfetch-linux-escape-b56v16/config-minimal \
+  XDG_CACHE_HOME=/tmp/picfetch-linux-escape-b56v16/cache-minimal \
+  XDG_DATA_HOME=/tmp/picfetch-linux-escape-b56v16/data-minimal \
+  ./bin/picfetch -- /tmp/picfetch-linux-escape-b56v16/fixture/only.png
+# In another terminal; re-resolve the owned window ID on another run:
+bash /tmp/picfetch-linux-escape-b56v16/repro.sh 0x0320002b 624x409
+```
+
+The script maximizes with `wmctrl`, observes both native maximization atoms,
+sends Escape through the retained XTEST helper and polls native geometry/state
+for up to three seconds. It reports:
+
+```text
+before=624x615 expected-reset=624x409
+maximized=1920x1131
+FAIL: Escape expected 624x409 without maximization; actual=1920x1131
+```
+
+Both `_NET_WM_STATE_MAXIMIZED_HORZ` and `_NET_WM_STATE_MAXIMIZED_VERT` remain.
+With a fresh profile, removing maximization and observing its completion
+**before** Escape (`restore-first` third argument) makes the same assertion pass
+at 624 x 409. Removing it only **after** the failure restores the old image
+geometry, 624 x 615. A separate native `G`, `G`, Escape control (fourth argument
+`grid`) passed, so this diagnosis does not assert that all Grid restores fail.
+
+Cause: `clearToDropzone` calls `undoGridMaximize` and then `Resize` at
+`internal/ui/viewer.go:616-622`. The helper returns early at lines 637-639 unless
+Grid or Explorer recorded ownership of a maximize. An ordinary WM maximize
+therefore never reaches `winpos.Unmaximize`, even though the reset promises the
+compact welcome size. Fresh-profile and restore-first controls rule out a saved
+size or a general failure to dispatch Escape.
+
+The pinned Fyne/GLFW source explains the smaller drawn surface: Fyne v2.8.0
+`internal/driver/glfw/window.go:56-70` immediately resizes the logical canvas,
+then invokes native `SetSize` and processes the **requested** dimensions without
+waiting for WM acknowledgement. GLFW's pinned X11 `x11_window.c:2204-2219`
+sends `XResizeWindow` without clearing maximization; its ConfigureNotify branch
+at lines 1486-1500 emits size callbacks only when native dimensions change.
+Thus a rejected native shrink can leave the smaller logical canvas visible
+inside the still-maximized window, consistent with both screenshots and the
+native measurements. These driver details are source-level explanation, not
+additional instrumented runtime measurements.
+
+Coverage gap: `TestViewerReset` checks only `v.win.Canvas().Size()` at
+`internal/ui/reset_test.go:63`, under the Fyne test driver. It cannot assert
+native maximization or catch the logical/native mismatch. A fix needs a red
+regression covering native restore-before-resize behavior, plus this actual
+desktop loop. Preserve static-size semantics and repeat both ordinary and
+Grid-owned maximize scenarios; do not claim a canvas-size assertion alone fixes it.
+
+The relevant reset/maximize guard predates MA-028 by source history; no old
+revision binary was run, so this is not a completed runtime bisection. No
+production code was changed or fix applied in this diagnostic follow-up. All
+five isolated diagnostic app sessions exited normally, and the failed
+empty-window capture process was stopped. One additional read-only scout traced
+the pinned driver sequence; T0 verified citations and owned all native probes,
+diagnosis and record corrections. The diagnosing-bugs workflow stops at the
+confirmed cause here; production repair remains open in ticket 10.

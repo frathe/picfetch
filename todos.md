@@ -16,7 +16,8 @@
   [implementation and verification record](docs/command-admission-verification-2026-09-27.md).
   `make verify` and all 68 changed-file GoLand inspections passed. The
   [Linux native-input scenarios](docs/command-admission-linux-qualification-2026-09-27.md)
-  passed with OS-injected keyboard/mouse events; remaining acceptance is below.
+  passed their scoped OS-injected checks, but the follow-up found a real native
+  maximized-window reset failure; overall Linux acceptance is not clean.
 
 - Stabilize the similarity protocol race test by dispatching its helper before
   the test runner starts and bounding its lifetime from the parent. Preserve
@@ -39,6 +40,13 @@
   ticket 10 for the remaining native/CI gates. Linux GNOME/XWayland runtime
   checks passed editor shortcuts, actual menu activation/enablement, modal
   controls and native close during held region copying with OS-injected input.
+  **Confirmed Linux blocker:** an ordinary WM-maximized image window remains
+  maximized after Escape while the welcome surface shrinks into its lower-left
+  corner. The native one-image test fails at 1920 x 1131 instead of 624 x 409;
+  the reset only unmaximizes Grid/Explorer-owned maximization. Fix and repeat
+  native geometry/state assertions, preserving static-size behavior. The
+  existing canvas-size-only test does not cover this. Diagnosis and controls
+  are recorded in the Linux evidence; production repair is still open.
   macOS AppKit compilation/runtime and physical input on all three platforms
   remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
   workflow; local GoLand checks are not a Qodana-CI pass.
