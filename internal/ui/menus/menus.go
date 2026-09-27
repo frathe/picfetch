@@ -425,6 +425,10 @@ func (a ActionItems) Trash() *fyne.MenuItem { return a.trash }
 // It recomputes every item on every call rather than trusting a caller to
 // say what changed: the matrix is compact boolean arithmetic, and a caller
 // that guesses wrong is exactly how a menu goes stale.
+// Each named decision maps to its own item; the repeated assignment shape
+// keeps that correspondence visible without adding a second item registry.
+//
+//goland:noinspection DuplicatedCode
 func (m *Menus) Apply(s State) (changed bool) {
 	before := m.pairs()
 	a := s.Availability

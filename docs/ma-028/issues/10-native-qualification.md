@@ -141,15 +141,22 @@ requires an early feasibility observation during 02 and final evidence here.
   and HEIC exemptions, without Linux-only goldens. Deliberate inventory/filter
   omissions fail. The actual new runner passes on FAT16 and rejects an ext4
   skip. GoLand found no issues in the two Go files and workflow; Windows
-  runner cross-vet and fresh full `make verify` passed. Native Windows/
-  macOS execution, physical input and remote CI remain separate open gates.
+  runner cross-vet and fresh full `make verify` passed. The subsequent CI
+  execution below remains distinct from physical-input/full-desktop acceptance.
   Current raw evidence: `.scratch/ma-028/native-ci-2026-09-27` and
   `.scratch/race-runs/20260927T113110Z-p0dfVe`; the tracked Linux record summarizes
   outcomes and exact inspection hashes for cross-desktop handoff.
+- [x] Execute the focused guards in native Windows amd64 and macOS arm64/amd64
+  CI. Run `36317733211` at `1bfca4a` passed case-alias export on all three and
+  the native Copy-menu assertion on both macOS runners, with zero skips.
+  T0 inspected the retained JSON events. See the
+  [review-loop record](../../command-admission-pr-66-review-2026-09-27.md).
 - [ ] Obtain fresh required CI and CodeQL results and inspect Qodana's
   post-suppression SARIF for the integrated revision. Local GoLand inspection
-  evidence does not establish those external gates. Push/PR creation is now
-  authorized; completion of the remote checks remains outstanding.
+  evidence does not establish those external gates. Initial CI/CodeQL and Codex
+  code/security reviews passed at `1bfca4a`; Qodana completed with eight findings,
+  assessed in the review record. The user has invoked the review loop; fresh
+  latest-commit results are required after the static-analysis cleanup.
 - [ ] Record the final evidence and remaining limitations. Only after all
   required gates pass may the implementation be proposed as accepted and the
   plan archived. No merge, release, commit or push is implied.

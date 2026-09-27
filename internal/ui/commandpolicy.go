@@ -64,7 +64,7 @@ const (
 type commandRoute uint8
 
 const (
-	routeDirect commandRoute = iota
+	_ commandRoute = iota // Zero-value requests use the direct route.
 	routeMenu
 	routeShortcut
 	routeKey
@@ -92,7 +92,7 @@ const (
 type commandInput uint8
 
 const (
-	inputViewer commandInput = iota
+	_ commandInput = iota // Zero-value contexts have ordinary viewer input.
 	inputMenu
 	inputEditor
 	inputModal
@@ -124,7 +124,7 @@ type commandContext struct {
 type commandRefusal uint8
 
 const (
-	refusalNone commandRefusal = iota
+	_ commandRefusal = iota // An allowed decision's zero value has no refusal.
 	refusalUnavailable
 	refusalModal
 	refusalSurface
@@ -339,6 +339,8 @@ func decideCommand(request commandRequest, context commandContext) commandDecisi
 		if context.clipboardBusy {
 			return commandDecision{refusal: refusalClipboardBusy}
 		}
+		// The enclosing case admits only these four clipboard commands.
+		//goland:noinspection GoSwitchMissingCasesForIotaConsts
 		switch request.command {
 		case commandCopyPath:
 			if context.hasFiles {

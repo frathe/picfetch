@@ -275,6 +275,8 @@ func TestCommandAdmissionPolicy(t *testing.T) {
 		for id := commandSave; id <= commandInterval; id++ {
 			c := ready
 			request := commandRequest{command: id, intent: intentToggle}
+			// Only these commands need a different surface; all others use ready.
+			//goland:noinspection GoSwitchMissingCasesForIotaConsts
 			switch id {
 			case commandCopyFiles, commandSelectAll, commandViewer:
 				c.surface = surfaceGrid
@@ -364,12 +366,12 @@ func TestCommandAdmissionVisits(t *testing.T) {
 		}
 	})
 	t.Run("cohort selection handoff", func(t *testing.T) {
-		context := commandContext{surface: surfaceExplorer, cohortVisit: true, hasFiles: true}
-		if !decideCommand(commandRequest{command: commandSelectImage}, context).allowed {
+		facts := commandContext{surface: surfaceExplorer, cohortVisit: true, hasFiles: true}
+		if !decideCommand(commandRequest{command: commandSelectImage}, facts).allowed {
 			t.Fatal("closing cohort Grid blocked its selected image handoff")
 		}
-		context.input = inputModal
-		if decideCommand(commandRequest{command: commandSelectImage}, context).allowed {
+		facts.input = inputModal
+		if decideCommand(commandRequest{command: commandSelectImage}, facts).allowed {
 			t.Fatal("cohort handoff bypassed a modal")
 		}
 	})

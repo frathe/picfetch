@@ -301,9 +301,11 @@ inspection results, and fresh `make verify` passed with artifacts in
 `.scratch/race-runs/20260927T103730Z-3Tubvu`. Exact final source hashes and
 inspection scope are in the Linux repair evidence; the other 65 inspected
 Go files retain their unchanged-code evidence above.
-Windows and macOS desktops were unavailable. Windows internal-package cross-vet passed,
-but macOS AppKit compilation and its
-new isolated native-menu assertion have not run here.
+Windows and macOS desktops were unavailable locally. Windows internal-package
+cross-vet passed. Subsequent PR 66 native CI compiled and passed the isolated
+AppKit assertion on both macOS architectures and case-alias export on Windows
+and macOS; see the [review-loop record](command-admission-pr-66-review-2026-09-27.md).
+Those results do not establish physical-input/full-desktop acceptance.
 
 Pinned-source tracing established that GLFW tries matching menu shortcuts
 before focused widgets and canvas bindings, without checking Disabled.

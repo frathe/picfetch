@@ -36,6 +36,32 @@ No implementation, review or native desktop interaction is delegated.
 
 ### Remaining acceptance follow-up (2026-09-27)
 
+#### PR 66 review loop
+
+The user invoked the repository review loop after publishing `1bfca4a` in
+[PR 66](https://github.com/frathe/picfetch/pull/66). This authorizes scoped fix
+commits/pushes, review replies/resolution and fresh code/security review requests;
+no merge or release. Review base is `6c0db304e18f8591ae340630a693b0d3e5919635`.
+T0 owns both standards/spec assessment and every fix. Initial CI/CodeQL and
+native jobs passed; Codex completed code/security reviews without findings and
+left a thumbs-up. There are no review threads, including unresolved older ones.
+Qodana completed but reported eight findings; its post-suppression SARIF must be
+assessed, not waived based on the job's successful exit.
+
+Scope: inspect the eight static-analysis findings, use the existing accepted
+policy/real-viewer test seams for any behavior repair, inspect changed files
+locally, and run focused regressions. The full suite runs in GitHub CI under
+the review-loop rule; do not repeat the broad local race suite. Record findings,
+dispositions and evidence in `docs/command-admission-pr-66-review-2026-09-27.md`.
+After any fixes/dispositions, obtain fresh code/security review and passing
+checks for the newest pushed commit. Physical-input acceptance stays separate.
+
+Budget: one bounded read-only scout assignment can extract the existing native
+artifact test outcomes while T0 assesses Qodana and source changes. G1-G5:
+under 25 lines; verify cited run/test events with `jq`; zero edits to sources;
+bounded cross-platform artifact facts; distinct from T0's review/fix context.
+No delegated review or fixes. T0 retains final acceptance and SARIF review.
+
 #### Portable tracker and PR publication
 
 The user approved moving the reviewed planning Markdown, committing, pushing

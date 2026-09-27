@@ -71,6 +71,10 @@ func (v *viewer) menuState() menus.State {
 	return v.menuStateFor(v.commandContext())
 }
 
+// Keep named menu decisions explicit; similar field assignments are not a
+// second policy or a reason to introduce a runtime command registry.
+//
+//goland:noinspection DuplicatedCode
 func (v *viewer) menuStateFor(context commandContext) menus.State {
 	can := func(id commandID, intent commandIntent) bool {
 		return decideCommand(commandRequest{command: id, intent: intent, route: routeMenu}, context).allowed

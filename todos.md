@@ -51,16 +51,20 @@
   size/state checks pass repeatedly, including fixed-size controls; the new
   native-boundary regression, changed-file inspections and fresh full Make
   gate pass. Historical diagnosis and final evidence remain in the Linux record.
-  macOS AppKit compilation/runtime and physical input on all three platforms
-  remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
-  workflow; local GoLand checks are not a Qodana-CI pass.
+  Physical input on all three platforms and full Windows/macOS desktop
+  acceptance remain unverified. The initial PR 66 CI and CodeQL runs passed;
+  Qodana's eight SARIF findings are assessed and addressed in the active
+  [review loop](docs/command-admission-pr-66-review-2026-09-27.md), which still
+  requires fresh latest-commit checks/reviews. Local GoLand checks are not a
+  Qodana-CI pass.
   The case-insensitive export regression now passes on temporary FAT16 storage,
   including five race runs. Windows/macOS CI now selects focused native guards
   for case-alias export and macOS Copy-menu behavior, with command-boundary
   tests rejecting missing/skipped evidence. The actual new runner passes on
-  Linux FAT16 and rejects an ext4 skip; native Windows/macOS execution and
-  remote CI/review results remain pending. The user authorized pushing and
-  opening a PR. The reviewed planning Markdown is now tracked under
+  Linux FAT16 and rejects an ext4 skip. The focused guards now also pass in
+  native Windows amd64 and macOS arm64/amd64 CI, including the AppKit assertion;
+  these isolated tests do not replace desktop/physical-input checks. The user
+  authorized the PR 66 review loop. The reviewed planning Markdown is tracked under
   [docs/ma-028](docs/ma-028/README.md), with its personal home path redacted and
   raw evidence left ignored, as recorded in the
   [portability audit](docs/ma-028-portability-audit-2026-09-27.md).
