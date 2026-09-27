@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: tickets 01-04 complete; implementing ticket 05 of 09.
+Status: tickets 01-05 complete; implementing ticket 06 of 09.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -157,7 +157,7 @@ implementation slot: root/feature ownership must be changed together by the lead
 - [x] 02: separate captured action targets.
 - [x] 03: Explorer authority, round trips, exhaustion and lifecycle.
 - [x] 04: ranked search authority, history and origin restoration.
-- [ ] 05: direct-map authority, live navigation and valid return.
+- [x] 05: direct-map authority, live navigation and valid return.
 - [ ] 06: exact frozen cluster authority and return stages.
 - [ ] 07: ordered reconciliation and identity/fallback matrix.
 - [ ] 08: single-chain failed-load recovery and HEIC guidance.
@@ -178,7 +178,8 @@ Use that PATH and a writable temporary Go cache for local commands.
 | 02 | 0 / 0 | 1 | no | complete; evidence below |
 | 03 | 1 / 1 | 1 | no | complete; evidence below |
 | 04 | 1 / 1 | 1 | no | complete; evidence below |
-| 05-08 | per routing above / 0 | 0 | no | pending |
+| 05 | 0 / 0 | 2 | no | direct-map owner, live scope and validated return |
+| 06-08 | per routing above / 0 | 0 | no | pending |
 | 09 / review | 0 / 0 | 0 | CI | pending |
 
 Compatibility mapping: the proposed `TestBrowsingCompatibility` family reuses
@@ -404,3 +405,58 @@ harness cleanup retire owner state without changing worker join barriers. No
 new worker, automatic command replay, native glue, dependency or user string.
 
 Final Docker shard and exact exclusion checks passed: 725 runnables, three shards.
+
+Ticket 04 commit: `9ff1fd7`.
+
+05 contract before tests: a Location Map parent and direct-image child join the
+owner stack. `enterLocation` establishes the parent; `openLocationImage` captures
+the initial mapped occurrences as an incomplete-discovery fallback, not a frozen
+scope. Each action resolves current mapped facts in collection order. The legacy
+`image` bit becomes cluster-only pending 06; direct-image and map presence
+observations come from the owner. Map surface scope has no image navigation or
+preload targets, including after completed exhaustion.
+
+Map return captures a return plan before feature-owned validation, then validates
+the same visit/collection/revision and current admission before commit. A map
+parent can validate/reveal itself; a direct-image child pops to its retained map.
+Committed source changes still invalidate/rebuild facts when visible return is
+refused. Entry validation and collection-remap capture also bind to this owner;
+GPS facts, worker cancellation, camera and validation stay feature-owned.
+Cluster order, Grid bookmark and image flag remain one explicit legacy adapter
+until 06. Lead-only: current cross-feature/Location root context is already hot
+(delegation G5 fails); no independent implementation slot is justified.
+
+### Ticket 05 evidence (working diff over `9ff1fd7`)
+
+Direct map/image ownership now resides in Location Map parent/direct-image
+visits. Old map activity and image flags no longer authorize direct browsing;
+the remaining cluster adapter is explicitly named `clusterImage`. Captured
+return plans guard entry/return validation and check current admission before
+publishing. Committed changed facts still rebuild when visible return is refused.
+The map parent has an empty restricted scope, so exhaustion cannot fall through
+to ordinary navigation or preloads. Direct images use live mapped membership,
+with captured occurrence fallback only while discovery is incomplete.
+
+New coverage: `TestBrowsingVisitTransitions/direct_map_parent_and_validation`,
+`TestBrowsingProgressiveScopes/direct_map_live_navigation_and_preloads`, and
+`TestBrowsingEmptyScope/direct_map_last_member`. Existing Location Map tests
+cover retained camera, validation barriers, busy copy, stale validation,
+replacement and close/reopen. The exhaustion guard failed red with an ordinary
+unrestricted scope after return (`FAIL 0.150s`). Removing membership admission
+and disabling live scope refresh both produced the intended negative failures
+(`FAIL 0.095s`); both mutations were restored.
+
+Final uncached verbose selector passed (`ok .../internal/ui 14.779s`), no skips:
+`^(TestBrowsing.*|TestLocationMap|TestCommandAdmissionVisits|TestWindowCommandAdmissionMatrix|TestFindMoreLikeThisInitialRoundTrip)$`.
+The post-inspection transition/progressive/empty rerun passed (0.476s).
+`make fmt-check vet`, `git diff --check`, Docker shard inventory (725 runnables,
+three shards) and exact Qodana exclusions passed. No new test file was added.
+GoLand inspected all nine changed code files including weak warnings, with no
+timeouts. Its one new missing-iota switch warning was fixed with an explicit
+rejecting default, then re-inspected clear. All nine files have zero findings.
+
+Lead review confirms the direct visit has a single authority; validation remains
+feature-owned and no automatic command replay was introduced. Cluster order,
+Grid bookmarks and cluster flags remain only the documented 06 adapter. No
+dependency, worker, native glue or user string changed. Cost: zero spawns, two
+lead review passes, no broad local suite; final CI/SARIF/review gate remains open.

@@ -62,7 +62,7 @@ func (v *viewer) showViewer() {
 	if _, ok := v.admitCommand(commandRequest{command: commandViewer, intent: intentShow}); !ok {
 		return
 	}
-	if v.locationMap.Active() {
+	if v.locationVisitActive() {
 		v.LeaveLocationMap()
 		return
 	}
@@ -106,7 +106,7 @@ func (v *viewer) showWindowGrid() {
 		v.openLocationGrid()
 		return
 	}
-	if v.locationMap.Active() {
+	if v.locationVisitActive() {
 		v.closeLocationMap()
 	}
 	if v.searchActive() {

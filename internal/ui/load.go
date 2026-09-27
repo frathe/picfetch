@@ -63,7 +63,7 @@ func (v *viewer) imageRequested(_ display.Identity) {
 }
 
 func (v *viewer) imageProbed(bounds image.Rectangle) {
-	if !v.slides.Active() && !v.grid.Visible() && !v.browsing.has(browsingExplorerMap) && !v.locationMap.Active() {
+	if !v.slides.Active() && !v.grid.Visible() && !v.browsing.has(browsingExplorerMap) && !v.locationVisitActive() {
 		v.undoGridMaximize()
 		v.autoResizeToImage(bounds)
 	}

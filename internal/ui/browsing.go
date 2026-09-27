@@ -15,6 +15,7 @@ const (
 	browsingLocation
 	browsingCluster
 	browsingExplorerMap
+	browsingLocationMap
 )
 
 type browsingBinding struct {
@@ -38,13 +39,18 @@ type browsingScope struct {
 func (v *viewer) captureBrowsingScope() browsingScope {
 	scope := browsingScope{complete: true, collection: v.state.snapshot()}
 	scope.binding.collection = v.Generation()
-	if v.locationMap.Active() && v.locationInput.image {
+	if v.locationImageVisit() {
 		scope.indexes, scope.restricted = v.locationIndexes(), true
-		scope.binding.kind, scope.binding.visit = browsingLocation, v.locationInput.prepareOp.currentRevision()
+		scope.binding = v.browsing.current().binding
 		scope.complete = v.locationMap.Counts().Complete
 		if v.locationInput.cluster {
 			scope.binding.kind, scope.complete = browsingCluster, true
 		}
+		return scope
+	}
+	if v.browsing.current().binding.kind == browsingLocationMap {
+		scope.restricted, scope.binding = true, v.browsing.current().binding
+		scope.complete = v.locationMap.Counts().Complete
 		return scope
 	}
 	if order := v.captureSearchOrder(); order.active {

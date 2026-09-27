@@ -1,6 +1,6 @@
 # MA-029: explicit browsing-visit ownership
 
-Status: accepted design; implementation in progress (tickets 01-04 complete).
+Status: accepted design; implementation in progress (tickets 01-05 complete).
 Date: 2026-09-27
 Source: `/grill-with docs MA-029`
 Inspected revision: `e7d04561dd7f1565480ed8a46adf76cc327f0e73`.

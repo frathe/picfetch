@@ -20,14 +20,16 @@ type browsingDestination uint8
 const (
 	browsingReturnGrid browsingDestination = iota
 	browsingReturnParent
+	browsingReturnMap
 )
 
 type browsingVisit struct {
-	binding browsingBinding
-	surface browsingSurface
-	grid    *grid.Visit
-	origin  *browsingOrigin
-	order   []string
+	binding     browsingBinding
+	surface     browsingSurface
+	grid        *grid.Visit
+	origin      *browsingOrigin
+	order       []string
+	occurrences []fileidentity.Occurrence
 }
 
 type browsingOrigin struct {
@@ -79,6 +81,27 @@ func (b *browsingVisits) push(kind browsingKind, surface browsingSurface, genera
 func (b *browsingVisits) enterExplorer(generation uint64) {
 	b.stack = nil
 	b.push(browsingExplorerMap, browsingMap, generation)
+}
+
+func (b *browsingVisits) enterLocation(generation uint64) {
+	b.stack = nil
+	b.push(browsingLocationMap, browsingMap, generation)
+}
+
+func (b *browsingVisits) openLocationImage(binding browsingBinding, generation uint64, selected fileidentity.Occurrence, discovered []fileidentity.Occurrence) bool {
+	if !b.matches(binding, generation) || binding.kind != browsingLocationMap || !slices.Contains(discovered, selected) {
+		return false
+	}
+	b.push(browsingLocation, browsingImage, generation)
+	b.stack[len(b.stack)-1].occurrences = slices.Clone(discovered)
+	return true
+}
+
+func (b *browsingVisits) leaveLocation() {
+	if b.has(browsingLocationMap) {
+		b.stack = nil
+		b.revision++
+	}
 }
 
 func (b *browsingVisits) openExplorerCohort(generation uint64) browsingBinding {
@@ -133,10 +156,21 @@ func (b *browsingVisits) openImage(binding browsingBinding, generation uint64, b
 }
 
 func (b *browsingVisits) planReturn(binding browsingBinding, generation uint64, destination browsingDestination) (browsingReturn, bool) {
-	if !b.matches(binding, generation) || binding.kind != browsingExplorer && binding.kind != browsingSearch {
+	if !b.matches(binding, generation) {
 		return browsingReturn{}, false
 	}
-	if destination != browsingReturnGrid && destination != browsingReturnParent {
+	allowed := false
+	switch binding.kind {
+	case browsingExplorer, browsingSearch:
+		allowed = destination == browsingReturnGrid || destination == browsingReturnParent
+	case browsingLocation:
+		allowed = destination == browsingReturnParent
+	case browsingLocationMap:
+		allowed = destination == browsingReturnMap
+	default:
+		return browsingReturn{}, false
+	}
+	if !allowed {
 		return browsingReturn{}, false
 	}
 	return browsingReturn{source: binding, revision: b.revision, destination: destination, grid: b.current().grid, origin: b.current().origin}, true
@@ -152,6 +186,8 @@ func (b *browsingVisits) commitReturn(plan browsingReturn, generation uint64) bo
 		b.stack[len(b.stack)-1].order = nil
 	case browsingReturnParent:
 		b.stack = b.stack[:len(b.stack)-1]
+	case browsingReturnMap:
+		b.stack[len(b.stack)-1].surface = browsingMap
 	default:
 		return false
 	}
@@ -177,6 +213,15 @@ func (b *browsingVisits) reconcile(generation uint64, survivors map[fileidentity
 		if bookmark := b.stack[i].grid; bookmark != nil && survivors != nil {
 			remapped := bookmark.RemapOccurrences(survivors)
 			b.stack[i].grid = &remapped
+		}
+		if survivors != nil && b.stack[i].occurrences != nil {
+			var remapped []fileidentity.Occurrence
+			for _, identity := range b.stack[i].occurrences {
+				if next, ok := survivors[identity]; ok {
+					remapped = append(remapped, next)
+				}
+			}
+			b.stack[i].occurrences = remapped
 		}
 	}
 	b.revision++

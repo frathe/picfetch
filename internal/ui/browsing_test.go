@@ -21,6 +21,40 @@ import (
 )
 
 func TestBrowsingVisitTransitions(t *testing.T) {
+	t.Run("direct_map_parent_and_validation", func(t *testing.T) {
+		var visits browsingVisits
+		visits.enterLocation(7)
+		parent := visits.current().binding
+		member := fileidentity.Occurrence{Path: "/a", Ordinal: 1}
+		members := []fileidentity.Occurrence{member}
+		if visits.openLocationImage(parent, 7, fileidentity.Occurrence{Path: "/unmapped"}, members) {
+			t.Fatal("map admitted an image outside its discovered membership")
+		}
+		if !visits.openLocationImage(parent, 7, member, members) || visits.current().surface != browsingImage || !visits.has(browsingLocationMap) {
+			t.Fatal("direct image entry lost its retained map")
+		}
+		members[0].Ordinal = 0
+		if visits.current().occurrences[0] != member {
+			t.Fatal("direct discovery fallback aliases the feature's occurrences")
+		}
+		binding := visits.current().binding
+		if _, ok := visits.planReturn(binding, 7, browsingReturnGrid); ok {
+			t.Fatal("direct image acquired a cluster Grid destination")
+		}
+		plan, ok := visits.planReturn(binding, 7, browsingReturnParent)
+		if !ok || !visits.commitReturn(plan, 7) || visits.current().binding != parent {
+			t.Fatal("validated direct return did not retain its map parent")
+		}
+		visits.openLocationImage(parent, 7, member, []fileidentity.Occurrence{member})
+		if visits.commitReturn(plan, 7) {
+			t.Fatal("old validation replaced a newly opened image visit")
+		}
+		visits.leaveLocation()
+		visits.enterLocation(7)
+		if visits.current().binding == parent {
+			t.Fatal("map reopen reused a retired binding")
+		}
+	})
 	t.Run("ranked_origin_is_independent", func(t *testing.T) {
 		var visits browsingVisits
 		cohort := visits.openExplorerCohort(7)
@@ -95,6 +129,32 @@ func TestBrowsingVisitTransitions(t *testing.T) {
 }
 
 func TestBrowsingProgressiveScopes(t *testing.T) {
+	t.Run("direct_map_live_navigation_and_preloads", func(t *testing.T) {
+		v, release, queue := locationProgressFixture(t)
+		defer release()
+		queue.Drain()
+		fynetest.Tap(locationPhoto(t, v, "a.jpg"))
+		waitUntilLoaded(t, v)
+		before := v.captureBrowsingScope()
+		if !before.restricted || before.complete || !slices.Equal(before.indexes, []int{0}) || len(v.preloadCandidates()) != 0 {
+			t.Fatalf("incomplete direct visit is not bounded to discovered members: %+v", before)
+		}
+		release()
+		v.locationMap.Settle()
+		after := v.captureBrowsingScope()
+		if !after.complete || !slices.Equal(after.indexes, []int{0, 1}) || !slices.Equal(before.indexes, []int{0}) {
+			t.Fatalf("discovery did not extend only the new action's scope: before=%+v after=%+v", before, after)
+		}
+		neighbors := v.preloadCandidates()
+		if len(neighbors) != 1 || neighbors[0].Path() != v.FileAt(1).Path() {
+			t.Fatalf("newly mapped member is not a preload neighbor: %v", neighbors)
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+		waitUntilLoaded(t, v)
+		if v.state.index != 1 {
+			t.Fatal("new mapped member did not become navigable")
+		}
+	})
 	t.Run("search_image_before_first_result", func(t *testing.T) {
 		v, publish := streamingSearch(t)
 		binding := v.browsing.current().binding
@@ -182,6 +242,25 @@ func TestBrowsingRoundTrips(t *testing.T) {
 }
 
 func TestBrowsingEmptyScope(t *testing.T) {
+	t.Run("direct_map_last_member", func(t *testing.T) {
+		v := newTestViewer(t)
+		a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+		b := uitest.TempJPEGURI(t, "b.jpg", 24, 16, color.White)
+		c := uitest.TempJPEGURI(t, "c.jpg", 24, 16, color.Black)
+		dropAndWait(t, v, a, b, c)
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		fynetest.Tap(locationPhoto(t, v, "a.jpg"))
+		waitUntilLoaded(t, v)
+		v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{0}})
+		v.locationMap.Settle()
+		if !v.locationMapVisible() {
+			t.Fatal("exhausted direct visit did not return to its map")
+		}
+		if scope := v.captureBrowsingScope(); !scope.restricted || len(scope.indexes) != 0 || len(v.preloadCandidates()) != 0 {
+			t.Fatalf("exhausted map widened to the collection: %+v", scope)
+		}
+	})
 	t.Run("explorer_filter", func(t *testing.T) {
 		v := explorerFixture(t)
 		v.OpenSimilarityCohort([]string{v.FileAt(0).Path()})

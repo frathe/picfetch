@@ -52,7 +52,7 @@ func (v *viewer) commandContext() commandContext {
 		stopping:           v.stopping,
 		canSave:            v.canSaveRotation(),
 		cohortVisit:        v.browsing.has(browsingExplorer),
-		locationVisit:      v.locationMap.Active(),
+		locationVisit:      v.locationVisitActive(),
 		searchVisit:        v.searchActive(),
 		variantsVisit:      v.variantsSession(),
 		regionActive:       v.regionCopy.State().Active,

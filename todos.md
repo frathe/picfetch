@@ -62,10 +62,10 @@
   [nine implementation tickets](.scratch/ma-029/issues/README.md) are published
   under the authorized implementation workflow. The
   [Deep SDD plan](plans/2026-09-27-ma-029-browsing-visits.md) tracks per-ticket
-  TDD, commits and verification; tickets 01-04 are complete (explicit scopes,
+  TDD, commits and verification; tickets 01-05 are complete (explicit scopes,
   no unrelated navigation/preloads from an empty restriction, and preserved
-  action targets, and authoritative Explorer/ranked-search visits and returns).
-  Ticket 05 migrates direct Location Map ownership. Keep the PR draft
+  action targets, and authoritative Explorer/ranked-search/direct-map visits).
+  Ticket 06 migrates frozen Location Map clusters. Keep the PR draft
   until all nine tickets finish, then complete fresh GitHub reviews and CI.
   MA-030 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.

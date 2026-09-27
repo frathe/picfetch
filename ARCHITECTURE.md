@@ -528,15 +528,19 @@ Explorer/search/Location Map orders once per navigation action or preload pair.
 Empty restrictions produce no navigation target. Command restrictions live in
 the shared root policy. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.
-`internal/ui/browsing_visits.go` owns Explorer's retained map/cohort and ranked
-search visit stack, foreground surface, collection/visit binding and validated
+`internal/ui/browsing_visits.go` owns Explorer's retained map/cohort, ranked
+search and direct Location Map visit stacks, foreground surface, collection/visit binding and validated
 return plans. Search's original image/Grid bookmark and frozen image rank belong
 here, separately from feature-owned query history. Deferred ranked delivery also
 validates the visit's transition revision before checking current admission.
 Grid interaction is captured before image opening and restored through one root
 boundary with fresh callbacks; bookmarks do not authorize navigation. Explorer
-keeps analysis/cohort data and its camera. Location Map is still a temporary
-source adapter pending the remaining MA-029 migration tickets.
+keeps analysis/cohort data and its camera. Direct Location Map visits use live
+mapped facts in collection order, with captured occurrences only as an
+incomplete-discovery fallback. Map entry/return validation checks the captured
+visit and collection before revealing its surface; committed facts still rebuild
+when admission refuses the visible return. Only cluster order/bookmarks and its
+image flag remain on Location Map's temporary root adapter pending ticket 06.
 `internal/ui/searchoverlay.go` observes dismissal of generic canvas overlays while
 a result is pending, with one acknowledged UI callback and cancellable, tracked
 worker completion through shutdown and the test harness.
