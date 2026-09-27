@@ -17,6 +17,8 @@ import (
 
 type visitHost struct {
 	current   visualsearch.Visit
+	origin    visualsearch.Visit
+	leave     func()
 	hold      bool
 	presented []visualsearch.Visit
 	restored  []visualsearch.Visit
@@ -31,10 +33,18 @@ func (h *visitHost) Present(v visualsearch.Visit, _ grid.Progress) {
 	}
 	h.presented = append(h.presented, v)
 }
-func (h *visitHost) Restore(v visualsearch.Visit, origin bool) {
+func (h *visitHost) Restore(v visualsearch.Visit) {
 	h.current = v
 	h.restored = append(h.restored, v)
-	h.origins = append(h.origins, origin)
+	h.origins = append(h.origins, false)
+}
+func (h *visitHost) LeaveSearch() {
+	if h.leave != nil {
+		h.leave()
+	}
+	h.current = h.origin
+	h.restored = append(h.restored, h.origin)
+	h.origins = append(h.origins, true)
 }
 func (*visitHost) Changed()           {}
 func (h *visitHost) Failed(err error) { h.errors = append(h.errors, err) }
@@ -69,6 +79,7 @@ func newSearch(t *testing.T) (*visualsearch.Feature, *visitHost, *uitest.UIQueue
 	q := &uitest.UIQueue{}
 	calls := make(chan providerCall, 8)
 	f := visualsearch.New(h, visualsearch.Options{Provider: heldProvider(calls), Queue: q})
+	h.leave = func() { f.Detach() }
 	t.Cleanup(func() { f.Stop(); f.Settle() })
 	return f, h, q, calls
 }
@@ -184,8 +195,8 @@ func TestVisualSearchCachePressureWriterQuiescence(t *testing.T) {
 func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
 	f, h, q, calls := newSearch(t)
 	scope := []string{"/a", "/b", "/c"}
-	origin := visualsearch.Visit{Paths: scope, Image: fileidentity.Occurrence{Path: "/a"}}
-	if !f.Start(visualsearch.StartRequest{Paths: scope, ReferencePath: "/a", Origin: origin}) {
+	h.origin = visualsearch.Visit{Paths: []string{"/a", "/b", "/c"}, Image: fileidentity.Occurrence{Path: "/a"}}
+	if !f.Start(visualsearch.StartRequest{Paths: scope, ReferencePath: "/a"}) {
 		t.Fatal("valid search rejected")
 	}
 	scope[0] = "/changed"
@@ -232,7 +243,8 @@ func TestVisualSearchProgressiveVisitUsesRetainedProvider(t *testing.T) {
 
 func TestVisualSearchLifecyclePendingBackRejectsQueuedReferences(t *testing.T) {
 	f, h, q, calls := newSearch(t)
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
+	h.origin = visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
 	call := <-calls
 	first := <-call.queries
 	publish(call, first, 1, similarity.SearchFinal, "/b", "/c")
@@ -350,7 +362,8 @@ func TestVisualSearchHistoryBranchAndTwentyVisitLimit(t *testing.T) {
 	for i := range paths {
 		paths[i] = fmt.Sprintf("/%02d", i)
 	}
-	f.Start(visualsearch.StartRequest{Paths: paths, ReferencePath: paths[0], Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/independent-origin"}}})
+	h.origin = visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/independent-origin"}}
+	f.Start(visualsearch.StartRequest{Paths: paths, ReferencePath: paths[0]})
 	call := <-calls
 	for i := 0; i < 22; i++ {
 		if i > 0 {
@@ -382,7 +395,8 @@ func TestVisualSearchHistoryBranchAndTwentyVisitLimit(t *testing.T) {
 
 func TestVisualSearchQueryFailurePreservesLastUsableVisit(t *testing.T) {
 	f, h, q, calls := newSearch(t)
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
+	h.origin = visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b", "/c"}, ReferencePath: "/a"})
 	call := <-calls
 	first := <-call.queries
 	publish(call, first, 1, similarity.SearchPartial, "/b")
@@ -425,6 +439,7 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 		return ctx.Err()
 	}
 	f := visualsearch.New(h, visualsearch.Options{Provider: provider, Queue: q})
+	h.leave = func() { f.Detach() }
 	t.Cleanup(func() {
 		select {
 		case <-release:
@@ -434,7 +449,8 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 		f.Stop()
 		f.Settle()
 	})
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}})
+	h.origin = visualsearch.Visit{Image: fileidentity.Occurrence{Path: "/origin"}}
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a"})
 	<-started
 	f.Settle()
 	done := f.Suspend()
@@ -460,32 +476,23 @@ func TestVisualSearchLifecycleSuspendWaitsForWriterAndRetainsBrowsing(t *testing
 	}
 }
 
-func TestVisualSearchLifecycleDetachOrigin(t *testing.T) {
+func TestVisualSearchLifecycleDetach(t *testing.T) {
 	f, h, q, calls := newSearch(t)
-	origin := visualsearch.Visit{
-		Image: fileidentity.Occurrence{Path: "/a", Ordinal: 1},
-		Grid:  grid.Visit{Selected: []string{"/a"}, Query: "saved", Visible: true},
-	}
-	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a", Origin: origin})
+	f.Start(visualsearch.StartRequest{Paths: []string{"/a", "/b"}, ReferencePath: "/a"})
 	call := <-calls
 	query := <-call.queries
 	publish(call, query, 1, similarity.SearchPartial, "/b")
 	q.Drain()
 	presentations := len(h.presented)
 	publish(call, query, 2, similarity.SearchFinal, "/late")
-	detached, active := f.DetachOrigin()
-	if !active || !reflect.DeepEqual(detached, origin) || f.Active() {
-		t.Fatal("detachment lost the origin or retained the search session")
+	if !f.Detach() || f.Active() {
+		t.Fatal("detachment retained the search session")
 	}
 	f.Settle()
 	if len(h.restored) != 0 || len(h.presented) != presentations {
 		t.Fatal("detachment or retired delivery changed the surface before root reconciliation")
 	}
-	detached.Grid.Selected[0] = "/changed"
-	if origin.Grid.Selected[0] != "/a" {
-		t.Fatal("detached origin aliases its caller's bookmark")
-	}
-	if _, active := f.DetachOrigin(); active || f.Back() {
+	if f.Detach() || f.Back() {
 		t.Fatal("retired origin can be restored twice")
 	}
 	f.Start(visualsearch.StartRequest{Paths: []string{"/new"}, ReferencePath: "/new"})

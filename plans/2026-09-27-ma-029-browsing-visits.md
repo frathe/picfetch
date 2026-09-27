@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: tickets 01-03 complete; implementing ticket 04 of 09.
+Status: tickets 01-04 complete; implementing ticket 05 of 09.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -102,7 +102,7 @@ GoLand inspection, documentation updates and a separate commit.
 | 01 scope | T0; browsing.go, visibility.go, load.go, explorer.go, viewer.go, new browsing scope tests | Scope contract above; `TestBrowsingScope`, baseline `TestBrowsingCompatibility`; existing search/Explorer/map families | 1 scout, 2 reviews, no full suite |
 | 02 targets | T0; browsing.go, visualsearch.go, batch/clipboard adapters only as necessary, action tests | Ranked vs persistable Favorite capture; batch targets and displayed pixels; `TestBrowsingActionTargets`, existing ranked-target/admission families | 0 implementation spawns, 2 reviews |
 | 03 Explorer | T0; new browsing visit module/tests, explorer.go, Explorer feature Host, Grid bookmark bindings, command observations | Authoritative transitions, cohort/Unassigned round trips, exhaustion and obsolete delivery; transition/round-trip/empty/deferred/lifecycle tests and Explorer anchor | 1 bounded scout if needed, 2 reviews |
-| 04 search | T0; visualsearch.go, visualsearch Feature origin Host, browsing module, search tests | Frozen image/live Grid, history vs Exit, deferred delivery and valid origin; transition/round-trip/progressive/deferred/lifecycle plus existing search anchors | 1 bounded package implementer only after contract fixed, 2 reviews |
+| 04 search | T0; visualsearch.go, visualsearch Feature origin Host, browsing module, search tests | Frozen image/live Grid, history vs Exit, deferred delivery and valid origin; transition/round-trip/progressive/deferred/lifecycle plus existing search anchors | 1 bounded read-only scout, 2 reviews |
 | 05 direct map | T0; locationmap.go, browsing module, locationmap tests | Live mapped scope, validation and admission, camera/exit/exhaustion; progressive/round-trip/empty/deferred/lifecycle and Location Map anchor | 0 spawns, 2 reviews |
 | 06 clusters | T0; locationmap.go, browsing module, Grid bookmark bindings, cluster tests | Frozen exact occurrences, remapping, cluster Grid/image/map stages; identity/progressive/round-trip/empty/lifecycle and Location Map anchor | 0 spawns, 2 reviews |
 | 07 collection changes | T0; sourcechange.go, sort.go, browsing module, relevant filework/drop seams, reconciliation tests | Detach, commit, reconcile, restore; exact/same-source/eligible fallback; collection/identity/deferred/lifecycle plus source/sort anchor | 1 bounded scout if needed, 2 reviews |
@@ -139,6 +139,14 @@ Host/bookmark entry points first; causal ordering requires reading beyond grep.
 Rules S/W: no mechanical transform or prewritten implementation. Lead develops
 the owner interface while the scout returns facts, never review decisions.
 
+04 uses the same T3 scout for feature-local query/history/retirement sequencing
+in visualsearch/feature.go, session.go and feature_test.go. G1: eight-line
+bounded prompt; G2: cited tests and callback ordering verified with rg/selectors;
+G3: three read-only files, no writes; G4: no root-owner decisions; G5: lead has
+the root adapter hot but has not read the detailed producer/history lifecycle.
+Rules S/W do not apply to causal recon. This replaces the optional package
+implementation slot: root/feature ownership must be changed together by the lead.
+
 ## Acceptance and progress
 
 - [x] Frame: accepted behavior, route, non-goals and authority inventory.
@@ -148,7 +156,7 @@ the owner interface while the scout returns facts, never review decisions.
 - [x] 01: explicit immutable scopes, integrated navigation/preloads, baseline.
 - [x] 02: separate captured action targets.
 - [x] 03: Explorer authority, round trips, exhaustion and lifecycle.
-- [ ] 04: ranked search authority, history and origin restoration.
+- [x] 04: ranked search authority, history and origin restoration.
 - [ ] 05: direct-map authority, live navigation and valid return.
 - [ ] 06: exact frozen cluster authority and return stages.
 - [ ] 07: ordered reconciliation and identity/fallback matrix.
@@ -169,7 +177,8 @@ Use that PATH and a writable temporary Go cache for local commands.
 | 01 | 1 / 1 | 1 | no | complete; evidence below |
 | 02 | 0 / 0 | 1 | no | complete; evidence below |
 | 03 | 1 / 1 | 1 | no | complete; evidence below |
-| 04-08 | per routing above / 0 | 0 | no | pending |
+| 04 | 1 / 1 | 1 | no | complete; evidence below |
+| 05-08 | per routing above / 0 | 0 | no | pending |
 | 09 / review | 0 / 0 | 0 | CI | pending |
 
 Compatibility mapping: the proposed `TestBrowsingCompatibility` family reuses
@@ -325,3 +334,73 @@ presentation projection check passed (0.534s), and the changed Explorer package
 passed again (0.414s). Final `make fmt-check vet` and `git diff --check` passed.
 Intermediate PR head `90c3aab` has successful full CI, CodeQL and Qodana jobs;
 this is not the final-head review/SARIF gate and no final scan claim is made.
+
+Ticket 03 commit: `ba185ce`.
+
+04 contract before tests: the owner retains the initial Grid/image bookmark
+independently of search's query history, pushing a ranked visit above the retained
+Explorer or ordinary origin. Search feature keeps worker admission, original
+query scope and history, but no longer stores/authorizes the cross-feature
+origin. Its Exit requests root restoration; root checks current admission before
+retiring it. Source changes use a separate unconditional detach, before callbacks,
+and restore the captured origin only after reconciliation.
+
+`enterSearch` captures the origin; `openImage` captures frozen ranked order;
+validated Grid return clears that frozen order without popping query history.
+The existing return plan/commit seam handles Exit to the retained origin.
+Root `searchActive` becomes an owner projection, and `searchPresentation` loses
+`imageOrder`. Deferred deliveries carry the owner binding and transition revision;
+the apply boundary rejects old collections, retired visits and replaced returns,
+then rechecks current command admission. Feature producer/query tokens continue
+to reject obsolete worker results. Query-history Back stays feature-owned and
+feeds the same validated Grid restoration boundary. Exact source fallback and
+common remap consolidation remain explicit 07/08 adapters.
+
+### Ticket 04 evidence (working diff over `ba185ce`)
+
+Removed search's cross-feature `origin` and `StartRequest.Origin`, replaced
+`DetachOrigin` with callback-free producer `Detach`, and changed feature Exit
+into a root request. Root `searchActive` now projects the browsing owner;
+`searchPresentation.imageOrder` is gone. Owner captures independent origin and
+ranked image order; return plans distinguish Grid from parent. `grid.Visit.Clone`
+owns public slices and private occurrence maps. Feature history, original query
+scope, producer/cache and per-instance queue remain feature-owned.
+
+New coverage: `TestBrowsingDeferredReturns/search_retired_delivery` and
+`search_exit_refused`; `TestBrowsingVisitTransitions/ranked_origin_is_independent`;
+`TestBrowsingProgressiveScopes/search_image_before_first_result`; and
+`TestBrowsingVisitLifecycle/search_shutdown`. Existing initial-round-trip tests
+exercise actual ordinary-image/Grid/Explorer origins, query-history Back and
+overlay deferral; progressive-foreground tests cover post-publication frozen
+navigation/preloads and latest-grid return. Source/sort retirement tests still
+check one load retry chain and original-image priority.
+
+Red: a captured old deferred result replaced the new search (`FAIL 0.139s`).
+Negative guards: removing the origin clone and shutdown retirement produced the
+two intended failures (`FAIL 0.111s`); aliasing frozen rank and bypassing Exit
+admission produced their two intended failures (`FAIL 0.128s`). A first mutation
+attempt stopped at an unused import; that compile failure is not counted as
+behavioral evidence. All mutations were restored before final verification.
+
+Final uncached verbose acceptance selector passed (`ok .../internal/ui 28.727s`),
+with no skipped cases:
+`^(TestBrowsing.*|TestFindMoreLikeThis.*|TestCommandAdmissionVisits|TestWindowCommandAdmissionMatrix|TestVisualSimilarityExplorer|TestShutdown.*)$`.
+The preceding root gate passed in 22.118s; changed-package suites passed for
+grid (1.988s) and visualsearch (0.011s). The scout's referenced pre-publication,
+immutable-delivery, retained-provider, history-limit and suspension tests are
+in that complete visualsearch package run. The feature detach test now tests
+producer retirement only; origin isolation moved to the real root owner test,
+not to an invented independent feature authority.
+
+`make fmt-check vet` and `git diff --check` passed. GoLand inspected all ten
+changed code files, including run.go and harness_test.go, with weak warnings:
+zero findings and no timeouts. No new test file or exclusion is needed; the new
+top-level progressive family is assigned to ui-3.
+
+Lead review confirms source retirement pops the owner before feature callbacks,
+ordinary Exit checks admission first, and deferred presentation checks binding,
+collection and transition revision before current command policy. Shutdown and
+harness cleanup retire owner state without changing worker join barriers. No
+new worker, automatic command replay, native glue, dependency or user string.
+
+Final Docker shard and exact exclusion checks passed: 725 runnables, three shards.

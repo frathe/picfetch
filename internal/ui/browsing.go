@@ -50,7 +50,7 @@ func (v *viewer) captureBrowsingScope() browsingScope {
 	if order := v.captureSearchOrder(); order.active {
 		state := v.visualsearch.State()
 		scope.indexes, scope.restricted = order.indexes, true
-		scope.binding.kind, scope.binding.visit = browsingSearch, state.SessionID
+		scope.binding = v.browsing.current().binding
 		scope.complete = state.Progress.Complete
 		return scope
 	}
@@ -126,8 +126,9 @@ func (v *viewer) captureSearchOrder() searchOrder {
 		order.indexes = v.grid.ResultIndexes()
 		return order
 	}
-	paths := v.searchView.imageOrder
-	if paths == nil {
+	visit := v.browsing.current()
+	paths := visit.order
+	if visit.surface != browsingImage {
 		paths = v.visualsearch.State().Visit.Paths
 	}
 	if len(paths) == 0 {

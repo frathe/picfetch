@@ -42,10 +42,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		v.locationMap.InvalidateSources(change.written)
 	}
 
-	origin, restore := v.visualsearch.DetachOrigin()
-	if restore {
-		v.resetSearchPresentation()
-	}
+	origin, restore := v.detachSearchOrigin()
 	// Closing comparison can deliver a pending ranking. Detach search first,
 	// before any callback can expose the collection being reconciled.
 	if v.comparisonActive() && (len(indices) > 0 || change.kind == sourcesRevalidated || restore && !origin.Grid.Visible) {

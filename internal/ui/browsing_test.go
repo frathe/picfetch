@@ -21,6 +21,37 @@ import (
 )
 
 func TestBrowsingVisitTransitions(t *testing.T) {
+	t.Run("ranked_origin_is_independent", func(t *testing.T) {
+		var visits browsingVisits
+		cohort := visits.openExplorerCohort(7)
+		visits.openImage(cohort, 7, grid.Visit{Query: "cohort"})
+		origin := browsingOrigin{grid: grid.Visit{Selected: []string{"/a"}}, image: fileidentity.Occurrence{Path: "/a", Ordinal: 1}}
+		search, entered := visits.enterSearch(7, origin)
+		if !entered || !visits.has(browsingExplorer) || visits.current().binding.kind != browsingSearch {
+			t.Fatal("search entry lost the retained Explorer image visit")
+		}
+		origin.grid.Selected[0] = "/changed"
+		bookmark := grid.Visit{Results: []string{"/a", "/c", "/b"}}
+		visits.openImage(search, 7, bookmark)
+		bookmark.Results[0] = "/changed"
+		if !slices.Equal(visits.current().order, []string{"/a", "/c", "/b"}) {
+			t.Fatal("search image order aliases the Grid's bookmark")
+		}
+		toGrid, ok := visits.planReturn(search, 7, browsingReturnGrid)
+		if !ok || !visits.commitReturn(toGrid, 7) || visits.current().order != nil || !visits.has(browsingExplorer) {
+			t.Fatal("ranked Grid return lost the independent origin or retained frozen order")
+		}
+		exit, ok := visits.planReturn(search, 7, browsingReturnParent)
+		if !ok || exit.origin.grid.Selected[0] != "/a" || exit.origin.image != origin.image {
+			t.Fatal("ranked transitions changed the original occurrence/bookmark")
+		}
+		if !visits.commitReturn(exit, 7) || visits.current().binding != cohort || visits.current().surface != browsingImage {
+			t.Fatal("search exit failed to restore the retained Explorer image visit")
+		}
+		if visits.commitReturn(exit, 7) {
+			t.Fatal("search origin could be restored twice")
+		}
+	})
 	var visits browsingVisits
 	visits.enterExplorer(7)
 	parent := visits.current()
@@ -61,6 +92,30 @@ func TestBrowsingVisitTransitions(t *testing.T) {
 	if visits.commitReturn(old, 8) || visits.current().binding.visit == binding.visit {
 		t.Fatal("close/reopen revived an old visit")
 	}
+}
+
+func TestBrowsingProgressiveScopes(t *testing.T) {
+	t.Run("search_image_before_first_result", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		binding := v.browsing.current().binding
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		publish(similarity.SearchFinal, 2, 1)
+		if scope := v.captureBrowsingScope(); !scope.restricted || !slices.Equal(scope.indexes, []int{0}) || scope.binding != binding {
+			t.Fatalf("first publication retargeted the pending image visit: %+v", scope)
+		}
+		if len(v.preloadCandidates()) != 0 {
+			t.Fatal("first publication added neighbors to the frozen image visit")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if !v.grid.Visible() || !v.searchActive() || !slices.Equal(v.grid.ResultIndexes(), []int{0, 2, 1}) {
+			t.Fatal("image return did not reveal the latest rank without leaving search")
+		}
+		v.visualsearch.Back()
+		if v.searchActive() || !v.grid.Visible() || len(v.grid.ResultIndexes()) != 4 {
+			t.Fatal("query-history Back did not restore the initial ordinary Grid")
+		}
+	})
 }
 
 func TestBrowsingRoundTrips(t *testing.T) {
@@ -177,6 +232,25 @@ func TestBrowsingEmptyScope(t *testing.T) {
 }
 
 func TestBrowsingVisitLifecycle(t *testing.T) {
+	t.Run("search_shutdown", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		publish(similarity.SearchFinal, 2, 1)
+		retired := searchDelivery{visit: v.visualsearch.State().Visit, binding: v.browsing.current().binding, revision: v.browsing.revision}
+		lifecycle := v.app.Lifecycle().(interface{ OnStopped() func() })
+		previous := lifecycle.OnStopped()
+		registerShutdown(v.app, v)
+		shutdown := lifecycle.OnStopped()
+		v.app.Lifecycle().SetOnStopped(previous)
+		shutdown()
+		v.visualsearch.Settle()
+		if v.searchActive() || v.visualsearch.Active() {
+			t.Fatal("shutdown retained search visit authority")
+		}
+		v.applySearchDelivery(retired)
+		if v.searchActive() {
+			t.Fatal("shutdown accepted a retired search presentation")
+		}
+	})
 	for _, retirement := range []string{"close_reopen", "collection_replacement", "source_removal"} {
 		t.Run("explorer/"+retirement, func(t *testing.T) {
 			v := explorerFixture(t)
@@ -207,6 +281,46 @@ func TestBrowsingVisitLifecycle(t *testing.T) {
 }
 
 func TestBrowsingDeferredReturns(t *testing.T) {
+	t.Run("search_exit_refused", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		publish(similarity.SearchFinal, 2, 1)
+		binding := v.browsing.current().binding
+		prompt := dialog.NewInformation("Test", "Cover", v.win)
+		prompt.Show()
+		v.visualsearch.Exit()
+		if !v.searchActive() || !v.visualsearch.Active() || v.browsing.current().binding != binding {
+			t.Fatal("refused Exit retired the producer or its retained browsing origin")
+		}
+		prompt.Hide()
+		if !v.searchActive() {
+			t.Fatal("refused Exit replayed on dismissal")
+		}
+		v.visualsearch.Exit()
+		if v.searchActive() || !v.grid.Visible() || len(v.grid.ResultIndexes()) != 4 {
+			t.Fatal("fresh Exit did not restore the retained Grid origin")
+		}
+	})
+	t.Run("search_retired_delivery", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		publish(similarity.SearchPartial, 2, 1)
+		prompt := dialog.NewInformation("Test", "Cover", v.win)
+		prompt.Show()
+		publish(similarity.SearchFinal, 3, 2)
+		if v.searchView.pending == nil {
+			t.Fatal("fixture did not defer ranked delivery")
+		}
+		retired := *v.searchView.pending
+		prompt.Hide()
+		v.visualsearch.Exit()
+		v.visualsearch.Settle()
+		publish = streamingSearchFrom(t, v)
+		publish(similarity.SearchFinal, 1)
+		before := v.grid.ResultIndexes()
+		v.applySearchDelivery(retired)
+		if !slices.Equal(v.grid.ResultIndexes(), before) {
+			t.Fatal("retired ranked delivery replaced a newer search visit")
+		}
+	})
 	t.Run("explorer_admission_rechecked", func(t *testing.T) {
 		v := explorerFixture(t)
 		v.OpenSimilarityCohort([]string{v.FileAt(0).Path()})

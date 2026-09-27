@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"slices"
+
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/ui/grid"
 )
@@ -24,6 +26,13 @@ type browsingVisit struct {
 	binding browsingBinding
 	surface browsingSurface
 	grid    *grid.Visit
+	origin  *browsingOrigin
+	order   []string
+}
+
+type browsingOrigin struct {
+	grid  grid.Visit
+	image fileidentity.Occurrence
 }
 
 // browsingVisits owns navigation authority, not feature data or visibility.
@@ -40,6 +49,7 @@ type browsingReturn struct {
 	revision    uint64
 	destination browsingDestination
 	grid        *grid.Visit
+	origin      *browsingOrigin
 }
 
 func (b *browsingVisits) current() browsingVisit {
@@ -85,24 +95,51 @@ func (b *browsingVisits) matches(binding browsingBinding, generation uint64) boo
 	return binding.visit != 0 && binding.collection == generation && b.current().binding == binding
 }
 
+func (b *browsingVisits) enterSearch(generation uint64, origin browsingOrigin) (browsingBinding, bool) {
+	if b.has(browsingSearch) {
+		return browsingBinding{}, false
+	}
+	origin.grid = origin.grid.Clone()
+	b.push(browsingSearch, browsingGrid, generation)
+	b.stack[len(b.stack)-1].origin = &origin
+	return b.current().binding, true
+}
+
+// detachSearch is the committed-source/close path: retirement is independent
+// of permission to present the origin. User Exit instead validates a return.
+func (b *browsingVisits) detachSearch() (browsingOrigin, bool) {
+	visit := b.current()
+	if visit.binding.kind != browsingSearch {
+		return browsingOrigin{}, false
+	}
+	origin := *visit.origin
+	b.stack = b.stack[:len(b.stack)-1]
+	b.revision++
+	return origin, true
+}
+
 func (b *browsingVisits) openImage(binding browsingBinding, generation uint64, bookmark grid.Visit) bool {
-	if !b.matches(binding, generation) || b.current().binding.kind != browsingExplorer {
+	if !b.matches(binding, generation) || binding.kind != browsingExplorer && binding.kind != browsingSearch {
 		return false
 	}
 	visit := &b.stack[len(b.stack)-1]
-	visit.surface, visit.grid = browsingImage, &bookmark
+	captured := bookmark.Clone()
+	visit.surface, visit.grid = browsingImage, &captured
+	if binding.kind == browsingSearch {
+		visit.order = slices.Clone(bookmark.Results)
+	}
 	b.revision++
 	return true
 }
 
 func (b *browsingVisits) planReturn(binding browsingBinding, generation uint64, destination browsingDestination) (browsingReturn, bool) {
-	if !b.matches(binding, generation) || binding.kind != browsingExplorer {
+	if !b.matches(binding, generation) || binding.kind != browsingExplorer && binding.kind != browsingSearch {
 		return browsingReturn{}, false
 	}
 	if destination != browsingReturnGrid && destination != browsingReturnParent {
 		return browsingReturn{}, false
 	}
-	return browsingReturn{source: binding, revision: b.revision, destination: destination, grid: b.current().grid}, true
+	return browsingReturn{source: binding, revision: b.revision, destination: destination, grid: b.current().grid, origin: b.current().origin}, true
 }
 
 func (b *browsingVisits) commitReturn(plan browsingReturn, generation uint64) bool {
@@ -112,6 +149,7 @@ func (b *browsingVisits) commitReturn(plan browsingReturn, generation uint64) bo
 	switch plan.destination {
 	case browsingReturnGrid:
 		b.stack[len(b.stack)-1].surface = browsingGrid
+		b.stack[len(b.stack)-1].order = nil
 	case browsingReturnParent:
 		b.stack = b.stack[:len(b.stack)-1]
 	default:

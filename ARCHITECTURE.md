@@ -495,8 +495,9 @@ screen observations belong to the separate native qualification runner.
 ### `internal/ui/visualsearch`
 
 Reference-driven browsing over a captured original source scope. `feature.go`
-owns immutable origin/current visits, the latest 20 successful reference visits,
-Back/Exit and branching; `session.go` owns a retained native provider, queued
+owns current queries, the latest 20 successful reference visits,
+history Back and branching; Exit requests the root browsing owner rather than
+restoring an independently held origin. `session.go` owns a retained native provider, queued
 session/query/revision delivery, and observable suspension and shutdown. Root
 supplies source identity, Grid presentation and origin restoration through a
 narrow Host. The feature's Settle drains finite query delivery without waiting
@@ -515,8 +516,8 @@ An image opened before the first publication retains its Grid anchor until the
 first successful visit commits. Terminal search failures revalidate the captured
 collection through root's tracked file-work lane before restoring the origin;
 request, session and collection identities reject obsolete reconciliation.
-`internal/ui/sourcechange.go` owns admitted source changes: search detaches its
-origin before callbacks, then root reconciles the complete removal/write/recovery,
+`internal/ui/sourcechange.go` owns admitted source changes: the browsing owner
+detaches the search origin and retires the producer before callbacks, then root reconciles the complete removal/write/recovery,
 retires Explorer, updates Grid and restores the origin. Display failures receive
 the selected origin index through their existing retry chain instead of starting
 a competing load. Committed writes retain comparison for Grid origins and close
@@ -527,12 +528,15 @@ Explorer/search/Location Map orders once per navigation action or preload pair.
 Empty restrictions produce no navigation target. Command restrictions live in
 the shared root policy. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.
-`internal/ui/browsing_visits.go` owns Explorer's retained map/cohort visit stack,
-foreground surface, collection/visit binding and validated return plans.
+`internal/ui/browsing_visits.go` owns Explorer's retained map/cohort and ranked
+search visit stack, foreground surface, collection/visit binding and validated
+return plans. Search's original image/Grid bookmark and frozen image rank belong
+here, separately from feature-owned query history. Deferred ranked delivery also
+validates the visit's transition revision before checking current admission.
 Grid interaction is captured before image opening and restored through one root
 boundary with fresh callbacks; bookmarks do not authorize navigation. Explorer
-keeps analysis/cohort data and its camera. Search and Location Map are still
-temporary source adapters pending the remaining MA-029 migration tickets.
+keeps analysis/cohort data and its camera. Location Map is still a temporary
+source adapter pending the remaining MA-029 migration tickets.
 `internal/ui/searchoverlay.go` observes dismissal of generic canvas overlays while
 a result is pending, with one acknowledged UI callback and cancellable, tracked
 worker completion through shutdown and the test harness.

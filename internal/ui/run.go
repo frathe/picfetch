@@ -191,7 +191,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.stopLocationTrial()
 		view.spiral.Close()
 		view.closeExplorer()
-		view.stopSearchOverlayWait()
+		view.closeVisualSearch()
 		view.visualsearch.Stop()
 		view.analysisCache.Stop()
 		view.explorer.Stop()

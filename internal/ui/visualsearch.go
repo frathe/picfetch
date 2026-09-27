@@ -2,7 +2,6 @@ package ui
 
 import (
 	"errors"
-	"slices"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -41,7 +40,6 @@ func (v *viewer) searchTarget() string {
 }
 
 type searchPresentation struct {
-	imageOrder     []string
 	pending        *searchDelivery
 	revision       uint64
 	applying       bool
@@ -50,7 +48,7 @@ type searchPresentation struct {
 	overlayUI      searchui.UIQueue
 }
 
-func (v *viewer) searchActive() bool { return v.visualsearch != nil && v.visualsearch.Active() }
+func (v *viewer) searchActive() bool { return v.browsing.current().binding.kind == browsingSearch }
 
 func (v *viewer) findMoreLikeThis() {
 	if _, ok := v.admitCommand(commandRequest{command: commandSearch}); !ok {
@@ -76,9 +74,8 @@ func (v *viewer) startVisualSearch(reference string) {
 	if v.searchActive() {
 		v.visualsearch.SetCachePolicy(v.searchCachePolicy())
 		if v.visualsearch.Explore(reference) {
-			v.searchView.imageOrder = nil
 			state := v.visualsearch.State()
-			v.presentSearch(state.Visit)
+			v.restoreSearchVisit(state.Visit)
 		}
 		return
 	}
@@ -91,12 +88,16 @@ func (v *viewer) startVisualSearch(reference string) {
 		}
 	}
 	origin := searchHost{v}.CaptureVisit()
+	if _, entered := v.browsing.enterSearch(v.Generation(), browsingOrigin{grid: origin.Grid, image: origin.Image}); !entered {
+		return
+	}
 	after := v.explorer.Suspend()
 	v.explorer.Surface().Hide()
-	v.searchView.imageOrder = nil
 	policy := v.searchCachePolicy()
-	if v.visualsearch.Start(searchui.StartRequest{Paths: paths, ReferencePath: reference, Origin: origin, Cache: policy, After: after}) {
+	if v.visualsearch.Start(searchui.StartRequest{Paths: paths, ReferencePath: reference, Cache: policy, After: after}) {
 		v.presentSearch(searchui.Visit{ReferencePath: reference})
+	} else {
+		v.browsing.detachSearch()
 	}
 }
 
@@ -104,51 +105,67 @@ func (v *viewer) startVisualSearch(reference string) {
 // remains owned by the live search session. Read progress at delivery time:
 // preparation can complete while a popup is holding this visit.
 type searchDelivery struct {
-	visit   searchui.Visit
-	restore bool
+	visit    searchui.Visit
+	restore  bool
+	binding  browsingBinding
+	revision uint64
 }
 
 func (v *viewer) presentSearch(visit searchui.Visit) {
-	v.applySearchDelivery(searchDelivery{visit: visit})
+	v.applySearchDelivery(searchDelivery{visit: visit, binding: v.browsing.current().binding, revision: v.browsing.revision})
 }
 
 func (v *viewer) applySearchDelivery(delivery searchDelivery) {
-	if v.searchView.applying || !v.searchActive() {
+	if v.searchView.applying || !v.searchActive() || !v.browsing.matches(delivery.binding, v.Generation()) || delivery.revision != v.browsing.revision {
 		return
 	}
 	v.searchView.applying = true
 	defer func() { v.searchView.applying = false }()
 	overlayOpen := v.win.Canvas().Overlays().Top() != nil
-	if v.comparisonActive() || overlayOpen || v.deletion.Visible() || v.exportPrompt.Visible() || v.searchView.imageOrder != nil {
+	if v.comparisonActive() || overlayOpen || v.deletion.Visible() || v.exportPrompt.Visible() || v.regionCopy.State().Active ||
+		v.browsing.current().surface == browsingImage && !delivery.restore || !v.queryCommand(commandRequest{command: commandGrid, route: routeDelivery}).allowed {
 		v.searchView.pending = &delivery
 		if overlayOpen {
 			v.watchSearchOverlay()
 		}
 		return
 	}
+	if delivery.restore {
+		plan, ok := v.browsing.planReturn(delivery.binding, v.Generation(), browsingReturnGrid)
+		if !ok || !v.browsing.commitReturn(plan, v.Generation()) {
+			return
+		}
+	}
 	v.stopSearchOverlayWait()
 	v.searchView.pending = nil
 	v.searchView.revision++
 	visit := delivery.visit
-	v.grid.OpenRanked(grid.RankedVisit{ReferencePath: visit.ReferencePath, Paths: visit.Paths, Revision: v.searchView.revision, Progress: v.visualsearch.State().Progress, Back: func() { v.visualsearch.Back() }, Exit: v.visualsearch.Exit, Save: v.saveSearchMatches})
+	binding := v.browsing.current().binding
+	v.grid.OpenRanked(grid.RankedVisit{ReferencePath: visit.ReferencePath, Paths: visit.Paths, Revision: v.searchView.revision, Progress: v.visualsearch.State().Progress,
+		Back: func() {
+			if v.browsing.matches(binding, v.Generation()) {
+				v.visualsearch.Back()
+			}
+		}, Exit: func() { v.exitVisualSearch(binding) }, Save: v.saveSearchMatches})
 	if delivery.restore {
-		v.grid.RestoreVisit(visit.Grid)
+		v.grid.RestoreInteraction(visit.Grid)
 	}
 	v.ForceRepaint()
 }
 
 func (v *viewer) resetSearchPresentation() {
 	v.stopSearchOverlayWait()
-	v.searchView.imageOrder = nil
 	v.searchView.pending = nil
 }
 
 func (v *viewer) restoreSearchVisit(visit searchui.Visit) {
-	v.resetSearchPresentation()
-	v.applySearchDelivery(searchDelivery{visit: visit, restore: true})
+	v.applySearchDelivery(searchDelivery{visit: visit, restore: true, binding: v.browsing.current().binding, revision: v.browsing.revision})
 }
 
 func (v *viewer) returnToSearchGrid() {
+	if _, ok := v.admitCommand(commandRequest{command: commandGrid, route: routeDelivery}); !ok {
+		return
+	}
 	state := v.visualsearch.State()
 	v.restoreSearchVisit(state.Visit)
 }
@@ -168,6 +185,7 @@ func (v *viewer) searchKey(key fyne.KeyName) bool {
 }
 func (v *viewer) closeVisualSearch() {
 	v.fileWork.searchLifecycle.invalidate()
+	v.browsing.detachSearch()
 	v.resetSearchPresentation()
 	if v.visualsearch != nil {
 		v.visualsearch.Close()
@@ -223,18 +241,43 @@ func (h searchHost) CaptureVisit() searchui.Visit {
 func (h searchHost) Present(visit searchui.Visit, _ grid.Progress) {
 	h.v.presentSearch(visit)
 }
-func (h searchHost) Restore(visit searchui.Visit, origin bool) {
+func (h searchHost) Restore(visit searchui.Visit) {
 	v := h.v
+	v.restoreSearchVisit(visit)
+	v.syncMenus()
+	v.ForceRepaint()
+}
+
+func (h searchHost) LeaveSearch() { h.v.exitVisualSearch(h.v.browsing.current().binding) }
+
+func (v *viewer) exitVisualSearch(binding browsingBinding) {
+	plan, ok := v.browsing.planReturn(binding, v.Generation(), browsingReturnParent)
+	if !ok || binding.kind != browsingSearch {
+		return
+	}
+	if _, admitted := v.admitCommand(commandRequest{command: commandViewer, route: routeDelivery}); !admitted {
+		return
+	}
+	if !v.browsing.commitReturn(plan, v.Generation()) {
+		return
+	}
+	v.visualsearch.Detach()
 	v.resetSearchPresentation()
-	if origin {
-		if i := v.restoreSearchOrigin(visit); i >= 0 {
-			v.loadImage(i)
-		}
-	} else {
-		v.restoreSearchVisit(visit)
+	if i := v.restoreSearchOrigin(searchui.Visit{Grid: plan.origin.grid, Image: plan.origin.image}); i >= 0 {
+		v.loadImage(i)
 	}
 	v.syncMenus()
 	v.ForceRepaint()
+}
+
+func (v *viewer) detachSearchOrigin() (searchui.Visit, bool) {
+	origin, active := v.browsing.detachSearch()
+	if !active {
+		return searchui.Visit{}, false
+	}
+	v.visualsearch.Detach()
+	v.resetSearchPresentation()
+	return searchui.Visit{Grid: origin.grid, Image: origin.image}, true
 }
 
 // restoreSearchOrigin restores interaction and selects an image without
@@ -304,8 +347,9 @@ func (h favoriteListHost) CurrentFiles() []fyne.URI {
 }
 
 func (v *viewer) searchImageOpened(visit grid.Visit) {
-	v.visualsearch.CaptureGrid(visit)
-	v.searchView.imageOrder = slices.Clone(visit.Results)
+	if v.browsing.openImage(v.browsing.current().binding, v.Generation(), visit) {
+		v.visualsearch.CaptureGrid(visit)
+	}
 }
 
 func (v *viewer) flushSearchPresentation() {

@@ -226,6 +226,7 @@ func drain(t *testing.T, v *viewer) {
 	if v.searchView.overlayUI != nil {
 		v.searchView.overlayUI.Drain()
 	}
+	v.closeVisualSearch()
 	v.visualsearch.Stop()
 	v.analysisCache.Stop()
 	v.analysisCache.Settle()
