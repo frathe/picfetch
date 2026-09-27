@@ -1,6 +1,6 @@
 # MA-028 ticket and execution plan
 
-Status: Windows prompt-focus follow-up locally verified; fresh PR 66 gates required; physical/native desktop acceptance open.
+Status: Windows prompt-focus and Help-owned navigation fixes locally verified; fresh PR 66 gates required; physical/native desktop acceptance open.
 Date: 2026-09-27.
 Planning revision: `7db3faf75ea704055b72baa98b2eca20b8bad268`.
 Route: Deep, because the change crosses feature adapters and native input on
@@ -40,6 +40,27 @@ No implementation, review or native desktop interaction is delegated.
 ### Remaining acceptance follow-up (2026-09-27)
 
 #### Windows 11 qualification follow-up
+
+PR review of `d662160` identified a Help-owned continuation blocked by fresh
+main-window admission: Finis's clue can dereference a missing manual beneath a
+main-window modal. T0 owns the fix and related About/Manual/Spiral routing.
+Files: Help manual/about/finis and existing tests, root feature wiring/tunnel
+and its existing test. Preserve fresh command guards; owned secondary-window
+links must open/reuse their destinations without dismissing the main modal.
+Verify red/green with `go test -tags no_emoji,nodynamic -count=1 ./internal/ui/help
+./internal/ui -run '^(TestFinisClue.*|TestShowAbout.*|TestHelp_Finis.*|TestHypnoTunnel)$'`,
+then focused race/vet and changed-file IDE inspections. Full suite: CI only.
+One additional bounded read-only route inventory uses the existing scout;
+G1-G5: cited callback ownership, no writes/review, independent remaining routes.
+Budget: no new spawn; T0 fixes and reviews until a fresh clean bot round.
+
+Result: the Finis panic and five owned routes have red/green coverage; separate
+About/Spiral-F1 omission overlays fail as expected. Focused race/vet and nine-file
+GoLand inspections pass with one unchanged, already-excluded test duplicate.
+Native Windows repeats pass Finis/Manual/Spiral and About navigation beneath
+Manage Favorites, preserving that modal; all owned windows/processes closed.
+The [PR evidence](../docs/command-admission-pr-66-review-2026-09-27.md) records
+the exact findings, commands, native scope and previous-head remote results.
 
 The user authorizes completing feasible ticket 10 checks on Windows 11, then
 committing, pushing and running the PR review loop. T0 retains native execution,

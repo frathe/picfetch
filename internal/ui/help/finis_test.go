@@ -135,6 +135,7 @@ func TestFinisClueClearsManualSearch(t *testing.T) {
 	}
 	manual.Canvas().Unfocus()
 	h.ShowFinis()
+	h.SetAdmission(func() bool { return false })
 	companion := h.finisWin.Window()
 	revealFinis(companion)
 	clue := h.finis.clue
@@ -148,6 +149,45 @@ func TestFinisClueClearsManualSearch(t *testing.T) {
 	}
 	companion.Close()
 	manual.Close()
+}
+
+func TestFinisClueOpensManualWhileMainCommandsAreBlocked(t *testing.T) {
+	a := test.NewApp()
+	t.Cleanup(a.Quit)
+	original := currentManual
+	t.Cleanup(func() { currentManual = original })
+	currentManual = func() string { return searchFixture }
+	h := New(a, "PicFetch", nil)
+	h.ShowFinis()
+	companion := h.finisWin.Window()
+	t.Cleanup(companion.Close)
+	revealFinis(companion)
+	h.SetAdmission(func() bool { return false })
+	h.ShowManual()
+	if h.ManualOpen() {
+		t.Fatal("fresh manual command bypassed admission")
+	}
+	clue := h.finis.clue
+	point := a.Driver().AbsolutePositionForObject(clue).Add(fyne.NewPos(clue.Size().Width/2, clue.Size().Height/2))
+	test.TapCanvas(companion.Canvas(), point)
+	if !h.ManualOpen() || h.manual == nil {
+		t.Fatal("owned clue did not open the manual")
+	}
+	manual := h.manualWin.Window()
+	t.Cleanup(func() {
+		if window := h.manualWin.Window(); window != nil {
+			window.Close()
+		}
+	})
+	if h.manual.entry.Text != "" || manual.Canvas().Focused() != h.manual.entry {
+		t.Fatal("owned clue did not focus an empty manual search")
+	}
+	manual.Close()
+	h.Stop()
+	test.TapCanvas(companion.Canvas(), point)
+	if h.ManualOpen() {
+		t.Fatal("owned clue reopened the manual after shutdown")
+	}
 }
 
 func TestFinisCirclesReachWindowEdges(t *testing.T) {

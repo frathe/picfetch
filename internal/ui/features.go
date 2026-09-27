@@ -44,7 +44,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	})
 	view.welcomeArt.onCircles = view.help.ShowFinis
 	view.spiral = spiral.New(application)
-	view.spiral.SetOnManual(view.help.ShowManual)
+	view.spiral.SetOnManual(view.help.OpenManualLink)
 	view.help.SetOnSpiral(view.openSpiral)
 
 	// The window-drag easter egg (gesture.go): the detector is fed by the

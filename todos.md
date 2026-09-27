@@ -60,6 +60,9 @@
   Scoped Windows 11 native checks now pass using literal `make run`, real menus
   and clipboard, and OS-injected input. The discovered prompt-focus defect is
   repaired, with focused race tests, native repeats and eight-file inspections.
+  The next PR review found a Finis clue nil-pointer crash beneath a main-window
+  modal. Owned Help/Spiral navigation is repaired with red/green and omission
+  coverage, focused race tests, nine-file inspections and native Windows repeats.
   Physical input on all three platforms and full macOS desktop acceptance remain
   unverified; ticket 10 stays open. At `4674cca`, fresh PR 66 CI and CodeQL passed,
   Codex code/security reviews have no findings, and Qodana's inspected SARIF has

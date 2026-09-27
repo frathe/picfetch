@@ -131,6 +131,11 @@ func TestHelp_FinisSearchOpensCompanion(t *testing.T) {
 	t.Cleanup(func() { currentManual = original })
 	currentManual = func() string { return "Finis likes pictures." }
 	h.ShowManual()
+	h.SetAdmission(func() bool { return false })
+	h.ShowFinis()
+	if h.finisWin.Open() {
+		t.Fatal("fresh Finis command bypassed admission")
+	}
 	for _, query := range []string{"finis", " FINIS "} {
 		h.manual.entry.SetText(query)
 		h.manual.entry.OnSubmitted(query)
@@ -146,5 +151,11 @@ func TestHelp_FinisSearchOpensCompanion(t *testing.T) {
 		if h.manual.entry.Text != "" {
 			t.Fatal("secret search was not cleared")
 		}
+	}
+	h.finisWin.Window().Close()
+	h.Stop()
+	h.manual.entry.OnSubmitted("finis")
+	if h.finisWin.Open() {
+		t.Fatal("manual reopened Finis after shutdown")
 	}
 }

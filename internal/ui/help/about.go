@@ -37,7 +37,7 @@ func (h *Help) ShowAbout() {
 		version := widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
 		manualLink := widget.NewHyperlink(lang.L("Open the manual"), nil)
-		manualLink.OnTapped = h.ShowManual
+		manualLink.OnTapped = h.OpenManualLink
 		discussionsLink := widget.NewHyperlink(lang.L("GitHub Discussions"), nil)
 		discussionsLink.OnTapped = h.OpenDiscussionsLink
 

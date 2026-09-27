@@ -198,9 +198,18 @@ func (h *Help) ShowManual() {
 	if !h.admitted() {
 		return
 	}
+	h.OpenManualLink()
+}
+
+// OpenManualLink serves navigation owned by an already-open secondary window.
+// Main-window commands use ShowManual so they still observe admission.
+func (h *Help) OpenManualLink() {
+	if h.stopped {
+		return
+	}
 	h.manualWin.Show(h.app, lang.L("PicFetch Manual"), fyne.NewSize(manualW, manualH), func() fyne.CanvasObject {
 		h.manual = newManualView(currentManual(), h.openSpiral)
-		h.manual.onFinis = h.ShowFinis
+		h.manual.onFinis = h.showFinis
 
 		return h.manual.content()
 	}, func() {
@@ -219,11 +228,14 @@ func (h *Help) ShowManual() {
 	}
 }
 
-// showEmptyManualSearch follows Finis's clue without executing it. ShowManual
+// showEmptyManualSearch follows Finis's clue without executing it. OpenManualLink
 // owns singleton reuse and entry focus; submitting an empty query discards
 // both the previous matches and the highlighted current result.
 func (h *Help) showEmptyManualSearch() {
-	h.ShowManual()
+	h.OpenManualLink()
+	if h.manual == nil {
+		return
+	}
 	h.manual.entry.SetText("")
 	h.manual.submit("")
 }

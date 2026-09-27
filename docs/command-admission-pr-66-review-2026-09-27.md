@@ -24,6 +24,57 @@ fresh code/security reviews, CI/CodeQL and inspected Qodana SARIF must pass on
 the new pushed head; the final PR disposition pins that commit and evidence.
 Physical keyboard and full macOS desktop acceptance remain open in ticket 10.
 
+### Windows review round on `d662160`
+
+[CI 36324473600](https://github.com/frathe/picfetch/actions/runs/36324473600)
+passed all nine jobs, including every Linux race partition and native Windows
+and both macOS architectures. Downloaded command-admission native event logs
+show the required case-alias test passing without skips on all three native
+jobs and the modifier-mask guard passing on both macOS jobs.
+[CodeQL 36324473598](https://github.com/frathe/picfetch/actions/runs/36324473598)
+passed Go and Actions analysis, with no open branch alerts. FOSSA checks passed.
+[Qodana 36324473602](https://github.com/frathe/picfetch/actions/runs/36324473602)
+completed successfully; artifact `10933756513`'s **end/qodana.sarif.json** has
+zero results, successful invocation/exit 0 and no execution notifications.
+Security review completed at 14:08:13 UTC without actionable findings.
+
+Code review completed at 14:11:29 UTC with one confirmed P2:
+[Help-owned navigation](https://github.com/frathe/picfetch/pull/66#discussion_r4115647190).
+Finis's clue called gated ShowManual, then dereferenced an unconstructed manual
+when the main window owned a modal. The same fresh-command gate blocked About's
+manual link, Manual's Finis/Spiral actions and Spiral's F1. T0 reproduced the
+nil-pointer panic and blocked routes before repair. Owned links now use their
+window-local continuation; fresh main-window commands remain gated and terminal
+shutdown still refuses new windows. No menu policy, worker or dependency changed.
+
+Verification of the follow-up tree based on `d662160`:
+
+- Focused Help/root command and prompt regressions pass; the focused race run
+  (`TestFinis.*`, `TestShow.*`, `TestHelp.*`, `TestHypnoTunnel`,
+  `TestCommandAdmission.*`, `TestWindowCommandAdmissionMatrix`,
+  `TestExportPrompt.*`) passes Help in 35.829s and root UI in 76.176s.
+  Focused vet, changed-file goimports and whitespace checks pass.
+- Tests exercise the actual clue/link/search/F1 bindings, absent and existing
+  manuals, shutdown and preservation of the main modal. Separate Go overlays
+  restoring the old About binding and Spiral F1 binding each fail for the
+  expected blocked-navigation reason. The shutdown red run also exposed a test
+  cleanup double-close; cleanup now closes only a live singleton.
+- Native Windows `make run` repeats use the same isolated profile and OS-injected
+  input as the Windows record: open Finis, close Manual, open Manage Favorites,
+  reveal/tap the clue, open Spiral from Manual and reopen Manual using Spiral F1.
+  About's actual manual link also opens beneath Manage Favorites. Captures after
+  both chains retain the main modal unchanged. Owned app PID 8288 and secondary
+  windows were closed; the launcher exited 0.
+- GoLand inspection fallback covers all nine changed Go files, including weak
+  warnings. Eight are clear; `help/finis_test.go` reports one unchanged 8-line
+  circle-loop duplicate, covered by its existing exact `qodana.yaml` exclusion.
+  No suppression or exclusion was added. Raw reports, native captures, red/green,
+  race and mutation logs are in `.scratch/ma-028/windows-2026-09-27`.
+
+This finding requires a fix push, thread disposition/resolution and another
+fresh code/security review and complete CI/CodeQL/Qodana evidence on the new
+head. The final PR disposition records that exact head and its results.
+
 T0 owns the standards and specification assessments and all fixes. One bounded
 read-only scout extracted existing native test events; T0 verified its results
 with `jq`. No review or fix was delegated. Full tests run in GitHub CI; local
