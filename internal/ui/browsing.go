@@ -1,6 +1,96 @@
 package ui
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/frathe/picfetch/internal/dupes"
+)
+
+type browsingKind uint8
+
+const (
+	browsingCollection browsingKind = iota
+	browsingExplorer
+	browsingSearch
+	browsingLocation
+	browsingCluster
+)
+
+type browsingBinding struct {
+	kind       browsingKind
+	collection uint64
+	visit      uint64
+}
+
+// browsingScope is one immutable restricted order. Restriction is independent
+// of membership: a visit with no surviving members is not the collection.
+type browsingScope struct {
+	indexes    []int
+	restricted bool
+	complete   bool
+	binding    browsingBinding
+	collection dupes.Snapshot
+}
+
+// captureBrowsingScope is the temporary adapter for visits whose ownership has
+// not migrated yet. Consumers never infer restriction from a nonempty slice.
+func (v *viewer) captureBrowsingScope() browsingScope {
+	scope := browsingScope{complete: true, collection: v.state.snapshot()}
+	scope.binding.collection = v.Generation()
+	if v.locationMap.Active() && v.locationInput.image {
+		scope.indexes, scope.restricted = v.locationIndexes(), true
+		scope.binding.kind, scope.binding.visit = browsingLocation, v.locationInput.prepareOp.currentRevision()
+		scope.complete = v.locationMap.Counts().Complete
+		if v.locationInput.cluster {
+			scope.binding.kind, scope.complete = browsingCluster, true
+		}
+		return scope
+	}
+	if order := v.captureSearchOrder(); order.active {
+		state := v.visualsearch.State()
+		scope.indexes, scope.restricted = order.indexes, true
+		scope.binding.kind, scope.binding.visit = browsingSearch, state.SessionID
+		scope.complete = state.Progress.Complete
+		return scope
+	}
+	if v.explorer.HasCohort() {
+		paths, _ := v.explorer.Cohort()
+		members := make(map[string]bool, len(paths))
+		for _, path := range paths {
+			members[path] = true
+		}
+		var indexes []int
+		for i := range v.FileCount() {
+			if members[v.FileAt(i).Path()] {
+				indexes = append(indexes, i)
+			}
+		}
+		scope.indexes, scope.restricted = indexes, true
+		scope.binding.kind, scope.binding.visit = browsingExplorer, v.explorer.State().Revision
+	}
+	return scope
+}
+
+func (s browsingScope) Next(from, delta int) (int, bool) {
+	if len(s.indexes) == 0 {
+		return 0, false
+	}
+	return neighborInOrder(s.indexes, from, delta), true
+}
+
+func (s browsingScope) First() (int, bool) {
+	if len(s.indexes) == 0 {
+		return 0, false
+	}
+	return s.indexes[0], true
+}
+
+func (s browsingScope) Last() (int, bool) {
+	if len(s.indexes) == 0 {
+		return 0, false
+	}
+	return s.indexes[len(s.indexes)-1], true
+}
 
 // browsingContext observes the source subset for payload/order capture.
 // It deliberately does not copy ranked paths just to answer a capability check.

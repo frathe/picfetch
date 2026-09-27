@@ -155,27 +155,7 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 }
 
 func (v *viewer) cohortIndexes() []int {
-	if indexes := v.locationIndexes(); len(indexes) > 0 {
-		return indexes
-	}
-	if order := v.captureSearchOrder(); order.active {
-		return order.indexes
-	}
-	paths, _ := v.explorer.Cohort()
-	if len(paths) == 0 {
-		return nil
-	}
-	members := make(map[string]bool, len(paths))
-	for _, path := range paths {
-		members[path] = true
-	}
-	var indexes []int
-	for i := range v.FileCount() {
-		if members[v.FileAt(i).Path()] {
-			indexes = append(indexes, i)
-		}
-	}
-	return indexes
+	return v.captureBrowsingScope().indexes
 }
 
 func (v *viewer) backToSimilarityMap()           { v.explorer.ReturnToMap() }

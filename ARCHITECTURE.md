@@ -521,9 +521,11 @@ retires Explorer, updates Grid and restores the origin. Display failures receive
 the selected origin index through their existing retry chain instead of starting
 a competing load. Committed writes retain comparison for Grid origins and close
 it when an image origin must be restored.
-`internal/ui/browsing.go` captures ranked subset facts and one immutable index
-order per action or preload pair; command restrictions live in the shared root
-policy. Favorite capture exposes one
+`internal/ui/browsing.go` captures explicit restricted/ordinary scopes, discovery
+completion and collection/feature bindings; its temporary adapters resolve
+Explorer/search/Location Map orders once per navigation action or preload pair.
+Empty restrictions produce no navigation target. Command restrictions live in
+the shared root policy. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.
 `internal/ui/searchoverlay.go` observes dismissal of generic canvas overlays while
 a result is pending, with one acknowledged UI callback and cancellable, tracked

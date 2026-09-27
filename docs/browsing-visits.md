@@ -1,6 +1,6 @@
 # MA-029: explicit browsing-visit ownership
 
-Status: accepted design; specification published; implementation planning pending.
+Status: accepted design; implementation in progress (ticket 01 complete).
 Date: 2026-09-27
 Source: `/grill-with docs MA-029`
 Inspected revision: `e7d04561dd7f1565480ed8a46adf76cc327f0e73`.
@@ -16,10 +16,11 @@ captures user stories, testing seams and the executable acceptance map. It is
 published to the repository's gitignored Markdown tracker; this design remains
 the tracked record of accepted decisions.
 
-All ten interview decisions are accepted. The eventual cross-package refactor
-follows the Deep SDD route; its implementation plan will finalize interfaces,
-migration tasks and the specification's proposed verification targets. No
-implementation plan has been accepted and no application code has changed.
+All ten interview decisions are accepted. The authorized implementation follows
+the [Deep SDD plan](../plans/2026-09-27-ma-029-browsing-visits.md), with finalized
+scope contracts, per-ticket TDD/inspection evidence and incremental commits.
+The [nine local tickets](../.scratch/ma-029/issues/README.md) track remaining
+migrations; scope centralization alone is not completion of MA-029.
 
 ## Accepted decisions
 

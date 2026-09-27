@@ -925,10 +925,14 @@ func (v *viewer) Advance() {
 		return
 	}
 	if v.slides.Shuffle() {
-		v.loadImage(v.randomVisibleOther(v.state.index))
+		if i, ok := v.randomVisibleOther(v.state.index); ok {
+			v.loadImage(i)
+		}
 		return
 	}
-	v.loadImage(v.nextVisibleIndex(v.state.index, 1))
+	if i, ok := v.nextVisibleIndex(v.state.index, 1); ok {
+		v.loadImage(i)
+	}
 }
 
 // StepImage moves by delta files (typically +1 or -1), wrapping through
@@ -945,7 +949,11 @@ func (v *viewer) StepImage(delta int) {
 	if _, ok := v.admitCommand(commandRequest{command: commandNavigate}); !ok {
 		return
 	}
-	v.ShowImage(v.nextVisibleIndex(v.state.index, delta))
+	i, ok := v.nextVisibleIndex(v.state.index, delta)
+	if !ok {
+		return
+	}
+	v.ShowImage(i)
 	if v.slides.Active() {
 		v.slides.Kick()
 	}

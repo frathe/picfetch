@@ -59,9 +59,12 @@
   fallbacks, failed-load recovery and duplicate-inspection compatibility.
   Its [local specification](.scratch/ma-029/spec.md) is `ready-for-agent`, with
   the user stories and executable acceptance map. The
-  [nine-ticket draft breakdown](.scratch/ma-029/ticket-drafts/README.md) awaits
-  approval of ticket size and dependencies before publication. Next: publish
-  the approved tickets, then prepare the Deep SDD implementation plan.
+  [nine implementation tickets](.scratch/ma-029/issues/README.md) are published
+  under the authorized implementation workflow. The
+  [Deep SDD plan](plans/2026-09-27-ma-029-browsing-visits.md) tracks per-ticket
+  TDD, commits and verification; ticket 01 is complete (explicit scope snapshots,
+  no unrelated navigation/preloads from an empty restriction), and 02 is next. Keep the PR draft
+  until all nine tickets finish, then complete fresh GitHub reviews and CI.
   MA-030 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 

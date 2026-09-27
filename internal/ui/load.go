@@ -204,9 +204,13 @@ func (v *viewer) preloadCandidates() []fyne.URI {
 		return nil
 	}
 	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
-	if order := v.cohortIndexes(); len(order) > 0 || v.captureSearchOrder().active {
-		next = neighborInOrder(order, v.state.index, 1)
-		prev = neighborInOrder(order, v.state.index, -1)
+	if scope := v.captureBrowsingScope(); scope.restricted {
+		var ok bool
+		next, ok = scope.Next(v.state.index, 1)
+		if !ok {
+			return nil
+		}
+		prev, _ = scope.Next(v.state.index, -1)
 	}
 	var candidates []fyne.URI
 	if next != v.state.index {

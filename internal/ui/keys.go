@@ -426,9 +426,13 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		v.StepImage(-1)
 		return
 	case fyne.KeyHome:
-		v.ShowImage(v.firstVisibleIndex())
+		if i, ok := v.firstVisibleIndex(); ok {
+			v.ShowImage(i)
+		}
 	case fyne.KeyEnd:
-		v.ShowImage(v.lastVisibleIndex())
+		if i, ok := v.lastVisibleIndex(); ok {
+			v.ShowImage(i)
+		}
 	case fyne.KeyS:
 		v.toggleSort()
 	default:
