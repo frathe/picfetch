@@ -49,21 +49,23 @@ The parent specification and backlog issue are not modified by ticketing.
 
 The implementation request accepted the breakdown. Tickets are published under
 `.scratch/ma-028/issues/`; the original drafts are retained as planning history.
-Tickets 01-09 are implemented and locally verified; ticket 10 is
-`ready-for-human` because the required native desktops are not all available.
+Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementation
+checklist items checked against the recorded local evidence. Ticket 10 is
+unblocked and `ready-for-human`: its completed preparation is checked off,
+but native desktop, case-insensitive export and fresh CI acceptance remain open.
 
-| Ticket | Delivers | Blocked by | Owner / model / effort |
-| --- | --- | --- | --- |
-| [01](../.scratch/ma-028/issues/01-policy-and-save.md) | Shared admission, proven through Save Changes without losing an unavailable selection | None | T0 Codex Lead / GPT-6 Astra / extra high |
-| [02](../.scratch/ma-028/issues/02-clipboard-and-editing.md) | Correct text, region, Grid and image copy routing, including accelerator delivery | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [03](../.scratch/ma-028/issues/03-open-close-favorites.md) | Consistent Open, Close Files and Favorites admission, including external delivery | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [04](../.scratch/ma-028/issues/04-file-actions.md) | Export, Trash, reveal and wallpaper with prompt ownership and captured subjects | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [05](../.scratch/ma-028/issues/05-window-and-help-entry.md) | Consistent ordinary window, comparison, Settings and Help entry | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [06](../.scratch/ma-028/issues/06-map-and-mosaic-entry.md) | Explorer, Location Map and mosaic entry with safe preparation and retained visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [07](../.scratch/ma-028/issues/07-sort-duplicates-search.md) | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [08](../.scratch/ma-028/issues/08-navigation-and-presentation.md) | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
-| [09](../.scratch/ma-028/issues/09-converge-and-verify.md) | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
-| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Native Linux, Windows and macOS evidence and final acceptance record | 09 | Native desktop operator + T0 Codex Lead / GPT-6 Astra / high |
+| Ticket | Status | Delivers | Depends on | Owner / model / effort |
+| --- | --- | --- | --- | --- |
+| [01](../.scratch/ma-028/issues/01-policy-and-save.md) | Done / resolved | Shared admission, proven through Save Changes without losing an unavailable selection | None | T0 Codex Lead / GPT-6 Astra / extra high |
+| [02](../.scratch/ma-028/issues/02-clipboard-and-editing.md) | Done / resolved | Correct text, region, Grid and image copy routing, including accelerator delivery | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [03](../.scratch/ma-028/issues/03-open-close-favorites.md) | Done / resolved | Consistent Open, Close Files and Favorites admission, including external delivery | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [04](../.scratch/ma-028/issues/04-file-actions.md) | Done / resolved | Export, Trash, reveal and wallpaper with prompt ownership and captured subjects | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [05](../.scratch/ma-028/issues/05-window-and-help-entry.md) | Done / resolved | Consistent ordinary window, comparison, Settings and Help entry | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [06](../.scratch/ma-028/issues/06-map-and-mosaic-entry.md) | Done / resolved | Explorer, Location Map and mosaic entry with safe preparation and retained visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [07](../.scratch/ma-028/issues/07-sort-duplicates-search.md) | Done / resolved | Sort, duplicates and Find more like this across restricted visits | 01 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [08](../.scratch/ma-028/issues/08-navigation-and-presentation.md) | Done / resolved | Navigation, rotation, zoom and presentation commands with local input preserved | 01 | T0 Codex Lead / GPT-6 Astra / high |
+| [09](../.scratch/ma-028/issues/09-converge-and-verify.md) | Done / resolved | Complete migration, removal of superseded policy, deterministic verification | 02, 03, 04, 05, 06, 07, 08 | T0 Codex Lead / GPT-6 Astra / extra high |
+| [10](../.scratch/ma-028/issues/10-native-qualification.md) | Open / ready-for-human | Native Linux, Windows and macOS evidence and final acceptance record | 09 | Native desktop operator + T0 Codex Lead / GPT-6 Astra / high |
 
 The graph is `01 -> {02,03,04,05,06,07,08} -> 09 -> 10`.
 Those middle tickets share a prerequisite, not permission to edit concurrently.

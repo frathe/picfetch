@@ -33,12 +33,14 @@
   shared pure admission and the agreed input/yield corrections. Its
   [specification](.scratch/ma-028/spec.md) and
   [published ten-ticket plan](plans/2026-09-27-ma-028-command-admission.md)
-  track implementation and acceptance. Tickets 01-09 are implemented; retain
+  track implementation and acceptance. Tickets 01-09 are done/resolved at
+  `9dc3a81`, with their implementation checklists complete; retain
   ticket 10 for native Linux/Windows/macOS editor accelerators, actual menu
   activation/enablement, modal controls and close during held region copying.
   macOS AppKit compilation/runtime and physical input on all three platforms
   remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
   workflow; local GoLand checks are not a Qodana-CI pass.
+  The skipped case-insensitive export regression also remains in ticket 10.
   MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
