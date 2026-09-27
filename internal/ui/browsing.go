@@ -129,6 +129,27 @@ func (s browsingScope) RestoreImage(origin fileidentity.Occurrence, identities f
 	return 0, s.collection.Count() > 0
 }
 
+// Recover follows source-removal policy, not ordinary Next: the removed
+// collection position is reused when eligible, then the scoped order wraps.
+// An explicitly restored image origin takes priority over that successor.
+func (s browsingScope) Recover(failed, restored int) (int, bool) {
+	if restored >= 0 {
+		return restored, restored < s.collection.Count() && (!s.restricted || slices.Contains(s.indexes, restored))
+	}
+	if s.restricted {
+		for _, index := range s.indexes {
+			if index >= failed {
+				return index, true
+			}
+		}
+		return s.First()
+	}
+	if count := s.collection.Count(); count > 0 {
+		return ((failed % count) + count) % count, true
+	}
+	return 0, false
+}
+
 // sourceOccurrences captures only the bookmarked path, without retaining an
 // index for unrelated collection members.
 func (v *viewer) sourceOccurrences(path string) fileidentity.Index {

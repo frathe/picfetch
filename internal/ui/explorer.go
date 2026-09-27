@@ -224,10 +224,6 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 	return false
 }
 
-func (v *viewer) cohortIndexes() []int {
-	return v.captureBrowsingScope().indexes
-}
-
 func (v *viewer) backToSimilarityMap()           { v.returnExplorerMap(v.browsing.current().binding) }
 func (v *viewer) recordExplorerView(kind string) { v.explorer.RecordView(kind) }
 

@@ -177,24 +177,12 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		return nil
 	}
 	v.ShowToast(msg)
-	if scope := v.captureBrowsingScope(); restoredIndex < 0 && scope.restricted && len(scope.indexes) == 0 {
+	next, ok := v.captureBrowsingScope().Recover(i, restoredIndex)
+	if !ok {
 		v.loadingBar.Hide()
 		return nil
 	}
-	if restoredIndex >= 0 {
-		i = restoredIndex
-	} else if cohort := v.cohortIndexes(); len(cohort) > 0 {
-		next := cohort[0]
-		for _, index := range cohort {
-			if index >= i {
-				next = index
-				break
-			}
-		}
-		i = next
-	}
-	n := len(v.state.files)
-	v.state.index = ((i % n) + n) % n
+	v.state.index = next
 	return v.state.files[v.state.index]
 }
 

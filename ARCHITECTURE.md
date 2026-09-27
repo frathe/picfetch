@@ -534,6 +534,11 @@ Explorer/search/Location Map orders once per navigation action or preload pair.
 Empty restrictions produce no navigation target. Command restrictions live in
 the shared root policy. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.
+The captured scope also supplies the separate load-recovery policy: an explicit
+restored image origin wins, otherwise recovery selects the first eligible index
+at/after the removed position and wraps within the scope. Unavailable HEIC stops
+before recovery selection; display retains one retry chain. The old cohort-index
+bridge is removed.
 `internal/ui/browsing_visits.go` owns Explorer's retained map/cohort, ranked
 search and Location Map visit stacks, foreground surface, collection/visit binding and validated
 return plans. Search's original image/Grid bookmark and frozen image rank belong

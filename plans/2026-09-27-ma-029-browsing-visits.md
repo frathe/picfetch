@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: tickets 01-07 complete; implementing ticket 08 of 09.
+Status: tickets 01-08 complete; implementing ticket 09 of 09.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -160,7 +160,7 @@ implementation slot: root/feature ownership must be changed together by the lead
 - [x] 05: direct-map authority, live navigation and valid return.
 - [x] 06: exact frozen cluster authority and return stages.
 - [x] 07: ordered reconciliation and identity/fallback matrix.
-- [ ] 08: single-chain failed-load recovery and HEIC guidance.
+- [x] 08: single-chain failed-load recovery and HEIC guidance.
 - [ ] 09: route/authority convergence and final verification.
 - [ ] PR ready, fresh clean latest-head Codex code/security reviews, CI,
   CodeQL and post-suppression Qodana SARIF clear of actionable findings.
@@ -181,7 +181,7 @@ Use that PATH and a writable temporary Go cache for local commands.
 | 05 | 0 / 0 | 2 | no | direct-map owner, live scope and validated return |
 | 06 | 0 / 0 | 2 | no | frozen cluster owner and validated Grid/map stages |
 | 07 | 1 / 1 | 2 | no | common occurrence remap, scoped origin restoration |
-| 08 | 0 / 0 | 0 | no | pending |
+| 08 | 0 / 0 | 2 | focused Docker | separate recovery policy; shutdown test isolation repaired |
 | 09 / review | 0 / 0 | 0 | CI | pending |
 
 Compatibility mapping: the proposed `TestBrowsingCompatibility` family reuses
@@ -613,3 +613,63 @@ report. Other shards, native guards, CodeQL and Qodana jobs succeeded, but no
 final SARIF claim is made. The UI-3 job also failed at `385fac3`; diagnosis is
 ongoing with a focused 20-repeat Docker race test, not golden regeneration.
 Final CI qualification remains the explicit 09/review gate.
+
+Ticket 07 commit: `0a8615b`.
+
+08 contract before tests: `browsingScope.Recover(failed, restored) (int, bool)`
+owns the existing successor policy separately from Next. A valid explicit
+restored origin wins; otherwise a restricted order chooses its first index at
+or after the removed position, wrapping to its first member. Empty restrictions
+return no target. Baseline retains collection modulo behavior. `imageLoadFailed`
+consumes exactly one post-reconciliation capture and never launches a new load;
+unavailable HEIC still stops before successor selection. Remove cohortIndexes'
+last consumer/adapter. Extend real-harness retry tests across Explorer image/Grid
+origins, repeated failures and exact frozen clusters; existing display retirement
+and HEIC tests retain their worker/lifecycle authority. Lead-only, hot context.
+
+### Ticket 08 evidence (working diff over `0a8615b`)
+
+`browsingScope.Recover` separates source-removal successor choice from ordinary
+Next and validates explicit restored targets. `imageLoadFailed` now consumes one
+post-reconciliation capture; `cohortIndexes` is deleted, and no new request,
+queue or worker is introduced. HEIC's unavailable branch is unchanged and runs
+before successor selection.
+
+New load-recovery family covers Explorer image/Grid search origins, consecutive
+failed cohort members, frozen nonadjacent cluster successor and request-revision
+continuity. New scope/recovery_is_not_next pins successor-at-removed-position,
+wrap, restored-origin priority, and empty/invalid restored restrictions. This is
+a behavior-preserving policy extraction: characterization passed (0.351s), then
+disabling the old scoped successor produced the intended Grid-origin failure
+(`FAIL 0.374s`) before extraction. Replacing the extracted recovery with Next
+failed the policy guard (`FAIL 0.090s`); mutations restored. New family/scope pass
+was 0.620s. Final restored recovery/scope/lifecycle/HEIC gate passed (1.449s).
+
+Final uncached verbose root selector passed (`ok .../internal/ui 27.688s`), no
+skipped cases:
+`^(TestBrowsing.*|TestFindMoreLikeThisSourceAndSortRetirement|TestFindMoreLikeThisInitialRoundTrip|TestVisualSimilarityExplorer|TestHEICBackendLossPreservesSession|TestHEICUnavailableGuide|TestInvalidateLoad.*|TestShowImage.*|TestViewerShow.*)$`.
+Display's `TestPresentationContract/load` passed (0.012s), including retired
+worker and failure-reentry contracts. Root stale-return/replacement/shutdown
+families preserve visit lifetime; display still owns cancellation and handoff.
+
+Formatting/vet and diff checks passed. Docker inventories: 727 runnables, three
+shards, exact exclusions clear. Recovery family is assigned to ui-3. GoLand
+completed all four changed code files including weak warnings: production files
+clear; the intentional nine-line comparison setup in browsing_test.go remains
+covered by its exact Qodana duplicate exclusion (same 07 disposition). No timeout.
+
+CI golden diagnosis: isolated Escape-reset passed 20 Docker race repetitions
+(root package 16.964s). Running after browsing reproduced it; that first broad
+diagnostic also compiled a concurrent deliberate recovery mutation, so its
+recovery failures are not final-code evidence. A frozen `0a8615b` source copy
+with only ProgressiveScopes/VisitLifecycle/Escape-reset reproduced the golden
+in Docker (8.203s). The actual image showed an extra "Restore last session
+(4 images)" link. The minimal shutdown-subcase + golden command failed
+(`FAIL 0.177s`), proving shared test-app session leakage from 04's shutdown case.
+The shutdown test now restores its preexisting session/preferences in cleanup;
+the minimal pair passed three repetitions (0.428s). This is test isolation, not
+a production rendering change or golden acceptance. No baseline PNG changed.
+
+The original ProgressiveScopes/VisitLifecycle/Escape-reset prefix passed all
+three Docker race repetitions after cleanup was restored. The CI golden finding
+is fixed locally; latest-head GitHub CI must still confirm the complete shard.

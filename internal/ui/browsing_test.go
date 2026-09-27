@@ -20,10 +20,87 @@ import (
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/session"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestBrowsingLoadRecovery(t *testing.T) {
+	t.Run("frozen_cluster_successor", func(t *testing.T) {
+		v := newTestViewer(t)
+		a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+		b := uitest.TempJPEGURI(t, "b.jpg", 24, 16, color.Black)
+		c := uitest.TempGPSJPEGURI(t, "c.jpg", 24, 16, 52.52, 13.405)
+		dropAndWait(t, v, a, b, c)
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		fynetest.Tap(locationButton(t, v, "2 images"))
+		v.grid.Settle()
+		v.display.WaitPreloads()
+		if err := os.WriteFile(a.Path(), []byte("broken image"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		v.imgCache.Purge()
+		revision := v.display.RequestRevision()
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		if displayed, ok := v.DisplayedFile(); !ok || displayed.Path() != c.Path() || v.display.RequestRevision() != revision+1 || !v.locationImageVisit() {
+			t.Fatal("cluster load failure escaped its frozen members or retry chain")
+		}
+	})
+	for _, imageOrigin := range []bool{false, true} {
+		t.Run("explorer_search_origin/"+fmt.Sprint(imageOrigin), func(t *testing.T) {
+			v := explorerFixture(t)
+			first, second := v.FileAt(14), v.FileAt(15)
+			v.OpenSimilarityCohort([]string{first.Path(), second.Path()})
+			if imageOrigin {
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+				waitUntilLoaded(t, v)
+			}
+			publish := streamingSearchFrom(t, v)
+			publish(similarity.SearchFinal, 1, 2)
+			failed := v.FileAt(1)
+			v.display.WaitPreloads()
+			if err := os.WriteFile(failed.Path(), []byte("broken image"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			v.imgCache.Purge()
+			revision := v.display.RequestRevision()
+			v.grid.SimulateHover(1)
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitUntilLoaded(t, v)
+			if v.searchActive() || v.grid.Visible() == imageOrigin || v.display.RequestRevision() != revision+1 {
+				t.Fatal("recovery lost the origin surface or started a competing display request")
+			}
+			if displayed, ok := v.DisplayedFile(); !ok || displayed.Path() != first.Path() {
+				t.Fatal("failed ranked result escaped the restored Explorer scope")
+			}
+		})
+	}
+	t.Run("repeated_failures_exhaust_cohort", func(t *testing.T) {
+		v := explorerFixture(t)
+		paths := []string{v.FileAt(14).Path(), v.FileAt(15).Path()}
+		v.OpenSimilarityCohort(paths)
+		v.display.WaitPreloads()
+		for _, path := range paths {
+			if err := os.WriteFile(path, []byte("broken image"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		v.imgCache.Purge()
+		revision := v.display.RequestRevision()
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		if !v.explorerMapActive() || v.grid.Visible() || v.FileCount() != 16 || v.display.RequestRevision() != revision+1 {
+			t.Fatal("repeated failures escaped the cohort or display retry chain")
+		}
+		if len(v.preloadCandidates()) != 0 {
+			t.Fatal("exhausted recovery preloaded unrelated images")
+		}
+	})
+}
 
 func TestBrowsingCollectionChanges(t *testing.T) {
 	t.Run("coherent_menu_publication", func(t *testing.T) {
@@ -579,6 +656,11 @@ func TestBrowsingVisitLifecycle(t *testing.T) {
 	})
 	t.Run("search_shutdown", func(t *testing.T) {
 		v, publish := streamingSearch(t)
+		savedSession, savedPreferences := session.Load(v.app), preferences.Load(v.app)
+		t.Cleanup(func() {
+			session.Save(v.app, savedSession)
+			preferences.Save(v.app, savedPreferences)
+		})
 		publish(similarity.SearchFinal, 2, 1)
 		retired := searchDelivery{visit: v.visualsearch.State().Visit, binding: v.browsing.current().binding, revision: v.browsing.revision}
 		lifecycle := v.app.Lifecycle().(interface{ OnStopped() func() })
@@ -696,6 +778,28 @@ func TestBrowsingDeferredReturns(t *testing.T) {
 }
 
 func TestBrowsingScope(t *testing.T) {
+	t.Run("recovery_is_not_next", func(t *testing.T) {
+		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg")
+		scope := v.captureBrowsingScope()
+		scope.restricted, scope.indexes = true, []int{1, 4}
+		for _, tc := range []struct{ failed, restored, want int }{
+			{2, -1, 4}, {4, -1, 4}, {5, -1, 1}, {2, 1, 1},
+		} {
+			if got, ok := scope.Recover(tc.failed, tc.restored); !ok || got != tc.want {
+				t.Fatalf("Recover(%d,%d) = (%d,%t), want %d", tc.failed, tc.restored, got, ok, tc.want)
+			}
+		}
+		if got, _ := scope.Next(2, 1); got != 1 {
+			t.Fatal("ordinary Next's missing-current rule changed")
+		}
+		scope.indexes = nil
+		if _, ok := scope.Recover(2, -1); ok {
+			t.Fatal("empty recovery scope widened to the collection")
+		}
+		if _, ok := scope.Recover(2, 1); ok {
+			t.Fatal("restored image outside the reconciled restriction was accepted")
+		}
+	})
 	t.Run("snapshot_binding_and_discovery", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
 		ordinary := v.captureBrowsingScope()
