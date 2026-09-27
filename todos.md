@@ -62,8 +62,9 @@
   [nine implementation tickets](.scratch/ma-029/issues/README.md) are published
   under the authorized implementation workflow. The
   [Deep SDD plan](plans/2026-09-27-ma-029-browsing-visits.md) tracks per-ticket
-  TDD, commits and verification; ticket 01 is complete (explicit scope snapshots,
-  no unrelated navigation/preloads from an empty restriction), and 02 is next. Keep the PR draft
+  TDD, commits and verification; tickets 01-02 are complete (explicit scopes,
+  no unrelated navigation/preloads from an empty restriction, and preserved
+  action targets). Ticket 03 migrates Explorer ownership. Keep the PR draft
   until all nine tickets finish, then complete fresh GitHub reviews and CI.
   MA-030 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.

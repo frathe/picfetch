@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: ticket 01 complete; implementing ticket 02 of 09.
+Status: tickets 01-02 complete; implementing ticket 03 of 09.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -114,6 +114,16 @@ remain lead-owned. Maximum two concurrent subagents. Requested model suitability
 is interpreted by task tier: gpt-6-sol for isolated Go implementation,
 gpt-6-luna for bounded read-only recon; no peer review delegation.
 
+02 stays T0: the lead already holds action-capture context (G5 fails), and
+consumer target policy is cross-feature. No independent implementation spawn.
+03 reuses the T3 scout for Grid callback ordering in nav.go/grid.go/ranked.go.
+G1: bounded 8-line question; G2: verify cited capture/close/notify call sites
+with `rg -n`; G3: three read-only files, no edit overlap; G4: only Grid sequencing;
+G5: lead has not reconstructed these callback paths. Shell located the relevant
+Host/bookmark entry points first; causal ordering requires reading beyond grep.
+Rules S/W: no mechanical transform or prewritten implementation. Lead develops
+the owner interface while the scout returns facts, never review decisions.
+
 ## Acceptance and progress
 
 - [x] Frame: accepted behavior, route, non-goals and authority inventory.
@@ -121,7 +131,7 @@ gpt-6-luna for bounded read-only recon; no peer review delegation.
 - [x] Recon: locate navigation, preload, source/return and test entry points.
 - [x] Plan: files, dependency graph, routing and focused verification.
 - [x] 01: explicit immutable scopes, integrated navigation/preloads, baseline.
-- [ ] 02: separate captured action targets.
+- [x] 02: separate captured action targets.
 - [ ] 03: Explorer authority, round trips, exhaustion and lifecycle.
 - [ ] 04: ranked search authority, history and origin restoration.
 - [ ] 05: direct-map authority, live navigation and valid return.
@@ -142,7 +152,9 @@ Use that PATH and a writable temporary Go cache for local commands.
 | Ticket | Spawns budget/actual | Review rounds | Full suite | Result |
 | --- | --- | --- | --- | --- |
 | 01 | 1 / 1 | 1 | no | complete; evidence below |
-| 02-08 | per routing above / 0 | 0 | no | pending |
+| 02 | 0 / 0 | 1 | no | complete; evidence below |
+| 03 | 1 / 1 | 0 | no | reconnaissance |
+| 04-08 | per routing above / 0 | 0 | no | pending |
 | 09 / review | 0 / 0 | 0 | CI | pending |
 
 Compatibility mapping: the proposed `TestBrowsingCompatibility` family reuses
@@ -197,3 +209,39 @@ adapter; navigation tests restriction independently of membership and preloads
 capture it once. `cohortIndexes` remains only the documented load-recovery
 bridge for 08. Feature visit ownership and final last-member parent transitions
 remain 03-08 obligations, not completed by this prefactor.
+
+Ticket 01 commit: `e2cb9e1`. Draft PR: https://github.com/frathe/picfetch/pull/68.
+
+### Ticket 02 evidence (working diff over `e2cb9e1`)
+
+Ranked Favorite capture now consumes `captureBrowsingScope` after its read-only
+ranked observation; ordinary Favorites retain `persistedFiles`. No batch or
+pixel-capture target policies needed implementation changes.
+
+New `TestBrowsingActionTargets` inventory: frozen image Favorite through newer
+rankings and actual naming/save, filtered ranked Grid Favorite, ordinary
+Favorite during Explorer/direct-map/cluster visits, and delayed highlighted-file
+copy through ranking publication and explicit search exit. All six pass.
+
+This is behavior-preserving integration. The frozen-image test first passed
+existing behavior; deliberate removal of frozen image order then produced the
+intended failure (latest d/c saved instead of a/c/b, `FAIL .../internal/ui 0.165s`).
+Restoring frozen order and integrating the shared scope passed the family
+(`ok .../internal/ui 0.526s`). An earlier test setup mistakenly used an unset
+Favorite directory; its temporary local fixture was removed and the test now
+uses `t.TempDir`. That setup failure is not counted as behavioral red evidence.
+
+The full focused command passed (`ok github.com/frathe/picfetch/internal/ui
+3.630s`), with exact expression:
+`^(TestBrowsingActionTargets|TestFindMoreLikeThisActionsCaptureRankedSources|TestCommandAdmissionVisits|TestCommandAdmissionQueries|TestWindowCommandAdmissionMatrix|TestCopy_.*|TestClipboardCapturesPixelsBeforeAViewRotation|TestClipboardNavigationCancelsHeldEncoding|TestCopySelectionSuccess|TestCopySelectionPixels|TestCopySelectionBusy)$`.
+Existing tests provide the selection/highlight, displayed-pixel/region,
+cancellation, refusal, immutable availability and progressive batch coverage;
+these are explicit AC mappings, not duplicate TestBrowsing wrappers.
+
+GoLand inspected browsing_test.go and visualsearch.go with weak warnings enabled:
+zero findings, no timeouts. `make fmt-check vet` passed. Docker shard/exclusion
+gate passed: 719 runnables, three shards. `git diff --check` passed.
+Lead review confirms scope sharing does not narrow ordinary
+Favorites or replace batch selection with visit membership. No new worker,
+command replay, user string, dependency or native glue. Ticket 02 uses no
+subagent because this is already-hot cross-feature context.
