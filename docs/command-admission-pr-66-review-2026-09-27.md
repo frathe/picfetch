@@ -267,8 +267,8 @@ text, inspected full-field selection, compared unchanged image/Grid pixels and
 closed the isolated literal `make run` session with exit 0. The
 [Windows record](command-admission-windows-qualification-2026-09-27.md#final-physical-keyboard-qualification)
 retains source/binary identity, operator/input distinctions, times and artifacts.
-Windows V10 is complete; Linux physical-input/literal Make-run and full macOS
-desktop qualification remain open.
+Windows V10 is complete. Linux was still recorded as open at that handoff;
+the retrospective user confirmation below now leaves only macOS qualification.
 
 The preceding source revision already passed all 17 PR checks, CI run
 `36327036028`, CodeQL run `36327036051` and Qodana run `36327036045`.
@@ -287,3 +287,22 @@ race suite is repeated. A fresh Codex code/security review, full CI, CodeQL
 and inspected final Qodana SARIF remain required on the pushed documentation
 head; PR 66's final disposition records their exact results without creating
 another evidence-only commit and resetting those gates.
+
+## Linux retrospective operator confirmation
+
+On 2026-09-27 the user confirmed that Linux physical-input checks had already
+been tested successfully but had not been documented, and that only macOS is
+missing. Linux V10 is complete on that operator confirmation and the retained
+Make-built native evidence. The original OS-injected sessions keep their actual
+input/launch provenance; no new Linux run or literal `make run` is asserted.
+The [Linux record](command-admission-linux-qualification-2026-09-27.md) and
+active status/checklists record this acceptance explicitly.
+
+The preceding documentation head `62f7e6f` passed all 17 checks and fresh Codex
+code/security reviews with no findings. Qodana artifact `10938051613` contained
+zero final SARIF results with successful execution; the
+[final disposition](https://github.com/frathe/picfetch/pull/66#issuecomment-5858217739)
+pins all run and review details. This follow-up changes Markdown only, so local
+source inspections carry forward at their recorded revisions. Fresh final-head
+remote gates remain mandatory and are recorded on PR 66. No plan is archived
+and no all-platform acceptance is claimed while macOS remains open.

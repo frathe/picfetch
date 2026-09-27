@@ -5,14 +5,14 @@ that editor shortcuts reach text, menus reflect current admission, and native
 dispatch cannot bypass the integrated policy. Close MA-028 only with complete
 deterministic and native evidence.
 
-**Blocked by:** None; prerequisite 09 is resolved. Remaining Linux/macOS native
-desktop/operator observations are still required. Windows qualification is
-complete at `10f16a0`; remote gates and final-head results are retained in PR 66.
+**Blocked by:** None; prerequisite 09 is resolved. Only macOS native desktop
+qualification remains. Linux is complete by the user's retrospective physical-input
+confirmation and acceptance of its retained runtime evidence; Windows is
+complete at `10f16a0`. Remote gates and final-head results are retained in PR 66.
 The user authorized publication and the review loop on 2026-09-27.
 
-**Status:** ready-for-human (Windows complete, including physical input;
-Linux physical-input/literal Make-run and full macOS desktop qualification
-remain open).
+**Status:** ready-for-human (Linux and Windows complete; only macOS desktop
+qualification remains).
 
 ## Windows qualification results (2026-09-27)
 
@@ -50,6 +50,15 @@ recorded on PR 66. All-platform unchecked criteria below remain open.
 
 ## Linux qualification results (2026-09-27)
 
+- [x] Complete Linux physical-input qualification. On 2026-09-27 the user
+  confirmed these checks had already been tested successfully but not
+  documented, and that only macOS is missing. This is retrospective operator
+  confirmation, separate from the OS-injected evidence below. The existing
+  Make-built launch is accepted for Linux; no new literal `make run`, test
+  timestamp, revision or capture is claimed. See the
+  [Linux completion record](../../command-admission-linux-qualification-2026-09-27.md).
+
+The following paragraphs retain the original automated qualification history.
 Requested by the user on this host. T0 owns native execution and all assessment.
 One bounded read-only scout assignment locates safe launch isolation and existing
 clipboard hold/observation seams while T0 checks desktop access. G1-G5: fewer than
@@ -65,17 +74,18 @@ see [retained Linux evidence](../../command-admission-linux-qualification-2026-0
 for exact launch/harness, screenshots, payload comparisons and limitations.
 Both app sessions exited normally and held clipboard launchers were released.
 The initial qualification changed no production code; the subsequent reset
-repair is recorded below. The spec's physical-input and literal `make run`
-procedure is not silently replaced: this used injected OS events and a directly
-launched `make build` binary. Windows/macOS full desktop scenarios were untested
-at that Linux handoff; Windows is now qualified above. macOS remains open.
+repair is recorded below. That session used injected OS events and a directly
+launched `make build` binary. The subsequent user confirmation above closes the
+Linux acceptance gap without changing those historical facts. Windows/macOS
+full desktop scenarios were untested at that Linux handoff; Windows is now
+qualified above. macOS remains open.
 Their subsequent isolated native CI guards pass as recorded below.
 
 ### Completed Linux runtime checks (OS-injected input)
 
 These scoped observations remain valid. The user-confirmed maximized-window
-Escape defect is now repaired and verified below; literal physical-input and
-the other platform/external gates still prevent complete acceptance.
+Escape defect is now repaired and verified below. The subsequent operator
+confirmation completes Linux; macOS and final-head remote gates remain separate.
 
 - [x] Record clean revision, native build, OS/architecture, Fyne version, isolated
   profile, actual input route and retained artifacts.
@@ -92,7 +102,8 @@ the other platform/external gates still prevent complete acceptance.
 - [x] Recheck retained payloads and fixture hashes; close both test windows and
   release held launchers. Carry forward unchanged-code deterministic/IDE evidence.
 
-Physical hardware input remains unobserved. The hold is a child-scoped external
+Physical hardware input was not observed in that automated session; the user's
+subsequent confirmation is recorded above. The hold is a child-scoped external
 launcher, not the instance encoder seam mentioned in the runbook. No policy or
 feature behavior was altered for testing. The local ext4 filesystem rejected
 casefold on a new empty test directory (`Operation not supported`), so the
@@ -138,10 +149,10 @@ requires an early feasibility observation during 02 and final evidence here.
 
 ## Remaining acceptance checks
 
-Windows has completed each native scenario, including physical editor input.
-The all-platform boxes below remain unchecked for Linux's physical-input/literal
-`make run` procedure and macOS's full desktop procedure. They do not require
-repeating the completed Windows checks unless relevant code changes.
+Linux and Windows qualification are complete, including physical editor input.
+The all-platform boxes below remain unchecked only for macOS's full desktop
+procedure. They do not require repeating completed Linux/Windows checks unless
+relevant code changes. Linux's accepted Make-built launch is recorded above.
 
 - [x] Repair Linux Escape/reset from ordinary WM maximization. Dynamic reset now
   requests native restore before resize, without changing fixed-size or
@@ -152,7 +163,7 @@ repeating the completed Windows checks unless relevant code changes.
   files inspect cleanly; Windows cross-vet and fresh `make verify` pass.
   Retain exact source hashes, screenshots, logs and
   `.scratch/race-runs/20260927T103730Z-3Tubvu` in the Linux repair record.
-- [ ] On each native Linux/Windows/macOS desktop, run the integrated revision
+- [ ] On the remaining native macOS desktop, run the integrated revision
   with `make run`; record OS/architecture, revision, Fyne version, input route,
   reproducible steps and actual visible/payload outcomes. Launch alone does
   not establish any scenario below. Verify V10.
@@ -207,6 +218,7 @@ repeating the completed Windows checks unless relevant code changes.
   required gates pass may the implementation be proposed as accepted and the
   plan archived. No merge, release, commit or push is implied.
 
-**Verification V10:** `make run` on each native platform followed by the four
-scenario groups above and retained observations. Test-driver dispatch, source
+**Verification V10:** `make run` on each native platform (Linux's recorded
+Make-built launch accepted by the user above), followed by the four scenario
+groups and retained observations. Test-driver dispatch, source
 traces, unrelated native suites and a blank runbook cannot pass this ticket.

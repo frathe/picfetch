@@ -208,7 +208,8 @@ focused-text editing, busy-region-copy menu availability and checking
 availability before yielding. The [specification](docs/ma-028/spec.md) records
 the completed implementation and local verification. Tickets 01-09 are resolved;
 [ticket 10](docs/ma-028/issues/10-native-qualification.md) remains `ready-for-human`
-for physical-input, other-platform and remote CI acceptance. The tracked
+for the remaining macOS desktop acceptance; Linux and Windows qualification
+are complete. Fresh remote gates remain required on each final PR head. The tracked
 [handoff index](docs/ma-028/README.md) preserves the cross-desktop test procedure.
 
 **Recurring evidence:** Explorer's

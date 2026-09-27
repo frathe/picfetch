@@ -1,8 +1,8 @@
 # MA-028 Windows 11 qualification
 
 Status: Windows qualification complete, including operator-performed physical
-Ctrl+A/C in both image and Grid naming fields. Linux physical-input/literal
-Make-run qualification and full macOS desktop qualification remain open in
+Ctrl+A/C in both image and Grid naming fields. Linux qualification is also
+complete by user confirmation; only macOS desktop qualification remains open in
 [ticket 10](ma-028/issues/10-native-qualification.md). This record does not close
 all-platform AC10 or archive the plan. Final documentation-head CI and reviews
 are recorded separately on PR 66.

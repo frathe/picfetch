@@ -1,17 +1,33 @@
 # MA-028 Linux native-input qualification
 
 Date: 2026-09-27. Requested and assessed by T0 on the local desktop.
-**Current repair status: the maximized-window Escape defect is fixed; native
+**Current status: Linux qualification is complete.** On 2026-09-27 the user
+confirmed that the physical-input checks had already been tested successfully
+but had not been documented, and that only macOS remains. This retrospective
+operator confirmation closes Linux V10 alongside the retained native evidence.
+No new Linux run, capture, test timestamp or tested revision is asserted for
+that confirmation. The existing Make-built launch is accepted for Linux under
+the user's completion instruction; it remains recorded as direct execution
+after `make build`, without claiming a literal `make run` invocation.
+
+## Earlier automated qualification and repair record
+
+The limits below describe the original automated sessions. They do not undo
+the subsequent operator confirmation above. Windows qualification and fresh
+remote gates are recorded in ticket 10 and PR 66; macOS desktop acceptance is
+the only remaining platform qualification.
+
+**Repair status: the maximized-window Escape defect is fixed; native
 checks, focused regressions, changed-file inspections and `make verify` pass.**
 See the repair section below. The earlier diagnostic evidence is retained.
 The earlier interpretation of the small rendered surface as a capture limitation
 was incorrect; the positive command-admission observations are not an overall
-Linux acceptance pass.
+Linux acceptance pass by themselves.
 
 Original scoped result: the four native scenario groups passed with OS-injected keyboard and
 pointer events. This is actual GLFW/XWayland runtime evidence, not Fyne's test
 driver. It is **not physical-keyboard operator evidence**; that literal part of
-AC10, the other platforms and the external gates remain open in ticket 10.
+AC10, the other platforms and the external gates were open at this handoff.
 The initial qualification changed no production code or dependencies; the later
 authorized repair is recorded separately below.
 
@@ -136,7 +152,7 @@ both image copies had zero differing pixels, Grid before/after had zero
 differing pixels, and the refused Copy Path preserved the region PNG bytes.
 `sha256sum -c SHA256SUMS` can recheck artifact integrity.
 
-## Limits and remaining acceptance
+## Limits at the original automated handoff
 
 - No hardware keyboard/mouse operator supplied these events. AC10's literal
   physical-shortcut checks and `make run` procedure are not silently waived.

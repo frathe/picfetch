@@ -12,7 +12,8 @@ repaired and passes repeated native checks, a red/green boundary regression,
 changed-file GoLand inspections and a fresh full `make verify`. Windows native
 and physical-keyboard qualification is now complete at `10f16a0`; see the
 [Windows evidence](command-admission-windows-qualification-2026-09-27.md).
-Linux physical-input/literal Make-run and full macOS acceptance remain open. Fresh CI,
+The user has confirmed Linux physical-input completion and accepted its retained
+Make-built runtime evidence. Only macOS desktop acceptance remains. Fresh CI,
 CodeQL, Qodana SARIF and Codex code/security reviews pass at `4674cca`; see the
 [PR 66 review record](command-admission-pr-66-review-2026-09-27.md) for exact
 evidence and the final documentation-head gate. See the
@@ -122,7 +123,7 @@ column names the existing capture/effect owner. Tests refer to
 | Shuffle | K/B `toggleSlideshowShuffle` | Routes/navigation; slideshow setting |
 | Interval | K Up/Down in frame mode | Policy, slideshow/key regressions; slideshow owner |
 | Settings setters / automatic load/advance | H/C, already-owned effects | Async committed save, FileMutationReconciliation*, existing slideshow tests |
-| Escape / native window close | K/H, ordered owner dispatch, no generic admission wrapper | EscapeUnwindsModesBeforeReset, CopySelectionBusyBlocksOtherCommands; Linux native close passed while busy and modal; remaining platforms need ticket 10 |
+| Escape / native window close | K/H, ordered owner dispatch, no generic admission wrapper | EscapeUnwindsModesBeforeReset, CopySelectionBusyBlocksOtherCommands; Linux/Windows native close passed while busy and modal; macOS remains in ticket 10 |
 
 ## Observed red/green evidence
 
@@ -291,7 +292,7 @@ implementation `9dc3a81`) on Ubuntu/GNOME Wayland via XWayland. OS-injected
 keyboard/mouse events passed editor Copy/Select All, explicit image-menu intent,
 modal refusal and owner controls, held-copy menu entry/recovery, and native close
 while busy/modal. Screenshots, payload comparisons, exact harness and launch
-details are retained. Physical-keyboard operation was not performed, and the
+details are retained. Physical-keyboard operation was not part of that session, and the
 binary was launched after `make build`, not through literal `make run`.
 A later user screenshot confirmed that the small surface inside a maximized
 window was an actual defect. A fresh one-image native reproduction fails:
@@ -322,11 +323,11 @@ leaving physical Cmd+C to GLFW and explicit image-menu selection intact.
 Consequently AppKit no longer draws that item's native Cmd+C hint. This is
 part of the D5 route correction, not native runtime evidence.
 
-Ticket 10 records the completed Linux OS-injected checks and repaired reset
-defect separately and returns to ready-for-human: the literal physical-input
-procedure and untested platforms still require native operators.
-Windows subsequently completed all four groups, including physical editor
-shortcuts. Complete the remaining Linux procedure and all four groups on macOS;
+Ticket 10 records the Linux OS-injected checks and repaired reset defect
+separately from the user's subsequent retrospective confirmation of physical
+input and acceptance of the Make-built launch. Linux qualification is complete.
+Windows also completed all four groups, including physical editor shortcuts.
+Ticket 10 remains ready-for-human for all four groups on macOS;
 retain revision/OS/input route and actual payload/visible outcomes.
 Do not archive the plan or claim MA-028
 accepted until the remaining observations and required CI gates are complete.

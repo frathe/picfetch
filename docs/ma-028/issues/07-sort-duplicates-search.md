@@ -16,9 +16,10 @@ native Linux/amd64 Docker race partitions. All 68 changed Go files returned no
 GoLand inspection findings, including requested weak warnings.
 See the [command/route and verification record](../../command-admission-verification-2026-09-27.md)
 for observed red/green results, exact inspection scope/hash and retained logs.
-This resolves the implementation slice, not MA-028's final acceptance: native
-physical-input, Windows/macOS execution and fresh CI/Qodana/CodeQL evidence
-remain open under [ticket 10](10-native-qualification.md). Its later record
+This resolves the implementation slice. Linux and Windows qualification are
+complete; only macOS desktop acceptance remains under
+[ticket 10](10-native-qualification.md), with fresh remote gates required on
+each final PR head. Its later record
 includes the completed Linux reset repair, case-insensitive export qualification
 and focused native CI selection. Checked items
 record implementation and the available deterministic verification, not native
