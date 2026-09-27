@@ -1,6 +1,6 @@
 # MA-028: shared command admission
 
-Status: ready-for-human (Linux Escape/maximize defect repaired; native/CI acceptance open)
+Status: ready-for-human (Linux reset repaired; automated gates passed at `4674cca`; physical/native desktop acceptance open)
 Date: 2026-09-27
 Source: `/to-spec MA-028`, synthesizing the accepted D1-D7 interview decisions.
 Inspected revision: `770052498a8f4fb3ca7bb8be02448287b40ccecb`.
@@ -25,9 +25,14 @@ Inspected revision: `770052498a8f4fb3ca7bb8be02448287b40ccecb`.
 - [x] Add and locally verify focused native CI selection for the case-alias
   export and macOS Copy-menu guards. Command-boundary/workflow tests pass,
   deliberate omissions fail, and the real runner passes FAT16 while rejecting
-  an ext4 skip. Actual native Windows/macOS execution is still unverified.
-- [ ] Ticket 10: native Linux/Windows/macOS physical-input qualification and
-  fresh CI acceptance. Completed preparation is checked
+  an ext4 skip. The isolated guards now also execute and pass in native Windows
+  amd64 and macOS arm64/amd64 CI, including the AppKit assertion on both Macs.
+- [x] Pass fresh CI, CodeQL and Codex code/security review at `4674cca`; inspect
+  Qodana's post-suppression SARIF with zero results. Exact evidence and the
+  final documentation-head gate are in the
+  [review-loop record](../command-admission-pr-66-review-2026-09-27.md).
+- [ ] Ticket 10: native Linux/Windows/macOS physical-input and full desktop
+  qualification. Completed preparation is checked
   separately in [ticket 10](issues/10-native-qualification.md).
 
 The problem statement and contract below describe the accepted pre-implementation

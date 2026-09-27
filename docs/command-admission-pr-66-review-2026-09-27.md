@@ -104,7 +104,41 @@ returned none even before cleanup. Fresh SARIF inspection remains mandatory.
 | `internal/ui/menus/menus.go` | `8388ddf8a54d6ea4c6e31a7cf85ae32540c74f005e43f58f31e50897f03b5d26` |
 
 Raw local artifacts live under `.scratch/ma-028/pr-66-review-2026-09-27/round-1`;
-they remain ignored. T0 reviewed the complete cleanup diff. A fresh review and
-complete CI/CodeQL/Qodana cycle on the pushed cleanup revision is still required;
-neither the prior clean Codex review nor the earlier successful jobs pass that
-latest-commit gate.
+they remain ignored. T0 reviewed the complete cleanup diff. The required fresh
+cycle on the pushed cleanup revision is recorded below.
+
+## Round 2: cleanup revision `4674cca`
+
+Analyzed revision: `4674cca5bab6e7fdcf7a08b9f92f00ec3433f654`.
+
+- Codex completed a fresh code review at 12:47:17 UTC and security review at
+  12:45:18 UTC. Its summary names this revision, and the bot's 12:47:20 UTC
+  thumbs-up confirms no findings. T0 inspected all review comments/reviews and
+  the complete thread inventory: no findings or unresolved threads.
+- [CI run 36319791447](https://github.com/frathe/picfetch/actions/runs/36319791447)
+  passed validation, all four Linux race partitions, Linux native guards,
+  Windows tests and both macOS native jobs. No broad local race suite was
+  duplicated for this review loop.
+- [CodeQL run 36319791440](https://github.com/frathe/picfetch/actions/runs/36319791440)
+  passed Actions and Go analysis; the branch's open code-scanning alert query
+  returned no alerts. FOSSA dependency, license and security checks passed.
+- [Qodana run 36319791431](https://github.com/frathe/picfetch/actions/runs/36319791431)
+  passed. T0 downloaded artifact `10932610243` and inspected
+  `/end/qodana.sarif.json` inside `qodana-report.zip`: **zero results**,
+  `executionSuccessful: true`, and no tool-execution notifications. The eight
+  original findings are therefore resolved by the documented fixes and narrow
+  suppressions, not merely hidden by a successful job status. Raw evidence is
+  retained under `.scratch/ma-028/pr-66-review-2026-09-27/round-2`.
+
+Standards assessment: no outstanding actionable findings. Specification
+assessment: no new implementation defect; the pre-existing physical/native
+desktop acceptance boundary remains open. Ticket 10 is not resolved and the
+implementation plan must not be archived yet.
+
+The follow-up evidence commit changes Markdown only. Local source inspections
+carry forward from `4674cca`, with the four source hashes above unchanged.
+The review loop must still obtain fresh code/security reviews, CI, CodeQL and
+an inspected Qodana SARIF for that final documentation-only head. The final
+disposition comment and check runs on [PR 66](https://github.com/frathe/picfetch/pull/66)
+record that head and its results; this source-revision record is not a substitute
+for those latest-commit gates. No merge or release is authorized or performed.

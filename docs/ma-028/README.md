@@ -9,13 +9,15 @@ qualification. Other features retain the usual local-tracker convention.
 - [Accepted specification](spec.md): decisions, acceptance criteria and native
   test procedure.
 - [Ticket 10: remaining qualification](issues/10-native-qualification.md):
-  current native/operator and remote CI gates. Tickets 01-09 are resolved;
+  current native/operator gates and completed CI evidence. Tickets 01-09 are resolved;
   overall acceptance remains open.
 - [Execution plan and complete ticket index](../../plans/2026-09-27-ma-028-command-admission.md):
   dependencies, implementation history and verification ownership.
 - [Implementation verification](../command-admission-verification-2026-09-27.md)
   and [Linux qualification](../command-admission-linux-qualification-2026-09-27.md):
   completed checks, precise scope and remaining limitations.
+- [PR 66 review-loop evidence](../command-admission-pr-66-review-2026-09-27.md):
+  static-analysis dispositions, fresh reviews and external verification.
 - [Interview](interview.md) and [design](../command-admission.md): accepted
   decisions and their rationale. `draft-issues/` contains historical ticket
   drafts, not current status; use `issues/` for ongoing updates.

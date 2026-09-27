@@ -10,7 +10,10 @@ Scoped Linux native-input scenarios passed with OS-injected events, but a user
 follow-up exposed a native Escape/maximize reset defect. That defect is now
 repaired and passes repeated native checks, a red/green boundary regression,
 changed-file GoLand inspections and a fresh full `make verify`. Physical
-operator, other-platform and CI acceptance remains open. See the
+operator and full Windows/macOS desktop acceptance remain open. Fresh CI,
+CodeQL, Qodana SARIF and Codex code/security reviews pass at `4674cca`; see the
+[PR 66 review record](command-admission-pr-66-review-2026-09-27.md) for exact
+evidence and the final documentation-head gate. See the
 [Linux qualification record](command-admission-linux-qualification-2026-09-27.md).
 The execution plan stays in `plans/`.
 
@@ -337,8 +340,12 @@ Darwin Copy key-equivalent assertion, without Linux-only goldens. Its
 command-boundary and workflow tests were seen red/green; missing/skipped guards
 are rejected. The real runner passes on FAT16 and rejects an ext4 skip. See the
 new native-CI follow-up in the Linux qualification record for inspection,
-full-suite and negative-control evidence. This does not establish actual
-Windows/macOS execution.
+full-suite and negative-control evidence. That local work alone did not
+establish Windows/macOS execution. Subsequent PR 66 native CI passed the
+case-alias guard on Windows amd64 and both macOS architectures, plus the
+Darwin Copy-menu assertion on both Macs; T0 inspected their retained test events.
 At the local qualification handoff, GitHub had no PR or runs for this branch.
-The user subsequently authorized publication and PR creation. Remote results
-remain pending, and native CI does not replace the physical-input procedure.
+The user subsequently authorized publication and the review loop. Fresh remote
+gates pass at `4674cca`, with exact runs and SARIF dispositions in the review
+record. Final-head checks remain mandatory for the documentation-only follow-up,
+and native CI does not replace the physical-input procedure.

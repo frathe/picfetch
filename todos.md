@@ -44,7 +44,7 @@
   [published ten-ticket plan](plans/2026-09-27-ma-028-command-admission.md)
   track implementation and acceptance. Tickets 01-09 are done/resolved at
   `9dc3a81`, with their implementation checklists complete; retain
-  ticket 10 for the remaining native/CI gates. Linux GNOME/XWayland runtime
+  ticket 10 for the remaining physical/native desktop gates. Linux GNOME/XWayland runtime
   checks passed editor shortcuts, actual menu activation/enablement, modal
   controls and native close during held region copying with OS-injected input.
   The Linux Escape/maximize defect found during qualification is fixed: native
@@ -52,11 +52,12 @@
   native-boundary regression, changed-file inspections and fresh full Make
   gate pass. Historical diagnosis and final evidence remain in the Linux record.
   Physical input on all three platforms and full Windows/macOS desktop
-  acceptance remain unverified. The initial PR 66 CI and CodeQL runs passed;
-  Qodana's eight SARIF findings are assessed and addressed in the active
-  [review loop](docs/command-admission-pr-66-review-2026-09-27.md), which still
-  requires fresh latest-commit checks/reviews. Local GoLand checks are not a
-  Qodana-CI pass.
+  acceptance remain unverified. At `4674cca`, fresh PR 66 CI and CodeQL passed,
+  Codex code/security reviews have no findings, and Qodana's inspected SARIF has
+  zero results after addressing the original eight findings. The
+  [review-loop record](docs/command-admission-pr-66-review-2026-09-27.md) retains
+  exact evidence; PR 66 records the final documentation-only head's mandatory
+  checks/reviews. Local GoLand evidence remains distinct from Qodana CI.
   The case-insensitive export regression now passes on temporary FAT16 storage,
   including five race runs. Windows/macOS CI now selects focused native guards
   for case-alias export and macOS Copy-menu behavior, with command-boundary

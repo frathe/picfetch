@@ -6,11 +6,12 @@ dispatch cannot bypass the integrated policy. Close MA-028 only with complete
 deterministic and native evidence.
 
 **Blocked by:** None; prerequisite 09 is resolved. Native desktop access,
-physical-input observations and completed remote checks are still required.
-The user authorized push and PR creation on 2026-09-27.
+physical-input observations are still required. Remote gates passed on the
+cleanup revision `4674cca`; final-head results are retained in PR 66.
+The user authorized publication and the review loop on 2026-09-27.
 
 **Status:** ready-for-human (Linux native reset defect repaired and locally
-verified; physical-input, Windows/macOS and CI qualification remain open).
+verified; physical-input and full Windows/macOS desktop qualification remain open).
 
 ## Linux qualification results (2026-09-27)
 
@@ -31,7 +32,8 @@ Both app sessions exited normally and held clipboard launchers were released.
 The initial qualification changed no production code; the subsequent reset
 repair is recorded below. The spec's physical-input and literal `make run`
 procedure is not silently replaced: this used injected OS events and a directly
-launched `make build` binary. Windows/macOS remain untested.
+launched `make build` binary. Windows/macOS full desktop scenarios remain untested;
+their subsequent isolated native CI guards pass as recorded below.
 
 ### Completed Linux runtime checks (OS-injected input)
 
@@ -69,7 +71,8 @@ Focused native CI guards, verification and portability audit: `ba43d1b`.
 The final local `make verify` and all 68 changed-file GoLand inspections passed.
 Those local evidence commits preceded publication authorization. The user has
 since approved moving this tracker to docs, committing, pushing and opening a
-PR; remote checks remain unverified until their actual results are inspected.
+PR and the review loop. Inspected remote results now pass at `4674cca`, as
+recorded below; final documentation-only head checks remain mandatory.
 The Linux focused run explicitly skipped
 `TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset` on its case-sensitive
 filesystem. That skip was not a passed AC9 case; the later actual FAT16 run at
@@ -151,12 +154,14 @@ requires an early feasibility observation during 02 and final evidence here.
   the native Copy-menu assertion on both macOS runners, with zero skips.
   T0 inspected the retained JSON events. See the
   [review-loop record](../../command-admission-pr-66-review-2026-09-27.md).
-- [ ] Obtain fresh required CI and CodeQL results and inspect Qodana's
+- [x] Obtain fresh required CI and CodeQL results and inspect Qodana's
   post-suppression SARIF for the integrated revision. Local GoLand inspection
-  evidence does not establish those external gates. Initial CI/CodeQL and Codex
-  code/security reviews passed at `1bfca4a`; Qodana completed with eight findings,
-  assessed in the review record. The user has invoked the review loop; fresh
-  latest-commit results are required after the static-analysis cleanup.
+  evidence does not establish those external gates. At `4674cca`, fresh Codex
+  code/security reviews have no findings, CI and CodeQL pass, and the inspected
+  Qodana SARIF has zero results after disposition of the initial eight findings.
+  The review record links exact runs/artifacts. Final-head results for the
+  documentation-only follow-up are retained on PR 66; they remain a separate
+  required review-loop gate, not inferred from unchanged source.
 - [ ] Record the final evidence and remaining limitations. Only after all
   required gates pass may the implementation be proposed as accepted and the
   plan archived. No merge, release, commit or push is implied.
